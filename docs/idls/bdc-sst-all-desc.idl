@@ -1,0 +1,32 @@
+#ifndef _bdc_sst_all_desc_h
+#define _bdc_sst_all_desc_h
+
+#include "bdc-sst-generic-desc.idl"
+#include "bdc-sst-sim-desc.idl"
+#include "bdc-sst-map-desc.idl"
+#include "bdc-sst-missions-desc.idl"
+
+module Bagira {
+module BDC {
+module SSTD { // "D" as descriptors
+
+    enum EDescriptorType
+    {
+        dtEntityMaster,
+        dtEntityInfo
+        // etc., all known descriptor types here
+    };
+
+    // Unified descriptor payload
+    union EntityDescriptorUnion switch (EDescriptorType) {
+        case dtEntityMaster:
+            EntityMaster EntityMaster;
+        case dtEntityInfo:
+            EntityInfo EntityInfo;
+    };
+    
+};
+};
+}; // modules
+
+#endif
