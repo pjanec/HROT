@@ -26,8 +26,9 @@ Create the main runner application project that will orchestrate all subsystems.
 ### Success Criteria
 
 **SC-1**: Project Structure Created
-- Create `Bagira.Runner` console application project (.NET 8)
-- Add to solution file
+- Create project: `dotnet new console -n Bagira.Runner -f net8.0`
+- Folder: `Bagira.Runner/` (at solution root)
+- Add to solution `IOS-IG-SimHost.sln`
 - Project compiles successfully
 
 **SC-2**: Dependencies Added
@@ -149,8 +150,11 @@ Implement `LoadFromJson(string path)` method:
 - Validate merged configuration
 
 **SC-4**: Unit Tests
-
-Create `Bagira.Runner.Tests` project and implement tests:
+- Create test project: `dotnet new mstest -n Bagira.Runner.Tests -f net8.0`
+- Folder: `Bagira.Runner.Tests/`
+- Add to solution `IOS-IG-SimHost.sln`
+- Add reference to `Bagira.Runner`
+- Implement tests:
 - `Test_ParseMode_All`: Verify "all" → `RunMode.All`
 - `Test_ParseMode_Combo`: Verify "simhost,ig" → `RunMode.SimHost | RunMode.IG`
 - `Test_ParseMode_Invalid`: Verify invalid mode string returns error

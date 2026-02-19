@@ -67,7 +67,7 @@ SimHost Mock is the **"truth" authority** for the simulation. It:
 - **ECS**: FDP Kernel (Flecs-based)
 - **Physics**: FDP.Toolkit.CarKinem (bicycle kinematics)
 - **Networking**: ModuleHost.Network.Cyclone (CycloneDDS)
-- **Language**: C# (.NET 6+)
+- **Language**: C# (.NET 8)
 - **UI**: None (headless)
 
 ---
@@ -1283,7 +1283,7 @@ private void HandleJumpCommand(int entityId, int targetTaskIndex, bool forceRest
 **Goal:** Create SimHost project structure and configure dependencies.
 
 **Tasks:**
-1. Create `Bagira.SimHost` C# console project (.NET 6+)
+1. Create `Bagira.SimHost` C# console project (.NET 8)
 2. Add project references:
    - `Bagira.DDS.DataModel` (generated from IDLs)
    - `Bagira.Map.Common`

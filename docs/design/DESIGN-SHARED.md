@@ -1610,7 +1610,7 @@ namespace Bagira.Map.Common
 **Goal:** Create usable `Bagira.DDS.DataModel.dll` from FcdCsharp files.
 
 **Tasks:**
-1. Create `Bagira.DDS.DataModel` C# project (.NET 6+)
+1. Create `Bagira.DDS.DataModel` C# project (.NET 8)
 2. Copy/reference `docs/FcdCsharp/*.cs` files
 3. Add CycloneDDS NuGet package
 4. Compile and resolve any type errors

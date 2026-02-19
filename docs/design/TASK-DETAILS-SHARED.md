@@ -152,11 +152,11 @@ Create `docs/design1_AG/FDP-API-REFERENCE.md` with:
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new classlib -n Bagira.DDS.DataModel -f net6.0
+   dotnet new classlib -n Bagira.DDS.DataModel -f net8.0
    ```
 2. Add project to solution:
    ```
-   Location: FDP/Common/Bagira.DDS.DataModel/
+   Location: Bagira.DDS.DataModel/
    ```
 3. Add NuGet packages:
    - `CycloneDDS.NET` (latest version)
@@ -308,7 +308,7 @@ public class EntityMasterPubSubTests
 **Goal:** Create README for data model project.
 
 **Deliverables:**
-Create `FDP/Common/Bagira.DDS.DataModel/README.md`:
+Create `Bagira.DDS.DataModel/README.md`:
 
 ```markdown
 # Bagira.DDS.DataModel
@@ -378,11 +378,11 @@ foreach (var sample in samples)
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new classlib -n FDP.Toolkit.DER -f net6.0
+   dotnet new classlib -n FDP.Toolkit.DER -f net8.0
    ```
 2. Add project to solution:
    ```
-   Location: FDP/Common/FDP.Toolkit.DER/
+   Location: FDP/Toolkits/FDP.Toolkit.DER/
    ```
 3. Add project references:
    - (None - pure C# library, no dependencies)
@@ -998,7 +998,7 @@ public class Program
 **Goal:** Create comprehensive README for DER library.
 
 **Deliverables:**
-Create `FDP/Common/FDP.Toolkit.DER/README.md`:
+Create `FDP/Toolkits/FDP.Toolkit.DER/README.md`:
 
 ```markdown
 # FDP.Toolkit.DER (Dynamic Entity Repository)
@@ -1112,11 +1112,11 @@ public class EntityMasterIngressTranslator
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new classlib -n FDP.Toolkit.Commands -f net6.0
+   dotnet new classlib -n FDP.Toolkit.Commands -f net8.0
    ```
 2. Add project to solution:
    ```
-   Location: FDP/Common/FDP.Toolkit.Commands/
+   Location: FDP/Toolkits/FDP.Toolkit.Commands/
    ```
 3. Add NuGet packages:
    - `CycloneDDS.NET`
@@ -1502,7 +1502,7 @@ class MockServer
 **Goal:** Create comprehensive README.
 
 **Deliverables:**
-Create `FDP/Common/FDP.Toolkit.Commands/README.md`:
+Create `FDP/Toolkits/FDP.Toolkit.Commands/README.md`:
 
 ```markdown
 # FDP.Toolkit.Commands
@@ -1589,11 +1589,11 @@ if (ack.ErrorCode == 0)
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new classlib -n Bagira.Map.Definitions -f net6.0
+   dotnet new classlib -n Bagira.Map.Definitions -f net8.0
    ```
 2. Add project to solution:
    ```
-   Location: FDP/Common/Bagira.Map.Definitions/
+   Location: Bagira.Map.Definitions/
    ```
 3. Add project references:
    - `FDP.Interfaces`
@@ -2345,7 +2345,7 @@ public class TkbBuilderTests
 **Goal:** Create README with usage examples.
 
 **Deliverables:**
-Create `FDP/Common/Bagira.Map.Definitions/README.md`:
+Create `Bagira.Map.Definitions/README.md`:
 
 ```markdown
 # Bagira.Map.Definitions
@@ -2427,10 +2427,10 @@ Console.WriteLine($"Mass: {physicsDef.Mass} kg");
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new classlib -n Bagira.Map.Common -f net6.0
+   dotnet new classlib -n Bagira.Map.Common -f net8.0
    ```
 2. Add project to solution:
-   ```   Location: FDP/Common/Bagira.Map.Common/
+   ```   Location: Bagira.Map.Common/
    ```
 3. Add project references:
    - `Bagira.DDS.DataModel`
@@ -2568,7 +2568,7 @@ namespace Bagira.Map.Common
 **Goal:** Document shared constants and command gateway.
 
 **Deliverables:**
-Create `FDP/Common/Bagira.Map.Common/README.md`:
+Create `Bagira.Map.Common/README.md`:
 
 ```markdown
 # Bagira.Map.Common
@@ -2667,7 +2667,7 @@ string contextKey = ContextKeys.PlaceTank;
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new mstest -n Bagira.Map.Integration.Tests -f net6.0
+   dotnet new mstest -n Bagira.Map.Integration.Tests -f net8.0
    ```
 2. Add project to solution
 3. Add project references:

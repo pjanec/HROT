@@ -21,9 +21,15 @@ This document provides **detailed task breakdown** for implementing IG Mock comp
 **Goal:** Setup IG project structure with dependencies
 
 **Steps:**
-1. Create `Bagira.IG` project (C# class library → executable)
-2. Add project references:
-   - `Fdp.Kernel` (ECS)
+1. Create new project:
+   ```bash
+   dotnet new console -n Bagira.IG -f net8.0
+   ```
+2. Add to solution `IOS-IG-SimHost.sln`.
+3. Location: `Bagira.IG/`
+
+4. Add project references:
+   - `FDP.Kernel` (ECS)
    - `ModuleHost.Core`
    - `ModuleHost.Network.Cyclone`
    - `FDP.Toolkit.Vis2D` (MapCanvas, Tools, Layers)
@@ -34,7 +40,9 @@ This document provides **detailed task breakdown** for implementing IG Mock comp
    - `FDP.Toolkit.Tkb` (TKB database)
    - `Bagira.DDS.DataModel` (DDS types)
    - `Bagira.Map.Definitions` (TKB descriptors)
-3. Add NuGet packages:
+   - `Bagira.Map.Common` (Constants)
+   
+5. Add NuGet packages:
    - `Raylib-cs`
    - `rlImGui`
    - `CycloneDDS.NET`
@@ -324,7 +332,32 @@ public class StubVisualizerAdapter : IVisualizerAdapter
 
 **Dependencies:** IG.1.3
 
+
 ---
+
+### Task IG.1.5: Create Bagira.IG.Tests Project
+
+**Goal:** Setup unit test project.
+
+**Steps:**
+1. Create project:
+   ```bash
+   dotnet new mstest -n Bagira.IG.Tests -f net8.0
+   ```
+2. Location: `Bagira.IG.Tests/`
+3. Add to solution `IOS-IG-SimHost.sln`.
+4. Add reference to `Bagira.IG` project.
+
+**Acceptance Criteria:**
+- ✅ Test project created.
+- ✅ Dependencies resolved.
+
+**Estimated Effort:** 0.1 days
+
+**Dependencies:** IG.1.1
+
+---
+
 
 ## Phase 2: Basic Rendering (3 days)
 

@@ -25,11 +25,11 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
 **Steps:**
 1. Create new project:
    ```
-   dotnet new console -n Bagira.SimHost -f net6.0
+   dotnet new console -n Bagira.SimHost -f net8.0
    ```
-2. Add to FDP.sln solution:
+2. Add to IOS-IG-SimHost.sln solution:
    ```
-   Location: FDP/Examples/Bagira.SimHost/
+   Location: Bagira.SimHost/
    ```
 3. Create folder structure:
    ```
@@ -68,17 +68,17 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
 **Steps:**
 1. Add FDP project references:
    ```xml
-   <ProjectReference Include="..\..\Common\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
-   <ProjectReference Include="..\..\Common\Bagira.Map.Common\Bagira.Map.Common.csproj" />
-   <ProjectReference Include="..\..\Common\Bagira.Map.Definitions\Bagira.Map.Definitions.csproj" />
-   <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
-   <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
-   <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
-   <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
-   <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
-   <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
-   <ProjectReference Include="..\..\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
-   <ProjectReference Include="..\..\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
+   <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
+   <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
+   <ProjectReference Include="..\Bagira.Map.Definitions\Bagira.Map.Definitions.csproj" />
+   <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
+   <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
    ```
 
 2. Add NuGet packages:
@@ -219,7 +219,32 @@ namespace Bagira.SimHost.Components
 
 **Dependencies:** S1.2
 
+
 ---
+
+### Task S1.4: Create Bagira.SimHost.Tests Project
+
+**Goal:** Setup unit test project.
+
+**Steps:**
+1. Create project:
+   ```bash
+   dotnet new mstest -n Bagira.SimHost.Tests -f net8.0
+   ```
+2. Location: `Bagira.SimHost.Tests/`
+3. Add to solution `IOS-IG-SimHost.sln`.
+4. Add reference to `Bagira.SimHost` project.
+
+**Acceptance Criteria:**
+- ✅ Test project created
+- ✅ Dependencies resolved
+
+**Estimated Effort:** 0.1 days
+
+**Dependencies:** S1.1
+
+---
+
 
 ## Phase S2: CreateEntityRequestHandler (3 days)
 
@@ -2241,14 +2266,14 @@ SimHost is the "truth" authority for the BDC SST simulation. It runs vehicle phy
 
 ## Requirements
 
-- .NET 6.0 SDK
+- .NET 8.0 SDK
 - CycloneDDS runtime
 - FDP libraries
 
 ## Building
 
 ```
-cd FDP/Examples/Bagira.SimHost
+cd Bagira.SimHost
 dotnet build
 ```
 
