@@ -5,7 +5,6 @@ using Raylib_cs;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Abstractions;
 using FDP.Toolkit.Vis2D.Components;
-using FDP.Framework.Raylib.Input;
 using FDP.Toolkit.Vis2D.Input;
 
 namespace FDP.Toolkit.Vis2D
@@ -315,6 +314,6 @@ namespace FDP.Toolkit.Vis2D
         protected virtual bool IsMouseButtonPressed(MouseButton button) => _input.IsMouseButtonPressed(button);
         protected virtual bool IsMouseButtonDown(MouseButton button) => _input.IsMouseButtonDown(button);
         protected virtual Vector2 GetMouseDelta() => _input.MouseDelta;
-        protected virtual bool IsMouseCaptured() => InputFilter.IsMouseCaptured;
+        protected virtual bool IsMouseCaptured() => _input.IsMouseCaptured;
     }
 }

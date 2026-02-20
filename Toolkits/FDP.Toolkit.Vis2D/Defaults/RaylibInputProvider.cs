@@ -1,8 +1,7 @@
 using System.Numerics;
 using Raylib_cs;
+using ImGuiNET;
 using FDP.Toolkit.Vis2D.Abstractions;
-
-using FDP.Framework.Raylib.Input;
 
 namespace FDP.Toolkit.Vis2D.Defaults
 {
@@ -12,8 +11,8 @@ namespace FDP.Toolkit.Vis2D.Defaults
         public Vector2 MouseDelta => Raylib.GetMouseDelta();
         public float MouseWheelMove => Raylib.GetMouseWheelMove();
 
-        public bool IsMouseCaptured => InputFilter.IsMouseCaptured;
-        public bool IsKeyboardCaptured => InputFilter.IsKeyboardCaptured;
+        public bool IsMouseCaptured => ImGui.GetIO().WantCaptureMouse;
+        public bool IsKeyboardCaptured => ImGui.GetIO().WantCaptureKeyboard;
 
         public bool IsMouseButtonPressed(MouseButton button) => Raylib.IsMouseButtonPressed(button);
         public bool IsMouseButtonDown(MouseButton button) => Raylib.IsMouseButtonDown(button);

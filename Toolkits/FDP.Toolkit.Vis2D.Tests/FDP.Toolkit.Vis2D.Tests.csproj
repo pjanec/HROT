@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
-    <ProjectReference Include="..\FDP.Framework.Raylib\FDP.Framework.Raylib.csproj" />
+    <ProjectReference Include="..\..\Framework\FDP.Framework.Raylib\FDP.Framework.Raylib.csproj" />
   </ItemGroup>
 
 </Project>
