@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using CycloneDDS.Runtime;
 using ModuleHost.Core.Abstractions;
 using Fdp.Interfaces;
@@ -17,8 +17,8 @@ namespace ModuleHost.Network.Cyclone.Translators
 
         public BlitEventTranslator(DdsParticipant participant, string topicName)
         {
-            Reader = new DdsReader<T>(participant, topicName);
-            Writer = new DdsWriter<T>(participant, topicName);
+            Reader = new DdsReader<T>(participant);
+            Writer = new DdsWriter<T>(participant);
         }
 
         /// <summary>

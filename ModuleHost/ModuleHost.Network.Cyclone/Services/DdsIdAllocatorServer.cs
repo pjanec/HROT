@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using ModuleHost.Network.Cyclone.Topics;
 using CycloneDDS.Runtime;
@@ -21,9 +21,9 @@ namespace ModuleHost.Network.Cyclone.Services
 
         public DdsIdAllocatorServer(DdsParticipant participant)
         {
-            _requestReader = new DdsReader<IdRequest>(participant, "IdAlloc_Request");
-            _responseWriter = new DdsWriter<IdResponse>(participant, "IdAlloc_Response");
-            _statusWriter = new DdsWriter<IdStatus>(participant, "IdAlloc_Status");
+            _requestReader = new DdsReader<IdRequest>(participant);
+            _responseWriter = new DdsWriter<IdResponse>(participant);
+            _statusWriter = new DdsWriter<IdStatus>(participant);
             
             PublishStatus(); // Initial status
         }

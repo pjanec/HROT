@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using CycloneDDS.Runtime;
@@ -38,8 +38,8 @@ namespace ModuleHost.Network.Cyclone.Translators
             _nodeMapper = nodeMapper;
             _typeMapper = typeMapper;
             
-            _reader = new DdsReader<EntityMasterTopic>(participant, TopicName);
-            _writer = new DdsWriter<EntityMasterTopic>(participant, TopicName);
+            _reader = new DdsReader<EntityMasterTopic>(participant);
+            _writer = new DdsWriter<EntityMasterTopic>(participant);
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

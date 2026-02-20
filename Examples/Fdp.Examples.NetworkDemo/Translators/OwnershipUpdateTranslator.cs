@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using Fdp.Kernel;
 using Fdp.Interfaces;
@@ -27,8 +27,8 @@ namespace Fdp.Examples.NetworkDemo.Translators
         public OwnershipUpdateTranslator(NodeIdMapper nodeMapper, DdsParticipant participant)
         {
             _nodeMapper = nodeMapper;
-             _reader = new DdsReader<TopicMsgs.OwnershipUpdate>(participant, TopicName);
-             _writer = new DdsWriter<TopicMsgs.OwnershipUpdate>(participant, TopicName);
+             _reader = new DdsReader<TopicMsgs.OwnershipUpdate>(participant);
+             _writer = new DdsWriter<TopicMsgs.OwnershipUpdate>(participant);
         }
         
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

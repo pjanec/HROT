@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Xunit;
@@ -89,7 +89,7 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
              var bus = new Mock<IEventBus>();
              var translator = new MockEventTranslator(_participant, _entityMap!, bus.Object);
              
-             var writer = new DdsWriter<EntityMasterTopic>(_participant, "mock_managed_topic");
+             var writer = new DdsWriter<EntityMasterTopic>(_participant);
              writer.Write(new EntityMasterTopic { EntityId = 123 });
              
              System.Threading.Thread.Sleep(1000);
@@ -109,7 +109,7 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
              var view = new DummyManagedSimulationView();
              view.ManagedEventsToReturn.Add(new TestManagedEvent { Val = 456 });
              
-             var reader = new DdsReader<EntityMasterTopic>(_participant, "mock_managed_topic");
+             var reader = new DdsReader<EntityMasterTopic>(_participant);
              
              translator.ScanAndPublish(view);
              

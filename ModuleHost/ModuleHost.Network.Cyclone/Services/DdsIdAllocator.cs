@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using ModuleHost.Core.Network.Interfaces;
@@ -24,10 +24,10 @@ namespace ModuleHost.Network.Cyclone.Services
             _clientId = clientId;
             
             // Create request writer
-            _requestWriter = new DdsWriter<IdRequest>(participant, "IdAlloc_Request");
+            _requestWriter = new DdsWriter<IdRequest>(participant);
             
             // Create response reader (filter by our ClientId)
-            _responseReader = new DdsReader<IdResponse>(participant, "IdAlloc_Response");
+            _responseReader = new DdsReader<IdResponse>(participant);
             
             // Note: Filter optimization requires specific QoS or compile-time support, 
             // verifying logic first. Can also just filter in ProcessResponses which is 
@@ -39,7 +39,7 @@ namespace ModuleHost.Network.Cyclone.Services
             // This requires expression tree support in binding. Assuming standard reader for now.
             
             // Create status reader
-            _statusReader = new DdsReader<IdStatus>(participant, "IdAlloc_Status");
+            _statusReader = new DdsReader<IdStatus>(participant);
             
             // Initial request
             RequestChunk(CHUNK_SIZE);

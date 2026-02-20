@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices; // Required for MemoryMarshal
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -37,8 +37,8 @@ namespace ModuleHost.Network.Cyclone.Translators
             DescriptorOrdinal = ordinal;
             EntityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
 
-            Reader = new DdsReader<TDds>(participant, topicName);
-            Writer = new DdsWriter<TDds>(participant, topicName);
+            Reader = new DdsReader<TDds>(participant);
+            Writer = new DdsWriter<TDds>(participant);
         }
 
         /// <summary>

@@ -1,7 +1,7 @@
 using System.Numerics;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Abstractions;
-using FDP.Toolkit.Vis2D.Debug;
+//using FDP.Toolkit.Vis2D.Debug;
 using Raylib_cs;
 
 namespace FDP.Toolkit.Vis2D.Layers
@@ -29,7 +29,8 @@ namespace FDP.Toolkit.Vis2D.Layers
             if ((ctx.VisibleLayersMask & maskBit) == 0)
                 return;
 
-            DebugGizmos.Instance.RenderAndClear();
+            // Debug gizmos not implemented yet
+            //DebugGizmos.Instance.RenderAndClear();
         }
 
         public bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed)

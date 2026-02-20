@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\Toolkits\Fdp.Toolkit.Geographic\FDP.Toolkit.Geographic.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
   </ItemGroup>
   <Import Project="..\..\ExtDeps\FastCycloneDds\tools\CycloneDDS.CodeGen\CycloneDDS.targets" />
 

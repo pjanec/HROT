@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 using CycloneDDS.Runtime;
 using Fdp.Kernel; // For IEventBus probably
@@ -35,8 +35,8 @@ namespace ModuleHost.Network.Cyclone.Translators
 
              EntityMap = entityMap;
              EventBus = eventBus;
-             Reader = new DdsReader<TDds>(participant, topicName);
-             Writer = new DdsWriter<TDds>(participant, topicName);
+             Reader = new DdsReader<TDds>(participant);
+             Writer = new DdsWriter<TDds>(participant);
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)

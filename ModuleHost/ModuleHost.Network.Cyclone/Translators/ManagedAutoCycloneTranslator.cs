@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -25,8 +25,8 @@ namespace ModuleHost.Network.Cyclone.Translators
             if (!ManagedAccessor<T>.IsValid) 
                 throw new InvalidOperationException($"Managed type {typeof(T).Name} missing EntityId");
 
-            _reader = new DdsReader<T>(p, topic);
-            _writer = new DdsWriter<T>(p, topic);
+            _reader = new DdsReader<T>(p);
+            _writer = new DdsWriter<T>(p);
             _entityMap = map;
             TopicName = topic;
             DescriptorOrdinal = ordinal;

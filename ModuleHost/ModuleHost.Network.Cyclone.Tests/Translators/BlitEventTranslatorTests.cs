@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Xunit;
@@ -59,7 +59,7 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
             var translator = new BlitEventTranslator<EntityMasterTopic>(_participant, "mock_blit_topic");
             var mockBus = new Mock<IEventBus>();
             
-            var writer = new DdsWriter<EntityMasterTopic>(_participant, "mock_blit_topic");
+            var writer = new DdsWriter<EntityMasterTopic>(_participant);
             writer.Write(new EntityMasterTopic { EntityId = 42 });
             
             System.Threading.Thread.Sleep(1000);
@@ -78,7 +78,7 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
             var dummyView = new DummySimulationView();
             dummyView.EventsToReturn.Add(new EntityMasterTopic { EntityId = 99 });
             
-            var reader = new DdsReader<EntityMasterTopic>(_participant, "mock_blit_egress");
+            var reader = new DdsReader<EntityMasterTopic>(_participant);
             
             translator.ScanAndPublish(dummyView);
             

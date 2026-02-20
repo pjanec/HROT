@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using CycloneDDS.Runtime;
 
@@ -31,7 +31,7 @@ namespace FDP.Toolkit.DER
             Func<T, int> getEntityId,
             Func<T, long> getTkbType)
         {
-            _reader = new DdsReader<T>(participant, topicName);
+            _reader = new DdsReader<T>(participant);
             _repo = repo;
             _getEntityId = getEntityId;
             _getTkbType = getTkbType;
@@ -82,7 +82,7 @@ namespace FDP.Toolkit.DER
             Func<T, int> getEntityId, 
             Func<T, int>? getPartId = null)
         {
-            _reader = new DdsReader<T>(participant, topicName);
+            _reader = new DdsReader<T>(participant);
             _repo = repo;
             _getEntityId = getEntityId;
             _getPartId = getPartId ?? (_ => 0); // Defaults to PartId 0

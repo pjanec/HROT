@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices; // For MemoryMarshal
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
@@ -37,8 +37,8 @@ namespace ModuleHost.Network.Cyclone.Translators
             DescriptorOrdinal = topicName.GetHashCode(); 
             
             EntityMap = entityMap;
-            Reader = new DdsReader<TDds>(participant, topicName);
-            Writer = new DdsWriter<TDds>(participant, topicName);
+            Reader = new DdsReader<TDds>(participant);
+            Writer = new DdsWriter<TDds>(participant);
         }
 
         // =================================================================

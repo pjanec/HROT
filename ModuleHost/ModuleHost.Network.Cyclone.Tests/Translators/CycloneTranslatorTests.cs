@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Xunit;
 using Moq;
 using ModuleHost.Network.Cyclone.Translators;
@@ -68,7 +68,7 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
             var mockCmd = new Mock<IEntityCommandBuffer>();
             var mockView = new Mock<ISimulationView>();
 
-            var writer = new DdsWriter<EntityMasterTopic>(_participant, "mock_topic");
+            var writer = new DdsWriter<EntityMasterTopic>(_participant);
             writer.Write(new EntityMasterTopic { EntityId = 1 });
             
             // Give some time for DDS loopback

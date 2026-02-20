@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Interfaces;
@@ -31,8 +31,8 @@ namespace ModuleHost.Network.Cyclone.Translators
         public EntityStateTranslator(NetworkEntityMap entityMap, DdsParticipant participant)
         {
             _entityMap = entityMap;
-            _reader = new DdsReader<EntityStateTopic>(participant, TopicName);
-            _writer = new DdsWriter<EntityStateTopic>(participant, TopicName);
+            _reader = new DdsReader<EntityStateTopic>(participant);
+            _writer = new DdsWriter<EntityStateTopic>(participant);
         }
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }

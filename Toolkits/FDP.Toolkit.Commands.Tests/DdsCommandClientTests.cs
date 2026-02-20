@@ -1,4 +1,4 @@
-using CycloneDDS.Core;
+﻿using CycloneDDS.Core;
 using CycloneDDS.Runtime;
 using CycloneDDS.Schema; // For [DdsTopic], [DdsKey]
 using FDP.Toolkit.Commands;
@@ -45,8 +45,8 @@ namespace FDP.Toolkit.Commands.Tests
 
             // Server Side (Simulated)
             // Note: DdsTopic<T> not available, using topic name string directly in Reader/Writer constructor
-            using var serverReader = new DdsReader<TestRequest>(participant, "TestRequest");
-            using var serverWriter = new DdsWriter<TestAck>(participant, "TestAck");
+            using var serverReader = new DdsReader<TestRequest>(participant);
+            using var serverWriter = new DdsWriter<TestAck>(participant);
 
             // Start Server Logic in background
             var serverTask = Task.Run(async () =>

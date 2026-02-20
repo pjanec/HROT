@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading;
 using CycloneDDS.Runtime;
@@ -35,8 +35,8 @@ namespace ModuleHost.Network.Cyclone.Tests.Services
             // We'll rely on ClientId filtering for clients, but Server needs to see all.
             // For tests, we might collide if parallel.
             
-            var writer = new DdsWriter<IdResponse>(_participant, "IdAlloc_Response");
-            var reader = new DdsReader<IdRequest>(_participant, "IdAlloc_Request");
+            var writer = new DdsWriter<IdResponse>(_participant);
+            var reader = new DdsReader<IdRequest>(_participant);
             return (writer, reader);
         }
 
