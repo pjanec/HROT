@@ -106,10 +106,10 @@ namespace FDP.Toolkit.DER.Examples
                 _handleToIdMap[handle] = entityId;
 
                 // Create or update entity
-                var existing = _repo.GetEntity(entityId);
-                if (existing == null)
+                IDerEntity? entity = _repo.GetEntity(entityId);
+                if (entity == null)
                 {
-                    _repo.CreateEntity(entityId, data.TkbType);
+                    entity = _repo.CreateEntity(entityId, data.TkbType);
                     Console.WriteLine($"[NEW] Entity {entityId} (Type: {data.TkbType})");
                 }
                 else
@@ -118,6 +118,11 @@ namespace FDP.Toolkit.DER.Examples
                     // For now just log
                     // Console.WriteLine($"[UPD] Entity {entityId}");
                 }
+
+                // ---------------------------------------------------------
+                // TASK P3.7 Correction: Attach the raw descriptor struct
+                // ---------------------------------------------------------
+                entity.SetDescriptor(data);
             }
             else
             {

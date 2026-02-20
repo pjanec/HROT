@@ -493,19 +493,19 @@ namespace FDP.Toolkit.DER
         long TkbType { get; }
         
         /// <summary>
-        /// Get descriptor of type T. Returns null if not present.
+        /// Get descriptor of type T. Returns default if not present.
         /// </summary>
-        T? GetDescriptor<T>() where T : class, IDerDescriptor;
+        T? GetDescriptor<T>(int partId = 0);
         
         /// <summary>
         /// Set descriptor of type T. Replaces existing if present.
         /// </summary>
-        void SetDescriptor<T>(T descriptor) where T : class, IDerDescriptor;
+        void SetDescriptor<T>(T descriptor, int partId = 0);
         
         /// <summary>
         /// Check if entity has descriptor of type T.
         /// </summary>
-        bool HasDescriptor<T>() where T : class, IDerDescriptor;
+        bool HasDescriptor<T>(int partId = 0);
         
         /// <summary>
         /// Get types of all descriptors currently attached.
@@ -515,28 +515,8 @@ namespace FDP.Toolkit.DER
 }
 ```
 
-Create `FDP.Toolkit.DER/IDerDescriptor.cs`:
+*(Note: `IDerDescriptor` interface has been removed to allow storing raw DDS structs without wrapper allocations.)*
 
-```csharp
-namespace FDP.Toolkit.DER
-{
-    /// <summary>
-    /// Marker interface for DER descriptors.
-    /// </summary>
-    public interface IDerDescriptor
-    {
-        /// <summary>
-        /// Entity this descriptor belongs to.
-        /// </summary>
-        long EntityId { get; set; }
-        
-        /// <summary>
-        /// Version for optimistic locking (optional).
-        /// </summary>
-        int Version { get; set; }
-    }
-}
-```
 
 **Acceptance Criteria:**
 - ✅ Both interfaces compile
@@ -634,7 +614,7 @@ namespace FDP.Toolkit.DER
 {
     public class DerEntity : IDerEntity
     {
-        private readonly ConcurrentDictionary<Type, IDerDescriptor> _descriptors = new();
+        private readonly ConcurrentDictionary<Tuple<Type, int>, object> _descriptors = new();
         
         public long EntityId { get; }
         public long TkbType { get; }
@@ -645,28 +625,24 @@ namespace FDP.Toolkit.DER
             TkbType = tkbType;
         }
         
-        public T? GetDescriptor<T>() where T : class, IDerDescriptor
+        public T? GetDescriptor<T>(int partId = 0)
         {
-            return _descriptors.TryGetValue(typeof(T), out var desc) ? desc as T : null;
+            return _descriptors.TryGetValue(Tuple.Create(typeof(T), partId), out var desc) ? (T)desc : default;
         }
         
-        public void SetDescriptor<T>(T descriptor) where T : class, IDerDescriptor
+        public void SetDescriptor<T>(T descriptor, int partId = 0)
         {
-            if (descriptor == null)
-                throw new ArgumentNullException(nameof(descriptor));
-            
-            descriptor.EntityId = EntityId;
-            _descriptors[typeof(T)] = descriptor;
+            _descriptors[Tuple.Create(typeof(T), partId)] = descriptor!;
         }
         
-        public bool HasDescriptor<T>() where T : class, IDerDescriptor
+        public bool HasDescriptor<T>(int partId = 0)
         {
-            return _descriptors.ContainsKey(typeof(T));
+            return _descriptors.ContainsKey(Tuple.Create(typeof(T), partId));
         }
         
         public IEnumerable<Type> GetAllDescriptorTypes()
         {
-            return _descriptors.Keys;
+            return _descriptors.Keys.Select(k => k.Item1).Distinct();
         }
     }
 }
@@ -675,7 +651,6 @@ namespace FDP.Toolkit.DER
 **Acceptance Criteria:**
 - ✅ Class compiles
 - ✅ Descriptor storage thread-safe
-- ✅ EntityId auto-set on SetDescriptor()
 
 **Estimated Effort:** 0.5 days
 
@@ -908,17 +883,11 @@ public class ConcurrencyTests
 Create `FDP.Toolkit.DER.Examples/EntityMasterIngressExample.cs`:
 
 ```csharp
-// Example descriptor wrapper for EntityMaster
-public class DerEntityMaster : IDerDescriptor
-{
-    public long EntityId { get; set; }
-    public int Version { get; set; }
-    
-    public long TkbType { get; set; }
-    public ulong DisType { get; set; }
-    public ulong Flags { get; set; }
-    public int OwnerId { get; set; } // From DDS sample metadata
-}
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Bagira.DDS.DataModel;
+using CycloneDDS.Runtime;
 
 public class EntityMasterIngressTranslator
 {
@@ -941,13 +910,8 @@ public class EntityMasterIngressTranslator
             var entity = _repo.GetEntity(sample.EntityId) 
                          ?? _repo.CreateEntity(sample.EntityId, sample.TkbType);
             
-            entity.SetDescriptor(new DerEntityMaster
-            {
-                TkbType = sample.TkbType,
-                DisType = sample.DisType,
-                Flags = sample.Flags,
-                OwnerId = info.PublicationHandle // From DDS metadata
-            });
+            // Store the raw struct directly
+            entity.SetDescriptor(sample);
             
             Console.WriteLine($"Entity {sample.EntityId} updated (TkbType={sample.TkbType})");
         }
