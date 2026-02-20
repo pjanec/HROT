@@ -10,10 +10,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
-    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.DER\FDP.Toolkit.DER.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.DER\FDP.Toolkit.DER.csproj" />
   </ItemGroup>
 
   <Import Project="..\FDP\ExtDeps\FastCycloneDds\tools\CycloneDDS.CodeGen\CycloneDDS.targets" />
