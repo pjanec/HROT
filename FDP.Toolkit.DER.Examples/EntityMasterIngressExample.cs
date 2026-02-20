@@ -1,46 +1,56 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Bagira.BDC.SSTD;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Interop;
 using FDP.Toolkit.DER;
+using System.Collections.Concurrent;
+using System.Linq;
 
 namespace FDP.Toolkit.DER.Examples
 {
     /// <summary>
-    /// Example of a simplified "Ingress" component that reads DDS EntityMaster
-    /// samples and updates a local DerRepo.
-    /// This demonstrates the intended usage pattern for bridging DDS data to the application.
+    /// Example of a generic "Ingress" component that dynamically reads ANY
+    /// number of DDS descriptors and routes them to a local DerRepo.
+    /// Demonstrates an elegant approach to scaling to 50+ descriptors.
     /// </summary>
     public class EntityMasterIngressExample
     {
         private readonly IDerRepo _repo;
         private readonly DdsParticipant _participant;
-        private readonly DdsReader<EntityMaster> _reader;
         private readonly CancellationTokenSource _cts;
-        private Task _ingressTask;
+        private Task? _ingressTask;
 
-        // We need to map DDS InstanceHandles to our entity IDs because
-        // when a sample is disposed (NotAlive), we might not get the data key depending on binding.
-        private readonly System.Collections.Concurrent.ConcurrentDictionary<long, int> _handleToIdMap 
-            = new System.Collections.Concurrent.ConcurrentDictionary<long, int>();
+        // A list of generic handlers that poll and route DDS topics into the Repo
+        private readonly List<IIngressHandler> _handlers = new();
 
         public EntityMasterIngressExample()
         {
-            // 1. Create the repository
             _repo = new DerRepo();
-
-            // 2. Initialize DDS
             _participant = new DdsParticipant(0);
-
-            // 3. Create a reader for EntityMaster
-            // No need for explicit topic creation if using simple constructor, but checking existing code.
-            _reader = new DdsReader<EntityMaster>(_participant, "EntityMaster");
-
             _cts = new CancellationTokenSource();
-        }
 
+            // 1) Core Handler: EntityMaster (Handles Entity Creation/Deletion lifecycle)
+            _handlers.Add(new MasterIngressHandler<EntityMaster>(
+                _participant, _repo, "EntityMaster",
+                data => data.EntityId,
+                data => data.TkbType));
+
+            // 2) Standard Single-Part Descriptor
+            _handlers.Add(new DescriptorIngressHandler<GeoSpatial>(
+                _participant, _repo, "GeoSpatial", 
+                data => data.EntityId));
+
+            // 3) Standard Multi-Part Descriptor
+            _handlers.Add(new DescriptorIngressHandler<MapEntitySymbol>(
+                _participant, _repo, "MapEntitySymbol", 
+                data => data.EntityId, 
+                data => data.MapGroupId));
+
+            // ... Adding 50 more descriptors is simply 50 more isolated registrations.
+        }
 
         public void Start()
         {
@@ -52,89 +62,27 @@ namespace FDP.Toolkit.DER.Examples
         {
             Console.WriteLine("Stopping Ingress...");
             _cts.Cancel();
-            try
-            {
-                _ingressTask.Wait(2000);
-            }
-            catch (AggregateException) { }
+            try { _ingressTask?.Wait(2000); } catch { }
         }
 
         private void IngressLoop(CancellationToken token)
         {
-            // We use a waitset or polling. The binding has a simple blocking Take if we want,
-            // or we can just poll with a sleep.
-            // Let's poll for simplicity in this example.
-
             while (!token.IsCancellationRequested)
             {
-                try
+                foreach (var handler in _handlers)
                 {
-                    // Take available samples
-                    using (var loan = _reader.Take(10))
+                    try
                     {
-                        if (loan.Length > 0)
-                        {
-                            foreach (var sample in loan)
-                            {
-                                ProcessSample(sample);
-                            }
-                        }
+                        handler.Poll();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error in handler: {ex.Message}");
                     }
                 }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error in ingress loop: {ex.Message}");
-                }
-
-                // Sleep a bit to avoid busy waiting
-                Thread.Sleep(5);
-            }
-        }
-
-        private void ProcessSample(DdsSample<EntityMaster> sample)
-        {
-            // EntityMaster uses int EntityId as key.
-            long handle = sample.Info.InstanceHandle;
-
-            if (sample.IsValid)
-            {
-                // ALIVE
-                var data = sample.Data;
-                int entityId = data.EntityId;
                 
-                // Update our handle map
-                _handleToIdMap[handle] = entityId;
-
-                // Create or update entity
-                IDerEntity? entity = _repo.GetEntity(entityId);
-                if (entity == null)
-                {
-                    entity = _repo.CreateEntity(entityId, data.TkbType);
-                    Console.WriteLine($"[NEW] Entity {entityId} (Type: {data.TkbType})");
-                }
-                else
-                {
-                    // Update logic (e.g. check for changes)
-                    // For now just log
-                    // Console.WriteLine($"[UPD] Entity {entityId}");
-                }
-
-                // ---------------------------------------------------------
-                // TASK P3.7 Correction: Attach the raw descriptor struct
-                // ---------------------------------------------------------
-                entity.SetDescriptor(data);
-            }
-            else
-            {
-                // NOT ALIVE (Disposed or NoWriters)
-                if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
-                {
-                    if (_handleToIdMap.TryRemove(handle, out int entityId))
-                    {
-                        _repo.DeleteEntity(entityId);
-                        Console.WriteLine($"[DEL] Entity {entityId}");
-                    }
-                }
+                // Throttle polling across all registered topics
+                Thread.Sleep(5);
             }
         }
 
