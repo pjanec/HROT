@@ -169,7 +169,7 @@ namespace ModuleHost.Core.Abstractions
         /// }
         /// </code>
         /// </example>
-        void RegisterSystems(ISystemRegistry registry);
+        void RegisterSystems(ISystemRegistry registry) {}
         
         /// <summary>
         /// Main module execution method. Called by kernel every frame (or at Policy frequency).

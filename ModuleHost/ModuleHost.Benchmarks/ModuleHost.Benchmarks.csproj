@@ -12,9 +12,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FDP\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
     <ProjectReference Include="..\ModuleHost.Core\ModuleHost.Core.csproj" />
-    <ProjectReference Include="..\CarKinem\CarKinem.csproj" />
   </ItemGroup>
 
 </Project>

@@ -21,10 +21,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
     <ProjectReference Include="..\ModuleHost.Core\ModuleHost.Core.csproj" />
-    <ProjectReference Include="..\FDP\Fdp.Kernel\Fdp.Kernel.csproj" />
-    <ProjectReference Include="..\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
-    <ProjectReference Include="..\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
   </ItemGroup>
 
 </Project>
