@@ -35,7 +35,9 @@
 | **TKB System** | ✅ EXISTS | `FDP.Toolkit.Tkb.TkbDatabase` | Entity templates |
 | **Time Controller** | ✅ EXISTS | `FDP.Toolkit.Time.MasterTimeController` | Simulation time authority |
 | **Geographic Transform** | ✅ EXISTS | `Fdp.Toolkit.Geographic.WGS84Transform` | WGS84 ↔ Cartesian projection |
-| **CreateEntity Handler** | ❌ NEW | `Bagira.SimHost.Systems.CreateEntityRequestHandler` | Listens to CreateEntityRequest, spawns entities |
+| **Network Spawning** | ❌ NEW (shared) | `FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem` | Unified entity creation: ID, TKB, network infra, ELM — see [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) |
+| **Descriptor Mapper** | ❌ NEW | `Bagira.SimHost.Util.DescriptorMapper` | Converts DDS `EntityDescriptorUnion` list → `List<object>` for SpawnEntityCommand |
+| **CreateEntity Handler** | ❌ NEW | `Bagira.SimHost.Systems.CreateEntityRequestSystem` | Translates DDS CreateEntityRequest → SpawnEntityCommand (thin, no direct ELM/TKB calls) |
 | **Mission Execution** | ❌ NEW | `Bagira.SimHost.Systems.MissionExecutionSystem` | Executes MissionPlan tasks |
 | **GeoSpatial Bridge** | ❌ NEW | `Bagira.SimHost.Components.GeoSpatialBridge` | Sync GeoPosition ↔ VehicleState |
 | **SimHost Application** | ❌ NEW | `Bagira.SimHost.Program` | Main application shell, initialization |
@@ -375,198 +377,168 @@ namespace Bagira.SimHost.Modules
 }
 ```
 
-**CreateEntityRequestSystem:**
+**CreateEntityRequestSystem** (updated for `FDP.Toolkit.NetworkSpawning` — thin translator only):
+
+> **Toolkit Integration:** `CreateEntityRequestSystem` now only translates `CreateEntityRequest` into `SpawnEntityCommand`. All entity creation mechanics (TKB, network infra, ELM) are handled by `NetworkSpawningSystem` from `FDP.Toolkit.NetworkSpawning`. See [DESIGN-NetworkSpawning.md §8.1](./DESIGN-NetworkSpawning.md#81-simhost-authority-node).
 
 ```csharp
 namespace Bagira.SimHost.Systems
 {
-    using Bagira.DDS.DataModel;
-    using FDP.Toolkit.Replication.Services;
-    using FDP.Toolkit.Replication.Services;
+    using Bagira.BDC.SSTM;
+    using Bagira.SimHost.Util;
+    using FDP.Toolkit.NetworkSpawning.Events;
     using Fdp.Kernel;
-    
+    using ModuleHost.Core.Network.Interfaces;
+
     /// <summary>
-    /// System that processes CreateEntityRequest events bridged from DDS.
-    /// Events arrive via EventBus (populated by CreateEntityRequestTranslator).
-    /// Pattern: Like NetworkDemo's CombatInputSystem consuming FireEvent.
+    /// Thin system: DDS CreateEntityRequest → SpawnEntityCommand (EventBus).
+    /// Does NOT create entities directly. NetworkSpawningSystem handles creation.
+    /// Pattern: Like NetworkDemo's CombatInputSystem (event ingress only).
     /// </summary>
     public class CreateEntityRequestSystem
     {
         private readonly FdpEventBus _eventBus;
         private readonly int _localNodeId;
         private readonly DdsIdAllocator _idAllocator;
-        private readonly NetworkEntityMap _entityMap;
-        private readonly TkbDatabase _tkbDatabase;
+        private readonly WGS84Transform _geoTransform;
         
         public CreateEntityRequestSystem(
             FdpEventBus eventBus,
             int localNodeId,
             DdsIdAllocator idAllocator,
-            NetworkEntityMap entityMap,
-            TkbDatabase tkbDatabase)
+            WGS84Transform geoTransform)
         {
-            _eventBus = eventBus;
-            _localNodeId = localNodeId;
-            _idAllocator = idAllocator;
-            _entityMap = entityMap;
-            _tkbDatabase = tkbDatabase;
+            _eventBus     = eventBus;
+            _localNodeId  = localNodeId;
+            _idAllocator  = idAllocator;
+            _geoTransform = geoTransform;
         }
-        
-        public void Update(EntityRepository world)
+
+        public void Update(EntityRepository _)
         {
-            // Consume CreateEntityRequest events from EventBus
             var requests = _eventBus.ConsumeEvents<CreateEntityRequestEvent>();
-            
             foreach (var evt in requests)
-            {
-                ProcessRequest(world, evt.Request);
-            }
+                ProcessRequest(evt.Request);
         }
-        
-        private async void ProcessRequest(EntityRepository world, CreateEntityRequest request)
+
+        private async void ProcessRequest(CreateEntityRequest request)
         {
             try
             {
-                // 1. Allocate network ID
+                // 1. Allocate network ID (SimHost is the ID authority)
                 int newEntityId = await _idAllocator.AllocateAsync();
-                
-                // 2. Extract TkbType from InitialDescriptors
-                long tkbType = ExtractTkbType(request.InitialDescriptors);
-                
-                // 3. Get TKB template  
-                var template = _tkbDatabase.GetTemplate(tkbType);
-                if (template == null)
+
+                // 2. Convert DDS descriptors → component list via DescriptorMapper
+                var initialComponents =
+                    DescriptorMapper.MapToComponents(request.InitialDescriptors, _geoTransform);
+                long tkbType = DescriptorMapper.ExtractTkbType(request.InitialDescriptors);
+
+                if (tkbType == 0)
                 {
-                    SendErrorAck(request.RequestId, errorCode: 404); // Template not found
+                    SendErrorAck(request.RequestId, newEntityId: 0, errorCode: 400);
                     return;
                 }
-                
-                // 4. Create entity from template
-                var entity = world.CreateEntity();
-                template.ApplyTo(world, entity);
-                
-                // 5. Apply initial descriptors
-                ApplyInitialDescriptors(world, entity, request.InitialDescriptors);
-                
-                // 6. Register with network entity map
-                _entityMap.Register(newEntityId, entity);
-                
-                // 7. Set network ID component
-                world.AddComponent(entity, new NetworkIdentity { Value = newEntityId });
-                
-                // 8. Set ownership (SimHost is authority)
-                world.AddComponent(entity, new NetworkAuthority 
-                { 
-                    PrimaryOwnerId = _localNodeId, 
-                    LocalNodeId = _localNodeId 
-                });
-                
-                // 9. Enforce distributed reliability: entity stays Constructing until
-                //    all peer nodes (IG, IOS) send a NetworkGateway ACK.
-                world.AddComponent(entity, new PendingNetworkAck
+
+                // 3. Publish SpawnEntityCommand — NetworkSpawningSystem does the rest
+                //    (TKB lookup, network infra, PendingNetworkAck, BeginConstruction)
+                _eventBus.Publish(new SpawnEntityCommand
                 {
-                    ExpectedType = ReliableInitType.AllPeers
+                    NetworkId         = newEntityId,
+                    TkbType           = tkbType,
+                    OwnerNodeId       = _localNodeId,   // SimHost takes authority
+                    InitType          = ReliableInitType.AllPeers,
+                    InitialComponents = initialComponents,
+                    RequestId         = request.RequestId
                 });
-                
-                // 10. Begin ELM construction — fires ConstructionOrder → NetworkGatewaySystem → DDS.
-                //     Do NOT call world.AddComponent(entity, new ConstructingTag()).
-                //     ELM manages lifecycle state components internally.
-                _elm.BeginConstruction(entity, tkbType, world.GlobalVersion, _cmdBuffer);
-                
-                // 11. Send ACK via EventBus (CreateEntityAckTranslator will bridge to DDS)
+
+                // 4. Send ACK immediately — entity appears in ECS on next frame
                 _eventBus.Publish(new CreateEntityAckEvent
                 {
                     Ack = new CreateEntityAck
                     {
-                        RequestId = request.RequestId,
+                        RequestId   = request.RequestId,
                         NewEntityId = newEntityId,
-                        ErrorCode = 0 // Success
+                        ErrorCode   = 0
                     }
                 });
-                
-                FdpLog.Info($"[SimHost] Created entity {newEntityId} (TkbType={tkbType})");
+
+                FdpLog.Info(
+                    $"[SimHost] CreateEntityRequest → SpawnEntityCommand: ID={newEntityId} TkbType={tkbType}");
             }
             catch (Exception ex)
             {
-                FdpLog.Error($"[SimHost] CreateEntity failed: {ex.Message}");
-                SendErrorAck(request.RequestId, errorCode: 500);
+                FdpLog.Error($"[SimHost] CreateEntityRequest failed: {ex.Message}");
+                SendErrorAck(request.RequestId, newEntityId: 0, errorCode: 500);
             }
         }
-        
-        private long ExtractTkbType(List<EntityDescriptorUnion> descriptors)
-        {
-            foreach (var desc in descriptors)
-            {
-                if (desc._d == DescriptorType.EntityMaster)
-                {
-                    return desc.EntityMasterPayload.TkbType;
-                }
-            }
-            return 0; // Default/unknown
-        }
-        
-        private void ApplyInitialDescriptors(EntityRepository world, int entity, List<EntityDescriptorUnion> descriptors)
-        {
-            foreach (var desc in descriptors)
-            {
-                switch (desc._d)
-                {
-                    case DescriptorType.EntityMaster:
-                        // Use DDS model type directly (no local EntityMasterComponent wrapper).
-                        // SetComponent (overwrite) because template.ApplyTo may have set defaults.
-                        world.SetComponent(entity, desc.EntityMasterPayload);
-                        break;
-                    
-                    case DescriptorType.EntityInfo:
-                        world.SetComponent(entity, desc.EntityInfoPayload);
-                        break;
-                    
-                    case DescriptorType.GeoSpatial:
-                        // Store raw DDS component for auto-replication via CycloneNetworkModule.
-                        world.SetComponent(entity, desc.GeoSpatialPayload);
-                        // Convert to Cartesian for CarKinem VehicleState
-                        var cartesian = _geoTransform.ToCartesian(desc.GeoSpatialPayload.Pos);
-                        world.SetComponent(entity, new VehicleState
-                        {
-                            Position   = new Vector2((float)cartesian.X, (float)cartesian.Y),
-                            Forward    = HeadingToVector(desc.GeoSpatialPayload.Rot.Heading),
-                            Speed      = 0,
-                            SteerAngle = 0
-                        });
-                        break;
-                }
-            }
-        }
-        
-        private void SendErrorAck(Guid requestId, int errorCode)
+
+        private void SendErrorAck(Guid requestId, int newEntityId, int errorCode)
         {
             _eventBus.Publish(new CreateEntityAckEvent
             {
                 Ack = new CreateEntityAck
                 {
-                    RequestId = requestId,
-                    NewEntityId = 0,
-                    ErrorCode = errorCode
+                    RequestId   = requestId,
+                    NewEntityId = newEntityId,
+                    ErrorCode   = errorCode
                 }
             });
         }
-        
-        private Vector2 HeadingToVector(float headingDegrees)
+    }
+}
+```
+
+**DescriptorMapper** (`Bagira.SimHost.Util.DescriptorMapper`) — converts DDS `EntityDescriptorUnion` list to ECS component overrides for `SpawnEntityCommand.InitialComponents`:
+
+```csharp
+namespace Bagira.SimHost.Util
+{
+    public static class DescriptorMapper
+    {
+        public static long ExtractTkbType(List<EntityDescriptorUnion> descriptors)
         {
-            float radians = headingDegrees * (MathF.PI / 180.0f);
-            return new Vector2(MathF.Sin(radians), MathF.Cos(radians));
+            foreach (var d in descriptors)
+                if (d._d == EDescriptorType.dtEntityMaster) return d.EntityMaster.TkbType;
+            return 0;
         }
-    }
-    
-    // Event wrappers for EventBus
-    public class CreateEntityRequestEvent
-    {
-        public CreateEntityRequest Request { get; set; }
-    }
-    
-    public class CreateEntityAckEvent
-    {
-        public CreateEntityAck Ack { get; set; }
+
+        public static List<object> MapToComponents(
+            List<EntityDescriptorUnion> descriptors, WGS84Transform geo)
+        {
+            var result = new List<object>();
+            foreach (var d in descriptors)
+            {
+                switch (d._d)
+                {
+                    case EDescriptorType.dtEntityMaster:
+                        result.Add(d.EntityMaster);  // Use DDS type directly — no wrapper
+                        break;
+                    case EDescriptorType.dtEntityInfo:
+                        result.Add(d.EntityInfo);
+                        break;
+                    case EDescriptorType.dtGeoSpatial:
+                        result.Add(d.GeoSpatial);    // Replicated via AutoCycloneTranslator
+                        var cart = geo.ToCartesian(d.GeoSpatial.Pos);
+                        result.Add(new VehicleState
+                        {
+                            Position   = new Vector2((float)cart.X, (float)cart.Y),
+                            Forward    = HeadingToVector(d.GeoSpatial.Rot.Heading),
+                            Speed      = 0, SteerAngle = 0
+                        });
+                        break;
+                    default:
+                        FdpLog.Warn($"[DescriptorMapper] Unhandled descriptor: {d._d}");
+                        break;
+                }
+            }
+            return result;
+        }
+
+        private static Vector2 HeadingToVector(float deg)
+        {
+            float rad = deg * (MathF.PI / 180f);
+            return new Vector2(MathF.Sin(rad), MathF.Cos(rad));
+        }
     }
 }
 ```

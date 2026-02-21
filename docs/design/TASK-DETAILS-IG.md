@@ -35,6 +35,7 @@ This document provides **detailed task breakdown** for implementing IG Mock comp
    - `FDP.Toolkit.Vis2D` (MapCanvas, Tools, Layers)
    - `FDP.Toolkit.Replication` (Network entity mapping)
    - `FDP.Toolkit.Lifecycle` (Entity lifecycle)
+   - `FDP.Toolkit.NetworkSpawning` (Unified entity spawning)
    - `FDP.Toolkit.Time` (SlaveTimeController)
    - `Fdp.Toolkit.Geographic` (WGS84 transform)
    - `FDP.Toolkit.Tkb` (TKB database)
@@ -236,46 +237,38 @@ kernel.SetTimeController(timeController);
 ```csharp
 public class EntityMasterTranslator : ITranslator
 {
+    private readonly NetworkEntityMap _entityMap;
+    private readonly FdpEventBus _eventBus;
+
     public void OnReceived(EntityMaster sample, SampleInfo info, EntityRepository world)
     {
         if (info.InstanceState == InstanceState.Disposed)
         {
-            if (_entityMap.TryGetEntity(sample.EntityId, out var entity))
-                _elm.BeginDestruction(entity, _cmdBuffer);
+            // Delegate destruction to NetworkSpawningSystem
+            _eventBus.Publish(new DestroyEntityCommand { NetworkId = sample.EntityId });
             return;
         }
 
-        var entity = _entityMap.GetOrCreate(sample.EntityId, world);
-
-        if (!world.HasComponent<EntityMaster>(entity))
+        if (!_entityMap.Contains(sample.EntityId))
         {
-            // Use elm.BeginConstruction (not manual ConstructingTag)
-            _elm.BeginConstruction(entity, sample.TkbType, world.GlobalVersion, _cmdBuffer);
+            // New remote entity — publish SpawnEntityCommand
+            // InitType = None: IG is a ghost replica, not an authority node
+            _eventBus.Publish(new SpawnEntityCommand
+            {
+                NetworkId         = sample.EntityId,
+                TkbType           = sample.TkbType,
+                OwnerNodeId       = sample.OwnerNodeId,
+                InitType          = ReliableInitType.None,
+                InitialComponents = new List<object> { sample },
+                RequestId         = Guid.Empty
+            });
         }
-
-        // Store using DDS model type directly (no EntityMasterComponent wrapper)
-        world.SetComponent(entity, sample);
-    }
-}
-
-public class GeoSpatialTranslator : ITranslator
-{
-    public void OnReceived(GeoSpatial sample, SampleInfo info, EntityRepository world)
-    {
-        if (!_entityMap.TryGetEntity(sample.EntityId, out var entity)) return;
-
-        var cartesian = _geoTransform.ToCartesian(sample.Pos);
-
-        // Store raw DDS component for replication transparency
-        world.SetComponent(entity, sample);
-
-        // Store dead-reckoning state for TransformSyncSystem (smooth interpolation)
-        world.SetComponent(entity, new NetworkReceivedState
+        else
         {
-            TargetPos     = new Vector2((float)cartesian.X, (float)cartesian.Y),
-            TargetHeading = sample.Rot.Heading,
-            TargetTime    = info.SourceTimestamp
-        });
+            // Known entity — update component in-place
+            if (_entityMap.TryGetEntity(sample.EntityId, out var entity))
+                world.SetComponent(entity, sample);
+        }
     }
 }
 ```
@@ -286,13 +279,63 @@ public class GeoSpatialTranslator : ITranslator
 - ✅ No standalone `SmartEgressSystem` or `CycloneIngressSystem` registered outside the module
 - ✅ `AutoCycloneTranslator<TimePulseDescriptor>` registered (time sync works)
 - ✅ `kernel.SetTimeController(new SlaveTimeController(eventBus))` called after network module
-- ✅ Receives `EntityMaster` from SimHost → entities created in local ECS
-- ✅ `EntityLifecycleModule` construction triggered via `elm.BeginConstruction` in translator
+- ✅ Receives `EntityMaster` from SimHost → `SpawnEntityCommand` published
+- ✅ `NetworkSpawningSystem` processes `SpawnEntityCommand` and creates entities via ELM
 - ✅ `NetworkEntityMap` correctly maps IDs
 
 **Estimated Effort:** 0.75 days
 
-**Dependencies:** IG.1.2, Shared components (Bagira.DDS.DataModel)
+**Dependencies:** IG.1.2, NS1 (FDP.Toolkit.NetworkSpawning complete)
+
+---
+
+### Task IG.1.3b: Register NetworkSpawningSystem in IG Kernel
+
+**Goal:** Register `FDP.Toolkit.NetworkSpawning.NetworkSpawningSystem` (via a `SpawningModule` wrapper) so that `SpawnEntityCommand` and `DestroyEntityCommand` events published by `EntityMasterTranslator` are processed each ECS tick.
+
+**Steps:**
+1. Create `Bagira.IG.Modules.SpawningModule` wrapping `NetworkSpawningSystem` (same pattern as NetworkDemo):
+```csharp
+namespace Bagira.IG.Modules
+{
+    public class SpawningModule : IModule
+    {
+        private NetworkSpawningSystem _system;
+
+        public void Initialize(ModuleHostKernel kernel)
+        {
+            var elm        = kernel.GetModule<EntityLifecycleModule>();
+            var entityMap  = kernel.GetModule<NetworkEntityMap>();
+            var tkbDb      = kernel.GetModule<TkbDatabase>();
+            var eventBus   = kernel.GetService<FdpEventBus>();
+            var idAlloc    = kernel.GetService<DdsIdAllocator>();
+
+            // IG is a ghost node — localNodeId chosen as 300 (see NodeIdMapper)
+            const int igNodeId = 300;
+
+            _system = new NetworkSpawningSystem(
+                tkbDb, elm, entityMap, idAlloc, eventBus, igNodeId);
+            kernel.RegisterSystem(_system);
+        }
+
+        public void Dispose() { }
+    }
+}
+```
+2. Register `SpawningModule` in `Program.cs` (before `CycloneNetworkModule`):
+```csharp
+kernel.RegisterModule(new SpawningModule());
+```
+
+**Acceptance Criteria:**
+- ✅ `SpawningModule` registered in kernel
+- ✅ `NetworkSpawningSystem` processes `SpawnEntityCommand` events each tick
+- ✅ `DestroyEntityCommand` triggers entity teardown via ELM
+- ✅ Integration test: SimHost spawns entity → IG receives EntityMaster DDS → SpawnEntityCommand → entity in IG ECS within 1 frame
+
+**Estimated Effort:** 0.5 days
+
+**Dependencies:** IG.1.3, NS1
 
 ---
 

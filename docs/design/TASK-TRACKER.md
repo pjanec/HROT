@@ -10,8 +10,10 @@
 - [DESIGN-IG.md](./DESIGN-IG.md) | [TASK-DETAILS-IG.md](./TASK-DETAILS-IG.md)
 - [DESIGN-IOS.md](./DESIGN-IOS.md) | [TASK-DETAILS-IOS.md](./TASK-DETAILS-IOS.md)
 - [DESIGN-RUNNER.md](./DESIGN-RUNNER.md) | [TASK-DETAILS-RUNNER.md](./TASK-DETAILS-RUNNER.md)
+- [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
+- [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 24/140 tasks complete (17%)
+**Overall Progress:** 24/151 tasks complete (16%)
 
 **Last Updated:** 2026-02-20
 
@@ -85,6 +87,43 @@
 
 ---
 
+## NETWORK SPAWNING TOOLKIT
+
+**Progress:** 0/6 tasks complete (0%)
+
+**Purpose:** Build `FDP.Toolkit.NetworkSpawning` — the shared library that centralises entity spawning logic for SimHost, IG, and NetworkDemo, eliminating duplicated boilerplate.
+
+**Dependencies:** Requires Shared Components P1-P5 complete
+
+### Phase NS1: FDP.Toolkit.NetworkSpawning Library
+
+- [ ] **NS1.1** Create FDP.Toolkit.NetworkSpawning project [details](./TASK-DETAILS-NetworkSpawning.md#task-ns11-create-fdptoolkitnetworkspawning-project)
+- [ ] **NS1.2** Define SpawnEntityCommand / UpdateEntityCommand / DestroyEntityCommand events [details](./TASK-DETAILS-NetworkSpawning.md#task-ns12-define-event-structs)
+- [ ] **NS1.3** Implement EntityComponentReflector [details](./TASK-DETAILS-NetworkSpawning.md#task-ns13-implement-entitycomponentreflector)
+- [ ] **NS1.4** Implement NetworkSpawningSystem spawn path [details](./TASK-DETAILS-NetworkSpawning.md#task-ns14-implement-networkspawningsystem-spawn-path)
+- [ ] **NS1.5** Implement NetworkSpawningSystem update + destroy paths [details](./TASK-DETAILS-NetworkSpawning.md#task-ns15-implement-update-and-destroy-paths)
+- [ ] **NS1.6** Integration test: full entity lifecycle [details](./TASK-DETAILS-NetworkSpawning.md#task-ns16-integration-test)
+
+---
+
+## NETWORKDEMO INTEGRATION
+
+**Progress:** 0/5 tasks complete (0%)
+
+**Purpose:** Validate `FDP.Toolkit.NetworkSpawning` in the existing `Fdp.Examples.NetworkDemo` project — replacing manual spawn boilerplate and confirming all lifecycle integration tests still pass.
+
+**Dependencies:** NS1 fully complete
+
+### Phase NS2: NetworkDemo NetworkSpawning Integration
+
+- [ ] **NS2.1** Add FDP.Toolkit.NetworkSpawning reference to NetworkDemo [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns21-add-project-reference)
+- [ ] **NS2.2** Register NetworkSpawningSystem via SpawningModule [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns22-register-networkspawningsystem)
+- [ ] **NS2.3** Refactor SpawnLocalEntities to publish SpawnEntityCommand [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns23-refactor-spawnlocalentities)
+- [ ] **NS2.4** Update ingress translator to publish SpawnEntityCommand / DestroyEntityCommand [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns24-update-ingress-translator)
+- [ ] **NS2.5** Validate LifecycleIntegrationTests still pass [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns25-validate-integration-tests)
+
+---
+
 ## SIMHOST MOCK
 
 **Progress:** 0/28 tasks complete (0%)
@@ -94,7 +133,7 @@
 ### Phase S1: Project Setup
 
 - [ ] **S1.1** Create SimHost Console Project [details](./TASK-DETAILS-SIMHOST.md#task-s11-create-simhost-console-project)
-- [ ] **S1.2** Add Project References [details](./TASK-DETAILS-SIMHOST.md#task-s12-add-project-references)
+- [ ] **S1.2** Add Project References (incl. FDP.Toolkit.NetworkSpawning) [details](./TASK-DETAILS-SIMHOST.md#task-s12-add-project-references)
 - [ ] **S1.3** Define ECS Components [details](./TASK-DETAILS-SIMHOST.md#task-s13-define-ecs-components)
 
 ### Phase S2: CreateEntityRequestHandler
@@ -102,8 +141,8 @@
 - [ ] **S2.1** Implement Request Handler Skeleton [details](./TASK-DETAILS-SIMHOST.md#task-s21-implement-request-handler-skeleton)
 - [ ] **S2.2** Implement ID Allocation Logic [details](./TASK-DETAILS-SIMHOST.md#task-s22-implement-id-allocation-logic)
 - [ ] **S2.3** Implement TKB Template Lookup [details](./TASK-DETAILS-SIMHOST.md#task-s23-implement-tkb-template-lookup)
-- [ ] **S2.4** Implement Entity Creation [details](./TASK-DETAILS-SIMHOST.md#task-s24-implement-entity-creation)
-- [ ] **S2.5** Implement Initial Descriptor Application [details](./TASK-DETAILS-SIMHOST.md#task-s25-implement-initial-descriptor-application)
+- [ ] **S2.4** Publish SpawnEntityCommand via DescriptorMapper *(uses FDP.Toolkit.NetworkSpawning)* [details](./TASK-DETAILS-SIMHOST.md#task-s24-publish-spawnentitycommand)
+- [ ] **S2.5** Implement DescriptorMapper *(replaces ApplyInitialDescriptors)* [details](./TASK-DETAILS-SIMHOST.md#task-s25-implement-descriptormapper)
 - [ ] **S2.6** Implement ACK Response [details](./TASK-DETAILS-SIMHOST.md#task-s26-implement-ack-response)
 - [ ] **S2.7** Write Request Handler Tests [details](./TASK-DETAILS-SIMHOST.md#task-s27-write-request-handler-tests)
 
@@ -157,7 +196,8 @@
 
 - [ ] **IG.1.1** Create Bagira.IG Project [details](./TASK-DETAILS-IG.md#task-ig11-create-bagiraig-project)
 - [ ] **IG.1.2** Setup MapCanvas with Camera Controls [details](./TASK-DETAILS-IG.md#task-ig12-setup-mapcanvas-with-camera-controls)
-- [ ] **IG.1.3** Integrate NetworkDemo Network Module [details](./TASK-DETAILS-IG.md#task-ig13-integrate-networkdemo-network-module)
+- [ ] **IG.1.3** Integrate NetworkDemo Network Module (translators publish SpawnEntityCommand) [details](./TASK-DETAILS-IG.md#task-ig13-integrate-networkdemo-network-module)
+- [ ] **IG.1.3b** Register NetworkSpawningSystem via SpawningModule [details](./TASK-DETAILS-IG.md#task-ig13b-register-networkspawningsystem-in-ig-kernel)
 - [ ] **IG.1.4** Add EntityRenderLayer with Stub Visualizer [details](./TASK-DETAILS-IG.md#task-ig14-add-entityrenderlayer-with-stub-visualizer)
 
 ### Phase IG2: Basic Rendering

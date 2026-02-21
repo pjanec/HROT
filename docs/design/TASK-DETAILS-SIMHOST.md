@@ -79,6 +79,7 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
    <ProjectReference Include="..\FDP\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.NetworkSpawning\FDP.Toolkit.NetworkSpawning.csproj" />
    ```
 
 2. Add NuGet packages:
@@ -401,155 +402,155 @@ Console.WriteLine($"[SimHost] Using template: {template.Name}");
 
 ---
 
-### Task S2.4: Implement Entity Creation from Template
+### Task S2.4: Publish SpawnEntityCommand
 
-**Goal:** Create entity in ECS using TKB template with correct distributed lifecycle.
+**Goal:** Replace manual 11-step ECS entity creation with a single `SpawnEntityCommand` event, delegating all spawning logic to `FDP.Toolkit.NetworkSpawning.NetworkSpawningSystem`.
 
-> ⚠️ **Architecture note — use `elm.BeginConstruction`, not `ConstructingTag`:**
-> Manually setting `ConstructingTag` on an entity does **not** trigger the distributed initialisation handshake. The `EntityLifecycleModule` (ELM) must be called explicitly via `elm.BeginConstruction(...)` so it can:
-> 1. Emit a `ConstructionOrder` event, picked up by `NetworkGatewaySystem`.
-> 2. Register the entity with all peer nodes over DDS.
-> 3. Transition the entity to `Active` only after all required peers acknowledge.
+> ⚠️ **Architecture note — thin translator, not thick creator:**
+> `CreateEntityRequestSystem` is a DDS-to-ECS **translator**. It must not call `world.CreateEntity()`, `template.ApplyTo()`, `elm.BeginConstruction()`, or manipulate `NetworkEntityMap` directly. All of that is now owned by `NetworkSpawningSystem`.
 >
-> Additionally, to enforce "Reliable Init" (entity does not go active until peers confirm), add a `PendingNetworkAck` component **before** calling `BeginConstruction`.
+> The system's only job is: allocate a network ID → convert descriptors → publish `SpawnEntityCommand`. `NetworkSpawningSystem` processes the command and does the rest on the next ECS tick.
 
 **Implementation:**
 
-Update `ProcessRequest()`:
+Replace `ProcessRequest()` body (after ID allocation):
 
 ```csharp
-// 4. Create entity from template (TKB applies default components)
-var entity = world.CreateEntity();
-template.ApplyTo(world, entity);
+// 2. Convert DDS descriptors → ECS component list via DescriptorMapper
+var initialComponents =
+    DescriptorMapper.MapToComponents(request.InitialDescriptors, _geoTransform);
+long tkbType = DescriptorMapper.ExtractTkbType(request.InitialDescriptors);
 
-// 5. Register with network entity map
-_entityMap.Register(newEntityId, entity);
-
-// 6. Set network ID component
-world.AddComponent(entity, new NetworkIdComponent { NetworkId = newEntityId });
-
-// 7. Set ownership (SimHost is authority for all entities it creates)
-world.AddComponent(entity, new NetworkAuthority
+if (tkbType == 0)
 {
-    PrimaryOwnerId = _localNodeId,
-    LocalNodeId    = _localNodeId
+    SendErrorAck(request.RequestId, newEntityId: 0, errorCode: 400);
+    return;
+}
+
+// 3. Delegate all ECS spawning to NetworkSpawningSystem
+_eventBus.Publish(new SpawnEntityCommand
+{
+    NetworkId         = newEntityId,
+    TkbType           = tkbType,
+    OwnerNodeId       = _localNodeId,
+    InitType          = ReliableInitType.AllPeers,
+    InitialComponents = initialComponents,
+    RequestId         = request.RequestId
 });
 
-// 8. Enforce distributed reliability: entity stays in Constructing until
-//    all peer nodes (IG, IOS) acknowledge via NetworkGateway.
-world.AddComponent(entity, new PendingNetworkAck
+// 4. ACK immediately — entity will be live in ECS on the next frame
+_eventBus.Publish(new CreateEntityAckEvent
 {
-    ExpectedType = ReliableInitType.AllPeers
+    Ack = new CreateEntityAck
+    {
+        RequestId   = request.RequestId,
+        NewEntityId = newEntityId,
+        ErrorCode   = 0
+    }
 });
-
-// 9. Begin ELM construction — fires ConstructionOrder → NetworkGatewaySystem → DDS.
-//    Do NOT call entity.Set(new ConstructingTag()); ELM manages state components itself.
-_elm.BeginConstruction(entity, tkbType, world.GlobalVersion, _cmdBuffer);
 ```
 
 **Acceptance Criteria:**
-- ✅ Entity created and template applied
-- ✅ Entity registered with `NetworkEntityMap`
-- ✅ `NetworkIdComponent` set
-- ✅ `PendingNetworkAck` added before `BeginConstruction`
-- ✅ `_elm.BeginConstruction(...)` called (no bare `ConstructingTag`)
-- ✅ `ConstructionOrder` event is emitted and processed by `NetworkGatewaySystem`
+- ✅ `SpawnEntityCommand` published with correct `NetworkId`, `TkbType`, `OwnerNodeId`, `InitType=AllPeers`
+- ✅ `SpawnEntityCommand.InitialComponents` contains the mapped component list
+- ✅ No direct call to `world.CreateEntity()`, `template.ApplyTo()`, or `elm.BeginConstruction()` in this file
+- ✅ ACK sent immediately after publishing command
+- ✅ `tkbType == 0` handled as a 400 error ACK
 
 **Estimated Effort:** 0.5 days
 
-**Dependencies:** S2.3
+**Dependencies:** S2.3, NS1 (FDP.Toolkit.NetworkSpawning complete)
 
 ---
 
-### Task S2.5: Implement Initial Descriptor Application
+### Task S2.5: Implement DescriptorMapper
 
-**Goal:** Apply descriptors from request as overrides on top of TKB template defaults.
+**Goal:** Create `Bagira.SimHost.Util.DescriptorMapper` — the application-side adapter that converts a `List<EntityDescriptorUnion>` from a `CreateEntityRequest` into a `List<object>` suitable for `SpawnEntityCommand.InitialComponents`.
 
-> ⚠️ **Architecture note — TKB handles defaults; descriptors are overrides only:**
-> By the time `ApplyInitialDescriptors` runs, `template.ApplyTo(world, entity)` has already populated the entity with all default components defined in the TKB (e.g. a `M1A2Tank` template already sets `EntityMaster.TkbType`, default `EntityInfo`, etc.).
+> ⚠️ **Architecture note — DescriptorMapper lives in SimHost, not the toolkit:**
+> `FDP.Toolkit.NetworkSpawning` is deliberately generic and has no dependency on `Bagira.DDS.DataModel`. The application (SimHost) is responsible for bridging DDS-specific types to generic `object` components via `DescriptorMapper`, keeping the toolkit clean.
 >
-> The `InitialDescriptors` from the `CreateEntityRequest` represent **caller-provided overrides** (e.g. a specific spawn position, a custom name, a force identifier). Do NOT unconditionally `AddComponent` for each descriptor — the component may already exist from the template. Use `SetComponent` (overwrite) instead.
->
-> Also, do NOT construct local copies such as `EntityMasterComponent` — use `Bagira.DDS.DataModel.EntityMaster` etc. directly (see Task S1.3).
+> `EntityComponentReflector` (inside the toolkit) will call `world.SetComponent(entity, componentType, componentInstance)` for each object in `InitialComponents`, so the objects must be valid ECS component types already registered in the world.
 
 **Implementation:**
 
-Update `ProcessRequest()` — call after `template.ApplyTo`:
-```csharp
-// 10. Apply caller-provided descriptor overrides on top of TKB defaults
-ApplyInitialDescriptors(world, entity, request.InitialDescriptors);
-```
+Create `Bagira.SimHost/Util/DescriptorMapper.cs`:
 
-Add helper method using DDS model types directly:
 ```csharp
-private void ApplyInitialDescriptors(
-    EntityRepository world, int entity,
-    List<EntityDescriptorUnion> descriptors)
+namespace Bagira.SimHost.Util
 {
-    foreach (var desc in descriptors)
+    using Bagira.BDC.SSTD;
+    using Fdp.Toolkit.Geographic;
+    using FDP.Kernel;
+
+    public static class DescriptorMapper
     {
-        switch (desc._d)
+        public static long ExtractTkbType(List<EntityDescriptorUnion> descriptors)
         {
-            case EDescriptorType.EntityMaster:
-                // Overwrite existing EntityMaster (set by TKB template) with caller values.
-                // Use Bagira.DDS.DataModel.EntityMaster — NOT a local EntityMasterComponent.
-                world.SetComponent(entity, desc.EntityMasterPayload);
-                FdpLog.Debug($"[SimHost] Override EntityMaster TkbType={desc.EntityMasterPayload.TkbType}");
-                break;
+            foreach (var d in descriptors)
+                if (d._d == EDescriptorType.dtEntityMaster) return d.EntityMaster.TkbType;
+            return 0;
+        }
 
-            case EDescriptorType.EntityInfo:
-                // Overwrite existing EntityInfo from template.
-                world.SetComponent(entity, desc.EntityInfoPayload);
-                FdpLog.Debug($"[SimHost] Override EntityInfo Name={desc.EntityInfoPayload.Name}");
-                break;
-
-            case EDescriptorType.GeoSpatial:
-                // Convert the requested geodetic position to local Cartesian for CarKinem.
-                // Also store the raw GeoSpatial as an ECS component for replication.
-                var geoSpatial = desc.GeoSpatialPayload;
-                world.SetComponent(entity, geoSpatial); // replicated over DDS via AutoCycloneTranslator
-
-                // Drive initial VehicleState (CarKinem input) from the same data.
-                var cartesian  = _geoTransform.ToCartesian(geoSpatial.Pos);
-                var vehicleState = new VehicleState
+        public static List<object> MapToComponents(
+            List<EntityDescriptorUnion> descriptors, WGS84Transform geo)
+        {
+            var result = new List<object>();
+            foreach (var d in descriptors)
+            {
+                switch (d._d)
                 {
-                    Position   = new Vector2((float)cartesian.X, (float)cartesian.Y),
-                    Forward    = HeadingToVector(geoSpatial.Rot.Heading),
-                    Speed      = 0,
-                    SteerAngle = 0,
-                    Accel      = 0,
-                    Pitch      = (float)geoSpatial.Rot.Pitch,
-                    Roll       = (float)geoSpatial.Rot.Roll
-                };
-                world.SetComponent(entity, vehicleState);
-                FdpLog.Debug($"[SimHost] Override GeoSpatial → VehicleState pos={vehicleState.Position}");
-                break;
+                    case EDescriptorType.dtEntityMaster:
+                        // Use DDS model type directly — no local wrapper
+                        result.Add(d.EntityMaster);
+                        break;
 
-            default:
-                FdpLog.Warn($"[SimHost] Unhandled override descriptor type: {desc._d}");
-                break;
+                    case EDescriptorType.dtEntityInfo:
+                        result.Add(d.EntityInfo);
+                        break;
+
+                    case EDescriptorType.dtGeoSpatial:
+                        // Raw DDS component replicated via AutoCycloneTranslator
+                        result.Add(d.GeoSpatial);
+                        // Cartesian VehicleState for CarKinem
+                        var cart = geo.ToCartesian(d.GeoSpatial.Pos);
+                        result.Add(new VehicleState
+                        {
+                            Position   = new Vector2((float)cart.X, (float)cart.Y),
+                            Forward    = HeadingToVector(d.GeoSpatial.Rot.Heading),
+                            Speed      = 0,
+                            SteerAngle = 0
+                        });
+                        break;
+
+                    default:
+                        FdpLog.Warn($"[DescriptorMapper] Unhandled descriptor: {d._d}");
+                        break;
+                }
+            }
+            return result;
+        }
+
+        private static Vector2 HeadingToVector(float deg)
+        {
+            float rad = deg * (MathF.PI / 180f);
+            return new Vector2(MathF.Sin(rad), MathF.Cos(rad));
         }
     }
-}
-
-private Vector2 HeadingToVector(float headingDegrees)
-{
-    float rad = headingDegrees * (MathF.PI / 180.0f);
-    return new Vector2(MathF.Sin(rad), MathF.Cos(rad));
 }
 ```
 
 **Acceptance Criteria:**
-- ✅ Uses `world.SetComponent` (overwrite), not `AddComponent` (would duplicate)
-- ✅ Uses `Bagira.DDS.DataModel` types directly (`EntityMaster`, `EntityInfo`, `GeoSpatial`)
-- ✅ `EntityMaster` override applied
-- ✅ `EntityInfo` override applied
-- ✅ `GeoSpatial` → `VehicleState` + stored `GeoSpatial` component for DDS replication
-- ✅ Heading conversion correct
+- ✅ `ExtractTkbType` returns `EntityMaster.TkbType` or 0 if not present
+- ✅ `MapToComponents` returns `EntityMaster`, `EntityInfo` using DDS types directly (no wrappers)
+- ✅ `GeoSpatial` produces both `GeoSpatial` component and `VehicleState` for CarKinem
+- ✅ `HeadingToVector` converts degrees to unit-direction Vector2 correctly
+- ✅ Unknown descriptor types produce a warning log (not an exception)
+- ✅ Unit tests: all 3 descriptor types → expected component list
 
-**Estimated Effort:** 0.75 days
+**Estimated Effort:** 0.5 days
 
-**Dependencies:** S2.4
+**Dependencies:** S2.4, NS1 (FDP.Toolkit.NetworkSpawning)
 
 ---
 
@@ -1700,7 +1701,10 @@ namespace Bagira.SimHost
             
             // 6. Register SimHost-Specific Systems
             Console.WriteLine("[SimHost] Registering SimHost systems...");
-            world.AddSystem(new CreateEntityRequestHandler(participant, idAllocator, networkEntityMap, tkbDatabase));
+            world.AddSystem(new CreateEntityRequestHandler(
+                eventBus, config.InstanceId, idAllocator, geoTransform));
+            world.AddSystem(new NetworkSpawningSystem(
+                tkbDatabase, elm, networkEntityMap, idAllocator, eventBus, config.InstanceId));
             world.AddSystem(new MissionExecutionSystem(vehicleAPI, networkEntityMap));
             world.AddSystem(new GeoSpatialBridgeSystem(geoTransform));
             Console.WriteLine("  - SimHost systems registered");

@@ -40,6 +40,7 @@
 | **Time Sync** | ✅ EXISTS | `FDP.Toolkit.Time.SlaveTimeController` | Follow SimHost time |
 | **Recording/Replay** | ✅ EXISTS | `Fdp.Kernel.FlightRecorder.*` | Record/playback ECS state |
 | **Command Gateway** | ✅ EXISTS (Shared) | `FDP.Toolkit.Commands.BdcCommandGateway` | Async RPC over DDS (CreateEntity, UpdateDescriptor) |
+| **Network Spawning** | ❌ NEW (shared) | `FDP.Toolkit.NetworkSpawning.NetworkSpawningSystem` | Unified entity spawn/update/destroy via `SpawnEntityCommand` events |
 | **Creation Tool** | ❌ NEW | `Bagira.IG.Tools.CreationTool` | Place entities/graphics on map |
 | **Measure Tool** | ❌ NEW | `Bagira.IG.Tools.MeasureTool` | Distance/line-of-sight measurement |
 | **Edit Tool** | ❌ NEW | `Bagira.IG.Tools.EditTool` | Vertex editing for overlays |
@@ -853,35 +854,43 @@ public class VisualEffectCleanupSystem : ComponentSystem
 ### 4.3 DDS Translators
 
 **EntityMasterTranslator** (DDS → ECS):
+
+> ⚠️ **Architecture note — publish `SpawnEntityCommand`, do NOT call ELM directly:**
+> `EntityMasterTranslator` is an ingress translator. It must NOT call `_lifecycle.BeginConstruction()` directly — that bypasses `NetworkSpawningSystem` and duplicates the construction logic. Instead, publish a `SpawnEntityCommand` with `InitType = ReliableInitType.None` (IG receives entities, it does not own them). `NetworkSpawningSystem` handles the full creation sequence on the next ECS tick.
+
 ```csharp
-public class EntityMasterTranslator : IDdsTranslator<Bagira.DDS.EntityMaster>
+public class EntityMasterTranslator : ITranslator
 {
     private readonly NetworkEntityMap _entityMap;
-    private readonly EntityLifecycleModule _lifecycle;
-    
-    public void OnReceived(Bagira.DDS.EntityMaster sample, SampleInfo info)
+    private readonly FdpEventBus _eventBus;
+
+    public void OnReceived(EntityMaster sample, SampleInfo info, EntityRepository world)
     {
         if (info.InstanceState == InstanceState.Disposed)
         {
-            if (_entityMap.TryGetEntity(sample.EntityId, out var entity))
-                _lifecycle.BeginDestruction(entity);
+            _eventBus.Publish(new DestroyEntityCommand { NetworkId = sample.EntityId });
             return;
         }
-        
-        var entity = _entityMap.GetOrCreateEntity(sample.EntityId);
-        
-        if (!World.HasComponent<EntityMaster>(entity))
+
+        if (!_entityMap.Contains(sample.EntityId))
         {
-            // New entity: begin construction
-            _lifecycle.BeginConstruction(entity, sample.TkbType);
+            // New remote entity — delegate full spawn to NetworkSpawningSystem
+            _eventBus.Publish(new SpawnEntityCommand
+            {
+                NetworkId         = sample.EntityId,
+                TkbType           = sample.TkbType,
+                OwnerNodeId       = sample.OwnerNodeId,
+                InitType          = ReliableInitType.None,  // IG is a ghost replica, not authority
+                InitialComponents = new List<object> { sample },
+                RequestId         = Guid.Empty
+            });
         }
-        
-        World.SetComponent(entity, new EntityMaster
+        else
         {
-            TkbType = sample.TkbType,
-            DisType = sample.DisType,
-            Flags = sample.Flags
-        });
+            // Existing entity — update its component
+            if (_entityMap.TryGetEntity(sample.EntityId, out var entity))
+                world.SetComponent(entity, sample);
+        }
     }
 }
 ```
