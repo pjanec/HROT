@@ -294,20 +294,22 @@ public class CycloneIngressSystem<T> : IModuleSystem where T : struct
 }
 ```
 
-**SmartEgressSystem** (ECS → DDS):
+**SmartEgressSystem** (ECS → DDS) — **internal to `CycloneNetworkModule`**:
+
+> ⚠️ **Do NOT register `SmartEgressSystem` (or `CycloneEgressSystem`) manually.** They are private implementation details of `CycloneNetworkModule`. Adding them to the world separately causes double-execution. IG only creates entities locally in rare cases (ghost overlays); those go through the same `NetworkAuthority` + `CycloneNetworkModule` path. The module registers all egress logic itself when `kernel.RegisterModule(networkModule)` is called.
+
 ```csharp
-public class SmartEgressSystem : IModuleSystem
-{
-    // Automatically publishes entities with NetworkAuthority + dirty descriptors
-    public void Execute(ISimulationView view, float dt)
-    {
-        foreach (var entity in _dirtyEntities)
-        {
-            if (HasAuthority(entity))
-                PublishDescriptors(entity);
-        }
-    }
-}
+// CORRECT: CycloneNetworkModule owns egress internally.
+// Only supply translators; the module installs SmartEgressSystem itself.
+var networkModule = new CycloneNetworkModule(
+    participant, nodeMapper, idAllocator, topology, elm,
+    serialisation, translators, entityMap
+);
+kernel.RegisterModule(networkModule); // SmartEgressSystem registered here
+
+// INCORRECT (do NOT do this):
+// world.AddSystem(new SmartEgressSystem());
+// registry.RegisterSystem(new SmartEgressSystem());
 ```
 
 **Dead Reckoning (TransformSyncSystem from NetworkDemo):**
@@ -374,22 +376,27 @@ public class BlueprintApplicationSystem : ComponentSystem
 
 **✅ VERIFIED EXISTS** - IG uses SlaveTimeController
 
+> ⚠️ **Time Sync requires a DDS → EventBus bridge.** `SlaveTimeController` does **not** read the DDS topic directly. It listens to `TimePulse` events on the internal `FdpEventBus`. Without a translator that bridges the DDS `TimePulse` / `TimePulseDescriptor` topic to the `FdpEventBus`, the controller will never receive updates and IG time will be permanently frozen.
+>
+> **Required:** Register `AutoCycloneTranslator<TimePulseDescriptor>` (or `BlitEventTranslator<TimePulseDescriptor>`) in the translator list passed to `CycloneNetworkModule` **before** setting the time controller. This bridges the DDS time signal → `FdpEventBus` → `SlaveTimeController`.
+
 **SlaveTimeController:**
 ```csharp
 public class SlaveTimeController : ITimeController
 {
-    private readonly DataReader<TimePulse> _timePulseReader;
-    
+    // Listens to TimePulse events on FdpEventBus (NOT directly on DDS DataReader).
+    private readonly FdpEventBus _eventBus;
+
     public void Update(float realtimeDt)
     {
-        var pulses = _timePulseReader.Take();
+        var pulses = _eventBus.ConsumeEvents<TimePulseEvent>();
         if (pulses.Any())
         {
             var latest = pulses.Last();
             _currentTime = latest.SimulationTime;
-            _timeScale = latest.TimeScale;
+            _timeScale   = latest.TimeScale;
         }
-        
+
         _currentTime += realtimeDt * _timeScale;
     }
 }
@@ -397,8 +404,15 @@ public class SlaveTimeController : ITimeController
 
 **Usage:**
 ```csharp
-// IG initialization
-var timeController = new SlaveTimeController(participant);
+// Step 1: Register TimePulseDescriptor translator in CycloneNetworkModule translators list
+//         (before kernel.RegisterModule(networkModule))
+translators.Add(new AutoCycloneTranslator<TimePulseDescriptor>(participant, eventBus));
+// ...then register network module...
+kernel.RegisterModule(networkModule);
+
+// Step 2: Set time controller — must be called AFTER network module is registered
+//         so the DDS subscription and EventBus bridge are active.
+var timeController = new SlaveTimeController(eventBus);
 kernel.SetTimeController(timeController);
 ```
 
@@ -1598,7 +1612,25 @@ public class IgSubsystem : SubsystemBase
     public override void ConnectToDomain(int domainId)
     {
         _participant = new DdsParticipant(domainId);
-        _world.AddModule(new CycloneNetworkModule(_participant));
+        
+        // Must supply full constructor arguments to CycloneNetworkModule.
+        // See Task IG.1.3 and DESIGN-IG Section 3 for the complete translator list.
+        // Minimal example (expand with actual translators before use):
+        var nodeMapper    = new NodeIdMapper(localDomain: domainId, localInstance: _config.NodeId);
+        var topology      = new NetworkTopology { IsServer = false };
+        var idAllocator   = new DdsIdAllocator(_participant, isServer: false);
+        var serialisation = new SerializationRegistry();
+        var elm           = _world.GetModule<EntityLifecycleModule>();
+
+        var translators = BuildTranslators(_participant, _entityMap, elm, _geoTransform, _eventBus);
+        var networkModule = new CycloneNetworkModule(
+            _participant, nodeMapper, idAllocator, topology, elm,
+            serialisation, translators, _entityMap
+        );
+        kernel.RegisterModule(networkModule);
+        
+        // Set SlaveTimeController AFTER network module (so TimePulse subscription exists)
+        kernel.SetTimeController(new SlaveTimeController(_eventBus));
         
         // Announce presence
         _statusPublisher = new SubsystemStatusPublisher(_participant, _config.NodeId, "ig");

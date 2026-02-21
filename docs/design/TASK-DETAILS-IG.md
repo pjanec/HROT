@@ -165,99 +165,116 @@ public class IgApplication
 
 ### Task IG.1.3: Integrate NetworkDemo Network Module
 
-**Goal:** Reuse NetworkDemo's DDS integration
+**Goal:** Set up DDS integration for IG using `CycloneNetworkModule`, following the NetworkDemo pattern.
+
+> ⚠️ **Architecture notes:**
+>
+> 1. **Do NOT create a custom `IgNetworkModule`** that manually registers `CycloneIngressSystem`, `CycloneEgressSystem`, or `SmartEgressSystem`. These are **internal systems** owned by `CycloneNetworkModule`. Registering them manually alongside the module causes double-execution and conflicts. Provide your **Translator** list to the module constructor; the module installs all required systems itself.
+>
+> 2. **Time Sync requires a `TimePulseDescriptor` translator.** The `SlaveTimeController` listens on the FDP internal `FdpEventBus` for `TimePulse` events. Without a translator that bridges the DDS `TimePulse` topic to the local `FdpEventBus`, the `SlaveTimeController` will never receive updates and IG time will be frozen. Register an `AutoCycloneTranslator<TimePulseDescriptor>` (or equivalent `BlitEventTranslator`) in the translator list passed to `CycloneNetworkModule`.
 
 **Steps:**
-1. Copy relevant system initialization from `NetworkDemo.NetworkDemoApp`:
+1. Follow `NetworkDemo.NetworkDemoApp` initialization sequence:
    - DDS participant creation
-   - NodeIdMapper setup
-   - NetworkEntityMap initialization
-   - SlaveTimeController setup
-2. Create `IgNetworkModule`:
-   - Register `CycloneIngressSystem<EntityMaster>`
-   - Register `CycloneIngressSystem<GeoSpatial>`
-   - Register `CycloneIngressSystem<EntityInfo>`
-   - Register `SmartEgressSystem` (for local creations)
-3. Add translators:
-   - `EntityMasterTranslator` (DDS → EntityMaster component)
-   - `GeoSpatialTranslator` (DDS → NetworkReceivedState)
-   - `EntityInfoTranslator` (DDS → EntityInfo managed component)
-4. Connect to SimHost (Domain ID 0, Instance 300)
+   - `NodeIdMapper` setup (`localDomain: 0, localInstance: 300` for IG)
+   - `NetworkEntityMap` initialization
+   - `SlaveTimeController` setup via `kernel.SetTimeController(...)`
+2. Build the **translator list** for `CycloneNetworkModule`:
+   - `EntityMasterTranslator` (DDS `EntityMaster` → ECS, triggers ELM construction)
+   - `GeoSpatialTranslator` (DDS `GeoSpatial` → `NetworkReceivedState` for dead reckoning)
+   - `EntityInfoTranslator` (DDS `EntityInfo` → ECS component)
+   - **`AutoCycloneTranslator<TimePulseDescriptor>`** → bridges DDS time pulses to `FdpEventBus` for `SlaveTimeController` (**critical**)
+   - Auto-translators via `ReplicationBootstrap.CreateAutoTranslators`
+3. Instantiate and register `CycloneNetworkModule` (it installs ingress, egress, and gateway systems internally).
+4. Set `SlaveTimeController` on the kernel after network module is registered.
 
 **Implementation:**
 ```csharp
-public class IgNetworkModule : IModule
-{
-    private readonly DdsParticipant _participant;
-    private readonly NetworkEntityMap _entityMap;
-    private readonly EntityLifecycleModule _lifecycle;
-    
-    public void RegisterSystems(ISystemRegistry registry)
-    {
-        // Ingress
-        var masterIngress = new CycloneIngressSystem<EntityMaster>(
-            _participant,
-            "EntityMaster",
-            new EntityMasterTranslator(_entityMap, _lifecycle)
-        );
-        registry.RegisterSystem(masterIngress);
-        
-        var geoIngress = new CycloneIngressSystem<GeoSpatial>(
-            _participant,
-            "GeoSpatial",
-            new GeoSpatialTranslator(_entityMap, _geoTransform)
-        );
-        registry.RegisterSystem(geoIngress);
-        
-        // Egress (for local creations)
-        var smartEgress = new SmartEgressSystem();
-        registry.RegisterSystem(smartEgress);
-    }
-}
+// In IG program/subsystem init (following NetworkDemoApp pattern):
+
+var participant  = new DdsParticipant(domainId: 0);
+var nodeMapper   = new NodeIdMapper(localDomain: 0, localInstance: 300); // IG instance ID
+var entityMap    = new NetworkEntityMap();
+var serialisation = new SerializationRegistry();
+var topology     = new NetworkTopology { IsServer = false };
+var idAllocator  = new DdsIdAllocator(participant, isServer: false); // Client-side allocator
+
+var elm = new EntityLifecycleModule(tkb, peerNodeIds);
+kernel.RegisterModule(elm);
+kernel.RegisterModule(new ReplicationLogicModule());
+
+// Build translator list — all network <-> ECS bridging goes here
+var translators = new List<ITranslator>();
+translators.Add(new EntityMasterTranslator(participant, entityMap, elm)); // triggers BeginConstruction
+translators.Add(new GeoSpatialTranslator(participant, entityMap, geoTransform));
+translators.Add(new EntityInfoTranslator(participant, entityMap));
+
+// CRITICAL: Time Pulse translator — bridges DDS TimePulse → FdpEventBus
+// Without this, SlaveTimeController never receives updates.
+translators.Add(new AutoCycloneTranslator<TimePulseDescriptor>(participant, eventBus));
+
+// Auto-translators for all [FdpDescriptor]-tagged types in Bagira.DDS.DataModel
+var (autoTranslators, _) = ReplicationBootstrap.CreateAutoTranslators(
+    participant, typeof(IgProgram).Assembly, entityMap);
+translators.AddRange(autoTranslators);
+
+// Register CycloneNetworkModule — this installs CycloneIngressSystem, CycloneEgressSystem,
+// SmartEgressSystem, NetworkGatewaySystem internally. Do NOT add them separately.
+var networkModule = new CycloneNetworkModule(
+    participant, nodeMapper, idAllocator, topology, elm,
+    serialisation, translators, entityMap
+);
+kernel.RegisterModule(networkModule);
+
+// Set up SlaveTimeController AFTER network module is ready
+// (so the TimePulse DDS topic subscription exists when it starts)
+var timeController = new SlaveTimeController(eventBus);
+kernel.SetTimeController(timeController);
 ```
 
-**Translators:**
+**Translators (corrected implementations):**
 ```csharp
-public class EntityMasterTranslator
+public class EntityMasterTranslator : ITranslator
 {
-    public void OnReceived(EntityMaster sample, SampleInfo info)
+    public void OnReceived(EntityMaster sample, SampleInfo info, EntityRepository world)
     {
         if (info.InstanceState == InstanceState.Disposed)
         {
             if (_entityMap.TryGetEntity(sample.EntityId, out var entity))
-                _lifecycle.BeginDestruction(entity);
+                _elm.BeginDestruction(entity, _cmdBuffer);
             return;
         }
-        
-        var entity = _entityMap.GetOrCreateEntity(sample.EntityId);
-        
-        if (!_world.HasComponent<EntityMasterComponent>(entity))
+
+        var entity = _entityMap.GetOrCreate(sample.EntityId, world);
+
+        if (!world.HasComponent<EntityMaster>(entity))
         {
-            _lifecycle.BeginConstruction(entity, sample.TkbType);
+            // Use elm.BeginConstruction (not manual ConstructingTag)
+            _elm.BeginConstruction(entity, sample.TkbType, world.GlobalVersion, _cmdBuffer);
         }
-        
-        _world.SetComponent(entity, new EntityMasterComponent
-        {
-            TkbType = sample.TkbType,
-            DisType = sample.DisType
-        });
+
+        // Store using DDS model type directly (no EntityMasterComponent wrapper)
+        world.SetComponent(entity, sample);
     }
 }
 
-public class GeoSpatialTranslator
+public class GeoSpatialTranslator : ITranslator
 {
-    public void OnReceived(GeoSpatial sample, SampleInfo info)
+    public void OnReceived(GeoSpatial sample, SampleInfo info, EntityRepository world)
     {
         if (!_entityMap.TryGetEntity(sample.EntityId, out var entity)) return;
-        
-        var cartesian = _geo.ToCartesian(sample.Pos.Latitude, sample.Pos.Longitude, sample.Pos.Altitude);
-        var heading = sample.Heading; // Convert to Quaternion
-        
-        _world.SetComponent(entity, new NetworkReceivedState
+
+        var cartesian = _geoTransform.ToCartesian(sample.Pos);
+
+        // Store raw DDS component for replication transparency
+        world.SetComponent(entity, sample);
+
+        // Store dead-reckoning state for TransformSyncSystem (smooth interpolation)
+        world.SetComponent(entity, new NetworkReceivedState
         {
-            TargetPos = cartesian,
-            TargetHeading = heading,
-            TargetTime = info.SourceTimestamp
+            TargetPos     = new Vector2((float)cartesian.X, (float)cartesian.Y),
+            TargetHeading = sample.Rot.Heading,
+            TargetTime    = info.SourceTimestamp
         });
     }
 }
@@ -265,12 +282,15 @@ public class GeoSpatialTranslator
 
 **Acceptance Criteria:**
 - ✅ DDS participant connects to domain 0
-- ✅ Receives EntityMaster from SimHost
-- ✅ Creates entities in local ECS
-- ✅ EntityLifecycleModule triggers construction
-- ✅ NetworkEntityMap correctly maps IDs
+- ✅ `CycloneNetworkModule` registered with full translator list (not custom `IgNetworkModule`)
+- ✅ No standalone `SmartEgressSystem` or `CycloneIngressSystem` registered outside the module
+- ✅ `AutoCycloneTranslator<TimePulseDescriptor>` registered (time sync works)
+- ✅ `kernel.SetTimeController(new SlaveTimeController(eventBus))` called after network module
+- ✅ Receives `EntityMaster` from SimHost → entities created in local ECS
+- ✅ `EntityLifecycleModule` construction triggered via `elm.BeginConstruction` in translator
+- ✅ `NetworkEntityMap` correctly maps IDs
 
-**Estimated Effort:** 0.5 days
+**Estimated Effort:** 0.75 days
 
 **Dependencies:** IG.1.2, Shared components (Bagira.DDS.DataModel)
 

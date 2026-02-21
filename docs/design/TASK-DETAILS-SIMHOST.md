@@ -102,14 +102,27 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
 
 **Goal:** Create component definitions for SimHost.
 
+> ⚠️ **Architecture note — avoid duplicate type definitions:**
+> FDP uses the **Shared Data Model** types from `Bagira.DDS.DataModel` directly as ECS components. Types such as `EntityMaster`, `GeoSpatial`, `GeoSpatialDR`, `EntityInfo`, and `EntityMission` are already defined there and are decorated with `[FdpDescriptor]`, which allows the `AutoCycloneTranslator` to replicate them automatically over DDS.
+>
+> **Do NOT redefine local copies** (`EntityMasterComponent`, `GeoSpatialComponent`, etc.) that duplicate the fields of these DDS types. This creates:
+> - Schema drift (local copy diverges from the wire format)
+> - Broken auto-replication (the `AutoCycloneTranslator` cannot find its type)
+> - Redundant conversion code in handlers
+>
+> The only components that should be **newly** defined in `Bagira.SimHost.Components` are ones that have **no corresponding DDS topic**: runtime/local state such as `NetworkIdComponent`.
+> If a wrapper is truly necessary (e.g. to carry extra simulation-only state alongside the replicated data), mark it with `[FdpDescriptor]` so `AutoCycloneTranslator` picks it up.
+
 **Implementation:**
 
-Create `Components/NetworkIdComponent.cs`:
+Only create `Components/NetworkIdComponent.cs` (a genuinely local, non-replicated component):
 ```csharp
 namespace Bagira.SimHost.Components
 {
     /// <summary>
-    /// Maps ECS entity to network entity ID.
+    /// Maps an ECS entity to its allocated network entity ID.
+    /// This is a local runtime component — not replicated over DDS directly.
+    /// The actual replication key is carried by FDP.Kernel's built-in NetworkIdentity.
     /// </summary>
     public struct NetworkIdComponent
     {
@@ -118,104 +131,44 @@ namespace Bagira.SimHost.Components
 }
 ```
 
-Create `Components/EntityMasterComponent.cs`:
+**For replicated data, use the DDS model types directly:**
 ```csharp
+// DO NOT create EntityMasterComponent, GeoSpatialComponent, etc.
+// Use Bagira.DDS.DataModel types as ECS components directly:
 using Bagira.DDS.DataModel;
 
-namespace Bagira.SimHost.Components
+// Set EntityMaster data on entity (type is already [FdpDescriptor]-tagged in DataModel)
+world.AddComponent(entity, new EntityMaster
 {
-    /// <summary>
-    /// Core entity identity (corresponds to EntityMaster DDS topic).
-    /// </summary>
-    public struct EntityMasterComponent
-    {
-        public long TkbType;
-        public ulong DisType;
-        public ulong Flags;
-    }
-}
+    EntityId  = networkId,
+    TkbType   = tkbType,
+    DisType   = disType,
+    Flags     = 0
+});
+
+// AutoCycloneTranslator will replicate EntityMaster over DDS automatically
+// because the type carries [FdpDescriptor] — no manual translator stub needed.
 ```
 
-Create `Components/EntityInfoComponent.cs`:
-```csharp
-using Bagira.DDS.DataModel;
-
-namespace Bagira.SimHost.Components
-{
-    /// <summary>
-    /// Entity metadata (corresponds to EntityInfo DDS topic).
-    /// </summary>
-    public struct EntityInfoComponent
-    {
-        public string Name;
-        public eForceIdentifier ForceIdentifier;
-        public int CommanderId;
-    }
-}
+**Folder structure update for S1.1** — remove the duplicate component files:
 ```
-
-Create `Components/GeoSpatialComponent.cs`:
-```csharp
-using Bagira.DDS.DataModel;
-
-namespace Bagira.SimHost.Components
-{
-    /// <summary>
-    /// Geodetic position/orientation (corresponds to GeoSpatial DDS topic).
-    /// </summary>
-    public struct GeoSpatialComponent
-    {
-        public int EntityId;
-        public DateTime Time;
-        public GeoPosition Pos;
-        public OrientationHPR Rot;
-    }
-}
-```
-
-Create `Components/GeoSpatialDRComponent.cs`:
-```csharp
-using Bagira.DDS.DataModel;
-
-namespace Bagira.SimHost.Components
-{
-    /// <summary>
-    /// Geodetic velocity/acceleration (corresponds to GeoSpatialDR DDS topic).
-    /// </summary>
-    public struct GeoSpatialDRComponent
-    {
-        public int EntityId;
-        public DateTime Time;
-        public DAL3 Vel;
-        public DAL3 Acc;
-        public OrientationHPR RotVel;
-    }
-}
-```
-
-Create `Components/EntityMissionComponent.cs`:
-```csharp
-using Bagira.DDS.DataModel;
-
-namespace Bagira.SimHost.Components
-{
-    /// <summary>
-    /// Mission plan (corresponds to EntityMission DDS topic).
-    /// </summary>
-    public struct EntityMissionComponent
-    {
-        public long EntityId;
-        public MissionPlan Plan;
-    }
-}
+Bagira.SimHost/
+  Components/
+    NetworkIdComponent.cs     ✅ Keep (local, non-replicated)
+    EntityMasterComponent.cs  ❌ Delete — use Bagira.DDS.DataModel.EntityMaster
+    EntityInfoComponent.cs    ❌ Delete — use Bagira.DDS.DataModel.EntityInfo
+    GeoSpatialComponent.cs    ❌ Delete — use Bagira.DDS.DataModel.GeoSpatial
+    GeoSpatialDRComponent.cs  ❌ Delete — use Bagira.DDS.DataModel.GeoSpatialDR
+    EntityMissionComponent.cs ❌ Delete — use Bagira.DDS.DataModel.EntityMission
 ```
 
 **Acceptance Criteria:**
-- ✅ All 6 component types created
-- ✅ Components compile and match DDS data model
+- ✅ `NetworkIdComponent` created
+- ✅ No local duplicates of `Bagira.DDS.DataModel` types
+- ✅ ECS systems use `EntityMaster`, `GeoSpatial`, etc. from the shared data model
 - ✅ XML documentation complete
 
-**Estimated Effort:** 0.5 days
+**Estimated Effort:** 0.25 days (reduced — less boilerplate to write)
 
 **Dependencies:** S1.2
 
@@ -450,32 +403,57 @@ Console.WriteLine($"[SimHost] Using template: {template.Name}");
 
 ### Task S2.4: Implement Entity Creation from Template
 
-**Goal:** Create entity in ECS using TKB template.
+**Goal:** Create entity in ECS using TKB template with correct distributed lifecycle.
+
+> ⚠️ **Architecture note — use `elm.BeginConstruction`, not `ConstructingTag`:**
+> Manually setting `ConstructingTag` on an entity does **not** trigger the distributed initialisation handshake. The `EntityLifecycleModule` (ELM) must be called explicitly via `elm.BeginConstruction(...)` so it can:
+> 1. Emit a `ConstructionOrder` event, picked up by `NetworkGatewaySystem`.
+> 2. Register the entity with all peer nodes over DDS.
+> 3. Transition the entity to `Active` only after all required peers acknowledge.
+>
+> Additionally, to enforce "Reliable Init" (entity does not go active until peers confirm), add a `PendingNetworkAck` component **before** calling `BeginConstruction`.
 
 **Implementation:**
 
 Update `ProcessRequest()`:
 
 ```csharp
-// 4. Create entity from template
-var entity = World.NewEntity(template);
-Console.WriteLine($"[SimHost] Created entity: {entity.Index}");
+// 4. Create entity from template (TKB applies default components)
+var entity = world.CreateEntity();
+template.ApplyTo(world, entity);
 
 // 5. Register with network entity map
 _entityMap.Register(newEntityId, entity);
 
 // 6. Set network ID component
-entity.Set(new NetworkIdComponent { NetworkId = newEntityId });
+world.AddComponent(entity, new NetworkIdComponent { NetworkId = newEntityId });
 
-// 7. Mark as Constructing (ELM will auto-transition to Active)
-entity.Set(new ConstructingTag());
+// 7. Set ownership (SimHost is authority for all entities it creates)
+world.AddComponent(entity, new NetworkAuthority
+{
+    PrimaryOwnerId = _localNodeId,
+    LocalNodeId    = _localNodeId
+});
+
+// 8. Enforce distributed reliability: entity stays in Constructing until
+//    all peer nodes (IG, IOS) acknowledge via NetworkGateway.
+world.AddComponent(entity, new PendingNetworkAck
+{
+    ExpectedType = ReliableInitType.AllPeers
+});
+
+// 9. Begin ELM construction — fires ConstructionOrder → NetworkGatewaySystem → DDS.
+//    Do NOT call entity.Set(new ConstructingTag()); ELM manages state components itself.
+_elm.BeginConstruction(entity, tkbType, world.GlobalVersion, _cmdBuffer);
 ```
 
 **Acceptance Criteria:**
-- ✅ Entity created successfully
-- ✅ Entity registered with NetworkEntityMap
-- ✅ NetworkIdComponent set
-- ✅ Constructing tag applied
+- ✅ Entity created and template applied
+- ✅ Entity registered with `NetworkEntityMap`
+- ✅ `NetworkIdComponent` set
+- ✅ `PendingNetworkAck` added before `BeginConstruction`
+- ✅ `_elm.BeginConstruction(...)` called (no bare `ConstructingTag`)
+- ✅ `ConstructionOrder` event is emitted and processed by `NetworkGatewaySystem`
 
 **Estimated Effort:** 0.5 days
 
@@ -485,62 +463,70 @@ entity.Set(new ConstructingTag());
 
 ### Task S2.5: Implement Initial Descriptor Application
 
-**Goal:** Apply descriptors from request to entity components.
+**Goal:** Apply descriptors from request as overrides on top of TKB template defaults.
+
+> ⚠️ **Architecture note — TKB handles defaults; descriptors are overrides only:**
+> By the time `ApplyInitialDescriptors` runs, `template.ApplyTo(world, entity)` has already populated the entity with all default components defined in the TKB (e.g. a `M1A2Tank` template already sets `EntityMaster.TkbType`, default `EntityInfo`, etc.).
+>
+> The `InitialDescriptors` from the `CreateEntityRequest` represent **caller-provided overrides** (e.g. a specific spawn position, a custom name, a force identifier). Do NOT unconditionally `AddComponent` for each descriptor — the component may already exist from the template. Use `SetComponent` (overwrite) instead.
+>
+> Also, do NOT construct local copies such as `EntityMasterComponent` — use `Bagira.DDS.DataModel.EntityMaster` etc. directly (see Task S1.3).
 
 **Implementation:**
 
-Add helper method:
-
+Update `ProcessRequest()` — call after `template.ApplyTo`:
 ```csharp
-private void ApplyInitialDescriptors(Entity entity, List<EntityDescriptorUnion> descriptors)
+// 10. Apply caller-provided descriptor overrides on top of TKB defaults
+ApplyInitialDescriptors(world, entity, request.InitialDescriptors);
+```
+
+Add helper method using DDS model types directly:
+```csharp
+private void ApplyInitialDescriptors(
+    EntityRepository world, int entity,
+    List<EntityDescriptorUnion> descriptors)
 {
     foreach (var desc in descriptors)
     {
         switch (desc._d)
         {
             case EDescriptorType.EntityMaster:
-                entity.Set(new EntityMasterComponent
-                {
-                    TkbType = desc.EntityMasterPayload.TkbType,
-                    DisType = desc.EntityMasterPayload.DisType,
-                    Flags = desc.EntityMasterPayload.Flags
-                });
-                Console.WriteLine($"[SimHost] Applied EntityMaster (TkbType={desc.EntityMasterPayload.TkbType})");
+                // Overwrite existing EntityMaster (set by TKB template) with caller values.
+                // Use Bagira.DDS.DataModel.EntityMaster — NOT a local EntityMasterComponent.
+                world.SetComponent(entity, desc.EntityMasterPayload);
+                FdpLog.Debug($"[SimHost] Override EntityMaster TkbType={desc.EntityMasterPayload.TkbType}");
                 break;
-            
+
             case EDescriptorType.EntityInfo:
-                entity.Set(new EntityInfoComponent
-                {
-                    Name = desc.EntityInfoPayload.Name,
-                    ForceIdentifier = desc.EntityInfoPayload.ForceIdentifier,
-                    CommanderId = desc.EntityInfoPayload.CommanderId
-                });
-                Console.WriteLine($"[SimHost] Applied EntityInfo (Name={desc.EntityInfoPayload.Name})");
+                // Overwrite existing EntityInfo from template.
+                world.SetComponent(entity, desc.EntityInfoPayload);
+                FdpLog.Debug($"[SimHost] Override EntityInfo Name={desc.EntityInfoPayload.Name}");
                 break;
-            
+
             case EDescriptorType.GeoSpatial:
-                // Convert GeoPosition to VehicleState (local coordinates)
-                var geoPos = desc.GeoSpatialPayload.Pos;
-                var geoTransform = World.GetModule<WGS84Transform>();
-                var cartesian = geoTransform.ToCartesian(geoPos);
-                
+                // Convert the requested geodetic position to local Cartesian for CarKinem.
+                // Also store the raw GeoSpatial as an ECS component for replication.
+                var geoSpatial = desc.GeoSpatialPayload;
+                world.SetComponent(entity, geoSpatial); // replicated over DDS via AutoCycloneTranslator
+
+                // Drive initial VehicleState (CarKinem input) from the same data.
+                var cartesian  = _geoTransform.ToCartesian(geoSpatial.Pos);
                 var vehicleState = new VehicleState
                 {
-                    Position = new Vector2((float)cartesian.X, (float)cartesian.Y),
-                    Forward = HeadingToVector(desc.GeoSpatialPayload.Rot.Heading),
-                    Speed = 0,
+                    Position   = new Vector2((float)cartesian.X, (float)cartesian.Y),
+                    Forward    = HeadingToVector(geoSpatial.Rot.Heading),
+                    Speed      = 0,
                     SteerAngle = 0,
-                    Accel = 0,
-                    Pitch = 0,
-                    Roll = 0
+                    Accel      = 0,
+                    Pitch      = (float)geoSpatial.Rot.Pitch,
+                    Roll       = (float)geoSpatial.Rot.Roll
                 };
-                
-                entity.Set(vehicleState);
-                Console.WriteLine($"[SimHost] Applied GeoSpatial→VehicleState (Pos={vehicleState.Position})");
+                world.SetComponent(entity, vehicleState);
+                FdpLog.Debug($"[SimHost] Override GeoSpatial → VehicleState pos={vehicleState.Position}");
                 break;
-            
+
             default:
-                Console.WriteLine($"[SimHost] Unhandled descriptor type: {desc._d}");
+                FdpLog.Warn($"[SimHost] Unhandled override descriptor type: {desc._d}");
                 break;
         }
     }
@@ -548,25 +534,20 @@ private void ApplyInitialDescriptors(Entity entity, List<EntityDescriptorUnion> 
 
 private Vector2 HeadingToVector(float headingDegrees)
 {
-    float radians = headingDegrees * (MathF.PI / 180.0f);
-    return new Vector2(MathF.Sin(radians), MathF.Cos(radians));
+    float rad = headingDegrees * (MathF.PI / 180.0f);
+    return new Vector2(MathF.Sin(rad), MathF.Cos(rad));
 }
 ```
 
-Update `ProcessRequest()`:
-
-```csharp
-// 8. Apply initial descriptors
-ApplyInitialDescriptors(entity, request.InitialDescriptors);
-```
-
 **Acceptance Criteria:**
-- ✅ EntityMaster descriptor applied
-- ✅ EntityInfo descriptor applied
-- ✅ GeoSpatial → VehicleState conversion working
+- ✅ Uses `world.SetComponent` (overwrite), not `AddComponent` (would duplicate)
+- ✅ Uses `Bagira.DDS.DataModel` types directly (`EntityMaster`, `EntityInfo`, `GeoSpatial`)
+- ✅ `EntityMaster` override applied
+- ✅ `EntityInfo` override applied
+- ✅ `GeoSpatial` → `VehicleState` + stored `GeoSpatial` component for DDS replication
 - ✅ Heading conversion correct
 
-**Estimated Effort:** 1 day
+**Estimated Effort:** 0.75 days
 
 **Dependencies:** S2.4
 
@@ -1625,6 +1606,7 @@ Update `Program.cs`:
 
 ```csharp
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Bagira.SimHost.Systems;
 using Bagira.SimHost.Configuration;
@@ -1634,14 +1616,16 @@ using FDP.Kernel;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Tkb;
+using FDP.Toolkit.Replication;
 using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
 using CarKinem.Systems;
 using CarKinem.Commands;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Toolkit.Geographic;
+using ModuleHost.Core;
 using ModuleHost.Network.Cyclone;
+using ModuleHost.Network.Cyclone.Services;
 
 namespace Bagira.SimHost
 {
@@ -1721,27 +1705,52 @@ namespace Bagira.SimHost
             world.AddSystem(new GeoSpatialBridgeSystem(geoTransform));
             Console.WriteLine("  - SimHost systems registered");
             
-            // 7. Register Network Egress Systems
-            Console.WriteLine("[SimHost] Registering network egress...");
-            world.AddSystem(new SmartEgressSystem());
+            // 7. Register CycloneNetworkModule (owns ALL ingress, egress, and gateway systems)
+            //
+            // ⚠️  Do NOT call world.AddSystem(new SmartEgressSystem()) or
+            //    world.AddSystem(new CycloneEgressSystem(...)). Those are internal to
+            //    CycloneNetworkModule and adding them separately causes double execution.
+            //
+            // Only supply the Translators list — the Module registers its own internal
+            // systems (CycloneIngressSystem, CycloneEgressSystem, NetworkGatewaySystem)
+            // automatically when kernel.RegisterModule(networkModule) is called.
+            Console.WriteLine("[SimHost] Registering CycloneNetworkModule...");
             
-            // Setup egress translators (TODO: implement translators)
-            // var entityMasterTranslator = new EntityMasterTranslator(participant, "EntityMaster", networkEntityMap);
-            // var geoSpatialTranslator = new GeoSpatialTranslator(participant, "GeoSpatial", networkEntityMap);
-            // world.AddSystem(new CycloneEgressSystem(new[] { entityMasterTranslator, geoSpatialTranslator }));
+            var nodeMapper    = new NodeIdMapper(localDomain: 0, localInstance: config.InstanceId);
+            var topology      = new NetworkTopology { IsServer = true };
+            var serialisation = new SerializationRegistry();
             
-            Console.WriteLine("  - Network egress registered");
+            // Build translator list
+            var translators = new List<ITranslator>();
+            translators.Add(new CreateEntityRequestTranslator(participant, eventBus));
+            translators.Add(new CreateEntityAckTranslator(participant, eventBus));
+            translators.Add(new EntityMasterTranslator(participant, networkEntityMap));
+            translators.Add(new GeoSpatialTranslator(participant, networkEntityMap));
+            
+            // Auto-translators for types tagged [FdpDescriptor] in Bagira.DDS.DataModel
+            var (autoTranslators, _) = ReplicationBootstrap.CreateAutoTranslators(
+                participant, typeof(Program).Assembly, networkEntityMap);
+            translators.AddRange(autoTranslators);
+            
+            var elm = world.GetModule<EntityLifecycleModule>(); // retrieved after AddModule above
+            var networkModule = new CycloneNetworkModule(
+                participant, nodeMapper, idAllocator, topology, elm,
+                serialisation, translators, networkEntityMap
+            );
+            kernel.RegisterModule(networkModule); // ← this registers all network systems internally
+            Console.WriteLine("  - CycloneNetworkModule registered (egress/ingress/gateway)");
             
             Console.WriteLine();
             Console.WriteLine("[SimHost] Initialization complete");
             Console.WriteLine($"[SimHost] Entering simulation loop ({config.SimulationRateHz} Hz)...");
             Console.WriteLine();
             
-            // 8. Main Loop
-            await RunSimulationLoop(world, config.SimulationRateHz);
+            // 8. Initialise kernel and enter main loop
+            kernel.Initialize();
+            await RunSimulationLoop(kernel, config.SimulationRateHz);
         }
         
-        static async Task RunSimulationLoop(FdpWorld world, int targetRateHz)
+        static async Task RunSimulationLoop(ModuleHostKernel kernel, int targetRateHz)
         {
             float targetDeltaTime = 1.0f / targetRateHz;
             var stopwatch = new System.Diagnostics.Stopwatch();
@@ -1752,8 +1761,8 @@ namespace Bagira.SimHost
             {
                 stopwatch.Restart();
                 
-                // Update world
-                world.Update(targetDeltaTime);
+                // Update all registered modules and their systems via kernel
+                kernel.Update(); // TimeController drives dt internally
                 
                 frameCounter++;
                 
@@ -1784,8 +1793,9 @@ namespace Bagira.SimHost
 
 **Acceptance Criteria:**
 - ✅ Main() entry point compiles
-- ✅ All modules initialized
-- ✅ All systems registered
+- ✅ `CycloneNetworkModule` constructed with full translator list and registered via `kernel.RegisterModule`
+- ✅ No standalone `SmartEgressSystem` or `CycloneEgressSystem` added anywhere outside the module
+- ✅ All application modules initialized
 - ✅ Main loop runs at target frame rate
 - ✅ Graceful startup/shutdown
 

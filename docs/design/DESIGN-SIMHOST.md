@@ -182,22 +182,25 @@ entityMap.Unregister(networkId: 12345, currentFrame: frameCounter);
 ```
 
 **DDS Egress (Publishing):**
+
+> ⚠️ **Architecture note:** Do NOT manually add `SmartEgressSystem` or `CycloneEgressSystem` to the world/kernel. Both are **internal implementation details** of `CycloneNetworkModule`. When `CycloneNetworkModule` is registered via `kernel.RegisterModule(networkModule)`, it automatically installs all required ingress, egress, and gateway systems. Only the **Translators** (which describe what to publish and how) are supplied from outside.
+
 ```csharp
-// Option 1: CycloneEgressSystem (direct publishing)
-var entityMasterEgress = new CycloneEgressSystem<EntityMaster>(
-    participant, 
-    "EntityMaster",
-    translator: new EntityMasterTranslator(entityMap)
+// CORRECT: Pass translators into CycloneNetworkModule — it owns egress internally.
+var allTranslators = new List<ITranslator>();
+allTranslators.Add(new EntityMasterTranslator(participant, entityMap));
+allTranslators.Add(new GeoSpatialTranslator(participant, entityMap));
+// (plus auto-translators from ReplicationBootstrap)
+
+var networkModule = new CycloneNetworkModule(
+    participant, nodeMapper, idAllocator, topology, elm,
+    serializationRegistry, allTranslators, entityMap
 );
-world.AddSystem(entityMasterEgress);
+kernel.RegisterModule(networkModule); // CycloneEgressSystem + SmartEgress registered here
 
-// Option 2: SmartEgressSystem (delta tracking, batching)
-var smartEgress = new SmartEgressSystem();
-world.AddSystem(smartEgress);
-
-// Entities with published components automatically egress
-entity.Set(new EntityMasterComponent { TkbType = 100, DisType = 0 });
-entity.Set(new GeoSpatialComponent { Lat = 50.0, Lon = 14.0, Alt = 200.0 });
+// INCORRECT (do NOT do this — causes double execution / conflicts):
+// world.AddSystem(new SmartEgressSystem());
+// world.AddSystem(new CycloneEgressSystem<EntityMaster>(...));
 ```
 
 ---
@@ -214,19 +217,28 @@ Constructing → Active → TearDown → Disposed
 ```
 
 **Usage:**
+
+> ⚠️ **Architecture note:** Do NOT manually add `ConstructingTag` to an entity. The `EntityLifecycleModule` (ELM) manages all lifecycle state components internally. Simply setting a tag will **not** trigger the `ConstructionOrder` event that the `NetworkGatewaySystem` requires to register the entity with peer nodes. Always call `elm.BeginConstruction(...)` explicitly, and add `PendingNetworkAck` **before** calling it when reliable distributed initialisation is required.
+
 ```csharp
-world.AddModule<EntityLifecycleModule>();
+// Register module
+var elm = new EntityLifecycleModule(tkb, Array.Empty<int>());
+kernel.RegisterModule(elm);
 
-// Entity creation (Constructing state)
-var entity = world.NewEntity();
-entity.Set(new ConstructingTag());
+// Entity creation — CORRECT pattern
+var entity = world.CreateEntity();
+template.ApplyTo(world, entity); // Apply TKB defaults first
 
-// Automatic transition to Active after template applied
+// Add PendingNetworkAck to block ACK until all peers confirm
+world.AddComponent(entity, new PendingNetworkAck { ExpectedType = ReliableInitType.AllPeers });
+
+// BeginConstruction fires ConstructionOrder → NetworkGatewaySystem → DDS
+elm.BeginConstruction(entity, tkbType, world.GlobalVersion, cmdBuffer);
+// NOTE: Do NOT call entity.Set(new ConstructingTag()) — ELM adds state components itself.
 
 // Entity deletion (graceful)
-entity.Set(new TearDownTag());
-
-// ELM handles cleanup, network disposal notification
+elm.BeginDestruction(entity, cmdBuffer);
+// ELM transitions to TearDown, publishes DestructionOrder, cleans up network mapping.
 ```
 
 ---
@@ -449,10 +461,19 @@ namespace Bagira.SimHost.Systems
                     LocalNodeId = _localNodeId 
                 });
                 
-                // 9. Mark as Constructing (EntityLifecycleModule will auto-transition)
-                world.AddComponent(entity, new ConstructingTag());
+                // 9. Enforce distributed reliability: entity stays Constructing until
+                //    all peer nodes (IG, IOS) send a NetworkGateway ACK.
+                world.AddComponent(entity, new PendingNetworkAck
+                {
+                    ExpectedType = ReliableInitType.AllPeers
+                });
                 
-                // 10. Send ACK via EventBus (CreateEntityAckTranslator will bridge to DDS)
+                // 10. Begin ELM construction — fires ConstructionOrder → NetworkGatewaySystem → DDS.
+                //     Do NOT call world.AddComponent(entity, new ConstructingTag()).
+                //     ELM manages lifecycle state components internally.
+                _elm.BeginConstruction(entity, tkbType, world.GlobalVersion, _cmdBuffer);
+                
+                // 11. Send ACK via EventBus (CreateEntityAckTranslator will bridge to DDS)
                 _eventBus.Publish(new CreateEntityAckEvent
                 {
                     Ack = new CreateEntityAck
@@ -491,35 +512,25 @@ namespace Bagira.SimHost.Systems
                 switch (desc._d)
                 {
                     case DescriptorType.EntityMaster:
-                        world.AddComponent(entity, new EntityMasterComponent
-                        {
-                            TkbType = desc.EntityMasterPayload.TkbType,
-                            DisType = desc.EntityMasterPayload.DisType,
-                            Flags = desc.EntityMasterPayload.Flags
-                        });
+                        // Use DDS model type directly (no local EntityMasterComponent wrapper).
+                        // SetComponent (overwrite) because template.ApplyTo may have set defaults.
+                        world.SetComponent(entity, desc.EntityMasterPayload);
                         break;
                     
                     case DescriptorType.EntityInfo:
-                        world.AddComponent(entity, new EntityInfoComponent
-                        {
-                            Name = desc.EntityInfoPayload.Name,
-                            ForceIdentifier = desc.EntityInfoPayload.ForceIdentifier,
-                            CommanderId = desc.EntityInfoPayload.CommanderId
-                        });
+                        world.SetComponent(entity, desc.EntityInfoPayload);
                         break;
                     
                     case DescriptorType.GeoSpatial:
-                        // Convert GeoPosition to VehicleState (local coordinates)
-                        // Requires WGS84Transform service (registered like NetworkDemo)
-                        var geoPos = desc.GeoSpatialPayload.Pos;
-                        // TODO: Get WGS84Transform from service locator
-                        // var cartesian = geoTransform.ToCartesian(geoPos);
-                        
-                        world.AddComponent(entity, new VehicleState
+                        // Store raw DDS component for auto-replication via CycloneNetworkModule.
+                        world.SetComponent(entity, desc.GeoSpatialPayload);
+                        // Convert to Cartesian for CarKinem VehicleState
+                        var cartesian = _geoTransform.ToCartesian(desc.GeoSpatialPayload.Pos);
+                        world.SetComponent(entity, new VehicleState
                         {
-                            Position = Vector2.Zero, // Placeholder
-                            Forward = HeadingToVector(desc.GeoSpatialPayload.Rot.Heading),
-                            Speed = 0,
+                            Position   = new Vector2((float)cartesian.X, (float)cartesian.Y),
+                            Forward    = HeadingToVector(desc.GeoSpatialPayload.Rot.Heading),
+                            Speed      = 0,
                             SteerAngle = 0
                         });
                         break;
@@ -1536,12 +1547,26 @@ public class SimHostSubsystem : SubsystemBase
         // Create DDS participant
         _participant = new DdsParticipant(domainId);
         
-        // Add network module to ECS
-        _world.AddModule(new CycloneNetworkModule(_participant));
-        
         // Start ID allocator server
-        var idAllocator = new DdsIdAllocator(_participant, "IdAllocatorService");
+        var idAllocator  = new DdsIdAllocator(_participant, isServer: true);
         idAllocator.Start();
+        
+        // Build and register CycloneNetworkModule with all required arguments.
+        // See Section 4.6 and Task S5.1 for the complete translator/topology setup.
+        var nodeMapper    = new NodeIdMapper(localDomain: domainId, localInstance: _config.NodeId);
+        var topology      = new NetworkTopology { IsServer = true };
+        var serialisation = new SerializationRegistry();
+        var elm           = _world.GetModule<EntityLifecycleModule>();
+        
+        var translators = BuildTranslators(_participant, _entityMap, elm, _geoTransform, _eventBus);
+        var networkModule = new CycloneNetworkModule(
+            _participant, nodeMapper, idAllocator, topology, elm,
+            serialisation, translators, _entityMap
+        );
+        kernel.RegisterModule(networkModule); // Registers all egress/ingress/gateway systems internally
+        
+        // Set MasterTimeController AFTER network module
+        kernel.SetTimeController(new MasterTimeController(_eventBus, null));
         
         // Announce presence for waiting room
         _statusPublisher = new SubsystemStatusPublisher(_participant, _config.NodeId, "simhost");
