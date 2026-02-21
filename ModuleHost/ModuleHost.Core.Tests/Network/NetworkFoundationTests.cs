@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Kernel;
-using Fdp.Kernel.Tkb;
 using ModuleHost.Core.Network;
 using ModuleHost.Core.Network.Interfaces;
 using ModuleHost.Core.Network.Messages;
@@ -147,12 +146,6 @@ namespace ModuleHost.Core.Tests.Network
             }
         }
 
-        private class MockTkb : ITkbDatabase
-        {
-            public TkbTemplate? GetTemplateByEntityType(DISEntityType entityType) => null;
-            public TkbTemplate? GetTemplateByName(string templateName) => null;
-        }
-
         [Fact]
         public void Interfaces_CanBeImplemented()
         {
@@ -163,8 +156,6 @@ namespace ModuleHost.Core.Tests.Network
             Assert.Equal(1, topology.LocalNodeId);
             Assert.Equal(new[] { 2, 3 }, topology.GetExpectedPeers(ReliableInitType.None));
             
-            var tkb = new MockTkb();
-            Assert.Null(tkb.GetTemplateByName("test"));
         }
 
         // 6. EntityLifecycleStatusDescriptor Tests
