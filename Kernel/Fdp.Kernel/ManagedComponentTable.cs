@@ -53,6 +53,13 @@ namespace Fdp.Kernel
         {
             this[index] = null;
         }
+
+        public void Clear()
+        {
+            // System.Console.WriteLine($"[DEBUG] Clearing Managed Table for {typeof(T).Name}");
+            Array.Clear(_chunks, 0, _chunks.Length);
+            Array.Clear(_chunkVersions, 0, _chunkVersions.Length);
+        }
         
         /// <summary>
         /// Efficiently checks if this table has been modified since the specified version.

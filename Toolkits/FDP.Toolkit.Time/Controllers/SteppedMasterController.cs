@@ -19,7 +19,7 @@ namespace FDP.Toolkit.Time.Controllers
         
         // Time state
         private double _totalTime;
-        private long _frameNumber;
+        private long _frameNumber = 0;
         private float _timeScale = 1.0f;
         private double _unscaledTotalTime;
         

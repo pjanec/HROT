@@ -47,6 +47,12 @@ namespace Fdp.Kernel
             // So we can leave it empty or zero it.
             // Let's match current behavior: do nothing. Mask is what matters.
         }
+
+        public void Clear()
+        {
+            // Unmanaged data doesn't trigger GC issues and is guarded by ComponentMask.
+            // Clearing it is expensive and unnecessary.
+        }
         
         /// <summary>
         /// Efficiently checks if this table has been modified since the specified version.

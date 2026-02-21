@@ -329,8 +329,16 @@ namespace Fdp.Kernel
         internal void Clear()
         {
             _entityIndex.Clear();
-            // Optionally clear component tables if needed (managed references) for GC correctness
-            // But relying on overwrite for now.
+            
+            // CRITICAL FIX: We must clear component tables to remove stale references.
+            // When seeking backwards in PlaybackSystem, we rely on Clear() to reset state.
+            // If we don't clear tables, high indices (or indices not overwritten by the target frame)
+            // will retain data from future frames. This causes RepairManagedComponentMasks
+            // to incorrecty revive components that shouldn't exist.
+            foreach (var table in _componentTables.Values)
+            {
+                table.Clear();
+            }
         }
 
         /// <summary>
@@ -1011,20 +1019,6 @@ namespace Fdp.Kernel
             if (header.ComponentMask.IsSet(ManagedComponentType<T>.ID))
                 return true;
 
-            // FIXME: remove this, suspicious code!!!
-
-            // Fallback: Check the storage table directly if the mask isn't set (or ID is out of range).
-            // This handles ID >= 256 AND cases where mask might be desynchronized.
-             if (_componentTables.TryGetValue(typeof(T), out var table))
-             {
-                 bool exists = ((ManagedComponentTable<T>)table).GetRO(entity.Index) != null;
-                 //// Debug hook for troubleshooting DescriptorOwnership
-                 //if (!exists && typeof(T).Name == "DescriptorOwnership" && entity.Index == 65538) {
-                 //    System.Console.WriteLine($"[REPO-DEBUG] HasManagedComponent<DescriptorOwnership>(65538) -> Table Found, Value is NULL. MaskSet={header.ComponentMask.IsSet(ManagedComponentType<T>.ID)}");
-                 //}
-                 return exists;
-             }
-            
             return false;
         }
         
@@ -1126,7 +1120,9 @@ namespace Fdp.Kernel
                 return;
             
             var table = GetManagedTable<T>(false);
-            table.Clear(entity.Index);
+            // CRITICAL FIX: Use Set(null) with version tracking instead of Clear/indexer
+            // This ensures the removal is captured by Flight Recorder deltas.
+            table.Set(entity.Index, null, _globalVersion);
             
             // Update component mask
             ref var header = ref _entityIndex.GetHeader(entity.Index);

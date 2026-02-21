@@ -69,6 +69,12 @@ namespace Fdp.Kernel
         void ClearRaw(int index);
 
         /// <summary>
+        /// Clears all data in the table (all chunks).
+        /// Used when resetting the repository state (e.g. loading a keyframe).
+        /// </summary>
+        void Clear();
+
+        /// <summary>
         /// Gets a raw pointer to the component data for the entity.
         /// Only supported for Unmanaged components (ComponentTable{T}).
         /// Throws NotSupportedException for Managed components.
