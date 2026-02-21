@@ -1,4 +1,5 @@
 using Fdp.Examples.NetworkDemo.Components;
+using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication;
@@ -30,19 +31,28 @@ namespace Fdp.Examples.NetworkDemo.Configuration
                 ChildTkbType = 101 
             });
 
-            // HARD REQUIREMENT: Chassis (Position/Rotation)
-            // Entity stays as Ghost until this arrives
+            // [NEW] 1. Add Lifecycle Component
+            // Default state is Constructing. 
+            // RequiredModulesMask will be populated by ELM during BeginConstruction.
+            tank.AddComponent(new LifecycleDescriptor 
+            { 
+                State = EntityState.Constructing,
+                CreatedTime = 0,
+                RequiredModulesMask = 0, 
+                AckedModulesMask = 0
+            });
+
+            // HARD REQUIREMENT: EntityMaster (ordinal 1) — ghost stays unspawned until this arrives
             tank.MandatoryDescriptors.Add(new MandatoryDescriptor {
-                PackedKey = PackedKey.Create(5, 0), // Chassis descriptor
+                PackedKey = PackedKey.Create(DemoDescriptors.Master, 0),
                 IsHard = true
             });
             
-            // SOFT REQUIREMENT: Turret (Aim angles)
-            // Entity spawns after timeout even if this hasn't arrived
+            // SOFT REQUIREMENT: Physics / Position (ordinal 2) — spawn after timeout even if absent
             tank.MandatoryDescriptors.Add(new MandatoryDescriptor {
-                PackedKey = PackedKey.Create(10, 0), // Turret descriptor
+                PackedKey = PackedKey.Create(DemoDescriptors.Physics, 0),
                 IsHard = false,
-                SoftTimeoutFrames = 60 // 1 second at 60Hz
+                SoftTimeoutFrames = 60 // 1 second at 60 Hz
             });
             
             tkb.Register(tank);

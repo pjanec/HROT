@@ -4,6 +4,7 @@ using Fdp.Examples.NetworkDemo.Events; // Added
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Network;
 using ModuleHost.Network.Cyclone.Components;
+using FDP.Toolkit.Lifecycle.Events;
 
 namespace Fdp.Examples.NetworkDemo.Configuration
 {
@@ -13,12 +14,17 @@ namespace Fdp.Examples.NetworkDemo.Configuration
         {
             // Events
             world.RegisterEvent<FireInteractionEvent>();
+            world.RegisterEvent<ConstructionOrder>();
+            world.RegisterEvent<ConstructionAck>();   // Required for ELM ACK flow
+            world.RegisterEvent<DestructionAck>();    // Required for ELM destruction flow
+            world.RegisterEvent<DestructionOrder>();  // Required for ELM teardown flow
 
             // Legacy components
             world.RegisterComponent<Position>();
             world.RegisterComponent<PositionGeodetic>();
             world.RegisterComponent<Velocity>();
             world.RegisterComponent<EntityType>();
+            world.RegisterComponent<LifecycleDescriptor>();
             
             // Toolkit components
             world.RegisterComponent<NetworkPosition>();

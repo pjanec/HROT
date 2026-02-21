@@ -91,27 +91,33 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
             Assert.Equal(75, health.Value); // 100 - 25
         }
 
+        // WithLifecycle(All): local tanks are in Constructing state until the
+        // NetworkGateway ACK fires; we must find them regardless of lifecycle state.
         private Entity FindRemoteEntity(NetworkDemoApp node, int localNodeId)
         {
-            var query = node.World.Query().With<NetworkOwnership>().Build();
+            var query = node.World.Query()
+                             .With<NetworkOwnership>()
+                             .WithLifecycle(EntityLifecycle.All)
+                             .Build();
             foreach (var e in query)
             {
                 var own = node.World.GetComponent<NetworkOwnership>(e);
                 if (own.PrimaryOwnerId != localNodeId)
-                {
                     return e;
-                }
             }
             return Entity.Null;
         }
 
         private Entity GetTankByOwner(NetworkDemoApp app, int ownerId)
         {
-            var query = app.World.Query().With<NetworkOwnership>().Build();
+            var query = app.World.Query()
+                             .With<NetworkOwnership>()
+                             .WithLifecycle(EntityLifecycle.All)
+                             .Build();
             foreach (var e in query)
             {
-                 var own = app.World.GetComponent<NetworkOwnership>(e);
-                 if (own.PrimaryOwnerId == ownerId) return e;
+                var own = app.World.GetComponent<NetworkOwnership>(e);
+                if (own.PrimaryOwnerId == ownerId) return e;
             }
             return Entity.Null;
         }

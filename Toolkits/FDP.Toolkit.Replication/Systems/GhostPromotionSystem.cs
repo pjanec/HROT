@@ -5,6 +5,7 @@ using Fdp.Kernel;
 using Fdp.Interfaces;
 using FDP.Toolkit.Replication.Components;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Lifecycle.Events;
 
 namespace FDP.Toolkit.Replication.Systems
 {
@@ -189,6 +190,13 @@ namespace FDP.Toolkit.Replication.Systems
                 ecb.RemoveManagedComponent<BinaryGhostStore>(entity);
                 ecb.RemoveComponent<NetworkSpawnRequest>(entity);
                 ecb.SetLifecycleState(entity, EntityLifecycle.Constructing);
+                
+                ecb.PublishEvent(new ConstructionOrder 
+                {
+                     Entity = entity,
+                     BlueprintId = spawnReq.TkbType, // Assuming spawnReq is still accessible here. Yes it is defined at start of method.
+                     FrameNumber = World.GlobalVersion
+                });
                 
                 ecb.Playback(World);
             }

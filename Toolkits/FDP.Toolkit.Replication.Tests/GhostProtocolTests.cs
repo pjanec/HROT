@@ -6,6 +6,7 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Systems;
 using Fdp.Interfaces;
 using ModuleHost.Core.Abstractions;
+using FDP.Toolkit.Lifecycle.Events;
 
 namespace FDP.Toolkit.Replication.Tests
 {
@@ -75,6 +76,7 @@ namespace FDP.Toolkit.Replication.Tests
             
             repo.RegisterManagedComponent<BinaryGhostStore>();
             repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterEvent<ConstructionOrder>(); // Register event required by PromotionSystem
             
             repo.SetSingletonUnmanaged(new GlobalTime { FrameNumber = 100 });
             
@@ -110,6 +112,7 @@ namespace FDP.Toolkit.Replication.Tests
             
             repo.RegisterManagedComponent<BinaryGhostStore>();
             repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterEvent<ConstructionOrder>();
             repo.SetSingletonUnmanaged(new GlobalTime { FrameNumber = 100 });
             
             var template = new TkbTemplate("Test", 123); 
@@ -151,6 +154,7 @@ namespace FDP.Toolkit.Replication.Tests
             
             repo.RegisterManagedComponent<BinaryGhostStore>();
             repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterEvent<ConstructionOrder>();
             // Frame 100.
             repo.SetSingletonUnmanaged(new GlobalTime { FrameNumber = 100 });
             

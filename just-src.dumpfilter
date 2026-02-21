@@ -1,0 +1,26 @@
++ *
+- **/docs
+- **/Docs
+- **/Debug
+- **/Release
+- **/.*
+- **/obj
+- **/bin
+- **/tests
+- **/Tests
+- **/*.Tests*
+- **/*Benchmark*
+- **/*benchmark*
+- **/build
+- **/artifacts
+- ExtDeps
+- **/Generated/*
+- **/*.png
+- **/*.dll
+- **/*.exe
+- **/*.md
+- Kernel\Fdp.Kernel.Examples 
+
+
+
+

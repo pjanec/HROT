@@ -9,6 +9,10 @@ namespace Fdp.Interfaces
         
         // Lookup by TkbType (primary key)
         TkbTemplate GetByType(long tkbType);
+
+		// Convenience method for primary key lookup, for backward compatibility
+		TkbTemplate GetTemplate(long tkbType) => GetByType(tkbType);
+
         bool TryGetByType(long tkbType, out TkbTemplate template);
         
         // Lookup by name (secondary key)  

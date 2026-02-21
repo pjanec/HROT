@@ -79,12 +79,16 @@ namespace ModuleHost.Network.Cyclone.Translators
         public void ScanAndPublish(ISimulationView view)
         {
             // Iterate all entities that have Identity, SpawnRequest and Ownership
-            // We only publish if we are the owner
+            // We only publish if we are the owner.
+            // Use WithLifecycle(All) so that entities in the Constructing state are
+            // also announced to remote peers. Remote nodes must receive the EntityMaster
+            // before they can create a ghost and send the construction ACK back.
             
             var query = view.Query()
                 .With<NetworkIdentity>()
                 .With<NetworkSpawnRequest>()
                 .With<NetworkOwnership>()
+                .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
             foreach(var entity in query)

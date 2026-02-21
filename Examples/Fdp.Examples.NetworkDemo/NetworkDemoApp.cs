@@ -176,7 +176,10 @@ namespace Fdp.Examples.NetworkDemo
             wgs84.SetOrigin(52.52, 13.405, 0);
 
             // A. Infrastructure (Toolkit)
-            var elm = new EntityLifecycleModule(tkb, Array.Empty<int>()); 
+            // ELM timeout must exceed the NetworkGateway reliable-init timeout (300 frames)
+            // so that the Gateway's fallback ACK is always processed before ELM destroys the entity.
+            var elm = new EntityLifecycleModule(tkb, Array.Empty<int>(),
+                        timeoutFrames: ModuleHost.Core.Network.NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES * 2 + 50); 
             Kernel.RegisterModule(elm);
 
             if (!isReplay)
@@ -331,7 +334,11 @@ namespace Fdp.Examples.NetworkDemo
             {
                  if (autoSpawn)
                  {
-                     SpawnLocalEntities(World, tkb, instanceId, localInternalId, EntityMap);
+                     using(var cmd = new EntityCommandBuffer())
+                     {
+                        SpawnLocalEntities(World, tkb, instanceId, localInternalId, EntityMap, elm, cmd);
+                        cmd.Playback(World);
+                     }
                      FdpLog<NetworkDemoApp>.Info($"[SPAWN] Auto-spawn executed for {instanceId}");
                  }
                  else
@@ -434,13 +441,24 @@ namespace Fdp.Examples.NetworkDemo
 
 
         // Helper: SpawnLocalEntities
-        static void SpawnLocalEntities(EntityRepository world, TkbDatabase tkb, int instanceId, int localInternalId, FDP.Toolkit.Replication.Services.NetworkEntityMap entityMap)
+        static void SpawnLocalEntities(
+            EntityRepository world, 
+            TkbDatabase tkb, 
+            int instanceId, 
+            int localInternalId, 
+            FDP.Toolkit.Replication.Services.NetworkEntityMap entityMap,
+            EntityLifecycleModule elm, 
+            IEntityCommandBuffer cmd)
         {
             if (tkb.TryGetByName("CommandTank", out var template)) // Updated name B.3
             {
                 for(int i=0; i<1; i++) // Just 1 tank per node for now
                 {
                     var entity = world.CreateEntity();
+                    
+                    // Lifecycle State
+                    world.SetLifecycleState(entity, EntityLifecycle.Constructing);
+                    
                     template.ApplyTo(world, entity);
                     
                     // Override Properties
@@ -453,8 +471,8 @@ namespace Fdp.Examples.NetworkDemo
                     entityMap.Register(netId, entity);
 
                     // 2. Ownership
-                    // Adding NetworkOwnership for NetworkModule compatibility
-                    world.AddComponent(entity, new ModuleHost.Core.Network.NetworkOwnership 
+                    // Template already adds NetworkOwnership (default values), so we SET (overwrite) here.
+                    world.SetComponent(entity, new ModuleHost.Core.Network.NetworkOwnership 
                     { 
                         PrimaryOwnerId = localInternalId, 
                         LocalNodeId = localInternalId 
@@ -469,6 +487,15 @@ namespace Fdp.Examples.NetworkDemo
                         DisType = 100,
                         OwnerId = (ulong)localInternalId 
                     });
+                    
+                    // 5. [CRITICAL] Configure Reliable Network Initialization
+                    world.AddComponent(entity, new PendingNetworkAck 
+                    { 
+                        ExpectedType = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers 
+                    });
+
+                    // 6. [CRITICAL] Kick off the Lifecycle
+                    elm.BeginConstruction(entity, template.TkbType, world.GlobalVersion, cmd);
                     
                     // 3. Initial Position
                     world.SetComponent(entity, new DemoPosition 

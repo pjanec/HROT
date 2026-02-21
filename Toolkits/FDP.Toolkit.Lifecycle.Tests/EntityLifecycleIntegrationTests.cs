@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fdp.Kernel;
+using Fdp.Interfaces;
 using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Time;
@@ -87,6 +88,22 @@ namespace FDP.Toolkit.Lifecycle.Tests
             }
         }
 
+        private class MockTkbDatabase : ITkbDatabase
+        {
+            public bool TryGetByType(long blueprintId, out TkbTemplate template)
+            {
+                template = new TkbTemplate("Mock", blueprintId);
+                return true;
+            }
+            public bool TryGetByName(string name, out TkbTemplate template) { template = null; return false; }
+            public TkbTemplate GetByType(long blueprintId) => new TkbTemplate("Mock", blueprintId);
+            public void Register(TkbTemplate template) { }
+            public IEnumerable<TkbTemplate> GetAll() => Array.Empty<TkbTemplate>();
+            public TkbTemplate GetByName(string name) => null;
+            public TkbTemplate GetTemplateByEntityType(Fdp.Kernel.DISEntityType entityType) => null;
+            public TkbTemplate GetTemplateByName(string templateName) => null;
+        }
+
         [Fact]
         public async Task ELM_3Module_CoordinatedSpawn()
         {
@@ -95,7 +112,7 @@ namespace FDP.Toolkit.Lifecycle.Tests
             var ai = new MockModule { Id = 2 };
             var network = new MockModule { Id = 3 };
             
-            var elm = new EntityLifecycleModule(null, new[] { 1, 2, 3 });
+            var elm = new EntityLifecycleModule(new MockTkbDatabase(), new[] { 1, 2, 3 });
             
             var kernel = CreateKernel();
             kernel.RegisterModule(elm);
@@ -145,7 +162,7 @@ namespace FDP.Toolkit.Lifecycle.Tests
         public async Task ELM_Teardown_CoordinatedDestruction()
         {
             var physics = new MockModule { Id = 1 };
-            var elm = new EntityLifecycleModule(null, new[] { 1 });
+            var elm = new EntityLifecycleModule(new MockTkbDatabase(), new[] { 1 });
             
             var kernel = CreateKernel();
             kernel.RegisterModule(elm);

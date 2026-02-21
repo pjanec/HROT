@@ -1,11 +1,12 @@
+using Fdp.Interfaces;
+using Fdp.Kernel;
+using FDP.Toolkit.Lifecycle.Events;
+using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Systems;
+using ModuleHost.Core.Abstractions;
 using System;
 using System.Collections.Generic;
 using Xunit;
-using Fdp.Kernel;
-using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Systems;
-using Fdp.Interfaces;
-using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Tests
 {
@@ -61,6 +62,7 @@ namespace FDP.Toolkit.Replication.Tests
             repo.RegisterManagedComponent<ChildMap>();
             repo.RegisterComponent<NetworkSpawnRequest>();
             repo.RegisterComponent<PartMetadata>();
+            repo.RegisterEvent<ConstructionOrder>(); // Register event required by PromotionSystem
             repo.SetSingletonUnmanaged(new GlobalTime { FrameNumber = 100 });
 
             // Define Templates

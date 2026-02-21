@@ -52,6 +52,7 @@ namespace Fdp.Examples.NetworkDemo.Translators
             var query = view.Query()
                 .With<DemoPosition>()
                 .With<NetworkIdentity>()
+                .WithLifecycle(Fdp.Kernel.EntityLifecycle.All)
                 .Build();
 
             foreach (var entity in query)
