@@ -53,6 +53,7 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
             _repo.RegisterComponent<NetworkIdentity>();
             _repo.RegisterComponent<NetworkOwnership>();
             _repo.RegisterComponent<NetworkAuthority>();
+            _repo.RegisterComponent<NetworkSpawnRequest>();
             _repo.RegisterComponent<PendingNetworkAck>();
             _repo.RegisterComponent<TestPositionComponent>();
             // ELM commands publish these events — register so command buffer playback works

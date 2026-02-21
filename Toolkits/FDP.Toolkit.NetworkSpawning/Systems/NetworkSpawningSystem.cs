@@ -113,6 +113,9 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
 
             // 4. Create ECS entity and apply TKB blueprint defaults
             var entity = world.CreateEntity();
+            // Set lifecycle header immediately so queries that filter by Constructing
+            // can find this entity even before all peer ACKs arrive.
+            world.SetLifecycleState(entity, EntityLifecycle.Constructing);
             template.ApplyTo(world, entity);
 
             // 5. Core network components (order matches design doc §4.3)
@@ -124,20 +127,27 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             });
             world.AddComponent(entity, new NetworkAuthority(cmd.OwnerNodeId, _localNodeId));
 
-            // 6. Optional reliable-init handshake component
+            // Signals NetworkGatewaySystem that this entity needs replication
+            world.AddComponent(entity, new NetworkSpawnRequest
+            {
+                DisType = ExtractDisType(cmd.InitialComponents),
+                OwnerId = (ulong)cmd.OwnerNodeId
+            });
+
+            // 7. Optional reliable-init handshake component
             if (cmd.InitType != ReliableInitType.None)
                 world.AddComponent(entity, new PendingNetworkAck { ExpectedType = cmd.InitType });
 
-            // 7. Apply caller-supplied component overrides on top of TKB defaults
+            // 8. Apply caller-supplied component overrides on top of TKB defaults
             if (cmd.InitialComponents != null)
                 foreach (var component in cmd.InitialComponents)
                     EntityComponentReflector.SetComponent(world, entity, component);
 
-            // 8. Register BEFORE starting lifecycle so any system that responds to
+            // 9. Register BEFORE starting lifecycle so any system that responds to
             //    ConstructionOrder can already resolve the entity via the map.
             _networkMap.Register(networkId, entity);
 
-            // 9. ELM BeginConstruction — must be the very last call
+            // 10. ELM BeginConstruction — must be the very last call
             _elm.BeginConstruction(entity, cmd.TkbType, tick, cmdBuffer);
         }
 

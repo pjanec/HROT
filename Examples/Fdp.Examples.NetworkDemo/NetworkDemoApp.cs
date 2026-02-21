@@ -26,6 +26,8 @@ using FDP.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Tkb;
 using FDP.Toolkit.Replication;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Time.Controllers;
 using ModuleHost.Network.Cyclone;
 using ModuleHost.Network.Cyclone.Services;
@@ -187,6 +189,16 @@ namespace Fdp.Examples.NetworkDemo
                 Kernel.RegisterModule(new ReplicationLogicModule());
             }
 
+            // Register NetworkSpawningSystem from FDP.Toolkit.NetworkSpawning.
+            // Must be after ELM and before modules that publish SpawnEntityCommand events.
+            if (!isReplay)
+            {
+                INetworkIdAllocator effectiveAllocator = idAllocator ?? new SequentialIdAllocator();
+                DisTypeExtractor extractor = (object c, out ulong dis) => { dis = 0; return false; };
+                var spawningSystem = new NetworkSpawningSystem(tkb, elm, EntityMap, effectiveAllocator, localInternalId, extractor);
+                Kernel.RegisterModule(new SpawningModule(spawningSystem));
+            }
+
             // B. Network (Cyclone)
             if (enableNetwork && participant != null && idAllocator != null)
             {
@@ -334,12 +346,8 @@ namespace Fdp.Examples.NetworkDemo
             {
                  if (autoSpawn)
                  {
-                     using(var cmd = new EntityCommandBuffer())
-                     {
-                        SpawnLocalEntities(World, tkb, instanceId, localInternalId, EntityMap, elm, cmd);
-                        cmd.Playback(World);
-                     }
-                     FdpLog<NetworkDemoApp>.Info($"[SPAWN] Auto-spawn executed for {instanceId}");
+                     SpawnLocalEntities(World, tkb, instanceId, localInternalId);
+                     FdpLog<NetworkDemoApp>.Info($"[SPAWN] Auto-spawn queued for {instanceId} (processed next frame)");
                  }
                  else
                  {
@@ -441,80 +449,46 @@ namespace Fdp.Examples.NetworkDemo
 
 
         // Helper: SpawnLocalEntities
-        static void SpawnLocalEntities(
-            EntityRepository world, 
-            TkbDatabase tkb, 
-            int instanceId, 
-            int localInternalId, 
-            FDP.Toolkit.Replication.Services.NetworkEntityMap entityMap,
-            EntityLifecycleModule elm, 
-            IEntityCommandBuffer cmd)
+        // Publishes a SpawnEntityCommand to the world event bus.
+        // NetworkSpawningSystem (registered in SpawningModule) processes the command
+        // the next time the kernel ticks, handling all ECS/ELM setup internally.
+        private static void SpawnLocalEntities(
+            EntityRepository world,
+            TkbDatabase tkb,
+            int instanceId,
+            int localInternalId)
         {
-            if (tkb.TryGetByName("CommandTank", out var template)) // Updated name B.3
+            if (!tkb.TryGetByName("CommandTank", out var template))
             {
-                for(int i=0; i<1; i++) // Just 1 tank per node for now
+                FdpLog<NetworkDemoApp>.Warn("[SpawnLocal] CommandTank template not found.");
+                return;
+            }
+
+            // Deterministic non-zero NetworkId avoids the allocator and keeps
+            // test IDs stable across runs (1 tank per node).
+            long netId = (long)instanceId * 1000;
+
+            world.Bus.PublishManaged(new SpawnEntityCommand
+            {
+                NetworkId         = netId,
+                TkbType           = template.TkbType,
+                OwnerNodeId       = localInternalId,
+                InitType          = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
+                InitialComponents = new System.Collections.Generic.List<object>
                 {
-                    var entity = world.CreateEntity();
-                    
-                    // Lifecycle State
-                    world.SetLifecycleState(entity, EntityLifecycle.Constructing);
-                    
-                    template.ApplyTo(world, entity);
-                    
-                    // Override Properties
-                    
-                    // 1. Identity
-                    var netId = (long)instanceId * 1000 + entity.Index;
-                    world.SetComponent(entity, new NetworkIdentity { Value = netId });
-                    
-                    // Register immediately to Map
-                    entityMap.Register(netId, entity);
-
-                    // 2. Ownership
-                    // Template already adds NetworkOwnership (default values), so we SET (overwrite) here.
-                    world.SetComponent(entity, new ModuleHost.Core.Network.NetworkOwnership 
-                    { 
-                        PrimaryOwnerId = localInternalId, 
-                        LocalNodeId = localInternalId 
-                    });
-                    
-                    // Adding NetworkAuthority for ReplayBridge compatibility
-                    world.AddComponent(entity, new FDP.Toolkit.Replication.Components.NetworkAuthority(localInternalId, localInternalId));
-
-                    // 2b. Spawn Request
-                    world.AddComponent(entity, new NetworkSpawnRequest 
-                    { 
-                        DisType = 100,
-                        OwnerId = (ulong)localInternalId 
-                    });
-                    
-                    // 5. [CRITICAL] Configure Reliable Network Initialization
-                    world.AddComponent(entity, new PendingNetworkAck 
-                    { 
-                        ExpectedType = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers 
-                    });
-
-                    // 6. [CRITICAL] Kick off the Lifecycle
-                    elm.BeginConstruction(entity, template.TkbType, world.GlobalVersion, cmd);
-                    
-                    // 3. Initial Position
-                    world.SetComponent(entity, new DemoPosition 
-                    { 
+                    new DemoPosition
+                    {
                         Value = new Vector3(
                             Random.Shared.Next(-50, 50),
                             Random.Shared.Next(-50, 50),
-                            0
-                        )
-                    });
-                    
-                     world.SetComponent(entity, new NetworkPosition 
-                    { 
-                        Value = new Vector3(0,0,0) // synced position
-                    });
-                    
-                    world.AddComponent(entity, new EntityType { Name = "Tank", TypeId = 1 });
+                            0)
+                    },
+                    new NetworkPosition { Value = Vector3.Zero },
+                    new EntityType { Name = "Tank", TypeId = 1 }
                 }
-            }
+            });
+
+            FdpLog<NetworkDemoApp>.Info($"[SPAWN] Published SpawnEntityCommand for TkbType={template.TkbType}, NetworkId={netId}");
         }
 
         // Helper: PrintStatus
@@ -561,6 +535,20 @@ namespace Fdp.Examples.NetworkDemo
             }
             
             FdpLog<NetworkDemoApp>.Info($"[STATUS] Local: {localCount}, Remote: {remoteCount}");
+        }
+
+        /// <summary>
+        /// Fallback ID allocator used when no DDS-backed allocator is available
+        /// (e.g. when NetworkDemo is started without networking enabled).
+        /// Entities published via SpawnEntityCommand with NetworkId = 0 will receive
+        /// monotonically increasing IDs from this allocator.
+        /// </summary>
+        private sealed class SequentialIdAllocator : ModuleHost.Core.Network.Interfaces.INetworkIdAllocator
+        {
+            private long _nextId = 1;
+            public long AllocateId() => System.Threading.Interlocked.Increment(ref _nextId);
+            public void Reset(long startId = 0) => System.Threading.Interlocked.Exchange(ref _nextId, startId);
+            public void Dispose() { }
         }
     }
 }

@@ -41,6 +41,7 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<NetworkAuthority>();
+            repo.RegisterComponent<NetworkSpawnRequest>();
             repo.RegisterComponent<PendingNetworkAck>();
             repo.RegisterComponent<TestPositionComponent>();
             // ELM commands publish these events — register so command buffer playback works
@@ -317,6 +318,34 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
             Assert.True(networkMap.TryGetEntity(80L, out var entity));
             Assert.True(repo.HasComponent<PendingNetworkAck>(entity),
                 "PendingNetworkAck MUST be present when InitType is AllPeers");
+        }
+
+        [Fact]
+        public void Spawn_SetsNetworkSpawnRequest_WithCorrectOwnerId()
+        {
+            // Arrange
+            var repo        = CreateWorld();
+            var tkb         = CreateTkb();
+            var elm         = CreateElm(tkb);
+            var networkMap  = new NetworkEntityMap();
+            var idAllocator = new StubIdAllocator();
+            var system      = CreateSystem(repo, networkMap, idAllocator, tkb, elm);
+
+            // Act: spawn entity with OwnerNodeId = 5
+            RunSpawn(repo, system, new SpawnEntityCommand
+            {
+                NetworkId   = 90L,
+                TkbType     = DefaultTkbType,
+                OwnerNodeId = 5
+            });
+
+            // Assert
+            Assert.True(networkMap.TryGetEntity(90L, out var entity));
+            Assert.True(repo.HasComponent<NetworkSpawnRequest>(entity),
+                "NetworkSpawnRequest must be present on every spawned entity.");
+
+            var spawnReq = repo.GetComponent<NetworkSpawnRequest>(entity);
+            Assert.Equal(5UL, spawnReq.OwnerId);
         }
     }
 }
