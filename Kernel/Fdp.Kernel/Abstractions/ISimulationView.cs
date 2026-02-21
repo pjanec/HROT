@@ -63,8 +63,9 @@ namespace ModuleHost.Core.Abstractions
         /// <summary>
         /// Consumes all captured managed events of type T.
         /// Returns a read-only list (snapshot) of events.
+        /// Accepts both reference types (classes) and managed structs (structs containing references).
         /// </summary>
-        System.Collections.Generic.IReadOnlyList<T> ConsumeManagedEvents<T>() where T : class;
+        System.Collections.Generic.IReadOnlyList<T> ConsumeManagedEvents<T>();
 
         /// <summary>
         /// Acquires a command buffer for queueing mutations.

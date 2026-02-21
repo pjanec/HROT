@@ -97,7 +97,7 @@ namespace ModuleHost.Core.Tests.Mocks
 
         public bool IsAlive(Entity entity) => ComponentArrays.ContainsKey(entity) || ManagedComponents.ContainsKey(entity);
         
-        public IReadOnlyList<T> ConsumeManagedEvents<T>() where T : class => Array.Empty<T>();
+        public IReadOnlyList<T> ConsumeManagedEvents<T>() => Array.Empty<T>();
     }
     
     public class MockCommandBuffer : IEntityCommandBuffer

@@ -123,7 +123,7 @@ namespace Fdp.Examples.CarKinem.Tests
         
         public QueryBuilder Query() => throw new NotImplementedException();
         
-        public System.Collections.Generic.IReadOnlyList<T> ConsumeManagedEvents<T>() where T : class => throw new NotImplementedException();
+        public System.Collections.Generic.IReadOnlyList<T> ConsumeManagedEvents<T>() => throw new NotImplementedException();
         
         // Static holder for ref return trick (unsafe for concurrency but ok for single thread unit test)
         private static class _tempStorage<T> where T : struct { public static T Value; }

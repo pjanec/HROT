@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Fdp.Kernel
 {
@@ -19,8 +20,8 @@ namespace Fdp.Kernel
     /// Uses locking for thread safety since List<T> is not thread-safe.
     /// Suitable for low-volume events (< 100/frame).
     /// </summary>
-    /// <typeparam name="T">Managed event type (class)</typeparam>
-    public class ManagedEventStream<T> : IManagedEventStreamInfo, IEventStreamInspector, IManagedEventStream where T : class
+    /// <typeparam name="T">Managed event type — class or struct-containing-references (managed struct)</typeparam>
+    public class ManagedEventStream<T> : IManagedEventStreamInfo, IEventStreamInspector, IManagedEventStream
     {
         // Double buffers: front for reading, back for writing
         private List<T> _front = new List<T>();
@@ -51,8 +52,10 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                // Return a copy to avoid concurrency issues during enumeration
-                return new List<object>(_back);
+                // Return a copy to avoid concurrency issues during enumeration.
+                // Cast<object>() is used instead of new List<object>(_back) because
+                // List<T>.IEnumerable<T> is not covariant to IEnumerable<object> for value-type T.
+                return _back.Cast<object>().ToList();
             }
         }
 
@@ -66,7 +69,8 @@ namespace Fdp.Kernel
         /// </summary>
         public void Write(T evt)
         {
-            if (evt == null)
+            // For reference types, guard against null. For value types this check is always false.
+            if (evt is null)
                 throw new ArgumentNullException(nameof(evt));
 
             lock (_lock)

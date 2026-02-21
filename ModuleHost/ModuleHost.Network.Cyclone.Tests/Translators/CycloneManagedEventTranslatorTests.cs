@@ -39,7 +39,7 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
     {
         public List<object> ManagedEventsToReturn = new List<object>();
 
-        public IReadOnlyList<T> ConsumeManagedEvents<T>() where T : class
+        public IReadOnlyList<T> ConsumeManagedEvents<T>()
         {
             // Simple filtering
             var res = new List<T>();

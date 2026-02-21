@@ -44,7 +44,7 @@ namespace Fdp.Kernel
         /// </summary>
         /// <typeparam name="T">Managed event type (class)</typeparam>
         /// <param name="evt">Event to publish</param>
-        public void PublishManaged<T>(T evt) where T : class
+        public void PublishManaged<T>(T evt) // No class constraint — allows managed structs
         {
             var stream = GetOrCreateManagedStream<T>();
             stream.Write(evt);
@@ -61,7 +61,7 @@ namespace Fdp.Kernel
         /// <summary>
         /// Checks if a managed event of type T exists in the current frame.
         /// </summary>
-        public bool HasManagedEvent<T>() where T : class
+        public bool HasManagedEvent<T>() // No class constraint — aligns with PublishManaged
         {
             return _activeEventIds.Contains(GetManagedTypeId<T>());
         }
@@ -185,7 +185,7 @@ namespace Fdp.Kernel
         /// </summary>
         /// <typeparam name="T">Managed event type</typeparam>
         /// <returns>Read-only list of events from previous frame</returns>
-        public IReadOnlyList<T> ConsumeManaged<T>() where T : class
+        public IReadOnlyList<T> ConsumeManaged<T>() // No class constraint — allows managed structs
         {
             if (_managedStreams.TryGetValue(GetManagedTypeId<T>(), out var stream))
             {
@@ -381,7 +381,7 @@ namespace Fdp.Kernel
         /// Gets or creates a managed event stream for type T.
         /// Thread-safe via ConcurrentDictionary.
         /// </summary>
-        private ManagedEventStream<T> GetOrCreateManagedStream<T>() where T : class
+        private ManagedEventStream<T> GetOrCreateManagedStream<T>() // No class constraint
         {
             int typeId = GetManagedTypeId<T>();
             
@@ -452,7 +452,7 @@ namespace Fdp.Kernel
             method.Invoke(this, new object[] { typeId, events });
         }
         
-        private void InjectManagedInternal<T>(int typeId, IReadOnlyList<object> events) where T : class
+        private void InjectManagedInternal<T>(int typeId, IReadOnlyList<object> events) // No class constraint
         {
             var stream = GetOrCreateManagedStream<T>(); // Ensure stream exists
             // Verify ID matches? (should match hash)

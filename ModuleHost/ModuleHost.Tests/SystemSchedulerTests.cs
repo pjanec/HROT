@@ -108,7 +108,7 @@ namespace ModuleHost.Tests
         public bool HasComponent<T>(Fdp.Kernel.Entity e) where T : struct => false;
         public bool HasManagedComponent<T>(Fdp.Kernel.Entity e) where T : class => false;
         public ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged => ReadOnlySpan<T>.Empty;
-        public IReadOnlyList<T> ConsumeManagedEvents<T>() where T : class => new List<T>();
+        public IReadOnlyList<T> ConsumeManagedEvents<T>() => new List<T>();
         public Fdp.Kernel.QueryBuilder Query() => throw new NotImplementedException();
     }
     

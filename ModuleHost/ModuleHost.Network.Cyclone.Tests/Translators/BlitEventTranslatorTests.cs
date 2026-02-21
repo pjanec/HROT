@@ -31,7 +31,7 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
         public bool HasComponent<T>(Entity e) where T : unmanaged => false;
         public bool HasManagedComponent<T>(Entity e) where T : class => false;
         public QueryBuilder Query() => throw new NotImplementedException();
-        public IReadOnlyList<T> ConsumeManagedEvents<T>() where T : class => new List<T>();
+        public IReadOnlyList<T> ConsumeManagedEvents<T>() => new List<T>();
         public IEntityCommandBuffer GetCommandBuffer() => default!;
     }
 

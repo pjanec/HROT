@@ -115,7 +115,7 @@ namespace ModuleHost.Core.Tests
         public bool HasComponent<T>(Entity e) where T : unmanaged => false;
         public bool HasManagedComponent<T>(Entity e) where T : class => false;
         public ReadOnlySpan<T> ConsumeEvents<T>() where T : unmanaged => ReadOnlySpan<T>.Empty;
-        public IReadOnlyList<T> ConsumeManagedEvents<T>() where T : class => new List<T>();
+        public IReadOnlyList<T> ConsumeManagedEvents<T>() => new List<T>();
         public QueryBuilder Query() => throw new NotImplementedException();
     }
     

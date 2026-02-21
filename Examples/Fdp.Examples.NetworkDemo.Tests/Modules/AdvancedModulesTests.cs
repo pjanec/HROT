@@ -22,7 +22,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Modules
             PublishedEvents.Add(eventData);
         }
         
-        public void PublishManaged<T>(T eventData) where T : class
+        public void PublishManaged<T>(T eventData)
         {
             PublishedEvents.Add(eventData);
         }
