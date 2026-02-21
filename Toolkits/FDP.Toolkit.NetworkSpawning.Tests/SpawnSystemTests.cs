@@ -347,5 +347,29 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
             var spawnReq = repo.GetComponent<NetworkSpawnRequest>(entity);
             Assert.Equal(5UL, spawnReq.OwnerId);
         }
+
+        [Fact]
+        public void Spawn_EntityHasConstructingLifecycle()
+        {
+            // Arrange
+            var repo        = CreateWorld();
+            var tkb         = CreateTkb();
+            var elm         = CreateElm(tkb);
+            var networkMap  = new NetworkEntityMap();
+            var idAllocator = new StubIdAllocator();
+            var system      = CreateSystem(repo, networkMap, idAllocator, tkb, elm);
+
+            // Act: spawn entity
+            RunSpawn(repo, system, new SpawnEntityCommand
+            {
+                NetworkId   = 95L,
+                TkbType     = DefaultTkbType,
+                OwnerNodeId = 1
+            });
+
+            // Assert: immediately after spawn the entity is in Constructing state
+            Assert.True(networkMap.TryGetEntity(95L, out var entity));
+            Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
+        }
     }
 }
