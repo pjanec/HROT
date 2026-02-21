@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 29/151 tasks complete (19%)
+**Overall Progress:** 35/151 tasks complete (23%)
 
 **Last Updated:** 2026-02-20
 
@@ -97,12 +97,12 @@
 
 ### Phase NS1: FDP.Toolkit.NetworkSpawning Library
 
-- [ ] **NS1.1** Create FDP.Toolkit.NetworkSpawning project [details](./TASK-DETAILS-NetworkSpawning.md#task-ns11-create-fdptoolkitnetworkspawning-project)
-- [ ] **NS1.2** Define SpawnEntityCommand / UpdateEntityCommand / DestroyEntityCommand events [details](./TASK-DETAILS-NetworkSpawning.md#task-ns12-define-event-structs)
-- [ ] **NS1.3** Implement EntityComponentReflector [details](./TASK-DETAILS-NetworkSpawning.md#task-ns13-implement-entitycomponentreflector)
-- [ ] **NS1.4** Implement NetworkSpawningSystem spawn path [details](./TASK-DETAILS-NetworkSpawning.md#task-ns14-implement-networkspawningsystem-spawn-path)
-- [ ] **NS1.5** Implement NetworkSpawningSystem update + destroy paths [details](./TASK-DETAILS-NetworkSpawning.md#task-ns15-implement-update-and-destroy-paths)
-- [ ] **NS1.6** Integration test: full entity lifecycle [details](./TASK-DETAILS-NetworkSpawning.md#task-ns16-integration-test)
+- [x] **NS1.1** Create FDP.Toolkit.NetworkSpawning project [details](./TASK-DETAILS-NetworkSpawning.md#task-ns11-create-fdptoolkitnetworkspawning-project)
+- [x] **NS1.2** Define SpawnEntityCommand / UpdateEntityCommand / DestroyEntityCommand events [details](./TASK-DETAILS-NetworkSpawning.md#task-ns12-define-event-structs)
+- [x] **NS1.3** Implement EntityComponentReflector [details](./TASK-DETAILS-NetworkSpawning.md#task-ns13-implement-entitycomponentreflector)
+- [x] **NS1.4** Implement NetworkSpawningSystem spawn path [details](./TASK-DETAILS-NetworkSpawning.md#task-ns14-implement-networkspawningsystem-spawn-path)
+- [x] **NS1.5** Implement NetworkSpawningSystem update + destroy paths [details](./TASK-DETAILS-NetworkSpawning.md#task-ns15-implement-update-and-destroy-paths)
+- [x] **NS1.6** Integration test: full entity lifecycle [details](./TASK-DETAILS-NetworkSpawning.md#task-ns16-integration-test)
 
 ---
 

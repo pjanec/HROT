@@ -69,7 +69,12 @@ var spawningSystem = new NetworkSpawningSystem(
     EntityMap,
     idAllocator,           // May be null in tests; guard if needed
     eventBus,
-    localInternalId
+    localInternalId,
+    // DisTypeExtractor: extracts DIS type from EntityMaster without coupling Toolkit to BDC
+    (object c, out ulong dis) => {
+        if (c is Bagira.BDC.SSTD.EntityMaster m) { dis = m.DisType; return true; }
+        dis = 0; return false;
+    }
 );
 
 // Wrap in a minimal IModule (like other systems that have no module logic):

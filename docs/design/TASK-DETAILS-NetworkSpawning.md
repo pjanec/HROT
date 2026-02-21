@@ -383,6 +383,7 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
         private readonly DdsIdAllocator _idAllocator;
         private readonly FdpEventBus _eventBus;
         private readonly int _localNodeId;
+        private readonly DisTypeExtractor? _disTypeExtractor;
 
         public NetworkSpawningSystem(
             TkbDatabase tkb,
@@ -390,14 +391,16 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             NetworkEntityMap entityMap,
             DdsIdAllocator idAllocator,
             FdpEventBus eventBus,
-            int localNodeId)
+            int localNodeId,
+            DisTypeExtractor? disTypeExtractor = null) // optional — null → DisType returns 0
         {
-            _tkb         = tkb ?? throw new ArgumentNullException(nameof(tkb));
-            _elm         = elm ?? throw new ArgumentNullException(nameof(elm));
-            _entityMap   = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _idAllocator = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
-            _eventBus    = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
-            _localNodeId = localNodeId;
+            _tkb             = tkb ?? throw new ArgumentNullException(nameof(tkb));
+            _elm             = elm ?? throw new ArgumentNullException(nameof(elm));
+            _entityMap       = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _idAllocator     = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
+            _eventBus        = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+            _localNodeId     = localNodeId;
+            _disTypeExtractor = disTypeExtractor;
         }
 
         public void Execute(ISimulationView view, float dt)
@@ -520,10 +523,14 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             FdpLog.Info($"[NetworkSpawning] Destroyed entity {cmd.NetworkId} ({cmd.Reason})");
         }
 
-        private static ulong ExtractDisType(List<object> components)
+        private ulong ExtractDisType(List<object> components)
         {
-            // Attempt a duck-type check for DisType without coupling to Bagira.DDS.DataModel.
-            // Callers who need DisType can explicitly include a NetworkSpawnRequest in InitialComponents.
+            // Delegate-based extraction: keeps the Toolkit free of Bagira.DDS.DataModel.
+            // The DisTypeExtractor delegate is injected by the calling application.
+            if (components == null || _disTypeExtractor == null) return 0;
+            foreach (var comp in components)
+                if (_disTypeExtractor(comp, out ulong dis))
+                    return dis;
             return 0;
         }
     }

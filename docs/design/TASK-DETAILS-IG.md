@@ -314,7 +314,12 @@ namespace Bagira.IG.Modules
             const int igNodeId = 300;
 
             _system = new NetworkSpawningSystem(
-                tkbDb, elm, entityMap, idAlloc, eventBus, igNodeId);
+                tkbDb, elm, entityMap, idAlloc, eventBus, igNodeId,
+                // DisTypeExtractor delegate: decouples Toolkit from Bagira.DDS.DataModel
+                (object c, out ulong dis) => {
+                    if (c is Bagira.BDC.SSTD.EntityMaster m) { dis = m.DisType; return true; }
+                    dis = 0; return false;
+                });
             kernel.RegisterSystem(_system);
         }
 

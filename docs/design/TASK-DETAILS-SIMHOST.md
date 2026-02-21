@@ -1704,7 +1704,12 @@ namespace Bagira.SimHost
             world.AddSystem(new CreateEntityRequestHandler(
                 eventBus, config.InstanceId, idAllocator, geoTransform));
             world.AddSystem(new NetworkSpawningSystem(
-                tkbDatabase, elm, networkEntityMap, idAllocator, eventBus, config.InstanceId));
+                tkbDatabase, elm, networkEntityMap, idAllocator, eventBus, config.InstanceId,
+                // DisTypeExtractor delegate: decouples Toolkit from Bagira.DDS.DataModel
+                (object c, out ulong dis) => {
+                    if (c is Bagira.BDC.SSTD.EntityMaster m) { dis = m.DisType; return true; }
+                    dis = 0; return false;
+                }));
             world.AddSystem(new MissionExecutionSystem(vehicleAPI, networkEntityMap));
             world.AddSystem(new GeoSpatialBridgeSystem(geoTransform));
             Console.WriteLine("  - SimHost systems registered");

@@ -235,8 +235,18 @@ public struct DestroyEntityCommand
 ```csharp
 // In any IModule's RegisterSystems():
 registry.RegisterSystem(new NetworkSpawningSystem(
-    tkbDatabase, elm, entityMap, idAllocator, localNodeId));
+    tkbDatabase, elm, entityMap, idAllocator, localNodeId,
+    // Optional: inject DisType extraction logic — keeps Toolkit free of Bagira.DDS.DataModel
+    (object c, out ulong dis) => {
+        if (c is Bagira.BDC.SSTD.EntityMaster m) { dis = m.DisType; return true; }
+        dis = 0; return false;
+    }));
 ```
+
+> **Decoupling note:** The `DisTypeExtractor` delegate is optional (`null` is valid).
+> Passing `null` causes `ExtractDisType` to return 0 (no DIS type). The Toolkit itself
+> has **zero dependency** on `Bagira.DDS.DataModel`; only the calling application supplies
+> the concrete extraction logic.
 
 ### 5.3 Implementation Sketch
 
@@ -261,6 +271,7 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
         private readonly DdsIdAllocator _idAllocator;
         private readonly FdpEventBus _eventBus;
         private readonly int _localNodeId;
+        private readonly DisTypeExtractor? _disTypeExtractor;
 
         public NetworkSpawningSystem(
             TkbDatabase tkb,
@@ -268,7 +279,8 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             NetworkEntityMap entityMap,
             DdsIdAllocator idAllocator,
             FdpEventBus eventBus,
-            int localNodeId)
+            int localNodeId,
+            DisTypeExtractor? disTypeExtractor = null) // optional — null → DisType returns 0
         { /* assign fields */ }
 
         public void Execute(ISimulationView view, float dt)
@@ -380,12 +392,12 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             FdpLog.Info($"[NetworkSpawning] Destroyed entity {cmd.NetworkId} ({cmd.Reason})");
         }
 
-        private static ulong ExtractDisType(List<object> components)
+        private ulong ExtractDisType(List<object> components)
         {
-            if (components == null) return 0;
+            if (components == null || _disTypeExtractor == null) return 0;
             foreach (var comp in components)
-                if (comp is Bagira.BDC.SSTD.EntityMaster master)
-                    return master.DisType;
+                if (_disTypeExtractor(comp, out ulong dis))
+                    return dis;
             return 0;
         }
     }
