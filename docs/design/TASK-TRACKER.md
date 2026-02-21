@@ -11,12 +11,7 @@
 - [DESIGN-IOS.md](./DESIGN-IOS.md) | [TASK-DETAILS-IOS.md](./TASK-DETAILS-IOS.md)
 - [DESIGN-RUNNER.md](./DESIGN-RUNNER.md) | [TASK-DETAILS-RUNNER.md](./TASK-DETAILS-RUNNER.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-
-## Overview
-
-This document tracks implementation progress for **all project components**: Shared, SimHost, IG Mock, IOS Mock, and Runner (aggregated app). 
-
-**Overall Progress:** 15/140 tasks complete (11%)
+**Overall Progress:** 24/140 tasks complete (17%)
 
 **Last Updated:** 2026-02-20
 
@@ -63,15 +58,15 @@ This document tracks implementation progress for **all project components**: Sha
 
 ### Phase 5: Bagira.Map.Definitions (TKB Extensions)
 
-- [ ] **P5.1** Create Bagira.Map.Definitions Project [details](./TASK-DETAILS-SHARED.md#task-p51-create-bagiramapdefinitions-project)
-- [ ] **P5.2** Implement IG Visual Descriptor [details](./TASK-DETAILS-SHARED.md#task-p52-implement-ig-visual-descriptor)
-- [ ] **P5.3** Implement SimHost Vehicle Descriptor [details](./TASK-DETAILS-SHARED.md#task-p53-implement-simhost-vehicle-descriptor)
-- [ ] **P5.4** Implement SimHost Combat Descriptor [details](./TASK-DETAILS-SHARED.md#task-p54-implement-simhost-combat-descriptor)
-- [ ] **P5.5** Implement TKB Composition Descriptor [details](./TASK-DETAILS-SHARED.md#task-p55-implement-tkb-composition-descriptor)
-- [ ] **P5.6** Implement BdcTkbBuilder Fluent API [details](./TASK-DETAILS-SHARED.md#task-p56-implement-bdctkbbuilder-fluent-api)
-- [ ] **P5.7** Register Representative Entity Types [details](./TASK-DETAILS-SHARED.md#task-p57-register-representative-entity-types)
-- [ ] **P5.8** Write TKB Extensions Tests [details](./TASK-DETAILS-SHARED.md#task-p58-write-tkb-extensions-tests)
-- [ ] **P5.9** Document TKB Extensions Library [details](./TASK-DETAILS-SHARED.md#task-p59-document-tkb-extensions-library)
+- [x] **P5.1** Create Bagira.Map.Definitions Project [details](./TASK-DETAILS-SHARED.md#task-p51-create-bagiramapdefinitions-project)
+- [x] **P5.2** Implement IG Visual Descriptor [details](./TASK-DETAILS-SHARED.md#task-p52-implement-ig-visual-descriptor)
+- [x] **P5.3** Implement SimHost Vehicle Descriptor [details](./TASK-DETAILS-SHARED.md#task-p53-implement-simhost-vehicle-descriptor)
+- [x] **P5.4** Implement SimHost Combat Descriptor [details](./TASK-DETAILS-SHARED.md#task-p54-implement-simhost-combat-descriptor)
+- [x] **P5.5** Implement TKB Composition Descriptor [details](./TASK-DETAILS-SHARED.md#task-p55-implement-tkb-composition-descriptor)
+- [x] **P5.6** Implement BdcTkbBuilder Fluent API [details](./TASK-DETAILS-SHARED.md#task-p56-implement-bdctkbbuilder-fluent-api)
+- [x] **P5.7** Register Representative Entity Types [details](./TASK-DETAILS-SHARED.md#task-p57-register-representative-entity-types)
+- [-] **P5.8** Write TKB Extensions Tests [details](./TASK-DETAILS-SHARED.md#task-p58-write-tkb-extensions-tests) (Skipped - obsolete architecture)
+- [x] **P5.9** Document TKB Extensions Library [details](./TASK-DETAILS-SHARED.md#task-p59-document-tkb-extensions-library)
 
 ### Phase 6: Bagira.Map.Common Assembly
 
@@ -81,12 +76,12 @@ This document tracks implementation progress for **all project components**: Sha
 - [ ] **P6.4** Create Bagira.Map.Common README [details](./TASK-DETAILS-SHARED.md#task-p64-create-bagiramapcommon-readme)
 - [ ] **P6.5** Build and Validate Bagira.Map.Common [details](./TASK-DETAILS-SHARED.md#task-p65-build-and-validate-bagiramapcommon)
 
-### Phase 7: Integration Testing
+### Phase 7: Integration Testing (SKIPPED)
 
-- [ ] **P7.1** Create Integration Test Project [details](./TASK-DETAILS-SHARED.md#task-p71-create-integration-test-project)
-- [ ] **P7.2** Implement End-to-End Entity Creation Test [details](./TASK-DETAILS-SHARED.md#task-p72-implement-end-to-end-entity-creation-test)
-- [ ] **P7.3** Performance Tests [details](./TASK-DETAILS-SHARED.md#task-p73-performance-tests)
-- [ ] **P7.4** Create Integration Guide [details](./TASK-DETAILS-SHARED.md#task-p74-create-integration-guide)
+- [-] **P7.1** Create Integration Test Project [details](./TASK-DETAILS-SHARED.md#task-p71-create-integration-test-project)
+- [-] **P7.2** Implement End-to-End Entity Creation Test [details](./TASK-DETAILS-SHARED.md#task-p72-implement-end-to-end-entity-creation-test)
+- [-] **P7.3** Performance Tests [details](./TASK-DETAILS-SHARED.md#task-p73-performance-tests)
+- [-] **P7.4** Create Integration Guide [details](./TASK-DETAILS-SHARED.md#task-p74-create-integration-guide)
 
 ---
 
