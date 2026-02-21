@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 35/151 tasks complete (23%)
+**Overall Progress:** 51/151 tasks complete (34%)
 
 **Last Updated:** 2026-02-20
 
@@ -116,11 +116,11 @@
 
 ### Phase NS2: NetworkDemo NetworkSpawning Integration
 
-- [ ] **NS2.1** Add FDP.Toolkit.NetworkSpawning reference to NetworkDemo [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns21-add-project-reference)
-- [ ] **NS2.2** Register NetworkSpawningSystem via SpawningModule [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns22-register-networkspawningsystem)
-- [ ] **NS2.3** Refactor SpawnLocalEntities to publish SpawnEntityCommand [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns23-refactor-spawnlocalentities)
-- [ ] **NS2.4** Update ingress translator to publish SpawnEntityCommand / DestroyEntityCommand [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns24-update-ingress-translator)
-- [ ] **NS2.5** Validate LifecycleIntegrationTests still pass [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns25-validate-integration-tests)
+- [x] **NS2.1** Add FDP.Toolkit.NetworkSpawning reference to NetworkDemo [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns21-add-project-reference)
+- [x] **NS2.2** Register NetworkSpawningSystem via SpawningModule [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns22-register-networkspawningsystem)
+- [x] **NS2.3** Refactor SpawnLocalEntities to publish SpawnEntityCommand [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns23-refactor-spawnlocalentities)
+- [x] **NS2.4** Update ingress translator to publish SpawnEntityCommand / DestroyEntityCommand [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns24-update-ingress-translator)
+- [x] **NS2.5** Validate LifecycleIntegrationTests still pass [details](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md#task-ns25-validate-integration-tests)
 
 ---
 
@@ -132,19 +132,19 @@
 
 ### Phase S1: Project Setup
 
-- [ ] **S1.1** Create SimHost Console Project [details](./TASK-DETAILS-SIMHOST.md#task-s11-create-simhost-console-project)
-- [ ] **S1.2** Add Project References (incl. FDP.Toolkit.NetworkSpawning) [details](./TASK-DETAILS-SIMHOST.md#task-s12-add-project-references)
-- [ ] **S1.3** Define ECS Components [details](./TASK-DETAILS-SIMHOST.md#task-s13-define-ecs-components)
+- [x] **S1.1** Create SimHost Console Project [details](./TASK-DETAILS-SIMHOST.md#task-s11-create-simhost-console-project)
+- [x] **S1.2** Add Project References (incl. FDP.Toolkit.NetworkSpawning) [details](./TASK-DETAILS-SIMHOST.md#task-s12-add-project-references)
+- [x] **S1.3** Define ECS Components [details](./TASK-DETAILS-SIMHOST.md#task-s13-define-ecs-components)
 
 ### Phase S2: CreateEntityRequestHandler
 
-- [ ] **S2.1** Implement Request Handler Skeleton [details](./TASK-DETAILS-SIMHOST.md#task-s21-implement-request-handler-skeleton)
-- [ ] **S2.2** Implement ID Allocation Logic [details](./TASK-DETAILS-SIMHOST.md#task-s22-implement-id-allocation-logic)
-- [ ] **S2.3** Implement TKB Template Lookup [details](./TASK-DETAILS-SIMHOST.md#task-s23-implement-tkb-template-lookup)
-- [ ] **S2.4** Publish SpawnEntityCommand via DescriptorMapper *(uses FDP.Toolkit.NetworkSpawning)* [details](./TASK-DETAILS-SIMHOST.md#task-s24-publish-spawnentitycommand)
-- [ ] **S2.5** Implement DescriptorMapper *(replaces ApplyInitialDescriptors)* [details](./TASK-DETAILS-SIMHOST.md#task-s25-implement-descriptormapper)
-- [ ] **S2.6** Implement ACK Response [details](./TASK-DETAILS-SIMHOST.md#task-s26-implement-ack-response)
-- [ ] **S2.7** Write Request Handler Tests [details](./TASK-DETAILS-SIMHOST.md#task-s27-write-request-handler-tests)
+- [x] **S2.1** Implement Request Handler Skeleton [details](./TASK-DETAILS-SIMHOST.md#task-s21-implement-request-handler-skeleton)
+- [x] **S2.2** Implement ID Allocation Logic [details](./TASK-DETAILS-SIMHOST.md#task-s22-implement-id-allocation-logic)
+- [x] **S2.3** Implement TKB Template Lookup [details](./TASK-DETAILS-SIMHOST.md#task-s23-implement-tkb-template-lookup)
+- [x] **S2.4** Publish SpawnEntityCommand via DescriptorMapper *(uses FDP.Toolkit.NetworkSpawning)* [details](./TASK-DETAILS-SIMHOST.md#task-s24-publish-spawnentitycommand)
+- [x] **S2.5** Implement DescriptorMapper *(replaces ApplyInitialDescriptors)* [details](./TASK-DETAILS-SIMHOST.md#task-s25-implement-descriptormapper)
+- [x] **S2.6** Implement ACK Response [details](./TASK-DETAILS-SIMHOST.md#task-s26-implement-ack-response)
+- [x] **S2.7** Write Request Handler Tests [details](./TASK-DETAILS-SIMHOST.md#task-s27-write-request-handler-tests)
 
 ### Phase S3: GeoSpatialBridgeSystem
 
