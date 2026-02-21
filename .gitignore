@@ -53,3 +53,5 @@ nunit-*.xml
 .vs/
 .vscode/
 .obsolete
+.dumps
+.dev-workstream

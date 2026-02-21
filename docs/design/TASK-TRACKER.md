@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 24/151 tasks complete (16%)
+**Overall Progress:** 29/151 tasks complete (19%)
 
 **Last Updated:** 2026-02-20
 
@@ -72,11 +72,11 @@
 
 ### Phase 6: Bagira.Map.Common Assembly
 
-- [ ] **P6.1** Create Bagira.Map.Common Project [details](./TASK-DETAILS-SHARED.md#task-p61-create-bagiramapcommon-project)
-- [ ] **P6.2** Add TKB Entity Types Constants [details](./TASK-DETAILS-SHARED.md#task-p62-add-tkb-entity-types-constants)
-- [ ] **P6.3** Add Map Configuration Constants [details](./TASK-DETAILS-SHARED.md#task-p63-add-map-configuration-constants)
-- [ ] **P6.4** Create Bagira.Map.Common README [details](./TASK-DETAILS-SHARED.md#task-p64-create-bagiramapcommon-readme)
-- [ ] **P6.5** Build and Validate Bagira.Map.Common [details](./TASK-DETAILS-SHARED.md#task-p65-build-and-validate-bagiramapcommon)
+- [x] **P6.1** Create Bagira.Map.Common Project [details](./TASK-DETAILS-SHARED.md#task-p61-create-bagiramapcommon-project)
+- [x] **P6.2** Add TKB Entity Types Constants [details](./TASK-DETAILS-SHARED.md#task-p62-add-tkb-entity-types-constants)
+- [x] **P6.3** Add Map Configuration Constants [details](./TASK-DETAILS-SHARED.md#task-p63-add-map-configuration-constants)
+- [x] **P6.4** Create Bagira.Map.Common README [details](./TASK-DETAILS-SHARED.md#task-p64-create-bagiramapcommon-readme)
+- [x] **P6.5** Build and Validate Bagira.Map.Common [details](./TASK-DETAILS-SHARED.md#task-p65-build-and-validate-bagiramapcommon)
 
 ### Phase 7: Integration Testing (SKIPPED)
 

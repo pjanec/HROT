@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FDP\Common\FDP.Interfaces\FDP.Interfaces.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
+    <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
   </ItemGroup>
 
 </Project>
