@@ -62,7 +62,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
 
                 // Guard: entity should not be destroyed during lifecycle transition.
                 if (!nodeA.World.IsAlive(tankA))
-                    Assert.True(false, "Node A tank entity was unexpectedly destroyed during lifecycle wait.");
+                    Assert.Fail("Node A tank entity was unexpectedly destroyed during lifecycle wait.");
 
                 var stateA = nodeA.World.GetLifecycleState(tankA);
 
