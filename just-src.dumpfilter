@@ -14,12 +14,18 @@
 - **/build
 - **/artifacts
 - ExtDeps
++ ExtDeps/FastBTree/src
++ ExtDeps/FastBTree/examples
++ ExtDeps/FastBTree/README.md
++ ExtDeps/FastHSM/src
++ ExtDeps/FastHSM/examples
++ ExtDeps/FastHSM/README.md
 - **/Generated/*
 - **/*.png
 - **/*.dll
 - **/*.exe
 - **/*.md
-- Kernel\Fdp.Kernel.Examples 
+- Kernel/Fdp.Kernel.Examples 
 
 
 
