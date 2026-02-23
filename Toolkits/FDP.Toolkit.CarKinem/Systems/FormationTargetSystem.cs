@@ -52,9 +52,9 @@ namespace CarKinem.Systems
             var template = _templateManager.GetTemplate(roster.Type);
             
             // Default Formation Orientation (Rigid fallback)
-            Vector3 fwd3D = Vector3.Transform(Vector3.UnitY, leaderTf.Rotation);
+            Vector3 fwd3D = Vector3.Transform(Vector3.UnitX, leaderTf.Rotation);
             Vector2 formationHeading = new Vector2(fwd3D.X, fwd3D.Y);
-            if (formationHeading == Vector2.Zero) formationHeading = Vector2.UnitY;
+            if (formationHeading == Vector2.Zero) formationHeading = Vector2.UnitX;
             else formationHeading = Vector2.Normalize(formationHeading);
             
             // Trajectory Following Logic ("Ghost Rails")

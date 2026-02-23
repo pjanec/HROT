@@ -53,10 +53,9 @@ namespace CarKinem.Tests.Commands
             Assert.Equal(new Vector3(100, 50, 0), tf.Position);
             
             // Heading was (1, 0) East.
-            // If SimTransform assumes Y-Forward (North):
-            // East needs Yaw = -PI/2.
             // Check if rotation is correct approximately.
-            Vector3 fwd = Vector3.Transform(Vector3.UnitY, tf.Rotation);
+            // Convention: Forward is UnitX.
+            Vector3 fwd = Vector3.Transform(Vector3.UnitX, tf.Rotation);
             // Expected East (1, 0, 0)
             Assert.Equal(1f, fwd.X, precision: 3);
             Assert.Equal(0f, fwd.Y, precision: 3);

@@ -49,7 +49,7 @@ namespace CarKinem.Tests.Systems
                 // Entities in a line moving North
                 repo.AddComponent(e, new SimTransform { 
                     Position = new Vector3(i * 5, 0, 0), 
-                    Rotation = Quaternion.Identity // North
+                    Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, MathF.PI / 2f) // Rotate around Z (Roll parameter in System.Numerics)
                 });
                 repo.AddComponent(e, new SimVelocity { Linear = new Vector3(0, 10, 0) });
                 

@@ -32,9 +32,7 @@ public static class EntityFactory
         world.RegisterComponent<NetworkSpawnRequest>();
         
         // Managed component
-        world.RegisterComponent<PlayerInfo>(); // Was RegisterComponent in snippet 
-        // Wait, did I change PlayerInfo to RegisterManaged?
-        // Step 73 summary says: "Registered the new Team managed component: world.RegisterManagedComponent<Team>();"
+        world.RegisterComponent<PlayerInfo>();
         
         world.RegisterComponent<Team>();
     }

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Kernel\Fhsm.Kernel.csproj" />
+  </ItemGroup>
+</Project>

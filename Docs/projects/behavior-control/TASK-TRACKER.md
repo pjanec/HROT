@@ -10,12 +10,12 @@
 **Goal:** Standardize position/rotation/velocity representation across the entire FDP engine before any behavior toolkit work begins.  
 **Scope:** `Fdp.Kernel` (new components), `FDP.Toolkit.CarKinem` (refactor), `Fdp.Examples.CarKinem`, `Fdp.Examples.BattleRoyale`, `Fdp.Examples.NetworkDemo`
 
-- [ ] **BCS-P0-T1** `SimTransform`, `SimVelocity` in `Fdp.Kernel` [details](./TASK-DETAIL.md#bcs-p0-t1--simtransform--simvelocity-in-fdpkernel)
-- [ ] **BCS-P0-T2** Refactor `VehicleState` (remove Position/Forward/Pitch/Roll) + `CarKinematicsSystem` 2D↔3D bridge [details](./TASK-DETAIL.md#bcs-p0-t2--refactor-vehiclestate-and-carkinematicssystem)
-- [ ] **BCS-P0-T3** Refactor `SpatialHashSystem` to query `SimTransform` (universal grid) [details](./TASK-DETAIL.md#bcs-p0-t3--refactor-spatialhashsystem-to-use-simtransform)
-- [ ] **BCS-P0-T4** Migrate `Fdp.Examples.CarKinem` to `SimTransform`/`SimVelocity` [details](./TASK-DETAIL.md#bcs-p0-t4--migrate-fdpexamplescarkinem)
-- [ ] **BCS-P0-T5** Migrate `Fdp.Examples.BattleRoyale` (delete local `Position.cs`/`Velocity.cs`) [details](./TASK-DETAIL.md#bcs-p0-t5--migrate-fdpexamplesbattleroyale)
-- [ ] **BCS-P0-T6** Migrate `Fdp.Examples.NetworkDemo` (delete `DemoPosition`, remove local `Position`/`Velocity` structs) [details](./TASK-DETAIL.md#bcs-p0-t6--migrate-fdpexamplesnetworkdemo)
+- [x] **BCS-P0-T1** `SimTransform`, `SimVelocity` in `Fdp.Kernel` [details](./TASK-DETAIL.md#bcs-p0-t1--simtransform--simvelocity-in-fdpkernel)
+- [x] **BCS-P0-T2** Refactor `VehicleState` (remove Position/Forward/Pitch/Roll) + `CarKinematicsSystem` 2D↔3D bridge [details](./TASK-DETAIL.md#bcs-p0-t2--refactor-vehiclestate-and-carkinematicssystem)
+- [x] **BCS-P0-T3** Refactor `SpatialHashSystem` to query `SimTransform` (universal grid) [details](./TASK-DETAIL.md#bcs-p0-t3--refactor-spatialhashsystem-to-use-simtransform)
+- [x] **BCS-P0-T4** Migrate `Fdp.Examples.CarKinem` to `SimTransform`/`SimVelocity` [details](./TASK-DETAIL.md#bcs-p0-t4--migrate-fdpexamplescarkinem)
+- [x] **BCS-P0-T5** Migrate `Fdp.Examples.BattleRoyale` (delete local `Position.cs`/`Velocity.cs`) [details](./TASK-DETAIL.md#bcs-p0-t5--migrate-fdpexamplesbattleroyale)
+- [x] **BCS-P0-T6** Migrate `Fdp.Examples.NetworkDemo` (delete `DemoPosition`, remove local `Position`/`Velocity` structs) [details](./TASK-DETAIL.md#bcs-p0-t6--migrate-fdpexamplesnetworkdemo)
 
 ---
 
@@ -24,8 +24,8 @@
 **Goal:** Define all behavior components, channels, dispatcher infrastructure, Brain VM adapters, and doctrine lifecycle management.  
 **New project:** `Toolkits/FDP.Toolkit.Behavior/`
 
-- [ ] **BCS-P1-T1** Behavior component types (DoctrineState, BrainBlackboard, Channels, BrainBTreeState, BrainHsm64/128, SimTier, ActorCapabilityState, IActionExecutor interface) [details](./TASK-DETAIL.md#bcs-p1-t1--behavior-component-types)
-- [ ] **BCS-P1-T2** ChannelArbitrationSystem [details](./TASK-DETAIL.md#bcs-p1-t2--channelarbitrationsystem)
+- [x] **BCS-P1-T1** Behavior component types (DoctrineState, BrainBlackboard, Channels, BrainBTreeState, BrainHsm64/128, SimTier, ActorCapabilityState, IActionExecutor interface) [details](./TASK-DETAIL.md#bcs-p1-t1--behavior-component-types)
+- [x] **BCS-P1-T2** ChannelArbitrationSystem [details](./TASK-DETAIL.md#bcs-p1-t2--channelarbitrationsystem)
 - [ ] **BCS-P1-T3** LocomotionDispatcherSystem [details](./TASK-DETAIL.md#bcs-p1-t3--locomotiondispatchersystem)
 - [ ] **BCS-P1-T4** WeaponDispatcherSystem + InteractionDispatcherSystem [details](./TASK-DETAIL.md#bcs-p1-t4--weapondispatchersystem--interactiondispatchersystem)
 - [ ] **BCS-P1-T5** BTreeTickSystem (FastBTree adapter) [details](./TASK-DETAIL.md#bcs-p1-t5--btreeticksystem-fastbtree-adapter)
@@ -115,8 +115,8 @@
 
 | Phase | Tasks | Done |
 |---|---|---|
-| Phase 0 – Universal Spatial Primitives | 6 | 0 |
-| Phase 1 – Behavior Core | 7 | 0 |
+| Phase 0 – Universal Spatial Primitives | 6 | 6 ✅ |
+| Phase 1 – Behavior Core | 7 | 2 |
 | Phase 2 – Perception | 4 | 0 |
 | Phase 3 – Navigation | 5 | 0 |
 | Phase 4 – Physics | 4 | 0 |

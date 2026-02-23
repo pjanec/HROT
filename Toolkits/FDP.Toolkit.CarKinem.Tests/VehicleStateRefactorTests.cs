@@ -45,8 +45,8 @@ namespace FDP.Toolkit.CarKinem.Tests
 
             var e = repo.CreateEntity();
             
-            // Setup components - SimTransform in North (Yaw=0)
-            repo.AddComponent(e, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = Quaternion.Identity }); 
+            // Setup components - SimTransform in North (Yaw=PI/2)
+            repo.AddComponent(e, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, MathF.PI / 2f) }); 
             repo.AddComponent(e, new SimVelocity  { Linear = Vector3.Zero });
             repo.AddComponent(e, new VehicleState { Speed = 10f, SteerAngle = 0f, Accel = 0f, CurrentLaneIndex = 0 });
             repo.AddComponent(e, new NavState     { TargetSpeed = 10f, Mode = NavigationMode.None }); 

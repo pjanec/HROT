@@ -278,7 +278,7 @@ namespace CarKinem.Systems
             {
                 var tf = World.GetComponent<SimTransform>(entity);
                 var pos2D = new Vector2(tf.Position.X, tf.Position.Y);
-                var fwd3D = Vector3.Transform(Vector3.UnitY, tf.Rotation);
+                var fwd3D = Vector3.Transform(Vector3.UnitX, tf.Rotation);
                 return (pos2D, new Vector2(fwd3D.X, fwd3D.Y), 0f);
             }
             

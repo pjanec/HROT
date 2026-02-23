@@ -28,21 +28,21 @@ namespace CarKinem.Tests.Formation
 			var system = new FormationTargetSystem(templateManager, trajectoryPool);
             system.Create(repo);
 
-            // Create Leader at (100, 100), Forward East (1, 0) -> Yaw -PI/2
+            // Create Leader at (100, 100), Forward East (1, 0) -> Yaw 0
             var leader = repo.CreateEntity();
             repo.AddComponent(leader, new VehicleState { Speed = 10f });
             repo.AddComponent(leader, new SimTransform { 
                 Position = new Vector3(100, 100, 0), 
-                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, -MathF.PI/2) 
+                Rotation = Quaternion.Identity // X-Forward = East
             });
             repo.AddComponent(leader, new SimVelocity { Linear = new Vector3(10, 0, 0) });
 
-            // Create Follower at (0, 0), Forward East -> Yaw -PI/2
+            // Create Follower at (0, 0), Forward East -> Yaw 0
             var follower = repo.CreateEntity();
             repo.AddComponent(follower, new VehicleState { Speed = 0f });
             repo.AddComponent(follower, new SimTransform { 
                 Position = Vector3.Zero, 
-                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, -MathF.PI/2) 
+                Rotation = Quaternion.Identity // X-Forward = East
             });
             repo.AddComponent(follower, new SimVelocity { Linear = Vector3.Zero });
             repo.AddComponent(follower, new FormationMember { State = FormationMemberState.Broken });
@@ -102,6 +102,70 @@ namespace CarKinem.Tests.Formation
             // Should be joined/InSlot
             Assert.Equal(FormationMemberState.InSlot, member.State);
 
+            system.Dispose();
+            templateManager.Dispose();
+            repo.Dispose();
+        }
+
+        [Fact]
+        public void GetFormationTarget_FallbackHeading_MatchesXForwardConvention()
+        {
+            // Setup
+            var repo = new EntityRepository();
+            repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterComponent<FormationRoster>();
+            repo.RegisterComponent<FormationTarget>();
+            repo.RegisterComponent<FormationMember>();
+            repo.RegisterComponent<NavState>();
+            repo.RegisterComponent<GlobalTime>();
+
+            var timeEntity = repo.CreateEntity();
+            repo.AddComponent(timeEntity, new GlobalTime { DeltaTime = 0.1f });
+
+            var templateManager = new FormationTemplateManager();
+            var trajectoryPool = new TrajectoryPoolManager();
+
+            var system = new FormationTargetSystem(templateManager, trajectoryPool);
+            system.Create(repo);
+
+            // 1. Create Leader at (0,0) with Identity rotation (Forward = X+)
+            var leader = repo.CreateEntity();
+            repo.AddComponent(leader, new VehicleState { Speed = 10f });
+            repo.AddComponent(leader, new SimTransform
+            {
+                Position = Vector3.Zero,
+                Rotation = Quaternion.Identity // X-Forward
+            });
+
+            // 2. Create Follower
+            var follower = repo.CreateEntity();
+            repo.AddComponent(follower, new VehicleState { Speed = 10f });
+            repo.AddComponent(follower, new SimTransform { Position = new Vector3(-10, 0, 0), Rotation = Quaternion.Identity });
+            repo.AddComponent(follower, new FormationMember { State = FormationMemberState.InSlot });
+            repo.AddComponent(follower, new FormationTarget());
+
+            // 3. Create Roster on Leader
+            var roster = new FormationRoster();
+            roster.Type = FormationType.Column; 
+            
+            roster.SetMember(0, leader);
+            roster.SetMember(1, follower);
+            roster.Count = 2; // Important!
+
+            repo.AddComponent(leader, roster);
+
+            // 4. Run System
+            system.Run();
+
+            // 5. Verify FormationTarget on Follower
+            // With Identity rotation, forward is X (1,0).
+            var target = repo.GetComponent<FormationTarget>(follower);
+            
+            Assert.True(MathF.Abs(target.TargetHeading.X - 1f) < 0.001f, $"Expected X ~ 1, got {target.TargetHeading.X}");
+            Assert.True(MathF.Abs(target.TargetHeading.Y - 0f) < 0.001f, $"Expected Y ~ 0, got {target.TargetHeading.Y}");
+            
             system.Dispose();
             templateManager.Dispose();
             repo.Dispose();

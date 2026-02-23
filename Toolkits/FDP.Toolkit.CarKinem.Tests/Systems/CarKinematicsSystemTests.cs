@@ -53,7 +53,7 @@ namespace CarKinem.Tests.Systems
             // Wait, previous investigation suggested Yaw=0 -> North.
             repo.AddComponent(entity, new SimTransform { 
                 Position = Vector3.Zero, 
-                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, 0) // Yaw=0 -> North (0,1,0)
+                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, MathF.PI / 2f) // Rotate around Z (Roll parameter in System.Numerics)
             });
             repo.AddComponent(entity, new SimVelocity { Linear = new Vector3(0, 10, 0) }); // North at 10 m/s
             
