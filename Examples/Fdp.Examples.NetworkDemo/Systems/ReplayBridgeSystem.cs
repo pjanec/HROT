@@ -53,6 +53,23 @@ namespace Fdp.Examples.NetworkDemo.Systems
             
             foreach (var type in allTypes)
             {
+                // Fix: Manually include SimTransform which lacks FdpDescriptorAttribute but uses Physics (5) authority
+                if (type.Name == "SimTransform")
+                {
+                     var simTransformTypeId = _shadowRepo!.GetComponentTypeId(type);
+                     _copyInstructions.Add(new ComponentCopyInstruction
+                    {
+                        Type = type,
+                        ShadowTypeId = simTransformTypeId,
+                        LiveTypeId = -1,
+                        SizeBytes = type.IsValueType ? Marshal.SizeOf(type) : 0,
+                        DescriptorOrdinal = 5, // DemoDescriptors.Physics
+                        IsManaged = false,
+                        DebugName = type.Name
+                    });
+                    continue;
+                }
+
                 var attr = type.GetCustomAttribute<FdpDescriptorAttribute>();
                 if (attr == null) continue;
                 

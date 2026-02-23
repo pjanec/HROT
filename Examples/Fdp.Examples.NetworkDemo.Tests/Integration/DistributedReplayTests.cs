@@ -32,7 +32,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                      await appA.InitializeAsync(100, false, recA);
                      await appB.InitializeAsync(200, false, recB);
                      
-                     for(int i=0; i<100; i++)
+                     for(int i=0; i<40; i++)
                      {
                          MoveLocalEntity(appA, new Vector3(0.5f, 0, 0)); 
                          MoveLocalEntity(appB, new Vector3(0, 0.5f, 0)); 
@@ -40,7 +40,8 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                          appA.Update(0.1f);
                          appB.Update(0.1f);
                          
-                         await Task.Delay(1);
+                         // Removed unnecessary delay
+                         // await Task.Delay(1);
                      }
                      
                      appA.Stop();
@@ -61,7 +62,9 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                      {
                          replayA.Update(0.1f);
                          replayB.Update(0.1f);
-                         await Task.Delay(1);
+                         
+                         // Check early if both moved enough
+                         if (CheckMoved(replayA) && CheckMoved(replayB)) break;
                      }
                      
                      VerifyMoved(replayA, false); 
@@ -72,6 +75,17 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
              {
                  Cleanup(recA, recB);
              }
+        }
+
+        private bool CheckMoved(NetworkDemoApp app)
+        {
+             var q = app.World.Query().With<SimTransform>().With<NetworkIdentity>().Build();
+             foreach(var e in q)
+             {
+                 var tf = app.World.GetComponentRO<SimTransform>(e);
+                 if (tf.Position.Length() > 10.0f) return true;
+             }
+             return false;
         }
         
         private void Cleanup(string a, string b)

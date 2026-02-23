@@ -90,11 +90,12 @@ namespace Fdp.Examples.NetworkDemo
         private TkbDatabase tkb = default!;
         private FDP.Toolkit.Time.Controllers.DistributedTimeCoordinator? _timeCoordinator;
         private FDP.Toolkit.Time.Controllers.SlaveTimeModeListener? _slaveListener;
+        private bool _testMode;
         
         private readonly ConcurrentQueue<Action<EntityRepository>> _actionQueue = new();
         public void EnqueueAction(Action<EntityRepository> action) => _actionQueue.Enqueue(action);
 
-        public async Task InitializeAsync(int nodeId, bool replayMode, string? recPath = null, bool autoSpawn = true, bool enableNetwork = true)
+        public async Task InitializeAsync(int nodeId, bool replayMode, string? recPath = null, bool autoSpawn = true, bool enableNetwork = true, bool testMode = false)
         {
             using (ScopeContext.PushProperty("NodeId", nodeId))
             {
@@ -102,6 +103,7 @@ namespace Fdp.Examples.NetworkDemo
             instanceId = nodeId;
             isReplay = replayMode;
             recordingPath = recPath ?? $"node_{instanceId}.fdp";
+            _testMode = testMode;
             
             string nodeName = instanceId == 100 ? "Alpha" : "Bravo";
             
@@ -180,8 +182,10 @@ namespace Fdp.Examples.NetworkDemo
             // A. Infrastructure (Toolkit)
             // ELM timeout must exceed the NetworkGateway reliable-init timeout (300 frames)
             // so that the Gateway's fallback ACK is always processed before ELM destroys the entity.
+            // In test mode, use 50 frames to allow the gateway fallback (30 + margin)
+            int lifecycleTimeout = testMode ? 50 : (ModuleHost.Core.Network.NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES * 2 + 50);
             var elm = new EntityLifecycleModule(tkb, Array.Empty<int>(),
-                        timeoutFrames: ModuleHost.Core.Network.NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES * 2 + 50); 
+                        timeoutFrames: lifecycleTimeout); 
             Kernel.RegisterModule(elm);
 
             if (!isReplay)
@@ -224,7 +228,8 @@ namespace Fdp.Examples.NetworkDemo
                 var networkModule = new CycloneNetworkModule(
                     participant, nodeMapper, idAllocator, topology, elm, serializationRegistry,
                     allTranslators,
-                    EntityMap
+                    EntityMap,
+                    testMode ? 30 : -1  // Use 30 frame timeout in testMode instead of 300
                 );
                 Kernel.RegisterModule(networkModule);
             }
@@ -340,7 +345,8 @@ namespace Fdp.Examples.NetworkDemo
             FdpLog<NetworkDemoApp>.Info("[INIT] Waiting for peer discovery...");
             
             // Simple delay for discovery
-            await Task.Delay(2000); // Allow DDS to settle
+            int delay = testMode ? 10 : (enableNetwork ? 200 : 10);
+            await Task.Delay(delay); // Allow DDS to settle
             
             if (!isReplay)
             {
@@ -417,7 +423,10 @@ namespace Fdp.Examples.NetworkDemo
             if (!isReplay && recorder != null)
             {
                 // Wait for async writes to complete
-                System.Threading.Thread.Sleep(2000); 
+                if (!_testMode)
+                {
+                    System.Threading.Thread.Sleep(2000);
+                }
                 
                 recorder.Dispose();
                 var meta = new Fdp.Examples.NetworkDemo.Configuration.RecordingMetadata {

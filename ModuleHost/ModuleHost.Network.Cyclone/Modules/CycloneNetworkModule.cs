@@ -45,6 +45,7 @@ namespace ModuleHost.Network.Cyclone.Modules
         private readonly List<IDescriptorTranslator> _customTranslators = new();
         
         private NetworkGatewaySystem _gatewaySystem;
+        private readonly int _reliableInitTimeoutFrames;
 
         public CycloneNetworkModule(
             DdsParticipant participant,
@@ -54,13 +55,15 @@ namespace ModuleHost.Network.Cyclone.Modules
             EntityLifecycleModule elm,
             Fdp.Interfaces.ISerializationRegistry? serializationRegistry = null,
             IEnumerable<IDescriptorTranslator>? customTranslators = null,
-            NetworkEntityMap? sharedEntityMap = null)
+            NetworkEntityMap? sharedEntityMap = null,
+            int reliableInitTimeoutFrames = -1)
         {
             _participant = participant ?? throw new ArgumentNullException(nameof(participant));
             _nodeMapper = nodeMapper ?? throw new ArgumentNullException(nameof(nodeMapper));
             _idAllocator = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
             _topology = topology ?? throw new ArgumentNullException(nameof(topology));
             _elm = elm ?? throw new ArgumentNullException(nameof(elm));
+            _reliableInitTimeoutFrames = reliableInitTimeoutFrames;
             
             // Initialize Services
             _entityMap = sharedEntityMap ?? new NetworkEntityMap();
@@ -84,7 +87,7 @@ namespace ModuleHost.Network.Cyclone.Modules
                 _customTranslators.AddRange(customTranslators);
             }
             
-            _gatewaySystem = new NetworkGatewaySystem(101, _nodeMapper.LocalNodeId, _topology, _elm);
+            _gatewaySystem = new NetworkGatewaySystem(101, _nodeMapper.LocalNodeId, _topology, _elm, _reliableInitTimeoutFrames);
         }
 
         public void RegisterSystems(ISystemRegistry registry)

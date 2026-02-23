@@ -25,7 +25,8 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
             using var env = new DistributedTestEnv(_output);
             await env.StartNodesAsync();
 
-            await Task.Delay(2000);
+            // Reduced delay for faster test execution
+            await Task.Delay(100);
 
             _output.WriteLine("Triggering Mode Switch...");
 

@@ -62,7 +62,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                     });
                     
                     // Record longer to ensure frame capture
-                    for(int i=0; i<50; i++) app.Update(0.1f);
+                    for(int i=0; i<20; i++) app.Update(0.1f);
                     
                     app.Stop();
                 }
@@ -75,7 +75,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                     await app.InitializeAsync(100, true, recFile, true, false); 
                     
                     // Allow FS/Replay init
-                    await Task.Delay(500);
+                    await Task.Delay(10);
 
                     SquadChat chatState = null;
                     

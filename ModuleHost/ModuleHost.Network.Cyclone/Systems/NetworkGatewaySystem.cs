@@ -19,6 +19,7 @@ namespace ModuleHost.Network.Cyclone.Systems
         private readonly int _localNodeId;
         private readonly INetworkTopology _topology;
         private readonly EntityLifecycleModule _elm;
+        private readonly int _reliableInitTimeoutFrames;
         
         // Track pending network ACKs: EntityId -> Set of node IDs we're waiting for
         private readonly Dictionary<Entity, HashSet<int>> _pendingPeerAcks;
@@ -30,12 +31,14 @@ namespace ModuleHost.Network.Cyclone.Systems
             int gatewayModuleId,
             int localNodeId,
             INetworkTopology topology,
-            EntityLifecycleModule elm)
+            EntityLifecycleModule elm,
+            int reliableInitTimeoutFrames = -1)
         {
             _gatewayModuleId = gatewayModuleId;
             _localNodeId = localNodeId;
             _topology = topology ?? throw new ArgumentNullException(nameof(topology));
             _elm = elm ?? throw new ArgumentNullException(nameof(elm));
+            _reliableInitTimeoutFrames = reliableInitTimeoutFrames > 0 ? reliableInitTimeoutFrames : NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES;
             
             _pendingPeerAcks = new Dictionary<Entity, HashSet<int>>();
             _pendingStartFrame = new Dictionary<Entity, uint>();
@@ -137,7 +140,7 @@ namespace ModuleHost.Network.Cyclone.Systems
                 var entity = kvp.Key;
                 var startFrame = kvp.Value;
                 
-                if (currentFrame - startFrame > NetworkConstants.RELIABLE_INIT_TIMEOUT_FRAMES)
+                if (currentFrame - startFrame > _reliableInitTimeoutFrames)
                 {
                     Console.Error.WriteLine($"[NetworkGatewaySystem] Entity {entity.Index}: Timeout waiting for peer ACKs");
                     timedOut.Add(entity);

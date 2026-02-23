@@ -13,11 +13,25 @@ namespace Fdp.Examples.NetworkDemo.Systems
     {
         private const long CHASSIS_KEY = 5; // Chassis descriptor ordinal
         private const float SMOOTHING_RATE = 10.0f;
+        private readonly bool _driveFromNetwork;
+
+        public TransformSyncSystem(bool driveFromNetwork = false)
+        {
+            _driveFromNetwork = driveFromNetwork;
+        }
 
         public void Execute(ISimulationView view, float deltaTime)
         {
-            SyncOwnedEntities(view);
-            SyncRemoteEntities(view, deltaTime);
+            if (_driveFromNetwork)
+            {
+                // In replay mode, treat all entities as remote (driven by network/replay data)
+                SyncRemoteEntities(view, deltaTime, forceAll: true);
+            }
+            else
+            {
+                SyncOwnedEntities(view);
+                SyncRemoteEntities(view, deltaTime);
+            }
         }
 
         private void SyncOwnedEntities(ISimulationView view)
@@ -44,7 +58,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
             }
         }
 
-        private void SyncRemoteEntities(ISimulationView view, float deltaTime)
+        private void SyncRemoteEntities(ISimulationView view, float deltaTime, bool forceAll = false)
         {
             var query = view.Query()
                 .With<SimTransform>()
@@ -56,8 +70,8 @@ namespace Fdp.Examples.NetworkDemo.Systems
 
             foreach (var entity in query)
             {
-                // If we DON'T own it, smooth toward network position
-                if (!view.HasAuthority(entity, CHASSIS_KEY))
+                // If we DON'T own it, OR if we force all (replay), smooth toward network position
+                if (forceAll || !view.HasAuthority(entity, CHASSIS_KEY))
                 {
                     var netPos = view.GetComponentRO<NetworkPosition>(entity);
                     var currentTf = view.GetComponentRO<SimTransform>(entity);

@@ -21,7 +21,7 @@ namespace Fdp.Examples.NetworkDemo.Modules
 
         public void RegisterSystems(ISystemRegistry registry)
         {
-            registry.RegisterSystem(new TransformSyncSystem());
+            registry.RegisterSystem(new TransformSyncSystem(driveFromNetwork: _recorder == null));
             if (_recorder != null)
                 registry.RegisterSystem(new RecorderTickSystem(_recorder, _repo));
         }

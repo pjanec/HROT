@@ -67,6 +67,9 @@ namespace Fdp.Examples.NetworkDemo.Tests.Translators
             _mockCmd = new Mock<IEntityCommandBuffer>();
             _mockView = new Mock<ISimulationView>();
             _repo = new EntityRepository();
+            _repo.RegisterComponent<SimTransform>();
+            _repo.RegisterComponent<NetworkIdentity>();
+            _repo.RegisterComponent<NetworkAuthority>();
 
             if (_participant != null)
             {

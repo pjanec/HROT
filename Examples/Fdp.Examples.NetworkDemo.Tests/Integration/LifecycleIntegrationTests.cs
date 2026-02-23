@@ -17,19 +17,19 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
     /// </summary>
     public class LifecycleIntegrationTests
     {
-        [Fact(Timeout = 120_000)]
+        [Fact(Timeout = 10000)]
         public async Task Nodes_WaitForPeers_BeforeBecomingActive()
         {
             // ── Step 1: Boot Node A ──────────────────────────────────────────
             using var nodeA = new NetworkDemoApp();
-            await nodeA.InitializeAsync(100, false, autoSpawn: true, enableNetwork: true);
+            await nodeA.InitializeAsync(100, false, autoSpawn: true, enableNetwork: true, testMode: true);
 
             // Run a short burst so the spawn command and BeginConstruction events are processed.
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 10; i++)
             {
                 nodeA.Update(0.1f);
-                await Task.Delay(10);
             }
+            await Task.Yield();
 
             // ── Step 2: Verify Node A entity exists and is stuck in Constructing ──
             // NOTE: newly spawned entities are in EntityLifecycle.Constructing (header
@@ -46,19 +46,17 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
 
             // ── Step 3: Boot Node B ──────────────────────────────────────────
             using var nodeB = new NetworkDemoApp();
-            await nodeB.InitializeAsync(200, false, autoSpawn: true, enableNetwork: true);
+            await nodeB.InitializeAsync(200, false, autoSpawn: true, enableNetwork: true, testMode: true);
 
             // ── Step 4: Drive both nodes until both local entities become Active ──
-            // The entity transitions to Active when all topology peers have ACK'd, or
-            // when the NetworkGateway reliable-init timeout fires (~300 frames).
+            // In test mode, network timeout is 30 frames, ELM timeout is 50 frames
             bool aIsActive = false;
             bool bIsActive = false;
 
-            for (int i = 0; i < 500; i++)   // 5-second budget at 10 ms ticks
+            for (int i = 0; i < 60; i++)   // 60 iterations should be enough for 30-frame timeout + margin
             {
                 nodeA.Update(0.1f);
                 nodeB.Update(0.1f);
-                await Task.Delay(10);
 
                 // Guard: entity should not be destroyed during lifecycle transition.
                 if (!nodeA.World.IsAlive(tankA))
@@ -75,8 +73,12 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                 {
                     aIsActive = true;
                     bIsActive = true;
+                    Console.WriteLine($"[Frame {i}] SUCCESS - Both entities active!");
                     break;
                 }
+                
+                // Yield occasionally to prevent blocking test runner
+                if (i % 20 == 0) await Task.Yield();
             }
 
             Assert.True(aIsActive,

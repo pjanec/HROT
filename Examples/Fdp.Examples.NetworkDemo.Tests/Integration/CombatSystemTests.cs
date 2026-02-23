@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Xunit;
@@ -18,18 +20,23 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
         public async Task TwoNodes_FireEvent_DamageApplied()
         {
             // 1. Setup two nodes
+            string recA = $"combat_node_100_{Guid.NewGuid()}.fdp";
+            string recB = $"combat_node_200_{Guid.NewGuid()}.fdp";
+            
+            try
+            {
             using var nodeA = new NetworkDemoApp();
             using var nodeB = new NetworkDemoApp();
             
-            await nodeA.InitializeAsync(100, false, autoSpawn: true, enableNetwork: true);
-            await nodeB.InitializeAsync(200, false, autoSpawn: true, enableNetwork: true);
+            await nodeA.InitializeAsync(100, false, recA, autoSpawn: true, enableNetwork: true);
+            await nodeB.InitializeAsync(200, false, recB, autoSpawn: true, enableNetwork: true);
             
             // 2. Let entities discover
-            for (int i = 0; i < 50; i++)
+            for (int i = 0; i < 5; i++)
             {
                 nodeA.Update(0.1f);
                 nodeB.Update(0.1f);
-                await Task.Delay(10);
+                await Task.Yield();
             }
             
             // 3. Fire from Node A
@@ -52,7 +59,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
 
                 nodeA.Update(0.1f);
                 nodeB.Update(0.1f);
-                await Task.Delay(10);
+                if (retries % 10 == 0) await Task.Delay(1);
                 retries++;
             }
             Assert.NotEqual(Entity.Null, targetB_onA);
@@ -63,7 +70,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
             {
                  nodeA.Update(0.1f);
                  nodeB.Update(0.1f);
-                 await Task.Delay(10);
+                 await Task.Delay(1);
             }
 
             ((ISimulationView)nodeA.World).GetCommandBuffer().PublishEvent(new FireInteractionEvent
@@ -74,12 +81,20 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                 Damage = 25
             });
             
-            // 4. Process event (Wait longer)
+            // 4. Process event (Wait for health change)
             for (int i = 0; i < 200; i++)
             {
                 nodeA.Update(0.1f);
                 nodeB.Update(0.1f);
-                await Task.Delay(10); 
+                
+                var tb = GetTankByOwner(nodeB, nodeB.LocalNodeId);
+                if (tb != Entity.Null && nodeB.World.HasComponent<Health>(tb)) {
+                    var h = nodeB.World.GetComponent<Health>(tb);
+                    if (h.Value == 75) break;
+                }
+
+                if (i % 20 == 0) await Task.Delay(1); 
+                else await Task.Yield();
             }
             
             // 5. Verify damage on Node B
@@ -89,6 +104,14 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
             var health = nodeB.World.GetComponent<Health>(tankB);
             
             Assert.Equal(75, health.Value); // 100 - 25
+            }
+            finally
+            {
+                if (File.Exists(recA)) File.Delete(recA);
+                if (File.Exists(recB)) File.Delete(recB);
+                if (File.Exists(recA + ".meta")) File.Delete(recA + ".meta");
+                if (File.Exists(recB + ".meta")) File.Delete(recB + ".meta");
+            }
         }
 
         // WithLifecycle(All): local tanks are in Constructing state until the

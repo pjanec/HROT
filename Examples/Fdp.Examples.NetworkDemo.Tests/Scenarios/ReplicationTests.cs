@@ -24,7 +24,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
             await env.StartNodesAsync();
             
             // Wait for DDS discovery
-            await Task.Delay(2000);
+            await Task.Delay(100);
             
             // Spawn tank on Node A
             var tankA = env.NodeA.SpawnTank();

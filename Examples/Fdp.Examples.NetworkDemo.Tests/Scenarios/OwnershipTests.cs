@@ -75,7 +75,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
             });
 
             // Wait for queue to process
-            await Task.Delay(1000);
+            await Task.Delay(100);
             
             // Check manually (unsafe check from test thread, but needed for assertion)
             if (!appB.World.HasComponent<DescriptorOwnership>(tankB))

@@ -22,7 +22,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
         {
             using var env = new DistributedTestEnv(_output);
             await env.StartNodesAsync();
-            await Task.Delay(2000);
+            await Task.Delay(100);
             
             // 1. CREATION
             var tankA = env.NodeA.SpawnTank();

@@ -74,6 +74,9 @@ namespace FDP.Toolkit.Vis2D.Tests.Tools
             var adapter = new Mock<IVisualizerAdapter>();
             var view = new Mock<ISimulationView>();
             
+            view.Setup(v => v.IsAlive(e1)).Returns(true);
+            view.Setup(v => v.IsAlive(e2)).Returns(true);
+            
             adapter.Setup(a => a.GetPosition(view.Object, e1)).Returns(new Vector2(10, 10));
             adapter.Setup(a => a.GetHitRadius(view.Object, e1)).Returns(5f);
             
@@ -81,7 +84,25 @@ namespace FDP.Toolkit.Vis2D.Tests.Tools
             adapter.Setup(a => a.GetHitRadius(view.Object, e2)).Returns(5f);
             
             var tool = new StandardInteractionTool(view.Object, repo.Query().Build(), adapter.Object);
-            var canvas = new MapCanvas();
+            
+            // Create a mock layer that can pick entities
+            var layer = new Mock<IMapLayer>();
+            layer.Setup(l => l.PickEntity(It.IsAny<Vector2>())).Returns<Vector2>(pos => {
+                // Check e2 first (it's closer to click position 21,21)
+                var pos2 = new Vector2(20, 20);
+                var dist2 = Vector2.Distance(pos, pos2);
+                if (dist2 <= 5f) return e2;
+                
+                // Check e1
+                var pos1 = new Vector2(10, 10);
+                var dist1 = Vector2.Distance(pos, pos1);
+                if (dist1 <= 5f) return e1;
+                
+                return (Entity?)null;
+            });
+            
+            var canvas = new MapCanvas(new MockInputProvider());
+            canvas.AddLayer(layer.Object);
             tool.OnEnter(canvas);
             
             Entity hitEntity = Entity.Null;

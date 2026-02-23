@@ -136,7 +136,8 @@ namespace Fdp.Examples.NetworkDemo.Tests.Infrastructure
 
         public async Task RunFrames(int frames)
         {
-            await Task.Delay(frames * 33);
+            // Reduced from 33ms to 1ms to speed up tests significantly
+            await Task.Delay(frames * 1);
         }
 
         public void Dispose()

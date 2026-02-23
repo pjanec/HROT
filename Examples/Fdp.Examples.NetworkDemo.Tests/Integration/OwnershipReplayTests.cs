@@ -75,7 +75,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                     await app.InitializeAsync(100, true, recFile, true, false); 
                     
                     // Wait for Replay System Init
-                    await Task.Delay(500);
+                    await Task.Delay(10);
 
                     bool sawOwner1 = false;
                     bool sawOwner2 = false;
@@ -85,6 +85,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                         app.Update(0.1f);
                         
                         CheckForOwner(app, 200002, ref sawOwner1, ref sawOwner2);
+                        if (sawOwner1 && sawOwner2) break; // Break early
                     }
                     
                     Assert.True(sawOwner1, "Should have seen Owner 1");
