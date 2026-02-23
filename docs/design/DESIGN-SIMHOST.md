@@ -82,7 +82,7 @@ SimHost Mock is the **"truth" authority** for the simulation. It:
 
 **Components:**
 - `FDP.Toolkit.CarKinem.CarKinematicsSystem` - Main physics loop
-- `FDP.Toolkit.CarKinem.VehicleState` - Speed, steering (⚠️ Phase 0: Position and heading fields removed — now in `SimPosition` + `SimRotation` from `Fdp.Kernel`)
+- `FDP.Toolkit.CarKinem.VehicleState` - Speed, steering (⚠️ Phase 0: Position and heading fields removed — now in `SimTransform` from `Fdp.Kernel`)
 - `FDP.Toolkit.CarKinem.VehicleParams` - Mass, dimensions, acceleration limits
 - `FDP.Toolkit.CarKinem.NavState` - Navigation target, arrival radius
 
@@ -103,7 +103,7 @@ public class CarKinematicsSystem : ComponentSystem
 
 **VehicleState Structure:**
 
-> ⚠️ **Phase 0 Adaptation (VehicleState shrink):** `VehicleState.Position`, `Forward`, `Pitch`, and `Roll` have been **removed** from the struct (completed in BCS-P0-T2). The trimmed struct contains only: `Speed`, `SteerAngle`, `Accel`, `CurrentLaneIndex`. Vehicle world position is now stored in `SimPosition { Vector3 Value }` and heading in `SimRotation { Quaternion Value }` from `Fdp.Kernel`. All code that reads `vehicleState.Position` must instead read `world.GetComponent<SimPosition>(entity).Value` (using `.X`/`.Y` for 2-D operations). All code that reads `vehicleState.Forward` must instead derive the forward vector from `SimRotation`.
+> ⚠️ **Phase 0 Adaptation (VehicleState shrink):** `VehicleState.Position`, `Forward`, `Pitch`, and `Roll` have been **removed** from the struct (completed in BCS-P0-T2). The trimmed struct contains only: `Speed`, `SteerAngle`, `Accel`, `CurrentLaneIndex`. Vehicle world position and heading are now stored in `SimTransform { Vector3 Position; Quaternion Rotation }` from `Fdp.Kernel`. All code that reads `vehicleState.Position` must instead read `world.GetComponent<SimTransform>(entity).Position` (using `.X`/`.Y` for 2-D operations). All code that reads `vehicleState.Forward` must instead derive the forward vector from `SimTransform.Rotation`.
 
 ```csharp
 public struct VehicleState
@@ -522,11 +522,11 @@ namespace Bagira.SimHost.Util
                     case EDescriptorType.dtGeoSpatial:
                         result.Add(d.GeoSpatial);    // Replicated via AutoCycloneTranslator
                         var cart = geo.ToCartesian(d.GeoSpatial.Pos);
-                        // ⚠️ Phase 0: VehicleState.Position and .Forward removed. Instead, add SimPosition + SimRotation components to the entity.
+                        // ⚠️ Phase 0: VehicleState.Position and .Forward removed. Instead, add SimTransform component to the entity.
                         result.Add(new VehicleState
                         {
-                            Position   = new Vector2((float)cart.X, (float)cart.Y), // ⚠️ Phase 0: → world.AddComponent(entity, new SimPosition { Value = new Vector3((float)cart.X, (float)cart.Y, 0) })
-                            Forward    = HeadingToVector(d.GeoSpatial.Rot.Heading),  // ⚠️ Phase 0: → world.AddComponent(entity, new SimRotation { Value = Quaternion.CreateFromYawPitchRoll(headingRad, 0, 0) })
+                            Position   = new Vector2((float)cart.X, (float)cart.Y), // ⚠️ Phase 0: → world.AddComponent(entity, new SimTransform { Position = new Vector3((float)cart.X, (float)cart.Y, 0), Rotation = Quaternion.CreateFromYawPitchRoll(headingRad, 0, 0) })
+                            Forward    = HeadingToVector(d.GeoSpatial.Rot.Heading),  // ⚠️ Phase 0: Rotation now encoded in SimTransform.Rotation (see above)
                             Speed      = 0, SteerAngle = 0
                         });
                         break;
@@ -739,7 +739,7 @@ namespace Bagira.SimHost.Systems
             var params = JsonSerializer.Deserialize<MoveToLocationParams>(task.BehaviorParams);
             var vehicleState = world.GetComponent<VehicleState>(entity);
             var destination = new Vector2(params.X, params.Y);
-            float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use world.GetComponent<SimPosition>(entity).Value.XY()
+            float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use world.GetComponent<SimTransform>(entity).Position.XY
             {
                 _vehicleAPI.NavigateToPoint(entity, destination, params.ArrivalRadius, params.Speed);
             }
@@ -761,7 +761,7 @@ namespace Bagira.SimHost.Systems
                 var waypoint = params.Waypoints[progress.CurrentWaypointIndex];
                 var destination = new Vector2(waypoint.X, waypoint.Y);
                 var vehicleState = world.GetComponent<VehicleState>(entity);
-                float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use world.GetComponent<SimPosition>(entity).Value.XY()
+                float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use world.GetComponent<SimTransform>(entity).Position.XY
                 
                 if (distance < waypoint.ArrivalRadius)
                 {
@@ -908,15 +908,15 @@ namespace Bagira.SimHost.Systems
                 
                 var cartesian = new CartesianCoordinate
                 {
-                    X = vehicleState.Position.X,  // ⚠️ Phase 0: read world.GetComponent<SimPosition>(entity).Value.X instead
-                    Y = vehicleState.Position.Y,  // ⚠️ Phase 0: read world.GetComponent<SimPosition>(entity).Value.Y instead
+                    X = vehicleState.Position.X,  // ⚠️ Phase 0: read world.GetComponent<SimTransform>(entity).Position.X instead
+                    Y = vehicleState.Position.Y,  // ⚠️ Phase 0: read world.GetComponent<SimTransform>(entity).Position.Y instead
                     Z = altitude  // Preserve altitude, CarKinem only updates X/Y
                 };
                 
                 var geoPos = _geoTransform.ToGeodetic(cartesian);
                 
                 // Convert forward vector to heading
-                float headingDeg = MathF.Atan2(vehicleState.Forward.X, vehicleState.Forward.Y) * (180.0f / MathF.PI); // ⚠️ Phase 0: vehicleState.Forward removed — derive from SimRotation quaternion
+                float headingDeg = MathF.Atan2(vehicleState.Forward.X, vehicleState.Forward.Y) * (180.0f / MathF.PI); // ⚠️ Phase 0: vehicleState.Forward removed — derive from SimTransform.Rotation quaternion
                 if (headingDeg < 0) headingDeg += 360.0f;
                 
                 // Update GeoSpatial component (will be egressed by translators)

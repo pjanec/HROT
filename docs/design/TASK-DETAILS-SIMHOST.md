@@ -792,14 +792,14 @@ private void UpdateGeoSpatial(Entity entity)
     // Convert local position to geodetic
     var cartesian = new CartesianCoordinate
     {
-        X = vehicleState.Position.X,  // ⚠️ Phase 0: VehicleState.Position removed — use world.GetComponent<SimPosition>(entity).Value.X
-        Y = vehicleState.Position.Y,  // ⚠️ Phase 0: use world.GetComponent<SimPosition>(entity).Value.Y
+        X = vehicleState.Position.X,  // ⚠️ Phase 0: VehicleState.Position removed — use world.GetComponent<SimTransform>(entity).Position.X
+        Y = vehicleState.Position.Y,  // ⚠️ Phase 0: use world.GetComponent<SimTransform>(entity).Position.Y
         Z = 0 // Flat terrain for now (can add terrain height later)
     };
     
     var geoPos = _geoTransform.ToGeodetic(cartesian);
     
-    Console.WriteLine($"[SimHost] Entity {networkId.NetworkId}: Pos={vehicleState.Position} → Geo=({geoPos.Latitude},{geoPos.Longitude})"); // ⚠️ Phase 0: vehicleState.Position → SimPosition.Value
+    Console.WriteLine($"[SimHost] Entity {networkId.NetworkId}: Pos={vehicleState.Position} → Geo=({geoPos.Latitude},{geoPos.Longitude})"); // ⚠️ Phase 0: vehicleState.Position → SimTransform.Position
     
     // TODO: Convert heading
     // TODO: Create GeoSpatial component
@@ -844,7 +844,7 @@ Update `UpdateGeoSpatial()`:
 
 ```csharp
 // Convert forward vector to heading (degrees)
-float headingDeg = VectorToHeading(vehicleState.Forward); // ⚠️ Phase 0: VehicleState.Forward removed — derive forward vector from SimRotation quaternion
+float headingDeg = VectorToHeading(vehicleState.Forward); // ⚠️ Phase 0: VehicleState.Forward removed — derive forward vector from SimTransform.Rotation quaternion
 ```
 
 **Acceptance Criteria:**
@@ -1133,7 +1133,7 @@ private void ExecuteMoveToLocation(Entity entity, MissionTask task)
     
     var vehicleState = entity.Get<VehicleState>();
     var destination = new Vector2(params_.X, params_.Y);
-    float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use entity.Get<SimPosition>().Value.XY()
+    float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use entity.Get<SimTransform>().Position.XY
     
     if (distance > params_.ArrivalRadius)
     {
@@ -1222,7 +1222,7 @@ private void ExecuteFollowRoute(Entity entity, MissionTask task)
     var destination = new Vector2(waypoint.X, waypoint.Y);
     
     var vehicleState = entity.Get<VehicleState>();
-    float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use entity.Get<SimPosition>().Value.XY()
+    float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use entity.Get<SimTransform>().Position.XY
     
     if (distance < waypoint.ArrivalRadius)
     {
@@ -1344,7 +1344,7 @@ private bool IsTaskComplete(Entity entity, MissionTask task)
             
             var vehicleState = entity.Get<VehicleState>();
             var navState = entity.Get<NavState>();
-            float distance = Vector2.Distance(vehicleState.Position, navState.TargetPosition); // ⚠️ Phase 0: vehicleState.Position removed — use entity.Get<SimPosition>().Value.XY()
+            float distance = Vector2.Distance(vehicleState.Position, navState.TargetPosition); // ⚠️ Phase 0: vehicleState.Position removed — use entity.Get<SimTransform>().Position.XY
             return distance < navState.ArrivalRadius;
         
         case "FollowRoute":
