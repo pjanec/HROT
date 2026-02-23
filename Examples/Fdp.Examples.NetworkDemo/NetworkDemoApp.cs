@@ -476,9 +476,9 @@ namespace Fdp.Examples.NetworkDemo
                 InitType          = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
                 InitialComponents = new System.Collections.Generic.List<object>
                 {
-                    new DemoPosition
+                    new SimTransform
                     {
-                        Value = new Vector3(
+                        Position = new Vector3(
                             Random.Shared.Next(-50, 50),
                             Random.Shared.Next(-50, 50),
                             0)
@@ -520,7 +520,7 @@ namespace Fdp.Examples.NetworkDemo
                  if (world.HasComponent<EntityType>(e)) typeName = world.GetComponent<EntityType>(e).Name;
                  
                  Vector3 pos = Vector3.Zero;
-                 if (world.HasComponent<DemoPosition>(e)) pos = world.GetComponent<DemoPosition>(e).Value;
+                 if (world.HasComponent<SimTransform>(e)) pos = world.GetComponent<SimTransform>(e).Position;
                  else if (world.HasComponent<NetworkPosition>(e)) pos = world.GetComponent<NetworkPosition>(e).Value;
 
                  bool isLocal = auth.PrimaryOwnerId == localInstanceId;

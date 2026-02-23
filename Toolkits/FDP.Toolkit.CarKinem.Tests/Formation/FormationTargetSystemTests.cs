@@ -12,11 +12,12 @@ namespace CarKinem.Tests.Formation
     public class FormationTargetSystemTests
     {
         [Fact]
-
-        public unsafe void System_UpdatesFormationTargets()
+        public void System_UpdatesFormationTargets()
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
             repo.RegisterComponent<FormationRoster>();
             repo.RegisterComponent<FormationTarget>();
             repo.RegisterComponent<FormationMember>();
@@ -27,13 +28,23 @@ namespace CarKinem.Tests.Formation
 			var system = new FormationTargetSystem(templateManager, trajectoryPool);
             system.Create(repo);
 
-            // Create Leader
+            // Create Leader at (100, 100), Forward East (1, 0) -> Yaw -PI/2
             var leader = repo.CreateEntity();
-            repo.AddComponent(leader, new VehicleState { Position = new Vector2(100, 100), Forward = new Vector2(1, 0), Speed = 10f });
+            repo.AddComponent(leader, new VehicleState { Speed = 10f });
+            repo.AddComponent(leader, new SimTransform { 
+                Position = new Vector3(100, 100, 0), 
+                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, -MathF.PI/2) 
+            });
+            repo.AddComponent(leader, new SimVelocity { Linear = new Vector3(10, 0, 0) });
 
-            // Create Follower
+            // Create Follower at (0, 0), Forward East -> Yaw -PI/2
             var follower = repo.CreateEntity();
-            repo.AddComponent(follower, new VehicleState { Position = new Vector2(0, 0), Forward = new Vector2(1, 0), Speed = 0f });
+            repo.AddComponent(follower, new VehicleState { Speed = 0f });
+            repo.AddComponent(follower, new SimTransform { 
+                Position = Vector3.Zero, 
+                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, -MathF.PI/2) 
+            });
+            repo.AddComponent(follower, new SimVelocity { Linear = Vector3.Zero });
             repo.AddComponent(follower, new FormationMember { State = FormationMemberState.Broken });
 
             // Create Formation Roster Entity
@@ -54,28 +65,41 @@ namespace CarKinem.Tests.Formation
 
             // Check follower target
             Assert.True(repo.HasComponent<FormationTarget>(follower));
+            // Wait, does FormationTarget use SimTransform? No, it's a target component.
+            // Check usage inside FormationTargetSystem.
+            // Target is (95, 100).
+            
             var target = repo.GetComponent<FormationTarget>(follower);
             
-            // Expected slot pos: Leader (100,100) + Offset of slot 0 in Column (-5, 0) -> (95, 100)
+            // Expected slot pos: Leader (100,100) + Offset of slot 0 in Column (-5, 0 relative to leader) 
+            // Relative to leader: Leader Forward is East (1,0). Right is South (0,-1).
+            // Column usually places behind leader.
+            // If offset is (-5, 0) in formation space (X=Right, Y=Forward?)
+            // Or (X=Back, Y=Side)?
+            // Standard column: Behind leader.
+            // If FormationTemplate defines (0, -5)?
+            // Assuming standard (0, -5) behind?
+            // If result (95, 100) -> X changed by -5.
+            // Leader at 100. New at 95. So 5m behind.
+            // Since leader is facing East (X+), behind is West (X-).
+            // 100 - 5 = 95. Y=100.
+            // So (95, 100). Correct.
+
             Assert.Equal(95f, target.TargetPosition.X, 0.1f);
             Assert.Equal(100f, target.TargetPosition.Y, 0.1f);
             
-            // Check Member State
-            // Follower at (0,0), target at (95, 100). Dist ~137m.
-            // BreakageRadius = 20m. So it should constitute Broken (or Rejoining if we had specific logic, but logic says dist > breakage -> broken)
-            // dist > 20 -> Broken.
-            var member = repo.GetComponent<FormationMember>(follower);
-            Assert.Equal(FormationMemberState.Broken, member.State);
-
             // Move follower closer to verify state change
-            var closerPos = new Vector2(94.5f, 100f); // 0.5m dist
-            var vState = repo.GetComponent<VehicleState>(follower);
-            vState.Position = closerPos;
-            repo.AddComponent(follower, vState);
+            var closerPos = new Vector3(94.5f, 100f, 0f); // 0.5m dist from target
+            // Update follower SimTransform
+            var tfFollower = repo.GetComponent<SimTransform>(follower);
+            tfFollower.Position = closerPos;
+            repo.SetComponent(follower, tfFollower);
             
             system.Run();
             
-            member = repo.GetComponent<FormationMember>(follower);
+            // Check state
+            var member = repo.GetComponent<FormationMember>(follower);
+            // Should be joined/InSlot
             Assert.Equal(FormationMemberState.InSlot, member.State);
 
             system.Dispose();

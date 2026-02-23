@@ -15,10 +15,10 @@ public class AIModule : IModule
 
     public IEnumerable<Type> GetRequiredComponents()
     {
-        yield return typeof(Position);
+        yield return typeof(SimTransform);
         yield return typeof(AIState);
         yield return typeof(Health);
-        yield return typeof(Velocity);
+        yield return typeof(SimVelocity);
         yield return typeof(Damage); 
     }
     
@@ -27,17 +27,17 @@ public class AIModule : IModule
         var cmd = view.GetCommandBuffer();
         
         // Get bots
-        var bots = view.Query().With<Position>().With<AIState>().Build();
+        var bots = view.Query().With<SimTransform>().With<AIState>().Build();
         
         // Get all players (for targeting)
-        var players = view.Query().With<Position>().With<Health>().Build();
+        var players = view.Query().With<SimTransform>().With<Health>().Build();
         
         int decisionsCount = 0;
         int projectilesSpawned = 0;
         
         foreach (var bot in bots)
         {
-            ref readonly var botPos = ref view.GetComponentRO<Position>(bot);
+            ref readonly var tfBot = ref view.GetComponentRO<SimTransform>(bot);
             ref readonly var aiState = ref view.GetComponentRO<AIState>(bot);
             
             // Find nearest player
@@ -46,8 +46,8 @@ public class AIModule : IModule
             
             foreach (var player in players)
             {
-                ref readonly var playerPos = ref view.GetComponentRO<Position>(player);
-                float distSq = (playerPos.Value - botPos.Value).LengthSquared();
+                ref readonly var tfPlayer = ref view.GetComponentRO<SimTransform>(player);
+                float distSq = (tfPlayer.Position - tfBot.Position).LengthSquared();
                 
                 if (distSq < minDist)
                 {
@@ -58,10 +58,10 @@ public class AIModule : IModule
             
             if (target != Entity.Null)
             {
-                ref readonly var targetPos = ref view.GetComponentRO<Position>(target);
+                ref readonly var tfTarget = ref view.GetComponentRO<SimTransform>(target);
                 
                 // Move toward target
-                var toTarget = targetPos.Value - botPos.Value;
+                var toTarget = tfTarget.Position - tfBot.Position;
                 float dist = toTarget.Length();
                 
                 Vector3 n = Vector3.Zero;
@@ -72,9 +72,10 @@ public class AIModule : IModule
                 
                 if (dist > 0.1f)
                 {
-                    cmd.SetComponent(bot, new Velocity
+                    cmd.SetComponent(bot, new SimVelocity
                     {
-                        Value = n * 5.0f * aiState.AggressionLevel
+                        Linear = n * 5.0f * aiState.AggressionLevel,
+                        Angular = Vector3.Zero
                     });
                     
                     decisionsCount++;
@@ -85,8 +86,8 @@ public class AIModule : IModule
                 {
                     // Spawn projectile
                     var proj = cmd.CreateEntity();
-                    cmd.AddComponent(proj, new Position { Value = botPos.Value });
-                    cmd.AddComponent(proj, new Velocity { Value = n * 30.0f });
+                    cmd.AddComponent(proj, new SimTransform { Position = tfBot.Position, Rotation = Quaternion.Identity });
+                    cmd.AddComponent(proj, new SimVelocity { Linear = n * 30.0f, Angular = Vector3.Zero });
                     cmd.AddComponent(proj, new Damage { Amount = 10.0f });
                     
                     projectilesSpawned++;

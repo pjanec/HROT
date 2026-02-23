@@ -15,8 +15,8 @@ public static class EntityFactory
     public static void RegisterAllComponents(EntityRepository world)
     {
         // Unmanaged components
-        world.RegisterComponent<Position>();
-        world.RegisterComponent<Velocity>();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<SimVelocity>();
         world.RegisterComponent<Health>();
         world.RegisterComponent<AIState>();
         world.RegisterComponent<Inventory>();
@@ -49,15 +49,17 @@ public static class EntityFactory
             var entity = world.CreateEntity();
             
             // Position
-            world.AddComponent(entity, new Position
+            world.AddComponent(entity, new SimTransform
             {
-                Value = new Vector3(Random.Shared.NextSingle() * 1000f, Random.Shared.NextSingle() * 1000f, 0f)
+                Position = new Vector3(Random.Shared.NextSingle() * 1000f, Random.Shared.NextSingle() * 1000f, 0f),
+                Rotation = Quaternion.Identity
             });
             
             // Velocity (initially at rest)
-            world.AddComponent(entity, new Velocity
+            world.AddComponent(entity, new SimVelocity
             {
-                Value = Vector3.Zero
+                Linear = Vector3.Zero,
+                Angular = Vector3.Zero
             });
             
             // Health
@@ -112,15 +114,17 @@ public static class EntityFactory
             var entity = world.CreateEntity();
             
             // Position
-            world.AddComponent(entity, new Position
+            world.AddComponent(entity, new SimTransform
             {
-                Value = new Vector3(Random.Shared.NextSingle() * 1000f, Random.Shared.NextSingle() * 1000f, 0f)
+                Position = new Vector3(Random.Shared.NextSingle() * 1000f, Random.Shared.NextSingle() * 1000f, 0f),
+                Rotation = Quaternion.Identity
             });
             
             // Velocity (initially at rest)
-            world.AddComponent(entity, new Velocity
+            world.AddComponent(entity, new SimVelocity
             {
-                Value = Vector3.Zero
+                Linear = Vector3.Zero,
+                Angular = Vector3.Zero
             });
             
             // Health
@@ -149,9 +153,10 @@ public static class EntityFactory
             var entity = world.CreateEntity();
             
             // Position
-            world.AddComponent(entity, new Position
+            world.AddComponent(entity, new SimTransform
             {
-                Value = new Vector3(Random.Shared.NextSingle() * 1000f, Random.Shared.NextSingle() * 1000f, 0f)
+                Position = new Vector3(Random.Shared.NextSingle() * 1000f, Random.Shared.NextSingle() * 1000f, 0f),
+                Rotation = Quaternion.Identity
             });
             
             // Random item type
@@ -171,9 +176,10 @@ public static class EntityFactory
         var entity = world.CreateEntity();
         
         // Center of the map
-        world.AddComponent(entity, new Position
+        world.AddComponent(entity, new SimTransform
         {
-            Value = new Vector3(500f, 500f, 0f)
+            Position = new Vector3(500f, 500f, 0f),
+            Rotation = Quaternion.Identity
         });
         
         // Initial safe zone radius
@@ -190,14 +196,14 @@ public static class EntityFactory
     /// </summary>
     public static Entity CreateProjectile(
         EntityRepository world,
-        Position pos,
-        Velocity vel,
+        SimTransform transform,
+        SimVelocity velocity,
         float damage)
     {
         var entity = world.CreateEntity();
         
-        world.AddComponent(entity, pos);
-        world.AddComponent(entity, vel);
+        world.AddComponent(entity, transform);
+        world.AddComponent(entity, velocity);
         world.AddComponent(entity, new Damage
         {
             Amount = damage

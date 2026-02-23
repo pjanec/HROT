@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Numerics;
 using CarKinem.Core;
 using CarKinem.Spatial;
 using Fdp.Kernel;
@@ -25,13 +26,13 @@ namespace CarKinem.Systems
         {
             _grid.Clear();
             
-            // Query all vehicles
-            var query = World.Query().With<VehicleState>().Build();
+            // Query all vehicles (universal query via SimTransform)
+            var query = World.Query().With<SimTransform>().Build();
             
             foreach (var entity in query)
             {
-                var state = World.GetComponent<VehicleState>(entity);
-                _grid.Add(entity.Index, state.Position);
+                var tf = World.GetComponent<SimTransform>(entity);
+                _grid.Add(entity.Index, new Vector2(tf.Position.X, tf.Position.Y));
             }
             
             // Publish as singleton (Data-Oriented pattern)

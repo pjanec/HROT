@@ -20,9 +20,10 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             world.RegisterEvent<DestructionOrder>();  // Required for ELM teardown flow
 
             // Legacy components
-            world.RegisterComponent<Position>();
+            // Components retired in favor of SimTransform
+            world.RegisterComponent<SimTransform>();
+            world.RegisterComponent<SimVelocity>();
             world.RegisterComponent<PositionGeodetic>();
-            world.RegisterComponent<Velocity>();
             world.RegisterComponent<EntityType>();
             world.RegisterComponent<LifecycleDescriptor>();
             
@@ -37,7 +38,7 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             world.RegisterComponent<ForceNetworkPublish>();
 
             // Batch-03 Components
-            world.RegisterComponent<DemoPosition>();
+            // DemoPosition replaced by SimTransform
             world.RegisterComponent<TurretState>();
             world.RegisterComponent<TimeConfiguration>();
             world.RegisterComponent<ReplayTime>();
@@ -56,9 +57,9 @@ namespace Fdp.Examples.NetworkDemo.Configuration
         {
             return new System.Type[]
             {
-                typeof(Position),
+                typeof(SimTransform),
+                typeof(SimVelocity),
                 typeof(PositionGeodetic),
-                typeof(Velocity),
                 typeof(EntityType),
                 typeof(NetworkPosition),
                 typeof(NetworkVelocity),
@@ -68,7 +69,6 @@ namespace Fdp.Examples.NetworkDemo.Configuration
                 typeof(NetworkSpawnRequest),
                 typeof(PendingNetworkAck),
                 typeof(ForceNetworkPublish),
-                typeof(DemoPosition),
                 typeof(TurretState),
                 typeof(TimeConfiguration),
                 typeof(ReplayTime),

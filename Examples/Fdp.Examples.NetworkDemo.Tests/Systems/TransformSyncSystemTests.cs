@@ -4,6 +4,7 @@ using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Examples.NetworkDemo.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
+
 using FDP.Toolkit.Replication.Extensions;
 using ModuleHost.Core.Abstractions;
 using Xunit;
@@ -16,13 +17,13 @@ namespace Fdp.Examples.NetworkDemo.Tests.Systems
         public void TransformSync_Owned_CopiesToBuffer()
         {
             using var repo = new EntityRepository();
-            repo.RegisterComponent<DemoPosition>();
+            repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<NetworkPosition>();
             repo.RegisterComponent<NetworkAuthority>();
 
             var entity = repo.CreateEntity();
             
-            repo.AddComponent(entity, new DemoPosition { Value = new Vector3(10, 0, 0) });
+            repo.AddComponent(entity, new SimTransform { Position = new Vector3(10, 0, 0) });
             repo.AddComponent(entity, new NetworkPosition { Value = Vector3.Zero });
             
             // Set Authority - LocalNodeId == PrimaryOwnerId (e.g. 1 == 1)
@@ -46,7 +47,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Systems
         public void TransformSync_Remote_SmoothsPosition()
         {
             using var repo = new EntityRepository();
-            repo.RegisterComponent<DemoPosition>();
+            repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<NetworkPosition>();
             repo.RegisterComponent<NetworkAuthority>();
 
@@ -54,7 +55,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Systems
             
             // Initial State
             // DemoPosition is at origin
-            repo.AddComponent(entity, new DemoPosition { Value = new Vector3(0, 0, 0) });
+            repo.AddComponent(entity, new SimTransform { Position = new Vector3(0, 0, 0) });
             // Network (Target) is at 10
             repo.AddComponent(entity, new NetworkPosition { Value = new Vector3(10, 0, 0) });
             
@@ -76,9 +77,9 @@ namespace Fdp.Examples.NetworkDemo.Tests.Systems
                 ecb.Playback(repo);
             }
 
-            var appPos = repo.GetComponent<DemoPosition>(entity);
+            var appPos = repo.GetComponent<SimTransform>(entity);
             
-            Assert.Equal(5.0f, appPos.Value.X, 0.01f);
+            Assert.Equal(5.0f, appPos.Position.X, 0.01f);
         }
     }
 }

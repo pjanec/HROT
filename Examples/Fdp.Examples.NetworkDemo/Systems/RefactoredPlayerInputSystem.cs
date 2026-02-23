@@ -13,7 +13,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
         {
             var cmd = view.GetCommandBuffer();
             var query = view.Query()
-                .With<NetworkVelocity>()
+                .With<SimVelocity>()
                 .With<NetworkIdentity>()
                 .With<ModuleHost.Core.Network.NetworkOwnership>() // Check Local ownership
                 .Build();
@@ -25,11 +25,11 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
                     continue;
 
-                ref readonly var vel = ref view.GetComponentRO<NetworkVelocity>(e);
+                ref readonly var vel = ref view.GetComponentRO<SimVelocity>(e);
                 
                 // Simple behavior: turn velocity vector slightly (circle)
                 // Rotate vector around Z axis
-                var v = vel.Value;
+                var v = vel.Linear;
                 if (v.LengthSquared() > 0.001f)
                 {
                     // Rotate by 1.0 radians/sec
@@ -40,7 +40,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
                     float newX = v.X * cos - v.Y * sin;
                     float newY = v.X * sin + v.Y * cos;
                     
-                    cmd.SetComponent(e, new NetworkVelocity { Value = new Vector3(newX, newY, v.Z) });
+                    cmd.SetComponent(e, new SimVelocity { Linear = new Vector3(newX, newY, v.Z), Angular = vel.Angular });
                 }
             }
         }

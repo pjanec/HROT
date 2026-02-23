@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using Fdp.Kernel;
+using Fdp.Kernel; // SimTransform
 using ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
@@ -23,7 +23,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
         private void SyncOwnedEntities(ISimulationView view)
         {
             var query = view.Query()
-                .With<DemoPosition>()
+                .With<SimTransform>()
                 .With<NetworkPosition>()
                 .With<NetworkAuthority>()
                 .Build();
@@ -35,10 +35,10 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 // If we own the chassis, copy to network buffer
                 if (view.HasAuthority(entity, CHASSIS_KEY))
                 {
-                    var appPos = view.GetComponentRO<DemoPosition>(entity);
+                    var appTf = view.GetComponentRO<SimTransform>(entity);
                     cmd.SetComponent(entity, new NetworkPosition
                     {
-                        Value = appPos.Value
+                        Value = appTf.Position
                     });
                 }
             }
@@ -47,7 +47,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
         private void SyncRemoteEntities(ISimulationView view, float deltaTime)
         {
             var query = view.Query()
-                .With<DemoPosition>()
+                .With<SimTransform>()
                 .With<NetworkPosition>()
                 .With<NetworkAuthority>()
                 .Build();
@@ -60,15 +60,19 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 if (!view.HasAuthority(entity, CHASSIS_KEY))
                 {
                     var netPos = view.GetComponentRO<NetworkPosition>(entity);
-                    var currentPos = view.GetComponentRO<DemoPosition>(entity);
+                    var currentTf = view.GetComponentRO<SimTransform>(entity);
 
                     var smoothed = Vector3.Lerp(
-                        currentPos.Value,
+                        currentTf.Position,
                         netPos.Value,
                         deltaTime * SMOOTHING_RATE
                     );
 
-                    cmd.SetComponent(entity, new DemoPosition { Value = smoothed });
+                    // Preserve rotation
+                    cmd.SetComponent(entity, new SimTransform { 
+                        Position = smoothed,
+                        Rotation = currentTf.Rotation
+                    });
                 }
             }
         }

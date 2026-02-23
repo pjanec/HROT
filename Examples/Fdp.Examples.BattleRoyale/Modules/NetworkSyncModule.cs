@@ -2,6 +2,7 @@ using Fdp.Kernel;
 using Fdp.Examples.BattleRoyale.Components;
 using Fdp.Examples.BattleRoyale.Events;
 using ModuleHost.Core.Abstractions;
+using System.Numerics;
 
 namespace Fdp.Examples.BattleRoyale.Modules;
 
@@ -16,14 +17,14 @@ public class NetworkSyncModule : IModule
     
     public void RegisterSystems(ISystemRegistry registry) { }
 
-    private readonly Dictionary<Entity, Position> _lastPositions = new();
+    private readonly Dictionary<Entity, Vector3> _lastPositions = new();
     private int _totalUpdates = 0;
     
     public void Tick(ISimulationView view, float deltaTime)
     {
-        // Query all entities with Position + NetworkState
+        // Query all entities with SimTransform + NetworkState
         var query = view.Query()
-            .With<Position>()
+            .With<SimTransform>()
             .With<NetworkState>()
             .Build();
         
@@ -31,15 +32,15 @@ public class NetworkSyncModule : IModule
         
         foreach (var entity in query)
         {
-            ref readonly var pos = ref view.GetComponentRO<Position>(entity);
+            ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
             ref readonly var netState = ref view.GetComponentRO<NetworkState>(entity);
             
             // Check if position changed (delta compression)
             if (!_lastPositions.TryGetValue(entity, out var lastPos) ||
-                Math.Abs(pos.Value.X - lastPos.Value.X) > 0.1f ||
-                Math.Abs(pos.Value.Y - lastPos.Value.Y) > 0.1f)
+                Math.Abs(tf.Position.X - lastPos.X) > 0.1f ||
+                Math.Abs(tf.Position.Y - lastPos.Y) > 0.1f)
             {
-                _lastPositions[entity] = pos;
+                _lastPositions[entity] = tf.Position;
                 updated++;
                 _totalUpdates++;
                 

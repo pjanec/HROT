@@ -16,6 +16,8 @@ namespace CarKinem.Tests.Commands
             repo.RegisterComponent<VehicleState>();
             repo.RegisterComponent<VehicleParams>();
             repo.RegisterComponent<NavState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
             repo.RegisterEvent<CmdSpawnVehicle>();
             
             var system = new VehicleCommandSystem();
@@ -29,9 +31,12 @@ namespace CarKinem.Tests.Commands
             {
                 Entity = entity,
                 Position = new Vector2(100, 50),
-                Heading = new Vector2(1, 0),
+                Heading = new Vector2(1, 0), // East
                 Class = VehicleClass.PersonalCar
             });
+            
+            // Wait, does CmdSpawnVehicle change? No, it's just a command.
+            // But VehicleCommandSystem processes it and adds components.
             
             // Process command
             repo.Bus.SwapBuffers();
@@ -41,10 +46,20 @@ namespace CarKinem.Tests.Commands
             Assert.True(repo.HasComponent<VehicleState>(entity));
             Assert.True(repo.HasComponent<VehicleParams>(entity));
             Assert.True(repo.HasComponent<NavState>(entity));
+            Assert.True(repo.HasComponent<SimTransform>(entity));
+            Assert.True(repo.HasComponent<SimVelocity>(entity));
             
-            var state = repo.GetComponent<VehicleState>(entity);
-            Assert.Equal(new Vector2(100, 50), state.Position);
-            Assert.Equal(new Vector2(1, 0), state.Forward);
+            var tf = repo.GetComponent<SimTransform>(entity);
+            Assert.Equal(new Vector3(100, 50, 0), tf.Position);
+            
+            // Heading was (1, 0) East.
+            // If SimTransform assumes Y-Forward (North):
+            // East needs Yaw = -PI/2.
+            // Check if rotation is correct approximately.
+            Vector3 fwd = Vector3.Transform(Vector3.UnitY, tf.Rotation);
+            // Expected East (1, 0, 0)
+            Assert.Equal(1f, fwd.X, precision: 3);
+            Assert.Equal(0f, fwd.Y, precision: 3);
             
             repo.Dispose();
         }
@@ -54,6 +69,8 @@ namespace CarKinem.Tests.Commands
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<VehicleState>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
             repo.RegisterEvent<CmdSpawnVehicle>();
             
             var system = new VehicleCommandSystem();

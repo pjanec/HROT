@@ -201,12 +201,17 @@ public class CarKinemApp : FdpApplication
         _interactionTool.OnEntityMoved += (entity, pos) =>
         {
             // Update simulation state
-            if (_repository.HasComponent<VehicleState>(entity))
+            if (_repository.HasComponent<SimTransform>(entity))
             {
-                 ref var state = ref _repository.GetComponentRW<VehicleState>(entity);
-                 state.Position = pos;
+                 ref var tf = ref _repository.GetComponentRW<SimTransform>(entity);
+                 tf.Position = new Vector3(pos.X, pos.Y, 0);
+                 
                  // Also reset velocity?
-                 state.Speed = 0.0f;
+                 if (_repository.HasComponent<VehicleState>(entity))
+                 {
+                     ref var state = ref _repository.GetComponentRW<VehicleState>(entity);
+                     state.Speed = 0.0f;
+                 }
             }
         };
 
@@ -258,11 +263,10 @@ public class CarKinemApp : FdpApplication
         // 3. Drag
         _interactionTool.OnEntityMoved += (entity, newPos) =>
         {
-            if (_repository.HasComponent<VehicleState>(entity))
+            if (_repository.HasComponent<SimTransform>(entity))
             {
-                var s = _repository.GetComponentRO<VehicleState>(entity);
-                s.Position = newPos;
-                _repository.SetComponent(entity, s);
+                ref var tf = ref _repository.GetComponentRW<SimTransform>(entity);
+                tf.Position = new Vector3(newPos.X, newPos.Y, 0);
             }
         };
         
@@ -276,6 +280,8 @@ public class CarKinemApp : FdpApplication
 
     private void RegisterComponents()
     {
+        _repository.RegisterComponent<SimTransform>();
+        _repository.RegisterComponent<SimVelocity>();
         _repository.RegisterComponent<VehicleState>();
         _repository.RegisterComponent<VehicleParams>();
         _repository.RegisterComponent<NavState>();

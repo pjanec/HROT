@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Components;
@@ -12,10 +13,6 @@ using ModuleHost.Network.Cyclone.Translators;
 
 namespace Fdp.Examples.NetworkDemo.Translators
 {
-    /// <summary>
-    /// High-performance geodetic translator with direct coordinate conversion.
-    /// Eliminates intermediate components and smoothing systems.
-    /// </summary>
     public class FastGeodeticTranslator : CycloneTranslator<GeoStateDescriptor, GeoStateDescriptor>
     {
         private readonly IGeographicTransform _geoTransform;
@@ -29,53 +26,56 @@ namespace Fdp.Examples.NetworkDemo.Translators
             _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
         }
 
-        // INGRESS: DDS (Lat/Lon) -> Math -> ECS (X/Y)
         protected override void Decode(in GeoStateDescriptor data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            // 1. Resolve entity (no intermediate component)
             if (!EntityMap.TryGetEntity(data.EntityId, out Entity entity))
                 return;
 
-            // 2. Convert coordinates (math while data is hot in cache)
             var cartesian = _geoTransform.ToCartesian(data.Lat, data.Lon, data.Alt);
-
-            // 3. Write directly to internal simulation component
-            // Note: We use SetComponent assuming the entity is spawned with DemoPosition. 
-            // If it handles creation, it might need AddComponent, but standard replication usually updates existing.
-            // Using SetComponent for speed as per instructions.
-            cmd.SetComponent(entity, new DemoPosition { Value = cartesian });
+            
+            Quaternion rot = Quaternion.Identity;
+            // Try to preserve existing rotation
+            if (view.HasComponent<SimTransform>(entity))
+            {
+                 // We can only read component safely if we are in a system
+                 // Component might be missing if just spawned.
+                 try {
+                     rot = view.GetComponentRO<SimTransform>(entity).Rotation;
+                 } catch {}
+            }
+            
+            cmd.SetComponent(entity, new SimTransform { 
+                Position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z),
+                Rotation = rot
+            });
         }
 
-        // EGRESS: ECS (X/Y) -> Math -> DDS (Lat/Lon)
         public override void ScanAndPublish(ISimulationView view)
         {
             var query = view.Query()
-                .With<DemoPosition>()
+                .With<SimTransform>()
                 .With<NetworkIdentity>()
                 .WithLifecycle(Fdp.Kernel.EntityLifecycle.All)
                 .Build();
 
             foreach (var entity in query)
             {
-                // 1. Check authority
                 if (!view.HasAuthority(entity, DescriptorOrdinal))
                     continue;
 
-                // 2. Read position
-                ref readonly var pos = ref view.GetComponentRO<DemoPosition>(entity);
+                ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
+                
+                // Assuming ToGeodetic accepts Vector3 or 3 doubles
+                var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(tf.Position.X, tf.Position.Y, tf.Position.Z));
 
-                // 3. Convert coordinates (math while data is hot in cache)
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(pos.Value);
-
-                // 4. Write to DDS (stack-allocated struct)
                 Publish(new GeoStateDescriptor
                 {
-                    EntityId = (long)netId.Value, // Descriptor uses long
+                    EntityId = (long)netId.Value,
                     Lat = lat,
                     Lon = lon,
                     Alt = (float)alt,
-                    Heading = 0.0f // Calculate from velocity if needed
+                    Heading = 0.0f
                 });
             }
         }
@@ -85,7 +85,17 @@ namespace Fdp.Examples.NetworkDemo.Translators
             if (data is GeoStateDescriptor descriptor)
             {
                 var flatPos = _geoTransform.ToCartesian(descriptor.Lat, descriptor.Lon, descriptor.Alt);
-                repo.SetComponent(entity, new DemoPosition { Value = flatPos });
+                
+                Quaternion rot = Quaternion.Identity;
+                if (repo.HasComponent<SimTransform>(entity))
+                {
+                    rot = repo.GetComponent<SimTransform>(entity).Rotation;
+                }
+                
+                repo.SetComponent(entity, new SimTransform { 
+                    Position = new Vector3((float)flatPos.X, (float)flatPos.Y, (float)flatPos.Z),
+                    Rotation = rot
+                });
             }
         }
     }

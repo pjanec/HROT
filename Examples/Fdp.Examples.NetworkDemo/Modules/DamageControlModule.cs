@@ -20,15 +20,15 @@ namespace Fdp.Examples.NetworkDemo.Modules
             foreach (var evt in events) {
                 // Apply damage to nearby entities
                 var query = view.Query()
-                    .With<DemoPosition>()
+                    .With<SimTransform>()
                     .With<Health>()
                     .Build();
                 
                 var cmd = view.GetCommandBuffer();
                 
                 foreach (var entity in query) {
-                    var pos = view.GetComponentRO<DemoPosition>(entity);
-                    float distance = Vector3.Distance(pos.Value, evt.Position);
+                    var tf = view.GetComponentRO<SimTransform>(entity);
+                    float distance = Vector3.Distance(tf.Position, evt.Position);
                     
                     if (distance < evt.Radius) {
                         var health = view.GetComponentRO<Health>(entity);

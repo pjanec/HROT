@@ -22,15 +22,15 @@ namespace Fdp.Examples.NetworkDemo.Systems
         {
             var query = view.Query()
                 .With<NetworkIdentity>()
-                .With<DemoPosition>()
+                .With<SimTransform>()
                 .Build();
             
             foreach (var entity in query) {
-                var pos = view.GetComponentRO<DemoPosition>(entity);
-                if (Vector3.Distance(pos.Value, Vector3.Zero) < 1000f) {
+                var tf = view.GetComponentRO<SimTransform>(entity);
+                if (Vector3.Distance(tf.Position, Vector3.Zero) < 1000f) {
                     _eventBus.Publish(new RadarContactEvent {
                         EntityId = view.GetComponentRO<NetworkIdentity>(entity).Value,
-                        Position = pos.Value,
+                        Position = tf.Position,
                         Timestamp = DateTime.UtcNow
                     });
                 }

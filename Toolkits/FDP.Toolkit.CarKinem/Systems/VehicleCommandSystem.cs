@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using CarKinem.Commands;
 using CarKinem.Core;
@@ -42,17 +43,27 @@ namespace CarKinem.Systems
                     continue;
                 }
                 
-                // Add VehicleState component
+                // Add VehicleState (stripped)
                 World.AddComponent(entity, new VehicleState
                 {
-                    Position = cmd.Position,
-                    Forward = Vector2.Normalize(cmd.Heading),
                     Speed = 0f,
                     SteerAngle = 0f,
                     Accel = 0f,
-                    Pitch = 0f,
-                    Roll = 0f,
                     CurrentLaneIndex = -1
+                });
+                
+                // Add SimTransform and SimVelocity
+                // Note: Z=0 by default for 2D->3D bridge
+                float yaw = MathF.Atan2(cmd.Heading.Y, cmd.Heading.X);
+                World.AddComponent(entity, new SimTransform
+                {
+                    Position = new Vector3(cmd.Position.X, cmd.Position.Y, 0),
+                    Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, yaw) // Z-axis rotation
+                });
+                World.AddComponent(entity, new SimVelocity
+                {
+                    Linear = Vector3.Zero,
+                    Angular = Vector3.Zero
                 });
                 
                 // Add VehicleParams component (use preset)

@@ -128,8 +128,8 @@ class Program
         {
             EntityFactory.CreateProjectile(
                 world,
-                new Position { Value = new System.Numerics.Vector3(100f + i * 10, 100f + i * 10, 0) },
-                new Velocity { Value = new System.Numerics.Vector3(5f, 5f, 0) },
+                new SimTransform { Position = new System.Numerics.Vector3(100f + i * 10, 100f + i * 10, 0f), Rotation = System.Numerics.Quaternion.Identity },
+                new SimVelocity { Linear = new System.Numerics.Vector3(5f, 5f, 0f), Angular = System.Numerics.Vector3.Zero },
                 25f
             );
         }

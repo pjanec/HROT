@@ -13,12 +13,15 @@ namespace CarKinem.Tests.Algorithms
         {
             var state = new VehicleState
             {
-                Position = Vector2.Zero,
-                Forward = new Vector2(1, 0),
                 Speed = 10f
             };
+            var pos = Vector2.Zero;
+            var fwd = new Vector2(1, 0);
             
+            // Apply straight motion for 1 second
             BicycleModel.Integrate(
+                ref pos,
+                ref fwd,
                 ref state,
                 steerAngle: 0f,
                 accel: 0f,
@@ -26,9 +29,9 @@ namespace CarKinem.Tests.Algorithms
                 wheelBase: 2.7f
             );
             
-            // After 1 second at 10 m/s
-            Assert.Equal(10f, state.Position.X, precision: 3);
-            Assert.Equal(0f, state.Position.Y, precision: 3);
+            // After 1 second at 10 m/s moving along X (forward is 1,0)
+            Assert.Equal(10f, pos.X, precision: 3);
+            Assert.Equal(0f, pos.Y, precision: 3);
         }
 
         [Fact]
@@ -36,13 +39,15 @@ namespace CarKinem.Tests.Algorithms
         {
             var state = new VehicleState
             {
-                Position = Vector2.Zero,
-                Forward = new Vector2(1, 0),
                 Speed = 10f
             };
+            var pos = Vector2.Zero;
+            var fwd = new Vector2(1, 0);
             
             // Apply left steering for 1 second
             BicycleModel.Integrate(
+                ref pos,
+                ref fwd,
                 ref state,
                 steerAngle: 0.3f, // ~17 degrees
                 accel: 0f,
@@ -51,10 +56,10 @@ namespace CarKinem.Tests.Algorithms
             );
             
             // Heading should have rotated
-            Assert.True(state.Forward.Y > 0f, "Should turn left (positive Y)");
+            Assert.True(fwd.Y > 0f, "Should turn left (positive Y)");
             
             // Forward should still be normalized
-            float length = state.Forward.Length();
+            float length = fwd.Length();
             Assert.Equal(1f, length, precision: 4);
         }
 
@@ -63,14 +68,16 @@ namespace CarKinem.Tests.Algorithms
         {
             var state = new VehicleState
             {
-                Position = Vector2.Zero,
-                Forward = new Vector2(1, 0),
                 Speed = 5f
             };
+            var pos = Vector2.Zero;
+            var fwd = new Vector2(1, 0);
             
             // Apply extreme braking
             BicycleModel.Integrate(
-                ref state,
+                pos: ref pos,
+                fwd: ref fwd,
+                state: ref state,
                 steerAngle: 0f,
                 accel: -10f, // Heavy deceleration
                 dt: 1.0f,
@@ -86,14 +93,17 @@ namespace CarKinem.Tests.Algorithms
         {
              var state = new VehicleState
             {
-                Position = Vector2.Zero,
-                Forward = new Vector2(1, 0),
                 Speed = 10f
             };
-            Vector2 initialPos = state.Position;
-            Vector2 initialFwd = state.Forward;
+            var pos = Vector2.Zero;
+            var fwd = new Vector2(1, 0);
+
+            Vector2 initialPos = pos;
+            Vector2 initialFwd = fwd;
             
             BicycleModel.Integrate(
+                ref pos,
+                ref fwd,
                 ref state,
                 steerAngle: 0.5f,
                 accel: 10f,
@@ -101,9 +111,9 @@ namespace CarKinem.Tests.Algorithms
                 wheelBase: 2.7f
             );
             
-            Assert.Equal(initialPos, state.Position);
-            Assert.Equal(initialFwd, state.Forward);
-            Assert.Equal(10f, state.Speed); // Should speed change? accel*dt = 0
+            Assert.Equal(initialPos, pos);
+            Assert.Equal(initialFwd, fwd);
+            Assert.Equal(10f, state.Speed); 
         }
     }
 }

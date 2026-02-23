@@ -26,7 +26,8 @@ namespace Fdp.Examples.CarKinem.Tests
             var entity = new Entity(1, 1);
             
             var expectedPos = new Vector2(100, 200);
-            view.AddComponent(entity, new VehicleState { Position = expectedPos });
+            view.AddComponent(entity, new SimTransform { Position = new Vector3(expectedPos.X, expectedPos.Y, 0) });
+            view.AddComponent(entity, new VehicleState());
             
             // Act
             var pos = visualizer.GetPosition(view, entity);

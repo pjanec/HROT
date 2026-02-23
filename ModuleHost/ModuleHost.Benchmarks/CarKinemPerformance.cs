@@ -59,11 +59,27 @@ namespace ModuleHost.Benchmarks
                 int x = (i % gridSize) * 20;
                 int y = (i / gridSize) * 20;
                 
+                float speed = (float)(random.NextDouble() * 20 + 5);
+
+                // Original: Forward=(1,0) [East]
+                // Convert to Rotation: Yaw = -90 deg (-PI/2)
+                var rot = Quaternion.CreateFromYawPitchRoll(-MathF.PI/2f, 0, 0);
+
+                _repo.AddComponent(entity, new SimTransform
+                {
+                    Position = new Vector3(x, y, 0),
+                    Rotation = rot
+                });
+                
+                _repo.AddComponent(entity, new SimVelocity 
+                { 
+                    Linear = Vector3.Transform(Vector3.UnitY * speed, rot) // Should be (speed, 0, 0)
+                });
+
                 _repo.AddComponent(entity, new VehicleState
                 {
-                    Position = new Vector2(x, y),
-                    Forward = new Vector2(1, 0),
-                    Speed = (float)(random.NextDouble() * 20 + 5)  // 5-25 m/s
+                    Speed = speed,
+                    SteerAngle = 0
                 });
                 
                 _repo.AddComponent(entity, new VehicleParams

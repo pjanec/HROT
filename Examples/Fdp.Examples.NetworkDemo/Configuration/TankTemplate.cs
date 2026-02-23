@@ -4,6 +4,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication;
 using FDP.Toolkit.Replication.Components;
+using System.Numerics;
 
 namespace Fdp.Examples.NetworkDemo.Configuration
 {
@@ -14,7 +15,10 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             var tank = new TkbTemplate("CommandTank", 100);
             
             // Core components
-            tank.AddComponent(new DemoPosition());
+            // tank.AddComponent(new DemoPosition()); // Replaced by SimTransform
+            tank.AddComponent(new SimTransform { Rotation = Quaternion.Identity });
+            tank.AddComponent(new SimVelocity { Linear = Vector3.Zero, Angular = Vector3.Zero });
+
             // TurretState removed from root - moved to child
             tank.AddComponent(new Health { Value = 100, MaxValue = 100 });
             

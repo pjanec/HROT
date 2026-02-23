@@ -11,8 +11,8 @@ namespace Fdp.Examples.NetworkDemo.Systems
         {
             var cmd = view.GetCommandBuffer();
             var query = view.Query()
-                .With<NetworkPosition>()
-                .With<NetworkVelocity>()
+                .With<SimTransform>()
+                .With<SimVelocity>()
                  // Only move local entities (remote positions come from network)
                 .With<ModuleHost.Core.Network.NetworkOwnership>() 
                 .Build();
@@ -23,12 +23,13 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
                     continue;
 
-                ref readonly var pos = ref view.GetComponentRO<NetworkPosition>(e);
-                ref readonly var vel = ref view.GetComponentRO<NetworkVelocity>(e);
+                ref readonly var transform = ref view.GetComponentRO<SimTransform>(e);
+                ref readonly var velocity = ref view.GetComponentRO<SimVelocity>(e);
                 
-                var newPos = pos.Value + vel.Value * deltaTime;
+                var newPos = transform.Position + velocity.Linear * deltaTime;
                 
-                cmd.SetComponent(e, new NetworkPosition { Value = newPos });
+                // We update SimTransform
+                cmd.SetComponent(e, new SimTransform { Position = newPos, Rotation = transform.Rotation });
             }
         }
     }

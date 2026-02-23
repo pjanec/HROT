@@ -13,12 +13,16 @@ namespace CarKinem.Controllers
         /// Integrate bicycle model for one timestep.
         /// Updates position, heading, and speed.
         /// </summary>
-        /// <param name="state">Current vehicle state (modified in-place)</param>
+        /// <param name="pos">Current vehicle position (modified in-place)</param>
+        /// <param name="fwd">Current vehicle forward vector (modified in-place)</param>
+        /// <param name="state">Current vehicle state (other fields modified in-place)</param>
         /// <param name="steerAngle">Steering angle command (radians)</param>
         /// <param name="accel">Acceleration command (m/s²)</param>
         /// <param name="dt">Timestep (seconds)</param>
         /// <param name="wheelBase">Distance between axles (meters)</param>
         public static void Integrate(
+            ref Vector2 pos,
+            ref Vector2 fwd,
             ref VehicleState state,
             float steerAngle,
             float accel,
@@ -46,18 +50,18 @@ namespace CarKinem.Controllers
             float s = MathF.Sin(rotAngle);
             
             Vector2 newForward = new Vector2(
-                state.Forward.X * c - state.Forward.Y * s,
-                state.Forward.X * s + state.Forward.Y * c
+                fwd.X * c - fwd.Y * s,
+                fwd.X * s + fwd.Y * c
             );
             
             // Re-normalize to prevent drift
-            state.Forward = VectorMath.SafeNormalize(newForward, state.Forward);
+            fwd = VectorMath.SafeNormalize(newForward, fwd);
             
             // 4. Update position
             // Assuming constant velocity over dt for position integration step (Euler)
             // Better: RK4, but Euler is standard for games/sims usually.
             // Using updated speed and forward
-            state.Position += state.Forward * state.Speed * dt;
+            pos += fwd * state.Speed * dt;
             
             // 5. Update state metadata
             state.SteerAngle = steerAngle;

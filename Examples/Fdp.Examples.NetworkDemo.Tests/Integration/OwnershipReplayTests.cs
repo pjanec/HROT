@@ -10,6 +10,7 @@ using ModuleHost.Core.Network;
 using ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Replication.Messages;
 
+
 namespace Fdp.Examples.NetworkDemo.Tests.Integration
 {
     public class OwnershipReplayTests
@@ -38,7 +39,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                          repo.AddComponent(testEntity, auth);
                          
                          // Add a component to track
-                         repo.AddComponent(testEntity, new DemoPosition());
+                         repo.AddComponent(testEntity, new SimTransform());
                     });
 
                     for(int i=0; i<10; i++) app.Update(0.1f);

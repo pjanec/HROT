@@ -2,11 +2,10 @@ using System;
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Components;
-using Fdp.Examples.NetworkDemo.Events;
+using Fdp.Examples.NetworkDemo.Configuration;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Extensions;
 using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
-using FDP.Kernel.Logging;
 
 namespace Fdp.Examples.NetworkDemo.Systems
 {
@@ -14,97 +13,85 @@ namespace Fdp.Examples.NetworkDemo.Systems
     public class CombatInputSystem : IModuleSystem
     {
         private readonly int _localNodeId;
-        private readonly IEventBus _bus;
+        private readonly IEventBus _eventBus;
+        private const float TANK_SPEED = 10.0f;
+        private const float TANK_ROT_SPEED = 2.0f;
 
-        public CombatInputSystem(int localNodeId, IEventBus bus)
+        public CombatInputSystem(int localNodeId, IEventBus eventBus)
         {
             _localNodeId = localNodeId;
-            _bus = bus;
+            _eventBus = eventBus;
         }
 
         public void Execute(ISimulationView view, float dt)
         {
-            // Check for SPACE key
-            bool spacePressed = false;
             try
             {
-                if (!Console.IsInputRedirected && Console.KeyAvailable)
-                {
-                    var key = Console.ReadKey(true);
-                    if (key.Key == ConsoleKey.Spacebar) spacePressed = true;
-                }
-            }
-            catch { /* Ignore console errors in tests */ }
-
-            if (!spacePressed) return;
-
-            // 1. Find my tank (locally owned)
-            var myTanks = view.Query()
-                .With<NetworkOwnership>()
-                .With<DemoPosition>()
-                .Build();
-
-            Entity myTank = Entity.Null;
-            Vector3 myPos = Vector3.Zero;
-
-            foreach (var e in myTanks)
-            {
-                ref readonly var own = ref view.GetComponentRO<NetworkOwnership>(e);
-                if (own.PrimaryOwnerId == _localNodeId)
-                {
-                    myTank = e;
-                    myPos = view.GetComponentRO<DemoPosition>(e).Value;
-                    break;
-                }
-            }
-
-            if (myTank == Entity.Null)
-            {
-                FdpLog<CombatInputSystem>.Warn("No local tank found to fire from");
-                return;
-            }
-
-            // 2. Find nearest enemy
-            Entity target = Entity.Null;
-            float minDist = float.MaxValue;
-
-            var enemies = view.Query()
-                .With<NetworkOwnership>()
-                .With<DemoPosition>()
-                .Build();
-
-            foreach (var e in enemies)
-            {
-                ref readonly var own = ref view.GetComponentRO<NetworkOwnership>(e);
-                if (own.PrimaryOwnerId == _localNodeId) continue; // Skip self
-
-                var pos = view.GetComponentRO<DemoPosition>(e).Value;
-                float dist = Vector3.Distance(myPos, pos);
-
-                if (dist < minDist && dist < 1000.0f) // Max range
-                {
-                    minDist = dist;
-                    target = e;
-                }
-            }
-
-            // 3. Fire event
-            if (target != Entity.Null)
-            {
-                FdpLog<CombatInputSystem>.Info($"[Combat] Firing at target (Dist: {minDist:F1})");
+                if (!Console.KeyAvailable) return;
                 
-                _bus.Publish(new FireInteractionEvent
-                {
-                    AttackerRoot = myTank,
-                    TargetRoot = target,
-                    WeaponInstanceId = 1, // Main gun
-                    Damage = 10.0f
-                });
+                var key = Console.ReadKey(true).Key;
+                HandleInput(view, dt, key);
             }
-            else
+            catch (InvalidOperationException) { /* Headless env */ }
+        }
+
+        private void HandleInput(ISimulationView view, float dt, ConsoleKey key)
+        {
+            // Find local tank
+            var query = view.Query()
+                .With<SimTransform>()
+                .With<NetworkAuthority>() 
+                .Build();
+
+            var cmd = view.GetCommandBuffer();
+
+            foreach (var entity in query)
             {
-                FdpLog<CombatInputSystem>.Warn("No valid target in range");
+                // Verify ownership
+                var auth = view.GetComponentRO<NetworkAuthority>(entity);
+                if (auth.LocalNodeId != _localNodeId || auth.PrimaryOwnerId != _localNodeId)
+                    continue;
+
+                var tf = view.GetComponentRO<SimTransform>(entity);
+                
+                Vector3 move = Vector3.Zero;
+                float rot = 0;
+
+                switch (key)
+                {
+                    case ConsoleKey.W: move = new Vector3(0, 1, 0); break;
+                    case ConsoleKey.S: move = new Vector3(0, -1, 0); break;
+                    case ConsoleKey.A: rot = 1; break;
+                    case ConsoleKey.D: rot = -1; break;
+                    case ConsoleKey.Spacebar:
+                        break;
+                }
+
+                if (move != Vector3.Zero || rot != 0)
+                {
+                    // Update transform
+                    // Simple rotation around Z
+                    var currentYaw = GetYaw(tf.Rotation);
+                    var newYaw = currentYaw + rot * TANK_ROT_SPEED * dt;
+                    var newRot = Quaternion.CreateFromYawPitchRoll(newYaw, 0, 0);
+                    
+                    var forward = Vector3.Transform(Vector3.UnitY, newRot);
+                    var newPos = tf.Position + (forward * move.Y * TANK_SPEED * dt);
+                    
+                    cmd.SetComponent(entity, new SimTransform {
+                        Position = newPos,
+                        Rotation = newRot
+                    });
+                }
             }
+        }
+
+        private float GetYaw(Quaternion q)
+        {
+            // Simple extraction for Z-up, Y-Forward
+            // Rotate UnitY by q, find angle in XY plane
+            Vector3 fwd = Vector3.Transform(Vector3.UnitY, q);
+            return MathF.Atan2(fwd.X, fwd.Y);
         }
     }
 }

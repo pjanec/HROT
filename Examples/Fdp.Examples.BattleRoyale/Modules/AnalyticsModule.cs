@@ -18,7 +18,7 @@ public class AnalyticsModule : IModule
     public void Tick(ISimulationView view, float deltaTime)
     {
         // Count entities by type (position-based classification)
-        var allEntities = view.Query().With<Position>().Build();
+        var allEntities = view.Query().With<SimTransform>().Build();
         
         int playerCount = 0;
         int botCount = 0;
@@ -58,8 +58,8 @@ public class AnalyticsModule : IModule
         foreach (var kill in killEvents)
         {
             var gridPos = new Vector2Int(
-                (int)(kill.Position.Value.X / 100),
-                (int)(kill.Position.Value.Y / 100)
+                (int)(kill.Position.X / 100),
+                (int)(kill.Position.Y / 100)
             );
             _killHeatmap[gridPos] = _killHeatmap.GetValueOrDefault(gridPos) + 1;
         }

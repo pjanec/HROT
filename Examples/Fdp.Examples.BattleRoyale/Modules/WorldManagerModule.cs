@@ -33,12 +33,13 @@ public class WorldManagerModule : IModule
         if (Random.Shared.NextDouble() < 0.3)
         {
             var item = cmd.CreateEntity();
-            cmd.AddComponent(item, new Position
+            cmd.AddComponent(item, new SimTransform
             {
-                Value = new System.Numerics.Vector3(
+                Position = new System.Numerics.Vector3(
                     Random.Shared.Next(0, 1000),
                     Random.Shared.Next(0, 1000),
-                    0)
+                    0),
+                Rotation = System.Numerics.Quaternion.Identity
             });
             cmd.AddComponent(item, new ItemType
             {

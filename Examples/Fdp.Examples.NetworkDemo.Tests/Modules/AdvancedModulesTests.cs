@@ -10,6 +10,7 @@ using ModuleHost.Core.Abstractions;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 
+
 namespace Fdp.Examples.NetworkDemo.Tests.Modules
 {
     public class MockEventBus : IEventBus
@@ -39,7 +40,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Modules
         {
             _world = new EntityRepository();
             // Register components
-            _world.RegisterComponent<DemoPosition>();
+            _world.RegisterComponent<SimTransform>();
             _world.RegisterComponent<NetworkIdentity>();
             _world.RegisterComponent<Health>();
         }
@@ -58,7 +59,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Modules
 
             // Create target entity
             var e = _world.CreateEntity();
-            _world.AddComponent(e, new DemoPosition { Value = new Vector3(10, 0, 0) });
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(10, 0, 0) });
             _world.AddComponent(e, new NetworkIdentity { Value = 123 });
 
             // Act
@@ -79,7 +80,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Modules
 
             // Create victim entity
             var e = _world.CreateEntity();
-            _world.AddComponent(e, new DemoPosition { Value = new Vector3(10, 0, 0) });
+            _world.AddComponent(e, new SimTransform { Position = new Vector3(10, 0, 0) });
             _world.AddComponent(e, new Health { Value = 100 });
 
             // Publish Detonation Event

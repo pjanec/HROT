@@ -18,7 +18,7 @@ public class PhysicsModule : IModule
 
     public IEnumerable<Type> GetRequiredComponents()
     {
-        yield return typeof(Position);
+        yield return typeof(SimTransform);
         yield return typeof(Damage);
         yield return typeof(Health);
     }
@@ -34,13 +34,13 @@ public class PhysicsModule : IModule
         
         // Get all projectiles
         var projectiles = view.Query()
-            .With<Position>()
+            .With<SimTransform>()
             .With<Damage>()
             .Build();
         
         // Get all players (targets)
         var players = view.Query()
-            .With<Position>()
+            .With<SimTransform>()
             .With<Health>()
             .Build();
         
@@ -53,16 +53,16 @@ public class PhysicsModule : IModule
             if (projectilesHit.Contains(proj))
                 continue;
                 
-            ref readonly var projPos = ref view.GetComponentRO<Position>(proj);
+            ref readonly var tfProj = ref view.GetComponentRO<SimTransform>(proj);
             ref readonly var damage = ref view.GetComponentRO<Damage>(proj);
             
             foreach (var player in players)
             {
-                ref readonly var playerPos = ref view.GetComponentRO<Position>(player);
+                ref readonly var tfPlayer = ref view.GetComponentRO<SimTransform>(player);
                 
                 // Distance check (squared for performance)
-                float dx = projPos.Value.X - playerPos.Value.X;
-                float dy = projPos.Value.Y - playerPos.Value.Y;
+                float dx = tfProj.Position.X - tfPlayer.Position.X;
+                float dy = tfProj.Position.Y - tfPlayer.Position.Y;
                 float distSq = dx * dx + dy * dy;
                 
                 if (distSq < CollisionRadiusSq)

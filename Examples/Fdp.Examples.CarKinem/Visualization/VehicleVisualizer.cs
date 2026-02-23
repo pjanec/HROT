@@ -22,9 +22,10 @@ public class VehicleVisualizer : IVisualizerAdapter
 
     public Vector2? GetPosition(ISimulationView view, Entity entity)
     {
-        if (view.HasComponent<VehicleState>(entity))
+        if (view.HasComponent<SimTransform>(entity))
         {
-            return view.GetComponentRO<VehicleState>(entity).Position;
+            var tf = view.GetComponentRO<SimTransform>(entity);
+            return new Vector2(tf.Position.X, tf.Position.Y);
         }
         return null;
     }
@@ -40,10 +41,10 @@ public class VehicleVisualizer : IVisualizerAdapter
 
     public void Render(ISimulationView view, Entity entity, Vector2 position, RenderContext ctx, bool isSelected, bool isHovered)
     {
-        if (!view.HasComponent<VehicleState>(entity) || !view.HasComponent<VehicleParams>(entity))
+        if (!view.HasComponent<SimTransform>(entity) || !view.HasComponent<VehicleParams>(entity))
             return;
 
-        ref readonly var state = ref view.GetComponentRO<VehicleState>(entity);
+        ref readonly var tf = ref view.GetComponentRO<SimTransform>(entity);
         ref readonly var parameters = ref view.GetComponentRO<VehicleParams>(entity);
 
         // Use extracted logic for color
@@ -60,7 +61,10 @@ public class VehicleVisualizer : IVisualizerAdapter
         }
 
         // Draw rotated rectangle
-        float rotationDeg = MathF.Atan2(state.Forward.Y, state.Forward.X) * (180.0f / MathF.PI);
+        // Adjusted for X-Forward convention
+        Vector3 fwd3D = Vector3.Transform(Vector3.UnitX, tf.Rotation);
+        Vector2 forward = new Vector2(fwd3D.X, fwd3D.Y);
+        float rotationDeg = MathF.Atan2(forward.Y, forward.X) * (180.0f / MathF.PI);
         
         Rectangle rec = new Rectangle(position.X, position.Y, parameters.Length, parameters.Width);
         Vector2 origin = new Vector2(parameters.Length / 2, parameters.Width / 2); // Center of rotation
@@ -74,7 +78,7 @@ public class VehicleVisualizer : IVisualizerAdapter
         // Previous VehicleVisualizer used a line. VehicleRenderer used a triangle.
         // Let's use Line for simplicity unless requested otherwise.
         
-        Vector2 front = position + state.Forward * (parameters.Length / 2 * 0.8f);
+        Vector2 front = position + forward * (parameters.Length / 2 * 0.8f);
         Raylib.DrawLineEx(position, front, 0.2f, Color.Black);
         
         // Draw selection ring
@@ -163,13 +167,13 @@ public class VehicleVisualizer : IVisualizerAdapter
                 
                 if (nav.Mode == NavigationMode.None && !nav.HasArrived.Equals(1)) // Using Equals(1) for byte bool? Or just > 0
                 {
-                    Raylib.DrawLineEx(state.Position, nav.FinalDestination, 0.1f, new Color(0, 255, 255, 100));
+                    Raylib.DrawLineEx(position, nav.FinalDestination, 0.1f, new Color(0, 255, 255, 100));
                     Raylib.DrawCircleV(nav.FinalDestination, 0.5f, new Color(0, 255, 255, 100));
                 }
                 else if (nav.Mode == NavigationMode.Formation && view.HasComponent<FormationTarget>(entity))
                 {
                      var target = view.GetComponentRO<FormationTarget>(entity);
-                     Raylib.DrawLineEx(state.Position, target.TargetPosition, 0.1f, new Color(200, 200, 200, 100));
+                     Raylib.DrawLineEx(position, target.TargetPosition, 0.1f, new Color(200, 200, 200, 100));
                      Raylib.DrawCircleV(target.TargetPosition, 0.3f, new Color(200, 200, 200, 100));
                 }
             }
@@ -186,10 +190,10 @@ public class VehicleVisualizer : IVisualizerAdapter
                   for (int i = 1; i < roster.Count; i++)
                   {
                       var follower = roster.GetMember(i);
-                      if (view.IsAlive(follower) && view.HasComponent<VehicleState>(follower))
+                      if (view.IsAlive(follower) && view.HasComponent<SimTransform>(follower))
                       {
-                          var fState = view.GetComponentRO<VehicleState>(follower);
-                          Raylib.DrawLineEx(position, fState.Position, 0.1f, new Color(255, 0, 255, 128));
+                          var fTf = view.GetComponentRO<SimTransform>(follower);
+                          Raylib.DrawLineEx(position, new Vector2(fTf.Position.X, fTf.Position.Y), 0.1f, new Color(255, 0, 255, 128));
                       }
                   }
              }

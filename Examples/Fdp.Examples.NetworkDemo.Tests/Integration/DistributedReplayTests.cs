@@ -10,6 +10,7 @@ using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Network;
 using ModuleHost.Core.Abstractions;
 
+
 namespace Fdp.Examples.NetworkDemo.Tests.Integration
 {
     public class DistributedReplayTests
@@ -85,27 +86,27 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
         private void MoveLocalEntity(NetworkDemoApp app, Vector3 delta)
         {
              var q = app.World.Query()
-                .With<DemoPosition>()
+                .With<SimTransform>()
                 .With<NetworkAuthority>()
                 .Build();
              
              var cmd = ((ISimulationView)app.World).GetCommandBuffer();
              foreach(var e in q)
              {
-                 var pos = app.World.GetComponentRO<DemoPosition>(e);
-                 cmd.SetComponent(e, new DemoPosition { Value = pos.Value + delta });
+                 var tf = app.World.GetComponentRO<SimTransform>(e);
+                 cmd.SetComponent(e, new SimTransform { Position = tf.Position + delta, Rotation = tf.Rotation });
              }
              ((EntityCommandBuffer)cmd).Playback(app.World);
         }
         
         private void VerifyMoved(NetworkDemoApp app, bool isRemote)
         {
-             var q = app.World.Query().With<DemoPosition>().With<NetworkIdentity>().Build();
+             var q = app.World.Query().With<SimTransform>().With<NetworkIdentity>().Build();
              bool foundMoved = false;
              foreach(var e in q)
              {
-                 var pos = app.World.GetComponentRO<DemoPosition>(e);
-                 if (pos.Value.Length() > 10.0f) 
+                 var tf = app.World.GetComponentRO<SimTransform>(e);
+                 if (tf.Position.Length() > 10.0f) 
                  {
                      foundMoved = true;
                      break;

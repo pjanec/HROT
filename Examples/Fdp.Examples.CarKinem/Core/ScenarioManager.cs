@@ -97,10 +97,11 @@ namespace Fdp.Examples.CarKinem.Core
                     continue;
                 }
 
-                var state = _repository.GetComponentRO<VehicleState>(entity);
+                var tf = _repository.GetComponentRO<SimTransform>(entity);
+                var pos2D = new Vector2(tf.Position.X, tf.Position.Y);
 
                 // Check distance to next target
-                if (Vector2.Distance(state.Position, queue[0]) < 8.0f)
+                if (Vector2.Distance(pos2D, queue[0]) < 8.0f)
                 {
                     queue.RemoveAt(0);
                     // Trajectory continues to next point automatically if it was built with multiple points?
@@ -118,11 +119,25 @@ namespace Fdp.Examples.CarKinem.Core
         {
             var e = _repository.CreateEntity();
             
+            // Calculate initial rotation
+            // Use UnitX as reference (Model Front)
+            float angle = VectorMath.SignedAngle(Vector2.UnitX, heading);
+            var initialRot = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle);
+
+            _repository.AddComponent(e, new SimTransform { 
+                Position = new Vector3(position.X, position.Y, 0), 
+                Rotation = initialRot 
+            });
+
+            _repository.AddComponent(e, new SimVelocity { 
+                Linear = Vector3.Zero, 
+                Angular = Vector3.Zero 
+            });
+            
             _repository.AddComponent(e, new VehicleState { 
-                Position = position, 
-                Forward = heading,
                 Speed = 0,
-                SteerAngle = 0
+                SteerAngle = 0,
+                Accel = 0
             });
             
             var preset = global::CarKinem.Core.VehiclePresets.GetPreset(vehicleClass);
@@ -154,10 +169,11 @@ namespace Fdp.Examples.CarKinem.Core
              // 3. Construct Trajectory from Current Position
              if (!_repository.IsAlive(entity)) return;
 
-             var state = _repository.GetComponentRO<VehicleState>(entity);
+             var tf = _repository.GetComponentRO<SimTransform>(entity);
+             var pos2D = new Vector2(tf.Position.X, tf.Position.Y);
              
              var path = new List<Vector2>();
-             path.Add(state.Position);
+             path.Add(pos2D);
              path.AddRange(_waypointQueues[entity]);
              
              // 4. Create Speeds (Cruise=15, Stop=0 at end)

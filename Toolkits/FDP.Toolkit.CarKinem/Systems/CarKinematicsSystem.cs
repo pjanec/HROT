@@ -64,6 +64,8 @@ namespace CarKinem.Systems
             // Get all vehicles
             var query = World.Query()
                 .With<VehicleState>()
+                .With<SimTransform>()
+                .With<SimVelocity>()
                 .With<VehicleParams>()
                 .With<NavState>()
                 .Build();
@@ -109,9 +111,19 @@ namespace CarKinem.Systems
         private void UpdateVehicle(Entity entity, float dt, SpatialHashGrid spatialGrid)
         {
             var state = World.GetComponent<VehicleState>(entity);
+            var tf = World.GetComponent<SimTransform>(entity);
+            var vel = World.GetComponent<SimVelocity>(entity);
             var @params = World.GetComponent<VehicleParams>(entity);
             var nav = World.GetComponent<NavState>(entity);
             
+            // Input conversion (bridge from SimTransform to 2D locals)
+            Vector2 pos2D = new Vector2(tf.Position.X, tf.Position.Y);
+            // X-forward convention (Model Space Front=X)
+            Vector3 fwd3D = Vector3.Transform(Vector3.UnitX, tf.Rotation); 
+            Vector2 fwd2D = new Vector2(fwd3D.X, fwd3D.Y);
+            if (fwd2D.LengthSquared() < 0.0001f) fwd2D = Vector2.UnitX;
+            else fwd2D = Vector2.Normalize(fwd2D);
+
             // Determine target (position, heading, speed) based on navigation mode
             Vector2 targetPos;
             Vector2 targetHeading;
@@ -122,7 +134,7 @@ namespace CarKinem.Systems
                 case NavigationMode.RoadGraph:
                     // This updates nav state internal phase/progress, so we pass by ref
                     (targetPos, targetHeading, targetSpeed) = RoadGraphNavigator.UpdateRoadGraphNavigation(
-                        ref nav, state.Position, _roadNetwork);
+                        ref nav, pos2D, _roadNetwork);
                     break;
                     
                 case NavigationMode.CustomTrajectory:
@@ -134,11 +146,11 @@ namespace CarKinem.Systems
 
                     // Drive towards the slot if not reached
                     // This prevents "parallel driving" where vehicle maintains offset but never closes the gap
-                    float distToSlot = Vector2.Distance(state.Position, targetPos);
+                    float distToSlot = Vector2.Distance(pos2D, targetPos);
                     if (distToSlot > 2.0f)
                     {
                         // Steer towards slot
-                        targetHeading = Vector2.Normalize(targetPos - state.Position);
+                        targetHeading = Vector2.Normalize(targetPos - pos2D);
                         
                         // Catch up speed (P-controller)
                         targetSpeed += distToSlot * 0.5f; // Reduced gain to avoid overshooting
@@ -150,18 +162,18 @@ namespace CarKinem.Systems
                 default:
                     // If we have a destination and we are not in a specific mode, drive to point
                     // Simple "Drive to point" logic
-                    if (nav.HasArrived == 0 && nav.TargetSpeed > 0 && Vector2.DistanceSquared(state.Position, nav.FinalDestination) > nav.ArrivalRadius * nav.ArrivalRadius)
+                    if (nav.HasArrived == 0 && nav.TargetSpeed > 0 && Vector2.DistanceSquared(pos2D, nav.FinalDestination) > nav.ArrivalRadius * nav.ArrivalRadius)
                     {
-                         Vector2 toDest = nav.FinalDestination - state.Position;
+                         Vector2 toDest = nav.FinalDestination - pos2D;
                          targetHeading = Vector2.Normalize(toDest);
-                         targetPos = state.Position + targetHeading; // Look ahead
+                         targetPos = pos2D + targetHeading; // Look ahead
                          targetSpeed = nav.TargetSpeed;
                     }
                     else
                     {
                         // Idle / Arrived
-                        targetPos = state.Position;
-                        targetHeading = state.Forward;
+                        targetPos = pos2D;
+                        targetHeading = fwd2D;
                         targetSpeed = 0f;
                         nav.HasArrived = 1; // Mark as arrived to stop logic
                     }
@@ -173,13 +185,13 @@ namespace CarKinem.Systems
             
             // Apply collision avoidance
             Vector2 avoidanceVelocity = ApplyCollisionAvoidance(
-                desiredVelocity, state.Position, state.Forward * state.Speed, 
+                desiredVelocity, pos2D, fwd2D * state.Speed, 
                 spatialGrid, @params);
             
             // Pure Pursuit steering
             float steerAngle = PurePursuitController.CalculateSteering(
-                state.Position,
-                state.Forward,
+                pos2D,
+                fwd2D,
                 avoidanceVelocity,
                 state.Speed,
                 @params.WheelBase,
@@ -210,7 +222,7 @@ namespace CarKinem.Systems
                 @params.MaxDecel);
             
             // Integrate bicycle model
-            BicycleModel.Integrate(ref state, steerAngle, accel, dt, @params.WheelBase);
+            BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase);
             
             // Update progress (for trajectory/road modes)
             if (nav.Mode == NavigationMode.CustomTrajectory || nav.Mode == NavigationMode.RoadGraph)
@@ -218,9 +230,23 @@ namespace CarKinem.Systems
                 nav.ProgressS += state.Speed * dt;
             }
             
+            // Output conversion
+            tf.Position = new Vector3(pos2D.X, pos2D.Y, tf.Position.Z);
+            float yaw = MathF.Atan2(fwd2D.Y, fwd2D.X);
+            
+            // X-forward, Y-left, Z-up convention.
+            // Yaw is rotation around Z. 
+            // We use CreateFromAxisAngle directly because CreateFromYawPitchRoll uses Y-axis for Yaw.
+            tf.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw);
+
+            vel.Linear = new Vector3(fwd2D.X * state.Speed, fwd2D.Y * state.Speed, 0);
+            vel.Angular = new Vector3(0, 0, (state.Speed / @params.WheelBase) * MathF.Tan(steerAngle)); // Yaw rate around Z
+
             // Write back state
             World.SetComponent(entity, state);
             World.SetComponent(entity, nav);
+            World.SetComponent(entity, tf);
+            World.SetComponent(entity, vel);
         }
         
         private (Vector2 pos, Vector2 heading, float speed) SampleCustomTrajectory(ref NavState nav)
@@ -250,8 +276,10 @@ namespace CarKinem.Systems
         {
             if (!World.HasComponent<FormationTarget>(entity))
             {
-                var state = World.GetComponent<VehicleState>(entity);
-                return (state.Position, state.Forward, 0f);
+                var tf = World.GetComponent<SimTransform>(entity);
+                var pos2D = new Vector2(tf.Position.X, tf.Position.Y);
+                var fwd3D = Vector3.Transform(Vector3.UnitY, tf.Rotation);
+                return (pos2D, new Vector2(fwd3D.X, fwd3D.Y), 0f);
             }
             
             var target = World.GetComponent<FormationTarget>(entity);
@@ -279,12 +307,19 @@ namespace CarKinem.Systems
                 // Use GetEntity to reconstruct handle checking active generation
                 var neighborEntity = World.GetEntity(entityId); 
                 
-                // Check if entity is valid and has VehicleState
-                if (!neighborEntity.IsNull && World.HasComponent<VehicleState>(neighborEntity))
+                // Check if entity is valid and has SimVelocity (universal)
+                if (!neighborEntity.IsNull && World.HasComponent<SimVelocity>(neighborEntity))
                 {
-                    var neighborState = World.GetComponent<VehicleState>(neighborEntity);
-                    Vector2 neighborVel = neighborState.Forward * neighborState.Speed;
-                    neighborData[i] = (pos, neighborVel);
+                    var neighborVel3D = World.GetComponent<SimVelocity>(neighborEntity).Linear;
+                    neighborData[i] = (pos, new Vector2(neighborVel3D.X, neighborVel3D.Y));
+                }
+                else if (!neighborEntity.IsNull && World.HasComponent<VehicleState>(neighborEntity))
+                {
+                    // Fallback for legacy (should not happen after migration) but keeping logic just in case
+                    // But VehicleState no longer has Forward/Speed combined vector easily available?
+                    // Ideally we rely on SimVelocity.
+                    // If no SimVelocity, assume static.
+                    neighborData[i] = (pos, Vector2.Zero);
                 }
                 else
                 {

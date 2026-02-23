@@ -17,18 +17,16 @@ namespace CarKinem.Tests.DataStructures
         [Fact]
         public void VehicleState_HasExpectedSize()
         {
-            // Position (8) + Forward (8) + Speed (4) + SteerAngle (4) + Accel (4) + Pitch (4) + Roll (4) + CurLane (4)
-            // = 40 bytes
-            int expected = sizeof(float) * 2 * 2 + sizeof(float) * 5 + sizeof(int);
-            Assert.Equal(40, Marshal.SizeOf<VehicleState>());
-            Assert.Equal(expected, Marshal.SizeOf<VehicleState>());
+            // Speed (4) + SteerAngle (4) + Accel (4) + CurrentLaneIndex (4)
+            // = 16 bytes
+            int expected = sizeof(float) * 3 + sizeof(int);
+            Assert.Equal(16, Marshal.SizeOf<VehicleState>());
         }
 
         [Fact]
         public void VehicleState_DefaultValues_AreCorrect()
         {
             var state = new VehicleState();
-            Assert.Equal(Vector2.Zero, state.Position);
             Assert.Equal(0f, state.Speed);
             Assert.Equal(0, state.CurrentLaneIndex);
         }
@@ -48,6 +46,7 @@ namespace CarKinem.Tests.DataStructures
         [Fact]
         public void NavigationMode_IsOneByte()
         {
+            // Usually enum is int (4 bytes) unless specified : byte
             Assert.Equal(1, sizeof(NavigationMode));
         }
 

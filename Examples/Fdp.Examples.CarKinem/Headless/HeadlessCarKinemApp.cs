@@ -119,6 +119,8 @@ namespace Fdp.Examples.CarKinem.Headless
 
         private void RegisterComponents()
         {
+            Repository.RegisterComponent<SimTransform>();
+            Repository.RegisterComponent<SimVelocity>();
             Repository.RegisterComponent<VehicleState>();
             Repository.RegisterComponent<VehicleParams>();
             Repository.RegisterComponent<NavState>();

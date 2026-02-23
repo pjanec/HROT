@@ -48,10 +48,14 @@ namespace CarKinem.Systems
                 return;
             
             var leaderState = World.GetComponent<VehicleState>(leaderEntity);
+            var leaderTf = World.GetComponent<SimTransform>(leaderEntity);
             var template = _templateManager.GetTemplate(roster.Type);
             
             // Default Formation Orientation (Rigid fallback)
-            Vector2 formationHeading = leaderState.Forward;
+            Vector3 fwd3D = Vector3.Transform(Vector3.UnitY, leaderTf.Rotation);
+            Vector2 formationHeading = new Vector2(fwd3D.X, fwd3D.Y);
+            if (formationHeading == Vector2.Zero) formationHeading = Vector2.UnitY;
+            else formationHeading = Vector2.Normalize(formationHeading);
             
             // Trajectory Following Logic ("Ghost Rails")
             bool hasTrajectory = false;
@@ -136,7 +140,8 @@ namespace CarKinem.Systems
                 else
                 {
                     // Fallback: Rigid Body formation relative to leader's current position/heading
-                    slotPos = template.GetSlotPosition(slotIndex, leaderState.Position, formationHeading);
+                    Vector2 leaderPos2D = new Vector2(leaderTf.Position.X, leaderTf.Position.Y);
+                    slotPos = template.GetSlotPosition(slotIndex, leaderPos2D, formationHeading);
                     slotHeading = formationHeading;
                 }
                 
@@ -156,14 +161,14 @@ namespace CarKinem.Systems
                 if (World.HasComponent<FormationMember>(memberEntity))
                 {
                     var member = World.GetComponent<FormationMember>(memberEntity);
-                    var memberState = World.GetComponent<VehicleState>(memberEntity);
-                    
-                    float distToSlot = Vector2.Distance(memberState.Position, slotPos);
-                    
-                    if (distToSlot < roster.Params.ArrivalThreshold)
-                    {
-                        member.State = FormationMemberState.InSlot;
-                    }
+                        var memberTf = World.GetComponent<SimTransform>(memberEntity);
+                        
+                        float distToSlot = Vector2.Distance(new Vector2(memberTf.Position.X, memberTf.Position.Y), slotPos);
+                        
+                        if (distToSlot < roster.Params.ArrivalThreshold)
+                        {
+                            member.State = FormationMemberState.InSlot;
+                        }
                     else if (distToSlot < roster.Params.BreakDistance * 0.5f) // Heuristic for CatchUp
                     {
                         member.State = FormationMemberState.CatchingUp;

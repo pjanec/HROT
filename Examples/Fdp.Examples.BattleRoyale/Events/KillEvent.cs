@@ -1,5 +1,5 @@
 using Fdp.Kernel;
-using Fdp.Examples.BattleRoyale.Components;
+using System.Numerics;
 
 namespace Fdp.Examples.BattleRoyale.Events;
 
@@ -8,6 +8,6 @@ public struct KillEvent
 {
     public Entity Victim;
     public Entity Killer;
-    public Position Position;
+    public Vector3 Position;
     public uint Tick;
 }
