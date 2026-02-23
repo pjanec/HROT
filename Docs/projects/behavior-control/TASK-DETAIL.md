@@ -1,4 +1,4 @@
-# Behavior Control Subsystem – Task Details
+﻿# Behavior Control Subsystem – Task Details
 
 **Reference design:** [DESIGN.md](./DESIGN.md)  
 **Task tracker:** [TASK-TRACKER.md](./TASK-TRACKER.md)
@@ -12,9 +12,9 @@ It must be completed and green before any Phase 1+ work begins.
 
 ---
 
-### BCS-P0-T1 — SimPosition / SimRotation / SimVelocity / SimAngularVelocity in Fdp.Kernel
+### BCS-P0-T1 — `SimTransform` / `SimVelocity` in `Fdp.Kernel`
 
-**Goal:** Define the four universal spatial components in `Fdp.Kernel` so every downstream assembly can reference them without circular dependencies.
+**Goal:** Define the two universal spatial components in `Fdp.Kernel` so every downstream assembly can reference them without circular dependencies.
 
 **File to create:**  
 `Kernel/Fdp.Kernel/CoreComponents/SimComponents.cs`
@@ -25,15 +25,28 @@ using System.Runtime.InteropServices;
 
 namespace Fdp.Kernel
 {
-    [StructLayout(LayoutKind.Sequential)] public struct SimPosition        { public Vector3 Value; }   // 12 bytes
-    [StructLayout(LayoutKind.Sequential)] public struct SimRotation        { public Quaternion Value; } // 16 bytes
-    [StructLayout(LayoutKind.Sequential)] public struct SimVelocity        { public Vector3 Value; }   // 12 bytes
-    [StructLayout(LayoutKind.Sequential)] public struct SimAngularVelocity { public Vector3 Value; }   // 12 bytes
+    /// <summary>World position (meters) and orientation. Present on every entity with a spatial location.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SimTransform
+    {
+        public Vector3    Position; // Flat-Earth Cartesian (meters)
+        public Quaternion Rotation; // World-space orientation
+    }                               // 28 bytes (12 + 16)
+
+    /// <summary>Linear and angular velocity. Present on every moving entity.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SimVelocity
+    {
+        public Vector3 Linear;  // m/s
+        public Vector3 Angular; // rad/s (roll, pitch, yaw)
+    }                           // 24 bytes (12 + 12)
 }
 ```
 
 **Key implementation notes:**
-- All four are pure value types with a single public field `Value`.
+- Both are pure value types with named fields; no `Value` indirection.
+- Position and Rotation are merged in `SimTransform` because they are almost always accessed together (rendering, FOV checks, kinematic integration).
+- Linear and Angular velocity are merged in `SimVelocity` for the same reason.
 - Place in the `Fdp.Kernel` namespace so they are available to every toolkit without extra `using` directives.
 - Register via the kernel’s component registry in any `KernelModule` / `ComponentRegistrar` that already registers built-in components.
 - No dependencies on any other toolkit.
@@ -43,19 +56,13 @@ namespace Fdp.Kernel
 **Success conditions:**
 ```csharp
 // Kernel/Fdp.Kernel.Tests/SimComponentTests.cs
-[Fact] void SimPosition_Is12Bytes() =>
-    Assert.Equal(12, Unsafe.SizeOf<SimPosition>());
-[Fact] void SimRotation_Is16Bytes() =>
-    Assert.Equal(16, Unsafe.SizeOf<SimRotation>());
-[Fact] void SimVelocity_Is12Bytes() =>
-    Assert.Equal(12, Unsafe.SizeOf<SimVelocity>());
-[Fact] void SimAngularVelocity_Is12Bytes() =>
-    Assert.Equal(12, Unsafe.SizeOf<SimAngularVelocity>());
-[Fact] void AllSimComponents_AreUnmanagedValueTypes() {
-    Assert.True(typeof(SimPosition).IsValueType);
-    Assert.True(typeof(SimRotation).IsValueType);
+[Fact] void SimTransform_Is28Bytes() =>
+    Assert.Equal(28, Unsafe.SizeOf<SimTransform>());
+[Fact] void SimVelocity_Is24Bytes() =>
+    Assert.Equal(24, Unsafe.SizeOf<SimVelocity>());
+[Fact] void SimComponents_AreUnmanagedValueTypes() {
+    Assert.True(typeof(SimTransform).IsValueType);
     Assert.True(typeof(SimVelocity).IsValueType);
-    Assert.True(typeof(SimAngularVelocity).IsValueType);
 }
 ```
 
@@ -63,7 +70,7 @@ namespace Fdp.Kernel
 
 ### BCS-P0-T2 — Refactor `VehicleState` and `CarKinematicsSystem`
 
-**Goal:** Shrink `VehicleState` to motor/steering internals only and update `CarKinematicsSystem` to read/write `SimPosition`, `SimRotation`, and `SimVelocity` via a 2D↔3D math bridge.
+**Goal:** Shrink `VehicleState` to motor/steering internals only and update `CarKinematicsSystem` to read/write `SimTransform` and `SimVelocity` via a 2D↔3D math bridge.
 
 **Files to modify:**
 - `Toolkits/FDP.Toolkit.CarKinem/Core/VehicleState.cs` — remove `Position`, `Forward`, `Pitch`, `Roll`
@@ -85,17 +92,17 @@ public struct VehicleState
 **3D→2D bridge pattern in `CarKinematicsSystem`:**
 ```csharp
 // Input conversion
-Vector2 pos2D = new Vector2(pos.Value.X, pos.Value.Y);
-Vector3 fwd3D = Vector3.Transform(Vector3.UnitY, rot.Value); // Y-forward convention
+Vector2 pos2D = new Vector2(tf.Position.X, tf.Position.Y);
+Vector3 fwd3D = Vector3.Transform(Vector3.UnitY, tf.Rotation); // Y-forward convention
 Vector2 fwd2D = new Vector2(fwd3D.X, fwd3D.Y);
 
 // ... existing 2D bicycle model math ...
 
 // Output conversion
-pos.Value = new Vector3(pos2D.X, pos2D.Y, pos.Value.Z);  // preserve Z elevation
+tf.Position = new Vector3(pos2D.X, pos2D.Y, tf.Position.Z);  // preserve Z elevation
 float yaw = MathF.Atan2(fwd2D.Y, fwd2D.X);
-rot.Value = Quaternion.CreateFromYawPitchRoll(yaw, 0, 0);
-vel.Value = new Vector3(fwd2D.X * veh.Speed, fwd2D.Y * veh.Speed, 0);
+tf.Rotation = Quaternion.CreateFromYawPitchRoll(yaw, 0, 0);
+vel.Linear  = new Vector3(fwd2D.X * veh.Speed, fwd2D.Y * veh.Speed, 0);
 ```
 
 **Reference:** [DESIGN.md §2.2](./DESIGN.md#22-impact-on-vehiclestate), design talk lines 4870–5050
@@ -107,38 +114,37 @@ vel.Value = new Vector3(fwd2D.X * veh.Speed, fwd2D.Y * veh.Speed, 0);
     Assert.Null(typeof(VehicleState).GetField("Position"));
 [Fact] void VehicleState_DoesNotContain_ForwardField() =>
     Assert.Null(typeof(VehicleState).GetField("Forward"));
-[Fact] void CarKinematicsSystem_WritesSimPosition_AfterUpdate() {
+[Fact] void CarKinematicsSystem_WritesSimTransform_AfterUpdate() {
     var world = TestWorldFactory.Create();
     var e = world.CreateEntity();
-    world.AddComponent(e, new SimPosition  { Value = new Vector3(0, 0, 0) });
-    world.AddComponent(e, new SimRotation  { Value = Quaternion.Identity });
-    world.AddComponent(e, new SimVelocity  { Value = Vector3.Zero });
+    world.AddComponent(e, new SimTransform { Position = new Vector3(0, 0, 0), Rotation = Quaternion.Identity });
+    world.AddComponent(e, new SimVelocity  { Linear = Vector3.Zero });
     world.AddComponent(e, new VehicleState { Speed = 10f });
     world.AddComponent(e, new NavState     { TargetSpeed = 10f });
     world.AddComponent(e, new VehicleParams(VehicleClass.PersonalCar));
     var sys = new CarKinematicsSystem { World = world };
     sys.Update(dt: 0.016f);
-    var pos = world.GetComponent<SimPosition>(e);
-    Assert.NotEqual(Vector3.Zero, pos.Value); // entity moved
+    var tf = world.GetComponent<SimTransform>(e);
+    Assert.NotEqual(Vector3.Zero, tf.Position); // entity moved
 }
 ```
 
 ---
 
-### BCS-P0-T3 — Refactor `SpatialHashSystem` to use `SimPosition`
+### BCS-P0-T3 — Refactor `SpatialHashSystem` to use `SimTransform`
 
-**Goal:** Replace the `VehicleState`-based position read in `SpatialHashSystem` with `SimPosition`, making the spatial grid universal (cars, pedestrians, obstacles, and future entities).
+**Goal:** Replace the `VehicleState`-based position read in `SpatialHashSystem` with `SimTransform`, making the spatial grid universal (cars, pedestrians, obstacles, and future entities).
 
 **File to modify:** `Toolkits/FDP.Toolkit.CarKinem/Systems/SpatialHashSystem.cs`
 
 **New query pattern:**
 ```csharp
 // Was: query entities with VehicleState, read state.Position
-// Now: query entities with SimPosition (optionally also PhysicsCollider in a later phase)
-var query = World.Query().With<SimPosition>().Build();
+// Now: query entities with SimTransform (optionally also PhysicsCollider in a later phase)
+var query = World.Query().With<SimTransform>().Build();
 foreach (var entity in query)
 {
-    var pos = World.GetComponentRO<SimPosition>(entity).Value;
+    var pos = World.GetComponentRO<SimTransform>(entity).Position;
     _grid.Add(entity.Index, new Vector2(pos.X, pos.Y));
 }
 ```
@@ -147,13 +153,13 @@ foreach (var entity in query)
 
 **Success conditions:**
 ```csharp
-[Fact] void SpatialHashSystem_IndexesNonVehicleEntity_WithSimPosition() {
-    // Create entity with ONLY SimPosition (no VehicleState)
+[Fact] void SpatialHashSystem_IndexesNonVehicleEntity_WithSimTransform() {
+    // Create entity with ONLY SimTransform (no VehicleState)
     // Run SpatialHashSystem
     // QueryNeighbors near that position → entity is found
 }
-[Fact] void SpatialHashSystem_IndexesVehicleEntity_WithSimPosition() {
-    // Create entity with SimPosition + VehicleState
+[Fact] void SpatialHashSystem_IndexesVehicleEntity_WithSimTransform() {
+    // Create entity with SimTransform + VehicleState
     // Same assertion
 }
 ```
@@ -162,22 +168,22 @@ foreach (var entity in query)
 
 ### BCS-P0-T4 — Migrate `Fdp.Examples.CarKinem`
 
-**Goal:** Update the CarKinem example app so all entity spawn sites and systems read/write `SimPosition`/`SimRotation`/`SimVelocity` instead of `VehicleState.Position`/`VehicleState.Forward`.
+**Goal:** Update the CarKinem example app so all entity spawn sites and systems read/write `SimTransform`/`SimVelocity` instead of `VehicleState.Position`/`VehicleState.Forward`.
 
 **File locations:** `Examples/Fdp.Examples.CarKinem/`
 
 **Changes required:**
-- All `world.AddComponent(e, new VehicleState { Position = ..., Forward = ... })` → split into separate `SimPosition`, `SimRotation`, `SimVelocity` component adds.
-- Any system or visualizer that reads `VehicleState.Position` or `VehicleState.Forward` → read `SimPosition.Value` and derive direction from `SimRotation.Value` instead.
-- Update `VehicleVisualizer` / `CarKinemInspectorAdapter` to read `SimPosition`.
+- All `world.AddComponent(e, new VehicleState { Position = ..., Forward = ... })` → add a `SimTransform { Position = ..., Rotation = ... }` component separately.
+- Any system or visualizer that reads `VehicleState.Position` or `VehicleState.Forward` → read `SimTransform.Position` and derive direction from `SimTransform.Rotation` instead.
+- Update `VehicleVisualizer` / `CarKinemInspectorAdapter` to read `SimTransform`.
 
 **Reference:** [DESIGN.md §2.5](./DESIGN.md#25-impact-on-example-apps), design talk lines 5080–5110
 
 **Success conditions:**
 ```csharp
 // Fdp.Examples.CarKinem.Tests/VehicleVisualizerTests.cs (existing file — may exist already)
-[Fact] void VehicleVisualizer_ReadsSimPosition_NotVehicleStatePosition() {
-    // Create entity with SimPosition but no VehicleState
+[Fact] void VehicleVisualizer_ReadsSimTransform_NotVehicleStatePosition() {
+    // Create entity with SimTransform but no VehicleState
     // VehicleVisualizer should still return a position without throwing
 }
 // Additionally: dotnet build Examples/Fdp.Examples.CarKinem produces zero errors
@@ -187,7 +193,7 @@ foreach (var entity in query)
 
 ### BCS-P0-T5 — Migrate `Fdp.Examples.BattleRoyale`
 
-**Goal:** Replace the local `Position` and `Velocity` structs with `SimPosition` and `SimVelocity` from `Fdp.Kernel`. Delete the redundant local files.
+**Goal:** Replace the local `Position` and `Velocity` structs with `SimTransform` and `SimVelocity` from `Fdp.Kernel`. Delete the redundant local files.
 
 **Files to delete:**
 - `Examples/Fdp.Examples.BattleRoyale/Components/Position.cs`
@@ -199,8 +205,8 @@ foreach (var entity in query)
 world.AddComponent(e, new Position { Value = startPos });
 world.AddComponent(e, new Velocity { Value = vel });
 // New
-world.AddComponent(e, new SimPosition { Value = startPos });
-world.AddComponent(e, new SimVelocity { Value = vel });
+world.AddComponent(e, new SimTransform { Position = startPos });
+world.AddComponent(e, new SimVelocity  { Linear   = vel });
 ```
 
 Update all `using Fdp.Examples.BattleRoyale.Components;` references to `Fdp.Kernel` where `Position`/`Velocity` are used.
@@ -218,10 +224,10 @@ dotnet test Examples/Fdp.Examples.BattleRoyale/
 
 ### BCS-P0-T6 — Migrate `Fdp.Examples.NetworkDemo`
 
-**Goal:** Replace `DemoComponents.Position`, `DemoComponents.Velocity`, and `DemoPosition` with `SimPosition` and `SimVelocity`. Keep `PositionGeodetic` as a separate domain concept.
+**Goal:** Replace `DemoComponents.Position`, `DemoComponents.Velocity`, and `DemoPosition` with `SimTransform` and `SimVelocity`. Keep `PositionGeodetic` as a separate domain concept.
 
 **Files to modify or delete:**
-- `Examples/Fdp.Examples.NetworkDemo/Components/DemoPosition.cs` — **delete** (replace usages with `SimPosition`)
+- `Examples/Fdp.Examples.NetworkDemo/Components/DemoPosition.cs` — **delete** (replace usages with `SimTransform`)
 - `Examples/Fdp.Examples.NetworkDemo/Components/DemoComponents.cs` — remove `Position` and `Velocity` structs
 
 **Note on `PositionGeodetic`:** This represents a WGS84 geographic coordinate and is intentionally NOT replaced — it remains a domain-specific component used only by the `GeographicModule`.
@@ -499,7 +505,7 @@ References: `Fdp.Kernel`, `ModuleHost.Core`, `FDP.Toolkit.CarKinem` (for `Vehicl
 - `PerceptionReceptor.FieldOfViewCos` is the precomputed cosine of the half-FOV angle (e.g., 60° FOV → cos(30°) ≈ 0.866).
 - All events: `[EventId(…)]` attribute from `Fdp.Kernel`. Use 4001–4003 as defined in design.
 
-> ⚠️ **Phase 0 Adaptation:** `TargetMemory` stores positions as flat 2D floats (`PositionsX`, `PositionsY`). When writing to `TargetMemory` from any system that reads `SimPosition`, project down: `pos.Value.X` → `PositionsX[i]`, `pos.Value.Y` → `PositionsY[i]`. The Z elevation is not stored in target memory (all entities are on the same ground plane). `AudioStimulusEvent.Origin` is `Vector3` (from `SimPosition`); extract `.XY` for distance calculations.
+> ⚠️ **Phase 0 Adaptation:** `TargetMemory` stores positions as flat 2D floats (`PositionsX`, `PositionsY`). When writing to `TargetMemory` from any system that reads `SimTransform`, project down: `tf.Position.X` → `PositionsX[i]`, `tf.Position.Y` → `PositionsY[i]`. The Z elevation is not stored in target memory (all entities are on the same ground plane). `AudioStimulusEvent.Origin` is `Vector3` (from `SimTransform.Position`); extract `.XY` for distance calculations.
 
 **Reference:** [DESIGN.md §4.1–4.2](./DESIGN.md#41-component-types), design talk lines 2450–2510
 
@@ -529,14 +535,14 @@ References: `Fdp.Kernel`, `ModuleHost.Core`, `FDP.Toolkit.CarKinem` (for `Vehicl
 - For each listener: if it can hear (HearingRange ≥ distance), call `AddOrUpdateTarget(ref TargetMemory, source, origin, boost=20, tick)`.
 - Sort by threat score, keep top 4.
 
-> ⚠️ **Phase 0 Adaptation:** All entity position reads in this system must use `SimPosition`, not `VehicleState.Position`. When querying the `SpatialHashGrid` (which is 2D), extract the ground-plane XY: `new Vector2(simPos.Value.X, simPos.Value.Y)`. The design talk (lines 303–316) shows `state.Position` — replace with `repo.GetComponentRO<SimPosition>(entity).Value.XY` throughout.
+> ⚠️ **Phase 0 Adaptation:** All entity position reads in this system must use `SimTransform`, not `VehicleState.Position`. When querying the `SpatialHashGrid` (which is 2D), extract the ground-plane XY: `new Vector2(tf.Position.X, tf.Position.Y)`. The design talk (lines 303–316) shows `state.Position` — replace with `repo.GetComponentRO<SimTransform>(entity).Position.XY` throughout.
 
 **Reference:** [DESIGN.md §4.3](./DESIGN.md#43-systems), design talk lines 303–316
 
 **Success conditions:**
 ```csharp
 [Fact] void AudioPerception_UpdatesTargetMemory_WhenWithinHearingRange() {
-    // Spawn listener at (0,0,0) with HearingRange=100, with SimPosition component
+    // Spawn listener at (0,0,0) with HearingRange=100, with SimTransform component
     // Publish AudioStimulusEvent at Origin=(50,0,0) with Intensity=60
     // Run system → TargetMemory.Count == 1
 }
@@ -569,16 +575,16 @@ References: `Fdp.Kernel`, `ModuleHost.Core`, `FDP.Toolkit.CarKinem` (for `Vehicl
   - Write back via `ECB.SetComponent<TargetMemory>`.
 
 > ⚠️ **Phase 0 Adaptation:** Several reads in the original design talk (lines 2520–2660) use `VehicleState.Position` and `VehicleState.Forward`. Replace as follows:
-> - **Observer position:** `repo.GetComponentRO<SimPosition>(observer).Value` → project `.XY` for grid query.
-> - **Observer forward:** derive from `SimRotation`:
+> - **Observer position:** `repo.GetComponentRO<SimTransform>(observer).Position` → project `.XY` for grid query.
+> - **Observer forward:** derive from `SimTransform`:
 >   ```csharp
->   var rot = repo.GetComponentRO<SimRotation>(observer).Value;
->   Vector3 fwd3D = Vector3.Transform(Vector3.UnitY, rot); // Y-forward convention
+>   var tf = repo.GetComponentRO<SimTransform>(observer);
+>   Vector3 fwd3D = Vector3.Transform(Vector3.UnitY, tf.Rotation); // Y-forward convention
 >   Vector2 forward = new Vector2(fwd3D.X, fwd3D.Y);
 >   ```
-> - **Target position:** `repo.GetComponentRO<SimPosition>(target).Value` → project `.XY`.
+> - **Target position:** `repo.GetComponentRO<SimTransform>(target).Position` → project `.XY`.
 > - The `SpatialHashGrid` still operates in 2D; no changes to grid API.
-> - `LosCheckRequestEvent` ray endpoints: use `SimPosition.Value` (Vector3) for start/end; `HitResolutionSystem` projects to 2D for `Intersection2D.RaycastCircle`.
+> - `LosCheckRequestEvent` ray endpoints: use `SimTransform.Position` (Vector3) for start/end; `HitResolutionSystem` projects to 2D for `Intersection2D.RaycastCircle`.
 
 **Reference:** [DESIGN.md §4.3–4.4](./DESIGN.md#44-perceptionmodule), design talk lines 2520–2660
 
@@ -640,7 +646,7 @@ References: `Fdp.Kernel`, `FDP.Toolkit.Behavior`, `FDP.Toolkit.CarKinem`
 - `FollowRouteParams { int TrajectoryId; byte IsLooped; }`
 - `FollowRoadGraphParams { int TargetNodeId; float Speed; }`
 
-> ⚠️ **Phase 0 Adaptation:** `MoveToParams.Destination` and `FleeParams`-derived positions are `Vector2` (XY ground plane). This matches `NavState.FinalDestination`, which is still `Vector2` inside `CarKinem`. When a Brain node or BTree action writes `MoveToParams`, it must project the 3D world target to 2D: `new Vector2(target.SimPosition.Value.X, target.SimPosition.Value.Y)`. The design talk samples at lines 1967–2000 use `Vector2` directly and remain valid as-is — no struct changes are needed; only the *source* of the coordinate changes.
+> ⚠️ **Phase 0 Adaptation:** `MoveToParams.Destination` and `FleeParams`-derived positions are `Vector2` (XY ground plane). This matches `NavState.FinalDestination`, which is still `Vector2` inside `CarKinem`. When a Brain node or BTree action writes `MoveToParams`, it must project the 3D world target to 2D: `new Vector2(target.SimTransform.Position.X, target.SimTransform.Position.Y)`. The design talk samples at lines 1967–2000 use `Vector2` directly and remain valid as-is — no struct changes are needed; only the *source* of the coordinate changes.
 
 **Reference:** [DESIGN.md §5.1](./DESIGN.md#51-action-ids-and-parameter-structs), design talk lines 1967–2000
 
@@ -662,11 +668,11 @@ References: `Fdp.Kernel`, `FDP.Toolkit.Behavior`, `FDP.Toolkit.CarKinem`
 
 **File:** `Toolkits/FDP.Toolkit.Navigation/Executors/MoveToExecutor.cs`
 
-**Frustration guard:** If `SimVelocity.Value.Length() < 0.1f` for 120 consecutive ticks while `Vector3.Distance(SimPosition.Value, Destination) > ArrivalRadius*2`, set `Status = Failure`. Read both components via `EntityRepository` — do not read `VehicleState.Speed`.
+**Frustration guard:** If `SimVelocity.Linear.Length() < 0.1f` for 120 consecutive ticks while `Vector3.Distance(SimTransform.Position, Destination) > ArrivalRadius*2`, set `Status = Failure`. Read both components via `EntityRepository` — do not read `VehicleState.Speed`.
 
 **Reference:** [DESIGN.md §5.2](./DESIGN.md#52-executor-classes), design talk lines 2000–2050
 
-> ⚠️ **Phase 0 Adaptation:** `OnEnter` writes `NavState.FinalDestination` (still `Vector2`). To obtain the destination from world data, project `SimPosition.Value.XY`. The design talk example at lines 2000–2050 reads `VehicleState.Position` to compute arrival distance — replace that read with `repo.GetComponentRO<SimPosition>(entity).Value.XY` and use `Vector2.Distance(pos2D, params.Destination)`.
+> ⚠️ **Phase 0 Adaptation:** `OnEnter` writes `NavState.FinalDestination` (still `Vector2`). To obtain the destination from world data, project `SimTransform.Position.XY`. The design talk example at lines 2000–2050 reads `VehicleState.Position` to compute arrival distance — replace that read with `repo.GetComponentRO<SimTransform>(entity).Position.XY` and use `Vector2.Distance(pos2D, params.Destination)`.
 
 **Success conditions:**
 ```csharp
@@ -674,7 +680,7 @@ References: `Fdp.Kernel`, `FDP.Toolkit.Behavior`, `FDP.Toolkit.CarKinem`
     // Set NavState.HasArrived=1 → Execute sets Status=Success
 }
 [Fact] void MoveToExecutor_ReportsFailure_OnFrustration() {
-    // SimVelocity.Value stays near-zero length for > 120 ticks → Status=Failure
+    // SimVelocity.Linear stays near-zero length for > 120 ticks → Status=Failure
 }
 [Fact] void MoveToExecutor_OnExit_SetsTargetSpeedToZero() { ... }
 ```
@@ -687,10 +693,10 @@ References: `Fdp.Kernel`, `FDP.Toolkit.Behavior`, `FDP.Toolkit.CarKinem`
 
 **File:** `Toolkits/FDP.Toolkit.Navigation/Executors/FleeExecutor.cs`
 
-> ⚠️ **Phase 0 Adaptation:** The design talk (lines 2050–2110) shows `awayVector = Normalize(self.Position - threat.Position)` using `VehicleState.Position` (Vector2). Replace both reads with `SimPosition`:
+> ⚠️ **Phase 0 Adaptation:** The design talk (lines 2050–2110) shows `awayVector = Normalize(self.Position - threat.Position)` using `VehicleState.Position` (Vector2). Replace both reads with `SimTransform`:
 > ```csharp
-> Vector2 myPos     = repo.GetComponentRO<SimPosition>(entity).Value.XY;
-> Vector2 threatPos = repo.GetComponentRO<SimPosition>(p.Threat).Value.XY;
+> Vector2 myPos     = repo.GetComponentRO<SimTransform>(entity).Position.XY;
+> Vector2 threatPos = repo.GetComponentRO<SimTransform>(p.Threat).Position.XY;
 > Vector2 awayVector = Vector2.Normalize(myPos - threatPos);
 > float distance = Vector2.Distance(myPos, threatPos);
 > ```
@@ -818,7 +824,7 @@ References: `Fdp.Kernel`, `FDP.Toolkit.CarKinem` (for `SpatialGridData`)
 
 > ⚠️ **Phase 0 Adaptation:** The design talk (lines 2930–3010) reads entity positions from `VehicleState.Position` (Vector2) when building the circle for `Intersection2D.RaycastCircle`. Replace with:
 > ```csharp
-> Vector2 center = repo.GetComponentRO<SimPosition>(candidate).Value.XY;
+> Vector2 center = repo.GetComponentRO<SimTransform>(candidate).Position.XY;
 > var collider = repo.GetComponentRO<PhysicsCollider>(candidate);
 > bool hit = Intersection2D.RaycastCircle(req.Start.XY, req.End.XY, center, collider.Radius, out float t);
 > ```
@@ -918,10 +924,10 @@ Events: `FireRequestEvent [EventId 5001]`, `HitEvent [EventId 5002]`.
 
 **File:** `Toolkits/FDP.Toolkit.Combat/Executors/AimAndFireExecutor.cs`
 
-> ⚠️ **Phase 0 Adaptation:** The design talk (lines 2094–2160) computes aim direction from `shooterState.Position` and `targetState.Position` (both `VehicleState`-derived Vector2). Replace with `SimPosition`:
+> ⚠️ **Phase 0 Adaptation:** The design talk (lines 2094–2160) computes aim direction from `shooterState.Position` and `targetState.Position` (both `VehicleState`-derived Vector2). Replace with `SimTransform`:
 > ```csharp
-> Vector3 origin    = repo.GetComponentRO<SimPosition>(entity).Value;
-> Vector3 targetPos = repo.GetComponentRO<SimPosition>(targetEntity).Value;
+> Vector3 origin    = repo.GetComponentRO<SimTransform>(entity).Position;
+> Vector3 targetPos = repo.GetComponentRO<SimTransform>(targetEntity).Position;
 > Vector3 direction = Vector3.Normalize(targetPos - origin);
 > // Populate FireRequestEvent.Origin = origin, Direction = direction
 > ```
@@ -944,8 +950,8 @@ Events: `FireRequestEvent [EventId 5001]`, `HitEvent [EventId 5002]`.
 ### BCS-P5-T4 — FireProcessingSystem + BallisticsSystem
 
 **Goal:**  
-- `FireProcessingSystem` (`Simulation` phase): consumes `FireRequestEvent`, creates bullet entities with `SimPosition { Value=evt.Origin }`, `SimVelocity { Value=evt.Direction * weapon.MuzzleVelocity }`, and `BallisticProjectile { Damage, SpawnTick }`. The `LinearKinematicsSystem` (Phase 0 / §2.3) handles bullet movement‬‬ — no explicit `pos += vel*dt` is needed here.  
-- `BallisticsSystem` (`PostSimulation` phase): reads each bullet’s `SimPosition` to push a `RaycastRequest` (line-segment from previous tick’s position to current). Despawns bullets older than 300 ticks.
+- `FireProcessingSystem` (`Simulation` phase): consumes `FireRequestEvent`, creates bullet entities with `SimTransform { Position=evt.Origin }`, `SimVelocity { Linear=evt.Direction * weapon.MuzzleVelocity }`, and `BallisticProjectile { Damage, SpawnTick }`. The `LinearKinematicsSystem` (Phase 0 / §2.3) handles bullet movement‬‬ — no explicit `pos += vel*dt` is needed here.  
+- `BallisticsSystem` (`PostSimulation` phase): reads each bullet's `SimTransform` to push a `RaycastRequest` (line-segment from previous tick’s position to current). Despawns bullets older than 300 ticks.
 
 **Files:**
 - `Toolkits/FDP.Toolkit.Combat/Systems/FireProcessingSystem.cs`
@@ -956,19 +962,19 @@ Events: `FireRequestEvent [EventId 5001]`, `HitEvent [EventId 5002]`.
 > The design talk (lines 2170–2240) shows `BallisticsSystem` both *moving* bullets (`pos += vel * dt`) and adding the raycast. With Phase 0, movement is delegated to `LinearKinematicsSystem`. This creates an ordering dependency:
 >
 > **Required execution order in `PostSimulation`:**
-> 1. `BallisticsSystem` runs **first**: captures `SimPosition.Value` into `BallisticProjectile.PreviousPosition`, submits raycast request `Start=PreviousPosition, End=SimPosition.Value` (using the *current* position as the endpoint — i.e., where the bullet will be). Wait — actually `LinearKinematicsSystem` hasn't run yet. So `PreviousPosition` = last frame's position (already stored), and End = new position after movement. To accomplish this:
->    - Each frame: read `SimPosition` → store into `BallisticProjectile.PreviousPosition` → submit `Start=PreviousPosition, End=SimPosition + SimVelocity*dt` (predicted) OR let `LinearKinematicsSystem` run first.
+> 1. `BallisticsSystem` runs **first**: captures `SimTransform.Position` into `BallisticProjectile.PreviousPosition`, submits raycast request `Start=PreviousPosition, End=SimTransform.Position` (using the *current* position as the endpoint — i.e., where the bullet will be). Wait — actually `LinearKinematicsSystem` hasn't run yet. So `PreviousPosition` = last frame's position (already stored), and End = new position after movement. To accomplish this:
+>    - Each frame: read `SimTransform.Position` → store into `BallisticProjectile.PreviousPosition` → submit `Start=PreviousPosition, End=SimTransform.Position + SimVelocity.Linear*dt` (predicted) OR let `LinearKinematicsSystem` run first.
 >
 > **Simplest correct ordering:**
 > ```
 > PostSimulation:
->   [UpdateBefore(BallisticsSystem)] LinearKinematicsSystem  ← moves bullet: SimPosition += SimVelocity * dt
->   [UpdateAfter(LinearKinematicsSystem)] BallisticsSystem   ← raycast: Start=PreviousPosition, End=SimPosition.Value
->                                                             ← store SimPosition into PreviousPosition for next frame
+>   [UpdateBefore(BallisticsSystem)] LinearKinematicsSystem  ← moves bullet: SimTransform.Position += SimVelocity.Linear * dt
+>   [UpdateAfter(LinearKinematicsSystem)] BallisticsSystem   ← raycast: Start=PreviousPosition, End=SimTransform.Position
+>                                                             ← store SimTransform.Position into PreviousPosition for next frame
 > ```
 > On *spawn*, `FireProcessingSystem` initialises `BallisticProjectile.PreviousPosition = evt.Origin` so the first frame has a valid start point.
 >
-> No changes to `FireProcessingSystem` are needed beyond confirming `SimPosition`, `SimVelocity`, `BallisticProjectile` are all added to the bullet entity during spawn (see BCS-P5-T1 struct).
+> No changes to `FireProcessingSystem` are needed beyond confirming `SimTransform`, `SimVelocity`, `BallisticProjectile` are all added to the bullet entity during spawn (see BCS-P5-T1 struct).
 
 **Reference:** [DESIGN.md §6.4](./DESIGN.md#64-systems), design talk lines 2170–2240
 
@@ -976,7 +982,7 @@ Events: `FireRequestEvent [EventId 5001]`, `HitEvent [EventId 5002]`.
 ```csharp
 [Fact] void FireProcessing_SpawnsBullet_OnFireRequestEvent() {
     // Publish FireRequestEvent → query BallisticProjectile → Count == 1
-    // Also verify bullet entity has SimPosition, SimVelocity components
+    // Also verify bullet entity has SimTransform, SimVelocity components
 }
 [Fact] void Ballistics_DestroysBullet_AfterTimeout() {
     // Set SpawnTick = GlobalVersion - 300 → next BallisticsSystem tick destroys it
@@ -1061,21 +1067,21 @@ Events: `FireRequestEvent [EventId 5001]`, `HitEvent [EventId 5002]`.
 
 **Goal:** Full interaction executor lifecycle for embark/eject operations:
 - `EmbarkExecutor`: distance check → strip capabilities → add `IsEmbarkedTag` → insert into `PassengerBuffer`.
-- `EjectPassengersExecutor`: iterate `PassengerBuffer` → restore capabilities → set `SimPosition` near vehicle → remove `IsEmbarkedTag` → clear buffer.
+- `EjectPassengersExecutor`: iterate `PassengerBuffer` → restore capabilities → set `SimTransform.Position` near vehicle → remove `IsEmbarkedTag` → clear buffer.
 
 **Files:**
 - `Toolkits/FDP.Toolkit.Behavior/Executors/EmbarkExecutor.cs`
 - `Toolkits/FDP.Toolkit.Behavior/Executors/EjectPassengersExecutor.cs`
 - `Toolkits/FDP.Toolkit.Behavior/Components/InteractionComponents.cs` — `IsEmbarkedTag`, `PassengerBuffer`
 
-> ⚠️ **Phase 0 Adaptation:** The design talk (lines 880–995, 4580–4685) uses `VehicleState.Position` to compute proximity for `EmbarkExecutor` and to scatter passengers in `EjectPassengersExecutor`. Replace all position reads and writes with `SimPosition`:
-> - **Distance check (Embark):** `Vector3.Distance(repo.GetComponentRO<SimPosition>(soldier).Value, repo.GetComponentRO<SimPosition>(vehicle).Value)`
+> ⚠️ **Phase 0 Adaptation:** The design talk (lines 880–995, 4580–4685) uses `VehicleState.Position` to compute proximity for `EmbarkExecutor` and to scatter passengers in `EjectPassengersExecutor`. Replace all position reads and writes with `SimTransform`:
+> - **Distance check (Embark):** `Vector3.Distance(repo.GetComponentRO<SimTransform>(soldier).Position, repo.GetComponentRO<SimTransform>(vehicle).Position)`
 > - **Eject spawn offset:** compute a slot position relative to vehicle:
 >   ```csharp
->   Vector3 vehiclePos = repo.GetComponentRO<SimPosition>(vehicle).Value;
+>   Vector3 vehiclePos = repo.GetComponentRO<SimTransform>(vehicle).Position;
 >   Vector3 slotOffset = new Vector3(i * 1.5f - 1.5f, -4f, 0f); // side of vehicle
->   ref var soldierPos = ref repo.GetComponentRW<SimPosition>(passengerId);
->   soldierPos.Value = vehiclePos + slotOffset;
+>   ref var soldierTf = ref repo.GetComponentRW<SimTransform>(passengerId);
+>   soldierTf.Position = vehiclePos + slotOffset;
 >   ```
 > The design talk's Z=0 assumption still holds; all actors are on the ground plane.
 
@@ -1084,7 +1090,7 @@ Events: `FireRequestEvent [EventId 5001]`, `HitEvent [EventId 5002]`.
 **Success conditions:**
 ```csharp
 [Fact] void Embark_AddsSoldierToPassengerBuffer_WhenInRange() {
-    // Soldier within 3m of APC (via SimPosition) → one Embark tick → PassengerBuffer.Count==1
+    // Soldier within 3m of APC (via SimTransform) → one Embark tick → PassengerBuffer.Count==1
 }
 [Fact] void Embark_DoesNotEmbark_WhenDistanceTooFar() { ... }
 [Fact] void Embark_StripsCanMove_Capability() { ... }
@@ -1129,11 +1135,10 @@ References: All five new toolkits, `FDP.Toolkit.CarKinem`, `FDP.Toolkit.Tkb`, `F
 
 **File:** `Examples/Fdp.Examples.UrbanCombat/Setup/DemoTkbSetup.cs`
 
-> ⚠️ **Phase 0 Adaptation:** Every entity template that existed in the design talk (lines 3230–3300) used to add `VehicleState { Position=..., Forward=... }` for spatial presence. After Phase 0, **every template must add the three universal spatial components**:
+> ⚠️ **Phase 0 Adaptation:** Every entity template that existed in the design talk (lines 3230–3300) used to add `VehicleState { Position=..., Forward=... }` for spatial presence. After Phase 0, **every template must add the two universal spatial components**:
 > ```csharp
-> t.AddComponent(new SimPosition());       // Required: all entities with a world location
-> t.AddComponent(new SimRotation());       // Required: all orientable entities
-> t.AddComponent(new SimVelocity());       // Required: all moving entities
+> t.AddComponent(new SimTransform());     // Required: all entities with a world location and orientation
+> t.AddComponent(new SimVelocity());      // Required: all moving entities
 > // VehicleState now only has motor data — do NOT initialise Position/Forward on it:
 > t.AddComponent(new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
 > ```
@@ -1253,10 +1258,13 @@ References: All five new toolkits, `FDP.Toolkit.CarKinem`, `FDP.Toolkit.Tkb`, `F
 
 > ⚠️ **Phase 0 Adaptation:** The design talk (lines 3420–3530) sets initial positions via `VehicleState { Position = spawnPos, Forward = spawnFwd }`. After Phase 0, spawn positions and orientations are set on the universal components instead:
 > ```csharp
-> world.AddComponent(entity, new SimPosition { Value = new Vector3(spawnPos.X, spawnPos.Y, 0f) });
 > float yaw = MathF.Atan2(spawnFwd.Y, spawnFwd.X);
-> world.AddComponent(entity, new SimRotation { Value = Quaternion.CreateFromYawPitchRoll(yaw, 0f, 0f) });
-> world.AddComponent(entity, new SimVelocity { Value = Vector3.Zero });
+> world.AddComponent(entity, new SimTransform
+> {
+>     Position = new Vector3(spawnPos.X, spawnPos.Y, 0f),
+>     Rotation = Quaternion.CreateFromYawPitchRoll(yaw, 0f, 0f)
+> });
+> world.AddComponent(entity, new SimVelocity { Linear = Vector3.Zero });
 > // VehicleState no longer has Position/Forward:
 > world.AddComponent(entity, new VehicleState { Speed = 0 });
 > ```
@@ -1264,7 +1272,7 @@ References: All five new toolkits, `FDP.Toolkit.CarKinem`, `FDP.Toolkit.Tkb`, `F
 **Success conditions:**
 ```csharp
 [Fact] void ScenarioDirector_SpawnsExpectedEntityCount() {
-    // After SetupAmbushScenario: query all entities with SimPosition → count == 14
+    // After SetupAmbushScenario: query all entities with SimTransform → count == 14
     // (5 pedestrians + 3 cars + 1 APC + 4 soldiers + 1 insurgent)
 }
 [Fact] void ScenarioDirector_SoldiersAreEmbarked_Initially() {
@@ -1330,7 +1338,7 @@ References: All five new toolkits, `FDP.Toolkit.CarKinem`, `FDP.Toolkit.Tkb`, `F
 }
 
 [Fact] void UrbanAmbush_ApcMovesNorthward_BeforeAmbush() {
-    // After frame 100: APC SimPosition.Value.Y > -90 (moved north from spawn)
-    // Query: world.QueryEntities().With<SimPosition>().With<BrainHsm128>().First()
+    // After frame 100: APC SimTransform.Position.Y > -90 (moved north from spawn)
+    // Query: world.QueryEntities().With<SimTransform>().With<BrainHsm128>().First()
 }
 ```

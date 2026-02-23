@@ -10,10 +10,10 @@
 **Goal:** Standardize position/rotation/velocity representation across the entire FDP engine before any behavior toolkit work begins.  
 **Scope:** `Fdp.Kernel` (new components), `FDP.Toolkit.CarKinem` (refactor), `Fdp.Examples.CarKinem`, `Fdp.Examples.BattleRoyale`, `Fdp.Examples.NetworkDemo`
 
-- [ ] **BCS-P0-T1** `SimPosition`, `SimRotation`, `SimVelocity`, `SimAngularVelocity` in `Fdp.Kernel` [details](./TASK-DETAIL.md#bcs-p0-t1--simposition--simrotation--simvelocity--simangularvelocity-in-fdpkernel)
+- [ ] **BCS-P0-T1** `SimTransform`, `SimVelocity` in `Fdp.Kernel` [details](./TASK-DETAIL.md#bcs-p0-t1--simtransform--simvelocity-in-fdpkernel)
 - [ ] **BCS-P0-T2** Refactor `VehicleState` (remove Position/Forward/Pitch/Roll) + `CarKinematicsSystem` 2D↔3D bridge [details](./TASK-DETAIL.md#bcs-p0-t2--refactor-vehiclestate-and-carkinematicssystem)
-- [ ] **BCS-P0-T3** Refactor `SpatialHashSystem` to query `SimPosition` (universal grid) [details](./TASK-DETAIL.md#bcs-p0-t3--refactor-spatialhashsystem-to-use-simposition)
-- [ ] **BCS-P0-T4** Migrate `Fdp.Examples.CarKinem` to `SimPosition`/`SimRotation`/`SimVelocity` [details](./TASK-DETAIL.md#bcs-p0-t4--migrate-fdpexamplescarkinem)
+- [ ] **BCS-P0-T3** Refactor `SpatialHashSystem` to query `SimTransform` (universal grid) [details](./TASK-DETAIL.md#bcs-p0-t3--refactor-spatialhashsystem-to-use-simtransform)
+- [ ] **BCS-P0-T4** Migrate `Fdp.Examples.CarKinem` to `SimTransform`/`SimVelocity` [details](./TASK-DETAIL.md#bcs-p0-t4--migrate-fdpexamplescarkinem)
 - [ ] **BCS-P0-T5** Migrate `Fdp.Examples.BattleRoyale` (delete local `Position.cs`/`Velocity.cs`) [details](./TASK-DETAIL.md#bcs-p0-t5--migrate-fdpexamplesbattleroyale)
 - [ ] **BCS-P0-T6** Migrate `Fdp.Examples.NetworkDemo` (delete `DemoPosition`, remove local `Position`/`Velocity` structs) [details](./TASK-DETAIL.md#bcs-p0-t6--migrate-fdpexamplesnetworkdemo)
 

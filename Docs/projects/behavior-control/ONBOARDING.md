@@ -65,7 +65,7 @@ FDP/
 | `IModule` / `IModuleSystem` | `ModuleHost.Core/Abstractions` | Module registration and async execution policy |
 | `ModuleHostKernel` | `ModuleHost.Core` | Orchestrates module lifecycle, executes phase order |
 | `SystemPhase` | `ModuleHost.Core/Abstractions` | Input → BeforeSync → Simulation → PostSimulation → Export |
-| `SimPosition`, `SimRotation`, `SimVelocity` | `Kernel/Fdp.Kernel` | Universal spatial presence — every entity with a world position uses these (**Phase 0**) |
+| `SimTransform`, `SimVelocity` | `Kernel/Fdp.Kernel` | Universal spatial presence — every entity with a world position uses `SimTransform` (`Position`+`Rotation`); moving entities also use `SimVelocity` (`Linear`+`Angular`) (**Phase 0**) |
 | `VehicleState`, `NavState` | `Toolkits/FDP.Toolkit.CarKinem/Core` | Motor internals (speed, steer) + navigation intent; `VehicleState` no longer holds position/forward after Phase 0 |
 | `BehaviorTreeState` | `ExtDeps/FastBTree/src/Fbt.Kernel` | 64-byte per-entity BTree stack state |
 | `HsmInstance128` | `ExtDeps/FastHSM/src/Fhsm.Kernel/Data` | Unmanaged HSM instance (state machine state) |

@@ -25,20 +25,17 @@ Add a complete **entity behavior control subsystem** to FDP covering:
 
 ### 2.1 New Core Components
 
-All four components live in the `Fdp.Kernel` assembly (namespace `Fdp.Kernel`) so every toolkit can reference them without a circular dependency.
+Both components live in the `Fdp.Kernel` assembly (namespace `Fdp.Kernel`) so every toolkit can reference them without a circular dependency.
 
 ```csharp
-[StructLayout(LayoutKind.Sequential)] public struct SimPosition        { public Vector3 Value; }   // 12 bytes
-[StructLayout(LayoutKind.Sequential)] public struct SimRotation        { public Quaternion Value; } // 16 bytes
-[StructLayout(LayoutKind.Sequential)] public struct SimVelocity        { public Vector3 Value; }   // 12 bytes
-[StructLayout(LayoutKind.Sequential)] public struct SimAngularVelocity { public Vector3 Value; }   // 12 bytes
+[StructLayout(LayoutKind.Sequential)] public struct SimTransform { public Vector3 Position; public Quaternion Rotation; } // 28 bytes
+[StructLayout(LayoutKind.Sequential)] public struct SimVelocity  { public Vector3 Linear;   public Vector3 Angular;   }  // 24 bytes
 ```
 
-Any entity that occupies space in the world gets `SimPosition`.  
-Orientable entities additionally get `SimRotation`.  
-Moving entities additionally get `SimVelocity` (and optionally `SimAngularVelocity`).
+Any entity that occupies space in the world gets `SimTransform` (`Position` + `Rotation` are always fetched together, so combining them avoids a second component lookup on every render and kinematics tick).  
+Moving entities additionally get `SimVelocity` (`Linear` for translational velocity in m/s, `Angular` for rotational velocity in rad/s). `SimAngularVelocity` no longer exists as a separate component — angular data lives in `SimVelocity.Angular`.
 
-Components are optional and granular by design — a static building only registers `SimPosition` (12 bytes), wasting zero memory on steering or rotation.
+A static building only registers `SimTransform` (28 bytes), wasting zero memory on velocity.
 
 ### 2.2 Impact on `VehicleState`
 
@@ -55,20 +52,20 @@ public struct VehicleState
 }
 ```
 
-`CarKinematicsSystem` gains a 2D↔3D math bridge: it reads `SimPosition`/`SimRotation` as input, runs the existing 2D bicycle model internally, then writes results back to `SimPosition`/`SimRotation`/`SimVelocity`.
+`CarKinematicsSystem` gains a 2D↔3D math bridge: it reads `SimTransform` as input, runs the existing 2D bicycle model internally, then writes results back to `SimTransform.Position`, `SimTransform.Rotation`, and `SimVelocity.Linear`.
 
 ### 2.3 New `LinearKinematicsSystem`
 
-A small generic system moves **any** entity that has `SimPosition` and `SimVelocity` but **not** `VehicleState` (vehicles are handled by `CarKinematicsSystem`):
+A small generic system moves **any** entity that has `SimTransform` and `SimVelocity` but **not** `VehicleState` (vehicles are handled by `CarKinematicsSystem`):
 
 ```csharp
 // FDP.Toolkit.Physics or Fdp.Kernel
 // Covers: bullets, pedestrians, projectiles, map annotations with drift
-var q = World.Query().With<SimPosition>().With<SimVelocity>().Without<VehicleState>().Build();
+var q = World.Query().With<SimTransform>().With<SimVelocity>().Without<VehicleState>().Build();
 q.ForEachParallel(e => {
-    ref var pos = ref World.GetComponentRW<SimPosition>(e);
+    ref var tf  = ref World.GetComponentRW<SimTransform>(e);
     ref readonly var vel = ref World.GetComponentRO<SimVelocity>(e);
-    pos.Value += vel.Value * dt;
+    tf.Position += vel.Linear * dt;
 });
 ```
 
@@ -76,7 +73,7 @@ This system runs in `PostSimulation` phase, **after** `BallisticsSystem` (which 
 
 ### 2.4 Impact on `SpatialHashSystem`
 
-The spatial grid is now fed from **any** entity with `SimPosition` (optionally also `PhysicsCollider` for physics queries). Cars, pedestrians, buildings, and bullets all participate in the same grid automatically.
+The spatial grid is now fed from **any** entity with `SimTransform` (optionally also `PhysicsCollider` for physics queries). Cars, pedestrians, buildings, and bullets all participate in the same grid automatically.
 
 ### 2.5 Impact on Example Apps
 
@@ -84,17 +81,18 @@ Several existing example applications define their own ad-hoc `Position`/`Veloci
 
 | App | Files to delete | Migration |
 |---|---|---|
-| `Fdp.Examples.BattleRoyale` | `Components/Position.cs`, `Components/Velocity.cs` | Replace with `SimPosition`, `SimVelocity` from `Fdp.Kernel` |
-| `Fdp.Examples.NetworkDemo` | `Components/DemoComponents.cs` (`Position`, `Velocity`), `Components/DemoPosition.cs` | Replace with `SimPosition`, `SimVelocity`; map `PositionGeodetic` separately |
-| `Fdp.Examples.CarKinem` | All spawn/query sites using `VehicleState.Position` / `VehicleState.Forward` | Add `SimPosition`/`SimRotation`/`SimVelocity` to entity templates; read from universal components |
+| `Fdp.Examples.BattleRoyale` | `Components/Position.cs`, `Components/Velocity.cs` | Replace with `SimTransform`, `SimVelocity` from `Fdp.Kernel` |
+| `Fdp.Examples.NetworkDemo` | `Components/DemoComponents.cs` (`Position`, `Velocity`), `Components/DemoPosition.cs` | Replace with `SimTransform`, `SimVelocity`; map `PositionGeodetic` separately |
+| `Fdp.Examples.CarKinem` | All spawn/query sites using `VehicleState.Position` / `VehicleState.Forward` | Add `SimTransform`/`SimVelocity` to entity templates; read from universal components |
 
 ### 2.6 Cache Efficiency Analysis
 
-Because FDP is SoA (Structure of Arrays), each component type occupies its **own** contiguous memory buffer. Splitting `VehicleState` into `SimPosition` (12 bytes) + `SimRotation` (16 bytes) + `SimVelocity` (12 bytes) gives three dense, independently prefetchable streams:
+Because FDP is SoA (Structure of Arrays), each component type occupies its **own** contiguous memory buffer. Refactoring to `SimTransform` (28 bytes) + `SimVelocity` (24 bytes) gives two dense, independently prefetchable streams:
 
-- `SpatialHashSystem` streams *only* `SimPosition` (12 bytes/entity) → up to 5,460 positions per 64 KB L1 cache line set.
-- Systems that only need position (e.g. `AudioPerceptionSystem`) never pull in steering or health data.
-- The CPU hardware prefetcher handles 4 parallel streams in lockstep with ease on modern microarchitectures.
+- `SpatialHashSystem` streams *only* `SimTransform` (28 bytes/entity) → ~2,340 transforms per 64 KB L1 cache line set.
+- Systems that only need pose (e.g. `AudioPerceptionSystem`, rendering) never pull in velocity or health data.
+- Position and rotation are fetched together in the same cache line — most kinematics and rendering systems need both, so this avoids a second cache miss versus keeping them separate.
+- The CPU hardware prefetcher handles 2–3 parallel streams with ease on modern microarchitectures.
 
 ---
 
@@ -228,15 +226,15 @@ TargetVisibleEvent  [EventId 4003]  – Observer, Target, Position (sync→async
 
 | System | Thread | Phase | Responsibility |
 |---|---|---|---|
-| `AudioPerceptionSystem` | Main | Simulation | Consumes `AudioStimulusEvent`; queries `SpatialHashGrid` (2D, fed by `SimPosition`) within sound radius; reads `SimPosition` of listeners; updates `TargetMemory` directly |
-| `LosRequestBatchingSystem` | Main | BeforeSync | Transfers `LosCheckRequestEvent`s (with `Vector3` ray endpoints from `SimPosition`) from bus into `RaycastBatchData` for the physics toolkit |
-| `VisionBroadphaseSystem` | Async (SoD) | Simulation | Uses `SpatialHashGrid` + FOV cone test; forward vector derived from `SimRotation`; emits `LosCheckRequestEvent` |
+| `AudioPerceptionSystem` | Main | Simulation | Consumes `AudioStimulusEvent`; queries `SpatialHashGrid` (2D, fed by `SimTransform`) within sound radius; reads `SimTransform.Position` of listeners; updates `TargetMemory` directly |
+| `LosRequestBatchingSystem` | Main | BeforeSync | Transfers `LosCheckRequestEvent`s (with `Vector3` ray endpoints from `SimTransform.Position`) from bus into `RaycastBatchData` for the physics toolkit |
+| `VisionBroadphaseSystem` | Async (SoD) | Simulation | Uses `SpatialHashGrid` + FOV cone test; forward vector derived from `SimTransform.Rotation`; emits `LosCheckRequestEvent` |
 | `ThreatEvaluationSystem` | Async (SoD) | Simulation | Decays scores, integrates `TargetVisibleEvent` + `AudioStimulusEvent`; writes back via ECB |
 
 ### 4.4 PerceptionModule
 
 - `ExecutionPolicy`: `SlowBackground(10Hz)`, `DataStrategy.SoD`
-- Required snapshot components: `SimPosition`, `SimRotation`, `Faction`, `PerceptionReceptor`, `TargetMemory`
+- Required snapshot components: `SimTransform`, `Faction`, `PerceptionReceptor`, `TargetMemory`
 - Output: ECB commands to `SetComponent<TargetMemory>` on the live world
 
 > Design talk reference: lines 433–445 (async module idea), lines 556–580 (SoD pattern), lines 2440–2620 (full perception design)
@@ -269,8 +267,8 @@ Parameter/state structs (all < 32 bytes, stored in `LocomotionChannel.Params/Sta
 
 ### 5.2 Executor Classes
 
-- `MoveToExecutor`: `OnEnter` → projects `MoveToParams.Destination` (Vector2) into `NavState.FinalDestination`; reads `SimPosition.Value.XY` for distance checks; `Execute` → checks `NavState.HasArrived`.
-- `FleeExecutor`: throttled replanning; reads `SimPosition` of self and threat entity; computes away-vector; sets `NavState.FinalDestination`.
+- `MoveToExecutor`: `OnEnter` → projects `MoveToParams.Destination` (Vector2) into `NavState.FinalDestination`; reads `SimTransform.Position.XY` for distance checks; `Execute` → checks `NavState.HasArrived`.
+- `FleeExecutor`: throttled replanning; reads `SimTransform.Position` of self and threat entity; computes away-vector; sets `NavState.FinalDestination`.
 - `FollowRouteExecutor`: maps `TrajectoryId` → sets `NavState.Mode = CustomTrajectory`.
 - `FollowRoadGraphExecutor`: sets `NavState.Mode = RoadGraph`, `NavState.CurrentSegmentId`.
 
@@ -292,7 +290,7 @@ PassengerBuffer    – Count + fixed Entity[8] (used by APC)
 IsEmbarkedTag      – VehicleEntity (soldier inside vehicle)
 ```
 
-> Bullet entities receive `SimPosition`, `SimVelocity`, and `BallisticProjectile`. The universal `LinearKinematicsSystem` (§2.3) handles their movement. `BallisticProjectile.PreviousPosition` is written by `BallisticsSystem` each frame (before `LinearKinematicsSystem` moves the bullet) so the raycast solver gets a valid swept line-segment `Start=PreviousPosition, End=SimPosition.Value`. `Velocity` is **not** stored in `BallisticProjectile` — only in `SimVelocity`.
+> Bullet entities receive `SimTransform`, `SimVelocity`, and `BallisticProjectile`. The universal `LinearKinematicsSystem` (§2.3) handles their movement. `BallisticProjectile.PreviousPosition` is written by `BallisticsSystem` each frame (before `LinearKinematicsSystem` moves the bullet) so the raycast solver gets a valid swept line-segment `Start=PreviousPosition, End=SimTransform.Position`. `Velocity` is **not** stored in `BallisticProjectile` — only in `SimVelocity.Linear`.
 
 ### 6.2 Events
 
@@ -311,9 +309,9 @@ static class CombatActions { const ushort AimAndFire = 1; const ushort Suppress 
 
 | System | Phase | Responsibility |
 |---|---|---|
-| `AimAndFireExecutor` | — | Executor registered to `WeaponDispatcher`; reads `SimPosition` of shooter and target to compute aim direction; checks ammo/cooldown; emits `FireRequestEvent` |
-| `FireProcessingSystem` | Simulation | Consumes `FireRequestEvent`; spawns bullet entity with `SimPosition`, `SimVelocity`, `BallisticProjectile`; initialises `PreviousPosition = evt.Origin` |
-| `BallisticsSystem` | PostSimulation | Runs **before** `LinearKinematicsSystem`; writes `SimPosition → BallisticProjectile.PreviousPosition`; pushes `RaycastRequest(Start=Prev, End=SimPosition+SimVelocity*dt)`; despawns old bullets |
+| `AimAndFireExecutor` | — | Executor registered to `WeaponDispatcher`; reads `SimTransform.Position` of shooter and target to compute aim direction; checks ammo/cooldown; emits `FireRequestEvent` |
+| `FireProcessingSystem` | Simulation | Consumes `FireRequestEvent`; spawns bullet entity with `SimTransform`, `SimVelocity`, `BallisticProjectile`; initialises `PreviousPosition = evt.Origin` |
+| `BallisticsSystem` | PostSimulation | Runs **before** `LinearKinematicsSystem`; writes `SimTransform.Position → BallisticProjectile.PreviousPosition`; pushes `RaycastRequest(Start=Prev, End=SimTransform.Position+SimVelocity.Linear*dt)`; despawns old bullets |
 | `HitResolutionSystem` | Input (next frame) | Reads `RaycastBatchData.Hits`; emits `HitEvent`; destroys hit bullet entities |
 | `DamageSystem` | Simulation | Consumes `HitEvent`; lowers `Health`; strips `ActorCapabilityState` bits |
 
@@ -410,21 +408,21 @@ Headless, single-node, deterministic 10-second (600-frame) simulation.
 ### 9.2 TKB Blueprints
 
 **CivilianPedestrian (ID 1001):**  
-`SimPosition`, `SimRotation`, `SimVelocity`, `SimTier(1)`, `DoctrineState`, `ActorCapabilityState(CanMove)`, `LocomotionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Pedestrian)`, `NavState`, `PerceptionReceptor(vision=30, hear=100)`, `TargetMemory`, `PhysicsCollider(r=0.4, layer=1)`
+`SimTransform`, `SimVelocity`, `SimTier(1)`, `DoctrineState`, `ActorCapabilityState(CanMove)`, `LocomotionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Pedestrian)`, `NavState`, `PerceptionReceptor(vision=30, hear=100)`, `TargetMemory`, `PhysicsCollider(r=0.4, layer=1)`
 
 **CivilianCar (ID 1002):**  
-`SimPosition`, `SimRotation`, `SimVelocity`, `SimTier(1)`, `DoctrineState`, `ActorCapabilityState(CanMove)`, `LocomotionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(PersonalCar)`, `NavState`, `PhysicsCollider(r=2, layer=1)`
+`SimTransform`, `SimVelocity`, `SimTier(1)`, `DoctrineState`, `ActorCapabilityState(CanMove)`, `LocomotionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(PersonalCar)`, `NavState`, `PhysicsCollider(r=2, layer=1)`
 
 **MilitaryAPC (ID 2001):**  
-`SimPosition`, `SimRotation`, `SimVelocity`, `SimTier(2)`, `DoctrineState(BrainTier=2)`, `BrainHsm128`, `BrainBlackboard`, `ActorCapabilityState(CanMove|CanInteract)`, `LocomotionChannel`, `InteractionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Tank)`, `NavState`, `Health(500)`, `PhysicsCollider(r=3.5, layer=1)`, `PassengerBuffer`, `Faction(TeamId=1)`
+`SimTransform`, `SimVelocity`, `SimTier(2)`, `DoctrineState(BrainTier=2)`, `BrainHsm128`, `BrainBlackboard`, `ActorCapabilityState(CanMove|CanInteract)`, `LocomotionChannel`, `InteractionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Tank)`, `NavState`, `Health(500)`, `PhysicsCollider(r=3.5, layer=1)`, `PassengerBuffer`, `Faction(TeamId=1)`
 
 **InfantrySoldier (ID 2002):**  
-`SimPosition`, `SimRotation`, `SimVelocity`, `SimTier(2)`, `DoctrineState(BrainTier=2)`, `BrainBTreeState`, `BrainBlackboard`, `ActorCapabilityState(CanMove|CanShoot)`, `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Pedestrian)`, `NavState`, `Health(100)`, `WeaponState(ammo=30, rate=5Hz, range=200, damage=25)`, `PerceptionReceptor(vision=150, hear=200)`, `TargetMemory`, `PhysicsCollider(r=0.4, layer=1)`, `Faction(TeamId=1)`
+`SimTransform`, `SimVelocity`, `SimTier(2)`, `DoctrineState(BrainTier=2)`, `BrainBTreeState`, `BrainBlackboard`, `ActorCapabilityState(CanMove|CanShoot)`, `LocomotionChannel`, `WeaponChannel`, `InteractionChannel`, `VehicleState(Speed,Steer,Accel)`, `VehicleParams(Pedestrian)`, `NavState`, `Health(100)`, `WeaponState(ammo=30, rate=5Hz, range=200, damage=25)`, `PerceptionReceptor(vision=150, hear=200)`, `TargetMemory`, `PhysicsCollider(r=0.4, layer=1)`, `Faction(TeamId=1)`
 
 **Insurgent (ID 2003):**  
 Same as `InfantrySoldier` but `Faction(TeamId=2)`, `WeaponState(ammo=1, range=300, damage=500, rate=0.1Hz)` (RPG)
 
-> **Bullet entities (spawned at runtime):** `SimPosition`, `SimVelocity`, `BallisticProjectile`, `PhysicsCollider(r=0.05, layer=2)` — no `VehicleState`.
+> **Bullet entities (spawned at runtime):** `SimTransform`, `SimVelocity`, `BallisticProjectile`, `PhysicsCollider(r=0.05, layer=2)` — no `VehicleState`.
 
 ### 9.3 Road Graph
 
@@ -503,9 +501,9 @@ FRAME START
 │
 ├── [PostSimulation]
 │   ├── BallisticsSystem           ← Combat: capture PreviousPosition → push RaycastRequests (runs BEFORE LinearKinematics)
-│   ├── LinearKinematicsSystem     ← Physics: pos += vel*dt for all (SimPosition+SimVelocity) without VehicleState
-│   ├── CarKinematicsSystem        ← CarKinem: RVO + bicycle model → writes SimPosition/SimRotation/SimVelocity
-│   └── SpatialHashSystem          ← CarKinem: rebuild grid from SimPosition (all entities)
+│   ├── LinearKinematicsSystem     ← Physics: pos += vel*dt for all (SimTransform+SimVelocity) without VehicleState
+│   ├── CarKinematicsSystem        ← CarKinem: RVO + bicycle model → writes SimTransform/SimVelocity
+│   └── SpatialHashSystem          ← CarKinem: rebuild grid from SimTransform.Position (all entities)
 │
 └── [Export]
     └── TelemetryReporterSystem    ← Demo: console debug output
