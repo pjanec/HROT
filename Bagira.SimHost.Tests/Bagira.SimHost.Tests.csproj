@@ -22,6 +22,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bagira.SimHost\Bagira.SimHost.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
   </ItemGroup>
-
 </Project>

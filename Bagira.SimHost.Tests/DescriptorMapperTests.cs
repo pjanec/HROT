@@ -3,7 +3,7 @@ using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
 using Bagira.SimHost.Util;
-using CarKinem.Core;
+using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 
 namespace Bagira.SimHost.Tests
@@ -96,16 +96,16 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geo);
 
-            // Should produce both a GeoSpatial component and a VehicleState component
-            Assert.Equal(2, components.Count);
+            // Should produce both GeoSpatial, SimTransform and VehicleState component
+            Assert.Equal(3, components.Count);
 
             var geoSpatial = Assert.IsType<GeoSpatial>(components[0]);
             Assert.Equal(48.0, geoSpatial.Pos.Latitude, precision: 5);
 
-            var vehicleState = Assert.IsType<VehicleState>(components[1]);
+            var simState = Assert.IsType<SimTransform>(components[1]);
             // IdentityGeoTransform returns (lon, lat, alt) → Position.X = lon, Position.Y = lat
-            Assert.Equal(16f, vehicleState.Position.X, precision: 3);
-            Assert.Equal(48f, vehicleState.Position.Y, precision: 3);
+            Assert.Equal(16f, simState.Position.X, precision: 3);
+            Assert.Equal(48f, simState.Position.Y, precision: 3);
         }
 
         [Fact]

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using CarKinem.Core;
+using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using Fdp.Modules.Geographic;
 
@@ -82,10 +83,24 @@ namespace Bagira.SimHost.Util
                             var pos = d.GeoSpatial.Pos;
                             var cart = geoTransform.ToCartesian(pos.Latitude, pos.Longitude, pos.Altitude);
 
+                            // Create SimTransform
+                            // Use cartesian coords computed above
+                            var cartPos = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
+                            // Heading is degrees CW from North.
+                            float headingRad = d.GeoSpatial.Rot.Heading * (MathF.PI / 180f);
+                            // To match HeadingToVector logic: North=(0,1), East=(1,0)
+                            // Yaw=-90 rotates (0,1) to (1,0).
+                            // So Yaw = -headingRad.
+                            var rot = Quaternion.CreateFromYawPitchRoll(-headingRad, 0, 0);
+
+                            result.Add(new SimTransform
+                            {
+                                Position = cartPos,
+                                Rotation = rot
+                            });
+
                             result.Add(new VehicleState
                             {
-                                Position   = new Vector2(cart.X, cart.Y),
-                                Forward    = HeadingToVector(d.GeoSpatial.Rot.Heading),
                                 Speed      = 0f,
                                 SteerAngle = 0f,
                             });
