@@ -354,8 +354,10 @@ kernel.RegisterModule(new SpawningModule());
    - Red = unknown
    - Size = 10 pixels
 2. Add `EntityRenderLayer` to MapCanvas
-3. Create query: `With<EntityMasterComponent, SimTransform>`
+3. Create query: `With<EntityMasterComponent, SimPosition>` (⚠️ Phase 0: was `SimTransform`)
 4. Test with SimHost spawning 10 entities
+
+> ⚠️ **Phase 0 Adaptation (SimPosition / SimRotation):** Every reference to `SimTransform` in this document must be replaced by `SimPosition` (and `SimRotation` where heading is also needed) from `Fdp.Kernel` (completed in BCS-P0-T1). Replace all field accesses: `transform.Position` → `simPos.Value`; `transform.Rotation` → `simRot.Value`. Replace all queries: `With<SimTransform>()` → `With<SimPosition>()`. Replace all component reads: `GetComponentRO<SimTransform>()` → `GetComponentRO<SimPosition>()`. Replace all spawn calls: `new SimTransform { Position = x }` → `new SimPosition { Value = x }`. This note applies to **all tasks** below that reference `SimTransform`.
 
 **Implementation:**
 ```csharp
@@ -363,10 +365,10 @@ public class StubVisualizerAdapter : IVisualizerAdapter
 {
     public void Render(Entity entity, ISimulationView view, RenderContext ctx)
     {
-        if (!view.TryGetComponent<SimTransform>(entity, out var transform))
+        if (!view.TryGetComponent<SimTransform>(entity, out var transform)) // ⚠️ Phase 0: → TryGetComponent<SimPosition>(entity, out var simPos)
             return;
         
-        var screenPos = ctx.Camera.WorldToScreen(new Vector2(transform.Position.X, transform.Position.Y));
+        var screenPos = ctx.Camera.WorldToScreen(new Vector2(transform.Position.X, transform.Position.Y)); // ⚠️ Phase 0: transform.Position → simPos.Value
         Raylib.DrawCircle((int)screenPos.X, (int)screenPos.Y, 10, Color.Red);
         
         // Draw entity ID
@@ -381,8 +383,8 @@ public class StubVisualizerAdapter : IVisualizerAdapter
     {
         foreach (var entity in query.Entities)
         {
-            var transform = view.GetComponentRO<SimTransform>(entity);
-            float dist = Vector2.Distance(new Vector2(transform.Position.X, transform.Position.Y), worldPos);
+            var transform = view.GetComponentRO<SimTransform>(entity); // ⚠️ Phase 0: → GetComponentRO<SimPosition>(entity); rename to simPos
+            float dist = Vector2.Distance(new Vector2(transform.Position.X, transform.Position.Y), worldPos); // ⚠️ Phase 0: → simPos.Value.X, simPos.Value.Y
             if (dist < 10) return entity;
         }
         return null;
@@ -469,7 +471,7 @@ public class StubVisualizerAdapter : IVisualizerAdapter
 1. Create `StyleResolutionSystem`:
    - Phase: `Simulation`
    - UpdateAfter: `NetworkIngressPhase`
-2. Query: `With<EntityMasterComponent, SimTransform>`
+2. Query: `With<EntityMasterComponent, SimPosition>` (⚠️ Phase 0: was `SimTransform`)
 3. Resolution layers:
    - **Layer 1 (TKB)**: Read `IgVisualDef` from TkbDatabase
    - **Layer 2 (Network)**: Apply `MapEntitySymbol` overrides (color, label, texture)
@@ -494,6 +496,7 @@ public class StyleResolutionSystem : ComponentSystem
     
     protected override void OnUpdate()
     {
+        // ⚠️ Phase 0 Adaptation: Change query to With<EntityMasterComponent, SimPosition>(). Rename ref transform → ref simPos.
         Entities.With<EntityMasterComponent, SimTransform>().ForEach((entity, ref master, ref transform) =>
         {
             // Layer 1: TKB defaults
@@ -604,12 +607,12 @@ public class SstVisualizerAdapter : IVisualizerAdapter
     public void Render(Entity entity, ISimulationView view, RenderContext ctx)
     {
         var style = view.GetComponentRO<ResolvedStyle>(entity);
-        var transform = view.GetComponentRO<SimTransform>(entity);
+        var transform = view.GetComponentRO<SimTransform>(entity); // ⚠️ Phase 0: → GetComponentRO<SimPosition>(); rename var to simPos
         
         if (!view.TryGetComponent<CullingState>(entity, out var culling) || !culling.IsVisible)
             return;
         
-        var screenPos = ctx.Camera.WorldToScreen(new Vector2(transform.Position.X, transform.Position.Y));
+        var screenPos = ctx.Camera.WorldToScreen(new Vector2(transform.Position.X, transform.Position.Y)); // ⚠️ Phase 0: transform.Position → simPos.Value
         
         // Draw icon
         if (!string.IsNullOrEmpty(style.TextureName))
@@ -682,10 +685,10 @@ public class SstVisualizerAdapter : IVisualizerAdapter
         
         foreach (var entity in query.Entities)
         {
-            if (!view.TryGetComponent<SimTransform>(entity, out var transform))
+            if (!view.TryGetComponent<SimTransform>(entity, out var transform)) // ⚠️ Phase 0: → SimPosition
                 continue;
             
-            var entityPos2D = new Vector2(transform.Position.X, transform.Position.Y);
+            var entityPos2D = new Vector2(transform.Position.X, transform.Position.Y); // ⚠️ Phase 0: → simPos.Value.X, simPos.Value.Y
             float dist = Vector2.Distance(entityPos2D, worldPos);
             
             if (dist < PICK_RADIUS)
@@ -725,8 +728,7 @@ Create dummy textures in `assets/symbols/`:
 **Steps:**
 1. Create `MapCullingSystem`:
    - Phase: PreRender  
-   - Query: `With<SimTransform>`
-2. Read `MapCameraState` singleton (populated by MapCanvas)
+   - Query: `With<SimPosition>` (⚠️ Phase 0: was `With<SimTransform>`) (populated by MapCanvas)
 3. Compute frustum from camera bounds
 4. For each entity:
    - Check if position inside frustum
@@ -747,9 +749,8 @@ public class MapCullingSystem : ComponentSystem
         var frustum = camera.ViewBounds; // Rectangle in world space
         var zoom = camera.Zoom;
         
+        // ⚠️ Phase 0 Adaptation: Change query to With<SimPosition>(). Rename ref transform → ref simPos. Update pos2D to use simPos.Value.X/Y.
         Entities.With<SimTransform>().ForEach((entity, ref transform) =>
-        {
-            var pos2D = new Vector2(transform.Position.X, transform.Position.Y);
             bool inFrustum = frustum.Contains(pos2D);
             
             byte lod = 0;
@@ -826,7 +827,7 @@ public class MapCullingSystem : ComponentSystem
 
 **Steps:**
 1. Create `StandardInteractionTool` instance
-2. Pass ECS query: `With<EntityMasterComponent, SimTransform>`
+2. Pass ECS query: `With<EntityMasterComponent, SimPosition>` (⚠️ Phase 0: was `SimTransform`)
 3. Pass `SstVisualizerAdapter` for picking
 4. Subscribe to events:
    - `OnEntitySelectRequest` → Update `SelectionState` component
@@ -838,7 +839,7 @@ public class MapCullingSystem : ComponentSystem
 ```csharp
 var selectionTool = new StandardInteractionTool(
     _world,
-    _world.Query().With<EntityMasterComponent, SimTransform>().Build(),
+    _world.Query().With<EntityMasterComponent, SimPosition>().Build(), // ⚠️ Phase 0: SimTransform → SimPosition
     _visualizerAdapter
 );
 
@@ -880,7 +881,7 @@ _canvas.SwitchTool(selectionTool);
 **Steps:**
 1. Create `SelectionRenderSystem`:
    - Phase: PostRender
-   - Query: `With<SelectionState, SimTransform>`
+   - Query: `With<SelectionState, SimPosition>` (⚠️ Phase 0: was `With<SelectionState, SimTransform>`)
 2. For selected entities:
    - Draw yellow circle outline (radius 25 px)
    - Draw green fill circle for primary selection (first selected)
@@ -895,6 +896,7 @@ public class SelectionRenderSystem : ComponentSystem
     {
         var camera = World.GetSingleton<MapCameraState>();
         
+        // ⚠️ Phase 0 Adaptation: Change query to With<SelectionState, SimPosition>(). Rename ref transform → ref simPos.
         Entities.With<SelectionState, SimTransform>().ForEach((entity, ref sel, ref transform) =>
         {
             if (!sel.IsSelected) return;
@@ -1188,7 +1190,7 @@ public class MeasureTool : IMapTool
    ```
 2. Create `HistoryRecordingSystem`:
    - Phase: Simulation
-   - Query: `With<SimTransform, ResolvedStyle, HistoryTrail>`
+   - Query: `With<SimPosition, ResolvedStyle, HistoryTrail>` (⚠️ Phase 0: was `With<SimTransform, ResolvedStyle, HistoryTrail>`)
 3. Logic:
    - If `ResolvedStyle.ShowTrail == true`:
      - Sample position every `SampleInterval` seconds
@@ -1208,6 +1210,7 @@ public class HistoryRecordingSystem : ComponentSystem
     {
         var currentTime = World.GetSingleton<GlobalTime>().TotalTime;
         
+        // ⚠️ Phase 0 Adaptation: Change query to With<SimPosition, ResolvedStyle, HistoryTrail>(). Rename ref transform → ref simPos.
         Entities.With<SimTransform, ResolvedStyle, HistoryTrail>().ForEach((entity, ref transform, ref style, ref trail) =>
         {
             if (!style.ShowTrail) return;
@@ -1306,7 +1309,7 @@ public class EventToEffectSystem : ComponentSystem
         {
             // Spawn explosion
             var explosion = World.CreateEntity();
-            World.SetComponent(explosion, new SimTransform { Position = evt.TargetPosition });
+            World.SetComponent(explosion, new SimTransform { Position = evt.TargetPosition }); // ⚠️ Phase 0: → World.AddComponent(explosion, new SimPosition { Value = evt.TargetPosition })
             World.SetComponent(explosion, new VisualEffectState
             {
                 Type = EffectType.Explosion,
@@ -1318,7 +1321,7 @@ public class EventToEffectSystem : ComponentSystem
             
             // Spawn tracer
             var tracer = World.CreateEntity();
-            World.SetComponent(tracer, new SimTransform { Position = evt.ShooterPosition });
+            World.SetComponent(tracer, new SimTransform { Position = evt.ShooterPosition }); // ⚠️ Phase 0: → World.AddComponent(tracer, new SimPosition { Value = evt.ShooterPosition })
             World.SetComponent(tracer, new TracerTarget { EndPos = evt.TargetPosition });
             World.SetComponent(tracer, new VisualEffectState
             {
@@ -1352,6 +1355,7 @@ public class VisualEffectCleanupSystem : ComponentSystem
 ```csharp
 public void RenderEffects(RenderContext ctx)
 {
+    // ⚠️ Phase 0 Adaptation: Change query to With<VisualEffectState, SimPosition>(). Rename ref transform → ref simPos.
     Entities.With<VisualEffectState, SimTransform>().ForEach((entity, ref effect, ref transform) =>
     {
         var screenPos = ctx.Camera.WorldToScreen(new Vector2(transform.Position.X, transform.Position.Y));
@@ -1759,7 +1763,7 @@ public void DrawDebugPanel()
 1. Create `EntityInspectorPanel`:
    - Show selected entity info
    - EntityMaster: TkbType, DisType
-   - SimTransform: Position (Lat/Lon/Alt), Heading
+   - SimPosition + SimRotation: Position (Lat/Lon/Alt), Heading (⚠️ Phase 0: was `SimTransform`: Position, Heading)
    - ResolvedStyle: Texture, Affiliation, Damage
    - EntityInfo: Name, Commander, Subordinates
    - EntityMission: Active task, mission plan
@@ -1789,8 +1793,8 @@ public void DrawEntityInspector()
         ImGui.Text($"DIS Type: {master.DisType}");
     }
     
-    // SimTransform
-    if (_world.TryGetComponent<SimTransform>(selected, out var transform))
+    // SimPosition + SimRotation (⚠️ Phase 0: was SimTransform)
+    if (_world.TryGetComponent<SimTransform>(selected, out var transform)) // ⚠️ Phase 0: → TryGetComponent<SimPosition>
     {
         var geo = _geoTransform.ToGeodetic(transform.Position);
         ImGui.Text($"Position:");

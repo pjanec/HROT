@@ -320,11 +320,13 @@ public class TransformSyncSystem : ComponentSystem
 {
     protected override void OnUpdate(float dt)
     {
+        // ⚠️ Phase 0 Adaptation: Change query to With<NetworkReceivedState, SimPosition, SimRotation>()
+        //   and rename parameter: ref transform → ref simPos. Update field write below accordingly.
         Entities.With<NetworkReceivedState, SimTransform>().ForEach((entity, ref state, ref transform) =>
         {
             // Interpolate 10Hz snapshots → 60Hz smooth position
             float alpha = ComputeAlpha(state.ReceivedTime, currentTime);
-            transform.Position = Vector3.Lerp(state.LastPos, state.TargetPos, alpha);
+            transform.Position = Vector3.Lerp(state.LastPos, state.TargetPos, alpha); // ⚠️ Phase 0: → simPos.Value = Vector3.Lerp(...)
         });
     }
 }
@@ -564,12 +566,18 @@ _timeController.SeedState(new GlobalTime { TotalTime = replayTime });
 ### 4.1 ECS Components
 
 **SimTransform** (Internal Cartesian position):
+
+> ⚠️ **Phase 0 Adaptation (SimPosition / SimRotation):** Do **not** implement `SimTransform`. This struct is fully superseded by two standard kernel components added in BCS-P0-T1: `SimPosition { Vector3 Value }` and `SimRotation { Quaternion Value }` from `Fdp.Kernel`. Replace every field access throughout this document and all implementation code:
+> - `transform.Position` → `simPos.Value`
+> - `transform.Rotation` → `simRot.Value`
+>
+> Update all ECS queries: `With<SimTransform>()` → `With<SimPosition>()` (add `SimRotation` as a second component only where heading is also needed). Entities previously receiving `SimTransform` must instead receive both `SimPosition` and `SimRotation` components at spawn. See also the same correction in **TASK-DETAILS-IG.md** — every `SimTransform` reference there requires the same substitution.
+
 ```csharp
 public struct SimTransform
 {
     public Vector3 Position;    // Flat Cartesian (meters)
     public Quaternion Rotation;
-    public float Scale;
 }
 ```
 
@@ -579,7 +587,7 @@ public struct NetworkReceivedState
 {
     public Vector3 LastPos;
     public Vector3 TargetPos;
-    public Vector3 Velocity;
+    public Vector3 Velocity;         // ⚠️ Phase 0: rename to DrVelocity — conflicts with SimVelocity from Fdp.Kernel
     public Vector3 Acceleration;
     public double ReceivedTime;
     public double TargetTime;
@@ -671,6 +679,7 @@ public class StyleResolutionSystem : ComponentSystem
     
     protected override void OnUpdate()
     {
+        // ⚠️ Phase 0 Adaptation: Change query to With<EntityMaster, SimPosition>(). Rename ref transform → ref simPos.
         Entities.With<EntityMaster, SimTransform>().ForEach((entity, ref master, ref transform) =>
         {
             var template = _tkb.GetTemplate(master.TkbType);
@@ -729,9 +738,10 @@ public class MapCullingSystem : ComponentSystem
         var frustum = camera.ViewBounds;
         var zoom = camera.Zoom;
         
+        // ⚠️ Phase 0 Adaptation: Change query to With<SimPosition>(). Read position as: simPos.Value.X / simPos.Value.Y.
         Entities.With<SimTransform>().ForEach((entity, ref transform) =>
         {
-            bool inFrustum = frustum.Contains(new Vector2(transform.Position.X, transform.Position.Y));
+            bool inFrustum = frustum.Contains(new Vector2(transform.Position.X, transform.Position.Y)); // ⚠️ Phase 0: → simPos.Value.X, simPos.Value.Y
             
             byte lod = 0;
             if (zoom < 0.1f) lod = 2; // Far: icon only
@@ -762,6 +772,7 @@ public class HistoryRecordingSystem : ComponentSystem
     {
         var currentTime = World.GetSingleton<GlobalTime>().TotalTime;
         
+        // ⚠️ Phase 0 Adaptation: Change query to With<SimPosition, ResolvedStyle, HistoryTrail>(). Rename ref transform → ref simPos.
         Entities.With<SimTransform, ResolvedStyle, HistoryTrail>().ForEach((entity, ref transform, ref style, ref trail) =>
         {
             if (!style.ShowTrail) return;
@@ -769,7 +780,7 @@ public class HistoryRecordingSystem : ComponentSystem
             double elapsed = currentTime - trail.LastSampleTime;
             if (elapsed >= trail.SampleInterval)
             {
-                trail.Points.Add(transform.Position);
+                trail.Points.Add(transform.Position); // ⚠️ Phase 0: → simPos.Value
                 
                 if (trail.Points.Length > trail.MaxPoints)
                     trail.Points.RemoveAt(0); // Circular buffer
@@ -800,6 +811,7 @@ public class EventToEffectSystem : ComponentSystem
         {
             // Spawn explosion at target
             var explosion = World.CreateEntity();
+            // ⚠️ Phase 0 Adaptation: Replace with World.AddComponent(explosion, new SimPosition { Value = evt.TargetPosition });
             World.SetComponent(explosion, new SimTransform { Position = evt.TargetPosition });
             World.SetComponent(explosion, new VisualEffectState
             {
@@ -811,6 +823,7 @@ public class EventToEffectSystem : ComponentSystem
             
             // Spawn tracer from shooter to target
             var tracer = World.CreateEntity();
+            // ⚠️ Phase 0 Adaptation: Replace with World.AddComponent(tracer, new SimPosition { Value = evt.ShooterPosition });
             World.SetComponent(tracer, new SimTransform { Position = evt.ShooterPosition });
             World.SetComponent(tracer, new VisualEffectState
             {
@@ -930,12 +943,13 @@ public class SstVisualizerAdapter : IVisualizerAdapter
     public void Render(Entity entity, ISimulationView view, RenderContext ctx)
     {
         var style = view.GetComponentRO<ResolvedStyle>(entity);
+        // ⚠️ Phase 0 Adaptation: Change to view.GetComponentRO<SimPosition>(entity). Update field: transform.Position.X/Y → simPos.Value.X/Y.
         var transform = view.GetComponentRO<SimTransform>(entity);
         var culling = view.GetComponentRO<CullingState>(entity);
         
         if (!culling.IsVisible) return;
         
-        var screenPos = ctx.Camera.WorldToScreen(new Vector2(transform.Position.X, transform.Position.Y));
+        var screenPos = ctx.Camera.WorldToScreen(new Vector2(transform.Position.X, transform.Position.Y)); // ⚠️ Phase 0: → simPos.Value.X, simPos.Value.Y
         
         // Draw icon
         var texture = GetTexture(style.TextureName);
