@@ -65,7 +65,8 @@ FDP/
 | `IModule` / `IModuleSystem` | `ModuleHost.Core/Abstractions` | Module registration and async execution policy |
 | `ModuleHostKernel` | `ModuleHost.Core` | Orchestrates module lifecycle, executes phase order |
 | `SystemPhase` | `ModuleHost.Core/Abstractions` | Input → BeforeSync → Simulation → PostSimulation → Export |
-| `VehicleState`, `NavState` | `Toolkits/FDP.Toolkit.CarKinem/Core` | Physical state + navigation intent |
+| `SimPosition`, `SimRotation`, `SimVelocity` | `Kernel/Fdp.Kernel` | Universal spatial presence — every entity with a world position uses these (**Phase 0**) |
+| `VehicleState`, `NavState` | `Toolkits/FDP.Toolkit.CarKinem/Core` | Motor internals (speed, steer) + navigation intent; `VehicleState` no longer holds position/forward after Phase 0 |
 | `BehaviorTreeState` | `ExtDeps/FastBTree/src/Fbt.Kernel` | 64-byte per-entity BTree stack state |
 | `HsmInstance128` | `ExtDeps/FastHSM/src/Fhsm.Kernel/Data` | Unmanaged HSM instance (state machine state) |
 | `TkbDatabase` / `TkbTemplate` | `Toolkits/FDP.Toolkit.Tkb` | Entity blueprints (component presets for spawning) |
@@ -75,7 +76,7 @@ FDP/
 ## Start Reading
 
 1. **[DESIGN.md](./DESIGN.md)** — Read this first. It describes the entire architecture: component layouts, system pipeline, demo scenario, and how all toolkits interconnect.
-2. **Design talk** — `Docs/Behavior Control Subsystem Design.json.md` is the original AI-assisted design conversation (4802 lines). It contains detailed rationale and worked examples for every architectural decision. DESIGN.md references specific line ranges for each major topic.
+2. **Design talk** — `Docs/Behavior Control Subsystem Design.json.md` is the original AI-assisted design conversation (5258 lines; Universal Spatial Primitives discussion starts at line 4804). It contains detailed rationale and worked examples for every architectural decision. DESIGN.md references specific line ranges for each major topic.
 3. **[TASK-DETAIL.md](./TASK-DETAIL.md)** — Every task has a description and concrete unit-test success conditions. Pick up a task from [TASK-TRACKER.md](./TASK-TRACKER.md) and use this as your spec.
 
 ---
@@ -192,6 +193,7 @@ All simulation mechanics belong in the toolkit layer.
 
 - Tests use xUnit.
 - The `TestWorldFactory.Create()` helper (to be written) creates a minimal `EntityRepository` with only the components registered by the toolkit under test.
+- **Start with Phase 0 tests** — `SimComponentTests.cs` in `Fdp.Kernel.Tests` and `VehicleStateRefactorTests.cs` in `FDP.Toolkit.CarKinem.Tests` gate everything else. Do not begin Phase 1 until all Phase 0 tests are green and the entire solution builds.
 - Prefer unit tests per-system over end-to-end tests; the integration test in P7-T9 is the single end-to-end assertion.
 - Console output from `TelemetryReporterSystem` is the primary observable in integration tests — redirect `Console.Out` to a `StringWriter` and check for expected substrings.
 

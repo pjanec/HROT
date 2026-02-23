@@ -5,6 +5,20 @@
 
 ---
 
+## Phase 0: Universal Spatial Primitives
+
+**Goal:** Standardize position/rotation/velocity representation across the entire FDP engine before any behavior toolkit work begins.  
+**Scope:** `Fdp.Kernel` (new components), `FDP.Toolkit.CarKinem` (refactor), `Fdp.Examples.CarKinem`, `Fdp.Examples.BattleRoyale`, `Fdp.Examples.NetworkDemo`
+
+- [ ] **BCS-P0-T1** `SimPosition`, `SimRotation`, `SimVelocity`, `SimAngularVelocity` in `Fdp.Kernel` [details](./TASK-DETAIL.md#bcs-p0-t1--simposition--simrotation--simvelocity--simangularvelocity-in-fdpkernel)
+- [ ] **BCS-P0-T2** Refactor `VehicleState` (remove Position/Forward/Pitch/Roll) + `CarKinematicsSystem` 2D↔3D bridge [details](./TASK-DETAIL.md#bcs-p0-t2--refactor-vehiclestate-and-carkinematicssystem)
+- [ ] **BCS-P0-T3** Refactor `SpatialHashSystem` to query `SimPosition` (universal grid) [details](./TASK-DETAIL.md#bcs-p0-t3--refactor-spatialhashsystem-to-use-simposition)
+- [ ] **BCS-P0-T4** Migrate `Fdp.Examples.CarKinem` to `SimPosition`/`SimRotation`/`SimVelocity` [details](./TASK-DETAIL.md#bcs-p0-t4--migrate-fdpexamplescarkinem)
+- [ ] **BCS-P0-T5** Migrate `Fdp.Examples.BattleRoyale` (delete local `Position.cs`/`Velocity.cs`) [details](./TASK-DETAIL.md#bcs-p0-t5--migrate-fdpexamplesbattleroyale)
+- [ ] **BCS-P0-T6** Migrate `Fdp.Examples.NetworkDemo` (delete `DemoPosition`, remove local `Position`/`Velocity` structs) [details](./TASK-DETAIL.md#bcs-p0-t6--migrate-fdpexamplesnetworkdemo)
+
+---
+
 ## Phase 1: FDP.Toolkit.Behavior – Core Infrastructure
 
 **Goal:** Define all behavior components, channels, dispatcher infrastructure, Brain VM adapters, and doctrine lifecycle management.  
@@ -101,6 +115,7 @@
 
 | Phase | Tasks | Done |
 |---|---|---|
+| Phase 0 – Universal Spatial Primitives | 6 | 0 |
 | Phase 1 – Behavior Core | 7 | 0 |
 | Phase 2 – Perception | 4 | 0 |
 | Phase 3 – Navigation | 5 | 0 |
@@ -108,4 +123,4 @@
 | Phase 5 – Combat | 5 | 0 |
 | Phase 6 – Behavior Advanced | 3 | 0 |
 | Phase 7 – Demo App | 9 | 0 |
-| **Total** | **37** | **0** |
+| **Total** | **43** | **0** |
