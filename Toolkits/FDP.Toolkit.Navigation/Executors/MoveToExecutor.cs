@@ -28,6 +28,16 @@ namespace FDP.Toolkit.Navigation.Executors
         //   + Allocation happens once at startup; dictionary is reused for the lifetime of the system.
         //   - Dictionary look-up is O(1) amortised but not as cache-friendly as a component array.
         //   Acceptable for the frustration path (called at most once per tick per moving entity).
+        //
+        // OnExit guarantee (DEBT-018 resolution):
+        //   OnExit is called by DispatcherSystemBase when a new action preempts the current one
+        //   (ActionInstanceId != DispatchedInstanceId). However, if an entity is destroyed while
+        //   a MoveTo action is still Running, the entity leaves the dispatcher query and OnExit
+        //   is NOT called. This means _stuckTicks will leak one entry per entity that dies
+        //   mid-action. The Execute fallback below removes the entry when the entity is dead,
+        //   providing a best-effort cleanup for the same-frame destruction case.
+        //   NOTE: OnExit is NOT guaranteed by DispatcherSystemBase on entity destruction
+        //   (verified BATCH-08, case b is unhandled).
         private readonly Dictionary<int, int> _stuckTicks = new();
 
         // ── OnEnter ──────────────────────────────────────────────────────────────────────────────
@@ -56,6 +66,17 @@ namespace FDP.Toolkit.Navigation.Executors
 
         public unsafe void Execute(Entity entity, ref LocomotionChannel channel, EntityRepository world, float dt)
         {
+            // DEBT-018 fallback: If the entity was destroyed in the same frame by another system
+            // (e.g., via immediate DestroyEntity on the main thread), OnExit was never called.
+            // Remove the stale counter entry so it does not accumulate indefinitely.
+            // This is a defensive guard; Execute should only be called for living entities in
+            // normal dispatcher flow, but entity death during iteration is a valid edge case.
+            if (!world.IsAlive(entity))
+            {
+                _stuckTicks.Remove(entity.Index);
+                return;
+            }
+
             var nav = world.GetComponent<NavState>(entity);
 
             // ── Arrival check ─────────────────────────────────────────────────────────────────

@@ -1,0 +1,48 @@
+namespace FDP.Toolkit.Physics
+{
+    /// <summary>
+    /// Shared numeric constants for the Physics toolkit.
+    /// Using named constants throughout ensures a single point of truth for all
+    /// magic numbers; raw literals in production code are forbidden.
+    /// </summary>
+    public static class PhysicsConstants
+    {
+        // ── Raycast batch limits ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Maximum number of ray requests that can be batched per frame.
+        /// Pre-allocated at module init; do not exceed this limit per frame.
+        /// </summary>
+        public const int RaycastBatchCapacity = 4096;
+
+        /// <summary>
+        /// Extra expansion (metres) added to the AABB radius when querying the spatial
+        /// hash grid for broadphase candidate entities. Ensures that entities whose
+        /// bounding circle extends into the ray's axis-aligned bounding box are included
+        /// even if their centre is slightly outside the ray's tight bounding box.
+        /// </summary>
+        public const int QueryExpansionMeters = 5;
+
+        // ── Event IDs ─────────────────────────────────────────────────────────────
+        // Range 5001–5099 is reserved for FDP.Toolkit.Physics events.
+
+        /// <summary>Event ID for <see cref="Events.HitEvent"/>.</summary>
+        public const int HitEventId = 5001;
+
+        // ── RayId encoding convention ─────────────────────────────────────────────
+        // Bit 63 (sign bit) selects the ray type:
+        //   0 → LOS check:  high 32 bits = ObserverEntityIndex, low 32 bits = TargetEntityIndex
+        //   1 → Bullet ray: high 31 bits = BulletEntityIndex (sign bit cleared before extracting)
+
+        /// <summary>Packs observer and target indices into a LOS RayId (bit 63 = 0).</summary>
+        public static long PackLosRayId(int observerIndex, int targetIndex)
+            => ((long)observerIndex << 32) | (uint)targetIndex;
+
+        /// <summary>Packs a bullet entity index into a bullet RayId (bit 63 = 1).</summary>
+        public static long PackBulletRayId(int bulletEntityIndex)
+            => (1L << 63) | (uint)bulletEntityIndex;
+
+        /// <summary>Returns true when the RayId represents a bullet ray (bit 63 set).</summary>
+        public static bool IsBulletRay(long rayId) => (rayId & (1L << 63)) != 0;
+    }
+}

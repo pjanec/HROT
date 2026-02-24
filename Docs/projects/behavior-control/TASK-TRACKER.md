@@ -64,10 +64,10 @@
 **Goal:** 2D batch raycast solver (line-segment to circle intersection) running in parallel on the main thread.  
 **New project:** `Toolkits/FDP.Toolkit.Physics/`
 
-- [ ] **BCS-P4-T1** PhysicsCollider component + RaycastBatchData singleton + PhysicsToolkitModule [details](./TASK-DETAIL.md#bcs-p4-t1--physicscollider--raycastbatchdata)
-- [ ] **BCS-P4-T2** Intersection2D math utilities [details](./TASK-DETAIL.md#bcs-p4-t2--intersection2d-math)
-- [ ] **BCS-P4-T3** RaycastSolverSystem (Parallel.For, SpatialHashGrid, LayerMask) [details](./TASK-DETAIL.md#bcs-p4-t3--raycastsolversystem)
-- [ ] **BCS-P4-T4** HitResolutionSystem (Physics→Combat + Physics→Perception bridge) [details](./TASK-DETAIL.md#bcs-p4-t4--hitresolutionsystem-physicscombat-bridge)
+- [x] **BCS-P4-T1** PhysicsCollider component + RaycastBatchData singleton + PhysicsToolkitModule [details](./TASK-DETAIL.md#bcs-p4-t1--physicscollider--raycastbatchdata)
+- [x] **BCS-P4-T2** Intersection2D math utilities [details](./TASK-DETAIL.md#bcs-p4-t2--intersection2d-math)
+- [x] **BCS-P4-T3** RaycastSolverSystem (Parallel.For, SpatialHashGrid, LayerMask) [details](./TASK-DETAIL.md#bcs-p4-t3--raycastsolversystem)
+- [x] **BCS-P4-T4** HitResolutionSystem (Physics→Combat + Physics→Perception bridge) [details](./TASK-DETAIL.md#bcs-p4-t4--hitresolutionsystem-physicscombat-bridge)
 
 ---
 
@@ -119,8 +119,8 @@
 | Phase 1 – Behavior Core | 7 | 7 ✅ |
 | Phase 2 – Perception | 4 | 4 ✅ |
 | Phase 3 – Navigation | 5 | 5 ✅ |
-| Phase 4 – Physics | 4 | 0 |
+| Phase 4 – Physics | 4 | 4 ✅ |
 | Phase 5 – Combat | 5 | 0 |
 | Phase 6 – Behavior Advanced | 3 | 0 |
 | Phase 7 – Demo App | 9 | 0 |
-| **Total** | **43** | **0** |
+| **Total** | **43** | **27** |

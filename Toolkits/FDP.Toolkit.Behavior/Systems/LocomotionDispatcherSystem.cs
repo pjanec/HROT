@@ -50,6 +50,16 @@ namespace FDP.Toolkit.Behavior.Systems
                     _previousAction[entity.Index] = channel.ActiveAction;
                 }
 
+                // ── Same-frame OnEnter + Execute safety invariant ────────────────────────────
+                // When an action first becomes active, OnEnter and Execute are both called in
+                // the same frame (OnEnter sets up state; Execute runs the first tick).
+                // ALL IActionExecutor implementations MUST be designed so that:
+                //   1. OnEnter writes NavState/channel fields to valid initial values.
+                //   2. The first Execute call (same frame) does NOT overwrite those writes
+                //      under normal conditions (e.g. HasArrived=0, IsAlive=true, ReplanGate not yet open).
+                // This invariant is verified in each Phase 3 executor's tests.
+                // See BATCH-07 Q4 for analysis.
+
                 // Execute: drive the current action each tick.
                 if (channel.ActiveAction != 0 && channel.Status == NodeStatus.Running)
                 {
