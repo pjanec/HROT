@@ -58,7 +58,7 @@ namespace CarKinem.Systems
                 World.AddComponent(entity, new SimTransform
                 {
                     Position = new Vector3(cmd.Position.X, cmd.Position.Y, 0),
-                    Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, yaw) // Z-axis rotation
+                    Rotation = SimMath.FromYaw(yaw)
                 });
                 World.AddComponent(entity, new SimVelocity
                 {

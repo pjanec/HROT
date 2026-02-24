@@ -73,7 +73,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
                     // Simple rotation around Z
                     var currentYaw = GetYaw(tf.Rotation);
                     var newYaw = currentYaw + rot * TANK_ROT_SPEED * dt;
-                    var newRot = Quaternion.CreateFromYawPitchRoll(newYaw, 0, 0);
+                    var newRot = SimMath.FromYaw(newYaw);
                     
                     var forward = Vector3.Transform(Vector3.UnitY, newRot);
                     var newPos = tf.Position + (forward * move.Y * TANK_SPEED * dt);

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Fbt;
+using FDP.Toolkit.Behavior;
 
 namespace FDP.Toolkit.Behavior.Components
 {
@@ -11,9 +12,9 @@ namespace FDP.Toolkit.Behavior.Components
         public uint ActionInstanceId;
         public uint DispatchedInstanceId;
         public NodeStatus Status;
-        
-        public fixed byte Params[32];
-        public fixed byte State[32];
+
+        public fixed byte Params[BehaviorConstants.ActionParamsByteSize];
+        public fixed byte State[BehaviorConstants.ActionStateByteSIze];
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -24,9 +25,9 @@ namespace FDP.Toolkit.Behavior.Components
         public uint ActionInstanceId;
         public uint DispatchedInstanceId;
         public NodeStatus Status;
-        
-        public fixed byte Params[32];
-        public fixed byte State[32];
+
+        public fixed byte Params[BehaviorConstants.ActionParamsByteSize];
+        public fixed byte State[BehaviorConstants.ActionStateByteSIze];
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -37,8 +38,8 @@ namespace FDP.Toolkit.Behavior.Components
         public uint ActionInstanceId;
         public uint DispatchedInstanceId;
         public NodeStatus Status;
-        
-        public fixed byte Params[32];
-        public fixed byte State[32];
+
+        public fixed byte Params[BehaviorConstants.ActionParamsByteSize];
+        public fixed byte State[BehaviorConstants.ActionStateByteSIze];
     }
 }

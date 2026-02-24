@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using Fhsm.Kernel.Data;
 using Xunit;
@@ -10,7 +11,7 @@ namespace FDP.Toolkit.Behavior.Tests
         [Fact]
         public void LocomotionChannel_SizeIsAtMost96Bytes()
         {
-            Assert.True(Unsafe.SizeOf<LocomotionChannel>() <= 96);
+            Assert.True(Unsafe.SizeOf<LocomotionChannel>() <= BehaviorConstants.MaxChannelSizeBytes);
         }
 
         [Fact]

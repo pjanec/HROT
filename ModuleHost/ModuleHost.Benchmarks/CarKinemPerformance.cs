@@ -62,8 +62,7 @@ namespace ModuleHost.Benchmarks
                 float speed = (float)(random.NextDouble() * 20 + 5);
 
                 // Original: Forward=(1,0) [East]
-                // Convert to Rotation: Yaw = -90 deg (-PI/2)
-                var rot = Quaternion.CreateFromYawPitchRoll(-MathF.PI/2f, 0, 0);
+                var rot = SimMath.FacingEast;
 
                 _repo.AddComponent(entity, new SimTransform
                 {

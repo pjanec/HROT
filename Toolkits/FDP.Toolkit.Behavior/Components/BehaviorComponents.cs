@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using FDP.Toolkit.Behavior;
 
 namespace FDP.Toolkit.Behavior.Components
 {
@@ -35,6 +36,6 @@ namespace FDP.Toolkit.Behavior.Components
     [StructLayout(LayoutKind.Sequential)]
     public unsafe struct BrainBlackboard
     {
-        public fixed byte Memory[128];
+        public fixed byte Memory[BehaviorConstants.BrainBlackboardByteSize];
     }
 }

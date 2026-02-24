@@ -13,6 +13,8 @@ namespace FDP.Toolkit.Behavior.Tests
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<ActorCapabilityState>();
+            world.RegisterComponent<BrainBlackboard>();
+            world.RegisterComponent<SimTier>();
             return world;
         }
     }

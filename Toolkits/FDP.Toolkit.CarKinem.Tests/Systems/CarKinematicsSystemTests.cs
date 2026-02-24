@@ -53,7 +53,7 @@ namespace CarKinem.Tests.Systems
             // Wait, previous investigation suggested Yaw=0 -> North.
             repo.AddComponent(entity, new SimTransform { 
                 Position = Vector3.Zero, 
-                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, MathF.PI / 2f) // Rotate around Z (Roll parameter in System.Numerics)
+                Rotation = SimMath.FacingNorth
             });
             repo.AddComponent(entity, new SimVelocity { Linear = new Vector3(0, 10, 0) }); // North at 10 m/s
             
@@ -130,7 +130,7 @@ namespace CarKinem.Tests.Systems
             repo.AddComponent(entA, new VehicleState { Speed = 5f });
             repo.AddComponent(entA, new SimTransform { 
                 Position = Vector3.Zero,
-                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, -MathF.PI/2) // East
+                Rotation = SimMath.FacingEast
             });
             repo.AddComponent(entA, new SimVelocity { Linear = new Vector3(5, 0, 0) });
 
@@ -145,7 +145,7 @@ namespace CarKinem.Tests.Systems
             repo.AddComponent(entB, new VehicleState { Speed = 0f });
             repo.AddComponent(entB, new SimTransform { 
                 Position = new Vector3(2, 0, 0),
-                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, -MathF.PI/2) // East
+                Rotation = SimMath.FacingEast
             });
             repo.AddComponent(entB, new SimVelocity { Linear = Vector3.Zero });
 
@@ -204,7 +204,7 @@ namespace CarKinem.Tests.Systems
             // Start at (0,0) facing East (-PI/2)
             repo.AddComponent(entity, new SimTransform { 
                 Position = Vector3.Zero,
-                Rotation = Quaternion.CreateFromYawPitchRoll(0, 0, -MathF.PI/2) 
+                Rotation = SimMath.FacingEast
             });
             repo.AddComponent(entity, new SimVelocity { Linear = new Vector3(10, 0, 0) });
             

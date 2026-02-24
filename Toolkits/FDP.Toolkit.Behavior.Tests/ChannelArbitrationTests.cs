@@ -82,10 +82,7 @@ namespace FDP.Toolkit.Behavior.Tests
             
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(0, channel.ActiveAction);
-            Assert.Equal(NodeStatus.Success, channel.Status); // Should not be cleared
-            // Wait, if it's stale (ID mismatch) but Action is 0. 
-            // My implementation: if (channel.ActiveAction != 0 && ...)
-            // So it skips clearing. Status remains Success.
+            Assert.Equal(NodeStatus.Success, channel.Status);
             
             sys.Dispose();
             world.Dispose();

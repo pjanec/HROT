@@ -18,13 +18,11 @@ namespace FDP.Toolkit.Behavior.Systems
             foreach (var entity in qLoco)
             {
                 var doctrine = World.GetComponent<DoctrineState>(entity);
-                var channel = World.GetComponent<LocomotionChannel>(entity);
+                ref var channel = ref World.GetComponentRW<LocomotionChannel>(entity);
 
                 if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
                 {
-                    // Stale channel - clear it
                     channel = default;
-                    World.SetComponent(entity, channel);
                 }
             }
 
@@ -37,12 +35,11 @@ namespace FDP.Toolkit.Behavior.Systems
             foreach (var entity in qWpn)
             {
                 var doctrine = World.GetComponent<DoctrineState>(entity);
-                var channel = World.GetComponent<WeaponChannel>(entity);
+                ref var channel = ref World.GetComponentRW<WeaponChannel>(entity);
 
                 if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
                 {
                     channel = default;
-                    World.SetComponent(entity, channel);
                 }
             }
 
@@ -55,12 +52,11 @@ namespace FDP.Toolkit.Behavior.Systems
             foreach (var entity in qInt)
             {
                 var doctrine = World.GetComponent<DoctrineState>(entity);
-                var channel = World.GetComponent<InteractionChannel>(entity);
+                ref var channel = ref World.GetComponentRW<InteractionChannel>(entity);
 
                 if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
                 {
                     channel = default;
-                    World.SetComponent(entity, channel);
                 }
             }
         }
