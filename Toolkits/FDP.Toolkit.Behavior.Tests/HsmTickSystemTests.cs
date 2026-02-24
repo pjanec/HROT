@@ -12,7 +12,24 @@ namespace FDP.Toolkit.Behavior.Tests
 {
     public unsafe class HsmTickSystemTests
     {
-        // ── Helpers ──────────────────────────────────────────────────────────────
+        // ── Named constants ───────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The event ID used by the transition in the test HSM: State 0 --EventX(id=10)--> State 1.
+        /// </summary>
+        private const int EventXId = 10;
+
+        /// <summary>
+        /// Ties this test to the FastHSM version where HsmInstance128.Reserved1 (offset 58)
+        /// doubles as the CurrentEventId scratch field used by HsmKernelCore.
+        /// Specifically: HsmKernelCore.CurrentEventId_Offset_128 == 58 == FieldOffset of Reserved1.
+        /// If HsmInstance128 layout changes (e.g. Reserved1 is moved or repurposed),
+        /// update this constant and the injection line below.
+        /// Verified against Fhsm.Kernel v(current) — field is ushort at [FieldOffset(58)].
+        /// </summary>
+        private const string HsmCurrentEventFieldName = nameof(HsmInstance128.Reserved1);
+
+        // ── Helpers ───────────────────────────────────────────────────────────────
 
         /// <summary>
         /// Build a minimal 2-state HSM: State 0 --EventX(id=10)--> State 1.
@@ -77,9 +94,12 @@ namespace FDP.Toolkit.Behavior.Tests
             brain.State.Header.Phase     = InstancePhase.RTC;
             // ActiveLeafIds[0] = 0 means currently in State 0 (StateA).
             brain.State.ActiveLeafIds[0] = 0;
-            // Write EventX into the CurrentEventId scratch space at offset 58 (Reserved1).
-            // HsmKernelCore.CurrentEventId_Offset_128 == 58, which is HsmInstance128.Reserved1.
-            brain.State.Reserved1 = 10; // EventX id
+            // Inject EventX into the CurrentEventId scratch field (see HsmCurrentEventFieldName above).
+            // Reserved1 at offset 58 is the scratch slot HsmKernelCore reads as the pending event id.
+#pragma warning disable CS0219 // variable assigned but never read — used as documentation anchor
+            _ = HsmCurrentEventFieldName; // documents which field we are writing below
+#pragma warning restore CS0219
+            brain.State.Reserved1 = EventXId;
 
             world.AddComponent(e, brain);
 

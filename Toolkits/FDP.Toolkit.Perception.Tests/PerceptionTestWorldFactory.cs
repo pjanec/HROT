@@ -1,0 +1,34 @@
+using Fdp.Kernel;
+using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Perception.Events;
+
+namespace FDP.Toolkit.Perception.Tests
+{
+    /// <summary>
+    /// Creates a fully-registered <see cref="EntityRepository"/> for perception unit tests.
+    /// Registers all components and events consumed by the Perception toolkit systems.
+    /// </summary>
+    public static class PerceptionTestWorldFactory
+    {
+        public static EntityRepository Create()
+        {
+            var world = new EntityRepository();
+
+            // Core kernel components used by all perception systems.
+            world.RegisterComponent<SimTransform>();
+            world.RegisterComponent<SimVelocity>();
+
+            // Perception-specific components.
+            world.RegisterComponent<Faction>();
+            world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<TargetMemory>();
+
+            // Events exchanged within the Perception pipeline.
+            world.RegisterEvent<AudioStimulusEvent>();
+            world.RegisterEvent<LosCheckRequestEvent>();
+            world.RegisterEvent<TargetVisibleEvent>();
+
+            return world;
+        }
+    }
+}

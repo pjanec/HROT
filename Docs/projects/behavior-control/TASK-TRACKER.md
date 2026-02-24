@@ -39,10 +39,10 @@
 **Goal:** Senses infrastructure — audio perception (main thread sync), async vision broadphase (SoD module), target memory management.  
 **New project:** `Toolkits/FDP.Toolkit.Perception/`
 
-- [ ] **BCS-P2-T1** Perception component types (Faction, PerceptionReceptor, TargetMemory, perception events) [details](./TASK-DETAIL.md#bcs-p2-t1--perception-component-types)
-- [ ] **BCS-P2-T2** AudioPerceptionSystem (main thread, ConsumesAudioStimulusEvent → TargetMemory) [details](./TASK-DETAIL.md#bcs-p2-t2--audioperceptionsystem-main-thread)
-- [ ] **BCS-P2-T3** PerceptionModule (async SoD, VisionBroadphaseSystem + ThreatEvaluationSystem) [details](./TASK-DETAIL.md#bcs-p2-t3--perceptionmodule-async-vision-broadphase)
-- [ ] **BCS-P2-T4** LosRequestBatchingSystem + TargetMemory integration [details](./TASK-DETAIL.md#bcs-p2-t4--losrequestbatchingsystem--targetmemory-integration)
+- [x] **BCS-P2-T1** Perception component types (Faction, PerceptionReceptor, TargetMemory, perception events) [details](./TASK-DETAIL.md#bcs-p2-t1--perception-component-types)
+- [x] **BCS-P2-T2** AudioPerceptionSystem (main thread, ConsumesAudioStimulusEvent → TargetMemory) [details](./TASK-DETAIL.md#bcs-p2-t2--audioperceptionsystem-main-thread)
+- [x] **BCS-P2-T3** PerceptionModule (async SoD, VisionBroadphaseSystem + ThreatEvaluationSystem) [details](./TASK-DETAIL.md#bcs-p2-t3--perceptionmodule-async-vision-broadphase)
+- [x] **BCS-P2-T4** LosRequestBatchingSystem + TargetMemory integration [details](./TASK-DETAIL.md#bcs-p2-t4--losrequestbatchingsystem--targetmemory-integration)
 
 ---
 
@@ -117,7 +117,7 @@
 |---|---|---|
 | Phase 0 – Universal Spatial Primitives | 6 | 6 ✅ |
 | Phase 1 – Behavior Core | 7 | 7 ✅ |
-| Phase 2 – Perception | 4 | 0 |
+| Phase 2 – Perception | 4 | 4 ✅ |
 | Phase 3 – Navigation | 5 | 0 |
 | Phase 4 – Physics | 4 | 0 |
 | Phase 5 – Combat | 5 | 0 |

@@ -6,9 +6,22 @@ namespace Fdp.Kernel
     public class InitializationSystemGroup : SystemGroup { }
 
     /// <summary>
-    /// Group for input-processing systems that run before <see cref="SimulationSystemGroup"/>.
-    /// Doctrine ingress and other pre-simulation configuration systems belong here so their
-    /// changes are visible to brain tick systems within the same frame.
+    /// System group for input processing (doctrine ingress, command buffering, event ingress).
+    /// <para>
+    /// <b>Required registration order:</b> <c>InputSystemGroup</c> must be registered in the world
+    /// <em>before</em> <see cref="SimulationSystemGroup"/> so that doctrine changes (and other
+    /// input-phase mutations) take effect within the same frame as the brain-tick systems that
+    /// consume them.
+    /// </para>
+    /// <para>
+    /// <b>Cross-group constraint:</b> FDP's current scheduler does not support cross-group
+    /// <c>[UpdateBefore]</c> / <c>[UpdateAfter]</c> ordering.  Host applications therefore
+    /// <em>must</em> register groups manually in <c>Input → Simulation → PostSimulation</c> order.
+    /// </para>
+    /// <para>
+    /// TODO: Add <c>[UpdateBefore(typeof(SimulationSystemGroup))]</c> here once cross-group
+    /// attribute-based sorting is supported by the kernel scheduler.
+    /// </para>
     /// </summary>
     public class InputSystemGroup : SystemGroup { }
 

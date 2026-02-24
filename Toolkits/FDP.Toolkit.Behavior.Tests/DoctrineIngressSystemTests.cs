@@ -196,7 +196,8 @@ namespace FDP.Toolkit.Behavior.Tests
             arbitrationSys.Run();
 
             var channel = world.GetComponent<LocomotionChannel>(e);
-            Assert.Equal(0, channel.ActiveAction); // preemption chain complete
+            Assert.Equal(0, channel.ActiveAction);          // preemption chain complete
+            Assert.Equal(0u, channel.DoctrineInstanceId);   // full channel reset to default, not a selective clear
 
             ingressSys.Dispose();
             arbitrationSys.Dispose();
