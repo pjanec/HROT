@@ -26,5 +26,11 @@ namespace FDP.Toolkit.Behavior
 
         /// <summary>Brain tier value for BTree-driven entities (FastBTree interpreter).</summary>
         public const byte BrainTierBTree = 2;
+
+        /// <summary>
+        /// HSM event ID injected by <c>HsmDamageBridgeSystem</c> when <c>CanMove</c> is cleared.
+        /// Must match the event ID registered in doctrine HSM definitions (by convention: 1).
+        /// </summary>
+        public const ushort EventId_MobilityLost = 1;
     }
 }

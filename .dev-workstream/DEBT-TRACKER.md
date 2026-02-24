@@ -20,7 +20,7 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | ID | Sev | Source | Description | Target | Status |
 |---|---|---|---|---|---|
 | DEBT-006 | P2 | BATCH-04-REVIEW | `DoctrineRegistry` keys on `string.GetHashCode()` — process-randomised. Serialised doctrine IDs non-reproducible across runs. Needs stable key (CRC32 or assigned `int`). | Phase 5 networking batch | 🔴 Open |
-| DEBT-007 | P2 | BATCH-04-REPORT | `FdpHsmContext` carries only `Entity Self` — HSM action delegates cannot access ECS world. Strategy needed before Phase 6. | Phase 6 batch | 🔴 Open |
+| DEBT-007 | P2 | BATCH-04-REPORT | `FdpHsmContext` carries only `Entity Self` — HSM action delegates cannot access ECS world. Strategy needed before Phase 7 Demo App. | BATCH-13 Pre-Demo Debt | 🔴 Open |
 | DEBT-008 | P3 | BATCH-04-REPORT | `DoctrineIngressSystem` — no try/catch around `ParseParams`. Malformed JSON throws with no entity context. | Any batch touching DoctrineIngressSystem | 🔴 Open |
 | DEBT-021 | P2 | BATCH-08-REVIEW (Q4) | `RaycastSolverSystem` — no bounds check on `batch.Count`; overflow → `IndexOutOfRangeException`. Add `Math.Min(batch.Count, PhysicsConstants.RaycastBatchCapacity)` before `Parallel.For`. Add `Debug.Assert` at fill sites. | BATCH-09 ✅ | ✅ Resolved |
 | DEBT-022 | P3 | BATCH-08-REVIEW | `Intersection2DTests` — missing degenerate boundary case: segment starts exactly at circle edge (t=0). | Any batch touching Intersection2D | 🔴 Open |
@@ -32,7 +32,8 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | DEBT-028 | P2 | BATCH-08-REVIEW (test review) | `Intersection2DTests` Test 4 (`ReturnsTMin_WhenTwoIntersections`) is functionally identical to Test 1 — same geometry, same assertion range. Doesn't actually prove the min-is-returned-not-max behaviour. Use a geometry where entry and exit t values are well-separated (e.g. r=4, 10-unit ray). | BATCH-09 ✅ | ✅ Resolved |
 | DEBT-031 | P3 | BATCH-10-REVIEW (Issue 4) | `HitEvent` now lives in `Fdp.Kernel` — a combat game event in the engine core layer. Violates kernel purity. Should move to `FDP.Toolkit.Combat.Contracts` (thin events-only assembly) or back to Combat once Physics no longer depends on it. | Phase 6 or when project structure allows | 🔴 Open |
 | DEBT-032 | P2 | BATCH-10-REPORT (Q1) | `LinearKinematicsSystem` referenced by `BallisticsSystem` design but does not exist. Blocks correct ordering attribute for `BallisticsSystem`. Implement in BATCH-11. | BATCH-11 ✅ | ✅ Resolved |
-| DEBT-033 | P2 | BATCH-11-REVIEW | `MissionDirectorSystem.HealthCritical` trigger not implemented: `FDP.Toolkit.Behavior` cannot reference `FDP.Toolkit.Combat` (circular dependency — Combat references Behavior for `ActorCapabilityState`). Requires shared health interface in `Fdp.Kernel` or assembly restructure. | Phase 6 or when shared interface is designed | 🔴 Open |
+| DEBT-033 | P2 | BATCH-11-REVIEW | `MissionDirectorSystem.HealthCritical` trigger not implemented: `FDP.Toolkit.Behavior` cannot reference `FDP.Toolkit.Combat` (circular dependency — Combat references Behavior for `ActorCapabilityState`). Requires shared health interface in `Fdp.Kernel` or assembly restructure. | BATCH-13 Pre-Demo Debt | 🔴 Open |
+| DEBT-034 | P3 | BATCH-12-REVIEW | `EjectPassengersExecutor` XML doc comment describes symmetric slot offsets (e.g. ±0.75 m for Count=2) but the actual formula produces asymmetric offsets (−1.5 m and 0.0 m). Fix the comment to match the actual computed values. | BATCH-13 | 🔴 Open |
 
 ---
 
@@ -62,8 +63,9 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 
 ## Notes
 
-- **DEBT-033** (`HealthCritical` trigger): clean fix requires a shared `IHasHealth` or `HealthData` struct in `Fdp.Kernel`. Deferred — do not add a Combat→Behavior or Behavior→Combat reference.
-- **DEBT-031** (`HitEvent` in Kernel): pragmatic short-term fix for circular dependency; deferred.
+- **Pre-Demo Debt Resolution (BATCH-13):** All P2 items must be closed before Phase 7 begins. Open P2s: DEBT-006 (DoctrineRegistry hash), DEBT-007 (FdpHsmContext access), DEBT-024 (dispatcher OnExit leak), DEBT-033 (HealthCritical trigger).
+- **DEBT-034** (EjectPassengersExecutor doc): one-liner fix; bundle into BATCH-13.
+- **DEBT-031** (`HitEvent` in Kernel): P3 architectural concern; acceptable for Phase 7 but should be planned for cleanup.
 - **DEBT-027** requires a design decision: full fix deferred to when `LosRequestBatchingSystem` is reworked.
 - **DEBT-022** (t=0 boundary case) is the only remaining low-priority Intersection2D gap.
-- **DEBT-006** and **DEBT-007** are Phase 5/6 concerns. Do not refactor early.
+- **DEBT-008** (DoctrineIngress no try/catch): P3, bundle into BATCH-13.
