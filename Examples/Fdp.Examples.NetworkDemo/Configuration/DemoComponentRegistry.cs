@@ -1,5 +1,8 @@
+using System;
+using System.Collections.Generic;
 using Fdp.Kernel;
 using Fdp.Examples.NetworkDemo.Components;
+using Fdp.Examples.NetworkDemo.Descriptors;
 using Fdp.Examples.NetworkDemo.Events; // Added
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Network;
@@ -79,6 +82,21 @@ namespace Fdp.Examples.NetworkDemo.Configuration
                 typeof(FrameAckComponent),
                 typeof(SquadChat),
                 typeof(NetworkedEntity)
+            };
+        }
+
+        /// <summary>
+        /// Returns explicit descriptor ordinal mappings for component types that cannot carry
+        /// <see cref="FDP.Interfaces.Abstractions.FdpDescriptorAttribute"/> directly
+        /// (e.g. kernel primitives defined in external assemblies).
+        /// The ordinal determines which authority key is checked when copying components during replay.
+        /// </summary>
+        public static IReadOnlyDictionary<Type, long> GetExplicitOrdinalMappings()
+        {
+            return new Dictionary<Type, long>
+            {
+                [typeof(SimTransform)] = DemoDescriptors.Physics,
+                [typeof(SimVelocity)]  = DemoDescriptors.Physics,
             };
         }
     }

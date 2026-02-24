@@ -50,43 +50,43 @@ namespace Fdp.Examples.NetworkDemo.Systems
         private void BuildCopyInstructions()
         {
             var allTypes = DemoComponentRegistry.GetAllTypes();
-            
+            var explicitMappings = DemoComponentRegistry.GetExplicitOrdinalMappings();
+
             foreach (var type in allTypes)
             {
-                // Fix: Manually include SimTransform which lacks FdpDescriptorAttribute but uses Physics (5) authority
-                if (type.Name == "SimTransform")
+                long descriptorOrdinal;
+                bool isManaged;
+
+                var attr = type.GetCustomAttribute<FdpDescriptorAttribute>();
+                if (attr != null)
                 {
-                     var simTransformTypeId = _shadowRepo!.GetComponentTypeId(type);
-                     _copyInstructions.Add(new ComponentCopyInstruction
-                    {
-                        Type = type,
-                        ShadowTypeId = simTransformTypeId,
-                        LiveTypeId = -1,
-                        SizeBytes = type.IsValueType ? Marshal.SizeOf(type) : 0,
-                        DescriptorOrdinal = 5, // DemoDescriptors.Physics
-                        IsManaged = false,
-                        DebugName = type.Name
-                    });
+                    descriptorOrdinal = attr.Ordinal;
+                    isManaged = !type.IsValueType;
+                }
+                else if (explicitMappings.TryGetValue(type, out var mappedOrdinal))
+                {
+                    descriptorOrdinal = mappedOrdinal;
+                    isManaged = !type.IsValueType;
+                }
+                else
+                {
                     continue;
                 }
 
-                var attr = type.GetCustomAttribute<FdpDescriptorAttribute>();
-                if (attr == null) continue;
-                
                 var typeId = _shadowRepo!.GetComponentTypeId(type);
-                
+
                 _copyInstructions.Add(new ComponentCopyInstruction
                 {
                     Type = type,
                     ShadowTypeId = typeId,
                     LiveTypeId = -1,
                     SizeBytes = type.IsValueType ? Marshal.SizeOf(type) : 0,
-                    DescriptorOrdinal = attr.Ordinal,
-                    IsManaged = !type.IsValueType,
+                    DescriptorOrdinal = descriptorOrdinal,
+                    IsManaged = isManaged,
                     DebugName = type.Name
                 });
             }
-            
+
             FdpLog<ReplayBridgeSystem>.Info($"Built {_copyInstructions.Count} copy instructions");
         }
 
