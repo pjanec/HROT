@@ -72,21 +72,28 @@ namespace FDP.Toolkit.Physics.Tests
         // ── Test 4 ────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// A ray that crosses a full circle diameter must return the entry t (not the exit t).
-        /// Entry at x=−1 → t≈0.4; exit at x=+1 → t≈0.6.
+        /// A ray that crosses a full circle must return the entry t (not the exit t).
+        /// Ray from (−10, 0) to (10, 0), circle at (0, 0) radius 4.
+        ///   Entry at x=−4 → t = (−4 − (−10)) / (10 − (−10)) = 6/20 = 0.30
+        ///   Exit  at x=+4 → t = (4  − (−10)) / 20           = 14/20 = 0.70
+        /// The assert window [0.25, 0.35] does NOT contain the exit t (0.70),
+        /// proving the entry (not exit) is returned. This is the key distinction from Test 1,
+        /// which uses the same geometry — here the t spread (entry=0.30, exit=0.70) is >0.3,
+        /// so the minimum-selection is actually tested.
         /// </summary>
         [Fact]
         public void RaycastCircle_ReturnsTMin_WhenTwoIntersections()
         {
-            var start  = new Vector2(-5f, 0f);
-            var end    = new Vector2( 5f, 0f);
-            var center = new Vector2( 0f, 0f);
+            // Arrange: 20-unit ray from (−10,0) to (10,0). Circle at origin, radius 4.
+            var start  = new Vector2(-10f, 0f);
+            var end    = new Vector2( 10f, 0f);
+            var center = new Vector2(  0f, 0f);
 
-            bool hit = Intersection2D.RaycastCircle(start, end, center, 1f, out float t);
+            bool hit = Intersection2D.RaycastCircle(start, end, center, 4f, out float t);
 
             Assert.True(hit);
-            // Entry t ≈ 0.4, not the exit at ≈ 0.6.
-            Assert.InRange(t, 0.35f, 0.45f);
+            // Entry t ≈ 0.30 — asserting [0.25, 0.35] proves the entry (not exit t≈0.70) is returned.
+            Assert.InRange(t, 0.25f, 0.35f);
         }
 
         // ── Test 5 ────────────────────────────────────────────────────────────────

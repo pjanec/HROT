@@ -76,9 +76,9 @@
 **Goal:** Weapon intent execution, bullet entity lifecycle, deferred ballistics, and damage application.  
 **New project:** `Toolkits/FDP.Toolkit.Combat/`
 
-- [ ] **BCS-P5-T1** Combat component types (WeaponState, Health, BallisticProjectile) [details](./TASK-DETAIL.md#bcs-p5-t1--combat-component-types)
-- [ ] **BCS-P5-T2** Combat events (FireRequestEvent, HitEvent) [details](./TASK-DETAIL.md#bcs-p5-t2--combat-events)
-- [ ] **BCS-P5-T3** AimAndFireExecutor (registered to WeaponDispatcher) [details](./TASK-DETAIL.md#bcs-p5-t3--aimandfireexecutor)
+- [x] **BCS-P5-T1** Combat component types (WeaponState, Health, BallisticProjectile) [details](./TASK-DETAIL.md#bcs-p5-t1--combat-component-types)
+- [x] **BCS-P5-T2** Combat events (FireRequestEvent, HitEvent) [details](./TASK-DETAIL.md#bcs-p5-t2--combat-events)
+- [x] **BCS-P5-T3** AimAndFireExecutor (registered to WeaponDispatcher) [details](./TASK-DETAIL.md#bcs-p5-t3--aimandfireexecutor)
 - [ ] **BCS-P5-T4** FireProcessingSystem + BallisticsSystem [details](./TASK-DETAIL.md#bcs-p5-t4--fireprocessingsystem--ballisticssystem)
 - [ ] **BCS-P5-T5** DamageSystem [details](./TASK-DETAIL.md#bcs-p5-t5--damagesystem)
 
@@ -120,7 +120,7 @@
 | Phase 2 – Perception | 4 | 4 ✅ |
 | Phase 3 – Navigation | 5 | 5 ✅ |
 | Phase 4 – Physics | 4 | 4 ✅ |
-| Phase 5 – Combat | 5 | 0 |
+| Phase 5 – Combat | 5 | 3 |
 | Phase 6 – Behavior Advanced | 3 | 0 |
 | Phase 7 – Demo App | 9 | 0 |
-| **Total** | **43** | **27** |
+| **Total** | **43** | **29** |

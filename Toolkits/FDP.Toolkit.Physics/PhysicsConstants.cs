@@ -16,17 +16,29 @@ namespace FDP.Toolkit.Physics
         public const int RaycastBatchCapacity = 4096;
 
         /// <summary>
-        /// Extra expansion (metres) added to the AABB radius when querying the spatial
-        /// hash grid for broadphase candidate entities. Ensures that entities whose
-        /// bounding circle extends into the ray's axis-aligned bounding box are included
-        /// even if their centre is slightly outside the ray's tight bounding box.
+        /// Maximum number of broadphase candidates inspected per ray per frame.
+        /// Entities beyond this limit are silently dropped from narrow-phase testing.
+        /// In practise 64 is sufficient for typical scenario densities; raise if you
+        /// observe missed hits in high-density areas.
         /// </summary>
-        public const int QueryExpansionMeters = 5;
+        public const int MaxBroadphaseCandidates = 64;
+
+        /// <summary>
+        /// Extra expansion radius (metres) added to the AABB radius when querying the
+        /// spatial hash grid for broadphase candidate entities. Ensures that entities
+        /// whose bounding circle extends into the ray's axis-aligned bounding box are
+        /// included even if their centre is slightly outside the ray's tight bounding box.
+        /// </summary>
+        public const float QueryExpansionRadius = 5f;
 
         // ── Event IDs ─────────────────────────────────────────────────────────────
         // Range 5001–5099 is reserved for FDP.Toolkit.Physics events.
 
-        /// <summary>Event ID for <see cref="Events.HitEvent"/>.</summary>
+        /// <summary>
+        /// Event ID for <c>FDP.Toolkit.Combat.Events.HitEvent</c> (migrated from Physics in BATCH-09).
+        /// Retained here for backward-compatibility of RayId packing/unpacking logic.
+        /// Must equal <c>CombatConstants.HitEventId</c>.
+        /// </summary>
         public const int HitEventId = 5001;
 
         // ── RayId encoding convention ─────────────────────────────────────────────

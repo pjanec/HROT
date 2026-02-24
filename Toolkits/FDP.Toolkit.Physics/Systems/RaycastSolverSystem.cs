@@ -51,7 +51,10 @@ namespace FDP.Toolkit.Physics.Systems
             var gridData = World.GetSingleton<SpatialGridData>();
             var grid     = gridData.Grid;
 
-            int count = batch.Count;
+            // Cap to array size — prevents IndexOutOfRangeException if upstream overflows the batch.
+            // The capacity is capped rather than thrown so excess rays are silently dropped rather than
+            // crashing. A Debug.Assert at the fill site would alert during development.
+            int count = System.Math.Min(batch.Count, PhysicsConstants.RaycastBatchCapacity);
 
             // Extract NativeArray structs (value copies that share native pointers) so they
             // can be captured by the Parallel.For lambda without capturing the ref local 'batch'.
@@ -75,13 +78,13 @@ namespace FDP.Toolkit.Physics.Systems
                 // Broad-phase: AABB query centred on the ray's midpoint.
                 Vector2 midpoint     = (start2D + end2D) * 0.5f;
                 float   queryRadius  = Vector2.Distance(start2D, end2D) * 0.5f
-                                       + PhysicsConstants.QueryExpansionMeters;
+                                       + PhysicsConstants.QueryExpansionRadius;
 
                 // stackalloc: stack-allocates the candidate buffer (no GC pressure per ray).
                 // Requires unsafe context (AllowUnsafeBlocks = true in the project).
                 unsafe
                 {
-                Span<(Entity entity, Vector2 pos)> candidates = stackalloc (Entity, Vector2)[64];
+                Span<(Entity entity, Vector2 pos)> candidates = stackalloc (Entity, Vector2)[PhysicsConstants.MaxBroadphaseCandidates];
                 int nc = grid.QueryNeighbors(midpoint, queryRadius, candidates);
 
                 float  bestT   = float.MaxValue;

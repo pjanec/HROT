@@ -13,7 +13,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
   </ItemGroup>
 </Project>

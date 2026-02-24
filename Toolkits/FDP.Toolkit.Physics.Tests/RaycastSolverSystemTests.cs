@@ -175,7 +175,6 @@ namespace FDP.Toolkit.Physics.Tests
             var nearEntity = SpawnCollider(new Vector2(3f, 0f), radius: 0.5f, layer: 1);
             var farEntity  = SpawnCollider(new Vector2(7f, 0f), radius: 0.5f, layer: 1);
 
-            // Need to dispose farEntity's grid addition doesn't create issues.
             // Both entities are already added via SpawnCollider.
 
             RunSolver(new RaycastRequest

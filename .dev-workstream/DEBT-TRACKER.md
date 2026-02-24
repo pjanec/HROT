@@ -22,14 +22,14 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | DEBT-006 | P2 | BATCH-04-REVIEW | `DoctrineRegistry` keys on `string.GetHashCode()` — process-randomised. Serialised doctrine IDs non-reproducible across runs. Needs stable key (CRC32 or assigned `int`). | Phase 5 networking batch | 🔴 Open |
 | DEBT-007 | P2 | BATCH-04-REPORT | `FdpHsmContext` carries only `Entity Self` — HSM action delegates cannot access ECS world. Strategy needed before Phase 6. | Phase 6 batch | 🔴 Open |
 | DEBT-008 | P3 | BATCH-04-REPORT | `DoctrineIngressSystem` — no try/catch around `ParseParams`. Malformed JSON throws with no entity context. | Any batch touching DoctrineIngressSystem | 🔴 Open |
-| DEBT-021 | P2 | BATCH-08-REVIEW (Q4) | `RaycastSolverSystem` — no bounds check on `batch.Count`; overflow → `IndexOutOfRangeException`. Add `Math.Min(batch.Count, PhysicsConstants.RaycastBatchCapacity)` before `Parallel.For`. Add `Debug.Assert` at fill sites. | BATCH-09 | 🔴 Open |
+| DEBT-021 | P2 | BATCH-08-REVIEW (Q4) | `RaycastSolverSystem` — no bounds check on `batch.Count`; overflow → `IndexOutOfRangeException`. Add `Math.Min(batch.Count, PhysicsConstants.RaycastBatchCapacity)` before `Parallel.For`. Add `Debug.Assert` at fill sites. | BATCH-09 ✅ | ✅ Resolved |
 | DEBT-022 | P3 | BATCH-08-REVIEW | `Intersection2DTests` — missing degenerate boundary case: segment starts exactly at circle edge (t=0). | Any batch touching Intersection2D | 🔴 Open |
-| DEBT-023 | P2 | BATCH-08-REVIEW (Q3) | `HitEvent` temporarily in `FDP.Toolkit.Physics`. Must move to `FDP.Toolkit.Combat` in Phase 5. | BATCH-10 (Combat batch) | 🔴 Open |
+| DEBT-023 | P2 | BATCH-08-REVIEW (Q3) | `HitEvent` temporarily in `FDP.Toolkit.Physics`. Must move to `FDP.Toolkit.Combat` in Phase 5. | BATCH-09 ✅ | ✅ Resolved |
 | DEBT-024 | P2 | BATCH-08-REVIEW (Q1) | `DispatcherSystemBase` — no `OnExit` on entity destruction; per-entity executor state can leak. Full fix requires kernel lifecycle hook. | Phase 5+ | 🔴 Open |
-| DEBT-025 | **P1** | BATCH-08-REVIEW (external lead) | `SimTransformBridgeSystem.UpdateEntity` hardcodes `PitchDeg = 0f`, `RollDeg = 0f`. All non-level entities have orientation stripped before egress. Add `RotationToPitchRollDeg` static helper + call from `UpdateEntity`. | BATCH-09 Corrective 0 | 🔴 Open |
-| DEBT-026 | P2 | BATCH-08-REVIEW (code review) | `RaycastSolverSystem` — `stackalloc` candidate buffer capped at 64; entities beyond that are silently dropped. Undocumented. Add `PhysicsConstants.MaxBroadphaseCandidates = 64` constant and a doc comment explaining the cap and implication. | BATCH-09 | 🔴 Open |
-| DEBT-027 | P2 | BATCH-08-REVIEW (code review) | `HitResolutionSystem` emits `TargetVisibleEvent` with raw `int` indices (ObserverEntityIndex, TargetEntityIndex). If an entity is recycled between LOS submission and event consumption, the wrong entity's threat memory is updated. LOS pipeline should carry full `Entity` handles. | BATCH-09 or when LOS pipeline is reworked | 🔴 Open |
-| DEBT-028 | P2 | BATCH-08-REVIEW (test review) | `Intersection2DTests` Test 4 (`ReturnsTMin_WhenTwoIntersections`) is functionally identical to Test 1 — same geometry, same assertion range. Doesn't actually prove the min-is-returned-not-max behaviour. Use a geometry where entry and exit t values are well-separated (e.g. r=4, 10-unit ray). | BATCH-09 | 🔴 Open |
+| DEBT-025 | **P1** | BATCH-08-REVIEW (external lead) | `SimTransformBridgeSystem.UpdateEntity` hardcodes `PitchDeg = 0f`, `RollDeg = 0f`. All non-level entities have orientation stripped before egress. Add `RotationToPitchRollDeg` static helper + call from `UpdateEntity`. | BATCH-09 ✅ | ✅ Resolved |
+| DEBT-026 | P2 | BATCH-08-REVIEW (code review) | `RaycastSolverSystem` — `stackalloc` candidate buffer capped at 64; entities beyond that are silently dropped. Undocumented. Add `PhysicsConstants.MaxBroadphaseCandidates = 64` constant and a doc comment explaining the cap and implication. | BATCH-09 ✅ | ✅ Resolved |
+| DEBT-027 | P2 | BATCH-08-REVIEW (code review) | `HitResolutionSystem` emits `TargetVisibleEvent` with raw `int` indices (ObserverEntityIndex, TargetEntityIndex). If an entity is recycled between LOS submission and event consumption, the wrong entity's threat memory is updated. LOS pipeline should carry full `Entity` handles. | BATCH-09 (comment added) — full fix deferred to LOS pipeline rework | 🟡 Partial |
+| DEBT-028 | P2 | BATCH-08-REVIEW (test review) | `Intersection2DTests` Test 4 (`ReturnsTMin_WhenTwoIntersections`) is functionally identical to Test 1 — same geometry, same assertion range. Doesn't actually prove the min-is-returned-not-max behaviour. Use a geometry where entry and exit t values are well-separated (e.g. r=4, 10-unit ray). | BATCH-09 ✅ | ✅ Resolved |
 
 ---
 
@@ -59,8 +59,6 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 
 ## Notes
 
-- **DEBT-025** is the immediate P1 for BATCH-09. The fix is localised to `SimTransformBridgeSystem.cs` and its test file.
-- **DEBT-021, DEBT-026, DEBT-028** are quick fixes; do them before touching Phase 5 code.
-- **DEBT-027** requires a design decision: the LOS event chain (`LosCheckRequestEvent` → `RaycastRequest` → `RaycastHit` → `TargetVisibleEvent`) currently passes raw int indices end-to-end. Moving to full `Entity` handles would require changing the `RayId` packing or adding separate fields. This is the same architectural issue as DEBT-009 but in the event pipeline instead of a data structure.
-- **DEBT-023** must be done during the Combat batch — do not move `HitEvent` prematurely.
+- **DEBT-027** requires a design decision: the LOS event chain (`LosCheckRequestEvent` → `RaycastRequest` → `RaycastHit` → `TargetVisibleEvent`) currently passes raw int indices end-to-end. Full fix deferred to when `LosRequestBatchingSystem` is reworked.
+- **DEBT-022** (t=0 boundary case) is the only remaining low-priority Intersection2D gap.
 - **DEBT-006** and **DEBT-007** are Phase 5/6 concerns. Do not refactor early.

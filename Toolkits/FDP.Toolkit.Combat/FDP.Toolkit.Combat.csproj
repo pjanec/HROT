@@ -4,10 +4,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
-    <ProjectReference Include="..\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
-    <ProjectReference Include="..\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
-    <ProjectReference Include="..\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
+    <ProjectReference Include="..\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,6 @@
 using Fdp.Kernel;
+using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Events;
 using FDP.Toolkit.Perception.Events;
 
 namespace FDP.Toolkit.Physics.Systems
@@ -73,6 +73,13 @@ namespace FDP.Toolkit.Physics.Systems
                     // LOS hit → emit TargetVisibleEvent (Perception toolkit consumes it).
                     int observerIdx = (int)(hit.RayId >> 32);
                     int targetIdx   = (int)(hit.RayId & 0xFFFF_FFFFL);
+
+                    // DEBT-027: TargetVisibleEvent carries raw int indices (ObserverEntityIndex, TargetEntityIndex).
+                    // These were packed into RayId as raw ints by LosRequestBatchingSystem.
+                    // If an entity is destroyed and its index recycled between LOS submission and event consumption
+                    // by ThreatEvaluationSystem, the wrong entity's threat memory could be updated.
+                    // Full fix: carry full Entity handles (Index + Generation) through the LOS event pipeline.
+                    // Deferred to when LosRequestBatchingSystem is reworked.
                     World.Bus.Publish(new TargetVisibleEvent
                     {
                         ObserverEntityIndex = observerIdx,

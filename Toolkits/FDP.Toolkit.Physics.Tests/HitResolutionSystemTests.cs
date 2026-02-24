@@ -1,7 +1,7 @@
 using System;
 using Fdp.Kernel;
+using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Events;
 using FDP.Toolkit.Physics.Systems;
 using FDP.Toolkit.Perception.Events;
 using Xunit;
