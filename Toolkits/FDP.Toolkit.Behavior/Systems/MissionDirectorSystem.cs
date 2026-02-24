@@ -25,11 +25,11 @@ namespace FDP.Toolkit.Behavior.Systems
     ///   <item><see cref="MissionTrigger.ReachedDestination"/> — checks <c>NavState.HasArrived</c>.</item>
     ///   <item><see cref="MissionTrigger.UnderAttack"/> — checks <c>TargetMemory</c> for entries
     ///         with ThreatScore &gt; 0.</item>
-    ///   <item><see cref="MissionTrigger.HealthCritical"/> — not implemented in this phase:
-    ///         <c>FDP.Toolkit.Behavior</c> cannot reference <c>FDP.Toolkit.Combat</c> without
-    ///         creating a circular dependency (Combat already references Behavior). The trigger
-    ///         will never fire until the combat health is exposed via a shared interface or
-    ///         a generic component.</item>
+    ///   <item><see cref="MissionTrigger.HealthCritical"/> — fires when
+    ///         <c>HealthData.Fraction</c> (a <c>Fdp.Kernel</c> mirror written by
+    ///         <c>DamageSystem</c>) is &lt;= <c>TriggerParam</c>.  The entity must have
+    ///         a <c>HealthData</c> component; if absent the trigger never fires.
+    ///         <b>DEBT-033 resolved.</b></item>
     /// </list>
     /// </para>
     /// </summary>
@@ -90,10 +90,15 @@ namespace FDP.Toolkit.Behavior.Systems
                         break;
 
                     case MissionTrigger.HealthCritical:
-                        // TODO (DEBT): FDP.Toolkit.Behavior cannot reference FDP.Toolkit.Combat
-                        // (circular dependency). HealthCritical trigger requires combat Health
-                        // component access and will be implemented when a shared health interface
-                        // or a refactored assembly structure is available.
+                        // DEBT-033 resolved: HealthData (Fdp.Kernel) is written by
+                        // DamageSystem each frame after damage is applied, so this
+                        // assembly does not need to reference FDP.Toolkit.Combat.
+                        if (World.HasComponent<HealthData>(entity))
+                        {
+                            var hd = World.GetComponent<HealthData>(entity);
+                            if (hd.Fraction <= phase.TriggerParam)
+                                triggered = true;
+                        }
                         break;
                 }
 

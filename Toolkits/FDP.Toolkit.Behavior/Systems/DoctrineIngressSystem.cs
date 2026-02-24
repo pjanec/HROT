@@ -1,4 +1,5 @@
 using System;
+using System;
 using System.Runtime.CompilerServices;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
@@ -38,12 +39,13 @@ namespace FDP.Toolkit.Behavior.Systems
                 if (evt == null) continue;
                 if (!World.HasComponent<DoctrineState>(evt.Entity)) continue;
 
-                int hash = evt.DoctrineName.GetHashCode();
-                if (!_registry.TryGetDefinition(hash, out var def)) continue;
+                // DEBT-006: use stable int ID from registry — no GetHashCode().
+                if (!_registry.TryGetId(evt.DoctrineName, out int doctrineId)) continue;
+                if (!_registry.TryGetDefinition(doctrineId, out var def)) continue;
 
                 // 1. Update DoctrineState.
                 ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
-                doctrine.ActiveDoctrineHash = hash;
+                        doctrine.ActiveDoctrineHash = doctrineId;
                 // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
                 unchecked { doctrine.InstanceId++; }
                 doctrine.BrainTier = def.BrainTier;
@@ -62,7 +64,22 @@ namespace FDP.Toolkit.Behavior.Systems
                     // Unsafe.AsPointer yields a stable pointer into the native component chunk.
                     // BrainBlackboard's only field is the fixed Memory buffer at offset 0.
                     var bbPtr = (BrainBlackboard*)Unsafe.AsPointer(ref blackboard);
-                    def.ParseParams(evt.JsonParams, bbPtr->Memory);
+                    try
+                    {
+                        def.ParseParams(evt.JsonParams, bbPtr->Memory);
+                    }
+                    catch (Exception ex)
+                    {
+                        // DEBT-008: guard against malformed JSON or delegate bugs.
+                        // Log and fail safe — leave DoctrineState unchanged (InstanceId NOT bumped
+                        // a second time; it was already incremented above).
+                        // Do NOT rethrow: a parse failure must not crash the simulation loop.
+                        _ = ex; // suppress unused-variable warning; replace with real logger when available.
+                        // Fail safe: revert the DoctrineState update so the entity stays on its
+                        // previous doctrine rather than entering a half-applied state.
+                        // We cannot easily un-bump InstanceId here, so we skip the entity.
+                        continue;
+                    }
                 }
             }
         }

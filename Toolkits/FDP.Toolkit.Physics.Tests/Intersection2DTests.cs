@@ -118,5 +118,36 @@ namespace FDP.Toolkit.Physics.Tests
             // Exit t ≈ 0.2 (at x=1 on 5-unit ray).
             Assert.InRange(t, 0.15f, 0.25f);
         }
+
+        // ── Test 6 (DEBT-022) ─────────────────────────────────────────────────
+        /// <summary>
+        /// When the ray origin lies exactly on the circle boundary (t=0 case),
+        /// the implementation returns the <em>far</em> intersection (exit point).
+        /// This is the defined behaviour: t1 == 0 satisfies the <c>t1 &gt;= 0</c>
+        /// branch and is returned as the hit.
+        ///
+        /// Geometry: ray from (radius, 0) pointing in the +X direction,
+        /// circle centred at origin with the same radius.
+        /// t1 = 0 (start point is exactly on the circle edge).
+        /// t2 = 2*radius / |ray| &gt; 0 (far exit).
+        /// The implementation returns t1 = 0 — the entry/boundary point.
+        /// </summary>
+        [Fact]
+        public void RaycastCircle_ReturnsZero_WhenRayStartsOnCircleEdge()
+        {
+            // Arrange: ray from (1, 0) pointing in +X direction (length = 10).
+            // Circle: centre = (0, 0), radius = 1.
+            // The ray starts exactly on the circle surface (t=0 is the boundary).
+            const float radius = 1f;
+            var start  = new Vector2(radius, 0f);
+            var end    = new Vector2(radius + 10f, 0f);
+            var center = new Vector2(0f, 0f);
+
+            bool hit = Intersection2D.RaycastCircle(start, end, center, radius, out float t);
+
+            // The ray starts on the boundary: t1 = 0 is returned (entry/boundary).
+            Assert.True(hit, "Ray starting on circle edge must register as a hit");
+            Assert.InRange(t, -1e-5f, 1e-5f); // t ≈ 0 within floating-point epsilon
+        }
     }
 }

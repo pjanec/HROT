@@ -1,5 +1,6 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Executors;
 using FDP.Toolkit.Behavior.Systems;
 using Fbt;
 using Xunit;
@@ -143,5 +144,70 @@ namespace FDP.Toolkit.Behavior.Tests
             sys.Dispose();
             world.Dispose();
         }
+
+        // ── DEBT-024 test ─────────────────────────────────────────────────────
+        /// <summary>
+        /// When an entity is destroyed inside an executor's Execute() callback
+        /// (e.g. lethal self-damage), the dispatcher must call OnExit to clean
+        /// up executor state, and must not throw.
+        /// </summary>
+        [Fact]
+        public void Dispatcher_CallsOnExit_WhenEntityDestroyedMidAction()
+        {
+            var world = TestWorldFactory.Create();
+            var sys = new LocomotionDispatcherSystem();
+
+            // Spy executor that destroys the entity inside Execute() and records
+            // whether OnExit was subsequently called by the dispatcher guard.
+            var spy = new SelfDestroyingExecutor();
+            sys.RegisterExecutor(1, spy);
+            sys.Create(world);
+
+            var e = world.CreateEntity();
+            // Set ActionInstanceId == DispatchedInstanceId so the lifecycle block
+            // doesn't fire OnEnter on this tick — we only want Execute() to run.
+            world.AddComponent(e, new LocomotionChannel
+            {
+                ActiveAction         = 1,
+                ActionInstanceId     = 1,
+                DispatchedInstanceId = 1,
+                Status               = NodeStatus.Running,
+            });
+            world.AddComponent(e, new ActorCapabilityState
+            {
+                Capabilities = ActorCapabilities.CanMove,
+            });
+
+            // Act: Execute() destroys the entity; the post-Execute guard should
+            // call OnExit and not throw.
+            var exception = Record.Exception(() => sys.Run());
+            Assert.Null(exception);
+            Assert.Equal(1, spy.ExecuteCallCount);
+            Assert.Equal(1, spy.OnExitCallCount); // guard called OnExit
+
+            sys.Dispose();
+            world.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Test executor whose Execute() call destroys the entity, simulating
+    /// an in-action lethal event (DEBT-024).
+    /// </summary>
+    internal sealed class SelfDestroyingExecutor : IActionExecutor<LocomotionChannel>
+    {
+        public int ExecuteCallCount { get; private set; }
+        public int OnExitCallCount  { get; private set; }
+
+        public void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world) { }
+
+        public void Execute(Entity entity, ref LocomotionChannel channel, EntityRepository world, float dt)
+        {
+            ExecuteCallCount++;
+            world.DestroyEntity(entity);
+        }
+
+        public void OnExit(Entity entity, ref LocomotionChannel channel, EntityRepository world)
+            => OnExitCallCount++;
     }
 }

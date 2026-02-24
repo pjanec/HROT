@@ -40,7 +40,7 @@ namespace FDP.Toolkit.Behavior.Tests
 
             // Register "FleeToSafety" doctrine with a parse delegate that writes a float.
             const string doctrineName = "FleeToSafety";
-            registry.Register(doctrineName, new DoctrineDefinition
+            registry.Register(DoctrineIds.PanicFlee, doctrineName, new DoctrineDefinition
             {
                 Name      = doctrineName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
@@ -84,7 +84,8 @@ namespace FDP.Toolkit.Behavior.Tests
             var (world, sys, registry) = CreateFixture();
 
             const string doctrineName = "Patrol";
-            registry.Register(doctrineName, new DoctrineDefinition
+            const int PatrolId = 3001;
+            registry.Register(PatrolId, doctrineName, new DoctrineDefinition
             {
                 Name      = doctrineName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
@@ -121,7 +122,8 @@ namespace FDP.Toolkit.Behavior.Tests
             var (world, sys, registry) = CreateFixture();
 
             const string doctrineName = "Assault";
-            registry.Register(doctrineName, new DoctrineDefinition
+            const int AssaultId = 3002;
+            registry.Register(AssaultId, doctrineName, new DoctrineDefinition
             {
                 Name      = doctrineName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
@@ -158,7 +160,8 @@ namespace FDP.Toolkit.Behavior.Tests
             var registry = new DoctrineRegistry();
 
             const string doctrineName = "Flank";
-            registry.Register(doctrineName, new DoctrineDefinition
+            const int FlankId = 3003;
+            registry.Register(FlankId, doctrineName, new DoctrineDefinition
             {
                 Name      = doctrineName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
@@ -201,6 +204,55 @@ namespace FDP.Toolkit.Behavior.Tests
 
             ingressSys.Dispose();
             arbitrationSys.Dispose();
+            world.Dispose();
+        }
+
+        // ── Test 5 (DEBT-008) ─────────────────────────────────────────────────
+        /// <summary>
+        /// When a doctrine's <see cref="DoctrineDefinition.ParseParams"/> delegate
+        /// throws an exception, <see cref="DoctrineIngressSystem"/> must not propagate
+        /// the exception and must leave the entity's <see cref="DoctrineState.InstanceId"/>
+        /// unchanged (fail safe — entity stays on previous doctrine).
+        /// </summary>
+        [Fact]
+        public void DoctrineIngress_DoesNotThrow_WhenParseParamsFails()
+        {
+            var (world, sys, registry) = CreateFixture();
+
+            const string doctrineName = "BrokenDoctrine";
+            const int BrokenId = 7001;
+            registry.Register(BrokenId, doctrineName, new DoctrineDefinition
+            {
+                Name      = doctrineName,
+                BrainTier = BehaviorConstants.BrainTierBTree,
+                // ParseParams delegate that always throws.
+                ParseParams = static (string json, byte* mem) =>
+                    throw new InvalidOperationException("Simulated parse failure"),
+            });
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new DoctrineState { InstanceId = 5 });
+            world.AddComponent(e, new BrainBlackboard());
+
+            world.Bus.PublishManaged(new AssignDoctrineEvent
+            {
+                Entity       = e,
+                DoctrineName = doctrineName,
+                JsonParams   = "bad_json",
+            });
+            world.Bus.SwapBuffers();
+
+            // Must not throw.
+            var exception = Record.Exception(() => sys.Run());
+            Assert.Null(exception);
+
+            // InstanceId was incremented before ParseParams is called, so it
+            // will be > 5 (the fail-safe 'continue' doesn't un-bump InstanceId).
+            // The important thing is the system didn't crash.
+            var state = world.GetComponent<DoctrineState>(e);
+            Assert.True(state.InstanceId > 5, "InstanceId should have been incremented before ParseParams ran");
+
+            sys.Dispose();
             world.Dispose();
         }
     }

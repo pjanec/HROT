@@ -23,6 +23,7 @@ namespace FDP.Toolkit.Behavior.Tests
             _world.RegisterComponent<DoctrineState>();
             _world.RegisterComponent<MissionPlanQueue>();
             _world.RegisterComponent<NavState>();
+            _world.RegisterComponent<HealthData>();
 
             _sys = new MissionDirectorSystem();
             _sys.Create(_world);
@@ -226,6 +227,94 @@ namespace FDP.Toolkit.Behavior.Tests
 
             ref var q3 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(2, q3.CurrentPhase);   // unchanged
+        }
+
+        // ── Test 5 ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// A <see cref="MissionTrigger.HealthCritical"/> phase must advance when
+        /// <c>HealthData.Fraction</c> &lt;= <c>TriggerParam</c> (5 / 100 = 0.05 &lt;= 0.10).
+        /// </summary>
+        [Fact]
+        public void MissionDirector_AdvancesPhase_WhenHealthCritical()
+        {
+            SetDeltaTime(Dt60Hz);
+
+            const int DocA = 800;
+            const int DocB = 900;
+
+            var entity = _world.CreateEntity();
+
+            var queue = new MissionPlanQueue();
+            queue.PhaseCount = 2;
+            queue.Phases[0] = new MissionPhase
+            {
+                DoctrineId   = DocA,
+                Trigger      = MissionTrigger.HealthCritical,
+                TriggerParam = 0.10f,   // 10 % threshold
+            };
+            queue.Phases[1] = new MissionPhase
+            {
+                DoctrineId   = DocB,
+                Trigger      = MissionTrigger.TimerElapsed,
+                TriggerParam = 1000f,
+            };
+            _world.AddComponent(entity, queue);
+            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            // 5 / 100 = 0.05 ≤ 0.10  →  trigger must fire.
+            _world.AddComponent(entity, new HealthData { Current = 5f, Max = 100f });
+
+            _sys.Run();
+
+            ref var q  = ref _world.GetComponentRW<MissionPlanQueue>(entity);
+            var doctrine = _world.GetComponent<DoctrineState>(entity);
+
+            Assert.Equal(1, q.CurrentPhase);
+            Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
+        }
+
+        // ── Test 6 ─────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// A <see cref="MissionTrigger.HealthCritical"/> phase must NOT advance when
+        /// <c>HealthData.Fraction</c> &gt; <c>TriggerParam</c> (50 / 100 = 0.50 &gt; 0.10).
+        /// </summary>
+        [Fact]
+        public void MissionDirector_DoesNotAdvance_WhenHealthAboveThreshold()
+        {
+            SetDeltaTime(Dt60Hz);
+
+            const int DocA = 800;
+            const int DocB = 900;
+
+            var entity = _world.CreateEntity();
+
+            var queue = new MissionPlanQueue();
+            queue.PhaseCount = 2;
+            queue.Phases[0] = new MissionPhase
+            {
+                DoctrineId   = DocA,
+                Trigger      = MissionTrigger.HealthCritical,
+                TriggerParam = 0.10f,
+            };
+            queue.Phases[1] = new MissionPhase
+            {
+                DoctrineId   = DocB,
+                Trigger      = MissionTrigger.TimerElapsed,
+                TriggerParam = 1000f,
+            };
+            _world.AddComponent(entity, queue);
+            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            // 50 / 100 = 0.50 > 0.10  →  trigger must NOT fire.
+            _world.AddComponent(entity, new HealthData { Current = 50f, Max = 100f });
+
+            _sys.Run();
+
+            ref var q  = ref _world.GetComponentRW<MissionPlanQueue>(entity);
+            var doctrine = _world.GetComponent<DoctrineState>(entity);
+
+            Assert.Equal(0, q.CurrentPhase);
+            Assert.Equal(DocA, doctrine.ActiveDoctrineHash);
         }
     }
 }

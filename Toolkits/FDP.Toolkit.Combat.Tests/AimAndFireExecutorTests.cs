@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Fdp.Kernel;
+using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
 using Fbt;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;

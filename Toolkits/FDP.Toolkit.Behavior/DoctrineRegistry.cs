@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using Fbt.Runtime;
@@ -51,33 +52,51 @@ namespace FDP.Toolkit.Behavior
     }
 
     /// <summary>
-    /// Startup-time registry that maps doctrine name hashes to their
+    /// Startup-time registry that maps stable assigned <c>int</c> IDs to their
     /// <see cref="DoctrineDefinition"/>s.
     ///
     /// Thread-safe for reads after the world is started (registrations happen before
     /// the first frame).  All mutations must complete before the simulation loop begins.
+    ///
+    /// <b>DEBT-006 fix:</b> Key is now a stable assigned <c>int</c> constant (see
+    /// <see cref="DoctrineIds"/>), NOT <c>name.GetHashCode()</c>.  Using
+    /// <c>string.GetHashCode()</c> is forbidden: it is process-randomised in .NET,
+    /// making doctrine IDs non-reproducible across runs and processes.
     /// </summary>
     public sealed class DoctrineRegistry
     {
         private readonly Dictionary<int, DoctrineDefinition> _definitions = new();
+        private readonly Dictionary<string, int> _nameToId = new(StringComparer.Ordinal);
 
         /// <summary>
-        /// Register a doctrine.  Key is <c>name.GetHashCode()</c>, which must match
-        /// <see cref="Components.DoctrineState.ActiveDoctrineHash"/> written by
-        /// <see cref="Systems.DoctrineIngressSystem"/>.
+        /// Register a doctrine with a stable assigned <paramref name="id"/>.
+        /// The <paramref name="id"/> must be a unique compile-time constant
+        /// (see <see cref="DoctrineIds"/>).  It becomes the value stored in
+        /// <see cref="Components.DoctrineState.ActiveDoctrineHash"/>.
         /// </summary>
-        public void Register(string name, DoctrineDefinition definition)
+        public void Register(int id, string name, DoctrineDefinition definition)
         {
-            _definitions[name.GetHashCode()] = definition;
+            _definitions[id] = definition;
+            _nameToId[name] = id;
         }
 
         /// <summary>
-        /// Look up a definition by its hash.  Returns <c>false</c> when the doctrine
-        /// has not been registered (entity is silently skipped by brain tick systems).
+        /// Resolve a doctrine name to its stable integer ID.
+        /// Returns <c>false</c> when the name has not been registered.
+        /// Used by <see cref="Systems.DoctrineIngressSystem"/> to map event names
+        /// to IDs without calling <c>string.GetHashCode()</c>.
+        /// </summary>
+        public bool TryGetId(string name, out int id)
+            => _nameToId.TryGetValue(name, out id);
+
+        /// <summary>
+        /// Look up a definition by its stable integer ID.  Returns <c>false</c>
+        /// when the doctrine has not been registered (entity is silently skipped
+        /// by brain tick systems).
         /// </summary>
         public bool TryGetDefinition(
-            int doctrineHash,
+            int doctrineId,
             [MaybeNullWhen(false)] out DoctrineDefinition definition)
-            => _definitions.TryGetValue(doctrineHash, out definition);
+            => _definitions.TryGetValue(doctrineId, out definition);
     }
 }

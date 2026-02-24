@@ -80,7 +80,8 @@ namespace FDP.Toolkit.Behavior.Tests
             var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
 
             const string doctrineName = "CountTick";
-            registry.Register(doctrineName, new DoctrineDefinition
+            const int   doctrineId   = 9001;
+            registry.Register(doctrineId, doctrineName, new DoctrineDefinition
             {
                 Name             = doctrineName,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
@@ -93,7 +94,7 @@ namespace FDP.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState
             {
-                ActiveDoctrineHash = doctrineName.GetHashCode(),
+                ActiveDoctrineHash = doctrineId,
                 BrainTier          = BehaviorConstants.BrainTierHsm, // WRONG tier
             });
             world.AddComponent(e, new BrainBTreeState());
@@ -131,7 +132,8 @@ namespace FDP.Toolkit.Behavior.Tests
             var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
 
             const string doctrineName = "SetLocomotion";
-            registry.Register(doctrineName, new DoctrineDefinition
+            const int   doctrineId   = 9002;
+            registry.Register(doctrineId, doctrineName, new DoctrineDefinition
             {
                 Name             = doctrineName,
                 BrainTier        = BehaviorConstants.BrainTierBTree,
@@ -144,7 +146,7 @@ namespace FDP.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState
             {
-                ActiveDoctrineHash = doctrineName.GetHashCode(),
+                ActiveDoctrineHash = doctrineId,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
             world.AddComponent(e, new BrainBTreeState());

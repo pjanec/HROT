@@ -19,21 +19,22 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 
 | ID | Sev | Source | Description | Target | Status |
 |---|---|---|---|---|---|
-| DEBT-006 | P2 | BATCH-04-REVIEW | `DoctrineRegistry` keys on `string.GetHashCode()` — process-randomised. Serialised doctrine IDs non-reproducible across runs. Needs stable key (CRC32 or assigned `int`). | Phase 5 networking batch | 🔴 Open |
-| DEBT-007 | P2 | BATCH-04-REPORT | `FdpHsmContext` carries only `Entity Self` — HSM action delegates cannot access ECS world. Strategy needed before Phase 7 Demo App. | BATCH-13 Pre-Demo Debt | 🔴 Open |
-| DEBT-008 | P3 | BATCH-04-REPORT | `DoctrineIngressSystem` — no try/catch around `ParseParams`. Malformed JSON throws with no entity context. | Any batch touching DoctrineIngressSystem | 🔴 Open |
+| DEBT-006 | P2 | BATCH-04-REVIEW | `DoctrineRegistry` keys on `string.GetHashCode()` — process-randomised. Serialised doctrine IDs non-reproducible across runs. Needs stable key (CRC32 or assigned `int`). | BATCH-13 ✅ | ✅ Resolved |
+| DEBT-007 | P2 | BATCH-04-REPORT | `FdpHsmContext` carries only `Entity Self` — HSM action delegates cannot access ECS world. Strategy needed before Phase 7 Demo App. | BATCH-13 ✅ | ✅ Resolved |
+| DEBT-008 | P3 | BATCH-04-REPORT | `DoctrineIngressSystem` — no try/catch around `ParseParams`. Malformed JSON throws with no entity context. | BATCH-13 ⚠️ partial (see DEBT-035) | 🟡 Partial |
 | DEBT-021 | P2 | BATCH-08-REVIEW (Q4) | `RaycastSolverSystem` — no bounds check on `batch.Count`; overflow → `IndexOutOfRangeException`. Add `Math.Min(batch.Count, PhysicsConstants.RaycastBatchCapacity)` before `Parallel.For`. Add `Debug.Assert` at fill sites. | BATCH-09 ✅ | ✅ Resolved |
-| DEBT-022 | P3 | BATCH-08-REVIEW | `Intersection2DTests` — missing degenerate boundary case: segment starts exactly at circle edge (t=0). | Any batch touching Intersection2D | 🔴 Open |
+| DEBT-022 | P3 | BATCH-08-REVIEW | `Intersection2DTests` — missing degenerate boundary case: segment starts exactly at circle edge (t=0). | BATCH-13 ✅ | ✅ Resolved |
 | DEBT-023 | P2 | BATCH-08-REVIEW (Q3) | `HitEvent` temporarily in `FDP.Toolkit.Physics`. Must move to `FDP.Toolkit.Combat` in Phase 5. | BATCH-09 ✅ | ✅ Resolved |
-| DEBT-024 | P2 | BATCH-08-REVIEW (Q1) | `DispatcherSystemBase` — no `OnExit` on entity destruction; per-entity executor state can leak. Full fix requires kernel lifecycle hook. | Phase 5+ | 🔴 Open |
+| DEBT-024 | P2 | BATCH-08-REVIEW (Q1) | `DispatcherSystemBase` — no `OnExit` on entity destruction; per-entity executor state can leak. Full fix requires kernel lifecycle hook. | BATCH-13 ✅ partial mitigation | ✅ Resolved (partial) |
 | DEBT-025 | **P1** | BATCH-08-REVIEW (external lead) | `SimTransformBridgeSystem.UpdateEntity` hardcodes `PitchDeg = 0f`, `RollDeg = 0f`. All non-level entities have orientation stripped before egress. Add `RotationToPitchRollDeg` static helper + call from `UpdateEntity`. | BATCH-09 ✅ | ✅ Resolved |
 | DEBT-026 | P2 | BATCH-08-REVIEW (code review) | `RaycastSolverSystem` — `stackalloc` candidate buffer capped at 64; entities beyond that are silently dropped. Undocumented. Add `PhysicsConstants.MaxBroadphaseCandidates = 64` constant and a doc comment explaining the cap and implication. | BATCH-09 ✅ | ✅ Resolved |
 | DEBT-027 | P2 | BATCH-08-REVIEW (code review) | `HitResolutionSystem` emits `TargetVisibleEvent` with raw `int` indices (ObserverEntityIndex, TargetEntityIndex). If an entity is recycled between LOS submission and event consumption, the wrong entity's threat memory is updated. LOS pipeline should carry full `Entity` handles. | BATCH-09 (comment added) — full fix deferred to LOS pipeline rework | 🟡 Partial |
 | DEBT-028 | P2 | BATCH-08-REVIEW (test review) | `Intersection2DTests` Test 4 (`ReturnsTMin_WhenTwoIntersections`) is functionally identical to Test 1 — same geometry, same assertion range. Doesn't actually prove the min-is-returned-not-max behaviour. Use a geometry where entry and exit t values are well-separated (e.g. r=4, 10-unit ray). | BATCH-09 ✅ | ✅ Resolved |
-| DEBT-031 | P3 | BATCH-10-REVIEW (Issue 4) | `HitEvent` now lives in `Fdp.Kernel` — a combat game event in the engine core layer. Violates kernel purity. Should move to `FDP.Toolkit.Combat.Contracts` (thin events-only assembly) or back to Combat once Physics no longer depends on it. | Phase 6 or when project structure allows | 🔴 Open |
+| DEBT-031 | P3 | BATCH-10-REVIEW (Issue 4) | `HitEvent` now lives in `Fdp.Kernel` — a combat game event in the engine core layer. Violates kernel purity. Should move to `FDP.Toolkit.Combat.Contracts` (thin events-only assembly) or back to Combat once Physics no longer depends on it. | BATCH-13 ✅ | ✅ Resolved |
 | DEBT-032 | P2 | BATCH-10-REPORT (Q1) | `LinearKinematicsSystem` referenced by `BallisticsSystem` design but does not exist. Blocks correct ordering attribute for `BallisticsSystem`. Implement in BATCH-11. | BATCH-11 ✅ | ✅ Resolved |
-| DEBT-033 | P2 | BATCH-11-REVIEW | `MissionDirectorSystem.HealthCritical` trigger not implemented: `FDP.Toolkit.Behavior` cannot reference `FDP.Toolkit.Combat` (circular dependency — Combat references Behavior for `ActorCapabilityState`). Requires shared health interface in `Fdp.Kernel` or assembly restructure. | BATCH-13 Pre-Demo Debt | 🔴 Open |
-| DEBT-034 | P3 | BATCH-12-REVIEW | `EjectPassengersExecutor` XML doc comment describes symmetric slot offsets (e.g. ±0.75 m for Count=2) but the actual formula produces asymmetric offsets (−1.5 m and 0.0 m). Fix the comment to match the actual computed values. | BATCH-13 | 🔴 Open |
+| DEBT-033 | P2 | BATCH-11-REVIEW | `MissionDirectorSystem.HealthCritical` trigger not implemented: `FDP.Toolkit.Behavior` cannot reference `FDP.Toolkit.Combat` (circular dependency — Combat references Behavior for `ActorCapabilityState`). Requires shared health interface in `Fdp.Kernel` or assembly restructure. | BATCH-13 ✅ | ✅ Resolved |
+| DEBT-034 | P3 | BATCH-12-REVIEW | `EjectPassengersExecutor` XML doc comment describes symmetric slot offsets (e.g. ±0.75 m for Count=2) but the actual formula produces asymmetric offsets (−1.5 m and 0.0 m). Fix the comment to match the actual computed values. | BATCH-13 ✅ | ✅ Resolved |
+| DEBT-035 | **P1** | BATCH-13-REVIEW (Issue 1) | `DoctrineIngressSystem` try/catch added (DEBT-008) but DoctrineState writes occur BEFORE the try block. A `ParseParams` failure leaves the entity in a partial doctrine transition (hash+InstanceId bumped, BTree reset, but blackboard zero). Must reorder: attempt `ParseParams` first (inside try), then write `DoctrineState`/`BrainBTreeState` only on success. Add test `DoctrineIngress_DoctrineStateUnchanged_WhenParseParamsFails`. | BATCH-14 Corrective-0 | 🔴 Open |
 
 ---
 
@@ -63,9 +64,7 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 
 ## Notes
 
-- **Pre-Demo Debt Resolution (BATCH-13):** All P2 items must be closed before Phase 7 begins. Open P2s: DEBT-006 (DoctrineRegistry hash), DEBT-007 (FdpHsmContext access), DEBT-024 (dispatcher OnExit leak), DEBT-033 (HealthCritical trigger).
-- **DEBT-034** (EjectPassengersExecutor doc): one-liner fix; bundle into BATCH-13.
-- **DEBT-031** (`HitEvent` in Kernel): P3 architectural concern; acceptable for Phase 7 but should be planned for cleanup.
-- **DEBT-027** requires a design decision: full fix deferred to when `LosRequestBatchingSystem` is reworked.
-- **DEBT-022** (t=0 boundary case) is the only remaining low-priority Intersection2D gap.
-- **DEBT-008** (DoctrineIngress no try/catch): P3, bundle into BATCH-13.
+- **All P2/P3 debts resolved** (BATCH-13) — DEBT-006, 007, 008(partial), 022, 024, 031, 033, 034.
+- **DEBT-035 (P1):** DoctrineIngressSystem catch ordering bug — must be fixed as Corrective-0 in BATCH-14 before Phase 7 work begins.
+- **DEBT-008 remains Partial** until DEBT-035 corrective is complete and the test passes.
+- **DEBT-027** (raw int LOS indices): lower priority, deferred to when `LosRequestBatchingSystem` is reworked.

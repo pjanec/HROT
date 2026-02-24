@@ -1,3 +1,4 @@
+using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel to Combat.Contracts
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
@@ -68,6 +69,13 @@ namespace FDP.Toolkit.Combat.Systems
                 ref var health = ref World.GetComponentRW<Health>(evt.HitEntity);
                 health.Current -= damage;
                 if (health.Current < 0f) health.Current = 0f;
+
+                // Sync HealthData mirror (Fdp.Kernel) so Behavior systems
+                // (e.g. MissionDirectorSystem) can react to health without
+                // a Combat → Behavior circular dependency (DEBT-033).
+                if (World.HasComponent<HealthData>(evt.HitEntity))
+                    World.SetComponent(evt.HitEntity,
+                        new HealthData { Current = health.Current, Max = health.Max });
 
                 // 7. If lethal: strip capabilities first (HsmDamageBridgeSystem reads this in
                 //    the same frame), then destroy the hit entity.

@@ -21,8 +21,8 @@ namespace FDP.Toolkit.Behavior.Executors
     /// <para><b>Slot-offset formula:</b>
     /// <c>offset = new Vector3((i - buffer.Count / 2f) * 1.5f, -4f, 0f)</c> —
     /// places passengers in a row along the vehicle's side (negative-Y = side in ENU).
-    /// For 2 passengers: offsets are −0.75 m and +0.75 m on X.
-    /// For 4 passengers: offsets are −2.25 m, −0.75 m, +0.75 m, +2.25 m on X.</para>
+    /// For 2 passengers: offsets are −1.5 m and 0.0 m on X.
+    /// For 4 passengers: offsets are −3.0 m, −1.5 m, 0.0 m, +1.5 m on X.</para>
     /// </summary>
     public class EjectPassengersExecutor : IActionExecutor<InteractionChannel>
     {

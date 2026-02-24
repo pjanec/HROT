@@ -22,6 +22,7 @@ namespace FDP.Toolkit.Behavior.Tests
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
             world.RegisterComponent<SimTransform>();
+            world.RegisterComponent<HealthData>();
             return world;
         }
     }

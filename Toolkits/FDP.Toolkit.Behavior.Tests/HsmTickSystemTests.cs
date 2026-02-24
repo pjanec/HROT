@@ -71,7 +71,8 @@ namespace FDP.Toolkit.Behavior.Tests
 
             var blob = BuildTwoStateBlob();
             const string doctrineName = "TestHsm";
-            registry.Register(doctrineName, new DoctrineDefinition
+            const int TestHsmId = 9001;
+            registry.Register(TestHsmId, doctrineName, new DoctrineDefinition
             {
                 Name          = doctrineName,
                 BrainTier     = BehaviorConstants.BrainTierHsm,
@@ -84,7 +85,7 @@ namespace FDP.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new DoctrineState
             {
-                ActiveDoctrineHash = doctrineName.GetHashCode(),
+                ActiveDoctrineHash = TestHsmId,
                 BrainTier          = BehaviorConstants.BrainTierHsm,
             });
 
@@ -114,8 +115,33 @@ namespace FDP.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // ── Test 2 ───────────────────────────────────────────────────────────────
+        // ── Test 3 (DEBT-007 structural test) ────────────────────────────────
+        /// <summary>
+        /// <see cref="FdpHsmContext"/> must expose a <c>World</c> field of type
+        /// <see cref="EntityRepository"/> that can be set and read back.
+        /// This confirms the field exists and that <see cref="HsmTickSystem{T}"/>
+        /// can populate it before each entity tick.
+        /// </summary>
+        [Fact]
+        public void FdpHsmContext_ExposesWorldAccess()
+        {
+            var world = TestWorldFactory.Create();
 
+            // Structural test: create context manually and verify the World field
+            // is populated — no HSM execution required.
+            var context = new FdpHsmContext
+            {
+                Self  = Entity.Null,
+                World = world,
+            };
+
+            Assert.NotNull(context.World);
+            Assert.Same(world, context.World);
+
+            world.Dispose();
+        }
+
+        // ── Test 2 ────────────────────────────────────────────────────────────
         [Fact]
         public void HsmTick64_And_HsmTick128_AreIndependent()
         {

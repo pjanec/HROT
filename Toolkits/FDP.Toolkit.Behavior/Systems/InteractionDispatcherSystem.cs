@@ -52,6 +52,16 @@ namespace FDP.Toolkit.Behavior.Systems
                 if (channel.ActiveAction != 0 && channel.Status == NodeStatus.Running)
                 {
                     _executors[channel.ActiveAction]?.Execute(entity, ref channel, World, DeltaTime);
+
+                    // Guard: if Execute() destroyed the entity, call OnExit to avoid state leaks.
+                    // Note: one-frame gap remains for entities destroyed by other systems
+                    // (DEBT-024 partial mitigation).
+                    if (!World.IsAlive(entity))
+                    {
+                        if (channel.ActiveAction != 0)
+                            _executors[channel.ActiveAction]?.OnExit(entity, ref channel, World);
+                        continue;
+                    }
                 }
             }
         }

@@ -11,7 +11,7 @@ namespace FDP.Toolkit.Combat
         // It is preserved unchanged here so that any existing serialised data or protocol
         // contracts that reference the numeric ID continue to work.
 
-        /// <summary>Event ID for <see cref="Fdp.Kernel.HitEvent"/> (originally in FDP.Toolkit.Physics; now in Fdp.Kernel).</summary>
+        /// <summary>Event ID for <see cref="FDP.Toolkit.Combat.Contracts.HitEvent"/> (originally in FDP.Toolkit.Physics; moved to Fdp.Kernel in BATCH-10; moved to Combat.Contracts in DEBT-031).</summary>
         public const int HitEventId = 5001;
 
         /// <summary>Event ID for <see cref="Events.FireRequestEvent"/>.</summary>

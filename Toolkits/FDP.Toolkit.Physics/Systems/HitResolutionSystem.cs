@@ -1,4 +1,5 @@
 using Fdp.Kernel;
+using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel to Combat.Contracts
 // BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Kernel — no extra using needed.
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Perception.Events;

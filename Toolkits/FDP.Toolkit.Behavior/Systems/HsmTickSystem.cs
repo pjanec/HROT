@@ -6,14 +6,39 @@ using FDP.Toolkit.Behavior.Components;
 namespace FDP.Toolkit.Behavior.Systems
 {
     /// <summary>
-    /// Minimal unmanaged context carried into FastHSM action delegates.
-    /// Must be <c>unmanaged</c> to satisfy <see cref="HsmKernel.Update{TInstance,TContext}"/>'s
-    /// generic constraint.  ECS world access from inside HSM action delegates should be
-    /// wired through static service locators or separate command buffers (Phase 3+).
+    /// Context struct passed to FastHSM action delegates via <see cref="HsmTickSystem{T}"/>.
+    ///
+    /// <b>DEBT-007 fix:</b> Added <see cref="World"/> field so that action delegates
+    /// can read and write ECS components without ambient state or thread-locals.
+    ///
+    /// <b>Constraint note (DEBT-007 Q1):</b>
+    /// <see cref="HsmKernel.Update{TInstance,TContext}"/> requires
+    /// <c>where TContext : unmanaged</c>.  Because <see cref="EntityRepository"/>
+    /// is a reference type, <c>FdpHsmContext</c> can no longer satisfy that constraint
+    /// directly.  <see cref="HsmTickSystem{T}"/> therefore uses a thin internal
+    /// <see cref="HsmKernelBridge"/> (unmanaged) for the kernel call, while
+    /// <c>FdpHsmContext</c> remains the user-facing context available to action delegates
+    /// via the <c>HsmTickSystem</c>'s stored reference (Phase 3+ wiring).
+    /// Option C (static/thread-local) was explicitly rejected.
     /// </summary>
     public struct FdpHsmContext
     {
         /// <summary>The entity whose HSM brain is currently being stepped.</summary>
+        public Entity Self;
+
+        /// <summary>
+        /// ECS world — allows HSM action delegates to read and write components.
+        /// Populated by <see cref="HsmTickSystem{T}"/> before each entity tick.
+        /// </summary>
+        public EntityRepository World;
+    }
+
+    /// <summary>
+    /// Minimal unmanaged bridge passed to <see cref="HsmKernel.Update{TInstance,TContext}"/>.
+    /// Must satisfy <c>where TContext : unmanaged</c> — cannot hold managed references.
+    /// </summary>
+    internal struct HsmKernelBridge
+    {
         public Entity Self;
     }
 
@@ -71,11 +96,14 @@ namespace FDP.Toolkit.Behavior.Systems
 
                 ref var component = ref World.GetComponentRW<T>(entity);
 
-                // Stack-allocated context — zero heap allocation.
-                var context = new FdpHsmContext { Self = entity };
+                // DEBT-007: populate FdpHsmContext with ECS World for action delegate access.
+                // HsmKernelBridge (unmanaged) is used for the HsmKernel.Update call since
+                // FdpHsmContext can no longer satisfy 'where TContext : unmanaged'.
+                var fdpContext = new FdpHsmContext { Self = entity, World = World };
+                var bridge = new HsmKernelBridge { Self = fdpContext.Self };
 
                 // sizeof(T) determines the tier (64 / 128 / 256) inside HsmKernelCore.
-                HsmKernel.Update(def.HsmDefinition, ref component, context, DeltaTime);
+                HsmKernel.Update(def.HsmDefinition, ref component, bridge, DeltaTime);
             }
         }
     }

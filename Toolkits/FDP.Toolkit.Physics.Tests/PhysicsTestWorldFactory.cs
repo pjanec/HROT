@@ -1,7 +1,7 @@
 using CarKinem.Spatial;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-// BATCH-10: HitEvent moved to Fdp.Kernel — using FDP.Toolkit.Combat.Events removed.
+using FDP.Toolkit.Combat.Contracts;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Perception.Events;
 

@@ -133,6 +133,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.Physics.Tests",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.Combat", "Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj", "{7E8F9A0B-1C2D-3E4F-5A6B-7C8D9E0F1A2B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.Combat.Contracts", "Toolkits\FDP.Toolkit.Combat.Contracts\FDP.Toolkit.Combat.Contracts.csproj", "{3A4B5C6D-7E8F-9A0B-1C2D-3E4F5A6B7C8D}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.Combat.Tests", "Toolkits\FDP.Toolkit.Combat.Tests\FDP.Toolkit.Combat.Tests.csproj", "{8F9A0B1C-2D3E-4F5A-6B7C-8D9E0F1A2B3C}"
 EndProject
 Global

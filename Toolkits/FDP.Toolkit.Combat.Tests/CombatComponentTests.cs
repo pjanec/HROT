@@ -1,6 +1,7 @@
 using System;
 using System.Reflection;
 using Fdp.Kernel;
+using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Events;
 using Xunit;
