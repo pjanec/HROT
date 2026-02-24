@@ -8,5 +8,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
+    <ProjectReference Include="..\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
   </ItemGroup>
 </Project>

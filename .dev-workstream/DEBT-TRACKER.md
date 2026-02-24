@@ -30,6 +30,9 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | DEBT-026 | P2 | BATCH-08-REVIEW (code review) | `RaycastSolverSystem` — `stackalloc` candidate buffer capped at 64; entities beyond that are silently dropped. Undocumented. Add `PhysicsConstants.MaxBroadphaseCandidates = 64` constant and a doc comment explaining the cap and implication. | BATCH-09 ✅ | ✅ Resolved |
 | DEBT-027 | P2 | BATCH-08-REVIEW (code review) | `HitResolutionSystem` emits `TargetVisibleEvent` with raw `int` indices (ObserverEntityIndex, TargetEntityIndex). If an entity is recycled between LOS submission and event consumption, the wrong entity's threat memory is updated. LOS pipeline should carry full `Entity` handles. | BATCH-09 (comment added) — full fix deferred to LOS pipeline rework | 🟡 Partial |
 | DEBT-028 | P2 | BATCH-08-REVIEW (test review) | `Intersection2DTests` Test 4 (`ReturnsTMin_WhenTwoIntersections`) is functionally identical to Test 1 — same geometry, same assertion range. Doesn't actually prove the min-is-returned-not-max behaviour. Use a geometry where entry and exit t values are well-separated (e.g. r=4, 10-unit ray). | BATCH-09 ✅ | ✅ Resolved |
+| DEBT-031 | P3 | BATCH-10-REVIEW (Issue 4) | `HitEvent` now lives in `Fdp.Kernel` — a combat game event in the engine core layer. Violates kernel purity. Should move to `FDP.Toolkit.Combat.Contracts` (thin events-only assembly) or back to Combat once Physics no longer depends on it. | Phase 6 or when project structure allows | 🔴 Open |
+| DEBT-032 | P2 | BATCH-10-REPORT (Q1) | `LinearKinematicsSystem` referenced by `BallisticsSystem` design but does not exist. Blocks correct ordering attribute for `BallisticsSystem`. Implement in BATCH-11. | BATCH-11 ✅ | ✅ Resolved |
+| DEBT-033 | P2 | BATCH-11-REVIEW | `MissionDirectorSystem.HealthCritical` trigger not implemented: `FDP.Toolkit.Behavior` cannot reference `FDP.Toolkit.Combat` (circular dependency — Combat references Behavior for `ActorCapabilityState`). Requires shared health interface in `Fdp.Kernel` or assembly restructure. | Phase 6 or when shared interface is designed | 🔴 Open |
 
 ---
 
@@ -59,6 +62,8 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 
 ## Notes
 
-- **DEBT-027** requires a design decision: the LOS event chain (`LosCheckRequestEvent` → `RaycastRequest` → `RaycastHit` → `TargetVisibleEvent`) currently passes raw int indices end-to-end. Full fix deferred to when `LosRequestBatchingSystem` is reworked.
+- **DEBT-033** (`HealthCritical` trigger): clean fix requires a shared `IHasHealth` or `HealthData` struct in `Fdp.Kernel`. Deferred — do not add a Combat→Behavior or Behavior→Combat reference.
+- **DEBT-031** (`HitEvent` in Kernel): pragmatic short-term fix for circular dependency; deferred.
+- **DEBT-027** requires a design decision: full fix deferred to when `LosRequestBatchingSystem` is reworked.
 - **DEBT-022** (t=0 boundary case) is the only remaining low-priority Intersection2D gap.
 - **DEBT-006** and **DEBT-007** are Phase 5/6 concerns. Do not refactor early.

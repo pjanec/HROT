@@ -1,7 +1,7 @@
 using CarKinem.Spatial;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
-using FDP.Toolkit.Combat.Events;
+// BATCH-10: HitEvent moved to Fdp.Kernel — using FDP.Toolkit.Combat.Events removed.
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Perception.Events;
 
@@ -42,7 +42,8 @@ namespace FDP.Toolkit.Physics.Tests
             world.RegisterComponent<PhysicsCollider>();
 
             // Events exchanged within and across the Physics pipeline.
-            // HitEvent was migrated to FDP.Toolkit.Combat in BATCH-09 (DEBT-023).
+            // HitEvent was migrated to FDP.Toolkit.Combat in BATCH-09 (DEBT-023),
+            // then moved to Fdp.Kernel in BATCH-10 to break the Combat↔Physics circular dep.
             world.RegisterEvent<HitEvent>();
             world.RegisterEvent<TargetVisibleEvent>();
 

@@ -11,10 +11,30 @@ namespace FDP.Toolkit.Combat
         // It is preserved unchanged here so that any existing serialised data or protocol
         // contracts that reference the numeric ID continue to work.
 
-        /// <summary>Event ID for <see cref="Events.HitEvent"/> (migrated from FDP.Toolkit.Physics).</summary>
+        /// <summary>Event ID for <see cref="Fdp.Kernel.HitEvent"/> (originally in FDP.Toolkit.Physics; now in Fdp.Kernel).</summary>
         public const int HitEventId = 5001;
 
         /// <summary>Event ID for <see cref="Events.FireRequestEvent"/>.</summary>
         public const int FireRequestEventId = 5002;
+
+        // ── Bullet / projectile constants ─────────────────────────────────────
+
+        /// <summary>Damage applied per bullet hit (sourced from BallisticProjectile.Damage on spawn).</summary>
+        public const float DefaultBulletDamage  = 25f;
+
+        /// <summary>Radius of the bounding-circle collider added to each bullet entity (metres).</summary>
+        public const float BulletColliderRadius  = 0.1f;
+
+        /// <summary>
+        /// Collision layer assigned to bullet entities (bit 1).
+        /// Distinct from the generic entity layer (bit 0) so bullets do not collide with each other.
+        /// </summary>
+        public const int   BulletCollisionLayer  = 2;
+
+        /// <summary>
+        /// Maximum number of simulation ticks a bullet entity may live before being culled.
+        /// At 60 Hz this is approximately 2 seconds.
+        /// </summary>
+        public const uint  BulletLifetimeTicks   = 120;
     }
 }

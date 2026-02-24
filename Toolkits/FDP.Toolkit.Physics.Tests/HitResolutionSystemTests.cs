@@ -1,6 +1,6 @@
 using System;
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Events;
+// BATCH-10: HitEvent moved to Fdp.Kernel — using FDP.Toolkit.Combat.Events removed.
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Physics.Systems;
 using FDP.Toolkit.Perception.Events;

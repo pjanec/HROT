@@ -14,6 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
-    <ProjectReference Include="..\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
+    <!-- BATCH-10: FDP.Toolkit.Combat reference removed. HitEvent now in Fdp.Kernel (transitive via Physics). -->
   </ItemGroup>
 </Project>

@@ -435,7 +435,23 @@ namespace Fdp.Kernel
             
             return new Entity(index, header.Generation);
         }
-        
+
+        /// <summary>
+        /// Reconstructs an <see cref="Entity"/> handle from a raw entity index.
+        /// <para>
+        /// <b>SAFETY (DEBT-027 pattern):</b> A raw index does not carry the generation counter,
+        /// so the returned entity may belong to a <em>different</em> entity if the original
+        /// occupant of that slot was destroyed and the slot was subsequently recycled.
+        /// Always call <see cref="IsAlive"/> on the returned value immediately, and confirm
+        /// relevant components are still present before accessing them.
+        /// </para>
+        /// <para>
+        /// Returns <see cref="Entity.Null"/> when <paramref name="index"/> is out of range
+        /// or the slot is not currently active.
+        /// </para>
+        /// </summary>
+        public Entity GetEntityByIndex(int index) => GetEntity(index);
+
         // ========================================================================
         // PUBLIC API (Clean, Unified, High-Performance)
         // ========================================================================

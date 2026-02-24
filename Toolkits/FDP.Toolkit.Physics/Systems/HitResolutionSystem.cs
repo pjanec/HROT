@@ -1,5 +1,5 @@
 using Fdp.Kernel;
-using FDP.Toolkit.Combat.Events;
+// BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Kernel — no extra using needed.
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Perception.Events;
 
@@ -35,9 +35,9 @@ namespace FDP.Toolkit.Physics.Systems
     /// <b>Cross-toolkit dependency approach (BATCH-08 Q3):</b>
     /// <c>FDP.Toolkit.Physics</c> references <c>FDP.Toolkit.Perception</c> directly so it
     /// can publish <see cref="TargetVisibleEvent"/> without duplicating the type.
-    /// <see cref="HitEvent"/> is defined in this assembly because <c>FDP.Toolkit.Combat</c>
-    /// does not yet exist; the event will be moved to (or re-referenced from) the Combat toolkit
-    /// in Phase 5. This avoids introducing a stub assembly today.
+    /// <see cref="HitEvent"/> is now defined in <c>Fdp.Kernel</c> (BATCH-10: moved from
+    /// <c>FDP.Toolkit.Combat.Events</c> to break the circular dependency introduced in
+    /// BATCH-09 when Combat systems started needing Physics types).
     /// </para>
     /// <para>
     /// <b>Count reset:</b> After all hits are dispatched <see cref="RaycastBatchData.Count"/>

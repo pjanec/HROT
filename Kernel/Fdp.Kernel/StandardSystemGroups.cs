@@ -31,6 +31,18 @@ namespace Fdp.Kernel
     public class SimulationSystemGroup : SystemGroup { }
 
     /// <summary>
+    /// Group for systems that run after the main simulation phase.
+    /// Covers position integration (LinearKinematicsSystem), ballistics housekeeping
+    /// (BallisticsSystem), vehicle kinematics (CarKinematicsSystem), and the spatial
+    /// hash rebuild (SpatialHashSystem).
+    /// <para>
+    /// Execution order within the group is declared per-system via
+    /// <c>[UpdateBefore]</c> / <c>[UpdateAfter]</c> attributes.
+    /// </para>
+    /// </summary>
+    public class PostSimulationSystemGroup : SystemGroup { }
+
+    /// <summary>
     /// Group for systems that run during the presentation/rendering phase.
     /// </summary>
     public class PresentationSystemGroup : SystemGroup { }

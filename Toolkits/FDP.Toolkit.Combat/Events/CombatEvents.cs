@@ -30,31 +30,7 @@ namespace FDP.Toolkit.Combat.Events
     }
 
     // ── HitEvent ─────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Published by <c>HitResolutionSystem</c> when a bullet ray resolves to a hit.
-    /// Consumed by damage-application systems in the Combat toolkit.
-    ///
-    /// <b>Migration note:</b> This event was previously defined in
-    /// <c>FDP.Toolkit.Physics/Events/PhysicsEvents.cs</c>.  It has been moved here
-    /// in BATCH-09 (DEBT-023 partial resolution) now that the Combat toolkit exists.
-    /// The numeric event ID (5001) is unchanged — see <see cref="CombatConstants.HitEventId"/>.
-    /// </summary>
-    [EventId(CombatConstants.HitEventId)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct HitEvent
-    {
-        /// <summary>The entity that was struck by the bullet.</summary>
-        public Entity HitEntity;
-
-        /// <summary>
-        /// Index of the bullet entity that caused the hit.
-        /// Extracted from the low 31 bits of <c>RaycastHit.RayId</c>
-        /// when <c>PhysicsConstants.IsBulletRay</c> is true.
-        /// </summary>
-        public int BulletIndex;
-
-        /// <summary>Hit parameter ∈ [0, 1] along the bullet's Start→End segment.</summary>
-        public float HitT;
-    }
+    // BATCH-10: HitEvent has been moved to Fdp.Kernel.HitEvent to break the circular
+    // project dependency between FDP.Toolkit.Physics and FDP.Toolkit.Combat.
+    // Import Fdp.Kernel (already referenced) to access HitEvent.
 }
