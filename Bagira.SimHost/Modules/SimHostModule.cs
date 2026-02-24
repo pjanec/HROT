@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
 using Bagira.SimHost.Systems;
+using Bagira.SimHost.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Systems;
+using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network.Interfaces;
 
@@ -49,6 +51,10 @@ namespace Bagira.SimHost.Modules
     /// <see cref="FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/>.
     /// The CreateEntityRequest handler translates DDS requests into
     /// <c>SpawnEntityCommand</c> events; NetworkSpawningSystem processes them each tick.
+    ///
+    /// Also creates and exposes a <see cref="GeoSpatialEgressTranslator"/> for
+    /// publishing GeoSpatial/GeoSpatialDR DDS topics from ECS GeoTransform/GeoVelocity
+    /// components written by <c>SimTransformBridgeSystem</c> in the Geographic toolkit.
     /// </summary>
     public class SimHostModule : IModule
     {
@@ -57,6 +63,7 @@ namespace Bagira.SimHost.Modules
 
         private readonly CreateEntityRequestSystem _requestSystem;
         private readonly NetworkSpawningSystem     _spawnSystem;
+        private readonly GeoSpatialEgressTranslator? _geoEgressTranslator;
 
         public SimHostModule(
             DdsParticipant     participant,
@@ -64,6 +71,7 @@ namespace Bagira.SimHost.Modules
             INetworkIdAllocator idAllocator,
             int                localNodeId,
             NetworkSpawningSystem spawnSystem,
+            NetworkEntityMap   entityMap,
             IGeographicTransform? geoTransform = null)
         {
             var requestSource = new DdsCreateEntityRequestSource(participant);
@@ -78,7 +86,19 @@ namespace Bagira.SimHost.Modules
                 geoTransform);
 
             _spawnSystem = spawnSystem;
+
+            // Create GeoSpatial egress translator when geographic transform is available
+            if (geoTransform != null)
+            {
+                _geoEgressTranslator = new GeoSpatialEgressTranslator(participant, entityMap);
+            }
         }
+
+        /// <summary>
+        /// Gets the GeoSpatial egress translator for registration with the network module.
+        /// Returns null if no geographic transform was provided.
+        /// </summary>
+        public GeoSpatialEgressTranslator? GeoEgressTranslator => _geoEgressTranslator;
 
         public void RegisterSystems(ISystemRegistry registry)
         {
