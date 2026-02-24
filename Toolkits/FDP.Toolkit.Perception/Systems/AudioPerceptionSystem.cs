@@ -37,8 +37,8 @@ namespace FDP.Toolkit.Perception.Systems
             uint tick = World.GlobalVersion;
 
             // Re-use a stack-allocated buffer for neighbor results.
-            Span<(int entityId, Vector2 pos)> neighbors =
-                stackalloc (int, Vector2)[MaxQueryResults];
+            Span<(Entity entity, Vector2 pos)> neighbors =
+                stackalloc (Entity, Vector2)[MaxQueryResults];
 
             foreach (ref readonly var evt in events)
             {
@@ -59,12 +59,8 @@ namespace FDP.Toolkit.Perception.Systems
 
                 for (int i = 0; i < candidateCount; i++)
                 {
-                    int candidateIdx = neighbors[i].entityId;
-
-                    // Reconstruct an Entity handle from the index.
-                    // QueryNeighbors returns entity indices; we look up the full entity by index.
-                    Entity listener = World.GetEntity(candidateIdx);
-                    if (!World.IsAlive(listener)) continue;
+                    // QueryNeighbors returns full Entity handles — no reconstruction needed.
+                    Entity listener = neighbors[i].entity;
                     if (!World.HasComponent<PerceptionReceptor>(listener)) continue;
                     if (!World.HasComponent<TargetMemory>(listener)) continue;
 
@@ -97,7 +93,7 @@ namespace FDP.Toolkit.Perception.Systems
         private int QueryFallback(
             Vector2 eventPos2D,
             float radius,
-            Span<(int entityId, Vector2 pos)> output)
+            Span<(Entity entity, Vector2 pos)> output)
         {
             int count   = 0;
             float radSq = radius * radius;
@@ -110,7 +106,7 @@ namespace FDP.Toolkit.Perception.Systems
                 if (Vector2.DistanceSquared(pos, eventPos2D) <= radSq)
                 {
                     if (count < output.Length)
-                        output[count++] = (entity.Index, pos);
+                        output[count++] = (entity, pos); // store full Entity, not raw index
                 }
             }
             return count;

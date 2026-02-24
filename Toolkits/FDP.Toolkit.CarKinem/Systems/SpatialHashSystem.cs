@@ -32,7 +32,7 @@ namespace CarKinem.Systems
             foreach (var entity in query)
             {
                 var tf = World.GetComponent<SimTransform>(entity);
-                _grid.Add(entity.Index, new Vector2(tf.Position.X, tf.Position.Y));
+                _grid.Add(entity, new Vector2(tf.Position.X, tf.Position.Y));
             }
             
             // Publish as singleton (Data-Oriented pattern)

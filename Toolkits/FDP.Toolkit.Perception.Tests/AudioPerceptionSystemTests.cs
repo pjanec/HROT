@@ -101,11 +101,20 @@ namespace FDP.Toolkit.Perception.Tests
 
             // Source 50 m away; broadphase radius (Intensity) large enough to include the listener
             // in the fallback scan, but the per-receptor HearingRange check must exclude it.
+            // Use a real entity for SourceEntityIndex — raw magic numbers like 99 mask stale-reference
+            // bugs if this pattern were copied to a positive-path test (DEBT-014).
+            var dummySource = world.CreateEntity();
+            world.AddComponent(dummySource, new SimTransform
+            {
+                Position = new Vector3(50f, 0f, 0f),
+                Rotation = Quaternion.Identity,
+            });
+
             world.Bus.Publish(new AudioStimulusEvent
             {
                 Origin            = new Vector3(50f, 0f, 0f),
                 Intensity         = 60f, // listener is within fallback radius…
-                SourceEntityIndex = 99,
+                SourceEntityIndex = dummySource.Index,
             });
             world.Bus.SwapBuffers();
 

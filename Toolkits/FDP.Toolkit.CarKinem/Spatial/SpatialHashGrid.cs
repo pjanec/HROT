@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 
 namespace CarKinem.Spatial
@@ -10,10 +11,10 @@ namespace CarKinem.Spatial
     /// </summary>
     public struct SpatialHashGrid : IDisposable
     {
-        public NativeArray<int> GridHead;       // Cell -> first entity index
-        public NativeArray<int> GridNext;       // Entity index -> next entity
-        public NativeArray<int> GridValues;     // Entity index -> entity ID
-        public NativeArray<Vector2> Positions;  // Entity index -> position
+        public NativeArray<int> GridHead;        // Cell -> first entity slot index
+        public NativeArray<int> GridNext;        // Entity slot index -> next slot
+        public NativeArray<Entity> GridValues;   // Entity slot index -> Entity (full handle with generation)
+        public NativeArray<Vector2> Positions;   // Entity slot index -> position
         
         public float CellSize;
         public int Width;
@@ -30,7 +31,7 @@ namespace CarKinem.Spatial
             {
                 GridHead = new NativeArray<int>(width * height, allocator),
                 GridNext = new NativeArray<int>(maxEntities, allocator),
-                GridValues = new NativeArray<int>(maxEntities, allocator),
+                GridValues = new NativeArray<Entity>(maxEntities, allocator),
                 Positions = new NativeArray<Vector2>(maxEntities, allocator),
                 CellSize = cellSize,
                 Width = width,
@@ -51,9 +52,10 @@ namespace CarKinem.Spatial
         }
         
         /// <summary>
-        /// Add entity to grid.
+        /// Add entity to grid. Stores the full <see cref="Entity"/> handle (Index + Generation)
+        /// to preserve generational safety — never stores a raw index alone.
         /// </summary>
-        public void Add(int entityId, Vector2 position)
+        public void Add(Entity entity, Vector2 position)
         {
             int cellX = (int)(position.X / CellSize);
             int cellY = (int)(position.Y / CellSize);
@@ -68,7 +70,7 @@ namespace CarKinem.Spatial
                 return; // Exceeded max entities capacity
             
             Positions[entityIdx] = position;
-            GridValues[entityIdx] = entityId;
+            GridValues[entityIdx] = entity;
             GridNext[entityIdx] = GridHead[cellIdx];
             GridHead[cellIdx] = entityIdx;
         }
@@ -76,9 +78,10 @@ namespace CarKinem.Spatial
         /// <summary>
         /// Query neighbors within radius.
         /// Writes results to output array, returns count.
+        /// Each result carries the full <see cref="Entity"/> handle (Index + Generation).
         /// </summary>
         public int QueryNeighbors(Vector2 position, float radius, 
-            Span<(int entityId, Vector2 pos)> output)
+            Span<(Entity entity, Vector2 pos)> output)
         {
             int count = 0;
             float radiusSq = radius * radius;
@@ -113,7 +116,7 @@ namespace CarKinem.Spatial
                         {
                             if (count < output.Length)
                             {
-                                output[count] = (GridValues[head], neighborPos);
+                                output[count] = (GridValues[head], neighborPos); // GridValues[head] is Entity
                                 count++;
                             }
                         }

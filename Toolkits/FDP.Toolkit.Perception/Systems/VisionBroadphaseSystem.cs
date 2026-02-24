@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Numerics;
+using CarKinem.Spatial;
 using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Perception.Events;
 using Fdp.Kernel;
@@ -8,21 +9,26 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Perception.Systems
 {
     /// <summary>
-    /// Async vision broadphase — runs inside <see cref="PerceptionModule"/> on the
+    /// Async vision broadphase â€” runs inside <see cref="PerceptionModule"/> on the
     /// background thread via the Snapshot-on-Demand (SoD) pattern.
     /// <para>
     /// For each observer entity with a <see cref="PerceptionReceptor"/>:
     /// <list type="number">
-    ///   <item>Finds all entities with <see cref="SimTransform"/> + <see cref="Faction"/> within VisionRange.</item>
-    ///   <item>Skips candidates of the same faction as the observer.</item>
+    ///   <item>Queries the module-private <see cref="SpatialHashGrid"/> for candidates within VisionRange.</item>
+    ///   <item>Skips candidates that are not alive, lack a <see cref="Faction"/>, or share the observer's faction.</item>
     ///   <item>Performs a dot-product FOV cone check using the precomputed <c>FieldOfViewCos</c> cosine.</item>
     ///   <item>Emits a <see cref="LosCheckRequestEvent"/> via the entity command buffer for candidates that pass.</item>
     /// </list>
     /// </para>
     /// <para>
+    /// <b>Grid injection:</b> The grid is supplied via the constructor by <see cref="PerceptionModule"/>.
+    /// <see cref="LocalGridBuilderSystem"/> populates the grid before this system executes each tick,
+    /// so the broadphase never performs a brute-force world scan.
+    /// </para>
+    /// <para>
     /// <b>SoD rules (strictly enforced):</b>
     /// <list type="bullet">
-    ///   <item>Only <c>view.GetComponentRO&lt;T&gt;</c> — no <c>GetComponentRW</c>.</item>
+    ///   <item>Only <c>view.GetComponentRO&lt;T&gt;</c> â€” no <c>GetComponentRW</c>.</item>
     ///   <item>All writes are queued via <c>view.GetCommandBuffer().PublishEvent</c>.</item>
     ///   <item>The snapshot is treated as immutable throughout execution.</item>
     /// </list>
@@ -31,17 +37,26 @@ namespace FDP.Toolkit.Perception.Systems
     /// <b>Forward vector:</b> Derived from <see cref="SimTransform.Rotation"/> using
     /// <c>Vector3.Transform(Vector3.UnitX, tf.Rotation)</c>. <c>Vector3.UnitX</c> is the
     /// forward-east axis in FDP's coordinate system (X = east, Y = north, Z = up).
-    /// Using <c>Vector3.UnitY</c> would point north regardless of yaw — a BATCH-01 regression.
-    /// </para>
-    /// <para>
-    /// <b>Phase 2 note:</b> This implementation uses brute-force double iteration
-    /// (O(observers × targets)). A SpatialHashGrid optimisation can be added in a later
-    /// phase once the grid is included in the SoD snapshot or passed via constructor injection
-    /// with proper entity-generation metadata.
+    /// Using <c>Vector3.UnitY</c> would point north regardless of yaw â€” a BATCH-01 regression.
     /// </para>
     /// </summary>
     public class VisionBroadphaseSystem : IModuleSystem
     {
+        private const int MaxCandidatesPerObserver = 256;
+
+        // Value-copy of PerceptionModule._localGrid; shares the same native-memory pointers.
+        // LocalGridBuilderSystem populates the grid before this system runs.
+        private readonly SpatialHashGrid _grid;
+
+        /// <summary>
+        /// Initialises the system with the module-private spatial grid.
+        /// The grid struct is copied by value; native-memory arrays are shared.
+        /// </summary>
+        public VisionBroadphaseSystem(SpatialHashGrid grid)
+        {
+            _grid = grid;
+        }
+
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -54,11 +69,8 @@ namespace FDP.Toolkit.Perception.Systems
                 .With<SimTransform>()
                 .Build();
 
-            // Query all potential targets (need faction and spatial presence).
-            var targetQuery = view.Query()
-                .With<Faction>()
-                .With<SimTransform>()
-                .Build();
+            Span<(Entity entity, Vector2 pos)> candidates =
+                stackalloc (Entity, Vector2)[MaxCandidatesPerObserver];
 
             foreach (var observer in observerQuery)
             {
@@ -66,33 +78,37 @@ namespace FDP.Toolkit.Perception.Systems
                 ref readonly var obsFaction = ref view.GetComponentRO<Faction>(observer);
                 ref readonly var obsTf      = ref view.GetComponentRO<SimTransform>(observer);
 
-                var obsPos2D  = new Vector2(obsTf.Position.X, obsTf.Position.Y);
-                float visionRangeSq = receptor.VisionRange * receptor.VisionRange;
+                var obsPos2D = new Vector2(obsTf.Position.X, obsTf.Position.Y);
 
-                // Derive 2-D forward from quaternion — X-forward (east) convention.
+                // Derive 2-D forward from quaternion â€” X-forward (east) convention.
                 // Using Vector3.UnitX (not UnitY) to match the FDP yaw convention:
-                //   yaw=0 → facing east (+X), yaw=90° → facing north (+Y).
+                //   yaw=0 â†’ facing east (+X), yaw=90Â° â†’ facing north (+Y).
                 Vector3 fwd3D   = Vector3.Transform(Vector3.UnitX, obsTf.Rotation);
                 Vector2 forward = Vector2.Normalize(new Vector2(fwd3D.X, fwd3D.Y));
 
-                foreach (var target in targetQuery)
+                // Query the module-private grid for all entities within vision range.
+                int count = _grid.QueryNeighbors(obsPos2D, receptor.VisionRange, candidates);
+
+                for (int i = 0; i < count; i++)
                 {
+                    var (target, targetPos2D) = candidates[i];
+
                     if (target.Index == observer.Index) continue; // skip self
+
+                    // Generational liveness check â€” grid stores full Entity handles.
+                    if (!view.IsAlive(target)) continue;
+
+                    // Target must have a faction to participate in vision checks.
+                    if (!view.HasComponent<Faction>(target)) continue;
 
                     ref readonly var targetFaction = ref view.GetComponentRO<Faction>(target);
 
-                    // Same-faction exclusion — allies are invisible to the broadphase.
+                    // Same-faction exclusion â€” allies are invisible to the broadphase.
                     if (targetFaction.FactionId == obsFaction.FactionId) continue;
 
-                    ref readonly var targetTf = ref view.GetComponentRO<SimTransform>(target);
-                    var targetPos2D = new Vector2(targetTf.Position.X, targetTf.Position.Y);
-
-                    // Distance check (squared to avoid sqrt on exclusions).
+                    // Distance is already filtered by QueryNeighbors (radius = VisionRange).
                     Vector2 toTarget = targetPos2D - obsPos2D;
-                    float distSq = toTarget.LengthSquared();
-                    if (distSq > visionRangeSq) continue; // outside vision range
-
-                    float dist = MathF.Sqrt(distSq);
+                    float dist = toTarget.Length();
                     if (dist < float.Epsilon) continue; // degenerate case
 
                     // FOV cone check: dot(forward, dir_to_target) >= cos(half_FOV).
@@ -100,7 +116,7 @@ namespace FDP.Toolkit.Perception.Systems
                     float dot = Vector2.Dot(forward, toTargetNorm);
                     if (dot < receptor.FieldOfViewCos) continue; // outside FOV cone
 
-                    // Passed all broadphase filters → queue a line-of-sight check.
+                    // Passed all broadphase filters â†’ queue a line-of-sight check.
                     ecb.PublishEvent(new LosCheckRequestEvent
                     {
                         ObserverEntityIndex = observer.Index,

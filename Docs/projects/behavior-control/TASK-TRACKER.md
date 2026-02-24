@@ -51,7 +51,7 @@
 **Goal:** Translate `LocomotionChannel` intents into `CarKinem.NavState` configurations via stateless executor classes.  
 **New project:** `Toolkits/FDP.Toolkit.Navigation/`
 
-- [ ] **BCS-P3-T1** Navigation action IDs + parameter/state structs (MoveToParams, FleeParams, FollowRouteParams, etc.) [details](./TASK-DETAIL.md#bcs-p3-t1--navigation-action-ids--parameter-structs)
+- [x] **BCS-P3-T1** Navigation action IDs + parameter/state structs (MoveToParams, FleeParams, FollowRouteParams, etc.) [details](./TASK-DETAIL.md#bcs-p3-t1--navigation-action-ids--parameter-structs)
 - [ ] **BCS-P3-T2** MoveToExecutor [details](./TASK-DETAIL.md#bcs-p3-t2--movetoexecutor)
 - [ ] **BCS-P3-T3** FleeExecutor [details](./TASK-DETAIL.md#bcs-p3-t3--fleeexecutor)
 - [ ] **BCS-P3-T4** FollowRoadGraphExecutor [details](./TASK-DETAIL.md#bcs-p3-t4--followroadgraphexecutor)
@@ -118,7 +118,7 @@
 | Phase 0 – Universal Spatial Primitives | 6 | 6 ✅ |
 | Phase 1 – Behavior Core | 7 | 7 ✅ |
 | Phase 2 – Perception | 4 | 4 ✅ |
-| Phase 3 – Navigation | 5 | 0 |
+| Phase 3 – Navigation | 5 | 1 |
 | Phase 4 – Physics | 4 | 0 |
 | Phase 5 – Combat | 5 | 0 |
 | Phase 6 – Behavior Advanced | 3 | 0 |

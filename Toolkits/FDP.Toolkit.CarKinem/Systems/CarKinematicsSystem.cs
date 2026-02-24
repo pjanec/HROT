@@ -291,7 +291,7 @@ namespace CarKinem.Systems
             Vector2 selfVel, SpatialHashGrid spatialGrid, VehicleParams @params)
         {
             // Query neighbors within avoidance radius
-            Span<(int, Vector2)> neighbors = stackalloc (int, Vector2)[32];
+            Span<(Entity, Vector2)> neighbors = stackalloc (Entity, Vector2)[32];
             int count = spatialGrid.QueryNeighbors(selfPos, @params.AvoidanceRadius * 2.5f, neighbors);
             
             if (count == 0)
@@ -301,12 +301,9 @@ namespace CarKinem.Systems
             Span<(Vector2 pos, Vector2 vel)> neighborData = stackalloc (Vector2, Vector2)[count];
             for (int i = 0; i < count; i++)
             {
-                var (entityId, pos) = neighbors[i];
+                var (neighborEntity, pos) = neighbors[i];
                 
-                // Fetch neighbor velocity (SAFE - read-only access)
-                // Use GetEntity to reconstruct handle checking active generation
-                var neighborEntity = World.GetEntity(entityId); 
-                
+                // neighborEntity is a full Entity handle (Index + Generation) — no reconstruction needed.
                 // Check if entity is valid and has SimVelocity (universal)
                 if (!neighborEntity.IsNull && World.HasComponent<SimVelocity>(neighborEntity))
                 {

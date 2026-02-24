@@ -418,14 +418,15 @@ namespace Fdp.Kernel
         }
 
         /// <summary>
-        /// Reconstructs an Entity handle from an index.
-        /// Returns Entity.Null if index is invalid or entity is not active.
-        ///
-        /// WARNING: Only use this if you are certain the index corresponds to a live entity
-        /// from the current frame (e.g., iterating a raw array). Do NOT use this to 
-        /// restore entity references stored from previous frames; use the full Entity struct instead.
+        /// Reconstructs an Entity handle from a raw index.
+        /// INTERNAL USE ONLY — valid for:
+        ///   1. Translating raw array indices returned by C++ physics/navmesh plugins back to Entity handles
+        ///      within the same frame (the generation is looked up and validated).
+        ///   2. Kernel-internal bit-scanning in EntityQuery.
+        /// DO NOT use this to restore entity references stored from previous frames.
+        /// Always pass and store the full Entity struct instead.
         /// </summary>
-        public Entity GetEntity(int index)
+        internal Entity GetEntity(int index)
         {
             if (index < 0 || index > MaxEntityIndex) return Entity.Null;
             

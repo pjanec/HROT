@@ -30,5 +30,21 @@ namespace FDP.Toolkit.Perception
         /// A value of 0.1 means a score of 100 drops to 90 after 1 second.
         /// </summary>
         public const float ThreatScoreDecayPerSecond = 0.1f;
+
+        // ── LocalGridBuilderSystem grid dimensions ────────────────────────────────
+        // These values define the module-private SpatialHashGrid owned by PerceptionModule.
+        // 200×200 cells × 5 m/cell = 1 000 m × 1 000 m coverage.
+
+        /// <summary>Number of cells along the X axis of the module-private spatial grid.</summary>
+        public const int LocalGridWidth = 200;
+
+        /// <summary>Number of cells along the Y axis of the module-private spatial grid.</summary>
+        public const int LocalGridHeight = 200;
+
+        /// <summary>Side length (metres) of each cell in the module-private spatial grid.</summary>
+        public const float LocalGridCellSize = 5.0f;
+
+        /// <summary>Maximum number of entities that can be stored in the module-private spatial grid per tick.</summary>
+        public const int LocalGridMaxEntities = 50_000;
     }
 }
