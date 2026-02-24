@@ -3,6 +3,7 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Systems;
 using Fbt;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace FDP.Toolkit.Behavior.Tests
 {
@@ -31,6 +32,7 @@ namespace FDP.Toolkit.Behavior.Tests
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(0, channel.ActiveAction);
             Assert.Equal(NodeStatus.Failure, channel.Status); // default is 0 (Failure)
+            Assert.Equal(0u, channel.DoctrineInstanceId); // full struct reset — selective-clear regression guard
             
             sys.Dispose();
             world.Dispose();
@@ -85,6 +87,52 @@ namespace FDP.Toolkit.Behavior.Tests
             Assert.Equal(NodeStatus.Success, channel.Status);
             
             sys.Dispose();
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// Ordering integration test: ChannelArbitrationSystem must run before
+        /// LocomotionDispatcherSystem. When it does, a stale channel is cleared
+        /// before the dispatcher sees it, so no ghost OnEnter fires.
+        /// This verifies the [UpdateBefore]/[UpdateAfter] ordering contract.
+        /// </summary>
+        [Fact]
+        public void Arbitration_Ordering_NoGhostOnEnter_WhenChannelIsStale()
+        {
+            var world = TestWorldFactory.Create();
+
+            var arbitration = new ChannelArbitrationSystem();
+            var dispatcher  = new LocomotionDispatcherSystem();
+            var spy         = new WritingSpyExecutor<LocomotionChannel>();
+            dispatcher.RegisterExecutor(1, spy);
+
+            arbitration.Create(world);
+            dispatcher.Create(world);
+
+            var e = world.CreateEntity();
+            // Doctrine at version 2; channel still thinks version 1 is current.
+            world.AddComponent(e, new DoctrineState { InstanceId = 2 });
+            world.AddComponent(e, new LocomotionChannel
+            {
+                ActiveAction       = 1,
+                ActionInstanceId   = 1,
+                DoctrineInstanceId = 1,   // stale — mismatches DoctrineState.InstanceId
+                DispatchedInstanceId = 0,
+                Status             = NodeStatus.Running
+            });
+            world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
+
+            // Correct order: arbitration clears stale channel BEFORE dispatcher runs.
+            arbitration.Run();
+            dispatcher.Run();
+
+            // Arbitration cleared ActiveAction → dispatcher found nothing to dispatch.
+            Assert.Equal(0, spy.OnEnterCallCount); // no ghost OnEnter
+            var channel = world.GetComponent<LocomotionChannel>(e);
+            Assert.Equal(0, channel.ActiveAction); // confirmed cleared
+
+            arbitration.Dispose();
+            dispatcher.Dispose();
             world.Dispose();
         }
     }

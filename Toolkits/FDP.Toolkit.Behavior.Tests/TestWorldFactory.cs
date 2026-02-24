@@ -15,6 +15,9 @@ namespace FDP.Toolkit.Behavior.Tests
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<SimTier>();
+            world.RegisterComponent<BrainBTreeState>();
+            world.RegisterComponent<BrainHsm64>();
+            world.RegisterComponent<BrainHsm128>();
             return world;
         }
     }

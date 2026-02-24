@@ -13,7 +13,7 @@ namespace FDP.Toolkit.Behavior.Tests
         {
             var world = TestWorldFactory.Create();
             var sys = new LocomotionDispatcherSystem();
-            var spy = new SpyExecutor<LocomotionChannel>();
+            var spy = new WritingSpyExecutor<LocomotionChannel>();
             sys.RegisterExecutor(1, spy);
             sys.Create(world);
 
@@ -31,6 +31,10 @@ namespace FDP.Toolkit.Behavior.Tests
             sys.Run();
             Assert.Equal(1, spy.OnEnterCallCount);
             Assert.Equal(1, spy.ExecuteCallCount);
+
+            var ch1 = world.GetComponent<LocomotionChannel>(e);
+            Assert.Equal(NodeStatus.Running, ch1.Status);           // executor wrote it
+            Assert.Equal(ch1.ActionInstanceId, ch1.DispatchedInstanceId); // prevents repeat OnEnter
 
             // Second tick: no second OnEnter, Execute again.
             sys.Run();
@@ -131,6 +135,10 @@ namespace FDP.Toolkit.Behavior.Tests
 
             // Must not throw.
             sys.Run();
+
+            // Lifecycle bookkeeping still ran even without a registered executor.
+            var channel = world.GetComponent<LocomotionChannel>(e);
+            Assert.Equal(channel.ActionInstanceId, channel.DispatchedInstanceId); // updated even without executor
 
             sys.Dispose();
             world.Dispose();

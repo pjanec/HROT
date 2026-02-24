@@ -6,6 +6,13 @@ namespace Fdp.Kernel
     public class InitializationSystemGroup : SystemGroup { }
 
     /// <summary>
+    /// Group for input-processing systems that run before <see cref="SimulationSystemGroup"/>.
+    /// Doctrine ingress and other pre-simulation configuration systems belong here so their
+    /// changes are visible to brain tick systems within the same frame.
+    /// </summary>
+    public class InputSystemGroup : SystemGroup { }
+
+    /// <summary>
     /// Group for systems that run during the main simulation logic phase.
     /// </summary>
     public class SimulationSystemGroup : SystemGroup { }

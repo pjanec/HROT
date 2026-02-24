@@ -20,5 +20,11 @@ namespace FDP.Toolkit.Behavior
 
         /// <summary>Maximum number of distinct action types per dispatcher.</summary>
         public const int MaxActionTypes = 64;
+
+        /// <summary>Brain tier value for HSM-driven entities (FastHSM).</summary>
+        public const byte BrainTierHsm = 1;
+
+        /// <summary>Brain tier value for BTree-driven entities (FastBTree interpreter).</summary>
+        public const byte BrainTierBTree = 2;
     }
 }

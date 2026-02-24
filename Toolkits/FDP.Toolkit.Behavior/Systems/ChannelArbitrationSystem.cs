@@ -5,6 +5,9 @@ using Fbt;
 namespace FDP.Toolkit.Behavior.Systems
 {
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateBefore(typeof(LocomotionDispatcherSystem))]
+    [UpdateBefore(typeof(WeaponDispatcherSystem))]
+    [UpdateBefore(typeof(InteractionDispatcherSystem))]
     public class ChannelArbitrationSystem : ComponentSystem
     {
         protected override void OnUpdate()

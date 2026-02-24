@@ -28,9 +28,9 @@
 - [x] **BCS-P1-T2** ChannelArbitrationSystem [details](./TASK-DETAIL.md#bcs-p1-t2--channelarbitrationsystem)
 - [x] **BCS-P1-T3** LocomotionDispatcherSystem [details](./TASK-DETAIL.md#bcs-p1-t3--locomotiondispatchersystem)
 - [x] **BCS-P1-T4** WeaponDispatcherSystem + InteractionDispatcherSystem [details](./TASK-DETAIL.md#bcs-p1-t4--weapondispatchersystem--interactiondispatchersystem)
-- [ ] **BCS-P1-T5** BTreeTickSystem (FastBTree adapter) [details](./TASK-DETAIL.md#bcs-p1-t5--btreeticksystem-fastbtree-adapter)
-- [ ] **BCS-P1-T6** HsmTickSystem\<T\> (FastHSM adapter) [details](./TASK-DETAIL.md#bcs-p1-t6--hsmticksystemt-fasthsm-adapter)
-- [ ] **BCS-P1-T7** DoctrineRegistry + DoctrineIngressSystem [details](./TASK-DETAIL.md#bcs-p1-t7--doctrineregistry--doctrineingresssystem)
+- [x] **BCS-P1-T5** BTreeTickSystem (FastBTree adapter) [details](./TASK-DETAIL.md#bcs-p1-t5--btreeticksystem-fastbtree-adapter)
+- [x] **BCS-P1-T6** HsmTickSystem\<T\> (FastHSM adapter) [details](./TASK-DETAIL.md#bcs-p1-t6--hsmticksystemt-fasthsm-adapter)
+- [x] **BCS-P1-T7** DoctrineRegistry + DoctrineIngressSystem [details](./TASK-DETAIL.md#bcs-p1-t7--doctrineregistry--doctrineingresssystem)
 
 ---
 
@@ -116,7 +116,7 @@
 | Phase | Tasks | Done |
 |---|---|---|
 | Phase 0 – Universal Spatial Primitives | 6 | 6 ✅ |
-| Phase 1 – Behavior Core | 7 | 4 |
+| Phase 1 – Behavior Core | 7 | 7 ✅ |
 | Phase 2 – Perception | 4 | 0 |
 | Phase 3 – Navigation | 5 | 0 |
 | Phase 4 – Physics | 4 | 0 |

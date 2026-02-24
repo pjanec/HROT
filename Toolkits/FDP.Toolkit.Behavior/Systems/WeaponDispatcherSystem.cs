@@ -9,6 +9,7 @@ namespace FDP.Toolkit.Behavior.Systems
     /// Checks <see cref="ActorCapabilities.CanShoot"/> before dispatching.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(ChannelArbitrationSystem))]
     public class WeaponDispatcherSystem : DispatcherSystemBase<WeaponChannel>
     {
         protected override void OnUpdate()
@@ -37,6 +38,9 @@ namespace FDP.Toolkit.Behavior.Systems
                     EnsurePreviousActionCapacity(entity.Index + 1);
                     ushort oldAction = _previousAction[entity.Index];
 
+                    // Note: at the time OnExit is called, channel.ActiveAction and channel.ActionInstanceId
+                    // still hold the OUTGOING action's values. DispatchedInstanceId is updated after this call.
+                    // This allows OnExit to identify what it is cleaning up.
                     _executors[oldAction]?.OnExit(entity, ref channel, World);
                     _executors[channel.ActiveAction]?.OnEnter(entity, ref channel, World);
 
