@@ -158,6 +158,7 @@ namespace CarKinem.Systems
                     }
                     break;
                     
+                case NavigationMode.Direct:
                 case NavigationMode.None:
                 default:
                     // If we have a destination and we are not in a specific mode, drive to point

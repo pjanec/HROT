@@ -9,7 +9,8 @@ namespace CarKinem.Core
         None = 0,           // No active navigation (stationary or manual control)
         RoadGraph = 1,      // Follow road network (approach → follow → leave)
         CustomTrajectory = 2, // Follow custom trajectory from trajectory pool
-        Formation = 3       // Follow formation target (overrides other modes)
+        Formation = 3,      // Follow formation target (overrides other modes)
+        Direct = 4          // Drive directly to FinalDestination (used by MoveToExecutor / FleeExecutor)
     }
 
     /// <summary>

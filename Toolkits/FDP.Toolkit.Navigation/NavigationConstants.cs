@@ -46,5 +46,13 @@ namespace FDP.Toolkit.Navigation
         /// Compared against <c>SimVelocity.Linear.Length()</c>.
         /// </summary>
         public const float FrustrationSpeedThreshold = 0.1f; // m/s
+
+        // ── Flee executor ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Number of ticks between destination replans in <c>FleeExecutor</c>.
+        /// At 60 Hz, 30 ticks ≈ 0.5 seconds between flee vector recalculations.
+        /// </summary>
+        public const int FleeReplanIntervalTicks = 30;
     }
 }

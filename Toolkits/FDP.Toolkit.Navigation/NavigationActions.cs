@@ -96,7 +96,7 @@ namespace FDP.Toolkit.Navigation
         /// <summary>Non-zero if the route should loop back to the start on completion.</summary>
         public byte IsLooped;
 
-        // 3 bytes of implicit Sequential padding (aligns struct to 4-byte boundary).
+        // 3 bytes of implicit Sequential padding; struct total = 8 bytes (int + byte + 3 pad).
     }
 
     /// <summary>

@@ -127,14 +127,22 @@ namespace FDP.Toolkit.Perception.Tests
         // â”€â”€ Test 3 (DEBT-013: zero-score eviction policy) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
-        /// DEBT-013: Documents and verifies the zero-score retention policy of
+        /// DEBT-013 / DEBT-015: Documents and verifies the zero-score retention policy of
         /// <see cref="ThreatEvaluationSystem"/>.
         /// <para>
         /// Current policy (Phase 2): scores are decayed each tick but zero-score entries are
-        /// <b>retained</b> in <see cref="TargetMemory"/> â€” eviction is not yet implemented.
+        /// <b>retained</b> in <see cref="TargetMemory"/> — eviction is not yet implemented.
         /// This test seeds a score of 1.0f and applies a large enough dt to decay it to 0,
         /// then asserts the entry is still present with score 0. A future eviction feature
         /// would change this assertion to <c>Count == 0</c>.
+        /// </para>
+        /// <para>
+        /// <b>Policy source (DEBT-015):</b> DESIGN.md §4.3 describes
+        /// <see cref="ThreatEvaluationSystem"/> as "Decays scores, integrates
+        /// TargetVisibleEvent + AudioStimulusEvent; writes back via ECB." No eviction step is
+        /// specified — the design is silent on zero-score removal. Therefore the retention
+        /// behaviour is correct for Phase 2. When eviction is added in a future phase, rename
+        /// this test to <c>ThreatEvaluation_ZeroScoreEntry_IsEvicted</c> and invert the assertion.
         /// </para>
         /// </summary>
         [Fact]
