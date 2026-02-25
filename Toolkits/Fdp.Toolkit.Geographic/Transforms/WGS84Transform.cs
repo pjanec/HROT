@@ -31,18 +31,35 @@ namespace Fdp.Modules.Geographic.Transforms
             
             // Compute ECEF origin
             var originEcef = GeodeticToECEF(_originLat, _originLon, _originAlt);
-            
-            // Build rotation matrix (ENU)
+
             double sinLat = Math.Sin(_originLat);
             double cosLat = Math.Cos(_originLat);
             double sinLon = Math.Sin(_originLon);
             double cosLon = Math.Cos(_originLon);
-            
-            // ECEF → Local (ENU)
+
+            // Build ECEF→ENU rotation matrix for use with Vector3.Transform(v, M).
+            //
+            // C# Vector3.Transform computes:
+            //   result.X = v.X*M11 + v.Y*M21 + v.Z*M31
+            //   result.Y = v.X*M12 + v.Y*M22 + v.Z*M32
+            //   result.Z = v.X*M13 + v.Y*M23 + v.Z*M33
+            //
+            // We need enu = R * ecef_delta where:
+            //   East  = -sinLon*dX + cosLon*dY + 0*dZ
+            //   North = -sinLat*cosLon*dX - sinLat*sinLon*dY + cosLat*dZ
+            //   Up    =  cosLat*cosLon*dX + cosLat*sinLon*dY + sinLat*dZ
+            //
+            // The Matrix4x4 constructor takes (M11,M12,M13,M14, M21,M22,M23,M24, M31,M32,M33,M34, ...)
+            // Matching result.X (East):  M11=-sinLon,       M21=cosLon,          M31=0
+            // Matching result.Y (North): M12=-sinLat*cosLon, M22=-sinLat*sinLon, M32=cosLat
+            // Matching result.Z (Up):    M13=cosLat*cosLon,  M23=cosLat*sinLon,  M33=sinLat
             _ecefToLocal = new Matrix4x4(
-                (float)-sinLon,              (float)cosLon,             0, 0,
-                (float)(-sinLat * cosLon),    (float)(-sinLat * sinLon),   (float)cosLat, 0,
-                 (float)(cosLat * cosLon),     (float)(cosLat * sinLon),   (float)sinLat, 0,
+                // M11            M12                       M13                      M14
+                (float)-sinLon,   (float)(-sinLat*cosLon),  (float)(cosLat*cosLon),  0,
+                // M21            M22                       M23                      M24
+                (float)cosLon,    (float)(-sinLat*sinLon),  (float)(cosLat*sinLon),  0,
+                // M31            M32                       M33                      M34
+                0f,               (float)cosLat,             (float)sinLat,           0,
                 0, 0, 0, 1
             );
             
