@@ -5,6 +5,20 @@ using FDP.Toolkit.DER;
 namespace Bagira.IOS.Services;
 
 /// <summary>
+/// Named constants used by <see cref="MissionEditorService"/>.
+/// Centralised here so any message-text change is a one-line edit
+/// (CODE-STANDARDS §1).
+/// </summary>
+internal static class MissionEditorServiceConstants
+{
+    /// <summary>
+    /// Error message placed in a <see cref="MissionCommitResult"/> when the
+    /// service is disposed while commits are still pending.
+    /// </summary>
+    internal const string DisposedErrorMessage = "Service disposed";
+}
+
+/// <summary>
 /// Implements <see cref="IMissionEditorService"/> using the DER repository for
 /// local state reads and injected DDS writers for outgoing commands.
 ///
@@ -13,7 +27,7 @@ namespace Bagira.IOS.Services;
 /// <see cref="OnAckReceived"/> resolves it. Both methods may be called from
 /// different threads; the internal dictionary is protected by a lock.</para>
 /// </summary>
-public sealed class MissionEditorService : IMissionEditorService
+public sealed class MissionEditorService : IMissionEditorService, IIngressHandler, IDisposable
 {
     // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -27,12 +41,17 @@ public sealed class MissionEditorService : IMissionEditorService
 
     private readonly IDerRepo _repo;
     private readonly IDdsWriter<MissionControlRequest> _requestWriter;
+    private readonly IEventQueue<MissionControlAck>?   _ackQueue;
     private readonly int _commitTimeoutMs;
 
     // ── Pending commits ───────────────────────────────────────────────────────
 
     private readonly Dictionary<Guid, TaskCompletionSource<MissionCommitResult>> _pendingCommits = new();
     private readonly object _pendingLock = new();
+
+    // ── Dispose guard ─────────────────────────────────────────────────────────
+
+    private bool _disposed;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -41,14 +60,25 @@ public sealed class MissionEditorService : IMissionEditorService
     /// Pass a custom <paramref name="commitTimeoutMs"/> in tests to avoid
     /// real-time waits.
     /// </summary>
+    /// <param name="repo">DER entity repository for snapshot reads.</param>
+    /// <param name="requestWriter">DDS writer for outgoing <see cref="MissionControlRequest"/> messages.</param>
+    /// <param name="commitTimeoutMs">Commit timeout; defaults to <see cref="DefaultCommitTimeoutMs"/>.</param>
+    /// <param name="ackQueue">
+    /// Optional ingress queue for <see cref="MissionControlAck"/> messages.
+    /// When provided, call <see cref="Poll"/> each frame (via <see cref="IIngressHandler"/>)
+    /// to drain incoming ACKs and resolve pending commits automatically.
+    /// When <c>null</c> the caller must invoke <see cref="OnAckReceived"/> manually.
+    /// </param>
     public MissionEditorService(
         IDerRepo repo,
         IDdsWriter<MissionControlRequest> requestWriter,
-        int commitTimeoutMs = DefaultCommitTimeoutMs)
+        int commitTimeoutMs = DefaultCommitTimeoutMs,
+        IEventQueue<MissionControlAck>? ackQueue = null)
     {
         _repo             = repo             ?? throw new ArgumentNullException(nameof(repo));
         _requestWriter    = requestWriter    ?? throw new ArgumentNullException(nameof(requestWriter));
         _commitTimeoutMs  = commitTimeoutMs;
+        _ackQueue         = ackQueue;
     }
 
     // ── IMissionEditorService ─────────────────────────────────────────────────
@@ -152,5 +182,60 @@ public sealed class MissionEditorService : IMissionEditorService
             ErrorMessage = ack.ErrorMessage,
             NewVersion   = ack.NewVersion
         });
+    }
+
+    // ── IIngressHandler ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Drains the injected <see cref="IEventQueue{MissionControlAck}"/> and
+    /// calls <see cref="OnAckReceived"/> for each message.
+    ///
+    /// <para>Register this service as an <see cref="IIngressHandler"/> in the
+    /// <see cref="IosLogic"/> constructor so that incoming ACKs are processed
+    /// once per frame on the main thread, completing any pending commits.</para>
+    ///
+    /// <para>This method is a no-op when no queue was provided at construction.</para>
+    /// </summary>
+    public void Poll()
+    {
+        if (_ackQueue is null) return;
+
+        while (_ackQueue.TryDequeue(out var ack))
+            OnAckReceived(ack);
+    }
+
+    // ── IDisposable ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Disposes the service, cancelling all pending commits with a graceful
+    /// failure result so that awaiting callers are never left orphaned.
+    ///
+    /// <para>Each orphaned <see cref="TaskCompletionSource{T}"/> is resolved via
+    /// <see cref="TaskCompletionSource{T}.TrySetResult"/> (not
+    /// <c>TrySetCanceled</c>) so that callers receiving a <see cref="MissionCommitResult"/>
+    /// with <c>Success=false</c> handle the teardown path without an
+    /// <see cref="OperationCanceledException"/> propagating up the stack.</para>
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+
+        List<TaskCompletionSource<MissionCommitResult>> orphans;
+
+        lock (_pendingLock)
+        {
+            orphans = new List<TaskCompletionSource<MissionCommitResult>>(_pendingCommits.Values);
+            _pendingCommits.Clear();
+        }
+
+        foreach (var tcs in orphans)
+        {
+            tcs.TrySetResult(new MissionCommitResult
+            {
+                Success      = false,
+                ErrorMessage = MissionEditorServiceConstants.DisposedErrorMessage
+            });
+        }
     }
 }

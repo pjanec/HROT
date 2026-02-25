@@ -150,6 +150,10 @@ public sealed class OrbatPanel
     ///   <item>Collapse: when no filter is active, children of collapsed nodes
     ///   are not emitted.</item>
     /// </list>
+    ///
+    /// <para><b>O(n) complexity:</b> a single pass over all entities builds a
+    /// <c>CommanderId → children</c> dictionary before the tree walk begins, so
+    /// each entity is visited exactly once regardless of hierarchy depth.</para>
     /// </summary>
     public List<OrbatNode> GetVisibleNodes(IDerRepo repo)
     {
@@ -157,8 +161,12 @@ public sealed class OrbatPanel
         var result  = new List<OrbatNode>();
         var visited = new HashSet<int>();
 
+        // Build the children lookup in a single O(n) pass so that CollectNodes
+        // never has to scan the full entity list again (eliminates O(n²) cost).
+        var childrenLookup = BuildChildrenLookup(repo);
+
         foreach (var root in FindRootEntities(repo))
-            CollectNodes(root, repo, result, visited, depth: 0);
+            CollectNodes(root, childrenLookup, result, visited, depth: 0);
 
         return result;
     }
@@ -200,11 +208,41 @@ public sealed class OrbatPanel
         // ImGui.End();
     }
 
-    // ── Private recursive helper ──────────────────────────────────────────────
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a <c>CommanderId → List&lt;IDerEntity&gt;</c> lookup from a
+    /// single O(n) scan of the repository.  Used by
+    /// <see cref="GetVisibleNodes"/> to avoid O(n²) repeated calls to
+    /// <see cref="FindChildren"/> during tree traversal.
+    /// </summary>
+    private static Dictionary<int, List<IDerEntity>> BuildChildrenLookup(IDerRepo repo)
+    {
+        var lookup = new Dictionary<int, List<IDerEntity>>();
+
+        foreach (var entity in repo.GetAllEntities())
+        {
+            if (!entity.HasDescriptor<EntityInfo>()) continue;
+            var info = entity.GetDescriptor<EntityInfo>();
+
+            // Only entities with a non-zero CommanderId are children.
+            if (info.CommanderId == 0) continue;
+
+            if (!lookup.TryGetValue(info.CommanderId, out var siblings))
+            {
+                siblings = new List<IDerEntity>();
+                lookup[info.CommanderId] = siblings;
+            }
+
+            siblings.Add(entity);
+        }
+
+        return lookup;
+    }
 
     private void CollectNodes(
         IDerEntity entity,
-        IDerRepo   repo,
+        Dictionary<int, List<IDerEntity>> childrenLookup,
         List<OrbatNode> result,
         HashSet<int>    visited,
         int depth)
@@ -221,8 +259,10 @@ public sealed class OrbatPanel
             return;
 
         var info     = entity.GetDescriptor<EntityInfo>();
-        var children = FindChildren(entity.EntityId, repo).ToList();
-        bool hasChildren = children.Count > 0;
+
+        // Use the pre-built lookup (O(1) lookup) instead of scanning all entities.
+        childrenLookup.TryGetValue(entity.EntityId, out var children);
+        bool hasChildren = children is { Count: > 0 };
 
         bool filtering = !string.IsNullOrEmpty(_filterText);
 
@@ -242,10 +282,10 @@ public sealed class OrbatPanel
         //  - always recurse when a filter is active (scan the full subtree for matches)
         //  - recurse only into expanded nodes when no filter is active
         bool shouldRecurse = filtering || _expandedNodes.Contains(entity.EntityId);
-        if (shouldRecurse)
+        if (shouldRecurse && children is not null)
         {
             foreach (var child in children)
-                CollectNodes(child, repo, result, visited, depth + 1);
+                CollectNodes(child, childrenLookup, result, visited, depth + 1);
         }
     }
 }

@@ -25,7 +25,7 @@ public sealed class MissionCommitResult
 /// Provides mission snapshot reads and asynchronous commit of mission plan
 /// changes with optimistic concurrency support.
 /// </summary>
-public interface IMissionEditorService
+public interface IMissionEditorService : IDisposable
 {
     /// <summary>
     /// Returns the current <see cref="MissionPlan"/> and its optimistic-lock

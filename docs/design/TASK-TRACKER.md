@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 63/149 tasks complete (42%)
+**Overall Progress:** 67/149 tasks complete (45%)
 
 **Last Updated:** 2026-02-20
 
@@ -228,7 +228,7 @@
 
 ## IOS MOCK
 
-**Progress:** 12/20 tasks complete (60%)
+**Progress:** 16/20 tasks complete (80%)
 
 **Dependencies:** Requires Shared Components P2, P3, P4
 
@@ -258,10 +258,10 @@
 
 ### Phase IOS-P9: Integration Testing
 
-- [ ] **IOS.9.1** IOS Standalone Test [details](./TASK-DETAILS-IOS.md#p101-ios-standalone-test)
-- [ ] **IOS.9.2** IOS + IG Integration Test [details](./TASK-DETAILS-IOS.md#p102-ios--ig-integration-test)
-- [ ] **IOS.9.3** IOS + SimHost Integration Test [details](./TASK-DETAILS-IOS.md#p103-ios--simhost-integration-test)
-- [ ] **IOS.9.4** Full Stack Integration Test [details](./TASK-DETAILS-IOS.md#p104-full-stack-integration-test)
+- [x] **IOS.9.1** IOS Standalone Test [details](./TASK-DETAILS-IOS.md#p101-ios-standalone-test)
+- [x] **IOS.9.2** IOS + IG Integration Test [details](./TASK-DETAILS-IOS.md#p102-ios--ig-integration-test)
+- [x] **IOS.9.3** IOS + SimHost Integration Test [details](./TASK-DETAILS-IOS.md#p103-ios--simhost-integration-test)
+- [x] **IOS.9.4** Full Stack Integration Test [details](./TASK-DETAILS-IOS.md#p104-full-stack-integration-test)
 
 ### Phase IOS-P10: Advanced Features
 
