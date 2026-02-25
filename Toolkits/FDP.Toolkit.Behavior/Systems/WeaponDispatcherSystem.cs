@@ -10,6 +10,7 @@ namespace FDP.Toolkit.Behavior.Systems
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(ChannelArbitrationSystem))]
+    [UpdateAfter(typeof(BTreeTickSystem))]
     public class WeaponDispatcherSystem : DispatcherSystemBase<WeaponChannel>
     {
         protected override void OnUpdate()

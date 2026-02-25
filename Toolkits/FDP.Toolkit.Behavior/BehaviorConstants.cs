@@ -28,6 +28,16 @@ namespace FDP.Toolkit.Behavior
         public const byte BrainTierBTree = 2;
 
         /// <summary>
+        /// SimTier value for Tier-1 civilian entities, driven by <see cref="Systems.TrafficBrainSystem"/>.
+        /// </summary>
+        public const byte SimTierCivilian = 1;
+
+        /// <summary>
+        /// SimTier value for Tier-2 tactical entities driven by BTree or HSM brains.
+        /// </summary>
+        public const byte SimTierTactical = 2;
+
+        /// <summary>
         /// HSM event ID injected by <c>HsmDamageBridgeSystem</c> when <c>CanMove</c> is cleared.
         /// Must match the event ID registered in doctrine HSM definitions (by convention: 1).
         /// </summary>

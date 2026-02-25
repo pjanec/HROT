@@ -31,6 +31,16 @@ namespace FDP.Toolkit.Physics
         /// </summary>
         public const float QueryExpansionRadius = 5f;
 
+        // ── Collision layers ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// CollisionLayer bitmask for all physical (non-bullet) entities.
+        /// Rays fired at layer mask <c>EntityCollisionLayer</c> will hit soldiers, vehicles, etc.
+        /// Distinct from <see cref="CombatConstants.BulletCollisionLayer"/> (bit 1) defined in
+        /// <c>FDP.Toolkit.Combat</c>.
+        /// </summary>
+        public const int EntityCollisionLayer = 1;
+
         // ── Event IDs ─────────────────────────────────────────────────────────────
         // Range 5001–5099 is reserved for FDP.Toolkit.Physics events.
 

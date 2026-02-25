@@ -1,9 +1,11 @@
 using CarKinem.Core;
 using Fdp.Interfaces;
 using Fdp.Kernel;
+using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
 
 namespace Fdp.Examples.UrbanCombat.Setup
@@ -27,10 +29,6 @@ namespace Fdp.Examples.UrbanCombat.Setup
     /// </remarks>
     public static class DemoTkbSetup
     {
-        // ── Faction constants (DESIGN.md §4.1) ───────────────────────────────────────
-        private const byte FactionNeutral = 0;
-        private const byte FactionBlue    = 1;
-        private const byte FactionRed     = 2;
 
         // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -59,7 +57,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new SimVelocity());
 
             // Behaviour
-            t.AddComponent(new SimTier { Value = 1 });
+            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierCivilian });
             t.AddComponent(new DoctrineState());
             t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             t.AddComponent(new LocomotionChannel());
@@ -72,14 +70,14 @@ namespace Fdp.Examples.UrbanCombat.Setup
             // Perception
             t.AddComponent(new PerceptionReceptor
             {
-                VisionRange    = 30f,
-                HearingRange   = 100f,
+                VisionRange    = UrbanCombatConstants.CivilianVisionRange,
+                HearingRange   = UrbanCombatConstants.CivilianHearingRange,
                 FieldOfViewCos = 0f   // 360° awareness
             });
             t.AddComponent(new TargetMemory());
 
             // Physics
-            t.AddComponent(new PhysicsCollider { Radius = 0.4f, CollisionLayer = 1 });
+            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.HumanoidColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
 
             tkb.Register(t);
         }
@@ -94,7 +92,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new SimTransform());
             t.AddComponent(new SimVelocity());
 
-            t.AddComponent(new SimTier { Value = 1 });
+            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierCivilian });
             t.AddComponent(new DoctrineState());
             t.AddComponent(new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             t.AddComponent(new LocomotionChannel());
@@ -103,7 +101,7 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(VehiclePresets.GetPreset(VehicleClass.PersonalCar));
             t.AddComponent(new NavState());
 
-            t.AddComponent(new PhysicsCollider { Radius = 2f, CollisionLayer = 1 });
+            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.CarColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
 
             tkb.Register(t);
         }
@@ -121,8 +119,8 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new SimTransform());
             t.AddComponent(new SimVelocity());
 
-            t.AddComponent(new SimTier { Value = 2 });
-            t.AddComponent(new DoctrineState { BrainTier = 2 });
+            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierTactical });
+            t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierHsm });
 
             // HSM brain
             t.AddComponent(new BrainHsm128());
@@ -147,12 +145,12 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new NavState());
 
             // Health — damageable (BATCH-13 back-port)
-            t.AddComponent(new Health { Current = 500f, Max = 500f });
-            t.AddComponent(new HealthData { Current = 500f, Max = 500f });
+            t.AddComponent(new Health { Current = UrbanCombatConstants.ApcMaxHealth, Max = UrbanCombatConstants.ApcMaxHealth });
+            t.AddComponent(new HealthData { Current = UrbanCombatConstants.ApcMaxHealth, Max = UrbanCombatConstants.ApcMaxHealth });
 
-            t.AddComponent(new PhysicsCollider { Radius = 3.5f, CollisionLayer = 1 });
+            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.ApcColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
             t.AddComponent(new PassengerBuffer());
-            t.AddComponent(new Faction { FactionId = FactionBlue });
+            t.AddComponent(new Faction { FactionId = UrbanCombatConstants.FactionBlue });
 
             tkb.Register(t);
         }
@@ -170,8 +168,8 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new SimTransform());
             t.AddComponent(new SimVelocity());
 
-            t.AddComponent(new SimTier { Value = 2 });
-            t.AddComponent(new DoctrineState());
+            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierTactical });
+            t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierBTree });
 
             // BTree brain
             t.AddComponent(new BrainBTreeState());
@@ -197,27 +195,27 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new NavState());
 
             // Health — damageable (BATCH-13 back-port)
-            t.AddComponent(new Health { Current = 100f, Max = 100f });
-            t.AddComponent(new HealthData { Current = 100f, Max = 100f });
+            t.AddComponent(new Health { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
+            t.AddComponent(new HealthData { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
 
             // Rifle: ammo=30, muzzle=800 m/s, 5 Hz → cooldown = 60/5 = 12 ticks
             t.AddComponent(new WeaponState
             {
-                Ammo                   = 30,
-                MuzzleVelocity         = 800f,
+                Ammo                   = UrbanCombatConstants.RifleAmmo,
+                MuzzleVelocity         = UrbanCombatConstants.RifleMuzzleVelocity,
                 CooldownTicksRemaining = 0
             });
 
             t.AddComponent(new PerceptionReceptor
             {
-                VisionRange    = 150f,
-                HearingRange   = 200f,
+                VisionRange    = UrbanCombatConstants.SoldierVisionRange,
+                HearingRange   = UrbanCombatConstants.SoldierHearingRange,
                 FieldOfViewCos = 0f
             });
             t.AddComponent(new TargetMemory());
 
-            t.AddComponent(new PhysicsCollider { Radius = 0.4f, CollisionLayer = 1 });
-            t.AddComponent(new Faction { FactionId = FactionBlue });
+            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.HumanoidColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
+            t.AddComponent(new Faction { FactionId = UrbanCombatConstants.FactionBlue });
 
             tkb.Register(t);
         }
@@ -235,8 +233,8 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new SimTransform());
             t.AddComponent(new SimVelocity());
 
-            t.AddComponent(new SimTier { Value = 2 });
-            t.AddComponent(new DoctrineState());
+            t.AddComponent(new SimTier { Value = BehaviorConstants.SimTierTactical });
+            t.AddComponent(new DoctrineState { BrainTier = BehaviorConstants.BrainTierBTree });
 
             // BTree brain
             t.AddComponent(new BrainBTreeState());
@@ -262,27 +260,27 @@ namespace Fdp.Examples.UrbanCombat.Setup
             t.AddComponent(new NavState());
 
             // Health — damageable (BATCH-13 back-port)
-            t.AddComponent(new Health { Current = 100f, Max = 100f });
-            t.AddComponent(new HealthData { Current = 100f, Max = 100f });
+            t.AddComponent(new Health { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
+            t.AddComponent(new HealthData { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
 
             // RPG: ammo=1, muzzle=300 m/s, 0.1 Hz → cooldown = 60/0.1 = 600 ticks
             t.AddComponent(new WeaponState
             {
-                Ammo                   = 1,
-                MuzzleVelocity         = 300f,
+                Ammo                   = UrbanCombatConstants.RpgAmmo,
+                MuzzleVelocity         = UrbanCombatConstants.RpgMuzzleVelocity,
                 CooldownTicksRemaining = 0
             });
 
             t.AddComponent(new PerceptionReceptor
             {
-                VisionRange    = 150f,
-                HearingRange   = 200f,
+                VisionRange    = UrbanCombatConstants.SoldierVisionRange,
+                HearingRange   = UrbanCombatConstants.SoldierHearingRange,
                 FieldOfViewCos = 0f
             });
             t.AddComponent(new TargetMemory());
 
-            t.AddComponent(new PhysicsCollider { Radius = 0.4f, CollisionLayer = 1 });
-            t.AddComponent(new Faction { FactionId = FactionRed });
+            t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.HumanoidColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
+            t.AddComponent(new Faction { FactionId = UrbanCombatConstants.FactionRed });
 
             tkb.Register(t);
         }

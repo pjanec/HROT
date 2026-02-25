@@ -18,8 +18,11 @@ namespace CarKinem.Systems
         
         protected override void OnCreate()
         {
-            // 150x150 cells * 5m = 750x750m world coverage
-            _grid = SpatialHashGrid.Create(150, 150, 5.0f, 100000, Allocator.Persistent);
+            // 150x150 cells * 5m = 750x750m world coverage.
+            // Origin at (-375, -375) so the grid covers (-375,-375) to (375,375),
+            // accommodating the Urban Ambush scenario whose APC spawns at y=-80.
+            _grid = SpatialHashGrid.Create(150, 150, 5.0f, 100000, Allocator.Persistent,
+                originX: -375f, originY: -375f);
         }
         
         protected override void OnUpdate()

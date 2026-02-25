@@ -1,22 +1,36 @@
 using System;
+using CarKinem.Road;
+using CarKinem.Systems;
+using CarKinem.Trajectory;
+using Fdp.Examples.UrbanCombat.Brains;
 using Fdp.Examples.UrbanCombat.Setup;
+using Fdp.Examples.UrbanCombat.Systems;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Toolkit.Tkb;
+using Fbt;
+using Fbt.Runtime;
+using Fbt.Serialization;
+using FDP.Toolkit.Behavior;
+using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Executors;
+using FDP.Toolkit.Behavior.Systems;
+using FDP.Toolkit.Combat;
+using FDP.Toolkit.Combat.Executors;
+using FDP.Toolkit.Combat.Systems;
+using FDP.Toolkit.Navigation;
+using FDP.Toolkit.Perception.Systems;
+using FDP.Toolkit.Physics;
+using FDP.Toolkit.Physics.Systems;
 
 namespace Fdp.Examples.UrbanCombat
 {
     /// <summary>
     /// Orchestrator for the headless "Urban Ambush" demo simulation.
     /// <para>
-    /// Call <see cref="Initialize"/> once to register all components and build the system
-    /// pipeline, then call <see cref="Run"/> to execute the 600-frame (10-second at 60 Hz)
-    /// simulation loop.
-    /// </para>
-    /// <para>
-    /// For BATCH-14 this is a correctly-structured stub — system registration and actor
-    /// spawning via <c>ScenarioDirector</c> will be wired in BCS-P7-T7/T8.
-    /// TelemetryReporterSystem (BCS-P7-T8) will emit structured telemetry to <c>Console.Out</c>.
+    /// Call <see cref="Initialize"/> once to register all components, build the doctrine
+    /// registry and system pipeline, then call <see cref="RunSimulation"/> to execute
+    /// the simulation loop.
     /// </para>
     /// </summary>
     public class HeadlessDemoApp : IDisposable
@@ -29,6 +43,39 @@ namespace Fdp.Examples.UrbanCombat
         /// <summary>Total frames for the 10-second Urban Ambush scenario.</summary>
         private const int TotalFrames = 600;
 
+        // ── Inline BTree JSON ─────────────────────────────────────────────────────────
+
+        private const string AmbushJson = """
+            {
+                "TreeName": "Ambush_BT",
+                "Version": 1,
+                "Root": {
+                    "Type": "Selector",
+                    "Children": [
+                        {
+                            "Type": "Sequence",
+                            "Children": [
+                                { "Type": "Condition", "Action": "Condition_HasTarget"  },
+                                { "Type": "Action",    "Action": "Action_AimAndFire"    }
+                            ]
+                        },
+                        { "Type": "Action", "Action": "Action_HoldPosition" }
+                    ]
+                }
+            }
+            """;
+
+        private const string InfantryCombatJson = """
+            {
+                "TreeName": "InfantryCombat_BT",
+                "Version": 1,
+                "Root": {
+                    "Type": "Action",
+                    "Action": "HoldPosition"
+                }
+            }
+            """;
+
         // ── State ────────────────────────────────────────────────────────────────────
 
         /// <summary>The ECS world that owns all entity data and system execution.</summary>
@@ -36,13 +83,31 @@ namespace Fdp.Examples.UrbanCombat
 
         /// <summary>
         /// The Transient Knowledge Base: holds all five entity blueprint templates.
-        /// Populated by <see cref="DemoTkbSetup.RegisterAll"/> during <see cref="Initialize"/>.
-        /// Consumed by <c>ScenarioDirector</c> (BCS-P7-T7) at spawn time via
-        /// <c>_tkb.GetByType(id)</c> / <c>template.ApplyTo(World, entity)</c>.
         /// </summary>
         public ITkbDatabase Tkb => _tkb;
 
-        private readonly TkbDatabase _tkb = new TkbDatabase();
+        /// <summary>
+        /// The doctrine registry: maps doctrine IDs to their definitions (BrainTier, HSM blob, BTree interpreter).
+        /// Populated during <see cref="Initialize"/>; read-only thereafter.
+        /// </summary>
+        public DoctrineRegistry DoctrineRegistry => _doctrineRegistry;
+
+        /// <summary>
+        /// The road network blob for the city intersection.
+        /// Caller must not dispose; <see cref="Dispose"/> handles it.
+        /// </summary>
+        public RoadNetworkBlob Road { get; private set; }
+
+        private readonly TkbDatabase        _tkb              = new TkbDatabase();
+        private readonly DoctrineRegistry   _doctrineRegistry = new DoctrineRegistry();
+        private TrajectoryPoolManager?      _trajectoryPool;
+
+        // System groups — created in RegisterSystems(), disposed in Dispose().
+        private InputSystemGroup?           _inputGroup;
+        private SimulationSystemGroup?      _simGroup;
+        private PostSimulationSystemGroup?  _postSimGroup;
+        private ExportSystemGroup?          _exportGroup;
+
         private bool _initialized;
         private bool _disposed;
 
@@ -54,8 +119,9 @@ namespace Fdp.Examples.UrbanCombat
         }
 
         /// <summary>
-        /// Registers all ECS component types and builds the system pipeline.
-        /// Must be called exactly once before <see cref="Run"/>.
+        /// Registers all ECS component types, builds the doctrine registry, allocates
+        /// the physics singleton and system pipeline.
+        /// Must be called exactly once before any simulation.
         /// </summary>
         public void Initialize()
         {
@@ -65,12 +131,24 @@ namespace Fdp.Examples.UrbanCombat
             // 1. Register all component types used by the demo.
             RegisterComponents();
 
-            // 2. Register all five TKB entity blueprints (BCS-P7-T2).
+            // 2. Register all five TKB entity blueprints.
             DemoTkbSetup.RegisterAll(_tkb);
 
-            // 3. Register and configure systems (stubs pointing to correct system types).
-            //    Full wiring in BCS-P7-T4 (TrafficBrainSystem) through BCS-P7-T8 (Telemetry).
+            // 3. Create the road network blob (disposed in Dispose()).
+            Road = DemoEnvironmentSetup.CreateCityIntersection();
+
+            // 4. Allocate RaycastBatchData singleton (NativeArrays — ownership transferred to World).
+            using var physics = new PhysicsToolkitModule();
+            physics.Initialize(World);
+
+            // 5. Register all doctrines.
+            RegisterDoctrines();
+
+            // 6. Build the system pipeline.
             RegisterSystems();
+
+            // 7. Seed GlobalTime singleton so DeltaTime is available on frame 0.
+            World.SetSingleton(new GlobalTime { DeltaTime = Dt, TimeScale = 1f });
 
             _initialized = true;
         }
@@ -84,14 +162,42 @@ namespace Fdp.Examples.UrbanCombat
             if (!_initialized)
                 throw new InvalidOperationException("HeadlessDemoApp.Initialize() must be called before Run().");
 
-            // Simulation loop: 600 frames at 60 Hz = 10 seconds real-time equivalent.
-            for (int frame = 0; frame < TotalFrames; frame++)
+            RunSimulation(TotalFrames);
+            Console.WriteLine("[UrbanAmbush] Simulation complete.");
+        }
+
+        /// <summary>
+        /// Executes exactly <paramref name="frames"/> simulation frames.
+        /// Each frame: GlobalTime update → SwapBuffers → Input → Sim → PostSim → Export → Tick.
+        /// </summary>
+        /// <param name="frames">Number of frames to simulate.</param>
+        public void RunSimulation(int frames)
+        {
+            if (!_initialized)
+                throw new InvalidOperationException("HeadlessDemoApp.Initialize() must be called before RunSimulation().");
+
+            for (int frame = 0; frame < frames; frame++)
             {
+                // Update GlobalTime so DeltaTime and FrameNumber are available to all systems.
+                World.SetSingleton(new GlobalTime
+                {
+                    TotalTime   = frame * (double)Dt,
+                    DeltaTime   = Dt,
+                    TimeScale   = 1f,
+                    FrameNumber = frame,
+                });
                 World.SetSimulationTime(frame * Dt);
+
+                // Swap double-buffered event streams: write → read, read → empty write.
+                World.Bus.SwapBuffers();
+
+                _inputGroup!.Run();
+                _simGroup!.Run();
+                _postSimGroup!.Run();
+                _exportGroup!.Run();
+
                 World.Tick();
             }
-
-            Console.WriteLine("[UrbanAmbush] Simulation complete.");
         }
 
         // ── Private helpers ───────────────────────────────────────────────────────────
@@ -138,33 +244,133 @@ namespace Fdp.Examples.UrbanCombat
             World.RegisterComponent<CarKinem.Core.NavState>();
         }
 
-        private void RegisterSystems()
+        private void RegisterDoctrines()
         {
-            // Systems will be registered here in their correct pipeline order as they are
-            // implemented in BCS-P7-T4 through BCS-P7-T8. For this batch (BCS-P7-T1) the
-            // pipeline is intentionally empty — only the component registrations above are
-            // required to prove the project scaffold is architecturally correct.
-            //
-            // Expected future order (see DESIGN.md §10):
-            //   [Input]:       RaycastSolverSystem, HitResolutionSystem
-            //   [BeforeSync]:  DoctrineIngressSystem, LosRequestBatchingSystem
-            //   [Simulation]:  DamageSystem, AudioPerceptionSystem, MissionDirectorSystem,
-            //                  ChannelArbitrationSystem, HsmDamageBridgeSystem,
-            //                  TrafficBrainSystem, BTreeTickSystem, HsmTickSystems,
-            //                  InteractionDispatcher, LocomotionDispatcher, WeaponDispatcher,
-            //                  FireProcessingSystem
-            //   [PostSim]:     BallisticsSystem, LinearKinematicsSystem, CarKinematicsSystem,
-            //                  SpatialHashSystem
-            //   [Export]:      TelemetryReporterSystem
+            // ── Civilian (no BTree / HSM needed — TrafficBrainSystem handles tier-1) ──
+            _doctrineRegistry.Register(DoctrineIds.WanderCivil, "WanderCivil",
+                new DoctrineDefinition { Name = "WanderCivil", BrainTier = 0 });
+
+            _doctrineRegistry.Register(DoctrineIds.PanicFlee, "PanicFlee",
+                new DoctrineDefinition { Name = "PanicFlee", BrainTier = 0 });
+
+            // ── APC: HSM ConvoyEscort ─────────────────────────────────────────────────
+            _doctrineRegistry.Register(DoctrineIds.ConvoyEscort, "ConvoyEscort",
+                new DoctrineDefinition
+                {
+                    Name          = "ConvoyEscort",
+                    BrainTier     = BehaviorConstants.BrainTierHsm,
+                    HsmDefinition = ApcHsmSetup.Build(),
+                });
+
+            // ── InfantrySoldier: minimal hold-position BTree ──────────────────────────
+            var holdReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            holdReg.Register("HoldPosition", InsurgentNodes.Action_HoldPosition);
+            var holdBlob = TreeCompiler.CompileFromJson(InfantryCombatJson);
+            _doctrineRegistry.Register(DoctrineIds.InfantryCombat, "InfantryCombat",
+                new DoctrineDefinition
+                {
+                    Name             = "InfantryCombat",
+                    BrainTier        = BehaviorConstants.BrainTierBTree,
+                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(holdBlob, holdReg),
+                });
+
+            // ── Insurgent: Ambush BTree ───────────────────────────────────────────────
+            var ambushReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            ambushReg.Register("Condition_HasTarget", InsurgentNodes.Condition_HasTarget);
+            ambushReg.Register("Action_AimAndFire",   InsurgentNodes.Action_AimAndFire);
+            ambushReg.Register("Action_HoldPosition", InsurgentNodes.Action_HoldPosition);
+            var ambushBlob = TreeCompiler.CompileFromJson(AmbushJson);
+            _doctrineRegistry.Register(DoctrineIds.Ambush, "Ambush",
+                new DoctrineDefinition
+                {
+                    Name             = "Ambush",
+                    BrainTier        = BehaviorConstants.BrainTierBTree,
+                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(ambushBlob, ambushReg),
+                });
         }
 
-        // ── IDisposable ───────────────────────────────────────────────────────────────
+        private void RegisterSystems()
+        {
+            _trajectoryPool = new TrajectoryPoolManager();
+
+            // ── Input group ─────────────────────────────────────────────────────────
+            _inputGroup = new InputSystemGroup();
+            _inputGroup.Create(World);
+            _inputGroup.AddSystem(new DoctrineIngressSystem(_doctrineRegistry));
+            _inputGroup.AddSystem(new FireProcessingSystem());
+            _inputGroup.AddSystem(new RaycastSolverSystem());
+            _inputGroup.AddSystem(new HitResolutionSystem());
+
+            // ── Simulation group ────────────────────────────────────────────────────
+            _simGroup = new SimulationSystemGroup();
+            _simGroup.Create(World);
+            _simGroup.AddSystem(new MissionDirectorSystem());
+            _simGroup.AddSystem(new TrafficBrainSystem());
+            _simGroup.AddSystem(new ChannelArbitrationSystem());
+            _simGroup.AddSystem(new BTreeTickSystem(_doctrineRegistry));
+            _simGroup.AddSystem(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
+            _simGroup.AddSystem(new DamageSystem());
+            _simGroup.AddSystem(new ApcMobilitySystem());
+            _simGroup.AddSystem(new HsmDamageBridgeSystem());
+            _simGroup.AddSystem(new ApcBrainOutputSystem());
+            _simGroup.AddSystem(new AudioPerceptionSystem());
+
+            var weaponSys = new WeaponDispatcherSystem();
+            weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
+            _simGroup.AddSystem(weaponSys);
+
+            var interactSys = new InteractionDispatcherSystem();
+            interactSys.RegisterExecutor(3, new EjectPassengersExecutor());
+            _simGroup.AddSystem(interactSys);
+
+            _simGroup.AddSystem(new LocomotionDispatcherSystem());
+
+            // SpatialHashSystem and CarKinematicsSystem are both [UpdateInGroup(SimulationSystemGroup)].
+            // CarKinematicsSystem is [UpdateAfter(SpatialHashSystem)] — topological sort handles order.
+            _simGroup.AddSystem(new SpatialHashSystem());
+            _simGroup.AddSystem(new CarKinematicsSystem(Road, _trajectoryPool));
+
+            // ── PostSimulation group ─────────────────────────────────────────────────
+            _postSimGroup = new PostSimulationSystemGroup();
+            _postSimGroup.Create(World);
+            _postSimGroup.AddSystem(new LinearKinematicsSystem());
+            _postSimGroup.AddSystem(new BallisticsSystem());
+
+            // ── Export group ─────────────────────────────────────────────────────────
+            _exportGroup = new ExportSystemGroup();
+            _exportGroup.Create(World);
+            _exportGroup.AddSystem(new TelemetryReporterSystem());
+        }
+
+        // ── IDisposable ───────────────────────────────────────────────────────────
 
         public void Dispose()
         {
             if (!_disposed)
             {
+                // Dispose system groups (each group disposes its member systems).
+                _exportGroup?.Dispose();
+                _postSimGroup?.Dispose();
+                _simGroup?.Dispose();
+                _inputGroup?.Dispose();
+
+                // Dispose the trajectory pool.
+                _trajectoryPool?.Dispose();
+
+                // Dispose the RaycastBatchData native arrays (not auto-freed by World.Dispose).
+                if (_initialized && World.HasSingleton<FDP.Toolkit.Physics.Components.RaycastBatchData>())
+                {
+                    ref var batch = ref World.GetSingleton<FDP.Toolkit.Physics.Components.RaycastBatchData>();
+                    if (batch.Requests.IsCreated) batch.Requests.Dispose();
+                    if (batch.Hits.IsCreated)     batch.Hits.Dispose();
+                }
+
+                // Dispose the road network blob.
+                if (_initialized) Road.Dispose();
+
+                // Dispose the ECS world.
                 World?.Dispose();
+
                 _disposed = true;
             }
         }

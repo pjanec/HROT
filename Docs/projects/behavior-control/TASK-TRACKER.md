@@ -105,9 +105,9 @@
 - [x] **BCS-P7-T4** TrafficBrainSystem (Tier 1 hardcoded) [details](./TASK-DETAIL.md#bcs-p7-t4--trafficbrainsystem-tier-1)
 - [x] **BCS-P7-T5** Insurgent BTree nodes + Ambush.json authoring [details](./TASK-DETAIL.md#bcs-p7-t5--insurgent-btree-nodes--json)
 - [x] **BCS-P7-T6** APC HSM authoring (HsmBuilder + action methods) [details](./TASK-DETAIL.md#bcs-p7-t6--apc-hsm-authoring)
-- [ ] **BCS-P7-T7** ScenarioDirector (spawn setup) [details](./TASK-DETAIL.md#bcs-p7-t7--scenariodirector-entity-spawning)
-- [ ] **BCS-P7-T8** TelemetryReporterSystem (console debug output) [details](./TASK-DETAIL.md#bcs-p7-t8--telemetryreportersystem)
-- [ ] **BCS-P7-T9** End-to-end integration test (10-second simulation timeline validation) [details](./TASK-DETAIL.md#bcs-p7-t9--end-to-end-integration-test-10-second-simulation)
+- [x] **BCS-P7-T7** ScenarioDirector (spawn setup) [details](./TASK-DETAIL.md#bcs-p7-t7--scenariodirector-entity-spawning)
+- [x] **BCS-P7-T8** TelemetryReporterSystem (console debug output) [details](./TASK-DETAIL.md#bcs-p7-t8--telemetryreportersystem)
+- [x] **BCS-P7-T9** End-to-end integration test (10-second simulation timeline validation) [details](./TASK-DETAIL.md#bcs-p7-t9--end-to-end-integration-test-10-second-simulation)
 
 ---
 
@@ -122,5 +122,5 @@
 | Phase 4 – Physics | 4 | 4 ✅ |
 | Phase 5 – Combat | 5 | 5 ✅ |
 | Phase 6 – Behavior Advanced | 3 | 3 ✅ |
-| Phase 7 – Demo App | 9 | 6 |
-| **Total** | **43** | **39** |
+| Phase 7 – Demo App | 9 | 9 ✅ |
+| **Total** | **43** | **43** ✅ |

@@ -20,7 +20,7 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | ID | Sev | Source | Description | Target | Status |
 |---|---|---|---|---|---|
 | DEBT-006 | P2 | BATCH-04-REVIEW | `DoctrineRegistry` keys on `string.GetHashCode()` — process-randomised. Serialised doctrine IDs non-reproducible across runs. Needs stable key (CRC32 or assigned `int`). | BATCH-13 ✅ | ✅ Resolved |
-| DEBT-007 | P2 | BATCH-04-REPORT | `FdpHsmContext` carries only `Entity Self` — HSM action delegates cannot access ECS world. Strategy needed before Phase 7 Demo App. | BATCH-13 ✅ | ✅ Resolved |
+| DEBT-007 | P2 | BATCH-04-REPORT | `FdpHsmContext` carries only `Entity Self` — HSM action delegates cannot access ECS world. Strategy needed before Phase 7 Demo App. | BATCH-13 ✅ partial; HSM delegate stubs remain | 🟡 Partial — BTree path resolved; HSM action delegates (`ApcHsmActions`) still stubs. `EntityRepository` cannot pass through `void* context` (unmanaged constraint). Fix: `ApcBrainOutputSystem` bridge reads HSM state index and writes channels externally. BATCH-17. |
 | DEBT-008 | P3 | BATCH-04-REPORT | `DoctrineIngressSystem` — no try/catch around `ParseParams`. Malformed JSON throws with no entity context. | BATCH-13 ✅, BATCH-14 ✅ (DEBT-035) | ✅ Resolved |
 | DEBT-021 | P2 | BATCH-08-REVIEW (Q4) | `RaycastSolverSystem` — no bounds check on `batch.Count`; overflow → `IndexOutOfRangeException`. Add `Math.Min(batch.Count, PhysicsConstants.RaycastBatchCapacity)` before `Parallel.For`. Add `Debug.Assert` at fill sites. | BATCH-09 ✅ | ✅ Resolved |
 | DEBT-022 | P3 | BATCH-08-REVIEW | `Intersection2DTests` — missing degenerate boundary case: segment starts exactly at circle edge (t=0). | BATCH-13 ✅ | ✅ Resolved |
@@ -35,6 +35,9 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | DEBT-033 | P2 | BATCH-11-REVIEW | `MissionDirectorSystem.HealthCritical` trigger not implemented: `FDP.Toolkit.Behavior` cannot reference `FDP.Toolkit.Combat` (circular dependency — Combat references Behavior for `ActorCapabilityState`). Requires shared health interface in `Fdp.Kernel` or assembly restructure. | BATCH-13 ✅ | ✅ Resolved |
 | DEBT-034 | P3 | BATCH-12-REVIEW | `EjectPassengersExecutor` XML doc comment describes symmetric slot offsets (e.g. ±0.75 m for Count=2) but the actual formula produces asymmetric offsets (−1.5 m and 0.0 m). Fix the comment to match the actual computed values. | BATCH-13 ✅ | ✅ Resolved |
 | DEBT-035 | **P1** | BATCH-13-REVIEW (Issue 1) | `DoctrineIngressSystem` try/catch added (DEBT-008) but DoctrineState writes occur BEFORE the try block. A `ParseParams` failure leaves the entity in a partial doctrine transition (hash+InstanceId bumped, BTree reset, but blackboard zero). Must reorder: attempt `ParseParams` first (inside try), then write `DoctrineState`/`BrainBTreeState` only on success. Add test `DoctrineIngress_DoctrineStateUnchanged_WhenParseParamsFails`. | BATCH-14 Corrective-0 ✅ | ✅ Resolved |
+| DEBT-036 | P3 | BATCH-16-REVIEW | `SpatialHashSystem.OnCreate()` uses literals `150`, `150`, `5.0f`, `-375f`, `-375f` (CODE-STANDARDS §1). Add named constants to a `SpatialHashConstants` class or `PhysicsConstants`. | BATCH-17 | 🔴 Open |
+| DEBT-037 | P2 | BATCH-16-REVIEW | `ScenarioDirector.cs` line 191 uses `Quaternion.CreateFromYawPitchRoll` — banned by CODE-STANDARDS §2. Replace with `SimMath.FromYaw(yawRadians)`. | BATCH-17 Corrective-0 | 🔴 Open |
+| DEBT-038 | P2 | BATCH-16-REVIEW | `TelemetryReporterSystem.cs` defines `private const ushort EjectPassengersActionId = 3` — magic number with no toolkit constant. Add `BehaviorConstants.ActionIdEjectPassengers = 3` in `BehaviorConstants.cs`; remove private const; update `TelemetryReporterSystem` to reference it. Also update `EjectPassengersExecutor` doc comment. | BATCH-17 Corrective-0 | 🔴 Open |
 
 ---
 
@@ -68,3 +71,5 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 - **DEBT-035 (P1):** DoctrineIngressSystem catch ordering bug — fixed as Corrective-0 in BATCH-14. Test `DoctrineIngress_DoctrineStateUnchanged_WhenParseParamsFails` passes.
 - **DEBT-008 now fully resolved** via DEBT-035 corrective in BATCH-14.
 - **DEBT-027** (raw int LOS indices): lower priority, deferred to when `LosRequestBatchingSystem` is reworked.
+- **DEBT-007 REOPENED (Partial):** BATCH-13 resolved the BTree path (`BTreeContext.World` available). BATCH-15/16 confirmed HSM action delegates (`ApcHsmActions`) are still stubs because `EntityRepository` (managed class) cannot be passed through the `void* context` of `Fhsm.Kernel` dispatch. Fix via `ApcBrainOutputSystem` bridge in BATCH-17.
+- **DEBT-036/037/038:** New P2/P3 items from BATCH-16 review. Fix as Corrective-0 in BATCH-17.

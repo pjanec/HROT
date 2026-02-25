@@ -20,12 +20,19 @@ namespace CarKinem.Spatial
         public int Width;
         public int Height;
         public int EntityCount;
+
+        /// <summary>
+        /// World-space origin of the grid (bottom-left corner).
+        /// Allows the grid to cover negative world coordinates.
+        /// </summary>
+        public float OriginX;
+        public float OriginY;
         
         /// <summary>
         /// Create grid with specified dimensions.
         /// </summary>
-        public static SpatialHashGrid Create(int width, int height, float cellSize, 
-            int maxEntities, Allocator allocator)
+        public static SpatialHashGrid Create(int width, int height, float cellSize,
+            int maxEntities, Allocator allocator, float originX = 0f, float originY = 0f)
         {
             return new SpatialHashGrid
             {
@@ -36,7 +43,9 @@ namespace CarKinem.Spatial
                 CellSize = cellSize,
                 Width = width,
                 Height = height,
-                EntityCount = 0
+                EntityCount = 0,
+                OriginX = originX,
+                OriginY = originY,
             };
         }
         
@@ -57,9 +66,9 @@ namespace CarKinem.Spatial
         /// </summary>
         public void Add(Entity entity, Vector2 position)
         {
-            int cellX = (int)(position.X / CellSize);
-            int cellY = (int)(position.Y / CellSize);
-            
+            int cellX = (int)((position.X - OriginX) / CellSize);
+            int cellY = (int)((position.Y - OriginY) / CellSize);
+
             if (cellX < 0 || cellX >= Width || cellY < 0 || cellY >= Height)
                 return; // Out of bounds
             
@@ -86,11 +95,11 @@ namespace CarKinem.Spatial
             int count = 0;
             float radiusSq = radius * radius;
             
-            // Get search bounds in grid space
-            int minCellX = (int)((position.X - radius) / CellSize);
-            int maxCellX = (int)((position.X + radius) / CellSize);
-            int minCellY = (int)((position.Y - radius) / CellSize);
-            int maxCellY = (int)((position.Y + radius) / CellSize);
+            // Get search bounds in grid space (subtract world origin to convert to cell space)
+            int minCellX = (int)((position.X - radius - OriginX) / CellSize);
+            int maxCellX = (int)((position.X + radius - OriginX) / CellSize);
+            int minCellY = (int)((position.Y - radius - OriginY) / CellSize);
+            int maxCellY = (int)((position.Y + radius - OriginY) / CellSize);
             
             // Clamp to grid bounds
             minCellX = Math.Max(0, minCellX);

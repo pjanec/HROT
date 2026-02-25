@@ -112,7 +112,18 @@ namespace Fdp.Examples.UrbanCombat.Tests
             Assert.True(_app.World.HasComponent<PassengerBuffer>(e));
             Assert.True(_app.World.HasComponent<Faction>(e));
             var faction = _app.World.GetComponent<Faction>(e);
-            Assert.Equal(1, faction.FactionId);   // FactionBlue = 1
+            Assert.Equal(UrbanCombatConstants.FactionBlue, faction.FactionId);   // FactionBlue = 1
+        }
+
+        /// <summary>The MilitaryAPC template must stamp DoctrineState with BrainTierHsm (=1), not BrainTierBTree (=2).</summary>
+        [Fact]
+        public void APC_Template_HasHsmBrainTier()
+        {
+            var template = _app.Tkb.GetByType(2001)!;
+            var e = _app.World.CreateEntity();
+            template.ApplyTo(_app.World, e);
+            var ds = _app.World.GetComponent<DoctrineState>(e);
+            Assert.Equal(BehaviorConstants.BrainTierHsm, ds.BrainTier);  // must be 1, not 2
         }
 
         /// <summary>The InfantrySoldier template must stamp WeaponState with 30 rounds.</summary>
@@ -125,7 +136,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
             Assert.True(_app.World.HasComponent<WeaponState>(e));
             var ws = _app.World.GetComponent<WeaponState>(e);
-            Assert.Equal(30, ws.Ammo);   // Rifle: 30 rounds
+            Assert.Equal(UrbanCombatConstants.RifleAmmo, ws.Ammo);   // Rifle: 30 rounds
         }
 
         /// <summary>The Insurgent template must stamp WeaponState with 1 round (RPG) and FactionRed.</summary>
@@ -138,11 +149,11 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
             Assert.True(_app.World.HasComponent<WeaponState>(e));
             var ws = _app.World.GetComponent<WeaponState>(e);
-            Assert.Equal(1, ws.Ammo);   // RPG: single rocket
+            Assert.Equal(UrbanCombatConstants.RpgAmmo, ws.Ammo);   // RPG: single rocket
 
             Assert.True(_app.World.HasComponent<Faction>(e));
             var faction = _app.World.GetComponent<Faction>(e);
-            Assert.Equal(2, faction.FactionId);   // FactionRed = 2
+            Assert.Equal(UrbanCombatConstants.FactionRed, faction.FactionId);   // FactionRed = 2
         }
 
         // ════════════════════════════════════════════════════════════════════════════

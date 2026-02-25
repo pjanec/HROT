@@ -46,4 +46,17 @@ namespace Fdp.Kernel
     /// Group for systems that run during the presentation/rendering phase.
     /// </summary>
     public class PresentationSystemGroup : SystemGroup { }
+
+    /// <summary>
+    /// Group for systems that run in the export/telemetry phase, after all simulation
+    /// and presentation systems have completed.
+    /// <para>
+    /// Intended for read-only observers (logging, telemetry, record-and-replay) that
+    /// must see the fully-committed frame state without mutating it.
+    /// </para>
+    /// <para>
+    /// Registration order: <c>Input → Simulation → PostSimulation → Presentation → Export</c>.
+    /// </para>
+    /// </summary>
+    public class ExportSystemGroup : SystemGroup { }
 }
