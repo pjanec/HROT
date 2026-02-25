@@ -33,6 +33,8 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | IG-DEBT-012 | P3 | IG-BATCH-05 | `MeasureTool` computes flat Euclidean distance instead of Haversine algorithm which applies proper Geolocation map warping ratios. Fix when Geo-Projections added. | IG Module | Open |
 | IG-DEBT-013 | P4 | IG-BATCH-05 | `MeasureTool` leaks `_startPoint` if swapped out mid-measure via `canvas.PushTool`. Clear internal state in `OnEnter` or explicitly validate state contexts on re-entry. | IG Module | Open |
 | IG-DEBT-014 | P4 | IG-BATCH-06 | `HistoryTrail` uses a fixed 64-element array in an unmanaged component. If longer trails are required, this needs refactoring to a chunked linked-list approach to avoid exploding struct size. | IG Module | Open |
+| IG-DEBT-015 | P4 | IG-BATCH-07 | ImGui input bleed mitigation: Check `ImGui.GetIO().WantCaptureMouse` to aggressively gate `MapCanvas.Update()` Raylib inputs if mouse-bleed proves to be an issue during tighter sub-panel integrations. | IG Module | Open |
+| IG-DEBT-016 | P5 | IG-BATCH-07 | Performance metrics visibility lag: `CullingState` doesn't populate until the tick *after* spawn, leading to a 1-frame jitter in `VisibleEntityCount` overlays reading during that cycle. | IG Module | Open |
 
 ---
 

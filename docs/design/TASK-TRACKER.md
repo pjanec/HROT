@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 71/144 tasks complete (49%)
+**Overall Progress:** 75/144 tasks complete (52%)
 
 **Last Updated:** 2026-02-25
 
@@ -181,7 +181,7 @@
 
 ## IG MOCK
 
-**Progress:** 20/23 tasks complete (87%)
+**Progress:** 24/24 tasks complete (100%)
 
 **Dependencies:** Requires Shared Components P1-P2 complete
 
@@ -219,10 +219,10 @@
 
 ### Phase IG5: UI & Polish
 
-- [ ] **IG.5.1** Create Debug Panel [details](./TASK-DETAILS-IG.md#task-ig51-create-debug-panel)
-- [ ] **IG.5.2** Add Entity Inspector Panel [details](./TASK-DETAILS-IG.md#task-ig52-add-entity-inspector-panel)
-- [ ] **IG.5.3** Add Mini-IOS Panel [details](./TASK-DETAILS-IG.md#task-ig53-add-mini-ios-panel)
-- [ ] **IG.5.4** Add Performance Metrics Overlay [details](./TASK-DETAILS-IG.md#task-ig54-add-performance-metrics-overlay)
+- [x] **IG.5.1** Create Debug Panel [details](./TASK-DETAILS-IG.md#task-ig51-create-debug-panel)
+- [x] **IG.5.2** Add Entity Inspector Panel [details](./TASK-DETAILS-IG.md#task-ig52-add-entity-inspector-panel)
+- [x] **IG.5.3** Add Mini-IOS Panel [details](./TASK-DETAILS-IG.md#task-ig53-add-mini-ios-panel)
+- [x] **IG.5.4** Add Performance Metrics Overlay [details](./TASK-DETAILS-IG.md#task-ig54-add-performance-metrics-overlay)
 
 ---
 
