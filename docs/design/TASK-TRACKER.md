@@ -126,7 +126,7 @@
 
 ## SIMHOST MOCK
 
-**Progress:** 1/28 tasks complete (3%)
+**Progress:** 2/28 tasks complete (7%)
 
 **Dependencies:** Requires Shared Components P1-P6 complete
 
@@ -153,7 +153,7 @@
 
 ### Phase S4: Behavior Toolkit Integration
 
-- [ ] **S4.1** Register Behavior / Navigation / Physics Systems [details](./TASK-DETAILS-SIMHOST.md#task-s41-register-behavior--navigation--physics-systems)
+- [x] **S4.1** Register Behavior / Navigation / Physics Systems [details](./TASK-DETAILS-SIMHOST.md#task-s41-register-behavior--navigation--physics-systems)
 - [ ] **S4.2** Implement EntityMissionTranslator and EntityMissionEgressTranslator [details](./TASK-DETAILS-SIMHOST.md#task-s42-implement-entitymissiontranslator-and-entitymissionegresstranslator)
 - [ ] **S4.3** Implement MissionAdapterSystem [details](./TASK-DETAILS-SIMHOST.md#task-s43-implement-missionadaptersystem)
 - [ ] **S4.4** Implement JoinFormationExecutor [details](./TASK-DETAILS-SIMHOST.md#task-s44-implement-joinformationexecutor)
