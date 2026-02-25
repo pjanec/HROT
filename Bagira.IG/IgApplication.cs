@@ -126,6 +126,16 @@ public class IgApplication
         _world.RegisterComponent<CullingState>();
         _world.RegisterComponent<SelectionState>();
 
+        // IG4 — Advanced Features components
+        _world.RegisterComponent<HistoryTrail>();
+        _world.RegisterComponent<VisualEffectState>();
+        _world.RegisterComponent<TracerTarget>();
+        _world.RegisterManagedComponent<ContextMenuState>();
+        _world.RegisterManagedComponent<EditablePolyline>();
+
+        // IG4 — Events
+        _world.RegisterEvent<FireInteractionEvent>();
+
         _userConfig     = new MapUserConfig();
         _cameraViewport = new MapCameraViewport();
     }
@@ -173,6 +183,12 @@ public class IgApplication
 
         // F. MapCullingModule — writes CullingState each PostSimulation tick
         _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
+
+        // G. HistoryTrailModule — records entity position trails (IG.4.1)
+        _kernel.RegisterModule(new HistoryTrailModule());
+
+        // H. EventEffectModule — spawns and cleans up visual effects (IG.4.2)
+        _kernel.RegisterModule(new EventEffectModule());
 
         // C. CycloneNetworkModule — DDS ingress/egress (optional)
         if (enableNetwork)

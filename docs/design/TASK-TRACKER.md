@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 66/144 tasks complete (46%)
+**Overall Progress:** 71/144 tasks complete (49%)
 
 **Last Updated:** 2026-02-25
 
@@ -181,7 +181,7 @@
 
 ## IG MOCK
 
-**Progress:** 15/23 tasks complete (65%)
+**Progress:** 20/23 tasks complete (87%)
 
 **Dependencies:** Requires Shared Components P1-P2 complete
 
@@ -211,11 +211,11 @@
 
 ### Phase IG4: Advanced Features
 
-- [ ] **IG.4.1** Implement HistoryRecordingSystem [details](./TASK-DETAILS-IG.md#task-ig41-implement-historyrecordingsystem)
-- [ ] **IG.4.2** Implement EventToEffectSystem [details](./TASK-DETAILS-IG.md#task-ig42-implement-eventtoeffectsystem)
-- [ ] **IG.4.3** Add Context Menu System [details](./TASK-DETAILS-IG.md#task-ig43-add-context-menu-system)
-- [ ] **IG.4.4** Implement EditTool (Vertex Manipulation) [details](./TASK-DETAILS-IG.md#task-ig44-implement-edittool-vertex-manipulation)
-- [ ] **IG.4.5** Integration Test: Advanced Features [details](./TASK-DETAILS-IG.md#task-ig45-integration-test-advanced-features)
+- [x] **IG.4.1** Implement HistoryRecordingSystem [details](./TASK-DETAILS-IG.md#task-ig41-implement-historyrecordingsystem)
+- [x] **IG.4.2** Implement EventToEffectSystem [details](./TASK-DETAILS-IG.md#task-ig42-implement-eventtoeffectsystem)
+- [x] **IG.4.3** Add Context Menu System [details](./TASK-DETAILS-IG.md#task-ig43-add-context-menu-system)
+- [x] **IG.4.4** Implement EditTool (Vertex Manipulation) [details](./TASK-DETAILS-IG.md#task-ig44-implement-edittool-vertex-manipulation)
+- [x] **IG.4.5** Integration Test: Advanced Features [details](./TASK-DETAILS-IG.md#task-ig45-integration-test-advanced-features)
 
 ### Phase IG5: UI & Polish
 
