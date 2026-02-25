@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace Bagira.IOS.Panels;
 
 /// <summary>
@@ -20,13 +22,26 @@ public sealed record LogEntry(
 /// the list with a plain <c>for</c>-loop — no LINQ, no allocations
 /// (CODE-STANDARDS §4).</para>
 ///
+/// <para><b>Thread safety (IOS-DEBT-034):</b> DDS ingress callbacks may fire
+/// on background threads and call <see cref="AddLog"/> at any time.
+/// <see cref="AddLog"/> enqueues to a <see cref="ConcurrentQueue{T}"/> staging
+/// buffer so it is safe to call from any thread.  The main application thread
+/// must call <see cref="DrainPendingLogs"/> once per frame (from
+/// <c>IosLogic.Update</c>) before drawing the panel, which transfers all
+/// queued entries into the main-thread-only <c>_log</c> list.</para>
+///
 /// <para><b>Testing:</b> <see cref="AddLog"/> and <see cref="Entries"/> are
-/// fully accessible without ImGui; tests simply call <c>AddLog</c> and assert
-/// against <see cref="Entries"/> / <see cref="EntryCount"/>.</para>
+/// fully accessible without ImGui; tests call <c>AddLog</c> then
+/// <see cref="DrainPendingLogs"/> before asserting against
+/// <see cref="Entries"/> / <see cref="EntryCount"/>.</para>
 /// </summary>
 public sealed class InteractionPanel
 {
-    // ── Internal log (pre-allocated to avoid later heap churn) ────────────────
+    // ── Thread-safe staging queue (written from any thread) ───────────────────
+
+    private readonly ConcurrentQueue<LogEntry> _pending = new();
+
+    // ── Main-thread log (drained from _pending, read during Draw) ─────────────
 
     private readonly List<LogEntry> _log;
 
@@ -47,31 +62,59 @@ public sealed class InteractionPanel
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Read-only view of the current log entries, ordered oldest-to-newest.
-    /// The returned collection is a <see cref="System.Collections.ObjectModel.ReadOnlyCollection{T}"/>
+    /// Read-only view of the committed log entries, ordered oldest-to-newest.
+    /// Only reflects entries that have been moved to the main thread via
+    /// <see cref="DrainPendingLogs"/>; entries still in the staging queue are
+    /// not visible here.
+    /// The returned collection is a
+    /// <see cref="System.Collections.ObjectModel.ReadOnlyCollection{T}"/>
     /// wrapper — it cannot be cast back to <see cref="List{T}"/> and mutated.
     /// </summary>
     public IReadOnlyList<LogEntry> Entries => _readOnlyLog;
 
-    /// <summary>Number of entries currently stored.</summary>
+    /// <summary>Number of committed entries currently stored.</summary>
     public int EntryCount => _log.Count;
 
     /// <summary>
-    /// Appends a new log entry.  When the cap
-    /// (<see cref="PanelConstants.MaxLogEntries"/>) would be exceeded the
-    /// oldest entry is removed first, keeping memory use constant.
+    /// Thread-safe: enqueues a new log entry into the staging buffer.
+    /// Safe to call from any thread (e.g. DDS ingress callbacks).
+    /// Entries will not appear in <see cref="Entries"/> until
+    /// <see cref="DrainPendingLogs"/> is called from the main thread.
     /// </summary>
     /// <param name="direction">Typically "RX" or "TX".</param>
     /// <param name="topic">DDS topic name (e.g. "MapClickEvent").</param>
     /// <param name="details">Human-readable payload summary.</param>
     public void AddLog(string direction, string topic, string details)
     {
-        // Evict the oldest entry when at capacity — O(n) for a List but
-        // acceptable at MaxLogEntries = 100 (one small memmove per frame max).
-        if (_log.Count >= PanelConstants.MaxLogEntries)
-            _log.RemoveAt(0);
+        _pending.Enqueue(new LogEntry(DateTime.UtcNow, direction, topic, details));
+    }
 
-        _log.Add(new LogEntry(DateTime.UtcNow, direction, topic, details));
+    /// <summary>
+    /// <b>Main-thread only.</b> Drains all pending entries from the staging
+    /// queue into the committed log list, enforcing the
+    /// <see cref="PanelConstants.MaxLogEntries"/> cap.
+    ///
+    /// <para>Must be called once per frame from <c>IosLogic.Update</c> before
+    /// the panel is drawn, so that entries written on DDS ingress threads
+    /// (IOS-DEBT-034) reach the UI safely.</para>
+    ///
+    /// <para>When the cap would be exceeded the oldest committed entry is
+    /// evicted first — O(n) for a List but acceptable at MaxLogEntries = 100
+    /// (one small memmove per drained item at most).</para>
+    /// </summary>
+    /// <returns>The number of entries drained in this call.</returns>
+    public int DrainPendingLogs()
+    {
+        int drained = 0;
+        while (_pending.TryDequeue(out var entry))
+        {
+            if (_log.Count >= PanelConstants.MaxLogEntries)
+                _log.RemoveAt(0);
+
+            _log.Add(entry);
+            drained++;
+        }
+        return drained;
     }
 
     // ── Draw stub (Phase P9) ──────────────────────────────────────────────────

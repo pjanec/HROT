@@ -21,6 +21,10 @@
 
     <!-- JSON serialisation -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- Raylib window + ImGui rendering (application shell) -->
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />
   </ItemGroup>
 
 </Project>

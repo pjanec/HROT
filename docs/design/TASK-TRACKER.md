@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 61/149 tasks complete (40%)
+**Overall Progress:** 63/149 tasks complete (42%)
 
 **Last Updated:** 2026-02-20
 
@@ -228,7 +228,7 @@
 
 ## IOS MOCK
 
-**Progress:** 10/20 tasks complete (50%)
+**Progress:** 12/20 tasks complete (60%)
 
 **Dependencies:** Requires Shared Components P2, P3, P4
 
@@ -253,8 +253,8 @@
 
 ### Phase IOS-P8: IOS Application Shell
 
-- [ ] **IOS.8.1** IOS Main Logic [details](./TASK-DETAILS-IOS.md#p91-ios-main-logic)
-- [ ] **IOS.8.2** IOS Program & CLI [details](./TASK-DETAILS-IOS.md#p92-ios-program--cli)
+- [x] **IOS.8.1** IOS Main Logic [details](./TASK-DETAILS-IOS.md#p91-ios-main-logic)
+- [x] **IOS.8.2** IOS Program & CLI [details](./TASK-DETAILS-IOS.md#p92-ios-program--cli)
 
 ### Phase IOS-P9: Integration Testing
 
