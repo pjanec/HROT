@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 56/149 tasks complete (37%)
+**Overall Progress:** 61/149 tasks complete (40%)
 
 **Last Updated:** 2026-02-20
 
@@ -228,7 +228,7 @@
 
 ## IOS MOCK
 
-**Progress:** 5/20 tasks complete (25%)
+**Progress:** 10/20 tasks complete (50%)
 
 **Dependencies:** Requires Shared Components P2, P3, P4
 
@@ -245,11 +245,11 @@
 
 ### Phase IOS-P7: IOS UI Panels
 
-- [ ] **IOS.7.1** Configuration Panel [details](./TASK-DETAILS-IOS.md#p81-configuration-panel)
-- [ ] **IOS.7.2** ORBAT Hierarchy Panel [details](./TASK-DETAILS-IOS.md#p82-orbat-hierarchy-panel)
-- [ ] **IOS.7.3** Mission Panel [details](./TASK-DETAILS-IOS.md#p83-mission-panel)
-- [ ] **IOS.7.4** Interaction Panel (Event Log) [details](./TASK-DETAILS-IOS.md#p84-interaction-panel-event-log)
-- [ ] **IOS.7.5** Spawner Panel [details](./TASK-DETAILS-IOS.md#p85-spawner-panel)
+- [x] **IOS.7.1** Configuration Panel [details](./TASK-DETAILS-IOS.md#p81-configuration-panel)
+- [x] **IOS.7.2** ORBAT Hierarchy Panel [details](./TASK-DETAILS-IOS.md#p82-orbat-hierarchy-panel)
+- [x] **IOS.7.3** Mission Panel [details](./TASK-DETAILS-IOS.md#p83-mission-panel)
+- [x] **IOS.7.4** Interaction Panel (Event Log) [details](./TASK-DETAILS-IOS.md#p84-interaction-panel-event-log)
+- [x] **IOS.7.5** Spawner Panel [details](./TASK-DETAILS-IOS.md#p85-spawner-panel)
 
 ### Phase IOS-P8: IOS Application Shell
 
