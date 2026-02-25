@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 51/151 tasks complete (34%)
+**Overall Progress:** 51/144 tasks complete (35%)
 
 **Last Updated:** 2026-02-20
 
@@ -135,6 +135,7 @@
 - [x] **S1.1** Create SimHost Console Project [details](./TASK-DETAILS-SIMHOST.md#task-s11-create-simhost-console-project)
 - [x] **S1.2** Add Project References (incl. FDP.Toolkit.NetworkSpawning) [details](./TASK-DETAILS-SIMHOST.md#task-s12-add-project-references)
 - [x] **S1.3** Define ECS Components [details](./TASK-DETAILS-SIMHOST.md#task-s13-define-ecs-components)
+- [ ] **S1.3b** Audit TKB Descriptors for SimTransform/SimVelocity [details](./TASK-DETAILS-SIMHOST.md#task-s13b-audit-tkb-descriptors)
 
 ### Phase S2: CreateEntityRequestHandler
 
@@ -146,24 +147,16 @@
 - [x] **S2.6** Implement ACK Response [details](./TASK-DETAILS-SIMHOST.md#task-s26-implement-ack-response)
 - [x] **S2.7** Write Request Handler Tests [details](./TASK-DETAILS-SIMHOST.md#task-s27-write-request-handler-tests)
 
-### Phase S3: GeoSpatialBridgeSystem
+### Phase S3: Geographic Module Integration
 
-- [ ] **S3.1** Implement Bridge System Skeleton [details](./TASK-DETAILS-SIMHOST.md#task-s31-implement-bridge-system-skeleton)
-- [ ] **S3.2** Implement Position Conversion [details](./TASK-DETAILS-SIMHOST.md#task-s32-implement-position-conversion)
-- [ ] **S3.3** Implement Heading Conversion [details](./TASK-DETAILS-SIMHOST.md#task-s33-implement-heading-conversion)
-- [ ] **S3.4** Create GeoSpatial Component [details](./TASK-DETAILS-SIMHOST.md#task-s34-create-geospatial-component)
-- [ ] **S3.5** Add GeoSpatialDR (Velocity) [details](./TASK-DETAILS-SIMHOST.md#task-s35-add-geospatialdr-velocity)
-- [ ] **S3.6** Write Bridge System Tests [details](./TASK-DETAILS-SIMHOST.md#task-s36-write-bridge-system-tests)
+- [ ] **S3.1** Register GeographicModule and Verify Egress [details](./TASK-DETAILS-SIMHOST.md#task-s31-register-geographicmodule-and-verify-egress)
 
-### Phase S4: MissionExecutionSystem
+### Phase S4: Behavior Toolkit Integration
 
-- [ ] **S4.1** Implement Mission System Skeleton [details](./TASK-DETAILS-SIMHOST.md#task-s41-implement-mission-system-skeleton)
-- [ ] **S4.2** Implement MoveToLocation Behavior [details](./TASK-DETAILS-SIMHOST.md#task-s42-implement-movetolocation-behavior)
-- [ ] **S4.3** Implement FollowRoute Behavior [details](./TASK-DETAILS-SIMHOST.md#task-s43-implement-followroute-behavior)
-- [ ] **S4.4** Implement JoinFormation Behavior [details](./TASK-DETAILS-SIMHOST.md#task-s44-implement-joinformation-behavior)
-- [ ] **S4.5** Implement Task Completion Detection [details](./TASK-DETAILS-SIMHOST.md#task-s45-implement-task-completion-detection)
-- [ ] **S4.6** Implement Task State Transitions [details](./TASK-DETAILS-SIMHOST.md#task-s46-implement-task-state-transitions)
-- [ ] **S4.7** Write Mission Execution Tests [details](./TASK-DETAILS-SIMHOST.md#task-s47-write-mission-execution-tests)
+- [ ] **S4.1** Register Behavior / Navigation / Physics Systems [details](./TASK-DETAILS-SIMHOST.md#task-s41-register-behavior--navigation--physics-systems)
+- [ ] **S4.2** Implement EntityMissionTranslator and EntityMissionEgressTranslator [details](./TASK-DETAILS-SIMHOST.md#task-s42-implement-entitymissiontranslator-and-entitymissionegresstranslator)
+- [ ] **S4.3** Implement MissionAdapterSystem [details](./TASK-DETAILS-SIMHOST.md#task-s43-implement-missionadaptersystem)
+- [ ] **S4.4** Implement JoinFormationExecutor [details](./TASK-DETAILS-SIMHOST.md#task-s44-implement-joinformationexecutor)
 
 ### Phase S5: Main Application Shell
 

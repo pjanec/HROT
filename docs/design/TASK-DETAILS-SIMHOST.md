@@ -12,7 +12,7 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
 
 **Total Effort:** ~18 developer-days (~3.5 weeks for 1 developer)
 
-**Key Insight:** Most infrastructure exists (CarKinem, networking, ECS). Focus on request handlers, mission execution, and application shell.
+**Key Insight:** Most infrastructure exists (CarKinem, networking, ECS, Behavior toolkit, Geographic module). Focus on request handlers, mission adapter, and application shell.
 
 ---
 
@@ -35,25 +35,26 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
    ```
    Bagira.SimHost/
      Program.cs
+     DoctrineIds.cs
      Components/
        NetworkIdComponent.cs
-       EntityMasterComponent.cs
-       EntityInfoComponent.cs
-       GeoSpatialComponent.cs
-       GeoSpatialDRComponent.cs
-       EntityMissionComponent.cs
      Systems/
        CreateEntityRequestHandler.cs
-       GeoSpatialBridgeSystem.cs
-       MissionExecutionSystem.cs
+       MissionAdapterSystem.cs
+       JoinFormationExecutor.cs
+     Translators/
+       CreateEntityRequestTranslator.cs
+       CreateEntityAckTranslator.cs
+       EntityMissionTranslator.cs
+       EntityMissionEgressTranslator.cs
      Configuration/
        SimHostConfig.cs
    ```
 
 **Acceptance Criteria:**
-- ✅ Project created and compiles
-- ✅ Folder structure in place
-- ✅ Added to solution file
+- âś… Project created and compiles
+- âś… Folder structure in place
+- âś… Added to solution file
 
 **Estimated Effort:** 0.25 days
 
@@ -78,6 +79,9 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
    <ProjectReference Include="..\FDP\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Navigation\FDP.Toolkit.Navigation.csproj" />
+   <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.NetworkSpawning\FDP.Toolkit.NetworkSpawning.csproj" />
    ```
@@ -89,9 +93,9 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
    ```
 
 **Acceptance Criteria:**
-- ✅ All project references resolve
-- ✅ NuGet packages restore successfully
-- ✅ Project builds without errors
+- âś… All project references resolve
+- âś… NuGet packages restore successfully
+- âś… Project builds without errors
 
 **Estimated Effort:** 0.25 days
 
@@ -103,7 +107,7 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
 
 **Goal:** Create component definitions for SimHost.
 
-> ⚠️ **Architecture note — avoid duplicate type definitions:**
+> âš ď¸Ź **Architecture note â€” avoid duplicate type definitions:**
 > FDP uses the **Shared Data Model** types from `Bagira.DDS.DataModel` directly as ECS components. Types such as `EntityMaster`, `GeoSpatial`, `GeoSpatialDR`, `EntityInfo`, and `EntityMission` are already defined there and are decorated with `[FdpDescriptor]`, which allows the `AutoCycloneTranslator` to replicate them automatically over DDS.
 >
 > **Do NOT redefine local copies** (`EntityMasterComponent`, `GeoSpatialComponent`, etc.) that duplicate the fields of these DDS types. This creates:
@@ -122,7 +126,7 @@ namespace Bagira.SimHost.Components
 {
     /// <summary>
     /// Maps an ECS entity to its allocated network entity ID.
-    /// This is a local runtime component — not replicated over DDS directly.
+    /// This is a local runtime component â€” not replicated over DDS directly.
     /// The actual replication key is carried by FDP.Kernel's built-in NetworkIdentity.
     /// </summary>
     public struct NetworkIdComponent
@@ -148,28 +152,28 @@ world.AddComponent(entity, new EntityMaster
 });
 
 // AutoCycloneTranslator will replicate EntityMaster over DDS automatically
-// because the type carries [FdpDescriptor] — no manual translator stub needed.
+// because the type carries [FdpDescriptor] â€” no manual translator stub needed.
 ```
 
-**Folder structure update for S1.1** — remove the duplicate component files:
+**Folder structure update for S1.1** â€” remove the duplicate component files:
 ```
 Bagira.SimHost/
   Components/
-    NetworkIdComponent.cs     ✅ Keep (local, non-replicated)
-    EntityMasterComponent.cs  ❌ Delete — use Bagira.DDS.DataModel.EntityMaster
-    EntityInfoComponent.cs    ❌ Delete — use Bagira.DDS.DataModel.EntityInfo
-    GeoSpatialComponent.cs    ❌ Delete — use Bagira.DDS.DataModel.GeoSpatial
-    GeoSpatialDRComponent.cs  ❌ Delete — use Bagira.DDS.DataModel.GeoSpatialDR
-    EntityMissionComponent.cs ❌ Delete — use Bagira.DDS.DataModel.EntityMission
+    NetworkIdComponent.cs     âś… Keep (local, non-replicated)
+    EntityMasterComponent.cs  âťŚ Delete â€” use Bagira.DDS.DataModel.EntityMaster
+    EntityInfoComponent.cs    âťŚ Delete â€” use Bagira.DDS.DataModel.EntityInfo
+    GeoSpatialComponent.cs    âťŚ Delete â€” use Bagira.DDS.DataModel.GeoSpatial
+    GeoSpatialDRComponent.cs  âťŚ Delete â€” use Bagira.DDS.DataModel.GeoSpatialDR
+    EntityMissionComponent.cs âťŚ Delete â€” use Bagira.DDS.DataModel.EntityMission
 ```
 
 **Acceptance Criteria:**
-- ✅ `NetworkIdComponent` created
-- ✅ No local duplicates of `Bagira.DDS.DataModel` types
-- ✅ ECS systems use `EntityMaster`, `GeoSpatial`, etc. from the shared data model
-- ✅ XML documentation complete
+- âś… `NetworkIdComponent` created
+- âś… No local duplicates of `Bagira.DDS.DataModel` types
+- âś… ECS systems use `EntityMaster`, `GeoSpatial`, etc. from the shared data model
+- âś… XML documentation complete
 
-**Estimated Effort:** 0.25 days (reduced — less boilerplate to write)
+**Estimated Effort:** 0.25 days (reduced â€” less boilerplate to write)
 
 **Dependencies:** S1.2
 
@@ -190,12 +194,36 @@ Bagira.SimHost/
 4. Add reference to `Bagira.SimHost` project.
 
 **Acceptance Criteria:**
-- ✅ Test project created
-- ✅ Dependencies resolved
+- âś… Test project created
+- âś… Dependencies resolved
 
 **Estimated Effort:** 0.1 days
 
 **Dependencies:** S1.1
+
+---
+
+### Task S1.3b: Audit TKB Descriptors for SimTransform/SimVelocity
+
+**Goal:** Confirm every physical entity template in `BdcTkbBuilder` includes `SimTransform` and `SimVelocity`, and that `VehicleState` is added **only** to wheeled/tracked ground platforms.
+
+**Steps:**
+1. Open `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs` and enumerate all `RegisterTemplate` calls.
+2. Verify each template's component list contains `SimTransform` and `SimVelocity`.
+3. Verify `VehicleState` is present **only** on templates whose `TkbEntityType` corresponds to wheeled/tracked ground vehicles (tanks, APCs, cars, trucks). Infantry, aircraft, naval, and pure-ghost entities must **not** receive `VehicleState`.
+4. Add missing `SimTransform`/`SimVelocity` entries where absent. Remove `VehicleState` from non-wheeled templates.
+
+> âš ď¸Ź **VehicleState scope reminder:** `VehicleState` holds only `Speed`, `SteerAngle`, `Accel`, `CurrentLaneIndex` (Phase 0 trim). Any template that previously stored position/heading in `VehicleState` must now use `SimTransform` exclusively.
+
+**Acceptance Criteria:**
+- âś… All entity templates have `SimTransform` and `SimVelocity`
+- âś… `VehicleState` present only on wheeled/tracked ground platforms
+- âś… `LinearKinematicsSystem` will integrate non-wheeled entities correctly (no `VehicleState` filter conflict)
+- âś… All existing TKB-related unit tests still pass
+
+**Estimated Effort:** 0.25 days
+
+**Dependencies:** S1.2
 
 ---
 
@@ -276,10 +304,10 @@ namespace Bagira.SimHost.Systems
 ```
 
 **Acceptance Criteria:**
-- ✅ Class compiles
-- ✅ DDS reader/writer initialized
-- ✅ OnUpdate() processes samples
-- ✅ ProcessRequest() stubbed
+- âś… Class compiles
+- âś… DDS reader/writer initialized
+- âś… OnUpdate() processes samples
+- âś… ProcessRequest() stubbed
 
 **Estimated Effort:** 0.5 days
 
@@ -331,9 +359,9 @@ private void SendErrorAck(Guid requestId, int errorCode)
 ```
 
 **Acceptance Criteria:**
-- ✅ ID allocation working
-- ✅ Error handling implemented
-- ✅ Logs indicate allocation success
+- âś… ID allocation working
+- âś… Error handling implemented
+- âś… Logs indicate allocation success
 
 **Estimated Effort:** 0.5 days
 
@@ -392,9 +420,9 @@ Console.WriteLine($"[SimHost] Using template: {template.Name}");
 ```
 
 **Acceptance Criteria:**
-- ✅ TkbType extraction working
-- ✅ Template lookup working
-- ✅ Error handling for invalid template ID
+- âś… TkbType extraction working
+- âś… Template lookup working
+- âś… Error handling for invalid template ID
 
 **Estimated Effort:** 0.5 days
 
@@ -406,17 +434,17 @@ Console.WriteLine($"[SimHost] Using template: {template.Name}");
 
 **Goal:** Replace manual 11-step ECS entity creation with a single `SpawnEntityCommand` event, delegating all spawning logic to `FDP.Toolkit.NetworkSpawning.NetworkSpawningSystem`.
 
-> ⚠️ **Architecture note — thin translator, not thick creator:**
+> âš ď¸Ź **Architecture note â€” thin translator, not thick creator:**
 > `CreateEntityRequestSystem` is a DDS-to-ECS **translator**. It must not call `world.CreateEntity()`, `template.ApplyTo()`, `elm.BeginConstruction()`, or manipulate `NetworkEntityMap` directly. All of that is now owned by `NetworkSpawningSystem`.
 >
-> The system's only job is: allocate a network ID → convert descriptors → publish `SpawnEntityCommand`. `NetworkSpawningSystem` processes the command and does the rest on the next ECS tick.
+> The system's only job is: allocate a network ID â†’ convert descriptors â†’ publish `SpawnEntityCommand`. `NetworkSpawningSystem` processes the command and does the rest on the next ECS tick.
 
 **Implementation:**
 
 Replace `ProcessRequest()` body (after ID allocation):
 
 ```csharp
-// 2. Convert DDS descriptors → ECS component list via DescriptorMapper
+// 2. Convert DDS descriptors â†’ ECS component list via DescriptorMapper
 var initialComponents =
     DescriptorMapper.MapToComponents(request.InitialDescriptors, _geoTransform);
 long tkbType = DescriptorMapper.ExtractTkbType(request.InitialDescriptors);
@@ -438,7 +466,7 @@ _eventBus.Publish(new SpawnEntityCommand
     RequestId         = request.RequestId
 });
 
-// 4. ACK immediately — entity will be live in ECS on the next frame
+// 4. ACK immediately â€” entity will be live in ECS on the next frame
 _eventBus.Publish(new CreateEntityAckEvent
 {
     Ack = new CreateEntityAck
@@ -451,11 +479,11 @@ _eventBus.Publish(new CreateEntityAckEvent
 ```
 
 **Acceptance Criteria:**
-- ✅ `SpawnEntityCommand` published with correct `NetworkId`, `TkbType`, `OwnerNodeId`, `InitType=AllPeers`
-- ✅ `SpawnEntityCommand.InitialComponents` contains the mapped component list
-- ✅ No direct call to `world.CreateEntity()`, `template.ApplyTo()`, or `elm.BeginConstruction()` in this file
-- ✅ ACK sent immediately after publishing command
-- ✅ `tkbType == 0` handled as a 400 error ACK
+- âś… `SpawnEntityCommand` published with correct `NetworkId`, `TkbType`, `OwnerNodeId`, `InitType=AllPeers`
+- âś… `SpawnEntityCommand.InitialComponents` contains the mapped component list
+- âś… No direct call to `world.CreateEntity()`, `template.ApplyTo()`, or `elm.BeginConstruction()` in this file
+- âś… ACK sent immediately after publishing command
+- âś… `tkbType == 0` handled as a 400 error ACK
 
 **Estimated Effort:** 0.5 days
 
@@ -465,9 +493,9 @@ _eventBus.Publish(new CreateEntityAckEvent
 
 ### Task S2.5: Implement DescriptorMapper
 
-**Goal:** Create `Bagira.SimHost.Util.DescriptorMapper` — the application-side adapter that converts a `List<EntityDescriptorUnion>` from a `CreateEntityRequest` into a `List<object>` suitable for `SpawnEntityCommand.InitialComponents`.
+**Goal:** Create `Bagira.SimHost.Util.DescriptorMapper` â€” the application-side adapter that converts a `List<EntityDescriptorUnion>` from a `CreateEntityRequest` into a `List<object>` suitable for `SpawnEntityCommand.InitialComponents`.
 
-> ⚠️ **Architecture note — DescriptorMapper lives in SimHost, not the toolkit:**
+> âš ď¸Ź **Architecture note â€” DescriptorMapper lives in SimHost, not the toolkit:**
 > `FDP.Toolkit.NetworkSpawning` is deliberately generic and has no dependency on `Bagira.DDS.DataModel`. The application (SimHost) is responsible for bridging DDS-specific types to generic `object` components via `DescriptorMapper`, keeping the toolkit clean.
 >
 > `EntityComponentReflector` (inside the toolkit) will call `world.SetComponent(entity, componentType, componentInstance)` for each object in `InitialComponents`, so the objects must be valid ECS component types already registered in the world.
@@ -501,7 +529,7 @@ namespace Bagira.SimHost.Util
                 switch (d._d)
                 {
                     case EDescriptorType.dtEntityMaster:
-                        // Use DDS model type directly — no local wrapper
+                        // Use DDS model type directly â€” no local wrapper
                         result.Add(d.EntityMaster);
                         break;
 
@@ -512,15 +540,19 @@ namespace Bagira.SimHost.Util
                     case EDescriptorType.dtGeoSpatial:
                         // Raw DDS component replicated via AutoCycloneTranslator
                         result.Add(d.GeoSpatial);
-                        // Cartesian VehicleState for CarKinem
+                        // Set SimTransform (world position + orientation) â€” used by ALL systems.
+                        // This is the ONLY authoritative position source; never use VehicleState for position.
                         var cart = geo.ToCartesian(d.GeoSpatial.Pos);
-                        result.Add(new VehicleState
+                        float headingRad = d.GeoSpatial.Rot.Heading * (MathF.PI / 180f);
+                        result.Add(new SimTransform
                         {
-                            Position   = new Vector2((float)cart.X, (float)cart.Y),
-                            Forward    = HeadingToVector(d.GeoSpatial.Rot.Heading),
-                            Speed      = 0,
-                            SteerAngle = 0
+                            Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z),
+                            Rotation = Quaternion.CreateFromYawPitchRoll(headingRad, 0f, 0f)
                         });
+                        // VehicleState: physics metadata only (speed/steer scalars, no position).
+                        // NetworkSpawningSystem applies this only when the TKB template includes VehicleState
+                        // (i.e. wheeled/tracked entities); ignored for other entity types.
+                        result.Add(new VehicleState { Speed = 0, SteerAngle = 0 });
                         break;
 
                     default:
@@ -541,12 +573,12 @@ namespace Bagira.SimHost.Util
 ```
 
 **Acceptance Criteria:**
-- ✅ `ExtractTkbType` returns `EntityMaster.TkbType` or 0 if not present
-- ✅ `MapToComponents` returns `EntityMaster`, `EntityInfo` using DDS types directly (no wrappers)
-- ✅ `GeoSpatial` produces both `GeoSpatial` component and `VehicleState` for CarKinem
-- ✅ `HeadingToVector` converts degrees to unit-direction Vector2 correctly
-- ✅ Unknown descriptor types produce a warning log (not an exception)
-- ✅ Unit tests: all 3 descriptor types → expected component list
+- âś… `ExtractTkbType` returns `EntityMaster.TkbType` or 0 if not present
+- âś… `MapToComponents` returns `EntityMaster`, `EntityInfo` using DDS types directly (no wrappers)
+- âś… `GeoSpatial` produces both `GeoSpatial` component and `VehicleState` for CarKinem
+- âś… `HeadingToVector` converts degrees to unit-direction Vector2 correctly
+- âś… Unknown descriptor types produce a warning log (not an exception)
+- âś… Unit tests: all 3 descriptor types â†’ expected component list
 
 **Estimated Effort:** 0.5 days
 
@@ -577,9 +609,9 @@ Console.WriteLine($"[SimHost] Sent ACK: Entity {newEntityId} created successfull
 ```
 
 **Acceptance Criteria:**
-- ✅ ACK published to DDS
-- ✅ Correct RequestId correlation
-- ✅ NewEntityId populated
+- âś… ACK published to DDS
+- âś… Correct RequestId correlation
+- âś… NewEntityId populated
 
 **Estimated Effort:** 0.25 days
 
@@ -696,10 +728,10 @@ namespace Bagira.SimHost.Tests
 ```
 
 **Acceptance Criteria:**
-- ✅ Valid request test passes
-- ✅ Invalid template test passes
-- ✅ ACK correlation verified
-- ✅ Entity exists in NetworkEntityMap
+- âś… Valid request test passes
+- âś… Invalid template test passes
+- âś… ACK correlation verified
+- âś… Entity exists in NetworkEntityMap
 
 **Estimated Effort:** 0.75 days
 
@@ -707,544 +739,185 @@ namespace Bagira.SimHost.Tests
 
 ---
 
-## Phase S3: GeoSpatialBridgeSystem (2 days)
+## Phase S3: Geographic Module Integration (2 days)
 
-### Task S3.1: Implement Bridge System Skeleton
+### Task S3.1: Register GeographicModule and Verify Egress
 
-**Goal:** Create system class that queries vehicles.
+**Goal:** Register `GeographicModule` from `Fdp.Toolkit.Geographic` at kernel startup, confirming that `SimTransformBridgeSystem` converts `SimTransform`/`SimVelocity` â†’ `GeoTransform`/`GeoVelocity` for locally-owned entities, and that `GeoSpatialEgressTranslator` publishes correct DDS topics.
 
-**Implementation:**
+> `GeoSpatialBridgeModule` and `GeoSpatialBridgeSystem` are **not created**. The toolkit provides all bridge functionality.
 
-Create `Systems/GeoSpatialBridgeSystem.cs`:
-
-```csharp
-using System;
-using System.Numerics;
-using Bagira.SimHost.Components;
-using CarKinem.Core;
-using Fdp.Kernel;
-using Fdp.Toolkit.Geographic;
-
-namespace Bagira.SimHost.Systems
-{
-    /// <summary>
-    /// Bridges VehicleState (local coordinates) to GeoSpatialComponent (WGS84).
-    /// Runs after physics, before egress.
-    /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(CarKinematicsSystem))]
-    [UpdateBefore(typeof(SmartEgressSystem))]
-    public class GeoSpatialBridgeSystem : ComponentSystem
-    {
-        private readonly WGS84Transform _geoTransform;
-        
-        public GeoSpatialBridgeSystem(WGS84Transform geoTransform)
-        {
-            _geoTransform = geoTransform;
-        }
-        
-        protected override void OnUpdate()
-        {
-            var query = World.Query()
-                .With<VehicleState>()
-                .With<NetworkIdComponent>()
-                .Build();
-            
-            foreach (var entity in query)
-            {
-                UpdateGeoSpatial(entity);
-            }
-        }
-        
-        private void UpdateGeoSpatial(Entity entity)
-        {
-            // TODO: Implement conversion
-        }
-    }
-}
-```
+**Steps:**
+1. In `Program.cs` startup, register `GeographicModule` with the configured `WGS84Transform` (follow `NetworkDemoApp.cs` pattern). The module registers `SimTransformBridgeSystem` which runs post-physics.
+2. Confirm the egress translator list passed to `CycloneNetworkModule` includes the already-implemented `GeoSpatialEgressTranslator`.
+3. Run SimHost, spawn one entity via a `CreateEntityRequest`, let it sit for one second.
+4. Assert that the DDS `GeoSpatial` topic receives a sample with `Pos.Latitude` and `Pos.Longitude` within 1Â° of the configured `GeodeticOrigin`.
 
 **Acceptance Criteria:**
-- ✅ Class compiles
-- ✅ System registered with correct update order
-- ✅ Query targets vehicles with NetworkIdComponent
+- âś… `GeographicModule` registered at kernel startup with correct `WGS84Transform`
+- âś… `SimTransformBridgeSystem` runs post-physics (check system order in debug log)
+- âś… `GeoSpatialEgressTranslator` publishes `GeoSpatial` DDS sample with plausible coordinates
+- âś… No custom bridge code written in `Bagira.SimHost`
 
-**Estimated Effort:** 0.25 days
+**Estimated Effort:** 2 days *(includes smoke-test integration run)*
 
-**Dependencies:** S1.3
+**Dependencies:** S1.3, S2.5
 
 ---
 
-### Task S3.2: Implement Position Conversion
+## Phase S4: Behavior Toolkit Integration (5 days)
 
-**Goal:** Convert Vector2 position to GeoPosition.
+### Task S4.1: Register Behavior / Navigation / Physics Systems
 
-**Implementation:**
+**Goal:** Wire `FDP.Toolkit.Behavior` and `FDP.Toolkit.Navigation` systems into `SimulationLogicModule`, replacing the old `MissionExecutionSystem` placeholder.
 
-Add to `UpdateGeoSpatial()`:
-
-```csharp
-private void UpdateGeoSpatial(Entity entity)
-{
-    var vehicleState = entity.Get<VehicleState>();
-    var networkId = entity.Get<NetworkIdComponent>();
-    
-    // Convert local position to geodetic
-    var cartesian = new CartesianCoordinate
-    {
-        X = vehicleState.Position.X,  // ⚠️ Phase 0: VehicleState.Position removed — use world.GetComponent<SimTransform>(entity).Position.X
-        Y = vehicleState.Position.Y,  // ⚠️ Phase 0: use world.GetComponent<SimTransform>(entity).Position.Y
-        Z = 0 // Flat terrain for now (can add terrain height later)
-    };
-    
-    var geoPos = _geoTransform.ToGeodetic(cartesian);
-    
-    Console.WriteLine($"[SimHost] Entity {networkId.NetworkId}: Pos={vehicleState.Position} → Geo=({geoPos.Latitude},{geoPos.Longitude})"); // ⚠️ Phase 0: vehicleState.Position → SimTransform.Position
-    
-    // TODO: Convert heading
-    // TODO: Create GeoSpatial component
-}
-```
+**Steps:**
+1. In `SimulationLogicModule.RegisterSystems()`, register in order:
+   - `new MissionAdapterSystem(_doctrineRegistry, _entityMap)` â€” runs first each frame
+   - `new ChannelArbitrationSystem()` â€” preempts stale channels on doctrine change
+   - `new BTreeTickSystem(_doctrineRegistry)` â€” zero-alloc stack context, ticks the BTree
+   - `new LocomotionDispatcherSystem()` â€” OnEnter/Execute/OnExit lifecycle for executors
+   - `new MoveToExecutor()` â€” existing toolkit executor
+   - `new FollowRouteExecutor()` â€” existing toolkit executor
+   - `new JoinFormationExecutor(_vehicleAPI, _entityMap)` â€” new (implemented in S4.4)
+   - *(existing)* `new SpatialHashSystem()`, `new FormationTargetSystem()`, `new VehicleCommandSystem()`, `new CarKinematicsSystem(...)`
+   - `new LinearKinematicsSystem()` â€” for non-wheeled entities; already excludes `VehicleState` entities via its own query filter
+2. Update `SimulationLogicModule` constructor to accept `DoctrineRegistry` and `NetworkEntityMap` parameters.
+3. Write a minimal unit test verifying all systems register without error on an empty world.
 
 **Acceptance Criteria:**
-- ✅ Cartesian → Geodetic conversion working
-- ✅ Latitude/Longitude values reasonable (near origin)
-- ✅ Logs show conversion
-
-**Estimated Effort:** 0.25 days
-
-**Dependencies:** S3.1
-
----
-
-### Task S3.3: Implement Heading Conversion
-
-**Goal:** Convert Vector2.Forward to heading degrees.
-
-**Implementation:**
-
-Add helper method:
-
-```csharp
-private float VectorToHeading(Vector2 forward)
-{
-    // Convert normalized forward vector to heading (degrees clockwise from North)
-    // North = (0, 1), East = (1, 0)
-    float radians = MathF.Atan2(forward.X, forward.Y);
-    float degrees = radians * (180.0f / MathF.PI);
-    
-    // Normalize to [0, 360)
-    if (degrees < 0) degrees += 360.0f;
-    
-    return degrees;
-}
-```
-
-Update `UpdateGeoSpatial()`:
-
-```csharp
-// Convert forward vector to heading (degrees)
-float headingDeg = VectorToHeading(vehicleState.Forward); // ⚠️ Phase 0: VehicleState.Forward removed — derive forward vector from SimTransform.Rotation quaternion
-```
-
-**Acceptance Criteria:**
-- ✅ North (0,1) → 0°
-- ✅ East (1,0) → 90°
-- ✅ South (0,-1) → 180°
-- ✅ West (-1,0) → 270°
-
-**Estimated Effort:** 0.25 days
-
-**Dependencies:** S3.2
-
----
-
-### Task S3.4: Create GeoSpatial Component
-
-**Goal:** Set GeoSpatialComponent on entity.
-
-**Implementation:**
-
-Complete `UpdateGeoSpatial()`:
-
-```csharp
-// Create GeoSpatial component
-var geoSpatial = new GeoSpatialComponent
-{
-    EntityId = networkId.NetworkId,
-    Time = DateTime.UtcNow, // TODO: Use simulation time from MasterTimeController
-    Pos = new GeoPosition
-    {
-        Latitude = geoPos.Latitude,
-        Longitude = geoPos.Longitude,
-        Altitude = geoPos.Altitude
-    },
-    Rot = new OrientationHPR
-    {
-        Heading = headingDeg,
-        Pitch = vehicleState.Pitch,
-        Roll = vehicleState.Roll
-    }
-};
-
-entity.Set(geoSpatial);
-```
-
-**Acceptance Criteria:**
-- ✅ GeoSpatialComponent created
-- ✅ All fields populated
-- ✅ Component set on entity
-
-**Estimated Effort:** 0.25 days
-
-**Dependencies:** S3.3
-
----
-
-### Task S3.5: Add GeoSpatialDR (Velocity)
-
-**Goal:** Create GeoSpatialDR component for moving entities.
-
-**Implementation:**
-
-Add to `UpdateGeoSpatial()`:
-
-```csharp
-// Optional: GeoSpatialDR (velocity) if vehicle is moving
-if (vehicleState.Speed > 0.1f) // Threshold to avoid noise
-{
-    var geoSpatialDR = new GeoSpatialDRComponent
-    {
-        EntityId = networkId.NetworkId,
-        Time = DateTime.UtcNow,
-        Vel = new DAL3
-        {
-            Azimuth = headingDeg,      // Velocity direction (same as heading)
-            Elevation = 0,             // Flat terrain
-            Length = vehicleState.Speed // Speed in m/s
-        },
-        Acc = new DAL3
-        {
-            Azimuth = headingDeg,
-            Elevation = 0,
-            Length = vehicleState.Accel
-        },
-        RotVel = new OrientationHPR
-        {
-            Heading = 0, // Angular velocity (TODO: calculate from steering)
-            Pitch = 0,
-            Roll = 0
-        }
-    };
-    
-    entity.Set(geoSpatialDR);
-}
-```
-
-**Acceptance Criteria:**
-- ✅ GeoSpatialDR created for moving vehicles
-- ✅ Velocity components populated
-- ✅ Not created for stationary vehicles (Speed < 0.1)
+- âś… All systems registered in correct order
+- âś… `LinearKinematicsSystem` does **not** process entities with `VehicleState` (verify via query inspection or test)
+- âś… Unit test: empty world initialization passes without exception
 
 **Estimated Effort:** 0.5 days
 
-**Dependencies:** S3.4
+**Dependencies:** S1.3b
 
 ---
 
-### Task S3.6: Write Bridge System Tests
+### Task S4.2: Implement EntityMissionTranslator and EntityMissionEgressTranslator
 
-**Goal:** Unit test coordinate conversions.
-
-**Test Implementation:**
-
-Create `Bagira.SimHost.Tests/GeoSpatialBridgeSystemTests.cs`:
-
-```csharp
-[TestClass]
-public class GeoSpatialBridgeSystemTests
-{
-    [TestMethod]
-    public void UpdateGeoSpatial_ConvertsPosition()
-    {
-        // Arrange
-        var origin = new GeoPosition { Latitude = 50.0, Longitude = 14.0, Altitude = 200.0 };
-        var geoTransform = new WGS84Transform(origin);
-        
-        var world = new FdpWorld();
-        world.AddModule(geoTransform);
-        var bridge = new GeoSpatialBridgeSystem(geoTransform);
-        world.AddSystem(bridge);
-        
-        var entity = world.NewEntity();
-        entity.Set(new VehicleState { Position = new Vector2(1000, 500), Forward = Vector2.UnitY, Speed = 0 });
-        entity.Set(new NetworkIdComponent { NetworkId = 123 });
-        
-        // Act
-        world.Update(0.016f);
-        
-        // Assert
-        var geoSpatial = entity.Get<GeoSpatialComponent>();
-        Assert.IsNotNull(geoSpatial);
-        Assert.AreEqual(123, geoSpatial.EntityId);
-        
-        // Verify position is near origin
-        Assert.IsTrue(Math.Abs(geoSpatial.Pos.Latitude - 50.0) < 0.01);
-        Assert.IsTrue(Math.Abs(geoSpatial.Pos.Longitude - 14.0) < 0.02);
-    }
-    
-    [TestMethod]
-    public void VectorToHeading_North_Returns0()
-    {
-        // Test heading conversion
-        // North (0,1) should be 0 degrees
-    }
-    
-    [TestMethod]
-    public void VectorToHeading_East_Returns90()
-    {
-        // East (1,0) should be 90 degrees
-    }
-    
-    [TestMethod]
-    public void GeoSpatialDR_NotCreated_WhenStationary()
-    {
-        // Verify GeoSpatialDR not created when Speed < 0.1
-    }
-}
-```
-
-**Acceptance Criteria:**
-- ✅ Position conversion test passes
-- ✅ Heading conversion tests pass (4 cardinal directions)
-- ✅ Stationary vehicle test passes
-
-**Estimated Effort:** 0.5 days
-
-**Dependencies:** S3.5
-
----
-
-## Phase S4: MissionExecutionSystem (5 days)
-
-### Task S4.1: Implement Mission System Skeleton
-
-**Goal:** Create system that queries entities with missions.
+**Goal:** Sync the DDS `EntityMission` topic into the ECS (ingress) and publish `EntityMission` updates back to IOS when `ActiveTaskId` advances (egress).
 
 **Implementation:**
 
-Create `Systems/MissionExecutionSystem.cs`:
+Create `Translators/EntityMissionTranslator.cs` (DDS ingress â€” Managed Cyclone pattern):
 
 ```csharp
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json;
-using System.Numerics;
-using Bagira.SimHost.Components;
-using Bagira.DDS.DataModel;
-using CarKinem.Core;
-using CarKinem.Commands;
-using Fdp.Kernel;
-using FDP.Toolkit.Replication.Services;
-
-namespace Bagira.SimHost.Systems
+namespace Bagira.SimHost.Translators
 {
     /// <summary>
-    /// Executes mission plans for entities.
-    /// Reads EntityMission component, drives VehicleAPI commands.
+    /// Ingress: subscribes to DDS EntityMission topic.
+    /// On each valid sample, sets/updates the EntityMission ECS component on the matching entity.
+    /// On NOT_ALIVE_DISPOSED, removes the component.
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateBefore(typeof(CarKinematicsSystem))]
-    public class MissionExecutionSystem : ComponentSystem
+    public class EntityMissionTranslator : IManagedTranslator
     {
-        private readonly VehicleAPI _vehicleAPI;
+        private readonly DataReader<EntityMission> _reader;
         private readonly NetworkEntityMap _entityMap;
-        
-        public MissionExecutionSystem(VehicleAPI vehicleAPI, NetworkEntityMap entityMap)
+
+        public EntityMissionTranslator(DomainParticipant participant, NetworkEntityMap entityMap)
         {
-            _vehicleAPI = vehicleAPI;
+            var sub = participant.CreateSubscriber();
+            _reader = sub.CreateDataReader<EntityMission>("EntityMission");
             _entityMap = entityMap;
         }
-        
-        protected override void OnUpdate()
+
+        public void ReadAndApply(EntityRepository world)
         {
-            var query = World.Query()
-                .With<EntityMissionComponent>()
-                .With<VehicleState>()
-                .Build();
-            
-            foreach (var entity in query)
+            var samples = _reader.Take();
+            foreach (var s in samples)
             {
-                ExecuteMission(entity);
+                if (!_entityMap.TryGetEntity(s.Data.EntityId, out var entity)) continue;
+
+                if (s.Info.ValidData)
+                    world.SetComponent(entity, s.Data);
+                else if (s.Info.InstanceState == InstanceState.NotAliveDisposed)
+                    world.RemoveComponent<EntityMission>(entity);
             }
         }
-        
-        private void ExecuteMission(Entity entity)
+    }
+}
+```
+
+Create `Translators/EntityMissionEgressTranslator.cs` (DDS egress):
+
+```csharp
+namespace Bagira.SimHost.Translators
+{
+    /// <summary>
+    /// Egress: publishes EntityMission DDS topic whenever MissionAdapterSystem
+    /// advances ActiveTaskId or marks a task failed.
+    /// Uses ECS change detection (dirty flag) to avoid unnecessary publishes.
+    /// </summary>
+    public class EntityMissionEgressTranslator : IEgressTranslator
+    {
+        private readonly DataWriter<EntityMission> _writer;
+        private readonly NetworkEntityMap _entityMap;
+
+        public EntityMissionEgressTranslator(DomainParticipant participant, NetworkEntityMap entityMap)
         {
-            // TODO: Implement
+            var pub = participant.CreatePublisher();
+            _writer = pub.CreateDataWriter<EntityMission>("EntityMission");
+            _entityMap = entityMap;
+        }
+
+        public void WriteChanges(EntityRepository world)
+        {
+            // Query entities whose EntityMission component has been modified this frame
+            var query = world.Query()
+                .With<EntityMission>()
+                .With<NetworkAuthority>() // locally-owned only
+                .Changed<EntityMission>()
+                .Build();
+
+            foreach (var entity in query)
+            {
+                var mission = world.GetComponent<EntityMission>(entity);
+                _writer.Write(mission);
+            }
         }
     }
 }
 ```
 
-**Acceptance Criteria:**
-- ✅ Class compiles
-- ✅ Query targets entities with missions and vehicle state
-- ✅ ExecuteMission() stubbed
-
-**Estimated Effort:** 0.5 days
-
-**Dependencies:** S1.3
-
----
-
-### Task S4.2: Implement MoveToLocation Behavior
-
-**Goal:** Drive vehicle to target position.
-
-**Implementation:**
-
-Add behavior parameter classes:
-
-```csharp
-public class MoveToLocationParams
-{
-    public float X { get; set; }
-    public float Y { get; set; }
-    public float Speed { get; set; } = 15.0f;
-    public float ArrivalRadius { get; set; } = 5.0f;
-}
-```
-
-Implement handler:
-
-```csharp
-private void ExecuteMoveToLocation(Entity entity, MissionTask task)
-{
-    // Parse behavior params (JSON)
-    var params_ = JsonSerializer.Deserialize<MoveToLocationParams>(task.BehaviorParams);
-    
-    if (params_ == null)
-    {
-        Console.WriteLine($"[SimHost] Invalid MoveToLocation params for entity {entity.Index}");
-        return;
-    }
-    
-    var vehicleState = entity.Get<VehicleState>();
-    var destination = new Vector2(params_.X, params_.Y);
-    float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use entity.Get<SimTransform>().Position.XY
-    
-    if (distance > params_.ArrivalRadius)
-    {
-        // Issue navigation command
-        _vehicleAPI.NavigateToPoint(entity, destination, params_.ArrivalRadius, params_.Speed);
-        Console.WriteLine($"[SimHost] Entity {entity.Index} navigating to ({params_.X}, {params_.Y})");
-    }
-    else
-    {
-        Console.WriteLine($"[SimHost] Entity {entity.Index} arrived at destination");
-    }
-}
-```
+Register both translators in `Program.cs` translator list.
 
 **Acceptance Criteria:**
-- ✅ JSON parsing working
-- ✅ VehicleAPI.NavigateToPoint() called
-- ✅ Distance calculation correct
-- ✅ Arrival detection working
+- âś… `EntityMissionTranslator` sets/removes ECS `EntityMission` component on DDS sample receipt
+- âś… `EntityMissionEgressTranslator` publishes DDS `EntityMission` when the component changes
+- âś… Both translators registered in the `CycloneNetworkModule` translator list
+- âś… Unit test: translator sets component for known entity, skips sample for unknown entity ID
 
-**Estimated Effort:** 1 day
+**Estimated Effort:** 0.75 days
 
 **Dependencies:** S4.1
 
 ---
 
-### Task S4.3: Implement FollowRoute Behavior
+### Task S4.3: Implement MissionAdapterSystem
 
-**Goal:** Navigate through waypoint sequence.
+**Goal:** Implement the thin adapter that maps the active `MissionTask.BehaviorId` string to a `DoctrineId`, writes parameters into `BrainBlackboard`, and monitors `LocomotionChannel.Status` to advance `ActiveTaskId`.
 
 **Implementation:**
 
-Add parameter classes:
+Create `Systems/MissionAdapterSystem.cs` following the architecture described in [DESIGN-SIMHOST.md Â§4.4](./DESIGN-SIMHOST.md#44-missionadaptersystem).
 
-```csharp
-public class FollowRouteParams
-{
-    public List<RouteWaypoint> Waypoints { get; set; } = new();
-}
-
-public class RouteWaypoint
-{
-    public float X { get; set; }
-    public float Y { get; set; }
-    public float Speed { get; set; } = 15.0f;
-    public float ArrivalRadius { get; set; } = 5.0f;
-}
-
-public struct RouteProgressComponent
-{
-    public int CurrentWaypointIndex;
-}
-```
-
-Implement handler:
-
-```csharp
-private void ExecuteFollowRoute(Entity entity, MissionTask task)
-{
-    var params_ = JsonSerializer.Deserialize<FollowRouteParams>(task.BehaviorParams);
-    
-    if (params_ == null || params_.Waypoints.Count == 0)
-    {
-        Console.WriteLine($"[SimHost] Invalid FollowRoute params for entity {entity.Index}");
-        return;
-    }
-    
-    // Get or create route progress component
-    if (!entity.Has<RouteProgressComponent>())
-    {
-        entity.Set(new RouteProgressComponent { CurrentWaypointIndex = 0 });
-        Console.WriteLine($"[SimHost] Entity {entity.Index} starting route (waypoints={params_.Waypoints.Count})");
-    }
-    
-    var progress = entity.Get<RouteProgressComponent>();
-    
-    // Check if route complete
-    if (progress.CurrentWaypointIndex >= params_.Waypoints.Count)
-    {
-        Console.WriteLine($"[SimHost] Entity {entity.Index} completed route");
-        return;
-    }
-    
-    // Get current waypoint
-    var waypoint = params_.Waypoints[progress.CurrentWaypointIndex];
-    var destination = new Vector2(waypoint.X, waypoint.Y);
-    
-    var vehicleState = entity.Get<VehicleState>();
-    float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use entity.Get<SimTransform>().Position.XY
-    
-    if (distance < waypoint.ArrivalRadius)
-    {
-        // Arrived at waypoint, advance
-        progress.CurrentWaypointIndex++;
-        entity.Set(progress);
-        
-        Console.WriteLine($"[SimHost] Entity {entity.Index} reached waypoint {progress.CurrentWaypointIndex - 1}");
-    }
-    else
-    {
-        // Navigate to waypoint
-        _vehicleAPI.NavigateToPoint(entity, destination, waypoint.ArrivalRadius, waypoint.Speed);
-    }
-}
-```
+Key logic summary:
+1. Query entities with `EntityMission` + `DoctrineState` + `BrainBlackboard`.
+2. `DoctrineRegistry.TryGetId(task.BehaviorId, out int id)` â€” log warning and skip if not found.
+3. If `DoctrineState.ActiveDoctrineHash != id`: set hash, call `DoctrineDefinition.ParseParams(task.BehaviorParams, ref blackboard)`.
+4. Read `LocomotionChannel.Status`:
+   - `NodeStatus.Success` â†’ `AdvanceToNextTask()`
+   - `NodeStatus.Failure` â†’ `MarkTaskFailed()`
+5. `AdvanceToNextTask`: mark current task `TASK_DONE`, activate next by setting `ActiveTaskId`; if no next task, remove `EntityMission` component.
 
 **Acceptance Criteria:**
-- ✅ RouteProgressComponent tracking works
-- ✅ Waypoint arrival detection correct
-- ✅ Advances through all waypoints
-- ✅ Route completion detected
+- âś… `MissionAdapter_ResolvesDoctrineId()`: given `BehaviorId="MoveToLocation"`, `DoctrineState.ActiveDoctrineHash` is set to `DoctrineIds.MoveTo_BT`
+- âś… `MissionAdapter_AdvancesTaskOnSuccess()`: when `LocomotionChannel.Status == Success`, `ActiveTaskId` moves to the next task and previous task state is `TASK_DONE`
+- âś… `MissionAdapter_MarksFailedOnChannelFailure()`: when status is `Failure`, current task state is `TASK_FAILED`
+- âś… Unknown `BehaviorId` logs a warning and does not throw
 
 **Estimated Effort:** 1.5 days
 
@@ -1252,346 +925,100 @@ private void ExecuteFollowRoute(Entity entity, MissionTask task)
 
 ---
 
-### Task S4.4: Implement JoinFormation Behavior
+### Task S4.4: Implement JoinFormationExecutor
 
-**Goal:** Join vehicle to formation with leader.
+**Goal:** Implement `JoinFormationExecutor : IActionExecutor<LocomotionChannel>` to cover the formation-joining behavior using the Behavior toolkit executor pattern.
 
 **Implementation:**
 
-Add parameter classes:
+Create `Systems/JoinFormationExecutor.cs`:
 
 ```csharp
-public class JoinFormationParams
+namespace Bagira.SimHost.Systems
 {
-    public int LeaderNetworkId { get; set; }
-    public string FormationType { get; set; } = "Wedge";
-}
+    using FDP.Toolkit.Behavior;
+    using FDP.Toolkit.CarKinem;
+    using FDP.Toolkit.Replication.Services;
+    using Fdp.Kernel;
 
-public struct InFormationTag
-{
-    public Entity LeaderEntity;
-}
-```
+    /// <summary>
+    /// Action executor for the JoinFormation behavior.
+    /// OnEnter: looks up leader via NetworkEntityMap, calls VehicleAPI.CreateFormation().
+    /// Execute: checks InFormationTag presence â†’ reports Success.
+    /// Pattern: follows MoveToExecutor / FollowRouteExecutor conventions.
+    /// </summary>
+    public class JoinFormationExecutor : IActionExecutor<LocomotionChannel>
+    {
+        private readonly VehicleAPI _vehicleAPI;
+        private readonly NetworkEntityMap _entityMap;
 
-Implement handler:
-
-```csharp
-private void ExecuteJoinFormation(Entity entity, MissionTask task)
-{
-    var params_ = JsonSerializer.Deserialize<JoinFormationParams>(task.BehaviorParams);
-    
-    if (params_ == null)
-    {
-        Console.WriteLine($"[SimHost] Invalid JoinFormation params for entity {entity.Index}");
-        return;
-    }
-    
-    // Find leader entity by network ID
-    if (!_entityMap.TryGetEntity(params_.LeaderNetworkId, out var leaderEntity))
-    {
-        Console.WriteLine($"[SimHost] Leader entity {params_.LeaderNetworkId} not found");
-        return;
-    }
-    
-    // Issue formation join (one-time command)
-    if (!entity.Has<InFormationTag>())
-    {
-        // Parse formation type
-        FormationType formationType = params_.FormationType.ToLower() switch
+        public JoinFormationExecutor(VehicleAPI vehicleAPI, NetworkEntityMap entityMap)
         {
-            "wedge" => FormationType.Wedge,
-            "column" => FormationType.Column,
-            "line" => FormationType.Line,
-            _ => FormationType.Wedge
-        };
-        
-        _vehicleAPI.CreateFormation(leaderEntity, formationType);
-        entity.Set(new InFormationTag { LeaderEntity = leaderEntity });
-        
-        Console.WriteLine($"[SimHost] Entity {entity.Index} joined formation with leader {params_.LeaderNetworkId}");
+            _vehicleAPI = vehicleAPI;
+            _entityMap = entityMap;
+        }
+
+        public void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world)
+        {
+            // Read params from BrainBlackboard (written by MissionAdapterSystem)
+            var bb = world.GetComponent<BrainBlackboard>(entity);
+            var p  = bb.Read<JoinFormationParams>();
+
+            if (!_entityMap.TryGetEntity(p.LeaderNetworkId, out var leaderEntity))
+            {
+                FdpLog.Warn($"[JoinFormationExecutor] Leader {p.LeaderNetworkId} not found");
+                channel.Status = NodeStatus.Failure;
+                return;
+            }
+
+            FormationType ft = p.FormationType.ToLowerInvariant() switch
+            {
+                "column" => FormationType.Column,
+                "line"   => FormationType.Line,
+                _        => FormationType.Wedge
+            };
+
+            _vehicleAPI.CreateFormation(leaderEntity, ft);
+            channel.Status = NodeStatus.Running;
+        }
+
+        public void Execute(Entity entity, ref LocomotionChannel channel, EntityRepository world, float dt)
+        {
+            // Formation join is one-shot: success once InFormationTag is present
+            if (world.HasComponent<InFormationTag>(entity))
+                channel.Status = NodeStatus.Success;
+        }
+
+        public void OnExit(Entity entity, ref LocomotionChannel channel, EntityRepository world)
+        {
+            // No cleanup needed; formation system manages its own state.
+        }
+    }
+
+    /// <summary>Params struct read from BrainBlackboard for JoinFormation doctrine.</summary>
+    public struct JoinFormationParams
+    {
+        public int    LeaderNetworkId;
+        public string FormationType;   // "Wedge" | "Column" | "Line"
+    }
+
+    /// <summary>Tag added by VehicleAPI.CreateFormation â€” signals active formation membership.</summary>
+    public struct InFormationTag
+    {
+        public int LeaderEntityId;
     }
 }
 ```
 
 **Acceptance Criteria:**
-- ✅ Leader lookup working
-- ✅ Formation type parsing correct
-- ✅ VehicleAPI.CreateFormation() called once
-- ✅ InFormationTag prevents duplicate joins
+- âś… `OnEnter` calls `VehicleAPI.CreateFormation()` and sets `Status = Running` when leader found
+- âś… `OnEnter` sets `Status = Failure` when leader not found
+- âś… `Execute` sets `Status = Success` once `InFormationTag` is present on entity
+- âś… Tests: `JoinFormation_LeaderFound_SetsRunning()`, `JoinFormation_LeaderNotFound_SetsFailure()`, `JoinFormation_Execute_SuccessOnFormationTag()`
 
 **Estimated Effort:** 0.75 days
 
 **Dependencies:** S4.3
-
----
-
-### Task S4.5: Implement Task Completion Detection
-
-**Goal:** Determine when tasks are complete.
-
-**Implementation:**
-
-Add helper method:
-
-```csharp
-private bool IsTaskComplete(Entity entity, MissionTask task)
-{
-    switch (task.BehaviorId)
-    {
-        case "MoveToLocation":
-            // Check if arrived
-            if (!entity.Has<NavState>()) return false;
-            
-            var vehicleState = entity.Get<VehicleState>();
-            var navState = entity.Get<NavState>();
-            float distance = Vector2.Distance(vehicleState.Position, navState.TargetPosition); // ⚠️ Phase 0: vehicleState.Position removed — use entity.Get<SimTransform>().Position.XY
-            return distance < navState.ArrivalRadius;
-        
-        case "FollowRoute":
-            // Check if all waypoints visited
-            if (!entity.Has<RouteProgressComponent>()) return false;
-            
-            var progress = entity.Get<RouteProgressComponent>();
-            var params_ = JsonSerializer.Deserialize<FollowRouteParams>(task.BehaviorParams);
-            return params_ != null && progress.CurrentWaypointIndex >= params_.Waypoints.Count;
-        
-        case "JoinFormation":
-            // Formation join is instant, complete immediately
-            return entity.Has<InFormationTag>();
-        
-        case "Idle":
-            // Check triggers (stub for now)
-            return CheckTriggersComplete(task.Triggers);
-        
-        default:
-            Console.WriteLine($"[SimHost] Unknown behavior for completion check: {task.BehaviorId}");
-            return false;
-    }
-}
-
-private bool CheckTriggersComplete(List<MissionTrigger> triggers)
-{
-    // Stub: implement trigger evaluation (time-based, condition-based)
-    // For now, always return false (manual advancement needed)
-    return false;
-}
-```
-
-**Acceptance Criteria:**
-- ✅ MoveToLocation completion detected
-- ✅ FollowRoute completion detected
-- ✅ JoinFormation completion detected
-- ✅ Idle stub implemented
-
-**Estimated Effort:** 0.5 days
-
-**Dependencies:** S4.4
-
----
-
-### Task S4.6: Implement Task State Transitions
-
-**Goal:** Advance to next task when current task completes.
-
-**Implementation:**
-
-Add helper methods:
-
-```csharp
-private void AdvanceToNextTask(Entity entity, EntityMissionComponent mission)
-{
-    // Find current task index
-    int currentIndex = mission.Plan.Tasks.FindIndex(t => t.TaskId == mission.Plan.ActiveTaskId);
-    
-    if (currentIndex < 0)
-    {
-        Console.WriteLine($"[SimHost] Active task not found in mission plan");
-        return;
-    }
-    
-    // Mark current task as DONE
-    mission.Plan.Tasks[currentIndex].State = eTaskState.TASK_DONE;
-    
-    // Check if there's a next task
-    if (currentIndex < mission.Plan.Tasks.Count - 1)
-    {
-        // Activate next task
-        mission.Plan.ActiveTaskId = mission.Plan.Tasks[currentIndex + 1].TaskId;
-        mission.Plan.Tasks[currentIndex + 1].State = eTaskState.TASK_ACTIVE;
-        
-        // Update component (will egress to DDS)
-        entity.Set(mission);
-        
-        Console.WriteLine($"[SimHost] Entity {entity.Index} advanced to task {currentIndex + 1} ({mission.Plan.Tasks[currentIndex + 1].BehaviorId})");
-    }
-    else
-    {
-        // Mission complete
-        Console.WriteLine($"[SimHost] Entity {entity.Index} completed mission");
-        
-        // Optional: Remove EntityMissionComponent to stop execution
-        entity.Remove<EntityMissionComponent>();
-    }
-}
-
-private MissionTask? FindTaskById(List<MissionTask> tasks, Guid taskId)
-{
-    return tasks.FirstOrDefault(t => t.TaskId == taskId);
-}
-
-private void MarkTaskFailed(Entity entity, EntityMissionComponent mission, Guid taskId)
-{
-    var taskIndex = mission.Plan.Tasks.FindIndex(t => t.TaskId == taskId);
-    if (taskIndex >= 0)
-    {
-        mission.Plan.Tasks[taskIndex].State = eTaskState.TASK_FAILED;
-        entity.Set(mission);
-        Console.WriteLine($"[SimHost] Entity {entity.Index} task {taskIndex} failed");
-    }
-}
-```
-
-Update `ExecuteMission()`:
-
-```csharp
-private void ExecuteMission(Entity entity)
-{
-    var mission = entity.Get<EntityMissionComponent>();
-    
-    // Find active task
-    var activeTask = FindTaskById(mission.Plan.Tasks, mission.Plan.ActiveTaskId);
-    if (activeTask == null)
-    {
-        Console.WriteLine($"[SimHost] No active task for entity {entity.Index}");
-        return;
-    }
-    
-    // Execute based on behavior type
-    switch (activeTask.BehaviorId)
-    {
-        case "MoveToLocation":
-            ExecuteMoveToLocation(entity, activeTask);
-            break;
-        
-        case "FollowRoute":
-            ExecuteFollowRoute(entity, activeTask);
-            break;
-        
-        case "JoinFormation":
-            ExecuteJoinFormation(entity, activeTask);
-            break;
-        
-        case "Idle":
-            // Do nothing, wait for triggers
-            break;
-        
-        default:
-            Console.WriteLine($"[SimHost] Unknown behavior: {activeTask.BehaviorId}");
-            MarkTaskFailed(entity, mission, activeTask.TaskId);
-            return;
-    }
-    
-    // Check task completion
-    if (IsTaskComplete(entity, activeTask))
-    {
-        AdvanceToNextTask(entity, mission);
-    }
-}
-```
-
-**Acceptance Criteria:**
-- ✅ Task state updates (PLANNED→ACTIVE→DONE)
-- ✅ Advances to next task automatically
-- ✅ Detects mission completion
-- ✅ EntityMissionComponent updates egress to DDS
-
-**Estimated Effort:** 0.75 days
-
-**Dependencies:** S4.5
-
----
-
-### Task S4.7: Write Mission Execution Tests
-
-**Goal:** Unit test mission behaviors.
-
-**Test Implementation:**
-
-Create `Bagira.SimHost.Tests/MissionExecutionSystemTests.cs`:
-
-```csharp
-[TestClass]
-public class MissionExecutionSystemTests
-{
-    [TestMethod]
-    public void ExecuteMoveToLocation_NavigatesToTarget()
-    {
-        // Arrange
-        var world = new FdpWorld();
-        var vehicleAPI = new VehicleAPI(world);
-        var entityMap = new NetworkEntityMap();
-        var missionSystem = new MissionExecutionSystem(vehicleAPI, entityMap);
-        world.AddSystem(missionSystem);
-        
-        var entity = world.NewEntity();
-        entity.Set(new VehicleState { Position = new Vector2(0, 0), Forward = Vector2.UnitY, Speed = 0 });
-        
-        var mission = new EntityMissionComponent
-        {
-            EntityId = 1,
-            Plan = new MissionPlan
-            {
-                ActiveTaskId = Guid.NewGuid(),
-                Tasks = new List<MissionTask>
-                {
-                    new MissionTask
-                    {
-                        TaskId = mission.Plan.ActiveTaskId,
-                        BehaviorId = "MoveToLocation",
-                        BehaviorParams = JsonSerializer.Serialize(new MoveToLocationParams { X = 100, Y = 200 }),
-                        State = eTaskState.TASK_ACTIVE
-                    }
-                }
-            }
-        };
-        
-        entity.Set(mission);
-        
-        // Act
-        world.Update(0.016f);
-        
-        // Assert
-        // Verify NavState set by VehicleAPI
-        Assert.IsTrue(entity.Has<NavState>());
-        var navState = entity.Get<NavState>();
-        Assert.AreEqual(new Vector2(100, 200), navState.TargetPosition);
-    }
-    
-    [TestMethod]
-    public void ExecuteFollowRoute_AdvancesThroughWaypoints()
-    {
-        // Test route with 3 waypoints
-        // Verify CurrentWaypointIndex advances
-    }
-    
-    [TestMethod]
-    public void AdvanceToNextTask_UpdatesTaskState()
-    {
-        // Test task state transitions
-        // Verify PLANNED → ACTIVE → DONE sequence
-    }
-}
-```
-
-**Acceptance Criteria:**
-- ✅ MoveToLocation test passes
-- ✅ FollowRoute waypoint test passes
-- ✅ Task state transition test passes
-- ✅ Mission completion test passes
-
-**Estimated Effort:** 1 day
-
-**Dependencies:** S4.6
 
 ---
 
@@ -1710,17 +1137,19 @@ namespace Bagira.SimHost
                     if (c is Bagira.BDC.SSTD.EntityMaster m) { dis = m.DisType; return true; }
                     dis = 0; return false;
                 }));
-            world.AddSystem(new MissionExecutionSystem(vehicleAPI, networkEntityMap));
-            world.AddSystem(new GeoSpatialBridgeSystem(geoTransform));
-            Console.WriteLine("  - SimHost systems registered");
+            // SimulationLogicModule: registers DoctrineRegistry + Behavior toolkit + CarKinem + LinearKinematicsSystem (see Task S4.1)
+            world.AddModule(new SimulationLogicModule(doctrineRegistry, networkEntityMap));
+            // GeographicModule: registers SimTransformBridgeSystem post-physics (see Task S3.1)
+            world.AddModule(new GeographicModule(geoTransform));
+            Console.WriteLine("  - SimHost modules registered");
             
             // 7. Register CycloneNetworkModule (owns ALL ingress, egress, and gateway systems)
             //
-            // ⚠️  Do NOT call world.AddSystem(new SmartEgressSystem()) or
+            // âš ď¸Ź  Do NOT call world.AddSystem(new SmartEgressSystem()) or
             //    world.AddSystem(new CycloneEgressSystem(...)). Those are internal to
             //    CycloneNetworkModule and adding them separately causes double execution.
             //
-            // Only supply the Translators list — the Module registers its own internal
+            // Only supply the Translators list â€” the Module registers its own internal
             // systems (CycloneIngressSystem, CycloneEgressSystem, NetworkGatewaySystem)
             // automatically when kernel.RegisterModule(networkModule) is called.
             Console.WriteLine("[SimHost] Registering CycloneNetworkModule...");
@@ -1746,7 +1175,7 @@ namespace Bagira.SimHost
                 participant, nodeMapper, idAllocator, topology, elm,
                 serialisation, translators, networkEntityMap
             );
-            kernel.RegisterModule(networkModule); // ← this registers all network systems internally
+            kernel.RegisterModule(networkModule); // â† this registers all network systems internally
             Console.WriteLine("  - CycloneNetworkModule registered (egress/ingress/gateway)");
             
             Console.WriteLine();
@@ -1801,12 +1230,15 @@ namespace Bagira.SimHost
 ```
 
 **Acceptance Criteria:**
-- ✅ Main() entry point compiles
-- ✅ `CycloneNetworkModule` constructed with full translator list and registered via `kernel.RegisterModule`
-- ✅ No standalone `SmartEgressSystem` or `CycloneEgressSystem` added anywhere outside the module
-- ✅ All application modules initialized
-- ✅ Main loop runs at target frame rate
-- ✅ Graceful startup/shutdown
+- âś… Main() entry point compiles
+- âś… `DoctrineRegistry` compiled and set as kernel singleton before `kernel.Initialize()` (follow `NetworkDemoApp.cs` / `HeadlessDemoApp.cs` pattern); stable `int` constants defined in `DoctrineIds.cs` per DEBT-006 rules; BTree/HSM doctrine definitions registered for all four `BehaviorId` strings: `"MoveToLocation"`, `"FollowRoute"`, `"JoinFormation"`, `"Idle"`
+- âś… `EntityMissionTranslator` and `EntityMissionEgressTranslator` included in the translator list passed to `CycloneNetworkModule`
+- âś… `GeographicModule` registered at kernel level (not as an app module) with the configured `WGS84Transform`
+- âś… `CycloneNetworkModule` constructed with full translator list and registered via `kernel.RegisterModule`
+- âś… No standalone `SmartEgressSystem` or `CycloneEgressSystem` added anywhere outside the module
+- âś… All application modules initialized
+- âś… Main loop runs at target frame rate
+- âś… Graceful startup/shutdown
 
 **Estimated Effort:** 1.5 days
 
@@ -1881,10 +1313,10 @@ Create `config.json`:
 ```
 
 **Acceptance Criteria:**
-- ✅ Configuration class defined
-- ✅ JSON loading/saving works
-- ✅ Default config generated if missing
-- ✅ config.json file created
+- âś… Configuration class defined
+- âś… JSON loading/saving works
+- âś… Default config generated if missing
+- âś… config.json file created
 
 **Estimated Effort:** 0.5 days
 
@@ -1960,10 +1392,10 @@ namespace Bagira.SimHost.Utilities
 Update logging throughout code to use Logger instead of Console.WriteLine.
 
 **Acceptance Criteria:**
-- ✅ Logger class implemented
-- ✅ Log levels working
-- ✅ Timestamps included
-- ✅ All systems use Logger
+- âś… Logger class implemented
+- âś… Log levels working
+- âś… Timestamps included
+- âś… All systems use Logger
 
 **Estimated Effort:** 0.5 days
 
@@ -2017,10 +1449,10 @@ static async Task RunSimulationLoop(FdpWorld world, int targetRateHz, Cancellati
 ```
 
 **Acceptance Criteria:**
-- ✅ Ctrl+C handler registered
-- ✅ Graceful shutdown message
-- ✅ Resources cleaned up
-- ✅ ID allocator stopped
+- âś… Ctrl+C handler registered
+- âś… Graceful shutdown message
+- âś… Resources cleaned up
+- âś… ID allocator stopped
 
 **Estimated Effort:** 0.5 days
 
@@ -2104,10 +1536,10 @@ public class EntityCreationFlowTests
 ```
 
 **Acceptance Criteria:**
-- ✅ ACK received within timeout
-- ✅ NewEntityId valid
-- ✅ EntityMaster published
-- ✅ TkbType correct
+- âś… ACK received within timeout
+- âś… NewEntityId valid
+- âś… EntityMaster published
+- âś… TkbType correct
 
 **Estimated Effort:** 1 day
 
@@ -2185,10 +1617,10 @@ public async Task MoveToLocation_VehicleNavigates()
 ```
 
 **Acceptance Criteria:**
-- ✅ Vehicle position changes
-- ✅ GeoSpatial updates published
-- ✅ Task state becomes DONE
-- ✅ Vehicle navigates toward target
+- âś… Vehicle position changes
+- âś… GeoSpatial updates published
+- âś… Task state becomes DONE
+- âś… Vehicle navigates toward target
 
 **Estimated Effort:** 1 day
 
@@ -2255,10 +1687,10 @@ public async Task Performance_100Entities_Maintains60Hz()
 ```
 
 **Acceptance Criteria:**
-- ✅ 100 entities created
-- ✅ Average FPS ≥ 58
-- ✅ Min FPS ≥ 55
-- ✅ No crashes or errors
+- âś… 100 entities created
+- âś… Average FPS â‰Ą 58
+- âś… Min FPS â‰Ą 55
+- âś… No crashes or errors
 
 **Estimated Effort:** 1 day
 
@@ -2381,9 +1813,9 @@ Press `Ctrl+C` for graceful shutdown.
 ```
 
 **Acceptance Criteria:**
-- ✅ User guide created
-- ✅ All sections complete
-- ✅ Examples included
+- âś… User guide created
+- âś… All sections complete
+- âś… Examples included
 
 **Estimated Effort:** 0.5 days
 
@@ -2455,9 +1887,9 @@ export CYCLONEDDS_URI=file:///path/to/cyclonedds.xml
 ```
 
 **Acceptance Criteria:**
-- ✅ Configuration reference created
-- ✅ All options documented
-- ✅ Examples provided
+- âś… Configuration reference created
+- âś… All options documented
+- âś… Examples provided
 
 **Estimated Effort:** 0.25 days
 
@@ -2476,16 +1908,17 @@ export CYCLONEDDS_URI=file:///path/to/cyclonedds.xml
 4. Generate XML documentation file
 
 **Documentation Coverage:**
-- `CreateEntityRequestHandler` - Request handler system
-- `MissionExecutionSystem` - Mission execution engine
-- `GeoSpatialBridgeSystem` - Coordinate conversion
+- `CreateEntityRequestSystem` - Request handler system
+- `MissionAdapterSystem` - Behavior toolkit adapter (maps BehaviorId → DoctrineId)
+- `JoinFormationExecutor` - `IActionExecutor<LocomotionChannel>` for formation joining
+- `EntityMissionTranslator` / `EntityMissionEgressTranslator` - DDS ↔ ECS mission sync
 - All component structs
 - All public methods
 
 **Acceptance Criteria:**
-- ✅ All public APIs documented
-- ✅ XML file generated
-- ✅ No documentation warnings
+- âś… All public APIs documented
+- âś… XML file generated
+- âś… No documentation warnings
 
 **Estimated Effort:** 0.25 days
 
@@ -2501,8 +1934,8 @@ export CYCLONEDDS_URI=file:///path/to/cyclonedds.xml
 |-------|-------|------|--------------|
 | S1 | Project Setup | 1 | None |
 | S2 | CreateEntityRequestHandler | 3 | S1 |
-| S3 | GeoSpatialBridgeSystem | 2 | S1 |
-| S4 | MissionExecutionSystem | 5 | S1 |
+| S3 | Geographic Module Integration | 2 | S1 |
+| S4 | Behavior Toolkit Integration | 5 | S1 |
 | S5 | Main Application Shell | 3 | S1, S2, S3, S4 |
 | S6 | Integration Testing | 3 | S5 |
 | S7 | Documentation | 1 | S6 |
@@ -2511,7 +1944,7 @@ export CYCLONEDDS_URI=file:///path/to/cyclonedds.xml
 ### Critical Path
 
 ```
-S1 (1d) → S2 (3d) → S5 (3d) → S6 (3d) → S7 (1d) = 11 days minimum
+S1 (1d) â†’ S2 (3d) â†’ S5 (3d) â†’ S6 (3d) â†’ S7 (1d) = 11 days minimum
 ```
 
 ### Parallelization (2 developers)
@@ -2537,6 +1970,6 @@ S1 (1d) → S2 (3d) → S5 (3d) → S6 (3d) → S7 (1d) = 11 days minimum
 
 ## Navigation
 
-- **[⬆ Back to DESIGN-SIMHOST.md](./DESIGN-SIMHOST.md)**
-- **[➜ Task Tracker](./TASK-TRACKER.md)**
-- **[⬅ Shared Tasks](./TASK-DETAILS-SHARED.md)**
+- **[â¬† Back to DESIGN-SIMHOST.md](./DESIGN-SIMHOST.md)**
+- **[âžś Task Tracker](./TASK-TRACKER.md)**
+- **[â¬… Shared Tasks](./TASK-DETAILS-SHARED.md)**

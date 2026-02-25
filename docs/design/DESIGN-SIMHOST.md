@@ -38,11 +38,16 @@
 | **Network Spawning** | ❌ NEW (shared) | `FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem` | Unified entity creation: ID, TKB, network infra, ELM — see [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) |
 | **Descriptor Mapper** | ❌ NEW | `Bagira.SimHost.Util.DescriptorMapper` | Converts DDS `EntityDescriptorUnion` list → `List<object>` for SpawnEntityCommand |
 | **CreateEntity Handler** | ❌ NEW | `Bagira.SimHost.Systems.CreateEntityRequestSystem` | Translates DDS CreateEntityRequest → SpawnEntityCommand (thin, no direct ELM/TKB calls) |
-| **Mission Execution** | ❌ NEW | `Bagira.SimHost.Systems.MissionExecutionSystem` | Executes MissionPlan tasks |
-| **GeoSpatial Bridge** | ❌ NEW | `Bagira.SimHost.Components.GeoSpatialBridge` | Sync GeoPosition ↔ VehicleState |
+| **Mission Execution** | ✅ EXISTS | `FDP.Toolkit.Behavior` / `FDP.Toolkit.Navigation` | BTree doctrine pipeline: ChannelArbitrationSystem → BTreeTickSystem → Executors |
+| **GeoSpatial Bridge** | ✅ EXISTS | `Fdp.Toolkit.Geographic.SimTransformBridgeSystem` | Converts SimTransform/SimVelocity → GeoTransform/GeoVelocity post-physics |
+| **MissionAdapterSystem** | ❌ NEW | `Bagira.SimHost.Systems.MissionAdapterSystem` | Maps active MissionTask.BehaviorId → DoctrineId, writes BrainBlackboard params, advances ActiveTaskId on channel success |
+| **EntityMissionTranslator** | ❌ NEW | `Bagira.SimHost.Translators.EntityMissionTranslator` | Syncs DDS EntityMission topic ↔ ECS managed component (ingress + egress) |
+| **JoinFormationExecutor** | ❌ NEW | `Bagira.SimHost.Systems.JoinFormationExecutor` | `IActionExecutor<LocomotionChannel>` for formation joining |
 | **SimHost Application** | ❌ NEW | `Bagira.SimHost.Program` | Main application shell, initialization |
 
-**Key Insight**: Vehicle physics, networking, and ECS infrastructure **FULLY EXISTS**. Focus on request handlers, mission execution, and application shell.
+> ⚠️ **VehicleState scope:** `VehicleState` is strictly physics metadata (`Speed`, `SteerAngle`, `Accel`, `CurrentLaneIndex`) for `CarKinematicsSystem`. It is **never** a source of position or orientation. All systems requiring position/orientation must query `SimTransform`; all systems requiring velocity must query `SimVelocity`. Only wheeled/tracked ground platforms receive a `VehicleState` component in their TKB template.
+
+**Key Insight**: Vehicle physics, networking, and ECS infrastructure **FULLY EXISTS**. Focus on request handlers, mission adapter, and application shell.
 
 ---
 
@@ -108,13 +113,10 @@ public class CarKinematicsSystem : ComponentSystem
 ```csharp
 public struct VehicleState
 {
-    public Vector2 Position;    // World position (meters)
-    public Vector2 Forward;     // Normalized heading vector
-    public float Speed;         // Forward speed (m/s)
-    public float SteerAngle;    // Wheel angle (radians)
-    public float Accel;         // Acceleration (m/s²)
-    public float Pitch, Roll;   // Visual presentation
-    public int CurrentLaneIndex; // Lane-aware logic
+    public float Speed;         // Scalar forward speed (m/s, >= 0)
+    public float SteerAngle;    // Current wheel angle (radians)
+    public float Accel;         // Longitudinal acceleration (m/s²)
+    public int CurrentLaneIndex; // For lane-aware logic
 }
 ```
 
@@ -280,15 +282,9 @@ var geoTransform = new WGS84Transform(origin);
 // CarKinem uses flat Vector2 coordinates
 var vehiclePos = new Vector2(1000, 500); // meters from origin
 
-// Convert to GeoPosition for DDS publishing
-var geoPos = geoTransform.ToGeodetic(new CartesianCoordinate 
-{ 
-    X = vehiclePos.X, 
-    Y = vehiclePos.Y, 
-    Z = 0 
-});
-
-// geoPos.Latitude, geoPos.Longitude → publish to GeoSpatial topic
+// Convert to geodetic for DDS publishing
+var (lat, lon, alt) = geoTransform.ToGeodetic(new Vector3(vehiclePos.X, vehiclePos.Y, 0));
+// lat, lon, alt → publish to GeoSpatial topic
 ```
 
 ---
@@ -629,27 +625,49 @@ namespace Bagira.SimHost.Modules
         private readonly VehicleAPI _vehicleAPI;
         private readonly RoadNetworkBlob _roadNetwork;
         private readonly TrajectoryPoolManager _trajectoryPool;
+        private readonly DoctrineRegistry _doctrineRegistry;
+        private readonly NetworkEntityMap _entityMap;
         
         public SimulationLogicModule(
             VehicleAPI vehicleAPI,
             RoadNetworkBlob roadNetwork,
-            TrajectoryPoolManager trajectoryPool)
+            TrajectoryPoolManager trajectoryPool,
+            DoctrineRegistry doctrineRegistry,
+            NetworkEntityMap entityMap)
         {
             _vehicleAPI = vehicleAPI;
             _roadNetwork = roadNetwork;
             _trajectoryPool = trajectoryPool;
+            _doctrineRegistry = doctrineRegistry;
+            _entityMap = entityMap;
         }
         
         public void RegisterSystems(ISystemRegistry registry)
         {
-            // CarKinem systems (physics)
+            // 1. Mission adapter — runs first, sets/updates DoctrineState before BTree tick.
+            //    DoctrineRegistry must be compiled and set as kernel singleton before Initialize().
+            registry.RegisterSystem(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
+
+            // 2. Behavior toolkit pipeline (BTree execution)
+            registry.RegisterSystem(new ChannelArbitrationSystem());
+            registry.RegisterSystem(new BTreeTickSystem(_doctrineRegistry));
+            registry.RegisterSystem(new LocomotionDispatcherSystem());
+
+            // 3. Action executors
+            registry.RegisterSystem(new MoveToExecutor());
+            registry.RegisterSystem(new FollowRouteExecutor());
+            registry.RegisterSystem(new JoinFormationExecutor(_vehicleAPI, _entityMap));
+
+            // 4. Vehicle physics (wheeled/tracked entities)
             registry.RegisterSystem(new SpatialHashSystem());
             registry.RegisterSystem(new FormationTargetSystem());
             registry.RegisterSystem(new VehicleCommandSystem());
             registry.RegisterSystem(new CarKinematicsSystem(_roadNetwork, _trajectoryPool));
-            
-            // Mission execution
-            registry.RegisterSystem(new MissionExecutionSystem(_vehicleAPI));
+
+            // 5. Linear kinematics for non-wheeled entities (infantry, aircraft, etc.)
+            //    LinearKinematicsSystem already excludes entities with VehicleState via its
+            //    query filter — safe to register alongside CarKinematicsSystem.
+            registry.RegisterSystem(new LinearKinematicsSystem());
         }
         
         public void Tick(ISimulationView view, float dt) { }
@@ -659,9 +677,9 @@ namespace Bagira.SimHost.Modules
 
 ---
 
-### 4.4 MissionExecutionSystem
+### 4.4 MissionAdapterSystem
 
-**Purpose:** Read EntityMission component, execute MissionTasks, drive vehicle behavior.
+**Purpose:** Thin adapter between the DDS `EntityMission` data model and the FDP Behavior toolkit. Does **not** execute physics commands directly; it resolves `BehaviorId` strings to `DoctrineId` integers, writes JSON parameters into the `BrainBlackboard`, and advances `ActiveTaskId` when the behavior toolkit reports task completion.
 
 **Architecture:**
 
@@ -669,279 +687,136 @@ namespace Bagira.SimHost.Modules
 namespace Bagira.SimHost.Systems
 {
     using Bagira.DDS.DataModel;
-    using CarKinem.Commands;
+    using FDP.Toolkit.Behavior;
+    using FDP.Toolkit.Replication.Services;
     using Fdp.Kernel;
-    
+
     /// <summary>
-    /// Executes mission plans for entities.
-    /// Reads EntityMission component, drives VehicleAPI commands.
-    /// Pattern: Similar to NetworkDemo's RefactoredPlayerInputSystem.
+    /// Thin adapter: DDS EntityMission → DoctrineState / BrainBlackboard.
+    /// Monitors LocomotionChannel.Status to advance ActiveTaskId.
+    /// Does NOT call VehicleAPI directly — all execution is delegated to the
+    /// Behavior toolkit pipeline (BTreeTickSystem + Executors).
+    /// Pattern: Like NetworkDemo's CombatFeedbackSystem (reads results, updates state).
     /// </summary>
-    public class MissionExecutionSystem
+    public class MissionAdapterSystem
     {
-        private readonly VehicleAPI _vehicleAPI;
-        
-        public MissionExecutionSystem(VehicleAPI vehicleAPI)
+        private readonly DoctrineRegistry _doctrineRegistry;
+        private readonly NetworkEntityMap _entityMap;
+
+        public MissionAdapterSystem(DoctrineRegistry doctrineRegistry, NetworkEntityMap entityMap)
         {
-            _vehicleAPI = vehicleAPI;
+            _doctrineRegistry = doctrineRegistry;
+            _entityMap = entityMap;
         }
-        
+
         public void Update(EntityRepository world)
         {
             var query = world.Query()
-                .With<EntityMissionComponent>()
-                .With<VehicleState>()
+                .With<EntityMission>()
+                .With<DoctrineState>()
+                .With<BrainBlackboard>()
                 .Build();
-            
+
             foreach (var entity in query)
             {
-                var mission = world.GetComponent<EntityMissionComponent>(entity);
-                
-                // Find active task
-                var activeTask = FindTaskById(mission.Plan.Tasks, mission.Plan.ActiveTaskId);
+                var mission  = world.GetComponent<EntityMission>(entity);
+                var doctrine = world.GetComponent<DoctrineState>(entity);
+                var bb       = world.GetComponent<BrainBlackboard>(entity);
+
+                // 1. Find the active task
+                var activeTask = FindTaskById(mission, mission.ActiveTaskId);
                 if (activeTask == null) continue;
-                
-                // Execute based on behavior type
-                switch (activeTask.BehaviorId)
+
+                // 2. Resolve BehaviorId string → DoctrineId int
+                if (!_doctrineRegistry.TryGetId(activeTask.BehaviorId, out int doctrineId))
                 {
-                    case "MoveToLocation":
-                        ExecuteMoveToLocation(world, entity, activeTask);
-                        break;
-                    
-                    case "FollowRoute":
-                        ExecuteFollowRoute(world, entity, activeTask);
-                        break;
-                    
-                    case "JoinFormation":
-                        ExecuteJoinFormation(world, entity, activeTask);
-                        break;
-                    
-                    case "Idle":
-                        // Do nothing
-                        break;
-                    
-                    default:
-                        FdpLog.Warn($"[SimHost] Unknown behavior: {activeTask.BehaviorId}");
-                        MarkTaskFailed(world, entity, activeTask.TaskId);
-                        break;
+                    FdpLog.Warn($"[MissionAdapter] Unknown BehaviorId: '{activeTask.BehaviorId}'");
+                    continue;
                 }
-                
-                // Check task completion
-                if (IsTaskComplete(world, entity, activeTask))
+
+                // 3. Apply doctrine if it changed (new task or task restart)
+                if (doctrine.ActiveDoctrineHash != doctrineId)
                 {
-                    AdvanceToNextTask(world, entity);
-                }
-            }
-        }
-        
-        private void ExecuteMoveToLocation(EntityRepository world, int entity, MissionTask task)
-        {
-            var params = JsonSerializer.Deserialize<MoveToLocationParams>(task.BehaviorParams);
-            var vehicleState = world.GetComponent<VehicleState>(entity);
-            var destination = new Vector2(params.X, params.Y);
-            float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use world.GetComponent<SimTransform>(entity).Position.XY
-            {
-                _vehicleAPI.NavigateToPoint(entity, destination, params.ArrivalRadius, params.Speed);
-            }
-        }
-        
-        private void ExecuteFollowRoute(EntityRepository world, int entity, MissionTask task)
-        {
-            var params = JsonSerializer.Deserialize<FollowRouteParams>(task.BehaviorParams);
-            
-            if (!world.HasComponent<RouteProgressComponent>(entity))
-            {
-                world.AddComponent(entity, new RouteProgressComponent { CurrentWaypointIndex = 0 });
-            }
-            
-            var progress = world.GetComponent<RouteProgressComponent>(entity);
-            
-            if (progress.CurrentWaypointIndex < params.Waypoints.Count)
-            {
-                var waypoint = params.Waypoints[progress.CurrentWaypointIndex];
-                var destination = new Vector2(waypoint.X, waypoint.Y);
-                var vehicleState = world.GetComponent<VehicleState>(entity);
-                float distance = Vector2.Distance(vehicleState.Position, destination); // ⚠️ Phase 0: vehicleState.Position removed — use world.GetComponent<SimTransform>(entity).Position.XY
-                
-                if (distance < waypoint.ArrivalRadius)
-                {
-                    progress.CurrentWaypointIndex++;
-                    world.SetComponent(entity, progress);
-                }
-                else
-                {
-                    _vehicleAPI.NavigateToPoint(entity, destination, waypoint.ArrivalRadius, waypoint.Speed);
-                }
-            }
-        }
-        
-        private void ExecuteJoinFormation(EntityRepository world, int entity, MissionTask task)
-        {
-            // Implementation details...
-        }
-        
-        private bool IsTaskComplete(EntityRepository world, int entity, MissionTask task)
-        {
-            // Implementation details...
-            return false;
-        }
-        
-        private void AdvanceToNextTask(EntityRepository world, int entity)
-        {
-            // Implementation details...
-        }
-        
-        private MissionTask? FindTaskById(List<MissionTask> tasks, Guid taskId)
-        {
-            return tasks.FirstOrDefault(t => t.TaskId == taskId);
-        }
-        
-        private void MarkTaskFailed(EntityRepository world, int entity, Guid taskId)
-        {
-            // Implementation details...
-        }
-    }
-    
-    // Behavior parameter structures
-    public class MoveToLocationParams
-    {
-        public float X { get; set; }
-        public float Y { get; set; }
-        public float Speed { get; set; } = 15.0f;
-        public float ArrivalRadius { get; set; } = 5.0f;
-    }
-    
-    public class FollowRouteParams
-    {
-        public List<RouteWaypoint> Waypoints { get; set; } = new();
-    }
-    
-    public class RouteWaypoint
-    {
-        public float X { get; set; }
-        public float Y { get; set; }
-        public float Speed { get; set; } = 15.0f;
-        public float ArrivalRadius { get; set; } = 5.0f;
-    }
-    
-    public struct RouteProgressComponent
-    {
-        public int CurrentWaypointIndex;
-    }
-}
-```
+                    doctrine.ActiveDoctrineHash = doctrineId;
+                    world.SetComponent(entity, doctrine);
 
----
-
-### 4.5 GeoSpatialBridgeModule
-
-**Purpose:** Sync VehicleState (local coordinates) ↔ GeoSpatialComponent (WGS84) for DDS.
-
-**Architecture:**
-
-```csharp
-namespace Bagira.SimHost.Modules
-{
-    using ModuleHost.Core.Abstractions;
-    using Bagira.SimHost.Systems;
-    
-    public class GeoSpatialBridgeModule : IModule
-    {
-        public string Name => "GeoBridge";
-        public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-        
-        private readonly WGS84Transform _geoTransform;
-        
-        public GeoSpatialBridgeModule(WGS84Transform geoTransform)
-        {
-            _geoTransform = geoTransform;
-        }
-        
-        public void RegisterSystems(ISystemRegistry registry)
-        {
-            registry.RegisterSystem(new GeoSpatialBridgeSystem(_geoTransform));
-        }
-        
-        public void Tick(ISimulationView view, float dt) { }
-    }
-}
-```
-
-**GeoSpatialBridgeSystem:**
-
-```csharp
-namespace Bagira.SimHost.Systems
-{
-    using Fdp.Toolkit.Geographic;
-    using Fdp.Kernel;
-    
-    /// <summary>
-    /// Bridges VehicleState (local coordinates) to GeoSpatialComponent (WGS84).
-    /// Runs after physics, before network egress.
-    /// Pattern: Like NetworkDemo's TransformSyncSystem.
-    /// </summary>
-    public class GeoSpatialBridgeSystem
-    {
-        private readonly WGS84Transform _geoTransform;
-        
-        public GeoSpatialBridgeSystem(WGS84Transform geoTransform)
-        {
-            _geoTransform = geoTransform;
-        }
-        
-        public void Update(EntityRepository world)
-        {
-            var query = world.Query()
-                .With<VehicleState>()
-                .With<NetworkIdentity>()
-                .Build();
-            
-            foreach (var entity in query)
-            {
-                var vehicleState = world.GetComponent<VehicleState>(entity);
-                var netId = world.GetComponent<NetworkIdentity>(entity);
-                
-                // Convert local position to geodetic
-                // ⚠️ CRITICAL: Preserve altitude from GeoSpatialComponent if entity exists
-                var existingGeo = world.TryGetComponent<GeoSpatialComponent>(entity);
-                float altitude = existingGeo?.Pos.Altitude ?? 0.0f;
-                
-                var cartesian = new CartesianCoordinate
-                {
-                    X = vehicleState.Position.X,  // ⚠️ Phase 0: read world.GetComponent<SimTransform>(entity).Position.X instead
-                    Y = vehicleState.Position.Y,  // ⚠️ Phase 0: read world.GetComponent<SimTransform>(entity).Position.Y instead
-                    Z = altitude  // Preserve altitude, CarKinem only updates X/Y
-                };
-                
-                var geoPos = _geoTransform.ToGeodetic(cartesian);
-                
-                // Convert forward vector to heading
-                float headingDeg = MathF.Atan2(vehicleState.Forward.X, vehicleState.Forward.Y) * (180.0f / MathF.PI); // ⚠️ Phase 0: vehicleState.Forward removed — derive from SimTransform.Rotation quaternion
-                if (headingDeg < 0) headingDeg += 360.0f;
-                
-                // Update GeoSpatial component (will be egressed by translators)
-                world.SetComponent(entity, new GeoSpatialComponent
-                {
-                    EntityId = netId.Value,
-                    Time = DateTime.UtcNow,
-                    Pos = new GeoPosition
+                    // Parse JSON params directly into BrainBlackboard inline memory (zero alloc)
+                    if (!string.IsNullOrEmpty(activeTask.BehaviorParams))
                     {
-                        Latitude = geoPos.Latitude,
-                        Longitude = geoPos.Longitude,
-                        Altitude = geoPos.Altitude
-                    },
-                    Rot = new OrientationHPR
-                    {
-                        Heading = headingDeg,
-                        Pitch = 0,
-                        Roll = 0
+                        var def = _doctrineRegistry.GetDefinition(doctrineId);
+                        def.ParseParams(activeTask.BehaviorParams, ref bb);
+                        world.SetComponent(entity, bb);
                     }
-                });
+                }
+
+                // 4. Monitor LocomotionChannel for task completion/failure
+                if (world.HasComponent<LocomotionChannel>(entity))
+                {
+                    var channel = world.GetComponent<LocomotionChannel>(entity);
+
+                    if (channel.Status == NodeStatus.Success)
+                        AdvanceToNextTask(world, entity, ref mission);
+                    else if (channel.Status == NodeStatus.Failure)
+                        MarkTaskFailed(world, entity, ref mission, activeTask.TaskId);
+                }
+            }
+        }
+
+        private static MissionTask? FindTaskById(in EntityMission mission, Guid taskId)
+            => mission.Tasks?.FirstOrDefault(t => t.TaskId == taskId);
+
+        private static void AdvanceToNextTask(
+            EntityRepository world, int entity, ref EntityMission mission)
+        {
+            int idx = mission.Tasks.FindIndex(t => t.TaskId == mission.ActiveTaskId);
+            if (idx < 0) return;
+
+            mission.Tasks[idx].State = eTaskState.TASK_DONE;
+
+            if (idx + 1 < mission.Tasks.Count)
+            {
+                mission.ActiveTaskId = mission.Tasks[idx + 1].TaskId;
+                mission.Tasks[idx + 1].State = eTaskState.TASK_ACTIVE;
+                world.SetComponent(entity, mission);  // EntityMissionEgressTranslator publishes this back to IOS
+            }
+            else
+            {
+                // Mission complete — remove component to stop execution
+                world.RemoveComponent<EntityMission>(entity);
+            }
+        }
+
+        private static void MarkTaskFailed(
+            EntityRepository world, int entity, ref EntityMission mission, Guid taskId)
+        {
+            int idx = mission.Tasks.FindIndex(t => t.TaskId == taskId);
+            if (idx >= 0)
+            {
+                mission.Tasks[idx].State = eTaskState.TASK_FAILED;
+                world.SetComponent(entity, mission);
             }
         }
     }
 }
 ```
+
+**Supported BehaviorId strings** (registered in `DoctrineIds.cs` via `DoctrineRegistry`):
+
+| BehaviorId string | DoctrineIds constant | Params struct |
+|---|---|---|
+| `"MoveToLocation"` | `DoctrineIds.MoveTo_BT` | `MoveToLocationParams { X, Y, Speed=15, ArrivalRadius=5 }` |
+| `"FollowRoute"` | `DoctrineIds.FollowRoute_BT` | `FollowRouteParams { Waypoints[], Speed=15, Loop=false }` |
+| `"JoinFormation"` | `DoctrineIds.JoinFormation_BT` | `JoinFormationParams { LeaderNetworkId, FormationType }` |
+| `"Idle"` | `DoctrineIds.Idle_HSM` | *(no params)* |
+### 4.5 GeographicModule (Fdp.Toolkit.Geographic)
+
+**`GeoSpatialBridgeModule` is removed.** `GeographicModule` from `Fdp.Toolkit.Geographic` is registered at kernel startup and provides all coordinate-bridge functionality automatically.
+
+> **Registration (in `Program.cs`):** Follow the `NetworkDemoApp.cs` pattern to register `GeographicModule` with the configured `WGS84Transform`. The module internally registers `SimTransformBridgeSystem`, which runs post-physics for all locally-owned entities and converts `SimTransform` + `SimVelocity` → `GeoTransform` + `GeoVelocity`.
+
+`GeoSpatialEgressTranslator` (already implemented in `Bagira.SimHost/Translators/`) reads `GeoTransform` and `GeoVelocity` written by the toolkit and publishes the DDS `GeoSpatial` / `GeoSpatialDR` topics unchanged — no code changes to the translator are required.
+
+**No source files to create.** `GeoSpatialBridgeModule.cs` and `GeoSpatialBridgeSystem.cs` are **not created**.
 
 ---
 
@@ -1126,29 +1001,44 @@ ModuleHostKernel Update Sequence:
   3. CycloneNetworkModule (DDS read/write)
   4. EntityCreationModule (CreateEntityRequestSystem)
   5. SimulationLogicModule:
-       - MissionExecutionSystem
-       - VehicleCommandSystem  
-       - CarKinematicsSystem (physics)
-  6. GeoSpatialBridgeModule (coordinate conversion)
+       - MissionAdapterSystem            (DDS mission → DoctrineState/BrainBlackboard)
+       - ChannelArbitrationSystem        (preempt stale channels on doctrine change)
+       - BTreeTickSystem                 (tick BTree, write LocomotionChannel.Request)
+       - LocomotionDispatcherSystem      (OnEnter/Execute/OnExit lifecycle)
+       - MoveToExecutor / FollowRouteExecutor / JoinFormationExecutor
+       - VehicleCommandSystem
+       - CarKinematicsSystem             (wheeled/tracked entities)
+       - LinearKinematicsSystem          (non-wheeled entities, already excludes VehicleState)
+  6. GeographicModule systems (registered by kernel, run here automatically):
+       - SimTransformBridgeSystem        (SimTransform/SimVelocity → GeoTransform/GeoVelocity)
   7. NetworkModule Egress (component → DDS)
 ```
 
 ### 5.2 Component Flow
 
 ```
-CreateEntityRequest (DDS)
-  ↓ CreateEntityRequestTranslator
-EventBus
-  ↓ CreateEntityRequestSystem
-Entity + VehicleState + EntityMissionComponent
-  ↓ MissionExecutionSystem
-VehicleAPI.NavigateToPoint()
-  ↓ CarKinematicsSystem
-VehicleState.Position updated
-  ↓ GeoSpatialBridgeSystem
-GeoSpatialComponent (WGS84)
-  ↓ GeoSpatialTranslator
-DDS GeoSpatial topic → IOS/IG
+EntityMission (DDS)
+  ↓ EntityMissionTranslator
+ECS EntityMission component
+  ↓ MissionAdapterSystem
+DoctrineState.ActiveDoctrineHash + BrainBlackboard params set
+  ↓ ChannelArbitrationSystem
+stale LocomotionChannel cleared on doctrine change
+  ↓ BTreeTickSystem
+LocomotionChannel.Request written
+  ↓ LocomotionDispatcherSystem → MoveToExecutor / FollowRouteExecutor / JoinFormationExecutor
+SimVelocity updated
+  ↓ CarKinematicsSystem (wheeled) / LinearKinematicsSystem (other)
+SimTransform.Position integrated
+  ↓ SimTransformBridgeSystem (GeographicModule, registered by kernel)
+GeoTransform + GeoVelocity written
+  ↓ GeoSpatialEgressTranslator
+DDS GeoSpatial / GeoSpatialDR → IOS/IG
+
+MissionAdapterSystem (next frame):
+  LocomotionChannel.Status == Success → AdvanceToNextTask → EntityMission component updated
+  ↓ EntityMissionEgressTranslator
+DDS EntityMission → IOS (feedback loop)
 ```
 
 ### 5.3 Data Flow Diagram
@@ -1157,22 +1047,26 @@ DDS GeoSpatial topic → IOS/IG
 ┌──────────────────────────────────────────────┐
 │           SimHost (ModuleHostKernel)         │
 ├──────────────────────────────────────────────┤
-│ CreateEntityRequestTranslator → EventBus     │
+│ EntityMissionTranslator → ECS component      │
 │   ↓                                          │
-│ CreateEntityRequestSystem (create entity)    │
+│ MissionAdapterSystem (doctrine + params)     │
 │   ↓                                          │
-│ MissionExecutionSystem → VehicleAPI          │
+│ BTreeTickSystem → LocomotionChannel.Request  │
 │   ↓                                          │
-│ CarKinematicsSystem (physics)                │
+│ MoveToExecutor / FollowRouteExecutor /       │
+│   JoinFormationExecutor → SimVelocity        │
 │   ↓                                          │
-│ GeoSpatialBridgeSystem (Vector2→WGS84)       │
+│ CarKinem / LinearKinematics (SimTransform)   │
 │   ↓                                          │
-│ GeoSpatialTranslator → DDS                   │
-└──────────────────┬──────────────┬────────────┘
-                   ↓              ↓
-             EntityMaster    GeoSpatial (DDS)
-                   ↓              ↓
-               IOS Mock        IG Mock
+│ SimTransformBridgeSystem → GeoTransform      │
+│   ↓                         ↓               │
+│ GeoSpatialEgressTranslator  EntityMission-  │
+│   → DDS                     EgressTranslator │
+└──────────────┬──────────────┬───────────────┘
+               ↓              ↓
+        GeoSpatial/DR   EntityMission (DDS)
+               ↓              ↓
+           IOS/IG          IOS (feedback)
 ```
 
 ---
@@ -1181,19 +1075,12 @@ DDS GeoSpatial topic → IOS/IG
 
 ### 6.1 Terrain Height Preservation
 
-**Issue:** CarKinem physics operates in 2D (Vector2), but entities have 3D positions with altitude. If SimHost sets Z=0 unconditionally, entities on mountains will snap to sea level on IG.
+**Issue:** CarKinem physics operates in 2D (XY plane). SimTransform.Position.Z must be set at entity creation and maintained by any terrain service going forward.
 
 **Solution:**
-- `GeoSpatialBridgeSystem` MUST preserve existing altitude when updating position
-- Read current `GeoSpatialComponent.Pos.Altitude` before overwriting
-- Only modify X/Y via physics, maintain Z from creation or terrain service
-
-**Code Pattern:**
-```csharp
-var existingGeo = world.TryGetComponent<GeoSpatialComponent>(entity);
-float altitude = existingGeo?.Pos.Altitude ?? 0.0f;
-var cartesian = new CartesianCoordinate { X = pos.X, Y = pos.Y, Z = altitude };
-```
+- `SimTransformBridgeSystem` (from `GeographicModule`) reads `SimTransform.Position.Z` directly for altitude — no separate preservation step needed.
+- At entity creation, `DescriptorMapper` sets `SimTransform.Position.Z = (float)cart.Z` from the initial `GeoSpatial` descriptor.
+- `CarKinematicsSystem` integrates only X/Y, leaving Z unchanged.
 
 **Future Enhancement:** Integrate with `ITerrainService` for dynamic height lookup.
 
@@ -1226,29 +1113,11 @@ public void Update(float dt)
 
 ### 6.3 Mission Command Re-Entrancy
 
-**Issue:** If IOS sends `CMD_JUMP_TO_TASK` to the currently executing task, it might reset task state (e.g., "Wait 30s" timer resets to 0).
+**Issue:** If IOS sends a new `EntityMission` with `ActiveTaskId` pointing to the already-active task, `MissionAdapterSystem` must not reset doctrine state unnecessarily.
 
 **Solution:**
-- In `MissionExecutionSystem.HandleJumpCommand()`, check if target task is already active
-- Only reset state if `ForceRestart=true` flag is set in command
-
-**Code Pattern:**
-```csharp
-private void HandleJumpCommand(int entityId, int targetTaskIndex, bool forceRestart)
-{
-    var mission = GetMissionComponent(entityId);
-    
-    if (mission.ActiveTaskIndex == targetTaskIndex && !forceRestart)
-    {
-        _logger.LogWarning($"Task {targetTaskIndex} already active, ignoring jump command");
-        return;
-    }
-    
-    // Reset task state only if different task or forced
-    mission.ActiveTaskIndex = targetTaskIndex;
-    mission.TaskStartTime = DateTime.UtcNow;
-}
-```
+- `MissionAdapterSystem` only re-applies doctrine and re-parses params when `DoctrineState.ActiveDoctrineHash != doctrineId` (i.e., the resolved doctrine actually changed).
+- If IOS re-sends the same `ActiveTaskId` with an unchanged `BehaviorId`, `DoctrineState.ActiveDoctrineHash` will already match and no restart occurs.
 
 ### 6.4 ID Allocation Race Condition
 
@@ -1280,23 +1149,28 @@ private void HandleJumpCommand(int entityId, int targetTaskIndex, bool forceRest
    - `FDP.Toolkit.Tkb` (TkbDatabase)
    - `FDP.Toolkit.Time` (MasterTimeController)
    - `Fdp.Toolkit.Geographic` (WGS84Transform)
+   - `FDP.Toolkit.Behavior` (BTreeTickSystem, ChannelArbitrationSystem, LocomotionDispatcherSystem)
+   - `FDP.Toolkit.Navigation` (MoveToExecutor, FollowRouteExecutor)
+   - `FDP.Toolkit.Physics` (LinearKinematicsSystem)
    - `ModuleHost.Core` (IModule, ModuleHostKernel)
    - `ModuleHost.Network.Cyclone` (CycloneNetworkModule, DdsParticipant)
 3. Create folder structure:
    ```
    Bagira.SimHost/
      Program.cs
+     DoctrineIds.cs
      Modules/
        EntityCreationModule.cs
        SimulationLogicModule.cs
-       GeoSpatialBridgeModule.cs
      Systems/
        CreateEntityRequestSystem.cs
-       MissionExecutionSystem.cs
-       GeoSpatialBridgeSystem.cs
+       MissionAdapterSystem.cs
+       JoinFormationExecutor.cs
      Translators/
        CreateEntityRequestTranslator.cs
        CreateEntityAckTranslator.cs
+       EntityMissionTranslator.cs
+       EntityMissionEgressTranslator.cs
      Configuration/
    ```
 
@@ -1329,46 +1203,28 @@ private void HandleJumpCommand(int entityId, int targetTaskIndex, bool forceRest
 
 ---
 
-### Phase S3: GeoSpatialBridgeModule (2 days)
+### Phase S3: Geographic Module Integration (0.25 days)
 
-**Goal:** Implement coordinate conversion module.
+**Goal:** Register `GeographicModule` from `Fdp.Toolkit.Geographic` — replaces the custom `GeoSpatialBridgeModule` entirely.
 
 **Tasks:**
-1. Create `GeoSpatialBridgeModule.cs`
-2. Create `GeoSpatialBridgeSystem.cs`:
-   - VehicleState → GeoPosition conversion
-   - Heading calculation (Vector2 → degrees)
-   - GeoSpatialDR velocity calculation
-3. Write unit tests:
-   - Conversion accuracy
-   - Heading correctness
-4. Performance test (1000 vehicles)
+1. Register `GeographicModule` via kernel (follow `NetworkDemoApp.cs` pattern); the module registers `SimTransformBridgeSystem` which converts `SimTransform`/`SimVelocity` → `GeoTransform`/`GeoVelocity` for locally-owned entities post-physics.
+2. Verify `GeoSpatialEgressTranslator` (already implemented) publishes correct lat/lon for the configured `GeodeticOrigin`.
+3. No new source files — `GeoSpatialBridgeModule.cs` and `GeoSpatialBridgeSystem.cs` are **not created**.
 
 **Estimated Effort:** 2 days
 
 ---
 
-### Phase S4: SimulationLogicModule (5 days)
+### Phase S4: Behavior Toolkit Integration (5 days)
 
-**Goal:** Implement mission execution and physics integration.
+**Goal:** Integrate `FDP.Toolkit.Behavior` and `FDP.Toolkit.Navigation` as the mission execution pipeline; replace the custom `MissionExecutionSystem` with a thin `MissionAdapterSystem`.
 
 **Tasks:**
-1. Create `SimulationLogicModule.cs`
-2. Create `MissionExecutionSystem.cs`:
-   - Behavior handlers: MoveToLocation, FollowRoute, JoinFormation, Idle
-   - Task completion detection
-   - Task state transitions (PLANNED→ACTIVE→DONE)
-   - JSON parameter parsing
-3. Integrate CarKinem systems:
-   - SpatialHashSystem
-   - FormationTargetSystem
-   - VehicleCommandSystem
-   - CarKinematicsSystem
-4. Write unit tests:
-   - Each behavior type
-   - Task state transitions
-   - Route progress tracking
-5. Integration test with physics
+1. Register `ChannelArbitrationSystem`, `BTreeTickSystem`, `LocomotionDispatcherSystem`, `MoveToExecutor`, `FollowRouteExecutor`, and `LinearKinematicsSystem` in `SimulationLogicModule` (S4.1).
+2. Implement `EntityMissionTranslator` (DDS ingress) and `EntityMissionEgressTranslator` (DDS egress) in `Translators/` (S4.2).
+3. Implement `MissionAdapterSystem` — reads active `MissionTask.BehaviorId`, resolves `DoctrineId` via `DoctrineRegistry`, writes `DoctrineState` + `BrainBlackboard`, monitors `LocomotionChannel.Status` to advance `ActiveTaskId` (S4.3).
+4. Implement `JoinFormationExecutor` — `IActionExecutor<LocomotionChannel>`, looks up leader via `NetworkEntityMap`, calls `VehicleAPI.CreateFormation()` (S4.4).
 
 **Estimated Effort:** 5 days
 
