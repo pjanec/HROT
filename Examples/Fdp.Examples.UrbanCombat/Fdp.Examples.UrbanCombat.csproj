@@ -11,12 +11,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\Common\FDP.Interfaces\FDP.Interfaces.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Navigation\FDP.Toolkit.Navigation.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
   </ItemGroup>
 
 </Project>

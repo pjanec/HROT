@@ -1,5 +1,8 @@
 using System;
+using Fdp.Examples.UrbanCombat.Setup;
+using Fdp.Interfaces;
 using Fdp.Kernel;
+using Fdp.Toolkit.Tkb;
 
 namespace Fdp.Examples.UrbanCombat
 {
@@ -31,6 +34,15 @@ namespace Fdp.Examples.UrbanCombat
         /// <summary>The ECS world that owns all entity data and system execution.</summary>
         public EntityRepository World { get; private set; }
 
+        /// <summary>
+        /// The Transient Knowledge Base: holds all five entity blueprint templates.
+        /// Populated by <see cref="DemoTkbSetup.RegisterAll"/> during <see cref="Initialize"/>.
+        /// Consumed by <c>ScenarioDirector</c> (BCS-P7-T7) at spawn time via
+        /// <c>_tkb.GetByType(id)</c> / <c>template.ApplyTo(World, entity)</c>.
+        /// </summary>
+        public ITkbDatabase Tkb => _tkb;
+
+        private readonly TkbDatabase _tkb = new TkbDatabase();
         private bool _initialized;
         private bool _disposed;
 
@@ -53,7 +65,10 @@ namespace Fdp.Examples.UrbanCombat
             // 1. Register all component types used by the demo.
             RegisterComponents();
 
-            // 2. Register and configure systems (stubs pointing to correct system types).
+            // 2. Register all five TKB entity blueprints (BCS-P7-T2).
+            DemoTkbSetup.RegisterAll(_tkb);
+
+            // 3. Register and configure systems (stubs pointing to correct system types).
             //    Full wiring in BCS-P7-T4 (TrafficBrainSystem) through BCS-P7-T8 (Telemetry).
             RegisterSystems();
 

@@ -100,11 +100,11 @@
 **New project:** `Examples/Fdp.Examples.UrbanCombat/`
 
 - [x] **BCS-P7-T1** Project scaffold + HeadlessDemoApp shell + Program.cs [details](./TASK-DETAIL.md#bcs-p7-t1--project-scaffold--headlessdemoapp-shell)
-- [ ] **BCS-P7-T2** TKB Blueprints (5 entity templates) [details](./TASK-DETAIL.md#bcs-p7-t2--tkb-blueprints-entity-templates) *(BATCH-14 partial — TKB rework required, see BATCH-15)*
+- [x] **BCS-P7-T2** TKB Blueprints (5 entity templates) [details](./TASK-DETAIL.md#bcs-p7-t2--tkb-blueprints-entity-templates)
 - [x] **BCS-P7-T3** DemoEnvironmentSetup (city intersection road graph) [details](./TASK-DETAIL.md#bcs-p7-t3--demoenvironmentsetup-road-graph)
-- [ ] **BCS-P7-T4** TrafficBrainSystem (Tier 1 hardcoded) [details](./TASK-DETAIL.md#bcs-p7-t4--trafficbrainsystem-tier-1)
-- [ ] **BCS-P7-T5** Insurgent BTree nodes + Ambush.json authoring [details](./TASK-DETAIL.md#bcs-p7-t5--insurgent-btree-nodes--json)
-- [ ] **BCS-P7-T6** APC HSM authoring (HsmBuilder + action methods) [details](./TASK-DETAIL.md#bcs-p7-t6--apc-hsm-authoring)
+- [x] **BCS-P7-T4** TrafficBrainSystem (Tier 1 hardcoded) [details](./TASK-DETAIL.md#bcs-p7-t4--trafficbrainsystem-tier-1)
+- [x] **BCS-P7-T5** Insurgent BTree nodes + Ambush.json authoring [details](./TASK-DETAIL.md#bcs-p7-t5--insurgent-btree-nodes--json)
+- [x] **BCS-P7-T6** APC HSM authoring (HsmBuilder + action methods) [details](./TASK-DETAIL.md#bcs-p7-t6--apc-hsm-authoring)
 - [ ] **BCS-P7-T7** ScenarioDirector (spawn setup) [details](./TASK-DETAIL.md#bcs-p7-t7--scenariodirector-entity-spawning)
 - [ ] **BCS-P7-T8** TelemetryReporterSystem (console debug output) [details](./TASK-DETAIL.md#bcs-p7-t8--telemetryreportersystem)
 - [ ] **BCS-P7-T9** End-to-end integration test (10-second simulation timeline validation) [details](./TASK-DETAIL.md#bcs-p7-t9--end-to-end-integration-test-10-second-simulation)
@@ -122,5 +122,5 @@
 | Phase 4 – Physics | 4 | 4 ✅ |
 | Phase 5 – Combat | 5 | 5 ✅ |
 | Phase 6 – Behavior Advanced | 3 | 3 ✅ |
-| Phase 7 – Demo App | 9 | 2 |
-| **Total** | **43** | **35** |
+| Phase 7 – Demo App | 9 | 6 |
+| **Total** | **43** | **39** |

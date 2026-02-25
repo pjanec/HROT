@@ -5,6 +5,16 @@ namespace FDP.Toolkit.Combat
     /// </summary>
     public static class CombatConstants
     {
+        // ── Weapon action IDs ─────────────────────────────────────────────────
+        // Written into WeaponChannel.ActiveAction by BTree/HSM nodes.
+        // Consumed by WeaponDispatcherSystem which routes to the registered IActionExecutor.
+
+        /// <summary>
+        /// Action ID for AimAndFire (registers <c>AimAndFireExecutor</c> at this slot).
+        /// Value matches DESIGN.md §9.4: <c>static class CombatActions { const ushort AimAndFire = 1; }</c>
+        /// </summary>
+        public const ushort ActionIdAimAndFire = 1;
+
         // ── Event IDs ─────────────────────────────────────────────────────────
         // Range 5001–5099 is reserved for combat-domain events.
         // 5001 was previously defined in FDP.Toolkit.Physics.PhysicsConstants.HitEventId.
