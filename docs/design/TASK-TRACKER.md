@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 51/144 tasks complete (35%)
+**Overall Progress:** 56/149 tasks complete (37%)
 
 **Last Updated:** 2026-02-20
 
@@ -228,15 +228,20 @@
 
 ## IOS MOCK
 
-**Progress:** 0/18 tasks complete (0%)
+**Progress:** 5/20 tasks complete (25%)
 
 **Dependencies:** Requires Shared Components P2, P3, P4
 
+### Phase IOS-P5: Project Setup
+
+- [x] **IOS.P5.1** Create Bagira.IOS Console Project [details](./TASK-DETAILS-IOS.md#p51-create-bagiraios-project)
+- [x] **IOS.P5.2** Add Dependencies [details](./TASK-DETAILS-IOS.md#p52-add-dependencies)
+
 ### Phase IOS-P6: IOS Services
 
-- [ ] **IOS.6.1** Request Transaction Manager [details](./TASK-DETAILS-IOS.md#p61-request-transaction-manager)
-- [ ] **IOS.6.2** Mission Editor Service [details](./TASK-DETAILS-IOS.md#p62-mission-editor-service)
-- [ ] **IOS.6.3** Context Menu Logic [details](./TASK-DETAILS-IOS.md#p73-context-menu-logic)
+- [x] **IOS.6.1** Request Transaction Manager [details](./TASK-DETAILS-IOS.md#p61-request-transaction-manager)
+- [x] **IOS.6.2** Mission Editor Service [details](./TASK-DETAILS-IOS.md#p62-mission-editor-service)
+- [x] **IOS.6.3** Context Menu Logic [details](./TASK-DETAILS-IOS.md#p73-context-menu-logic)
 
 ### Phase IOS-P7: IOS UI Panels
 
