@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 56/144 tasks complete (38%)
+**Overall Progress:** 58/144 tasks complete (40%)
 
 **Last Updated:** 2026-02-25
 
@@ -181,7 +181,7 @@
 
 ## IG MOCK
 
-**Progress:** 5/23 tasks complete (21%)
+**Progress:** 7/23 tasks complete (30%)
 
 **Dependencies:** Requires Shared Components P1-P2 complete
 
@@ -195,8 +195,8 @@
 
 ### Phase IG2: Basic Rendering
 
-- [ ] **IG.2.1** Implement ResolvedStyle Component [details](./TASK-DETAILS-IG.md#task-ig21-implement-resolvedstyle-component)
-- [ ] **IG.2.2** Implement StyleResolutionSystem [details](./TASK-DETAILS-IG.md#task-ig22-implement-styleresolutionsystem)
+- [x] **IG.2.1** Implement ResolvedStyle Component [details](./TASK-DETAILS-IG.md#task-ig21-implement-resolvedstyle-component)
+- [x] **IG.2.2** Implement StyleResolutionSystem [details](./TASK-DETAILS-IG.md#task-ig22-implement-styleresolutionsystem)
 - [ ] **IG.2.3** Create SstVisualizerAdapter [details](./TASK-DETAILS-IG.md#task-ig23-create-sstvisualizeradapter)
 - [ ] **IG.2.4** Add MapCullingSystem [details](./TASK-DETAILS-IG.md#task-ig24-add-mapcullingsystem)
 - [ ] **IG.2.5** Integration Test: Render 100 Entities [details](./TASK-DETAILS-IG.md#task-ig25-integration-test-render-100-entities)
