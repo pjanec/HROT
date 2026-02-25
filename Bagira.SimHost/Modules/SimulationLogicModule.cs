@@ -112,9 +112,9 @@ namespace Bagira.SimHost.Modules
             var locoDispatcher = new LocomotionDispatcherSystem();
             locoDispatcher.RegisterExecutor(NavigationConstants.ActionIdMoveTo,      new MoveToExecutor());
             locoDispatcher.RegisterExecutor(NavigationConstants.ActionIdFollowRoute, new FollowRouteExecutor());
-            // JoinFormationExecutor — stub; registered below but full logic deferred to TASK-S4.4.
-            // locoDispatcher.RegisterExecutor(NavigationConstants.ActionIdJoinFormation,
-            //     new JoinFormationExecutor(_vehicleAPI, _entityMap));
+            // JoinFormationExecutor — registered now that full logic is implemented (TASK-S4.4).
+            locoDispatcher.RegisterExecutor(NavigationConstants.ActionIdJoinFormation,
+                new JoinFormationExecutor(_vehicleAPI, _entityMap));
             group.AddSystem(locoDispatcher);
 
             // ── 5. Spatial hash ──────────────────────────────────────────────────

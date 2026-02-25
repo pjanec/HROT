@@ -1,0 +1,49 @@
+namespace Bagira.SimHost
+{
+    /// <summary>
+    /// Stable compile-time integer constants for the SimHost-registered doctrines.
+    ///
+    /// These are passed to <see cref="FDP.Toolkit.Behavior.DoctrineRegistry.Register"/> at
+    /// application startup and stored in
+    /// <see cref="FDP.Toolkit.Behavior.Components.DoctrineState.ActiveDoctrineHash"/>.
+    ///
+    /// <b>Range:</b> 3001–3099 (SimHost navigation behaviours).
+    /// Values must be globally unique and must never change once published.
+    ///
+    /// See <see cref="FDP.Toolkit.Behavior.DoctrineIds"/> for framework-level doctrine IDs.
+    /// </summary>
+    public static class SimHostDoctrineIds
+    {
+        // ── SimHost navigation behaviours (BTree, 3001–3009) ─────────────────────
+
+        /// <summary>
+        /// Move to a fixed 2-D location (BTree).
+        /// BehaviorId string: <c>"MoveToLocation"</c>.
+        /// Params: <c>MoveToLocationParams { X, Y, Speed, ArrivalRadius }</c>.
+        /// </summary>
+        public const int MoveTo_BT = 3001;
+
+        /// <summary>
+        /// Follow a pre-computed waypoint route (BTree).
+        /// BehaviorId string: <c>"FollowRoute"</c>.
+        /// Params: <c>FollowRouteParams { Waypoints[], Speed, Loop }</c>.
+        /// </summary>
+        public const int FollowRoute_BT = 3002;
+
+        /// <summary>
+        /// Join an existing formation led by another entity (BTree).
+        /// BehaviorId string: <c>"JoinFormation"</c>.
+        /// Params: <see cref="Systems.JoinFormationParams"/> <c>{ LeaderNetworkId, FormationType }</c>.
+        /// </summary>
+        public const int JoinFormation_BT = 3003;
+
+        // ── SimHost idle behaviour (HSM, 3010–3019) ──────────────────────────────
+
+        /// <summary>
+        /// Idle / stand-still behaviour (HSM).
+        /// BehaviorId string: <c>"Idle"</c>.
+        /// No configurable parameters.
+        /// </summary>
+        public const int Idle_HSM = 3010;
+    }
+}
