@@ -1,15 +1,18 @@
-# BATCH-17: Post-Phase-7 Cleanup + DEBT-007 HSM Bridge
+# BATCH-17: Post-Phase-7 Cleanup + DEBT-007 GCHandle Fix
 
 **Batch Number:** BATCH-17  
 **Tasks:**
 - **Corrective-0 (P2):** DEBT-037 — `ScenarioDirector` banned API (`Quaternion.CreateFromYawPitchRoll` → `SimMath.FromYaw`)
 - **Corrective-1 (P2):** DEBT-038 — `TelemetryReporterSystem` magic number (`EjectPassengersActionId = 3` → `BehaviorConstants.ActionIdEjectPassengers`)
 - **Corrective-2 (P3):** DEBT-036 — `SpatialHashSystem` literal constants sweep
-- **Feature:** DEBT-007 partial resolution — `ApcBrainOutputSystem` bridge (HSM state → ECS channel writes)
+- **Feature (P2):** DEBT-007 **full resolution** — `GCHandle` pattern: `EntityRepository.UnmanagedHandle` → `HsmKernelBridge.WorldHandle` → full ECS access inside HSM action delegates; delete `ApcBrainOutputSystem`
 
-**Phase:** Post-Phase-7 stabilisation  
-**Estimated Effort:** 3–5 hours  
-**Priority:** MEDIUM — two P2 standard violations + one open architectural stub  
+**⚠️ The `ApcBrainOutputSystem` approach previously specified has been REJECTED by the architect.
+See `DEBT-007-HSM-ANALYSIS.md` for the full explanation and the correct GCHandle solution.**
+
+**Phase:** Post-Phase-7 stabilisation + DEBT-007 full resolution  
+**Estimated Effort:** 5–7 hours  
+**Priority:** HIGH — correct architectural fix for HSM ECS access  
 **Dependencies:** BATCH-16 ✅
 
 ---
@@ -18,12 +21,13 @@
 
 ### Required Reading (IN ORDER)
 
-1. **BATCH-16 Review:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\reviews\BATCH-16-REVIEW.md` — all three issues + DEBT-007 analysis.
-2. **DEBT-TRACKER:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\DEBT-TRACKER.md` — DEBT-036, 037, 038 entries.
-3. **CODE-STANDARDS.md:** `D:\Work\IOS-IG-SimHost-FDP\.dev-workstream\guides\CODE-STANDARDS.md` — §1 (no magic numbers), §2 (banned API).
-4. **`SimMath.cs`:** `FDP/Kernel/Fdp.Kernel/CoreComponents/SimMath.cs` — verify `FromYaw`, `FacingNorth` API.
-5. **`ApcHsmActions.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Brains/ApcHsmActions.cs` — understand the stub context.
-6. **`ApcHsmSetup.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Brains/ApcHsmSetup.cs` — `CruisingStateIndex`, `DisabledStateIndex` constants.
+1. **DEBT-007 Analysis (REVISED):** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\guides\DEBT-007-HSM-ANALYSIS.md` — read the entire document. This explains WHY `ApcBrainOutputSystem` is wrong and exactly HOW to implement the `GCHandle` fix.
+2. **BATCH-16 Review:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\reviews\BATCH-16-REVIEW.md`
+3. **`HsmKernel.cs`:** `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/HsmKernel.cs` — confirm `fixed (TContext* ctxPtr = &context)` at line 92 (root cause of the constraint).
+4. **`HsmTickSystem.cs`:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/HsmTickSystem.cs` — understand the current `HsmKernelBridge` and where `World.UnmanagedHandle` will be passed.
+5. **`EntityRepository.cs`:** `FDP/Kernel/Fdp.Kernel/EntityRepository.cs` — where `_selfHandle` and `UnmanagedHandle` are added.
+6. **`ApcHsmSetup.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Brains/ApcHsmSetup.cs` — `CruisingStateIndex`, `DisabledStateIndex`, and which action names are registered.
+7. **CODE-STANDARDS.md:** §1 (no magic numbers), §2 (banned API).
 
 ### Build & Test
 
@@ -44,8 +48,12 @@ dotnet test FDP.sln
 1. Corrective-0 (DEBT-037) — `SimMath.FromYaw` → build green ✅
 2. Corrective-1 (DEBT-038) — `BehaviorConstants.ActionIdEjectPassengers` → build green ✅
 3. Corrective-2 (DEBT-036) — `SpatialHashConstants` → build green ✅
-4. `ApcBrainOutputSystem` feature + test ✅
-5. Full solution: all existing tests still green ✅
+4. DEBT-007 Step A — `EntityRepository.UnmanagedHandle` property + `_selfHandle` (Kernel layer) ✅
+5. DEBT-007 Step B — `HsmKernelBridge.WorldHandle` field (Behavior toolkit) ✅
+6. DEBT-007 Step C — `ApcHsmActions` stubs → full ECS implementations ✅
+7. DEBT-007 Step D — Delete `ApcBrainOutputSystem`; verify T9 still passes ✅
+8. Write and pass 3 new HSM action tests ✅
+9. Full solution: 0 errors, all tests green ✅
 
 ---
 
@@ -55,7 +63,6 @@ dotnet test FDP.sln
 
 **File:** `FDP/Examples/Fdp.Examples.UrbanCombat/ScenarioDirector.cs` (line ~191)
 
-**Change:**
 ```csharp
 // BEFORE (banned):
 tf.Rotation = Quaternion.CreateFromYawPitchRoll(yawRadians, 0f, 0f);
@@ -64,21 +71,15 @@ tf.Rotation = Quaternion.CreateFromYawPitchRoll(yawRadians, 0f, 0f);
 tf.Rotation = SimMath.FromYaw(yawRadians);
 ```
 
-`SimMath` is in `Fdp.Kernel` — already imported by `ScenarioDirector.cs`. No new using needed.
+`SimMath` is in `Fdp.Kernel` — already imported. `Vector3` still requires `using System.Numerics;` so keep that directive.
 
-Remove the `using System.Numerics;` directive from `ScenarioDirector.cs` **if** it is now only used for the banned call. Check that `Vector3` still needs it (it does — `Vector3` is `System.Numerics`).
-
-**No new test needed** — existing T7 tests cover spawn counting and embark state. The geometry is verified by the T9 `UrbanAmbush_ApcMovesNorthward_BeforeAmbush` test (APC must move north, which requires correct orientation).
+**No new test needed** — T9 `UrbanAmbush_ApcMovesNorthward_BeforeAmbush` covers the orientation requirement.
 
 ---
 
 ### Corrective-1 (P2 — DEBT-038): `TelemetryReporterSystem` magic number
 
-**Step A — Add constant to `BehaviorConstants.cs`:**
-
-File: `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs`
-
-Add after `EventId_MobilityLost`:
+**Step A — `BehaviorConstants.cs`:** Add after `EventId_MobilityLost`:
 ```csharp
 /// <summary>
 /// Interaction action ID for the <see cref="Executors.EjectPassengersExecutor"/>.
@@ -88,36 +89,10 @@ Add after `EventId_MobilityLost`:
 public const ushort ActionIdEjectPassengers = 3;
 ```
 
-**Step B — Update `TelemetryReporterSystem.cs`:**
+**Step B — `TelemetryReporterSystem.cs`:** Remove `private const ushort EjectPassengersActionId = 3;` and replace the usage with `BehaviorConstants.ActionIdEjectPassengers`.
 
-File: `FDP/Examples/Fdp.Examples.UrbanCombat/Systems/TelemetryReporterSystem.cs`
-
-Remove the private const:
+**Step C — `EjectPassengersExecutor.cs`:** Update doc comment line 10:
 ```csharp
-// DELETE this line:
-private const ushort EjectPassengersActionId = 3;
-```
-
-Replace the usage:
-```csharp
-// BEFORE:
-if (channel.ActiveAction == EjectPassengersActionId)
-
-// AFTER:
-if (channel.ActiveAction == BehaviorConstants.ActionIdEjectPassengers)
-```
-
-Add `using FDP.Toolkit.Behavior;` to the using directives (may already be present).
-
-**Step C — Update `EjectPassengersExecutor.cs` doc comment:**
-
-File: `FDP/Toolkits/FDP.Toolkit.Behavior/Executors/EjectPassengersExecutor.cs` (line 10)
-
-```csharp
-// BEFORE:
-/// Executor for the <c>EjectPassengers</c> interaction action (kind = 3).
-
-// AFTER:
 /// Executor for the <c>EjectPassengers</c> interaction action
 /// (<see cref="BehaviorConstants.ActionIdEjectPassengers"/> = 3).
 ```
@@ -126,171 +101,246 @@ File: `FDP/Toolkits/FDP.Toolkit.Behavior/Executors/EjectPassengersExecutor.cs` (
 
 ### Corrective-2 (P3 — DEBT-036): `SpatialHashSystem` literal constants
 
-**Step A — Add constants.** Decide the best location:
-- If a `SpatialHashConstants.cs` (or `CarKinemConstants.cs`) already exists in `FDP.Toolkit.CarKinem` → add there.
-- If not → create `FDP/Toolkits/FDP.Toolkit.CarKinem/SpatialHashConstants.cs`.
+Create `FDP/Toolkits/FDP.Toolkit.CarKinem/SpatialHashConstants.cs` (check if a constants file already exists first):
 
 ```csharp
 namespace CarKinem.Spatial
 {
     /// <summary>
-    /// Compile-time parameters for <see cref="Systems.SpatialHashSystem"/>
-    /// and <see cref="SpatialHashGrid"/>.
+    /// Compile-time parameters for <see cref="Systems.SpatialHashSystem"/> and <see cref="SpatialHashGrid"/>.
     /// See CODE-STANDARDS.md §1 (No magic numbers in production code).
     /// </summary>
     public static class SpatialHashConstants
     {
-        /// <summary>Number of cells along each axis. Width × Height × CellSizeMeters = world coverage.</summary>
+        /// <summary>Grid cell count along X axis. Width × CellSizeMeters = X coverage.</summary>
         public const int GridWidth  = 150;
-        /// <summary>See <see cref="GridWidth"/>.</summary>
+        /// <summary>Grid cell count along Y axis. Height × CellSizeMeters = Y coverage.</summary>
         public const int GridHeight = 150;
         /// <summary>Cell edge length in meters.</summary>
         public const float CellSizeMeters = 5.0f;
         /// <summary>
-        /// World-space X origin (bottom-left corner). Grid covers
-        /// [OriginX, OriginX + GridWidth × CellSizeMeters] in X.
+        /// World-space X origin (bottom-left corner).
+        /// Grid covers [OriginX, OriginX + GridWidth × CellSizeMeters] in X.
+        /// Value: −GridWidth/2 × CellSizeMeters = −375 m, centring the grid on world origin.
         /// </summary>
-        public const float OriginX = -375f;  // -GridWidth/2 * CellSizeMeters
-        /// <summary>See <see cref="OriginX"/>.</summary>
+        public const float OriginX = -375f;
+        /// <summary>See <see cref="OriginX"/>. Grid covers [OriginY, OriginY + GridHeight × CellSizeMeters] in Y.</summary>
         public const float OriginY = -375f;
-        /// <summary>Maximum entity capacity of the grid (linked-list slots).</summary>
+        /// <summary>Maximum entity capacity of the spatial hash (linked-list slot count).</summary>
         public const int MaxEntities = 100_000;
     }
 }
 ```
 
-**Step B — Update `SpatialHashSystem.cs`:**
-
-```csharp
-_grid = SpatialHashGrid.Create(
-    SpatialHashConstants.GridWidth,
-    SpatialHashConstants.GridHeight,
-    SpatialHashConstants.CellSizeMeters,
-    SpatialHashConstants.MaxEntities,
-    Allocator.Persistent,
-    originX: SpatialHashConstants.OriginX,
-    originY: SpatialHashConstants.OriginY);
-```
+Update `SpatialHashSystem.OnCreate()` to use these constants (replacing all five literals).
 
 ---
 
-### Feature: `ApcBrainOutputSystem` — DEBT-007 HSM Bridge
+### Feature: DEBT-007 — GCHandle Pattern (Full HSM ECS Access)
 
-**Context:** The `ApcHsmActions.Activity_Cruise` and `OnEnter_Disabled` delegates are stubs because `EntityRepository` cannot be passed through the `void* context` HSM dispatch pointer. This bridge system reads the APC's current HSM state index and writes the appropriate channels externally — decoupling HSM state transitions from ECS mutations.
+**Read `DEBT-007-HSM-ANALYSIS.md` in full before writing any code.** The following is a summary of the three-step implementation. The analysis document contains the detailed rationale and exact code.
 
-**File:** `FDP/Examples/Fdp.Examples.UrbanCombat/Systems/ApcBrainOutputSystem.cs`
+---
 
-> This file was listed as created in the BATCH-16 report with only `unsafe void OnUpdate()`. Verify the current content before rewriting.
+#### Step A — `EntityRepository.UnmanagedHandle` (Kernel layer)
 
-**Design:**
+**File:** `FDP/Kernel/Fdp.Kernel/EntityRepository.cs`
+
+Add to the existing private field block (near top of the class):
+```csharp
+using System.Runtime.InteropServices;
+
+// Inside EntityRepository class:
+
+// Allocated once at construction; freed in Dispose.
+// Provides an unmanaged IntPtr that HSM action delegates (via HsmKernelBridge.WorldHandle)
+// use to recover this EntityRepository through the Fhsm.Kernel unmanaged constraint.
+// See DEBT-007-HSM-ANALYSIS.md for full explanation.
+private GCHandle _selfHandle;
+```
+
+In the constructor (after `Bus = new FdpEventBus();`):
+```csharp
+_selfHandle = GCHandle.Alloc(this, GCHandleType.Normal);
+```
+
+Add the public property (after the constructor):
 ```csharp
 /// <summary>
-/// Bridge that reads the current HSM state of the Military APC and translates it into
-/// ECS channel writes. This decouples the HSM's raw-pointer action dispatch from ECS access,
-/// resolving the DEBT-007 architectural gap for APC entities.
-///
-/// <para>Runs in <see cref="SimulationSystemGroup"/> after <see cref="HsmTickSystem{TBrain}"/>
-/// (so state transitions have already occurred this frame) and before
-/// <see cref="ChannelArbitrationSystem"/> (because it writes <em>directly</em> to channels
-/// without going through the channel arbitration protocol — it is the brain output,
-/// not a channel request).</para>
-///
-/// <para>State → channel mapping:</para>
-/// <list type="table">
-///   <item><c>CruisingStateIndex</c> → <see cref="LocomotionChannel.ActiveAction"/> =
-///         <see cref="NavigationConstants.ActionIdFollowRoute"/>.</item>
-///   <item><c>DisabledStateIndex</c> → <see cref="LocomotionChannel.ActiveAction"/> = 0;
-///         <see cref="InteractionChannel.ActiveAction"/> = <see cref="BehaviorConstants.ActionIdEjectPassengers"/>
-///         (once, on the first frame in Disabled — use shadow to avoid repeated eject).</item>
-/// </list>
+/// Raw unmanaged handle to this repository. Valid for passing through
+/// <c>unmanaged</c>-constrained contexts (e.g. <c>HsmKernelBridge</c>).
+/// Recover via: <c>(EntityRepository)GCHandle.FromIntPtr(handle).Target!</c>
+/// Remains valid until <see cref="Dispose"/> is called.
 /// </summary>
-[UpdateInGroup(typeof(SimulationSystemGroup))]
-[UpdateAfter(typeof(HsmTickSystem<BrainHsm128>))]
-[UpdateBefore(typeof(ChannelArbitrationSystem))]
-public class ApcBrainOutputSystem : ComponentSystem
+public IntPtr UnmanagedHandle => GCHandle.ToIntPtr(_selfHandle);
+```
+
+In the `Dispose()` method (add before existing dispose logic):
+```csharp
+if (_selfHandle.IsAllocated)
+    _selfHandle.Free();
+```
+
+> `GCHandleType.Normal` prevents the GC from moving the object (as opposed to `GCHandleType.Pinned` which prevents compaction — `Normal` is sufficient here since we only need a stable table entry, not a pinned memory address). The `GCHandle` allocates one slot in the GC handle table — a negligible fixed cost.
+
+---
+
+#### Step B — `HsmKernelBridge.WorldHandle` (Behavior toolkit)
+
+**File:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/HsmTickSystem.cs`
+
+Update `HsmKernelBridge`:
+```csharp
+internal struct HsmKernelBridge
 {
-    // Shadow: tracks the previous HSM state per entity to detect first-frame-in-Disabled.
-    private readonly Dictionary<int, ushort> _prevState = new();
+    public Entity Self;
+    public IntPtr WorldHandle;   // ← IntPtr is unmanaged; holds GCHandle table index
+}
+```
 
-    protected override unsafe void OnUpdate()
+Update the per-entity tick code (lines ~102–106):
+```csharp
+// BEFORE:
+var fdpContext = new FdpHsmContext { Self = entity, World = World };
+var bridge     = new HsmKernelBridge { Self = fdpContext.Self };
+
+// AFTER (FdpHsmContext no longer needed for bridge construction):
+var bridge = new HsmKernelBridge
+{
+    Self        = entity,
+    WorldHandle = World.UnmanagedHandle,  // one property read per entity per tick
+};
+```
+
+`FdpHsmContext` (the struct with `EntityRepository World`) can now be removed from `HsmTickSystem.cs` since it is no longer used. Remove it along with its XML doc comment. If it was part of a public API surface and other code references it, mark it `[Obsolete]` first and remove in a follow-up.
+
+---
+
+#### Step C — `ApcHsmActions` — Full implementations
+
+**File:** `FDP/Examples/Fdp.Examples.UrbanCombat/Brains/ApcHsmActions.cs`
+
+Replace the two stubs with full implementations:
+
+```csharp
+using System;
+using System.Runtime.InteropServices;
+using Fdp.Kernel;
+using Fhsm.Kernel.Data;
+using FDP.Toolkit.Behavior;
+using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Systems;
+using FDP.Toolkit.Navigation;
+
+namespace Fdp.Examples.UrbanCombat.Brains
+{
+    public static unsafe class ApcHsmActions
     {
-        var q = World.Query()
-            .With<BrainHsm128>()
-            .With<LocomotionChannel>()
-            .With<DoctrineState>()
-            .Build();
-
-        foreach (var entity in q)
+        /// <summary>
+        /// Activity action for the <c>Cruising</c> state.
+        /// Runs every tick while the APC is Cruising.
+        /// Writes <see cref="NavigationConstants.ActionIdFollowRoute"/> to
+        /// <see cref="LocomotionChannel"/> so the vehicle follows its road-graph route northward.
+        /// </summary>
+        public static void Activity_Cruise(void* instance, void* context, HsmCommandWriter* writer)
         {
-            var brain    = World.GetComponent<BrainHsm128>(entity);
-            ushort state = brain.State.ActiveLeafIds[0];
-            int key      = entity.Index;
+            var bridge = (HsmKernelBridge*)context;
+            var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
 
-            _prevState.TryGetValue(key, out ushort prev);
+            ref var loco    = ref repo.GetComponentRW<LocomotionChannel>(bridge->Self);
+            var     doctrine = repo.GetComponent<DoctrineState>(bridge->Self);
 
-            ref var loco = ref World.GetComponentRW<LocomotionChannel>(entity);
-            var doctrine = World.GetComponent<DoctrineState>(entity);
+            loco.ActiveAction       = NavigationConstants.ActionIdFollowRoute;
+            loco.DoctrineInstanceId = doctrine.InstanceId;
+        }
 
-            if (state == ApcHsmSetup.CruisingStateIndex)
+        /// <summary>
+        /// OnEntry action for the <c>Disabled</c> state.
+        /// Fires exactly once when the HSM transitions into Disabled (on <c>MobilityLost</c> event).
+        /// Clears <see cref="LocomotionChannel"/> and writes
+        /// <see cref="BehaviorConstants.ActionIdEjectPassengers"/> to <see cref="InteractionChannel"/>.
+        /// </summary>
+        public static void OnEnter_Disabled(void* instance, void* context, HsmCommandWriter* writer)
+        {
+            var bridge = (HsmKernelBridge*)context;
+            var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
+
+            var doctrine = repo.GetComponent<DoctrineState>(bridge->Self);
+
+            // Stop movement
+            ref var loco = ref repo.GetComponentRW<LocomotionChannel>(bridge->Self);
+            loco.ActiveAction = 0;
+
+            // Trigger passenger eject — fires exactly once on OnEntry
+            if (repo.HasComponent<InteractionChannel>(bridge->Self))
             {
-                // Write locomotion intent: follow the road graph northward.
-                loco.ActiveAction      = NavigationConstants.ActionIdFollowRoute;
-                loco.DoctrineInstanceId = doctrine.InstanceId;
+                ref var interact = ref repo.GetComponentRW<InteractionChannel>(bridge->Self);
+                interact.ActiveAction       = BehaviorConstants.ActionIdEjectPassengers;
+                interact.DoctrineInstanceId = doctrine.InstanceId;
+                unchecked { interact.ActionInstanceId++; }
             }
-            else if (state == ApcHsmSetup.DisabledStateIndex)
-            {
-                // Stop locomotion.
-                loco.ActiveAction = 0;
-
-                // On first frame entering Disabled: trigger eject.
-                if (prev != ApcHsmSetup.DisabledStateIndex
-                    && World.HasComponent<InteractionChannel>(entity))
-                {
-                    ref var interact = ref World.GetComponentRW<InteractionChannel>(entity);
-                    interact.ActiveAction      = BehaviorConstants.ActionIdEjectPassengers;
-                    interact.DoctrineInstanceId = doctrine.InstanceId;
-                    unchecked { interact.ActionInstanceId++; }
-                }
-            }
-
-            _prevState[key] = state;
         }
     }
 }
 ```
 
-> ⚠️ Verify the actual `LocomotionChannel` and `InteractionChannel` field names (`DoctrineInstanceId`, `ActionInstanceId`) against the actual component definitions before writing. These were inferred from `TrafficBrainSystem` and test helpers.
+> ⚠️ Before writing: verify the exact field names (`DoctrineInstanceId`, `ActionInstanceId`, `ActiveAction`) on `LocomotionChannel` and `InteractionChannel` from their actual struct definitions. The names above are inferred from `TrafficBrainSystem` and test helpers but must be confirmed.
 
-**Tests:**
-```csharp
-[Fact] void ApcBrainOutput_WritesFollowRoute_WhenCruising()
-// Entity: BrainHsm128 (CruisingStateIndex), DoctrineState (BrainTierHsm), LocomotionChannel.
-// Run ApcBrainOutputSystem.
-// Assert: LocomotionChannel.ActiveAction == NavigationConstants.ActionIdFollowRoute.
+---
 
-[Fact] void ApcBrainOutput_ClearsLocomotion_WhenDisabled()
-// Entity: BrainHsm128 (DisabledStateIndex), LocomotionChannel{ActiveAction = ActionIdFollowRoute}.
-// Run ApcBrainOutputSystem.
-// Assert: LocomotionChannel.ActiveAction == 0.
+#### Step D — Delete `ApcBrainOutputSystem`
 
-[Fact] void ApcBrainOutput_WritesEjectPassengers_OnFirstFrameInDisabled()
-// Entity: transition Cruising → Disabled (two Run() calls with state change between them).
-// Assert: InteractionChannel.ActiveAction == BehaviorConstants.ActionIdEjectPassengers on second run.
-// Assert: InteractionChannel.ActiveAction == ActionIdEjectPassengers only on FIRST Disabled frame
-//         (third run with state still Disabled → no second eject written — prev == Disabled).
-```
+**File to delete:** `FDP/Examples/Fdp.Examples.UrbanCombat/Systems/ApcBrainOutputSystem.cs`
 
-**Wire into `HeadlessDemoApp.RegisterSystems()`** — register `ApcBrainOutputSystem` in the `SimulationSystemGroup` after HSM tick but before channel arbitration. The T9 integration test should still pass with this system active.
+Also remove its registration from `HeadlessDemoApp.RegisterSystems()`.
+
+**Why:** With full HSM action delegates implemented, `ApcBrainOutputSystem` is redundant. Worse, if kept, it would race with the action delegates — both writing `LocomotionChannel` in the same frame. The HSM owns its output surface; the external system must not duplicate it.
+
+> After deletion, run the full test suite. If T9 `UrbanAmbush_SimulationRunsToCompletion_WithExpectedMilestones` still passes, the HSM delegates are correctly driving all channels.
 
 ---
 
 ## 🧪 Testing Requirements
 
-- **Corrective-0:** No new test. Existing T9 APC northward movement test covers orientation.
-- **Corrective-1:** No new test. Existing T8 `INTERACTION: EjectPassengers` telemetry test covers the path.
-- **Corrective-2:** No new test. Build-time constant coverage is sufficient.
-- **`ApcBrainOutputSystem`:** 3 new tests (see above).
-- **All existing 26+ UrbanCombat tests + full FDP.sln suite must remain green.**
+### Corrective tests (no new)
+- Corrective-0/1/2 have no new tests; existing tests cover the changed code paths.
+
+### DEBT-007 tests — 3 new (add to `ApcBrainTests.cs` or `BlueprintTests.cs`)
+
+```csharp
+[Fact]
+public void HsmAction_ActivityCruise_WritesFollowRoute_ToLocomotionChannel()
+{
+    // Arrange: entity with LocomotionChannel, DoctrineState, BrainHsm128 in Cruising state
+    // Wire the GCHandle: bridge.WorldHandle = _app.World.UnmanagedHandle
+    // Call: ApcHsmActions.Activity_Cruise(null, &bridge, null)
+    // Assert: LocomotionChannel.ActiveAction == NavigationConstants.ActionIdFollowRoute
+}
+
+[Fact]
+public void HsmAction_OnEnterDisabled_ClearsLocomotion_AndWritesEject()
+{
+    // Arrange: entity with LocomotionChannel (ActiveAction = ActionIdFollowRoute),
+    //          InteractionChannel, DoctrineState
+    //          bridge.WorldHandle = _app.World.UnmanagedHandle
+    // Call: ApcHsmActions.OnEnter_Disabled(null, &bridge, null)
+    // Assert: LocomotionChannel.ActiveAction == 0
+    // Assert: InteractionChannel.ActiveAction == BehaviorConstants.ActionIdEjectPassengers
+}
+
+[Fact]
+public void UnmanagedHandle_RecoveredTarget_IsSameInstance()
+{
+    // Arrange: var repo = new EntityRepository() (already initialized in _app)
+    // Act: var handle = repo.UnmanagedHandle
+    //      var recovered = (EntityRepository)GCHandle.FromIntPtr(handle).Target!
+    // Assert: object.ReferenceEquals(repo, recovered)
+    // (Proves the GCHandle round-trip is correct)
+}
+```
+
+### Integration
+- **T9 `UrbanAmbush_SimulationRunsToCompletion_WithExpectedMilestones` must still pass after Step D (ApcBrainOutputSystem deletion).** This is the gate. If it fails, diagnose — the HSM delegates are not firing (likely the action delegates are not registered with the dispatcher; see **ApcHsmSetup.Build()** to verify registration names match).
 
 ---
 
@@ -298,22 +348,31 @@ public class ApcBrainOutputSystem : ComponentSystem
 
 `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\reports\BATCH-17-REPORT.md`
 
-**Q1:** After adding `ApcBrainOutputSystem`, does the T9 `UrbanAmbush_SimulationRunsToCompletion_WithExpectedMilestones` test still pass? Were any milestone timings affected?
+**Q1:** After Step D (delete `ApcBrainOutputSystem`), does T9 still pass? If milestones are missing, which are missing and what is the root cause?
 
-**Q2:** Does `LocomotionChannel.DoctrineInstanceId` actually exist on the struct? If the field name is different, what is it?
+**Q2:** What `GCHandleType` did you use (`Normal` or `Pinned`) and why? What would go wrong with `Pinned`?
 
-**Q3:** With `ApcBrainOutputSystem` active, does the APC actually move northward further in T9? (Check APC position at frame 100 vs previous run.)
+**Q3:** Are the HSM action delegate names in `ApcHsmActions.cs` (`"Activity_Cruise"`, `"OnEnter_Disabled"`) correctly registered in `ApcHsmSetup.Build()`? Show the registration calls.
 
-**Q4:** Any surprises?
+**Q4:** Does `FdpHsmContext` (the old user-facing struct) still exist after your changes? If so, is it referenced anywhere?
+
+**Q5:** Any surprises?
 
 ---
 
 ## 🎯 Success Criteria
 
-- [ ] **DEBT-037** resolved: `SimMath.FromYaw` in `ScenarioDirector.cs`; no `Quaternion.CreateFromYawPitchRoll` in any production file in `Fdp.Examples.UrbanCombat`.
-- [ ] **DEBT-038** resolved: `BehaviorConstants.ActionIdEjectPassengers = 3` exists; `TelemetryReporterSystem` and `EjectPassengersExecutor` doc updated.
-- [ ] **DEBT-036** resolved: `SpatialHashConstants.cs` created; `SpatialHashSystem.OnCreate()` uses named constants.
-- [ ] **DEBT-007** progress: `ApcBrainOutputSystem` implemented and registered; 3 tests pass; APC moves northward (T9 movement test still passes).
+- [ ] **DEBT-037** resolved: `SimMath.FromYaw` in `ScenarioDirector.cs`.
+- [ ] **DEBT-038** resolved: `BehaviorConstants.ActionIdEjectPassengers`; `TelemetryReporterSystem` and `EjectPassengersExecutor` doc updated.
+- [ ] **DEBT-036** resolved: `SpatialHashConstants.cs`; `SpatialHashSystem.OnCreate()` uses named constants.
+- [ ] **DEBT-007 FULLY resolved:**
+  - [ ] `EntityRepository.UnmanagedHandle` property added; `_selfHandle` allocated in constructor, freed in `Dispose`.
+  - [ ] `HsmKernelBridge.WorldHandle : IntPtr` field added.
+  - [ ] `ApcHsmActions.Activity_Cruise` writes `ActionIdFollowRoute` to `LocomotionChannel`.
+  - [ ] `ApcHsmActions.OnEnter_Disabled` clears locomotion and writes `ActionIdEjectPassengers` to `InteractionChannel`.
+  - [ ] `ApcBrainOutputSystem` deleted; its wiring removed from `HeadlessDemoApp`.
+  - [ ] 3 new tests pass.
+  - [ ] T9 full-run milestone test still passes.
 - [ ] **Zero build errors; all tests green.**
 - [ ] **Report submitted.**
 
@@ -321,12 +380,15 @@ public class ApcBrainOutputSystem : ComponentSystem
 
 ## 📚 Reference Materials
 
-- **BATCH-16 Review:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\reviews\BATCH-16-REVIEW.md`
-- **DEBT-TRACKER:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\DEBT-TRACKER.md`
-- **CODE-STANDARDS.md:** `D:\Work\IOS-IG-SimHost-FDP\.dev-workstream\guides\CODE-STANDARDS.md`
-- **`SimMath.cs`:** `FDP/Kernel/Fdp.Kernel/CoreComponents/SimMath.cs`
-- **`BehaviorConstants.cs`:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs`
+- **DEBT-007 Analysis:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\guides\DEBT-007-HSM-ANALYSIS.md` ← primary reference
+- **FastHSM kernel:** `FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/HsmKernel.cs` (lines 91–92 — the `fixed` pin)
+- **`HsmTickSystem.cs`:** `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/HsmTickSystem.cs`
+- **`EntityRepository.cs`:** `FDP/Kernel/Fdp.Kernel/EntityRepository.cs`
 - **`ApcHsmSetup.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Brains/ApcHsmSetup.cs`
+- **`ApcHsmActions.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Brains/ApcHsmActions.cs`
+- **`BehaviorConstants.cs`:** `FDP/Toolkits/FDP.Toolkit.Behavior/BehaviorConstants.cs`
 - **`ScenarioDirector.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/ScenarioDirector.cs`
 - **`TelemetryReporterSystem.cs`:** `FDP/Examples/Fdp.Examples.UrbanCombat/Systems/TelemetryReporterSystem.cs`
 - **`SpatialHashSystem.cs`:** `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/SpatialHashSystem.cs`
+- **DEBT-TRACKER:** `D:\Work\IOS-IG-SimHost-FDP\FDP\.dev-workstream\DEBT-TRACKER.md`
+- **CODE-STANDARDS.md:** `D:\Work\IOS-IG-SimHost-FDP\.dev-workstream\guides\CODE-STANDARDS.md`
