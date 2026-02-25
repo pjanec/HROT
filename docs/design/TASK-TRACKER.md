@@ -126,7 +126,7 @@
 
 ## SIMHOST MOCK
 
-**Progress:** 9/28 tasks complete (32%)
+**Progress:** 12/28 tasks complete (42%)
 
 **Dependencies:** Requires Shared Components P1-P6 complete
 
@@ -167,9 +167,9 @@
 
 ### Phase S6: Integration Testing
 
-- [ ] **S6.1** Test Entity Creation Flow [details](./TASK-DETAILS-SIMHOST.md#task-s61-test-entity-creation-flow)
-- [ ] **S6.2** Test Mission Execution [details](./TASK-DETAILS-SIMHOST.md#task-s62-test-mission-execution)
-- [ ] **S6.3** Performance Testing [details](./TASK-DETAILS-SIMHOST.md#task-s63-performance-testing)
+- [x] **S6.1** Test Entity Creation Flow [details](./TASK-DETAILS-SIMHOST.md#task-s61-test-entity-creation-flow)
+- [x] **S6.2** Test Mission Execution [details](./TASK-DETAILS-SIMHOST.md#task-s62-test-mission-execution)
+- [x] **S6.3** Performance Testing [details](./TASK-DETAILS-SIMHOST.md#task-s63-performance-testing)
 
 ### Phase S7: Documentation
 
