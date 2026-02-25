@@ -32,11 +32,26 @@ Look for:
 - ❌ Obvious performance issues (new allocations on hot path)
 - ❌ Unhandled edge cases from spec
 
+**Code Standards checks** (`CODE-STANDARDS.md`):
+- ❌ Magic numbers in production code — all literals must be named constants (§1)
+- ❌ Raw `Quaternion.CreateFromYawPitchRoll` or `System.Numerics` quaternion math — use `SimMath` (§2)
+- ❌ `GetComponentRW` called from async/background context — use command buffer (§3)
+- ❌ `new` allocations or LINQ inside `OnUpdate` loops (§4)
+- ❌ Managed reference fields on ECS components or missing `[StructLayout(LayoutKind.Sequential)]` (§5)
+
 ### Step 3: Review Tests — CRITICAL (15–20 min)
 
 **⚠️ ALWAYS VIEW THE ACTUAL TEST CODE. Never trust test names or counts.**
 
 Use your file viewing tools on test files. Read the actual assertions.
+
+Also apply the **mandatory test quality questions** from `CODE-STANDARDS.md` §0 — key questions:
+- Does it assert the specific field/value that matters, or just "no exception"?
+- Does it verify the full chain, not just isolated units?
+- Does it distinguish "fired" from "fired correctly"?
+- When a named constant exists in production code, does the test reference it?
+- Is there a negative case for every positive case?
+- Does the test catch a realistic regression, or only the implementation as written?
 
 **Common test quality failures to reject:**
 

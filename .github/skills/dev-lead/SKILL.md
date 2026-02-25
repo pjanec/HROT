@@ -58,8 +58,9 @@ When developer submits `reports/BATCH-XX-REPORT.md`:
 2. Review code changes (`git diff --stat`, then view changed files)
 3. **View actual test code** — do NOT trust test names or counts
 4. Check completeness against batch spec
-5. Run tests (`dotnet test`)
-6. Write `reviews/BATCH-XX-REVIEW.md`
+5. Check code and tests against `references/CODE-STANDARDS.md`
+6. Run tests (`dotnet test`)
+7. Write `reviews/BATCH-XX-REVIEW.md`
 
 Full review criteria, test quality standards, and review template:
 → **[references/reviewing.md](references/reviewing.md)**
@@ -88,3 +89,4 @@ Commit message format and task tracking procedures:
 - **[references/batch-writing.md](references/batch-writing.md)** — Batch structure template, onboarding section, writing rules
 - **[references/reviewing.md](references/reviewing.md)** — Review process, test quality criteria (with failure examples), review template
 - **[references/tracking.md](references/tracking.md)** — Task tracking system structure, commit message format
+- **`references/CODE-STANDARDS.md`** — Standing code and test quality rules; read during every review
