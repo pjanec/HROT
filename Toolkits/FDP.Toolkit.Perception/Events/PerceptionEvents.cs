@@ -41,11 +41,11 @@ namespace FDP.Toolkit.Perception.Events
     [StructLayout(LayoutKind.Sequential)]
     public struct LosCheckRequestEvent
     {
-        /// <summary>Entity index of the observer (the entity performing the vision check).</summary>
-        public int ObserverEntityIndex;
+        /// <summary>The observer entity performing the LOS check (full handle: index + generation).</summary>
+        public Entity Observer;
 
-        /// <summary>Entity index of the potential target.</summary>
-        public int TargetEntityIndex;
+        /// <summary>The potential target entity (full handle: index + generation).</summary>
+        public Entity Target;
     }
 
     // ── TargetVisibleEvent ────────────────────────────────────────────────────────
@@ -59,10 +59,10 @@ namespace FDP.Toolkit.Perception.Events
     [StructLayout(LayoutKind.Sequential)]
     public struct TargetVisibleEvent
     {
-        /// <summary>Entity index of the observer that can see the target.</summary>
-        public int ObserverEntityIndex;
+        /// <summary>The observer entity that has confirmed LOS to <see cref="Target"/>.</summary>
+        public Entity Observer;
 
-        /// <summary>Entity index of the confirmed visible target.</summary>
-        public int TargetEntityIndex;
+        /// <summary>The target entity confirmed visible to <see cref="Observer"/>.</summary>
+        public Entity Target;
     }
 }

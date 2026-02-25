@@ -72,19 +72,14 @@ namespace FDP.Toolkit.Physics.Systems
                 else
                 {
                     // LOS hit → emit TargetVisibleEvent (Perception toolkit consumes it).
-                    int observerIdx = (int)(hit.RayId >> 32);
-                    int targetIdx   = (int)(hit.RayId & 0xFFFF_FFFFL);
-
-                    // DEBT-027: TargetVisibleEvent carries raw int indices (ObserverEntityIndex, TargetEntityIndex).
-                    // These were packed into RayId as raw ints by LosRequestBatchingSystem.
-                    // If an entity is destroyed and its index recycled between LOS submission and event consumption
-                    // by ThreatEvaluationSystem, the wrong entity's threat memory could be updated.
-                    // Full fix: carry full Entity handles (Index + Generation) through the LOS event pipeline.
-                    // Deferred to when LosRequestBatchingSystem is reworked.
+                    // Full Entity handles propagated from RaycastRequest — no index-only recovery needed.
+                    // IsAlive checks are intentionally deferred to ThreatEvaluationSystem (the consumer),
+                    // since a one-frame entity destruction between solve and emit is possible but does not
+                    // warrant a check here — the consumer applies the generational guard.
                     World.Bus.Publish(new TargetVisibleEvent
                     {
-                        ObserverEntityIndex = observerIdx,
-                        TargetEntityIndex   = targetIdx,
+                        Observer = hit.Observer,
+                        Target   = hit.Target,
                     });
                 }
             }

@@ -40,20 +40,24 @@ namespace FDP.Toolkit.Physics.Tests
 
         /// <summary>
         /// A hit with a LOS RayId (bit 63 = 0) must cause the system to publish a
-        /// <see cref="TargetVisibleEvent"/> with the correct observer and target indices.
+        /// <see cref="TargetVisibleEvent"/> with the correct observer and target entity handles.
         /// </summary>
         [Fact]
         public void HitResolution_EmitsTargetVisibleEvent_ForLosHit()
         {
             // Arrange
-            const int observerIdx = 10;
-            const int targetIdx   = 20;
+            // Use Entity constructors to build full handles (Index + Generation).
+            // HitResolutionSystem reads hit.Observer / hit.Target directly — no world lookup needed.
+            var observerEntity = new Entity(10, 1);
+            var targetEntity   = new Entity(20, 1);
 
             ref var batch = ref _world.GetSingleton<RaycastBatchData>();
             batch.Hits[0] = new RaycastHit
             {
                 HasHit    = 1,
-                RayId     = PhysicsConstants.PackLosRayId(observerIdx, targetIdx),
+                RayId     = PhysicsConstants.PackLosRayId(observerEntity.Index, targetEntity.Index),
+                Observer  = observerEntity,
+                Target    = targetEntity,
                 HitEntity = default,
                 T         = 0.5f,
             };
@@ -66,8 +70,8 @@ namespace FDP.Toolkit.Physics.Tests
             // Assert
             var events = _world.Bus.Consume<TargetVisibleEvent>();
             Assert.Equal(1, events.Length);
-            Assert.Equal(observerIdx, events[0].ObserverEntityIndex);
-            Assert.Equal(targetIdx,   events[0].TargetEntityIndex);
+            Assert.Equal(observerEntity, events[0].Observer);
+            Assert.Equal(targetEntity,   events[0].Target);
         }
 
         // ── Test 2 ────────────────────────────────────────────────────────────────

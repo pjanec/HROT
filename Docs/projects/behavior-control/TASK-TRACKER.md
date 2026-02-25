@@ -1,4 +1,4 @@
-# Behavior Control Subsystem — Task Tracker
+﻿# Behavior Control Subsystem — Task Tracker
 
 **Reference:** See [TASK-DETAIL.md](./TASK-DETAIL.md) for full task descriptions and success criteria.  
 **Design:** See [DESIGN.md](./DESIGN.md) for the architecture and component/system reference.
@@ -124,3 +124,18 @@
 | Phase 6 – Behavior Advanced | 3 | 3 ✅ |
 | Phase 7 – Demo App | 9 | 9 ✅ |
 | **Total** | **43** | **43** ✅ |
+
+---
+
+## 🏁 Project Status — COMPLETE
+
+**All 43 Behavior Control Subsystem tasks complete (BATCH-01 — BATCH-17).**  
+**All 38 tracked debt items resolved (BATCH-01 — BATCH-18).**  
+**Final test count (BATCH-18):** 34 passing, 0 failures.
+
+Phase 7 Urban Ambush demo: 600-frame end-to-end test passes — 14 entities, 7 telemetry milestones,
+HSM (APC), BTree (Insurgent), TrafficBrain (Pedestrians/Cars), EjectPassengers all functional.
+
+LOS pipeline (DEBT-027, resolved BATCH-18): Full `Entity` handles (Index + Generation) flow through
+all 7 pipeline stages; `ThreatEvaluationSystem` applies `IsAlive` generational guards; `TargetMemory`
+keys use `PackedValue` to prevent stale-entity collisions.

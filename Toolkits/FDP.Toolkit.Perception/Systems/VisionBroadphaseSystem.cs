@@ -119,8 +119,8 @@ namespace FDP.Toolkit.Perception.Systems
                     // Passed all broadphase filters â†’ queue a line-of-sight check.
                     ecb.PublishEvent(new LosCheckRequestEvent
                     {
-                        ObserverEntityIndex = observer.Index,
-                        TargetEntityIndex   = target.Index,
+                        Observer = observer,
+                        Target   = target,
                     });
                 }
             }

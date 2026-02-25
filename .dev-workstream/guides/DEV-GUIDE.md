@@ -342,6 +342,23 @@ Verify: Result is not null
 ❌ **Pitfall:** Write all tests at the end, discover design issues  
 ✅ **Solution:** Test as you go (TDD when practical)
 
+### 9. HSM Action Delegates — Registration Is Not Automatic
+
+❌ **Pitfall:** Implement `[HsmAction]`-decorated delegates but forget to register them.
+FastHSM dispatches delegates by FNV-1a hash lookup — without a registration entry the kernel
+silently no-ops. Tests fail with missing telemetry milestones; no error is thrown.
+
+✅ **Solution:** For any assembly containing HSM action methods:
+1. Add `Fhsm.SourceGen` as an `OutputItemType="Analyzer"` project reference in the `.csproj`.
+2. Decorate all delegate methods with `[HsmAction]` (from `Fhsm.Kernel.Attributes`).
+3. Call `{AssemblyName}.Generated.HsmActionRegistrar.RegisterAll()` early in the app's
+   `Initialize()` (before any HSM tick).
+4. Confirm the name string in `HsmSetup.RegisterAction("Method_Name")` matches the actual
+   C# method name exactly (the FNV-1a hash is case-sensitive; a one-character difference
+   causes a silent dispatch miss).
+
+Discovered during BATCH-17 (DEBT-007 GCHandle fix). See `BATCH-17-REPORT.md` Q1.
+
 ---
 
 ## 📊 Report Quality Standards

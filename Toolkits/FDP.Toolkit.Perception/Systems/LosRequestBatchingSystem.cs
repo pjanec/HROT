@@ -48,12 +48,14 @@ namespace FDP.Toolkit.Perception.Systems
             {
                 // Mock mode: treat broadphase visibility as confirmed LOS.
                 // Directly publish a TargetVisibleEvent for every incoming request.
+                // Full Entity handles are passed straight through — no generation re-acquisition needed;
+                // the event was just emitted this frame and both entities were alive at emission.
                 foreach (ref readonly var req in requests)
                 {
                     World.Bus.Publish(new TargetVisibleEvent
                     {
-                        ObserverEntityIndex = req.ObserverEntityIndex,
-                        TargetEntityIndex   = req.TargetEntityIndex,
+                        Observer = req.Observer,
+                        Target   = req.Target,
                     });
                 }
             }
@@ -61,10 +63,11 @@ namespace FDP.Toolkit.Perception.Systems
             {
                 // Production mode (Phase 3+): batch rays into RaycastBatchData.
                 // TODO: Add to RaycastBatchData.Requests when the Physics toolkit is available.
+                // Use req.Observer and req.Target (full Entity handles) — do NOT re-pack as raw indices.
                 // foreach (ref readonly var req in requests)
                 // {
                 //     var raycastBatch = ref World.GetSingleton<RaycastBatchData>();
-                //     raycastBatch.AddRequest(req.ObserverEntityIndex, req.TargetEntityIndex);
+                //     raycastBatch.AddRequest(req.Observer, req.Target);
                 // }
             }
         }

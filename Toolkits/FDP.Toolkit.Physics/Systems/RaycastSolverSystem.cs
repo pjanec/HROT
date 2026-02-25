@@ -133,6 +133,8 @@ namespace FDP.Toolkit.Physics.Systems
                     T         = bestT,
                     HitEntity = bestEnt,
                     RayId     = req.RayId,
+                    Observer  = req.Observer,
+                    Target    = req.Target,
                     HasHit    = (byte)(anyHit ? 1 : 0),
                 };
                 } // end unsafe

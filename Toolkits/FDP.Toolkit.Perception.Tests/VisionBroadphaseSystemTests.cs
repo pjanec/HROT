@@ -100,8 +100,8 @@ namespace FDP.Toolkit.Perception.Tests
             // Assert â€” exactly one LOS request emitted.
             var events = world.Bus.Consume<LosCheckRequestEvent>();
             Assert.Equal(1, events.Length);
-            Assert.Equal(observer.Index, events[0].ObserverEntityIndex);
-            Assert.Equal(target.Index,   events[0].TargetEntityIndex);
+            Assert.Equal(observer, events[0].Observer);
+            Assert.Equal(target,   events[0].Target);
 
             grid.Dispose();
         }
@@ -325,8 +325,8 @@ namespace FDP.Toolkit.Perception.Tests
             // If the system were scanning the world it would emit two events (one per enemy).
             var events = world.Bus.Consume<LosCheckRequestEvent>();
             Assert.Equal(1, events.Length);
-            Assert.Equal(observer.Index, events[0].ObserverEntityIndex);
-            Assert.Equal(targetA.Index,  events[0].TargetEntityIndex);
+            Assert.Equal(observer, events[0].Observer);
+            Assert.Equal(targetA,  events[0].Target);
 
             grid.Dispose();
         }

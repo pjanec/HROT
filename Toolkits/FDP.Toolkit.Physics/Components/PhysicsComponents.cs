@@ -60,6 +60,21 @@ namespace FDP.Toolkit.Physics.Components
         public Entity IgnoreEntity;
 
         /// <summary>
+        /// For LOS rays: the observer entity (full handle: index + generation).
+        /// Zero/Null for bullet rays.
+        /// Propagated unchanged to <see cref="RaycastHit.Observer"/> for recovery in
+        /// <see cref="Systems.HitResolutionSystem"/> without bit-unpacking from <see cref="RayId"/>.
+        /// </summary>
+        public Entity Observer;
+
+        /// <summary>
+        /// For LOS rays: the target entity (full handle: index + generation).
+        /// Zero/Null for bullet rays.
+        /// Propagated unchanged to <see cref="RaycastHit.Target"/>.
+        /// </summary>
+        public Entity Target;
+
+        /// <summary>
         /// Layer bitmask. The ray only interacts with entities whose
         /// <see cref="PhysicsCollider.CollisionLayer"/> has at least one shared bit.
         /// </summary>
@@ -84,6 +99,18 @@ namespace FDP.Toolkit.Physics.Components
 
         /// <summary>Mirrors <see cref="RaycastRequest.RayId"/> for correlation with the original request.</summary>
         public long RayId;
+
+        /// <summary>
+        /// For LOS rays: observer entity propagated from <see cref="RaycastRequest.Observer"/>.
+        /// Used by <see cref="Systems.HitResolutionSystem"/> to emit <see cref="FDP.Toolkit.Perception.Events.TargetVisibleEvent"/>
+        /// without bit-unpacking from <see cref="RayId"/>.
+        /// </summary>
+        public Entity Observer;
+
+        /// <summary>
+        /// For LOS rays: target entity propagated from <see cref="RaycastRequest.Target"/>.
+        /// </summary>
+        public Entity Target;
 
         /// <summary>0 = miss, 1 = hit.</summary>
         public byte HasHit;

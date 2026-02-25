@@ -78,39 +78,32 @@ namespace FDP.Toolkit.Perception.Systems
             var visibleEvents = view.ConsumeEvents<TargetVisibleEvent>();
             foreach (ref readonly var evt in visibleEvents)
             {
-                // Find the observer entity by index in the query.
-                // We iterate again (harmless — entity count is bounded in Phase 2).
-                var observerQuery = view.Query().With<TargetMemory>().With<SimTransform>().Build();
-                foreach (var observer in observerQuery)
-                {
-                    if (observer.Index != evt.ObserverEntityIndex) continue;
+                // Generational guard — entity may have been destroyed between LOS submission and now.
+                // Using full Entity handles (Observer/Target) means a recycled index cannot silently
+                // match a different entity; generation mismatch causes IsAlive to return false.
+                if (!view.IsAlive(evt.Observer) || !view.IsAlive(evt.Target))
+                    continue;
 
-                    ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(observer);
-                    TargetMemory mem = memRO;
+                if (!view.HasComponent<TargetMemory>(evt.Observer))
+                    continue;
 
-                    // Resolve target position for TargetMemory update.
-                    float posX = 0f, posY = 0f;
-                    var targetQuery = view.Query().With<SimTransform>().Build();
-                    foreach (var tgt in targetQuery)
-                    {
-                        if (tgt.Index != evt.TargetEntityIndex) continue;
-                        ref readonly var tgtTf = ref view.GetComponentRO<SimTransform>(tgt);
-                        posX = tgtTf.Position.X;
-                        posY = tgtTf.Position.Y;
-                        break;
-                    }
+                ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(evt.Observer);
+                TargetMemory mem = memRO;
 
-                    TargetMemory.AddOrUpdateTarget(
-                        ref mem,
-                        entityId:   evt.TargetEntityIndex,
-                        posX:       posX,
-                        posY:       posY,
-                        scoreBoost: VisibleTargetScoreBoost,
-                        tick:       tick);
+                // Resolve target position directly — no loop needed with full Entity handle.
+                ref readonly var tgtTf = ref view.GetComponentRO<SimTransform>(evt.Target);
 
-                    ecb.SetComponent(observer, mem);
-                    break;
-                }
+                // entityId uses the full packed handle (Index + Generation) so that a recycled
+                // entity slot never matches an existing TargetMemory entry for the original entity.
+                TargetMemory.AddOrUpdateTarget(
+                    ref mem,
+                    entityId:   (long)evt.Target.PackedValue,
+                    posX:       tgtTf.Position.X,
+                    posY:       tgtTf.Position.Y,
+                    scoreBoost: VisibleTargetScoreBoost,
+                    tick:       tick);
+
+                ecb.SetComponent(evt.Observer, mem);
             }
         }
     }

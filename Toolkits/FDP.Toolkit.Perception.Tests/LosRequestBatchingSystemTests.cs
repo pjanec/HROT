@@ -27,9 +27,15 @@ namespace FDP.Toolkit.Perception.Tests
             var sys   = new LosRequestBatchingSystem(mockMode: true);
             sys.Create(world);
 
+            // Build two entity pairs with full Entity handles (Index + Generation).
+            var obs1 = new Entity(1, 1);
+            var tgt1 = new Entity(2, 1);
+            var obs2 = new Entity(3, 1);
+            var tgt2 = new Entity(4, 1);
+
             // Publish two LOS requests.
-            world.Bus.Publish(new LosCheckRequestEvent { ObserverEntityIndex = 1, TargetEntityIndex = 2 });
-            world.Bus.Publish(new LosCheckRequestEvent { ObserverEntityIndex = 3, TargetEntityIndex = 4 });
+            world.Bus.Publish(new LosCheckRequestEvent { Observer = obs1, Target = tgt1 });
+            world.Bus.Publish(new LosCheckRequestEvent { Observer = obs2, Target = tgt2 });
             // Swap so the system can Consume them.
             world.Bus.SwapBuffers();
 
@@ -41,10 +47,10 @@ namespace FDP.Toolkit.Perception.Tests
             // Assert — two TargetVisibleEvents, one per request, in order.
             var events = world.Bus.Consume<TargetVisibleEvent>();
             Assert.Equal(2, events.Length);
-            Assert.Equal(1, events[0].ObserverEntityIndex);
-            Assert.Equal(2, events[0].TargetEntityIndex);
-            Assert.Equal(3, events[1].ObserverEntityIndex);
-            Assert.Equal(4, events[1].TargetEntityIndex);
+            Assert.Equal(obs1, events[0].Observer);
+            Assert.Equal(tgt1, events[0].Target);
+            Assert.Equal(obs2, events[1].Observer);
+            Assert.Equal(tgt2, events[1].Target);
         }
 
         // ── Test 2 ───────────────────────────────────────────────────────────────
@@ -57,7 +63,7 @@ namespace FDP.Toolkit.Perception.Tests
             var sys   = new LosRequestBatchingSystem(mockMode: false); // production path
             sys.Create(world);
 
-            world.Bus.Publish(new LosCheckRequestEvent { ObserverEntityIndex = 5, TargetEntityIndex = 6 });
+            world.Bus.Publish(new LosCheckRequestEvent { Observer = new Entity(5, 1), Target = new Entity(6, 1) });
             world.Bus.SwapBuffers();
 
             // Act
