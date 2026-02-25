@@ -171,11 +171,11 @@
 - [x] **S6.2** Test Mission Execution [details](./TASK-DETAILS-SIMHOST.md#task-s62-test-mission-execution)
 - [x] **S6.3** Performance Testing [details](./TASK-DETAILS-SIMHOST.md#task-s63-performance-testing)
 
-### Phase S7: Documentation
+### Phase S7: Documentation (SKIPPED)
 
-- [ ] **S7.1** Create User Guide [details](./TASK-DETAILS-SIMHOST.md#task-s71-create-user-guide)
-- [ ] **S7.2** Create Configuration Reference [details](./TASK-DETAILS-SIMHOST.md#task-s72-create-configuration-reference)
-- [ ] **S7.3** Add Code Documentation [details](./TASK-DETAILS-SIMHOST.md#task-s73-add-code-documentation)
+- [~] ~~**S7.1** Create User Guide~~
+- [~] ~~**S7.2** Create Configuration Reference~~
+- [~] ~~**S7.3** Add Code Documentation~~
 
 ---
 
