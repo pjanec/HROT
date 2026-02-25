@@ -354,10 +354,10 @@ kernel.RegisterModule(new SpawningModule());
    - Red = unknown
    - Size = 10 pixels
 2. Add `EntityRenderLayer` to MapCanvas
-3. Create query: `With<EntityMasterComponent, SimTransform>`
+3. Create query: `With<EntityMaster, SimTransform>`
 4. Test with SimHost spawning 10 entities
 
-> ⚠️ **Phase 0 Note (SimTransform):** `SimTransform` from `Fdp.Kernel` is the single canonical spatial component — do **not** redefine it locally in the IG project. All ECS queries, field accesses (`transform.Position`, `transform.Rotation`), and spawn calls (`new SimTransform { Position = ..., Rotation = ... }`) throughout this document are already correct as written. See BCS-P0-T1.
+> ⚠️ **Ensure `EntityMaster` is imported from `Bagira.DDS.DataModel` and `SimTransform` from `Fdp.Kernel`. Do NOT create local wrappers.** All ECS queries, field accesses (`transform.Position`, `transform.Rotation`), and spawn calls are already correct as written.
 
 **Implementation:**
 ```csharp
@@ -471,7 +471,7 @@ public class StubVisualizerAdapter : IVisualizerAdapter
 1. Create `StyleResolutionSystem`:
    - Phase: `Simulation`
    - UpdateAfter: `NetworkIngressPhase`
-2. Query: `With<EntityMasterComponent, SimTransform>`
+2. Query: `With<EntityMaster, SimTransform>`
 3. Resolution layers:
    - **Layer 1 (TKB)**: Read `IgVisualDef` from TkbDatabase
    - **Layer 2 (Network)**: Apply `MapEntitySymbol` overrides (color, label, texture)
@@ -496,8 +496,7 @@ public class StyleResolutionSystem : ComponentSystem
     
     protected override void OnUpdate()
     {
-        // SimTransform from Fdp.Kernel — query is already correct.
-        Entities.With<EntityMasterComponent, SimTransform>().ForEach((entity, ref master, ref transform) =>
+        Entities.With<EntityMaster, SimTransform>().ForEach((entity, ref master, ref transform) =>
         {
             // Layer 1: TKB defaults
             var template = _tkb.GetTemplate(master.TkbType);
@@ -749,8 +748,9 @@ public class MapCullingSystem : ComponentSystem
         var frustum = camera.ViewBounds; // Rectangle in world space
         var zoom = camera.Zoom;
         
-        // SimTransform from Fdp.Kernel — query and field access are already correct.
         Entities.With<SimTransform>().ForEach((entity, ref transform) =>
+        {
+            var pos2D = new Vector2(transform.Position.X, transform.Position.Y);
             bool inFrustum = frustum.Contains(pos2D);
             
             byte lod = 0;
@@ -827,7 +827,7 @@ public class MapCullingSystem : ComponentSystem
 
 **Steps:**
 1. Create `StandardInteractionTool` instance
-2. Pass ECS query: `With<EntityMasterComponent, SimTransform>`
+2. Pass ECS query: `With<EntityMaster, SimTransform>`
 3. Pass `SstVisualizerAdapter` for picking
 4. Subscribe to events:
    - `OnEntitySelectRequest` → Update `SelectionState` component
@@ -839,7 +839,7 @@ public class MapCullingSystem : ComponentSystem
 ```csharp
 var selectionTool = new StandardInteractionTool(
     _world,
-    _world.Query().With<EntityMasterComponent, SimTransform>().Build(),
+    _world.Query().With<EntityMaster, SimTransform>().Build(),
     _visualizerAdapter
 );
 
@@ -1309,9 +1309,8 @@ public class EventToEffectSystem : ComponentSystem
         {
             // Spawn explosion
             var explosion = World.CreateEntity();
-            // ⚠️ Phase 0 Adaptation: Use World.AddComponent (not SetComponent) since the entity is newly created.
-            World.SetComponent(explosion, new SimTransform { Position = evt.TargetPosition });
-            World.SetComponent(explosion, new VisualEffectState
+            World.AddComponent(explosion, new SimTransform { Position = evt.TargetPosition });
+            World.AddComponent(explosion, new VisualEffectState
             {
                 Type = EffectType.Explosion,
                 Duration = 2.0f,
@@ -1322,10 +1321,9 @@ public class EventToEffectSystem : ComponentSystem
             
             // Spawn tracer
             var tracer = World.CreateEntity();
-            // ⚠️ Phase 0 Adaptation: Use World.AddComponent (not SetComponent) since the entity is newly created.
-            World.SetComponent(tracer, new SimTransform { Position = evt.ShooterPosition });
-            World.SetComponent(tracer, new TracerTarget { EndPos = evt.TargetPosition });
-            World.SetComponent(tracer, new VisualEffectState
+            World.AddComponent(tracer, new SimTransform { Position = evt.ShooterPosition });
+            World.AddComponent(tracer, new TracerTarget { EndPos = evt.TargetPosition });
+            World.AddComponent(tracer, new VisualEffectState
             {
                 Type = EffectType.Tracer,
                 Duration = 0.3f,
@@ -1788,8 +1786,8 @@ public void DrawEntityInspector()
         return;
     }
     
-    // EntityMaster
-    if (_world.TryGetComponent<EntityMasterComponent>(selected, out var master))
+    // EntityMaster (DDS)
+    if (_world.TryGetComponent<EntityMaster>(selected, out var master))
     {
         ImGui.Text($"TKB Type: {master.TkbType}");
         ImGui.Text($"DIS Type: {master.DisType}");

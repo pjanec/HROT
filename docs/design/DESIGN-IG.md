@@ -31,10 +31,10 @@
 | **Standard Tools** | ✅ EXISTS | `FDP.Toolkit.Vis2D.Tools.*` | StandardInteractionTool, EntityDragTool, BoxSelectionTool, PointSequenceTool |
 | **Render Layers** | ✅ EXISTS | `FDP.Toolkit.Vis2D.Layers.*` | EntityRenderLayer, DebugGizmoLayer |
 | **Entity Lifecycle** | ✅ EXISTS | `FDP.Toolkit.Lifecycle.EntityLifecycleModule` | Constructing→Active→TearDown states |
-| **Network Ingress** | ✅ EXISTS | `ModuleHost.Network.Cyclone.CycloneIngressSystem` | DDS subscription, entity creation from network |
-| **Network Egress** | ✅ EXISTS | `FDP.Toolkit.Replication.SmartEgressSystem` | Delta tracking, optimized publishing |
+| **Network Ingress** | ✅ EXISTS | `ModuleHost.Network.Cyclone.CycloneNetworkModule` (internal systems) | DDS subscription, entity creation from network |
+| **Network Egress** | ✅ EXISTS | `ModuleHost.Network.Cyclone.CycloneNetworkModule` (internal systems) | Delta tracking, optimized publishing |
 | **Network Entity Map** | ✅ EXISTS | `FDP.Toolkit.Replication.Services.NetworkEntityMap` | Network ID ↔ Local Entity mapping |
-| **Dead Reckoning** | ✅ EXISTS | `NetworkDemo.Systems.TransformSyncSystem` | Interpolate 10Hz network to 60Hz |
+| **Dead Reckoning** | ✅ EXISTS | `Fdp.Examples.NetworkDemo.Systems.TransformSyncSystem` | Interpolate 10Hz network to 60Hz |
 | **TKB Database** | ✅ EXISTS | `FDP.Toolkit.Tkb.TkbDatabase` | Entity templates with descriptors |
 | **Geographic Transform** | ✅ EXISTS | `Fdp.Toolkit.Geographic.WGS84Transform` | WGS84 ↔ Cartesian |
 | **Time Sync** | ✅ EXISTS | `FDP.Toolkit.Time.SlaveTimeController` | Follow SimHost time |
@@ -278,58 +278,24 @@ public class NetworkEntityMap
 }
 ```
 
-**CycloneIngressSystem** (DDS → ECS):
-```csharp
-public class CycloneIngressSystem<T> : IModuleSystem where T : struct
-{
-    public void Execute(ISimulationView view, float dt)
-    {
-        var samples = _reader.Take();
-        foreach (var sample in samples)
-        {
-            var entityId = _translator.ExtractEntityId(sample.Data);
-            var entity = _entityMap.GetOrCreateEntity(entityId);
-            _translator.Apply(entity, sample.Data, view);
-        }
-    }
-}
-```
-
-**SmartEgressSystem** (ECS → DDS) — **internal to `CycloneNetworkModule`**:
-
-> ⚠️ **Do NOT register `SmartEgressSystem` (or `CycloneEgressSystem`) manually.** They are private implementation details of `CycloneNetworkModule`. Adding them to the world separately causes double-execution. IG only creates entities locally in rare cases (ghost overlays); those go through the same `NetworkAuthority` + `CycloneNetworkModule` path. The module registers all egress logic itself when `kernel.RegisterModule(networkModule)` is called.
+> ⚠️ **Architecture note:** Do NOT register `SmartEgressSystem`, `CycloneIngressSystem`, or `CycloneEgressSystem` manually. They are private implementation details of `CycloneNetworkModule`. Provide your translators to the module constructor; the module installs all required systems itself.
 
 ```csharp
-// CORRECT: CycloneNetworkModule owns egress internally.
-// Only supply translators; the module installs SmartEgressSystem itself.
+// CORRECT: CycloneNetworkModule owns all network systems internally.
 var networkModule = new CycloneNetworkModule(
     participant, nodeMapper, idAllocator, topology, elm,
     serialisation, translators, entityMap
 );
-kernel.RegisterModule(networkModule); // SmartEgressSystem registered here
-
-// INCORRECT (do NOT do this):
-// world.AddSystem(new SmartEgressSystem());
-// registry.RegisterSystem(new SmartEgressSystem());
+kernel.RegisterModule(networkModule);
 ```
 
 **Dead Reckoning (TransformSyncSystem from NetworkDemo):**
+
 ```csharp
-[UpdateInPhase(SystemPhase.Simulation)]
-public class TransformSyncSystem : ComponentSystem
-{
-    protected override void OnUpdate(float dt)
-    {
-        // ⚠️ Phase 0 Adaptation: Change query to With<NetworkReceivedState, SimTransform>()
-        //   and confirm field write uses transform.Position (already correct for Fdp.Kernel SimTransform).
-        Entities.With<NetworkReceivedState, SimTransform>().ForEach((entity, ref state, ref transform) =>
-        {
-            // Interpolate 10Hz snapshots → 60Hz smooth position
-            float alpha = ComputeAlpha(state.ReceivedTime, currentTime);
-            transform.Position = Vector3.Lerp(state.LastPos, state.TargetPos, alpha); // Correct: SimTransform.Position
-        });
-    }
-}
+// Dead Reckoning: TransformSyncSystem from NetworkDemo
+// IG's GeoSpatialTranslator converts WGS84 to Cartesian and writes it to NetworkPosition.
+// TransformSyncSystem automatically lerps the visual SimTransform towards NetworkPosition.
+registry.RegisterSystem(new TransformSyncSystem(driveFromNetwork: true));
 ```
 
 ---
@@ -338,37 +304,29 @@ public class TransformSyncSystem : ComponentSystem
 
 **✅ VERIFIED EXISTS** - State machine for entity construction
 
-**EntityLifecycleModule:**
-```csharp
-public class EntityLifecycleModule : IModule
-{
-    public void BeginConstruction(Entity entity, long tkbType, CommandBuffer cmd)
-    {
-        cmd.AddComponent(entity, new LifecycleState(LifecyclePhase.Constructing));
-        cmd.Publish(new ConstructionOrder { Entity = entity, TkbType = tkbType });
-    }
-    
-    public void BeginDestruction(Entity entity, CommandBuffer cmd)
-    {
-        cmd.SetComponent(entity, new LifecycleState(LifecyclePhase.TearDown));
-        cmd.Publish(new DestructionOrder { Entity = entity });
-    }
-}
-```
+> ⚠️ **Architecture note:** IG does not own entity lifecycles. When `EntityMasterTranslator` receives a new entity, it publishes a `SpawnEntityCommand` to the `FdpEventBus`. The shared `NetworkSpawningSystem` handles the ECS instantiation.
 
-**BlueprintApplicationSystem** (reacts to ConstructionOrder):
 ```csharp
-public class BlueprintApplicationSystem : ComponentSystem
+// In EntityMasterTranslator:
+public void OnReceived(Bagira.DDS.EntityMaster sample, SampleInfo info, EntityRepository world)
 {
-    protected override void OnUpdate()
+    if (info.InstanceState == InstanceState.Disposed)
     {
-        var orders = World.ConsumeEvents<ConstructionOrder>();
-        foreach (var order in orders)
+        _eventBus.Publish(new DestroyEntityCommand { NetworkId = sample.EntityId });
+        return;
+    }
+
+    if (!_entityMap.Contains(sample.EntityId))
+    {
+        // New remote entity — delegate to NetworkSpawningSystem
+        _eventBus.Publish(new SpawnEntityCommand
         {
-            var template = _tkb.GetTemplate(order.TkbType);
-            ApplyComponents(order.Entity, template);
-            World.Publish(new ConstructionAck { Entity = order.Entity });
-        }
+            NetworkId = sample.EntityId,
+            TkbType = sample.TkbType,
+            OwnerNodeId = sample.OwnerNodeId,
+            InitType = ReliableInitType.None, // Ghost replica, no ACK handshake
+            InitialComponents = new List<object> { sample }
+        });
     }
 }
 ```
@@ -565,30 +523,9 @@ _timeController.SeedState(new GlobalTime { TotalTime = replayTime });
 
 ### 4.1 ECS Components
 
-**SimTransform** (Internal Cartesian position):
+> ⚠️ **Phase 0 Note (SimTransform):** Use `SimTransform` from `Fdp.Kernel` — do **not** redefine it locally in the IG project. All field access patterns (`transform.Position`, `transform.Rotation`) are already correct as written. ECS queries (`With<SimTransform>()`) need no changes. See BCS-P0-T1.
 
-> ⚠️ **Phase 0 Note (SimTransform):** Use `SimTransform` from `Fdp.Kernel` — do **not** redefine it locally in the IG project. The struct definition below already matches the kernel component exactly. All field access patterns (`transform.Position`, `transform.Rotation`) are already correct as written. ECS queries (`With<SimTransform>()`) need no changes. See BCS-P0-T1.
-
-```csharp
-public struct SimTransform
-{
-    public Vector3 Position;    // Flat Cartesian (meters)
-    public Quaternion Rotation;
-}
-```
-
-**NetworkReceivedState** (Dead reckoning buffer):
-```csharp
-public struct NetworkReceivedState
-{
-    public Vector3 LastPos;
-    public Vector3 TargetPos;
-    public Vector3 Velocity;         // ⚠️ Phase 0: rename to DrVelocity — avoids confusion with SimVelocity.Linear/Angular from Fdp.Kernel
-    public Vector3 Acceleration;
-    public double ReceivedTime;
-    public double TargetTime;
-}
-```
+> ⚠️ **Phase 0 Note (NetworkReceivedState):** Use `NetworkPosition` and `NetworkOrientation` from `FDP.Toolkit.Replication.Components` instead of defining a custom `NetworkReceivedState`. The `TransformSyncSystem` from `Fdp.Examples.NetworkDemo` automatically lerps `SimTransform` towards these network components.
 
 **ResolvedStyle** (Computed visual properties):
 ```csharp
@@ -908,22 +845,24 @@ public class EntityMasterTranslator : ITranslator
 
 **GeoSpatialTranslator** (DDS → ECS):
 ```csharp
-public class GeoSpatialTranslator : IDdsTranslator<Bagira.DDS.GeoSpatial>
+public class GeoSpatialTranslator : ITranslator
 {
     private readonly IGeographicTransform _geo;
+    private readonly NetworkEntityMap _entityMap;
     
-    public void OnReceived(Bagira.DDS.GeoSpatial sample, SampleInfo info)
+    public void OnReceived(Bagira.DDS.GeoSpatial sample, SampleInfo info, EntityRepository world)
     {
         if (!_entityMap.TryGetEntity(sample.EntityId, out var entity)) return;
         
         var cartesian = _geo.ToCartesian(sample.Pos.Latitude, sample.Pos.Longitude, sample.Pos.Altitude);
         
-        World.SetComponent(entity, new NetworkReceivedState
-        {
-            TargetPos = cartesian,
-            TargetTime = info.SourceTimestamp,
-            // Velocity from GeoSpatialDR if available
-        });
+        // Write to Network components. TransformSyncSystem will lerp SimTransform to these values.
+        world.SetComponent(entity, new NetworkPosition { Value = cartesian });
+        
+        // Convert heading to Quaternion
+        float headingRad = sample.Rot.Heading * (MathF.PI / 180f);
+        var rot = Quaternion.CreateFromYawPitchRoll(-headingRad, 0, 0);
+        world.SetComponent(entity, new NetworkOrientation { Value = rot });
     }
 }
 ```
@@ -1633,25 +1572,31 @@ public class IgSubsystem : SubsystemBase
     public override void ConnectToDomain(int domainId)
     {
         _participant = new DdsParticipant(domainId);
-        
-        // Must supply full constructor arguments to CycloneNetworkModule.
-        // See Task IG.1.3 and DESIGN-IG Section 3 for the complete translator list.
-        // Minimal example (expand with actual translators before use):
         var nodeMapper    = new NodeIdMapper(localDomain: domainId, localInstance: _config.NodeId);
-        var topology      = new NetworkTopology { IsServer = false };
+        var topology      = new StaticNetworkTopology(_config.NodeId, Array.Empty<int>());
         var idAllocator   = new DdsIdAllocator(_participant, isServer: false);
         var serialisation = new SerializationRegistry();
         var elm           = _world.GetModule<EntityLifecycleModule>();
 
-        var translators = BuildTranslators(_participant, _entityMap, elm, _geoTransform, _eventBus);
+        var translators = new List<IDescriptorTranslator>
+        {
+            new EntityMasterTranslator(_participant, _entityMap, _eventBus),
+            new GeoSpatialTranslator(_participant, _entityMap, _geoTransform),
+            // CRITICAL: Bridge DDS TimePulse to the EventBus for SlaveTimeController
+            new AutoCycloneTranslator<TimePulseDescriptor>(_participant, "TimePulse", 100, _entityMap)
+        };
+        
+        var (autoTranslators, _) = ReplicationBootstrap.CreateAutoTranslators(_participant, typeof(IgSubsystem).Assembly, _entityMap);
+        translators.AddRange(autoTranslators);
+
         var networkModule = new CycloneNetworkModule(
             _participant, nodeMapper, idAllocator, topology, elm,
             serialisation, translators, _entityMap
         );
-        kernel.RegisterModule(networkModule);
+        _kernel.RegisterModule(networkModule);
         
         // Set SlaveTimeController AFTER network module (so TimePulse subscription exists)
-        kernel.SetTimeController(new SlaveTimeController(_eventBus));
+        _kernel.SetTimeController(new SlaveTimeController(_eventBus));
         
         // Announce presence
         _statusPublisher = new SubsystemStatusPublisher(_participant, _config.NodeId, "ig");
