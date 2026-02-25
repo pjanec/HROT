@@ -20,6 +20,9 @@
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
     <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.SourceGen\Fhsm.SourceGen.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

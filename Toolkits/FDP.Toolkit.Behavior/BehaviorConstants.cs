@@ -42,5 +42,12 @@ namespace FDP.Toolkit.Behavior
         /// Must match the event ID registered in doctrine HSM definitions (by convention: 1).
         /// </summary>
         public const ushort EventId_MobilityLost = 1;
+
+        /// <summary>
+        /// Interaction action ID for the <see cref="Executors.EjectPassengersExecutor"/>.
+        /// Registered with <see cref="Systems.InteractionDispatcherSystem"/> at application startup.
+        /// Value must match the action ID used when registering the executor.
+        /// </summary>
+        public const ushort ActionIdEjectPassengers = 3;
     }
 }

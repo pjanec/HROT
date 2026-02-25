@@ -7,7 +7,8 @@ using FDP.Toolkit.Behavior.Executors;
 namespace FDP.Toolkit.Behavior.Executors
 {
     /// <summary>
-    /// Executor for the <c>EjectPassengers</c> interaction action (kind = 3).
+    /// Executor for the <c>EjectPassengers</c> interaction action
+    /// (<see cref="BehaviorConstants.ActionIdEjectPassengers"/> = 3).
     /// Registered with <see cref="Systems.InteractionDispatcherSystem"/> by the host application.
     ///
     /// <para>Runs on the <b>vehicle</b> entity.  Iterates the vehicle's

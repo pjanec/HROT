@@ -188,7 +188,7 @@ namespace Fdp.Examples.UrbanCombat
             // Set spawn position.
             ref var tf = ref _world.GetComponentRW<SimTransform>(entity);
             tf.Position = position;
-            tf.Rotation = Quaternion.CreateFromYawPitchRoll(yawRadians, 0f, 0f);
+            tf.Rotation = SimMath.FromYaw(yawRadians);
 
             // Assign initial doctrine.
             ref var doctrine = ref _world.GetComponentRW<DoctrineState>(entity);

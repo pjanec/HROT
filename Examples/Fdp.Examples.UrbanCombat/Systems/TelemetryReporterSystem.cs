@@ -58,10 +58,6 @@ namespace Fdp.Examples.UrbanCombat.Systems
         /// <summary>Current frame number (incremented each OnUpdate).</summary>
         private int _frame;
 
-        // ── Action IDs (hardcoded per EjectPassengersExecutor doc comment: kind = 3) ──
-
-        private const ushort EjectPassengersActionId = 3;
-
         // ─────────────────────────────────────────────────────────────────────────
 
         protected override unsafe void OnUpdate()
@@ -168,7 +164,7 @@ namespace Fdp.Examples.UrbanCombat.Systems
             foreach (var entity in qInteract)
             {
                 var channel = World.GetComponent<InteractionChannel>(entity);
-                if (channel.ActiveAction == EjectPassengersActionId)
+                if (channel.ActiveAction == BehaviorConstants.ActionIdEjectPassengers)
                 {
                     System.Console.Out.WriteLine($"{frameTag} INTERACTION: EjectPassengers on entity {entity.Index}");
                 }

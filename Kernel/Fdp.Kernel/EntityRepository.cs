@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Fdp.Kernel.Internal;
 
 namespace Fdp.Kernel
@@ -25,6 +26,12 @@ namespace Fdp.Kernel
         private readonly ComponentMetadataTable _metadata;
         private readonly object _tableLock = new object();
         private bool _disposed;
+
+        // Allocated once at construction; freed in Dispose.
+        // Provides an unmanaged IntPtr that HSM action delegates (via HsmKernelBridge.WorldHandle)
+        // use to recover this EntityRepository through the Fhsm.Kernel unmanaged constraint.
+        // See DEBT-007-HSM-ANALYSIS.md for full explanation.
+        private GCHandle _selfHandle;
         
         // Stage 21: Lifecycle Event Stream
         private NativeEventStream<EntityLifecycleEvent>? _lifecycleStream;
@@ -97,6 +104,7 @@ namespace Fdp.Kernel
         public EntityRepository()
         {
             Bus = new FdpEventBus();
+            _selfHandle = GCHandle.Alloc(this, GCHandleType.Normal);
             _entityIndex = new EntityIndex();
             _componentTables = new Dictionary<Type, IComponentTable>();
             _metadata = new ComponentMetadataTable();
@@ -104,6 +112,14 @@ namespace Fdp.Kernel
             _phaseConfig.BuildCache();  // Build ID cache at initialization
         }
         
+        /// <summary>
+        /// Raw unmanaged handle to this repository. Valid for passing through
+        /// <c>unmanaged</c>-constrained contexts (e.g. <c>HsmKernelBridge</c>).
+        /// Recover via: <c>(EntityRepository)GCHandle.FromIntPtr(handle).Target!</c>
+        /// Remains valid until <see cref="Dispose"/> is called.
+        /// </summary>
+        public IntPtr UnmanagedHandle => GCHandle.ToIntPtr(_selfHandle);
+
         /// <summary>
         /// Total number of active entities.
         /// </summary>
@@ -1843,7 +1859,10 @@ namespace Fdp.Kernel
         public void Dispose()
         {
             if (_disposed) return;
-            
+
+            if (_selfHandle.IsAllocated)
+                _selfHandle.Free();
+
             Bus?.Dispose();
 
             // Dispose all component tables

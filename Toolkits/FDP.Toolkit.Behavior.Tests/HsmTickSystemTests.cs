@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Fdp.Kernel;
 using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
@@ -115,28 +116,31 @@ namespace FDP.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // ── Test 3 (DEBT-007 structural test) ────────────────────────────────
+        // ── Test 3 (DEBT-007 structural test — updated for GCHandle bridge) ────────
         /// <summary>
-        /// <see cref="FdpHsmContext"/> must expose a <c>World</c> field of type
-        /// <see cref="EntityRepository"/> that can be set and read back.
-        /// This confirms the field exists and that <see cref="HsmTickSystem{T}"/>
-        /// can populate it before each entity tick.
+        /// <see cref="HsmKernelBridge.WorldHandle"/> must allow recovering the original
+        /// <see cref="EntityRepository"/> via <c>GCHandle.FromIntPtr</c>.
+        /// This validates the zero-allocation GCHandle round-trip used by HSM action delegates.
+        /// (Replaces the removed <c>FdpHsmContext_ExposesWorldAccess</c> test —
+        /// <c>FdpHsmContext</c> was deleted as part of DEBT-007 full resolution.)
         /// </summary>
         [Fact]
-        public void FdpHsmContext_ExposesWorldAccess()
+        public void HsmKernelBridge_WorldHandle_RoundTrip_RecoversSameInstance()
         {
             var world = TestWorldFactory.Create();
 
-            // Structural test: create context manually and verify the World field
-            // is populated — no HSM execution required.
-            var context = new FdpHsmContext
+            // Act — simulate what HsmTickSystem<T> does each frame:
+            var bridge = new HsmKernelBridge
             {
-                Self  = Entity.Null,
-                World = world,
+                Self        = Entity.Null,
+                WorldHandle = world.UnmanagedHandle,
             };
 
-            Assert.NotNull(context.World);
-            Assert.Same(world, context.World);
+            // Simulate what HSM action delegates do:
+            var recovered = (EntityRepository)GCHandle.FromIntPtr(bridge.WorldHandle).Target!;
+
+            // Assert — same instance recovered
+            Assert.Same(world, recovered);
 
             world.Dispose();
         }
