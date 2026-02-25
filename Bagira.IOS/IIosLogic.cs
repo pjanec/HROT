@@ -21,6 +21,9 @@ public interface IIosLogic
     /// <summary>Service for reading and committing entity mission plans.</summary>
     IMissionEditorService MissionEditorService { get; }
 
+    /// <summary>In-flight DDS request tracker – exposes the pending queue for diagnostics.</summary>
+    IRequestTransactionManager TransactionManager { get; }
+
     // ── Commands ──────────────────────────────────────────────────────────────
 
     /// <summary>

@@ -1,5 +1,6 @@
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
+using Bagira.IOS.Services;
 
 namespace Bagira.IOS.Panels;
 
@@ -91,6 +92,41 @@ public sealed class MissionPanel
             eMissionCommandType.CMD_ABORT_ALL,
             Guid.Empty);
     }
+
+    // ── Conflict alert (IOS.10.3) ────────────────────────────────────────────
+
+    private string? _conflictMessage;
+
+    /// <summary>
+    /// True when a version-conflict commit result is pending user acknowledgement.
+    /// </summary>
+    public bool HasConflictAlert => _conflictMessage is not null;
+
+    /// <summary>
+    /// The conflict error message to show in the ImGui modal.
+    /// <c>null</c> when no alert is active.
+    /// </summary>
+    public string? ConflictMessage => _conflictMessage;
+
+    /// <summary>
+    /// Inspects a <see cref="MissionCommitResult"/> and, when it represents an
+    /// optimistic-lock version conflict
+    /// (<see cref="MissionCommitResult.ErrorCode"/> ==
+    /// <see cref="PanelConstants.VersionConflictErrorCode"/>), stores the error
+    /// message so <see cref="Draw"/> can surface an ImGui modal to the operator.
+    /// </summary>
+    public void HandleConflictResult(MissionCommitResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        if (!result.Success && result.ErrorCode == PanelConstants.VersionConflictErrorCode)
+            _conflictMessage = result.ErrorMessage ?? PanelConstants.VersionConflictErrorMessage;
+    }
+
+    /// <summary>
+    /// Clears the active conflict alert.  Call when the operator dismisses the
+    /// conflict modal.
+    /// </summary>
+    public void DismissConflict() => _conflictMessage = null;
 
     // ── Draw stub (Phase P9) ──────────────────────────────────────────────────
 

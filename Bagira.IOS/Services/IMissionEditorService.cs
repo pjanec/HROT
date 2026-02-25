@@ -19,6 +19,13 @@ public sealed class MissionCommitResult
     /// The new optimistic-lock version after a successful commit. 0 on failure.
     /// </summary>
     public long NewVersion { get; init; }
+
+    /// <summary>
+    /// The numeric error code from the ACK response.  0 on success;
+    /// 7 (<c>ERR_VERSION_CONFLICT</c>) when the server rejected the commit due to
+    /// an optimistic-lock version mismatch.
+    /// </summary>
+    public int ErrorCode { get; init; }
 }
 
 /// <summary>

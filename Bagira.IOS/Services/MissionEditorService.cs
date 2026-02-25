@@ -180,7 +180,8 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
         {
             Success      = ack.ErrorCode == 0,
             ErrorMessage = ack.ErrorMessage,
-            NewVersion   = ack.NewVersion
+            NewVersion   = ack.NewVersion,
+            ErrorCode    = ack.ErrorCode
         });
     }
 

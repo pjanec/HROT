@@ -205,4 +205,139 @@ public class MissionPanelTests
             It.IsAny<Guid>()),
             Times.Once);
     }
+
+    // ── HandleConflictResult / HasConflictAlert / DismissConflict (IOS.10.3) ──
+
+    [Fact]
+    public void HasConflictAlert_InitiallyFalse()
+    {
+        var panel = new MissionPanel();
+        Assert.False(panel.HasConflictAlert);
+    }
+
+    [Fact]
+    public void ConflictMessage_InitiallyNull()
+    {
+        var panel = new MissionPanel();
+        Assert.Null(panel.ConflictMessage);
+    }
+
+    [Fact]
+    public void HandleConflictResult_VersionConflict_SetsHasConflictAlertTrue()
+    {
+        var panel  = new MissionPanel();
+        var result = new MissionCommitResult
+        {
+            Success      = false,
+            ErrorCode    = PanelConstants.VersionConflictErrorCode,
+            ErrorMessage = PanelConstants.VersionConflictErrorMessage
+        };
+
+        panel.HandleConflictResult(result);
+
+        Assert.True(panel.HasConflictAlert);
+    }
+
+    [Fact]
+    public void HandleConflictResult_VersionConflict_StoresErrorMessage()
+    {
+        var panel  = new MissionPanel();
+        var result = new MissionCommitResult
+        {
+            Success      = false,
+            ErrorCode    = PanelConstants.VersionConflictErrorCode,
+            ErrorMessage = PanelConstants.VersionConflictErrorMessage
+        };
+
+        panel.HandleConflictResult(result);
+
+        Assert.Equal(PanelConstants.VersionConflictErrorMessage, panel.ConflictMessage);
+    }
+
+    [Fact]
+    public void HandleConflictResult_SuccessResult_DoesNotSetAlert()
+    {
+        var panel  = new MissionPanel();
+        var result = new MissionCommitResult
+        {
+            Success   = true,
+            ErrorCode = 0,
+            NewVersion = 2
+        };
+
+        panel.HandleConflictResult(result);
+
+        Assert.False(panel.HasConflictAlert);
+    }
+
+    [Fact]
+    public void HandleConflictResult_FailureWithOtherErrorCode_DoesNotSetConflictAlert()
+    {
+        // Error code != 7 (e.g. timeout, permission error) should NOT trigger
+        // the version-conflict modal.
+        var panel  = new MissionPanel();
+        var result = new MissionCommitResult
+        {
+            Success      = false,
+            ErrorCode    = 1,
+            ErrorMessage = "Some other error"
+        };
+
+        panel.HandleConflictResult(result);
+
+        Assert.False(panel.HasConflictAlert);
+    }
+
+    [Fact]
+    public void HandleConflictResult_NullResult_Throws()
+    {
+        var panel = new MissionPanel();
+        Assert.Throws<ArgumentNullException>(() => panel.HandleConflictResult(null!));
+    }
+
+    [Fact]
+    public void HandleConflictResult_ConflictWithNullMessage_FallsBackToConstant()
+    {
+        var panel  = new MissionPanel();
+        var result = new MissionCommitResult
+        {
+            Success      = false,
+            ErrorCode    = PanelConstants.VersionConflictErrorCode,
+            ErrorMessage = null   // null message from ACK
+        };
+
+        panel.HandleConflictResult(result);
+
+        Assert.True(panel.HasConflictAlert);
+        Assert.Equal(PanelConstants.VersionConflictErrorMessage, panel.ConflictMessage);
+    }
+
+    [Fact]
+    public void DismissConflict_ClearsAlertAndMessage()
+    {
+        var panel  = new MissionPanel();
+        panel.HandleConflictResult(new MissionCommitResult
+        {
+            Success   = false,
+            ErrorCode = PanelConstants.VersionConflictErrorCode,
+            ErrorMessage = PanelConstants.VersionConflictErrorMessage
+        });
+        Assert.True(panel.HasConflictAlert);
+
+        panel.DismissConflict();
+
+        Assert.False(panel.HasConflictAlert);
+        Assert.Null(panel.ConflictMessage);
+    }
+
+    [Fact]
+    public void DismissConflict_WhenNoAlertActive_IsNoOp()
+    {
+        var panel = new MissionPanel();
+
+        var ex = Record.Exception(() => panel.DismissConflict());
+
+        Assert.Null(ex);
+        Assert.False(panel.HasConflictAlert);
+    }
 }

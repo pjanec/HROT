@@ -31,6 +31,8 @@ public sealed class IosMock : IDisposable
     private readonly MissionPanel     _missionPanel;
     private readonly InteractionPanel _interactionPanel;
     private readonly SpawnerPanel     _spawnerPanel;
+    private readonly InspectorPanel   _inspectorPanel;
+    private readonly DiagnosticsPanel _diagnosticsPanel;
 
     private bool _disposed;
 
@@ -48,7 +50,9 @@ public sealed class IosMock : IDisposable
         OrbatPanel       orbatPanel,
         MissionPanel     missionPanel,
         InteractionPanel interactionPanel,
-        SpawnerPanel     spawnerPanel)
+        SpawnerPanel     spawnerPanel,
+        InspectorPanel?  inspectorPanel   = null,
+        DiagnosticsPanel? diagnosticsPanel = null)
     {
         _logic            = logic            ?? throw new ArgumentNullException(nameof(logic));
         _configPanel      = configPanel      ?? throw new ArgumentNullException(nameof(configPanel));
@@ -56,6 +60,8 @@ public sealed class IosMock : IDisposable
         _missionPanel     = missionPanel     ?? throw new ArgumentNullException(nameof(missionPanel));
         _interactionPanel = interactionPanel ?? throw new ArgumentNullException(nameof(interactionPanel));
         _spawnerPanel     = spawnerPanel     ?? throw new ArgumentNullException(nameof(spawnerPanel));
+        _inspectorPanel   = inspectorPanel   ?? new InspectorPanel();
+        _diagnosticsPanel = diagnosticsPanel ?? new DiagnosticsPanel();
     }
 
     // ── Per-frame update ──────────────────────────────────────────────────────
@@ -91,6 +97,16 @@ public sealed class IosMock : IDisposable
         //    We consume the flag here to avoid re-triggering every frame.
         if (_logic.SpawnerRequested)
             _logic.ConsumeSpawnerRequest();
+
+        // 4. Notify the inspector panel of any selection change.
+        //    Entity lookup is O(1); the panel skips work when the ID is unchanged.
+        var selectedEntity = _logic.SelectedEntityId != PanelConstants.InspectorNoSelection
+            ? _logic.Repo.GetEntity(_logic.SelectedEntityId)
+            : null;
+        _inspectorPanel.NotifySelectionChanged(selectedEntity);
+
+        // 5. Advance the diagnostics event-rate sample window.
+        _diagnosticsPanel.Update(dt);
     }
 
     // ── Per-frame render ──────────────────────────────────────────────────────
@@ -108,7 +124,7 @@ public sealed class IosMock : IDisposable
     {
         ThrowIfDisposed();
 
-        // Phase P9 – wire ImGui panels once Raylib/rlImGui is linked:
+        // Phase P9/P10 – wire ImGui panels once Raylib/rlImGui is linked:
         //
         // if (ImGui.BeginMainMenuBar())
         // {
@@ -124,6 +140,8 @@ public sealed class IosMock : IDisposable
         // _missionPanel.Draw(_logic);
         // _interactionPanel.Draw(_logic);
         // _spawnerPanel.Draw(_logic);
+        // _inspectorPanel.Draw(_logic);
+        // _diagnosticsPanel.Draw(_logic);
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────────

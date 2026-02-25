@@ -46,4 +46,44 @@ public static class PanelConstants
     /// text fields across the IOS panels.
     /// </summary>
     public const int FilterTextMaxLength = 256;
+
+    // ── InspectorPanel ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Sentinel entity-ID value used by <see cref="InspectorPanel"/> to
+    /// indicate that no entity is currently selected.
+    /// </summary>
+    public const int InspectorNoSelection = 0;
+
+    /// <summary>
+    /// Hard cap on the total number of descriptor field lines that
+    /// <see cref="InspectorPanel"/> will cache per entity.  Prevents unbounded
+    /// allocation for pathological entities with many descriptors.
+    /// </summary>
+    public const int InspectorMaxTotalLines = 256;
+
+    // ── DiagnosticsPanel ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Duration (in seconds) of the rolling event-rate sample window used by
+    /// <see cref="DiagnosticsPanel"/>. After this window elapses a new
+    /// events-per-second reading is committed and the counter resets.
+    /// </summary>
+    public const float DiagnosticsEventRateSampleWindowS = 5.0f;
+
+    // ── MissionPanel – conflict detection ─────────────────────────────────────
+
+    /// <summary>
+    /// The <c>ErrorMessage</c> string that identifies an optimistic-lock
+    /// version-conflict result returned from the SimHost.
+    /// Matches <c>MissionControlAck.ErrorMessage</c> when
+    /// <c>ErrorCode == <see cref="VersionConflictErrorCode"/></c>.
+    /// </summary>
+    public const string VersionConflictErrorMessage = "ERR_VERSION_CONFLICT";
+
+    /// <summary>
+    /// The numeric error code that signals an optimistic-lock version conflict
+    /// (<c>MissionControlAck.ErrorCode == 7</c>).
+    /// </summary>
+    public const int VersionConflictErrorCode = 7;
 }
