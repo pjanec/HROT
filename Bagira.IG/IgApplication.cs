@@ -6,6 +6,7 @@ using Bagira.IG.Adapters;
 using Bagira.IG.Components;
 using Bagira.IG.Modules;
 using Bagira.IG.Systems;
+using Bagira.IG.Tools;
 using Bagira.IG.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
@@ -123,6 +124,7 @@ public class IgApplication
         // Pre-register components produced by style and culling systems.
         _world.RegisterComponent<ResolvedStyle>();
         _world.RegisterComponent<CullingState>();
+        _world.RegisterComponent<SelectionState>();
 
         _userConfig     = new MapUserConfig();
         _cameraViewport = new MapCameraViewport();
@@ -223,6 +225,15 @@ public class IgApplication
             "Entities", layerBitIndex: 0,
             _world, query, adapter, selection);
         _canvas.AddLayer(layer);
+
+        // SelectionRenderSystem — PostRender overlay drawing selection rings.
+        var selectionQuery  = _world.Query().With<SelectionState>().With<SimTransform>().Build();
+        var selectionLayer  = new SelectionRenderSystem(_world, selectionQuery);
+        _canvas.AddLayer(selectionLayer);
+
+        // StandardInteractionTool — default canvas tool wiring selection to ECS.
+        var interactionTool = new StandardInteractionTool(_world, query, adapter, selection);
+        _canvas.SwitchTool(interactionTool);
 
         // E. SlaveTimeController — driven by TimePulse events on the event bus
         var timeController = new SlaveTimeController(_eventBus);

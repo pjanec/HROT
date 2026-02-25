@@ -99,7 +99,13 @@ public class SstVisualizerAdapter : IVisualizerAdapter
         }
 
         // ── Apply selection/hover tint override ───────────────────────────────
-        Color drawTint = isSelected ? Color.Yellow
+        // Primary selection → green tint; secondary selection → yellow; hover → orange.
+        bool isPrimary = isSelected
+            && view.HasComponent<Components.SelectionState>(entity)
+            && view.GetComponentRO<Components.SelectionState>(entity).IsPrimarySelection;
+
+        Color drawTint = isPrimary  ? Color.Green
+                       : isSelected ? Color.Yellow
                        : isHovered  ? Color.Orange
                        :              tint;
 
@@ -152,11 +158,12 @@ public class SstVisualizerAdapter : IVisualizerAdapter
         // ── Selection ring ─────────────────────────────────────────────────────
         if (isSelected)
         {
+            Color ringColor = isPrimary ? Color.Green : Color.Yellow;
             Raylib.DrawCircleLines(
                 (int)position.X,
                 (int)position.Y,
                 SstVisualizerAdapterConstants.SelectionRadiusPx,
-                Color.Yellow);
+                ringColor);
         }
     }
 

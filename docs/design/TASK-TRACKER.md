@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 61/144 tasks complete (42%)
+**Overall Progress:** 66/144 tasks complete (46%)
 
 **Last Updated:** 2026-02-25
 
@@ -181,7 +181,7 @@
 
 ## IG MOCK
 
-**Progress:** 10/23 tasks complete (43%)
+**Progress:** 15/23 tasks complete (65%)
 
 **Dependencies:** Requires Shared Components P1-P2 complete
 
@@ -203,11 +203,11 @@
 
 ### Phase IG3: Interaction Tools
 
-- [ ] **IG.3.1** Integrate StandardInteractionTool [details](./TASK-DETAILS-IG.md#task-ig31-integrate-standardinteractiontool)
-- [ ] **IG.3.2** Add Selection Highlighting [details](./TASK-DETAILS-IG.md#task-ig32-add-selection-highlighting)
-- [ ] **IG.3.3** Implement CreationTool (Entity Placement) [details](./TASK-DETAILS-IG.md#task-ig33-implement-creationtool-entity-placement)
-- [ ] **IG.3.4** Implement MeasureTool (Distance) [details](./TASK-DETAILS-IG.md#task-ig34-implement-measuretool-distance)
-- [ ] **IG.3.5** Integration Test: Create Entity [details](./TASK-DETAILS-IG.md#task-ig35-integration-test-create-entity)
+- [x] **IG.3.1** Integrate StandardInteractionTool [details](./TASK-DETAILS-IG.md#task-ig31-integrate-standardinteractiontool)
+- [x] **IG.3.2** Add Selection Highlighting [details](./TASK-DETAILS-IG.md#task-ig32-add-selection-highlighting)
+- [x] **IG.3.3** Implement CreationTool (Entity Placement) [details](./TASK-DETAILS-IG.md#task-ig33-implement-creationtool-entity-placement)
+- [x] **IG.3.4** Implement MeasureTool (Distance) [details](./TASK-DETAILS-IG.md#task-ig34-implement-measuretool-distance)
+- [x] **IG.3.5** Integration Test: Create Entity [details](./TASK-DETAILS-IG.md#task-ig35-integration-test-create-entity)
 
 ### Phase IG4: Advanced Features
 
