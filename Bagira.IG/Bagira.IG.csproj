@@ -9,6 +9,11 @@
     <AssemblyName>Bagira.IG</AssemblyName>
   </PropertyGroup>
 
+  <!-- Expose internals to the test project so ProcessSample can be exercised directly -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bagira.IG.Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <!-- Bagira-specific project references -->
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />

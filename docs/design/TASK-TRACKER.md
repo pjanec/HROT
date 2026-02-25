@@ -13,7 +13,7 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 53/144 tasks complete (36%)
+**Overall Progress:** 56/144 tasks complete (38%)
 
 **Last Updated:** 2026-02-25
 
@@ -181,7 +181,7 @@
 
 ## IG MOCK
 
-**Progress:** 2/23 tasks complete (8%)
+**Progress:** 5/23 tasks complete (21%)
 
 **Dependencies:** Requires Shared Components P1-P2 complete
 
@@ -189,9 +189,9 @@
 
 - [x] **IG.1.1** Create Bagira.IG Project [details](./TASK-DETAILS-IG.md#task-ig11-create-bagiraig-project)
 - [x] **IG.1.2** Setup MapCanvas with Camera Controls [details](./TASK-DETAILS-IG.md#task-ig12-setup-mapcanvas-with-camera-controls)
-- [ ] **IG.1.3** Integrate NetworkDemo Network Module (translators publish SpawnEntityCommand) [details](./TASK-DETAILS-IG.md#task-ig13-integrate-networkdemo-network-module)
-- [ ] **IG.1.3b** Register NetworkSpawningSystem via SpawningModule [details](./TASK-DETAILS-IG.md#task-ig13b-register-networkspawningsystem-in-ig-kernel)
-- [ ] **IG.1.4** Add EntityRenderLayer with Stub Visualizer [details](./TASK-DETAILS-IG.md#task-ig14-add-entityrenderlayer-with-stub-visualizer)
+- [x] **IG.1.3** Integrate NetworkDemo Network Module (translators publish SpawnEntityCommand) [details](./TASK-DETAILS-IG.md#task-ig13-integrate-networkdemo-network-module)
+- [x] **IG.1.3b** Register NetworkSpawningSystem via SpawningModule [details](./TASK-DETAILS-IG.md#task-ig13b-register-networkspawningsystem-in-ig-kernel)
+- [x] **IG.1.4** Add EntityRenderLayer with Stub Visualizer [details](./TASK-DETAILS-IG.md#task-ig14-add-entityrenderlayer-with-stub-visualizer)
 
 ### Phase IG2: Basic Rendering
 
