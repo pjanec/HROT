@@ -1,0 +1,9 @@
+{
+  "DomainId": 0,
+  "SimulationRateHz": 60,
+  "GeodeticOrigin": {
+    "Latitude": 32.0853,
+    "Longitude": 34.7818,
+    "Altitude": 10.0
+  }
+}

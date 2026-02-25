@@ -126,7 +126,7 @@
 
 ## SIMHOST MOCK
 
-**Progress:** 5/28 tasks complete (17%)
+**Progress:** 9/28 tasks complete (32%)
 
 **Dependencies:** Requires Shared Components P1-P6 complete
 
@@ -160,10 +160,10 @@
 
 ### Phase S5: Main Application Shell
 
-- [ ] **S5.1** Implement Program.cs Entry Point [details](./TASK-DETAILS-SIMHOST.md#task-s51-implement-programcs-entry-point)
-- [ ] **S5.2** Create Configuration System [details](./TASK-DETAILS-SIMHOST.md#task-s52-create-configuration-system)
-- [ ] **S5.3** Add Logging and Diagnostics [details](./TASK-DETAILS-SIMHOST.md#task-s53-add-logging-and-diagnostics)
-- [ ] **S5.4** Add Graceful Shutdown [details](./TASK-DETAILS-SIMHOST.md#task-s54-add-graceful-shutdown)
+- [x] **S5.1** Implement Program.cs Entry Point [details](./TASK-DETAILS-SIMHOST.md#task-s51-implement-programcs-entry-point)
+- [x] **S5.2** Create Configuration System [details](./TASK-DETAILS-SIMHOST.md#task-s52-create-configuration-system)
+- [x] **S5.3** Add Logging and Diagnostics [details](./TASK-DETAILS-SIMHOST.md#task-s53-add-logging-and-diagnostics)
+- [x] **S5.4** Add Graceful Shutdown [details](./TASK-DETAILS-SIMHOST.md#task-s54-add-graceful-shutdown)
 
 ### Phase S6: Integration Testing
 
