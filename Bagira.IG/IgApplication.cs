@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.IG.Adapters;
+using Bagira.IG.Components;
 using Bagira.IG.Modules;
+using Bagira.IG.Systems;
 using Bagira.IG.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
@@ -67,6 +69,10 @@ public class IgApplication
     // ── Network enabled flag — false when DDS libraries are unavailable (e.g. unit-test host)
     private bool _networkEnabled;
 
+    // ── Style and culling objects — updated and injected into modules
+    private MapUserConfig     _userConfig     = null!;
+    private MapCameraViewport _cameraViewport = null!;
+
     // -------------------------------------------------------------------------
 
     public void Initialize()
@@ -113,6 +119,13 @@ public class IgApplication
 
         var accumulator = new EventAccumulator();
         _kernel         = new ModuleHostKernel(_world, accumulator);
+
+        // Pre-register components produced by style and culling systems.
+        _world.RegisterComponent<ResolvedStyle>();
+        _world.RegisterComponent<CullingState>();
+
+        _userConfig     = new MapUserConfig();
+        _cameraViewport = new MapCameraViewport();
     }
 
     /// <summary>
@@ -152,6 +165,12 @@ public class IgApplication
             tkb, elm, _entityMap, idAllocator,
             IgNetworkConstants.LocalNodeId, disExtractor);
         _kernel.RegisterModule(new SpawningModule(spawningSystem));
+
+        // E. StyleResolutionModule — writes ResolvedStyle each Simulation tick
+        _kernel.RegisterModule(new StyleResolutionModule(_userConfig));
+
+        // F. MapCullingModule — writes CullingState each PostSimulation tick
+        _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
 
         // C. CycloneNetworkModule — DDS ingress/egress (optional)
         if (enableNetwork)
@@ -198,7 +217,7 @@ public class IgApplication
             .With<SimTransform>()
             .Build();
 
-        var adapter   = new StubVisualizerAdapter();
+        var adapter   = new SstVisualizerAdapter();
         var selection = new DefaultSelectionState();
         var layer     = new EntityRenderLayer(
             "Entities", layerBitIndex: 0,
@@ -222,6 +241,15 @@ public class IgApplication
 
             HandleCameraInput(dt);
             _canvas.Update(dt);
+
+            // Project screen corners to world space and feed MapCullingSystem.
+            var topLeft     = _camera.ScreenToWorld(Vector2.Zero);
+            var bottomRight = _camera.ScreenToWorld(new Vector2(WindowWidth, WindowHeight));
+            _cameraViewport.WorldMinX = MathF.Min(topLeft.X, bottomRight.X);
+            _cameraViewport.WorldMaxX = MathF.Max(topLeft.X, bottomRight.X);
+            _cameraViewport.WorldMinY = MathF.Min(topLeft.Y, bottomRight.Y);
+            _cameraViewport.WorldMaxY = MathF.Max(topLeft.Y, bottomRight.Y);
+            _cameraViewport.Zoom      = _camera.Zoom;
 
             // Tick ECS/network each render frame
             _kernel.Update();
