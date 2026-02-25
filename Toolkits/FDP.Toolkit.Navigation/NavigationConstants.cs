@@ -33,6 +33,9 @@ namespace FDP.Toolkit.Navigation
         /// <summary>Navigate along the road graph toward a specific node.</summary>
         public const ushort ActionIdFollowRoadGraph = 4;
 
+        /// <summary>Join an existing formation led by another entity.</summary>
+        public const ushort ActionIdJoinFormation   = 5;
+
         // ── Frustration guard ─────────────────────────────────────────────────────
 
         /// <summary>
