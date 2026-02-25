@@ -207,12 +207,11 @@ namespace FDP.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // ── Test 5 (DEBT-008) ─────────────────────────────────────────────────
+        // ── Test 5 (DEBT-008 / DEBT-035) ────────────────────────────────────────
         /// <summary>
-        /// When a doctrine's <see cref="DoctrineDefinition.ParseParams"/> delegate
-        /// throws an exception, <see cref="DoctrineIngressSystem"/> must not propagate
-        /// the exception and must leave the entity's <see cref="DoctrineState.InstanceId"/>
-        /// unchanged (fail safe — entity stays on previous doctrine).
+        /// DEBT-035 fix verification: when <see cref="DoctrineDefinition.ParseParams"/> throws,
+        /// <see cref="DoctrineIngressSystem"/> must not propagate the exception AND must leave
+        /// the entity entirely on its previous doctrine (no partial transition).
         /// </summary>
         [Fact]
         public void DoctrineIngress_DoesNotThrow_WhenParseParamsFails()
@@ -246,11 +245,69 @@ namespace FDP.Toolkit.Behavior.Tests
             var exception = Record.Exception(() => sys.Run());
             Assert.Null(exception);
 
-            // InstanceId was incremented before ParseParams is called, so it
-            // will be > 5 (the fail-safe 'continue' doesn't un-bump InstanceId).
-            // The important thing is the system didn't crash.
+            // DEBT-035 fix: ParseParams now runs BEFORE DoctrineState is written.
+            // A parse failure aborts the transition — InstanceId must remain at 5.
             var state = world.GetComponent<DoctrineState>(e);
-            Assert.True(state.InstanceId > 5, "InstanceId should have been incremented before ParseParams ran");
+            Assert.Equal(5u, state.InstanceId);
+
+            sys.Dispose();
+            world.Dispose();
+        }
+
+        // ── Test 6 (DEBT-035 required test) ──────────────────────────────────────
+        /// <summary>
+        /// Required by BATCH-14 Corrective-0: verifies that both
+        /// <see cref="DoctrineState.ActiveDoctrineHash"/> AND
+        /// <see cref="DoctrineState.InstanceId"/> are unchanged when
+        /// <see cref="DoctrineDefinition.ParseParams"/> fails.
+        /// </summary>
+        [Fact]
+        public void DoctrineIngress_DoctrineStateUnchanged_WhenParseParamsFails()
+        {
+            var (world, sys, registry) = CreateFixture();
+
+            const int OldId = 9000;
+            const int NewId = 9001;
+            const string oldDoctrineName = "OldDoctrine";
+            const string newDoctrineName = "NewDoctrine";
+
+            registry.Register(OldId, oldDoctrineName, new DoctrineDefinition
+            {
+                Name      = oldDoctrineName,
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+            registry.Register(NewId, newDoctrineName, new DoctrineDefinition
+            {
+                Name      = newDoctrineName,
+                BrainTier = BehaviorConstants.BrainTierBTree,
+                // ParseParams delegate that always throws.
+                ParseParams = static (string json, byte* mem) =>
+                    throw new InvalidOperationException("Test-induced parse failure"),
+            });
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new DoctrineState
+            {
+                ActiveDoctrineHash = OldId,
+                InstanceId         = 0
+            });
+            world.AddComponent(e, new BrainBlackboard());
+
+            // Attempt to switch to NewDoctrine — ParseParams will throw.
+            world.Bus.PublishManaged(new AssignDoctrineEvent
+            {
+                Entity       = e,
+                DoctrineName = newDoctrineName,
+                JsonParams   = "{}",
+            });
+            world.Bus.SwapBuffers();
+            sys.Run();
+
+            var state = world.GetComponent<DoctrineState>(e);
+            // ActiveDoctrineHash must still point to OldId — NOT switched to NewId.
+            Assert.Equal(OldId, state.ActiveDoctrineHash);
+            // InstanceId must NOT have been bumped.
+            Assert.Equal(0u, state.InstanceId);
 
             sys.Dispose();
             world.Dispose();
