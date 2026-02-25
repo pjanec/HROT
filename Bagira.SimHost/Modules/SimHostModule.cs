@@ -61,9 +61,11 @@ namespace Bagira.SimHost.Modules
         public string         Name   => "SimHost";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
 
-        private readonly CreateEntityRequestSystem _requestSystem;
-        private readonly NetworkSpawningSystem     _spawnSystem;
-        private readonly GeoSpatialEgressTranslator? _geoEgressTranslator;
+        private readonly CreateEntityRequestSystem    _requestSystem;
+        private readonly NetworkSpawningSystem        _spawnSystem;
+        private readonly GeoSpatialEgressTranslator?  _geoEgressTranslator;
+        private readonly EntityMissionTranslator      _missionIngressTranslator;
+        private readonly EntityMissionEgressTranslator _missionEgressTranslator;
 
         public SimHostModule(
             DdsParticipant     participant,
@@ -92,6 +94,10 @@ namespace Bagira.SimHost.Modules
             {
                 _geoEgressTranslator = new GeoSpatialEgressTranslator(participant, entityMap);
             }
+
+            // Mission translators are always active regardless of geographic transform.
+            _missionIngressTranslator = new EntityMissionTranslator(participant, entityMap);
+            _missionEgressTranslator  = new EntityMissionEgressTranslator(participant, entityMap);
         }
 
         /// <summary>
@@ -99,6 +105,18 @@ namespace Bagira.SimHost.Modules
         /// Returns null if no geographic transform was provided.
         /// </summary>
         public GeoSpatialEgressTranslator? GeoEgressTranslator => _geoEgressTranslator;
+
+        /// <summary>
+        /// Gets the EntityMission ingress translator (DDS → ECS).
+        /// Always non-null; created unconditionally in the constructor.
+        /// </summary>
+        public EntityMissionTranslator MissionIngressTranslator => _missionIngressTranslator;
+
+        /// <summary>
+        /// Gets the EntityMission egress translator (ECS → DDS).
+        /// Always non-null; created unconditionally in the constructor.
+        /// </summary>
+        public EntityMissionEgressTranslator MissionEgressTranslator => _missionEgressTranslator;
 
         public void RegisterSystems(ISystemRegistry registry)
         {

@@ -100,6 +100,8 @@ try
     {
         translators.Add(simHostMod.GeoEgressTranslator);
     }
+    translators.Add(simHostMod.MissionIngressTranslator);
+    translators.Add(simHostMod.MissionEgressTranslator);
 
     // Network Setup
     var localNodeId = 1;
