@@ -33,6 +33,10 @@ namespace Bagira.Runner.Services
         private readonly List<string> _assertionFailures = new();
         private readonly EntityRepository? _world;
 
+        // Populated during RunAsync and read by GenerateReport.
+        private readonly Stopwatch _runStopwatch = new();
+        private int _totalAssertionChecks;
+
         // ── Construction ─────────────────────────────────────────────────────
 
         public HeadlessTestExecutor(SubsystemOrchestrator orchestrator, string scriptPath, ILogger logger, EntityRepository? world = null)
@@ -55,6 +59,7 @@ namespace Bagira.Runner.Services
         /// </summary>
         public async Task<int> RunAsync()
         {
+            _runStopwatch.Restart();
             _logger.LogInformation("Starting test: {TestName}", _script.TestName);
 
             // 1. Initialise the orchestrator (headless — no Raylib window).
@@ -187,6 +192,7 @@ namespace Bagira.Runner.Services
         {
             foreach (var (metricName, rule) in assertions)
             {
+                _totalAssertionChecks++;
                 double value;
                 try
                 {
@@ -277,43 +283,63 @@ namespace Bagira.Runner.Services
 
         // ── Reporting ─────────────────────────────────────────────────────────
 
-        private TestReport GenerateReport()
+        private Models.TestReport GenerateReport()
         {
-            return new TestReport
+            var report = new Models.TestReport
             {
-                TestName         = _script.TestName,
-                Status           = _assertionFailures.Count == 0 ? "PASS" : "FAIL",
-                AssertionFailures = new List<string>(_assertionFailures),
-                MetricNames      = new List<string>(_metrics.MetricNames)
+                TestName        = _script.TestName,
+                Status          = _assertionFailures.Count == 0 ? "PASS" : "FAIL",
+                DurationSeconds = _runStopwatch.Elapsed.TotalSeconds,
+                Errors          = new List<string>(_assertionFailures),
             };
+
+            // Aggregate per-metric statistical summaries.
+            foreach (var name in _metrics.MetricNames)
+            {
+                if (_metrics.HasMetric(name))
+                    report.Metrics[name] = _metrics.GetSummary(name);
+            }
+
+            // Assertion totals.
+            report.Assertions.Total  = _totalAssertionChecks;
+            report.Assertions.Failed = _assertionFailures.Count;
+            report.Assertions.Passed = _totalAssertionChecks - _assertionFailures.Count;
+
+            return report;
         }
 
-        private void SaveReport(TestReport report)
+        private void SaveReport(Models.TestReport report)
         {
-            // Always write the canonical TestRunSummary.json as well as the named report.
-            var summaryPath = "TestRunSummary.json";
-            var namedPath   = $"test-report-{report.TestName.Replace(' ', '_')}.json";
-            var json        = JsonConvert.SerializeObject(report, Formatting.Indented);
+            var filename = $"test_report_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+            var json     = JsonConvert.SerializeObject(report, Formatting.Indented);
             try
             {
-                File.WriteAllText(namedPath,   json);
-                File.WriteAllText(summaryPath, json);
-                _logger.LogInformation("Report saved to {Path} and {Summary}", namedPath, summaryPath);
+                File.WriteAllText(filename, json);
+                _logger.LogInformation("Report saved to {Path}", filename);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Could not save report to {Path}", namedPath);
+                _logger.LogWarning(ex, "Could not save report to {Path}", filename);
             }
-        }
 
-        // ── Inner types ───────────────────────────────────────────────────────
+            // ── Console summary ───────────────────────────────────────────────
+            Console.WriteLine();
+            Console.WriteLine("=== TEST RESULTS ===");
+            Console.WriteLine($"Test:     {report.TestName}");
+            Console.WriteLine($"Status:   {report.Status}");
+            Console.WriteLine($"Duration: {report.DurationSeconds:F2}s");
 
-        private sealed class TestReport
-        {
-            public string TestName { get; set; } = string.Empty;
-            public string Status   { get; set; } = "UNKNOWN";
-            public List<string> AssertionFailures { get; set; } = new();
-            public List<string> MetricNames       { get; set; } = new();
+            if (report.Metrics.Count > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("Metrics:");
+                foreach (var (name, m) in report.Metrics)
+                    Console.WriteLine($"  {name}: min={m.Min:F1}, max={m.Max:F1}, avg={m.Avg:F1}, p95={m.P95:F1}");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine($"Assertions: {report.Assertions.Passed}/{report.Assertions.Total} passed");
+            Console.WriteLine($"Report saved to: {filename}");
         }
 
         // ── Built-in handler implementations ─────────────────────────────────

@@ -320,3 +320,7 @@
 - [x] **R3.2** Implement Test Script JSON Parser [details](./TASK-DETAILS-RUNNER.md#r32-implement-test-script-json-parser)
 - [x] **R3.3** Implement Test Action Handlers [details](./TASK-DETAILS-RUNNER.md#r33-implement-test-action-handlers)
 - [x] **R3.4** Implement Metrics Collection [details](./TASK-DETAILS-RUNNER.md#r34-implement-metrics-collection)
+- [x] **R3.5** Implement Test Report Generator [details](./TASK-DETAILS-RUNNER.md#r35-implement-test-report-generator)
+
+### Phase R4: Integration Testing (COMPLETED)
+- [x] **R4.1-R4.6** Runner Modes Verification & Flaky Tests [details](./TASK-DETAILS-RUNNER.md#r41-r46-integration-testing-tasks)

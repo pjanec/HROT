@@ -44,6 +44,7 @@ namespace Bagira.SimHost.Integration.Tests
         /// Average FPS must be ≥ 58; minimum FPS per frame must be ≥ 55.
         /// </summary>
         [Fact]
+        [Trait("Category", "Performance")]
         public void Performance_100Entities_Maintains60Hz()
         {
             // ── Spawn 100 entities spread in a 500 × 500 m grid ──────────────────────────

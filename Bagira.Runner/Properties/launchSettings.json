@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Bagira.Runner": {
+      "commandName": "Project",
+      "commandLineArgs": "-m all"
+    }
+  }
+}
