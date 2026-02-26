@@ -133,6 +133,7 @@ namespace Fdp.Tests
         }
 
         [Fact]
+        [Trait("Category", "Performance")]
         public async Task ComponentDirtyTracking_ConcurrentScanPerformance()
         {
             using var repo = new EntityRepository();

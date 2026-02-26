@@ -80,6 +80,7 @@ namespace Fdp.Tests
         }
 
         [Fact]
+        [Trait("Category", "Performance")]
         public void Lightweight_PlainUnmanaged_BestPerformance()
         {
             // Scenario: 2000 entities with just 2 small unmanaged components

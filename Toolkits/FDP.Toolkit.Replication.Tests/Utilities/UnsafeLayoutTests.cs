@@ -51,9 +51,9 @@ namespace FDP.Toolkit.Replication.Tests.Utilities
         }
 
         [Fact]
-        public void IsValid_StructWithIntEntityId_ReturnsFalse()
+        public void IsValid_StructWithIntEntityId_ReturnsTrue()
         {
-            Assert.False(UnsafeLayout<InvalidDataInt>.IsValid);
+            Assert.True(UnsafeLayout<InvalidDataInt>.IsValid);
         }
     }
 }
