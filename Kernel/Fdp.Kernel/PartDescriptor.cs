@@ -8,6 +8,7 @@ namespace Fdp.Kernel
     /// Used for network synchronization to send only changed parts.
     /// Each bit represents a 64-byte part of the component.
     /// </summary>
+    [ComponentId(GlobalComponentIds.PartDescriptor)]
     public struct PartDescriptor : IEquatable<PartDescriptor>
     {
         // Uses the existing BitMask256 for part tracking

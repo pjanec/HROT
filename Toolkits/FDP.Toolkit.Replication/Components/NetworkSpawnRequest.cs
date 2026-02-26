@@ -4,6 +4,7 @@ namespace FDP.Toolkit.Replication.Components
 {
     // Define if not exists, based on requirements.
     // Signals that the primary type information (Master Descriptor) has arrived.
+    [ComponentId(GlobalComponentIds.NetworkSpawnRequest)]
     public struct NetworkSpawnRequest
     {
         public ulong DisType;

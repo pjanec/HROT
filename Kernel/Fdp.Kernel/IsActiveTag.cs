@@ -7,6 +7,7 @@ namespace Fdp.Kernel
     /// Used by EntityQuery to efficiently filter out "Constructing" or "Dead" entities via bitmask.
     /// </summary>
     [StructLayout(LayoutKind.Sequential, Size = 1)]
+    [ComponentId(GlobalComponentIds.IsActiveTag)]
     public struct IsActiveTag
     {
         // No data. 

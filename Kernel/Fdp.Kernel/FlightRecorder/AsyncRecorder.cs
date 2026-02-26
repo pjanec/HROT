@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel.FlightRecorder.Metadata;
@@ -259,6 +261,10 @@ namespace Fdp.Kernel.FlightRecorder
             {
                 _metadata.TotalFrames = RecordedFrames;
                 _metadata.Duration = DateTime.UtcNow - _metadata.Timestamp;
+
+                // Capture the component schema manifest so playback can detect struct drift.
+                _metadata.SchemaManifest = BuildSchemaManifest();
+
                 var json = MetadataSerializer.Serialize(_metadata);
                 File.WriteAllText(_filePath + ".meta.json", json);
             }
@@ -274,5 +280,33 @@ namespace Fdp.Kernel.FlightRecorder
                 throw new IOException("Recorder background worker failed", LastError);
             }
         }
-    }
+
+        /// <summary>
+        /// Builds a schema manifest from all currently registered recordable component types.
+        /// Only unmanaged struct types are included because managed class components cannot
+        /// be inspected via <see cref="Marshal.SizeOf"/>.
+        /// </summary>
+        private static Dictionary<int, ComponentSchemaInfo> BuildSchemaManifest()
+        {
+            var manifest = new Dictionary<int, ComponentSchemaInfo>();
+
+            foreach (var componentId in ComponentTypeRegistry.GetRecordableTypeIds())
+            {
+                var type = ComponentTypeRegistry.GetType(componentId);
+                if (type == null) continue;
+
+                // Skip managed class components — Marshal.SizeOf is not applicable.
+                if (!type.IsValueType || type.IsEnum) continue;
+
+                manifest[componentId] = new ComponentSchemaInfo
+                {
+                    Name       = type.FullName ?? type.Name,
+                    Size       = Marshal.SizeOf(type),
+                    LayoutHash = ComponentLayoutHasher.ComputeHash(type),
+                    IsManaged  = false
+                };
+            }
+
+            return manifest;
+        }    }
 }

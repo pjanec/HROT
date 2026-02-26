@@ -7,6 +7,7 @@ namespace FDP.Toolkit.Vis2D.Components;
 /// Defines parent-child relationships for hierarchical entities (ORGBAT).
 /// Forms a linked-list tree structure.
 /// </summary>
+[ComponentId(GlobalComponentIds.VisHierarchyNode)]
 public struct VisHierarchyNode
 {
     public Entity Parent;
@@ -18,6 +19,7 @@ public struct VisHierarchyNode
 /// Component attached to Logical Nodes (Parent entities).
 /// Updated automatically by the aggregation system.
 /// </summary>
+[ComponentId(GlobalComponentIds.AggregateState)]
 public struct AggregateState
 {
     public Vector2 Centroid;       // Average position of children
@@ -32,5 +34,6 @@ public struct AggregateState
 /// <summary>
 /// Tag component to mark root entities in hierarchy.
 /// </summary>
+[ComponentId(GlobalComponentIds.AggregateRoot)]
 public struct AggregateRoot { }
 

@@ -6,6 +6,7 @@ namespace Fdp.Kernel
     /// Component representing a node in the entity hierarchy.
     /// Implements a doubly-linked list for efficient parent/child traversal.
     /// </summary>
+    [ComponentId(GlobalComponentIds.HierarchyNode)]
     public struct HierarchyNode
     {
         /// <summary>

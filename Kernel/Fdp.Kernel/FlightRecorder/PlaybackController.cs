@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Fdp.Kernel.FlightRecorder.Metadata;
 
 namespace Fdp.Kernel.FlightRecorder
 {
@@ -14,6 +15,7 @@ namespace Fdp.Kernel.FlightRecorder
         private readonly BinaryReader _reader;
         private readonly PlaybackSystem _playback;
         private readonly List<FrameMetadata> _frameIndex;
+        private readonly RecordingMetadata _metadata;
         
         private int _currentFrameIndex = -1;
         private long _headerEndPosition;
@@ -27,6 +29,13 @@ namespace Fdp.Kernel.FlightRecorder
         
         public PlaybackController(string filePath)
         {
+            // Step 1: Load and validate the schema manifest BEFORE opening the binary stream.
+            // This prevents silent memory corruption when struct layouts have changed since recording.
+            var metadataPath = filePath + ".meta.json";
+            _metadata = LoadMetadata(metadataPath);
+            SchemaValidator.Validate(_metadata);
+
+            // Step 2: Open the binary frame stream.
             _fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             _reader = new BinaryReader(_fileStream);
             _playback = new PlaybackSystem();
@@ -34,6 +43,28 @@ namespace Fdp.Kernel.FlightRecorder
             
             ReadGlobalHeader();
             BuildFrameIndex();
+        }
+
+        /// <summary>
+        /// Loads the recording metadata from the <c>.meta.json</c> companion file.
+        /// Returns a default <see cref="RecordingMetadata"/> (null SchemaManifest) when the
+        /// file does not exist or cannot be parsed, for backward compatibility with legacy recordings.
+        /// </summary>
+        private static RecordingMetadata LoadMetadata(string metadataPath)
+        {
+            if (!File.Exists(metadataPath))
+                return new RecordingMetadata(); // Legacy recording — no .meta.json
+
+            try
+            {
+                var json = File.ReadAllText(metadataPath);
+                return MetadataSerializer.Deserialize(json);
+            }
+            catch
+            {
+                // Malformed metadata file — fall back to an empty manifest.
+                return new RecordingMetadata();
+            }
         }
         
         private void ReadGlobalHeader()

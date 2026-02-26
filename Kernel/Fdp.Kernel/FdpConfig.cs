@@ -73,6 +73,24 @@ namespace Fdp.Kernel
         }
         
         /// <summary>
+        /// When <c>true</c>, all ECS component structs MUST carry an explicit
+        /// <see cref="ComponentIdAttribute"/>.  Registration of any struct without the
+        /// attribute throws <see cref="System.InvalidOperationException"/>.
+        ///
+        /// <para>
+        /// Default: <c>false</c> — backward-compatible mode where structs without
+        /// the attribute fall back to sequential auto-assignment (legacy behaviour).
+        /// </para>
+        ///
+        /// <para>
+        /// Set to <c>true</c> in production entry-points (SimHost, IG, IOS <c>Program.cs</c>)
+        /// before constructing any ECS world to guarantee deterministic IDs across the merged
+        /// Runner process.  Leave <c>false</c> in test code during the transition period.
+        /// </para>
+        /// </summary>
+        public static bool EnforceExplicitComponentIds { get; set; } = false;
+
+        /// <summary>
         /// Global switch to control CPU usage for parallel operations.
         /// -1 = Use all cores (Environment.ProcessorCount)
         ///  1 = Single threaded

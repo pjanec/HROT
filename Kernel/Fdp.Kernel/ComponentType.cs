@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace Fdp.Kernel
@@ -69,11 +71,13 @@ namespace Fdp.Kernel
     {
         private static readonly object _lock = new object();
         private static readonly Dictionary<Type, int> _typeToId = new Dictionary<Type, int>();
-        private static readonly List<Type> _idToType = new List<Type>();
-        private static readonly List<bool> _isSnapshotable = new List<bool>();
-        private static readonly List<bool> _isRecordable = new List<bool>();
-        private static readonly List<bool> _isSaveable = new List<bool>();
-        private static readonly List<bool> _needsClone = new List<bool>();
+        private static readonly Dictionary<int, Type> _idToType = new Dictionary<int, Type>();
+        private static readonly Dictionary<int, bool> _isSnapshotable = new Dictionary<int, bool>();
+        private static readonly Dictionary<int, bool> _isRecordable = new Dictionary<int, bool>();
+        private static readonly Dictionary<int, bool> _isSaveable = new Dictionary<int, bool>();
+        private static readonly Dictionary<int, bool> _needsClone = new Dictionary<int, bool>();
+        /// <summary>Tracks which IDs were assigned via an explicit [ComponentId] attribute.</summary>
+        private static readonly HashSet<int> _explicitIds = new HashSet<int>();
         private static int _nextId = 0;
         
         /// <summary>
@@ -109,26 +113,119 @@ namespace Fdp.Kernel
                 {
                     return existingId;
                 }
-                
-                // Assign new ID
-                if (_nextId >= FdpConfig.MAX_COMPONENT_TYPES)
+
+                // Determine component ID: explicit attribute takes priority over auto-assignment.
+                // ComponentIdAttribute only applies to struct types (classes cannot carry it).
+                var attr = (type.IsValueType && !type.IsEnum)
+                    ? type.GetCustomAttribute<ComponentIdAttribute>()
+                    : null;
+
+                int id;
+                if (attr != null)
                 {
-                    throw new InvalidOperationException(
-                        $"Maximum component types ({FdpConfig.MAX_COMPONENT_TYPES}) exceeded");
+                    id = attr.Id;
+
+                    // Collision detection: only throw when the slot is held by ANOTHER
+                    // explicitly-declared type.  If the occupant was auto-assigned, it
+                    // yields to the explicit declaration and gets relocated to a new free ID
+                    // (so legacy tests that don't call Clear() can coexist with explicit IDs).
+                    if (_idToType.ContainsKey(id))
+                    {
+                        var occupant = _idToType[id];
+                        if (_explicitIds.Contains(id))
+                        {
+                            // Both types explicitly claim the same ID — real programmer error.
+                            throw new InvalidOperationException(
+                                $"Component ID collision: {occupant.Name} and {type.Name} both declare [ComponentId({id})]");
+                        }
+                        else
+                        {
+                            // Occupant was auto-assigned — displace it to the next free slot.
+                            RelocateAutoAssigned(occupant, id);
+                        }
+                    }
+
+                    _explicitIds.Add(id);
                 }
-                
-                int id = _nextId++;
+                else
+                {
+                    // Enforcement: struct types without [ComponentId] are rejected when the flag is set.
+                    if (type.IsValueType && !type.IsEnum && FdpConfig.EnforceExplicitComponentIds)
+                    {
+                        throw new InvalidOperationException(
+                            $"Component {type.Name} is missing a [ComponentId] attribute. " +
+                            "Set FdpConfig.EnforceExplicitComponentIds = false to allow auto-assignment.");
+                    }
+
+                    // Legacy auto-assignment: scan forward past any explicitly-reserved IDs to
+                    // avoid silently colliding with a component whose [ComponentId] has not yet
+                    // been registered in this process.
+                    while (_idToType.ContainsKey(_nextId))
+                    {
+                        _nextId++;
+                        if (_nextId >= FdpConfig.MAX_COMPONENT_TYPES)
+                            throw new InvalidOperationException(
+                                $"Maximum component types ({FdpConfig.MAX_COMPONENT_TYPES}) exceeded");
+                    }
+
+                    if (_nextId >= FdpConfig.MAX_COMPONENT_TYPES)
+                        throw new InvalidOperationException(
+                            $"Maximum component types ({FdpConfig.MAX_COMPONENT_TYPES}) exceeded");
+
+                    id = _nextId++;
+                }
                 _typeToId[type] = id;
-                _idToType.Add(type);
-                _isSnapshotable.Add(true); // Default: snapshotable
-                _isRecordable.Add(true);   // Default: recordable
-                _isSaveable.Add(true);     // Default: saveable
-                _needsClone.Add(false);    // Default: shallow copy
-                
+                _idToType[id] = type;
+                _isSnapshotable[id] = true;  // Default: snapshotable
+                _isRecordable[id] = true;    // Default: recordable
+                _isSaveable[id] = true;      // Default: saveable
+                _needsClone[id] = false;     // Default: shallow copy
+
                 return id;
             }
         }
         
+        /// <summary>
+        /// Relocates a type that was auto-assigned to <paramref name="oldId"/> to the next
+        /// free slot, making room for an explicit [ComponentId] declaration at <paramref name="oldId"/>.
+        /// Called from within the registry lock.
+        /// </summary>
+        private static void RelocateAutoAssigned(Type autoType, int oldId)
+        {
+            // Find next free ID (skip explicit reservations too).
+            int newId = _nextId;
+            while (_idToType.ContainsKey(newId) || _explicitIds.Contains(newId))
+            {
+                newId++;
+                if (newId >= FdpConfig.MAX_COMPONENT_TYPES)
+                    throw new InvalidOperationException(
+                        $"Maximum component types ({FdpConfig.MAX_COMPONENT_TYPES}) exceeded while relocating {autoType.Name}");
+            }
+
+            // Move the type to the new slot.
+            _idToType.Remove(oldId);
+            _idToType[newId] = autoType;
+            _typeToId[autoType] = newId;
+
+            // Migrate per-type metadata flags.
+            MigrateMetadataFlag(_isSnapshotable, oldId, newId);
+            MigrateMetadataFlag(_isRecordable,   oldId, newId);
+            MigrateMetadataFlag(_isSaveable,     oldId, newId);
+            MigrateMetadataFlag(_needsClone,     oldId, newId);
+
+            if (_nextId <= newId)
+                _nextId = newId + 1;
+        }
+
+        private static void MigrateMetadataFlag(Dictionary<int, bool> dict, int oldId, int newId)
+        {
+            if (dict.TryGetValue(oldId, out bool value))
+            {
+                dict.Remove(oldId);
+                dict[newId] = value;
+            }
+        }
+
         /// <summary>
         /// Sets whether a component type should be included in snapshots.
         /// Must be called AFTER registration.
@@ -137,9 +234,9 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                if (typeId < 0 || typeId >= _isSnapshotable.Count)
-                    throw new ArgumentOutOfRangeException(nameof(typeId));
-                
+                if (!_idToType.ContainsKey(typeId))
+                    throw new ArgumentOutOfRangeException(nameof(typeId), $"Component type ID {typeId} is not registered.");
+
                 _isSnapshotable[typeId] = snapshotable;
             }
         }
@@ -152,10 +249,7 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                if (typeId < 0 || typeId >= _isSnapshotable.Count)
-                    return false;
-                
-                return _isSnapshotable[typeId];
+                return _isSnapshotable.TryGetValue(typeId, out bool v) && v;
             }
         }
         
@@ -166,13 +260,10 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                var result = new List<int>();
-                for (int i = 0; i < _isSnapshotable.Count; i++)
-                {
-                    if (_isSnapshotable[i])
-                        result.Add(i);
-                }
-                return result.ToArray();
+                return _isSnapshotable
+                    .Where(kvp => kvp.Value)
+                    .Select(kvp => kvp.Key)
+                    .ToArray();
             }
         }
 
@@ -183,8 +274,8 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                if (typeId < 0 || typeId >= _isRecordable.Count)
-                    throw new ArgumentOutOfRangeException(nameof(typeId));
+                if (!_idToType.ContainsKey(typeId))
+                    throw new ArgumentOutOfRangeException(nameof(typeId), $"Component type ID {typeId} is not registered.");
                 _isRecordable[typeId] = value;
             }
         }
@@ -196,9 +287,7 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                if (typeId < 0 || typeId >= _isRecordable.Count)
-                    return false;
-                return _isRecordable[typeId];
+                return _isRecordable.TryGetValue(typeId, out bool v) && v;
             }
         }
 
@@ -209,11 +298,10 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                for (int i = 0; i < _isRecordable.Count; i++)
-                {
-                    if (_isRecordable[i])
-                        yield return i;
-                }
+                return _isRecordable
+                    .Where(kvp => kvp.Value)
+                    .Select(kvp => kvp.Key)
+                    .ToArray(); // materialise inside the lock
             }
         }
 
@@ -224,8 +312,8 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                if (typeId < 0 || typeId >= _isSaveable.Count)
-                    throw new ArgumentOutOfRangeException(nameof(typeId));
+                if (!_idToType.ContainsKey(typeId))
+                    throw new ArgumentOutOfRangeException(nameof(typeId), $"Component type ID {typeId} is not registered.");
                 _isSaveable[typeId] = value;
             }
         }
@@ -237,9 +325,7 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                if (typeId < 0 || typeId >= _isSaveable.Count)
-                    return false;
-                return _isSaveable[typeId];
+                return _isSaveable.TryGetValue(typeId, out bool v) && v;
             }
         }
 
@@ -250,11 +336,10 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                for (int i = 0; i < _isSaveable.Count; i++)
-                {
-                    if (_isSaveable[i])
-                        yield return i;
-                }
+                return _isSaveable
+                    .Where(kvp => kvp.Value)
+                    .Select(kvp => kvp.Key)
+                    .ToArray(); // materialise inside the lock
             }
         }
 
@@ -265,8 +350,8 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                if (typeId < 0 || typeId >= _needsClone.Count)
-                    throw new ArgumentOutOfRangeException(nameof(typeId));
+                if (!_idToType.ContainsKey(typeId))
+                    throw new ArgumentOutOfRangeException(nameof(typeId), $"Component type ID {typeId} is not registered.");
                 _needsClone[typeId] = value;
             }
         }
@@ -278,9 +363,7 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                if (typeId < 0 || typeId >= _needsClone.Count)
-                    return false;
-                return _needsClone[typeId];
+                return _needsClone.TryGetValue(typeId, out bool v) && v;
             }
         }
         
@@ -313,10 +396,8 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                if (id < 0 || id >= _idToType.Count)
-                    return null;
-                
-                return _idToType[id];
+                _idToType.TryGetValue(id, out var type);
+                return type;
             }
         }
         
@@ -329,7 +410,7 @@ namespace Fdp.Kernel
             {
                 lock (_lock)
                 {
-                    return _nextId;
+                    return _typeToId.Count;
                 }
             }
         }
@@ -348,6 +429,7 @@ namespace Fdp.Kernel
                 _isRecordable.Clear();
                 _isSaveable.Clear();
                 _needsClone.Clear();
+                _explicitIds.Clear();
                 _nextId = 0;
             }
         }
@@ -360,7 +442,10 @@ namespace Fdp.Kernel
         {
             lock (_lock)
             {
-                return _idToType.ToArray();
+                return _idToType
+                    .OrderBy(kvp => kvp.Key)
+                    .Select(kvp => kvp.Value)
+                    .ToArray();
             }
         }
     }

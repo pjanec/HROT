@@ -7,6 +7,7 @@ namespace Fdp.Kernel
     /// Pushed into ECS world every frame.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.GlobalTime)]
     public struct GlobalTime
     {
         /// <summary>

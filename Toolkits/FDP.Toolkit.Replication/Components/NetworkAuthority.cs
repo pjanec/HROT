@@ -1,4 +1,5 @@
 using System;
+using Fdp.Kernel;
 
 namespace FDP.Toolkit.Replication.Components
 {
@@ -6,6 +7,7 @@ namespace FDP.Toolkit.Replication.Components
     /// Defines ownership and authority for a networked entity.
     /// Used to determine if the local node should simulate or replicate this entity.
     /// </summary>
+    [ComponentId(GlobalComponentIds.NetworkAuthority)]
     public struct NetworkAuthority
     {
         /// <summary>

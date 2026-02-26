@@ -5,6 +5,7 @@ namespace Fdp.Kernel
 {
     /// <summary>World position (meters) and orientation. Present on every entity with a spatial location.</summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.SimTransform)]
     public struct SimTransform
     {
         // Flat-Earth Cartesian (meters)
@@ -24,6 +25,7 @@ namespace Fdp.Kernel
 
     /// <summary>Linear and angular velocity. Present on every moving entity.</summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.SimVelocity)]
     public struct SimVelocity
     {
 		// linear velocity in world coordinates (m/s) [x, y, z]
@@ -46,6 +48,7 @@ namespace Fdp.Kernel
     /// to health state.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.HealthData)]
     public struct HealthData
     {
         /// <summary>Current hit-points (0 = destroyed).</summary>

@@ -14,6 +14,7 @@ namespace Fdp.Kernel
     /// Tier 1 Component that tracks the initialization state of an entity.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.LifecycleDescriptor)]
     public struct LifecycleDescriptor 
     {
         public EntityState State;
