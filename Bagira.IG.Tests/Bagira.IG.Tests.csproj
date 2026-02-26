@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bagira.IG\Bagira.IG.csproj" />
+    <!-- Required for TransformSyncSystem tests (TASK-IF005) -->
+    <ProjectReference Include="..\FDP\Examples\Fdp.Examples.NetworkDemo\Fdp.Examples.NetworkDemo.csproj" />
   </ItemGroup>
 
 </Project>

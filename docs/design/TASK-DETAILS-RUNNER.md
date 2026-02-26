@@ -1,8 +1,11 @@
 # Task Details: Aggregated Runner Application
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** 2026-02-14  
+**Last Updated:** 2026-02-26  
 **Parent Document**: [DESIGN-RUNNER.md](./DESIGN-RUNNER.md)
+
+> **Architecture Review (2026-02-26):** Several task snippets have been corrected to match the current codebase. Key changes: `ISubsystem` adds `DrawWorld()`/`DrawUI()` render phases; `SubsystemOrchestrator.RunWithIgMainLoop()` owns the full render loop; obsolete FDP kernel references (`FdpWorld`, `CarKinemModule`) replaced with `EntityRepository`/`ModuleHostKernel`; DDS QoS attributes corrected to `[DdsQos(...)]`; `SpawnEntityHandler` uses `EventBus.PublishManaged` instead of non-existent `CreateEntityViaFactory()`.
 
 ## Table of Contents
 
@@ -229,30 +232,40 @@ Implement `ConnectToDdsDomain()`:
 
 **SC-4**: Main Loop Logic
 
+> **Architect Note (2026-02-26):** The orchestrator — not individual subsystems — owns the Raylib window and all render phases. This prevents Raylib/ImGui context conflicts when multiple subsystems (IG, IOS, SimHost debug panels) each need to draw UI. Subsystems expose three phases: `Update`, `DrawWorld`, `DrawUI`.
+
 Implement dual-mode main loop:
 
-**Option A: IG Present (IG owns main thread)**
+**Option A: IG Present (Orchestrator owns render loop)**
 ```csharp
-private void RunMainLoop()
+private void RunWithIgMainLoop()
 {
-    var ig = _subsystems.OfType<IgSubsystem>().FirstOrDefault();
-    if (ig != null)
+    while (!Raylib.WindowShouldClose() && !_shutdownToken.IsCancellationRequested)
     {
-        while (!Raylib.WindowShouldClose() && !_shutdownToken.IsCancellationRequested)
-        {
-            float dt = Raylib.GetFrameTime();
-            foreach (var subsystem in _subsystems)
-                subsystem.Update(dt);
-        }
-    }
-    else
-    {
-        RunHeadlessLoop();
+        float dt = Raylib.GetFrameTime();
+        
+        // Phase 1: Logic update (no rendering)
+        foreach (var subsystem in _subsystems)
+            subsystem.Update(dt);
+        
+        // Phase 2: World rendering (Raylib draw calls, NO ImGui)
+        Raylib.BeginDrawing();
+        Raylib.ClearBackground(Color.DarkGray);
+        foreach (var subsystem in _subsystems)
+            subsystem.DrawWorld();
+        
+        // Phase 3: UI rendering (ImGui panels only)
+        rlImGui.Begin();
+        foreach (var subsystem in _subsystems)
+            subsystem.DrawUI();
+        rlImGui.End();
+        
+        Raylib.EndDrawing();
     }
 }
 ```
 
-**Option B: Headless (Fixed timestep loop)**
+**Option B: Headless (Fixed timestep loop, no rendering phases)**
 ```csharp
 private void RunHeadlessLoop()
 {
@@ -266,10 +279,10 @@ private void RunHeadlessLoop()
         var dt = (float)(currentTime - lastTime);
         lastTime = currentTime;
         
+        // Logic only — DrawWorld/DrawUI are not called in headless mode
         foreach (var subsystem in _subsystems)
             subsystem.Update(dt);
         
-        // Sleep to maintain ~60Hz
         var sleepTime = (int)((targetDt - dt) * 1000);
         if (sleepTime > 0)
             Thread.Sleep(sleepTime);
@@ -321,6 +334,8 @@ Define the common interface that all subsystems must implement for embedding.
 
 **SC-1**: Interface Defined
 
+> **Architect Note (2026-02-26):** The interface is split into three per-frame phases. `DrawWorld()` is for Raylib draw calls only (no ImGui). `DrawUI()` is for ImGui draw calls only (no Raylib). The orchestrator calls them in the correct order inside a single `BeginDrawing`/`EndDrawing` block, preventing context crashes.
+
 Create `Models/ISubsystem.cs`:
 ```csharp
 public interface ISubsystem : IDisposable
@@ -336,8 +351,10 @@ public interface ISubsystem : IDisposable
     void Start();
     void Stop();
     
-    // Update loop
-    void Update(float deltaTime);
+    // Per-frame lifecycle phases — all driven by SubsystemOrchestrator
+    void Update(float deltaTime);   // Physics / network logic (no rendering)
+    void DrawWorld();               // 2D/3D Raylib draw calls (NO ImGui)
+    void DrawUI();                  // ImGui panel rendering only (NO Raylib draw calls)
     
     // Waiting room
     Task WaitForReady();
@@ -411,6 +428,8 @@ public abstract class SubsystemBase : ISubsystem
     public abstract void Start();
     public abstract void Stop();
     public abstract void Update(float deltaTime);
+    public abstract void DrawWorld();   // Default: no-op for subsystems with no world visuals
+    public abstract void DrawUI();      // Default: no-op for headless subsystems
     public abstract Task WaitForReady();
     public abstract void AnnounceReady();
     public abstract bool IsHeadless { get; }
@@ -429,6 +448,8 @@ public class MockSubsystem : SubsystemBase
     public bool WasStarted { get; private set; }
     public bool WasStopped { get; private set; }
     public int UpdateCount { get; private set; }
+    public int DrawWorldCount { get; private set; }
+    public int DrawUiCount { get; private set; }
     
     public MockSubsystem() : base("Mock", NullLogger.Instance) { }
     
@@ -454,6 +475,9 @@ public class MockSubsystem : SubsystemBase
     {
         UpdateCount++;
     }
+    
+    public override void DrawWorld() { DrawWorldCount++; }
+    public override void DrawUI() { DrawUiCount++; }
     
     // ... other methods
 }
@@ -499,20 +523,26 @@ Define and implement the DDS topic for subsystem status announcements (waiting r
 
 **SC-1**: Data Model Added to Bagira.DDS.DataModel
 
+> **Architect Note (2026-02-26):** FDP uses a **single `[DdsQos]` attribute** for all QoS policies. Separate `[DdsReliability]` / `[DdsDurability]` attributes do not exist in FDP and will not compile. Use the pattern below. Also note: the struct must be a `partial struct` (FDP source-generator requirement).
+
 Add to `Bagira.DDS.DataModel/SimDescriptors.cs`:
 ```csharp
 [DdsTopic("SubsystemStatusAnnounce")]
-public class SubsystemStatusAnnounce
+[DdsQos(
+    Reliability = DdsReliability.Reliable,
+    Durability = DdsDurability.TransientLocal,
+    HistoryKind = DdsHistoryKind.KeepLast,
+    HistoryDepth = 1)]
+public partial struct SubsystemStatusAnnounce
 {
-    [DdsKey]
-    public int NodeId { get; set; }
+    [DdsKey] public int NodeId;
     
-    public string SubsystemName { get; set; } = string.Empty;  // "simhost", "ig", "ios"
-    public byte Status { get; set; }  // SubsystemStatus enum cast to byte
-    public long TimestampMs { get; set; }  // Unix epoch milliseconds
-    public string Version { get; set; } = "1.0.0";
-    public string HostName { get; set; } = string.Empty;
-    public uint ProcessId { get; set; }
+    public string SubsystemName;  // "simhost", "ig", "ios"
+    public byte Status;           // SubsystemStatus enum cast to byte
+    public long TimestampMs;      // Unix epoch milliseconds
+    public string Version;        // "1.0.0"
+    public string HostName;
+    public uint ProcessId;
 }
 ```
 
@@ -725,12 +755,15 @@ Refactor existing SimHost code to implement `ISubsystem` interface for embeddabi
 
 **SC-1**: Create SimHostSubsystem Class
 
+> **Architect Note (2026-02-26):** The old snippet referenced `FdpWorld`, `CarKinemModule`, and `MissionExecutionModule` — all obsolete. Use the current kernel API: `EntityRepository`, `EventAccumulator`, and `ModuleHostKernel`. Also: SimHost has no 2D/3D world visuals, so `DrawWorld()` is a no-op. ImGui control panels go in `DrawUI()` so they render inside the orchestrator's `rlImGui.Begin()`/`rlImGui.End()` frame.
+
 Create `Bagira.SimHost/SimHostSubsystem.cs`:
 ```csharp
 public class SimHostSubsystem : SubsystemBase
 {
-    private FdpWorld? _world;
-    private DdsParticipant? _participant;
+    private EntityRepository? _world;
+    private EventAccumulator? _eventAccumulator;
+    private ModuleHostKernel? _kernel;
     private SimHostConfiguration _config;
     private Task? _updateLoopTask;
     private CancellationTokenSource? _cancelToken;
@@ -745,19 +778,18 @@ public class SimHostSubsystem : SubsystemBase
         Status = SubsystemStatus.Initializing;
         _config = (SimHostConfiguration)config;
         
-        // Create FDP World
-        _world = new FdpWorld();
+        // Create kernel (matches Bagira.SimHost/Program.cs architecture)
+        _world = new EntityRepository();
+        _eventAccumulator = new EventAccumulator();
+        _kernel = new ModuleHostKernel(_world, _eventAccumulator);
         
-        // Add modules (but DON'T connect to DDS yet)
-        _world.AddModule<CarKinemModule>();
-        _world.AddModule<MissionExecutionModule>();
-        _world.AddModule<EntityLifecycleModule>();
+        // Register TKB catalog
+        var tkbDb = new TkbDatabase();
+        BdcTkbCatalog.RegisterAll(tkbDb);
+        _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
         
-        if (!_config.Headless)
-        {
-            // Initialize ImGui standalone window (if needed)
-            // Or prepare to share context with IG
-        }
+        // Register GeographicModule, ELM, SimulationLogicModule, etc.
+        // (same modules as standalone Program.cs)
         
         Status = SubsystemStatus.Ready;
         Logger.LogInformation("SimHost initialized");
@@ -765,20 +797,9 @@ public class SimHostSubsystem : SubsystemBase
     
     public override void ConnectToDomain(int domainId)
     {
-        _participant = new DdsParticipant(domainId);
-        
-        // Add network module
-        var networkModule = new CycloneNetworkModule(_participant);
-        _world.AddModule(networkModule);
-        
-        // Start ID allocator server
-        var idAllocator = new DdsIdAllocator(_participant, "IdAllocatorService");
-        idAllocator.Start();
-        
+        // Wire DDS readers/writers to kernel translators
         // Announce presence
-        _statusPublisher = new SubsystemStatusPublisher(_participant, _config.NodeId, "simhost");
-        _statusPublisher.UpdateStatus(SubsystemStatus.Ready);
-        
+        // _statusPublisher = new SubsystemStatusPublisher(participant, _config.NodeId, "simhost");
         Logger.LogInformation($"SimHost connected to DDS domain {domainId}");
     }
     
@@ -786,10 +807,7 @@ public class SimHostSubsystem : SubsystemBase
     {
         Status = SubsystemStatus.Running;
         _cancelToken = new CancellationTokenSource();
-        
-        // Start update loop in background thread
         _updateLoopTask = Task.Run(UpdateLoop, _cancelToken.Token);
-        
         Logger.LogInformation("SimHost started");
     }
     
@@ -798,13 +816,13 @@ public class SimHostSubsystem : SubsystemBase
         var stopwatch = Stopwatch.StartNew();
         var lastTime = 0.0;
         
-        while (!_cancelToken.IsCancellationRequested)
+        while (!_cancelToken!.IsCancellationRequested)
         {
             var currentTime = stopwatch.Elapsed.TotalSeconds;
             var dt = (float)(currentTime - lastTime);
             lastTime = currentTime;
             
-            _world?.Update(dt);
+            _kernel?.Tick(dt);
             
             Thread.Sleep(16); // ~60Hz
         }
@@ -812,29 +830,25 @@ public class SimHostSubsystem : SubsystemBase
     
     public override void Update(float deltaTime)
     {
-        // If called externally, update world
-        // (only used if NOT running in background thread)
+        // Called by orchestrator when NOT using a background thread
         if (_updateLoopTask == null)
-        {
-            _world?.Update(deltaTime);
-        }
-        
-        // Update ImGui panels if not headless
+            _kernel?.Tick(deltaTime);
+    }
+    
+    // SimHost has no 2D/3D world visuals
+    public override void DrawWorld() { }
+    
+    public override void DrawUI()
+    {
         if (!_config.Headless)
         {
-            DrawImGuiPanels();
+            // Draw SimHost control panel (time control, spawner, etc.)
+            // Called inside orchestrator's rlImGui.Begin()/rlImGui.End() frame
+            ImGui.Begin("SimHost Control");
+            // ... existing ImGui code from DESIGN-SIMHOST
+            ImGui.End();
         }
     }
-    
-    private void DrawImGuiPanels()
-    {
-        // Draw SimHost control panel (time control, spawner, etc.)
-        ImGui.Begin("SimHost Control");
-        // ... existing ImGui code from DESIGN-SIMHOST
-        ImGui.End();
-    }
-    
-    // ... implement other ISubsystem methods
 }
 ```
 
@@ -1342,6 +1356,8 @@ Implement action handlers for SimHost, IG, and IOS testing actions.
 
 **SC-1**: SimHost Action Handlers
 
+> **Architect Note (2026-02-26):** `_simHost.CreateEntityViaFactory()` does not exist. To trigger entity spawning from the test executor, inject a `SpawnEntityCommand` directly into SimHost's `EventBus`. This is the same path used by the real DDS ingress translator and requires no internal API exposure on `SimHostSubsystem`.
+
 Implement in `Services/Handlers/SimHostActionHandlers.cs`:
 ```csharp
 public class SpawnEntityHandler : ITestActionHandler
@@ -1353,17 +1369,18 @@ public class SpawnEntityHandler : ITestActionHandler
     public async Task<object?> ExecuteAsync(Dictionary<string, object> args)
     {
         var type = (long)args["type"];
-        var position = (double[])args["position"];  // [lat, lon, alt]
         
-        // Access SimHost internal EntityFactorySystem
-        var entity = _simHost.CreateEntityViaFactory(type, new GeoPosition 
+        // Inject SpawnEntityCommand directly into SimHost's EventBus
+        // (same path as the real DDS ingress CreateEntityRequest translator)
+        _simHost.EventBus.PublishManaged(new SpawnEntityCommand
         {
-            Latitude = position[0],
-            Longitude = position[1],
-            Altitude = position[2]
+            NetworkId = 0,
+            TkbType = type,
+            OwnerNodeId = 1,
+            InitType = ReliableInitType.AllPeers
         });
         
-        return new { EntityId = entity.Id };
+        return true;
     }
 }
 

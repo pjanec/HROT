@@ -1,8 +1,8 @@
 # IOS-IG-SimHost Project Task Tracker
 
-**Version:** 3.0  
+**Version:** 3.1  
 **Date:** 2026-02-13  
-**Last Updated:** 2026-02-14
+**Last Updated:** 2026-02-26
 
 **Parent Documents**: 
 - [DESIGN-SHARED.md](./DESIGN-SHARED.md) | [TASK-DETAILS-SHARED.md](./TASK-DETAILS-SHARED.md)
@@ -273,6 +273,14 @@
 ## RUNNER (AGGREGATED APPLICATION)
 
 **Progress:** 0/18 tasks complete (0%)
+
+> **⚠️ Architecture Review (2026-02-26):** DESIGN-RUNNER.md and TASK-DETAILS-RUNNER.md have been updated following architect review. Before starting any Runner tasks, note these corrections:
+> - **R1.3 / R1.4**: `ISubsystem` now has `DrawWorld()` and `DrawUI()` phases. The `SubsystemOrchestrator` owns the Raylib window and render loop — subsystems must not call `BeginDrawing`/`rlImGui.Begin` themselves.
+> - **R1.5**: `SubsystemStatusAnnounce` uses `[DdsQos(...)]` (single attribute). Old `[DdsReliability]`/`[DdsDurability]` pseudo-attributes do not exist in FDP and will not compile.
+> - **R2.1**: `SimHostSubsystem.Initialize()` uses `EntityRepository` + `ModuleHostKernel` (not obsolete `FdpWorld`/`CarKinemModule`).
+> - **R2.7**: `DerRepo` takes no constructor arguments — it is a pure storage class. Network wiring happens in `ConnectToDomain()`.
+> - **R3.3**: `SpawnEntityHandler` publishes `SpawnEntityCommand` to `EventBus` — there is no `CreateEntityViaFactory()`.
+> - **Section 9.3**: `ICameraService`/`HeadlessCamera` have been removed from the design. Headless mode only needs `HeadlessInputProvider` + skipping draw calls.
 
 ### Phase R1: Runner Core
 

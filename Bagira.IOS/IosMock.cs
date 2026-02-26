@@ -1,3 +1,4 @@
+using ImGuiNET;
 using Bagira.IOS.Panels;
 
 namespace Bagira.IOS;
@@ -124,24 +125,25 @@ public sealed class IosMock : IDisposable
     {
         ThrowIfDisposed();
 
-        // Phase P9/P10 – wire ImGui panels once Raylib/rlImGui is linked:
-        //
-        // if (ImGui.BeginMainMenuBar())
-        // {
-        //     ImGui.Text($"IOS Mock (Node {_logic.Repo?.LocalNodeId ?? 0})");
-        //     if (ImGui.Button("EXIT")) Environment.Exit(0);
-        //     ImGui.EndMainMenuBar();
-        // }
-        //
-        // ImGui.DockSpaceOverViewport(ImGui.GetMainViewport());
-        //
-        // _configPanel.Draw(_logic);
-        // _orbatPanel.Draw(_logic);
-        // _missionPanel.Draw(_logic);
-        // _interactionPanel.Draw(_logic);
-        // _spawnerPanel.Draw(_logic);
-        // _inspectorPanel.Draw(_logic);
-        // _diagnosticsPanel.Draw(_logic);
+        // Guard against headless/test environments where no ImGui context is active.
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+
+        if (ImGui.BeginMainMenuBar())
+        {
+            ImGui.Text($"IOS Mock (Node {_logic.Repo?.LocalNodeId ?? 0})");
+            if (ImGui.Button("EXIT")) Environment.Exit(0);
+            ImGui.EndMainMenuBar();
+        }
+
+        ImGui.DockSpaceOverViewport(0);
+
+        _configPanel.Draw(_logic);
+        _orbatPanel.Draw(_logic);
+        _missionPanel.Draw(_logic);
+        _interactionPanel.Draw(_logic);
+        _spawnerPanel.Draw(_logic);
+        _inspectorPanel.Draw(_logic);
+        _diagnosticsPanel.Draw(_logic);
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────────

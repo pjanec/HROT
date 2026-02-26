@@ -1,41 +1,45 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
+using Bagira.DDS.DM;
+using Bagira.IG.Abstractions;
 using Bagira.IG.Components;
-using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
-using ModuleHost.Core.Network.Interfaces;
 using Raylib_cs;
 
 namespace Bagira.IG.Tools;
 
 /// <summary>
 /// Map tool that translates a left-click on the canvas into a
-/// <see cref="SpawnEntityCommand"/> published onto the <see cref="FdpEventBus"/>,
-/// requesting the SimHost to create a new entity at the clicked world position.
+/// <see cref="CreateEntityRequest"/> written to the DDS network,
+/// asking the SimHost (authoritative node) to create a new entity at the clicked
+/// world position.
 ///
 /// Workflow:
 /// <list type="number">
 ///   <item>Caller activates the tool (e.g. via <c>canvas.PushTool(creationTool)</c>).</item>
 ///   <item>Operator sees a ghost preview circle at the cursor.</item>
-///   <item>Left-click builds and publishes the <see cref="SpawnEntityCommand"/>; the tool
-///         then pops itself and returns to the previous tool.</item>
+///   <item>Left-click builds and writes the <see cref="CreateEntityRequest"/> via the
+///         injected <see cref="IDdsWriter{T}"/>; the tool then pops itself and returns
+///         to the previous tool.</item>
 ///   <item>Right-click cancels without publishing, and the tool pops itself.</item>
 /// </list>
 ///
-/// <see cref="SpawnEntityCommand.InitialComponents"/> is seeded with a
-/// <see cref="SimTransform"/> at the clicked world position (Z = 0) facing east
-/// (<see cref="SimMath.FacingEast"/>), matching the FDP right-handed coordinate
-/// convention (§CODE-STANDARDS §2).
+/// <see cref="CreateEntityRequest.InitialDescriptors"/> is seeded with:
+/// <list type="bullet">
+///   <item>A <see cref="EntityDescriptorUnion"/> (dtEntityMaster) carrying the TKB type.</item>
+///   <item>A <see cref="EntityDescriptorUnion"/> (dtGeoSpatial) with the click coordinates
+///         mapped as <c>Latitude = worldPos.Y, Longitude = worldPos.X</c>.</item>
+/// </list>
 ///
-/// Node ownership is set to <see cref="IgNetworkConstants.LocalNodeId"/>; the SimHost
-/// allocates the real network ID because <see cref="SpawnEntityCommand.NetworkId"/>
-/// is left at zero.
+/// <see cref="CreateEntityRequest.Owner"/> is left as <c>default(NodeId)</c> (all-zeros)
+/// so the SimHost assigns itself as the authoritative owner (ghost-node convention).
 ///
 /// No allocations on the hover / draw hot path (§CODE-STANDARDS §4).
-/// The <see cref="List{T}"/> in <see cref="SpawnEntityCommand.InitialComponents"/> is
+/// The <see cref="List{T}"/> in <see cref="CreateEntityRequest.InitialDescriptors"/> is
 /// only allocated on the click event path.
 /// </summary>
 public class CreationTool : IMapTool
@@ -43,22 +47,22 @@ public class CreationTool : IMapTool
     /// <inheritdoc/>
     public string Name => CreationToolConstants.ToolName;
 
-    private readonly FdpEventBus _eventBus;
-    private readonly long        _tkbType;
-    private readonly ForceId     _affiliation;
+    private readonly IDdsWriter<CreateEntityRequest> _ddsWriter;
+    private readonly long                            _tkbType;
+    private readonly ForceId                         _affiliation;
 
     private MapCanvas? _canvas;
     private Vector2    _currentMouseWorld;
 
     /// <summary>
-    /// Raised after a <see cref="SpawnEntityCommand"/> has been published so that
-    /// tests and integrators can observe the event without subscribing to the bus.
+    /// Raised after a <see cref="CreateEntityRequest"/> has been written so that
+    /// tests and integrators can observe the event without parsing DDS traffic.
     /// </summary>
-    public event Action<SpawnEntityCommand>? OnCommandPublished;
+    public event Action<CreateEntityRequest>? OnCommandPublished;
 
-    /// <param name="eventBus">
-    /// The application's <see cref="FdpEventBus"/>; the command is published as a
-    /// managed event consumed by <see cref="FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/>.
+    /// <param name="ddsWriter">
+    /// DDS writer for the <c>CreateEntityRequest</c> topic; the SimHost listens on
+    /// this topic and creates the entity as the authoritative node.
     /// </param>
     /// <param name="tkbType">
     /// TKB template type to request.  Defaults to
@@ -66,11 +70,11 @@ public class CreationTool : IMapTool
     /// </param>
     /// <param name="affiliation">Force affiliation for the new entity.</param>
     public CreationTool(
-        FdpEventBus eventBus,
-        long        tkbType      = CreationToolConstants.DefaultTkbType,
-        ForceId     affiliation  = ForceId.Unknown)
+        IDdsWriter<CreateEntityRequest> ddsWriter,
+        long                            tkbType     = CreationToolConstants.DefaultTkbType,
+        ForceId                         affiliation = ForceId.Unknown)
     {
-        _eventBus    = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+        _ddsWriter   = ddsWriter ?? throw new ArgumentNullException(nameof(ddsWriter));
         _tkbType     = tkbType == 0 ? CreationToolConstants.DefaultTkbType : tkbType;
         _affiliation = affiliation;
     }
@@ -99,7 +103,7 @@ public class CreationTool : IMapTool
     {
         if (button == MouseButton.Left)
         {
-            PublishSpawnCommand(worldPos);
+            PublishCreateRequest(worldPos);
             _canvas?.PopTool();
             return true;
         }
@@ -154,26 +158,34 @@ public class CreationTool : IMapTool
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private void PublishSpawnCommand(Vector2 worldPos)
+    private void PublishCreateRequest(Vector2 worldPos)
     {
-        var transform = new SimTransform
+        var request = new CreateEntityRequest
         {
-            Position = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f),
-            Rotation = SimMath.FacingEast,
+            RequestId = Guid.NewGuid(),
+            Owner     = default,   // zeroed NodeId — SimHost takes authoritative ownership
+            Flags     = 0,
+            InitialDescriptors = new List<EntityDescriptorUnion>
+            {
+                new EntityDescriptorUnion
+                {
+                    _d           = EDescriptorType.dtEntityMaster,
+                    EntityMaster = new EntityMaster { TkbType = _tkbType },
+                },
+                new EntityDescriptorUnion
+                {
+                    _d         = EDescriptorType.dtGeoSpatial,
+                    GeoSpatial = new GeoSpatial
+                    {
+                        // Map canvas: X = longitude (east), Y = latitude (north)
+                        Pos = new GeoPosition { Latitude = worldPos.Y, Longitude = worldPos.X },
+                    },
+                },
+            },
         };
 
-        var cmd = new SpawnEntityCommand
-        {
-            NetworkId         = 0,               // SimHost allocates the real ID.
-            TkbType           = _tkbType,
-            OwnerNodeId       = IgNetworkConstants.LocalNodeId,
-            InitType          = ReliableInitType.None,
-            InitialComponents = new List<object> { transform },
-            RequestId         = Guid.NewGuid(),
-        };
-
-        _eventBus.PublishManaged(cmd);
-        OnCommandPublished?.Invoke(cmd);
+        _ddsWriter.Write(request);
+        OnCommandPublished?.Invoke(request);
     }
 
     private static Color GetAffiliationColor(ForceId affiliation) =>

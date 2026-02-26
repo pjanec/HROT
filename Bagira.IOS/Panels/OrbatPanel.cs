@@ -1,5 +1,6 @@
 using Bagira.BDC.SSTD;
 using FDP.Toolkit.DER;
+using ImGuiNET;
 
 namespace Bagira.IOS.Panels;
 
@@ -179,33 +180,33 @@ public sealed class OrbatPanel
     /// </summary>
     public void Draw(IIosLogic logic)
     {
-        // Phase P9 implementation:
-        // ImGui.Begin("ORBAT Tree");
-        //
-        // string filterBuf = _filterText;
-        // if (ImGui.InputText("Filter", ref filterBuf, PanelConstants.FilterTextMaxLength))
-        //     FilterText = filterBuf;
-        //
-        // var nodes = GetVisibleNodes(logic.Repo);
-        // foreach (var node in nodes)
-        // {
-        //     var flags = node.HasChildren
-        //         ? ImGuiTreeNodeFlags.OpenOnArrow
-        //         : ImGuiTreeNodeFlags.Leaf;
-        //     string label = $"{node.Name} ({node.EntityId})";
-        //     bool open = ImGui.TreeNodeEx(label, flags);
-        //     if (ImGui.IsItemClicked()) HandleEntityClick(node.EntityId, logic);
-        //     if (open)
-        //     {
-        //         if (!_expandedNodes.Contains(node.EntityId)) ToggleExpanded(node.EntityId);
-        //         ImGui.TreePop();
-        //     }
-        //     else if (_expandedNodes.Contains(node.EntityId))
-        //         ToggleExpanded(node.EntityId);
-        // }
-        //
-        // if (ImGui.Button("New Unit...")) logic.OpenSpawner();
-        // ImGui.End();
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        ImGui.Begin("ORBAT Tree");
+
+        string filterBuf = _filterText;
+        if (ImGui.InputText("Filter", ref filterBuf, PanelConstants.FilterTextMaxLength))
+            FilterText = filterBuf;
+
+        var nodes = GetVisibleNodes(logic.Repo);
+        foreach (var node in nodes)
+        {
+            var flags = node.HasChildren
+                ? ImGuiTreeNodeFlags.OpenOnArrow
+                : ImGuiTreeNodeFlags.Leaf;
+            string label = $"{node.Name} ({node.EntityId})";
+            bool open = ImGui.TreeNodeEx(label, flags);
+            if (ImGui.IsItemClicked()) HandleEntityClick(node.EntityId, logic);
+            if (open)
+            {
+                if (!_expandedNodes.Contains(node.EntityId)) ToggleExpanded(node.EntityId);
+                ImGui.TreePop();
+            }
+            else if (_expandedNodes.Contains(node.EntityId))
+                ToggleExpanded(node.EntityId);
+        }
+
+        if (ImGui.Button("New Unit...")) logic.OpenSpawner();
+        ImGui.End();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

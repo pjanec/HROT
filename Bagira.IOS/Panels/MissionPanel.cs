@@ -1,6 +1,7 @@
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.IOS.Services;
+using ImGuiNET;
 
 namespace Bagira.IOS.Panels;
 
@@ -136,43 +137,43 @@ public sealed class MissionPanel
     /// </summary>
     public void Draw(IIosLogic logic)
     {
-        // Phase P9 implementation:
-        // ImGui.Begin("Selection & Mission");
-        //
-        // if (_selectedEntityId == 0)
-        // {
-        //     ImGui.Text("No selection");
-        //     ImGui.End(); return;
-        // }
-        //
-        // var entity = logic.Repo.GetEntity(_selectedEntityId);
-        // if (entity == null)
-        // {
-        //     ImGui.Text("Entity not found");
-        //     ImGui.End(); return;
-        // }
-        //
-        // var info    = entity.HasDescriptor<EntityInfo>()    ? entity.GetDescriptor<EntityInfo>()    : default;
-        // var mission = entity.HasDescriptor<EntityMission>() ? entity.GetDescriptor<EntityMission>() : default;
-        //
-        // ImGui.Text($"Selected: {info.Name}");
-        // ImGui.Text($"ID: {_selectedEntityId}");
-        //
-        // if (mission.Plan.Tasks != null)
-        // {
-        //     ImGui.Text("Mission:");
-        //     for (int i = 0; i < mission.Plan.Tasks.Count; i++)
-        //     {
-        //         var task    = mission.Plan.Tasks[i];
-        //         bool active = task.TaskId == mission.Plan.ActiveTaskId;
-        //         ImGui.Text($"{GetTaskIcon(task, active)} {i + 1}. {task.BehaviorId}");
-        //     }
-        //
-        //     if (ImGui.Button("JUMP"))  HandleJump(logic);
-        //     ImGui.SameLine();
-        //     if (ImGui.Button("ABORT")) HandleAbort(logic);
-        // }
-        //
-        // ImGui.End();
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        ImGui.Begin("Selection & Mission");
+
+        if (_selectedEntityId == 0)
+        {
+            ImGui.Text("No selection");
+            ImGui.End(); return;
+        }
+
+        var entity = logic.Repo.GetEntity(_selectedEntityId);
+        if (entity == null)
+        {
+            ImGui.Text("Entity not found");
+            ImGui.End(); return;
+        }
+
+        var info    = entity.HasDescriptor<EntityInfo>()    ? entity.GetDescriptor<EntityInfo>()    : default;
+        var mission = entity.HasDescriptor<EntityMission>() ? entity.GetDescriptor<EntityMission>() : default;
+
+        ImGui.Text($"Selected: {info.Name}");
+        ImGui.Text($"ID: {_selectedEntityId}");
+
+        if (mission.Plan.Tasks != null)
+        {
+            ImGui.Text("Mission:");
+            for (int i = 0; i < mission.Plan.Tasks.Count; i++)
+            {
+                var task    = mission.Plan.Tasks[i];
+                bool active = task.TaskId == mission.Plan.ActiveTaskId;
+                ImGui.Text($"{GetTaskIcon(task, active)} {i + 1}. {task.BehaviorId}");
+            }
+
+            if (ImGui.Button("JUMP"))  HandleJump(logic);
+            ImGui.SameLine();
+            if (ImGui.Button("ABORT")) HandleAbort(logic);
+        }
+
+        ImGui.End();
     }
 }

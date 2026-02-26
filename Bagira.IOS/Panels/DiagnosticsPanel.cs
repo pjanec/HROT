@@ -1,3 +1,4 @@
+using ImGuiNET;
 using FDP.Toolkit.DER;
 using Bagira.IOS.Services;
 
@@ -102,30 +103,29 @@ public sealed class DiagnosticsPanel
     /// </summary>
     public void Draw(IIosLogic logic)
     {
-        // Phase P10 implementation:
-        //
-        // ImGui.Begin("Diagnostics");
-        //
-        // int entityCount = GetEntityCount(logic.Repo);
-        // ImGui.Text($"Entities in Repo: {entityCount}");
-        //
-        // var pending = GetPendingRequestSnapshot(logic.TransactionManager);
-        // ImGui.Text($"Pending DDS Requests: {pending.Count}");
-        //
-        // if (pending.Count > 0)
-        // {
-        //     ImGui.Indent();
-        //     foreach (var req in pending)
-        //     {
-        //         double ageMs = (DateTime.UtcNow - req.SentTime).TotalMilliseconds;
-        //         ImGui.Text($"[{req.RequestId:N}] {req.Description} ({ageMs:F0} ms)");
-        //     }
-        //     ImGui.Unindent();
-        // }
-        //
-        // ImGui.Separator();
-        // ImGui.Text($"DDS Events/s: {_committedRate:F1}");
-        //
-        // ImGui.End();
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        ImGui.Begin("Diagnostics");
+
+        int entityCount = GetEntityCount(logic.Repo);
+        ImGui.Text($"Entities in Repo: {entityCount}");
+
+        var pending = GetPendingRequestSnapshot(logic.TransactionManager);
+        ImGui.Text($"Pending DDS Requests: {pending.Count}");
+
+        if (pending.Count > 0)
+        {
+            ImGui.Indent();
+            foreach (var req in pending)
+            {
+                double ageMs = (DateTime.UtcNow - req.SentTime).TotalMilliseconds;
+                ImGui.Text($"[{req.RequestId:N}] {req.Description} ({ageMs:F0} ms)");
+            }
+            ImGui.Unindent();
+        }
+
+        ImGui.Separator();
+        ImGui.Text($"DDS Events/s: {_committedRate:F1}");
+
+        ImGui.End();
     }
 }

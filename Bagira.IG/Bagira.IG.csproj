@@ -32,6 +32,8 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
+    <!-- NetworkDemo: provides TransformSyncSystem for dead-reckoning interpolation (TASK-IF005) -->
+    <ProjectReference Include="..\FDP\Examples\Fdp.Examples.NetworkDemo\Fdp.Examples.NetworkDemo.csproj" />
   </ItemGroup>
 
   <ItemGroup>

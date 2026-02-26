@@ -3,6 +3,7 @@ using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
 using Bagira.SimHost.Util;
+using CarKinem.Core;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 
@@ -85,8 +86,12 @@ namespace Bagira.SimHost.Tests
             Assert.Equal(tkbType, master.TkbType);
         }
 
+        /// <summary>
+        /// SC1 (TASK-IF001): A non-vehicle GeoSpatial descriptor must NOT produce a
+        /// <see cref="VehicleState"/> component — that responsibility belongs to the TKB template.
+        /// </summary>
         [Fact]
-        public void DescriptorMapper_GeoSpatialDescriptor_AddsGeoSpatialAndVehicleState()
+        public void DescriptorMapper_GeoSpatialDescriptor_DoesNotAddVehicleState()
         {
             var geo = new IdentityGeoTransform();
             var descriptors = new List<EntityDescriptorUnion>
@@ -96,16 +101,38 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geo);
 
-            // Should produce both GeoSpatial, SimTransform and VehicleState component
-            Assert.Equal(3, components.Count);
+            // Must produce exactly GeoSpatial + SimTransform (no VehicleState).
+            Assert.Equal(2, components.Count);
 
             var geoSpatial = Assert.IsType<GeoSpatial>(components[0]);
             Assert.Equal(48.0, geoSpatial.Pos.Latitude, precision: 5);
 
-            var simState = Assert.IsType<SimTransform>(components[1]);
+            var simTransform = Assert.IsType<SimTransform>(components[1]);
             // IdentityGeoTransform returns (lon, lat, alt) → Position.X = lon, Position.Y = lat
-            Assert.Equal(16f, simState.Position.X, precision: 3);
-            Assert.Equal(48f, simState.Position.Y, precision: 3);
+            Assert.Equal(16f, simTransform.Position.X, precision: 3);
+            Assert.Equal(48f, simTransform.Position.Y, precision: 3);
+
+            // Explicitly assert no VehicleState is present — the TKB template owns it.
+            Assert.DoesNotContain(components, c => c is VehicleState);
+        }
+
+        /// <summary>
+        /// A GeoSpatial descriptor with no geo transform should produce only GeoSpatial
+        /// (no SimTransform, no VehicleState).
+        /// </summary>
+        [Fact]
+        public void DescriptorMapper_GeoSpatialDescriptor_NullTransform_AddsOnlyGeoSpatial()
+        {
+            var descriptors = new List<EntityDescriptorUnion>
+            {
+                MakeGeoSpatialDescriptor(lat: 48.0, lon: 16.0),
+            };
+
+            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+
+            Assert.Single(components);
+            Assert.IsType<GeoSpatial>(components[0]);
+            Assert.DoesNotContain(components, c => c is VehicleState);
         }
 
         [Fact]

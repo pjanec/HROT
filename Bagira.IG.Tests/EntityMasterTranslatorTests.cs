@@ -66,10 +66,10 @@ public class EntityMasterTranslatorTests
         var commands = eventBus.ConsumeManaged<SpawnEntityCommand>();
 
         Assert.Single(commands);
-        Assert.Equal(TestNetworkId,                    commands[0].NetworkId);
-        Assert.Equal(TestTkbType,                      commands[0].TkbType);
-        Assert.Equal(IgNetworkConstants.LocalNodeId,   commands[0].OwnerNodeId);
-        Assert.Equal(ReliableInitType.None,            commands[0].InitType);
+        Assert.Equal(TestNetworkId,         commands[0].NetworkId);
+        Assert.Equal(TestTkbType,           commands[0].TkbType);
+        Assert.Equal(0,                     commands[0].OwnerNodeId); // ghost node — no local authority
+        Assert.Equal(ReliableInitType.None, commands[0].InitType);
     }
 
     /// <summary>
@@ -100,10 +100,36 @@ public class EntityMasterTranslatorTests
     // ── Component-update path (known entity) ─────────────────────────────────
 
     /// <summary>
+    /// SC1 (TASK-IF004): A replicated entity must have <c>OwnerNodeId = 0</c>
+    /// (FDP convention for \u201cremote / no local authority\u201d).  This prevents
+    /// <c>NetworkSpawningSystem</c> from tagging the entity with
+    /// <c>NetworkAuthority.HasAuthority = true</c>, which would cause
+    /// <c>TransformSyncSystem</c> to skip dead-reckoning for all replicated entities.
+    /// </summary>
+    [Fact]
+    public void ProcessSample_NewEntity_OwnerNodeIdIsZero_EnforcingGhostOwnership()
+    {
+        var (repo, _, eventBus, translator) = CreateFixture();
+        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+
+        ISimulationView view = repo;
+        IEntityCommandBuffer cmd = view.GetCommandBuffer();
+        translator.ProcessSample(in master, cmd, view);
+
+        eventBus.SwapBuffers();
+        var commands = eventBus.ConsumeManaged<SpawnEntityCommand>();
+
+        Assert.Single(commands);
+        // OwnerNodeId = 0 \u2192 remote ownership \u2192 HasAuthority = false in the spawning system.
+        Assert.Equal(0, commands[0].OwnerNodeId);
+        // Specifically must NOT use the local node ID, which would steal authority.
+        Assert.NotEqual(IgNetworkConstants.LocalNodeId, commands[0].OwnerNodeId);
+    }
+
+    /// <summary>
     /// When the entity is already known, ProcessSample must update the
     /// <see cref="EntityMaster"/> component on the existing entity and must NOT
-    /// emit a new <see cref="SpawnEntityCommand"/>.
-    /// </summary>
+    /// emit a new <see cref="SpawnEntityCommand"/>.</summary>
     [Fact]
     public void ProcessSample_KnownEntity_UpdatesComponentAndEmitsNoSpawnCommand()
     {

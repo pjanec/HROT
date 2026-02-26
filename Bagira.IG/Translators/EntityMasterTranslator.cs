@@ -120,11 +120,13 @@ namespace Bagira.IG.Translators
             {
                 // New remote entity — request creation through NetworkSpawningSystem
                 // InitType = None: IG is a ghost replica, not an authority node.
+                // OwnerNodeId = 0: remote / no local authority — prevents IG from
+                // claiming HasAuthority = true on replicated entities (TASK-IF004).
                 _eventBus.PublishManaged(new SpawnEntityCommand
                 {
                     NetworkId         = netId,
                     TkbType           = master.TkbType,
-                    OwnerNodeId       = IgNetworkConstants.LocalNodeId,
+                    OwnerNodeId       = 0,
                     InitType          = ReliableInitType.None,
                     InitialComponents = new List<object> { master },
                     RequestId         = Guid.Empty

@@ -8,6 +8,7 @@ using Bagira.IG.Modules;
 using Bagira.IG.Systems;
 using Bagira.IG.Tools;
 using Bagira.IG.Translators;
+using Bagira.IG.UI;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic.Transforms;
@@ -22,6 +23,7 @@ using FDP.Toolkit.Vis2D.Abstractions;
 using FDP.Toolkit.Vis2D.Components;
 using FDP.Toolkit.Vis2D.Defaults;
 using FDP.Toolkit.Vis2D.Layers;
+using ImGuiNET;
 using ModuleHost.Core;
 using ModuleHost.Core.Network;
 using ModuleHost.Core.Network.Interfaces;
@@ -30,6 +32,7 @@ using DdsIdAllocator = ModuleHost.Network.Cyclone.Services.DdsIdAllocator;
 using NodeIdMapper    = ModuleHost.Network.Cyclone.Services.NodeIdMapper;
 using Raylib_cs;
 using rlImGui_cs;
+using Fdp.Examples.NetworkDemo.Systems;
 
 namespace Bagira.IG;
 
@@ -73,6 +76,16 @@ public class IgApplication
     // ── Style and culling objects — updated and injected into modules
     private MapUserConfig     _userConfig     = null!;
     private MapCameraViewport _cameraViewport = null!;
+
+    // ── ImGui UI panels (TASK-IF008) ──────────────────────────────────────────
+    private DebugPanelState       _debugPanelState   = null!;
+    private IgDebugPanel          _debugPanel        = null!;
+    private EntityInspectorState  _inspectorState    = null!;
+    private EntityInspectorPanel  _inspectorPanel    = null!;
+    private MiniIosPanelState     _miniIosState      = null!;
+    private MiniIosPanel          _miniIosPanel      = null!;
+    private PerformanceMetrics    _performanceMetrics = null!;
+    private PerformanceOverlay    _performanceOverlay = null!;
 
     // -------------------------------------------------------------------------
 
@@ -138,6 +151,16 @@ public class IgApplication
 
         _userConfig     = new MapUserConfig();
         _cameraViewport = new MapCameraViewport();
+
+        // ── ImGui UI panels (TASK-IF008) ─────────────────────────────────────
+        _debugPanelState    = new DebugPanelState(_userConfig);
+        _debugPanel         = new IgDebugPanel(_debugPanelState);
+        _inspectorState     = new EntityInspectorState();
+        _inspectorPanel     = new EntityInspectorPanel(_inspectorState);
+        _miniIosState       = new MiniIosPanelState();
+        _miniIosPanel       = new MiniIosPanel(_miniIosState, _eventBus);
+        _performanceMetrics = new PerformanceMetrics();
+        _performanceOverlay = new PerformanceOverlay(_performanceMetrics);
     }
 
     /// <summary>
@@ -255,6 +278,11 @@ public class IgApplication
         var timeController = new SlaveTimeController(_eventBus);
         _kernel.SetTimeController(timeController);
 
+        // TASK-IF005: Register TransformSyncSystem as a global system driven by the network.
+        // IG is a ghost-only node — driveFromNetwork=true ensures all entities are treated
+        // as remote and dead-reckoning is applied regardless of NetworkAuthority.HasAuthority.
+        _kernel.RegisterGlobalSystem(new TransformSyncSystem(driveFromNetwork: true));
+
         _kernel.Initialize();
     }
 
@@ -266,8 +294,12 @@ public class IgApplication
         {
             float dt = Raylib.GetFrameTime();
 
-            HandleCameraInput(dt);
-            _canvas.Update(dt);
+            // Gate map input when ImGui is consuming the mouse (TASK-IF008).
+            if (!ImGui.GetIO().WantCaptureMouse)
+            {
+                HandleCameraInput(dt);
+                _canvas.Update(dt);
+            }
 
             // Project screen corners to world space and feed MapCullingSystem.
             var topLeft     = _camera.ScreenToWorld(Vector2.Zero);
@@ -282,10 +314,23 @@ public class IgApplication
             _kernel.Update();
             _eventBus.SwapBuffers();
 
+            // Update UI panel states (TASK-IF008).
+            _performanceMetrics.Snapshot(_world, Raylib.GetFPS(), Raylib.GetFrameTime() * 1000f);
+            _inspectorState.Refresh(_world, GetSelectedEntity());
+
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.DarkGray);
             _canvas.Draw();
             DrawDebugOverlay();
+
+            // Draw ImGui panels (TASK-IF008).
+            rlImGui.Begin();
+            _debugPanel.Draw();
+            _inspectorPanel.Draw();
+            _miniIosPanel.Draw();
+            _performanceOverlay.Draw();
+            rlImGui.End();
+
             Raylib.EndDrawing();
         }
     }
@@ -335,6 +380,26 @@ public class IgApplication
         Vector2 mousePos = Raylib.GetMousePosition();
         if (zoomIn)  _camera.ProcessInput(1.0f,  mousePos, false, false);
         if (zoomOut) _camera.ProcessInput(-1.0f, mousePos, false, false);
+    }
+
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Returns the first entity in the ECS that has a <see cref="SelectionState"/>
+    /// with <see cref="SelectionState.IsSelected"/> or
+    /// <see cref="SelectionState.IsPrimarySelection"/> set to <c>true</c>.
+    /// Returns <see cref="Entity.Null"/> when nothing is selected.
+    /// </summary>
+    private Entity GetSelectedEntity()
+    {
+        var q = _world.Query().With<SelectionState>().Build();
+        foreach (var entity in q)
+        {
+            var state = _world.GetComponent<SelectionState>(entity);
+            if (state.IsSelected || state.IsPrimarySelection)
+                return entity;
+        }
+        return Entity.Null;
     }
 
     // -------------------------------------------------------------------------

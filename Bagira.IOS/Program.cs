@@ -61,7 +61,7 @@ class Program
         Console.WriteLine($"[IOS] Starting – domain={domainId} node={nodeId}");
 
         // 2. Construct services and panels
-        var repo              = new DerRepo();
+        var repo              = new DerRepo(nodeId);
         var transactionMgr    = new RequestTransactionManager();
         var interactionPanel  = new InteractionPanel();
 

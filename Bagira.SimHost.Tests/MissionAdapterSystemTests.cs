@@ -279,14 +279,17 @@ namespace Bagira.SimHost.Tests
             Assert.Equal(0, doctrine.ActiveDoctrineHash);
         }
 
+        // ── TASK-IF002 — Doctrine Preemption (InstanceId increment) ──────────
+
         /// <summary>
-        /// When the only task completes (Success), the
-        /// <see cref="EntityMissionHolder"/> component must be removed (mission complete).
+        /// SC1 (TASK-IF002): When the doctrine changes, <see cref="DoctrineState.InstanceId"/>
+        /// must be incremented by exactly one so <c>ChannelArbitrationSystem</c> detects the
+        /// change and preempts stale locomotion channels.
         /// </summary>
         [Fact]
-        public void MissionAdapter_MissionComplete_RemovesEntityMissionHolder()
+        public void MissionAdapter_DoctrineChange_IncrementsInstanceId()
         {
-            // ── Arrange ───────────────────────────────────────────────────────
+            // ── Arrange ─────────────────────────────────────────────────────
             using var world = CreateWorld();
             var registry    = BuildRegistry();
             var entity      = world.CreateEntity();
@@ -297,20 +300,89 @@ namespace Bagira.SimHost.Tests
             });
             world.AddComponent(entity, new DoctrineState
             {
-                ActiveDoctrineHash = SimHostDoctrineIds.MoveTo_BT
+                ActiveDoctrineHash = 0,  // different from MoveTo_BT → will trigger change
+                InstanceId         = 5u
             });
             world.AddComponent(entity, new BrainBlackboard());
-            world.AddComponent(entity, new LocomotionChannel { Status = NodeStatus.Success });
 
             var system = new MissionAdapterSystem(registry, new NetworkEntityMap());
             system.Create(world);
 
-            // ── Act ───────────────────────────────────────────────────────────
+            // ── Act ──────────────────────────────────────────────────────────
             system.Run();
 
-            // ── Assert ────────────────────────────────────────────────────────
-            Assert.False(world.HasManagedComponent<EntityMissionHolder>(entity),
-                "EntityMissionHolder must be removed when the last task completes.");
+            // ── Assert ───────────────────────────────────────────────────────
+            var doctrine = world.GetComponent<DoctrineState>(entity);
+            Assert.Equal(6u, doctrine.InstanceId); // must have incremented exactly once
+        }
+
+        /// <summary>
+        /// SC2 (TASK-IF002): InstanceId must wrap around from <c>uint.MaxValue</c> to 0
+        /// without throwing an <see cref="OverflowException"/> (unchecked arithmetic).
+        /// </summary>
+        [Fact]
+        public void MissionAdapter_DoctrineChange_InstanceIdWrapsAroundWithoutException()
+        {
+            // ── Arrange ─────────────────────────────────────────────────────
+            using var world = CreateWorld();
+            var registry    = BuildRegistry();
+            var entity      = world.CreateEntity();
+
+            world.SetManagedComponent(entity, new EntityMissionHolder
+            {
+                Mission = MakeSingleTaskMission("MoveToLocation", out _)
+            });
+            world.AddComponent(entity, new DoctrineState
+            {
+                ActiveDoctrineHash = 0,          // triggers change
+                InstanceId         = uint.MaxValue
+            });
+            world.AddComponent(entity, new BrainBlackboard());
+
+            var system = new MissionAdapterSystem(registry, new NetworkEntityMap());
+            system.Create(world);
+
+            // ── Act + Assert ─────────────────────────────────────────────────
+            var ex = Record.Exception(() => system.Run());
+            Assert.Null(ex); // must not throw OverflowException
+
+            var doctrine = world.GetComponent<DoctrineState>(entity);
+            Assert.Equal(0u, doctrine.InstanceId); // wraps to 0
+        }
+
+        /// <summary>
+        /// SC3 (TASK-IF002): When the incoming doctrine matches the current
+        /// <see cref="DoctrineState.ActiveDoctrineHash"/>, <see cref="DoctrineState.InstanceId"/>
+        /// must NOT be incremented (no spurious preemption on stable doctrine).
+        /// </summary>
+        [Fact]
+        public void MissionAdapter_SameDoctrine_DoesNotIncrementInstanceId()
+        {
+            // ── Arrange ─────────────────────────────────────────────────────
+            using var world = CreateWorld();
+            var registry    = BuildRegistry();
+            var entity      = world.CreateEntity();
+
+            world.SetManagedComponent(entity, new EntityMissionHolder
+            {
+                Mission = MakeSingleTaskMission("MoveToLocation", out _)
+            });
+            world.AddComponent(entity, new DoctrineState
+            {
+                ActiveDoctrineHash = SimHostDoctrineIds.MoveTo_BT, // already matches
+                InstanceId         = 10u
+            });
+            world.AddComponent(entity, new BrainBlackboard());
+
+            var system = new MissionAdapterSystem(registry, new NetworkEntityMap());
+            system.Create(world);
+
+            // ── Act ──────────────────────────────────────────────────────────
+            system.Run();
+
+            // ── Assert ───────────────────────────────────────────────────────
+            var doctrine = world.GetComponent<DoctrineState>(entity);
+            Assert.Equal(10u, doctrine.InstanceId); // unchanged — same doctrine
         }
     }
 }

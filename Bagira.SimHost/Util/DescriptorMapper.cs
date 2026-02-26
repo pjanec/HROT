@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Bagira.BDC.SSTD;
-using CarKinem.Core;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using Fdp.Modules.Geographic;
@@ -45,10 +44,11 @@ namespace Bagira.SimHost.Util
         /// </summary>
         /// <param name="descriptors">The descriptor list from the incoming DDS request.</param>
         /// <param name="geoTransform">
-        /// Optional geographic transform. When provided, a <see cref="VehicleState"/> override
-        /// is generated for <c>dtGeoSpatial</c> descriptors so CarKiem physics starts at the
-        /// correct Cartesian position.  When <c>null</c>, the raw <c>GeoSpatial</c> component is
-        /// still added but no <c>VehicleState</c> is produced.
+        /// Optional geographic transform. When provided, a <see cref="SimTransform"/> is
+        /// generated for <c>dtGeoSpatial</c> descriptors so the entity starts at the correct
+        /// Cartesian position.  When <c>null</c>, the raw <c>GeoSpatial</c> component is
+        /// still added but no <c>SimTransform</c> is produced.
+        /// VehicleState is NOT added here — it is the responsibility of the TKB template.
         /// </param>
         public static List<object> MapToComponents(
             List<EntityDescriptorUnion>? descriptors,
@@ -77,32 +77,25 @@ namespace Bagira.SimHost.Util
                         // Raw DDS component — replicated via AutoCycloneTranslator.
                         result.Add(d.GeoSpatial);
 
-                        // Also produce a VehicleState for CarKinem physics if a geo transform is available.
+                        // Produce a SimTransform for spatial placement if a geo transform is available.
+                        // NOTE: VehicleState is intentionally NOT added here. It is only valid for
+                        // wheeled entities and must be added exclusively by the TKB template to avoid
+                        // breaking LinearKinematicsSystem for infantry and aircraft.
                         if (geoTransform != null)
                         {
                             var pos = d.GeoSpatial.Pos;
                             var cart = geoTransform.ToCartesian(pos.Latitude, pos.Longitude, pos.Altitude);
 
-                            // Create SimTransform
-                            // Use cartesian coords computed above
                             var cartPos = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
                             // Heading is degrees CW from North.
                             float headingRad = d.GeoSpatial.Rot.Heading * (MathF.PI / 180f);
-                            // To match HeadingToVector logic: North=(0,1), East=(1,0)
-                            // Yaw=-90 rotates (0,1) to (1,0).
-                            // So Yaw = -headingRad.
+                            // Yaw=-90 rotates North=(0,1) to East=(1,0) per right-handed convention.
                             var rot = Quaternion.CreateFromYawPitchRoll(-headingRad, 0, 0);
 
                             result.Add(new SimTransform
                             {
                                 Position = cartPos,
                                 Rotation = rot
-                            });
-
-                            result.Add(new VehicleState
-                            {
-                                Speed      = 0f,
-                                SteerAngle = 0f,
                             });
                         }
                         break;

@@ -83,6 +83,9 @@ namespace Bagira.SimHost.Systems
                 if (doctrine.ActiveDoctrineHash != doctrineId)
                 {
                     doctrine.ActiveDoctrineHash = doctrineId;
+                    // Increment InstanceId so ChannelArbitrationSystem detects a doctrine change
+                    // and preempts stale locomotion/weapon channels.  unchecked = natural uint wrap-around.
+                    unchecked { doctrine.InstanceId++; }
                     World.SetComponent(entity, doctrine);
 
                     // Parse JSON params into BrainBlackboard inline memory (zero-alloc cold path).

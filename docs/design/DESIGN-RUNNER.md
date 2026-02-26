@@ -1,8 +1,11 @@
 # Aggregated Mock Runner Application Design
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** 2026-02-14  
-**Status:** Ready for Implementation
+**Last Updated:** 2026-02-26  
+**Status:** Ready for Implementation — Architect-Reviewed
+
+> **Architecture Review (2026-02-26):** Several sections have been corrected to align with the current Bagira codebase. Key changes: `ISubsystem` now has split `DrawWorld()`/`DrawUI()` phases; `SubsystemOrchestrator` owns the Raylib render loop; obsolete FDP kernel references (`FdpWorld`, `CarKinemModule`) are replaced with `EntityRepository`/`ModuleHostKernel`; `DerRepo` constructor signature corrected; `ICameraService` removed (not needed); DDS QoS attributes corrected to use `[DdsQos(...)]`.
 
 **Parent Document**: [Overall Design](./DESIGN-OVERALL.md)
 
@@ -125,7 +128,9 @@ Bagira.IOS/
 
 ### 2.3 Subsystem Interface
 
-Each subsystem implements a common lifecycle interface:
+Each subsystem implements a common lifecycle interface.
+
+> **Architect Note (2026-02-26):** The interface now defines three distinct per-frame phases — `Update`, `DrawWorld`, and `DrawUI` — that are driven exclusively by the `SubsystemOrchestrator`. This eliminates Raylib/ImGui context conflicts that would occur if subsystems each owned their own draw calls.
 
 ```csharp
 public interface ISubsystem : IDisposable
@@ -134,16 +139,17 @@ public interface ISubsystem : IDisposable
     SubsystemStatus Status { get; }
     
     // Initialization
-    void Initialize(SubsystemConfiguration config);
+    void Initialize(object config);  // object to allow subsystem-specific config
     void ConnectToDomain(int domainId);
     
     // Lifecycle
     void Start();
     void Stop();
-    void Restart();
     
-    // Update loop (for non-FDP subsystems)
-    void Update(float deltaTime);
+    // Per-frame lifecycle phases — all driven by SubsystemOrchestrator
+    void Update(float deltaTime);   // Physics / network logic (no rendering)
+    void DrawWorld();               // 2D/3D Raylib rendering (NO ImGui calls)
+    void DrawUI();                  // ImGui panel rendering only
     
     // Waiting room
     Task WaitForReady();
@@ -435,14 +441,18 @@ When running as separate processes, subsystems may start in arbitrary order. Iss
 **DDS Topic:**
 ```csharp
 [DdsTopic("SubsystemStatusAnnounce")]
-public struct SubsystemStatusAnnounce
+[DdsQos(
+    Reliability = DdsReliability.Reliable,
+    Durability = DdsDurability.TransientLocal,
+    HistoryKind = DdsHistoryKind.KeepLast,
+    HistoryDepth = 1)]
+public partial struct SubsystemStatusAnnounce
 {
-    [DdsKey]
-    public int NodeId;
+    [DdsKey] public int NodeId;
     
     public string SubsystemName;  // "simhost", "ig", "ios"
-    public SubsystemStatus Status;
-    public long Timestamp;
+    public byte Status;           // SubsystemStatus enum cast to byte
+    public long TimestampMs;
     public string Version;
 }
 
@@ -614,172 +624,163 @@ Each subsystem (SimHost, IG, IOS) should be usable as:
 
 #### 7.2.1 SimHost Embeddability
 
-**Before (Standalone):**
-```csharp
-// Bagira.SimHost/Program.cs
-class Program
-{
-    static void Main(string[] args)
-    {
-        var world = new FdpWorld();
-        world.AddModule<CarKinemModule>();
-        // ... setup ...
-        while (!exit)
-        {
-            world.Update(dt);
-        }
-    }
-}
-```
+> **Architect Note (2026-02-26):** The older snippets referenced `FdpWorld`, `CarKinemModule`, and `MissionExecutionModule` which are all obsolete. The current SimHost uses `EntityRepository`, `EventAccumulator`, `ModuleHostKernel`, and `TkbDatabase`. The embeddable version below reflects the actual `Bagira.SimHost/Program.cs` architecture.
 
-**After (Embeddable):**
+**Embeddable SimHostSubsystem:**
 ```csharp
 // Bagira.SimHost/SimHostSubsystem.cs
-public class SimHostSubsystem : ISubsystem
+public class SimHostSubsystem : SubsystemBase
 {
-    private FdpWorld _world;
+    private EntityRepository? _world;
+    private EventAccumulator? _eventAccumulator;
+    private ModuleHostKernel? _kernel;
     private SimHostConfiguration _config;
-    private bool _isRunning;
     
-    public void Initialize(SimHostConfiguration config)
+    public override void Initialize(object config)
     {
-        _config = config;
-        _world = new FdpWorld();
-        _world.AddModule<CarKinemModule>();
-        _world.AddModule<MissionExecutionModule>();
-        // ...
+        _config = (SimHostConfiguration)config;
+        _world = new EntityRepository();
+        _eventAccumulator = new EventAccumulator();
+        _kernel = new ModuleHostKernel(_world, _eventAccumulator);
+        
+        // Register TKB catalog (matches Bagira.SimHost/Program.cs logic)
+        var tkbDb = new TkbDatabase();
+        BdcTkbCatalog.RegisterAll(tkbDb);
+        _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
+        
+        // Register GeographicModule, ELM, SimulationLogicModule, etc.
+        // (same modules as standalone Program.cs)
+        
+        Status = SubsystemStatus.Ready;
     }
     
-    public void ConnectToDomain(int domainId)
+    public override void ConnectToDomain(int domainId)
     {
-        var cyclone = new CycloneNetworkModule(domainId);
-        _world.AddModule(cyclone);
+        // Wire DDS readers/writers to kernel translators
     }
     
-    public void Start()
+    public override void Update(float deltaTime)
     {
-        _isRunning = true;
-        Task.Run(RunLoop);
+        _kernel?.Tick(deltaTime);
     }
     
-    private void RunLoop()
-    {
-        while (_isRunning)
-        {
-            _world.Update(Time.DeltaTime);
-        }
-    }
+    // SimHost has no world or UI rendering
+    public override void DrawWorld() { }
+    public override void DrawUI() { }
 }
 
-// Bagira.SimHost.Standalone/Program.cs (thin shell)
-class Program
-{
-    static void Main(string[] args)
-    {
-        var config = ParseArgs(args);
-        var simHost = new SimHostSubsystem();
-        simHost.Initialize(config);
-        simHost.ConnectToDomain(config.DomainId);
-        simHost.Start();
-        
-        Console.WriteLine("SimHost running. Press any key to exit.");
-        Console.ReadKey();
-        simHost.Stop();
-    }
-}
+// Bagira.SimHost/Program.cs (standalone thin shell — unchanged)
+// SimHost continues to run its own loop when deployed standalone.
 ```
 
 #### 7.2.2 IG Embeddability
 
-**Key Challenge**: IG has Raylib which requires main thread
+**Key Challenge**: IG has Raylib which requires main thread rendering.
 
-**Solution**: IG subsystem owns the main loop when embedded
+**Solution**: The `SubsystemOrchestrator` owns the Raylib window. IG provides `DrawWorld()` and `DrawUI()` that are called by the orchestrator at the right point in the render loop. IG never calls `Raylib.BeginDrawing()` or `rlImGui.Begin()` itself.
+
+> **Architect Note (2026-02-26):** The old design had IG's `Update()` calling `Raylib.BeginDrawing()` and `rlImGui.Begin()` internally. This crashes when IOS or SimHost panels also need to draw ImGui in the same frame. The orchestrator now drives all phases.
 
 ```csharp
 // Bagira.IG/IgSubsystem.cs
-public class IgSubsystem : ISubsystem
+public class IgSubsystem : SubsystemBase
 {
-    private FdpWorld _world;
-    private MapCanvas _canvas;
+    private IgApplication? _app;
+    private MapCanvas? _canvas;
     private bool _headless;
     
-    public void Initialize(IgConfiguration config)
+    public override void Initialize(object config)
     {
-        _headless = config.Headless;
-        _world = new FdpWorld();
+        var igConfig = (IgConfiguration)config;
+        _headless = igConfig.Headless;
         
         if (!_headless)
         {
-            Raylib.InitWindow(config.WindowWidth, config.WindowHeight, "IG Mock");
-            _canvas = new MapCanvas(new RaylibInputProvider());
+            Raylib.InitWindow(igConfig.WindowWidth, igConfig.WindowHeight, "IG Mock");
+            rlImGui.Setup();
+            // IG creates its canvas and input provider but does NOT start a draw loop
+        }
+        else
+        {
+            // Inject HeadlessInputProvider — no window opened
         }
     }
     
-    public void Update(float deltaTime)
+    public override void Update(float deltaTime)
     {
-        _world.Update(deltaTime);
-        
-        if (!_headless && !Raylib.WindowShouldClose())
-        {
-            _canvas.Update(deltaTime);
-            
-            Raylib.BeginDrawing();
-            Raylib.ClearBackground(Color.DARKGRAY);
-            _canvas.Render(new RenderContext());
-            Raylib.EndDrawing();
-        }
+        // ECS tick, input polling, tool logic — no rendering here
+        _app?.Update(deltaTime);
+    }
+    
+    public override void DrawWorld()
+    {
+        // Called by orchestrator between BeginDrawing/EndDrawing, before rlImGui.Begin
+        if (!_headless)
+            _canvas?.Render();
+    }
+    
+    public override void DrawUI()
+    {
+        // Called by orchestrator between rlImGui.Begin/End
+        if (!_headless)
+            _app?.DrawPanels();
     }
 }
 ```
 
 #### 7.2.3 IOS Embeddability
 
-**Key Challenge**: IOS has ImGui which requires window context
+**Key Challenge**: IOS has ImGui panels that must render inside the orchestrator's ImGui frame.
 
-**Solution**: IOS can use standalone ImGui or share IG's context
+**Solution**: `IosSubsystem` exposes `DrawUI()` so the orchestrator can call it between `rlImGui.Begin()` and `rlImGui.End()`. IOS does not own any window context.
+
+> **Architect Note (2026-02-26):** `DerRepo` takes no network arguments — it is a pure storage class. Network wiring happens in `ConnectToDomain()`. The old snippet with `new DerRepo(config.DomainId, config.NodeId)` was incorrect.
 
 ```csharp
 // Bagira.IOS/IosSubsystem.cs
-public class IosSubsystem : ISubsystem
+public class IosSubsystem : SubsystemBase
 {
-    private DerRepo _repo;
-    private BdcCommandGateway _commands;
-    private bool _headless;
-    private nint _imGuiContext; // Shared or standalone
+    private DerRepo? _repo;
+    private IosLogic? _iosLogic;
+    private IosConfiguration _config;
     
-    public void Initialize(IosConfiguration config)
+    // Panel instances (same as standalone IosLogic panels)
+    private ConfigPanel? _configPanel;
+    private OrbatPanel? _orbatPanel;
+    
+    public override void Initialize(object config)
     {
-        _headless = config.Headless;
-        _repo = new DerRepo(config.DomainId, config.NodeId);
-        _commands = new BdcCommandGateway(_repo);
+        _config = (IosConfiguration)config;
+        _repo = new DerRepo();  // No network args — pure storage
+        // IosLogic writers/queues are wired in ConnectToDomain
         
-        if (!_headless)
-        {
-            // Option A: Standalone window
-            if (config.StandaloneWindow)
-            {
-                // Initialize SDL+ImGui
-            }
-            // Option B: Share context
-            else if (config.SharedImGuiContext != nint.Zero)
-            {
-                _imGuiContext = config.SharedImGuiContext;
-                ImGui.SetCurrentContext(_imGuiContext);
-            }
-        }
+        _configPanel = new ConfigPanel();
+        _orbatPanel = new OrbatPanel();
+        Status = SubsystemStatus.Ready;
     }
     
-    public void Update(float deltaTime)
+    public override void ConnectToDomain(int domainId)
     {
-        _repo.Poll();
-        
-        if (!_headless)
+        // Wire DDS readers/writers and instantiate IosLogic
+        _iosLogic = new IosLogic(_repo, /* DDS writers */ );
+    }
+    
+    public override void Update(float deltaTime)
+    {
+        // Poll DDS / update DER state — no rendering here
+        _iosLogic?.Tick(deltaTime);
+    }
+    
+    // IOS has no 2D/3D world rendering
+    public override void DrawWorld() { }
+    
+    public override void DrawUI()
+    {
+        if (!_config.Headless && _iosLogic != null)
         {
-            ImGui.Begin("IOS Control Panel");
-            DrawOrbatTree();
-            DrawMissionEditor();
-            // ...
-            ImGui.End();
+            _configPanel?.Draw(_iosLogic);
+            _orbatPanel?.Draw(_iosLogic);
+            // ... other panels
         }
     }
 }
@@ -882,18 +883,31 @@ public class SubsystemOrchestrator
         }
     }
     
+    // IMPORTANT: The orchestrator owns the Raylib window AND all render phases.
+    // Subsystems MUST NOT call BeginDrawing/EndDrawing or rlImGui.Begin/End themselves.
     private void RunWithIgMainLoop()
     {
-        var ig = _subsystems.OfType<IgSubsystem>().First();
-        
         while (!Raylib.WindowShouldClose())
         {
             float dt = Raylib.GetFrameTime();
             
+            // Phase 1: Logic update (physics, network, ECS ticks)
             foreach (var subsystem in _subsystems)
-            {
                 subsystem.Update(dt);
-            }
+            
+            // Phase 2: World rendering (Raylib draw calls only, NO ImGui)
+            Raylib.BeginDrawing();
+            Raylib.ClearBackground(Color.DarkGray);
+            foreach (var subsystem in _subsystems)
+                subsystem.DrawWorld();
+            
+            // Phase 3: UI rendering (ImGui panels only)
+            rlImGui.Begin();
+            foreach (var subsystem in _subsystems)
+                subsystem.DrawUI();
+            rlImGui.End();
+            
+            Raylib.EndDrawing();
         }
     }
     
@@ -1271,66 +1285,50 @@ Bagira.Runner.exe --mode all --wait-for "" --domain 0
 
 ### 9.2 Headless Rendering Abstraction
 
-**Issue:** IG's headless mode skips Raylib window creation, but code might call `Raylib.GetMousePosition()` or `Camera.ScreenToWorld()`, causing crashes.
+> **Architect Note (2026-02-26):** The previous design proposed an `ICameraService` / `HeadlessCamera` abstraction. This is over-engineered. `MapCamera` only manipulates the `Camera2D` struct (pure math), which is perfectly safe in headless mode — it never calls any GPU function. An `ICameraService` is therefore not needed.
 
-**Solution:**
-- Abstract input and camera behind interfaces:
-  - `IInputProvider` (mouse, keyboard)
-  - `ICameraService` (screen↔world transforms)
-- In headless mode, inject mock implementations:
-  - `HeadlessInputProvider` (returns zeros)
-  - `HeadlessCamera` (mathematical projection without GPU)
+**Actual Headless Solution (simplified):**
+- Inject a `HeadlessInputProvider` (implements `IInputProvider`, returns zeros) so tools never call `Raylib.GetMousePosition()` directly.
+- In headless mode, the orchestrator simply **skips** the `DrawWorld()` and `DrawUI()` calls — no Raylib window is ever opened.
+- `MapCamera` math can still run safely during `Update()` even without a window.
 
-**Code Pattern:**
-```csharp
-// In IgSubsystem.Initialize()
-if (_config.Headless)
-{
-    _inputProvider = new HeadlessInputProvider();
-    _cameraService = new HeadlessCamera(1920, 1080);
-    _canvas = new MapCanvas(_world, _cameraService);  // Pass camera abstraction
-}
-else
-{
-    _inputProvider = new RaylibInputProvider();
-    _cameraService = new RaylibCameraService(_canvas.Camera);
-}
-
-// Tools use abstraction, not direct Raylib calls
-public void Update()
-{
-    var mousePos = _inputProvider.GetMousePosition();  // Works in both modes
-    var worldPos = _cameraService.ScreenToWorld(mousePos);
-    // ...
-}
-```
-
-**HeadlessInputProvider:**
+**HeadlessInputProvider (the only addition needed):**
 ```csharp
 public class HeadlessInputProvider : IInputProvider
 {
     public Vector2 GetMousePosition() => Vector2.Zero;
     public bool IsMouseButtonPressed(MouseButton button) => false;
     public bool IsKeyPressed(KeyboardKey key) => false;
+    public bool IsKeyDown(KeyboardKey key) => false;
 }
 ```
 
-**HeadlessCamera:**
+**Orchestrator headless loop (no DrawWorld/DrawUI calls):**
 ```csharp
-public class HeadlessCamera : ICameraService
+private void RunHeadlessLoop()
 {
-    private readonly Rectangle _virtualView;
+    var stopwatch = Stopwatch.StartNew();
+    var lastTime = 0.0;
+    const float targetDt = 1.0f / 60.0f;
     
-    public HeadlessCamera(float width, float height)
+    while (!_shutdownToken.IsCancellationRequested)
     {
-        _virtualView = new Rectangle(0, 0, width, height);
+        var currentTime = stopwatch.Elapsed.TotalSeconds;
+        var dt = (float)(currentTime - lastTime);
+        lastTime = currentTime;
+        
+        // Logic only — no rendering in headless
+        foreach (var subsystem in _subsystems)
+            subsystem.Update(dt);
+        
+        var sleepTime = (int)((targetDt - dt) * 1000);
+        if (sleepTime > 0)
+            Thread.Sleep(sleepTime);
     }
-    
-    public Vector2 ScreenToWorld(Vector2 screenPos) => screenPos;  // Identity transform
-    public Vector2 WorldToScreen(Vector2 worldPos) => worldPos;
-    public Rectangle GetViewBounds() => _virtualView;
 }
 ```
+
+~~`ICameraService` and `HeadlessCamera` are removed from the design.~~
 
 ### 9.3 Test Script Timing Precision
 
@@ -1440,19 +1438,23 @@ public class TestMetricsCollector
 
 **Purpose**: Enable waiting room and distributed health monitoring
 
+> **Architect Note (2026-02-26):** FDP uses a **single `[DdsQos]` attribute** to specify all QoS policies. The older pseudo-attributes `[DdsReliability(...)]` and `[DdsDurability(...)]` do not exist in FDP and will not compile. Use the pattern below.
+
 **DDS Configuration**:
 ```csharp
 [DdsTopic("SubsystemStatusAnnounce")]
-[DdsReliability(DdsReliabilityKind.Reliable)]
-[DdsDurability(DdsDurabilityKind.TransientLocal)] // Late joiners see last status
-public struct SubsystemStatusAnnounce
+[DdsQos(
+    Reliability = DdsReliability.Reliable,
+    Durability = DdsDurability.TransientLocal,    // Late joiners see last status
+    HistoryKind = DdsHistoryKind.KeepLast,
+    HistoryDepth = 1)]
+public partial struct SubsystemStatusAnnounce
 {
-    [DdsKey]
-    public int NodeId;
+    [DdsKey] public int NodeId;
     
     public string SubsystemName;  // "simhost", "ig", "ios"
-    public byte Status;           // SubsystemStatus enum
-    public long TimestampMs;      // Unix epoch
+    public byte Status;           // SubsystemStatus enum cast to byte
+    public long TimestampMs;      // Unix epoch milliseconds
     public string Version;        // "1.0.0"
     public string HostName;       // "DEV-MACHINE-01"
     public uint ProcessId;        // OS process ID

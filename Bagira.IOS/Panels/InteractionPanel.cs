@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using ImGuiNET;
 
 namespace Bagira.IOS.Panels;
 
@@ -128,29 +129,29 @@ public sealed class InteractionPanel
     /// </summary>
     public void Draw(IIosLogic logic)
     {
-        // Phase P9 implementation:
-        // ImGui.Begin("Data Monitor");
-        //
-        // if (ImGui.BeginTable("log", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.ScrollY))
-        // {
-        //     ImGui.TableSetupColumn("Time");
-        //     ImGui.TableSetupColumn("Topic");
-        //     ImGui.TableSetupColumn("Details");
-        //     ImGui.TableHeadersRow();
-        //
-        //     // Plain for-loop — zero allocations in the hot draw path.
-        //     for (int i = 0; i < _log.Count; i++)
-        //     {
-        //         var entry = _log[i];
-        //         ImGui.TableNextRow();
-        //         ImGui.TableNextColumn(); ImGui.Text(entry.Time.ToString("HH:mm:ss"));
-        //         ImGui.TableNextColumn(); ImGui.Text($"{entry.Direction} {entry.Topic}");
-        //         ImGui.TableNextColumn(); ImGui.Text(entry.Details);
-        //     }
-        //
-        //     ImGui.EndTable();
-        // }
-        //
-        // ImGui.End();
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        ImGui.Begin("Data Monitor");
+
+        if (ImGui.BeginTable("log", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.ScrollY))
+        {
+            ImGui.TableSetupColumn("Time");
+            ImGui.TableSetupColumn("Topic");
+            ImGui.TableSetupColumn("Details");
+            ImGui.TableHeadersRow();
+
+            // Plain for-loop — zero allocations in the hot draw path.
+            for (int i = 0; i < _log.Count; i++)
+            {
+                var entry = _log[i];
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn(); ImGui.Text(entry.Time.ToString("HH:mm:ss"));
+                ImGui.TableNextColumn(); ImGui.Text($"{entry.Direction} {entry.Topic}");
+                ImGui.TableNextColumn(); ImGui.Text(entry.Details);
+            }
+
+            ImGui.EndTable();
+        }
+
+        ImGui.End();
     }
 }

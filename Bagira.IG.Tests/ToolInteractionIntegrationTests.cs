@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
+using Bagira.DDS.DM;
+using Bagira.IG.Abstractions;
 using Bagira.IG.Adapters;
 using Bagira.IG.Components;
 using Bagira.IG.Tools;
@@ -9,13 +13,10 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
-using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Vis2D.Defaults;
 using FDP.Toolkit.Vis2D.Layers;
-using Fdp.Toolkit.Tkb;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network;
 using ModuleHost.Core.Network.Interfaces;
@@ -24,61 +25,39 @@ using Raylib_cs;
 namespace Bagira.IG.Tests;
 
 /// <summary>
-/// Integration test for Task IG.3.5: end-to-end canvas interaction flow.
+/// Integration tests verifying the canvas interaction flow after TASK-IF006.
 ///
-/// Scenario:
-/// <list type="number">
-///   <item>
-///     <see cref="CreationTool.HandleClick"/> publishes a <see cref="SpawnEntityCommand"/>
-///     onto the <see cref="FdpEventBus"/>.
-///   </item>
-///   <item>
-///     <see cref="NetworkSpawningSystem"/> consumes the command and creates an ECS entity
-///     with a <see cref="SimTransform"/> at the clicked world position.
-///   </item>
-///   <item>
-///     The entity is manually tagged as visible (simulating a
-///     <see cref="MapCullingSystem"/> run) so that
-///     <see cref="EntityRenderLayer.PickEntity"/> can resolve it.
-///   </item>
-///   <item>
-///     <see cref="EntityRenderLayer.PickEntity"/> at the same world position returns
-///     the newly created entity, confirming the ECS state is ready for selection.
-///   </item>
-/// </list>
-///
-/// No DDS or Raylib window context required.  All ECS operations are in-process.
+/// <para><b>Changes from prior revision:</b> <see cref="CreationTool"/> now writes
+/// a <see cref="CreateEntityRequest"/> over DDS rather than publishing a
+/// <c>SpawnEntityCommand</c> onto the local <see cref="FdpEventBus"/>. Therefore
+/// spawn-verification tests now assert the DDS payload, and pick/select tests
+/// create entities directly in the repository (simulating what the SimHost + ghost
+/// translator would do) instead of relying on the local spawning path.</para>
 /// </summary>
 public class ToolInteractionIntegrationTests
 {
     // ── Test constants (§CODE-STANDARDS §1) ───────────────────────────────────
 
-    private const long  TestTkbType   = 101L;
-    private const float SpawnX        = 5500f;
-    private const float SpawnY        = 5500f;
+    private const long  TestTkbType = 101L;
+    private const float SpawnX      = 5500f;
+    private const float SpawnY      = 5500f;
 
-    // ── Stub allocator ────────────────────────────────────────────────────────
+    // ── CapturingDdsWriter<T> stub ────────────────────────────────────────────
 
-    private sealed class StubIdAllocator : INetworkIdAllocator
+    private sealed class CapturingDdsWriter<T> : IDdsWriter<T>
     {
-        private long _next = 1;
-        public long AllocateId() => _next++;
-        public void Reset(long startId = 0) => _next = startId;
-        public void Dispose() { }
+        public List<T> Written { get; } = new List<T>();
+        public void Write(T sample) => Written.Add(sample);
     }
 
-    // ── World factory ─────────────────────────────────────────────────────────
+    // ── Repository factory ────────────────────────────────────────────────────
 
-    private static (EntityRepository repo, NetworkSpawningSystem system, NetworkEntityMap entityMap)
-        BuildWorld()
+    private static EntityRepository BuildRepo()
     {
         var repo = new EntityRepository();
-        // Components required by NetworkSpawningSystem / EntityLifecycleModule
         repo.RegisterComponent<NetworkIdentity>();
         repo.RegisterComponent<NetworkOwnership>();
         repo.RegisterComponent<NetworkAuthority>();
-        repo.RegisterComponent<NetworkSpawnRequest>();
-        repo.RegisterComponent<PendingNetworkAck>();
         repo.RegisterComponent<EntityMaster>();
         repo.RegisterComponent<SimTransform>();
         repo.RegisterComponent<CullingState>();
@@ -88,123 +67,84 @@ public class ToolInteractionIntegrationTests
         repo.RegisterEvent<ConstructionOrder>();
         repo.RegisterEvent<DestructionOrder>();
 
-        var tkb = new TkbDatabase();
-        tkb.Register(new TkbTemplate("TestEntity", TestTkbType));
-
-        var elm       = new EntityLifecycleModule(tkb, Array.Empty<int>());
-        var entityMap = new NetworkEntityMap();
-        var idAlloc   = new StubIdAllocator();
-        var system    = new NetworkSpawningSystem(
-            tkb, elm, entityMap, idAlloc,
-            IgNetworkConstants.LocalNodeId);
-
-        return (repo, system, entityMap);
+        return repo;
     }
 
-    private static void RunSpawn(EntityRepository repo, NetworkSpawningSystem system)
+    /// <summary>Creates a live, active entity with a <see cref="SimTransform"/> at <paramref name="pos"/>.</summary>
+    private static Entity SpawnDirect(EntityRepository repo, Vector2 pos)
     {
-        repo.Bus.SwapBuffers();
-        system.Execute(repo, 0f);
-        ((EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer()).Playback(repo);
-
-        // ELM normally transitions Constructing → Active once all participant modules have ACK'd.
-        // In headless tests with zero participants no ACK ever arrives, so we advance the lifecycle
-        // manually here — equivalent to a single ELM flush with participatingModuleIds = empty.
-        var constructing = repo.Query().WithLifecycle(EntityLifecycle.Constructing).Build();
-        foreach (var e in constructing)
-            repo.SetLifecycleState(e, EntityLifecycle.Active);
-    }
-
-    // ── Test: CreationTool → spawn → ECS entity with SimTransform ─────────────
-
-    /// <summary>
-    /// A left-click by <see cref="CreationTool"/> produces a
-    /// <see cref="SpawnEntityCommand"/> that when processed by
-    /// <see cref="NetworkSpawningSystem"/> results in a live ECS entity registered
-    /// in the <see cref="NetworkEntityMap"/>.
-    /// </summary>
-    [Fact]
-    public void CreationTool_LeftClick_EntityAppearsInEcsAfterSpawn()
-    {
-        var (repo, system, _) = BuildWorld();
-
-        var tool = new CreationTool(repo.Bus, tkbType: TestTkbType);
-
-        // Simulate a left-click at the spawn position.
-        tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
-
-        // Tick the spawning system to process the command.
-        RunSpawn(repo, system);
-
-        // At least one SimTransform entity must exist in the world.
-        var query = repo.Query().With<SimTransform>().Build();
-        int count = 0;
-        foreach (var _ in query) count++;
-        Assert.True(count > 0, "At least one SimTransform entity must exist after spawn.");
-    }
-
-    /// <summary>
-    /// The spawned entity must carry a <see cref="SimTransform"/> at the world
-    /// position that was clicked.
-    /// </summary>
-    [Fact]
-    public void CreationTool_LeftClick_SpawnedEntityHasSimTransformAtClickPosition()
-    {
-        var (repo, system, _) = BuildWorld();
-
-        var tool = new CreationTool(repo.Bus, tkbType: TestTkbType);
-        tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
-        RunSpawn(repo, system);
-
-        var query = repo.Query().With<SimTransform>().Build();
-        SimTransform? found = null;
-        foreach (var entity in query)
+        var e = repo.CreateEntity();
+        repo.AddComponent(e, new SimTransform
         {
-            var t = repo.GetComponent<SimTransform>(entity);
-            if (MathF.Abs(t.Position.X - SpawnX) < 1f && MathF.Abs(t.Position.Y - SpawnY) < 1f)
-            {
-                found = t;
-                break;
-            }
-        }
-
-        Assert.NotNull(found);
-        Assert.Equal(SpawnX, found!.Value.Position.X, precision: 2);
-        Assert.Equal(SpawnY, found.Value.Position.Y, precision: 2);
+            Position = new System.Numerics.Vector3(pos.X, pos.Y, 0f),
+            Rotation = System.Numerics.Quaternion.Identity,
+        });
+        repo.AddComponent(e, new CullingState());
+        repo.AddComponent(e, new SelectionState());
+        return e;
     }
 
-    // ── Test: spawned entity is pickable via EntityRenderLayer ────────────────
+    // ── Tests: DDS payload from CreationTool ─────────────────────────────────
 
     /// <summary>
-    /// After spawning, once the entity is tagged visible (as <see cref="MapCullingSystem"/>
-    /// would do), <see cref="EntityRenderLayer.PickEntity"/> at the spawn world position
-    /// must resolve the entity, confirming the ECS and rendering pipeline are in sync.
+    /// A left-click must write exactly one <see cref="CreateEntityRequest"/> to DDS,
+    /// confirming the tool no longer triggers a local spawn via the event bus.
+    /// </summary>
+    [Fact]
+    public void CreationTool_LeftClick_WritesDdsCreateEntityRequest()
+    {
+        var writer = new CapturingDdsWriter<CreateEntityRequest>();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+
+        tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
+
+        Assert.Single(writer.Written);
+    }
+
+    /// <summary>
+    /// The DDS payload must include both a <c>dtEntityMaster</c> descriptor (with
+    /// the requested TKB type) and a <c>dtGeoSpatial</c> descriptor (with coordinates
+    /// derived from the click position), satisfying the SimHost contract.
+    /// </summary>
+    [Fact]
+    public void CreationTool_LeftClick_RequestContainsMasterAndGeoSpatialDescriptors()
+    {
+        var writer = new CapturingDdsWriter<CreateEntityRequest>();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+
+        tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
+
+        var req         = writer.Written[0];
+        var descriptors = req.InitialDescriptors;
+
+        var master = descriptors.First(d => d._d == EDescriptorType.dtEntityMaster);
+        Assert.Equal(TestTkbType, master.EntityMaster.TkbType);
+
+        var geo = descriptors.First(d => d._d == EDescriptorType.dtGeoSpatial);
+        Assert.Equal(SpawnY, geo.GeoSpatial.Pos.Latitude,  precision: 2);
+        Assert.Equal(SpawnX, geo.GeoSpatial.Pos.Longitude, precision: 2);
+    }
+
+    // ── Tests: pick after direct spawn ───────────────────────────────────────
+
+    /// <summary>
+    /// After an entity is present in the ECS (as would happen once the SimHost creates
+    /// it and the ghost translator replicates it), <see cref="EntityRenderLayer.PickEntity"/>
+    /// at the spawn position must resolve it.
     /// </summary>
     [Fact]
     public void CreationTool_SpawnAndTag_EntityPickableByRenderLayer()
     {
-        var (repo, system, _) = BuildWorld();
+        var repo          = BuildRepo();
+        var spawnedEntity = SpawnDirect(repo, new Vector2(SpawnX, SpawnY));
 
-        var tool = new CreationTool(repo.Bus, tkbType: TestTkbType);
-        tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
-        RunSpawn(repo, system);
-
-        // Tag the spawned entity as visible, simulating MapCullingSystem.
-        var query = repo.Query().With<SimTransform>().Build();
-        Entity? spawnedEntity = null;
-        foreach (var entity in query)
+        // Tag the entity as visible (simulating MapCullingSystem).
+        repo.SetComponent(spawnedEntity, new CullingState
         {
-            repo.SetComponent(entity, new CullingState
-            {
-                IsVisible = true,
-                LodLevel  = CullingStateConstants.LodFull,
-            });
-            spawnedEntity = entity;
-        }
+            IsVisible = true,
+            LodLevel  = CullingStateConstants.LodFull,
+        });
 
-        Assert.NotNull(spawnedEntity);
-
-        // Wire up an EntityRenderLayer and attempt to pick at the spawn point.
         var adapter   = new SstVisualizerAdapter();
         var selection = new DefaultSelectionState();
         var pickQuery = repo.Query().With<SimTransform>().Build();
@@ -213,47 +153,28 @@ public class ToolInteractionIntegrationTests
         var picked = layer.PickEntity(new Vector2(SpawnX, SpawnY));
 
         Assert.NotNull(picked);
-        Assert.Equal(spawnedEntity!.Value, picked!.Value);
+        Assert.Equal(spawnedEntity, picked!.Value);
     }
 
-    // ── Test: StandardInteractionTool updates SelectionState after picking ─────
+    // ── Tests: StandardInteractionTool selection ──────────────────────────────
 
     /// <summary>
-    /// After a spawn and cull-tag, invoking
-    /// <see cref="Tools.StandardInteractionTool.TestHook_SelectEntity"/> updates the
-    /// ECS <see cref="SelectionState"/> component so that
-    /// <see cref="SelectionState.IsSelected"/> becomes <c>true</c> for the entity.
-    ///
-    /// This test drives the selection handler directly without a Raylib window,
-    /// verifying the ECS write-back and confirming the full interaction loop closes
-    /// correctly.
+    /// Invoking <see cref="StandardInteractionTool.TestHook_SelectEntity"/> on a live
+    /// entity must set <see cref="SelectionState.IsSelected"/> and
+    /// <see cref="SelectionState.IsPrimarySelection"/> to <c>true</c>.
     /// </summary>
     [Fact]
     public void StandardInteractionTool_SelectEntity_SetsEcsSelectionStateTrue()
     {
-        var (repo, system, _) = BuildWorld();
+        var repo          = BuildRepo();
+        var spawnedEntity = SpawnDirect(repo, new Vector2(SpawnX, SpawnY));
 
-        // Spawn an entity.
-        var creationTool = new CreationTool(repo.Bus, tkbType: TestTkbType);
-        creationTool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
-        RunSpawn(repo, system);
-
-        // Tag visible + find entity.
-        var query = repo.Query().With<SimTransform>().Build();
-        Entity spawnedEntity = default;
-        foreach (var entity in query)
+        repo.SetComponent(spawnedEntity, new CullingState
         {
-            repo.SetComponent(entity, new CullingState { IsVisible = true, LodLevel = CullingStateConstants.LodFull });
-            spawnedEntity = entity;
-        }
+            IsVisible = true,
+            LodLevel  = CullingStateConstants.LodFull,
+        });
 
-        Assert.True(repo.IsAlive(spawnedEntity));
-
-        // Ensure SelectionState is registered and present on the entity.
-        if (!((ISimulationView)repo).HasComponent<SelectionState>(spawnedEntity))
-            repo.AddComponent(spawnedEntity, new SelectionState());
-
-        // Build the StandardInteractionTool and fire its select handler.
         var adapter         = new SstVisualizerAdapter();
         var selection       = new DefaultSelectionState();
         var pickQuery       = repo.Query().With<SimTransform>().Build();
@@ -267,17 +188,4 @@ public class ToolInteractionIntegrationTests
         Assert.True(state.IsPrimarySelection,
             "Single-select must mark the entity as primary selection.");
     }
-
-    // ── Helper: not needed after refactor ────────────────────────────────────
-
-    private static void SimulateEntitySelect(
-        StandardInteractionTool tool,
-        EntityRepository        repo,
-        Entity                  entity,
-        bool                    augment)
-    {
-        if (!((ISimulationView)repo).HasComponent<SelectionState>(entity))
-            repo.AddComponent(entity, new SelectionState());
-
-        tool.TestHook_SelectEntity(entity, augment);
-    }}
+}

@@ -1,205 +1,193 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
+using Bagira.DDS.DM;
+using Bagira.IG.Abstractions;
 using Bagira.IG.Components;
 using Bagira.IG.Tools;
-using Fdp.Kernel;
-using FDP.Toolkit.NetworkSpawning.Events;
 using Raylib_cs;
 
 namespace Bagira.IG.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="CreationTool"/> (IG.3.3).
+/// Unit tests for <see cref="CreationTool"/> (TASK-IF006).
 ///
-/// Validates that the tool publishes a correctly-formed
-/// <see cref="SpawnEntityCommand"/> to the <see cref="FdpEventBus"/> when the
-/// operator left-clicks the map canvas, and that right-click cancels without
-/// publishing.
+/// Validates that the tool writes a correctly-formed <see cref="CreateEntityRequest"/>
+/// to the <see cref="IDdsWriter{T}"/> when the operator left-clicks the map canvas,
+/// and that right-click cancels without writing.
 ///
-/// No Raylib window context is required — <see cref="MeasureTool.HandleClick"/>
-/// operates purely on in-memory state; the <c>_canvas?.PopTool()</c> call is
-/// null-safe when <c>OnEnter</c> has not been called.
+/// No Raylib window context is required — <see cref="CreationTool.HandleClick"/>
+/// operates purely on in-memory state; <c>_canvas?.PopTool()</c> is null-safe when
+/// <c>OnEnter</c> has not been called.
 /// </summary>
 public class CreationToolTests
 {
     // ── Test constants (§CODE-STANDARDS §1) ───────────────────────────────────
 
-    private const long   TestTkbType   = 202L;
-    private const float  ClickX        = 1234.5f;
-    private const float  ClickY        = 5678.9f;
+    private const long  TestTkbType = 202L;
+    private const float ClickX      = 1234.5f;
+    private const float ClickY      = 5678.9f;
+
+    // ── CapturingDdsWriter<T> stub ────────────────────────────────────────────
+
+    /// <summary>
+    /// Test double that records every sample passed to <see cref="Write"/>.
+    /// </summary>
+    private sealed class CapturingDdsWriter<T> : IDdsWriter<T>
+    {
+        public List<T> Written { get; } = new List<T>();
+        public void Write(T sample) => Written.Add(sample);
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static FdpEventBus CreateBus() => new FdpEventBus();
+    private static CapturingDdsWriter<CreateEntityRequest> CreateWriter()
+        => new CapturingDdsWriter<CreateEntityRequest>();
 
-    // ── Left-click publishes command ──────────────────────────────────────────
+    // ── Left-click publishes exactly one DDS request ──────────────────────────
 
     /// <summary>
-    /// A left-click must publish exactly one <see cref="SpawnEntityCommand"/> with the
-    /// correct world coordinates embedded in <see cref="SpawnEntityCommand.InitialComponents"/>.
+    /// A left-click must call <see cref="IDdsWriter{T}.Write"/> exactly once,
+    /// confirming that the request is sent over DDS (not via the local event bus).
     /// </summary>
     [Fact]
-    public void HandleClick_LeftClick_PublishesSpawnEntityCommand()
+    public void HandleClick_LeftClick_WritesExactlyOneRequest()
     {
-        var bus   = CreateBus();
-        var tool  = new CreationTool(bus, tkbType: TestTkbType);
+        var writer = CreateWriter();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType);
 
-        SpawnEntityCommand? captured = null;
-        tool.OnCommandPublished += cmd => captured = cmd;
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        Assert.Single(writer.Written);
+    }
+
+    /// <summary>
+    /// The published request must have a non-empty <see cref="CreateEntityRequest.RequestId"/>
+    /// so responses can be correlated by the SimHost.
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_RequestHasNonEmptyRequestId()
+    {
+        var writer = CreateWriter();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        Assert.NotEqual(Guid.Empty, writer.Written[0].RequestId);
+    }
+
+    /// <summary>
+    /// <see cref="CreateEntityRequest.Owner"/> must be the zeroed <see cref="NodeId"/>
+    /// so the SimHost (authoritative node) assigns itself as owner, consistent with the
+    /// ghost-node convention.
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_RequestOwnerIsZeroedNodeId()
+    {
+        var writer = CreateWriter();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        Assert.Equal(default(NodeId), writer.Written[0].Owner);
+    }
+
+    /// <summary>
+    /// <see cref="CreateEntityRequest.InitialDescriptors"/> must contain a
+    /// <c>dtEntityMaster</c> entry carrying the TKB type supplied at construction.
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_InitialDescriptorsContainEntityMasterWithCorrectTkbType()
+    {
+        var writer = CreateWriter();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        var descriptors = writer.Written[0].InitialDescriptors;
+        Assert.NotNull(descriptors);
+        var masterEntry = descriptors.FirstOrDefault(d => d._d == EDescriptorType.dtEntityMaster);
+        Assert.Equal(EDescriptorType.dtEntityMaster, masterEntry._d);
+        Assert.Equal(TestTkbType, masterEntry.EntityMaster.TkbType);
+    }
+
+    /// <summary>
+    /// <see cref="CreateEntityRequest.InitialDescriptors"/> must contain a
+    /// <c>dtGeoSpatial</c> entry with <c>Latitude = worldPos.Y</c> and
+    /// <c>Longitude = worldPos.X</c>, matching the FDP canvas coordinate convention.
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_InitialDescriptorsContainGeoSpatialWithClickCoordinates()
+    {
+        var writer = CreateWriter();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        var descriptors = writer.Written[0].InitialDescriptors;
+        Assert.NotNull(descriptors);
+        var geoEntry = descriptors.FirstOrDefault(d => d._d == EDescriptorType.dtGeoSpatial);
+        Assert.Equal(EDescriptorType.dtGeoSpatial, geoEntry._d);
+        Assert.Equal(ClickY, geoEntry.GeoSpatial.Pos.Latitude,  precision: 3);
+        Assert.Equal(ClickX, geoEntry.GeoSpatial.Pos.Longitude, precision: 3);
+    }
+
+    /// <summary>
+    /// The <see cref="OnCommandPublished"/> event must fire once with the same request
+    /// that was written to DDS, enabling test and debug integrators to observe spawning.
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_RaisesOnCommandPublishedWithSamePayload()
+    {
+        var writer = CreateWriter();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+
+        CreateEntityRequest? captured = null;
+        tool.OnCommandPublished += req => captured = req;
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
         Assert.NotNull(captured);
+        Assert.Equal(writer.Written[0].RequestId, captured!.Value.RequestId);
     }
 
-    /// <summary>
-    /// The published command must contain the TKB type supplied at construction.
-    /// </summary>
-    [Fact]
-    public void HandleClick_LeftClick_CommandHasCorrectTkbType()
-    {
-        var bus  = CreateBus();
-        var tool = new CreationTool(bus, tkbType: TestTkbType);
-
-        SpawnEntityCommand? captured = null;
-        tool.OnCommandPublished += cmd => captured = cmd;
-
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
-
-        Assert.Equal(TestTkbType, captured!.Value.TkbType);
-    }
+    // ── Right-click does NOT write ────────────────────────────────────────────
 
     /// <summary>
-    /// The <see cref="SpawnEntityCommand.OwnerNodeId"/> must equal
-    /// <see cref="IgNetworkConstants.LocalNodeId"/> so the SimHost assigns
-    /// ownership to the IG application.
+    /// A right-click must not call <see cref="IDdsWriter{T}.Write"/> — it cancels
+    /// the placement without sending any DDS request.
     /// </summary>
     [Fact]
-    public void HandleClick_LeftClick_CommandHasLocalNodeId()
+    public void HandleClick_RightClick_DoesNotWriteToDds()
     {
-        var bus  = CreateBus();
-        var tool = new CreationTool(bus, tkbType: TestTkbType);
-
-        SpawnEntityCommand? captured = null;
-        tool.OnCommandPublished += cmd => captured = cmd;
-
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
-
-        Assert.Equal(IgNetworkConstants.LocalNodeId, captured!.Value.OwnerNodeId);
-    }
-
-    /// <summary>
-    /// The <see cref="SpawnEntityCommand.NetworkId"/> must be zero so the SimHost
-    /// allocates a fresh network identity for the new entity.
-    /// </summary>
-    [Fact]
-    public void HandleClick_LeftClick_CommandNetworkIdIsZero()
-    {
-        var bus  = CreateBus();
-        var tool = new CreationTool(bus, tkbType: TestTkbType);
-
-        SpawnEntityCommand? captured = null;
-        tool.OnCommandPublished += cmd => captured = cmd;
-
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
-
-        Assert.Equal(0L, captured!.Value.NetworkId);
-    }
-
-    /// <summary>
-    /// The <see cref="SpawnEntityCommand.RequestId"/> must be a non-empty
-    /// <see cref="Guid"/> so the command can be correlated with a SimHost response.
-    /// </summary>
-    [Fact]
-    public void HandleClick_LeftClick_CommandHasNonEmptyRequestId()
-    {
-        var bus  = CreateBus();
-        var tool = new CreationTool(bus, tkbType: TestTkbType);
-
-        SpawnEntityCommand? captured = null;
-        tool.OnCommandPublished += cmd => captured = cmd;
-
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
-
-        Assert.NotEqual(System.Guid.Empty, captured!.Value.RequestId);
-    }
-
-    /// <summary>
-    /// <see cref="SpawnEntityCommand.InitialComponents"/> must contain exactly one
-    /// <see cref="SimTransform"/> so the spawning system knows where to place the entity.
-    /// </summary>
-    [Fact]
-    public void HandleClick_LeftClick_InitialComponentsContainsSimTransform()
-    {
-        var bus  = CreateBus();
-        var tool = new CreationTool(bus, tkbType: TestTkbType);
-
-        SpawnEntityCommand? captured = null;
-        tool.OnCommandPublished += cmd => captured = cmd;
-
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
-
-        Assert.NotNull(captured!.Value.InitialComponents);
-        var transform = captured.Value.InitialComponents.OfType<SimTransform>().SingleOrDefault();
-        Assert.IsType<SimTransform>(transform);
-    }
-
-    /// <summary>
-    /// The <see cref="SimTransform"/> in the command must have the exact X and Y
-    /// coordinates of the click point, mapping the screen-to-world conversion correctly.
-    /// </summary>
-    [Fact]
-    public void HandleClick_LeftClick_SimTransformMatchesClickCoordinates()
-    {
-        var bus  = CreateBus();
-        var tool = new CreationTool(bus, tkbType: TestTkbType);
-
-        SpawnEntityCommand? captured = null;
-        tool.OnCommandPublished += cmd => captured = cmd;
-
-        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
-
-        var transform = captured!.Value.InitialComponents.OfType<SimTransform>().Single();
-        Assert.Equal(ClickX, transform.Position.X, precision: 3);
-        Assert.Equal(ClickY, transform.Position.Y, precision: 3);
-        Assert.Equal(0f,     transform.Position.Z, precision: 3);
-    }
-
-    // ── Right-click cancels ───────────────────────────────────────────────────
-
-    /// <summary>
-    /// A right-click must not publish any command (it cancels the placement).
-    /// </summary>
-    [Fact]
-    public void HandleClick_RightClick_DoesNotPublishCommand()
-    {
-        var bus  = CreateBus();
-        var tool = new CreationTool(bus, tkbType: TestTkbType);
-
-        bool commandPublished = false;
-        tool.OnCommandPublished += _ => commandPublished = true;
+        var writer = CreateWriter();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType);
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Right);
 
-        Assert.False(commandPublished);
+        Assert.Empty(writer.Written);
     }
 
     // ── Default TKB type fallback ─────────────────────────────────────────────
 
     /// <summary>
     /// Passing <c>tkbType = 0</c> falls back to
-    /// <see cref="CreationToolConstants.DefaultTkbType"/>.
+    /// <see cref="CreationToolConstants.DefaultTkbType"/> in the EntityMaster descriptor.
     /// </summary>
     [Fact]
     public void Ctor_TkbTypeZero_UsesDefaultTkbType()
     {
-        var bus  = CreateBus();
-        var tool = new CreationTool(bus, tkbType: 0);
-
-        SpawnEntityCommand? captured = null;
-        tool.OnCommandPublished += cmd => captured = cmd;
+        var writer = CreateWriter();
+        var tool   = new CreationTool(writer, tkbType: 0);
 
         tool.HandleClick(Vector2.Zero, MouseButton.Left);
 
-        Assert.Equal(CreationToolConstants.DefaultTkbType, captured!.Value.TkbType);
+        var masterEntry = writer.Written[0].InitialDescriptors
+            .First(d => d._d == EDescriptorType.dtEntityMaster);
+        Assert.Equal(CreationToolConstants.DefaultTkbType, masterEntry.EntityMaster.TkbType);
     }
 }
+

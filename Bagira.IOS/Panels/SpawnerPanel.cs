@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using ImGuiNET;
 
 namespace Bagira.IOS.Panels;
 
@@ -132,34 +133,34 @@ public sealed class SpawnerPanel
     /// </summary>
     public void Draw(IIosLogic logic)
     {
-        // Phase P9 implementation:
-        // ImGui.Begin("Entity Spawner");
-        //
-        // string filterBuf = _searchFilter;
-        // if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
-        //     SearchFilter = filterBuf;
-        //
-        // // Plain for-loop — _filteredEntries was pre-built, no LINQ here.
-        // for (int i = 0; i < _filteredEntries.Count; i++)
-        // {
-        //     var entry = _filteredEntries[i];
-        //     if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})"))
-        //         HandleTypeSelected(entry.TkbId);
-        // }
-        //
-        // ImGui.Separator();
-        //
-        // int aff = (int)_affiliation;
-        // if (ImGui.RadioButton("Friend",  ref aff, (int)eForceIdentifier.FORCE_FRIENDLY))
-        //     HandleAffiliationChange((eForceIdentifier)aff);
-        // ImGui.SameLine();
-        // if (ImGui.RadioButton("Hostile", ref aff, (int)eForceIdentifier.FORCE_OPPOSING))
-        //     HandleAffiliationChange((eForceIdentifier)aff);
-        //
-        // if (ImGui.Button("ACTIVATE PLACEMENT TOOL"))
-        //     HandleActivatePlacementTool(logic);
-        //
-        // ImGui.End();
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        ImGui.Begin("Entity Spawner");
+
+        string filterBuf = _searchFilter;
+        if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
+            SearchFilter = filterBuf;
+
+        // Plain for-loop — _filteredEntries was pre-built, no LINQ here.
+        for (int i = 0; i < _filteredEntries.Count; i++)
+        {
+            var entry = _filteredEntries[i];
+            if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})"))
+                HandleTypeSelected(entry.TkbId);
+        }
+
+        ImGui.Separator();
+
+        int aff = (int)_affiliation;
+        if (ImGui.RadioButton("Friend",  ref aff, (int)eForceIdentifier.FORCE_FRIENDLY))
+            HandleAffiliationChange((eForceIdentifier)aff);
+        ImGui.SameLine();
+        if (ImGui.RadioButton("Hostile", ref aff, (int)eForceIdentifier.FORCE_OPPOSING))
+            HandleAffiliationChange((eForceIdentifier)aff);
+
+        if (ImGui.Button("ACTIVATE PLACEMENT TOOL"))
+            HandleActivatePlacementTool(logic);
+
+        ImGui.End();
     }
 
     // ── Private filter rebuild ────────────────────────────────────────────────

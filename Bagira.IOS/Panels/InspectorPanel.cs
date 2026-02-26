@@ -1,5 +1,6 @@
 using System.Reflection;
 using FDP.Toolkit.DER;
+using ImGuiNET;
 
 namespace Bagira.IOS.Panels;
 
@@ -162,34 +163,33 @@ public sealed class InspectorPanel
     /// </summary>
     public void Draw(IIosLogic logic)
     {
-        // Phase P10 implementation:
-        //
-        // ImGui.Begin("Inspector");
-        //
-        // if (_cachedEntityId == PanelConstants.InspectorNoSelection)
-        // {
-        //     ImGui.Text("No entity selected");
-        //     ImGui.End(); return;
-        // }
-        //
-        // ImGui.Text($"Entity ID: {_cachedEntityId}");
-        // ImGui.Separator();
-        //
-        // string? lastCategory = null;
-        // foreach (var line in _cachedLines)
-        // {
-        //     if (line.Category != lastCategory)
-        //     {
-        //         if (lastCategory is not null) ImGui.TreePop();
-        //         lastCategory = line.Category;
-        //         ImGui.SetNextItemOpen(true, ImGuiCond.Once);
-        //         ImGui.TreeNode(line.Category);
-        //     }
-        //     ImGui.Text($"  {line.Field}: {line.Value}");
-        // }
-        // if (lastCategory is not null) ImGui.TreePop();
-        //
-        // ImGui.End();
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        ImGui.Begin("Inspector");
+
+        if (_cachedEntityId == PanelConstants.InspectorNoSelection)
+        {
+            ImGui.Text("No entity selected");
+            ImGui.End(); return;
+        }
+
+        ImGui.Text($"Entity ID: {_cachedEntityId}");
+        ImGui.Separator();
+
+        string? lastCategory = null;
+        foreach (var line in _cachedLines)
+        {
+            if (line.Category != lastCategory)
+            {
+                if (lastCategory is not null) ImGui.TreePop();
+                lastCategory = line.Category;
+                ImGui.SetNextItemOpen(true, ImGuiCond.Once);
+                ImGui.TreeNode(line.Category);
+            }
+            ImGui.Text($"  {line.Field}: {line.Value}");
+        }
+        if (lastCategory is not null) ImGui.TreePop();
+
+        ImGui.End();
     }
 
     // ── Field cache helper ────────────────────────────────────────────────────

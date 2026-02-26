@@ -1,3 +1,4 @@
+using ImGuiNET;
 using Newtonsoft.Json;
 
 namespace Bagira.IOS.Panels;
@@ -107,22 +108,22 @@ public sealed class ConfigPanel
     /// </summary>
     public void Draw(IIosLogic logic)
     {
-        // Phase P9 implementation:
-        // ImGui.Begin("Map Configuration");
-        //
-        // ImGui.Combo("Tool", ref _selectedTool, Tools, Tools.Length);
-        // ImGui.Checkbox("Satellite Layer",    ref _satelliteLayer);
-        // ImGui.Checkbox("Tactical Graphics",  ref _tacticalGraphics);
-        // ImGui.Checkbox("Air Units",          ref _airUnits);
-        // ImGui.Checkbox("Grid",               ref _grid);
-        //
-        // float scale = _iconScale;
-        // if (ImGui.SliderFloat("Icon Scale", ref scale, PanelConstants.IconScaleMin, PanelConstants.IconScaleMax))
-        //     IconScale = scale;
-        //
-        // if (ImGui.Button("SEND CONFIG PATCH"))
-        //     HandleSendConfigPatch(logic);
-        //
-        // ImGui.End();
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        ImGui.Begin("Map Configuration");
+
+        ImGui.Combo("Tool", ref _selectedTool, Tools, Tools.Length);
+        ImGui.Checkbox("Satellite Layer",    ref _satelliteLayer);
+        ImGui.Checkbox("Tactical Graphics",  ref _tacticalGraphics);
+        ImGui.Checkbox("Air Units",          ref _airUnits);
+        ImGui.Checkbox("Grid",               ref _grid);
+
+        float scale = _iconScale;
+        if (ImGui.SliderFloat("Icon Scale", ref scale, PanelConstants.IconScaleMin, PanelConstants.IconScaleMax))
+            IconScale = scale;
+
+        if (ImGui.Button("SEND CONFIG PATCH"))
+            HandleSendConfigPatch(logic);
+
+        ImGui.End();
     }
 }
