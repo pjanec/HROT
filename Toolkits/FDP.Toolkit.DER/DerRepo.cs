@@ -9,6 +9,14 @@ namespace FDP.Toolkit.DER
     {
         private readonly ConcurrentDictionary<int, DerEntity> _entities = new();
 
+        public int LocalNodeId { get; }
+
+        public DerRepo(int localNodeId = 0)
+        {
+            LocalNodeId = localNodeId;
+        }
+
+
         public event Action<IDerEntity>? EntityCreated;
         public event Action<IDerEntity>? EntityDeleted;
 

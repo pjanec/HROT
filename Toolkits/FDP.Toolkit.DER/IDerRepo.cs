@@ -10,6 +10,11 @@ namespace FDP.Toolkit.DER
     public interface IDerRepo
     {
         /// <summary>
+        /// Local DDS node ID of the application.
+        /// </summary>
+        int LocalNodeId { get; }
+
+        /// <summary>
         /// Retrieve entity by ID. Returns null if not found.
         /// </summary>
         IDerEntity? GetEntity(int entityId);
