@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Bagira.IOS</RootNamespace>
+    <AssemblyName>Bagira.IOS</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Bagira data model and map types -->
+    <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
+    <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
+    <ProjectReference Include="..\Bagira.Map.Definitions\Bagira.Map.Definitions.csproj" />
+
+    <!-- FDP Toolkits -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.DER\FDP.Toolkit.DER.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Commands\FDP.Toolkit.Commands.csproj" />
+
+    <!-- JSON serialisation -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- Raylib window + ImGui rendering (application shell) -->
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />
+  </ItemGroup>
+
+</Project>

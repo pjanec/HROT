@@ -55,7 +55,32 @@ namespace Bagira.BDC.SSTM
         // The entity to control
         public long TargetEntityId;
 
+        // Optimistic locking: the version of the mission the sender believes is current.
+        // The server rejects the request with ERR_VERSION_CONFLICT if its version is greater.
+        // 0 = no version check required.
+        public long BaseVersion;
+
         // The polymorphic payload
         public MissionCommandUnion Payload;
     }
-}
+
+    // Acknowledgment sent by the CGF/SimHost for a MissionControlRequest.
+    [DdsTopic("MissionControlAck")]
+    [DdsIdlFile("bdc-sst-missions-msgs")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    [DdsManaged]
+    public partial struct MissionControlAck
+    {
+        // Echoes the RequestId from MissionControlRequest for correlation.
+        public Guid RequestId;
+
+        // 0 = success; non-zero = error (see error code table in GenericMessages.cs).
+        public int ErrorCode;
+
+        // Human-readable error description; null/empty on success.
+        public string? ErrorMessage;
+
+        // The new version of the mission descriptor after a successful commit.
+        // 0 if the request failed.
+        public long NewVersion;
+    }}
