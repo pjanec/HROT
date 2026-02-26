@@ -45,6 +45,7 @@ namespace Bagira.SimHost.Systems
     /// that the entity has successfully joined its assigned formation slot.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [Fdp.Kernel.ComponentId(Fdp.Kernel.GlobalComponentIds.InFormationTag)]
     public struct InFormationTag
     {
         /// <summary>ECS entity index of the formation leader.</summary>

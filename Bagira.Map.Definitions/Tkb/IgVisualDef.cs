@@ -1,8 +1,11 @@
+using Fdp.Kernel;
+
 namespace Bagira.Map.Definitions.Tkb
 {
     /// <summary>
     /// IG visual properties (color, symbol, 3D model).
     /// </summary>
+    [ComponentId(GlobalComponentIds.IgVisualDef)]
     public class IgVisualDef
     {
         /// <summary>

@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Bagira.IG.Standalone</RootNamespace>
+    <AssemblyName>Bagira.IG.Standalone</AssemblyName>
+    <!-- Suppress ambiguous entry point warnings when referencing other Exe projects -->
+    <StartupObject>Bagira.IG.Standalone.Program</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Runner provides IgSubsystem, SubsystemOrchestrator, and all transitive dependencies. -->
+    <ProjectReference Include="..\Bagira.Runner\Bagira.Runner.csproj" />
+  </ItemGroup>
+
+</Project>

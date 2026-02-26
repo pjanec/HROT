@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace Bagira.IG.Components;
 
@@ -25,6 +26,7 @@ namespace Bagira.IG.Components;
 ///   </item>
 /// </list>
 /// </summary>
+[ComponentId(GlobalComponentIds.HistoryTrail)]
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 public unsafe struct HistoryTrail
 {

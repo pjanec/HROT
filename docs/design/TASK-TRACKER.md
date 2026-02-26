@@ -300,14 +300,23 @@
 - [x] **R1.5** Add `SubsystemStatusAnnounce` DDS Topic [details](./TASK-DETAILS-RUNNER.md#r15-add-subsystemstatusannounce-dds-topic)
 - [x] **R1.6** Implement `WaitingRoomCoordinator` [details](./TASK-DETAILS-RUNNER.md#r16-implement-waitingroomcoordinator)
 
-### Phase R2: Subsystem Refactoring (IN PROGRESS)
+### Phase R2: Subsystem Refactoring (COMPLETE)
 
-- [ ] **R2.1** Refactor SimHost to SimHostSubsystem Library [details](./TASK-DETAILS-RUNNER.md#r21-refactor-simhost-to-simhostsubsystem-library)
-- [ ] **R2.2** Create SimHost Standalone Program.cs [details](./TASK-DETAILS-RUNNER.md#r22-create-simhost-standalone-programcs)
-- [ ] **R2.3** Test SimHost Embeddability [details](./TASK-DETAILS-RUNNER.md#r23-test-simhost-embeddability)
-- [ ] **R2.4** Refactor IG to IgSubsystem Library [details](./TASK-DETAILS-RUNNER.md#r24-r29-ig-and-ios-subsystem-refactoring)
-- [ ] **R2.5** Create IG Standalone Program.cs
-- [ ] **R2.6** Test IG Embeddability
-- [ ] **R2.7** Refactor IOS to IosSubsystem Library
-- [ ] **R2.8** Create IOS Standalone Program.cs
-- [ ] **R2.9** Test IOS Embeddability
+- [x] **R2.1** Refactor SimHost to SimHostSubsystem Library [details](./TASK-DETAILS-RUNNER.md#r21-refactor-simhost-to-simhostsubsystem-library)
+- [x] **R2.2** Create SimHost Standalone Program.cs [details](./TASK-DETAILS-RUNNER.md#r22-create-simhost-standalone-programcs)
+- [x] **R2.3** Test SimHost Embeddability [details](./TASK-DETAILS-RUNNER.md#r23-test-simhost-embeddability)
+- [x] **R2.4** Refactor IG to IgSubsystem Library [details](./TASK-DETAILS-RUNNER.md#r24-r29-ig-and-ios-subsystem-refactoring)
+- [x] **R2.5** Create IG Standalone Program.cs
+- [x] **R2.6** Test IG Embeddability
+- [x] **R2.7** Refactor IOS to IosSubsystem Library
+- [x] **R2.8** Create IOS Standalone Program.cs
+- [x] **R2.9** Test IOS Embeddability
+
+### Phase R0/R3: Technical Debt & Headless Infrastructure (COMPLETED)
+- [x] **R0.1 Fix** Complete ComponentTypeRegistry Auto-Assignment Separation
+- [x] **R0.2 Fix** Explicitly Attribute All Components
+- [x] **R0.3 Fix** Restore `EntityMaster` Translator
+- [x] **R3.1** Implement `HeadlessTestExecutor` [details](./TASK-DETAILS-RUNNER.md#r31-implement-headlesstestexecutor)
+- [x] **R3.2** Implement Test Script JSON Parser [details](./TASK-DETAILS-RUNNER.md#r32-implement-test-script-json-parser)
+- [x] **R3.3** Implement Test Action Handlers [details](./TASK-DETAILS-RUNNER.md#r33-implement-test-action-handlers)
+- [x] **R3.4** Implement Metrics Collection [details](./TASK-DETAILS-RUNNER.md#r34-implement-metrics-collection)

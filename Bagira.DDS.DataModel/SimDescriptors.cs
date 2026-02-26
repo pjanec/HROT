@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CycloneDDS.Schema;
 using Bagira.DDS.DM;
+using Fdp.Kernel;
 
 namespace Bagira.BDC.SSTD
 {
@@ -45,6 +46,7 @@ namespace Bagira.BDC.SSTD
     [DdsTopic("EntityDamage")]
     [DdsIdlFile("bdc-sst-sim-desc")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    [ComponentId(GlobalComponentIds.EntityDamage)]
     public partial struct EntityDamage
     {
         // Primary Key: Which entity is being modified?

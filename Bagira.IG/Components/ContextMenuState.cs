@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Fdp.Kernel;
 
 namespace Bagira.IG.Components;
 
@@ -30,6 +31,7 @@ public sealed class ContextAction
 /// <see cref="Actions"/> list can be a reference type — registered via
 /// <c>repo.RegisterManagedComponent&lt;ContextMenuState&gt;()</c>.
 /// </summary>
+[ComponentId(GlobalComponentIds.ContextMenuState)]
 public sealed class ContextMenuState
 {
     /// <summary>

@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using Fdp.Kernel;
 
 namespace Bagira.SimHost.Components
 {
@@ -18,6 +19,7 @@ namespace Bagira.SimHost.Components
     /// type's field structure in SimHost.
     /// </para>
     /// </summary>
+    [ComponentId(GlobalComponentIds.EntityMissionHolder)]
     public sealed class EntityMissionHolder
     {
         /// <summary>

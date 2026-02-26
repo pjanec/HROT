@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
+using Fdp.Kernel;
 
 namespace Bagira.IG.Components;
 
@@ -14,6 +15,7 @@ namespace Bagira.IG.Components;
 /// reference — registered via
 /// <c>repo.RegisterManagedComponent&lt;EditablePolyline&gt;()</c>.
 /// </summary>
+[ComponentId(GlobalComponentIds.EditablePolyline)]
 public sealed class EditablePolyline
 {
     /// <summary>

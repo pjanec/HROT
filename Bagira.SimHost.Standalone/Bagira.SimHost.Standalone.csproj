@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Bagira.SimHost.Standalone</RootNamespace>
+    <AssemblyName>Bagira.SimHost.Standalone</AssemblyName>
+    <!-- Suppress ambiguous entry point warnings when referencing other Exe projects -->
+    <StartupObject>Bagira.SimHost.Standalone.Program</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Runner provides SimHostSubsystem, SubsystemConfig, and all transitive dependencies. -->
+    <ProjectReference Include="..\Bagira.Runner\Bagira.Runner.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,3 +1,5 @@
+using Fdp.Kernel;
+
 namespace Bagira.IG.Components;
 
 /// <summary>
@@ -12,6 +14,7 @@ namespace Bagira.IG.Components;
 /// that prevents storing string-bearing DDS structs directly in Tier-1 tables
 /// (see IG-DEBT-008).
 /// </summary>
+[ComponentId(GlobalComponentIds.IgSymbolOverride)]
 public class IgSymbolOverride
 {
     // ── Known StyleSetId tokens ───────────────────────────────────────────────

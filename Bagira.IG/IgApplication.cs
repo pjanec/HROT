@@ -73,6 +73,9 @@ public class IgApplication
     // ── Network enabled flag — false when DDS libraries are unavailable (e.g. unit-test host)
     private bool _networkEnabled;
 
+    // ── Headless flag — set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
+    private bool _headless;
+
     // ── Style and culling objects — updated and injected into modules
     private MapUserConfig     _userConfig     = null!;
     private MapCameraViewport _cameraViewport = null!;
@@ -93,9 +96,20 @@ public class IgApplication
     {
         Raylib.InitWindow(WindowWidth, WindowHeight, WindowTitle);
         Raylib.SetTargetFPS(TargetFps);
-
         rlImGui.Setup(darkTheme: true);
+        InitializeEmbedded();
+    }
 
+    /// <summary>
+    /// Initialises ECS, network, camera, and canvas without creating a Raylib window.
+    /// Used when the orchestrator owns the window (embedded mode).
+    /// The caller must create a Raylib window before invoking any rendering methods.
+    /// Pass <paramref name="headless"/> = <c>true</c> to skip all Raylib/ImGui calls
+    /// even during <see cref="Update"/>.
+    /// </summary>
+    public void InitializeEmbedded(bool headless = false)
+    {
+        _headless = headless;
         _camera = new MapCamera
         {
             MinZoom   = IgCameraConstants.MinZoom,
@@ -288,12 +302,15 @@ public class IgApplication
 
     // -------------------------------------------------------------------------
 
-    public void Run()
+    /// <summary>
+    /// Advances one frame of IG logic (input, ECS tick, viewport update).  
+    /// Must be called before <see cref="DrawWorld"/> and <see cref="DrawUI"/> each frame.
+    /// Called by both the standalone <see cref="Run"/> loop and the embedded orchestrator.
+    /// </summary>
+    public void Update(float dt)
     {
-        while (!Raylib.WindowShouldClose())
+        if (!_headless)
         {
-            float dt = Raylib.GetFrameTime();
-
             // Gate map input when ImGui is consuming the mouse (TASK-IF008).
             if (!ImGui.GetIO().WantCaptureMouse)
             {
@@ -309,26 +326,61 @@ public class IgApplication
             _cameraViewport.WorldMinY = MathF.Min(topLeft.Y, bottomRight.Y);
             _cameraViewport.WorldMaxY = MathF.Max(topLeft.Y, bottomRight.Y);
             _cameraViewport.Zoom      = _camera.Zoom;
+        }
 
-            // Tick ECS/network each render frame
-            _kernel.Update();
-            _eventBus.SwapBuffers();
+        // Always tick ECS/network — even in headless mode DDS messages must be processed.
+        _kernel.Update();
+        _eventBus.SwapBuffers();
 
+        if (!_headless)
+        {
             // Update UI panel states (TASK-IF008).
             _performanceMetrics.Snapshot(_world, Raylib.GetFPS(), Raylib.GetFrameTime() * 1000f);
             _inspectorState.Refresh(_world, GetSelectedEntity());
+        }
+    }
+
+    /// <summary>
+    /// Renders the 2-D map canvas and debug overlay.  
+    /// Must be called inside <c>Raylib.BeginDrawing()</c>, before ImGui.
+    /// No-op in headless mode.
+    /// </summary>
+    public void DrawWorld()
+    {
+        _canvas.Draw();
+        DrawDebugOverlay();
+    }
+
+    /// <summary>
+    /// Renders ImGui panels.  
+    /// Must be called inside <c>rlImGui.Begin()</c>.
+    /// No-op in headless mode.
+    /// </summary>
+    public void DrawUI()
+    {
+        _debugPanel.Draw();
+        _inspectorPanel.Draw();
+        _miniIosPanel.Draw();
+        _performanceOverlay.Draw();
+    }
+
+    /// <summary>
+    /// Runs the standalone main loop (owns window lifecycle).
+    /// Uses <see cref="Update"/>, <see cref="DrawWorld"/>, and <see cref="DrawUI"/> internally.
+    /// </summary>
+    public void Run()
+    {
+        while (!Raylib.WindowShouldClose())
+        {
+            float dt = Raylib.GetFrameTime();
+            Update(dt);
 
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.DarkGray);
-            _canvas.Draw();
-            DrawDebugOverlay();
+            DrawWorld();
 
-            // Draw ImGui panels (TASK-IF008).
             rlImGui.Begin();
-            _debugPanel.Draw();
-            _inspectorPanel.Draw();
-            _miniIosPanel.Draw();
-            _performanceOverlay.Draw();
+            DrawUI();
             rlImGui.End();
 
             Raylib.EndDrawing();
@@ -428,11 +480,18 @@ public class IgApplication
 
     // -------------------------------------------------------------------------
 
-    public void Shutdown()
+    /// <summary>
+    /// Releases all IG resources.  
+    /// Pass <c>ownsWindow = false</c> when the orchestrator owns the Raylib window.
+    /// </summary>
+    public void Shutdown(bool ownsWindow = true)
     {
         _kernel?.Dispose();
         _eventBus?.Dispose();
-        rlImGui.Shutdown();
-        Raylib.CloseWindow();
+        if (ownsWindow)
+        {
+            rlImGui.Shutdown();
+            Raylib.CloseWindow();
+        }
     }
 }
