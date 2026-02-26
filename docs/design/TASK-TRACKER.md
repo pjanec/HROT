@@ -272,7 +272,7 @@
 
 ## RUNNER (AGGREGATED APPLICATION)
 
-**Progress:** 0/20 tasks complete (0%)
+**Progress:** 8/20 tasks complete (40%)
 
 > **⚠️ Architecture Review (2026-02-26):** DESIGN-RUNNER.md and TASK-DETAILS-RUNNER.md have been updated following architect review. Before starting any Runner tasks, note these corrections:
 > - **R1.3 / R1.4**: `ISubsystem` now has `DrawWorld()` and `DrawUI()` phases. The `SubsystemOrchestrator` owns the Raylib window and render loop — subsystems must not call `BeginDrawing`/`rlImGui.Begin` themselves.
@@ -282,47 +282,32 @@
 > - **R3.3**: `SpawnEntityHandler` publishes `SpawnEntityCommand` to `EventBus` — there is no `CreateEntityViaFactory()`.
 > - **Section 9.3**: `ICameraService`/`HeadlessCamera` have been removed from the design. Headless mode only needs `HeadlessInputProvider` + skipping draw calls.
 
-> **⚠️ Design Talk (2026-03-05):** Phase R0 added as a **required prerequisite** for all other Runner phases. Do not merge binaries into a combined process before R0 is complete. See [DESIGN-RUNNER.md Section 11](./DESIGN-RUNNER.md#11-ecs-component-id-safety-phase-r0-pre-requisite) and [TASK-DETAILS-RUNNER.md Phase R0](./TASK-DETAILS-RUNNER.md#phase-r0-ecs-component-id-safety).
+> **✅ Phase R0 Complete (2026-03-06):** Component ID safety implementation merged. All 23 component structs now have deterministic IDs via `[ComponentId]` attributes. Flight Recorder schema validation active. Zero regressions. See [RUNNER-BATCH-01-REVIEW.md](../../.dev-workstream/reviews/RUNNER-BATCH-01-REVIEW.md).
 
-### Phase R0: ECS Component ID Safety ⚠️ MUST COMPLETE BEFORE R1
+### Phase R0: ECS Component ID Safety ✅ COMPLETE
 
-- [ ] **R0.1** Make Component IDs Deterministic (`[ComponentId]` attribute + `GlobalComponentIds` catalog) [details](./TASK-DETAILS-RUNNER.md#r01-make-component-ids-deterministic)
-- [ ] **R0.2** Implement Flight Recorder Schema Manifest + Validator [details](./TASK-DETAILS-RUNNER.md#r02-implement-flight-recorder-schema-manifest)
+- [x] **R0.1** Make Component IDs Deterministic (`[ComponentId]` attribute + `GlobalComponentIds` catalog) [details](./TASK-DETAILS-RUNNER.md#r01-make-component-ids-deterministic)
+- [x] **R0.2** Implement Flight Recorder Schema Manifest + Validator [details](./TASK-DETAILS-RUNNER.md#r02-implement-flight-recorder-schema-manifest)
 
-### Phase R1: Runner Core
+> **✅ Phase R1 Complete (2026-03-07):** Runner Core Infrastructure implemented. `Bagira.Runner` project created with `RunnerConfiguration` (CLI + JSON), `SubsystemOrchestrator` (Raylib window ownership, reverse-shutdown), `ISubsystem` interface, `SubsystemStatusAnnounce` DDS topic, and `WaitingRoomCoordinator`. 39 Runner tests + 2 new DDS DataModel tests. Zero regressions. See [RUNNER-BATCH-02-REPORT.md](../../.dev-workstream/reports/RUNNER-BATCH-02-REPORT.md).
 
-- [ ] **R1.1** Create Bagira.Runner Project [details](./TASK-DETAILS-RUNNER.md#task-r11-create-bagirarunner-project)
-- [ ] **R1.2** Implement RunnerConfiguration with CLI Parsing [details](./TASK-DETAILS-RUNNER.md#task-r12-implement-runnerconfiguration-with-cli-parsing)
-- [ ] **R1.3** Implement SubsystemOrchestrator [details](./TASK-DETAILS-RUNNER.md#task-r13-implement-subsystemorchestrator)
-- [ ] **R1.4** Implement ISubsystem Interface [details](./TASK-DETAILS-RUNNER.md#task-r14-implement-isubsystem-interface)
-- [ ] **R1.5** Implement SubsystemStatusAnnounce DDS Topic [details](./TASK-DETAILS-RUNNER.md#task-r15-implement-subsystemstatusannounce-dds-topic)
-- [ ] **R1.6** Implement WaitingRoomCoordinator [details](./TASK-DETAILS-RUNNER.md#task-r16-implement-waitingroomcoordinator)
+### Phase R1: Runner Core Infrastructure ✅ COMPLETE
 
-### Phase R2: Subsystem Refactoring
+- [x] **R1.1** Create `Bagira.Runner` Project Structure [details](./TASK-DETAILS-RUNNER.md#r11-create-bagirarunner-project-structure)
+- [x] **R1.2** Implement `RunnerConfiguration` + `RunMode` Enum [details](./TASK-DETAILS-RUNNER.md#r12-implement-runnerconfiguration--runmode-enum)
+- [x] **R1.3** Implement `SubsystemOrchestrator` [details](./TASK-DETAILS-RUNNER.md#r13-implement-subsystemorchestrator)
+- [x] **R1.4** Implement `ISubsystem` Interface + Stubs [details](./TASK-DETAILS-RUNNER.md#r14-implement-isubsystem-interface--stubs)
+- [x] **R1.5** Add `SubsystemStatusAnnounce` DDS Topic [details](./TASK-DETAILS-RUNNER.md#r15-add-subsystemstatusannounce-dds-topic)
+- [x] **R1.6** Implement `WaitingRoomCoordinator` [details](./TASK-DETAILS-RUNNER.md#r16-implement-waitingroomcoordinator)
 
-- [ ] **R2.1** Refactor SimHost to SimHostSubsystem Library [details](./TASK-DETAILS-RUNNER.md#task-r21-refactor-simhost-to-simhostsubsystem-library)
-- [ ] **R2.2** Create SimHost Standalone Program.cs [details](./TASK-DETAILS-RUNNER.md#task-r22-create-simhost-standalone-programcs)
-- [ ] **R2.3** Test SimHost Embeddability [details](./TASK-DETAILS-RUNNER.md#task-r23-test-simhost-embeddability)
-- [ ] **R2.4** Refactor IG to IgSubsystem Library [details](./TASK-DETAILS-RUNNER.md#task-r24-refactor-ig-to-igsubsystem-library)
-- [ ] **R2.5** Create IG Standalone Program.cs [details](./TASK-DETAILS-RUNNER.md#task-r25-create-ig-standalone-programcs)
-- [ ] **R2.6** Test IG Embeddability [details](./TASK-DETAILS-RUNNER.md#task-r26-test-ig-embeddability)
-- [ ] **R2.7** Refactor IOS to IosSubsystem Library [details](./TASK-DETAILS-RUNNER.md#task-r27-refactor-ios-to-iossubsystem-library)
-- [ ] **R2.8** Create IOS Standalone Program.cs [details](./TASK-DETAILS-RUNNER.md#task-r28-create-ios-standalone-programcs)
-- [ ] **R2.9** Test IOS Embeddability [details](./TASK-DETAILS-RUNNER.md#task-r29-test-ios-embeddability)
+### Phase R2: Subsystem Refactoring (IN PROGRESS)
 
-### Phase R3: Headless Testing Infrastructure
-
-- [ ] **R3.1** Implement HeadlessTestExecutor [details](./TASK-DETAILS-RUNNER.md#task-r31-implement-headlesstestexecutor)
-- [ ] **R3.2** Implement Test Script JSON Parser [details](./TASK-DETAILS-RUNNER.md#task-r32-implement-test-script-json-parser)
-- [ ] **R3.3** Implement Test Action Handlers [details](./TASK-DETAILS-RUNNER.md#task-r33-implement-test-action-handlers)
-- [ ] **R3.4** Implement Metrics Collection [details](./TASK-DETAILS-RUNNER.md#task-r34-implement-metrics-collection)
-- [ ] **R3.5** Implement Test Report Generator [details](./TASK-DETAILS-RUNNER.md#task-r35-implement-test-report-generator)
-
-### Phase R4: Integration Testing
-
-- [ ] **R4.1** Test Single Aggregated Mode [details](./TASK-DETAILS-RUNNER.md#task-r41-test-single-aggregated-mode)
-- [ ] **R4.2** Test Separate Applications Mode [details](./TASK-DETAILS-RUNNER.md#task-r42-test-separate-applications-mode)
-- [ ] **R4.3** Test Waiting Room Synchronization [details](./TASK-DETAILS-RUNNER.md#task-r43-test-waiting-room-synchronization)
-- [ ] **R4.4** Create Headless Latency Test [details](./TASK-DETAILS-RUNNER.md#task-r44-create-headless-latency-test)
-- [ ] **R4.5** Create Headless Stress Test [details](./TASK-DETAILS-RUNNER.md#task-r45-create-headless-stress-test)
-- [ ] **R4.6** Document Runner Usage [details](./TASK-DETAILS-RUNNER.md#task-r46-document-runner-usage)
+- [ ] **R2.1** Refactor SimHost to SimHostSubsystem Library [details](./TASK-DETAILS-RUNNER.md#r21-refactor-simhost-to-simhostsubsystem-library)
+- [ ] **R2.2** Create SimHost Standalone Program.cs [details](./TASK-DETAILS-RUNNER.md#r22-create-simhost-standalone-programcs)
+- [ ] **R2.3** Test SimHost Embeddability [details](./TASK-DETAILS-RUNNER.md#r23-test-simhost-embeddability)
+- [ ] **R2.4** Refactor IG to IgSubsystem Library [details](./TASK-DETAILS-RUNNER.md#r24-r29-ig-and-ios-subsystem-refactoring)
+- [ ] **R2.5** Create IG Standalone Program.cs
+- [ ] **R2.6** Test IG Embeddability
+- [ ] **R2.7** Refactor IOS to IosSubsystem Library
+- [ ] **R2.8** Create IOS Standalone Program.cs
+- [ ] **R2.9** Test IOS Embeddability

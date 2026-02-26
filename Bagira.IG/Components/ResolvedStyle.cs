@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using Fdp.Kernel;
 
 namespace Bagira.IG.Components;
 
@@ -18,6 +19,7 @@ namespace Bagira.IG.Components;
 /// <see cref="ResolvedStyleConstants.MaxStyleBytes"/> (§CODE-STANDARDS §5).
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
+[ComponentId(GlobalComponentIds.ResolvedStyle)]
 public unsafe struct ResolvedStyle
 {
     // ── Fixed-buffer string fields ────────────────────────────────────────────

@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace Bagira.IG.Components;
 
@@ -24,6 +25,7 @@ public enum EffectType : byte
 /// (§CODE-STANDARDS §1).
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
+[ComponentId(GlobalComponentIds.VisualEffectState)]
 public struct VisualEffectState
 {
     /// <summary>Rendering type that drives effect visuals.</summary>
@@ -78,6 +80,7 @@ public struct VisualEffectState
 /// Stores the world-space end-point of the tracer line so the renderer can draw it.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
+[ComponentId(GlobalComponentIds.TracerTarget)]
 public struct TracerTarget
 {
     /// <summary>World-space X coordinate of the tracer line endpoint (target position).</summary>

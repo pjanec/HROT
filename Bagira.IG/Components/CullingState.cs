@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace Bagira.IG.Components;
 
@@ -15,6 +16,7 @@ namespace Bagira.IG.Components;
 /// LOD levels are named constants in <see cref="CullingStateConstants"/> (§CODE-STANDARDS §1).
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
+[ComponentId(GlobalComponentIds.CullingState)]
 public struct CullingState
 {
     /// <summary>

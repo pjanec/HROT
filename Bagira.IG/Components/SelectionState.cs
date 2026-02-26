@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace Bagira.IG.Components;
 
@@ -26,6 +27,7 @@ namespace Bagira.IG.Components;
 /// <see cref="Bagira.IG.Adapters.SstVisualizerAdapterConstants"/> (§CODE-STANDARDS §1).
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
+[ComponentId(GlobalComponentIds.SelectionState)]
 public struct SelectionState
 {
     /// <summary>
