@@ -9,6 +9,7 @@ namespace ModuleHost.Core.Tests.Concurrency
 {
     public class ProviderConcurrencyTests
     {
+        [ComponentId(225)]
         struct Pos { public float X; }
         
         [Fact]

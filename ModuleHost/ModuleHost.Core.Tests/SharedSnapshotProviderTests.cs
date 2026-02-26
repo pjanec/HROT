@@ -10,8 +10,11 @@ namespace ModuleHost.Core.Tests
 {
     public class SharedSnapshotProviderTests
     {
+        [ComponentId(221)]
         private struct Position { public float X, Y; }
+        [ComponentId(222)]
         private struct Velocity { public float X, Y; }
+        [ComponentId(223)]
         private struct TransientState { public int Temp; } // Not registered in mask
 
         private EntityRepository _liveWorld;

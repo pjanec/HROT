@@ -150,21 +150,21 @@ namespace Fdp.Tests
         {
             // Arrange
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>(); // Basic int component
+            repo.RegisterComponent<IntComponent>(); // Basic int component
             var recorder = new RecorderSystem();
             using var stream = new MemoryStream();
             using var writer = new BinaryWriter(stream);
             
             repo.Tick(); // V=2
             var e1 = repo.CreateEntity();
-            repo.AddComponent(e1, 123);
+            repo.AddComponent(e1, new IntComponent { Value = 123 });
             
             // This set change tick to 2.
             
             repo.Tick(); // V=3
             // Modify component
-            ref int val = ref repo.GetComponentRW<int>(e1);
-            val = 456;
+            ref IntComponent val = ref repo.GetComponentRW<IntComponent>(e1);
+            val.Value = 456;
             // Now change tick for chunk is 3.
             
             // Act

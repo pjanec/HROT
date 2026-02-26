@@ -7,11 +7,13 @@ using FDP.Toolkit.NetworkSpawning;
 namespace FDP.Toolkit.NetworkSpawning.Tests
 {
     // Simple test components
+    [ComponentId(239)]
     public struct TestComponentA
     {
         public int Value;
     }
 
+    [ComponentId(240)]
     public class TestComponentB
     {
         public string Name;

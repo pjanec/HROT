@@ -33,7 +33,9 @@ namespace Fdp.Tests
             try { File.Delete(_realTimeFile); } catch {}
         }
 
+        [ComponentId(225)]
         public struct Position { public float X, Y, Z; }
+        [ComponentId(226)]
         public struct Velocity { public float VX, VY, VZ; }
 
         [Fact]

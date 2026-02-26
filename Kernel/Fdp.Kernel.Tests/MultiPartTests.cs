@@ -5,17 +5,20 @@ using System;
 namespace Fdp.Tests
 {
     // Test components of various sizes
+    [ComponentId(170)]
     public struct SmallComponent  // 12 bytes - single part
     {
         public float X, Y, Z;
     }
     
+    [ComponentId(171)]
     public struct MediumComponent  // 128 bytes - 2 parts
     {
         public float X, Y, Z, W;
         public unsafe fixed float Data[28];  // Total: 4*4 + 28*4 = 128 bytes
     }
     
+    [ComponentId(172)]
     public unsafe struct LargeComponent  // 256 bytes - 4 parts
     {
         public fixed byte Data[256];

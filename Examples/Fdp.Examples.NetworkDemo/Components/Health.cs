@@ -1,5 +1,8 @@
+using Fdp.Kernel;
+
 namespace Fdp.Examples.NetworkDemo.Components
 {
+    [ComponentId(210)]
     public struct Health
     {
         public float Value;

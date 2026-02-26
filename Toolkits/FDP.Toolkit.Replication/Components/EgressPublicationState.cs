@@ -8,6 +8,7 @@ namespace FDP.Toolkit.Replication.Components
     /// Transient component - not persisted in snapshots.
     /// </summary>
     [DataPolicy(DataPolicy.Transient)]
+    [ComponentId(GlobalComponentIds.EgressPublicationState)]
     public class EgressPublicationState
     {
         /// <summary>

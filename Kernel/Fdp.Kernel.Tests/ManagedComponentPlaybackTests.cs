@@ -28,6 +28,7 @@ namespace Fdp.Tests
 
         // Test managed components
         [MessagePackObject]
+        [ComponentId(227)]
         public record PlayerInfo
         {
             [Key(0)]
@@ -41,6 +42,7 @@ namespace Fdp.Tests
         }
 
         [MessagePackObject]
+        [ComponentId(228)]
         public record InventoryData
         {
             [Key(0)]
@@ -182,11 +184,11 @@ namespace Fdp.Tests
         {
             // Test that both unmanaged and managed components restore correctly
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             repo.RegisterComponent<PlayerInfo>();
             
             var e = repo.CreateEntity();
-            repo.AddComponent(e, 42);
+            repo.AddComponent(e, new IntComponent { Value = 42 });
             repo.AddManagedComponent(e, new PlayerInfo 
             { 
                 Name = "MixedTest", 
@@ -201,15 +203,15 @@ namespace Fdp.Tests
             
             // Playback
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             targetRepo.RegisterComponent<PlayerInfo>();
             
             using var reader = new RecordingReader(_testFilePath);
             reader.ReadNextFrame(targetRepo);
             
             // Assert both components
-            Assert.True(targetRepo.HasUnmanagedComponent<int>(e));
-            Assert.Equal(42, targetRepo.GetComponentRO<int>(e));
+            Assert.True(targetRepo.HasUnmanagedComponent<IntComponent>(e));
+            Assert.Equal(42, targetRepo.GetComponentRO<IntComponent>(e).Value);
             
             Assert.True(targetRepo.HasManagedComponent<PlayerInfo>(e));
             var player = targetRepo.GetComponentRO<PlayerInfo>(e);

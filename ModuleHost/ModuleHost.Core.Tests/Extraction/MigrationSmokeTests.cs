@@ -7,6 +7,7 @@ namespace ModuleHost.Core.Tests.Extraction
 {
     public class MigrationSmokeTests
     {
+        [ComponentId(226)]
         private struct TestPosition { }
 
         [Fact]

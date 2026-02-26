@@ -10,11 +10,13 @@ namespace Fdp.Tests
     public class RecorderDeltaLogicTests
     {
         // Define some Component structs for testing
+        [ComponentId(220)]
         public struct Position
         {
             public float X, Y, Z;
         }
 
+        [ComponentId(221)]
         public struct Velocity
         {
             public float VX, VY, VZ;

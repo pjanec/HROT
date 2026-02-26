@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Kernel;
 using ModuleHost.Core.Network.Interfaces;
 
 namespace FDP.Toolkit.Replication.Services
 {
+    [ComponentId(GlobalComponentIds.BlockIdManager)]
     public class BlockIdManager : INetworkIdAllocator
     {
         private readonly Queue<long> _localPool = new();

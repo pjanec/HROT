@@ -19,6 +19,7 @@ namespace ModuleHost.Core.Network
     /// Tracks primary network type ownership.
     /// Unmanaged component (can be used in Queries).
     /// </summary>
+    [ComponentId(GlobalComponentIds.NetworkOwnership)]
     public struct NetworkOwnership
     {
         public int PrimaryOwnerId; // Default owner (EntityMaster)
@@ -29,6 +30,7 @@ namespace ModuleHost.Core.Network
     /// Transient tag component for entities awaiting network acknowledgment
     /// in reliable initialization mode. Removed after publishing lifecycle status.
     /// </summary>
+    [ComponentId(GlobalComponentIds.PendingNetworkAck)]
     public struct PendingNetworkAck 
     { 
         /// <summary>Reliable Init type required to determine expected peers</summary>
@@ -39,6 +41,7 @@ namespace ModuleHost.Core.Network
     /// Tag component to force immediate network publication of owned descriptors,
     /// bypassing normal change detection. Used for ownership transfer confirmations.
     /// </summary>
+    [ComponentId(GlobalComponentIds.ForceNetworkPublish)]
     public struct ForceNetworkPublish { }
 
     /// <summary>

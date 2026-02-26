@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace CarKinem.Core
 {
@@ -8,6 +9,7 @@ namespace CarKinem.Core
     /// Stored in global NativeArray<VehicleParams> table.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.VehicleParams)]
     public struct VehicleParams
     {
         public VehicleClass Class;   // Vehicle classification

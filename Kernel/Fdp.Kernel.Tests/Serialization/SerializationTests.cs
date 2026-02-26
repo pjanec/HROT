@@ -7,11 +7,13 @@ using Fdp.Kernel.Serialization;
 namespace Fdp.Tests.Serialization
 {
     // Define unique test components here to ensure isolation
+    [ComponentId(253)]
     [MessagePack.MessagePackObject]
     public struct SerialObj1 { 
         [MessagePack.Key(0)] public int X; 
     }
     
+    [ComponentId(254)]
     [MessagePack.MessagePackObject]
     public struct SerialObj2 { 
         [MessagePack.Key(0)] public float Y; 

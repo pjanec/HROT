@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace Fdp.Modules.Geographic.Components
 {
@@ -10,12 +11,13 @@ namespace Fdp.Modules.Geographic.Components
     ///
     /// Convention:
     ///   Latitude/Longitude: WGS84 decimal degrees
-    ///   Altitude:           meters (MSL or AGL — application decides)
+    ///   Altitude:           meters (MSL or AGL ï¿½ application decides)
     ///   HeadingDeg:         compass [0, 360), 0=North, 90=East, clockwise
     ///   PitchDeg:           +ve = nose up
     ///   RollDeg:            +ve = right wing down (clockwise looking forward)
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.GeoTransform)]
     public struct GeoTransform
     {
         /// <summary>WGS84 geodetic latitude in decimal degrees.</summary>

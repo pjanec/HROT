@@ -1,4 +1,5 @@
 using System;
+using Fdp.Kernel;
 
 namespace Fdp.Modules.Geographic.Components
 {
@@ -6,6 +7,7 @@ namespace Fdp.Modules.Geographic.Components
     /// Represents entity position in WGS84 Geodetic coordinates.
     /// Managed component (uses doubles) for network interoperability.
     /// </summary>
+    [ComponentId(GlobalComponentIds.GeoPositionGeodetic)]
     public class PositionGeodetic
     {
         public double Latitude { get; set; }

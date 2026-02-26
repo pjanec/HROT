@@ -30,6 +30,7 @@ namespace Fdp.Tests
             try { File.Delete(_testFilePath); } catch {}
         }
 
+        [ComponentId(230)]
         public struct Transform
         {
             public float X, Y, Z;
@@ -37,12 +38,14 @@ namespace Fdp.Tests
             public float ScaleX, ScaleY, ScaleZ;
         }
 
+        [ComponentId(231)]
         public struct Velocity
         {
             public float VX, VY, VZ;
         }
 
         [MessagePackObject]
+        [ComponentId(232)]
         public record UnitStats
         {
             [Key(0)]
@@ -294,7 +297,7 @@ namespace Fdp.Tests
             const int frameCount = 100;
             
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             _output.WriteLine($"=== Entity Lifecycle Throughput Test ===");
             _output.WriteLine($"Operations per frame: {operationsPerFrame}, Frames: {frameCount}");
@@ -313,7 +316,7 @@ namespace Fdp.Tests
                     for (int i = 0; i < operationsPerFrame; i++)
                     {
                         tempEntities[i] = repo.CreateEntity();
-                        repo.AddComponent(tempEntities[i], frame * 1000 + i);
+                        repo.AddComponent(tempEntities[i], new IntComponent { Value = frame * 1000 + i });
                         totalOperations++;
                     }
                     

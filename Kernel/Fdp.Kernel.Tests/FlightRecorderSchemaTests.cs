@@ -19,25 +19,25 @@ namespace Fdp.Tests
         // Use IDs in the 240-255 range (reserved block) to avoid conflicts with
         // production component IDs when tests run without an explicit Clear().
 
-        [ComponentId(240)]
+        [ComponentId(8)]
         [StructLayout(LayoutKind.Sequential)]
         private struct TwoFieldStruct { public int Field1; public float Field2; }
 
-        [ComponentId(241)]
+        [ComponentId(9)]
         [StructLayout(LayoutKind.Sequential)]
         private struct OneFieldStruct { public int Field1; }
 
         // Same fields as TwoFieldStruct but different type on Field2 → different hash.
-        [ComponentId(242)]
+        [ComponentId(10)]
         [StructLayout(LayoutKind.Sequential)]
         private struct TwoFieldStructAlt { public int Field1; public int Field2; }
 
         // Same size, same types as TwoFieldStruct but fields swapped → different hash.
-        [ComponentId(243)]
+        [ComponentId(11)]
         [StructLayout(LayoutKind.Sequential)]
         private struct SwappedFieldStruct { public float Field2; public int Field1; }
 
-        [ComponentId(244)]
+        [ComponentId(12)]
         [StructLayout(LayoutKind.Sequential)]
         private struct ValidatorTargetStruct { public int Value; }
 
@@ -142,7 +142,7 @@ namespace Fdp.Tests
             {
                 SchemaManifest = new Dictionary<int, ComponentSchemaInfo>
                 {
-                    [244] = new ComponentSchemaInfo
+                    [12] = new ComponentSchemaInfo
                     {
                         Name       = nameof(ValidatorTargetStruct),
                         Size       = correctSize, // Size is correct; only hash is wrong.
@@ -174,7 +174,7 @@ namespace Fdp.Tests
             {
                 SchemaManifest = new Dictionary<int, ComponentSchemaInfo>
                 {
-                    [244] = new ComponentSchemaInfo
+                    [12] = new ComponentSchemaInfo
                     {
                         Name       = nameof(ValidatorTargetStruct),
                         Size       = 999, // Wrong size.
@@ -241,7 +241,7 @@ namespace Fdp.Tests
             {
                 SchemaManifest = new Dictionary<int, ComponentSchemaInfo>
                 {
-                    [244] = new ComponentSchemaInfo
+                    [12] = new ComponentSchemaInfo
                     {
                         Name       = type.FullName ?? type.Name,
                         Size       = correctSize,

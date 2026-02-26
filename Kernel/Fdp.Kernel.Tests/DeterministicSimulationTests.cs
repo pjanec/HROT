@@ -21,8 +21,11 @@ namespace Fdp.Tests
             _output = output;
         }
 
+        [ComponentId(222)]
         public struct Position { public float X, Y, Z; }
+        [ComponentId(223)]
         public struct Velocity { public float VX, VY, VZ; }
+        [ComponentId(224)]
         public struct Acceleration { public float AX, AY, AZ; }
 
         [Fact]

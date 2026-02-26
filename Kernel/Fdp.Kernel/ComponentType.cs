@@ -78,7 +78,6 @@ namespace Fdp.Kernel
         private static readonly Dictionary<int, bool> _needsClone = new Dictionary<int, bool>();
         /// <summary>Tracks which IDs were assigned via an explicit [ComponentId] attribute.</summary>
         private static readonly HashSet<int> _explicitIds = new HashSet<int>();
-        private static int _nextId = 0;
         
         /// <summary>
         /// Checks if a type is a C# record (immutable by design).
@@ -114,65 +113,34 @@ namespace Fdp.Kernel
                     return existingId;
                 }
 
-                // Determine component ID: explicit attribute takes priority over auto-assignment.
-                // ComponentIdAttribute only applies to struct types (classes cannot carry it).
-                var attr = (type.IsValueType && !type.IsEnum)
-                    ? type.GetCustomAttribute<ComponentIdAttribute>()
-                    : null;
+                // Determine component ID: explicit [ComponentId] attribute required for ALL types.
+                // Now supports structs, classes, and interfaces.
+                var attr = type.GetCustomAttribute<ComponentIdAttribute>();
 
                 int id;
                 if (attr != null)
                 {
                     id = attr.Id;
 
-                    // Collision detection: only throw when the slot is held by ANOTHER
-                    // explicitly-declared type.  If the occupant was auto-assigned, it
-                    // yields to the explicit declaration and gets relocated to a new free ID
-                    // (so legacy tests that don't call Clear() can coexist with explicit IDs).
+                    // Collision detection: both types explicitly claim the same ID — programmer error.
                     if (_idToType.ContainsKey(id))
                     {
                         var occupant = _idToType[id];
-                        if (_explicitIds.Contains(id))
-                        {
-                            // Both types explicitly claim the same ID — real programmer error.
-                            throw new InvalidOperationException(
-                                $"Component ID collision: {occupant.Name} and {type.Name} both declare [ComponentId({id})]");
-                        }
-                        else
-                        {
-                            // Occupant was auto-assigned — displace it to the next free slot.
-                            RelocateAutoAssigned(occupant, id);
-                        }
+                        throw new InvalidOperationException(
+                            $"Component ID collision: {occupant.Name} and {type.Name} both declare [ComponentId({id})]");
                     }
 
                     _explicitIds.Add(id);
                 }
                 else
                 {
-                    // Enforcement: struct types without [ComponentId] are rejected when the flag is set.
-                    if (type.IsValueType && !type.IsEnum && FdpConfig.EnforceExplicitComponentIds)
-                    {
-                        throw new InvalidOperationException(
-                            $"Component {type.Name} is missing a [ComponentId] attribute. " +
-                            "Set FdpConfig.EnforceExplicitComponentIds = false to allow auto-assignment.");
-                    }
-
-                    // Legacy auto-assignment: scan forward past any explicitly-reserved IDs to
-                    // avoid silently colliding with a component whose [ComponentId] has not yet
-                    // been registered in this process.
-                    while (_idToType.ContainsKey(_nextId))
-                    {
-                        _nextId++;
-                        if (_nextId >= FdpConfig.MAX_COMPONENT_TYPES)
-                            throw new InvalidOperationException(
-                                $"Maximum component types ({FdpConfig.MAX_COMPONENT_TYPES}) exceeded");
-                    }
-
-                    if (_nextId >= FdpConfig.MAX_COMPONENT_TYPES)
-                        throw new InvalidOperationException(
-                            $"Maximum component types ({FdpConfig.MAX_COMPONENT_TYPES}) exceeded");
-
-                    id = _nextId++;
+                    // All component types (structs, classes, and interfaces) MUST have a
+                    // [ComponentId] attribute.  Auto-assignment has been removed to ensure
+                    // deterministic IDs when multiple binaries are merged into one process.
+                    throw new InvalidOperationException(
+                        $"Component type '{type.Name}' is missing a [ComponentId] attribute. " +
+                        $"Add [ComponentId(GlobalComponentIds.YourComponent)] to '{type.FullName}' " +
+                        $"and register the constant in GlobalComponentIds.cs.");
                 }
                 _typeToId[type] = id;
                 _idToType[id] = type;
@@ -185,47 +153,6 @@ namespace Fdp.Kernel
             }
         }
         
-        /// <summary>
-        /// Relocates a type that was auto-assigned to <paramref name="oldId"/> to the next
-        /// free slot, making room for an explicit [ComponentId] declaration at <paramref name="oldId"/>.
-        /// Called from within the registry lock.
-        /// </summary>
-        private static void RelocateAutoAssigned(Type autoType, int oldId)
-        {
-            // Find next free ID (skip explicit reservations too).
-            int newId = _nextId;
-            while (_idToType.ContainsKey(newId) || _explicitIds.Contains(newId))
-            {
-                newId++;
-                if (newId >= FdpConfig.MAX_COMPONENT_TYPES)
-                    throw new InvalidOperationException(
-                        $"Maximum component types ({FdpConfig.MAX_COMPONENT_TYPES}) exceeded while relocating {autoType.Name}");
-            }
-
-            // Move the type to the new slot.
-            _idToType.Remove(oldId);
-            _idToType[newId] = autoType;
-            _typeToId[autoType] = newId;
-
-            // Migrate per-type metadata flags.
-            MigrateMetadataFlag(_isSnapshotable, oldId, newId);
-            MigrateMetadataFlag(_isRecordable,   oldId, newId);
-            MigrateMetadataFlag(_isSaveable,     oldId, newId);
-            MigrateMetadataFlag(_needsClone,     oldId, newId);
-
-            if (_nextId <= newId)
-                _nextId = newId + 1;
-        }
-
-        private static void MigrateMetadataFlag(Dictionary<int, bool> dict, int oldId, int newId)
-        {
-            if (dict.TryGetValue(oldId, out bool value))
-            {
-                dict.Remove(oldId);
-                dict[newId] = value;
-            }
-        }
-
         /// <summary>
         /// Sets whether a component type should be included in snapshots.
         /// Must be called AFTER registration.
@@ -430,7 +357,6 @@ namespace Fdp.Kernel
                 _isSaveable.Clear();
                 _needsClone.Clear();
                 _explicitIds.Clear();
-                _nextId = 0;
             }
         }
         
@@ -446,6 +372,17 @@ namespace Fdp.Kernel
                     .OrderBy(kvp => kvp.Key)
                     .Select(kvp => kvp.Value)
                     .ToArray();
+            }
+        }
+
+        /// <summary>
+        /// Returns all registered component type IDs (supports sparse/non-sequential IDs).
+        /// </summary>
+        public static int[] GetAllIds()
+        {
+            lock (_lock)
+            {
+                return _idToType.Keys.ToArray();
             }
         }
     }

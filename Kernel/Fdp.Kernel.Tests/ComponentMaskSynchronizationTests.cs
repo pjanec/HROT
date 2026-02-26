@@ -17,6 +17,7 @@ namespace Fdp.Tests
         private readonly string _testFilePath;
         
         // Test managed component
+        [ComponentId(197)]
         public record TestManagedComponent
         {
             [MessagePack.Key(0)]
@@ -26,6 +27,7 @@ namespace Fdp.Tests
         }
         
         // Test unmanaged component  
+        [ComponentId(198)]
         public struct TestUnmanagedComponent
         {
             public int X, Y, Z;

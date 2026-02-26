@@ -4,6 +4,7 @@ using Fdp.Kernel;
 
 namespace FDP.Toolkit.Replication.Services
 {
+    [ComponentId(GlobalComponentIds.NetworkEntityMap)]
     public class NetworkEntityMap
     {
         private readonly Dictionary<long, Entity> _netToEntity = new();

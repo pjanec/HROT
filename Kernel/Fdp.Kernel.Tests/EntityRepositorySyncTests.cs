@@ -7,9 +7,12 @@ namespace Fdp.Tests
     public class EntityRepositorySyncTests
     {
         // Define components
+        [ComponentId(187)]
         struct Pos { public float X; }
+        [ComponentId(188)]
         struct Vel { public float X; }
         
+        [ComponentId(189)]
         record Tag(string Label);
 
         [Fact]
@@ -139,8 +142,10 @@ namespace Fdp.Tests
              Assert.True(sw.ElapsedMilliseconds < 50, $"Time: {sw.ElapsedMilliseconds}");
         }
         [DataPolicy(DataPolicy.Transient)]
+        [ComponentId(144)]
         struct TransientData { public int Val; }
 
+        [ComponentId(145)]
         struct PersistentData { public int Val; }
 
         [Fact]

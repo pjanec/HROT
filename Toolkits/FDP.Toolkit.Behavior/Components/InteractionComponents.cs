@@ -9,6 +9,7 @@ namespace FDP.Toolkit.Behavior.Components
     /// Managed by <c>EmbarkExecutor</c> (add) and <c>EjectPassengersExecutor</c> (clear).
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.PassengerBuffer)]
     public struct PassengerBuffer
     {
         public const int Capacity = 8;
@@ -36,6 +37,7 @@ namespace FDP.Toolkit.Behavior.Components
     /// Added by <c>EmbarkExecutor</c>; removed by <c>EjectPassengersExecutor</c>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.IsEmbarkedTag)]
     public struct IsEmbarkedTag
     {
         /// <summary>The vehicle entity this soldier is currently aboard.</summary>

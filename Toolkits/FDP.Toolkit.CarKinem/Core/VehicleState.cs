@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace CarKinem.Core
 {
@@ -8,6 +9,7 @@ namespace CarKinem.Core
     /// Uses bicycle kinematic model.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.VehicleState)]
     public struct VehicleState
     {
         public float Speed;         // Scalar forward speed (m/s, >= 0)

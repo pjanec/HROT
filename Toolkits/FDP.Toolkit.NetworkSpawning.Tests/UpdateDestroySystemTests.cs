@@ -27,6 +27,7 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
         private const long DefaultTkbType = 42L;
         private const int  LocalNodeId    = 1;
 
+        [ComponentId(243)]
         private struct TestPositionComponent
         {
             public float X;

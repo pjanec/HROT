@@ -760,10 +760,13 @@ namespace Fdp.Tests
             Assert.Equal(entityCount, replayRepo.EntityCount);
         }
         [DataPolicy(DataPolicy.Transient)]
+        [ComponentId(249)]
         struct TransientPosAttr { public float X; }
 
+        [ComponentId(250)]
         struct TransientPosExplicit { public float X; }
 
+        [ComponentId(251)]
         struct PersistentPos { public float X; }
 
         [Fact]

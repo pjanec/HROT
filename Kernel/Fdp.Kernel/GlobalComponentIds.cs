@@ -13,12 +13,13 @@ namespace Fdp.Kernel
     /// <para><b>ID block allocation</b></para>
     /// <list type="table">
     ///   <item><term>0–19</term>  <description>Fdp.Kernel core components</description></item>
-    ///   <item><term>20–49</term> <description>Reserved for future Fdp.Kernel expansion</description></item>
+    ///   <item><term>20–49</term> <description>FDP toolkit expansion: Behavior, Physics, Combat, CarKinem, Geographic</description></item>
     ///   <item><term>50–79</term> <description>FDP.Toolkit.Replication components</description></item>
     ///   <item><term>80–109</term><description>FDP.Toolkit.Vis2D components</description></item>
     ///   <item><term>110–139</term><description>Bagira.IG components</description></item>
-    ///   <item><term>140–199</term><description>Reserved for future toolkit expansion</description></item>
-    ///   <item><term>200–255</term><description>Reserved — future use</description></item>
+    ///   <item><term>140–159</term><description>ModuleHost.Core network components (Cyclone)</description></item>
+    ///   <item><term>160–199</term><description>Application-level descriptor components</description></item>
+    ///   <item><term>200–255</term><description>Reserved — examples and future use</description></item>
     /// </list>
     ///
     /// <para>
@@ -58,6 +59,99 @@ namespace Fdp.Kernel
 
         // IDs 8–19 are reserved for future Fdp.Kernel core components.
 
+        // ── FDP.Toolkit expansion (20–49) ────────────────────────────────────────
+        // Toolkit components added after initial release: geographic, behavior, physics.
+
+        /// <summary><c>GeoTransform</c> — geodetic position and orientation (WGS-84).</summary>
+        public const byte GeoTransform            = 20;
+
+        /// <summary><c>GeoVelocity</c> — geodetic velocity and acceleration (ENU frame).</summary>
+        public const byte GeoVelocity             = 21;
+
+        /// <summary><c>DoctrineState</c> — active doctrine (behavior tree / HSM) for an entity.</summary>
+        public const byte DoctrineState           = 22;
+
+        /// <summary><c>BrainBlackboard</c> — shared blackboard memory for behavior execution.</summary>
+        public const byte BrainBlackboard         = 23;
+
+        /// <summary><c>LocomotionChannel</c> — active locomotion action slot for behavior control.</summary>
+        public const byte LocomotionChannel       = 24;
+
+        /// <summary><c>WeaponChannel</c> — active weapon action slot for behavior control.</summary>
+        public const byte WeaponChannel           = 25;
+
+        /// <summary><c>InteractionChannel</c> — active interaction action slot for behavior control.</summary>
+        public const byte InteractionChannel      = 26;
+
+        /// <summary><c>PreviousCapabilities</c> — shadow of last-frame actor capability bitmask.</summary>
+        public const byte PreviousCapabilities    = 27;
+
+        /// <summary><c>ActorCapabilityState</c> — current actor capability bitmask.</summary>
+        public const byte ActorCapabilityState    = 28;
+
+        /// <summary><c>BrainBTreeState</c> — behavior tree runtime state for an entity brain.</summary>
+        public const byte BrainBTreeState         = 29;
+
+        /// <summary><c>VehicleState</c> — kinematic vehicle physics state (speed, steer, accel).</summary>
+        public const byte VehicleState            = 30;
+
+        /// <summary><c>VehicleParams</c> — static vehicle configuration parameters.</summary>
+        public const byte VehicleParams           = 31;
+
+        /// <summary><c>NavState</c> — navigation and locomotion controller state.</summary>
+        public const byte NavState                = 32;
+
+        /// <summary><c>FormationRoster</c> — fixed-capacity formation member list (attached to leader).</summary>
+        public const byte FormationRoster         = 33;
+
+        /// <summary><c>SimTier</c> — simulation tier level for entity brain prioritization.</summary>
+        public const byte SimTier                 = 34;
+
+        /// <summary><c>BrainHsm64</c> — 64-slot HSM runtime state for entity brains.</summary>
+        public const byte BrainHsm64              = 35;
+
+        /// <summary><c>BrainHsm128</c> — 128-slot HSM runtime state for entity brains.</summary>
+        public const byte BrainHsm128             = 36;
+
+        /// <summary><c>PassengerBuffer</c> — fixed-capacity passenger roster on a vehicle entity.</summary>
+        public const byte PassengerBuffer         = 37;
+
+        /// <summary><c>IsEmbarkedTag</c> — tag marking a soldier currently aboard a vehicle.</summary>
+        public const byte IsEmbarkedTag           = 38;
+
+        /// <summary><c>MissionPlanQueue</c> — ordered queue of mission phases for the mission director.</summary>
+        public const byte MissionPlanQueue        = 39;
+
+        /// <summary><c>PhysicsCollider</c> — bounding-circle collider for broadphase and raycast tests.</summary>
+        public const byte PhysicsCollider         = 40;
+
+        /// <summary><c>RaycastBatchData</c> — singleton pre-allocated raycast request/result batch.</summary>
+        public const byte RaycastBatchData        = 41;
+
+        /// <summary><c>WeaponState</c> — ammo count and cooldown state of a weapon attachment (Combat toolkit).</summary>
+        public const byte WeaponState             = 42;
+
+        /// <summary><c>CombatHealth</c> — hit-point pool for combat entities (Combat toolkit).</summary>
+        public const byte CombatHealth            = 43;
+
+        /// <summary><c>BallisticProjectile</c> — marks a bullet entity with shooter reference and sweep data.</summary>
+        public const byte BallisticProjectile     = 44;
+
+        /// <summary><c>FormationMember</c> — formation membership data for follower vehicles.</summary>
+        public const byte FormationMember         = 45;
+
+        /// <summary><c>FormationTarget</c> — transient scratchpad driving target written by FormationTargetSystem.</summary>
+        public const byte FormationTarget         = 46;
+
+        /// <summary><c>SpatialGridData</c> — singleton spatial hash grid produced by SpatialHashSystem.</summary>
+        public const byte SpatialGridData         = 47;
+
+        /// <summary><c>GeoPosition</c> — flat-earth 3-D position in the geographic module.</summary>
+        public const byte GeoPosition             = 48;
+
+        /// <summary><c>GeoPositionGeodetic</c> — managed WGS-84 geodetic position in the geographic module.</summary>
+        public const byte GeoPositionGeodetic     = 49;
+
         // ── FDP.Toolkit.Replication (50–79) ──────────────────────────────────────
         // Network identity and replication state managed by the Replication toolkit.
 
@@ -80,6 +174,35 @@ namespace Fdp.Kernel
         public const byte PartMetadata        = 55;
 
         // IDs 56–79 are reserved for future Replication toolkit components.
+
+        /// <summary><c>BinaryGhostStore</c> — binary payload cache for ghost-protocol network entities.</summary>
+        public const byte BinaryGhostStore        = 56;
+
+        /// <summary><c>ChildMap</c> — maps sub-entity instance IDs to local ECS entities.</summary>
+        public const byte ChildMap                = 57;
+
+        /// <summary><c>EgressPublicationState</c> — smart-egress dirty-tracking state per entity.</summary>
+        public const byte EgressPublicationState  = 58;
+
+        /// <summary><c>DescriptorOwnership</c> — per-descriptor ownership map for split-authority.</summary>
+        public const byte DescriptorOwnership     = 59;
+
+        /// <summary><c>ITkbDatabase</c> — TKB database singleton injected into ECS world.</summary>
+        public const byte ITkbDatabase            = 60;
+
+        /// <summary><c>INetworkTopology</c> — network topology singleton injected into ECS world.</summary>
+        public const byte INetworkTopology        = 61;
+
+        /// <summary><c>BlockIdManager</c> — network ID block allocator service singleton.</summary>
+        public const byte BlockIdManager          = 62;
+
+        /// <summary><c>ISerializationRegistry</c> — ghost-protocol serialization registry singleton.</summary>
+        public const byte ISerializationRegistry  = 63;
+
+        /// <summary><c>NetworkEntityMap</c> — bidirectional map between network IDs and ECS entities.</summary>
+        public const byte NetworkEntityMap        = 64;
+
+        // IDs 65–79 are reserved for future Replication toolkit components.
 
         // ── FDP.Toolkit.Vis2D (80–109) ───────────────────────────────────────────
         // 2-D visualisation and map-layer components.
@@ -118,8 +241,61 @@ namespace Fdp.Kernel
 
         // IDs 115–139 are reserved for future Bagira.IG components.
 
-        // ── Reserved (140–255) ───────────────────────────────────────────────────
-        // IDs 140–199: reserved for additional toolkit expansion.
+        /// <summary><c>HistoryTrail</c> — circular-buffer of recent world-space positions for trail rendering.</summary>
+        public const byte HistoryTrail            = 115;
+
+        /// <summary><c>ContextMenuState</c> — managed component holding active context-menu actions.</summary>
+        public const byte ContextMenuState        = 116;
+
+        /// <summary><c>EditablePolyline</c> — managed component storing vertex list of a user-editable overlay.</summary>
+        public const byte EditablePolyline        = 117;
+
+        /// <summary><c>IgVisualDef</c> — TKB visual definition (symbol, model path, colour) cached on entity.</summary>
+        public const byte IgVisualDef             = 118;
+
+        /// <summary><c>IgSymbolOverride</c> — IOS-sourced per-entity visual override (style-set, affiliation).</summary>
+        public const byte IgSymbolOverride        = 119;
+
+        // IDs 120–139 are reserved for future Bagira.IG components.
+
+        // ── ModuleHost.Core Network (140–159) ────────────────────────────────────
+        // Network ownership and coordination components managed by CycloneNetworkModule.
+
+        /// <summary><c>NetworkOwnership</c> — tracks primary network owner and local node ID.</summary>
+        public const byte NetworkOwnership        = 140;
+
+        /// <summary><c>PendingNetworkAck</c> — transient tag for entities awaiting reliable-init acknowledgment.</summary>
+        public const byte PendingNetworkAck       = 141;
+
+        /// <summary><c>ForceNetworkPublish</c> — tag forcing immediate descriptor publication, bypassing dirty-check.</summary>
+        public const byte ForceNetworkPublish     = 142;
+
+        /// <summary><c>NetworkOrientation</c> — replicated orientation (quaternion) for Cyclone-networked entities.</summary>
+        public const byte NetworkOrientation      = 143;
+
+        /// <summary><c>EntityMasterTopic</c> — DDS entity-master topic registered as an ECS component for TKB lookup.</summary>
+        public const byte EntityMasterTopic       = 144;
+
+        // IDs 145–159 are reserved for future ModuleHost.Core network components.
+
+        // ── Application-level Descriptors (160–199) ──────────────────────────────
+        // DDS-sourced descriptor types repurposed as ECS components in Bagira.* applications.
+
+        /// <summary><c>EntityMaster</c> — DDS master descriptor used as ECS entity-lifetime marker.</summary>
+        public const byte EntityMaster            = 160;
+
+        /// <summary><c>EntityDamage</c> — DDS damage descriptor stored as an ECS component for IG rendering.</summary>
+        public const byte EntityDamage            = 161;
+
+        /// <summary><c>EntityMissionHolder</c> — managed wrapper carrying an <c>EntityMission</c> payload.</summary>
+        public const byte EntityMissionHolder     = 162;
+
+        /// <summary><c>InFormationTag</c> — tag added to an entity that has successfully joined a formation slot.</summary>
+        public const byte InFormationTag          = 163;
+
+        // IDs 164–199 are reserved for future application-level components.
+
+        // ── Reserved (200–255) ───────────────────────────────────────────────────
         // IDs 200–255: reserved — future use.
     }
 }

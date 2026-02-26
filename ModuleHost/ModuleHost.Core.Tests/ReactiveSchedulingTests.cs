@@ -63,6 +63,7 @@ namespace ModuleHost.Core.Tests
         [EventId(2001)]
         struct TestEvent { public int X; }
 
+        [ComponentId(220)]
         struct TestComponent { public int X; }
 
         [Fact]

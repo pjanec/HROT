@@ -13,27 +13,31 @@ namespace FDP.Toolkit.Replication.Utilities
         public static readonly int EntityIdOffset;
         public static readonly int InstanceIdOffset;
         public static readonly bool IsValid;
+        public static readonly bool IsEntityId32Bit;
         public static readonly bool IsInstanceId32Bit;
 
         static MultiInstanceLayout()
         {
-            var fEntity = typeof(T).GetField("EntityId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            var fEntity   = typeof(T).GetField("EntityId",   BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             var fInstance = typeof(T).GetField("InstanceId", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
             if (fEntity != null && fInstance != null &&
-                (fEntity.FieldType == typeof(long) || fEntity.FieldType == typeof(ulong)) &&
+                (fEntity.FieldType   == typeof(long) || fEntity.FieldType   == typeof(ulong)
+                                                     || fEntity.FieldType   == typeof(int)  || fEntity.FieldType   == typeof(uint)) &&
                 (fInstance.FieldType == typeof(long) || fInstance.FieldType == typeof(int)))
             {
-                EntityIdOffset = (int)Marshal.OffsetOf<T>("EntityId");
+                EntityIdOffset   = (int)Marshal.OffsetOf<T>("EntityId");
                 InstanceIdOffset = (int)Marshal.OffsetOf<T>("InstanceId");
-                IsValid = true;
+                IsValid          = true;
+                IsEntityId32Bit  = (fEntity.FieldType   == typeof(int) || fEntity.FieldType   == typeof(uint));
                 IsInstanceId32Bit = fInstance.FieldType == typeof(int);
             }
             else
             {
-                EntityIdOffset = -1;
+                EntityIdOffset   = -1;
                 InstanceIdOffset = -1;
-                IsValid = false;
+                IsValid           = false;
+                IsEntityId32Bit   = false;
                 IsInstanceId32Bit = false;
             }
         }
@@ -42,6 +46,8 @@ namespace FDP.Toolkit.Replication.Utilities
         public static unsafe long ReadEntityId(T* ptr)
         {
             byte* bytePtr = (byte*)ptr;
+            if (IsEntityId32Bit)
+                return *(int*)(bytePtr + EntityIdOffset);
             return *(long*)(bytePtr + EntityIdOffset);
         }
 
@@ -63,7 +69,10 @@ namespace FDP.Toolkit.Replication.Utilities
         public static unsafe void WriteEntityId(T* ptr, long id)
         {
             byte* bytePtr = (byte*)ptr;
-            *(long*)(bytePtr + EntityIdOffset) = id;
+            if (IsEntityId32Bit)
+                *(int*)(bytePtr + EntityIdOffset) = (int)id;
+            else
+                *(long*)(bytePtr + EntityIdOffset) = id;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

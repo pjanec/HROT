@@ -6,8 +6,11 @@ namespace Fdp.Tests
 {
     public class EntityQueryEnumeratorTests
     {
+        [ComponentId(217)]
         struct Pos { public float X; }
+        [ComponentId(218)]
         struct Vel { public float X; }
+        [ComponentId(219)]
         struct Tag { }
 
         [Fact]

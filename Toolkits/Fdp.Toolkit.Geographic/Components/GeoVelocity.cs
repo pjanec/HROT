@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace Fdp.Modules.Geographic.Components
 {
@@ -14,6 +15,7 @@ namespace Fdp.Modules.Geographic.Components
     /// consistent with SimVelocity.Linear and SimVelocity.Angular conventions.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.GeoVelocity)]
     public struct GeoVelocity
     {
         /// <summary>
@@ -30,7 +32,7 @@ namespace Fdp.Modules.Geographic.Components
 
         /// <summary>
         /// Linear acceleration in local ENU coordinates (m/s?).
-        /// X=East, Y=North, Z=Up. No SimVelocity equivalent — present here
+        /// X=East, Y=North, Z=Up. No SimVelocity equivalent ï¿½ present here
         /// because geodetic DR formats (e.g. GeoSpatialDR) include acceleration.
         /// </summary>
         public Vector3 Accel;

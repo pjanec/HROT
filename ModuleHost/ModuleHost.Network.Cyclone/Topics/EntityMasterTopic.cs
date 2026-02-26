@@ -1,4 +1,5 @@
 using CycloneDDS.Schema;
+using Fdp.Kernel;
 
 namespace ModuleHost.Network.Cyclone.Topics
 {
@@ -14,6 +15,7 @@ namespace ModuleHost.Network.Cyclone.Topics
         HistoryKind = DdsHistoryKind.KeepLast,
         HistoryDepth = 100
     )]
+    [ComponentId(GlobalComponentIds.EntityMasterTopic)]
     public partial struct EntityMasterTopic
     {
         /// <summary>Network-wide unique entity identifier</summary>

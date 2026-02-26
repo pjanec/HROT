@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace FDP.Toolkit.Behavior.Components
 {
@@ -65,6 +66,7 @@ namespace FDP.Toolkit.Behavior.Components
 
     /// <inheritdoc cref="MissionPhaseBuffer"/>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.MissionPlanQueue)]
     public struct MissionPlanQueue
     {
         /// <summary>Maximum number of phases in a mission plan.</summary>

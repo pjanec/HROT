@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 namespace Fdp.Examples.CarKinem.Components
 {
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(255)]
     public struct VehicleColor
     {
         public byte R;

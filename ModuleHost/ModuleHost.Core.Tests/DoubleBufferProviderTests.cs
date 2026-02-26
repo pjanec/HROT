@@ -11,6 +11,7 @@ namespace ModuleHost.Core.Tests
         [EventId(201)]
         public struct TestEvent { public int Value; }
 
+        [ComponentId(215)]
         struct TestComponent { public int X; }
 
         [Fact]
@@ -120,6 +121,7 @@ namespace ModuleHost.Core.Tests
             Assert.Same(view, view2);
             Assert.True(view.Tick > 0); // Should be accessible and valid
         }
+        [ComponentId(216)]
         [DataPolicy(DataPolicy.Transient)]
         struct TransComp { public int Val; }
         

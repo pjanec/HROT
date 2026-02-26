@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace CarKinem.Formation
 {
@@ -7,6 +8,7 @@ namespace CarKinem.Formation
     /// Enables "pull" pattern: follower reads leader state.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.FormationMember)]
     public struct FormationMember
     {
         public int LeaderEntityId;          // Entity ID of formation leader

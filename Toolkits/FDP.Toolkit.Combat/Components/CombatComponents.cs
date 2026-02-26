@@ -9,6 +9,7 @@ namespace FDP.Toolkit.Combat.Components
     /// Unmanaged; fits in one cache line.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.WeaponState)]
     public struct WeaponState
     {
         /// <summary>Current ammo count. Fire is refused when 0.</summary>
@@ -25,6 +26,7 @@ namespace FDP.Toolkit.Combat.Components
     /// Hit-point pool. <see cref="Current"/> &lt;= 0 means the entity is destroyed/defeated.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.CombatHealth)]
     public struct Health
     {
         public float Current;
@@ -44,6 +46,7 @@ namespace FDP.Toolkit.Combat.Components
     /// LinearKinematicsSystem advances it, so the raycast tests the correct swept segment.
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.BallisticProjectile)]
     public struct BallisticProjectile
     {
         /// <summary>Entity that fired this bullet (excluded from self-hit).</summary>

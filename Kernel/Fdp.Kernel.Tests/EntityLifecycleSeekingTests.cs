@@ -29,10 +29,11 @@ namespace Fdp.Tests
             try { File.Delete(_testFilePath); } catch {}
         }
 
+        [ComponentId(215)]
         public struct Position { public float X, Y, Z; }
         
         [MessagePackObject]
-
+        [ComponentId(216)]
         public record UnitName
         {
             [Key(0)]
@@ -44,7 +45,7 @@ namespace Fdp.Tests
         {
             // Test seeking to frames before an entity was created
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             Entity entity;
             
@@ -63,21 +64,21 @@ namespace Fdp.Tests
                 // Frame 5: Entity created
                 repo.Tick();
                 entity = repo.CreateEntity();
-                repo.AddComponent(entity, 100);
+                repo.AddComponent(entity, new IntComponent { Value = 100 });
                 recorder.CaptureKeyframe(repo, blocking: true);
                 
                 // Frames 6-10: Entity exists
                 for (int i = 6; i <= 10; i++)
                 {
                     repo.Tick();
-                    repo.SetUnmanagedComponent(entity, i * 10);
+                    repo.SetUnmanagedComponent(entity, new IntComponent { Value = i * 10 });
                     recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
                 }
             }
             
             using var controller = new PlaybackController(_testFilePath);
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             
             // Seek to frame 2: Entity should NOT exist
             controller.SeekToFrame(targetRepo, 2);
@@ -87,7 +88,7 @@ namespace Fdp.Tests
             // Seek to frame 5: Entity should NOW exist
             controller.SeekToFrame(targetRepo, 5);
             Assert.True(targetRepo.IsAlive(entity));
-            Assert.Equal(100, targetRepo.GetComponentRO<int>(entity));
+            Assert.Equal(100, targetRepo.GetComponentRO<IntComponent>(entity).Value);
             
             // Seek back to frame 0: Entity should NOT exist again
             controller.SeekToFrame(targetRepo, 0);
@@ -96,7 +97,7 @@ namespace Fdp.Tests
             // Seek forward to frame 8: Entity should exist
             controller.SeekToFrame(targetRepo, 8);
             Assert.True(targetRepo.IsAlive(entity));
-            Assert.Equal(80, targetRepo.GetComponentRO<int>(entity));
+            Assert.Equal(80, targetRepo.GetComponentRO<IntComponent>(entity).Value);
         }
 
         [Fact]
@@ -104,7 +105,7 @@ namespace Fdp.Tests
         {
             // Test seeking to frames after an entity has been deleted
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             Entity entity;
             
@@ -117,14 +118,14 @@ namespace Fdp.Tests
                 // Frame 1: Create entity
                 repo.Tick();
                 entity = repo.CreateEntity();
-                repo.AddComponent(entity, 100);
+                repo.AddComponent(entity, new IntComponent { Value = 100 });
                 recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
                 
                 // Frames 2-4: Entity exists
                 for (int i = 2; i <= 4; i++)
                 {
                     repo.Tick();
-                    repo.SetUnmanagedComponent(entity, i * 100);
+                    repo.SetUnmanagedComponent(entity, new IntComponent { Value = i * 100 });
                     recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
                 }
                 
@@ -143,12 +144,12 @@ namespace Fdp.Tests
             
             using var controller = new PlaybackController(_testFilePath);
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             
             // Seek to frame 3: Entity should be ALIVE
             controller.SeekToFrame(targetRepo, 3);
             Assert.True(targetRepo.IsAlive(entity));
-            Assert.Equal(300, targetRepo.GetComponentRO<int>(entity));
+            Assert.Equal(300, targetRepo.GetComponentRO<IntComponent>(entity).Value);
             
             // Seek to frame 7: Entity should be DEAD
             controller.SeekToFrame(targetRepo, 7);
@@ -158,7 +159,7 @@ namespace Fdp.Tests
             // Seek back to frame 2: Entity should be alive again
             controller.SeekToFrame(targetRepo, 2);
             Assert.True(targetRepo.IsAlive(entity));
-            Assert.Equal(200, targetRepo.GetComponentRO<int>(entity));
+            Assert.Equal(200, targetRepo.GetComponentRO<IntComponent>(entity).Value);
             
             // Seek forward to frame 10: Entity should be dead
             controller.SeekToFrame(targetRepo, 10);
@@ -170,7 +171,7 @@ namespace Fdp.Tests
         {
             // THE KEY TEST: Seek through the complete lifecycle of slot reuse
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             repo.RegisterComponent<UnitName>();
             
             Entity firstGen, secondGen, thirdGen;
@@ -183,12 +184,12 @@ namespace Fdp.Tests
                 // Cycle 1: Create, use, delete
                 repo.Tick(); // Frame 1
                 firstGen = repo.CreateEntity();
-                repo.AddComponent(firstGen, 100);
+                repo.AddComponent(firstGen, new IntComponent { Value = 100 });
                 repo.AddManagedComponent(firstGen, new UnitName { Name = "FirstGen" });
                 recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
                 
                 repo.Tick(); // Frame 2
-                repo.SetUnmanagedComponent(firstGen, 200);
+                repo.SetUnmanagedComponent(firstGen, new IntComponent { Value = 200 });
                 recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
                 
                 repo.Tick(); // Frame 3
@@ -198,12 +199,12 @@ namespace Fdp.Tests
                 // Cycle 2: Recreate same slot (higher generation)
                 repo.Tick(); // Frame 4
                 secondGen = repo.CreateEntity();
-                repo.AddComponent(secondGen, 300);
+                repo.AddComponent(secondGen, new IntComponent { Value = 300 });
                 repo.AddManagedComponent(secondGen, new UnitName { Name = "SecondGen" });
                 recorder.CaptureKeyframe(repo, blocking: true);
                 
                 repo.Tick(); // Frame 5
-                repo.SetUnmanagedComponent(secondGen, 400);
+                repo.SetUnmanagedComponent(secondGen, new IntComponent { Value = 400 });
                 recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
                 
                 repo.Tick(); // Frame 6
@@ -213,7 +214,7 @@ namespace Fdp.Tests
                 // Cycle 3: Recreate again
                 repo.Tick(); // Frame 7
                 thirdGen = repo.CreateEntity();
-                repo.AddComponent(thirdGen, 500);
+                repo.AddComponent(thirdGen, new IntComponent { Value = 500 });
                 repo.AddManagedComponent(thirdGen, new UnitName { Name = "ThirdGen" });
                 recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
             }
@@ -226,7 +227,7 @@ namespace Fdp.Tests
             
             using var controller = new PlaybackController(_testFilePath);
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             targetRepo.RegisterComponent<UnitName>();
             
             // Frame 0: Nothing exists
@@ -242,13 +243,13 @@ namespace Fdp.Tests
             Assert.True(targetRepo.IsAlive(firstGen));
             Assert.False(targetRepo.IsAlive(secondGen));
             Assert.False(targetRepo.IsAlive(thirdGen));
-            Assert.Equal(100, targetRepo.GetComponentRO<int>(firstGen));
+            Assert.Equal(100, targetRepo.GetComponentRO<IntComponent>(firstGen).Value);
             Assert.Equal("FirstGen", targetRepo.GetComponentRO<UnitName>(firstGen).Name);
             
             // Frame 2: FirstGen modified
             controller.SeekToFrame(targetRepo, 2);
             Assert.True(targetRepo.IsAlive(firstGen));
-            Assert.Equal(200, targetRepo.GetComponentRO<int>(firstGen));
+            Assert.Equal(200, targetRepo.GetComponentRO<IntComponent>(firstGen).Value);
             
             // Frame 3: FirstGen deleted
             controller.SeekToFrame(targetRepo, 3);
@@ -261,13 +262,13 @@ namespace Fdp.Tests
             Assert.Equal(1, targetRepo.EntityCount);
             Assert.False(targetRepo.IsAlive(firstGen)); // OLD gen still dead
             Assert.True(targetRepo.IsAlive(secondGen)); // NEW gen alive
-            Assert.Equal(300, targetRepo.GetComponentRO<int>(secondGen));
+            Assert.Equal(300, targetRepo.GetComponentRO<IntComponent>(secondGen).Value);
             Assert.Equal("SecondGen", targetRepo.GetComponentRO<UnitName>(secondGen).Name);
             
             // Frame 5: SecondGen modified
             controller.SeekToFrame(targetRepo, 5);
             Assert.True(targetRepo.IsAlive(secondGen));
-            Assert.Equal(400, targetRepo.GetComponentRO<int>(secondGen));
+            Assert.Equal(400, targetRepo.GetComponentRO<IntComponent>(secondGen).Value);
             
             // Frame 6: SecondGen deleted
             controller.SeekToFrame(targetRepo, 6);
@@ -282,7 +283,7 @@ namespace Fdp.Tests
             Assert.False(targetRepo.IsAlive(firstGen));
             Assert.False(targetRepo.IsAlive(secondGen));
             Assert.True(targetRepo.IsAlive(thirdGen));
-            Assert.Equal(500, targetRepo.GetComponentRO<int>(thirdGen));
+            Assert.Equal(500, targetRepo.GetComponentRO<IntComponent>(thirdGen).Value);
             Assert.Equal("ThirdGen", targetRepo.GetComponentRO<UnitName>(thirdGen).Name);
             
             // Seek backward through critical points
@@ -403,7 +404,7 @@ namespace Fdp.Tests
         {
             // Stress test: Random seeking through complex lifecycle
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             const int totalFrames = 20;
             var entities = new Entity[10];
@@ -422,7 +423,7 @@ namespace Fdp.Tests
                     {
                         // Create entity
                         entities[frame / 3] = repo.CreateEntity();
-                        repo.AddComponent(entities[frame / 3], frame * 10);
+                        repo.AddComponent(entities[frame / 3], new IntComponent { Value = frame * 10 });
                     }
                     else if (frame % 3 == 0 && frame / 3 - 1 >= 0 && frame / 3 - 1 < entities.Length)
                     {
@@ -442,7 +443,7 @@ namespace Fdp.Tests
             
             using var controller = new PlaybackController(_testFilePath);
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             
             // Random seek pattern
             var random = new Random(42); // Fixed seed for reproducibility

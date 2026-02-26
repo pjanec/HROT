@@ -9,28 +9,36 @@ namespace Fdp.Tests
         // ━━━ Test Types ━━━
         
         // 1. Struct (Default: All Enabled)
+        [ComponentId(177)]
         private struct NormalStruct { public int Value; }
         
         // 2. Record (Default: All Enabled)
+        [ComponentId(178)]
         private record NormalRecord(int Value);
         
         // 3. Class (Default: NoSnapshot + Record + Save)
+        [ComponentId(179)]
         private class MutableClass { public int Value; }
         
         // 4. Attributes
         [DataPolicy(DataPolicy.NoSnapshot)]
+        [ComponentId(180)]
         private struct NoSnapshotStruct { public int Value; }
         
         [DataPolicy(DataPolicy.SnapshotViaClone)]
+        [ComponentId(181)]
         private class CloneableClass { public int Value; }
         
         [DataPolicy(DataPolicy.NoRecord)]
+        [ComponentId(182)]
         private struct NoRecordStruct { public int Value; }
         
         [DataPolicy(DataPolicy.NoSave)]
+        [ComponentId(183)]
         private struct NoSaveStruct { public int Value; }
         
         [DataPolicy(DataPolicy.Transient)] // NoSnapshot | NoRecord | NoSave
+        [ComponentId(184)]
         private class TransientClass { public int Value; }
 
         [Fact]

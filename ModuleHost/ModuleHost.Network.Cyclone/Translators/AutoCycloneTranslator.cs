@@ -34,7 +34,7 @@ namespace ModuleHost.Network.Cyclone.Translators
         {
             if (!UnsafeLayout<T>.IsValid)
                 throw new InvalidOperationException(
-                    $"Type {typeof(T).Name} must have 'long EntityId' field for AutoCycloneTranslator. " +
+                    $"Type {typeof(T).Name} must have an EntityId field (long, ulong, int, or uint) for AutoCycloneTranslator. " +
                     $"Use [DdsTopic] attribute on ECS components to make them dual-purpose (ECS + DDS).");
 
             TopicName = topicName;

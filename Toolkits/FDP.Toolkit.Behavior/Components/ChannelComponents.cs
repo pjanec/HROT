@@ -1,10 +1,12 @@
 using System.Runtime.InteropServices;
 using Fbt;
 using FDP.Toolkit.Behavior;
+using Fdp.Kernel;
 
 namespace FDP.Toolkit.Behavior.Components
 {
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.LocomotionChannel)]
     public unsafe struct LocomotionChannel
     {
         public ushort ActiveAction;
@@ -18,6 +20,7 @@ namespace FDP.Toolkit.Behavior.Components
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.WeaponChannel)]
     public unsafe struct WeaponChannel
     {
         public ushort ActiveAction;
@@ -31,6 +34,7 @@ namespace FDP.Toolkit.Behavior.Components
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.InteractionChannel)]
     public unsafe struct InteractionChannel
     {
         public ushort ActiveAction;

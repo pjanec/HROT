@@ -15,7 +15,9 @@ namespace Fdp.Tests.Benchmarks
             _output = output;
         }
 
+        [ComponentId(241)]
         struct Pos { public float X, Y; }
+        [ComponentId(242)]
         struct Vel { public float X, Y; }
 
         [Fact]

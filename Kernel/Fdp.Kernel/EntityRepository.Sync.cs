@@ -116,9 +116,9 @@ namespace Fdp.Kernel
             
             if (includeTransient)
             {
-                int count = ComponentTypeRegistry.RegisteredCount;
-                for (int i = 0; i < count; i++)
-                    mask.SetBit(i);
+                // Iterate actual registered IDs (supports sparse/non-sequential [ComponentId] values)
+                foreach (var id in ComponentTypeRegistry.GetAllIds())
+                    mask.SetBit(id);
             }
             else
             {

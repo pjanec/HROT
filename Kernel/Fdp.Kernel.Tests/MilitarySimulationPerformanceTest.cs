@@ -32,6 +32,7 @@ namespace Fdp.Tests
         }
 
         // Lightweight components (particles - birds, smoke, debris)
+        [ComponentId(233)]
         public struct ParticleState
         {
             public float X, Y, Z;
@@ -40,6 +41,7 @@ namespace Fdp.Tests
         }
 
         // Medium components (human soldiers)
+        [ComponentId(234)]
         public struct Transform
         {
             public float X, Y, Z;
@@ -47,6 +49,7 @@ namespace Fdp.Tests
         }
 
         [MessagePackObject]
+        [ComponentId(235)]
         public record SoldierData
         {
             [Key(0)]
@@ -67,6 +70,7 @@ namespace Fdp.Tests
 
         // Heavy components (vehicles with multi-part systems)
         [MessagePackObject]
+        [ComponentId(236)]
         public record VehicleData
         {
             [Key(0)]

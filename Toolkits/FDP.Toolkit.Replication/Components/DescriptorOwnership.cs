@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Kernel;
 
 namespace FDP.Toolkit.Replication.Components
 {
@@ -7,6 +8,7 @@ namespace FDP.Toolkit.Replication.Components
     /// Managed component that tracks ownership of individual data descriptors (fields/components).
     /// Used for split-authority scenarios where different nodes simulate different parts of an entity.
     /// </summary>
+    [ComponentId(GlobalComponentIds.DescriptorOwnership)]
     public class DescriptorOwnership
     {
         /// <summary>

@@ -7,6 +7,7 @@ namespace Fdp.Tests
     public class ManagedComponentTableSyncTests
     {
         // Immutable record for testing
+        [ComponentId(252)]
         public record TestRecord(string Name, int Value);
 
         [Fact]

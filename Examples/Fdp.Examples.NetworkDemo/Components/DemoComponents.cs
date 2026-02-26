@@ -1,7 +1,9 @@
 using System.Numerics;
+using Fdp.Kernel;
 
 namespace Fdp.Examples.NetworkDemo.Components
 {
+    [ComponentId(211)]
     public struct PositionGeodetic
     {
         public double Latitude;
@@ -10,6 +12,7 @@ namespace Fdp.Examples.NetworkDemo.Components
         public override string ToString() => $"Lat:{Latitude:F6} Lon:{Longitude:F6} Alt:{Altitude:F1}";
     }
 
+    [ComponentId(247)]
     public class EntityType
     {
         public string Name = ""; // "Tank", "Jeep", "Helicopter"
@@ -17,6 +20,7 @@ namespace Fdp.Examples.NetworkDemo.Components
         public override string ToString() => Name;
     }
 
+    [ComponentId(248)]
     public struct NetworkedEntity
     {
         public long NetworkId;

@@ -7,6 +7,7 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Lifecycle.Tests.Systems
 {
     [DataPolicy(DataPolicy.Transient)]
+    [ComponentId(245)]
     public struct TestTransientComponent
     {
         public int Value;

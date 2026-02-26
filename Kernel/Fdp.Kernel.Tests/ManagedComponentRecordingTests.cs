@@ -23,7 +23,7 @@ namespace Fdp.Tests
 
         // Test class for managed component
         [MessagePackObject]
-
+        [ComponentId(229)]
         public record SquadName
         {
             [Key(0)]

@@ -26,7 +26,7 @@ namespace Fdp.Kernel
     /// public struct SimTransform { ... }
     /// </code>
     /// </example>
-    [AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
+    [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = false, Inherited = false)]
     public sealed class ComponentIdAttribute : Attribute
     {
         /// <summary>

@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using Fdp.Kernel;
 
 namespace FDP.Toolkit.Replication.Components
 {
+    [ComponentId(GlobalComponentIds.BinaryGhostStore)]
     public class BinaryGhostStore
     {
         /// <summary>

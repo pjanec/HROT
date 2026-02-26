@@ -23,22 +23,26 @@ namespace Fdp.Tests
         }
 
         [MessagePackObject]
+        [ComponentId(199)]
         public record CompA
         {
             [Key(0)] public int Value { get; set; }
         }
 
         [MessagePackObject]
+        [ComponentId(204)]
         public record CompB
         {
             [Key(0)] public string? Name { get; set; }
         }
 
+        [ComponentId(205)]
         struct UnmanagedA
         {
             public int X;
         }
 
+        [ComponentId(206)]
         struct UnmanagedB
         {
             public float Y;

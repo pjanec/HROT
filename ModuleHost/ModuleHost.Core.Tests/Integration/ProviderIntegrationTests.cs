@@ -9,7 +9,9 @@ namespace ModuleHost.Core.Tests.Integration
 {
     public class ProviderIntegrationTests
     {
+        [ComponentId(232)]
         struct Position { public int X; }
+        [ComponentId(233)]
         struct Velocity { public int X; }
 
         [Fact]

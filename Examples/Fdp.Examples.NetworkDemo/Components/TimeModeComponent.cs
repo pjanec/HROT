@@ -1,11 +1,13 @@
 using FDP.Interfaces.Abstractions;
 using CycloneDDS.Schema;
+using Fdp.Kernel;
 // using ModuleHost.Core.Time; // Unused if we use int
 
 namespace Fdp.Examples.NetworkDemo.Components
 {
     [FdpDescriptor(200, "TimeModeComponent")]
     [DdsTopic("TimeModeComponent")]
+    [ComponentId(200)]
     public partial struct TimeModeComponent
     {
         [DdsKey]

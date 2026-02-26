@@ -12,7 +12,9 @@ namespace ModuleHost.Core.Tests
     {
         [EventId(202)]
         public struct TestEvent { public int Value; }
+        [ComponentId(217)]
         struct Pos { public int X; }
+        [ComponentId(218)]
         struct Vel { public int X; }
 
         private int GetPoolCount(OnDemandProvider provider)
@@ -252,6 +254,7 @@ namespace ModuleHost.Core.Tests
             Assert.Same(view1, view2);
         }
         [DataPolicy(DataPolicy.Transient)]
+        [ComponentId(219)]
         struct TransientPos { public int X; }
 
         [Fact]

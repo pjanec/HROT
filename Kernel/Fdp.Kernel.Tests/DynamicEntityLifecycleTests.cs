@@ -27,9 +27,11 @@ namespace Fdp.Tests
             try { File.Delete(_testFilePath); } catch {}
         }
 
+        [ComponentId(207)]
         public struct Health { public int Value; }
         
         [MessagePackObject]
+        [ComponentId(208)]
         public record UnitData
         {
             [Key(0)]
@@ -129,7 +131,7 @@ namespace Fdp.Tests
         {
             // Test that entity generations are correctly tracked when slots are reused
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             Entity firstEntity, secondEntity;
             
@@ -142,7 +144,7 @@ namespace Fdp.Tests
                 // Frame 1: Create entity at slot 0
                 repo.Tick();
                 firstEntity = repo.CreateEntity();
-                repo.AddComponent(firstEntity, 100);
+                repo.AddComponent(firstEntity, new IntComponent { Value = 100 });
                 recorder.CaptureFrame(repo, prevTick, blocking: true);
                 prevTick = repo.GlobalVersion;
                 
@@ -155,7 +157,7 @@ namespace Fdp.Tests
                 // Frame 3: Create new entity (should reuse slot 0 with higher generation)
                 repo.Tick();
                 secondEntity = repo.CreateEntity();
-                repo.AddComponent(secondEntity, 200);
+                repo.AddComponent(secondEntity, new IntComponent { Value = 200 });
                 recorder.CaptureFrame(repo, prevTick, blocking: true);
             }
             
@@ -166,7 +168,7 @@ namespace Fdp.Tests
             
             // Playback
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             
             using var reader = new RecordingReader(_testFilePath);
             
@@ -176,7 +178,7 @@ namespace Fdp.Tests
             // Frame 1: First entity exists
             reader.ReadNextFrame(targetRepo);
             Assert.True(targetRepo.IsAlive(firstEntity));
-            Assert.Equal(100, targetRepo.GetComponentRO<int>(firstEntity));
+            Assert.Equal(100, targetRepo.GetComponentRO<IntComponent>(firstEntity).Value);
             
             // Frame 2: First entity destroyed
             reader.ReadNextFrame(targetRepo);
@@ -186,7 +188,7 @@ namespace Fdp.Tests
             reader.ReadNextFrame(targetRepo);
             Assert.False(targetRepo.IsAlive(firstEntity)); // Old gen should still be dead
             Assert.True(targetRepo.IsAlive(secondEntity)); // New gen should be alive
-            Assert.Equal(200, targetRepo.GetComponentRO<int>(secondEntity));
+            Assert.Equal(200, targetRepo.GetComponentRO<IntComponent>(secondEntity).Value);
         }
 
         [Fact]
@@ -313,7 +315,7 @@ namespace Fdp.Tests
         {
             // Stress test: Create and destroy many entities rapidly
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             const int frames = 50;
             const int entitiesPerFrame = 10;
@@ -334,7 +336,7 @@ namespace Fdp.Tests
                     for (int i = 0; i < entitiesPerFrame; i++)
                     {
                         var e = repo.CreateEntity();
-                        repo.AddComponent(e, frame * 100 + i);
+                        repo.AddComponent(e, new IntComponent { Value = frame * 100 + i });
                         activeEntities.Add(e);
                     }
                     
@@ -358,7 +360,7 @@ namespace Fdp.Tests
             
             // Playback: Verify we can play through without errors
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             
             using var controller = new PlaybackController(_testFilePath);
             
@@ -381,7 +383,7 @@ namespace Fdp.Tests
         {
             // Create, destroy, recreate the same slot multiple times
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             var generations = new List<Entity>();
             
@@ -397,7 +399,7 @@ namespace Fdp.Tests
                     // Create
                     repo.Tick();
                     var entity = repo.CreateEntity();
-                    repo.AddComponent(entity, cycle * 100);
+                    repo.AddComponent(entity, new IntComponent { Value = cycle * 100 });
                     generations.Add(entity);
                     recorder.CaptureFrame(repo, prevTick, blocking: true);
                     prevTick = repo.GlobalVersion;
@@ -423,7 +425,7 @@ namespace Fdp.Tests
             
             // Playback
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             
             using var reader = new RecordingReader(_testFilePath);
             reader.ReadNextFrame(targetRepo); // Frame 0: empty
@@ -434,7 +436,7 @@ namespace Fdp.Tests
                 reader.ReadNextFrame(targetRepo);
                 Assert.Equal(1, targetRepo.EntityCount);
                 Assert.True(targetRepo.IsAlive(generations[cycle]));
-                Assert.Equal(cycle * 100, targetRepo.GetComponentRO<int>(generations[cycle]));
+                Assert.Equal(cycle * 100, targetRepo.GetComponentRO<IntComponent>(generations[cycle]).Value);
                 
                 // Destroy frame
                 reader.ReadNextFrame(targetRepo);

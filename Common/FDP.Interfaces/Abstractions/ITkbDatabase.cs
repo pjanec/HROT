@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using Fdp.Kernel;
 
 namespace Fdp.Interfaces
 {
+    [ComponentId(GlobalComponentIds.ITkbDatabase)]
     public interface ITkbDatabase
     {
         // Template registration

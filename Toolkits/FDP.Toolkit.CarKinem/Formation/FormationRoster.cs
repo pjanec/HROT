@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace CarKinem.Formation
 {
@@ -7,6 +8,7 @@ namespace CarKinem.Formation
     /// Fixed capacity of 16 members.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.FormationRoster)]
     public unsafe struct FormationRoster
     {
         public int Count;                 // Number of active members (0-16)

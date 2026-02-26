@@ -6,6 +6,7 @@ namespace Fdp.Tests.Concurrency
 {
     public class SyncConcurrencyTests
     {
+        [ComponentId(244)]
         struct Pos { public float X; }
         
         [Fact]

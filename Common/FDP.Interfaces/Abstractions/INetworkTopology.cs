@@ -1,7 +1,9 @@
 using System.Collections.Generic;
+using Fdp.Kernel;
 
 namespace Fdp.Interfaces
 {
+    [ComponentId(GlobalComponentIds.INetworkTopology)]
     public interface INetworkTopology
     {
         /// <summary>

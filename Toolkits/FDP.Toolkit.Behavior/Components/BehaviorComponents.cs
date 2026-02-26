@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using FDP.Toolkit.Behavior;
+using Fdp.Kernel;
 
 namespace FDP.Toolkit.Behavior.Components
 {
@@ -19,18 +20,21 @@ namespace FDP.Toolkit.Behavior.Components
     /// Must be initialised to the entity's initial capabilities at spawn.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.PreviousCapabilities)]
     public struct PreviousCapabilities
     {
         public ActorCapabilities Capabilities;
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.ActorCapabilityState)]
     public struct ActorCapabilityState
     {
         public ActorCapabilities Capabilities;
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.DoctrineState)]
     public struct DoctrineState
     {
         public int ActiveDoctrineHash;
@@ -39,12 +43,14 @@ namespace FDP.Toolkit.Behavior.Components
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.SimTier)]
     public struct SimTier
     {
         public byte Value;
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.BrainBlackboard)]
     public unsafe struct BrainBlackboard
     {
         public fixed byte Memory[BehaviorConstants.BrainBlackboardByteSize];

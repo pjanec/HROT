@@ -8,7 +8,9 @@ namespace Fdp.Tests
 {
     public class EntityRepositoryAsViewTests
     {
+        [ComponentId(190)]
         public struct TestPosition { public float X, Y; }
+        [ComponentId(191)]
         public record TestManagedData { public string Name { get; set; } = string.Empty; }
 
         [Fact]

@@ -13,6 +13,7 @@ namespace FDP.Toolkit.Physics.Components
     /// a ray can hit.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.PhysicsCollider)]
     public struct PhysicsCollider
     {
         /// <summary>Radius of the bounding circle (metres). Used by Intersection2D.RaycastCircle.</summary>
@@ -124,6 +125,7 @@ namespace FDP.Toolkit.Physics.Components
     /// <see cref="Systems.RaycastSolverSystem"/>. Reset (Count = 0) by
     /// <see cref="Systems.HitResolutionSystem"/> after all hits are dispatched.
     /// </summary>
+    [ComponentId(GlobalComponentIds.RaycastBatchData)]
     public struct RaycastBatchData
     {
         /// <summary>Number of valid entries in <see cref="Requests"/> and <see cref="Hits"/> this frame.</summary>

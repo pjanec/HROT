@@ -8,6 +8,7 @@ namespace ModuleHost.Core.Tests.Integration
 {
     public class ModuleHostIntegrationTests
     {
+        [ComponentId(231)]
         struct Position { public int X; public int Y; }
 
         [Fact]

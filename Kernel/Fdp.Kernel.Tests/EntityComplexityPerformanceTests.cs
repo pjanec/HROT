@@ -33,10 +33,13 @@ namespace Fdp.Tests
         }
 
         // Lightweight components
+        [ComponentId(209)]
         public struct Position { public float X, Y, Z; }
+        [ComponentId(210)]
         public struct Health { public int Value; }
 
         // Medium components
+        [ComponentId(211)]
         public struct Transform
         {
             public float X, Y, Z;
@@ -46,6 +49,7 @@ namespace Fdp.Tests
 
         // Heavy managed components
         [MessagePackObject]
+        [ComponentId(212)]
         public record GameState
         {
             [Key(0)]
@@ -62,6 +66,7 @@ namespace Fdp.Tests
         }
 
         [MessagePackObject]
+        [ComponentId(213)]
         public record AIBehavior
         {
             [Key(0)]

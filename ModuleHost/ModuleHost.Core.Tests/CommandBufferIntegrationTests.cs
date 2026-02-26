@@ -10,6 +10,7 @@ namespace ModuleHost.Core.Tests
 {
     public class CommandBufferIntegrationTests
     {
+        [ComponentId(214)]
         struct TestComponent { public int Value; }
 
         private class CommandModule : IModule

@@ -6,6 +6,7 @@ using Fdp.Kernel;
 namespace Fdp.Tests
 {
     // Test component: Mutable class WITHOUT DataPolicy attribute
+    [ComponentId(173)]
     [MessagePackObject]
     public class CombatHistory
     {

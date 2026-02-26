@@ -9,6 +9,7 @@ namespace Fdp.Tests
 {
     public class ComponentDirtyTrackingTests
     {
+        [ComponentId(248)]
         struct Position { public int X; }
 
         [Fact]

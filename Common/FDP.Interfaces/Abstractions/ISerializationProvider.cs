@@ -29,6 +29,7 @@ namespace Fdp.Interfaces
     /// <summary>
     /// Registry mapping descriptor ordinals to serialization providers.
     /// </summary>
+    [ComponentId(GlobalComponentIds.ISerializationRegistry)]
     public interface ISerializationRegistry
     {
         void Register(long descriptorOrdinal, ISerializationProvider provider);

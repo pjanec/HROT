@@ -9,7 +9,9 @@ namespace ModuleHost.Core.Tests.Integration
 {
     public class FullSystemIntegrationTests
     {
+        [ComponentId(229)]
         struct Position { public float X, Y; }
+        [ComponentId(230)]
         struct Velocity { public float X, Y; }
 
         private class PhysicsModule : IModule

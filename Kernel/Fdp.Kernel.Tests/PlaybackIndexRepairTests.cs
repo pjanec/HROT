@@ -18,7 +18,7 @@ namespace Fdp.Tests
             // MaxIssuedIndex should be 2.
 
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             var playback = new PlaybackSystem();
             
             using var ms = new MemoryStream();
@@ -29,7 +29,7 @@ namespace Fdp.Tests
             // Use a temporary source repository to generate the recording
             using (var temp = new EntityRepository())
             {
-                temp.RegisterComponent<int>();
+                temp.RegisterComponent<IntComponent>();
                 
                 var e0 = temp.CreateEntity(); // 0
                 var e1 = temp.CreateEntity(); // 1

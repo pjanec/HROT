@@ -26,6 +26,7 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
         //  Component under test
         // ─────────────────────────────────────────────────────────────────────
 
+        [ComponentId(241)]
         private struct TestPositionComponent
         {
             public float X;

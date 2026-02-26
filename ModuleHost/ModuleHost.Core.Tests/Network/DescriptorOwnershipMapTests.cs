@@ -7,7 +7,9 @@ namespace ModuleHost.Core.Tests.Network
 {
     public class DescriptorOwnershipMapTests
     {
+        [ComponentId(237)]
         private struct TestPosition { }
+        [ComponentId(238)]
         private struct TestVelocity { }
 
         [Fact]

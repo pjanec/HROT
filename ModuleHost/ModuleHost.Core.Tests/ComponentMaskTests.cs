@@ -12,8 +12,11 @@ namespace ModuleHost.Core.Tests
 {
     public class ComponentMaskTests
     {
+        [ComponentId(234)]
         struct TestComponent1 { public int Value; }
+        [ComponentId(235)]
         struct TestComponent2 { public float Data; }
+        [ComponentId(236)]
         struct TestComponent3 { public byte Flag; }
         
         class ModuleWithDeps : IModule

@@ -8,6 +8,7 @@ namespace FDP.Toolkit.ImGui.Tests;
 
 public class RepoReflectorTests
 {
+    [ComponentId(246)]
     private class TestComponent
     {
         public int Value;

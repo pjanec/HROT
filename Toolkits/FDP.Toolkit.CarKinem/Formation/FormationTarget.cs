@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace CarKinem.Formation
 {
@@ -9,6 +10,7 @@ namespace CarKinem.Formation
     /// Not persisted between frames.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.FormationTarget)]
     public struct FormationTarget
     {
         public Vector2 TargetPosition;   // Desired world position

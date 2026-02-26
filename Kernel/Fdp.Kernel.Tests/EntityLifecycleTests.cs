@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Xunit;
+using Fdp.Kernel;
 using Fdp.Kernel.Systems;
 using Fdp.Kernel.Internal;
 using System.Runtime.InteropServices;
@@ -17,9 +18,11 @@ namespace Fdp.Kernel.Tests
 
     // Mock Components
     [StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [ComponentId(175)]
     public struct RigidBody { public float Mass; }
 
     [StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [ComponentId(176)]
     public struct NetIdentity { public int NetworkId; }
 
     public unsafe class EntityLifecycleTests : IDisposable

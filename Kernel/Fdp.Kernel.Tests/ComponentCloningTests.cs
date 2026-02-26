@@ -8,6 +8,7 @@ namespace Fdp.Tests
 {
     [MessagePackObject]
     [DataPolicy(DataPolicy.SnapshotViaClone)]
+    [ComponentId(174)]
     public class SimpleCloneableClass
     {
         [Key(0)] public int Value { get; set; }

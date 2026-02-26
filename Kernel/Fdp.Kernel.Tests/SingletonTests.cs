@@ -7,6 +7,7 @@ namespace Fdp.Tests
     public class SingletonTests
     {
         // Test Components
+        [ComponentId(194)]
         public struct GameConfig
         {
             public float Gravity;
@@ -14,6 +15,7 @@ namespace Fdp.Tests
             public double TimeScale;
         }
         
+        [ComponentId(195)]
         public struct TimeState
         {
             public float DeltaTime;
@@ -21,6 +23,7 @@ namespace Fdp.Tests
             public int FrameCount;
         }
         
+        [ComponentId(196)]
         public record GlobalSettings
         {
             public string GameName { get; set; } = string.Empty;

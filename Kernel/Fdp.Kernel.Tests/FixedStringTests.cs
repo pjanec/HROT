@@ -240,6 +240,7 @@ namespace Fdp.Tests
         }
         
         // Component using FixedString
+        [ComponentId(255)]
         public struct NamedEntity
         {
             public FixedString32 Name;

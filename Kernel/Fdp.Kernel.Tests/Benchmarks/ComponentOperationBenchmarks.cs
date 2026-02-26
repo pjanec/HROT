@@ -7,10 +7,14 @@ namespace Fdp.Tests.Benchmarks
 {
     public class ComponentOperationBenchmarks
     {
+        [ComponentId(240)]
         private struct TestComponent
         {
             public int Value;
         }
+
+        [ComponentId(245)]
+        private record BenchStringComp(string Value);
         
         [Fact]
         public void Benchmark_SetRawObject_Performance()
@@ -48,7 +52,7 @@ namespace Fdp.Tests.Benchmarks
         public void Benchmark_SetManagedComponent_Performance()
         {
             var repo = new EntityRepository();
-            repo.RegisterManagedComponent<string>(DataPolicy.Transient);
+            repo.RegisterManagedComponent<BenchStringComp>(DataPolicy.Transient);
             
             const int iterations = 100_000;
             var entities = new Entity[iterations];
@@ -62,7 +66,7 @@ namespace Fdp.Tests.Benchmarks
             // Benchmark SetManagedComponent (optimized path)
             var sw = Stopwatch.StartNew();
             
-            var testStr = "TestValue";
+            var testStr = new BenchStringComp("TestValue");
             for (int i = 0; i < iterations; i++)
             {
                 repo.AddManagedComponent(entities[i], testStr);  
@@ -81,7 +85,7 @@ namespace Fdp.Tests.Benchmarks
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<TestComponent>(); // Unmanaged
-            repo.RegisterManagedComponent<string>(DataPolicy.Transient); // Managed
+            repo.RegisterManagedComponent<BenchStringComp>(DataPolicy.Transient); // Managed
             
             const int batchSize = 1000;
             var entity = repo.CreateEntity();
@@ -98,7 +102,7 @@ namespace Fdp.Tests.Benchmarks
             for (int i = 0; i < batchSize; i++)
             {
                 cmd.SetComponent(entity, new TestComponent { Value = i }); 
-                cmd.SetManagedComponent(entity, "TestString");
+                cmd.SetManagedComponent(entity, new BenchStringComp("TestString"));
             }
             
             // Playback

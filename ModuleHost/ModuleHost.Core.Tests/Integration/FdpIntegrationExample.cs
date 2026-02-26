@@ -167,6 +167,8 @@ namespace ModuleHost.Core.Tests.Integration
         }
     }
     
+    [ComponentId(227)]
     struct Position { public int X, Y; }
+    [ComponentId(228)]
     struct Velocity { public int X, Y; }
 }

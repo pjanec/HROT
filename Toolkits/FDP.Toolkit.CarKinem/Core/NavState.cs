@@ -1,6 +1,7 @@
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Fdp.Kernel;
 
 namespace CarKinem.Core
 {
@@ -8,6 +9,7 @@ namespace CarKinem.Core
     /// Navigation/control state.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(GlobalComponentIds.NavState)]
     public struct NavState
     {
         // Navigation mode and state

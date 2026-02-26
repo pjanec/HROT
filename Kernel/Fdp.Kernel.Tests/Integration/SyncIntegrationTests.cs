@@ -6,8 +6,11 @@ namespace Fdp.Tests.Integration
 {
     public class SyncIntegrationTests
     {
+        [ComponentId(237)]
         struct Position { public float X, Y; }
+        [ComponentId(238)]
         struct Velocity { public float X, Y; }
+        [ComponentId(239)]
         record Identity(string Callsign);
 
         [Fact]

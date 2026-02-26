@@ -57,6 +57,7 @@ namespace Fdp.Tests
             //    $"Playback too slow: {sw.Elapsed.TotalMilliseconds:F2}ms (target: < 1.0ms)");
         }
         
+        [ComponentId(143)]
         struct TestComponent
         {
             public int Value;

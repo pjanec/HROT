@@ -29,6 +29,7 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
         private const int  LocalNodeId    = 1;
 
         /// <summary>Unmanaged component used to verify InitialComponents overrides.</summary>
+        [ComponentId(242)]
         private struct TestPositionComponent
         {
             public float X;

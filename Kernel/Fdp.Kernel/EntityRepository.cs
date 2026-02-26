@@ -1306,19 +1306,13 @@ namespace Fdp.Kernel
         /// </summary>
         public void QueryDelta(EntityQuery query, uint sinceVersion, Action<Entity> action)
         {
-            // 1. Resolve tables involved in query
+            // 1. Resolve tables involved in query (supports sparse/non-sequential component IDs)
             var tables = new List<IComponentTable>();
-            int typeCount = ComponentTypeRegistry.RegisteredCount;
-            for (int id = 0; id < typeCount; id++)
+            foreach (var kvp in _componentTables)
             {
-                if (query.IncludeMask.IsSet(id))
-                {
-                    Type? t = ComponentTypeRegistry.GetType(id);
-                    if (t != null && _componentTables.TryGetValue(t, out var table))
-                    {
-                        tables.Add(table);
-                    }
-                }
+                int typeId = kvp.Value.ComponentTypeId;
+                if (query.IncludeMask.IsSet(typeId))
+                    tables.Add(kvp.Value);
             }
             
             int maxIndex = _entityIndex.MaxIssuedIndex;

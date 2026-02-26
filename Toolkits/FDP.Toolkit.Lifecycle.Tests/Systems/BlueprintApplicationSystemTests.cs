@@ -10,6 +10,7 @@ using Moq;
 
 namespace FDP.Toolkit.Lifecycle.Tests.Systems
 {
+    [ComponentId(244)]
     public struct TestComponentA
     {
         public int Value;

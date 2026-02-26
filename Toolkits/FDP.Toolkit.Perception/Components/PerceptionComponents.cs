@@ -12,6 +12,7 @@ namespace FDP.Toolkit.Perception.Components
     /// are excluded from vision-broadphase checks.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(250)]
     public struct Faction
     {
         /// <summary>
@@ -28,6 +29,7 @@ namespace FDP.Toolkit.Perception.Components
     /// Attach to any entity that should react to audio stimuli or perform visual scans.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(251)]
     public struct PerceptionReceptor
     {
         /// <summary>Maximum distance (meters) at which this entity can hear audio stimuli.</summary>
@@ -57,6 +59,7 @@ namespace FDP.Toolkit.Perception.Components
     /// </para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
+    [ComponentId(252)]
     public unsafe struct TargetMemory
     {
         /// <summary>Number of valid entries currently stored (0–<see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>

@@ -2,6 +2,7 @@ using System;
 using FDP.Interfaces.Abstractions;
 using CycloneDDS.Schema;
 using MessagePack;
+using Fdp.Kernel;
 
 namespace Fdp.Examples.NetworkDemo.Components
 {
@@ -10,6 +11,7 @@ namespace Fdp.Examples.NetworkDemo.Components
     [DdsManaged] // Explicitly allow GC allocations for strings
     [FdpDescriptor(205, "SST_SquadChat")] // Ordinal 205 (Arbitrary free ordinal)
     [MessagePackObject]
+    [ComponentId(205)]
     public partial class SquadChat
     {
         [Key(0)]

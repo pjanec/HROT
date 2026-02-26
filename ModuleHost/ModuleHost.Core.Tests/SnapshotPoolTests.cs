@@ -46,6 +46,7 @@ namespace ModuleHost.Core.Tests
             Assert.Equal(0, repo2.EntityCount);
         }
 
+        [ComponentId(224)]
         private struct TestPosition { public float X, Y; }
 
         [Fact]

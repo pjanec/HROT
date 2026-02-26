@@ -29,45 +29,45 @@ namespace Fdp.Tests
         {
             // This test validates the correct order: Tick() -> Modify -> Record
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             var e = repo.CreateEntity();
-            repo.AddComponent(e, 0);
+            repo.AddComponent(e, new IntComponent { Value = 0 });
             
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 // Frame 0: Keyframe
                 repo.Tick(); // V=2
-                repo.SetUnmanagedComponent(e, 100);
+                repo.SetUnmanagedComponent(e, new IntComponent { Value = 100 });
                 recorder.CaptureKeyframe(repo, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Frame 1: Delta (CORRECT ORDER)
                 repo.Tick(); // V=3
-                repo.SetUnmanagedComponent(e, 200); // Modified at V=3
+                repo.SetUnmanagedComponent(e, new IntComponent { Value = 200 }); // Modified at V=3
                 recorder.CaptureFrame(repo, prevTick, blocking: true); // Record against V=2
                 prevTick = repo.GlobalVersion;
                 
                 // Frame 2: Delta
                 repo.Tick(); // V=4
-                repo.SetUnmanagedComponent(e, 300); // Modified at V=4
+                repo.SetUnmanagedComponent(e, new IntComponent { Value = 300 }); // Modified at V=4
                 recorder.CaptureFrame(repo, prevTick, blocking: true); // Record against V=3
             }
             
             // Verify: Playback all frames
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             
             using var reader = new RecordingReader(_testFilePath);
             
             Assert.True(reader.ReadNextFrame(targetRepo)); // Frame 0
-            Assert.Equal(100, targetRepo.GetComponentRO<int>(e));
+            Assert.Equal(100, targetRepo.GetComponentRO<IntComponent>(e).Value);
             
             Assert.True(reader.ReadNextFrame(targetRepo)); // Frame 1
-            Assert.Equal(200, targetRepo.GetComponentRO<int>(e));
+            Assert.Equal(200, targetRepo.GetComponentRO<IntComponent>(e).Value);
             
             Assert.True(reader.ReadNextFrame(targetRepo)); // Frame 2
-            Assert.Equal(300, targetRepo.GetComponentRO<int>(e));
+            Assert.Equal(300, targetRepo.GetComponentRO<IntComponent>(e).Value);
         }
 
         [Fact]
@@ -76,21 +76,21 @@ namespace Fdp.Tests
             // This test documents the WRONG order and shows it fails
             // ORDER: Modify -> Tick() -> Record (WRONG!)
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             var e = repo.CreateEntity();
-            repo.AddComponent(e, 0);
+            repo.AddComponent(e, new IntComponent { Value = 0 });
             
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 // Frame 0: Keyframe
                 repo.Tick(); // V=2
-                repo.SetUnmanagedComponent(e, 100);
+                repo.SetUnmanagedComponent(e, new IntComponent { Value = 100 });
                 recorder.CaptureKeyframe(repo, blocking: true);
                 
                 // Frame 1: Delta (WRONG ORDER - will fail)
                 uint prevTick = repo.GlobalVersion; // V=2
-                repo.SetUnmanagedComponent(e, 200); // Modified at V=2
+                repo.SetUnmanagedComponent(e, new IntComponent { Value = 200 }); // Modified at V=2
                 repo.Tick(); // V=3
                 // Now currentVersion=3, modification wasAt V=2, prevTick=2
                 // Check: 2 > 2? FALSE - change not captured!
@@ -99,16 +99,16 @@ namespace Fdp.Tests
             
             // Verify: The delta frame will be empty (no data captured)
             using var targetRepo = new EntityRepository();
-            targetRepo.RegisterComponent<int>();
+            targetRepo.RegisterComponent<IntComponent>();
             
             using var reader = new RecordingReader(_testFilePath);
             
             Assert.True(reader.ReadNextFrame(targetRepo)); // Frame 0
-            Assert.Equal(100, targetRepo.GetComponentRO<int>(e));
+            Assert.Equal(100, targetRepo.GetComponentRO<IntComponent>(e).Value);
             
             Assert.True(reader.ReadNextFrame(targetRepo)); // Frame 1 (delta is empty!)
             // Value should still be 100 because delta didn't capture the change to 200
-            Assert.Equal(100, targetRepo.GetComponentRO<int>(e));
+            Assert.Equal(100, targetRepo.GetComponentRO<IntComponent>(e).Value);
         }
 
         [Fact]
@@ -167,20 +167,20 @@ namespace Fdp.Tests
         {
             // Verify that modifying a component updates its chunk version correctly
             using var repo = new EntityRepository();
-            repo.RegisterComponent<int>();
+            repo.RegisterComponent<IntComponent>();
             
             var e = repo.CreateEntity();
-            repo.AddComponent(e, 42);
+            repo.AddComponent(e, new IntComponent { Value = 42 });
             
             repo.Tick(); // V=2
             uint tickBeforeModification = repo.GlobalVersion;
             
             // Get the component table to check version
-            var table = repo.GetComponentTable<int>();
+            var table = repo.GetComponentTable<IntComponent>();
             uint versionBefore = table.GetVersionForEntity(e.Index);
             
             // Modify the component
-            repo.SetUnmanagedComponent(e, 100);
+            repo.SetUnmanagedComponent(e, new IntComponent { Value = 100 });
             
             uint versionAfter = table.GetVersionForEntity(e.Index);
             
@@ -190,6 +190,7 @@ namespace Fdp.Tests
             Assert.Equal(tickBeforeModification, versionAfter);
         }
 
+        [ComponentId(214)]
         public struct Position
         {
             public float X, Y, Z;

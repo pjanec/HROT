@@ -47,13 +47,13 @@ namespace Fdp.Tests
         {
              // Arrange
             using var sourceRepo = new EntityRepository();
-            sourceRepo.RegisterComponent<int>();
+            sourceRepo.RegisterComponent<IntComponent>();
             
             // Advance tick to 20
             for(int i=0; i<20; i++) sourceRepo.Tick();
 
             var e0 = sourceRepo.CreateEntity();
-            sourceRepo.AddComponent(e0, 999);
+            sourceRepo.AddComponent(e0, new IntComponent { Value = 999 });
             
             // Record
             using var ms = new MemoryStream();
@@ -64,7 +64,7 @@ namespace Fdp.Tests
             
             // Act
             using var destRepo = new EntityRepository();
-            destRepo.RegisterComponent<int>(); // Must register same components
+            destRepo.RegisterComponent<IntComponent>(); // Must register same components
             
             var playback = new PlaybackSystem();
             
@@ -77,10 +77,10 @@ namespace Fdp.Tests
 
             var entity = new Entity(0, e0.Generation);
             Assert.True(destRepo.IsAlive(entity));
-            Assert.True(destRepo.HasComponent<int>(entity));
+            Assert.True(destRepo.HasComponent<IntComponent>(entity));
             
-            ref int val = ref destRepo.GetComponentRW<int>(entity);
-            Assert.Equal(999, val);
+            ref IntComponent val = ref destRepo.GetComponentRW<IntComponent>(entity);
+            Assert.Equal(999, val.Value);
         }
     }
 }

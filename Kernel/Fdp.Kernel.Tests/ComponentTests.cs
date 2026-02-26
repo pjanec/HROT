@@ -5,6 +5,7 @@ using System;
 namespace Fdp.Tests
 {
     // Test component types are now in TestComponents.cs
+    [ComponentId(169)]
     public struct Tag { } // Empty struct (tag component)
     
     // Disable parallelization for component tests to avoid registry conflicts

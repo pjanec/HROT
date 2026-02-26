@@ -7,6 +7,12 @@ namespace Fdp.Tests
 {
     public class ComponentTypeRegistryPolicyTests
     {
+        // Test-only components with explicit IDs in the reserved test range (200–209).
+        [ComponentId(200)] private struct RegistryTestComp0 { public int Value; }
+        [ComponentId(201)] private struct RegistryTestComp1 { public float Value; }
+        [ComponentId(202)] private struct RegistryTestComp2 { public double Value; }
+        [ComponentId(203)] private struct RegistryTestComp3 { public long Value; }
+
         private int Register<T>() where T : unmanaged
         {
             return ComponentType<T>.ID;
@@ -16,7 +22,7 @@ namespace Fdp.Tests
         public void SetRecordable_StoresValue()
         {
             ComponentTypeRegistry.Clear();
-            int id = Register<int>();
+            int id = Register<RegistryTestComp0>();
             
             ComponentTypeRegistry.SetRecordable(id, true);
             Assert.True(ComponentTypeRegistry.IsRecordable(id));
@@ -29,7 +35,7 @@ namespace Fdp.Tests
         public void SetSaveable_StoresValue()
         {
             ComponentTypeRegistry.Clear();
-            int id = Register<int>();
+            int id = Register<RegistryTestComp0>();
 
             ComponentTypeRegistry.SetSaveable(id, true);
             Assert.True(ComponentTypeRegistry.IsSaveable(id));
@@ -42,7 +48,7 @@ namespace Fdp.Tests
         public void SetNeedsClone_StoresValue()
         {
             ComponentTypeRegistry.Clear();
-            int id = Register<int>();
+            int id = Register<RegistryTestComp0>();
 
             ComponentTypeRegistry.SetNeedsClone(id, true);
             Assert.True(ComponentTypeRegistry.NeedsClone(id));
@@ -55,9 +61,9 @@ namespace Fdp.Tests
         public void GetRecordableTypeIds_ReturnsOnlyRecordable()
         {
             ComponentTypeRegistry.Clear();
-            int id0 = Register<int>();
-            int id1 = Register<float>();
-            int id2 = Register<double>();
+            int id0 = Register<RegistryTestComp0>();
+            int id1 = Register<RegistryTestComp1>();
+            int id2 = Register<RegistryTestComp2>();
             
             ComponentTypeRegistry.SetRecordable(id0, true);
             ComponentTypeRegistry.SetRecordable(id1, false);
@@ -73,9 +79,9 @@ namespace Fdp.Tests
         public void GetSaveableTypeIds_ReturnsOnlySaveable()
         {
             ComponentTypeRegistry.Clear();
-            int id0 = Register<int>();
-            int id1 = Register<float>();
-            int id2 = Register<double>();
+            int id0 = Register<RegistryTestComp0>();
+            int id1 = Register<RegistryTestComp1>();
+            int id2 = Register<RegistryTestComp2>();
             
             ComponentTypeRegistry.SetSaveable(id0, true);
             ComponentTypeRegistry.SetSaveable(id1, false);
@@ -114,7 +120,7 @@ namespace Fdp.Tests
             ComponentTypeRegistry.Clear();
             
             // Register new type
-            int id = Register<long>();
+            int id = Register<RegistryTestComp3>();
             
             // Verify defaults (based on ComponentTypeRegistry implementation)
             // Unmanaged/Managed defaults are usually: Snapshot=True, Record=True, Save=True, Clone=False
@@ -128,7 +134,7 @@ namespace Fdp.Tests
         public void Clear_ResetsAllFlags()
         {
             ComponentTypeRegistry.Clear(); // Clear first to ensure 0 start
-            int id = Register<int>();
+            int id = Register<RegistryTestComp0>();
 
             ComponentTypeRegistry.SetRecordable(id, true);
             ComponentTypeRegistry.SetSaveable(id, true);
@@ -150,7 +156,7 @@ namespace Fdp.Tests
         public void FlagIndependence_SettingOneFlag_DoesNotAffectOthers()
         {
             ComponentTypeRegistry.Clear();
-            int id = Register<int>();
+            int id = Register<RegistryTestComp0>();
 
             // Setup initial state
             ComponentTypeRegistry.SetRecordable(id, true);
@@ -187,7 +193,7 @@ namespace Fdp.Tests
         public void Interaction_Snapshotable_Setting()
         {
             ComponentTypeRegistry.Clear();
-            int id = Register<int>();
+            int id = Register<RegistryTestComp0>();
             
             ComponentTypeRegistry.SetSnapshotable(id, true);
             Assert.True(ComponentTypeRegistry.IsSnapshotable(id));
@@ -207,9 +213,9 @@ namespace Fdp.Tests
         public void GetSnapshotableTypeIds_Correctness()
         {
             ComponentTypeRegistry.Clear();
-            int id0 = Register<int>();
-            int id1 = Register<float>();
-            int id2 = Register<double>();
+            int id0 = Register<RegistryTestComp0>();
+            int id1 = Register<RegistryTestComp1>();
+            int id2 = Register<RegistryTestComp2>();
 
             ComponentTypeRegistry.SetSnapshotable(id0, true);
             ComponentTypeRegistry.SetSnapshotable(id1, false);
@@ -230,12 +236,12 @@ namespace Fdp.Tests
             int max = 100;
             for(int i=0; i<max; i++) {
                 // Registering Managed types is easier loop-wise if we don't have enough unmanaged types
-                ComponentTypeRegistry.GetOrRegisterManaged(typeof(int)); // Idempotent
+                ComponentTypeRegistry.GetOrRegister<RegistryTestComp0>(); // Idempotent
                 // We need distinct types.
                 // Let's just use concurrent reads primarily.
             }
             // Actually, let's register one type and pound it.
-            int id = Register<int>();
+            int id = Register<RegistryTestComp0>();
 
             Parallel.For(0, 1000, i => 
             {
@@ -252,3 +258,4 @@ namespace Fdp.Tests
         }
     }
 }
+

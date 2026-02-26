@@ -56,30 +56,21 @@ namespace Fdp.Tests
         }
 
         /// <summary>
-        /// When EnforceExplicitComponentIds is true, registering a struct that has no
-        /// [ComponentId] attribute must throw with a descriptive message.
-        /// SC: Struct without attribute + enforcement → throws (R0.1 SC-6).
+        /// Registering a struct that has no [ComponentId] attribute must always throw
+        /// with a descriptive message (enforcement is unconditional after R0.1).
+        /// SC: Struct without attribute → throws (R0.1 SC-6).
         /// </summary>
         [Fact]
-        public void ComponentTypeRegistry_EnforcesExplicitIds_WhenFlagSet()
+        public void ComponentTypeRegistry_AlwaysEnforcesExplicitIds()
         {
             ComponentTypeRegistry.Clear();
-            FdpConfig.EnforceExplicitComponentIds = true;
 
-            try
-            {
-                var ex = Assert.Throws<InvalidOperationException>(
-                    () => ComponentTypeRegistry.GetOrRegister<NoAttributeStruct>());
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => ComponentTypeRegistry.GetOrRegister<NoAttributeStruct>());
 
-                Assert.Contains("missing", ex.Message, StringComparison.OrdinalIgnoreCase);
-                Assert.Contains("ComponentId", ex.Message, StringComparison.OrdinalIgnoreCase);
-                Assert.Contains("NoAttributeStruct", ex.Message);
-            }
-            finally
-            {
-                // Always reset so other tests are unaffected.
-                FdpConfig.EnforceExplicitComponentIds = false;
-            }
+            Assert.Contains("missing", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("ComponentId", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("NoAttributeStruct", ex.Message);
         }
 
         /// <summary>
@@ -113,43 +104,6 @@ namespace Fdp.Tests
             ComponentTypeRegistry.Clear();
             var secondId = ComponentTypeRegistry.GetOrRegister<IdD_200>();
             Assert.Equal(200, secondId);
-        }
-
-        /// <summary>
-        /// When EnforceExplicitComponentIds is false (default), structs without
-        /// [ComponentId] must fall back to auto-increment assignment without throwing.
-        /// SC: Auto-assign fallback works when enforcement is off.
-        /// </summary>
-        [Fact]
-        public void ComponentTypeRegistry_AutoAssigns_WhenEnforcementOff()
-        {
-            ComponentTypeRegistry.Clear();
-            // Enforcement is false by default.
-            Assert.False(FdpConfig.EnforceExplicitComponentIds);
-
-            // Should not throw; must return a non-negative integer.
-            var id = ComponentTypeRegistry.GetOrRegister<NoAttributeStruct>();
-            Assert.True(id >= 0, $"Expected non-negative auto-assigned ID, got {id}");
-        }
-
-        /// <summary>
-        /// Auto-assigned IDs must not collide with explicitly-reserved IDs.
-        /// If explicit IDs are registered first, auto-assign must skip over them.
-        /// SC: Auto-assign skips occupied explicit IDs, preventing spurious collision.
-        /// </summary>
-        [Fact]
-        public void ComponentTypeRegistry_AutoAssign_SkipsExplicitlyReservedIds()
-        {
-            ComponentTypeRegistry.Clear();
-
-            // Register a struct with explicit ID 0 first.
-            var explicitId = ComponentTypeRegistry.GetOrRegister<IdA_42>();
-            Assert.Equal(42, explicitId);
-
-            // Register a struct without attribute — must not pick ID 42.
-            var autoId = ComponentTypeRegistry.GetOrRegister<NoAttributeStruct>();
-            Assert.NotEqual(42, autoId);
-            Assert.True(autoId >= 0);
         }
 
         /// <summary>

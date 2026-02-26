@@ -8,7 +8,9 @@ namespace Fdp.Tests
     public class ComponentTypeRegistryTests
     {
         // Unique types to avoid conflict with other tests
+        [ComponentId(185)]
         private struct RegTestCompA { public int A; }
+        [ComponentId(186)]
         private struct RegTestCompB { public int B; }
 
         [Fact]
