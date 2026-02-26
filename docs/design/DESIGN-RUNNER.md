@@ -1,11 +1,13 @@
 # Aggregated Mock Runner Application Design
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Date:** 2026-02-14  
-**Last Updated:** 2026-02-26  
+**Last Updated:** 2026-03-05  
 **Status:** Ready for Implementation — Architect-Reviewed
 
 > **Architecture Review (2026-02-26):** Several sections have been corrected to align with the current Bagira codebase. Key changes: `ISubsystem` now has split `DrawWorld()`/`DrawUI()` phases; `SubsystemOrchestrator` owns the Raylib render loop; obsolete FDP kernel references (`FdpWorld`, `CarKinemModule`) are replaced with `EntityRepository`/`ModuleHostKernel`; `DerRepo` constructor signature corrected; `ICameraService` removed (not needed); DDS QoS attributes corrected to use `[DdsQos(...)]`.
+
+> **Design Talk (2026-03-05):** A new blocking prerequisite was identified. Merging three binaries into one process exposes non-deterministic ECS component ID assignment in `ComponentTypeRegistry`. This breaks the Flight Recorder and causes silent memory corruption in a combined binary. **Phase R0** must be completed before any Runner work begins. See [Section 11](#11-ecs-component-id-safety-phase-r0-pre-requisite) for the full design.
 
 **Parent Document**: [Overall Design](./DESIGN-OVERALL.md)
 
@@ -21,6 +23,7 @@
 8. [Implementation Details](#8-implementation-details)
 9. [Testing Scenarios](#9-testing-scenarios)
 10. [Implementation Plan](#10-implementation-plan)
+11. [ECS Component ID Safety (Phase R0 Pre-Requisite)](#11-ecs-component-id-safety-phase-r0-pre-requisite)
 
 ---
 
@@ -1071,6 +1074,18 @@ Bagira.Runner.exe --mode simhost --domain 0
 
 ## 10. Implementation Plan
 
+### Phase R0: ECS Component ID Safety (0/2 tasks) ⚠️ MUST COMPLETE FIRST
+
+| ID | Task | Estimated |
+|----|------|-----------|
+| **R0.1** | Make component IDs deterministic (`[ComponentId]` + `GlobalComponentIds`) | 1.5d |
+| **R0.2** | Implement Flight Recorder schema manifest + validator | 1.5d |
+
+**Total**: 3.0 days  
+**Note**: This phase operates entirely in `Fdp.Kernel` and associated toolkit libraries. It has no dependency on any other Runner phase, but **all Runner phases depend on it**. Do not merge three binaries into one process until R0 is complete.
+
+---
+
 ### Phase R1: Runner Core (0/6 tasks)
 
 | ID | Task | Estimated |
@@ -1136,12 +1151,160 @@ Bagira.Runner.exe --mode simhost --domain 0
 ### Total Effort: 18.75 days (approximately 4 weeks)
 
 **Dependencies**:
-- Phase R1 has no dependencies (can start immediately)
+- **Phase R0** has no dependencies (can start immediately, operates on `Fdp.Kernel`)
+- Phase R1 requires R0 complete
 - Phase R2 requires Shared components P1-P6 complete
 - Phase R3 requires R1, R2 complete
 - Phase R4 requires all phases complete
 
-**Critical Path**: R1 → R2 → R3 → R4
+**Critical Path**: R0 → R1 → R2 → R3 → R4
+
+---
+
+## 11. ECS Component ID Safety (Phase R0 Pre-Requisite)
+
+> **Design Talk (2026-03-05):** Identified by architect as a blocking prerequisite before starting the Runner project. Two distinct but related problems must be resolved in `Fdp.Kernel` before three independent binaries can safely share one process.
+
+### 11.1 The Problem: Non-Deterministic Component IDs
+
+`ComponentTypeRegistry` in `Fdp.Kernel` assigns integer IDs to component structs using a static counter (`_nextId++`). The ID assigned to a given struct depends entirely on which static constructor executes first — i.e., the order in which `ComponentType<T>.Id` is first accessed during process startup.
+
+**In a standalone `SimHost.exe`**, `SimTransform` might be assigned ID 0.  
+**In an aggregated `Runner.exe`** that also loads IG and IOS assemblies in the same process, `SimTransform` might be assigned ID 27 — because dozens of IG and IOS components whose static constructors were never present in the standalone binary now run first.
+
+**Why this is catastrophic for the Flight Recorder:**  
+The Flight Recorder writes raw integer component type IDs directly into record frames. When a recording is played back in a binary where the IDs differ, `PlaybackController` injects component bytes into the wrong memory tables. The result is silent memory corruption, incorrect simulation replay state, or process crashes with no meaningful diagnostic.
+
+**Constraints:**  
+- `BitMask256`: Entity component membership is tracked in `EntityHeader.ComponentMask` as a 256-bit SIMD bitmask. IDs must be bytes 0–255. GUIDs are not viable.  
+- At most 256 component types can exist across the entire combined binary.
+
+---
+
+### 11.2 Solution: Explicit `[ComponentId]` Attribute
+
+Mirror the existing `[EventId(int)]` pattern (`EventIdAttribute.cs`) to introduce `[ComponentId(byte)]`:
+
+```csharp
+[AttributeUsage(AttributeTargets.Struct, AllowMultiple = false, Inherited = false)]
+public sealed class ComponentIdAttribute : Attribute
+{
+    public byte Id { get; }
+    public ComponentIdAttribute(byte id) => Id = id;
+}
+```
+
+`ComponentTypeRegistry.GetOrRegisterManaged<T>()` (and its unmanaged counterpart) reads this attribute instead of incrementing `_nextId`. Behaviour:
+
+- **Attribute present:** Use the declared `byte` as the permanent ID.
+- **Attribute absent + `FdpConfig.EnforceExplicitComponentIds = true`:** Throw `InvalidOperationException` at first access (fail-fast startup).
+- **Attribute absent + enforcement off (default):** Fall back to `_nextId++` (legacy behaviour for tests).
+- **ID collision detected:** Always throw, regardless of enforcement flag.
+
+Add `bool EnforceExplicitComponentIds { get; set; }` to `FdpConfig`. Default: `false` during transition; set to `true` in all production entry-points (`Program.cs` of every application).
+
+---
+
+### 11.3 Solution: `GlobalComponentIds` Central Catalog
+
+A single `public static class GlobalComponentIds` in `Fdp.Kernel` owns all ID constants using block allocation. This prevents cross-team collisions and makes the entire ID space auditable in one file.
+
+| Block | Range | Owner |
+|-------|-------|-------|
+| Fdp.Kernel core | 0–19 | FDP kernel team |
+| SimHost simulation | 20–49 | SimHost team |
+| FDP.Toolkit.Replication | 50–79 | Networking team |
+| FDP.Toolkit.Vis2D | 80–109 | Vis2D team |
+| Bagira.IG | 110–139 | IG team |
+| Bagira.SimHost app | 140–169 | SimHost app team |
+| Bagira.IOS / shared UI | 170–199 | IOS team |
+| Reserved | 200–255 | Future use |
+
+**Initial allocation (all known components at time of writing):**
+
+```csharp
+public static class GlobalComponentIds
+{
+    // Fdp.Kernel (0–19)
+    public const byte SimTransform        = 0;
+    public const byte SimVelocity         = 1;
+    public const byte HealthData          = 2;
+    public const byte GlobalTime          = 3;
+    public const byte IsActiveTag         = 4;
+    public const byte LifecycleDescriptor = 5;
+    public const byte HierarchyNode       = 6;
+    public const byte PartDescriptor      = 7;
+
+    // FDP.Toolkit.Replication (50–79)
+    public const byte NetworkIdentity     = 50;
+    public const byte NetworkAuthority    = 51;
+    public const byte NetworkPosition     = 52;
+    public const byte NetworkVelocity     = 53;
+    public const byte NetworkSpawnRequest = 54;
+    public const byte PartMetadata        = 55;
+
+    // FDP.Toolkit.Vis2D (80–109)
+    public const byte MapDisplayComponent = 80;
+    public const byte VisHierarchyNode    = 81;
+    public const byte AggregateState      = 82;
+    public const byte AggregateRoot       = 83;
+
+    // Bagira.IG (110–139)
+    public const byte ResolvedStyle       = 110;
+    public const byte CullingState        = 111;
+    public const byte SelectionState      = 112;
+    public const byte VisualEffectState   = 113;
+    public const byte TracerTarget        = 114;
+}
+```
+
+Each component struct then carries the `[ComponentId]` attribute referencing these constants:
+
+```csharp
+[ComponentId(GlobalComponentIds.SimTransform)]
+public struct SimTransform { ... }
+```
+
+---
+
+### 11.4 The Second Problem: Silent Flight Recorder Schema Drift
+
+Even after IDs are stabilised, a component struct's memory layout can silently diverge across versions: a field is added, a field is reordered, an alignment attribute changes. When `PlaybackController` reads a recording, it writes raw bytes at field offsets directly into component tables. A changed layout causes wrong values to appear in the wrong fields — typically presenting as bizarre entity behaviour rather than a crash.
+
+**Solution:** Save a `SchemaManifest` inside every `.meta.json` sidecar at record time and validate it at playback time before any memory is touched.
+
+**`ComponentSchemaInfo`** (serialised in `.meta.json`):
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `Name` | `string` | Full CLR type name, e.g. `Fdp.Kernel.SimTransform` |
+| `Size` | `int` | `Marshal.SizeOf<T>()` at record time |
+| `LayoutHash` | `ulong` | FNV-1a 64-bit hash of field names, type names, and `Marshal.OffsetOf` per field |
+| `IsManaged` | `bool` | `true` for managed component types |
+
+**`ComponentLayoutHasher.ComputeHash(Type)`** — deterministic, never uses `GetHashCode()`. Iterates all public + private instance fields in declaration order. For each field: hashes `{fieldName}|{fieldTypeName}|{offsetInBytes}`. Catches field reorders even when `sizeof` is unchanged.
+
+**`SchemaValidator.Validate(RecordingMetadata meta, ComponentTypeRegistry registry)`** — called inside `PlaybackController` constructor, after deserialising `.meta.json` and before opening the binary frame stream. Failure produces a detailed `InvalidOperationException`:
+
+> _"Component SimTransform layout has changed: recorded hash 0xABCD1234 vs current 0xEFAB5678 (recorded size=12, current size=16)"_
+
+Old recordings without a `SchemaManifest` bypass validation (warning logged, playback allowed). This preserves compatibility with recordings made before this feature.
+
+**`RecordingMetadata` extension:**
+
+```csharp
+public Dictionary<int, ComponentSchemaInfo>? SchemaManifest { get; set; }
+```
+
+**`AsyncRecorder.Dispose()` extension:** Immediately before calling `MetadataSerializer.Serialize(...)`, iterate `ComponentTypeRegistry.GetRecordableTypeIds()`, compute `ComponentSchemaInfo` for each, and populate `RecordingMetadata.SchemaManifest`.
+
+---
+
+### 11.5 Total Effort Revision
+
+| Original Total | R0 Addition | Revised Total |
+|----------------|-------------|---------------|
+| 18.75 days | +3.0 days | **21.75 days** |
 
 ---
 

@@ -1,18 +1,83 @@
 # Task Details: Aggregated Runner Application
 
-**Version:** 1.1  
+**Version:** 1.2  
 **Date:** 2026-02-14  
-**Last Updated:** 2026-02-26  
+**Last Updated:** 2026-03-05  
 **Parent Document**: [DESIGN-RUNNER.md](./DESIGN-RUNNER.md)
 
 > **Architecture Review (2026-02-26):** Several task snippets have been corrected to match the current codebase. Key changes: `ISubsystem` adds `DrawWorld()`/`DrawUI()` render phases; `SubsystemOrchestrator.RunWithIgMainLoop()` owns the full render loop; obsolete FDP kernel references (`FdpWorld`, `CarKinemModule`) replaced with `EntityRepository`/`ModuleHostKernel`; DDS QoS attributes corrected to `[DdsQos(...)]`; `SpawnEntityHandler` uses `EventBus.PublishManaged` instead of non-existent `CreateEntityViaFactory()`.
 
+> **Design Talk (2026-03-05):** New **Phase R0** added as a blocking prerequisite. Merging three binaries into one process exposes non-deterministic ECS component ID assignment in `ComponentTypeRegistry`, which breaks the Flight Recorder. R0 must be completed before any other Runner phase. See [DESIGN-RUNNER.md Section 11](./DESIGN-RUNNER.md#11-ecs-component-id-safety-phase-r0-pre-requisite) for the full design.
+
 ## Table of Contents
 
-1. [Phase R1: Runner Core](#phase-r1-runner-core)
-2. [Phase R2: Subsystem Refactoring](#phase-r2-subsystem-refactoring)
-3. [Phase R3: Headless Testing Infrastructure](#phase-r3-headless-testing-infrastructure)
-4. [Phase R4: Integration Testing](#phase-r4-integration-testing)
+1. [Phase R0: ECS Component ID Safety](#phase-r0-ecs-component-id-safety)
+2. [Phase R1: Runner Core](#phase-r1-runner-core)
+3. [Phase R2: Subsystem Refactoring](#phase-r2-subsystem-refactoring)
+4. [Phase R3: Headless Testing Infrastructure](#phase-r3-headless-testing-infrastructure)
+5. [Phase R4: Integration Testing](#phase-r4-integration-testing)
+
+---
+
+# Phase R0: ECS Component ID Safety
+
+> ⚠️ **This phase is a prerequisite for all other Runner phases.** Complete and merge before beginning R1. It operates entirely within `Fdp.Kernel` and associated toolkit libraries.
+
+## R0.1: Make Component IDs Deterministic
+
+**Estimated**: 1.5 days  
+**Dependencies**: None
+
+### Description
+
+`ComponentTypeRegistry` currently assigns IDs to component structs using a static counter (`_nextId++`). When three independent binaries are merged into one `Runner.exe` process, static constructor execution order changes and the same struct may receive a different integer ID than it had in the standalone binary. This corrupts Flight Recorder playback and makes cross-binary integration impossible.
+
+This task introduces an explicit `[ComponentId(byte)]` attribute (mirroring the existing `[EventId(int)]` pattern in `EventIdAttribute.cs`) and a `GlobalComponentIds` central catalog that block-allocates IDs across all libraries. `ComponentTypeRegistry` is updated to read the attribute. A `FdpConfig` enforcement flag enables strict mode (fail-fast on missing attributes).
+
+### Success Criteria
+
+- **SC-1**: `ComponentIdAttribute.cs` created in `Fdp.Kernel` with `[AttributeUsage(AttributeTargets.Struct)]` and a single `byte Id` property. File mirrors the structure of `EventIdAttribute.cs`.
+- **SC-2**: `GlobalComponentIds.cs` created in `Fdp.Kernel` as `public static class GlobalComponentIds` containing all known `const byte` IDs in the block layout defined in [DESIGN-RUNNER.md Section 11.3](./DESIGN-RUNNER.md#113-solution-globalcomponentids-central-catalog). Comments clearly mark each block's reserved range.
+- **SC-3**: `ComponentTypeRegistry.GetOrRegisterManaged<T>()` (and unmanaged equivalent) reads `ComponentIdAttribute` via `typeof(T).GetCustomAttribute<ComponentIdAttribute>()`. If found, uses `attribute.Id`. If not found and `FdpConfig.EnforceExplicitComponentIds == true`, throws `InvalidOperationException`. If not found and enforcement is off, falls back to `_nextId++` (preserves test compatibility).
+- **SC-4**: `FdpConfig` gains `public static bool EnforceExplicitComponentIds { get; set; }` defaulting to `false`. All production `Program.cs` entry-points (SimHost, IG, IOS, Runner) set it to `true` before constructing any ECS world.
+- **SC-5**: `[ComponentId(GlobalComponentIds.X)]` attribute applied to every component struct in:
+  - `Fdp.Kernel`: `SimTransform`, `SimVelocity`, `HealthData`, `GlobalTime`, `IsActiveTag`, `LifecycleDescriptor`, `HierarchyNode`, `PartDescriptor`
+  - `FDP.Toolkit.Replication`: `NetworkIdentity`, `NetworkAuthority`, `NetworkPosition`, `NetworkVelocity`, `NetworkSpawnRequest`, `PartMetadata`
+  - `FDP.Toolkit.Vis2D`: `MapDisplayComponent`, `VisHierarchyNode`, `AggregateState`, `AggregateRoot`
+  - `Bagira.IG`: `ResolvedStyle`, `CullingState`, `SelectionState`, `VisualEffectState`, `TracerTarget`
+- **SC-6**: Unit tests added covering:
+  - ID collision between two structs declaring `[ComponentId(42)]` — must throw.
+  - Struct without `[ComponentId]` with `EnforceExplicitComponentIds = true` — must throw on first `ComponentType<T>.Id` access.
+  - `ComponentType<T>.Id` returns the declared byte (not an auto-incremented value) in isolation.
+  - `ComponentTypeRegistry.Clear()` (used in tests) resets correctly — IDs re-read from attribute after clear.
+
+---
+
+## R0.2: Implement Flight Recorder Schema Manifest
+
+**Estimated**: 1.5 days  
+**Dependencies**: R0.1 (stable IDs must exist before schema snapshots are meaningful)
+
+### Description
+
+Even with deterministic IDs, a struct's memory layout can silently change between application versions (field added, field reordered, padding changed). The Flight Recorder writes raw bytes at field offsets directly into component memory tables. A mismatched layout produces incorrect simulation state with no diagnostic output.
+
+This task saves a `SchemaManifest` in every `.meta.json` recording sidecar (via `AsyncRecorder`) and validates it at playback time (via `PlaybackController`) before any bytes are read from the binary frame stream. A deterministic `ComponentLayoutHasher` provides a 64-bit FNV-1a hash that detects size changes and field reorders independently.
+
+### Success Criteria
+
+- **SC-1**: `ComponentSchemaInfo.cs` created in `Fdp.Kernel` (alongside `RecordingMetadata.cs`) as a serialisable class with properties: `string Name`, `int Size`, `ulong LayoutHash`, `bool IsManaged`. `RecordingMetadata` gains `public Dictionary<int, ComponentSchemaInfo>? SchemaManifest { get; set; }` (nullable — old recordings without it remain loadable).
+- **SC-2**: `ComponentLayoutHasher.cs` created in `Fdp.Kernel` with a single public static method `ComputeHash(Type type) : ulong`. Uses FNV-1a 64-bit (prime `0x100000001B3`, offset `0xcbf29ce484222325`). For each instance field in declaration order (via `BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic`): hashes `{field.Name}|{field.FieldType.FullName}|{Marshal.OffsetOf(type, field.Name)}`. Does **not** use `GetHashCode()`.
+- **SC-3**: `SchemaValidator.cs` created in `Fdp.Kernel.FlightRecorder` with `public static void Validate(RecordingMetadata meta)`. For each entry in `meta.SchemaManifest`: resolves the current live type from `ComponentTypeRegistry`, recomputes `ComponentLayoutHasher.ComputeHash` and `Marshal.SizeOf`, then compares against recorded values. On mismatch: throws `InvalidOperationException` with message: _"Component {name} layout has changed: recorded hash 0x{recordedHash:X16} vs current 0x{currentHash:X16} (recorded size={recordedSize}, current size={currentSize})"_. If `SchemaManifest` is `null` (old recording): logs a warning and returns without throwing.
+- **SC-4**: `AsyncRecorder.Dispose()` is extended to populate `RecordingMetadata.SchemaManifest` before calling `MetadataSerializer.Serialize(...)`. Iterates `ComponentTypeRegistry.GetRecordableTypeIds()`, creates one `ComponentSchemaInfo` per ID using `ComponentLayoutHasher.ComputeHash` and `Marshal.SizeOf`, then assigns to `_metadata.SchemaManifest`.
+- **SC-5**: `PlaybackController` constructor (after deserialising `.meta.json`, before opening the binary frame stream) calls `SchemaValidator.Validate(_metadata)`. A thrown exception surfaces to the caller of `PlaybackController` rather than being silently caught.
+- **SC-6**: Unit tests covering:
+  - Hash is stable across two calls on identical struct — must produce identical `ulong`.
+  - Hash changes when a field is added to the struct (even if size coincidentally remains the same due to padding).
+  - Hash changes when two fields are swapped in declaration order.
+  - `SchemaValidator.Validate` throws `InvalidOperationException` with a descriptive message when `LayoutHash` differs.
+  - `SchemaValidator.Validate` throws when `Size` differs.
+  - `SchemaValidator.Validate` succeeds silently when `SchemaManifest` is `null` (old recording compatibility).
 
 ---
 

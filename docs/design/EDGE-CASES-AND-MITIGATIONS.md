@@ -1,7 +1,8 @@
 # Edge Cases and Mitigations Reference
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** 2026-02-14  
+**Last Updated:** 2026-03-05  
 **Purpose:** Comprehensive catalog of identified gaps, edge cases, and logical flaws with fixes
 
 This document consolidates all critical edge cases identified during design review and tracks their resolution across all design documents and task details.
@@ -64,6 +65,73 @@ var cartesian = new CartesianCoordinate { X = pos.X, Y = pos.Y, Z = altitude };
 ```
 
 **Verification**: Check `Bagira.DDS.DataModel` implementation during Phase P2
+
+---
+
+### 1.3 Non-Deterministic ECS Component IDs Across Binaries
+
+**Status**: 🔨 TASK ADDED
+
+**The Issue:** `ComponentTypeRegistry` in `Fdp.Kernel` assigns integer IDs to component structs using a static counter (`_nextId++`). The ID assigned to any given struct depends on the order in which `ComponentType<T>.Id` is first accessed during process startup — which is determined by static constructor execution order.
+
+In a standalone binary (e.g., `SimHost.exe`), struct `SimTransform` might receive ID `0`. In an aggregated `Runner.exe` that loads all three applications into a single process, the same struct might receive a completely different ID because dozens of IG and IOS component static constructors that were absent in the standalone binary now execute first.
+
+**The Risk:** Catastrophic Flight Recorder data corruption. The Flight Recorder writes raw integer component type IDs into every record frame. When a recording is played back in a binary with different ID assignments, `PlaybackController` injects component bytes into the wrong memory tables. The failure mode is silent: values appear in the wrong fields, presenting as bizarre simulation replay behaviour rather than a clear error or crash. **The Runner project cannot progress until this is resolved.**
+
+**Fix Implemented:**
+- **Design Doc**: [DESIGN-RUNNER.md Section 11.2](./DESIGN-RUNNER.md#112-solution-explicit-componentid-attribute) — `[ComponentId(byte)]` attribute mirroring `[EventId(int)]` pattern
+- **Design Doc**: [DESIGN-RUNNER.md Section 11.3](./DESIGN-RUNNER.md#113-solution-globalcomponentids-central-catalog) — `GlobalComponentIds` block-allocation catalog
+- **Task Added**: [R0.1](./TASK-DETAILS-RUNNER.md#r01-make-component-ids-deterministic) — Implement attribute, catalog, registry enforcement, apply to all existing components
+
+**Code Pattern** (after fix):
+```csharp
+// GlobalComponentIds.cs in Fdp.Kernel
+public static class GlobalComponentIds
+{
+    public const byte SimTransform = 0; // Fdp.Kernel block: 0–19
+    public const byte SimVelocity  = 1;
+    // ...
+}
+
+// SimComponents.cs
+[ComponentId(GlobalComponentIds.SimTransform)]
+public struct SimTransform { ... }
+```
+
+**Constraint**: IDs must be `byte` (0–255) due to the `BitMask256` constraint in `EntityHeader.ComponentMask`.
+
+---
+
+### 1.4 Silent Flight Recorder Memory Corruption on Schema Drift
+
+**Status**: 🔨 TASK ADDED
+
+**The Issue:** The Flight Recorder writes raw component bytes at field offsets directly into component memory tables. If a component struct's memory layout changes between the version that recorded a file and the version playing it back (field added, field reordered, padding changed, alignment attribute modified), `PlaybackController` reads mismatched bytes at the old offsets and injects them into the wrong fields.
+
+**The Risk:** Incorrect simulation replay state with no diagnostic output. Entity positions, velocities, and health values from one component silently overwrite another. The failure is especially insidious because it only manifests during Flight Recorder playback, not during live simulation — making it a hard-to-reproduce, hard-to-diagnose bug class. This is distinct from the ID mismatch problem (1.3): a struct can have a stable, correct ID _and_ a changed layout — both failure modes must be independently guarded.
+
+**Fix Implemented:**
+- **Design Doc**: [DESIGN-RUNNER.md Section 11.4](./DESIGN-RUNNER.md#114-the-second-problem-silent-flight-recorder-schema-drift) — `ComponentSchemaInfo`, `ComponentLayoutHasher`, `SchemaValidator`, `RecordingMetadata.SchemaManifest`
+- **Task Added**: [R0.2](./TASK-DETAILS-RUNNER.md#r02-implement-flight-recorder-schema-manifest) — Implement hasher, validator, wire into `AsyncRecorder.Dispose()` and `PlaybackController` constructor
+
+**Code Pattern** (after fix):
+```csharp
+// In AsyncRecorder.Dispose(): save manifest
+_metadata.SchemaManifest = ComponentTypeRegistry
+    .GetRecordableTypeIds()
+    .ToDictionary(id => id, id => new ComponentSchemaInfo
+    {
+        Name       = ComponentTypeRegistry.GetType(id).FullName,
+        Size       = Marshal.SizeOf(ComponentTypeRegistry.GetType(id)),
+        LayoutHash = ComponentLayoutHasher.ComputeHash(ComponentTypeRegistry.GetType(id)),
+        IsManaged  = ComponentTypeRegistry.IsManaged(id)
+    });
+
+// In PlaybackController constructor: validate before touching any bytes
+SchemaValidator.Validate(_metadata); // throws on mismatch, warns on null manifest
+```
+
+**Graceful degradation**: Recordings that pre-date this feature have `SchemaManifest = null`. `SchemaValidator` detects `null` and logs a warning instead of throwing, so old recordings remain playable.
 
 ---
 
@@ -520,7 +588,8 @@ Assert.NoThrow(() => ig.Update(0.016f));  // Should not crash
 - IG: +0.75d (now 14.75 days)
 - IOS: +0.5d (now 12.5 days)
 - Runner: +0.5d (now 19.25 days)
-- **Overall Project**: +2.25 days (~135 → 137 tasks)
+- Runner R0 (new): +3.0d (now 22.25 days)
+- **Overall Project**: +5.25 days (135 → 140+ tasks)
 
 ---
 
@@ -560,6 +629,13 @@ Use this checklist during implementation to ensure all mitigations are in place:
 - [ ] Test script timing uses priority queue
 - [ ] Subsystem crash isolation (try-catch optional)
 - [ ] Metrics collection in background thread
+- [ ] `[ComponentId(byte)]` attribute applied to all component structs (R0.1)
+- [ ] `GlobalComponentIds` catalog complete and collision-free (R0.1)
+- [ ] `ComponentTypeRegistry` reads attribute instead of `_nextId++` (R0.1)
+- [ ] `FdpConfig.EnforceExplicitComponentIds = true` in all production entry-points (R0.1)
+- [ ] `ComponentLayoutHasher` produces stable hashes (R0.2)
+- [ ] `SchemaManifest` saved in `.meta.json` by `AsyncRecorder` (R0.2)
+- [ ] `SchemaValidator.Validate()` called in `PlaybackController` constructor (R0.2)
 
 ---
 
@@ -574,6 +650,6 @@ Use this checklist during implementation to ensure all mitigations are in place:
 
 ---
 
-**Document Status**: ✅ Complete - All identified gaps documented with mitigations
-**Last Updated**: 2026-02-14
+**Document Status**: ✅ Complete — All identified gaps documented with mitigations  
+**Last Updated**: 2026-03-05  
 **Review Required**: Before starting implementation of any phase

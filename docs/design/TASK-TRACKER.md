@@ -1,8 +1,8 @@
 # IOS-IG-SimHost Project Task Tracker
 
-**Version:** 3.1  
+**Version:** 3.2  
 **Date:** 2026-02-13  
-**Last Updated:** 2026-02-26
+**Last Updated:** 2026-03-05
 
 **Parent Documents**: 
 - [DESIGN-SHARED.md](./DESIGN-SHARED.md) | [TASK-DETAILS-SHARED.md](./TASK-DETAILS-SHARED.md)
@@ -272,7 +272,7 @@
 
 ## RUNNER (AGGREGATED APPLICATION)
 
-**Progress:** 0/18 tasks complete (0%)
+**Progress:** 0/20 tasks complete (0%)
 
 > **⚠️ Architecture Review (2026-02-26):** DESIGN-RUNNER.md and TASK-DETAILS-RUNNER.md have been updated following architect review. Before starting any Runner tasks, note these corrections:
 > - **R1.3 / R1.4**: `ISubsystem` now has `DrawWorld()` and `DrawUI()` phases. The `SubsystemOrchestrator` owns the Raylib window and render loop — subsystems must not call `BeginDrawing`/`rlImGui.Begin` themselves.
@@ -281,6 +281,13 @@
 > - **R2.7**: `DerRepo` takes no constructor arguments — it is a pure storage class. Network wiring happens in `ConnectToDomain()`.
 > - **R3.3**: `SpawnEntityHandler` publishes `SpawnEntityCommand` to `EventBus` — there is no `CreateEntityViaFactory()`.
 > - **Section 9.3**: `ICameraService`/`HeadlessCamera` have been removed from the design. Headless mode only needs `HeadlessInputProvider` + skipping draw calls.
+
+> **⚠️ Design Talk (2026-03-05):** Phase R0 added as a **required prerequisite** for all other Runner phases. Do not merge binaries into a combined process before R0 is complete. See [DESIGN-RUNNER.md Section 11](./DESIGN-RUNNER.md#11-ecs-component-id-safety-phase-r0-pre-requisite) and [TASK-DETAILS-RUNNER.md Phase R0](./TASK-DETAILS-RUNNER.md#phase-r0-ecs-component-id-safety).
+
+### Phase R0: ECS Component ID Safety ⚠️ MUST COMPLETE BEFORE R1
+
+- [ ] **R0.1** Make Component IDs Deterministic (`[ComponentId]` attribute + `GlobalComponentIds` catalog) [details](./TASK-DETAILS-RUNNER.md#r01-make-component-ids-deterministic)
+- [ ] **R0.2** Implement Flight Recorder Schema Manifest + Validator [details](./TASK-DETAILS-RUNNER.md#r02-implement-flight-recorder-schema-manifest)
 
 ### Phase R1: Runner Core
 
