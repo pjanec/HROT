@@ -45,7 +45,7 @@ This document provides **detailed task breakdown** for implementing IG Mock comp
    
 5. Add NuGet packages:
    - `Raylib-cs`
-   - `rlImGui`
+   - `rlImgui-cs` version `3.2.0`
    - `CycloneDDS.NET`
    - `NLog`
 

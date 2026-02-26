@@ -13,9 +13,9 @@
 - [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) | [TASK-DETAILS-NetworkSpawning.md](./TASK-DETAILS-NetworkSpawning.md)
 - [TASK-DETAILS-NetworkDemo-NetworkSpawning.md](./TASK-DETAILS-NetworkDemo-NetworkSpawning.md)
 - [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) ⚠️ **READ FIRST**
-**Overall Progress:** 51/144 tasks complete (35%)
+**Overall Progress:** 75/144 tasks complete (52%)
 
-**Last Updated:** 2026-02-20
+**Last Updated:** 2026-02-25
 
 **⚠️ CRITICAL**: Review [EDGE-CASES-AND-MITIGATIONS.md](./EDGE-CASES-AND-MITIGATIONS.md) before starting any implementation phase.
 
@@ -181,48 +181,48 @@
 
 ## IG MOCK
 
-**Progress:** 0/23 tasks complete (0%)
+**Progress:** 24/24 tasks complete (100%)
 
 **Dependencies:** Requires Shared Components P1-P2 complete
 
 ### Phase IG1: Core Infrastructure
 
-- [ ] **IG.1.1** Create Bagira.IG Project [details](./TASK-DETAILS-IG.md#task-ig11-create-bagiraig-project)
-- [ ] **IG.1.2** Setup MapCanvas with Camera Controls [details](./TASK-DETAILS-IG.md#task-ig12-setup-mapcanvas-with-camera-controls)
-- [ ] **IG.1.3** Integrate NetworkDemo Network Module (translators publish SpawnEntityCommand) [details](./TASK-DETAILS-IG.md#task-ig13-integrate-networkdemo-network-module)
-- [ ] **IG.1.3b** Register NetworkSpawningSystem via SpawningModule [details](./TASK-DETAILS-IG.md#task-ig13b-register-networkspawningsystem-in-ig-kernel)
-- [ ] **IG.1.4** Add EntityRenderLayer with Stub Visualizer [details](./TASK-DETAILS-IG.md#task-ig14-add-entityrenderlayer-with-stub-visualizer)
+- [x] **IG.1.1** Create Bagira.IG Project [details](./TASK-DETAILS-IG.md#task-ig11-create-bagiraig-project)
+- [x] **IG.1.2** Setup MapCanvas with Camera Controls [details](./TASK-DETAILS-IG.md#task-ig12-setup-mapcanvas-with-camera-controls)
+- [x] **IG.1.3** Integrate NetworkDemo Network Module (translators publish SpawnEntityCommand) [details](./TASK-DETAILS-IG.md#task-ig13-integrate-networkdemo-network-module)
+- [x] **IG.1.3b** Register NetworkSpawningSystem via SpawningModule [details](./TASK-DETAILS-IG.md#task-ig13b-register-networkspawningsystem-in-ig-kernel)
+- [x] **IG.1.4** Add EntityRenderLayer with Stub Visualizer [details](./TASK-DETAILS-IG.md#task-ig14-add-entityrenderlayer-with-stub-visualizer)
 
 ### Phase IG2: Basic Rendering
 
-- [ ] **IG.2.1** Implement ResolvedStyle Component [details](./TASK-DETAILS-IG.md#task-ig21-implement-resolvedstyle-component)
-- [ ] **IG.2.2** Implement StyleResolutionSystem [details](./TASK-DETAILS-IG.md#task-ig22-implement-styleresolutionsystem)
-- [ ] **IG.2.3** Create SstVisualizerAdapter [details](./TASK-DETAILS-IG.md#task-ig23-create-sstvisualizeradapter)
-- [ ] **IG.2.4** Add MapCullingSystem [details](./TASK-DETAILS-IG.md#task-ig24-add-mapcullingsystem)
-- [ ] **IG.2.5** Integration Test: Render 100 Entities [details](./TASK-DETAILS-IG.md#task-ig25-integration-test-render-100-entities)
+- [x] **IG.2.1** Implement ResolvedStyle Component [details](./TASK-DETAILS-IG.md#task-ig21-implement-resolvedstyle-component)
+- [x] **IG.2.2** Implement StyleResolutionSystem [details](./TASK-DETAILS-IG.md#task-ig22-implement-styleresolutionsystem)
+- [x] **IG.2.3** Create SstVisualizerAdapter [details](./TASK-DETAILS-IG.md#task-ig23-create-sstvisualizeradapter)
+- [x] **IG.2.4** Add MapCullingSystem [details](./TASK-DETAILS-IG.md#task-ig24-add-mapcullingsystem)
+- [x] **IG.2.5** Integration Test: Render 100 Entities [details](./TASK-DETAILS-IG.md#task-ig25-integration-test-render-100-entities)
 
 ### Phase IG3: Interaction Tools
 
-- [ ] **IG.3.1** Integrate StandardInteractionTool [details](./TASK-DETAILS-IG.md#task-ig31-integrate-standardinteractiontool)
-- [ ] **IG.3.2** Add Selection Highlighting [details](./TASK-DETAILS-IG.md#task-ig32-add-selection-highlighting)
-- [ ] **IG.3.3** Implement CreationTool (Entity Placement) [details](./TASK-DETAILS-IG.md#task-ig33-implement-creationtool-entity-placement)
-- [ ] **IG.3.4** Implement MeasureTool (Distance) [details](./TASK-DETAILS-IG.md#task-ig34-implement-measuretool-distance)
-- [ ] **IG.3.5** Integration Test: Create Entity [details](./TASK-DETAILS-IG.md#task-ig35-integration-test-create-entity)
+- [x] **IG.3.1** Integrate StandardInteractionTool [details](./TASK-DETAILS-IG.md#task-ig31-integrate-standardinteractiontool)
+- [x] **IG.3.2** Add Selection Highlighting [details](./TASK-DETAILS-IG.md#task-ig32-add-selection-highlighting)
+- [x] **IG.3.3** Implement CreationTool (Entity Placement) [details](./TASK-DETAILS-IG.md#task-ig33-implement-creationtool-entity-placement)
+- [x] **IG.3.4** Implement MeasureTool (Distance) [details](./TASK-DETAILS-IG.md#task-ig34-implement-measuretool-distance)
+- [x] **IG.3.5** Integration Test: Create Entity [details](./TASK-DETAILS-IG.md#task-ig35-integration-test-create-entity)
 
 ### Phase IG4: Advanced Features
 
-- [ ] **IG.4.1** Implement HistoryRecordingSystem [details](./TASK-DETAILS-IG.md#task-ig41-implement-historyrecordingsystem)
-- [ ] **IG.4.2** Implement EventToEffectSystem [details](./TASK-DETAILS-IG.md#task-ig42-implement-eventtoeffectsystem)
-- [ ] **IG.4.3** Add Context Menu System [details](./TASK-DETAILS-IG.md#task-ig43-add-context-menu-system)
-- [ ] **IG.4.4** Implement EditTool (Vertex Manipulation) [details](./TASK-DETAILS-IG.md#task-ig44-implement-edittool-vertex-manipulation)
-- [ ] **IG.4.5** Integration Test: Advanced Features [details](./TASK-DETAILS-IG.md#task-ig45-integration-test-advanced-features)
+- [x] **IG.4.1** Implement HistoryRecordingSystem [details](./TASK-DETAILS-IG.md#task-ig41-implement-historyrecordingsystem)
+- [x] **IG.4.2** Implement EventToEffectSystem [details](./TASK-DETAILS-IG.md#task-ig42-implement-eventtoeffectsystem)
+- [x] **IG.4.3** Add Context Menu System [details](./TASK-DETAILS-IG.md#task-ig43-add-context-menu-system)
+- [x] **IG.4.4** Implement EditTool (Vertex Manipulation) [details](./TASK-DETAILS-IG.md#task-ig44-implement-edittool-vertex-manipulation)
+- [x] **IG.4.5** Integration Test: Advanced Features [details](./TASK-DETAILS-IG.md#task-ig45-integration-test-advanced-features)
 
 ### Phase IG5: UI & Polish
 
-- [ ] **IG.5.1** Create Debug Panel [details](./TASK-DETAILS-IG.md#task-ig51-create-debug-panel)
-- [ ] **IG.5.2** Add Entity Inspector Panel [details](./TASK-DETAILS-IG.md#task-ig52-add-entity-inspector-panel)
-- [ ] **IG.5.3** Add Mini-IOS Panel [details](./TASK-DETAILS-IG.md#task-ig53-add-mini-ios-panel)
-- [ ] **IG.5.4** Add Performance Metrics Overlay [details](./TASK-DETAILS-IG.md#task-ig54-add-performance-metrics-overlay)
+- [x] **IG.5.1** Create Debug Panel [details](./TASK-DETAILS-IG.md#task-ig51-create-debug-panel)
+- [x] **IG.5.2** Add Entity Inspector Panel [details](./TASK-DETAILS-IG.md#task-ig52-add-entity-inspector-panel)
+- [x] **IG.5.3** Add Mini-IOS Panel [details](./TASK-DETAILS-IG.md#task-ig53-add-mini-ios-panel)
+- [x] **IG.5.4** Add Performance Metrics Overlay [details](./TASK-DETAILS-IG.md#task-ig54-add-performance-metrics-overlay)
 
 ---
 
