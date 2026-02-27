@@ -47,6 +47,17 @@ public class StandardInteractionTool : IMapTool
     private readonly DefaultSelectionState      _selection;
 
     /// <summary>
+    /// Passes through the inner FDP tool's world-click event so that
+    /// IgApplication can subscribe without accessing the private <c>_inner</c> field.
+    /// Fires with (worldPos, button, isShift, isCtrl, hitEntity).
+    /// </summary>
+    public event Action<Vector2, MouseButton, bool, bool, Entity>? OnWorldClick
+    {
+        add    => _inner.OnWorldClick += value;
+        remove => _inner.OnWorldClick -= value;
+    }
+
+    /// <summary>
     /// Constructs a wired selection tool.
     /// </summary>
     /// <param name="world">

@@ -1,5 +1,6 @@
 using System;
 using Bagira.IG.Components;
+using Bagira.Map.Common.Commands;
 using Fdp.Kernel;
 using ImGuiNET;
 
@@ -26,14 +27,22 @@ public class MiniIosPanel
 {
     private readonly MiniIosPanelState _state;
     private readonly FdpEventBus       _eventBus;
+    private BdcCommandGateway?         _gateway;
 
     /// <param name="state">Form state instance shared with the application shell.</param>
-    /// <param name="eventBus">Event bus used to publish spawn commands on submit.</param>
+    /// <param name="eventBus">Event bus used to publish local spawn commands on submit.</param>
     public MiniIosPanel(MiniIosPanelState state, FdpEventBus eventBus)
     {
         _state    = state    ?? throw new ArgumentNullException(nameof(state));
         _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
     }
+
+    /// <summary>
+    /// Injects the live command gateway so the Spawn button routes requests to SimHost
+    /// over DDS rather than publishing a local <see cref="FdpEventBus"/> command.
+    /// Pass <c>null</c> to fall back to the local event-bus path (offline mode).
+    /// </summary>
+    public void SetGateway(BdcCommandGateway? gateway) => _gateway = gateway;
 
     /// <summary>
     /// Emits the Mini IOS ImGui window.
@@ -78,7 +87,7 @@ public class MiniIosPanel
 
         // ── Submit ────────────────────────────────────────────────────────────
         if (ImGui.Button("Spawn"))
-            _state.Submit(_eventBus);
+            _state.SubmitViaGateway(_gateway);
 
         ImGui.End();
     }

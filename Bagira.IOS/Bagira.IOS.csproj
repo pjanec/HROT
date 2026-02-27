@@ -19,6 +19,9 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.DER\FDP.Toolkit.DER.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Commands\FDP.Toolkit.Commands.csproj" />
 
+    <!-- CycloneDDS — required for live DdsWriterAdapter -->
+    <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
+
     <!-- JSON serialisation -->
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 

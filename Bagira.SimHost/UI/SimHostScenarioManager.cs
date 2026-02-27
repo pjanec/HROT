@@ -1,23 +1,32 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Bagira.Map.Common;
+using Bagira.SimHost.Configuration;
 using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
+using FDP.Toolkit.NetworkSpawning.Events;
+using ModuleHost.Core.Network.Interfaces;
 
 namespace Bagira.SimHost.UI
 {
     /// <summary>
     /// Provides local (GUI-driven) entity spawning and scenario utilities for the
-    /// SimHost 2-D window.  Entities are created directly in the ECS world — bypassing
-    /// the DDS network round-trip that <c>CreateEntityRequestSystem</c> uses — so that
-    /// the operator can spawn test traffic instantly without a connected IOS client.
+    /// SimHost 2-D window.
     ///
-    /// Mirrors <c>Fdp.Examples.CarKinem.Core.ScenarioManager</c> but adapted for the
-    /// SimHost component set.
+    /// <para>The public <see cref="SpawnVehicle"/> method publishes a
+    /// <see cref="SpawnEntityCommand"/> onto the event bus so that
+    /// <c>NetworkSpawningSystem</c> constructs the entity with the full network
+    /// component set (<c>NetworkIdentity</c>, <c>NetworkOwnership</c>,
+    /// <c>EntityMaster</c>) and publishes it over DDS.</para>
+    ///
+    /// <para>Internal demo helpers (<see cref="SpawnRoamers"/>,
+    /// <see cref="SpawnFormation"/>, etc.) use <see cref="SpawnEntityLocal"/>
+    /// for immediate entity access required by navigation setup.</para>
     /// </summary>
     public class SimHostScenarioManager
     {
@@ -25,21 +34,32 @@ namespace Bagira.SimHost.UI
         private readonly RoadNetworkBlob          _road;
         private readonly TrajectoryPoolManager    _traj;
         private readonly FormationTemplateManager _formations;
+        private readonly IEventBus               _spawnBus;
         private readonly Random                   _rng = new();
 
         // Entities that wander to a random point when they arrive
         private readonly HashSet<Entity> _roamers = new();
 
+        /// <param name="repo">Live entity repository.</param>
+        /// <param name="road">Road network (may be empty).</param>
+        /// <param name="traj">Trajectory pool manager.</param>
+        /// <param name="formations">Formation template manager.</param>
+        /// <param name="spawnBus">
+        /// Event bus used to publish <see cref="SpawnEntityCommand"/> for network-visible
+        /// entity creation.  Defaults to <paramref name="repo"/>.Bus when <c>null</c>.
+        /// </param>
         public SimHostScenarioManager(
             EntityRepository        repo,
             RoadNetworkBlob          road,
             TrajectoryPoolManager    traj,
-            FormationTemplateManager formations)
+            FormationTemplateManager formations,
+            IEventBus?               spawnBus = null)
         {
             _repo       = repo;
             _road       = road;
             _traj       = traj;
             _formations = formations;
+            _spawnBus   = spawnBus ?? repo.Bus;
         }
 
         // ── Tick ─────────────────────────────────────────────────────────────
@@ -59,12 +79,48 @@ namespace Bagira.SimHost.UI
 
         // ── Spawn helpers ─────────────────────────────────────────────────────
 
-        public Entity SpawnVehicle(Vector2 position, Vector2 heading, VehicleClass vehicleClass = VehicleClass.PersonalCar)
+        /// <summary>
+        /// Publishes a <see cref="SpawnEntityCommand"/> so that
+        /// <c>NetworkSpawningSystem</c> creates a fully-networked entity with
+        /// <c>NetworkIdentity</c>, <c>NetworkOwnership</c>, and <c>EntityMaster</c>.
+        /// </summary>
+        /// <param name="position">Initial world-space XY position in metres.</param>
+        /// <param name="heading">Heading unit vector; yaw is derived from its angle from east.</param>
+        /// <param name="vehicleClass">Vehicle archetype — determines TKB template type.</param>
+        public void SpawnVehicle(Vector2 position, Vector2 heading,
+            VehicleClass vehicleClass = VehicleClass.PersonalCar)
+        {
+            float angle     = VectorMath.SignedAngle(Vector2.UnitX, heading);
+            var   transform = new SimTransform
+            {
+                Position = new Vector3(position.X, position.Y, 0f),
+                Rotation = SimMath.FromYaw(angle),
+            };
+
+            var cmd = new SpawnEntityCommand
+            {
+                NetworkId         = 0, // 0 = auto-allocate by DdsIdAllocator
+                TkbType           = MapVehicleClassToTkbType(vehicleClass),
+                OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
+                InitType          = ReliableInitType.AllPeers,
+                InitialComponents = new List<object> { transform },
+            };
+
+            _spawnBus.PublishManaged(cmd);
+        }
+
+        /// <summary>
+        /// Creates an entity directly in the ECS world for immediate use by
+        /// demo/scenario helpers that require an entity reference (roaming,
+        /// formations, collision tests).  Does NOT publish a DDS network event.
+        /// </summary>
+        private Entity SpawnEntityLocal(Vector2 position, Vector2 heading,
+            VehicleClass vehicleClass = VehicleClass.PersonalCar)
         {
             var e = _repo.CreateEntity();
 
             float angle = VectorMath.SignedAngle(Vector2.UnitX, heading);
-            var rot     = System.Numerics.Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle);
+            var rot     = SimMath.FromYaw(angle);
 
             _repo.AddComponent(e, new SimTransform { Position = new Vector3(position.X, position.Y, 0), Rotation = rot });
             _repo.AddComponent(e, new SimVelocity  { Linear = Vector3.Zero, Angular = Vector3.Zero });
@@ -78,11 +134,20 @@ namespace Bagira.SimHost.UI
             return e;
         }
 
+        /// <summary>Maps <see cref="VehicleClass"/> to the canonical TKB entity type constant.</summary>
+        private static long MapVehicleClassToTkbType(VehicleClass vehicleClass) =>
+            vehicleClass switch
+            {
+                VehicleClass.Tank       => TkbEntityTypes.Tank_M1Abrams,
+                VehicleClass.Pedestrian => TkbEntityTypes.Infantry_Rifleman,
+                _                       => TkbEntityTypes.Truck_HMMWV,
+            };
+
         public void SpawnRoamers(int count, VehicleClass cls, TrajectoryInterpolation interp = TrajectoryInterpolation.CatmullRom)
         {
             for (int i = 0; i < count; i++)
             {
-                var e = SpawnVehicle(RandomPos(500), RandomDir());
+                var e = SpawnEntityLocal(RandomPos(500), RandomDir());
                 SetDestination(e, RandomPos(500), interp);
                 _roamers.Add(e);
             }
@@ -99,7 +164,7 @@ namespace Bagira.SimHost.UI
             for (int i = 0; i < count; i++)
             {
                 int nodeIdx = _rng.Next(_road.Nodes.Length);
-                var e = SpawnVehicle(new Vector2(_road.Nodes[nodeIdx].Position.X, _road.Nodes[nodeIdx].Position.Y), RandomDir(), cls);
+                var e = SpawnEntityLocal(new Vector2(_road.Nodes[nodeIdx].Position.X, _road.Nodes[nodeIdx].Position.Y), RandomDir(), cls);
 
                 // Pick a random destination node
                 int destNodeIdx = _rng.Next(_road.Nodes.Length);
@@ -117,7 +182,7 @@ namespace Bagira.SimHost.UI
             var center = RandomPos(300);
 
             // Spawn leader
-            var leader = SpawnVehicle(center, Vector2.UnitX, cls);
+            var leader = SpawnEntityLocal(center, Vector2.UnitX, cls);
             _repo.AddComponent(leader, new FormationRoster { Type = formType });
             SetDestination(leader, RandomPos(500), interp);
             _roamers.Add(leader);
@@ -125,15 +190,15 @@ namespace Bagira.SimHost.UI
             // Spawn members
             for (int i = 0; i < count - 1; i++)
             {
-                var member = SpawnVehicle(center + new Vector2(_rng.Next(-20, 20), _rng.Next(-20, 20)), Vector2.UnitX, cls);
+                var member = SpawnEntityLocal(center + new Vector2(_rng.Next(-20, 20), _rng.Next(-20, 20)), Vector2.UnitX, cls);
                 _repo.Bus.Publish(new CmdJoinFormation { Entity = member, LeaderEntity = leader });
             }
         }
 
         public void SpawnCollisionTest(VehicleClass cls)
         {
-            var a = SpawnVehicle(new Vector2(100, 100), Vector2.UnitX, cls);
-            var b = SpawnVehicle(new Vector2(300, 100), -Vector2.UnitX, cls);
+            var a = SpawnEntityLocal(new Vector2(100, 100), Vector2.UnitX, cls);
+            var b = SpawnEntityLocal(new Vector2(300, 100), -Vector2.UnitX, cls);
             SetDestination(a, new Vector2(350, 100));
             SetDestination(b, new Vector2(50,  100));
         }

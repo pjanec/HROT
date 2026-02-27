@@ -26,6 +26,8 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | IOS-DEBT-032 | P3 | IOS-BATCH-01-REPORT | MissionEditorService lacks IDisposable implementation, leaving pending TaskCompletionSources orphaned correctly upon teardown. | IOS Phase 9 | ✅ Resolved |
 | IOS-DEBT-033 | P3 | IOS-BATCH-02-REPORT | OrbatPanel.FindChildren scans all entities per node (O(n²)); replace with a CommanderId→children dictionary for repos with large entity counts. | IOS Phase 9 | ✅ Resolved |
 | IOS-DEBT-034 | P3 | IOS-BATCH-02-REPORT | InteractionPanel.AddLog is not thread-safe; DDS ingress callbacks may fire on a non-main thread. Needs ConcurrentQueue drain model in Phase 9 app shell. | IOS Phase 9 | ✅ Resolved |
+| IOS-DEBT-035 | P3 | INTS-BATCH-01-REPORT | MiniIosPanelState.SubmitViaGateway discards CreateEntityAsync task without propagating spawn failure back to UI. | Phase 3 | Open |
+| IOS-DEBT-036 | P3 | INTS-BATCH-01-REPORT | DdsWriterAdapterTests require ddsc.dll/libddsc.so on PATH. Needs [Trait("Category","RequiresDds")] or similar to prevent clean-room CI failures. | Phase 3 | Open |
 
 ---
 

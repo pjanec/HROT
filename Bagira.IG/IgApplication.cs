@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
+using Bagira.DDS.DM;
 using Bagira.IG.Adapters;
 using Bagira.IG.Components;
 using Bagira.IG.Modules;
@@ -9,10 +11,13 @@ using Bagira.IG.Systems;
 using Bagira.IG.Tools;
 using Bagira.IG.Translators;
 using Bagira.IG.UI;
+using Bagira.Map.Definitions.Tkb;
+using Bagira.Map.Common.Commands;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic.Transforms;
 using FDP.Toolkit.Lifecycle;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication;
 using FDP.Toolkit.Replication.Services;
@@ -75,6 +80,13 @@ public class IgApplication
 
     // ── Headless flag — set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
     private bool _headless;
+
+    // ── Task 5: IG-to-IOS event translator state ──────────────────────────────────────────────
+    private WGS84Transform?                  _geoTransform;
+    private BdcCommandGateway?               _commandGateway;
+    private DdsWriter<MapClickEvent>?        _clickWriter;
+    private DdsReader<MapInteractionConfig>? _configReader;
+    private Guid                             _activeContextId;
 
     // ── Style and culling objects — updated and injected into modules
     private MapUserConfig     _userConfig     = null!;
@@ -186,6 +198,7 @@ public class IgApplication
         _networkEnabled = enableNetwork;
 
         var tkb      = new TkbDatabase();
+        BdcTkbCatalog.RegisterAll(tkb);
         _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
 
         var nodeMapper = new NodeIdMapper(
@@ -234,8 +247,13 @@ public class IgApplication
             {
                 var participant = new DdsParticipant(domainId: IgNetworkConstants.DdsDomain);
 
-                var geoTransform = new WGS84Transform();
-                geoTransform.SetOrigin(
+                // Task 5: Create command gateway, click writer and config reader.
+                _commandGateway = new BdcCommandGateway(participant);
+                _clickWriter    = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
+                _configReader   = new DdsReader<MapInteractionConfig>(participant);
+
+                _geoTransform = new WGS84Transform();
+                _geoTransform.SetOrigin(
                     IgNetworkConstants.GeoOriginLatDeg,
                     IgNetworkConstants.GeoOriginLonDeg,
                     IgNetworkConstants.GeoOriginAltMeters);
@@ -243,7 +261,7 @@ public class IgApplication
                 var customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
                 {
                     new EntityMasterTranslator(participant, _entityMap, _eventBus),
-                    new GeoSpatialTranslator(participant, _entityMap, geoTransform),
+                    new GeoSpatialTranslator(participant, _entityMap, _geoTransform),
                     new EntityInfoTranslator(participant, _entityMap, _eventBus),
                     // causes network init to fail (the pulse event not registered as dds topic)
                     //new TimePulseTranslator(participant, _eventBus),
@@ -262,7 +280,7 @@ public class IgApplication
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[IG] Network init failed ({ex.Message}). Running offline.");
+                FdpLog<IgApplication>.Warn($"[IG] Network init failed ({ex.Message}). Running offline.");
                 _networkEnabled = false;
             }
         }
@@ -288,6 +306,13 @@ public class IgApplication
         // StandardInteractionTool — default canvas tool wiring selection to ECS.
         var interactionTool = new StandardInteractionTool(_world, query, adapter, selection);
         _canvas.SwitchTool(interactionTool);
+
+        // Task 5: Wire IG-to-IOS event translators when DDS participant is ready.
+        if (_networkEnabled)
+        {
+            interactionTool.OnWorldClick += OnCanvasClicked;
+            _miniIosPanel.SetGateway(_commandGateway);
+        }
 
         // E. SlaveTimeController — driven by TimePulse events on the event bus
         var timeController = new SlaveTimeController(_eventBus);
@@ -332,6 +357,17 @@ public class IgApplication
         // Always tick ECS/network — even in headless mode DDS messages must be processed.
         _kernel.Update();
         _eventBus.SwapBuffers();
+
+        // Task 5: Poll IOS → IG interaction-config updates (active context ID).
+        if (_networkEnabled && _configReader != null)
+        {
+            using var loan = _configReader.Take(1);
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid) continue;
+                _activeContextId = sample.Data.ActiveContextId;
+            }
+        }
 
         if (!_headless)
         {
@@ -487,6 +523,9 @@ public class IgApplication
     /// </summary>
     public void Shutdown(bool ownsWindow = true)
     {
+        _commandGateway?.Dispose();
+        _clickWriter?.Dispose();
+        _configReader?.Dispose();
         _kernel?.Dispose();
         _eventBus?.Dispose();
         if (ownsWindow)
@@ -494,5 +533,31 @@ public class IgApplication
             rlImGui.Shutdown();
             Raylib.CloseWindow();
         }
+    }
+
+    // ── Task 5: IG-to-IOS event translators ──────────────────────────────────
+
+    /// <summary>
+    /// Converts a canvas world-click to a <see cref="MapClickEvent"/> and writes it
+    /// to the DDS "MapClickEvent" topic so IOS can route the interaction.
+    /// No-op when network is disabled.
+    /// </summary>
+    private void OnCanvasClicked(Vector2 worldPos, MouseButton button, bool shift, bool ctrl, Entity hit)
+    {
+        if (!_networkEnabled || _clickWriter == null || _geoTransform == null)
+            return;
+
+        var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(worldPos.X, worldPos.Y, 0f));
+
+        var evt = new MapClickEvent
+        {
+            MapId                = IgNetworkConstants.InstanceId,
+            Position             = new GeoPosition { Latitude = lat, Longitude = lon, Altitude = alt },
+            InteractionContextId = _activeContextId,
+            HitStack             = new List<MapObjectRef>(),
+        };
+
+        _clickWriter.Write(evt);
+        FdpLog<IgApplication>.Info($"[IG] MapClickEvent published. ContextId={_activeContextId}");
     }
 }

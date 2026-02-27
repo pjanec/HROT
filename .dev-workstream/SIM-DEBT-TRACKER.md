@@ -25,6 +25,8 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | SIM-DEBT-05 | P2 | `VehicleAPI` | `VehicleAPI.JoinFormation` currently does not take a `FormationType` parameter. Implement the API overload to forward this correctly to `VehicleCommandSystem`. | TBD | Open |
 | SIM-DEBT-06 | P4 | `Program.cs` | Refactor the setup ordering sequence if `VehicleAPI` needs data loaded upstream. Create a factory pattern like `SimulationLogicModule.Build(IKernelServices)` to separate concerns and setup bounds gracefully. | TBD | Open |
 | SIM-DEBT-07 | P4 | `Integration.Tests` | Extract `MockIOSClient` and `SimHostInstance` into a reusable `DDS.TestMocks` library for broader test capability across component projects. | TBD | Open |
+| SIM-DEBT-08 | P3 | INTS-BATCH-01-REPORT | `SimHostScenarioManager.MapVehicleClassToTkbType` uses arbitrary string-to-enum dispatch mapping which risks throwing on typos if converted. Harden this API before extending vehicle types. | Phase 2 | Open |
+
 ---
 
 ## Resolved Items (archive)

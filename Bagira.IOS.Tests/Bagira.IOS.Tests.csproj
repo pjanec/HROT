@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bagira.IOS\Bagira.IOS.csproj" />
+    <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
   </ItemGroup>
 
 </Project>

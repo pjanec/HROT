@@ -135,7 +135,7 @@ public sealed class IosMock : IDisposable
             ImGui.EndMainMenuBar();
         }
 
-        ImGui.DockSpaceOverViewport(0);
+        ImGui.DockSpaceOverViewport(0, ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
 
         _configPanel.Draw(_logic);
         _orbatPanel.Draw(_logic);

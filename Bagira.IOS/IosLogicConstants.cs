@@ -43,4 +43,12 @@ internal static class IosLogicConstants
 
     /// <summary>DDS topic name used in interaction-log entries for selection events.</summary>
     internal const string LogTopicSelection = "SelectionChangedEvent";
+
+    // ── DDS topic names ───────────────────────────────────────────────────────
+
+    /// <summary>DDS topic name for <c>MissionControlRequest</c> messages.</summary>
+    internal const string TopicMissionControl = "MissionControlRequest";
+
+    /// <summary>DDS topic name for <c>ContextActionsUpdate</c> messages.</summary>
+    internal const string TopicContextActions = "ContextActionsUpdate";
 }

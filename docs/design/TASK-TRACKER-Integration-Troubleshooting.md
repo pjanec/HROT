@@ -13,11 +13,11 @@
 
 **Goal:** Achieve basic end-to-end operation — UI buttons produce DDS traffic, map pans, entities appear across apps.
 
-- [ ] **INTS-P1-001** Register TKB Catalog in SimHost and IG [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-001--register-tkb-catalog-in-simhost-and-ig)
-- [ ] **INTS-P1-002** Fix SimHost Vehicle Spawning to Use SpawnEntityCommand [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-002--fix-simhost-vehicle-spawning-to-use-spawnentitycommand)
-- [ ] **INTS-P1-003** Replace NullDdsWriter with DdsWriterAdapter in IOS [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-003--replace-nullddswriter-with-ddswriteradapter-in-ios)
-- [ ] **INTS-P1-004** Add PassthruCentralNode to ImGui DockSpace [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-004--add-passthrucentralnode-to-imgui-dockspace)
-- [ ] **INTS-P1-005** Wire IG-to-IOS Map Event Translators [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-005--wire-ig-to-ios-map-event-translators)
+- [x] **INTS-P1-001** Register TKB Catalog in SimHost and IG [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-001--register-tkb-catalog-in-simhost-and-ig)
+- [x] **INTS-P1-002** Fix SimHost Vehicle Spawning to Use SpawnEntityCommand [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-002--fix-simhost-vehicle-spawning-to-use-spawnentitycommand)
+- [x] **INTS-P1-003** Replace NullDdsWriter with DdsWriterAdapter in IOS [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-003--replace-nullddswriter-with-ddswriteradapter-in-ios)
+- [x] **INTS-P1-004** Add PassthruCentralNode to ImGui DockSpace [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-004--add-passthrucentralnode-to-imgui-dockspace)
+- [x] **INTS-P1-005** Wire IG-to-IOS Map Event Translators [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-005--wire-ig-to-ios-map-event-translators)
 
 ---
 

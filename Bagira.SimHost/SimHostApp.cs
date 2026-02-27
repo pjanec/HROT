@@ -24,6 +24,7 @@ using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Services;
 using ModuleHost.Network.Cyclone.Translators;
 using Bagira.BDC.SSTD;
+using Bagira.Map.Definitions.Tkb;
 using Bagira.SimHost.Components;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
@@ -108,8 +109,7 @@ namespace Bagira.SimHost
 
             // ── 4. Data services ──────────────────────────────────────────────
             var ddsParticipant = new DdsParticipant();
-            var tkbDb          = new TkbDatabase();
-            var entityMap      = new NetworkEntityMap();
+            var tkbDb          = new TkbDatabase();            BdcTkbCatalog.RegisterAll(tkbDb);            var entityMap      = new NetworkEntityMap();
             _idAllocator       = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
 
             // ── 5. Geodetic configuration ─────────────────────────────────────
@@ -161,14 +161,14 @@ namespace Bagira.SimHost
             _kernel.RegisterModule(elm);
 
             var spawningSystem = new NetworkSpawningSystem(
-                tkbDb, elm, entityMap, _idAllocator, localNodeId: 1);
+                tkbDb, elm, entityMap, _idAllocator, localNodeId: SimHostNetworkConstants.LocalNodeId);
 
             var simHostMod = new SimHostModule(
-                ddsParticipant, tkbDb, _idAllocator, 1,
+                ddsParticipant, tkbDb, _idAllocator, SimHostNetworkConstants.LocalNodeId,
                 spawningSystem, entityMap, wgs84);
             _kernel.RegisterModule(simHostMod);
 
-            // ── 10. Network module ────────────────────────────────────────────
+            // ── 10. Network module ──────────────────────────────────────────
             var translators = new List<IDescriptorTranslator>();
             if (simHostMod.GeoEgressTranslator != null)
                 translators.Add(simHostMod.GeoEgressTranslator);
@@ -176,7 +176,7 @@ namespace Bagira.SimHost
             translators.Add(simHostMod.MissionEgressTranslator);
             translators.Add(new AutoCycloneTranslator<EntityMaster>(ddsParticipant, "EntityMaster", 0, entityMap));
 
-            var localNodeId = 1;
+            var localNodeId = SimHostNetworkConstants.LocalNodeId;
             var nodeMapper  = new NodeIdMapper(0, localNodeId);
             var topology    = new StaticNetworkTopology(localNodeId, new[] { localNodeId });
 

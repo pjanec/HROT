@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
 using Bagira.IG.Components;
+using Bagira.Map.Common.Commands;
+using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using ModuleHost.Core.Network.Interfaces;
@@ -92,6 +96,38 @@ public class MiniIosPanelState
 
         eventBus.PublishManaged(cmd);
         OnCommandPublished?.Invoke(cmd);
+    }
+
+    // ── Submit via gateway (network path) ─────────────────────────────────────
+
+    /// <summary>
+    /// Sends a <see cref="CreateEntityRequest"/> to SimHost via the DDS command gateway.
+    /// Fire-and-forget: the gateway's ack is not awaited.
+    /// Logs a warning and returns silently when <paramref name="gateway"/> is <c>null</c>
+    /// (i.e. when the network is disabled).
+    /// </summary>
+    /// <param name="gateway">Live command gateway; may be <c>null</c> when network is off.</param>
+    public void SubmitViaGateway(BdcCommandGateway? gateway)
+    {
+        if (gateway == null)
+        {
+            FdpLog<MiniIosPanelState>.Warn("[IG] Network disabled — spawn request ignored.");
+            return;
+        }
+
+        var masterDescriptor = new EntityDescriptorUnion
+        {
+            _d           = EDescriptorType.dtEntityMaster,
+            EntityMaster = new EntityMaster { TkbType = TkbType },
+        };
+
+        var request = new CreateEntityRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            InitialDescriptors = new List<EntityDescriptorUnion> { masterDescriptor },
+        };
+
+        _ = gateway.CreateEntityAsync(request); // fire-and-forget
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

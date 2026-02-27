@@ -6,6 +6,7 @@ using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
 using Bagira.Runner.Abstractions;
 using Bagira.Runner.Models;
+using CycloneDDS.Runtime;
 using FDP.Toolkit.DER;
 
 namespace Bagira.Runner.Services
@@ -34,13 +35,23 @@ namespace Bagira.Runner.Services
         // Map group 0 = broadcast to all IG instances (matches IosLogicConstants.DefaultMapGroupId).
         private const int DefaultMapGroupId = 0;
 
-        private IosMock?           _mock;
-        private bool               _headless;
+        // DDS topic names — must match IosLogicConstants and IG/SimHost readers.
+        private const string TopicMapConfig       = "MapInteractionConfig";
+        private const string TopicCreateEntity    = "CreateEntityRequest";
+        private const string TopicMissionControl  = "MissionControlRequest";
+        private const string TopicContextActions  = "ContextActionsUpdate";
+
+        private IosMock?         _mock;
+        private bool             _headless;
+        private DdsParticipant?  _participant;
 
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
         {
             _headless = config.Headless;
+
+            // ── DDS participant ────────────────────────────────────────────────
+            _participant = new DdsParticipant((uint)config.DomainId);
 
             // ── Construct services ─────────────────────────────────────────────
             // DerRepo takes no external dependencies; node ID uses a fixed default.
@@ -51,11 +62,11 @@ namespace Bagira.Runner.Services
             var clickQueue     = new ConcurrentEventQueue<MapClickEvent>();
             var selectionQueue = new ConcurrentEventQueue<SelectionChangedEvent>();
 
-            // Null writers — replaced with live DDS writers when DDS is wired in.
-            var configWriter       = new NullDdsWriter<MapInteractionConfig>();
-            var createEntityWriter = new NullDdsWriter<CreateEntityRequest>();
-            var missionCmdWriter   = new NullDdsWriter<MissionControlRequest>();
-            var contextMenuWriter  = new NullDdsWriter<ContextActionsUpdate>();
+            // Live DDS writers — publish IOS state changes to the network.
+            var configWriter       = new DdsWriterAdapter<MapInteractionConfig>(_participant, TopicMapConfig);
+            var createEntityWriter = new DdsWriterAdapter<CreateEntityRequest>(_participant, TopicCreateEntity);
+            var missionCmdWriter   = new DdsWriterAdapter<MissionControlRequest>(_participant, TopicMissionControl);
+            var contextMenuWriter  = new DdsWriterAdapter<ContextActionsUpdate>(_participant, TopicContextActions);
 
             var missionEditorSvc = new MissionEditorService(repo, missionCmdWriter);
             var contextMenuLogic  = new ContextMenuLogic(contextMenuWriter);
@@ -108,14 +119,8 @@ namespace Bagira.Runner.Services
         {
             _mock?.Dispose();
             _mock = null;
-        }
-
-        // ── Null writer (no-op until live DDS is wired) ───────────────────────
-
-        private sealed class NullDdsWriter<T> : IDdsWriter<T>
-        {
-            /// <inheritdoc/>
-            public void Write(T sample) { /* intentional no-op */ }
+            _participant?.Dispose();
+            _participant = null;
         }
     }
 }
