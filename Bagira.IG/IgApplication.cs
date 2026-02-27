@@ -11,7 +11,7 @@ using Bagira.IG.Systems;
 using Bagira.IG.Tools;
 using Bagira.IG.Translators;
 using Bagira.IG.UI;
-using Bagira.Map.Definitions.Tkb;
+using Bagira.Map.Common;
 using Bagira.Map.Common.Commands;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
@@ -197,8 +197,7 @@ public class IgApplication
     {
         _networkEnabled = enableNetwork;
 
-        var tkb      = new TkbDatabase();
-        BdcTkbCatalog.RegisterAll(tkb);
+        var tkb = BagiraEnvironment.CreateTkb();
         _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
 
         var nodeMapper = new NodeIdMapper(
@@ -245,18 +244,14 @@ public class IgApplication
         {
             try
             {
-                var participant = new DdsParticipant(domainId: IgNetworkConstants.DdsDomain);
+                var participant = BagiraEnvironment.CreateParticipant(IgNetworkConstants.DdsDomain);
 
                 // Task 5: Create command gateway, click writer and config reader.
                 _commandGateway = new BdcCommandGateway(participant);
                 _clickWriter    = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
                 _configReader   = new DdsReader<MapInteractionConfig>(participant);
 
-                _geoTransform = new WGS84Transform();
-                _geoTransform.SetOrigin(
-                    IgNetworkConstants.GeoOriginLatDeg,
-                    IgNetworkConstants.GeoOriginLonDeg,
-                    IgNetworkConstants.GeoOriginAltMeters);
+                _geoTransform = BagiraEnvironment.CreateGeoTransform();
 
                 var customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
                 {

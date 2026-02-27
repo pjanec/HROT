@@ -4,6 +4,7 @@ using Bagira.IOS;
 using Bagira.IOS.Logic;
 using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
+using Bagira.Map.Common;
 using Bagira.Runner.Abstractions;
 using Bagira.Runner.Models;
 using CycloneDDS.Runtime;
@@ -51,7 +52,7 @@ namespace Bagira.Runner.Services
             _headless = config.Headless;
 
             // ── DDS participant ────────────────────────────────────────────────
-            _participant = new DdsParticipant((uint)config.DomainId);
+            _participant = BagiraEnvironment.CreateParticipant(config.DomainId);
 
             // ── Construct services ─────────────────────────────────────────────
             // DerRepo takes no external dependencies; node ID uses a fixed default.

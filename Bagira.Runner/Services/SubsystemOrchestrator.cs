@@ -70,11 +70,13 @@ namespace Bagira.Runner.Services
                 rlImGui.Setup(true);
             }
 
+            bool hasIg = _subsystems.Exists(subsystem => subsystem.Name == "IG");
+
             foreach (var subsystem in _subsystems)
             {
                 var cfg = new SubsystemConfig
                 {
-                    Headless       = _headless,
+                    Headless       = _headless || (hasIg && subsystem.Name == "SimHost"),
                     OwnWindow      = false, // Orchestrator owns window
                     SubsystemName  = subsystem.Name
                 };

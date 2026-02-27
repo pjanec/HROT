@@ -27,6 +27,18 @@ namespace Bagira.Runner.Tests
             return c;
         }
 
+        private static RunnerConfiguration NonHeadlessAllConfig()
+        {
+            var c = new RunnerConfiguration
+            {
+                ModeString = "all",
+                Headless   = false,
+                NoWait     = true
+            };
+            c.Validate();
+            return c;
+        }
+
         // ── Initialize order ──────────────────────────────────────────────────
 
         [Fact]
@@ -63,6 +75,41 @@ namespace Bagira.Runner.Tests
             orchestrator.Initialize();
 
             Assert.False(mock.ReceivedConfig!.OwnWindow);
+        }
+
+        [Fact]
+        public void Initialize_ForcesSimHostHeadless_WhenIgIsPresent()
+        {
+            var ig = new MockSubsystem("IG");
+            var simHost = new MockSubsystem("SimHost");
+            var ios = new MockSubsystem("IOS");
+
+            var orchestrator = new SubsystemOrchestrator(
+                NonHeadlessAllConfig(),
+                new ISubsystem[] { ig, simHost, ios });
+
+            orchestrator.Initialize();
+
+            Assert.NotNull(ig.ReceivedConfig);
+            Assert.NotNull(simHost.ReceivedConfig);
+            Assert.False(ig.ReceivedConfig!.Headless);
+            Assert.True(simHost.ReceivedConfig!.Headless);
+        }
+
+        [Fact]
+        public void Initialize_DoesNotForceSimHostHeadless_WhenIgIsAbsent()
+        {
+            var simHost = new MockSubsystem("SimHost");
+            var ios = new MockSubsystem("IOS");
+
+            var orchestrator = new SubsystemOrchestrator(
+                NonHeadlessAllConfig(),
+                new ISubsystem[] { simHost, ios });
+
+            orchestrator.Initialize();
+
+            Assert.NotNull(simHost.ReceivedConfig);
+            Assert.False(simHost.ReceivedConfig!.Headless);
         }
 
         // ── Update loop ───────────────────────────────────────────────────────

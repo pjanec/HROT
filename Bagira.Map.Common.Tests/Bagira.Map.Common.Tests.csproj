@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
+    <ProjectReference Include="..\Bagira.Map.Definitions\Bagira.Map.Definitions.csproj" />
   </ItemGroup>
 
 </Project>

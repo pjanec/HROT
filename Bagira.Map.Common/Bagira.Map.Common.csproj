@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Commands\FDP.Toolkit.Commands.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Core\CycloneDDS.Core.csproj" />

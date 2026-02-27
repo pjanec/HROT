@@ -24,7 +24,7 @@ using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Services;
 using ModuleHost.Network.Cyclone.Translators;
 using Bagira.BDC.SSTD;
-using Bagira.Map.Definitions.Tkb;
+using Bagira.Map.Common;
 using Bagira.SimHost.Components;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
@@ -108,16 +108,13 @@ namespace Bagira.SimHost
             _kernel.SetTimeController(timeCtrl);
 
             // ── 4. Data services ──────────────────────────────────────────────
-            var ddsParticipant = new DdsParticipant();
-            var tkbDb          = new TkbDatabase();            BdcTkbCatalog.RegisterAll(tkbDb);            var entityMap      = new NetworkEntityMap();
+            var ddsParticipant = BagiraEnvironment.CreateParticipant(config.DomainId);
+            var tkbDb          = BagiraEnvironment.CreateTkb();
+            var entityMap      = new NetworkEntityMap();
             _idAllocator       = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
 
             // ── 5. Geodetic configuration ─────────────────────────────────────
-            var wgs84 = new WGS84Transform();
-            wgs84.SetOrigin(
-                config.GeodeticOrigin.Latitude,
-                config.GeodeticOrigin.Longitude,
-                config.GeodeticOrigin.Altitude);
+            var wgs84 = BagiraEnvironment.CreateGeoTransform();
 
             // ── 6. Doctrine registry ──────────────────────────────────────────
             var doctrineRegistry = new DoctrineRegistry();
