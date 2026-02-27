@@ -29,6 +29,7 @@ namespace Bagira.Runner.Services
         // ── State ─────────────────────────────────────────────────────────────
         private readonly List<ISubsystem> _subsystems;
         private readonly bool _headless;
+        private readonly int _domainId;
         private readonly int _windowWidth;
         private readonly int _windowHeight;
         private volatile bool _running = true;
@@ -51,6 +52,7 @@ namespace Bagira.Runner.Services
         public SubsystemOrchestrator(RunnerConfiguration config, IEnumerable<ISubsystem> subsystems)
         {
             _headless     = config.Headless;
+            _domainId     = config.DomainId;
             _windowWidth  = DefaultWindowWidth;
             _windowHeight = DefaultWindowHeight;
             _subsystems   = new List<ISubsystem>(subsystems);
@@ -76,6 +78,7 @@ namespace Bagira.Runner.Services
             {
                 var cfg = new SubsystemConfig
                 {
+                    DomainId       = _domainId,
                     Headless       = _headless || (hasIg && subsystem.Name == "SimHost"),
                     OwnWindow      = false, // Orchestrator owns window
                     SubsystemName  = subsystem.Name

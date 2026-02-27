@@ -34,6 +34,7 @@ public sealed class IosMock : IDisposable
     private readonly SpawnerPanel     _spawnerPanel;
     private readonly InspectorPanel   _inspectorPanel;
     private readonly DiagnosticsPanel _diagnosticsPanel;
+    private readonly bool             _useDockSpace;
 
     private bool _disposed;
 
@@ -53,7 +54,8 @@ public sealed class IosMock : IDisposable
         InteractionPanel interactionPanel,
         SpawnerPanel     spawnerPanel,
         InspectorPanel?  inspectorPanel   = null,
-        DiagnosticsPanel? diagnosticsPanel = null)
+        DiagnosticsPanel? diagnosticsPanel = null,
+        bool             useDockSpace    = true)
     {
         _logic            = logic            ?? throw new ArgumentNullException(nameof(logic));
         _configPanel      = configPanel      ?? throw new ArgumentNullException(nameof(configPanel));
@@ -63,6 +65,7 @@ public sealed class IosMock : IDisposable
         _spawnerPanel     = spawnerPanel     ?? throw new ArgumentNullException(nameof(spawnerPanel));
         _inspectorPanel   = inspectorPanel   ?? new InspectorPanel();
         _diagnosticsPanel = diagnosticsPanel ?? new DiagnosticsPanel();
+        _useDockSpace     = useDockSpace;
     }
 
     // ── Per-frame update ──────────────────────────────────────────────────────
@@ -135,7 +138,8 @@ public sealed class IosMock : IDisposable
             ImGui.EndMainMenuBar();
         }
 
-        ImGui.DockSpaceOverViewport(0, ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
+        if (_useDockSpace)
+            ImGui.DockSpaceOverViewport(0, ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
 
         _configPanel.Draw(_logic);
         _orbatPanel.Draw(_logic);

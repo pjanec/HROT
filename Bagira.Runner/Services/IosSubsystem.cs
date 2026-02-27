@@ -91,7 +91,8 @@ namespace Bagira.Runner.Services
                 orbatPanel:       new OrbatPanel(),
                 missionPanel:     new MissionPanel(),
                 interactionPanel: interactionPanel,
-                spawnerPanel:     new SpawnerPanel());
+                spawnerPanel:     new SpawnerPanel(),
+                useDockSpace:     config.OwnWindow);
         }
 
         /// <inheritdoc/>
