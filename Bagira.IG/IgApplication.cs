@@ -245,7 +245,8 @@ public class IgApplication
                     new EntityMasterTranslator(participant, _entityMap, _eventBus),
                     new GeoSpatialTranslator(participant, _entityMap, geoTransform),
                     new EntityInfoTranslator(participant, _entityMap, _eventBus),
-                    new TimePulseTranslator(participant, _eventBus),
+                    // causes network init to fail (the pulse event not registered as dds topic)
+                    //new TimePulseTranslator(participant, _eventBus),
                 };
 
                 var ddsAllocator = new DdsIdAllocator(participant, $"IG_{IgNetworkConstants.InstanceId}");
