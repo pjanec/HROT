@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using ModuleHost.Core.Abstractions;
@@ -196,6 +197,8 @@ namespace FDP.Toolkit.Lifecycle
             {
                 // All ACKs received - activate entity
                 cmd.SetLifecycleState(ack.Entity, EntityLifecycle.Active);
+                FdpLog<EntityLifecycleModule>.Debug(
+                    $"[TRACE-SH] ELM: Entity {ack.Entity.Index} promoted to Active");
                 _pendingConstruction.Remove(ack.Entity);
                 _totalConstructed++;
             }

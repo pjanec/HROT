@@ -1,5 +1,6 @@
 using System;
 using Fdp.Kernel;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
@@ -98,6 +99,8 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
         {
             // 1. Resolve network ID (0 = allocate a new one)
             long networkId = cmd.NetworkId != 0 ? cmd.NetworkId : _idAllocator.AllocateId();
+            FdpLog<NetworkSpawningSystem>.Debug(
+                $"[TRACE-SH] ProcessSpawn: NetworkId={networkId} TkbType={cmd.TkbType}");
 
             // 2. Duplicate guard — silently drop if already spawned
             if (_networkMap.TryGetEntity(networkId, out _))
@@ -142,6 +145,7 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             if (cmd.InitialComponents != null)
                 foreach (var component in cmd.InitialComponents)
                     EntityComponentReflector.SetComponent(world, entity, component);
+
 
             // 9. Register BEFORE starting lifecycle so any system that responds to
             //    ConstructionOrder can already resolve the entity via the map.
