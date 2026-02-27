@@ -25,6 +25,15 @@ using ModuleHost.Network.Cyclone.Services;
 using ModuleHost.Network.Cyclone.Translators;
 using CycloneDDS.Runtime;
 using Bagira.BDC.SSTD;
+using Bagira.SimHost.Components;
+using CarKinem.Commands;
+using CarKinem.Core;
+using CarKinem.Formation;
+using CarKinem.Road;
+using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Lifecycle.Events;
+using FDP.Toolkit.Replication.Components;
+using Fdp.Modules.Geographic.Components;
 
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
@@ -65,6 +74,10 @@ namespace Bagira.Runner.Services
         private bool                    _headless;
         private bool                    _initialized;
 
+        // ── Visualization (non-headless only) ─────────────────────────────────
+        private SimHostVisualization?   _vis;
+        private SimulationLogicModule?  _simLogicModule;
+
         // ── Background loop (standalone mode) ────────────────────────────────
 
         private CancellationTokenSource? _cts;
@@ -100,6 +113,7 @@ namespace Bagira.Runner.Services
 
             // ── 1. Kernel ─────────────────────────────────────────────────────
             _world = new EntityRepository();
+            RegisterSimComponents(_world);
             var eventAccumulator = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, eventAccumulator);
 
@@ -134,14 +148,20 @@ namespace Bagira.Runner.Services
                 new DoctrineDefinition { Name = "Idle",          BrainTier = BehaviorConstants.BrainTierHsm });
 
             // ── 5. SimulationLogicModule ──────────────────────────────────────
-            var simLogicModule = new SimulationLogicModule(
+            // Load road network from file so the visualizer can show roads.
+            var roadNetwork = new RoadNetworkBlob();
+            try { roadNetwork = RoadNetworkLoader.LoadFromJson("Assets/sample_road.json"); }
+            catch { /* run fine without roads */ }
+
+            _simLogicModule = new SimulationLogicModule(
                 doctrineRegistry,
                 entityMap,
-                vehicleAPI: null);
+                vehicleAPI:  null,
+                roadNetwork: roadNetwork);
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
-            simLogicModule.RegisterSystems(_kernelGroup);
+            _simLogicModule.RegisterSystems(_kernelGroup);
 
             // Seed GlobalTime singleton.
             _world.SetSingletonUnmanaged(new GlobalTime
@@ -186,6 +206,19 @@ namespace Bagira.Runner.Services
             // ── 8. Kernel init ────────────────────────────────────────────────
             _kernel.Initialize();
 
+            // ── 9. Visualization (skipped in headless mode) ───────────────────
+            if (!_headless)
+            {
+                _vis = new SimHostVisualization();
+                _vis.Initialize(
+                    _world,
+                    _kernel,
+                    _simLogicModule.RoadNetwork,
+                    _simLogicModule.TrajectoryPool,
+                    _simLogicModule.FormationTemplates);
+                Logger.Info("[SimHost] Visualization initialized.");
+            }
+
             _initialized = true;
             Logger.Info("[SimHost] Initialized.");
         }
@@ -197,27 +230,29 @@ namespace Bagira.Runner.Services
         public void Update(float deltaTime)
         {
             if (!_initialized) return;
+            _vis?.Update(deltaTime);
             _kernel!.Update();
             _kernelGroup!.Run();
         }
 
-        /// <summary>No-op — SimHost has no 3-D world visuals.</summary>
-        public void DrawWorld() { }
+        /// <summary>Renders the 2-D map canvas (road graph + vehicle entities).</summary>
+        public void DrawWorld()
+        {
+            _vis?.DrawWorld();
+        }
 
-        /// <summary>
-        /// Renders ImGui control panels.  Skipped when <see cref="SubsystemConfig.Headless"/>
-        /// was <c>true</c> during <see cref="Initialize"/>.
-        /// </summary>
+        /// <summary>Renders ImGui control panels (spawn, simulation controls, inspector).</summary>
         public void DrawUI()
         {
-            // Reserved for Phase R3: time-control and entity-spawner ImGui panels.
-            // No panels are implemented yet; this method is intentionally empty.
+            _vis?.DrawUI();
         }
 
         /// <summary>Disposes all kernel resources.</summary>
         public void Shutdown()
         {
             Stop();
+            _vis?.Dispose();
+            _vis = null;
             _idAllocator?.Dispose();
             _kernelGroup?.Dispose();
             _initialized = false;
@@ -258,6 +293,68 @@ namespace Bagira.Runner.Services
         }
 
         // ── Private ───────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Registers all ECS component types and events used by the SimHost simulation,
+        /// CarKinem physics/navigation, formations, and visualization.  Must be called
+        /// immediately after <see cref="EntityRepository"/> construction, before any
+        /// module or system is initialised.
+        /// </summary>
+        private static void RegisterSimComponents(EntityRepository world)
+        {
+            // Network replication
+            world.RegisterComponent<NetworkIdentity>();
+            world.RegisterComponent<NetworkOwnership>();
+            world.RegisterComponent<NetworkAuthority>();
+            world.RegisterComponent<NetworkSpawnRequest>();
+            world.RegisterComponent<PendingNetworkAck>();
+
+            // DDS descriptor
+            world.RegisterComponent<EntityMaster>();
+
+            // Geographic / physics
+            world.RegisterComponent<SimTransform>();
+            world.RegisterComponent<SimVelocity>();
+            world.RegisterComponent<GeoTransform>();
+            world.RegisterComponent<GeoVelocity>();
+
+            // Behavior toolkit
+            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<LocomotionChannel>();
+            world.RegisterComponent<WeaponChannel>();
+            world.RegisterComponent<InteractionChannel>();
+            world.RegisterComponent<ActorCapabilityState>();
+            world.RegisterComponent<BrainBTreeState>();
+            world.RegisterComponent<BrainBlackboard>();
+
+            // CarKinem / navigation
+            world.RegisterComponent<CarKinem.Core.VehicleState>();
+            world.RegisterComponent<CarKinem.Core.VehicleParams>();
+            world.RegisterComponent<CarKinem.Core.NavState>();
+            world.RegisterComponent<CarKinem.Formation.FormationMember>();
+            world.RegisterComponent<CarKinem.Formation.FormationRoster>();
+            world.RegisterComponent<CarKinem.Formation.FormationTarget>();
+
+            // Managed
+            world.RegisterManagedComponent<EntityMissionHolder>();
+
+            // Lifecycle events
+            world.RegisterEvent<ConstructionOrder>();
+            world.RegisterEvent<ConstructionAck>();
+            world.RegisterEvent<DestructionOrder>();
+            world.RegisterEvent<DestructionAck>();
+
+            // CarKinem command events
+            world.RegisterEvent<CmdSpawnVehicle>();
+            world.RegisterEvent<CmdCreateFormation>();
+            world.RegisterEvent<CmdNavigateToPoint>();
+            world.RegisterEvent<CmdFollowTrajectory>();
+            world.RegisterEvent<CmdNavigateViaRoad>();
+            world.RegisterEvent<CmdJoinFormation>();
+            world.RegisterEvent<CmdLeaveFormation>();
+            world.RegisterEvent<CmdStop>();
+            world.RegisterEvent<CmdSetSpeed>();
+        }
 
         private void RunLoop(CancellationToken ct)
         {

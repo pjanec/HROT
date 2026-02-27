@@ -84,6 +84,19 @@ namespace Bagira.SimHost.Modules
             _formationTemplateManager = formationTemplateManager ?? new FormationTemplateManager();
         }
 
+        // ── Public accessors for shared resources ────────────────────────────────
+        // Exposed so that SimHostVisualization (and unit tests) can share the same
+        // instances that were wired into the simulation systems.
+
+        /// <summary>Shared trajectory pool (used by CarKinematicsSystem and visualization).</summary>
+        public TrajectoryPoolManager TrajectoryPool => _trajectoryPool;
+
+        /// <summary>Shared formation-template manager (used by FormationTargetSystem).</summary>
+        public FormationTemplateManager FormationTemplates => _formationTemplateManager;
+
+        /// <summary>Road-network blob (used by CarKinematicsSystem and visualization).</summary>
+        public RoadNetworkBlob RoadNetwork => _roadNetwork;
+
         /// <summary>
         /// Registers all simulation-logic systems to <paramref name="group"/> in strict
         /// execution order. The group must already be initialised (<c>Create</c> called)

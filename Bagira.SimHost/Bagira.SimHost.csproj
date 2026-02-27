@@ -14,6 +14,14 @@
     <Content Include="config.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="Assets\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -37,6 +45,11 @@
 
     <!-- Network (CycloneDDS transitive — no separate NuGet needed) -->
     <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
+
+    <!-- Visualization / UI (graphical window support) -->
+    <ProjectReference Include="..\FDP\Framework\FDP.Framework.Raylib\FDP.Framework.Raylib.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />
   </ItemGroup>
 
 </Project>

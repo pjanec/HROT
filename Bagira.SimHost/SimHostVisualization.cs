@@ -1,0 +1,191 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Raylib_cs;
+using Fdp.Kernel;
+using FDP.Toolkit.Vis2D;
+using FDP.Toolkit.Vis2D.Layers;
+using FDP.Toolkit.Vis2D.Tools;
+using CarKinem.Commands;
+using CarKinem.Core;
+using CarKinem.Trajectory;
+using ModuleHost.Core;
+using Bagira.SimHost.UI;
+using Bagira.SimHost.Visualization;
+
+namespace Bagira.SimHost
+{
+    /// <summary>
+    /// Self-contained graphical visualization layer for the SimHost subsystem.
+    ///
+    /// <para>Lifecycle (called by <see cref="Bagira.Runner.Services.SimHostSubsystem"/>):
+    /// <list type="number">
+    ///   <item><see cref="Initialize"/> — create canvas, layers, tools and UI once.</item>
+    ///   <item><see cref="Update"/> — process input, advance tool state, update scenario.</item>
+    ///   <item><see cref="DrawWorld"/> — render map canvas (2-D world, Raylib only).</item>
+    ///   <item><see cref="DrawUI"/> — render ImGui panels (called inside rlImGui.Begin/End).</item>
+    ///   <item><see cref="Dispose"/> — release unmanaged resources.</item>
+    /// </list>
+    /// </para>
+    /// </summary>
+    public sealed class SimHostVisualization : IDisposable
+    {
+        // ── Core ECS refs ─────────────────────────────────────────────────────
+        private EntityRepository?   _repo;
+        private ModuleHostKernel?   _kernel;
+
+        // ── Visualization ─────────────────────────────────────────────────────
+        private MapCanvas?              _map;
+        private SimHostVehicleVisualizer? _visualizer;
+        private SimHostSelectionManager?  _selection;
+        private SimHostInspectorAdapter?  _inspector;
+        private StandardInteractionTool?  _interactionTool;
+        private EntityQuery?              _vehicleQuery;
+
+        // ── UI ────────────────────────────────────────────────────────────────
+        private SimHostMainUI?         _ui;
+        private SimHostScenarioManager? _scenario;
+
+        private bool _initialized;
+
+        // ── Public access (tests / other subsystems) ──────────────────────────
+        public SimHostSelectionManager? Selection => _selection;
+
+        // ── Lifecycle ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Wires the visualization to a fully-initialised ECS world.
+        /// Must be called after the kernel is initialized and road/trajectory data
+        /// are available (i.e. after <c>SimulationLogicModule.RegisterSystems</c>).
+        /// </summary>
+        public void Initialize(
+            EntityRepository        repo,
+            ModuleHostKernel        kernel,
+            CarKinem.Road.RoadNetworkBlob road,
+            TrajectoryPoolManager    trajectoryPool,
+            CarKinem.Formation.FormationTemplateManager formationTemplates)
+        {
+            _repo    = repo    ?? throw new ArgumentNullException(nameof(repo));
+            _kernel  = kernel  ?? throw new ArgumentNullException(nameof(kernel));
+
+            // ── Selection & inspector ─────────────────────────────────────────
+            _selection = new SimHostSelectionManager();
+            _inspector = new SimHostInspectorAdapter(_selection, repo);
+
+            // ── Scenario manager ──────────────────────────────────────────────
+            _scenario = new SimHostScenarioManager(repo, road, trajectoryPool, formationTemplates);
+
+            // ── UI ────────────────────────────────────────────────────────────
+            _ui = new SimHostMainUI();
+
+            // ── Entity query (vehicles) ───────────────────────────────────────
+            _vehicleQuery = repo.Query().With<VehicleState>().With<VehicleParams>().Build();
+
+            // ── Map canvas & layers ───────────────────────────────────────────
+            _map       = new MapCanvas();
+            _map.AddResource(trajectoryPool);
+
+            _map.AddLayer(new SimHostRoadLayer(road));
+
+            _visualizer = new SimHostVehicleVisualizer();
+            _map.AddLayer(new EntityRenderLayer(
+                "Vehicles", 0, repo, _vehicleQuery, _visualizer, _inspector));
+
+            _map.AddLayer(new SimHostTrajectoryLayer(trajectoryPool, repo, _inspector));
+
+            // ── Interaction tool ──────────────────────────────────────────────
+            _interactionTool = new StandardInteractionTool(repo, _vehicleQuery, _visualizer);
+
+            _interactionTool.OnEntitySelectRequest += (entity, augment) =>
+            {
+                if (!repo.IsAlive(entity)) { if (!augment) _selection.Clear(); return; }
+                if (augment) _selection.Add(entity);
+                else         _selection.Set(entity);
+            };
+
+            _interactionTool.OnEntityMoved += (entity, pos) =>
+            {
+                if (!repo.IsAlive(entity) || !repo.HasComponent<SimTransform>(entity)) return;
+                ref var tf = ref repo.GetComponentRW<SimTransform>(entity);
+                tf.Position = new Vector3(pos.X, pos.Y, 0);
+                if (repo.HasComponent<VehicleState>(entity))
+                {
+                    ref var vs = ref repo.GetComponentRW<VehicleState>(entity);
+                    vs.Speed = 0;
+                }
+            };
+
+            _interactionTool.OnRegionSelected += entities => _selection.SetMultiple(entities);
+
+            _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
+            {
+                if (btn != MouseButton.Right) return;
+                var entities = new List<Fdp.Kernel.Entity>(_selection.SelectedEntities);
+                if (entities.Count == 0) return;
+
+                foreach (var e in entities)
+                {
+                    if (!repo.IsAlive(e)) continue;
+                    if (shift)
+                        _scenario!.AddWaypoint(e, pos, _ui!.UIState.InterpolationMode);
+                    else
+                        repo.Bus.Publish(new CmdNavigateToPoint
+                        {
+                            Entity        = e,
+                            Destination   = pos,
+                            ArrivalRadius = 3.0f,
+                            Speed         = repo.GetComponentRO<VehicleParams>(e).MaxSpeedFwd * 0.8f,
+                        });
+                }
+            };
+
+            _map.SwitchTool(_interactionTool);
+
+            // Seed a small initial scenario so the window isn't empty
+            _scenario.SpawnFastOne();
+
+            _initialized = true;
+        }
+
+        /// <summary>Advances input, tool state, and roaming AI each frame.</summary>
+        public void Update(float dt)
+        {
+            if (!_initialized || _repo == null || _map == null || _ui == null) return;
+
+            // Delete selected entities with the Delete key
+            if (Raylib.IsKeyPressed(KeyboardKey.Delete) && _selection != null)
+            {
+                foreach (var e in new List<Fdp.Kernel.Entity>(_selection.SelectedEntities))
+                    if (_repo.IsAlive(e)) _repo.DestroyEntity(e);
+                _selection.Clear();
+            }
+
+            // Time-scale forwarding
+            if (_kernel != null)
+                _kernel.GetTimeController().SetTimeScale(_ui.TimeScale);
+
+            _scenario?.Update();
+            _map.Update(dt);
+        }
+
+        /// <summary>Renders the 2-D map canvas.  Must be called inside Raylib BeginDrawing.</summary>
+        public void DrawWorld()
+        {
+            if (!_initialized || _map == null) return;
+            _map.Draw();
+        }
+
+        /// <summary>Renders ImGui panels.  Must be called inside rlImGui.Begin/End.</summary>
+        public void DrawUI()
+        {
+            if (!_initialized || _ui == null || _repo == null || _kernel == null) return;
+            _ui.Render(_repo, _kernel, _scenario!, _inspector!);
+        }
+
+        public void Dispose()
+        {
+            // EntityQuery is managed by EntityRepository; no dispose needed.
+            _initialized = false;
+        }
+    }
+}
