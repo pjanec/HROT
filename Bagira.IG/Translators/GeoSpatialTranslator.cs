@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using CycloneDDS.Runtime;
+using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
@@ -45,6 +46,9 @@ namespace Bagira.IG.Translators
             long netId = data.EntityId;
             if (!EntityMap.TryGetEntity(netId, out var entity))
                 return; // Entity not yet spawned — skip; will be retried next tick
+
+            FdpLog<GeoSpatialTranslator>.Debug(
+                $"[TRACE-IG] Ingress: GeoSpatial Entity={entity.Index} Lat={data.Pos.Latitude} Lon={data.Pos.Longitude}");
 
             var cartesian = _geoTransform.ToCartesian(
                 data.Pos.Latitude,

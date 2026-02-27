@@ -23,6 +23,7 @@
   <ItemGroup>
     <!-- Bagira application layer -->
     <ProjectReference Include="..\Bagira.SimHost\Bagira.SimHost.csproj" />
+    <ProjectReference Include="..\Bagira.IG\Bagira.IG.csproj" />
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
     <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
     <ProjectReference Include="..\Bagira.Map.Definitions\Bagira.Map.Definitions.csproj" />

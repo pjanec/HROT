@@ -8,6 +8,7 @@ using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
+using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using ModuleHost.Core.Network.Interfaces;
@@ -90,6 +91,10 @@ namespace Bagira.SimHost.UI
         public void SpawnVehicle(Vector2 position, Vector2 heading,
             VehicleClass vehicleClass = VehicleClass.PersonalCar)
         {
+            var tkbType = MapVehicleClassToTkbType(vehicleClass);
+            FdpLog<SimHostScenarioManager>.Debug(
+                $"[TRACE-SH] SpawnVehicle: Requesting TkbType={tkbType} at ({position.X},{position.Y})");
+
             float angle     = VectorMath.SignedAngle(Vector2.UnitX, heading);
             var   transform = new SimTransform
             {
@@ -100,7 +105,7 @@ namespace Bagira.SimHost.UI
             var cmd = new SpawnEntityCommand
             {
                 NetworkId         = 0, // 0 = auto-allocate by DdsIdAllocator
-                TkbType           = MapVehicleClassToTkbType(vehicleClass),
+                TkbType           = tkbType,
                 OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
                 InitType          = ReliableInitType.AllPeers,
                 InitialComponents = new List<object> { transform },

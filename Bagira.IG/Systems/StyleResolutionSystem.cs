@@ -3,6 +3,7 @@ using System.Globalization;
 using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
 using Bagira.Map.Definitions.Tkb;
+using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 
@@ -34,10 +35,10 @@ namespace Bagira.IG.Systems;
 /// <c>EntityDamage</c> leaves <see cref="ResolvedStyle.DamageLevel"/> at
 /// <see cref="ResolvedStyleConstants.DamageMin"/>.
 ///
-/// Registered in <see cref="SystemPhase.Simulation"/>. Must run after network ingress
+/// Registered in <see cref="SystemPhase.PostSimulation"/>. Must run after network ingress
 /// so that freshly-received <see cref="IgSymbolOverride"/> data is visible in the view.
 /// </summary>
-[UpdateInPhase(SystemPhase.Simulation)]
+[UpdateInPhase(SystemPhase.PostSimulation)]
 public class StyleResolutionSystem : IModuleSystem
 {
     private readonly MapUserConfig _userConfig;
@@ -48,7 +49,8 @@ public class StyleResolutionSystem : IModuleSystem
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
     {
-        var cmd = view.GetCommandBuffer();
+        var repo = view as EntityRepository;
+        var cmd = repo == null ? view.GetCommandBuffer() : null;
 
         var query = view.Query()
             .With<EntityMaster>()
@@ -59,10 +61,23 @@ public class StyleResolutionSystem : IModuleSystem
         {
             var style = BuildStyle(view, entity);
 
-            if (view.HasComponent<ResolvedStyle>(entity))
-                cmd.SetComponent(entity, style);
+            FdpLog<StyleResolutionSystem>.Debug(
+                $"[TRACE-IG] Style: Resolved Entity={entity.Index} Texture={style.GetTextureName()}");
+
+            if (repo != null)
+            {
+                if (repo.HasComponent<ResolvedStyle>(entity))
+                    repo.SetComponent(entity, style);
+                else
+                    repo.AddComponent(entity, style);
+            }
             else
-                cmd.AddComponent(entity, style);
+            {
+                if (view.HasComponent<ResolvedStyle>(entity))
+                    cmd!.SetComponent(entity, style);
+                else
+                    cmd!.AddComponent(entity, style);
+            }
         }
     }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Bagira.BDC.SSTD;
 using CycloneDDS.Runtime;
+using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -118,6 +119,9 @@ namespace Bagira.IG.Translators
             }
             else
             {
+                FdpLog<EntityMasterTranslator>.Debug(
+                    $"[TRACE-IG] Ingress: EntityMaster NetID={master.EntityId} → Ghost spawn");
+
                 // New remote entity — request creation through NetworkSpawningSystem
                 // InitType = None: IG is a ghost replica, not an authority node.
                 // OwnerNodeId = 0: remote / no local authority — prevents IG from

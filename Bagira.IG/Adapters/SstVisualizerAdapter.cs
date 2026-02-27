@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using Bagira.IG.Components;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
@@ -33,6 +34,7 @@ public class SstVisualizerAdapter : IVisualizerAdapter
 {
     // Texture cache — allocations occur only on first encounter of each texture name.
     private readonly Dictionary<string, Texture2D> _textureCache = new();
+    private readonly HashSet<int> _renderTracedEntities = new();
 
     // ── IVisualizerAdapter ────────────────────────────────────────────────────
 
@@ -71,6 +73,12 @@ public class SstVisualizerAdapter : IVisualizerAdapter
         bool            isSelected,
         bool            isHovered)
     {
+        if (_renderTracedEntities.Add(entity.Index))
+        {
+            FdpLog<SstVisualizerAdapter>.Debug(
+                $"[TRACE-IG] Render: Drawing Entity={entity.Index} at ({position.X},{position.Y})");
+        }
+
         // ── Resolve style — fall back to unknown white when absent ────────────
         Color  tint        = new Color(
             ResolvedStyleConstants.UnknownTintR,

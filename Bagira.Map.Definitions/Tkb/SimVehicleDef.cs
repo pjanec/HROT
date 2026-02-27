@@ -1,3 +1,5 @@
+using Fdp.Kernel;
+
 namespace Bagira.Map.Definitions.Tkb
 {
     public enum TerrainMobility
@@ -12,6 +14,7 @@ namespace Bagira.Map.Definitions.Tkb
     /// <summary>
     /// SimHost physics properties (mass, dimensions, mobility).
     /// </summary>
+    [ComponentId(GlobalComponentIds.SimVehicleDef)]
     public class SimVehicleDef
     {
         /// <summary>

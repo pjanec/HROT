@@ -1,3 +1,5 @@
+using Fdp.Kernel;
+
 namespace Bagira.Map.Definitions.Tkb
 {
     public struct TkbChildSlot
@@ -21,6 +23,7 @@ namespace Bagira.Map.Definitions.Tkb
     /// <summary>
     /// Composite unit (ORBAT) definition with subordinate slots.
     /// </summary>
+    [ComponentId(GlobalComponentIds.TkbCompositionDef)]
     public class TkbCompositionDef
     {
         /// <summary>

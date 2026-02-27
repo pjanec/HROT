@@ -13,13 +13,16 @@ using Bagira.IG.Translators;
 using Bagira.IG.UI;
 using Bagira.Map.Common;
 using Bagira.Map.Common.Commands;
+using Bagira.Map.Definitions.Tkb;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
+using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Transforms;
 using FDP.Toolkit.Lifecycle;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication;
+using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
@@ -81,6 +84,9 @@ public class IgApplication
     // ── Headless flag — set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
     private bool _headless;
 
+    // ── Optional domain override (tests) ─────────────────────────────────────
+    private int? _domainOverride;
+
     // ── Task 5: IG-to-IOS event translator state ──────────────────────────────────────────────
     private WGS84Transform?                  _geoTransform;
     private BdcCommandGateway?               _commandGateway;
@@ -119,9 +125,10 @@ public class IgApplication
     /// Pass <paramref name="headless"/> = <c>true</c> to skip all Raylib/ImGui calls
     /// even during <see cref="Update"/>.
     /// </summary>
-    public void InitializeEmbedded(bool headless = false)
+    public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null)
     {
         _headless = headless;
+        _domainOverride = domainIdOverride;
         _camera = new MapCamera
         {
             MinZoom   = IgCameraConstants.MinZoom,
@@ -143,8 +150,10 @@ public class IgApplication
         _canvas.Camera = _camera;
 
         InitializeEcs();
-        InitializeNetwork(enableNetwork: true);
+        InitializeNetwork(enableNetwork: true, domainIdOverride: _domainOverride);
     }
+
+    public EntityRepository World => _world;
 
     // -------------------------------------------------------------------------
 
@@ -164,6 +173,16 @@ public class IgApplication
         _world.RegisterComponent<ResolvedStyle>();
         _world.RegisterComponent<CullingState>();
         _world.RegisterComponent<SelectionState>();
+        _world.RegisterComponent<NetworkIdentity>();
+        _world.RegisterComponent<NetworkOwnership>();
+        _world.RegisterComponent<NetworkAuthority>();
+        _world.RegisterComponent<NetworkSpawnRequest>();
+        _world.RegisterComponent<PendingNetworkAck>();
+        _world.RegisterComponent<SimTransform>();
+        _world.RegisterComponent<SimVelocity>();
+        _world.RegisterComponent<GeoTransform>();
+        _world.RegisterComponent<GeoVelocity>();
+        _world.RegisterComponent<EntityMaster>();
 
         // IG4 — Advanced Features components
         _world.RegisterComponent<HistoryTrail>();
@@ -171,6 +190,7 @@ public class IgApplication
         _world.RegisterComponent<TracerTarget>();
         _world.RegisterManagedComponent<ContextMenuState>();
         _world.RegisterManagedComponent<EditablePolyline>();
+        _world.RegisterManagedComponent<IgVisualDef>();
 
         // IG4 — Events
         _world.RegisterEvent<FireInteractionEvent>();
@@ -193,15 +213,17 @@ public class IgApplication
     /// Registers all modules and sets up the DDS participant (unless <paramref name="enableNetwork"/>
     /// is <c>false</c>).  Call after <see cref="InitializeEcs"/>.
     /// </summary>
-    private void InitializeNetwork(bool enableNetwork)
+    private void InitializeNetwork(bool enableNetwork, int? domainIdOverride)
     {
         _networkEnabled = enableNetwork;
 
-        var tkb = BagiraEnvironment.CreateTkb();
+        var domainId = domainIdOverride ?? IgNetworkConstants.DdsDomain;
+
+        var tkb = BagiraEnvironment.CreateTkb(BdcTkbCatalog.RegisterAll);
         _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
 
         var nodeMapper = new NodeIdMapper(
-            localDomain:   IgNetworkConstants.DdsDomain,
+            localDomain:   domainId,
             localInstance: IgNetworkConstants.InstanceId);
 
         var topology = new StaticNetworkTopology(
@@ -244,7 +266,7 @@ public class IgApplication
         {
             try
             {
-                var participant = BagiraEnvironment.CreateParticipant(IgNetworkConstants.DdsDomain);
+                var participant = BagiraEnvironment.CreateParticipant(domainId);
 
                 // Task 5: Create command gateway, click writer and config reader.
                 _commandGateway = new BdcCommandGateway(participant);
@@ -361,6 +383,8 @@ public class IgApplication
             {
                 if (!sample.IsValid) continue;
                 _activeContextId = sample.Data.ActiveContextId;
+                FdpLog<IgApplication>.Debug(
+                    $"[TRACE-IG] MapInteractionConfig: ActiveContextId={_activeContextId}");
             }
         }
 

@@ -25,9 +25,11 @@ using ModuleHost.Network.Cyclone.Services;
 using ModuleHost.Network.Cyclone.Translators;
 using Bagira.BDC.SSTD;
 using Bagira.Map.Common;
+using Bagira.Map.Definitions.Tkb;
 using Bagira.SimHost.Components;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
+using Bagira.SimHost.Systems;
 using Bagira.SimHost.Utilities;
 using CarKinem.Commands;
 using CarKinem.Road;
@@ -68,6 +70,16 @@ namespace Bagira.SimHost
         // ── SimLogic ─────────────────────────────────────────────────────────
         private SimulationLogicModule? _simLogicModule;
 
+        // ── Headless/test support ────────────────────────────────────────────
+        private bool _headless;
+        private int? _domainOverride;
+
+        public new EntityRepository World => base.World
+            ?? throw new InvalidOperationException("SimHostApp is not initialized.");
+
+        public new ModuleHostKernel Kernel => base.Kernel
+            ?? throw new InvalidOperationException("SimHostApp is not initialized.");
+
         // ── Constructor ───────────────────────────────────────────────────────
 
         public SimHostApp() : base(new ApplicationConfig
@@ -90,7 +102,8 @@ namespace Bagira.SimHost
 
             // ── 1. Load configuration ─────────────────────────────────────────
             var config = SimHostConfig.Load("config.json");
-            Logger.Info($"[SimHost] Domain ID:       {config.DomainId}");
+            var domainId = _domainOverride ?? config.DomainId;
+            Logger.Info($"[SimHost] Domain ID:       {domainId}");
             Logger.Info($"[SimHost] Simulation Rate: {config.SimulationRateHz} Hz");
 
             // ── 2. ECS world ──────────────────────────────────────────────────
@@ -99,6 +112,8 @@ namespace Bagira.SimHost
 
             var eventAccumulator = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, eventAccumulator);
+            base.World = _world;
+            base.Kernel = _kernel;
 
             // ── 3. Time controller ────────────────────────────────────────────
             var eventBus   = new FdpEventBus();
@@ -108,8 +123,8 @@ namespace Bagira.SimHost
             _kernel.SetTimeController(timeCtrl);
 
             // ── 4. Data services ──────────────────────────────────────────────
-            var ddsParticipant = BagiraEnvironment.CreateParticipant(config.DomainId);
-            var tkbDb          = BagiraEnvironment.CreateTkb();
+            var ddsParticipant = BagiraEnvironment.CreateParticipant(domainId);
+            var tkbDb          = BagiraEnvironment.CreateTkb(BdcTkbCatalog.RegisterAll);
             var entityMap      = new NetworkEntityMap();
             _idAllocator       = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
 
@@ -174,7 +189,7 @@ namespace Bagira.SimHost
             translators.Add(new AutoCycloneTranslator<EntityMaster>(ddsParticipant, "EntityMaster", 0, entityMap));
 
             var localNodeId = SimHostNetworkConstants.LocalNodeId;
-            var nodeMapper  = new NodeIdMapper(0, localNodeId);
+            var nodeMapper  = new NodeIdMapper(domainId, localNodeId);
             var topology    = new StaticNetworkTopology(localNodeId, new[] { localNodeId });
 
             var cycloneModule = new CycloneNetworkModule(
@@ -183,20 +198,25 @@ namespace Bagira.SimHost
                 sharedEntityMap:   entityMap);
             _kernel.RegisterModule(cycloneModule);
 
+            _kernel.RegisterGlobalSystem(new EntityMasterAuthoritySystem(SimHostNetworkConstants.LocalNodeId));
+
             // ── 11. Kernel init ───────────────────────────────────────────────
             _kernel.Initialize();
             Logger.Info("[SimHost] Kernel initialized.");
 
             // ── 12. Visualization ─────────────────────────────────────────────
-            _vis = new SimHostVisualization();
-            _vis.Initialize(
-                _world,
-                _kernel,
-                _simLogicModule.RoadNetwork,
-                _simLogicModule.TrajectoryPool,
-                _simLogicModule.FormationTemplates);
+            if (!_headless)
+            {
+                _vis = new SimHostVisualization();
+                _vis.Initialize(
+                    _world,
+                    _kernel,
+                    _simLogicModule.RoadNetwork,
+                    _simLogicModule.TrajectoryPool,
+                    _simLogicModule.FormationTemplates);
 
-            Logger.Info("[SimHost] Visualization ready. Window open.");
+                Logger.Info("[SimHost] Visualization ready. Window open.");
+            }
         }
 
         protected override void OnUpdate(float dt)
@@ -223,7 +243,24 @@ namespace Bagira.SimHost
             _idAllocator?.Dispose();
             _kernelGroup?.Dispose();
             Logger.Info("[SimHost] Shutdown complete.");
+            base.OnUnload();
         }
+
+        /// <summary>
+        /// Initializes the SimHost application without creating a Raylib window.
+        /// Intended for integration tests and headless runners.
+        /// </summary>
+        public void InitializeHeadless(int? domainIdOverride = null)
+        {
+            _headless = true;
+            _domainOverride = domainIdOverride;
+            OnLoad();
+        }
+
+        /// <summary>
+        /// Advances the SimHost kernel by one tick.
+        /// </summary>
+        public void Tick(float dt) => OnUpdate(dt);
 
         // ── Component registration ────────────────────────────────────────────
 
@@ -269,6 +306,10 @@ namespace Bagira.SimHost
 
             // Managed
             world.RegisterManagedComponent<EntityMissionHolder>();
+            world.RegisterManagedComponent<IgVisualDef>();
+            world.RegisterManagedComponent<SimVehicleDef>();
+            world.RegisterManagedComponent<SimCombatDef>();
+            world.RegisterManagedComponent<TkbCompositionDef>();
 
             // Lifecycle events
             world.RegisterEvent<ConstructionOrder>();

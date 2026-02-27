@@ -2,6 +2,7 @@ using Bagira.BDC.SSTM;
 using FDP.Toolkit.Commands;
 using CycloneDDS.Core;
 using CycloneDDS.Runtime;
+using FDP.Kernel.Logging;
 using System;
 using System.Threading.Tasks;
 
@@ -49,7 +50,12 @@ namespace Bagira.Map.Common.Commands
                 request.RequestId = Guid.NewGuid();
             }
 
-            return await _createEntityClient.SendAsync(request, timeoutMs);
+            FdpLog<BdcCommandGateway>.Debug($"[TRACE-GW] Sending CreateEntityRequest ID={request.RequestId}");
+
+            var ack = await _createEntityClient.SendAsync(request, timeoutMs);
+            FdpLog<BdcCommandGateway>.Debug(
+                $"[TRACE-GW] CreateEntityAck ID={ack.RequestId} Entity={ack.NewEntityId} Error={ack.ErrorCode}");
+            return ack;
         }
 
         public void Dispose()

@@ -2,7 +2,6 @@ using CycloneDDS.Runtime;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Tkb;
 using System;
-using System.Reflection;
 
 namespace Bagira.Map.Common
 {
@@ -14,12 +13,11 @@ namespace Bagira.Map.Common
         private const double BerlinLatitudeDeg = 52.52;
         private const double BerlinLongitudeDeg = 13.405;
         private const double BerlinAltitudeMeters = 0.0;
-        private const string TkbCatalogTypeName = "Bagira.Map.Definitions.Tkb.BdcTkbCatalog, Bagira.Map.Definitions";
 
-        public static TkbDatabase CreateTkb()
+        public static TkbDatabase CreateTkb(Action<TkbDatabase>? registerCatalogs = null)
         {
             var tkb = new TkbDatabase();
-            RegisterBdcCatalog(tkb);
+            registerCatalogs?.Invoke(tkb);
             return tkb;
         }
 
@@ -33,25 +31,6 @@ namespace Bagira.Map.Common
         public static DdsParticipant CreateParticipant(int domainId)
         {
             return new DdsParticipant((uint)domainId);
-        }
-
-        private static void RegisterBdcCatalog(TkbDatabase tkb)
-        {
-            var catalogType = Type.GetType(TkbCatalogTypeName, throwOnError: false);
-            if (catalogType == null)
-                throw new InvalidOperationException("Could not load Bagira.Map.Definitions TKB catalog type.");
-
-            var registerAll = catalogType.GetMethod(
-                "RegisterAll",
-                BindingFlags.Public | BindingFlags.Static,
-                binder: null,
-                types: new[] { typeof(TkbDatabase) },
-                modifiers: null);
-
-            if (registerAll == null)
-                throw new InvalidOperationException("Could not find BdcTkbCatalog.RegisterAll(TkbDatabase) method.");
-
-            registerAll.Invoke(null, new object[] { tkb });
         }
     }
 }

@@ -6,6 +6,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
@@ -18,7 +19,7 @@ namespace Bagira.SimHost.Translators
     /// Reads <see cref="GeoTransform"/> + <see cref="GeoVelocity"/> ECS components
     /// and publishes <see cref="GeoSpatial"/> / <see cref="GeoSpatialDR"/> DDS topics.
     ///
-    /// This is a thin, application-layer egress translator — it keeps
+    /// This is a thin, application-layer egress translator ï¿½ it keeps
     /// <c>Bagira.BDC.SSTD</c> types out of the shared Geographic toolkit.
     /// Same pattern as <c>FastGeodeticTranslator</c> in NetworkDemo.
     ///
@@ -38,12 +39,12 @@ namespace Bagira.SimHost.Translators
         }
 
         /// <summary>
-        /// Inbound decode — not used by SimHost (authority node).
+        /// Inbound decode ï¿½ not used by SimHost (authority node).
         /// SimHost owns GeoTransform; remote updates come via GeodeticSmoothingSystem.
         /// </summary>
         protected override void Decode(in GeoSpatial data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            // SimHost is the authority — inbound GeoSpatial is not expected.
+            // SimHost is the authority ï¿½ inbound GeoSpatial is not expected.
             // If needed for multi-SimHost scenarios, add ingress here.
         }
 
@@ -90,6 +91,9 @@ namespace Bagira.SimHost.Translators
                     },
                 });
 
+                FdpLog<GeoSpatialEgressTranslator>.Debug(
+                    $"[TRACE-SH] Egress: Writing GeoSpatial for NetID={netId.Value} pos=({geoTf.Latitude},{geoTf.Longitude})");
+
                 // ?? GeoSpatialDR ??????????????????????????????????????????????
                 if (view.HasComponent<GeoVelocity>(entity))
                 {
@@ -121,7 +125,7 @@ namespace Bagira.SimHost.Translators
         /// <inheritdoc/>
         public override void ApplyToEntity(Entity entity, object data, EntityRepository repo)
         {
-            // Not used — SimHost is the authority for GeoSpatial.
+            // Not used ï¿½ SimHost is the authority for GeoSpatial.
         }
 
         // ?? Helpers ???????????????????????????????????????????????????????????

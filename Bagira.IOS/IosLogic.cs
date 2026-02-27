@@ -4,6 +4,7 @@ using Bagira.DDS.DM;
 using Bagira.IOS.Logic;
 using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
 using Newtonsoft.Json;
 
@@ -167,6 +168,9 @@ public sealed class IosLogic : IIosLogic, IDisposable
             ConfigurationJson   = patch
         });
 
+        FdpLog<IosLogic>.Debug(
+            $"[TRACE-IOS] Placement Mode ON. ContextId={ActiveContextId} TKB={tkbType}");
+
         _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicConfig,
             $"PLACEMENT tkb={tkbType} ctx={ActiveContextId:N}");
     }
@@ -232,6 +236,9 @@ public sealed class IosLogic : IIosLogic, IDisposable
     {
         while (_clickQueue.TryDequeue(out var evt))
         {
+            FdpLog<IosLogic>.Debug(
+                $"[TRACE-IOS] MapClickEvent ContextId={evt.InteractionContextId} (expected {ActiveContextId})");
+
             // Drop stale clicks: context ID must match the one we published.
             if (evt.InteractionContextId != ActiveContextId)
             {

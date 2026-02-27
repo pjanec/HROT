@@ -33,11 +33,11 @@
 
 ---
 
-## Phase 3: Debug Instrumentation & End-to-End Validation
+## Phase 3: Debug Instrumentation & End-to-End Validation [COMPLETED]
 
 **Goal:** Add structured trace logging at all major data-flow boundaries; validate the complete fixed stack with an automated integration test.
 
-- [ ] **INTS-P3-011** Trace Logging: SimHost Entity Spawn (Flow 1) [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-011--trace-logging-simhost-entity-spawn-flow-1)
-- [ ] **INTS-P3-012** Trace Logging: IG Entity Ingress & Render (Flow 2) [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-012--trace-logging-ig-entity-ingress--render-flow-2)
-- [ ] **INTS-P3-013** Trace Logging: IG Map Drawings & IOS Interactions (Flows 3–6) [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-013--trace-logging-ig-map-drawings--ios-interactions-flows-36)
-- [ ] **INTS-P3-014** Integration Test: End-to-End Entity Lifecycle [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-014--integration-test-end-to-end-entity-lifecycle)
+- [x] **INTS-P3-011** Trace Logging: SimHost Entity Spawn (Flow 1) [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-011--trace-logging-simhost-entity-spawn-flow-1)
+- [x] **INTS-P3-012** Trace Logging: IG Entity Ingress & Render (Flow 2) [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-012--trace-logging-ig-entity-ingress--render-flow-2)
+- [x] **INTS-P3-013** Trace Logging: IG Map Drawings & IOS Interactions (Flows 3–6) [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-013--trace-logging-ig-map-drawings--ios-interactions-flows-36)
+- [x] **INTS-P3-014** Integration Test: End-to-End Entity Lifecycle [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-014--integration-test-end-to-end-entity-lifecycle)

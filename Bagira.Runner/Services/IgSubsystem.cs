@@ -35,7 +35,8 @@ namespace Bagira.Runner.Services
             _headless = config.Headless;
             _app = new IgApplication();
             // Orchestrator owns the Raylib window; IG sets up ECS + DDS only.
-            _app.InitializeEmbedded(headless: config.Headless);
+            int? domainOverride = config.DomainId > 0 ? config.DomainId : null;
+            _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride);
         }
 
         /// <inheritdoc/>

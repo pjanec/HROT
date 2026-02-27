@@ -1,3 +1,5 @@
+using Fdp.Kernel;
+
 namespace Bagira.Map.Definitions.Tkb
 {
     public struct WeaponMount
@@ -27,6 +29,7 @@ namespace Bagira.Map.Definitions.Tkb
     /// Combat properties (weapons, armor, sensors).
     /// NOTE: Stubbed for future combat module integration.
     /// </summary>
+    [ComponentId(GlobalComponentIds.SimCombatDef)]
     public class SimCombatDef
     {
         /// <summary>

@@ -1,5 +1,7 @@
 namespace Bagira.IOS.Services;
 
+using FDP.Kernel.Logging;
+
 /// <summary>
 /// Thread-safe implementation of <see cref="IRequestTransactionManager"/>.
 ///
@@ -62,6 +64,9 @@ public sealed class RequestTransactionManager : IRequestTransactionManager
         req.IsResolved        = true;
         req.Succeeded         = success;
         req.ResolutionMessage = message;
+
+        FdpLog<RequestTransactionManager>.Debug(
+            $"[TRACE-IOS] TxMgr Request {requestId} completed Success={success}");
     }
 
     /// <inheritdoc/>
@@ -81,6 +86,9 @@ public sealed class RequestTransactionManager : IRequestTransactionManager
             .ToList();
 
         foreach (var id in timedOut)
+        {
+            FdpLog<RequestTransactionManager>.Warn($"[TRACE-IOS] WARNING: Request {id} timed out");
             CompleteRequest(id, false, "Timeout");
+        }
     }
 }
