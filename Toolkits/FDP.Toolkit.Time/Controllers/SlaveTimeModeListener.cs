@@ -60,12 +60,18 @@ namespace FDP.Toolkit.Time.Controllers
                 _pendingBarrierFrame = evt.BarrierFrame;
                 _pendingEvent = evt;
                 
-                FdpLog<SlaveTimeModeListener>.Info($"[Slave] Received Pause Request. Barrier Frame: {evt.BarrierFrame} (Current: {_kernel.CurrentTime.FrameNumber})");
+                FdpLog<SlaveTimeModeListener>.Info(
+                    "[Slave] Received Pause Request. Barrier Frame: {0} (Current: {1})",
+                    evt.BarrierFrame,
+                    _kernel.CurrentTime.FrameNumber);
                 
                 // Safety check: If we are already past the barrier (latency > lookahead), we must snap IMMEDIATELY
                 if (_kernel.CurrentTime.FrameNumber >= evt.BarrierFrame)
                 {
-                     FdpLog<SlaveTimeModeListener>.Warn($"[Slave] Warning: Already past barrier ({_kernel.CurrentTime.FrameNumber} >= {evt.BarrierFrame}). Swapping immediately.");
+                     FdpLog<SlaveTimeModeListener>.Warn(
+                         "[Slave] Warning: Already past barrier ({0} >= {1}). Swapping immediately.",
+                         _kernel.CurrentTime.FrameNumber,
+                         evt.BarrierFrame);
                      ExecuteSwapToDeterministic(evt);
                      _pendingBarrierFrame = -1;
                      _pendingEvent = null;
@@ -80,7 +86,7 @@ namespace FDP.Toolkit.Time.Controllers
         
         private void ExecuteSwapToDeterministic(SwitchTimeModeEvent evt)
         {
-            FdpLog<SlaveTimeModeListener>.Info($"[Slave] Barrier Reached. Swapping to SteppedSlaveController.");
+            FdpLog<SlaveTimeModeListener>.Info("[Slave] Barrier Reached. Swapping to SteppedSlaveController.");
             
             // 1. Create SteppedSlave
             // Use config values or event values?
@@ -109,7 +115,7 @@ namespace FDP.Toolkit.Time.Controllers
         
         private void ExecuteSwapToContinuous(SwitchTimeModeEvent evt)
         {
-            FdpLog<SlaveTimeModeListener>.Info($"[Slave] Unpausing to Continuous Mode.");
+            FdpLog<SlaveTimeModeListener>.Info("[Slave] Unpausing to Continuous Mode.");
             
             var slave = new SlaveTimeController(_eventBus, _config.SyncConfig);
             

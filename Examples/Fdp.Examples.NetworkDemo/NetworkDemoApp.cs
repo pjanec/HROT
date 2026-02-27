@@ -99,7 +99,7 @@ namespace Fdp.Examples.NetworkDemo
         {
             using (ScopeContext.PushProperty("NodeId", nodeId))
             {
-            FdpLog<NetworkDemoApp>.Info($"Starting Node {nodeId}...");
+            FdpLog<NetworkDemoApp>.Info("Starting Node {0}...", nodeId);
             instanceId = nodeId;
             isReplay = replayMode;
             recordingPath = recPath ?? $"node_{instanceId}.fdp";
@@ -108,7 +108,12 @@ namespace Fdp.Examples.NetworkDemo
             string nodeName = instanceId == 100 ? "Alpha" : "Bravo";
             
             FdpLog<NetworkDemoApp>.Info("==========================================");
-            FdpLog<NetworkDemoApp>.Info($"  Network Demo - {nodeName} (ID: {instanceId}) [{ (isReplay ? "REPLAY" : "LIVE") }]");
+            var modeLabel = isReplay ? "REPLAY" : "LIVE";
+            FdpLog<NetworkDemoApp>.Info(
+                "  Network Demo - {0} (ID: {1}) [{2}]",
+                nodeName,
+                instanceId,
+                modeLabel);
             FdpLog<NetworkDemoApp>.Info("==========================================");
             
             // Common Setup
@@ -269,11 +274,15 @@ namespace Fdp.Examples.NetworkDemo
                 try 
                 {
                    meta = MetadataManager.Load(metaPath);
-                   FdpLog<NetworkDemoApp>.Info($"[Replay] Loaded metadata (MaxID: {meta.MaxEntityId})");
+                   FdpLog<NetworkDemoApp>.Info(
+                       "[Replay] Loaded metadata (MaxID: {0})",
+                       meta.MaxEntityId);
                 } 
                 catch (Exception ex)
                 {
-                    FdpLog<NetworkDemoApp>.Warn($"[Replay] Metadata load failed ({ex.Message}). Using default range.");
+                    FdpLog<NetworkDemoApp>.Warn(
+                        "[Replay] Metadata load failed ({0}). Using default range.",
+                        ex.Message);
                     meta = new Fdp.Examples.NetworkDemo.Configuration.RecordingMetadata { MaxEntityId = 1_000_000 };
                 }
 
@@ -287,7 +296,9 @@ namespace Fdp.Examples.NetworkDemo
             else
             {
                 World.ReserveIdRange(FdpConfig.SYSTEM_ID_RANGE);
-                FdpLog<NetworkDemoApp>.Info($"[Init] Reserved ID range 0-{FdpConfig.SYSTEM_ID_RANGE}");
+                FdpLog<NetworkDemoApp>.Info(
+                    "[Init] Reserved ID range 0-{0}",
+                    FdpConfig.SYSTEM_ID_RANGE);
             }
 
             Kernel.RegisterModule(new BridgeModule(eventBus, replaySystem, localInternalId, instanceId == 100));
@@ -338,7 +349,9 @@ namespace Fdp.Examples.NetworkDemo
                      World.SetAuthority<Fdp.Examples.NetworkDemo.Components.TimeModeComponent>(entity, true);
                  }
 
-                 FdpLog<NetworkDemoApp>.Info($"[INIT] Time Sync Entity Created (ID 999) [Local:{localInternalId}]");
+                 FdpLog<NetworkDemoApp>.Info(
+                     "[INIT] Time Sync Entity Created (ID 999) [Local:{0}]",
+                     localInternalId);
             }
             
             FdpLog<NetworkDemoApp>.Info("[INIT] Kernel initialized");
@@ -353,11 +366,13 @@ namespace Fdp.Examples.NetworkDemo
                  if (autoSpawn)
                  {
                      SpawnLocalEntities(World, tkb, instanceId, localInternalId);
-                     FdpLog<NetworkDemoApp>.Info($"[SPAWN] Auto-spawn queued for {instanceId} (processed next frame)");
+                     FdpLog<NetworkDemoApp>.Info(
+                         "[SPAWN] Auto-spawn queued for {0} (processed next frame)",
+                         instanceId);
                  }
                  else
                  {
-                     FdpLog<NetworkDemoApp>.Info($"[SPAWN] Auto-spawn disabled for testing/demo control");
+                     FdpLog<NetworkDemoApp>.Info("[SPAWN] Auto-spawn disabled for testing/demo control");
                  }
             }
             } // End ScopeContext
@@ -395,7 +410,7 @@ namespace Fdp.Examples.NetworkDemo
                 }
                 catch (Exception ex)
                 {
-                    FdpLog<NetworkDemoApp>.Error($"Error executing queued action: {ex}");
+                    FdpLog<NetworkDemoApp>.Error("Error executing queued action: {0}", ex);
                 }
             }
 
@@ -437,11 +452,15 @@ namespace Fdp.Examples.NetworkDemo
                 try
                 {
                     MetadataManager.Save(recordingPath + ".meta", meta);
-                    FdpLog<NetworkDemoApp>.Info($"[Recorder] Saved metadata to {recordingPath}.meta");
+                    FdpLog<NetworkDemoApp>.Info(
+                        "[Recorder] Saved metadata to {0}.meta",
+                        recordingPath);
                 } 
                 catch (Exception ex)
                 {
-                    FdpLog<NetworkDemoApp>.Error($"[Recorder] Failed to save metadata: {ex.Message}");
+                    FdpLog<NetworkDemoApp>.Error(
+                        "[Recorder] Failed to save metadata: {0}",
+                        ex.Message);
                 }
             }
             
@@ -497,7 +516,10 @@ namespace Fdp.Examples.NetworkDemo
                 }
             });
 
-            FdpLog<NetworkDemoApp>.Info($"[SPAWN] Published SpawnEntityCommand for TkbType={template.TkbType}, NetworkId={netId}");
+            FdpLog<NetworkDemoApp>.Info(
+                "[SPAWN] Published SpawnEntityCommand for TkbType={0}, NetworkId={1}",
+                template.TkbType,
+                netId);
         }
 
         // Helper: PrintStatus
@@ -508,7 +530,7 @@ namespace Fdp.Examples.NetworkDemo
                 .With<FDP.Toolkit.Replication.Components.NetworkAuthority>() // Use Authority
                 .Build();
 
-            FdpLog<NetworkDemoApp>.Info($"[STATUS] Frame snapshot:");
+            FdpLog<NetworkDemoApp>.Info("[STATUS] Frame snapshot:");
             
             int localCount = 0;
             int remoteCount = 0;
@@ -522,7 +544,7 @@ namespace Fdp.Examples.NetworkDemo
                  if (world.HasComponent<ModuleHost.Core.Network.NetworkOwnership>(e))
                  {
                      ref readonly var own = ref world.GetComponentRO<ModuleHost.Core.Network.NetworkOwnership>(e);
-                     ownershipInfo = $"Own(P:{own.PrimaryOwnerId} L:{own.LocalNodeId})";
+                     ownershipInfo = string.Concat("Own(P:", own.PrimaryOwnerId, " L:", own.LocalNodeId, ")");
                  }
 
                  string typeName = "Unknown";
@@ -533,17 +555,20 @@ namespace Fdp.Examples.NetworkDemo
                  else if (world.HasComponent<NetworkPosition>(e)) pos = world.GetComponent<NetworkPosition>(e).Value;
 
                  bool isLocal = auth.PrimaryOwnerId == localInstanceId;
-                 string ownerStr = isLocal ? "LOCAL" : $"REMOTE({auth.PrimaryOwnerId})";
+                 string ownerStr = isLocal ? "LOCAL" : string.Concat("REMOTE(", auth.PrimaryOwnerId, ")");
                  
                  if (isLocal) localCount++; else remoteCount++;
 
-                 FdpLog<NetworkDemoApp>.Info($"  [{ownerStr}] {typeName,-12} " +
-                                $"Pos: ({pos.X:F1}, {pos.Y:F1}, {pos.Z:F1}) " +
-                                $"NetID: {netId.Value} " +
-                                $"{ownershipInfo}");
+                 var typeLabel = string.Format("{0,-12}", typeName);
+                 var posLabel = string.Format("Pos: ({0:F1}, {1:F1}, {2:F1})", pos.X, pos.Y, pos.Z);
+                 var line = string.Concat("  [", ownerStr, "] ", typeLabel, " ", posLabel, " NetID: ", netId.Value, " ", ownershipInfo);
+                 FdpLog<NetworkDemoApp>.Info(line);
             }
             
-            FdpLog<NetworkDemoApp>.Info($"[STATUS] Local: {localCount}, Remote: {remoteCount}");
+            FdpLog<NetworkDemoApp>.Info(
+                "[STATUS] Local: {0}, Remote: {1}",
+                localCount,
+                remoteCount);
         }
 
         /// <summary>

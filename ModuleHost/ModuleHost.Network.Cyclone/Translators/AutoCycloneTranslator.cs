@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Utilities;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
@@ -22,6 +24,7 @@ namespace ModuleHost.Network.Cyclone.Translators
         private readonly DdsReader<T> _reader;
         private readonly DdsWriter<T> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly HashSet<long> _tracedNetIds = new();
 
         public string TopicName { get; }
         public long DescriptorOrdinal { get; }
@@ -131,6 +134,11 @@ namespace ModuleHost.Network.Cyclone.Translators
                 T copy = component;
                 UnsafeLayout<T>.WriteId(&copy, netId.Value);
 
+                if (_tracedNetIds.Add(netId.Value))
+                {
+                    FdpLog<AutoCycloneTranslator<T>>.Debug(
+                        "[TRACE-EGRESS] Publishing {0} for NetID={1}", TopicName, netId.Value);
+                }
 
                 _writer.Write(copy);
             }

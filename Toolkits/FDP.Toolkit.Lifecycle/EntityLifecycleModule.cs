@@ -195,10 +195,12 @@ namespace FDP.Toolkit.Lifecycle
             
             if (pending.RemainingAcks.Count == 0)
             {
+                FdpLog<EntityLifecycleModule>.Debug(
+                    "[TRACE-SH] ELM: Entity {0} received all ACKs. Promoting to Active.", ack.Entity.Index);
                 // All ACKs received - activate entity
                 cmd.SetLifecycleState(ack.Entity, EntityLifecycle.Active);
                 FdpLog<EntityLifecycleModule>.Debug(
-                    $"[TRACE-SH] ELM: Entity {ack.Entity.Index} promoted to Active");
+                    "[TRACE-SH] ELM: Entity {0} promoted to Active", ack.Entity.Index);
                 _pendingConstruction.Remove(ack.Entity);
                 _totalConstructed++;
             }

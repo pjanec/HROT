@@ -59,14 +59,19 @@ namespace ModuleHost.Network.Cyclone.Systems
             {
                 foreach (var netId in toRemove)
                 {
-                    FdpLog<CycloneNetworkCleanupSystem>.Info($"Detected entity destruction {netId}, sending dispose.");
+                    FdpLog<CycloneNetworkCleanupSystem>.Info(
+                        "Detected entity destruction {0}, sending dispose.",
+                        netId);
                     try 
                     {
                         _translator.Dispose(netId);
                     }
                     catch (Exception ex)
                     {
-                         FdpLog<CycloneNetworkCleanupSystem>.Error($"Failed to dispose entity {netId}: {ex.Message}");
+                         FdpLog<CycloneNetworkCleanupSystem>.Error(
+                             "Failed to dispose entity {0}: {1}",
+                             netId,
+                             ex.Message);
                     }
                     _trackedEntities.Remove(netId);
                 }

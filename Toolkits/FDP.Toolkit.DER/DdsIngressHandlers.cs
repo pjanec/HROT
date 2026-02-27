@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using CycloneDDS.Runtime;
+using FDP.Kernel.Logging;
 
 namespace FDP.Toolkit.DER
 {
@@ -47,6 +48,8 @@ namespace FDP.Toolkit.DER
                 if (sample.IsValid)
                 {
                     int id = _getEntityId(sample.Data);
+                    FdpLog<MasterIngressHandler<T>>.Debug(
+                        "[TRACE-IOS] DER: Received EntityMaster for NetID {0}. Storing in Repo.", id);
                     _handleMap[handle] = id;
                     
                     var entity = _repo.GetEntity(id) ?? _repo.CreateEntity(id, _getTkbType(sample.Data));

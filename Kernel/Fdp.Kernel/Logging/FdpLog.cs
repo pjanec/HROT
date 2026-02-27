@@ -42,6 +42,12 @@ namespace FDP.Kernel.Logging
         /// </summary>
         public static bool IsWarnEnabled => _logger.IsWarnEnabled;
 
+        /// <summary>
+        /// Gets whether Error level logging is enabled.
+        /// Check this before performing expensive string operations.
+        /// </summary>
+        public static bool IsErrorEnabled => _logger.IsErrorEnabled;
+
         // --- LOGGING METHODS ---
         
         /// <summary>
@@ -75,6 +81,26 @@ namespace FDP.Kernel.Logging
         }
 
         /// <summary>
+        /// Logs a trace message with three arguments.
+        /// Avoids params array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Trace(string format, object arg0, object arg1, object arg2)
+        {
+            if (_logger.IsTraceEnabled) _logger.Trace(format, arg0, arg1, arg2);
+        }
+
+        /// <summary>
+        /// Logs a trace message with four arguments.
+        /// Avoids params array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Trace(string format, object arg0, object arg1, object arg2, object arg3)
+        {
+            if (_logger.IsTraceEnabled) _logger.Trace(format, arg0, arg1, arg2, arg3);
+        }
+
+        /// <summary>
         /// Logs a debug message. Use for important state changes and entity operations.
         /// Consider guarding with IsDebugEnabled check for expensive operations.
         /// </summary>
@@ -102,6 +128,26 @@ namespace FDP.Kernel.Logging
         public static void Debug(string format, object arg0, object arg1)
         {
             if (_logger.IsDebugEnabled) _logger.Debug(format, arg0, arg1);
+        }
+
+        /// <summary>
+        /// Logs a debug message with three arguments.
+        /// Avoids params array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Debug(string format, object arg0, object arg1, object arg2)
+        {
+            if (_logger.IsDebugEnabled) _logger.Debug(format, arg0, arg1, arg2);
+        }
+
+        /// <summary>
+        /// Logs a debug message with four arguments.
+        /// Avoids params array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Debug(string format, object arg0, object arg1, object arg2, object arg3)
+        {
+            if (_logger.IsDebugEnabled) _logger.Debug(format, arg0, arg1, arg2, arg3);
         }
 
         /// <summary>
@@ -135,6 +181,26 @@ namespace FDP.Kernel.Logging
         }
 
         /// <summary>
+        /// Logs an info message with three arguments.
+        /// Avoids params array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Info(string format, object arg0, object arg1, object arg2)
+        {
+            if (_logger.IsInfoEnabled) _logger.Info(format, arg0, arg1, arg2);
+        }
+
+        /// <summary>
+        /// Logs an info message with four arguments.
+        /// Avoids params array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Info(string format, object arg0, object arg1, object arg2, object arg3)
+        {
+            if (_logger.IsInfoEnabled) _logger.Info(format, arg0, arg1, arg2, arg3);
+        }
+
+        /// <summary>
         /// Logs a warning message. Use for recoverable issues, missing data, timeouts.
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -151,6 +217,36 @@ namespace FDP.Kernel.Logging
         public static void Warn(string format, object arg0)
         {
             if (_logger.IsWarnEnabled) _logger.Warn(format, arg0);
+        }
+
+        /// <summary>
+        /// Logs a warning message with two arguments.
+        /// Avoids params array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Warn(string format, object arg0, object arg1)
+        {
+            if (_logger.IsWarnEnabled) _logger.Warn(format, arg0, arg1);
+        }
+
+        /// <summary>
+        /// Logs a warning message with three arguments.
+        /// Avoids params array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Warn(string format, object arg0, object arg1, object arg2)
+        {
+            if (_logger.IsWarnEnabled) _logger.Warn(format, arg0, arg1, arg2);
+        }
+
+        /// <summary>
+        /// Logs a warning message with four arguments.
+        /// Avoids params array allocation.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Warn(string format, object arg0, object arg1, object arg2, object arg3)
+        {
+            if (_logger.IsWarnEnabled) _logger.Warn(format, arg0, arg1, arg2, arg3);
         }
 
         /// <summary>
@@ -177,7 +273,34 @@ namespace FDP.Kernel.Logging
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Error(string format, object arg0)
         {
-            _logger.Error(format, arg0);
+            if (_logger.IsErrorEnabled) _logger.Error(format, arg0);
+        }
+
+        /// <summary>
+        /// Logs an error message with two arguments.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Error(string format, object arg0, object arg1)
+        {
+            if (_logger.IsErrorEnabled) _logger.Error(format, arg0, arg1);
+        }
+
+        /// <summary>
+        /// Logs an error message with three arguments.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Error(string format, object arg0, object arg1, object arg2)
+        {
+            if (_logger.IsErrorEnabled) _logger.Error(format, arg0, arg1, arg2);
+        }
+
+        /// <summary>
+        /// Logs an error message with four arguments.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Error(string format, object arg0, object arg1, object arg2, object arg3)
+        {
+            if (_logger.IsErrorEnabled) _logger.Error(format, arg0, arg1, arg2, arg3);
         }
     }
 }

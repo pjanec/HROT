@@ -91,9 +91,12 @@ namespace FDP.Toolkit.Time.Controllers
             };
             _eventBus.Publish(order);
             
-            var msg = $"[DEBUG-MASTER] Frame {_frameNumber}. Sent Order. Waiting for: {string.Join(",", _slaveNodeIds)}\n";
+            var slaveList = string.Join(",", _slaveNodeIds);
             // File output removed
-            FdpLog<SteppedMasterController>.Info(msg);
+            FdpLog<SteppedMasterController>.Info(
+                "[DEBUG-MASTER] Frame {0}. Sent Order. Waiting for: {1}",
+                _frameNumber,
+                slaveList);
             
             _lastFrameSequence = _frameNumber;
             _pendingAcks.UnionWith(_slaveNodeIds);
@@ -106,9 +109,14 @@ namespace FDP.Toolkit.Time.Controllers
         
         private void OnAckReceived(FrameAckDescriptor ack)
         {
-            var msg = $"[DEBUG-MASTER] Ack {ack.FrameID} from {ack.NodeID}. Need {_lastFrameSequence}. Pending: {string.Join(",", _pendingAcks)}\n";
+            var pendingList = string.Join(",", _pendingAcks);
             // File output removed
-            FdpLog<SteppedMasterController>.Info(msg);
+            FdpLog<SteppedMasterController>.Info(
+                "[DEBUG-MASTER] Ack {0} from {1}. Need {2}. Pending: {3}",
+                ack.FrameID,
+                ack.NodeID,
+                _lastFrameSequence,
+                pendingList);
             
             if (ack.FrameID == _lastFrameSequence)
             {
@@ -116,7 +124,9 @@ namespace FDP.Toolkit.Time.Controllers
                 {
                     if (_pendingAcks.Count == 0)
                     {
-                        FdpLog<SteppedMasterController>.Info($"[DEBUG-MASTER] Frame {_lastFrameSequence} CONFIRMED. Advancing.");
+                        FdpLog<SteppedMasterController>.Info(
+                            "[DEBUG-MASTER] Frame {0} CONFIRMED. Advancing.",
+                            _lastFrameSequence);
                         _waitingForAcks = false;
                     }
                 }

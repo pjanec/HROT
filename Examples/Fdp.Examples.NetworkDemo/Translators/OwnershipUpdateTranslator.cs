@@ -49,7 +49,10 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 }
                 catch (Exception ex)
                 {
-                    FdpLog<OwnershipUpdateTranslator>.Error($"Failed to map Internal ID {evt.NewOwnerNodeId} to External ID: {ex.Message}");
+                    FdpLog<OwnershipUpdateTranslator>.Error(
+                        "Failed to map Internal ID {0} to External ID: {1}",
+                        evt.NewOwnerNodeId,
+                        ex.Message);
                     continue; 
                 }
 

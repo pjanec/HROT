@@ -73,7 +73,9 @@ namespace ModuleHost.Network.Cyclone.Systems
                 if (!view.HasComponent<PendingNetworkAck>(evt.Entity))
                 {
                     if (FdpLog<NetworkGatewaySystem>.IsDebugEnabled)
-                        FdpLog<NetworkGatewaySystem>.Debug($"Entity {evt.Entity.Index} missing PendingNetworkAck. ACKing.");
+                        FdpLog<NetworkGatewaySystem>.Debug(
+                            "Entity {0} missing PendingNetworkAck. ACKing.",
+                            evt.Entity.Index);
                     // Fast mode - ACK immediately
                     _elm.AcknowledgeConstruction(evt.Entity, _gatewayModuleId, currentFrame, cmd);
                     continue;
@@ -86,12 +88,20 @@ namespace ModuleHost.Network.Cyclone.Systems
                 var peerSet = new HashSet<int>(expectedPeers);
                 
                 if (FdpLog<NetworkGatewaySystem>.IsDebugEnabled)
-                    FdpLog<NetworkGatewaySystem>.Debug($"Entity {evt.Entity.Index}: Reliable mode. Peers: {string.Join(",", peerSet)}");
+                {
+                    var peerList = string.Join(",", peerSet);
+                    FdpLog<NetworkGatewaySystem>.Debug(
+                        "Entity {0}: Reliable mode. Peers: {1}",
+                        evt.Entity.Index,
+                        peerList);
+                }
 
                 if (peerSet.Count == 0)
                 {
                     if (FdpLog<NetworkGatewaySystem>.IsDebugEnabled)
-                        FdpLog<NetworkGatewaySystem>.Debug($"Entity {evt.Entity.Index}: No peers. ACKing.");
+                        FdpLog<NetworkGatewaySystem>.Debug(
+                            "Entity {0}: No peers. ACKing.",
+                            evt.Entity.Index);
                     // No peers to wait for - ACK immediately
                     _elm.AcknowledgeConstruction(evt.Entity, _gatewayModuleId, currentFrame, cmd);
                     cmd.RemoveComponent<PendingNetworkAck>(evt.Entity);
@@ -99,7 +109,9 @@ namespace ModuleHost.Network.Cyclone.Systems
                 else
                 {
                     if (FdpLog<NetworkGatewaySystem>.IsDebugEnabled)
-                        FdpLog<NetworkGatewaySystem>.Debug($"Entity {evt.Entity.Index}: Waiting for ACKs.");
+                        FdpLog<NetworkGatewaySystem>.Debug(
+                            "Entity {0}: Waiting for ACKs.",
+                            evt.Entity.Index);
                     // Wait for peer ACKs
                     _pendingPeerAcks[evt.Entity] = peerSet;
                     _pendingStartFrame[evt.Entity] = currentFrame;

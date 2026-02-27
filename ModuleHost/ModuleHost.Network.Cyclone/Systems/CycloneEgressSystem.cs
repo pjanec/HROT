@@ -28,12 +28,12 @@ namespace ModuleHost.Network.Cyclone.Systems
             // Process force-publish requests first
             ProcessForcePublish(view);
             
-            //FDP.Kernel.Logging.FdpLog<CycloneEgressSystem>.Info($"Publishing via {_translators.Length} translators");
+            //FDP.Kernel.Logging.FdpLog<CycloneEgressSystem>.Info("Publishing via {0} translators", _translators.Length);
 
             // Normal periodic publishing
             for (int i = 0; i < _translators.Length; i++)
             {
-               // FDP.Kernel.Logging.FdpLog<CycloneEgressSystem>.Info($"Scanning {i}: {_translators[i].DescriptorOrdinal}");
+               // FDP.Kernel.Logging.FdpLog<CycloneEgressSystem>.Info("Scanning {0}: {1}", i, _translators[i].DescriptorOrdinal);
                 _translators[i].ScanAndPublish(view);
             }
         }

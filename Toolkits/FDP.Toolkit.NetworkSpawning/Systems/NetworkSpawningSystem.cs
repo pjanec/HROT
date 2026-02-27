@@ -40,6 +40,7 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
         private readonly INetworkIdAllocator _idAllocator;
         private readonly int _localNodeId;
         private readonly DisTypeExtractor? _disTypeExtractor;
+        private readonly Action<EntityRepository, Entity, bool>? _onEntitySpawned;
 
         /// <param name="tkbDb">TKB template registry.</param>
         /// <param name="elm">Entity lifecycle module that manages construction/destruction handshakes.</param>
@@ -64,7 +65,8 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             NetworkEntityMap networkMap,
             INetworkIdAllocator idAllocator,
             int localNodeId,
-            DisTypeExtractor? disTypeExtractor = null)
+            DisTypeExtractor? disTypeExtractor = null,
+            Action<EntityRepository, Entity, bool>? onEntitySpawned = null)
         {
             _tkbDb            = tkbDb       ?? throw new ArgumentNullException(nameof(tkbDb));
             _elm              = elm         ?? throw new ArgumentNullException(nameof(elm));
@@ -72,6 +74,7 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             _idAllocator      = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
             _localNodeId      = localNodeId;
             _disTypeExtractor = disTypeExtractor; // null → ExtractDisType returns 0
+            _onEntitySpawned  = onEntitySpawned;
         }
 
         /// <inheritdoc />
@@ -100,7 +103,7 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             // 1. Resolve network ID (0 = allocate a new one)
             long networkId = cmd.NetworkId != 0 ? cmd.NetworkId : _idAllocator.AllocateId();
             FdpLog<NetworkSpawningSystem>.Debug(
-                $"[TRACE-SH] ProcessSpawn: NetworkId={networkId} TkbType={cmd.TkbType}");
+                "[TRACE-SH] ECS: Spawned NetworkId={0} TkbType={1}", networkId, cmd.TkbType);
 
             // 2. Duplicate guard — silently drop if already spawned
             if (_networkMap.TryGetEntity(networkId, out _))
@@ -145,6 +148,9 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             if (cmd.InitialComponents != null)
                 foreach (var component in cmd.InitialComponents)
                     EntityComponentReflector.SetComponent(world, entity, component);
+
+            bool isLocalAuthority = cmd.OwnerNodeId == _localNodeId;
+            _onEntitySpawned?.Invoke(world, entity, isLocalAuthority);
 
 
             // 9. Register BEFORE starting lifecycle so any system that responds to

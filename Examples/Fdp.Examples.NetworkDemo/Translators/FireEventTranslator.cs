@@ -31,7 +31,10 @@ namespace Fdp.Examples.NetworkDemo.Translators
         // INGRESS: Network -> ECS
         protected override bool TryDecode(in NetworkFireEvent dds, out FireInteractionEvent ecs)
         {
-            FDP.Kernel.Logging.FdpLog<FireEventTranslator>.Info($"Decoded FireEvent: Atk={dds.AttackerNetId} Tgt={dds.TargetNetId}");
+            FDP.Kernel.Logging.FdpLog<FireEventTranslator>.Info(
+                "Decoded FireEvent: Atk={0} Tgt={1}",
+                dds.AttackerNetId,
+                dds.TargetNetId);
 
             ecs = default;
             
@@ -87,7 +90,10 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 Damage = ecs.Damage
             };
             
-             FDP.Kernel.Logging.FdpLog<FireEventTranslator>.Info($"Encoded FireEvent: Atk={attId} Tgt={tgtId}");
+             FDP.Kernel.Logging.FdpLog<FireEventTranslator>.Info(
+                 "Encoded FireEvent: Atk={0} Tgt={1}",
+                 attId,
+                 tgtId);
             return true;
         }
     }

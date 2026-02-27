@@ -26,7 +26,10 @@ namespace Fdp.Examples.NetworkDemo.Systems
 
         public PacketBridgeSystem(FdpEventBus bus, bool isMaster, int localNodeId)
         {
-            FdpLog<PacketBridgeSystem>.Info($"[PacketBridgeSystem] Created. IsMaster={isMaster}, LocalNodeId={localNodeId}");
+            FdpLog<PacketBridgeSystem>.Info(
+                "[PacketBridgeSystem] Created. IsMaster={0}, LocalNodeId={1}",
+                isMaster,
+                localNodeId);
             _bus = bus;
             _isMaster = isMaster;
             _localNodeId = localNodeId;
@@ -56,7 +59,9 @@ namespace Fdp.Examples.NetworkDemo.Systems
             {
                 foreach (var order in _bus.Consume<FrameOrderDescriptor>())
                 {
-                     FdpLog<PacketBridgeSystem>.Info($"[Bridge-Master] Forwarding Order {order.FrameID}");
+                     FdpLog<PacketBridgeSystem>.Info(
+                         "[Bridge-Master] Forwarding Order {0}",
+                         order.FrameID);
                      ref readonly var prev = ref view.GetComponentRO<TimeModeComponent>(timeEnt);
                      var next = prev;
                      next.FrameNumber = order.FrameID;
@@ -76,7 +81,10 @@ namespace Fdp.Examples.NetworkDemo.Systems
 
                 if (!_lastAckForwarded.ContainsKey(ack.SenderNodeId) || _lastAckForwarded[ack.SenderNodeId] < ack.CompletedFrameId)
                 {
-                    FdpLog<PacketBridgeSystem>.Info($"[Bridge-Master] Forwarding Component Ack ({ack.SenderNodeId}, {ack.CompletedFrameId}) to EventBus");
+                    FdpLog<PacketBridgeSystem>.Info(
+                        "[Bridge-Master] Forwarding Component Ack ({0}, {1}) to EventBus",
+                        ack.SenderNodeId,
+                        ack.CompletedFrameId);
                     _bus.Publish(new FrameAckDescriptor {
                         FrameID = ack.CompletedFrameId,
                         NodeID = ack.SenderNodeId
@@ -99,7 +107,9 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 
                 if (mode.FrameNumber > _lastEmittedOrderFrame)
                 {
-                     FdpLog<PacketBridgeSystem>.Info($"[Bridge-Slave] Received Global Order {mode.FrameNumber}");
+                     FdpLog<PacketBridgeSystem>.Info(
+                         "[Bridge-Slave] Received Global Order {0}",
+                         mode.FrameNumber);
                     _bus.Publish(new FrameOrderDescriptor {
                         FrameID = mode.FrameNumber,
                         FixedDelta = mode.FixedDeltaSeconds,
@@ -126,7 +136,10 @@ namespace Fdp.Examples.NetworkDemo.Systems
             
             foreach (var ack in _bus.Consume<FrameAckDescriptor>())
             {
-                FdpLog<PacketBridgeSystem>.Info($"[Bridge-Slave] Sending Ack Local({ack.NodeID}) Frame({ack.FrameID}) to Component");
+                FdpLog<PacketBridgeSystem>.Info(
+                    "[Bridge-Slave] Sending Ack Local({0}) Frame({1}) to Component",
+                    ack.NodeID,
+                    ack.FrameID);
                 cmds.SetComponent(_localAckEntity, new FrameAckComponent {
                     EntityId = 10000 + _localNodeId,
                     SenderNodeId = _localNodeId,

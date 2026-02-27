@@ -60,13 +60,18 @@ namespace ModuleHost.Network.Cyclone.Translators
                     
                     if (_entityMap.TryGetEntity(disposalTopic.EntityId, out var entityToDestroy))
                     {
-                         FdpLog<EntityMasterTranslator>.Info($"Received Death Note for {disposalTopic.EntityId} (NotAlive). Mapped to {entityToDestroy}. Destroying...");
+                         FdpLog<EntityMasterTranslator>.Info(
+                             "Received Death Note for {0} (NotAlive). Mapped to {1}. Destroying...",
+                             disposalTopic.EntityId,
+                             entityToDestroy);
                         cmd.DestroyEntity(entityToDestroy);
                         _entityMap.Unregister(disposalTopic.EntityId, 0); // Assuming instance 0 for Master
                     }
                     else 
                     {
-                        FdpLog<EntityMasterTranslator>.Info($"Processing NotAlive for EntityId {disposalTopic.EntityId} (Mapped: False)");
+                        FdpLog<EntityMasterTranslator>.Info(
+                            "Processing NotAlive for EntityId {0} (Mapped: False)",
+                            disposalTopic.EntityId);
                     }
                     continue;
                 }
@@ -128,13 +133,18 @@ namespace ModuleHost.Network.Cyclone.Translators
             {
                 if (_entityMap.TryGetEntity(topic.EntityId, out var entityToDestroy))
                 {
-                    FdpLog<EntityMasterTranslator>.Info($"Received Death Note for {topic.EntityId}. Mapped to {entityToDestroy}. Destroying...");
+                    FdpLog<EntityMasterTranslator>.Info(
+                        "Received Death Note for {0}. Mapped to {1}. Destroying...",
+                        topic.EntityId,
+                        entityToDestroy);
                     cmd.DestroyEntity(entityToDestroy);
                     _entityMap.Unregister(topic.EntityId, 0);
                 }
                 else
                 {
-                        FdpLog<EntityMasterTranslator>.Warn($"Received Death Note for {topic.EntityId} but it was not found in EntityMap.");
+                        FdpLog<EntityMasterTranslator>.Warn(
+                            "Received Death Note for {0} but it was not found in EntityMap.",
+                            topic.EntityId);
                 }
                 return;
             }
@@ -206,7 +216,10 @@ namespace ModuleHost.Network.Cyclone.Translators
                 cmd.AddComponent(newEntity, new NetworkAuthority(ownerNodeId, ownerNodeId));
 
                 _entityMap.Register(topic.EntityId, newEntity);
-                FdpLog<EntityMasterTranslator>.Info($"Created Proxy Entity {newEntity} for NetID {topic.EntityId}");
+                FdpLog<EntityMasterTranslator>.Info(
+                    "Created Proxy Entity {0} for NetID {1}",
+                    newEntity,
+                    topic.EntityId);
             }
         }
         

@@ -73,7 +73,10 @@ namespace FDP.Toolkit.Time.Controllers
                 {
                     // If we missed a frame or out of order
                     // Log warning?
-                     FdpLog<SteppedSlaveController>.Warn($"[SteppedSlave] Warning: Out of order frame. Expected {_frameNumber + 1}, got {order.FrameID}");
+                     FdpLog<SteppedSlaveController>.Warn(
+                         "[SteppedSlave] Warning: Out of order frame. Expected {0}, got {1}",
+                         _frameNumber + 1,
+                         order.FrameID);
                      // If future, maybe we should stash it and wait for missing?
                      // For MVP, proceed if future.
                 }

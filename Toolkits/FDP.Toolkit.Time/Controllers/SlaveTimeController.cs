@@ -160,7 +160,9 @@ namespace FDP.Toolkit.Time.Controllers
         {
             // Warning only - Slave scale is driven by network, but Kernel initialization calls this
             // throw new InvalidOperationException("Slave cannot set time scale. Scale comes from Master via TimePulse.");
-            FdpLog<SlaveTimeController>.Warn($"[SlaveTimeController] Warning: SetTimeScale({scale}) called locally. Ignored (Scale is driven by Master).");
+            FdpLog<SlaveTimeController>.Warn(
+                "[SlaveTimeController] Warning: SetTimeScale({0}) called locally. Ignored (Scale is driven by Master).",
+                scale);
         }
 
         public GlobalTime GetCurrentState()

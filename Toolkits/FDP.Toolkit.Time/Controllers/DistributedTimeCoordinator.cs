@@ -81,7 +81,11 @@ namespace FDP.Toolkit.Time.Controllers
                 FixedDeltaSeconds = _config.SyncConfig.FixedDeltaSeconds
             });
             
-            FdpLog<DistributedTimeCoordinator>.Info($"[Master] Scheduled Pause at Frame {barrierFrame} (Current: {currentState.FrameNumber}, Lookahead: {lookahead})");
+            FdpLog<DistributedTimeCoordinator>.Info(
+                "[Master] Scheduled Pause at Frame {0} (Current: {1}, Lookahead: {2})",
+                barrierFrame,
+                currentState.FrameNumber,
+                lookahead);
         }
         
         /// <summary>
@@ -109,7 +113,9 @@ namespace FDP.Toolkit.Time.Controllers
             var master = new MasterTimeController(_eventBus, _config.SyncConfig);
             _kernel.SwapTimeController(master);
             
-             FdpLog<DistributedTimeCoordinator>.Info($"[Master] Switched to Continuous Mode at Frame {currentState.FrameNumber}");
+             FdpLog<DistributedTimeCoordinator>.Info(
+                 "[Master] Switched to Continuous Mode at Frame {0}",
+                 currentState.FrameNumber);
         }
         
         /// <summary>
@@ -132,7 +138,7 @@ namespace FDP.Toolkit.Time.Controllers
         
         private void ExecuteSwapToDeterministic()
         {
-            FdpLog<DistributedTimeCoordinator>.Info($"[Master] Barrier Reached. Swapping to SteppedMasterController.");
+            FdpLog<DistributedTimeCoordinator>.Info("[Master] Barrier Reached. Swapping to SteppedMasterController.");
             
             // Create new controller
             // Note: We use the *current* state of kernel (which should be at BarrierFrame) via Swap logic

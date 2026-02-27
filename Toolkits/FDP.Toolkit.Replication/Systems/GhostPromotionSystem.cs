@@ -148,7 +148,9 @@ namespace FDP.Toolkit.Replication.Systems
                     }
                     else
                     {
-                         FdpLog<GhostPromotionSystem>.Warn($"[GhostPromotion] Missing child template {childDef.ChildTkbType}");
+                         FdpLog<GhostPromotionSystem>.Warn(
+                             "[GhostPromotion] Missing child template {0}",
+                             childDef.ChildTkbType);
                     }
                     
                     childMap.InstanceToEntity[childDef.InstanceId] = childEntity;

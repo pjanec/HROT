@@ -331,7 +331,10 @@ namespace ModuleHost.Core
                 else
                 {
                     // Log warning: Component type not registered
-                    FdpLog<ModuleHostKernel>.Warn($"Warning: Module '{module.Name}' requires unregistered component: {componentType.Name}");
+                    FdpLog<ModuleHostKernel>.Warn(
+                        "Warning: Module '{0}' requires unregistered component: {1}",
+                        module.Name,
+                        componentType.Name);
                 }
             }
             
@@ -741,7 +744,9 @@ namespace ModuleHost.Core
                     {
                         if (cmdBuffer.HasCommands)
                         {
-                            FdpLog<ModuleHostKernel>.Trace($"[Playback] Playing commands for {entry.Module.Name}");
+                            FdpLog<ModuleHostKernel>.Trace(
+                                "[Playback] Playing commands for {0}",
+                                entry.Module.Name);
                             cmdBuffer.Playback(_liveWorld);
                         }
                         else 
@@ -856,8 +861,11 @@ namespace ModuleHost.Core
             // Update CurrentTime property
             CurrentTime = currentState;
             
-            FdpLog<ModuleHostKernel>.Info($"[TimeController] Swapped to {newController.GetType().Name}, " +
-                             $"TotalTime={currentState.TotalTime:F3}s, Frame={currentState.FrameNumber}");
+            FdpLog<ModuleHostKernel>.Info(
+                "[TimeController] Swapped to {0}, TotalTime={1:F3}s, Frame={2}",
+                newController.GetType().Name,
+                currentState.TotalTime,
+                currentState.FrameNumber);
         }
         
         /// <summary>

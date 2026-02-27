@@ -87,7 +87,9 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 });
             }
 
-            FdpLog<ReplayBridgeSystem>.Info($"Built {_copyInstructions.Count} copy instructions");
+            FdpLog<ReplayBridgeSystem>.Info(
+                "Built {0} copy instructions",
+                _copyInstructions.Count);
         }
 
         public void RegisterDynamicType<T>(long descriptorOrdinal) where T : class
@@ -106,7 +108,10 @@ namespace Fdp.Examples.NetworkDemo.Systems
              }
              catch (Exception ex)
              {
-                 FdpLog<ReplayBridgeSystem>.Warn($"RegisterDynamicType: Failed to register {type.Name}: {ex.Message}");
+                 FdpLog<ReplayBridgeSystem>.Warn(
+                     "RegisterDynamicType: Failed to register {0}: {1}",
+                     type.Name,
+                     ex.Message);
                  return;
              }
 
@@ -121,7 +126,9 @@ namespace Fdp.Examples.NetworkDemo.Systems
                  SizeBytes = 0
              });
              
-             FdpLog<ReplayBridgeSystem>.Info($"Dynamic Registered Type: {type.Name}");
+             FdpLog<ReplayBridgeSystem>.Info(
+                 "Dynamic Registered Type: {0}",
+                 type.Name);
         }
 
         private void InitializeShadowWorld()
@@ -245,7 +252,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
                     if (instr.LiveTypeId == -1 && canResolveIds)
                     {
                            try { instr.LiveTypeId = liveRepo!.GetComponentTypeId(instr.Type); } 
-                           catch { instr.LiveTypeId = -2; FdpLog<ReplayBridgeSystem>.Warn($"Missing Type: {instr.DebugName}"); }
+                           catch { instr.LiveTypeId = -2; FdpLog<ReplayBridgeSystem>.Warn("Missing Type: {0}", instr.DebugName); }
                            _copyInstructions[i] = instr;
                     }
                     if (instr.LiveTypeId < 0) continue;
@@ -273,7 +280,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
                         var obj = _shadowRepo.GetManagedComponentByTypeId(shadowEntity, instr.ShadowTypeId);
                         ecb.SetManagedComponentRaw(liveEntity, instr.LiveTypeId, obj);
                     }
-                    } catch (Exception ex) { FdpLog<ReplayBridgeSystem>.Warn($"Copy failed for {instr.DebugName}: {ex.Message}"); }
+                    } catch (Exception ex) { FdpLog<ReplayBridgeSystem>.Warn("Copy failed for {0}: {1}", instr.DebugName, ex.Message); }
                 }
             }
         }

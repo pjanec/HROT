@@ -84,11 +84,15 @@ namespace Fdp.Examples.NetworkDemo.Systems
 
                         if (_nonReplayOrdinals.Contains(ordinal))
                         {
-                            FdpLog<NetworkReplaySystem>.Warn($"Skipping replay data for translator ordinal {ordinal} (Does not support INetworkReplayTarget)");
+                            FdpLog<NetworkReplaySystem>.Warn(
+                                "Skipping replay data for translator ordinal {0} (Does not support INetworkReplayTarget)",
+                                ordinal);
                         }
                         else
                         {
-                            FdpLog<NetworkReplaySystem>.Warn($"Skipping replay data for unknown ordinal {ordinal}");
+                            FdpLog<NetworkReplaySystem>.Warn(
+                                "Skipping replay data for unknown ordinal {0}",
+                                ordinal);
                         }
                     }
                 }
