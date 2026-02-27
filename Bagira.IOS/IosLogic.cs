@@ -169,7 +169,7 @@ public sealed class IosLogic : IIosLogic, IDisposable
         });
 
         FdpLog<IosLogic>.Debug(
-            $"[TRACE-IOS] Placement Mode ON. ContextId={ActiveContextId} TKB={tkbType}");
+            "[TRACE-IOS] Placement Mode ON. ContextId={0} TKB={1}", ActiveContextId, tkbType);
 
         _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicConfig,
             $"PLACEMENT tkb={tkbType} ctx={ActiveContextId:N}");
@@ -237,7 +237,7 @@ public sealed class IosLogic : IIosLogic, IDisposable
         while (_clickQueue.TryDequeue(out var evt))
         {
             FdpLog<IosLogic>.Debug(
-                $"[TRACE-IOS] MapClickEvent ContextId={evt.InteractionContextId} (expected {ActiveContextId})");
+                "[TRACE-IOS] MapClickEvent ContextId={0}", evt.InteractionContextId);
 
             // Drop stale clicks: context ID must match the one we published.
             if (evt.InteractionContextId != ActiveContextId)

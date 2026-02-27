@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
@@ -29,6 +30,7 @@ namespace Bagira.SimHost.Translators
     public class GeoSpatialEgressTranslator : CycloneTranslator<GeoSpatial, GeoSpatial>
     {
         private readonly DdsWriter<GeoSpatialDR> _drWriter;
+        private readonly HashSet<long> _tracedNetIds = new();
 
         public GeoSpatialEgressTranslator(
             DdsParticipant participant,
@@ -91,8 +93,11 @@ namespace Bagira.SimHost.Translators
                     },
                 });
 
-                FdpLog<GeoSpatialEgressTranslator>.Debug(
-                    $"[TRACE-SH] Egress: Writing GeoSpatial for NetID={netId.Value} pos=({geoTf.Latitude},{geoTf.Longitude})");
+                if (_tracedNetIds.Add(netId.Value))
+                {
+                    FdpLog<GeoSpatialEgressTranslator>.Debug(
+                        "[TRACE-SH] Egress: Writing GeoSpatial for NetID={0} (Logging first publish only)", netId.Value);
+                }
 
                 // ?? GeoSpatialDR ??????????????????????????????????????????????
                 if (view.HasComponent<GeoVelocity>(entity))

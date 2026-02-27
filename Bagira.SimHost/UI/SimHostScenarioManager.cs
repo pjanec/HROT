@@ -92,8 +92,9 @@ namespace Bagira.SimHost.UI
             VehicleClass vehicleClass = VehicleClass.PersonalCar)
         {
             var tkbType = MapVehicleClassToTkbType(vehicleClass);
+            var positionLabel = string.Concat(position.X, ",", position.Y);
             FdpLog<SimHostScenarioManager>.Debug(
-                $"[TRACE-SH] SpawnVehicle: Requesting TkbType={tkbType} at ({position.X},{position.Y})");
+                "[TRACE-SH] Requesting TkbType={0} at ({1})", tkbType, positionLabel);
 
             float angle     = VectorMath.SignedAngle(Vector2.UnitX, heading);
             var   transform = new SimTransform

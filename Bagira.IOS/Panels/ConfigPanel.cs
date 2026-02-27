@@ -1,5 +1,7 @@
+using System;
 using ImGuiNET;
 using Newtonsoft.Json;
+using FDP.Kernel.Logging;
 
 namespace Bagira.IOS.Panels;
 
@@ -96,6 +98,7 @@ public sealed class ConfigPanel
     public void HandleSendConfigPatch(IIosLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
+        FdpLog<ConfigPanel>.Debug("[TRACE-IOS] Config: Sending JSON Patch");
         logic.SendConfigPatch(BuildPatch());
     }
 

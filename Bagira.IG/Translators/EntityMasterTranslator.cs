@@ -119,8 +119,8 @@ namespace Bagira.IG.Translators
             }
             else
             {
-                FdpLog<EntityMasterTranslator>.Debug(
-                    $"[TRACE-IG] Ingress: EntityMaster NetID={master.EntityId} → Ghost spawn");
+                    FdpLog<EntityMasterTranslator>.Debug(
+                        "[TRACE-IG] Ingress: EntityMaster NetID={0} -> Ghost spawn", master.EntityId);
 
                 // New remote entity — request creation through NetworkSpawningSystem
                 // InitType = None: IG is a ghost replica, not an authority node.

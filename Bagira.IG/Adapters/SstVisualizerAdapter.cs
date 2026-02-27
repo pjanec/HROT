@@ -75,8 +75,9 @@ public class SstVisualizerAdapter : IVisualizerAdapter
     {
         if (_renderTracedEntities.Add(entity.Index))
         {
-            FdpLog<SstVisualizerAdapter>.Debug(
-                $"[TRACE-IG] Render: Drawing Entity={entity.Index} at ({position.X},{position.Y})");
+                var positionLabel = string.Concat(position.X, ",", position.Y);
+                FdpLog<SstVisualizerAdapter>.Debug(
+                    "[TRACE-IG] Render: Drawing Entity={0} at ({1})", entity.Index, positionLabel);
         }
 
         // ── Resolve style — fall back to unknown white when absent ────────────

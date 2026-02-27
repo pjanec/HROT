@@ -50,11 +50,12 @@ namespace Bagira.Map.Common.Commands
                 request.RequestId = Guid.NewGuid();
             }
 
-            FdpLog<BdcCommandGateway>.Debug($"[TRACE-GW] Sending CreateEntityRequest ID={request.RequestId}");
+            FdpLog<BdcCommandGateway>.Debug("[TRACE-GW] Sending CreateEntityRequest ID={0}", request.RequestId);
 
             var ack = await _createEntityClient.SendAsync(request, timeoutMs);
+            var ackDetails = string.Concat("Entity=", ack.NewEntityId, " Error=", ack.ErrorCode);
             FdpLog<BdcCommandGateway>.Debug(
-                $"[TRACE-GW] CreateEntityAck ID={ack.RequestId} Entity={ack.NewEntityId} Error={ack.ErrorCode}");
+                "[TRACE-GW] CreateEntityAck ID={0} {1}", ack.RequestId, ackDetails);
             return ack;
         }
 

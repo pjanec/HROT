@@ -66,7 +66,7 @@ public sealed class RequestTransactionManager : IRequestTransactionManager
         req.ResolutionMessage = message;
 
         FdpLog<RequestTransactionManager>.Debug(
-            $"[TRACE-IOS] TxMgr Request {requestId} completed Success={success}");
+            "[TRACE-IOS] TxMgr Request {0} completed Success={1}", requestId, success);
     }
 
     /// <inheritdoc/>
@@ -87,7 +87,7 @@ public sealed class RequestTransactionManager : IRequestTransactionManager
 
         foreach (var id in timedOut)
         {
-            FdpLog<RequestTransactionManager>.Warn($"[TRACE-IOS] WARNING: Request {id} timed out");
+            FdpLog<RequestTransactionManager>.Warn("[TRACE-IOS] WARNING: Request {0} timed out", id);
             CompleteRequest(id, false, "Timeout");
         }
     }

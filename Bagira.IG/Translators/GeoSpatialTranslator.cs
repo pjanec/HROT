@@ -47,8 +47,9 @@ namespace Bagira.IG.Translators
             if (!EntityMap.TryGetEntity(netId, out var entity))
                 return; // Entity not yet spawned — skip; will be retried next tick
 
+            var latLon = string.Concat(data.Pos.Latitude, ",", data.Pos.Longitude);
             FdpLog<GeoSpatialTranslator>.Debug(
-                $"[TRACE-IG] Ingress: GeoSpatial Entity={entity.Index} Lat={data.Pos.Latitude} Lon={data.Pos.Longitude}");
+                "[TRACE-IG] Ingress: GeoSpatial Entity={0} LatLon=({1})", entity.Index, latLon);
 
             var cartesian = _geoTransform.ToCartesian(
                 data.Pos.Latitude,

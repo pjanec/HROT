@@ -297,7 +297,7 @@ public class IgApplication
             }
             catch (Exception ex)
             {
-                FdpLog<IgApplication>.Warn($"[IG] Network init failed ({ex.Message}). Running offline.");
+                FdpLog<IgApplication>.Warn("[IG] Network init failed ({0}). Running offline.", ex.Message);
                 _networkEnabled = false;
             }
         }
@@ -384,7 +384,7 @@ public class IgApplication
                 if (!sample.IsValid) continue;
                 _activeContextId = sample.Data.ActiveContextId;
                 FdpLog<IgApplication>.Debug(
-                    $"[TRACE-IG] MapInteractionConfig: ActiveContextId={_activeContextId}");
+                    "[TRACE-IG] MapInteractionConfig: ActiveContextId={0}", _activeContextId);
             }
         }
 
@@ -577,6 +577,6 @@ public class IgApplication
         };
 
         _clickWriter.Write(evt);
-        FdpLog<IgApplication>.Info($"[IG] MapClickEvent published. ContextId={_activeContextId}");
+        FdpLog<IgApplication>.Info("[IG] MapClickEvent published. ContextId={0}", _activeContextId);
     }
 }

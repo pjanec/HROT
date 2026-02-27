@@ -90,7 +90,7 @@ namespace Bagira.SimHost.Systems
                 }
 
                 FdpLog<CreateEntityRequestSystem>.Debug(
-                    $"[TRACE-SH] Received CreateEntityRequest {request.RequestId} TkbType={tkbType}");
+                    "[TRACE-SH] Received CreateEntityRequest {0} TkbType={1}", request.RequestId, tkbType);
 
                 // 3. Allocate a new network ID
                 long newNetworkId = _idAllocator.AllocateId();
@@ -135,7 +135,7 @@ namespace Bagira.SimHost.Systems
         private void SendErrorAck(Guid requestId, int errorCode)
         {
             FdpLog<CreateEntityRequestSystem>.Warn(
-                $"[TRACE-SH] ERROR: Rejecting Request {requestId} Code={errorCode}");
+                "[TRACE-SH] ERROR: Rejecting Request {0} Code={1}", requestId, errorCode);
 
             _ackSink.WriteAck(new CreateEntityAck
             {

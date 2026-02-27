@@ -61,19 +61,23 @@ public class StyleResolutionSystem : IModuleSystem
         {
             var style = BuildStyle(view, entity);
 
-            FdpLog<StyleResolutionSystem>.Debug(
-                $"[TRACE-IG] Style: Resolved Entity={entity.Index} Texture={style.GetTextureName()}");
+            bool hasStyle = view.HasComponent<ResolvedStyle>(entity);
+            if (!hasStyle)
+            {
+                FdpLog<StyleResolutionSystem>.Debug(
+                    "[TRACE-IG] Style: Resolved Entity={0} Texture={1}", entity.Index, style.GetTextureName());
+            }
 
             if (repo != null)
             {
-                if (repo.HasComponent<ResolvedStyle>(entity))
+                if (hasStyle)
                     repo.SetComponent(entity, style);
                 else
                     repo.AddComponent(entity, style);
             }
             else
             {
-                if (view.HasComponent<ResolvedStyle>(entity))
+                if (hasStyle)
                     cmd!.SetComponent(entity, style);
                 else
                     cmd!.AddComponent(entity, style);

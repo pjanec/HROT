@@ -29,7 +29,6 @@ using Bagira.Map.Definitions.Tkb;
 using Bagira.SimHost.Components;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
-using Bagira.SimHost.Systems;
 using Bagira.SimHost.Utilities;
 using CarKinem.Commands;
 using CarKinem.Road;
@@ -173,7 +172,19 @@ namespace Bagira.SimHost
             _kernel.RegisterModule(elm);
 
             var spawningSystem = new NetworkSpawningSystem(
-                tkbDb, elm, entityMap, _idAllocator, localNodeId: SimHostNetworkConstants.LocalNodeId);
+                tkbDb,
+                elm,
+                entityMap,
+                _idAllocator,
+                SimHostNetworkConstants.LocalNodeId,
+                disTypeExtractor: null,
+                onEntitySpawned: (world, entity, isLocalAuthority) =>
+                {
+                    if (isLocalAuthority && world.HasComponent<EntityMaster>(entity))
+                    {
+                        world.SetAuthority<EntityMaster>(entity, true);
+                    }
+                });
 
             var simHostMod = new SimHostModule(
                 ddsParticipant, tkbDb, _idAllocator, SimHostNetworkConstants.LocalNodeId,
@@ -197,8 +208,6 @@ namespace Bagira.SimHost
                 customTranslators: translators,
                 sharedEntityMap:   entityMap);
             _kernel.RegisterModule(cycloneModule);
-
-            _kernel.RegisterGlobalSystem(new EntityMasterAuthoritySystem(SimHostNetworkConstants.LocalNodeId));
 
             // ── 11. Kernel init ───────────────────────────────────────────────
             _kernel.Initialize();
