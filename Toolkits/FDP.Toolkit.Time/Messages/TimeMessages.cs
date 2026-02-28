@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using CycloneDDS.Schema;
 using MessagePack;
 using Fdp.Kernel;
 using ModuleHost.Core.Time;
@@ -20,19 +21,24 @@ namespace FDP.Toolkit.Time.Messages
     }
     
     [MessagePackObject]
+    [DdsTopic("TimePulse")]
     [EventId(100)]
-    public struct TimePulseDescriptor
+    public partial struct TimePulseDescriptor
     {
         [Key(0)]
+        [DdsId(0)]
         public long MasterWallTicks { get; set; }
         
         [Key(1)]
+        [DdsId(1)]
         public double SimTimeSnapshot { get; set; }
         
         [Key(2)]
+        [DdsId(2)]
         public float TimeScale { get; set; }
         
         [Key(3)]
+        [DdsId(3)]
         public long SequenceId { get; set; }
     }
     
