@@ -84,3 +84,10 @@ All IDs, thresholds, and capacities must be centralized constants.
 The simulation must be able to run in Stepped/Lockstep modes or Replay modes seamlessly.
 *   **DON'T:** Use `DateTime.UtcNow`, `TimeSpan`, or `Stopwatch` inside `OnUpdate()` logic.
 *   **DO:** Use `DeltaTime` (provided by `ComponentSystem`) or read the `GlobalTime` singleton (`World.GetSingletonUnmanaged<GlobalTime>()`) for elapsed time and frame counts.
+
+
+### 13. Entity spawning
+
+1. **NEVER pass DDS DTOs through the Event Bus:** If a struct has a `[DdsTopic]` attribute, it stops at the App layer (`SimHost` / `IG`). It must be mapped to an ECS component before entering `SpawnEntityCommand`.
+2. **Keep Mappers and Translators Synced:** If `WeaponStateTranslator` translates a DDS `WeaponState` into an ECS `CombatHealth` component, `DescriptorMapper` must do the exact same thing for the `dtWeaponState` union case.
+3. **Accept minor allocations on the Cold Path:** Using `List<object>` and Reflection (`EntityComponentReflector`) allocates memory on the heap. **This is acceptable here.** Entity spawning is a *Cold Path* operation (happens occasionally). The strict "Zero-Allocation" rule only applies to the *Hot Path* (systems running every single frame, like physics or continuous network sync).

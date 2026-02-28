@@ -16,16 +16,12 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
     {
         private DdsParticipant _participant;
         private NetworkEntityMap _entityMap;
-        private EntityRepository _repo;
 
         public AutoCycloneTranslatorTests()
         {
             // Use domain 100 to avoid collision with other tests if possible, though mostly isolated by topic name usually
             _participant = new DdsParticipant(0); 
             _entityMap = new NetworkEntityMap();
-            _repo = new EntityRepository();
-            _repo.RegisterComponent<EntityMasterTopic>();
-            _repo.RegisterComponent<FDP.Toolkit.Replication.Components.NetworkIdentity>();
         }
 
         public void Dispose()

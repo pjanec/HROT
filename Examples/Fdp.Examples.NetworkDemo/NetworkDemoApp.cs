@@ -203,8 +203,7 @@ namespace Fdp.Examples.NetworkDemo
             if (!isReplay)
             {
                 INetworkIdAllocator effectiveAllocator = idAllocator ?? new SequentialIdAllocator();
-                DisTypeExtractor extractor = (object c, out ulong dis) => { dis = 0; return false; };
-                var spawningSystem = new NetworkSpawningSystem(tkb, elm, EntityMap, effectiveAllocator, localInternalId, extractor);
+                var spawningSystem = new NetworkSpawningSystem(tkb, elm, EntityMap, effectiveAllocator, localInternalId);
                 Kernel.RegisterModule(new SpawningModule(spawningSystem));
             }
 
@@ -500,6 +499,7 @@ namespace Fdp.Examples.NetworkDemo
             {
                 NetworkId         = netId,
                 TkbType           = template.TkbType,
+                DisType           = 1,
                 OwnerNodeId       = localInternalId,
                 InitType          = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
                 InitialComponents = new System.Collections.Generic.List<object>

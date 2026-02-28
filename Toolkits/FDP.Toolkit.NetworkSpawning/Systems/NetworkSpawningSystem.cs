@@ -13,19 +13,6 @@ using ModuleHost.Core.Network.Interfaces;
 namespace FDP.Toolkit.NetworkSpawning.Systems
 {
     /// <summary>
-    /// Strategy delegate that inspects a single component object and extracts a DIS entity type.
-    /// Injected into <see cref="NetworkSpawningSystem"/> to keep the Toolkit free of any
-    /// dependency on <c>Bagira.DDS.DataModel</c> or other concrete component assemblies.
-    /// </summary>
-    /// <param name="component">A component instance from <see cref="Events.SpawnEntityCommand.InitialComponents"/>.</param>
-    /// <param name="disType">Receives the extracted DIS type value when the delegate returns <c>true</c>.</param>
-    /// <returns>
-    /// <c>true</c> if this component carries a DIS type (extraction performed);
-    /// <c>false</c> if the component is not the one that holds a DIS type.
-    /// </returns>
-    public delegate bool DisTypeExtractor(object component, out ulong disType);
-
-    /// <summary>
     /// Centralised system that replaces per-node entity-spawning boilerplate.
     /// Consumes <see cref="SpawnEntityCommand"/>, <see cref="UpdateEntityCommand"/>,
     /// and <see cref="DestroyEntityCommand"/> managed events each tick and drives
@@ -39,7 +26,6 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
         private readonly NetworkEntityMap _networkMap;
         private readonly INetworkIdAllocator _idAllocator;
         private readonly int _localNodeId;
-        private readonly DisTypeExtractor? _disTypeExtractor;
         private readonly Action<EntityRepository, Entity, bool>? _onEntitySpawned;
 
         /// <param name="tkbDb">TKB template registry.</param>
@@ -47,25 +33,12 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
         /// <param name="networkMap">Entity ↔ network-ID registry.</param>
         /// <param name="idAllocator">Network-ID allocator (stub or DDS-backed).</param>
         /// <param name="localNodeId">This node's logical ID, used to fill NetworkOwnership.</param>
-        /// <param name="disTypeExtractor">
-        /// Optional strategy that extracts a DIS entity type from a component object.
-        /// Decouples the Toolkit from concrete component assemblies.
-        /// When <c>null</c>, <see cref="ExtractDisType"/> always returns 0.
-        /// Typical injection:
-        /// <code>
-        /// (object c, out ulong dis) =&gt; {
-        ///     if (c is EntityMaster m) { dis = m.DisType; return true; }
-        ///     dis = 0; return false;
-        /// }
-        /// </code>
-        /// </param>
         public NetworkSpawningSystem(
             ITkbDatabase tkbDb,
             EntityLifecycleModule elm,
             NetworkEntityMap networkMap,
             INetworkIdAllocator idAllocator,
             int localNodeId,
-            DisTypeExtractor? disTypeExtractor = null,
             Action<EntityRepository, Entity, bool>? onEntitySpawned = null)
         {
             _tkbDb            = tkbDb       ?? throw new ArgumentNullException(nameof(tkbDb));
@@ -73,7 +46,6 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             _networkMap       = networkMap  ?? throw new ArgumentNullException(nameof(networkMap));
             _idAllocator      = idAllocator ?? throw new ArgumentNullException(nameof(idAllocator));
             _localNodeId      = localNodeId;
-            _disTypeExtractor = disTypeExtractor; // null → ExtractDisType returns 0
             _onEntitySpawned  = onEntitySpawned;
         }
 
@@ -136,7 +108,7 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             // Signals NetworkGatewaySystem that this entity needs replication
             world.AddComponent(entity, new NetworkSpawnRequest
             {
-                DisType = ExtractDisType(cmd.InitialComponents),
+                DisType = cmd.DisType,
                 OwnerId = (ulong)cmd.OwnerNodeId,
                 TkbType = cmd.TkbType
             });
@@ -198,25 +170,5 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             _elm.BeginDestruction(entity, tick, cmd.Reason ?? "destroyed", cmdBuffer);
         }
 
-        // ─── Helpers ──────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Iterates <paramref name="components"/> and returns the DIS entity type found by
-        /// the injected <see cref="DisTypeExtractor"/> delegate.
-        /// Returns 0 if no extractor was supplied or no component matches.
-        /// </summary>
-        private ulong ExtractDisType(System.Collections.Generic.List<object>? components)
-        {
-            if (components == null || _disTypeExtractor == null)
-                return 0;
-
-            foreach (var comp in components)
-            {
-                if (_disTypeExtractor(comp, out ulong disType))
-                    return disType;
-            }
-
-            return 0;
-        }
     }
 }

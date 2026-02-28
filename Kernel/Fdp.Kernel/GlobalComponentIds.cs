@@ -282,16 +282,10 @@ namespace Fdp.Kernel
         /// <summary><c>NetworkOrientation</c> — replicated orientation (quaternion) for Cyclone-networked entities.</summary>
         public const byte NetworkOrientation      = 143;
 
-        /// <summary><c>EntityMasterTopic</c> — DDS entity-master topic registered as an ECS component for TKB lookup.</summary>
-        public const byte EntityMasterTopic       = 144;
-
-        // IDs 145–159 are reserved for future ModuleHost.Core network components.
+        // IDs 144–159 are reserved for future ModuleHost.Core network components.
 
         // ── Application-level Descriptors (160–199) ──────────────────────────────
-        // DDS-sourced descriptor types repurposed as ECS components in Bagira.* applications.
-
-        /// <summary><c>EntityMaster</c> — DDS master descriptor used as ECS entity-lifetime marker.</summary>
-        public const byte EntityMaster            = 160;
+        // DDS-sourced descriptor types repurposed as ECS components in FDP applications.
 
         /// <summary><c>EntityDamage</c> — DDS damage descriptor stored as an ECS component for IG rendering.</summary>
         public const byte EntityDamage            = 161;

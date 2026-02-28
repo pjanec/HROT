@@ -337,6 +337,7 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
             {
                 NetworkId   = 90L,
                 TkbType     = DefaultTkbType,
+                DisType     = 123UL,
                 OwnerNodeId = 5
             });
 
@@ -347,6 +348,7 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
 
             var spawnReq = repo.GetComponent<NetworkSpawnRequest>(entity);
             Assert.Equal(5UL, spawnReq.OwnerId);
+            Assert.Equal(123UL, spawnReq.DisType);
         }
 
         [Fact]

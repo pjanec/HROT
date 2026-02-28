@@ -29,6 +29,11 @@ namespace FDP.Toolkit.NetworkSpawning.Events
         public long TkbType;
 
         /// <summary>
+        /// Raw DIS entity type associated with this spawn (from network descriptors).
+        /// </summary>
+        public ulong DisType;
+
+        /// <summary>
         /// Node ID that owns/controls this entity.
         /// For SimHost-spawned entities: SimHost's local node ID.
         /// For network-replicated ghosts: the remote node's ID.
@@ -46,7 +51,7 @@ namespace FDP.Toolkit.NetworkSpawning.Events
         /// Optional list of ECS component instances to apply on top of TKB template defaults.
         /// Each item is an object whose runtime type is used by EntityComponentReflector
         /// to call world.SetComponent(entity, type, value).
-        /// Typical contents: EntityMaster, GeoSpatial, EntityInfo, VehicleState, etc.
+        /// Typical contents: GeoSpatial, EntityInfo, VehicleState, etc.
         /// </summary>
         public List<object> InitialComponents;
 
