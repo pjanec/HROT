@@ -296,7 +296,7 @@ namespace Fdp.Kernel
         /// <summary><c>EntityDamage</c> — DDS damage descriptor stored as an ECS component for IG rendering.</summary>
         public const byte EntityDamage            = 161;
 
-        /// <summary><c>EntityMissionHolder</c> — managed wrapper carrying an <c>EntityMission</c> payload.</summary>
+        /// <summary><c>EntityMissionHolder</c> — managed wrapper carrying an <c>EntityMission</c> payload. [Obsolete]</summary>
         public const byte EntityMissionHolder     = 162;
 
         /// <summary><c>InFormationTag</c> — tag added to an entity that has successfully joined a formation slot.</summary>

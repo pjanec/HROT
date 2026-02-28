@@ -81,7 +81,7 @@ namespace ModuleHost.Network.Cyclone.Modules
             ProcessConstructionOrders(view, cmd, currentFrame);
             
             // Handle DestructionOrder to clean up pending state
-            ProcessDestructionOrders(view);
+            ProcessDestructionOrders(view, cmd);
             
             // Check for timeouts on pending ACKs
             CheckPendingAckTimeouts(cmd, currentFrame);
@@ -198,7 +198,7 @@ namespace ModuleHost.Network.Cyclone.Modules
             }
         }
         
-        private void ProcessDestructionOrders(ISimulationView view)
+        private void ProcessDestructionOrders(ISimulationView view, IEntityCommandBuffer cmd)
         {
             var events = view.ConsumeEvents<DestructionOrder>();
             foreach (var evt in events)
@@ -208,6 +208,13 @@ namespace ModuleHost.Network.Cyclone.Modules
                     _pendingPeerAcks.Remove(evt.Entity);
                     _pendingStartFrame.Remove(evt.Entity);
                 }
+
+                cmd.PublishEvent(new DestructionAck
+                {
+                    Entity = evt.Entity,
+                    ModuleId = ModuleId,
+                    Success = true
+                });
             }
         }
     }

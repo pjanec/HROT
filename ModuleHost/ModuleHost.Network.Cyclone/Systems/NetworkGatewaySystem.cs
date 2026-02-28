@@ -59,7 +59,7 @@ namespace ModuleHost.Network.Cyclone.Systems
             
             // Ported logic
             ProcessConstructionOrders(view, cmd, currentFrame);
-            ProcessDestructionOrders(view);
+            ProcessDestructionOrders(view, cmd);
             CheckPendingAckTimeouts(cmd, currentFrame);
         }
         
@@ -169,7 +169,7 @@ namespace ModuleHost.Network.Cyclone.Systems
             }
         }
         
-        private void ProcessDestructionOrders(ISimulationView view)
+        private void ProcessDestructionOrders(ISimulationView view, IEntityCommandBuffer cmd)
         {
             var events = view.ConsumeEvents<DestructionOrder>();
             foreach (var evt in events)
@@ -179,6 +179,13 @@ namespace ModuleHost.Network.Cyclone.Systems
                     _pendingPeerAcks.Remove(evt.Entity);
                     _pendingStartFrame.Remove(evt.Entity);
                 }
+
+                cmd.PublishEvent(new DestructionAck
+                {
+                    Entity = evt.Entity,
+                    ModuleId = _gatewayModuleId,
+                    Success = true
+                });
             }
         }
     }

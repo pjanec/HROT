@@ -25,6 +25,7 @@ namespace ModuleHost.Network.Cyclone.Systems
         {
             // 1. Scan for new entities to track
             var query = view.Query()
+                .IncludeConstructing()
                 .With<NetworkIdentity>()
                 .With<NetworkOwnership>()
                 .Build();
