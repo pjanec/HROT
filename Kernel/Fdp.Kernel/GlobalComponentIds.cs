@@ -305,7 +305,10 @@ namespace Fdp.Kernel
         /// <summary><c>IgEntityData</c> — IG-internal entity metadata from EntityInfo.</summary>
         public const byte IgEntityData            = 164;
 
-        // IDs 165–199 are reserved for future application-level components.
+        /// <summary><c>IgHealthState</c> — IG-internal health state derived from EntityDamage.</summary>
+        public const byte IgHealthState           = 165;
+
+        // IDs 166–199 are reserved for future application-level components.
 
         // ── Reserved (200–255) ───────────────────────────────────────────────────
         // IDs 200–255: reserved — future use.
