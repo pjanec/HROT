@@ -29,6 +29,11 @@ namespace Bagira.Runner.Services
         private IgApplication? _app;
         private bool _headless;
 
+        /// <summary>
+        /// Internal test hook for integration tests.
+        /// </summary>
+        internal IgApplication App => _app ?? throw new InvalidOperationException("Not initialized");
+
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
         {

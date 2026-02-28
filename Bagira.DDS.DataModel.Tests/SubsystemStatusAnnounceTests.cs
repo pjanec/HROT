@@ -1,9 +1,8 @@
 using System;
-using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using CycloneDDS.Runtime;
 using Bagira.DDS.DataModel.Runner;
+using Xunit;
 
 namespace Bagira.DDS.DataModel.Tests
 {
@@ -11,7 +10,6 @@ namespace Bagira.DDS.DataModel.Tests
     /// DDS pub/sub integration tests for the <see cref="SubsystemStatusAnnounce"/> topic.
     /// Each test uses a dedicated DDS domain to prevent cross-test interference.
     /// </summary>
-    [TestClass]
     public class SubsystemStatusAnnounceTests
     {
         // Dedicated domains per test to prevent concurrent-test interference
@@ -20,7 +18,7 @@ namespace Bagira.DDS.DataModel.Tests
 
         // ── Pub/sub round-trip ────────────────────────────────────────────────
 
-        [TestMethod]
+        [Fact]
         public async Task SubsystemStatusAnnounce_PubSub_RoundTrip()
         {
             using var participant = new DdsParticipant(DomainRoundTrip);
@@ -52,13 +50,13 @@ namespace Bagira.DDS.DataModel.Tests
                 {
                     if (loan[i].NodeId == expectedNodeId)
                     {
-                        Assert.AreEqual("SimHost", loan[i].SubsystemName);
-                        Assert.IsTrue(loan[i].Ready);
+                        Assert.Equal("SimHost", loan[i].SubsystemName);
+                        Assert.True(loan[i].Ready);
                         found = true;
                         break;
                     }
                 }
-                Assert.IsTrue(found, $"Should have received sample with NodeId={expectedNodeId}");
+                Assert.True(found, $"Should have received sample with NodeId={expectedNodeId}");
             }
             finally
             {
@@ -68,7 +66,7 @@ namespace Bagira.DDS.DataModel.Tests
 
         // ── TransientLocal durability: late joiner ────────────────────────────
 
-        [TestMethod]
+        [Fact]
         public async Task SubsystemStatusAnnounce_TransientLocal_LateJoinerReceivesAnnouncement()
         {
             // A writer publishes BEFORE the reader is created
@@ -103,12 +101,12 @@ namespace Bagira.DDS.DataModel.Tests
                 {
                     if (loan[i].NodeId == earlyNodeId)
                     {
-                        Assert.AreEqual("IG", loan[i].SubsystemName);
+                        Assert.Equal("IG", loan[i].SubsystemName);
                         found = true;
                         break;
                     }
                 }
-                Assert.IsTrue(found,
+                Assert.True(found,
                     $"Late-joining reader should receive the TransientLocal cached announcement with NodeId={earlyNodeId}");
             }
             finally

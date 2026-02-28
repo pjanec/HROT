@@ -23,8 +23,7 @@ namespace Bagira.IG.Translators
     /// On disposal it publishes <see cref="DestroyEntityCommand"/> so the lifecycle module
     /// can tear the entity down cleanly.
     ///
-    /// For already-known entities the translator updates the <see cref="EntityMaster"/> ECS
-    /// component in-place via the command buffer.
+    /// For already-known entities the translator does not emit any ECS component updates.
     ///
     /// IG is a ghost-only (read-only) node — <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
@@ -83,11 +82,7 @@ namespace Bagira.IG.Translators
 
         // ── Ghost promotion helper ────────────────────────────────────────────
 
-        public void ApplyToEntity(Entity entity, object data, EntityRepository repo)
-        {
-            if (data is EntityMaster master)
-                repo.SetComponent(entity, master);
-        }
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -112,12 +107,7 @@ namespace Bagira.IG.Translators
         {
             long netId = master.EntityId;
 
-            if (_entityMap.TryGetEntity(netId, out var existing))
-            {
-                // Known entity — update component in-place
-                cmd.SetComponent(existing, master);
-            }
-            else
+            if (!_entityMap.TryGetEntity(netId, out _))
             {
                     FdpLog<EntityMasterTranslator>.Debug(
                         "[TRACE-IG] Ingress: EntityMaster NetID={0} -> Ghost spawn", master.EntityId);
@@ -130,9 +120,10 @@ namespace Bagira.IG.Translators
                 {
                     NetworkId         = netId,
                     TkbType           = master.TkbType,
+                    DisType           = master.DisType,
                     OwnerNodeId       = 0,
                     InitType          = ReliableInitType.None,
-                    InitialComponents = new List<object> { master },
+                    InitialComponents = new List<object>(),
                     RequestId         = Guid.Empty
                 });
             }

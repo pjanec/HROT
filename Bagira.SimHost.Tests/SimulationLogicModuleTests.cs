@@ -1,3 +1,4 @@
+using System;
 using Bagira.SimHost.Modules;
 using CarKinem.Core;
 using CarKinem.Formation;
@@ -7,6 +8,10 @@ using CarKinem.Trajectory;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Combat.Components;
+using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Physics;
+using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Physics.Systems;
 using FDP.Toolkit.Replication.Services;
 
@@ -37,6 +42,25 @@ namespace Bagira.SimHost.Tests
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
 
+            // HSM brain tiers (for APC-style HSM doctrines)
+            world.RegisterComponent<BrainHsm64>();
+            world.RegisterComponent<BrainHsm128>();
+            world.RegisterComponent<PreviousCapabilities>();
+            world.RegisterComponent<PassengerBuffer>();
+            world.RegisterComponent<IsEmbarkedTag>();
+
+            // Perception
+            world.RegisterComponent<Faction>();
+            world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<TargetMemory>();
+
+            // Combat & Physics
+            world.RegisterComponent<PhysicsCollider>();
+            world.RegisterComponent<WeaponState>();
+            world.RegisterComponent<Health>();
+            world.RegisterComponent<BallisticProjectile>();
+            world.RegisterComponent<HealthData>();
+
             // ── Core simulation components (Fdp.Kernel + CarKinem) ────────────
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
@@ -48,7 +72,20 @@ namespace Bagira.SimHost.Tests
             // GlobalTime singleton — ComponentSystem.DeltaTime reads this.
             world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
 
+            var physicsModule = new PhysicsToolkitModule();
+            physicsModule.Initialize(world);
+
             return world;
+        }
+
+        private static void DisposeRaycastBatchData(EntityRepository world)
+        {
+            if (world.HasSingleton<RaycastBatchData>())
+            {
+                ref var batch = ref world.GetSingleton<RaycastBatchData>();
+                if (batch.Requests.IsCreated) batch.Requests.Dispose();
+                if (batch.Hits.IsCreated) batch.Hits.Dispose();
+            }
         }
 
         // ── Tests ─────────────────────────────────────────────────────────────
@@ -84,29 +121,39 @@ namespace Bagira.SimHost.Tests
                 trajectoryPool:          trajectoryPool,
                 formationTemplateManager: null);   // defaults to new FormationTemplateManager()
 
-            // The SystemGroup is the "kernel" referenced in the test requirement.
-            var group = new SystemGroup();
-            group.Create(world);
-            module.RegisterSystems(group);
+            var inputGroup = new SystemGroup();
+            inputGroup.Create(world);
+            var simGroup = new SystemGroup();
+            simGroup.Create(world);
+            var postSimGroup = new SystemGroup();
+            postSimGroup.Create(world);
+
+            module.RegisterSystems(inputGroup, simGroup, postSimGroup);
 
             // ── Act + Assert ──────────────────────────────────────────────────
             // Calling Run() triggers SortSystems() which validates the dependency
             // graph (throws InvalidOperationException on cyclic dependencies),
             // then executes OnUpdate() for each system on the empty world.
-            var exception = Record.Exception(() => group.Run());
+            var exception = Record.Exception(() =>
+            {
+                inputGroup.Run();
+                simGroup.Run();
+                postSimGroup.Run();
+            });
 
             Assert.Null(exception);
 
-            // Assert system count: 9 systems registered
-            // (MissionAdapterSystem, ChannelArbitration, BTreeTick,
-            //  LocomotionDispatcher, SpatialHash, FormationTarget,
-            //  VehicleCommand, CarKinematics, LinearKinematics)
-            Assert.Equal(9, group.SystemCount);
+            Assert.Equal(3, inputGroup.SystemCount);
+            Assert.Equal(16, simGroup.SystemCount);
+            Assert.Equal(1, postSimGroup.SystemCount);
 
             // ── Cleanup ───────────────────────────────────────────────────────
-            group.Dispose();
+            inputGroup.Dispose();
+            simGroup.Dispose();
+            postSimGroup.Dispose();
             roadNetwork.Dispose();
             trajectoryPool.Dispose();
+            DisposeRaycastBatchData(world);
         }
 
         /// <summary>
@@ -118,14 +165,74 @@ namespace Bagira.SimHost.Tests
         {
             using var world = CreateEmptyWorld();
             var module = new SimulationLogicModule(new DoctrineRegistry(), new NetworkEntityMap());
-            var group  = new SystemGroup();
-            group.Create(world);
-            module.RegisterSystems(group);
+            var inputGroup = new SystemGroup();
+            inputGroup.Create(world);
+            var simGroup = new SystemGroup();
+            simGroup.Create(world);
+            var postSimGroup = new SystemGroup();
+            postSimGroup.Create(world);
+            module.RegisterSystems(inputGroup, simGroup, postSimGroup);
 
-            var systems = group.GetSystems();
+            var systems = simGroup.GetSystems();
             Assert.Contains(systems, s => s is LinearKinematicsSystem);
 
-            group.Dispose();
+            inputGroup.Dispose();
+            simGroup.Dispose();
+            postSimGroup.Dispose();
+            DisposeRaycastBatchData(world);
+        }
+
+        [Fact]
+        public void SimulationLogicModule_CombatEntity_TenFramePumpHasNoException()
+        {
+            using var world = CreateEmptyWorld();
+            var module = new SimulationLogicModule(new DoctrineRegistry(), new NetworkEntityMap());
+
+            var inputGroup = new SystemGroup();
+            inputGroup.Create(world);
+            var simGroup = new SystemGroup();
+            simGroup.Create(world);
+            var postSimGroup = new SystemGroup();
+            postSimGroup.Create(world);
+            module.RegisterSystems(inputGroup, simGroup, postSimGroup);
+
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new SimTransform());
+            world.AddComponent(entity, new SimVelocity());
+            world.AddComponent(entity, new PerceptionReceptor { VisionRange = 500f, HearingRange = 250f, FieldOfViewCos = 0f });
+            world.AddComponent(entity, new TargetMemory());
+            world.AddComponent(entity, new WeaponState { Ammo = 1, MuzzleVelocity = 800f, CooldownTicksRemaining = 0 });
+            world.AddComponent(entity, new Health { Current = 100f, Max = 100f });
+            world.AddComponent(entity, new HealthData { Current = 100f, Max = 100f });
+            world.AddComponent(entity, new PhysicsCollider { Radius = 1.0f, CollisionLayer = 1 });
+            world.AddComponent(entity, new Faction { FactionId = 1 });
+            world.AddComponent(entity, new BrainBTreeState());
+            world.AddComponent(entity, new BrainBlackboard());
+            world.AddComponent(entity, new DoctrineState());
+            world.AddComponent(entity, new LocomotionChannel());
+            world.AddComponent(entity, new WeaponChannel());
+            world.AddComponent(entity, new InteractionChannel());
+            world.AddComponent(entity, new ActorCapabilityState());
+
+            Exception? exception = null;
+            for (int i = 0; i < 10; i++)
+            {
+                world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+                exception = Record.Exception(() =>
+                {
+                    inputGroup.Run();
+                    simGroup.Run();
+                    postSimGroup.Run();
+                });
+                if (exception != null) break;
+            }
+
+            Assert.Null(exception);
+
+            inputGroup.Dispose();
+            simGroup.Dispose();
+            postSimGroup.Dispose();
+            DisposeRaycastBatchData(world);
         }
     }
 }

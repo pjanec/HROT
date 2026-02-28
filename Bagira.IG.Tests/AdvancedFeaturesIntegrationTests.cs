@@ -80,7 +80,7 @@ public class AdvancedFeaturesIntegrationTests
         repo.RegisterManagedComponent<EditablePolyline>();
 
         // --- Events ---
-        repo.RegisterEvent<FireInteractionEvent>();
+        repo.RegisterEvent<Bagira.Map.Common.Events.FireInteractionEvent>();
 
         return repo;
     }
@@ -151,7 +151,7 @@ public class AdvancedFeaturesIntegrationTests
         var cleanupSystem = new VisualEffectCleanupSystem();
 
         // Publish the event and run the spawn system.
-        repo.Bus.Publish(new FireInteractionEvent
+        repo.Bus.Publish(new Bagira.Map.Common.Events.FireInteractionEvent
         {
             ShooterX = ShooterX, ShooterY = ShooterY,
             TargetX  = TargetX,  TargetY  = TargetY,
@@ -259,8 +259,8 @@ public class AdvancedFeaturesIntegrationTests
         var spawnSystem = new EventToEffectSystem();
         var view        = (ISimulationView)repo;
 
-        repo.Bus.Publish(new FireInteractionEvent { ShooterX = 0f, ShooterY = 0f, TargetX = 100f, TargetY = 100f });
-        repo.Bus.Publish(new FireInteractionEvent { ShooterX = 200f, ShooterY = 0f, TargetX = 300f, TargetY = 0f });
+        repo.Bus.Publish(new Bagira.Map.Common.Events.FireInteractionEvent { ShooterX = 0f, ShooterY = 0f, TargetX = 100f, TargetY = 100f });
+        repo.Bus.Publish(new Bagira.Map.Common.Events.FireInteractionEvent { ShooterX = 200f, ShooterY = 0f, TargetX = 300f, TargetY = 0f });
 
         RunSystem(repo, spawnSystem, dt: 0f);
 

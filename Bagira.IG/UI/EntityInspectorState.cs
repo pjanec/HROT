@@ -1,6 +1,6 @@
-using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
 using Fdp.Kernel;
+using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 
 namespace Bagira.IG.UI;
@@ -31,12 +31,12 @@ public class EntityInspectorState
     /// </summary>
     public Entity InspectedEntity { get; private set; } = Entity.Null;
 
-    // ── EntityMaster ──────────────────────────────────────────────────────────
+    // ── Network identity ──────────────────────────────────────────────────────
 
-    /// <summary>Raw network / DIS entity identifier from <see cref="EntityMaster.EntityId"/>.</summary>
+    /// <summary>Raw network / DIS entity identifier from <see cref="NetworkIdentity.Value"/>.</summary>
     public int EntityId { get; private set; }
 
-    /// <summary>TKB template type key from <see cref="EntityMaster.TkbType"/>.</summary>
+    /// <summary>TKB template type key from <see cref="NetworkSpawnRequest.TkbType"/>.</summary>
     public long TkbType { get; private set; }
 
     // ── SimTransform ──────────────────────────────────────────────────────────
@@ -88,12 +88,17 @@ public class EntityInspectorState
         HasSelection    = true;
         InspectedEntity = entity;
 
-        // EntityMaster — network identity and TKB type.
-        if (view.HasComponent<EntityMaster>(entity))
+        // Network identity and TKB type.
+        if (view.HasComponent<NetworkIdentity>(entity))
         {
-            ref readonly var master = ref view.GetComponentRO<EntityMaster>(entity);
-            EntityId = master.EntityId;
-            TkbType  = master.TkbType;
+            ref readonly var identity = ref view.GetComponentRO<NetworkIdentity>(entity);
+            EntityId = (int)identity.Value;
+        }
+
+        if (view.HasComponent<NetworkSpawnRequest>(entity))
+        {
+            ref readonly var spawn = ref view.GetComponentRO<NetworkSpawnRequest>(entity);
+            TkbType = spawn.TkbType;
         }
 
         // SimTransform — world-space position.

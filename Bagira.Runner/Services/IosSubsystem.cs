@@ -5,6 +5,7 @@ using Bagira.IOS.Logic;
 using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
 using Bagira.Map.Common;
+using Bagira.Map.Common.Dds;
 using Bagira.Runner.Abstractions;
 using Bagira.Runner.Models;
 using CycloneDDS.Runtime;
@@ -45,6 +46,12 @@ namespace Bagira.Runner.Services
         private IosMock?         _mock;
         private bool             _headless;
         private DdsParticipant?  _participant;
+        private List<IDisposable>? _ingressDisposables;
+
+        /// <summary>
+        /// Internal test hook for integration tests.
+        /// </summary>
+        internal IosLogic Logic => _mock?.Logic ?? throw new InvalidOperationException("Not initialized");
 
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
@@ -62,6 +69,26 @@ namespace Bagira.Runner.Services
 
             var clickQueue     = new ConcurrentEventQueue<MapClickEvent>();
             var selectionQueue = new ConcurrentEventQueue<SelectionChangedEvent>();
+
+            // DDS ingress handlers for click/selection events.
+            var ingressHandlers = new List<IIngressHandler>
+            {
+                new MapClickIngressHandler(_participant, clickQueue),
+                new SelectionChangedIngressHandler(_participant, selectionQueue),
+                new MasterIngressHandler<EntityMaster>(
+                    _participant,
+                    repo,
+                    "EntityMaster",
+                    master => master.EntityId,
+                    master => master.TkbType)
+            };
+
+            _ingressDisposables = new List<IDisposable>(ingressHandlers.Count);
+            for (int i = 0; i < ingressHandlers.Count; i++)
+            {
+                if (ingressHandlers[i] is IDisposable disposable)
+                    _ingressDisposables.Add(disposable);
+            }
 
             // Live DDS writers — publish IOS state changes to the network.
             var configWriter       = new DdsWriterAdapter<MapInteractionConfig>(_participant, TopicMapConfig);
@@ -82,7 +109,7 @@ namespace Bagira.Runner.Services
                 clickQueue:           clickQueue,
                 selectionQueue:       selectionQueue,
                 interactionPanel:     interactionPanel,
-                ingressHandlers:      null,
+                ingressHandlers:      ingressHandlers,
                 mapGroupId:           DefaultMapGroupId);
 
             _mock = new IosMock(
@@ -121,6 +148,12 @@ namespace Bagira.Runner.Services
         {
             _mock?.Dispose();
             _mock = null;
+            if (_ingressDisposables != null)
+            {
+                for (int i = 0; i < _ingressDisposables.Count; i++)
+                    _ingressDisposables[i].Dispose();
+                _ingressDisposables = null;
+            }
             _participant?.Dispose();
             _participant = null;
         }

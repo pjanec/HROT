@@ -1,15 +1,13 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using CycloneDDS.Runtime; // Use Runtime namespace
 using System.Threading.Tasks;
-using System.Linq;
 using Bagira.BDC.SSTD;
+using CycloneDDS.Runtime;
+using Xunit;
 
 namespace Bagira.DDS.DataModel.Tests
 {
-    [TestClass]
     public class DdsIntegrationTests
     {
-        [TestMethod]
+        [Fact]
         public async Task CanPublishAndSubscribeEntityMaster()
         {
             // Arrange
@@ -41,9 +39,9 @@ namespace Bagira.DDS.DataModel.Tests
             var samples = reader.Take();
             
             // Assert
-            Assert.IsTrue(samples.Length > 0, "Should have received at least one sample");
-            Assert.AreEqual(12345, samples[0].EntityId);
-            Assert.AreEqual(100, samples[0].TkbType);
+            Assert.True(samples.Length > 0, "Should have received at least one sample");
+            Assert.Equal(12345, samples[0].EntityId);
+            Assert.Equal(100, samples[0].TkbType);
         }
     }
 }

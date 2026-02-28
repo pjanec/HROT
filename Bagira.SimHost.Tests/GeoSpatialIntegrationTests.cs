@@ -8,6 +8,7 @@ using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
 using Fdp.Modules.Geographic.Transforms;
+using FDP.Toolkit.Behavior;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
@@ -102,7 +103,8 @@ namespace Bagira.SimHost.Tests
             var idAlloc = new DdsIdAllocator(p, "test");
             var elm     = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(tkb, new List<int>());
             var spawner = new NetworkSpawningSystem(tkb, elm, map, idAlloc, 1);
-            var simHost = new SimHostModule(p, tkb, idAlloc, 1, spawner, map, wgs84);
+            var doctrineRegistry = new DoctrineRegistry();
+            var simHost = new SimHostModule(p, tkb, idAlloc, 1, spawner, map, doctrineRegistry, wgs84);
 
             var translator = simHost.GeoEgressTranslator;
             Assert.NotNull(translator);

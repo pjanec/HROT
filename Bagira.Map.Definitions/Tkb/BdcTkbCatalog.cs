@@ -44,7 +44,8 @@ namespace Bagira.Map.Definitions.Tkb
                         RateOfFire = 6
                     });
                     c.SensorRange = 8000;
-                });
+                })
+                .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1);
             
             // Bradley IFV
             builder
@@ -75,7 +76,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.Weapons.Add(new WeaponMount { WeaponType = "25mm_M242", Ammunition = 300, Range = 2500, RateOfFire = 200 });
                     c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2 });
                     c.SensorRange = 5000;
-                });
+                })
+                .WithFaction(TkbEntityTypes.IFV_Bradley, 1);
             
             // HMMWV
             builder
@@ -97,7 +99,8 @@ namespace Bagira.Map.Definitions.Tkb
                     p.Acceleration = 4.0f;
                     p.TurnRate = 30.0f;
                     p.Mobility = TerrainMobility.Wheeled;
-                });
+                })
+                .WithFaction(TkbEntityTypes.Truck_HMMWV, 1);
             
             // T-72 (OPFOR)
             builder
@@ -127,7 +130,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.ArmorRear = 150;
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8 });
                     c.SensorRange = 6000;
-                });
+                })
+                .WithFaction(TkbEntityTypes.Tank_T72, 2);
             
             // Infantry Rifleman
             builder
@@ -155,7 +159,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.ArmorFront = 5; // Body armor
                     c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700 });
                     c.SensorRange = 500;
-                });
+                })
+                .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1);
             
             // Tank Platoon (Composite)
             builder
@@ -166,6 +171,7 @@ namespace Bagira.Map.Definitions.Tkb
                     v.ColorHex = "#0000FF";
                     v.Scale = 1.5f;
                 })
+                .WithFaction(TkbEntityTypes.Unit_TankPlatoon, 1)
                 .AsComposite(TkbEntityTypes.Unit_TankPlatoon, comp =>
                 {
                     comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, RoleTag = "Tank" });
@@ -182,6 +188,7 @@ namespace Bagira.Map.Definitions.Tkb
                     v.ColorHex = "#0000FF";
                     v.Scale = 1.2f;
                 })
+                .WithFaction(TkbEntityTypes.Unit_InfantrySquad, 1)
                 .AsComposite(TkbEntityTypes.Unit_InfantrySquad, comp =>
                 {
                     comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Officer, Count = 1, RoleTag = "SquadLeader" });

@@ -58,7 +58,6 @@ public class ToolInteractionIntegrationTests
         repo.RegisterComponent<NetworkIdentity>();
         repo.RegisterComponent<NetworkOwnership>();
         repo.RegisterComponent<NetworkAuthority>();
-        repo.RegisterComponent<EntityMaster>();
         repo.RegisterComponent<SimTransform>();
         repo.RegisterComponent<CullingState>();
         repo.RegisterComponent<ResolvedStyle>();

@@ -23,6 +23,11 @@ public static class IgNetworkConstants
     /// </summary>
     public const int LocalNodeId = 1;
 
+    /// <summary>
+    /// Map-group ID used to scope <c>MapEntitySymbol</c> overrides to this IG instance.
+    /// </summary>
+    public const int MapGroupId = 1;
+
     // --- Geographic origin (default exercise area, degrees) ---
 
     /// <summary>Default WGS84 latitude origin for the exercise area.</summary>

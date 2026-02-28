@@ -21,7 +21,7 @@ namespace Bagira.SimHost.Integration.Tests
     ///      back via <see cref="SimHostInstance.ReadGeoSpatial"/> and converted to local
     ///      Cartesian coordinates; we assert the vehicle moved at least 50 m from the origin.
     ///
-    /// Note: this test intentionally bypasses the B-Tree / MissionAdapterSystem tier and
+    /// Note: this test intentionally bypasses the B-Tree / MissionDirectorSystem tier and
     /// configures NavState directly.  This exercises the full physics pipeline
     /// (SpatialHashSystem → VehicleCommandSystem → CarKinematicsSystem →
     /// SimTransformBridgeSystem → CoordinateTransformSystem) without requiring a

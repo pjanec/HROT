@@ -1,10 +1,13 @@
 using System;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Bagira.Runner.Abstractions;
 using Bagira.Runner.Models;
 using Bagira.Runner.Services;
+using ModuleHost.Core;
+using ModuleHost.Network.Cyclone.Systems;
 
 namespace Bagira.Runner.Tests
 {
@@ -56,6 +59,25 @@ namespace Bagira.Runner.Tests
             // doctrine registry, geographic module, network module) does not throw.
             var ex = Record.Exception(() => _subsystem.Initialize(HeadlessConfig()));
             Assert.Null(ex);
+        }
+
+        [Fact]
+        public void Initialize_RegistersCycloneNetworkCleanupSystem()
+        {
+            _subsystem.Initialize(HeadlessConfig());
+
+            var kernelField = typeof(SimHostSubsystem).GetField(
+                "_kernel",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+
+            Assert.NotNull(kernelField);
+
+            var kernel = kernelField!.GetValue(_subsystem) as ModuleHostKernel;
+            Assert.NotNull(kernel);
+
+            var profile = kernel!.SystemScheduler.GetProfileData<CycloneNetworkCleanupSystem>();
+
+            Assert.NotNull(profile);
         }
 
         // ── Update ────────────────────────────────────────────────────────────

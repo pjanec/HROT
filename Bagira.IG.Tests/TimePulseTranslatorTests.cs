@@ -1,4 +1,6 @@
+using System.Linq;
 using Bagira.IG.Translators;
+using CycloneDDS.Schema;
 using Fdp.Kernel;
 using FDP.Toolkit.Time.Messages;
 using ModuleHost.Core.Abstractions;
@@ -16,6 +18,16 @@ namespace Bagira.IG.Tests;
 /// </summary>
 public class TimePulseTranslatorTests
 {
+    [Fact]
+    public void TimePulseDescriptor_HasDdsTopicAttribute()
+    {
+        var attr = typeof(TimePulseDescriptor).GetCustomAttributes(typeof(DdsTopicAttribute), false)
+            .FirstOrDefault() as DdsTopicAttribute;
+
+        Assert.NotNull(attr);
+        Assert.Equal("TimePulse", attr!.TopicName);
+    }
+
     // ── Registration / warm-up ────────────────────────────────────────────────
 
     /// <summary>

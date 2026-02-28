@@ -36,8 +36,7 @@ namespace Bagira.SimHost.Tests
 
         /// <summary>
         /// Writes <paramref name="p"/> into the entity's <see cref="BrainBlackboard.Memory"/>
-        /// at offset 0, simulating what <see cref="MissionAdapterSystem"/> would do via
-        /// <c>DoctrineDefinition.ParseParams</c>.
+        /// at offset 0, simulating what <c>DoctrineDefinition.ParseParams</c> would do.
         /// </summary>
         private static unsafe void WriteBlackboardParams(
             EntityRepository world, Entity entity, JoinFormationParams p)

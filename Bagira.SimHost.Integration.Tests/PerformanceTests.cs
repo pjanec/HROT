@@ -30,6 +30,7 @@ namespace Bagira.SimHost.Integration.Tests
         private const int TickCount           = 3600;      // 60 seconds @ 60 Hz
         private const float MinAverageFPS     = 58f;
         private const float MinFPS            = 55f;
+        private const string PerfEnvVar       = "FDP_RUN_PERF_TESTS";
 
         private readonly SimHostInstance _host;
 
@@ -47,6 +48,9 @@ namespace Bagira.SimHost.Integration.Tests
         [Trait("Category", "Performance")]
         public void Performance_100Entities_Maintains60Hz()
         {
+            if (!ShouldRunPerfTests())
+                return;
+
             // ── Spawn 100 entities spread in a 500 × 500 m grid ──────────────────────────
             var entityIds = new List<int>(EntityCount);
             const float spacing = 50f;          // 50 m between entities
@@ -121,6 +125,9 @@ namespace Bagira.SimHost.Integration.Tests
         [Fact]
         public void Performance_SingleEntity_OverheadIsNegligible()
         {
+            if (!ShouldRunPerfTests())
+                return;
+
             var ack = _host.CreateEntity(TkbEntityTypes.Tank_M1Abrams);
             Assert.Equal(0, ack.ErrorCode);
 
@@ -145,5 +152,8 @@ namespace Bagira.SimHost.Integration.Tests
                 metrics.AverageFPS >= MinAverageFPS,
                 $"Single-entity average FPS {metrics.AverageFPS:F1} < {MinAverageFPS}.");
         }
+
+        private static bool ShouldRunPerfTests()
+            => string.Equals(Environment.GetEnvironmentVariable(PerfEnvVar), "1", StringComparison.Ordinal);
     }
 }

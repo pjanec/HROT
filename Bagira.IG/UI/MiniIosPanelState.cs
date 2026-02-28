@@ -88,6 +88,7 @@ public class MiniIosPanelState
         {
             NetworkId         = 0,
             TkbType           = TkbType,
+            DisType           = 0,
             OwnerNodeId       = IgNetworkConstants.LocalNodeId,
             InitType          = ReliableInitType.None,
             InitialComponents = new List<object> { transform, symbolOverride },
@@ -118,7 +119,7 @@ public class MiniIosPanelState
         var masterDescriptor = new EntityDescriptorUnion
         {
             _d           = EDescriptorType.dtEntityMaster,
-            EntityMaster = new EntityMaster { TkbType = TkbType },
+            EntityMaster = new EntityMaster { TkbType = TkbType, DisType = 0 },
         };
 
         var request = new CreateEntityRequest

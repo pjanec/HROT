@@ -13,6 +13,7 @@ using Bagira.IG.Translators;
 using Bagira.IG.UI;
 using Bagira.Map.Common;
 using Bagira.Map.Common.Commands;
+using Bagira.Map.Common.Events;
 using Bagira.Map.Definitions.Tkb;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
@@ -20,12 +21,15 @@ using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Transforms;
 using FDP.Toolkit.Lifecycle;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Combat.Components;
+using FDP.Toolkit.Lifecycle.Events;
+using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Time.Controllers;
-using Fdp.Toolkit.Tkb;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
 using FDP.Toolkit.Vis2D.Components;
@@ -40,7 +44,6 @@ using DdsIdAllocator = ModuleHost.Network.Cyclone.Services.DdsIdAllocator;
 using NodeIdMapper    = ModuleHost.Network.Cyclone.Services.NodeIdMapper;
 using Raylib_cs;
 using rlImGui_cs;
-using Fdp.Examples.NetworkDemo.Systems;
 
 namespace Bagira.IG;
 
@@ -75,7 +78,6 @@ public class IgApplication
     // --- Runtime state (ECS / network) ---
     private EntityRepository _world   = null!;
     private ModuleHostKernel _kernel  = null!;
-    private FdpEventBus      _eventBus = null!;
     private NetworkEntityMap _entityMap = null!;
 
     // ── Network enabled flag — false when DDS libraries are unavailable (e.g. unit-test host)
@@ -163,7 +165,6 @@ public class IgApplication
     private void InitializeEcs()
     {
         _world     = new EntityRepository();
-        _eventBus  = new FdpEventBus();
         _entityMap = new NetworkEntityMap();
 
         var accumulator = new EventAccumulator();
@@ -178,11 +179,20 @@ public class IgApplication
         _world.RegisterComponent<NetworkAuthority>();
         _world.RegisterComponent<NetworkSpawnRequest>();
         _world.RegisterComponent<PendingNetworkAck>();
+        _world.RegisterComponent<NetworkPosition>();
+        _world.RegisterComponent<NetworkVelocity>();
         _world.RegisterComponent<SimTransform>();
         _world.RegisterComponent<SimVelocity>();
         _world.RegisterComponent<GeoTransform>();
         _world.RegisterComponent<GeoVelocity>();
-        _world.RegisterComponent<EntityMaster>();
+        _world.RegisterComponent<IgHealthState>();
+        _world.RegisterComponent<Faction>();
+        _world.RegisterComponent<PerceptionReceptor>();
+        _world.RegisterComponent<TargetMemory>();
+        _world.RegisterComponent<WeaponState>();
+        _world.RegisterComponent<Health>();
+        _world.RegisterComponent<HealthData>();
+        _world.RegisterComponent<PhysicsCollider>();
 
         // IG4 — Advanced Features components
         _world.RegisterComponent<HistoryTrail>();
@@ -191,9 +201,36 @@ public class IgApplication
         _world.RegisterManagedComponent<ContextMenuState>();
         _world.RegisterManagedComponent<EditablePolyline>();
         _world.RegisterManagedComponent<IgVisualDef>();
+        _world.RegisterManagedComponent<IgEntityData>();
+        _world.RegisterManagedComponent<SimVehicleDef>();
+        _world.RegisterManagedComponent<SimCombatDef>();
+        _world.RegisterManagedComponent<TkbCompositionDef>();
 
-        // IG4 — Events
-        _world.RegisterEvent<FireInteractionEvent>();
+        _world.RegisterEvent<ConstructionOrder>();
+        _world.RegisterEvent<ConstructionAck>();
+        _world.RegisterEvent<DestructionOrder>();
+        _world.RegisterEvent<DestructionAck>();
+
+        // IG4 — Events (skip in headless mode to avoid aggregated-ID collisions).
+        if (!_headless)
+        {
+            try
+            {
+                _world.RegisterEvent<Bagira.Map.Common.Events.FireInteractionEvent>();
+            }
+            catch (TypeInitializationException ex) when (ex.InnerException is InvalidOperationException)
+            {
+                // Aggregated Runner mode can load multiple event types with the same ID.
+                FdpLog<IgApplication>.Warn(
+                    "[IG] FireInteractionEvent registration skipped: {0}",
+                    ex.InnerException!.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Aggregated Runner mode can load multiple event types with the same ID.
+                FdpLog<IgApplication>.Warn("[IG] FireInteractionEvent registration skipped: {0}", ex.Message);
+            }
+        }
 
         _userConfig     = new MapUserConfig();
         _cameraViewport = new MapCameraViewport();
@@ -204,7 +241,7 @@ public class IgApplication
         _inspectorState     = new EntityInspectorState();
         _inspectorPanel     = new EntityInspectorPanel(_inspectorState);
         _miniIosState       = new MiniIosPanelState();
-        _miniIosPanel       = new MiniIosPanel(_miniIosState, _eventBus);
+        _miniIosPanel       = new MiniIosPanel(_miniIosState, _world.Bus);
         _performanceMetrics = new PerformanceMetrics();
         _performanceOverlay = new PerformanceOverlay(_performanceMetrics);
     }
@@ -219,7 +256,7 @@ public class IgApplication
 
         var domainId = domainIdOverride ?? IgNetworkConstants.DdsDomain;
 
-        var tkb = BagiraEnvironment.CreateTkb(BdcTkbCatalog.RegisterAll);
+        var tkb = BagiraEnvironment.CreateTkb();
         _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
 
         var nodeMapper = new NodeIdMapper(
@@ -238,15 +275,9 @@ public class IgApplication
 
         // B. SpawningModule — processes SpawnEntityCommand / DestroyEntityCommand
         INetworkIdAllocator idAllocator = new IgSequentialIdAllocator();
-        DisTypeExtractor disExtractor = (object c, out ulong dis) =>
-        {
-            if (c is EntityMaster m) { dis = m.DisType; return true; }
-            dis = 0; return false;
-        };
-
         var spawningSystem = new NetworkSpawningSystem(
             tkb, elm, _entityMap, idAllocator,
-            IgNetworkConstants.LocalNodeId, disExtractor);
+            IgNetworkConstants.LocalNodeId);
         _kernel.RegisterModule(new SpawningModule(spawningSystem));
 
         // E. StyleResolutionModule — writes ResolvedStyle each Simulation tick
@@ -259,7 +290,8 @@ public class IgApplication
         _kernel.RegisterModule(new HistoryTrailModule());
 
         // H. EventEffectModule — spawns and cleans up visual effects (IG.4.2)
-        _kernel.RegisterModule(new EventEffectModule());
+        if (!_headless)
+            _kernel.RegisterModule(new EventEffectModule());
 
         // C. CycloneNetworkModule — DDS ingress/egress (optional)
         if (enableNetwork)
@@ -277,12 +309,18 @@ public class IgApplication
 
                 var customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
                 {
-                    new EntityMasterTranslator(participant, _entityMap, _eventBus),
+                    new EntityMasterTranslator(participant, _entityMap, _world.Bus),
                     new GeoSpatialTranslator(participant, _entityMap, _geoTransform),
-                    new EntityInfoTranslator(participant, _entityMap, _eventBus),
-                    // causes network init to fail (the pulse event not registered as dds topic)
-                    //new TimePulseTranslator(participant, _eventBus),
+                    new GeoSpatialDRTranslator(participant, _entityMap, _geoTransform),
+                    new EntityInfoTranslator(participant, _entityMap, _world.Bus),
+                    new EntityDamageTranslator(participant, _entityMap),
+                    new MapEntitySymbolTranslator(participant, _entityMap, IgNetworkConstants.MapGroupId),
+                    new ContextActionsUpdateTranslator(participant, _entityMap, _world.Bus),
+                    new TimePulseTranslator(participant, _world.Bus),
                 };
+
+                if (!_headless)
+                    customTranslators.Add(new FireInteractionEventTranslator(participant, _entityMap));
 
                 var ddsAllocator = new DdsIdAllocator(participant, $"IG_{IgNetworkConstants.InstanceId}");
 
@@ -304,7 +342,7 @@ public class IgApplication
 
         // D. EntityRenderLayer wired to the StubVisualizerAdapter
         var query = _world.Query()
-            .With<EntityMaster>()
+            .With<NetworkIdentity>()
             .With<SimTransform>()
             .Build();
 
@@ -332,13 +370,11 @@ public class IgApplication
         }
 
         // E. SlaveTimeController — driven by TimePulse events on the event bus
-        var timeController = new SlaveTimeController(_eventBus);
+        var timeController = new SlaveTimeController(_world.Bus);
         _kernel.SetTimeController(timeController);
 
-        // TASK-IF005: Register TransformSyncSystem as a global system driven by the network.
-        // IG is a ghost-only node — driveFromNetwork=true ensures all entities are treated
-        // as remote and dead-reckoning is applied regardless of NetworkAuthority.HasAuthority.
-        _kernel.RegisterGlobalSystem(new TransformSyncSystem(driveFromNetwork: true));
+        _kernel.RegisterGlobalSystem(new DeadReckoningSyncSystem());
+        _kernel.RegisterGlobalSystem(new ContextMenuSystem());
 
         _kernel.Initialize();
     }
@@ -373,7 +409,6 @@ public class IgApplication
 
         // Always tick ECS/network — even in headless mode DDS messages must be processed.
         _kernel.Update();
-        _eventBus.SwapBuffers();
 
         // Task 5: Poll IOS → IG interaction-config updates (active context ID).
         if (_networkEnabled && _configReader != null)
@@ -546,7 +581,6 @@ public class IgApplication
         _clickWriter?.Dispose();
         _configReader?.Dispose();
         _kernel?.Dispose();
-        _eventBus?.Dispose();
         if (ownsWindow)
         {
             rlImGui.Shutdown();
@@ -555,6 +589,17 @@ public class IgApplication
     }
 
     // ── Task 5: IG-to-IOS event translators ──────────────────────────────────
+
+    /// <summary>
+    /// Internal test hook to simulate a map click without Raylib input.
+    /// </summary>
+    internal void TestHook_SimulateMapClick(Vector2 worldPos)
+        => OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null);
+
+    /// <summary>
+    /// Internal test hook to expose the latest interaction context ID.
+    /// </summary>
+    internal Guid TestHook_ActiveContextId => _activeContextId;
 
     /// <summary>
     /// Converts a canvas world-click to a <see cref="MapClickEvent"/> and writes it

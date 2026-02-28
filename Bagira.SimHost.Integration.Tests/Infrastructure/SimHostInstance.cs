@@ -6,7 +6,6 @@ using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.Map.Common;
 using Bagira.SimHost;
-using Bagira.SimHost.Components;
 using Bagira.SimHost.Modules;
 using Bagira.SimHost.Systems;
 using CarKinem.Core;
@@ -21,10 +20,14 @@ using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Transforms;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.NetworkSpawning.Systems;
+using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Physics;
+using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Physics.Systems;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
@@ -169,7 +172,9 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         private readonly SystemList                _geoSystems  = new();
 
         // ── Systems: ComponentSystem-based (executed via SystemGroup) ─────────────
+        private readonly SystemGroup _inputGroup;
         private readonly SystemGroup _simGroup;
+        private readonly SystemGroup _postSimGroup;
 
         // ── Performance metrics ──────────────────────────────────────────────────
         private bool               _metricsEnabled;
@@ -202,12 +207,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1, _wgs84);
 
             _spawnSystem = new NetworkSpawningSystem(
-                _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1,
-                disTypeExtractor: (object c, out ulong dis) =>
-                {
-                    if (c is EntityMaster m) { dis = m.DisType; return true; }
-                    dis = 0; return false;
-                });
+                _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1);
 
             // 5. Geographic systems ─────────────────────────────────────────────────
             new GeographicModule(_wgs84).RegisterSystems(_geoSystems);
@@ -216,8 +216,12 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             var roadNetwork    = new RoadNetworkBuilder().Build(10f, 100, 100);
             var trajectoryPool = new TrajectoryPoolManager();
 
+            _inputGroup = new SystemGroup();
+            _inputGroup.Create(_world);
             _simGroup = new SystemGroup();
             _simGroup.Create(_world);
+            _postSimGroup = new SystemGroup();
+            _postSimGroup.Create(_world);
 
             var simLogicModule = new SimulationLogicModule(
                 _doctrineRegistry,
@@ -226,7 +230,10 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 roadNetwork:             roadNetwork,
                 trajectoryPool:          trajectoryPool,
                 formationTemplateManager: null);
-            simLogicModule.RegisterSystems(_simGroup);
+            simLogicModule.RegisterSystems(_inputGroup, _simGroup, _postSimGroup);
+
+            var physicsModule = new PhysicsToolkitModule();
+            physicsModule.Initialize(_world);
 
             // 7. Seed GlobalTime ────────────────────────────────────────────────────
             const float dt = 1f / 60f;
@@ -258,7 +265,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                     new EntityDescriptorUnion
                     {
                         _d           = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { TkbType = tkbType }
+                        EntityMaster = new EntityMaster { TkbType = tkbType, DisType = 0 }
                     }
                 }
             };
@@ -281,9 +288,9 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         }
 
         /// <summary>
-        /// Assigns an <see cref="EntityMission"/> to the specified entity by directly
-        /// adding an <see cref="EntityMissionHolder"/> managed component (bypasses DDS
-        /// ingress translator for deterministic testing).
+        /// Assigns an <see cref="EntityMission"/> to the specified entity by writing
+        /// a <see cref="MissionPlanQueue"/> component (bypasses DDS ingress translator
+        /// for deterministic testing).
         /// </summary>
         public void PublishEntityMission(EntityMission mission)
         {
@@ -291,7 +298,77 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 throw new InvalidOperationException(
                     $"Entity with network-id {mission.EntityId} not found in entity map.");
 
-            _world.SetManagedComponent(entity, new EntityMissionHolder { Mission = mission });
+            var queue = BuildQueue(mission.Plan);
+            _world.SetComponent(entity, queue);
+        }
+
+        private MissionPlanQueue BuildQueue(MissionPlan plan)
+        {
+            var queue = new MissionPlanQueue
+            {
+                CurrentPhase = 0,
+                PhaseElapsedSeconds = 0f
+            };
+
+            var tasks = plan.Tasks ?? new List<MissionTask>();
+            int count = Math.Min(tasks.Count, MissionPlanQueue.MaxPhases);
+
+            for (int i = 0; i < count; i++)
+            {
+                var task = tasks[i];
+                int doctrineId = ResolveDoctrineId(task.BehaviorId);
+                var (trigger, param) = ResolveTrigger(task.Triggers);
+
+                queue.Phases[i] = new MissionPhase
+                {
+                    DoctrineId   = doctrineId,
+                    Trigger      = trigger,
+                    TriggerParam = param
+                };
+            }
+
+            queue.PhaseCount = (byte)count;
+            return queue;
+        }
+
+        private int ResolveDoctrineId(string? behaviorId)
+        {
+            if (string.IsNullOrWhiteSpace(behaviorId))
+                return 0;
+
+            if (_doctrineRegistry.TryGetId(behaviorId, out int doctrineId))
+                return doctrineId;
+
+            return 0;
+        }
+
+        private static (FDP.Toolkit.Behavior.Components.MissionTrigger Trigger, float Param) ResolveTrigger(
+            List<Bagira.BDC.SSTD.MissionTrigger>? triggers)
+        {
+            if (triggers == null || triggers.Count == 0)
+                return (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, 0f);
+
+            var trigger = triggers[0];
+            var type = trigger.Type ?? string.Empty;
+
+            return type switch
+            {
+                "TimerElapsed"       => (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
+                "ReachedDestination" => (FDP.Toolkit.Behavior.Components.MissionTrigger.ReachedDestination, 0f),
+                "HealthCritical"     => (FDP.Toolkit.Behavior.Components.MissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
+                _                    => (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, 0f)
+            };
+        }
+
+        private static float ParseTriggerParam(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+                return 0f;
+
+            return float.TryParse(raw, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var value)
+                ? value
+                : 0f;
         }
 
         /// <summary>
@@ -402,6 +479,14 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         {
             if (_disposed) return;
             _disposed = true;
+            if (_world.HasSingleton<RaycastBatchData>())
+            {
+                ref var batch = ref _world.GetSingleton<RaycastBatchData>();
+                if (batch.Requests.IsCreated) batch.Requests.Dispose();
+                if (batch.Hits.IsCreated) batch.Hits.Dispose();
+            }
+            _postSimGroup.Dispose();
+            _inputGroup.Dispose();
             _simGroup.Dispose();
             _world.Dispose();
         }
@@ -450,7 +535,9 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             ActivateConstructingEntities();
 
             // ── Phase 3: Simulation logic (ComponentSystem-based, sorted by [UpdateInGroup]) ─
+            _inputGroup.Run();
             _simGroup.Run();
+            _postSimGroup.Run();
 
             // ── Phase 4: Geographic egress ─────────────────────────────────────
             // SimTransformBridgeSystem → converts SimTransform → GeoTransform
@@ -491,9 +578,6 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<NetworkSpawnRequest>();
             world.RegisterComponent<PendingNetworkAck>();
 
-            // ── DDS descriptor components (written by EntityComponentReflector) ─────
-            world.RegisterComponent<EntityMaster>();
-
             // ── Geographic components ─────────────────────────────────────────────
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
@@ -509,14 +593,33 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
 
+            // HSM brain tiers (for APC-style HSM doctrines)
+            world.RegisterComponent<BrainHsm64>();
+            world.RegisterComponent<BrainHsm128>();
+            world.RegisterComponent<PreviousCapabilities>();
+            world.RegisterComponent<PassengerBuffer>();
+            world.RegisterComponent<IsEmbarkedTag>();
+
+            // Perception
+            world.RegisterComponent<Faction>();
+            world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<TargetMemory>();
+
+            // Combat & Physics
+            world.RegisterComponent<PhysicsCollider>();
+            world.RegisterComponent<WeaponState>();
+            world.RegisterComponent<Health>();
+            world.RegisterComponent<BallisticProjectile>();
+            world.RegisterComponent<HealthData>();
+
             // ── CarKinem / Navigation components ──────────────────────────────────
             world.RegisterComponent<CarKinem.Core.VehicleState>();
             world.RegisterComponent<CarKinem.Core.VehicleParams>();
             world.RegisterComponent<CarKinem.Core.NavState>();
             world.RegisterComponent<CarKinem.Formation.FormationRoster>();
 
-            // ── Managed components ─────────────────────────────────────────────────
-            world.RegisterManagedComponent<EntityMissionHolder>();
+            // ── Mission components ────────────────────────────────────────────────
+            world.RegisterComponent<MissionPlanQueue>();
 
             // ── Lifecycle events ───────────────────────────────────────────────────
             world.RegisterEvent<ConstructionOrder>();

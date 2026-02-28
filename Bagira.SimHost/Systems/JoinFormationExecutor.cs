@@ -14,8 +14,8 @@ namespace Bagira.SimHost.Systems
 
     /// <summary>
     /// Parameters for the <c>JoinFormation</c> behavior.
-    /// Written into <see cref="BrainBlackboard.Memory"/> by <see cref="MissionAdapterSystem"/>
-    /// via <c>DoctrineDefinition.ParseParams</c> and read by <see cref="JoinFormationExecutor.OnEnter"/>.
+    /// Written into <see cref="BrainBlackboard.Memory"/> by <c>DoctrineDefinition.ParseParams</c>
+    /// and read by <see cref="JoinFormationExecutor.OnEnter"/>.
     /// </summary>
     /// <remarks>
     /// <b>Size:</b> int (4 bytes) + reference = use <see cref="LayoutKind.Sequential"/>.
@@ -91,7 +91,7 @@ namespace Bagira.SimHost.Systems
         /// <inheritdoc/>
         public unsafe void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
-            // Read params written into BrainBlackboard.Memory by MissionAdapterSystem.
+            // Read params written into BrainBlackboard.Memory by DoctrineDefinition.ParseParams.
             // Use ref to avoid stack-copying the struct (fixed buffer must stay on heap).
             ref var bbRW = ref world.GetComponentRW<BrainBlackboard>(entity);
             JoinFormationParams p;

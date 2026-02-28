@@ -8,8 +8,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FDP\Common\FDP.Interfaces\FDP.Interfaces.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
-    <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
   </ItemGroup>
 
 </Project>

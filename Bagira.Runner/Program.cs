@@ -1,6 +1,9 @@
 ﻿using CommandLine;
 using Bagira.Runner.Configuration;
 using Bagira.Runner.Services;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 
 namespace Bagira.Runner;
 
@@ -29,6 +32,15 @@ class Program
 {
     static int Main(string[] args)
     {
+        // Enable NLog Console Output globally for FdpLog<T>
+        var logConfig = new LoggingConfiguration();
+        var logConsole = new ColoredConsoleTarget("logConsole")
+        {
+            Layout = "${time} | ${level:uppercase=true:padding=-5} | ${logger:shortName=true} | ${message}${exception:format=tostring}"
+        };
+        logConfig.AddRule(LogLevel.Debug, LogLevel.Fatal, logConsole);
+        LogManager.Configuration = logConfig;
+
         // Parse CLI args
         RunnerConfiguration? config = null;
         var parseResult = Parser.Default.ParseArguments<RunnerConfiguration>(args);

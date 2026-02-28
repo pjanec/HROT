@@ -6,6 +6,7 @@ using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
+using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Translators;
@@ -15,8 +16,8 @@ namespace Bagira.IG.Translators
     /// <summary>
     /// Ingress translator for the Bagira <c>GeoSpatial</c> DDS topic.
     ///
-    /// Converts geodetic coordinates (lat/lon/alt) + heading/pitch/roll into an ECS
-    /// <see cref="SimTransform"/> using the supplied <see cref="IGeographicTransform"/>.
+    /// Converts geodetic coordinates (lat/lon/alt) into <see cref="NetworkPosition"/>
+    /// using the supplied <see cref="IGeographicTransform"/>.
     ///
     /// Entities not yet in <see cref="NetworkEntityMap"/> are silently skipped — they will
     /// be processed on the next tick once <c>NetworkSpawningSystem</c> has registered them.
@@ -47,25 +48,28 @@ namespace Bagira.IG.Translators
             if (!EntityMap.TryGetEntity(netId, out var entity))
                 return; // Entity not yet spawned — skip; will be retried next tick
 
-            var latLon = string.Concat(data.Pos.Latitude, ",", data.Pos.Longitude);
+            var latitude = data.Pos.Latitude;
+            var longitude = data.Pos.Longitude;
             FdpLog<GeoSpatialTranslator>.Debug(
-                "[TRACE-IG] Ingress: GeoSpatial Entity={0} LatLon=({1})", entity.Index, latLon);
+                "[TRACE-IG] Ingress: GeoSpatial Entity={0} Lat={1} Lon={2}", entity.Index, latitude, longitude);
 
             var cartesian = _geoTransform.ToCartesian(
                 data.Pos.Latitude,
                 data.Pos.Longitude,
                 data.Pos.Altitude);
 
-            // Preserve existing rotation if available; otherwise use heading from GeoSpatial.
-            Quaternion rotation = Quaternion.Identity;
-            if (view.HasComponent<SimTransform>(entity))
-                rotation = view.GetComponentRO<SimTransform>(entity).Rotation;
+            var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
 
-            cmd.SetComponent(entity, new SimTransform
+            cmd.SetComponent(entity, new NetworkPosition { Value = position });
+
+            if (!view.HasComponent<SimTransform>(entity))
             {
-                Position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z),
-                Rotation = rotation
-            });
+                cmd.AddComponent(entity, new SimTransform
+                {
+                    Position = position,
+                    Rotation = Quaternion.Identity
+                });
+            }
         }
 
         // ── Egress (IG is ghost-only — nothing to publish) ───────────────────
@@ -78,11 +82,18 @@ namespace Bagira.IG.Translators
         {
             if (data is not GeoSpatial geo) return;
             var cartesian = _geoTransform.ToCartesian(geo.Pos.Latitude, geo.Pos.Longitude, geo.Pos.Altitude);
-            repo.SetComponent(entity, new SimTransform
+            var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
+
+            repo.SetComponent(entity, new NetworkPosition { Value = position });
+
+            if (!repo.HasComponent<SimTransform>(entity))
             {
-                Position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z),
-                Rotation = Quaternion.Identity
-            });
+                repo.AddComponent(entity, new SimTransform
+                {
+                    Position = position,
+                    Rotation = Quaternion.Identity
+                });
+            }
         }
     }
 }

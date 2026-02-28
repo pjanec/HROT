@@ -27,6 +27,7 @@
   <ItemGroup>
     <!-- Bagira data model and map types -->
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
+    <ProjectReference Include="..\Bagira.IG\Bagira.IG.csproj" />
     <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
     <ProjectReference Include="..\Bagira.Map.Definitions\Bagira.Map.Definitions.csproj" />
 
@@ -37,6 +38,9 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Navigation\FDP.Toolkit.Navigation.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat.Contracts\FDP.Toolkit.Combat.Contracts.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />

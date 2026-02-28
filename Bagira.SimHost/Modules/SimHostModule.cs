@@ -5,6 +5,7 @@ using Bagira.SimHost.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
+using FDP.Toolkit.Behavior;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
@@ -16,10 +17,11 @@ namespace Bagira.SimHost.Modules
 
     internal sealed class DdsCreateEntityRequestSource : ICreateEntityRequestSource
     {
+        private const string TopicCreateEntityRequest = "CreateEntityRequest";
         private readonly DdsReader<CreateEntityRequest> _reader;
 
         public DdsCreateEntityRequestSource(DdsParticipant participant)
-            => _reader = new DdsReader<CreateEntityRequest>(participant);
+            => _reader = new DdsReader<CreateEntityRequest>(participant, TopicCreateEntityRequest);
 
         public List<CreateEntityRequest> TakeRequests()
         {
@@ -74,6 +76,7 @@ namespace Bagira.SimHost.Modules
             int                localNodeId,
             NetworkSpawningSystem spawnSystem,
             NetworkEntityMap   entityMap,
+            DoctrineRegistry    doctrineRegistry,
             IGeographicTransform? geoTransform = null)
         {
             var requestSource = new DdsCreateEntityRequestSource(participant);
@@ -96,7 +99,7 @@ namespace Bagira.SimHost.Modules
             }
 
             // Mission translators are always active regardless of geographic transform.
-            _missionIngressTranslator = new EntityMissionTranslator(participant, entityMap);
+            _missionIngressTranslator = new EntityMissionTranslator(participant, entityMap, doctrineRegistry);
             _missionEgressTranslator  = new EntityMissionEgressTranslator(participant, entityMap);
         }
 

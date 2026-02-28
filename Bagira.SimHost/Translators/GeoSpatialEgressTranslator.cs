@@ -74,6 +74,9 @@ namespace Bagira.SimHost.Translators
                 ref readonly var geoTf = ref view.GetComponentRO<GeoTransform>(entity);
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
+                var latitude = geoTf.Latitude;
+                var longitude = geoTf.Longitude;
+
                 // ?? GeoSpatial ????????????????????????????????????????????????
                 Publish(new GeoSpatial
                 {
@@ -81,8 +84,8 @@ namespace Bagira.SimHost.Translators
                     Time     = DateTime.UtcNow,
                     Pos = new GeoPosition
                     {
-                        Latitude  = geoTf.Latitude,
-                        Longitude = geoTf.Longitude,
+                        Latitude  = latitude,
+                        Longitude = longitude,
                         Altitude  = geoTf.Altitude,
                     },
                     Rot = new OrientationHPR
@@ -95,8 +98,9 @@ namespace Bagira.SimHost.Translators
 
                 if (_tracedNetIds.Add(netId.Value))
                 {
+                    var posLabel = string.Concat(latitude, ",", longitude);
                     FdpLog<GeoSpatialEgressTranslator>.Debug(
-                        "[TRACE-SH] Egress: Writing GeoSpatial for NetID={0} (Logging first publish only)", netId.Value);
+                        "[TRACE-SH] Egress: Writing GeoSpatial for NetID={0} pos=({1})", netId.Value, posLabel);
                 }
 
                 // ?? GeoSpatialDR ??????????????????????????????????????????????

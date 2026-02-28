@@ -3,6 +3,7 @@ using Bagira.BDC.SSTM;
 using Bagira.IOS.Logic;
 using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
+using Bagira.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using Moq;
 

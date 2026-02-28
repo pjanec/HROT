@@ -71,6 +71,18 @@ public static class PanelConstants
     /// </summary>
     public const float DiagnosticsEventRateSampleWindowS = 5.0f;
 
+    // ── MissionPanel – mission editing ──────────────────────────────────────
+
+    /// <summary>
+    /// Maximum number of characters allowed in the behavior-params JSON editor.
+    /// </summary>
+    public const int MissionBehaviorParamsMaxLength = 2048;
+
+    /// <summary>
+    /// Number of text lines shown in the behavior-params editor.
+    /// </summary>
+    public const int MissionBehaviorParamsEditorLines = 4;
+
     // ── MissionPanel – conflict detection ─────────────────────────────────────
 
     /// <summary>

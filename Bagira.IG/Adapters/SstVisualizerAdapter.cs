@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
@@ -35,6 +36,8 @@ public class SstVisualizerAdapter : IVisualizerAdapter
     // Texture cache — allocations occur only on first encounter of each texture name.
     private readonly Dictionary<string, Texture2D> _textureCache = new();
     private readonly HashSet<int> _renderTracedEntities = new();
+    private const string RenderTraceEntityEnvVar = "BAGIRA_TRACE_ENTITY_ID";
+    internal static int? RenderTraceEntityIdOverride { get; set; }
 
     // ── IVisualizerAdapter ────────────────────────────────────────────────────
 
@@ -73,7 +76,10 @@ public class SstVisualizerAdapter : IVisualizerAdapter
         bool            isSelected,
         bool            isHovered)
     {
-        if (_renderTracedEntities.Add(entity.Index))
+        var traceEntityId = ResolveRenderTraceEntityId();
+        if (traceEntityId.HasValue
+            && traceEntityId.Value == entity.Index
+            && _renderTracedEntities.Add(entity.Index))
         {
                 var positionLabel = string.Concat(position.X, ",", position.Y);
                 FdpLog<SstVisualizerAdapter>.Debug(
@@ -240,5 +246,17 @@ public class SstVisualizerAdapter : IVisualizerAdapter
         var tex = Raylib.LoadTexture(path);
         _textureCache[name] = tex;
         return tex;
+    }
+
+    private static int? ResolveRenderTraceEntityId()
+    {
+        if (RenderTraceEntityIdOverride.HasValue)
+            return RenderTraceEntityIdOverride.Value;
+
+        var rawValue = Environment.GetEnvironmentVariable(RenderTraceEntityEnvVar);
+        if (string.IsNullOrWhiteSpace(rawValue))
+            return null;
+
+        return int.TryParse(rawValue, out var entityId) ? entityId : null;
     }
 }

@@ -4,6 +4,7 @@ using Bagira.IG.Components;
 using Bagira.IG.Systems;
 using Bagira.Map.Definitions.Tkb;
 using Fdp.Kernel;
+using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 
 namespace Bagira.IG.Tests;
@@ -52,9 +53,8 @@ public class LayerRenderingIntegrationTests
         var repo = new EntityRepository();
 
         // Unmanaged components
-        repo.RegisterComponent<EntityMaster>();
+        repo.RegisterComponent<NetworkIdentity>();
         repo.RegisterComponent<SimTransform>();
-        repo.RegisterComponent<EntityDamage>();
         repo.RegisterComponent<ResolvedStyle>();
         repo.RegisterComponent<CullingState>();
 
@@ -100,7 +100,7 @@ public class LayerRenderingIntegrationTests
             float y = EntityYPos;
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new EntityMaster { EntityId = i + 1, TkbType = 0 });
+            repo.AddComponent(entity, new NetworkIdentity(i + 1));
             repo.AddComponent(entity, new SimTransform
             {
                 Position = new Vector3(x, y, 0f),
@@ -156,7 +156,7 @@ public class LayerRenderingIntegrationTests
     /// <summary>
     /// Verifies that all 100 entities received a <see cref="ResolvedStyle"/> component
     /// — the pipeline must write style data for every entity that matches
-    /// <c>With&lt;EntityMaster&gt;.With&lt;SimTransform&gt;</c>, regardless of
+    /// <c>With&lt;NetworkIdentity&gt;.With&lt;SimTransform&gt;</c>, regardless of
     /// whether they are inside the camera viewport.
     /// </summary>
     [Fact]
@@ -167,7 +167,7 @@ public class LayerRenderingIntegrationTests
         for (int i = 0; i < EntityCount; i++)
         {
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new EntityMaster { EntityId = i + 1, TkbType = 0 });
+            repo.AddComponent(entity, new NetworkIdentity(i + 1));
             repo.AddComponent(entity, new SimTransform
             {
                 Position = new Vector3(i * EntitySpacingX, EntityYPos, 0f),
@@ -184,7 +184,7 @@ public class LayerRenderingIntegrationTests
         RunSystem(repo, styleSystem);
 
         int withStyle = 0;
-        var query = repo.Query().With<EntityMaster>().With<SimTransform>().Build();
+        var query = repo.Query().With<NetworkIdentity>().With<SimTransform>().Build();
         foreach (var entity in query)
         {
             if (repo.HasComponent<ResolvedStyle>(entity))
@@ -206,7 +206,7 @@ public class LayerRenderingIntegrationTests
 
         // Entity 0: Friend — positioned in-view
         var friendEntity = repo.CreateEntity();
-        repo.AddComponent(friendEntity, new EntityMaster { EntityId = 1, TkbType = 0 });
+        repo.AddComponent(friendEntity, new NetworkIdentity(1));
         repo.AddComponent(friendEntity, new SimTransform
         {
             Position = new Vector3(500f, EntityYPos, 0f),
@@ -219,7 +219,7 @@ public class LayerRenderingIntegrationTests
 
         // Entity 1: Hostile — positioned in-view
         var hostileEntity = repo.CreateEntity();
-        repo.AddComponent(hostileEntity, new EntityMaster { EntityId = 2, TkbType = 0 });
+        repo.AddComponent(hostileEntity, new NetworkIdentity(2));
         repo.AddComponent(hostileEntity, new SimTransform
         {
             Position = new Vector3(1500f, EntityYPos, 0f),
@@ -279,7 +279,7 @@ public class LayerRenderingIntegrationTests
         for (int i = 0; i < EntityCount; i++)
         {
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new EntityMaster { EntityId = i + 1, TkbType = 0 });
+            repo.AddComponent(entity, new NetworkIdentity(i + 1));
             repo.AddComponent(entity, new SimTransform
             {
                 Position = new Vector3(i * EntitySpacingX, EntityYPos, 0f),

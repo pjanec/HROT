@@ -6,10 +6,18 @@ using Bagira.Runner.Models;
 using Bagira.SimHost;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
+using Bagira.SimHost.Systems;
+using Bagira.SimHost.Translators;
+using Bagira.SimHost.Util;
 using Bagira.SimHost.Utilities;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Lifecycle;
+using FDP.Toolkit.Combat.Components;
+using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Physics;
+using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.NetworkSpawning.Systems;
+using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Time.Controllers;
 using Fdp.Interfaces;
@@ -19,13 +27,18 @@ using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Tkb;
 using ModuleHost.Core;
 using ModuleHost.Core.Network;
+using ModuleHost.Core.Network.Interfaces;
 using ModuleHost.Core.Time;
 using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Services;
+using ModuleHost.Network.Cyclone.Systems;
 using ModuleHost.Network.Cyclone.Translators;
 using CycloneDDS.Runtime;
 using Bagira.BDC.SSTD;
+using Bagira.DDS.DM;
+using Bagira.Map.Common;
 using Bagira.SimHost.Components;
+using Bagira.Map.Definitions.Tkb;
 using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Formation;
@@ -69,10 +82,19 @@ namespace Bagira.Runner.Services
 
         private EntityRepository?       _world;
         private ModuleHostKernel?       _kernel;
-        private SystemGroup?            _kernelGroup;
+        private SystemGroup?            _inputGroup;
+        private SystemGroup?            _simulationGroup;
+        private SystemGroup?            _postSimulationGroup;
         private DdsIdAllocator?         _idAllocator;
+        private FdpEventBus?            _eventBus;
+        private WGS84Transform?         _geoTransform;
         private bool                    _headless;
         private bool                    _initialized;
+
+        // Background server for network-distributed ID allocation
+        private DdsIdAllocatorServer?   _idAllocatorServer;
+        private CancellationTokenSource? _allocatorCts;
+        private System.Threading.Tasks.Task? _allocatorTask;
 
         // ── Visualization (non-headless only) ─────────────────────────────────
         private SimHostVisualization?   _vis;
@@ -83,14 +105,58 @@ namespace Bagira.Runner.Services
         private CancellationTokenSource? _cts;
         private Thread?                  _loopThread;
 
+        private static long _testNetworkId;
+
         // ── Public ECS access ─────────────────────────────────────────────────
 
         /// <summary>
-        /// Provides access to the ECS <see cref="EntityRepository"/> after
-        /// <see cref="Initialize"/> has been called.  Returns <see langword="null"/>
-        /// when the subsystem has not yet been initialised.
+        /// Internal test hook for integration tests.
         /// </summary>
-        public EntityRepository? World => _world;
+        internal EntityRepository World => _world ?? throw new InvalidOperationException("Not initialized");
+
+        /// <summary>
+        /// Internal test hook for integration tests.
+        /// </summary>
+        internal ModuleHostKernel Kernel => _kernel ?? throw new InvalidOperationException("Not initialized");
+
+        /// <summary>
+        /// Internal test hook to spawn an entity directly in the SimHost world.
+        /// </summary>
+        internal long TestHook_SpawnEntity(long tkbType, GeoPosition position)
+        {
+            if (_world == null || _geoTransform == null)
+                throw new InvalidOperationException("Not initialized");
+
+            var descriptors = new List<EntityDescriptorUnion>
+            {
+                new EntityDescriptorUnion
+                {
+                    _d = EDescriptorType.dtEntityMaster,
+                    EntityMaster = new EntityMaster { TkbType = tkbType }
+                },
+                new EntityDescriptorUnion
+                {
+                    _d = EDescriptorType.dtGeoSpatial,
+                    GeoSpatial = new GeoSpatial { Pos = position }
+                }
+            };
+
+            long networkId = Interlocked.Increment(ref _testNetworkId);
+            var initialComponents = DescriptorMapper.MapToComponents(descriptors, _geoTransform);
+
+            _world.Bus.PublishManaged(new SpawnEntityCommand
+            {
+                NetworkId = networkId,
+                TkbType = tkbType,
+                DisType = 0,
+                OwnerNodeId = 1,
+                InitType = ReliableInitType.AllPeers,
+                InitialComponents = initialComponents,
+                RequestId = Guid.NewGuid()
+            });
+
+            return networkId;
+        }
 
         // ── ISubsystem ────────────────────────────────────────────────────────
 
@@ -117,21 +183,35 @@ namespace Bagira.Runner.Services
             var eventAccumulator = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, eventAccumulator);
 
-            var eventBus    = new FdpEventBus();
+            _eventBus    = new FdpEventBus();
             var timeConfig  = new TimeControllerConfig { Mode = TimeMode.Continuous, Role = TimeRole.Master };
-            var timeCtrl    = TimeControllerFactory.Create(eventBus, timeConfig);
+            var timeCtrl    = TimeControllerFactory.Create(_eventBus, timeConfig);
             timeCtrl.SetTimeScale(1.0f);
             _kernel.SetTimeController(timeCtrl);
+            _eventBus.SwapBuffers();
 
             // ── 2. Data services ──────────────────────────────────────────────
             var ddsParticipant = new DdsParticipant((uint)domainId);
-            var tkbDb          = new TkbDatabase();
+
+            // Spin up the ID Allocator Server as a non-blocking background task
+            _idAllocatorServer = new DdsIdAllocatorServer(ddsParticipant);
+            _allocatorCts = new CancellationTokenSource();
+            _allocatorTask = System.Threading.Tasks.Task.Run(() =>
+            {
+                while (!_allocatorCts.Token.IsCancellationRequested)
+                {
+                    try { _idAllocatorServer.ProcessRequests(); } catch { }
+                    Thread.Sleep(5);
+                }
+            });
+
+            var tkbDb          = BagiraEnvironment.CreateTkb();
             var entityMap      = new NetworkEntityMap();
             _idAllocator       = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
 
             // ── 3. Geodetic configuration ─────────────────────────────────────
-            var wgs84 = new WGS84Transform();
-            wgs84.SetOrigin(
+            _geoTransform = new WGS84Transform();
+            _geoTransform.SetOrigin(
                 simConfig.GeodeticOrigin.Latitude,
                 simConfig.GeodeticOrigin.Longitude,
                 simConfig.GeodeticOrigin.Altitude);
@@ -159,9 +239,15 @@ namespace Bagira.Runner.Services
                 vehicleAPI:  null,
                 roadNetwork: roadNetwork);
 
-            _kernelGroup = new SystemGroup();
-            _kernelGroup.Create(_world);
-            _simLogicModule.RegisterSystems(_kernelGroup);
+            _inputGroup = new SystemGroup();
+            _inputGroup.Create(_world);
+            _simulationGroup = new SystemGroup();
+            _simulationGroup.Create(_world);
+            _postSimulationGroup = new SystemGroup();
+            _postSimulationGroup.Create(_world);
+
+            _inputGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
+            _simLogicModule.RegisterSystems(_inputGroup, _simulationGroup, _postSimulationGroup);
 
             // Seed GlobalTime singleton.
             _world.SetSingletonUnmanaged(new GlobalTime
@@ -171,7 +257,7 @@ namespace Bagira.Runner.Services
             });
 
             // ── 6. Toolkit modules ────────────────────────────────────────────
-            var geoModule = new GeographicModule(wgs84);
+            var geoModule = new GeographicModule(_geoTransform);
             _kernel.RegisterModule(geoModule);
 
             var elm = new EntityLifecycleModule(tkbDb, new List<int>());
@@ -182,18 +268,23 @@ namespace Bagira.Runner.Services
 
             var simHostMod = new SimHostModule(
                 ddsParticipant, tkbDb, _idAllocator, 1,
-                spawningSystem, entityMap, wgs84);
+                spawningSystem, entityMap, doctrineRegistry, _geoTransform);
             _kernel.RegisterModule(simHostMod);
 
             // ── 7. Network module ─────────────────────────────────────────────
+            var localNodeId = 1;
             var translators = new List<IDescriptorTranslator>();
             if (simHostMod.GeoEgressTranslator != null)
                 translators.Add(simHostMod.GeoEgressTranslator);
             translators.Add(simHostMod.MissionIngressTranslator);
             translators.Add(simHostMod.MissionEgressTranslator);
-            translators.Add(new AutoCycloneTranslator<EntityMaster>(ddsParticipant, "EntityMaster", 0, entityMap));
+            var entityMasterEgressTranslator = new EntityMasterEgressTranslator(ddsParticipant, entityMap, localNodeId);
+            translators.Add(entityMasterEgressTranslator);
+            translators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
+            translators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));
 
-            var localNodeId = 1;
+            _kernel.RegisterGlobalSystem(
+                new CycloneNetworkCleanupSystem(entityMasterEgressTranslator));
             var nodeMapper  = new NodeIdMapper(domainId, localNodeId);
             var topology    = new StaticNetworkTopology(localNodeId, new[] { localNodeId });
 
@@ -203,10 +294,15 @@ namespace Bagira.Runner.Services
                 sharedEntityMap:   entityMap);
             _kernel.RegisterModule(cycloneModule);
 
-            // ── 8. Kernel init ────────────────────────────────────────────────
+            // ── 8. Physics toolkit init ───────────────────────────────────────
+            // Allocates RaycastBatchData singleton required by raycast systems.
+            var physicsModule = new PhysicsToolkitModule();
+            physicsModule.Initialize(_world);
+
+            // ── 9. Kernel init ────────────────────────────────────────────────
             _kernel.Initialize();
 
-            // ── 9. Visualization (skipped in headless mode) ───────────────────
+            // ── 10. Visualization (skipped in headless mode) ──────────────────
             if (!_headless)
             {
                 _vis = new SimHostVisualization();
@@ -232,7 +328,10 @@ namespace Bagira.Runner.Services
             if (!_initialized) return;
             _vis?.Update(deltaTime);
             _kernel!.Update();
-            _kernelGroup!.Run();
+            _inputGroup!.Run();
+            _simulationGroup!.Run();
+            _postSimulationGroup!.Run();
+            _eventBus?.SwapBuffers();
         }
 
         /// <summary>Renders the 2-D map canvas (road graph + vehicle entities).</summary>
@@ -251,10 +350,24 @@ namespace Bagira.Runner.Services
         public void Shutdown()
         {
             Stop();
+            if (_world != null && _world.HasSingleton<RaycastBatchData>())
+            {
+                ref var batch = ref _world.GetSingleton<RaycastBatchData>();
+                if (batch.Requests.IsCreated) batch.Requests.Dispose();
+                if (batch.Hits.IsCreated) batch.Hits.Dispose();
+            }
+            // Clean up the background allocator server
+            _allocatorCts?.Cancel();
+            try { _allocatorTask?.Wait(1000); } catch { }
+            _allocatorCts?.Dispose();
+            _idAllocatorServer?.Dispose();
+
             _vis?.Dispose();
             _vis = null;
             _idAllocator?.Dispose();
-            _kernelGroup?.Dispose();
+            _postSimulationGroup?.Dispose();
+            _simulationGroup?.Dispose();
+            _inputGroup?.Dispose();
             _initialized = false;
             Logger.Info("[SimHost] Shutdown complete.");
         }
@@ -309,9 +422,6 @@ namespace Bagira.Runner.Services
             world.RegisterComponent<NetworkSpawnRequest>();
             world.RegisterComponent<PendingNetworkAck>();
 
-            // DDS descriptor
-            world.RegisterComponent<EntityMaster>();
-
             // Geographic / physics
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
@@ -327,6 +437,25 @@ namespace Bagira.Runner.Services
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
 
+            // HSM brain tiers (for APC-style HSM doctrines)
+            world.RegisterComponent<BrainHsm64>();
+            world.RegisterComponent<BrainHsm128>();
+            world.RegisterComponent<PreviousCapabilities>();
+            world.RegisterComponent<PassengerBuffer>();
+            world.RegisterComponent<IsEmbarkedTag>();
+
+            // Perception
+            world.RegisterComponent<Faction>();
+            world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<TargetMemory>();
+
+            // Combat & Physics
+            world.RegisterComponent<PhysicsCollider>();
+            world.RegisterComponent<WeaponState>();
+            world.RegisterComponent<Health>();
+            world.RegisterComponent<BallisticProjectile>();
+            world.RegisterComponent<HealthData>();
+
             // CarKinem / navigation
             world.RegisterComponent<CarKinem.Core.VehicleState>();
             world.RegisterComponent<CarKinem.Core.VehicleParams>();
@@ -336,13 +465,18 @@ namespace Bagira.Runner.Services
             world.RegisterComponent<CarKinem.Formation.FormationTarget>();
 
             // Managed
-            world.RegisterManagedComponent<EntityMissionHolder>();
+            world.RegisterComponent<MissionPlanQueue>();
+            world.RegisterManagedComponent<IgVisualDef>();
+            world.RegisterManagedComponent<SimVehicleDef>();
+            world.RegisterManagedComponent<SimCombatDef>();
+            world.RegisterManagedComponent<TkbCompositionDef>();
 
             // Lifecycle events
             world.RegisterEvent<ConstructionOrder>();
             world.RegisterEvent<ConstructionAck>();
             world.RegisterEvent<DestructionOrder>();
             world.RegisterEvent<DestructionAck>();
+            world.RegisterEvent<Bagira.Map.Common.Events.FireInteractionEvent>();
 
             // CarKinem command events
             world.RegisterEvent<CmdSpawnVehicle>();

@@ -65,7 +65,7 @@ public class StandardInteractionTool : IMapTool
     /// </param>
     /// <param name="query">
     /// Entity query supplying the pickable entity set
-    /// (<c>With&lt;EntityMaster, SimTransform&gt;</c> recommended).
+    /// (<c>With&lt;NetworkIdentity, SimTransform&gt;</c> recommended).
     /// </param>
     /// <param name="adapter">
     /// Visualizer adapter used by the inner tool for hit-radius queries.

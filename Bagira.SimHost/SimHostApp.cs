@@ -1,7 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Raylib_cs;
 using CycloneDDS.Runtime;
+using Fbt.Runtime;
+using Fbt.Serialization;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
@@ -10,8 +14,12 @@ using Fdp.Modules.Geographic.Transforms;
 using FDP.Framework.Raylib;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
+using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Physics;
+using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
@@ -22,13 +30,18 @@ using ModuleHost.Core.Network;
 using ModuleHost.Core.Time;
 using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Services;
+using ModuleHost.Network.Cyclone.Systems;
 using ModuleHost.Network.Cyclone.Translators;
 using Bagira.BDC.SSTD;
 using Bagira.Map.Common;
+using Bagira.Map.Common.Events;
 using Bagira.Map.Definitions.Tkb;
 using Bagira.SimHost.Components;
 using Bagira.SimHost.Configuration;
+using Bagira.SimHost.Brains;
 using Bagira.SimHost.Modules;
+using Bagira.SimHost.Systems;
+using Bagira.SimHost.Translators;
 using Bagira.SimHost.Utilities;
 using CarKinem.Commands;
 using CarKinem.Road;
@@ -57,11 +70,39 @@ namespace Bagira.SimHost
     /// </summary>
     public sealed class SimHostApp : FdpApplication
     {
+        private const string MoveToJson = """
+            {
+                "TreeName": "MoveTo_BT",
+                "Root": { "Type": "Action", "Action": "WriteMoveToChannel" }
+            }
+            """;
+
+        private const string FollowRouteJson = """
+            {
+                "TreeName": "FollowRoute_BT",
+                "Root": { "Type": "Action", "Action": "WriteFollowRouteChannel" }
+            }
+            """;
+
+        private const string JoinFormationJson = """
+            {
+                "TreeName": "JoinFormation_BT",
+                "Root": { "Type": "Action", "Action": "WriteJoinFormationChannel" }
+            }
+            """;
+
         // ── Kernel infrastructure ─────────────────────────────────────────────
         private EntityRepository?    _world;
         private ModuleHostKernel?    _kernel;
-        private SystemGroup?         _kernelGroup;
+        private SystemGroup?         _inputGroup;
+        private SystemGroup?         _simulationGroup;
+        private SystemGroup?         _postSimulationGroup;
         private DdsIdAllocator?      _idAllocator;
+
+        // Background server for network-distributed ID allocation
+        private DdsIdAllocatorServer?   _idAllocatorServer;
+        private CancellationTokenSource? _allocatorCts;
+        private Task?                   _allocatorTask;
 
         // ── Visualization ─────────────────────────────────────────────────────
         private SimHostVisualization? _vis;
@@ -115,15 +156,27 @@ namespace Bagira.SimHost
             base.Kernel = _kernel;
 
             // ── 3. Time controller ────────────────────────────────────────────
-            var eventBus   = new FdpEventBus();
             var timeConfig = new TimeControllerConfig { Mode = TimeMode.Continuous, Role = TimeRole.Master };
-            var timeCtrl   = TimeControllerFactory.Create(eventBus, timeConfig);
+            var timeCtrl   = TimeControllerFactory.Create(_world.Bus, timeConfig);
             timeCtrl.SetTimeScale(1.0f);
             _kernel.SetTimeController(timeCtrl);
 
             // ── 4. Data services ──────────────────────────────────────────────
             var ddsParticipant = BagiraEnvironment.CreateParticipant(domainId);
-            var tkbDb          = BagiraEnvironment.CreateTkb(BdcTkbCatalog.RegisterAll);
+
+            // Spin up the ID Allocator Server as a non-blocking background task
+            _idAllocatorServer = new DdsIdAllocatorServer(ddsParticipant);
+            _allocatorCts = new CancellationTokenSource();
+            _allocatorTask = Task.Run(() =>
+            {
+                while (!_allocatorCts.Token.IsCancellationRequested)
+                {
+                    try { _idAllocatorServer.ProcessRequests(); } catch { }
+                    Thread.Sleep(5);
+                }
+            });
+
+            var tkbDb          = BagiraEnvironment.CreateTkb();
             var entityMap      = new NetworkEntityMap();
             _idAllocator       = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
 
@@ -132,14 +185,7 @@ namespace Bagira.SimHost
 
             // ── 6. Doctrine registry ──────────────────────────────────────────
             var doctrineRegistry = new DoctrineRegistry();
-            doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
-                new DoctrineDefinition { Name = "MoveToLocation", BrainTier = BehaviorConstants.BrainTierBTree });
-            doctrineRegistry.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
-                new DoctrineDefinition { Name = "FollowRoute",   BrainTier = BehaviorConstants.BrainTierBTree });
-            doctrineRegistry.Register(SimHostDoctrineIds.JoinFormation_BT, "JoinFormation",
-                new DoctrineDefinition { Name = "JoinFormation", BrainTier = BehaviorConstants.BrainTierBTree });
-            doctrineRegistry.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
-                new DoctrineDefinition { Name = "Idle",          BrainTier = BehaviorConstants.BrainTierHsm });
+            RegisterDoctrines(doctrineRegistry);
 
             // ── 7. Road network ───────────────────────────────────────────────
             var roadNetwork = new RoadNetworkBlob();
@@ -153,9 +199,15 @@ namespace Bagira.SimHost
                 vehicleAPI:  null,
                 roadNetwork: roadNetwork);
 
-            _kernelGroup = new SystemGroup();
-            _kernelGroup.Create(_world);
-            _simLogicModule.RegisterSystems(_kernelGroup);
+            _inputGroup = new SystemGroup();
+            _inputGroup.Create(_world);
+            _simulationGroup = new SystemGroup();
+            _simulationGroup.Create(_world);
+            _postSimulationGroup = new SystemGroup();
+            _postSimulationGroup.Create(_world);
+
+            _inputGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
+            _simLogicModule.RegisterSystems(_inputGroup, _simulationGroup, _postSimulationGroup);
 
             // Seed GlobalTime singleton.
             _world.SetSingletonUnmanaged(new GlobalTime
@@ -177,18 +229,11 @@ namespace Bagira.SimHost
                 entityMap,
                 _idAllocator,
                 SimHostNetworkConstants.LocalNodeId,
-                disTypeExtractor: null,
-                onEntitySpawned: (world, entity, isLocalAuthority) =>
-                {
-                    if (isLocalAuthority && world.HasComponent<EntityMaster>(entity))
-                    {
-                        world.SetAuthority<EntityMaster>(entity, true);
-                    }
-                });
+                onEntitySpawned: (world, entity, isLocalAuthority) => { });
 
             var simHostMod = new SimHostModule(
                 ddsParticipant, tkbDb, _idAllocator, SimHostNetworkConstants.LocalNodeId,
-                spawningSystem, entityMap, wgs84);
+                spawningSystem, entityMap, doctrineRegistry, wgs84);
             _kernel.RegisterModule(simHostMod);
 
             // ── 10. Network module ──────────────────────────────────────────
@@ -197,7 +242,14 @@ namespace Bagira.SimHost
                 translators.Add(simHostMod.GeoEgressTranslator);
             translators.Add(simHostMod.MissionIngressTranslator);
             translators.Add(simHostMod.MissionEgressTranslator);
-            translators.Add(new AutoCycloneTranslator<EntityMaster>(ddsParticipant, "EntityMaster", 0, entityMap));
+            var entityMasterEgressTranslator = new EntityMasterEgressTranslator(
+                ddsParticipant, entityMap, SimHostNetworkConstants.LocalNodeId);
+            translators.Add(entityMasterEgressTranslator);
+            translators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
+            translators.Add(new TimePulseEgressTranslator(ddsParticipant, _world.Bus));
+
+            _kernel.RegisterGlobalSystem(
+                new CycloneNetworkCleanupSystem(entityMasterEgressTranslator));
 
             var localNodeId = SimHostNetworkConstants.LocalNodeId;
             var nodeMapper  = new NodeIdMapper(domainId, localNodeId);
@@ -209,11 +261,16 @@ namespace Bagira.SimHost
                 sharedEntityMap:   entityMap);
             _kernel.RegisterModule(cycloneModule);
 
-            // ── 11. Kernel init ───────────────────────────────────────────────
+            // ── 11. Physics toolkit init ──────────────────────────────────────
+            // Allocates RaycastBatchData singleton required by raycast systems.
+            var physicsModule = new PhysicsToolkitModule();
+            physicsModule.Initialize(_world);
+
+            // ── 12. Kernel init ───────────────────────────────────────────────
             _kernel.Initialize();
             Logger.Info("[SimHost] Kernel initialized.");
 
-            // ── 12. Visualization ─────────────────────────────────────────────
+            // ── 13. Visualization ─────────────────────────────────────────────
             if (!_headless)
             {
                 _vis = new SimHostVisualization();
@@ -232,7 +289,9 @@ namespace Bagira.SimHost
         {
             _vis?.Update(dt);
             _kernel?.Update();
-            _kernelGroup?.Run();
+            _inputGroup?.Run();
+            _simulationGroup?.Run();
+            _postSimulationGroup?.Run();
         }
 
         protected override void OnDrawWorld()
@@ -247,10 +306,25 @@ namespace Bagira.SimHost
 
         protected override void OnUnload()
         {
+            if (_world != null && _world.HasSingleton<RaycastBatchData>())
+            {
+                ref var batch = ref _world.GetSingleton<RaycastBatchData>();
+                if (batch.Requests.IsCreated) batch.Requests.Dispose();
+                if (batch.Hits.IsCreated) batch.Hits.Dispose();
+            }
+
+            // Clean up the background allocator server
+            _allocatorCts?.Cancel();
+            try { _allocatorTask?.Wait(1000); } catch { }
+            _allocatorCts?.Dispose();
+            _idAllocatorServer?.Dispose();
+
             _vis?.Dispose();
             _vis = null;
             _idAllocator?.Dispose();
-            _kernelGroup?.Dispose();
+            _postSimulationGroup?.Dispose();
+            _simulationGroup?.Dispose();
+            _inputGroup?.Dispose();
             Logger.Info("[SimHost] Shutdown complete.");
             base.OnUnload();
         }
@@ -287,9 +361,6 @@ namespace Bagira.SimHost
             world.RegisterComponent<NetworkSpawnRequest>();
             world.RegisterComponent<PendingNetworkAck>();
 
-            // DDS descriptor
-            world.RegisterComponent<EntityMaster>();
-
             // Geographic / physics
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
@@ -305,6 +376,25 @@ namespace Bagira.SimHost
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
 
+            // HSM brain tiers (for APC-style HSM doctrines)
+            world.RegisterComponent<BrainHsm64>();
+            world.RegisterComponent<BrainHsm128>();
+            world.RegisterComponent<PreviousCapabilities>();
+            world.RegisterComponent<PassengerBuffer>();
+            world.RegisterComponent<IsEmbarkedTag>();
+
+            // Perception
+            world.RegisterComponent<Faction>();
+            world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<TargetMemory>();
+
+            // Combat & Physics
+            world.RegisterComponent<PhysicsCollider>();
+            world.RegisterComponent<WeaponState>();
+            world.RegisterComponent<Health>();
+            world.RegisterComponent<BallisticProjectile>();
+            world.RegisterComponent<HealthData>();
+
             // CarKinem / navigation
             world.RegisterComponent<CarKinem.Core.VehicleState>();
             world.RegisterComponent<CarKinem.Core.VehicleParams>();
@@ -314,7 +404,7 @@ namespace Bagira.SimHost
             world.RegisterComponent<CarKinem.Formation.FormationTarget>();
 
             // Managed
-            world.RegisterManagedComponent<EntityMissionHolder>();
+            world.RegisterComponent<MissionPlanQueue>();
             world.RegisterManagedComponent<IgVisualDef>();
             world.RegisterManagedComponent<SimVehicleDef>();
             world.RegisterManagedComponent<SimCombatDef>();
@@ -325,6 +415,7 @@ namespace Bagira.SimHost
             world.RegisterEvent<ConstructionAck>();
             world.RegisterEvent<DestructionOrder>();
             world.RegisterEvent<DestructionAck>();
+            world.RegisterEvent<FireInteractionEvent>();
 
             // CarKinem command events
             world.RegisterEvent<CmdSpawnVehicle>();
@@ -336,6 +427,49 @@ namespace Bagira.SimHost
             world.RegisterEvent<CmdLeaveFormation>();
             world.RegisterEvent<CmdStop>();
             world.RegisterEvent<CmdSetSpeed>();
+        }
+
+        private static unsafe void RegisterDoctrines(DoctrineRegistry doctrineRegistry)
+        {
+            if (doctrineRegistry == null) throw new ArgumentNullException(nameof(doctrineRegistry));
+
+            var moveToReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            moveToReg.Register("WriteMoveToChannel", SimHostNodes.Action_WriteMoveToChannel);
+            var moveToBlob = TreeCompiler.CompileFromJson(MoveToJson);
+            doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
+                new DoctrineDefinition
+                {
+                    Name             = "MoveToLocation",
+                    BrainTier        = BehaviorConstants.BrainTierBTree,
+                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(moveToBlob, moveToReg),
+                    ParseParams      = SimHostNodes.ParseMoveToParams
+                });
+
+            var followRouteReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            followRouteReg.Register("WriteFollowRouteChannel", SimHostNodes.Action_WriteFollowRouteChannel);
+            var followRouteBlob = TreeCompiler.CompileFromJson(FollowRouteJson);
+            doctrineRegistry.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
+                new DoctrineDefinition
+                {
+                    Name             = "FollowRoute",
+                    BrainTier        = BehaviorConstants.BrainTierBTree,
+                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(followRouteBlob, followRouteReg),
+                    ParseParams      = SimHostNodes.ParseFollowRouteParams
+                });
+
+            var joinFormationReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            joinFormationReg.Register("WriteJoinFormationChannel", SimHostNodes.Action_WriteJoinFormationChannel);
+            var joinFormationBlob = TreeCompiler.CompileFromJson(JoinFormationJson);
+            doctrineRegistry.Register(SimHostDoctrineIds.JoinFormation_BT, "JoinFormation",
+                new DoctrineDefinition
+                {
+                    Name             = "JoinFormation",
+                    BrainTier        = BehaviorConstants.BrainTierBTree,
+                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(joinFormationBlob, joinFormationReg)
+                });
+
+            doctrineRegistry.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
+                new DoctrineDefinition { Name = "Idle", BrainTier = BehaviorConstants.BrainTierHsm });
         }
     }
 }

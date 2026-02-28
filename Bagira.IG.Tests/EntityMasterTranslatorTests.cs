@@ -36,7 +36,6 @@ public class EntityMasterTranslatorTests
         CreateFixture()
     {
         var repo       = new EntityRepository();
-        repo.RegisterComponent<EntityMaster>(); // unmanaged struct — must be registered
         var entityMap  = new NetworkEntityMap();
         var eventBus   = new FdpEventBus();
         // null participant = test mode (no DDS reader created)
@@ -68,17 +67,17 @@ public class EntityMasterTranslatorTests
         Assert.Single(commands);
         Assert.Equal(TestNetworkId,         commands[0].NetworkId);
         Assert.Equal(TestTkbType,           commands[0].TkbType);
+        Assert.Equal(TestDisType,           commands[0].DisType);
         Assert.Equal(0,                     commands[0].OwnerNodeId); // ghost node — no local authority
         Assert.Equal(ReliableInitType.None, commands[0].InitType);
     }
 
     /// <summary>
-    /// The <see cref="SpawnEntityCommand.InitialComponents"/> list must contain
-    /// the <see cref="EntityMaster"/> sample so the spawning system can apply it
-    /// on entity construction.
+    /// The <see cref="SpawnEntityCommand.InitialComponents"/> list must remain
+    /// empty to avoid routing network descriptors into ECS components.
     /// </summary>
     [Fact]
-    public void ProcessSample_NewEntity_InitialComponentsContainsEntityMaster()
+    public void ProcessSample_NewEntity_SpawnCommandHasEmptyInitialComponents()
     {
         var (repo, _, eventBus, translator) = CreateFixture();
         var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
@@ -91,10 +90,8 @@ public class EntityMasterTranslatorTests
         eventBus.SwapBuffers();
         var commands = eventBus.ConsumeManaged<SpawnEntityCommand>();
 
-        Assert.Single(commands[0].InitialComponents);
-        Assert.IsType<EntityMaster>(commands[0].InitialComponents[0]);
-        var embeddedMaster = (EntityMaster)commands[0].InitialComponents[0];
-        Assert.Equal(TestTkbType, embeddedMaster.TkbType);
+        Assert.Empty(commands[0].InitialComponents);
+        Assert.Equal(TestTkbType, commands[0].TkbType);
     }
 
     // ── Component-update path (known entity) ─────────────────────────────────
@@ -127,17 +124,15 @@ public class EntityMasterTranslatorTests
     }
 
     /// <summary>
-    /// When the entity is already known, ProcessSample must update the
-    /// <see cref="EntityMaster"/> component on the existing entity and must NOT
-    /// emit a new <see cref="SpawnEntityCommand"/>.</summary>
+    /// When the entity is already known, ProcessSample must NOT emit a new
+    /// <see cref="SpawnEntityCommand"/> or apply any ECS component updates.</summary>
     [Fact]
-    public void ProcessSample_KnownEntity_UpdatesComponentAndEmitsNoSpawnCommand()
+    public void ProcessSample_KnownEntity_DoesNotCallSetComponent()
     {
         var (repo, entityMap, eventBus, translator) = CreateFixture();
 
         // Pre-register a known entity in the world and map
         var entity = repo.CreateEntity();
-        repo.SetComponent(entity, new EntityMaster { EntityId = (int)TestNetworkId, TkbType = 1L });
         entityMap.Register(TestNetworkId, entity);
 
         var updatedMaster = new EntityMaster
@@ -148,18 +143,44 @@ public class EntityMasterTranslatorTests
         };
 
         ISimulationView view = repo;
-        var cmd = (EntityCommandBuffer)view.GetCommandBuffer();
+        var cmd = new RecordingCommandBuffer();
         translator.ProcessSample(in updatedMaster, cmd, view);
-        cmd.Playback(repo);
 
-        // No spawn command must have been published
         eventBus.SwapBuffers();
         Assert.Empty(eventBus.ConsumeManaged<SpawnEntityCommand>());
+        Assert.Empty(eventBus.ConsumeManaged<UpdateEntityCommand>());
+        Assert.False(cmd.SetComponentCalled);
+    }
 
-        // The component on the entity must reflect the updated values
-        var stored = repo.GetComponent<EntityMaster>(entity);
-        Assert.Equal(TestTkbType, stored.TkbType);
-        Assert.Equal(TestDisType, stored.DisType);
+    [Fact]
+    public void ApplyToEntity_IsNoOp()
+    {
+        var (repo, _, _, translator) = CreateFixture();
+        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+
+        var exception = Record.Exception(() =>
+            translator.ApplyToEntity(new Entity(), master, repo));
+
+        Assert.Null(exception);
+        Assert.Throws<InvalidOperationException>(() => repo.GetComponentTable<EntityMaster>());
+    }
+
+    private sealed class RecordingCommandBuffer : IEntityCommandBuffer
+    {
+        public bool SetComponentCalled { get; private set; }
+
+        public Entity CreateEntity() => new Entity();
+        public void DestroyEntity(Entity entity) { }
+        public void AddComponent<T>(Entity entity, in T component) where T : unmanaged { }
+        public void SetComponent<T>(Entity entity, in T component) where T : unmanaged => SetComponentCalled = true;
+        public void RemoveComponent<T>(Entity entity) where T : unmanaged { }
+        public void AddManagedComponent<T>(Entity entity, T? component) where T : class { }
+        public void SetManagedComponent<T>(Entity entity, T? component) where T : class { }
+        public void RemoveManagedComponent<T>(Entity entity) where T : class { }
+        public void PublishEvent<T>(in T evt) where T : unmanaged { }
+        public unsafe void SetComponentRaw(Entity entity, int typeId, void* ptr, int size) { }
+        public void SetManagedComponentRaw(Entity entity, int typeId, object obj) { }
+        public void SetLifecycleState(Entity entity, EntityLifecycle state) { }
     }
 
     // ── DestroyEntityCommand path (disposed instance) ────────────────────────

@@ -31,6 +31,29 @@ public class MissionPanelTests
         return (panel, logic, missionSvc);
     }
 
+    private static MissionPlan BuildPlan(params string[] behaviorIds)
+    {
+        var tasks = new List<MissionTask>(behaviorIds.Length);
+        for (int i = 0; i < behaviorIds.Length; i++)
+        {
+            tasks.Add(new MissionTask
+            {
+                TaskId         = Guid.NewGuid(),
+                ExecutingEngine = string.Empty,
+                BehaviorId     = behaviorIds[i],
+                BehaviorParams = string.Empty,
+                Triggers       = new List<MissionTrigger>(),
+                State          = eTaskState.TASK_PLANNED
+            });
+        }
+
+        return new MissionPlan
+        {
+            ActiveTaskId = Guid.Empty,
+            Tasks        = tasks
+        };
+    }
+
     // ── SelectedEntityId ──────────────────────────────────────────────────────
 
     [Fact]
@@ -339,5 +362,111 @@ public class MissionPanelTests
 
         Assert.Null(ex);
         Assert.False(panel.HasConflictAlert);
+    }
+
+    // ── Task-list editing ───────────────────────────────────────────────────
+
+    [Fact]
+    public void AddTask_AppendsToDraftPlan()
+    {
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+
+        panel.HandleAddTask();
+
+        var plan = panel.DraftPlan;
+        Assert.NotNull(plan);
+        Assert.NotNull(plan!.Value.Tasks);
+        Assert.Single(plan.Value.Tasks!);
+    }
+
+    [Fact]
+    public void DeleteTask_RemovesFromDraftPlan()
+    {
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+        panel.SetDraftPlan(BuildPlan("A", "B", "C"), baseVersion: 0);
+
+        panel.HandleDeleteTask(1);
+
+        var tasks = panel.DraftPlan!.Value.Tasks!;
+        Assert.Equal(2, tasks.Count);
+        Assert.Equal("A", tasks[0].BehaviorId);
+        Assert.Equal("C", tasks[1].BehaviorId);
+    }
+
+    [Fact]
+    public void ReorderTask_ChangesPosition()
+    {
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+        panel.SetDraftPlan(BuildPlan("A", "B"), baseVersion: 0);
+
+        panel.HandleMoveTask(0, 1);
+
+        var tasks = panel.DraftPlan!.Value.Tasks!;
+        Assert.Equal("B", tasks[0].BehaviorId);
+        Assert.Equal("A", tasks[1].BehaviorId);
+    }
+
+    // ── Behavior editing ────────────────────────────────────────────────────
+
+    [Fact]
+    public void EditBehaviorId_UpdatesDraftTask()
+    {
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+        panel.SetDraftPlan(BuildPlan(""), baseVersion: 0);
+
+        panel.HandleEditBehaviorId(0, "MoveToLocation");
+
+        var task = panel.DraftPlan!.Value.Tasks![0];
+        Assert.Equal("MoveToLocation", task.BehaviorId);
+    }
+
+    [Fact]
+    public void EditBehaviorParams_UpdatesDraftTask()
+    {
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+        panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 0);
+
+        panel.HandleEditBehaviorParams(0, "{\"speed\":15}");
+
+        var task = panel.DraftPlan!.Value.Tasks![0];
+        Assert.Equal("{\"speed\":15}", task.BehaviorParams);
+    }
+
+    // ── Commit ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Commit_CallsMissionEditorService()
+    {
+        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 7);
+        panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 2);
+
+        missionSvc
+            .Setup(s => s.CommitMissionAsync(7, It.IsAny<MissionPlan>(), 2))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 3 });
+
+        panel.HandleCommit(logic.Object);
+
+        missionSvc.Verify(s => s.CommitMissionAsync(
+            7,
+            It.Is<MissionPlan>(p => p.Tasks != null && p.Tasks.Count == 1),
+            2),
+            Times.Once);
+    }
+
+    [Fact]
+    public void Commit_DisabledWhileInFlight()
+    {
+        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 7);
+        panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 2);
+
+        var tcs = new TaskCompletionSource<MissionCommitResult>();
+        missionSvc
+            .Setup(s => s.CommitMissionAsync(7, It.IsAny<MissionPlan>(), 2))
+            .Returns(tcs.Task);
+
+        panel.HandleCommit(logic.Object);
+
+        Assert.True(panel.CommitInFlight);
+        Assert.False(panel.CommitButtonEnabled);
     }
 }

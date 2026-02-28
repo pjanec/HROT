@@ -42,7 +42,7 @@ public class EventToEffectSystemTests
         repo.RegisterComponent<SimTransform>();
         repo.RegisterComponent<VisualEffectState>();
         repo.RegisterComponent<TracerTarget>();
-        repo.RegisterEvent<FireInteractionEvent>();
+        repo.RegisterEvent<Bagira.Map.Common.Events.FireInteractionEvent>();
         return repo;
     }
 
@@ -67,7 +67,7 @@ public class EventToEffectSystemTests
         float sx = ShooterX, float sy = ShooterY,
         float tx = TargetX,  float ty = TargetY)
     {
-        repo.Bus.Publish(new FireInteractionEvent
+        repo.Bus.Publish(new Bagira.Map.Common.Events.FireInteractionEvent
         {
             ShooterX = sx, ShooterY = sy,
             TargetX  = tx, TargetY  = ty,
@@ -241,8 +241,8 @@ public class EventToEffectSystemTests
         var repo   = CreateRepo();
         var system = new EventToEffectSystem();
 
-        repo.Bus.Publish(new FireInteractionEvent { ShooterX = 0f, ShooterY = 0f, TargetX = 100f, TargetY = 100f });
-        repo.Bus.Publish(new FireInteractionEvent { ShooterX = 200f, ShooterY = 200f, TargetX = 300f, TargetY = 300f });
+        repo.Bus.Publish(new Bagira.Map.Common.Events.FireInteractionEvent { ShooterX = 0f, ShooterY = 0f, TargetX = 100f, TargetY = 100f });
+        repo.Bus.Publish(new Bagira.Map.Common.Events.FireInteractionEvent { ShooterX = 200f, ShooterY = 200f, TargetX = 300f, TargetY = 300f });
         RunSpawnSystem(repo, system);
 
         var (explosions, tracers) = CountEffects(repo);

@@ -18,7 +18,7 @@ namespace Bagira.SimHost.Integration.Tests
     ///      processes the request in simulated ticks.
     ///   3. The mock client receives a matching <see cref="CreateEntityAck"/> with ErrorCode=0
     ///      and a valid new entity ID.
-    ///   4. The ECS world contains an <see cref="EntityMaster"/> component with the correct
+    ///   4. The ECS world contains a <see cref="NetworkSpawnRequest"/> with the correct
     ///      TkbType on the spawned entity.
     ///
     /// This test is DDS-free — all networking is replaced by in-process stubs defined in
@@ -41,10 +41,10 @@ namespace Bagira.SimHost.Integration.Tests
 
         /// <summary>
         /// End-to-end flow: IOS client requests a Tank_M1Abrams, SimHost creates it,
-        /// client receives ACK and can read back the EntityMaster component.
+        /// client receives ACK and can read back the NetworkSpawnRequest metadata.
         /// </summary>
         [Fact]
-        public async Task FullFlow_IOSCreateTank_ReceivesAckAndEntityMasterIsSet()
+        public async Task FullFlow_IOSCreateTank_ReceivesAckAndSpawnRequestIsSet()
         {
             // ── Arrange ──────────────────────────────────────────────────────────────────
             var requestId = Guid.NewGuid();
@@ -64,13 +64,14 @@ namespace Bagira.SimHost.Integration.Tests
             Assert.True(ack.Value.NewEntityId > 0,
                 $"Expected a positive network entity ID, got {ack.Value.NewEntityId}.");
 
-            // ── Assert: EntityMaster component ────────────────────────────────────────────
+            // ── Assert: NetworkSpawnRequest component ────────────────────────────────────
             // Allow a few more ticks for ELM lifecycle processing to complete.
             _host.RunForTicks(5);
 
-            var master = _client.ReadEntityMaster(ack.Value.NewEntityId);
-            Assert.NotNull(master);
-            Assert.Equal(TkbEntityTypes.Tank_M1Abrams, master!.Value.TkbType);
+            var spawnRequest = _client.ReadNetworkSpawnRequest(ack.Value.NewEntityId);
+            Assert.NotNull(spawnRequest);
+            Assert.Equal(TkbEntityTypes.Tank_M1Abrams, spawnRequest!.Value.TkbType);
+            Assert.Equal(0x0100_0000_0000_0001UL, spawnRequest.Value.DisType);
         }
 
         /// <summary>
@@ -132,7 +133,11 @@ namespace Bagira.SimHost.Integration.Tests
                     new EntityDescriptorUnion
                     {
                         _d           = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { TkbType = TkbEntityTypes.Tank_M1Abrams },
+                        EntityMaster = new EntityMaster
+                        {
+                            TkbType = TkbEntityTypes.Tank_M1Abrams,
+                            DisType = 0x0100_0000_0000_0001UL
+                        },
                     },
                 },
             };

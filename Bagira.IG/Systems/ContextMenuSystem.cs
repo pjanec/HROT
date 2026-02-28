@@ -33,7 +33,7 @@ namespace Bagira.IG.Systems;
 ///   </item>
 /// </list>
 /// </summary>
-[UpdateInPhase(SystemPhase.Simulation)]
+[UpdateInPhase(SystemPhase.PostSimulation)]
 public class ContextMenuSystem : IModuleSystem
 {
     // ── Internal pending-request state ────────────────────────────────────────

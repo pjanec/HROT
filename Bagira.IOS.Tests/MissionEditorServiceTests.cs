@@ -1,6 +1,7 @@
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.IOS.Services;
+using Bagira.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using Moq;
 

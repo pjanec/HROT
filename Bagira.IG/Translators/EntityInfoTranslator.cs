@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTD;
+using Bagira.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Interfaces;
@@ -66,14 +67,7 @@ namespace Bagira.IG.Translators
                 if (!_entityMap.TryGetEntity(netId, out _))
                     continue; // Not spawned yet — retry next tick
 
-                // EntityInfo has managed fields (string); must go through UpdateEntityCommand
-                // so NetworkSpawningSystem applies it via EntityComponentReflector.
-                _eventBus.PublishManaged(new UpdateEntityCommand
-                {
-                    NetworkId          = netId,
-                    ComponentsToUpdate = new List<object> { info },
-                    RequestId          = Guid.Empty,
-                });
+                ProcessSample(info, netId);
             }
         }
 
@@ -86,11 +80,35 @@ namespace Bagira.IG.Translators
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo)
         {
             if (data is EntityInfo info)
-                repo.SetComponent(entity, info); // EntityRepository.SetComponent is unconstrained
+            {
+                repo.SetManagedComponent(entity, new IgEntityData
+                {
+                    Name = info.Name,
+                    ForceId = (ForceId)(int)info.ForceIdentifier,
+                    CommanderId = info.CommanderId
+                });
+            }
         }
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
         public void Dispose(long networkEntityId) { /* IG does not write EntityInfo */ }
+
+        internal void ProcessSample(EntityInfo info, long netId)
+        {
+            var igData = new IgEntityData
+            {
+                Name = info.Name,
+                ForceId = (ForceId)(int)info.ForceIdentifier,
+                CommanderId = info.CommanderId
+            };
+
+            _eventBus.PublishManaged(new UpdateEntityCommand
+            {
+                NetworkId = netId,
+                ComponentsToUpdate = new List<object> { igData },
+                RequestId = Guid.Empty,
+            });
+        }
     }
 }

@@ -1,7 +1,19 @@
+using System.Collections;
+using System.Linq;
 using System.Numerics;
+using System.Reflection;
+using Bagira.BDC.SSTD;
+using Bagira.IG.Components;
 using Bagira.IG.Systems;
+using Bagira.IG.Translators;
 using Bagira.IG.UI;
 using Fdp.Kernel;
+using FDP.Toolkit.NetworkSpawning.Systems;
+using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Vis2D;
+using FDP.Toolkit.Vis2D.Layers;
+using ModuleHost.Core;
+using ModuleHost.Network.Cyclone.Modules;
 
 namespace Bagira.IG.Tests;
 
@@ -120,5 +132,164 @@ public class IgApplicationPanelTests
             inputHandler();
 
         Assert.True(handlerCalled, "Input handler MUST be called when WantCaptureMouse is false.");
+    }
+
+    // ── DDS-to-ECS registration + query guards (DTE-BATCH-04) ────────────────
+
+    [Fact]
+    public void InitializeEcs_RegistersIgEntityData()
+    {
+        var app = new IgApplication();
+        try
+        {
+            app.InitializeEmbedded(headless: true);
+            var entity = app.World.CreateEntity();
+
+            var exception = Record.Exception(() =>
+                app.World.SetManagedComponent(entity, new IgEntityData()));
+
+            Assert.Null(exception);
+        }
+        finally
+        {
+            app.Shutdown(ownsWindow: false);
+        }
+    }
+
+    [Fact]
+    public void InitializeEcs_RegistersIgHealthState()
+    {
+        var app = new IgApplication();
+        try
+        {
+            app.InitializeEmbedded(headless: true);
+
+            var exception = Record.Exception(() => app.World.GetComponentTable<IgHealthState>());
+
+            Assert.Null(exception);
+        }
+        finally
+        {
+            app.Shutdown(ownsWindow: false);
+        }
+    }
+
+    [Fact]
+    public void InitializeEcs_DoesNotRegisterEntityMaster()
+    {
+        var app = new IgApplication();
+        try
+        {
+            app.InitializeEmbedded(headless: true);
+
+            Assert.Throws<InvalidOperationException>(() => app.World.GetComponentTable<EntityMaster>());
+        }
+        finally
+        {
+            app.Shutdown(ownsWindow: false);
+        }
+    }
+
+    [Fact]
+    public void InitializeNetwork_RegistersFireInteractionEventTranslator()
+    {
+        var app = new IgApplication();
+        try
+        {
+            app.InitializeEmbedded(headless: false);
+
+            var translators = GetCustomTranslators(app).Cast<object>().ToList();
+            Assert.Contains(translators, t => t is FireInteractionEventTranslator);
+        }
+        finally
+        {
+            app.Shutdown(ownsWindow: false);
+        }
+    }
+
+    [Fact]
+    public void EntityRenderQuery_MatchesEntityWithNetworkIdentityAndSimTransform()
+    {
+        var app = new IgApplication();
+        try
+        {
+            app.InitializeEmbedded(headless: true);
+            var query = GetEntityRenderQuery(app);
+
+            var entity = app.World.CreateEntity();
+            app.World.AddComponent(entity, new NetworkIdentity(1));
+            app.World.AddComponent(entity, new SimTransform());
+
+            Assert.True(QueryContains(query, entity));
+        }
+        finally
+        {
+            app.Shutdown(ownsWindow: false);
+        }
+    }
+
+    [Fact]
+    public void EntityRenderQuery_DoesNotMatchEntityWithoutNetworkIdentity()
+    {
+        var app = new IgApplication();
+        try
+        {
+            app.InitializeEmbedded(headless: true);
+            var query = GetEntityRenderQuery(app);
+
+            var entity = app.World.CreateEntity();
+            app.World.AddComponent(entity, new SimTransform());
+
+            Assert.False(QueryContains(query, entity));
+        }
+        finally
+        {
+            app.Shutdown(ownsWindow: false);
+        }
+    }
+
+
+    private static EntityQuery GetEntityRenderQuery(IgApplication app)
+    {
+        var canvas = (MapCanvas)GetPrivateField(app, "_canvas");
+        var layer = canvas.Layers.OfType<EntityRenderLayer>().First();
+        return (EntityQuery)GetPrivateField(layer, "_query");
+    }
+
+    private static bool QueryContains(EntityQuery query, Entity entity)
+    {
+        foreach (var candidate in query)
+        {
+            if (candidate == entity)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static IEnumerable GetCustomTranslators(IgApplication app)
+    {
+        var kernel = (ModuleHostKernel)GetPrivateField(app, "_kernel");
+        var modules = (IEnumerable)GetPrivateField(kernel, "_modules");
+
+        foreach (var entry in modules)
+        {
+            var moduleProperty = entry.GetType().GetProperty("Module");
+            var module = moduleProperty?.GetValue(entry);
+            if (module is CycloneNetworkModule cyclone)
+            {
+                return (IEnumerable)GetPrivateField(cyclone, "_customTranslators");
+            }
+        }
+
+        throw new InvalidOperationException("CycloneNetworkModule not found in kernel modules.");
+    }
+
+    private static object GetPrivateField(object target, string fieldName)
+    {
+        var field = target.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        if (field == null)
+            throw new InvalidOperationException($"Field '{fieldName}' not found on {target.GetType().Name}.");
+        return field.GetValue(target)!;
     }
 }

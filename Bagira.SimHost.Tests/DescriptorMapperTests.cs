@@ -1,11 +1,15 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
+using Bagira.IG.Components;
 using Bagira.SimHost.Util;
 using CarKinem.Core;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
+using Fdp.Modules.Geographic.Components;
+using Fdp.Modules.Geographic.Systems;
 
 namespace Bagira.SimHost.Tests
 {
@@ -31,7 +35,7 @@ namespace Bagira.SimHost.Tests
             new EntityDescriptorUnion
             {
                 _d = EDescriptorType.dtEntityMaster,
-                EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType },
+                EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = 123UL },
             };
 
         private static EntityDescriptorUnion MakeEntityInfoDescriptor() =>
@@ -53,6 +57,19 @@ namespace Bagira.SimHost.Tests
                 },
             };
 
+        private static EntityDescriptorUnion MakeGeoSpatialDrDescriptor(float speedMs, float headingDeg) =>
+            new EntityDescriptorUnion
+            {
+                _d = EDescriptorType.dtGeoSpatialDR,
+                GeoSpatialDR = new GeoSpatialDR
+                {
+                    EntityId = 0,
+                    Vel = new DAL3 { Azimuth = headingDeg, Elevation = 0f, Length = speedMs },
+                    Acc = new DAL3 { Azimuth = 0f, Elevation = 0f, Length = 0f },
+                    RotVel = new OrientationHPR { Heading = 0f, Pitch = 0f, Roll = 0f },
+                },
+            };
+
         // ─── Tests ────────────────────────────────────────────────────────────
 
         [Fact]
@@ -64,34 +81,90 @@ namespace Bagira.SimHost.Tests
                 MakeEntityMasterDescriptor(expectedTkbType),
             };
 
-            long result = DescriptorMapper.ExtractTkbType(descriptors);
+            long result = DescriptorMapper.ExtractTkbType(descriptors, out ulong disType);
 
             Assert.Equal(expectedTkbType, result);
+            Assert.Equal(123UL, disType);
         }
 
         [Fact]
-        public void DescriptorMapper_EntityMasterDescriptor_AddsEntityMasterComponent()
+        public void DescriptorMapper_EntityMasterDescriptor_ReturnsEmptyList()
         {
-            const long tkbType = 10L;
             var descriptors = new List<EntityDescriptorUnion>
             {
-                MakeEntityMasterDescriptor(tkbType),
+                MakeEntityMasterDescriptor(tkbType: 10L),
             };
 
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
-            // Should contain exactly one EntityMaster object with the correct TkbType
-            Assert.Single(components);
-            var master = Assert.IsType<EntityMaster>(components[0]);
-            Assert.Equal(tkbType, master.TkbType);
+            Assert.Empty(components);
         }
 
-        /// <summary>
-        /// SC1 (TASK-IF001): A non-vehicle GeoSpatial descriptor must NOT produce a
-        /// <see cref="VehicleState"/> component — that responsibility belongs to the TKB template.
-        /// </summary>
         [Fact]
-        public void DescriptorMapper_GeoSpatialDescriptor_DoesNotAddVehicleState()
+        public void DescriptorMapper_EntityMasterDescriptor_NoEntityMasterType()
+        {
+            var descriptors = new List<EntityDescriptorUnion>
+            {
+                MakeEntityMasterDescriptor(tkbType: 10L),
+            };
+
+            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+
+            Assert.DoesNotContain(components, c => c is EntityMaster);
+        }
+
+        [Fact]
+        public void DescriptorMapper_EntityInfoDescriptor_ReturnsEmptyList()
+        {
+            var descriptors = new List<EntityDescriptorUnion>
+            {
+                MakeEntityInfoDescriptor(),
+            };
+
+            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+
+            Assert.Single(components);
+            Assert.IsType<IgEntityData>(components[0]);
+        }
+
+        [Fact]
+        public void DescriptorMapper_EntityInfoDescriptor_NoEntityInfoType()
+        {
+            var descriptors = new List<EntityDescriptorUnion>
+            {
+                MakeEntityInfoDescriptor(),
+            };
+
+            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+
+            Assert.DoesNotContain(components, c => c is EntityInfo);
+        }
+
+        [Fact]
+        public void DescriptorMapper_EntityInfoDescriptor_MapsEntityDataFields()
+        {
+            var descriptor = new EntityDescriptorUnion
+            {
+                _d = EDescriptorType.dtEntityInfo,
+                EntityInfo = new EntityInfo
+                {
+                    EntityId = 0,
+                    Name = "TestUnit",
+                    ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
+                    CommanderId = 42
+                }
+            };
+
+            var components = DescriptorMapper.MapToComponents(new List<EntityDescriptorUnion> { descriptor }, geoTransform: null);
+
+            var data = Assert.IsType<IgEntityData>(components.Single());
+            Assert.Equal("TestUnit", data.Name);
+            Assert.Equal(ForceId.Friend, data.ForceId);
+            Assert.Equal(42, data.CommanderId);
+        }
+
+        [Fact]
+        public void MapToComponents_GeoSpatialDescriptor_ContainsSimTransform()
         {
             var geo = new IdentityGeoTransform();
             var descriptors = new List<EntityDescriptorUnion>
@@ -101,27 +174,44 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geo);
 
-            // Must produce exactly GeoSpatial + SimTransform (no VehicleState).
-            Assert.Equal(2, components.Count);
-
-            var geoSpatial = Assert.IsType<GeoSpatial>(components[0]);
-            Assert.Equal(48.0, geoSpatial.Pos.Latitude, precision: 5);
-
-            var simTransform = Assert.IsType<SimTransform>(components[1]);
+            var simTransform = Assert.Single(components.OfType<SimTransform>());
             // IdentityGeoTransform returns (lon, lat, alt) → Position.X = lon, Position.Y = lat
             Assert.Equal(16f, simTransform.Position.X, precision: 3);
             Assert.Equal(48f, simTransform.Position.Y, precision: 3);
-
-            // Explicitly assert no VehicleState is present — the TKB template owns it.
-            Assert.DoesNotContain(components, c => c is VehicleState);
         }
 
-        /// <summary>
-        /// A GeoSpatial descriptor with no geo transform should produce only GeoSpatial
-        /// (no SimTransform, no VehicleState).
-        /// </summary>
         [Fact]
-        public void DescriptorMapper_GeoSpatialDescriptor_NullTransform_AddsOnlyGeoSpatial()
+        public void MapToComponents_GeoSpatialDescriptor_ContainsGeoTransform()
+        {
+            var geo = new IdentityGeoTransform();
+            var descriptors = new List<EntityDescriptorUnion>
+            {
+                MakeGeoSpatialDescriptor(lat: 48.0, lon: 16.0),
+            };
+
+            var components = DescriptorMapper.MapToComponents(descriptors, geo);
+
+            var geoTransform = Assert.Single(components.OfType<GeoTransform>());
+            Assert.Equal(48.0, geoTransform.Latitude, precision: 5);
+            Assert.Equal(16.0, geoTransform.Longitude, precision: 5);
+        }
+
+        [Fact]
+        public void MapToComponents_GeoSpatialDescriptor_NoRawGeoSpatialType()
+        {
+            var geo = new IdentityGeoTransform();
+            var descriptors = new List<EntityDescriptorUnion>
+            {
+                MakeGeoSpatialDescriptor(lat: 48.0, lon: 16.0),
+            };
+
+            var components = DescriptorMapper.MapToComponents(descriptors, geo);
+
+            Assert.DoesNotContain(components, c => c is GeoSpatial);
+        }
+
+        [Fact]
+        public void DescriptorMapper_GeoSpatialDescriptor_NullTransform_AddsOnlyGeoTransform()
         {
             var descriptors = new List<EntityDescriptorUnion>
             {
@@ -130,8 +220,8 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
-            Assert.Single(components);
-            Assert.IsType<GeoSpatial>(components[0]);
+            Assert.Single(components.OfType<GeoTransform>());
+            Assert.DoesNotContain(components, c => c is SimTransform);
             Assert.DoesNotContain(components, c => c is VehicleState);
         }
 
@@ -154,6 +244,36 @@ namespace Bagira.SimHost.Tests
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
             Assert.Empty(components);
+        }
+
+        [Fact]
+        public void MapToComponents_GeoSpatialDRDescriptor_ContainsGeoVelocity()
+        {
+            var descriptors = new List<EntityDescriptorUnion>
+            {
+                MakeGeoSpatialDrDescriptor(speedMs: 15f, headingDeg: 90f),
+            };
+
+            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+
+            var geoVelocity = Assert.Single(components.OfType<GeoVelocity>());
+            Assert.Equal(15f, geoVelocity.Linear.Length(), precision: 3);
+
+            float heading = SimTransformBridgeSystem.VelocityToAzimuthDeg(geoVelocity.Linear, fallback: 0f);
+            Assert.Equal(90f, heading, precision: 1);
+        }
+
+        [Fact]
+        public void MapToComponents_GeoSpatialDRDescriptor_NoRawGeoSpatialDRType()
+        {
+            var descriptors = new List<EntityDescriptorUnion>
+            {
+                MakeGeoSpatialDrDescriptor(speedMs: 15f, headingDeg: 90f),
+            };
+
+            var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
+
+            Assert.DoesNotContain(components, c => c is GeoSpatialDR);
         }
     }
 }

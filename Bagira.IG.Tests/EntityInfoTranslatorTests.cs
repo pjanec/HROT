@@ -1,0 +1,100 @@
+using System.Collections.Generic;
+using Bagira.BDC.SSTD;
+using Bagira.IG.Components;
+using Bagira.IG.Translators;
+using Fdp.Kernel;
+using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Services;
+using ModuleHost.Core.Abstractions;
+
+namespace Bagira.IG.Tests
+{
+    public class EntityInfoTranslatorTests
+    {
+        private static (EntityRepository repo, NetworkEntityMap entityMap, FdpEventBus eventBus, EntityInfoTranslator translator)
+            CreateFixture()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterManagedComponent<IgEntityData>();
+            var entityMap = new NetworkEntityMap();
+            var eventBus = new FdpEventBus();
+            var translator = new EntityInfoTranslator(null, entityMap, eventBus);
+            return (repo, entityMap, eventBus, translator);
+        }
+
+        [Fact]
+        public void ProcessSample_PublishesUpdateWithIgEntityData()
+        {
+            var (_, entityMap, eventBus, translator) = CreateFixture();
+            var entity = new Entity();
+            entityMap.Register(1, entity);
+
+            var info = new EntityInfo
+            {
+                EntityId = 1,
+                Name = "Alpha-1",
+                ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
+                CommanderId = 7
+            };
+
+            translator.ProcessSample(info, netId: 1);
+
+            eventBus.SwapBuffers();
+            var commands = eventBus.ConsumeManaged<UpdateEntityCommand>();
+
+            Assert.Single(commands);
+            var update = commands[0];
+            Assert.Equal(1, update.NetworkId);
+            Assert.Single(update.ComponentsToUpdate);
+
+            var igData = Assert.IsType<IgEntityData>(update.ComponentsToUpdate[0]);
+            Assert.Equal("Alpha-1", igData.Name);
+            Assert.Equal(ForceId.Friend, igData.ForceId);
+        }
+
+        [Fact]
+        public void ProcessSample_DoesNotIncludeRawEntityInfo()
+        {
+            var (_, entityMap, eventBus, translator) = CreateFixture();
+            var entity = new Entity();
+            entityMap.Register(1, entity);
+
+            var info = new EntityInfo
+            {
+                EntityId = 1,
+                Name = "Alpha-1",
+                ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
+                CommanderId = 7
+            };
+
+            translator.ProcessSample(info, netId: 1);
+
+            eventBus.SwapBuffers();
+            var commands = eventBus.ConsumeManaged<UpdateEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.DoesNotContain(commands[0].ComponentsToUpdate, c => c is EntityInfo);
+        }
+
+        [Fact]
+        public void ApplyToEntity_SetsIgEntityData()
+        {
+            var (repo, _, _, translator) = CreateFixture();
+            var entity = repo.CreateEntity();
+
+            translator.ApplyToEntity(entity, new EntityInfo
+            {
+                EntityId = 1,
+                Name = "Bravo",
+                ForceIdentifier = eForceIdentifier.FORCE_OPPOSING,
+                CommanderId = 3
+            }, repo);
+
+            ISimulationView view = repo;
+            var data = view.GetManagedComponentRO<IgEntityData>(entity);
+
+            Assert.Equal("Bravo", data.Name);
+            Assert.Equal(ForceId.Hostile, data.ForceId);
+        }
+    }
+}

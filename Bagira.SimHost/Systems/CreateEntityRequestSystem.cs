@@ -71,7 +71,7 @@ namespace Bagira.SimHost.Systems
             try
             {
                 // 1. Extract TkbType from descriptors
-                long tkbType = DescriptorMapper.ExtractTkbType(request.InitialDescriptors);
+                long tkbType = DescriptorMapper.ExtractTkbType(request.InitialDescriptors, out ulong disType);
                 if (tkbType == 0)
                 {
                     FdpLog<CreateEntityRequestSystem>.Warn(
@@ -106,6 +106,7 @@ namespace Bagira.SimHost.Systems
                     {
                         NetworkId         = newNetworkId,
                         TkbType           = tkbType,
+                        DisType           = disType,
                         OwnerNodeId       = _localNodeId,
                         InitType          = ReliableInitType.AllPeers,
                         InitialComponents = initialComponents,
@@ -144,5 +145,6 @@ namespace Bagira.SimHost.Systems
                 ErrorCode   = errorCode,
             });
         }
+
     }
 }

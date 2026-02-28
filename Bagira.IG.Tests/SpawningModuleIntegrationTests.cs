@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Bagira.BDC.SSTD;
 using Bagira.IG.Modules;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -55,7 +54,6 @@ public class SpawningModuleIntegrationTests
         repo.RegisterComponent<NetworkAuthority>();
         repo.RegisterComponent<NetworkSpawnRequest>();
         repo.RegisterComponent<PendingNetworkAck>();
-        repo.RegisterComponent<EntityMaster>();
         // Lifecycle events required by ELM command-buffer playback
         repo.RegisterEvent<ConstructionOrder>();
         repo.RegisterEvent<DestructionOrder>();
@@ -135,21 +133,13 @@ public class SpawningModuleIntegrationTests
     }
 
     /// <summary>
-    /// When <see cref="SpawnEntityCommand.InitialComponents"/> carries an
-    /// <see cref="EntityMaster"/>, the spawning system must apply it to the
-    /// created entity via EntityComponentReflector.
+    /// The spawning system must apply <see cref="NetworkSpawnRequest"/>
+    /// with the correct TKB type on the created entity.
     /// </summary>
     [Fact]
-    public void SpawnCommand_WithEntityMasterInitialComponent_StoresComponentOnEntity()
+    public void SpawnCommand_StoresNetworkSpawnRequestWithTkbType()
     {
         var (repo, system, entityMap) = BuildWorld();
-
-        var masterData = new EntityMaster
-        {
-            EntityId = (int)TestNetworkId,
-            TkbType  = TestTkbType,
-            DisType  = 9_999UL,
-        };
 
         repo.Bus.PublishManaged(new SpawnEntityCommand
         {
@@ -157,7 +147,7 @@ public class SpawningModuleIntegrationTests
             TkbType           = TestTkbType,
             OwnerNodeId       = IgNetworkConstants.LocalNodeId,
             InitType          = ReliableInitType.None,
-            InitialComponents = new List<object> { masterData },
+            InitialComponents = new List<object>(),
             RequestId         = Guid.Empty,
         });
 
@@ -166,9 +156,8 @@ public class SpawningModuleIntegrationTests
         Assert.True(entityMap.TryGetEntity(TestNetworkId, out var entity),
             "Entity must be registered before its components can be read");
 
-        var stored = repo.GetComponent<EntityMaster>(entity);
-        Assert.Equal(TestTkbType, stored.TkbType);
-        Assert.Equal(9_999UL,     stored.DisType);
+        var spawn = repo.GetComponent<NetworkSpawnRequest>(entity);
+        Assert.Equal(TestTkbType, spawn.TkbType);
     }
 
     /// <summary>

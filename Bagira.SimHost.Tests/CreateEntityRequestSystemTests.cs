@@ -53,6 +53,7 @@ namespace Bagira.SimHost.Tests
     public class CreateEntityRequestSystemTests
     {
         private const long  ValidTkbType  = 42L;
+        private const ulong ValidDisType  = 0x0100_0000_0000_0001UL;
         private const int   LocalNodeId   = 7;
 
         // ── Fixture helpers ──────────────────────────────────────────────────
@@ -88,7 +89,7 @@ namespace Bagira.SimHost.Tests
                     new EntityDescriptorUnion
                     {
                         _d = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType },
+                        EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = ValidDisType },
                     },
                 },
             };
@@ -127,6 +128,7 @@ namespace Bagira.SimHost.Tests
             Assert.Single(commands);
             var cmd = commands[0];
             Assert.Equal(ValidTkbType,  cmd.TkbType);
+            Assert.Equal(ValidDisType,  cmd.DisType);
             Assert.Equal(LocalNodeId,   cmd.OwnerNodeId);
             Assert.Equal(request.RequestId, cmd.RequestId);
         }

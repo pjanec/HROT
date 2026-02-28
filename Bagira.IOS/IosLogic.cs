@@ -4,6 +4,7 @@ using Bagira.DDS.DM;
 using Bagira.IOS.Logic;
 using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
+using Bagira.Map.Common.Dds;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
 using Newtonsoft.Json;
@@ -237,7 +238,9 @@ public sealed class IosLogic : IIosLogic, IDisposable
         while (_clickQueue.TryDequeue(out var evt))
         {
             FdpLog<IosLogic>.Debug(
-                "[TRACE-IOS] MapClickEvent ContextId={0}", evt.InteractionContextId);
+                "[TRACE-IOS] MapClickEvent ContextId={0} (expected {1})",
+                evt.InteractionContextId,
+                ActiveContextId);
 
             // Drop stale clicks: context ID must match the one we published.
             if (evt.InteractionContextId != ActiveContextId)
@@ -294,7 +297,11 @@ public sealed class IosLogic : IIosLogic, IDisposable
             new EntityDescriptorUnion
             {
                 _d           = EDescriptorType.dtEntityMaster,
-                EntityMaster = new EntityMaster { TkbType = PlacementType }
+                EntityMaster = new EntityMaster
+                {
+                    EntityId = -1,
+                    TkbType = PlacementType
+                }
             },
             new EntityDescriptorUnion
             {

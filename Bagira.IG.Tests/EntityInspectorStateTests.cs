@@ -3,6 +3,7 @@ using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
 using Bagira.IG.UI;
 using Fdp.Kernel;
+using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 
 namespace Bagira.IG.Tests;
@@ -13,8 +14,8 @@ namespace Bagira.IG.Tests;
 /// Validates:
 /// <list type="bullet">
 ///   <item><see cref="EntityInspectorState.Refresh"/> with a live entity extracts
-///         <see cref="EntityMaster"/>, <see cref="SimTransform"/>, and
-///         <see cref="ResolvedStyle"/> fields correctly.</item>
+///         <see cref="NetworkIdentity"/>, <see cref="NetworkSpawnRequest"/>,
+///         <see cref="SimTransform"/>, and <see cref="ResolvedStyle"/> fields correctly.</item>
 ///   <item>Calling <see cref="EntityInspectorState.Refresh"/> with <see cref="Entity.Null"/>
 ///         sets <see cref="EntityInspectorState.HasSelection"/> to <c>false</c>.</item>
 ///   <item><see cref="EntityInspectorState.Clear"/> resets selection state.</item>
@@ -40,7 +41,8 @@ public class EntityInspectorStateTests
     private static EntityRepository CreateRepo()
     {
         var repo = new EntityRepository();
-        repo.RegisterComponent<EntityMaster>();
+        repo.RegisterComponent<NetworkIdentity>();
+        repo.RegisterComponent<NetworkSpawnRequest>();
         repo.RegisterComponent<SimTransform>();
         repo.RegisterComponent<ResolvedStyle>();
         return repo;
@@ -51,11 +53,8 @@ public class EntityInspectorStateTests
     {
         var entity = repo.CreateEntity();
 
-        repo.AddComponent(entity, new EntityMaster
-        {
-            EntityId = TestEntityId,
-            TkbType  = TestTkbType,
-        });
+        repo.AddComponent(entity, new NetworkIdentity(TestEntityId));
+        repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = TestTkbType });
 
         repo.AddComponent(entity, new SimTransform
         {
@@ -101,7 +100,7 @@ public class EntityInspectorStateTests
         Assert.Equal(entity, state.InspectedEntity);
     }
 
-    /// <summary>EntityId must be extracted correctly from EntityMaster.</summary>
+    /// <summary>EntityId must be extracted correctly from NetworkIdentity.</summary>
     [Fact]
     public void Refresh_LiveEntity_ExtractsEntityId()
     {
@@ -114,7 +113,7 @@ public class EntityInspectorStateTests
         Assert.Equal(TestEntityId, state.EntityId);
     }
 
-    /// <summary>TkbType must be extracted correctly from EntityMaster.</summary>
+    /// <summary>TkbType must be extracted correctly from NetworkSpawnRequest.</summary>
     [Fact]
     public void Refresh_LiveEntity_ExtractsTkbType()
     {
@@ -299,7 +298,8 @@ public class EntityInspectorStateTests
 
         // Create a second entity with different position
         var entity2 = repo.CreateEntity();
-        repo.AddComponent(entity2, new EntityMaster { EntityId = 99, TkbType = 0 });
+        repo.AddComponent(entity2, new NetworkIdentity(99));
+        repo.AddComponent(entity2, new NetworkSpawnRequest { TkbType = 0 });
         repo.AddComponent(entity2, new SimTransform
         {
             Position = new Vector3(999f, 888f, 777f),

@@ -13,6 +13,7 @@
   <!-- Expose internals to the test project so ProcessSample can be exercised directly -->
   <ItemGroup>
     <InternalsVisibleTo Include="Bagira.IG.Tests" />
+    <InternalsVisibleTo Include="Bagira.Runner.Integration.Tests" />
   </ItemGroup>
 
   <ItemGroup>

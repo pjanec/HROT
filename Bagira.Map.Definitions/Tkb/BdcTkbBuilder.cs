@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Fdp.Interfaces;
+using Fdp.Kernel;
+using FDP.Toolkit.Combat.Components;
+using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Physics;
+using FDP.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb;
 
 namespace Bagira.Map.Definitions.Tkb
@@ -71,13 +76,65 @@ namespace Bagira.Map.Definitions.Tkb
             var template = _db.GetByType(tkbId);
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
-            
-            template.AddManagedComponent(() => 
+
+            // Keep managed definition for IG inspector / ORBAT display.
+            template.AddManagedComponent(() =>
             {
                 var combatDef = new SimCombatDef();
                 configure(combatDef);
                 return combatDef;
             });
+
+            // Translate to real FDP ECS unmanaged components.
+            var combatDefComponents = new SimCombatDef();
+            configure(combatDefComponents);
+
+            if (combatDefComponents.SensorRange > 0f)
+            {
+                template.AddComponent(new PerceptionReceptor
+                {
+                    VisionRange    = combatDefComponents.SensorRange,
+                    HearingRange   = combatDefComponents.SensorRange * 0.5f,
+                    FieldOfViewCos = 0f
+                });
+                template.AddComponent(new TargetMemory());
+            }
+
+            if (combatDefComponents.Weapons.Count > 0)
+            {
+                var primary = combatDefComponents.Weapons[0];
+                template.AddComponent(new WeaponState
+                {
+                    Ammo                   = primary.Ammunition,
+                    MuzzleVelocity         = primary.Range > 0f ? primary.Range : 800f,
+                    CooldownTicksRemaining = 0
+                });
+            }
+
+            float maxHp = combatDefComponents.ArmorFront > 400f ? 300f
+                        : combatDefComponents.ArmorFront > 100f ? 150f
+                        : 100f;
+            template.AddComponent(new Health { Current = maxHp, Max = maxHp });
+            template.AddComponent(new HealthData { Current = maxHp, Max = maxHp });
+            template.AddComponent(new PhysicsCollider
+            {
+                Radius         = 2.5f,
+                CollisionLayer = PhysicsConstants.EntityCollisionLayer
+            });
+
+            return this;
+        }
+
+        /// <summary>
+        /// Add faction identification for perception/combat systems.
+        /// </summary>
+        public BdcTkbBuilder WithFaction(long tkbId, byte factionId)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+
+            template.AddComponent(new Faction { FactionId = factionId });
             return this;
         }
         

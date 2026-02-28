@@ -5,13 +5,14 @@ using Bagira.IG.Components;
 using Bagira.Map.Definitions.Tkb;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
+using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 
 namespace Bagira.IG.Systems;
 
 /// <summary>
 /// Simulation-phase system that evaluates a 3-layer style merge for every entity
-/// carrying <see cref="EntityMaster"/> and <see cref="SimTransform"/>, writing the
+/// carrying <see cref="NetworkIdentity"/> and <see cref="SimTransform"/>, writing the
 /// result into <see cref="ResolvedStyle"/>.
 ///
 /// Layer priority (highest overwrites lower):
@@ -31,8 +32,8 @@ namespace Bagira.IG.Systems;
 ///   </item>
 /// </list>
 ///
-/// Damage is always integrated from <see cref="EntityDamage"/> when present; missing
-/// <c>EntityDamage</c> leaves <see cref="ResolvedStyle.DamageLevel"/> at
+/// Damage integration is handled by ingress systems that populate
+/// <see cref="ResolvedStyle.DamageLevel"/>; when absent it remains at
 /// <see cref="ResolvedStyleConstants.DamageMin"/>.
 ///
 /// Registered in <see cref="SystemPhase.PostSimulation"/>. Must run after network ingress
@@ -53,7 +54,7 @@ public class StyleResolutionSystem : IModuleSystem
         var cmd = repo == null ? view.GetCommandBuffer() : null;
 
         var query = view.Query()
-            .With<EntityMaster>()
+            .With<NetworkIdentity>()
             .With<SimTransform>()
             .Build();
 
@@ -140,13 +141,7 @@ public class StyleResolutionSystem : IModuleSystem
         if (_userConfig.HideLabels)
             labelText = string.Empty;
 
-        // ── Damage integration ────────────────────────────────────────────────
         float damage = ResolvedStyleConstants.DamageMin;
-        if (view.HasComponent<EntityDamage>(entity))
-        {
-            ref readonly var dmg = ref view.GetComponentRO<EntityDamage>(entity);
-            damage = Math.Clamp(dmg.Damage, ResolvedStyleConstants.DamageMin, ResolvedStyleConstants.DamageMax);
-        }
 
         // ── Assemble output ───────────────────────────────────────────────────
         var style = ResolvedStyle.CreateDefault();

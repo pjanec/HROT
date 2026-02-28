@@ -1,4 +1,3 @@
-using System;
 using System.Numerics;
 using Bagira.Map.Common;
 using Bagira.Map.Definitions.Tkb;
@@ -12,7 +11,7 @@ namespace Bagira.Map.Common.Tests
         [Fact]
         public void CreateTkb_RegistersCatalogTemplates()
         {
-            var tkb = BagiraEnvironment.CreateTkb(BdcTkbCatalog.RegisterAll);
+            var tkb = BagiraEnvironment.CreateTkb();
 
             Assert.True(tkb.TryGetByType(TkbEntityTypes.Tank_M1Abrams, out _));
             Assert.True(tkb.TryGetByType(TkbEntityTypes.Infantry_Rifleman, out _));

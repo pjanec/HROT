@@ -18,6 +18,7 @@
     <!-- FDP Toolkits -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.DER\FDP.Toolkit.DER.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Commands\FDP.Toolkit.Commands.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
 
     <!-- CycloneDDS — required for live DdsWriterAdapter -->
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
@@ -28,6 +29,10 @@
     <!-- Raylib window + ImGui rendering (application shell) -->
     <PackageReference Include="Raylib-cs" Version="7.0.2" />
     <PackageReference Include="rlImGui-cs" Version="3.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bagira.Runner.Integration.Tests" />
   </ItemGroup>
 
 </Project>

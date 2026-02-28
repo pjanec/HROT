@@ -1,7 +1,7 @@
 using CycloneDDS.Runtime;
 using Fdp.Modules.Geographic.Transforms;
+using Bagira.Map.Definitions.Tkb;
 using Fdp.Toolkit.Tkb;
-using System;
 
 namespace Bagira.Map.Common
 {
@@ -14,10 +14,10 @@ namespace Bagira.Map.Common
         private const double BerlinLongitudeDeg = 13.405;
         private const double BerlinAltitudeMeters = 0.0;
 
-        public static TkbDatabase CreateTkb(Action<TkbDatabase>? registerCatalogs = null)
+        public static TkbDatabase CreateTkb()
         {
             var tkb = new TkbDatabase();
-            registerCatalogs?.Invoke(tkb);
+            BdcTkbCatalog.RegisterAll(tkb);
             return tkb;
         }
 

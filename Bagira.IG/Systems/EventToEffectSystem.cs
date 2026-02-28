@@ -1,5 +1,6 @@
 using System.Numerics;
 using Bagira.IG.Components;
+using Bagira.Map.Common.Events;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 

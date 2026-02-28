@@ -5,6 +5,7 @@ using Bagira.IG.Systems;
 using Bagira.Map.Definitions.Tkb;
 using Fdp.Interfaces;
 using Fdp.Kernel;
+using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 
 namespace Bagira.IG.Tests;
@@ -25,8 +26,6 @@ public class StyleResolutionSystemTests
     private const string TestSymbolCode    = "SFGPUCIZ-------";
     private const string TestTextureOvr    = "override_tex";
     private const string TestLabel         = "Alpha-1";
-    private const float  TestDamageHalf    = 50f;
-    private const float  TestDamageFull    = 100f;
     private const string TestColorHexBlue  = "#0064FF";   // Friend blue #RRGGBB
     private const string TestColorHexRed   = "#FF0000";   // Hostile red #RRGGBB
 
@@ -37,9 +36,8 @@ public class StyleResolutionSystemTests
         var repo = new EntityRepository();
 
         // Unmanaged components
-        repo.RegisterComponent<EntityMaster>();
+        repo.RegisterComponent<NetworkIdentity>();
         repo.RegisterComponent<SimTransform>();
-        repo.RegisterComponent<EntityDamage>();
         repo.RegisterComponent<ResolvedStyle>();
 
         // Managed class components
@@ -50,13 +48,13 @@ public class StyleResolutionSystemTests
     }
 
     /// <summary>
-    /// Creates an entity that has <see cref="EntityMaster"/> and <see cref="SimTransform"/>
+    /// Creates an entity that has <see cref="NetworkIdentity"/> and <see cref="SimTransform"/>
     /// — the minimum required for <see cref="StyleResolutionSystem"/> to process it.
     /// </summary>
     private static Entity CreateBaseEntity(EntityRepository repo)
     {
         var entity = repo.CreateEntity();
-        repo.AddComponent(entity, new EntityMaster { EntityId = 1, TkbType = 0 });
+        repo.AddComponent(entity, new NetworkIdentity(1));
         repo.AddComponent(entity, new SimTransform());
         return entity;
     }
@@ -380,40 +378,16 @@ public class StyleResolutionSystemTests
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// <c>EntityDamage.Damage</c> must be written directly into
-    /// <see cref="ResolvedStyle.DamageLevel"/> without rescaling.
-    /// Tests 0 %, 50 %, and 100 % to verify linear pass-through.
-    /// </summary>
-    [Theory]
-    [InlineData(0f)]
-    [InlineData(TestDamageHalf)]
-    [InlineData(TestDamageFull)]
-    public void StyleResolutionSystem_DamageLevel_ScalesLinearly(float inputDamage)
-    {
-        var repo   = CreateRepo();
-        var system = new StyleResolutionSystem(new MapUserConfig());
-
-        var entity = CreateBaseEntity(repo);
-        repo.AddComponent(entity, new EntityDamage { EntityId = 1, Damage = inputDamage });
-
-        RunSystem(repo, system);
-
-        var style = repo.GetComponent<ResolvedStyle>(entity);
-        Assert.Equal(inputDamage, style.DamageLevel);
-    }
-
-    /// <summary>
-    /// When <c>EntityDamage</c> is absent the damage level must remain at
+    /// When no damage ingress is present the damage level must remain at
     /// <see cref="ResolvedStyleConstants.DamageMin"/> (healthy state).
     /// </summary>
     [Fact]
-    public void StyleResolutionSystem_MissingEntityDamage_LeavesZeroDamage()
+    public void StyleResolutionSystem_DefaultDamage_IsZero()
     {
         var repo   = CreateRepo();
         var system = new StyleResolutionSystem(new MapUserConfig());
 
         var entity = CreateBaseEntity(repo);
-        // No EntityDamage added
 
         RunSystem(repo, system);
 

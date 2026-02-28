@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Bagira.BDC.SSTD;
+using Bagira.DDS.DM;
+using Bagira.IG.Components;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using Fdp.Modules.Geographic;
+using Fdp.Modules.Geographic.Components;
 
 namespace Bagira.SimHost.Util
 {
@@ -23,17 +26,23 @@ namespace Bagira.SimHost.Util
         private sealed class Log { }
         /// <summary>
         /// Searches <paramref name="descriptors"/> for an <c>EntityMaster</c> entry and returns
-        /// its <c>TkbType</c>.
+        /// its <c>TkbType</c> and <c>DisType</c>.
         /// </summary>
         /// <returns>The TkbType found, or <c>0</c> if no EntityMaster descriptor is present.</returns>
-        public static long ExtractTkbType(List<EntityDescriptorUnion>? descriptors)
+        public static long ExtractTkbType(List<EntityDescriptorUnion>? descriptors, out ulong disType)
         {
+            disType = 0;
             if (descriptors == null)
                 return 0;
 
             foreach (var d in descriptors)
+            {
                 if (d._d == EDescriptorType.dtEntityMaster)
+                {
+                    disType = d.EntityMaster.DisType;
                     return d.EntityMaster.TkbType;
+                }
+            }
 
             return 0;
         }
@@ -46,8 +55,7 @@ namespace Bagira.SimHost.Util
         /// <param name="geoTransform">
         /// Optional geographic transform. When provided, a <see cref="SimTransform"/> is
         /// generated for <c>dtGeoSpatial</c> descriptors so the entity starts at the correct
-        /// Cartesian position.  When <c>null</c>, the raw <c>GeoSpatial</c> component is
-        /// still added but no <c>SimTransform</c> is produced.
+        /// Cartesian position. When <c>null</c>, no <c>SimTransform</c> is produced.
         /// VehicleState is NOT added here — it is the responsibility of the TKB template.
         /// </param>
         public static List<object> MapToComponents(
@@ -64,19 +72,18 @@ namespace Bagira.SimHost.Util
                 switch (d._d)
                 {
                     case EDescriptorType.dtEntityMaster:
-                        // Use the DDS model type directly — it is already decorated with [FdpDescriptor]
-                        // so AutoCycloneTranslator replicates it without any manual translator stubs.
-                        result.Add(d.EntityMaster);
                         break;
 
                     case EDescriptorType.dtEntityInfo:
-                        result.Add(d.EntityInfo);
+                        result.Add(new IgEntityData
+                        {
+                            Name = d.EntityInfo.Name,
+                            ForceId = (ForceId)(int)d.EntityInfo.ForceIdentifier,
+                            CommanderId = d.EntityInfo.CommanderId
+                        });
                         break;
 
                     case EDescriptorType.dtGeoSpatial:
-                        // Raw DDS component — replicated via AutoCycloneTranslator.
-                        result.Add(d.GeoSpatial);
-
                         // Produce a SimTransform for spatial placement if a geo transform is available.
                         // NOTE: VehicleState is intentionally NOT added here. It is only valid for
                         // wheeled entities and must be added exclusively by the TKB template to avoid
@@ -98,10 +105,28 @@ namespace Bagira.SimHost.Util
                                 Rotation = rot
                             });
                         }
+
+                        result.Add(new GeoTransform
+                        {
+                            Latitude = d.GeoSpatial.Pos.Latitude,
+                            Longitude = d.GeoSpatial.Pos.Longitude,
+                            Altitude = (float)d.GeoSpatial.Pos.Altitude,
+                            HeadingDeg = d.GeoSpatial.Rot.Heading,
+                            PitchDeg = d.GeoSpatial.Rot.Pitch,
+                            RollDeg = d.GeoSpatial.Rot.Roll
+                        });
                         break;
 
                     case EDescriptorType.dtGeoSpatialDR:
-                        result.Add(d.GeoSpatialDR);
+                        result.Add(new GeoVelocity
+                        {
+                            Linear = Dal3ToEnu(d.GeoSpatialDR.Vel),
+                            Accel = Dal3ToEnu(d.GeoSpatialDR.Acc),
+                            Angular = new Vector3(
+                                d.GeoSpatialDR.RotVel.Roll * (MathF.PI / 180f),
+                                d.GeoSpatialDR.RotVel.Pitch * (MathF.PI / 180f),
+                                d.GeoSpatialDR.RotVel.Heading * (MathF.PI / 180f))
+                        });
                         break;
 
                     default:
@@ -125,6 +150,15 @@ namespace Bagira.SimHost.Util
             float rad = headingDeg * (MathF.PI / 180f);
             // North = +Y, East = +X
             return new Vector2(MathF.Sin(rad), MathF.Cos(rad));
+        }
+
+        private static Vector3 Dal3ToEnu(in DAL3 dal3)
+        {
+            float elevRad = dal3.Elevation * (MathF.PI / 180f);
+            float horizontal = dal3.Length * MathF.Cos(elevRad);
+            var dir = HeadingToVector(dal3.Azimuth);
+            float up = dal3.Length * MathF.Sin(elevRad);
+            return new Vector3(dir.X * horizontal, dir.Y * horizontal, up);
         }
     }
 }

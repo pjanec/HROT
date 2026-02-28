@@ -23,7 +23,7 @@ namespace Bagira.SimHost.UI
     /// <see cref="SpawnEntityCommand"/> onto the event bus so that
     /// <c>NetworkSpawningSystem</c> constructs the entity with the full network
     /// component set (<c>NetworkIdentity</c>, <c>NetworkOwnership</c>,
-    /// <c>EntityMaster</c>) and publishes it over DDS.</para>
+    /// <c>NetworkSpawnRequest</c>) and publishes it over DDS.</para>
     ///
     /// <para>Internal demo helpers (<see cref="SpawnRoamers"/>,
     /// <see cref="SpawnFormation"/>, etc.) use <see cref="SpawnEntityLocal"/>
@@ -83,7 +83,7 @@ namespace Bagira.SimHost.UI
         /// <summary>
         /// Publishes a <see cref="SpawnEntityCommand"/> so that
         /// <c>NetworkSpawningSystem</c> creates a fully-networked entity with
-        /// <c>NetworkIdentity</c>, <c>NetworkOwnership</c>, and <c>EntityMaster</c>.
+        /// <c>NetworkIdentity</c>, <c>NetworkOwnership</c>, and <c>NetworkSpawnRequest</c>.
         /// </summary>
         /// <param name="position">Initial world-space XY position in metres.</param>
         /// <param name="heading">Heading unit vector; yaw is derived from its angle from east.</param>
@@ -94,7 +94,7 @@ namespace Bagira.SimHost.UI
             var tkbType = MapVehicleClassToTkbType(vehicleClass);
             var positionLabel = string.Concat(position.X, ",", position.Y);
             FdpLog<SimHostScenarioManager>.Debug(
-                "[TRACE-SH] Requesting TkbType={0} at ({1})", tkbType, positionLabel);
+                "[TRACE-SH] SpawnVehicle: Requesting TkbType={0} at ({1})", tkbType, positionLabel);
 
             float angle     = VectorMath.SignedAngle(Vector2.UnitX, heading);
             var   transform = new SimTransform
@@ -107,6 +107,7 @@ namespace Bagira.SimHost.UI
             {
                 NetworkId         = 0, // 0 = auto-allocate by DdsIdAllocator
                 TkbType           = tkbType,
+                DisType           = 0,
                 OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
                 InitType          = ReliableInitType.AllPeers,
                 InitialComponents = new List<object> { transform },

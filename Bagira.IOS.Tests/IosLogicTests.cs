@@ -4,8 +4,12 @@ using Bagira.DDS.DM;
 using Bagira.IOS.Logic;
 using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
+using Bagira.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using Moq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 using Newtonsoft.Json;
 
 namespace Bagira.IOS.Tests;
@@ -147,6 +151,34 @@ public class IosLogicTests
         var second = logic.ActiveContextId;
 
         Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void PlacementFlow_EmitsTraceSequence()
+    {
+        using var logScope = new LogCaptureScope();
+        var (logic, _, _, clickQueue, _, _, _) = CreateSut();
+
+        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+
+        clickQueue.Enqueue(new MapClickEvent
+        {
+            InteractionContextId = logic.ActiveContextId,
+            Position = new GeoPosition { Latitude = 45.0, Longitude = 12.0 }
+        });
+
+        logic.Update();
+        LogManager.Flush();
+
+        var expected = new[]
+        {
+            "[TRACE-IOS] Placement Mode ON.",
+            "[TRACE-IOS] MapClickEvent ContextId=",
+        };
+
+        Assert.True(
+            ContainsInOrder(logScope.Target.Logs, expected),
+            BuildFailureMessage(logScope.Target.Logs, expected));
     }
 
     // ── Click processing – drops ──────────────────────────────────────────────
@@ -370,5 +402,54 @@ public class IosLogicTests
         logic.Update(); // drains pending logs
 
         Assert.True(interactionPanel.EntryCount > 0);
+    }
+
+    private static bool ContainsInOrder(IList<string> logs, IReadOnlyList<string> expected)
+    {
+        int index = 0;
+        for (int i = 0; i < expected.Count; i++)
+        {
+            string needle = expected[i];
+            while (index < logs.Count && !logs[index].Contains(needle, StringComparison.Ordinal))
+                index++;
+
+            if (index >= logs.Count)
+                return false;
+
+            index++;
+        }
+
+        return true;
+    }
+
+    private static string BuildFailureMessage(IList<string> logs, IReadOnlyList<string> expected)
+    {
+        var message = string.Join("\n", logs);
+        return "Missing expected trace sequence.\n" +
+               "Expected fragments:\n" + string.Join("\n", expected) +
+               "\nCaptured logs:\n" + message;
+    }
+
+    private sealed class LogCaptureScope : IDisposable
+    {
+        private readonly LoggingConfiguration? _originalConfig;
+        public MemoryTarget Target { get; }
+
+        public LogCaptureScope()
+        {
+            _originalConfig = LogManager.Configuration;
+            Target = new MemoryTarget("traceCapture") { Layout = "${message}" };
+            var config = new LoggingConfiguration();
+            config.AddRule(LogLevel.Debug, LogLevel.Fatal, Target);
+            LogManager.Configuration = config;
+            LogManager.ReconfigExistingLoggers();
+        }
+
+        public void Dispose()
+        {
+            LogManager.Flush();
+            LogManager.Configuration = _originalConfig;
+            LogManager.ReconfigExistingLoggers();
+        }
     }
 }

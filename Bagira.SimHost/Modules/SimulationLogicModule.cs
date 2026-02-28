@@ -7,9 +7,14 @@ using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
+using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Combat;
 using FDP.Toolkit.Behavior.Systems;
+using FDP.Toolkit.Combat.Executors;
+using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
+using FDP.Toolkit.Perception.Systems;
 using FDP.Toolkit.Physics.Systems;
 using FDP.Toolkit.Replication.Services;
 
@@ -20,7 +25,7 @@ namespace Bagira.SimHost.Modules
     ///
     /// System registration order (strict — must not be reordered):
     /// <list type="number">
-    ///   <item><see cref="MissionAdapterSystem"/> — stub, fully implemented in S4.3</item>
+    ///   <item><see cref="MissionDirectorSystem"/> — advances MissionPlanQueue phases</item>
     ///   <item><see cref="ChannelArbitrationSystem"/> — preempts stale channels on doctrine change</item>
     ///   <item><see cref="BTreeTickSystem"/> — zero-alloc BTree tick per entity</item>
     ///   <item><see cref="LocomotionDispatcherSystem"/> + executors: MoveTo, FollowRoute, JoinFormation (stub)</item>
@@ -44,12 +49,10 @@ namespace Bagira.SimHost.Modules
         /// Initialises a new <see cref="SimulationLogicModule"/>.
         /// </summary>
         /// <param name="doctrineRegistry">
-        ///   Doctrine registry shared with <see cref="BTreeTickSystem"/>
-        ///   and (when fully implemented) <see cref="MissionAdapterSystem"/>.
+        ///   Doctrine registry shared with <see cref="BTreeTickSystem"/>.
         /// </param>
         /// <param name="entityMap">
-        ///   Network entity map shared with <see cref="MissionAdapterSystem"/>
-        ///   and (when fully implemented) <see cref="JoinFormationExecutor"/>.
+        ///   Network entity map shared with <see cref="JoinFormationExecutor"/>.
         /// </param>
         /// <param name="vehicleAPI">
         ///   High-level vehicle command façade, forwarded to
@@ -98,27 +101,48 @@ namespace Bagira.SimHost.Modules
         public RoadNetworkBlob RoadNetwork => _roadNetwork;
 
         /// <summary>
-        /// Registers all simulation-logic systems to <paramref name="group"/> in strict
-        /// execution order. The group must already be initialised (<c>Create</c> called)
+        /// Registers all simulation-logic systems to the provided system groups in
+        /// strict execution order. Each group must already be initialised (<c>Create</c>)
         /// with the target <see cref="EntityRepository"/> before this method is invoked.
         /// </summary>
-        /// <param name="group">Destination <see cref="SystemGroup"/>.</param>
-        public void RegisterSystems(SystemGroup group)
+        /// <param name="inputGroup">Input-phase systems (fire/raycast/hit processing).</param>
+        /// <param name="simGroup">Main simulation systems.</param>
+        /// <param name="postSimGroup">Post-simulation systems (ballistics).</param>
+        public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup, SystemGroup postSimGroup)
         {
-            if (group == null) throw new ArgumentNullException(nameof(group));
+            if (inputGroup == null) throw new ArgumentNullException(nameof(inputGroup));
+            if (simGroup == null) throw new ArgumentNullException(nameof(simGroup));
+            if (postSimGroup == null) throw new ArgumentNullException(nameof(postSimGroup));
 
-            // ── 1. MissionAdapterSystem ──────────────────────────────────────────
-            // Stub — full implementation in TASK-S4.3.
-            group.AddSystem(new MissionAdapterSystem(_doctrineRegistry, _entityMap));
+            // ── Input phase ───────────────────────────────────────────────────
+            inputGroup.AddSystem(new FireProcessingSystem());
+            inputGroup.AddSystem(new RaycastSolverSystem());
+            inputGroup.AddSystem(new HitResolutionSystem());
+
+            // ── 1. MissionDirectorSystem ────────────────────────────────────────
+            // Evaluates MissionPlanQueue triggers and advances doctrine phases.
+            simGroup.AddSystem(new MissionDirectorSystem());
 
             // ── 2. Channel arbitration ───────────────────────────────────────────
             // Preempts stale locomotion / weapon / interaction channels when the
             // active doctrine instance changes.
-            group.AddSystem(new ChannelArbitrationSystem());
+            simGroup.AddSystem(new ChannelArbitrationSystem());
 
             // ── 3. BTree tick ────────────────────────────────────────────────────
             // Steps each entity's FastBTree interpreter (zero allocation per tick).
-            group.AddSystem(new BTreeTickSystem(_doctrineRegistry));
+            simGroup.AddSystem(new BTreeTickSystem(_doctrineRegistry));
+
+            // ── 3b. Combat systems (inserted after BTree tick) ───────────────────
+            var weaponSys = new WeaponDispatcherSystem();
+            weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
+            simGroup.AddSystem(weaponSys);
+
+            simGroup.AddSystem(new PerceptionBroadphaseSystem());
+            simGroup.AddSystem(new LosRequestBatchingSystem());
+            simGroup.AddSystem(new ThreatEvaluationAdapterSystem());
+            simGroup.AddSystem(new DamageSystem());
+            simGroup.AddSystem(new HsmDamageBridgeSystem());
+            simGroup.AddSystem(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
 
             // ── 4. Locomotion dispatcher + executors ─────────────────────────────
             // Handles OnEnter / Execute / OnExit lifecycle for active locomotion actions.
@@ -128,31 +152,34 @@ namespace Bagira.SimHost.Modules
             // JoinFormationExecutor — registered now that full logic is implemented (TASK-S4.4).
             locoDispatcher.RegisterExecutor(NavigationConstants.ActionIdJoinFormation,
                 new JoinFormationExecutor(_vehicleAPI, _entityMap));
-            group.AddSystem(locoDispatcher);
+            simGroup.AddSystem(locoDispatcher);
 
             // ── 5. Spatial hash ──────────────────────────────────────────────────
             // Builds the SpatialHashGrid singleton from SimTransform positions every
             // frame. Must run before CarKinematicsSystem.
-            group.AddSystem(new SpatialHashSystem());
+            simGroup.AddSystem(new SpatialHashSystem());
 
             // ── 6. Formation target ──────────────────────────────────────────────
             // Computes target slot positions for formation members.
-            group.AddSystem(new FormationTargetSystem(_formationTemplateManager, _trajectoryPool));
+            simGroup.AddSystem(new FormationTargetSystem(_formationTemplateManager, _trajectoryPool));
 
             // ── 7. Vehicle command ───────────────────────────────────────────────
             // Processes high-level vehicle command events (spawn, navigate, formation, etc.).
-            group.AddSystem(new VehicleCommandSystem());
+            simGroup.AddSystem(new VehicleCommandSystem());
 
             // ── 8. Car kinematics ────────────────────────────────────────────────
             // Main vehicle physics for wheeled/tracked entities (requires VehicleState).
-            group.AddSystem(new CarKinematicsSystem(_roadNetwork, _trajectoryPool));
+            simGroup.AddSystem(new CarKinematicsSystem(_roadNetwork, _trajectoryPool));
 
             // ── 9. Linear kinematics ─────────────────────────────────────────────
             // Integrates position via SimVelocity for entities WITHOUT VehicleState
             // (infantry, projectiles, etc.). The [UpdateBefore(SpatialHashSystem)]
             // attribute on LinearKinematicsSystem ensures updated positions are
             // consumed by SpatialHashSystem next frame.
-            group.AddSystem(new LinearKinematicsSystem());
+            simGroup.AddSystem(new LinearKinematicsSystem());
+
+            // ── Post-simulation ───────────────────────────────────────────────
+            postSimGroup.AddSystem(new BallisticsSystem());
         }
     }
 }

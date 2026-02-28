@@ -50,7 +50,7 @@ public unsafe struct ResolvedStyle
     /// Current damage level in the range [<see cref="ResolvedStyleConstants.DamageMin"/>,
     /// <see cref="ResolvedStyleConstants.DamageMax"/>].
     /// 0 = healthy, 100 = fully destroyed.
-    /// Updated from the <c>EntityDamage</c> DDS component.
+    /// Updated from damage ingress data when available.
     /// </summary>
     public float DamageLevel;
 
