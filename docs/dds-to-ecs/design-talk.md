@@ -1147,3 +1147,122 @@ You compile this using `TreeCompiler.CompileFromJson()` and pass it into the `Do
 ### Summary
 Currently, `SimHost` is acting purely as a UI/Network router. It receives mission strings but has no actual AI or behavior execution pipeline wired up behind those strings. Bridging this gap by translating DDS Missions to ECS `MissionPlanQueue`s, and hooking up compiled `FastBTree` interpreters, is the missing link to make it work.
 ---
+----
+
+
+
+To answer your question directly: **No, the `SimHost` absolutely does NOT support this currently.** 
+
+Right now, `SimHost` is a skeletal, "driving-only" shell. It runs `CarKinematicsSystem` so vehicles can move, but it is completely **blind, deaf, and unarmed**. It lacks the Perception, Physics (Raycasting), and Combat toolkits entirely. 
+
+If you were to port an `UrbanCombat` doctrine (like "Ambush" or "ConvoyEscort") into `SimHost` right now, it would crash or do nothing, because the underlying ECS machinery to handle vision, hearing, shooting, and taking damage does not exist in the `SimHost` pipeline.
+
+Here is the exact blueprint of what is missing and what you must add to bring `SimHost` up to the `UrbanCombat` golden standard.
+
+---
+
+### 1. Missing Project References
+If you look at `Bagira.SimHost.csproj`, you will see it references `FDP.Toolkit.Behavior`, `Navigation`, `CarKinem`, and `Physics`.
+**But it is missing Perception and Combat!**
+
+You must add these to `Bagira.SimHost/Bagira.SimHost.csproj`:
+```xml
+<ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
+<ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
+<ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat.Contracts\FDP.Toolkit.Combat.Contracts.csproj" />
+```
+
+### 2. Missing ECS Component Registrations
+In `SimHostApp.cs`, inside `RegisterSimComponents()`, it only registers basic locomotion and BTree states. It is completely missing the data structures required for AI perception and combat.
+
+You must add:
+```csharp
+// In SimHostApp.cs -> RegisterSimComponents()
+
+// Perception
+world.RegisterComponent<FDP.Toolkit.Perception.Components.Faction>();
+world.RegisterComponent<FDP.Toolkit.Perception.Components.PerceptionReceptor>();
+world.RegisterComponent<FDP.Toolkit.Perception.Components.TargetMemory>();
+
+// Combat & Physics
+world.RegisterComponent<FDP.Toolkit.Physics.Components.PhysicsCollider>();
+world.RegisterComponent<FDP.Toolkit.Combat.Components.WeaponState>();
+world.RegisterComponent<FDP.Toolkit.Combat.Components.Health>();
+world.RegisterComponent<FDP.Toolkit.Combat.Components.BallisticProjectile>();
+
+// Advanced Behavior (if you want HSM support like the APC uses)
+world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm64>();
+world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm128>();
+```
+
+### 3. Missing Singleton: `RaycastBatchData`
+For entities to "see" each other or shoot bullets, the Physics toolkit requires a pre-allocated batching buffer. `SimHost` never creates this.
+
+In `SimHostApp.cs`, inside `OnLoad()`, you must initialize the Physics module:
+```csharp
+// Add this before _kernel.Initialize();
+var physicsModule = new FDP.Toolkit.Physics.PhysicsToolkitModule();
+physicsModule.Initialize(_world); // Allocates RaycastBatchData singleton
+```
+
+### 4. Missing Systems in the Pipeline
+If you look at `Bagira.SimHost/Modules/SimulationLogicModule.cs`, it only registers `CarKinematicsSystem` and basic BTrees. It completely omits the 10+ systems that actually calculate AI vision, resolve bullet trajectories, and apply damage.
+
+You must drastically expand `SimulationLogicModule.cs` (or split it into Input/Sim/PostSim modules like `UrbanCombat` does). You need to add:
+
+**Input Phase:**
+*   `RaycastSolverSystem` (Calculates LOS and bullet hits)
+*   `HitResolutionSystem` (Turns raw hits into `TargetVisibleEvent` or `HitEvent`)
+*   `FireProcessingSystem` (Spawns bullet entities when a gun fires)
+
+**Simulation Phase:**
+*   `MissionDirectorSystem` (As discussed previously, to actually advance mission phases)
+*   `WeaponDispatcherSystem` (Routes `AimAndFire` actions to the weapon executor)
+*   `VisionBroadphaseSystem` (Checks FOV cones to see if an enemy is visible)
+*   `LosRequestBatchingSystem` (Batches vision checks into the Raycast buffer)
+*   `ThreatEvaluationSystem` (Decays memory, boosts threat scores when enemies are seen)
+*   `DamageSystem` (Subtracts health when hit)
+*   `HsmTickSystem<BrainHsm128>` (If you are using State Machines)
+
+**Post-Simulation Phase:**
+*   `BallisticsSystem` (Moves bullets)
+
+### 5. TKB Templates are Hollow
+In `Bagira.Map.Definitions/Tkb/BdcTkbCatalog.cs`, you are adding a managed class called `SimCombatDef` to the M1 Abrams tank:
+```csharp
+.WithCombat(TkbEntityTypes.Tank_M1Abrams, c => {
+    c.ArmorFront = 600;
+    // ...
+});
+```
+While nice for UI, **the FDP kernel does not use this**. 
+To make the tank actually fight in the simulation, your `BdcTkbBuilder` must attach the real, unmanaged FDP toolkit components to the `TkbTemplate` under the hood:
+```csharp
+// Inside BdcTkbBuilder.cs
+template.AddComponent(new PerceptionReceptor { 
+    VisionRange = 5000f, 
+    FieldOfViewCos = 0.5f 
+});
+template.AddComponent(new TargetMemory());
+template.AddComponent(new PhysicsCollider { 
+    Radius = 3.5f, 
+    CollisionLayer = PhysicsConstants.EntityCollisionLayer 
+});
+template.AddComponent(new WeaponState { 
+    Ammo = 42, 
+    MuzzleVelocity = 1500f, 
+    CooldownTicksRemaining = 0 
+});
+template.AddComponent(new Health { Current = 100, Max = 100 });
+template.AddComponent(new Faction { FactionId = 1 }); // Friend
+```
+
+### Summary
+To achieve full parity with `UrbanCombat`, `SimHost` must stop being just a "traffic simulator" and embrace the full FDP stack. 
+
+1. **Add the References** (Perception, Combat).
+2. **Register the Components** in `SimHostApp`.
+3. **Register the Systems** into the execution pipeline so vision, memory, and damage actually compute every frame.
+4. **Wire the TKB** to attach real ECS components (`WeaponState`, `PerceptionReceptor`, `PhysicsCollider`), not just UI data definitions. 
+5. **Compile the BTrees/HSMs** into `DoctrineRegistry` so the AI actually has logic to execute.
+---

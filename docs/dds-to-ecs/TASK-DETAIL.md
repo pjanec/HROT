@@ -1507,3 +1507,232 @@ Wire into the `MoveTo_BT` and `FollowRoute_BT` `DoctrineDefinition` objects crea
    `MoveToLocationParams` back and assert `X`, `Y`, `Speed`, `ArrivalRadius` match.
 2. No managed heap allocations inside the `ParseParams` delegate (use `Unsafe.Write`).
 3. `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj` GREEN.
+
+---
+
+## Phase 17: SimHost Combat Readiness (UrbanCombat Alignment)
+
+*Source of truth:*
+- *`FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` — `RegisterComponents()`, `RegisterSystems()`*
+- *`FDP/Examples/Fdp.Examples.UrbanCombat/Setup/DemoTkbSetup.cs` — TKB template component patterns*
+
+*See DESIGN.md §11 for the five-deviation analysis. All five tasks should be applied together —
+applying a subset leaves the combat pipeline in an inconsistent state.*
+
+---
+
+### DDS2ECS-S17T1 — Add Perception and Combat Project References
+
+**File:** `Bagira.SimHost/Bagira.SimHost.csproj`
+
+Add three `<ProjectReference>` entries inside the existing `<ItemGroup>` that already contains
+`FDP.Toolkit.Physics` (line 39):
+
+```xml
+<ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
+<ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
+<ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat.Contracts\FDP.Toolkit.Combat.Contracts.csproj" />
+```
+
+**Success Conditions:**
+1. `dotnet build Bagira.SimHost/Bagira.SimHost.csproj` GREEN with the new references present.
+2. `using FDP.Toolkit.Perception.Components;` and `using FDP.Toolkit.Combat.Components;` resolve
+   in `SimHostApp.cs` without error.
+
+---
+
+### DDS2ECS-S17T2 — Register Perception, Combat, Physics, and HSM Components
+
+**File:** `Bagira.SimHost/SimHostApp.cs` (inside `RegisterSimComponents()`)
+
+After the existing `world.RegisterComponent<BrainBlackboard>();` line, add:
+
+```csharp
+// HSM brain tiers (for APC-style HSM doctrines)
+world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm64>();
+world.RegisterComponent<FDP.Toolkit.Behavior.Components.BrainHsm128>();
+world.RegisterComponent<FDP.Toolkit.Behavior.Components.PreviousCapabilities>();
+world.RegisterComponent<FDP.Toolkit.Behavior.Components.PassengerBuffer>();
+world.RegisterComponent<FDP.Toolkit.Behavior.Components.IsEmbarkedTag>();
+
+// Perception
+world.RegisterComponent<FDP.Toolkit.Perception.Components.Faction>();
+world.RegisterComponent<FDP.Toolkit.Perception.Components.PerceptionReceptor>();
+world.RegisterComponent<FDP.Toolkit.Perception.Components.TargetMemory>();
+
+// Combat & Physics
+world.RegisterComponent<FDP.Toolkit.Physics.Components.PhysicsCollider>();
+world.RegisterComponent<FDP.Toolkit.Combat.Components.WeaponState>();
+world.RegisterComponent<FDP.Toolkit.Combat.Components.Health>();
+world.RegisterComponent<FDP.Toolkit.Combat.Components.BallisticProjectile>();
+world.RegisterComponent<Fdp.Kernel.HealthData>();
+```
+
+**Success Conditions:**
+1. `dotnet build` GREEN.
+2. Unit test `SimHostComponents_AllCombatAndPerceptionComponentsRegistered`: create
+   `EntityRepository`, call `RegisterSimComponents()`, assert `IsComponentRegistered<T>()` for
+   `PerceptionReceptor`, `WeaponState`, `Health`, `Faction`, `PhysicsCollider`.
+
+---
+
+### DDS2ECS-S17T3 — Initialize PhysicsToolkitModule in SimHostApp.OnLoad()
+
+**File:** `Bagira.SimHost/SimHostApp.cs` (inside `OnLoad()`)
+
+Add before `_kernel.Initialize()` (line 213):
+
+```csharp
+// Allocates RaycastBatchData singleton required by RaycastSolverSystem.
+var physicsModule = new FDP.Toolkit.Physics.PhysicsToolkitModule();
+physicsModule.Initialize(_world);
+```
+
+In `OnUnload()` (or equivalent cleanup), mirror `HeadlessDemoApp.Dispose()`:
+
+```csharp
+if (_world.HasSingleton<FDP.Toolkit.Physics.Components.RaycastBatchData>())
+{
+    ref var batch = ref _world.GetSingleton<FDP.Toolkit.Physics.Components.RaycastBatchData>();
+    if (batch.Requests.IsCreated) batch.Requests.Dispose();
+    if (batch.Hits.IsCreated)     batch.Hits.Dispose();
+}
+```
+
+**Success Conditions:**
+1. `dotnet build` GREEN.
+2. Unit test `PhysicsModule_Initialize_CreatesBatchDataSingleton`: assert
+   `world.HasSingleton<RaycastBatchData>()` after `physicsModule.Initialize(world)`.
+3. No `NativeArray` leak warning on shutdown.
+
+---
+
+### DDS2ECS-S17T4 — Expand SimulationLogicModule with Combat Systems
+
+**File:** `Bagira.SimHost/Modules/SimulationLogicModule.cs`
+
+Split `RegisterSystems(SystemGroup group)` into three group parameters (or create
+`InputSystemGroup`, `SimulationSystemGroup`, `PostSimulationSystemGroup` internally, mirroring
+`HeadlessDemoApp`). Update the call sites in `SimHostApp.cs` and `SimHostModule.cs` to run all
+three groups per frame in order.
+
+**Input phase additions:**
+```csharp
+inputGroup.AddSystem(new FireProcessingSystem());
+inputGroup.AddSystem(new RaycastSolverSystem());
+inputGroup.AddSystem(new HitResolutionSystem());
+```
+
+**Sim phase additions** (insert after `BTreeTickSystem`):
+```csharp
+var weaponSys = new WeaponDispatcherSystem();
+weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
+simGroup.AddSystem(weaponSys);
+
+simGroup.AddSystem(new VisionBroadphaseSystem());
+simGroup.AddSystem(new LosRequestBatchingSystem());
+simGroup.AddSystem(new ThreatEvaluationSystem());
+simGroup.AddSystem(new DamageSystem());
+simGroup.AddSystem(new HsmDamageBridgeSystem());
+simGroup.AddSystem(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
+```
+
+**PostSim phase:**
+```csharp
+postSimGroup.AddSystem(new BallisticsSystem());
+```
+
+Usings to add:
+```csharp
+using FDP.Toolkit.Combat.Systems;
+using FDP.Toolkit.Combat.Executors;
+using FDP.Toolkit.Perception.Systems;
+using FDP.Toolkit.Physics.Systems;
+```
+
+**Success Conditions:**
+1. `dotnet build Bagira.SimHost/Bagira.SimHost.csproj` GREEN.
+2. `SpawningModuleIntegrationTests` still pass.
+3. 10-frame pump with a `PerceptionReceptor` + `WeaponState` entity produces no exception.
+
+---
+
+### DDS2ECS-S17T5 — Rewrite BdcTkbBuilder.WithCombat() to Attach Real ECS Components
+
+**File:** `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs`
+
+Rewrite `WithCombat()` to call `template.AddComponent()` for each real FDP ECS struct derived
+from the `SimCombatDef` fields — while retaining the managed component for IG display:
+
+```csharp
+public BdcTkbBuilder WithCombat(long tkbId, Action<SimCombatDef> configure)
+{
+    var template = _db.GetByType(tkbId)
+        ?? throw new InvalidOperationException($"Template {tkbId} not found");
+
+    // Keep managed definition for IG inspector / ORBAT display.
+    template.AddManagedComponent(() => {
+        var def = new SimCombatDef();
+        configure(def);
+        return def;
+    });
+
+    // Translate to real FDP ECS unmanaged components.
+    var combatDef = new SimCombatDef();
+    configure(combatDef);
+
+    if (combatDef.SensorRange > 0f)
+    {
+        template.AddComponent(new PerceptionReceptor {
+            VisionRange    = combatDef.SensorRange,
+            HearingRange   = combatDef.SensorRange * 0.5f,
+            FieldOfViewCos = 0f  // 360° — override per entity if needed
+        });
+        template.AddComponent(new TargetMemory());
+    }
+
+    if (combatDef.Weapons.Count > 0)
+    {
+        var primary = combatDef.Weapons[0];
+        template.AddComponent(new WeaponState {
+            Ammo                   = primary.Ammunition,
+            MuzzleVelocity         = primary.Range > 0f ? primary.Range : 800f,
+            CooldownTicksRemaining = 0
+        });
+    }
+
+    float maxHp = combatDef.ArmorFront > 400f ? 300f
+                : combatDef.ArmorFront > 100f ? 150f
+                : 100f;
+    template.AddComponent(new Health { Current = maxHp, Max = maxHp });
+    template.AddComponent(new HealthData { Current = maxHp, Max = maxHp });
+    template.AddComponent(new PhysicsCollider {
+        Radius         = 2.5f,
+        CollisionLayer = PhysicsConstants.EntityCollisionLayer
+    });
+
+    return this;
+}
+```
+
+Add a new `WithFaction(long tkbId, byte factionId)` fluent method and call it per entity type
+in `BdcTkbCatalog.cs` (Blue = 1 for friendly, Red = 2 for threat — matching
+`UrbanCombatConstants.FactionBlue/FactionRed`).
+
+Required usings in `BdcTkbBuilder.cs`:
+```csharp
+using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Combat.Components;
+using FDP.Toolkit.Physics.Components;
+using FDP.Toolkit.Physics;
+using Fdp.Kernel;
+```
+
+**Success Conditions:**
+1. `BdcTkbBuilder_WithCombat_AttachesWeaponState`: spawn M1 Abrams entity, assert
+   `world.HasComponent<WeaponState>(entity)` and `Ammo == 42`.
+2. `BdcTkbBuilder_WithCombat_AttachesPerceptionReceptor`: assert
+   `world.HasComponent<PerceptionReceptor>(entity)` and `VisionRange == 8000f`.
+3. `BdcTkbBuilder_WithCombat_AttachesHealth`: assert `world.HasComponent<Health>(entity)`.
+4. `SimCombatDef` managed component still accessible on the template (IG display not broken).
+5. `dotnet test Bagira.SimHost.Tests/ Bagira.Map.Common.Tests/` GREEN.

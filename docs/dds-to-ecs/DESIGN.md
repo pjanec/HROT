@@ -624,6 +624,30 @@ update that reference to `MissionPlanQueue` as part of S16T1.
 
 ---
 
+### Phase 17 — SimHost Combat Readiness (UrbanCombat Alignment)
+
+**Goal:** Elevate SimHost from a "driving-only" shell to a full FDP simulation node capable of
+perception, combat, and damage — matching the `UrbanCombat` golden standard.
+
+**Source of truth:**
+- `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` — `RegisterComponents()`,
+  `RegisterSystems()` (Input/Sim/PostSim groups).
+- `FDP/Examples/Fdp.Examples.UrbanCombat/Setup/DemoTkbSetup.cs` — canonical pattern for
+  attaching real ECS components (`PerceptionReceptor`, `WeaponState`, `PhysicsCollider`, `Health`,
+  `Faction`) to TKB templates via `t.AddComponent(...)`.
+
+**Prerequisite:** Phase 16 must be complete (real BTree interpreters registered).
+
+| Task | Description |
+|------|-------------|
+| DDS2ECS-S17T1 | Add `FDP.Toolkit.Perception` and `FDP.Toolkit.Combat` / `FDP.Toolkit.Combat.Contracts` `<ProjectReference>` entries to `Bagira.SimHost/Bagira.SimHost.csproj` |
+| DDS2ECS-S17T2 | Add Perception, Combat, Physics, and HSM component registrations to `SimHostApp.RegisterSimComponents()` (mirror `HeadlessDemoApp.RegisterComponents()`) |
+| DDS2ECS-S17T3 | Initialize `PhysicsToolkitModule` in `SimHostApp.OnLoad()` before `_kernel.Initialize()` to allocate `RaycastBatchData` singleton |
+| DDS2ECS-S17T4 | Expand `SimulationLogicModule.RegisterSystems()` with Input-phase systems (`FireProcessingSystem`, `RaycastSolverSystem`, `HitResolutionSystem`), Sim-phase systems (`WeaponDispatcherSystem` + `AimAndFireExecutor`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `ThreatEvaluationSystem`, `DamageSystem`, `HsmDamageBridgeSystem`, `HsmTickSystem<BrainHsm128>`), and PostSim-phase system (`BallisticsSystem`) |
+| DDS2ECS-S17T5 | Rewrite `BdcTkbBuilder.WithCombat()` to call `template.AddComponent()` for real FDP ECS components (`WeaponState`, `PerceptionReceptor`, `TargetMemory`, `PhysicsCollider`, `Health`, `Faction`) translated from `SimCombatDef` fields; retain `SimCombatDef` managed component for IG UI use |
+
+---
+
 ## §10 — UrbanCombat Architecture Deviations: Mission Pipeline
 
 *Identified Feb 28 2026 via design review against `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs`.  
@@ -692,7 +716,131 @@ All three deviations are mutually reinforcing: the null brain (§10.2) prevents
 advance the mission. The managed data model (§10.1) blocks `MissionDirectorSystem` regardless.
 **All Phase 16 tasks must be applied together** before the pipeline becomes functional.
 
-After Phase 16, the full mission execution chain is:
+---
+
+## §11 — UrbanCombat Architecture Deviations: Combat Readiness
+
+*Identified Feb 28 2026 via design review against `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs`
+and `Setup/DemoTkbSetup.cs`.  
+Four compounding deviations make SimHost a "driving-only" shell: it cannot see enemies, shoot,
+take damage, or apply entity-specific combat parameters from the TKB.*
+
+### 11.1 Missing Project References
+
+`Bagira.SimHost.csproj` references `FDP.Toolkit.Physics`, `FDP.Toolkit.Behavior`,
+`FDP.Toolkit.Navigation`, and `FDP.Toolkit.CarKinem`, but is **missing**:
+
+```xml
+<ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
+<ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
+<ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat.Contracts\FDP.Toolkit.Combat.Contracts.csproj" />
+```
+
+Without these, the types `PerceptionReceptor`, `TargetMemory`, `WeaponState`, `Health`,
+`BallisticProjectile`, `Faction` are unavailable at compile time in the SimHost assembly.
+**Fix:** S17T1.
+
+### 11.2 Missing ECS Component Registrations
+
+`SimHostApp.RegisterSimComponents()` registers locomotion, BTree state, and vehicle kinematics.
+It is missing every Perception and Combat component listed in `HeadlessDemoApp.RegisterComponents()`:
+
+```csharp
+// Currently ABSENT from SimHostApp.RegisterSimComponents():
+world.RegisterComponent<Faction>();
+world.RegisterComponent<PerceptionReceptor>();
+world.RegisterComponent<TargetMemory>();
+world.RegisterComponent<PhysicsCollider>();
+world.RegisterComponent<WeaponState>();
+world.RegisterComponent<Health>();
+world.RegisterComponent<BallisticProjectile>();
+world.RegisterComponent<BrainHsm64>();
+world.RegisterComponent<BrainHsm128>();
+```
+
+Any entity that has these components in its TKB template will panic the ECS kernel with
+"unregistered component type" at spawn time once S17T5 attaches them to templates.
+**Fix:** S17T2 — apply all registrations before S17T5.
+
+### 11.3 Missing `RaycastBatchData` Singleton
+
+`RaycastSolverSystem` and `LosRequestBatchingSystem` require a pre-allocated
+`RaycastBatchData` singleton (two `NativeArray`s). `UrbanCombat` allocates it via:
+
+```csharp
+// HeadlessDemoApp.Initialize():
+using var physics = new PhysicsToolkitModule();
+physics.Initialize(World);   // allocates RaycastBatchData singleton
+```
+
+`SimHostApp.OnLoad()` never calls `PhysicsToolkitModule.Initialize()`. If `RaycastSolverSystem`
+is registered (S17T4) without this call, it will throw a `SingletonNotFoundException` on its
+first `OnUpdate` tick.
+**Fix:** S17T3.
+
+### 11.4 TKB Templates Are Hollow — `SimCombatDef` Is a UI Proxy
+
+`BdcTkbBuilder.WithCombat()` stores a **managed class** (`SimCombatDef`) on the template. This
+class carries armour thickness, weapon names, and sensor range as properties for IG display.
+However, it **does not call `template.AddComponent()`** for any unmanaged FDP toolkit struct.
+When `template.ApplyTo(world, entity)` is called at spawn time, the entity receives no
+`WeaponState`, no `PerceptionReceptor`, no `Health`, and no `Faction`. The AI sees nothing,
+shoots nothing, and cannot take damage.
+
+**Golden standard (`DemoTkbSetup.cs`):**
+```csharp
+// InfantrySoldier template (excerpt from DemoTkbSetup.RegisterInfantrySoldier)
+t.AddComponent(new WeaponState {
+    Ammo                   = UrbanCombatConstants.RifleAmmo,
+    MuzzleVelocity         = UrbanCombatConstants.RifleMuzzleVelocity,
+    CooldownTicksRemaining = 0
+});
+t.AddComponent(new PerceptionReceptor {
+    VisionRange    = UrbanCombatConstants.SoldierVisionRange,
+    HearingRange   = UrbanCombatConstants.SoldierHearingRange,
+    FieldOfViewCos = 0f
+});
+t.AddComponent(new TargetMemory());
+t.AddComponent(new PhysicsCollider {
+    Radius         = UrbanCombatConstants.HumanoidColliderRadius,
+    CollisionLayer = PhysicsConstants.EntityCollisionLayer
+});
+t.AddComponent(new Health { Current = 100, Max = 100 });
+t.AddComponent(new Faction { FactionId = UrbanCombatConstants.FactionBlue });
+```
+
+**Fix (S17T5):** Rewrite `BdcTkbBuilder.WithCombat()` to translate `SimCombatDef` fields into
+real ECS components via `template.AddComponent()`. The `SimCombatDef` managed component is
+retained on the template so IG can still query it for ORBAT/inspector display.
+
+### 11.5 Missing Systems in the Pipeline
+
+`SimulationLogicModule` currently runs:
+1. `MissionAdapterSystem` / `MissionDirectorSystem` (Post Phase 16)
+2. `ChannelArbitrationSystem` → `BTreeTickSystem` → `LocomotionDispatcherSystem`
+3. `SpatialHashSystem` → `FormationTargetSystem` → `VehicleCommandSystem`
+4. `CarKinematicsSystem` → `LinearKinematicsSystem`
+
+`UrbanCombat` (`HeadlessDemoApp.RegisterSystems()`) additionally runs:
+
+| System | Phase | Purpose |
+|--------|-------|---------|
+| `FireProcessingSystem` | Input | Spawns `BallisticProjectile` entities when `WeaponChannel` fires |
+| `RaycastSolverSystem` | Input | Batch-resolves LOS / bullet hit raycasts |
+| `HitResolutionSystem` | Input | Converts raw hit results to `TargetVisibleEvent` / `HitEvent` |
+| `WeaponDispatcherSystem` | Sim | Routes `AimAndFire` `WeaponChannel` actions to `AimAndFireExecutor` |
+| `VisionBroadphaseSystem` | Sim | Checks FOV cones; emits `TargetVisibleEvent` |
+| `LosRequestBatchingSystem` | Sim | Batches LOS checks into `RaycastBatchData` |
+| `ThreatEvaluationSystem` | Sim | Updates `TargetMemory` scores from events |
+| `DamageSystem` | Sim | Subtracts from `Health` on `HitEvent` |
+| `HsmDamageBridgeSystem` | Sim | Propagates health changes to HSM capability state |
+| `HsmTickSystem<BrainHsm128>` | Sim | Ticks HSM brains (needed for APC-type doctrines) |
+| `BallisticsSystem` | PostSim | Moves `BallisticProjectile` entities each frame |
+
+Without these, combat BTree actions (`Action_AimAndFire`) do nothing observable in the simulation.
+**Fix:** S17T4.
+
+After Phase 17, the full mission execution chain is:
 
 ```
 DDS EntityMission  ──►  EntityMissionTranslator  ──►  MissionPlanQueue (ECS)
@@ -709,4 +857,22 @@ DDS EntityMission  ──►  EntityMissionTranslator  ──►  MissionPlanQue
                                        LocomotionDispatcherSystem ──► MoveToExecutor
                                                               │
                                                    SimTransform (vehicle moves)
+
+                    ┌──────────────────────────────────────────────────────────┐
+                    │        Phase 17: Full combat loop (post-S17T4)           │
+                    │                                                          │
+                    │  PerceptionReceptor/TargetMemory                         │
+                    │        │                                                 │
+                    │  VisionBroadphaseSystem → ThreatEvaluationSystem         │
+                    │        │                                                 │
+                    │  WeaponChannel.ActiveAction = AimAndFire                 │
+                    │        │                                                 │
+                    │  WeaponDispatcherSystem → AimAndFireExecutor             │
+                    │        │                                                 │
+                    │  FireProcessingSystem → BallisticProjectile entity       │
+                    │        │                                                 │
+                    │  RaycastSolverSystem → HitResolutionSystem → HitEvent    │
+                    │        │                                                 │
+                    │  DamageSystem → Health decremented                       │
+                    └──────────────────────────────────────────────────────────┘
 ```

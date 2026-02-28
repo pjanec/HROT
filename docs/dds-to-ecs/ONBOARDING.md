@@ -31,11 +31,12 @@ and Translators bridge strictly between them.
 
 Additionally, a design review against the `UrbanCombat` golden standard (`FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs`) revealed that SimHost's mission pipeline has three compounding deviations that prevent vehicles from ever moving when given a mission: a managed-DTO data model, null BTree interpreters, and a hand-rolled mission adapter that bypasses the toolkit's `MissionDirectorSystem`. These are addressed in Phase 16.
 
-**This refactor cleans up 16 phases of violations and gaps across:**
+**This refactor cleans up 17 phases of violations and gaps across:**
 - `Bagira.DDS.DataModel` (Phases 1–2: strip `[ComponentId]` from DDS types)
-- `Bagira.SimHost` (Phases 2–3, 9, 12–13, 16: DescriptorMapper, EntityMasterEgressTranslator, network cleanup, events, mission control, mission pipeline)
+- `Bagira.SimHost` (Phases 2–3, 9, 12–13, 16–17: DescriptorMapper, EntityMasterEgressTranslator, network cleanup, events, mission control, mission pipeline, combat readiness)
 - `Bagira.IG` (Phases 4–8, 10–12: translator fixes, new components, dead reckoning, time sync, combat events)
 - `Bagira.IOS` (Phase 14: mission editor UI)
+- `Bagira.Map.Definitions` (Phase 17: TKB template ECS component attachment)
 - `Bagira.Runner.Integration.Tests` (Phase 15: end-to-end xUnit test harness)
 
 ---
@@ -64,7 +65,9 @@ Additionally, a design review against the `UrbanCombat` golden standard (`FDP/Ex
 | SimHost egress translators | `Bagira.SimHost/Translators/` |
 | SimHost systems (to add) | `Bagira.SimHost/Systems/` (MissionControlRequestSystem, MissionDirectorSystem registration) |
 | SimHost mission pipeline | `Bagira.SimHost/SimHostApp.cs` doctrine registration, `Bagira.SimHost/Brains/SimHostNodes.cs` (Phase 16) |
-| UrbanCombat golden standard | `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` — `RegisterDoctrines()`, `RegisterSystems()` |
+| SimHost combat pipeline | `Bagira.SimHost/Modules/SimulationLogicModule.cs` (Phase 17), `Bagira.SimHost/Bagira.SimHost.csproj` (Phase 17) |
+| TKB template definitions | `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs`, `BdcTkbCatalog.cs` (Phase 17) |
+| UrbanCombat golden standard | `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs`, `Setup/DemoTkbSetup.cs` |
 | Runner SimHost subsystem | `Bagira.Runner/Services/SimHostSubsystem.cs` |
 | IG application shell | `Bagira.IG/IgApplication.cs` |
 | IG translators | `Bagira.IG/Translators/` |
@@ -166,5 +169,11 @@ that all code in this repo must follow.
   `MissionDirectorSystem`, not a hand-rolled adapter). The three deviations are analysed in
   DESIGN.md §10. S16T1–S16T5 **must be applied together** — applying any subset leaves the
   pipeline broken.
+- **Combat readiness (Phase 17) — golden standard is `UrbanCombat`:** `SimHost` currently has
+  no perception, no combat systems, and hollow TKB templates. Before touching
+  `SimulationLogicModule`, read `HeadlessDemoApp.RegisterSystems()` (Input/Sim/PostSim split)
+  and `Setup/DemoTkbSetup.cs` (`t.AddComponent(new PerceptionReceptor{...})` pattern). The five
+  deviations are in DESIGN.md §11. Apply S17T1–S17T5 as a unit. S17T2 **must** precede S17T5
+  or entity spawns will panic the ECS kernel with unregistered-component errors.
 - **Test coverage is mandatory.** Every task in `TASK-DETAIL.md` lists specific unit tests that
   must be green before the task is considered done.

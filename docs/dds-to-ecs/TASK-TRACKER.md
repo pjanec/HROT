@@ -181,3 +181,16 @@ toolkit-standard `MissionDirectorSystem`. See DESIGN.md §10 for the three-devia
 - [ ] **DDS2ECS-S16T3** Delete `MissionAdapterSystem`, register `MissionDirectorSystem` — [details](./TASK-DETAIL.md#dds2ecs-s16t3--delete-missionadaptersystem-register-missiondirectorsystem)
 - [ ] **DDS2ECS-S16T4** Compile real BTree interpreters for all doctrines — [details](./TASK-DETAIL.md#dds2ecs-s16t4--compile-real-btree-interpreters-for-all-doctrines)
 - [ ] **DDS2ECS-S16T5** Wire `ParseParams` delegates for param-carrying doctrines — [details](./TASK-DETAIL.md#dds2ecs-s16t5--wire-parseparams-delegates-for-param-carrying-doctrines)
+
+---
+
+## Phase 17: SimHost Combat Readiness (UrbanCombat Alignment)
+
+**Goal:** Elevate SimHost from a driving-only shell to a full FDP simulation node capable of
+perception, combat, and damage. Sources: `HeadlessDemoApp.cs`, `DemoTkbSetup.cs`. See DESIGN.md §11.
+
+- [ ] **DDS2ECS-S17T1** Add `Perception` and `Combat` project references to `Bagira.SimHost.csproj` — [details](./TASK-DETAIL.md#dds2ecs-s17t1--add-perception-and-combat-project-references)
+- [ ] **DDS2ECS-S17T2** Register Perception, Combat, Physics, and HSM components in `SimHostApp.RegisterSimComponents()` — [details](./TASK-DETAIL.md#dds2ecs-s17t2--register-perception-combat-physics-and-hsm-components)
+- [ ] **DDS2ECS-S17T3** Initialize `PhysicsToolkitModule` in `SimHostApp.OnLoad()` to allocate `RaycastBatchData` singleton — [details](./TASK-DETAIL.md#dds2ecs-s17t3--initialize-physicstoolkitmodule-in-simhostapponload)
+- [ ] **DDS2ECS-S17T4** Expand `SimulationLogicModule` with Input/Sim/PostSim combat systems — [details](./TASK-DETAIL.md#dds2ecs-s17t4--expand-simulationlogicmodule-with-combat-systems)
+- [ ] **DDS2ECS-S17T5** Rewrite `BdcTkbBuilder.WithCombat()` to attach real ECS components (`WeaponState`, `PerceptionReceptor`, `Health`, `Faction`, `PhysicsCollider`) — [details](./TASK-DETAIL.md#dds2ecs-s17t5--rewrite-bdctkbbuilderwithcombat-to-attach-real-ecs-components)
