@@ -137,7 +137,8 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             world.AddComponent(entity, new NetworkSpawnRequest
             {
                 DisType = ExtractDisType(cmd.InitialComponents),
-                OwnerId = (ulong)cmd.OwnerNodeId
+                OwnerId = (ulong)cmd.OwnerNodeId,
+                TkbType = cmd.TkbType
             });
 
             // 7. Optional reliable-init handshake component
