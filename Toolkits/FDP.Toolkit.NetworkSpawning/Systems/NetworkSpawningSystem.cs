@@ -103,7 +103,7 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             // 1. Resolve network ID (0 = allocate a new one)
             long networkId = cmd.NetworkId != 0 ? cmd.NetworkId : _idAllocator.AllocateId();
             FdpLog<NetworkSpawningSystem>.Debug(
-                "[TRACE-SH] ECS: Spawned NetworkId={0} TkbType={1}", networkId, cmd.TkbType);
+                "[TRACE-SH] ProcessSpawn: NetworkId={0} TkbType={1}", networkId, cmd.TkbType);
 
             // 2. Duplicate guard — silently drop if already spawned
             if (_networkMap.TryGetEntity(networkId, out _))
