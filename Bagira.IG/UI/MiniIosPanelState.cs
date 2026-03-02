@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
+using Bagira.DDS.DM;
 using Bagira.IG.Components;
 using Bagira.Map.Common.Commands;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
+using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Events;
 using ModuleHost.Core.Network.Interfaces;
 
@@ -44,6 +47,8 @@ public class MiniIosPanelState
     /// <summary>Filter text for the TKB type browser list.</summary>
     public string SearchText { get; set; } = string.Empty;
 
+    private IGeographicTransform? _geoTransform;
+
     // ── Testability hook ──────────────────────────────────────────────────────
 
     /// <summary>
@@ -52,6 +57,13 @@ public class MiniIosPanelState
     /// command without consuming it from the bus.
     /// </summary>
     public event Action<SpawnEntityCommand>? OnCommandPublished;
+
+    /// <summary>
+    /// Supplies the geodetic transform used to convert map-space spawn coordinates
+    /// into DDS GeoSpatial descriptors for networked spawns.
+    /// </summary>
+    /// <param name="geoTransform">Transform instance shared with DDS translators.</param>
+    public void SetGeoTransform(IGeographicTransform? geoTransform) => _geoTransform = geoTransform;
 
     // ── Submit ────────────────────────────────────────────────────────────────
 
@@ -116,16 +128,39 @@ public class MiniIosPanelState
             return;
         }
 
-        var masterDescriptor = new EntityDescriptorUnion
+        var descriptors = new List<EntityDescriptorUnion>
         {
-            _d           = EDescriptorType.dtEntityMaster,
-            EntityMaster = new EntityMaster { TkbType = TkbType, DisType = 0 },
+            new EntityDescriptorUnion
+            {
+                _d           = EDescriptorType.dtEntityMaster,
+                EntityMaster = new EntityMaster { TkbType = TkbType, DisType = 0 },
+            }
         };
+
+        if (_geoTransform != null)
+        {
+            var local = new Vector3(PositionX, PositionY, 0f);
+            var (lat, lon, alt) = _geoTransform.ToGeodetic(local);
+
+            descriptors.Add(new EntityDescriptorUnion
+            {
+                _d = EDescriptorType.dtGeoSpatial,
+                GeoSpatial = new GeoSpatial
+                {
+                    Pos = new GeoPosition
+                    {
+                        Latitude  = lat,
+                        Longitude = lon,
+                        Altitude  = alt,
+                    },
+                },
+            });
+        }
 
         var request = new CreateEntityRequest
         {
             RequestId          = Guid.NewGuid(),
-            InitialDescriptors = new List<EntityDescriptorUnion> { masterDescriptor },
+            InitialDescriptors = descriptors,
         };
 
         _ = gateway.CreateEntityAsync(request); // fire-and-forget

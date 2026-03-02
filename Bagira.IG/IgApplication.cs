@@ -37,6 +37,7 @@ using FDP.Toolkit.Vis2D.Defaults;
 using FDP.Toolkit.Vis2D.Layers;
 using ImGuiNET;
 using ModuleHost.Core;
+using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network;
 using ModuleHost.Core.Network.Interfaces;
 using ModuleHost.Network.Cyclone.Modules;
@@ -109,6 +110,11 @@ public class IgApplication
     private MiniIosPanel          _miniIosPanel      = null!;
     private PerformanceMetrics    _performanceMetrics = null!;
     private PerformanceOverlay    _performanceOverlay = null!;
+    private ContextMenuPanel      _contextMenuPanel   = null!;
+    private ContextMenuSystem     _contextMenuSystem  = null!;
+
+    // ── Context menu state ───────────────────────────────────────────────────
+    private Entity _mapContextEntity = Entity.Null;
 
     // -------------------------------------------------------------------------
 
@@ -244,6 +250,11 @@ public class IgApplication
         _miniIosPanel       = new MiniIosPanel(_miniIosState, _world.Bus);
         _performanceMetrics = new PerformanceMetrics();
         _performanceOverlay = new PerformanceOverlay(_performanceMetrics);
+        _contextMenuSystem  = new ContextMenuSystem();
+        _contextMenuPanel   = new ContextMenuPanel(_world, _contextMenuSystem, HandleContextMenuAction);
+
+        _mapContextEntity = _world.CreateEntity();
+        _world.AddComponent(_mapContextEntity, new NetworkIdentity(0));
     }
 
     /// <summary>
@@ -306,6 +317,7 @@ public class IgApplication
                 _configReader   = new DdsReader<MapInteractionConfig>(participant);
 
                 _geoTransform = BagiraEnvironment.CreateGeoTransform();
+                _miniIosState.SetGeoTransform(_geoTransform);
 
                 var customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
                 {
@@ -362,6 +374,8 @@ public class IgApplication
         var interactionTool = new StandardInteractionTool(_world, query, adapter, selection);
         _canvas.SwitchTool(interactionTool);
 
+        interactionTool.OnWorldClick += OnCanvasWorldClick;
+
         // Task 5: Wire IG-to-IOS event translators when DDS participant is ready.
         if (_networkEnabled)
         {
@@ -374,7 +388,7 @@ public class IgApplication
         _kernel.SetTimeController(timeController);
 
         _kernel.RegisterGlobalSystem(new DeadReckoningSyncSystem());
-        _kernel.RegisterGlobalSystem(new ContextMenuSystem());
+        _kernel.RegisterGlobalSystem(_contextMenuSystem);
 
         _kernel.Initialize();
     }
@@ -453,6 +467,7 @@ public class IgApplication
         _inspectorPanel.Draw();
         _miniIosPanel.Draw();
         _performanceOverlay.Draw();
+        _contextMenuPanel.Draw();
     }
 
     /// <summary>
@@ -623,5 +638,65 @@ public class IgApplication
 
         _clickWriter.Write(evt);
         FdpLog<IgApplication>.Info("[IG] MapClickEvent published. ContextId={0}", _activeContextId);
+    }
+
+    private void OnCanvasWorldClick(Vector2 worldPos, MouseButton button, bool shift, bool ctrl, Entity hit)
+    {
+        if (button != MouseButton.Right)
+            return;
+
+        var targetEntity = hit != Entity.Null ? hit : _mapContextEntity;
+        var mousePos = Raylib.GetMousePosition();
+
+        _contextMenuSystem.RequestOpen(targetEntity, mousePos.X, mousePos.Y);
+    }
+
+    private void HandleContextMenuAction(Entity entity, ContextAction action)
+    {
+        if (action.ActionName.StartsWith("IG_", StringComparison.Ordinal))
+        {
+            ExecuteLocalContextAction(entity, action.ActionName);
+            return;
+        }
+
+        int networkId = 0;
+        var view = (ISimulationView)_world;
+        if (view.HasComponent<NetworkIdentity>(entity))
+        {
+            ref readonly var id = ref view.GetComponentRO<NetworkIdentity>(entity);
+            networkId = (int)id.Value;
+        }
+
+        _world.Bus.PublishManaged(new ContextActionTriggered
+        {
+            EntityNetworkId = networkId,
+            ActionName = action.ActionName
+        });
+    }
+
+    private void ExecuteLocalContextAction(Entity entity, string actionName)
+    {
+        switch (actionName)
+        {
+            case "IG_Center":
+            case "IG_CenterOnEntity":
+                CenterCameraOn(entity);
+                break;
+            default:
+                FdpLog<IgApplication>.Warn("[IG] Unhandled local context action: {0}", actionName);
+                break;
+        }
+    }
+
+    private void CenterCameraOn(Entity entity)
+    {
+        var view = (ISimulationView)_world;
+        if (!view.HasComponent<SimTransform>(entity))
+            return;
+
+        ref readonly var transform = ref view.GetComponentRO<SimTransform>(entity);
+        var target = new Vector2(transform.Position.X, transform.Position.Y);
+        _keyboardPanTarget = target;
+        _camera.FocusOn(target);
     }
 }

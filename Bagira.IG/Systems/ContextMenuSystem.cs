@@ -1,5 +1,6 @@
 using Bagira.IG.Components;
 using Fdp.Kernel;
+using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 
 namespace Bagira.IG.Systems;
@@ -55,6 +56,12 @@ public class ContextMenuSystem : IModuleSystem
     /// </summary>
     public Entity ActiveMenuEntity { get; private set; } = Entity.Null;
 
+    /// <summary>
+    /// Incremented whenever a context menu is opened. Used by the UI layer to
+    /// detect a fresh open request without re-opening the popup every frame.
+    /// </summary>
+    public int OpenSequence { get; private set; }
+
     // ── IModuleSystem ──────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
@@ -67,25 +74,32 @@ public class ContextMenuSystem : IModuleSystem
 
         foreach (var update in updates)
         {
-            // Find the entity by checking all ContextMenuState holders.
-            // In production this lookup would use the NetworkEntityMap; for now
-            // iterate the query so the system works headlessly in tests too.
-            var query = view.Query().Build();
+            // Find the matching entity via its NetworkIdentity value.
+            var query = view.Query().With<NetworkIdentity>().Build();
             foreach (var entity in query)
             {
-                // We update only entities that already have a ContextMenuState.
-                if (!view.HasManagedComponent<ContextMenuState>(entity))
+                ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
+                if (netId.Value != update.EntityNetworkId)
                     continue;
 
-                var existing = view.GetManagedComponentRO<ContextMenuState>(entity);
-                var updated  = new ContextMenuState
+                var updated = new ContextMenuState
                 {
                     Actions = new System.Collections.Generic.List<ContextAction>(update.Actions),
-                    IsOpen  = existing.IsOpen,
-                    ScreenX = existing.ScreenX,
-                    ScreenY = existing.ScreenY,
+                    IsOpen  = false,
                 };
-                cmd.SetManagedComponent(entity, updated);
+
+                if (view.HasManagedComponent<ContextMenuState>(entity))
+                {
+                    var existing = view.GetManagedComponentRO<ContextMenuState>(entity);
+                    updated.IsOpen  = existing.IsOpen;
+                    updated.ScreenX = existing.ScreenX;
+                    updated.ScreenY = existing.ScreenY;
+                    cmd.SetManagedComponent(entity, updated);
+                }
+                else
+                {
+                    cmd.AddManagedComponent(entity, updated);
+                }
             }
         }
 
@@ -100,7 +114,11 @@ public class ContextMenuSystem : IModuleSystem
 
             if (view.IsAlive(target))
             {
+                if (ActiveMenuEntity != Entity.Null && ActiveMenuEntity != target)
+                    CloseMenu(view, cmd, ActiveMenuEntity);
+
                 ActiveMenuEntity = target;
+                OpenSequence++;
 
                 var state = new ContextMenuState
                 {
@@ -132,21 +150,7 @@ public class ContextMenuSystem : IModuleSystem
 
             if (view.IsAlive(target))
             {
-                if (ActiveMenuEntity == target)
-                    ActiveMenuEntity = Entity.Null;
-
-                if (view.HasManagedComponent<ContextMenuState>(target))
-                {
-                    var prev  = view.GetManagedComponentRO<ContextMenuState>(target);
-                    var state = new ContextMenuState
-                    {
-                        Actions = prev.Actions,
-                        IsOpen  = false,
-                        ScreenX = prev.ScreenX,
-                        ScreenY = prev.ScreenY,
-                    };
-                    cmd.SetManagedComponent(target, state);
-                }
+                CloseMenu(view, cmd, target);
             }
         }
     }
@@ -162,6 +166,23 @@ public class ContextMenuSystem : IModuleSystem
     /// via <c>InternalsVisibleTo</c>).
     /// </summary>
     internal void TestHook_TriggerContextMenu(Entity entity, float screenX, float screenY)
+        => RequestOpen(entity, screenX, screenY);
+
+    /// <summary>
+    /// Queues a context-menu close request for <paramref name="entity"/>.
+    /// The request is processed on the next <see cref="Execute"/> call.
+    ///
+    /// Intended for use by the input layer and by headless unit tests.
+    /// </summary>
+    internal void TestHook_CloseContextMenu(Entity entity)
+        => RequestClose(entity);
+
+    /// <summary>
+    /// Queues a context-menu open request for <paramref name="entity"/> at screen
+    /// position (<paramref name="screenX"/>, <paramref name="screenY"/>).
+    /// The request is processed on the next <see cref="Execute"/> call.
+    /// </summary>
+    public void RequestOpen(Entity entity, float screenX, float screenY)
     {
         _pendingOpenEntity = entity;
         _pendingScreenX    = screenX;
@@ -172,12 +193,29 @@ public class ContextMenuSystem : IModuleSystem
     /// <summary>
     /// Queues a context-menu close request for <paramref name="entity"/>.
     /// The request is processed on the next <see cref="Execute"/> call.
-    ///
-    /// Intended for use by the input layer and by headless unit tests.
     /// </summary>
-    internal void TestHook_CloseContextMenu(Entity entity)
+    public void RequestClose(Entity entity)
     {
         _pendingCloseEntity = entity;
         _hasPendingClose    = true;
+    }
+
+    private void CloseMenu(ISimulationView view, IEntityCommandBuffer cmd, Entity target)
+    {
+        if (ActiveMenuEntity == target)
+            ActiveMenuEntity = Entity.Null;
+
+        if (view.HasManagedComponent<ContextMenuState>(target))
+        {
+            var prev  = view.GetManagedComponentRO<ContextMenuState>(target);
+            var state = new ContextMenuState
+            {
+                Actions = prev.Actions,
+                IsOpen  = false,
+                ScreenX = prev.ScreenX,
+                ScreenY = prev.ScreenY,
+            };
+            cmd.SetManagedComponent(target, state);
+        }
     }
 }

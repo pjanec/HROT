@@ -280,7 +280,13 @@ public sealed class IosLogic : IIosLogic, IDisposable
     {
         while (_selectionQueue.TryDequeue(out var evt))
         {
+            if (_mapGroupId != 0 && evt.MapId != 0 && evt.MapId != _mapGroupId)
+                continue;
+
             ContextMenuLogic.OnSelectionChanged(evt);
+            SelectedEntityId = evt.SelectedEntityIds is { Count: > 0 }
+                ? evt.SelectedEntityIds[0]
+                : PanelConstants.InspectorNoSelection;
             _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicSelection,
                 $"{evt.SelectedEntityIds?.Count ?? 0} entities");
         }

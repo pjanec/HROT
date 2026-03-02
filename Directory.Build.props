@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup Condition="'$(IsTestProject)' == 'true' Or $([System.String]::Copy('$(MSBuildProjectName)').EndsWith('.Tests'))">
+    <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8605;CS8618;CS8620;CS8625;CS8634;CS8669</NoWarn>
+  </PropertyGroup>
+</Project>

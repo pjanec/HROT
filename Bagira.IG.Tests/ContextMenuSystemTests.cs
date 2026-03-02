@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Bagira.IG.Components;
 using Bagira.IG.Systems;
 using Fdp.Kernel;
+using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 
 namespace Bagira.IG.Tests;
@@ -37,6 +38,7 @@ public class ContextMenuSystemTests
     private static EntityRepository CreateRepo()
     {
         var repo = new EntityRepository();
+        repo.RegisterComponent<NetworkIdentity>();
         repo.RegisterManagedComponent<ContextMenuState>();
         return repo;
     }
@@ -198,6 +200,7 @@ public class ContextMenuSystemTests
         var entity = repo.CreateEntity();
         var system = new ContextMenuSystem();
 
+        repo.AddComponent(entity, new NetworkIdentity(42));
         // Pre-seed entity with an open ContextMenuState so the update path applies.
         repo.SetManagedComponent(entity, new ContextMenuState { IsOpen = true });
 
@@ -233,6 +236,7 @@ public class ContextMenuSystemTests
         var entity = repo.CreateEntity();
         var system = new ContextMenuSystem();
 
+        repo.AddComponent(entity, new NetworkIdentity(1));
         repo.SetManagedComponent(entity, new ContextMenuState { IsOpen = true });
 
         repo.Bus.PublishManaged(new ContextActionsUpdate

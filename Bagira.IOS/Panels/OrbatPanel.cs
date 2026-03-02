@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using Bagira.Map.Common;
 using FDP.Toolkit.DER;
 using ImGuiNET;
 
@@ -134,6 +135,28 @@ public sealed class OrbatPanel
         logic.SelectEntity(entityId);
     }
 
+    /// <summary>
+    /// Creates a placeholder unit in the DER repository and selects it.
+    /// </summary>
+    public void HandleNewUnitClick(IIosLogic logic)
+    {
+        ArgumentNullException.ThrowIfNull(logic);
+
+        var repo = logic.Repo;
+        int newId = GetNextEntityId(repo);
+        var entity = repo.CreateEntity(newId, TkbEntityTypes.Unit_InfantrySquad);
+
+        entity.SetDescriptor(new EntityInfo
+        {
+            EntityId        = newId,
+            Name            = $"New Unit {newId}",
+            ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
+            CommanderId     = 0,
+        });
+
+        logic.SelectEntity(newId);
+    }
+
     // ── Visible node list (testable, used by Draw in Phase P9) ────────────────
 
     /// <summary>
@@ -205,7 +228,7 @@ public sealed class OrbatPanel
                 ToggleExpanded(node.EntityId);
         }
 
-        if (ImGui.Button("New Unit...")) logic.OpenSpawner();
+        if (ImGui.Button("New Unit...")) HandleNewUnitClick(logic);
         ImGui.End();
     }
 
@@ -239,6 +262,15 @@ public sealed class OrbatPanel
         }
 
         return lookup;
+    }
+
+    private static int GetNextEntityId(IDerRepo repo)
+    {
+        int maxId = 0;
+        foreach (var entity in repo.GetAllEntities())
+            if (entity.EntityId > maxId) maxId = entity.EntityId;
+
+        return maxId + 1;
     }
 
     private void CollectNodes(
