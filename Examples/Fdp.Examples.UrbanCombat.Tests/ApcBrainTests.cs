@@ -20,6 +20,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
     ///   <item><term>T3</term><description><c>OnEnter_Disabled</c> clears locomotion and writes <c>ActionIdEjectPassengers</c> to <c>InteractionChannel</c>.</description></item>
     /// </list>
     /// </summary>
+    [Collection("SerialTests")]
     public unsafe class ApcBrainTests : IDisposable
     {
         private readonly HeadlessDemoApp _app;

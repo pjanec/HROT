@@ -11,6 +11,7 @@ using System.Reflection;
 
 namespace ModuleHost.Core.Tests
 {
+    [Collection("SerialTests")]
     public class ConvoyIntegrationTests
     {
         private class TestModule : IModule
@@ -160,6 +161,13 @@ namespace ModuleHost.Core.Tests
 
         private long MeasureMemory(bool useConvoy)
         {
+            // Take a clean baseline before allocating test objects so that any
+            // pre-existing static/global state (e.g. ComponentTypeRegistry entries
+            // from earlier tests) does not bias the measurement.
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            long baseline = GC.GetTotalMemory(true);
+
             using var live = new EntityRepository();
             // populate live world
             for(int i=0; i<10000; i++) 
@@ -201,7 +209,8 @@ namespace ModuleHost.Core.Tests
             GC.Collect();
             GC.WaitForPendingFinalizers();
             
-            return GC.GetTotalMemory(true);
+            // Return delta: only memory attributed to the objects created in this call.
+            return GC.GetTotalMemory(true) - baseline;
         }
     }
 }

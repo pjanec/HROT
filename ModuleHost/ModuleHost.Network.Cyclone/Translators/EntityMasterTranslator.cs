@@ -111,6 +111,7 @@ namespace ModuleHost.Network.Cyclone.Translators
                         EntityId = identity.Value,
                         OwnerId = _nodeMapper.GetExternalId(ownership.LocalNodeId),
                         DisTypeValue = spawn.DisType,
+                        TkbTypeValue = spawn.TkbType,
                         Flags = 0 
                     };
                     
@@ -202,9 +203,13 @@ namespace ModuleHost.Network.Cyclone.Translators
                 
                 cmd.AddComponent(newEntity, new NetworkIdentity { Value = topic.EntityId });
                 
+                // Resolve TkbType: prefer the value carried in the topic; fall back to DisTypeValue
+                // for legacy senders that pre-date TkbTypeValue.
+                long resolvedTkbType = topic.TkbTypeValue != 0 ? topic.TkbTypeValue : (long)topic.DisTypeValue;
                 cmd.AddComponent(newEntity, new NetworkSpawnRequest 
                 { 
-                    DisType = topic.DisTypeValue, 
+                    DisType = topic.DisTypeValue,
+                    TkbType = resolvedTkbType,
                     OwnerId = (ulong)ownerNodeId 
                 });
 

@@ -27,9 +27,9 @@ namespace FDP.Toolkit.Lifecycle.Systems
         {
             if (_transientTypes != null) return;
             _transientTypes = new List<int>();
-            
-            // Iterate all registered components
-            for (int id = 0; id < ComponentTypeRegistry.RegisteredCount; id++)
+
+            // Iterate actual registered IDs (not a dense 0‥count range, since IDs are explicit and sparse)
+            foreach (var id in ComponentTypeRegistry.GetAllTypeIds())
             {
                 // Transient = !Snapshot & !Record & !Save
                 if (!ComponentTypeRegistry.IsSnapshotable(id) &&

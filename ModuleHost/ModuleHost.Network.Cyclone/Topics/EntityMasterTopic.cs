@@ -27,5 +27,11 @@ namespace ModuleHost.Network.Cyclone.Topics
         
         /// <summary>Entity flags and metadata</summary>
         [DdsId(3)] public int Flags;
+        
+        /// <summary>
+        /// Internal TKB blueprint type ID. Used by the receiving node to look up the template
+        /// and apply it to the ghost entity during promotion. Zero means unset (legacy).
+        /// </summary>
+        [DdsId(4)] public long TkbTypeValue;
     }
 }

@@ -23,9 +23,10 @@ namespace ModuleHost.Network.Cyclone.Systems
 
         public void Execute(ISimulationView view, float dt)
         {
-            // 1. Scan for new entities to track
+            // 1. Scan for new entities to track (all lifecycle states — entities may be in
+            //    Constructing, Active, or TearDown when they first need to be tracked).
             var query = view.Query()
-                .IncludeConstructing()
+                .WithLifecycle(EntityLifecycle.All)
                 .With<NetworkIdentity>()
                 .With<NetworkOwnership>()
                 .Build();

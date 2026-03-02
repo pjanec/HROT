@@ -250,14 +250,13 @@ namespace Fdp.Kernel
         /// <summary><c>EditablePolyline</c> — managed component storing vertex list of a user-editable overlay.</summary>
         public const byte EditablePolyline        = 117;
 
-        /// <summary><c>IgVisualDef</c> — TKB visual definition (symbol, model path, colour) cached on entity.</summary>
-        public const byte IgVisualDef             = 118;
+        /// <summary><c>VisualData</c> — runtime TKB visual data (symbol, model path, colour) cached on entity.</summary>
+        public const byte VisualData              = 118;
 
         /// <summary><c>IgSymbolOverride</c> — IOS-sourced per-entity visual override (style-set, affiliation).</summary>
         public const byte IgSymbolOverride        = 119;
 
-        /// <summary><c>SimVehicleDef</c> — TKB physics definition used by SimHost.</summary>
-        public const byte SimVehicleDef           = 120;
+        // ID 120 is available for future Bagira.IG components.
 
         /// <summary><c>SimCombatDef</c> — TKB combat definition used by SimHost.</summary>
         public const byte SimCombatDef            = 121;
@@ -265,7 +264,7 @@ namespace Fdp.Kernel
         /// <summary><c>TkbCompositionDef</c> — TKB composite unit definition.</summary>
         public const byte TkbCompositionDef       = 122;
 
-        // IDs 123–139 are reserved for future Bagira.IG components.
+        // IDs 120, 123–139 are reserved for future Bagira.IG components.
 
         // ── ModuleHost.Core Network (140–159) ────────────────────────────────────
         // Network ownership and coordination components managed by CycloneNetworkModule.

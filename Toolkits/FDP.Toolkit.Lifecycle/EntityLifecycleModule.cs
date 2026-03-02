@@ -121,6 +121,29 @@ namespace FDP.Toolkit.Lifecycle
                 participants.UnionWith(reqs);
             }
 
+            var order = new ConstructionOrder
+            {
+                Entity = entity,
+                BlueprintId = blueprintId,
+                FrameNumber = currentFrame,
+                InitiatorModuleId = initiator
+            };
+
+            if (participants.Count == 0)
+            {
+                // No ACKs needed — register as pending with empty RemainingAcks.
+                // DrainInstantComplete (called by LifecycleSystem each tick) will promote to Active.
+                _pendingConstruction[entity] = new PendingConstruction
+                {
+                    Entity = entity,
+                    BlueprintId = blueprintId,
+                    StartFrame = currentFrame,
+                    RemainingAcks = new HashSet<int>()
+                };
+                cmd.PublishEvent(order);
+                return;
+            }
+
             // Track pending state
             _pendingConstruction[entity] = new PendingConstruction
             {
@@ -131,13 +154,7 @@ namespace FDP.Toolkit.Lifecycle
             };
             
             // Publish order event
-            cmd.PublishEvent(new ConstructionOrder
-            {
-                Entity = entity,
-                BlueprintId = blueprintId,
-                FrameNumber = currentFrame,
-                InitiatorModuleId = initiator
-            });
+            cmd.PublishEvent(order);
         }
         
         /// <summary>
@@ -150,6 +167,28 @@ namespace FDP.Toolkit.Lifecycle
             {
                 return; // Already in teardown
             }
+
+            var order = new DestructionOrder
+            {
+                Entity = entity,
+                FrameNumber = currentFrame,
+                Reason = reason
+            };
+
+            if (_globalParticipants.Count == 0)
+            {
+                // No ACKs needed — register as pending with empty RemainingAcks.
+                // DrainInstantComplete (called by LifecycleSystem each tick) will destroy the entity.
+                _pendingDestruction[entity] = new PendingDestruction
+                {
+                    Entity = entity,
+                    StartFrame = currentFrame,
+                    RemainingAcks = new HashSet<int>(),
+                    Reason = reason
+                };
+                cmd.PublishEvent(order);
+                return;
+            }
             
             _pendingDestruction[entity] = new PendingDestruction
             {
@@ -159,12 +198,7 @@ namespace FDP.Toolkit.Lifecycle
                 Reason = reason
             };
             
-            cmd.PublishEvent(new DestructionOrder
-            {
-                Entity = entity,
-                FrameNumber = currentFrame,
-                Reason = reason
-            });
+            cmd.PublishEvent(order);
         }
 
         public void BeginDestruction(Entity entity, uint currentFrame, string reason, IEntityCommandBuffer cmd)
@@ -224,6 +258,44 @@ namespace FDP.Toolkit.Lifecycle
             }
         }
         
+        /// <summary>
+        /// Immediately promotes/destroys any entities whose pending ack sets are already empty.
+        /// Called by <see cref="LifecycleSystem"/> each frame so that zero-participant constructions
+        /// and destructions complete within one lifecycle tick after the order is issued.
+        /// </summary>
+        public void DrainInstantComplete(IEntityCommandBuffer cmd)
+        {
+            // Promote zero-ack constructions to Active
+            var ready = new List<Entity>();
+            foreach (var kvp in _pendingConstruction)
+                if (kvp.Value.RemainingAcks.Count == 0)
+                    ready.Add(kvp.Key);
+
+            foreach (var entity in ready)
+            {
+                FdpLog<EntityLifecycleModule>.Debug(
+                    "[TRACE-SH] ELM: Entity {0} instant-complete (no participants). Promoting to Active.", entity.Index);
+                cmd.SetLifecycleState(entity, EntityLifecycle.Active);
+                FdpLog<EntityLifecycleModule>.Debug(
+                    "[TRACE-SH] ELM: Entity {0} promoted to Active", entity.Index);
+                _pendingConstruction.Remove(entity);
+                _totalConstructed++;
+            }
+
+            // Destroy zero-ack destructions
+            var readyDestruct = new List<Entity>();
+            foreach (var kvp in _pendingDestruction)
+                if (kvp.Value.RemainingAcks.Count == 0)
+                    readyDestruct.Add(kvp.Key);
+
+            foreach (var entity in readyDestruct)
+            {
+                cmd.DestroyEntity(entity);
+                _pendingDestruction.Remove(entity);
+                _totalDestructed++;
+            }
+        }
+
         public void CheckTimeouts(uint currentFrame, IEntityCommandBuffer cmd)
         {
             var timedOutConstruction = new List<Entity>();

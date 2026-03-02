@@ -44,10 +44,13 @@ namespace Fdp.Examples.NetworkDemo.Tests.Extensions
             if (!app.World.HasComponent<SimVelocity>(entity)) app.World.AddComponent(entity, new SimVelocity());
             app.World.SetAuthority<SimVelocity>(entity, true);
 
-            // Spawn Request
+            // Spawn Request — DisType 100 maps to TankTemplate (TkbType 100).
+            // TkbType must be set so EntityMasterTranslator can carry it to peer nodes
+            // and GhostPromotionSystem can look up the template on the receiving side.
             app.World.AddComponent(entity, new NetworkSpawnRequest 
             { 
                 DisType = 100,
+                TkbType = 100,
                 OwnerId = (ulong)app.LocalNodeId 
             });
             

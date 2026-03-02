@@ -37,6 +37,9 @@ namespace FDP.Toolkit.Lifecycle.Systems
                 _manager.ProcessDestructionAck(ack, currentFrame, cmd);
             }
             
+            // Drain zero-participant pending constructions/destructions that are ready immediately
+            _manager.DrainInstantComplete(cmd);
+
             // Check for timeouts
             _manager.CheckTimeouts(currentFrame, cmd);
         }

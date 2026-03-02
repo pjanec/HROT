@@ -74,10 +74,13 @@ namespace FDP.Toolkit.Replication.Systems
         private void PromoteGhost(Entity entity, IEntityCommandBuffer cmdBuffer, uint tick)
         {
             var spawnReq = _world!.GetComponent<NetworkSpawnRequest>(entity);
-            var template = _tkbDatabase.GetTemplate(spawnReq.TkbType);
-            if (template == null) return;
 
-            template.ApplyTo(_world!, entity, preserveExisting: true);
+            // Apply blueprint template if available.  Unknown types still receive lifecycle
+            // tracking so they can reach Active state and be discovered by queries.
+            if (_tkbDatabase.TryGetByType(spawnReq.TkbType, out var template))
+            {
+                template.ApplyTo(_world!, entity, preserveExisting: true);
+            }
 
             _world!.SetLifecycleState(entity, EntityLifecycle.Constructing);
             _world!.RemoveComponent<NetworkSpawnRequest>(entity);

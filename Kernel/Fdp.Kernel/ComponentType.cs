@@ -329,6 +329,17 @@ namespace Fdp.Kernel
         }
         
         /// <summary>
+        /// Gets all registered component type IDs.
+        /// </summary>
+        public static int[] GetAllTypeIds()
+        {
+            lock (_lock)
+            {
+                return _idToType.Keys.ToArray();
+            }
+        }
+
+        /// <summary>
         /// Gets total number of registered component types.
         /// </summary>
         public static int RegisteredCount

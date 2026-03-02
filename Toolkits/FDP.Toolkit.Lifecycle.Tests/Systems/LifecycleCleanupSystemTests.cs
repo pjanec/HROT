@@ -27,6 +27,7 @@ namespace FDP.Toolkit.Lifecycle.Tests.Systems
             
             // Create Active entity
             var entity = repo.CreateEntity();
+            repo.SetLifecycleState(entity, EntityLifecycle.Active);
             
             // Add transient component
             repo.AddComponent(entity, new TestTransientComponent { Value = 99 });
