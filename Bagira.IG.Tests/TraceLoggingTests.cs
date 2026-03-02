@@ -108,7 +108,7 @@ public sealed class TraceLoggingTests : IDisposable
 
     private static bool TryGetEntity(EntityRepository world, long networkId, out Entity entity)
     {
-        var query = world.Query().With<NetworkIdentity>().Build();
+        var query = world.Query().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build();
         foreach (var e in query)
         {
             if (world.GetComponent<NetworkIdentity>(e).Value == networkId)

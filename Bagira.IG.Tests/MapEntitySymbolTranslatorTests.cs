@@ -1,8 +1,9 @@
 using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
-using Bagira.IG.Translators;
+using Bagira.Map.Common.Replication.Ingress;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
 using Xunit;
 
@@ -12,23 +13,32 @@ namespace Bagira.IG.Tests
     {
         private const long KnownId = 10L;
 
+        // Helper to to create a joined fixture with null participant (test mode).
+        private static (EntityRepository repo, NetworkEntityMap entityMap, MapEntitySymbolIngressTranslator translator)
+            CreateFixture(int mapGroupId = 5)
+        {
+            var repo = new EntityRepository();
+            var entityMap = new NetworkEntityMap();
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new MapEntitySymbolIngressTranslator(null, entityMap, mapGroupId, ghostCreationSystem);
+            return (repo, entityMap, translator);
+        }
+
         [Fact]
         public void Decode_GlobalOverride_SetsIgSymbolOverride()
         {
-            var entityMap = new NetworkEntityMap();
-            var repo = new EntityRepository();
+            var (repo, entityMap, translator) = CreateFixture();
             var entity = repo.CreateEntity();
             entityMap.Register(KnownId, entity);
 
-            var translator = new MapEntitySymbolTranslator(null, entityMap, mapGroupId: 5);
             var cmd = new RecordingCommandBuffer();
 
             translator.ProcessSample(new MapEntitySymbol
             {
-                EntityId = (int)KnownId,
+                EntityId   = (int)KnownId,
                 MapGroupId = 0,
                 StyleSetId = "hostile"
-            }, cmd);
+            }, cmd, null);
 
             Assert.True(cmd.SetManagedComponentCalled);
             Assert.NotNull(cmd.LastOverride);
@@ -38,20 +48,18 @@ namespace Bagira.IG.Tests
         [Fact]
         public void Decode_ScopedOverrideMatchingGroup_SetsIgSymbolOverride()
         {
-            var entityMap = new NetworkEntityMap();
-            var repo = new EntityRepository();
+            var (repo, entityMap, translator) = CreateFixture(mapGroupId: 5);
             var entity = repo.CreateEntity();
             entityMap.Register(KnownId, entity);
 
-            var translator = new MapEntitySymbolTranslator(null, entityMap, mapGroupId: 5);
             var cmd = new RecordingCommandBuffer();
 
             translator.ProcessSample(new MapEntitySymbol
             {
-                EntityId = (int)KnownId,
+                EntityId   = (int)KnownId,
                 MapGroupId = 5,
                 StyleSetId = "friendly"
-            }, cmd);
+            }, cmd, null);
 
             Assert.True(cmd.SetManagedComponentCalled);
             Assert.NotNull(cmd.LastOverride);
@@ -61,39 +69,38 @@ namespace Bagira.IG.Tests
         [Fact]
         public void Decode_ScopedOverrideWrongGroup_IsIgnored()
         {
-            var entityMap = new NetworkEntityMap();
-            var repo = new EntityRepository();
+            var (repo, entityMap, translator) = CreateFixture(mapGroupId: 5);
             var entity = repo.CreateEntity();
             entityMap.Register(KnownId, entity);
 
-            var translator = new MapEntitySymbolTranslator(null, entityMap, mapGroupId: 5);
             var cmd = new RecordingCommandBuffer();
 
             translator.ProcessSample(new MapEntitySymbol
             {
-                EntityId = (int)KnownId,
+                EntityId   = (int)KnownId,
                 MapGroupId = 7,
                 StyleSetId = "neutral"
-            }, cmd);
+            }, cmd, null);
 
             Assert.False(cmd.SetManagedComponentCalled);
         }
 
         [Fact]
-        public void Decode_UnknownEntity_IsSkipped()
+        public void Decode_UnknownEntity_WithNullRepo_IsSkipped()
         {
-            var entityMap = new NetworkEntityMap();
-            var translator = new MapEntitySymbolTranslator(null, entityMap, mapGroupId: 5);
+            var (_, _, translator) = CreateFixture();
             var cmd = new RecordingCommandBuffer();
 
+            // Passing null repo means ghost creation is impossible → skipped with a warning.
             translator.ProcessSample(new MapEntitySymbol
             {
-                EntityId = 99,
+                EntityId   = 99,
                 MapGroupId = 0,
                 StyleSetId = "hostile"
-            }, cmd);
+            }, cmd, null);
 
-            Assert.False(cmd.SetManagedComponentCalled);
+            Assert.False(cmd.SetManagedComponentCalled,
+                "SetManagedComponent must not be called when entity is unknown and repo is null");
         }
 
         private sealed class RecordingCommandBuffer : IEntityCommandBuffer

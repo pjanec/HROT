@@ -1,12 +1,13 @@
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
-using Bagira.IG.Translators;
+using Bagira.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
 using Xunit;
 
@@ -14,20 +15,22 @@ namespace Bagira.IG.Tests
 {
     public class GeoSpatialTranslatorTests
     {
-        private const long KnownId = 5L;
+        private const long KnownId   = 5L;
+        private const long UnknownId = 88L;
 
         [Fact]
         public void Decode_KnownEntity_SetsNetworkPosition()
         {
             using var participant = new DdsParticipant(0);
-            var repo = new EntityRepository();
+            var repo      = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
             var entityMap = new NetworkEntityMap();
-            var entity = repo.CreateEntity();
+            var entity    = repo.CreateEntity();
             entityMap.Register(KnownId, entity);
 
             var geoTransform = new StubGeoTransform(new Vector3(1f, 2f, 3f));
-            var translator = new TestGeoSpatialTranslator(participant, entityMap, geoTransform);
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new TestGeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem);
             var cmd = new RecordingCommandBuffer();
 
             translator.DecodeForTest(new GeoSpatial
@@ -40,19 +43,25 @@ namespace Bagira.IG.Tests
             Assert.Equal(new Vector3(1f, 2f, 3f), cmd.LastNetworkPosition!.Value.Value);
         }
 
+        /// <summary>
+        /// When the entity already has a <see cref="SimTransform"/>, the translator must
+        /// NOT add another copy via the command buffer — it only enqueues SetComponent for
+        /// <see cref="NetworkPosition"/>.
+        /// </summary>
         [Fact]
-        public void Decode_KnownEntity_DoesNotSetSimTransformDirectly()
+        public void Decode_KnownEntity_DoesNotAddSimTransformIfAlreadyPresent()
         {
             using var participant = new DdsParticipant(0);
-            var repo = new EntityRepository();
+            var repo      = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
             var entityMap = new NetworkEntityMap();
-            var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new SimTransform());
+            var entity    = repo.CreateEntity();
+            repo.AddComponent(entity, new SimTransform()); // entity already has SimTransform
             entityMap.Register(KnownId, entity);
 
             var geoTransform = new StubGeoTransform(new Vector3(4f, 5f, 6f));
-            var translator = new TestGeoSpatialTranslator(participant, entityMap, geoTransform);
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new TestGeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem);
             var cmd = new RecordingCommandBuffer();
 
             translator.DecodeForTest(new GeoSpatial
@@ -61,16 +70,48 @@ namespace Bagira.IG.Tests
                 Pos = new GeoPosition { Latitude = 1, Longitude = 2, Altitude = 3 }
             }, cmd, repo);
 
-            Assert.False(cmd.SetSimTransformCalled);
+            Assert.False(cmd.AddSimTransformCalled,
+                "AddComponent<SimTransform> must not be called when entity already has a SimTransform");
         }
 
-        private sealed class TestGeoSpatialTranslator : GeoSpatialTranslator
+        /// <summary>
+        /// When the entity is not yet in the map, the translator must create a ghost and
+        /// still enqueue the <see cref="NetworkPosition"/> component update.
+        /// </summary>
+        [Fact]
+        public void Decode_UnknownEntity_CreatesGhostAndSetsNetworkPosition()
         {
-            public TestGeoSpatialTranslator(
+            using var participant = new DdsParticipant(0);
+            var repo      = new EntityRepository();
+            repo.RegisterComponent<NetworkIdentity>(); // required by GhostCreationSystem
+            repo.RegisterComponent<SimTransform>();
+            var entityMap = new NetworkEntityMap();
+
+            var geoTransform = new StubGeoTransform(new Vector3(7f, 8f, 9f));
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new TestGeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem);
+            var cmd = new RecordingCommandBuffer();
+
+            translator.DecodeForTest(new GeoSpatial
+            {
+                EntityId = (int)UnknownId,
+                Pos = new GeoPosition { Latitude = 10, Longitude = 20, Altitude = 0 }
+            }, cmd, repo);
+
+            Assert.True(entityMap.TryGetEntity(UnknownId, out _),
+                "Ghost must be registered in entityMap after encountering unknown entity");
+            Assert.True(cmd.SetNetworkPositionCalled,
+                "SetComponent<NetworkPosition> must be called even for freshly created ghost entities");
+        }
+
+        private sealed class TestGeoSpatialIngressTranslator : GeoSpatialIngressTranslator
+        {
+            public TestGeoSpatialIngressTranslator(
                 DdsParticipant participant,
                 NetworkEntityMap entityMap,
-                IGeographicTransform geoTransform)
-                : base(participant, entityMap, geoTransform)
+                IGeographicTransform geoTransform,
+                GhostCreationSystem ghostCreationSystem)
+                : base(participant, entityMap, geoTransform, ghostCreationSystem)
             {
             }
 
@@ -97,12 +138,16 @@ namespace Bagira.IG.Tests
         private sealed class RecordingCommandBuffer : IEntityCommandBuffer
         {
             public bool SetNetworkPositionCalled { get; private set; }
-            public bool SetSimTransformCalled { get; private set; }
+            public bool AddSimTransformCalled    { get; private set; }
             public NetworkPosition? LastNetworkPosition { get; private set; }
 
             public Entity CreateEntity() => new Entity();
             public void DestroyEntity(Entity entity) { }
-            public void AddComponent<T>(Entity entity, in T component) where T : unmanaged { }
+            public void AddComponent<T>(Entity entity, in T component) where T : unmanaged
+            {
+                if (component is SimTransform)
+                    AddSimTransformCalled = true;
+            }
             public void SetComponent<T>(Entity entity, in T component) where T : unmanaged
             {
                 if (component is NetworkPosition position)
@@ -110,9 +155,6 @@ namespace Bagira.IG.Tests
                     SetNetworkPositionCalled = true;
                     LastNetworkPosition = position;
                 }
-
-                if (component is SimTransform)
-                    SetSimTransformCalled = true;
             }
             public void RemoveComponent<T>(Entity entity) where T : unmanaged { }
             public void AddManagedComponent<T>(Entity entity, T? component) where T : class { }

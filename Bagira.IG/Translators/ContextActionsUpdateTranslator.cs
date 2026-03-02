@@ -5,7 +5,11 @@ using System.Text.Json;
 using Bagira.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
+using Fdp.Interfaces;
+using FDP.Kernel.Logging;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
+using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Translators;
 using DdsContextActionsUpdate = Bagira.BDC.SSTM.ContextActionsUpdate;
 using IgContextActionsUpdate = Bagira.IG.ContextActionsUpdate;
@@ -19,12 +23,49 @@ namespace Bagira.IG.Translators
     public sealed class ContextActionsUpdateTranslator
         : CycloneManagedEventTranslator<IgContextActionsUpdate, DdsContextActionsUpdate>
     {
+        private readonly GhostCreationSystem _ghostCreationSystem;
+
         public ContextActionsUpdateTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            IEventBus eventBus)
+            IEventBus eventBus,
+            GhostCreationSystem ghostCreationSystem)
             : base(participant, "ContextActionsUpdate", entityMap, eventBus)
         {
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
+        }
+
+        public override void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        {
+            using var loan = Reader.Take();
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid)
+                    continue;
+
+                var input = sample.Data;
+                int entityId = 0;
+                if (input.ForSelection != null && input.ForSelection.Count > 0)
+                    entityId = input.ForSelection[0];
+
+                if (entityId != 0 && !EntityMap.TryGetEntity(entityId, out _))
+                {
+                    var repo = view as EntityRepository;
+                    if (repo == null)
+                    {
+                        FdpLog<ContextActionsUpdateTranslator>.Warn(
+                            "[IG] Cannot create ghost for NetID {0}: view is read-only.", entityId);
+                        continue;
+                    }
+
+                    _ghostCreationSystem.CreateGhost(repo, entityId);
+                }
+
+                if (TryDecode(input, out IgContextActionsUpdate output))
+                {
+                    EventBus.PublishManaged(output);
+                }
+            }
         }
 
         protected override bool TryDecode(in DdsContextActionsUpdate input, out IgContextActionsUpdate output)

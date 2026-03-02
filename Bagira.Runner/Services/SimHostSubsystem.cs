@@ -18,6 +18,7 @@ using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Time.Controllers;
 using Fdp.Interfaces;
@@ -262,6 +263,8 @@ namespace Bagira.Runner.Services
 
             var elm = new EntityLifecycleModule(tkbDb, new List<int>());
             _kernel.RegisterModule(elm);
+
+            _kernel.RegisterModule(new ReplicationLogicModule(entityMap, tkbDb));
 
             var spawningSystem = new NetworkSpawningSystem(
                 tkbDb, elm, entityMap, _idAllocator, localNodeId: 1);

@@ -4,10 +4,12 @@ using Bagira.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Interfaces;
+using FDP.Kernel.Logging;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 
-namespace Bagira.IG.Translators
+namespace Bagira.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Ingress translator for the Bagira <c>MapEntitySymbol</c> DDS topic.
@@ -15,26 +17,29 @@ namespace Bagira.IG.Translators
     /// Applies per-entity visual overrides via <see cref="IgSymbolOverride"/>.
     /// IG is a ghost-only node, so <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class MapEntitySymbolTranslator : IDescriptorTranslator
+    public class MapEntitySymbolIngressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "MapEntitySymbol";
-        private const long   OrdinalValue = 40;
+        private const long OrdinalValue = 40;
 
         private readonly DdsReader<MapEntitySymbol>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly int _mapGroupId;
+        private readonly GhostCreationSystem _ghostCreationSystem;
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
 
-        public MapEntitySymbolTranslator(
+        public MapEntitySymbolIngressTranslator(
             DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            int mapGroupId)
+            int mapGroupId,
+            GhostCreationSystem ghostCreationSystem)
         {
             _reader = participant is not null ? new DdsReader<MapEntitySymbol>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _mapGroupId = mapGroupId;
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
@@ -49,7 +54,7 @@ namespace Bagira.IG.Translators
                 if (sample.Info.InstanceState != DdsInstanceState.Alive)
                     continue;
 
-                ProcessSample(sample.Data, cmd);
+                ProcessSample(sample.Data, cmd, view as EntityRepository);
             }
         }
 
@@ -72,14 +77,23 @@ namespace Bagira.IG.Translators
 
         public void Dispose(long networkEntityId) { }
 
-        internal void ProcessSample(in MapEntitySymbol data, IEntityCommandBuffer cmd)
+        internal void ProcessSample(in MapEntitySymbol data, IEntityCommandBuffer cmd, EntityRepository? repo)
         {
             if (!ShouldApply(data.MapGroupId))
                 return;
 
             long netId = data.EntityId;
             if (!_entityMap.TryGetEntity(netId, out var entity))
-                return;
+            {
+                if (repo == null)
+                {
+                    FdpLog<MapEntitySymbolIngressTranslator>.Warn(
+                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                    return;
+                }
+
+                entity = _ghostCreationSystem.CreateGhost(repo, netId);
+            }
 
             cmd.SetManagedComponent(entity, new IgSymbolOverride
             {

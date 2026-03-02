@@ -1,9 +1,11 @@
 using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
-using Bagira.IG.Translators;
+using Bagira.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
+using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
 using Xunit;
 
@@ -11,25 +13,26 @@ namespace Bagira.IG.Tests
 {
     public class EntityDamageTranslatorTests
     {
-        private const long KnownId = 42L;
+        private const long KnownId   = 42L;
         private const long UnknownId = 99L;
 
         [Fact]
         public void Decode_KnownEntity_SetsIgHealthState()
         {
             using var participant = new DdsParticipant(0);
-            var repo = new EntityRepository();
+            var repo      = new EntityRepository();
             var entityMap = new NetworkEntityMap();
-            var entity = repo.CreateEntity();
+            var entity    = repo.CreateEntity();
             entityMap.Register(KnownId, entity);
 
-            var translator = new TestEntityDamageTranslator(participant, entityMap);
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new TestEntityDamageIngressTranslator(participant, entityMap, ghostCreationSystem);
             var cmd = new RecordingCommandBuffer();
 
             translator.DecodeForTest(new EntityDamage
             {
                 EntityId = (int)KnownId,
-                Damage = 75f
+                Damage   = 75f
             }, cmd, repo);
 
             Assert.True(cmd.SetComponentCalled);
@@ -38,28 +41,39 @@ namespace Bagira.IG.Tests
         }
 
         [Fact]
-        public void Decode_UnknownEntity_IsSkipped()
+        public void Decode_UnknownEntity_CreatesGhostAndSetsHealthState()
         {
             using var participant = new DdsParticipant(0);
-            var repo = new EntityRepository();
+            var repo      = new EntityRepository();
+            repo.RegisterComponent<NetworkIdentity>(); // required by GhostCreationSystem
             var entityMap = new NetworkEntityMap();
 
-            var translator = new TestEntityDamageTranslator(participant, entityMap);
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new TestEntityDamageIngressTranslator(participant, entityMap, ghostCreationSystem);
             var cmd = new RecordingCommandBuffer();
 
             translator.DecodeForTest(new EntityDamage
             {
                 EntityId = (int)UnknownId,
-                Damage = 25f
+                Damage   = 25f
             }, cmd, repo);
 
-            Assert.False(cmd.SetComponentCalled);
+            // Ghost must be created and registered
+            Assert.True(entityMap.TryGetEntity(UnknownId, out _),
+                "Ghost must be registered in entityMap after encountering unknown entity");
+            // Health component must be applied to the new ghost
+            Assert.True(cmd.SetComponentCalled,
+                "SetComponent must be called with IgHealthState after ghost creation");
+            Assert.Equal(25f, cmd.LastHealthState?.Damage);
         }
 
-        private sealed class TestEntityDamageTranslator : EntityDamageTranslator
+        private sealed class TestEntityDamageIngressTranslator : EntityDamageIngressTranslator
         {
-            public TestEntityDamageTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
-                : base(participant, entityMap)
+            public TestEntityDamageIngressTranslator(
+                DdsParticipant participant,
+                NetworkEntityMap entityMap,
+                GhostCreationSystem ghostCreationSystem)
+                : base(participant, entityMap, ghostCreationSystem)
             {
             }
 

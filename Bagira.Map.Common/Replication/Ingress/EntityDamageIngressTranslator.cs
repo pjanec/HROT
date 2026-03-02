@@ -1,12 +1,15 @@
+using System;
 using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
+using FDP.Kernel.Logging;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Translators;
 
-namespace Bagira.IG.Translators
+namespace Bagira.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Ingress translator for the Bagira <c>EntityDamage</c> DDS topic.
@@ -14,23 +17,37 @@ namespace Bagira.IG.Translators
     /// Converts DDS damage into the IG-internal <see cref="IgHealthState"/> component.
     /// IG is a ghost-only node, so <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class EntityDamageTranslator : CycloneTranslator<EntityDamage, EntityDamage>
+    public class EntityDamageIngressTranslator : CycloneTranslator<EntityDamage, EntityDamage>
     {
         private const string DdsTopicName = "EntityDamage";
-        private const long   OrdinalValue = 30;
+        private const long OrdinalValue = 30;
 
-        public EntityDamageTranslator(
+        private readonly GhostCreationSystem _ghostCreationSystem;
+
+        public EntityDamageIngressTranslator(
             DdsParticipant participant,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            GhostCreationSystem ghostCreationSystem)
             : base(participant, DdsTopicName, OrdinalValue, entityMap)
         {
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
         protected override void Decode(in EntityDamage data, IEntityCommandBuffer cmd, ISimulationView view)
         {
             long netId = data.EntityId;
             if (!EntityMap.TryGetEntity(netId, out var entity))
-                return;
+            {
+                var repo = view as EntityRepository;
+                if (repo == null)
+                {
+                    FdpLog<EntityDamageIngressTranslator>.Warn(
+                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                    return;
+                }
+
+                entity = _ghostCreationSystem.CreateGhost(repo, netId);
+            }
 
             cmd.SetComponent(entity, new IgHealthState { Damage = data.Damage });
         }

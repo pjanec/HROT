@@ -1,23 +1,24 @@
 using Bagira.BDC.SSTD;
-using Bagira.IG.Translators;
+using Bagira.Map.Common.Replication.Ingress;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network.Interfaces;
 
 namespace Bagira.IG.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="EntityMasterTranslator"/> logic paths exercised
+/// Unit tests for <see cref="EntityMasterIngressTranslator"/> logic paths exercised
 /// without a live DDS participant.
 ///
 /// Passing <c>null</c> as the participant parameter activates test mode: the
-/// translator's DDS reader is not constructed and <see cref="EntityMasterTranslator.PollIngress"/>
+/// translator's DDS reader is not constructed and <see cref="EntityMasterIngressTranslator.PollIngress"/>
 /// becomes a no-op. The business logic methods
-/// <see cref="EntityMasterTranslator.ProcessSample"/> and
-/// <see cref="EntityMasterTranslator.ProcessDispose"/> are called directly
-/// via the <c>InternalsVisibleTo</c> attribute declared in Bagira.IG.csproj.
+/// <see cref="EntityMasterIngressTranslator.ProcessSample"/> and
+/// <see cref="EntityMasterIngressTranslator.ProcessDispose"/> are called directly
+/// via the <c>InternalsVisibleTo</c> attribute declared in Bagira.Map.Common.csproj.
 ///
 /// Full DDS-level integration tests (DdsParticipant → DdsReader.Take() →
 /// PollIngress result) require a live CycloneDDS domain and are deferred to the
@@ -32,100 +33,91 @@ public class EntityMasterTranslatorTests
 
     // ── Fixture factory ──────────────────────────────────────────────────────
 
-    private static (EntityRepository repo, NetworkEntityMap entityMap, FdpEventBus eventBus, EntityMasterTranslator translator)
+    private static (EntityRepository repo, NetworkEntityMap entityMap, FdpEventBus eventBus, EntityMasterIngressTranslator translator)
         CreateFixture()
     {
         var repo       = new EntityRepository();
+        repo.RegisterComponent<NetworkIdentity>(); // required by GhostCreationSystem
         var entityMap  = new NetworkEntityMap();
         var eventBus   = new FdpEventBus();
+        var ghostCreationSystem = new GhostCreationSystem(entityMap);
         // null participant = test mode (no DDS reader created)
-        var translator = new EntityMasterTranslator(null, entityMap, eventBus);
+        var translator = new EntityMasterIngressTranslator(null, entityMap, eventBus, ghostCreationSystem);
         return (repo, entityMap, eventBus, translator);
     }
 
-    // ── SpawnEntityCommand path (new entity) ─────────────────────────────────
+    // ── Ghost spawn path (new entity) ──────────────────────────────────────────
 
     /// <summary>
-    /// When a sample arrives for a network ID not yet in the entity map,
-    /// ProcessSample must publish exactly one <see cref="SpawnEntityCommand"/>
-    /// carrying the correct fields.
+    /// When a sample arrives for an unknown network ID, ProcessSample must call
+    /// AddComponent with a <see cref="NetworkSpawnRequest"/> carrying the correct
+    /// TkbType, DisType, and OwnerId=0 (remote ghost — no local authority).
     /// </summary>
     [Fact]
-    public void ProcessSample_NewEntity_PublishesSpawnEntityCommandWithCorrectFields()
+    public void ProcessSample_NewEntity_AddsNetworkSpawnRequestWithCorrectFields()
     {
-        var (repo, _, eventBus, translator) = CreateFixture();
+        var (repo, _, _, translator) = CreateFixture();
         var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType, DisType = TestDisType };
 
-        ISimulationView      view = repo;
-        IEntityCommandBuffer cmd  = view.GetCommandBuffer();
+        ISimulationView view = repo;
+        var cmd = new RecordingCommandBuffer();
 
         translator.ProcessSample(in master, cmd, view);
 
-        eventBus.SwapBuffers();
-        var commands = eventBus.ConsumeManaged<SpawnEntityCommand>();
-
-        Assert.Single(commands);
-        Assert.Equal(TestNetworkId,         commands[0].NetworkId);
-        Assert.Equal(TestTkbType,           commands[0].TkbType);
-        Assert.Equal(TestDisType,           commands[0].DisType);
-        Assert.Equal(0,                     commands[0].OwnerNodeId); // ghost node — no local authority
-        Assert.Equal(ReliableInitType.None, commands[0].InitType);
+        Assert.True(cmd.AddComponentCalled, "AddComponent must be called with NetworkSpawnRequest");
+        Assert.NotNull(cmd.LastNetworkSpawnRequest);
+        Assert.Equal(TestTkbType, cmd.LastNetworkSpawnRequest!.Value.TkbType);
+        Assert.Equal(TestDisType, cmd.LastNetworkSpawnRequest!.Value.DisType);
+        Assert.Equal(0UL,         cmd.LastNetworkSpawnRequest!.Value.OwnerId); // ghost — no authority
     }
 
     /// <summary>
-    /// The <see cref="SpawnEntityCommand.InitialComponents"/> list must remain
-    /// empty to avoid routing network descriptors into ECS components.
+    /// When a sample arrives for an unknown network ID, ProcessSample must register
+    /// the freshly-created ghost in <see cref="NetworkEntityMap"/> so downstream
+    /// translators can locate the entity by ID on the same tick.
     /// </summary>
     [Fact]
-    public void ProcessSample_NewEntity_SpawnCommandHasEmptyInitialComponents()
+    public void ProcessSample_NewEntity_RegistersGhostInEntityMap()
     {
-        var (repo, _, eventBus, translator) = CreateFixture();
+        var (repo, entityMap, _, translator) = CreateFixture();
         var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
 
-        ISimulationView      view = repo;
-        IEntityCommandBuffer cmd  = view.GetCommandBuffer();
-
+        ISimulationView view = repo;
+        var cmd = new RecordingCommandBuffer();
         translator.ProcessSample(in master, cmd, view);
 
-        eventBus.SwapBuffers();
-        var commands = eventBus.ConsumeManaged<SpawnEntityCommand>();
+        Assert.True(entityMap.TryGetEntity(TestNetworkId, out _),
+            "Ghost entity must be registered in entityMap after ProcessSample for unknown ID");
+    }
 
-        Assert.Empty(commands[0].InitialComponents);
-        Assert.Equal(TestTkbType, commands[0].TkbType);
+    /// <summary>
+    /// SC1 (TASK-IF004): A replicated entity must have <c>OwnerId = 0</c>
+    /// (FDP convention for "remote / no local authority"). This prevents
+    /// <c>NetworkSpawningSystem</c> from tagging the entity with
+    /// <c>NetworkAuthority.HasAuthority = true</c>, which would break
+    /// dead-reckoning for all replicated entities.
+    /// </summary>
+    [Fact]
+    public void ProcessSample_NewEntity_OwnerIdIsZero_EnforcingGhostOwnership()
+    {
+        var (repo, _, _, translator) = CreateFixture();
+        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+
+        ISimulationView view = repo;
+        var cmd = new RecordingCommandBuffer();
+        translator.ProcessSample(in master, cmd, view);
+
+        Assert.NotNull(cmd.LastNetworkSpawnRequest);
+        Assert.Equal(0UL, cmd.LastNetworkSpawnRequest!.Value.OwnerId);
     }
 
     // ── Component-update path (known entity) ─────────────────────────────────
 
     /// <summary>
-    /// SC1 (TASK-IF004): A replicated entity must have <c>OwnerNodeId = 0</c>
-    /// (FDP convention for \u201cremote / no local authority\u201d).  This prevents
-    /// <c>NetworkSpawningSystem</c> from tagging the entity with
-    /// <c>NetworkAuthority.HasAuthority = true</c>, which would cause
-    /// <c>TransformSyncSystem</c> to skip dead-reckoning for all replicated entities.
+    /// When the entity is already known, ProcessSample must NOT emit SetComponent
+    /// calls. AddComponent IS called to enqueue the <see cref="NetworkSpawnRequest"/>
+    /// so the promotion pipeline can process the updated type information.
     /// </summary>
-    [Fact]
-    public void ProcessSample_NewEntity_OwnerNodeIdIsZero_EnforcingGhostOwnership()
-    {
-        var (repo, _, eventBus, translator) = CreateFixture();
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
-
-        ISimulationView view = repo;
-        IEntityCommandBuffer cmd = view.GetCommandBuffer();
-        translator.ProcessSample(in master, cmd, view);
-
-        eventBus.SwapBuffers();
-        var commands = eventBus.ConsumeManaged<SpawnEntityCommand>();
-
-        Assert.Single(commands);
-        // OwnerNodeId = 0 \u2192 remote ownership \u2192 HasAuthority = false in the spawning system.
-        Assert.Equal(0, commands[0].OwnerNodeId);
-        // Specifically must NOT use the local node ID, which would steal authority.
-        Assert.NotEqual(IgNetworkConstants.LocalNodeId, commands[0].OwnerNodeId);
-    }
-
-    /// <summary>
-    /// When the entity is already known, ProcessSample must NOT emit a new
-    /// <see cref="SpawnEntityCommand"/> or apply any ECS component updates.</summary>
     [Fact]
     public void ProcessSample_KnownEntity_DoesNotCallSetComponent()
     {
@@ -138,8 +130,8 @@ public class EntityMasterTranslatorTests
         var updatedMaster = new EntityMaster
         {
             EntityId = (int)TestNetworkId,
-            TkbType  = TestTkbType,   // changed
-            DisType  = TestDisType,   // changed
+            TkbType  = TestTkbType,
+            DisType  = TestDisType,
         };
 
         ISimulationView view = repo;
@@ -147,9 +139,9 @@ public class EntityMasterTranslatorTests
         translator.ProcessSample(in updatedMaster, cmd, view);
 
         eventBus.SwapBuffers();
-        Assert.Empty(eventBus.ConsumeManaged<SpawnEntityCommand>());
-        Assert.Empty(eventBus.ConsumeManaged<UpdateEntityCommand>());
-        Assert.False(cmd.SetComponentCalled);
+        Assert.Empty(eventBus.ConsumeManaged<DestroyEntityCommand>());
+        Assert.False(cmd.SetComponentCalled, "SetComponent must not be called for known entities");
+        Assert.True(cmd.AddComponentCalled, "AddComponent must be called with NetworkSpawnRequest");
     }
 
     [Fact]
@@ -162,16 +154,22 @@ public class EntityMasterTranslatorTests
             translator.ApplyToEntity(new Entity(), master, repo));
 
         Assert.Null(exception);
-        Assert.Throws<InvalidOperationException>(() => repo.GetComponentTable<EntityMaster>());
     }
 
     private sealed class RecordingCommandBuffer : IEntityCommandBuffer
     {
+        public bool AddComponentCalled { get; private set; }
         public bool SetComponentCalled { get; private set; }
+        public NetworkSpawnRequest? LastNetworkSpawnRequest { get; private set; }
 
         public Entity CreateEntity() => new Entity();
         public void DestroyEntity(Entity entity) { }
-        public void AddComponent<T>(Entity entity, in T component) where T : unmanaged { }
+        public void AddComponent<T>(Entity entity, in T component) where T : unmanaged
+        {
+            AddComponentCalled = true;
+            if (component is NetworkSpawnRequest req)
+                LastNetworkSpawnRequest = req;
+        }
         public void SetComponent<T>(Entity entity, in T component) where T : unmanaged => SetComponentCalled = true;
         public void RemoveComponent<T>(Entity entity) where T : unmanaged { }
         public void AddManagedComponent<T>(Entity entity, T? component) where T : class { }
@@ -209,7 +207,8 @@ public class EntityMasterTranslatorTests
 
     /// <summary>
     /// PollIngress with a null participant must return without publishing any
-    /// events. This verifies the test-mode guard added to support unit testing.
+    /// events or queuing any commands. This verifies the test-mode guard added
+    /// to support unit testing.
     /// </summary>
     [Fact]
     public void PollIngress_WithNullParticipant_IsNoOpAndEmitsNoEvents()
@@ -217,11 +216,11 @@ public class EntityMasterTranslatorTests
         var (repo, _, eventBus, translator) = CreateFixture();
 
         ISimulationView      view = repo;
-        IEntityCommandBuffer cmd  = view.GetCommandBuffer();
+        var cmd = new RecordingCommandBuffer();
         translator.PollIngress(cmd, view);
 
         eventBus.SwapBuffers();
-        Assert.Empty(eventBus.ConsumeManaged<SpawnEntityCommand>());
         Assert.Empty(eventBus.ConsumeManaged<DestroyEntityCommand>());
+        Assert.False(cmd.AddComponentCalled, "No AddComponent calls expected when PollIngress is a no-op");
     }
 }

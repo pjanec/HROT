@@ -7,11 +7,12 @@ using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Translators;
 
-namespace Bagira.IG.Translators
+namespace Bagira.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Ingress translator for the Bagira <c>GeoSpatial</c> DDS topic.
@@ -24,20 +25,23 @@ namespace Bagira.IG.Translators
     ///
     /// IG is a ghost-only node — <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class GeoSpatialTranslator : CycloneTranslator<GeoSpatial, GeoSpatial>
+    public class GeoSpatialIngressTranslator : CycloneTranslator<GeoSpatial, GeoSpatial>
     {
         private const string DdsTopicName = "GeoSpatial";
-        private const long   OrdinalValue = 10;
+        private const long OrdinalValue = 10;
 
         private readonly IGeographicTransform _geoTransform;
+        private readonly GhostCreationSystem _ghostCreationSystem;
 
-        public GeoSpatialTranslator(
-            DdsParticipant          participant,
-            NetworkEntityMap        entityMap,
-            IGeographicTransform    geoTransform)
+        public GeoSpatialIngressTranslator(
+            DdsParticipant participant,
+            NetworkEntityMap entityMap,
+            IGeographicTransform geoTransform,
+            GhostCreationSystem ghostCreationSystem)
             : base(participant, DdsTopicName, OrdinalValue, entityMap)
         {
             _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
         // ── Ingress ──────────────────────────────────────────────────────────
@@ -46,11 +50,21 @@ namespace Bagira.IG.Translators
         {
             long netId = data.EntityId;
             if (!EntityMap.TryGetEntity(netId, out var entity))
-                return; // Entity not yet spawned — skip; will be retried next tick
+            {
+                var repo = view as EntityRepository;
+                if (repo == null)
+                {
+                    FdpLog<GeoSpatialIngressTranslator>.Warn(
+                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                    return;
+                }
+
+                entity = _ghostCreationSystem.CreateGhost(repo, netId);
+            }
 
             var latitude = data.Pos.Latitude;
             var longitude = data.Pos.Longitude;
-            FdpLog<GeoSpatialTranslator>.Debug(
+            FdpLog<GeoSpatialIngressTranslator>.Debug(
                 "[TRACE-IG] Ingress: GeoSpatial Entity={0} Lat={1} Lon={2}", entity.Index, latitude, longitude);
 
             var cartesian = _geoTransform.ToCartesian(

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Bagira.BDC.SSTD;
 using CycloneDDS.Runtime;
@@ -7,18 +6,20 @@ using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network.Interfaces;
 
-namespace Bagira.IG.Translators
+namespace Bagira.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Ingress translator for the Bagira <c>EntityMaster</c> DDS topic.
     ///
-    /// On receiving a new entity announcement it publishes a <see cref="SpawnEntityCommand"/>
-    /// onto the <see cref="FdpEventBus"/> so the kernel-side <c>NetworkSpawningSystem</c>
-    /// can drive the full ELM construction cycle.
+    /// On receiving a new entity announcement it ensures a ghost exists and enqueues
+    /// a <see cref="NetworkSpawnRequest"/> so the kernel-side ghost promotion pipeline
+    /// can drive the ELM construction cycle.
     ///
     /// On disposal it publishes <see cref="DestroyEntityCommand"/> so the lifecycle module
     /// can tear the entity down cleanly.
@@ -27,28 +28,31 @@ namespace Bagira.IG.Translators
     ///
     /// IG is a ghost-only (read-only) node — <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class EntityMasterTranslator : IDescriptorTranslator
+    public class EntityMasterIngressTranslator : IDescriptorTranslator
     {
         // --- Named constants (§CODE-STANDARDS §1 — no magic numbers) ---
-        private const string DdsTopicName   = "EntityMaster";
-        private const long   OrdinalValue   = -2; // distinct from the FDP SST_EntityMaster ordinal (-1)
+        private const string DdsTopicName = "EntityMaster";
+        private const long OrdinalValue = -2; // distinct from the FDP SST_EntityMaster ordinal (-1)
 
         private readonly DdsReader<EntityMaster> _reader;
-        private readonly NetworkEntityMap        _entityMap;
-        private readonly FdpEventBus             _eventBus;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly FdpEventBus _eventBus;
+        private readonly GhostCreationSystem _ghostCreationSystem;
 
-        public string TopicName       => DdsTopicName;
-        public long   DescriptorOrdinal => OrdinalValue;
+        public string TopicName => DdsTopicName;
+        public long DescriptorOrdinal => OrdinalValue;
 
-        public EntityMasterTranslator(
-            DdsParticipant?  participant,
+        public EntityMasterIngressTranslator(
+            DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            FdpEventBus      eventBus)
+            FdpEventBus eventBus,
+            GhostCreationSystem ghostCreationSystem)
         {
             // participant may be null in unit-test mode — PollIngress becomes a no-op
-            _reader    = participant is not null ? new DdsReader<EntityMaster>(participant) : null!;
-            _entityMap = entityMap  ?? throw new ArgumentNullException(nameof(entityMap));
-            _eventBus  = eventBus   ?? throw new ArgumentNullException(nameof(eventBus));
+            _reader = participant is not null ? new DdsReader<EntityMaster>(participant) : null!;
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
         // ── Ingress ──────────────────────────────────────────────────────────
@@ -99,7 +103,7 @@ namespace Bagira.IG.Translators
             _eventBus.PublishManaged(new DestroyEntityCommand
             {
                 NetworkId = networkEntityId,
-                Reason    = "EntityMaster disposed"
+                Reason = "EntityMaster disposed"
             });
         }
 
@@ -107,26 +111,28 @@ namespace Bagira.IG.Translators
         {
             long netId = master.EntityId;
 
-            if (!_entityMap.TryGetEntity(netId, out _))
+            if (!_entityMap.TryGetEntity(netId, out var entity))
             {
-                    FdpLog<EntityMasterTranslator>.Debug(
-                        "[TRACE-IG] Ingress: EntityMaster NetID={0} -> Ghost spawn", master.EntityId);
-
-                // New remote entity — request creation through NetworkSpawningSystem
-                // InitType = None: IG is a ghost replica, not an authority node.
-                // OwnerNodeId = 0: remote / no local authority — prevents IG from
-                // claiming HasAuthority = true on replicated entities (TASK-IF004).
-                _eventBus.PublishManaged(new SpawnEntityCommand
+                var repo = view as EntityRepository;
+                if (repo == null)
                 {
-                    NetworkId         = netId,
-                    TkbType           = master.TkbType,
-                    DisType           = master.DisType,
-                    OwnerNodeId       = 0,
-                    InitType          = ReliableInitType.None,
-                    InitialComponents = new List<object>(),
-                    RequestId         = Guid.Empty
-                });
+                    FdpLog<EntityMasterIngressTranslator>.Warn(
+                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                    return;
+                }
+
+                FdpLog<EntityMasterIngressTranslator>.Debug(
+                    "[TRACE-IG] Ingress: EntityMaster NetID={0} -> Ghost spawn", master.EntityId);
+
+                entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
+
+            cmd.AddComponent(entity, new NetworkSpawnRequest
+            {
+                TkbType = master.TkbType,
+                DisType = master.DisType,
+                OwnerId = 0
+            });
         }
     }
 }

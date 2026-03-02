@@ -5,11 +5,13 @@ using Bagira.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Interfaces;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 
-namespace Bagira.IG.Translators
+namespace Bagira.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Ingress translator for the Bagira <c>EntityInfo</c> DDS topic.
@@ -24,27 +26,30 @@ namespace Bagira.IG.Translators
     /// Entities not yet registered in the map are silently skipped.
     /// IG is a ghost-only node — <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
-    public class EntityInfoTranslator : IDescriptorTranslator
+    public class EntityInfoIngressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "EntityInfo";
-        private const long   OrdinalValue = 20;
+        private const long OrdinalValue = 20;
 
         private readonly DdsReader<EntityInfo>? _reader;
-        private readonly NetworkEntityMap        _entityMap;
-        private readonly FdpEventBus             _eventBus;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly FdpEventBus _eventBus;
+        private readonly GhostCreationSystem _ghostCreationSystem;
 
-        public string TopicName         => DdsTopicName;
-        public long   DescriptorOrdinal => OrdinalValue;
+        public string TopicName => DdsTopicName;
+        public long DescriptorOrdinal => OrdinalValue;
 
-        public EntityInfoTranslator(
-            DdsParticipant?  participant,
+        public EntityInfoIngressTranslator(
+            DdsParticipant? participant,
             NetworkEntityMap entityMap,
-            FdpEventBus      eventBus)
+            FdpEventBus eventBus,
+            GhostCreationSystem ghostCreationSystem)
         {
             // participant may be null in unit-test mode — PollIngress becomes a no-op
-            _reader    = participant is not null ? new DdsReader<EntityInfo>(participant) : null;
+            _reader = participant is not null ? new DdsReader<EntityInfo>(participant) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _eventBus  = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
+            _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
         // ── Ingress ──────────────────────────────────────────────────────────
@@ -61,11 +66,21 @@ namespace Bagira.IG.Translators
                 if (sample.Info.InstanceState != CycloneDDS.Runtime.DdsInstanceState.Alive)
                     continue;
 
-                var info   = sample.Data;
+                var info = sample.Data;
                 long netId = info.EntityId;
 
                 if (!_entityMap.TryGetEntity(netId, out _))
-                    continue; // Not spawned yet — retry next tick
+                {
+                    var repo = view as EntityRepository;
+                    if (repo == null)
+                    {
+                        FdpLog<EntityInfoIngressTranslator>.Warn(
+                            "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                        continue;
+                    }
+
+                    _ghostCreationSystem.CreateGhost(repo, netId);
+                }
 
                 ProcessSample(info, netId);
             }

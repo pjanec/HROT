@@ -1591,6 +1591,43 @@ public void TestHook_InjectEntityMasterDescriptor(EntityMasterDescriptor descrip
 
 ---
 
+## Phase 5 — Translator Unification
+
+**Goal:** `Bagira.IG` and `Bagira.SimHost` use independent sets of translators, generating completely unnecessary code duplication. The logic in `Bagira.IG/Translators` and `Bagira.SimHost/Translators` must be unified and moved into `Bagira.Map.Common`, an existing shared library.
+
+### REPL-P5-T1: Update Bagira.Map.Common Project References
+Update `Bagira.Map.Common/Bagira.Map.Common.csproj` to include project references to the necessary libraries required to run `NetworkEntityMap` and the replication framework. Add `FDP.Toolkit.Replication`, `Bagira.DDS.DataModel`, `Fdp.Kernel`, `ModuleHost.Core`, and `ModuleHost.Network.Cyclone`. Add to `.csproj` and `dotnet restore`.
+
+### REPL-P5-T2: Migrate IG Ingress Translators
+Move the following translators from `Bagira.IG` to `Bagira.Map.Common/Replication/Ingress/`. Rename them explicitly with the `IngressTranslator` postfix (e.g. `GeoSpatialIngressTranslator`). Change their namespaces to `Bagira.Map.Common.Replication.Ingress`. These modules MUST retain the ECS-as-Staging (Ghost Fallback) pattern implemented in Phase 2.
+List:
+- `EntityMasterTranslator.cs`
+- `GeoSpatialTranslator.cs`
+- `GeoSpatialDRTranslator.cs`
+- `EntityInfoTranslator.cs`
+- `EntityDamageTranslator.cs`
+- `MapEntitySymbolTranslator.cs`
+
+### REPL-P5-T3: Migrate SimHost Egress Translators
+Move the following EGRESS translators from `Bagira.SimHost` to `Bagira.Map.Common/Replication/Egress/`. Remove SimHost-specific fast paths that break pure FDP abstractions. Rename them to explicit `EgressTranslator` postfixes and change to namespace `Bagira.Map.Common.Replication.Egress`.
+List:
+- `EntityMasterEgressTranslator.cs`
+- `GeoSpatialEgressTranslator.cs`
+- `TimePulseEgressTranslator.cs`
+
+### REPL-P5-T4: Migrate EntityMission Translators
+The `EntityMission` feature has both Ingress AND Egress components (currently mixed). Move `Bagira.SimHost.Translators.EntityMissionTranslator` to `Bagira.Map.Common/Replication/Ingress/EntityMissionIngressTranslator.cs`. Move `EntityMissionEgressTranslator` to the equivalent target directory. Maintain identical ECS translation mapping.
+
+### REPL-P5-T5: Migrate DescriptorMapper
+Move `Bagira.SimHost/Util/DescriptorMapper.cs` into `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs`. This utility maps `EntityDescriptorUnion` (DDS) to ECS Components. Make sure any coupling to concrete instances is dropped; reference through interfaces like `IGeographicTransform`.
+
+### REPL-P5-T6: Update Composition Roots
+Update `Bagira.IG/IgApplication.cs` and `Bagira.SimHost/Modules/SimHostModule.cs`. 
+In IG, use the new `IngressTranslator` variants and pass the necessary dependencies (via constructor injections matching the Phase 2 changes) inside the `customTranslators` list.
+In SimHost, use the explicit new `EgressTranslator` references.
+
+---
+
 ## Summary Table
 
 | Task ID | Phase | File | Effort | Depends On |

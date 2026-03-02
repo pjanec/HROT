@@ -4,36 +4,52 @@ using Bagira.BDC.SSTD;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Translators;
 
-namespace Bagira.IG.Translators
+namespace Bagira.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Ingress translator for the Bagira <c>GeoSpatialDR</c> DDS topic.
     /// Converts polar velocity (DAL3) into <see cref="NetworkVelocity"/>.
     /// </summary>
-    public class GeoSpatialDRTranslator : CycloneTranslator<GeoSpatialDR, GeoSpatialDR>
+    public class GeoSpatialDRIngressTranslator : CycloneTranslator<GeoSpatialDR, GeoSpatialDR>
     {
         private const string DdsTopicName = "GeoSpatialDR";
         private const long OrdinalValue = 11;
 
-        public GeoSpatialDRTranslator(
+        private readonly GhostCreationSystem _ghostCreationSystem;
+
+        public GeoSpatialDRIngressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            IGeographicTransform geoTransform)
+            IGeographicTransform geoTransform,
+            GhostCreationSystem ghostCreationSystem)
             : base(participant, DdsTopicName, OrdinalValue, entityMap)
         {
             _ = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
         protected override void Decode(in GeoSpatialDR data, IEntityCommandBuffer cmd, ISimulationView view)
         {
             long netId = data.EntityId;
             if (!EntityMap.TryGetEntity(netId, out var entity))
-                return;
+            {
+                var repo = view as EntityRepository;
+                if (repo == null)
+                {
+                    FdpLog<GeoSpatialDRIngressTranslator>.Warn(
+                        "[IG] Cannot create ghost for NetID {0}: view is read-only.", netId);
+                    return;
+                }
+
+                entity = _ghostCreationSystem.CreateGhost(repo, netId);
+            }
 
             float speedMs = (float)data.Vel.Length;
             float azimRad = (float)data.Vel.Azimuth * (MathF.PI / 180f);

@@ -1,9 +1,10 @@
 using System.Collections.Generic;
 using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
-using Bagira.IG.Translators;
+using Bagira.Map.Common.Replication.Ingress;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 
@@ -11,14 +12,15 @@ namespace Bagira.IG.Tests
 {
     public class EntityInfoTranslatorTests
     {
-        private static (EntityRepository repo, NetworkEntityMap entityMap, FdpEventBus eventBus, EntityInfoTranslator translator)
+        private static (EntityRepository repo, NetworkEntityMap entityMap, FdpEventBus eventBus, EntityInfoIngressTranslator translator)
             CreateFixture()
         {
             var repo = new EntityRepository();
             repo.RegisterManagedComponent<IgEntityData>();
             var entityMap = new NetworkEntityMap();
             var eventBus = new FdpEventBus();
-            var translator = new EntityInfoTranslator(null, entityMap, eventBus);
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new EntityInfoIngressTranslator(null, entityMap, eventBus, ghostCreationSystem);
             return (repo, entityMap, eventBus, translator);
         }
 

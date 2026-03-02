@@ -1,12 +1,13 @@
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
-using Bagira.IG.Translators;
+using Bagira.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
 using Xunit;
 
@@ -14,19 +15,20 @@ namespace Bagira.IG.Tests
 {
     public class GeoSpatialDRTranslatorTests
     {
-        private const long KnownId = 1L;
+        private const long KnownId   = 1L;
         private const long UnknownId = 99L;
 
         [Fact]
         public void Decode_KnownEntity_SetsNetworkVelocity()
         {
             using var participant = new DdsParticipant(0);
-            var repo = new EntityRepository();
+            var repo      = new EntityRepository();
             var entityMap = new NetworkEntityMap();
-            var entity = repo.CreateEntity();
+            var entity    = repo.CreateEntity();
             entityMap.Register(KnownId, entity);
 
-            var translator = new TestGeoSpatialDRTranslator(participant, entityMap, new StubGeoTransform());
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new TestGeoSpatialDRIngressTranslator(participant, entityMap, new StubGeoTransform(), ghostCreationSystem);
             var cmd = new RecordingCommandBuffer();
 
             translator.DecodeForTest(new GeoSpatialDR
@@ -37,19 +39,25 @@ namespace Bagira.IG.Tests
 
             Assert.True(cmd.SetNetworkVelocityCalled);
             var velocity = cmd.LastNetworkVelocity!.Value.Value;
-            Assert.Equal(0f, velocity.X, 3);
+            Assert.Equal(0f,  velocity.X, 3);
             Assert.Equal(10f, velocity.Y, 3);
-            Assert.Equal(0f, velocity.Z, 3);
+            Assert.Equal(0f,  velocity.Z, 3);
         }
 
+        /// <summary>
+        /// When the entity is not yet in the map, the translator must create a ghost
+        /// and still apply the velocity component via the command buffer.
+        /// </summary>
         [Fact]
-        public void Decode_UnknownEntity_IsSkipped()
+        public void Decode_UnknownEntity_CreatesGhostAndSetsNetworkVelocity()
         {
             using var participant = new DdsParticipant(0);
-            var repo = new EntityRepository();
+            var repo      = new EntityRepository();
+            repo.RegisterComponent<NetworkIdentity>(); // required by GhostCreationSystem
             var entityMap = new NetworkEntityMap();
 
-            var translator = new TestGeoSpatialDRTranslator(participant, entityMap, new StubGeoTransform());
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new TestGeoSpatialDRIngressTranslator(participant, entityMap, new StubGeoTransform(), ghostCreationSystem);
             var cmd = new RecordingCommandBuffer();
 
             translator.DecodeForTest(new GeoSpatialDR
@@ -58,16 +66,20 @@ namespace Bagira.IG.Tests
                 Vel = new DAL3 { Azimuth = 0, Elevation = 0, Length = 10 }
             }, cmd, repo);
 
-            Assert.False(cmd.SetNetworkVelocityCalled);
+            Assert.True(entityMap.TryGetEntity(UnknownId, out _),
+                "Ghost must be registered in entityMap after encountering unknown entity");
+            Assert.True(cmd.SetNetworkVelocityCalled,
+                "SetComponent<NetworkVelocity> must be called even for freshly created ghost entities");
         }
 
-        private sealed class TestGeoSpatialDRTranslator : GeoSpatialDRTranslator
+        private sealed class TestGeoSpatialDRIngressTranslator : GeoSpatialDRIngressTranslator
         {
-            public TestGeoSpatialDRTranslator(
+            public TestGeoSpatialDRIngressTranslator(
                 DdsParticipant participant,
                 NetworkEntityMap entityMap,
-                IGeographicTransform geoTransform)
-                : base(participant, entityMap, geoTransform)
+                IGeographicTransform geoTransform,
+                GhostCreationSystem ghostCreationSystem)
+                : base(participant, entityMap, geoTransform, ghostCreationSystem)
             {
             }
 

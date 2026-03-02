@@ -14,6 +14,7 @@ using Bagira.IG.UI;
 using Bagira.Map.Common;
 using Bagira.Map.Common.Commands;
 using Bagira.Map.Common.Events;
+using Bagira.Map.Common.Replication.Ingress;
 using Bagira.Map.Definitions.Tkb;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
@@ -29,6 +30,7 @@ using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Time.Controllers;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
@@ -282,7 +284,8 @@ public class IgApplication
         var elm = new EntityLifecycleModule(tkb, Array.Empty<int>());
         _kernel.RegisterModule(elm);
 
-        _kernel.RegisterModule(new ReplicationLogicModule());
+        var replicationModule = new ReplicationLogicModule(_entityMap, tkb);
+        _kernel.RegisterModule(replicationModule);
 
         // B. SpawningModule — processes SpawnEntityCommand / DestroyEntityCommand
         INetworkIdAllocator idAllocator = new IgSequentialIdAllocator();
@@ -319,15 +322,17 @@ public class IgApplication
                 _geoTransform = BagiraEnvironment.CreateGeoTransform();
                 _miniIosState.SetGeoTransform(_geoTransform);
 
+                var ghostCreationSystem = replicationModule.GhostCreationSystem;
+
                 var customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
                 {
-                    new EntityMasterTranslator(participant, _entityMap, _world.Bus),
-                    new GeoSpatialTranslator(participant, _entityMap, _geoTransform),
-                    new GeoSpatialDRTranslator(participant, _entityMap, _geoTransform),
-                    new EntityInfoTranslator(participant, _entityMap, _world.Bus),
-                    new EntityDamageTranslator(participant, _entityMap),
-                    new MapEntitySymbolTranslator(participant, _entityMap, IgNetworkConstants.MapGroupId),
-                    new ContextActionsUpdateTranslator(participant, _entityMap, _world.Bus),
+                    new EntityMasterIngressTranslator(participant, _entityMap, _world.Bus, ghostCreationSystem),
+                    new GeoSpatialIngressTranslator(participant, _entityMap, _geoTransform, ghostCreationSystem),
+                    new GeoSpatialDRIngressTranslator(participant, _entityMap, _geoTransform, ghostCreationSystem),
+                    new EntityInfoIngressTranslator(participant, _entityMap, _world.Bus, ghostCreationSystem),
+                    new EntityDamageIngressTranslator(participant, _entityMap, ghostCreationSystem),
+                    new MapEntitySymbolIngressTranslator(participant, _entityMap, IgNetworkConstants.MapGroupId, ghostCreationSystem),
+                    new ContextActionsUpdateTranslator(participant, _entityMap, _world.Bus, ghostCreationSystem),
                     new TimePulseTranslator(participant, _world.Bus),
                 };
 
