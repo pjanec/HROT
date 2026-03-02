@@ -316,8 +316,11 @@ namespace Bagira.SimHost
 
             // Combat + perception
             world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<Health>();
+            world.RegisterComponent<HealthData>();
+            world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<Faction>();
             world.RegisterComponent<PhysicsCollider>();
 
@@ -328,11 +331,10 @@ namespace Bagira.SimHost
             world.RegisterComponent<CarKinem.Formation.FormationMember>();
             world.RegisterComponent<CarKinem.Formation.FormationRoster>();
             world.RegisterComponent<CarKinem.Formation.FormationTarget>();
+            world.RegisterComponent<VisualData>();
 
             // Managed
             world.RegisterManagedComponent<EntityMissionHolder>();
-            world.RegisterManagedComponent<IgVisualDef>();
-            world.RegisterManagedComponent<SimVehicleDef>();
             world.RegisterManagedComponent<SimCombatDef>();
             world.RegisterManagedComponent<TkbCompositionDef>();
 

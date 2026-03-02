@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using CarKinem.Core;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
@@ -193,6 +194,7 @@ public class IgApplication
         _world.RegisterComponent<NetworkVelocity>();
         _world.RegisterComponent<SimTransform>();
         _world.RegisterComponent<SimVelocity>();
+        _world.RegisterComponent<VehicleParams>();
         _world.RegisterComponent<GeoTransform>();
         _world.RegisterComponent<GeoVelocity>();
         _world.RegisterComponent<IgHealthState>();
@@ -203,6 +205,7 @@ public class IgApplication
         _world.RegisterComponent<Health>();
         _world.RegisterComponent<HealthData>();
         _world.RegisterComponent<PhysicsCollider>();
+        _world.RegisterComponent<VisualData>();
 
         // IG4 — Advanced Features components
         _world.RegisterComponent<HistoryTrail>();
@@ -210,9 +213,7 @@ public class IgApplication
         _world.RegisterComponent<TracerTarget>();
         _world.RegisterManagedComponent<ContextMenuState>();
         _world.RegisterManagedComponent<EditablePolyline>();
-        _world.RegisterManagedComponent<IgVisualDef>();
         _world.RegisterManagedComponent<IgEntityData>();
-        _world.RegisterManagedComponent<SimVehicleDef>();
         _world.RegisterManagedComponent<SimCombatDef>();
         _world.RegisterManagedComponent<TkbCompositionDef>();
 
@@ -282,39 +283,23 @@ public class IgApplication
             localNodeId: IgNetworkConstants.LocalNodeId,
             allNodes:    new[] { IgNetworkConstants.LocalNodeId });
 
-        // A. EntityLifecycleModule — IG is a ghost node; no peers need to ACK
+        // A. EntityLifecycleModule — no peers need to ACK in IG standalone mode
         var elm = new EntityLifecycleModule(tkb, Array.Empty<int>());
         _kernel.RegisterModule(elm);
 
         var replicationModule = new ReplicationLogicModule(_entityMap, tkb, elm);
         _kernel.RegisterModule(replicationModule);
 
-        // B. SpawningModule — processes SpawnEntityCommand / DestroyEntityCommand
-        INetworkIdAllocator idAllocator = new IgSequentialIdAllocator();
-        var spawningSystem = new NetworkSpawningSystem(
-            tkb, elm, _entityMap, idAllocator,
-            IgNetworkConstants.LocalNodeId);
-        _kernel.RegisterModule(new SpawningModule(spawningSystem));
+        DdsParticipant? participant = null;
+        DdsIdAllocator? ddsAllocator = null;
+        List<Fdp.Interfaces.IDescriptorTranslator>? customTranslators = null;
 
-        // E. StyleResolutionModule — writes ResolvedStyle each Simulation tick
-        _kernel.RegisterModule(new StyleResolutionModule(_userConfig));
-
-        // F. MapCullingModule — writes CullingState each PostSimulation tick
-        _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
-
-        // G. HistoryTrailModule — records entity position trails (IG.4.1)
-        _kernel.RegisterModule(new HistoryTrailModule());
-
-        // H. EventEffectModule — spawns and cleans up visual effects (IG.4.2)
-        if (!_headless)
-            _kernel.RegisterModule(new EventEffectModule());
-
-        // C. CycloneNetworkModule — DDS ingress/egress (optional)
+        _networkEnabled = false;
         if (enableNetwork)
         {
             try
             {
-                var participant = BagiraEnvironment.CreateParticipant(domainId);
+                participant = BagiraEnvironment.CreateParticipant(domainId);
 
                 // Task 5: Create command gateway, click writer and config reader.
                 _commandGateway = new BdcCommandGateway(participant);
@@ -341,7 +326,7 @@ public class IgApplication
                 var contextActionsTranslator = new ContextActionsUpdateTranslator(
                     participant, _entityMap, _world.Bus, _ghostCreationSystem);
 
-                var customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
+                customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
                 {
                     entityMasterTranslator,
                     _geoSpatialIngressTranslator,
@@ -356,22 +341,55 @@ public class IgApplication
                 if (!_headless)
                     customTranslators.Add(new FireInteractionEventTranslator(participant, _entityMap));
 
-                var ddsAllocator = new DdsIdAllocator(participant, $"IG_{IgNetworkConstants.InstanceId}");
-
-                var networkModule = new CycloneNetworkModule(
-                    participant, nodeMapper, ddsAllocator,
-                    topology, elm,
-                    customTranslators: customTranslators,
-                    sharedEntityMap:   _entityMap);
-                _kernel.RegisterModule(networkModule);
-
+                ddsAllocator = new DdsIdAllocator(participant, $"IG_{IgNetworkConstants.InstanceId}");
                 _networkEnabled = true;
             }
             catch (Exception ex)
             {
                 FdpLog<IgApplication>.Warn("[IG] Network init failed ({0}). Running offline.", ex.Message);
+                _commandGateway?.Dispose();
+                _clickWriter?.Dispose();
+                _configReader?.Dispose();
+                participant?.Dispose();
+                _commandGateway = null;
+                _clickWriter = null;
+                _configReader = null;
+                _geoTransform = null;
                 _networkEnabled = false;
             }
+        }
+
+        // B. SpawningModule — processes SpawnEntityCommand / DestroyEntityCommand
+        INetworkIdAllocator idAllocator = _networkEnabled && ddsAllocator != null
+            ? ddsAllocator
+            : new IgSequentialIdAllocator();
+        var spawningSystem = new NetworkSpawningSystem(
+            tkb, elm, _entityMap, idAllocator,
+            IgNetworkConstants.LocalNodeId);
+        _kernel.RegisterModule(new SpawningModule(spawningSystem));
+
+        // E. StyleResolutionModule — writes ResolvedStyle each Simulation tick
+        _kernel.RegisterModule(new StyleResolutionModule(_userConfig));
+
+        // F. MapCullingModule — writes CullingState each PostSimulation tick
+        _kernel.RegisterModule(new MapCullingModule(_cameraViewport));
+
+        // G. HistoryTrailModule — records entity position trails (IG.4.1)
+        _kernel.RegisterModule(new HistoryTrailModule());
+
+        // H. EventEffectModule — spawns and cleans up visual effects (IG.4.2)
+        if (!_headless)
+            _kernel.RegisterModule(new EventEffectModule());
+
+        // C. CycloneNetworkModule — DDS ingress/egress (optional)
+        if (_networkEnabled && participant != null && ddsAllocator != null)
+        {
+            var networkModule = new CycloneNetworkModule(
+                participant, nodeMapper, ddsAllocator,
+                topology, elm,
+                customTranslators: customTranslators,
+                sharedEntityMap:   _entityMap);
+            _kernel.RegisterModule(networkModule);
         }
 
         // D. EntityRenderLayer wired to the StubVisualizerAdapter
@@ -637,6 +655,21 @@ public class IgApplication
     /// </summary>
     internal void TestHook_SimulateMapClick(Vector2 worldPos)
         => OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null);
+
+    /// <summary>
+    /// Internal test hook to submit a Mini IOS spawn request via the DDS gateway.
+    /// </summary>
+    internal void TestHook_SubmitMiniIosSpawn(long tkbType, ForceId affiliation, float positionX, float positionY)
+    {
+        if (_commandGateway == null)
+            throw new InvalidOperationException("Mini IOS gateway is not initialized.");
+
+        _miniIosState.TkbType = tkbType;
+        _miniIosState.Affiliation = affiliation;
+        _miniIosState.PositionX = positionX;
+        _miniIosState.PositionY = positionY;
+        _miniIosState.SubmitViaGateway(_commandGateway);
+    }
 
     /// <summary>
     /// Internal test hook to expose the latest interaction context ID.

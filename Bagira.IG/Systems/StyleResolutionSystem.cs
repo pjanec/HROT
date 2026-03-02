@@ -18,7 +18,7 @@ namespace Bagira.IG.Systems;
 /// Layer priority (highest overwrites lower):
 /// <list type="number">
 ///   <item>
-///     <b>Layer 1 — TKB default:</b> reads <see cref="IgVisualDef"/> applied to the entity
+///     <b>Layer 1 — TKB default:</b> reads <see cref="VisualData"/> applied to the entity
 ///     at spawn time; provides base texture, colour, and label values.
 ///   </item>
 ///   <item>
@@ -91,7 +91,7 @@ public class StyleResolutionSystem : IModuleSystem
 
     private ResolvedStyle BuildStyle(ISimulationView view, Entity entity)
     {
-        // ── Layer 1: TKB defaults (IgVisualDef applied at spawn) ─────────────
+        // ── Layer 1: TKB defaults (VisualData applied at spawn) ──────────────
         string textureName = string.Empty;
         byte   tintR       = ResolvedStyleConstants.UnknownTintR;
         byte   tintG       = ResolvedStyleConstants.UnknownTintG;
@@ -100,11 +100,14 @@ public class StyleResolutionSystem : IModuleSystem
         string labelText   = string.Empty;
         var    affiliation = ForceId.Unknown;
 
-        if (view.HasManagedComponent<IgVisualDef>(entity))
+        if (view.HasComponent<VisualData>(entity))
         {
-            var visual = view.GetManagedComponentRO<IgVisualDef>(entity);
+            ref readonly var visual = ref view.GetComponentRO<VisualData>(entity);
             textureName = visual.SymbolCode;
-            ParseColorHex(visual.ColorHex, out tintR, out tintG, out tintB, out tintA);
+
+            var colorHex = (string)visual.ColorHex;
+            if (!string.IsNullOrEmpty(colorHex))
+                ParseColorHex(colorHex, out tintR, out tintG, out tintB, out tintA);
             // Derive affiliation from TKB colour when no network override exists.
             // (Label stays empty at TKB layer; human-readable names come from EntityInfo.)
         }

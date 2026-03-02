@@ -89,7 +89,7 @@ namespace Bagira.Map.Common.Replication.Egress
                 {
                     var posLabel = string.Concat(latitude, ",", longitude);
                     FdpLog<GeoSpatialEgressTranslator>.Debug(
-                        "[TRACE] Egress: Writing GeoSpatial for NetID={0} pos=({1})", netId.Value, posLabel);
+                        "[TRACE-SH] Egress: Writing GeoSpatial for NetID={0} pos=({1})", netId.Value, posLabel);
                 }
 
                 if (view.HasComponent<GeoVelocity>(entity))

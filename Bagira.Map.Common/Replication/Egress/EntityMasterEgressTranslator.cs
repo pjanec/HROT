@@ -73,7 +73,7 @@ namespace Bagira.Map.Common.Replication.Egress
                 if (_tracedNetIds.Add(netId.Value))
                 {
                     FdpLog<EntityMasterEgressTranslator>.Debug(
-                        "[TRACE] Egress: Writing EntityMaster for NetID={0}", netId.Value);
+                        "[TRACE-SH] Egress: Writing EntityMaster for NetID={0}", netId.Value);
                 }
             }
         }

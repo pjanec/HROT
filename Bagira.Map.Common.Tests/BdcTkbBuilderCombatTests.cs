@@ -1,5 +1,6 @@
 using Bagira.Map.Common;
 using Bagira.Map.Definitions.Tkb;
+using CarKinem.Core;
 using Fdp.Kernel;
 using Fdp.Toolkit.Tkb;
 using FDP.Toolkit.Combat.Components;
@@ -80,8 +81,8 @@ namespace Bagira.Map.Common.Tests
             world.RegisterComponent<HealthData>();
             world.RegisterComponent<PhysicsCollider>();
             world.RegisterComponent<Faction>();
-            world.RegisterManagedComponent<IgVisualDef>();
-            world.RegisterManagedComponent<SimVehicleDef>();
+            world.RegisterComponent<VisualData>();
+            world.RegisterComponent<VehicleParams>();
             world.RegisterManagedComponent<SimCombatDef>();
 
             return world;

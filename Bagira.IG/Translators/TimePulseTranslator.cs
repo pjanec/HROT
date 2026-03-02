@@ -18,8 +18,8 @@ namespace Bagira.IG.Translators
     /// On ingress each sample is published directly to the event bus via
     /// <see cref="FdpEventBus.Publish{T}"/>.
     ///
-    /// IG is a ghost-only node — <see cref="ScanAndPublish"/> is a no-op (the Master
-    /// TimeController publishes its own pulses locally; slaves only consume).
+    /// IG does not publish time pulses — <see cref="ScanAndPublish"/> is a no-op (the Master
+    /// TimeController publishes its own pulses locally; other nodes only consume).
     /// </summary>
     public class TimePulseTranslator : IDescriptorTranslator
     {

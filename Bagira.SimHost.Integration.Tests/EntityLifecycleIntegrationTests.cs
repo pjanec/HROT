@@ -18,6 +18,7 @@ using ModuleHost.Core.Network.Interfaces;
 
 namespace Bagira.SimHost.Integration.Tests;
 
+[Collection("LogCapture")]
 public sealed class EntityLifecycleIntegrationTests : IDisposable
 {
     private const int DomainId = 10;
@@ -114,6 +115,18 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
     [Fact]
     public void DomainIsolation_Domain0Spawn_DoesNotAffectDomain10()
     {
+        // Settle loop: drain any transient-local DDS data left over from tests that ran
+        // earlier in the same LogCapture collection on the same DDS domain (10).
+        // Without this, the baseline could include stale entities published by previous tests.
+        const int SettleFrames = 30;
+        for (int i = 0; i < SettleFrames; i++)
+        {
+            _idAllocatorServer.ProcessRequests();
+            _simHost.Tick(Dt);
+            _ig.Update(Dt);
+            Thread.Sleep(TickSleepMs);
+        }
+
         int baselineCount = CountIgEntities(_ig.World);
 
         using var simHostDomain0 = new SimHostApp();

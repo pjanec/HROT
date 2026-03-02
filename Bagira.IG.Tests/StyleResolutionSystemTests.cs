@@ -41,7 +41,7 @@ public class StyleResolutionSystemTests
         repo.RegisterComponent<ResolvedStyle>();
 
         // Managed class components
-        repo.RegisterManagedComponent<IgVisualDef>();
+        repo.RegisterComponent<VisualData>();
         repo.RegisterManagedComponent<IgSymbolOverride>();
 
         return repo;
@@ -146,21 +146,21 @@ public class StyleResolutionSystemTests
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // IG.2.2 — StyleResolutionSystem — Layer 1 (TKB / IgVisualDef)
+    // IG.2.2 — StyleResolutionSystem — Layer 1 (TKB / VisualData)
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// When <c>IgVisualDef</c> is present the system must copy <c>SymbolCode</c>
+    /// When <c>VisualData</c> is present the system must copy <c>SymbolCode</c>
     /// into <see cref="ResolvedStyle.GetTextureName()"/>.
     /// </summary>
     [Fact]
-    public void StyleResolutionSystem_TkbLayer_SetsTextureFromIgVisualDef()
+    public void StyleResolutionSystem_TkbLayer_SetsTextureFromVisualData()
     {
         var repo   = CreateRepo();
         var system = new StyleResolutionSystem(new MapUserConfig());
 
         var entity = CreateBaseEntity(repo);
-        repo.SetManagedComponent(entity, new IgVisualDef { SymbolCode = TestSymbolCode });
+        repo.AddComponent(entity, new VisualData { SymbolCode = TestSymbolCode });
 
         RunSystem(repo, system);
 
@@ -169,7 +169,7 @@ public class StyleResolutionSystemTests
     }
 
     /// <summary>
-    /// When <c>IgVisualDef.ColorHex</c> is the friend-blue hex code the system
+    /// When <c>VisualData.ColorHex</c> is the friend-blue hex code the system
     /// must decode and store the correct RGBA tint channels.
     /// </summary>
     [Fact]
@@ -179,7 +179,7 @@ public class StyleResolutionSystemTests
         var system = new StyleResolutionSystem(new MapUserConfig());
 
         var entity = CreateBaseEntity(repo);
-        repo.SetManagedComponent(entity, new IgVisualDef { ColorHex = TestColorHexBlue });
+        repo.AddComponent(entity, new VisualData { ColorHex = TestColorHexBlue });
 
         RunSystem(repo, system);
 
@@ -192,22 +192,22 @@ public class StyleResolutionSystemTests
     }
 
     /// <summary>
-    /// When <c>IgVisualDef</c> is absent the system must still write a
+    /// When <c>VisualData</c> is absent the system must still write a
     /// <see cref="ResolvedStyle"/> with the default white tint (no exception, no skip).
     /// </summary>
     [Fact]
-    public void StyleResolutionSystem_MissingIgVisualDef_WritesDefaultStyle()
+    public void StyleResolutionSystem_MissingVisualData_WritesDefaultStyle()
     {
         var repo   = CreateRepo();
         var system = new StyleResolutionSystem(new MapUserConfig());
 
         var entity = CreateBaseEntity(repo);
-        // Do NOT set IgVisualDef
+        // Do NOT set VisualData
 
         RunSystem(repo, system);
 
         Assert.True(repo.HasComponent<ResolvedStyle>(entity),
-            "ResolvedStyle must be written even when IgVisualDef is absent");
+            "ResolvedStyle must be written even when VisualData is absent");
 
         var style = repo.GetComponent<ResolvedStyle>(entity);
         Assert.Equal(ResolvedStyleConstants.UnknownTintR, style.TintR);
@@ -278,7 +278,7 @@ public class StyleResolutionSystemTests
         var system = new StyleResolutionSystem(new MapUserConfig());
 
         var entity = CreateBaseEntity(repo);
-        repo.SetManagedComponent(entity, new IgVisualDef { SymbolCode = TestSymbolCode });
+        repo.AddComponent(entity, new VisualData { SymbolCode = TestSymbolCode });
         repo.SetManagedComponent(entity, new IgSymbolOverride { TextureOverride = TestTextureOvr });
 
         RunSystem(repo, system);

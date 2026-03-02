@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CarKinem.Core;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
@@ -40,12 +41,14 @@ namespace Bagira.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
             
-            // Override: factory provides fresh instance
-            template.AddManagedComponent(() => 
+            var visualDef = new IgVisualDef();
+            configure(visualDef);
+
+            template.AddComponent(new VisualData
             {
-                var visualDef = new IgVisualDef();
-                configure(visualDef);
-                return visualDef;
+                SymbolCode = visualDef.SymbolCode ?? string.Empty,
+                ModelPath = visualDef.ModelPath ?? string.Empty,
+                ColorHex = visualDef.ColorHex ?? string.Empty
             });
             return this;
         }
@@ -59,12 +62,10 @@ namespace Bagira.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
             
-            template.AddManagedComponent(() => 
-            {
-                var physicsDef = new SimVehicleDef();
-                configure(physicsDef);
-                return physicsDef;
-            });
+            var physicsDef = new SimVehicleDef();
+            configure(physicsDef);
+
+            template.AddComponent(BuildVehicleParams(physicsDef));
             return this;
         }
         
@@ -154,6 +155,38 @@ namespace Bagira.Map.Definitions.Tkb
                 return compositionDef;
             });
             return this;
+        }
+
+        private static VehicleParams BuildVehicleParams(SimVehicleDef def)
+        {
+            var vehicleClass = def.Mobility switch
+            {
+                TerrainMobility.Tracked => VehicleClass.Tank,
+                TerrainMobility.Wheeled => VehicleClass.Truck,
+                TerrainMobility.Infantry => VehicleClass.Pedestrian,
+                TerrainMobility.Air => VehicleClass.PersonalCar,
+                TerrainMobility.Naval => VehicleClass.PersonalCar,
+                _ => VehicleClass.PersonalCar
+            };
+
+            var preset = VehiclePresets.GetPreset(vehicleClass);
+            preset.Class = vehicleClass;
+
+            if (def.Length > 0f)
+            {
+                preset.Length = def.Length;
+                preset.WheelBase = def.Length * 0.6f;
+            }
+            if (def.Width > 0f)
+                preset.Width = def.Width;
+            if (def.MaxSpeed > 0f)
+                preset.MaxSpeedFwd = def.MaxSpeed;
+            if (def.Acceleration > 0f)
+                preset.MaxAccel = def.Acceleration;
+            if (def.TurnRate > 0f)
+                preset.MaxSteerRate = def.TurnRate * (MathF.PI / 180f);
+
+            return preset;
         }
     }
 }

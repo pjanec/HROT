@@ -45,7 +45,7 @@ public class IgSymbolOverride
 
     /// <summary>
     /// Optional texture/symbol-code override.
-    /// Overrides <c>IgVisualDef.SymbolCode</c> when non-null and non-empty.
+    /// Overrides <c>VisualData.SymbolCode</c> when non-null and non-empty.
     /// </summary>
     public string? TextureOverride { get; set; }
 

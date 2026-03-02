@@ -57,9 +57,9 @@ public class LayerRenderingIntegrationTests
         repo.RegisterComponent<SimTransform>();
         repo.RegisterComponent<ResolvedStyle>();
         repo.RegisterComponent<CullingState>();
+        repo.RegisterComponent<VisualData>();
 
         // Managed components
-        repo.RegisterManagedComponent<IgVisualDef>();
         repo.RegisterManagedComponent<IgSymbolOverride>();
 
         return repo;

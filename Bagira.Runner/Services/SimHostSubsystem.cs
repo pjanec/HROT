@@ -85,6 +85,7 @@ namespace Bagira.Runner.Services
         private ModuleHostKernel?       _kernel;
         private SystemGroup?            _kernelGroup;
         private DdsIdAllocator?         _idAllocator;
+        private DdsIdAllocatorServer?   _idAllocatorServer;
         private FdpEventBus?            _eventBus;
         private NetworkEntityMap?       _entityMap;
         private IGeographicTransform?   _geoTransform;
@@ -219,6 +220,7 @@ namespace Bagira.Runner.Services
             var entityMap      = new NetworkEntityMap();
             _entityMap = entityMap;
             _idAllocator       = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
+            _idAllocatorServer = new DdsIdAllocatorServer(ddsParticipant);
 
             // ── 3. Geodetic configuration ─────────────────────────────────────
             var wgs84 = new WGS84Transform();
@@ -328,6 +330,7 @@ namespace Bagira.Runner.Services
         public void Update(float deltaTime)
         {
             if (!_initialized) return;
+            _idAllocatorServer?.ProcessRequests();
             _vis?.Update(deltaTime);
             _kernel!.Update();
             _kernelGroup!.Run();
@@ -352,6 +355,8 @@ namespace Bagira.Runner.Services
             Stop();
             _vis?.Dispose();
             _vis = null;
+            _idAllocatorServer?.Dispose();
+            _idAllocatorServer = null;
             _idAllocator?.Dispose();
             _kernelGroup?.Dispose();
             _initialized = false;
@@ -430,6 +435,7 @@ namespace Bagira.Runner.Services
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<Health>();
             world.RegisterComponent<HealthData>();
+            world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<Faction>();
             world.RegisterComponent<PhysicsCollider>();
 
@@ -440,10 +446,9 @@ namespace Bagira.Runner.Services
             world.RegisterComponent<CarKinem.Formation.FormationMember>();
             world.RegisterComponent<CarKinem.Formation.FormationRoster>();
             world.RegisterComponent<CarKinem.Formation.FormationTarget>();
+            world.RegisterComponent<VisualData>();
 
             // Managed
-            world.RegisterManagedComponent<IgVisualDef>();
-            world.RegisterManagedComponent<SimVehicleDef>();
             world.RegisterManagedComponent<SimCombatDef>();
             world.RegisterManagedComponent<TkbCompositionDef>();
             world.RegisterManagedComponent<EntityMissionHolder>();

@@ -9,7 +9,7 @@ namespace Bagira.IG.Components;
 ///
 /// Written each simulation frame by <c>StyleResolutionSystem</c> from a 3-layer merge:
 /// <list type="number">
-///   <item>Layer 1 — TKB default: <c>IgVisualDef</c> managed component applied at spawn.</item>
+///   <item>Layer 1 — TKB default: <c>VisualData</c> component applied at spawn.</item>
 ///   <item>Layer 2 — Network override: <c>IgSymbolOverride</c> pushed by the IOS map layer.</item>
 ///   <item>Layer 3 — User config: <c>MapUserConfig</c> operator settings (highest priority).</item>
 /// </list>
