@@ -2,59 +2,38 @@ using System;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
+using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
 {
-    public class GhostCreationSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.BeforeSync)]
+    public class GhostCreationSystem : IModuleSystem
     {
-        private NetworkEntityMap? _entityMap;
-        
-        protected override void OnCreate()
+        private readonly NetworkEntityMap _entityMap;
+
+        public GhostCreationSystem(NetworkEntityMap entityMap)
         {
-            if (World.HasSingletonManaged<NetworkEntityMap>())
-            {
-                _entityMap = World.GetSingletonManaged<NetworkEntityMap>();
-            }
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
-        protected override void OnUpdate()
-        {
-            // Re-check for singleton if missing
-            if (_entityMap == null && World.HasSingletonManaged<NetworkEntityMap>())
-            {
-                _entityMap = World.GetSingletonManaged<NetworkEntityMap>();
-            }
-        }
-        
+        // No-op: system is registered for pipeline consistency.
+        public void Execute(ISimulationView view, float dt) { }
+
         /// <summary>
-        /// Creates a new ghost entity for the given network ID.
+        /// Creates a ghost shell entity for the given network ID.
+        /// Called by ingress translators on the Input phase main thread.
+        /// The caller must supply a live <see cref="EntityRepository"/> from their view.
+        /// Sets EntityLifecycle.Ghost so GhostPromotionSystem can query by lifecycle state.
         /// </summary>
-        public Entity CreateGhost(long networkId)
+        public Entity CreateGhost(EntityRepository repo, long networkId)
         {
-             if (_entityMap == null)
-                throw new InvalidOperationException("NetworkEntityMap not found registered in World singletons.");
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkIdentity(networkId));
 
-            // 1. Allocate Entity
-            Entity entity = World.CreateEntity();
-            
-            // 2. Add NetworkIdentity
-            World.AddComponent(entity, new NetworkIdentity(networkId));
-            
-            // 3. Add BinaryGhostStore
-            uint currentFrame = 0;
-            if (World.HasSingletonUnmanaged<GlobalTime>())
-            {
-                currentFrame = (uint)World.GetSingletonUnmanaged<GlobalTime>().FrameNumber;
-            }
+            repo.SetLifecycleState(entity, EntityLifecycle.Ghost);
 
-            World.AddComponent(entity, new BinaryGhostStore 
-            { 
-                FirstSeenFrame = currentFrame
-            });
-            
-            // 4. Register
             _entityMap.Register(networkId, entity);
-            
+
             return entity;
         }
     }

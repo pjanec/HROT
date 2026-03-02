@@ -39,7 +39,7 @@ namespace ModuleHost.Network.Cyclone.Translators
              Writer = new DdsWriter<TDds>(participant);
         }
 
-        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
+        public virtual void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
              using var loan = Reader.Take();
              foreach(var sample in loan)

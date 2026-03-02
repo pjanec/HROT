@@ -2,18 +2,15 @@ using Xunit;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Components;
-using System.Reflection;
 
 namespace FDP.Toolkit.Replication.Tests
 {
     public class SmartEgressTests
     {
-        private void SetWorld(ComponentSystem system, EntityRepository world)
+        private void InitializeSystem(SmartEgressSystem system, EntityRepository world)
         {
             world.RegisterManagedComponent<EgressPublicationState>();
-            typeof(ComponentSystem)
-                .GetProperty("World", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
-                .SetValue(system, world);
+            system.Execute(world, 0f); // sets internal _world field
         }
 
         [Fact]
@@ -21,7 +18,7 @@ namespace FDP.Toolkit.Replication.Tests
         {
             var system = new SmartEgressSystem();
             var world = new EntityRepository();
-            SetWorld(system, world);
+            InitializeSystem(system, world);
             
             var entity = world.CreateEntity();
             
@@ -35,7 +32,7 @@ namespace FDP.Toolkit.Replication.Tests
         {
             var system = new SmartEgressSystem();
             var world = new EntityRepository();
-            SetWorld(system, world);
+            InitializeSystem(system, world);
             
             var entity = world.CreateEntity(); 
             long id = entity.Index;
@@ -60,7 +57,7 @@ namespace FDP.Toolkit.Replication.Tests
         {
             var system = new SmartEgressSystem();
             var world = new EntityRepository();
-            SetWorld(system, world);
+            InitializeSystem(system, world);
             
             var entity = world.CreateEntity();
             long key = 999;

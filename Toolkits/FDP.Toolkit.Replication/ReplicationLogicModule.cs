@@ -1,7 +1,8 @@
-using System.Collections.Generic;
 using FDP.Toolkit.Replication.Systems;
+using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using Fdp.Kernel;
+using Fdp.Interfaces;
 using System;
 
 namespace FDP.Toolkit.Replication
@@ -11,36 +12,34 @@ namespace FDP.Toolkit.Replication
         public string Name => "ReplicationLogic";
         // Runs every frame on main thread
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
-        
-        // No constructor args needed - systems are wrappers
+
+        private readonly NetworkEntityMap _entityMap;
+        private readonly ITkbDatabase _tkbDatabase;
+        private readonly GhostCreationSystem _ghostCreationSystem;
+
+        public GhostCreationSystem GhostCreationSystem => _ghostCreationSystem;
+
+        public ReplicationLogicModule(
+            NetworkEntityMap entityMap,
+            ITkbDatabase tkbDatabase)
+        {
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
+            _ghostCreationSystem = new GhostCreationSystem(_entityMap);
+        }
+
         public void RegisterSystems(ISystemRegistry registry)
         {
-            registry.RegisterSystem(new SimWrapper<GhostCreationSystem>());
-            registry.RegisterSystem(new SimWrapper<GhostPromotionSystem>());
-            registry.RegisterSystem(new SimWrapper<OwnershipIngressSystem>());
-            registry.RegisterSystem(new SimWrapper<OwnershipEgressSystem>());
-            registry.RegisterSystem(new SimWrapper<SmartEgressSystem>());
-            registry.RegisterSystem(new SimWrapper<SubEntityCleanupSystem>());
+            registry.RegisterSystem(new OwnershipIngressSystem(_entityMap));
+            registry.RegisterSystem(_ghostCreationSystem);
+            registry.RegisterSystem(new GhostPromotionSystem(_tkbDatabase));
+            registry.RegisterSystem(new SubEntityCleanupSystem());
+            registry.RegisterSystem(new DisposalMonitoringSystem(_entityMap));
+            registry.RegisterSystem(new OwnershipEgressSystem());
+            registry.RegisterSystem(new SmartEgressSystem());
         }
 
         public void Tick(ISimulationView view, float dt) { }
 
-        // Wrapper to bridge legacy ComponentSystem to IModuleSystem for Simulation Phase
-        [UpdateInPhase(SystemPhase.Simulation)]
-        private class SimWrapper<T> : IModuleSystem where T : ComponentSystem, new()
-        {
-            private readonly T _sys = new T();
-            private bool _init;
-            
-            public void Execute(ISimulationView view, float dt)
-            {
-                if (!_init)
-                {
-                    _sys.Create((EntityRepository)view);
-                    _init = true;
-                }
-                _sys.Run();
-            }
-        }
     }
 }

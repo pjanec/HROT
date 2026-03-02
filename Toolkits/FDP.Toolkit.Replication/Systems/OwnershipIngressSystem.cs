@@ -8,64 +8,53 @@ using FDP.Toolkit.Replication.Services;
 
 namespace FDP.Toolkit.Replication.Systems
 {
-    public class OwnershipIngressSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Input)]
+    public class OwnershipIngressSystem : IModuleSystem
     {
-        private NetworkEntityMap? _entityMap;
-        private INetworkTopology? _topology;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly INetworkTopology? _topology;
 
-        protected override void OnUpdate()
+        public OwnershipIngressSystem(NetworkEntityMap entityMap, INetworkTopology? topology = null)
         {
-            if (_entityMap == null && World.HasSingletonManaged<NetworkEntityMap>())
-                _entityMap = World.GetSingletonManaged<NetworkEntityMap>();
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _topology = topology;
+        }
 
-            if (_topology == null && World.HasSingletonManaged<INetworkTopology>())
-                _topology = World.GetSingletonManaged<INetworkTopology>();
+        public void Execute(ISimulationView view, float dt)
+        {
+            if (view is not EntityRepository repo) return;
 
-            if (_entityMap == null) return;
-            
             int localNodeId = _topology?.LocalNodeId ?? 0;
 
             // Consume events (destructive read)
-            var updates = ((ISimulationView)World).ConsumeEvents<OwnershipUpdate>();
-            
+            var updates = view.ConsumeEvents<OwnershipUpdate>();
             foreach (var update in updates)
             {
                 if (!_entityMap.TryGetEntity(update.NetworkId.Value, out Entity entity))
-                {
                     continue;
-                }
 
-                if (!World.IsAlive(entity)) continue;
+                if (!repo.IsAlive(entity)) continue;
 
                 DescriptorOwnership ownership;
-                // Use GetComponent for managed types too via shim if GetManagedComponent is missing
-                if (World.HasManagedComponent<DescriptorOwnership>(entity))
-                {
-                    ownership = World.GetComponent<DescriptorOwnership>(entity);
-                }
+                if (repo.HasManagedComponent<DescriptorOwnership>(entity))
+                    ownership = repo.GetComponent<DescriptorOwnership>(entity);
                 else
                 {
                     ownership = new DescriptorOwnership();
-                    World.SetManagedComponent(entity, ownership);
+                    repo.SetManagedComponent(entity, ownership);
                 }
 
                 ownership.Map[update.PackedKey] = update.NewOwnerNodeId;
 
                 var (typeId, _) = ModuleHost.Core.Network.OwnershipExtensions.UnpackKey(update.PackedKey);
-                bool isAuth = (localNodeId != 0 && update.NewOwnerNodeId == localNodeId);
-                
-                try 
-                {
-                   World.SetAuthority(entity, (int)typeId, isAuth);
-                } 
-                catch (Exception) 
-                { 
-                    // Component might not be present or TypeID invalid for mask
-                }
+                bool isAuth = localNodeId != 0 && update.NewOwnerNodeId == localNodeId;
 
-                if (localNodeId != 0 && update.NewOwnerNodeId == localNodeId)
+                try { repo.SetAuthority(entity, (int)typeId, isAuth); }
+                catch (Exception) { }
+
+                if (isAuth)
                 {
-                    World.Bus.Publish(new FDP.Toolkit.Replication.Messages.DescriptorAuthorityChanged
+                    repo.Bus.Publish(new FDP.Toolkit.Replication.Messages.DescriptorAuthorityChanged
                     {
                         Entity = entity,
                         PackedKey = update.PackedKey,

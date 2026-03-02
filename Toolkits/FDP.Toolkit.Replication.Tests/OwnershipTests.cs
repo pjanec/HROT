@@ -32,21 +32,17 @@ namespace FDP.Toolkit.Replication.Tests
             using var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterManagedComponent<DescriptorOwnership>();
-            
-            var sys = new OwnershipIngressSystem();
-            sys.Create(repo);
-            
+            repo.RegisterEvent<OwnershipUpdate>();
+
             var map = new NetworkEntityMap();
-            repo.SetSingletonManaged(map);
-            
             var topo = new MockNetworkTopology { LocalNodeId = 1 };
-            repo.SetSingletonManaged<INetworkTopology>(topo);
-            
+            var sys = new OwnershipIngressSystem(map, topo);
+
             var entity = repo.CreateEntity();
             long netId = 999;
             repo.AddComponent(entity, new NetworkIdentity(netId));
             map.Register(netId, entity);
-            
+
             var msg = new OwnershipUpdate
             {
                 NetworkId = new NetworkIdentity(netId),
@@ -55,11 +51,11 @@ namespace FDP.Toolkit.Replication.Tests
             };
             repo.Bus.Publish(msg);
             repo.Bus.SwapBuffers();
-            
-            sys.Run();
-            
+
+            sys.Execute(repo, 0f);
+
             Assert.True(repo.HasManagedComponent<DescriptorOwnership>(entity));
-            var ownership = repo.GetComponent<DescriptorOwnership>(entity); 
+            var ownership = repo.GetComponent<DescriptorOwnership>(entity);
             Assert.True(ownership.Map.ContainsKey(msg.PackedKey));
             Assert.Equal(5, ownership.Map[msg.PackedKey]);
         }
@@ -70,37 +66,34 @@ namespace FDP.Toolkit.Replication.Tests
             using var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterManagedComponent<DescriptorOwnership>();
+            repo.RegisterEvent<OwnershipUpdate>();
+            repo.RegisterEvent<DescriptorAuthorityChanged>();
 
-            var sys = new OwnershipIngressSystem();
-            sys.Create(repo);
-            
             var map = new NetworkEntityMap();
-            repo.SetSingletonManaged(map);
-            
             var topo = new MockNetworkTopology { LocalNodeId = 10 };
-            repo.SetSingletonManaged<INetworkTopology>(topo);
-            
+            var sys = new OwnershipIngressSystem(map, topo);
+
             var entity = repo.CreateEntity();
             long netId = 888;
             repo.AddComponent(entity, new NetworkIdentity(netId));
             map.Register(netId, entity);
-            
+
             var msg = new OwnershipUpdate
             {
                 NetworkId = new NetworkIdentity(netId),
                 PackedKey = PackedKey.Create(2, 0),
-                NewOwnerNodeId = 10 
+                NewOwnerNodeId = 10
             };
             repo.Bus.Publish(msg);
             repo.Bus.SwapBuffers();
-            
-            sys.Run();
-            
+
+            sys.Execute(repo, 0f);
+
             repo.Bus.SwapBuffers(); // Make generated event visible
 
             var events = ((ISimulationView)repo).ConsumeEvents<DescriptorAuthorityChanged>();
             bool found = false;
-            foreach(var e in events) 
+            foreach (var e in events)
             {
                 if (e.Entity == entity && e.PackedKey == msg.PackedKey && e.IsAuthoritative)
                     found = true;
@@ -114,40 +107,37 @@ namespace FDP.Toolkit.Replication.Tests
             using var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterManagedComponent<DescriptorOwnership>();
-            
+            repo.RegisterEvent<OwnershipUpdate>();
+
             var sys = new OwnershipEgressSystem();
-            
-            // Call InternalCreate via reflection to initialize system properly
-            typeof(ComponentSystem).GetMethod("InternalCreate", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-                .Invoke(sys, new object[] { repo });
-            
+
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(1));
-            
+
             // Initial Set
             var own = new DescriptorOwnership();
             own.SetOwner(100, 5); // Key 100, Owner 5
             repo.SetManagedComponent(entity, own);
-            
-            // Run system - First run detects everything as "new" relative to empty cache
-            sys.Run();
+
+            // First Execute - detects everything as "new" relative to empty cache
+            sys.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
-            
+
             var events = ((ISimulationView)repo).ConsumeEvents<OwnershipUpdate>();
             Assert.Equal(1, events.Length);
             Assert.Equal(100, events[0].PackedKey);
             Assert.Equal(5, events[0].NewOwnerNodeId);
-            
-            // Run again - No change
-            sys.Run();
+
+            // Execute again - No change
+            sys.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
             Assert.Equal(0, ((ISimulationView)repo).ConsumeEvents<OwnershipUpdate>().Length);
-            
-            // Update
+
+            // Update ownership and verify change is published
             own.SetOwner(100, 6);
-            sys.Run();
+            sys.Execute(repo, 0f);
             repo.Bus.SwapBuffers();
-            
+
             events = ((ISimulationView)repo).ConsumeEvents<OwnershipUpdate>();
             Assert.Equal(1, events.Length);
             Assert.Equal(6, events[0].NewOwnerNodeId);

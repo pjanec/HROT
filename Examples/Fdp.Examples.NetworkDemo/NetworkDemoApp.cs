@@ -40,26 +40,6 @@ using FDP.Kernel.Logging;
 
 namespace Fdp.Examples.NetworkDemo
 {
-    public class SerializationRegistry : ISerializationRegistry
-    {
-        private readonly Dictionary<long, ISerializationProvider> _providers = new();
-
-        public void Register(long descriptorOrdinal, ISerializationProvider provider)
-        {
-            _providers[descriptorOrdinal] = provider;
-        }
-
-        public ISerializationProvider Get(long descriptorOrdinal)
-        {
-            return _providers[descriptorOrdinal];
-        }
-
-        public bool TryGet(long descriptorOrdinal, out ISerializationProvider? provider)
-        {
-            return _providers.TryGetValue(descriptorOrdinal, out provider);
-        }
-    }
-
     [UpdateInPhase(SystemPhase.PostSimulation)]
     public class ComponentSystemWrapper : IModuleSystem
     {
@@ -155,28 +135,8 @@ namespace Fdp.Examples.NetworkDemo
             // Configuration
             TankTemplate.Register(tkb);
             
-            var serializationRegistry = new SerializationRegistry();
-            World.SetSingletonManaged<ISerializationRegistry>(serializationRegistry);
-            
             // var setup = new DemoTkbSetup();
             // setup.Load(tkb); // CONFLICT: Type 100 already registered by TankTemplate
-
-            serializationRegistry.Register(DemoDescriptors.Physics, new CycloneSerializationProvider<NetworkPosition>());
-            serializationRegistry.Register(DemoDescriptors.SquadChat, new ManagedSerializationProvider<SquadChat>());
-            serializationRegistry.Register(DemoDescriptors.Master, new CycloneSerializationProvider<NetworkVelocity>());
-
-            // Time Sync Events
-            serializationRegistry.Register(100, new CycloneSerializationProvider<FDP.Toolkit.Time.Messages.TimePulseDescriptor>());
-            serializationRegistry.Register(101, new CycloneSerializationProvider<FDP.Toolkit.Time.Messages.FrameOrderDescriptor>());
-            serializationRegistry.Register(102, new CycloneSerializationProvider<FDP.Toolkit.Time.Messages.FrameAckDescriptor>());
-            serializationRegistry.Register(103, new CycloneSerializationProvider<FDP.Toolkit.Time.Messages.SwitchTimeModeEvent>());
-
-            // Always register managed providers (for recording/replay)
-            var discoveredProviders = ModuleHost.Network.Cyclone.ReplicationBootstrap.DiscoverProviders(typeof(NetworkDemoApp).Assembly);
-            foreach (var (pOrdinal, pInstance) in discoveredProviders)
-            {
-                serializationRegistry.Register(pOrdinal, pInstance);
-            }
 
             // --- 3. Modules Registration ---
 
@@ -195,7 +155,7 @@ namespace Fdp.Examples.NetworkDemo
 
             if (!isReplay)
             {
-                Kernel.RegisterModule(new ReplicationLogicModule());
+                Kernel.RegisterModule(new ReplicationLogicModule(EntityMap, tkb));
             }
 
             // Register NetworkSpawningSystem from FDP.Toolkit.NetworkSpawning.
@@ -230,10 +190,10 @@ namespace Fdp.Examples.NetworkDemo
                 allTranslators.AddRange(autoTranslators);
 
                 var networkModule = new CycloneNetworkModule(
-                    participant, nodeMapper, idAllocator, topology, elm, serializationRegistry,
-                    allTranslators,
-                    EntityMap,
-                    testMode ? 30 : -1  // Use 30 frame timeout in testMode instead of 300
+                    participant, nodeMapper, idAllocator, topology, elm,
+                    customTranslators: allTranslators,
+                    sharedEntityMap: EntityMap,
+                    reliableInitTimeoutFrames: testMode ? 30 : -1  // Use 30 frame timeout in testMode instead of 300
                 );
                 Kernel.RegisterModule(networkModule);
             }

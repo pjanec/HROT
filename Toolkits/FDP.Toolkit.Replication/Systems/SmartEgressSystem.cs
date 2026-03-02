@@ -1,16 +1,21 @@
+using System;
+using System.Collections.Generic;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
-using System.Collections.Generic;
-using System;
+using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
 {
-    public class SmartEgressSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Export)]
+    public class SmartEgressSystem : IModuleSystem
     {
         private const uint REFRESH_INTERVAL = 600;  // Refresh every 10 seconds at 60Hz
-        
-        protected override void OnUpdate()
+
+        private EntityRepository? _world;
+
+        public void Execute(ISimulationView view, float dt)
         {
+            _world = view as EntityRepository;
             // Logic is demand-driven by AutoTranslator
         }
 
@@ -47,7 +52,8 @@ namespace FDP.Toolkit.Replication.Systems
             if (chunkVersion == lastChunkPublished && !isUnreliable)
                 return false;  // No changes in this chunk since last publish
             
-            var repo = World;
+            var repo = _world;
+            if (repo == null) return false;
             
             // Note: Authority check should ideally be done by caller or here if we had the method.
             // Assuming HasAuthority is an extension method or available on repo/system.
@@ -113,17 +119,19 @@ namespace FDP.Toolkit.Replication.Systems
         
         public void MarkDirty(Entity entity, long packedDescriptorKey)
         {
-             if (World.HasManagedComponent<EgressPublicationState>(entity))
-             {
-                 var pubState = World.GetComponent<EgressPublicationState>(entity);
-                 pubState.DirtyDescriptors.Add(packedDescriptorKey);
-             }
-             else
-             {
-                 var pubState = new EgressPublicationState();
-                 pubState.DirtyDescriptors.Add(packedDescriptorKey);
-                 World.SetManagedComponent(entity, pubState);
-             }
+            if (_world == null) return;
+
+            if (_world.HasManagedComponent<EgressPublicationState>(entity))
+            {
+                var pubState = _world.GetComponent<EgressPublicationState>(entity);
+                pubState.DirtyDescriptors.Add(packedDescriptorKey);
+            }
+            else
+            {
+                var pubState = new EgressPublicationState();
+                pubState.DirtyDescriptors.Add(packedDescriptorKey);
+                _world.SetManagedComponent(entity, pubState);
+            }
         }
     }
 }

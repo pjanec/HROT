@@ -6,7 +6,8 @@ using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
 {
-    public class OwnershipEgressSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.Export)]
+    public class OwnershipEgressSystem : IModuleSystem
     {
         // Cache to track changes: Entity -> (PackedKey -> OwnerNodeId)
         private readonly Dictionary<Entity, Dictionary<long, int>> _lastKnownOwnership = new();
@@ -14,9 +15,9 @@ namespace FDP.Toolkit.Replication.Systems
         // Used for cleanup
         private readonly List<Entity> _deadEntities = new();
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float dt)
         {
-            var repo = World;
+            if (view is not EntityRepository repo) return;
             
             // 1. Process active entities with DescriptorOwnership
             var query = repo.Query().WithManaged<DescriptorOwnership>().With<NetworkIdentity>().Build();

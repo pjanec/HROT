@@ -4,204 +4,90 @@ using System.Diagnostics;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using FDP.Toolkit.Replication.Components;
-using FDP.Kernel.Logging;
 using FDP.Toolkit.Lifecycle.Events;
+using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
 {
-    public class GhostPromotionSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.BeforeSync)]
+    public class GhostPromotionSystem : IModuleSystem
     {
-        private ITkbDatabase? _tkbDatabase;
-        private ISerializationRegistry? _serializationRegistry;
-        
-        private readonly Queue<Entity> _promotionQueue = new Queue<Entity>();
-        private readonly HashSet<Entity> _inQueue = new HashSet<Entity>();
-        private readonly Stopwatch _stopwatch = new Stopwatch();
-        
-        // 2ms budget per frame (ticks = 0.002 * Frequency)
-        private static readonly long PROMOTION_BUDGET_TICKS = (long)(0.002 * Stopwatch.Frequency);
+        private readonly ITkbDatabase _tkbDatabase;
 
-        protected override void OnCreate()
+        private readonly Queue<Entity> _promotionQueue = new();
+        private readonly HashSet<Entity> _inQueue = new();
+        private readonly Stopwatch _stopwatch = new();
+        private static readonly long PROMOTION_BUDGET_TICKS =
+            (long)(0.002 * Stopwatch.Frequency);
+
+        private EntityRepository? _world;
+        private EntityQuery? _readyGhostQuery;
+
+        public GhostPromotionSystem(ITkbDatabase tkbDatabase)
         {
+            _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
         }
 
-        protected override void OnUpdate()
+        public void Execute(ISimulationView view, float dt)
         {
-            if (_tkbDatabase == null && World.HasSingletonManaged<ITkbDatabase>())
-            {
-                _tkbDatabase = World.GetSingletonManaged<ITkbDatabase>();
-            }
-            if (_serializationRegistry == null && World.HasSingletonManaged<ISerializationRegistry>())
-            {
-                _serializationRegistry = World.GetSingletonManaged<ISerializationRegistry>();
-            }
-            
-            if (_tkbDatabase == null || _serializationRegistry == null) return;
+            _world = view as EntityRepository;
+            if (_world == null) return;
 
-            if (!World.HasSingletonUnmanaged<GlobalTime>()) return;
-            var globalTime = World.GetSingletonUnmanaged<GlobalTime>();
-            uint currentFrame = (uint)globalTime.FrameNumber;
+            EnsureQueriesInitialized(_world);
 
-            // Step 1: Enqueue ready ghosts
-            EnqueueReadyGhosts(currentFrame);
+            EnqueueReadyGhosts();
 
-            // Step 2: Process Queue with Budget
             if (_promotionQueue.Count == 0) return;
 
             _stopwatch.Restart();
-
             while (_promotionQueue.Count > 0)
             {
-                // Check budget
-                if (_stopwatch.ElapsedTicks > PROMOTION_BUDGET_TICKS)
-                {
-                     break;
-                }
+                if (_stopwatch.ElapsedTicks > PROMOTION_BUDGET_TICKS) break;
 
-                Entity entity = _promotionQueue.Dequeue();
+                var entity = _promotionQueue.Dequeue();
                 _inQueue.Remove(entity);
 
-                if (!World.IsAlive(entity)) continue;
-                
-                // Rely on component presence instead of GetLifecycleState
-                if (!World.HasComponent<NetworkSpawnRequest>(entity) || !World.HasComponent<BinaryGhostStore>(entity)) continue;
+                if (!_world.IsAlive(entity)) continue;
+                if (!_world.HasComponent<NetworkSpawnRequest>(entity)) continue;
 
                 PromoteGhost(entity);
             }
-            
             _stopwatch.Stop();
         }
 
-        private void EnqueueReadyGhosts(uint currentFrame)
+        private void EnqueueReadyGhosts()
         {
-            // Query for ghosts that have NetworkSpawnRequest (Identified)
-            var query = World.Query()
-                .With<NetworkSpawnRequest>()
-                .WithManaged<BinaryGhostStore>()
-                .Build();
-
-            foreach (var entity in query)
+            foreach (var entity in _readyGhostQuery!)
             {
                 if (_inQueue.Contains(entity)) continue;
 
-                var spawnReq = World.GetComponent<NetworkSpawnRequest>(entity)!;
-                var store = World.GetComponent<BinaryGhostStore>(entity);
-                
-                if (store == null) continue;
-
-                if (store.IdentifiedAtFrame == 0)
-                {
-                    store.IdentifiedAtFrame = currentFrame;
-                }
-
-                if (!_tkbDatabase!.TryGetByType(spawnReq.TkbType, out var template))
-                {
-                    continue; 
-                }
-
-                if (template!.AreAllRequirementsMet(store.StashedData.Keys, currentFrame, store.IdentifiedAtFrame))
-                {
-                    _promotionQueue.Enqueue(entity);
-                    _inQueue.Add(entity);
-                }
+                _promotionQueue.Enqueue(entity);
+                _inQueue.Add(entity);
             }
         }
 
         private void PromoteGhost(Entity entity)
         {
-            var spawnReq = World.GetComponent<NetworkSpawnRequest>(entity)!;
-            var store = World.GetComponent<BinaryGhostStore>(entity)!;
-            var template = _tkbDatabase.GetByType(spawnReq.TkbType)!;
+            var spawnReq = _world!.GetComponent<NetworkSpawnRequest>(entity);
+            var template = _tkbDatabase.GetTemplate(spawnReq.TkbType);
+            if (template == null) return;
 
-            template.ApplyTo(World, entity, preserveExisting: false);
+            template.ApplyTo(_world!, entity, preserveExisting: true);
 
-            // Step 3: Spawn child blueprints (sub-entities)
-            if (template.ChildBlueprints.Count > 0)
-            {
-                ChildMap childMap;
-                if (World.HasComponent<ChildMap>(entity))
-                {
-                    childMap = World.GetComponent<ChildMap>(entity);
-                }
-                else
-                {
-                    childMap = new ChildMap();
-                    World.SetComponent(entity, childMap);
-                }
+            _world!.SetLifecycleState(entity, EntityLifecycle.Constructing);
+            _world!.RemoveComponent<NetworkSpawnRequest>(entity);
 
-                foreach (var childDef in template.ChildBlueprints)
-                {
-                    var childEntity = World.CreateEntity();
-                    World.SetLifecycleState(childEntity, EntityLifecycle.Constructing);
-                    
-                    // Link to parent
-                    World.AddComponent(childEntity, new PartMetadata
-                    {
-                        ParentEntity = entity,
-                        InstanceId = childDef.InstanceId
-                    });
-                    
-                    // Apply child blueprint
-                    if (_tkbDatabase.TryGetByType(childDef.ChildTkbType, out var childTemplate))
-                    {
-                        childTemplate.ApplyTo(World, childEntity, preserveExisting: false);
-                    }
-                    else
-                    {
-                         FdpLog<GhostPromotionSystem>.Warn(
-                             "[GhostPromotion] Missing child template {0}",
-                             childDef.ChildTkbType);
-                    }
-                    
-                    childMap.InstanceToEntity[childDef.InstanceId] = childEntity;
-                }
-            }
+            _world!.Bus.PublishManaged(new ConstructionOrder { Entity = entity });
+        }
 
-            using (var ecb = new EntityCommandBuffer())
-            {
-                foreach (var kvp in store.StashedData)
-                {
-                    long packedKey = kvp.Key;
-                    byte[] data = kvp.Value;
-                    
-                    int ordinal = PackedKey.GetOrdinal(packedKey);
-                    if (_serializationRegistry!.TryGet(ordinal, out var provider))
-                    {
-                        // Handle Instance Routing
-                        int instanceId = PackedKey.GetInstanceId(packedKey);
-                        
-                        if (instanceId == 0)
-                        {
-                            provider.Apply(entity, data, ecb);
-                        }
-                        else
-                        {
-                             // Find the child entity
-                             if (World.HasComponent<ChildMap>(entity))
-                             {
-                                 var childMap = World.GetComponent<ChildMap>(entity);
-                                 if (childMap.InstanceToEntity.TryGetValue(instanceId, out var childEntity))
-                                 {
-                                     provider.Apply(childEntity, data, ecb);
-                                 }
-                             }
-                        }
-                    }
-                }
-                
-                ecb.RemoveManagedComponent<BinaryGhostStore>(entity);
-                ecb.RemoveComponent<NetworkSpawnRequest>(entity);
-                ecb.SetLifecycleState(entity, EntityLifecycle.Constructing);
-                
-                ecb.PublishEvent(new ConstructionOrder 
-                {
-                     Entity = entity,
-                     BlueprintId = spawnReq.TkbType, // Assuming spawnReq is still accessible here. Yes it is defined at start of method.
-                     FrameNumber = World.GlobalVersion
-                });
-                
-                ecb.Playback(World);
-            }
+        private void EnsureQueriesInitialized(EntityRepository repo)
+        {
+            if (_readyGhostQuery != null) return;
+
+            _readyGhostQuery = repo.Query()
+                .With<NetworkSpawnRequest>()
+                .WithLifecycle(EntityLifecycle.Ghost)
+                .Build();
         }
     }
 }

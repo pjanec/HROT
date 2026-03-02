@@ -1,22 +1,25 @@
 using System;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;
+using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
 {
-    public class DisposalMonitoringSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.PostSimulation)]
+    public class DisposalMonitoringSystem : IModuleSystem
     {
-        private NetworkEntityMap? _entityMap;
-        
-        protected override void OnUpdate()
-        {
-             if (_entityMap == null && World.HasSingletonManaged<NetworkEntityMap>())
-                _entityMap = World.GetSingletonManaged<NetworkEntityMap>();
+        private readonly NetworkEntityMap _entityMap;
 
-             if (_entityMap == null) return;
-             
-             // Detect dead entities and move them to graveyard
-             _entityMap.PruneDeadEntities(World);
+        public DisposalMonitoringSystem(NetworkEntityMap entityMap)
+        {
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        }
+
+        public void Execute(ISimulationView view, float dt)
+        {
+            // Main-thread PostSimulation: view is the live EntityRepository.
+            if (view is EntityRepository repo)
+                _entityMap.PruneDeadEntities(repo);
         }
     }
 }

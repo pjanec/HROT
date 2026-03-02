@@ -198,6 +198,7 @@ namespace ModuleHost.Network.Cyclone.Translators
                 }
 
                 var newEntity = repo.CreateEntity();
+                repo.SetLifecycleState(newEntity, EntityLifecycle.Ghost);
                 
                 cmd.AddComponent(newEntity, new NetworkIdentity { Value = topic.EntityId });
                 

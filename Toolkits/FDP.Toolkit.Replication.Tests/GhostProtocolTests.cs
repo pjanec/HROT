@@ -29,40 +29,28 @@ namespace FDP.Toolkit.Replication.Tests
         }
     }
 
-    class MockSerializationRegistry : ISerializationRegistry
+    class SlowMockTkbDatabase : ITkbDatabase
     {
-        public ISerializationProvider Provider;
-        public ISerializationProvider Get(long descriptorOrdinal) => Provider;
-        public void Register(long descriptorOrdinal, ISerializationProvider provider) {}
-        public bool TryGet(long descriptorOrdinal, out ISerializationProvider provider)
-        {
-            provider = Provider;
-            return true;
-        }
-    }
-
-    class MockProvider : ISerializationProvider
-    {
-        public bool ApplyCalled = false;
-        public void Apply(Entity entity, ReadOnlySpan<byte> buffer, IEntityCommandBuffer cmd)
-        {
-            ApplyCalled = true;
-        }
-
-        public void Encode(object descriptor, Span<byte> buffer) {}
-        public int GetSize(object descriptor) => 0;
-    }
-    
-    class SlowMockProvider : ISerializationProvider
-    {
+        public TkbTemplate TemplateToReturn;
         public int CallCount = 0;
-        public void Apply(Entity entity, ReadOnlySpan<byte> buffer, IEntityCommandBuffer cmd)
+
+        public IEnumerable<TkbTemplate> GetAll() => throw new NotImplementedException();
+        public TkbTemplate GetByName(string name) => throw new NotImplementedException();
+        public TkbTemplate GetByType(long tkbType)
         {
             CallCount++;
-            System.Threading.Thread.Sleep(1); // Sleep 1ms to simulate load
+            System.Threading.Thread.Sleep(5); // 5ms per entity, exceeds 2ms budget
+            return TemplateToReturn;
         }
-        public void Encode(object descriptor, Span<byte> buffer) {}
-        public int GetSize(object descriptor) => 0;
+        public TkbTemplate GetTemplateByEntityType(Fdp.Kernel.DISEntityType entityType) => null;
+        public TkbTemplate GetTemplateByName(string templateName) => null;
+        public void Register(TkbTemplate template) {}
+        public bool TryGetByName(string name, out TkbTemplate template) => throw new NotImplementedException();
+        public bool TryGetByType(long tkbType, out TkbTemplate template)
+        {
+            template = GetByType(tkbType);
+            return template != null;
+        }
     }
 
     public class GhostProtocolTests
@@ -71,128 +59,74 @@ namespace FDP.Toolkit.Replication.Tests
         public void PromotionSystem_Promotes_WhenRequirementsMet()
         {
             using var repo = new EntityRepository();
-            var sys = new GhostPromotionSystem();
-            sys.Create(repo);
-            
-            repo.RegisterManagedComponent<BinaryGhostStore>();
-            repo.RegisterComponent<NetworkSpawnRequest>();
-            repo.RegisterEvent<ConstructionOrder>(); // Register event required by PromotionSystem
-            
-            repo.SetSingletonUnmanaged(new GlobalTime { FrameNumber = 100 });
-            
-            var template = new TkbTemplate("Test", 123); 
+
+            var template = new TkbTemplate("Test", 123);
             var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
-            repo.SetSingletonManaged<ITkbDatabase>(mockTkb);
-            
-            var mockProvider = new MockProvider();
-            var mockReg = new MockSerializationRegistry { Provider = mockProvider };
-            repo.SetSingletonManaged<ISerializationRegistry>(mockReg);
-            
+            var sys = new GhostPromotionSystem(mockTkb);
+
+            repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterEvent<ConstructionOrder>();
+
             var entity = repo.CreateEntity();
-            var store = new BinaryGhostStore();
-            store.StashedData.Add(PackedKey.Create(1, 0), new byte[] { 1, 2, 3 });
-            // Should be identified
-            store.IdentifiedAtFrame = 100;
-            repo.AddComponent(entity, store);
             repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 123 });
-            
-            sys.Run();
-            
-            // Check implicit removal of BinaryGhostStore
-            Assert.False(repo.HasManagedComponent<BinaryGhostStore>(entity));
-            Assert.True(mockProvider.ApplyCalled);
+            repo.SetLifecycleState(entity, EntityLifecycle.Ghost);
+
+            sys.Execute(repo, 0f);
+
+            Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
+            Assert.False(repo.HasComponent<NetworkSpawnRequest>(entity));
         }
 
         [Fact]
         public void Execute_RespectsTimeBudget()
         {
             using var repo = new EntityRepository();
-            var sys = new GhostPromotionSystem();
-            sys.Create(repo);
-            
-            repo.RegisterManagedComponent<BinaryGhostStore>();
+
+            var template = new TkbTemplate("Test", 123);
+            var slowTkb = new SlowMockTkbDatabase { TemplateToReturn = template };
+            var sys = new GhostPromotionSystem(slowTkb);
+
             repo.RegisterComponent<NetworkSpawnRequest>();
             repo.RegisterEvent<ConstructionOrder>();
-            repo.SetSingletonUnmanaged(new GlobalTime { FrameNumber = 100 });
-            
-            var template = new TkbTemplate("Test", 123); 
-            var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
-            repo.SetSingletonManaged<ITkbDatabase>(mockTkb);
-            
-            // Use slow provider
-            var heavyProvider = new SlowMockProvider();
-            var mockReg = new MockSerializationRegistry { Provider = heavyProvider };
-            repo.SetSingletonManaged<ISerializationRegistry>(mockReg);
-            
-            // Create 10 ghosts
+
+            // Create 10 ghost entities; each GetByType call sleeps 5ms, well over the 2ms budget
             for (int i = 0; i < 10; i++)
             {
-                var searchEntity = repo.CreateEntity();
-                var store = new BinaryGhostStore();
-                store.StashedData.Add(PackedKey.Create(1, 0), new byte[] { 1 });
-                store.IdentifiedAtFrame = 100;
-                repo.AddComponent(searchEntity, store);
-                repo.AddComponent(searchEntity, new NetworkSpawnRequest { TkbType = 123 });
+                var e = repo.CreateEntity();
+                repo.AddComponent(e, new NetworkSpawnRequest { TkbType = 123 });
+                repo.SetLifecycleState(e, EntityLifecycle.Ghost);
             }
-            
-            // Expected Budget: 2ms.
-            // Each ghost takes >1ms (due to Sleep(1)).
-            // So we expect only 1-2 ghosts to be processed per frame.
-            
-            sys.Run();
-            
-            Assert.True(heavyProvider.CallCount < 10, $"Processed too many ghosts: {heavyProvider.CallCount}. Should be limited by time budget.");
-            Assert.True(heavyProvider.CallCount > 0, "Processed zero ghosts. Should process at least one.");
+
+            sys.Execute(repo, 0f);
+
+            Assert.True(slowTkb.CallCount < 10,
+                $"Processed too many ghosts: {slowTkb.CallCount}. Should be limited by 2ms time budget.");
+            Assert.True(slowTkb.CallCount > 0, "Should have processed at least one ghost.");
         }
         
         [Fact]
-        public void Execute_SoftTimeout_Waits()
+        public void Execute_DoesNotPromote_EntityNotInGhostLifecycle()
         {
+            // Entity has NetworkSpawnRequest but is NOT in Ghost lifecycle;
+            // the promotion query filters by Ghost lifecycle, so it must be skipped.
             using var repo = new EntityRepository();
-            var sys = new GhostPromotionSystem();
-            sys.Create(repo);
-            
-            repo.RegisterManagedComponent<BinaryGhostStore>();
+
+            var template = new TkbTemplate("Test", 123);
+            var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
+            var sys = new GhostPromotionSystem(mockTkb);
+
             repo.RegisterComponent<NetworkSpawnRequest>();
             repo.RegisterEvent<ConstructionOrder>();
-            // Frame 100.
-            repo.SetSingletonUnmanaged(new GlobalTime { FrameNumber = 100 });
-            
-            var template = new TkbTemplate("SoftReq", 123);
-            template.MandatoryDescriptors.Add(new MandatoryDescriptor 
-            {
-                PackedKey = PackedKey.Create(2, 0), // Missing key
-                IsHard = false,
-                SoftTimeoutFrames = 10
-            });
-            
-            var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
-            repo.SetSingletonManaged<ITkbDatabase>(mockTkb);
-            
-            var mockProvider = new MockProvider();
-            var mockReg = new MockSerializationRegistry { Provider = mockProvider };
-            repo.SetSingletonManaged<ISerializationRegistry>(mockReg);
-            
+
             var entity = repo.CreateEntity();
-            var store = new BinaryGhostStore();
-            // Identified at frame 90. 100 - 90 = 10 frames elapsed.
-            // Timeout is 10. condition: elapsed <= timeout returns false (wait).
-            // So at frame 100 (elapsed 10), it should WAIT.
-            store.IdentifiedAtFrame = 90;
-            repo.AddComponent(entity, store);
             repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 123 });
-            
-            sys.Run();
-            
-            // Should NOT be promoted
-            Assert.True(repo.HasManagedComponent<BinaryGhostStore>(entity));
-            
-            // Advance time to 102. Elapsed = 12 > 10.
-            repo.SetSingletonUnmanaged(new GlobalTime { FrameNumber = 102 });
-            sys.Run();
-            
-            // Should be promoted
-            Assert.False(repo.HasManagedComponent<BinaryGhostStore>(entity));
+            // Deliberately do NOT set lifecycle to Ghost (stays at default Active)
+
+            sys.Execute(repo, 0f);
+
+            // Entity should remain unpromoted — still has NetworkSpawnRequest, not Constructing
+            Assert.True(repo.HasComponent<NetworkSpawnRequest>(entity));
+            Assert.NotEqual(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
         }
     }
 }

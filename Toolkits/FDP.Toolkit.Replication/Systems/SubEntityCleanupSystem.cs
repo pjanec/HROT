@@ -1,36 +1,40 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
+using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
 {
-    public class SubEntityCleanupSystem : ComponentSystem
+    [UpdateInPhase(SystemPhase.PostSimulation)]
+    public class SubEntityCleanupSystem : IModuleSystem
     {
-        protected override void OnUpdate()
+        private EntityQuery? _partQuery;
+
+        public void Execute(ISimulationView view, float dt)
         {
-            // 1. Cleanup orphans (Children whose parents are dead)
-            var query = World.Query()
+            // Main-thread PostSimulation: safe to cast.
+            if (view is not EntityRepository repo) return;
+
+            EnsureQueriesInitialized(repo);
+
+            using var ecb = new EntityCommandBuffer();
+
+            foreach (var entity in _partQuery!)
+            {
+                var meta = repo.GetComponent<PartMetadata>(entity);
+                if (!repo.IsAlive(meta.ParentEntity))
+                    ecb.DestroyEntity(entity);
+            }
+
+            ecb.Playback(repo);
+        }
+
+        private void EnsureQueriesInitialized(EntityRepository repo)
+        {
+            if (_partQuery != null) return;
+
+            _partQuery = repo.Query()
                 .With<PartMetadata>()
                 .Build();
-
-            using (var ecb = new EntityCommandBuffer())
-            {
-                foreach (var entity in query)
-                {
-                    var meta = World.GetComponent<PartMetadata>(entity);
-                    if (!World.IsAlive(meta.ParentEntity))
-                    {
-                        ecb.DestroyEntity(entity);
-                    }
-                    // Also check if parent is disposing?
-                    // Typically IsAlive covers it after the frame boundaries.
-                }
-                
-                // 2. Unlink dead children from parents?
-                // This is expensive to scan all parents. 
-                // Suggest relying on lazy checks in systems using ChildMap.
-                
-                ecb.Playback(World);
-            }
         }
     }
 }
