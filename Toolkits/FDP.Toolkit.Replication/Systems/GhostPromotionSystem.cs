@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Fdp.Kernel;
 using Fdp.Interfaces;
+using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Lifecycle.Events;
 using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
@@ -13,6 +13,7 @@ namespace FDP.Toolkit.Replication.Systems
     public class GhostPromotionSystem : IModuleSystem
     {
         private readonly ITkbDatabase _tkbDatabase;
+        private readonly EntityLifecycleModule _lifecycleModule;
 
         private readonly Queue<Entity> _promotionQueue = new();
         private readonly HashSet<Entity> _inQueue = new();
@@ -23,9 +24,10 @@ namespace FDP.Toolkit.Replication.Systems
         private EntityRepository? _world;
         private EntityQuery? _readyGhostQuery;
 
-        public GhostPromotionSystem(ITkbDatabase tkbDatabase)
+        public GhostPromotionSystem(ITkbDatabase tkbDatabase, EntityLifecycleModule lifecycleModule)
         {
             _tkbDatabase = tkbDatabase ?? throw new ArgumentNullException(nameof(tkbDatabase));
+            _lifecycleModule = lifecycleModule ?? throw new ArgumentNullException(nameof(lifecycleModule));
         }
 
         public void Execute(ISimulationView view, float dt)
@@ -40,6 +42,9 @@ namespace FDP.Toolkit.Replication.Systems
             if (_promotionQueue.Count == 0) return;
 
             _stopwatch.Restart();
+            var cmdBuffer = view.GetCommandBuffer();
+            var tick = view.Tick;
+
             while (_promotionQueue.Count > 0)
             {
                 if (_stopwatch.ElapsedTicks > PROMOTION_BUDGET_TICKS) break;
@@ -50,7 +55,7 @@ namespace FDP.Toolkit.Replication.Systems
                 if (!_world.IsAlive(entity)) continue;
                 if (!_world.HasComponent<NetworkSpawnRequest>(entity)) continue;
 
-                PromoteGhost(entity);
+                PromoteGhost(entity, cmdBuffer, tick);
             }
             _stopwatch.Stop();
         }
@@ -66,7 +71,7 @@ namespace FDP.Toolkit.Replication.Systems
             }
         }
 
-        private void PromoteGhost(Entity entity)
+        private void PromoteGhost(Entity entity, IEntityCommandBuffer cmdBuffer, uint tick)
         {
             var spawnReq = _world!.GetComponent<NetworkSpawnRequest>(entity);
             var template = _tkbDatabase.GetTemplate(spawnReq.TkbType);
@@ -77,7 +82,7 @@ namespace FDP.Toolkit.Replication.Systems
             _world!.SetLifecycleState(entity, EntityLifecycle.Constructing);
             _world!.RemoveComponent<NetworkSpawnRequest>(entity);
 
-            _world!.Bus.PublishManaged(new ConstructionOrder { Entity = entity });
+            _lifecycleModule.BeginConstruction(entity, spawnReq.TkbType, tick, cmdBuffer);
         }
 
         private void EnsureQueriesInitialized(EntityRepository repo)

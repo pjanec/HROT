@@ -23,7 +23,7 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             
             // Replication
             systems.Add(new GhostCreationSystem(entityMap));
-            systems.Add(new GhostPromotionSystem(tkb));
+            systems.Add(new GhostPromotionSystem(tkb, elm));
             systems.Add(new SmartEgressSystem());
             
             // Demo Specific

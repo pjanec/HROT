@@ -39,7 +39,8 @@ namespace FDP.Toolkit.Replication.Tests
             var parentTemplate = new TkbTemplate("Parent", 100);
             tkb.Register(parentTemplate);
 
-            var sys = new GhostPromotionSystem(tkb);
+            var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(tkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(tkb, elm);
 
             repo.RegisterComponent<NetworkSpawnRequest>();
             repo.RegisterEvent<ConstructionOrder>();
@@ -50,6 +51,8 @@ namespace FDP.Toolkit.Replication.Tests
             repo.SetLifecycleState(entity, EntityLifecycle.Ghost);
 
             sys.Execute(repo, 0f);
+            var cmdBuffer = (EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
+            cmdBuffer.Playback(repo);
 
             // Ghost should be promoted
             Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));

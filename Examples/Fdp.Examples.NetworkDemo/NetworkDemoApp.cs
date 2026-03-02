@@ -155,7 +155,7 @@ namespace Fdp.Examples.NetworkDemo
 
             if (!isReplay)
             {
-                Kernel.RegisterModule(new ReplicationLogicModule(EntityMap, tkb));
+                Kernel.RegisterModule(new ReplicationLogicModule(EntityMap, tkb, elm));
             }
 
             // Register NetworkSpawningSystem from FDP.Toolkit.NetworkSpawning.

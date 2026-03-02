@@ -62,7 +62,8 @@ namespace FDP.Toolkit.Replication.Tests
 
             var template = new TkbTemplate("Test", 123);
             var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
-            var sys = new GhostPromotionSystem(mockTkb);
+            var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(mockTkb, elm);
 
             repo.RegisterComponent<NetworkSpawnRequest>();
             repo.RegisterEvent<ConstructionOrder>();
@@ -84,7 +85,8 @@ namespace FDP.Toolkit.Replication.Tests
 
             var template = new TkbTemplate("Test", 123);
             var slowTkb = new SlowMockTkbDatabase { TemplateToReturn = template };
-            var sys = new GhostPromotionSystem(slowTkb);
+            var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(slowTkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(slowTkb, elm);
 
             repo.RegisterComponent<NetworkSpawnRequest>();
             repo.RegisterEvent<ConstructionOrder>();
@@ -113,7 +115,8 @@ namespace FDP.Toolkit.Replication.Tests
 
             var template = new TkbTemplate("Test", 123);
             var mockTkb = new MockTkbDatabase { TemplateToReturn = template };
-            var sys = new GhostPromotionSystem(mockTkb);
+            var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
+            var sys = new GhostPromotionSystem(mockTkb, elm);
 
             repo.RegisterComponent<NetworkSpawnRequest>();
             repo.RegisterEvent<ConstructionOrder>();
