@@ -94,7 +94,11 @@ public class MapPlacementIntegrationTests
 
     private static bool IgHasEntity(EntityRepository world)
     {
-        var query = world.Query().With<NetworkIdentity>().With<ResolvedStyle>().Build();
+        var query = world.Query()
+            .With<NetworkIdentity>()
+            .With<ResolvedStyle>()
+            .WithLifecycle(EntityLifecycle.All)
+            .Build();
         foreach (var _ in query)
             return true;
 

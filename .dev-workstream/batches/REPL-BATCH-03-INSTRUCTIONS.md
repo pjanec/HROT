@@ -1,7 +1,7 @@
 # BATCH-03: Phase 5 Translator Unification (Part B) & Phase 4 Integration Tests
 
 **Batch Number:** REPL-BATCH-03
-**Tasks:** REPL-P5-T3, REPL-P5-T4, REPL-P5-T5, REPL-P5-T6, REPL-P4-T1, REPL-P4-T2, REPL-P4-T3, REPL-P4-T4
+**Tasks:** REPL-C03, REPL-C04, REPL-C05, REPL-P5-T3, REPL-P5-T4, REPL-P5-T5, REPL-P5-T6, REPL-P4-T1, REPL-P4-T2, REPL-P4-T3, REPL-P4-T4
 **Phase:** Phase 5 (Part B) & Phase 4
 **Estimated Effort:** ~10 hours (1.2 days)
 **Priority:** HIGH
@@ -58,6 +58,23 @@ You are to work autonomously until **ALL DONE**. The entire solution MUST compil
 
 ## ✅ Tasks
 
+### Task 1: Fix Stalled Entity Promotion (REPL-C03)
+**Problem:** A `Ghost` entity is strictly an invalid, incomplete staging entity. FDP's default `EntityQuery` legitimately filters these out to protect systems from processing garbage data. When `GhostPromotionSystem.cs` triggers promotion, it currently just sets the state to `Constructing` and manually publishes a `ConstructionOrder`. It completely bypasses calling `EntityLifecycleModule.BeginConstruction(...)`! Because ELM is unaware of the entity, it ignores all `ConstructionAck` events. The entity gets permanently stuck in `Constructing` and never becomes `Alive`.
+**Action:** 
+Fix `FDP/Toolkits/FDP.Toolkit.Replication/Systems/GhostPromotionSystem.cs` so that it formally registers the entity with ELM via `BeginConstruction` during promotion. Note: `GhostPromotionSystem` will need access to `EntityLifecycleModule`, so you must provide it through `ReplicationLogicModule`. **DO NOT take any shortcuts (like forcing state to Active locally). IG is NOT a purely ghost node by design; it can potentially create entities itself, so it must fully participate in correct FDP lifecycle transitions.** The entity MUST successfully complete the pipeline and reach `EntityLifecycle.Alive`.
+
+### Task 2: Remove "Ghost-Only" Assumptions from Ingress Translators (REPL-C04)
+**Files:** `Bagira.Map.Common/Replication/Ingress/*.cs` (Migrated in BATCH-02)
+**Action:** The developer previously added comments and logic assuming "IG is a ghost-only node". This is architecturally incorrect! IG is a full FDP node and can create entities. The reason Ingress translators have empty `ScanAndPublish` methods is strictly because they are *Ingress* translators, NOT because the application is a "ghost-only node". Purge all comments stating "IG is a ghost-only node" and ensure no shortcuts are taken inside the translators based on this false assumption.
+
+### Task 3: Data-Oriented Component Initialization (REPL-C05)
+**Problem:** In `BdcTkbBuilder.cs`, prototype definitions like `SimVehicleDef` and `IgVisualDef` are being added as managed components instead of mapping them properly at load-time to pure structs as the ECS design requires. 
+**Action:** Implement "Option B" from the architectural review to resolve this Technical Debt. Convert definitions to runtime structs and discard the def post-init.
+1. Update `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs` methods to map `SimVehicleDef` and `IgVisualDef` to unmanaged structs (`VehicleParams`, `VisualData`) instantly instead of attaching the `Def` directly.
+2. Remove the `[ComponentId(X)]` attribute from purely static definition classes (`SimVehicleDef`, `IgVisualDef`).
+3. Free up their old byte keys in `Fdp.Kernel/GlobalComponentIds.cs`.
+4. Create the new `VisualData` struct to hold `ModelPath`/`SymbolCode` (via `FixedStringXX`) and update `StyleResolutionSystem` to pull from it instead of `IgVisualDef`.
+
 ### Phase 5: Migrate SimHost Egress Translators (REPL-P5-T3)
 **Files:** `Bagira.SimHost/Translators/*.cs`
 **Action:** Relocate 3 mapped Translator files to `Bagira.Map.Common/Replication/Egress/`. Rename files, classes, and namespaces to explicitly contain the `EgressTranslator` postfix according strictly to `REPL-TASK-DETAIL.md#repl-p5-t3-migrate-simhost-egress-translators`. Make sure they shed any SimHost-specific logging bounds.
@@ -78,7 +95,7 @@ You are to work autonomously until **ALL DONE**. The entire solution MUST compil
 **Files:** `Bagira.Runner.Integration.Tests/*.cs`
 **Reference:** `docs/replication-fixes/REPL-TASK-DETAIL.md#repl-p4-t1-replicationphaseexecutiontests--systems-execute-each-frame`
 **Action:** Implement all verification integration tests using `BagiraRunnerHarness`. These must autonomously test the Ghost ECS-as-Staging lifecycle and anti-zombie rules. 
-**Pro Tip:** FDP queries default to `EntityLifecycle.Alive`. To find entities created by `GhostCreationSystem`, you MUST use `.WithLifecycle(EntityLifecycle.All)` (or `.Ghost`) in your test verification queries. 
+**Pro Tip:** Your integration tests testing intermediate `Ghost` states MUST utilize `.WithLifecycle(EntityLifecycle.All)` or `.WithLifecycle(EntityLifecycle.Ghost)` in their queries if they are searching for entities holding temporary components like `NetworkSpawnRequest`. Your tests validating end-to-end rendering logic (like `IgHasEntity`) should NOT, because they need to verify the entity actually became `Alive`. 
 
 ---
 
@@ -112,6 +129,9 @@ Write your report inside `.dev-workstream/reports/REPL-BATCH-03-REPORT.md`.
 ## 🎯 Success Criteria
 
 This batch is DONE when:
+- [ ] REPL-C03 implemented so entities properly transition to `Alive` via the full ELM pipeline (NO shortcuts!).
+- [ ] REPL-C04 implemented to remove false "ghost-only" architectural assumptions.
+- [ ] REPL-C05 implemented. Definitions are transient, ECS holds pure unmanaged components.
 - [ ] REPL-P5-T3 to REPL-P5-T6 implemented and solution passes `dotnet build`.
 - [ ] REPL-P4-T1 to REPL-P4-T4 integration tests written.
 - [ ] `dotnet test` output explicitly proves passing integrations for all Fix tracking requirements.

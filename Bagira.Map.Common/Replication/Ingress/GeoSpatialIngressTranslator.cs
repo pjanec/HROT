@@ -23,7 +23,7 @@ namespace Bagira.Map.Common.Replication.Ingress
     /// Entities not yet in <see cref="NetworkEntityMap"/> are silently skipped — they will
     /// be processed on the next tick once <c>NetworkSpawningSystem</c> has registered them.
     ///
-    /// IG is a ghost-only node — <see cref="ScanAndPublish"/> is a no-op.
+    /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
     public class GeoSpatialIngressTranslator : CycloneTranslator<GeoSpatial, GeoSpatial>
     {
@@ -86,7 +86,7 @@ namespace Bagira.Map.Common.Replication.Ingress
             }
         }
 
-        // ── Egress (IG is ghost-only — nothing to publish) ───────────────────
+        // ── Egress (ingress-only translator — nothing to publish) ────────────
 
         public override void ScanAndPublish(ISimulationView view) { }
 

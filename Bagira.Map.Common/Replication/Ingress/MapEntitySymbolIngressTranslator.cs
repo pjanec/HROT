@@ -15,7 +15,7 @@ namespace Bagira.Map.Common.Replication.Ingress
     /// Ingress translator for the Bagira <c>MapEntitySymbol</c> DDS topic.
     ///
     /// Applies per-entity visual overrides via <see cref="IgSymbolOverride"/>.
-    /// IG is a ghost-only node, so <see cref="ScanAndPublish"/> is a no-op.
+    /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
     public class MapEntitySymbolIngressTranslator : IDescriptorTranslator
     {

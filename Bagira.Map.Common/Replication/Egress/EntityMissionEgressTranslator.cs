@@ -7,19 +7,17 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
-
-namespace Bagira.SimHost.Translators
+namespace Bagira.Map.Common.Replication.Egress
 {
     /// <summary>
     /// Egress translator: placeholder for future MissionPlanQueue → EntityMission
     /// publication. Currently a no-op; ingress is handled by
-    /// <see cref="EntityMissionTranslator"/>.
+    /// <see cref="Replication.Ingress.EntityMissionIngressTranslator"/>.
     /// </summary>
     public class EntityMissionEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityMission> _writer;
-        private readonly NetworkEntityMap         _entityMap;
+        private readonly NetworkEntityMap _entityMap;
 
         /// <summary>
         /// The <see cref="EntityRepository.GlobalVersion"/> recorded at the end of the
@@ -27,17 +25,17 @@ namespace Bagira.SimHost.Translators
         /// </summary>
         private uint _lastPublishedVersion;
 
-        public string TopicName        => "EntityMission";
-        public long   DescriptorOrdinal => 51;
+        public string TopicName => "EntityMission";
+        public long DescriptorOrdinal => 51;
 
         public EntityMissionEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
         {
-            _writer    = new DdsWriter<EntityMission>(participant, "EntityMission");
+            _writer = new DdsWriter<EntityMission>(participant, "EntityMission");
             _entityMap = entityMap;
         }
 
         /// <summary>
-        /// Ingress is handled by <see cref="EntityMissionTranslator"/>; no-op here.
+        /// Ingress is handled by <see cref="Replication.Ingress.EntityMissionIngressTranslator"/>; no-op here.
         /// </summary>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 

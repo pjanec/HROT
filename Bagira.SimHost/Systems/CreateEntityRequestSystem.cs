@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
-using Bagira.SimHost.Util;
+using Bagira.Map.Common.Replication.Utils;
 using FDP.Kernel.Logging;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -89,9 +89,6 @@ namespace Bagira.SimHost.Systems
                     return;
                 }
 
-                FdpLog<CreateEntityRequestSystem>.Debug(
-                    "[TRACE-SH] Received CreateEntityRequest {0} TkbType={1}", request.RequestId, tkbType);
-
                 // 3. Allocate a new network ID
                 long newNetworkId = _idAllocator.AllocateId();
 
@@ -106,8 +103,8 @@ namespace Bagira.SimHost.Systems
                     {
                         NetworkId         = newNetworkId,
                         TkbType           = tkbType,
-                        DisType           = disType,
                         OwnerNodeId       = _localNodeId,
+                        DisType           = disType,
                         InitType          = ReliableInitType.AllPeers,
                         InitialComponents = initialComponents,
                         RequestId         = request.RequestId,
@@ -135,9 +132,6 @@ namespace Bagira.SimHost.Systems
 
         private void SendErrorAck(Guid requestId, int errorCode)
         {
-            FdpLog<CreateEntityRequestSystem>.Warn(
-                "[TRACE-SH] ERROR: Rejecting Request {0} Code={1}", requestId, errorCode);
-
             _ackSink.WriteAck(new CreateEntityAck
             {
                 RequestId   = requestId,
@@ -145,6 +139,5 @@ namespace Bagira.SimHost.Systems
                 ErrorCode   = errorCode,
             });
         }
-
     }
 }

@@ -82,6 +82,8 @@ public class IgApplication
     private EntityRepository _world   = null!;
     private ModuleHostKernel _kernel  = null!;
     private NetworkEntityMap _entityMap = null!;
+    private GhostCreationSystem? _ghostCreationSystem;
+    private GeoSpatialIngressTranslator? _geoSpatialIngressTranslator;
 
     // ── Network enabled flag — false when DDS libraries are unavailable (e.g. unit-test host)
     private bool _networkEnabled;
@@ -284,7 +286,7 @@ public class IgApplication
         var elm = new EntityLifecycleModule(tkb, Array.Empty<int>());
         _kernel.RegisterModule(elm);
 
-        var replicationModule = new ReplicationLogicModule(_entityMap, tkb);
+        var replicationModule = new ReplicationLogicModule(_entityMap, tkb, elm);
         _kernel.RegisterModule(replicationModule);
 
         // B. SpawningModule — processes SpawnEntityCommand / DestroyEntityCommand
@@ -322,17 +324,32 @@ public class IgApplication
                 _geoTransform = BagiraEnvironment.CreateGeoTransform();
                 _miniIosState.SetGeoTransform(_geoTransform);
 
-                var ghostCreationSystem = replicationModule.GhostCreationSystem;
+                _ghostCreationSystem = replicationModule.GhostCreationSystem;
+
+                var entityMasterTranslator = new EntityMasterIngressTranslator(
+                    participant, _entityMap, _world.Bus, _ghostCreationSystem);
+                _geoSpatialIngressTranslator = new GeoSpatialIngressTranslator(
+                    participant, _entityMap, _geoTransform, _ghostCreationSystem);
+                var geoSpatialDrTranslator = new GeoSpatialDRIngressTranslator(
+                    participant, _entityMap, _geoTransform, _ghostCreationSystem);
+                var entityInfoTranslator = new EntityInfoIngressTranslator(
+                    participant, _entityMap, _world.Bus, _ghostCreationSystem);
+                var entityDamageTranslator = new EntityDamageIngressTranslator(
+                    participant, _entityMap, _ghostCreationSystem);
+                var mapEntitySymbolTranslator = new MapEntitySymbolIngressTranslator(
+                    participant, _entityMap, IgNetworkConstants.MapGroupId, _ghostCreationSystem);
+                var contextActionsTranslator = new ContextActionsUpdateTranslator(
+                    participant, _entityMap, _world.Bus, _ghostCreationSystem);
 
                 var customTranslators = new List<Fdp.Interfaces.IDescriptorTranslator>
                 {
-                    new EntityMasterIngressTranslator(participant, _entityMap, _world.Bus, ghostCreationSystem),
-                    new GeoSpatialIngressTranslator(participant, _entityMap, _geoTransform, ghostCreationSystem),
-                    new GeoSpatialDRIngressTranslator(participant, _entityMap, _geoTransform, ghostCreationSystem),
-                    new EntityInfoIngressTranslator(participant, _entityMap, _world.Bus, ghostCreationSystem),
-                    new EntityDamageIngressTranslator(participant, _entityMap, ghostCreationSystem),
-                    new MapEntitySymbolIngressTranslator(participant, _entityMap, IgNetworkConstants.MapGroupId, ghostCreationSystem),
-                    new ContextActionsUpdateTranslator(participant, _entityMap, _world.Bus, ghostCreationSystem),
+                    entityMasterTranslator,
+                    _geoSpatialIngressTranslator,
+                    geoSpatialDrTranslator,
+                    entityInfoTranslator,
+                    entityDamageTranslator,
+                    mapEntitySymbolTranslator,
+                    contextActionsTranslator,
                     new TimePulseTranslator(participant, _world.Bus),
                 };
 
@@ -361,6 +378,7 @@ public class IgApplication
         var query = _world.Query()
             .With<NetworkIdentity>()
             .With<SimTransform>()
+            .WithLifecycle(EntityLifecycle.All)
             .Build();
 
         var adapter   = new SstVisualizerAdapter();
@@ -371,7 +389,11 @@ public class IgApplication
         _canvas.AddLayer(layer);
 
         // SelectionRenderSystem — PostRender overlay drawing selection rings.
-        var selectionQuery  = _world.Query().With<SelectionState>().With<SimTransform>().Build();
+        var selectionQuery  = _world.Query()
+            .With<SelectionState>()
+            .With<SimTransform>()
+            .WithLifecycle(EntityLifecycle.All)
+            .Build();
         var selectionLayer  = new SelectionRenderSystem(_world, selectionQuery);
         _canvas.AddLayer(selectionLayer);
 
@@ -620,6 +642,50 @@ public class IgApplication
     /// Internal test hook to expose the latest interaction context ID.
     /// </summary>
     internal Guid TestHook_ActiveContextId => _activeContextId;
+
+    /// <summary>
+    /// Internal test hook to expose the shared NetworkEntityMap.
+    /// </summary>
+    internal NetworkEntityMap TestHook_EntityMap => _entityMap;
+
+    /// <summary>
+    /// Internal test hook to inject GeoSpatial data into the ingress pipeline.
+    /// </summary>
+    internal void TestHook_InjectGeoSpatialDescriptor(GeoSpatial descriptor)
+    {
+        if (_geoSpatialIngressTranslator == null || _ghostCreationSystem == null)
+            throw new InvalidOperationException("Ingress translators are not initialized.");
+
+        if (!_entityMap.TryGetEntity(descriptor.EntityId, out var entity))
+        {
+            entity = _ghostCreationSystem.CreateGhost(_world, descriptor.EntityId);
+        }
+
+        _geoSpatialIngressTranslator.ApplyToEntity(entity, descriptor, _world);
+    }
+
+    /// <summary>
+    /// Internal test hook to inject EntityMaster data into the ingress pipeline.
+    /// </summary>
+    internal void TestHook_InjectEntityMasterDescriptor(EntityMaster descriptor)
+    {
+        if (_ghostCreationSystem == null)
+            throw new InvalidOperationException("Ghost creation system is not initialized.");
+
+        if (!_entityMap.TryGetEntity(descriptor.EntityId, out var entity))
+        {
+            entity = _ghostCreationSystem.CreateGhost(_world, descriptor.EntityId);
+        }
+
+        var cmd = (EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
+        cmd.AddComponent(entity, new NetworkSpawnRequest
+        {
+            TkbType = descriptor.TkbType,
+            DisType = descriptor.DisType,
+            OwnerId = 0
+        });
+        cmd.Playback(_world);
+    }
 
     /// <summary>
     /// Converts a canvas world-click to a <see cref="MapClickEvent"/> and writes it

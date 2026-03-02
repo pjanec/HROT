@@ -14,18 +14,11 @@ using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network;
 using ModuleHost.Network.Cyclone.Translators;
 
-namespace Bagira.SimHost.Translators
+namespace Bagira.Map.Common.Replication.Egress
 {
     /// <summary>
     /// Reads <see cref="GeoTransform"/> + <see cref="GeoVelocity"/> ECS components
     /// and publishes <see cref="GeoSpatial"/> / <see cref="GeoSpatialDR"/> DDS topics.
-    ///
-    /// This is a thin, application-layer egress translator � it keeps
-    /// <c>Bagira.BDC.SSTD</c> types out of the shared Geographic toolkit.
-    /// Same pattern as <c>FastGeodeticTranslator</c> in NetworkDemo.
-    ///
-    /// The IG will later register the same toolkit module and add its own
-    /// IG-specific egress translator with zero changes to the toolkit.
     /// </summary>
     public class GeoSpatialEgressTranslator : CycloneTranslator<GeoSpatial, GeoSpatial>
     {
@@ -41,13 +34,10 @@ namespace Bagira.SimHost.Translators
         }
 
         /// <summary>
-        /// Inbound decode � not used by SimHost (authority node).
-        /// SimHost owns GeoTransform; remote updates come via GeodeticSmoothingSystem.
+        /// Inbound decode is not used for authority nodes.
         /// </summary>
         protected override void Decode(in GeoSpatial data, IEntityCommandBuffer cmd, ISimulationView view)
         {
-            // SimHost is the authority � inbound GeoSpatial is not expected.
-            // If needed for multi-SimHost scenarios, add ingress here.
         }
 
         /// <summary>
@@ -61,7 +51,7 @@ namespace Bagira.SimHost.Translators
                 .With<GeoTransform>()
                 .With<NetworkIdentity>()
                 .With<NetworkOwnership>()
-                .WithLifecycle(Fdp.Kernel.EntityLifecycle.All)
+                .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
             foreach (var entity in query)
@@ -77,7 +67,6 @@ namespace Bagira.SimHost.Translators
                 var latitude = geoTf.Latitude;
                 var longitude = geoTf.Longitude;
 
-                // ?? GeoSpatial ????????????????????????????????????????????????
                 Publish(new GeoSpatial
                 {
                     EntityId = (int)netId.Value,
@@ -100,10 +89,9 @@ namespace Bagira.SimHost.Translators
                 {
                     var posLabel = string.Concat(latitude, ",", longitude);
                     FdpLog<GeoSpatialEgressTranslator>.Debug(
-                        "[TRACE-SH] Egress: Writing GeoSpatial for NetID={0} pos=({1})", netId.Value, posLabel);
+                        "[TRACE] Egress: Writing GeoSpatial for NetID={0} pos=({1})", netId.Value, posLabel);
                 }
 
-                // ?? GeoSpatialDR ??????????????????????????????????????????????
                 if (view.HasComponent<GeoVelocity>(entity))
                 {
                     ref readonly var geoVel = ref view.GetComponentRO<GeoVelocity>(entity);
@@ -120,7 +108,7 @@ namespace Bagira.SimHost.Translators
                         Acc      = accDAL3,
                         RotVel = new OrientationHPR
                         {
-                            // Angular velocity: rad/s ? deg/s
+                            // Angular velocity: rad/s to deg/s
                             // geoVel.Angular: X=roll-rate, Y=pitch-rate, Z=yaw-rate
                             Heading = geoVel.Angular.Z * (180f / MathF.PI),
                             Pitch   = geoVel.Angular.Y * (180f / MathF.PI),
@@ -134,10 +122,7 @@ namespace Bagira.SimHost.Translators
         /// <inheritdoc/>
         public override void ApplyToEntity(Entity entity, object data, EntityRepository repo)
         {
-            // Not used � SimHost is the authority for GeoSpatial.
         }
-
-        // ?? Helpers ???????????????????????????????????????????????????????????
 
         /// <summary>
         /// Converts an ENU vector (X=East, Y=North, Z=Up) to <see cref="DAL3"/>

@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using Bagira.BDC.SSTD;
 using CycloneDDS.Runtime;
@@ -11,9 +12,7 @@ using ModuleHost.Core.Abstractions;
 using DdsMissionTrigger = Bagira.BDC.SSTD.MissionTrigger;
 using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
-
-namespace Bagira.SimHost.Translators
+namespace Bagira.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Ingress translator: subscribes to the DDS <c>EntityMission</c> topic and
@@ -24,22 +23,22 @@ namespace Bagira.SimHost.Translators
     /// Unknown entity IDs (not yet registered in the <see cref="NetworkEntityMap"/>)
     /// are silently skipped.
     /// </summary>
-    public class EntityMissionTranslator : IDescriptorTranslator
+    public class EntityMissionIngressTranslator : IDescriptorTranslator
     {
         private readonly DdsReader<EntityMission> _reader;
-        private readonly NetworkEntityMap         _entityMap;
-        private readonly DoctrineRegistry          _doctrineRegistry;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly DoctrineRegistry _doctrineRegistry;
 
-        public string TopicName       => "EntityMission";
-        public long   DescriptorOrdinal => 50;
+        public string TopicName => "EntityMission";
+        public long DescriptorOrdinal => 50;
 
-        public EntityMissionTranslator(
+        public EntityMissionIngressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
             DoctrineRegistry doctrineRegistry)
         {
-            _reader           = new DdsReader<EntityMission>(participant, "EntityMission");
-            _entityMap        = entityMap;
+            _reader = new DdsReader<EntityMission>(participant, "EntityMission");
+            _entityMap = entityMap;
             _doctrineRegistry = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
         }
 
@@ -82,7 +81,7 @@ namespace Bagira.SimHost.Translators
         }
 
         /// <summary>
-        /// Egress is handled by <see cref="EntityMissionEgressTranslator"/>; no-op here.
+        /// Egress is handled by <see cref="Replication.Egress.EntityMissionEgressTranslator"/>; no-op here.
         /// </summary>
         public void ScanAndPublish(ISimulationView view) { }
 
@@ -108,7 +107,7 @@ namespace Bagira.SimHost.Translators
         {
             var queue = new MissionPlanQueue
             {
-                CurrentPhase       = 0,
+                CurrentPhase = 0,
                 PhaseElapsedSeconds = 0f
             };
 
@@ -117,7 +116,7 @@ namespace Bagira.SimHost.Translators
 
             if (tasks.Count > MissionPlanQueue.MaxPhases)
             {
-                FdpLog<EntityMissionTranslator>.Warn(
+                FdpLog<EntityMissionIngressTranslator>.Warn(
                     "[MissionTranslator] Mission has {0} tasks; truncating to {1}.",
                     tasks.Count, MissionPlanQueue.MaxPhases);
             }
@@ -130,8 +129,8 @@ namespace Bagira.SimHost.Translators
 
                 queue.Phases[i] = new MissionPhase
                 {
-                    DoctrineId   = doctrineId,
-                    Trigger      = trigger,
+                    DoctrineId = doctrineId,
+                    Trigger = trigger,
                     TriggerParam = param
                 };
             }
@@ -148,7 +147,7 @@ namespace Bagira.SimHost.Translators
             if (_doctrineRegistry.TryGetId(behaviorId, out int doctrineId))
                 return doctrineId;
 
-            FdpLog<EntityMissionTranslator>.Warn(
+            FdpLog<EntityMissionIngressTranslator>.Warn(
                 "[MissionTranslator] Unknown BehaviorId '{0}'; using doctrine 0 (Idle).",
                 behaviorId);
             return 0;
@@ -157,17 +156,17 @@ namespace Bagira.SimHost.Translators
         private static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
         {
             if (triggers == null || triggers.Count == 0)
-            return (EcsMissionTrigger.TimerElapsed, 0f);
+                return (EcsMissionTrigger.TimerElapsed, 0f);
 
             var trigger = triggers[0];
             var type = trigger.Type ?? string.Empty;
 
             return type switch
             {
-                "TimerElapsed"       => (EcsMissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
+                "TimerElapsed" => (EcsMissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
                 "ReachedDestination" => (EcsMissionTrigger.ReachedDestination, 0f),
-                "HealthCritical"     => (EcsMissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
-                _                    => (EcsMissionTrigger.TimerElapsed, 0f)
+                "HealthCritical" => (EcsMissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
+                _ => (EcsMissionTrigger.TimerElapsed, 0f)
             };
         }
 

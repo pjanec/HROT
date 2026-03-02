@@ -15,7 +15,7 @@ namespace Bagira.Map.Common.Replication.Ingress
     /// Ingress translator for the Bagira <c>EntityDamage</c> DDS topic.
     ///
     /// Converts DDS damage into the IG-internal <see cref="IgHealthState"/> component.
-    /// IG is a ghost-only node, so <see cref="ScanAndPublish"/> is a no-op.
+    /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
     public class EntityDamageIngressTranslator : CycloneTranslator<EntityDamage, EntityDamage>
     {

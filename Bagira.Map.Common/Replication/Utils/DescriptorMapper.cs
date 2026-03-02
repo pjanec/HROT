@@ -9,21 +9,17 @@ using FDP.Kernel.Logging;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;
 
-namespace Bagira.SimHost.Util
+namespace Bagira.Map.Common.Replication.Utils
 {
     /// <summary>
     /// Converts a <c>List&lt;EntityDescriptorUnion&gt;</c> from a DDS <c>CreateEntityRequest</c>
     /// into a <c>List&lt;object&gt;</c> suitable for <c>SpawnEntityCommand.InitialComponents</c>.
-    ///
-    /// Design note: this class lives in SimHost (not in FDP.Toolkit.NetworkSpawning) because the
-    /// toolkit deliberately has no dependency on <c>Bagira.DDS.DataModel</c>.  SimHost is
-    /// responsible for bridging DDS-specific types to the generic object components that
-    /// <c>EntityComponentReflector</c> applies to the ECS world.
     /// </summary>
     public static class DescriptorMapper
     {
         // Marker type for FdpLog (static classes cannot be used as generic type arguments)
         private sealed class Log { }
+
         /// <summary>
         /// Searches <paramref name="descriptors"/> for an <c>EntityMaster</c> entry and returns
         /// its <c>TkbType</c> and <c>DisType</c>.
@@ -60,7 +56,7 @@ namespace Bagira.SimHost.Util
         /// </param>
         public static List<object> MapToComponents(
             List<EntityDescriptorUnion>? descriptors,
-            IGeographicTransform?        geoTransform)
+            IGeographicTransform? geoTransform)
         {
             var result = new List<object>();
 
@@ -131,15 +127,13 @@ namespace Bagira.SimHost.Util
 
                     default:
                         FdpLog<Log>.Warn(
-                            $"[DescriptorMapper] Unhandled descriptor type: {d._d} — skipping.");
+                            "[DescriptorMapper] Unhandled descriptor type: {0} — skipping.", d._d);
                         break;
                 }
             }
 
             return result;
         }
-
-        // ─── Private helpers ─────────────────────────────────────────────────
 
         /// <summary>
         /// Converts a compass heading (degrees, clockwise from North) to a normalised 2-D forward

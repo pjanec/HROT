@@ -7,11 +7,9 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
-
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 using NetworkOwnership = ModuleHost.Core.Network.NetworkOwnership;
 
-namespace Bagira.SimHost.Translators
+namespace Bagira.Map.Common.Replication.Egress
 {
     /// <summary>
     /// Egress translator that publishes <see cref="EntityMaster"/> DDS samples
@@ -38,7 +36,7 @@ namespace Bagira.SimHost.Translators
         }
 
         /// <summary>
-        /// SimHost is the authority for EntityMaster; ingress is not used.
+        /// Egress-only translator; ingress is not used.
         /// </summary>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
@@ -75,13 +73,13 @@ namespace Bagira.SimHost.Translators
                 if (_tracedNetIds.Add(netId.Value))
                 {
                     FdpLog<EntityMasterEgressTranslator>.Debug(
-                        "[TRACE-SH] Egress: Writing EntityMaster for NetID={0}", netId.Value);
+                        "[TRACE] Egress: Writing EntityMaster for NetID={0}", netId.Value);
                 }
             }
         }
 
         /// <summary>
-        /// Ghost promotion does not apply to EntityMaster in SimHost.
+        /// Ghost promotion does not apply to EntityMaster on egress.
         /// </summary>
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 

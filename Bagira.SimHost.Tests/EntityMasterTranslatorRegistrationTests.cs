@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Bagira.SimHost.Translators;
+using Bagira.Map.Common.Replication.Egress;
 using Fdp.Interfaces;
 
 namespace Bagira.SimHost.Tests

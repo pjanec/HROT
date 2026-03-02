@@ -5,7 +5,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Time.Messages;
 using ModuleHost.Core.Abstractions;
 
-namespace Bagira.SimHost.Translators
+namespace Bagira.Map.Common.Replication.Egress
 {
     /// <summary>
     /// Egress-only translator that publishes <see cref="TimePulseDescriptor"/>

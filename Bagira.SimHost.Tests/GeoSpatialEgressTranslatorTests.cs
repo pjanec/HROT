@@ -7,7 +7,7 @@ namespace Bagira.SimHost.Tests
 {
     /// <summary>
     /// Unit tests for the heading/azimuth conversion logic used by
-    /// <see cref="Bagira.SimHost.Translators.GeoSpatialEgressTranslator"/>.
+    /// <see cref="Bagira.Map.Common.Replication.Egress.GeoSpatialEgressTranslator"/>.
     ///
     /// The translator delegates heading computation to
     /// <see cref="SimTransformBridgeSystem.RotationToHeadingDeg"/> and
@@ -22,10 +22,10 @@ namespace Bagira.SimHost.Tests
         // ?? Heading ? GeoSpatial.Rot.Heading wire value ???????????????????????
 
         [Theory]
-        [InlineData(0f, 90f)]              // yaw=0 ? East ? heading 90°
-        [InlineData(MathF.PI / 2f, 0f)]    // yaw=90° ? North ? heading 0°
-        [InlineData(-MathF.PI / 2f, 180f)] // yaw=-90° ? South ? heading 180°
-        [InlineData(MathF.PI, 270f)]       // yaw=180° ? West ? heading 270°
+        [InlineData(0f, 90f)]              // yaw=0 ? East ? heading 90ï¿½
+        [InlineData(MathF.PI / 2f, 0f)]    // yaw=90ï¿½ ? North ? heading 0ï¿½
+        [InlineData(-MathF.PI / 2f, 180f)] // yaw=-90ï¿½ ? South ? heading 180ï¿½
+        [InlineData(MathF.PI, 270f)]       // yaw=180ï¿½ ? West ? heading 270ï¿½
         public void HeadingConversion_YawToCompass_CorrectWireValue(float yawRad, float expectedHeading)
         {
             var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yawRad);
@@ -36,10 +36,10 @@ namespace Bagira.SimHost.Tests
         // ?? Velocity ? GeoSpatialDR.Vel.Azimuth wire value ???????????????????
 
         [Theory]
-        [InlineData(10f, 0f, 0f, 90f)]   // Moving east ? azimuth 90°
-        [InlineData(0f, 10f, 0f, 0f)]    // Moving north ? azimuth 0°
-        [InlineData(-10f, 0f, 0f, 270f)] // Moving west ? azimuth 270°
-        [InlineData(0f, -10f, 0f, 180f)] // Moving south ? azimuth 180°
+        [InlineData(10f, 0f, 0f, 90f)]   // Moving east ? azimuth 90ï¿½
+        [InlineData(0f, 10f, 0f, 0f)]    // Moving north ? azimuth 0ï¿½
+        [InlineData(-10f, 0f, 0f, 270f)] // Moving west ? azimuth 270ï¿½
+        [InlineData(0f, -10f, 0f, 180f)] // Moving south ? azimuth 180ï¿½
         public void VelocityAzimuth_ENUToCompass_CorrectWireValue(
             float vx, float vy, float vz, float expectedAzimuth)
         {
@@ -73,9 +73,9 @@ namespace Bagira.SimHost.Tests
         [Fact]
         public void HeadingRoundTrip_RotationToHeadingToVector_Consistent()
         {
-            // Create a rotation for NE (45° compass heading ? yaw = 45° in math)
+            // Create a rotation for NE (45ï¿½ compass heading ? yaw = 45ï¿½ in math)
             float compassHeading = 45f;
-            // compass 45° = NE. Math yaw = 90° - 45° = 45° (atan2 of (sin45, cos45))
+            // compass 45ï¿½ = NE. Math yaw = 90ï¿½ - 45ï¿½ = 45ï¿½ (atan2 of (sin45, cos45))
             float mathYaw = (90f - compassHeading) * (MathF.PI / 180f);
             var rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, mathYaw);
 

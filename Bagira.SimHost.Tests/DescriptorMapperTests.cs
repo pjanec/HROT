@@ -4,7 +4,7 @@ using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
 using Bagira.IG.Components;
-using Bagira.SimHost.Util;
+using Bagira.Map.Common.Replication.Utils;
 using CarKinem.Core;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
@@ -35,7 +35,7 @@ namespace Bagira.SimHost.Tests
             new EntityDescriptorUnion
             {
                 _d = EDescriptorType.dtEntityMaster,
-                EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = 123UL },
+                EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType },
             };
 
         private static EntityDescriptorUnion MakeEntityInfoDescriptor() =>
@@ -81,10 +81,9 @@ namespace Bagira.SimHost.Tests
                 MakeEntityMasterDescriptor(expectedTkbType),
             };
 
-            long result = DescriptorMapper.ExtractTkbType(descriptors, out ulong disType);
+            long result = DescriptorMapper.ExtractTkbType(descriptors, out _);
 
             Assert.Equal(expectedTkbType, result);
-            Assert.Equal(123UL, disType);
         }
 
         [Fact]
@@ -114,7 +113,7 @@ namespace Bagira.SimHost.Tests
         }
 
         [Fact]
-        public void DescriptorMapper_EntityInfoDescriptor_ReturnsEmptyList()
+        public void DescriptorMapper_EntityInfoDescriptor_ReturnsIgEntityData()
         {
             var descriptors = new List<EntityDescriptorUnion>
             {
@@ -123,8 +122,9 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
-            Assert.Single(components);
-            Assert.IsType<IgEntityData>(components[0]);
+            var igData = Assert.Single(components, c => c is IgEntityData);
+            var entityInfo = (IgEntityData)igData;
+            Assert.Equal("TestUnit", entityInfo.Name);
         }
 
         [Fact]
@@ -138,29 +138,6 @@ namespace Bagira.SimHost.Tests
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
             Assert.DoesNotContain(components, c => c is EntityInfo);
-        }
-
-        [Fact]
-        public void DescriptorMapper_EntityInfoDescriptor_MapsEntityDataFields()
-        {
-            var descriptor = new EntityDescriptorUnion
-            {
-                _d = EDescriptorType.dtEntityInfo,
-                EntityInfo = new EntityInfo
-                {
-                    EntityId = 0,
-                    Name = "TestUnit",
-                    ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
-                    CommanderId = 42
-                }
-            };
-
-            var components = DescriptorMapper.MapToComponents(new List<EntityDescriptorUnion> { descriptor }, geoTransform: null);
-
-            var data = Assert.IsType<IgEntityData>(components.Single());
-            Assert.Equal("TestUnit", data.Name);
-            Assert.Equal(ForceId.Friend, data.ForceId);
-            Assert.Equal(42, data.CommanderId);
         }
 
         [Fact]

@@ -1,7 +1,8 @@
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
 using Bagira.SimHost.Systems;
-using Bagira.SimHost.Translators;
+using Bagira.Map.Common.Replication.Egress;
+using Bagira.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
@@ -17,11 +18,10 @@ namespace Bagira.SimHost.Modules
 
     internal sealed class DdsCreateEntityRequestSource : ICreateEntityRequestSource
     {
-        private const string TopicCreateEntityRequest = "CreateEntityRequest";
         private readonly DdsReader<CreateEntityRequest> _reader;
 
         public DdsCreateEntityRequestSource(DdsParticipant participant)
-            => _reader = new DdsReader<CreateEntityRequest>(participant, TopicCreateEntityRequest);
+            => _reader = new DdsReader<CreateEntityRequest>(participant);
 
         public List<CreateEntityRequest> TakeRequests()
         {
@@ -65,8 +65,8 @@ namespace Bagira.SimHost.Modules
 
         private readonly CreateEntityRequestSystem    _requestSystem;
         private readonly NetworkSpawningSystem        _spawnSystem;
-        private readonly GeoSpatialEgressTranslator?  _geoEgressTranslator;
-        private readonly EntityMissionTranslator      _missionIngressTranslator;
+        private readonly GeoSpatialEgressTranslator? _geoEgressTranslator;
+        private readonly EntityMissionIngressTranslator _missionIngressTranslator;
         private readonly EntityMissionEgressTranslator _missionEgressTranslator;
 
         public SimHostModule(
@@ -75,8 +75,8 @@ namespace Bagira.SimHost.Modules
             INetworkIdAllocator idAllocator,
             int                localNodeId,
             NetworkSpawningSystem spawnSystem,
-            NetworkEntityMap   entityMap,
-            DoctrineRegistry    doctrineRegistry,
+            NetworkEntityMap entityMap,
+            DoctrineRegistry doctrineRegistry,
             IGeographicTransform? geoTransform = null)
         {
             var requestSource = new DdsCreateEntityRequestSource(participant);
@@ -99,7 +99,7 @@ namespace Bagira.SimHost.Modules
             }
 
             // Mission translators are always active regardless of geographic transform.
-            _missionIngressTranslator = new EntityMissionTranslator(participant, entityMap, doctrineRegistry);
+            _missionIngressTranslator = new EntityMissionIngressTranslator(participant, entityMap, doctrineRegistry);
             _missionEgressTranslator  = new EntityMissionEgressTranslator(participant, entityMap);
         }
 
@@ -113,7 +113,7 @@ namespace Bagira.SimHost.Modules
         /// Gets the EntityMission ingress translator (DDS → ECS).
         /// Always non-null; created unconditionally in the constructor.
         /// </summary>
-        public EntityMissionTranslator MissionIngressTranslator => _missionIngressTranslator;
+        public EntityMissionIngressTranslator MissionIngressTranslator => _missionIngressTranslator;
 
         /// <summary>
         /// Gets the EntityMission egress translator (ECS → DDS).

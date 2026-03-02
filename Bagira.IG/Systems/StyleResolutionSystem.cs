@@ -56,6 +56,7 @@ public class StyleResolutionSystem : IModuleSystem
         var query = view.Query()
             .With<NetworkIdentity>()
             .With<SimTransform>()
+            .WithLifecycle(EntityLifecycle.All)
             .Build();
 
         foreach (var entity in query)

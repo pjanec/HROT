@@ -26,7 +26,7 @@ namespace Bagira.Map.Common.Replication.Ingress
     ///
     /// For already-known entities the translator does not emit any ECS component updates.
     ///
-    /// IG is a ghost-only (read-only) node — <see cref="ScanAndPublish"/> is a no-op.
+    /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
     public class EntityMasterIngressTranslator : IDescriptorTranslator
     {
@@ -80,7 +80,7 @@ namespace Bagira.Map.Common.Replication.Ingress
             }
         }
 
-        // ── Egress (IG is ghost-only — nothing to publish) ───────────────────
+        // ── Egress (ingress-only translator — nothing to publish) ────────────
 
         public void ScanAndPublish(ISimulationView view) { }
 

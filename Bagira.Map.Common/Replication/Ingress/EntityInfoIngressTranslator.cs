@@ -24,7 +24,7 @@ namespace Bagira.Map.Common.Replication.Ingress
     /// <c>EntityComponentReflector</c>, which handles managed struct types correctly.
     ///
     /// Entities not yet registered in the map are silently skipped.
-    /// IG is a ghost-only node — <see cref="ScanAndPublish"/> is a no-op.
+    /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
     /// </summary>
     public class EntityInfoIngressTranslator : IDescriptorTranslator
     {
@@ -86,7 +86,7 @@ namespace Bagira.Map.Common.Replication.Ingress
             }
         }
 
-        // ── Egress (IG is ghost-only — nothing to publish) ───────────────────
+        // ── Egress (ingress-only translator — nothing to publish) ────────────
 
         public void ScanAndPublish(ISimulationView view) { }
 

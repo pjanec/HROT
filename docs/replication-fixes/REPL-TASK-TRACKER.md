@@ -69,10 +69,10 @@ Fixes three interrelated issues in `FDP.Toolkit.Replication` and connected appli
 
 **Goal:** Add autonomous integration tests in `Bagira.Runner.Integration.Tests` that verify all three fixes end-to-end.
 
-- [ ] **REPL-P4-T1** `ReplicationPhaseExecutionTests` — `DisposalMonitoringSystem` prunes map within 60 frames [details](./REPL-TASK-DETAIL.md#repl-p4-t1-replicationphaseexecutiontests--systems-execute-each-frame)
-- [ ] **REPL-P4-T2** `ZombieEntityMapTests` — destroyed entity removed from `NetworkEntityMap` on both SimHost and IG [details](./REPL-TASK-DETAIL.md#repl-p4-t2-zombieentitymaptests--map-is-pruned-after-entity-destroy-full-lifecycle)
-- [ ] **REPL-P4-T3** `SubEntityCascadeDestroyTests` — child entities destroyed when parent is destroyed [details](./REPL-TASK-DETAIL.md#repl-p4-t3-subentitycascadedestroyests--child-entities-are-destroyed-with-parent)
-- [ ] **REPL-P4-T4** `GhostPromotionTests` — out-of-order GeoSpatial-before-EntityMaster results in promoted entity with preserved `NetworkPosition` [details](./REPL-TASK-DETAIL.md#repl-p4-t4-ghostpromotiontests--out-of-order-descriptor-promotion)
+- [x] **REPL-P4-T1** `ReplicationPhaseExecutionTests` — `DisposalMonitoringSystem` prunes map within 60 frames [details](./REPL-TASK-DETAIL.md#repl-p4-t1-replicationphaseexecutiontests--systems-execute-each-frame)
+- [x] **REPL-P4-T2** `ZombieEntityMapTests` — destroyed entity removed from `NetworkEntityMap` on both SimHost and IG [details](./REPL-TASK-DETAIL.md#repl-p4-t2-zombieentitymaptests--map-is-pruned-after-entity-destroy-full-lifecycle)
+- [x] **REPL-P4-T3** `SubEntityCascadeDestroyTests` — child entities destroyed when parent is destroyed [details](./REPL-TASK-DETAIL.md#repl-p4-t3-subentitycascadedestroyests--child-entities-are-destroyed-with-parent)
+- [x] **REPL-P4-T4** `GhostPromotionTests` — out-of-order GeoSpatial-before-EntityMaster results in promoted entity with preserved `NetworkPosition` [details](./REPL-TASK-DETAIL.md#repl-p4-t4-ghostpromotiontests--out-of-order-descriptor-promotion)
 
 ---
 
@@ -82,10 +82,10 @@ Fixes three interrelated issues in `FDP.Toolkit.Replication` and connected appli
 
 - [x] **REPL-P5-T1** Update `Bagira.Map.Common` project references [details](./REPL-TASK-DETAIL.md#repl-p5-t1-update-bagiramapcommon-project-references)
 - [x] **REPL-P5-T2** Migrate IG Ingress Translators to `Bagira.Map.Common.Replication.Ingress` [details](./REPL-TASK-DETAIL.md#repl-p5-t2-migrate-ig-ingress-translators)
-- [ ] **REPL-P5-T3** Migrate SimHost Egress Translators to `Bagira.Map.Common.Replication.Egress` [details](./REPL-TASK-DETAIL.md#repl-p5-t3-migrate-simhost-egress-translators)
-- [ ] **REPL-P5-T4** Migrate EntityMission Translators [details](./REPL-TASK-DETAIL.md#repl-p5-t4-migrate-entitymission-translators)
-- [ ] **REPL-P5-T5** Migrate `DescriptorMapper` to `Bagira.Map.Common.Replication.Utils` [details](./REPL-TASK-DETAIL.md#repl-p5-t5-migrate-descriptormapper)
-- [ ] **REPL-P5-T6** Update composition roots in IG and SimHost to use new shared translators [details](./REPL-TASK-DETAIL.md#repl-p5-t6-update-composition-roots)
+- [x] **REPL-P5-T3** Migrate SimHost Egress Translators to `Bagira.Map.Common.Replication.Egress` [details](./REPL-TASK-DETAIL.md#repl-p5-t3-migrate-simhost-egress-translators)
+- [x] **REPL-P5-T4** Migrate EntityMission Translators [details](./REPL-TASK-DETAIL.md#repl-p5-t4-migrate-entitymission-translators)
+- [x] **REPL-P5-T5** Migrate `DescriptorMapper` to `Bagira.Map.Common.Replication.Utils` [details](./REPL-TASK-DETAIL.md#repl-p5-t5-migrate-descriptormapper)
+- [x] **REPL-P5-T6** Update composition roots in IG and SimHost to use new shared translators [details](./REPL-TASK-DETAIL.md#repl-p5-t6-update-composition-roots)
 
 ---
 
