@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text.Json;
 using CarKinem.Core;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
@@ -101,7 +102,9 @@ public class IgApplication
     private DdsWriter<MapClickEvent>?        _clickWriter;
     private DdsReader<MapInteractionConfig>? _configReader;
     private Guid                             _activeContextId;
-
+    private bool                             _showGrid;
+    private Guid                             _lastPlacementContextId;
+    private DdsWriter<CreateEntityRequest>?  _createEntityDdsWriter;
     // ── Style and culling objects — updated and injected into modules
     private MapUserConfig     _userConfig     = null!;
     private MapCameraViewport _cameraViewport = null!;
@@ -305,6 +308,7 @@ public class IgApplication
                 _commandGateway = new BdcCommandGateway(participant);
                 _clickWriter    = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
                 _configReader   = new DdsReader<MapInteractionConfig>(participant);
+                _createEntityDdsWriter = new DdsWriter<CreateEntityRequest>(participant, "CreateEntityRequest");
 
                 _geoTransform = BagiraEnvironment.CreateGeoTransform();
                 _miniIosState.SetGeoTransform(_geoTransform);
@@ -350,10 +354,12 @@ public class IgApplication
                 _commandGateway?.Dispose();
                 _clickWriter?.Dispose();
                 _configReader?.Dispose();
+                _createEntityDdsWriter?.Dispose();
                 participant?.Dispose();
                 _commandGateway = null;
                 _clickWriter = null;
                 _configReader = null;
+                _createEntityDdsWriter = null;
                 _geoTransform = null;
                 _networkEnabled = false;
             }
@@ -479,6 +485,9 @@ public class IgApplication
                 _activeContextId = sample.Data.ActiveContextId;
                 FdpLog<IgApplication>.Debug(
                     "[TRACE-IG] MapInteractionConfig: ActiveContextId={0}", _activeContextId);
+
+                if (!string.IsNullOrWhiteSpace(sample.Data.ConfigurationJson))
+                    ParseAndApplyConfig(sample.Data.ConfigurationJson);
             }
         }
 
@@ -498,6 +507,8 @@ public class IgApplication
     public void DrawWorld()
     {
         _canvas.Draw();
+        if (_showGrid)
+            DrawGrid();
         DrawDebugOverlay();
     }
 
@@ -640,6 +651,7 @@ public class IgApplication
         _commandGateway?.Dispose();
         _clickWriter?.Dispose();
         _configReader?.Dispose();
+        _createEntityDdsWriter?.Dispose();
         _kernel?.Dispose();
         if (ownsWindow)
         {
@@ -802,5 +814,146 @@ public class IgApplication
         var target = new Vector2(transform.Position.X, transform.Position.Y);
         _keyboardPanTarget = target;
         _camera.FocusOn(target);
+    }
+
+    // ── Grid rendering ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Draws an adaptive world-space grid.  Call inside Raylib.BeginDrawing() but
+    /// outside any existing camera mode (this method manages its own BeginMode / EndMode).
+    /// </summary>
+    private void DrawGrid()
+    {
+        const float BaseSpacingMeters = 1000f;
+        const int   MaxGridLines      = 80;
+
+        var topLeft     = _camera.ScreenToWorld(Vector2.Zero);
+        var bottomRight = _camera.ScreenToWorld(new Vector2(WindowWidth, WindowHeight));
+
+        float worldLeft   = MathF.Min(topLeft.X, bottomRight.X);
+        float worldRight  = MathF.Max(topLeft.X, bottomRight.X);
+        float worldTop    = MathF.Min(topLeft.Y, bottomRight.Y);
+        float worldBottom = MathF.Max(topLeft.Y, bottomRight.Y);
+
+        // Select a spacing so we get at most MaxGridLines in each axis.
+        float spacing = BaseSpacingMeters;
+        float visW = worldRight  - worldLeft;
+        float visH = worldBottom - worldTop;
+        while (visW / spacing > MaxGridLines || visH / spacing > MaxGridLines)
+            spacing *= 10f;
+        while (spacing > BaseSpacingMeters
+            && visW / (spacing / 10f) <= MaxGridLines
+            && visH / (spacing / 10f) <= MaxGridLines)
+            spacing /= 10f;
+
+        float startX = MathF.Floor(worldLeft / spacing) * spacing;
+        float startY = MathF.Floor(worldTop  / spacing) * spacing;
+
+        var lineColor = new Color(200, 200, 200, 60);
+
+        _camera.BeginMode();
+
+        for (float x = startX; x <= worldRight + spacing; x += spacing)
+            Raylib.DrawLineV(new Vector2(x, worldTop    - spacing),
+                             new Vector2(x, worldBottom + spacing), lineColor);
+
+        for (float y = startY; y <= worldBottom + spacing; y += spacing)
+            Raylib.DrawLineV(new Vector2(worldLeft  - spacing, y),
+                             new Vector2(worldRight + spacing, y), lineColor);
+
+        _camera.EndMode();
+    }
+
+    // ── Config JSON parsing ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parses a JSON Merge Patch from IOS and applies client-side settings
+    /// (<c>view.layers.grid</c>, <c>interaction.activeTool</c>).
+    /// </summary>
+    private void ParseAndApplyConfig(string json)
+    {
+        try
+        {
+            using var doc  = JsonDocument.Parse(json);
+            var       root = doc.RootElement;
+
+            // view.layers.grid → toggle grid rendering
+            if (root.TryGetProperty("view",   out var viewEl)
+             && viewEl.TryGetProperty("layers", out var layersEl)
+             && layersEl.TryGetProperty("grid",  out var gridEl))
+            {
+                _showGrid = gridEl.GetBoolean();
+            }
+
+            // interaction.activeTool + toolConfig → activate canvas tool
+            if (root.TryGetProperty("interaction", out var interactionEl)
+             && interactionEl.TryGetProperty("activeTool", out var toolEl)
+             && toolEl.GetString() == "PLACEMENT"
+             && interactionEl.TryGetProperty("toolConfig", out var toolConfigEl))
+            {
+                long    tkbType = 0;
+                ForceId aff     = ForceId.Unknown;
+
+                if (toolConfigEl.TryGetProperty("entityType", out var etEl))
+                    tkbType = etEl.GetInt64();
+
+                if (toolConfigEl.TryGetProperty("affiliation", out var affEl))
+                {
+                    aff = affEl.GetString() switch
+                    {
+                        "FORCE_FRIENDLY" => ForceId.Friend,
+                        "FORCE_OPPOSING" => ForceId.Hostile,
+                        "FORCE_NEUTRAL"  => ForceId.Neutral,
+                        _                => ForceId.Unknown,
+                    };
+                }
+
+                ActivatePlacementTool(tkbType, aff);
+            }
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn("[IG] Failed to parse ConfigurationJson: {0}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Pushes a <see cref="CreationTool"/> onto the canvas tool stack.
+    /// Guarded by <see cref="_lastPlacementContextId"/> so repeated keep-last
+    /// DDS deliveries do not re-activate the tool for the same interaction context.
+    /// </summary>
+    private void ActivatePlacementTool(long tkbType, ForceId affiliation)
+    {
+        if (_lastPlacementContextId == _activeContextId)
+            return;
+        _lastPlacementContextId = _activeContextId;
+
+        if (!_networkEnabled || _createEntityDdsWriter == null)
+            return;
+
+        var writer = new CycloneDdsWriterIgAdapter(_createEntityDdsWriter);
+        var tool   = new CreationTool(writer, tkbType, affiliation);
+        _canvas.PushTool(tool);
+
+        FdpLog<IgApplication>.Info(
+            "[IG] Placement tool activated. TkbType={0}, Affiliation={1}", tkbType, affiliation);
+    }
+
+    // ── Private adapter ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Bridges <see cref="CycloneDDS.Runtime.DdsWriter{T}"/> to the
+    /// <see cref="Bagira.IG.Abstractions.IDdsWriter{T}"/> interface required by
+    /// <see cref="CreationTool"/>, keeping the IG tool layer free of CycloneDDS
+    /// assembly references.
+    /// </summary>
+    private sealed class CycloneDdsWriterIgAdapter : Bagira.IG.Abstractions.IDdsWriter<CreateEntityRequest>
+    {
+        private readonly DdsWriter<CreateEntityRequest> _inner;
+
+        public CycloneDdsWriterIgAdapter(DdsWriter<CreateEntityRequest> inner)
+            => _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+
+        public void Write(CreateEntityRequest sample) => _inner.Write(sample);
     }
 }

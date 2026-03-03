@@ -138,6 +138,16 @@ public class ContextMenuSystem : IModuleSystem
                 {
                     cmd.AddManagedComponent(target, state);
                 }
+
+                // If no IOS-provided actions are available, populate with IG defaults
+                // so the menu is always useful even without IOS customisation.
+                if (state.Actions.Count == 0)
+                {
+                    state.Actions = new System.Collections.Generic.List<ContextAction>
+                    {
+                        new ContextAction { Label = "Center on Entity", ActionName = "IG_CenterOnEntity" },
+                    };
+                }
             }
         }
 

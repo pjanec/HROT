@@ -39,11 +39,17 @@ public sealed class ContextMenuPanel
             return;
 
         var view = (ISimulationView)_world;
-        if (!view.IsAlive(activeEntity) || !view.HasManagedComponent<ContextMenuState>(activeEntity))
+        if (!view.IsAlive(activeEntity))
         {
             _menuSystem.RequestClose(activeEntity);
             return;
         }
+
+        // Component may not yet be visible if it was added via command buffer
+        // in the same frame (buffers are flushed in BeforeSync, not PostSimulation).
+        // Skip drawing this frame and wait for the next.
+        if (!view.HasManagedComponent<ContextMenuState>(activeEntity))
+            return;
 
         var state = view.GetManagedComponentRO<ContextMenuState>(activeEntity);
         if (!state.IsOpen)
