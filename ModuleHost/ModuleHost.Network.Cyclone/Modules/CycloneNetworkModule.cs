@@ -10,8 +10,6 @@ using ModuleHost.Core.Network.Interfaces;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
 using ModuleHost.Network.Cyclone.Services;
-using ModuleHost.Network.Cyclone.Translators;
-using ModuleHost.Network.Cyclone.Topics;
 using ModuleHost.Network.Cyclone.Systems;
 using ModuleHost.Network.Cyclone.Providers;
 using FDP.Toolkit.Replication.Components;
@@ -37,9 +35,6 @@ namespace ModuleHost.Network.Cyclone.Modules
         
         // Translators and Services
         private NetworkEntityMap _entityMap;
-        private TypeIdMapper _typeMapper;
-        private EntityMasterTranslator _masterTranslator;
-        private EntityStateTranslator _stateTranslator;
         
         // Dynamic / Custom Translators
         private readonly List<IDescriptorTranslator> _customTranslators = new();
@@ -67,7 +62,6 @@ namespace ModuleHost.Network.Cyclone.Modules
             
             // Initialize Services
             _entityMap = sharedEntityMap ?? new NetworkEntityMap();
-            _typeMapper = new TypeIdMapper();
 
             if (serializationRegistry != null)
             {
@@ -78,10 +72,6 @@ namespace ModuleHost.Network.Cyclone.Modules
                 serializationRegistry.Register(1004, new CycloneSerializationProvider<NetworkSpawnRequest>());
             }
 
-            // Initialize Translators
-            _masterTranslator = new EntityMasterTranslator(_entityMap, _nodeMapper, _typeMapper, _participant);
-            _stateTranslator = new EntityStateTranslator(_entityMap, _participant);
-            
             if (customTranslators != null)
             {
                 _customTranslators.AddRange(customTranslators);
@@ -92,9 +82,10 @@ namespace ModuleHost.Network.Cyclone.Modules
 
         public void RegisterSystems(ISystemRegistry registry)
         {
-            // Combine Default + Custom
-            var allTranslators = new List<IDescriptorTranslator> { _masterTranslator, _stateTranslator };
-            allTranslators.AddRange(_customTranslators);
+            // Use only the externally-provided custom translators.
+            // The generic EntityMasterTranslator / EntityStateTranslator have been
+            // removed; concrete applications supply their own domain translators.
+            var allTranslators = new List<IDescriptorTranslator>(_customTranslators);
 
             // Register Ingress
             registry.RegisterSystem(new CycloneNetworkIngressSystem(
@@ -106,7 +97,9 @@ namespace ModuleHost.Network.Cyclone.Modules
                 allTranslators.ToArray()
             ));
 
-             registry.RegisterSystem(new CycloneNetworkCleanupSystem(_masterTranslator));
+            // NOTE: CycloneNetworkCleanupSystem is NOT registered here.
+            // Applications must provide it directly (e.g., SimHostApp registers it
+            // with EntityMasterEgressTranslator to handle entity lifecycle disposal).
             
             // Register Gateway
              registry.RegisterSystem(_gatewaySystem);
