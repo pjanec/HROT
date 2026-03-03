@@ -36,6 +36,13 @@ namespace FDP.Toolkit.Vis2D.Tools
         public event Action<List<Entity>>? OnRegionSelected;     // Result of Box Select
         public event Action<Entity, Vector2>? OnEntityMoved;     // Result of Drag Operation
 
+        /// <summary>
+        /// Fired once when the drag operation completes (mouse released).
+        /// Unlike <see cref="OnEntityMoved"/> which fires every frame during drag,
+        /// this fires exactly once at drop so callers can send a single network update.
+        /// </summary>
+        public event Action<Entity>? OnEntityDragEnd;
+
         // State
         private bool _isActionMouseDown; // Was 'Left', now generic based on map
         private Vector2 _mouseDownPos;
@@ -138,10 +145,15 @@ namespace FDP.Toolkit.Vis2D.Tools
                     {
                         // Dragging on an entity -> Entity Drag
                         var startPos = _adapter.GetPosition(_view, _potentialTarget) ?? _mouseDownPos;
+                        var dragTarget = _potentialTarget; // capture for closure
                         var tool = new EntityDragTool(
-                            _potentialTarget, 
-                            startPos, 
-                            () => _canvas.PopTool()
+                            dragTarget,
+                            startPos,
+                            () =>
+                            {
+                                _canvas.PopTool();
+                                OnEntityDragEnd?.Invoke(dragTarget);
+                            }
                         );
                         tool.OnEntityMoved += (e, p) => OnEntityMoved?.Invoke(e, p);
                         _canvas.PushTool(tool);
