@@ -28,11 +28,13 @@ namespace Bagira.Map.Common.Replication.Egress
         private readonly IGeographicTransform _geoTransform;
         private readonly HashSet<long> _tracedNetIds = new();
 
+        private const long GeoSpatialOrdinal = (long)Bagira.BDC.SSTD.EDescriptorType.dtGeoSpatial;
+
         public GeoSpatialEgressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
             IGeographicTransform geoTransform)
-            : base(participant, "GeoSpatial", ordinal: 10, entityMap)
+            : base(participant, "GeoSpatial", ordinal: GeoSpatialOrdinal, entityMap)
         {
             _drWriter = new DdsWriter<GeoSpatialDR>(participant, "GeoSpatialDR");
             _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));

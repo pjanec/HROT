@@ -440,6 +440,7 @@ public class IgApplication
         if (_networkEnabled)
         {
             interactionTool.OnWorldClick += OnCanvasClicked;
+            interactionTool.OnEntityDragEnd += OnEntityDragEnded;
             _miniIosPanel.SetGateway(_commandGateway);
         }
 
@@ -811,6 +812,83 @@ public class IgApplication
         var mousePos = Raylib.GetMousePosition();
 
         _contextMenuSystem.RequestOpen(targetEntity, mousePos.X, mousePos.Y);
+    }
+
+    /// <summary>
+    /// Handles the end of an entity drag on the 2-D map canvas.
+    /// Reads the entity's current (post-drag) <see cref="SimTransform"/> position,
+    /// converts it to geodetic coordinates, and publishes an
+    /// <see cref="UpdateEntityDescriptorRequest"/> so the authoritative node
+    /// (SimHost) can persist the new position.
+    /// No-op when network is disabled or required services are unavailable.
+    /// </summary>
+    private void OnEntityDragEnded(Entity entity)
+    {
+        if (!_networkEnabled || _commandGateway == null || _geoTransform == null) return;
+
+        var view = (ISimulationView)_world;
+        if (!view.HasComponent<NetworkIdentity>(entity)) return;
+
+        long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
+        if (!view.HasComponent<SimTransform>(entity)) return;
+
+        var position = view.GetComponentRO<SimTransform>(entity).Position;
+        var (lat, lon, alt) = _geoTransform.ToGeodetic(position);
+
+        var request = new UpdateEntityDescriptorRequest
+        {
+            RequestId      = Guid.NewGuid(),
+            EntityId       = (int)netId,
+            DescriptorType = EDescriptorType.dtGeoSpatial,
+            Payload        = new EntityDescriptorUnion
+            {
+                _d         = EDescriptorType.dtGeoSpatial,
+                GeoSpatial = new GeoSpatial
+                {
+                    EntityId = (int)netId,
+                    Time     = DateTime.UtcNow,
+                    Pos      = new GeoPosition
+                    {
+                        Latitude  = lat,
+                        Longitude = lon,
+                        Altitude  = alt,
+                    },
+                    Rot = new OrientationHPR(),
+                },
+            },
+        };
+
+        _commandGateway.SendUpdateDescriptor(request);
+
+        FdpLog<IgApplication>.Info(
+            "[IG] Drag end: sent UpdateEntityDescriptorRequest for NetID {0} to ({1:F5}°, {2:F5}°).",
+            netId, lat, lon);
+    }
+
+    /// <summary>
+    /// Internal test hook to simulate a drag-end for the entity with the given network ID.
+    /// Directly calls <see cref="OnEntityDragEnded"/> — requires the entity to already
+    /// exist in the ECS world with a <see cref="SimTransform"/> component set to the
+    /// desired drop position before calling this hook.
+    /// </summary>
+    internal void TestHook_SimulateDragEnd(long networkId)
+    {
+        if (!_entityMap.TryGetEntity(networkId, out var entity))
+            throw new InvalidOperationException($"Entity with networkId={networkId} not found in IG entity map.");
+
+        OnEntityDragEnded(entity);
+    }
+
+    /// <summary>
+    /// Internal test hook to overwrite an entity's <see cref="SimTransform"/> (e.g. to
+    /// simulate the local position that the drag tool writes during a drag operation).
+    /// </summary>
+    internal void TestHook_SetEntitySimTransform(long networkId, SimTransform transform)
+    {
+        if (!_entityMap.TryGetEntity(networkId, out var entity))
+            throw new InvalidOperationException($"Entity with networkId={networkId} not found in IG entity map.");
+
+        _world.SetComponent(entity, transform);
     }
 
     private void HandleContextMenuAction(Entity entity, ContextAction action)

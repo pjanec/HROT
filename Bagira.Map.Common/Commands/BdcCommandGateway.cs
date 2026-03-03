@@ -14,8 +14,9 @@ namespace Bagira.Map.Common.Commands
     /// </summary>
     public class BdcCommandGateway : IDisposable
     {
-        private readonly DdsCommandClient<CreateEntityRequest, CreateEntityAck>      _createEntityClient;
-        private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>  _missionControlClient;
+        private readonly DdsCommandClient<CreateEntityRequest, CreateEntityAck>       _createEntityClient;
+        private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>   _missionControlClient;
+        private readonly DdsWriter<UpdateEntityDescriptorRequest>                     _updateWriter;
 
         /// <summary>
         /// creates a new gateway instance.
@@ -42,6 +43,9 @@ namespace Bagira.Map.Common.Commands
                 req => req.RequestId,
                 ack => ack.RequestId
             );
+
+            // Fire-and-forget writer for UpdateEntityDescriptorRequest (drag-end position updates).
+            _updateWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
         }
 
         /// <summary>
@@ -92,10 +96,30 @@ namespace Bagira.Map.Common.Commands
             return ack;
         }
 
+        /// <summary>
+        /// Sends a fire-and-forget <see cref="UpdateEntityDescriptorRequest"/> over DDS.
+        /// Used by the IG to broadcast entity position changes after a drag-drop operation.
+        /// A new <see cref="Guid"/> is generated automatically when <see cref="UpdateEntityDescriptorRequest.RequestId"/> is empty.
+        /// </summary>
+        /// <param name="request">The request to publish.</param>
+        public void SendUpdateDescriptor(UpdateEntityDescriptorRequest request)
+        {
+            if (request.RequestId == Guid.Empty)
+                request.RequestId = Guid.NewGuid();
+
+            _updateWriter.Write(request);
+
+            FdpLog<BdcCommandGateway>.Info(
+                "[GW] Sent UpdateEntityDescriptorRequest for Entity {0} ({1})",
+                request.EntityId,
+                request.DescriptorType);
+        }
+
         public void Dispose()
         {
             _createEntityClient?.Dispose();
             _missionControlClient?.Dispose();
+            _updateWriter?.Dispose();
         }
     }
 }

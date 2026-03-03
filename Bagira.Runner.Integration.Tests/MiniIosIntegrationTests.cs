@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
 using Bagira.Map.Common;
@@ -181,6 +182,158 @@ public class MiniIosIntegrationTests
         }
         summary.Append("]");
         return summary.ToString();
+    }
+
+    // ── Entity drag-end test ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Verifies the full entity drag-end flow:
+    /// <list type="number">
+    ///   <item>IG spawns an entity and waits for SimHost to acknowledge.</item>
+    ///   <item>IG entity SimTransform is set to a new position (simulating what the
+    ///         drag tool writes during mouse movement).</item>
+    ///   <item>IG fires the drag-end hook, which sends
+    ///         <see cref="UpdateEntityDescriptorRequest"/> (GeoSpatial) to DDS.</item>
+    ///   <item>SimHost receives the request, verifies authority, updates
+    ///         <see cref="SimTransform"/>, and replies with
+    ///         <see cref="UpdateEntityDescriptorAck"/> (error code 0).</item>
+    ///   <item>SimHost entity <see cref="SimTransform"/> is confirmed to be near the
+    ///         target position within round-trip coordinate precision.</item>
+    /// </list>
+    /// </summary>
+    [Fact]
+    public void EntityDragEnd_MovesEntityOnSimHost_ViaUpdateDescriptorRequest()
+    {
+        const int DragTimeoutFrames = 150;
+        const float PositionTolerance = 1.0f; // metres — accounts for geodetic round-trip rounding
+
+        using var harness = new BagiraRunnerHarness();
+
+        var igApp = harness.Ig.App;
+
+        using var observerParticipant  = new DdsParticipant((uint)harness.DomainId);
+        using var reqReader            = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
+        using var ackReader            = new DdsReader<CreateEntityAck>(observerParticipant, "CreateEntityAck");
+        using var updateReqReader      = new DdsReader<UpdateEntityDescriptorRequest>(observerParticipant, "UpdateEntityDescriptorRequest");
+        using var updateAckReader      = new DdsReader<UpdateEntityDescriptorAck>(observerParticipant, "UpdateEntityDescriptorAck");
+
+        // ── 1. Spawn an entity via IG ─────────────────────────────────────────
+        long tkbType = TkbEntityTypes.Tank_M1Abrams;
+        igApp.TestHook_SubmitMiniIosSpawn(tkbType, ForceId.Friend, 100f, 200f);
+
+        CreateEntityRequest spawnReq = default;
+        Assert.True(
+            harness.PumpUntil(() => TryTakeAnyCreateRequest(reqReader, out spawnReq), RequestTimeoutFrames),
+            "CreateEntityRequest did not reach DDS in time.");
+
+        CreateEntityAck spawnAck = default;
+        Assert.True(
+            harness.PumpUntil(() => TryTakeCreateAck(ackReader, spawnReq.RequestId, out spawnAck), RequestTimeoutFrames),
+            "CreateEntityAck did not arrive in time.");
+        Assert.Equal(0, spawnAck.ErrorCode);
+
+        long networkId = spawnAck.NewEntityId;
+        Assert.True(networkId > 0, "Spawn did not return a valid network ID.");
+
+        // ── 2. Wait for both sides to be ready ───────────────────────────────
+        Assert.True(
+            harness.PumpUntil(() => TryGetSimHostEntity(harness.SimHost.World, networkId, out _), SimHostSpawnTimeoutFrames),
+            "SimHost did not spawn the entity in time.");
+
+        Assert.True(
+            harness.PumpUntil(() => IgHasEntityWithNetworkIdAndLifecycle(harness.Ig.App.World, networkId, EntityLifecycle.Active), IgSpawnTimeoutFrames),
+            "IG entity did not promote to Active in time.");
+
+        // ── 3. Simulate drag: set new Cartesian position on IG entity ─────────
+        // The drag tool writes the drop position into SimTransform every frame.
+        // We replicate that by setting the component directly before firing drag-end.
+        var dropPosition = new Vector3(350f, 480f, 0f);
+        igApp.TestHook_SetEntitySimTransform(networkId, new SimTransform { Position = dropPosition });
+
+        // ── 4. Fire drag-end → IG publishes UpdateEntityDescriptorRequest ─────
+        igApp.TestHook_SimulateDragEnd(networkId);
+
+        // ── 5. Verify UpdateEntityDescriptorRequest is on DDS ─────────────────
+        UpdateEntityDescriptorRequest updateReq = default;
+        bool updateReqObserved = harness.PumpUntil(
+            () => TryTakeUpdateRequest(updateReqReader, networkId, out updateReq),
+            DragTimeoutFrames);
+        Assert.True(updateReqObserved, "UpdateEntityDescriptorRequest did not reach DDS in time.");
+        Assert.Equal(EDescriptorType.dtGeoSpatial, updateReq.DescriptorType);
+        Assert.Equal((int)networkId, updateReq.EntityId);
+
+        // ── 6. Verify SimHost acknowledges with success ───────────────────────
+        UpdateEntityDescriptorAck updateAck = default;
+        bool updateAckObserved = harness.PumpUntil(
+            () => TryTakeUpdateAck(updateAckReader, updateReq.RequestId, out updateAck),
+            DragTimeoutFrames);
+        Assert.True(updateAckObserved, "UpdateEntityDescriptorAck did not arrive in time.");
+        Assert.Equal(0, updateAck.ErrorCode);
+
+        // ── 7. Verify SimHost entity SimTransform is near the drop position ────
+        bool simHostPositionUpdated = harness.PumpUntil(
+            () => SimHostEntityIsNearPosition(harness.SimHost.World, networkId, dropPosition, PositionTolerance),
+            DragTimeoutFrames);
+        Assert.True(simHostPositionUpdated,
+            $"SimHost entity SimTransform was not updated to the expected drop position ({dropPosition:F1}) within the timeout.");
+    }
+
+    private static bool TryTakeUpdateRequest(
+        DdsReader<UpdateEntityDescriptorRequest> reader,
+        long networkId,
+        out UpdateEntityDescriptorRequest request)
+    {
+        using var loan = reader.Take();
+        foreach (var sample in loan)
+        {
+            if (!sample.IsValid) continue;
+            if (sample.Data.EntityId == (int)networkId)
+            {
+                request = sample.Data;
+                return true;
+            }
+        }
+
+        request = default;
+        return false;
+    }
+
+    private static bool TryTakeUpdateAck(
+        DdsReader<UpdateEntityDescriptorAck> reader,
+        Guid requestId,
+        out UpdateEntityDescriptorAck ack)
+    {
+        using var loan = reader.Take();
+        foreach (var sample in loan)
+        {
+            if (!sample.IsValid) continue;
+            if (sample.Data.RequestId == requestId)
+            {
+                ack = sample.Data;
+                return true;
+            }
+        }
+
+        ack = default;
+        return false;
+    }
+
+    private static bool SimHostEntityIsNearPosition(
+        EntityRepository world,
+        long networkId,
+        Vector3 expectedPosition,
+        float tolerance)
+    {
+        if (!TryGetSimHostEntity(world, networkId, out var entity))
+            return false;
+
+        var view = (ISimulationView)world;
+        if (!view.HasComponent<SimTransform>(entity))
+            return false;
+
+        var actual = view.GetComponentRO<SimTransform>(entity).Position;
+        var dist   = Vector3.Distance(actual, expectedPosition);
+        return dist <= tolerance;
     }
 
     // ── Wander mission test ───────────────────────────────────────────────────

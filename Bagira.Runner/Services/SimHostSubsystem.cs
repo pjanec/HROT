@@ -14,6 +14,7 @@ using Bagira.SimHost.Systems;
 using Bagira.Map.Common.Replication.Egress;
 using Bagira.Map.Common.Replication.Ingress;
 using Bagira.Map.Common.Replication;
+using Bagira.Map.Common.Systems;
 using Bagira.SimHost.Utilities;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Lifecycle;
@@ -215,11 +216,9 @@ namespace Bagira.Runner.Services
             _idAllocatorServer = new DdsIdAllocatorServer(ddsParticipant);
 
             // ── 3. Geodetic configuration ─────────────────────────────────────
-            var wgs84 = new WGS84Transform();
-            wgs84.SetOrigin(
-                simConfig.GeodeticOrigin.Latitude,
-                simConfig.GeodeticOrigin.Longitude,
-                simConfig.GeodeticOrigin.Altitude);
+            // Use the shared factory so that SimHostSubsystem, SimHostApp and IgApplication
+            // all agree on the same reference origin (Berlin by default).
+            var wgs84 = BagiraEnvironment.CreateGeoTransform();
             _geoTransform = wgs84;
 
             // ── 4. Doctrine registry ──────────────────────────────────────────
@@ -255,6 +254,7 @@ namespace Bagira.Runner.Services
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
             _kernelGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
+            _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
             // Seed GlobalTime singleton.

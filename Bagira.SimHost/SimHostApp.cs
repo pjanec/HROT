@@ -33,6 +33,7 @@ using Bagira.Map.Common;
 using Bagira.Map.Common.Events;
 using Bagira.Map.Common.Replication.Egress;
 using Bagira.Map.Common.Replication.Ingress;
+using Bagira.Map.Common.Systems;
 using Bagira.Map.Definitions.Tkb;
 using Bagira.SimHost.Brains;
 using Bagira.SimHost.Components;
@@ -185,6 +186,7 @@ namespace Bagira.SimHost
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
             _kernelGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
+            _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
             // Seed GlobalTime singleton.

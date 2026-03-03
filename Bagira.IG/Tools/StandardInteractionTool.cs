@@ -58,6 +58,17 @@ public class StandardInteractionTool : IMapTool
     }
 
     /// <summary>
+    /// Passes through the inner FDP tool's drag-end event so that
+    /// IgApplication can send a single network position update on mouse-up.
+    /// Fires with the dragged entity once the user releases the mouse button.
+    /// </summary>
+    public event Action<Entity>? OnEntityDragEnd
+    {
+        add    => _inner.OnEntityDragEnd += value;
+        remove => _inner.OnEntityDragEnd -= value;
+    }
+
+    /// <summary>
     /// Constructs a wired selection tool.
     /// </summary>
     /// <param name="world">
