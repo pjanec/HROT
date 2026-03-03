@@ -8,6 +8,7 @@ using Bagira.DDS.DM;
 using Bagira.IG.Abstractions;
 using Bagira.IG.Components;
 using Bagira.IG.Tools;
+using Fdp.Modules.Geographic;
 using Raylib_cs;
 
 namespace Bagira.IG.Tests;
@@ -189,5 +190,68 @@ public class CreationToolTests
             .First(d => d._d == EDescriptorType.dtEntityMaster);
         Assert.Equal(CreationToolConstants.DefaultTkbType, masterEntry.EntityMaster.TkbType);
     }
-}
 
+    //  Geo transform coordinate conversion 
+
+    /// <summary>
+    /// Stub <see cref="IGeographicTransform"/> that always returns predetermined
+    /// lat/lon values, making tests deterministic without real WGS84 math.
+    /// </summary>
+    private sealed class FixedResultGeoTransform : IGeographicTransform
+    {
+        private readonly double _lat;
+        private readonly double _lon;
+
+        public FixedResultGeoTransform(double lat, double lon)
+        {
+            _lat = lat;
+            _lon = lon;
+        }
+
+        public void SetOrigin(double latDeg, double lonDeg, double altMeters) { }
+        public Vector3 ToCartesian(double latDeg, double lonDeg, double altMeters) => Vector3.Zero;
+        public (double lat, double lon, double alt) ToGeodetic(Vector3 localPos) => (_lat, _lon, 0.0);
+    }
+
+    /// <summary>
+    /// When an <see cref="IGeographicTransform"/> is provided the GeoSpatial
+    /// descriptor must carry the converted lat/lon from the transform, NOT the
+    /// raw world-space metres.
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_WithGeoTransform_UsesConvertedCoordinates()
+    {
+        const double ExpectedLat = 52.501;
+        const double ExpectedLon = 13.402;
+
+        var writer = CreateWriter();
+        var geo    = new FixedResultGeoTransform(ExpectedLat, ExpectedLon);
+        var tool   = new CreationTool(writer, geoTransform: geo, tkbType: TestTkbType);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        var descriptors = writer.Written[0].InitialDescriptors;
+        var geoEntry    = descriptors.First(d => d._d == EDescriptorType.dtGeoSpatial);
+        Assert.Equal(ExpectedLat, geoEntry.GeoSpatial.Pos.Latitude,  precision: 4);
+        Assert.Equal(ExpectedLon, geoEntry.GeoSpatial.Pos.Longitude, precision: 4);
+    }
+
+    /// <summary>
+    /// Without a geo transform (null) the descriptor must fall back to using
+    /// <c>worldPos.Y</c> as latitude and <c>worldPos.X</c> as longitude (offline
+    /// / test mode behaviour).
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_WithoutGeoTransform_FallsBackToRawCoordinates()
+    {
+        var writer = CreateWriter();
+        var tool   = new CreationTool(writer, tkbType: TestTkbType); // no geoTransform
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        var descriptors = writer.Written[0].InitialDescriptors;
+        var geoEntry    = descriptors.First(d => d._d == EDescriptorType.dtGeoSpatial);
+        Assert.Equal(ClickY, geoEntry.GeoSpatial.Pos.Latitude,  precision: 3);
+        Assert.Equal(ClickX, geoEntry.GeoSpatial.Pos.Longitude, precision: 3);
+    }
+}

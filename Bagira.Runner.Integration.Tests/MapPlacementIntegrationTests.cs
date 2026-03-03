@@ -224,4 +224,85 @@ public class MapPlacementIntegrationTests
 
         return false;
     }
+
+    /// <summary>
+    /// Verifies the direct <see cref="Bagira.IG.Tools.CreationTool"/> path:
+    /// IOS starts placement mode  IG activates CreationTool  a direct
+    /// left-click through the test hook  SimHost receives a valid
+    /// <see cref="CreateEntityRequest"/> with geo-converted coordinates and
+    /// acknowledges it by spawning an entity.
+    ///
+    /// This test exercises the code path that was broken before TASK-IF006:
+    /// raw world-space metres were sent as geodetic degrees, producing
+    /// out-of-range values that caused SimHost to reject the request silently.
+    /// </summary>
+    [Fact]
+    public void EndToEnd_DirectCreationTool_SpawnsEntityInSimHost()
+    {
+        using var harness = new BagiraRunnerHarness();
+
+        var iosLogic = harness.Ios.Logic;
+        var igApp    = harness.Ig.App;
+
+        using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
+        using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
+        using var ackReader     = new DdsReader<CreateEntityAck>(observerParticipant, "CreateEntityAck");
+
+        long tkbType = TkbEntityTypes.Tank_M1Abrams;
+
+        // Ask IOS to enter placement mode  this publishes a MapInteractionConfig
+        // that IG receives and activates CreationTool.
+        iosLogic.StartPlacementMode(tkbType, eForceIdentifier.FORCE_FRIENDLY);
+
+        bool toolActive = harness.PumpUntil(
+            () => iosLogic.ActiveContextId != Guid.Empty
+               && igApp.TestHook_ActiveContextId == iosLogic.ActiveContextId
+               && igApp.TestHook_IsCreationToolActive,
+            ConfigSyncTimeoutFrames);
+        Assert.True(toolActive, "CreationTool did not become active in time.");
+
+        // Simulate a left-click directly on the CreationTool (not via IOS).
+        // Click at the local origin (0, 0) which the WGS84Transform maps to
+        //  Berlin (52.52N, 13.405E)  coordinates within valid geodetic range.
+        igApp.TestHook_DirectCreationToolClick(new Vector2(0f, 0f));
+
+        // Verify the DDS request was written with valid geodetic coordinates.
+        CreateEntityRequest observedRequest = default;
+        bool requestObserved = harness.PumpUntil(
+            () => TryTakeAnyCreateRequest(requestReader, out observedRequest),
+            CreateRequestTimeoutFrames);
+        Assert.True(requestObserved, "CreateEntityRequest did not reach DDS in time.");
+        Assert.NotNull(observedRequest.InitialDescriptors);
+        Assert.True(
+            HasMasterWithTkb(observedRequest.InitialDescriptors, tkbType),
+            DescribeDescriptors("DDS", observedRequest.InitialDescriptors));
+
+        // Before TASK-IF006 the lat/lon were raw world-space metres (e.g. 0 m
+        // treated as 0, which is technically valid but would break at any non-
+        // origin position). Verify the values are within geodetic bounds.
+        var geoDescriptor = observedRequest.InitialDescriptors
+            .First(d => d._d == EDescriptorType.dtGeoSpatial);
+        double lat = geoDescriptor.GeoSpatial.Pos.Latitude;
+        double lon = geoDescriptor.GeoSpatial.Pos.Longitude;
+        Assert.InRange(lat, -90.0,  90.0);
+        Assert.InRange(lon, -180.0, 180.0);
+
+        // Verify SimHost acknowledged and spawned the entity.
+        CreateEntityAck ack = default;
+        bool ackObserved = harness.PumpUntil(
+            () => TryTakeCreateAck(ackReader, observedRequest.RequestId, out ack),
+            CreateRequestTimeoutFrames);
+        Assert.True(ackObserved, "CreateEntityAck did not arrive in time.");
+        Assert.Equal(0, ack.ErrorCode);
+
+        bool simHostSpawned = harness.PumpUntil(
+            () => SimHostHasEntityWithTkbType(harness.SimHost.World, tkbType),
+            SimHostSpawnTimeoutFrames);
+        Assert.True(simHostSpawned, "SimHost did not spawn a entity via direct CreationTool click.");
+
+        bool igSpawned = harness.PumpUntil(
+            () => IgHasEntity(igApp.World),
+            IgSpawnTimeoutFrames);
+        Assert.True(igSpawned, "IG did not receive the spawned entity in time.");
+    }
 }

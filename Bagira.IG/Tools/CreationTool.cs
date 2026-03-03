@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Bagira.BDC.SSTD;
@@ -6,6 +6,7 @@ using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using Bagira.IG.Abstractions;
 using Bagira.IG.Components;
+using Fdp.Modules.Geographic;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
@@ -32,13 +33,15 @@ namespace Bagira.IG.Tools;
 /// <list type="bullet">
 ///   <item>A <see cref="EntityDescriptorUnion"/> (dtEntityMaster) carrying the TKB type.</item>
 ///   <item>A <see cref="EntityDescriptorUnion"/> (dtGeoSpatial) with the click coordinates
-///         mapped as <c>Latitude = worldPos.Y, Longitude = worldPos.X</c>.</item>
+///         converted to geodetic lat/lon via <see cref="IGeographicTransform.ToGeodetic"/>
+///         when a transform is available, or mapped as
+///         <c>Latitude = worldPos.Y, Longitude = worldPos.X</c> in offline/test mode.</item>
 /// </list>
 ///
 /// <see cref="CreateEntityRequest.Owner"/> is left as <c>default(NodeId)</c> (all-zeros)
 /// so the SimHost assigns itself as the authoritative owner (ghost-node convention).
 ///
-/// No allocations on the hover / draw hot path (§CODE-STANDARDS §4).
+/// No allocations on the hover / draw hot path (CODE-STANDARDS 4).
 /// The <see cref="List{T}"/> in <see cref="CreateEntityRequest.InitialDescriptors"/> is
 /// only allocated on the click event path.
 /// </summary>
@@ -48,6 +51,7 @@ public class CreationTool : IMapTool
     public string Name => CreationToolConstants.ToolName;
 
     private readonly IDdsWriter<CreateEntityRequest> _ddsWriter;
+    private readonly IGeographicTransform?           _geoTransform;
     private readonly long                            _tkbType;
     private readonly ForceId                         _affiliation;
 
@@ -64,6 +68,14 @@ public class CreationTool : IMapTool
     /// DDS writer for the <c>CreateEntityRequest</c> topic; the SimHost listens on
     /// this topic and creates the entity as the authoritative node.
     /// </param>
+    /// <param name="geoTransform">
+    /// Optional geographic transform for converting flat map world-space metres to
+    /// geodetic (lat/lon) coordinates.  When <c>null</c> (offline / test mode),
+    /// <c>worldPos.Y</c> is used as latitude and <c>worldPos.X</c> as longitude.
+    /// Pass <see cref="WGS84Transform"/> (or any <see cref="IGeographicTransform"/>)
+    /// when running with live DDS so the entity is placed at the correct real-world
+    /// geographic position.
+    /// </param>
     /// <param name="tkbType">
     /// TKB template type to request.  Defaults to
     /// <see cref="CreationToolConstants.DefaultTkbType"/> when zero is passed.
@@ -71,15 +83,17 @@ public class CreationTool : IMapTool
     /// <param name="affiliation">Force affiliation for the new entity.</param>
     public CreationTool(
         IDdsWriter<CreateEntityRequest> ddsWriter,
-        long                            tkbType     = CreationToolConstants.DefaultTkbType,
-        ForceId                         affiliation = ForceId.Unknown)
+        IGeographicTransform?           geoTransform = null,
+        long                            tkbType      = CreationToolConstants.DefaultTkbType,
+        ForceId                         affiliation  = ForceId.Unknown)
     {
-        _ddsWriter   = ddsWriter ?? throw new ArgumentNullException(nameof(ddsWriter));
-        _tkbType     = tkbType == 0 ? CreationToolConstants.DefaultTkbType : tkbType;
-        _affiliation = affiliation;
+        _ddsWriter    = ddsWriter ?? throw new ArgumentNullException(nameof(ddsWriter));
+        _geoTransform = geoTransform;
+        _tkbType      = tkbType == 0 ? CreationToolConstants.DefaultTkbType : tkbType;
+        _affiliation  = affiliation;
     }
 
-    // ── IMapTool lifecycle ────────────────────────────────────────────────────
+    //  IMapTool lifecycle 
 
     /// <inheritdoc/>
     public void OnEnter(MapCanvas canvas)
@@ -96,7 +110,7 @@ public class CreationTool : IMapTool
     /// <inheritdoc/>
     public void Update(float dt) { /* Stateless between frames. */ }
 
-    // ── Input handling ────────────────────────────────────────────────────────
+    //  Input handling 
 
     /// <inheritdoc/>
     public bool HandleClick(Vector2 worldPos, MouseButton button)
@@ -110,7 +124,7 @@ public class CreationTool : IMapTool
 
         if (button == MouseButton.Right)
         {
-            // Cancel — return to previous tool without spawning.
+            // Cancel  return to previous tool without spawning.
             _canvas?.PopTool();
             return true;
         }
@@ -129,13 +143,13 @@ public class CreationTool : IMapTool
         return false;
     }
 
-    // ── Rendering ─────────────────────────────────────────────────────────────
+    //  Rendering 
 
     /// <inheritdoc/>
     /// <remarks>
     /// Draws a semi-transparent ghost circle at the current cursor world position,
     /// with the TKB type code as a label below it.
-    /// Called inside <c>MapCanvas.Draw()</c> → <c>Camera.BeginMode()</c>.
+    /// Called inside <c>MapCanvas.Draw()</c>  <c>Camera.BeginMode()</c>.
     /// </remarks>
     public void Draw(RenderContext ctx)
     {
@@ -156,14 +170,32 @@ public class CreationTool : IMapTool
             Color.White);
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    //  Private helpers 
 
     private void PublishCreateRequest(Vector2 worldPos)
     {
+        // Convert flat map world-space metres to geodetic coordinates.
+        // When a geo transform is available (live DDS mode), use it to get
+        // correct lat/lon.  When null (offline / unit-test mode) fall back to
+        // treating worldPos.Y as latitude and worldPos.X as longitude so the
+        // existing test suite continues to work without a geo transform stub.
+        double lat, lon, alt;
+        if (_geoTransform != null)
+        {
+            (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(worldPos.X, worldPos.Y, 0f));
+        }
+        else
+        {
+            // Offline fallback: map canvas X  east (longitude), Y  north (latitude).
+            lat = worldPos.Y;
+            lon = worldPos.X;
+            alt = 0.0;
+        }
+
         var request = new CreateEntityRequest
         {
             RequestId = Guid.NewGuid(),
-            Owner     = default,   // zeroed NodeId — SimHost takes authoritative ownership
+            Owner     = default,   // zeroed NodeId  SimHost takes authoritative ownership
             Flags     = 0,
             InitialDescriptors = new List<EntityDescriptorUnion>
             {
@@ -177,8 +209,12 @@ public class CreationTool : IMapTool
                     _d         = EDescriptorType.dtGeoSpatial,
                     GeoSpatial = new GeoSpatial
                     {
-                        // Map canvas: X = longitude (east), Y = latitude (north)
-                        Pos = new GeoPosition { Latitude = worldPos.Y, Longitude = worldPos.X },
+                        Pos = new GeoPosition
+                        {
+                            Latitude  = lat,
+                            Longitude = lon,
+                            Altitude  = alt,
+                        },
                     },
                 },
             },

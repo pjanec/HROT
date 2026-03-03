@@ -678,6 +678,26 @@ public class IgApplication
         => OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null);
 
     /// <summary>
+    /// Returns <c>true</c> when <see cref="CreationTool"/> is the currently active
+    /// canvas tool  i.e. the operator is in placement mode (activated by an IOS
+    /// <c>MapInteractionConfig</c>).
+    /// </summary>
+    internal bool TestHook_IsCreationToolActive => _canvas.ActiveTool is CreationTool;
+
+    /// <summary>
+    /// Directly invokes <see cref="CreationTool.HandleClick"/> with a left-click at
+    /// <paramref name="worldPos"/>, bypassing the IOS-mediated <see cref="OnCanvasClicked"/>
+    /// path.  This simulates what happens when the real operator clicks on the canvas
+    /// while the placement tool is active.  No-op when <see cref="CreationTool"/> is not
+    /// the active tool.
+    /// </summary>
+    internal void TestHook_DirectCreationToolClick(Vector2 worldPos)
+    {
+        if (_canvas.ActiveTool is CreationTool creationTool)
+            creationTool.HandleClick(worldPos, MouseButton.Left);
+    }
+
+    /// <summary>
     /// Internal test hook to submit a Mini IOS spawn request via the DDS gateway.
     /// </summary>
     internal void TestHook_SubmitMiniIosSpawn(long tkbType, ForceId affiliation, float positionX, float positionY)
@@ -958,7 +978,7 @@ public class IgApplication
             return;
 
         var writer = new CycloneDdsWriterIgAdapter(_createEntityDdsWriter);
-        var tool   = new CreationTool(writer, tkbType, affiliation);
+        var tool   = new CreationTool(writer, _geoTransform, tkbType, affiliation);
         _canvas.PushTool(tool);
 
         FdpLog<IgApplication>.Info(
