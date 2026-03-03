@@ -45,5 +45,16 @@ namespace Bagira.SimHost
         /// No configurable parameters.
         /// </summary>
         public const int Idle_HSM = 3010;
+
+        // ── SimHost wander behaviour (BTree, 3011–3019) ───────────────────────────
+
+        /// <summary>
+        /// Military wander behaviour (BTree).
+        /// BehaviorId string: <c>"WanderMilitary"</c>.
+        /// The entity continuously moves to random destinations within 1000 units of (0, 0).
+        /// Once a destination is reached a new random destination is selected automatically.
+        /// No configurable parameters (params block is ignored).
+        /// </summary>
+        public const int WanderMilitary_BT = 3011;
     }
 }

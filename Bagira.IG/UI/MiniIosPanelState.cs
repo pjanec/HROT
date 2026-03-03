@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading.Tasks;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
@@ -164,6 +165,125 @@ public class MiniIosPanelState
         };
 
         _ = gateway.CreateEntityAsync(request); // fire-and-forget
+    }
+
+    // ── Submit via gateway with wander mission (network path) ─────────────────
+
+    /// <summary>
+    /// Creates an entity via <see cref="CreateEntityRequest"/> and immediately assigns a
+    /// <c>WanderMilitary</c> mission so the entity moves continuously around the origin.
+    ///
+    /// The method awaits the <see cref="CreateEntityAck"/> to obtain the allocated entity ID,
+    /// then sends a <see cref="MissionControlRequest"/> with <c>CMD_REPLACE_MISSION</c> carrying
+    /// a single-task <see cref="MissionPlan"/> using the <c>WanderMilitary</c> doctrine.
+    ///
+    /// Returns silently and logs a warning when <paramref name="gateway"/> is <c>null</c>.
+    /// </summary>
+    /// <param name="gateway">Live command gateway; may be <c>null</c> when network is off.</param>
+    public async Task SubmitWithWanderMissionViaGateway(BdcCommandGateway? gateway)
+    {
+        if (gateway == null)
+        {
+            FdpLog<MiniIosPanelState>.Warn("[IG] Network disabled — wander spawn ignored.");
+            return;
+        }
+
+        var descriptors = new List<EntityDescriptorUnion>
+        {
+            new EntityDescriptorUnion
+            {
+                _d           = EDescriptorType.dtEntityMaster,
+                EntityMaster = new EntityMaster { TkbType = TkbType, DisType = 0 },
+            }
+        };
+
+        if (_geoTransform != null)
+        {
+            var local = new Vector3(PositionX, PositionY, 0f);
+            var (lat, lon, alt) = _geoTransform.ToGeodetic(local);
+
+            descriptors.Add(new EntityDescriptorUnion
+            {
+                _d = EDescriptorType.dtGeoSpatial,
+                GeoSpatial = new GeoSpatial
+                {
+                    Pos = new GeoPosition
+                    {
+                        Latitude  = lat,
+                        Longitude = lon,
+                        Altitude  = alt,
+                    },
+                },
+            });
+        }
+
+        var createRequest = new CreateEntityRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            InitialDescriptors = descriptors,
+        };
+
+        CreateEntityAck ack;
+        try
+        {
+            ack = await gateway.CreateEntityAsync(createRequest);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<MiniIosPanelState>.Error("[IG] CreateEntityAsync failed: {0}", ex.Message);
+            return;
+        }
+
+        if (ack.ErrorCode != 0)
+        {
+            FdpLog<MiniIosPanelState>.Warn(
+                "[IG] CreateEntityAck returned error {0} — mission assignment skipped.", ack.ErrorCode);
+            return;
+        }
+
+        var taskId = Guid.NewGuid();
+        var missionTask = new MissionTask
+        {
+            TaskId           = taskId,
+            ExecutingEngine  = "CGFX",
+            BehaviorId       = "WanderMilitary",
+            BehaviorParams   = string.Empty,
+            Triggers         = new List<MissionTrigger>(), // single-task plan – no advancement
+            State            = eTaskState.TASK_PLANNED,
+        };
+
+        var missionPlan = new MissionPlan
+        {
+            ActiveTaskId = taskId,
+            Tasks        = new List<MissionTask> { missionTask },
+        };
+
+        var missionRequest = new MissionControlRequest
+        {
+            RequestId      = Guid.NewGuid(),
+            TargetEntityId = ack.NewEntityId,
+            BaseVersion    = 0,
+            Payload = new MissionCommandUnion
+            {
+                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                FullMissionData = missionPlan,
+            },
+        };
+
+        try
+        {
+            var missionAck = await gateway.SendMissionControlRequestAsync(missionRequest);
+            if (missionAck.ErrorCode != 0)
+            {
+                FdpLog<MiniIosPanelState>.Warn(
+                    "[IG] MissionControlAck returned error {0} for entity {1}.",
+                    missionAck.ErrorCode, ack.NewEntityId);
+            }
+        }
+        catch (Exception ex)
+        {
+            FdpLog<MiniIosPanelState>.Error("[IG] SendMissionControlRequestAsync failed: {0}", ex.Message);
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

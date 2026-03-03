@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Threading.Tasks;
 using System.Text.Json;
 using CarKinem.Core;
 using Bagira.BDC.SSTD;
@@ -682,6 +683,23 @@ public class IgApplication
         _miniIosState.PositionX = positionX;
         _miniIosState.PositionY = positionY;
         _miniIosState.SubmitViaGateway(_commandGateway);
+    }
+
+    /// <summary>
+    /// Internal test hook to submit a Mini IOS spawn + WanderMilitary mission request
+    /// via the DDS gateway (network distributed path).
+    /// </summary>
+    internal Task TestHook_SubmitMiniIosSpawnWithWanderMission(
+        long tkbType, ForceId affiliation, float positionX, float positionY)
+    {
+        if (_commandGateway == null)
+            throw new InvalidOperationException("Mini IOS gateway is not initialized.");
+
+        _miniIosState.TkbType      = tkbType;
+        _miniIosState.Affiliation  = affiliation;
+        _miniIosState.PositionX    = positionX;
+        _miniIosState.PositionY    = positionY;
+        return _miniIosState.SubmitWithWanderMissionViaGateway(_commandGateway);
     }
 
     /// <summary>

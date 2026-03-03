@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
@@ -14,10 +14,6 @@ using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Bagira.SimHost.Systems
 {
-    /// <summary>
-    /// Applies incoming <see cref="MissionControlRequest"/> commands to the target entity
-    /// and emits <see cref="MissionControlAck"/> responses over DDS.
-    /// </summary>
     public class MissionControlRequestSystem : ComponentSystem
     {
         private const int ErrorCodeSuccess         = 0;
@@ -30,6 +26,7 @@ namespace Bagira.SimHost.Systems
 
         private readonly DdsReader<MissionControlRequest> _reader;
         private readonly DdsWriter<MissionControlAck>     _writer;
+        private readonly DdsWriter<EntityMission>         _missionStateWriter;
         private readonly NetworkEntityMap                 _entityMap;
         private readonly DoctrineRegistry                 _doctrineRegistry;
         private readonly Dictionary<long, long>           _missionVersions = new();
@@ -40,10 +37,11 @@ namespace Bagira.SimHost.Systems
             NetworkEntityMap entityMap,
             DoctrineRegistry doctrineRegistry)
         {
-            _reader    = new DdsReader<MissionControlRequest>(participant);
-            _writer    = new DdsWriter<MissionControlAck>(participant);
-            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-            _doctrineRegistry = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
+            _reader             = new DdsReader<MissionControlRequest>(participant);
+            _writer             = new DdsWriter<MissionControlAck>(participant);
+            _missionStateWriter = new DdsWriter<EntityMission>(participant);
+            _entityMap          = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _doctrineRegistry   = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
         }
 
         protected override void OnUpdate()
@@ -91,6 +89,7 @@ namespace Bagira.SimHost.Systems
                     _missionVersions[request.TargetEntityId] = currentVersion;
 
                     WriteAck(request.RequestId, ErrorCodeSuccess, errorMessage: null, newVersion: currentVersion);
+                    PublishEntityMission(request.TargetEntityId, plan);
                     return;
                 }
 
@@ -141,14 +140,23 @@ namespace Bagira.SimHost.Systems
             }
         }
 
+        private void PublishEntityMission(long networkEntityId, MissionPlan plan)
+        {
+            _missionStateWriter.Write(new EntityMission
+            {
+                EntityId = networkEntityId,
+                Plan     = plan,
+            });
+        }
+
         private void WriteAck(Guid requestId, int errorCode, string? errorMessage, long newVersion)
         {
             _writer.Write(new MissionControlAck
             {
-                RequestId   = requestId,
-                ErrorCode   = errorCode,
+                RequestId    = requestId,
+                ErrorCode    = errorCode,
                 ErrorMessage = errorMessage,
-                NewVersion  = newVersion
+                NewVersion   = newVersion
             });
         }
 
@@ -209,7 +217,7 @@ namespace Bagira.SimHost.Systems
         private static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
         {
             if (triggers == null || triggers.Count == 0)
-            return (EcsMissionTrigger.TimerElapsed, 0f);
+                return (EcsMissionTrigger.TimerElapsed, 0f);
 
             var trigger = triggers[0];
             var type = trigger.Type ?? string.Empty;

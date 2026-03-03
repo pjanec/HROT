@@ -1,4 +1,4 @@
-using Bagira.BDC.SSTM;
+﻿using Bagira.BDC.SSTM;
 using FDP.Toolkit.Commands;
 using CycloneDDS.Core;
 using CycloneDDS.Runtime;
@@ -14,8 +14,9 @@ namespace Bagira.Map.Common.Commands
     /// </summary>
     public class BdcCommandGateway : IDisposable
     {
-        private readonly DdsCommandClient<CreateEntityRequest, CreateEntityAck> _createEntityClient;
-        
+        private readonly DdsCommandClient<CreateEntityRequest, CreateEntityAck>      _createEntityClient;
+        private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>  _missionControlClient;
+
         /// <summary>
         /// creates a new gateway instance.
         /// </summary>
@@ -29,6 +30,15 @@ namespace Bagira.Map.Common.Commands
                 participant,
                 "CreateEntityRequest", // Must match [DdsTopic] attribute
                 "CreateEntityAck",     // Must match [DdsTopic] attribute
+                req => req.RequestId,
+                ack => ack.RequestId
+            );
+
+            // Initialize the client for MissionControlRequest
+            _missionControlClient = new DdsCommandClient<MissionControlRequest, MissionControlAck>(
+                participant,
+                "MissionControlRequest",
+                "MissionControlAck",
                 req => req.RequestId,
                 ack => ack.RequestId
             );
@@ -59,9 +69,33 @@ namespace Bagira.Map.Common.Commands
             return ack;
         }
 
+        /// <summary>
+        /// Sends a MissionControlRequest and awaits the acknowledgment.
+        /// If RequestId is empty, a new Guid is generated.
+        /// </summary>
+        /// <param name="request">The request data.</param>
+        /// <param name="timeoutMs">Timeout in milliseconds.</param>
+        /// <returns>The acknowledgment with error code (0 = success).</returns>
+        public async Task<MissionControlAck> SendMissionControlRequestAsync(
+            MissionControlRequest request, int timeoutMs = 5000)
+        {
+            if (request.RequestId == Guid.Empty)
+                request.RequestId = Guid.NewGuid();
+
+            FdpLog<BdcCommandGateway>.Debug(
+                "[TRACE-GW] Sending MissionControlRequest ID={0} Entity={1}",
+                request.RequestId, request.TargetEntityId);
+
+            var ack = await _missionControlClient.SendAsync(request, timeoutMs);
+            FdpLog<BdcCommandGateway>.Debug(
+                "[TRACE-GW] MissionControlAck ID={0} Error={1}", ack.RequestId, ack.ErrorCode);
+            return ack;
+        }
+
         public void Dispose()
         {
             _createEntityClient?.Dispose();
+            _missionControlClient?.Dispose();
         }
     }
 }

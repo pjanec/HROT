@@ -7,6 +7,7 @@ using Bagira.Map.Definitions.Tkb;
 using Bagira.Runner.Abstractions;
 using Bagira.Runner.Models;
 using Bagira.SimHost;
+using Bagira.SimHost.Brains;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
 using Bagira.SimHost.Systems;
@@ -240,6 +241,13 @@ namespace Bagira.Runner.Services
                 new DoctrineDefinition { Name = "JoinFormation", BrainTier = BehaviorConstants.BrainTierBTree });
             doctrineRegistry.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
                 new DoctrineDefinition { Name = "Idle",          BrainTier = BehaviorConstants.BrainTierHsm });
+            doctrineRegistry.Register(SimHostDoctrineIds.WanderMilitary_BT, "WanderMilitary",
+                new DoctrineDefinition
+                {
+                    Name             = "WanderMilitary",
+                    BrainTier        = BehaviorConstants.BrainTierBTree,
+                    BTreeInterpreter = SimHostNodes.BuildWanderMilitaryInterpreter(),
+                });
 
             // ── 5. SimulationLogicModule ──────────────────────────────────────
             // Load road network from file so the visualizer can show roads.

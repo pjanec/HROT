@@ -33,6 +33,7 @@ using Bagira.Map.Common.Events;
 using Bagira.Map.Common.Replication.Egress;
 using Bagira.Map.Common.Replication.Ingress;
 using Bagira.Map.Definitions.Tkb;
+using Bagira.SimHost.Brains;
 using Bagira.SimHost.Components;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
@@ -151,6 +152,13 @@ namespace Bagira.SimHost
                 new DoctrineDefinition { Name = "JoinFormation", BrainTier = BehaviorConstants.BrainTierBTree });
             doctrineRegistry.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
                 new DoctrineDefinition { Name = "Idle",          BrainTier = BehaviorConstants.BrainTierHsm });
+            doctrineRegistry.Register(SimHostDoctrineIds.WanderMilitary_BT, "WanderMilitary",
+                new DoctrineDefinition
+                {
+                    Name             = "WanderMilitary",
+                    BrainTier        = BehaviorConstants.BrainTierBTree,
+                    BTreeInterpreter = SimHostNodes.BuildWanderMilitaryInterpreter(),
+                });
 
             // ── 7. Road network ───────────────────────────────────────────────
             var roadNetwork = new RoadNetworkBlob();

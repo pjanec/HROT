@@ -89,6 +89,11 @@ public class MiniIosPanel
         if (ImGui.Button("Spawn"))
             _state.SubmitViaGateway(_gateway);
 
+        ImGui.SameLine();
+
+        if (ImGui.Button("Spawn Moving Vehicle"))
+            _ = _state.SubmitWithWanderMissionViaGateway(_gateway);
+
         ImGui.End();
     }
 }
