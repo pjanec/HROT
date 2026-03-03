@@ -128,12 +128,21 @@ public class IgApplication
 
     // -------------------------------------------------------------------------
 
-    public void Initialize()
+    /// <summary>
+    /// Standalone initialisation: opens a Raylib window then delegates to
+    /// <see cref="InitializeEmbedded"/>.
+    /// </summary>
+    /// <param name="domainIdOverride">
+    /// Optional DDS domain ID override.  When <see langword="null"/> (default) the
+    /// value from <see cref="IgNetworkConstants.DdsDomain"/> is used.
+    /// Pass a non-null value to isolate this instance on a separate domain.
+    /// </param>
+    public void Initialize(int? domainIdOverride = null)
     {
         Raylib.InitWindow(WindowWidth, WindowHeight, WindowTitle);
         Raylib.SetTargetFPS(TargetFps);
         rlImGui.Setup(darkTheme: true);
-        InitializeEmbedded();
+        InitializeEmbedded(domainIdOverride: domainIdOverride);
     }
 
     /// <summary>

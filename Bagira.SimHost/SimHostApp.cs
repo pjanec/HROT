@@ -92,7 +92,15 @@ namespace Bagira.SimHost
 
         // ── Constructor ───────────────────────────────────────────────────────
 
-        public SimHostApp() : base(new ApplicationConfig
+        /// <summary>
+        /// Creates a SimHostApp with an optional DDS domain ID override.
+        /// </summary>
+        /// <param name="domainOverride">
+        /// When non-null, takes highest priority over the <c>DomainId</c> value
+        /// in <c>config.json</c>.  Pass the value parsed from the <c>--domain</c>
+        /// CLI argument; leave <see langword="null"/> to fall back to the JSON config.
+        /// </param>
+        public SimHostApp(int? domainOverride = null) : base(new ApplicationConfig
         {
             Width       = 1280,
             Height      = 720,
@@ -101,6 +109,7 @@ namespace Bagira.SimHost
             Flags       = ConfigFlags.ResizableWindow | ConfigFlags.Msaa4xHint
         })
         {
+            _domainOverride = domainOverride;
         }
 
         // ── FdpApplication lifecycle ──────────────────────────────────────────
