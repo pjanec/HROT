@@ -1,27 +1,26 @@
 using System;
-using System.Runtime.InteropServices;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using FDP.Toolkit.Time.Messages;
 using ModuleHost.Core.Abstractions;
 
-namespace Bagira.IG.Translators
+namespace Bagira.Map.Common.Replication.Ingress
 {
     /// <summary>
     /// Bridges the <c>TimePulse</c> DDS topic to the local <see cref="FdpEventBus"/>.
     ///
     /// The <c>SlaveTimeController</c> consumes <see cref="TimePulseDescriptor"/> events from
     /// the bus each tick to drive its PLL.  Without this translator the bus never receives
-    /// pulses and IG time remains frozen at wall-clock rate with no network sync.
+    /// pulses and simulation time remains frozen at wall-clock rate with no network sync.
     ///
     /// On ingress each sample is published directly to the event bus via
     /// <see cref="FdpEventBus.Publish{T}"/>.
     ///
-    /// IG does not publish time pulses — <see cref="ScanAndPublish"/> is a no-op (the Master
-    /// TimeController publishes its own pulses locally; other nodes only consume).
+    /// Slave-only nodes (e.g. IG) — <see cref="ScanAndPublish"/> is a no-op; the Master
+    /// TimeController publishes its own pulses locally; slaves only consume.
     /// </summary>
-    public class TimePulseTranslator : IDescriptorTranslator
+    public class TimePulseIngressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "TimePulse";
         private const long   OrdinalValue = 100; // matches EventId(100) on TimePulseDescriptor
@@ -29,10 +28,10 @@ namespace Bagira.IG.Translators
         private readonly DdsReader<TimePulseDescriptor> _reader;
         private readonly FdpEventBus                    _eventBus;
 
-        public string TopicName        => DdsTopicName;
+        public string TopicName         => DdsTopicName;
         public long   DescriptorOrdinal => OrdinalValue;
 
-        public TimePulseTranslator(DdsParticipant? participant, FdpEventBus eventBus)
+        public TimePulseIngressTranslator(DdsParticipant? participant, FdpEventBus eventBus)
         {
             // participant may be null in unit-test mode — PollIngress becomes a no-op
             _reader   = participant is not null ? new DdsReader<TimePulseDescriptor>(participant) : null!;
@@ -57,7 +56,7 @@ namespace Bagira.IG.Translators
             }
         }
 
-        // ── Egress (IG is slave — does not publish time pulses) ───────────────
+        // ── Egress (slave — does not publish time pulses) ─────────────────────
 
         public void ScanAndPublish(ISimulationView view) { }
 

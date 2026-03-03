@@ -5,7 +5,7 @@ using System.Reflection;
 using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
 using Bagira.IG.Systems;
-using Bagira.IG.Translators;
+using Bagira.Map.Common.Replication;
 using Bagira.IG.UI;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Systems;

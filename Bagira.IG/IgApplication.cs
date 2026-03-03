@@ -16,6 +16,7 @@ using Bagira.IG.UI;
 using Bagira.Map.Common;
 using Bagira.Map.Common.Commands;
 using Bagira.Map.Common.Events;
+using Bagira.Map.Common.Replication;
 using Bagira.Map.Common.Replication.Ingress;
 using Bagira.Map.Definitions.Tkb;
 using CycloneDDS.Runtime;
@@ -339,7 +340,7 @@ public class IgApplication
                     entityDamageTranslator,
                     mapEntitySymbolTranslator,
                     contextActionsTranslator,
-                    new TimePulseTranslator(participant, _world.Bus),
+                    new TimePulseIngressTranslator(participant, _world.Bus),
                 };
 
                 if (!_headless)

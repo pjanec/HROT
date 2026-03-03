@@ -37,7 +37,7 @@ using Bagira.SimHost.Components;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
 using Bagira.SimHost.Systems;
-using Bagira.SimHost.Translators;
+using Bagira.Map.Common.Replication;
 using Bagira.SimHost.Utilities;
 using CarKinem.Commands;
 using CarKinem.Road;

@@ -1,5 +1,5 @@
 using System.Linq;
-using Bagira.IG.Translators;
+using Bagira.Map.Common.Replication.Ingress;
 using CycloneDDS.Schema;
 using Fdp.Kernel;
 using FDP.Toolkit.Time.Messages;
@@ -8,7 +8,7 @@ using ModuleHost.Core.Abstractions;
 namespace Bagira.IG.Tests;
 
 /// <summary>
-/// Tests verifying that the <see cref="TimePulseTranslator"/> correctly bridges
+/// Tests verifying that the <see cref="TimePulseIngressTranslator"/> correctly bridges
 /// <see cref="TimePulseDescriptor"/> events to the <see cref="FdpEventBus"/> so
 /// <c>SlaveTimeController</c> can consume them.
 ///
@@ -40,7 +40,7 @@ public class TimePulseTranslatorTests
     {
         var eventBus = new FdpEventBus();
 
-        _ = new TimePulseTranslator(null, eventBus);
+        _ = new TimePulseIngressTranslator(null, eventBus);
 
         // Publish must not throw InvalidOperationException ("type not registered")
         var pulse = new TimePulseDescriptor { MasterWallTicks = 1L, SequenceId = 1L };
@@ -52,7 +52,7 @@ public class TimePulseTranslatorTests
 
     /// <summary>
     /// Verifies the exact bus-bridge path used by
-    /// <see cref="TimePulseTranslator.PollIngress"/>:
+    /// <see cref="TimePulseIngressTranslator.PollIngress"/>:
     ///   eventBus.Publish(sample.Data) → SwapBuffers → HasEvent&lt;TimePulseDescriptor&gt;
     ///
     /// If this assertion fails, <c>SlaveTimeController</c> would never receive
@@ -62,7 +62,7 @@ public class TimePulseTranslatorTests
     public void EventBus_AfterPublishAndSwap_HasTimePulseEvent()
     {
         var eventBus = new FdpEventBus();
-        _ = new TimePulseTranslator(null, eventBus); // registers event type
+        _ = new TimePulseIngressTranslator(null, eventBus); // registers event type
 
         var pulse = new TimePulseDescriptor
         {
@@ -88,7 +88,7 @@ public class TimePulseTranslatorTests
     public void EventBus_ConsumedPulse_FieldsMatchPublished()
     {
         var eventBus = new FdpEventBus();
-        _ = new TimePulseTranslator(null, eventBus);
+        _ = new TimePulseIngressTranslator(null, eventBus);
 
         var expected = new TimePulseDescriptor
         {
@@ -123,7 +123,7 @@ public class TimePulseTranslatorTests
     public void PollIngress_WithNullParticipant_IsNoOpAndDoesNotEmitEvents()
     {
         var eventBus   = new FdpEventBus();
-        var translator = new TimePulseTranslator(null, eventBus);
+        var translator = new TimePulseIngressTranslator(null, eventBus);
 
         var repo = new EntityRepository();
         ISimulationView      view = repo;

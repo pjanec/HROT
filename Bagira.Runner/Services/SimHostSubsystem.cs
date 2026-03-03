@@ -12,7 +12,7 @@ using Bagira.SimHost.Modules;
 using Bagira.SimHost.Systems;
 using Bagira.Map.Common.Replication.Egress;
 using Bagira.Map.Common.Replication.Ingress;
-using Bagira.SimHost.Translators;
+using Bagira.Map.Common.Replication;
 using Bagira.SimHost.Utilities;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Lifecycle;

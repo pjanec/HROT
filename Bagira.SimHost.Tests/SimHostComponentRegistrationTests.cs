@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Bagira.BDC.SSTD;
 using Bagira.SimHost;
-using Bagira.SimHost.Translators;
+using Bagira.Map.Common.Replication;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Perception.Components;

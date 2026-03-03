@@ -1,6 +1,6 @@
 using System.Threading;
 using Bagira.BDC.SSTM;
-using Bagira.SimHost.Translators;
+using Bagira.Map.Common.Replication;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Services;

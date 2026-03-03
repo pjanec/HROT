@@ -7,11 +7,21 @@ using ModuleHost.Network.Cyclone.Translators;
 using DdsFireInteractionEvent = Bagira.BDC.SSTM.FireInteractionEvent;
 using EcsFireInteractionEvent = Bagira.Map.Common.Events.FireInteractionEvent;
 
-namespace Bagira.SimHost.Translators
+namespace Bagira.Map.Common.Replication
 {
     /// <summary>
-    /// Egress translator for transient <see cref="EcsFireInteractionEvent"/> events.
-    /// SimHost is egress-only and must not consume these events from DDS.
+    /// Bidirectional translator for transient <see cref="EcsFireInteractionEvent"/> events.
+    ///
+    /// <list type="bullet">
+    ///   <item><description>
+    ///     <b>IG (ingress)</b> — calls <see cref="PollIngress"/> each tick to receive
+    ///     fire-interaction events published by SimHost and post them to the local event bus.
+    ///   </description></item>
+    ///   <item><description>
+    ///     <b>SimHost (egress)</b> — calls <see cref="ScanAndPublish"/> each tick to
+    ///     encode locally-raised events and write them to the DDS topic.
+    ///   </description></item>
+    /// </list>
     /// </summary>
     public class FireInteractionEventTranslator
         : CycloneNativeEventTranslator<EcsFireInteractionEvent, DdsFireInteractionEvent>
@@ -25,8 +35,14 @@ namespace Bagira.SimHost.Translators
 
         protected override bool TryDecode(in DdsFireInteractionEvent dds, out EcsFireInteractionEvent ecs)
         {
-            ecs = default;
-            return false; // SimHost is egress-only for fire interaction events.
+            ecs = new EcsFireInteractionEvent
+            {
+                ShooterX = dds.ShooterX,
+                ShooterY = dds.ShooterY,
+                TargetX  = dds.TargetX,
+                TargetY  = dds.TargetY,
+            };
+            return true;
         }
 
         protected override bool TryEncode(in EcsFireInteractionEvent ecs, out DdsFireInteractionEvent dds)
