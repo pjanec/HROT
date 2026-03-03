@@ -140,16 +140,6 @@ namespace Bagira.Runner.Services
                 });
             }
 
-            initialComponents.Add(new GeoTransform
-            {
-                Latitude = position.Latitude,
-                Longitude = position.Longitude,
-                Altitude = (float)position.Altitude,
-                HeadingDeg = 0f,
-                PitchDeg = 0f,
-                RollDeg = 0f
-            });
-
             _world.Bus.PublishManaged(new SpawnEntityCommand
             {
                 NetworkId = networkId,
@@ -427,8 +417,6 @@ namespace Bagira.Runner.Services
             // Geographic / physics
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
-            world.RegisterComponent<GeoTransform>();
-            world.RegisterComponent<GeoVelocity>();
 
             // Behavior toolkit
             world.RegisterComponent<DoctrineState>();

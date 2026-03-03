@@ -16,7 +16,6 @@ using CarKinem.Trajectory;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Transforms;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
@@ -404,18 +403,20 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
         /// <summary>
         /// Reads the latest <see cref="GeoSpatial"/> state of the entity identified by
-        /// <paramref name="networkId"/> by querying its <see cref="GeoTransform"/> ECS
-        /// component.  Returns <c>null</c> when no such entity is found.
+        /// <paramref name="networkId"/> by querying its <see cref="SimTransform"/> ECS
+        /// component and converting to geodetic coordinates on-the-fly.
+        /// Returns <c>null</c> when no such entity is found.
         /// </summary>
         public GeoSpatial? ReadGeoSpatial(int networkId)
         {
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return null;
 
-            if (!_world.HasComponent<GeoTransform>(entity))
+            if (!_world.HasComponent<SimTransform>(entity))
                 return null;
 
-            ref readonly var geo = ref _world.GetComponentRO<GeoTransform>(entity);
+            ref readonly var simTf = ref _world.GetComponentRO<SimTransform>(entity);
+            var (lat, lon, alt) = _wgs84.ToGeodetic(simTf.Position);
 
             return new GeoSpatial
             {
@@ -423,9 +424,9 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 Time     = DateTime.UtcNow,
                 Pos      = new DDS.DM.GeoPosition
                 {
-                    Latitude  = geo.Latitude,
-                    Longitude = geo.Longitude,
-                    Altitude  = geo.Altitude,
+                    Latitude  = lat,
+                    Longitude = lon,
+                    Altitude  = alt,
                 }
             };
         }
@@ -539,8 +540,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             _simGroup.Run();
             _postSimGroup.Run();
 
-            // ── Phase 4: Geographic egress ─────────────────────────────────────
-            // SimTransformBridgeSystem → converts SimTransform → GeoTransform
+            // ── Phase 4: Geographic systems (smoothing, coordinate transforms) ──────
             _geoSystems.ExecuteAll(view, dt);
 
             // Final flush for any cmd-buf writes from geo systems.
@@ -581,8 +581,6 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             // ── Geographic components ─────────────────────────────────────────────
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
-            world.RegisterComponent<GeoTransform>();
-            world.RegisterComponent<GeoVelocity>();
 
             // ── Behavior toolkit components ────────────────────────────────────────
             world.RegisterComponent<DoctrineState>();
@@ -681,10 +679,6 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 Linear  = Vector3.Zero,
                 Angular = Vector3.Zero
             });
-
-            // Geographic components (filled by SimTransformBridgeSystem each tick)
-            tankTemplate.AddComponent(new GeoTransform());
-            tankTemplate.AddComponent(new GeoVelocity());
 
             // Behavior toolkit
             tankTemplate.AddComponent(new DoctrineState());

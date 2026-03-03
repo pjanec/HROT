@@ -209,8 +209,6 @@ public class IgApplication
         _world.RegisterComponent<SimTransform>();
         _world.RegisterComponent<SimVelocity>();
         _world.RegisterComponent<VehicleParams>();
-        _world.RegisterComponent<GeoTransform>();
-        _world.RegisterComponent<GeoVelocity>();
         _world.RegisterComponent<IgHealthState>();
         _world.RegisterComponent<Faction>();
         _world.RegisterComponent<PerceptionReceptor>();

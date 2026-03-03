@@ -8,7 +8,6 @@ using Bagira.Map.Common.Replication.Utils;
 using CarKinem.Core;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
 
 namespace Bagira.SimHost.Tests
@@ -158,22 +157,6 @@ namespace Bagira.SimHost.Tests
         }
 
         [Fact]
-        public void MapToComponents_GeoSpatialDescriptor_ContainsGeoTransform()
-        {
-            var geo = new IdentityGeoTransform();
-            var descriptors = new List<EntityDescriptorUnion>
-            {
-                MakeGeoSpatialDescriptor(lat: 48.0, lon: 16.0),
-            };
-
-            var components = DescriptorMapper.MapToComponents(descriptors, geo);
-
-            var geoTransform = Assert.Single(components.OfType<GeoTransform>());
-            Assert.Equal(48.0, geoTransform.Latitude, precision: 5);
-            Assert.Equal(16.0, geoTransform.Longitude, precision: 5);
-        }
-
-        [Fact]
         public void MapToComponents_GeoSpatialDescriptor_NoRawGeoSpatialType()
         {
             var geo = new IdentityGeoTransform();
@@ -188,7 +171,7 @@ namespace Bagira.SimHost.Tests
         }
 
         [Fact]
-        public void DescriptorMapper_GeoSpatialDescriptor_NullTransform_AddsOnlyGeoTransform()
+        public void DescriptorMapper_GeoSpatialDescriptor_NullTransform_ProducesNoComponents()
         {
             var descriptors = new List<EntityDescriptorUnion>
             {
@@ -197,9 +180,7 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
-            Assert.Single(components.OfType<GeoTransform>());
-            Assert.DoesNotContain(components, c => c is SimTransform);
-            Assert.DoesNotContain(components, c => c is VehicleState);
+            Assert.Empty(components);
         }
 
         [Fact]
@@ -224,7 +205,7 @@ namespace Bagira.SimHost.Tests
         }
 
         [Fact]
-        public void MapToComponents_GeoSpatialDRDescriptor_ContainsGeoVelocity()
+        public void MapToComponents_GeoSpatialDRDescriptor_ContainsSimVelocity()
         {
             var descriptors = new List<EntityDescriptorUnion>
             {
@@ -233,10 +214,10 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
-            var geoVelocity = Assert.Single(components.OfType<GeoVelocity>());
-            Assert.Equal(15f, geoVelocity.Linear.Length(), precision: 3);
+            var simVelocity = Assert.Single(components.OfType<SimVelocity>());
+            Assert.Equal(15f, simVelocity.Linear.Length(), precision: 3);
 
-            float heading = SimTransformBridgeSystem.VelocityToAzimuthDeg(geoVelocity.Linear, fallback: 0f);
+            float heading = SimTransformBridgeSystem.VelocityToAzimuthDeg(simVelocity.Linear, fallback: 0f);
             Assert.Equal(90f, heading, precision: 1);
         }
 

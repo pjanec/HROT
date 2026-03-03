@@ -322,8 +322,6 @@ namespace Bagira.SimHost
             // Geographic / physics
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
-            world.RegisterComponent<GeoTransform>();
-            world.RegisterComponent<GeoVelocity>();
 
             // Behavior toolkit
             world.RegisterComponent<DoctrineState>();

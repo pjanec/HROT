@@ -17,14 +17,14 @@ namespace Bagira.SimHost.Integration.Tests
     ///   2. The entity's <see cref="NavState"/> is configured with a distant target so
     ///      <see cref="CarKinem.Systems.CarKinematicsSystem"/> starts driving it.
     ///   3. 10 simulated seconds are advanced at 60 Hz.
-    ///   4. The entity's <see cref="Fdp.Modules.Geographic.Components.GeoTransform"/> is read
+    ///   4. The entity's <see cref="Fdp.Kernel.SimTransform"/> is read
     ///      back via <see cref="SimHostInstance.ReadGeoSpatial"/> and converted to local
     ///      Cartesian coordinates; we assert the vehicle moved at least 50 m from the origin.
     ///
     /// Note: this test intentionally bypasses the B-Tree / MissionDirectorSystem tier and
     /// configures NavState directly.  This exercises the full physics pipeline
     /// (SpatialHashSystem → VehicleCommandSystem → CarKinematicsSystem →
-    /// SimTransformBridgeSystem → CoordinateTransformSystem) without requiring a
+    /// CoordinateTransformSystem) without requiring a
     /// B-Tree asset at test time.
     /// </summary>
     public sealed class MissionExecutionFlowTests : IDisposable

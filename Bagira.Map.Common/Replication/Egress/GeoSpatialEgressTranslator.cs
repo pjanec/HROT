@@ -5,7 +5,7 @@ using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using Fdp.Modules.Geographic.Components;
+using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Systems;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
@@ -18,20 +18,24 @@ using ModuleHost.Network.Cyclone.Translators;
 namespace Bagira.Map.Common.Replication.Egress
 {
     /// <summary>
-    /// Reads <see cref="GeoTransform"/> + <see cref="GeoVelocity"/> ECS components
+    /// Reads <see cref="SimTransform"/> + <see cref="SimVelocity"/> ECS components,
+    /// converts them to geodetic coordinates on-the-fly via <see cref="IGeographicTransform"/>,
     /// and publishes <see cref="GeoSpatial"/> / <see cref="GeoSpatialDR"/> DDS topics.
     /// </summary>
     public class GeoSpatialEgressTranslator : CycloneTranslator<GeoSpatial, GeoSpatial>
     {
         private readonly DdsWriter<GeoSpatialDR> _drWriter;
+        private readonly IGeographicTransform _geoTransform;
         private readonly HashSet<long> _tracedNetIds = new();
 
         public GeoSpatialEgressTranslator(
             DdsParticipant participant,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            IGeographicTransform geoTransform)
             : base(participant, "GeoSpatial", ordinal: 10, entityMap)
         {
             _drWriter = new DdsWriter<GeoSpatialDR>(participant, "GeoSpatialDR");
+            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
         }
 
         /// <summary>
@@ -42,14 +46,14 @@ namespace Bagira.Map.Common.Replication.Egress
         }
 
         /// <summary>
-        /// Scans all locally-owned entities with <see cref="GeoTransform"/> and publishes
+        /// Scans all locally-owned entities with <see cref="SimTransform"/> and publishes
         /// <see cref="GeoSpatial"/> (position/orientation) and <see cref="GeoSpatialDR"/>
-        /// (velocity/acceleration) to DDS.
+        /// (velocity/acceleration) to DDS, converting Cartesian to geodetic on the fly.
         /// </summary>
         public override void ScanAndPublish(ISimulationView view)
         {
             var query = view.Query()
-                .With<GeoTransform>()
+                .With<SimTransform>()
                 .With<NetworkIdentity>()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
@@ -65,11 +69,13 @@ namespace Bagira.Map.Common.Replication.Egress
                 if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: true))
                     continue;
 
-                ref readonly var geoTf = ref view.GetComponentRO<GeoTransform>(entity);
+                ref readonly var simTf = ref view.GetComponentRO<SimTransform>(entity);
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
 
-                var latitude = geoTf.Latitude;
-                var longitude = geoTf.Longitude;
+                // Direct conversion: SimTransform (Cartesian) → GeoSpatial (Geodetic)
+                var (lat, lon, alt) = _geoTransform.ToGeodetic(simTf.Position);
+                float heading = SimTransformBridgeSystem.RotationToHeadingDeg(simTf.Rotation);
+                SimTransformBridgeSystem.RotationToPitchRollDeg(simTf.Rotation, out float pitch, out float roll);
 
                 Publish(new GeoSpatial
                 {
@@ -77,34 +83,31 @@ namespace Bagira.Map.Common.Replication.Egress
                     Time     = DateTime.UtcNow,
                     Pos = new GeoPosition
                     {
-                        Latitude  = latitude,
-                        Longitude = longitude,
-                        Altitude  = geoTf.Altitude,
+                        Latitude  = lat,
+                        Longitude = lon,
+                        Altitude  = alt,
                     },
                     Rot = new OrientationHPR
                     {
-                        Heading = geoTf.HeadingDeg,
-                        Pitch   = geoTf.PitchDeg,
-                        Roll    = geoTf.RollDeg,
+                        Heading = heading,
+                        Pitch   = pitch,
+                        Roll    = roll,
                     },
                 });
 
-                SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
-
                 if (_tracedNetIds.Add(netId.Value))
                 {
-                    var posLabel = string.Concat(latitude, ",", longitude);
                     FdpLog<GeoSpatialEgressTranslator>.Debug(
-                        "[TRACE-SH] Egress: Writing GeoSpatial for NetID={0} pos=({1})", netId.Value, posLabel);
+                        "[TRACE-SH] Egress: Writing GeoSpatial for NetID={0} pos=({1},{2})", netId.Value, lat, lon);
                 }
 
-                if (view.HasComponent<GeoVelocity>(entity))
+                if (view.HasComponent<SimVelocity>(entity))
                 {
-                    ref readonly var geoVel = ref view.GetComponentRO<GeoVelocity>(entity);
+                    ref readonly var simVel = ref view.GetComponentRO<SimVelocity>(entity);
 
                     // Convert ENU linear velocity to DAL3 (azimuth/elevation/speed)
-                    var velDAL3 = EnuToDAL3(geoVel.Linear, geoTf.HeadingDeg);
-                    var accDAL3 = EnuToDAL3(geoVel.Accel, geoTf.HeadingDeg);
+                    var velDAL3 = EnuToDAL3(simVel.Linear, heading);
+                    var accDAL3 = new DAL3 { Azimuth = heading, Elevation = 0f, Length = 0f };
 
                     _drWriter.Write(new GeoSpatialDR
                     {
@@ -115,13 +118,15 @@ namespace Bagira.Map.Common.Replication.Egress
                         RotVel = new OrientationHPR
                         {
                             // Angular velocity: rad/s to deg/s
-                            // geoVel.Angular: X=roll-rate, Y=pitch-rate, Z=yaw-rate
-                            Heading = geoVel.Angular.Z * (180f / MathF.PI),
-                            Pitch   = geoVel.Angular.Y * (180f / MathF.PI),
-                            Roll    = geoVel.Angular.X * (180f / MathF.PI),
+                            // simVel.Angular: X=roll-rate, Y=pitch-rate, Z=yaw-rate
+                            Heading = simVel.Angular.Z * (180f / MathF.PI),
+                            Pitch   = simVel.Angular.Y * (180f / MathF.PI),
+                            Roll    = simVel.Angular.X * (180f / MathF.PI),
                         },
                     });
                 }
+
+                SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
             }
         }
 

@@ -10,7 +10,6 @@ using Bagira.SimHost;
 using Bagira.SimHost.Configuration;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
-using Fdp.Modules.Geographic.Components;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Network.Cyclone.Services;
@@ -64,7 +63,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         bool igHasTransform = false;
         bool igHasStyle = false;
         bool igHasNetworkPosition = false;
-        bool simHostHasGeoTransform = false;
+        bool simHostHasSimTransform = false;
         for (int i = 0; i < MaxTicks; i++)
         {
             _idAllocatorServer.ProcessRequests();
@@ -86,10 +85,10 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
             if (networkId.HasValue && IgHasNetworkPosition(_ig.World, networkId.Value))
                 igHasNetworkPosition = true;
 
-            if (networkId.HasValue && SimHostHasGeoTransform(_simHost.World, networkId.Value))
-                simHostHasGeoTransform = true;
+            if (networkId.HasValue && IgHasSimTransform(_simHost.World, networkId.Value))
+                simHostHasSimTransform = true;
 
-            if (networkId.HasValue && igHasStyle && igHasNetworkPosition && simHostHasGeoTransform)
+            if (networkId.HasValue && igHasStyle && igHasNetworkPosition && simHostHasSimTransform)
                 break;
 
             Thread.Sleep(TickSleepMs);
@@ -101,15 +100,15 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
             $"Expected IG to resolve style for NetID {networkId.Value} within {MaxTicks} ticks. " +
             $"IG entity observed: {igHasEntity}. SimTransform observed: {igHasTransform}. " +
             $"ResolvedStyle observed: {igHasStyle}. NetworkPosition observed: {igHasNetworkPosition}. " +
-            $"SimHost GeoTransform observed: {simHostHasGeoTransform}.");
+            $"SimHost SimTransform observed: {simHostHasSimTransform}.");
 
         Assert.True(
             igHasNetworkPosition,
             $"Expected IG to receive NetworkPosition for NetID {networkId.Value}.");
 
         Assert.True(
-            simHostHasGeoTransform,
-            $"Expected SimHost to produce GeoTransform for NetID {networkId.Value}.");
+            simHostHasSimTransform,
+            $"Expected SimHost to have SimTransform for NetID {networkId.Value}.");
     }
 
     [Fact]
@@ -220,6 +219,7 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         return false;
     }
 
+
     private static bool IgHasNetworkPosition(EntityRepository world, long networkId)
     {
         var query = world.Query().With<NetworkIdentity>().With<NetworkPosition>().Build();
@@ -230,18 +230,6 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
                 var pos = world.GetComponent<NetworkPosition>(entity).Value;
                 return Math.Abs(pos.X) > 0.001f || Math.Abs(pos.Y) > 0.001f;
             }
-        }
-
-        return false;
-    }
-
-    private static bool SimHostHasGeoTransform(EntityRepository world, long networkId)
-    {
-        var query = world.Query().With<NetworkIdentity>().With<GeoTransform>().Build();
-        foreach (var entity in query)
-        {
-            if (world.GetComponent<NetworkIdentity>(entity).Value == networkId)
-                return true;
         }
 
         return false;

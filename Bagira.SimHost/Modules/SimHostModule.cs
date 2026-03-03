@@ -55,8 +55,8 @@ namespace Bagira.SimHost.Modules
     /// <c>SpawnEntityCommand</c> events; NetworkSpawningSystem processes them each tick.
     ///
     /// Also creates and exposes a <see cref="GeoSpatialEgressTranslator"/> for
-    /// publishing GeoSpatial/GeoSpatialDR DDS topics from ECS GeoTransform/GeoVelocity
-    /// components written by <c>SimTransformBridgeSystem</c> in the Geographic toolkit.
+    /// publishing GeoSpatial/GeoSpatialDR DDS topics by converting ECS SimTransform/SimVelocity
+    /// to geodetic coordinates on-the-fly via IGeographicTransform.
     /// </summary>
     public class SimHostModule : IModule
     {
@@ -95,7 +95,7 @@ namespace Bagira.SimHost.Modules
             // Create GeoSpatial egress translator when geographic transform is available
             if (geoTransform != null)
             {
-                _geoEgressTranslator = new GeoSpatialEgressTranslator(participant, entityMap);
+                _geoEgressTranslator = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
             }
 
             // Mission translators are always active regardless of geographic transform.

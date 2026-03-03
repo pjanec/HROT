@@ -7,7 +7,6 @@ using Bagira.IG.Components;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using Fdp.Modules.Geographic;
-using Fdp.Modules.Geographic.Components;
 
 namespace Bagira.Map.Common.Replication.Utils
 {
@@ -81,9 +80,7 @@ namespace Bagira.Map.Common.Replication.Utils
 
                     case EDescriptorType.dtGeoSpatial:
                         // Produce a SimTransform for spatial placement if a geo transform is available.
-                        // NOTE: VehicleState is intentionally NOT added here. It is only valid for
-                        // wheeled entities and must be added exclusively by the TKB template to avoid
-                        // breaking LinearKinematicsSystem for infantry and aircraft.
+                        // NOTE: VehicleState is intentionally NOT added here.
                         if (geoTransform != null)
                         {
                             var pos = d.GeoSpatial.Pos;
@@ -101,23 +98,12 @@ namespace Bagira.Map.Common.Replication.Utils
                                 Rotation = rot
                             });
                         }
-
-                        result.Add(new GeoTransform
-                        {
-                            Latitude = d.GeoSpatial.Pos.Latitude,
-                            Longitude = d.GeoSpatial.Pos.Longitude,
-                            Altitude = (float)d.GeoSpatial.Pos.Altitude,
-                            HeadingDeg = d.GeoSpatial.Rot.Heading,
-                            PitchDeg = d.GeoSpatial.Rot.Pitch,
-                            RollDeg = d.GeoSpatial.Rot.Roll
-                        });
                         break;
 
                     case EDescriptorType.dtGeoSpatialDR:
-                        result.Add(new GeoVelocity
+                        result.Add(new SimVelocity
                         {
                             Linear = Dal3ToEnu(d.GeoSpatialDR.Vel),
-                            Accel = Dal3ToEnu(d.GeoSpatialDR.Acc),
                             Angular = new Vector3(
                                 d.GeoSpatialDR.RotVel.Roll * (MathF.PI / 180f),
                                 d.GeoSpatialDR.RotVel.Pitch * (MathF.PI / 180f),
