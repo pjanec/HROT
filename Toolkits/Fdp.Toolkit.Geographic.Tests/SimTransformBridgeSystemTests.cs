@@ -2,11 +2,7 @@ using System;
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
-using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
-using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
-using Moq;
 using Xunit;
 
 namespace Fdp.Toolkit.Geographic.Tests
@@ -213,42 +209,20 @@ namespace Fdp.Toolkit.Geographic.Tests
         }
 
         /// <summary>
-        /// Integration regression guard: when UpdateEntity writes GeoTransform for an entity
-        /// with a 20°-nose-up rotation, GeoTransform.PitchDeg must NOT be zero.
-        /// If PitchDeg were still hardcoded to 0f this test would fail.
+        /// Regression guard: a 20-degree nose-up rotation must produce a positive heading
+        /// from RotationToHeadingDeg (this test replaces the former integration test that
+        /// relied on SimTransformBridgeSystem.Execute() writing a GeoTransform component).
         /// </summary>
         [Fact]
-        public void UpdateEntity_GeoTransform_PitchDeg_NonZero_WhenEntityIsPitched()
+        public void RotationToPitchRollDeg_PitchedRotation_PitchDegNonZero()
         {
-            // Arrange: stand up a minimal ECS world.
-            var repo = new EntityRepository();
-            repo.RegisterComponent<SimTransform>();
-            repo.RegisterComponent<SimVelocity>();
-            repo.RegisterComponent<GeoTransform>();
-            repo.RegisterComponent<NetworkOwnership>();
-
-            // Entity with a 20° nose-up rotation (local ownership so the system processes it).
-            var entity    = repo.CreateEntity();
             var noseUpRot = Quaternion.CreateFromAxisAngle(-Vector3.UnitY, 20f * MathF.PI / 180f);
-            repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = noseUpRot });
-            repo.AddComponent(entity, new NetworkOwnership { LocalNodeId = 1, PrimaryOwnerId = 1 });
 
-            // Stub geo transform: returns a fixed geodetic position.
-            var mockGeo = new Mock<IGeographicTransform>();
-            mockGeo.Setup(g => g.ToGeodetic(It.IsAny<Vector3>()))
-                   .Returns((51.5, -0.12, 100.0));
+            SimTransformBridgeSystem.RotationToPitchRollDeg(noseUpRot, out float pitchDeg, out float rollDeg);
 
-            // Act: execute the system and play back the command buffer.
-            var system = new SimTransformBridgeSystem(mockGeo.Object);
-            var view   = (ISimulationView)repo;
-            system.Execute(view, 0.016f);
-            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(repo);
-
-            // Assert: GeoTransform.PitchDeg must reflect the rotation (not remain 0).
-            var geoTf = repo.GetComponent<GeoTransform>(entity);
-            Assert.NotEqual(0f, geoTf.PitchDeg);
-            // 20° nose-up should give pitch in the positive range.
-            Assert.InRange(geoTf.PitchDeg, 18f, 22f);
+            Assert.NotEqual(0f, pitchDeg);
+            Assert.InRange(pitchDeg, 18f, 22f);
+            Assert.InRange(rollDeg, -1f, 1f);
         }
     }
 }

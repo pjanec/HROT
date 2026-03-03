@@ -19,7 +19,6 @@ namespace Fdp.Modules.Geographic
         {
             registry.RegisterSystem(new GeodeticSmoothingSystem(_transform));
             registry.RegisterSystem(new Fdp.Modules.Geographic.Systems.CoordinateTransformSystem(_transform));
-            registry.RegisterSystem(new SimTransformBridgeSystem(_transform));
         }
 
         public void Tick(ISimulationView view, float deltaTime) { }
