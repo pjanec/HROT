@@ -9,9 +9,10 @@ using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Systems;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Utilities;
 using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
 using ModuleHost.Network.Cyclone.Translators;
 
 namespace Bagira.Map.Common.Replication.Egress
@@ -50,15 +51,18 @@ namespace Bagira.Map.Common.Replication.Egress
             var query = view.Query()
                 .With<GeoTransform>()
                 .With<NetworkIdentity>()
-                .With<NetworkOwnership>()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
             foreach (var entity in query)
             {
-                // Only publish if we are the primary owner
-                ref readonly var ownership = ref view.GetComponentRO<NetworkOwnership>(entity);
-                if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
+                // Authority check: only publish if this node owns geospatial data for this entity.
+                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                    continue;
+
+                // Smart egress: GeoSpatial uses unreliable (UDP) transport, so we apply
+                // heartbeat refresh to recover from packet loss.
+                if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: true))
                     continue;
 
                 ref readonly var geoTf = ref view.GetComponentRO<GeoTransform>(entity);
@@ -84,6 +88,8 @@ namespace Bagira.Map.Common.Replication.Egress
                         Roll    = geoTf.RollDeg,
                     },
                 });
+
+                SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
 
                 if (_tracedNetIds.Add(netId.Value))
                 {

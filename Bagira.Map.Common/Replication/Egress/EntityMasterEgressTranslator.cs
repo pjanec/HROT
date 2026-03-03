@@ -5,9 +5,10 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Utilities;
 using ModuleHost.Core.Abstractions;
-using NetworkOwnership = ModuleHost.Core.Network.NetworkOwnership;
 
 namespace Bagira.Map.Common.Replication.Egress
 {
@@ -48,15 +49,21 @@ namespace Bagira.Map.Common.Replication.Egress
         {
             var query = view.Query()
                 .With<NetworkIdentity>()
-                .With<NetworkOwnership>()
                 .With<NetworkSpawnRequest>()
+                // Lifecycle.All is crucial: Constructing entities must publish EntityMaster
+                // so remote peers can create ghosts and ACK the construction.
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
             foreach (var entity in query)
             {
-                ref readonly var ownership = ref view.GetComponentRO<NetworkOwnership>(entity);
-                if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
+                // Authority check: replaced PrimaryOwnerId == LocalNodeId.
+                // Enables split-ownership scenarios.
+                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                    continue;
+
+                // Smart egress: EntityMaster is RELIABLE data; only send on dirty / initial create.
+                if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
                     continue;
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
@@ -69,6 +76,8 @@ namespace Bagira.Map.Common.Replication.Egress
                     DisType = spawn.DisType,
                     Flags = 0
                 });
+
+                SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
 
                 if (_tracedNetIds.Add(netId.Value))
                 {

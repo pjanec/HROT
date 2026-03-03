@@ -18,6 +18,7 @@ using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
 using ModuleHost.Core;
@@ -226,6 +227,8 @@ namespace Bagira.SimHost
 
             _kernel.RegisterGlobalSystem(
                 new CycloneNetworkCleanupSystem(entityMasterEgressTranslator));
+            _kernel.RegisterGlobalSystem(
+                new DisposalMonitoringSystem(entityMap));
 
             var localNodeId = SimHostNetworkConstants.LocalNodeId;
             var nodeMapper  = new NodeIdMapper(domainId, localNodeId);

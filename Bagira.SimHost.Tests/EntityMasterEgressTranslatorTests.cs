@@ -7,8 +7,6 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using Xunit;
 
-using NetworkOwnership = ModuleHost.Core.Network.NetworkOwnership;
-
 namespace Bagira.SimHost.Tests
 {
     public class EntityMasterEgressTranslatorTests
@@ -17,7 +15,7 @@ namespace Bagira.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
-            repo.RegisterComponent<NetworkOwnership>();
+            repo.RegisterComponent<NetworkAuthority>();
             repo.RegisterComponent<NetworkSpawnRequest>();
             return repo;
         }
@@ -34,7 +32,7 @@ namespace Bagira.SimHost.Tests
             var repo = CreateWorld();
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
-            repo.AddComponent(entity, new NetworkOwnership { PrimaryOwnerId = 1, LocalNodeId = 1 });
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 777, DisType = 0, OwnerId = 1 });
 
             Thread.Sleep(200);
@@ -71,7 +69,7 @@ namespace Bagira.SimHost.Tests
             var repo = CreateWorld();
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
-            repo.AddComponent(entity, new NetworkOwnership { PrimaryOwnerId = 2, LocalNodeId = 1 });
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
             repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 777, DisType = 0, OwnerId = 2 });
 
             Thread.Sleep(200);
@@ -104,10 +102,8 @@ namespace Bagira.SimHost.Tests
             var repo = CreateWorld();
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
-            repo.AddComponent(entity, new NetworkOwnership { PrimaryOwnerId = 1, LocalNodeId = 1 });
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 777, DisType = 0, OwnerId = 1 });
-
-            Thread.Sleep(200);
             translator.ScanAndPublish(repo);
             Thread.Sleep(200);
 

@@ -20,6 +20,7 @@ using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Time.Controllers;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -302,6 +303,8 @@ namespace Bagira.Runner.Services
 
             _kernel.RegisterGlobalSystem(
                 new CycloneNetworkCleanupSystem(entityMasterEgressTranslator));
+            _kernel.RegisterGlobalSystem(
+                new DisposalMonitoringSystem(entityMap));
             var nodeMapper  = new NodeIdMapper(domainId, localNodeId);
             var topology    = new StaticNetworkTopology(localNodeId, new[] { localNodeId });
 

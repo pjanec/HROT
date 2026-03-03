@@ -1,29 +1,30 @@
+using System.Collections.Generic;
 using Bagira.BDC.SSTD;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Utilities;
 using ModuleHost.Core.Abstractions;
+
+using DdsMissionTrigger = Bagira.BDC.SSTD.MissionTrigger;
+using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Bagira.Map.Common.Replication.Egress
 {
     /// <summary>
-    /// Egress translator: placeholder for future MissionPlanQueue → EntityMission
-    /// publication. Currently a no-op; ingress is handled by
-    /// <see cref="Replication.Ingress.EntityMissionIngressTranslator"/>.
+    /// Publishes <see cref="EntityMission"/> DDS samples by translating the
+    /// internal <see cref="MissionPlanQueue"/> ECS component.
+    /// Uses <see cref="AuthorityExtensions.HasAuthority"/> for ownership checks
+    /// and <see cref="SmartEgressUtil"/> for dirty-tracked reliable egress.
     /// </summary>
     public class EntityMissionEgressTranslator : IDescriptorTranslator
     {
         private readonly DdsWriter<EntityMission> _writer;
         private readonly NetworkEntityMap _entityMap;
-
-        /// <summary>
-        /// The <see cref="EntityRepository.GlobalVersion"/> recorded at the end of the
-        /// last <see cref="ScanAndPublish"/> cycle.
-        /// </summary>
-        private uint _lastPublishedVersion;
 
         public string TopicName => "EntityMission";
         public long DescriptorOrdinal => 51;
@@ -40,33 +41,92 @@ namespace Bagira.Map.Common.Replication.Egress
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         /// <summary>
-        /// No-op placeholder. Updates dirty-tracking version to avoid repeated work.
+        /// Scans all authority-owned entities that have a <see cref="MissionPlanQueue"/>
+        /// and publishes any dirty descriptors to DDS.
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
-            // Cast to concrete repo to access dirty-tracking and managed component APIs.
-            var repo = (EntityRepository)view;
+            var query = view.Query()
+                .With<NetworkIdentity>()
+                .With<MissionPlanQueue>()
+                // Include Constructing entities so remote nodes receive mission data immediately.
+                .WithLifecycle(EntityLifecycle.All)
+                .Build();
 
-            if (!repo.HasComponentChanged(typeof(MissionPlanQueue), _lastPublishedVersion))
+            foreach (var entity in query)
             {
-                _lastPublishedVersion = repo.GlobalVersion;
-                return;
+                // Authority check: only publish if we own the mission descriptor for this entity.
+                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                    continue;
+
+                // Smart egress: EntityMission is RELIABLE — publish only on dirty.
+                if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
+                    continue;
+
+                ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
+                ref readonly var queue = ref view.GetComponentRO<MissionPlanQueue>(entity);
+
+                _writer.Write(new EntityMission
+                {
+                    EntityId = netId.Value,
+                    Plan     = BuildDdsPlan(in queue)
+                });
+
+                SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
+            }
+        }
+
+        /// <summary>
+        /// Converts the internal <see cref="MissionPlanQueue"/> to a DDS <see cref="MissionPlan"/>.
+        /// </summary>
+        private static MissionPlan BuildDdsPlan(in MissionPlanQueue queue)
+        {
+            var tasks = new List<MissionTask>(queue.PhaseCount);
+
+            for (int i = 0; i < queue.PhaseCount; i++)
+            {
+                var phase = queue.Phases[i];
+
+                string triggerType = phase.Trigger switch
+                {
+                    EcsMissionTrigger.ReachedDestination => "ReachedDestination",
+                    EcsMissionTrigger.HealthCritical      => "HealthCritical",
+                    EcsMissionTrigger.UnderAttack         => "UnderAttack",
+                    _                                     => "TimerElapsed"
+                };
+
+                tasks.Add(new MissionTask
+                {
+                    TaskId          = System.Guid.Empty,
+                    ExecutingEngine = "SimHost",
+                    BehaviorId      = phase.DoctrineId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    BehaviorParams  = string.Empty,
+                    Triggers        = new List<DdsMissionTrigger>
+                    {
+                        new DdsMissionTrigger
+                        {
+                            Type   = triggerType,
+                            Params = phase.TriggerParam.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                        }
+                    },
+                    State = i == queue.CurrentPhase ? eTaskState.TASK_ACTIVE : eTaskState.TASK_PLANNED
+                });
             }
 
-            _lastPublishedVersion = repo.GlobalVersion;
+            return new MissionPlan
+            {
+                ActiveTaskId = System.Guid.Empty,
+                Tasks        = tasks
+            };
         }
 
         /// <summary>
-        /// Applies a mission snapshot directly to the repository.
-        /// Currently not supported for MissionPlanQueue egress.
+        /// Applies a mission snapshot directly to the repository (replay / snapshot path).
         /// </summary>
-        public void ApplyToEntity(Entity entity, object data, EntityRepository repo)
-        {
-        }
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
         /// <summary>
-        /// Sends a DDS dispose for the named entity's mission instance, signalling
-        /// remote subscribers that this host no longer owns the topic instance.
+        /// Sends a DDS dispose for the named entity's mission topic instance.
         /// </summary>
         public void Dispose(long networkEntityId)
         {

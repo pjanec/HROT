@@ -63,17 +63,20 @@ namespace Bagira.Map.Common.Replication.Ingress
             using var loan = _reader.Take();
             foreach (var sample in loan)
             {
-                if (!sample.IsValid)
-                    continue;
-
                 var info = sample.Info;
                 if (info.InstanceState != CycloneDDS.Runtime.DdsInstanceState.Alive)
                 {
-                    // Disposed instance → request teardown
+                    // Disposed instance → request teardown.
+                    // NOTE: dispose notifications have IsValid == false (no data payload,
+                    // only key fields are valid). Must check instance state BEFORE IsValid.
                     var keyData = DdsTypeSupport.FromNative<EntityMaster>(sample.NativePtr);
                     ProcessDispose(keyData.EntityId);
                     continue;
                 }
+
+                // For alive instances, skip samples with no valid data payload.
+                if (!sample.IsValid)
+                    continue;
 
                 var master = sample.Data;
                 ProcessSample(in master, cmd, view);
