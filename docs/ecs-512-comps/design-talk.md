@@ -2415,7 +2415,549 @@ You are deleting the 96-byte EntityHeader.cs completely and replacing it with tw
 By decoupling the data the CPU *needs* to check 100% of the time (component masks) from the data it only needs 1% of the time (metadata), you **doubled your component capacity from 256 to 512** while making your most common ECS queries **\~40% faster**.
 
 ---
+### Evaluation of the 256 -> 512 Component Expansion Proposal
 
+I have evaluated the proposal in `design-talk.md` against your current codebase (`dump_1.txt`).
+
+**Verdict: The proposal is technically sound and architecturally correct.** 
+It solves the "Memory Bandwidth Wall" problem effectively. Simply expanding the existing struct would result in a ~160-byte header, causing 3 cache-line fetches per entity. The proposed **Hot/Cold Split (Structure of Arrays)** reduces the iteration cost to **64 bytes (1 cache line)** for the vast majority of checks.
+
+**Performance Impact:**
+*   **Queries (Filtering):** **Faster.** You are checking 64 bytes (Hot) to reject an entity. Previously you loaded 96 bytes.
+*   **Data Access:** **Neutral.** Once an entity matches, you load the Cold data (128 bytes). Total bytes touched = 192 vs 96. However, since >90% of entities usually fail a query filter, the overall frame time decreases.
+*   **Memory Footprint:** **Higher.** Total per-entity overhead grows from 96 bytes to 192 bytes. For 100k entities, this is ~9MB extra RAM, which is negligible on modern hardware.
+
+**Flight Recorder Compatibility:**
+The proposal correctly identifies that the binary format must change. Splitting the single `EntityHeader` stream into `Hot` (Masks) and `Cold` (Metadata) streams is the correct way to handle this without complex serialization logic.
+
+---
+
+### Critical Prerequisite Fix: The `byte` Limit
+There is one specific limitation in your *current* source code that the design talk did not address.
+In `FDP/Kernel/Fdp.Kernel/ComponentIdAttribute.cs` and `GlobalComponentIds.cs`, you are using `byte`.
+
+**You cannot have 512 components if the ID storage is a `byte` (max 255).**
+
+Before applying the Hot/Cold split, we must upgrade the ID system to `int`.
+
+### Step 1: Upgrade Component IDs to Integer
+**File:** `FDP/Kernel/Fdp.Kernel/ComponentIdAttribute.cs`
+*Change the backing field from `byte` to `int`.*
+
+```csharp
+using System;
+
+namespace Fdp.Kernel
+{
+    [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class | AttributeTargets.Interface, AllowMultiple = false, Inherited = false)]
+    public sealed class ComponentIdAttribute : Attribute
+    {
+        /// <summary>
+        /// Stable, globally unique component type ID.
+        /// Range extended to support > 256 components.
+        /// </summary>
+        public int Id { get; } // Changed from byte to int
+
+        public ComponentIdAttribute(int id) // Changed from byte to int
+        {
+            Id = id;
+        }
+    }
+}
+```
+
+**File:** `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs`
+*Change all constants from `byte` to `int` (or just remove the cast, as `const int` is default).*
+*Example:*
+```csharp
+// Before: public const byte SimTransform = 0;
+// After:
+public const int SimTransform = 0; 
+// ... do this for all constants in the file.
+```
+
+---
+
+### Step 2: Configuration Update
+**File:** `FDP/Kernel/Fdp.Kernel/FdpConfig.cs`
+
+```csharp
+public static class FdpConfig
+{
+    // ... existing constants ...
+
+    // UPDATE:
+    public const int MAX_COMPONENT_TYPES = 512;
+    
+    // UPDATE: Increment format version because the binary layout of headers changes completely
+    public const uint FORMAT_VERSION = 3; 
+
+    // ...
+}
+```
+
+---
+
+### Step 3: Implement `BitMask512`
+Create `FDP/Kernel/Fdp.Kernel/BitMask512.cs`.
+*Use the code provided in the design talk (it is AVX2 optimized and correct).*
+
+---
+
+### Step 4: Implement `EntityMetadataCold`
+Create `FDP/Kernel/Fdp.Kernel/EntityMetadataCold.cs`.
+*Use the code provided in the design talk.*
+
+**Important:** Delete `EntityHeader.cs`. It is now obsolete.
+
+---
+
+### Step 5: Update `EntityIndex` (The Core Rewrite)
+Replace `FDP/Kernel/Fdp.Kernel/EntityIndex.cs` with the version below. This handles the parallel arrays and the new Flight Recorder hooks.
+
+```csharp
+using System;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+namespace Fdp.Kernel
+{
+    public sealed class EntityIndex : IDisposable
+    {
+        // === THE HOT/COLD SPLIT ===
+        private readonly NativeChunkTable<BitMask512> _hotMasks;
+        private readonly NativeChunkTable<EntityMetadataCold> _coldMeta;
+        
+        private readonly object _createLock = new object();
+        private readonly int[] _freeList;
+        private int _freeCount;
+        private int _maxIssuedIndex = -1;
+        private int _activeCount;
+        private bool _disposed;
+        
+        public EntityIndex()
+        {
+            _hotMasks = new NativeChunkTable<BitMask512>();
+            _coldMeta = new NativeChunkTable<EntityMetadataCold>();
+            _freeList = new int[FdpConfig.MAX_ENTITIES];
+            _freeCount = 0;
+            _activeCount = 0;
+        }
+        
+        public int MaxIssuedIndex => _maxIssuedIndex;
+        public int ActiveCount => _activeCount;
+        
+        public Entity CreateEntity()
+        {
+            lock (_createLock)
+            {
+                int index;
+                if (_freeCount > 0)
+                {
+                    index = _freeList[--_freeCount];
+                }
+                else
+                {
+                    index = ++_maxIssuedIndex;
+                    #if FDP_PARANOID_MODE
+                    if (index >= FdpConfig.MAX_ENTITIES)
+                        throw new InvalidOperationException($"Maximum entity count ({FdpConfig.MAX_ENTITIES}) exceeded");
+                    #endif
+                }
+                
+                ref var mask = ref _hotMasks[index];
+                ref var meta = ref _coldMeta[index];
+                
+                if (meta.Generation == 0) meta.Generation = 1;
+                
+                // CRITICAL: Clear Hot mask so AVX2 fails fast for this entity
+                mask.Clear();
+                meta.AuthorityMask.Clear();
+                meta.SetActive(true);
+                
+                int chunkIndex = index / _coldMeta.ChunkCapacity;
+                
+                _hotMasks.IncrementPopulation(chunkIndex);
+                _hotMasks.IncrementChunkVersion(chunkIndex);
+                _coldMeta.IncrementPopulation(chunkIndex);
+                _coldMeta.IncrementChunkVersion(chunkIndex);
+                
+                _activeCount++;
+                return new Entity(index, meta.Generation);
+            }
+        }
+
+        public void ReserveIdRange(int maxId)
+        {
+            lock (_createLock)
+            {
+                if (maxId > _maxIssuedIndex) _maxIssuedIndex = maxId;
+            }
+        }
+        
+        public void DestroyEntity(Entity entity)
+        {
+            lock (_createLock)
+            {
+                ref var mask = ref _hotMasks[entity.Index];
+                ref var meta = ref _coldMeta[entity.Index];
+                
+                meta.SetActive(false);
+                meta.Generation = (ushort)((meta.Generation + 1) % ushort.MaxValue);
+                if (meta.Generation == 0) meta.Generation = 1;
+                
+                // Clear HOT mask immediately
+                mask.Clear();
+                meta.AuthorityMask.Clear();
+                
+                int chunkIndex = entity.Index / _coldMeta.ChunkCapacity;
+                
+                _hotMasks.DecrementPopulation(chunkIndex);
+                _hotMasks.IncrementChunkVersion(chunkIndex);
+                _coldMeta.DecrementPopulation(chunkIndex);
+                _coldMeta.IncrementChunkVersion(chunkIndex);
+                
+                _freeList[_freeCount++] = entity.Index;
+                _activeCount--;
+            }
+        }
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool IsAlive(Entity entity)
+        {
+            if (entity.Index < 0 || entity.Index > _maxIssuedIndex) return false;
+            // Only need COLD data for liveness (Generation check)
+            ref var meta = ref _coldMeta.GetRefRO(entity.Index);
+            return meta.IsActive && meta.Generation == entity.Generation;
+        }
+
+        // --- NEW ACCESSORS ---
+        
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref BitMask512 GetComponentMask(int entityIndex)
+        {
+            return ref _hotMasks[entityIndex];
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public ref EntityMetadataCold GetMetadata(int entityIndex)
+        {
+            return ref _coldMeta[entityIndex];
+        }
+        
+        // Unsafe accessors for Iterators (No bounds check)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref BitMask512 GetComponentMaskUnsafe(int entityIndex) => ref _hotMasks.GetRefRW(entityIndex, 0);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal ref EntityMetadataCold GetMetadataUnsafe(int entityIndex) => ref _coldMeta.GetRefRW(entityIndex, 0);
+
+        public int GetChunkPopulation(int chunkIndex) => _coldMeta.GetPopulationCount(chunkIndex);
+        public int GetTotalChunks() => _coldMeta.TotalChunks;
+        public int GetChunkCapacity() => _coldMeta.ChunkCapacity;
+
+        public void GetChunkLiveness(int chunkIndex, Span<bool> output)
+        {
+            int capacity = _coldMeta.ChunkCapacity;
+            int startId = chunkIndex * capacity;
+            
+            for (int i = 0; i < capacity; i++)
+            {
+                int entityId = startId + i;
+                if (entityId > _maxIssuedIndex)
+                {
+                    output[i] = false;
+                    continue;
+                }
+                output[i] = _coldMeta[entityId].IsActive; 
+            }
+        }
+
+        // --- SYNCHRONIZATION ---
+        public void SyncFrom(EntityIndex source)
+        {
+            _hotMasks.SyncDirtyChunks(source._hotMasks);
+            _coldMeta.SyncDirtyChunks(source._coldMeta);
+            _activeCount = source._activeCount;
+            _maxIssuedIndex = source._maxIssuedIndex;
+        }
+
+        public void ApplyComponentFilter(BitMask512 mask)
+        {
+            int totalChunks = _hotMasks.TotalChunks;
+            int chunkCapacity = _hotMasks.ChunkCapacity;
+
+            for (int c = 0; c < totalChunks; c++)
+            {
+                if (!_hotMasks.IsChunkCommitted(c)) continue;
+
+                int startId = c * chunkCapacity;
+                int endId = Math.Min(startId + chunkCapacity, _maxIssuedIndex + 1);
+
+                for (int i = startId; i < endId; i++)
+                {
+                   ref var cold = ref _coldMeta.GetRefRW(i, 0); 
+                   if (cold.IsActive)
+                   {
+                       ref var hot = ref _hotMasks.GetRefRW(i, 0);
+                       hot.BitwiseAnd(mask);
+                   }
+                }
+                _hotMasks.IncrementChunkVersion(c);
+            }
+        }
+
+        // --- FLIGHT RECORDER SUPPORT ---
+
+        internal void ForceRestoreEntity(int index, bool isActive, int generation, BitMask512 componentMask, DISEntityType disType = default)
+        {
+            if (index > _maxIssuedIndex) _maxIssuedIndex = index;
+            
+            ref var mask = ref _hotMasks[index];
+            ref var meta = ref _coldMeta[index];
+            bool wasActive = meta.IsActive; 
+            
+            meta.SetActive(isActive);
+            meta.Generation = (ushort)generation;
+            meta.DisType = disType;
+            meta.AuthorityMask.Clear(); 
+            
+            mask = componentMask; // 512-bit assignment
+            
+            int c = index / _coldMeta.ChunkCapacity;
+            _hotMasks.IncrementChunkVersion(c);
+            _coldMeta.IncrementChunkVersion(c);
+
+            if (isActive && !wasActive) _activeCount++;
+            else if (!isActive && wasActive) _activeCount--;
+        }
+        
+        internal void Clear()
+        {
+            lock (_createLock)
+            {
+                _maxIssuedIndex = -1;
+                _activeCount = 0;
+                _freeCount = 0;
+                _hotMasks.Clear();
+                _coldMeta.Clear();
+            }
+        }
+
+        internal void RebuildFreeList()
+        {
+            lock (_createLock)
+            {
+                _freeCount = 0;
+                for (int i = 0; i <= _maxIssuedIndex; i++)
+                {
+                    if (!_coldMeta[i].IsActive)
+                    {
+                        if (_freeCount < FdpConfig.MAX_ENTITIES)
+                            _freeList[_freeCount++] = i;
+                    }
+                }
+            }
+        }
+
+        public void RebuildMetadata()
+        {
+            lock (_createLock)
+            {
+                _activeCount = 0;
+                _freeCount = 0;
+                _maxIssuedIndex = -1;
+                int chunkCapacity = _coldMeta.ChunkCapacity;
+                int totalChunks = _coldMeta.TotalChunks;
+                
+                for (int c = 0; c < totalChunks; c++)
+                {
+                    if (!_coldMeta.IsChunkCommitted(c))
+                    {
+                        _hotMasks.SetPopulation(c, 0);
+                        _coldMeta.SetPopulation(c, 0);
+                        continue;
+                    }
+                    
+                    int chunkPop = 0;
+                    int startId = c * chunkCapacity;
+                    
+                    for (int i = 0; i < chunkCapacity; i++) 
+                    {
+                        int entityId = startId + i;
+                        ref readonly var meta = ref _coldMeta.GetRefRO(entityId); 
+                        if (meta.IsActive)
+                        {
+                            chunkPop++;
+                            _activeCount++;
+                            if (entityId > _maxIssuedIndex) _maxIssuedIndex = entityId;
+                        }
+                    }
+                    _hotMasks.SetPopulation(c, chunkPop);
+                    _coldMeta.SetPopulation(c, chunkPop);
+                }
+                RebuildFreeList();
+            }
+        }
+
+        // Proxies for Recorder
+        public int CopyHotChunkToBuffer(int chunkIndex, Span<byte> destination) => _hotMasks.CopyChunkToBuffer(chunkIndex, destination);
+        public int CopyColdChunkToBuffer(int chunkIndex, Span<byte> destination) => _coldMeta.CopyChunkToBuffer(chunkIndex, destination);
+        
+        public void RestoreHotChunkFromBuffer(int chunkIndex, byte[] data) => _hotMasks.RestoreChunkFromBuffer(chunkIndex, data);
+        public void RestoreColdChunkFromBuffer(int chunkIndex, byte[] data) => _coldMeta.RestoreChunkFromBuffer(chunkIndex, data);
+        
+        public void SanitizeHotChunk(int chunkIndex, ReadOnlySpan<bool> liveness) => _hotMasks.SanitizeChunk(chunkIndex, liveness);
+        public void SanitizeColdChunk(int chunkIndex, ReadOnlySpan<bool> liveness) => _coldMeta.SanitizeChunk(chunkIndex, liveness);
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _hotMasks?.Dispose();
+            _coldMeta?.Dispose();
+            _disposed = true;
+        }
+    }
+}
+```
+
+---
+
+### Step 6: Fix `RecorderSystem.cs`
+Update `FDP/Kernel/Fdp.Kernel/FlightRecorder/RecorderSystem.cs` to write the two separate streams.
+
+```csharp
+// ADD to top of class:
+private const int ENTITY_INDEX_HOT_TYPE_ID = -1;
+private const int ENTITY_INDEX_COLD_TYPE_ID = -2;
+
+// ADD Helper Method:
+private unsafe void SanitizeHotMasks(byte[] buffer, int bytesWritten, BitMask512 mask)
+{
+    int size = System.Runtime.CompilerServices.Unsafe.SizeOf<BitMask512>();
+    int count = bytesWritten / size;
+    fixed (byte* ptr = buffer)
+    {
+        BitMask512* masks = (BitMask512*)ptr;
+        for (int i = 0; i < count; i++)
+        {
+            masks[i].BitwiseAnd(mask);
+        }
+    }
+}
+
+// UPDATE RecordDeltaFrame (and RecordKeyframe similar logic):
+// REPLACE the "3.1 FLUSH ENTITY INDEX" block with this:
+
+// 3.1 FLUSH ENTITY INDEX (Structural Data)
+int indexCapacity = entityIndex.GetChunkCapacity();
+int indexChunks = entityIndex.GetTotalChunks();
+
+for (int c = 0; c < indexChunks; c++)
+{
+    if ((c + 1) * indexCapacity <= MinRecordableId) continue;
+    
+    // Check for structural changes using the COLD metadata (where LastChangeTick lives)
+    if (ChunkHasStructuralChanges(entityIndex, c * indexCapacity, indexCapacity, prevTick))
+    {
+        // Get liveness from Cold Meta
+        FillLiveness(entityIndex, c * indexCapacity, indexCapacity, _livenessBuffer);
+        ReadOnlySpan<bool> livenessSpan = new ReadOnlySpan<bool>(_livenessBuffer, 0, indexCapacity);
+
+        // --- 1. WRITE HOT CHUNK (512-bit Masks) ---
+        int hotBytes = entityIndex.CopyHotChunkToBuffer(c, _scratchBuffer);
+        if (hotBytes > 0)
+        {
+            // Zero out dead slots
+            SanitizeScratchBuffer(_scratchBuffer, hotBytes, System.Runtime.CompilerServices.Unsafe.SizeOf<BitMask512>(), livenessSpan);
+            
+            // Filter masks
+            var recordableMask = GetRecordableMask(); // Now returns BitMask512
+            SanitizeHotMasks(_scratchBuffer, hotBytes, recordableMask);
+
+            actualChunkCount++;
+            writer.Write(c);
+            writer.Write(1);
+            writer.Write(ENTITY_INDEX_HOT_TYPE_ID); // -1
+            writer.Write(hotBytes);
+            writer.Write(_scratchBuffer, 0, hotBytes);
+        }
+
+        // --- 2. WRITE COLD CHUNK (Metadata) ---
+        int coldBytes = entityIndex.CopyColdChunkToBuffer(c, _scratchBuffer);
+        if (coldBytes > 0)
+        {
+            SanitizeScratchBuffer(_scratchBuffer, coldBytes, System.Runtime.CompilerServices.Unsafe.SizeOf<EntityMetadataCold>(), livenessSpan);
+            
+            actualChunkCount++;
+            writer.Write(c);
+            writer.Write(1);
+            writer.Write(ENTITY_INDEX_COLD_TYPE_ID); // -2
+            writer.Write(coldBytes);
+            writer.Write(_scratchBuffer, 0, coldBytes);
+        }
+    }
+}
+```
+
+*Note: You also need to update `GetRecordableMask()` in `EntityRepository.cs` and `RecorderSystem.cs` to return `BitMask512` instead of `BitMask256`.*
+
+---
+
+### Step 7: Fix `PlaybackSystem.cs`
+Update `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackSystem.cs` to handle the new stream IDs.
+
+```csharp
+private void ApplyChunkData(EntityRepository repo, int typeId, int chunkIndex, byte[] data)
+{
+    // New Hot Stream
+    if (typeId == -1) 
+    {
+        repo.GetEntityIndex().RestoreHotChunkFromBuffer(chunkIndex, data);
+        return;
+    }
+    // New Cold Stream
+    if (typeId == -2) 
+    {
+        repo.GetEntityIndex().RestoreColdChunkFromBuffer(chunkIndex, data);
+        return;
+    }
+
+    // ... existing logic ...
+}
+
+private void RepairManagedComponentMasks(EntityRepository repo)
+{
+    // ... existing setup ...
+
+    for (int i = 0; i <= maxIndex; i++)
+    {
+        // Use new accessors
+        ref var meta = ref entityIndex.GetMetadataUnsafe(i);
+        if (!meta.IsActive) continue;
+        
+        ref var mask = ref entityIndex.GetComponentMaskUnsafe(i);
+        object rawObj = table.GetRawObject(i);
+        
+        if (rawObj != null) mask.SetBit(typeId);
+        else mask.ClearBit(typeId);
+    }
+}
+```
+
+---
+
+### Step 8: Update `EntityRepository.cs`
+Changes needed in `EntityRepository`:
+1.  `_metadata` (ComponentMetadataTable) logic might need update if it uses 256. (Checked `ComponentMetadataTable.cs` - it uses `PartDescriptor` which uses `BitMask256`).
+    *   **Action:** Update `PartDescriptor.cs` to use `BitMask512`.
+2.  Update `GetSnapshotableMask`, `GetRecordableMask`, `GetSaveableMask` to return `BitMask512`.
+3.  Update `AddUnmanagedComponent` / `SetManagedComponent` to update the new Hot mask:
+    `ref var header = ref _entityIndex.GetHeader(entity.Index)` becomes:
+    `ref var mask = ref _entityIndex.GetComponentMask(entity.Index); mask.SetBit(id);`
+    `ref var meta = ref _entityIndex.GetMetadata(entity.Index); meta.LastChangeTick = ...;`
+
+**This is a significant refactor.** Ensure you update every reference to `EntityHeader.ComponentMask` to use `EntityIndex.GetComponentMask()` and every reference to `Generation/Flags/Authority` to use `EntityIndex.GetMetadata()`.
 ---
 
 ---
