@@ -89,6 +89,8 @@ namespace Bagira.Runner.Services
         private SystemGroup?            _kernelGroup;
         private DdsIdAllocator?         _idAllocator;
         private DdsIdAllocatorServer?   _idAllocatorServer;
+        private CancellationTokenSource? _idAllocatorServerCts;
+        private Thread?                  _idAllocatorServerThread;
         private FdpEventBus?            _eventBus;
         private NetworkEntityMap?       _entityMap;
         private IGeographicTransform?   _geoTransform;
@@ -212,8 +214,25 @@ namespace Bagira.Runner.Services
             var tkbDb          = BagiraEnvironment.CreateTkb();
             var entityMap      = new NetworkEntityMap();
             _entityMap = entityMap;
-            _idAllocator       = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
-            _idAllocatorServer = new DdsIdAllocatorServer(ddsParticipant);
+
+            // ── ID-allocator server: start as early as possible on its own thread ──
+            // The server must be running (and DDS-matched) before the client sends its
+            // first request.  Starting it here — before the client is even created —
+            // ensures the DDS pub/sub match completes in the background while the rest
+            // of initialisation proceeds.
+            _idAllocatorServer     = new DdsIdAllocatorServer(ddsParticipant);
+            _idAllocatorServerCts  = new CancellationTokenSource();
+            _idAllocatorServerThread = new Thread(() => RunIdAllocatorServerLoop(_idAllocatorServerCts.Token))
+            {
+                IsBackground = true,
+                Name         = "SimHost-IdAllocServer"
+            };
+            _idAllocatorServerThread.Start();
+
+            // Client is created AFTER the server thread is running.  DdsIdAllocator will
+            // wait for the PublicationMatched event (server reader matched) before sending
+            // the first request, so there is no "write-before-match" race.
+            _idAllocator = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
 
             // ── 3. Geodetic configuration ─────────────────────────────────────
             // Use the shared factory so that SimHostSubsystem, SimHostApp and IgApplication
@@ -338,7 +357,7 @@ namespace Bagira.Runner.Services
         public void Update(float deltaTime)
         {
             if (!_initialized) return;
-            _idAllocatorServer?.ProcessRequests();
+            // Note: _idAllocatorServer runs on its own background thread; no explicit pump needed here.
             _vis?.Update(deltaTime);
             _kernelGroup!.Run();   // process incoming requests first (sets dirty flags)
             _kernel!.Update();     // then run egress scan (picks up dirty → publishes immediately)
@@ -363,6 +382,12 @@ namespace Bagira.Runner.Services
             Stop();
             _vis?.Dispose();
             _vis = null;
+            // Stop the background allocator-server thread before disposing resources.
+            _idAllocatorServerCts?.Cancel();
+            _idAllocatorServerThread?.Join(TimeSpan.FromSeconds(2));
+            _idAllocatorServerCts?.Dispose();
+            _idAllocatorServerCts = null;
+            _idAllocatorServerThread = null;
             _idAllocatorServer?.Dispose();
             _idAllocatorServer = null;
             _idAllocator?.Dispose();
@@ -477,6 +502,16 @@ namespace Bagira.Runner.Services
             world.RegisterEvent<CmdLeaveFormation>();
             world.RegisterEvent<CmdStop>();
             world.RegisterEvent<CmdSetSpeed>();
+        }
+
+        private void RunIdAllocatorServerLoop(CancellationToken ct)
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                _idAllocatorServer?.ProcessRequests();
+                Thread.Sleep(1); // ~1 kHz polling — fast enough for low-latency allocation
+            }
+            Logger.Info("[SimHost] IdAllocatorServer loop exited.");
         }
 
         private void RunLoop(CancellationToken ct)

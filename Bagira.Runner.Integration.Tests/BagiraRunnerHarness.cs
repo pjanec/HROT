@@ -3,13 +3,18 @@ using System.Threading;
 using Bagira.Runner.Abstractions;
 using Bagira.Runner.Configuration;
 using Bagira.Runner.Services;
-using CycloneDDS.Runtime;
-using ModuleHost.Network.Cyclone.Services;
 
 namespace Bagira.Runner.Integration.Tests;
 
 /// <summary>
 /// Domain-isolated orchestration harness for Runner integration tests.
+///
+/// <para>
+/// The ID-allocator server is owned by <see cref="SimHostSubsystem"/> and runs on its
+/// own background thread (started inside <see cref="SimHostSubsystem.Initialize"/>).
+/// The harness no longer needs a separate server — removing the duplicate avoids the
+/// ID-range collision that occurred when two servers both started their counter at 1.
+/// </para>
 /// </summary>
 public sealed class BagiraRunnerHarness : IDisposable
 {
@@ -25,23 +30,9 @@ public sealed class BagiraRunnerHarness : IDisposable
     public IgSubsystem Ig { get; }
     public IosSubsystem Ios { get; }
 
-    private readonly DdsParticipant _idAllocatorParticipant;
-    private readonly DdsIdAllocatorServer _idAllocatorServer;
-    private readonly CancellationTokenSource _idServerCts = new();
-    private readonly Thread _idServerThread;
-
     public BagiraRunnerHarness()
     {
         DomainId = Interlocked.Increment(ref _domainCounter);
-
-        _idAllocatorParticipant = new DdsParticipant((uint)DomainId);
-        _idAllocatorServer = new DdsIdAllocatorServer(_idAllocatorParticipant);
-        _idServerThread = new Thread(RunIdAllocatorServer)
-        {
-            IsBackground = true,
-            Name = "DDS-IdAllocatorServer"
-        };
-        _idServerThread.Start();
 
         var config = new RunnerConfiguration
         {
@@ -70,9 +61,7 @@ public sealed class BagiraRunnerHarness : IDisposable
     {
         for (int i = 0; i < frames; i++)
         {
-            _idAllocatorServer.ProcessRequests();
             Orchestrator.RunFrames(1);
-            _idAllocatorServer.ProcessRequests();
         }
     }
 
@@ -82,9 +71,7 @@ public sealed class BagiraRunnerHarness : IDisposable
 
         for (int i = 0; i < timeoutFrames; i++)
         {
-            _idAllocatorServer.ProcessRequests();
             Orchestrator.RunFrames(1);
-            _idAllocatorServer.ProcessRequests();
             Thread.Sleep(PumpSleepMs);
 
             if (condition()) return true;
@@ -96,28 +83,13 @@ public sealed class BagiraRunnerHarness : IDisposable
     public void Dispose()
     {
         Orchestrator.Shutdown();
-        _idServerCts.Cancel();
-        _idServerThread.Join(TimeSpan.FromSeconds(2));
-        _idAllocatorServer.Dispose();
-        _idAllocatorParticipant.Dispose();
-    }
-
-    private void RunIdAllocatorServer()
-    {
-        while (!_idServerCts.IsCancellationRequested)
-        {
-            _idAllocatorServer.ProcessRequests();
-            Thread.Sleep(1);
-        }
     }
 
     private void Warmup()
     {
         for (int i = 0; i < WarmupFrames; i++)
         {
-            _idAllocatorServer.ProcessRequests();
             Orchestrator.RunFrames(1);
-            _idAllocatorServer.ProcessRequests();
             Thread.Sleep(PumpSleepMs);
         }
     }
