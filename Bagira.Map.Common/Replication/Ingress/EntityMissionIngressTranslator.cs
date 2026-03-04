@@ -162,7 +162,7 @@ namespace Bagira.Map.Common.Replication.Ingress
         private static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
         {
             if (triggers == null || triggers.Count == 0)
-                return (EcsMissionTrigger.TimerElapsed, 0f);
+                return (EcsMissionTrigger.TimerElapsed, float.MaxValue); // no trigger = hold phase indefinitely
 
             var trigger = triggers[0];
             var type = trigger.Type ?? string.Empty;

@@ -52,9 +52,7 @@ namespace Bagira.SimHost.Systems
                 if (!sample.IsValid)
                     continue;
 
-                Console.WriteLine($"[MCRS-DBG] Received DDS command: {sample.Data.Payload._d} for entity {sample.Data.TargetEntityId}");
                 ProcessRequest(World, sample.Data);
-                Console.WriteLine($"[MCRS-DBG] After ProcessRequest done");
             }
         }
 
@@ -62,12 +60,9 @@ namespace Bagira.SimHost.Systems
         {
             if (!_entityMap.TryGetEntity(request.TargetEntityId, out var entity))
             {
-                Console.WriteLine($"[MCRS-DBG] Entity {request.TargetEntityId} NOT in entityMap");
                 WriteAck(request.RequestId, ErrorCodeEntityNotFound, EntityNotFoundMessage, newVersion: 0);
                 return;
             }
-
-            Console.WriteLine($"[MCRS-DBG] Entity {request.TargetEntityId} found in entityMap as entity {entity.Index}");
 
             long currentVersion = _missionVersions.TryGetValue(request.TargetEntityId, out var version)
                 ? version
@@ -93,8 +88,6 @@ namespace Bagira.SimHost.Systems
                         repo.AddComponent(entity, queue);
                     _taskOrder[request.TargetEntityId] = orderedTaskIds;
 
-                    Console.WriteLine($"[MCRS-DBG] SET MissionPlanQueue: PhaseCount={queue.PhaseCount}, CurrentPhase={queue.CurrentPhase} for entity {entity.Index}");
-
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;
 
@@ -109,7 +102,6 @@ namespace Bagira.SimHost.Systems
                         orderedTaskIds = new List<Guid>();
 
                     int targetIndex = orderedTaskIds.IndexOf(request.Payload.TargetTaskId);
-                    Console.WriteLine($"[MCRS-DBG] JUMP: taskOrderCount={orderedTaskIds.Count}, targetTaskId={request.Payload.TargetTaskId}, targetIndex={targetIndex}");
                     if (targetIndex < 0)
                         targetIndex = 0;
 
@@ -117,10 +109,8 @@ namespace Bagira.SimHost.Systems
                         repo.AddComponent(entity, new MissionPlanQueue());
 
                     ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
-                    Console.WriteLine($"[MCRS-DBG] JUMP before: CurrentPhase={queue.CurrentPhase}, PhaseCount={queue.PhaseCount}");
                     queue.CurrentPhase = (byte)targetIndex;
                     queue.PhaseElapsedSeconds = 0f;
-                    Console.WriteLine($"[MCRS-DBG] JUMP after: CurrentPhase={queue.CurrentPhase}, PhaseCount={queue.PhaseCount}");
 
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;
