@@ -264,8 +264,8 @@ namespace Bagira.SimHost
         protected override void OnUpdate(float dt)
         {
             _vis?.Update(dt);
-            _kernel?.Update();
-            _kernelGroup?.Run();
+            _kernelGroup?.Run();   // process incoming requests first (sets dirty flags)
+            _kernel?.Update();     // then run egress scan (picks up dirty → publishes immediately)
             _eventBus?.SwapBuffers();
         }
 

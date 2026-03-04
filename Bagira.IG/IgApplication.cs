@@ -1830,6 +1830,8 @@ public class IgApplication
 
         _commandGateway.SendUpdateDescriptor(request);
 
+        // Reset stale drag position: a subsequent drag ending without movement must not reuse it.
+        _lastDragWorldPos = default;
 
 
         FdpLog<IgApplication>.Info(
@@ -1853,6 +1855,20 @@ public class IgApplication
     /// desired drop position before calling this hook.
 
     /// </summary>
+
+    /// <summary>
+    /// Test hook: sets <c>_lastDragWorldPos</c> to <paramref name="dropWorldPos"/> and fires
+    /// <see cref="OnEntityDragEnded"/> so that an <see cref="UpdateEntityDescriptorRequest"/>
+    /// is sent to SimHost over DDS.  Network must be enabled and the entity must have a
+    /// <see cref="NetworkIdentity"/> component.
+    /// </summary>
+    internal void TestHook_SimulateDragDrop(long networkId, System.Numerics.Vector2 dropWorldPos)
+    {
+        if (!_entityMap.TryGetEntity(networkId, out var entity))
+            throw new InvalidOperationException($"Entity with networkId={networkId} not found.");
+        _lastDragWorldPos = dropWorldPos;
+        OnEntityDragEnded(entity);
+    }
 
     internal void TestHook_SimulateDragEnd(long networkId)
 

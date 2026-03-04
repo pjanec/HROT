@@ -6,6 +6,7 @@ using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using Fdp.Modules.Geographic;
+using Fdp.Modules.Geographic.Systems;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Services;
@@ -73,6 +74,11 @@ namespace Bagira.Map.Common.Replication.Ingress
                 data.Pos.Altitude);
 
             var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
+            // Reconstruct orientation from the heading carried in the GeoSpatial message so
+            // that drag-repositioned (or autonomously moving) entities keep their facing
+            // direction.  Previously this always wrote Quaternion.Identity which reset every
+            // entity to east-facing on every GeoSpatial update.
+            var rotation = SimTransformBridgeSystem.HeadingDegToRotation(data.Rot.Heading);
 
             cmd.SetComponent(entity, new NetworkPosition { Value = position });
 
@@ -81,18 +87,17 @@ namespace Bagira.Map.Common.Replication.Ingress
                 cmd.AddComponent(entity, new SimTransform
                 {
                     Position = position,
-                    Rotation = Quaternion.Identity
+                    Rotation = rotation
                 });
             }
             else
             {
-                // Entity already spawned — propagate position update so the map
-                // renders the entity at its new location (SimTransform is the
-                // authoritative render position, not NetworkPosition).
+                // Entity already spawned — propagate position + orientation update so the map
+                // renders the entity at its new location and heading.
                 cmd.SetComponent(entity, new SimTransform
                 {
                     Position = position,
-                    Rotation = Quaternion.Identity
+                    Rotation = rotation
                 });
             }
         }
@@ -108,6 +113,7 @@ namespace Bagira.Map.Common.Replication.Ingress
             if (data is not GeoSpatial geo) return;
             var cartesian = _geoTransform.ToCartesian(geo.Pos.Latitude, geo.Pos.Longitude, geo.Pos.Altitude);
             var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
+            var rotation = SimTransformBridgeSystem.HeadingDegToRotation(geo.Rot.Heading);
 
             repo.SetComponent(entity, new NetworkPosition { Value = position });
 
@@ -116,17 +122,17 @@ namespace Bagira.Map.Common.Replication.Ingress
                 repo.AddComponent(entity, new SimTransform
                 {
                     Position = position,
-                    Rotation = Quaternion.Identity
+                    Rotation = rotation
                 });
             }
             else
             {
                 // Ghost promotion — always sync SimTransform so the map
-                // shows the entity at the correct position immediately.
+                // shows the entity at the correct position and heading immediately.
                 repo.SetComponent(entity, new SimTransform
                 {
                     Position = position,
-                    Rotation = Quaternion.Identity
+                    Rotation = rotation
                 });
             }
         }

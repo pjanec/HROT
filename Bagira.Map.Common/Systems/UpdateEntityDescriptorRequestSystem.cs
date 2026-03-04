@@ -35,8 +35,7 @@ namespace Bagira.Map.Common.Systems
     /// </summary>
     public sealed class UpdateEntityDescriptorRequestSystem : ComponentSystem
     {
-        // Matches GeoSpatialEgressTranslator.DescriptorOrdinal (also == (long)EDescriptorType.dtGeoSpatial).
-        private const long GeoSpatialOrdinal = 10;
+        private const long GeoSpatialOrdinal = (long)Bagira.BDC.SSTD.EDescriptorType.dtGeoSpatial;
 
         private const int ErrorSuccess        = 0;
         private const int ErrorEntityNotFound = 2;

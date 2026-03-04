@@ -278,7 +278,6 @@ namespace Bagira.Runner.Services
                 ddsParticipant, tkbDb, _idAllocator, 1,
                 spawningSystem, entityMap, doctrineRegistry, wgs84);
             _kernel.RegisterModule(simHostMod);
-
             // ── 7. Network module ─────────────────────────────────────────────
             var localNodeId = 1;
             var translators = new List<IDescriptorTranslator>();
@@ -329,13 +328,20 @@ namespace Bagira.Runner.Services
         /// Ticks the kernel and simulation-logic group by <paramref name="deltaTime"/> seconds.
         /// Called each frame by the orchestrator (or each loop iteration in standalone mode).
         /// </summary>
+        /// <remarks>
+        /// IMPORTANT: <see cref="SystemGroup.Run"/> must execute before <see cref="ModuleHostKernel.Update"/>
+        /// so that incoming DDS requests (e.g. UpdateEntityDescriptorRequest) are processed and
+        /// <see cref="SmartEgressUtil.MarkDirty"/> is called <em>before</em> the egress translators'
+        /// ScanAndPublish pass runs.  Reversing the order causes a one-rolling-window delay (~10 s)
+        /// before position changes triggered by IG drag-and-drop are reflected back on the IG.
+        /// </remarks>
         public void Update(float deltaTime)
         {
             if (!_initialized) return;
             _idAllocatorServer?.ProcessRequests();
             _vis?.Update(deltaTime);
-            _kernel!.Update();
-            _kernelGroup!.Run();
+            _kernelGroup!.Run();   // process incoming requests first (sets dirty flags)
+            _kernel!.Update();     // then run egress scan (picks up dirty → publishes immediately)
             _eventBus?.SwapBuffers();
         }
 

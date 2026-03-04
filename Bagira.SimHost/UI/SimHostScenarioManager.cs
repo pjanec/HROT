@@ -210,8 +210,20 @@ namespace Bagira.SimHost.UI
             SetDestination(b, new Vector2(50,  100));
         }
 
+        /// <summary>
+        /// Seeds a small initial scenario by spawning 5 vehicles via the network-aware
+        /// <see cref="SpawnVehicle"/> path so they are published over DDS and visible on
+        /// all connected IG / IOS clients.
+        ///
+        /// <para>Previous implementation used <see cref="SpawnEntityLocal"/> which created
+        /// ECS-only entities without <c>NetworkIdentity</c> / <c>NetworkAuthority</c> — those
+        /// entities were never published and were therefore invisible on the IG map.</para>
+        /// </summary>
         public void SpawnFastOne()
-            => SpawnRoamers(5, VehicleClass.PersonalCar);
+        {
+            for (int i = 0; i < 5; i++)
+                SpawnVehicle(RandomPos(500), RandomDir());
+        }
 
         // ── Navigation helpers ────────────────────────────────────────────────
 
