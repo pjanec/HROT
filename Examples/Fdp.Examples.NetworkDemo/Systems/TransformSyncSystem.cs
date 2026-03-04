@@ -36,18 +36,25 @@ namespace Fdp.Examples.NetworkDemo.Systems
 
         private void SyncOwnedEntities(ISimulationView view)
         {
+            // Include all lifecycle states: locally-owned entities may be in Constructing
+            // (waiting for peer ACKs) but their NetworkPosition must still track SimTransform
+            // so that the recorded NetworkPosition reflects actual movement.  If Constructing
+            // entities are excluded, the replay's TransformSyncSystem will lerp SimTransform
+            // toward the stale NetworkPosition=(0,0,0) and erase all recorded movement.
             var query = view.Query()
                 .With<SimTransform>()
                 .With<NetworkPosition>()
                 .With<NetworkAuthority>()
+                .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
             var cmd = view.GetCommandBuffer();
 
             foreach (var entity in query)
             {
-                // If we own the chassis, copy to network buffer
-                if (view.HasAuthority(entity, CHASSIS_KEY))
+                // If we are the primary owner (PrimaryOwnerId == LocalNodeId), copy SimTransform→NetworkPosition
+                ref readonly var auth = ref view.GetComponentRO<NetworkAuthority>(entity);
+                if (auth.PrimaryOwnerId == auth.LocalNodeId)
                 {
                     var appTf = view.GetComponentRO<SimTransform>(entity);
                     cmd.SetComponent(entity, new NetworkPosition
@@ -60,18 +67,24 @@ namespace Fdp.Examples.NetworkDemo.Systems
 
         private void SyncRemoteEntities(ISimulationView view, float deltaTime, bool forceAll = false)
         {
+            // Include all lifecycle states: in replay mode and during recording, entities may be
+            // in Constructing lifecycle (waiting for peer ACKs). Excluding them would mean the
+            // smoothing/copy never runs and SimTransform stays stale.
             var query = view.Query()
                 .With<SimTransform>()
                 .With<NetworkPosition>()
                 .With<NetworkAuthority>()
+                .WithLifecycle(EntityLifecycle.All)
                 .Build();
 
             var cmd = view.GetCommandBuffer();
 
             foreach (var entity in query)
             {
-                // If we DON'T own it, OR if we force all (replay), smooth toward network position
-                if (forceAll || !view.HasAuthority(entity, CHASSIS_KEY))
+                // If we don't own it (remote entity), OR if replay forces all, smooth toward network position
+                ref readonly var auth = ref view.GetComponentRO<NetworkAuthority>(entity);
+                bool isRemote = forceAll || auth.PrimaryOwnerId != auth.LocalNodeId;
+                if (isRemote)
                 {
                     var netPos = view.GetComponentRO<NetworkPosition>(entity);
                     var currentTf = view.GetComponentRO<SimTransform>(entity);

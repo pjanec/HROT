@@ -23,9 +23,14 @@ namespace Fdp.Examples.NetworkDemo.Systems
                 if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
                     continue;
 
-                ref readonly var transform = ref view.GetComponentRO<SimTransform>(e);
                 ref readonly var velocity = ref view.GetComponentRO<SimVelocity>(e);
                 
+                // Skip write when stationary: a zero-velocity ECB flushed next frame would
+                // overwrite any externally-set SimTransform (e.g. test harness direct writes).
+                if (velocity.Linear.LengthSquared() < 1e-8f && velocity.Angular.LengthSquared() < 1e-8f)
+                    continue;
+
+                ref readonly var transform = ref view.GetComponentRO<SimTransform>(e);
                 var newPos = transform.Position + velocity.Linear * deltaTime;
                 
                 // We update SimTransform

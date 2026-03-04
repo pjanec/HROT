@@ -192,8 +192,12 @@ namespace Fdp.Examples.NetworkDemo.Systems
             var ecb = view.GetCommandBuffer();
 
             // Refresh Live Map
+            // Use WithLifecycle.All so we find entities in any lifecycle state.
+            // Newly-restored entities start in Constructing (ECB CreateEntity() default) –
+            // without All, the query only returns Active entities and every frame looks like
+            // a "new" entity, causing unbounded entity duplication and stale SimTransform values.
             _liveEntityMap.Clear();
-            var liveQuery = view.Query().With<NetworkIdentity>().Build();
+            var liveQuery = view.Query().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build();
             foreach (var entity in liveQuery)
             {
                 // Use GetComponentRO for view
@@ -202,7 +206,10 @@ namespace Fdp.Examples.NetworkDemo.Systems
             }
 
             // Sync Shadow Entities
-            var shadowQuery = _shadowRepo!.Query().With<NetworkIdentity>().Build();
+            // Use WithLifecycle.All: entities in the shadow repo are restored with their
+            // recorded lifecycle state (Constructing, since peer ACKs never arrived during
+            // the 40-frame test recording).  The default Active filter would skip them all.
+            var shadowQuery = _shadowRepo!.Query().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build();
             foreach (var shadowEntity in shadowQuery)
             {
                 if (!_shadowRepo.TryGetComponent<NetworkIdentity>(shadowEntity, out var netId))

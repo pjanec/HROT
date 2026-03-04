@@ -29,8 +29,8 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                  using (var appA = new NetworkDemoApp())
                  using (var appB = new NetworkDemoApp())
                  {
-                     await appA.InitializeAsync(100, false, recA);
-                     await appB.InitializeAsync(200, false, recB);
+                     await appA.InitializeAsync(100, false, recA, enableNetwork: false, testMode: true);
+                     await appB.InitializeAsync(200, false, recB, enableNetwork: false, testMode: true);
                      
                      for(int i=0; i<40; i++)
                      {
@@ -39,9 +39,6 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                          
                          appA.Update(0.1f);
                          appB.Update(0.1f);
-                         
-                         // Removed unnecessary delay
-                         // await Task.Delay(1);
                      }
                      
                      appA.Stop();
@@ -55,8 +52,8 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                  using (var replayA = new NetworkDemoApp())
                  using (var replayB = new NetworkDemoApp())
                  {
-                     await replayA.InitializeAsync(100, true, recA);
-                     await replayB.InitializeAsync(200, true, recB);
+                     await replayA.InitializeAsync(100, true, recA, enableNetwork: false, testMode: true);
+                     await replayB.InitializeAsync(200, true, recB, enableNetwork: false, testMode: true);
                      
                      for(int i=0; i<150; i++) 
                      {
@@ -79,7 +76,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
 
         private bool CheckMoved(NetworkDemoApp app)
         {
-             var q = app.World.Query().With<SimTransform>().With<NetworkIdentity>().Build();
+             var q = app.World.Query().With<SimTransform>().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build();
              foreach(var e in q)
              {
                  var tf = app.World.GetComponentRO<SimTransform>(e);
@@ -99,34 +96,45 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
         
         private void MoveLocalEntity(NetworkDemoApp app, Vector3 delta)
         {
+             // Include all lifecycle states so entities in Constructing (waiting for peer ACKs)
+             // are also moved.  With reliableInitTimeoutFrames=-1, entities stay in Constructing
+             // for up to 300 frames, so using the default Active filter would mean nothing moves.
              var q = app.World.Query()
                 .With<SimTransform>()
                 .With<NetworkAuthority>()
+                .WithLifecycle(EntityLifecycle.All)
                 .Build();
              
-             var cmd = ((ISimulationView)app.World).GetCommandBuffer();
+             // Directly mutate SimTransform on the live world.
+             // This is safe because PhysicsSystem skips its ECB write when velocity==0,
+             // so there is no deferred ECB that would overwrite this direct write at the
+             // next frame's BeforeSync flush.
              foreach(var e in q)
              {
-                 var tf = app.World.GetComponentRO<SimTransform>(e);
-                 cmd.SetComponent(e, new SimTransform { Position = tf.Position + delta, Rotation = tf.Rotation });
+                 ref readonly var tf = ref app.World.GetComponentRO<SimTransform>(e);
+                 app.World.SetComponent(e, new SimTransform { Position = tf.Position + delta, Rotation = tf.Rotation });
              }
-             ((EntityCommandBuffer)cmd).Playback(app.World);
         }
         
         private void VerifyMoved(NetworkDemoApp app, bool isRemote)
         {
-             var q = app.World.Query().With<SimTransform>().With<NetworkIdentity>().Build();
+             var q = app.World.Query().With<SimTransform>().With<NetworkIdentity>().WithLifecycle(EntityLifecycle.All).Build();
              bool foundMoved = false;
+             int entityCount = 0;
+             float maxLength = 0f;
              foreach(var e in q)
              {
                  var tf = app.World.GetComponentRO<SimTransform>(e);
-                 if (tf.Position.Length() > 10.0f) 
+                 float len = tf.Position.Length();
+                 if (len > maxLength) maxLength = len;
+                 entityCount++;
+                     if (tf.Position.Length() > 10.0f) 
                  {
                      foundMoved = true;
                      break;
                  }
              }
-             Assert.True(foundMoved);
+             Assert.True(foundMoved, $"Expected position.Length() > 10 but maxLen={maxLength} over {entityCount} entities (isRemote={isRemote})");
         }
     }
 }

@@ -95,8 +95,12 @@ namespace Fdp.Examples.NetworkDemo.Configuration
         {
             return new Dictionary<Type, long>
             {
-                [typeof(SimTransform)] = DemoDescriptors.Physics,
-                [typeof(SimVelocity)]  = DemoDescriptors.Physics,
+                [typeof(SimTransform)]    = DemoDescriptors.Physics,
+                [typeof(SimVelocity)]     = DemoDescriptors.Physics,
+                // NetworkPosition is the network-transmitted position; must be restored during replay
+                // so that TransformSyncSystem (driveFromNetwork=true) lerps SimTransform toward the
+                // correct recorded positions rather than toward (0,0,0).
+                [typeof(NetworkPosition)] = DemoDescriptors.Physics,
             };
         }
     }

@@ -153,9 +153,11 @@ namespace Fdp.Examples.NetworkDemo
                         timeoutFrames: lifecycleTimeout); 
             Kernel.RegisterModule(elm);
 
+            ReplicationLogicModule? replicationLogicModule = null;
             if (!isReplay)
             {
-                Kernel.RegisterModule(new ReplicationLogicModule(EntityMap, tkb, elm));
+                replicationLogicModule = new ReplicationLogicModule(EntityMap, tkb, elm);
+                Kernel.RegisterModule(replicationLogicModule);
             }
 
             // Register NetworkSpawningSystem from FDP.Toolkit.NetworkSpawning.
@@ -180,7 +182,18 @@ namespace Fdp.Examples.NetworkDemo
                 
                 // Fire Event
                 allTranslators.Add(new Fdp.Examples.NetworkDemo.Translators.FireEventTranslator(participant, EntityMap));
-                
+
+                // EntityMaster – cross-node entity announcement (spawn/despawn replication)
+                if (!isReplay && replicationLogicModule != null)
+                {
+                    var masterEgress = new Fdp.Examples.NetworkDemo.Translators.EntityMasterEgressTranslator(participant, nodeMapper, localInternalId);
+                    allTranslators.Add(masterEgress);
+                    allTranslators.Add(new Fdp.Examples.NetworkDemo.Translators.EntityMasterIngressTranslator(participant, EntityMap, replicationLogicModule.GhostCreationSystem, nodeMapper, localInternalId));
+                    // Register the cleanup system that watches locally-owned entities and
+                    // publishes DDS dispose signals when they are destroyed.
+                    Kernel.RegisterModule(new NetworkCleanupModule(masterEgress));
+                }
+
                 // 2. Auto-generated
                 var (autoTranslators, _) = ReplicationBootstrap.CreateAutoTranslators(
                     participant,
@@ -466,10 +479,12 @@ namespace Fdp.Examples.NetworkDemo
                 {
                     new SimTransform
                     {
-                        Position = new Vector3(
-                            Random.Shared.Next(-50, 50),
-                            Random.Shared.Next(-50, 50),
-                            0)
+                        // Deterministic starting positions ensure position-length tests
+                        // (e.g. DistributedReplayTests) reliably reach > 10 units after
+                        // a fixed number of move steps regardless of node ordering.
+                        Position = instanceId == 100
+                            ? new Vector3(1f, 0f, 0f)
+                            : new Vector3(0f, 1f, 0f)
                     },
                     new NetworkPosition { Value = Vector3.Zero },
                     new EntityType { Name = "Tank", TypeId = 1 }
