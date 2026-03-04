@@ -8,6 +8,30 @@ because disposal sample have sample.IsValid==false, the disposal migh not be det
 Some older implementation of cyclone dds had a bug where sample.Data was throwing exception
 if sample.IsValid==fasle
 
+# SetComponent vs. AddComponent
+At many places there is code like "if Hascomponent then SetComponent else AddComponent".
+SetComponent should automatically add it if it does not exist.
+
+# Duplicated component registration
+subsystems like SimHost, IG, IOS use different registration paths if they run inside bagira runner or not;
+we should unify this as mauch as possible for maintainability.
+
+
+# SimHost's IdAlloc fails for the first allocation
+First entity creation request fails on SimHost failing to allocate an id.
+
+When i click "Spawn" for the first time, the entity is not created and the console says:
+
+07:27:44.5861 | DEBUG | BdcCommandGateway | [TRACE-GW] Sending CreateEntityRequest ID=89939fdb-d67c-49f9-ab52-c6852d3fc1e6
+07:27:48.0195 | ERROR | CreateEntityRequestSystem | [SimHost] CreateEntity failed for request 89939fdb-d67c-49f9-ab52-c6852d3fc1e6: ID pool exhausted and no response from server.
+07:27:48.0195 | DEBUG | BdcCommandGateway | [TRACE-GW] CreateEntityAck ID=89939fdb-d67c-49f9-ab52-c6852d3fc1e6 Entity=0 Error=500
+
+Next Spawn is ok. For the first time, in DdsIdAllocator ProcessResponses() the condition "if (response.ClientId != _clientId && !string.IsNullOrEmpty(response.ClientId)) " is fullfilled because response.ClientId=="IG_300" and _clientId=="SimHostAllocator". On second try this is response.ClientId=="SimHostAllocator".
+
+
+
+
+
 
 ----
 Drop does not move the entity on the map.
@@ -25,7 +49,7 @@ Simhost moves the entity (ig0ingress sees new position) but the map does not sho
 
 ----
 "Selection & Mission" panel is empty no matter what entity i select on the map. It is not empty if i create the entity via the "ORBAT tree"
-UI. Pls explain.
+UI. Pls explain what is needed to show the entity in "Selection & Mission" panel.
 
 Pressing "Commit" does not display any line on the console. Either no command is sent as a response to hitting the commit button
 or there are FdpLog prints missing?
@@ -65,5 +89,9 @@ entity, the click behavior resets to normal (no more underied creations on click
 
 -----
 
+When i select "Hostile" on Entity Spawner UI panel and activate the placement tool, the entity is not created as hostile.
+I need the creation request to carry the entity info descriptor (maybe alread done).
+SimHost should convert it to related ECS managed component IgEntityData.
+On change of that ECS descriptor there should be entity info egress translator publishing the entity info descriptor to the IG.
 
-
+----
