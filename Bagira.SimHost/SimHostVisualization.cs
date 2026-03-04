@@ -154,7 +154,7 @@ namespace Bagira.SimHost
             _map.SwitchTool(_interactionTool);
 
             // Seed a small initial scenario so the window isn't empty
-            _scenario.SpawnFastOne();
+            //_scenario.SpawnFastOne();
 
             _initialized = true;
         }
