@@ -65,11 +65,12 @@ public class EventBrowserPanel
         }
     }
 
-    public void Draw()
+    /// <param name="title">Optional window title override. Default: "Event Browser".</param>
+    public void Draw(string title = "Event Browser")
     {
         ImGuiApi.SetNextWindowSize(new Vector2(800, 500), ImGuiCond.FirstUseEver);
 
-        if (ImGuiApi.Begin("Event Browser", ImGuiWindowFlags.NoCollapse))
+        if (ImGuiApi.Begin(title, ImGuiWindowFlags.NoCollapse))
         {
             DrawToolbar();
             ImGuiApi.Separator();

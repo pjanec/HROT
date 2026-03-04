@@ -19,9 +19,12 @@ public class EntityInspectorPanel
     /// <summary>
     /// Renders the entity inspector window.
     /// </summary>
-    public void Draw(IInspectableSession session, IInspectorContext context)
+    /// <param name="session">The ECS session to inspect.</param>
+    /// <param name="context">The inspector context (selection state).</param>
+    /// <param name="title">Optional window title override. Default: "Entity Inspector".</param>
+    public void Draw(IInspectableSession session, IInspectorContext context, string title = "Entity Inspector")
     {
-        if (!ImGuiApi.Begin("Entity Inspector"))
+        if (!ImGuiApi.Begin(title))
         {
             ImGuiApi.End();
             return;
