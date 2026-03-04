@@ -28,6 +28,9 @@ When i click "Spawn" for the first time, the entity is not created and the conso
 
 Next Spawn is ok. For the first time, in DdsIdAllocator ProcessResponses() the condition "if (response.ClientId != _clientId && !string.IsNullOrEmpty(response.ClientId)) " is fullfilled because response.ClientId=="IG_300" and _clientId=="SimHostAllocator". On second try this is response.ClientId=="SimHostAllocator".
 
+# Drop event does not move the entity immediately
+On entity drag and drop, after the drop the entity on the IG does not jump immediately, but but only after some time,
+when the rolling window-triggered geoSpatial update arrives.
 
 
 
