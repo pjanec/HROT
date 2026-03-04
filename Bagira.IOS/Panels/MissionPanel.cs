@@ -348,9 +348,13 @@ public sealed class MissionPanel
                 HandleAddTask();
 
             ImGui.SameLine();
-            if (!CommitButtonEnabled) ImGui.BeginDisabled();
+            // Capture the enabled state once before the button so that HandleCommit()
+            // changing CommitButtonEnabled mid-frame cannot cause a mismatched
+            // BeginDisabled / EndDisabled pair (Task-7 fix).
+            bool commitEnabled = CommitButtonEnabled;
+            if (!commitEnabled) ImGui.BeginDisabled();
             if (ImGui.Button("Commit")) HandleCommit(logic);
-            if (!CommitButtonEnabled) ImGui.EndDisabled();
+            if (!commitEnabled) ImGui.EndDisabled();
 
             if (ImGui.Button("JUMP"))  HandleJump(logic);
             ImGui.SameLine();

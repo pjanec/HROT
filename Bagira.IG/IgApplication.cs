@@ -107,6 +107,8 @@ public class IgApplication
     private bool                             _showGrid;
     private Guid                             _lastPlacementContextId;
     private DdsWriter<CreateEntityRequest>?  _createEntityDdsWriter;
+    // ── Drag tracking: world-space drop position set by OnEntityMoved ──────────────────────────
+    private System.Numerics.Vector2          _lastDragWorldPos;
     // ── Style and culling objects — updated and injected into modules
     private MapUserConfig     _userConfig     = null!;
     private MapCameraViewport _cameraViewport = null!;
@@ -441,6 +443,9 @@ public class IgApplication
         {
             interactionTool.OnWorldClick += OnCanvasClicked;
             interactionTool.OnEntityDragEnd += OnEntityDragEnded;
+            // Track world-space drag position so OnEntityDragEnded can read the actual drop
+            // location rather than the (potentially stale) SimTransform.
+            interactionTool.OnEntityMoved += (_, worldPos) => _lastDragWorldPos = worldPos;
             _miniIosPanel.SetGateway(_commandGateway);
         }
 
@@ -706,10 +711,12 @@ public class IgApplication
         if (_commandGateway == null)
             throw new InvalidOperationException("Mini IOS gateway is not initialized.");
 
-        _miniIosState.TkbType = tkbType;
-        _miniIosState.Affiliation = affiliation;
-        _miniIosState.PositionX = positionX;
-        _miniIosState.PositionY = positionY;
+        _miniIosState.TkbType                = tkbType;
+        _miniIosState.Affiliation            = affiliation;
+        _miniIosState.PositionX              = positionX;
+        _miniIosState.PositionY              = positionY;
+        // Ensure explicit coordinates are used (not random) when the caller supplies a position.
+        _miniIosState.UseSpecificCoordinates = true;
         _miniIosState.SubmitViaGateway(_commandGateway);
     }
 
@@ -723,10 +730,11 @@ public class IgApplication
         if (_commandGateway == null)
             throw new InvalidOperationException("Mini IOS gateway is not initialized.");
 
-        _miniIosState.TkbType      = tkbType;
-        _miniIosState.Affiliation  = affiliation;
-        _miniIosState.PositionX    = positionX;
-        _miniIosState.PositionY    = positionY;
+        _miniIosState.TkbType                = tkbType;
+        _miniIosState.Affiliation            = affiliation;
+        _miniIosState.PositionX              = positionX;
+        _miniIosState.PositionY              = positionY;
+        _miniIosState.UseSpecificCoordinates = true;
         return _miniIosState.SubmitWithWanderMissionViaGateway(_commandGateway);
     }
 
@@ -816,11 +824,14 @@ public class IgApplication
 
     /// <summary>
     /// Handles the end of an entity drag on the 2-D map canvas.
-    /// Reads the entity's current (post-drag) <see cref="SimTransform"/> position,
-    /// converts it to geodetic coordinates, and publishes an
-    /// <see cref="UpdateEntityDescriptorRequest"/> so the authoritative node
-    /// (SimHost) can persist the new position.
-    /// No-op when network is disabled or required services are unavailable.
+    /// Reads the entity's final drop position from <see cref="_lastDragWorldPos"/> (set on
+    /// every <c>OnEntityMoved</c> frame), converts it to geodetic coordinates, and publishes
+    /// an <see cref="UpdateEntityDescriptorRequest"/> so the authoritative node (SimHost)
+    /// can persist the new position.
+    ///
+    /// Reads from the tracked drag position rather than from <see cref="SimTransform"/> because
+    /// the drag tool does not write the ECS component during its drag frames — only the visual
+    /// position is updated.  No-op when network is disabled or required services are unavailable.
     /// </summary>
     private void OnEntityDragEnded(Entity entity)
     {
@@ -830,9 +841,22 @@ public class IgApplication
         if (!view.HasComponent<NetworkIdentity>(entity)) return;
 
         long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
-        if (!view.HasComponent<SimTransform>(entity)) return;
 
-        var position = view.GetComponentRO<SimTransform>(entity).Position;
+        // Use the world-space drop position tracked by OnEntityMoved.
+        // Fall back to SimTransform only when no drag move was recorded (e.g. test path).
+        System.Numerics.Vector3 position;
+        if (_lastDragWorldPos != default)
+        {
+            position = new System.Numerics.Vector3(_lastDragWorldPos.X, _lastDragWorldPos.Y, 0f);
+        }
+        else if (view.HasComponent<SimTransform>(entity))
+        {
+            position = view.GetComponentRO<SimTransform>(entity).Position;
+        }
+        else
+        {
+            return;
+        }
         var (lat, lon, alt) = _geoTransform.ToGeodetic(position);
 
         var request = new UpdateEntityDescriptorRequest

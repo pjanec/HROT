@@ -263,4 +263,73 @@ public class ContextMenuSystemTests
 
         Assert.Equal(Entity.Null, system.ActiveMenuEntity);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Task-4 regression: same-frame close + open ordering
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Regression test for Task-4 (IG.4.4 bug fix).
+    ///
+    /// If a close request and an open request for the <em>same</em> entity are both
+    /// queued before a single <see cref="ContextMenuSystem.Execute"/> call the open
+    /// must win — i.e. the same-frame sequence {close, open} should leave the menu open.
+    ///
+    /// Before the fix, close was applied AFTER open inside Execute, so the menu was
+    /// left closed even though a fresh open was requested in the same frame.  This
+    /// manifested as "context menu appears only once; subsequent right-clicks on the
+    /// same entity do nothing".
+    /// </summary>
+    [Fact]
+    public void SameFrame_CloseAndOpenRequest_OpenWins()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        var system = new ContextMenuSystem();
+
+        // Frame 1 — open the menu successfully so we have a known baseline.
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+        Assert.Equal(entity, system.ActiveMenuEntity);
+
+        // Frame 2 — queue BOTH a close (from UI layer dismissing the popup)
+        // and a re-open (from the input layer handling another right-click)
+        // BEFORE Execute runs.  The open must win.
+        system.TestHook_CloseContextMenu(entity);
+        system.TestHook_TriggerContextMenu(entity, ScreenX + 1f, ScreenY + 1f);
+        RunSystem(repo, system);
+
+        var state = TryGetMenuState(repo, entity);
+        Assert.NotNull(state);
+        Assert.True(state!.IsOpen,
+            "Open request must win when close and open are both queued in the same frame.");
+        Assert.Equal(entity, system.ActiveMenuEntity);
+        Assert.Equal(ScreenX + 1f, state.ScreenX);
+        Assert.Equal(ScreenY + 1f, state.ScreenY);
+    }
+
+    /// <summary>
+    /// Verifies that a stand-alone close request (without a same-frame open) correctly
+    /// closes the menu, so the Task-4 fix does not inadvertently break normal close
+    /// behaviour.
+    /// </summary>
+    [Fact]
+    public void CloseRequest_WithoutOpen_ClosesMenu()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        var system = new ContextMenuSystem();
+
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+        Assert.True(system.ActiveMenuEntity == entity);
+
+        system.TestHook_CloseContextMenu(entity);
+        RunSystem(repo, system);
+
+        var state = TryGetMenuState(repo, entity);
+        Assert.NotNull(state);
+        Assert.False(state!.IsOpen, "A stand-alone close request must close the menu.");
+        Assert.Equal(Entity.Null, system.ActiveMenuEntity);
+    }
 }

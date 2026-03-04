@@ -103,7 +103,25 @@ public class ContextMenuSystem : IModuleSystem
             }
         }
 
-        // ── 2. Apply pending open request ─────────────────────────────────────
+        // ── 2. Apply pending close request ────────────────────────────────────
+        // Close is processed BEFORE open so that a same-frame close+open sequence
+        // (e.g. the UI layer dismisses the current popup and the input layer queues
+        // a new open for the same entity) results in the menu being re-opened rather
+        // than remaining closed.  Without this ordering, the close would undo the
+        // open that was applied one step earlier in the same Execute() call.
+        if (_hasPendingClose)
+        {
+            _hasPendingClose = false;
+            Entity target    = _pendingCloseEntity;
+            _pendingCloseEntity = Entity.Null;
+
+            if (view.IsAlive(target))
+            {
+                CloseMenu(view, cmd, target);
+            }
+        }
+
+        // ── 3. Apply pending open request ─────────────────────────────────────
         if (_hasPendingOpen)
         {
             _hasPendingOpen = false;
@@ -148,19 +166,6 @@ public class ContextMenuSystem : IModuleSystem
                         new ContextAction { Label = "Center on Entity", ActionName = "IG_CenterOnEntity" },
                     };
                 }
-            }
-        }
-
-        // ── 3. Apply pending close request ────────────────────────────────────
-        if (_hasPendingClose)
-        {
-            _hasPendingClose = false;
-            Entity target    = _pendingCloseEntity;
-            _pendingCloseEntity = Entity.Null;
-
-            if (view.IsAlive(target))
-            {
-                CloseMenu(view, cmd, target);
             }
         }
     }

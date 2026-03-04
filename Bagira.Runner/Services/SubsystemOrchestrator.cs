@@ -149,13 +149,45 @@ namespace Bagira.Runner.Services
             for (int i = 0; i < _subsystems.Count; i++)
                 _subsystems[i].DrawWorld();
 
-            // UI layer (ImGui)
+            // UI layer (ImGui) — each subsystem's windows use a distinct title-bar
+            // colour so operators can tell at a glance which subsystem owns each panel.
             rlImGui.Begin();
             for (int i = 0; i < _subsystems.Count; i++)
+            {
+                int pushed = PushSubsystemColors(_subsystems[i].Name);
                 _subsystems[i].DrawUI();
+                ImGuiNET.ImGui.PopStyleColor(pushed);
+            }
             rlImGui.End();
 
             Raylib.EndDrawing();
+        }
+
+        /// <summary>
+        /// Pushes ImGui title-bar colour overrides for the named subsystem and returns
+        /// the number of colour slots pushed (to pass back to <c>ImGui.PopStyleColor</c>).
+        /// Subsystems without a designated colour push nothing and return 0.
+        /// IG windows are tinted blue; IOS windows are tinted violet.
+        /// </summary>
+        private static int PushSubsystemColors(string subsystemName)
+        {
+            System.Numerics.Vector4 titleBg, titleBgActive;
+            switch (subsystemName)
+            {
+                case "IG":
+                    titleBg       = new System.Numerics.Vector4(0.10f, 0.30f, 0.70f, 0.80f);
+                    titleBgActive = new System.Numerics.Vector4(0.15f, 0.40f, 0.85f, 0.95f);
+                    break;
+                case "IOS":
+                    titleBg       = new System.Numerics.Vector4(0.45f, 0.10f, 0.70f, 0.80f);
+                    titleBgActive = new System.Numerics.Vector4(0.55f, 0.15f, 0.85f, 0.95f);
+                    break;
+                default:
+                    return 0;
+            }
+            ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.TitleBg,       titleBg);
+            ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.TitleBgActive, titleBgActive);
+            return 2;
         }
 
         private static IEnumerable<ISubsystem> BuildSubsystems(RunnerConfiguration config)

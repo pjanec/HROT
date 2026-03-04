@@ -109,7 +109,20 @@ public class StyleResolutionSystem : IModuleSystem
             if (!string.IsNullOrEmpty(colorHex))
                 ParseColorHex(colorHex, out tintR, out tintG, out tintB, out tintA);
             // Derive affiliation from TKB colour when no network override exists.
-            // (Label stays empty at TKB layer; human-readable names come from EntityInfo.)
+        }
+
+        // ── Layer 1.5: IgEntityData (from EntityInfo DDS / spawn descriptor) ──
+        // Provides force affiliation and human-readable name when no IgSymbolOverride is present.
+        if (view.HasManagedComponent<IgEntityData>(entity))
+        {
+            var entityData = view.GetManagedComponentRO<IgEntityData>(entity);
+            if (entityData.ForceId != ForceId.Unknown)
+            {
+                affiliation = entityData.ForceId;
+                ApplyAffiliationColor(affiliation, out tintR, out tintG, out tintB, out tintA);
+            }
+            if (!string.IsNullOrEmpty(entityData.Name))
+                labelText = entityData.Name;
         }
 
         // ── Layer 2: Network override (IgSymbolOverride) ──────────────────────
@@ -131,6 +144,16 @@ public class StyleResolutionSystem : IModuleSystem
                 labelText = symbol.LabelOverride;
 
             showTrail = symbol.ShowHistory;
+        }
+
+        // ── Layer 2.5: NetworkIdentity label fallback ─────────────────────────
+        // Show the entity's network ID when no human-readable label was set, so every
+        // entity always has a readable identifier on the map.  The DebugPanel "Hide Labels"
+        // toggle (Layer 3) can suppress this.
+        if (string.IsNullOrEmpty(labelText) && view.HasComponent<NetworkIdentity>(entity))
+        {
+            ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
+            labelText = netId.Value.ToString(CultureInfo.InvariantCulture);
         }
 
         // ── Layer 3: User config overrides ────────────────────────────────────

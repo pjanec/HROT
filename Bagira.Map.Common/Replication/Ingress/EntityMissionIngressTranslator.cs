@@ -147,6 +147,12 @@ namespace Bagira.Map.Common.Replication.Ingress
             if (_doctrineRegistry.TryGetId(behaviorId, out int doctrineId))
                 return doctrineId;
 
+            // Fallback: if BehaviorId is a raw numeric string (legacy egress without registry)
+            // treat it directly as the doctrine integer ID.
+            if (int.TryParse(behaviorId, System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture, out int numericId) && numericId > 0)
+                return numericId;
+
             FdpLog<EntityMissionIngressTranslator>.Warn(
                 "[MissionTranslator] Unknown BehaviorId '{0}'; using doctrine 0 (Idle).",
                 behaviorId);

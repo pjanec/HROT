@@ -155,6 +155,11 @@ public sealed class OrbatPanel
         });
 
         logic.SelectEntity(newId);
+
+        // Start placement mode so the operator can click the map to send a
+        // CreateEntityRequest to SimHost — without this, the entity only exists
+        // in the local DER repository and never appears on the shared map.
+        logic.StartPlacementMode(TkbEntityTypes.Unit_InfantrySquad, eForceIdentifier.FORCE_FRIENDLY);
     }
 
     // ── Visible node list (testable, used by Draw in Phase P9) ────────────────

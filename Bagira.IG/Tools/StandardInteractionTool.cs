@@ -69,6 +69,18 @@ public class StandardInteractionTool : IMapTool
     }
 
     /// <summary>
+    /// Passes through the inner FDP tool's per-frame entity-moved event.
+    /// Fires every frame while an entity drag is in progress, carrying the
+    /// current world-space cursor position. Subscribe to track the drop
+    /// position for network updates in <see cref="OnEntityDragEnd"/>.
+    /// </summary>
+    public event Action<Entity, System.Numerics.Vector2>? OnEntityMoved
+    {
+        add    => _inner.OnEntityMoved += value;
+        remove => _inner.OnEntityMoved -= value;
+    }
+
+    /// <summary>
     /// Constructs a wired selection tool.
     /// </summary>
     /// <param name="world">

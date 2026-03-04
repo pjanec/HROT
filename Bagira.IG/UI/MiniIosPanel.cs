@@ -75,13 +75,24 @@ public class MiniIosPanel
         ImGui.Separator();
 
         // ── Coordinates ───────────────────────────────────────────────────────
-        float px = _state.PositionX;
-        if (ImGui.InputFloat("Pos X (m)", ref px))
-            _state.PositionX = px;
+        bool useCoords = _state.UseSpecificCoordinates;
+        if (ImGui.Checkbox("Use specific coordinates", ref useCoords))
+            _state.UseSpecificCoordinates = useCoords;
 
-        float py = _state.PositionY;
-        if (ImGui.InputFloat("Pos Y (m)", ref py))
-            _state.PositionY = py;
+        if (_state.UseSpecificCoordinates)
+        {
+            float px = _state.PositionX;
+            if (ImGui.InputFloat("Pos X (m)", ref px))
+                _state.PositionX = px;
+
+            float py = _state.PositionY;
+            if (ImGui.InputFloat("Pos Y (m)", ref py))
+                _state.PositionY = py;
+        }
+        else
+        {
+            ImGui.TextDisabled($"Random position within {_state.RandomSpawnRadius:F0} m of origin");
+        }
 
         ImGui.Separator();
 

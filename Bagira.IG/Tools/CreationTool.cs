@@ -217,6 +217,17 @@ public class CreationTool : IMapTool
                         },
                     },
                 },
+                new EntityDescriptorUnion
+                {
+                    _d         = EDescriptorType.dtEntityInfo,
+                    EntityInfo = new EntityInfo
+                    {
+                        EntityId        = 0, // SimHost overwrites with allocated ID
+                        Name            = string.Empty,
+                        ForceIdentifier = MapAffiliation(_affiliation),
+                        CommanderId     = 0,
+                    },
+                },
             },
         };
 
@@ -231,5 +242,17 @@ public class CreationTool : IMapTool
             ForceId.Hostile => Color.Red,
             ForceId.Neutral => Color.Green,
             _               => Color.White,
+        };
+
+    /// <summary>
+    /// Maps a local <see cref="ForceId"/> to the DDS-layer <see cref="eForceIdentifier"/> enum.
+    /// </summary>
+    private static eForceIdentifier MapAffiliation(ForceId affiliation) =>
+        affiliation switch
+        {
+            ForceId.Friend  => eForceIdentifier.FORCE_FRIENDLY,
+            ForceId.Hostile => eForceIdentifier.FORCE_OPPOSING,
+            ForceId.Neutral => eForceIdentifier.FORCE_NEUTRAL,
+            _               => eForceIdentifier.FORCE_UNKNOWN,
         };
 }

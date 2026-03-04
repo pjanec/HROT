@@ -48,6 +48,22 @@ public class MiniIosPanelState
     /// <summary>Filter text for the TKB type browser list.</summary>
     public string SearchText { get; set; } = string.Empty;
 
+    /// <summary>
+    /// When <c>true</c> the spawn uses the explicit <see cref="PositionX"/> / <see cref="PositionY"/>
+    /// values entered by the operator.
+    /// When <c>false</c> (default) a random position within <see cref="RandomSpawnRadius"/> metres of
+    /// the world origin is generated automatically — useful for quick-spawn without needing to
+    /// pick a map location first.
+    /// </summary>
+    public bool UseSpecificCoordinates { get; set; } = false;
+
+    /// <summary>Half-extent (metres) of the random spawn area when <see cref="UseSpecificCoordinates"/> is <c>false</c>.
+    /// Default 1000 m.</summary>
+    public float RandomSpawnRadius { get; set; } = 1000f;
+
+    // RNG instance shared across calls; not thread-safe (panel state is single-threaded).
+    private static readonly Random _rng = new();
+
     private IGeographicTransform? _geoTransform;
 
     // ── Testability hook ──────────────────────────────────────────────────────
@@ -138,9 +154,22 @@ public class MiniIosPanelState
             }
         };
 
+        // Include EntityInfo so SimHost publishes affiliation on the EntityInfo DDS topic
+        // and the IG StyleResolutionSystem can apply the correct force colour.
+        if (Affiliation != ForceId.Unknown)
+        {
+            descriptors.Add(new EntityDescriptorUnion
+            {
+                _d         = EDescriptorType.dtEntityInfo,
+                EntityInfo = new EntityInfo { ForceIdentifier = MapAffiliation(Affiliation) },
+            });
+        }
+
         if (_geoTransform != null)
         {
-            var local = new Vector3(PositionX, PositionY, 0f);
+            float spawnX = UseSpecificCoordinates ? PositionX : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
+            float spawnY = UseSpecificCoordinates ? PositionY : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
+            var local = new Vector3(spawnX, spawnY, 0f);
             var (lat, lon, alt) = _geoTransform.ToGeodetic(local);
 
             descriptors.Add(new EntityDescriptorUnion
@@ -197,9 +226,20 @@ public class MiniIosPanelState
             }
         };
 
+        if (Affiliation != ForceId.Unknown)
+        {
+            descriptors.Add(new EntityDescriptorUnion
+            {
+                _d         = EDescriptorType.dtEntityInfo,
+                EntityInfo = new EntityInfo { ForceIdentifier = MapAffiliation(Affiliation) },
+            });
+        }
+
         if (_geoTransform != null)
         {
-            var local = new Vector3(PositionX, PositionY, 0f);
+            float spawnX = UseSpecificCoordinates ? PositionX : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
+            float spawnY = UseSpecificCoordinates ? PositionY : (_rng.NextSingle() * 2f - 1f) * RandomSpawnRadius;
+            var local = new Vector3(spawnX, spawnY, 0f);
             var (lat, lon, alt) = _geoTransform.ToGeodetic(local);
 
             descriptors.Add(new EntityDescriptorUnion
@@ -295,5 +335,14 @@ public class MiniIosPanelState
             ForceId.Hostile => IgSymbolOverride.StyleSetHostile,
             ForceId.Neutral => IgSymbolOverride.StyleSetNeutral,
             _               => IgSymbolOverride.StyleSetUnknown,
+        };
+
+    private static eForceIdentifier MapAffiliation(ForceId affiliation) =>
+        affiliation switch
+        {
+            ForceId.Friend  => eForceIdentifier.FORCE_FRIENDLY,
+            ForceId.Hostile => eForceIdentifier.FORCE_OPPOSING,
+            ForceId.Neutral => eForceIdentifier.FORCE_NEUTRAL,
+            _               => eForceIdentifier.FORCE_UNKNOWN,
         };
 }

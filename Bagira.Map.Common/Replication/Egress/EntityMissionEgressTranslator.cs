@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using System.Globalization;
 using Bagira.BDC.SSTD;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
+using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
@@ -25,14 +27,19 @@ namespace Bagira.Map.Common.Replication.Egress
     {
         private readonly DdsWriter<EntityMission> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly DoctrineRegistry? _doctrineRegistry;
 
         public string TopicName => "EntityMission";
         public long DescriptorOrdinal => 51;
 
-        public EntityMissionEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
+        public EntityMissionEgressTranslator(
+            DdsParticipant   participant,
+            NetworkEntityMap entityMap,
+            DoctrineRegistry? doctrineRegistry = null)
         {
-            _writer = new DdsWriter<EntityMission>(participant, "EntityMission");
-            _entityMap = entityMap;
+            _writer           = new DdsWriter<EntityMission>(participant, "EntityMission");
+            _entityMap        = entityMap;
+            _doctrineRegistry = doctrineRegistry;
         }
 
         /// <summary>
@@ -79,7 +86,7 @@ namespace Bagira.Map.Common.Replication.Egress
         /// <summary>
         /// Converts the internal <see cref="MissionPlanQueue"/> to a DDS <see cref="MissionPlan"/>.
         /// </summary>
-        private static MissionPlan BuildDdsPlan(in MissionPlanQueue queue)
+        private MissionPlan BuildDdsPlan(in MissionPlanQueue queue)
         {
             var tasks = new List<MissionTask>(queue.PhaseCount);
 
@@ -95,11 +102,17 @@ namespace Bagira.Map.Common.Replication.Egress
                     _                                     => "TimerElapsed"
                 };
 
+                // Resolve human-readable name; fall back to numeric string for legacy interop.
+                string behaviorId = _doctrineRegistry != null
+                    && _doctrineRegistry.TryGetName(phase.DoctrineId, out var resolvedName)
+                    ? resolvedName
+                    : phase.DoctrineId.ToString(CultureInfo.InvariantCulture);
+
                 tasks.Add(new MissionTask
                 {
                     TaskId          = System.Guid.Empty,
                     ExecutingEngine = "SimHost",
-                    BehaviorId      = phase.DoctrineId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    BehaviorId      = behaviorId,
                     BehaviorParams  = string.Empty,
                     Triggers        = new List<DdsMissionTrigger>
                     {

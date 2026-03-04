@@ -1,12 +1,27 @@
-using System;
-using System.Collections.Generic;
-using Raylib_cs;
+using Bagira.BDC.SSTD;
+using Bagira.IG.Components;
+using Bagira.Map.Common;
+using Bagira.Map.Common.Events;
+using Bagira.Map.Common.Replication;
+using Bagira.Map.Common.Replication.Egress;
+using Bagira.Map.Common.Replication.Ingress;
+using Bagira.Map.Common.Systems;
+using Bagira.Map.Definitions.Tkb;
+using Bagira.SimHost.Brains;
+using Bagira.SimHost.Components;
+using Bagira.SimHost.Configuration;
+using Bagira.SimHost.Modules;
+using Bagira.SimHost.Systems;
+using Bagira.SimHost.Utilities;
+using CarKinem.Commands;
+using CarKinem.Road;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using Fdp.Modules.Geographic.Components;
 using Fdp.Modules.Geographic.Transforms;
+using Fdp.Toolkit.Tkb;
 using FDP.Framework.Raylib;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
@@ -20,7 +35,6 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Time.Controllers;
-using Fdp.Toolkit.Tkb;
 using ModuleHost.Core;
 using ModuleHost.Core.Network;
 using ModuleHost.Core.Time;
@@ -28,25 +42,11 @@ using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Services;
 using ModuleHost.Network.Cyclone.Systems;
 using ModuleHost.Network.Cyclone.Translators;
-using Bagira.BDC.SSTD;
-using Bagira.Map.Common;
-using Bagira.Map.Common.Events;
-using Bagira.Map.Common.Replication.Egress;
-using Bagira.Map.Common.Replication.Ingress;
-using Bagira.Map.Common.Systems;
-using Bagira.Map.Definitions.Tkb;
-using Bagira.SimHost.Brains;
-using Bagira.SimHost.Components;
-using Bagira.SimHost.Configuration;
-using Bagira.SimHost.Modules;
-using Bagira.SimHost.Systems;
-using Bagira.Map.Common.Replication;
-using Bagira.SimHost.Utilities;
-using CarKinem.Commands;
-using CarKinem.Road;
-
-using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
+using Raylib_cs;
+using System;
+using System.Collections.Generic;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
+using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
 namespace Bagira.SimHost
 {
@@ -354,6 +354,7 @@ namespace Bagira.SimHost
             world.RegisterComponent<VisualData>();
 
             // Managed
+            world.RegisterManagedComponent<IgEntityData>();
             world.RegisterManagedComponent<EntityMissionHolder>();
             world.RegisterManagedComponent<SimCombatDef>();
             world.RegisterManagedComponent<TkbCompositionDef>();

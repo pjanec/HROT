@@ -467,4 +467,131 @@ public class MiniIosIntegrationTests
         mission = default;
         return false;
     }
+
+    // ── Task-3 regression: hostile affiliation propagated from IG → SimHost → IG ──
+
+    /// <summary>
+    /// Regression test for Task-3: entity spawned by the Mini IOS panel with a hostile
+    /// affiliation must arrive in the IG ECS world with
+    /// <see cref="IgEntityData.ForceId"/> == <see cref="ForceId.Hostile"/>.
+    ///
+    /// Flow:
+    /// <list type="number">
+    ///   <item><see cref="MiniIosPanelState.SubmitViaGateway"/> sends
+    ///         <see cref="CreateEntityRequest"/> with a <c>dtEntityInfo</c> descriptor
+    ///         carrying <c>FORCE_OPPOSING</c>.</item>
+    ///   <item>SimHost <see cref="CreateEntityRequestSystem"/> publishes the
+    ///         <see cref="EntityInfo"/> DDS topic after spawning the entity.</item>
+    ///   <item>IG <c>EntityInfoIngressTranslator</c> reads the topic and updates
+    ///         <see cref="IgEntityData.ForceId"/> on the matching ghost/active entity.</item>
+    ///   <item><see cref="StyleResolutionSystem"/> layer 1.5 applies hostile tint.</item>
+    /// </list>
+    /// </summary>
+    [Fact]
+    public void MiniIosSpawn_HostileAffiliation_IgEntityGetsHostileForceId()
+    {
+        using var harness = new BagiraRunnerHarness();
+
+        var igApp = harness.Ig.App;
+        using var participant = new DdsParticipant((uint)harness.DomainId);
+        using var reqReader   = new DdsReader<CreateEntityRequest>(participant, "CreateEntityRequest");
+        using var ackReader   = new DdsReader<CreateEntityAck>(participant, "CreateEntityAck");
+
+        long tkbType = TkbEntityTypes.Tank_M1Abrams;
+        igApp.TestHook_SubmitMiniIosSpawn(tkbType, ForceId.Hostile, 100f, 200f);
+
+        // ── 1. Verify CreateEntityRequest contains dtEntityInfo with FORCE_OPPOSING ──
+        CreateEntityRequest req = default;
+        Assert.True(
+            harness.PumpUntil(() => TryTakeAnyCreateRequest(reqReader, out req), RequestTimeoutFrames),
+            "CreateEntityRequest did not reach DDS in time.");
+        Assert.NotNull(req.InitialDescriptors);
+        Assert.True(
+            HasEntityInfoWithForce(req.InitialDescriptors, eForceIdentifier.FORCE_OPPOSING),
+            DescribeDescriptors("Spawn request missing dtEntityInfo/FORCE_OPPOSING:", req.InitialDescriptors));
+
+        // ── 2. Verify SimHost acknowledges ────────────────────────────────────
+        CreateEntityAck ack = default;
+        Assert.True(
+            harness.PumpUntil(() => TryTakeCreateAck(ackReader, req.RequestId, out ack), RequestTimeoutFrames),
+            "CreateEntityAck did not arrive in time.");
+        Assert.Equal(0, ack.ErrorCode);
+
+        long networkId = ack.NewEntityId;
+        Assert.True(networkId > 0, "CreateEntityAck must return a valid network ID.");
+
+        // ── 3. Verify IG entity has ForceId.Hostile ───────────────────────────
+        bool igEntityHostile = harness.PumpUntil(
+            () => IgEntityHasForceId(harness.Ig.App.World, networkId, ForceId.Hostile),
+            IgSpawnTimeoutFrames);
+        Assert.True(igEntityHostile,
+            $"IG entity (networkId={networkId}) did not get ForceId.Hostile after EntityInfo propagation.");
+    }
+
+    private static bool HasEntityInfoWithForce(
+        System.Collections.Generic.List<EntityDescriptorUnion> descriptors,
+        eForceIdentifier force)
+    {
+        foreach (var d in descriptors)
+        {
+            if (d._d != EDescriptorType.dtEntityInfo) continue;
+            if (d.EntityInfo.ForceIdentifier == force) return true;
+        }
+        return false;
+    }
+
+    private static bool IgEntityHasForceId(EntityRepository world, long networkId, ForceId forceId)
+    {
+        if (!TryGetSimHostEntity(world, networkId, out var entity))
+            return false;
+        var view = (ISimulationView)world;
+        if (!view.HasManagedComponent<Bagira.IG.Components.IgEntityData>(entity))
+            return false;
+        var data = view.GetManagedComponentRO<Bagira.IG.Components.IgEntityData>(entity);
+        return data.ForceId == forceId;
+    }
+
+    // ── Task-8 regression: first spawn must not exhaust the ID pool ───────────
+
+    /// <summary>
+    /// Regression test for Task-8: the very first <see cref="CreateEntityRequest"/>
+    /// on a freshly-initialised harness must succeed without throwing
+    /// "ID pool exhausted".
+    ///
+    /// Before the fix <see cref="DdsIdAllocator"/> called <c>RequestChunk</c> in its
+    /// constructor, before DDS participant discovery completed.  The server never saw
+    /// the write-before-match request, so the first <see cref="AllocateId"/> spin timed
+    /// out and threw.  The entity appeared to spawn successfully only on the second
+    /// attempt (which used the response now sitting in the reader buffer).
+    ///
+    /// After the fix the chunk request is deferred to the first lazy
+    /// <see cref="AllocateId"/> call, by which point discovery is complete.
+    /// </summary>
+    [Fact]
+    public void FirstSpawn_DoesNotExhaustIdPool()
+    {
+        // Use a fresh harness so that this is genuinely the first AllocateId() call.
+        using var harness = new BagiraRunnerHarness();
+
+        var igApp = harness.Ig.App;
+        using var participant = new DdsParticipant((uint)harness.DomainId);
+        using var reqReader   = new DdsReader<CreateEntityRequest>(participant, "CreateEntityRequest");
+        using var ackReader   = new DdsReader<CreateEntityAck>(participant, "CreateEntityAck");
+
+        // First spawn — must succeed.
+        igApp.TestHook_SubmitMiniIosSpawn(TkbEntityTypes.Tank_M1Abrams, ForceId.Friend, 0f, 0f);
+
+        CreateEntityRequest req = default;
+        Assert.True(
+            harness.PumpUntil(() => TryTakeAnyCreateRequest(reqReader, out req), RequestTimeoutFrames),
+            "First CreateEntityRequest did not reach DDS — check DdsIdAllocator initialisation.");
+
+        CreateEntityAck ack = default;
+        Assert.True(
+            harness.PumpUntil(() => TryTakeCreateAck(ackReader, req.RequestId, out ack), RequestTimeoutFrames),
+            "First CreateEntityAck did not arrive — ID pool may have been exhausted on the first request.");
+
+        Assert.Equal(0, ack.ErrorCode);
+        Assert.True(ack.NewEntityId > 0, "First spawn must return a valid network ID.");
+    }
 }
