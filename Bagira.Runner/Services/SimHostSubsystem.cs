@@ -288,6 +288,7 @@ namespace Bagira.Runner.Services
             translators.Add(simHostMod.MissionEgressTranslator);
             var entityMasterEgressTranslator = new EntityMasterEgressTranslator(ddsParticipant, entityMap, localNodeId);
             translators.Add(entityMasterEgressTranslator);
+            translators.Add(new EntityInfoEgressTranslator(ddsParticipant, entityMap)); // Task 18
             translators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
             translators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));
 

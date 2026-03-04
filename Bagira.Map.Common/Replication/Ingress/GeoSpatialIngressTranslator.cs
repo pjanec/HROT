@@ -84,6 +84,17 @@ namespace Bagira.Map.Common.Replication.Ingress
                     Rotation = Quaternion.Identity
                 });
             }
+            else
+            {
+                // Entity already spawned — propagate position update so the map
+                // renders the entity at its new location (SimTransform is the
+                // authoritative render position, not NetworkPosition).
+                cmd.SetComponent(entity, new SimTransform
+                {
+                    Position = position,
+                    Rotation = Quaternion.Identity
+                });
+            }
         }
 
         // ── Egress (ingress-only translator — nothing to publish) ────────────
@@ -103,6 +114,16 @@ namespace Bagira.Map.Common.Replication.Ingress
             if (!repo.HasComponent<SimTransform>(entity))
             {
                 repo.AddComponent(entity, new SimTransform
+                {
+                    Position = position,
+                    Rotation = Quaternion.Identity
+                });
+            }
+            else
+            {
+                // Ghost promotion — always sync SimTransform so the map
+                // shows the entity at the correct position immediately.
+                repo.SetComponent(entity, new SimTransform
                 {
                     Position = position,
                     Rotation = Quaternion.Identity

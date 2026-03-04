@@ -75,7 +75,10 @@ public class PerformanceOverlay
                   | ImGuiWindowFlags.NoNav
                   | ImGuiWindowFlags.NoMouseInputs;
 
-        if (!ImGui.Begin("Performance", flags))
+        IgPanelColors.Push();
+        bool panelVisible = ImGui.Begin("Performance", flags);
+        IgPanelColors.Pop();
+        if (!panelVisible)
         {
             ImGui.End();
             return;

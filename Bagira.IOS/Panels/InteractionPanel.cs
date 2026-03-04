@@ -130,7 +130,9 @@ public sealed class InteractionPanel
     public void Draw(IIosLogic logic)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        IosPanelColors.Push();
         ImGui.Begin("Data Monitor");
+        IosPanelColors.Pop();
 
         if (ImGui.BeginTable("log", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.ScrollY))
         {

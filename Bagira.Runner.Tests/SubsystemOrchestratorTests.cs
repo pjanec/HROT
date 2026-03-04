@@ -78,8 +78,10 @@ namespace Bagira.Runner.Tests
         }
 
         [Fact]
-        public void Initialize_ForcesSimHostHeadless_WhenIgIsPresent()
+        public void Initialize_DoesNotForceSimHostHeadless_WhenIgIsPresent()
         {
+            // Task 15: SimHost is no longer forced headless when IG is present.
+            // Both can own their own map view; the active map owner is toggled at runtime.
             var ig = new MockSubsystem("IG");
             var simHost = new MockSubsystem("SimHost");
             var ios = new MockSubsystem("IOS");
@@ -93,7 +95,7 @@ namespace Bagira.Runner.Tests
             Assert.NotNull(ig.ReceivedConfig);
             Assert.NotNull(simHost.ReceivedConfig);
             Assert.False(ig.ReceivedConfig!.Headless);
-            Assert.True(simHost.ReceivedConfig!.Headless);
+            Assert.False(simHost.ReceivedConfig!.Headless);
         }
 
         [Fact]

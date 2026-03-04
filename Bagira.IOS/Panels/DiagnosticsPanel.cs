@@ -104,7 +104,9 @@ public sealed class DiagnosticsPanel
     public void Draw(IIosLogic logic)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        IosPanelColors.Push();
         ImGui.Begin("Diagnostics");
+        IosPanelColors.Pop();
 
         int entityCount = GetEntityCount(logic.Repo);
         ImGui.Text($"Entities in Repo: {entityCount}");

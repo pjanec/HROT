@@ -148,7 +148,10 @@ namespace Bagira.SimHost.UI
             ImGui.SetNextWindowPos(new Vector2(10, 10), ImGuiCond.FirstUseEver);
             ImGui.SetNextWindowSize(new Vector2(320, 520), ImGuiCond.FirstUseEver);
 
-            if (ImGui.Begin("SimHost Controls"))
+            SimHostPanelColors.Push();
+            bool ctrlOpen = ImGui.Begin("SimHost Controls");
+            SimHostPanelColors.Pop();
+            if (ctrlOpen)
             {
                 if (ImGui.CollapsingHeader("Simulation", ImGuiTreeNodeFlags.DefaultOpen))
                     _simCtrl.Render(repo, kernel);
@@ -161,55 +164,6 @@ namespace Bagira.SimHost.UI
                 ImGui.End();
             }
 
-            // Entity inspector (framework panel)
-            RenderEntityInspector(repo, inspector);
-        }
-
-        private void RenderEntityInspector(EntityRepository repo, SimHostInspectorAdapter inspector)
-        {
-            // Minimal entity inspector: list key components of selected entity
-            var sel = inspector.SelectedEntity;
-            if (sel == null) return;
-
-            ImGui.SetNextWindowPos(new Vector2(340, 10), ImGuiCond.FirstUseEver);
-            ImGui.SetNextWindowSize(new Vector2(280, 300), ImGuiCond.FirstUseEver);
-
-            if (ImGui.Begin("Entity Inspector"))
-            {
-                var e = sel.Value;
-                ImGui.Text($"Entity: {e.Index} (gen {e.Generation})");
-                ImGui.Separator();
-
-                if (repo.IsAlive(e))
-                {
-                    if (repo.HasComponent<SimTransform>(e))
-                    {
-                        var tf = repo.GetComponentRO<SimTransform>(e);
-                        ImGui.Text($"Position: ({tf.Position.X:F1}, {tf.Position.Y:F1})");
-                    }
-                    if (repo.HasComponent<VehicleState>(e))
-                    {
-                        var vs = repo.GetComponentRO<VehicleState>(e);
-                        ImGui.Text($"Speed: {vs.Speed:F2} m/s");
-                    }
-                    if (repo.HasComponent<VehicleParams>(e))
-                    {
-                        var vp = repo.GetComponentRO<VehicleParams>(e);
-                        ImGui.Text($"Class: {vp.Class}  MaxSpeed: {vp.MaxSpeedFwd:F1}");
-                    }
-                    if (repo.HasComponent<NavState>(e))
-                    {
-                        var nav = repo.GetComponentRO<NavState>(e);
-                        ImGui.Text($"Nav: {nav.Mode}  Arrived:{nav.HasArrived}");
-                    }
-                }
-                else
-                {
-                    ImGui.TextDisabled("(entity destroyed)");
-                }
-
-                ImGui.End();
-            }
         }
     }
 }

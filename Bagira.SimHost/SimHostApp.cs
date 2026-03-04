@@ -333,6 +333,7 @@ namespace Bagira.SimHost
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
+            world.RegisterComponent<MissionPlanQueue>();
 
             // Combat + perception
             world.RegisterComponent<PerceptionReceptor>();

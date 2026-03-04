@@ -1,6 +1,7 @@
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.IOS.Services;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior;
 using BehaviorConstants = FDP.Toolkit.Behavior.BehaviorConstants;
 using ImGuiNET;
@@ -215,6 +216,8 @@ public sealed class MissionPanel
         if (!CanCommit) return;
 
         var plan = _draftPlan!.Value;
+        FdpLog<MissionPanel>.Info("[IOS] Commit triggered: entityId={0} taskCount={1} baseVersion={2}",
+            _selectedEntityId, plan.Tasks?.Count ?? 0, _draftBaseVersion);
         _pendingCommit = logic.MissionEditorService
             .CommitMissionAsync(_selectedEntityId, plan, _draftBaseVersion);
         _commitInFlight = true;
@@ -264,7 +267,9 @@ public sealed class MissionPanel
     public void Draw(IIosLogic logic)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        IosPanelColors.Push();
         ImGui.Begin("Selection & Mission");
+        IosPanelColors.Pop();
 
         PollCommitCompletion();
 
@@ -454,10 +459,14 @@ public sealed class MissionPanel
 
         if (result.Success)
         {
+            FdpLog<MissionPanel>.Info("[IOS] Commit succeeded: entityId={0} newVersion={1}",
+                _selectedEntityId, result.NewVersion);
             _draftBaseVersion = result.NewVersion;
         }
         else
         {
+            FdpLog<MissionPanel>.Warn("[IOS] Commit failed: entityId={0} errorCode={1} error={2}",
+                _selectedEntityId, result.ErrorCode, result.ErrorMessage);
             HandleConflictResult(result);
         }
     }

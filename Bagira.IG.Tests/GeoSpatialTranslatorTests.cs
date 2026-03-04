@@ -44,9 +44,46 @@ namespace Bagira.IG.Tests
         }
 
         /// <summary>
+        /// Bug fix (Task 11): when the entity already has a <see cref="SimTransform"/>, the
+        /// translator must still call SetComponent to update it so the map renders the entity
+        /// at its new position rather than the original spawn position.
+        /// </summary>
+        [Fact]
+        public void Decode_KnownEntity_UpdatesSimTransformWhenAlreadyPresent()
+        {
+            using var participant = new DdsParticipant(0);
+            var repo      = new EntityRepository();
+            repo.RegisterComponent<SimTransform>();
+            var entityMap = new NetworkEntityMap();
+            var entity    = repo.CreateEntity();
+            repo.AddComponent(entity, new SimTransform
+            {
+                Position = new Vector3(0f, 0f, 0f),
+                Rotation = Quaternion.Identity
+            });
+            entityMap.Register(KnownId, entity);
+
+            var newPos       = new Vector3(10f, 20f, 30f);
+            var geoTransform = new StubGeoTransform(newPos);
+            var ghostCreationSystem = new GhostCreationSystem(entityMap);
+            var translator = new TestGeoSpatialIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem);
+            var cmd = new RecordingCommandBuffer();
+
+            translator.DecodeForTest(new GeoSpatial
+            {
+                EntityId = (int)KnownId,
+                Pos = new GeoPosition { Latitude = 51, Longitude = 0, Altitude = 0 }
+            }, cmd, repo);
+
+            Assert.True(cmd.SetSimTransformCalled,
+                "SetComponent<SimTransform> must be called to move the entity on the map");
+            Assert.Equal(newPos, cmd.LastSetSimTransform!.Value.Position);
+        }
+
+        /// <summary>
         /// When the entity already has a <see cref="SimTransform"/>, the translator must
         /// NOT add another copy via the command buffer — it only enqueues SetComponent for
-        /// <see cref="NetworkPosition"/>.
+        /// the existing one (and also for <see cref="NetworkPosition"/>).
         /// </summary>
         [Fact]
         public void Decode_KnownEntity_DoesNotAddSimTransformIfAlreadyPresent()
@@ -139,7 +176,9 @@ namespace Bagira.IG.Tests
         {
             public bool SetNetworkPositionCalled { get; private set; }
             public bool AddSimTransformCalled    { get; private set; }
-            public NetworkPosition? LastNetworkPosition { get; private set; }
+            public bool SetSimTransformCalled    { get; private set; }
+            public NetworkPosition?  LastNetworkPosition  { get; private set; }
+            public SimTransform?     LastSetSimTransform  { get; private set; }
 
             public Entity CreateEntity() => new Entity();
             public void DestroyEntity(Entity entity) { }
@@ -154,6 +193,11 @@ namespace Bagira.IG.Tests
                 {
                     SetNetworkPositionCalled = true;
                     LastNetworkPosition = position;
+                }
+                if (component is SimTransform st)
+                {
+                    SetSimTransformCalled = true;
+                    LastSetSimTransform = st;
                 }
             }
             public void RemoveComponent<T>(Entity entity) where T : unmanaged { }

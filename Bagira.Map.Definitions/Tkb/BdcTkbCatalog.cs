@@ -45,7 +45,8 @@ namespace Bagira.Map.Definitions.Tkb
                     });
                     c.SensorRange = 8000;
                 })
-                .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1);
+                .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1)
+                .WithBehavior(TkbEntityTypes.Tank_M1Abrams);
             
             // Bradley IFV
             builder
@@ -77,7 +78,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.Weapons.Add(new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 7, Range = 3750, RateOfFire = 2 });
                     c.SensorRange = 5000;
                 })
-                .WithFaction(TkbEntityTypes.IFV_Bradley, 1);
+                .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
+                .WithBehavior(TkbEntityTypes.IFV_Bradley);
             
             // HMMWV
             builder
@@ -100,7 +102,8 @@ namespace Bagira.Map.Definitions.Tkb
                     p.TurnRate = 30.0f;
                     p.Mobility = TerrainMobility.Wheeled;
                 })
-                .WithFaction(TkbEntityTypes.Truck_HMMWV, 1);
+                .WithFaction(TkbEntityTypes.Truck_HMMWV, 1)
+                .WithBehavior(TkbEntityTypes.Truck_HMMWV);
             
             // T-72 (OPFOR)
             builder
@@ -131,7 +134,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.Weapons.Add(new WeaponMount { WeaponType = "125mm_2A46", Ammunition = 39, Range = 2800, RateOfFire = 8 });
                     c.SensorRange = 6000;
                 })
-                .WithFaction(TkbEntityTypes.Tank_T72, 2);
+                .WithFaction(TkbEntityTypes.Tank_T72, 2)
+                .WithBehavior(TkbEntityTypes.Tank_T72);
             
             // Infantry Rifleman
             builder
@@ -160,7 +164,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.Weapons.Add(new WeaponMount { WeaponType = "M4_Carbine", Ammunition = 210, Range = 300, RateOfFire = 700 });
                     c.SensorRange = 500;
                 })
-                .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1);
+                .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)
+                .WithBehavior(TkbEntityTypes.Infantry_Rifleman);
             
             // Tank Platoon (Composite)
             builder

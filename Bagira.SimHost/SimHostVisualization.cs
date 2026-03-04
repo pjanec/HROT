@@ -4,6 +4,10 @@ using System.Numerics;
 using Raylib_cs;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
+using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
+using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
+using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
+using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
 using FDP.Toolkit.Vis2D.Layers;
 using FDP.Toolkit.Vis2D.Tools;
 using CarKinem.Commands;
@@ -46,6 +50,13 @@ namespace Bagira.SimHost
         private SimHostMainUI?         _ui;
         private SimHostScenarioManager? _scenario;
 
+        // ── FDP framework panels (Task 16) ─────────────────────────────────────
+        private FdpEntityInspectorPanel _fdpEntityInspector = new();
+        private FdpEventBrowserPanel    _fdpEventBrowser    = new();
+        private FdpRepositoryAdapter?   _fdpRepoAdapter;
+        private FdpInspectorState       _fdpInspectorState  = new();
+        private uint                    _fdpFrameCount;
+
         private bool _initialized;
 
         // ── Public access (tests / other subsystems) ──────────────────────────
@@ -71,6 +82,7 @@ namespace Bagira.SimHost
             // ── Selection & inspector ─────────────────────────────────────────
             _selection = new SimHostSelectionManager();
             _inspector = new SimHostInspectorAdapter(_selection, repo);
+            _fdpRepoAdapter = new FdpRepositoryAdapter(repo);
 
             // ── Scenario manager ──────────────────────────────────────────────
             _scenario = new SimHostScenarioManager(repo, road, trajectoryPool, formationTemplates);
@@ -166,6 +178,9 @@ namespace Bagira.SimHost
 
             _scenario?.Update();
             _map.Update(dt);
+
+            _fdpFrameCount++;
+            _fdpEventBrowser.Update(_repo.Bus, _fdpFrameCount);
         }
 
         /// <summary>Renders the 2-D map canvas.  Must be called inside Raylib BeginDrawing.</summary>
@@ -180,6 +195,14 @@ namespace Bagira.SimHost
         {
             if (!_initialized || _ui == null || _repo == null || _kernel == null) return;
             _ui.Render(_repo, _kernel, _scenario!, _inspector!);
+
+            SimHostPanelColors.Push();
+            _fdpEntityInspector.Draw(_fdpRepoAdapter!, _fdpInspectorState);
+            SimHostPanelColors.Pop();
+
+            SimHostPanelColors.Push();
+            _fdpEventBrowser.Draw();
+            SimHostPanelColors.Pop();
         }
 
         public void Dispose()

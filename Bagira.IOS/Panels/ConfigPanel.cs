@@ -112,7 +112,9 @@ public sealed class ConfigPanel
     public void Draw(IIosLogic logic)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        IosPanelColors.Push();
         ImGui.Begin("Map Configuration");
+        IosPanelColors.Pop();
 
         ImGui.Combo("Tool", ref _selectedTool, Tools, Tools.Length);
         ImGui.Checkbox("Satellite Layer",    ref _satelliteLayer);

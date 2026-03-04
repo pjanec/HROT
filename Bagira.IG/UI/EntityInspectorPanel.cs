@@ -39,7 +39,10 @@ public class EntityInspectorPanel
     /// </summary>
     public void Draw()
     {
-        if (!ImGui.Begin("Entity Inspector"))
+        IgPanelColors.Push();
+        bool panelVisible = ImGui.Begin("Entity Inspector");
+        IgPanelColors.Pop();
+        if (!panelVisible)
         {
             ImGui.End();
             return;

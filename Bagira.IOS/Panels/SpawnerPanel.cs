@@ -134,7 +134,9 @@ public sealed class SpawnerPanel
     public void Draw(IIosLogic logic)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        IosPanelColors.Push();
         ImGui.Begin("Entity Spawner");
+        IosPanelColors.Pop();
 
         string filterBuf = _searchFilter;
         if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))

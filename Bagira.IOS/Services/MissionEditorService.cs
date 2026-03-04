@@ -1,6 +1,7 @@
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.Map.Common.Dds;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
 
 namespace Bagira.IOS.Services;
@@ -129,6 +130,9 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
             }
         });
 
+        FdpLog<MissionEditorService>.Info("[IOS] CommitMissionAsync sent: entityId={0} requestId={1} taskCount={2} baseVersion={3}",
+            entityId, requestId, newPlan.Tasks?.Count ?? 0, baseVersion);
+
         using var cts = new CancellationTokenSource(_commitTimeoutMs);
         try
         {
@@ -137,10 +141,8 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
         catch (OperationCanceledException)
         {
             // Timeout: clean up and return a failure result without throwing.
-            lock (_pendingLock)
-            {
-                _pendingCommits.Remove(requestId);
-            }
+            FdpLog<MissionEditorService>.Warn("[IOS] Commit timed out: entityId={0} requestId={1}",
+                entityId, requestId);
 
             return new MissionCommitResult
             {
@@ -184,6 +186,9 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
             NewVersion   = ack.NewVersion,
             ErrorCode    = ack.ErrorCode
         });
+
+        FdpLog<MissionEditorService>.Info("[IOS] MissionControlAck received: requestId={0} success={1} errorCode={2} newVersion={3}",
+            ack.RequestId, ack.ErrorCode == 0, ack.ErrorCode, ack.NewVersion);
     }
 
     // ── IIngressHandler ───────────────────────────────────────────────────────

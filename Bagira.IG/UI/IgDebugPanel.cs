@@ -36,7 +36,10 @@ public class IgDebugPanel
     /// </summary>
     public void Draw()
     {
-        if (!ImGui.Begin("Debug Panel"))
+        IgPanelColors.Push();
+        bool panelVisible = ImGui.Begin("Debug Panel");
+        IgPanelColors.Pop();
+        if (!panelVisible)
         {
             ImGui.End();
             return;

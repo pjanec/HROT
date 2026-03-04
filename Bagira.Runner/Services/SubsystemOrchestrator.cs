@@ -34,6 +34,13 @@ namespace Bagira.Runner.Services
         private readonly int _windowHeight;
         private volatile bool _running = true;
 
+        /// <summary>
+        /// Name of the subsystem whose map toolkit (DrawWorld) is currently active.
+        /// Toggled at runtime via the main menu bar.  Defaults to "IG" when IG is
+        /// present, otherwise "SimHost".
+        /// </summary>
+        private string _activeMapOwner = "";
+
         // ── Construction ──────────────────────────────────────────────────────
 
         /// <summary>
@@ -72,14 +79,16 @@ namespace Bagira.Runner.Services
                 rlImGui.Setup(true);
             }
 
-            bool hasIg = _subsystems.Exists(subsystem => subsystem.Name == "IG");
+            bool hasIg      = _subsystems.Exists(s => s.Name == "IG");
+            bool hasSimHost  = _subsystems.Exists(s => s.Name == "SimHost");
+            _activeMapOwner  = hasIg ? "IG" : (hasSimHost ? "SimHost" : "");
 
             foreach (var subsystem in _subsystems)
             {
                 var cfg = new SubsystemConfig
                 {
                     DomainId       = _domainId,
-                    Headless       = _headless || (hasIg && subsystem.Name == "SimHost"),
+                    Headless       = _headless,   // orchestrator no longer forces SimHost headless
                     OwnWindow      = false, // Orchestrator owns window
                     SubsystemName  = subsystem.Name
                 };
@@ -145,13 +154,17 @@ namespace Bagira.Runner.Services
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.Black);
 
-            // World layer (3-D content, camera transforms)
+            // World layer — only the active map owner renders its canvas.
             for (int i = 0; i < _subsystems.Count; i++)
-                _subsystems[i].DrawWorld();
+            {
+                if (IsMapOwner(_subsystems[i].Name))
+                    _subsystems[i].DrawWorld();
+            }
 
             // UI layer (ImGui) — each subsystem's windows use a distinct title-bar
             // colour so operators can tell at a glance which subsystem owns each panel.
             rlImGui.Begin();
+            DrawMainMenuBar();
             for (int i = 0; i < _subsystems.Count; i++)
             {
                 int pushed = PushSubsystemColors(_subsystems[i].Name);
@@ -164,10 +177,59 @@ namespace Bagira.Runner.Services
         }
 
         /// <summary>
+        /// Returns true when the named subsystem is the active map owner (may
+        /// call DrawWorld), or when the subsystem is not a map-capable subsystem
+        /// (IOS, etc.) and should always render.
+        /// </summary>
+        private bool IsMapOwner(string name)
+            => string.IsNullOrEmpty(_activeMapOwner)
+               || _activeMapOwner == name
+               || (name != "IG" && name != "SimHost");
+
+        /// <summary>
+        /// Draws the Runner main menu bar with a dual-state IG / SimHost map-owner
+        /// toggle.  The active button is highlighted with its subsystem colour.
+        /// </summary>
+        private void DrawMainMenuBar()
+        {
+            if (!ImGuiNET.ImGui.BeginMainMenuBar()) return;
+
+            ImGuiNET.ImGui.Text("Map:");
+            ImGuiNET.ImGui.SameLine();
+
+            bool igOwner = _activeMapOwner == "IG";
+            bool shOwner = _activeMapOwner == "SimHost";
+
+            // IG button — highlight green when active
+            if (igOwner)
+                ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Button,
+                    new System.Numerics.Vector4(0.12f, 0.56f, 0.12f, 1f));
+            if (ImGuiNET.ImGui.Button("IG"))
+                _activeMapOwner = "IG";
+            if (igOwner)
+                ImGuiNET.ImGui.PopStyleColor();
+
+            ImGuiNET.ImGui.SameLine();
+
+            // SimHost button — highlight red when active
+            if (shOwner)
+                ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Button,
+                    new System.Numerics.Vector4(0.56f, 0.12f, 0.12f, 1f));
+            if (ImGuiNET.ImGui.Button("SimHost"))
+                _activeMapOwner = "SimHost";
+            if (shOwner)
+                ImGuiNET.ImGui.PopStyleColor();
+
+            ImGuiNET.ImGui.EndMainMenuBar();
+        }
+
+        /// <summary>
         /// Pushes ImGui title-bar colour overrides for the named subsystem and returns
         /// the number of colour slots pushed (to pass back to <c>ImGui.PopStyleColor</c>).
         /// Subsystems without a designated colour push nothing and return 0.
-        /// IG windows are tinted blue; IOS windows are tinted violet.
+        /// IG windows are tinted green, SimHost red, IOS violet.
+        /// Per-panel <c>PushStyleColor</c> calls inside each subsystem override these
+        /// with their own matching shade for focused / active states.
         /// </summary>
         private static int PushSubsystemColors(string subsystemName)
         {
@@ -175,12 +237,16 @@ namespace Bagira.Runner.Services
             switch (subsystemName)
             {
                 case "IG":
-                    titleBg       = new System.Numerics.Vector4(0.10f, 0.30f, 0.70f, 0.80f);
-                    titleBgActive = new System.Numerics.Vector4(0.15f, 0.40f, 0.85f, 0.95f);
+                    titleBg       = new System.Numerics.Vector4(0.08f, 0.40f, 0.08f, 1f);
+                    titleBgActive = new System.Numerics.Vector4(0.12f, 0.56f, 0.12f, 1f);
+                    break;
+                case "SimHost":
+                    titleBg       = new System.Numerics.Vector4(0.40f, 0.08f, 0.08f, 1f);
+                    titleBgActive = new System.Numerics.Vector4(0.56f, 0.12f, 0.12f, 1f);
                     break;
                 case "IOS":
-                    titleBg       = new System.Numerics.Vector4(0.45f, 0.10f, 0.70f, 0.80f);
-                    titleBgActive = new System.Numerics.Vector4(0.55f, 0.15f, 0.85f, 0.95f);
+                    titleBg       = new System.Numerics.Vector4(0.32f, 0.08f, 0.48f, 1f);
+                    titleBgActive = new System.Numerics.Vector4(0.44f, 0.12f, 0.62f, 1f);
                     break;
                 default:
                     return 0;

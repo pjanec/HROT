@@ -164,7 +164,9 @@ public sealed class InspectorPanel
     public void Draw(IIosLogic logic)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        IosPanelColors.Push();
         ImGui.Begin("Inspector");
+        IosPanelColors.Pop();
 
         if (_cachedEntityId == PanelConstants.InspectorNoSelection)
         {

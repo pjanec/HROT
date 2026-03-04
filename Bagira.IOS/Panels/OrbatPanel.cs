@@ -209,7 +209,9 @@ public sealed class OrbatPanel
     public void Draw(IIosLogic logic)
     {
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        IosPanelColors.Push();
         ImGui.Begin("ORBAT Tree");
+        IosPanelColors.Pop();
 
         string filterBuf = _filterText;
         if (ImGui.InputText("Filter", ref filterBuf, PanelConstants.FilterTextMaxLength))
