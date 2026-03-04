@@ -74,6 +74,7 @@ namespace Bagira.Runner.Services
         {
             if (!_headless)
             {
+                Raylib.SetConfigFlags(ConfigFlags.ResizableWindow);
                 Raylib.InitWindow(_windowWidth, _windowHeight, WindowTitle);
                 Raylib.SetTargetFPS(DefaultTargetFps);
                 rlImGui.Setup(true);

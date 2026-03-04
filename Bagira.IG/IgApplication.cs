@@ -1002,6 +1002,9 @@ public class IgApplication
 
         _kernel.Update();
 
+        _fdpFrameCount++;
+        _fdpEventBrowser.Update(_world.Bus, _fdpFrameCount);
+
 
 
         // Task 5: Poll IOS Ôæå IG interaction-config updates (active context ID).
@@ -1106,13 +1109,13 @@ public class IgApplication
 
         IgPanelColors.Push();
 
-        _fdpEntityInspector.Draw(_fdpRepoAdapter, _fdpInspectorState);
+        _fdpEntityInspector.Draw(_fdpRepoAdapter, _fdpInspectorState, "IG Entity Inspector");
 
         IgPanelColors.Pop();
 
         IgPanelColors.Push();
 
-        _fdpEventBrowser.Draw();
+        _fdpEventBrowser.Draw("IG Event Browser");
 
         IgPanelColors.Pop();
 

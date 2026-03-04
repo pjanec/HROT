@@ -197,11 +197,11 @@ namespace Bagira.SimHost
             _ui.Render(_repo, _kernel, _scenario!, _inspector!);
 
             SimHostPanelColors.Push();
-            _fdpEntityInspector.Draw(_fdpRepoAdapter!, _fdpInspectorState);
+            _fdpEntityInspector.Draw(_fdpRepoAdapter!, _fdpInspectorState, "SimHost Entity Inspector");
             SimHostPanelColors.Pop();
 
             SimHostPanelColors.Push();
-            _fdpEventBrowser.Draw();
+            _fdpEventBrowser.Draw("SimHost Event Browser");
             SimHostPanelColors.Pop();
         }
 
