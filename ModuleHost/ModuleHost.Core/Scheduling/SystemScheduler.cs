@@ -84,7 +84,7 @@ namespace ModuleHost.Core.Scheduling
             var profile = _profileData[system];
             var sw = Stopwatch.StartNew();
             
-            try
+            //try
             {
                 // Check if system is a group
                 if (system is ISystemGroup group)
@@ -99,13 +99,13 @@ namespace ModuleHost.Core.Scheduling
                 sw.Stop();
                 profile.RecordExecution(sw.Elapsed.TotalMilliseconds);
             }
-            catch (Exception ex)
-            {
-                sw.Stop();
-                profile.RecordError(ex);
-                throw new SystemExecutionException(
-                    $"System {system.GetType().Name} failed", ex);
-            }
+            //catch (Exception ex)
+            //{
+            //    sw.Stop();
+            //    profile.RecordError(ex);
+            //    throw new SystemExecutionException(
+            //        $"System {system.GetType().Name} failed", ex);
+            //}
         }
         
         private void ExecuteGroup(ISystemGroup group, ISimulationView view, float deltaTime)
