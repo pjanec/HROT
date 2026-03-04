@@ -105,11 +105,14 @@ namespace Fdp.Interfaces
         /// <summary>
         /// Adds an unmanaged component to the template.
         /// The value is copied when adding, and copied again when spawning.
+        /// Components that are not registered in the target repository are silently skipped,
+        /// allowing shared templates to be applied on both server (SimHost) and client (IG) worlds.
         /// </summary>
         public void AddComponent<T>(T component) where T : unmanaged
         {
             _applicators.Add((repo, entity, preserve) =>
             {
+                if (!repo.IsComponentTypeRegistered<T>()) return; // skip simulation-only components on client worlds
                 if (preserve && repo.HasComponent<T>(entity))
                 {
                     return;

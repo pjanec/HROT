@@ -653,6 +653,14 @@ namespace Fdp.Kernel
         }
 
         /// <summary>
+        /// Returns true if the unmanaged component type <typeparamref name="T"/> has been
+        /// registered with this repository.  Used by template applicators to silently skip
+        /// server-side components when applying shared TkbTemplates on a client world (e.g. IG).
+        /// </summary>
+        public bool IsComponentTypeRegistered<T>() where T : unmanaged
+            => _componentTables.ContainsKey(typeof(T));
+
+        /// <summary>
         /// Register a managed component type with convention-based safety.
         /// Wrapper around RegisterComponent for explicit managed registration.
         /// </summary>
