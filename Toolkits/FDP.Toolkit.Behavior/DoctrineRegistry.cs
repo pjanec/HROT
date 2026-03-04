@@ -98,5 +98,22 @@ namespace FDP.Toolkit.Behavior
             int doctrineId,
             [MaybeNullWhen(false)] out DoctrineDefinition definition)
             => _definitions.TryGetValue(doctrineId, out definition);
+
+        /// <summary>
+        /// Reverse-maps a stable integer doctrine ID back to its registered name.
+        /// Returns <c>false</c> when the ID has not been registered.
+        /// Used by egress translators to emit the human-readable <c>BehaviorId</c>
+        /// string rather than the raw numeric doctrine ID.
+        /// </summary>
+        public bool TryGetName(int doctrineId, [MaybeNullWhen(false)] out string name)
+        {
+            if (_definitions.TryGetValue(doctrineId, out var def))
+            {
+                name = def.Name;
+                return true;
+            }
+            name = null;
+            return false;
+        }
     }
 }
