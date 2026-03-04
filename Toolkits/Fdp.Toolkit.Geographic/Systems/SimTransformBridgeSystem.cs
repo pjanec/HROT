@@ -50,6 +50,19 @@ namespace Fdp.Modules.Geographic.Systems
         }
 
         /// <summary>
+        /// Converts a compass heading in degrees [0, 360) back to a <see cref="Quaternion"/>
+        /// using the FDP world-coordinate convention (X=East, Y=North, yaw 0=East, +90°=North).
+        /// Inverse of <see cref="RotationToHeadingDeg"/>.
+        /// </summary>
+        /// <param name="headingDeg">Compass heading in degrees (0=North, 90=East, clockwise).</param>
+        public static Quaternion HeadingDegToRotation(float headingDeg)
+        {
+            // heading = (90 - mathYaw_deg + 360) % 360  →  mathYaw_rad = (90 - heading) * π/180
+            float mathYawRad = (90f - headingDeg) * (MathF.PI / 180f);
+            return SimMath.FromYaw(mathYawRad);
+        }
+
+        /// <summary>
         /// Converts a world-space ENU velocity vector to compass azimuth degrees [0, 360).
         /// Falls back to <paramref name="fallback"/> when the speed is negligible.
         /// </summary>

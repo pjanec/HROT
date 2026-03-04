@@ -108,7 +108,8 @@ namespace FDP.Toolkit.Replication.Utilities
         public static void MarkDirty(EntityRepository repo, Entity entity, long descriptorOrdinal)
         {
             EgressPublicationState state;
-            if (repo.HasManagedComponent<EgressPublicationState>(entity))
+            bool hadState = repo.HasManagedComponent<EgressPublicationState>(entity);
+            if (hadState)
             {
                 // For class components, RO still returns the mutable reference.
                 state = ((ISimulationView)repo).GetManagedComponentRO<EgressPublicationState>(entity);
