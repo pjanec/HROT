@@ -1,3 +1,4 @@
+using System;
 using CarKinem.Core;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
@@ -54,7 +55,10 @@ namespace FDP.Toolkit.Behavior.Systems
                 // Mission complete — nothing left to do.
                 if (queue.CurrentPhase >= queue.PhaseCount) continue;
 
-                var phase = queue.Phases[queue.CurrentPhase];
+                // Safe access to the inline Phases buffer: cast to Span to avoid the
+                // C#/[InlineArray] defensive-copy trap when indexing a nested value-type.
+                Span<MissionPhase> phases = queue.Phases;
+                var phase = phases[queue.CurrentPhase];
 
                 // Activate the current phase's doctrine if it hasn't been activated yet.
                 // This handles the initial assignment of a mission (phase 0 was never
@@ -123,7 +127,7 @@ namespace FDP.Toolkit.Behavior.Systems
                     {
                         // Increment InstanceId so ChannelArbitrationSystem preempts stale channels.
                         unchecked { doctrine.InstanceId++; }
-                        doctrine.ActiveDoctrineHash = queue.Phases[queue.CurrentPhase].DoctrineId;
+                        doctrine.ActiveDoctrineHash = phase.DoctrineId;
                     }
                 }
             }
