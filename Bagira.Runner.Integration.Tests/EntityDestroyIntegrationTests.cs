@@ -2,6 +2,7 @@ using System;
 using System.Numerics;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
+using Bagira.DDS.DM;
 using Bagira.Map.Common;
 using FDP.Toolkit.Lifecycle.Events;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -121,6 +122,68 @@ public class EntityDestroyIntegrationTests
 
         entity = Entity.Null;
         return false;
+    }
+
+    /// <summary>
+    /// Verifies the "ClearAll" destroy pattern: multiple entities destroyed in quick
+    /// succession via <see cref="DestroyEntityCommand"/> all have their IG ghosts removed.
+    ///
+    /// <para>
+    /// This exercises the same code path that <c>SimHostScenarioManager.ClearAll()</c>
+    /// now uses after the Task 33 fix.  Before the fix, <c>ClearAll</c> called
+    /// <c>_repo.DestroyEntity(e)</c> directly, which bypassed the
+    /// <c>NetworkSpawningSystem</c> → DDS EntityMaster DISPOSE chain and left stale
+    /// ghost entities on the IG map.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void SimHost_ClearAllPattern_AllIgGhostsRemoved()
+    {
+        using var harness = new BagiraRunnerHarness();
+
+        long tkbType = TkbEntityTypes.Tank_M1Abrams;
+        var geo1 = new GeoPosition { Latitude = 52.521, Longitude = 13.406, Altitude = 0 };
+        var geo2 = new GeoPosition { Latitude = 52.522, Longitude = 13.407, Altitude = 0 };
+
+        // ── Spawn two entities ────────────────────────────────────────────────
+        long networkId1 = SpawnEntityThroughPlacement(harness, tkbType);
+        long networkId2 = harness.SimHost.TestHook_SpawnEntity(tkbType, geo2);
+
+        bool bothOnIg = harness.PumpUntil(
+            () => IgHasEntityWithNetworkId(harness.Ig.App.World, networkId1)
+               && IgHasEntityWithNetworkId(harness.Ig.App.World, networkId2),
+            IgSpawnTimeoutFrames);
+        Assert.True(bothOnIg,
+            $"Both entities (networkId1={networkId1}, networkId2={networkId2}) " +
+            $"did not appear on IG within {IgSpawnTimeoutFrames} frames.");
+
+        // ── Destroy both in quick succession (ClearAll pattern) ───────────────
+        // This mirrors what SimHostScenarioManager.ClearAll() does after the Task 33 fix.
+        harness.SimHost.World!.Bus.PublishManaged(new DestroyEntityCommand
+        {
+            NetworkId = networkId1,
+            Reason    = "clear-all-test",
+        });
+        harness.SimHost.World!.Bus.PublishManaged(new DestroyEntityCommand
+        {
+            NetworkId = networkId2,
+            Reason    = "clear-all-test",
+        });
+
+        // ── Verify both IG ghosts are removed ─────────────────────────────────
+        bool ghost1Removed = harness.PumpUntil(
+            () => !IgHasEntityWithNetworkId(harness.Ig.App.World, networkId1),
+            DestroyTimeoutFrames);
+        Assert.True(ghost1Removed,
+            $"IG ghost for networkId1={networkId1} was not removed after DestroyEntityCommand. " +
+            $"ClearAll fix may not be routing through NetworkSpawningSystem.");
+
+        bool ghost2Removed = harness.PumpUntil(
+            () => !IgHasEntityWithNetworkId(harness.Ig.App.World, networkId2),
+            DestroyTimeoutFrames);
+        Assert.True(ghost2Removed,
+            $"IG ghost for networkId2={networkId2} was not removed after DestroyEntityCommand. " +
+            $"ClearAll fix may not be routing through NetworkSpawningSystem.");
     }
 
     private static bool IgHasEntityWithNetworkId(EntityRepository world, long networkId)

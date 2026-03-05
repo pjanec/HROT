@@ -17,6 +17,8 @@ using CarKinem.Trajectory;
 using ModuleHost.Core;
 using Bagira.SimHost.UI;
 using Bagira.SimHost.Visualization;
+using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Components;
 
 namespace Bagira.SimHost
 {
@@ -172,11 +174,32 @@ namespace Bagira.SimHost
         {
             if (!_initialized || _repo == null || _map == null || _ui == null) return;
 
-            // Delete selected entities with the Delete key
+            // Delete selected entities with the Delete key.
+            // Publish DestroyEntityCommand so NetworkSpawningSystem tears down
+            // the network layer properly and IG removes the ghost entity.
             if (Raylib.IsKeyPressed(KeyboardKey.Delete) && _selection != null)
             {
                 foreach (var e in new List<Fdp.Kernel.Entity>(_selection.SelectedEntities))
-                    if (_repo.IsAlive(e)) _repo.DestroyEntity(e);
+                {
+                    if (!_repo.IsAlive(e)) continue;
+
+                    if (_repo.HasComponent<NetworkIdentity>(e))
+                    {
+                        // Network-replicated entity — route through NetworkSpawningSystem
+                        // so the IG ghost is also removed via DDS EntityMaster DISPOSE.
+                        ref readonly var netId = ref _repo.GetComponentRO<NetworkIdentity>(e);
+                        _repo.Bus.PublishManaged(new DestroyEntityCommand
+                        {
+                            NetworkId = netId.Value,
+                            Reason    = "user-deleted",
+                        });
+                    }
+                    else
+                    {
+                        // Local-only entity — destroy directly.
+                        _repo.DestroyEntity(e);
+                    }
+                }
                 _selection.Clear();
             }
 

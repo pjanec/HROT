@@ -65,3 +65,34 @@ public sealed class SelectionChangedIngressHandler : IIngressHandler, IDisposabl
 
     public void Dispose() => _reader.Dispose();
 }
+
+/// <summary>
+/// DDS ingress handler that enqueues MissionControlAck samples so that
+/// <see cref="Bagira.IOS.Services.MissionEditorService"/> can resolve pending
+/// commit <see cref="System.Threading.Tasks.Task"/>s without timing out.
+/// </summary>
+public sealed class MissionControlAckIngressHandler : IIngressHandler, IDisposable
+{
+    private readonly DdsReader<MissionControlAck> _reader;
+    private readonly IEventQueue<MissionControlAck> _queue;
+    private readonly int _maxSamples;
+
+    public MissionControlAckIngressHandler(DdsParticipant participant, IEventQueue<MissionControlAck> queue, int maxSamples = 10)
+    {
+        _reader = new DdsReader<MissionControlAck>(participant, "MissionControlAck");
+        _queue  = queue ?? throw new ArgumentNullException(nameof(queue));
+        _maxSamples = Math.Max(1, maxSamples);
+    }
+
+    public void Poll()
+    {
+        using var loan = _reader.Take(_maxSamples);
+        foreach (var sample in loan)
+        {
+            if (!sample.IsValid) continue;
+            _queue.Enqueue(sample.Data);
+        }
+    }
+
+    public void Dispose() => _reader.Dispose();
+}

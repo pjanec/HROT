@@ -11,6 +11,7 @@ using CarKinem.Trajectory;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Network.Interfaces;
 
 namespace Bagira.SimHost.UI
@@ -278,7 +279,26 @@ namespace Bagira.SimHost.UI
             var q = _repo.Query().With<VehicleState>().Build();
             var lst = new List<Entity>();
             foreach (var e in q) lst.Add(e);
-            foreach (var e in lst) _repo.DestroyEntity(e);
+            foreach (var e in lst)
+            {
+                if (!_repo.IsAlive(e)) continue;
+
+                if (_repo.HasComponent<NetworkIdentity>(e))
+                {
+                    // Network-replicated entity — route through NetworkSpawningSystem
+                    // so the IG ghost is also removed via DDS EntityMaster DISPOSE.
+                    ref readonly var netId = ref _repo.GetComponentRO<NetworkIdentity>(e);
+                    _repo.Bus.PublishManaged(new DestroyEntityCommand
+                    {
+                        NetworkId = netId.Value,
+                        Reason    = "clear-all",
+                    });
+                }
+                else
+                {
+                    _repo.DestroyEntity(e);
+                }
+            }
             _roamers.Clear();
             _traj.Clear();
         }

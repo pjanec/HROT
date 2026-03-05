@@ -212,7 +212,13 @@ public class IgApplication
 
     private BdcCommandGateway?               _commandGateway;
 
-    private DdsWriter<MapClickEvent>?        _clickWriter;
+    private DdsWriter<MapClickEvent>?           _clickWriter;
+
+    /// <summary>
+    /// Writer that publishes the IG's current selection state to IOS so that the
+    /// "Selection &amp; Mission" panel reflects whatever entity is clicked on the map.
+    /// </summary>
+    private DdsWriter<SelectionChangedEvent>?  _selectionWriter;
 
     private DdsReader<MapInteractionConfig>? _configReader;
 
@@ -658,9 +664,11 @@ public class IgApplication
 
                 _commandGateway = new BdcCommandGateway(participant);
 
-                _clickWriter    = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
+                _clickWriter     = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
 
-                _configReader   = new DdsReader<MapInteractionConfig>(participant);
+                _selectionWriter = new DdsWriter<SelectionChangedEvent>(participant, "SelectionChangedEvent");
+
+                _configReader    = new DdsReader<MapInteractionConfig>(participant);
 
                 _createEntityDdsWriter = new DdsWriter<CreateEntityRequest>(participant, "CreateEntityRequest");
 
@@ -752,6 +760,8 @@ public class IgApplication
 
                 _clickWriter?.Dispose();
 
+                _selectionWriter?.Dispose();
+
                 _configReader?.Dispose();
 
                 _createEntityDdsWriter?.Dispose();
@@ -761,6 +771,8 @@ public class IgApplication
                 _commandGateway = null;
 
                 _clickWriter = null;
+
+                _selectionWriter = null;
 
                 _configReader = null;
 
@@ -1376,6 +1388,8 @@ public class IgApplication
 
         _clickWriter?.Dispose();
 
+        _selectionWriter?.Dispose();
+
         _configReader?.Dispose();
 
         _createEntityDdsWriter?.Dispose();
@@ -1409,6 +1423,30 @@ public class IgApplication
     internal void TestHook_SimulateMapClick(Vector2 worldPos)
 
         => OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null);
+
+
+
+    /// <summary>
+
+    /// Internal test hook to simulate an operator click directly on a network entity,
+
+    /// causing IG to publish <c>SelectionChangedEvent</c> with that entity selected.
+
+    /// No-op if the entity is not found in the IG entity map.
+
+    /// </summary>
+
+    internal void TestHook_SimulateEntityClick(long networkId)
+
+    {
+
+        if (!TestHook_EntityMap.TryGetEntity(networkId, out var entity))
+
+            return;
+
+        OnCanvasClicked(Vector2.Zero, MouseButton.Left, false, false, entity);
+
+    }
 
 
 
@@ -1689,6 +1727,21 @@ public class IgApplication
         _clickWriter.Write(evt);
 
         FdpLog<IgApplication>.Info("[IG] MapClickEvent published. ContextId={0} hit={1}", _activeContextId, hit.Index);
+
+        // Publish selection state so IOS can update the "Selection & Mission" panel.
+        // A non-empty hit selects the entity; an empty-space click clears the selection.
+        if (_selectionWriter != null)
+        {
+            var selIds = hitStack.Count > 0
+                ? hitStack.ConvertAll(r => r.EntityId)
+                : new System.Collections.Generic.List<int>();
+            _selectionWriter.Write(new SelectionChangedEvent
+            {
+                MapId             = IgNetworkConstants.InstanceId,
+                SelectedEntityIds = selIds,
+            });
+            FdpLog<IgApplication>.Debug("[IG] SelectionChangedEvent published. count={0}", selIds.Count);
+        }
 
     }
 

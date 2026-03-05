@@ -69,12 +69,14 @@ namespace Bagira.Runner.Services
 
             var clickQueue     = new ConcurrentEventQueue<MapClickEvent>();
             var selectionQueue = new ConcurrentEventQueue<SelectionChangedEvent>();
+            var missionAckQueue = new ConcurrentEventQueue<MissionControlAck>();
 
             // DDS ingress handlers for click/selection events.
             var ingressHandlers = new List<IIngressHandler>
             {
                 new MapClickIngressHandler(_participant, clickQueue),
                 new SelectionChangedIngressHandler(_participant, selectionQueue),
+                new MissionControlAckIngressHandler(_participant, missionAckQueue),
                 new MasterIngressHandler<EntityMaster>(
                     _participant,
                     repo,
@@ -96,8 +98,12 @@ namespace Bagira.Runner.Services
             var missionCmdWriter   = new DdsWriterAdapter<MissionControlRequest>(_participant, TopicMissionControl);
             var contextMenuWriter  = new DdsWriterAdapter<ContextActionsUpdate>(_participant, TopicContextActions);
 
-            var missionEditorSvc = new MissionEditorService(repo, missionCmdWriter);
+            var missionEditorSvc = new MissionEditorService(repo, missionCmdWriter, ackQueue: missionAckQueue);
             var contextMenuLogic  = new ContextMenuLogic(contextMenuWriter);
+
+            // MissionEditorService doubles as an IIngressHandler: its Poll() drains
+            // the ack queue and resolves pending CommitMissionAsync tasks.
+            ingressHandlers.Add(missionEditorSvc);
 
             var logic = new IosLogic(
                 repo:                 repo,
