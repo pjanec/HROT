@@ -31,7 +31,7 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             world.RegisterComponent<LifecycleDescriptor>();
             
             // Toolkit components
-            world.RegisterComponent<NetworkPosition>();
+            world.RegisterComponent<NetworkTransform>();
             world.RegisterComponent<NetworkVelocity>();
             world.RegisterComponent<NetworkOrientation>();
             world.RegisterComponent<NetworkOwnership>();
@@ -64,7 +64,7 @@ namespace Fdp.Examples.NetworkDemo.Configuration
                 typeof(SimVelocity),
                 typeof(PositionGeodetic),
                 typeof(EntityType),
-                typeof(NetworkPosition),
+                typeof(NetworkTransform),
                 typeof(NetworkVelocity),
                 typeof(NetworkOrientation),
                 typeof(NetworkOwnership),
@@ -97,10 +97,10 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             {
                 [typeof(SimTransform)]    = DemoDescriptors.Physics,
                 [typeof(SimVelocity)]     = DemoDescriptors.Physics,
-                // NetworkPosition is the network-transmitted position; must be restored during replay
+                // NetworkTransform is the network-transmitted position+rotation; must be restored during replay
                 // so that TransformSyncSystem (driveFromNetwork=true) lerps SimTransform toward the
                 // correct recorded positions rather than toward (0,0,0).
-                [typeof(NetworkPosition)] = DemoDescriptors.Physics,
+                [typeof(NetworkTransform)] = DemoDescriptors.Physics,
             };
         }
     }

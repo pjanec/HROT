@@ -18,13 +18,13 @@ namespace Fdp.Examples.NetworkDemo.Tests.Systems
         {
             using var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
-            repo.RegisterComponent<NetworkPosition>();
+            repo.RegisterComponent<NetworkTransform>();
             repo.RegisterComponent<NetworkAuthority>();
 
             var entity = repo.CreateEntity();
             
             repo.AddComponent(entity, new SimTransform { Position = new Vector3(10, 0, 0) });
-            repo.AddComponent(entity, new NetworkPosition { Value = Vector3.Zero });
+            repo.AddComponent(entity, new NetworkTransform());
             
             // Set Authority - LocalNodeId == PrimaryOwnerId (e.g. 1 == 1)
             repo.AddComponent(entity, new NetworkAuthority(1, 1));
@@ -39,8 +39,8 @@ namespace Fdp.Examples.NetworkDemo.Tests.Systems
                 ecb.Playback(repo);
             }
 
-            var netPos = repo.GetComponent<NetworkPosition>(entity);
-            Assert.Equal(new Vector3(10, 0, 0), netPos.Value);
+            var netTf = repo.GetComponent<NetworkTransform>(entity);
+            Assert.Equal(new Vector3(10, 0, 0), netTf.LastPosition);
         }
 
         [Fact]
@@ -48,7 +48,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Systems
         {
             using var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
-            repo.RegisterComponent<NetworkPosition>();
+            repo.RegisterComponent<NetworkTransform>();
             repo.RegisterComponent<NetworkAuthority>();
 
             var entity = repo.CreateEntity();
@@ -57,7 +57,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Systems
             // DemoPosition is at origin
             repo.AddComponent(entity, new SimTransform { Position = new Vector3(0, 0, 0) });
             // Network (Target) is at 10
-            repo.AddComponent(entity, new NetworkPosition { Value = new Vector3(10, 0, 0) });
+            repo.AddComponent(entity, new NetworkTransform { LastPosition = new Vector3(10, 0, 0) });
             
             // Remote Authority - LocalNodeId (1) != PrimaryOwnerId (2)
             repo.AddComponent(entity, new NetworkAuthority(2, 1)); 

@@ -697,8 +697,37 @@ namespace Fdp.Kernel
 
         /// <summary>
         /// Gets a reference (Read/Write) to a component.
-        /// Updates version/dirty flags for change tracking.
+        /// Updates the <em>chunk</em> version so recorder/delta systems can detect
+        /// that the component table was touched this frame.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This method intentionally does <b>not</b> stamp <c>EntityHeader.LastChangeTick</c>.
+        /// Here is why:
+        /// </para>
+        /// <list type="bullet">
+        ///   <item><b>False sharing / cache thrashing:</b> <c>EntityHeader</c> is stored in
+        ///   a separate <c>NativeChunkTable</c> from the component data.  Writing to it on every
+        ///   RW access forces the CPU to fetch a second cache line and, when multiple threads
+        ///   process entities in the same header chunk concurrently, causes L1 invalidation
+        ///   storms that destroy multi-core scalability.</item>
+        ///   <item><b>Over-broad dirtying:</b> <c>LastChangeTick</c> is entity-wide, not
+        ///   component-specific.  A write to <c>WeaponState</c> would appear identical to a
+        ///   write to <c>SimTransform</c>, causing any consumer that watches the tick to take
+        ///   false-positive actions (e.g. broadcasting a <c>GeoSpatial</c> packet for a
+        ///   stationary tank whose weapon just reloaded).</item>
+        ///   <item><b>Existing granularity is sufficient:</b> The chunk-level version written
+        ///   by this method already supports the Flight Recorder and delta serialisation.
+        ///   High-frequency egress systems (e.g. <c>GeoSpatialEgressTranslator</c>) should
+        ///   use <em>shadow-state comparison</em> on the specific component values they care
+        ///   about, which is both faster and more precise.</item>
+        /// </list>
+        /// <para>
+        /// If you need to signal that an entity requires a network update, call
+        /// <c>SmartEgressUtil.MarkDirty</c> for the specific descriptor ordinal, or
+        /// implement per-translator state comparison.
+        /// </para>
+        /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T GetComponentRW<T>(Entity entity)
         {
@@ -891,6 +920,31 @@ namespace Fdp.Kernel
         /// <summary>
         /// Gets WRITE access to unmanaged component (Tier 1). Updates chunk version.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// This method intentionally does <b>not</b> stamp <c>EntityHeader.LastChangeTick</c>.
+        /// </para>
+        /// <list type="bullet">
+        ///   <item><b>False sharing:</b> Kinematic systems (e.g. <c>CarKinematicsSystem</c>)
+        ///   call this in tight per-entity loops, potentially on multiple threads via
+        ///   <c>ForEachParallel</c>.  Writing to the <c>EntityHeader</c> chunk on every call
+        ///   causes concurrent cache-line invalidation between cores processing adjacent
+        ///   entities, destroying multi-threaded throughput.</item>
+        ///   <item><b>Over-broad dirtying:</b> <c>LastChangeTick</c> is shared across
+        ///   all component types on the entity.  A mutation to any unrelated component
+        ///   (e.g. <c>WeaponState</c>) would falsely appear as a position change to any
+        ///   subscriber watching the tick, causing unnecessary network traffic.</item>
+        ///   <item><b>Chunk version is the right granularity:</b> The chunk-level
+        ///   <c>_chunkVersions</c> written here (padded to 64 bytes to prevent false sharing)
+        ///   is sufficient for the Flight Recorder and delta serialisation, which operate
+        ///   at chunk granularity anyway.</item>
+        /// </list>
+        /// <para>
+        /// For network egress of high-frequency data, use shadow-state comparison
+        /// (compare the current component value against the last published value).
+        /// For low-frequency discrete data, call <c>SmartEgressUtil.MarkDirty</c>.
+        /// </para>
+        /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ref T GetUnmanagedComponentRW<T>(Entity entity) where T : unmanaged
         {

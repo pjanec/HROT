@@ -64,10 +64,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Extensions
                     )
                 });
                 
-                app.World.SetComponent(entity, new NetworkPosition 
-                { 
-                    Value = new Vector3(0,0,0)
-                });
+                app.World.SetComponent(entity, new NetworkTransform());
                 
                 app.World.AddComponent(entity, new EntityType { Name = "Tank", TypeId = 1 });
                 

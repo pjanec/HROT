@@ -15,7 +15,7 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             
             // Add Components with defaults
             tank.AddComponent(new NetworkIdentity()); // Value set by replicator
-            tank.AddComponent(new NetworkPosition());
+            tank.AddComponent(new NetworkTransform());
             tank.AddComponent(new NetworkVelocity());
             
             // Task: Descriptors

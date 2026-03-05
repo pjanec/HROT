@@ -486,7 +486,7 @@ namespace Fdp.Examples.NetworkDemo
                             ? new Vector3(1f, 0f, 0f)
                             : new Vector3(0f, 1f, 0f)
                     },
-                    new NetworkPosition { Value = Vector3.Zero },
+                    new NetworkTransform(),
                     new EntityType { Name = "Tank", TypeId = 1 }
                 }
             });
@@ -527,7 +527,7 @@ namespace Fdp.Examples.NetworkDemo
                  
                  Vector3 pos = Vector3.Zero;
                  if (world.HasComponent<SimTransform>(e)) pos = world.GetComponent<SimTransform>(e).Position;
-                 else if (world.HasComponent<NetworkPosition>(e)) pos = world.GetComponent<NetworkPosition>(e).Value;
+                 else if (world.HasComponent<NetworkTransform>(e)) pos = world.GetComponent<NetworkTransform>(e).LastPosition;
 
                  bool isLocal = auth.PrimaryOwnerId == localInstanceId;
                  string ownerStr = isLocal ? "LOCAL" : string.Concat("REMOTE(", auth.PrimaryOwnerId, ")");

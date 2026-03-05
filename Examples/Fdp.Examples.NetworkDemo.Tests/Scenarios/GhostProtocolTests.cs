@@ -52,21 +52,21 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
             _output.WriteLine($"Node B obtained ghost: {ghostB}");
 
             // 3. Assert Ghost is Incomplete
-            // Should NOT have NetworkPosition
-            Assert.False(appB.World.HasComponent<NetworkPosition>(ghostB), "Ghost should not have Position yet");
+            // Should NOT have NetworkTransform
+            Assert.False(appB.World.HasComponent<NetworkTransform>(ghostB), "Ghost should not have Position yet");
             
             // 4. Assert Ghost is logically 'Active' (Ghost Protocol implementation in this demo allows partial activation)
             Assert.Equal(EntityLifecycle.Active, appB.World.GetLifecycleState(ghostB));
 
-            // 5. Verify ghost remains Active WITHOUT spurious NetworkPosition.
-            // Raw NetworkPosition propagation requires a dedicated DDS translator
-            // (e.g. NetworkPositionTopic) that is not part of this demo.
+            // 5. Verify ghost remains Active WITHOUT spurious NetworkTransform.
+            // Raw NetworkTransform propagation requires a dedicated DDS translator
+            // (e.g. NetworkTransformTopic) that is not part of this demo.
             // The FastGeodetic translator propagates SimTransform via geodetic
             // coordinates instead, but only for entities with proper authority setup.
             // This test validates that the ghost was created, promoted to Active, and
-            // does NOT receive stray NetworkPosition data – the correct current behaviour.
-            Assert.False(appB.World.HasComponent<NetworkPosition>(ghostB),
-                "Ghost should not have NetworkPosition without a dedicated translator");
+            // does NOT receive stray NetworkTransform data – the correct current behaviour.
+            Assert.False(appB.World.HasComponent<NetworkTransform>(ghostB),
+                "Ghost should not have NetworkTransform without a dedicated translator");
         }
 
         private bool CheckGhostExists(NetworkDemoApp app, long id)

@@ -66,7 +66,7 @@ namespace ModuleHost.Network.Cyclone.Modules
             if (serializationRegistry != null)
             {
                 // Register Serialization Providers
-                serializationRegistry.Register(1001, new CycloneSerializationProvider<NetworkPosition>());
+                serializationRegistry.Register(1001, new CycloneSerializationProvider<NetworkTransform>());
                 serializationRegistry.Register(1002, new CycloneSerializationProvider<NetworkVelocity>());
                 serializationRegistry.Register(1003, new CycloneSerializationProvider<NetworkIdentity>());
                 serializationRegistry.Register(1004, new CycloneSerializationProvider<NetworkSpawnRequest>());

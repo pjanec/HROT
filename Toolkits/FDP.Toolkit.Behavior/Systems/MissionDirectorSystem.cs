@@ -55,6 +55,17 @@ namespace FDP.Toolkit.Behavior.Systems
                 if (queue.CurrentPhase >= queue.PhaseCount) continue;
 
                 var phase = queue.Phases[queue.CurrentPhase];
+
+                // Activate the current phase's doctrine if it hasn't been activated yet.
+                // This handles the initial assignment of a mission (phase 0 was never
+                // set by a trigger transition) and prevents the entity from staying idle
+                // when a single-phase mission has TriggerParam = float.MaxValue.
+                if (doctrine.ActiveDoctrineHash != phase.DoctrineId)
+                {
+                    unchecked { doctrine.InstanceId++; }
+                    doctrine.ActiveDoctrineHash = phase.DoctrineId;
+                }
+
                 bool triggered = false;
 
                 switch (phase.Trigger)

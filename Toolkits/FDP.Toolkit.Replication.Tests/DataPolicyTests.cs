@@ -10,7 +10,7 @@ namespace FDP.Toolkit.Replication.Tests
         [Fact]
         public void NetworkComponents_Attributes()
         {
-             CheckNoRecordAttribute<NetworkPosition>(true);
+             CheckNoRecordAttribute<NetworkTransform>(true);
              CheckNoRecordAttribute<NetworkVelocity>(true);
              
              CheckNoRecordAttribute<NetworkIdentity>(false);

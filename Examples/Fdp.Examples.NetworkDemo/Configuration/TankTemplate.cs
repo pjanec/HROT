@@ -24,7 +24,7 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             
             // Network components
             tank.AddComponent(new NetworkIdentity());
-            tank.AddComponent(new NetworkPosition());
+            tank.AddComponent(new NetworkTransform());
             tank.AddComponent(new NetworkVelocity());
             tank.AddComponent(new ModuleHost.Core.Network.NetworkOwnership());
             

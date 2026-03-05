@@ -147,7 +147,7 @@ namespace Fdp.Tests
             // Replication block (50–79)
             Assert.InRange<byte>(GlobalComponentIds.NetworkIdentity,     50, 79);
             Assert.InRange<byte>(GlobalComponentIds.NetworkAuthority,    50, 79);
-            Assert.InRange<byte>(GlobalComponentIds.NetworkPosition,     50, 79);
+            Assert.InRange<byte>(GlobalComponentIds.NetworkTransform,    50, 79);
             Assert.InRange<byte>(GlobalComponentIds.NetworkVelocity,     50, 79);
             Assert.InRange<byte>(GlobalComponentIds.NetworkSpawnRequest, 50, 79);
             Assert.InRange<byte>(GlobalComponentIds.PartMetadata,        50, 79);

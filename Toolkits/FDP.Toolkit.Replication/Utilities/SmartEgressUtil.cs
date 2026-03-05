@@ -1,14 +1,71 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
+using ModuleHost.Core.Network.Messages;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Net;
+using System.Numerics;
+using System.Runtime.ConstrainedExecution;
+using System.Runtime.Intrinsics.X86;
+using System.Threading.Channels;
+using static System.Net.Mime.MediaTypeNames;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace FDP.Toolkit.Replication.Utilities
 {
     /// <summary>
     /// Static utility that encapsulates dirty-tracking and throttling logic for
-    /// descriptor publication. Replaces the defunct <c>SmartEgressSystem</c>
-    /// demand-driven checks and is called directly from egress translators.
+    /// descriptor publication.
     /// </summary>
+    /// <remarks
+    /// ### The Advantages of `SmartEgressUtil` (What it's good for)
+    /// 
+    /// `SmartEgressUtil` was designed to handle **Discrete, Reliable, Complex Data** (like `EntityMission`, `EntityInfo`, and `EntityMaster`). 
+    /// 
+    /// 1. **Guaranteed "First Publish":** It tracks whether a descriptor has *ever* been sent for a newly spawned entity (`!state.LastPublishedTickMap.ContainsKey`). If you remove this, you will have to manually write boilerplate in every single translator to ensure new entities get their baseline data broadcasted to the network when they spawn.
+    /// 2. **O(1) Dirty Flagging for Complex Data:** Imagine trying to write state-comparison logic for `EntityMission`. You would have to deep-compare lists of tasks, string parameters, and active phases every single frame just to see if it changed. That is horribly slow. Instead, the system that changes the mission simply calls `SmartEgressUtil.MarkDirty()`, and the egress system instantly knows to send it.
+    /// 3. **Decoupling:** It decouples the business logic (which modifies data) from the networking layer (which sends data). 
+    /// 
+    /// ### What you will lose if you stop using it completely
+    /// If you delete `SmartEgressUtil`, you will break your reliable replication pipeline.
+    /// *   Your `EntityMaster`, `EntityInfo`, and `EntityMission` egress translators will have no idea when they are supposed to send data. 
+    /// *   You will have to write expensive, custom "Did this change?" comparison code for every single component type in your game.
+    /// *   You will lose the standard "Heartbeat" logic that ensures UDP drops are eventually corrected.
+    /// 
+    /// ### Why `SmartEgressUtil` is bad for `GeoSpatial`
+    /// While `SmartEgressUtil` is fantastic for low-frequency events, it is **terrible for high-frequency physics**.
+    /// 
+    /// Look at how `EgressPublicationState` is defined:
+    /// ```csharp
+    /// [DataPolicy(DataPolicy.Transient)]
+    /// [ComponentId(GlobalComponentIds.EgressPublicationState)]
+    /// public class EgressPublicationState
+    /// {
+    ///     public Dictionary<long, uint> LastPublishedTickMap { get; } = new();
+    ///     public HashSet<long> DirtyDescriptors { get; } = new();
+    /// }
+    /// ```
+    /// This is a **managed class** (`class`, not `struct`). To use it, the ECS must follow a pointer to the heap. Furthermore, checking if it should publish requires hashing a key and doing lookups in a `Dictionary` and a `HashSet`. 
+    /// 
+    /// If you have 10,000 cars moving at 60 FPS, calling `ShouldPublish` means doing 600,000 dictionary lookups per second, per descriptor, generating massive overhead and cache misses.
+    /// 
+    /// ### The Recommended Architecture: A Split Strategy
+    /// 
+    /// To get the best of both worlds, you should use a **two-tiered egress strategy**:
+    /// 
+    /// #### 1. For Low-Frequency / Reliable Data (Keep using SmartEgressUtil)
+    /// For `EntityMaster`, `EntityInfo`, `WeaponState`, and `EntityMission`, use `SmartEgressUtil` exactly as it was originally written (before your patch).
+    /// *   **How it works:** When a player changes a tank's mission, the UI/Logic system calls `SmartEgressUtil.MarkDirty()`. The egress translator sees the flag, sends the packet, and clears the flag. It costs virtually zero CPU time when things aren't changing.
+    /// 
+    /// #### 2. For High-Frequency / Unreliable Data (Use State Comparison)
+    /// For `GeoSpatial` and `GeoSpatialDR`, **do not use `SmartEgressUtil`**. 
+    ///     *   **How it works:** Use purely unmanaged ECS math. Compare the live `SimTransform` against a shadow component (`NetworkTransform`). 
+    /// *   **Why?** Because comparing two `Vector3` structs that sit sequentially in memory takes less than a nanosecond and doesn't touch the heap, HashSets, or Dictionaries.
+    /// </remarks>
+
     public static class SmartEgressUtil
     {
         // 10 seconds refresh interval at 60 Hz to ensure eventual consistency

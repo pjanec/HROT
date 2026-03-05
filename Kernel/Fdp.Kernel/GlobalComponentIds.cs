@@ -161,8 +161,8 @@ namespace Fdp.Kernel
         /// <summary><c>NetworkAuthority</c> — ownership / authority for a networked entity.</summary>
         public const byte NetworkAuthority    = 51;
 
-        /// <summary><c>NetworkPosition</c> — replicated position (no-record policy).</summary>
-        public const byte NetworkPosition     = 52;
+        /// <summary><c>NetworkTransform</c> — shadow of the last-published or last-received position and orientation (no-record policy).</summary>
+        public const byte NetworkTransform    = 52;
 
         /// <summary><c>NetworkVelocity</c> — replicated velocity (no-record policy).</summary>
         public const byte NetworkVelocity     = 53;
