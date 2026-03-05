@@ -70,7 +70,7 @@ public class EventBrowserPanel
     {
         ImGuiApi.SetNextWindowSize(new Vector2(800, 500), ImGuiCond.FirstUseEver);
 
-        if (ImGuiApi.Begin(title, ImGuiWindowFlags.NoCollapse))
+        if (ImGuiApi.Begin(title, ImGuiWindowFlags.None))
         {
             DrawToolbar();
             ImGuiApi.Separator();
