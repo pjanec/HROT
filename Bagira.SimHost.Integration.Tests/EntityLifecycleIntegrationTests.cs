@@ -222,12 +222,12 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
 
     private static bool IgHasNetworkPosition(EntityRepository world, long networkId)
     {
-        var query = world.Query().With<NetworkIdentity>().With<NetworkPosition>().Build();
+        var query = world.Query().With<NetworkIdentity>().With<NetworkTransform>().Build();
         foreach (var entity in query)
         {
             if (world.GetComponent<NetworkIdentity>(entity).Value == networkId)
             {
-                var pos = world.GetComponent<NetworkPosition>(entity).Value;
+                var pos = world.GetComponent<NetworkTransform>(entity).LastPosition;
                 return Math.Abs(pos.X) > 0.001f || Math.Abs(pos.Y) > 0.001f;
             }
         }

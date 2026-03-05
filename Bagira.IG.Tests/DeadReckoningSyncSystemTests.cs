@@ -14,7 +14,7 @@ namespace Bagira.IG.Tests
             var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<SimVelocity>();
-            repo.RegisterComponent<NetworkPosition>();
+            repo.RegisterComponent<NetworkTransform>();
             repo.RegisterComponent<NetworkVelocity>();
             repo.RegisterComponent<NetworkAuthority>();
             return repo;
@@ -33,7 +33,7 @@ namespace Bagira.IG.Tests
             using var repo = CreateRepo();
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-            repo.AddComponent(entity, new NetworkPosition { Value = Vector3.Zero });
+            repo.AddComponent(entity, new NetworkTransform { LastPosition = Vector3.Zero });
             repo.AddComponent(entity, new NetworkVelocity { Value = new Vector3(0f, 5f, 0f) });
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
 
@@ -41,10 +41,10 @@ namespace Bagira.IG.Tests
             system.Execute(repo, 0.1f);
             PlaybackCommands(repo);
 
-            var netPos = repo.GetComponent<NetworkPosition>(entity);
-            Assert.Equal(0f, netPos.Value.X, 3);
-            Assert.Equal(0.5f, netPos.Value.Y, 3);
-            Assert.Equal(0f, netPos.Value.Z, 3);
+            var netTf = repo.GetComponent<NetworkTransform>(entity);
+            Assert.Equal(0f, netTf.LastPosition.X, 3);
+            Assert.Equal(0.5f, netTf.LastPosition.Y, 3);
+            Assert.Equal(0f, netTf.LastPosition.Z, 3);
         }
 
         [Fact]
@@ -53,7 +53,7 @@ namespace Bagira.IG.Tests
             using var repo = CreateRepo();
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new SimTransform { Position = new Vector3(0f, 10f, 0f), Rotation = Quaternion.Identity });
-            repo.AddComponent(entity, new NetworkPosition { Value = Vector3.Zero });
+            repo.AddComponent(entity, new NetworkTransform { LastPosition = Vector3.Zero });
             repo.AddComponent(entity, new NetworkVelocity { Value = new Vector3(0f, 5f, 0f) });
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
 
@@ -72,7 +72,7 @@ namespace Bagira.IG.Tests
             using var repo = CreateRepo();
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new SimTransform { Position = new Vector3(1f, 2f, 3f), Rotation = Quaternion.Identity });
-            repo.AddComponent(entity, new NetworkPosition { Value = new Vector3(4f, 5f, 6f) });
+            repo.AddComponent(entity, new NetworkTransform { LastPosition = new Vector3(4f, 5f, 6f) });
             repo.AddComponent(entity, new NetworkVelocity { Value = new Vector3(0f, 5f, 0f) });
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
 
@@ -80,8 +80,8 @@ namespace Bagira.IG.Tests
             system.Execute(repo, 0.1f);
             PlaybackCommands(repo);
 
-            var netPos = repo.GetComponent<NetworkPosition>(entity);
-            Assert.Equal(new Vector3(4f, 5f, 6f), netPos.Value);
+            var netTf = repo.GetComponent<NetworkTransform>(entity);
+            Assert.Equal(new Vector3(4f, 5f, 6f), netTf.LastPosition);
         }
     }
 }

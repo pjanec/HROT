@@ -86,10 +86,10 @@ public class DragDropIntegrationTests
         // ── 2d. Diagnostic: check HasAuthority for GeoSpatial directly ────────
         // Confirm via extension method used by ScanAndPublish.
         bool shHasDescriptorOwnership = shWorld.HasManagedComponent<FDP.Toolkit.Replication.Components.DescriptorOwnership>(shEntity);
-        bool shHasAuthForGeoSpatial   = ((ModuleHost.Core.Abstractions.ISimulationView)shWorld).HasAuthority(shEntity, 10L);
-        _out.WriteLine($"[D2d] HasDescriptorOwnership={shHasDescriptorOwnership}, HasAuthority(entity,10)={shHasAuthForGeoSpatial}");
+        bool shHasAuthForGeoSpatial   = ((ModuleHost.Core.Abstractions.ISimulationView)shWorld).HasAuthority(shEntity, (long)EDescriptorType.dtGeoSpatial);
+        _out.WriteLine($"[D2d] HasDescriptorOwnership={shHasDescriptorOwnership}, HasAuthority(entity,dtGeoSpatial)={shHasAuthForGeoSpatial}");
         Assert.True(shHasAuthForGeoSpatial,
-            "SimHost entity does NOT have authority for GeoSpatial (ordinal 10). " +
+            "SimHost entity does NOT have authority for GeoSpatial. " +
             "ScanAndPublish will skip this entity in the egress loop.");
 
         // ── 3. Capture the IG entity's current world-space position ───────────

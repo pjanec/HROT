@@ -162,6 +162,106 @@ namespace Bagira.Runner.Services
         }
 
         /// <summary>
+        /// TestHook: simulates a SimHost-side entity drag by teleporting the entity to
+        /// <paramref name="worldPos"/>. <c>GetComponentRW&lt;SimTransform&gt;</c> stamps
+        /// <c>EntityHeader.LastChangeTick</c>, which <c>SmartEgressUtil.ShouldPublish</c>
+        /// detects on the next egress pass so GeoSpatial is published immediately without
+        /// requiring an explicit <c>MarkDirty</c> call.
+        /// </summary>
+        internal void TestHook_SimulateDrag(long networkId, Vector2 worldPos)
+        {
+            if (_world == null || _entityMap == null)
+                throw new InvalidOperationException("SimHostSubsystem is not initialized.");
+
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                throw new InvalidOperationException($"Entity with networkId={networkId} not found in entity map.");
+
+            if (!_world.IsAlive(entity) || !_world.HasComponent<SimTransform>(entity))
+                throw new InvalidOperationException($"Entity {entity} is not alive or has no SimTransform.");
+
+            ref var tf = ref _world.GetComponentRW<SimTransform>(entity);
+            tf.Position = new Vector3(worldPos.X, worldPos.Y, 0f);
+            // GetComponentRW stamps EntityHeader.LastChangeTick; SmartEgressUtil.ShouldPublish
+            // detects the change and publishes immediately without an explicit MarkDirty call.
+        }
+
+        /// <summary>
+        /// TestHook: directly assigns the WanderMilitary BTree doctrine to the entity without
+        /// going through the DDS <c>MissionControlRequest</c> round-trip.
+        ///
+        /// <para>Purpose: removes DDS cold-start timing sensitivity from integration tests that
+        /// only want to verify GeoSpatial egress update frequency for moving entities.
+        /// The entity must already exist in the SimHost world (spawned via
+        /// <see cref="TestHook_SpawnEntity"/>).</para>
+        /// </summary>
+        internal void TestHook_AssignWanderMission(long networkId)
+        {
+            if (_world == null || _entityMap == null)
+                throw new InvalidOperationException("SimHostSubsystem is not initialized.");
+
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                throw new InvalidOperationException($"Entity with networkId={networkId} not found in entity map.");
+
+            if (!_world.IsAlive(entity))
+                throw new InvalidOperationException($"Entity {entity} is not alive.");
+
+            // Build a single-phase WanderMilitary queue (no advancement trigger — holds forever).
+            var queue = new MissionPlanQueue
+            {
+                CurrentPhase        = 0,
+                PhaseElapsedSeconds = 0f,
+                PhaseCount          = 1,
+            };
+            queue.Phases[0] = new MissionPhase
+            {
+                DoctrineId   = SimHostDoctrineIds.WanderMilitary_BT,
+                Trigger      = FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed,
+                TriggerParam = float.MaxValue, // hold indefinitely
+            };
+
+            if (_world.HasComponent<MissionPlanQueue>(entity))
+                _world.SetComponent(entity, queue);
+            else
+                _world.AddComponent(entity, queue);
+
+            // MissionDirectorSystem will activate the doctrine on the next tick.
+        }
+
+        /// <summary>
+        /// TestHook: returns the current <see cref="SimTransform"/> of the entity with the given
+        /// network ID, or <c>default</c> if not found / no component.
+        /// </summary>
+        internal SimTransform TestHook_GetSimTransform(long networkId)
+        {
+            if (_world == null || _entityMap == null) return default;
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
+            if (!_world.IsAlive(entity) || !_world.HasComponent<SimTransform>(entity)) return default;
+            return _world.GetComponent<SimTransform>(entity);
+        }
+
+        /// <summary>
+        /// TestHook: returns the current <see cref="DoctrineState"/> of the entity with the given
+        /// network ID, or <c>default</c> if not found / no component.
+        /// </summary>
+        internal DoctrineState TestHook_GetDoctrineState(long networkId)
+        {
+            if (_world == null || _entityMap == null) return default;
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
+            if (!_world.IsAlive(entity) || !_world.HasComponent<DoctrineState>(entity)) return default;
+            return _world.GetComponent<DoctrineState>(entity);
+        }
+
+        /// <summary>
+        /// TestHook: returns <c>true</c> if the entity has <see cref="MissionPlanQueue"/> component.
+        /// </summary>
+        internal bool TestHook_HasMissionPlanQueue(long networkId)
+        {
+            if (_world == null || _entityMap == null) return false;
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return false;
+            return _world.IsAlive(entity) && _world.HasComponent<MissionPlanQueue>(entity);
+        }
+
+        /// <summary>
         /// TestHook: returns child entities that reference the given parent via <see cref="PartMetadata"/>.
         /// </summary>
         internal List<Entity> TestHook_GetChildEntities(Entity parentEntity)
@@ -449,6 +549,7 @@ namespace Bagira.Runner.Services
             world.RegisterComponent<NetworkAuthority>();
             world.RegisterComponent<NetworkSpawnRequest>();
             world.RegisterComponent<PendingNetworkAck>();
+            world.RegisterComponent<NetworkTransform>();
 
             // Geographic / physics
             world.RegisterComponent<SimTransform>();

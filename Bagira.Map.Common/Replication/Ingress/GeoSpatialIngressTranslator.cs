@@ -18,7 +18,7 @@ namespace Bagira.Map.Common.Replication.Ingress
     /// <summary>
     /// Ingress translator for the Bagira <c>GeoSpatial</c> DDS topic.
     ///
-    /// Converts geodetic coordinates (lat/lon/alt) into <see cref="NetworkPosition"/>
+    /// Converts geodetic coordinates (lat/lon/alt) into <see cref="NetworkTransform"/>
     /// using the supplied <see cref="IGeographicTransform"/>.
     ///
     /// Entities not yet in <see cref="NetworkEntityMap"/> are silently skipped — they will
@@ -80,7 +80,7 @@ namespace Bagira.Map.Common.Replication.Ingress
             // entity to east-facing on every GeoSpatial update.
             var rotation = SimTransformBridgeSystem.HeadingDegToRotation(data.Rot.Heading);
 
-            cmd.SetComponent(entity, new NetworkPosition { Value = position });
+            cmd.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
 
             if (!view.HasComponent<SimTransform>(entity))
             {
@@ -115,7 +115,7 @@ namespace Bagira.Map.Common.Replication.Ingress
             var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
             var rotation = SimTransformBridgeSystem.HeadingDegToRotation(geo.Rot.Heading);
 
-            repo.SetComponent(entity, new NetworkPosition { Value = position });
+            repo.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
 
             if (!repo.HasComponent<SimTransform>(entity))
             {

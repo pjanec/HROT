@@ -436,7 +436,7 @@ public class IgApplication
 
         _world.RegisterComponent<PendingNetworkAck>();
 
-        _world.RegisterComponent<NetworkPosition>();
+        _world.RegisterComponent<NetworkTransform>();
 
         _world.RegisterComponent<NetworkVelocity>();
 

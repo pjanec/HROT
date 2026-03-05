@@ -19,8 +19,14 @@ namespace Bagira.Runner.Integration.Tests;
 public sealed class BagiraRunnerHarness : IDisposable
 {
     private const int DomainIdBase = 100;
-    private const int WarmupFrames = 60;
+    private const int WarmupFrames = 200;   // 1 s of simulation ticks to give CycloneDDS time to match
     private const int PumpSleepMs = 5;
+    /// <summary>
+    /// Extra wall-clock sleep AFTER warmup frames, allowing DDS SPDP/SEDP discovery to complete
+    /// for any topic whose reader/writer pair was not yet matched by the last warmup frame.
+    /// 1 s is sufficient for loopback CycloneDDS discovery on all topics used by the harness.
+    /// </summary>
+    private const int PostWarmupSettleMs = 1000;
 
     private static int _domainCounter = DomainIdBase - 1;
 
@@ -92,5 +98,10 @@ public sealed class BagiraRunnerHarness : IDisposable
             Orchestrator.RunFrames(1);
             Thread.Sleep(PumpSleepMs);
         }
+
+        // Extra settle time: give CycloneDDS SPDP/SEDP discovery time to complete for all
+        // topics (EntityMaster, GeoSpatial, CreateEntityRequest/Ack, MissionControlRequest/Ack,
+        // etc.) even when the process starts cold (no DDS participant has run before).
+        Thread.Sleep(PostWarmupSettleMs);
     }
 }

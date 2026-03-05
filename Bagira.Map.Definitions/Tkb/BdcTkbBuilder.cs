@@ -10,6 +10,7 @@ using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
 using Fdp.Toolkit.Tkb;
+using FDP.Toolkit.Replication.Components;
 
 namespace Bagira.Map.Definitions.Tkb
 {
@@ -28,7 +29,13 @@ namespace Bagira.Map.Definitions.Tkb
         public BdcTkbBuilder DefineVehicle(long tkbId, string name)
         {
             var template = new TkbTemplate(name, tkbId);
-            
+
+            // Include NetworkTransform so entities spawned from this blueprint
+            // already have a shadow-state component for GeoSpatial egress change-detection
+            // (SimHost) and for ingress interpolation (IG). Silently skipped on worlds
+            // that haven't registered the component (safe via TkbTemplate design).
+            template.AddComponent(new NetworkTransform());
+
             // Override: RegisterTemplate -> Register
             _db.Register(template);
             return this;

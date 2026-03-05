@@ -35,6 +35,11 @@ namespace Bagira.SimHost.Modules
     ///   <item><see cref="CarKinematicsSystem"/> — vehicle physics (wheeled/tracked, uses VehicleState)</item>
     ///   <item><see cref="LinearKinematicsSystem"/> — position integration for non-wheeled entities</item>
     /// </list>
+    /// <para>
+    /// GeoSpatial egress is handled automatically: <see cref="EntityRepository.GetUnmanagedComponentRW{T}"/>
+    /// stamps <c>EntityHeader.LastChangeTick</c>, and <c>SmartEgressUtil.ShouldPublish</c> compares
+    /// that against the last-published tick — no extra dirty-marking system is needed.
+    /// </para>
     /// </summary>
     public class SimulationLogicModule
     {

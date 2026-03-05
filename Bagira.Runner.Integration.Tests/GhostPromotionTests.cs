@@ -47,12 +47,12 @@ public class GhostPromotionTests
         {
             var igMap = harness.Ig.App.TestHook_EntityMap;
             if (!igMap.TryGetEntity(networkId, out ghostEntity)) return false;
-            return harness.Ig.App.World.HasComponent<NetworkPosition>(ghostEntity);
+            return harness.Ig.App.World.HasComponent<NetworkTransform>(ghostEntity);
         }, TimeoutFrames);
 
-        Assert.True(ghostCreated, "Ghost entity with NetworkPosition was not created after GeoSpatial descriptor.");
+        Assert.True(ghostCreated, "Ghost entity with NetworkTransform was not created after GeoSpatial descriptor.");
 
-        var posAfterGeo = harness.Ig.App.World.GetComponent<NetworkPosition>(ghostEntity).Value;
+        var posAfterGeo = harness.Ig.App.World.GetComponent<NetworkTransform>(ghostEntity).LastPosition;
 
         harness.Ig.App.TestHook_InjectEntityMasterDescriptor(new EntityMaster
         {
@@ -70,7 +70,7 @@ public class GhostPromotionTests
 
         Assert.True(promoted, "Ghost entity was not promoted after EntityMaster descriptor arrived.");
 
-        var posAfterPromotion = harness.Ig.App.World.GetComponent<NetworkPosition>(ghostEntity).Value;
+        var posAfterPromotion = harness.Ig.App.World.GetComponent<NetworkTransform>(ghostEntity).LastPosition;
         Assert.Equal(posAfterGeo, posAfterPromotion);
     }
 }

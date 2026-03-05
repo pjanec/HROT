@@ -320,6 +320,7 @@ namespace Bagira.SimHost
             world.RegisterComponent<NetworkAuthority>();
             world.RegisterComponent<NetworkSpawnRequest>();
             world.RegisterComponent<PendingNetworkAck>();
+            world.RegisterComponent<NetworkTransform>();
 
             // Geographic / physics
             world.RegisterComponent<SimTransform>();

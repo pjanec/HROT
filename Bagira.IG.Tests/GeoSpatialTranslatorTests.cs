@@ -40,7 +40,7 @@ namespace Bagira.IG.Tests
             }, cmd, repo);
 
             Assert.True(cmd.SetNetworkPositionCalled);
-            Assert.Equal(new Vector3(1f, 2f, 3f), cmd.LastNetworkPosition!.Value.Value);
+            Assert.Equal(new Vector3(1f, 2f, 3f), cmd.LastNetworkPosition!.Value.LastPosition);
         }
 
         /// <summary>
@@ -83,7 +83,7 @@ namespace Bagira.IG.Tests
         /// <summary>
         /// When the entity already has a <see cref="SimTransform"/>, the translator must
         /// NOT add another copy via the command buffer — it only enqueues SetComponent for
-        /// the existing one (and also for <see cref="NetworkPosition"/>).
+        /// the existing one (and also for <see cref="NetworkTransform"/>).
         /// </summary>
         [Fact]
         public void Decode_KnownEntity_DoesNotAddSimTransformIfAlreadyPresent()
@@ -113,7 +113,7 @@ namespace Bagira.IG.Tests
 
         /// <summary>
         /// When the entity is not yet in the map, the translator must create a ghost and
-        /// still enqueue the <see cref="NetworkPosition"/> component update.
+        /// still enqueue the <see cref="NetworkTransform"/> component update.
         /// </summary>
         [Fact]
         public void Decode_UnknownEntity_CreatesGhostAndSetsNetworkPosition()
@@ -138,7 +138,7 @@ namespace Bagira.IG.Tests
             Assert.True(entityMap.TryGetEntity(UnknownId, out _),
                 "Ghost must be registered in entityMap after encountering unknown entity");
             Assert.True(cmd.SetNetworkPositionCalled,
-                "SetComponent<NetworkPosition> must be called even for freshly created ghost entities");
+                "SetComponent<NetworkTransform> must be called even for freshly created ghost entities");
         }
 
         private sealed class TestGeoSpatialIngressTranslator : GeoSpatialIngressTranslator
@@ -177,7 +177,7 @@ namespace Bagira.IG.Tests
             public bool SetNetworkPositionCalled { get; private set; }
             public bool AddSimTransformCalled    { get; private set; }
             public bool SetSimTransformCalled    { get; private set; }
-            public NetworkPosition?  LastNetworkPosition  { get; private set; }
+            public NetworkTransform? LastNetworkPosition  { get; private set; }
             public SimTransform?     LastSetSimTransform  { get; private set; }
 
             public Entity CreateEntity() => new Entity();
@@ -189,7 +189,7 @@ namespace Bagira.IG.Tests
             }
             public void SetComponent<T>(Entity entity, in T component) where T : unmanaged
             {
-                if (component is NetworkPosition position)
+                if (component is NetworkTransform position)
                 {
                     SetNetworkPositionCalled = true;
                     LastNetworkPosition = position;

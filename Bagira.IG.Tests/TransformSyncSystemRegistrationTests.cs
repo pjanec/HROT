@@ -29,7 +29,7 @@ public class TransformSyncSystemRegistrationTests
     {
         var repo = new EntityRepository();
         repo.RegisterComponent<SimTransform>();
-        repo.RegisterComponent<NetworkPosition>();
+        repo.RegisterComponent<NetworkTransform>();
         repo.RegisterComponent<NetworkAuthority>();
         return repo;
     }
@@ -73,7 +73,7 @@ public class TransformSyncSystemRegistrationTests
 
         var entity = repo.CreateEntity();
         repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero });
-        repo.AddComponent(entity, new NetworkPosition { Value = new Vector3(100f, 0f, 0f) });
+        repo.AddComponent(entity, new NetworkTransform { LastPosition = new Vector3(100f, 0f, 0f) });
         // Simulate a "locally-owned" entity (PrimaryOwnerId == LocalNodeId) — with
         // driveFromNetwork: true the system must still update it.
         repo.AddComponent(entity, new NetworkAuthority(IgNetworkConstants.LocalNodeId, IgNetworkConstants.LocalNodeId));
@@ -107,7 +107,7 @@ public class TransformSyncSystemRegistrationTests
         var entity = repo.CreateEntity();
         var initialPosition = new Vector3(5f, 5f, 5f);
         repo.AddComponent(entity, new SimTransform { Position = initialPosition });
-        repo.AddComponent(entity, new NetworkPosition { Value = new Vector3(100f, 100f, 100f) });
+        repo.AddComponent(entity, new NetworkTransform { LastPosition = new Vector3(100f, 100f, 100f) });
         // Locally owned
         repo.AddComponent(entity, new NetworkAuthority(IgNetworkConstants.LocalNodeId, IgNetworkConstants.LocalNodeId));
 

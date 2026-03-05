@@ -18,7 +18,7 @@ public class DeadReckoningSyncSystem : IModuleSystem
     {
         var query = view.Query()
             .With<SimTransform>()
-            .With<NetworkPosition>()
+            .With<NetworkTransform>()
             .With<NetworkVelocity>()
             .With<NetworkAuthority>()
             .Build();
@@ -31,12 +31,12 @@ public class DeadReckoningSyncSystem : IModuleSystem
             if (authority.HasAuthority)
                 continue;
 
-            ref readonly var netPos = ref view.GetComponentRO<NetworkPosition>(entity);
+            ref readonly var netTf  = ref view.GetComponentRO<NetworkTransform>(entity);
             ref readonly var netVel = ref view.GetComponentRO<NetworkVelocity>(entity);
-            ref readonly var simTf = ref view.GetComponentRO<SimTransform>(entity);
+            ref readonly var simTf  = ref view.GetComponentRO<SimTransform>(entity);
 
-            var projectedNetPos = netPos.Value + (netVel.Value * deltaTime);
-            cmd.SetComponent(entity, new NetworkPosition { Value = projectedNetPos });
+            var projectedNetPos = netTf.LastPosition + (netVel.Value * deltaTime);
+            cmd.SetComponent(entity, new NetworkTransform { LastPosition = projectedNetPos, LastRotation = netTf.LastRotation });
 
             var blendedPos = Vector3.Lerp(simTf.Position, projectedNetPos, deltaTime * SmoothingRate);
             cmd.SetComponent(entity, new SimTransform
