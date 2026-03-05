@@ -94,6 +94,8 @@ using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
 
 using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
 
+using FDP.Toolkit.ImGui.Utils;
+
 using ModuleHost.Core;
 
 using ModuleHost.Core.Abstractions;
@@ -275,6 +277,14 @@ public class IgApplication
     private FdpRepositoryAdapter?   _fdpRepoAdapter;
 
     private FdpInspectorState       _fdpInspectorState  = new();
+
+    // Task 46: track last known map selection so we only push map→inspector
+    // when the selection actually changes, and never overwrite a user-chosen
+    // inspector selection when the map has nothing selected.
+    private Entity                  _fdpLastMapSelection = Entity.Null;
+
+    // Ensures context menu handlers are registered only once.
+    private bool                    _fdpContextMenusWired;
 
     private uint                    _fdpFrameCount;
 
@@ -1061,6 +1071,18 @@ public class IgApplication
 
             _inspectorState.Refresh(_world, GetSelectedEntity());
 
+            // Task 43/46: one-directional sync map → FDP inspector.
+            // Only update when the map selection actually changes to a real entity.
+            // When the map is cleared (Entity.Null) we intentionally do NOT clear
+            // the FDP inspector so the user can keep a selection made via the list.
+            var fdpSelected = GetSelectedEntity();
+            if (fdpSelected != _fdpLastMapSelection)
+            {
+                _fdpLastMapSelection = fdpSelected;
+                if (fdpSelected != Entity.Null)
+                    _fdpInspectorState.SelectedEntity = fdpSelected;
+            }
+
         }
 
     }
@@ -1113,6 +1135,16 @@ public class IgApplication
     {
 
         _fdpRepoAdapter ??= new FdpRepositoryAdapter(_world);
+
+        if (!_fdpContextMenusWired)
+        {
+            _fdpContextMenusWired = true;
+            _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+            {
+                builder.AddItem("Center on entity", () => CenterCameraOn(entity));
+                builder.AddItem("Select entity",    () => SelectEntityOnMap(entity));
+            }));
+        }
 
         _debugPanel.Draw();
 
@@ -1316,6 +1348,33 @@ public class IgApplication
 
         return Entity.Null;
 
+    }
+
+    /// <summary>
+    /// Programmatically selects <paramref name="entity"/> on the map by updating ECS
+    /// <see cref="SelectionState"/> components directly — mirroring the path used by
+    /// <see cref="StandardInteractionTool"/> when the user clicks on the canvas.
+    /// Also updates the FDP inspector and last-known-selection tracker so that the
+    /// one-directional chain (map → inspector) does not immediately overwrite this choice.
+    /// </summary>
+    private void SelectEntityOnMap(Entity entity)
+    {
+        // 1. Clear all existing ECS selection state.
+        var q = _world.Query().With<SelectionState>().Build();
+        foreach (var e in q)
+        {
+            if (_world.IsAlive(e))
+                _world.SetComponent(e, new SelectionState { IsSelected = false, IsPrimarySelection = false });
+        }
+
+        // 2. Apply selection to the target entity if it is alive.
+        if (_world.IsAlive(entity))
+            _world.SetComponent(entity, new SelectionState { IsSelected = true, IsPrimarySelection = true });
+
+        // 3. Keep the FDP inspector and map-selection tracker in sync so that
+        //    the per-frame change-detection in DrawUI does not revert this choice.
+        _fdpInspectorState.SelectedEntity = entity;
+        _fdpLastMapSelection = entity;
     }
 
 

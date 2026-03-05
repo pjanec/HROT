@@ -118,10 +118,18 @@ public sealed class InteractionPanel
         return drained;
     }
 
+    // ── Selection state ───────────────────────────────────────────────────────
+
+    private int _selectedIndex = -1;
+
+    // Persistent buffer for the Details TextMultiline widget — avoids per-frame allocs.
+    private string _detailsBuf = string.Empty;
+
     // ── Draw stub (Phase P9) ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Renders the event-log table via ImGui.
+    /// Renders the event-log table via ImGui with a two-pane layout:
+    /// left = scrollable entry list (selectable rows), right = detail view.
     /// Called once per frame from the application shell (Phase P9).
     ///
     /// <para>No allocations inside this method — iteration uses a plain
@@ -134,26 +142,130 @@ public sealed class InteractionPanel
         ImGui.Begin("Data Monitor");
         IosPanelColors.Pop();
 
-        if (ImGui.BeginTable("log", 3, ImGuiTableFlags.Borders | ImGuiTableFlags.ScrollY))
-        {
-            ImGui.TableSetupColumn("Time");
-            ImGui.TableSetupColumn("Topic");
-            ImGui.TableSetupColumn("Details");
-            ImGui.TableHeadersRow();
+        // ── Outer two-column layout: list | detail ─────────────────────────
+        float totalWidth = ImGui.GetContentRegionAvail().X;
 
-            // Plain for-loop — zero allocations in the hot draw path.
-            for (int i = 0; i < _log.Count; i++)
-            {
-                var entry = _log[i];
-                ImGui.TableNextRow();
-                ImGui.TableNextColumn(); ImGui.Text(entry.Time.ToString("HH:mm:ss"));
-                ImGui.TableNextColumn(); ImGui.Text($"{entry.Direction} {entry.Topic}");
-                ImGui.TableNextColumn(); ImGui.Text(entry.Details);
-            }
+        if (ImGui.BeginTable("##DmLayout", 2,
+            ImGuiTableFlags.Resizable | ImGuiTableFlags.BordersInnerV))
+        {
+            ImGui.TableSetupColumn("Log",    ImGuiTableColumnFlags.WidthFixed,  totalWidth * 0.55f);
+            ImGui.TableSetupColumn("Detail", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableNextRow();
+
+            // ── Left: log table ────────────────────────────────────────────
+            ImGui.TableSetColumnIndex(0);
+            DrawLogList();
+
+            // ── Right: entry detail ────────────────────────────────────────
+            ImGui.TableSetColumnIndex(1);
+            DrawEntryDetail();
 
             ImGui.EndTable();
         }
 
         ImGui.End();
+    }
+
+    private void DrawLogList()
+    {
+        ImGui.BeginChild("##DmLogList");
+
+        if (ImGui.BeginTable("log", 3,
+            ImGuiTableFlags.Borders |
+            ImGuiTableFlags.ScrollY |
+            ImGuiTableFlags.RowBg   |
+            ImGuiTableFlags.SizingFixedFit))
+        {
+            ImGui.TableSetupScrollFreeze(0, 1);
+            ImGui.TableSetupColumn("Time",    ImGuiTableColumnFlags.WidthFixed,   68f);
+            ImGui.TableSetupColumn("Topic",   ImGuiTableColumnFlags.WidthFixed,  140f);
+            ImGui.TableSetupColumn("Details", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableHeadersRow();
+
+            // Plain for-loop — zero allocations in the hot draw path.
+            for (int i = 0; i < _log.Count; i++)
+            {
+                var entry   = _log[i];
+                bool sel    = i == _selectedIndex;
+
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+
+                // Selectable spans the whole row via SelectableFlags.SpanAllColumns.
+                if (ImGui.Selectable(
+                        entry.Time.ToString("HH:mm:ss") + $"##dm{i}",
+                        sel,
+                        ImGuiSelectableFlags.SpanAllColumns))
+                {
+                    _selectedIndex = i;
+                    // Pre-compute the details buffer for the right pane.
+                    _detailsBuf = entry.Details;
+                }
+
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted($"{entry.Direction} {entry.Topic}");
+
+                ImGui.TableNextColumn();
+                // Truncate long details in the list view.
+                string brief = entry.Details.Length > 80
+                    ? entry.Details[..80] + "…"
+                    : entry.Details;
+                ImGui.TextUnformatted(brief);
+            }
+
+            ImGui.EndTable();
+        }
+
+        ImGui.EndChild();
+    }
+
+    private void DrawEntryDetail()
+    {
+        ImGui.BeginChild("##DmDetail");
+
+        if (_selectedIndex < 0 || _selectedIndex >= _log.Count)
+        {
+            ImGui.TextDisabled("Select an entry to view details.");
+            ImGui.EndChild();
+            return;
+        }
+
+        var e = _log[_selectedIndex];
+
+        // ── Header fields ──────────────────────────────────────────────────
+        if (ImGui.BeginTable("##DmFields", 2, ImGuiTableFlags.SizingFixedFit))
+        {
+            ImGui.TableSetupColumn("Field", ImGuiTableColumnFlags.WidthFixed, 80f);
+            ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
+
+            DrawFieldRow("Time",      e.Time.ToString("HH:mm:ss.fff"));
+            DrawFieldRow("Direction", e.Direction);
+            DrawFieldRow("Topic",     e.Topic);
+
+            ImGui.EndTable();
+        }
+
+        ImGui.Separator();
+
+        // ── Details text (scrollable, copyable) ───────────────────────────
+        ImGui.TextDisabled("Details:");
+        float detailH = ImGui.GetContentRegionAvail().Y - 4f;
+        ImGui.InputTextMultiline(
+            "##DmDetailsText",
+            ref _detailsBuf,
+            (uint)System.Math.Max(4096, _detailsBuf.Length + 64),
+            new System.Numerics.Vector2(-1, detailH),
+            ImGuiInputTextFlags.ReadOnly);
+
+        ImGui.EndChild();
+    }
+
+    private static void DrawFieldRow(string field, string value)
+    {
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
+        ImGui.TextDisabled(field);
+        ImGui.TableNextColumn();
+        ImGui.TextUnformatted(value);
     }
 }

@@ -4,7 +4,6 @@ using Bagira.IOS.Logic;
 using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
 using Bagira.Map.Common.Dds;
-using CycloneDDS.Runtime;
 using FDP.Toolkit.DER;
 using Raylib_cs;
 using rlImGui_cs;
@@ -63,25 +62,22 @@ class Program
         Console.WriteLine($"[IOS] Starting – domain={domainId} node={nodeId}");
 
         // 2. Construct services and panels
-
-        // Live DDS participant for all topic writers.
-        var participant = new DdsParticipant((uint)domainId);
-
-        var repo              = new DerRepo(nodeId);
+        var repo              = new DerRepo();
         var transactionMgr    = new RequestTransactionManager();
         var interactionPanel  = new InteractionPanel();
 
-        // Event queues (backed by ConcurrentQueue; DDS adapters enqueue here)
+        // Event queues (backed by ConcurrentQueue; DDS adapters would enqueue here)
         var clickQueue     = new ConcurrentEventQueue<MapClickEvent>();
         var selectionQueue = new ConcurrentEventQueue<SelectionChangedEvent>();
 
-        // Live DDS writers — replace NullDdsWriter stubs with real DDS adapters.
-        var configWriter       = new DdsWriterAdapter<MapInteractionConfig>(participant, IosLogicConstants.LogTopicConfig);
-        var createEntityWriter = new DdsWriterAdapter<CreateEntityRequest>(participant, IosLogicConstants.LogTopicCreate);
-        var missionCmdWriter   = new DdsWriterAdapter<MissionControlRequest>(participant, IosLogicConstants.TopicMissionControl);
+        // DDS writer stubs – replace with live DdsWriter<T> wrappers when
+        // CycloneDDS.Runtime is wired into this project.
+        var configWriter       = new NullDdsWriter<MapInteractionConfig>();
+        var createEntityWriter = new NullDdsWriter<CreateEntityRequest>();
+        var missionCmdWriter   = new NullDdsWriter<MissionControlRequest>();
 
         var missionEditorSvc = new MissionEditorService(repo, missionCmdWriter);
-        var contextMenuWriter = new DdsWriterAdapter<ContextActionsUpdate>(participant, IosLogicConstants.TopicContextActions);
+        var contextMenuWriter = new NullDdsWriter<ContextActionsUpdate>();
         var contextMenuLogic  = new ContextMenuLogic(contextMenuWriter);
 
         var logic = new IosLogic(
@@ -94,7 +90,7 @@ class Program
             clickQueue:          clickQueue,
             selectionQueue:      selectionQueue,
             interactionPanel:    interactionPanel,
-            ingressHandlers:     null,
+            ingressHandlers:     null,          // no live DDS participant yet
             mapGroupId:          IosLogicConstants.DefaultMapGroupId);
 
         var mock = new IosMock(
@@ -103,7 +99,8 @@ class Program
             orbatPanel:       new OrbatPanel(),
             missionPanel:     new MissionPanel(),
             interactionPanel: interactionPanel,
-            spawnerPanel:     new SpawnerPanel());
+            spawnerPanel:     new SpawnerPanel(),
+            dataMonitorPanel: new DataMonitorPanel());
 
         // 3. Open Raylib window
         Raylib.InitWindow(WindowWidth, WindowHeight, WindowTitle);
@@ -136,13 +133,23 @@ class Program
         {
             // 5. Graceful shutdown
             mock.Dispose();
-            configWriter.Dispose();
-            createEntityWriter.Dispose();
-            missionCmdWriter.Dispose();
-            contextMenuWriter.Dispose();
-            participant.Dispose();
             rlImGui.Shutdown();
             Raylib.CloseWindow();
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Null writer — silent no-op used until live DDS participants are wired in.
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Silent no-op implementation of <see cref="IDdsWriter{T}"/>.
+/// Used in <see cref="Program.Main"/> when a live DDS participant is not yet
+/// available.
+/// </summary>
+file sealed class NullDdsWriter<T> : IDdsWriter<T>
+{
+    public void Write(T sample) { /* intentional no-op */ }
+}
+

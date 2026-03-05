@@ -34,6 +34,7 @@ public sealed class IosMock : IDisposable
     private readonly SpawnerPanel     _spawnerPanel;
     private readonly InspectorPanel   _inspectorPanel;
     private readonly DiagnosticsPanel _diagnosticsPanel;
+    private readonly DataMonitorPanel _dataMonitorPanel;
     private readonly bool             _useDockSpace;
 
     private bool _disposed;
@@ -55,6 +56,7 @@ public sealed class IosMock : IDisposable
         SpawnerPanel     spawnerPanel,
         InspectorPanel?  inspectorPanel   = null,
         DiagnosticsPanel? diagnosticsPanel = null,
+        DataMonitorPanel? dataMonitorPanel = null,
         bool             useDockSpace    = true)
     {
         _logic            = logic            ?? throw new ArgumentNullException(nameof(logic));
@@ -65,6 +67,7 @@ public sealed class IosMock : IDisposable
         _spawnerPanel     = spawnerPanel     ?? throw new ArgumentNullException(nameof(spawnerPanel));
         _inspectorPanel   = inspectorPanel   ?? new InspectorPanel();
         _diagnosticsPanel = diagnosticsPanel ?? new DiagnosticsPanel();
+        _dataMonitorPanel = dataMonitorPanel  ?? new DataMonitorPanel();
         _useDockSpace     = useDockSpace;
     }
 
@@ -148,6 +151,7 @@ public sealed class IosMock : IDisposable
         _spawnerPanel.Draw(_logic);
         _inspectorPanel.Draw(_logic);
         _diagnosticsPanel.Draw(_logic);
+        _dataMonitorPanel.Draw(_logic);
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────────

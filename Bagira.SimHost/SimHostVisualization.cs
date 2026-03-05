@@ -9,6 +9,7 @@ using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
 using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
 using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
 using FdpInspectorState       = FDP.Toolkit.ImGui.Abstractions.InspectorState;
+using FDP.Toolkit.ImGui.Utils;
 using FDP.Toolkit.Vis2D.Layers;
 using FDP.Toolkit.Vis2D.Tools;
 using CarKinem.Commands;
@@ -94,6 +95,17 @@ namespace Bagira.SimHost
             _inspector = new SimHostInspectorAdapter(_selection, repo);
             _fdpRepoAdapter = new FdpRepositoryAdapter(repo);
 
+            // Task 47: register context menu handlers for the FDP entity inspector.
+            _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+            {
+                builder.AddItem("Center on entity", () => CenterCameraOnEntity(entity));
+                builder.AddItem("Select entity", () =>
+                {
+                    _selection!.Set(entity);
+                    _fdpInspectorState.SelectedEntity = entity;
+                });
+            }));
+
             // ── Scenario manager ──────────────────────────────────────────────
             _scenario = new SimHostScenarioManager(repo, road, trajectoryPool, formationTemplates);
 
@@ -120,9 +132,17 @@ namespace Bagira.SimHost
 
             _interactionTool.OnEntitySelectRequest += (entity, augment) =>
             {
-                if (!repo.IsAlive(entity)) { if (!augment) _selection.Clear(); return; }
+                if (!repo.IsAlive(entity))
+                {
+                    if (!augment) { _selection.Clear(); _fdpInspectorState.SelectedEntity = null; }
+                    return;
+                }
                 if (augment) _selection.Add(entity);
                 else         _selection.Set(entity);
+
+                // Task 43: keep FDP entity inspector in sync with map selection
+                if (!augment)
+                    _fdpInspectorState.SelectedEntity = entity;
             };
 
             _interactionTool.OnEntityMoved += (entity, pos) =>
@@ -240,6 +260,15 @@ namespace Bagira.SimHost
         {
             // EntityQuery is managed by EntityRepository; no dispose needed.
             _initialized = false;
+        }
+
+        /// <summary>Centres the map camera on the entity's SimTransform position.</summary>
+        private void CenterCameraOnEntity(Fdp.Kernel.Entity entity)
+        {
+            if (_repo == null || !_repo.IsAlive(entity)) return;
+            if (!_repo.HasComponent<SimTransform>(entity)) return;
+            ref readonly var tf = ref _repo.GetComponentRO<SimTransform>(entity);
+            _map?.Camera.FocusOn(new Vector2(tf.Position.X, tf.Position.Y));
         }
     }
 }
