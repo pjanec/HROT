@@ -160,9 +160,8 @@ namespace Bagira.SimHost.UI
 
                 if (ImGui.CollapsingHeader("Spawning", ImGuiTreeNodeFlags.DefaultOpen))
                     _spawnPanel.Render(scenario, UIState);
-
-                ImGui.End();
             }
+            ImGui.End();
 
         }
     }
