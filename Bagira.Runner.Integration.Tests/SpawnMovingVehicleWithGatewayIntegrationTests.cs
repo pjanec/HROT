@@ -64,10 +64,12 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
 
         var igApp = harness.Ig.App;
 
-        // Observe CreateEntityAck to learn the allocated network ID.
+        // Observe CreateEntityAck to learn the allocated network ID,
+        // and MissionControlAck to assert there is no ERR_ENTITY_NOT_FOUND race.
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
         using var reqReader           = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
         using var ackReader           = new DdsReader<CreateEntityAck>(observerParticipant, "CreateEntityAck");
+        using var missionAckReader    = new DdsReader<MissionControlAck>(observerParticipant, "MissionControlAck");
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
@@ -110,6 +112,26 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         if (spawnTask.IsFaulted)
             throw spawnTask.Exception!.GetBaseException();
         _out.WriteLine("[G3] Gateway Task completed.");
+
+        // ── 4b. Verify MissionControlAck arrived with Error=0 ────────────────
+        // This assertion specifically guards against the "ERR_ENTITY_NOT_FOUND" race where
+        // MissionControlRequest arrives before NetworkSpawningSystem has registered the
+        // entity in NetworkEntityMap (Error=2). After the MissionControlRequestSystem
+        // retry-queue fix, the retry loop handles the 1-2 frame lag so the ACK must
+        // always come back with ErrorCode=0.
+        MissionControlAck missionAck = default;
+        bool missionAckObserved = harness.PumpUntil(
+            () => TryTakeMissionAck(missionAckReader, networkId, out missionAck),
+            GatewayTimeoutFrames);
+        Assert.True(missionAckObserved,
+            $"MissionControlAck for entity {networkId} did not arrive on DDS. " +
+            $"MissionControlRequestSystem may not have processed the request.");
+        Assert.True(missionAck.ErrorCode == 0,
+            $"MissionControlAck returned Error={missionAck.ErrorCode} (ErrorMessage='{missionAck.ErrorMessage}'). " +
+            $"Expected 0. This is the 'ERR_ENTITY_NOT_FOUND' race: MissionControlRequest arrived " +
+            $"before NetworkSpawningSystem registered the entity. " +
+            $"Fix: retry queue in MissionControlRequestSystem should have prevented this.");
+        _out.WriteLine($"[G3b] MissionControlAck received: Error={missionAck.ErrorCode}.");
 
         // ── 5. Wait for IG entity to appear with Active lifecycle ────────────
         bool igActive = harness.PumpUntil(
@@ -178,6 +200,29 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
             if (data.RequestId != requestId) continue;
 
             ack = data;
+            return true;
+        }
+
+        ack = default;
+        return false;
+    }
+
+    private static bool TryTakeMissionAck(
+        DdsReader<MissionControlAck> reader,
+        long networkId,
+        out MissionControlAck ack)
+    {
+        // MissionControlAck carries only RequestId (no EntityId), so we take the first
+        // valid sample.  The test domain is isolated — no other mission requests are
+        // in-flight — so the first ACK belongs to our entity.
+        _ = networkId; // unused; kept in signature for readability
+
+        using var loan = reader.Take(20);
+        foreach (var sample in loan)
+        {
+            if (!sample.IsValid) continue;
+
+            ack = sample.Data;
             return true;
         }
 

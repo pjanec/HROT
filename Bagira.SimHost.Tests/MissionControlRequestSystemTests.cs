@@ -209,8 +209,11 @@ namespace Bagira.SimHost.Tests
         }
 
         [Fact]
-        public void ProcessRequest_UnknownEntity_WritesNack()
+        public void ProcessRequest_UnknownEntity_WritesNackAfterRetrying()
         {
+            // With the retry-queue fix, an unknown entity is queued for up to
+            // MaxEntityWaitFrames (10) retry frames before the NACK is emitted.
+            // That means the ACK arrives on Run 12 (= 1 initial + 10 retries + 1 final).
             const uint domainId = 155u;
             using var participant = new DdsParticipant(domainId);
             using var writer = new DdsWriter<MissionControlRequest>(participant);
@@ -236,7 +239,14 @@ namespace Bagira.SimHost.Tests
             });
 
             Thread.Sleep(200);
-            system.Run();
+
+            // Run once to consume the DDS message and enqueue for retry, then
+            // run MaxEntityWaitFrames + 1 more times to exhaust framesLeft down to 0
+            // and emit the NACK on the final run.
+            const int TotalRunsNeeded = 12; // MaxEntityWaitFrames(10) + 2
+            for (int i = 0; i < TotalRunsNeeded; i++)
+                system.Run();
+
             Thread.Sleep(200);
 
             using var loan = reader.Take();

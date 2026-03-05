@@ -24,6 +24,24 @@ namespace Bagira.SimHost.Systems
         private const string EntityNotFoundMessage  = "ERR_ENTITY_NOT_FOUND";
         private const string VersionConflictMessage = "ERR_VERSION_CONFLICT";
 
+        /// <summary>
+        /// Number of frames to retry a mission request whose target entity is not yet
+        /// registered in the <see cref="NetworkEntityMap"/>.
+        ///
+        /// Root cause: <c>CreateEntityRequestSystem</c> (Input phase) publishes
+        /// <c>SpawnEntityCommand</c> to the event-bus write buffer and immediately sends
+        /// <c>CreateEntityAck</c>.  The write buffer is not swapped until after
+        /// <c>_kernel.Update()</c> completes, so <c>NetworkSpawningSystem</c> (BeforeSync)
+        /// registers the entity in <c>NetworkEntityMap</c> only in the <em>following</em>
+        /// frame.  Meanwhile the DDS loopback and the background <c>DdsCommandClient</c>
+        /// listener thread can deliver the resulting <c>MissionControlRequest</c> before
+        /// that next frame has had a chance to run, causing a false
+        /// <c>ERR_ENTITY_NOT_FOUND</c> (Error=2) at 60 Hz.
+        ///
+        /// Ten frames ≈ 167 ms at 60 Hz — more than enough to cover the 1–2 frame lag.
+        /// </summary>
+        private const int MaxEntityWaitFrames = 10;
+
         private readonly DdsReader<MissionControlRequest> _reader;
         private readonly DdsWriter<MissionControlAck>     _writer;
         private readonly DdsWriter<EntityMission>         _missionStateWriter;
@@ -31,6 +49,9 @@ namespace Bagira.SimHost.Systems
         private readonly DoctrineRegistry                 _doctrineRegistry;
         private readonly Dictionary<long, long>           _missionVersions = new();
         private readonly Dictionary<long, List<Guid>>     _taskOrder = new();
+
+        // Requests whose target entity wasn't in NetworkEntityMap yet; retried each frame.
+        private readonly Queue<(MissionControlRequest Request, int FramesLeft)> _retryQueue = new();
 
         public MissionControlRequestSystem(
             DdsParticipant participant,
@@ -46,6 +67,37 @@ namespace Bagira.SimHost.Systems
 
         protected override void OnUpdate()
         {
+            // ── 1. Retry requests whose entity wasn't in the map yet ──────────
+            // Drain a snapshot of the current queue so newly-added retries are
+            // not processed again in the same frame.
+            int retryCount = _retryQueue.Count;
+            for (int i = 0; i < retryCount; i++)
+            {
+                var (req, framesLeft) = _retryQueue.Dequeue();
+
+                if (_entityMap.TryGetEntity(req.TargetEntityId, out _))
+                {
+                    // Entity is now registered — process normally.
+                    FdpLog<MissionControlRequestSystem>.Debug(
+                        "[MissionControl] Retry succeeded for entity {0} (request {1}).",
+                        req.TargetEntityId, req.RequestId);
+                    ProcessRequest(World, req);
+                }
+                else if (framesLeft > 0)
+                {
+                    _retryQueue.Enqueue((req, framesLeft - 1));
+                }
+                else
+                {
+                    // Give up — entity never materialised within the wait window.
+                    FdpLog<MissionControlRequestSystem>.Warn(
+                        "[MissionControl] Entity {0} not found after {1} retry frames; rejecting request {2}.",
+                        req.TargetEntityId, MaxEntityWaitFrames, req.RequestId);
+                    WriteAck(req.RequestId, ErrorCodeEntityNotFound, EntityNotFoundMessage, newVersion: 0);
+                }
+            }
+
+            // ── 2. Process newly-arrived DDS requests ─────────────────────────
             using var loan = _reader.Take();
             foreach (var sample in loan)
             {
@@ -60,7 +112,13 @@ namespace Bagira.SimHost.Systems
         {
             if (!_entityMap.TryGetEntity(request.TargetEntityId, out var entity))
             {
-                WriteAck(request.RequestId, ErrorCodeEntityNotFound, EntityNotFoundMessage, newVersion: 0);
+                // Entity might not yet be registered (CreateEntityRequestSystem sends the ACK
+                // before NetworkSpawningSystem has had a chance to run in the next frame).
+                // Queue for retry rather than immediately returning ERR_ENTITY_NOT_FOUND.
+                FdpLog<MissionControlRequestSystem>.Debug(
+                    "[MissionControl] Entity {0} not in map yet; queuing request {1} for retry.",
+                    request.TargetEntityId, request.RequestId);
+                _retryQueue.Enqueue((request, MaxEntityWaitFrames));
                 return;
             }
 
