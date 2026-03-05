@@ -205,26 +205,51 @@ namespace Bagira.Runner.Services
             if (!_world.IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive.");
 
-            // Build a single-phase WanderMilitary queue (no advancement trigger — holds forever).
-            var queue = new MissionPlanQueue
-            {
-                CurrentPhase        = 0,
-                PhaseElapsedSeconds = 0f,
-                PhaseCount          = 1,
-            };
-            queue.Phases[0] = new MissionPhase
+            // Step 1: Update MissionPlanQueue with a single-phase WanderMilitary plan.
+            // This mirrors what MissionControlRequestSystem does, but without DDS.
+            var newPhase = new MissionPhase
             {
                 DoctrineId   = SimHostDoctrineIds.WanderMilitary_BT,
                 Trigger      = FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed,
-                TriggerParam = float.MaxValue, // hold indefinitely
+                TriggerParam = float.MaxValue, // holds forever — never triggers transition
             };
 
             if (_world.HasComponent<MissionPlanQueue>(entity))
+            {
+                // Read-modify-write pattern: avoid mutating an inline-array field via
+                // a direct ref from GetComponentRW because of the InlineArray defensive-copy trap.
+                var queue = _world.GetComponent<MissionPlanQueue>(entity); // copy
+                queue.CurrentPhase        = 0;
+                queue.PhaseElapsedSeconds = 0f;
+                queue.PhaseCount          = 1;
+                Span<MissionPhase> phases = queue.Phases; // safe, in-place access
+                phases[0] = newPhase;
                 _world.SetComponent(entity, queue);
+            }
             else
+            {
+                var queue = new MissionPlanQueue
+                {
+                    CurrentPhase        = 0,
+                    PhaseElapsedSeconds = 0f,
+                    PhaseCount          = 1,
+                };
+                // Mutate the local copy's inline buffer then add it to the world.
+                Span<MissionPhase> phases = queue.Phases;
+                phases[0] = newPhase;
                 _world.AddComponent(entity, queue);
+            }
 
-            // MissionDirectorSystem will activate the doctrine on the next tick.
+            // Step 2: Directly activate the doctrine on DoctrineState so the entity
+            // starts moving immediately on the next CarKinematics tick, without waiting
+            // for MissionDirectorSystem (which requires a correctly-updated MissionPlanQueue).
+            // This is the same operation MissionDirectorSystem would perform on the next tick.
+            if (_world.HasComponent<DoctrineState>(entity))
+            {
+                ref var doctrine = ref _world.GetComponentRW<DoctrineState>(entity);
+                unchecked { doctrine.InstanceId++; }
+                doctrine.ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT;
+            }
         }
 
         /// <summary>
@@ -259,6 +284,42 @@ namespace Bagira.Runner.Services
             if (_world == null || _entityMap == null) return false;
             if (!_entityMap.TryGetEntity(networkId, out var entity)) return false;
             return _world.IsAlive(entity) && _world.HasComponent<MissionPlanQueue>(entity);
+        }
+
+        /// <summary>
+        /// TestHook: returns the current <see cref="MissionPlanQueue"/> of the entity, or default.
+        /// </summary>
+        internal MissionPlanQueue TestHook_GetMissionPlanQueue(long networkId)
+        {
+            if (_world == null || _entityMap == null) return default;
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
+            if (!_world.IsAlive(entity) || !_world.HasComponent<MissionPlanQueue>(entity)) return default;
+            return _world.GetComponent<MissionPlanQueue>(entity);
+        }
+
+        /// <summary>
+        /// TestHook: directly activates the WanderMilitary doctrine on the entity's
+        /// <see cref="DoctrineState"/> without going through <see cref="MissionDirectorSystem"/>.
+        /// Use this to verify whether the BTree / CarKinem pipeline works when doctrine
+        /// is forced on, independent of MissionDirectorSystem correctness.
+        /// </summary>
+        internal void TestHook_ForceDoctrineActive(long networkId)
+        {
+            if (_world == null || _entityMap == null)
+                throw new InvalidOperationException("SimHostSubsystem is not initialized.");
+
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                throw new InvalidOperationException($"Entity with networkId={networkId} not found.");
+
+            if (!_world.IsAlive(entity))
+                throw new InvalidOperationException($"Entity {entity} is not alive.");
+
+            if (_world.HasComponent<DoctrineState>(entity))
+            {
+                ref var doctrine = ref _world.GetComponentRW<DoctrineState>(entity);
+                unchecked { doctrine.InstanceId++; }
+                doctrine.ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT;
+            }
         }
 
         /// <summary>

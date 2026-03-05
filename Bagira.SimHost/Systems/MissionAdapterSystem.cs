@@ -38,7 +38,10 @@ namespace Bagira.SimHost.Systems
                 if (queue.CurrentPhase >= queue.PhaseCount)
                     continue;
 
-                var phase = queue.Phases[queue.CurrentPhase];
+                // Use Span to safely read the inline Phases buffer without triggering
+                // the InlineArray defensive-copy behaviour on the JIT.
+                Span<MissionPhase> phases = queue.Phases;
+                var phase = phases[queue.CurrentPhase];
                 if (doctrine.ActiveDoctrineHash == phase.DoctrineId)
                     continue;
 

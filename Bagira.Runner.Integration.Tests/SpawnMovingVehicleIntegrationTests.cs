@@ -3,6 +3,7 @@ using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
 using Bagira.IG.Components;
 using Bagira.Map.Common;
+using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
@@ -81,16 +82,19 @@ public class SpawnMovingVehicleIntegrationTests
         harness.PumpFrames(20);
         var shTf0       = harness.SimHost.TestHook_GetSimTransform(networkId);
         var shDoctrine0 = harness.SimHost.TestHook_GetDoctrineState(networkId);
+        var mpq0        = harness.SimHost.TestHook_GetMissionPlanQueue(networkId);
         bool hasMpq0    = harness.SimHost.TestHook_HasMissionPlanQueue(networkId);
         _out.WriteLine($"[M3b] SimHost pos=({shTf0.Position.X:F3}, {shTf0.Position.Y:F3}) " +
                        $"doctrine.ActiveHash={shDoctrine0.ActiveDoctrineHash} " +
                        $"doctrine.InstanceId={shDoctrine0.InstanceId} " +
-                       $"hasMPQ={hasMpq0}");
+                       $"hasMPQ={hasMpq0} mpq.PhaseCount={mpq0.PhaseCount} mpq.CurrentPhase={mpq0.CurrentPhase}");
 
         harness.PumpFrames(50);
         var shTf1 = harness.SimHost.TestHook_GetSimTransform(networkId);
+        var shDoc1 = harness.SimHost.TestHook_GetDoctrineState(networkId);
         float shMoved = Vector3.Distance(shTf0.Position, shTf1.Position);
         _out.WriteLine($"[M3c] SimHost pos after +50 frames=({shTf1.Position.X:F3}, {shTf1.Position.Y:F3}) " +
+                       $"doctrine.ActiveHash={shDoc1.ActiveDoctrineHash} " +
                        $"SimHost moved={shMoved:F4} m");
 
         // ── 4. Wait for the entity to be promoted to Active lifecycle ─────────
