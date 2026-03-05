@@ -52,6 +52,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
+using FDP.Toolkit.Vis2D.Components;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
@@ -75,7 +76,7 @@ namespace Bagira.Runner.Services
     /// <see cref="Stop"/> to gracefully shut it down.
     /// </para>
     /// </summary>
-    public sealed class SimHostSubsystem : ISubsystem
+    public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider
     {
         // ── Subsystem identity ────────────────────────────────────────────────
 
@@ -114,6 +115,9 @@ namespace Bagira.Runner.Services
         /// when the subsystem has not yet been initialised.
         /// </summary>
         public EntityRepository? World => _world;
+
+        /// <inheritdoc/>
+        public MapCamera? GetMapCamera() => _vis?.GetMapCamera();
 
         /// <summary>
         /// TestHook: exposes the NetworkEntityMap for integration test assertions.

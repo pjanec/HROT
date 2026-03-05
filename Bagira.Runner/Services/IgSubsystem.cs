@@ -1,6 +1,7 @@
 using Bagira.IG;
 using Bagira.Runner.Abstractions;
 using Bagira.Runner.Models;
+using FDP.Toolkit.Vis2D.Components;
 
 namespace Bagira.Runner.Services
 {
@@ -21,7 +22,7 @@ namespace Bagira.Runner.Services
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class IgSubsystem : ISubsystem
+    public sealed class IgSubsystem : ISubsystem, IMapCameraProvider
     {
         /// <inheritdoc/>
         public string Name => "IG";
@@ -33,6 +34,9 @@ namespace Bagira.Runner.Services
         /// Internal test hook for integration tests.
         /// </summary>
         internal IgApplication App => _app ?? throw new InvalidOperationException("Not initialized");
+
+        /// <inheritdoc/>
+        public MapCamera? GetMapCamera() => _app?.GetMapCamera();
 
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)

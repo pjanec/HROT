@@ -3,6 +3,7 @@ using rlImGui_cs;
 using Bagira.Runner.Abstractions;
 using Bagira.Runner.Configuration;
 using Bagira.Runner.Models;
+using FDP.Toolkit.Vis2D.Components;
 
 namespace Bagira.Runner.Services
 {
@@ -206,7 +207,7 @@ namespace Bagira.Runner.Services
                 ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Button,
                     new System.Numerics.Vector4(0.12f, 0.56f, 0.12f, 1f));
             if (ImGuiNET.ImGui.Button("IG"))
-                _activeMapOwner = "IG";
+                SwitchMapOwner("IG");
             if (igOwner)
                 ImGuiNET.ImGui.PopStyleColor();
 
@@ -217,11 +218,48 @@ namespace Bagira.Runner.Services
                 ImGuiNET.ImGui.PushStyleColor(ImGuiNET.ImGuiCol.Button,
                     new System.Numerics.Vector4(0.56f, 0.12f, 0.12f, 1f));
             if (ImGuiNET.ImGui.Button("SimHost"))
-                _activeMapOwner = "SimHost";
+                SwitchMapOwner("SimHost");
             if (shOwner)
                 ImGuiNET.ImGui.PopStyleColor();
 
             ImGuiNET.ImGui.EndMainMenuBar();
+        }
+
+        /// <summary>
+        /// Switches the active map owner to <paramref name="newOwner"/> and synchronises
+        /// the incoming subsystem's map camera to the outgoing one so that entities do not
+        /// jump position when the operator toggles between IG and SimHost perspectives.
+        /// No-op when <paramref name="newOwner"/> is already the active owner.
+        /// </summary>
+        /// <remarks>
+        /// Exposed as <c>internal</c> so that headless unit tests can drive perspective
+        /// switches without a live ImGui frame.
+        /// </remarks>
+        internal void SwitchMapOwner(string newOwner)
+        {
+            if (newOwner == _activeMapOwner)
+                return;
+
+            string outgoing = _activeMapOwner;
+            _activeMapOwner = newOwner;
+
+            // Synchronise cameras so the incoming view snaps to the same world region.
+            MapCamera? fromCamera = FindMapCamera(outgoing);
+            MapCamera? toCamera   = FindMapCamera(newOwner);
+            if (fromCamera != null && toCamera != null)
+                toCamera.SnapTo(fromCamera);
+        }
+
+        /// <summary>
+        /// Locates the map camera belonging to the named subsystem by checking
+        /// whether it implements <see cref="IMapCameraProvider"/>.
+        /// </summary>
+        private MapCamera? FindMapCamera(string subsystemName)
+        {
+            foreach (var sub in _subsystems)
+                if (sub.Name == subsystemName && sub is IMapCameraProvider provider)
+                    return provider.GetMapCamera();
+            return null;
         }
 
         /// <summary>

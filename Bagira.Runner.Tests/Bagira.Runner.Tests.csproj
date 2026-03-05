@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Bagira.Runner\Bagira.Runner.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
   </ItemGroup>
 

@@ -23,6 +23,8 @@
     <ProjectReference Include="..\Bagira.SimHost\Bagira.SimHost.csproj" />
     <ProjectReference Include="..\Bagira.IG\Bagira.IG.csproj" />
     <ProjectReference Include="..\Bagira.IOS\Bagira.IOS.csproj" />
+    <!-- Map camera synchronisation (IMapCameraProvider uses MapCamera directly) -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
   </ItemGroup>
 
   <ItemGroup>

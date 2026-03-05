@@ -4,6 +4,7 @@ using System.Numerics;
 using Raylib_cs;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D;
+using FDP.Toolkit.Vis2D.Components;
 using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
 using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
 using FdpRepositoryAdapter    = FDP.Toolkit.ImGui.Adapters.RepositoryAdapter;
@@ -61,6 +62,13 @@ namespace Bagira.SimHost
 
         // ── Public access (tests / other subsystems) ──────────────────────────
         public SimHostSelectionManager? Selection => _selection;
+
+        /// <summary>
+        /// Returns the map camera for this visualization, or <see langword="null"/> when
+        /// not yet initialised.  Used by the Runner orchestrator to synchronise camera
+        /// state when switching between IG and SimHost map perspectives.
+        /// </summary>
+        public MapCamera? GetMapCamera() => _map?.Camera;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 

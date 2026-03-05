@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Xunit;
 using Bagira.Runner.Abstractions;
 using Bagira.Runner.Configuration;
+using Bagira.Runner.Models;
 using Bagira.Runner.Services;
 using Bagira.Runner.Tests.Mocks;
+using FDP.Toolkit.Vis2D.Components;
 
 namespace Bagira.Runner.Tests
 {
@@ -189,6 +192,127 @@ namespace Bagira.Runner.Tests
             orchestrator.Shutdown();
 
             Assert.Equal(new[] { "C", "B", "A" }, shutdownOrder);
+        }
+    }
+
+    /// <summary>
+    /// Tests that switching the active map owner synchronises camera state from the
+    /// outgoing subsystem's map to the incoming one, preventing entity jumps.
+    /// </summary>
+    public class MapCameraSyncTests
+    {
+        private static RunnerConfiguration HeadlessAllConfig()
+        {
+            var c = new RunnerConfiguration
+            {
+                ModeString = "all",
+                Headless   = true,
+                NoWait     = true
+            };
+            c.Validate();
+            return c;
+        }
+
+        private static MapCamera MakeCamera(float zoom, float targetX, float targetY)
+        {
+            var cam = new MapCamera();
+            // Use SnapTo from a source to set up all state consistently.
+            var src = new MapCamera();
+            src.InnerCamera.Zoom   = zoom;
+            src.InnerCamera.Target = new Vector2(targetX, targetY);
+            cam.SnapTo(src);
+            return cam;
+        }
+
+        [Fact]
+        public void SwitchMapOwner_FromIgToSimHost_SnapsSimHostCameraToIgState()
+        {
+            var igCamera  = MakeCamera(zoom: 2.5f, targetX: 100f, targetY: 200f);
+            var shCamera  = MakeCamera(zoom: 1.0f, targetX: 0f,   targetY: 0f);
+
+            var ig      = new MapCameraSubsystemMock("IG",      igCamera);
+            var simHost = new MapCameraSubsystemMock("SimHost", shCamera);
+
+            var orchestrator = new SubsystemOrchestrator(
+                HeadlessAllConfig(), new ISubsystem[] { ig, simHost });
+            orchestrator.Initialize();
+
+            // IG is the default active owner; switch to SimHost.
+            orchestrator.SwitchMapOwner("SimHost");
+
+            Assert.Equal(igCamera.Zoom,   shCamera.Zoom,   precision: 4);
+            Assert.Equal(igCamera.Target, shCamera.Target);
+        }
+
+        [Fact]
+        public void SwitchMapOwner_FromSimHostToIg_SnapsIgCameraToSimHostState()
+        {
+            var igCamera  = MakeCamera(zoom: 1.0f, targetX: 0f,   targetY: 0f);
+            var shCamera  = MakeCamera(zoom: 3.0f, targetX: 500f, targetY: -200f);
+
+            var ig      = new MapCameraSubsystemMock("IG",      igCamera);
+            var simHost = new MapCameraSubsystemMock("SimHost", shCamera);
+
+            // Build an orchestrator where SimHost is initial owner by passing SimHost first
+            // and only SimHost+IOS — then add IG to get it initialized.  Easier: just switch
+            // initial owner explicitly.
+            var orchestrator = new SubsystemOrchestrator(
+                HeadlessAllConfig(), new ISubsystem[] { ig, simHost });
+            orchestrator.Initialize();
+
+            // Switch to SimHost first (camera sync IG → SimHost already tested elsewhere).
+            orchestrator.SwitchMapOwner("SimHost");
+            // Now switch back: SimHost → IG
+            orchestrator.SwitchMapOwner("IG");
+
+            Assert.Equal(shCamera.Zoom,   igCamera.Zoom,   precision: 4);
+            Assert.Equal(shCamera.Target, igCamera.Target);
+        }
+
+        [Fact]
+        public void SwitchMapOwner_SameOwner_DoesNotChangeCameraState()
+        {
+            var igCamera = MakeCamera(zoom: 2.0f, targetX: 50f, targetY: 75f);
+            var ig       = new MapCameraSubsystemMock("IG", igCamera);
+
+            var orchestrator = new SubsystemOrchestrator(
+                HeadlessAllConfig(), new ISubsystem[] { ig });
+            orchestrator.Initialize();
+
+            // Switch to the same owner — no-op, camera should be untouched.
+            orchestrator.SwitchMapOwner("IG");
+
+            Assert.Equal(2.0f, igCamera.Zoom,   precision: 4);
+            Assert.Equal(new Vector2(50f, 75f), igCamera.Target);
+        }
+
+        [Fact]
+        public void SwitchMapOwner_WhenOutgoingCameraIsNull_DoesNotThrow()
+        {
+            // A subsystem that reports a null camera (e.g. not yet initialised / headless).
+            var shCamera = MakeCamera(zoom: 1.5f, targetX: 10f, targetY: 20f);
+            var simHost  = new MapCameraSubsystemMock("SimHost", shCamera);
+
+            var orchestrator = new SubsystemOrchestrator(
+                HeadlessAllConfig(), new ISubsystem[] { new NullCameraSubsystemMock("IG"), simHost });
+            orchestrator.Initialize();
+
+            // Should not throw even though IG camera is null.
+            var ex = Record.Exception(() => orchestrator.SwitchMapOwner("SimHost"));
+            Assert.Null(ex);
+        }
+
+        /// <summary>Helper mock whose <see cref="GetMapCamera"/> always returns null.</summary>
+        private class NullCameraSubsystemMock : ISubsystem, IMapCameraProvider
+        {
+            public string Name { get; }
+            public NullCameraSubsystemMock(string name) => Name = name;
+            public void Initialize(SubsystemConfig config) { }
+            public void Update(float dt) { }
+            public void DrawWorld() { }
+            public void DrawUI() { }
+            public void Shutdown() { }
+            public MapCamera? GetMapCamera() => null;
         }
     }
 }

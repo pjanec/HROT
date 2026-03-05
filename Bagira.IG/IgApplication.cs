@@ -1053,11 +1053,16 @@ public class IgApplication
 
     }
 
-
+    /// <summary>
+    /// Returns the map camera owned by this IG application.
+    /// Used by the Runner orchestrator to synchronise camera state when switching
+    /// between IG and SimHost map perspectives.
+    /// </summary>
+    public MapCamera GetMapCamera() => _canvas.Camera;
 
     /// <summary>
-
     /// Renders the 2-D map canvas and debug overlay.  
+
 
     /// Must be called inside <c>Raylib.BeginDrawing()</c>, before ImGui.
 
