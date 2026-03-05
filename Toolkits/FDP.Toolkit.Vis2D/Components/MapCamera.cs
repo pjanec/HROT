@@ -181,6 +181,21 @@ namespace FDP.Toolkit.Vis2D.Components
             if (zoom > 0) _targetZoom = zoom;
         }
 
+        /// <summary>
+        /// Instantly copies all camera state (current and target) from <paramref name="source"/>
+        /// so that this camera shows exactly the same view without any animation.
+        /// Use when two map views must be aligned at the moment of a perspective switch.
+        /// </summary>
+        public void SnapTo(MapCamera source)
+        {
+            InnerCamera.Zoom   = source.InnerCamera.Zoom;
+            InnerCamera.Target = source.InnerCamera.Target;
+            InnerCamera.Offset = source.InnerCamera.Offset;
+            _targetZoom   = source._targetZoom;
+            _targetTarget = source._targetTarget;
+            _isDragging   = false;
+        }
+
 
         public virtual void BeginMode()
         {
