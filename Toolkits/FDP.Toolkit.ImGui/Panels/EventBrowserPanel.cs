@@ -4,6 +4,8 @@ using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using Fdp.Kernel;
+using FDP.Toolkit.ImGui.Renderers;
+using FDP.Toolkit.ImGui.Utils;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
@@ -13,17 +15,25 @@ public class EventBrowserPanel
 {
     private class CapturedEvent
     {
-        public uint Frame;
-        public string TypeName = "";
-        public bool IsManaged;
-        public string Summary = "";
-        public Dictionary<string, string> Details = new();
+        public uint   Frame;
+        public string TypeName  = "";
+        public Type   EventType = typeof(object);
+        public bool   IsManaged;
+        public string Summary   = "";
+        public object? RawEvent;   // kept for property-tree rendering
     }
 
     private readonly List<CapturedEvent> _history = new();
-    private CapturedEvent? _selectedEvent = null;
-    private bool _paused = false;
-    private int _capacity = 500;
+    private CapturedEvent? _selectedEvent;
+    private bool _paused;
+    private int  _capacity = 500;
+
+    // ── Event type filter ─────────────────────────────────────────────────────
+    // Types in this set are hidden from the event list.
+    // Historical records are preserved so they appear again when re-enabled.
+    private readonly HashSet<string> _disabledTypes = new();
+    // All type names ever seen – drives the filter popup checkbox list.
+    private readonly HashSet<string> _knownTypes = new();
 
     public void Update(FdpEventBus bus, uint currentFrame)
     {
@@ -37,15 +47,24 @@ public class EventBrowserPanel
 
             foreach (var evt in inspector.InspectReadBuffer())
             {
+                string typeName = inspector.EventType.Name;
+                _knownTypes.Add(typeName);
+
+                // Compute summary using a custom renderer if registered
+                var renderer = ImGuiRendererRegistry.GetRenderer(inspector.EventType);
+                string summary = renderer?.GetSummary(evt)
+                              ?? GetGenericEventSummary(evt, inspector.EventType);
+
                 var record = new CapturedEvent
                 {
-                    Frame = currentFrame,
-                    TypeName = inspector.EventType.Name,
+                    Frame     = currentFrame,
+                    TypeName  = typeName,
+                    EventType = inspector.EventType,
                     IsManaged = isManaged,
-                    Summary = GetGenericEventSummary(evt),
-                    Details = GetGenericEventDetails(evt, inspector.EventType)
+                    Summary   = summary,
+                    RawEvent  = evt,
                 };
-                
+
                 _history.Add(record);
             }
         }
@@ -101,18 +120,63 @@ public class EventBrowserPanel
             _history.Clear();
             _selectedEvent = null;
         }
-        
+
         ImGuiApi.SameLine();
-        ImGuiApi.Checkbox("Pause Capture", ref _paused);
-        
+        ImGuiApi.Checkbox("Pause", ref _paused);
+
+        // ── Event-type filter ─────────────────────────────────────────────
         ImGuiApi.SameLine();
-        ImGuiApi.Text($"| Total: {_history.Count}");
-        
+        int hiddenCount = _disabledTypes.Count;
+        string filterLabel = hiddenCount > 0
+            ? $"Filter [{hiddenCount} hidden]###FilterBtn"
+            : "Filter###FilterBtn";
+        if (hiddenCount > 0)
+            ImGuiApi.PushStyleColor(ImGuiCol.Button, new Vector4(0.6f, 0.3f, 0.1f, 1f));
+        if (ImGuiApi.Button(filterLabel))
+            ImGuiApi.OpenPopup("##EventTypeFilter");
+        if (hiddenCount > 0)
+            ImGuiApi.PopStyleColor();
+
+        DrawFilterPopup();
+
+        ImGuiApi.SameLine();
+        int visible = _history.Count(e => !_disabledTypes.Contains(e.TypeName));
+        ImGuiApi.Text($"| Showing: {visible} / {_history.Count}");
+
         if (_selectedEvent != null)
         {
             ImGuiApi.SameLine();
-            ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), $"| Selected: {_selectedEvent.TypeName}");
+            ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), $"| {_selectedEvent.TypeName}");
         }
+    }
+
+    private void DrawFilterPopup()
+    {
+        if (!ImGuiApi.BeginPopup("##EventTypeFilter")) return;
+
+        ImGuiApi.TextDisabled("Show / hide event types:");
+        ImGuiApi.Separator();
+
+        if (ImGuiApi.SmallButton("Enable All"))
+            _disabledTypes.Clear();
+        ImGuiApi.SameLine();
+        if (ImGuiApi.SmallButton("Disable All"))
+        {
+            foreach (var t in _knownTypes) _disabledTypes.Add(t);
+        }
+        ImGuiApi.Separator();
+
+        foreach (var typeName in _knownTypes.OrderBy(n => n))
+        {
+            bool visible = !_disabledTypes.Contains(typeName);
+            if (ImGuiApi.Checkbox(typeName, ref visible))
+            {
+                if (visible) _disabledTypes.Remove(typeName);
+                else         _disabledTypes.Add(typeName);
+            }
+        }
+
+        ImGuiApi.EndPopup();
     }
 
     private void DrawEventList()
@@ -133,6 +197,9 @@ public class EventBrowserPanel
                     for (int i = _history.Count - 1; i >= 0; i--)
                     {
                         var evt = _history[i];
+                        // Apply event type filter (disabled types are hidden but not deleted)
+                        if (_disabledTypes.Contains(evt.TypeName)) continue;
+
                         bool isSelected = (evt == _selectedEvent);
 
                         ImGuiApi.TableNextRow();
@@ -189,101 +256,51 @@ public class EventBrowserPanel
                 ImGuiApi.Text($"Frame: {evt.Frame} | {(evt.IsManaged ? "Managed" : "Unmanaged")}");
                 ImGuiApi.Separator();
                 
-                ImGuiApi.TextWrapped(evt.Summary);
+                ImGuiApi.TextDisabled(evt.Summary);
                 ImGuiApi.Spacing();
                 ImGuiApi.Separator();
 
-                if (ImGuiApi.BeginTable("EventDetailsTable", 2, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.Resizable))
-                {
-                    ImGuiApi.TableSetupColumn("Property", ImGuiTableColumnFlags.WidthFixed, 150);
-                    ImGuiApi.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
-                    ImGuiApi.TableHeadersRow();
-
-                    foreach (var detail in evt.Details)
-                    {
-                        ImGuiApi.TableNextRow();
-                        ImGuiApi.TableSetColumnIndex(0);
-                        ImGuiApi.TextColored(new Vector4(0.7f, 1f, 1f, 1f), detail.Key);
-                        
-                        ImGuiApi.TableSetColumnIndex(1);
-                        ImGuiApi.TextWrapped(detail.Value);
-                    }
-
-                    ImGuiApi.EndTable();
-                }
+                // ── Hierarchical property tree ─────────────────────────────
+                if (evt.RawEvent != null)
+                    ImGuiPropertyTree.Render(evt.RawEvent, contextType: null);
+                else
+                    ImGuiApi.TextDisabled("(no raw event data)");
             }
         }
         ImGuiApi.EndChild();
     }
 
-    private string GetGenericEventSummary(object evt)
+    // ── Summary helpers ───────────────────────────────────────────────────────
+
+    private static string GetGenericEventSummary(object evt, Type type)
     {
         if (evt == null) return "null";
 
-        var type = evt.GetType();
-        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.PropertyType.IsPrimitive || p.PropertyType == typeof(string) || p.PropertyType.IsEnum)
+        // Try primitive fields first (struct events)
+        var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance)
+            .Where(f => f.FieldType.IsPrimitive || f.FieldType == typeof(string) || f.FieldType.IsEnum)
             .Take(3)
-            .Select(p => $"{p.Name}: {p.GetValue(evt)}")
+            .Select(f => $"{f.Name}:{ImGuiPropertyTree.FormatLeaf(f.GetValue(evt))}")
             .ToList();
 
-        if (props.Count == 0 && type.IsValueType)
-        {
-                var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance)
-                .Where(f => f.FieldType.IsPrimitive || f.FieldType == typeof(string) || f.FieldType.IsEnum)
-                .Take(3)
-                .Select(f => $"{f.Name}: {f.GetValue(evt)}")
-                .ToList();
-                props.AddRange(fields);
-        }
+        if (fields.Count > 0)
+            return string.Join("  ", fields);
+
+        // Fall back to non-indexed public properties (managed events)
+        var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.GetIndexParameters().Length == 0 &&
+                       (p.PropertyType.IsPrimitive || p.PropertyType == typeof(string) || p.PropertyType.IsEnum))
+            .Take(3)
+            .Select(p =>
+            {
+                try   { return $"{p.Name}:{ImGuiPropertyTree.FormatLeaf(p.GetValue(evt))}"; }
+                catch { return $"{p.Name}:<err>"; }
+            })
+            .ToList();
 
         if (props.Count > 0)
-            return string.Join(", ", props);
+            return string.Join("  ", props);
 
         return evt.ToString() ?? "null";
-    }
-
-    private Dictionary<string, string> GetGenericEventDetails(object evt, Type type)
-    {
-        var details = new Dictionary<string, string>();
-        if (evt == null) return details;
-
-        if (type.IsValueType)
-        {
-            foreach (var field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
-            {
-                var value = field.GetValue(evt);
-                details[field.Name] = FormatValue(value);
-            }
-        }
-        else
-        {
-            foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
-            {
-                try
-                {
-                    if (prop.GetCustomAttributes(true).Any(a => a.GetType().Name == "IgnoreMemberAttribute"))
-                        continue;
-                    var value = prop.GetValue(evt);
-                    details[prop.Name] = FormatValue(value);
-                }
-                catch
-                {
-                    details[prop.Name] = "<error>";
-                }
-            }
-        }
-
-        return details;
-    }
-
-    private string FormatValue(object? value)
-    {
-        if (value == null) return "null";
-        if (value is Vector2 v2) return $"({v2.X:F2}, {v2.Y:F2})";
-        if (value is Vector3 v3) return $"({v3.X:F2}, {v3.Y:F2}, {v3.Z:F2})";
-        if (value is float f) return f.ToString("F2");
-        if (value is double d) return d.ToString("F2");
-        return value.ToString() ?? "null";
     }
 }

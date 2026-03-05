@@ -16,6 +16,53 @@ public class EntityInspectorPanel
     private string _searchFilter = "";
     private readonly ComponentReflector _reflector = new();
 
+    // ── Chain-to-map toggle (Task 46) ─────────────────────────────────────────
+
+    /// <summary>
+    /// When <c>true</c>, clicking an entity in the inspector list also triggers
+    /// <see cref="OnEntitySelected"/> so the host can propagate the selection to
+    /// the map or other subsystems.  Defaults to <c>false</c> (one-directional:
+    /// map → inspector only).
+    /// </summary>
+    public bool ChainToMap { get; set; } = false;
+
+    /// <summary>
+    /// Raised when the user explicitly clicks an entity in the inspector list
+    /// AND <see cref="ChainToMap"/> is <c>true</c>.
+    /// The host can use this to drive map selection from the inspector.
+    /// </summary>
+    public Action<Entity>? OnEntitySelected { get; set; }
+
+    // ── Context menu (Task 47) ────────────────────────────────────────────────
+
+    private readonly List<IEntityContextMenuHandler> _contextMenuHandlers = new();
+    private Entity _contextMenuEntity = Entity.Null;
+
+    /// <summary>
+    /// Registers a context-menu handler. The handler's
+    /// <see cref="IEntityContextMenuHandler.PopulateMenu"/> is called whenever
+    /// the user right-clicks an entity row in the list.
+    ///
+    /// <para>No handlers registered → no popup shown.</para>
+    /// <para>Multiple handlers → items appended in registration order,
+    /// separated by a visual divider.</para>
+    /// </summary>
+    public void RegisterContextMenuHandler(IEntityContextMenuHandler handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        _contextMenuHandlers.Add(handler);
+    }
+
+    /// <summary>
+    /// Test helper: directly invokes all registered context menu handlers for a given entity.
+    /// Not part of the public API — exposed as <c>internal</c> for unit tests.
+    /// </summary>
+    internal void InvokeContextMenuHandlers(Fdp.Kernel.Entity entity, IContextMenuBuilder builder)
+    {
+        for (int i = 0; i < _contextMenuHandlers.Count; i++)
+            _contextMenuHandlers[i].PopulateMenu(entity, builder);
+    }
+
     /// <summary>
     /// Renders the entity inspector window.
     /// </summary>
@@ -113,11 +160,16 @@ public class EntityInspectorPanel
             if (ImGuiApi.Selectable(label, isSelected))
             {
                 context.SelectedEntity = entity;
+                if (ChainToMap)
+                    OnEntitySelected?.Invoke(entity);
             }
-            
-            if (ImGuiApi.IsItemHovered())
+
+            // Right-click context menu (Task 47).
+            if (_contextMenuHandlers.Count > 0 && ImGuiApi.IsItemHovered() &&
+                ImGuiApi.IsMouseClicked(ImGuiMouseButton.Right))
             {
-                context.HoveredEntity = entity;
+                _contextMenuEntity = entity;
+                ImGuiApi.OpenPopup("##EntityCtxMenu");
             }
         }
         
@@ -130,6 +182,19 @@ public class EntityInspectorPanel
         else if (count >= 1000 && !hasFilter)
         {
              ImGuiApi.TextDisabled($"... (limit 1000 reached)");
+        }
+
+        // Draw the popup (must be called in the same child window as OpenPopup).
+        if (_contextMenuHandlers.Count > 0 && !_contextMenuEntity.IsNull &&
+            ImGuiApi.BeginPopup("##EntityCtxMenu"))
+        {
+            var builder = new ContextMenuBuilder();
+            for (int i = 0; i < _contextMenuHandlers.Count; i++)
+            {
+                if (i > 0) builder.AddSeparator();
+                _contextMenuHandlers[i].PopulateMenu(_contextMenuEntity, builder);
+            }
+            ImGuiApi.EndPopup();
         }
         
         ImGuiApi.EndChild();
@@ -146,16 +211,34 @@ public class EntityInspectorPanel
         else
         {
             Entity e = context.SelectedEntity.Value;
-            
+
             ImGuiApi.Text($"ID: {e.Index} | Gen: {e.Generation}");
-            ImGuiApi.Separator();
-            
+
             if (session.IsReadOnly)
-            {
-                ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), "[READ-ONLY MODE]");
-            }
-                
-            // Use helper to iterate components (with edit support)
+                ImGuiApi.TextColored(new Vector4(1, 1, 0, 1), "[READ-ONLY]");
+            // ── Chain-to-map toggle (Task 46) ──────────────────────────────
+            bool chain = ChainToMap;
+            if (chain)
+                ImGuiApi.PushStyleColor(ImGuiCol.Button, new Vector4(0.20f, 0.65f, 0.20f, 1f));
+            if (ImGuiApi.SmallButton(chain ? "🔗 Linked" : "✔ Unlinked"))
+                ChainToMap = !chain;
+            if (chain)
+                ImGuiApi.PopStyleColor();
+            if (ImGuiApi.IsItemHovered())
+                ImGuiApi.SetTooltip(chain
+                    ? "Inspector → Map propagation ON.  Click to disable."
+                    : "Inspector → Map propagation OFF.  Click to enable.");
+
+            ImGuiApi.SameLine();
+            // ── Expand / Collapse all toolbar ──────────────────────────
+            if (ImGuiApi.SmallButton("▶▶ Expand All"))
+                _reflector.ForceExpandAll = true;
+            ImGuiApi.SameLine();
+            if (ImGuiApi.SmallButton("◀◀ Collapse All"))
+                _reflector.ForceCollapseAll = true;
+
+            ImGuiApi.Separator();
+
             _reflector.DrawComponents(session, e);
         }
         ImGuiApi.EndChild();

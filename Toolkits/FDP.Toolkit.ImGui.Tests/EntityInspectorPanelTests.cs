@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Fdp.Kernel;
 using FDP.Toolkit.ImGui.Panels;
 using FDP.Toolkit.ImGui.Abstractions;
 using FDP.Toolkit.ImGui.Adapters;
+using FDP.Toolkit.ImGui.Utils;
 using Xunit;
 using ImGuiApi = ImGuiNET.ImGui;
 
@@ -99,5 +101,43 @@ namespace FDP.Toolkit.ImGui.Tests
             var results = EntityInspectorPanel.GetFilteredEntities(session, "abc", 1000).ToList();
             Assert.Equal(2, results.Count);
         }
+
+        [Fact]
+        public void RegisterContextMenuHandler_AcceptsHandler_WithoutThrowing()
+        {
+            var panel = new EntityInspectorPanel();
+            var handler = new LambdaEntityContextMenuHandler((_, _) => { });
+            // Should not throw.
+            var ex = Record.Exception(() => panel.RegisterContextMenuHandler(handler));
+            Assert.Null(ex);
+        }
+
+        [Fact]
+        public void RegisterContextMenuHandler_MultipleHandlers_AllStoredAndInvoked()
+        {
+            var panel = new EntityInspectorPanel();
+            var invocations = new List<string>();
+
+            panel.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+                invocations.Add($"A:{entity.Index}")));
+            panel.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
+                invocations.Add($"B:{entity.Index}")));
+
+            // Simulate what the panel does internally: call PopulateMenu on each registered handler.
+            var testEntity = new Entity(5, 1);
+            panel.InvokeContextMenuHandlers(testEntity, NullContextMenuBuilder.Instance);
+
+            Assert.Equal(new[] { "A:5", "B:5" }, invocations);
+        }
+    }
+
+    /// <summary>Null-object implementation of <see cref="IContextMenuBuilder"/> for test isolation.</summary>
+    internal sealed class NullContextMenuBuilder : IContextMenuBuilder
+    {
+        public static readonly NullContextMenuBuilder Instance = new();
+        public void AddItem(string label, Action callback, bool enabled = true) { }
+        public IContextMenuBuilder BeginSubmenu(string label) => this;
+        public void EndSubmenu() { }
+        public void AddSeparator() { }
     }
 }

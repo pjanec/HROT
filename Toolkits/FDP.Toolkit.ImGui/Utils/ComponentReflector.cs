@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Linq;
 using Fdp.Kernel;
 using FDP.Toolkit.ImGui.Abstractions;
+using FDP.Toolkit.ImGui.Renderers;
 using ImGuiNET;
 
 using ImGuiApi = ImGuiNET.ImGui;
@@ -10,161 +11,109 @@ using ImGuiApi = ImGuiNET.ImGui;
 namespace FDP.Toolkit.ImGui.Utils;
 
 /// <summary>
-/// Helper class for rendering component properties using reflection.
-/// Supports EDITABLE fields with write-back to ECS.
+/// Helper that draws all ECS components attached to an entity as collapsible headers,
+/// with optional custom per-component summary and details renderers (auto-discovered
+/// via <see cref="ImGuiRendererRegistry"/>).
+///
+/// <para><b>Collapse behaviour:</b> headers are closed by default.
+/// Set <see cref="ForceExpandAll"/> or <see cref="ForceCollapseAll"/> to override once;
+/// both flags are consumed automatically at the end of <see cref="DrawComponents"/>.</para>
+///
+/// <para><b>Details body:</b> Uses <see cref="ImGuiPropertyTree.Render"/> (hierarchical
+/// read-only tree). A registered <see cref="IImGuiRenderer.RenderValue"/> returning
+/// <c>true</c> replaces the tree entirely.</para>
 /// </summary>
 internal class ComponentReflector
 {
-    // Cache reflection info to avoid repeated lookups
-    private readonly Dictionary<Type, List<FieldInfo>> _fieldCache = new();
+    /// <summary>Set to <c>true</c> this frame to force-expand all component headers.</summary>
+    public bool ForceExpandAll   { get; set; }
+
+    /// <summary>Set to <c>true</c> this frame to force-collapse all component headers.</summary>
+    public bool ForceCollapseAll { get; set; }
 
     /// <summary>
-    /// Draws all components attached to an entity with editable fields.
+    /// Draws all components attached to <paramref name="e"/> as collapsible sections.
+    /// Consumes <see cref="ForceExpandAll"/> / <see cref="ForceCollapseAll"/> after rendering.
     /// </summary>
     public void DrawComponents(IInspectableSession session, Entity e)
     {
         var allTypes = session.GetAllComponentTypes();
 
+        int componentIndex = 0;
         foreach (var type in allTypes)
         {
-            // Generic "HasComponent" check
             if (!session.HasComponent(e, type)) continue;
 
-            bool open = ImGuiApi.CollapsingHeader(type.Name, ImGuiTreeNodeFlags.DefaultOpen);
-            
-            if (open)
+            // Push a stable unique ID scope so the "##ptree" table inside
+            // ImGuiPropertyTree.Render() gets a different ImGui ID per component.
+            // This prevents table-state collisions when multiple components are expanded.
+            ImGuiApi.PushID(componentIndex++);
+
+            // Apply bulk open/close request for this header
+            if (ForceExpandAll)
+                ImGuiApi.SetNextItemOpen(true,  ImGuiCond.Always);
+            else if (ForceCollapseAll)
+                ImGuiApi.SetNextItemOpen(false, ImGuiCond.Always);
+
+            object? data    = session.GetComponent(e, type);
+            string  label   = BuildHeaderLabel(type, data);
+
+            // Headers are collapsed by default (no DefaultOpen flag)
+            bool open = ImGuiApi.CollapsingHeader(label);
+
+            if (open && data != null)
             {
                 ImGuiApi.Indent();
-                object? data = session.GetComponent(e, type);
-                if (data != null)
-                {
-                    // Draw with edit support
-                    DrawObjectProperties(data, e, session, type);
-                }
+
+                var renderer = ImGuiRendererRegistry.GetRenderer(type);
+                bool handled = renderer != null && renderer.RenderValue(data);
+
+                if (!handled)
+                    ImGuiPropertyTree.Render(data, contextType: type);
+
                 ImGuiApi.Unindent();
             }
+
+            ImGuiApi.PopID();
         }
+
+        ForceExpandAll   = false;
+        ForceCollapseAll = false;
     }
 
-    /// <summary>
-    /// Draws object properties as EDITABLE ImGui widgets.
-    /// Writes changes back to ECS with proper versioning.
-    /// </summary>
-    private void DrawObjectProperties(object obj, Entity entity, IInspectableSession session, Type componentType)
+    private static string BuildHeaderLabel(Type type, object? data)
     {
-        Type t = obj.GetType();
-        
-        if (!_fieldCache.TryGetValue(t, out var fields))
-        {
-            fields = new List<FieldInfo>(t.GetFields(BindingFlags.Public | BindingFlags.Instance));
-            _fieldCache[t] = fields;
-        }
+        if (data == null) return type.Name;
 
-        if (ImGuiApi.BeginTable($"props_{t.Name}_{entity.Index}", 2))
-        {
-            ImGuiApi.TableSetupColumn("Field", ImGuiTableColumnFlags.WidthFixed, 120);
-            ImGuiApi.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch);
+        var renderer = ImGuiRendererRegistry.GetRenderer(type);
+        string? summary = renderer?.GetSummary(data);
 
-            bool modified = false;
-            
-            foreach (var field in fields)
-            {
-                ImGuiApi.TableNextRow();
-                ImGuiApi.TableSetColumnIndex(0);
-                ImGuiApi.TextDisabled(field.Name);
-                
-                ImGuiApi.TableSetColumnIndex(1);
-                var val = field.GetValue(obj);
-                
-                // Draw editable widget based on type
-                bool fieldModified = false;
-                if (!session.IsReadOnly)
-                {
-                    fieldModified = DrawEditableField(field, ref val, $"##{field.Name}_{entity.Index}");
-                }
-                else
-                {
-                    ImGuiApi.Text(val?.ToString() ?? "null");
-                }
-                
-                if (fieldModified)
-                {
-                    field.SetValue(obj, val);
-                    modified = true;
-                }
-            }
-            
-            ImGuiApi.EndTable();
-            
-            // Write back to ECS if any field was modified
-            if (modified && !session.IsReadOnly)
-            {
-                session.SetComponent(entity, componentType, obj);
-            }
-        }
+        if (!string.IsNullOrEmpty(summary))
+            return $"{type.Name}  [{summary}]";
+
+        string? auto = GetAutoSummary(data, type);
+        return auto != null ? $"{type.Name}  {auto}" : type.Name;
     }
 
-    /// <summary>
-    /// Draws an editable ImGui widget for a field value.
-    /// Returns true if the value was modified.
-    /// </summary>
-    private bool DrawEditableField(FieldInfo field, ref object? value, string id)
+    private static string? GetAutoSummary(object data, Type type)
     {
-        Type fieldType = field.FieldType;
-        
-        // Handle different types
-        if (fieldType == typeof(float))
+        var fields = type.GetFields(BindingFlags.Public | BindingFlags.Instance)
+            .Where(f => f.FieldType.IsPrimitive || f.FieldType.IsEnum || f.FieldType == typeof(string))
+            .Take(3)
+            .ToArray();
+
+        if (fields.Length == 0) return null;
+
+        var parts = fields.Select(f =>
         {
-            float val = (float)(value ?? 0f);
-            if (ImGuiApi.InputFloat(id, ref val))
-            {
-                value = val;
-                return ImGuiApi.IsItemDeactivatedAfterEdit();
-            }
-        }
-        else if (fieldType == typeof(int))
-        {
-            int val = (int)(value ?? 0);
-            if (ImGuiApi.InputInt(id, ref val))
-            {
-                value = val;
-                return ImGuiApi.IsItemDeactivatedAfterEdit();
-            }
-        }
-        else if (fieldType == typeof(Vector2))
-        {
-            Vector2 val = (Vector2)(value ?? Vector2.Zero);
-            if (ImGuiApi.InputFloat2(id, ref val))
-            {
-                value = val;
-                return ImGuiApi.IsItemDeactivatedAfterEdit();
-            }
-        }
-        else if (fieldType == typeof(Vector3))
-        {
-            Vector3 val = (Vector3)(value ?? Vector3.Zero);
-            if (ImGuiApi.InputFloat3(id, ref val))
-            {
-                value = val;
-                return ImGuiApi.IsItemDeactivatedAfterEdit();
-            }
-        }
-        else if (fieldType == typeof(bool))
-        {
-            bool val = (bool)(value ?? false);
-            if (ImGuiApi.Checkbox(id, ref val))
-            {
-                value = val;
-                return true; // Checkbox is immediate
-            }
-        }
-        else
-        {
-            // Fallback: Read-only text display for complex types
-            ImGuiApi.Text(value?.ToString() ?? "null");
-        }
-        
-        return false;
+            var v  = f.GetValue(data);
+            string vs = v is float  fl ? fl.ToString("G4")
+                      : v is double db ? db.ToString("G4")
+                      : v?.ToString() ?? "null";
+            return $"{f.Name}:{vs}";
+        });
+
+        return "(" + string.Join("  ", parts) + ")";
     }
 }
 
