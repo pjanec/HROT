@@ -140,10 +140,7 @@ namespace Bagira.SimHost.Systems
                     plan.Tasks ??= new List<MissionTask>();
 
                     var queue = BuildQueue(plan, out var orderedTaskIds);
-                    if (repo.HasComponent<MissionPlanQueue>(entity))
-                        repo.SetComponent(entity, queue);
-                    else
-                        repo.AddComponent(entity, queue);
+                    repo.SetComponent(entity, queue);
                     _taskOrder[request.TargetEntityId] = orderedTaskIds;
 
                     currentVersion++;
@@ -185,10 +182,7 @@ namespace Bagira.SimHost.Systems
                         CurrentPhase = 0,
                         PhaseElapsedSeconds = 0f
                     };
-                    if (repo.HasComponent<MissionPlanQueue>(entity))
-                        repo.SetComponent(entity, abortQueue);
-                    else
-                        repo.AddComponent(entity, abortQueue);
+                    repo.SetComponent(entity, abortQueue);
 
                     _taskOrder[request.TargetEntityId] = new List<Guid>();
 

@@ -78,10 +78,7 @@ public class MapCullingSystem : IModuleSystem
 
             var state = new CullingState { IsVisible = inView, LodLevel = lod };
 
-            if (view.HasComponent<CullingState>(entity))
-                cmd.SetComponent(entity, state);
-            else
-                cmd.AddComponent(entity, state);
+            cmd.SetComponent(entity, state);
         }
     }
 }

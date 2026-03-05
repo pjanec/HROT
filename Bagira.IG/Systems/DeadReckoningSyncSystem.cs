@@ -45,10 +45,7 @@ public class DeadReckoningSyncSystem : IModuleSystem
                 Rotation = simTf.Rotation
             });
 
-            if (view.HasComponent<SimVelocity>(entity))
-                cmd.SetComponent(entity, new SimVelocity { Linear = netVel.Value });
-            else
-                cmd.AddComponent(entity, new SimVelocity { Linear = netVel.Value });
+            cmd.SetComponent(entity, new SimVelocity { Linear = netVel.Value });
         }
     }
 }

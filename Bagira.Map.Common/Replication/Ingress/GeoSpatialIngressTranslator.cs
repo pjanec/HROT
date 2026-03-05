@@ -82,24 +82,12 @@ namespace Bagira.Map.Common.Replication.Ingress
 
             cmd.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
 
-            if (!view.HasComponent<SimTransform>(entity))
+            // SetComponent is upsert — adds the component if absent, updates it if present.
+            cmd.SetComponent(entity, new SimTransform
             {
-                cmd.AddComponent(entity, new SimTransform
-                {
-                    Position = position,
-                    Rotation = rotation
-                });
-            }
-            else
-            {
-                // Entity already spawned — propagate position + orientation update so the map
-                // renders the entity at its new location and heading.
-                cmd.SetComponent(entity, new SimTransform
-                {
-                    Position = position,
-                    Rotation = rotation
-                });
-            }
+                Position = position,
+                Rotation = rotation
+            });
         }
 
         // ── Egress (ingress-only translator — nothing to publish) ────────────
@@ -117,24 +105,12 @@ namespace Bagira.Map.Common.Replication.Ingress
 
             repo.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
 
-            if (!repo.HasComponent<SimTransform>(entity))
+            // SetComponent is upsert — adds the component if absent, updates it if present.
+            repo.SetComponent(entity, new SimTransform
             {
-                repo.AddComponent(entity, new SimTransform
-                {
-                    Position = position,
-                    Rotation = rotation
-                });
-            }
-            else
-            {
-                // Ghost promotion — always sync SimTransform so the map
-                // shows the entity at the correct position and heading immediately.
-                repo.SetComponent(entity, new SimTransform
-                {
-                    Position = position,
-                    Rotation = rotation
-                });
-            }
+                Position = position,
+                Rotation = rotation
+            });
         }
     }
 }
