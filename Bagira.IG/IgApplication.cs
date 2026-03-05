@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 using System.Collections.Generic;
 
@@ -434,126 +434,39 @@ public class IgApplication
 
 
 
-        // Pre-register components produced by style and culling systems.
+        //  Shared foundation 
+        // Registers network replication, geographic, shared definitions, and
+        // lifecycle events identically to SimHost (via SimHostComponentRegistry).
+        BagiraSharedComponentRegistry.RegisterAll(_world);
 
+        //  IG-specific visualization and display components 
         _world.RegisterComponent<ResolvedStyle>();
-
         _world.RegisterComponent<CullingState>();
-
         _world.RegisterComponent<SelectionState>();
 
-        _world.RegisterComponent<NetworkIdentity>();
-
-        _world.RegisterComponent<NetworkOwnership>();
-
-        _world.RegisterComponent<NetworkAuthority>();
-
-        _world.RegisterComponent<NetworkSpawnRequest>();
-
-        _world.RegisterComponent<PendingNetworkAck>();
-
-        _world.RegisterComponent<NetworkTransform>();
-
-        _world.RegisterComponent<NetworkVelocity>();
-
-        _world.RegisterComponent<SimTransform>();
-
-        _world.RegisterComponent<SimVelocity>();
-
+        //  IG copies of replicated simulation components 
+        // (SimHost owns simulation; IG needs these registered for DDS deserialization
+        // and query support, but does not run the associated logic systems.)
         _world.RegisterComponent<VehicleParams>();
-
         _world.RegisterComponent<IgHealthState>();
-
         _world.RegisterComponent<Faction>();
-
         _world.RegisterComponent<PerceptionReceptor>();
-
         _world.RegisterComponent<TargetMemory>();
-
         _world.RegisterComponent<WeaponState>();
-
         _world.RegisterComponent<Health>();
-
         _world.RegisterComponent<HealthData>();
-
         _world.RegisterComponent<PhysicsCollider>();
 
-        _world.RegisterComponent<VisualData>();
-
-
-
-        // IG4 ÔÇö Advanced Features components
-
+        //  IG Advanced Features components 
         _world.RegisterComponent<HistoryTrail>();
-
         _world.RegisterComponent<VisualEffectState>();
-
         _world.RegisterComponent<TracerTarget>();
-
         _world.RegisterManagedComponent<ContextMenuState>();
-
         _world.RegisterManagedComponent<EditablePolyline>();
-
         _world.RegisterManagedComponent<IgEntityData>();
 
-        _world.RegisterManagedComponent<SimCombatDef>();
-
-        _world.RegisterManagedComponent<TkbCompositionDef>();
-
-
-
-        _world.RegisterEvent<ConstructionOrder>();
-
-        _world.RegisterEvent<ConstructionAck>();
-
-        _world.RegisterEvent<DestructionOrder>();
-
-        _world.RegisterEvent<DestructionAck>();
-
-
-
-        // IG4 ÔÇö Events (skip in headless mode to avoid aggregated-ID collisions).
-
-        if (!_headless)
-
-        {
-
-            try
-
-            {
-
-                _world.RegisterEvent<Bagira.Map.Common.Events.FireInteractionEvent>();
-
-            }
-
-            catch (TypeInitializationException ex) when (ex.InnerException is InvalidOperationException)
-
-            {
-
-                // Aggregated Runner mode can load multiple event types with the same ID.
-
-                FdpLog<IgApplication>.Warn(
-
-                    "[IG] FireInteractionEvent registration skipped: {0}",
-
-                    ex.InnerException!.Message);
-
-            }
-
-            catch (InvalidOperationException ex)
-
-            {
-
-                // Aggregated Runner mode can load multiple event types with the same ID.
-
-                FdpLog<IgApplication>.Warn("[IG] FireInteractionEvent registration skipped: {0}", ex.Message);
-
-            }
-
-        }
-
-
-
+        // SimCombatDef, TkbCompositionDef, VisualData, lifecycle events, and
+        // FireInteractionEvent are all handled by BagiraSharedComponentRegistry above.
         _userConfig     = new MapUserConfig();
 
         _cameraViewport = new MapCameraViewport();

@@ -597,78 +597,11 @@ namespace Bagira.Runner.Services
         // ── Private ───────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Registers all ECS component types and events used by the SimHost simulation,
-        /// CarKinem physics/navigation, formations, and visualization.  Must be called
-        /// immediately after <see cref="EntityRepository"/> construction, before any
-        /// module or system is initialised.
+        /// Registers all ECS component types and events used by the SimHost simulation.
+        /// Delegates to <see cref="SimHostComponentRegistry.RegisterAll"/>.
         /// </summary>
         private static void RegisterSimComponents(EntityRepository world)
-        {
-            // Network replication
-            world.RegisterComponent<NetworkIdentity>();
-            world.RegisterComponent<NetworkOwnership>();
-            world.RegisterComponent<NetworkAuthority>();
-            world.RegisterComponent<NetworkSpawnRequest>();
-            world.RegisterComponent<PendingNetworkAck>();
-            world.RegisterComponent<NetworkTransform>();
-
-            // Geographic / physics
-            world.RegisterComponent<SimTransform>();
-            world.RegisterComponent<SimVelocity>();
-
-            // Behavior toolkit
-            world.RegisterComponent<DoctrineState>();
-            world.RegisterComponent<LocomotionChannel>();
-            world.RegisterComponent<WeaponChannel>();
-            world.RegisterComponent<InteractionChannel>();
-            world.RegisterComponent<ActorCapabilityState>();
-            world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainBlackboard>();
-            world.RegisterComponent<MissionPlanQueue>();
-
-            // Combat + perception
-            world.RegisterComponent<PerceptionReceptor>();
-            world.RegisterComponent<TargetMemory>();
-            world.RegisterComponent<WeaponState>();
-            world.RegisterComponent<Health>();
-            world.RegisterComponent<HealthData>();
-            world.RegisterComponent<BallisticProjectile>();
-            world.RegisterComponent<Faction>();
-            world.RegisterComponent<PhysicsCollider>();
-
-            // CarKinem / navigation
-            world.RegisterComponent<CarKinem.Core.VehicleState>();
-            world.RegisterComponent<CarKinem.Core.VehicleParams>();
-            world.RegisterComponent<CarKinem.Core.NavState>();
-            world.RegisterComponent<CarKinem.Formation.FormationMember>();
-            world.RegisterComponent<CarKinem.Formation.FormationRoster>();
-            world.RegisterComponent<CarKinem.Formation.FormationTarget>();
-            world.RegisterComponent<VisualData>();
-
-            // Managed
-            world.RegisterManagedComponent<IgEntityData>();
-            world.RegisterManagedComponent<SimCombatDef>();
-            world.RegisterManagedComponent<TkbCompositionDef>();
-            world.RegisterManagedComponent<EntityMissionHolder>();
-
-            // Lifecycle events
-            world.RegisterEvent<ConstructionOrder>();
-            world.RegisterEvent<ConstructionAck>();
-            world.RegisterEvent<DestructionOrder>();
-            world.RegisterEvent<DestructionAck>();
-            world.RegisterEvent<Bagira.Map.Common.Events.FireInteractionEvent>();
-
-            // CarKinem command events
-            world.RegisterEvent<CmdSpawnVehicle>();
-            world.RegisterEvent<CmdCreateFormation>();
-            world.RegisterEvent<CmdNavigateToPoint>();
-            world.RegisterEvent<CmdFollowTrajectory>();
-            world.RegisterEvent<CmdNavigateViaRoad>();
-            world.RegisterEvent<CmdJoinFormation>();
-            world.RegisterEvent<CmdLeaveFormation>();
-            world.RegisterEvent<CmdStop>();
-            world.RegisterEvent<CmdSetSpeed>();
-        }
+            => SimHostComponentRegistry.RegisterAll(world);
 
         private void RunIdAllocatorServerLoop(CancellationToken ct)
         {
