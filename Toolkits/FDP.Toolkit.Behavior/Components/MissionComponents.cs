@@ -58,6 +58,42 @@ namespace FDP.Toolkit.Behavior.Components
     /// number of phases defined. The mission is complete when <c>CurrentPhase &gt;= PhaseCount</c>.
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>⚠ MUTATION WARNING — <c>[InlineArray]</c> C# 12 Defensive-Copy Trap</b>
+    /// </para>
+    /// <para>
+    /// Because this type is decorated with <c>[InlineArray]</c>, the C# compiler may emit an
+    /// <c>ldobj</c> IL instruction when the indexer (<c>[i]</c>) is evaluated on a <c>ref</c>
+    /// variable. This copies the entire 96-byte buffer to a temporary on the evaluation stack
+    /// before applying the index, meaning <b>any mutation via the indexer is silently
+    /// discarded</b> — the ECS chunk is never written to.
+    /// </para>
+    /// <para>
+    /// ❌ <b>Broken — mutation is lost:</b>
+    /// <code>
+    /// ref var q = ref repo.GetComponentRW&lt;MissionPlanQueue&gt;(entity);
+    /// q.Phases[0] = somePhase;   // writes to a JIT temporary — silently ignored!
+    /// </code>
+    /// </para>
+    /// <para>
+    /// ✅ <b>Safe — Span cast (zero-allocation, guaranteed in-place write):</b>
+    /// <code>
+    /// ref var q = ref repo.GetComponentRW&lt;MissionPlanQueue&gt;(entity);
+    /// Span&lt;MissionPhase&gt; phases = q.Phases;   // C# 12 InlineArray→Span holds a real pointer
+    /// phases[0] = somePhase;
+    /// </code>
+    /// </para>
+    /// <para>
+    /// ✅ <b>Safe — Get ➔ Mutate ➔ SetComponent (clearest for low-frequency writes):</b>
+    /// <code>
+    /// var q = repo.GetComponent&lt;MissionPlanQueue&gt;(entity);   // read a local copy
+    /// q.Phases[0] = somePhase;                                  // mutate the copy
+    /// q.PhaseCount = 1;
+    /// repo.SetComponent(entity, q);                             // write the copy back
+    /// </code>
+    /// </para>
+    /// </remarks>
     [InlineArray(8)]
     public struct MissionPhaseBuffer
     {
@@ -65,6 +101,24 @@ namespace FDP.Toolkit.Behavior.Components
     }
 
     /// <inheritdoc cref="MissionPhaseBuffer"/>
+    /// <remarks>
+    /// <para>
+    /// <b>⚠ MUTATION WARNING — <c>[InlineArray]</c> Defensive-Copy Trap on <see cref="Phases"/></b>
+    /// </para>
+    /// <para>
+    /// The <see cref="Phases"/> field is a <c>[InlineArray]</c> struct. Writing to its elements
+    /// via an index expression on a <c>GetComponentRW</c> ref may silently fail because the
+    /// C# compiler can emit an <c>ldobj</c> that copies the buffer to a temporary before
+    /// applying <c>[i]</c>. The mutation hits the temporary, not ECS chunk memory.
+    /// </para>
+    /// <para>
+    /// <b>Rule of thumb for this component:</b> prefer the Get ➔ Mutate ➔
+    /// <c>SetComponent</c> pattern (mission phases change at most once per second — the
+    /// extra 98-byte copy is irrelevant), or cast <c>Phases</c> to a
+    /// <c>Span&lt;MissionPhase&gt;</c> before indexing. See <see cref="MissionPhaseBuffer"/>
+    /// remarks for worked examples.
+    /// </para>
+    /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.MissionPlanQueue)]
     public struct MissionPlanQueue
@@ -73,6 +127,13 @@ namespace FDP.Toolkit.Behavior.Components
         public const int MaxPhases = 8;
 
         /// <summary>Inline storage for up to <see cref="MaxPhases"/> phases.</summary>
+        /// <remarks>
+        /// <b>⚠ Do not write to this field's elements via a bare <c>GetComponentRW</c> ref.</b>
+        /// The <c>[InlineArray]</c> indexer may produce a JIT defensive copy, silently discarding
+        /// your mutation. Use the <c>Span&lt;MissionPhase&gt;</c> cast or the
+        /// Get ➔ Mutate ➔ <c>SetComponent</c> pattern instead.
+        /// See the type-level remarks on <see cref="MissionPhaseBuffer"/> for details.
+        /// </remarks>
         public MissionPhaseBuffer Phases;
 
         /// <summary>Index of the currently active phase (0-based).</summary>

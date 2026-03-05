@@ -727,6 +727,32 @@ namespace Fdp.Kernel
         /// <c>SmartEgressUtil.MarkDirty</c> for the specific descriptor ordinal, or
         /// implement per-translator state comparison.
         /// </para>
+        /// <para>
+        /// <b>⚠ DANGER — <c>[InlineArray]</c> Mutation Trap (C# 12)</b><br/>
+        /// Components that contain an <c>[InlineArray]</c> field (e.g.
+        /// <c>MissionPlanQueue.Phases</c>) are susceptible to a JIT defensive-copy bug.
+        /// When you write:
+        /// <code>
+        /// ref var q = ref GetComponentRW&lt;MissionPlanQueue&gt;(e);
+        /// q.Phases[0] = x;  // ❌ compiler emits ldobj → copies buffer to temp → mutation lost!
+        /// </code>
+        /// The C# compiler emits an <c>ldobj</c> IL instruction that copies the inline array
+        /// to a temporary evaluation slot before applying the indexer. The mutation hits the
+        /// temporary, not the ECS chunk. The write is <b>silently lost</b>.
+        /// </para>
+        /// <list type="bullet">
+        ///   <item>
+        ///     <b>Flat-struct components</b> (<c>SimTransform</c>, <c>SimVelocity</c>,
+        ///     <c>DoctrineState</c>, etc.) — use <c>GetComponentRW</c> freely; no inline
+        ///     arrays, no risk.
+        ///   </item>
+        ///   <item>
+        ///     <b>Components with <c>[InlineArray]</c> fields</b> — use one of these safe
+        ///     patterns instead:<br/>
+        ///     ✅ Cast to <c>Span&lt;T&gt;</c> first: <c>Span&lt;MissionPhase&gt; s = q.Phases; s[0] = x;</c> (zero-alloc, in-place).<br/>
+        ///     ✅ Read with <c>GetComponent</c>, mutate the local copy, then call <c>SetComponent</c>.
+        ///   </item>
+        /// </list>
         /// </remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public ref T GetComponentRW<T>(Entity entity)
