@@ -8,93 +8,123 @@ because disposal sample have sample.IsValid==false, the disposal migh not be det
 Some older implementation of cyclone dds had a bug where sample.Data was throwing exception
 if sample.IsValid==fasle
 
-# SetComponent vs. AddComponent
-At many places there is code like "if Hascomponent then SetComponent else AddComponent".
-SetComponent should automatically add it if it does not exist.
-
-# Duplicated component registration
-subsystems like SimHost, IG, IOS use different registration paths if they run inside bagira runner or not;
-we should unify this as mauch as possible for maintainability.
-
-
-# SimHost's IdAlloc fails for the first allocation
-First entity creation request fails on SimHost failing to allocate an id.
-
-When i click "Spawn" for the first time, the entity is not created and the console says:
-
-07:27:44.5861 | DEBUG | BdcCommandGateway | [TRACE-GW] Sending CreateEntityRequest ID=89939fdb-d67c-49f9-ab52-c6852d3fc1e6
-07:27:48.0195 | ERROR | CreateEntityRequestSystem | [SimHost] CreateEntity failed for request 89939fdb-d67c-49f9-ab52-c6852d3fc1e6: ID pool exhausted and no response from server.
-07:27:48.0195 | DEBUG | BdcCommandGateway | [TRACE-GW] CreateEntityAck ID=89939fdb-d67c-49f9-ab52-c6852d3fc1e6 Entity=0 Error=500
-
-Next Spawn is ok. For the first time, in DdsIdAllocator ProcessResponses() the condition "if (response.ClientId != _clientId && !string.IsNullOrEmpty(response.ClientId)) " is fullfilled because response.ClientId=="IG_300" and _clientId=="SimHostAllocator". On second try this is response.ClientId=="SimHostAllocator".
-
-# Drop event does not move the entity immediately
-On entity drag and drop, after the drop the entity on the IG does not jump immediately, but but only after some time,
-when the rolling window-triggered geoSpatial update arrives.
 
 
 
+# Mission commit times out
 
-
-----
-Drop does not move the entity on the map.
-
-Example for entity #2
-
-08:56:41.1731 | DEBUG | GeoSpatialIngressTranslator | [TRACE-IG] Ingress: GeoSpatial Entity=2 Lat=52,5203594355974 Lon=13,402466073833486
-08:56:46.9194 | INFO  | BdcCommandGateway | [GW] Sent UpdateEntityDescriptorRequest for Entity 2 (dtGeoSpatial)
-08:56:46.9194 | INFO  | IgApplication | [IG] Drag end: sent UpdateEntityDescriptorRequest for NetID 2 to (52,52170°, 13,39813°).
-08:56:46.9355 | INFO  | UpdateEntityDescriptorRequestSystem | [UpdDescReq] Applied GeoSpatial move for NetID 2 ␦ (-466,0, 189,0, 0,0) Cartesian.
-08:56:51.6044 | DEBUG | GeoSpatialIngressTranslator | [TRACE-IG] Ingress: GeoSpatial Entity=2 Lat=52,521698261901456 Lon=13,398134618801565
-
-Simhost moves the entity (ig0ingress sees new position) but the map does not show it, entity remains on original place.
-
-
-----
 "Selection & Mission" panel is empty no matter what entity i select on the map. It is not empty if i create the entity via the "ORBAT tree"
 UI. Pls explain what is needed to show the entity in "Selection & Mission" panel.
 
+The entity created via Add New Unit is shown in the IOS map but not shown in the SimHost map (but the entity exists in SimHost's ECS)
+Probably because it is missing the components making it a vehicle. And missing a component making it able to execute missions.
+
 Pressing "Commit" does not display any line on the console. Either no command is sent as a response to hitting the commit button
-or there are FdpLog prints missing?
+or there are FdpLog prints missing? Update: The request times out...
 
-----
-I need the UI panels from IG to have green title bar and those from simhost to have red title bar. IOS ones should stay at violet color.
 
-----
-"Spawn moving vehicle" spawns an entity but it does not move at all.
-
-The ingress console lines show all the time the same coordinate so simhost probably does not send anything
-
-09:02:31.7053 | DEBUG | GeoSpatialIngressTranslator | [TRACE-IG] Ingress: GeoSpatial Entity=3 Lat=52,52 Lon=13,405000000000003
-----
-
-If running combined mode of bagira runner with all three components (-x all) the simhost is now run in headless mode to avoid
-colliding with input handling of IOS and/or IG. But that effectively hides all diagnostics UI of simhost. In this case, simhost
-should not run fully headless. Just its map toolkit should be disabled so click on the map or entities are not enabled. But its
-UI panels must be shown. Alternatively (preferrably) the bagira runner combined UI might show a visual switch (in the main menu bar)
-specifying whose subsystem's map toolkit should be currently enables (IG or SimHost) - colored dual state buttons, same color as
-subsystems color; currently active subsystem should show its button in brigh color while the inactive one should show dark shade.
-
------
-
-SimHost and IG subsystems should be showing their respective entity inspector and event inspector - nothing custom and simplified,
-but the standard and fully fledged one from the FDP toolkits. At the moment i have no clue what the states of SimHost and IG ECS is.
-If is fine if they are shown at the same time in combined bode of bagira.runner as the title bars are colored so i fill know what
-panel belongs to what subsystem. The generic ones then needs to support coloring their title bar in the
-same way as the custom panels of SimHost and IG in the bagira runer are doing - perhaps via some ctor parameter.
 
 ----
 
-Upon clicking "New unit" the placement tool activates. I click on map, entity gets created and placement tool indicator disappers.
-I click again and new enity gets created. i right click again and new entity gets created. Only the clicks when the placement tool
-is active should create new entities. When i then activate placement tool usiong "ACTIVATE PLACEMENT TOOL" and click to create a new
-entity, the click behavior resets to normal (no more underied creations on click)
 
------
+# Task 41: Entity inspector 
+In SimHost/IG entity inspector, i need the following
+ - By default all component headers collapsed so I see just the headers, forming a plain list of components the entity is having - good for overview.
+ - Icon that collapses all components or expands all (toggle)
+ - The component header should show the most important stuff from the component via a custom renderer that can be provided
+   for any component type. The renderer should be derived from some custom interface and/or marked by a custom attribute
+   to be auto-discovered using reflection anywhere in the code. The automatic registration
+   mechanism can attach it automatically to a components and use it in the entity inspector. Maybe if the renderer take the component type
+   reference as parameter or something (not via specifying component type name as string - this is fragile)
 
-When i select "Hostile" on Entity Spawner UI panel and activate the placement tool, the entity is not created as hostile.
-I need the creation request to carry the entity info descriptor (maybe alread done).
-SimHost should convert it to related ECS managed component IgEntityData.
-On change of that ECS descriptor there should be entity info egress translator publishing the entity info descriptor to the IG.
+  - another kind of custom renderer for ECS component should allow replacing the default one in the details pane
+    - showing the hierarchical dump of properties a tree-like table (see descriptiron for EventBrowser)
+       - this hierarchical ImGui reflection-based property renderer should be a shared tool in the Vis2d toolkit, reused at amny places (see below)
 
-----
+For example:
+  - special renderer for TargetMemory component able to decode EntityIds, PositionsX etc.
+
+
+The custom renderer must be registrable per any csharp type, not just the ECS component type, to be used for rendering the values of the properties.
+For example:
+  - special renderer for vector2, verctors showing inlined numbers like  [x, y, z] for brevity
+  - special renderer for Quaternion will show values in euler angles on degress (yaw, pitch, roll)
+     - could also show a sub-tree table in the value cell if needed
+  - the attribute should allow limit the use of such a renderer just in some condition (for example jut inside some concrete ECS component)
+     to avoid beining used globally in wrong context (where the quaternion might mean something different than yaw pitch roll) 
+
+# task 42: Event Browser
+In SimHost/IG event browser, i need the following 
+ - Be able to disable showing some types of events (especialy the very frequent ones) that are flooding the view.
+     - in the first line of the event browser, there should be a button that open a sub-window or pull-down with check-box list of all available events
+     - if I uncheck some, it should NOT be shown in the list (a filter) but the events should keep to be received to be shown (the historical ones) when checked again
+ - On the right side, when the details are shown, there is a table woith "Property" and "Value". it is not showing anything now for the TimePulseDescriptor event
+    - it should be showing a tree-ized reflaction-based dump of the event parameters
+        -each line one property,
+        - if the property is nested, in left column (the property) the property name indented by the nesting level
+        - if a property has children, is should be foldable (showing the expand/collapse triangle)
+        - if some properties on the same level are foldable and some are not, the property name start should be aligned (non-foldable must add some indent to match the indentation of the foldable one)
+        - if the property is struct/class, the value field should be shown empty
+        - ig the property is a collection, the value field should show the number of elements in square brackets, like "[12]"
+ - IOn the left after the event name there is now the event field dump shown in gray. This is good. But i need it to be customizable by 
+     similar (same?) custom renderer mechanism as requested for the Entity Inspector components (see above). Reflection-discovered custom imgui renderer.
+     The default as it is now should stay for those not having custom renderer.
+
+# Task 43: Selected entity in entity inspector
+ - if we select an entity on the map, the selection changed event should focus that entity in the Entity inspector.
+ - This needs to work independently for simHost and for IG.
+    -  If SimHost perspective active (from the main menu), selecting entity on SimHost 2d map should focus the entity just in the SimHost Entity Inspector.
+    -  If IG perspective active (from the main menu), selecting entity on IG 2d map should focus the entity just in the IG Entity Inspector.
+
+# Task 44: IOS Data Monitor panel
+The panel It shoudl have details sub pane on the right, showing more detail on the record. Similarly to the Event browser
+  - a property tree dump shown in a table (one line per property, same as described above for the event browser, reusing same reflection based rendering mechanism)
+
+
+
+task 44 seems not to to be implemented in Bagira.Runner - i see no changes in the "Data Panel" visualization - still showing 3 column table (Time, topic, Details) as before, rows are non-clickable, no bigger detail shown. pls re-check. 
+
+Task 45
+The Entity class (index and generation) requires its custom renderer so it shows in the tree-dump immediastely as "[<index>, v<generation>] (like "[12, v1]" ) . Now i need to expand the Entity field and look at two lines Index and Generation. The expandability should remain but the value of the Entity struct row whould show the [index, generation] immediately
+
+Task 46
+The Entity Inspector, when i click on an entity (and there is no entity on the map shown), for one frame
+ i see the content on the detail panel, but it immediately disappaer so the right part shows just empty space.
+ This is not happening if there is an entity on the map (at least one) and i click it. Then all good, detail is shown and is stable.
+
+Maybe it is fighting with the map selection but this link should be one-directional: selecting an ewntity on
+map focuses the entity in the entity inspector. But cchanging the focus on the entity inspector to another entoty
+should not select another entity on the map (or at least not by default - there could by some togglable "chain" icon
+ that enables this inspector-to-map propagation of selection).
+
+Task 47
+when talking about browser-to-map direction. I would like the entity browser to support customizable
+context menu - so the user app could register a handler that adds one or more items to the context menu
+(including items with submenus), based on the entity clickes (the handler needs to get the Entity identification)
+No handler -> no menu. Multiple handlers -> the menu gets composed from all these together. This should be generic
+support in the toolkit, customizable by the hosting app (like the subsystems in Bagira.Runner)
+
+For both the IG and SimHost subsystems in the Bagira.Runner, these menu should contain the "Center on entity" item,
+also "Select entity" item.
+
+In case of the IG "Select entity", the menu item handler should properly send the selection changed event to IOS,
+reusing exactly the same path as when user clicks there.
+
+task 48
+On entity inspector When i click on "Expand all", there might be some recursion or something causing the list growing indefinitely
+(the scrollbar handle is shrinking for quite a long time).
+
+The table for individual component seems to show few valid rows - propertise,
+but after those there is a lot of "empty rows", making each table very hight but showing empty smace mostly.
+
+
+
+task 50
+Center on entity (when IG perspective is active) deos not move the camera until i move the mouse cursor from ImGui panel to the map space.
+
+
+task 51
+clicking on "New unit..." activates placement tool which never ends - each click (left or right) creates a new entity. This is a regression.
+It stops when i click on "ACTIVATE PLACEMENT TOOL" and make a click to create entity.
+
+
