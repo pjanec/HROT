@@ -1,4 +1,4 @@
-﻿# 🤖 FDP Engine: Rules & Guidelines
+# 🤖 FDP Engine: Rules & Guidelines
 
 **Core Philosophy:** The FDP (Fast Data Plane) is a high-performance, zero-allocation, deterministic Entity Component System (ECS) designed for distributed simulation. Performance, memory safety, and strict network decoupling are non-negotiable.
 
@@ -34,12 +34,6 @@ ECS entity slots are aggressively recycled. Holding onto a raw integer index wil
 ---
 
 ## 🟠 TIER 2: ECS MECHANICS & SCHEDULING
-
-### 5. Efficient Component Access (`TryGetComponent` & `RW` vs `RO`)
-Do not waste CPU cycles on redundant lookups or unnecessary data copying.
-*   **Use `TryGetComponent`:** Instead of calling `HasComponent<T>` followed immediately by `GetComponentRO<T>`, use `if (view.TryGetComponent<T>(entity, out var comp))`.
-*   **Unmanaged Mutations (In-Place):** For Tier 1 structs, use `ref var comp = ref view.GetComponentRW<T>(entity); comp.Value = 1;`. Do *not* read it (`RO`), mutate the copy, and write it back (`SetComponent`), as `RW` gives you a direct, in-place pointer and handles dirty tracking automatically.
-*   **Managed Mutations (Strictly Replace):** For Tier 2 managed classes, **never mutate in-place**. Background Snapshot-on-Demand (SoD) modules might hold a shallow reference copy. Always instantiate/clone and use `view.SetManagedComponent<T>(entity, newInstance)`.
 
 ### 6. Strict Execution Phasing & Ordering
 The FDP Kernel enforces strict phasing. Understand the difference between Main World Systems and Background Modules.
@@ -91,3 +85,11 @@ The simulation must be able to run in Stepped/Lockstep modes or Replay modes sea
 1. **NEVER pass DDS DTOs through the Event Bus:** If a struct has a `[DdsTopic]` attribute, it stops at the App layer (`SimHost` / `IG`). It must be mapped to an ECS component before entering `SpawnEntityCommand`.
 2. **Keep Mappers and Translators Synced:** If `WeaponStateTranslator` translates a DDS `WeaponState` into an ECS `CombatHealth` component, `DescriptorMapper` must do the exact same thing for the `dtWeaponState` union case.
 3. **Accept minor allocations on the Cold Path:** Using `List<object>` and Reflection (`EntityComponentReflector`) allocates memory on the heap. **This is acceptable here.** Entity spawning is a *Cold Path* operation (happens occasionally). The strict "Zero-Allocation" rule only applies to the *Hot Path* (systems running every single frame, like physics or continuous network sync).
+
+### 14. Be cautions about writing to inlined arrays
+
+* **DON'T:*** blindly write to [InlineArray] fields using index. This is susceptible to a JIT defensive-copy bug.
+* **DO:** one of these safe patterns instead:
+    * Cast the inlined array field to Span  first and mutate the span.
+    * Read with GetComponent, mutate the local copy, then call SetComponent.
+
