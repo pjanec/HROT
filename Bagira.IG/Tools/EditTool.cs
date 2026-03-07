@@ -54,6 +54,7 @@ public class EditTool : IMapTool
     private MapCanvas?    _canvas;
     private List<Vector2> _ghostPoints = new();
     private int           _selectedVertexIndex = EditTool.NoVertexSelected;
+    private Vector2       _originOffset;
 
     private const int NoVertexSelected = -1;
 
@@ -92,10 +93,17 @@ public class EditTool : IMapTool
     /// <param name="view">
     /// Simulation view used to read the current polyline at enter-time.
     /// </param>
-    public EditTool(Entity targetEntity, ISimulationView view)
+    /// <param name="originOffset">
+    /// World-space offset that is <em>added</em> to every relative vertex when loading ghost
+    /// points. Typically <c>new Vector2(simTransform.X, simTransform.Y)</c> so that the
+    /// ghost list is in absolute world space and can be dragged directly on the canvas.
+    /// Pass <c>default</c> (zero) when points are already absolute (e.g. unit tests).
+    /// </param>
+    public EditTool(Entity targetEntity, ISimulationView view, Vector2 originOffset = default)
     {
         _targetEntity = targetEntity;
         _view         = view ?? throw new ArgumentNullException(nameof(view));
+        _originOffset = originOffset;
     }
 
     // ── IMapTool lifecycle ────────────────────────────────────────────────────
@@ -125,13 +133,16 @@ public class EditTool : IMapTool
     // ── Input handling ────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Left-click is a no-op (consumed to prevent canvas fall-through); vertex selection
+    /// is driven by <see cref="HandleHover"/> so that click-and-drag works without a
+    /// separate click-to-select step.
+    /// Right-click commits the ghost polyline and pops the tool.
+    /// </remarks>
     public bool HandleClick(Vector2 worldPos, MouseButton button)
     {
         if (button == MouseButton.Left)
-        {
-            _selectedVertexIndex = FindNearestVertex(worldPos);
-            return true;
-        }
+            return true; // consume; hover already managed selection
 
         if (button == MouseButton.Right)
         {
@@ -144,17 +155,34 @@ public class EditTool : IMapTool
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Highlights the nearest vertex within pick radius (shown as the selected vertex in
+    /// <see cref="Draw"/>).  Resets selection when the cursor moves outside pick range of
+    /// every vertex, so there is never a stale "locked" selection between gestures.
+    /// </remarks>
+    public bool HandleHover(Vector2 worldPos)
+    {
+        _selectedVertexIndex = FindNearestVertex(worldPos);
+        return false; // hover does not consume; camera pan must still work
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// If no vertex is selected yet (e.g. the mouse was pressed without a prior hover
+    /// update), auto-selects the nearest vertex within pick range before moving it.
+    /// This allows direct click-and-drag without a separate click-to-select step.
+    /// </remarks>
     public bool HandleDrag(Vector2 worldPos, Vector2 delta)
     {
+        if (_selectedVertexIndex < 0)
+            _selectedVertexIndex = FindNearestVertex(worldPos);
+
         if (_selectedVertexIndex < 0 || _selectedVertexIndex >= _ghostPoints.Count)
             return false;
 
         _ghostPoints[_selectedVertexIndex] = worldPos;
         return true;
     }
-
-    /// <inheritdoc/>
-    public bool HandleHover(Vector2 worldPos) => false;
 
     /// <inheritdoc/>
     public void Draw(RenderContext ctx)
@@ -190,7 +218,12 @@ public class EditTool : IMapTool
         if (_view.HasManagedComponent<EditablePolyline>(_targetEntity))
         {
             var polyline = _view.GetManagedComponentRO<EditablePolyline>(_targetEntity);
-            return new List<Vector2>(polyline.Points);
+            // Convert relative Cartesian → absolute world space by adding the origin offset.
+            // With default origin (zero) points are returned unchanged (unit-test friendly).
+            var result = new List<Vector2>(polyline.Points.Count);
+            for (int i = 0; i < polyline.Points.Count; i++)
+                result.Add(polyline.Points[i] + _originOffset);
+            return result;
         }
         return new List<Vector2>();
     }

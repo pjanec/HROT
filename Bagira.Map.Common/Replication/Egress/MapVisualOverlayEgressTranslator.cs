@@ -54,6 +54,7 @@ namespace Bagira.Map.Common.Replication.Egress
         {
             var query = view.Query()
                 .With<NetworkIdentity>()
+                .With<SimTransform>()
                 .WithManaged<EditablePolyline>()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
@@ -66,19 +67,26 @@ namespace Bagira.Map.Common.Replication.Egress
                 if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
                     continue;
 
-                ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
+                ref readonly var netId   = ref view.GetComponentRO<NetworkIdentity>(entity);
+                ref readonly var simTr   = ref view.GetComponentRO<SimTransform>(entity);
                 var polyline = view.GetManagedComponentRO<EditablePolyline>(entity);
 
+                // Reference position in geodetic space (entity's SimTransform position).
+                var (refLat, refLon, refAlt) = _geoTransform.ToGeodetic(simTr.Position);
+
+                // Points in EditablePolyline are RELATIVE Cartesian offsets from SimTransform.
+                // Convert back to RELATIVE geo offsets (deltaLat, deltaLon, deltaAlt).
                 var geoPoints = new List<GeoPosition>(polyline.Points.Count);
                 for (int i = 0; i < polyline.Points.Count; i++)
                 {
-                    var pt = polyline.Points[i];
-                    var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(pt.X, pt.Y, 0f));
+                    var relCart = polyline.Points[i];
+                    var absCart = new Vector3(simTr.Position.X + relCart.X, simTr.Position.Y + relCart.Y, simTr.Position.Z);
+                    var (lat, lon, alt) = _geoTransform.ToGeodetic(absCart);
                     geoPoints.Add(new GeoPosition
                     {
-                        Latitude  = lat,
-                        Longitude = lon,
-                        Altitude  = alt,
+                        Latitude  = lat - refLat,
+                        Longitude = lon - refLon,
+                        Altitude  = alt - refAlt,
                     });
                 }
 

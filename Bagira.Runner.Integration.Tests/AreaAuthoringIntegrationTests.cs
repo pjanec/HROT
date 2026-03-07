@@ -59,6 +59,10 @@ public class AreaAuthoringIntegrationTests
         Assert.True(
             HasMasterWithTkb(observedRequest.InitialDescriptors, TkbEntityTypes.TacGraphic_Area),
             DescribeDescriptors(observedRequest.InitialDescriptors));
+        // Area entities now carry a GeoSpatial (centroid reference point) in the CreateEntityRequest.
+        Assert.True(
+            HasGeoSpatialDescriptor(observedRequest.InitialDescriptors),
+            DescribeDescriptors(observedRequest.InitialDescriptors));
         Assert.True(
             HasOverlayWithPointCount(observedRequest.InitialDescriptors, points.Count),
             DescribeDescriptors(observedRequest.InitialDescriptors));
@@ -93,12 +97,27 @@ public class AreaAuthoringIntegrationTests
 
         var igPolyline = GetIgPolylinePoints(harness, networkId);
         Assert.Equal(points.Count, igPolyline.Count);
+
+        // With relative-coordinate storage, polyline points are offsets from the entity's
+        // SimTransform position (centroid). Verify that centroid + relative == original abs pos.
+        bool igHasSimTransform = harness.PumpUntil(
+            () => IgHasSimTransform(harness, networkId),
+            OverlayTimeoutFrames);
+        Assert.True(igHasSimTransform, "IG entity did not receive SimTransform (centroid) in time.");
+
+        var igCentroid   = GetIgSimTransformPosition(harness, networkId);
+        var igCentroidXy = new Vector2(igCentroid.X, igCentroid.Y);
+
         for (int i = 0; i < points.Count; i++)
         {
-            float dist = Vector2.Distance(points[i], igPolyline[i]);
+            // Absolute position reconstructed from centroid + relative offset.
+            var absFromIg = igCentroidXy + igPolyline[i];
+            float dist = Vector2.Distance(points[i], absFromIg);
             Assert.True(dist <= PositionTolerance,
-                $"Polyline point {i} mismatch: expected ({points[i].X:F2},{points[i].Y:F2}) " +
-                $"got ({igPolyline[i].X:F2},{igPolyline[i].Y:F2}), dist={dist:F3}.");
+                $"Abs position mismatch for point {i}: expected ({points[i].X:F2},{points[i].Y:F2}) " +
+                $"centroid=({igCentroidXy.X:F2},{igCentroidXy.Y:F2}) " +
+                $"rel=({igPolyline[i].X:F2},{igPolyline[i].Y:F2}) " +
+                $"reconstructed=({absFromIg.X:F2},{absFromIg.Y:F2}) dist={dist:F3}.");
         }
 
         // Verify the MapOverlayStyle component is present on the IG entity.
@@ -235,6 +254,34 @@ public class AreaAuthoringIntegrationTests
         }
 
         return false;
+    }
+
+    private static bool HasGeoSpatialDescriptor(List<EntityDescriptorUnion> descriptors)
+    {
+        for (int i = 0; i < descriptors.Count; i++)
+        {
+            if (descriptors[i]._d == EDescriptorType.dtGeoSpatial)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IgHasSimTransform(BagiraRunnerHarness harness, long networkId)
+    {
+        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        if (!entityMap.TryGetEntity(networkId, out var entity)) return false;
+        var world = harness.Ig.App.World;
+        return world.IsAlive(entity) && world.HasComponent<SimTransform>(entity);
+    }
+
+    private static Vector3 GetIgSimTransformPosition(BagiraRunnerHarness harness, long networkId)
+    {
+        var entityMap = harness.Ig.App.TestHook_EntityMap;
+        if (!entityMap.TryGetEntity(networkId, out var entity)) return Vector3.Zero;
+        var world = harness.Ig.App.World;
+        if (!world.IsAlive(entity) || !world.HasComponent<SimTransform>(entity)) return Vector3.Zero;
+        ref readonly var st = ref world.GetComponentRO<SimTransform>(entity);
+        return st.Position;
     }
 
     private static bool HasOverlayWithPointCount(List<EntityDescriptorUnion> descriptors, int count)

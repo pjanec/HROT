@@ -99,17 +99,28 @@ namespace Bagira.Map.Common.Replication.Ingress
             if (overlay.Points == null || overlay.Points.Count == 0)
                 return polyline;
 
+            // Points on the wire are RELATIVE geo offsets (deltaLat, deltaLon, deltaAlt) from
+            // the entity's reference position (SimTransform / GeoSpatial).
+            // Convert to relative Cartesian: relCart = ToCartesian(dLat, dLon, dAlt) - ToCartesian(0,0,0).
+            // For a flat-earth linear projection this equals the true Cartesian displacement,
+            // independent of the entity's absolute reference position.
+            Vector3 origin = _geoTransform != null
+                ? _geoTransform.ToCartesian(0.0, 0.0, 0.0)
+                : Vector3.Zero;
+
             polyline.Points = new List<Vector2>(overlay.Points.Count);
             for (int i = 0; i < overlay.Points.Count; i++)
             {
                 var geo = overlay.Points[i];
                 if (_geoTransform != null)
                 {
-                    var cart = _geoTransform.ToCartesian(geo.Latitude, geo.Longitude, geo.Altitude);
-                    polyline.Points.Add(new Vector2((float)cart.X, (float)cart.Y));
+                    var absCart = _geoTransform.ToCartesian(geo.Latitude, geo.Longitude, geo.Altitude);
+                    var relCart = absCart - origin;
+                    polyline.Points.Add(new Vector2((float)relCart.X, (float)relCart.Y));
                 }
                 else
                 {
+                    // No geo transform: treat lat/lon as Y/X directly.
                     polyline.Points.Add(new Vector2((float)geo.Longitude, (float)geo.Latitude));
                 }
             }

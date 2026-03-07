@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
+using Bagira.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
@@ -35,7 +37,8 @@ namespace Bagira.Map.Common.Systems
     /// </summary>
     public sealed class UpdateEntityDescriptorRequestSystem : ComponentSystem
     {
-        private const long GeoSpatialOrdinal = (long)Bagira.BDC.SSTD.EDescriptorType.dtGeoSpatial;
+        private const long GeoSpatialOrdinal        = (long)Bagira.BDC.SSTD.EDescriptorType.dtGeoSpatial;
+        private const long MapVisualOverlayOrdinal   = (long)Bagira.BDC.SSTD.EDescriptorType.dtMapVisualOverlay;
 
         private const int ErrorSuccess        = 0;
         private const int ErrorEntityNotFound = 2;
@@ -102,6 +105,10 @@ namespace Bagira.Map.Common.Systems
                     ProcessGeoSpatialUpdate(req, entity);
                     break;
 
+                case EDescriptorType.dtMapVisualOverlay:
+                    ProcessMapVisualOverlayUpdate(req, entity);
+                    break;
+
                 default:
                     FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                         "[UpdDescReq] Ignoring unsupported DescriptorType {0} for Entity {1}.",
@@ -161,6 +168,53 @@ namespace Bagira.Map.Common.Systems
                 EntityId  = entityId,
                 ErrorCode = errorCode,
             });
+        }
+
+        private void ProcessMapVisualOverlayUpdate(UpdateEntityDescriptorRequest req, Entity entity)
+        {
+            var view = (ISimulationView)World;
+
+            if (!view.HasAuthority(entity, MapVisualOverlayOrdinal))
+            {
+                FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
+                    "[UpdDescReq] Not authoritative for MapVisualOverlay on Entity {0}. Ignoring.",
+                    req.EntityId);
+                WriteAck(req.RequestId, req.EntityId, ErrorNotOwner);
+                return;
+            }
+
+            var overlay = req.Payload.MapVisualOverlay;
+
+            // Convert RELATIVE geo offsets → relative Cartesian offsets.
+            // relCart = ToCartesian(dLat, dLon, dAlt) - ToCartesian(0, 0, 0).
+            // For a flat-earth linear projection this equals the true Cartesian displacement.
+            Vector3 origin = _geoTransform.ToCartesian(0.0, 0.0, 0.0);
+
+            var polyline = new EditablePolyline();
+            if (overlay.Points != null && overlay.Points.Count > 0)
+            {
+                polyline.Points = new List<Vector2>(overlay.Points.Count);
+                for (int i = 0; i < overlay.Points.Count; i++)
+                {
+                    var p       = overlay.Points[i];
+                    var absCart = _geoTransform.ToCartesian(p.Latitude, p.Longitude, p.Altitude);
+                    var relCart = absCart - origin;
+                    polyline.Points.Add(new Vector2((float)relCart.X, (float)relCart.Y));
+                }
+            }
+
+            World.SetManagedComponent(entity, polyline);
+
+            // Also refresh style if provided in the overlay.
+            World.SetComponent(entity, MapOverlayStyle.FromJson(overlay.StyleOverrideJson));
+
+            SmartEgressUtil.MarkDirty(World, entity, MapVisualOverlayOrdinal);
+
+            FdpLog<UpdateEntityDescriptorRequestSystem>.Info(
+                "[UpdDescReq] Applied MapVisualOverlay update for NetID {0} pts={1}.",
+                req.EntityId, polyline.Points?.Count ?? 0);
+
+            WriteAck(req.RequestId, req.EntityId, ErrorSuccess);
         }
     }
 }

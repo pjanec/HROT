@@ -51,11 +51,14 @@ public sealed class IosLogic : IIosLogic, IDisposable
 
     private readonly IDdsWriter<MapInteractionConfig>  _configWriter;
     private readonly IDdsWriter<CreateEntityRequest>   _createEntityWriter;
+    private readonly IDdsWriter<MapCommandRequest>?    _commandWriter;
     private readonly IEventQueue<MapClickEvent>         _clickQueue;
     private readonly IEventQueue<SelectionChangedEvent> _selectionQueue;
     private readonly InteractionPanel                   _interactionPanel;
     private readonly List<IIngressHandler>              _ingressHandlers;
     private readonly int                                _mapGroupId;
+    /// <summary>MapId of the IG instance that receives tool-activation commands (0 = broadcast).</summary>
+    private readonly int                                _targetMapId;
 
     // ── Mutable state ─────────────────────────────────────────────────────────
 
@@ -105,6 +108,11 @@ public sealed class IosLogic : IIosLogic, IDisposable
     /// Pass <c>null</c> or empty in unit tests.
     /// </param>
     /// <param name="mapGroupId">Map group targeted by config publications.</param>
+    /// <param name="commandWriter">Optional writer for <see cref="MapCommandRequest"/> messages used for tool activation.</param>
+    /// <param name="targetMapId">
+    /// Target IG MapId for tool-activation commands.  Use <c>0</c> to broadcast to all IGs in the group.
+    /// Defaults to <see cref="IosLogicConstants.DefaultTargetMapId"/>.
+    /// </param>
     public IosLogic(
         IDerRepo                            repo,
         IMissionEditorService               missionEditorService,
@@ -116,7 +124,9 @@ public sealed class IosLogic : IIosLogic, IDisposable
         IEventQueue<SelectionChangedEvent>  selectionQueue,
         InteractionPanel                    interactionPanel,
         IEnumerable<IIngressHandler>?       ingressHandlers = null,
-        int                                 mapGroupId      = IosLogicConstants.DefaultMapGroupId)
+        int                                 mapGroupId      = IosLogicConstants.DefaultMapGroupId,
+        IDdsWriter<MapCommandRequest>?      commandWriter   = null,
+        int                                 targetMapId     = IosLogicConstants.DefaultTargetMapId)
     {
         Repo                 = repo                 ?? throw new ArgumentNullException(nameof(repo));
         MissionEditorService = missionEditorService ?? throw new ArgumentNullException(nameof(missionEditorService));
@@ -124,11 +134,13 @@ public sealed class IosLogic : IIosLogic, IDisposable
         TransactionManager   = transactionManager   ?? throw new ArgumentNullException(nameof(transactionManager));
         _configWriter        = configWriter         ?? throw new ArgumentNullException(nameof(configWriter));
         _createEntityWriter  = createEntityWriter   ?? throw new ArgumentNullException(nameof(createEntityWriter));
+        _commandWriter       = commandWriter;   // null-ok; falls back to MapInteractionConfig
         _clickQueue          = clickQueue           ?? throw new ArgumentNullException(nameof(clickQueue));
         _selectionQueue      = selectionQueue       ?? throw new ArgumentNullException(nameof(selectionQueue));
         _interactionPanel    = interactionPanel     ?? throw new ArgumentNullException(nameof(interactionPanel));
         _ingressHandlers     = ingressHandlers?.ToList() ?? new List<IIngressHandler>();
         _mapGroupId          = mapGroupId;
+        _targetMapId         = targetMapId;
     }
 
     // ── IIosLogic ─────────────────────────────────────────────────────────────
@@ -159,21 +171,42 @@ public sealed class IosLogic : IIosLogic, IDisposable
         ActiveContextId = Guid.NewGuid();
         PlacementType   = tkbType;
 
-        string patch = BuildPlacementPatch(tkbType, affiliation);
-
-        _configWriter.Write(new MapInteractionConfig
+        if (_commandWriter != null)
         {
-            MapGroupId          = _mapGroupId,
-            ActiveContextId     = ActiveContextId,
-            JsonSchemaVersion   = IosLogicConstants.JsonSchemaVersion,
-            ConfigurationJson   = patch
-        });
+            // Preferred path: instance-scoped volatile command (correct architecture)
+            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+            {
+                contextId   = ActiveContextId.ToString("N"),
+                entityType  = tkbType,
+                affiliation = affiliation.ToString()
+            });
+            _commandWriter.Write(new MapCommandRequest
+            {
+                RequestId       = Guid.NewGuid(),
+                MapId           = _targetMapId,
+                Type            = CommandType.CMD_PLACE_ENTITY,
+                CommandArgsJson = argsJson,
+            });
+            _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicCommand,
+                $"CMD_PLACE_ENTITY tkb={tkbType} ctx={ActiveContextId:N}");
+        }
+        else
+        {
+            // Fallback: legacy MapInteractionConfig (group-scoped, transient-local)
+            string patch = BuildPlacementPatch(tkbType, affiliation);
+            _configWriter.Write(new MapInteractionConfig
+            {
+                MapGroupId        = _mapGroupId,
+                ActiveContextId   = ActiveContextId,
+                JsonSchemaVersion = IosLogicConstants.JsonSchemaVersion,
+                ConfigurationJson = patch
+            });
+            _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicConfig,
+                $"PLACEMENT tkb={tkbType} ctx={ActiveContextId:N}");
+        }
 
         FdpLog<IosLogic>.Debug(
             "[TRACE-IOS] Placement Mode ON. ContextId={0} TKB={1}", ActiveContextId, tkbType);
-
-        _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicConfig,
-            $"PLACEMENT tkb={tkbType} ctx={ActiveContextId:N}");
     }
 
     /// <inheritdoc/>
@@ -184,21 +217,71 @@ public sealed class IosLogic : IIosLogic, IDisposable
         ActiveContextId = Guid.NewGuid();
         PlacementType   = 0;
 
-        string patch = BuildAreaAuthoringPatch(styleOverrideJson);
-
-        _configWriter.Write(new MapInteractionConfig
+        if (_commandWriter != null)
         {
-            MapGroupId        = _mapGroupId,
-            ActiveContextId   = ActiveContextId,
-            JsonSchemaVersion = IosLogicConstants.JsonSchemaVersion,
-            ConfigurationJson = patch
-        });
+            // Preferred path: instance-scoped volatile command (correct architecture)
+            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+            {
+                contextId        = ActiveContextId.ToString("N"),
+                styleOverrideJson
+            });
+            _commandWriter.Write(new MapCommandRequest
+            {
+                RequestId       = Guid.NewGuid(),
+                MapId           = _targetMapId,
+                Type            = CommandType.CMD_START_AUTHORING,
+                CommandArgsJson = argsJson,
+            });
+            _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicCommand,
+                $"CMD_START_AUTHORING ctx={ActiveContextId:N}");
+        }
+        else
+        {
+            // Fallback: legacy MapInteractionConfig
+            string patch = BuildAreaAuthoringPatch(styleOverrideJson);
+            _configWriter.Write(new MapInteractionConfig
+            {
+                MapGroupId        = _mapGroupId,
+                ActiveContextId   = ActiveContextId,
+                JsonSchemaVersion = IosLogicConstants.JsonSchemaVersion,
+                ConfigurationJson = patch
+            });
+            _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicConfig,
+                $"AREA_AUTHORING ctx={ActiveContextId:N}");
+        }
 
         FdpLog<IosLogic>.Debug(
             "[TRACE-IOS] Area Authoring Mode ON. ContextId={0}", ActiveContextId);
+    }
 
-        _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicConfig,
-            $"AREA_AUTHORING ctx={ActiveContextId:N}");
+    /// <inheritdoc/>
+    public void StartEditingMode(long networkEntityId)
+    {
+        ThrowIfDisposed();
+
+        ActiveContextId = Guid.NewGuid();
+        PlacementType   = 0;
+
+        if (_commandWriter != null)
+        {
+            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+            {
+                contextId      = ActiveContextId.ToString("N"),
+                entityId       = networkEntityId
+            });
+            _commandWriter.Write(new MapCommandRequest
+            {
+                RequestId       = Guid.NewGuid(),
+                MapId           = _targetMapId,
+                Type            = CommandType.CMD_START_EDITING,
+                CommandArgsJson = argsJson,
+            });
+            _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicCommand,
+                $"CMD_START_EDITING entityId={networkEntityId} ctx={ActiveContextId:N}");
+        }
+
+        FdpLog<IosLogic>.Debug(
+            "[TRACE-IOS] Editing Mode ON. ContextId={0} EntityId={1}", ActiveContextId, networkEntityId);
     }
 
     /// <inheritdoc/>

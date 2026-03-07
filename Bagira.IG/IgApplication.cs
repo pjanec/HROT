@@ -228,7 +228,14 @@ public class IgApplication
     /// </summary>
     private DdsWriter<SelectionChangedEvent>?  _selectionWriter;
 
-    private DdsReader<MapInteractionConfig>? _configReader;
+    private DdsReader<MapInteractionConfig>?  _configReader;
+
+    /// <summary>
+    /// Reads instance-scoped tool-activation commands published by the IOS
+    /// via <see cref="MapCommandRequest"/> (preferred over the legacy
+    /// <see cref="MapInteractionConfig"/> group-broadcast approach).
+    /// </summary>
+    private DdsReader<MapCommandRequest>?     _commandReader;
 
     private Guid                             _activeContextId;
 
@@ -602,6 +609,8 @@ public class IgApplication
 
                 _configReader    = new DdsReader<MapInteractionConfig>(participant);
 
+                _commandReader   = new DdsReader<MapCommandRequest>(participant, "MapCommandRequest");
+
                 _createEntityDdsWriter = new DdsWriter<CreateEntityRequest>(participant, "CreateEntityRequest");
 
 
@@ -702,6 +711,8 @@ public class IgApplication
 
                 _configReader?.Dispose();
 
+                _commandReader?.Dispose();
+
                 _createEntityDdsWriter?.Dispose();
 
                 participant?.Dispose();
@@ -713,6 +724,8 @@ public class IgApplication
                 _selectionWriter = null;
 
                 _configReader = null;
+
+                _commandReader = null;
 
                 _createEntityDdsWriter = null;
 
@@ -793,12 +806,15 @@ public class IgApplication
 
 
         // D. EntityRenderLayer wired to the StubVisualizerAdapter
+        // Area-overlay entities are excluded so they render via MapOverlayRenderLayer instead.
 
         var query = _world.Query()
 
             .With<NetworkIdentity>()
 
             .With<SimTransform>()
+
+            .Without<MapOverlayStyle>()
 
             .WithLifecycle(EntityLifecycle.All)
 
@@ -839,12 +855,15 @@ public class IgApplication
 
 
         // MapOverlayRenderLayer — draws tactical graphic area overlays.
+        // Guards on SimTransform: only renders area entities where geo ingress has already arrived.
 
         var overlayQuery = _world.Query()
 
             .WithManaged<EditablePolyline>()
 
             .With<MapOverlayStyle>()
+
+            .With<SimTransform>()
 
             .WithLifecycle(EntityLifecycle.All)
 
@@ -975,7 +994,64 @@ public class IgApplication
 
 
 
-        // Task 5: Poll IOS Ôæå IG interaction-config updates (active context ID).
+        // Task 5a: Poll instance-scoped tool-activation commands (CMD_*) -- preferred path.
+
+        if (_networkEnabled && _commandReader != null)
+
+        {
+
+            using var cmdLoan = _commandReader.Take(1);
+
+            foreach (var cmdSample in cmdLoan)
+
+            {
+
+                if (!cmdSample.IsValid) continue;
+
+                var cmd = cmdSample.Data;
+
+                // Accept only broadcast (MapId==0) or commands addressed to this IG instance.
+
+                if (cmd.MapId != 0 && cmd.MapId != IgNetworkConstants.InstanceId)
+
+                    continue;
+
+                FdpLog<IgApplication>.Debug(
+
+                    "[TRACE-IG] MapCommandRequest: Type={0} MapId={1}", cmd.Type, cmd.MapId);
+
+                switch (cmd.Type)
+
+                {
+
+                    case CommandType.CMD_START_AUTHORING:
+
+                        ParseCommandAndActivateAreaTool(cmd.CommandArgsJson);
+
+                        break;
+
+                    case CommandType.CMD_PLACE_ENTITY:
+
+                        ParseCommandAndActivatePlacementTool(cmd.CommandArgsJson);
+
+                        break;
+
+
+                    case CommandType.CMD_START_EDITING:
+
+                        ParseCommandAndActivateEditTool(cmd.CommandArgsJson);
+
+                        break;
+
+                }
+
+            }
+
+        }
+
+
+
+        // Task 5b: Poll IOS => IG interaction-config updates (legacy -- grid/view toggle).
 
         if (_networkEnabled && _configReader != null)
 
@@ -1089,6 +1165,14 @@ public class IgApplication
             {
                 builder.AddItem("Center on entity", () => CenterCameraOn(entity));
                 builder.AddItem("Select entity",    () => SelectEntityOnMap(entity));
+
+                // "Edit Overlay" — only shown for area entities that carry an EditablePolyline.
+                if (_world.HasManagedComponent<EditablePolyline>(entity)
+                 && _entityMap.TryGetNetworkId(entity, out long editNetId))
+                {
+                    builder.AddSeparator();
+                    builder.AddItem("Edit overlay", () => ActivateAreaEditingTool(editNetId));
+                }
             }));
         }
 
@@ -1396,6 +1480,8 @@ public class IgApplication
         _selectionWriter?.Dispose();
 
         _configReader?.Dispose();
+
+        _commandReader?.Dispose();
 
         _createEntityDdsWriter?.Dispose();
 
@@ -2232,7 +2318,233 @@ public class IgApplication
 
     // ÔöÇÔöÇ Config JSON parsing ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
+    // ─── CMD_* command handlers ────────────────────────────────────────────────
 
+    /// <summary>
+    /// Handles an incoming <see cref="CommandType.CMD_START_AUTHORING"/> command.
+    /// Extracts <c>contextId</c> and <c>styleOverrideJson</c> from the JSON args,
+    /// stores the context ID, then activates the area-authoring point-sequence tool.
+    /// </summary>
+    private void ParseCommandAndActivateAreaTool(string argsJson)
+    {
+        if (string.IsNullOrWhiteSpace(argsJson)) return;
+
+        try
+        {
+            using var doc  = JsonDocument.Parse(argsJson);
+            var       root = doc.RootElement;
+
+            if (root.TryGetProperty("contextId", out var ctxEl)
+             && Guid.TryParse(ctxEl.GetString(), out var ctx))
+            {
+                _activeContextId = ctx;
+            }
+
+            string styleJson = string.Empty;
+            if (root.TryGetProperty("styleOverrideJson", out var styleEl)
+             && styleEl.ValueKind == JsonValueKind.String)
+            {
+                styleJson = styleEl.GetString() ?? string.Empty;
+            }
+
+            ActivateAreaAuthoringTool(styleJson);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn(
+                "[IG] ParseCommandAndActivateAreaTool failed: {0}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Handles an incoming <see cref="CommandType.CMD_PLACE_ENTITY"/> command.
+    /// Extracts <c>contextId</c>, <c>entityType</c>, and <c>affiliation</c> from
+    /// the JSON args, stores the context ID, then activates the placement tool.
+    /// </summary>
+    private void ParseCommandAndActivatePlacementTool(string argsJson)
+    {
+        if (string.IsNullOrWhiteSpace(argsJson)) return;
+
+        try
+        {
+            using var doc  = JsonDocument.Parse(argsJson);
+            var       root = doc.RootElement;
+
+            if (root.TryGetProperty("contextId", out var ctxEl)
+             && Guid.TryParse(ctxEl.GetString(), out var ctx))
+            {
+                _activeContextId = ctx;
+            }
+
+            long    tkbType = 0;
+            ForceId aff     = ForceId.Unknown;
+
+            if (root.TryGetProperty("entityType", out var etEl))
+                tkbType = etEl.GetInt64();
+
+            if (root.TryGetProperty("affiliation", out var affEl))
+            {
+                aff = affEl.GetString() switch
+                {
+                    "Friend"   => ForceId.Friend,
+                    "Hostile"  => ForceId.Hostile,
+                    "Neutral"  => ForceId.Neutral,
+                    _          => ForceId.Unknown,
+                };
+            }
+
+            ActivatePlacementTool(tkbType, aff);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn(
+                "[IG] ParseCommandAndActivatePlacementTool failed: {0}", ex.Message);
+        }
+    }
+
+
+
+
+    // ─── EditTool activation from CMD_START_EDITING ──────────────────────────
+
+    /// <summary>
+    /// Handles an incoming <see cref="CommandType.CMD_START_EDITING"/> command.
+    /// Extracts <c>contextId</c> and <c>entityId</c> from the JSON args, then
+    /// activates the <see cref="EditTool"/> for the specified area entity.
+    /// </summary>
+    private void ParseCommandAndActivateEditTool(string argsJson)
+    {
+        if (string.IsNullOrWhiteSpace(argsJson)) return;
+
+        try
+        {
+            using var doc  = JsonDocument.Parse(argsJson);
+            var       root = doc.RootElement;
+
+            if (root.TryGetProperty("contextId", out var ctxEl)
+             && Guid.TryParse(ctxEl.GetString(), out var ctx))
+            {
+                _activeContextId = ctx;
+            }
+
+            long networkEntityId = 0;
+            if (root.TryGetProperty("entityId", out var eidEl))
+                networkEntityId = eidEl.GetInt64();
+
+            ActivateAreaEditingTool(networkEntityId);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn(
+                "[IG] ParseCommandAndActivateEditTool failed: {0}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Activates an <see cref="EditTool"/> for the area entity identified by
+    /// <paramref name="networkEntityId"/>.
+    ///
+    /// <para>
+    /// On commit (operator right-clicks to finish editing), the updated
+    /// relative-Cartesian vertex list is converted back to relative geo offsets
+    /// and published as an <see cref="UpdateEntityDescriptorRequest"/> for
+    /// <c>dtMapVisualOverlay</c>, so the SimHost updates its authority copy and
+    /// broadcasts the changes.
+    /// </para>
+    /// </summary>
+    private void ActivateAreaEditingTool(long networkEntityId)
+    {
+        if (!_entityMap.TryGetEntity(networkEntityId, out var entity))
+        {
+            FdpLog<IgApplication>.Warn(
+                "[IG] ActivateAreaEditingTool: entity not found for NetID {0}.", networkEntityId);
+            return;
+        }
+
+        if (!World.HasManagedComponent<EditablePolyline>(entity))
+        {
+            FdpLog<IgApplication>.Warn(
+                "[IG] ActivateAreaEditingTool: entity {0} has no EditablePolyline.", networkEntityId);
+            return;
+        }
+
+        // Pop any existing EditTool (prevents stack accumulation on rapid re-activation).
+        if (_canvas.ActiveTool is EditTool)
+            _canvas.PopTool();
+
+        // EditablePolyline.Points are stored as relative Cartesian offsets from SimTransform.
+        // Translate to absolute world space so the EditTool ghost renders at the correct canvas
+        // position and mouse hit-testing works with the unmodified world coordinates.
+        if (!World.HasComponent<SimTransform>(entity))
+        {
+            FdpLog<IgApplication>.Warn(
+                "[IG] ActivateAreaEditingTool: entity {0} has no SimTransform yet.", networkEntityId);
+            return;
+        }
+
+        ref readonly var initSimTr = ref World.GetComponentRO<SimTransform>(entity);
+        var originOffset = new Vector2(initSimTr.Position.X, initSimTr.Position.Y);
+        var editTool = new EditTool(entity, World, originOffset: originOffset);
+
+        editTool.OnPolylineCommitted += (committedEntity, absCartPoints) =>
+        {
+            // absCartPoints are in absolute world space (originOffset already baked in by EditTool).
+            // Convert back to relative Cartesian before storing in ECS.
+            ref readonly var simTr = ref World.GetComponentRO<SimTransform>(committedEntity);
+            var origin = new Vector2(simTr.Position.X, simTr.Position.Y);
+
+            var relPoints = new List<Vector2>(absCartPoints.Count);
+            for (int i = 0; i < absCartPoints.Count; i++)
+                relPoints.Add(absCartPoints[i] - origin);
+            World.SetManagedComponent(committedEntity, new EditablePolyline { Points = relPoints });
+
+            // Send UpdateEntityDescriptorRequest(dtMapVisualOverlay) with relative geo offsets.
+            if (_networkEnabled && _commandGateway != null && _geoTransform != null
+             && _entityMap.TryGetNetworkId(committedEntity, out long netId))
+            {
+                var (refLat, refLon, refAlt) = _geoTransform.ToGeodetic(simTr.Position);
+
+                var relGeoPoints = new List<GeoPosition>(absCartPoints.Count);
+                for (int i = 0; i < absCartPoints.Count; i++)
+                {
+                    var absCart = new Vector3(absCartPoints[i].X, absCartPoints[i].Y, simTr.Position.Z);
+                    var (lat, lon, alt) = _geoTransform.ToGeodetic(absCart);
+                    relGeoPoints.Add(new GeoPosition
+                    {
+                        Latitude  = lat - refLat,
+                        Longitude = lon - refLon,
+                        Altitude  = alt - refAlt,
+                    });
+                }
+
+                var request = new UpdateEntityDescriptorRequest
+                {
+                    RequestId      = Guid.NewGuid(),
+                    EntityId       = (int)netId,
+                    DescriptorType = EDescriptorType.dtMapVisualOverlay,
+                    Payload        = new EntityDescriptorUnion
+                    {
+                        _d = EDescriptorType.dtMapVisualOverlay,
+                        MapVisualOverlay = new MapVisualOverlay
+                        {
+                            EntityId        = (int)netId,
+                            PersistenceMode = PersistenceMode.MODE_PERSISTENT,
+                            Points          = relGeoPoints,
+                            IsEditable      = true,
+                            IsClickable     = true,
+                        }
+                    }
+                };
+
+                _commandGateway.SendUpdateDescriptor(request);
+                FdpLog<IgApplication>.Info(
+                    "[IG] Committed overlay edit for NetID {0}: {1} vertices.", netId, absCartPoints.Count);
+            }
+        };
+
+        _canvas.PushTool(editTool);
+        FdpLog<IgApplication>.Info("[IG] Area editing tool activated for NetID {0}.", networkEntityId);
+    }
 
     /// <summary>
 
@@ -2468,7 +2780,9 @@ public class IgApplication
 
 
 
-            var geoPoints = new List<GeoPosition>(points.Length);
+            // Compute absolute geo positions for all drawn points.
+
+            var absPositions = new List<(double Lat, double Lon, double Alt)>(points.Length);
 
             for (int i = 0; i < points.Length; i++)
 
@@ -2496,17 +2810,55 @@ public class IgApplication
 
                 }
 
+                absPositions.Add((lat, lon, alt));
+
+            }
 
 
-                geoPoints.Add(new GeoPosition
+
+            // Centroid (reference point) = arithmetic mean of absolute positions.
+
+            double refLat = 0.0, refLon = 0.0, refAlt = 0.0;
+
+            for (int i = 0; i < absPositions.Count; i++)
+
+            {
+
+                refLat += absPositions[i].Lat;
+
+                refLon += absPositions[i].Lon;
+
+                refAlt += absPositions[i].Alt;
+
+            }
+
+            refLat /= absPositions.Count;
+
+            refLon /= absPositions.Count;
+
+            refAlt /= absPositions.Count;
+
+
+
+            // Store vertices as RELATIVE geo offsets from the centroid (reference point).
+
+            // The overlay ingress translator converts these to relative Cartesian offsets.
+
+            var relGeoPoints = new List<GeoPosition>(absPositions.Count);
+
+            for (int i = 0; i < absPositions.Count; i++)
+
+            {
+
+                relGeoPoints.Add(new GeoPosition
 
                 {
 
-                    Latitude  = lat,
+                    Latitude  = absPositions[i].Lat - refLat,
 
-                    Longitude = lon,
+                    Longitude = absPositions[i].Lon - refLon,
 
-                    Altitude  = alt,
+                    Altitude  = absPositions[i].Alt - refAlt,
 
                 });
 
@@ -2538,6 +2890,38 @@ public class IgApplication
 
                     },
 
+                    // Reference point: the entity's geographic position (centroid of the drawn polygon).
+
+                    // GeoSpatial ingress will set SimTransform to this position.
+
+                    new EntityDescriptorUnion
+
+                    {
+
+                        _d         = EDescriptorType.dtGeoSpatial,
+
+                        GeoSpatial = new GeoSpatial
+
+                        {
+
+                            Pos = new GeoPosition
+
+                            {
+
+                                Latitude  = refLat,
+
+                                Longitude = refLon,
+
+                                Altitude  = refAlt,
+
+                            }
+
+                        }
+
+                    },
+
+                    // Overlay: vertices stored as RELATIVE geo offsets from the reference point.
+
                     new EntityDescriptorUnion
 
                     {
@@ -2548,13 +2932,13 @@ public class IgApplication
 
                         {
 
-                            PersistenceMode  = PersistenceMode.MODE_PERSISTENT,
+                            PersistenceMode   = PersistenceMode.MODE_PERSISTENT,
 
-                            Points           = geoPoints,
+                            Points            = relGeoPoints,
 
-                            IsEditable       = true,
+                            IsEditable        = true,
 
-                            IsClickable      = true,
+                            IsClickable       = true,
 
                             StyleOverrideJson = styleJson,
 

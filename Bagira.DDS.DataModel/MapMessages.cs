@@ -119,7 +119,17 @@ namespace Bagira.BDC.SSTM
     {
         CMD_SET_VIEW,
         CMD_SET_SELECTION,
-        CMD_START_EDITING
+        CMD_START_EDITING,
+        /// <summary>
+        /// Activate the entity-placement (creation) tool on a specific IG window.
+        /// Args JSON: { "contextId": "&lt;guid&gt;", "entityType": 8001, "affiliation": "FORCE_FRIENDLY" }
+        /// </summary>
+        CMD_PLACE_ENTITY,
+        /// <summary>
+        /// Activate the polygonal area-authoring tool on a specific IG window.
+        /// Args JSON: { "contextId": "&lt;guid&gt;", "styleOverrideJson": "..." }
+        /// </summary>
+        CMD_START_AUTHORING,
     }
 
     // Imperative commands sent from IOS to a specific IG Instance.

@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Reflection;
+using Bagira.BDC.SSTD;
 using FDP.Toolkit.DER;
 using FDP.Toolkit.ImGui.Utils;
 using ImGuiNET;
@@ -42,7 +43,7 @@ public sealed class DataMonitorPanel
     /// <param name="logic">IOS logic providing the DER repository.</param>
     public void Draw(IIosLogic logic)
     {
-        if (!ImGui.Begin("IOS Entity Monitor"))
+        if (!ImGui.Begin("IOS Entity Inspector"))
         {
             ImGui.End();
             return;
@@ -79,7 +80,7 @@ public sealed class DataMonitorPanel
 
         // ── Right pane: descriptor tree ───────────────────────────────────
         ImGui.TableSetColumnIndex(1);
-        DrawDetails();
+        DrawDetails(logic);
 
         ImGui.EndTable();
         ImGui.End();
@@ -110,7 +111,7 @@ public sealed class DataMonitorPanel
         ImGui.EndChild();
     }
 
-    private void DrawDetails()
+    private void DrawDetails(IIosLogic logic)
     {
         ImGui.BeginChild("##DmDetails");
 
@@ -122,6 +123,20 @@ public sealed class DataMonitorPanel
         }
 
         ImGui.Text($"Entity {_selectedEntityId}");
+
+        // "Edit Overlay" action button — shown for area entities whose overlay is editable.
+        var derEntity = logic.Repo.GetEntity(_selectedEntityId);
+        if (derEntity != null && derEntity.HasDescriptor<MapVisualOverlay>())
+        {
+            var overlay = derEntity.GetDescriptor<MapVisualOverlay>()!;
+            if (overlay.IsEditable)
+            {
+                ImGui.SameLine();
+                if (ImGui.Button("Edit Overlay"))
+                    logic.StartEditingMode(_selectedEntityId);
+            }
+        }
+
         ImGui.Separator();
 
         if (_cachedDescriptors.Count == 0)
@@ -177,13 +192,14 @@ public sealed class DataMonitorPanel
 
         foreach (var descType in entity.GetAllDescriptorTypes())
         {
-            // Guard with HasDescriptor<T>
+            // Reflection does not apply default parameter values automatically;
+            // explicitly pass partId=0 matching HasDescriptor<T>(int partId = 0).
             var hasMethod = s_hasDescMethodDef.MakeGenericMethod(descType);
-            bool has      = (bool)hasMethod.Invoke(entity, null)!;
+            bool has      = (bool)hasMethod.Invoke(entity, new object[] { 0 })!;
             if (!has) continue;
 
             var getMethod = s_getDescMethodDef.MakeGenericMethod(descType);
-            object? data  = getMethod.Invoke(entity, null);
+            object? data  = getMethod.Invoke(entity, new object[] { 0 });
             if (data == null) continue;
 
             result.Add((descType.Name, data));

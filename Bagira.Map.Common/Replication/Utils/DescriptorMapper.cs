@@ -115,13 +115,21 @@ namespace Bagira.Map.Common.Replication.Utils
                         var polyline = new EditablePolyline();
                         if (d.MapVisualOverlay.Points != null)
                         {
+                            // Points on the wire are RELATIVE geo offsets (deltaLat, deltaLon, deltaAlt).
+                            // Convert to relative Cartesian: relCart = ToCartesian(dLat,dLon,dAlt) - ToCartesian(0,0,0).
+                            // For a flat-earth linear projection this equals the true Cartesian displacement.
+                            Vector3 origin = geoTransform != null
+                                ? geoTransform.ToCartesian(0.0, 0.0, 0.0)
+                                : Vector3.Zero;
+
                             polyline.Points = new List<Vector2>(d.MapVisualOverlay.Points.Count);
                             foreach (var geoPt in d.MapVisualOverlay.Points)
                             {
                                 if (geoTransform != null)
                                 {
-                                    var cart = geoTransform.ToCartesian(geoPt.Latitude, geoPt.Longitude, geoPt.Altitude);
-                                    polyline.Points.Add(new Vector2((float)cart.X, (float)cart.Y));
+                                    var absCart = geoTransform.ToCartesian(geoPt.Latitude, geoPt.Longitude, geoPt.Altitude);
+                                    var relCart = absCart - origin;
+                                    polyline.Points.Add(new Vector2((float)relCart.X, (float)relCart.Y));
                                 }
                                 else
                                 {

@@ -17,6 +17,14 @@ internal static class IosLogicConstants
     internal const int DefaultMapGroupId = 0;
 
     /// <summary>
+    /// Default MapId used when publishing <see cref="MapCommandRequest"/> messages
+    /// to activate tools on the nearest IG instance.
+    /// Matches <c>IgNetworkConstants.InstanceId</c> (300).
+    /// Use 0 to broadcast to every IG in the group.
+    /// </summary>
+    internal const int DefaultTargetMapId = 300;
+
+    /// <summary>
     /// JSON schema version embedded in every <c>MapInteractionConfig</c>
     /// published by the IOS.
     /// </summary>
@@ -41,6 +49,9 @@ internal static class IosLogicConstants
     /// <summary>DDS topic name used in interaction-log entries for config patches.</summary>
     internal const string LogTopicConfig = "MapInteractionConfig";
 
+    /// <summary>DDS topic name used in interaction-log entries for tool-activation commands.</summary>
+    internal const string LogTopicCommand = "MapCommandRequest";
+
     /// <summary>DDS topic name used in interaction-log entries for click events.</summary>
     internal const string LogTopicClick = "MapClickEvent";
 
@@ -57,4 +68,7 @@ internal static class IosLogicConstants
 
     /// <summary>DDS topic name for <c>ContextActionsUpdate</c> messages.</summary>
     internal const string TopicContextActions = "ContextActionsUpdate";
+
+    /// <summary>DDS topic name for <c>MapCommandRequest</c> tool-activation messages.</summary>
+    internal const string TopicMapCommand = "MapCommandRequest";
 }

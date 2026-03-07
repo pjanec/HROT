@@ -42,6 +42,10 @@ namespace Bagira.Runner.Services
         private const string TopicCreateEntity    = "CreateEntityRequest";
         private const string TopicMissionControl  = "MissionControlRequest";
         private const string TopicContextActions  = "ContextActionsUpdate";
+        private const string TopicMapCommand      = "MapCommandRequest";
+
+        /// <summary>MapId of the IG this IOS issues tool-activation commands to (300 = default IG instance).</summary>
+        private const int TargetMapId = 300;
 
         private IosMock?         _mock;
         private bool             _headless;
@@ -82,7 +86,17 @@ namespace Bagira.Runner.Services
                     repo,
                     "EntityMaster",
                     master => master.EntityId,
-                    master => master.TkbType)
+                    master => master.TkbType),
+                // Descriptor handlers — populate the DER repo with all descriptor types
+                // so the IOS Entity Inspector can show the full entity state.
+                new DescriptorIngressHandler<GeoSpatial>(
+                    _participant, repo, "GeoSpatial",    d => d.EntityId),
+                new DescriptorIngressHandler<EntityInfo>(
+                    _participant, repo, "EntityInfo",    d => d.EntityId),
+                new DescriptorIngressHandler<EntityDamage>(
+                    _participant, repo, "EntityDamage",  d => d.EntityId),
+                new DescriptorIngressHandler<MapVisualOverlay>(
+                    _participant, repo, "MapVisualOverlay", d => d.EntityId),
             };
 
             _ingressDisposables = new List<IDisposable>(ingressHandlers.Count);
@@ -97,6 +111,7 @@ namespace Bagira.Runner.Services
             var createEntityWriter = new DdsWriterAdapter<CreateEntityRequest>(_participant, TopicCreateEntity);
             var missionCmdWriter   = new DdsWriterAdapter<MissionControlRequest>(_participant, TopicMissionControl);
             var contextMenuWriter  = new DdsWriterAdapter<ContextActionsUpdate>(_participant, TopicContextActions);
+            var commandWriter      = new DdsWriterAdapter<MapCommandRequest>(_participant, TopicMapCommand);
 
             var missionEditorSvc = new MissionEditorService(repo, missionCmdWriter, ackQueue: missionAckQueue);
             var contextMenuLogic  = new ContextMenuLogic(contextMenuWriter);
@@ -116,7 +131,9 @@ namespace Bagira.Runner.Services
                 selectionQueue:       selectionQueue,
                 interactionPanel:     interactionPanel,
                 ingressHandlers:      ingressHandlers,
-                mapGroupId:           DefaultMapGroupId);
+                mapGroupId:           DefaultMapGroupId,
+                commandWriter:        commandWriter,
+                targetMapId:          TargetMapId);
 
             _mock = new IosMock(
                 logic:            logic,

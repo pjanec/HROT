@@ -138,32 +138,31 @@ public class EditToolTests
     // ═══════════════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// A left-click within <see cref="EditToolConstants.VertexPickRadiusWorldUnits"/>
-    /// of Vertex1 must select vertex index 1.
+    /// Hovering near a vertex within pick radius must select that vertex.
     /// </summary>
     [Fact]
-    public void HandleClick_LeftClick_NearVertex1_SelectsVertex1()
+    public void HandleHover_NearVertex1_SelectsVertex1()
     {
         var repo   = CreateRepo();
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        tool.HandleClick(NearVertex1, MouseButton.Left);
+        tool.HandleHover(NearVertex1);
 
         Assert.Equal(1, tool.SelectedVertexIndex);
     }
 
     /// <summary>
-    /// A left-click far from all vertices must leave SelectedVertexIndex at −1.
+    /// Hovering far from all vertices must leave SelectedVertexIndex at −1.
     /// </summary>
     [Fact]
-    public void HandleClick_LeftClick_FarFromAll_NoSelection()
+    public void HandleHover_FarFromAll_NoSelection()
     {
         var repo   = CreateRepo();
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        tool.HandleClick(FarFromAll, MouseButton.Left);
+        tool.HandleHover(FarFromAll);
 
         Assert.Equal(-1, tool.SelectedVertexIndex);
     }
@@ -207,24 +206,22 @@ public class EditToolTests
     }
 
     /// <summary>
-    /// Dragging with no selected vertex must return <c>false</c> and not modify
-    /// any ghost point.
+    /// Dragging with no prior hover/click must auto-select the nearest vertex within
+    /// pick radius and return <c>true</c>.  This is the direct click-and-drag case.
     /// </summary>
     [Fact]
-    public void HandleDrag_NoSelectedVertex_ReturnsFalse()
+    public void HandleDrag_NoExplicitSelection_AutoSelectsNearestAndReturnsTrue()
     {
         var repo   = CreateRepo();
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        // No prior click → SelectedVertexIndex = −1.
+        // DragTarget is closer to Vertex1 than to any other vertex.
         bool result = tool.HandleDrag(DragTarget, Vector2.Zero);
 
-        Assert.False(result);
-        // Ghost points must be unmodified.
-        Assert.Equal(Vertex0, tool.GhostPoints[0]);
-        Assert.Equal(Vertex1, tool.GhostPoints[1]);
-        Assert.Equal(Vertex2, tool.GhostPoints[2]);
+        Assert.True(result);
+        Assert.Equal(1, tool.SelectedVertexIndex);
+        Assert.Equal(DragTarget, tool.GhostPoints[1]);
     }
 
     /// <summary>
@@ -295,8 +292,8 @@ public class EditToolTests
         var entity = CreatePolylineEntity(repo);
         var tool   = CreateAndEnter(repo, entity);
 
-        // Drag vertex 1 to a new position.
-        tool.HandleClick(NearVertex1, MouseButton.Left);
+        // Drag vertex 1 to a new position (hover first to select, then drag).
+        tool.HandleHover(NearVertex1);
         tool.HandleDrag(DragTarget, Vector2.Zero);
 
         List<Vector2>? committed = null;

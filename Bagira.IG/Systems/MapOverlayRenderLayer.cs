@@ -80,6 +80,13 @@ public class MapOverlayRenderLayer : IMapLayer
     /// <remarks>
     /// Called inside <c>MapCanvas.Draw()</c> → <c>BeginMode2D</c>.
     /// All coordinates are in world space; the camera applies zoom and pan.
+    /// <para>
+    /// <b>Coordinate convention:</b> <see cref="EditablePolyline.Points"/> are stored as
+    /// <em>relative</em> Cartesian offsets from <see cref="SimTransform.Position"/>.
+    /// The absolute screen position is computed inline here as:
+    /// <c>absPos[i] = simPos.Xy + polyline.Points[i]</c>.
+    /// No extra ECS system or per-frame recalculation is needed outside of this render pass.
+    /// </para>
     /// </remarks>
     public void Draw(RenderContext ctx)
     {
@@ -91,17 +98,26 @@ public class MapOverlayRenderLayer : IMapLayer
             if (!_view.HasComponent<MapOverlayStyle>(entity))
                 continue;
 
+            if (!_view.HasComponent<SimTransform>(entity))
+                continue;
+
             var polyline = _view.GetManagedComponentRO<EditablePolyline>(entity);
             if (polyline.Points == null || polyline.Points.Count < 3)
                 continue;
 
-            ref readonly var style = ref _view.GetComponentRO<MapOverlayStyle>(entity);
+            ref readonly var style  = ref _view.GetComponentRO<MapOverlayStyle>(entity);
+            ref readonly var simTr  = ref _view.GetComponentRO<SimTransform>(entity);
+
+            var origin = new Vector2(simTr.Position.X, simTr.Position.Y);
 
             var fillColor   = new Color(style.FillR,   style.FillG,   style.FillB,   style.FillA);
             var borderColor = new Color(style.BorderR,  style.BorderG, style.BorderB, style.BorderA);
 
-            DrawFill(polyline.Points, fillColor);
-            DrawBorder(polyline.Points, borderColor, style.LineThickness, style.IsClosed);
+            DrawFill(polyline.Points,   origin, fillColor);
+            DrawBorder(polyline.Points, origin, borderColor, style.LineThickness, style.IsClosed);
+
+            // Draw reference-point symbol: a small yellow diamond at the entity's SimTransform position.
+            DrawReferencePointSymbol(origin);
         }
     }
 
@@ -113,6 +129,8 @@ public class MapOverlayRenderLayer : IMapLayer
     /// <remarks>
     /// Returns the first entity whose polygon contains <paramref name="worldPos"/>
     /// using an even-odd winding (ray-casting) test.
+    /// Polygon points are offset by the entity's <see cref="SimTransform.Position"/>
+    /// before testing, matching the render output.
     /// </remarks>
     public Entity? PickEntity(Vector2 worldPos)
     {
@@ -121,11 +139,18 @@ public class MapOverlayRenderLayer : IMapLayer
             if (!_view.HasManagedComponent<EditablePolyline>(entity))
                 continue;
 
+            if (!_view.HasComponent<SimTransform>(entity))
+                continue;
+
             var polyline = _view.GetManagedComponentRO<EditablePolyline>(entity);
             if (polyline.Points == null || polyline.Points.Count < 3)
                 continue;
 
-            if (IsPointInPolygon(worldPos, polyline.Points))
+            ref readonly var simTr = ref _view.GetComponentRO<SimTransform>(entity);
+            var origin = new Vector2(simTr.Position.X, simTr.Position.Y);
+
+            // Shift worldPos into the polygon's local frame for the containment test.
+            if (IsPointInPolygon(worldPos - origin, polyline.Points))
                 return entity;
         }
 
@@ -136,22 +161,25 @@ public class MapOverlayRenderLayer : IMapLayer
 
     /// <summary>
     /// Renders a filled polygon as a triangle fan from vertex 0.
+    /// <paramref name="origin"/> is added to every point before rendering.
     /// Requires at least 3 vertices.
     /// </summary>
-    private static void DrawFill(IReadOnlyList<Vector2> pts, Color fill)
+    private static void DrawFill(IReadOnlyList<Vector2> pts, Vector2 origin, Color fill)
     {
         // Triangle fan: (pts[0], pts[i], pts[i+1]) for i = 1 … n-2
         for (int i = 1; i < pts.Count - 1; i++)
         {
-            Raylib.DrawTriangle(pts[0], pts[i], pts[i + 1], fill);
+            Raylib.DrawTriangle(origin + pts[0], origin + pts[i], origin + pts[i + 1], fill);
         }
     }
 
     /// <summary>
     /// Renders the polygon outline as individual line segments.
+    /// <paramref name="origin"/> is added to every point before rendering.
     /// </summary>
     private static void DrawBorder(
         IReadOnlyList<Vector2> pts,
+        Vector2 origin,
         Color border,
         float thickness,
         bool closed)
@@ -161,10 +189,31 @@ public class MapOverlayRenderLayer : IMapLayer
 
         for (int i = 0; i < segmentCount; i++)
         {
-            var a = pts[i];
-            var b = pts[(i + 1) % n];
+            var a = origin + pts[i];
+            var b = origin + pts[(i + 1) % n];
             Raylib.DrawLineEx(a, b, thickness, border);
         }
+    }
+
+    /// <summary>
+    /// Draws a small yellow diamond symbol at <paramref name="pos"/> to mark the
+    /// entity's reference point (centroid / <see cref="SimTransform"/> position).
+    /// </summary>
+    private static void DrawReferencePointSymbol(Vector2 pos)
+    {
+        const float HalfSize = 6f;
+        var yellow = new Color(255, 220, 0, 220);  // semi-transparent yellow
+
+        // Diamond = four triangles meeting at centre
+        var top    = new Vector2(pos.X,             pos.Y - HalfSize);
+        var right  = new Vector2(pos.X + HalfSize,  pos.Y);
+        var bottom = new Vector2(pos.X,             pos.Y + HalfSize);
+        var left   = new Vector2(pos.X - HalfSize,  pos.Y);
+
+        Raylib.DrawTriangle(pos, right,  top,    yellow);
+        Raylib.DrawTriangle(pos, bottom, right,  yellow);
+        Raylib.DrawTriangle(pos, left,   bottom, yellow);
+        Raylib.DrawTriangle(pos, top,    left,   yellow);
     }
 
     // ── Private geometry helpers ──────────────────────────────────────────────

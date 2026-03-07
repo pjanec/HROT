@@ -51,6 +51,17 @@ public interface IIosLogic
     void StartAreaAuthoringMode(string styleOverrideJson = "");
 
     /// <summary>
+    /// Activates the area polygon editing tool for the specified entity,
+    /// allowing operators to drag individual vertices of an existing overlay.
+    /// A <see cref="MapCommandRequest"/> with <c>CMD_START_EDITING</c> is
+    /// sent to the IG.
+    /// </summary>
+    /// <param name="networkEntityId">
+    /// The DDS / network entity ID of the area overlay entity to edit.
+    /// </param>
+    void StartEditingMode(long networkEntityId);
+
+    /// <summary>
     /// Selects a single entity, updating any entity-dependent panels (e.g.
     /// the Mission Panel) and forwarding the selection to the IG.
     /// </summary>
