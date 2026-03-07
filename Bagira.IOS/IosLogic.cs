@@ -177,6 +177,31 @@ public sealed class IosLogic : IIosLogic, IDisposable
     }
 
     /// <inheritdoc/>
+    public void StartAreaAuthoringMode(string styleOverrideJson = "")
+    {
+        ThrowIfDisposed();
+
+        ActiveContextId = Guid.NewGuid();
+        PlacementType   = 0;
+
+        string patch = BuildAreaAuthoringPatch(styleOverrideJson);
+
+        _configWriter.Write(new MapInteractionConfig
+        {
+            MapGroupId        = _mapGroupId,
+            ActiveContextId   = ActiveContextId,
+            JsonSchemaVersion = IosLogicConstants.JsonSchemaVersion,
+            ConfigurationJson = patch
+        });
+
+        FdpLog<IosLogic>.Debug(
+            "[TRACE-IOS] Area Authoring Mode ON. ContextId={0}", ActiveContextId);
+
+        _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicConfig,
+            $"AREA_AUTHORING ctx={ActiveContextId:N}");
+    }
+
+    /// <inheritdoc/>
     public void SelectEntity(int entityId)
     {
         ThrowIfDisposed();
@@ -331,6 +356,35 @@ public sealed class IosLogic : IIosLogic, IDisposable
                 {
                     entityType  = tkbType,
                     affiliation = affiliation.ToString()
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// Builds the JSON config patch that activates area authoring.
+    /// </summary>
+    private static string BuildAreaAuthoringPatch(string styleOverrideJson = "")
+    {
+        if (string.IsNullOrEmpty(styleOverrideJson))
+        {
+            return JsonConvert.SerializeObject(new
+            {
+                interaction = new
+                {
+                    activeTool = IosLogicConstants.AreaAuthoringToolName
+                }
+            });
+        }
+
+        return JsonConvert.SerializeObject(new
+        {
+            interaction = new
+            {
+                activeTool   = IosLogicConstants.AreaAuthoringToolName,
+                toolSettings = new
+                {
+                    styleOverrideJson
                 }
             }
         });

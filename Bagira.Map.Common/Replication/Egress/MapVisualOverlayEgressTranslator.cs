@@ -1,0 +1,112 @@
+using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Bagira.BDC.SSTD;
+using Bagira.DDS.DM;
+using Bagira.IG.Components;
+using CycloneDDS.Runtime;
+using Fdp.Interfaces;
+using Fdp.Kernel;
+using Fdp.Modules.Geographic;
+using FDP.Kernel.Logging;
+using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Extensions;
+using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Utilities;
+using ModuleHost.Core.Abstractions;
+
+namespace Bagira.Map.Common.Replication.Egress
+{
+    /// <summary>
+    /// Egress translator that publishes <see cref="MapVisualOverlay"/> DDS samples
+    /// from the <see cref="EditablePolyline"/> managed component.
+    /// </summary>
+    public class MapVisualOverlayEgressTranslator : IDescriptorTranslator
+    {
+        private const string DdsTopicName = "MapVisualOverlay";
+        private const long OrdinalValue = (long)EDescriptorType.dtMapVisualOverlay;
+
+        private readonly DdsWriter<MapVisualOverlay> _writer;
+        private readonly NetworkEntityMap _entityMap;
+        private readonly IGeographicTransform _geoTransform;
+        private readonly HashSet<long> _tracedNetIds = new();
+
+        public string TopicName => DdsTopicName;
+        public long DescriptorOrdinal => OrdinalValue;
+
+        public MapVisualOverlayEgressTranslator(
+            DdsParticipant participant,
+            NetworkEntityMap entityMap,
+            IGeographicTransform geoTransform)
+        {
+            _writer = new DdsWriter<MapVisualOverlay>(participant, DdsTopicName);
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _geoTransform = geoTransform ?? throw new ArgumentNullException(nameof(geoTransform));
+        }
+
+        // ── Ingress (egress-only) ────────────────────────────────────────────
+
+        public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
+
+        // ── Egress ───────────────────────────────────────────────────────────
+
+        public void ScanAndPublish(ISimulationView view)
+        {
+            var query = view.Query()
+                .With<NetworkIdentity>()
+                .WithManaged<EditablePolyline>()
+                .WithLifecycle(EntityLifecycle.All)
+                .Build();
+
+            foreach (var entity in query)
+            {
+                if (!view.HasAuthority(entity, DescriptorOrdinal))
+                    continue;
+
+                if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
+                    continue;
+
+                ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
+                var polyline = view.GetManagedComponentRO<EditablePolyline>(entity);
+
+                var geoPoints = new List<GeoPosition>(polyline.Points.Count);
+                for (int i = 0; i < polyline.Points.Count; i++)
+                {
+                    var pt = polyline.Points[i];
+                    var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(pt.X, pt.Y, 0f));
+                    geoPoints.Add(new GeoPosition
+                    {
+                        Latitude  = lat,
+                        Longitude = lon,
+                        Altitude  = alt,
+                    });
+                }
+
+                _writer.Write(new MapVisualOverlay
+                {
+                    EntityId        = (int)netId.Value,
+                    PersistenceMode = PersistenceMode.MODE_PERSISTENT,
+                    Points          = geoPoints,
+                    IsEditable      = true,
+                    IsClickable     = true,
+                });
+
+                SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
+
+                if (_tracedNetIds.Add(netId.Value))
+                {
+                    FdpLog<MapVisualOverlayEgressTranslator>.Debug(
+                        "[TRACE-SH] Egress: MapVisualOverlay for NetID={0} points={1}",
+                        netId.Value, polyline.Points.Count);
+                }
+            }
+        }
+
+        public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
+
+        public void Dispose(long networkEntityId)
+        {
+            _writer.DisposeInstance(new MapVisualOverlay { EntityId = (int)networkEntityId });
+        }
+    }
+}

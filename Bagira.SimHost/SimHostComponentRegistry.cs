@@ -70,6 +70,7 @@ public static class SimHostComponentRegistry
         // ── Managed components ────────────────────────────────────────────────
         world.RegisterManagedComponent<IgEntityData>();
         world.RegisterManagedComponent<EntityMissionHolder>();
+        world.RegisterManagedComponent<EditablePolyline>();
 
         // ── CarKinem command events ───────────────────────────────────────────
         world.RegisterEvent<CmdSpawnVehicle>();

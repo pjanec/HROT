@@ -153,6 +153,42 @@ public class IosLogicTests
         Assert.NotEqual(first, second);
     }
 
+    // ── StartAreaAuthoringMode ──────────────────────────────────────────────
+
+    [Fact]
+    public void StartAreaAuthoringMode_SetsActiveContextId_ToNewNonEmptyGuid()
+    {
+        var (logic, _, _, _, _, _, _) = CreateSut();
+
+        logic.StartAreaAuthoringMode();
+
+        Assert.NotEqual(Guid.Empty, logic.ActiveContextId);
+    }
+
+    [Fact]
+    public void StartAreaAuthoringMode_ResetsPlacementType_ToZero()
+    {
+        var (logic, _, _, _, _, _, _) = CreateSut();
+
+        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartAreaAuthoringMode();
+
+        Assert.Equal(0L, logic.PlacementType);
+    }
+
+    [Fact]
+    public void StartAreaAuthoringMode_WritesMapInteractionConfig_WithToolName()
+    {
+        var (logic, configWriter, _, _, _, _, _) = CreateSut();
+
+        logic.StartAreaAuthoringMode();
+
+        configWriter.Verify(w => w.Write(
+            It.Is<MapInteractionConfig>(c =>
+                c.ConfigurationJson.Contains("AREA_AUTHORING"))),
+            Times.Once);
+    }
+
     [Fact]
     public void PlacementFlow_EmitsTraceSequence()
     {

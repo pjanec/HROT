@@ -127,4 +127,14 @@ task 51
 clicking on "New unit..." activates placement tool which never ends - each click (left or right) creates a new entity. This is a regression.
 It stops when i click on "ACTIVATE PLACEMENT TOOL" and make a click to create entity.
 
+---------------------
+Task 52
+IOS needs a custom DER repositoty inspector, implemented in the DER toolkit as ImGui panel.
+It should show the entities currently present in the repo and their descriptors.
+It should look and work similarly to the Entity Inspector panel used to inspect the ECS, using same
+customizations for title bar, context menu and value renderers - to provide same UX just working in top or DER.
+Best if some parts of the Imgui related code could be shared instead of duplicated.
+---------------------
+
+
 

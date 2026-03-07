@@ -47,6 +47,14 @@ public sealed class SpawnerPanel
     private long            _selectedType = 0;
     private eForceIdentifier _affiliation = eForceIdentifier.FORCE_FRIENDLY;
 
+    // ── Area authoring style state ─────────────────────────────────────────────
+
+    /// <summary>Fill colour hex string for the next area overlay (RRGGBBAA).</summary>
+    private string _fillColorHex   = "#FF000050";
+
+    /// <summary>Border line thickness (pixels) for the next area overlay.</summary>
+    private float  _lineThickness   = 2.0f;
+
     // ── Constructors ──────────────────────────────────────────────────────────
 
     /// <summary>
@@ -122,6 +130,24 @@ public sealed class SpawnerPanel
         logic.StartPlacementMode(_selectedType, _affiliation);
     }
 
+    /// <summary>
+    /// Handles the "DRAW AREA" button press.
+    /// Calls <see cref="IIosLogic.StartAreaAuthoringMode"/> with the current
+    /// style settings (<see cref="_fillColorHex"/>, <see cref="_lineThickness"/>).
+    /// </summary>
+    public void HandleStartAreaAuthoring(IIosLogic logic)
+    {
+        ArgumentNullException.ThrowIfNull(logic);
+
+        string styleJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            FillColor     = _fillColorHex,
+            LineThickness = _lineThickness
+        });
+
+        logic.StartAreaAuthoringMode(styleJson);
+    }
+
     // ── Draw stub (Phase P9) ──────────────────────────────────────────────────
 
     /// <summary>
@@ -161,6 +187,14 @@ public sealed class SpawnerPanel
 
         if (ImGui.Button("ACTIVATE PLACEMENT TOOL"))
             HandleActivatePlacementTool(logic);
+
+        ImGui.Separator();
+        ImGui.Text("Area Style");
+        ImGui.InputText("Fill Colour", ref _fillColorHex, 16);
+        ImGui.SliderFloat("Line Thickness", ref _lineThickness, 1.0f, 10.0f);
+
+        if (ImGui.Button("DRAW AREA"))
+            HandleStartAreaAuthoring(logic);
 
         ImGui.End();
     }

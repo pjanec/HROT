@@ -40,6 +40,17 @@ public interface IIosLogic
     void StartPlacementMode(long tkbType, eForceIdentifier affiliation);
 
     /// <summary>
+    /// Activates polygonal area authoring. The application shell generates a
+    /// new context ID and publishes the appropriate <c>MapInteractionConfig</c>.
+    /// </summary>
+    /// <param name="styleOverrideJson">
+    /// Optional JSON fragment describing the desired rendering style for the
+    /// overlay (fill colour, border colour, line thickness).  Pass an empty
+    /// string or omit to use the IG default style.
+    /// </param>
+    void StartAreaAuthoringMode(string styleOverrideJson = "");
+
+    /// <summary>
     /// Selects a single entity, updating any entity-dependent panels (e.g.
     /// the Mission Panel) and forwarding the selection to the IG.
     /// </summary>

@@ -111,6 +111,28 @@ namespace Bagira.Map.Common.Replication.Utils
                         });
                         break;
 
+                    case EDescriptorType.dtMapVisualOverlay:
+                        var polyline = new EditablePolyline();
+                        if (d.MapVisualOverlay.Points != null)
+                        {
+                            polyline.Points = new List<Vector2>(d.MapVisualOverlay.Points.Count);
+                            foreach (var geoPt in d.MapVisualOverlay.Points)
+                            {
+                                if (geoTransform != null)
+                                {
+                                    var cart = geoTransform.ToCartesian(geoPt.Latitude, geoPt.Longitude, geoPt.Altitude);
+                                    polyline.Points.Add(new Vector2((float)cart.X, (float)cart.Y));
+                                }
+                                else
+                                {
+                                    polyline.Points.Add(new Vector2((float)geoPt.Longitude, (float)geoPt.Latitude));
+                                }
+                            }
+                        }
+
+                        result.Add(polyline);
+                        break;
+
                     default:
                         FdpLog<Log>.Warn(
                             "[DescriptorMapper] Unhandled descriptor type: {0} — skipping.", d._d);

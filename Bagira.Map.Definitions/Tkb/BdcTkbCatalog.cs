@@ -1,3 +1,4 @@
+using Fdp.Interfaces;
 using Fdp.Toolkit.Tkb;
 using Bagira.Map.Common;
 
@@ -201,6 +202,11 @@ namespace Bagira.Map.Definitions.Tkb
                     comp.Echelon = "Squad";
                     comp.AutoCreateChildren = false;
                 });
+
+            // Tactical graphic: area overlay
+            var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
+            areaTemplate.AddComponent(new FDP.Toolkit.Replication.Components.NetworkTransform());
+            tkbDb.Register(areaTemplate);
         }
     }
 }

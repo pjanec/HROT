@@ -84,6 +84,8 @@ using FDP.Toolkit.Vis2D.Defaults;
 
 using FDP.Toolkit.Vis2D.Layers;
 
+using FDP.Toolkit.Vis2D.Tools;
+
 using ImGuiNET;
 
 using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
@@ -109,6 +111,10 @@ using ModuleHost.Network.Cyclone.Modules;
 using DdsIdAllocator = ModuleHost.Network.Cyclone.Services.DdsIdAllocator;
 
 using NodeIdMapper    = ModuleHost.Network.Cyclone.Services.NodeIdMapper;
+
+// Disambiguate StandardInteractionTool: both Bagira.IG.Tools and FDP.Toolkit.Vis2D.Tools define it.
+// Use the Bagira.IG variant which exposes OnWorldClick.
+using StandardInteractionTool = Bagira.IG.Tools.StandardInteractionTool;
 
 using Raylib_cs;
 
@@ -229,6 +235,8 @@ public class IgApplication
     private bool                             _showGrid;
 
     private Guid                             _lastPlacementContextId;
+
+    private Guid                             _lastAreaContextId;
 
     private DdsWriter<CreateEntityRequest>?  _createEntityDdsWriter;
 
@@ -463,6 +471,7 @@ public class IgApplication
         _world.RegisterComponent<TracerTarget>();
         _world.RegisterManagedComponent<ContextMenuState>();
         _world.RegisterManagedComponent<EditablePolyline>();
+        _world.RegisterComponent<MapOverlayStyle>();
         _world.RegisterManagedComponent<IgEntityData>();
 
         // SimCombatDef, TkbCompositionDef, VisualData, lifecycle events, and
@@ -631,6 +640,10 @@ public class IgApplication
 
                     participant, _entityMap, IgNetworkConstants.MapGroupId, _ghostCreationSystem);
 
+                var mapVisualOverlayTranslator = new MapVisualOverlayIngressTranslator(
+
+                    participant, _entityMap, _geoTransform, _ghostCreationSystem);
+
                 var contextActionsTranslator = new ContextActionsUpdateTranslator(
 
                     participant, _entityMap, _world.Bus, _ghostCreationSystem);
@@ -652,6 +665,8 @@ public class IgApplication
                     entityDamageTranslator,
 
                     mapEntitySymbolTranslator,
+
+                    mapVisualOverlayTranslator,
 
                     contextActionsTranslator,
 
@@ -820,6 +835,24 @@ public class IgApplication
         var selectionLayer  = new SelectionRenderSystem(_world, selectionQuery);
 
         _canvas.AddLayer(selectionLayer);
+
+
+
+        // MapOverlayRenderLayer — draws tactical graphic area overlays.
+
+        var overlayQuery = _world.Query()
+
+            .WithManaged<EditablePolyline>()
+
+            .With<MapOverlayStyle>()
+
+            .WithLifecycle(EntityLifecycle.All)
+
+            .Build();
+
+        var overlayLayer = new MapOverlayRenderLayer(_world, overlayQuery);
+
+        _canvas.AddLayer(overlayLayer);
 
 
 
@@ -1438,6 +1471,16 @@ public class IgApplication
 
     /// <summary>
 
+    /// Returns <c>true</c> when <see cref="PointSequenceTool"/> is the active map tool.
+
+    /// </summary>
+
+    internal bool TestHook_IsPointSequenceToolActive => _canvas.ActiveTool is PointSequenceTool;
+
+
+
+    /// <summary>
+
     /// Directly invokes <see cref="CreationTool.HandleClick"/> with a left-click at
 
     /// <paramref name="worldPos"/>, bypassing the IOS-mediated <see cref="OnCanvasClicked"/>
@@ -1457,6 +1500,56 @@ public class IgApplication
         if (_canvas.ActiveTool is CreationTool creationTool)
 
             creationTool.HandleClick(worldPos, MouseButton.Left);
+
+    }
+
+
+
+    /// <summary>
+
+    /// Directly drives a <see cref="PointSequenceTool"/> with a list of points and commits
+
+    /// the sequence with a right-click. No-op if the active tool is not a point sequence tool.
+
+    /// </summary>
+
+    internal void TestHook_DirectPointSequenceToolCommit(IReadOnlyList<Vector2> points)
+
+    {
+
+        if (_canvas.ActiveTool is not PointSequenceTool tool)
+
+            return;
+
+
+
+        if (points == null || points.Count == 0)
+
+        {
+
+            tool.HandleClick(Vector2.Zero, MouseButton.Right);
+
+            return;
+
+        }
+
+
+
+        for (int i = 0; i < points.Count; i++)
+
+        {
+
+            tool.HandleHover(points[i]);
+
+            tool.HandleClick(points[i], MouseButton.Left);
+
+        }
+
+
+
+        tool.HandleHover(points[^1]);
+
+        tool.HandleClick(points[^1], MouseButton.Right);
 
     }
 
@@ -2183,49 +2276,77 @@ public class IgApplication
 
             if (root.TryGetProperty("interaction", out var interactionEl)
 
-             && interactionEl.TryGetProperty("activeTool", out var toolEl)
-
-             && toolEl.GetString() == "PLACEMENT"
-
-             && interactionEl.TryGetProperty("toolConfig", out var toolConfigEl))
+             && interactionEl.TryGetProperty("activeTool", out var toolEl))
 
             {
 
-                long    tkbType = 0;
+                string? toolName = toolEl.GetString();
 
-                ForceId aff     = ForceId.Unknown;
+                if (toolName == "PLACEMENT"
 
-
-
-                if (toolConfigEl.TryGetProperty("entityType", out var etEl))
-
-                    tkbType = etEl.GetInt64();
-
-
-
-                if (toolConfigEl.TryGetProperty("affiliation", out var affEl))
+                 && interactionEl.TryGetProperty("toolConfig", out var toolConfigEl))
 
                 {
 
-                    aff = affEl.GetString() switch
+                    long    tkbType = 0;
+
+                    ForceId aff     = ForceId.Unknown;
+
+
+
+                    if (toolConfigEl.TryGetProperty("entityType", out var etEl))
+
+                        tkbType = etEl.GetInt64();
+
+
+
+                    if (toolConfigEl.TryGetProperty("affiliation", out var affEl))
 
                     {
 
-                        "FORCE_FRIENDLY" => ForceId.Friend,
+                        aff = affEl.GetString() switch
 
-                        "FORCE_OPPOSING" => ForceId.Hostile,
+                        {
 
-                        "FORCE_NEUTRAL"  => ForceId.Neutral,
+                            "FORCE_FRIENDLY" => ForceId.Friend,
 
-                        _                => ForceId.Unknown,
+                            "FORCE_OPPOSING" => ForceId.Hostile,
 
-                    };
+                            "FORCE_NEUTRAL"  => ForceId.Neutral,
+
+                            _                => ForceId.Unknown,
+
+                        };
+
+                    }
+
+
+
+                    ActivatePlacementTool(tkbType, aff);
 
                 }
 
+                else if (toolName == "AREA_AUTHORING")
 
+                {
 
-                ActivatePlacementTool(tkbType, aff);
+                    string styleJson = string.Empty;
+
+                    if (interactionEl.TryGetProperty("toolSettings", out var toolSettingsEl)
+
+                     && toolSettingsEl.TryGetProperty("styleOverrideJson", out var styleEl)
+
+                     && styleEl.ValueKind == JsonValueKind.String)
+
+                    {
+
+                        styleJson = styleEl.GetString() ?? string.Empty;
+
+                    }
+
+                    ActivateAreaAuthoringTool(styleJson);
+
+                }
 
             }
 
@@ -2292,6 +2413,174 @@ public class IgApplication
         FdpLog<IgApplication>.Info(
 
             "[IG] Placement tool activated. TkbType={0}, Affiliation={1}", tkbType, affiliation);
+
+    }
+
+
+
+    /// <summary>
+
+    /// Pushes a <see cref="PointSequenceTool"/> onto the canvas tool stack for area authoring.
+
+    /// Guarded by <see cref="_lastAreaContextId"/> so repeated keep-last DDS deliveries do not
+
+    /// re-activate the tool for the same interaction context.
+
+    /// </summary>
+
+    private void ActivateAreaAuthoringTool(string styleJson = "")
+
+    {
+
+        if (_lastAreaContextId == _activeContextId)
+
+            return;
+
+        _lastAreaContextId = _activeContextId;
+
+
+
+        if (!_networkEnabled || _createEntityDdsWriter == null)
+
+            return;
+
+
+
+        if (_canvas.ActiveTool is PointSequenceTool)
+
+            _canvas.PopTool();
+
+
+
+        var tool = new PointSequenceTool(points =>
+
+        {
+
+            if (points.Length < 3)
+
+            {
+
+                _canvas.PopTool();
+
+                return;
+
+            }
+
+
+
+            var geoPoints = new List<GeoPosition>(points.Length);
+
+            for (int i = 0; i < points.Length; i++)
+
+            {
+
+                double lat, lon, alt;
+
+                if (_geoTransform != null)
+
+                {
+
+                    (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(points[i].X, points[i].Y, 0f));
+
+                }
+
+                else
+
+                {
+
+                    lat = points[i].Y;
+
+                    lon = points[i].X;
+
+                    alt = 0.0;
+
+                }
+
+
+
+                geoPoints.Add(new GeoPosition
+
+                {
+
+                    Latitude  = lat,
+
+                    Longitude = lon,
+
+                    Altitude  = alt,
+
+                });
+
+            }
+
+
+
+            var request = new CreateEntityRequest
+
+            {
+
+                RequestId = Guid.NewGuid(),
+
+                Owner     = default,
+
+                Flags     = 0,
+
+                InitialDescriptors = new List<EntityDescriptorUnion>
+
+                {
+
+                    new EntityDescriptorUnion
+
+                    {
+
+                        _d           = EDescriptorType.dtEntityMaster,
+
+                        EntityMaster = new EntityMaster { TkbType = TkbEntityTypes.TacGraphic_Area }
+
+                    },
+
+                    new EntityDescriptorUnion
+
+                    {
+
+                        _d = EDescriptorType.dtMapVisualOverlay,
+
+                        MapVisualOverlay = new MapVisualOverlay
+
+                        {
+
+                            PersistenceMode  = PersistenceMode.MODE_PERSISTENT,
+
+                            Points           = geoPoints,
+
+                            IsEditable       = true,
+
+                            IsClickable      = true,
+
+                            StyleOverrideJson = styleJson,
+
+                        }
+
+                    }
+
+                }
+
+            };
+
+
+
+            _createEntityDdsWriter.Write(request);
+
+            _canvas.PopTool();
+
+        });
+
+
+
+        _canvas.PushTool(tool);
+
+
+
+        FdpLog<IgApplication>.Info("[IG] Area authoring tool activated.");
 
     }
 

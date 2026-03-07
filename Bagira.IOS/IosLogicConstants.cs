@@ -30,6 +30,12 @@ internal static class IosLogicConstants
     /// </summary>
     internal const string PlacementToolName = "PLACEMENT";
 
+    /// <summary>
+    /// The <c>activeTool</c> string sent in the config JSON when the operator
+    /// activates polygonal area authoring.
+    /// </summary>
+    internal const string AreaAuthoringToolName = "AREA_AUTHORING";
+
     // ── Log topics ────────────────────────────────────────────────────────────
 
     /// <summary>DDS topic name used in interaction-log entries for config patches.</summary>

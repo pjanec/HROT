@@ -8,7 +8,8 @@ namespace Bagira.BDC.SSTD
         dtEntityMaster,
         dtEntityInfo,
         dtGeoSpatial,
-        dtGeoSpatialDR
+        dtGeoSpatialDR,
+        dtMapVisualOverlay
         // etc., all known descriptor types here
     }
 
@@ -31,6 +32,9 @@ namespace Bagira.BDC.SSTD
 
         [DdsCase(EDescriptorType.dtGeoSpatialDR)]
         public GeoSpatialDR GeoSpatialDR;
+
+        [DdsCase(EDescriptorType.dtMapVisualOverlay)]
+        public MapVisualOverlay MapVisualOverlay;
 
     }
 }

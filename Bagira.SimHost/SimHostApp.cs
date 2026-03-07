@@ -219,6 +219,8 @@ namespace Bagira.SimHost
             var translators = new List<IDescriptorTranslator>();
             if (simHostMod.GeoEgressTranslator != null)
                 translators.Add(simHostMod.GeoEgressTranslator);
+            if (simHostMod.MapOverlayEgressTranslator != null)
+                translators.Add(simHostMod.MapOverlayEgressTranslator);
             translators.Add(simHostMod.MissionIngressTranslator);
             translators.Add(simHostMod.MissionEgressTranslator);
             var entityMasterEgressTranslator = new EntityMasterEgressTranslator(
