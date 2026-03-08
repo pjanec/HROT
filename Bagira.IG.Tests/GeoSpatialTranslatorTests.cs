@@ -121,6 +121,7 @@ namespace Bagira.IG.Tests
             using var participant = new DdsParticipant(0);
             var repo      = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>(); // required by GhostCreationSystem
+            repo.RegisterComponent<GhostStateTracker>(); // required by GhostCreationSystem
             repo.RegisterComponent<SimTransform>();
             var entityMap = new NetworkEntityMap();
 

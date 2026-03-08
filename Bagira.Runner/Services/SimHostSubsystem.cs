@@ -460,7 +460,8 @@ namespace Bagira.Runner.Services
 
             var simHostMod = new SimHostModule(
                 ddsParticipant, tkbDb, _idAllocator, 1,
-                spawningSystem, entityMap, doctrineRegistry, wgs84);
+                spawningSystem, entityMap, doctrineRegistry,
+                new GhostCreationSystem(entityMap), wgs84);
             _kernel.RegisterModule(simHostMod);
             // ── 7. Network module ─────────────────────────────────────────────
             var localNodeId = 1;

@@ -17,8 +17,8 @@ namespace Bagira.Map.Common.Replication.Ingress
     /// <summary>
     /// Ingress translator for the Bagira <c>EntityMaster</c> DDS topic.
     ///
-    /// On receiving a new entity announcement it ensures a ghost exists and enqueues
-    /// a <see cref="NetworkSpawnRequest"/> so the kernel-side ghost promotion pipeline
+    /// On receiving a new entity announcement it ensures a ghost exists and attaches
+    /// a <see cref="TkbIdentity"/> component so the kernel-side ghost promotion pipeline
     /// can drive the ELM construction cycle.
     ///
     /// On disposal it publishes <see cref="DestroyEntityCommand"/> so the lifecycle module
@@ -127,15 +127,15 @@ namespace Bagira.Map.Common.Replication.Ingress
                 FdpLog<EntityMasterIngressTranslator>.Debug(
                     "[TRACE-IG] Ingress: EntityMaster NetID={0} -> Ghost spawn", master.EntityId);
 
-                entity = _ghostCreationSystem.CreateGhost(repo, netId);
+                entity = _ghostCreationSystem.CreateGhost(repo, netId, view.Tick);
             }
 
-            cmd.AddComponent(entity, new NetworkSpawnRequest
-            {
-                TkbType = master.TkbType,
-                DisType = master.DisType,
-                OwnerId = 0
-            });
+            // Permanent identity component — drives GhostPromotionSystem.
+            cmd.AddComponent(entity, new TkbIdentity { TkbType = master.TkbType });
+
+            // Store DIS entity type natively in the entity header.
+            if (view is EntityRepository repoForDis)
+                repoForDis.SetDisType(entity, new DISEntityType { Value = master.DisType });
         }
     }
 }

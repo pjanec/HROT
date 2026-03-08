@@ -90,11 +90,11 @@ public class EntityDestroyIntegrationTests
     private static bool TryGetSimHostNetworkId(EntityRepository world, long tkbType, out long networkId)
     {
         var view = (ISimulationView)world;
-        var query = world.Query().IncludeAll().With<NetworkIdentity>().With<NetworkSpawnRequest>().Build();
+        var query = world.Query().IncludeAll().With<NetworkIdentity>().With<TkbIdentity>().Build();
         foreach (var entity in query)
         {
-            var spawn = view.GetComponentRO<NetworkSpawnRequest>(entity);
-            if (spawn.TkbType != tkbType)
+            var tkbId = view.GetComponentRO<TkbIdentity>(entity);
+            if (tkbId.TkbType != tkbType)
                 continue;
 
             var netId = view.GetComponentRO<NetworkIdentity>(entity);

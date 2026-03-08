@@ -9,6 +9,7 @@ using Fdp.Modules.Geographic;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network.Interfaces;
 
@@ -78,6 +79,7 @@ namespace Bagira.SimHost.Modules
             NetworkSpawningSystem spawnSystem,
             NetworkEntityMap entityMap,
             DoctrineRegistry doctrineRegistry,
+            GhostCreationSystem ghostCreationSystem,
             IGeographicTransform? geoTransform = null)
         {
             var requestSource = new DdsCreateEntityRequestSource(participant);
@@ -101,7 +103,7 @@ namespace Bagira.SimHost.Modules
             }
 
             // Mission translators are always active regardless of geographic transform.
-            _missionIngressTranslator = new EntityMissionIngressTranslator(participant, entityMap, doctrineRegistry);
+            _missionIngressTranslator = new EntityMissionIngressTranslator(participant, entityMap, doctrineRegistry, ghostCreationSystem);
             _missionEgressTranslator  = new EntityMissionEgressTranslator(participant, entityMap);
         }
 

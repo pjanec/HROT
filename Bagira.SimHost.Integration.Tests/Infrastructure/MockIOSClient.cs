@@ -16,7 +16,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
     /// 1. <see cref="SendCreateRequest"/> → publishes a <see cref="CreateEntityRequest"/>.
     /// 2. <see cref="WaitForAckAsync"/>   → polls the stub ACK sink until the matching
     ///    <see cref="CreateEntityAck"/> arrives (or the timeout elapses).
-    /// 3. <see cref="ReadNetworkSpawnRequest"/> → inspects the ECS world via the
+    /// 3. <see cref="ReadTkbIdentity"/> → inspects the ECS world via the
     ///    <see cref="SimHostInstance"/> to verify spawn metadata is present.
     /// </summary>
     public sealed class MockIOSClient
@@ -78,27 +78,27 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         // ── World inspection (simulates IOS ingesting DDS topics) ────────────────
 
         /// <summary>
-        /// Reads the <see cref="NetworkSpawnRequest"/> state from the ECS world for the entity
+        /// Reads the <see cref="TkbIdentity"/> state from the ECS world for the entity
         /// with network-id <paramref name="networkId"/>.
         ///
         /// In a live DDS environment the IOS client would read the <c>EntityMaster</c>
         /// topic.  In the integration test the world is queried directly.
         /// </summary>
         /// <returns>
-        /// The <see cref="NetworkSpawnRequest"/> component, or <c>null</c> if no matching
+        /// The <see cref="TkbIdentity"/> component, or <c>null</c> if no matching
         /// entity is found.
         /// </returns>
-        public NetworkSpawnRequest? ReadNetworkSpawnRequest(int networkId)
+        public TkbIdentity? ReadTkbIdentity(int networkId)
         {
             // Resolve network-id → ECS entity via the entity map exposed by SimHostInstance.
             if (!_host.EntityMap.TryGetEntity(networkId, out var entity))
                 return null;
 
-            if (!_host.World.HasComponent<NetworkSpawnRequest>(entity))
+            if (!_host.World.HasComponent<TkbIdentity>(entity))
                 return null;
 
-            ref readonly var spawnRequest = ref _host.World.GetComponentRO<NetworkSpawnRequest>(entity);
-            return spawnRequest;
+            ref readonly var tkbId = ref _host.World.GetComponentRO<TkbIdentity>(entity);
+            return tkbId;
         }
     }
 }

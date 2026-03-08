@@ -16,7 +16,7 @@ namespace Bagira.SimHost.Tests
             var repo = new EntityRepository();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkAuthority>();
-            repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterComponent<TkbIdentity>();
             return repo;
         }
 
@@ -33,7 +33,8 @@ namespace Bagira.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 777, DisType = 0, OwnerId = 1 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.SetDisType(entity, new DISEntityType { Value = 0 });
 
             Thread.Sleep(200);
             translator.ScanAndPublish(repo);
@@ -70,7 +71,7 @@ namespace Bagira.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
-            repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 777, DisType = 0, OwnerId = 2 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
 
             Thread.Sleep(200);
             translator.ScanAndPublish(repo);
@@ -103,7 +104,8 @@ namespace Bagira.SimHost.Tests
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new NetworkIdentity(42));
             repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 777, DisType = 0, OwnerId = 1 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = 777 });
+            repo.SetDisType(entity, new DISEntityType { Value = 0 });
             translator.ScanAndPublish(repo);
             Thread.Sleep(200);
 

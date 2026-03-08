@@ -8,6 +8,7 @@ using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
 using DdsMissionTrigger = Bagira.BDC.SSTD.MissionTrigger;
 using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
@@ -28,6 +29,7 @@ namespace Bagira.Map.Common.Replication.Ingress
         private readonly DdsReader<EntityMission> _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly DoctrineRegistry _doctrineRegistry;
+        private readonly GhostCreationSystem _ghostCreationSystem;
 
         public string TopicName => "EntityMission";
         public long DescriptorOrdinal => 50;
@@ -35,11 +37,13 @@ namespace Bagira.Map.Common.Replication.Ingress
         public EntityMissionIngressTranslator(
             DdsParticipant participant,
             NetworkEntityMap entityMap,
-            DoctrineRegistry doctrineRegistry)
+            DoctrineRegistry doctrineRegistry,
+            GhostCreationSystem ghostCreationSystem)
         {
             _reader = new DdsReader<EntityMission>(participant, "EntityMission");
             _entityMap = entityMap;
             _doctrineRegistry = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
         /// <summary>
@@ -66,7 +70,19 @@ namespace Bagira.Map.Common.Replication.Ingress
                 }
 
                 if (!_entityMap.TryGetEntity(entityId, out var entity))
-                    continue; // Entity not yet known — skip safely
+                {
+                    // Entity not yet known — create a ghost so mission data is not dropped.
+                    if (sample.IsValid)
+                    {
+                        var repo = view as EntityRepository;
+                        if (repo == null) continue;
+                        entity = _ghostCreationSystem.CreateGhost(repo, entityId, view.Tick);
+                    }
+                    else
+                    {
+                        continue; // Dispose for completely unknown entity — nothing to do.
+                    }
+                }
 
                 if (sample.IsValid)
                 {

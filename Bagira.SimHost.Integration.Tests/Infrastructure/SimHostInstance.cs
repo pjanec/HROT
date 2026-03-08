@@ -575,7 +575,8 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<NetworkIdentity>();
             world.RegisterComponent<NetworkOwnership>();
             world.RegisterComponent<NetworkAuthority>();
-            world.RegisterComponent<NetworkSpawnRequest>();
+            world.RegisterComponent<TkbIdentity>();
+            world.RegisterComponent<GhostStateTracker>();
             world.RegisterComponent<PendingNetworkAck>();
 
             // ── Geographic components ─────────────────────────────────────────────

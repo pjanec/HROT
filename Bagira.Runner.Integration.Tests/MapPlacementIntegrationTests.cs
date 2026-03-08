@@ -162,11 +162,11 @@ public class MapPlacementIntegrationTests
 
     private static bool SimHostHasEntityWithTkbType(EntityRepository world, long tkbType)
     {
-        var query = world.Query().With<NetworkSpawnRequest>().Build();
+        var query = world.Query().With<TkbIdentity>().Build();
         foreach (var entity in query)
         {
-            var spawn = world.GetComponent<NetworkSpawnRequest>(entity);
-            if (spawn.TkbType == tkbType)
+            var tkbId = world.GetComponent<TkbIdentity>(entity);
+            if (tkbId.TkbType == tkbType)
                 return true;
         }
 

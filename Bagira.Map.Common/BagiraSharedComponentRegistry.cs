@@ -38,7 +38,8 @@ public static class BagiraSharedComponentRegistry
         world.RegisterComponent<NetworkIdentity>();
         world.RegisterComponent<NetworkOwnership>();
         world.RegisterComponent<NetworkAuthority>();
-        world.RegisterComponent<NetworkSpawnRequest>();
+        world.RegisterComponent<TkbIdentity>();
+        world.RegisterComponent<GhostStateTracker>();
         world.RegisterComponent<PendingNetworkAck>();
         world.RegisterComponent<NetworkTransform>();
         world.RegisterComponent<NetworkVelocity>();

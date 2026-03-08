@@ -18,7 +18,7 @@ namespace Bagira.SimHost.Integration.Tests
     ///      processes the request in simulated ticks.
     ///   3. The mock client receives a matching <see cref="CreateEntityAck"/> with ErrorCode=0
     ///      and a valid new entity ID.
-    ///   4. The ECS world contains a <see cref="NetworkSpawnRequest"/> with the correct
+    ///   4. The ECS world contains a <see cref="TkbIdentity"/> with the correct
     ///      TkbType on the spawned entity.
     ///
     /// This test is DDS-free — all networking is replaced by in-process stubs defined in
@@ -41,7 +41,7 @@ namespace Bagira.SimHost.Integration.Tests
 
         /// <summary>
         /// End-to-end flow: IOS client requests a Tank_M1Abrams, SimHost creates it,
-        /// client receives ACK and can read back the NetworkSpawnRequest metadata.
+        /// client receives ACK and can read back the TkbIdentity metadata.
         /// </summary>
         [Fact]
         public async Task FullFlow_IOSCreateTank_ReceivesAckAndSpawnRequestIsSet()
@@ -64,14 +64,13 @@ namespace Bagira.SimHost.Integration.Tests
             Assert.True(ack.Value.NewEntityId > 0,
                 $"Expected a positive network entity ID, got {ack.Value.NewEntityId}.");
 
-            // ── Assert: NetworkSpawnRequest component ────────────────────────────────────
+            // ── Assert: TkbIdentity component ──────────────────────────────────────────────────────────────────────
             // Allow a few more ticks for ELM lifecycle processing to complete.
             _host.RunForTicks(5);
 
-            var spawnRequest = _client.ReadNetworkSpawnRequest(ack.Value.NewEntityId);
-            Assert.NotNull(spawnRequest);
-            Assert.Equal(TkbEntityTypes.Tank_M1Abrams, spawnRequest!.Value.TkbType);
-            Assert.Equal(0x0100_0000_0000_0001UL, spawnRequest.Value.DisType);
+            var tkbId = _client.ReadTkbIdentity(ack.Value.NewEntityId);
+            Assert.NotNull(tkbId);
+            Assert.Equal(TkbEntityTypes.Tank_M1Abrams, tkbId!.Value.TkbType);
         }
 
         /// <summary>

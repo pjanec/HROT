@@ -71,7 +71,8 @@ namespace Bagira.SimHost.Tests
             // Register component types that SpawnEntityCommand will carry through the bus
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkOwnership>();
-            repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
             // Register events used by NetworkSpawningSystem if it were running
             repo.RegisterEvent<FDP.Toolkit.Lifecycle.Events.ConstructionOrder>();
             repo.RegisterEvent<FDP.Toolkit.Lifecycle.Events.DestructionOrder>();

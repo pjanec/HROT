@@ -52,7 +52,8 @@ public class SpawningModuleIntegrationTests
         repo.RegisterComponent<NetworkIdentity>();
         repo.RegisterComponent<NetworkOwnership>();
         repo.RegisterComponent<NetworkAuthority>();
-        repo.RegisterComponent<NetworkSpawnRequest>();
+        repo.RegisterComponent<TkbIdentity>();
+        repo.RegisterComponent<GhostStateTracker>();
         repo.RegisterComponent<PendingNetworkAck>();
         // Lifecycle events required by ELM command-buffer playback
         repo.RegisterEvent<ConstructionOrder>();
@@ -133,11 +134,11 @@ public class SpawningModuleIntegrationTests
     }
 
     /// <summary>
-    /// The spawning system must apply <see cref="NetworkSpawnRequest"/>
+    /// The spawning system must apply <see cref="TkbIdentity"/>
     /// with the correct TKB type on the created entity.
     /// </summary>
     [Fact]
-    public void SpawnCommand_StoresNetworkSpawnRequestWithTkbType()
+    public void SpawnCommand_StoresTkbIdentityWithCorrectTkbType()
     {
         var (repo, system, entityMap) = BuildWorld();
 
@@ -156,8 +157,8 @@ public class SpawningModuleIntegrationTests
         Assert.True(entityMap.TryGetEntity(TestNetworkId, out var entity),
             "Entity must be registered before its components can be read");
 
-        var spawn = repo.GetComponent<NetworkSpawnRequest>(entity);
-        Assert.Equal(TestTkbType, spawn.TkbType);
+        var tkbId = repo.GetComponentRO<TkbIdentity>(entity);
+        Assert.Equal(TestTkbType, tkbId.TkbType);
     }
 
     /// <summary>

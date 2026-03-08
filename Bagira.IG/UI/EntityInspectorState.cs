@@ -36,7 +36,7 @@ public class EntityInspectorState
     /// <summary>Raw network / DIS entity identifier from <see cref="NetworkIdentity.Value"/>.</summary>
     public int EntityId { get; private set; }
 
-    /// <summary>TKB template type key from <see cref="NetworkSpawnRequest.TkbType"/>.</summary>
+    /// <summary>TKB template type key from <see cref="TkbIdentity.TkbType"/>.</summary>
     public long TkbType { get; private set; }
 
     // ── SimTransform ──────────────────────────────────────────────────────────
@@ -95,10 +95,10 @@ public class EntityInspectorState
             EntityId = (int)identity.Value;
         }
 
-        if (view.HasComponent<NetworkSpawnRequest>(entity))
+        if (view.HasComponent<TkbIdentity>(entity))
         {
-            ref readonly var spawn = ref view.GetComponentRO<NetworkSpawnRequest>(entity);
-            TkbType = spawn.TkbType;
+            ref readonly var tkbId = ref view.GetComponentRO<TkbIdentity>(entity);
+            TkbType = tkbId.TkbType;
         }
 
         // SimTransform — world-space position.

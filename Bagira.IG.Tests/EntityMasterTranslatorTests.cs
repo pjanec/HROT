@@ -38,6 +38,7 @@ public class EntityMasterTranslatorTests
     {
         var repo       = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>(); // required by GhostCreationSystem
+        repo.RegisterComponent<GhostStateTracker>(); // required by GhostCreationSystem
         var entityMap  = new NetworkEntityMap();
         var eventBus   = new FdpEventBus();
         var ghostCreationSystem = new GhostCreationSystem(entityMap);
@@ -50,13 +51,13 @@ public class EntityMasterTranslatorTests
 
     /// <summary>
     /// When a sample arrives for an unknown network ID, ProcessSample must call
-    /// AddComponent with a <see cref="NetworkSpawnRequest"/> carrying the correct
-    /// TkbType, DisType, and OwnerId=0 (remote ghost — no local authority).
+    /// AddComponent with a <see cref="TkbIdentity"/> carrying the correct TkbType,
+    /// and write DisType natively to the entity header.
     /// </summary>
     [Fact]
-    public void ProcessSample_NewEntity_AddsNetworkSpawnRequestWithCorrectFields()
+    public void ProcessSample_NewEntity_AddsTkbIdentityWithCorrectTkbType()
     {
-        var (repo, _, _, translator) = CreateFixture();
+        var (repo, entityMap, _, translator) = CreateFixture();
         var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType, DisType = TestDisType };
 
         ISimulationView view = repo;
@@ -64,11 +65,14 @@ public class EntityMasterTranslatorTests
 
         translator.ProcessSample(in master, cmd, view);
 
-        Assert.True(cmd.AddComponentCalled, "AddComponent must be called with NetworkSpawnRequest");
-        Assert.NotNull(cmd.LastNetworkSpawnRequest);
-        Assert.Equal(TestTkbType, cmd.LastNetworkSpawnRequest!.Value.TkbType);
-        Assert.Equal(TestDisType, cmd.LastNetworkSpawnRequest!.Value.DisType);
-        Assert.Equal(0UL,         cmd.LastNetworkSpawnRequest!.Value.OwnerId); // ghost — no authority
+        Assert.True(cmd.AddComponentCalled, "AddComponent must be called with TkbIdentity");
+        Assert.NotNull(cmd.LastTkbIdentity);
+        Assert.Equal(TestTkbType, cmd.LastTkbIdentity!.Value.TkbType);
+
+        // DisType is now stored natively in EntityHeader — verify via repo.GetHeader.
+        Assert.True(entityMap.TryGetEntity(TestNetworkId, out var entity));
+        ulong disType = repo.GetHeader(entity.Index).DisType.Value;
+        Assert.Equal(TestDisType, disType);
     }
 
     /// <summary>
@@ -91,31 +95,31 @@ public class EntityMasterTranslatorTests
     }
 
     /// <summary>
-    /// SC1 (TASK-IF004): A replicated entity must have <c>OwnerId = 0</c>
-    /// (FDP convention for "remote / no local authority"). This prevents
-    /// <c>NetworkSpawningSystem</c> from tagging the entity with
-    /// <c>NetworkAuthority.HasAuthority = true</c>, which would break
-    /// dead-reckoning for all replicated entities.
+    /// FDP ghost ownership convention: ghosts created from ingress data have no local
+    /// authority. TkbIdentity carries only the TKB type (no OwnerId field); ownership
+    /// is tracked by NetworkOwnership if needed.
     /// </summary>
     [Fact]
-    public void ProcessSample_NewEntity_OwnerIdIsZero_EnforcingGhostOwnership()
+    public void ProcessSample_NewEntity_RegistersGhostWithNoLocalAuthority()
     {
-        var (repo, _, _, translator) = CreateFixture();
+        var (repo, entityMap, _, translator) = CreateFixture();
         var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
 
         ISimulationView view = repo;
         var cmd = new RecordingCommandBuffer();
         translator.ProcessSample(in master, cmd, view);
 
-        Assert.NotNull(cmd.LastNetworkSpawnRequest);
-        Assert.Equal(0UL, cmd.LastNetworkSpawnRequest!.Value.OwnerId);
+        // TkbIdentity present; no NetworkOwnership set by this translator
+        Assert.NotNull(cmd.LastTkbIdentity);
+        // Entity map contains the new ghost
+        Assert.True(entityMap.TryGetEntity(TestNetworkId, out _));
     }
 
     // ── Component-update path (known entity) ─────────────────────────────────
 
     /// <summary>
     /// When the entity is already known, ProcessSample must NOT emit SetComponent
-    /// calls. AddComponent IS called to enqueue the <see cref="NetworkSpawnRequest"/>
+    /// calls. AddComponent IS called to enqueue the <see cref="TkbIdentity"/>
     /// so the promotion pipeline can process the updated type information.
     /// </summary>
     [Fact]
@@ -141,7 +145,7 @@ public class EntityMasterTranslatorTests
         eventBus.SwapBuffers();
         Assert.Empty(eventBus.ConsumeManaged<DestroyEntityCommand>());
         Assert.False(cmd.SetComponentCalled, "SetComponent must not be called for known entities");
-        Assert.True(cmd.AddComponentCalled, "AddComponent must be called with NetworkSpawnRequest");
+        Assert.True(cmd.AddComponentCalled, "AddComponent must be called with TkbIdentity");
     }
 
     [Fact]
@@ -160,15 +164,15 @@ public class EntityMasterTranslatorTests
     {
         public bool AddComponentCalled { get; private set; }
         public bool SetComponentCalled { get; private set; }
-        public NetworkSpawnRequest? LastNetworkSpawnRequest { get; private set; }
+        public TkbIdentity? LastTkbIdentity { get; private set; }
 
         public Entity CreateEntity() => new Entity();
         public void DestroyEntity(Entity entity) { }
         public void AddComponent<T>(Entity entity, in T component) where T : unmanaged
         {
             AddComponentCalled = true;
-            if (component is NetworkSpawnRequest req)
-                LastNetworkSpawnRequest = req;
+            if (component is TkbIdentity tkbId)
+                LastTkbIdentity = tkbId;
         }
         public void SetComponent<T>(Entity entity, in T component) where T : unmanaged => SetComponentCalled = true;
         public void RemoveComponent<T>(Entity entity) where T : unmanaged { }

@@ -43,13 +43,15 @@ namespace Bagira.Map.Common.Replication.Egress
 
         /// <summary>
         /// Publishes EntityMaster for all locally-owned entities that have
-        /// the required network identity and spawn request components.
+        /// the required network identity and TKB identity components.
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
+            var repo = view as EntityRepository;
+
             var query = view.Query()
                 .With<NetworkIdentity>()
-                .With<NetworkSpawnRequest>()
+                .With<TkbIdentity>()
                 // Lifecycle.All is crucial: Constructing entities must publish EntityMaster
                 // so remote peers can create ghosts and ACK the construction.
                 .WithLifecycle(EntityLifecycle.All)
@@ -67,13 +69,18 @@ namespace Bagira.Map.Common.Replication.Egress
                     continue;
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-                ref readonly var spawn = ref view.GetComponentRO<NetworkSpawnRequest>(entity);
+                ref readonly var tkb = ref view.GetComponentRO<TkbIdentity>(entity);
+
+                // Read DisType from entity header (written natively by NetworkSpawningSystem).
+                ulong disType = repo != null
+                    ? repo.GetHeader(entity.Index).DisType.Value
+                    : 0UL;
 
                 _writer.Write(new EntityMaster
                 {
                     EntityId = (int)netId.Value,
-                    TkbType = spawn.TkbType,
-                    DisType = spawn.DisType,
+                    TkbType = tkb.TkbType,
+                    DisType = disType,
                     Flags = 0
                 });
 

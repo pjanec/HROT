@@ -14,7 +14,7 @@ namespace Bagira.IG.Tests;
 /// Validates:
 /// <list type="bullet">
 ///   <item><see cref="EntityInspectorState.Refresh"/> with a live entity extracts
-///         <see cref="NetworkIdentity"/>, <see cref="NetworkSpawnRequest"/>,
+///         <see cref="NetworkIdentity"/>, <see cref="TkbIdentity"/>,
 ///         <see cref="SimTransform"/>, and <see cref="ResolvedStyle"/> fields correctly.</item>
 ///   <item>Calling <see cref="EntityInspectorState.Refresh"/> with <see cref="Entity.Null"/>
 ///         sets <see cref="EntityInspectorState.HasSelection"/> to <c>false</c>.</item>
@@ -42,7 +42,7 @@ public class EntityInspectorStateTests
     {
         var repo = new EntityRepository();
         repo.RegisterComponent<NetworkIdentity>();
-        repo.RegisterComponent<NetworkSpawnRequest>();
+        repo.RegisterComponent<TkbIdentity>();
         repo.RegisterComponent<SimTransform>();
         repo.RegisterComponent<ResolvedStyle>();
         return repo;
@@ -54,7 +54,7 @@ public class EntityInspectorStateTests
         var entity = repo.CreateEntity();
 
         repo.AddComponent(entity, new NetworkIdentity(TestEntityId));
-        repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = TestTkbType });
+        repo.AddComponent(entity, new TkbIdentity { TkbType = TestTkbType });
 
         repo.AddComponent(entity, new SimTransform
         {
@@ -113,7 +113,7 @@ public class EntityInspectorStateTests
         Assert.Equal(TestEntityId, state.EntityId);
     }
 
-    /// <summary>TkbType must be extracted correctly from NetworkSpawnRequest.</summary>
+    /// <summary>TkbType must be extracted correctly from TkbIdentity.</summary>
     [Fact]
     public void Refresh_LiveEntity_ExtractsTkbType()
     {
@@ -299,7 +299,7 @@ public class EntityInspectorStateTests
         // Create a second entity with different position
         var entity2 = repo.CreateEntity();
         repo.AddComponent(entity2, new NetworkIdentity(99));
-        repo.AddComponent(entity2, new NetworkSpawnRequest { TkbType = 0 });
+        repo.AddComponent(entity2, new TkbIdentity { TkbType = 0 });
         repo.AddComponent(entity2, new SimTransform
         {
             Position = new Vector3(999f, 888f, 777f),

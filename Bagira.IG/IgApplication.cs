@@ -1796,17 +1796,11 @@ public class IgApplication
 
         var cmd = (EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer();
 
-        cmd.AddComponent(entity, new NetworkSpawnRequest
+        // Permanent identity component — drives GhostPromotionSystem.
+        cmd.AddComponent(entity, new TkbIdentity { TkbType = descriptor.TkbType });
 
-        {
-
-            TkbType = descriptor.TkbType,
-
-            DisType = descriptor.DisType,
-
-            OwnerId = 0
-
-        });
+        // Store DIS entity type natively in the entity header.
+        _world.SetDisType(entity, new DISEntityType { Value = descriptor.DisType });
 
         cmd.Playback(_world);
 
@@ -1852,9 +1846,9 @@ public class IgApplication
 
                 EntityId   = (int)netId.Value,
 
-                TkbType    = _world.HasComponent<NetworkSpawnRequest>(hit)
+                TkbType    = _world.HasComponent<TkbIdentity>(hit)
 
-                    ? (int)_world.GetComponentRO<NetworkSpawnRequest>(hit).TkbType : 0,
+                    ? (int)_world.GetComponentRO<TkbIdentity>(hit).TkbType : 0,
 
                 VisualPart = EEntitySymbolPart.ESP_BODY,
 
