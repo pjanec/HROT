@@ -267,10 +267,14 @@ public partial struct OrchestratorContextTopic
 }
 
 // ─── Replay-specific time pulse (Orchestrator → All, during RunningReplay) ───
-// NOTE: ReplayTimePulse reuses the existing TimePulseDescriptor DDS topic
-// but is driven by ReplayMasterModule's playhead instead of the normal
-// MasterTimeController. No new topic is needed; the consumer must check
-// SystemStateTopic.CurrentState == RunningReplay to interpret it correctly.
+// NOTE: During RunningReplay the ReplayMasterModule seeds MasterTimeController
+// with the recording epoch (StartWallTicks = recording.StartWallTicks) and sets
+// an appropriate TimeScale, then calls MasterTimeController.Update() normally.
+// MasterTimeController publishes TimePulseDescriptor at 1 Hz (or on SetTimeScale).
+// Slaves run SlaveTimeController PLL as usual — SimTimeSnapshot carries seconds
+// elapsed since recording epoch.  No new DDS topic is needed; the consumer may
+// check SystemStateTopic.CurrentState == RunningReplay to interpret TotalTime as
+// recording-relative seconds rather than live simulation time.
 ```
 
 ---
@@ -708,59 +712,163 @@ Nodes are classified in the system configuration (`config.json`):
 
 | Component | Location | Role |
 |-----------|----------|------|
-| `ReplayMasterModule` | SimHost (Time Master node) | Drives the replay playhead; republishes `TimePulseDescriptor` with playhead wall-ticks |
-| `ReplaySlaveModule` | Each FDP node | Consumes `TimePulseDescriptor`, calls `PlaybackController.SeekToFrame()`, disables simulation |
+| `ReplayMasterModule` | `Bagira.Orchestrator` (Time Master node) | Drives the replay playhead by seeding `MasterTimeController` with the recording epoch; controls speed via `SetTimeScale()`; publishes the existing `TimePulseDescriptor` — no new DDS topic needed |
+| `IRecordReplayController` | `FDP/Kernel/Fdp.Kernel/Orchestration/` (new) | Generic abstraction over any recording/playback subsystem; ECS-based and custom-module controllers implement this |
+| `EcsRecordReplayController` | `Bagira.SimHost/Modules/Orchestration/` (new) | FDP ECS adapter; wraps `AsyncRecorder` + `PlaybackController`; registered with `SystemSlaveModule` as one of potentially several `IRecordReplayController` instances |
+| `ReplayLoadEsmHandler` | Each FDP node (`Bagira.SimHost`, `Bagira.IG`) | `IEsmHandler` for `PrepareReplay` / `FinalizeReplay`; disables sim groups; toggles `GhostCreationSystem.BypassLifecycle`; creates and owns `EcsRecordReplayController` |
+| `NetworkLifecycleSystemGroup` | `FDP/ModuleHost/ModuleHost.Core/Scheduling/` (new) | Concrete `ISystemGroup` with `bool Enabled` toggle; encapsulates `LifecycleSystem`, `GhostPromotionSystem`, `NetworkGatewaySystem` so the orchestrator can disable all three with one O(1) assignment |
 
 ### 8.2 Integration with Existing PlaybackController
 
 The existing `PlaybackController` (in `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackController.cs`)
 already provides `SeekToFrame()` and `SeekToTick()`. However:
 
-> ⚠️ **Gap:** Frame headers currently store only `repo.GlobalVersion` (ECS tick), not wall-clock
-> time. See [Gap Analysis](./GAP-ANALYSIS.md#gap-1-wall-clock-timestamps-in-frame-headers).
+> ⚠️ **Gap 1:** Frame headers currently store only `(ulong)repo.GlobalVersion` (ECS tick) and
+> frame type byte.  A `long WallClockTicks` (UTC ticks at capture time) must be added to both
+> `RecorderSystem.RecordDeltaFrame` / `RecordKeyframe` and the `FrameMetadata` struct used
+> by `PlaybackController.BuildFrameIndex()`.
+>
+> ⚠️ **Gap 2:** The existing `SeekToTick(EntityRepository, ulong)` does a **linear forward
+> scan**.  `SeekToWallClockTicks` needs a proper binary search over `_frameIndex`.
+>
+> ⚠️ **Gap 3:** `GlobalTime` does not currently expose `TotalWallTicks`.  Both
+> `MasterTimeController` and `SlaveTimeController` must populate a new `long TotalWallTicks`
+> field so that `EcsRecordReplayController.ProcessPlaybackTick` has a clock value to pass to
+> `SeekToWallClockTicks`.
 
-After fixing that gap, the `PlaybackController` gains `SeekToWallClockTicks(long wallTicks)`.
+After fixing those gaps, the `PlaybackController` gains `SeekToWallClockTicks(EntityRepository, long wallTicks)`, and `GlobalTime` exposes `TotalWallTicks` for PLL-derived seeking.
 
 ### 8.3 ReplayMasterModule Internals
 
+The `ReplayMasterModule` reuses the existing `MasterTimeController` rather than maintaining
+a raw independent wall-clock counter.  On entering `RunningReplay` it seeds the controller
+with the recording epoch so that `TotalTime` measures seconds from the start of the recording:
+
 ```
+┌─ REPLAY MASTER: Entering RunningReplay ──────────────────────────────────┐
+│  // Seed master clock to start of recording (or seek target).            │
+│  // recording.StartWallTicks read from .fdp global header.               │
+│  _masterTime.SeedState(new GlobalTime                                    │
+│  {                                                                        │
+│      TotalTime      = 0.0,                  // seconds from epoch start  │
+│      TimeScale      = _playbackSpeed,       // 1.0 = realtime            │
+│      StartWallTicks = recording.StartWallTicks,                          │
+│  });                                                                      │
+└──────────────────────────────────────────────────────────────────────────┘
+
 ┌─ REPLAY MASTER TICK (BeforeSync phase) ──────────────────────────────────┐
-│                                                                            │
-│  _replayWallTicks += (long)(realDeltaSec * _playbackSpeed * TimeSpan      │
-│                                            .TicksPerSecond)               │
-│                                                                            │
-│  if (_replayPaused) return;                                               │
-│                                                                            │
-│  Publish TimePulseDescriptor {                                             │
-│      MasterWallTicks    = _replayWallTicks,  // ← playhead position       │
-│      SimTimeSnapshot    = _replaySimSeconds,                               │
-│      TimeScale          = _playbackSpeed,                                  │
-│      SequenceId         = _seqId++,                                        │
-│  }                                                                         │
+│  // Speed changes are a single call; pulse is sent immediately:          │
+│  //   _masterTime.SetTimeScale(0.0f)  // pause                           │
+│  //   _masterTime.SetTimeScale(2.0f)  // 2× fast-forward                 │
+│                                                                           │
+│  GlobalTime time = _masterTime.Update();                                 │
+│  // MasterTimeController automatically publishes TimePulseDescriptor     │
+│  // at 1 Hz (and on every SetTimeScale call), carrying:                  │
+│  //   MasterWallTicks  = Stopwatch.GetTimestamp()                        │
+│  //   SimTimeSnapshot  = time.TotalTime  (seconds from recording epoch)  │
+│  //   TimeScale        = current playback speed                          │
+│                                                                           │
+│  // For heavy seeks: SetTimeScale(0) BEFORE issuing ReplaySeek NodeOp;  │
+│  // restore saved speed AFTER all nodes report NodeOpStatus(Success).    │
 └────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 8.4 ReplaySlaveModule Internals
 
+Rather than consuming `TimePulseDescriptor` once per frame (which would lag by one pulse
+interval), the slave reads its PLL-synchronized local clock maintained by
+`SlaveTimeController`, giving zero-latency visual synchronization between pulses:
+
 ```
 ┌─ REPLAY SLAVE TICK (BeforeSync phase) ────────────────────────────────────┐
-│                                                                             │
-│  Read TimePulseDescriptor from DDS                                         │
-│  if (pulse.SequenceId == _lastSeqId) return; // no new pulse               │
-│                                                                             │
-│  _playbackController.SeekToWallClockTicks(pulse.MasterWallTicks, _repo)   │
-│      // Internally: binary search FrameIndex for nearest tick,             │
-│      //             apply keyframe if needed, fast-forward deltas          │
-│                                                                             │
-│  _lastSeqId = pulse.SequenceId;                                            │
+│  // SlaveTimeController.Update() has already run in this BeforeSync pass; │
+│  // GlobalTime.TotalTime is PLL-adjusted seconds from the recording epoch. │
+│  // (Gap: GlobalTime.TotalWallTicks needs to be exposed from               │
+│  //  SlaveTimeController._virtualWallTicks — see §15.2)                   │
+│                                                                            │
+│  GlobalTime time = _kernel.CurrentTime;                                   │
+│                                                                            │
+│  foreach (var controller in _replayControllers)                           │
+│      controller.ProcessPlaybackTick(time);                                │
+│      // EcsRecordReplayController internally calls:                       │
+│      //   Strategy A (small gap): StepForward() loop until wallTicks ok  │
+│      //   Strategy B (large gap): SeekToWallClockTicks() keyframe anchor  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+> **Why PLL rather than direct pulse consumption?**  Consuming `TimePulseDescriptor` once
+> per frame puts the slave at least one pulse-interval (1 Hz default) behind the master.
+> The PLL predicts master time locally between pulses, giving millisecond-accurate
+> synchronization independent of network jitter.  Fast-forward, slow-motion, and 0× pause
+> are handled entirely by the existing `TimeScale` math in `GlobalTime` — no replay-specific
+> network messages are needed.
+
 ### 8.5 Disabling the Simulation During Replay
 
-`ReplaySlaveModule` implements `IEsmHandler` for `PrepareReplay`. During commit it sets a
-flag that causes the `ModuleHostKernel`'s scheduler to skip all modules tagged
-`[SkipDuringReplay]`. The `ReplaySlaveModule` itself runs at `SystemPhase.BeforeSync`.
+Pipeline isolation is implemented in two layers because the codebase uses two distinct
+scheduling architectures:
+
+**Layer 1 — Fdp.Kernel system groups (ECS simulation computation)**  
+`SimulationSystemGroup` and `PostSimulationSystemGroup` are Fdp.Kernel `SystemGroup`
+subclasses that inherit `ComponentSystem.Enabled` (line 48, `ComponentSystem.cs`).  Flipping
+this boolean is O(1) with zero registration churn:
+
+```csharp
+// In ReplayLoadEsmHandler.Commit() — main thread, BeforeSync phase
+_simulationGroup.Enabled     = false;   // AI, kinematics stop
+_postSimulationGroup.Enabled = false;   // physics integration stops
+
+// On TeardownReplayAsync() (e.g. Live-from-Replay transition):
+_simulationGroup.Enabled     = true;
+_postSimulationGroup.Enabled = true;
+// Both groups restart from the injected historical ECS state on the very next tick.
+```
+
+**Layer 2 — ModuleHost `IModuleSystem` ELM systems (entity lifecycle)**  
+`LifecycleSystem`, `GhostPromotionSystem`, and `NetworkGatewaySystem` are `IModuleSystem`
+instances registered with `SystemScheduler`.  `IModuleSystem` has no `Enabled` property.
+Instead, these are encapsulated in a new `NetworkLifecycleSystemGroup` — a concrete
+`ISystemGroup` implementation with a `bool Enabled` field.  `SystemScheduler.ExecuteGroup`
+iterates `group.GetSystems()`; when `Enabled = false` the group simply skips all iterations:
+
+```csharp
+// At composition root (SimHostApp.OnLoad)
+var networkLifecycleGroup = new NetworkLifecycleSystemGroup();
+networkLifecycleGroup.AddSystem(lifecycleSystem);
+networkLifecycleGroup.AddSystem(ghostPromotionSystem);
+networkLifecycleGroup.AddSystem(networkGatewaySystem);
+_scheduler.RegisterSystem(networkLifecycleGroup);   // registers as one IModuleSystem
+
+var slaveModule = new SystemSlaveModule(networkLifecycleGroup, ...); // injected
+
+// In ReplayLoadEsmHandler.Commit():
+_networkLifecycleGroup.Enabled = false;
+
+// In TeardownReplayAsync():
+_networkLifecycleGroup.Enabled = true;
+```
+
+**Ghost creation bypass — bound to the entire `RunningReplay` state**  
+`GhostCreationSystem.BypassLifecycle` is set `true` on entry to `RunningReplay` and held
+`true` until the ESM exits that state.  Making this consistent across both seek and
+continuous playback is critical: if ELM were re-enabled between seeks, entities in-flight
+over DDS would stall in `Constructing` waiting for ACKs from a node that is only replaying
+recorded data, not executing live handshake logic.
+
+```csharp
+// In ReplayLoadEsmHandler.Commit():
+_ghostCreationSystem.BypassLifecycle = true;
+
+// In TeardownReplayAsync():
+_ghostCreationSystem.BypassLifecycle = false;
+```
+
+> **Why `GhostCreationSystem.BypassLifecycle` is safe to toggle globally:**  
+> `GhostCreationSystem.CreateGhost()` is called **only** by ingress translators, which by
+> definition only handle remote/unowned entities.  Locally owned entity creation goes through
+> `NetworkSpawningSystem → EntityLifecycleModule`, a separate code path that is unaffected
+> by this property.  During replay, locally owned entities are restored by
+> `PlaybackController` chunk blasting — `NetworkSpawningSystem` is never invoked.
 
 ### 8.6 Heavy Seek (SysOp-coordinated)
 
@@ -793,6 +901,199 @@ sequenceDiagram
     Note over Master: All nodes acked
     Master->>IOS: SysOpStatus(Success)
     Note over Master: Resume TimePulseDescriptor from T15
+```
+
+---
+
+### 8.7 `IRecordReplayController` Interface
+
+Every recording/playback subsystem (ECS-based or custom) exposes this interface to the
+`SystemSlaveModule`.  The orchestrator calls lifecycle methods; each implementation manages
+its own storage medium and internal state.
+
+```csharp
+// Location: FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs
+public interface IRecordReplayController
+{
+    // ─── Recording lifecycle ────────────────────────────────────────────────
+
+    /// Called during LoadingLive. Opens output file, validates storage path.
+    Task PrepareRecordingAsync(Guid drillId, string storageDirectory);
+
+    /// Called during UnloadingLive. Flushes buffers, writes .meta.json manifest.
+    Task FinalizeRecordingAsync();
+
+    // ─── Replay lifecycle ────────────────────────────────────────────────────
+
+    /// Called during LoadingReplay. Opens .fdp, validates schema manifest,
+    /// pre-allocates decompression buffers.  All slow I/O happens here so
+    /// ProcessPlaybackTick stays allocation-free on the hot path.
+    Task PrepareReplayAsync(Guid drillId, string storageDirectory);
+
+    /// Heavy, orchestrated jump (Two-Phase Commit ReplaySeek SysOp).
+    /// Must not return until the module's internal state fully reflects the
+    /// requested wall-clock position.  May run for seconds on heavy nodes.
+    Task SeekToTimeAsync(long targetWallClockTicks);
+
+    /// Lightweight per-frame catch-up for continuous playback.
+    /// Called every BeforeSync; must complete within one frame budget (~16 ms).
+    /// Implementation decides internally: sequential delta apply (small gap)
+    /// or keyframe anchor + delta replay (large gap).
+    void ProcessPlaybackTick(GlobalTime currentTime);
+
+    /// Called during UnloadingReplay or before a Live-from-Replay branch.
+    Task TeardownReplayAsync();
+}
+```
+
+> **Design rules:**
+> - All lifecycle methods return `Task` so `SystemSlaveModule` aggregates controllers via `Task.WhenAll`.
+> - `ProcessPlaybackTick` is synchronous and on the hot path; heavy seeks go through `SeekToTimeAsync`.
+> - Custom non-ECS modules (e.g. a legacy physics engine or IG particle system) implement `IRecordReplayController` directly and manage their own disk I/O and state injection.
+
+---
+
+### 8.8 `EcsRecordReplayController`
+
+The FDP ECS implementation of `IRecordReplayController`.  Bridges the generic orchestration
+API to the low-level `AsyncRecorder` + `PlaybackController`.
+
+**Recording phase**
+
+```csharp
+// PrepareRecordingAsync
+_recorder = new AsyncRecorder($"{storageDir}/{drillId}/node_{nodeId}.fdp");
+_recorder.MinRecordableId = FdpConfig.SYSTEM_ID_RANGE;  // skip system entities
+
+// Hot path — called from within ExportSystemGroup every frame
+void ProcessRecordTick(EntityRepository repo, uint prevTick)
+{
+    if (++_framesSinceKeyframe >= KEYFRAME_INTERVAL)   // e.g. every 60 frames
+    {
+        _recorder.CaptureKeyframe(repo);
+        _framesSinceKeyframe = 0;
+    }
+    else
+    {
+        _recorder.CaptureFrame(repo, prevTick);
+        // Zero-allocation: raw memcpy to front-buffer; LZ4 compression on BG worker
+    }
+}
+
+// FinalizeRecordingAsync → _recorder.Dispose()
+// Blocks until BG worker finishes; writes .meta.json schema manifest
+```
+
+**Replay phase — initialization (`PrepareReplayAsync`)**
+
+```csharp
+_playback = new PlaybackController($"{storageDir}/{drillId}/node_{nodeId}.fdp");
+// SchemaValidator.Validate() runs inside ctor.
+// Throws InvalidDataException if struct layouts have drifted since recording.
+```
+
+**Replay phase — continuous playback (`ProcessPlaybackTick`)**  
+Dual-strategy implementation to handle micro-lag and extreme time-scale differences without corrupting delta chains:
+
+```
+Strategy A — Sequential catch-up (small gap, e.g. node dropped 1–3 frames):
+  while (nextFrameWallTicks(repo) <= targetWallTicks)
+      _playback.StepForward(repo)
+  // All deltas are applied in-memory; intermediate frames are never rendered.
+  // Result: node catches up and presents the correct historical state.
+
+Strategy B — Keyframe anchor (large gap, e.g. TimeScale >= 4× or multi-second lag):
+  _playback.SeekToWallClockTicks(repo, targetWallTicks);
+  // → binary search _frameIndex for closest preceding keyframe
+  //   (gap: FrameMetadata.WallClockTicks field must be added — see §15.2)
+  // → blast keyframe chunks directly into NativeChunkTable (memcpy)
+  // → apply at most ~59 delta frames (guaranteed by KEYFRAME_INTERVAL = 60)
+  // → completes in ~5–15 ms regardless of timeline jump magnitude
+```
+
+**Replay phase — heavy seek (`SeekToTimeAsync`)**
+
+```csharp
+public Task SeekToTimeAsync(long targetWallClockTicks) =>
+    Task.Run(() => _playback.SeekToWallClockTicks(_repo, targetWallClockTicks));
+// Wrapping as Task lets SystemSlaveModule fan-out via Task.WhenAll.
+```
+
+**Live-from-Replay transition** — `TeardownReplayAsync` disposes `PlaybackController` but leaves `EntityRepository` intact at the historical state.  `PrepareRecordingAsync` then opens a new `AsyncRecorder` for the branched DrillId path; on the next tick the live simulation groups resume from that injected state.
+
+---
+
+### 8.9 Node-Local Fan-Out/Fan-In (Scatter-Gather)
+
+A single node may host both `EcsRecordReplayController` (seek: ~5 ms) and one or more
+custom module controllers (seek: potentially seconds).  `NodeOpStatus` is a per-**node**
+contract, so `SystemSlaveModule` must not report `Success` until every local controller
+has fully converged:
+
+```csharp
+// Inside SystemSlaveModule command dispatcher — NodeOpCommand(ReplaySeek, targetTicks)
+
+// 1. Immediately satisfy Master watchdog
+_ddsWriter.Publish(new NodeOpStatus { TransactionId = cmd.TransactionId,
+                                       NodeId = _nodeId,
+                                       Status = OpStatus.InProgress });
+
+// 2. Fan-out: start all controllers concurrently
+var seekTasks = _replayControllers
+    .Select(c => c.SeekToTimeAsync(cmd.PayloadAs<long>()))
+    .ToArray();
+
+ActiveNodeOperation.BackgroundTask = Task.WhenAll(seekTasks);
+
+// 3. Fan-in — checked inside Tick() on main thread:
+if (ActiveNodeOperation.BackgroundTask.IsCompleted)
+{
+    var status = ActiveNodeOperation.BackgroundTask.IsFaulted
+        ? OpStatus.Failure : OpStatus.Success;
+    _ddsWriter.Publish(new NodeOpStatus { ..., Status = status });
+    ActiveNodeOperation = null;
+}
+```
+
+Only when `Task.WhenAll` resolves (i.e. the **slowest** local controller finishes) does the
+node report `Success`.  The Master then restores the saved `TimeScale` on
+`MasterTimeController` once **all** nodes in the roster have reported `Success`.
+
+---
+
+### 8.10 Distributed Entity Lifecycle During Replay
+
+**Authoritative nodes (own the recorded entities)**  
+`EcsRecordReplayController.ProcessPlaybackTick` blasts `FrameMetadata` chunks directly into
+`NativeChunkTable`.  `EntityHeader.LifecycleState` is part of the recorded chunk, so
+entities instantly materialise as `Active`; the ELM pipeline is never invoked.  On a
+discontinuous jump, the preceding keyframe contains the correct entity set; incremental
+destruction / creation logs in delta frames are applied automatically by `PlaybackSystem.ApplyFrame()`.
+
+**Unowned nodes (ghost entities populated via DDS egress)**  
+No egress code changes are needed: the `ExportSystemGroup` egress translators
+(`CycloneEgressSystem`) see the restored `Active` entities on the very next frame after a
+seek and immediately flood DDS as they do in live mode.
+
+On unowned nodes (e.g. an IG whose only copy of entity state comes from the network),
+`GhostCreationSystem.BypassLifecycle = true` (set at `RunningReplay` entry, see §8.5)
+causes `CreateGhost()` to place new arrivals directly into `EntityLifecycle.Active`,
+bypassing `Ghost → Constructing → Active`.  `NetworkLifecycleSystemGroup.Enabled = false`
+ensures `LifecycleSystem`, `GhostPromotionSystem`, and `NetworkGatewaySystem` never run.
+
+**Heavy seek — clear and resync strategy**  
+During a `ReplaySeek` SysOp (§8.6), unowned nodes purge their ghost world before
+authoritative nodes flood the network:
+
+```
+1. Receive NodeOpCommand(ReplaySeek, targetWallClockTicks)
+2. Iterate NetworkEntityMap; call repo.DestroyEntity(e) for all ghost entities
+   (ELM teardown disabled → no DestructionOrder DDS round-trip required)
+3. Publish NodeOpStatus(InProgress) immediately
+4. Authoritative nodes seek, then CycloneEgressSystem floods DDS with restored state
+5. Ingress translators call GhostCreationSystem.CreateGhost() with BypassLifecycle=true
+   → entities materialise Active instantly, no distributed ACK handshake
+6. This node publishes NodeOpStatus(Success) once local purge + seek completes
 ```
 
 ---
@@ -1241,6 +1542,9 @@ sequenceDiagram
 | `FDP/Kernel/Fdp.Kernel/Orchestration/ComponentPatchMap.cs` | `Fdp.Kernel` | Entity ref offset patching (runtime reflection, no source generator) |
 | `FDP/ModuleHost/ModuleHost.Core/Abstractions/IEsmHandler.cs` | `ModuleHost.Core` | ESM handler interface |
 | `FDP/Kernel/Fdp.Kernel/Events/EsmStateChangedEvent.cs` | `Fdp.Kernel` | Internal FdpEventBus event for ESM transitions |
+| `FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs` | `Fdp.Kernel` | Generic recording/playback abstraction (§8.7); implemented by ECS and custom controllers |
+| `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` | `Bagira.SimHost` | FDP ECS adapter (§8.8); wraps `AsyncRecorder` + `PlaybackController`; registered with `SystemSlaveModule` |
+| `FDP/ModuleHost/ModuleHost.Core/Scheduling/NetworkLifecycleSystemGroup.cs` | `ModuleHost.Core` | Concrete `ISystemGroup` with `bool Enabled` toggle (§8.5); encapsulates ELM systems so orchestrator can disable all with one call |
 | `Bagira.SimHost/Modules/Orchestration/Handlers/LiveLoadEsmHandler.cs` | `Bagira.SimHost` | Scenario load + recorder init |
 | `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadEsmHandler.cs` | `Bagira.SimHost` | PlaybackController init |
 | `Bagira.SimHost/Modules/Orchestration/Handlers/CheckpointEsmHandler.cs` | `Bagira.SimHost` | Non-blocking SyncFrom snapshot handler |
@@ -1250,10 +1554,12 @@ sequenceDiagram
 
 | File | Change |
 |------|--------|
-| `FDP/Kernel/Fdp.Kernel/FlightRecorder/RecorderSystem.cs` | Add `EntityFilter` predicate + wall-clock tick to frame header |
+| `FDP/Kernel/Fdp.Kernel/FlightRecorder/RecorderSystem.cs` | Add `EntityFilter` predicate + UTC wall-clock tick (`long WallClockTicks`) to frame header alongside existing `ulong Tick` (ECS global version) |
 | `FDP/Kernel/Fdp.Kernel/FlightRecorder/AsyncRecorder.cs` | Thread `EntityFilter` through to `RecorderSystem` |
-| `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackController.cs` | Add `SeekToWallClockTicks()` using wall-clock frame index + binary search |
-| `FDP/Toolkits/FDP.Toolkit.Time/Messages/TimeMessages.cs` | Document replay use of `TimePulseDescriptor.MasterWallTicks` |
+| `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackController.cs` | Add `WallClockTicks` to `FrameMetadata`; add `SeekToWallClockTicks(EntityRepository, long)` using binary search through `_frameIndex`; upgrade existing `SeekToTick` linear scan to binary search |
+| `FDP/Kernel/Fdp.Kernel/GlobalTime.cs` | Add `long TotalWallTicks` field populated by both `MasterTimeController` (absolute `Stopwatch` ticks offset from recording epoch) and `SlaveTimeController` (`_virtualWallTicks` exposed via this field); needed by `EcsRecordReplayController.ProcessPlaybackTick` |
+| `FDP/Toolkits/FDP.Toolkit.Replication/Systems/GhostCreationSystem.cs` | Add `public bool BypassLifecycle { get; set; }` property; in `CreateGhost()` conditionally set `EntityLifecycle.Active` rather than `Ghost` when `BypassLifecycle = true` |
+| `FDP/Toolkits/FDP.Toolkit.Time/Messages/TimeMessages.cs` | Document replay use of `TimePulseDescriptor.MasterWallTicks` and `SimTimeSnapshot` as recording-epoch-relative values |
 | `Bagira.DDS.DataModel/Runner/SubsystemStatusAnnounce.cs` | No change — startup-only (separate `NodeHeartbeat` topic added) |
 | `Bagira.SimHost/SimHostApp.cs` | Register `SystemSlaveModule`; no longer owns master (Orchestrator is separate) |
 | `Bagira.IG/IgApplication.cs` | Register `SystemSlaveModule` |
@@ -1269,8 +1575,12 @@ Batch 2: SystemMasterModule + SystemSlaveModule skeleton (no handlers yet)
          → NodeHeartbeat loop, SysOpRequest/Status publish, NodeOpCommand dispatch,
            basic Test: Standby → LoadingEdit → RunningEdit dummy transition
 
-Batch 3: Wall-clock timestamps in FlightRecorder
-         → RecorderSystem frame header change, PlaybackController.SeekToWallClockTicks()
+Batch 3: Wall-clock timestamps in FlightRecorder + GlobalTime
+         → RecorderSystem: add long WallClockTicks to frame header
+         → FrameMetadata: add WallClockTicks field; update BuildFrameIndex()
+         → PlaybackController: add SeekToWallClockTicks(); upgrade SeekToTick to binary search
+         → GlobalTime: add long TotalWallTicks field
+         → MasterTimeController + SlaveTimeController: populate TotalWallTicks
          → Unit tests + schema version bump
 
 Batch 4: Snapshot handler (non-blocking)
@@ -1280,8 +1590,13 @@ Batch 4: Snapshot handler (non-blocking)
          → Dry Run flow (SyncFrom + liveRepo.SyncFrom(snap) for restore)
 
 Batch 5: Live + Replay ESM Handlers
+         → IRecordReplayController interface (§8.7)
+         → EcsRecordReplayController (§8.8)
+         → NetworkLifecycleSystemGroup with Enabled toggle (§8.5 Layer 2)
+         → GhostCreationSystem.BypassLifecycle property (§8.5)
          → LiveLoadEsmHandler (AsyncRecorder with DrillId paths)
-         → ReplayLoadEsmHandler + ReplaySlaveModule
+         → ReplayLoadEsmHandler: system group disabling, BypassLifecycle, EcsRecordReplayController wiring
+         → SystemSlaveModule fan-out/fan-in Task.WhenAll for IRecordReplayController (§8.9)
          → Full 8-12 step integration test
 
 Batch 6: Stories + ComponentPatchMap
