@@ -159,9 +159,20 @@ public class EditTool : IMapTool
     /// Highlights the nearest vertex within pick radius (shown as the selected vertex in
     /// <see cref="Draw"/>).  Resets selection when the cursor moves outside pick range of
     /// every vertex, so there is never a stale "locked" selection between gestures.
+    ///
+    /// While the left mouse button is held the selection is <b>not</b> reset — this
+    /// prevents the vertex from "disconnecting" when the cursor moves outside the pick
+    /// radius mid-drag due to high mouse speed or a slow frame rate.
     /// </remarks>
     public bool HandleHover(Vector2 worldPos)
     {
+        // Do not reset the selected vertex while the user is actively dragging.
+        // Without this guard, HandleHover (called before HandleDrag every frame) would
+        // clear _selectedVertexIndex the moment the cursor outran the pick radius,
+        // causing HandleDrag to find no vertex and stop moving it.
+        if (_canvas?.Input.IsMouseButtonDown(MouseButton.Left) == true)
+            return false;
+
         _selectedVertexIndex = FindNearestVertex(worldPos);
         return false; // hover does not consume; camera pan must still work
     }
@@ -212,6 +223,23 @@ public class EditTool : IMapTool
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <see cref="KeyboardKey.Escape"/> cancels the edit session and pops the tool
+    /// without committing any changes.  The ghost list is discarded automatically
+    /// by <see cref="OnExit"/>.
+    /// </remarks>
+    public bool HandleKeyPressed(KeyboardKey key)
+    {
+        if (key == KeyboardKey.Escape)
+        {
+            // Cancel: discard ghost edits and return to previous tool.
+            _canvas?.PopTool();
+            return true;
+        }
+        return false;
+    }
 
     private List<Vector2> LoadGhostPoints()
     {

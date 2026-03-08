@@ -136,6 +136,10 @@ public class StandardInteractionTool : IMapTool
     public bool HandleHover(Vector2 worldPos)
         => _inner.HandleHover(worldPos);
 
+    /// <inheritdoc/>
+    public bool HandleKeyPressed(KeyboardKey key)
+        => ((IMapTool)_inner).HandleKeyPressed(key);
+
     // ── Event handlers ────────────────────────────────────────────────────────
 
     private void HandleEntitySelectRequest(Entity entity, bool augment)

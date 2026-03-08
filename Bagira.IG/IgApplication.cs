@@ -341,6 +341,11 @@ public class IgApplication
 
         Raylib.SetTargetFPS(TargetFps);
 
+        // Prevent Raylib from treating ESC as a window-close signal.
+        // Map tools handle ESC via IMapTool.HandleKeyPressed routed through MapCanvas,
+        // ensuring it is consumed by the active tool and does not bubble to the main loop.
+        Raylib.SetExitKey(KeyboardKey.Null);
+
         rlImGui.Setup(darkTheme: true);
 
         InitializeEmbedded(domainIdOverride: domainIdOverride);

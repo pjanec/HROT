@@ -113,6 +113,20 @@ public class MeasureTool : IMapTool
         return false;
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <see cref="KeyboardKey.Escape"/> cancels and pops the tool regardless of state.
+    /// </remarks>
+    public bool HandleKeyPressed(KeyboardKey key)
+    {
+        if (key == KeyboardKey.Escape)
+        {
+            _canvas?.PopTool();
+            return true;
+        }
+        return false;
+    }
+
     // ── Rendering ─────────────────────────────────────────────────────────────
 
     /// <inheritdoc/>

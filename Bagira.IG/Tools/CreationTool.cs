@@ -143,6 +143,21 @@ public class CreationTool : IMapTool
         return false;
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <see cref="KeyboardKey.Escape"/> cancels placement and pops the tool without
+    /// publishing a <see cref="CreateEntityRequest"/>.
+    /// </remarks>
+    public bool HandleKeyPressed(KeyboardKey key)
+    {
+        if (key == KeyboardKey.Escape)
+        {
+            _canvas?.PopTool();
+            return true;
+        }
+        return false;
+    }
+
     //  Rendering 
 
     /// <inheritdoc/>

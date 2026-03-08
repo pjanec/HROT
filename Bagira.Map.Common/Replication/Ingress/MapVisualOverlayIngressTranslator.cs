@@ -68,7 +68,16 @@ namespace Bagira.Map.Common.Replication.Ingress
             if (data is not MapVisualOverlay overlay)
                 return;
 
-            repo.SetManagedComponent(entity, BuildPolyline(overlay));
+            // When descriptors are applied in order (GeoSpatial before MapVisualOverlay),
+            // SimTransform is already set and we can reconstruct accurate Cartesian offsets.
+            Vector3? entityPos = null;
+            if (repo.IsAlive(entity) && repo.HasComponent<SimTransform>(entity))
+            {
+                ref readonly var t = ref repo.GetComponentRO<SimTransform>(entity);
+                entityPos = t.Position;
+            }
+
+            repo.SetManagedComponent(entity, BuildPolyline(overlay, entityPos));
             repo.SetComponent(entity, MapOverlayStyle.FromJson(overlay.StyleOverrideJson));
         }
 
@@ -89,34 +98,59 @@ namespace Bagira.Map.Common.Replication.Ingress
                 entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
 
-            cmd.SetManagedComponent(entity, BuildPolyline(data));
+            // Pass the entity's Cartesian position so BuildPolyline can correctly
+            // reconstruct absolute Cartesian from relative geodetic offsets.
+            Vector3? entityPos = null;
+            if (repo != null && repo.IsAlive(entity) && repo.HasComponent<SimTransform>(entity))
+            {
+                ref readonly var t = ref repo.GetComponentRO<SimTransform>(entity);
+                entityPos = t.Position;
+            }
+
+            cmd.SetManagedComponent(entity, BuildPolyline(data, entityPos));
             cmd.SetComponent(entity, MapOverlayStyle.FromJson(data.StyleOverrideJson));
         }
 
-        private EditablePolyline BuildPolyline(in MapVisualOverlay overlay)
+        /// <param name="entityCartesianPos">
+        /// The entity's world-space position from <see cref="SimTransform.Position"/>, used to
+        /// reconstruct absolute geodetic coordinates from the stored relative offsets before
+        /// converting back to relative Cartesian.  When <c>null</c> (entity SimTransform not
+        /// yet available), falls back to the legacy behaviour that treats delta-geo as absolute
+        /// geo — accurate only when the geo-transform origin matches the entity centroid.
+        /// </param>
+        private EditablePolyline BuildPolyline(in MapVisualOverlay overlay, Vector3? entityCartesianPos = null)
         {
             var polyline = new EditablePolyline();
             if (overlay.Points == null || overlay.Points.Count == 0)
                 return polyline;
 
-            // Points on the wire are RELATIVE geo offsets (deltaLat, deltaLon, deltaAlt) from
-            // the entity's reference position (SimTransform / GeoSpatial).
-            // Convert to relative Cartesian: relCart = ToCartesian(dLat, dLon, dAlt) - ToCartesian(0,0,0).
-            // For a flat-earth linear projection this equals the true Cartesian displacement,
-            // independent of the entity's absolute reference position.
-            Vector3 origin = _geoTransform != null
-                ? _geoTransform.ToCartesian(0.0, 0.0, 0.0)
-                : Vector3.Zero;
-
             polyline.Points = new List<Vector2>(overlay.Points.Count);
             for (int i = 0; i < overlay.Points.Count; i++)
             {
                 var geo = overlay.Points[i];
-                if (_geoTransform != null)
+                if (_geoTransform != null && entityCartesianPos.HasValue)
                 {
+                    // Correct path: reconstruct absolute Cartesian from (entityRefGeo + deltaGeo),
+                    // then express as relative offset from the entity's SimTransform origin.
+                    // This avoids the cos(refLat) scale error that arises when delta-geo values
+                    // are passed directly to ToCartesian as if they were absolute coordinates.
+                    var refGeo = _geoTransform.ToGeodetic(entityCartesianPos.Value);
+                    var absCart = _geoTransform.ToCartesian(
+                        refGeo.lat + geo.Latitude,
+                        refGeo.lon + geo.Longitude,
+                        refGeo.alt + geo.Altitude);
+                    var relCart = absCart - entityCartesianPos.Value;
+                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
+                }
+                else if (_geoTransform != null)
+                {
+                    // Fallback (entity position unavailable): treat delta-geo as absolute geo
+                    // and compute displacement from the geo-transform Cartesian origin.
+                    // Legacy behaviour — accurate only when the transform origin ≈ entity centroid.
+                    Vector3 origin = _geoTransform.ToCartesian(0.0, 0.0, 0.0);
                     var absCart = _geoTransform.ToCartesian(geo.Latitude, geo.Longitude, geo.Altitude);
                     var relCart = absCart - origin;
-                    polyline.Points.Add(new Vector2((float)relCart.X, (float)relCart.Y));
+                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
                 }
                 else
                 {
