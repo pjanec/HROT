@@ -47,19 +47,20 @@ namespace Fdp.Examples.NetworkDemo.Translators
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
         /// <summary>
-        /// Scans for locally-owned entities with a <see cref="NetworkSpawnRequest"/> component
+        /// Scans for locally-owned entities with a <see cref="TkbIdentity"/> component
         /// and publishes an <see cref="EntityMasterTopic"/> sample for each one that has not
         /// yet been announced.
         /// </summary>
         public void ScanAndPublish(ISimulationView view)
         {
             // Locally-spawned entities start in Constructing lifecycle (set by NetworkSpawningSystem).
-            // GhostPromotionSystem only processes Ghost-state entities so Constructing entities
-            // keep their NetworkSpawnRequest component.  We must include all lifecycle states
-            // or the EntityMasterTopic will never be published for newly-spawned entities.
+            // We must include all lifecycle states or the EntityMasterTopic will never be published
+            // for newly-spawned entities.
+            var repo = view as EntityRepository;
+
             var query = view.Query()
                 .With<NetworkIdentity>()
-                .With<NetworkSpawnRequest>()
+                .With<TkbIdentity>()
                 .With<NetworkOwnership>()
                 .WithLifecycle(EntityLifecycle.All)
                 .Build();
@@ -74,7 +75,10 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 if (_publishedNetIds.Contains(netId.Value))
                     continue;
 
-                ref readonly var spawnReq = ref view.GetComponentRO<NetworkSpawnRequest>(entity);
+                ref readonly var tkbId = ref view.GetComponentRO<TkbIdentity>(entity);
+
+                // Read DisType from entity header (stored natively by NetworkSpawningSystem).
+                ulong disType = repo != null ? repo.GetHeader(entity.Index).DisType.Value : 0UL;
 
                 NetworkAppId ownerId;
                 try
@@ -93,8 +97,8 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 {
                     EntityId    = netId.Value,
                     OwnerId     = ownerId,
-                    TkbTypeValue = spawnReq.TkbType,
-                    DisTypeValue = spawnReq.DisType,
+                    TkbTypeValue = tkbId.TkbType,
+                    DisTypeValue = disType,
                     Flags       = 0
                 });
 

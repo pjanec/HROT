@@ -36,7 +36,8 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             world.RegisterComponent<NetworkOrientation>();
             world.RegisterComponent<NetworkOwnership>();
             world.RegisterComponent<NetworkIdentity>();
-            world.RegisterComponent<NetworkSpawnRequest>();
+            world.RegisterComponent<TkbIdentity>();
+            world.RegisterComponent<GhostStateTracker>();
             world.RegisterComponent<PendingNetworkAck>();
             world.RegisterComponent<ForceNetworkPublish>();
 
@@ -69,7 +70,8 @@ namespace Fdp.Examples.NetworkDemo.Configuration
                 typeof(NetworkOrientation),
                 typeof(NetworkOwnership),
                 typeof(NetworkIdentity),
-                typeof(NetworkSpawnRequest),
+                typeof(TkbIdentity),
+                typeof(GhostStateTracker),
                 typeof(PendingNetworkAck),
                 typeof(ForceNetworkPublish),
                 typeof(TurretState),

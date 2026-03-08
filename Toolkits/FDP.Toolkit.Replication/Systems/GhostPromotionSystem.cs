@@ -9,6 +9,19 @@ using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication.Systems
 {
+    /// <summary>
+    /// Promotes ghost entities to <see cref="EntityLifecycle.Constructing"/> once all their
+    /// mandatory ECS components (as defined by the <see cref="TkbTemplate"/>) have physically
+    /// arrived in memory.
+    ///
+    /// <para>The system operates as a pure ECS state machine: the promotion query naturally
+    /// filters on <c>EntityLifecycle.Ghost + TkbIdentity</c>, so once an entity's lifecycle
+    /// advances to <c>Constructing</c> it falls out of the query on the next frame without
+    /// any explicit "trigger removal" step.</para>
+    ///
+    /// <para>Checks are O(1) bitmask operations against the entity's
+    /// <see cref="EntityHeader.ComponentMask"/> — no network concepts involved.</para>
+    /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
     public class GhostPromotionSystem : IModuleSystem
     {
@@ -53,7 +66,7 @@ namespace FDP.Toolkit.Replication.Systems
                 _inQueue.Remove(entity);
 
                 if (!_world.IsAlive(entity)) continue;
-                if (!_world.HasComponent<NetworkSpawnRequest>(entity)) continue;
+                if (!_world.HasComponent<TkbIdentity>(entity)) continue;
 
                 PromoteGhost(entity, cmdBuffer, tick);
             }
@@ -73,19 +86,46 @@ namespace FDP.Toolkit.Replication.Systems
 
         private void PromoteGhost(Entity entity, IEntityCommandBuffer cmdBuffer, uint tick)
         {
-            var spawnReq = _world!.GetComponent<NetworkSpawnRequest>(entity);
+            var tkbIdentity = _world!.GetComponent<TkbIdentity>(entity);
 
-            // Apply blueprint template if available.  Unknown types still receive lifecycle
-            // tracking so they can reach Active state and be discovered by queries.
-            if (_tkbDatabase.TryGetByType(spawnReq.TkbType, out var template))
+            // Fetch entity header for O(1) bitmask checks.
+            ref var header = ref _world.GetHeader(entity.Index);
+
+            // Read ghost age for soft-timeout evaluation.
+            var tracker = _world.GetComponent<GhostStateTracker>(entity);
+
+            // Evaluate mandatory components defined by the template.
+            if (_tkbDatabase.TryGetByType(tkbIdentity.TkbType, out var template))
             {
+                foreach (var req in template.MandatoryComponents)
+                {
+                    bool hasComponent = header.ComponentMask.IsSet(req.ComponentTypeId);
+
+                    if (!hasComponent)
+                    {
+                        if (req.IsHard)
+                            return; // Abort — hard requirement not yet satisfied.
+
+                        // Soft requirement: wait until timeout expires.
+                        if (tick - tracker.FirstSeenFrame <= req.SoftTimeoutFrames)
+                            return;
+                        // Timeout elapsed — proceed without this optional component.
+                    }
+                }
+
+                // All requirements satisfied: apply blueprint defaults.
                 template.ApplyTo(_world!, entity, preserveExisting: true);
             }
 
+            // Promote: Ghost → Constructing.
+            // The entity naturally falls out of _readyGhostQuery next frame because
+            // the query requires EntityLifecycle.Ghost.
             _world!.SetLifecycleState(entity, EntityLifecycle.Constructing);
-            _world!.RemoveComponent<NetworkSpawnRequest>(entity);
 
-            _lifecycleModule.BeginConstruction(entity, spawnReq.TkbType, tick, cmdBuffer);
+            // Remove the transient tracker now that the ghost has been promoted.
+            _world!.RemoveComponent<GhostStateTracker>(entity);
+
+            _lifecycleModule.BeginConstruction(entity, tkbIdentity.TkbType, tick, cmdBuffer);
         }
 
         private void EnsureQueriesInitialized(EntityRepository repo)
@@ -93,9 +133,10 @@ namespace FDP.Toolkit.Replication.Systems
             if (_readyGhostQuery != null) return;
 
             _readyGhostQuery = repo.Query()
-                .With<NetworkSpawnRequest>()
+                .With<TkbIdentity>()
                 .WithLifecycle(EntityLifecycle.Ghost)
                 .Build();
         }
     }
 }
+

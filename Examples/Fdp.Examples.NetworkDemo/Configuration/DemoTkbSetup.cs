@@ -18,18 +18,11 @@ namespace Fdp.Examples.NetworkDemo.Configuration
             tank.AddComponent(new NetworkTransform());
             tank.AddComponent(new NetworkVelocity());
             
-            // Task: Descriptors
-            tank.MandatoryDescriptors.Add(new MandatoryDescriptor 
-            {
-                 PackedKey = PackedKey.Create(DemoDescriptors.Master, 0),
-                 IsHard = true
-            });
+            // HARD REQUIREMENT: TkbIdentity must be present (set when EntityMaster arrives)
+            tank.AddMandatoryComponent<TkbIdentity>(isHard: true);
             
-            tank.MandatoryDescriptors.Add(new MandatoryDescriptor 
-            {
-                 PackedKey = PackedKey.Create(DemoDescriptors.Physics, 0),
-                 IsHard = false
-            });
+            // SOFT REQUIREMENT: NetworkTransform (set when physics data arrives)
+            tank.AddMandatoryComponent<NetworkTransform>(isHard: false);
             
             tkb.Register(tank);
         }

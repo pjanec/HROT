@@ -1,14 +1,19 @@
 using Fdp.Kernel;
+using System;
 
 namespace FDP.Toolkit.Replication.Components
 {
-    // Define if not exists, based on requirements.
-    // Signals that the primary type information (Master Descriptor) has arrived.
+    /// <summary>
+    /// OBSOLETE: Replaced by <see cref="TkbIdentity"/> (permanent identity component)
+    /// combined with native <c>EntityHeader.DisType</c> storage.
+    /// Will be removed in a future release.
+    /// </summary>
+    [Obsolete("Use TkbIdentity and EntityHeader.DisType instead. NetworkSpawnRequest is scheduled for removal.")]
     [ComponentId(GlobalComponentIds.NetworkSpawnRequest)]
     public struct NetworkSpawnRequest
     {
         public ulong DisType;
         public ulong OwnerId;
-        public long TkbType; // Assuming we map DisType to TkbType or receive TkbType directly.
+        public long TkbType;
     }
 }

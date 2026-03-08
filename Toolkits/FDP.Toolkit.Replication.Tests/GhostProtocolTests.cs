@@ -65,17 +65,22 @@ namespace FDP.Toolkit.Replication.Tests
             var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
             var sys = new GhostPromotionSystem(mockTkb, elm);
 
-            repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterEvent<ConstructionOrder>();
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 123 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = 123 });
+            repo.AddComponent(entity, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.SetLifecycleState(entity, EntityLifecycle.Ghost);
 
             sys.Execute(repo, 0f);
 
             Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
-            Assert.False(repo.HasComponent<NetworkSpawnRequest>(entity));
+            Assert.True(repo.HasComponent<TkbIdentity>(entity),
+                "TkbIdentity must remain permanently attached after promotion.");
+            Assert.False(repo.HasComponent<GhostStateTracker>(entity),
+                "GhostStateTracker must be removed on promotion.");
         }
 
         [Fact]
@@ -88,14 +93,16 @@ namespace FDP.Toolkit.Replication.Tests
             var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(slowTkb, Array.Empty<int>());
             var sys = new GhostPromotionSystem(slowTkb, elm);
 
-            repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterEvent<ConstructionOrder>();
 
             // Create 10 ghost entities; each GetByType call sleeps 5ms, well over the 2ms budget
             for (int i = 0; i < 10; i++)
             {
                 var e = repo.CreateEntity();
-                repo.AddComponent(e, new NetworkSpawnRequest { TkbType = 123 });
+                repo.AddComponent(e, new TkbIdentity { TkbType = 123 });
+                repo.AddComponent(e, new GhostStateTracker { FirstSeenFrame = 0 });
                 repo.SetLifecycleState(e, EntityLifecycle.Ghost);
             }
 
@@ -109,7 +116,7 @@ namespace FDP.Toolkit.Replication.Tests
         [Fact]
         public void Execute_DoesNotPromote_EntityNotInGhostLifecycle()
         {
-            // Entity has NetworkSpawnRequest but is NOT in Ghost lifecycle;
+            // Entity has TkbIdentity but is NOT in Ghost lifecycle;
             // the promotion query filters by Ghost lifecycle, so it must be skipped.
             using var repo = new EntityRepository();
 
@@ -118,17 +125,18 @@ namespace FDP.Toolkit.Replication.Tests
             var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(mockTkb, Array.Empty<int>());
             var sys = new GhostPromotionSystem(mockTkb, elm);
 
-            repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterEvent<ConstructionOrder>();
 
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 123 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = 123 });
             // Deliberately do NOT set lifecycle to Ghost (stays at default Active)
 
             sys.Execute(repo, 0f);
 
-            // Entity should remain unpromoted — still has NetworkSpawnRequest, not Constructing
-            Assert.True(repo.HasComponent<NetworkSpawnRequest>(entity));
+            // Entity should remain unpromoted — TkbIdentity still present, not Constructing
+            Assert.True(repo.HasComponent<TkbIdentity>(entity));
             Assert.NotEqual(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
         }
     }

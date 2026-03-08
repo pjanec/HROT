@@ -9,6 +9,7 @@ using FDP.Toolkit.Replication.Utilities;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Extensions;
+using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Abstractions;
 
@@ -24,6 +25,7 @@ namespace ModuleHost.Network.Cyclone.Translators
         private readonly DdsReader<T> _reader;
         private readonly DdsWriter<T> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly GhostCreationSystem _ghostCreationSystem;
         private readonly HashSet<long> _tracedNetIds = new();
 
         public string TopicName { get; }
@@ -33,7 +35,8 @@ namespace ModuleHost.Network.Cyclone.Translators
             DdsParticipant participant, 
             string topicName, 
             int ordinal, 
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            GhostCreationSystem ghostCreationSystem)
         {
             if (!UnsafeLayout<T>.IsValid)
                 throw new InvalidOperationException(
@@ -43,6 +46,7 @@ namespace ModuleHost.Network.Cyclone.Translators
             TopicName = topicName;
             DescriptorOrdinal = ordinal;
             _entityMap = entityMap;
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
 
             _reader = new DdsReader<T>(participant);
             _writer = new DdsWriter<T>(participant);
@@ -74,48 +78,23 @@ namespace ModuleHost.Network.Cyclone.Translators
         {
             long netId = UnsafeLayout<T>.ReadId(&data);
 
-            if (_entityMap.TryGetEntity(netId, out Entity entity))
+            if (!_entityMap.TryGetEntity(netId, out Entity entity))
             {
-                if (view is EntityRepository repo && repo.HasAuthority<T>(entity))
-                {
+                // Entity not yet known — create a ghost so the promotion pipeline
+                // can drive it into the Constructing state once all mandatory
+                // descriptors have arrived.
+                var repo = view as EntityRepository;
+                if (repo == null) return;
+                entity = _ghostCreationSystem.CreateGhost(repo, netId, view.Tick);
+            }
+            else
+            {
+                // Skip if this node has authority over the component (we are the source).
+                if (view is EntityRepository ownedRepo && ownedRepo.HasAuthority<T>(entity))
                     return;
-                }
-
-
-                // Ghost Logic
-                if (view.HasManagedComponent<BinaryGhostStore>(entity))
-                {
-                    // Stash data for ghost
-                    var bytes = MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref data, 1));
-                    InternalStashGhostData(entity, bytes, cmd, view);
-                }
-                else
-                {
-                    cmd.SetComponent(entity, data);
-                }
             }
-        }
 
-        // Helper to append data to ghost store
-        private void InternalStashGhostData(Entity entity, ReadOnlySpan<byte> data, IEntityCommandBuffer cmd, ISimulationView view)
-        {
-            // Zero-alloc attempt: Try to get managed component directly
-            // If view is EntityRepository or supports mutable access
-            if (view is EntityRepository repo)
-            {
-                if (repo.HasManagedComponent<BinaryGhostStore>(entity))
-                {
-                    var store = ((ISimulationView)repo).GetManagedComponentRO<BinaryGhostStore>(entity);
-                    store.StashedData[DescriptorOrdinal] = data.ToArray();
-                }
-            }
-            // Fallback for generic views (assuming GetComponent works for managed types)
-            else if (view.HasManagedComponent<BinaryGhostStore>(entity))
-            {
-                // This might throw if view is read-only for managed types, but standard FDP View usually returns the object ref
-                var store = view.GetManagedComponentRO<BinaryGhostStore>(entity);
-                store.StashedData[DescriptorOrdinal] = data.ToArray();
-            }
+            cmd.SetComponent(entity, data);
         }
 
         public void ScanAndPublish(ISimulationView view)

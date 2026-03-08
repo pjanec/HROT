@@ -4,6 +4,15 @@ using FDP.Toolkit.Replication.Components;
 
 namespace FDP.Toolkit.Replication.Systems
 {
+    /// <summary>
+    /// Destroys ghost entities that never receive their <c>EntityMaster</c> packet within the
+    /// allowed time window.  This cleans up dangling ghosts caused by dropped or late UDP packets.
+    ///
+    /// Queries for entities in <see cref="EntityLifecycle.Ghost"/> state that carry a
+    /// <see cref="GhostStateTracker"/> component.  The tracker's
+    /// <see cref="GhostStateTracker.FirstSeenFrame"/> was stamped by
+    /// <see cref="GhostCreationSystem"/> at ghost creation time.
+    /// </summary>
     public class GhostTimeoutSystem : ComponentSystem
     {
         private const uint MAX_GHOST_AGE = 3600; // 60 seconds at 60Hz
@@ -13,36 +22,28 @@ namespace FDP.Toolkit.Replication.Systems
             if (!World.HasSingletonUnmanaged<GlobalTime>()) return;
             var globalTime = World.GetSingletonUnmanaged<GlobalTime>();
             uint currentFrame = (uint)globalTime.FrameNumber;
-            
-            // Query all ghosts
+
             var query = World.Query()
-                .WithManaged<BinaryGhostStore>()
+                .With<GhostStateTracker>()
+                .WithLifecycle(EntityLifecycle.Ghost)
                 .Build();
-            
-            // Use EntityCommandBuffer to destroy entities while iterating
+
             using (var ecb = new EntityCommandBuffer())
             {
                 foreach (var entity in query)
                 {
-                    var store = World.GetComponent<BinaryGhostStore>(entity);
-                    if (store == null) continue;
-                    
-                    if (store.FirstSeenFrame == 0)
+                    var tracker = World.GetComponent<GhostStateTracker>(entity);
+
+                    uint age = currentFrame - tracker.FirstSeenFrame;
+                    if (age > MAX_GHOST_AGE)
                     {
-                        store.FirstSeenFrame = currentFrame;
-                    }
-                    else
-                    {
-                        uint age = currentFrame - store.FirstSeenFrame;
-                        if (age > MAX_GHOST_AGE)
-                        {
-                            ecb.DestroyEntity(entity);
-                        }
+                        ecb.DestroyEntity(entity);
                     }
                 }
-                
+
                 ecb.Playback(World);
             }
         }
     }
 }
+

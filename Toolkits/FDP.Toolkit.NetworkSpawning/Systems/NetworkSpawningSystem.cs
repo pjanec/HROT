@@ -105,13 +105,13 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             });
             world.AddComponent(entity, new NetworkAuthority(cmd.OwnerNodeId, _localNodeId));
 
-            // Signals NetworkGatewaySystem that this entity needs replication
-            world.AddComponent(entity, new NetworkSpawnRequest
-            {
-                DisType = cmd.DisType,
-                OwnerId = (ulong)cmd.OwnerNodeId,
-                TkbType = cmd.TkbType
-            });
+            // Permanent identity component — lives on the entity forever and drives
+            // the GhostPromotionSystem query on the receiver side.
+            world.AddComponent(entity, new TkbIdentity { TkbType = cmd.TkbType });
+
+            // Store the DIS entity type natively in the entity header so all systems
+            // can access it without a component lookup.
+            world.SetDisType(entity, new DISEntityType { Value = cmd.DisType });
 
             // 7. Optional reliable-init handshake component
             if (cmd.InitType != ReliableInitType.None)

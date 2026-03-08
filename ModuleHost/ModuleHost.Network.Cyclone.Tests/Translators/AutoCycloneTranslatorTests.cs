@@ -5,6 +5,7 @@ using Xunit;
 using CycloneDDS.Runtime;
 using ModuleHost.Network.Cyclone.Translators;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using Fdp.Kernel;
 using Fdp.Interfaces;
 using ModuleHost.Core.Abstractions;
@@ -35,7 +36,8 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
             // Should succeed for EntityMasterTopic (has long EntityId at offset 0)
             // Note: EntityMasterTopic is a valid DDS Topic defined in ModuleHost.Network.Cyclone
             var translator = new AutoCycloneTranslator<EntityMasterTopic>(
-                _participant, "SST_EntityMaster", 1, _entityMap);
+                _participant, "SST_EntityMaster", 1, _entityMap,
+                new GhostCreationSystem(_entityMap));
             
             Assert.NotNull(translator);
         }
@@ -45,7 +47,8 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
         {
             Assert.Throws<InvalidOperationException>(() => {
                 new AutoCycloneTranslator<int>(
-                    _participant, "TestTopic_Auto_Invalid", 2, _entityMap);
+                    _participant, "TestTopic_Auto_Invalid", 2, _entityMap,
+                    new GhostCreationSystem(_entityMap));
             });
         }
     }

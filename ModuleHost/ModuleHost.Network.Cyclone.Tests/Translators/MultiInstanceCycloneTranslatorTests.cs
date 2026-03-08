@@ -5,6 +5,7 @@ using CycloneDDS.Runtime;
 using CycloneDDS.Schema;
 using ModuleHost.Network.Cyclone.Translators;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using Fdp.Kernel;
 
 namespace ModuleHost.Network.Cyclone.Tests.Translators
@@ -51,7 +52,7 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
         public void Constructor_ValidatesLayout()
         {
             var translator = new MultiInstanceCycloneTranslator<MultiInstanceTestComponent>(
-                _participant, "TestTopic_Multi_1", 1, _entityMap);
+                _participant, "TestTopic_Multi_1", 1, _entityMap, new GhostCreationSystem(_entityMap));
             
             Assert.NotNull(translator);
         }
@@ -61,7 +62,7 @@ namespace ModuleHost.Network.Cyclone.Tests.Translators
         {
             Assert.Throws<InvalidOperationException>(() => {
                 new MultiInstanceCycloneTranslator<InvalidMultiTestComponent>(
-                    _participant, "TestTopic_Multi_Invalid", 2, _entityMap);
+                    _participant, "TestTopic_Multi_Invalid", 2, _entityMap, new GhostCreationSystem(_entityMap));
             });
         }
     }

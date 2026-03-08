@@ -46,18 +46,11 @@ namespace Fdp.Examples.NetworkDemo.Configuration
                 AckedModulesMask = 0
             });
 
-            // HARD REQUIREMENT: EntityMaster (ordinal 1) — ghost stays unspawned until this arrives
-            tank.MandatoryDescriptors.Add(new MandatoryDescriptor {
-                PackedKey = PackedKey.Create(DemoDescriptors.Master, 0),
-                IsHard = true
-            });
+            // HARD REQUIREMENT: TkbIdentity must be present — ghost stays unspawned until EntityMaster arrives
+            tank.AddMandatoryComponent<TkbIdentity>(isHard: true);
             
-            // SOFT REQUIREMENT: Physics / Position (ordinal 2) — spawn after timeout even if absent
-            tank.MandatoryDescriptors.Add(new MandatoryDescriptor {
-                PackedKey = PackedKey.Create(DemoDescriptors.Physics, 0),
-                IsHard = false,
-                SoftTimeoutFrames = 60 // 1 second at 60 Hz
-            });
+            // SOFT REQUIREMENT: NetworkTransform — spawn after timeout even if absent
+            tank.AddMandatoryComponent<NetworkTransform>(isHard: false, softTimeoutFrames: 60); // 1 second at 60 Hz
             
             tkb.Register(tank);
 

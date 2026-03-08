@@ -30,9 +30,9 @@ namespace FDP.Toolkit.Replication.Tests
         [Fact]
         public void PromoteGhost_WithRegisteredTemplate_PromotesToConstructingAndPublishesOrder()
         {
-            // GhostPromotionSystem queries entities in Ghost lifecycle with NetworkSpawnRequest,
+            // GhostPromotionSystem queries entities in Ghost lifecycle with TkbIdentity,
             // looks up their template, applies it, advances lifecycle to Constructing,
-            // removes NetworkSpawnRequest, and fires ConstructionOrder.
+            // removes GhostStateTracker (TkbIdentity is permanent), and fires ConstructionOrder.
             using var repo = new EntityRepository();
 
             var tkb = new TestTkbDatabase();
@@ -42,12 +42,14 @@ namespace FDP.Toolkit.Replication.Tests
             var elm = new FDP.Toolkit.Lifecycle.EntityLifecycleModule(tkb, Array.Empty<int>());
             var sys = new GhostPromotionSystem(tkb, elm);
 
-            repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterEvent<ConstructionOrder>();
 
             // Create ghost entity
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new NetworkSpawnRequest { TkbType = 100 });
+            repo.AddComponent(entity, new TkbIdentity { TkbType = 100 });
+            repo.AddComponent(entity, new GhostStateTracker { FirstSeenFrame = 0 });
             repo.SetLifecycleState(entity, EntityLifecycle.Ghost);
 
             sys.Execute(repo, 0f);
@@ -56,7 +58,10 @@ namespace FDP.Toolkit.Replication.Tests
 
             // Ghost should be promoted
             Assert.Equal(EntityLifecycle.Constructing, repo.GetLifecycleState(entity));
-            Assert.False(repo.HasComponent<NetworkSpawnRequest>(entity));
+            // TkbIdentity is permanent — NOT removed after promotion
+            Assert.True(repo.HasComponent<TkbIdentity>(entity));
+            // GhostStateTracker is transient — removed after promotion
+            Assert.False(repo.HasComponent<GhostStateTracker>(entity));
 
             // ConstructionOrder event should have been published
             repo.Bus.SwapBuffers();

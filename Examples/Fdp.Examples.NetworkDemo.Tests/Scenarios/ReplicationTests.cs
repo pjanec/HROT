@@ -8,6 +8,7 @@ using FDP.Toolkit.Replication.Components;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
 {
+    [Collection("DdsIntegration")]
     public class ReplicationTests
     {
         private readonly ITestOutputHelper _output;

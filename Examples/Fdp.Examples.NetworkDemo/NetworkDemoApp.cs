@@ -26,6 +26,7 @@ using FDP.Toolkit.Lifecycle.Events;
 using Fdp.Toolkit.Tkb;
 using FDP.Toolkit.Replication;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Time.Controllers;
@@ -195,10 +196,12 @@ namespace Fdp.Examples.NetworkDemo
                 }
 
                 // 2. Auto-generated
+                var ghostSystemForAuto = replicationLogicModule?.GhostCreationSystem ?? new GhostCreationSystem(EntityMap);
                 var (autoTranslators, _) = ReplicationBootstrap.CreateAutoTranslators(
                     participant,
                     typeof(NetworkDemoApp).Assembly,
-                    EntityMap
+                    EntityMap,
+                    ghostSystemForAuto
                 );
                 allTranslators.AddRange(autoTranslators);
 

@@ -167,7 +167,8 @@ namespace Fdp.Kernel
         /// <summary><c>NetworkVelocity</c> — replicated velocity (no-record policy).</summary>
         public const byte NetworkVelocity     = 53;
 
-        /// <summary><c>NetworkSpawnRequest</c> — signals that master descriptor has arrived.</summary>
+        /// <summary><c>NetworkSpawnRequest</c> — REMOVED (replaced by <c>TkbIdentity</c>). ID 54 is reserved.</summary>
+        [System.Obsolete("NetworkSpawnRequest has been removed. Use TkbIdentity instead.")]
         public const byte NetworkSpawnRequest = 54;
 
         /// <summary><c>PartMetadata</c> — back-reference to parent entity and descriptor ordinal.</summary>
@@ -175,8 +176,15 @@ namespace Fdp.Kernel
 
         // IDs 56–79 are reserved for future Replication toolkit components.
 
-        /// <summary><c>BinaryGhostStore</c> — binary payload cache for ghost-protocol network entities.</summary>
+        /// <summary><c>BinaryGhostStore</c> — REMOVED (ghost data now stored as real ECS components). ID 56 is reserved.</summary>
+        [System.Obsolete("BinaryGhostStore has been removed. Ghost entities now accumulate real ECS components directly.")]
         public const byte BinaryGhostStore        = 56;
+
+        /// <summary><c>TkbIdentity</c> — permanent blueprint type identity component replacing <c>NetworkSpawnRequest</c>.</summary>
+        public const byte TkbIdentity             = 65;
+
+        /// <summary><c>GhostStateTracker</c> — tracks the birth frame of a ghost entity for promotion and timeout logic.</summary>
+        public const byte GhostStateTracker       = 66;
 
         /// <summary><c>ChildMap</c> — maps sub-entity instance IDs to local ECS entities.</summary>
         public const byte ChildMap                = 57;

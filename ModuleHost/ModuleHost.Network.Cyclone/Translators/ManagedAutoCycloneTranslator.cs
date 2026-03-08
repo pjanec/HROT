@@ -5,6 +5,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Utilities;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Components; 
@@ -19,8 +20,9 @@ namespace ModuleHost.Network.Cyclone.Translators
         private readonly DdsReader<T> _reader;
         private readonly DdsWriter<T> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly GhostCreationSystem _ghostCreationSystem;
 
-        public ManagedAutoCycloneTranslator(DdsParticipant p, string topic, int ordinal, NetworkEntityMap map)
+        public ManagedAutoCycloneTranslator(DdsParticipant p, string topic, int ordinal, NetworkEntityMap map, GhostCreationSystem ghostCreationSystem)
         {
             if (!ManagedAccessor<T>.IsValid) 
                 throw new InvalidOperationException($"Managed type {typeof(T).Name} missing EntityId");
@@ -28,6 +30,7 @@ namespace ModuleHost.Network.Cyclone.Translators
             _reader = new DdsReader<T>(p);
             _writer = new DdsWriter<T>(p);
             _entityMap = map;
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
             TopicName = topic;
             DescriptorOrdinal = ordinal;
         }
@@ -46,10 +49,16 @@ namespace ModuleHost.Network.Cyclone.Translators
                 // 2. Fast Accessor
                 long netId = ManagedAccessor<T>.GetId(data);
 
-                if (_entityMap.TryGetEntity(netId, out Entity entity))
+                if (!_entityMap.TryGetEntity(netId, out Entity entity))
                 {
-                    cmd.SetManagedComponent(entity, data);
+                    // Entity not yet known — create a ghost so the promotion pipeline
+                    // can drive it once all mandatory descriptors have arrived.
+                    var repo = view as EntityRepository;
+                    if (repo == null) continue;
+                    entity = _ghostCreationSystem.CreateGhost(repo, netId, view.Tick);
                 }
+
+                cmd.SetManagedComponent(entity, data);
             }
         }
 

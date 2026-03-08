@@ -42,7 +42,8 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<NetworkAuthority>();
-            repo.RegisterComponent<NetworkSpawnRequest>();
+            repo.RegisterComponent<TkbIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
             repo.RegisterComponent<PendingNetworkAck>();
             repo.RegisterComponent<TestPositionComponent>();
             // ELM commands publish these events — register so command buffer playback works
@@ -322,7 +323,7 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
         }
 
         [Fact]
-        public void Spawn_SetsNetworkSpawnRequest_WithCorrectOwnerId()
+        public void Spawn_SetsTkbIdentity_WithCorrectTkbTypeAndDisType()
         {
             // Arrange
             var repo        = CreateWorld();
@@ -341,14 +342,17 @@ namespace FDP.Toolkit.NetworkSpawning.Tests
                 OwnerNodeId = 5
             });
 
-            // Assert
+            // Assert: TkbIdentity is permanently attached
             Assert.True(networkMap.TryGetEntity(90L, out var entity));
-            Assert.True(repo.HasComponent<NetworkSpawnRequest>(entity),
-                "NetworkSpawnRequest must be present on every spawned entity.");
+            Assert.True(repo.HasComponent<TkbIdentity>(entity),
+                "TkbIdentity must be present on every spawned entity.");
 
-            var spawnReq = repo.GetComponent<NetworkSpawnRequest>(entity);
-            Assert.Equal(5UL, spawnReq.OwnerId);
-            Assert.Equal(123UL, spawnReq.DisType);
+            var tkbId = repo.GetComponent<TkbIdentity>(entity);
+            Assert.Equal(DefaultTkbType, tkbId.TkbType);
+
+            // DisType is now stored natively in EntityHeader — verify via GetHeader.
+            var disType = repo.GetHeader(entity.Index).DisType.Value;
+            Assert.Equal(123UL, disType);
         }
 
         [Fact]

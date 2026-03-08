@@ -16,36 +16,54 @@ namespace Fdp.Toolkit.Tkb.Tests
         }
 
         [Fact]
-        public void AreHardRequirementsMet_ReturnsTrue_WhenNoHardRequirements()
+        public void MandatoryComponents_IsEmpty_ByDefault()
         {
             var template = new TkbTemplate("Test", 1);
-            // Add soft req
-            template.MandatoryDescriptors.Add(new MandatoryDescriptor { IsHard = false, PackedKey = 100 });
-            
-            bool result = template.AreHardRequirementsMet(new List<long>());
-            Assert.True(result);
+            Assert.Empty(template.MandatoryComponents);
         }
 
         [Fact]
-        public void AreHardRequirementsMet_ReturnsFalse_WhenHardRequirementMissing()
+        public void MandatoryComponents_HardRequirement_StoredCorrectly()
         {
-             var template = new TkbTemplate("Test", 1);
-             long key = PackedKey.Create(1, 1);
-             template.MandatoryDescriptors.Add(new MandatoryDescriptor { IsHard = true, PackedKey = key });
-             
-             bool result = template.AreHardRequirementsMet(new List<long>());
-             Assert.False(result);
+            var template = new TkbTemplate("Test", 1);
+            template.MandatoryComponents.Add(new MandatoryComponent
+            {
+                ComponentTypeId = 10,
+                IsHard = true,
+                SoftTimeoutFrames = 0
+            });
+
+            Assert.Single(template.MandatoryComponents);
+            Assert.True(template.MandatoryComponents[0].IsHard);
+            Assert.Equal(10, template.MandatoryComponents[0].ComponentTypeId);
+            Assert.Equal(0u, template.MandatoryComponents[0].SoftTimeoutFrames);
         }
 
         [Fact]
-        public void AreHardRequirementsMet_ReturnsTrue_WhenHardRequirementPresent()
+        public void MandatoryComponents_SoftRequirement_StoredCorrectly()
         {
-             var template = new TkbTemplate("Test", 1);
-             long key = PackedKey.Create(1, 1);
-             template.MandatoryDescriptors.Add(new MandatoryDescriptor { IsHard = true, PackedKey = key });
-             
-             bool result = template.AreHardRequirementsMet(new List<long> { key });
-             Assert.True(result);
+            var template = new TkbTemplate("Test", 1);
+            template.MandatoryComponents.Add(new MandatoryComponent
+            {
+                ComponentTypeId = 20,
+                IsHard = false,
+                SoftTimeoutFrames = 120
+            });
+
+            Assert.Single(template.MandatoryComponents);
+            Assert.False(template.MandatoryComponents[0].IsHard);
+            Assert.Equal(120u, template.MandatoryComponents[0].SoftTimeoutFrames);
+        }
+
+        [Fact]
+        public void MandatoryComponents_MultipleRequirements_AllStored()
+        {
+            var template = new TkbTemplate("Test", 1);
+            template.MandatoryComponents.Add(new MandatoryComponent { ComponentTypeId = 1, IsHard = true });
+            template.MandatoryComponents.Add(new MandatoryComponent { ComponentTypeId = 2, IsHard = false, SoftTimeoutFrames = 60 });
+            template.MandatoryComponents.Add(new MandatoryComponent { ComponentTypeId = 3, IsHard = true });
+
+            Assert.Equal(3, template.MandatoryComponents.Count);
         }
     }
 }

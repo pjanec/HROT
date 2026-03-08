@@ -6,6 +6,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Replication.Utilities;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Replication.Extensions;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network;
@@ -24,6 +25,7 @@ namespace ModuleHost.Network.Cyclone.Translators
         private readonly DdsReader<T> _reader;
         private readonly DdsWriter<T> _writer;
         private readonly NetworkEntityMap _entityMap;
+        private readonly GhostCreationSystem _ghostCreationSystem;
 
         public string TopicName { get; }
         public long DescriptorOrdinal { get; }
@@ -32,7 +34,8 @@ namespace ModuleHost.Network.Cyclone.Translators
             DdsParticipant participant, 
             string topicName, 
             long ordinal,
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            GhostCreationSystem ghostCreationSystem)
         {
             if (!MultiInstanceLayout<T>.IsValid)
                 throw new InvalidOperationException(
@@ -41,6 +44,7 @@ namespace ModuleHost.Network.Cyclone.Translators
             TopicName = topicName;
             DescriptorOrdinal = ordinal;
             _entityMap = entityMap;
+            _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
 
             _reader = new DdsReader<T>(participant);
             _writer = new DdsWriter<T>(participant);
@@ -72,7 +76,14 @@ namespace ModuleHost.Network.Cyclone.Translators
             long instId = MultiInstanceLayout<T>.ReadInstanceId(&data);
 
             if (!_entityMap.TryGetEntity(netId, out Entity rootEntity))
-                return;
+            {
+                // Root entity not yet known — create a ghost for it.
+                // We cannot route to child instances until the root exists.
+                var repo = view as EntityRepository;
+                if (repo == null) return;
+                rootEntity = _ghostCreationSystem.CreateGhost(repo, netId, view.Tick);
+                if (instId > 0) return; // child cannot be routed until root is promoted
+            }
 
             // Resolve target (root if instId==0, child otherwise)
             Entity targetEntity = rootEntity;

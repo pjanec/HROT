@@ -44,15 +44,11 @@ namespace Fdp.Examples.NetworkDemo.Tests.Extensions
             if (!app.World.HasComponent<SimVelocity>(entity)) app.World.AddComponent(entity, new SimVelocity());
             app.World.SetAuthority<SimVelocity>(entity, true);
 
-            // Spawn Request — DisType 100 maps to TankTemplate (TkbType 100).
+            // TkbIdentity — permanent blueprint type identity component.
             // TkbType must be set so EntityMasterTranslator can carry it to peer nodes
             // and GhostPromotionSystem can look up the template on the receiving side.
-            app.World.AddComponent(entity, new NetworkSpawnRequest 
-            { 
-                DisType = 100,
-                TkbType = 100,
-                OwnerId = (ulong)app.LocalNodeId 
-            });
+            app.World.AddComponent(entity, new TkbIdentity { TkbType = 100 });
+            app.World.SetDisType(entity, new Fdp.Kernel.DISEntityType { Value = 100 });
             
             // Initial Position
             app.World.SetComponent(entity, new SimTransform 
@@ -93,24 +89,18 @@ namespace Fdp.Examples.NetworkDemo.Tests.Extensions
 
         public static Entity GetEntityByNetId(this NetworkDemoApp app, long netId)
         {
-            if (app.TryGetEntityByNetId(netId, out var entity))
+            if (app.EntityMap.TryGetEntity(netId, out var entity))
                 return entity;
             return Entity.Null;
         }
 
         public static bool TryGetEntityByNetId(this NetworkDemoApp app, long netId, out Entity entity)
         {
-             var query = app.World.Query().With<NetworkIdentity>().Build();
-             foreach(var e in query)
-             {
-                 if (app.World.GetComponent<NetworkIdentity>(e).Value == netId)
-                 {
-                     entity = e;
-                     return true;
-                 }
-             }
-             entity = Entity.Null;
-             return false;
+            // Use EntityMap for a lifecycle-agnostic lookup.  The map is populated
+            // by GhostCreationSystem.CreateGhost() immediately when a proxy entity is
+            // created, so this succeeds as soon as Node B has received the EntityMaster
+            // — regardless of whether the entity has yet been promoted to Active.
+            return app.EntityMap.TryGetEntity(netId, out entity);
         }
     }
 }

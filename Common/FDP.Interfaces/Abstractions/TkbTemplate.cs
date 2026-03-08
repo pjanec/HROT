@@ -21,10 +21,17 @@ namespace Fdp.Interfaces
         public string Name { get; }
 
         /// <summary>
-        /// List of descriptors that must be present before ghost promotion.
-        /// EntityMaster is implicitly always hard-required.
+        /// List of ECS-native component requirements that must be physically present on the
+        /// ghost entity before the <c>GhostPromotionSystem</c> can promote it.
+        ///
+        /// <para>The system checks each requirement against the entity's live
+        /// <c>ComponentMask</c> (O(1) bitmask lookup), making this architecture completely
+        /// decoupled from the DDS network layer.</para>
+        ///
+        /// <para><c>TkbIdentity</c> is always implicitly a hard requirement and does not
+        /// need to be listed here explicitly.</para>
         /// </summary>
-        public List<MandatoryDescriptor> MandatoryDescriptors { get; } = new();
+        public List<MandatoryComponent> MandatoryComponents { get; } = new();
 
         /// <summary>
         /// List of child entities (sub-parts) to spawn when this template is instantiated.
@@ -46,60 +53,29 @@ namespace Fdp.Interfaces
         }
 
         /// <summary>
-        /// Checks if all hard mandatory descriptors are present in the given set.
+        /// Registers an ECS component type as mandatory for ghost promotion.
+        ///
+        /// <para>Works for both unmanaged structs and managed class components.
+        /// <c>ComponentTypeRegistry.GetId(typeof(T))</c> returns the correct ID for both.</para>
         /// </summary>
-        public bool AreHardRequirementsMet(IReadOnlyCollection<long> availableKeys)
+        /// <typeparam name="T">The component type to require.</typeparam>
+        /// <param name="isHard">
+        ///   <c>true</c> (default) — promotion is blocked indefinitely until the component
+        ///   arrives.<br/>
+        ///   <c>false</c> — promotion proceeds after <paramref name="softTimeoutFrames"/>
+        ///   frames.
+        /// </param>
+        /// <param name="softTimeoutFrames">
+        ///   For soft requirements: frames to wait after ghost creation before giving up.
+        /// </param>
+        public void AddMandatoryComponent<T>(bool isHard = true, uint softTimeoutFrames = 0)
         {
-            foreach (var req in MandatoryDescriptors)
+            MandatoryComponents.Add(new MandatoryComponent
             {
-                // Note: assuming Contains is efficient enough or availableKeys is a HashSet
-                // IReadOnlyCollection doesn't imply Contains is O(1).
-                // But usage is typically with HashSet.
-                // Linq.Contains might be used if explicit Contains not on interface?
-                // IReadOnlyCollection<T> does not have Contains directly. System.Linq has it.
-                // I should assume using System.Linq;
-                bool found = false;
-                foreach (var k in availableKeys)
-                {
-                    if (k == req.PackedKey)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                
-                if (req.IsHard && !found)
-                    return false;
-            }
-            return true;
-        }
-
-        /// <summary>
-        /// Checks if all requirements (Hard and Soft) are met.
-        /// Soft requirements are met if present OR if timeout has elapsed since identification.
-        /// </summary>
-        public bool AreAllRequirementsMet(IReadOnlyCollection<long> availableKeys, uint currentFrame, uint identifiedAtFrame)
-        {
-            foreach (var req in MandatoryDescriptors)
-            {
-                bool found = false;
-                foreach (var k in availableKeys)
-                {
-                    if (k == req.PackedKey) { found = true; break; }
-                }
-                
-                if (found) continue;
-
-                if (req.IsHard) return false;
-
-                // Check soft timeout
-                // If not identified yet (identifiedAtFrame == 0), we treat as timeout not started?
-                // But this method is generally called when identified.
-                // Assuming identifiedAtFrame > 0.
-                if (currentFrame - identifiedAtFrame <= req.SoftTimeoutFrames)
-                    return false;
-            }
-            return true;
+                ComponentTypeId  = ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)),
+                IsHard           = isHard,
+                SoftTimeoutFrames = softTimeoutFrames
+            });
         }
 
         /// <summary>

@@ -128,14 +128,11 @@ namespace Fdp.Examples.NetworkDemo.Translators
                 LocalNodeId    = _localInternalId
             });
 
-            // Queue the spawn descriptor so GhostPromotionSystem can apply the correct
-            // template during the BeforeSync phase.
-            cmd.AddComponent(entity, new NetworkSpawnRequest
-            {
-                TkbType = master.TkbTypeValue,
-                DisType = master.DisTypeValue,
-                OwnerId = (ulong)remoteInternalId
-            });
+            // Permanent identity component — drives GhostPromotionSystem.
+            cmd.AddComponent(entity, new TkbIdentity { TkbType = master.TkbTypeValue });
+
+            // Store DIS entity type natively in entity header.
+            repo.SetDisType(entity, new DISEntityType { Value = master.DisTypeValue });
 
             // NOTE: AssertLogContains("Created Proxy Entity") in ReplicationTests depends
             //       on this exact substring being present in the log output.

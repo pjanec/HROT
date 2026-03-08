@@ -5,6 +5,7 @@ using Fdp.Interfaces;
 using FDP.Kernel.Logging;
 using FDP.Interfaces.Abstractions;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
 // using FDP.Toolkit.Replication.Translators;
 using FDP.Toolkit.Replication.Utilities;
 using CycloneDDS.Runtime;
@@ -18,7 +19,8 @@ namespace ModuleHost.Network.Cyclone
         public static (List<IDescriptorTranslator> Translators, List<(long Ordinal, ISerializationProvider Provider)> Providers) CreateAutoTranslators(
             DdsParticipant participant,
             Assembly assembly, 
-            NetworkEntityMap entityMap)
+            NetworkEntityMap entityMap,
+            GhostCreationSystem ghostCreationSystem)
         {
             var translators = new List<IDescriptorTranslator>();
             var providers = new List<(long, ISerializationProvider)>();
@@ -45,7 +47,8 @@ namespace ModuleHost.Network.Cyclone
                             participant,
                             attr.TopicName,
                             attr.Ordinal,
-                            entityMap
+                            entityMap,
+                            ghostCreationSystem
                         )!;
                         
                         translators.Add(translator);
@@ -84,7 +87,8 @@ namespace ModuleHost.Network.Cyclone
                             participant,
                             attr.TopicName,
                             attr.Ordinal,
-                            entityMap
+                            entityMap,
+                            ghostCreationSystem
                         )!;
 
                         translators.Add(translator);

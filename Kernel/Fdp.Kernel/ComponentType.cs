@@ -102,8 +102,10 @@ namespace Fdp.Kernel
         /// <summary>
         /// Registers a managed component type and returns its ID.
         /// Thread-safe via lock. Used for both Tier 1 and Tier 2.
+        /// Public to allow external code (e.g. TkbTemplate) to resolve IDs
+        /// before the component type is registered with an EntityRepository.
         /// </summary>
-        internal static int GetOrRegisterManaged(Type type)
+        public static int GetOrRegisterManaged(Type type)
         {
             lock (_lock)
             {

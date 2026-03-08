@@ -11,6 +11,7 @@ using System.Linq;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
 {
+    [Collection("DdsIntegration")]
     public class OwnershipTests
     {
         private readonly ITestOutputHelper _output;
@@ -34,14 +35,8 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
             
             _output.WriteLine($"Spawned Tank {netId} on A");
 
-            // 2. Wait for Ghost on B
-            await env.WaitForCondition(app => 
-            {
-                 var query = app.World.Query().With<NetworkIdentity>().Build();
-                 foreach(var e in query)
-                     if (app.World.GetComponent<NetworkIdentity>(e).Value == netId) return true;
-                 return false;
-            }, appB, 5000);
+            // 2. Wait for Ghost on B — use EntityMap for lifecycle-agnostic lookup.
+            await env.WaitForCondition(app => app.EntityMap.TryGetEntity(netId, out _), appB, 5000);
             
             var tankB = appB.GetEntityByNetId(netId);
             _output.WriteLine($"Got Tank {tankB} on B");
