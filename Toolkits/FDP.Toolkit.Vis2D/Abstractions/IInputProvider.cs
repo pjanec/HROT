@@ -17,6 +17,13 @@ namespace FDP.Toolkit.Vis2D.Abstractions
         bool IsKeyDown(KeyboardKey key);
         bool IsKeyReleased(KeyboardKey key);
 
+        /// <summary>
+        /// Returns the next key pressed in the input queue (Raylib-style polling).
+        /// Cast the return value to <see cref="KeyboardKey"/>.
+        /// Returns <c>0</c> when no more keys are queued.
+        /// </summary>
+        int GetKeyPressed();
+
         bool IsMouseCaptured { get; }
         bool IsKeyboardCaptured { get; }
     }

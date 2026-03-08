@@ -48,6 +48,7 @@ namespace FDP.Toolkit.Vis2D.Tests
         public bool IsKeyPressed(KeyboardKey key) => false;
         public bool IsKeyDown(KeyboardKey key) => false;
         public bool IsKeyReleased(KeyboardKey key) => false;
+        public int GetKeyPressed() => 0;
     }
 
     public class TestableMapCameraForCanvas : MapCamera

@@ -16,6 +16,7 @@ public class PointSequenceTool : IMapTool
     private readonly Action<Vector2[]> _onFinish;
     private readonly List<Vector2> _points = new();
     private Vector2 _currentMousePos;
+    private MapCanvas? _canvas;
 
     // Optional: Limit max points?
     private const int MAX_POINTS = 100;
@@ -27,13 +28,14 @@ public class PointSequenceTool : IMapTool
 
     public void OnEnter(MapCanvas canvas)
     {
+        _canvas = canvas;
         _points.Clear();
     }
 
     public void OnExit()
     {
-        // Cancel operation if tool switched abruptly?
-        // Or callback with partial? Usually cancel.
+        // Cancel operation if tool switched abruptly — discard partial path.
+        _canvas = null;
         _points.Clear();
     }
 
@@ -97,6 +99,20 @@ public class PointSequenceTool : IMapTool
     {
         _currentMousePos = worldPos;
         return true; 
+    }
+
+    /// <summary>
+    /// Cancels the point-sequence session on ESC and pops the tool without invoking
+    /// the finish callback.  The accumulated points are discarded by <see cref="OnExit"/>.
+    /// </summary>
+    public bool HandleKeyPressed(KeyboardKey key)
+    {
+        if (key == KeyboardKey.Escape)
+        {
+            _canvas?.PopTool();
+            return true;
+        }
+        return false;
     }
 
     private void Finish()

@@ -21,5 +21,6 @@ namespace FDP.Toolkit.Vis2D.Defaults
         public bool IsKeyPressed(KeyboardKey key) => Raylib.IsKeyPressed(key);
         public bool IsKeyDown(KeyboardKey key) => Raylib.IsKeyDown(key);
         public bool IsKeyReleased(KeyboardKey key) => Raylib.IsKeyReleased(key);
+        public int GetKeyPressed() => Raylib.GetKeyPressed();
     }
 }

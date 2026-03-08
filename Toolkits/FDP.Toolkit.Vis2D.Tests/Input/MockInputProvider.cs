@@ -61,5 +61,11 @@ namespace FDP.Toolkit.Vis2D.Tests.Input
         {
             return false;
         }
+
+        /// <summary>Queued key presses returned by <see cref="GetKeyPressed"/> (FIFO).</summary>
+        public Queue<KeyboardKey> KeyPressQueue { get; } = new();
+
+        public int GetKeyPressed()
+            => KeyPressQueue.Count > 0 ? (int)KeyPressQueue.Dequeue() : 0;
     }
 }

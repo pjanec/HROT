@@ -56,6 +56,15 @@ namespace FDP.Toolkit.Vis2D
         // Input state tracking to separate Click from Drag
         private bool _isDraggingInteraction = false;
 
+        /// <summary>
+        /// <c>true</c> when the active tool consumed one or more key presses during the
+        /// last <see cref="Update"/> call.  Use this in the hosting application to gate
+        /// camera or application-level keyboard handling so that tools that capture
+        /// specific keys (e.g. ESC) do not inadvertently trigger host-level actions.
+        /// Reset to <c>false</c> at the start of every <see cref="ProcessInputPipeline"/> call.
+        /// </summary>
+        public bool KeyboardConsumedByTool { get; private set; }
+
         public IReadOnlyList<IMapLayer> Layers => _layers;
         private readonly List<IMapLayer> _layers = new();
 
@@ -228,6 +237,8 @@ namespace FDP.Toolkit.Vis2D
 
         protected virtual void ProcessInputPipeline()
         {
+            KeyboardConsumedByTool = false;
+
             if (_input.IsMouseCaptured) return;
 
             Vector2 mouseScreen = _input.MousePosition;
@@ -244,6 +255,19 @@ namespace FDP.Toolkit.Vis2D
             Vector2 deltaWorld = delta * (1.0f / Camera.Zoom);
 
             bool consumed = false;
+
+            // 0. Keyboard routing to the active tool.
+            // Drain the Raylib key-press queue and route each key to the active tool
+            // before handling mouse input so that a Cancel (ESC) takes effect this frame.
+            if (!_input.IsKeyboardCaptured && ActiveTool != null)
+            {
+                int rawKey;
+                while ((rawKey = _input.GetKeyPressed()) != 0)
+                {
+                    if (ActiveTool.HandleKeyPressed((KeyboardKey)rawKey))
+                        KeyboardConsumedByTool = true;
+                }
+            }
 
             // 1. Tool Priority
             if (ActiveTool != null)

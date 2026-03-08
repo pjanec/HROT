@@ -28,4 +28,13 @@ public interface IMapTool
     bool HandleClick(Vector2 worldPos, MouseButton button);
     bool HandleDrag(Vector2 worldPos, Vector2 delta);
     bool HandleHover(Vector2 worldPos);
+
+    /// <summary>
+    /// Called by <see cref="MapCanvas"/> for each key pressed this frame,
+    /// after ImGui keyboard capture has been checked.
+    /// Return <c>true</c> to mark the key as consumed so it does not bubble
+    /// to other handlers (camera, main loop, etc.).
+    /// The default implementation returns <c>false</c> (not consumed).
+    /// </summary>
+    bool HandleKeyPressed(KeyboardKey key) => false;
 }
