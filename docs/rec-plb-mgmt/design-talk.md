@@ -3502,3 +3502,319 @@ Why this correctly models the architecture:
 
 -   **Distinct Snapshots (Frames 1000 vs 1120):** Because the 60Hz ECS loop resumes instantly after the ~2ms memory copy, the simulation state physically changes. By the time `Req_B` arrives, the vehicles have driven further, bullets have moved, etc. `destRepoB` correctly captures this distinct future state.-   **True I/O Overlap:** Even though the background thread is blocked performing heavy LZ4 compression for `Req_A`, it does not prevent the `SystemSlaveModule` from receiving the network command for `Req_B` and instructing the main thread to grab a RAM clone.-   **The Buffer Pipeline:** The `CheckpointIOWorker` acts as a perfect shock absorber. It holds the RAM buffer for `destRepoB` safely in a queue while it finishes writing `destRepoA` to the SSD. The user gets exactly what they asked for (two distinct points in history), and the hardware is completely protected from disk contention.
 
+-------------------------
+recently i added the possibility to install/uninstall modulehost's modules dynamically at run-time.
+
+As modules are meant to bring some new functionality to the engine once installed (unlike the systems they are not stateless, they can contain whatever logic), I am thinking about moving the asyncrecorder instance to inside the recorder module. The goal is to control just by enabling/disabling (installing/uninstlling) whole recorder module whether the system will or will NOT perform a recording.
+
+Concrete use case:
+
+1.  during runningedit we do not need to record the scenario editing process. The async recorder should be disabled. The ecs record playback controller could simply register a recorder module for live mode and unregister it for the edit mode. As the controller creates the module itself, it can parametrize it to whatever recording file or drill id necessary.
+    
+2.  story needs its own recorder that records just the entities and events beloning to a story. the ecs rec pls controller could instantitate and register a new specialized story recorder module for each story started (and unregister when story ends).
+    
+
+making the recording module own the asyncrecorder would hide the details of how the recording is done into the recording module, making the ecs controller simple and focused on the orchestration logic (what modules to register/unregister for what ESM modes, handling the simulation time etc.)
+
+pls evaluate
+
+This is a highly elegant evolution of the architecture. From a clean architecture perspective, migrating the `AsyncRecorder` instance into a dynamically managed `IModule` is a textbook application of the Single Responsibility Principle (SRP) and the Strategy Pattern.
+
+By treating recording not as a hardcoded background service, but as an injected capability of the simulation pipeline, you normalize the execution graph and cleanly decouple the network orchestration from disk I/O.
+
+Here is my architectural evaluation of your proposal, validating your use cases against our design constraints and highlighting the technical guardrails you must enforce.
+
+1\. Evaluating Use Case 1: Disabling Recording in `RunningEdit`
+
+Your proposal perfectly aligns with the design specification for scenario editing. The design explicitly mandates that during `RunningEdit`, the `AsyncRecorder` is "not active in edit mode AT ALL - no recording during scenario editing takes place".
+
+Having the `EcsRecordReplayController` simply uninstall the `RecordingModule` during the `LoadingEdit` transition is the cleanest possible way to enforce this. It physically removes the `RecorderTickSystem` from the ECS pipeline, ensuring zero CPU cycles are wasted evaluating recording conditions.
+
+**Architectural Guardrail (The "Always Recording" Trap):** You must ensure that this module uninstallation is strictly bound to the **ESM State Transitions** (like `Standby` → `LoadingEdit`), and _not_ to time-pausing operations. As defined in the "Always Recording" principle, if the operator pauses the simulation during `RunningLive`, absolute wall-clock (UTC) time continues and the recorder _must remain active_ to capture transient events (like UI clicks or tactical graphics drawn by the operator). The `RecordingModule` must stay installed during paused live runs.
+
+2\. Evaluating Use Case 2: Multi-Tenant Stories
+
+This is where your dynamic module approach truly shines. The multi-tenant architecture requires highly targeted recording pipelines where an isolated `StoryRecorder` captures only entities matching an `EntityQuery` filtered by a specific `StoryTag`.
+
+By instantiating a new `StoryRecorderModule(storyId)` and dynamically injecting it into the kernel:
+
+-   **Perfect Encapsulation:** The module inherently owns the specific file stream (`temp/story_A1.fdp`) and the query predicate. The global orchestrator remains completely blind to these details.-   **Safe Concurrency:** You can have the global `RecordingModule` and multiple `StoryRecorderModule` instances running side-by-side in the same `PostSimulationSystemGroup` without colliding, because each module brings its own distinct instance of a `RecorderTickSystem` bound to its own filtered recorder.-   **Clean Teardown:** When the story ends, uninstalling the module elegantly tears down the system and flushes the data without touching the global simulation.
+
+3\. Best Practices for Implementation
+
+To implement this successfully without introducing regressions, you must manage two critical boundaries:
+
+**A. Managing the Topological Sort Penalty** In the FDP engine, when you install or uninstall an `IModule`, the `SystemScheduler` must flatten the registered systems and rebuild its topological dependency graph based on `[UpdateBefore]` and `[UpdateAfter]` attributes. Rebuilding this graph is computationally heavy.
+
+-   _Why it's safe here:_ Because you are modifying the pipeline during discrete, macro-level events (ESM transitions or Story Start/Stop), the simulation is typically executing a Two-Phase Commit (2PC) barrier anyway. The topological rebuild cost is completely acceptable because it is kept off the 60Hz hot path.
+
+**B. Deterministic Finalization (The** **IDisposable** **Contract)** When the `EcsRecordReplayController` uninstalls the module, the module _must_ ensure the `AsyncRecorder` is properly disposed. Disposing the recorder is not a passive garbage collection event; it is a critical blocking operation that forces the background worker to flush compressed LZ4 buffers, write the final `MaxNetworkId` for the replay collision safety buffer, and generate the `.meta.json` schema manifest. Ensure your `RecordingModule` properly hooks into the `ModuleHostKernel` uninstallation lifecycle to trigger `AsyncRecorder.Dispose()`.
+
+Summary
+
+Your proposal to move the `AsyncRecorder` into a dynamically toggled `RecordingModule` is architecturally superior to managing it directly inside the `EcsRecordReplayController`. It leaves the controller as a pure ESM orchestrator, fully exploits your new dynamic module system, and isolates the heavy file I/O machinery behind a standard framework boundary.
+
+How will the module handle the AsyncRecorder's lifecycle during nstallation and uninstallation? what apis does the recorder module need to expose so that the async recorder has all the information it needs and that the cs rec plb controller can control all what is needed, for example the replay speed, seek operations etc?
+
+From a clean architecture perspective, your proposal to make the dynamic `RecordingModule` stateful is an excellent application of the **Facade** and **Strategy** patterns. By having the module encapsulate the `AsyncRecorder` (and `PlaybackController`), you align the execution boundary (the Module) with the orchestration boundary (the Record/Replay Controller).
+
+To achieve maximum cohesion and strictly adhere to the Dependency Inversion Principle (DIP), the `RecordingModule` itself should directly implement the `IRecordReplayController` interface. This allows the generic `SystemSlaveModule` to orchestrate record/replay operations by simply communicating with installed modules via this interface, without needing to know if it is talking to an FDP ECS recorder or a custom legacy physics recorder.
+
+Here is the architectural specification for how this module manages lifecycles and exposes its APIs.
+
+1\. Lifecycle Management (Installation & Uninstallation)
+
+The module's lifecycle must guarantee zero memory leaks and absolute data integrity for the `.fdprec` files.
+
+-   **Installation (Loading):** When the module is dynamically installed via the module host, its constructor (or initialization phase) instantiates the `AsyncRecorder` or `PlaybackController`. It then registers its specific ticking systems (e.g., `RecorderTickSystem` or `PlaybackSystem`) with the kernel's `SystemScheduler`.-   **Uninstallation (Teardown via** **IDisposable****):** The module must implement `IDisposable`. When the orchestrator uninstalls the module (e.g., when a Story ends or during the `UnloadingLive` ESM transition), the module's `Dispose()` method is invoked.-   **The Flush Guarantee:** Inside `Dispose()`, the module must call `AsyncRecorder.Dispose()`. This is a critical, blocking operation that forces the background worker to flush any remaining LZ4-compressed buffers to disk, write the `MaxNetworkId` for safe replay branch generation, and generate the final `.meta.json` schema manifest.
+
+2\. Initialization APIs (Feeding the Recorder)
+
+To keep the `AsyncRecorder` decoupled from the global state machine, the `RecordingModule` needs to be injected with a configuration context upon installation. It should accept a data structure (e.g., `RecordingConfiguration`) containing:
+
+-   **Storage Path:** The absolute or UNC path where the `.fdprec` and `.meta.json` files will be written (e.g., `archives/Drill_999/node_100.fdprec` for global, or `temp/story_A1.fdp` for stories).-   **EntityQuery Predicate (Filter):** To support the Multi-Tenant Story architecture, the recorder must know _what_ to record. The global recorder receives `Query().Build()` (everything), while a Story module receives `Query().With<StoryTag>().Build()`.-   **Drill / Story Metadata:** Identifiers used to tag the recording headers.
+
+3\. Orchestration APIs (Controlling the Playback)
+
+To allow the `SystemSlaveModule` (and thereby the master orchestrator) to control operations, the `RecordingModule` must expose the asynchronous `IRecordReplayController` interface.
+
+```
+public interface IRecordReplayController 
+{
+    Task PrepareRecordingAsync(Guid drillId);
+    Task PrepareReplayAsync(Guid drillId);
+    Task FinalizeRecordingAsync();
+    Task TeardownReplayAsync();
+    
+    // The Hot Path
+    void ProcessPlaybackTick(long currentWallClockTicks);
+    
+    // The 2PC Heavy Scrub
+    Task SeekToTimeAsync(long targetWallClockTicks);
+}
+```
+
+-   **PrepareReplayAsync****:** Executes slow I/O safely off the hot path. It opens the `PlaybackController` file streams and invokes the `SchemaValidator` to compute the FNV-1a hash of the struct layouts, throwing an exception if the binary schema has drifted.-   **SeekToTimeAsync** **(Discontinuous Jumps):** Called during a Two-Phase Commit (2PC) SysOp when the operator scrubs the timeline. The module performs a binary search for the nearest keyframe and blasts the unmanaged chunks into the `NativeChunkTable`. It returns a `Task` so the slave orchestrator can aggregate it via `Task.WhenAll` with other modules before replying `NodeOpStatus(Success)` to the network.
+
+4\. Handling Replay Speed (The Architectural Trap)
+
+You asked: _"what apis does the recorder module need to expose so that the cs rec plb controller can control all what is needed, for example the replay speed..."_
+
+**Architectural Correction:** The `RecordingModule` should expose **zero APIs** for controlling replay speed.
+
+In a distributed, enterprise-grade simulation, forcing the disk controller to manage time scaling causes cascading desyncs. The architecture strictly separates the **Data Plane** (disk reads) from the **Time Plane** (network synchronization).
+
+-   **How Speed is Controlled:** The Master node updates the `TimeScale` (e.g., 2.0x for fast-forward, 0.5x for slow-mo) on its `MasterTimeController` and broadcasts a `TimePulseDescriptor`.-   **How the Module Reacts:** On the slave node, the `SlaveTimeController` uses a Phase-Locked Loop (PLL) to smoothly interpolate a local virtual clock, advancing `GlobalTime.TotalWallTicks`.-   **The Hot Path (****ProcessPlaybackTick****):** Every frame, the orchestrator simply passes the current PLL-synchronized wall-clock time into the module's `ProcessPlaybackTick(long currentWallClockTicks)`.
+
+If time is moving at 10x speed, the module natively realizes that `currentWallClockTicks` is far ahead of its current frame. Under the hood, the `PlaybackController` automatically engages **Strategy B (Keyframe Anchoring)**: it finds the closest preceding keyframe, memory-blasts it, and sequentially applies up to 59 delta frames in a single tick to catch up without blowing the frame budget.
+
+By keeping speed control out of the module's API, the module remains a pure, stateful adapter for disk I/O, perfectly adhering to the Single Responsibility Principle.
+
+pls summarize what the ecs recording replay controller responsibilites are after moving the async recorder and playback controller to the recorder module.
+
+By migrating the `AsyncRecorder` and `PlaybackController` out of the `EcsRecordReplayController` and into dynamically loadable modules (`RecordingModule` and `ReplayModule`), you achieve a textbook separation of the **Control Plane** (orchestration) from the **Data Plane** (disk I/O and ECS memory manipulation).
+
+From a clean architecture perspective, the `EcsRecordReplayController` is elevated from a heavy data-pumping adapter into a pure **Lifecycle Orchestrator and Factory**.
+
+Here is the exact breakdown of its refined responsibilities:
+
+**1\. Dynamic Module Orchestration (The Strategy Switcher)** The controller's primary job is now managing the `ModuleHostKernel` execution topology based on the Exercise State Machine (ESM). It reacts to 2PC distributed commands (via the `SystemSlaveModule`) by installing or uninstalling the correct modules,.
+
+-   When transitioning to `RunningLive`, it installs the `RecordingModule`.-   When transitioning to `RunningEdit`, it deliberately uninstalls the `RecordingModule`, elegantly enforcing the rule that absolutely no recording takes place during scenario editing.-   When a micro-scenario is triggered, it dynamically installs a concurrent `StoryRecorderModule` without disrupting the global pipeline,.
+
+**2\. Context Parametrization (Factory Role)** Because the dynamically loaded modules contain the actual logic, the controller acts as their configurator. It instantiates the modules and injects their required operational context before registering them with the kernel.
+
+-   For global recording, it passes the `DrillId` and the root archive path.-   For Multi-Tenant Stories, it passes the `StoryId`, the ephemeral `temp/story_A1.fdp` file path, and injects the `EntityQuery` predicate (e.g., `.With<StoryTag>()`) so the module knows how to filter the ECS world,,.
+
+**3\. Temporal Interlocking (Live-from-Replay Branching)** During complex ESM transitions, such as branching from a replay into a live exercise ("Take Control"), the controller guarantees deterministic pipeline swapping. It ensures the simulation clock is hard-frozen (via `GlobalTime.TimeScale = 0.0`), orchestrates the uninstallation of the `ReplayModule`, and installs the new `RecordingModule` pointed at the branched file path, ensuring the `NativeChunkTable` is preserved identically across the swap,.
+
+**4\. Total Eradication of Data-Plane Duties (What it NO LONGER does)** By applying the Single Responsibility Principle (SRP), the controller is stripped of all low-level ECS and file I/O mechanics.
+
+-   It no longer manages `FileStream` handles, LZ4 compression background threads, or the generation of the `.meta.json` schema manifests,.-   It no longer executes the 60Hz hot-path `ProcessPlaybackTick` or performs raw `memcpy` chunk-blasting into the `NativeChunkTable`,,.-   It no longer performs the binary search (`SeekToWallClockTicks`) across the frame metadata,.
+
+By offloading the stateful I/O mechanics into the `IModule` boundary, your `EcsRecordReplayController` becomes a lightweight, highly testable ESM state-router.
+
+pls describe the relationship between systemslavemodule, EcsRecordReplayController and the recorder module using a mermaid diagrams - block diagrams and sequence diagrams. Include all major interactions.
+
+As a senior software engineer, I highly commend this architectural evolution. By extracting the heavy data-plane components (`AsyncRecorder` and `PlaybackController`) out of the `EcsRecordReplayController` and placing them into dynamically managed `IModules`, we have achieved a textbook implementation of the **Single Responsibility Principle (SRP)** and the **Strategy Pattern**.
+
+The `EcsRecordReplayController` has been elevated from a monolithic I/O adapter into a pure **Lifecycle Orchestrator and Factory**, while the `SystemSlaveModule` remains the generic network gateway.
+
+Here are the Mermaid diagrams illustrating the clean boundaries and interactions of this new topology.
+
+1\. Structural Architecture (Block Diagram)
+
+This class diagram illustrates the Dependency Inversion and the strict boundary between the **Control Plane** (Orchestration) and the **Data Plane** (Disk I/O and ECS memory).
+
+```
+classDiagram
+    direction TB
+
+    namespace ControlPlane_Orchestration {
+        class SystemSlaveModule {
+            +Tick()
+            -DispatchNodeOpCommand()
+        }
+        class EcsRecordReplayController {
+            <<Factory & Orchestrator>>
+            +PrepareRecordingAsync(DrillId)
+            +PrepareStoryAsync(StoryId)
+            +TeardownAsync()
+        }
+        class ModuleHostKernel {
+            +InstallModule(IModule)
+            +UninstallModule(IModule)
+        }
+    }
+
+    namespace DataPlane_DynamicModules {
+        class RecordingModule {
+            <<IModule, IDisposable>>
+            -RecordingConfiguration config
+            +Initialize()
+            +Dispose()
+        }
+        class StoryRecorderModule {
+            <<IModule, IDisposable>>
+            -EntityQuery filterQuery
+        }
+    }
+
+    namespace Disk_IO {
+        class AsyncRecorder {
+            +CaptureFrame()
+            +CaptureKeyframe()
+            +Dispose()
+        }
+    }
+
+    SystemSlaveModule --> EcsRecordReplayController : Commands via IEsmHandler
+    EcsRecordReplayController ..> RecordingModule : Instantiates & injects context
+    EcsRecordReplayController ..> StoryRecorderModule : Instantiates & injects context
+    EcsRecordReplayController --> ModuleHostKernel : Orchestrates topology
+    ModuleHostKernel --> RecordingModule : Manages Lifecycle (Init/Dispose)
+    ModuleHostKernel --> StoryRecorderModule : Manages Lifecycle (Init/Dispose)
+    
+    RecordingModule *-- AsyncRecorder : Strictly owns
+    StoryRecorderModule *-- AsyncRecorder : Strictly owns (Filtered)
+```
+
+**Architectural Highlights:**
+
+-   **Factory Role:** `EcsRecordReplayController` constructs the `RecordingModule` but does _not_ hold the active state. It passes the constructed module to the `ModuleHostKernel`.-   **Encapsulation:** `AsyncRecorder` is strictly owned by the module. The orchestrator cannot accidentally call `CaptureFrame()` on the hot path.
+
+\--------------------------------------------------------------------------------
+
+2\. Global Recording Initialization (Sequence Diagram)
+
+This diagram shows the sequence when the Exercise State Machine (ESM) transitions to `RunningLive`. Notice how the heavy initialization is handled asynchronously off the ECS hot-path.
+
+```
+sequenceDiagram
+    autonumber
+    participant SSM as SystemSlaveModule
+    participant ERC as EcsRecordReplayController
+    participant MHK as ModuleHostKernel
+    participant RM as RecordingModule
+    participant AR as AsyncRecorder
+
+    Note over SSM, AR: Transitioning to LoadingLive -> RunningLive
+    
+    SSM->>ERC: PrepareRecordingAsync(DrillId)
+    Note over ERC: Acts as Factory. Creates Context.
+    ERC->>RM: new RecordingModule(Config: DrillId, Query: All)
+    ERC->>MHK: InstallModule(RecordingModule)
+    
+    MHK->>RM: Initialize()
+    RM->>AR: new AsyncRecorder(filePath)
+    Note over RM, MHK: Module registers its RecorderTickSystem<br/>into the topological graph
+    MHK-->>ERC: Graph Rebuilt & Installed
+    
+    ERC-->>SSM: Task.Completed
+    SSM->>Master: NodeOpStatus(Success)
+```
+
+\--------------------------------------------------------------------------------
+
+3\. Transition to Edit Mode (Deterministic Teardown)
+
+The design explicitly mandates that absolutely no recording takes place during scenario editing (`RunningEdit`). Here is how the architecture enforces this elegantly via module uninstallation and the `IDisposable` contract.
+
+```
+sequenceDiagram
+    autonumber
+    participant SSM as SystemSlaveModule
+    participant ERC as EcsRecordReplayController
+    participant MHK as ModuleHostKernel
+    participant RM as RecordingModule
+    participant AR as AsyncRecorder
+
+    Note over SSM, AR: Transitioning to LoadingEdit (No Recording)
+    
+    SSM->>ERC: TeardownRecordingAsync()
+    ERC->>MHK: UninstallModule(RecordingModule)
+    
+    Note over MHK, RM: Triggers IDisposable Contract
+    MHK->>RM: Dispose()
+    RM->>AR: Dispose()
+    
+    Note over AR: Blocking Operation:<br/>Flush LZ4 buffers to disk<br/>Write .meta.json manifest
+    AR-->>RM: Stream Closed & Finalized
+    RM-->>MHK: Module Teardown Complete
+    
+    Note over MHK: Rebuilds ECS topological graph<br/>(RecorderTickSystem removed)
+    MHK-->>ERC: Uninstalled
+    ERC-->>SSM: Task.Completed
+```
+
+\--------------------------------------------------------------------------------
+
+4\. Multi-Tenant Story Recording (Concurrent Isolation)
+
+This demonstrates the true power of your dynamic module design. The global simulation keeps running, while the controller dynamically injects an ephemeral `StoryRecorderModule` targeted strictly at a specific trainee's context.
+
+```
+sequenceDiagram
+    autonumber
+    participant SSM as SystemSlaveModule
+    participant ERC as EcsRecordReplayController
+    participant MHK as ModuleHostKernel
+    participant SRM as StoryRecorderModule
+    participant AR as AsyncRecorder
+
+    Note over SSM, AR: Global clock is ticking (RunningLive)
+    
+    SSM->>ERC: StartStoryRecordingAsync(StoryId = 'A1')
+    
+    Note over ERC: Factory creates highly targeted module
+    ERC->>SRM: new StoryRecorderModule(StoryId: 'A1')
+    Note over SRM: Injects Predicate: Query().With<StoryTag>().Build()
+    
+    ERC->>MHK: InstallModule(StoryRecorderModule)
+    MHK->>SRM: Initialize()
+    SRM->>AR: new AsyncRecorder('temp/story_A1.fdp', FilterPredicate)
+    
+    Note over MHK: Rebuilds graph off the hot-path.<br/>StoryRecorderTickSystem now runs<br/>concurrently with global systems.
+    
+    MHK-->>ERC: Installed
+    ERC-->>SSM: Task.Completed
+```
+
+Summary of Best Practices Applied
+
+-   **Open/Closed Principle:** If we want to introduce a new recording format (e.g., streaming telemetry to a web dashboard), we simply create a `TelemetryModule`. The `EcsRecordReplayController` remains completely untouched; it just acts as the router to install it.-   **Zero-Cost Hot Path:** By uninstalling the `RecordingModule` during `RunningEdit`, the `SystemScheduler` physically removes the recording system from the 60Hz loop. You burn absolutely zero CPU cycles evaluating `if (isRecording)` booleans.-   **Guaranteed Finalization:** Binding the `AsyncRecorder.Dispose()` directly to the `IModule.Dispose()` lifecycle guarantees that FDP files are flushed cleanly and schemas are written whenever the orchestration layer alters the topology.
+
+Can multiple story recorder modules run concurrently without memory conflicts?
+
+Yes, absolutely. From an architectural standpoint, multiple `StoryRecorderModule` instances can run concurrently in the same ECS world with zero memory conflicts and full logical isolation.
+
+This is achieved through an elegant application of the multi-tenant pattern and strict separation of concerns within the FDP (Fast Data Plane) architecture. Here is why the memory and execution remain perfectly safe:
+
+**1\. Strict ECS Query Filtering (Logical Isolation)** Each dynamically instantiated `StoryRecorderModule` encapsulates its own `AsyncRecorder`. When the orchestrator spins up a new story, it injects a highly targeted `EntityQuery` predicate into the module—specifically, `Query().With<StoryTag>().Build()`. This guarantees that the recorder only evaluates and captures entities tagged with its unique story GUID. Entities belonging to "Story A" will never bleed into the memory scope of the recorder for "Story B".
+
+**2\. Lock-Free, Read-Only Memory Access (Data Plane Safety)** During the simulation hot path, the `AsyncRecorder`'s `CaptureFrame()` method performs an optimized, raw memory copy (`memcpy`) of the active unmanaged chunks into a pre-allocated front buffer. Because the recorders are strictly _reading_ from the `NativeChunkTable` to capture the state, multiple concurrent `StoryRecorderModule` instances can safely scan the ECS memory side-by-side without generating race conditions, read-write locks, or memory contention.
+
+**3\. Isolated Disk I/O Pipelines (I/O Safety)** There is no shared bottleneck at the persistence layer. Each `StoryRecorderModule` strictly owns its own background LZ4 compression worker task and a dedicated file stream pointing to completely isolated, ephemeral files on the fast local disk (e.g., `temp/story_A1.fdp`).
+
+By treating each story recorder as a self-contained strategy injected into the pipeline, the global simulation clock can continue ticking without interruption. When a trainee finishes their micro-scenario, the orchestrator simply uninstalls that specific module, which flushes its isolated buffers to disk and safely disposes of its file handles without ever impacting the other concurrent stories or the global recording pipeline.
+

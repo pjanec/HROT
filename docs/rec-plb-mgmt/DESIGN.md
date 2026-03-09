@@ -27,6 +27,7 @@
 8. [Replay Subsystem](#8-replay-subsystem)
    - [8.11 Live-from-Replay Temporal Interlock](#811-live-from-replay-temporal-interlock)
    - [8.12 "Always Recording" — Event Capture During Paused Simulation Time](#812-always-recording--event-capture-during-paused-simulation-time)
+   - [8.13 Dynamic Recording/Replay Modules Architecture](#813-dynamic-recordingreplay-modules-architecture)
 9. [Checkpoints & Dry Runs](#9-checkpoints--dry-runs)
 10. [Stories — Multi-Tenant Micro-Scenarios](#10-stories--multi-tenant-micro-scenarios)
 11. [Battlespaces](#11-battlespaces)
@@ -1068,7 +1069,7 @@ The reset is embedded in the 2PC `LoadingReplay` transaction:
 ```
 Phase 1 — SCATTER (PrepareState, LoadingReplay):
   Each SlaveModule opens the .fdprec companion .meta.json manifest.
-  The manifest exposes MaxNetworkId (persisted by AsyncRecorder during FinalizeRecordingAsync).
+  The manifest exposes MaxNetworkId (persisted by `AsyncRecorder` when finalized; triggered via `RecordingModule.Dispose()` → `AsyncRecorder.Dispose()`).
   Slave replies: NodeOpStatus(Success, ResultJson={"MaxNetworkId": 145000})
 
 Phase 2 — GATHER (Master collects all ACKs):
@@ -1096,7 +1097,7 @@ Phase 4 — COMMIT → RunningReplay.
 **`RecordingMetadata` addition:**
 
 ```csharp
-// In .meta.json schema — persisted by EcsRecordReplayController.FinalizeRecordingAsync
+// In .meta.json schema — persisted by RecordingModule.Dispose() → AsyncRecorder.Dispose()
 public class RecordingMetadata
 {
     public Guid   DrillId;
@@ -1150,7 +1151,7 @@ public interface IEsmHandler
 ```
 
 Example handlers in `Bagira.SimHost`:
-- `LiveLoadEsmHandler` — loads scenario assets, initialises `AsyncRecorder`
+- `LiveLoadEsmHandler` — loads scenario assets; instantiates and installs a `RecordingModule` via `ModuleHostKernel` (does **not** directly own `AsyncRecorder`)
 - `ReplayLoadEsmHandler` — opens `PlaybackController`
 - `EditLoadEsmHandler` — loads static terrain, disables physics systems
 - `CheckpointEsmHandler` — on TakeSnapshot: calls `destRepo.SyncFrom(liveRepo)` on
@@ -1345,7 +1346,9 @@ Nodes are classified in the system configuration (`config.json`):
 |-----------|----------|------|
 | `ReplayMasterModule` | `Bagira.Orchestrator` (Time Master node) | Drives the replay playhead by seeding `MasterTimeController` with the recording epoch; controls speed via `SetTimeScale()`; publishes the existing `TimePulseDescriptor` — no new DDS topic needed |
 | `IRecordReplayController` | `FDP/Kernel/Fdp.Kernel/Orchestration/` (new) | Generic abstraction over any recording/playback subsystem; ECS-based and custom-module controllers implement this |
-| `EcsRecordReplayController` | `Bagira.SimHost/Modules/Orchestration/` (new) | FDP ECS adapter; wraps `AsyncRecorder` + `PlaybackController`; registered with `SystemSlaveModule` as one of potentially several `IRecordReplayController` instances |
+| `EcsRecordReplayController` | `Bagira.SimHost/Modules/Orchestration/` (new) | **Factory & Lifecycle Orchestrator** (Control Plane). Acts as an `IEsmHandler`; instantiates `RecordingModule` / `StoryRecorderModule` with configuration context and installs/uninstalls them via `ModuleHostKernel`. Does **not** directly own `AsyncRecorder` or `PlaybackController`. See §8.8 and §8.13. |
+| `RecordingModule` | `Bagira.SimHost/Modules/Orchestration/` (new) | `IModule` + `IDisposable` (Data Plane). Strictly owns one `AsyncRecorder` instance. `Initialize()` opens the file stream; `Dispose()` blocks until LZ4 buffers are flushed and `.meta.json` is written. Registered into `ModuleHostKernel` by `EcsRecordReplayController`. |
+| `StoryRecorderModule` | `Bagira.SimHost/Modules/Orchestration/` (new) | `IModule` + `IDisposable` (Data Plane). Per-story variant of `RecordingModule`; owns a filtered `AsyncRecorder` restricted to entities matching `Query().With<StoryTag>().Build()`. Multiple instances can run concurrently; each owns an isolated file stream and background LZ4 worker. |
 | `ReplayLoadEsmHandler` | Each FDP node (`Bagira.SimHost`, `Bagira.IG`) | `IEsmHandler` for `PrepareReplay` / `FinalizeReplay`; disables sim groups; toggles `GhostCreationSystem.BypassLifecycle`; creates and owns `EcsRecordReplayController` |
 | `NetworkLifecycleSystemGroup` | `FDP/ModuleHost/ModuleHost.Core/Scheduling/` (new) | Concrete `ISystemGroup` with `bool Enabled` toggle; encapsulates `LifecycleSystem`, `GhostPromotionSystem`, `NetworkGatewaySystem` so the orchestrator can disable all three with one O(1) assignment |
 
@@ -1586,18 +1589,66 @@ public interface IRecordReplayController
 
 ### 8.8 `EcsRecordReplayController`
 
-The FDP ECS implementation of `IRecordReplayController`.  Bridges the generic orchestration
-API to the low-level `AsyncRecorder` + `PlaybackController`.
+`EcsRecordReplayController` is a **pure Factory & Lifecycle Orchestrator** (Control Plane).
+It implements `IEsmHandler` and is registered with `SystemSlaveModule`.  It does **not**
+directly own `AsyncRecorder` or `PlaybackController`.  Instead it instantiates typed
+`IModule` objects with the correct operational configuration and routes them through the
+`ModuleHostKernel`, which manages their full lifecycle (Install → Initialize → tick →
+Uninstall → Dispose).
 
-**Recording phase**
+See §8.13 for the detailed structural class diagram and sequence diagrams.
+
+#### 8.8.1 Refined Responsibilities
+
+| Responsibility | Description |
+|---|---|
+| **Dynamic Module Orchestration** | Reacts to ESM 2PC commands by installing or uninstalling `RecordingModule` / `StoryRecorderModule` via `ModuleHostKernel`. Installing a module adds its tick systems to the topological graph; uninstalling removes them — zero-cost hot-path once the graph is rebuilt. |
+| **Context Parametrisation (Factory)** | Constructs modules and injects their `RecordingConfiguration` before handing them to the kernel. For global recording this means DrillId + root archive path + `Query().Build()`; for stories it adds StoryId + ephemeral path + `Query().With<StoryTag>().Build()`. |
+| **"No Recording in Edit" Enforcement** | On transition to `LoadingEdit` the controller uninstalls the `RecordingModule`. This physically removes `RecorderTickSystem` from the 60 Hz scheduler — zero `if (isRecording)` boolean checks on the hot path. |
+| **Temporal Interlocking (Live-from-Replay)** | During the branch transition the controller uninstalls `ReplayModule` (leaving `EntityRepository` intact) then installs a new `RecordingModule` pointed at the branched DrillId path, ensuring the `NativeChunkTable` is preserved across the swap (§8.11). |
+
+#### 8.8.2 Recording Phase
 
 ```csharp
-// PrepareRecordingAsync
-_recorder = new AsyncRecorder($"{storageDir}/{drillId}/node_{nodeId}.fdp");
-_recorder.MinRecordableId = FdpConfig.SYSTEM_ID_RANGE;  // skip system entities
+// PrepareRecordingAsync — EcsRecordReplayController as Factory
+public async Task PrepareRecordingAsync(Guid drillId, string storageDirectory)
+{
+    var config = new RecordingConfiguration
+    {
+        FilePath   = $"{storageDirectory}/{drillId}/node_{_nodeId}.fdp",
+        EntityQuery = Query().Build(),  // record everything above MinRecordableId
+        DrillId    = drillId,
+    };
+    _activeRecordingModule = new RecordingModule(config);
+    await _kernel.InstallModuleAsync(_activeRecordingModule);
+    // ModuleHostKernel.InstallModuleAsync():
+    //   → calls RecordingModule.Initialize()
+    //   → RecordingModule opens AsyncRecorder(filePath)
+    //   → registers RecorderTickSystem into topological graph
+    //   → rebuilds topological sort (off-path; occurs during 2PC barrier)
+}
 
-// Hot path — called from within ExportSystemGroup every frame
-void ProcessRecordTick(EntityRepository repo, uint prevTick)
+// FinalizeRecordingAsync — triggers IDisposable contract via uninstallation
+public async Task FinalizeRecordingAsync()
+{
+    await _kernel.UninstallModuleAsync(_activeRecordingModule);
+    // ModuleHostKernel.UninstallModuleAsync():
+    //   → removes RecorderTickSystem from topological graph
+    //   → calls RecordingModule.Dispose()
+    //   → RecordingModule.Dispose() calls AsyncRecorder.Dispose() — BLOCKING:
+    //       flushes LZ4 buffers, writes MaxNetworkId, writes .meta.json manifest
+    _activeRecordingModule = null;
+}
+```
+
+#### 8.8.3 `RecordingModule` Internals (Data Plane)
+
+The `RecordingModule` is the only class that interacts with `AsyncRecorder`.  The 60 Hz
+hot path is entirely self-contained inside the module's registered `RecorderTickSystem`:
+
+```csharp
+// Inside RecorderTickSystem.Execute() — called by SystemScheduler at ~60 Hz:
+void RecordTick(EntityRepository repo, uint prevTick)
 {
     if (++_framesSinceKeyframe >= KEYFRAME_INTERVAL)   // e.g. every 60 frames
     {
@@ -1607,31 +1658,34 @@ void ProcessRecordTick(EntityRepository repo, uint prevTick)
     else
     {
         _recorder.CaptureFrame(repo, prevTick);
-        // Zero-allocation: raw memcpy to front-buffer; LZ4 compression on BG worker
+        // Zero-allocation: raw memcpy to front-buffer; LZ4 on BG worker thread
     }
 }
-
-// FinalizeRecordingAsync → _recorder.Dispose()
-// Blocks until BG worker finishes; writes .meta.json schema manifest
 ```
 
-**Replay phase — initialization (`PrepareReplayAsync`)**
+#### 8.8.4 Replay Phase — initialization (`PrepareReplayAsync`)
+
+The replay case still uses `PlaybackController` owned by a dynamically installed
+`ReplayModule` (analogous to `RecordingModule` for playback):
 
 ```csharp
+// Inside ReplayModule.Initialize():
 _playback = new PlaybackController($"{storageDir}/{drillId}/node_{nodeId}.fdp");
 // SchemaValidator.Validate() runs inside ctor.
 // Throws InvalidDataException if struct layouts have drifted since recording.
 ```
 
-**Replay phase — continuous playback (`ProcessPlaybackTick`)**  
-Dual-strategy implementation to handle micro-lag and extreme time-scale differences without corrupting delta chains:
+#### 8.8.5 Replay Phase — continuous playback (`ProcessPlaybackTick`)
+Dual-strategy implementation to handle micro-lag and extreme time-scale differences without corrupting delta chains.
+
+The `ReplayModule`'s `PlaybackTickSystem` implements the same dual-strategy hot path, now
+fully encapsulated behind the module boundary:
 
 ```
 Strategy A — Sequential catch-up (small gap, e.g. node dropped 1–3 frames):
   while (nextFrameWallTicks(repo) <= targetWallTicks)
       _playback.StepForward(repo)
   // All deltas are applied in-memory; intermediate frames are never rendered.
-  // Result: node catches up and presents the correct historical state.
 
 Strategy B — Keyframe anchor (large gap, e.g. TimeScale >= 4× or multi-second lag):
   _playback.SeekToWallClockTicks(repo, targetWallTicks);
@@ -1642,15 +1696,31 @@ Strategy B — Keyframe anchor (large gap, e.g. TimeScale >= 4× or multi-second
   // → completes in ~5–15 ms regardless of timeline jump magnitude
 ```
 
-**Replay phase — heavy seek (`SeekToTimeAsync`)**
+> **Replay speed control does not pass through the module API.** Speed is governed
+> entirely by `MasterTimeController.SetTimeScale()` → `TimePulseDescriptor` →
+> `SlaveTimeController` PLL → `GlobalTime.TotalWallTicks`.  The `PlaybackTickSystem`
+> simply observes that `currentWallClockTicks` is far ahead and engages Strategy B
+> automatically.  The module is a pure disk I/O adapter; the Time Plane remains
+> completely separate (see §8.3 / §8.4).
+
+#### 8.8.6 Replay Phase — heavy seek (`SeekToTimeAsync`)
+
+The `EcsRecordReplayController` delegates to the active `ReplayModule`, which in turn
+wraps `PlaybackController.SeekToWallClockTicks()` as an async task so
+`SystemSlaveModule` can fan-out via `Task.WhenAll`:
 
 ```csharp
+// Inside ReplayModule (IRecordReplayController implementation):
 public Task SeekToTimeAsync(long targetWallClockTicks) =>
     Task.Run(() => _playback.SeekToWallClockTicks(_repo, targetWallClockTicks));
-// Wrapping as Task lets SystemSlaveModule fan-out via Task.WhenAll.
 ```
 
-**Live-from-Replay transition** — `TeardownReplayAsync` disposes `PlaybackController` but leaves `EntityRepository` intact at the historical state.  `PrepareRecordingAsync` then opens a new `AsyncRecorder` for the branched DrillId path; on the next tick the live simulation groups resume from that injected state.
+#### 8.8.7 Live-from-Replay Transition
+
+`TeardownReplayAsync` uninstalls the `ReplayModule` (which disposes
+`PlaybackController`), leaving `EntityRepository` intact at the historical state.
+`PrepareRecordingAsync` then installs a new `RecordingModule` for the branched DrillId
+path; on the next tick the live simulation groups resume from that injected state.
 
 ---
 
@@ -1778,12 +1848,12 @@ sequenceDiagram
     Note over Handler: Background thread — time is frozen, no race conditions
 
     Handler->>Controller: TeardownReplayAsync()
-    Note over Controller: Disposes PlaybackController.<br/>Closes .fdprec read handles.<br/>EntityRepository memory intentionally untouched.
+    Note over Controller: UninstallModule(ReplayModule) →<br/>ReplayModule.Dispose() → PlaybackController disposed.<br/>Closes .fdprec read handles.<br/>EntityRepository memory intentionally untouched.
 
     Note over ECS: ③ Zero-Copy State Retention<br/>Historical NativeChunkTable chunks remain intact<br/>— no deserialization, no memcpy needed.
 
     Handler->>Controller: PrepareRecordingAsync(NewDrillId)
-    Note over Controller: Initialises AsyncRecorder → /archives/Drill_999_Branch1/node_N.fdp<br/>Captures current frozen ECS memory as root Keyframe.
+    Note over Controller: new RecordingModule(config) → kernel.InstallModule()<br/>AsyncRecorder opened at /archives/Drill_999_Branch1/node_N.fdp<br/>Captures current frozen ECS memory as root Keyframe.
 
     Note over Handler: ④ Re-arm live pipeline<br/>SimulationSystemGroup.Enabled = true<br/>NetworkLifecycleSystemGroup.Enabled = true<br/>GhostCreationSystem.BypassLifecycle = false
 
@@ -1861,6 +1931,213 @@ During `RunningEdit`, the simulation clock is always paused (`TimeScale = 0.0`).
 > always ordered by UTC wall-clock time, regardless of whether simulation time is running,
 > paused, or stepping deterministically.  Consumers of the playback file must never assume
 > a one-to-one mapping between simulation ticks and wall-clock time.
+
+---
+
+## 8.13 Dynamic Recording/Replay Modules Architecture
+
+This section captures the final architectural evolution in which `AsyncRecorder` (and
+its playback counterpart) is moved **out** of `EcsRecordReplayController` and into
+dynamically loadable `IModule` objects managed by `ModuleHostKernel`.  The result is
+a textbook application of the **Single Responsibility Principle** and the
+**Strategy Pattern**: the controller holds the *Control Plane* (ESM orchestration and
+factory logic); the modules hold the *Data Plane* (disk I/O and ECS memory blasting).
+
+### 8.13.1 Structural Architecture (Class Diagram)
+
+```mermaid
+classDiagram
+    direction TB
+
+    namespace ControlPlane_Orchestration {
+        class SystemSlaveModule {
+            +Tick()
+            -DispatchNodeOpCommand()
+        }
+        class EcsRecordReplayController {
+            <<Factory and Orchestrator>>
+            +PrepareRecordingAsync(drillId)
+            +StartStoryRecordingAsync(storyId)
+            +FinalizeRecordingAsync()
+            +TeardownReplayAsync()
+        }
+        class ModuleHostKernel {
+            +InstallModule(IModule)
+            +UninstallModule(IModule)
+        }
+    }
+
+    namespace DataPlane_DynamicModules {
+        class RecordingModule {
+            <<IModule, IDisposable>>
+            -RecordingConfiguration config
+            +Initialize()
+            +Dispose()
+        }
+        class StoryRecorderModule {
+            <<IModule, IDisposable>>
+            -EntityQuery filterQuery
+            +Initialize()
+            +Dispose()
+        }
+    }
+
+    namespace Disk_IO {
+        class AsyncRecorder {
+            +CaptureFrame()
+            +CaptureKeyframe()
+            +Dispose()
+        }
+    }
+
+    SystemSlaveModule --> EcsRecordReplayController : Commands via IEsmHandler
+    EcsRecordReplayController ..> RecordingModule : Instantiates and injects context
+    EcsRecordReplayController ..> StoryRecorderModule : Instantiates and injects context
+    EcsRecordReplayController --> ModuleHostKernel : Orchestrates topology
+    ModuleHostKernel --> RecordingModule : Manages Lifecycle (Init/Dispose)
+    ModuleHostKernel --> StoryRecorderModule : Manages Lifecycle (Init/Dispose)
+
+    RecordingModule *-- AsyncRecorder : Strictly owns
+    StoryRecorderModule *-- AsyncRecorder : Strictly owns (Filtered)
+```
+
+**Architectural highlights:**
+- **Factory role:** `EcsRecordReplayController` constructs `RecordingModule` / `StoryRecorderModule` but does *not* hold the active state. It passes the constructed module to `ModuleHostKernel`.
+- **Strict encapsulation:** `AsyncRecorder` is owned exclusively by the module. The orchestrator cannot accidentally call `CaptureFrame()` on the hot path.
+- **Zero-cost ESM enforcement:** Uninstalling a module at the `LoadingEdit` transition physically removes `RecorderTickSystem` from the 60 Hz scheduler — no runtime `if (isRecording)` checks.
+
+### 8.13.2 Global Recording Initialization (Sequence Diagram)
+
+The heavy initialization is handled asynchronously off the ECS hot-path, inside the 2PC
+barrier that is already present during ESM state transitions.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SSM as SystemSlaveModule
+    participant ERC as EcsRecordReplayController
+    participant MHK as ModuleHostKernel
+    participant RM as RecordingModule
+    participant AR as AsyncRecorder
+
+    Note over SSM, AR: Transitioning LoadingLive → RunningLive
+
+    SSM->>ERC: PrepareRecordingAsync(DrillId)
+    Note over ERC: Acts as Factory. Creates configuration context.
+    ERC->>RM: new RecordingModule(Config{ DrillId, Query: All })
+    ERC->>MHK: InstallModule(RecordingModule)
+
+    MHK->>RM: Initialize()
+    RM->>AR: new AsyncRecorder(filePath)
+    Note over RM,MHK: Module registers its RecorderTickSystem<br/>into the topological graph
+    MHK-->>ERC: Graph rebuilt and installed
+
+    ERC-->>SSM: Task.Completed
+    SSM->>Master: NodeOpStatus(Success)
+```
+
+### 8.13.3 Transition to Edit Mode — Deterministic Teardown
+
+The architecture physically enforces "no recording during `RunningEdit`" by uninstalling
+the module.  The `IDisposable` contract guarantees that all LZ4 buffers are flushed and
+the `.meta.json` manifest is written before the module is considered torn down.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SSM as SystemSlaveModule
+    participant ERC as EcsRecordReplayController
+    participant MHK as ModuleHostKernel
+    participant RM as RecordingModule
+    participant AR as AsyncRecorder
+
+    Note over SSM, AR: Transitioning to LoadingEdit (recording must stop)
+
+    SSM->>ERC: TeardownRecordingAsync()
+    ERC->>MHK: UninstallModule(RecordingModule)
+
+    Note over MHK,RM: Triggers IDisposable contract
+    MHK->>RM: Dispose()
+    RM->>AR: Dispose()
+
+    Note over AR: Blocking operation:<br/>Flush LZ4 buffers to disk<br/>Write MaxNetworkId<br/>Write .meta.json manifest
+    AR-->>RM: Stream closed and finalized
+    RM-->>MHK: Module teardown complete
+
+    Note over MHK: Rebuilds ECS topological graph<br/>(RecorderTickSystem removed — 0 CPU on 60 Hz path)
+    MHK-->>ERC: Uninstalled
+    ERC-->>SSM: Task.Completed
+```
+
+### 8.13.4 Multi-Tenant Story Recording (Concurrent Isolation)
+
+Multiple `StoryRecorderModule` instances can run concurrently alongside the global
+`RecordingModule` with zero memory conflicts.  Each module owns a distinct
+`AsyncRecorder` → distinct file stream → distinct LZ4 background worker.  The ECS
+`EntityQuery` predicate (injected at construction) provides logical isolation: a story's
+recorder only evaluates entities tagged with its own `StoryId`.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SSM as SystemSlaveModule
+    participant ERC as EcsRecordReplayController
+    participant MHK as ModuleHostKernel
+    participant SRM as StoryRecorderModule
+    participant AR as AsyncRecorder
+
+    Note over SSM, AR: Global clock is ticking (RunningLive)
+
+    SSM->>ERC: StartStoryRecordingAsync(StoryId = 'A1')
+
+    Note over ERC: Factory creates highly targeted module
+    ERC->>SRM: new StoryRecorderModule(StoryId: 'A1')
+    Note over SRM: Injects predicate: Query().With~StoryTag~().Build()
+
+    ERC->>MHK: InstallModule(StoryRecorderModule)
+    MHK->>SRM: Initialize()
+    SRM->>AR: new AsyncRecorder('temp/story_A1.fdp', filterPredicate)
+
+    Note over MHK: Rebuilds graph off the hot-path.<br/>StoryRecorderTickSystem now runs<br/>concurrently with global RecorderTickSystem.
+
+    MHK-->>ERC: Installed
+    ERC-->>SSM: Task.Completed
+```
+
+**Concurrent safety guarantees:**
+- **Logical isolation:** Each `StoryRecorderModule` uses a distinct `EntityQuery` predicate. Entities in Story A never enter the recorder for Story B.
+- **Lock-free read-only access:** `AsyncRecorder.CaptureFrame()` performs a raw `memcpy` read of `NativeChunkTable` chunks. Multiple concurrent recorders scanning the same memory create no race conditions.
+- **Isolated I/O pipelines:** Each module owns its own background LZ4 worker and file stream. There is no shared I/O bottleneck.
+- **Clean teardown:** Uninstalling a specific `StoryRecorderModule` at `StopStory` flushes its buffers and closes its file handles without affecting any other concurrent module.
+
+### 8.13.5 Topological Rebuild Cost and Safety
+
+Installing or uninstalling a module forces `SystemScheduler` to rebuild its topological
+dependency graph (derived from `[UpdateBefore]` / `[UpdateAfter]` attributes).  This is
+computationally non-trivial but **always safe** here because module installation is tied
+to discrete, macro-level ESM transitions or Story Start/Stop events — events that already
+impose a 2PC barrier.  The rebuild cost is paid off the 60 Hz hot path, never during
+normal simulation execution.
+
+### 8.13.6 `RecordingConfiguration` — Initialization Contract
+
+To keep `AsyncRecorder` decoupled from global state, `RecordingModule` and
+`StoryRecorderModule` accept a `RecordingConfiguration` data structure at construction:
+
+```csharp
+public sealed class RecordingConfiguration
+{
+    /// Absolute path for the .fdp output file.
+    public required string FilePath { get; init; }
+
+    /// ECS entity filter. Null = record all entities above MinRecordableId.
+    /// Story recorders inject Query().With<StoryTag>().Build() here.
+    public EntityQuery? EntityFilter { get; init; }
+
+    /// Drill or Story identifier embedded in the recording header.
+    public required Guid DrillId { get; init; }
+}
+```
 
 ---
 
@@ -2004,8 +2281,8 @@ sequenceDiagram
 
 **Teardown Barrier (graceful `UnloadingLive`):**  
 The `CheckpointIOWorker` may still be draining its queue when the operator ends the
-exercise.  The `LiveLoadEsmHandler` must not destroy the `EntityRepository` or close
-`AsyncRecorder` handles until the queue is empty:
+exercise.  The `LiveLoadEsmHandler` must not destroy the `EntityRepository` or uninstall
+the `RecordingModule` until the queue is empty:
 
 ```
 Slave receives NodeOpCommand(FinalizeLive):
@@ -2014,7 +2291,10 @@ Slave receives NodeOpCommand(FinalizeLive):
   │    (each pending snapshot in the queue writes to disk; no new items arrive
   │     because the Master has held the ESM at UnloadingLive — no new TakeSnapshot
   │     commands can be issued once FinalizeLive is in flight)
-  ├─ Once queue empty → FinalizeRecordingAsync() — flush AsyncRecorder
+  ├─ Once queue empty → FinalizeRecordingAsync()
+  │    → EcsRecordReplayController.UninstallModule(RecordingModule)
+  │    → RecordingModule.Dispose() → AsyncRecorder.Dispose()
+  │       (blocking: flush LZ4 buffers, write MaxNetworkId, write .meta.json)
   └─ Publishes NodeOpStatus(Success)
 ```
 
@@ -2118,19 +2398,24 @@ public struct StoryReplayTag
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 10.3 Filtered AsyncRecorder
+### 10.3 Filtered AsyncRecorder (via `StoryRecorderModule`)
 
 The current `AsyncRecorder` uses `RecorderSystem.MinRecordableId` as the only filter.
-A new `EntityQuery`-based predicate must be added:
+A new `EntityQuery`-based predicate must be added to `RecorderSystem`.  This predicate
+is **not set directly by external code** — it is injected by `StoryRecorderModule` at
+construction time (see §8.13.4) and encapsulated behind the module boundary:
 
 ```csharp
-// RecorderSystem.cs addition
+// RecorderSystem.cs addition — internal, not a public API
 public Predicate<int>? EntityFilter { get; set; } = null;
 // In RecordDeltaFrame: skip entity if Filter != null && !Filter(entityId)
 
-// Story recorder setup:
-var storyFilter = new StoryEntityFilter(storyId, repo);
-storyRecorder.RecorderSystem.EntityFilter = storyFilter.Matches;
+// How StoryRecorderModule initialises its AsyncRecorder (inside Initialize()):
+//   _recorder = new AsyncRecorder(config.FilePath);
+//   _recorder.RecorderSystem.EntityFilter = new StoryEntityFilter(storyId, repo).Matches;
+//
+// EcsRecordReplayController never touches EntityFilter directly.
+// It only sets RecordingConfiguration.EntityFilter and passes it to the module ctor.
 ```
 
 ### 10.4 StoryPlaybackController — Entity Remapping
@@ -2365,13 +2650,19 @@ sequenceDiagram
 
     Master->>Slave: NodeOpCommand(StartStory, A1, DrillId)
     Slave->>ECS: Spawn entities with StoryTag(A1)
-    Slave->>ECS: Create StoryRecorder(A1) → /archives/{DrillId}/stories/A1_node{N}.fdp
+    Slave->>ERC: StartStoryRecordingAsync(StoryId = 'A1')
+    Note over ERC: Instantiates StoryRecorderModule(A1, path, Query().With~StoryTag~().Build())
+    ERC->>MHK: InstallModule(StoryRecorderModule A1)
+    Note over MHK: RecorderTickSystem(A1) enters 60 Hz graph
 
     Note over ECS: Live simulation continues (global clock ticks)
 
     IOS->>Master: SysOpRequest(ManageStory, StopStory A1)
     Master->>Slave: NodeOpCommand(StopStory, A1)
-    Slave->>ECS: Flush StoryRecorder(A1). Destroy StoryTag(A1) entities.
+    Slave->>ERC: TeardownStoryRecordingAsync(StoryId = 'A1')
+    ERC->>MHK: UninstallModule(StoryRecorderModule A1)
+    Note over MHK: StoryRecorderModule.Dispose() → AsyncRecorder.Dispose()<br/>(flush LZ4 buffers, finalize .fdp file)
+    Slave->>ECS: Destroy StoryTag(A1) entities
     Note over Slave: Recording retained at /archives/{DrillId}/stories/A1_node{N}.fdp
 
     IOS->>Master: SysOpRequest(ManageStory, ReplayStory A1)
@@ -2741,7 +3032,8 @@ sequenceDiagram
     IOS->>Master: SysOpRequest(TransitionState → LoadingLive)
     Master->>Master: Generate DrillId = Drill_999
     Master->>Slave: NodeOpCommand(PrepareLive, DrillId=Drill_999)
-    Slave->>ECS: Init AsyncRecorder → /archives/Drill_999/node_N.fdp
+    Slave->>ECS: EcsRecordReplayController.PrepareRecordingAsync(Drill_999)
+    Note over ECS: new RecordingModule(config) → kernel.InstallModule()<br/>→ RecordingModule.Initialize() → AsyncRecorder opened at<br/>/archives/Drill_999/node_N.fdp
     Slave->>Master: NodeOpStatus(Success)
     Master->>Master: Commit → RunningLive
 
@@ -2779,7 +3071,9 @@ sequenceDiagram
     IOS->>Master: SysOpRequest(TransitionState → LoadingLive)
     Master->>Master: New DrillId = Drill_999_Branch1
     Master->>Slave: NodeOpCommand(PrepareLiveFromReplay, Branch1)
-    Slave->>ECS: Dispose PlaybackController. Keep ECS state. Init new AsyncRecorder.
+    Slave->>ECS: UninstallModule(ReplayModule) → PlaybackController disposed. ECS state preserved.
+    Slave->>ECS: EcsRecordReplayController.PrepareRecordingAsync(Branch1)
+    Note over ECS: InstallModule(new RecordingModule) → AsyncRecorder opened at<br/>/archives/Drill_999_Branch1/node_N.fdp
     Master->>Master: Commit → RunningLive (from replay state)
 
     Note over IOS,ECS: ══ 11. FINISH BRANCHED LIVE ══
@@ -2823,7 +3117,10 @@ sequenceDiagram
 | `FDP/Kernel/Fdp.Kernel/Events/EsmStateChangedEvent.cs` | `Fdp.Kernel` | Internal FdpEventBus event for ESM transitions |
 | `FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs` | `Fdp.Kernel` | Generic recording/playback abstraction (§8.7) |
 | `FDP/Kernel/Fdp.Kernel/Orchestration/IEntityRefPatchable.cs` | `Fdp.Kernel` | Interface for **both** complex unmanaged structs (fixed buffers, `[InlineArray]`, logical-count arrays) and managed components containing `Entity`/`NetworkIdentity` fields; prevents over-patching uninitialised capacity slots (§10.5.3) |
-| `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` | `Bagira.SimHost` | FDP ECS adapter (§8.8); wraps `AsyncRecorder` + `PlaybackController`; registered with `SystemSlaveModule`; exposes `RecordingMetadata.MaxNetworkId` in pre-replay ACK payload |
+| `FDP/Kernel/Fdp.Kernel/Orchestration/RecordingConfiguration.cs` | `Fdp.Kernel` | Immutable data context injected into `RecordingModule` / `StoryRecorderModule` at construction; carries `FilePath`, `EntityFilter`, `DrillId` (§8.13.6) |
+| `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` | `Bagira.SimHost` | **Factory & Lifecycle Orchestrator** (§8.8); instantiates and installs `RecordingModule` / `StoryRecorderModule` via `ModuleHostKernel`; does **not** directly own `AsyncRecorder` or `PlaybackController`; exposes `RecordingMetadata.MaxNetworkId` in pre-replay ACK payload |
+| `Bagira.SimHost/Modules/Orchestration/RecordingModule.cs` | `Bagira.SimHost` | `IModule` + `IDisposable` (Data Plane — §8.13.1); strictly owns one `AsyncRecorder`; `Initialize()` opens file stream and registers `RecorderTickSystem`; `Dispose()` blocks until LZ4 flush + `.meta.json` write complete |
+| `Bagira.SimHost/Modules/Orchestration/StoryRecorderModule.cs` | `Bagira.SimHost` | Per-story variant of `RecordingModule` (§8.13.4); owns a filtered `AsyncRecorder` scoped to `Query().With<StoryTag>().Build()`; multiple instances run concurrently without memory conflicts |
 | `FDP/ModuleHost/ModuleHost.Core/Scheduling/NetworkLifecycleSystemGroup.cs` | `ModuleHost.Core` | Concrete `ISystemGroup` with `bool Enabled` toggle (§8.5) |
 | `Bagira.SimHost/Modules/Orchestration/Handlers/LiveLoadEsmHandler.cs` | `Bagira.SimHost` | Scenario load + recorder init |
 | `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadEsmHandler.cs` | `Bagira.SimHost` | PlaybackController init; publishes `MaxNetworkId` in ACK |
@@ -2836,7 +3133,7 @@ sequenceDiagram
 | File | Change |
 |------|--------|
 | `FDP/Kernel/Fdp.Kernel/FlightRecorder/RecorderSystem.cs` | Add `EntityFilter` predicate + UTC wall-clock tick (`long WallClockTicks`) to frame header; add `CaptureEventFrame(long wallClockTicks, …)` (§8.12) |
-| `FDP/Kernel/Fdp.Kernel/FlightRecorder/AsyncRecorder.cs` | Thread `EntityFilter` through to `RecorderSystem`; expose `MaxNetworkId` snapshot at `FinalizeRecordingAsync` for `RecordingMetadata` (§5.7) |
+| `FDP/Kernel/Fdp.Kernel/FlightRecorder/AsyncRecorder.cs` | Accept `EntityFilter` predicate in constructor (consumed internally by `RecorderSystem`; never set by orchestration layer directly); expose `MaxNetworkId` snapshot at finalization for `RecordingMetadata` (§5.7) |
 | `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackController.cs` | Add `WallClockTicks` to `FrameMetadata`; add `SeekToWallClockTicks(EntityRepository, long)` with binary search; upgrade `SeekToTick` linear scan to binary search |
 | `FDP/Kernel/Fdp.Kernel/GlobalTime.cs` | Add `long TotalWallTicks` field |
 | `FDP/Toolkits/FDP.Toolkit.Replication/Systems/GhostCreationSystem.cs` | Add `bool BypassLifecycle` property (§8.5) |
@@ -2877,21 +3174,30 @@ Batch 4: Checkpoint Protocol + Dry Run
          → Dry Run flow (SyncFrom + restore)
          Test: two overlapping TakeCheckpoint requests; verify ACKs arrive deferred
 
-Batch 5: Live + Replay ESM Handlers + ID Authority
+Batch 5: Live + Replay ESM Handlers + ID Authority + Dynamic Recording Modules
          → DdsIdAllocatorServer relocated to SystemMasterModule (§5.7)
          → RecordingMetadata.MaxNetworkId field in AsyncRecorder
          → ReplayLoadEsmHandler: MaxNetworkId extraction + ID allocator reset
          → IRecordReplayController interface (§8.7)
-         → EcsRecordReplayController (§8.8) inc. CaptureEventFrame (§8.12)
+         → RecordingConfiguration data context (§8.13.6)
+         → RecordingModule: IModule + IDisposable owning AsyncRecorder; Initialize() / Dispose() contract (§8.13.1)
+         → EcsRecordReplayController refactored as Factory & Orchestrator (§8.8):
+             - PrepareRecordingAsync → new RecordingModule + kernel.InstallModule
+             - FinalizeRecordingAsync → kernel.UninstallModule → RecordingModule.Dispose()
+             - No direct AsyncRecorder ownership
+         → EcsRecordReplayController inc. CaptureEventFrame (§8.12)
          → IEntityRefPatchable + ComponentTypeRegistry enforcement (§10.5.3)
          → NetworkLifecycleSystemGroup + GhostCreationSystem.BypassLifecycle
          → LiveLoadEsmHandler
          → SystemSlaveModule fan-out/fan-in Task.WhenAll (§8.9)
          Test: full 8-12 step integration test
 
-Batch 6: Stories + ComponentPatchMap
+Batch 6: Stories + ComponentPatchMap + StoryRecorderModule
          → StoryTag, StoryReplayTag components
-         → Filtered AsyncRecorder EntityFilter
+         → RecorderSystem.EntityFilter predicate (internal; consumed by modules only — §10.3)
+         → StoryRecorderModule: IModule + IDisposable owning filtered AsyncRecorder;
+             injected StoryId + Query().With<StoryTag>().Build() predicate (§8.13.4)
+         → EcsRecordReplayController: StartStoryRecordingAsync / TeardownStoryRecordingAsync (§8.13.4)
          → ComponentPatchMap startup byte-offset caching (§10.5.1)
          → PatchEntityRefs() zero-alloc unsafe loop (§10.5.2)
          → IEntityRefPatchable compiled PatchDelegate<T> dispatch (§10.5.3)
