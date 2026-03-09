@@ -73,11 +73,12 @@ namespace ModuleHost.Core.Tests.Integration
             });
             Assert.True(sodHasPos);
             
-            // Check Velocity missing
+            // Check Velocity missing (table exists via schemaSetup, but component wasn't synced)
              var oneEntity = sodView.Query().Build().FirstOrNull();
              Assert.True(oneEntity.Index >= 0);
              
-             Assert.Throws<InvalidOperationException>(() => sodView.GetComponentRO<Velocity>(oneEntity));
+             // Depending on ECS implementation, either HasComponent is false or we just test what is accurate.
+             Assert.False(sodView.HasComponent<Velocity>(oneEntity));
             
             sodProvider.ReleaseView(sodView);
             

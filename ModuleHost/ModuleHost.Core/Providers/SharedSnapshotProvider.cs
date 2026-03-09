@@ -89,6 +89,17 @@ namespace ModuleHost.Core.Providers
         }
         
         public SnapshotProviderType ProviderType => SnapshotProviderType.Shared;
+
+        /// <summary>
+        /// The union component mask used when capturing snapshots.
+        /// Exposed for topology re-evaluation during dynamic module installation.
+        /// </summary>
+        internal BitMask256 UnionMask => _unionMask;
+
+        /// <summary>
+        /// Number of modules currently holding an active view (for drain detection).
+        /// </summary>
+        internal int ActiveReaders { get { lock (_lock) { return _activeReaders; } } }
         
         public void Dispose()
         {

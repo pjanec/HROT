@@ -37,8 +37,49 @@ namespace ModuleHost.Core
         private readonly List<ModuleEntry> _modules = new();
         private SnapshotPool? _snapshotPool;
         
-        // Scheduling
-        private readonly SystemScheduler _globalScheduler = new();
+        // ═══════════════════════════════════════════════════════════
+        // RCU (Read-Copy-Update) Hot-Plugging Infrastructure
+        // ═══════════════════════════════════════════════════════════
+        
+        /// <summary>
+        /// The currently-active immutable execution topology.
+        /// Read by the main thread every frame. Written atomically via Volatile.Write
+        /// during SystemPhase.BeforeSync. Zero allocations on the hot path.
+        /// </summary>
+        private KernelExecutionTopology _activeTopology = null!;
+
+        /// <summary>
+        /// Pending topology swap queued by a background compilation task.
+        /// Written by the background thread (Volatile.Write); consumed and cleared
+        /// by the main thread at the next BeforeSync boundary. Protected by
+        /// <see cref="_topologyChangeSemaphore"/> to allow at most one pending operation.
+        /// </summary>
+        private PendingTopologyOperation? _pendingOperation;
+
+        /// <summary>
+        /// Modules that have been removed via RCU swap but still have in-flight tasks.
+        /// The main thread's harvest loop natively drains these entries — no disconnected
+        /// background monitors. Only accessed on the main thread; no locking required.
+        /// </summary>
+        private readonly List<ModuleEntry> _drainingModules = new();
+
+        /// <summary>
+        /// Serializes topology compilation tasks so at most one background compile
+        /// is in-flight at a time. Released only after the atomic swap is confirmed
+        /// by the main thread, ensuring each caller gets a consistent baseline topology.
+        /// </summary>
+        private readonly SemaphoreSlim _topologyChangeSemaphore = new(1, 1);
+
+        /// <summary>
+        /// Static global systems registered before Initialize(). Stored separately so
+        /// they can be re-inserted into every newly-compiled SystemScheduler during
+        /// dynamic topology rebuilds without losing system instance state.
+        /// </summary>
+        private readonly List<IModuleSystem> _registeredGlobalSystems = new();
+
+        // ═══════════════════════════════════════════════════════════
+        // Scheduling (legacy accessor — maintained for test/profiling access)
+        // ═══════════════════════════════════════════════════════════
         private bool _initialized = false;
         
         private uint _currentFrame = 0;
@@ -108,7 +149,8 @@ namespace ModuleHost.Core
                     $"Use SystemPhase.PostSimulation instead, or register this system within a module.");
             }
             
-            _globalScheduler.RegisterSystem(system);
+            // Track the system for topology rebuilds (dynamic hot-plugging)
+            _registeredGlobalSystems.Add(system);
         }
         
         /// <summary>
@@ -127,9 +169,12 @@ namespace ModuleHost.Core
         }
         
         /// <summary>
-        /// Access to system scheduler for profiling/debugging.
+        /// Access to the active system scheduler for profiling/debugging.
+        /// After <see cref="Initialize"/> this always reflects the live execution topology,
+        /// including any dynamically installed modules.
         /// </summary>
-        public SystemScheduler SystemScheduler => _globalScheduler;
+        public SystemScheduler SystemScheduler => _initialized ? _activeTopology.Scheduler
+            : throw new InvalidOperationException("Kernel not yet initialized. Call Initialize() first.");
         
         /// <summary>
         /// Initialize kernel: build execution orders, validate dependencies.
@@ -152,14 +197,11 @@ namespace ModuleHost.Core
             // Auto-assign providers to modules
             AutoAssignProviders();
             
-            // Modules register their systems
-            foreach (var entry in _modules)
-            {
-                entry.Module.RegisterSystems(_globalScheduler);
-            }
-            
-            // Build dependency graphs and sort
-            _globalScheduler.BuildExecutionOrders();
+            // Build the initial execution topology:
+            // Registers all module systems into a fresh SystemScheduler,
+            // captures system instances for reuse on future topology rebuilds,
+            // and performs the topological sort.
+            _activeTopology = BuildTopology(_modules);
             
             // Throws CircularDependencyException if cycles detected
             
@@ -309,6 +351,50 @@ namespace ModuleHost.Core
             return unionMask;
         }
 
+        /// <summary>
+        /// Ensures that any component types declared by <paramref name="module"/> via
+        /// <see cref="IModule.GetRequiredComponents"/> are registered on the live
+        /// <see cref="EntityRepository"/> before provider allocation occurs.
+        ///
+        /// <para>
+        /// Safe to call from background threads. Uses the same reflection-based generic
+        /// invocation pattern found in <c>EntityRepository.SyncFrom</c>.
+        /// Silently skips types that are already registered globally.
+        /// </para>
+        /// </summary>
+        private void EnsureComponentsRegistered(IModule module)
+        {
+            var requiredComponents = module.GetRequiredComponents();
+            if (requiredComponents == null) return;
+
+            foreach (var type in requiredComponents)
+            {
+                if (ComponentTypeRegistry.GetId(type) >= 0)
+                    continue; // Already registered globally — nothing to do.
+
+                // Register the component on the live EntityRepository via reflection.
+                // Once registered here, EntityRepository.SyncFrom auto-propagates it
+                // to any internal snapshot repos on their next sync cycle.
+                try
+                {
+                    var method = typeof(EntityRepository)
+                        .GetMethod(nameof(EntityRepository.RegisterComponent))!
+                        .MakeGenericMethod(type);
+                    method.Invoke(_liveWorld, new object[] { null! });
+
+                    FdpLog<ModuleHostKernel>.Info(
+                        "[ModuleHost] Registered novel component '{0}' for module '{1}'.",
+                        type.Name, module.Name);
+                }
+                catch (Exception ex)
+                {
+                    FdpLog<ModuleHostKernel>.Warn(
+                        "[ModuleHost] Could not register component '{0}' for module '{1}': {2}",
+                        type.Name, module.Name, ex.Message);
+                }
+            }
+        }
+
         private BitMask256 GetComponentMask(IModule module)
         {
             var requiredComponents = module.GetRequiredComponents();
@@ -360,7 +446,9 @@ namespace ModuleHost.Core
             if (module == null) throw new ArgumentNullException(nameof(module));
             
             if (_initialized)
-                throw new InvalidOperationException("Cannot register modules after initialization");
+                throw new InvalidOperationException(
+                    "Cannot register modules after initialization. " +
+                    "For runtime hot-plugging use InstallModuleAsync (single) or InstallModulesAsync (batch).");
             
             var policy = module.Policy;
             
@@ -438,6 +526,11 @@ namespace ModuleHost.Core
             if (!_initialized)
                 throw new InvalidOperationException("Must call Initialize() before Update()");
             
+            // Read the active topology ONCE for this frame.
+            // The RCU swap below may update _activeTopology, at which point we also update
+            // this local reference so the rest of the frame uses the new topology.
+            var topology = Volatile.Read(ref _activeTopology);
+
             // 1. ADVANCE TIME
             _liveWorld.Tick(); // Increment version
             _liveWorld.SetSimulationTime((float)globalTime.TotalTime); // Update repository time
@@ -447,10 +540,34 @@ namespace ModuleHost.Core
             _currentFrame = (uint)globalTime.FrameNumber;
             
             // ═══════════ PHASE: Input ═══════════
-            _globalScheduler.ExecutePhase(SystemPhase.Input, _liveWorld, deltaTime);
+            topology.Scheduler.ExecutePhase(SystemPhase.Input, _liveWorld, deltaTime);
             
+            // ═══════════════════════════════════════════════════════════
+            // RCU TOPOLOGY SWAP — O(1) atomic pointer swap
+            // Applied immediately before BeforeSync so the new module begins
+            // participating in BeforeSync systems and dispatch this same frame.
+            // ═══════════════════════════════════════════════════════════
+            var pendingOp = Volatile.Read(ref _pendingOperation);
+            if (pendingOp != null)
+            {
+                // Clear the pending slot before signalling — prevents a race where
+                // TrySetResult triggers a continuation that itself calls Install/Uninstall
+                // before we have fully transitioned to the new topology.
+                Volatile.Write(ref _pendingOperation, null);
+                topology = pendingOp.NewTopology;
+                Volatile.Write(ref _activeTopology, topology);
+
+                // If this was an uninstall, move the old entry/entries to the draining queue.
+                // The main thread's harvest loop manages them from here — no disconnected workers.
+                if (pendingOp.DrainEntries != null)
+                    _drainingModules.AddRange(pendingOp.DrainEntries);
+
+                // Signal the awaiting Install/Uninstall Task — the swap is complete.
+                pendingOp.SwapCompletion.TrySetResult();
+            }
+
             // ═══════════ PHASE: BeforeSync ═══════════
-            _globalScheduler.ExecutePhase(SystemPhase.BeforeSync, _liveWorld, deltaTime);
+            topology.Scheduler.ExecutePhase(SystemPhase.BeforeSync, _liveWorld, deltaTime);
             
             // FLUSH LIVE WORLD BUFFERS
             if (_liveWorld._perThreadCommandBuffer != null)
@@ -473,14 +590,14 @@ namespace ModuleHost.Core
             _eventAccumulator.CaptureFrame(_liveWorld.Bus, _liveWorld.GlobalVersion);
             
             // Update Sync-Point Providers
-            foreach (var entry in _modules)
+            foreach (var entry in topology.Modules)
             {
                 // Only update provider if it exists (Direct strategy has null)
                 entry.Provider?.Update();
             }
             
-            // ═══════════ HARVEST PHASE ═══════════
-            foreach (var entry in _modules)
+            // ═══════════ HARVEST PHASE (active modules) ═══════════
+            foreach (var entry in topology.Modules)
             {
                 // Harvest completed async tasks
                 if (entry.CurrentTask != null && entry.CurrentTask.IsCompleted)
@@ -488,11 +605,61 @@ namespace ModuleHost.Core
                     HarvestEntry(entry);
                 }
             }
+
+            // ═══════════ HARVEST PHASE (draining modules — native draining) ═══════════
+            // Modules that have been removed via RCU swap continue to be harvested here
+            // until their in-flight task finishes and their leased view is released.
+            // Only then is final disposal dispatched to a background worker.
+            for (int i = _drainingModules.Count - 1; i >= 0; i--)
+            {
+                var drainingEntry = _drainingModules[i];
+
+                bool taskDone = drainingEntry.CurrentTask == null
+                             || drainingEntry.CurrentTask.IsCompleted;
+
+                if (taskDone)
+                {
+                    if (drainingEntry.CurrentTask != null)
+                        HarvestEntry(drainingEntry); // release leased view, playback commands
+
+                    drainingEntry.LifecycleState = ModuleLifecycleState.Disposed;
+                    _drainingModules.RemoveAt(i);
+
+                    // Capture for closure — dispatch final dispose off the hot path
+                    var entryToDispose = drainingEntry;
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            if (entryToDispose.Module is IDisposable disposableModule)
+                                disposableModule.Dispose();
+                            // Dispose provider only if it is exclusive to this module
+                            // (shared providers keep serving other modules)
+                            if (entryToDispose.HasExclusiveProvider &&
+                                entryToDispose.Provider is IDisposable disposableProvider)
+                            {
+                                disposableProvider.Dispose();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            FdpLog<ModuleHostKernel>.Warn(
+                                "[ModuleHost] Exception during background disposal of '{0}': {1}",
+                                entryToDispose.Module.Name, ex.Message);
+                        }
+                        finally
+                        {
+                            // Signal UninstallModuleAsync awaiter — teardown is complete
+                            entryToDispose.DrainCompletionSource?.TrySetResult();
+                        }
+                    });
+                }
+            }
             
             // ═══════════ DISPATCH PHASE ═══════════
             var tasksToWait = new List<Task>();
             
-            foreach (var entry in _modules)
+            foreach (var entry in topology.Modules)
             {
                 // Always accumulate time (logic time)
                 entry.AccumulatedDeltaTime += deltaTime;
@@ -522,12 +689,18 @@ namespace ModuleHost.Core
                             // Should theoretically not happen if Validate() worked, but safe guard
                              continue;
                         }
-                        // Acquire view from provider
-                        view = entry.Provider.AcquireView();
+                        // Capture the provider reference once before calling AcquireView.
+                        // A background topology-upgrade task may concurrently mutate entry.Provider
+                        // (e.g. when promoting a SoD convoy to a wider SharedSnapshotProvider).
+                        // By capturing here we guarantee that LeasedProvider always matches the
+                        // provider that actually created the view, regardless of any concurrent write.
+                        var acquireProvider = entry.Provider;
+                        view = acquireProvider.AcquireView();
+                        entry.LeasedProvider = acquireProvider;
                     }
                     
                     entry.LeasedView = view;
-                    entry.LastView = view; // Keep for reference if needed
+                    entry.LastView   = view; // Keep for reference if needed
                     
                     // Consume accumulated time for this tick
                     float moduleDelta = entry.AccumulatedDeltaTime;
@@ -550,13 +723,15 @@ namespace ModuleHost.Core
                             Console.Error.WriteLine($"[ModuleHost] Sync Module '{entry.Module.Name}' exception: {ex}");
                         }
                         
-                        // Release view (no-op for Direct, but valid for completeness)
-                        // Actually Direct view is _liveWorld which doesn't need release.
+                        // Release view — use LeasedProvider (captured at acquire time) so the
+                        // view is always returned to the provider that created it, even if
+                        // entry.Provider was remapped by a concurrent topology upgrade.
                         if (entry.Module.Policy.Strategy != DataStrategy.Direct)
                         {
-                            entry.Provider?.ReleaseView(view);
+                            entry.LeasedProvider?.ReleaseView(view);
                         }
-                        entry.LeasedView = null;
+                        entry.LeasedView     = null;
+                        entry.LeasedProvider = null;
                         entry.CurrentTask = null; // No task
                     }
                     else
@@ -587,7 +762,7 @@ namespace ModuleHost.Core
                 Task.WaitAll(tasksToWait.ToArray());
                 
                 // Harvest immediately
-                foreach (var entry in _modules)
+                foreach (var entry in topology.Modules)
                 {
                     if (entry.CurrentTask != null && entry.Module.Policy.Mode == RunMode.FrameSynced)
                     {
@@ -597,10 +772,10 @@ namespace ModuleHost.Core
             }
             
             // ═══════════ PHASE: PostSimulation ═══════════
-            _globalScheduler.ExecutePhase(SystemPhase.PostSimulation, _liveWorld, deltaTime);
+            topology.Scheduler.ExecutePhase(SystemPhase.PostSimulation, _liveWorld, deltaTime);
             
             // ═══════════ PHASE: Export ═══════════
-            _globalScheduler.ExecutePhase(SystemPhase.Export, _liveWorld, deltaTime);
+            topology.Scheduler.ExecutePhase(SystemPhase.Export, _liveWorld, deltaTime);
             
             _currentFrame++;
         }
@@ -717,11 +892,15 @@ namespace ModuleHost.Core
             // 1. Playback commands
             PlaybackCommands(entry);
             
-            // 2. Release view
+            // 2. Release view — always use the provider that issued the view (LeasedProvider),
+            //    NOT entry.Provider. The two can diverge when AssignProviderForDynamicInstall
+            //    reroutes a convoy to a new SharedSnapshotProvider while an async task is
+            //    still in-flight holding a view from the old provider.
             if (entry.LeasedView != null)
             {
-                entry.Provider?.ReleaseView(entry.LeasedView); // Null check just in case
-                entry.LeasedView = null;
+                entry.LeasedProvider?.ReleaseView(entry.LeasedView);
+                entry.LeasedView     = null;
+                entry.LeasedProvider = null;
             }
             
             // 3. Handle faults
@@ -761,7 +940,11 @@ namespace ModuleHost.Core
         public List<ModuleStats> GetExecutionStats()
         {
             var stats = new List<ModuleStats>();
-            foreach (var entry in _modules)
+            // Use the active topology so stats reflect the live module set,
+            // including any dynamically installed/uninstalled modules.
+            var topology = _initialized ? _activeTopology : null;
+            var source = topology != null ? (IEnumerable<ModuleEntry>)topology.Modules : _modules;
+            foreach (var entry in source)
             {
                 stats.Add(new ModuleStats
                 {
@@ -906,35 +1089,628 @@ namespace ModuleHost.Core
 
         public void Dispose()
         {
-            // Wait for pending tasks to minimize access violations during shutdown
-            // especially for Slow/Async modules that might be accessing leased views.
-            var pendingTasks = _modules.Where(m => m.CurrentTask != null && !m.CurrentTask.IsCompleted)
-                                       .Select(m => m.CurrentTask!)
-                                       .ToArray();
+            // Collect all in-flight tasks: active + draining modules
+            var allModules = _initialized
+                ? _activeTopology.Modules.Concat(_drainingModules)
+                : _modules.AsEnumerable();
+
+            var pendingTasks = allModules
+                .Where(m => m.CurrentTask != null && !m.CurrentTask.IsCompleted)
+                .Select(m => m.CurrentTask!)
+                .ToArray();
             
             if (pendingTasks.Length > 0)
             {
                 try 
                 {
-                    Task.WaitAll(pendingTasks, 1000); // Wait up to 1s
+                    Task.WaitAll(pendingTasks, 2000); // Wait up to 2s
                 }
                 catch (AggregateException) { /* Ignore faults */ }
                 catch (TimeoutException) { /* Proceed anyway */ }
             }
 
-            // Dispose all providers
-            foreach (var entry in _modules)
+            // Dispose providers — deduplicate to avoid double-dispose on shared providers
+            var disposedProviders = new HashSet<object>(ReferenceEqualityComparer.Instance);
+            foreach (var entry in allModules)
             {
-                if (entry.Provider is IDisposable disposable)
+                if (entry.Provider is IDisposable disposable && disposedProviders.Add(entry.Provider))
                 {
                     disposable.Dispose();
                 }
             }
             
             _timeController?.Dispose();
+            _topologyChangeSemaphore.Dispose();
             _modules.Clear();
+            _drainingModules.Clear();
         }
         
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // Dynamic Module Hot-Plugging: Public API
+        // ═══════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Asynchronously installs a module into the live kernel without interrupting the
+        /// 60Hz main loop. Returns a <see cref="Task"/> that completes once the module is
+        /// fully live — its systems are executing, its memory is allocated, and the next
+        /// frame will tick it.
+        /// 
+        /// <para>
+        /// The heavy work (provider allocation, dependency graph compilation) is performed
+        /// entirely on a background thread. The main thread only performs an O(1) atomic
+        /// pointer swap during the next <see cref="SystemPhase.BeforeSync"/> phase.
+        /// </para>
+        ///
+        /// <para>
+        /// Concurrent calls are serialized: each caller waits until the previous topology
+        /// change has been committed before starting its own background compilation.
+        /// </para>
+        /// </summary>
+        /// <param name="module">The module to install. Must not already be installed.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="module"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Kernel not initialized, or <paramref name="module"/> is already installed.
+        /// </exception>
+        public async Task InstallModuleAsync(IModule module)
+        {
+            if (module == null) throw new ArgumentNullException(nameof(module));
+            if (!_initialized)
+                throw new InvalidOperationException(
+                    "Cannot dynamically install modules before Initialize() is called.");
+
+            await _topologyChangeSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                // Guard against double-install
+                var currentTopology = Volatile.Read(ref _activeTopology);
+                if (currentTopology.Modules.Any(e => e.Module == module))
+                    throw new InvalidOperationException(
+                        $"Module '{module.Name}' is already installed in this kernel.");
+
+                var policy = module.Policy;
+                var newEntry = new ModuleEntry
+                {
+                    Module = module,
+                    Provider = null!,
+                    FramesSinceLastRun = 0,
+                    MaxExpectedRuntimeMs = policy.MaxExpectedRuntimeMs > 0 ? policy.MaxExpectedRuntimeMs : 1000,
+                    FailureThreshold = policy.FailureThreshold > 0 ? policy.FailureThreshold : 3,
+                    CircuitResetTimeoutMs = policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000,
+                    CircuitBreaker = new ModuleCircuitBreaker(
+                        failureThreshold: policy.FailureThreshold > 0 ? policy.FailureThreshold : 3,
+                        resetTimeoutMs: policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000),
+                    LifecycleState = ModuleLifecycleState.Loading
+                };
+
+                // Compile the new topology on a background thread — no stalls on the 60Hz loop.
+                var newTopology = await Task.Run(() =>
+                {
+                    // Take a consistent snapshot of the current modules as our baseline.
+                    var baseline = Volatile.Read(ref _activeTopology);
+                    var newModuleList = new List<ModuleEntry>(baseline.Modules) { newEntry };
+
+                    // Task 2 – ECS Schema Upgrade: register novel component types before
+                    // provider allocation so GetComponentMask sees valid type IDs.
+                    EnsureComponentsRegistered(module);
+
+                    // Provision memory/providers for the new module.
+                    // This is the heavy work: mask calculation, pool allocation, etc.
+                    AssignProviderForDynamicInstall(newModuleList, newEntry);
+
+                    newEntry.LifecycleState = ModuleLifecycleState.Ready;
+
+                    return BuildTopology(newModuleList);
+                }).ConfigureAwait(false);
+
+                // Queue the swap for the main thread to apply at the next BeforeSync boundary.
+                var swapTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                Volatile.Write(ref _pendingOperation,
+                    new PendingTopologyOperation(newTopology, swapTcs, drainEntries: null));
+
+                // Await the main thread's confirmation that the swap has happened.
+                // Once this returns the module is live.
+                await swapTcs.Task.ConfigureAwait(false);
+
+                FdpLog<ModuleHostKernel>.Info(
+                    "[ModuleHost] Module '{0}' installed and live.", module.Name);
+            }
+            finally
+            {
+                _topologyChangeSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Asynchronously uninstalls a module from the live kernel. Returns a <see cref="Task"/>
+        /// that completes only after the module has been fully drained:
+        /// <list type="bullet">
+        ///   <item>Its entry has been atomically removed from the execution topology.</item>
+        ///   <item>All in-flight background tasks have finished execution.</item>
+        ///   <item>All leased views have been returned to their providers.</item>
+        ///   <item>Exclusive providers and unmanaged memory pools have been disposed.</item>
+        /// </list>
+        ///
+        /// <para>
+        /// The main thread's harvest loop manages draining natively — no disconnected
+        /// background monitors that could race with <see cref="EntityRepository"/> access.
+        /// </para>
+        /// </summary>
+        /// <param name="module">The module to uninstall. Must currently be installed.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="module"/> is null.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Kernel not initialized, or <paramref name="module"/> is not currently installed.
+        /// </exception>
+        public async Task UninstallModuleAsync(IModule module)
+        {
+            if (module == null) throw new ArgumentNullException(nameof(module));
+            if (!_initialized)
+                throw new InvalidOperationException(
+                    "Cannot dynamically uninstall modules before Initialize() is called.");
+
+            await _topologyChangeSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var currentTopology = Volatile.Read(ref _activeTopology);
+                var targetEntry = currentTopology.Modules.FirstOrDefault(e => e.Module == module);
+                if (targetEntry == null)
+                    throw new InvalidOperationException(
+                        $"Module '{module.Name}' is not currently installed in this kernel.");
+
+                // Mark as draining and set up the drain completion source.
+                targetEntry.LifecycleState = ModuleLifecycleState.Draining;
+                var drainTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                targetEntry.DrainCompletionSource = drainTcs;
+
+                // Build new topology without the module on a background thread.
+                var newTopology = await Task.Run(() =>
+                {
+                    var current = Volatile.Read(ref _activeTopology);
+                    var newModuleList = current.Modules
+                        .Where(e => e != targetEntry)
+                        .ToList();
+                    return BuildTopology(newModuleList);
+                }).ConfigureAwait(false);
+
+                // Queue the swap — and pass the entry so UpdateInternal adds it to _drainingModules.
+                var swapTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                Volatile.Write(ref _pendingOperation,
+                    new PendingTopologyOperation(newTopology, swapTcs, drainEntries: new[] { targetEntry }));
+
+                // Wait for the swap (module is now unhooked from dispatching — new ticks stop).
+                await swapTcs.Task.ConfigureAwait(false);
+
+                FdpLog<ModuleHostKernel>.Info(
+                    "[ModuleHost] Module '{0}' unhooked from topology. Draining...", module.Name);
+
+                // Wait for the native harvest loop to fully drain and dispose the module.
+                // This Task completes only when HarvestEntry has released the leased view
+                // and the background disposal worker has finished.
+                await drainTcs.Task.ConfigureAwait(false);
+
+                FdpLog<ModuleHostKernel>.Info(
+                    "[ModuleHost] Module '{0}' fully drained and disposed.", module.Name);
+            }
+            finally
+            {
+                _topologyChangeSemaphore.Release();
+            }
+        }
+
+        // ===============================================================================
+        // Dynamic Module Hot-Plugging: Batch Public API
+        // ===============================================================================
+
+        /// <summary>
+        /// Asynchronously installs multiple modules into the live kernel as a single atomic
+        /// operation. All requested modules are compiled into one new
+        /// <see cref="KernelExecutionTopology"/> on a background thread; the 60&nbsp;Hz main
+        /// loop is only paused for an O(1) pointer swap at the next
+        /// <see cref="SystemPhase.BeforeSync"/> boundary, at which point every module in the
+        /// batch becomes live simultaneously — no torn states.
+        /// </summary>
+        /// <param name="modules">The modules to install. None may already be installed.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="modules"/> or any element is null.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Kernel not initialized, or any module in the list is already installed.
+        /// </exception>
+        public async Task InstallModulesAsync(IReadOnlyList<IModule> modules)
+        {
+            if (modules == null) throw new ArgumentNullException(nameof(modules));
+            if (modules.Count == 0) return;
+            if (!_initialized)
+                throw new InvalidOperationException(
+                    "Cannot dynamically install modules before Initialize() is called.");
+
+            await _topologyChangeSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var currentTopology = Volatile.Read(ref _activeTopology);
+
+                // Validate: no nulls, no double-installs
+                foreach (var m in modules)
+                {
+                    if (m == null) throw new ArgumentNullException(nameof(modules),
+                        "Module list must not contain null entries.");
+                    if (currentTopology.Modules.Any(e => e.Module == m))
+                        throw new InvalidOperationException(
+                            $"Module '{m.Name}' is already installed in this kernel.");
+                }
+
+                // Create all new entries upfront with Loading state.
+                var newEntries = new List<ModuleEntry>(modules.Count);
+                foreach (var m in modules)
+                {
+                    var policy = m.Policy;
+                    newEntries.Add(new ModuleEntry
+                    {
+                        Module = m,
+                        Provider = null!,
+                        FramesSinceLastRun = 0,
+                        MaxExpectedRuntimeMs  = policy.MaxExpectedRuntimeMs  > 0 ? policy.MaxExpectedRuntimeMs  : 1000,
+                        FailureThreshold      = policy.FailureThreshold      > 0 ? policy.FailureThreshold      : 3,
+                        CircuitResetTimeoutMs = policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000,
+                        CircuitBreaker = new ModuleCircuitBreaker(
+                            failureThreshold:    policy.FailureThreshold      > 0 ? policy.FailureThreshold      : 3,
+                            resetTimeoutMs:      policy.CircuitResetTimeoutMs > 0 ? policy.CircuitResetTimeoutMs : 5000),
+                        LifecycleState = ModuleLifecycleState.Loading
+                    });
+                }
+
+                // Compile a single new topology with ALL new entries — background thread.
+                var newTopology = await Task.Run(() =>
+                {
+                    var baseline = Volatile.Read(ref _activeTopology);
+                    var newModuleList = new List<ModuleEntry>(baseline.Modules);
+                    newModuleList.AddRange(newEntries);
+
+                    // Schema upgrade for all new modules before provider assignment.
+                    foreach (var entry in newEntries)
+                        EnsureComponentsRegistered(entry.Module);
+
+                    // Assign providers sequentially so that each successive module sees the
+                    // providers already assigned to earlier modules in the batch (convoy detection).
+                    foreach (var entry in newEntries)
+                        AssignProviderForDynamicInstall(newModuleList, entry);
+
+                    foreach (var entry in newEntries)
+                        entry.LifecycleState = ModuleLifecycleState.Ready;
+
+                    return BuildTopology(newModuleList);
+                }).ConfigureAwait(false);
+
+                // Single atomic swap activates every new module in the same frame.
+                var swapTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                Volatile.Write(ref _pendingOperation,
+                    new PendingTopologyOperation(newTopology, swapTcs, drainEntries: null));
+
+                await swapTcs.Task.ConfigureAwait(false);
+
+                FdpLog<ModuleHostKernel>.Info(
+                    "[ModuleHost] Batch-installed {0} module(s) atomically.", modules.Count);
+            }
+            finally
+            {
+                _topologyChangeSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Asynchronously uninstalls multiple modules from the live kernel as a single atomic
+        /// operation. All specified modules are removed from the topology in one background
+        /// compilation pass and the pointer swap deactivates them all in the same frame.
+        /// Returns only after every removed module has been fully drained and disposed.
+        /// </summary>
+        /// <param name="modules">The modules to uninstall. All must currently be installed.</param>
+        /// <exception cref="ArgumentNullException"><paramref name="modules"/> or any element is null.</exception>
+        /// <exception cref="InvalidOperationException">
+        /// Kernel not initialized, or any module in the list is not currently installed.
+        /// </exception>
+        public async Task UninstallModulesAsync(IReadOnlyList<IModule> modules)
+        {
+            if (modules == null) throw new ArgumentNullException(nameof(modules));
+            if (modules.Count == 0) return;
+            if (!_initialized)
+                throw new InvalidOperationException(
+                    "Cannot dynamically uninstall modules before Initialize() is called.");
+
+            await _topologyChangeSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                var currentTopology = Volatile.Read(ref _activeTopology);
+
+                // Resolve entries and set up drain TCS for each module.
+                var targetEntries = new List<ModuleEntry>(modules.Count);
+                var drainTcsList  = new List<TaskCompletionSource>(modules.Count);
+
+                foreach (var m in modules)
+                {
+                    if (m == null) throw new ArgumentNullException(nameof(modules),
+                        "Module list must not contain null entries.");
+                    var entry = currentTopology.Modules.FirstOrDefault(e => e.Module == m);
+                    if (entry == null)
+                        throw new InvalidOperationException(
+                            $"Module '{m.Name}' is not currently installed in this kernel.");
+
+                    entry.LifecycleState = ModuleLifecycleState.Draining;
+                    var drainTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    entry.DrainCompletionSource = drainTcs;
+
+                    targetEntries.Add(entry);
+                    drainTcsList.Add(drainTcs);
+                }
+
+                // Build topology without the removed modules.
+                var newTopology = await Task.Run(() =>
+                {
+                    var current = Volatile.Read(ref _activeTopology);
+                    var newModuleList = current.Modules
+                        .Where(e => !targetEntries.Contains(e))
+                        .ToList();
+                    return BuildTopology(newModuleList);
+                }).ConfigureAwait(false);
+
+                // Single atomic swap removes all modules simultaneously.
+                var swapTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                Volatile.Write(ref _pendingOperation,
+                    new PendingTopologyOperation(newTopology, swapTcs, drainEntries: targetEntries));
+
+                await swapTcs.Task.ConfigureAwait(false);
+
+                FdpLog<ModuleHostKernel>.Info(
+                    "[ModuleHost] Batch-unhooked {0} module(s). Draining...", modules.Count);
+
+                // Wait until every removed module has been fully harvested and disposed.
+                await Task.WhenAll(drainTcsList.Select(t => t.Task)).ConfigureAwait(false);
+
+                FdpLog<ModuleHostKernel>.Info(
+                    "[ModuleHost] Batch-uninstall of {0} module(s) complete.", modules.Count);
+            }
+            finally
+            {
+                _topologyChangeSemaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Returns whether the specified module is currently installed and active in the kernel.
+        /// </summary>
+        public bool IsModuleInstalled(IModule module)
+        {
+            if (!_initialized) return false;
+            return _activeTopology.Modules.Any(e => e.Module == module);
+        }
+
+        /// <summary>
+        /// Returns the <see cref="ModuleLifecycleState"/> of the specified module,
+        /// or <c>null</c> if the module is not known to the kernel in any state.
+        /// </summary>
+        public ModuleLifecycleState? GetModuleLifecycleState(IModule module)
+        {
+            if (!_initialized) return null;
+
+            // Check active topology
+            var active = _activeTopology.Modules.FirstOrDefault(e => e.Module == module);
+            if (active != null) return active.LifecycleState;
+
+            // Check draining
+            var draining = _drainingModules.FirstOrDefault(e => e.Module == module);
+            if (draining != null) return draining.LifecycleState;
+
+            return null;
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // Dynamic Module Hot-Plugging: Internal Helpers
+        // ═══════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Compiles a new <see cref="KernelExecutionTopology"/> from the given module list.
+        /// Creates a fresh <see cref="SystemScheduler"/>, registers all global systems and
+        /// all module-provided systems (reusing cached instances where possible), then
+        /// performs topological sorting. Safe to call from any thread.
+        /// </summary>
+        private KernelExecutionTopology BuildTopology(List<ModuleEntry> modules)
+        {
+            var scheduler = new SystemScheduler();
+
+            // Static global systems always come first in every topology
+            foreach (var sys in _registeredGlobalSystems)
+                scheduler.RegisterSystem(sys);
+
+            // Module-provided systems — reuse cached instances to preserve state
+            foreach (var entry in modules)
+            {
+                if (entry.RegisteredSystems != null)
+                {
+                    // Re-register the same instances (no new objects created)
+                    foreach (var sys in entry.RegisteredSystems)
+                        scheduler.RegisterSystem(sys);
+                }
+                else
+                {
+                    // First time: capture system instances via CapturingSystemRegistry
+                    var capturing = new CapturingSystemRegistry(scheduler);
+                    entry.Module.RegisterSystems(capturing);
+                    entry.RegisteredSystems = capturing.Captured;
+                }
+            }
+
+            scheduler.BuildExecutionOrders();
+
+            return new KernelExecutionTopology(
+                modules.AsReadOnly(),
+                scheduler);
+        }
+
+        /// <summary>
+        /// Assigns the appropriate <see cref="ISnapshotProvider"/> to a newly installed
+        /// <paramref name="newEntry"/> using a topology-wide evaluation of the full
+        /// <paramref name="allModules"/> list. This ensures that shared providers
+        /// (e.g. <see cref="SharedSnapshotProvider"/> for SoD convoys) correctly incorporate
+        /// the new module's component mask and aren't allocated in isolation.
+        ///
+        /// <para>
+        /// For the initial version, existing modules keep their providers unless they need
+        /// to join a new shared group. A future enhancement should fully re-evaluate the
+        /// <c>UnionMask</c> and replace shared providers when the mask expands.
+        /// </para>
+        /// </summary>
+        private void AssignProviderForDynamicInstall(List<ModuleEntry> allModules, ModuleEntry newEntry)
+        {
+            // Cache component mask
+            newEntry.ComponentMask = GetComponentMask(newEntry.Module);
+
+            try { newEntry.Module.Policy.Validate(); } catch { /* Handled during full init */ }
+
+            var policy = newEntry.Module.Policy;
+
+            switch (policy.Strategy)
+            {
+                case DataStrategy.Direct:
+                    newEntry.Provider = null!;
+                    newEntry.HasExclusiveProvider = false;
+                    break;
+
+                case DataStrategy.GDB:
+                {
+                    // Find existing GDB group members with the same execution characteristics
+                    var groupMembers = allModules
+                        .Where(e => e != newEntry
+                            && e.Module.Policy.Strategy == DataStrategy.GDB
+                            && e.Module.Policy.Mode == policy.Mode
+                            && e.Module.Policy.TargetFrequencyHz == policy.TargetFrequencyHz
+                            && e.Provider is DoubleBufferProvider)
+                        .ToList();
+
+                    if (groupMembers.Count > 0)
+                    {
+                        var existingGdb = groupMembers[0].Provider as DoubleBufferProvider;
+
+                        // Re-evaluate UnionMask: if the new module introduces components not
+                        // covered by the current provider, allocate a wider provider.
+                        if (existingGdb?.UnionMask == null)
+                        {
+                            // Provider is full-sync — already covers all components.
+                            newEntry.Provider = groupMembers[0].Provider;
+                            newEntry.HasExclusiveProvider = false;
+                        }
+                        else
+                        {
+                            var allInConvoy = groupMembers.Concat(new[] { newEntry }).ToList();
+                            var newUnionMask = CalculateUnionMask(allInConvoy);
+
+                            if (newUnionMask.Equals(existingGdb.UnionMask.Value))
+                            {
+                                // Mask unchanged — reuse the existing provider.
+                                newEntry.Provider = groupMembers[0].Provider;
+                                newEntry.HasExclusiveProvider = false;
+                            }
+                            else
+                            {
+                                // Mask expanded: allocate a new DoubleBufferProvider with wider mask.
+                                var newGdbProvider = new DoubleBufferProvider(
+                                    _liveWorld, _eventAccumulator, newUnionMask, _schemaSetup);
+
+                                // Point all convoy members (+ new entry) at the new provider.
+                                // Old provider will be unreferenced and eligible for GC once
+                                // any in-flight views from the previous frame are released.
+                                foreach (var e in allInConvoy)
+                                {
+                                    e.Provider = newGdbProvider;
+                                    e.HasExclusiveProvider = false;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var unionMask = CalculateUnionMask(new List<ModuleEntry> { newEntry });
+                        newEntry.Provider = new DoubleBufferProvider(
+                            _liveWorld, _eventAccumulator, unionMask, _schemaSetup);
+                        newEntry.HasExclusiveProvider = true;
+                    }
+                    break;
+                }
+
+                case DataStrategy.SoD:
+                {
+                    var groupMembers = allModules
+                        .Where(e => e != newEntry
+                            && e.Module.Policy.Strategy == DataStrategy.SoD
+                            && e.Module.Policy.Mode == policy.Mode
+                            && e.Module.Policy.TargetFrequencyHz == policy.TargetFrequencyHz)
+                        .ToList();
+
+                    if (groupMembers.Count == 0)
+                    {
+                        // Exclusive OnDemandProvider for a solo module
+                        newEntry.Provider = new OnDemandProvider(
+                            _liveWorld, _eventAccumulator, newEntry.ComponentMask,
+                            _schemaSetup, initialPoolSize: 5);
+                        newEntry.HasExclusiveProvider = true;
+                    }
+                    else
+                    {
+                        // Find existing shared provider for the convoy
+                        var existingShared = groupMembers
+                            .FirstOrDefault(e => e.Provider is SharedSnapshotProvider)
+                            ?.Provider as SharedSnapshotProvider;
+
+                        if (existingShared != null)
+                        {
+                            // Re-evaluate UnionMask: if the incoming module introduces components not
+                            // covered by the existing provider, allocate a new wider provider.
+                            var allInConvoy = groupMembers.Concat(new[] { newEntry }).ToList();
+                            var newUnionMask = CalculateUnionMask(allInConvoy);
+
+                            if (newUnionMask.Equals(existingShared.UnionMask))
+                            {
+                                // Mask unchanged — reuse the existing shared provider.
+                                newEntry.Provider = existingShared;
+                                newEntry.HasExclusiveProvider = false;
+                            }
+                            else
+                            {
+                                // Mask expanded: allocate a new SharedSnapshotProvider.
+                                var newSharedProvider = new SharedSnapshotProvider(
+                                    _liveWorld, _eventAccumulator, newUnionMask, _snapshotPool!);
+
+                                // Reroute all convoy members (+ new entry) to the new provider.
+                                // The old provider will naturally drain as in-flight views are
+                                // released back to it by the still-running harvest loop.
+                                foreach (var e in allInConvoy)
+                                {
+                                    e.Provider = newSharedProvider;
+                                    e.HasExclusiveProvider = false;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Promote the convoy to a SharedSnapshotProvider
+                            var groupPlusnew = groupMembers.Concat(new[] { newEntry }).ToList();
+                            var unionMask = CalculateUnionMask(groupPlusnew);
+                            var sharedProvider = new SharedSnapshotProvider(
+                                _liveWorld, _eventAccumulator, unionMask, _snapshotPool!);
+
+                            foreach (var e in groupPlusnew)
+                            {
+                                e.Provider = sharedProvider;
+                                e.HasExclusiveProvider = false;
+                            }
+                        }
+                    }
+                    break;
+                }
+
+                default:
+                    FdpLog<ModuleHostKernel>.Warn(
+                        "[ModuleHost] Unknown DataStrategy for module '{0}'. No provider assigned.",
+                        newEntry.Module.Name);
+                    break;
+            }
+        }
+
         internal class ModuleEntry
         {
             public IModule Module { get; set; } = null!;
@@ -946,6 +1722,15 @@ namespace ModuleHost.Core
             // Async State (NEW - for World C)
             public Task? CurrentTask { get; set; }
             public ISimulationView? LeasedView { get; set; }
+
+            /// <summary>
+            /// The <see cref="ISnapshotProvider"/> that issued <see cref="LeasedView"/>.
+            /// Captured at acquire time so that <c>HarvestEntry</c> can always release
+            /// the view back to the correct provider, even when <see cref="Provider"/> has
+            /// been remapped (e.g. on a convoy UnionMask upgrade).
+            /// </summary>
+            public ISnapshotProvider? LeasedProvider { get; set; }
+
             public float AccumulatedDeltaTime { get; set; }
             public uint LastRunTick { get; set; }  // For reactive scheduling prep
             
@@ -957,6 +1742,98 @@ namespace ModuleHost.Core
             public int MaxExpectedRuntimeMs { get; set; }
             public int FailureThreshold { get; set; }
             public int CircuitResetTimeoutMs { get; set; }
+
+            // ═══════════════════════════════════════════════════════════
+            // Dynamic Module Hot-Plugging State
+            // ═══════════════════════════════════════════════════════════
+
+            /// <summary>
+            /// Current lifecycle state of this module entry.
+            /// Transitions: Loading → Ready (on RCU swap-in) → Draining (on RCU swap-out) → Disposed.
+            /// </summary>
+            public ModuleLifecycleState LifecycleState { get; set; } = ModuleLifecycleState.Ready;
+
+            /// <summary>
+            /// Signalled by the main-thread draining harvester once the module's in-flight task
+            /// is done and providers are released. Completing this TCS unblocks the
+            /// <see cref="ModuleHostKernel.UninstallModuleAsync"/> awaiter.
+            /// </summary>
+            public TaskCompletionSource? DrainCompletionSource { get; set; }
+
+            /// <summary>
+            /// Cached references to system instances registered by this module.
+            /// Reused when rebuilding the execution topology to avoid re-creating system objects
+            /// and losing any accumulated state (e.g. profiling counters, cached queries).
+            /// </summary>
+            public List<IModuleSystem>? RegisteredSystems { get; set; }
+
+            /// <summary>
+            /// True when this entry owns its provider exclusively and should dispose it
+            /// on teardown. False when the provider is shared with other modules.
+            /// </summary>
+            public bool HasExclusiveProvider { get; set; }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // RCU Infrastructure: Pending Topology Operation
+        // ═══════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Represents an atomic topology change compiled on a background thread and
+        /// queued for application on the next <see cref="SystemPhase.BeforeSync"/> boundary.
+        /// </summary>
+        private sealed class PendingTopologyOperation
+        {
+            /// <summary>The new topology to atomically swap in on the next frame.</summary>
+            public KernelExecutionTopology NewTopology { get; }
+
+            /// <summary>
+            /// Signalled by the main thread immediately after the pointer swap.
+            /// Completing this TCS unblocks the <c>await swapTcs.Task;</c> line in
+            /// <see cref="ModuleHostKernel.InstallModuleAsync"/> or
+            /// <see cref="ModuleHostKernel.UninstallModuleAsync"/>.
+            /// </summary>
+            public TaskCompletionSource SwapCompletion { get; }
+
+            /// <summary>
+            /// For uninstall operations: the entries removed from the topology.
+            /// The main thread adds them to <c>_drainingModules</c> during the swap.
+            /// Null or empty for install operations.
+            /// </summary>
+            public IReadOnlyList<ModuleEntry>? DrainEntries { get; }
+
+            public PendingTopologyOperation(
+                KernelExecutionTopology newTopology,
+                TaskCompletionSource swapCompletion,
+                IReadOnlyList<ModuleEntry>? drainEntries)
+            {
+                NewTopology = newTopology;
+                SwapCompletion = swapCompletion;
+                DrainEntries = drainEntries;
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // RCU Infrastructure: Capturing System Registry
+        // ═══════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Wraps a <see cref="SystemScheduler"/> to record which system instances a module
+        /// registers. Cached instances are reused on subsequent topology rebuilds, preserving
+        /// system state (e.g. profiling counters, cached queries) across hot-plug events.
+        /// </summary>
+        private sealed class CapturingSystemRegistry : ISystemRegistry
+        {
+            private readonly SystemScheduler _scheduler;
+            public List<IModuleSystem> Captured { get; } = new();
+
+            public CapturingSystemRegistry(SystemScheduler scheduler) => _scheduler = scheduler;
+
+            public void RegisterSystem<T>(T system) where T : IModuleSystem
+            {
+                Captured.Add(system);
+                _scheduler.RegisterSystem(system);
+            }
         }
     }
 }

@@ -48,7 +48,13 @@ namespace ModuleHost.Core.Providers
         }
         
         public SnapshotProviderType ProviderType => SnapshotProviderType.GDB;
-        
+
+        /// <summary>
+        /// The union component mask, or null if this provider syncs all components (full sync).
+        /// Exposed for topology re-evaluation during dynamic module installation.
+        /// </summary>
+        internal BitMask256? UnionMask => _mask;
+
         /// <summary>
         /// Updates replica to match live world.
         /// Called on main thread at sync point (after simulation, before module dispatch).
