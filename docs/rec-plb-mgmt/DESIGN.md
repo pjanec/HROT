@@ -17,20 +17,24 @@
 4. [SysOp / Two-Phase Commit (2PC) Orchestration Pattern](#4-sysop--two-phase-commit-orchestration-pattern)
 5. [SystemMasterModule](#5-systemmastermodule)
    - [5.5 Transition Planner (Macro-Transitions)](#55-transition-planner-macro-transitions)
+   - [5.5.2 TransitionPlanner — BFS Implementation](#552-transitionplanner--bfs-implementation)
    - [5.6 Time Control Architecture](#56-time-control-architecture)
    - [5.6.5 Deterministic Mode Switching — DistributedTimeCoordinator and Future Barrier](#565-deterministic-mode-switching--distributedtimecoordinator-and-future-barrier)
+   - [5.7 Centralized Network Identity Authority (DdsIdAllocatorServer)](#57-centralized-network-identity-authority)
 6. [SystemSlaveModule](#6-systemslavemodule)
    - [6.6 Time Slave Integration (SlaveTimeController + Kernel Adapter)](#66-time-slave-integration)
 7. [Node Health Monitoring (Heartbeat & BIT)](#7-node-health-monitoring)
 8. [Replay Subsystem](#8-replay-subsystem)
    - [8.11 Live-from-Replay Temporal Interlock](#811-live-from-replay-temporal-interlock)
+   - [8.12 "Always Recording" — Event Capture During Paused Simulation Time](#812-always-recording--event-capture-during-paused-simulation-time)
 9. [Checkpoints & Dry Runs](#9-checkpoints--dry-runs)
 10. [Stories — Multi-Tenant Micro-Scenarios](#10-stories--multi-tenant-micro-scenarios)
 11. [Battlespaces](#11-battlespaces)
-12. [Archive Export / Import](#12-archive-export--import)
-13. [Deterministic Batch Runs](#13-deterministic-batch-runs)
-14. [Key 12-Step Exercise Sequence Flow](#14-key-12-step-exercise-sequence-flow)
-15. [Required Code Changes Summary](#15-required-code-changes-summary)
+12. [Scenario Editing & Management](#12-scenario-editing--management)
+13. [Archive Export / Import — Storage Gateway Pattern](#13-archive-export--import--storage-gateway-pattern)
+14. [Deterministic Batch Runs](#14-deterministic-batch-runs)
+15. [Key 12-Step Exercise Sequence Flow](#15-key-12-step-exercise-sequence-flow)
+16. [Required Code Changes Summary](#16-required-code-changes-summary)
 
 ---
 
@@ -148,7 +152,9 @@ public enum NodeOpType : int
     PrepareReplay        = 11,
     FinalizeReplay       = 12,
     ReplaySeek           = 13,
-    UploadChunk          = 14,  // Token-bucket archive upload
+    UploadChunk          = 14,  // Storage Gateway — node embeds UNC manifest in NodeOpStatus ACK
+    SerializeLocal       = 15,  // Serialize scenario/checkpoint data to local SSD (SaveScenario / Archive)
+    CleanupTempFiles     = 16,  // Delete local temp files after Gateway confirms NAS transfer
     StartStory           = 20,
     StopStory            = 21,
     ReplayStory          = 22,
@@ -485,22 +491,52 @@ Prepare phase; otherwise it transitions to `Degraded`.
 ### 5.2 Internal Data Structures
 
 ```csharp
+// ─── Polymorphic step in a planned trajectory (see §5.5) ─────────────────────
+//
+// A trajectory is a Queue<ISysOpStep>. Each step is either:
+//   TransitionStep  — a standard ESM state change executed via 2PC NodeOpCommand
+//   OperationStep   — a distributed operation that runs *within* a resident ESM
+//                     state (e.g. ReplaySeek after arriving in RunningReplay)
+//
+// This distinction is critical: ReplaySeek is NOT a state — it is an operation
+// that is only valid while the system is already in RunningReplay. A queue typed
+// strictly to ESMState cannot encode it, so the planner always returns
+// Queue<ISysOpStep>.
+abstract class ISysOpStep
+{
+    public abstract string Label { get; }   // Shown in SysOpStatus "Step X of Y: {Label}"
+}
+
+class TransitionStep : ISysOpStep
+{
+    public ESMState   TargetState;
+    public NodeOpType PrepareOp;
+    public NodeOpType CommitOp;
+    public override string Label => TargetState.ToString();
+}
+
+class OperationStep : ISysOpStep
+{
+    public SysOpType  OperationType;    // e.g. ReplaySeek
+    public string     PayloadJson;      // forwarded verbatim to NodeOpCommand
+    public override string Label => OperationType.ToString();
+}
+
 // ─── Active distributed transaction ──────────────────────────────────────────
 class DistributedTransaction
 {
     public Guid       TransactionId;
     public Guid       OriginRequestId;     // back-ref to SysOpRequest
-    public NodeOpType PrepareOp;
-    public NodeOpType CommitOp;
 
     // ── Macro-transition support (see §5.5) ──────────────────────────────────
-    // PlannedStates is populated by the TransitionPlanner for every request,
+    // PlannedSteps is populated by the TransitionPlanner for every request,
     // even single-step ones (queue length 1 = simple transition).
-    // TargetEsmState is the ultimate goal; current step is PlannedStates.Peek().
-    public ESMState         TargetEsmState;     // final goal
-    public Queue<ESMState>  PlannedStates;      // ordered intermediate states
-    public int              TotalSteps;         // snapshot of initial queue length — for "Step X of Y"
-    public int              CompletedSteps;     // incremented each time a step commits
+    // TargetEsmState is the final ESM state goal; operations appended after it
+    // (e.g. ReplaySeek) are OperationSteps and do not change the ESM state.
+    public ESMState            TargetEsmState;  // final ESM state goal
+    public Queue<ISysOpStep>   PlannedSteps;    // ordered polymorphic steps
+    public int                 TotalSteps;      // snapshot of initial queue length — for "Step X of Y"
+    public int                 CompletedSteps;  // incremented after each step commits
 
     public HashSet<int> PendingNodes;      // cloned from ActiveNodes at T=0
     public float      ElapsedSeconds;
@@ -529,7 +565,7 @@ class NodeHealthProfile
 │     └─ Detect missed heartbeats (> 5s) → prune or fault                  │
 │                                                                          │
 │  2. Consume SysOpRequest DDS queue (from IOS)                            │
-│     ├─ Hand request to TransitionPlanner → generates PlannedStates queue │
+│     ├─ Hand request to TransitionPlanner → generates Queue<ISysOpStep>   │
 │     └─ If valid path found → spawn DistributedTransaction, begin Phase 1 │
 │        (see §5.5 for Transition Planner details)                         │
 │                                                                          │
@@ -538,7 +574,7 @@ class NodeHealthProfile
 │     ├─ InProgress: forward as SysOpStatus(InProgress, "Step X of Y")    │
 │     │              to IOS so the UI can show a progress bar              │
 │     ├─ Success / IsParticipating=false: remove from PendingNodes         │
-│     └─ Failure: abort transaction, clear PlannedStates queue,            │
+│     └─ Failure: abort transaction, clear PlannedSteps queue,             │
 │                 publish SystemStateTopic(SafeFallbackState),             │
 │                 send SysOpStatus(Failure) to IOS                         │
 │                                                                          │
@@ -546,13 +582,16 @@ class NodeHealthProfile
 │     ├─ Increment ElapsedSeconds                                          │
 │     ├─ If timeout → abort (treat as Failure)                             │
 │     └─ If PendingNodes.Count == 0 → COMMIT current step:                 │
-│         ├─ Publish NodeOpCommand(CommitOp)                               │
-│         ├─ Write SystemStateTopic (current queue head state)              │
-│         ├─ transaction.PlannedStates.Dequeue(); CompletedSteps++         │
-│         ├─ If PlannedStates is EMPTY → publish SysOpStatus(Success)      │
+│         ├─ If current step is TransitionStep:                            │
+│         │   ├─ Publish NodeOpCommand(CommitOp)                           │
+│         │   └─ Write SystemStateTopic (committed ESM state)              │
+│         ├─ If current step is OperationStep:                             │
+│         │   └─ (SystemStateTopic unchanged — ESM state stays resident)   │
+│         ├─ transaction.PlannedSteps.Dequeue(); CompletedSteps++          │
+│         ├─ If PlannedSteps is EMPTY → publish SysOpStatus(Success)       │
 │         │   to IOS and close transaction                                 │
-│         └─ Else → pop next state, reset PendingNodes, send next          │
-│                  NodeOpCommand(PrepareOp, nextState) — chain continues   │
+│         └─ Else → pop next step, reset PendingNodes, dispatch next       │
+│                  NodeOpCommand for the step — chain continues            │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -576,7 +615,7 @@ The DrillId is embedded in:
 The `SystemMasterModule` acts as a **Process Manager**: every `SysOpRequest(TransitionState,
 TargetState)` from the IOS is given to an internal **`TransitionPlanner`** that treats
 the ESM as a directed graph and calculates the shortest valid path to the requested target
-state.  The result is always a `Queue<ESMState>` that is loaded into `DistributedTransaction.PlannedStates`.
+state.  The result is always a `Queue<ISysOpStep>` loaded into `DistributedTransaction.PlannedSteps`.
 
 A simple, direct single-step request (e.g. `Standby → LoadingEdit`) is just a queue of
 length 1.  A "wild" multi-step request (e.g. `RunningLive → RunningReplay`) produces a
@@ -597,20 +636,29 @@ ACK success.
   queue, publishes `SystemStateTopic(SafeFallbackState)`, and sends `SysOpStatus(Failed)`
   with a human-readable description.
 
-**Example paths resolved by the planner:**
+Every request — simple or wild — is resolved by the planner into a
+`Queue<ISysOpStep>`.  Each entry is either a `TransitionStep` (ESM state change, executed
+via 2PC `NodeOpCommand`) or an `OperationStep` (a distributed operation run while
+residing in a state, e.g. `ReplaySeek`).  This distinction is essential: `ReplaySeek` is
+strictly an operation, not an ESM state — it is only valid once the system is already in
+`RunningReplay`.
 
-| Current State | TargetState | Planned Queue |
-|---------------|-------------|---------------|
-| `Standby` | `LoadingEdit` | `[LoadingEdit]` |
-| `RunningLive` | `RunningReplay` | `[UnloadingLive, Standby, LoadingReplay, RunningReplay]` |
-| `RunningEdit` | `RunningLive` | `[UnloadingEdit, Standby, LoadingLive, RunningLive]` |
-| `RunningReplay` | `RunningEdit` | `[UnloadingReplay, Standby, LoadingEdit, RunningEdit]` |
+**Example trajectories resolved by the planner:**
+
+| Current State | Target / Hints | Planned Queue (`ISysOpStep` items) |
+|---------------|----------------|-------------------------------------|
+| `Standby` | `LoadingEdit` | `[TransitionStep(LoadingEdit)]` |
+| `RunningLive` | `RunningReplay` | `[TransitionStep(UnloadingLive), TransitionStep(Standby), TransitionStep(LoadingReplay), TransitionStep(RunningReplay)]` |
+| `RunningLive` | `RunningReplay` + `TargetWallTicks=T15` | `[TransitionStep(UnloadingLive), TransitionStep(Standby), TransitionStep(LoadingReplay), TransitionStep(RunningReplay), OperationStep(ReplaySeek, T15)]` |
+| `RunningEdit` | `RunningLive` | `[TransitionStep(UnloadingEdit), TransitionStep(Standby), TransitionStep(LoadingLive), TransitionStep(RunningLive)]` |
+| `RunningReplay` | `RunningEdit` | `[TransitionStep(UnloadingReplay), TransitionStep(Standby), TransitionStep(LoadingEdit), TransitionStep(RunningEdit)]` |
 
 > **Transition hints:** the `SysOpRequest.PayloadJson` may carry optional metadata (e.g.
 > `"DrillId"`, `"ScenarioId"`, `"TargetWallTicks"`) that the planner threads through the
 > `NodeOpCommand` payloads for each step.  This lets the IOS say "go to RunningReplay
 > of drill 999, seek to T+15 min" in a single request without embedding sequencing logic
-> in the client.
+> in the client.  The `TargetWallTicks` hint causes the planner to append an
+> `OperationStep(ReplaySeek, TargetWallTicks)` after the final `TransitionStep(RunningReplay)`.  The 2PC execution loop dispatches it with a `NodeOpCommand(ReplaySeek, TargetWallTicks)` and waits for all nodes to ACK exactly as it does for a state transition — the loop is oblivious to step type.
 
 #### 5.5.1 Sequence Diagram — Complex (Wild) Transition
 
@@ -629,11 +677,11 @@ sequenceDiagram
     IOS->>Master: SysOpRequest(TransitionState, Target=RunningReplay)
     Note over IOS: Locks UI — waits for final SysOpStatus
 
-    Note over Master: TransitionPlanner evaluates ESM graph:<br/>Current=RunningLive, Target=RunningReplay<br/>→ PlannedStates = [UnloadingLive, Standby, LoadingReplay, RunningReplay]
-    Note over Master: Creates DistributedTransaction (TotalSteps=4)
+    Note over Master: TransitionPlanner evaluates ESM graph:<br/>Current=RunningLive, Target=RunningReplay<br/>→ PlannedSteps = [TransitionStep(UnloadingLive), TransitionStep(Standby),<br/>   TransitionStep(LoadingReplay), TransitionStep(RunningReplay)]<br/>   (+ optional OperationStep(ReplaySeek, T15) if TargetWallTicks hint present)
+    Note over Master: Creates DistributedTransaction (TotalSteps=4 or 5)
 
-    loop Saga Execution — drain PlannedStates queue
-        Note over Master: Pop next state (e.g. UnloadingLive, then Standby, …)
+    loop Saga Execution — drain PlannedSteps queue
+        Note over Master: Pop next step (TransitionStep or OperationStep)
         Master->>Slaves: NodeOpCommand(PrepareState, NextState)
 
         Slaves-->>Master: NodeOpStatus(InProgress)
@@ -645,10 +693,10 @@ sequenceDiagram
         alt Happy Path — all nodes succeed
             Slaves-->>Master: NodeOpStatus(Success)
             Master->>Topic: Publish SystemStateTopic(NextState)
-            Note over Master: Step committed. CompletedSteps++.<br/>If queue not empty → pop next, send PrepareOp.
+            Note over Master: Step committed. CompletedSteps++.<br/>TransitionStep → updates SystemStateTopic.<br/>OperationStep → SystemStateTopic unchanged.<br/>If queue not empty → pop next step, chain continues.
         else Failure Path — any node fails or times out
             Slaves-->>Master: NodeOpStatus(Failed)
-            Note over Master: Watchdog triggers compensatory rollback.<br/>Clear remaining PlannedStates queue.
+            Note over Master: Watchdog triggers compensatory rollback.<br/>Clear remaining PlannedSteps queue.
             Master->>Slaves: NodeOpCommand(AbortTransaction)
             Master->>Topic: Publish SystemStateTopic(SafeFallbackState)
             Master-->>IOS: SysOpStatus(Failed, "Step 1 failed: Node 200 timed out")
@@ -656,10 +704,122 @@ sequenceDiagram
         end
     end
 
-    Note over Master: PlannedStates queue empty — TargetState reached
+    Note over Master: PlannedSteps queue empty — goal reached
     Master-->>IOS: SysOpStatus(Success)
     Note over IOS: Unlocks UI — transition complete
 ```
+
+#### 5.5.2 TransitionPlanner — BFS Implementation
+
+**Why BFS?**  
+All ESM state transitions have equal "weight" (one 2PC round-trip per hop). Dijkstra
+or A\* are anti-patterns here. **Breadth-First Search (BFS)** is the optimal O(V+E)
+algorithm, guaranteeing the shortest path in an unweighted directed graph and cleanly
+throwing before any network command is issued if the target is unreachable.
+
+**Graph Definition (Adjacency List)**
+
+The `TransitionPlanner` owns the authoritative single-source-of-truth for valid
+lifecycles.  Adding a new intermediate state tomorrow requires touching only this
+dictionary — the BFS algorithm and the 2PC execution loop remain unchanged (Open/Closed
+Principle):
+
+```csharp
+// Location: Bagira.Orchestrator/TransitionPlanner.cs
+public class TransitionPlanner
+{
+    // Directed adjacency list — defines every legal ESM edge.
+    private readonly Dictionary<ESMState, HashSet<ESMState>> _validTransitions = new()
+    {
+        { ESMState.Standby,         new() { ESMState.LoadingEdit, ESMState.LoadingLive, ESMState.LoadingReplay } },
+        { ESMState.LoadingEdit,     new() { ESMState.RunningEdit,   ESMState.Standby } },
+        { ESMState.RunningEdit,     new() { ESMState.LoadingDryRun, ESMState.LoadingLive, ESMState.UnloadingEdit } },
+        { ESMState.LoadingDryRun,   new() { ESMState.RunningDryRun, ESMState.RunningEdit } },
+        { ESMState.RunningDryRun,   new() { ESMState.UnloadingDryRun } },
+        { ESMState.UnloadingDryRun, new() { ESMState.RunningEdit } },
+        { ESMState.UnloadingEdit,   new() { ESMState.Standby } },
+        { ESMState.LoadingLive,     new() { ESMState.RunningLive,   ESMState.Standby } },
+        { ESMState.RunningLive,     new() { ESMState.UnloadingLive } },
+        { ESMState.UnloadingLive,   new() { ESMState.Standby } },
+        { ESMState.LoadingReplay,   new() { ESMState.RunningReplay, ESMState.Standby } },
+        { ESMState.RunningReplay,   new() { ESMState.UnloadingReplay, ESMState.LoadingLive } },
+        { ESMState.UnloadingReplay, new() { ESMState.Standby } },
+    };
+```
+
+**BFS Pathfinding**
+
+```csharp
+    private List<ESMState> CalculateShortestPath(ESMState current, ESMState target)
+    {
+        if (current == target) return new List<ESMState>();
+
+        var frontier  = new Queue<ESMState>();
+        var cameFrom  = new Dictionary<ESMState, ESMState>();
+
+        frontier.Enqueue(current);
+        cameFrom[current] = current;   // mark visited
+
+        while (frontier.Count > 0)
+        {
+            var node = frontier.Dequeue();
+            if (node == target)
+                return ReconstructPath(cameFrom, current, target);
+
+            if (_validTransitions.TryGetValue(node, out var neighbors))
+                foreach (var next in neighbors)
+                    if (!cameFrom.ContainsKey(next))
+                    {
+                        frontier.Enqueue(next);
+                        cameFrom[next] = node;
+                    }
+        }
+
+        throw new InvalidOperationException(
+            $"No valid ESM trajectory found from {current} to {target}.");
+    }
+
+    private static List<ESMState> ReconstructPath(
+        Dictionary<ESMState, ESMState> cameFrom, ESMState start, ESMState target)
+    {
+        var path    = new List<ESMState>();
+        var current = target;
+        while (current != start) { path.Add(current); current = cameFrom[current]; }
+        path.Reverse();
+        return path;
+    }
+```
+
+**Assembling the Polymorphic Command Queue**
+
+Once BFS returns the state path (e.g. `[UnloadingLive, Standby, LoadingReplay,
+RunningReplay]`) the planner wraps each state in a `TransitionStep` and then appends
+any optional `OperationStep` entries derived from the request's `PayloadJson` hints:
+
+```csharp
+    public Queue<ISysOpStep> PlanTrajectory(ESMState currentState, SysOpRequest request)
+    {
+        var steps = new Queue<ISysOpStep>();
+
+        // 1. Pathfind — state transitions only
+        var statePath = CalculateShortestPath(currentState, request.TargetState);
+        foreach (var state in statePath)
+            steps.Enqueue(new TransitionStep(state, request.PayloadJson));
+
+        // 2. Append hint-driven operations after the final state
+        if (request.TargetState == ESMState.RunningReplay
+            && TryExtractSeekTarget(request.PayloadJson, out long targetTick))
+            steps.Enqueue(new OperationStep(SysOpType.ReplaySeek, targetTick));
+
+        return steps;
+    }
+}
+```
+
+> **Safety guarantee:** If the IOS sends an impossible request (e.g. `RunningDryRun →
+> RunningReplay`) the BFS exhausts the frontier and throws `InvalidOperationException`
+> before any `NodeOpCommand` is broadcast over DDS.  The 2PC execution loop is never
+> entered, and the cluster state is left completely unchanged.
 
 ---
 
@@ -821,7 +981,6 @@ On each Slave node — SlaveTimeModeListener:
 
 ```csharp
 // Location: FDP/Toolkits/FDP.Toolkit.Time/Messages/TimeMessages.cs  (addition)
-// Transport: BlitEventTranslator<SwitchTimeModeEvent> via FdpEventBus → CycloneDDS
 // Visibility: internal to the time toolkit — not part of the public orchestration API.
 [DdsTopic("SwitchTimeModeEvent")]
 [DdsIdlFile("bdc-time")]
@@ -840,6 +999,41 @@ public enum TimeMode : int
 }
 ```
 
+**`BlitEventTranslator<SwitchTimeModeEvent>` — network registration (composition root):**
+
+`SwitchTimeModeEvent` must travel from the `DistributedTimeCoordinator` on the Master
+node to all Slave `SlaveTimeModeListener` instances over CycloneDDS.  Because writing
+a full custom ECS translator for an internal struct would be heavyweight, the platform
+provides `BlitEventTranslator<T>`, a generic zero-allocation bridge that performs a raw
+`memcpy` of the unmanaged struct both on the write (FdpEventBus → CycloneDDS) and read
+(CycloneDDS → FdpEventBus) sides.  Registration at the NetworkModule composition root:
+
+```csharp
+// In TimeNetworkModule.RegisterTranslators() — or equivalent composition root
+// called during application startup on EVERY node (Master and Slaves).
+
+// Publish side — Master node publishes SwitchTimeModeEvent to FdpEventBus;
+// BlitEventTranslator serialises it as raw bytes and writes to CycloneDDS.
+networkModule.RegisterEgressBlit<SwitchTimeModeEvent>(
+    topicName: "SwitchTimeModeEvent",
+    qos:       new DdsQos { Reliability = DdsReliability.Reliable,
+                            Durability  = DdsDurability.Volatile });
+
+// Subscribe side — incoming CycloneDDS bytes are blit-copied back into
+// SwitchTimeModeEvent and published to the local FdpEventBus.
+// SlaveTimeModeListener already subscribes to FdpEventBus<SwitchTimeModeEvent>.
+networkModule.RegisterIngressBlit<SwitchTimeModeEvent>(
+    topicName: "SwitchTimeModeEvent");
+```
+
+> **Why `BlitEventTranslator` is safe for `SwitchTimeModeEvent`:**  
+> `SwitchTimeModeEvent` is a plain unmanaged struct (no managed references, no padding
+> alignment surprises across nodes because all Bagira nodes share the same compiled
+> binary).  The two-field `ulong BarrierFrame` + `float FixedDelta` layout is stable
+> across process restarts.  A schema version field is **not** required here because
+> `SwitchTimeModeEvent` is an internal ephemeral signal — not stored on disk — so layout
+> drift between live nodes is impossible in a correctly deployed cluster.
+
 **Architectural boundaries — who calls what:**
 
 | Layer | Component | Responsibility |
@@ -848,6 +1042,72 @@ public enum TimeMode : int
 | Proxy | `SwitchableTimeController` | Hold active strategy; `SwitchTo()` transfers state to new strategy |
 | Coordinator | `DistributedTimeCoordinator` (Master), `SlaveTimeModeListener` (Slave) | Compute barrier frame; publish / receive `SwitchTimeModeEvent`; call `SwitchTo()` at the right frame |
 | ESM / domain | `SystemMasterModule`, `SystemSlaveModule`, physics, AI | Completely unaware of time-mode switching; just read `GlobalTime.DeltaTime` |
+
+---
+
+### 5.7 Centralized Network Identity Authority (`DdsIdAllocatorServer`) {#57-centralized-network-identity-authority}
+
+**Why the Master owns the ID server:**  
+The `DdsIdAllocatorServer` is relocated from `SimHostSubsystem` into
+`SystemMasterModule`.  Hosting it on individual simulation nodes allows split-brain
+ID allocation if a node crashes or is replaced.  The Master is the sole state
+authority of the cluster — it is therefore the only logical place to host the
+identity authority.
+
+**Replay Collision Problem:**  
+When a user branches into a live session from a replay, or injects a Story into a
+replaying world, newly spawned entities receive fresh `NetworkIdentity` IDs.  If the
+allocator's counter has not advanced past the historical high-water mark of the
+recording, the new IDs will collide with entity IDs hard-coded inside the `.fdprec`
+file, causing catastrophic `NetworkEntityMap` key collisions.
+
+**Solution — Orchestrated High-Water Reset:**
+
+The reset is embedded in the 2PC `LoadingReplay` transaction:
+
+```
+Phase 1 — SCATTER (PrepareState, LoadingReplay):
+  Each SlaveModule opens the .fdprec companion .meta.json manifest.
+  The manifest exposes MaxNetworkId (persisted by AsyncRecorder during FinalizeRecordingAsync).
+  Slave replies: NodeOpStatus(Success, ResultJson={"MaxNetworkId": 145000})
+
+Phase 2 — GATHER (Master collects all ACKs):
+  Master parses ResultJson across all nodes → finds absolute max.
+  SafeStartId = max(AllMaxNetworkIds) + ReplayIdSafetyBuffer  // e.g. + 10 000
+
+Phase 3 — RESET & BROADCAST:
+  Master calls DdsIdAllocatorServer.Reset(SafeStartId) directly (in-process).
+  Server publishes IdResponse { Type = Resp_Reset, Start = SafeStartId } over DDS.
+  Every DdsIdAllocator client on every node receives this, flushes its
+  pre-allocated _availableIds queue, and re-fetches a fresh chunk starting at SafeStartId.
+
+Phase 4 — COMMIT → RunningReplay.
+```
+
+**Architectural rules:**
+- Slave nodes hold no `DdsIdAllocatorServer` instance — only `DdsIdAllocator` clients.
+- `RecordingMetadata` (written by `AsyncRecorder.FinalizeRecordingAsync`) **must**
+  include a `MaxNetworkId` field captured at the moment the live recording ends.
+- The safety buffer of 10 000 IDs protects against any entities allocated just before
+  `FinalizeLive` that were not flushed to the metadata yet.
+- During `OperationStep(ReplaySeek)` (§5.5) the ID allocator is **not** reset again —
+  the reset occurs once at `LoadingReplay` and persists for the entire replay session.
+
+**`RecordingMetadata` addition:**
+
+```csharp
+// In .meta.json schema — persisted by EcsRecordReplayController.FinalizeRecordingAsync
+public class RecordingMetadata
+{
+    public Guid   DrillId;
+    public long   StartWallTicks;
+    public long   EndWallTicks;
+    public int    MaxEntityId;          // existing
+    public long   MaxNetworkId;         // NEW — used for replay collision avoidance
+    public int    NodeId;
+    public string ComponentSchemaHash;  // existing — layout drift guard
+}
+```
 
 ---
 
@@ -1554,61 +1814,255 @@ sequenceDiagram
 
 ---
 
+### 8.12 "Always Recording" — Event Capture During Paused Simulation Time
+
+The `AsyncRecorder` does not go idle when simulation time is paused.
+**Absolute wall-clock (UTC) time continues even while sim-time is
+frozen**, so any state-changing event that occurs while the operator is editing the
+scenario or while a live exercise is paused must still be captured and timestamped.
+
+**What keeps accruing while sim-time is paused:**
+
+| Event category | Example | Storage |
+|----------------|---------|---------|
+| Operator tactical graphics | Operator draws a new threat axis on the map | Event delta frame, UTC timestamp |
+| Scenario entity edits | Entity placement, attribute change | Event delta frame, UTC timestamp |
+| UI-triggered state changes | Operator marks an objective complete | Event delta frame, UTC timestamp |
+| DDS messages (non-physics) | Formation command from IOS | Event delta frame, UTC timestamp |
+
+**Recording mechanics:**
+
+```
+AsyncRecorder.CaptureEventFrame(wallClockTicks, payload):
+  ├─ Appends a delta frame tagged FrameType = Event (not Physics/Keyframe)
+  ├─ Stores WallClockTicks from DateTime.UtcNow.Ticks (NOT GlobalTime.TotalWallTicks)
+  │    Reason: GlobalTime.TotalWallTicks is frozen while sim-time is paused.
+  │    UTC wall-clock guarantees monotonically increasing timestamps for events
+  │    that occur between physics ticks.
+  └─ Zero-allocation: payload is memcpy'd to the front-buffer ring;
+     LZ4 compression runs on BG worker thread, same as physics frames.
+```
+
+**Replay of event frames:**
+
+During replay, `PlaybackController.SeekToWallClockTicks()` treats Event frames the same as
+Physics frames when building the `_frameIndex` — they are ordered by their `WallClockTicks`
+field.  `StepForward()` applies them in chronological order.  Because event frames carry
+no physics delta (entities do not move), they are typically tiny; they are never skipped
+during Strategy B keyframe anchoring — the apply-delta loop after the keyframe blast
+handles them in the ≤ 59 frame window.
+
+**Impact on `RunningEdit` recording:**
+
+During `RunningEdit`, the simulation clock is always paused (`TimeScale = 0.0`).  The
+`AsyncRecorder` is *not* active in edit mode AT ALL - no recording during scenario editing takes place.
+
+> **Key invariant:** A recording interval always starts at `WallClockTicks ≥ 0` and is
+> always ordered by UTC wall-clock time, regardless of whether simulation time is running,
+> paused, or stepping deterministically.  Consumers of the playback file must never assume
+> a one-to-one mapping between simulation ticks and wall-clock time.
+
+---
+
 ## 9. Checkpoints & Dry Runs
 
-### 9.1 Checkpoint (Non-Blocking Snapshot Protocol)
+### 9.1 Checkpoint — Non-Blocking Snapshot with Deferred Acknowledgement
 
-A checkpoint is a full clone of the `EntityRepository` taken **without pausing the
-simulation**. The snapshot uses the same `EntityRepository.SyncFrom()` mechanism as
-`DoubleBufferProvider.Update()` — no new API is needed in the kernel.
+**Design rationale:**  
+A checkpoint is a non-mutating operation from the ESM perspective — taking five
+snapshots in a row while `RunningLive` does not alter the exercise state.  Two
+competing constraints must both be satisfied:
+
+1. **The 60 Hz hot-path must never block on disk I/O.**  LZ4 compression + SSD write
+   of a large `EntityRepository` takes 0.5–3 seconds; we cannot stall the main thread.
+2. **The `NodeOpStatus(Success)` ACK must not be sent before the bytes are physically
+   flushed to disk.**  Acknowledging before the write completes gives a false sense
+   of data safety and violates the ACID contract of the 2PC transaction.
+
+The solution is to split the operation across three execution boundaries:
+- **Immediate `InProgress` ACK** on command receipt (satisfies Master watchdog)
+- **~2 ms synchronous RAM clone** on the main thread at the next `BeforeSync` phase
+- **Deferred `Success` / `Failure` ACK** emitted only when the background I/O thread
+  finishes writing — monitored via the `SystemSlaveModule.Tick()` loop
+
+**Concurrent checkpoint support:**  
+Because `TakeCheckpoint` does not mutate the ESM, the `SystemMasterModule` does not
+lock the ESM for each request.  The IOS may fire successive checkpoint requests freely;
+the Master spawns a separate `DistributedTransaction` per request (tracked in
+`Dictionary<Guid, DistributedTransaction>`).  Each transaction proceeds independently
+through the pipeline.  ACKs arrive asynchronously, staggered by background I/O
+completion order.
+
+**`CheckpointIOWorker` — Serialized I/O Queue:**  
+Multiple overlapping checkpoint requests may arrive before earlier disk writes finish.
+To prevent CPU-cache thrashing and disk contention, a single background worker thread
+drains a `ConcurrentQueue<(EntityRepository, Guid)>` one item at a time.  This
+guarantees sequential, predictable I/O load regardless of how quickly the operator
+fires new requests.
 
 ```
-┌─ NON-BLOCKING SNAPSHOT PROTOCOL ─────────────────────────────────────────────┐
-│                                                                               │
-│  1. Orchestrator sends NodeOpCommand(TakeSnapshot, CheckpointId)             │
-│                                                                               │
-│  2. MAIN THREAD (BeforeSync) — immediately on receipt:                       │
-│     ├─ var snap = new EntityRepository(liveRepo.Schema)                      │
-│     ├─ snap.SyncFrom(liveRepo)     // unmanaged: NativeChunkTable memcpy     │
-│     │                              // managed:   FdpAutoSerializer.DeepClone │
-│     │                              // Takes ~2ms; simulation keeps running  │
-│     └─ reply NodeOpStatus(Success)                                           │
-│                                                                               │
-│  3. BACKGROUND THREAD starts watching DDS ingress for ~50 ms                 │
-│     ├─ Captures any in-flight DDS messages that had not yet been applied     │
-│     │  to the ECS at snapshot time                                           │
-│     └─ Writes: /archives/{DrillId}/checkpoints/{CheckpointId}_node{N}.dds   │
-│                                                                               │
-│  4. BACKGROUND THREAD serialises + LZ4-compresses snap                       │
-│     └─ Writes: /archives/{DrillId}/checkpoints/{CheckpointId}_node{N}.fdp   │
-│                                                                               │
-│  RESTORE:                                                                    │
-│  1. Load .fdp → PlaybackSystem.ApplyFrame() → repo (ECS snapshot)           │
-│  2. Load .dds supplement → replay captured DDS messages into repo            │
-│  3. Result: causally-consistent state without any pause                      │
-│                                                                               │
-└───────────────────────────────────────────────────────────────────────────────┘
+┌─ CHECKPOINT PROTOCOL ──────────────────────────────────────────────────────────┐
+│                                                                                  │
+│  MASTER: Receives SysOpRequest(TakeCheckpoint, Req_A)                           │
+│  ├─ Validates ESMState == RunningLive                                            │
+│  ├─ Spawns DistributedTransaction(Req_A)       ← non-exclusive, concurrent       │
+│  └─ Broadcasts NodeOpCommand(TakeSnapshot, Req_A) to all slaves                 │
+│                                                                                  │
+│  SLAVE — NETWORK THREAD (on command receipt):                                   │
+│  ├─ Publishes NodeOpStatus(InProgress, Req_A)   ← immediate, satisfies watchdog │
+│  └─ Queues PendingMainThreadAction(TakeSnapshot, Req_A) for next BeforeSync     │
+│                                                                                  │
+│  SLAVE — MAIN THREAD (next BeforeSync tick):                                    │
+│  ├─ snap = new EntityRepository(liveRepo.Schema)                                │
+│  ├─ snap.SyncFrom(liveRepo)   // ~2ms unmanaged NativeChunkTable memcpy         │
+│  │                            // managed components deep-cloned via AutoSerializer│
+│  ├─ ECS main thread immediately resumes — 60 Hz is never blocked                │
+│  └─ Enqueues (snap, Req_A) into CheckpointIOWorker ConcurrentQueue             │
+│                                                                                  │
+│  SLAVE — CheckpointIOWorker THREAD (serialized, one item at a time):            │
+│  ├─ Pops (snap, Req_A) from queue                                                │
+│  ├─ Captures in-flight DDS ingress for ~50ms → checkpoint_A_nodeN.dds          │
+│  ├─ LZ4-compresses snap → checkpoint_A_nodeN.fdp                               │
+│  └─ On success → sets CompletionResult[Req_A] = Success                         │
+│     On IOException → sets CompletionResult[Req_A] = Failure                    │
+│                                                                                  │
+│  SLAVE — Tick() MONITOR LOOP (main thread, every frame):                        │
+│  ├─ Checks CompletionResult for any pending transaction IDs                     │
+│  └─ When found → publishes NodeOpStatus(Success/Failure, Req_A)                 │
+│                  DEFERRED — only after actual disk flush                         │
+│                                                                                  │
+│  MASTER — on all nodes ACK Success:                                             │
+│  └─ Closes DistributedTransaction(Req_A), sends SysOpStatus(Success) to IOS    │
+│                                                                                  │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-> **Backing implementation:** `EntityRepository.SyncFrom()` in `EntityRepository.Sync.cs`
-> already handles unmanaged component tables (fast `NativeChunkTable` memcpy) and
-> managed tables (deep clone via `FdpAutoSerializer.DeepClone()` when
-> `ComponentTypeRegistry.NeedsClone(typeId)` is true). This is identical to what
-> `DoubleBufferProvider.Update()` does; no new snapshot API is needed.
+**Sequence diagram — overlapping concurrent checkpoint requests:**
 
-### 9.2 Dry Run vs Named Checkpoint
+The diagram illustrates the key ordering requirement: `Req_B` arrives *after* the RAM
+clone for `Req_A` has already been taken so that the two snapshots capture distinct
+simulation states (not duplicates):
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    box "Client Layer"
+        participant IOS
+    end
+    box "Control Plane"
+        participant Master as SystemMasterModule
+    end
+    box "Data Plane"
+        participant Slave as SystemSlaveModule
+        participant ECS as CheckpointEsmHandler (Main Thread)
+        participant Worker as CheckpointIOWorker (Background)
+    end
+
+    Note over IOS, Worker: 1. User requests first checkpoint
+    IOS->>Master: SysOpRequest(TakeCheckpoint, Req_A)
+    Note over Master: Spawns DistributedTransaction A (non-exclusive)
+    Master->>Slave: NodeOpCommand(TakeSnapshot, Req_A)
+
+    Slave-->>Master: NodeOpStatus(InProgress, Req_A)
+
+    Note over ECS: Frame 1000 — BeforeSync
+    ECS->>ECS: destRepoA.SyncFrom(liveRepo)  [~2ms]
+    ECS->>Worker: Enqueue(destRepoA, Req_A)
+    Note over ECS: Main thread resumes 60 Hz immediately
+
+    Note over Worker: Worker pops Req_A, begins LZ4 + SSD write...
+
+    Note over IOS, ECS: 2. Simulation ticks forward ~2 s; state changes materially
+    IOS->>Master: SysOpRequest(TakeCheckpoint, Req_B)
+    Note over Master: Spawns DistributedTransaction B (concurrent with A)
+    Master->>Slave: NodeOpCommand(TakeSnapshot, Req_B)
+
+    Slave-->>Master: NodeOpStatus(InProgress, Req_B)
+
+    Note over ECS: Frame 1120 — BeforeSync
+    ECS->>ECS: destRepoB.SyncFrom(liveRepo)  [captures NEW distinct state]
+    ECS->>Worker: Enqueue(destRepoB, Req_B)
+    Note over ECS: Main thread continues...
+
+    Note over Worker: Finishes writing checkpoint_A.fdp to SSD
+    Worker-->>Slave: CompletionResult[Req_A] = Success
+
+    Note over Slave: Tick() monitor detects Req_A done
+    Slave-->>Master: NodeOpStatus(Success, Req_A)   ← DEFERRED — after actual flush
+    Note over Master: Commits DistributedTransaction A
+    Master-->>IOS: SysOpStatus(Success, Req_A)
+
+    Note over Worker: Worker pops Req_B, begins LZ4 + SSD write...
+    Worker-->>Slave: CompletionResult[Req_B] = Success
+
+    Note over Slave: Tick() monitor detects Req_B done
+    Slave-->>Master: NodeOpStatus(Success, Req_B)
+    Note over Master: Commits DistributedTransaction B
+    Master-->>IOS: SysOpStatus(Success, Req_B)
+```
+
+**Teardown Barrier (graceful `UnloadingLive`):**  
+The `CheckpointIOWorker` may still be draining its queue when the operator ends the
+exercise.  The `LiveLoadEsmHandler` must not destroy the `EntityRepository` or close
+`AsyncRecorder` handles until the queue is empty:
+
+```
+Slave receives NodeOpCommand(FinalizeLive):
+  ├─ Publishes NodeOpStatus(InProgress, "Flushing checkpoints to disk…")
+  ├─ Awaits CheckpointIOWorker.DrainAsync()
+  │    (each pending snapshot in the queue writes to disk; no new items arrive
+  │     because the Master has held the ESM at UnloadingLive — no new TakeSnapshot
+  │     commands can be issued once FinalizeLive is in flight)
+  ├─ Once queue empty → FinalizeRecordingAsync() — flush AsyncRecorder
+  └─ Publishes NodeOpStatus(Success)
+```
+
+### 9.2 Storage Gateway Integration (Collecting Checkpoints)
+
+Checkpoint files on local node SSDs are made durable via an explicit
+`SysOpRequest(CollectCheckpoint, CheckpointId)`.  This uses the **Storage Gateway
+Pattern** (see §13.1) — the Master requests each node's UNC manifest, and the Gateway
+pulls the files to the central NAS using a single outbound SMB connection, avoiding
+OS-imposed inbound SMB connection limits.
+
+### 9.3 Dry Run vs Named Checkpoint
 
 | Feature | Dry Run Checkpoint | Named Checkpoint |
 |---------|-------------------|------------------|
-| Trigger | `LoadingDryRun` transition | Explicit `SysOpRequest(TakeCheckpoint)` |
+| Trigger | `LoadingDryRun` transition | `SysOpRequest(TakeCheckpoint)` |
 | Storage | RAM only (`EntityRepository` in memory) | RAM + async disk (.fdp + .dds supplement) |
-| Restore | Auto on `UnloadingDryRun` | Manual via IOS |
+| Restore | Automatic on `UnloadingDryRun` | Manual via `SysOpRequest(RestoreCheckpoint)` |
 | DrillId context | In-progress edit session | Linked to current DrillId |
-| Purpose | Quick scenario preview | Bug capture, session recovery |
+| Purpose | Quick scenario preview / rapid prototyping | Bug capture, branch point, session recovery |
+| Concurrent | No (edit mode, single session) | Yes (IOS can fire in quick succession) |
+| ACK timing | Synchronous (RAM only, no disk) | Deferred until local SSD write complete |
+
+> **Dry Run mechanics:** On `LoadingDryRun` the slave calls `snap.SyncFrom(liveRepo)`
+> (same path as named checkpoints) but retains the snapshot purely in RAM.  The
+> simulation is unpaused → `RunningDryRun`.  On `UnloadingDryRun` the slave calls
+> `liveRepo.SyncFrom(snap)` to blast the backup back into the live repository, exactly
+> rewinding the world to the pre-dry-run state.  RAM is freed after the restore.
 
 ---
 
 ## 10. Stories — Multi-Tenant Micro-Scenarios
+
+### 10.0 Concept & Definition
+
+A **Story** is a highly isolated, localized micro-scenario that executes concurrently
+while the global ESM remains in the `RunningLive` state.  This architecture allows
+multiple trainees to execute independent sub-exercises in non-overlapping battlespaces
+without incurring the massive latency of tearing down and re-initializing the global
+simulation.  Stories are **ephemeral**: their recordings are saved to fast local disk,
+replayed for immediate trainee feedback, and then explicitly deleted (`ForgetStory`).
+
+**Key architectural properties:**
+- Multiple stories can run simultaneously in the same ECS world with full isolation.
+- The global simulation clock is never paused for story management; only the story's
+  specific entities can be "frozen" by stripping actor capability flags.
+- Replayed story entities appear as **holograms** (tagged `StoryReplayTag`) alongside
+  live actors; AI/physics systems skip them entirely.
 
 ### 10.1 ECS Components (NEW — FDP.Toolkit)
 
@@ -1628,6 +2082,20 @@ public struct StoryReplayTag
     public int  OriginalEntityId;   // For debug/inspection
 }
 ```
+
+**Isolation rules:**
+- Every entity spawned for a specific story receives `StoryTag { StoryId = storyGuid }`.
+- **Inheritance:** Systems that spawn child entities (e.g. a soldier firing a bullet)
+  **must** propagate the parent's `StoryTag` to the child.  Failing to do so creates
+  "orphan" entities that bleed into the global recorder.
+- **Event isolation:** Transient combat events (`FireInteractionEvent`, `HitEvent`,
+  formation commands, etc.) are augmented with the `StoryId` at their origin site.
+  Evaluator and scoring modules validate this ID, safely ignoring events that belong to
+  other concurrent stories, preventing cross-story scoring contamination.
+- **Simulated pauses:** If an instructor pauses a story while the global clock continues,
+  the orchestrator strips `ActorCapabilities.CanMove` and `CanShoot` from the story's
+  entities.  The `StoryRecorder` continues logging the frozen state with advancing UTC
+  timestamps for the duration of the pause.
 
 ### 10.2 Architecture
 
@@ -1689,26 +2157,196 @@ AI/Physics systems: skip any entity with StoryReplayTag
 
 ### 10.5 ComponentPatchMap (Entity Reference Patching)
 
+The `ComponentPatchMap` makes Story replay viable in an unmanaged ECS memory layout
+without any heap allocation on the hot path.  It uses a two-phase approach: **startup-time
+reflection** to cache byte offsets, and a **zero-allocation raw-byte patching loop** at
+replay time.
+
+#### 10.5.1 Startup: Byte-Offset Caching (Unmanaged Structs)
+
 ```csharp
-// Populated at startup by ComponentTypeRegistry.Register<T>()
-class ComponentPatchMap
+// Location: FDP/Kernel/Fdp.Kernel/Orchestration/ComponentPatchMap.cs  (new)
+
+/// <summary>
+/// Immutable map of byte offsets at which Entity-typed fields reside inside
+/// a specific unmanaged component struct.  Built once at startup via
+/// reflection; never allocated again on the hot path.
+/// </summary>
+public sealed class ComponentPatchMap
 {
-    public int    ComponentTypeId;
-    public int[]  EntityFieldByteOffsets; // byte offsets of Entity fields within struct
+    public int   ComponentTypeId;
+
+    /// <summary>
+    /// Byte offsets of every Entity (int) field within the raw struct layout.
+    /// Populated from Marshal.OffsetOf() at component registration time.
+    /// Includes offsets for NetworkIdentity fields (also int entity handles)
+    /// that cross-reference other entities.
+    /// </summary>
+    public int[] EntityFieldByteOffsets;  // never null; empty if no Entity fields
 }
 
-// Registry scans struct fields using runtime reflection + Marshal.OffsetOf()
-// at component registration time (startup only — no source generator needed).
-//
-// For MANAGED (class) ECS components: if the managed type contains Entity-typed
-// fields, it must implement IEntityRefPatchable; otherwise registration throws
-// NotSupportedException to catch incompatible types early.
-//
-// Example (unmanaged struct):
-//   typeof(MissileComponent).GetFields()
-//     .Where(f => f.FieldType == typeof(Entity))
-//     .Select(f => (int)Marshal.OffsetOf<MissileComponent>(f.Name))
+// ─── Population in ComponentTypeRegistry (startup only) ──────────────────────
+
+private static ComponentPatchMap BuildPatchMap<T>(int typeId) where T : unmanaged
+{
+    var offsets = typeof(T)
+        .GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+        .Where(f => f.FieldType == typeof(Entity) || f.FieldType == typeof(NetworkIdentity))
+        .Select(f => (int)Marshal.OffsetOf<T>(f.Name))
+        .ToArray();
+
+    return new ComponentPatchMap { ComponentTypeId = typeId,
+                                   EntityFieldByteOffsets = offsets };
+}
+// Called once per component type during app startup.  Zero cost at runtime.
 ```
+
+#### 10.5.2 Hot Path: Zero-Allocation Raw Byte Patching Loop
+
+When `StoryPlaybackController` allocates a Ghost entity and copies a component from the
+recorded buffer, it calls `PatchEntityRefs()` before writing the component into the live
+`NativeChunkTable`.  The method iterates only the pre-computed byte-offset array; no
+reflection, no boxing, no LINQ:
+
+```csharp
+// Called for every component on every replayed entity — must be zero-allocation.
+public static unsafe void PatchEntityRefs(
+    byte*            componentDataPtr,   // raw pointer to the component bytes being written
+    ComponentPatchMap map,
+    NativeHashMap<int, int> oldToNewId)  // recorded entity ID → new Ghost entity ID
+{
+    foreach (int offset in map.EntityFieldByteOffsets)
+    {
+        int* fieldPtr = (int*)(componentDataPtr + offset);
+        int  oldId    = *fieldPtr;
+
+        // Only patch if the referenced entity was part of the same Story recording.
+        // Cross-story or global-entity references are left intact.
+        if (oldToNewId.TryGetValue(oldId, out int newId))
+            *fieldPtr = newId;
+    }
+}
+// NativeHashMap<int,int> is a Burst-compatible, unmanaged structure —
+// zero GC pressure.  The map is built once per PlaybackController.Open() call.
+```
+
+`SetComponentRaw(ghostEntityId, typeId, componentDataPtr, sizeInBytes)` is then called on
+the patched bytes.  The `NativeChunkTable` copy happens from already-patched memory, so
+there is never a post-write fixup pass.
+
+#### 10.5.3 `IEntityRefPatchable` — Complex Unmanaged and Managed Components
+
+The automated byte-offset scanner (§10.5.1) has two critical blind spots:
+
+1. **Unmanaged structs with inline arrays or logical counts** — `FormationRoster` uses
+   a `fixed long MemberEntities[3]` buffer reinterpreted as `Entity` via unsafe casting.
+   Reflection looking for `typeof(Entity)` fields will **completely miss** this `long[]`.
+   Even if the scanner could find them, blindly patching all capacity slots would mutate
+   uninitialised (garbage) memory beyond the logical `Count` boundary.  C# 12
+   `[InlineArray]` hides its elements behind a single compiler-generated `_element`
+   backing field — equally invisible to standard reflection.
+
+2. **Managed (class) ECS components** — fields of type `List<Entity>` or other managed
+   reference containers cannot be addressed as raw byte offsets.
+
+For both categories, the component must implement `IEntityRefPatchable`.  This delegates
+the patching responsibility to the component itself, which understands exactly how many
+real elements are present and how the memory is structured.
+
+**The Interface:**
+
+```csharp
+// Location: FDP/Kernel/Fdp.Kernel/Orchestration/IEntityRefPatchable.cs  (new)
+
+/// <summary>
+/// Implemented by ECS components that contain Entity-typed fields which cannot
+/// be discovered or safely patched by the automated byte-offset scanner.
+/// Required for:
+///  - Unmanaged structs with fixed buffers / [InlineArray] fields holding entity IDs.
+///  - Unmanaged structs where the logical element count is less than physical capacity.
+///  - Managed (class) components with Entity fields in managed object graphs.
+/// </summary>
+public interface IEntityRefPatchable
+{
+    /// <summary>
+    /// Replace all internal entity ID references using the provided remap table.
+    /// Only iterate up to the logical Count — never patch dead/uninitialised capacity slots.
+    /// </summary>
+    void PatchEntityRefs(ref EntityRemapTable remapTable);
+}
+```
+
+**Zero-Allocation Dispatch (avoiding boxing):**  
+Calling `((IEntityRefPatchable)unmanagedStruct).PatchEntityRefs(...)` would box the
+struct, allocating on the heap.  To bypass this, `ComponentTypeRegistry` compiles a
+strongly-typed generic delegate at startup using the same JIT expression-tree pattern
+as `FdpAutoSerializer` and `UnsafeShim`:
+
+```csharp
+// Internal generic delegate cached per component type in ComponentTypeRegistry
+private delegate void PatchDelegate<T>(ref T component, ref EntityRemapTable map);
+// Compiled once via Expression.Lambda at startup — zero cost at runtime.
+```
+
+**Unmanaged struct example (`FormationRoster`):**
+
+```csharp
+[StructLayout(LayoutKind.Sequential)]
+[ComponentId(GlobalComponentIds.FormationRoster)]
+public unsafe struct FormationRoster : IEntityRefPatchable
+{
+    public int           Count;         // logical member count
+    public int           TemplateId;
+    public FormationType Type;
+    public FormationParams Params;
+
+    public fixed long  MemberEntities[3];  // reinterpreted as Entity (obfuscated fixed buffer)
+    public fixed ushort SlotIndices[3];
+
+    public void PatchEntityRefs(ref EntityRemapTable remapTable)
+    {
+        // Iterate only up to logical Count — never touch uninitialised capacity slots
+        for (int i = 0; i < Count; i++)
+        {
+            Entity oldEntity = this.GetMember(i);
+            if (remapTable.TryRemap(oldEntity, out Entity newEntity))
+                this.SetMember(i, newEntity);
+        }
+    }
+}
+```
+
+**Managed component example (`MissileAIState`):**
+
+```csharp
+public class MissileAIState : EcsComponent, IEntityRefPatchable
+{
+    public int    TargetEntityId;
+    public Entity[] CollidedWith;
+
+    public void PatchEntityRefs(ref EntityRemapTable remapTable)
+    {
+        if (remapTable.TryRemap(TargetEntityId, out int newTarget))
+            TargetEntityId = newTarget;
+        for (int i = 0; i < CollidedWith.Length; i++)
+            if (remapTable.TryRemap(CollidedWith[i].Id, out int newId))
+                CollidedWith[i] = new Entity(newId);
+    }
+}
+```
+
+**Registration Enforcement:**  
+When `ComponentTypeRegistry.Register<T>()` encounters a type:
+- Managed type with `Entity`/`NetworkIdentity` fields but **without** `IEntityRefPatchable`
+  → throws `NotSupportedException` at startup.
+- Unmanaged type where the scanner finds offsets → automated path (§10.5.2).
+- Either type with both offsets and `IEntityRefPatchable` → interface wins; byte-offset
+  scanner result is discarded for that type.
+
+`StoryPlaybackController` dispatches on component kind per entity per replayed frame:
+- Flat unmanaged, no `IEntityRefPatchable` → `PatchEntityRefs(byte*, map, oldToNewId)` (§10.5.2)
+- Implements `IEntityRefPatchable` (managed or complex unmanaged) → compiled `PatchDelegate<T>` (this section)
+- Managed without Entity fields → skip
 
 ### 10.6 Story Lifecycle Sequence
 
@@ -1792,63 +2430,241 @@ public struct BattlespaceSpec
 
 ---
 
-## 12. Archive Export / Import
+## 12. Scenario Editing & Management
 
-### 12.1 Token-Bucket Upload
+### 12.1 ESM Integration
 
-To prevent 50+ nodes saturating the network simultaneously:
+Scenario editing is a **distributed, collaborative** session governed by the ESM.
+The cluster transitions into `LoadingEdit` to load static assets (base terrain,
+boundaries) and into `RunningEdit` where **global simulation time is completely frozen
+(`TimeScale = 0.0`)**.  AI behaviour trees and kinematic state machines do not tick;
+only the `NetworkSpawningSystem` remains active to replicate entity placements across
+the cluster via DDS.
 
-```
-Master Queue: [Node-100, Node-200, Node-300, ..., Node-N]
-Token Budget: N_concurrent = config.ArchiveUploadConcurrency (default: 3)
+### 12.2 Forward-Compatible JSON Serialization
 
-while (Queue not empty && ActiveUploads < N_concurrent):
-    node = Queue.Dequeue()
-    send NodeOpCommand(UploadChunk, { destination, drillId })
-    ActiveUploads++
+Scenario persistence uses a different strategy from binary RAM snapshots:
 
-on NodeOpStatus(node, Success):
-    ActiveUploads--
-    continue above loop
+| Mechanism | Use Case | Format |
+|-----------|----------|--------|
+| `EntityRepository.SyncFrom()` | Dry Run / Checkpoint | Binary unmanaged dump — fast but not portable |
+| Scenario save | Long-term named scenarios | **JSON** with versioned schema — backwards/forwards compatible |
 
-on NodeOpStatus(node, Failure/Timeout):
-    log partial failure for node
-    ActiveUploads--
-    continue — don't halt entire export for one bad node
-```
+Nodes serialize only non-default entity overrides and domain-specific schematic
+instructions needed to reconstruct the world (e.g. entity placement, attributes,
+formation configurations) — not the full raw ECS chunk table.
 
-### 12.2 Recording Folder Structure
+### 12.3 Scenario Creation vs Loading via `SysOpRequest` Payload
 
-```
-/archives/
-└── {DrillId}/
-    ├── node_100_SimHost.fdp
-    ├── node_100_SimHost.fdp.meta.json
-    ├── node_200_IG.fdp
-    ├── node_200_IG.fdp.meta.json
-    ├── checkpoints/
-    │   ├── {CheckpointId}_node_100.fdp
-    │   └── {CheckpointId}_node_200.fdp
-    └── drill_manifest.json       ← DrillId, timestamp, node list, ESM log
-```
+Both creating a new scenario and editing an existing one share a single unified ESM
+transition request.  The orchestrator stays **agnostic** to the content distinction;
+differentiation happens entirely inside `PayloadJson`.
 
-### 12.3 Import Payload
+**Case A — Create New Scenario:**
 
 ```json
-// SysOpRequest.PayloadJson for ImportArchive
 {
-  "DrillId": "...",
-  "SourcePath": "\\\\nas\\cold-storage\\...",
-  "NodeMapping": {
-    "node_100_SimHost.fdp": 100,
-    "node_200_IG.fdp": 200
+  "TargetState": "LoadingEdit",
+  "ScenarioId": null,
+  "IsNewScenario": true,
+  "BaseTerrain": "Desert_01",
+  "Battlespaces": [
+    { "Id": "Zone_A", "Bounds": [ ... ] }
+  ]
+}
+```
+
+**Case B — Edit Existing Scenario (with optional overrides):**
+
+```json
+{
+  "TargetState": "LoadingEdit",
+  "ScenarioId": "Scenario_Alpha",
+  "IsNewScenario": false,
+  "Overrides": {
+    "Weather": "HeavyRain",
+    "TimeOfDay": "0400Z"
   }
 }
 ```
 
+**Processing separation of concerns:**
+- `SystemMasterModule` routes the payload opaquely — validates the ESM transition and
+  threads `PayloadJson` into every `NodeOpCommand` without inspecting its contents.
+- `TransitionPlanner` checks if `ScenarioId` is present: if yes, it triggers the
+  **Storage Gateway pre-fetch** before entering `LoadingEdit` (see §12.5); if
+  `IsNewScenario = true`, the pre-fetch step is skipped entirely.
+- `EditLoadEsmHandler` on each leaf node deserializes the JSON and either bootstraps
+  a blank world from `BaseTerrain` or loads the pre-fetched files and applies `Overrides`.
+
+> **Open/Closed:** Adding a new dynamic override (e.g. `"CyberJammingLevel"`) requires
+> no changes to the DDS schema, `SystemMasterModule`, or `TransitionPlanner` — only the
+> relevant domain handler needs updating.
+
+### 12.4 `SaveScenario` — SMB Pull Gateway (Scatter, Manifest, Pull)
+
+**Problem:** If 50+ nodes simultaneously write scenario files to a central Windows NAS,
+the OS-imposed inbound SMB connection limit (~20 on client SKUs) causes cascading
+connection failures.  The platform uses the **SMB Pull Gateway Pattern** to eliminate
+this: a single `StorageGatewayModule` (co-located with the Master) pulls data from
+leaf nodes using strictly *outbound* connections.
+
+**Phase 1 — Local Serialization (Scatter):**
+- IOS fires `SysOpRequest(SaveScenario, "Scenario_Alpha")`
+- Master broadcasts `NodeOpCommand(SerializeLocal, "Scenario_Alpha")`
+- Nodes independently serialize to fast local SSD: `C:\FDP_Temp\Scenario_Alpha\`
+
+**Phase 2 — Opaque UNC Manifest (Gather):**  
+Each node embeds its file locations in the `NodeOpStatus(Success)` payload:
+
+```json
+{
+  "Manifest": [
+    {
+      "SourceUnc": "\\\\Node_100\\FDP_Temp\\Scenario_Alpha\\map_data.json",
+      "RelativeDest": "Node_100/map_data.json"
+    }
+  ]
+}
+```
+The Master treats these as **opaque byte streams** — it has zero knowledge of the
+JSON format inside.
+
+**Phase 3 — Gateway Pull:**  
+The `StorageGatewayModule` opens one outbound connection to the NAS
+(`\\Central_NAS\Scenarios\Scenario_Alpha\`) and *outbound* reads from each leaf node
+under a controlled `Parallel.ForEach(MaxDegreeOfParallelism = 8)`.  The NAS sees
+exactly **1 inbound connection**.
+
+**Phase 4 — Cleanup & Commit:**  
+Master broadcasts `NodeOpCommand(CleanupTempFiles)`.  Sends `SysOpStatus(Success)` to IOS.
+
+### 12.5 `LoadScenario` — Storage Gateway Pre-Fetch
+
+Nodes must never stream scenario files from a remote NAS during the 60 Hz ECS tick.
+A pre-fetch barrier decouples the file transfer from scenario parsing:
+
+**Phase 1 — Pre-Fetch Barrier:**  
+`TransitionPlanner` detects a non-null `ScenarioId`.  Before entering `LoadingEdit`,
+it commands the `StorageGatewayModule` to distribute files.
+
+**Phase 2 — Gateway Push:**  
+The Gateway reads the required scenario files from the NAS using its single outbound
+connection, then pushes them into each leaf node's `C:\FDP_Temp\` via parallel outbound
+SMB writes.  Master publishes `SysOpStatus(InProgress, "Pre-fetching scenario…")`.
+
+**Phase 3 — Local Execution (ESM Transition):**  
+Only after all pre-fetch acks are received does the Master broadcast
+`NodeOpCommand(PrepareState, LoadingEdit)`.  Nodes parse the local files without any
+network I/O — the ECS main loop is never blocked.
+
+### 12.6 `StorageGatewayModule`
+
+Single component co-located with `SystemMasterModule` that owns all bulk file
+movement for Scenarios, Checkpoints, and Archive Export/Import:
+
+```
+StorageGatewayModule responsibilities:
+  ├─ Receives a manifest list from the Master after all node ACKs
+  ├─ Opens exactly ONE outbound SMB connection to the central NAS
+  ├─ Performs parallel outbound reads from source UNCs (leaf nodes) up to
+  │  MaxDegreeOfParallelism to saturate bandwidth without triggering inbound limits
+  ├─ Streams bytes into the single NAS connection, routed by RelativeDest path
+  └─ Reports completion back to SystemMasterModule
+```
+
+**Why not DDS for file streaming?** DDS (CycloneDDS) is optimised for state
+and real-time events — piping gigabytes of opaque file bytes through it pollutes the
+real-time data plane with bulk transfers.  Standard SMB on a local switch easily
+delivers 1+ Gbps without DDS queue back-pressure or fragmentation overhead.
+
 ---
 
-## 13. Deterministic Batch Runs
+## 13. Archive Export / Import — Storage Gateway Pattern
+
+**Problem context:**  
+Moving exercise recordings (`.fdprec` files, `.meta.json` manifests) to cold storage
+presents the same "Thundering Herd" hazard as Scenario management.  The superseded
+Token-Bucket Upload approach was insufficient: even with serialized tokens, individual
+SMB connections linger in TCP `TIME_WAIT` state after closure, causing the NAS's
+*inbound* connection limit to be exhausted over successive exercises.  The Storage
+Gateway Pattern (§12.6) unifies all bulk file operations under a single component.
+
+### 13.1 Archive Export (Gathering to Cold Storage)
+
+**Phase 1 — Local Finalization (Scatter):**  
+IOS requests archive export.  Master broadcasts `NodeOpCommand(ExportArchive, DrillId)`.
+Each `SystemSlaveModule` commands its `AsyncRecorder` to flush buffers, close file
+handles, and write the `.meta.json` manifest to local SSD.
+
+**Phase 2 — Opaque UNC Manifest (Gather):**  
+Each node replies `NodeOpStatus(Success)` with its manifest embedded in `ResultJson`:
+```json
+{
+  "Manifest": [
+    {
+      "SourceUnc": "\\\\Node_100\\FDP_Temp\\Drill_999\\node_100.fdprec",
+      "RelativeDest": "Drill_999/node_100.fdprec"
+    },
+    {
+      "SourceUnc": "\\\\Node_100\\FDP_Temp\\Drill_999\\node_100.meta.json",
+      "RelativeDest": "Drill_999/node_100.meta.json"
+    }
+  ]
+}
+```
+
+**Phase 3 — Gateway Pull:**  
+Master passes all manifests to `StorageGatewayModule`.  Gateway opens one outbound
+connection to `\\Central_NAS\Archives\` and pulls files in parallel from leaf node
+UNCs.  The NAS sees exactly 1 inbound connection.
+
+**Phase 4 — Commit & Cleanup:**  
+Gateway confirms all bytes written.  Master sends `NodeOpCommand(CleanupTempFiles)`,
+then `SysOpStatus(Success)` to IOS.
+
+### 13.2 Archive Import / Restore (Pre-Fetching for Replay)
+
+**Phase 1 — Pre-Fetch Barrier:**  
+IOS requests `LoadingReplay` for a specific `DrillId`.  `TransitionPlanner` intercepts
+before the ESM enters `LoadingReplay` and commands the `StorageGatewayModule` to
+distribute the archive.
+
+**Phase 2 — Gateway Push:**  
+Gateway reads `.fdprec` and `.meta.json` for the DrillId from the NAS and pushes them
+to each respective node's `C:\FDP_Temp\` directory via parallel outbound SMB.  Master
+publishes `SysOpStatus(InProgress, "Pre-fetching recording…")`.
+
+**Phase 3 — Local Initialization:**  
+Only after all pre-fetch acks are received does the Master broadcast
+`NodeOpCommand(PrepareState, LoadingReplay)`.  `ReplayLoadEsmHandler` on each node
+opens `PlaybackController` against the local file.  `SchemaValidator` runs against
+`.meta.json` to guard against ECS struct layout drift.
+
+**Phase 4 — Commit → `RunningReplay`.**
+
+Additionally the Gateway injects the `MaxNetworkId` metadata into the 2PC ACK payload
+during `LoadingReplay` so the Master can reset the `DdsIdAllocatorServer` (§5.7).
+
+### 13.3 Recording Folder Structure
+
+```
+/archives/
+└── {DrillId}/
+    ├── node_100_SimHost.fdprec
+    ├── node_100_SimHost.meta.json
+    ├── node_200_IG.fdprec
+    ├── node_200_IG.meta.json
+    ├── checkpoints/
+    │   ├── {CheckpointId}_node_100.fdp
+    │   ├── {CheckpointId}_node_100.dds          ← in-flight DDS supplement
+    │   └── {CheckpointId}_node_200.fdp
+    └── drill_manifest.json     ← DrillId, timestamps, node list, ESM lifecycle log
+```
+
+---
+
+## 14. Deterministic Batch Runs
 
 Existing infrastructure (`SteppedMasterController`, `SteppedSlaveController`,
 `FrameOrderDescriptor`, `FrameAckDescriptor`) supports this.
@@ -1882,7 +2698,7 @@ SysOp Intercept (Control Plane Superiority):
 
 ---
 
-## 14. Key 12-Step Exercise Sequence Flow
+## 15. Key 12-Step Exercise Sequence Flow
 
 Below is the full IOS → Master → Slaves sequence for the canonical exercise scenario
 described in the design talk.
@@ -1982,100 +2798,113 @@ sequenceDiagram
 
 ---
 
-## 15. Required Code Changes Summary
+## 16. Required Code Changes Summary
 
-### 15.1 New Files
+### 16.1 New Files
 
 | File | Project | Description |
 |------|---------|-------------|
 | `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs` | `Bagira.DDS.DataModel` | All new DDS topics from §2 (incl. `OrchestratorContextTopic`) |
-| `Bagira.Orchestrator/SystemMasterModule.cs` | `Bagira.Orchestrator` (new project) | Master orchestrator — runs as separate process via `Bagira.Runner` |
-| `Bagira.Orchestrator/TransitionPlanner.cs` | `Bagira.Orchestrator` | Resolves any `TargetState` into a `Queue<ESMState>` via directed ESM graph search (§5.5) |
+| `Bagira.Orchestrator/SystemMasterModule.cs` | `Bagira.Orchestrator` (new project) | Master orchestrator — runs as separate process via `Bagira.Runner`; hosts `DdsIdAllocatorServer` (§5.7) |
+| `Bagira.Orchestrator/TransitionPlanner.cs` | `Bagira.Orchestrator` | BFS-based directed ESM graph (§5.5.2); resolves any target state into `Queue<ISysOpStep>`; appends `OperationStep` entries when hint payload present; pre-fetch barrier injection for Scenario/Archive loads (§12.5, §13.2) |
+| `Bagira.Orchestrator/StorageGatewayModule.cs` | `Bagira.Orchestrator` | SMB Pull Gateway: receives UNC manifests from Master after node ACKs, pulls files from leaf nodes via parallel outbound SMB, writes to central NAS via single outbound connection; used for SaveScenario, LoadScenario, ExportArchive, ImportArchive, CollectCheckpoint (§12.4, §12.5, §13) |
 | `Bagira.Orchestrator/ReplayMasterModule.cs` | `Bagira.Orchestrator` | Replay playhead controller |
 | `Bagira.IG/Modules/Orchestration/SystemSlaveModule.cs` | `Bagira.IG` | IG slave (FDP mode) |
 | `Bagira.SimHost/Modules/Orchestration/SystemSlaveModule.cs` | `Bagira.SimHost` | SimHost slave (FDP mode) |
 | `Bagira.IOS/Orchestration/IosSystemSlaveModule.cs` | `Bagira.IOS` | IOS slave (no-ECS lightweight variant) |
 | `FDP/Kernel/Fdp.Kernel/FlightRecorder/StoryPlaybackController.cs` | `Fdp.Kernel` | Story entity-remapping playback |
-| `FDP/Kernel/Fdp.Kernel/Orchestration/ComponentPatchMap.cs` | `Fdp.Kernel` | Entity ref offset patching (runtime reflection, no source generator) |
+| `FDP/Kernel/Fdp.Kernel/Orchestration/ComponentPatchMap.cs` | `Fdp.Kernel` | Entity ref offset patching (startup reflection, zero-alloc hot path) |
+| `FDP/Kernel/Fdp.Kernel/Orchestration/CheckpointIOWorker.cs` | `Fdp.Kernel` | Serialized background I/O queue for checkpoint writes; drains one snapshot at a time to prevent disk thrashing; supports concurrent transactions; exposes `DrainAsync()` for `UnloadingLive` teardown barrier (§9.1) |
 | `FDP/ModuleHost/ModuleHost.Core/Abstractions/IEsmHandler.cs` | `ModuleHost.Core` | ESM handler interface |
 | `FDP/Toolkits/FDP.Toolkit.Time/ITimeController.cs` | `FDP.Toolkit.Time` | `ITimeController` interface: `Update()`, `SetTimeScale()`, `GetMode()`, `SeedState()` (§5.6.1) |
 | `FDP/Toolkits/FDP.Toolkit.Time/SwitchableTimeController.cs` | `FDP.Toolkit.Time` | Proxy wrapper; public API is `SwitchTo(ITimeController)`; called only by coordinator layer (§5.6.2) |
 | `FDP/Toolkits/FDP.Toolkit.Time/DistributedTimeCoordinator.cs` | `FDP.Toolkit.Time` | Master-side coordinator: computes BarrierFrame, publishes `SwitchTimeModeEvent`, calls `SwitchTo()` at barrier (§5.6.5) |
 | `FDP/Toolkits/FDP.Toolkit.Time/SlaveTimeModeListener.cs` | `FDP.Toolkit.Time` | Slave-side listener: receives `SwitchTimeModeEvent`, waits for BarrierFrame, calls `SwitchTo()` (§5.6.5) |
 | `FDP/Kernel/Fdp.Kernel/Events/EsmStateChangedEvent.cs` | `Fdp.Kernel` | Internal FdpEventBus event for ESM transitions |
-| `FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs` | `Fdp.Kernel` | Generic recording/playback abstraction (§8.7); implemented by ECS and custom controllers |
-| `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` | `Bagira.SimHost` | FDP ECS adapter (§8.8); wraps `AsyncRecorder` + `PlaybackController`; registered with `SystemSlaveModule` |
-| `FDP/ModuleHost/ModuleHost.Core/Scheduling/NetworkLifecycleSystemGroup.cs` | `ModuleHost.Core` | Concrete `ISystemGroup` with `bool Enabled` toggle (§8.5); encapsulates ELM systems so orchestrator can disable all with one call |
+| `FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs` | `Fdp.Kernel` | Generic recording/playback abstraction (§8.7) |
+| `FDP/Kernel/Fdp.Kernel/Orchestration/IEntityRefPatchable.cs` | `Fdp.Kernel` | Interface for **both** complex unmanaged structs (fixed buffers, `[InlineArray]`, logical-count arrays) and managed components containing `Entity`/`NetworkIdentity` fields; prevents over-patching uninitialised capacity slots (§10.5.3) |
+| `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` | `Bagira.SimHost` | FDP ECS adapter (§8.8); wraps `AsyncRecorder` + `PlaybackController`; registered with `SystemSlaveModule`; exposes `RecordingMetadata.MaxNetworkId` in pre-replay ACK payload |
+| `FDP/ModuleHost/ModuleHost.Core/Scheduling/NetworkLifecycleSystemGroup.cs` | `ModuleHost.Core` | Concrete `ISystemGroup` with `bool Enabled` toggle (§8.5) |
 | `Bagira.SimHost/Modules/Orchestration/Handlers/LiveLoadEsmHandler.cs` | `Bagira.SimHost` | Scenario load + recorder init |
-| `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadEsmHandler.cs` | `Bagira.SimHost` | PlaybackController init |
-| `Bagira.SimHost/Modules/Orchestration/Handlers/CheckpointEsmHandler.cs` | `Bagira.SimHost` | Non-blocking SyncFrom snapshot handler |
+| `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadEsmHandler.cs` | `Bagira.SimHost` | PlaybackController init; publishes `MaxNetworkId` in ACK |
+| `Bagira.SimHost/Modules/Orchestration/Handlers/EditLoadEsmHandler.cs` | `Bagira.SimHost` | Scenario editing handler; parses `IsNewScenario` / `ScenarioId` / `Overrides` from PayloadJson; bootstraps blank world or loads pre-fetched JSON files (§12.3) |
+| `Bagira.SimHost/Modules/Orchestration/Handlers/CheckpointEsmHandler.cs` | `Bagira.SimHost` | Non-blocking SyncFrom snapshot; feeds `CheckpointIOWorker`; defers ACK until background write completes (§9.1) |
 | `Bagira.SimHost/Modules/Orchestration/Handlers/BattlespaceEsmHandler.cs` | `Bagira.SimHost` | Staged terrain loader |
 
-### 15.2 Modified Files
+### 16.2 Modified Files
 
 | File | Change |
 |------|--------|
-| `FDP/Kernel/Fdp.Kernel/FlightRecorder/RecorderSystem.cs` | Add `EntityFilter` predicate + UTC wall-clock tick (`long WallClockTicks`) to frame header alongside existing `ulong Tick` (ECS global version) |
-| `FDP/Kernel/Fdp.Kernel/FlightRecorder/AsyncRecorder.cs` | Thread `EntityFilter` through to `RecorderSystem` |
-| `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackController.cs` | Add `WallClockTicks` to `FrameMetadata`; add `SeekToWallClockTicks(EntityRepository, long)` using binary search through `_frameIndex`; upgrade existing `SeekToTick` linear scan to binary search |
-| `FDP/Kernel/Fdp.Kernel/GlobalTime.cs` | Add `long TotalWallTicks` field populated by both `MasterTimeController` (absolute `Stopwatch` ticks offset from recording epoch) and `SlaveTimeController` (`_virtualWallTicks` exposed via this field); needed by `EcsRecordReplayController.ProcessPlaybackTick` |
-| `FDP/Toolkits/FDP.Toolkit.Replication/Systems/GhostCreationSystem.cs` | Add `public bool BypassLifecycle { get; set; }` property; in `CreateGhost()` conditionally set `EntityLifecycle.Active` rather than `Ghost` when `BypassLifecycle = true` |
-| `FDP/Toolkits/FDP.Toolkit.Time/Messages/TimeMessages.cs` | Document replay use of `TimePulseDescriptor.MasterWallTicks` and `SimTimeSnapshot` as recording-epoch-relative values |
-| `FDP/Toolkits/FDP.Toolkit.Time/MasterTimeController.cs` | Add `SeedState(GlobalTime)` path; publish `TimePulseDescriptor` immediately on `SeedState()` and `SetTimeScale()` calls; wrap with `SwitchableTimeController` at composition root |
-| `FDP/Toolkits/FDP.Toolkit.Time/SlaveTimeController.cs` | Add `SeedState(GlobalTime)` that bypasses `JitterFilter` for instantaneous clock teleport (§5.6.4, §6.6.1); add `JitterFilter` threshold-based slew logic for normal PLL operation; expose `_virtualWallTicks` as `GlobalTime.TotalWallTicks` |
-| `Bagira.DDS.DataModel/Runner/SubsystemStatusAnnounce.cs` | No change — startup-only (separate `NodeHeartbeat` topic added) |
-| `Bagira.SimHost/SimHostApp.cs` | Register `SystemSlaveModule`; no longer owns master (Orchestrator is separate) |
+| `FDP/Kernel/Fdp.Kernel/FlightRecorder/RecorderSystem.cs` | Add `EntityFilter` predicate + UTC wall-clock tick (`long WallClockTicks`) to frame header; add `CaptureEventFrame(long wallClockTicks, …)` (§8.12) |
+| `FDP/Kernel/Fdp.Kernel/FlightRecorder/AsyncRecorder.cs` | Thread `EntityFilter` through to `RecorderSystem`; expose `MaxNetworkId` snapshot at `FinalizeRecordingAsync` for `RecordingMetadata` (§5.7) |
+| `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackController.cs` | Add `WallClockTicks` to `FrameMetadata`; add `SeekToWallClockTicks(EntityRepository, long)` with binary search; upgrade `SeekToTick` linear scan to binary search |
+| `FDP/Kernel/Fdp.Kernel/GlobalTime.cs` | Add `long TotalWallTicks` field |
+| `FDP/Toolkits/FDP.Toolkit.Replication/Systems/GhostCreationSystem.cs` | Add `bool BypassLifecycle` property (§8.5) |
+| `FDP/Toolkits/FDP.Toolkit.Time/Messages/TimeMessages.cs` | Add `SwitchTimeModeEvent` struct; document replay semantics of `TimePulseDescriptor` fields |
+| `FDP/Toolkits/FDP.Toolkit.Time/MasterTimeController.cs` | Add `SeedState(GlobalTime)` path; immediate `TimePulseDescriptor` publish on `SeedState()` / `SetTimeScale()` |
+| `FDP/Toolkits/FDP.Toolkit.Time/SlaveTimeController.cs` | Add `SeedState(GlobalTime)` bypassing `JitterFilter`; expose `_virtualWallTicks` as `TotalWallTicks` |
+| `Bagira.SimHost/SimHostApp.cs` | Register `SystemSlaveModule`; remove `DdsIdAllocatorServer` (moved to Orchestrator) |
 | `Bagira.IG/IgApplication.cs` | Register `SystemSlaveModule` |
-| `Bagira.Runner/Services/WaitingRoomCoordinator.cs` | Integrate ESM Standby entry after waiting room completes; launch Orchestrator subprocess |
+| `Bagira.Runner/Services/WaitingRoomCoordinator.cs` | Integrate ESM Standby entry; launch Orchestrator subprocess |
 
-### 15.3 Batch Implementation Order
+### 16.3 Batch Implementation Order
 
 ```
 Batch 1: DDS Message Schema + ESM enums
          → OrchestrationMessages.cs, ESMState enum, SystemStateTopic
 
-Batch 2: SystemMasterModule + SystemSlaveModule skeleton (no handlers yet)
-         → NodeHeartbeat loop, SysOpRequest/Status publish, NodeOpCommand dispatch,
-           basic Test: Standby → LoadingEdit → RunningEdit dummy transition
-         → TransitionPlanner: directed ESM graph, path resolution, macro-transitions
-           Test: wild request RunningLive → RunningReplay produces correct queue
-         → ITimeController interface + SwitchableTimeController proxy (SwitchTo() API)
-         → DistributedTimeCoordinator (Master): BarrierFrame lookahead, SwitchTimeModeEvent publish, SwitchTo() at barrier
-         → SlaveTimeModeListener (Slave): receives SwitchTimeModeEvent, waits for BarrierFrame, calls SwitchTo()
-         → SwitchTimeModeEvent DDS struct + BlitEventTranslator wiring; TimeMode enum
-         → MasterTimeController.SeedState(), SlaveTimeController.SeedState() + JitterFilter
-           Test: SeedState() bypasses PLL; SetTimeScale(0) freezes TimePulseDescriptor
+Batch 2: SystemMasterModule + TransitionPlanner + SystemSlaveModule skeleton
+         → NodeHeartbeat loop, SysOpRequest/Status, NodeOpCommand dispatch
+         → TransitionPlanner: BFS adjacency list (§5.5.2), macro-transitions, OperationStep
+           Test: wild RunningLive → RunningReplay produces correct ISysOpStep queue
+         → ITimeController + SwitchableTimeController proxy
+         → DistributedTimeCoordinator + SlaveTimeModeListener + SwitchTimeModeEvent
+         → BlitEventTranslator<SwitchTimeModeEvent> wiring
+         → MasterTimeController.SeedState() + SlaveTimeController.SeedState() + JitterFilter
+           Test: SeedState() bypasses PLL
 
 Batch 3: Wall-clock timestamps in FlightRecorder + GlobalTime
-         → RecorderSystem: add long WallClockTicks to frame header
-         → FrameMetadata: add WallClockTicks field; update BuildFrameIndex()
-         → PlaybackController: add SeekToWallClockTicks(); upgrade SeekToTick to binary search
-         → GlobalTime: add long TotalWallTicks field
-         → MasterTimeController + SlaveTimeController: populate TotalWallTicks
-         → Unit tests + schema version bump
+         → RecorderSystem WallClockTicks + CaptureEventFrame
+         → FrameMetadata.WallClockTicks + BuildFrameIndex update
+         → PlaybackController.SeekToWallClockTicks() + binary search upgrade
+         → GlobalTime.TotalWallTicks + MasterTimeController/SlaveTimeController population
+         → Schema version bump + unit tests
 
-Batch 4: Snapshot handler (non-blocking)
-         → CheckpointEsmHandler using EntityRepository.SyncFrom()
-           (reuse existing DoubleBufferProvider pattern — no new kernel API)
-         → DDS supplement file for in-flight messages
-         → Dry Run flow (SyncFrom + liveRepo.SyncFrom(snap) for restore)
+Batch 4: Checkpoint Protocol + Dry Run
+         → CheckpointIOWorker serialized queue (§9.1)
+         → CheckpointEsmHandler: SyncFrom + enqueue + deferred ACK via Tick() monitor
+         → DDS supplement capture for in-flight messages
+         → Dry Run flow (SyncFrom + restore)
+         Test: two overlapping TakeCheckpoint requests; verify ACKs arrive deferred
 
-Batch 5: Live + Replay ESM Handlers
+Batch 5: Live + Replay ESM Handlers + ID Authority
+         → DdsIdAllocatorServer relocated to SystemMasterModule (§5.7)
+         → RecordingMetadata.MaxNetworkId field in AsyncRecorder
+         → ReplayLoadEsmHandler: MaxNetworkId extraction + ID allocator reset
          → IRecordReplayController interface (§8.7)
-         → EcsRecordReplayController (§8.8)
-         → NetworkLifecycleSystemGroup with Enabled toggle (§8.5 Layer 2)
-         → GhostCreationSystem.BypassLifecycle property (§8.5)
-         → LiveLoadEsmHandler (AsyncRecorder with DrillId paths)
-         → ReplayLoadEsmHandler: system group disabling, BypassLifecycle, EcsRecordReplayController wiring
-         → SystemSlaveModule fan-out/fan-in Task.WhenAll for IRecordReplayController (§8.9)
-         → Full 8-12 step integration test
+         → EcsRecordReplayController (§8.8) inc. CaptureEventFrame (§8.12)
+         → IEntityRefPatchable + ComponentTypeRegistry enforcement (§10.5.3)
+         → NetworkLifecycleSystemGroup + GhostCreationSystem.BypassLifecycle
+         → LiveLoadEsmHandler
+         → SystemSlaveModule fan-out/fan-in Task.WhenAll (§8.9)
+         Test: full 8-12 step integration test
 
 Batch 6: Stories + ComponentPatchMap
-         → StoryTag, StoryReplayTag
-         → Filtered AsyncRecorder
-         → StoryPlaybackController + Entity Remapping
+         → StoryTag, StoryReplayTag components
+         → Filtered AsyncRecorder EntityFilter
+         → ComponentPatchMap startup byte-offset caching (§10.5.1)
+         → PatchEntityRefs() zero-alloc unsafe loop (§10.5.2)
+         → IEntityRefPatchable compiled PatchDelegate<T> dispatch (§10.5.3)
+         → StoryPlaybackController + Entity Remapping (NativeHashMap<int,int>)
 
-Batch 7: Battlespace + Archive
+Batch 7: Scenario Editing & Management
+         → EditLoadEsmHandler: IsNewScenario / ScenarioId / Overrides parsing (§12.3)
+         → StorageGatewayModule: SMB Pull Gateway (§12.4 / §12.5 / §13)
+         → TransitionPlanner: pre-fetch barrier injection for LoadingEdit and LoadingReplay
+         → NodeOpType additions: SerializeLocal, CleanupTempFiles (or reuse UploadChunk)
+         Test: SaveScenario end-to-end; LoadScenario pre-fetch path
+
+Batch 8: Battlespaces + Archive
          → BattlespaceEsmHandler (staged loading)
-         → Token-bucket archive export/import
+         → StorageGatewayModule: ExportArchive / ImportArchive paths (§13.1, §13.2)
 ```
