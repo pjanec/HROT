@@ -16,9 +16,14 @@
 3. [Exercise State Machine (ESM)](#3-exercise-state-machine)
 4. [SysOp / Two-Phase Commit (2PC) Orchestration Pattern](#4-sysop--two-phase-commit-orchestration-pattern)
 5. [SystemMasterModule](#5-systemmastermodule)
+   - [5.5 Transition Planner (Macro-Transitions)](#55-transition-planner-macro-transitions)
+   - [5.6 Time Control Architecture](#56-time-control-architecture)
+   - [5.6.5 Deterministic Mode Switching — DistributedTimeCoordinator and Future Barrier](#565-deterministic-mode-switching--distributedtimecoordinator-and-future-barrier)
 6. [SystemSlaveModule](#6-systemslavemodule)
+   - [6.6 Time Slave Integration (SlaveTimeController + Kernel Adapter)](#66-time-slave-integration)
 7. [Node Health Monitoring (Heartbeat & BIT)](#7-node-health-monitoring)
 8. [Replay Subsystem](#8-replay-subsystem)
+   - [8.11 Live-from-Replay Temporal Interlock](#811-live-from-replay-temporal-interlock)
 9. [Checkpoints & Dry Runs](#9-checkpoints--dry-runs)
 10. [Stories — Multi-Tenant Micro-Scenarios](#10-stories--multi-tenant-micro-scenarios)
 11. [Battlespaces](#11-battlespaces)
@@ -70,6 +75,7 @@
 | State Plane | Master → All (persistent) | `SystemStateTopic` |
 | Context Plane | Orchestrator → All (persistent) | `OrchestratorContextTopic` |
 | Time Plane | Time Master → All | `TimePulseDescriptor` (existing) |
+| Time Mode Plane | `DistributedTimeCoordinator` → All | `SwitchTimeModeEvent` (new — internal to time toolkit, see §5.6.5) |
 
 ---
 
@@ -486,7 +492,16 @@ class DistributedTransaction
     public Guid       OriginRequestId;     // back-ref to SysOpRequest
     public NodeOpType PrepareOp;
     public NodeOpType CommitOp;
-    public ESMState   TargetEsmState;
+
+    // ── Macro-transition support (see §5.5) ──────────────────────────────────
+    // PlannedStates is populated by the TransitionPlanner for every request,
+    // even single-step ones (queue length 1 = simple transition).
+    // TargetEsmState is the ultimate goal; current step is PlannedStates.Peek().
+    public ESMState         TargetEsmState;     // final goal
+    public Queue<ESMState>  PlannedStates;      // ordered intermediate states
+    public int              TotalSteps;         // snapshot of initial queue length — for "Step X of Y"
+    public int              CompletedSteps;     // incremented each time a step commits
+
     public HashSet<int> PendingNodes;      // cloned from ActiveNodes at T=0
     public float      ElapsedSeconds;
     public float      TimeoutSeconds;      // configurable, default 30s
@@ -514,22 +529,30 @@ class NodeHealthProfile
 │     └─ Detect missed heartbeats (> 5s) → prune or fault                  │
 │                                                                          │
 │  2. Consume SysOpRequest DDS queue (from IOS)                            │
-│     ├─ Validate against current ESMState (reject if invalid)             │
-│     └─ If valid → spawn DistributedTransaction, begin Phase 1            │
+│     ├─ Hand request to TransitionPlanner → generates PlannedStates queue │
+│     └─ If valid path found → spawn DistributedTransaction, begin Phase 1 │
+│        (see §5.5 for Transition Planner details)                         │
 │                                                                          │
 │  3. Consume NodeOpStatus DDS queue (from slave nodes)                    │
 │     ├─ Match by TransactionId                                            │
-│     ├─ InProgress: forward as SysOpStatus(InProgress) to IOS            │
+│     ├─ InProgress: forward as SysOpStatus(InProgress, "Step X of Y")    │
+│     │              to IOS so the UI can show a progress bar              │
 │     ├─ Success / IsParticipating=false: remove from PendingNodes         │
-│     └─ Failure: abort transaction, send SysOpStatus(Failure) to IOS     │
+│     └─ Failure: abort transaction, clear PlannedStates queue,            │
+│                 publish SystemStateTopic(SafeFallbackState),             │
+│                 send SysOpStatus(Failure) to IOS                         │
 │                                                                          │
 │  4. For each active transaction                                           │
 │     ├─ Increment ElapsedSeconds                                          │
-│     ├─ If timeout → abort                                                │
-│     └─ If PendingNodes.Count == 0 → execute COMMIT:                      │
+│     ├─ If timeout → abort (treat as Failure)                             │
+│     └─ If PendingNodes.Count == 0 → COMMIT current step:                 │
 │         ├─ Publish NodeOpCommand(CommitOp)                               │
-│         ├─ Write SystemStateTopic                                         │
-│         └─ Publish SysOpStatus(Success) to IOS                           │
+│         ├─ Write SystemStateTopic (current queue head state)              │
+│         ├─ transaction.PlannedStates.Dequeue(); CompletedSteps++         │
+│         ├─ If PlannedStates is EMPTY → publish SysOpStatus(Success)      │
+│         │   to IOS and close transaction                                 │
+│         └─ Else → pop next state, reset PendingNodes, send next          │
+│                  NodeOpCommand(PrepareOp, nextState) — chain continues   │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -545,6 +568,286 @@ The DrillId is embedded in:
   - NodeOpCommand payload JSON  (so nodes can name their .fdp files correctly)
   - AsyncRecorder filePath:  /archives/{DrillId}/node_{NodeId}.fdp
 ```
+
+---
+
+### 5.5 Transition Planner (Macro-Transitions)
+
+The `SystemMasterModule` acts as a **Process Manager**: every `SysOpRequest(TransitionState,
+TargetState)` from the IOS is given to an internal **`TransitionPlanner`** that treats
+the ESM as a directed graph and calculates the shortest valid path to the requested target
+state.  The result is always a `Queue<ESMState>` that is loaded into `DistributedTransaction.PlannedStates`.
+
+A simple, direct single-step request (e.g. `Standby → LoadingEdit`) is just a queue of
+length 1.  A "wild" multi-step request (e.g. `RunningLive → RunningReplay`) produces a
+longer queue.  The Tick() execution loop is completely agnostic to queue length: it pops
+one state, runs the standard two-phase commit, and chains to the next entry when all nodes
+ACK success.
+
+**Key benefits of this unified design:**
+- **Dumb IOS:** the client fires a single `SysOpRequest` naming only the desired final
+  state and receives `SysOpStatus(InProgress, "Step X of Y: …")` progress updates
+  autonomously.  It requires zero knowledge of ESM graph rules.
+- **DRY execution path:** timeouts, watchdog monitoring, and distributed rollback are
+  written exactly once in `DistributedTransaction` regardless of queue length.
+- **Open/Closed for trajectories:** adding a new mandatory intermediate state to the ESM
+  later only requires updating the graph definition inside `TransitionPlanner`; all client
+  code and the 2PC loop are unchanged.
+- **Compensatory rollback:** if a node fails at step N, the Master aborts the remaining
+  queue, publishes `SystemStateTopic(SafeFallbackState)`, and sends `SysOpStatus(Failed)`
+  with a human-readable description.
+
+**Example paths resolved by the planner:**
+
+| Current State | TargetState | Planned Queue |
+|---------------|-------------|---------------|
+| `Standby` | `LoadingEdit` | `[LoadingEdit]` |
+| `RunningLive` | `RunningReplay` | `[UnloadingLive, Standby, LoadingReplay, RunningReplay]` |
+| `RunningEdit` | `RunningLive` | `[UnloadingEdit, Standby, LoadingLive, RunningLive]` |
+| `RunningReplay` | `RunningEdit` | `[UnloadingReplay, Standby, LoadingEdit, RunningEdit]` |
+
+> **Transition hints:** the `SysOpRequest.PayloadJson` may carry optional metadata (e.g.
+> `"DrillId"`, `"ScenarioId"`, `"TargetWallTicks"`) that the planner threads through the
+> `NodeOpCommand` payloads for each step.  This lets the IOS say "go to RunningReplay
+> of drill 999, seek to T+15 min" in a single request without embedding sequencing logic
+> in the client.
+
+#### 5.5.1 Sequence Diagram — Complex (Wild) Transition
+
+The following diagram illustrates the IOS firing a wild `RunningLive → RunningReplay`
+request.  The Master resolves the 4-step trajectory internally; the IOS only monitors
+`SysOpStatus` progress updates.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant IOS as IOS (Client)
+    participant Master as SystemMasterModule
+    participant Topic as SystemStateTopic (DDS)
+    participant Slaves as SystemSlaveModule (All Nodes)
+
+    IOS->>Master: SysOpRequest(TransitionState, Target=RunningReplay)
+    Note over IOS: Locks UI — waits for final SysOpStatus
+
+    Note over Master: TransitionPlanner evaluates ESM graph:<br/>Current=RunningLive, Target=RunningReplay<br/>→ PlannedStates = [UnloadingLive, Standby, LoadingReplay, RunningReplay]
+    Note over Master: Creates DistributedTransaction (TotalSteps=4)
+
+    loop Saga Execution — drain PlannedStates queue
+        Note over Master: Pop next state (e.g. UnloadingLive, then Standby, …)
+        Master->>Slaves: NodeOpCommand(PrepareState, NextState)
+
+        Slaves-->>Master: NodeOpStatus(InProgress)
+        Master-->>IOS: SysOpStatus(InProgress, "Step 1 of 4: UnloadingLive")
+        Note over IOS: Updates progress bar dynamically
+
+        Note over Slaves: Heavy work on background thread<br/>(flush recorder, clear ECS, open playback file…)
+
+        alt Happy Path — all nodes succeed
+            Slaves-->>Master: NodeOpStatus(Success)
+            Master->>Topic: Publish SystemStateTopic(NextState)
+            Note over Master: Step committed. CompletedSteps++.<br/>If queue not empty → pop next, send PrepareOp.
+        else Failure Path — any node fails or times out
+            Slaves-->>Master: NodeOpStatus(Failed)
+            Note over Master: Watchdog triggers compensatory rollback.<br/>Clear remaining PlannedStates queue.
+            Master->>Slaves: NodeOpCommand(AbortTransaction)
+            Master->>Topic: Publish SystemStateTopic(SafeFallbackState)
+            Master-->>IOS: SysOpStatus(Failed, "Step 1 failed: Node 200 timed out")
+            Note over IOS: Unlocks UI — shows error modal
+        end
+    end
+
+    Note over Master: PlannedStates queue empty — TargetState reached
+    Master-->>IOS: SysOpStatus(Success)
+    Note over IOS: Unlocks UI — transition complete
+```
+
+---
+
+### 5.6 Time Control Architecture
+
+The `SystemMasterModule` is the **Time Authority** for the distributed cluster.  All time
+logic is encapsulated behind an `ITimeController` interface, enabling hot-swapping between
+real-time and deterministic stepping modes without disrupting the rest of the system.
+
+#### 5.6.1 `ITimeController` Interface
+
+```csharp
+// Location: FDP/Toolkits/FDP.Toolkit.Time/ITimeController.cs  (new)
+public interface ITimeController
+{
+    GlobalTime Update();                    // Advance internal clock, return current state
+    void       SetTimeScale(float scale);   // 0.0 = pause, 1.0 = realtime, 2.0 = fast-fwd
+    GlobalTime GetCurrentState();           // Non-advancing read
+    void       SeedState(GlobalTime seed);  // Abrupt reset — bypasses PLL / error filters
+}
+```
+
+#### 5.6.2 `SwitchableTimeController` Proxy
+
+A `SwitchableTimeController` wraps an active `ITimeController` instance.  The `ModuleHostKernel`
+holds a stable reference to the proxy; the underlying strategy can be hot-swapped at any
+frame-perfect moment without any other code being aware of the change.
+
+The proxy exposes a single dedicated swap method, `SwitchTo()`, which is **never** called
+directly by `SystemMasterModule` or `SystemSlaveModule` — it is called exclusively by the
+`DistributedTimeCoordinator` (Master node) and `SlaveTimeModeListener` (Slave nodes) at
+exactly the correct Barrier Frame (see §5.6.5):
+
+```csharp
+public class SwitchableTimeController : ITimeController
+{
+    private ITimeController _activeController;
+
+    public SwitchableTimeController(ITimeController initial)
+    {
+        _activeController = initial ?? throw new ArgumentNullException(nameof(initial));
+    }
+
+    /// <summary>
+    /// The only public API specific to this class.
+    /// Called by the coordinator layer when the Future Barrier frame is reached.
+    /// Gracefully transfers the exact current GlobalTime state to the new strategy.
+    /// </summary>
+    public void SwitchTo(ITimeController newController)
+    {
+        if (newController == null) throw new ArgumentNullException(nameof(newController));
+        if (_activeController == newController) return;
+
+        var currentState = _activeController.GetCurrentState();
+        newController.SeedState(currentState);
+        _activeController = newController;
+    }
+
+    public ITimeController ActiveController => _activeController;
+
+    // ─── ITimeController Proxy — all calls forwarded to active strategy ─────
+    public GlobalTime Update()                  => _activeController.Update();
+    public void       SetTimeScale(float scale) => _activeController.SetTimeScale(scale);
+    public float      GetTimeScale()            => _activeController.GetTimeScale();
+    public TimeMode   GetMode()                 => _activeController.GetMode();
+    public GlobalTime GetCurrentState()         => _activeController.GetCurrentState();
+    public void       SeedState(GlobalTime s)   => _activeController.SeedState(s);
+    public void       Dispose()                 => _activeController.Dispose();
+}
+```
+
+> **Key design rule:** `SwitchableTimeController` knows nothing about DDS, future barriers,
+> or the ESM.  It is a pure Proxy + Strategy implementation.  Network synchronisation of
+> the swap is fully handled by the coordinator layer described in §5.6.5.
+
+#### 5.6.3 Master-Side Time Strategies
+
+| Strategy | Used When | Behaviour |
+|----------|-----------|-----------|
+| `MasterTimeController` | `RunningLive`, `RunningReplay`, `RunningDryRun` | Driven by `Stopwatch`; publishes `TimePulseDescriptor` at 1 Hz and on every `SetTimeScale()` call |
+| `SteppedMasterController` | Deterministic / debug mode | Halts real-time progression; publishes `FrameOrderDescriptor` per logical tick; waits for `FrameAckDescriptor` before advancing |
+
+During `RunningReplay`, `MasterTimeController` is seeded with the recording epoch via
+`SeedState()` so that `GlobalTime.TotalTime` measures seconds from the start of the
+recording (see §8.3).
+
+#### 5.6.4 Abrupt Reset (Jump-To-Time Interlock)
+
+Discontinuous operations (seeking during replay, branching live-from-replay) require a
+strict **Control-Plane / Data-Plane interlock** to prevent the distributed cluster from
+diverging at different timestamps:
+
+```
+Master receives jump/seek request
+  │
+  ├─ 1. Hard freeze: SetTimeScale(0.0), halt TimePulseDescriptor broadcast
+  │
+  ├─ 2. SeedState(targetTime) on local MasterTimeController
+  │      (establishes the new reference epoch before any node is commanded)
+  │
+  ├─ 3. Broadcast NodeOpCommand(ReplaySeek / PrepareState, targetTime)
+  │
+  ├─ 4. Wait for NodeOpStatus(Success) from ALL participating nodes
+  │      (slaves call SlaveTimeController.SeedState() — bypassing PLL error
+  │       filters — then execute their heavy data reconstruction)
+  │
+  └─ 5. Resume: SetTimeScale(savedScale), restart TimePulseDescriptor
+         (time only flows once every node has confirmed it is temporally coherent)
+```
+
+> **Why explicit SeedState bypass matters:**  
+> The `SlaveTimeController` PLL uses a `JitterFilter` to distinguish network jitter from
+> intentional magnitude jumps.  A 15-minute seek looks like a catastrophic clock error to
+> the PLL.  `SeedState()` provides a dedicated path that bypasses the filter entirely,
+> guaranteeing instant deterministic snap without any slew interpolation artefacts.
+
+#### 5.6.5 Deterministic Mode Switching — `DistributedTimeCoordinator` and Future Barrier
+
+Switching between continuous real-time and deterministic lockstep is **completely
+independent of the ESM**.  It is available at any point while the simulation is in a
+*running* state (`RunningLive`, `RunningReplay`, `RunningDryRun`).  Because a standard
+2PC `SysOp` round-trip would cause different nodes to swap at slightly different simulation
+frames (destroying determinism), the switch is instead coordinated via a lightweight
+**Future Barrier** on the dedicated **Time Plane**.
+
+**Why 2PC SysOp cannot be used here:**  
+Network latency means Node A might receive a `NodeOpCommand(SwitchMode)` at Frame 100 and
+Node B at Frame 102.  If each node swaps its controller on receipt, determinism is instantly
+destroyed.  Blocking the main simulation thread to wait for ACKs is equally unacceptable.
+
+**The Future Barrier approach:**
+
+```
+Request arrives at DistributedTimeCoordinator (Master node)
+  │
+  ├─ 1. If sim clock is currently running (TimeScale > 0):
+  │       Call SetTimeScale(0.0) on the active ITimeController to pause first.
+  │       (The coordinator owns time — it pauses before negotiating the barrier.)
+  │
+  ├─ 2. Read current ECS frame counter (e.g. Frame 100).
+  │      Add lookahead: BarrierFrame = 100 + N  (e.g. N=10 → BarrierFrame = 110).
+  │
+  ├─ 3. Publish SwitchTimeModeEvent { TargetMode, BarrierFrame } over DDS
+  │       (via BlitEventTranslator<SwitchTimeModeEvent> — zero-allocation raw memcpy)
+  │
+  └─ 4. Continue simulating normally until local frame counter reaches BarrierFrame.
+         On that exact tick → call _switchableTime.SwitchTo(new SteppedMasterController(...))
+         Restore saved TimeScale.
+
+On each Slave node — SlaveTimeModeListener:
+  ├─ Receives SwitchTimeModeEvent from DDS.
+  ├─ Continues simulating normally.
+  └─ When local frame counter reaches BarrierFrame → call _switchableTime.SwitchTo(...)
+     Because all nodes derive their frame counter from the same master clock, the swap
+     occurs at the identical simulation instant on every node simultaneously.
+```
+
+**`SwitchTimeModeEvent` DDS message:**
+
+```csharp
+// Location: FDP/Toolkits/FDP.Toolkit.Time/Messages/TimeMessages.cs  (addition)
+// Transport: BlitEventTranslator<SwitchTimeModeEvent> via FdpEventBus → CycloneDDS
+// Visibility: internal to the time toolkit — not part of the public orchestration API.
+[DdsTopic("SwitchTimeModeEvent")]
+[DdsIdlFile("bdc-time")]
+[DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+public struct SwitchTimeModeEvent
+{
+    public TimeMode TargetMode;     // Continuous | Deterministic
+    public ulong    BarrierFrame;   // ECS global frame counter at which to swap
+    public float    FixedDelta;     // Only used when TargetMode = Deterministic
+}
+
+public enum TimeMode : int
+{
+    Continuous    = 0,   // Real-time PLL (SlaveTimeController)
+    Deterministic = 1,   // Lockstep fixed-delta (SteppedSlaveController)
+}
+```
+
+**Architectural boundaries — who calls what:**
+
+| Layer | Component | Responsibility |
+|-------|-----------|----------------|
+| Pure math | `SlaveTimeController`, `SteppedSlaveController`, `MasterTimeController`, `SteppedMasterController` | Calculate `DeltaTime` only; no swap logic |
+| Proxy | `SwitchableTimeController` | Hold active strategy; `SwitchTo()` transfers state to new strategy |
+| Coordinator | `DistributedTimeCoordinator` (Master), `SlaveTimeModeListener` (Slave) | Compute barrier frame; publish / receive `SwitchTimeModeEvent`; call `SwitchTo()` at the right frame |
+| ESM / domain | `SystemMasterModule`, `SystemSlaveModule`, physics, AI | Completely unaware of time-mode switching; just read `GlobalTime.DeltaTime` |
 
 ---
 
@@ -661,6 +964,74 @@ _eventBus.Subscribe<EsmStateChangedEvent>(OnEsmStateChanged);
 ```
 
 This decouples modules from the orchestration system entirely.
+
+---
+
+### 6.6 Time Slave Integration — `SlaveTimeController` and `ModuleHostKernel` Adapter
+
+The `SystemSlaveModule` is deliberately ECS-agnostic and must not inject `GlobalTime`
+directly into the `EntityRepository`.  Time injection is the responsibility of the
+`ModuleHostKernel`, enforcing the Single Responsibility Principle:
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│  MAIN UPDATE LOOP — ModuleHostKernel.Tick()                               │
+│                                                                           │
+│  1. _slaveTime.Update()                                                   │
+│     └─ SlaveTimeController runs PLL against latest TimePulseDescriptor    │
+│        → produces GlobalTime { TotalTime, TotalWallTicks, TimeScale }     │
+│                                                                           │
+│  2. _liveWorld.SetSingletonUnmanaged(globalTime)                          │
+│     └─ Blasts GlobalTime into ECS as an unmanaged singleton               │
+│        → single source of truth for physics, AI, recording                │
+│                                                                           │
+│  3. _scheduler.Execute(deltaTime)                                         │
+│     └─ All domain modules read World.GetSingletonUnmanaged<GlobalTime>()  │
+│        — none of them know about DDS, SlaveTimeController, or ESM         │
+└───────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 6.6.1 `SlaveTimeController` — Phase-Locked Loop (PLL)
+
+The slave uses a `SlaveTimeController` with an internal PLL to synchronise its virtual
+clock to the master's `TimePulseDescriptor` between pulses, eliminating network jitter:
+
+```
+Incoming TimePulseDescriptor (1 Hz):
+  MasterWallTicks = T_master
+  SimTimeSnapshot = S_master  (seconds from recording epoch, or live elapsed time)
+  TimeScale       = 1.0
+
+PLL error = S_master - SlaveLocalTime.TotalTime
+  │
+  ├─ Within JitterFilter.Threshold (e.g. ±200 ms):
+  │    Slew: gradually correct local clock toward master over N frames
+  │    → smooth visual interpolation, no pops
+  │
+  └─ Beyond JitterFilter.Threshold (large network gap or intentional seek):
+       Hard snap safety threshold triggers — or SeedState() is called explicitly
+       for intentional jumps (see §5.6.4)
+```
+
+`SeedState()` provides the explicit path for all orchestrated jumps.  The PLL filter is
+bypassed so the clock teleports to the target time without any slew lag.
+
+#### 6.6.2 Continuous vs Deterministic Slave Modes
+
+| Slave Mode | Controller | Source of Time Signal |
+|------------|------------|-----------------------|
+| Real-time | `SlaveTimeController` (PLL) | `TimePulseDescriptor` from Master |
+| Deterministic | `SteppedSlaveController` | `FrameOrderDescriptor`; publishes `FrameAckDescriptor` before advancing |
+
+Switching between modes is **independent of the ESM**.  It is available at any point
+while the simulation is in a running state and is triggered entirely within the time
+toolkit via the **Future Barrier** mechanism (see §5.6.5).
+
+On a slave node, the `SlaveTimeModeListener` subscribes to `SwitchTimeModeEvent` over DDS.
+When the event arrives, it waits silently until the local ECS frame counter reaches the
+aggreed `BarrierFrame`, then calls `_switchableTime.SwitchTo(new SteppedSlaveController(...))`
+(or back to `SlaveTimeController` for continuous mode).  `SystemSlaveModule` is completely
+unaware of this — it never calls `SwitchTo()` directly.
 
 ---
 
@@ -1095,6 +1466,91 @@ authoritative nodes flood the network:
    → entities materialise Active instantly, no distributed ACK handshake
 6. This node publishes NodeOpStatus(Success) once local purge + seek completes
 ```
+
+---
+
+### 8.11 Live-from-Replay Temporal Interlock
+
+When an operator transitions from `RunningReplay` to `RunningLive` ("Take Control"), the
+Master must **hard-freeze the simulation time before any node is commanded to swap
+pipelines**.  If the time pulse continued while nodes were tearing down the
+`PlaybackController` and initialising the `AsyncRecorder`, each node would branch at a
+slightly different timestamp depending on its disk I/O latency, destroying determinism.
+
+The complete sequence is:
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    box "Client Layer (View)"
+        participant IOS
+    end
+
+    box "Control Plane (Orchestration)"
+        participant Master as SystemMasterModule
+        participant Topic as SystemStateTopic
+    end
+
+    box "Data Plane (Node Executor)"
+        participant Slave as SystemSlaveModule
+        participant Handler as IEsmHandler (ReplayLoadEsmHandler)
+        participant Controller as EcsRecordReplayController
+        participant ECS as EntityRepository (NativeChunkTable)
+    end
+
+    Note over IOS, ECS: Current State: RunningReplay — time playing normally
+
+    IOS->>Master: SysOpRequest(TransitionState, LoadingLive)
+    Note over IOS: Locks UI
+
+    Note over Master: ① Hard Freeze Timeline<br/>SetTimeScale(0.0) — halt TimePulseDescriptor broadcast
+
+    Note over Master: ② Generate branched DrillId<br/>(e.g. Drill_999_Branch1 from Drill_999)
+
+    Master->>Slave: NodeOpCommand(PrepareState, LoadingLive, NewDrillId)
+    Slave-->>Master: NodeOpStatus(InProgress)
+    Master-->>IOS: SysOpStatus(InProgress, "Step 1 of 1: LoadingLive")
+
+    Note over Slave: Dispatch to registered IEsmHandler
+    Slave->>Handler: Handle(PrepareState, LoadingLive)
+
+    Note over Handler: Background thread — time is frozen, no race conditions
+
+    Handler->>Controller: TeardownReplayAsync()
+    Note over Controller: Disposes PlaybackController.<br/>Closes .fdprec read handles.<br/>EntityRepository memory intentionally untouched.
+
+    Note over ECS: ③ Zero-Copy State Retention<br/>Historical NativeChunkTable chunks remain intact<br/>— no deserialization, no memcpy needed.
+
+    Handler->>Controller: PrepareRecordingAsync(NewDrillId)
+    Note over Controller: Initialises AsyncRecorder → /archives/Drill_999_Branch1/node_N.fdp<br/>Captures current frozen ECS memory as root Keyframe.
+
+    Note over Handler: ④ Re-arm live pipeline<br/>SimulationSystemGroup.Enabled = true<br/>NetworkLifecycleSystemGroup.Enabled = true<br/>GhostCreationSystem.BypassLifecycle = false
+
+    Handler-->>Slave: Task completed
+    Slave-->>Master: NodeOpStatus(Success)
+
+    Note over Master: ⑤ All participating nodes reported Success
+
+    Master->>Topic: Publish SystemStateTopic(RunningLive, NewDrillId)
+
+    Note over Master: ⑥ Resume Timeline<br/>SetTimeScale(1.0) — restart TimePulseDescriptor broadcast
+
+    Master-->>IOS: SysOpStatus(Success)
+    Note over IOS: Unlocks UI
+
+    Note over ECS: Next ECS tick: AI and Physics systems wake up from<br/>the preserved historical state and execute live logic.
+```
+
+**Key architectural guarantees enforced by this sequence:**
+- **Temporal determinism:** time is frozen at step ①; no ECS mutations occur while disk
+  adapters are being swapped in nodes running at different IO speeds.
+- **Zero-allocation branch:** `EcsRecordReplayController` does not touch the
+  `EntityRepository` during `TeardownReplayAsync()`.  The historical world state is
+  preserved in-place in unmanaged 64 KB `NativeChunkTable` blocks.
+- **Clean domain separation:** AI, physics, and network systems are entirely unaware of
+  the branch.  `GlobalTime.DeltaTime` is simply zero for the duration; when the time
+  pulse resumes, domain modules wake up and execute from the injected historical state.
 
 ---
 
@@ -1534,6 +1990,7 @@ sequenceDiagram
 |------|---------|-------------|
 | `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs` | `Bagira.DDS.DataModel` | All new DDS topics from §2 (incl. `OrchestratorContextTopic`) |
 | `Bagira.Orchestrator/SystemMasterModule.cs` | `Bagira.Orchestrator` (new project) | Master orchestrator — runs as separate process via `Bagira.Runner` |
+| `Bagira.Orchestrator/TransitionPlanner.cs` | `Bagira.Orchestrator` | Resolves any `TargetState` into a `Queue<ESMState>` via directed ESM graph search (§5.5) |
 | `Bagira.Orchestrator/ReplayMasterModule.cs` | `Bagira.Orchestrator` | Replay playhead controller |
 | `Bagira.IG/Modules/Orchestration/SystemSlaveModule.cs` | `Bagira.IG` | IG slave (FDP mode) |
 | `Bagira.SimHost/Modules/Orchestration/SystemSlaveModule.cs` | `Bagira.SimHost` | SimHost slave (FDP mode) |
@@ -1541,6 +1998,10 @@ sequenceDiagram
 | `FDP/Kernel/Fdp.Kernel/FlightRecorder/StoryPlaybackController.cs` | `Fdp.Kernel` | Story entity-remapping playback |
 | `FDP/Kernel/Fdp.Kernel/Orchestration/ComponentPatchMap.cs` | `Fdp.Kernel` | Entity ref offset patching (runtime reflection, no source generator) |
 | `FDP/ModuleHost/ModuleHost.Core/Abstractions/IEsmHandler.cs` | `ModuleHost.Core` | ESM handler interface |
+| `FDP/Toolkits/FDP.Toolkit.Time/ITimeController.cs` | `FDP.Toolkit.Time` | `ITimeController` interface: `Update()`, `SetTimeScale()`, `GetMode()`, `SeedState()` (§5.6.1) |
+| `FDP/Toolkits/FDP.Toolkit.Time/SwitchableTimeController.cs` | `FDP.Toolkit.Time` | Proxy wrapper; public API is `SwitchTo(ITimeController)`; called only by coordinator layer (§5.6.2) |
+| `FDP/Toolkits/FDP.Toolkit.Time/DistributedTimeCoordinator.cs` | `FDP.Toolkit.Time` | Master-side coordinator: computes BarrierFrame, publishes `SwitchTimeModeEvent`, calls `SwitchTo()` at barrier (§5.6.5) |
+| `FDP/Toolkits/FDP.Toolkit.Time/SlaveTimeModeListener.cs` | `FDP.Toolkit.Time` | Slave-side listener: receives `SwitchTimeModeEvent`, waits for BarrierFrame, calls `SwitchTo()` (§5.6.5) |
 | `FDP/Kernel/Fdp.Kernel/Events/EsmStateChangedEvent.cs` | `Fdp.Kernel` | Internal FdpEventBus event for ESM transitions |
 | `FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs` | `Fdp.Kernel` | Generic recording/playback abstraction (§8.7); implemented by ECS and custom controllers |
 | `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` | `Bagira.SimHost` | FDP ECS adapter (§8.8); wraps `AsyncRecorder` + `PlaybackController`; registered with `SystemSlaveModule` |
@@ -1560,6 +2021,8 @@ sequenceDiagram
 | `FDP/Kernel/Fdp.Kernel/GlobalTime.cs` | Add `long TotalWallTicks` field populated by both `MasterTimeController` (absolute `Stopwatch` ticks offset from recording epoch) and `SlaveTimeController` (`_virtualWallTicks` exposed via this field); needed by `EcsRecordReplayController.ProcessPlaybackTick` |
 | `FDP/Toolkits/FDP.Toolkit.Replication/Systems/GhostCreationSystem.cs` | Add `public bool BypassLifecycle { get; set; }` property; in `CreateGhost()` conditionally set `EntityLifecycle.Active` rather than `Ghost` when `BypassLifecycle = true` |
 | `FDP/Toolkits/FDP.Toolkit.Time/Messages/TimeMessages.cs` | Document replay use of `TimePulseDescriptor.MasterWallTicks` and `SimTimeSnapshot` as recording-epoch-relative values |
+| `FDP/Toolkits/FDP.Toolkit.Time/MasterTimeController.cs` | Add `SeedState(GlobalTime)` path; publish `TimePulseDescriptor` immediately on `SeedState()` and `SetTimeScale()` calls; wrap with `SwitchableTimeController` at composition root |
+| `FDP/Toolkits/FDP.Toolkit.Time/SlaveTimeController.cs` | Add `SeedState(GlobalTime)` that bypasses `JitterFilter` for instantaneous clock teleport (§5.6.4, §6.6.1); add `JitterFilter` threshold-based slew logic for normal PLL operation; expose `_virtualWallTicks` as `GlobalTime.TotalWallTicks` |
 | `Bagira.DDS.DataModel/Runner/SubsystemStatusAnnounce.cs` | No change — startup-only (separate `NodeHeartbeat` topic added) |
 | `Bagira.SimHost/SimHostApp.cs` | Register `SystemSlaveModule`; no longer owns master (Orchestrator is separate) |
 | `Bagira.IG/IgApplication.cs` | Register `SystemSlaveModule` |
@@ -1574,6 +2037,14 @@ Batch 1: DDS Message Schema + ESM enums
 Batch 2: SystemMasterModule + SystemSlaveModule skeleton (no handlers yet)
          → NodeHeartbeat loop, SysOpRequest/Status publish, NodeOpCommand dispatch,
            basic Test: Standby → LoadingEdit → RunningEdit dummy transition
+         → TransitionPlanner: directed ESM graph, path resolution, macro-transitions
+           Test: wild request RunningLive → RunningReplay produces correct queue
+         → ITimeController interface + SwitchableTimeController proxy (SwitchTo() API)
+         → DistributedTimeCoordinator (Master): BarrierFrame lookahead, SwitchTimeModeEvent publish, SwitchTo() at barrier
+         → SlaveTimeModeListener (Slave): receives SwitchTimeModeEvent, waits for BarrierFrame, calls SwitchTo()
+         → SwitchTimeModeEvent DDS struct + BlitEventTranslator wiring; TimeMode enum
+         → MasterTimeController.SeedState(), SlaveTimeController.SeedState() + JitterFilter
+           Test: SeedState() bypasses PLL; SetTimeScale(0) freezes TimePulseDescriptor
 
 Batch 3: Wall-clock timestamps in FlightRecorder + GlobalTime
          → RecorderSystem: add long WallClockTicks to frame header

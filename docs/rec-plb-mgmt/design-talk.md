@@ -1180,20 +1180,6 @@ Because Story Replays only deal with micro-scenarios (dozens or hundreds of enti
 
 ---
 
-### 3\. Checkpoints & State Determinism (In-Flight DDS Messages)
-
-**The Flaw:** A 2ms RAM snapshot captures perfect local state, but leaves in-flight network messages (spawns, fire events, damage) unaccounted for, breaking causality upon restore.
-
-**Solution: The Drain-and-Quiesce Protocol** We must achieve "Network Quiescence" before taking the memory snapshot. Taking a checkpoint becomes a 3-step micro-state machine:
-
-1. **Pause & Flush:** Master broadcasts `NodeOpCommand(QuiesceForCheckpoint)`.  
-   * All nodes pause their `TimeController` (halting physics and AI).  
-   * However, nodes *continue* polling their DDS Ingress loops (`CycloneIngressSystem`).  
-2. **Acknowledge Quiescence:** Once a node's DDS receive queues are empty (or a brief 50ms timeout passes to ensure in-flight packets land), it processes those final events into the ECS. It then replies `NodeOpStatus(ReadyToSnapshot)`.  
-3. **Snapshot:** Once the Master receives `ReadyToSnapshot` from all nodes, it broadcasts `NodeOpCommand(TakeSnapshot)`. Now, the 2ms `memcpy` occurs. Causality is perfectly preserved because all in-flight messages were drained into the ECS *before* the memory was copied.
-
----
-
 ### 4\. Storage I/O & The "Thundering Herd" Problem
 
 **The Flaw:** 50 nodes simultaneously pushing 5GB `.fdp` files to a central NAS will oversaturate the network switch, causing severe packet loss and DDS disconnection.
@@ -1330,35 +1316,6 @@ sequenceDiagram
     Master-\>\>DDS: Update SystemStateTopic(LoadingLive, DrillId)  
     Master-\>\>IOS: SysOpStatus(Success)
 
-### **2\. The Checkpoint (Drain-and-Quiesce RAM Snapshot)**
-
-This illustrates the hyper-fast, causality-preserving snapshot taken during a live simulation .
-
-Fragment kódu
-
-sequenceDiagram  
-    participant IOS  
-    participant Master as SystemMasterModule  
-    participant Slave as SystemSlaveModule (All Nodes)  
-    participant ECS as NativeChunkTable
-
-    IOS-\>\>Master: SysOpRequest(TakeCheckpoint)  
-      
-    %% Phase 1: Drain  
-    Master-\>\>Slave: NodeOpCommand(QuiesceForCheckpoint)  
-    Note over Slave: Pause TimeController.\<br/\>Flush DDS Ingress.  
-    Slave-\>\>Master: NodeOpStatus(ReadyToSnapshot)  
-      
-    %% Phase 2: Snap  
-    Master-\>\>Slave: NodeOpCommand(TakeSnapshot)  
-    Note over Slave: Wait for next BeforeSync Phase  
-    Slave-\>\>ECS: memcpy / NativeChunkTable.Clone()  
-    Note over ECS: \~2ms execution  
-    Slave-\>\>Master: NodeOpStatus(Success)  
-    Master-\>\>IOS: SysOpStatus(Success)  
-      
-    %% Async background save  
-    Note over Slave: Background Thread:\<br/\>LZ4 Compress RAM \-\> Disk
 
 ### **3\. Battlespace Swapping (Async Load \+ Sync Commit)**
 
@@ -2066,4 +2023,519 @@ A robust cluster needs to differentiate between a node whose ECS loop is paused 
 -   It uses a self-resetting timer based on `System.Diagnostics.Stopwatch` (wall-clock time), operating independently of the simulation time.-   Every 1 second, it gathers health telemetry: CPU time, RAM working set, and verifies whether the ECS `Tick()` is advancing as expected.-   It packs this into a `NodeHeartbeat` and pushes it over DDS, proving liveness to the Master's watchdog even if the simulation itself is paused in the `RunningEdit` or `RunningReplay` states.
 
 By keeping the `SystemSlaveModule` strictly focused on network translation, task coordination, and thread-boundary synchronization, the underlying FDP simulation systems remain pure and completely oblivious to the fact that they are participating in a distributed cluster.
+
+-------------------
+
+
+Dnes • 8:40
+
+What do the design sources say about how dry run works?
+
+A "dry run" is architected as a mechanism for operators to quickly preview a scenario while in the editing phase, without incurring the performance penalty of serializing the state to a slow, disk-based format like JSON. From a clean architecture perspective, it elegantly leverages the FDP's unmanaged memory layout to decouple the simulation state from the business logic, achieving lightning-fast state swapping.
+
+The process is strictly governed by the Exercise State Machine (ESM) and executes in the following phases:
+
+**1\. The RAM Snapshot (****LoadingDryRun** **Phase)** When the operator triggers a dry run, the Master orchestrator issues a state transition to `LoadingDryRun`. To preserve the current scenario state, each slave node takes a non-blocking, in-memory snapshot. Instead of routing data through the file system, the local `SystemSlaveModule` creates a new backup `EntityRepository` and calls `SyncFrom()`. Under the hood, this performs a raw `memcpy` of the `NativeChunkTable`’s 64KB unmanaged blocks directly into the backup RAM buffer. Because it is a pure memory clone, it takes less than 2 milliseconds to copy the entire world state and does not block the main ECS loop.
+
+**2\. Simulation Execution (****RunningDryRun** **Phase)** Once all nodes report success in preparing the snapshot, the Master commits the state to `RunningDryRun` and commands the Time Master to unpause the simulation clock. At this point, the simulation modules wake up. AI brains, vehicle kinematics, and weapon systems begin mutating the live ECS world just as they would during a full live exercise, giving the operator an accurate preview of the scenario behavior.
+
+**3\. Instant Rewind (****UnloadingDryRun** **Phase)** When the preview is finished and the operator stops the dry run, the Master transitions the system to `UnloadingDryRun` and pauses the clock. The slave nodes simply discard the heavily mutated live ECS state and blast the backup `NativeChunkTable` back into the live repository. This instantly rewinds the entire world back to the exact state it was in before the dry run began. Finally, the system automatically returns to the `RunningEdit` state, allowing the operator to seamlessly resume modifying the scenario from where they left off.
+
+This approach represents excellent enterprise-grade design. By treating the ECS memory as a pure, easily swappable data plane, the architecture avoids any complex teardown or re-initialization boilerplate in the domain modules and keeps the data strictly in RAM, entirely bypassing disk I/O to maintain a highly responsive user experience.
+
+Back to the replay management. You are suggesting to disable some systems or system groups. Wouldnt be more elegant to disable whole modules? And instead of putting the systems-to-be-disabled to a new system group to put them all to a module? Then we could simply define what modules should run in live modr and what should run in playback mode. Better encapsulation.
+
+While managing execution state at the module level feels like a cleaner abstraction at first glance, grouping systems into modules purely based on their playback behavior actually violates core clean architecture principles—specifically the **Common Closure Principle** and the **Single Responsibility Principle**.
+
+Here is an architectural breakdown of why managing this via `SystemGroup`s rather than at the `IModule` boundary is the superior, more elegant design for an Entity Component System (ECS).
+
+1\. Preserving Domain Cohesion
+
+A module in the Bagira/FDP architecture is a domain boundary. For instance, the `EntityLifecycleModule` encapsulates everything regarding entity construction, ACKs, and destruction. The `SimulationLogicModule` encapsulates physics, navigation, and AI.
+
+If we redesign modules around "what runs in live mode" versus "what runs in replay mode," we shatter that domain cohesion. We would have to tear apart the ELM, moving `GhostCreationSystem` (which must run in replay) into one module, and `LifecycleSystem` (which must not) into another. Grouping systems by their execution state rather than their domain responsibility creates fragmented, tightly coupled spaghetti code.
+
+By keeping the domain systems together inside their cohesive modules, we protect the domain logic from needing to understand the orchestrator's Exercise State Machine (ESM).
+
+2\. The Reality of the ECS Topological Scheduler
+
+In the FDP architecture, an `IModule` is essentially an execution policy container and a factory. When the kernel initializes, it calls `RegisterSystems` on every module, handing the systems over to the global `SystemScheduler`.
+
+Once registered, the module boundaries effectively disappear for those systems. The scheduler flattens them, groups them strictly by `SystemPhase` (e.g., `Input`, `Simulation`, `PostSimulation`), and builds a dependency graph to topologically sort their execution order based on `[UpdateBefore]` and `[UpdateAfter]` attributes. Because the kernel executes these phases iteratively, there is no native way to tell the scheduler "ignore this module" on the hot path without completely unregistering and re-registering its systems.
+
+Doing so would force the scheduler to rebuild its complex dependency graph every time a user scrubs the replay timeline, causing unacceptable latency and allocation churn.
+
+3\. The `SystemGroup` as the Structural Seam
+
+This is exactly why the `SystemGroup` pattern exists. In FDP, a `SystemGroup` inherits directly from `ComponentSystem`, meaning it inherently possesses an `Enabled` boolean property.
+
+Instead of restructuring modules, we leverage structural encapsulation at the pipeline level. When the `EntityLifecycleModule` registers its systems, it registers them into the `NetworkLifecycleSystemGroup`.
+
+Because the `SystemScheduler` understands groups hierarchically, it can evaluate them during execution:
+
+```
+if (system is ISystemGroup group)
+{
+    ExecuteGroup(group, view, deltaTime);
+}
+```
+
+If the group's `Enabled` flag is false, the scheduler instantly bypasses all child systems inside it.
+
+Summary of Architectural Benefits
+
+Using `SystemGroup`s for replay toggling delivers a highly decoupled, enterprise-grade architecture:
+
+-   **Zero Kernel modifications:** We do not need to introduce dynamic enabling/disabling logic into the `IModule` interface or the hot path of the topological scheduler.-   **O(1) Orchestration:** The `SystemSlaveModule` can instantly isolate the ECS for replay by flipping `Enabled = false` on the `SimulationSystemGroup` and `NetworkLifecycleSystemGroup`. It takes microseconds and causes zero heap allocations.-   **Open/Closed Principle (OCP):** If a developer adds a new security validation system to the ELM pipeline in the future, they simply drop it into the `EntityLifecycleModule` and assign it to the `NetworkLifecycleSystemGroup`. The orchestrator requires absolutely zero code changes to automatically disable that new system during replays.
+
+Is it EcsRecordReplayController who should know what system group to disable? I want to keep the system slave module as generic as possible to reuse it also for non ecs apps like the ios. Or some other adapter needed?
+
+That is a brilliant architectural observation. You have correctly identified a critical seam in the system design. If the `SystemSlaveModule` knows about `SystemGroup`, `EntityRepository`, or any specific ECS concepts, we instantly violate the Dependency Inversion Principle and completely ruin its reusability for non-ECS applications like the IOS.
+
+The architecture explicitly anticipates this. The `SystemSlaveModule` is designed to be completely ignorant of the ECS and acts purely as a generic DDS network dispatcher.
+
+To achieve this clean separation, the design does not put the pipeline-disabling logic inside the `SystemSlaveModule`, nor does it overload the `EcsRecordReplayController` (which should strictly adhere to the Single Responsibility Principle of handling disk I/O and memory blasting). Instead, it uses the **Strategy/Command Pattern** via an adapter interface called `IEsmHandler`.
+
+Here is how the responsibilities are cleanly segregated:
+
+**1\. The Generic Orchestrator (****SystemSlaveModule****)** This module only knows about network commands and a collection of registered `IEsmHandler` instances. When a `NodeOpCommand(PrepareState, LoadingReplay)` arrives over DDS, it simply iterates through its handlers and dispatches the command. It doesn't know what the handlers do.
+
+**2\. The ECS-Aware Adapter (****ReplayLoadEsmHandler****)** On FDP-enabled nodes like the SimHost or Image Generator, we implement and register a specific `ReplayLoadEsmHandler`. This handler acts as the composition root for the replay transition. When the orchestrator invokes it, this handler:
+
+-   Queries the `SystemScheduler` to find the `SimulationSystemGroup` and `NetworkLifecycleSystemGroup`.-   Sets `Enabled = false` on those groups to isolate the pipeline.-   Sets `GhostCreationSystem.BypassLifecycle = true`.-   Instantiates and manages the lifecycle of the `EcsRecordReplayController`.
+
+**3\. The Data Controller (****EcsRecordReplayController****)** Because the pipeline manipulation is abstracted away into the ESM Handler, your `EcsRecordReplayController` remains incredibly focused. It only needs to implement `IRecordReplayController` to manage the `PlaybackController`, validate the schema manifest, and execute the highly optimized `SeekToWallClockTicks` binary searches and `memcpy` operations.
+
+**4\. The Non-ECS Nodes (e.g., Bagira.IOS)** Because we kept the `SystemSlaveModule` generic, the IOS node runs the exact same orchestrator logic. However, during application startup, the IOS simply registers different handlers (or an empty handler) that do not reference any ECS libraries. Its handlers might just update ImGui state variables to lock the UI into a "Replay Mode".
+
+By introducing the `IEsmHandler` seam, you achieve an enterprise-grade architecture. The network layer (`SystemSlaveModule`), the ECS pipeline configuration (`ReplayLoadEsmHandler`), and the data serialization (`EcsRecordReplayController`) are fully decoupled, highly testable, and strictly obedient to the Open/Closed Principle.
+
+Now about time control: How could the system master and slave modules (and their connected parts like ESM handlers) handle the simulation time? We decided to use the same synchronized global simulation time clock for both live mode and the playback mode. At certain operations like jump-to-time the clock need abrupt reset. Also the system should support switching to deterministic stepping practically at any time in live sim as well as in playback for debugging purposes. The system master module (which does not need to be an FDP module at all as it does not utilize FDP ECS services, it might more like a class instance that works with DDS) should be the time master. The system slave module should the time slave, providing the clock read service for the other modules. The sw part of the master that controls the ESM switching should very likely control also the global simulation time. for example if the system is in running replay state and it recevies a request to execute a jump-to-time, it needs to pause the sim time, arrange the ESM switching to perform all the jump-to-time operation, reset the global sim clock to the new time (the target of the jump-to-time) while the time is still paused, make sure the time reset request has reached the slaves before considering jump-to-time operation finished etc. How could that work?
+
+This is an excellent architectural direction. Decoupling the concept of "Time" from both the underlying ECS and the payload of the simulation is exactly how we build a robust, enterprise-grade distributed system. Treating the `SystemMasterModule` as a pure C# orchestrator that pushes time over DDS without needing to run an ECS world itself is a perfectly clean design.
+
+Here is how we architect the control planes to manage time, handle abrupt resets (seeking), and support hot-swapping to deterministic lockstep.
+
+1\. The Time Abstraction (Strategy Pattern)
+
+We encapsulate all time logic behind an `ITimeController` interface. This interface defines methods like `Update()`, `SetTimeScale()`, `GetCurrentState()`, and crucially, `SeedState()`.
+
+To support seamless transitions between Real-Time and Deterministic modes, the architecture utilizes a `SwitchableTimeController` acting as a proxy. This allows the kernel to hold a stable reference while we hot-swap the underlying time strategy (e.g., from a `MasterTimeController` to a `SteppedMasterController`) entirely transparently.
+
+2\. The Master Node (The Time Authority)
+
+The `SystemMasterModule` acts as the absolute Time Authority. Because it does not require an ECS, it simply instantiates a time controller and broadcasts its state.
+
+-   **Continuous Mode:** It runs a `MasterTimeController` driven by a local `Stopwatch`. Every second (or upon a significant change), it publishes a `TimePulseDescriptor` over DDS containing the absolute `MasterWallTicks` and `TimeScale`.-   **Deterministic Mode:** If debugging requires lockstep, the Master swaps to the `SteppedMasterController`. Instead of time pulses, it halts the wall-clock progression and publishes a `FrameOrderDescriptor` specifying the exact fixed delta (e.g., `16.67ms`), waiting for ACKs before advancing.
+
+3\. The Slave Nodes (The Consumers)
+
+The `SystemSlaveModule` acts as the local Time Slave. It listens to the DDS network and feeds the incoming data to its local time controller.
+
+-   **Continuous Mode:** It uses the `SlaveTimeController`. Crucially, this controller employs a Phase-Locked Loop (PLL) with a `JitterFilter` to smoothly synchronize its virtual clock to the Master's `TimePulseDescriptor`, entirely eliminating network transit jitter.-   **State Injection:** Every frame, the Slave's time controller generates a `GlobalTime` struct. The `SystemSlaveModule` blasts this struct into the ECS as an unmanaged singleton (`World.SetSingletonUnmanaged()`), acting as the single source of truth for all domain modules (physics, AI, recording).
+
+4\. Orchestrating an Abrupt Reset (Jump-To-Time)
+
+When the operator performs a discontinuous operation like jumping 15 minutes into the future during replay, we cannot rely on the normal Time Plane (`TimePulseDescriptor`). The Slave's PLL would interpret a 15-minute jump as a massive network error and either attempt to slew (interpolate) across it or trigger a hard snap safety threshold.
+
+Instead, the `SystemMasterModule` cleanly interlocks the Time Control with the Exercise State Machine (ESM) using the Two-Phase Commit (2PC) SysOp pattern:
+
+-   **Pause and Freeze:** The Master receives the jump request. It instantly pauses its `MasterTimeController` (`TimeScale = 0.0`) and stops publishing `TimePulseDescriptor`.-   **Snap Local Clock:** The Master directly resets its internal clock state via `SeedState()` or `SnapTo()` to match the exact target tick of the jump.-   **Command the Jump:** The Master broadcasts `NodeOpCommand(ReplaySeek, targetTime)` over the Command Plane.-   **Slave Execution (Bypassing PLL):**
+    -   The `SystemSlaveModule` receives the command.-   First, it commands its _local_ `SlaveTimeController` to perform a hard `SeedState()` to the new target time, explicitly bypassing the PLL error filters.-   Second, it commands the `EcsRecordReplayController` to execute the heavy data reconstruction for that exact time.-   **Synchronization Barrier:** Because the Slaves return `NodeOpStatus(InProgress)` while they rebuild heavy visual states (like particle clouds), the Master waits. The master _will not advance time_ until every node returns `NodeOpStatus(Success)`.-   **Unpause:** Once all ACKs arrive, the Master knows every node has safely snapped its clock and reconstructed its memory. It restores the `TimeScale` and resumes publishing `TimePulseDescriptor` from the newly established point in history.
+
+By strictly defining the Master as the controller of both the ESM and the `ITimeController`, we guarantee that time only flows when the distributed state machine dictates that the cluster is healthy and visually coherent.
+
+Note that the system slave module is decoupled from the ECS so that it needs another adapter for applying the global time into the ECS.
+
+Is the ReplaySeek some extra sub-operation inside the ESM transition into the running replay state which is also managed via sys-op synchronization mechanism? Don't these two duplicate each other?
+
+You are completely correct on the first point. Because the `SystemSlaveModule` is a generic network orchestrator that knows nothing about the ECS, it cannot inject time directly. That responsibility is elegantly delegated to the `ModuleHostKernel` acting as the adapter. During its main update loop, the kernel calls `Update()` on the active `ITimeController` (such as the `SlaveTimeController` running the Phase-Locked Loop) to get the latest `GlobalTime` struct, and then explicitly blasts it into the ECS using `_liveWorld.SetSingletonUnmanaged(globalTime)`. This cleanly preserves the Single Responsibility Principle.
+
+Regarding your question about `ReplaySeek`: it is **not** a sub-operation of the ESM transition, and it does not duplicate the state machine logic. Instead, `ReplaySeek` is a distinct operation that occurs _while the system is already residing in the_ _RunningReplay_ _state_.
+
+From an architectural standpoint, utilizing the System Operations (SysOp) Two-Phase Commit (2PC) mechanism for both ESM transitions and seeking is an intentional reuse of a robust pattern, not a duplication. Here is why this separation exists and why it represents excellent design:
+
+**1\. ESM Transitions (State Changes)** The ESM transition (e.g., `Standby` -> `LoadingReplay` -> `RunningReplay`) handles the heavy lifecycle setup. It is responsible for disabling the live simulation systems, opening the 5GB `.fdp` file handles on disk, allocating memory pools, and validating the `SchemaManifest` to prevent memory corruption. Once this transition finishes, the system sits in `RunningReplay` and continuous playback begins.
+
+**2\. Replay Seek (Operation within a State)** Once the system is happily ticking in `RunningReplay`, an instructor might drag the timeline scrubber from T=01:00 to T=15:00. We do not want to trigger a state machine transition for this; the node doesn't need to reload files or re-validate schemas.
+
+However, jumping 14 minutes into the future still requires distributed consensus. A fast node might blast its ECS memory in 5ms, but a custom Image Generator (IG) node might need 2.5 seconds to recalculate volumetric smoke and particle decay for that 14-minute gap. If the master advanced the time pulse immediately, the cluster would suffer massive visual tearing.
+
+**3\. Reusing the 2PC Pipeline** Instead of writing a redundant, bespoke "Replay Synchronization Protocol", the architecture simply issues a `SysOpRequest(ReplaySeek, targetTick)` through the existing Command Plane.
+
+-   The Master pauses the replay clock and broadcasts the command.-   The slaves use the exact same scatter-gather infrastructure (returning `NodeOpStatus(InProgress)`) while they reconstruct their local data.-   When the slowest node reports `NodeOpStatus(Success)`, the Master resumes the synchronized clock.
+
+By treating the timeline scrub as just another `SysOp` transaction, the platform leverages the exact same synchronization, timeout, and watchdog mechanics used for loading scenarios. This minimizes the architectural surface area and ensures that no node moves forward in time until the entire cluster is visually coherent.
+
+What about some "wilder" jump requests in the ESM? Let's imagine we are in the live running mode. And suddenly the user changed his mind and wants to jump right into the replay of that very exercise and start it from certain time in the middle. Either the ESM controller rejects such a transition (which is simple but not really user friendly, forcing the user to go through all steps like unloading the live, entering replay, executing jump-to-time) or it can be smart enough to know this trajectory inside the ESM graph and can orchestrate all these transitions automatically in one go. Is that doable?
+
+From a clean architecture and distributed systems perspective, baking a "smart," monolithic macro-transition (e.g., jumping directly from `RunningLive` to a specific frame in `RunningReplay`) directly into the core Exercise State Machine (ESM) graph is a dangerous anti-pattern.
+
+If the `SystemMasterModule` attempted to pack tearing down live physics, flushing disk buffers, loading replay schemas, and seeking the timeline into a single state transition, it would violate the Single Responsibility Principle and make distributed rollbacks in the Two-Phase Commit (2PC) essentially impossible. If a single node failed on step 4 of that macro-transition, recovering the cluster's state without a split-brain scenario would be an architectural nightmare.
+
+The `SystemMasterModule` acts as a strict, absolute guardian of the ESM, and it is explicitly designed to reject invalid requests like jumping directly between running states to protect the cluster.
+
+However, achieving the highly user-friendly experience you described—where an instructor clicks one button and the system "just does it"—is entirely doable using the **Saga Pattern** orchestrated at the client layer (the IOS).
+
+Here is how you achieve this seamlessly while maintaining strict backend purity:
+
+1\. Macro-Orchestration on the Client (IOS)
+
+Instead of the backend ESM predicting wild trajectories, the IOS UI abstracts the complexity. When the user clicks "Replay from T+15:00", the IOS fires a sequential chain of discrete `SysOpRequest` messages, waiting for the `SysOpStatus(Success)` from the Master before firing the next.
+
+2\. The Deterministic Execution Chain
+
+The IOS drives the system through the correct lifecycle boundaries, ensuring every module cleans up and initializes safely:
+
+-   **Step 1:** **SysOpRequest(TransitionState, UnloadingLive)** The system gracefully pauses time. Slaves flush their `AsyncRecorder` buffers to disk, finalize the `.fdprec` file, and clear the `EntityRepository`.-   **Step 2:** **SysOpRequest(TransitionState, LoadingReplay)** Slaves instantiate their `PlaybackController` against the freshly saved archive and validate the `SchemaManifest` to prevent memory corruption.-   **Step 3:** **SysOpRequest(TransitionState, RunningReplay)** The Master commits the state and the replay clock is prepared, initially paused at frame 0.-   **Step 4:** **SysOpRequest(ReplaySeek, TargetTick)** Because seeking is treated as a distinct 2PC operation that occurs _while already residing_ in the `RunningReplay` state, heavy nodes (like an IG) are given the time they need to rebuild particle clouds or volumetric smoke before the master resumes the synchronized clock.
+
+3\. The "Secret Weapon": Standby Asset Caching
+
+You might worry that forcing the system through `UnloadingLive` and back into `LoadingReplay` will cause massive loading screens and ruin the user experience. The FDP architecture elegantly solves this via its caching contract: when transitioning through the `Standby` state back into a new `LoadingX` state, nodes **must not force a full asset reload**.
+
+All heavy 3D models, textures, and road networks loaded in RAM are retained. The only things being swapped during this automated sequence are the lightweight ECS memory pools and the file I/O handles.
+
+By keeping the state machine transitions atomic and strictly bound to their domain responsibilities, and pushing the "smart trajectory" logic up to the IOS client scripts, you deliver an instant, seamless UX while guaranteeing that the distributed cluster never enters a corrupted or unrecoverable memory state.
+
+I think the IOS should stay dump and should not know about how to resolve "wild" transition by breaking them down to simple valid transitions and to manage their proper chanining, ensuring proper sequencing of command, waiting for finish etc. IOS should just express the desire of getting into a new system state. I think the master is perfectly cabale of taking the responsibility of orchestrating the series of ESM switches until it reaches the final state. The IOS could just fire a "wild system state change" request and then just sit there, monitors the series of ESM transitions as reported by the master, showing a progress bar to the user. When all done, the master finally marks the request as finished and the IOS unblocks the UI. The "wild request" might carry some hints helping the master to find proper path via the ESM graph if there are multiple possibilities. The core idea is that the master should be just dumb executor of a single simple state machine transition, but should be able to chain these as necessary, to avoid putting this ESM-specific logic into IOS which should stay 'dumb'.
+
+You make a very compelling architectural argument. Pushing the "macro-orchestration" (the Saga pattern) into the client is often a pragmatic shortcut, but you are absolutely right: from a strict Clean Architecture perspective, the IOS should be a "dumb" terminal. If the backend's lifecycle rules change in the future, we should not have to deploy an update to the IOS client just to teach it a new state machine trajectory.
+
+The `SystemMasterModule` is already the absolute source of truth and the sole owner of the Exercise State Machine (ESM). It is perfectly positioned to act as a **Process Manager** that resolves "wild" requests into a sequence of valid, atomic transitions.
+
+Here is how we can elegantly implement this in the `SystemMasterModule` without polluting the strict Two-Phase Commit (2PC) pipeline:
+
+1\. The Request and Path Resolution
+
+The IOS fires a standard `SysOpRequest` specifying the ultimate target state (e.g., `TargetState = RunningReplay`) and passes the necessary metadata (e.g., `DrillId = 999`) in the payload. It then locks its UI and waits.
+
+When the `SystemMasterModule` receives this, instead of flatly rejecting it if the system is currently in `RunningLive`, it passes the request to an internal **Transition Planner**. The planner evaluates the current state and uses the predefined ESM graph to calculate the necessary trajectory. For example, moving from `RunningLive` to `RunningReplay` generates an internal queue:
+
+-   `UnloadingLive`-   `Standby`-   `LoadingReplay`-   `RunningReplay`
+
+2\. The Saga Execution Loop
+
+The Master creates a `DistributedTransaction` to track this multi-step operation, but now the transaction holds the queue of planned states.
+
+The Master pops the first step (`UnloadingLive`) and executes the exact same 2PC mechanics we already established:
+
+-   It broadcasts `NodeOpCommand(PrepareState, UnloadingLive)` to all slaves.-   It waits for all nodes to report `NodeOpStatus(Success)`.-   Once all nodes ACK, the Master updates the persistent `SystemStateTopic` so the cluster officially enters that intermediate state.
+
+3\. "Dumb" Client Progress Monitoring
+
+During this entire process, the IOS does not need to know the sequence. Every time the Master receives a `NodeOpStatus` from a slave, or finishes an intermediate state transition, it publishes a `SysOpStatus` (or `SysOpUpdate`) back to the IOS with `Status = InProgress`.
+
+The Master can embed the current trajectory step in the payload (e.g., "Step 2 of 4: Loading Replay"). The IOS simply binds this payload to a progress bar.
+
+4\. Automatic Chaining
+
+Once the first step (`UnloadingLive`) completes, the Master does _not_ close the `SysOpRequest`. Instead, it instantly pops the next state from the queue (`Standby`), and fires the next `NodeOpCommand(PrepareState, Standby)`.
+
+Because FDP nodes cache heavy assets in RAM when transitioning through `Standby`, this automated chaining will execute extremely fast. The nodes will tear down the live ECS pools, keep the terrain in memory, and immediately begin initialising the `PlaybackController` for the replay.
+
+5\. Compensatory Rollbacks
+
+The greatest advantage of keeping this in the backend is robust failure handling. If the cluster successfully reaches `Standby` but a node crashes while attempting to enter `LoadingReplay`, the Master's watchdog detects the timeout. Because the Master owns the trajectory, it can instantly abort the rest of the queue, broadcast `NodeOpCommand(Abort)`, safely revert the cluster to `Standby`, and finally send `SysOpStatus(Failed)` to the IOS. The cluster remains in a perfectly clean, stable state.
+
+By adopting this approach, the `SystemMasterModule` remains the absolute guardian of the simulation's state, and the IOS acts as a pure, decoupled view layer.
+
+ok, then a simple state transition request (involving just one ESM transition) from the IOS is actually just a simple case of a more generic "wild request" and should be handled via the same mechanism for much wilder requests. correct?
+
+You are absolutely correct. From a clean architecture perspective, treating a simple, single-step transition as just a "macro-transition" queue of length 1 is exactly how you achieve a robust and maintainable codebase.
+
+By unifying the execution path, you eliminate branching logic (e.g., avoiding anti-patterns like `if (isComplexSequence) { RunSaga() } else { RunSimpleTransition() }`). The core Two-Phase Commit (2PC) engine inside the `SystemMasterModule` becomes completely blind to whether it is executing a single step or a complex five-step sequence.
+
+Here is how this unified mechanism operates elegantly under the hood:
+
+**1\. The Universal Entry Point** Whether the IOS wants to go from `Standby` to `LoadingLive` (a direct 1-step transition) or from `RunningLive` to `RunningReplay` (a wild 4-step sequence), it sends the exact same command: a `SysOpRequest` specifying the ultimate `TargetState`.
+
+**2\. The Transition Planner (Pathfinding)** The `SystemMasterModule` receives the request and immediately hands it to an internal Transition Planner. The planner treats the Exercise State Machine (ESM) as a directed graph and calculates the shortest valid path:
+
+-   **Wild Request Case:** Target is `RunningReplay` from `RunningLive` → planner returns a queue: `[UnloadingLive, Standby, LoadingReplay, RunningReplay]`.-   **Simple Request Case:** Target is `LoadingLive` from `Standby` → planner returns a queue: `[LoadingLive]`.
+
+**3\. The Unified Execution Loop** The planner hands this generated queue to a `DistributedTransaction` object. The Master's `Tick()` loop simply processes this queue using the standard 2PC pattern, entirely agnostic to the queue's original size:
+
+-   It pops the next state from the queue.-   It broadcasts `NodeOpCommand(PrepareState, NextState)` to all participating slaves.-   It waits in its monitor loop for all slaves to return `NodeOpStatus(Success)`.-   It commits the intermediate state to the reliable `SystemStateTopic`.-   **The Chain:** If the queue still has items, it instantly pops the next one and repeats the cycle.-   **The Resolution:** If the queue is now empty, it considers the transaction complete, clears the transaction, and publishes `SysOpStatus(Success)` back to the IOS.
+
+**Architectural Benefits:**
+
+-   **DRY (Don't Repeat Yourself):** All timeout handling, slave watchdog monitoring, and distributed rollback logic (broadcasting `Abort` commands) are written exactly once inside the `DistributedTransaction` processor.-   **Open/Closed Principle:** If the business decides to insert a new mandatory intermediate validation state into the ESM graph in the future, you only update the Transition Planner's graph definition. The 2PC execution loop and the IOS client require absolutely zero code changes.-   **Dumb Client Guarantee:** The IOS remains a pure, decoupled view layer. It simply asks to reach a target state and dynamically drives its UI progress bars based on the intermediate `SysOpStatus(InProgress)` updates it receives from the Master as the queue drains.
+
+good. pls write a mermaid sequence diagram how an IOS is requesting a "complex transition" and what is happening inside the master module, how the simple transition nodeOp requests are sent to nodes and the master waits for them before commanding new simple transition etc. untill all done successfully (or with failure) and the master reports the finishing of the "complex transition" back to the requestor (IOS)
+
+This is an excellent way to visualize the architecture. By using the Saga pattern within the `SystemMasterModule`, we keep the IOS completely decoupled from the internal state machine graph, strictly adhering to the principle of a "dumb" view layer.
+
+Here is the Mermaid sequence diagram illustrating how the Master acts as a Process Manager to resolve a "wild" request into a sequence of atomic, Two-Phase Commit (2PC) transactions, while safely updating the client.
+
+```
+sequenceDiagram
+    autonumber
+    participant IOS as IOS (Client)
+    participant Master as SystemMasterModule
+    participant Topic as SystemStateTopic (DDS)
+    participant Slaves as SystemSlaveModule (All Nodes)
+
+    IOS->>Master: SysOpRequest(TransitionState, Target=RunningReplay)
+    Note over IOS: Locks UI, waits for completion
+    
+    Note over Master: Transition Planner evaluates graph:<br/>Current=RunningLive, Target=RunningReplay<br/>Path=[UnloadingLive, Standby, LoadingReplay, RunningReplay]
+    Note over Master: Creates DistributedTransaction<br/>with the state queue
+
+    loop Saga Execution (Drain Queue)
+        Note over Master: Pop next state (e.g., UnloadingLive)
+        Master->>Slaves: NodeOpCommand(PrepareState, NextState)
+        
+        Slaves-->>Master: NodeOpStatus(InProgress)
+        
+        %% "Dumb" Client Progress
+        Master-->>IOS: SysOpStatus(InProgress, "Step 1 of 4: UnloadingLive")
+        Note over IOS: Dynamically updates Progress Bar
+        
+        Note over Slaves: Async execution on background thread<br/>(e.g., flush Flight Recorder, clear ECS)
+        
+        alt Happy Path (All Nodes Succeed)
+            Slaves-->>Master: NodeOpStatus(Success)
+            Master->>Topic: Publish SystemStateTopic(NextState)
+            Note over Master: State committed. Proceed to next queue item.
+            
+        else Failure Path (Any Node Fails or Times Out)
+            Slaves-->>Master: NodeOpStatus(Failed)
+            Note over Master: Transaction Watchdog triggers rollback
+            Master->>Slaves: NodeOpCommand(Abort)
+            Master->>Topic: Publish SystemStateTopic(SafeFallbackState)
+            Master-->>IOS: SysOpStatus(Failed, "Node 200 failed to unload")
+            Note over IOS: Unlocks UI, shows error modal
+            Note over Master: Abort Transaction (Break Loop)
+        end
+    end
+
+    Note over Master: Queue is empty, target state reached
+    Master-->>IOS: SysOpStatus(Success)
+    Note over IOS: Unlocks UI, transition complete
+```
+
+Architectural Commentary
+
+-   **The Transition Planner (Pathfinding):** Notice how the IOS only requests the final `Target=RunningReplay`. The `SystemMasterModule`'s internal Transition Planner is the only component that knows the strict lifecycle rules (e.g., you must pass through `Standby` to tear down live memory pools before loading replay schemas).-   **Unified 2PC Execution:** The execution loop is completely agnostic to whether the queue has 1 item or 10. It simply pops the next state and runs the standard `NodeOpCommand` scatter-gather. If a node fails, the Master instantly aborts the macro-transition, preventing the cluster from fracturing into a split-brain scenario.-   **The "Dumb" Client UX:** The IOS does not hardcode any progress bar increments. It dynamically binds to the `SysOpStatus(InProgress)` payload emitted by the Master at the start of each queue step. If we add a new required state (e.g., `LoadingSecurityClearance`) to the ESM backend tomorrow, the IOS will automatically render "Step X of 5" without a single line of frontend code changing.
+
+back to the time control: How should the master and slave cooperate on the replay-to-live operation? I guess it should only be allowed if the global sim time is paused as it might take some time for the slaves to prepare for the switch. But the request can come while the system is in running replay mode when the sim time clock is not paused. So the master needs to first issue the pause and only then instruct the slaves to perform the switch.
+
+You are absolutely right, and your intuition points directly to a critical concept in distributed systems: **Control-Plane vs. Data-Plane Interlock**.
+
+If the master allowed the simulation time (the Data Plane) to continue advancing while simultaneously asking the slaves to tear down their replay pipelines and initialize live recording pipelines (the Control Plane), the cluster would branch at slightly different timestamps based on each node's disk I/O latency. This would destroy the determinism of the simulation.
+
+To achieve a clean, deterministic "Live-from-Replay" (Take Control) transition, the `SystemMasterModule` must act as a strict interlock between the Exercise State Machine (ESM) and the Time Controller.
+
+Here is exactly how this operation is orchestrated using clean architecture and the Two-Phase Commit (2PC) pattern:
+
+1\. The Hard Freeze (Master)
+
+When the IOS user clicks "Take Control" during a running replay, the IOS sends a `SysOpRequest(TransitionState, LoadingLive)`. The moment the `SystemMasterModule` receives this, it intercepts the operation and enforces the interlock:
+
+-   It immediately halts the Time Controller (`TimeScale = 0.0`) and ceases publishing `TimePulseDescriptor` messages.-   This instantly freezes the entire distributed cluster at the exact same absolute millisecond in historical time. No ECS components will mutate, and the screen will effectively pause for the operator.
+
+2\. The 2PC Prepare Phase & Branching
+
+With the timeline strictly frozen, the Master generates a **new** `DrillId` (e.g., branching `Drill_999` to `Drill_999_Branch1`) to ensure the original recording is not overwritten. It then broadcasts `NodeOpCommand(PrepareState, LoadingLive)`.
+
+3\. Slave Execution (The Adapter Swap)
+
+The `SystemSlaveModule` on each node receives the command and routes it to the `ReplayLoadEsmHandler` (or the equivalent custom module handler). Because the time is frozen, the background threads can safely execute the heavy I/O lifting without race conditions:
+
+-   **Teardown:** The `EcsRecordReplayController` calls `TeardownReplayAsync()`, which cleanly disposes the `PlaybackController` and closes the read handles to the historical `.fdprec` file.-   **State Preservation (Zero-Copy):** Crucially, the local ECS memory (`EntityRepository` / `NativeChunkTable`) is left completely untouched. It sits perfectly intact, retaining the exact historical state of the world.-   **Initialization:** The slave instantiates a _new_ `AsyncRecorder` pointed at the new branched `DrillId` path, capturing the current frozen ECS memory as its first root keyframe.-   **Pipeline Re-engagement:** The orchestrator sets `Enabled = true` on the `SimulationSystemGroup` and `NetworkLifecycleSystemGroup`, re-arming the AI, physics, and ELM systems that were dormant during the replay.-   The slave replies `NodeOpStatus(Success)` to the Master.
+
+4\. The Commit and Unpause
+
+Once all slaves report `Success`, the cluster is perfectly primed to resume.
+
+-   The Master commits the state to `RunningLive` via the reliable `SystemStateTopic`.-   The Master unpauses the standard simulation time by restoring the `TimeScale` (e.g., to `1.0`) and resuming the `TimePulseDescriptor` broadcast.
+
+Architectural Elegance
+
+Because we rigidly enforce the Single Responsibility Principle, the domain modules (like your physics engine or AI behavior trees) remain blissfully ignorant that a temporal branch just occurred. To them, the `GlobalTime.DeltaTime` simply went to zero for a few real-world seconds while the orchestrator swapped the disk adapters. When the time pulse resumes, the entities seamlessly "wake up" and begin executing their live logic from that exact historical state.
+
+pls provide the mermain sequence diagram for this, showing the path from IOS throught the master to the slave and deeper into the esm handler and even deeper into the record replay controller and back to visualize what you just described, in detail
+
+Here is the Mermaid sequence diagram illustrating the complete "Live-from-Replay" (Take Control) transaction.
+
+This diagram highlights the strict architectural boundaries we enforce: the client acts as a dumb terminal, the Master orchestrates the Two-Phase Commit and temporal interlock, the generic Slave dispatches to the specific adapter, and the data layer preserves the zero-allocation unmanaged memory state,,,.
+
+```
+sequenceDiagram
+    autonumber
+    
+    box "Client Layer (View)"
+        participant IOS
+    end
+    
+    box "Control Plane (Orchestration)"
+        participant Master as SystemMasterModule
+        participant Topic as SystemStateTopic
+    end
+    
+    box "Data Plane (Node Executor)"
+        participant Slave as SystemSlaveModule
+        participant Handler as IEsmHandler
+        participant Controller as EcsRecordReplayController
+        participant ECS as EntityRepository (NativeChunkTable)
+    end
+
+    Note over IOS, ECS: Current State: RunningReplay (Time is playing normally)
+
+    %% 1. The Trigger
+    IOS->>Master: SysOpRequest(TransitionState, LoadingLive)
+    Note over IOS: Locks UI
+    
+    %% 2. The Temporal Interlock
+    Note over Master: Hard Freeze Timeline:<br/>Set TimeScale = 0.0<br/>Halt TimePulseDescriptor broadcast
+    Note over Master: Generate branched DrillId<br/>(e.g., Drill_999_Branch1)
+    
+    %% 3. Phase 1: Prepare
+    Master->>Slave: NodeOpCommand(PrepareState, LoadingLive, NewDrillId)
+    Slave-->>Master: NodeOpStatus(InProgress)
+    Master-->>IOS: SysOpStatus(InProgress)
+    
+    %% 4. Adapter Execution (Background Thread)
+    Note over Slave: Dispatch to registered Handler
+    Slave->>Handler: Handle ESM Transition
+    
+    %% 5. Teardown historical stream
+    Handler->>Controller: TeardownReplayAsync()
+    Note over Controller: Disposes PlaybackController<br/>Closes .fdprec read handles
+    
+    %% 6. Zero-Copy State Preservation
+    Note over Controller, ECS: CRITICAL: EntityRepository memory is intentionally bypassed.<br/>Historical state sits intact in unmanaged chunks.
+    
+    %% 7. Spin up live pipeline
+    Handler->>Controller: PrepareRecordingAsync(NewDrillId)
+    Note over Controller: Initializes AsyncRecorder<br/>Captures current frozen ECS memory<br/>as root Keyframe for new branch
+    
+    Note over Handler: SystemScheduler.Enabled = true<br/>on SimulationSystemGroup & ELM
+    
+    %% 8. Phase 1 Complete
+    Handler-->>Slave: Task Completed
+    Slave-->>Master: NodeOpStatus(Success)
+    
+    %% 9. Phase 2: Commit & Resume
+    Note over Master: All participating nodes reported Success
+    Master->>Topic: Publish SystemStateTopic(RunningLive, NewDrillId)
+    
+    Note over Master: Resume Timeline:<br/>Set TimeScale = 1.0<br/>Resume TimePulseDescriptor broadcast
+    
+    Master-->>IOS: SysOpStatus(Success)
+    Note over IOS: Unlocks UI
+    Note over ECS: Next Tick: AI and Physics systems wake up<br/>and resume executing from the preserved history.
+```
+
+Architectural Commentary
+
+-   **Temporal Interlock (Steps 2 & 9):** By forcing the `SystemMasterModule` to halt the `TimePulseDescriptor` broadcast immediately upon request, we guarantee that the simulation's Data Plane remains perfectly frozen while the Control Plane negotiates the heavy disk I/O,. This guarantees deterministic branching across the cluster.-   **Zero-Copy State Retention (Step 6):** Notice that the `EcsRecordReplayController` deliberately ignores the `EntityRepository` during `TeardownReplayAsync()`,. Because FDP relies on unmanaged 64KB chunks (`NativeChunkTable`), tearing down the file streams requires zero manipulation of the simulation memory. The historical state is natively retained in RAM, avoiding expensive deserialization loops.-   **Pipeline Re-arming (Step 7):** The adapter (`IEsmHandler`) acts as the composition root. It explicitly re-enables the `SimulationSystemGroup` and `NetworkLifecycleSystemGroup` via the `SystemScheduler`,. When the master unpauses the clock, the physics and AI modules wake up entirely unaware that they just underwent a temporal branch.
+-----
+I need to clarify a time control detail: The deterministic stepping needs to be available at any time while the ESM is in a 'running' state (where time can be paused, resumend, stepped...) It might need a special instruction sent to all nodes about that we are switching to deterministic stepping or back to the continuous time flow. This instruction might be considered an internal detail of the time syncing mechanism (one possible option - the whole time control API might be hiding how the time is managed, offering just modes like 'continuous' or 'stepped') or it could be an explicit system operation where the aprticipants know how to handli it by explicit swapping the time controllers. Swapping the time controller does not change anything in the ESM so it does not necessarily be an explicit operation if we introduce a "mighty time controller" abstraction that internally supports discrete time stepping and knows how to seamlessy transition between stepped and continuous modes. I guess the swap should only happen while the sim clock is in pause. If the clock is running and the request "switch to stepped" comes, the master should pause the clock first and then issue the request for swapping the controller. The question is if it is architecturally better to hide the two controlles (continous and stepped) behind a common facade to simplify both the master and slave by delegating the swapping responsibility behind the facade, implementing the swap request etc as internal implementation (still via sys op but fired from behind the facade where the master and slave actually do not need to know how it works).
+
+This is a fantastic architectural question. You are touching on a classic distributed systems problem: **How do we change the fundamental flow of time across a cluster without causing frame tearing, and whose responsibility is it to manage that transition?**
+
+From a clean architecture perspective, your instinct to hide the transition behind a facade is exactly right, but relying on the standard Two-Phase Commit (2PC) `SysOp` mechanism to execute the swap would be an anti-pattern here.
+
+Here is why, and how the architecture elegantly solves this using the **Proxy Pattern**, the **Strategy Pattern**, and a **Future Barrier** on a dedicated Time Plane.
+
+Why 2PC SysOps are Bad for Time Control
+
+A standard 2PC `SysOp` (like `LoadBattlespace`) requires a round-trip network handshake. If the Master receives a "Switch to Deterministic" command and uses a 2PC `NodeOpCommand` to tell the slaves to swap controllers, network latency guarantees that the nodes will receive the command at slightly different simulation frames. If Node A swaps at Frame 100 and Node B swaps at Frame 102, your determinism is instantly destroyed. We cannot block the main simulation thread waiting for ACKs just to pause or step the time.
+
+The Enterprise Solution: The Proxy + Future Barrier
+
+Instead of a heavy 2PC transaction or a monolithic "mighty" time controller, the architecture strictly adheres to the **Single Responsibility Principle (SRP)** by dividing the problem into three decoupled layers:
+
+**1\. The Strategies (The Pure Math)** We have pure, isolated implementations of `ITimeController`: `MasterTimeController` / `SlaveTimeController` (for continuous Phase-Locked Loop time) and `SteppedMasterController` / `SteppedSlaveController` (for deterministic lockstep). They only know how to calculate `DeltaTime`; they know nothing about swapping.
+
+**2\. The Facade (The Proxy)** As you suggested, we hide these behind a facade called the `SwitchableTimeController`. The ECS Kernel holds a locked reference to this proxy. When a swap is needed, the proxy accepts a new `ITimeController`, gracefully seeds it with the current `GlobalTime` state, and seamlessly routes all subsequent `Update()` calls to the new strategy. The rest of the simulation modules never know the underlying engine changed.
+
+**3\. The Orchestrator (The Future Barrier)** The actual responsibility of negotiating the swap is removed from the `SystemMasterModule` (which handles ESM states) and delegated to a highly specialized `DistributedTimeCoordinator` (on the Master) and `SlaveTimeModeListener` (on the Slaves). They communicate strictly over the **Time Plane** using lightweight `SwitchTimeModeEvent` messages.
+
+The Seamless Swap Execution (How it works in practice)
+
+You mentioned that the clock should probably be paused first before swapping. The "Future Barrier" pattern makes this transition flawless and atomic, without needing a pre-pause:
+
+-   **The Request:** The Master receives a command to switch to Deterministic mode.-   **The Lookahead:** Instead of telling the cluster to "swap now" (which causes tearing), the `DistributedTimeCoordinator` looks at the current frame (e.g., Frame 100) and adds a configured lookahead (e.g., 10 frames). It defines Frame 110 as the **Barrier Frame**.-   **The Broadcast:** It immediately broadcasts a `SwitchTimeModeEvent(TargetMode: Deterministic, BarrierFrame: 110)` over DDS.-   **The Wait:** The entire cluster keeps simulating normally in Continuous mode. The `SlaveTimeModeListener` receives the event and quietly waits.-   **The Atomic Swap:** The exact millisecond that the `SwitchableTimeController` ticks over to Frame 110, the coordinators on _every single node simultaneously_ intercept the tick. They instantiate the `SteppedSlaveController`, pass it into the `SwitchableTimeController`, and the continuous clock halts instantly.
+
+Architectural Summary
+
+By hiding the swapping mechanics behind the `SwitchableTimeController` proxy, and moving the synchronization out of the heavy `SysOp` control plane and into a frame-perfect Future Barrier, you achieve an incredibly clean architecture.
+
+The Master and Slave orchestrators (`SystemMasterModule` / `SystemSlaveModule`) do not need to know how time is managed—they simply rely on the Time Plane to do its job. The domain modules continue reading `GlobalTime.DeltaTime` entirely ignorant of whether it was generated by a real-time PLL or a deterministic lockstep acknowledgment.
+
+ok, he SwitchTimeModeEvent is a new DDS message to be created, used by the SwitchableTimeController, belonging to the family of 'internal' time management messages not considered a public API, usable just via calling the SwitchableTimeController API, corrent? What the API of the SwitchableTimeController might look like?
+
+You are exactly on the right track regarding the encapsulation of the time control plane, but from a clean architecture perspective, we must apply a strict separation of concerns here.
+
+The `SwitchableTimeController` itself does **not** know about the `SwitchTimeModeEvent`, DDS, or future barriers. If the proxy controller handled network messages, we would violate the Single Responsibility Principle (SRP) and couple our core simulation loop to the network transport layer.
+
+Here is the exact architectural breakdown of how the event and the API are structured to maintain absolute purity.
+
+1\. The `SwitchTimeModeEvent` (The Internal Network Payload)
+
+You are correct that this is an internal time management message. In the Bagira/FDP codebase, it is defined as an unmanaged struct `SwitchTimeModeEvent` within the `FDP.Toolkit.Time.Messages` namespace.
+
+Instead of writing a complex DDS translator for it, the architecture elegantly leverages the `BlitEventTranslator<SwitchTimeModeEvent>`. This allows the event to be published locally to the `FdpEventBus` by the `DistributedTimeCoordinator` (on the Master), and the blit translator automatically does a raw, zero-allocation memory copy over CycloneDDS to the Slaves. It remains completely hidden from the public application API.
+
+2\. The `SwitchableTimeController` API (The Pure Proxy)
+
+Because the network orchestration (the "Future Barrier") is entirely handled by the `DistributedTimeCoordinator` and `SlaveTimeModeListener`, the `SwitchableTimeController` is nothing more than a pure implementation of the **Proxy and Strategy Patterns**.
+
+Its only responsibility is to hold the active time strategy, delegate the `ITimeController` interface calls to it, and provide a thread-safe hot-swap method.
+
+Here is what the API looks like in the FDP Time Toolkit:
+
+```
+public class SwitchableTimeController : ITimeController
+{
+    private ITimeController _activeController;
+
+    public SwitchableTimeController(ITimeController initial)
+    {
+        _activeController = initial ?? throw new ArgumentNullException(nameof(initial));
+    }
+
+    /// <summary>
+    /// The only public API specific to this class. 
+    /// Called by the Coordinators when the Future Barrier frame is reached.
+    /// </summary>
+    public void SwitchTo(ITimeController newController)
+    {
+        if (newController == null) throw new ArgumentNullException(nameof(newController));
+        if (_activeController == newController) return;
+
+        // Gracefully transfer the exact current state to the new strategy
+        var currentState = _activeController.GetCurrentState();
+        newController.SeedState(currentState);
+        
+        _activeController = newController;
+    }
+
+    public ITimeController ActiveController => _activeController;
+
+    // ─── ITimeController Proxy Implementation ──────────────────────────────
+    
+    public GlobalTime Update() => _activeController.Update();
+    
+    public void SetTimeScale(float scale) => _activeController.SetTimeScale(scale);
+    
+    public float GetTimeScale() => _activeController.GetTimeScale();
+    
+    public TimeMode GetMode() => _activeController.GetMode();
+    
+    public GlobalTime GetCurrentState() => _activeController.GetCurrentState();
+    
+    public void SeedState(GlobalTime state) => _activeController.SeedState(state);
+    
+    public void Dispose() => _activeController.Dispose();
+}
+```
+
+Architectural Elegance
+
+By designing it this way, you achieve perfectly decoupled layers:
+
+-   **The Kernel (****ModuleHostKernel****):** Simply calls `Update()` on its generic `ITimeController` interface, completely oblivious to the fact that it is talking to a Proxy.-   **The Strategies (****SlaveTimeController** **/** **SteppedSlaveController****):** Only execute the math (PLL smoothing vs Lockstep fixed delta) and know nothing about swapping.-   **The Proxy (****SwitchableTimeController****):** Facilitates the hot-swap safely by seeding the new strategy with the exact state of the old strategy, guaranteeing zero time-loss.-   **The Orchestrators (****DistributedTimeCoordinator** **/** **SlaveTimeModeListener****):** Wait for the Barrier Frame to arrive on the `FdpEventBus`, instantiate the new strategy, and call `SwitchTo()` on the proxy.
 
