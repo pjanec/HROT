@@ -194,30 +194,8 @@ namespace ModuleHost.Core
                 throw new InvalidOperationException("TimeController not set. Use SetTimeController() to inject an implementation (e.g. from FDP.Toolkit.Time).");
             }
             
-            // Auto-assign providers to modules
-            AutoAssignProviders();
-            
-            // Build the initial execution topology:
-            // Registers all module systems into a fresh SystemScheduler,
-            // captures system instances for reuse on future topology rebuilds,
-            // and performs the topological sort.
-            _activeTopology = BuildTopology(_modules);
-            
-            // Throws CircularDependencyException if cycles detected
-            
-            _initialized = true;
-        }
-
-        private void AutoAssignProviders()
-        {
-            // Modules can manually set provider; only auto-assign if null
-            var modulesNeedingProvider = _modules.Where(m => m.Provider == null).ToList();
-            
-            if (modulesNeedingProvider.Count == 0)
-                return;
-            
-            // Validate policies AND Cache component masks
-            foreach (var entry in modulesNeedingProvider)
+            // 1. Validate policies and ensure schemas are registered for all startup modules
+            foreach (var entry in _modules)
             {
                 try
                 {
@@ -229,114 +207,28 @@ namespace ModuleHost.Core
                         $"Module '{entry.Module.Name}' has invalid execution policy: {ex.Message}", ex);
                 }
                 
-                // Cache component mask for optimization
-                entry.ComponentMask = GetComponentMask(entry.Module);
+                EnsureComponentsRegistered(entry.Module);
             }
             
-            // Group by execution characteristics
-            var groups = modulesNeedingProvider
-                .GroupBy(m => new
-                {
-                    m.Module.Policy.Mode,
-                    m.Module.Policy.Strategy,
-                    Frequency = m.Module.Policy.TargetFrequencyHz
-                });
-            
-            foreach (var group in groups)
-            {
-                var key = group.Key;
-                var moduleList = group.ToList();
-                
-                switch (key.Strategy)
-                {
-                    case DataStrategy.Direct:
-                        // No provider needed - direct world access
-                        foreach (var entry in moduleList)
-                        {
-                            entry.Provider = null!; 
-                        }
-                        break;
-                    
-                    case DataStrategy.GDB:
-                        // All modules in group share ONE persistent replica
-                        var unionMask = CalculateUnionMask(moduleList);
-                        
-                        var gdbProvider = new DoubleBufferProvider(
-                            _liveWorld,
-                            _eventAccumulator,
-                            unionMask,
-                            _schemaSetup
-                        );
-                        
-                        foreach (var entry in moduleList)
-                        {
-                            entry.Provider = gdbProvider;
-                        }
-                        break;
-                    
-                    case DataStrategy.SoD:
-                        if (moduleList.Count == 1)
-                        {
-                            // Single module: OnDemandProvider
-                            var entry = moduleList[0];
-                            // Use cached mask
-                            var mask = entry.ComponentMask;
-                            
-                            entry.Provider = new OnDemandProvider(
-                                _liveWorld,
-                                _eventAccumulator,
-                                mask,
-                                _schemaSetup,
-                                initialPoolSize: 5
-                            );
-                        }
-                        else
-                        {
-                            // Convoy: SharedSnapshotProvider
-                            var unionMaskSoD = CalculateUnionMask(moduleList);
-                            
-                            var sharedProvider = new SharedSnapshotProvider(
-                                _liveWorld,
-                                _eventAccumulator,
-                                unionMaskSoD,
-                                _snapshotPool!
-                            );
-                            
-                            foreach (var entry in moduleList)
-                            {
-                                entry.Provider = sharedProvider;
-                            }
-                        }
-                        break;
-                }
-            }
-            
-            // Final check: Ensure all non-Direct modules have providers
+            // 2. Assign providers using the unified allocation logic
             foreach (var entry in _modules)
             {
-                if (entry.Provider == null && entry.Module.Policy.Strategy != DataStrategy.Direct)
+                if (entry.Provider == null)
                 {
-                    // Fallback (should not happen if logic covers all cases)
-                    // If we missed caching for some reason (e.g. manually added?) - recalculate or use cache?
-                    // Safe to call GetComponentMask again if cache is empty, but we set it above.
-                    // But if module was NOT in modulesNeedingProvider (already had provider), we skipped loop.
-                    // But then provider is not null.
-                    
-                    // What if provider set manually but we want to optimize?
-                    // We only touch modulesNeedingProvider.
-                    
-                    if (entry.ComponentMask.IsEmpty() && !entry.Module.Policy.Strategy.ToString().Contains("Direct")) 
-                    {
-                         // If mask not set, compute it. 
-                         // Note: IsEmpty() might be expensive or ambiguous (0 components required).
-                         // But we can just call GetComponentMask, it's safe.
-                         entry.ComponentMask = GetComponentMask(entry.Module);
-                    }
-                    
-                     var mask = entry.ComponentMask;
-                     entry.Provider = new OnDemandProvider(_liveWorld, _eventAccumulator, mask, _schemaSetup);
+                    AssignProviderForDynamicInstall(_modules, entry);
                 }
+                entry.LifecycleState = ModuleLifecycleState.Ready;
             }
+            
+            // Build the initial execution topology:
+            // Registers all module systems into a fresh SystemScheduler,
+            // captures system instances for reuse on future topology rebuilds,
+            // and performs the topological sort.
+            _activeTopology = BuildTopology(_modules);
+            
+            // Throws CircularDependencyException if cycles detected
+            
+            _initialized = true;
         }
 
         private BitMask256 CalculateUnionMask(List<ModuleEntry> modules)
@@ -462,6 +354,7 @@ namespace ModuleHost.Core
             {
                 Module = module,
                 Provider = provider!, 
+                HasManualProvider = provider != null,
                 FramesSinceLastRun = 0,
                 
                 // Initialize resilience components from locally validated Policy
@@ -1579,7 +1472,8 @@ namespace ModuleHost.Core
                             && e.Module.Policy.Strategy == DataStrategy.GDB
                             && e.Module.Policy.Mode == policy.Mode
                             && e.Module.Policy.TargetFrequencyHz == policy.TargetFrequencyHz
-                            && e.Provider is DoubleBufferProvider)
+                            && e.Provider is DoubleBufferProvider
+                            && !e.HasManualProvider)
                         .ToList();
 
                     if (groupMembers.Count > 0)
@@ -1638,7 +1532,8 @@ namespace ModuleHost.Core
                         .Where(e => e != newEntry
                             && e.Module.Policy.Strategy == DataStrategy.SoD
                             && e.Module.Policy.Mode == policy.Mode
-                            && e.Module.Policy.TargetFrequencyHz == policy.TargetFrequencyHz)
+                            && e.Module.Policy.TargetFrequencyHz == policy.TargetFrequencyHz
+                            && !e.HasManualProvider)
                         .ToList();
 
                     if (groupMembers.Count == 0)
@@ -1772,6 +1667,12 @@ namespace ModuleHost.Core
             /// on teardown. False when the provider is shared with other modules.
             /// </summary>
             public bool HasExclusiveProvider { get; set; }
+
+            /// <summary>
+            /// True if the user manually assigned a provider during initial setup.
+            /// These modules should NOT be forcefully grouped into shared convoys during dynamic installs.
+            /// </summary>
+            public bool HasManualProvider { get; set; }
         }
 
         // ═══════════════════════════════════════════════════════════
