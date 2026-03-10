@@ -1,5 +1,5 @@
 # Gap Analysis & Open Questions
-## Distributed Exercise Management System (Rec/Plb/Mgmt)
+## Distributed Drill Management System (Rec/Plb/Mgmt)
 
 > **Purpose:** This document maps what currently exists in the codebase against what the
 > [design-talk.md](./design-talk.md) requires. It lists every gap, every discovered issue,
@@ -67,7 +67,7 @@ Below is the relevant existing code that the new system will build upon.
 | `IModule` | `FDP/ModuleHost/ModuleHost.Core/Abstractions/IModule.cs` | ✅ Exists | `RegisterSystems()`, `Tick()`, `ExecutionPolicy`. |
 | `SystemPhase` | Same | ✅ Exists | `Input`, `BeforeSync`, `Simulation`, `PostSimulation`, `Export`. |
 | `ISnapshotProvider` | Same | ✅ Exists | GDB=`DoubleBufferProvider`, SoD=`OnDemandProvider`, Shared=`SharedSnapshotProvider`. `DoubleBufferProvider.Update()` calls `_replica.SyncFrom(_liveWorld, _mask)` — this IS the pattern to reuse for checkpoints. |
-| `ModuleHostKernel` | `FDP/ModuleHost/ModuleHost.Core/ModuleHostKernel.cs` | ✅ Exists | Runs modules; no ESM state hook needed (use internal `FdpEventBus` event instead). |
+| `ModuleHostKernel` | `FDP/ModuleHost/ModuleHost.Core/ModuleHostKernel.cs` | ✅ Exists | Runs modules; no DSM state hook needed (use internal `FdpEventBus` event instead). |
 
 ### 1.5 DDS / Networking
 
@@ -85,7 +85,7 @@ Below is the relevant existing code that the new system will build upon.
 |-------|----------|-------|-------|
 | `SimHostApp.cs` | `Bagira.SimHost/SimHostApp.cs` | ✅ Exists | ModuleHost kernel setup for SimHost. |
 | `IgApplication.cs` | `Bagira.IG/IgApplication.cs` | ✅ Exists | ModuleHost kernel setup for IG. |
-| `IosLogic.cs` / `IosMock.cs` | `Bagira.IOS/` | ✅ Exists | IOS business logic; no ESM UI or SysOp awareness. |
+| `IosLogic.cs` / `IosMock.cs` | `Bagira.IOS/` | ✅ Exists | IOS business logic; no DSM UI or SysOp awareness. |
 
 ---
 
@@ -155,16 +155,16 @@ Checkpoint handler calls `destRepo.SyncFrom(liveRepo)` on the main thread at `Be
 
 ---
 
-### GAP-4: No Exercise State Machine (ESM)
+### GAP-4: No Drill State Machine (DSM)
 
 **Severity: HIGH — the entire feature set depends on this**
 
-There is NO `ESMState`, `SystemStateTopic`, `SysOpRequest`, `SysOpStatus`,
-`NodeOpCommand`, `NodeOpStatus`, `SystemMasterModule`, or `SystemSlaveModule`
+There is NO `DSMState`, `SystemStateTopic`, `SysOpRequest`, `SysOpStatus`,
+`NodeOpCommand`, `NodeOpStatus`, `DrillMaster`, or `DrillSlave`
 anywhere in the codebase.
 
 `SubsystemStatusAnnounce` + `WaitingRoomCoordinator` serve a related but different
-purpose (startup peer discovery, not runtime ESM). They should NOT be repurposed.
+purpose (startup peer discovery, not runtime DSM). They should NOT be repurposed.
 
 **What to add:** See [DESIGN.md §2](./DESIGN.md#2-dds-message-schema) and §5–6.
 
@@ -191,23 +191,23 @@ does NOT need to be decoupled from the `ModuleHostKernel.RunOnce()` call.
 
 ---
 
-### GAP-6: IModule Has No ESM State Change Hooks
+### GAP-6: IModule Has No DSM State Change Hooks
 
 **Severity: MEDIUM**
 
-> **DESIGN DECISION MADE:** No `IModule` interface changes. ESM state change
+> **DESIGN DECISION MADE:** No `IModule` interface changes. DSM state change
 > notifications use the internal `FdpEventBus`.
 
-**Resolution:** When `SystemSlaveModule` commits a new ESM state, it publishes:
+**Resolution:** When `DrillSlave` commits a new DSM state, it publishes:
 
 ```csharp
-_eventBus.Publish(new EsmStateChangedEvent { Previous = prev, Next = next });
+_eventBus.Publish(new DsmStateChangedEvent { Previous = prev, Next = next });
 ```
 
 Any module needing to react (e.g. disable physics during `RunningReplay`) subscribes:
 
 ```csharp
-_eventBus.Subscribe<EsmStateChangedEvent>(OnEsmStateChanged);
+_eventBus.Subscribe<DsmStateChangedEvent>(OnDsmStateChanged);
 ```
 
 This is the least invasive approach and requires no changes to the existing `IModule`
@@ -221,8 +221,8 @@ interface or `ModuleHostKernel`.
 
 `SubsystemStatusAnnounce` is published **once at startup** when `Ready=true`.
 There is no ongoing health monitoring. The Master has no way to detect if SimHost
-crashes mid-exercise except by noticing missing `NodeOpStatus` responses (which only
-exist after the ESM itself is implemented).
+crashes mid-drill except by noticing missing `NodeOpStatus` responses (which only
+exist after the DSM itself is implemented).
 
 **What to add:** `NodeHeartbeat` DDS topic (see DESIGN.md §2.2 + §7).
 The 1 Hz autonomous heartbeat must use a `System.Diagnostics.Stopwatch` (wall-clock),
@@ -259,22 +259,22 @@ is entirely missing. The 2PC battlespace swap pattern must be built from scratch
 
 `AsyncRecorder` takes a `filePath` string and includes a `Timestamp` in
 `RecordingMetadata`, but there is no `DrillId` (GUID) that semantically links
-all recordings from the same exercise run, checkpoints taken during that run,
+all recordings from the same drill run, checkpoints taken during that run,
 and the `SystemStateTopic`.
 
 `RecordingMetadata` needs a `Guid DrillId` field.
 The `AsyncRecorder` constructor (or its factory) must receive the `DrillId` from
-the `SystemSlaveModule` (which gets it from `NodeOpCommand.PayloadJson`).
+the `DrillSlave` (which gets it from `NodeOpCommand.PayloadJson`).
 
 ---
 
-### GAP-11: IOS Has No ESM Awareness or SysOp UI
+### GAP-11: IOS Has No DSM Awareness or SysOp UI
 
 **Severity: LOW (UI layer, can be stubbed initially)**
 
-`IosLogic.cs` / `IosMock.cs` have no knowledge of `ESMState`, `SysOpRequest`, or
-the exercise lifecycle. A minimal IOS integration (even a command-line mock) is
-needed for end-to-end integration testing of the ESM.
+`IosLogic.cs` / `IosMock.cs` have no knowledge of `DSMState`, `SysOpRequest`, or
+the drill lifecycle. A minimal IOS integration (even a command-line mock) is
+needed for end-to-end integration testing of the DSM.
 
 ---
 
@@ -286,7 +286,7 @@ needed for end-to-end integration testing of the ESM.
 frame whose `FrameMetadata.Tick >= targetTick`. This does NOT use binary search —
 it scans from the beginning of the frame index.
 
-For large recordings (hours of exercise at 60 Hz = ~216 000 frames/hour), seeking
+For large recordings (hours of drill at 60 Hz = ~216 000 frames/hour), seeking
 to a late point in the recording will take O(n) time scanning the index in memory.
 
 **Two separate fixes needed:**
@@ -306,15 +306,15 @@ not exist.
 
 ---
 
-### GAP-14: WaitingRoomCoordinator Is Startup-Only, Not Integrated with ESM Standby
+### GAP-14: WaitingRoomCoordinator Is Startup-Only, Not Integrated with DSM Standby
 
 **Severity: LOW (integration/structural)**
 
 `WaitingRoomCoordinator` currently blocks the startup thread until peers are found,
-then exits. After its use, systems start ticking with no shared ESM context.
+then exits. After its use, systems start ticking with no shared DSM context.
 
 The natural integration point is: after `WaitingRoomCoordinator` completes and
-`SystemMasterModule` has built its initial `ActiveNodes` roster, the Master publishes
+`DrillMaster` has built its initial `ActiveNodes` roster, the Master publishes
 `SystemStateTopic(Standby)` to signal that the system is now ready for IOS commands.
 
 ---
@@ -418,9 +418,9 @@ Master high-availability.
 
 ---
 
-### ISSUE-8: Story "Pause" Is Semantically Different from ESM Pause
+### ISSUE-8: Story "Pause" Is Semantically Different from DSM Pause
 
-The design talk specifies that pausing a single story must NOT pause the global ESM
+The design talk specifies that pausing a single story must NOT pause the global DSM
 clock. Instead, it freezes story entities by removing `CanMove` / `CanShoot`
 capability flags.
 
@@ -453,7 +453,7 @@ This must be measured.
 
 ---
 
-### Q-2: Which node runs SystemMasterModule — SimHost or a dedicated BBroker?
+### Q-2: Which node runs DrillMaster — SimHost or a dedicated BBroker?
 
 > **RESOLVED:** Dedicated `Bagira.Orchestrator` project. `Bagira.Runner` is just a
 > shell; `Bagira.Orchestrator` is a subsystem registered with the Runner and runs as a
@@ -461,11 +461,11 @@ This must be measured.
 
 ---
 
-### Q-3: How does the IOS join the ESM? Does it have a SystemSlaveModule?
+### Q-3: How does the IOS join the DSM? Does it have a DrillSlave?
 
-> **RESOLVED:** IOS has a **lightweight slave** (`IosSystemSlaveModule`) with no ECS.
+> **RESOLVED:** IOS has a **lightweight slave** (`IosDrillSlaveModule`) with no ECS.
 > It participates like any other node (heartbeat, `NodeOpStatus` replies, reacts to
-> ESM state changes) but skips any `IEsmHandler` that touches `EntityRepository`.
+> DSM state changes) but skips any `IDsmHandler` that touches `EntityRepository`.
 
 ---
 
@@ -477,9 +477,9 @@ This must be measured.
 
 ---
 
-### Q-5: Should `ReplaySeek` be a SysOp or a new ESM sub-state?
+### Q-5: Should `ReplaySeek` be a SysOp or a new DSM sub-state?
 
-> **RESOLVED:** Seek is a SysOp. No new ESM state. The Orchestrator freezes
+> **RESOLVED:** Seek is a SysOp. No new DSM state. The Orchestrator freezes
 > `TimePulseDescriptor` during the seek. Per-node-type timeout is configurable.
 
 ---
@@ -489,7 +489,7 @@ This must be measured.
 > **RESOLVED:**
 > - Path: `/archives/{DrillId}/stories/{StoryId}_node{N}.fdp`
 > - `ForgetStory` → **immediate file delete** on each node.
-> - If the exercise ends (`UnloadingLive`) while a story recording is still active
+> - If the drill ends (`UnloadingLive`) while a story recording is still active
 >   (IOS never called `StopStory`), the **partial recording is auto-deleted** by each
 >   node during its `FinalizeLive` handler. Story cleanup is the node's responsibility,
 >   not the Orchestrator's.
@@ -520,11 +520,11 @@ This must be measured.
 
 ---
 
-### Q-10: How does the system handle a node that joins mid-exercise (late joiner)?
+### Q-10: How does the system handle a node that joins mid-drill (late joiner)?
 
 > **RESOLVED:** The Orchestrator publishes `OrchestratorContextTopic` (TransientLocal,
-> HistoryDepth=1) whenever the exercise context changes. A late-joining node reads this
-> topic immediately on connect, learns the current ESM state, DrillId, scenario, and
+-> HistoryDepth=1) whenever the drill context changes. A late-joining node reads this
+-> topic immediately on connect, learns the current DSM state, DrillId, scenario, and
 > required node list, then executes its internal join procedure (load assets, sync, etc.).
 > Late joining IS supported — it is not prohibited.
 
@@ -532,7 +532,7 @@ This must be measured.
 
 ### Q-11: Is Master high-availability needed (active-standby failover)?
 
-> **RESOLVED:** Master HA is **out of scope**. Master (Orchestrator) crash = exercise
+> **RESOLVED:** Master HA is **out of scope**. Master (Orchestrator) crash = drill
 > terminates. This is accepted. The Orchestrator runs as a separate process so its
 > crash does not kill SimHost/IG. Slave nodes self-transition to `Degraded` on detecting
 > Orchestrator heartbeat loss (> 5s silence).
@@ -541,8 +541,8 @@ This must be measured.
 
 ### Q-12: "Live from RunningEdit" — Is LoadingLive valid from RunningEdit?
 
-> **RESOLVED:** `RunningEdit → LoadingLive` is a **valid transition**. The ESM table
-> and Mermaid diagram have been updated in DESIGN.md to reflect this.
+-> **RESOLVED:** `RunningEdit → LoadingLive` is a **valid transition**. The DSM table
+-> and Mermaid diagram have been updated in DESIGN.md to reflect this.
 >
 > Additionally: transitioning through Standby and back to a new `LoadingX` state MUST
 > NOT force a full asset reload. Assets in RAM are retained; only assets that differ
