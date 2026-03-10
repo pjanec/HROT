@@ -41,6 +41,15 @@ namespace Fdp.Interfaces
         // We use delegates to abstract the type-specific SetComponent calls.
         private readonly List<Action<EntityRepository, Entity, bool>> _applicators = new();
 
+        /// <summary>
+        /// DIS Entity Type associated with this template.
+        /// Set by <see cref="BdcTkbBuilder"/> during catalog registration.
+        /// When non-zero, <see cref="ApplyTo"/> stamps it onto the entity header via
+        /// <see cref="EntityRepository.SetDisType"/> so that rendering systems can
+        /// perform bitwise layer-mask evaluation without string look-ups.
+        /// </summary>
+        public DISEntityType DisType { get; set; }
+
         public TkbTemplate(string name, long tkbType)
         {
             if (string.IsNullOrWhiteSpace(name))
@@ -118,6 +127,7 @@ namespace Fdp.Interfaces
 
         /// <summary>
         /// Applies all components in this template to the target entity.
+        /// Also stamps <see cref="DisType"/> onto the entity header when it is non-zero.
         /// </summary>
         /// <param name="repo">The repository to modify.</param>
         /// <param name="entity">The target entity.</param>
@@ -128,6 +138,11 @@ namespace Fdp.Interfaces
             {
                 apply(repo, entity, preserveExisting);
             }
+
+            // Stamp DIS type directly into the entity header so the rendering hot-path
+            // can evaluate layer membership via a single integer comparison.
+            if (DisType.Value != 0)
+                repo.SetDisType(entity, DisType);
         }
     }
 }

@@ -342,6 +342,17 @@ namespace Fdp.Kernel
             header.LastChangeTick = _globalVersion;
         }
 
+        /// <summary>
+        /// Returns the DIS Entity Type stored in the EntityHeader.
+        /// Complementary to <see cref="SetDisType"/>.
+        /// Returns a zeroed <see cref="DISEntityType"/> if no type has been assigned.
+        /// </summary>
+        public DISEntityType GetDisType(Entity entity)
+        {
+            if (!IsAlive(entity)) throw new InvalidOperationException($"Entity {entity} is not alive");
+            return _entityIndex.GetHeader(entity.Index).DisType;
+        }
+
         internal void Clear()
         {
             _entityIndex.Clear();
