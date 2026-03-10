@@ -98,4 +98,12 @@ public static class PanelConstants
     /// (<c>MissionControlAck.ErrorCode == 7</c>).
     /// </summary>
     public const int VersionConflictErrorCode = 7;
+
+    // ── Entity filter presets ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Filter preset name for the <c>road_graphs</c> map layer.
+    /// Used by the <see cref="MissionPanel"/> when launching a "Pick Route" entity pick.
+    /// </summary>
+    public const string FilterPresetRoadGraphs = "road_graphs";
 }

@@ -33,7 +33,10 @@ namespace Bagira.IOS;
 /// </list>
 /// </para>
 /// </summary>
-public sealed class IosLogic : IIosLogic, IDisposable
+/// <summary>Tracks which kind of interactive pick is currently awaited from the IG.</summary>
+public enum IosPickMode { None, EntityCreation, Location, Entity }
+
+public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
 {
     // ── Dependencies ──────────────────────────────────────────────────────────
 
@@ -42,6 +45,12 @@ public sealed class IosLogic : IIosLogic, IDisposable
 
     /// <inheritdoc/>
     public IMissionEditorService MissionEditorService { get; }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// <see cref="IosLogic"/> implements <see cref="IMapPickService"/> directly.
+    /// </remarks>
+    public IMapPickService MapPickService => this;
 
     /// <summary>Context-menu strategy manager; driven by selection-change events.</summary>
     public IContextMenuLogic ContextMenuLogic { get; }
@@ -83,6 +92,14 @@ public sealed class IosLogic : IIosLogic, IDisposable
     /// <see cref="ConsumeSpawnerRequest"/>.
     /// </summary>
     public bool SpawnerRequested { get; private set; }
+
+    // ── Map pick state ─────────────────────────────────────────────────────────
+
+    /// <summary>Tracks what kind of pending pick is awaited from the IG.</summary>
+    public IosPickMode PickMode { get; private set; } = IosPickMode.None;
+
+    private TaskCompletionSource<GeoPosition>? _pendingLocationTcs;
+    private TaskCompletionSource<int>?         _pendingEntityTcs;
 
     private bool _disposed;
 
@@ -170,6 +187,8 @@ public sealed class IosLogic : IIosLogic, IDisposable
 
         ActiveContextId = Guid.NewGuid();
         PlacementType   = tkbType;
+        PickMode        = IosPickMode.EntityCreation;
+        CancelPendingPick();
 
         if (_commandWriter != null)
         {
@@ -305,7 +324,132 @@ public sealed class IosLogic : IIosLogic, IDisposable
     /// </summary>
     public void ConsumeSpawnerRequest() => SpawnerRequested = false;
 
-    // ── Main update ───────────────────────────────────────────────────────────
+    // ── IMapPickService ───────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public Task<GeoPosition> PickLocationAsync(CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+
+        if (_commandWriter == null)
+            return Task.FromException<GeoPosition>(
+                new InvalidOperationException("No MapCommandRequest writer available."));
+
+        CancelPendingPick();
+
+        ActiveContextId = Guid.NewGuid();
+        PlacementType   = 0;
+        PickMode        = IosPickMode.Location;
+
+        var tcs = new TaskCompletionSource<GeoPosition>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingLocationTcs = tcs;
+
+        if (ct.CanBeCanceled)
+        {
+            ct.Register(() =>
+            {
+                if (_pendingLocationTcs == tcs)
+                {
+                    _pendingLocationTcs = null;
+                    PickMode = IosPickMode.None;
+                }
+                tcs.TrySetCanceled(ct);
+            }, useSynchronizationContext: false);
+        }
+
+        string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+        {
+            contextId = ActiveContextId.ToString("N")
+        });
+
+        _commandWriter.Write(new MapCommandRequest
+        {
+            RequestId       = Guid.NewGuid(),
+            MapId           = _targetMapId,
+            Type            = CommandType.CMD_PICK_LOCATION,
+            CommandArgsJson = argsJson,
+        });
+
+        _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicCommand,
+            $"CMD_PICK_LOCATION ctx={ActiveContextId:N}");
+
+        FdpLog<IosLogic>.Debug("[TRACE-IOS] PickLocation Mode ON. ContextId={0}", ActiveContextId);
+
+        return tcs.Task;
+    }
+
+    /// <inheritdoc/>
+    public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default)
+    {
+        ThrowIfDisposed();
+
+        if (_commandWriter == null)
+            return Task.FromException<int>(
+                new InvalidOperationException("No MapCommandRequest writer available."));
+
+        CancelPendingPick();
+
+        ActiveContextId = Guid.NewGuid();
+        PlacementType   = 0;
+        PickMode        = IosPickMode.Entity;
+
+        var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pendingEntityTcs = tcs;
+
+        if (ct.CanBeCanceled)
+        {
+            ct.Register(() =>
+            {
+                if (_pendingEntityTcs == tcs)
+                {
+                    _pendingEntityTcs = null;
+                    PickMode = IosPickMode.None;
+                }
+                tcs.TrySetCanceled(ct);
+            }, useSynchronizationContext: false);
+        }
+
+        string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+        {
+            contextId = ActiveContextId.ToString("N"),
+            filters   = filterPresets ?? Array.Empty<string>()
+        });
+
+        _commandWriter.Write(new MapCommandRequest
+        {
+            RequestId       = Guid.NewGuid(),
+            MapId           = _targetMapId,
+            Type            = CommandType.CMD_PICK_ENTITY,
+            CommandArgsJson = argsJson,
+        });
+
+        _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicCommand,
+            $"CMD_PICK_ENTITY filters=[{string.Join(",", filterPresets ?? Array.Empty<string>())}] ctx={ActiveContextId:N}");
+
+        FdpLog<IosLogic>.Debug("[TRACE-IOS] PickEntity Mode ON. ContextId={0}", ActiveContextId);
+
+        return tcs.Task;
+    }
+
+    /// <summary>
+    /// Cancels any pending location or entity pick without completing it.
+    /// Called automatically when a new pick or placement mode starts.
+    /// </summary>
+    public void CancelPendingPick()
+    {
+        var locTcs = _pendingLocationTcs;
+        _pendingLocationTcs = null;
+        locTcs?.TrySetCanceled();
+
+        var entTcs = _pendingEntityTcs;
+        _pendingEntityTcs = null;
+        entTcs?.TrySetCanceled();
+
+        if (PickMode == IosPickMode.Location || PickMode == IosPickMode.Entity)
+            PickMode = IosPickMode.None;
+    }
+
+
 
     /// <summary>
     /// Called once per frame from the application shell (main thread).
@@ -358,30 +502,76 @@ public sealed class IosLogic : IIosLogic, IDisposable
                 continue;
             }
 
-            // Drop clicks when no placement type has been configured.
-            if (PlacementType == 0)
+            switch (PickMode)
             {
-                _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicClick,
-                    "DROP – no placement type configured");
-                continue;
+                case IosPickMode.EntityCreation:
+                    ProcessEntityCreationClick(evt);
+                    break;
+
+                case IosPickMode.Location:
+                    ProcessLocationPickClick(evt);
+                    break;
+
+                case IosPickMode.Entity:
+                    ProcessEntityPickClick(evt);
+                    break;
+
+                default:
+                    _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicClick,
+                        "DROP – no active pick mode");
+                    break;
             }
-
-            // Track the outgoing request.
-            var requestId = Guid.NewGuid();
-            TransactionManager.TrackRequest(requestId,
-                $"Create entity tkbType={PlacementType}");
-
-            _createEntityWriter.Write(new CreateEntityRequest
-            {
-                RequestId          = requestId,
-                Owner              = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
-                Flags              = 0,
-                InitialDescriptors = BuildInitialDescriptors(evt.Position)
-            });
-
-            _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicCreate,
-                $"tkb={PlacementType} pos={evt.Position.Latitude:F2},{evt.Position.Longitude:F2}");
         }
+    }
+
+    private void ProcessEntityCreationClick(MapClickEvent evt)
+    {
+        if (PlacementType == 0)
+        {
+            _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicClick,
+                "DROP – no placement type configured");
+            return;
+        }
+
+        var requestId = Guid.NewGuid();
+        TransactionManager.TrackRequest(requestId, $"Create entity tkbType={PlacementType}");
+
+        _createEntityWriter.Write(new CreateEntityRequest
+        {
+            RequestId          = requestId,
+            Owner              = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
+            Flags              = 0,
+            InitialDescriptors = BuildInitialDescriptors(evt.Position)
+        });
+
+        _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicCreate,
+            $"tkb={PlacementType} pos={evt.Position.Latitude:F2},{evt.Position.Longitude:F2}");
+    }
+
+    private void ProcessLocationPickClick(MapClickEvent evt)
+    {
+        var tcs = _pendingLocationTcs;
+        _pendingLocationTcs = null;
+        PickMode            = IosPickMode.None;
+
+        _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicClick,
+            $"LOCATION_PICK pos={evt.Position.Latitude:F4},{evt.Position.Longitude:F4}");
+
+        tcs?.TrySetResult(evt.Position);
+    }
+
+    private void ProcessEntityPickClick(MapClickEvent evt)
+    {
+        int entityId = evt.HitStack is { Count: > 0 } ? evt.HitStack[0].EntityId : 0;
+
+        var tcs = _pendingEntityTcs;
+        _pendingEntityTcs = null;
+        PickMode          = IosPickMode.None;
+
+        _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicClick,
+            $"ENTITY_PICK entityId={entityId}");
+
+        tcs?.TrySetResult(entityId);
     }
 
     private void ProcessSelectionEvents()

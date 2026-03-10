@@ -130,6 +130,22 @@ namespace Bagira.BDC.SSTM
         /// Args JSON: { "contextId": "&lt;guid&gt;", "styleOverrideJson": "..." }
         /// </summary>
         CMD_START_AUTHORING,
+        /// <summary>
+        /// Activate a one-shot location-pick mode on a specific IG window.
+        /// The IG shows a crosshair cursor; the operator's next left-click publishes
+        /// a <see cref="MapClickEvent"/> with the world-space GeoPosition and the
+        /// correlated context ID so the IOS can resolve a pending location pick.
+        /// Args JSON: { "contextId": "&lt;guid&gt;" }
+        /// </summary>
+        CMD_PICK_LOCATION,
+        /// <summary>
+        /// Activate an entity-picker tool on a specific IG window.
+        /// The IG renders a target crosshair that turns red over pickable entities;
+        /// clicking a valid entity publishes a <see cref="MapClickEvent"/> with the
+        /// entity in <c>HitStack</c> and the correlated context ID.
+        /// Args JSON: { "contextId": "&lt;guid&gt;", "filters": ["road_graphs", "tactical_graphics"] }
+        /// </summary>
+        CMD_PICK_ENTITY,
     }
 
     // Imperative commands sent from IOS to a specific IG Instance.

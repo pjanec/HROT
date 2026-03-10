@@ -247,6 +247,18 @@ public class IgApplication
 
     private Guid                             _lastAreaContextId;
 
+    /// <summary>Guard that prevents re-activating the location-picker for the same context ID.</summary>
+    private Guid _lastPickLocationContextId;
+
+    /// <summary>Guard that prevents re-activating the entity-picker for the same context ID.</summary>
+    private Guid _lastPickEntityContextId;
+
+    /// <summary>
+    /// Factory compiled once after the ECS world is created; translates layer-preset
+    /// strings (e.g. <c>"road_graphs"</c>) into allocation-free <see cref="IEntityFilter"/> instances.
+    /// </summary>
+    private BagiraEntityFilterFactory? _entityFilterFactory;
+
     private DdsWriter<CreateEntityRequest>?  _createEntityDdsWriter;
 
     // ÔöÇÔöÇ Drag tracking: world-space drop position set by OnEntityMoved ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
@@ -1058,6 +1070,18 @@ public class IgApplication
                     case CommandType.CMD_START_EDITING:
 
                         ParseCommandAndActivateEditTool(cmd.CommandArgsJson);
+
+                        break;
+
+                    case CommandType.CMD_PICK_LOCATION:
+
+                        ParseCommandAndActivateLocationPicker(cmd.CommandArgsJson);
+
+                        break;
+
+                    case CommandType.CMD_PICK_ENTITY:
+
+                        ParseCommandAndActivateEntityPicker(cmd.CommandArgsJson);
 
                         break;
 
@@ -2999,6 +3023,139 @@ public class IgApplication
 
         FdpLog<IgApplication>.Info("[IG] Area authoring tool activated.");
 
+    }
+
+    // ─── LocationPickerTool activation from CMD_PICK_LOCATION ────────────────
+
+    /// <summary>
+    /// Handles an incoming <see cref="CommandType.CMD_PICK_LOCATION"/> command.
+    /// Extracts <c>contextId</c> from the JSON args, sets the active context ID,
+    /// then pushes a <see cref="LocationPickerTool"/> onto the canvas.
+    /// The tool publishes a <see cref="MapClickEvent"/> (via the existing
+    /// <c>OnCanvasClicked</c> pathway) when the operator left-clicks.
+    /// </summary>
+    private void ParseCommandAndActivateLocationPicker(string argsJson)
+    {
+        if (string.IsNullOrWhiteSpace(argsJson)) return;
+
+        try
+        {
+            using var doc  = JsonDocument.Parse(argsJson);
+            var       root = doc.RootElement;
+
+            if (root.TryGetProperty("contextId", out var ctxEl)
+             && Guid.TryParse(ctxEl.GetString(), out var ctx))
+            {
+                _activeContextId = ctx;
+            }
+
+            ActivateLocationPickerTool();
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn(
+                "[IG] ParseCommandAndActivateLocationPicker failed: {0}", ex.Message);
+        }
+    }
+
+    private void ActivateLocationPickerTool()
+    {
+        if (_lastPickLocationContextId == _activeContextId)
+            return;
+        _lastPickLocationContextId = _activeContextId;
+
+        if (_canvas.ActiveTool is LocationPickerTool)
+            _canvas.PopTool();
+
+        var tool = new LocationPickerTool();
+        tool.OnLocationPicked += worldPos =>
+            OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null);
+        tool.OnCancelled += () =>
+            FdpLog<IgApplication>.Debug("[IG] LocationPicker cancelled.");
+
+        _canvas.PushTool(tool);
+        FdpLog<IgApplication>.Info("[IG] Location picker tool activated. ContextId={0}", _activeContextId);
+    }
+
+    // ─── EntityPickerTool activation from CMD_PICK_ENTITY ────────────────────
+
+    /// <summary>
+    /// Handles an incoming <see cref="CommandType.CMD_PICK_ENTITY"/> command.
+    /// Extracts <c>contextId</c> and <c>filters</c> from the JSON args, then
+    /// activates the <see cref="FDP.Toolkit.Vis2D.Tools.EntityPickerTool"/>.
+    /// When the operator clicks a valid entity the tool publishes a
+    /// <see cref="MapClickEvent"/> (via <c>OnCanvasClicked</c>) with the entity
+    /// in the <c>HitStack</c> so the IOS can resolve its pending pick promise.
+    /// </summary>
+    private void ParseCommandAndActivateEntityPicker(string argsJson)
+    {
+        if (string.IsNullOrWhiteSpace(argsJson)) return;
+
+        try
+        {
+            using var doc  = JsonDocument.Parse(argsJson);
+            var       root = doc.RootElement;
+
+            if (root.TryGetProperty("contextId", out var ctxEl)
+             && Guid.TryParse(ctxEl.GetString(), out var ctx))
+            {
+                _activeContextId = ctx;
+            }
+
+            string[] filters = Array.Empty<string>();
+            if (root.TryGetProperty("filters", out var filtersEl)
+             && filtersEl.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<string>();
+                foreach (var item in filtersEl.EnumerateArray())
+                {
+                    var s = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(s))
+                        list.Add(s!);
+                }
+                filters = list.ToArray();
+            }
+
+            ActivateEntityPickerTool(filters);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn(
+                "[IG] ParseCommandAndActivateEntityPicker failed: {0}", ex.Message);
+        }
+    }
+
+    private void ActivateEntityPickerTool(string[] filters)
+    {
+        if (_lastPickEntityContextId == _activeContextId)
+            return;
+        _lastPickEntityContextId = _activeContextId;
+
+        if (_entityFilterFactory == null)
+        {
+            FdpLog<IgApplication>.Warn("[IG] EntityPickerTool requested but filter factory is not ready.");
+            return;
+        }
+
+        if (_canvas.ActiveTool is FDP.Toolkit.Vis2D.Tools.EntityPickerTool)
+            _canvas.PopTool();
+
+        var tool = new FDP.Toolkit.Vis2D.Tools.EntityPickerTool(_entityFilterFactory, filters);
+
+        tool.OnEntityPicked += entity =>
+        {
+            // Re-use OnCanvasClicked to publish the MapClickEvent.
+            // The entity will appear in HitStack so the IOS receives the networkId.
+            OnCanvasClicked(Vector2.Zero, MouseButton.Left, false, false, entity);
+            FdpLog<IgApplication>.Info("[IG] EntityPicker picked entity {0}", entity.Index);
+        };
+
+        tool.OnCancelled += () =>
+            FdpLog<IgApplication>.Debug("[IG] EntityPicker cancelled.");
+
+        _canvas.PushTool(tool);
+        FdpLog<IgApplication>.Info("[IG] Entity picker tool activated. ContextId={0} Filters=[{1}]",
+            _activeContextId, string.Join(",", filters));
     }
 
 

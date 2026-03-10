@@ -1,10 +1,12 @@
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
+using Bagira.DDS.DM;
 using Bagira.IOS.Services;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior;
 using BehaviorConstants = FDP.Toolkit.Behavior.BehaviorConstants;
 using ImGuiNET;
+using System.Text.Json;
 
 namespace Bagira.IOS.Panels;
 
@@ -30,6 +32,23 @@ public sealed class MissionPanel
 
     private bool _commitInFlight;
     private Task<MissionCommitResult>? _pendingCommit;
+
+    // ── Map-pick pending state ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Pending async location pick. Non-null while the operator is
+    /// picking a location on the map for a <c>MoveToLocation</c> task.
+    /// </summary>
+    private Task<GeoPosition>? _pendingLocationPick;
+
+    /// <summary>
+    /// Pending async entity pick. Non-null while the operator is
+    /// picking a route entity for a <c>FollowRoute</c> task.
+    /// </summary>
+    private Task<int>? _pendingEntityPick;
+
+    /// <summary>Task index that the current pending pick is targeting.</summary>
+    private int _pendingPickTaskIndex = -1;
 
     private readonly string[] _behaviorIds;
 
@@ -258,7 +277,106 @@ public sealed class MissionPanel
     /// </summary>
     public void DismissConflict() => _conflictMessage = null;
 
-    // ── Draw stub (Phase P9) ──────────────────────────────────────────────────
+    // ── Map-pick handlers (public for testability) ────────────────────────────
+
+    /// <summary>
+    /// Initiates an async location pick for the <c>MoveToLocation</c> task at
+    /// <paramref name="index"/>.  The panel polls <see cref="PollPickCompletion"/>
+    /// each frame and writes the JSON params when the pick resolves.
+    /// </summary>
+    public void HandlePickLocation(int index, IIosLogic logic)
+    {
+        ArgumentNullException.ThrowIfNull(logic);
+        if (!TryGetDraftTasks(out _)) return;
+        if (index < 0) return;
+
+        _pendingPickTaskIndex = index;
+        _pendingLocationPick  = logic.MapPickService.PickLocationAsync();
+    }
+
+    /// <summary>
+    /// Initiates an async entity pick for the <c>FollowRoute</c> (or similar)
+    /// task at <paramref name="index"/>.
+    /// </summary>
+    public void HandlePickEntity(int index, IIosLogic logic, string[] filterPresets)
+    {
+        ArgumentNullException.ThrowIfNull(logic);
+        if (!TryGetDraftTasks(out _)) return;
+        if (index < 0) return;
+
+        _pendingPickTaskIndex = index;
+        _pendingEntityPick    = logic.MapPickService.PickEntityAsync(filterPresets);
+    }
+
+    /// <summary>True when an async location pick is in flight for any task.</summary>
+    public bool IsLocationPickPending => _pendingLocationPick is { IsCompleted: false };
+
+    /// <summary>True when an async entity pick is in flight for any task.</summary>
+    public bool IsEntityPickPending => _pendingEntityPick is { IsCompleted: false };
+
+    // ── JSON helpers for MoveToLocation / FollowRoute params ─────────────────
+
+    /// <summary>
+    /// Builds the canonical <c>MoveToLocation</c> behavior-params JSON:
+    /// <c>{"targetLat":…,"targetLon":…}</c>.
+    /// </summary>
+    internal static string BuildMoveToLocationParams(double lat, double lon)
+        => $"{{\"targetLat\":{lat:F6},\"targetLon\":{lon:F6}}}";
+
+    /// <summary>
+    /// Builds the canonical <c>FollowRoute</c> behavior-params JSON:
+    /// <c>{"routeEntityId":…}</c>.
+    /// </summary>
+    internal static string BuildFollowRouteParams(int routeEntityId)
+        => $"{{\"routeEntityId\":{routeEntityId}}}";
+
+    /// <summary>
+    /// Tries to parse lat/lon from a <c>MoveToLocation</c> params JSON string.
+    /// Returns <c>false</c> when the JSON is empty or malformed.
+    /// </summary>
+    internal static bool TryParseMoveToLocationParams(string json, out double lat, out double lon)
+    {
+        lat = lon = 0;
+        if (string.IsNullOrWhiteSpace(json)) return false;
+        try
+        {
+            using var doc  = JsonDocument.Parse(json);
+            var       root = doc.RootElement;
+            if (root.TryGetProperty("targetLat", out var latEl)
+             && root.TryGetProperty("targetLon", out var lonEl))
+            {
+                lat = latEl.GetDouble();
+                lon = lonEl.GetDouble();
+                return true;
+            }
+        }
+        catch { /* malformed */ }
+        return false;
+    }
+
+    /// <summary>
+    /// Tries to parse the route entity ID from a <c>FollowRoute</c> params JSON string.
+    /// Returns <c>false</c> when the JSON is empty or malformed.
+    /// </summary>
+    internal static bool TryParseFollowRouteParams(string json, out int routeEntityId)
+    {
+        routeEntityId = 0;
+        if (string.IsNullOrWhiteSpace(json)) return false;
+        try
+        {
+            using var doc  = JsonDocument.Parse(json);
+            var       root = doc.RootElement;
+            if (root.TryGetProperty("routeEntityId", out var idEl))
+            {
+                routeEntityId = idEl.GetInt32();
+                return true;
+            }
+        }
+        catch { /* malformed */ }
+        return false;
+    }
+
+
 
     /// <summary>
     /// Renders the panel via ImGui.
@@ -272,6 +390,7 @@ public sealed class MissionPanel
         IosPanelColors.Pop();
 
         PollCommitCompletion();
+        PollPickCompletion();
 
         if (_selectedEntityId == 0)
         {
@@ -324,17 +443,35 @@ public sealed class MissionPanel
                 }
 
                 string paramsBuffer = task.BehaviorParams ?? string.Empty;
-                var paramsSize = new System.Numerics.Vector2(
-                    ImGui.GetContentRegionAvail().X,
-                    ImGui.GetTextLineHeightWithSpacing() * PanelConstants.MissionBehaviorParamsEditorLines);
 
-                if (ImGui.InputTextMultiline(
-                        $"Params##{i}",
-                        ref paramsBuffer,
-                        PanelConstants.MissionBehaviorParamsMaxLength,
-                        paramsSize))
+                // ─── Behavior-specific parameter editor ──────────────────────
+                // MoveToLocation and FollowRoute get a map-pick button instead of
+                // a raw JSON text field to prevent operators from having to type
+                // raw coordinates or numeric entity IDs by hand.
+                if (task.BehaviorId == BehaviorNameMoveToLocation)
                 {
-                    HandleEditBehaviorParams(i, paramsBuffer);
+                    DrawMoveToLocationParams(i, paramsBuffer, logic);
+                }
+                else if (task.BehaviorId == BehaviorNameFollowRoute)
+                {
+                    DrawFollowRouteParams(i, paramsBuffer, logic);
+                }
+                else
+                {
+                    // Generic fallback: raw JSON text editor for other behaviors.
+                    var paramsSize = new System.Numerics.Vector2(
+                        ImGui.GetContentRegionAvail().X,
+                        ImGui.GetTextLineHeightWithSpacing() * PanelConstants.MissionBehaviorParamsEditorLines);
+
+                    ImGui.Text("Params:");
+                    if (ImGui.InputTextMultiline(
+                            $"##Params{i}",
+                            ref paramsBuffer,
+                            PanelConstants.MissionBehaviorParamsMaxLength,
+                            paramsSize))
+                    {
+                        HandleEditBehaviorParams(i, paramsBuffer);
+                    }
                 }
 
                 if (ImGui.SmallButton($"↑##{i}"))
@@ -497,6 +634,109 @@ public sealed class MissionPanel
         }
 
         return clone;
+    }
+
+    // ── Behavior-specific parameter editors ───────────────────────────────────
+
+    /// <summary>
+    /// Draws the parameter UI for a <c>MoveToLocation</c> task: shows the
+    /// current location summary and a "Pick Location" button that triggers an
+    /// async location pick via the map canvas.
+    /// </summary>
+    private void DrawMoveToLocationParams(int taskIndex, string currentParams, IIosLogic logic)
+    {
+        bool pickingThis = IsLocationPickPending && _pendingPickTaskIndex == taskIndex;
+
+        if (TryParseMoveToLocationParams(currentParams, out double lat, out double lon))
+            ImGui.Text($"Target: {lat:F4}°N, {lon:F4}°E");
+        else
+            ImGui.TextDisabled("No target set");
+
+        if (pickingThis)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0f, 1f), "[Picking…]");
+        }
+        else
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton($"Pick Location##{taskIndex}"))
+                HandlePickLocation(taskIndex, logic);
+        }
+    }
+
+    /// <summary>
+    /// Draws the parameter UI for a <c>FollowRoute</c> task: shows the
+    /// current route entity ID and a "Pick Route" button that triggers an
+    /// async entity pick filtered to the <c>road_graphs</c> layer.
+    /// </summary>
+    private void DrawFollowRouteParams(int taskIndex, string currentParams, IIosLogic logic)
+    {
+        bool pickingThis = IsEntityPickPending && _pendingPickTaskIndex == taskIndex;
+
+        if (TryParseFollowRouteParams(currentParams, out int routeId))
+            ImGui.Text($"Route entity: {routeId}");
+        else
+            ImGui.TextDisabled("No route set");
+
+        if (pickingThis)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.8f, 0f, 1f), "[Picking…]");
+        }
+        else
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton($"Pick Route##{taskIndex}"))
+                HandlePickEntity(taskIndex, logic, new[] { PanelConstants.FilterPresetRoadGraphs });
+        }
+    }
+
+    // ── Pick completion polling ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Checks pending pick tasks. When a task completes this frame the result
+    /// is written into the draft mission plan as a JSON params string and the
+    /// pending task state is cleared.
+    /// </summary>
+    private void PollPickCompletion()
+    {
+        if (_pendingLocationPick?.IsCompleted == true)
+        {
+            int idx = _pendingPickTaskIndex;
+            var task = _pendingLocationPick;
+
+            _pendingLocationPick  = null;
+            _pendingPickTaskIndex = -1;
+
+            if (!task.IsFaulted && !task.IsCanceled && idx >= 0)
+            {
+                var pos  = task.Result;
+                string json = BuildMoveToLocationParams(pos.Latitude, pos.Longitude);
+                HandleEditBehaviorParams(idx, json);
+                FdpLog<MissionPanel>.Info(
+                    "[IOS] LocationPick resolved: task={0} lat={1:F4} lon={2:F4}",
+                    idx, pos.Latitude, pos.Longitude);
+            }
+        }
+
+        if (_pendingEntityPick?.IsCompleted == true)
+        {
+            int idx = _pendingPickTaskIndex;
+            var task = _pendingEntityPick;
+
+            _pendingEntityPick    = null;
+            _pendingPickTaskIndex = -1;
+
+            if (!task.IsFaulted && !task.IsCanceled && idx >= 0)
+            {
+                int entityId = task.Result;
+                string json = BuildFollowRouteParams(entityId);
+                HandleEditBehaviorParams(idx, json);
+                FdpLog<MissionPanel>.Info(
+                    "[IOS] EntityPick resolved: task={0} entityId={1}", idx, entityId);
+            }
+        }
     }
 
     private static string[] BuildBehaviorList(DoctrineRegistry registry)

@@ -21,6 +21,12 @@ public interface IIosLogic
     /// <summary>Service for reading and committing entity mission plans.</summary>
     IMissionEditorService MissionEditorService { get; }
 
+    /// <summary>
+    /// Service for async map-side location and entity picks triggered by the
+    /// operator clicking the IG canvas.
+    /// </summary>
+    IMapPickService MapPickService { get; }
+
     /// <summary>In-flight DDS request tracker – exposes the pending queue for diagnostics.</summary>
     IRequestTransactionManager TransactionManager { get; }
 
