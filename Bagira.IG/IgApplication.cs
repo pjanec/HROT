@@ -22,6 +22,8 @@ using Bagira.IG.Components;
 
 using Bagira.IG.Modules;
 
+using Bagira.IG.Services;
+
 using Bagira.IG.Systems;
 
 using Bagira.IG.Tools;
@@ -484,6 +486,7 @@ public class IgApplication
         _world.RegisterManagedComponent<ContextMenuState>();
         _world.RegisterManagedComponent<EditablePolyline>();
         _world.RegisterComponent<MapOverlayStyle>();
+        _world.RegisterComponent<MapDisplayComponent>();
         _world.RegisterManagedComponent<IgEntityData>();
 
         // SimCombatDef, TkbCompositionDef, VisualData, lifecycle events, and
@@ -774,6 +777,12 @@ public class IgApplication
 
 
 
+        // G2. MapLayerModule — assigns MapDisplayComponent bitmask per entity (time-sliced)
+
+        _kernel.RegisterModule(new MapLayerModule());
+
+
+
         // G. HistoryTrailModule ÔÇö records entity position trails (IG.4.1)
 
         _kernel.RegisterModule(new HistoryTrailModule());
@@ -929,6 +938,10 @@ public class IgApplication
 
 
         _kernel.Initialize();
+
+        // Advertise this IG's capabilities so the IOS can build its layer-control UI.
+        if (_networkEnabled && participant != null)
+            IgCapabilitiesPublisher.Publish(participant, IgNetworkConstants.InstanceId);
 
     }
 
@@ -2579,6 +2592,27 @@ public class IgApplication
 
                 _showGrid = gridEl.GetBoolean();
 
+            }
+
+            // view.layers.* → update MapCanvas.ActiveLayerMask
+            // Missing keys leave their bits unchanged (forward-compatible with future IOS versions).
+            if (root.TryGetProperty("view", out var viewLayersEl)
+             && viewLayersEl.TryGetProperty("layers", out var layerFlagsEl))
+            {
+                uint currentMask = _canvas.ActiveLayerMask;
+                foreach (var layerDef in MapLayerRegistry.All)
+                {
+                    if (layerFlagsEl.TryGetProperty(layerDef.Name, out var layerEl)
+                     && (layerEl.ValueKind == JsonValueKind.True
+                      || layerEl.ValueKind == JsonValueKind.False))
+                    {
+                        if (layerEl.GetBoolean())
+                            currentMask |=  layerDef.BitMask;
+                        else
+                            currentMask &= ~layerDef.BitMask;
+                    }
+                }
+                _canvas.ActiveLayerMask = currentMask;
             }
 
 

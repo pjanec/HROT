@@ -97,7 +97,84 @@ public class ConfigPanelTests
 
         var json = JObject.Parse(panel.BuildPatch());
 
-        Assert.True((bool?)json["view"]?["layers"]?["air"]);
+        Assert.True((bool?)json["view"]?["layers"]?["units_air"]);
+    }
+
+    [Fact]
+    public void BuildPatch_AirUnitsDisabled_JsonFalse()
+    {
+        var (panel, _) = CreateSut();
+        panel.AirUnits = false;
+
+        var json = JObject.Parse(panel.BuildPatch());
+
+        Assert.False((bool?)json["view"]?["layers"]?["units_air"]);
+    }
+
+    [Fact]
+    public void BuildPatch_GroundUnitsToggled_JsonReflectsState()
+    {
+        var (panel, _) = CreateSut();
+        panel.GroundUnits = false;
+
+        var json = JObject.Parse(panel.BuildPatch());
+
+        Assert.False((bool?)json["view"]?["layers"]?["units_ground"]);
+    }
+
+    [Fact]
+    public void BuildPatch_GroundUnitsEnabled_JsonTrue()
+    {
+        var (panel, _) = CreateSut();
+        panel.GroundUnits = true;
+
+        var json = JObject.Parse(panel.BuildPatch());
+
+        Assert.True((bool?)json["view"]?["layers"]?["units_ground"]);
+    }
+
+    [Fact]
+    public void BuildPatch_VehiclesToggled_JsonReflectsState()
+    {
+        var (panel, _) = CreateSut();
+        panel.Vehicles = false;
+
+        var json = JObject.Parse(panel.BuildPatch());
+
+        Assert.False((bool?)json["view"]?["layers"]?["vehicles"]);
+    }
+
+    [Fact]
+    public void BuildPatch_VehiclesEnabled_JsonTrue()
+    {
+        var (panel, _) = CreateSut();
+        panel.Vehicles = true;
+
+        var json = JObject.Parse(panel.BuildPatch());
+
+        Assert.True((bool?)json["view"]?["layers"]?["vehicles"]);
+    }
+
+    [Fact]
+    public void BuildPatch_RoadGraphsToggled_JsonReflectsState()
+    {
+        var (panel, _) = CreateSut();
+        panel.RoadGraphs = false;
+
+        var json = JObject.Parse(panel.BuildPatch());
+
+        Assert.False((bool?)json["view"]?["layers"]?["road_graphs"]);
+    }
+
+    [Fact]
+    public void BuildPatch_RoadGraphsEnabled_JsonTrue()
+    {
+        var (panel, _) = CreateSut();
+        panel.RoadGraphs = true;
+
+        var json = JObject.Parse(panel.BuildPatch());
+
+        Assert.True((bool?)json["view"]?["layers"]?["road_graphs"]);
     }
 
     [Fact]

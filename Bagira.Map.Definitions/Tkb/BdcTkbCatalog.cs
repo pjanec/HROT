@@ -1,4 +1,5 @@
 using Fdp.Interfaces;
+using Fdp.Kernel;
 using Fdp.Toolkit.Tkb;
 using Bagira.Map.Common;
 
@@ -47,7 +48,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.SensorRange = 8000;
                 })
                 .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1)
-                .WithBehavior(TkbEntityTypes.Tank_M1Abrams);
+                .WithBehavior(TkbEntityTypes.Tank_M1Abrams)
+                .WithDisType(TkbEntityTypes.Tank_M1Abrams, new DISEntityType { Kind = 1, Domain = 1, Category = 1 });
             
             // Bradley IFV
             builder
@@ -80,7 +82,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.SensorRange = 5000;
                 })
                 .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
-                .WithBehavior(TkbEntityTypes.IFV_Bradley);
+                .WithBehavior(TkbEntityTypes.IFV_Bradley)
+                .WithDisType(TkbEntityTypes.IFV_Bradley, new DISEntityType { Kind = 1, Domain = 1, Category = 2 });
             
             // HMMWV
             builder
@@ -104,7 +107,8 @@ namespace Bagira.Map.Definitions.Tkb
                     p.Mobility = TerrainMobility.Wheeled;
                 })
                 .WithFaction(TkbEntityTypes.Truck_HMMWV, 1)
-                .WithBehavior(TkbEntityTypes.Truck_HMMWV);
+                .WithBehavior(TkbEntityTypes.Truck_HMMWV)
+                .WithDisType(TkbEntityTypes.Truck_HMMWV, new DISEntityType { Kind = 1, Domain = 1, Category = 3 });
             
             // T-72 (OPFOR)
             builder
@@ -136,7 +140,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.SensorRange = 6000;
                 })
                 .WithFaction(TkbEntityTypes.Tank_T72, 2)
-                .WithBehavior(TkbEntityTypes.Tank_T72);
+                .WithBehavior(TkbEntityTypes.Tank_T72)
+                .WithDisType(TkbEntityTypes.Tank_T72, new DISEntityType { Kind = 1, Domain = 1, Category = 1 });
             
             // Infantry Rifleman
             builder
@@ -166,7 +171,8 @@ namespace Bagira.Map.Definitions.Tkb
                     c.SensorRange = 500;
                 })
                 .WithFaction(TkbEntityTypes.Infantry_Rifleman, 1)
-                .WithBehavior(TkbEntityTypes.Infantry_Rifleman);
+                .WithBehavior(TkbEntityTypes.Infantry_Rifleman)
+                .WithDisType(TkbEntityTypes.Infantry_Rifleman, new DISEntityType { Kind = 3, Domain = 1, Category = 1 });
             
             // Tank Platoon (Composite)
             builder
@@ -183,7 +189,8 @@ namespace Bagira.Map.Definitions.Tkb
                     comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, RoleTag = "Tank" });
                     comp.Echelon = "Platoon";
                     comp.AutoCreateChildren = false; // Manual creation
-                });
+                })
+                .WithDisType(TkbEntityTypes.Unit_TankPlatoon, new DISEntityType { Kind = 1, Domain = 1 });
             
             // Infantry Squad (Composite)
             builder
@@ -201,7 +208,8 @@ namespace Bagira.Map.Definitions.Tkb
                     comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Infantry_Rifleman, Count = 9, RoleTag = "Rifleman" });
                     comp.Echelon = "Squad";
                     comp.AutoCreateChildren = false;
-                });
+                })
+                .WithDisType(TkbEntityTypes.Unit_InfantrySquad, new DISEntityType { Kind = 1, Domain = 1 });
 
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);

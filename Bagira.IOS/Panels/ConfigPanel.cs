@@ -32,8 +32,11 @@ public sealed class ConfigPanel
 
     private int   _selectedTool    = 0;
     private bool  _satelliteLayer  = true;
+    private bool  _groundUnits     = true;
+    private bool  _airUnits        = true;
+    private bool  _vehicles        = true;
     private bool  _tacticalGraphics = true;
-    private bool  _airUnits        = false;
+    private bool  _roadGraphs      = true;
     private bool  _grid            = false;
     private float _iconScale       = PanelConstants.IconScaleDefault;
 
@@ -47,8 +50,11 @@ public sealed class ConfigPanel
     }
 
     public bool  SatelliteLayer   { get => _satelliteLayer;   set => _satelliteLayer   = value; }
+    public bool  GroundUnits      { get => _groundUnits;      set => _groundUnits      = value; }
     public bool  TacticalGraphics { get => _tacticalGraphics; set => _tacticalGraphics = value; }
     public bool  AirUnits         { get => _airUnits;         set => _airUnits         = value; }
+    public bool  Vehicles         { get => _vehicles;         set => _vehicles         = value; }
+    public bool  RoadGraphs       { get => _roadGraphs;       set => _roadGraphs       = value; }
     public bool  Grid             { get => _grid;             set => _grid             = value; }
 
     /// <summary>Icon scale. Clamped to [<see cref="PanelConstants.IconScaleMin"/>, <see cref="PanelConstants.IconScaleMax"/>].</summary>
@@ -80,8 +86,11 @@ public sealed class ConfigPanel
                 layers = new
                 {
                     satellite         = _satelliteLayer,
+                    units_ground      = _groundUnits,
+                    units_air         = _airUnits,
+                    vehicles          = _vehicles,
                     tactical_graphics = _tacticalGraphics,
-                    air               = _airUnits,
+                    road_graphs       = _roadGraphs,
                     grid              = _grid
                 }
             }
@@ -118,8 +127,11 @@ public sealed class ConfigPanel
 
         ImGui.Combo("Tool", ref _selectedTool, Tools, Tools.Length);
         ImGui.Checkbox("Satellite Layer",    ref _satelliteLayer);
-        ImGui.Checkbox("Tactical Graphics",  ref _tacticalGraphics);
+        ImGui.Checkbox("Ground Units",       ref _groundUnits);
         ImGui.Checkbox("Air Units",          ref _airUnits);
+        ImGui.Checkbox("Vehicles",           ref _vehicles);
+        ImGui.Checkbox("Tactical Graphics",  ref _tacticalGraphics);
+        ImGui.Checkbox("Road Graphs",        ref _roadGraphs);
         ImGui.Checkbox("Grid",               ref _grid);
 
         float scale = _iconScale;

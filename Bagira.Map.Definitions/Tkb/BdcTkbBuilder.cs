@@ -42,6 +42,25 @@ namespace Bagira.Map.Definitions.Tkb
         }
         
         /// <summary>
+        /// Assigns a DIS Entity Type to the template.
+        /// The type is stamped onto the entity header via
+        /// <see cref="Fdp.Interfaces.TkbTemplate.DisType"/> when the blueprint is applied,
+        /// enabling the <c>MapLayerAssignmentSystem</c> to classify the entity into the
+        /// correct rendering layer without string look-ups in the hot path.
+        /// </summary>
+        /// <param name="tkbId">The TKB type identifier to look up.</param>
+        /// <param name="disType">The DIS entity type to assign.</param>
+        public BdcTkbBuilder WithDisType(long tkbId, DISEntityType disType)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+
+            template.DisType = disType;
+            return this;
+        }
+
+        /// <summary>
         /// Add visual properties (IG).
         /// </summary>
         public BdcTkbBuilder WithVisual(long tkbId, Action<IgVisualDef> configure)
