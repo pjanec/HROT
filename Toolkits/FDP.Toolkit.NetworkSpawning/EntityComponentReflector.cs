@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq.Expressions;
 using System.Reflection;
 using Fdp.Kernel;
 
@@ -8,64 +9,83 @@ namespace FDP.Toolkit.NetworkSpawning
     /// <summary>
     /// Utility to set components on an entity when the component type is only known at runtime.
     /// Used by NetworkSpawningSystem to apply the List&lt;object&gt; of initial components.
+    ///
+    /// <para>
+    /// Each distinct component type incurs a one-time cost on the first call: a strongly-typed
+    /// <c>Action&lt;EntityRepository, Entity, object&gt;</c> delegate is compiled via
+    /// <see cref="System.Linq.Expressions"/> and cached.  All subsequent calls for the same
+    /// type invoke the cached delegate directly — no <c>new object[]</c> allocation and no
+    /// <see cref="MethodBase.Invoke"/> overhead on the hot path.
+    /// </para>
+    ///
+    /// <para>
+    /// The compiled delegate calls <c>EntityRepository.SetComponent&lt;T&gt;(Entity, T)</c>,
+    /// which internally dispatches to the correct (unmanaged or managed) storage path based on
+    /// whether <c>T</c> is a struct or a class.
+    /// </para>
     /// </summary>
     public static class EntityComponentReflector
     {
-        private static readonly ConcurrentDictionary<Type, MethodInfo> _setComponentCache = new();
+        // Compiled setter delegates, keyed by concrete component type.
+        private static readonly ConcurrentDictionary<Type, Action<EntityRepository, Entity, object>>
+            _setterCache = new();
+
+        // Cached MethodInfo for EntityRepository.SetComponent<T>(Entity, T) generic definition.
+        private static readonly MethodInfo _genericSetComponent = FindSetComponentMethod();
+
+        private static MethodInfo FindSetComponentMethod()
+        {
+            // Look for the SetComponent<T>(Entity entity, T component) overload.
+            foreach (var m in typeof(EntityRepository).GetMethods(
+                         BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (m.Name != "SetComponent" || !m.IsGenericMethodDefinition) continue;
+
+                var parms = m.GetParameters();
+                if (parms.Length == 2 && parms[0].ParameterType == typeof(Entity))
+                    return m;
+            }
+
+            throw new InvalidOperationException(
+                "Could not locate SetComponent<T>(Entity, T) on EntityRepository.");
+        }
 
         /// <summary>
-        /// Sets a component on an entity using reflection to find the correct generic SetComponent&lt;T&gt; method.
+        /// Sets a component on an entity using a cached compiled delegate to avoid
+        /// per-call reflection overhead and <c>object[]</c> allocations.
         /// </summary>
         /// <param name="world">The entity repository.</param>
         /// <param name="entity">The target entity.</param>
-        /// <param name="component">The component instance. If null, does nothing.</param>
+        /// <param name="component">The component instance. If <c>null</c>, does nothing.</param>
         public static void SetComponent(EntityRepository world, Entity entity, object component)
         {
             if (component == null) return;
             if (world == null) throw new ArgumentNullException(nameof(world));
 
-            var type = component.GetType();
-            
-            var method = _setComponentCache.GetOrAdd(type, t =>
-            {
-                var genericMethod = typeof(EntityRepository).GetMethod("SetComponent", new[] { typeof(Entity), Type.MakeGenericMethodParameter(0) });
-                
-                // Fallback search if the signature above doesn't match exactly (e.g. constraints)
-                if (genericMethod == null)
-                {
-                    // Search all methods named SetComponent
-                    foreach (var m in typeof(EntityRepository).GetMethods())
-                    {
-                        if (m.Name == "SetComponent" && m.IsGenericMethodDefinition)
-                        {
-                            var parameters = m.GetParameters();
-                            if (parameters.Length == 2 && 
-                                parameters[0].ParameterType == typeof(Entity))
-                            {
-                                genericMethod = m;
-                                break;
-                            }
-                        }
-                    }
-                }
+            var setter = _setterCache.GetOrAdd(component.GetType(), BuildSetter);
+            setter(world, entity, component);
+        }
 
-                if (genericMethod == null)
-                    throw new InvalidOperationException($"Could not find SetComponent<T> on EntityRepository.");
+        // ── Delegate compilation ─────────────────────────────────────────────
 
-                return genericMethod.MakeGenericMethod(t);
-            });
+        private static Action<EntityRepository, Entity, object> BuildSetter(Type componentType)
+        {
+            // Parameters for the lambda: (EntityRepository world, Entity entity, object component)
+            var repoParam   = Expression.Parameter(typeof(EntityRepository), "world");
+            var entityParam = Expression.Parameter(typeof(Entity), "entity");
+            var objParam    = Expression.Parameter(typeof(object), "component");
 
-            try
-            {
-                method.Invoke(world, new object[] { entity, component });
-            }
-            catch (TargetInvocationException ex)
-            {
-                // Unwrap the exception to make stack traces cleaner
-                if (ex.InnerException != null)
-                    throw ex.InnerException;
-                throw;
-            }
+            // Cast the boxed object parameter to the concrete component type.
+            var castComp = Expression.Convert(objParam, componentType);
+
+            // world.SetComponent<ComponentType>(entity, (ComponentType)component)
+            var concreteMethod = _genericSetComponent.MakeGenericMethod(componentType);
+            var call = Expression.Call(repoParam, concreteMethod, entityParam, castComp);
+
+            return Expression
+                .Lambda<Action<EntityRepository, Entity, object>>(
+                    call, repoParam, entityParam, objParam)
+                .Compile();
         }
     }
 }
