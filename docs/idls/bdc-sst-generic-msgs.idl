@@ -162,8 +162,8 @@ module SSTM { // "M" as messages
 
         // Unified attribute payload - what data we provide for the attrinute
         union EntityAttributePayload switch (EntityAttribute) {
-            case eaName: string entityName;
-            case eaGeoPosition: DDS::DM::GeoPosition geoPosition;
+            case eaName: string Name;
+            case eaGeoPosition: DDS::DM::GeoPosition GeoPosition;
         };
 
         // SST-compliant entity single field update request

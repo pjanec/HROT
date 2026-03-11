@@ -192,20 +192,21 @@ graph TD
 
 #### IOS \(Instructor Operating Station)
 
-- **Role:** Session Logic & Command Source.
+- **Role:** Session Logic & Command Source / Orchestrator.
 - **Actions:**
 
-    - Issues `CMD_START_AUTHORING` \(for both Shared and Local types).
+    - Issues `MapCommandRequest(CMD_PLACE_ENTITY)` or `MapCommandRequest(CMD_DRAW_TACTICAL_GRAPHIC)` with optional JSON overrides; the IG handles descriptor construction and SimHost dispatch autonomously.
+    - Consumes `MapCommandAck` to learn created entity IDs and tool completion status.
     - Subscribes to `EntityMaster` to show entity lists.
     - **Optionally** subscribes to `MapVisualOverlay` \(Geometry) if a specific UI feature \(e.g., Radar View) requires it.
-    - **Never owns/publishes geometry.**
+    - **Never owns/publishes geometry; never needs to know IDL descriptor structures for standard creation workflows.**
 
 #### IG \(Image Generator)
 
-- **Role:** Interaction Handler & Session Data Owner.
+- **Role:** Interaction Handler, Session Data Owner, and Autonomous Entity-Creation Agent.
 - **Actions:**
 
-    - **Scenario Entities:** Captures input, requests SimHost to create/update.
+    - **Scenario Entities:** Captures input, resolves TKB defaults + IOS JSON overrides, dispatches `CreateEntityRequest` to SimHost, bridges `CreateEntityAck` back to IOS as `MapCommandAck`.
     - **Session Entities:** Captures input, **Directly Publishes/Owns** entities on Backbone.
     - Renders all backbone entities \(subscribes to both Shared and Local topics).
 
@@ -231,7 +232,7 @@ The system strictly separates **Logical Roles** from **Concrete Instances**:
 
 ## 2. Key Design Decisions
 
-1. **IOS as Pure Controller:** The IOS issues commands \(`CMD_START_AUTHORING`) but **never owns** map geometry.
+1. **IOS as Orchestrator, IG as Autonomous Creation Agent:** The IOS activates tools via `MapCommandRequest` and injects JSON overrides, but **never needs to know IDL descriptor structures** for standard entity placement or tactical drawing. The IG handles descriptor resolution and dispatches `CreateEntityRequest` to SimHost autonomously. The IOS learns creation outcomes via `MapCommandAck`.
 2. **Dual Ownership Model:**
 
     - **Scenario Entities \(Shared):** Owned by **SimHost/CGF**. Persistent.
@@ -274,25 +275,26 @@ While all map geometry \(vertices, polygons) is published to the Backbone, the I
 
 **Goal:** User draws a "Company Boundary" scenario-persistent drawing. SimHost saves it.
 
-1. **IOS:** Sends `MapCommandRequest(CMD_START_AUTHORING, persistence="SCENARIO")`.
+1. **IOS:** Sends `MapCommandRequest(CMD_DRAW_TACTICAL_GRAPHIC, RequestId=UUID-X, CommandArgsJson={"persistence":"SCENARIO", ...optionalOverrides})`.  
+   The IOS can inject optional property overrides (e.g., affiliation, type) so the IG does not guess everything from TKB defaults alone.
 2. **IG:** Switches to tool. User draws.
 3. **IG \(Finish):** Sends `UpdateEntityDescriptorRequest` to **SimHost**.
 4. **SimHost:** Publishes new Entity \(Owner=SimHost).
 5. **IG:** Receives SimHost Ack.
-6. **IG:** Sends `CommandStatus(SUCCESS, ids=[5001])` to IOS.
+6. **IG:** Sends `MapCommandAck(RequestId=UUID-X, StatusCode=0, DataJson={"entityId":5001})` to IOS.
 7. **IOS:** Sees Entity `5001` appear on Backbone \(via `EntityMaster` subscription).
 
 
 ::: mermaid
 sequenceDiagram
     autonumber
-    participant IOS as IOS (Controller)
-    participant IG as IG (Interaction)
+    participant IOS as IOS (Orchestrator)
+    participant IG as IG (Interaction/Creation)
     participant SimHost as SimHost (Scenario Owner)
 
     Note over IOS, SimHost: 6.1 Creating SCENARIO (Shared) Drawing
     
-    IOS->>IG: MapCommandRequest<br/>(CMD_START_AUTHORING, persistence="SCENARIO")
+    IOS->>IG: MapCommandRequest<br/>(CMD_DRAW_TACTICAL_GRAPHIC, RequestId=UUID-X, overrides={...})
     
     Note over IG: IG switches tool.<br/>User draws "Company Boundary".
     
@@ -309,7 +311,7 @@ sequenceDiagram
     end
     
     SimHost->>IG: UpdateEntityDescriptorAck (Success)
-    IG->>IOS: CommandStatus (Success, resultIds=[5001])
+    IG->>IOS: MapCommandAck (RequestId=UUID-X, StatusCode=0, DataJson={entityId:5001})
 :::
 
 
@@ -318,12 +320,12 @@ sequenceDiagram
 
 **Goal:** User uses "Create Scribble" from IOS dialog. IG remebers the drawing for the duration of the session.
 
-1. **IOS:** Sends `MapCommandRequest(CMD_START_AUTHORING, persistence="SESSION")`.
+1. **IOS:** Sends `MapCommandRequest(CMD_DRAW_TACTICAL_GRAPHIC, RequestId=UUID-Y, CommandArgsJson={"persistence":"SESSION", ...optionalOverrides})`.
 2. **IG:** Switches to tool. User draws.
 3. **IG (Finish):**
     - Allocates ID `9001` (from IG pool).
     - **Directly Publishes** `EntityMaster` and `MapVisualOverlay` to Backbone (Owner=IG).
-4. **IG:** Sends `CommandStatus(SUCCESS, ids=[9001])` to IOS.
+4. **IG:** Sends `MapCommandAck(RequestId=UUID-Y, StatusCode=0, DataJson={"entityId":9001})` to IOS.
 5. **IOS:** Sees Entity `9001` appear on Backbone.
 
     - *Note:* IOS *could* inspect the geometry of `9001` via DDS if needed, but typically just lists "Scribble/Annotation 1" in the UI.
@@ -332,14 +334,14 @@ sequenceDiagram
 sequenceDiagram
 
     autonumber
-    participant IOS as IOS (Controller)
+    participant IOS as IOS (Orchestrator)
     participant IG as IG (Session Owner)
     participant DDS as DDS Backbone
     
     Note over IOS, DDS: 6.2 Creating SESSION (Local) Drawing
 
 
-    IOS->>IG: MapCommandRequest<br/>(CMD_START_AUTHORING, persistence="SESSION")
+    IOS->>IG: MapCommandRequest<br/>(CMD_DRAW_TACTICAL_GRAPHIC, RequestId=UUID-Y, overrides={...})
     
     Note over IG: IG switches tool.<br/>User draws "Scribble/Annotation".
     
@@ -356,7 +358,7 @@ sequenceDiagram
         DDS->>IOS: Data Available
     end
     
-    IG->>IOS: CommandStatus (Success, resultIds=[9001])
+    IG->>IOS: MapCommandAck (RequestId=UUID-Y, StatusCode=0, DataJson={entityId:9001})
     Note left of IOS: IOS lists entity 9001 in UI.<br/>Optionally inspects geometry via DDS.
 :::
 
@@ -389,8 +391,14 @@ The goal is to:
 
 Think of it as:
 
-> **IOS = brain / decision-maker**  
-> **IG = eyes + hands**
+> **IOS = decision-maker / orchestrator**  
+> **IG = eyes, hands, and domain expert**
+
+For standard entity placement and tactical drawing, the IG operates autonomously — resolving
+entity descriptors from TKB defaults plus IOS-injected JSON overrides, dispatching creation
+requests directly to SimHost, and reporting outcomes back to the IOS via `MapCommandAck`.
+The IOS retains strategic control by parametrising tool activations and consuming
+acknowledgements; it is not required to understand IDL descriptor structures.
 
 
 ## 2. Why Is It Designed This Way?
@@ -406,9 +414,9 @@ Several constraints shape the design:
     Styling, layers, tools, and menus change often. JSON is used where flexibility matters; IDL where performance matters.
     
 4.  **Clear responsibility split**
-    *   IG never makes simulation decisions
+    *   IG handles interaction mechanics and entity-creation dispatch, parametrised by IOS intent; it does not make scenario-level policy decisions (e.g., which units are valid, whether doctrine allows placement)
         
-    *   IOS never renders pixels
+    *   IOS never renders pixels; it never needs to understand IDL descriptor structures for standard creation workflows
         
 
 
@@ -463,11 +471,13 @@ No REST-style "create/delete" commands exist here.
 ### Responsibilities
 
 **IOS**
-*   Chooses tools and modes
+*   Activates tools via `MapCommandRequest`, injecting optional JSON overrides
     
-*   Interprets user intent
+*   Consumes `MapCommandAck` for entity IDs and tool-completion status
     
-*   Ask others (like SimHost or IG) to create and modify entities
+*   Interprets user intent at the strategic level
+    
+*   Asks SimHost or IG to create and modify entities when needed directly (volatile graphics, direct backbone writes)
     
 *   Defines context menus
     
@@ -479,7 +489,9 @@ No REST-style "create/delete" commands exist here.
     
 *   Handles mouse/keyboard input
     
-*   Emits interaction events
+*   Emits interaction events (selection, drag, generic clicks when enabled)
+    
+*   For `CMD_PLACE_ENTITY` / `CMD_DRAW_TACTICAL_GRAPHIC`: autonomously resolves descriptors (TKB defaults + IOS JSON overrides) and dispatches `CreateEntityRequest` to SimHost, then bridges the ack back as `MapCommandAck`
     
 
 **BDC SST Backbone**
@@ -539,28 +551,39 @@ Interaction:
 *   Carries precise coordinates
     
 
-Every interaction event includes a **Context ID**, so IOS knows _which tool_ caused it.
+Every `MapCommandAck` carries the `RequestId` of the originating `MapCommandRequest`, so IOS
+knows which tool activation produced which result. Generic `MapClickEvent`s (fallback mode)
+still carry an interaction context ID for the same reason.
 
 
 ## 6. Context IDs: How We Avoid Confusion
 
-A **Context ID** is a UUID that links cause and effect.
+A **Context ID** (`RequestId`) is a UUID that links a `MapCommandRequest` to its `MapCommandAck` responses.
 
-Example:
+Example — IG-autonomous entity placement:
 
-1.  IOS activates "Place Tank" tool with Context ID = `A`
+1.  IOS sends `MapCommandRequest(CMD_PLACE_ENTITY, RequestId=A, args={...overrides})`
     
 2.  User clicks on map
     
-3.  IG sends `MapClickEvent(context=A)`
+3.  IG dispatches `CreateEntityRequest` to SimHost, receives `CreateEntityAck`
     
-4.  IOS checks if context `A` is still valid
+4.  IG sends `MapCommandAck(RequestId=A, StatusCode=0, DataJson={entityId:9001})`
     
-5.  IOS creates tank entity
-    
+5.  IOS checks if RequestId `A` is still registered → correlates result to "Add Tank" operation
 
-If the user cancels the tool or switches modes, IOS simply ignores late events.
-This avoids race conditions without blocking the UI.
+Example — pure coordinate selection fallback:
+
+1.  IOS sends `MapCommandRequest(CMD_PICK_LOCATION, RequestId=B)`
+    
+2.  User clicks on map
+    
+3.  IG sends `MapCommandAck(RequestId=B, StatusCode=0, DataJson={position:{...}})`
+    
+4.  IOS checks if RequestId `B` is still registered → uses the coordinate
+
+If the user cancels or the IOS unregisters a `RequestId`, any subsequent `MapCommandAck` or
+`MapClickEvent` carrying that ID is safely ignored without blocking the UI.
 
 
 
@@ -650,21 +673,25 @@ Multi-user mode introduces:
 ## 11. Typical End-to-End Example
 
 
-**Placing a Tank**:
-1.  IOS sets "Place Tank" tool (configuration)
+**Placing a Tank (IG-Autonomous Workflow)**:
+1.  IOS sends `MapCommandRequest(CMD_PLACE_ENTITY, RequestId=UUID-12345)` with
+    optional JSON overrides (e.g., `{"affiliation":"FRIENDLY","objectClass":"T72_Tank"}`).
+    IG does not need to guess everything from TKB defaults alone.
     
 2.  User clicks map
     
-3.  IG sends click event
+3.  IG resolves TKB defaults + IOS-injected JSON overrides, constructs a full
+    `CreateEntityRequest` and dispatches it directly to SimHost
     
-4.  IOS allocates EntityId
+4.  SimHost allocates EntityId (e.g., 9001), publishes descriptors, returns `CreateEntityAck`
     
-5.  IOS publishes descriptors
+5.  IG bridges the acknowledgement back to IOS as `MapCommandAck`
+    (`RequestId=UUID-12345, StatusCode=0, DataJson={"entityId":9001}`)
     
-6.  IG renders tank
-    
+6.  IG renders the tank
 
-No blocking calls. No request to "create entity". Just data.
+No IOS-side ID allocation or descriptor publishing required.
+Context IDs keep the async workflow safe against cancellations and tool switches.
 
 
 ## 12. Key Takeaways
@@ -672,7 +699,7 @@ No blocking calls. No request to "create entity". Just data.
 
 1.  **Map objects are BDC SST entities**
     
-2.  **IG renders and reports input; IOS decides meaning**
+2.  **IG renders, handles input, and autonomously dispatches entity creation; IOS provides intent via parameterised tool activation and consumes `MapCommandAck` results**
     
 3.  **Configuration = JSON, Interaction = IDL**
     
@@ -680,7 +707,7 @@ No blocking calls. No request to "create entity". Just data.
     -  DDS publish/dispose (temporary map objects)
     -  CreateEntity/UpdateEntity requests (persistent map objects)
     
-5.  **Context IDs keep async workflows safe**
+5.  **`RequestId` in `MapCommandAck` keeps async creation workflows safe — IOS correlates results or ignores stale acks if the tool was cancelled**
     
 6.  **TKB provides defaults; JSON fine-tunes**
     
@@ -703,9 +730,9 @@ Messages and descriptors overview: see chapter 5.10 Messages and descriptors ove
 
 # IOS ↔ IG 2D Map Network Interface Design
 
-**Version:** 1.6 (Final)  
-**Date:** January 15, 2026  
-**Status:** Final Design Specification
+**Version:** 1.7  
+**Date:** March 11, 2026  
+**Status:** Updated — IG-Autonomous Creation Architecture (see design talk integration notes)
 
 ---
 
@@ -731,7 +758,7 @@ This document defines the DDS-based communication protocol between the Instructo
 
 ### 1.2 Key Design Decisions
 
-1. **Controller-View Separation**: IOS acts as the high-level controller; IG is the renderer and input capture engine
+1. **Relaxed Controller-View Separation**: IOS acts as the high-level orchestrator; IG is the renderer, input capture engine, and autonomous entity-creation agent. For standard unit placement and tactical drawing, the IG resolves TKB defaults plus IOS-injected JSON overrides, dispatches `CreateEntityRequest` directly to SimHost, and reports outcomes via `MapCommandAck`. The strict “IOS decides domain meaning” model is preserved as an opt-in fallback (`CMD_PICK_LOCATION` for pure coordinate selection; generic `MapClickEvent` when enabled by the active tool).
 2. **Hybrid Data Model**: JSON for flexible configuration; strict IDL for high-frequency interaction
 3. **Entity-Component System**: Unified entity model aligned with the existing BDC SST (Shared Simulation State) backbone
 4. **Context-Based Interaction**: Correlation IDs ensure safe disambiguation in asynchronous workflows
@@ -781,17 +808,20 @@ This document defines the DDS-based communication protocol between the Instructo
 ### 2.2 Component Responsibilities
 
 #### IOS (Instructor Operating Station)
-- Selects map modes and active tools via presets
-- Requests changes (configuration, selection, queries)
-- Receives user interaction events
-- Performs domain actions via backbone (entity creation, modification)
+- Selects map modes and activates tools via `MapCommandRequest` (imperative) or presets
+- Injects optional JSON overrides into `MapCommandRequest.CommandArgsJson` so the IG can parametrise entity creation without guessing from TKB defaults alone
+- Consumes `MapCommandAck` to learn which entities were created, and to track multi-step tool progress
+- Receives user interaction events (selection changes, drag events, generic clicks)
+- Performs direct domain actions via backbone when needed (entity modification, volatile graphic requests)
 - Provides dynamic context menu definitions
 
 #### IG 2D Map
 - Renders simulation state from data backbone
 - Resolves symbol appearance using TKB (Technical Knowledge Base)
 - Implements interaction primitives (pan/zoom, selection, drag, drawing)
-- Publishes interaction events to IOS
+- **Autonomously dispatches entity creation**: for `CMD_PLACE_ENTITY` and `CMD_DRAW_TACTICAL_GRAPHIC`, resolves TKB defaults + IOS-injected JSON overrides, constructs `CreateEntityRequest`, and sends it directly to SimHost
+- Bridges SimHost `CreateEntityAck` back to IOS as `MapCommandAck` (tagged with original `RequestId`)
+- Publishes interaction events to IOS (selection changes, drag events, generic clicks when enabled)
 - Applies configuration received from IOS
 - Manages map-local objects (non-persisted overlays)
 
@@ -818,9 +848,12 @@ This document defines the DDS-based communication protocol between the Instructo
 
 ### 3.1 Core Principles
 
-1. **IG is authoritative for interaction mechanics; IOS is authoritative for domain actions**
-   - IG determines how clicks/drags behave based on active tool
-   - IOS determines what those interactions mean in the simulation
+1. **IG is authoritative for interaction mechanics and entity-creation dispatch; IOS is authoritative for strategy and parametrisation**
+   - IG determines how clicks/drags behave based on the active tool
+   - For `CMD_PLACE_ENTITY` and `CMD_DRAW_TACTICAL_GRAPHIC`, the IG resolves entity descriptors autonomously (TKB defaults + IOS JSON overrides in `CommandArgsJson`) and dispatches `CreateEntityRequest` directly to SimHost — identically to how volatile graphics are already handled
+   - The IG bridges SimHost `CreateEntityAck` back to IOS as `MapCommandAck` (with original `RequestId`), carrying the newly allocated entity ID in `DataJson`
+   - IOS retains full control by injecting JSON overrides (affiliation, type, etc.) into `MapCommandRequest.CommandArgsJson`, removing the need for the IOS to know IDL descriptor structures
+   - The pure “click-to-IOS” model is retained as an opt-in fallback: `CMD_PICK_LOCATION` returns a coordinate via `MapCommandAck`; generic `MapClickEvent` is emitted when enabled by the active tool or map state
 
 2. **Prefer presets for broad behavior, overrides for incremental changes**
    - Named presets provide coherent, tested configurations
@@ -834,9 +867,18 @@ This document defines the DDS-based communication protocol between the Instructo
    - Selection, tools, filters can be both queried and set
    - Bidirectional state synchronization
 
-5. **Capability discovery prevents tight coupling**
-   - IG announces available features
+5. **Tool internal decoupling**
+   - IG tools know natively how to construct entity creation requests and draw shapes
+   - However, tools are decoupled from the specific network protocol used to activate them or report results
+   - A tool receives well-defined input parameters (from `MapCommandRequest.CommandArgsJson` or local UI) and communicates intermediate achievements through an internal delegate/callback mechanism
+   - The upper layer (which handles `MapCommandRequest` ingestion and `MapCommandAck` publishing) is the only layer that knows about the DDS wire protocol
+   - This ensures tools are reusable and testable independently of the network layer, and can be activated from local IG UI as well as from IOS commands
+
+6. **Capability discovery prevents tight coupling**
+   - IG announces available features and tool capabilities via `IGCapabilitiesAnnounce`
    - IOS adapts to IG capabilities dynamically
+
+
 
 ### 3.2 Design Patterns
 
@@ -1235,14 +1277,35 @@ Switching modes supported: "Commit local overlay to backbone" operation
 
 
 // 4. Commands (IOS -> IG)
-    enum CommandType { CMD_SET_VIEW, CMD_SET_SELECTION, CMD_START_EDITING };
+    enum CommandType {
+        CMD_SET_VIEW,                   // Pan/zoom/center the camera to a geographic position
+        CMD_SET_SELECTION,              // Programmatically change the entity selection set
+        CMD_START_EDITING,              // Enter vertex-edit mode on an existing entity
+
+        // IG-autonomous placement: IG resolves TKB defaults + IOS JSON overrides,
+        // dispatches CreateEntityRequest to SimHost, and reports back via MapCommandAck.
+        // One left-click = one entity; right-click/ESC finishes the tool.
+        // Multiple placements in one session each yield an intermediate MapCommandAck
+        // (StatusCode=1); the final right-click/ESC yields a closing MapCommandAck (StatusCode=0).
+        CMD_PLACE_ENTITY,
+
+        // IG-autonomous tactical-graphic drawing (areas, routes, phase lines, etc.).
+        // Analogous to CMD_PLACE_ENTITY but for multi-point geometry.
+        // Supports persistence="SCENARIO" (SimHost-owned) or persistence="SESSION" (IG-owned).
+        CMD_DRAW_TACTICAL_GRAPHIC,
+
+        // Pure coordinate-capture: IG acts as a dumb crosshair and returns the selected
+        // GeoPoint in a MapCommandAck. No entity is created. Cancelled by ESC
+        // (MapCommandAck with StatusCode != 0 and DataJson={"cancelled":true}).
+        CMD_PICK_LOCATION
+    };
 
     // Imperative commands sent from IOS to a specific IG Instance.
     // Used to force a specific behavior (e.g., "Pan Camera Here", "Enter Edit Mode").
     struct MapCommandRequest 
     {
         // Unique ID for this request.
-        // Used to match with CommandStatus / Ack.
+        // Echoed in MapCommandAck.RequestId for correlation.
         CorrelationId RequestId;
 
         // Target IG Instance.
@@ -1252,12 +1315,55 @@ Switching modes supported: "Commit local overlay to backbone" operation
         CommandType Type;
 
         // Arguments for the command in JSON format.
-        // e.g., { "lat": 45.0, "lon": 12.0, "zoom": 1000 }
+        // e.g., for CMD_SET_VIEW:  { "lat": 45.0, "lon": 12.0, "zoom": 1000 }
+        // e.g., for CMD_PLACE_ENTITY / CMD_DRAW_TACTICAL_GRAPHIC:
+        //   {
+        //     "objectClass":  "T72_Tank",        // optional: overrides TKB default class
+        //     "affiliation":  "FRIENDLY",         // optional: overrides TKB default affiliation
+        //     "persistence":  "SCENARIO",         // optional: SCENARIO | SESSION (default: SCENARIO)
+        //     "stylePresetName": "CommandUnit",   // optional: named style preset
+        //     "styleOverrideJson": { ... },        // optional: fine-grained visual overrides
+        //     "multiPlace": true                  // optional: keep tool active for repeated clicks
+        //   }
+        // All fields are optional. Unspecified fields fall back to the 3-layer resolution
+        // pipeline: JSON Override -> Preset Name -> TKB Default.
+        // e.g., for CMD_PICK_LOCATION:
+        //   { "cursorLabel": "Select Artillery Target", "cursorIcon": "crosshair_red" }
         string CommandArgsJson; 
     };
     #pragma topic MapCommandRequest
     #pragma keylist MapCommandRequest RequestId
 
+
+    // Response to a MapCommandRequest.
+    // One request can generate multiple responses. For example,
+    //   a CMD_PLACE_ENTITY tool configured with multiPlace=true creates one entity
+    //   per left-click and finishes on right-click or ESC.
+    // Each intermediate click yields StatusCode=1; the final close yields StatusCode=0.
+    // Direction: IG -> IOS
+    struct MapCommandAck
+    {
+        // Correlation ID matching the originating MapCommandRequest.RequestId.
+        DDS::DM::Guid RequestId;
+
+        // 0 = request finished (tool closed, no more acks for this RequestId)
+        // 1 = intermediate result (tool still active, more acks to come)
+        // other values reserved for error codes (e.g., SimHost rejected the CreateEntityRequest)
+        long StatusCode;
+
+        // Request-type-specific payload (JSON).
+        // CMD_PLACE_ENTITY / CMD_DRAW_TACTICAL_GRAPHIC success:
+        //   { "entityId": 9001 }                          // single entity created
+        //   { "entityId": 9001, "toolFinished": true }    // last entity + tool closed (StatusCode=0)
+        // CMD_PICK_LOCATION success:
+        //   { "position": { "lat": 45.0, "lon": 15.0, "alt": 0.0 } }
+        // CMD_PICK_LOCATION / any tool cancelled:
+        //   { "cancelled": true }
+        // Error cases:
+        //   { "error": "SimHost rejected CreateEntityRequest", "code": 42 }
+        string DataJson;
+    };
+    #pragma topic MapCommandAck reliable volatile keep_all
 
 
     // ===================================================================================
@@ -1405,6 +1511,12 @@ Switching modes supported: "Commit local overlay to backbone" operation
 ```
 
 **Configuration JSON Structure (Full State Example)**:
+
+> **Note:** The `activeTool` field reflects the *display state* of the IG cursor for
+> standalone/debug mode. In production, tool activations for entity creation use
+> `MapCommandRequest(CMD_PLACE_ENTITY / CMD_DRAW_TACTICAL_GRAPHIC)` instead.
+> The `MapInteractionConfig` alone should not trigger entity creation.
+
 ```json
 {
   "interaction": {
@@ -1483,6 +1595,28 @@ Switching modes supported: "Commit local overlay to backbone" operation
 {
   "targetEntityId": 505,
   "enableSnapping": true
+}
+```
+
+**CMD_PLACE_ENTITY** (all fields optional — unspecified fields fall back to TKB defaults):
+```json
+{
+  "objectClass":      "T72_Tank",
+  "affiliation":      "FRIENDLY",
+  "persistence":      "SCENARIO",
+  "multiPlace":       false,
+  "stylePresetName":  "CommandUnit",
+  "styleOverrideJson": { "labelVisible": true }
+}
+```
+
+**CMD_DRAW_TACTICAL_GRAPHIC** (all fields optional):
+```json
+{
+  "tkbTypeId":        8801,
+  "persistence":      "SCENARIO",
+  "stylePresetName":  "Hostile_Dashed",
+  "styleOverrideJson": { "lineWidth": 3 }
 }
 ```
 
@@ -1699,61 +1833,164 @@ IG:
 
 ### 6.2 Place Entity Workflow
 
+The primary workflow delegates entity creation entirely to the IG. The IOS parametrises the
+tool via `MapCommandRequest` and consumes `MapCommandAck` results; it never needs to allocate
+IDs or understand IDL descriptor structures.
+
+#### 6.2a Primary: IG-Autonomous Single-Placement
+
 ```
 User Action: "Add Tank"
     │
 IOS:
-    ├─► Generate contextId = UUID-12345
-    │
-    ├─► Publish MapInteractionConfig
-    │   └─► activeContextId = UUID-12345
-    │   └─► configJson: { "activeTool": "CURSOR_PLACE_ENTITY", 
-    │                      "toolSettings": { "objectClass": "T72_Tank",
-    │                                        "persistenceScope": "BACKBONE" }}
+    ├─► Publish MapCommandRequest
+    │   └─► requestId = UUID-12345
+    │   └─► type = CMD_PLACE_ENTITY
+    │   └─► commandArgsJson = {
+    │           "objectClass":   "T72_Tank",   // optional - overrides TKB default
+    │           "affiliation":   "FRIENDLY",   // optional - overrides TKB default
+    │           "persistence":   "SCENARIO",   // optional - default: SCENARIO
+    │           "multiPlace":    false         // single click then tool closes
+    │         }
     │
 IG:
-    ├─► Receive config
+    ├─► Receive MapCommandRequest
+    │
+    ├─► Merge: TKB defaults for T72_Tank  +  IOS JSON overrides
     │
     ├─► Change cursor to crosshair + ghost tank
     │
     └─► Wait for user click
 
+User clicks map (Lat 45.0, Lon 15.0)
+    │
+IG:
+    ├─► Construct CreateEntityRequest
+    │   └─► Complete set of descriptors (Master + Symbol + Pose …)
+    │   └─► Using merged TKB defaults + IOS overrides
+    │
+    ├─► Publish CreateEntityRequest → SimHost
+    │
+SimHost:
+    ├─► Validate & Allocate EntityId = 9001
+    ├─► Publish EntityMaster / EntityInfo / Pose on Backbone
+    └─► Publish CreateEntityAck (Success, entityId=9001) → IG
+
+IG:
+    ├─► Receive CreateEntityAck
+    │
+    ├─► Publish MapCommandAck → IOS
+    │   └─► requestId    = UUID-12345
+    │   └─► statusCode   = 0   (tool finished / closed)
+    │   └─► dataJson     = { "entityId": 9001 }
+    │
+    └─► Renders tank (entity now visible via Backbone subscription)
+
+IOS:
+    ├─► Receive MapCommandAck
+    │
+    ├─► Maps requestId UUID-12345 → "Add Tank" operation
+    │
+    ├─► Reads entityId 9001 from dataJson
+    │
+    └─► Optionally sends CMD_SET_SELECTION to highlight the new entity
+```
+
+::: mermaid
+sequenceDiagram
+    autonumber
+    participant IOS as IOS (Orchestrator)
+    participant IG as IG (Autonomous Agent)
+    participant SimHost as SimHost (Scenario Owner)
+
+    Note over IOS, SimHost: 6.2a Place Entity — IG-Autonomous Workflow
+
+    IOS->>IG: MapCommandRequest<br/>(CMD_PLACE_ENTITY, RequestId=UUID-12345,<br/>args={objectClass:T72_Tank, affiliation:FRIENDLY})
+
+    Note over IG: Merges TKB defaults + IOS overrides.<br/>Shows ghost tank cursor.
+
+    Note over IG: User clicks map at (45.0, 15.0)
+
+    IG->>SimHost: CreateEntityRequest<br/>(Full descriptor set — Master, Symbol, Pose…)
+
+    SimHost->>SimHost: Validate & Allocate EntityId=9001
+    SimHost-->>SimHost: Publish Backbone descriptors
+
+    par Backbone Update
+        SimHost->>IG: Entity 9001 data
+        SimHost->>IOS: Entity 9001 data
+    end
+
+    SimHost->>IG: CreateEntityAck (Success, entityId=9001)
+
+    IG->>IOS: MapCommandAck<br/>(RequestId=UUID-12345, StatusCode=0,<br/>DataJson={entityId:9001})
+
+    Note left of IOS: IOS correlates via RequestId.<br/>Optionally selects entity 9001.
+:::
+
+
+#### 6.2b Extended: Multi-Placement Tool
+
+When `multiPlace: true` is set in `CommandArgsJson`, the tool stays active after each click. Each
+entity creation yields a `StatusCode=1` (intermediate) ack; right-click or ESC closes the tool
+and yields the final `StatusCode=0` ack.
+
+```
+IOS:
+    └─► MapCommandRequest (CMD_PLACE_ENTITY, requestId=UUID-X, args={..., "multiPlace": true})
+
+User clicks → entity A created:
+    IG: MapCommandAck (requestId=UUID-X, StatusCode=1, DataJson={"entityId": 9001})
+    // Tool is still active
+
+User clicks → entity B created:
+    IG: MapCommandAck (requestId=UUID-X, StatusCode=1, DataJson={"entityId": 9002})
+
+User right-clicks → tool closes:
+    IG: MapCommandAck (requestId=UUID-X, StatusCode=0, DataJson={"toolFinished": true})
+    // IOS knows request UUID-X is now closed
+```
+
+
+#### 6.2c Fallback: Pure Click Forwarding (CMD_PICK_LOCATION)
+
+For workflows where the IOS strictly requires a geographic coordinate rather than an entity
+instantiation (e.g., "Where should artillery fire?"), use `CMD_PICK_LOCATION`. The IG acts
+as a dumb crosshair and returns the coordinate without creating anything.
+
+```
+IOS:
+    └─► MapCommandRequest (CMD_PICK_LOCATION, requestId=UUID-77,
+                           commandArgsJson={"cursorLabel": "Select Target", "cursorIcon": "crosshair_red"})
+
+User clicks:
+    IG: MapCommandAck (requestId=UUID-77, StatusCode=0,
+                       dataJson={"position": {"lat": 45.1, "lon": 15.3, "alt": 0.0}})
+
+User presses ESC (cancelled):
+    IG: MapCommandAck (requestId=UUID-77, StatusCode=0, dataJson={"cancelled": true})
+```
+
+
+#### 6.2d Legacy / Optional: Generic Click Pass-through
+
+The IG may still emit `MapClickEvent` if the currently active tool or map state explicitly
+enables generic click pass-through. This retains the original IOS-centric flow for advanced
+customisation scenarios but is **not the default creation path**.
+
+```
+[only when generic clicks are enabled by active tool/map state]
+
 User clicks map
     │
 IG:
-    ├─► Publish MapClickEvent
-    │   └─► position = (Lat 45.0, Lon 15.0)
-    │   └─► interactionContextId = UUID-12345
-    │
-IOS:
-    ├─► Receive MapClickEvent
-    │
-    ├─► Verify interactionContextId == UUID-12345 ✓
-    │
-    ├─► Allocate EntityId = 9001
-    │
-    ├─► Publish UpdateEntityDescriptorRequest
-    │   └─► entityId = 9001
-    │   └─► descriptorType = 0 (Master)
-    │   └─► payload.master = { entityKind: "T72_B", storageMode: BACKBONE }
-    │
-    └─► Publish UpdateEntityDescriptorRequest
-        └─► entityId = 9001
-        └─► descriptorType = 1 (Symbol)
-        └─► payload.symbol = { symbolCode: "S-G-U...", ... }
-
-Backbone:
-    └─► Publishes entity descriptor topics
-
-IG:
-    ├─► Subscribe to descriptor topics
-    │
-    └─► Renders tank at position
+    └─► Publish MapClickEvent
+        └─► position = (Lat 45.0, Lon 15.0)
+        └─► interactionContextId = <active context id>
 
 IOS:
-    └─► Publish MapCommandRequest (optional)
-        └─► type = CMD_SET_SELECTION
-        └─► entityId = 9001
+    ├─► Verify context id is still valid
+    └─► Interprets click as appropriate (e.g., custom logic, not standard entity creation)
 ```
 
 ### 6.3 Drag and Drop Workflows
@@ -2263,36 +2500,43 @@ Note over IOS, DDS: 6.6 Volatile Graphic via Standard Request
 
 ### 6.7 Race Condition: Stale Context
 
+For `CMD_PICK_LOCATION`, the IG sends a `MapCommandAck` with `{"cancelled": true}` when the
+tool is cancelled (ESC or IOS explicit cancellation). This is the clean path.
+
+However, if the IOS simply stops caring about a request (e.g., the user switches views), a
+`MapClickEvent`-based stale event may still arrive. The IOS resolves this via `RequestId` lookup: 
+
 ```
 IOS:
-    ├─► Generate UUID-50
+    ├─► Publish MapCommandRequest (CMD_PICK_LOCATION, requestId=UUID-50)
     │
-    └─► Publish MapCommandRequest (CMD_PICK_LOCATION, requestId=UUID-50)
+    └─► Register callback keyed on UUID-50
 
 IG:
-    └─► Store activeContextId = UUID-50, show "Select Target" cursor
+    └─► Show "Select Target" cursor, active requestId = UUID-50
 
 [1 second later]
 
 IOS:
-    └─► User cancels → Clear callback for UUID-50
+    └─► User cancels → Unregister callback for UUID-50
 
-[500ms later]
-
-User clicks map (stale action)
+[500ms later: user clicks map before IG receives any cancellation]
 
 IG:
-    └─► Publish MapClickEvent (interactionContextId = UUID-50)
+    └─► Publishes MapCommandAck (requestId=UUID-50, statusCode=0,
+                                  dataJson={"position":{"lat":45.0,"lon":15.0}})
 
 IOS:
-    ├─► Receive MapClickEvent
+    ├─► Receive MapCommandAck
     │
     ├─► Check callbacks for UUID-50 → NOT FOUND
     │
     └─► **Safely ignore** (no action taken)
 ```
 
-**IG Timeout Logic**: After 10 seconds of no IOS activity, reset `activeContextId` to 0.
+**IG Cancellation**: The IOS can cancel a pending tool by sending a `MapCommandRequest` with the same `RequestId` and `CommandType = CMD_SET_VIEW` (or a dedicated cancel flag in `CommandArgsJson`). The IG sends `MapCommandAck(StatusCode=0, DataJson={"cancelled":true})` and resets the cursor.
+
+**IG Timeout Logic**: After 10 seconds of no `MapCommandRequest` activity, the IG discards the active request context and emits a `MapCommandAck(StatusCode=0, DataJson={"cancelled":true, "reason":"timeout"})`.
 
 ---
 
@@ -2322,7 +2566,7 @@ IOS:
 
 **2. Validation Requirements**:
 - IG MUST validate JSON against expected schema
-- IG MUST publish `CommandStatus` with error if parsing fails
+- IG MUST publish `MapCommandAck` with an error `StatusCode` and `DataJson` error description if parsing fails
 - IOS MUST display validation errors to user
 
 **3. Error Handling**:
@@ -2558,8 +2802,8 @@ see BDC SST  Data Model Basics page for the `DescriptorOptimisticLock` descripto
 - Transient Local topics automatically deliver last state to new subscribers
 
 **Error Handling**:
-- All requests have corresponding Ack messages
-- `CommandStatus` provides user-friendly error messages
+- All `MapCommandRequest` messages have a corresponding `MapCommandAck` response (one or many)
+- `MapCommandAck.StatusCode` provides machine-readable status; `DataJson` carries error details
 - Validation errors prevent silent failures
 
 ### 8.2 Performance
@@ -2606,15 +2850,19 @@ see BDC SST  Data Model Basics page for the `DescriptorOptimisticLock` descripto
 
 ### 9.1 Resolved Design Decisions
 
-| Decision                 | Choice                    | Rationale                                               |
-| ------------------------ | ------------------------- | ------------------------------------------------------- |
-| Overlay persistence      | Hybrid (per-instance)     | Flexibility for local drawings + shared objects         |
-| Drag commit model        | Hybrid (configurable)     | Safety (local preview) + real-time collaboration option |
-| Context menu timing      | Wait with timeout (500ms) | Balance customization vs. responsiveness                |
-| Filtering implementation | IG-side, IOS-defined      | CPU efficiency + centralized policy                     |
-| Multiple controllers     | Single controller         | Simplifies conflict resolution                          |
-| Pick semantics           | Hit stack                 | Flexibility for disambiguation                          |
-| Symbol parameters        | JSON                      | Accommodate project-specific styles                     |
+| Decision                       | Choice                                               | Rationale                                                                                                        |
+| ------------------------------ | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Entity creation authority      | IG-autonomous (`CMD_PLACE_ENTITY` / `CMD_DRAW_TACTICAL_GRAPHIC`) | IG already knows TKB descriptors; eliminates redundant IOS coupling; IOS parametrises via JSON overrides |
+| Tool activation result channel | `MapCommandAck` (not generic `MapClickEvent` → IOS logic) | Unified ack/nak pattern; supports multi-step tools; typed correlations via `RequestId` |
+| Click-based fallback           | Retained as opt-in (`CMD_PICK_LOCATION` + generic clicks) | Future extensibility; IOS-centric control preserved for advanced custom scenarios                         |
+| Tool decoupling                | Tools use internal delegates; DDS protocol is an adapter layer | Tools reusable from local UI; independent testability                                                   |
+| Overlay persistence            | Hybrid (per-instance)                                | Flexibility for local drawings + shared objects                                                                  |
+| Drag commit model              | Hybrid (configurable)                                | Safety (local preview) + real-time collaboration option                                                          |
+| Context menu timing            | Wait with timeout (500ms)                            | Balance customization vs. responsiveness                                                                         |
+| Filtering implementation       | IG-side, IOS-defined                                 | CPU efficiency + centralized policy                                                                              |
+| Multiple controllers           | Single controller                                    | Simplifies conflict resolution                                                                                   |
+| Pick semantics                 | Hit stack                                            | Flexibility for disambiguation                                                                                   |
+| Symbol parameters              | JSON                                                 | Accommodate project-specific styles                                                                              |
 
 ### 9.2 Known Limitations
 
@@ -2654,6 +2902,7 @@ see BDC SST  Data Model Basics page for the `DescriptorOptimisticLock` descripto
 | MapInteractionConfig          | Reliable    | Volatile        | KeepLast(5)  | Automatic  |
 | MapConfigStatus               | Reliable    | Transient Local | KeepLast(1)  | Automatic  |
 | MapCommandRequest             | Reliable    | Volatile        | KeepLast(10) | Automatic  |
+| MapCommandAck                 | Reliable    | Volatile        | KeepLast(10) | Automatic  |
 | MapClickEvent                 | Reliable    | Volatile        | KeepLast(5)  | Automatic  |
 | DragEvent (START/END)         | Reliable    | Volatile        | KeepLast(5)  | Automatic  |
 | DragEvent (UPDATE)            | Best Effort | Volatile        | KeepLast(1)  | Automatic  |
@@ -2670,15 +2919,19 @@ see BDC SST  Data Model Basics page for the `DescriptorOptimisticLock` descripto
 
 **Backbone**: The SST-based entity-component system providing simulation state over DDS
 
-**Context ID**: 128-bit correlation ID linking commands to resulting events
+**Context ID / RequestId**: 128-bit UUID linking a `MapCommandRequest` to its `MapCommandAck` responses; allows the IOS to safely correlate asynchronous creation results or discard stale events if a tool was cancelled
 
 **Descriptor**: An entity component (SST terminology); e.g., Pose, Symbol, Geometry
 
-**IG**: Image Generator - the rendering and interaction engine
+**IG**: Image Generator - the rendering, interaction engine, and autonomous entity-creation agent
 
-**IOS**: Instructor Operating Station - the high-level controller
+**IG-Autonomous Creation**: Workflow where the IG resolves TKB defaults + IOS JSON overrides, constructs a `CreateEntityRequest`, dispatches it to SimHost, and bridges the `CreateEntityAck` back to IOS as a `MapCommandAck` — without IOS knowledge of IDL descriptor structures
+
+**IOS**: Instructor Operating Station - the high-level orchestrator; parametrises IG tool activations and consumes creation acknowledgements
 
 **Map-Local**: Entities scoped to single IG instance (not on backbone)
+
+**MapCommandAck**: DDS response message from IG to IOS correlating with a `MapCommandRequest` via `RequestId`; `StatusCode=0` means finished, `StatusCode=1` means intermediate (more acks to come), other values indicate errors; `DataJson` carries result payload (entity IDs, coordinates, cancellation flags)
 
 **Preset**: Named configuration bundle (layers, tools, styles)
 
@@ -2687,6 +2940,10 @@ see BDC SST  Data Model Basics page for the `DescriptorOptimisticLock` descripto
 **SST**: Shared Simulation State - the existing ECS backbone architecture, part of BDC (Bagira Data Cloud) family
 
 **TKB**: Technical Knowledge Base - static entity type definitions
+
+**TKB 3-Layer Resolution (Entity Creation)**: When IG creates an entity, properties are resolved in priority order: (1) IOS JSON overrides from `MapCommandRequest.CommandArgsJson` → (2) Named preset → (3) TKB defaults for the entity type
+
+**Tool Decoupling**: IG tools are implemented independently of the DDS wire protocol; they receive well-defined input parameters and communicate results via internal delegates; the IOS command/ack layer is a thin adapter on top
 
 **Volatile Overlay**: Temporary graphics (e.g., fire lines, hit indicators) stored in RAM only, with optional real-time auto-timeout
 
@@ -2697,7 +2954,6 @@ see BDC SST  Data Model Basics page for the `DescriptorOptimisticLock` descripto
 **Content Filtered Topic**: DDS feature for selective subscription (e.g., viewport filtering, on-demand geometry loading)
 
 **3-Layer Style Resolution**: Priority order for visual properties: JSON override → Preset name → TKB default
-
 
 **Map Context**: Partition ID separating shared objects ("Mission_Layer") from private objects ("User_3_Private")
 
