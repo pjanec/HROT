@@ -136,29 +136,20 @@ public sealed class OrbatPanel
     }
 
     /// <summary>
-    /// Creates a placeholder unit in the DER repository and selects it.
+    /// Activates the IG placement tool for a new infantry squad.
+    ///
+    /// <para><b>Architecture note</b>: this method intentionally performs <em>no</em>
+    /// local DER repository mutations.  The authoritative lifecycle is:<br/>
+    /// IOS → <c>CMD_PLACE_ENTITY</c> → IG activates placement tool → operator
+    /// clicks map → IOS sends <c>CreateEntityRequest</c> → SimHost allocates
+    /// a network ID and publishes <c>EntityMaster</c> + descriptors →
+    /// <see cref="FDP.Toolkit.DER.MasterIngressHandler{T}"/> populates the DER repo
+    /// → <c>CreateEntityAck</c> arrives → IOS logs the new ID and auto-selects
+    /// the entity.</para>
     /// </summary>
     public void HandleNewUnitClick(IIosLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
-
-        var repo = logic.Repo;
-        int newId = GetNextEntityId(repo);
-        var entity = repo.CreateEntity(newId, TkbEntityTypes.Unit_InfantrySquad);
-
-        entity.SetDescriptor(new EntityInfo
-        {
-            EntityId        = newId,
-            Name            = $"New Unit {newId}",
-            ForceIdentifier = eForceIdentifier.FORCE_FRIENDLY,
-            CommanderId     = 0,
-        });
-
-        logic.SelectEntity(newId);
-
-        // Start placement mode so the operator can click the map to send a
-        // CreateEntityRequest to SimHost — without this, the entity only exists
-        // in the local DER repository and never appears on the shared map.
         logic.StartPlacementMode(TkbEntityTypes.Unit_InfantrySquad, eForceIdentifier.FORCE_FRIENDLY);
     }
 
@@ -269,15 +260,6 @@ public sealed class OrbatPanel
         }
 
         return lookup;
-    }
-
-    private static int GetNextEntityId(IDerRepo repo)
-    {
-        int maxId = 0;
-        foreach (var entity in repo.GetAllEntities())
-            if (entity.EntityId > maxId) maxId = entity.EntityId;
-
-        return maxId + 1;
     }
 
     private void CollectNodes(

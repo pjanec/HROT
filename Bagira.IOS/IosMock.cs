@@ -1,4 +1,7 @@
+using Bagira.BDC.SSTD;
 using Bagira.IOS.Panels;
+using FDP.Toolkit.ImGui.Panels;
+using FDP.Toolkit.ImGui.Utils;
 using ImGuiNET;
 
 namespace Bagira.IOS;
@@ -26,16 +29,15 @@ public sealed class IosMock : IDisposable
 {
     // ── Dependencies ──────────────────────────────────────────────────────────
 
-    private readonly IosLogic         _logic;
-    private readonly ConfigPanel      _configPanel;
-    private readonly OrbatPanel       _orbatPanel;
-    private readonly MissionPanel     _missionPanel;
-    private readonly InteractionPanel _interactionPanel;
-    private readonly SpawnerPanel     _spawnerPanel;
-    private readonly InspectorPanel   _inspectorPanel;
-    private readonly DiagnosticsPanel _diagnosticsPanel;
-    private readonly DataMonitorPanel _dataMonitorPanel;
-    private readonly bool             _useDockSpace;
+    private readonly IosLogic                    _logic;
+    private readonly ConfigPanel                 _configPanel;
+    private readonly OrbatPanel                  _orbatPanel;
+    private readonly MissionPanel                _missionPanel;
+    private readonly InteractionPanel            _interactionPanel;
+    private readonly SpawnerPanel                _spawnerPanel;
+    private readonly DiagnosticsPanel            _diagnosticsPanel;
+    private readonly DerEntityInspectorPanel     _derEntityInspectorPanel;
+    private readonly bool                        _useDockSpace;
 
     private bool _disposed;
 
@@ -48,27 +50,40 @@ public sealed class IosMock : IDisposable
     /// Creates the orchestrator with the given logic and panel instances.
     /// </summary>
     public IosMock(
-        IosLogic         logic,
-        ConfigPanel      configPanel,
-        OrbatPanel       orbatPanel,
-        MissionPanel     missionPanel,
-        InteractionPanel interactionPanel,
-        SpawnerPanel     spawnerPanel,
-        InspectorPanel?  inspectorPanel   = null,
-        DiagnosticsPanel? diagnosticsPanel = null,
-        DataMonitorPanel? dataMonitorPanel = null,
-        bool             useDockSpace    = true)
+        IosLogic                   logic,
+        ConfigPanel                configPanel,
+        OrbatPanel                 orbatPanel,
+        MissionPanel               missionPanel,
+        InteractionPanel           interactionPanel,
+        SpawnerPanel               spawnerPanel,
+        DiagnosticsPanel?          diagnosticsPanel        = null,
+        DerEntityInspectorPanel?   derEntityInspectorPanel = null,
+        bool                       useDockSpace            = true)
     {
-        _logic            = logic            ?? throw new ArgumentNullException(nameof(logic));
-        _configPanel      = configPanel      ?? throw new ArgumentNullException(nameof(configPanel));
-        _orbatPanel       = orbatPanel       ?? throw new ArgumentNullException(nameof(orbatPanel));
-        _missionPanel     = missionPanel     ?? throw new ArgumentNullException(nameof(missionPanel));
-        _interactionPanel = interactionPanel ?? throw new ArgumentNullException(nameof(interactionPanel));
-        _spawnerPanel     = spawnerPanel     ?? throw new ArgumentNullException(nameof(spawnerPanel));
-        _inspectorPanel   = inspectorPanel   ?? new InspectorPanel();
-        _diagnosticsPanel = diagnosticsPanel ?? new DiagnosticsPanel();
-        _dataMonitorPanel = dataMonitorPanel  ?? new DataMonitorPanel();
-        _useDockSpace     = useDockSpace;
+        _logic                   = logic            ?? throw new ArgumentNullException(nameof(logic));
+        _configPanel             = configPanel      ?? throw new ArgumentNullException(nameof(configPanel));
+        _orbatPanel              = orbatPanel       ?? throw new ArgumentNullException(nameof(orbatPanel));
+        _missionPanel            = missionPanel     ?? throw new ArgumentNullException(nameof(missionPanel));
+        _interactionPanel        = interactionPanel ?? throw new ArgumentNullException(nameof(interactionPanel));
+        _spawnerPanel            = spawnerPanel     ?? throw new ArgumentNullException(nameof(spawnerPanel));
+        _diagnosticsPanel        = diagnosticsPanel ?? new DiagnosticsPanel();
+        _derEntityInspectorPanel = derEntityInspectorPanel ?? new DerEntityInspectorPanel();
+        _useDockSpace            = useDockSpace;
+
+        // Register the Bagira-specific "Edit Overlay" context menu action.
+        // The handler checks HasDescriptor/GetDescriptor at runtime; it is safe
+        // to register unconditionally — the lambda is never invoked unless ImGui
+        // is active and the user right-clicks an entity.
+        _derEntityInspectorPanel.RegisterContextMenuHandler(
+            new LambdaDerContextMenuHandler((entity, builder) =>
+            {
+                if (entity.HasDescriptor<MapVisualOverlay>())
+                {
+                    var overlay = entity.GetDescriptor<MapVisualOverlay>()!;
+                    if (overlay.IsEditable)
+                        builder.AddItem("Edit Overlay", () => _logic.StartEditingMode(entity.EntityId));
+                }
+            }));
     }
 
     // ── Per-frame update ──────────────────────────────────────────────────────
@@ -105,14 +120,7 @@ public sealed class IosMock : IDisposable
         if (_logic.SpawnerRequested)
             _logic.ConsumeSpawnerRequest();
 
-        // 4. Notify the inspector panel of any selection change.
-        //    Entity lookup is O(1); the panel skips work when the ID is unchanged.
-        var selectedEntity = _logic.SelectedEntityId != PanelConstants.InspectorNoSelection
-            ? _logic.Repo.GetEntity(_logic.SelectedEntityId)
-            : null;
-        _inspectorPanel.NotifySelectionChanged(selectedEntity);
-
-        // 5. Advance the diagnostics event-rate sample window.
+        // 4. Advance the diagnostics event-rate sample window.
         _diagnosticsPanel.Update(dt);
     }
 
@@ -149,9 +157,8 @@ public sealed class IosMock : IDisposable
         _missionPanel.Draw(_logic);
         _interactionPanel.Draw(_logic);
         _spawnerPanel.Draw(_logic);
-        _inspectorPanel.Draw(_logic);
         _diagnosticsPanel.Draw(_logic);
-        _dataMonitorPanel.Draw(_logic);
+        _derEntityInspectorPanel.Draw(_logic.Repo, "IOS Entity Inspector");
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────────

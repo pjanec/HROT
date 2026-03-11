@@ -58,6 +58,9 @@ internal static class IosLogicConstants
     /// <summary>DDS topic name used in interaction-log entries for create requests.</summary>
     internal const string LogTopicCreate = "CreateEntityRequest";
 
+    /// <summary>DDS topic name used in interaction-log entries for entity-creation acknowledgements.</summary>
+    internal const string LogTopicCreateAck = "CreateEntityAck";
+
     /// <summary>DDS topic name used in interaction-log entries for selection events.</summary>
     internal const string LogTopicSelection = "SelectionChangedEvent";
 

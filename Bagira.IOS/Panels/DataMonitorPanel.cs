@@ -11,6 +11,12 @@ namespace Bagira.IOS.Panels;
 /// IOS Data Monitor panel — shows all DER entities in a left-list and a rich,
 /// collapsible descriptor tree on the right (Task 44).
 ///
+/// <para><b>Deprecated.</b> This panel has been superseded by
+/// <see cref="FDP.Toolkit.ImGui.Panels.DerEntityInspectorPanel"/> which
+/// lives in the generic toolkit layer and provides live descriptor updates,
+/// search, and context-menu customisation.  This class is retained only for
+/// reference and will be removed in a future clean-up pass.</para>
+///
 /// <para>The details sub-pane uses <see cref="ImGuiPropertyTree"/> for a
 /// hierarchical Name│Value table, matching the same rendering used by the
 /// Event Browser and Entity Inspector in IG / SimHost.</para>
@@ -19,6 +25,7 @@ namespace Bagira.IOS.Panels;
 /// <see cref="GetDescriptorObjects"/> are public static helpers callable without
 /// an ImGui context.</para>
 /// </summary>
+[Obsolete("Use FDP.Toolkit.ImGui.Panels.DerEntityInspectorPanel instead.")]
 public sealed class DataMonitorPanel
 {
     // ── Per-frame state ───────────────────────────────────────────────────────

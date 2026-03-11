@@ -71,9 +71,10 @@ namespace Bagira.Runner.Services
             var transactionMgr    = new RequestTransactionManager();
             var interactionPanel  = new InteractionPanel();
 
-            var clickQueue     = new ConcurrentEventQueue<MapClickEvent>();
-            var selectionQueue = new ConcurrentEventQueue<SelectionChangedEvent>();
-            var missionAckQueue = new ConcurrentEventQueue<MissionControlAck>();
+            var clickQueue          = new ConcurrentEventQueue<MapClickEvent>();
+            var selectionQueue      = new ConcurrentEventQueue<SelectionChangedEvent>();
+            var missionAckQueue     = new ConcurrentEventQueue<MissionControlAck>();
+            var createEntityAckQueue = new ConcurrentEventQueue<CreateEntityAck>();
 
             // DDS ingress handlers for click/selection events.
             var ingressHandlers = new List<IIngressHandler>
@@ -81,6 +82,7 @@ namespace Bagira.Runner.Services
                 new MapClickIngressHandler(_participant, clickQueue),
                 new SelectionChangedIngressHandler(_participant, selectionQueue),
                 new MissionControlAckIngressHandler(_participant, missionAckQueue),
+                new CreateEntityAckIngressHandler(_participant, createEntityAckQueue),
                 new MasterIngressHandler<EntityMaster>(
                     _participant,
                     repo,
@@ -130,8 +132,9 @@ namespace Bagira.Runner.Services
                 clickQueue:           clickQueue,
                 selectionQueue:       selectionQueue,
                 interactionPanel:     interactionPanel,
-                ingressHandlers:      ingressHandlers,
-                mapGroupId:           DefaultMapGroupId,
+                ingressHandlers:         ingressHandlers,
+                createEntityAckQueue:    createEntityAckQueue,
+                mapGroupId:              DefaultMapGroupId,
                 commandWriter:        commandWriter,
                 targetMapId:          TargetMapId);
 

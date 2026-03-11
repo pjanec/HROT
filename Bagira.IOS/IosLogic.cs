@@ -63,6 +63,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     private readonly IDdsWriter<MapCommandRequest>?    _commandWriter;
     private readonly IEventQueue<MapClickEvent>         _clickQueue;
     private readonly IEventQueue<SelectionChangedEvent> _selectionQueue;
+    private readonly IEventQueue<CreateEntityAck>?      _createEntityAckQueue;
     private readonly InteractionPanel                   _interactionPanel;
     private readonly List<IIngressHandler>              _ingressHandlers;
     private readonly int                                _mapGroupId;
@@ -118,6 +119,12 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     /// <param name="clickQueue">Pull queue for incoming <see cref="MapClickEvent"/> samples.</param>
     /// <param name="selectionQueue">Pull queue for incoming <see cref="SelectionChangedEvent"/> samples.</param>
     /// <param name="interactionPanel">Event-log panel (also the DEBT-034 drain target).</param>
+    /// <param name="createEntityAckQueue">
+    /// Optional pull queue for incoming <see cref="CreateEntityAck"/> samples.
+    /// When provided, <see cref="Update"/> drains the queue each frame, logs the result to
+    /// the interaction panel, and automatically selects the newly-spawned entity on success.
+    /// Pass <c>null</c> (the default) to skip ack processing (e.g. in unit tests).
+    /// </param>
     /// <param name="ingressHandlers">
     /// Optional list of DDS ingress handlers to <see cref="IIngressHandler.Poll"/> each frame.
     /// Typically includes one <c>MasterIngressHandler</c> and several
@@ -140,6 +147,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         IEventQueue<MapClickEvent>          clickQueue,
         IEventQueue<SelectionChangedEvent>  selectionQueue,
         InteractionPanel                    interactionPanel,
+        IEventQueue<CreateEntityAck>?       createEntityAckQueue = null,
         IEnumerable<IIngressHandler>?       ingressHandlers = null,
         int                                 mapGroupId      = IosLogicConstants.DefaultMapGroupId,
         IDdsWriter<MapCommandRequest>?      commandWriter   = null,
@@ -152,9 +160,10 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         _configWriter        = configWriter         ?? throw new ArgumentNullException(nameof(configWriter));
         _createEntityWriter  = createEntityWriter   ?? throw new ArgumentNullException(nameof(createEntityWriter));
         _commandWriter       = commandWriter;   // null-ok; falls back to MapInteractionConfig
-        _clickQueue          = clickQueue           ?? throw new ArgumentNullException(nameof(clickQueue));
-        _selectionQueue      = selectionQueue       ?? throw new ArgumentNullException(nameof(selectionQueue));
-        _interactionPanel    = interactionPanel     ?? throw new ArgumentNullException(nameof(interactionPanel));
+        _clickQueue             = clickQueue           ?? throw new ArgumentNullException(nameof(clickQueue));
+        _selectionQueue         = selectionQueue       ?? throw new ArgumentNullException(nameof(selectionQueue));
+        _createEntityAckQueue   = createEntityAckQueue; // null-ok
+        _interactionPanel       = interactionPanel     ?? throw new ArgumentNullException(nameof(interactionPanel));
         _ingressHandlers     = ingressHandlers?.ToList() ?? new List<IIngressHandler>();
         _mapGroupId          = mapGroupId;
         _targetMapId         = targetMapId;
@@ -478,6 +487,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         // 3. Process event queues
         ProcessClickEvents();
         ProcessSelectionEvents();
+        ProcessEntityCreationAcks();
 
         // 4. Check request timeouts
         TransactionManager.CheckTimeouts();
@@ -572,6 +582,31 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
             $"ENTITY_PICK entityId={entityId}");
 
         tcs?.TrySetResult(entityId);
+    }
+
+    private void ProcessEntityCreationAcks()
+    {
+        if (_createEntityAckQueue == null) return;
+
+        while (_createEntityAckQueue.TryDequeue(out var ack))
+        {
+            TransactionManager.CompleteRequest(ack.RequestId, ack.ErrorCode == 0,
+                ack.ErrorCode == 0 ? null : $"ErrorCode={ack.ErrorCode}");
+
+            if (ack.ErrorCode != 0)
+            {
+                _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicCreateAck,
+                    $"FAIL req={ack.RequestId:N} err={ack.ErrorCode}");
+                FdpLog<IosLogic>.Warn("[TRACE-IOS] CreateEntityAck FAILED: req={0} err={1}",
+                    ack.RequestId, ack.ErrorCode);
+                continue;
+            }
+
+            _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicCreateAck,
+                $"OK newId={ack.NewEntityId} req={ack.RequestId:N}");
+            FdpLog<IosLogic>.Debug("[TRACE-IOS] CreateEntityAck OK: newId={0}", ack.NewEntityId);
+            SelectEntity(ack.NewEntityId);
+        }
     }
 
     private void ProcessSelectionEvents()

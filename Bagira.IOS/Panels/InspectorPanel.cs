@@ -16,6 +16,12 @@ public sealed record InspectorLine(string Category, string Field, string Value);
 /// IOS UI panel that shows the raw field values of every ECS descriptor
 /// attached to the currently selected entity.
 ///
+/// <para><b>Deprecated.</b> This panel has been superseded by
+/// <see cref="FDP.Toolkit.ImGui.Panels.DerEntityInspectorPanel"/> which
+/// provides live descriptor updates, search, and context-menu support.
+/// This class is retained only for reference and will be removed in a future
+/// clean-up pass.</para>
+///
 /// <para><b>Reflection discipline (batch pitfall):</b>
 /// <see cref="BuildDescriptorLines"/> is called only inside
 /// <see cref="NotifySelectionChanged"/>, i.e. once per selection change —
@@ -36,6 +42,7 @@ public sealed record InspectorLine(string Category, string Field, string Value);
 /// static; tests call it directly with a real or stub
 /// <see cref="IDerEntity"/> without requiring an ImGui render frame.</para>
 /// </summary>
+[Obsolete("Use FDP.Toolkit.ImGui.Panels.DerEntityInspectorPanel instead.")]
 public sealed class InspectorPanel
 {
     // ── Static reflection cache ───────────────────────────────────────────────

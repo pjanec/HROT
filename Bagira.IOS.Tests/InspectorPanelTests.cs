@@ -1,222 +1,215 @@
 using Bagira.BDC.SSTD;
-using Bagira.IOS.Panels;
 using FDP.Toolkit.DER;
+using FDP.Toolkit.ImGui.Panels;
 
 namespace Bagira.IOS.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="InspectorPanel"/>.
+/// Tests for <see cref="DerEntityInspectorPanel"/> and the underlying
+/// <see cref="IDerEntity.GetAllRawDescriptors"/> contract.
 ///
-/// <para>All tests operate through the public API
-/// (<see cref="InspectorPanel.NotifySelectionChanged"/>,
-/// <see cref="InspectorPanel.BuildDescriptorLines"/>,
-/// <see cref="InspectorPanel.CachedLines"/>) using real
-/// <see cref="DerRepo"/> / <see cref="DerEntity"/> instances.
-/// No ImGui context is required.</para>
+/// <para>All tests use Bagira-specific DDS descriptors (EntityInfo, GeoSpatial,
+/// EntityMaster) to exercise the real DER path.  No ImGui context is required
+/// because only the non-drawing helpers and the DER API are exercised.</para>
 /// </summary>
-public class InspectorPanelTests
+public class DerEntityInspectorPanelIosTests
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static (DerRepo Repo, IDerEntity Entity) CreateEntityWithInfo(
-        int entityId = 1,
-        string name = "Alpha-1",
-        eForceIdentifier force = eForceIdentifier.FORCE_FRIENDLY)
+    private static DerRepo CreateRepoWithEntities(params int[] entityIds)
     {
-        var repo   = new DerRepo();
-        var entity = repo.CreateEntity(entityId, 100);
-        entity.SetDescriptor(new EntityInfo
-        {
-            EntityId        = entityId,
-            Name            = name,
-            ForceIdentifier = force,
-            CommanderId     = 0
-        });
-        return (repo, entity);
+        var repo = new DerRepo();
+        foreach (var id in entityIds)
+            repo.CreateEntity(id, 100);
+        return repo;
     }
 
-    // ── NotifySelectionChanged ────────────────────────────────────────────────
+    // ── GetEntityListRows ─────────────────────────────────────────────────────
 
     [Fact]
-    public void NotifySelectionChanged_Null_ClearsCacheAndSetsNoSelection()
+    public void GetEntityListRows_EmptyRepo_ReturnsEmpty()
     {
-        var panel       = new InspectorPanel();
-        var (_, entity) = CreateEntityWithInfo();
+        var repo = new DerRepo();
 
-        panel.NotifySelectionChanged(entity);
-        Assert.NotEmpty(panel.CachedLines);
+        var rows = DerEntityInspectorPanel.GetEntityListRows(repo);
 
-        panel.NotifySelectionChanged(null);
-
-        Assert.Equal(PanelConstants.InspectorNoSelection, panel.CachedEntityId);
-        Assert.Empty(panel.CachedLines);
+        Assert.Empty(rows);
     }
 
     [Fact]
-    public void NotifySelectionChanged_Entity_SetsCorrectCachedEntityId()
+    public void GetEntityListRows_NoFilter_ReturnsAllEntityIds()
     {
-        var panel       = new InspectorPanel();
-        var (_, entity) = CreateEntityWithInfo(entityId: 42);
+        var repo = CreateRepoWithEntities(1, 2, 3);
 
-        panel.NotifySelectionChanged(entity);
+        var rows = DerEntityInspectorPanel.GetEntityListRows(repo);
 
-        Assert.Equal(42, panel.CachedEntityId);
+        Assert.Equal(3, rows.Count);
+        Assert.Contains(1, rows);
+        Assert.Contains(2, rows);
+        Assert.Contains(3, rows);
     }
 
     [Fact]
-    public void NotifySelectionChanged_Entity_PopulatesCachedLines()
+    public void GetEntityListRows_NumericFilter_ReturnsMatchingId()
     {
-        var panel       = new InspectorPanel();
-        var (_, entity) = CreateEntityWithInfo();
+        var repo = CreateRepoWithEntities(10, 20, 30);
 
-        panel.NotifySelectionChanged(entity);
+        var rows = DerEntityInspectorPanel.GetEntityListRows(repo, "20");
 
-        Assert.NotEmpty(panel.CachedLines);
+        Assert.Single(rows);
+        Assert.Equal(20, rows[0]);
     }
 
     [Fact]
-    public void NotifySelectionChanged_SameEntityCalledTwice_RetainsSameLines()
+    public void GetEntityListRows_NumericFilter_NoMatch_ReturnsEmpty()
     {
-        var panel       = new InspectorPanel();
-        var (_, entity) = CreateEntityWithInfo(entityId: 7);
+        var repo = CreateRepoWithEntities(1, 2, 3);
 
-        panel.NotifySelectionChanged(entity);
-        var firstLines = panel.CachedLines.ToList();
+        var rows = DerEntityInspectorPanel.GetEntityListRows(repo, "99");
 
-        // Second call with the same entity should not change the cache.
-        panel.NotifySelectionChanged(entity);
-        var secondLines = panel.CachedLines.ToList();
-
-        Assert.Equal(firstLines.Count, secondLines.Count);
-        for (int i = 0; i < firstLines.Count; i++)
-            Assert.Equal(firstLines[i], secondLines[i]);
+        Assert.Empty(rows);
     }
 
     [Fact]
-    public void NotifySelectionChanged_DifferentEntity_UpdatesCache()
+    public void GetEntityListRows_NonNumericFilter_ReturnsEmpty()
     {
-        var panel     = new InspectorPanel();
-        var repo      = new DerRepo();
-        var entityA   = repo.CreateEntity(1, 100);
-        var entityB   = repo.CreateEntity(2, 200);
+        var repo = CreateRepoWithEntities(1, 2, 3);
 
-        entityA.SetDescriptor(new EntityInfo { EntityId = 1, Name = "Alpha" });
-        entityB.SetDescriptor(new EntityInfo { EntityId = 2, Name = "Bravo" });
+        var rows = DerEntityInspectorPanel.GetEntityListRows(repo, "abc");
 
-        panel.NotifySelectionChanged(entityA);
-        Assert.Equal(1, panel.CachedEntityId);
-
-        panel.NotifySelectionChanged(entityB);
-        Assert.Equal(2, panel.CachedEntityId);
-
-        var nameLine = panel.CachedLines.FirstOrDefault(l =>
-            l.Category == "EntityInfo" && l.Field == "Name");
-        Assert.NotNull(nameLine);
-        Assert.Equal("Bravo", nameLine!.Value);
+        Assert.Empty(rows);
     }
 
-    // ── BuildDescriptorLines ──────────────────────────────────────────────────
+    [Fact]
+    public void GetEntityListRows_WhitespaceFilter_ReturnsAll()
+    {
+        var repo = CreateRepoWithEntities(5, 10);
+
+        var rows = DerEntityInspectorPanel.GetEntityListRows(repo, "   ");
+
+        Assert.Equal(2, rows.Count);
+    }
+
+    // ── GetAllRawDescriptors ──────────────────────────────────────────────────
 
     [Fact]
-    public void BuildDescriptorLines_EntityWithNoDescriptors_ReturnsEmptyList()
+    public void GetAllRawDescriptors_EntityWithNoDescriptors_ReturnsEmpty()
     {
         var repo   = new DerRepo();
         var entity = repo.CreateEntity(1, 100);
 
-        var lines = InspectorPanel.BuildDescriptorLines(entity);
+        var raw = entity.GetAllRawDescriptors().ToList();
 
-        Assert.Empty(lines);
+        Assert.Empty(raw);
     }
 
     [Fact]
-    public void BuildDescriptorLines_EntityWithEntityInfo_ContainsEntityIdField()
-    {
-        var (_, entity) = CreateEntityWithInfo(entityId: 5);
-
-        var lines = InspectorPanel.BuildDescriptorLines(entity);
-
-        var entityIdLine = lines.FirstOrDefault(l =>
-            l.Category == "EntityInfo" && l.Field == "EntityId");
-        Assert.NotNull(entityIdLine);
-        Assert.Equal("5", entityIdLine!.Value);
-    }
-
-    [Fact]
-    public void BuildDescriptorLines_EntityWithEntityInfo_ContainsNameField()
-    {
-        var (_, entity) = CreateEntityWithInfo(name: "Bravo-7");
-
-        var lines = InspectorPanel.BuildDescriptorLines(entity);
-
-        var nameLine = lines.FirstOrDefault(l =>
-            l.Category == "EntityInfo" && l.Field == "Name");
-        Assert.NotNull(nameLine);
-        Assert.Equal("Bravo-7", nameLine!.Value);
-    }
-
-    [Fact]
-    public void BuildDescriptorLines_EntityWithEntityInfo_ContainsForceIdentifierField()
-    {
-        var (_, entity) = CreateEntityWithInfo(force: eForceIdentifier.FORCE_OPPOSING);
-
-        var lines = InspectorPanel.BuildDescriptorLines(entity);
-
-        var forceLine = lines.FirstOrDefault(l =>
-            l.Category == "EntityInfo" && l.Field == "ForceIdentifier");
-        Assert.NotNull(forceLine);
-        Assert.Equal(eForceIdentifier.FORCE_OPPOSING.ToString(), forceLine!.Value);
-    }
-
-    [Fact]
-    public void BuildDescriptorLines_MultipleDescriptors_LinesCoverAllCategories()
+    public void GetAllRawDescriptors_SingleDescriptor_ReturnsCorrectType()
     {
         var repo   = new DerRepo();
         var entity = repo.CreateEntity(1, 100);
-        entity.SetDescriptor(new EntityInfo  { EntityId = 1, Name = "T-72" });
-        entity.SetDescriptor(new EntityMaster { EntityId = 1, TkbType = 100 });
+        entity.SetDescriptor(new EntityInfo { EntityId = 1, Name = "Alpha" });
 
-        var lines = InspectorPanel.BuildDescriptorLines(entity);
+        var raw = entity.GetAllRawDescriptors().ToList();
 
-        var categories = lines.Select(l => l.Category).Distinct().ToList();
-        Assert.Contains("EntityInfo",   categories);
-        Assert.Contains("EntityMaster", categories);
+        Assert.Single(raw);
+        Assert.Equal(typeof(EntityInfo), raw[0].Type);
     }
 
     [Fact]
-    public void BuildDescriptorLines_NullEntity_Throws()
+    public void GetAllRawDescriptors_SingleDescriptor_DataIsBoxedStruct()
     {
-        Assert.Throws<ArgumentNullException>(() =>
-            InspectorPanel.BuildDescriptorLines(null!));
-    }
-
-    [Fact]
-    public void BuildDescriptorLines_LineCount_DoesNotExceedMaxTotalLines()
-    {
-        // Populate an entity with many descriptors to hit the cap.
         var repo   = new DerRepo();
         var entity = repo.CreateEntity(1, 100);
+        entity.SetDescriptor(new EntityInfo { EntityId = 1, Name = "Bravo" });
 
-        // EntityInfo, EntityMaster, GeoSpatial, EntityDamage cover typical fields
-        entity.SetDescriptor(new EntityInfo   { EntityId = 1, Name = "Unit" });
-        entity.SetDescriptor(new EntityMaster { EntityId = 1, TkbType = 100 });
+        var raw  = entity.GetAllRawDescriptors().ToList();
+        var info = (EntityInfo)raw[0].Data;
+
+        Assert.Equal("Bravo", info.Name);
+    }
+
+    [Fact]
+    public void GetAllRawDescriptors_MultipleDescriptors_ReturnsAll()
+    {
+        var repo   = new DerRepo();
+        var entity = repo.CreateEntity(1, 100);
+        entity.SetDescriptor(new EntityInfo   { EntityId = 1, Name = "T-72" });
+        entity.SetDescriptor(new EntityMaster { EntityId = 1, TkbType = 42 });
         entity.SetDescriptor(new GeoSpatial   { EntityId = 1 });
-        entity.SetDescriptor(new EntityDamage { EntityId = 1, Damage = 50f });
 
-        var lines = InspectorPanel.BuildDescriptorLines(entity);
+        var raw   = entity.GetAllRawDescriptors().ToList();
+        var types = raw.Select(r => r.Type).ToHashSet();
 
-        Assert.True(lines.Count <= PanelConstants.InspectorMaxTotalLines);
+        Assert.Equal(3, raw.Count);
+        Assert.Contains(typeof(EntityInfo),   types);
+        Assert.Contains(typeof(EntityMaster), types);
+        Assert.Contains(typeof(GeoSpatial),   types);
     }
 
-    // ── Draw (smoke test) ─────────────────────────────────────────────────────
+    [Fact]
+    public void GetAllRawDescriptors_AfterUpdate_ReturnsNewReference()
+    {
+        // Demonstrates the live-update contract: SetDescriptor creates a new
+        // boxed object, so the reference returned by GetAllRawDescriptors changes.
+        var repo   = new DerRepo();
+        var entity = repo.CreateEntity(1, 100);
+        entity.SetDescriptor(new EntityInfo { EntityId = 1, Name = "OldName" });
+
+        var refBefore = entity.GetAllRawDescriptors()
+            .First(r => r.Type == typeof(EntityInfo)).Data;
+
+        entity.SetDescriptor(new EntityInfo { EntityId = 1, Name = "NewName" });
+
+        var refAfter = entity.GetAllRawDescriptors()
+            .First(r => r.Type == typeof(EntityInfo)).Data;
+
+        // New SetDescriptor call must produce a new boxed object reference.
+        Assert.False(ReferenceEquals(refBefore, refAfter),
+            "Expected a new boxed reference after SetDescriptor.");
+
+        // The new data must reflect the updated value.
+        Assert.Equal("NewName", ((EntityInfo)refAfter).Name);
+    }
 
     [Fact]
-    public void Draw_WithMockLogic_DoesNotThrow()
+    public void GetAllRawDescriptors_MultiPartDescriptor_ExposesParts()
     {
-        var panel = new InspectorPanel();
-        var logic = new Moq.Mock<IIosLogic>();
+        var repo   = new DerRepo();
+        var entity = repo.CreateEntity(1, 100);
+        entity.SetDescriptor(new EntityInfo { EntityId = 1, Name = "Part0" }, partId: 0);
+        entity.SetDescriptor(new EntityInfo { EntityId = 1, Name = "Part1" }, partId: 1);
 
-        var ex = Record.Exception(() => panel.Draw(logic.Object));
+        var raw = entity.GetAllRawDescriptors().ToList();
+
+        Assert.Equal(2, raw.Count);
+        Assert.Contains(raw, r => r.PartId == 0);
+        Assert.Contains(raw, r => r.PartId == 1);
+    }
+
+    // ── Panel construction / registration ─────────────────────────────────────
+
+    [Fact]
+    public void DerEntityInspectorPanel_Construct_DoesNotThrow()
+    {
+        var ex = Record.Exception(() => new DerEntityInspectorPanel());
 
         Assert.Null(ex);
     }
+
+    [Fact]
+    public void RegisterContextMenuHandler_Null_ThrowsArgumentNullException()
+    {
+        var panel = new DerEntityInspectorPanel();
+
+        Assert.Throws<ArgumentNullException>(() =>
+            panel.RegisterContextMenuHandler(null!));
+    }
+
+    [Fact]
+    public void NoSelection_ConstantIsZero()
+    {
+        Assert.Equal(0, DerEntityInspectorPanel.NoSelection);
+    }
 }
+

@@ -96,3 +96,37 @@ public sealed class MissionControlAckIngressHandler : IIngressHandler, IDisposab
 
     public void Dispose() => _reader.Dispose();
 }
+
+/// <summary>
+/// DDS ingress handler that enqueues <see cref="CreateEntityAck"/> samples so that
+/// <see cref="Bagira.IOS.IosLogic"/> can correlate creation responses, log them to the
+/// interaction panel, and auto-select the newly created entity.
+/// </summary>
+public sealed class CreateEntityAckIngressHandler : IIngressHandler, IDisposable
+{
+    private readonly DdsReader<CreateEntityAck> _reader;
+    private readonly IEventQueue<CreateEntityAck> _queue;
+    private readonly int _maxSamples;
+
+    public CreateEntityAckIngressHandler(DdsParticipant participant, IEventQueue<CreateEntityAck> queue, int maxSamples = 10)
+    {
+        _reader = new DdsReader<CreateEntityAck>(participant, "CreateEntityAck");
+        _queue  = queue ?? throw new ArgumentNullException(nameof(queue));
+        _maxSamples = Math.Max(1, maxSamples);
+    }
+
+    public void Poll()
+    {
+        using var loan = _reader.Take(_maxSamples);
+        foreach (var sample in loan)
+        {
+            if (!sample.IsValid) continue;
+            FdpLog<CreateEntityAckIngressHandler>.Debug(
+                "[TRACE-IOS] CreateEntityAck ingress req={0} newId={1} err={2}",
+                sample.Data.RequestId, sample.Data.NewEntityId, sample.Data.ErrorCode);
+            _queue.Enqueue(sample.Data);
+        }
+    }
+
+    public void Dispose() => _reader.Dispose();
+}
