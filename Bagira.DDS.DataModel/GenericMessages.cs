@@ -167,7 +167,7 @@ namespace Bagira.BDC.SSTM
         public EntityAttribute _d;
 
         [DdsCase(EntityAttribute.eaName)]
-        public string EntityName;
+        public string Name;
 
         [DdsCase(EntityAttribute.eaGeoPosition)]
         public GeoPosition GeoPosition;

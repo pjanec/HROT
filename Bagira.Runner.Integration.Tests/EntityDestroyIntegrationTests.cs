@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
@@ -67,7 +67,7 @@ public class EntityDestroyIntegrationTests
         var iosLogic = harness.Ios.Logic;
         var igApp = harness.Ig.App;
 
-        iosLogic.StartPlacementMode(tkbType, eForceIdentifier.FORCE_FRIENDLY);
+        iosLogic.StartPlacementMode(tkbType);
         Assert.Equal(tkbType, iosLogic.PlacementType);
 
         bool configSynced = harness.PumpUntil(

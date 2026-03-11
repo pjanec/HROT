@@ -260,6 +260,24 @@ public class IgApplication
     private BagiraEntityFilterFactory? _entityFilterFactory;
 
     private DdsWriter<CreateEntityRequest>?  _createEntityDdsWriter;
+    /// <summary>
+    /// Writer that publishes <see cref="MapCommandAck"/> responses back to the IOS,
+    /// correlating tool outcomes with the original <see cref="MapCommandRequest"/>.
+    /// </summary>
+    private DdsWriter<MapCommandAck>?           _mapCommandAckWriter;
+    /// <summary>
+    /// Reader that receives <see cref="CreateEntityAck"/> samples from the SimHost.
+    /// Each sample is forwarded to <see cref="_mapCommandController"/> so it can
+    /// correlate entity confirmations with active placement sessions.
+    /// </summary>
+    private DdsReader<CreateEntityAck>?         _createEntityAckReader;
+    /// <summary>
+    /// Orchestrator that manages tool-activation sessions for <see cref="MapCommandRequest"/>
+    /// commands (<c>CMD_PLACE_ENTITY</c>, <c>CMD_START_AUTHORING</c>) and routes
+    /// <see cref="CreateEntityAck"/> confirmations back to the IOS as
+    /// <see cref="MapCommandAck"/> messages.
+    /// </summary>
+    private MapCommandController?               _mapCommandController;
 
     // ÔöÇÔöÇ Drag tracking: world-space drop position set by OnEntityMoved ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
@@ -632,6 +650,8 @@ public class IgApplication
                 _commandReader   = new DdsReader<MapCommandRequest>(participant, "MapCommandRequest");
 
                 _createEntityDdsWriter = new DdsWriter<CreateEntityRequest>(participant, "CreateEntityRequest");
+                _mapCommandAckWriter   = new DdsWriter<MapCommandAck>(participant, "MapCommandAck");
+                _createEntityAckReader = new DdsReader<CreateEntityAck>(participant, "CreateEntityAck");
 
 
 
@@ -713,6 +733,12 @@ public class IgApplication
 
                 ddsAllocator = new DdsIdAllocator(participant, $"IG_{IgNetworkConstants.InstanceId}");
 
+                // Create the MapCommandController now that canvas and DDS resources are ready.
+                _mapCommandController = new MapCommandController(
+                    _canvas,
+                    new CycloneDdsWriterIgAdapter<CreateEntityRequest>(_createEntityDdsWriter!),
+                    new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!));
+
                 _networkEnabled = true;
 
             }
@@ -734,6 +760,8 @@ public class IgApplication
                 _commandReader?.Dispose();
 
                 _createEntityDdsWriter?.Dispose();
+                _mapCommandAckWriter?.Dispose();
+                _createEntityAckReader?.Dispose();
 
                 participant?.Dispose();
 
@@ -748,6 +776,9 @@ public class IgApplication
                 _commandReader = null;
 
                 _createEntityDdsWriter = null;
+                _mapCommandAckWriter   = null;
+                _createEntityAckReader = null;
+                _mapCommandController  = null;
 
                 _geoTransform = null;
 
@@ -1056,13 +1087,13 @@ public class IgApplication
 
                     case CommandType.CMD_START_AUTHORING:
 
-                        ParseCommandAndActivateAreaTool(cmd.CommandArgsJson);
+                        ParseCommandAndActivateAreaTool(cmd.RequestId, cmd.CommandArgsJson);
 
                         break;
 
                     case CommandType.CMD_PLACE_ENTITY:
 
-                        ParseCommandAndActivatePlacementTool(cmd.CommandArgsJson);
+                        ParseCommandAndActivatePlacementTool(cmd.RequestId, cmd.CommandArgsJson);
 
                         break;
 
@@ -1091,6 +1122,16 @@ public class IgApplication
 
         }
 
+        // Forward CreateEntityAck samples to the MapCommandController for session correlation.
+        if (_networkEnabled && _createEntityAckReader != null && _mapCommandController != null)
+        {
+            using var ackLoan = _createEntityAckReader.Take(16);
+            foreach (var ackSample in ackLoan)
+            {
+                if (!ackSample.IsValid) continue;
+                _mapCommandController.OnCreateEntityAck(ackSample.Data);
+            }
+        }
 
 
         // Task 5b: Poll IOS => IG interaction-config updates (legacy -- grid/view toggle).
@@ -1526,6 +1567,8 @@ public class IgApplication
         _commandReader?.Dispose();
 
         _createEntityDdsWriter?.Dispose();
+        _mapCommandAckWriter?.Dispose();
+        _createEntityAckReader?.Dispose();
 
         _kernel?.Dispose();
 
@@ -2361,7 +2404,7 @@ public class IgApplication
     /// Extracts <c>contextId</c> and <c>styleOverrideJson</c> from the JSON args,
     /// stores the context ID, then activates the area-authoring point-sequence tool.
     /// </summary>
-    private void ParseCommandAndActivateAreaTool(string argsJson)
+    private void ParseCommandAndActivateAreaTool(Guid requestId, string argsJson)
     {
         if (string.IsNullOrWhiteSpace(argsJson)) return;
 
@@ -2383,7 +2426,7 @@ public class IgApplication
                 styleJson = styleEl.GetString() ?? string.Empty;
             }
 
-            ActivateAreaAuthoringTool(styleJson);
+            ActivateAreaAuthoringTool(requestId, styleJson);
         }
         catch (Exception ex)
         {
@@ -2394,10 +2437,11 @@ public class IgApplication
 
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_PLACE_ENTITY"/> command.
-    /// Extracts <c>contextId</c>, <c>entityType</c>, and <c>affiliation</c> from
-    /// the JSON args, stores the context ID, then activates the placement tool.
+    /// Extracts <c>contextId</c>, <c>entityType</c>, <c>affiliation</c>, and
+    /// optional <c>initialPropertiesJson</c> from the JSON args, then delegates
+    /// to <see cref="MapCommandController"/> to activate the placement tool.
     /// </summary>
-    private void ParseCommandAndActivatePlacementTool(string argsJson)
+    private void ParseCommandAndActivatePlacementTool(Guid requestId, string argsJson)
     {
         if (string.IsNullOrWhiteSpace(argsJson)) return;
 
@@ -2413,23 +2457,18 @@ public class IgApplication
             }
 
             long    tkbType = 0;
-            ForceId aff     = ForceId.Unknown;
+            string? initialPropertiesJson = null;
 
             if (root.TryGetProperty("entityType", out var etEl))
                 tkbType = etEl.GetInt64();
 
-            if (root.TryGetProperty("affiliation", out var affEl))
+            if (root.TryGetProperty("initialPropertiesJson", out var propsEl)
+             && propsEl.ValueKind == JsonValueKind.String)
             {
-                aff = affEl.GetString() switch
-                {
-                    "Friend"   => ForceId.Friend,
-                    "Hostile"  => ForceId.Hostile,
-                    "Neutral"  => ForceId.Neutral,
-                    _          => ForceId.Unknown,
-                };
+                initialPropertiesJson = propsEl.GetString();
             }
 
-            ActivatePlacementTool(tkbType, aff);
+            ActivatePlacementTool(requestId, tkbType, initialPropertiesJson);
         }
         catch (Exception ex)
         {
@@ -2657,41 +2696,22 @@ public class IgApplication
 
                 {
 
-                    long    tkbType = 0;
-
-                    ForceId aff     = ForceId.Unknown;
-
-
+                    long    tkbType              = 0;
+                    string? initialPropertiesJson = null;
 
                     if (toolConfigEl.TryGetProperty("entityType", out var etEl))
-
                         tkbType = etEl.GetInt64();
 
-
-
-                    if (toolConfigEl.TryGetProperty("affiliation", out var affEl))
-
+                    if (toolConfigEl.TryGetProperty("affiliation", out var affEl)
+                     && affEl.ValueKind == JsonValueKind.String)
                     {
-
-                        aff = affEl.GetString() switch
-
-                        {
-
-                            "FORCE_FRIENDLY" => ForceId.Friend,
-
-                            "FORCE_OPPOSING" => ForceId.Hostile,
-
-                            "FORCE_NEUTRAL"  => ForceId.Neutral,
-
-                            _                => ForceId.Unknown,
-
-                        };
-
+                        // Affiliation is just another property — embed it into initialPropertiesJson
+                        // so CreationTool can consume it as part of the initial property blob.
+                        initialPropertiesJson = System.Text.Json.JsonSerializer.Serialize(
+                            new { affiliation = affEl.GetString() });
                     }
 
-
-
-                    ActivatePlacementTool(tkbType, aff);
+                    ActivatePlacementTool(Guid.Empty, tkbType, initialPropertiesJson);
 
                 }
 
@@ -2713,7 +2733,7 @@ public class IgApplication
 
                     }
 
-                    ActivateAreaAuthoringTool(styleJson);
+                    ActivateAreaAuthoringTool(Guid.Empty, styleJson);
 
                 }
 
@@ -2743,46 +2763,24 @@ public class IgApplication
 
     /// </summary>
 
-    private void ActivatePlacementTool(long tkbType, ForceId affiliation)
-
+    private void ActivatePlacementTool(Guid requestId, long tkbType, string? initialPropertiesJson = null)
     {
-
         if (_lastPlacementContextId == _activeContextId)
-
             return;
-
         _lastPlacementContextId = _activeContextId;
 
-
-
-        if (!_networkEnabled || _createEntityDdsWriter == null)
-
+        if (!_networkEnabled || _mapCommandController == null)
             return;
 
-
-
-        // Pop any existing CreationTool before pushing a new one
-
-        // (prevents tool stack accumulation when IOS sends rapid MapInteractionConfig updates).
-
-        if (_canvas.ActiveTool is CreationTool)
-
-            _canvas.PopTool();
-
-
-
-        var writer = new CycloneDdsWriterIgAdapter(_createEntityDdsWriter);
-
-        var tool   = new CreationTool(writer, _geoTransform, tkbType, affiliation);
-
-        _canvas.PushTool(tool);
-
-
+        _mapCommandController.ActivatePlacementCommand(
+            requestId,
+            _activeContextId,
+            tkbType,
+            _geoTransform,
+            initialPropertiesJson);
 
         FdpLog<IgApplication>.Info(
-
-            "[IG] Placement tool activated. TkbType={0}, Affiliation={1}", tkbType, affiliation);
-
+            "[IG] Placement tool activated via controller. TkbType={0}", tkbType);
     }
 
 
@@ -2797,7 +2795,7 @@ public class IgApplication
 
     /// </summary>
 
-    private void ActivateAreaAuthoringTool(string styleJson = "")
+    private void ActivateAreaAuthoringTool(Guid requestId, string styleJson = "")
 
     {
 
@@ -2821,6 +2819,8 @@ public class IgApplication
 
 
 
+        _mapCommandController?.BeginAreaAuthoringSession(requestId, _activeContextId);
+
         var tool = new PointSequenceTool(points =>
 
         {
@@ -2828,6 +2828,8 @@ public class IgApplication
             if (points.Length < 3)
 
             {
+
+                _mapCommandController?.OnAreaToolCancelled();
 
                 _canvas.PopTool();
 
@@ -3009,7 +3011,10 @@ public class IgApplication
 
 
 
-            _createEntityDdsWriter.Write(request);
+            if (_mapCommandController != null)
+                _mapCommandController.OnAreaEntityCreated(request, isToolDone: true);
+            else
+                _createEntityDdsWriter?.Write(request);
 
             _canvas.PopTool();
 
@@ -3165,34 +3170,18 @@ public class IgApplication
 
 
     /// <summary>
-
     /// Bridges <see cref="CycloneDDS.Runtime.DdsWriter{T}"/> to the
-
-    /// <see cref="Bagira.IG.Abstractions.IDdsWriter{T}"/> interface required by
-
-    /// <see cref="CreationTool"/>, keeping the IG tool layer free of CycloneDDS
-
-    /// assembly references.
-
+    /// <see cref="Bagira.IG.Abstractions.IDdsWriter{T}"/> interface,
+    /// keeping the IG tool and controller layers free of CycloneDDS assembly references.
     /// </summary>
-
-    private sealed class CycloneDdsWriterIgAdapter : Bagira.IG.Abstractions.IDdsWriter<CreateEntityRequest>
-
+    private sealed class CycloneDdsWriterIgAdapter<T> : Bagira.IG.Abstractions.IDdsWriter<T>
     {
+        private readonly DdsWriter<T> _inner;
 
-        private readonly DdsWriter<CreateEntityRequest> _inner;
-
-
-
-        public CycloneDdsWriterIgAdapter(DdsWriter<CreateEntityRequest> inner)
-
+        public CycloneDdsWriterIgAdapter(DdsWriter<T> inner)
             => _inner = inner ?? throw new ArgumentNullException(nameof(inner));
 
-
-
-        public void Write(CreateEntityRequest sample) => _inner.Write(sample);
-
+        public void Write(T sample) => _inner.Write(sample);
     }
-
 }
 

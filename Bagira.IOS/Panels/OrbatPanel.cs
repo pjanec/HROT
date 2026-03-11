@@ -150,7 +150,11 @@ public sealed class OrbatPanel
     public void HandleNewUnitClick(IIosLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
-        logic.StartPlacementMode(TkbEntityTypes.Unit_InfantrySquad, eForceIdentifier.FORCE_FRIENDLY);
+        string propsJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString()
+        });
+        logic.StartPlacementMode(TkbEntityTypes.Unit_InfantrySquad, propsJson);
     }
 
     // ── Visible node list (testable, used by Draw in Phase P9) ────────────────

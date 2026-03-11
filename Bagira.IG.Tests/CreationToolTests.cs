@@ -5,7 +5,6 @@ using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
-using Bagira.IG.Abstractions;
 using Bagira.IG.Components;
 using Bagira.IG.Tools;
 using Fdp.Modules.Geographic;
@@ -16,9 +15,9 @@ namespace Bagira.IG.Tests;
 /// <summary>
 /// Unit tests for <see cref="CreationTool"/> (TASK-IF006).
 ///
-/// Validates that the tool writes a correctly-formed <see cref="CreateEntityRequest"/>
-/// to the <see cref="IDdsWriter{T}"/> when the operator left-clicks the map canvas,
-/// and that right-click cancels without writing.
+/// Validates that the tool invokes the <c>onEntityCreated</c> delegate with a
+/// correctly-formed <see cref="CreateEntityRequest"/> when the operator left-clicks
+/// the map canvas, and that right-click cancels without invoking the delegate.
 ///
 /// No Raylib window context is required — <see cref="CreationTool.HandleClick"/>
 /// operates purely on in-memory state; <c>_canvas?.PopTool()</c> is null-safe when
@@ -32,37 +31,39 @@ public class CreationToolTests
     private const float ClickX      = 1234.5f;
     private const float ClickY      = 5678.9f;
 
-    // ── CapturingDdsWriter<T> stub ────────────────────────────────────────────
-
-    /// <summary>
-    /// Test double that records every sample passed to <see cref="Write"/>.
-    /// </summary>
-    private sealed class CapturingDdsWriter<T> : IDdsWriter<T>
-    {
-        public List<T> Written { get; } = new List<T>();
-        public void Write(T sample) => Written.Add(sample);
-    }
-
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static CapturingDdsWriter<CreateEntityRequest> CreateWriter()
-        => new CapturingDdsWriter<CreateEntityRequest>();
+    /// <summary>
+    /// Creates a capture list and a <see cref="CreationTool"/> that appends each
+    /// published request to it. Returns both so tests can assert on the list.
+    /// </summary>
+    private static (List<CreateEntityRequest> captured, CreationTool tool)
+        CreateTool(long tkbType = TestTkbType, IGeographicTransform? geoTransform = null,
+                   string? initialPropertiesJson = null)
+    {
+        var captured = new List<CreateEntityRequest>();
+        var tool     = new CreationTool(
+            req => captured.Add(req),
+            geoTransform:          geoTransform,
+            tkbType:               tkbType,
+            initialPropertiesJson: initialPropertiesJson);
+        return (captured, tool);
+    }
 
     // ── Left-click publishes exactly one DDS request ──────────────────────────
 
     /// <summary>
-    /// A left-click must call <see cref="IDdsWriter{T}.Write"/> exactly once,
-    /// confirming that the request is sent over DDS (not via the local event bus).
+    /// A left-click must invoke the delegate exactly once,
+    /// confirming that the request is routed (not dropped silently).
     /// </summary>
     [Fact]
     public void HandleClick_LeftClick_WritesExactlyOneRequest()
     {
-        var writer = CreateWriter();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+        var (captured, tool) = CreateTool();
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        Assert.Single(writer.Written);
+        Assert.Single(captured);
     }
 
     /// <summary>
@@ -72,12 +73,11 @@ public class CreationToolTests
     [Fact]
     public void HandleClick_LeftClick_RequestHasNonEmptyRequestId()
     {
-        var writer = CreateWriter();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+        var (captured, tool) = CreateTool();
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        Assert.NotEqual(Guid.Empty, writer.Written[0].RequestId);
+        Assert.NotEqual(Guid.Empty, captured[0].RequestId);
     }
 
     /// <summary>
@@ -88,12 +88,11 @@ public class CreationToolTests
     [Fact]
     public void HandleClick_LeftClick_RequestOwnerIsZeroedNodeId()
     {
-        var writer = CreateWriter();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+        var (captured, tool) = CreateTool();
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        Assert.Equal(default(NodeId), writer.Written[0].Owner);
+        Assert.Equal(default(NodeId), captured[0].Owner);
     }
 
     /// <summary>
@@ -103,12 +102,11 @@ public class CreationToolTests
     [Fact]
     public void HandleClick_LeftClick_InitialDescriptorsContainEntityMasterWithCorrectTkbType()
     {
-        var writer = CreateWriter();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+        var (captured, tool) = CreateTool();
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        var descriptors = writer.Written[0].InitialDescriptors;
+        var descriptors = captured[0].InitialDescriptors;
         Assert.NotNull(descriptors);
         var masterEntry = descriptors.FirstOrDefault(d => d._d == EDescriptorType.dtEntityMaster);
         Assert.Equal(EDescriptorType.dtEntityMaster, masterEntry._d);
@@ -123,12 +121,11 @@ public class CreationToolTests
     [Fact]
     public void HandleClick_LeftClick_InitialDescriptorsContainGeoSpatialWithClickCoordinates()
     {
-        var writer = CreateWriter();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+        var (captured, tool) = CreateTool();
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        var descriptors = writer.Written[0].InitialDescriptors;
+        var descriptors = captured[0].InitialDescriptors;
         Assert.NotNull(descriptors);
         var geoEntry = descriptors.FirstOrDefault(d => d._d == EDescriptorType.dtGeoSpatial);
         Assert.Equal(EDescriptorType.dtGeoSpatial, geoEntry._d);
@@ -138,38 +135,37 @@ public class CreationToolTests
 
     /// <summary>
     /// The <see cref="OnCommandPublished"/> event must fire once with the same request
-    /// that was written to DDS, enabling test and debug integrators to observe spawning.
+    /// that was passed to the delegate, enabling test and debug integrators to observe
+    /// spawning without capturing the delegate's list.
     /// </summary>
     [Fact]
     public void HandleClick_LeftClick_RaisesOnCommandPublishedWithSamePayload()
     {
-        var writer = CreateWriter();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+        var (captured, tool) = CreateTool();
 
-        CreateEntityRequest? captured = null;
-        tool.OnCommandPublished += req => captured = req;
+        CreateEntityRequest? observed = null;
+        tool.OnCommandPublished += req => observed = req;
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        Assert.NotNull(captured);
-        Assert.Equal(writer.Written[0].RequestId, captured!.Value.RequestId);
+        Assert.NotNull(observed);
+        Assert.Equal(captured[0].RequestId, observed!.Value.RequestId);
     }
 
-    // ── Right-click does NOT write ────────────────────────────────────────────
+    // ── Right-click does NOT publish ──────────────────────────────────────────
 
     /// <summary>
-    /// A right-click must not call <see cref="IDdsWriter{T}.Write"/> — it cancels
-    /// the placement without sending any DDS request.
+    /// A right-click must not invoke the delegate — it cancels
+    /// the placement without sending any request.
     /// </summary>
     [Fact]
     public void HandleClick_RightClick_DoesNotWriteToDds()
     {
-        var writer = CreateWriter();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+        var (captured, tool) = CreateTool();
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Right);
 
-        Assert.Empty(writer.Written);
+        Assert.Empty(captured);
     }
 
     // ── Default TKB type fallback ─────────────────────────────────────────────
@@ -181,12 +177,11 @@ public class CreationToolTests
     [Fact]
     public void Ctor_TkbTypeZero_UsesDefaultTkbType()
     {
-        var writer = CreateWriter();
-        var tool   = new CreationTool(writer, tkbType: 0);
+        var (captured, tool) = CreateTool(tkbType: 0);
 
         tool.HandleClick(Vector2.Zero, MouseButton.Left);
 
-        var masterEntry = writer.Written[0].InitialDescriptors
+        var masterEntry = captured[0].InitialDescriptors
             .First(d => d._d == EDescriptorType.dtEntityMaster);
         Assert.Equal(CreationToolConstants.DefaultTkbType, masterEntry.EntityMaster.TkbType);
     }
@@ -224,13 +219,12 @@ public class CreationToolTests
         const double ExpectedLat = 52.501;
         const double ExpectedLon = 13.402;
 
-        var writer = CreateWriter();
-        var geo    = new FixedResultGeoTransform(ExpectedLat, ExpectedLon);
-        var tool   = new CreationTool(writer, geoTransform: geo, tkbType: TestTkbType);
+        var geo              = new FixedResultGeoTransform(ExpectedLat, ExpectedLon);
+        var (captured, tool) = CreateTool(geoTransform: geo);
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        var descriptors = writer.Written[0].InitialDescriptors;
+        var descriptors = captured[0].InitialDescriptors;
         var geoEntry    = descriptors.First(d => d._d == EDescriptorType.dtGeoSpatial);
         Assert.Equal(ExpectedLat, geoEntry.GeoSpatial.Pos.Latitude,  precision: 4);
         Assert.Equal(ExpectedLon, geoEntry.GeoSpatial.Pos.Longitude, precision: 4);
@@ -244,12 +238,11 @@ public class CreationToolTests
     [Fact]
     public void HandleClick_LeftClick_WithoutGeoTransform_FallsBackToRawCoordinates()
     {
-        var writer = CreateWriter();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType); // no geoTransform
+        var (captured, tool) = CreateTool(); // no geoTransform
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        var descriptors = writer.Written[0].InitialDescriptors;
+        var descriptors = captured[0].InitialDescriptors;
         var geoEntry    = descriptors.First(d => d._d == EDescriptorType.dtGeoSpatial);
         Assert.Equal(ClickY, geoEntry.GeoSpatial.Pos.Latitude,  precision: 3);
         Assert.Equal(ClickX, geoEntry.GeoSpatial.Pos.Longitude, precision: 3);

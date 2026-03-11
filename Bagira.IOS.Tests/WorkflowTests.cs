@@ -1,4 +1,4 @@
-using Bagira.BDC.SSTD;
+﻿using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using Bagira.IOS.Logic;
@@ -121,7 +121,7 @@ public class FullStackWorkflowTests
         using var f = new WorkflowFixture();
 
         // ── Step 1: Activate placement tool ──────────────────────────────────
-        f.Logic.StartPlacementMode(tkbType: 100L, affiliation: eForceIdentifier.FORCE_FRIENDLY);
+        f.Logic.StartPlacementMode(100L);
         Assert.NotEqual(Guid.Empty, f.Logic.ActiveContextId);
         Assert.Single(f.ConfigCapture.Written);
 
@@ -206,7 +206,7 @@ public class FullStackWorkflowTests
     public void FullWorkflow_MultipleClicks_AllTrackedByTransactionManager()
     {
         using var f = new WorkflowFixture();
-        f.Logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        f.Logic.StartPlacementMode(100L);
         var ctx = f.Logic.ActiveContextId;
 
         for (int i = 0; i < 5; i++)
@@ -228,7 +228,7 @@ public class FullStackWorkflowTests
         using var f = new WorkflowFixture();
 
         // Placement mode → TX config entry.
-        f.Logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        f.Logic.StartPlacementMode(100L);
 
         // Click → TX create entry.
         f.ClickQueue.Enqueue(new MapClickEvent

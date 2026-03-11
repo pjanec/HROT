@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
@@ -84,7 +84,7 @@ public class ZombieEntityMapTests
         var igApp = harness.Ig.App;
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
-        iosLogic.StartPlacementMode(tkbType, eForceIdentifier.FORCE_FRIENDLY);
+        iosLogic.StartPlacementMode(tkbType);
 
         bool configSynced = harness.PumpUntil(
             () => iosLogic.ActiveContextId != Guid.Empty

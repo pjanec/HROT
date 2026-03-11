@@ -39,11 +39,19 @@ public interface IIosLogic
     void SendConfigPatch(string jsonPatch);
 
     /// <summary>
-    /// Activates the map placement tool with the specified TKB entity type and
-    /// force affiliation. The application shell generates a new context ID and
-    /// publishes the appropriate <c>MapInteractionConfig</c>.
+    /// Activates the map placement tool with the specified TKB entity type.
+    /// The application shell generates a new context ID and publishes the
+    /// appropriate <c>MapInteractionConfig</c> or
+    /// <c>MapCommandRequest(CMD_PLACE_ENTITY)</c>.
     /// </summary>
-    void StartPlacementMode(long tkbType, eForceIdentifier affiliation);
+    /// <param name="initialPropertiesJson">
+    /// Optional JSON object with initial property overrides forwarded to the IG
+    /// (e.g. <c>{"name":"Alpha-1","affiliation":"FORCE_FRIENDLY"}</c>).
+    /// Affiliation and other entity properties are embedded here rather than
+    /// passed as dedicated parameters. Ignored when using the legacy
+    /// <c>MapInteractionConfig</c> fallback path.
+    /// </param>
+    void StartPlacementMode(long tkbType, string? initialPropertiesJson = null);
 
     /// <summary>
     /// Activates polygonal area authoring. The application shell generates a

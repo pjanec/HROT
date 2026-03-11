@@ -222,7 +222,7 @@ public class SpawnerPanelTests
 
         panel.HandleActivatePlacementTool(logic.Object);
 
-        logic.Verify(l => l.StartPlacementMode(103L, eForceIdentifier.FORCE_OPPOSING), Times.Once);
+        logic.Verify(l => l.StartPlacementMode(103L, It.Is<string?>(s => s != null && s.Contains("FORCE_OPPOSING"))), Times.Once);
     }
 
     [Fact]
@@ -234,7 +234,7 @@ public class SpawnerPanelTests
 
         panel.HandleActivatePlacementTool(logic.Object);
 
-        logic.Verify(l => l.StartPlacementMode(200L, It.IsAny<eForceIdentifier>()), Times.Once);
+        logic.Verify(l => l.StartPlacementMode(200L, It.IsAny<string?>()), Times.Once);
     }
 
     [Fact]
@@ -246,7 +246,7 @@ public class SpawnerPanelTests
 
         panel.HandleActivatePlacementTool(logic.Object);
 
-        logic.Verify(l => l.StartPlacementMode(It.IsAny<long>(), eForceIdentifier.FORCE_FRIENDLY), Times.Once);
+        logic.Verify(l => l.StartPlacementMode(It.IsAny<long>(), It.Is<string?>(s => s != null && s.Contains("FORCE_FRIENDLY"))), Times.Once);
     }
 
     [Fact]
@@ -287,6 +287,6 @@ public class SpawnerPanelTests
 
         panel.HandleActivatePlacementTool(logic.Object);
 
-        logic.Verify(l => l.StartPlacementMode(0L, It.IsAny<eForceIdentifier>()), Times.Once);
+        logic.Verify(l => l.StartPlacementMode(0L, It.IsAny<string?>()), Times.Once);
     }
 }

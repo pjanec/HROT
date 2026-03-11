@@ -223,6 +223,42 @@ namespace Bagira.BDC.SSTM
         public List<int> ForSelection;
     }
 
+    // ===================================================================================
+    // MAP COMMAND ACK (IG -> IOS)
+    // ===================================================================================
+    // Response to a MapCommandRequest.
+    // One request can generate multiple responses. For example,
+    //   a map placement tool can be configured to create one entity every left click
+    //   and finish on right click or ESC key.
+    // ===================================================================================
+
+    // Response to the MapCommandRequest.
+    // One request can generate multiple responses. For example,
+    //   a map placement tool can be configured to create one entity every left click
+    //   and finish on right click or ESC key.
+    [DdsTopic("MapCommandAck")]
+    [DdsIdlFile("bdc-sst-map-msgs")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
+    [DdsManaged]
+    public partial struct MapCommandAck
+    {
+        // Correlation id with the original MapCommandRequest.
+        public Guid RequestId;
+
+        // 0 = request finished (request can be closed)
+        // 1 = intermediate result (request not closed yet, other acks to come)
+        // 2 = cancelled (tool was cancelled without completing any work)
+        // other values reserved for various error codes
+        public long StatusCode;
+
+        // Carries request-type specific extra data, for example the id of entity created,
+        // or a list of ids. Or for example the 'tool finalized' flag.
+        // For each request type the app should define a data structure describing the expected
+        // content, serving as a schema definition (including what fields are optional).
+        // Example for CMD_PLACE_ENTITY: { "entityId": 42 }
+        public string DataJson;
+    }
+
     // Proactive update from IOS containing the context menu definition for a specific selection.
     // Direction: IOS -> IG
     [DdsTopic("ContextActionsUpdate")]

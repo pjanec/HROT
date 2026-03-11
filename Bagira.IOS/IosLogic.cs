@@ -64,6 +64,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     private readonly IEventQueue<MapClickEvent>         _clickQueue;
     private readonly IEventQueue<SelectionChangedEvent> _selectionQueue;
     private readonly IEventQueue<CreateEntityAck>?      _createEntityAckQueue;
+    private readonly IEventQueue<MapCommandAck>?        _mapCommandAckQueue;
     private readonly InteractionPanel                   _interactionPanel;
     private readonly List<IIngressHandler>              _ingressHandlers;
     private readonly int                                _mapGroupId;
@@ -104,6 +105,13 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
 
     private bool _disposed;
 
+    /// <summary>
+    /// The <c>MapCommandRequest.RequestId</c> of the most recently sent command (CMD_PLACE_ENTITY
+    /// or CMD_START_AUTHORING). Used to correlate incoming <see cref="MapCommandAck"/> samples.
+    /// <see cref="Guid.Empty"/> when no command is outstanding.
+    /// </summary>
+    private Guid _lastCommandRequestId;
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -137,6 +145,12 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     /// Target IG MapId for tool-activation commands.  Use <c>0</c> to broadcast to all IGs in the group.
     /// Defaults to <see cref="IosLogicConstants.DefaultTargetMapId"/>.
     /// </param>
+    /// <param name="mapCommandAckQueue">
+    /// Optional pull queue for incoming <see cref="MapCommandAck"/> samples from the IG.
+    /// When provided, <see cref="Update"/> drains the queue each frame and completes the
+    /// corresponding in-flight request tracked by <see cref="TransactionManager"/>.
+    /// Pass <c>null</c> (default) to skip processing (e.g. in unit tests).
+    /// </param>
     public IosLogic(
         IDerRepo                            repo,
         IMissionEditorService               missionEditorService,
@@ -151,7 +165,8 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         IEnumerable<IIngressHandler>?       ingressHandlers = null,
         int                                 mapGroupId      = IosLogicConstants.DefaultMapGroupId,
         IDdsWriter<MapCommandRequest>?      commandWriter   = null,
-        int                                 targetMapId     = IosLogicConstants.DefaultTargetMapId)
+        int                                 targetMapId     = IosLogicConstants.DefaultTargetMapId,
+        IEventQueue<MapCommandAck>?         mapCommandAckQueue = null)
     {
         Repo                 = repo                 ?? throw new ArgumentNullException(nameof(repo));
         MissionEditorService = missionEditorService ?? throw new ArgumentNullException(nameof(missionEditorService));
@@ -163,6 +178,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         _clickQueue             = clickQueue           ?? throw new ArgumentNullException(nameof(clickQueue));
         _selectionQueue         = selectionQueue       ?? throw new ArgumentNullException(nameof(selectionQueue));
         _createEntityAckQueue   = createEntityAckQueue; // null-ok
+        _mapCommandAckQueue     = mapCommandAckQueue;   // null-ok
         _interactionPanel       = interactionPanel     ?? throw new ArgumentNullException(nameof(interactionPanel));
         _ingressHandlers     = ingressHandlers?.ToList() ?? new List<IIngressHandler>();
         _mapGroupId          = mapGroupId;
@@ -190,7 +206,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     }
 
     /// <inheritdoc/>
-    public void StartPlacementMode(long tkbType, eForceIdentifier affiliation)
+    public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null)
     {
         ThrowIfDisposed();
 
@@ -202,15 +218,22 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         if (_commandWriter != null)
         {
             // Preferred path: instance-scoped volatile command (correct architecture)
-            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+            var requestId = Guid.NewGuid();
+            _lastCommandRequestId = requestId;
+            TransactionManager.TrackRequest(requestId, $"CMD_PLACE_ENTITY tkb={tkbType}");
+
+            var argsObj = new System.Collections.Generic.Dictionary<string, object?>
             {
-                contextId   = ActiveContextId.ToString("N"),
-                entityType  = tkbType,
-                affiliation = affiliation.ToString()
-            });
+                ["contextId"]  = ActiveContextId.ToString("N"),
+                ["entityType"] = tkbType,
+            };
+            if (!string.IsNullOrEmpty(initialPropertiesJson))
+                argsObj["initialPropertiesJson"] = initialPropertiesJson;
+            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(argsObj);
+
             _commandWriter.Write(new MapCommandRequest
             {
-                RequestId       = Guid.NewGuid(),
+                RequestId       = requestId,
                 MapId           = _targetMapId,
                 Type            = CommandType.CMD_PLACE_ENTITY,
                 CommandArgsJson = argsJson,
@@ -220,8 +243,11 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         }
         else
         {
+            _lastCommandRequestId = Guid.Empty;
             // Fallback: legacy MapInteractionConfig (group-scoped, transient-local)
-            string patch = BuildPlacementPatch(tkbType, affiliation);
+            // Parse affiliation from initialPropertiesJson to embed in the legacy config patch.
+            string? affString = ParseAffiliationStringFromJson(initialPropertiesJson);
+            string patch = BuildPlacementPatch(tkbType, affString);
             _configWriter.Write(new MapInteractionConfig
             {
                 MapGroupId        = _mapGroupId,
@@ -248,6 +274,10 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         if (_commandWriter != null)
         {
             // Preferred path: instance-scoped volatile command (correct architecture)
+            var requestId = Guid.NewGuid();
+            _lastCommandRequestId = requestId;
+            TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING ctx={ActiveContextId:N}");
+
             string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
             {
                 contextId        = ActiveContextId.ToString("N"),
@@ -255,7 +285,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
             });
             _commandWriter.Write(new MapCommandRequest
             {
-                RequestId       = Guid.NewGuid(),
+                RequestId       = requestId,
                 MapId           = _targetMapId,
                 Type            = CommandType.CMD_START_AUTHORING,
                 CommandArgsJson = argsJson,
@@ -265,6 +295,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         }
         else
         {
+            _lastCommandRequestId = Guid.Empty;
             // Fallback: legacy MapInteractionConfig
             string patch = BuildAreaAuthoringPatch(styleOverrideJson);
             _configWriter.Write(new MapInteractionConfig
@@ -488,6 +519,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         ProcessClickEvents();
         ProcessSelectionEvents();
         ProcessEntityCreationAcks();
+        ProcessMapCommandAcks();
 
         // 4. Check request timeouts
         TransactionManager.CheckTimeouts();
@@ -609,6 +641,43 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         }
     }
 
+    private void ProcessMapCommandAcks()
+    {
+        if (_mapCommandAckQueue == null) return;
+
+        while (_mapCommandAckQueue.TryDequeue(out var ack))
+        {
+            bool isOurRequest = ack.RequestId == _lastCommandRequestId
+                                && _lastCommandRequestId != Guid.Empty;
+
+            if (!isOurRequest)
+            {
+                FdpLog<IosLogic>.Debug(
+                    "[TRACE-IOS] MapCommandAck ignored (unknown req={0})", ack.RequestId);
+                continue;
+            }
+
+            bool isFinal = ack.StatusCode == 0 || ack.StatusCode == 2; // Finished or Cancelled
+
+            _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicCommand,
+                $"MapCommandAck status={ack.StatusCode} data={ack.DataJson} req={ack.RequestId:N}");
+            FdpLog<IosLogic>.Debug(
+                "[TRACE-IOS] MapCommandAck status={0} req={1}", ack.StatusCode, ack.RequestId);
+
+            if (isFinal)
+            {
+                bool success = ack.StatusCode == 0;
+                TransactionManager.CompleteRequest(
+                    ack.RequestId, success,
+                    success ? null : "Cancelled by IG");
+                _lastCommandRequestId = Guid.Empty;
+
+                if (PickMode == IosPickMode.EntityCreation)
+                    PickMode = IosPickMode.None;
+            }
+        }
+    }
+
     private void ProcessSelectionEvents()
     {
         while (_selectionQueue.TryDequeue(out var evt))
@@ -651,9 +720,27 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     }
 
     /// <summary>
+    /// Parses the raw <c>"affiliation"</c> string value from a JSON property bag.
+    /// Returns <c>null</c> when absent or malformed.
+    /// </summary>
+    private static string? ParseAffiliationStringFromJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("affiliation", out var el)
+             && el.ValueKind == System.Text.Json.JsonValueKind.String)
+                return el.GetString();
+        }
+        catch { /* malformed JSON */ }
+        return null;
+    }
+
+    /// <summary>
     /// Builds the JSON config patch that activates the placement tool.
     /// </summary>
-    private static string BuildPlacementPatch(long tkbType, eForceIdentifier affiliation)
+    private static string BuildPlacementPatch(long tkbType, string? affiliation)
     {
         return JsonConvert.SerializeObject(new
         {
@@ -663,7 +750,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
                 toolConfig = new
                 {
                     entityType  = tkbType,
-                    affiliation = affiliation.ToString()
+                    affiliation = affiliation ?? eForceIdentifier.FORCE_UNKNOWN.ToString()
                 }
             }
         });

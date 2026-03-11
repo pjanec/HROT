@@ -62,6 +62,22 @@ namespace Bagira.Map.Common.Replication.Utils
             if (descriptors == null)
                 return result;
 
+            // Pre-pass: extract the GeoSpatial centroid so dtMapVisualOverlay can convert
+            // relative-geo offsets to relative-Cartesian using the entity position as reference.
+            Vector3? geoCentroid = null;
+            if (geoTransform != null)
+            {
+                foreach (var d in descriptors)
+                {
+                    if (d._d == EDescriptorType.dtGeoSpatial)
+                    {
+                        var pos = d.GeoSpatial.Pos;
+                        geoCentroid = geoTransform.ToCartesian(pos.Latitude, pos.Longitude, pos.Altitude);
+                        break;
+                    }
+                }
+            }
+
             foreach (var d in descriptors)
             {
                 switch (d._d)
@@ -115,26 +131,43 @@ namespace Bagira.Map.Common.Replication.Utils
                         var polyline = new EditablePolyline();
                         if (d.MapVisualOverlay.Points != null)
                         {
-                            // Points on the wire are RELATIVE geo offsets (deltaLat, deltaLon, deltaAlt).
-                            // Convert to relative Cartesian: relCart = ToCartesian(dLat,dLon,dAlt) - ToCartesian(0,0,0).
-                            // For a flat-earth linear projection this equals the true Cartesian displacement.
-                            Vector3 origin = geoTransform != null
-                                ? geoTransform.ToCartesian(0.0, 0.0, 0.0)
-                                : Vector3.Zero;
-
+                            // Points on the wire are RELATIVE geo offsets (deltaLat, deltaLon, deltaAlt)
+                            // measured from the entity's GeoSpatial centroid.
+                            // Convert to relative Cartesian:
+                            //   absCart = ToCartesian(centLat + dLat, centLon + dLon, centAlt + dAlt)
+                            //   relCart = absCart - centroidCart
                             polyline.Points = new List<Vector2>(d.MapVisualOverlay.Points.Count);
-                            foreach (var geoPt in d.MapVisualOverlay.Points)
+
+                            if (geoTransform != null && geoCentroid.HasValue)
                             {
-                                if (geoTransform != null)
+                                // Normal path: use GeoSpatial centroid as reference.
+                                var (refLat, refLon, refAlt) = geoTransform.ToGeodetic(geoCentroid.Value);
+                                foreach (var geoPt in d.MapVisualOverlay.Points)
+                                {
+                                    var absCart = geoTransform.ToCartesian(
+                                        refLat + geoPt.Latitude,
+                                        refLon + geoPt.Longitude,
+                                        refAlt + geoPt.Altitude);
+                                    var relCart = absCart - geoCentroid.Value;
+                                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
+                                }
+                            }
+                            else if (geoTransform != null)
+                            {
+                                // Fallback: no paired GeoSpatial descriptor; treat delta-geo as
+                                // offsets from the world origin (legacy behaviour).
+                                var origin = geoTransform.ToCartesian(0.0, 0.0, 0.0);
+                                foreach (var geoPt in d.MapVisualOverlay.Points)
                                 {
                                     var absCart = geoTransform.ToCartesian(geoPt.Latitude, geoPt.Longitude, geoPt.Altitude);
                                     var relCart = absCart - origin;
-                                    polyline.Points.Add(new Vector2((float)relCart.X, (float)relCart.Y));
+                                    polyline.Points.Add(new Vector2(relCart.X, relCart.Y));
                                 }
-                                else
-                                {
+                            }
+                            else
+                            {
+                                foreach (var geoPt in d.MapVisualOverlay.Points)
                                     polyline.Points.Add(new Vector2((float)geoPt.Longitude, (float)geoPt.Latitude));
-                                }
                             }
                         }
 

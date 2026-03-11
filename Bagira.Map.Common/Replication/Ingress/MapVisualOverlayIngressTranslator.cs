@@ -30,6 +30,14 @@ namespace Bagira.Map.Common.Replication.Ingress
         private readonly IGeographicTransform? _geoTransform;
         private readonly GhostCreationSystem _ghostCreationSystem;
 
+        /// <summary>
+        /// Overlays deferred because the entity's <see cref="SimTransform"/> had not yet been
+        /// applied to the live repository when the DDS sample arrived (same-frame ordering race
+        /// with <c>GeoSpatialIngressTranslator</c>).  Re-processed on subsequent
+        /// <see cref="PollIngress"/> calls once <c>SimTransform</c> becomes visible.
+        /// </summary>
+        private readonly Dictionary<Entity, MapVisualOverlay> _pendingOverlays = new();
+
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => OrdinalValue;
 
@@ -47,6 +55,24 @@ namespace Bagira.Map.Common.Replication.Ingress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            var repo = view as EntityRepository;
+
+            // Re-process deferred overlays from previous frames whose entity now has SimTransform.
+            if (_pendingOverlays.Count > 0 && repo != null)
+            {
+                var resolved = new List<Entity>(_pendingOverlays.Count);
+                foreach (var (entity, overlay) in _pendingOverlays)
+                {
+                    if (!repo.IsAlive(entity)) { resolved.Add(entity); continue; }
+                    if (!repo.HasComponent<SimTransform>(entity)) continue;
+                    ref readonly var t = ref repo.GetComponentRO<SimTransform>(entity);
+                    cmd.SetManagedComponent(entity, BuildPolyline(overlay, t.Position));
+                    resolved.Add(entity);
+                }
+                for (int i = 0; i < resolved.Count; i++)
+                    _pendingOverlays.Remove(resolved[i]);
+            }
+
             if (_reader is null) return;
             using var loan = _reader.Take();
             foreach (var sample in loan)
@@ -57,7 +83,7 @@ namespace Bagira.Map.Common.Replication.Ingress
                 if (sample.Info.InstanceState != DdsInstanceState.Alive)
                     continue;
 
-                ProcessSample(sample.Data, cmd, view as EntityRepository);
+                ProcessSample(sample.Data, cmd, repo);
             }
         }
 
@@ -107,7 +133,17 @@ namespace Bagira.Map.Common.Replication.Ingress
                 entityPos = t.Position;
             }
 
-            cmd.SetManagedComponent(entity, BuildPolyline(data, entityPos));
+            // When SimTransform is not yet in the live repo (same-frame ordering race with
+            // GeoSpatialIngressTranslator), defer the polyline rebuild to the next frame.
+            // Always apply MapOverlayStyle immediately since it is position-independent.
+            if (entityPos == null && _geoTransform != null && data.Points != null && data.Points.Count > 0)
+            {
+                _pendingOverlays[entity] = data;
+            }
+            else
+            {
+                cmd.SetManagedComponent(entity, BuildPolyline(data, entityPos));
+            }
             cmd.SetComponent(entity, MapOverlayStyle.FromJson(data.StyleOverrideJson));
         }
 

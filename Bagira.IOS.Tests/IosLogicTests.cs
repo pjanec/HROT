@@ -1,4 +1,4 @@
-using Bagira.BDC.SSTD;
+﻿using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using Bagira.IOS.Logic;
@@ -84,7 +84,7 @@ public class IosLogicTests
     {
         var (logic, _, _, _, _, _, _) = CreateSut();
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         Assert.NotEqual(Guid.Empty, logic.ActiveContextId);
     }
@@ -94,7 +94,7 @@ public class IosLogicTests
     {
         var (logic, _, _, _, _, _, _) = CreateSut();
 
-        logic.StartPlacementMode(200L, eForceIdentifier.FORCE_OPPOSING);
+        logic.StartPlacementMode(200L);
 
         Assert.Equal(200L, logic.PlacementType);
     }
@@ -104,7 +104,7 @@ public class IosLogicTests
     {
         var (logic, configWriter, _, _, _, _, _) = CreateSut();
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         configWriter.Verify(w => w.Write(
             It.Is<MapInteractionConfig>(c =>
@@ -117,7 +117,7 @@ public class IosLogicTests
     {
         var (logic, configWriter, _, _, _, _, _) = CreateSut();
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         configWriter.Verify(w => w.Write(
             It.Is<MapInteractionConfig>(c =>
@@ -131,7 +131,7 @@ public class IosLogicTests
         var (logic, configWriter, _, _, _, _, _) = CreateSut();
         const long tkbType = 999L;
 
-        logic.StartPlacementMode(tkbType, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(tkbType);
 
         configWriter.Verify(w => w.Write(
             It.Is<MapInteractionConfig>(c =>
@@ -144,10 +144,10 @@ public class IosLogicTests
     {
         var (logic, _, _, _, _, _, _) = CreateSut();
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
         var first = logic.ActiveContextId;
 
-        logic.StartPlacementMode(101L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(101L);
         var second = logic.ActiveContextId;
 
         Assert.NotEqual(first, second);
@@ -170,7 +170,7 @@ public class IosLogicTests
     {
         var (logic, _, _, _, _, _, _) = CreateSut();
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
         logic.StartAreaAuthoringMode();
 
         Assert.Equal(0L, logic.PlacementType);
@@ -195,7 +195,7 @@ public class IosLogicTests
         using var logScope = new LogCaptureScope();
         var (logic, _, _, clickQueue, _, _, _) = CreateSut();
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         clickQueue.Enqueue(new MapClickEvent
         {
@@ -225,7 +225,7 @@ public class IosLogicTests
         var (logic, _, createWriter, clickQueue, _, _, _) = CreateSut();
 
         // Activate placement with one context ID
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         // Push a click with a DIFFERENT context ID (stale click)
         clickQueue.Enqueue(new MapClickEvent
@@ -289,7 +289,7 @@ public class IosLogicTests
     {
         var (logic, _, createWriter, clickQueue, _, _, _) = CreateSut();
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         clickQueue.Enqueue(new MapClickEvent
         {
@@ -307,7 +307,7 @@ public class IosLogicTests
     {
         var (logic, _, _, clickQueue, _, transactionMgr, _) = CreateSut();
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         clickQueue.Enqueue(new MapClickEvent
         {
@@ -328,7 +328,7 @@ public class IosLogicTests
         var (logic, _, createWriter, clickQueue, _, _, _) = CreateSut();
         const long tkbType = 777L;
 
-        logic.StartPlacementMode(tkbType, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(tkbType);
 
         clickQueue.Enqueue(new MapClickEvent
         {
@@ -434,7 +434,7 @@ public class IosLogicTests
     {
         var (logic, _, _, _, _, _, interactionPanel) = CreateSut();
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
         logic.Update(); // drains pending logs
 
         Assert.True(interactionPanel.EntryCount > 0);
@@ -464,6 +464,161 @@ public class IosLogicTests
         return "Missing expected trace sequence.\n" +
                "Expected fragments:\n" + string.Join("\n", expected) +
                "\nCaptured logs:\n" + message;
+    }
+
+    // ── Second factory: includes commandWriter + mapCommandAckQueue ───────────
+
+    private static (
+        IosLogic                                Logic,
+        Mock<IDdsWriter<MapCommandRequest>>     CommandWriter,
+        Mock<IRequestTransactionManager>        TransactionMgr,
+        ConcurrentEventQueue<MapCommandAck>     AckQueue)
+        CreateSutWithCommandWriter()
+    {
+        var repo             = new DerRepo();
+        var configWriter     = new Mock<IDdsWriter<MapInteractionConfig>>();
+        var createWriter     = new Mock<IDdsWriter<CreateEntityRequest>>();
+        var commandWriter    = new Mock<IDdsWriter<MapCommandRequest>>();
+        var transactionMgr   = new Mock<IRequestTransactionManager>();
+        var missionSvc       = new Mock<IMissionEditorService>();
+        var contextMenuLogic = new Mock<IContextMenuLogic>();
+        var interactionPanel = new InteractionPanel();
+        var clickQueue       = new ConcurrentEventQueue<MapClickEvent>();
+        var selectionQueue   = new ConcurrentEventQueue<SelectionChangedEvent>();
+        var ackQueue         = new ConcurrentEventQueue<MapCommandAck>();
+
+        var logic = new IosLogic(
+            repo:                 repo,
+            missionEditorService: missionSvc.Object,
+            contextMenuLogic:     contextMenuLogic.Object,
+            transactionManager:   transactionMgr.Object,
+            configWriter:         configWriter.Object,
+            createEntityWriter:   createWriter.Object,
+            clickQueue:           clickQueue,
+            selectionQueue:       selectionQueue,
+            interactionPanel:     interactionPanel,
+            commandWriter:        commandWriter.Object,
+            mapCommandAckQueue:   ackQueue);
+
+        return (logic, commandWriter, transactionMgr, ackQueue);
+    }
+
+    // ── MapCommandAck processing ──────────────────────────────────────────────
+
+    /// <summary>
+    /// When <see cref="IosLogic.StartPlacementMode"/> is called with a command writer,
+    /// it must register the new <c>RequestId</c> with <see cref="IRequestTransactionManager"/>.
+    /// </summary>
+    [Fact]
+    public void StartPlacementMode_WithCommandWriter_TracksRequest()
+    {
+        var (logic, _, txMgr, _) = CreateSutWithCommandWriter();
+
+        logic.StartPlacementMode(100L);
+
+        txMgr.Verify(t => t.TrackRequest(
+            It.Is<Guid>(id => id != Guid.Empty),
+            It.IsAny<string>()),
+            Times.Once);
+    }
+
+    /// <summary>
+    /// When a <see cref="MapCommandAck"/> with <c>StatusCode=0</c> (Finished) arrives
+    /// for the last tracked request, <see cref="IosLogic.Update"/> must call
+    /// <see cref="IRequestTransactionManager.CompleteRequest"/> with <c>success=true</c>.
+    /// </summary>
+    [Fact]
+    public void Update_MapCommandAckFinished_CompletesTransaction()
+    {
+        var (logic, commandWriter, txMgr, ackQueue) = CreateSutWithCommandWriter();
+
+        // Capture the RequestId written to the command writer.
+        Guid capturedRequestId = Guid.Empty;
+        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
+            .Callback<MapCommandRequest>(req => capturedRequestId = req.RequestId);
+
+        logic.StartPlacementMode(100L);
+
+        ackQueue.Enqueue(new MapCommandAck
+        {
+            RequestId  = capturedRequestId,
+            StatusCode = 0, // Finished
+            DataJson   = "{}"
+        });
+
+        logic.Update();
+
+        txMgr.Verify(t => t.CompleteRequest(capturedRequestId, true, null), Times.Once);
+    }
+
+    /// <summary>
+    /// A <see cref="MapCommandAck"/> with <c>StatusCode=2</c> (Cancelled) must
+    /// complete the transaction with <c>success=false</c>.
+    /// </summary>
+    [Fact]
+    public void Update_MapCommandAckCancelled_CompletesTransactionAsFailure()
+    {
+        var (logic, commandWriter, txMgr, ackQueue) = CreateSutWithCommandWriter();
+
+        Guid capturedRequestId = Guid.Empty;
+        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
+            .Callback<MapCommandRequest>(req => capturedRequestId = req.RequestId);
+
+        logic.StartPlacementMode(100L);
+
+        ackQueue.Enqueue(new MapCommandAck
+        {
+            RequestId  = capturedRequestId,
+            StatusCode = 2, // Cancelled
+            DataJson   = string.Empty
+        });
+
+        logic.Update();
+
+        txMgr.Verify(t => t.CompleteRequest(capturedRequestId, false, It.IsAny<string>()), Times.Once);
+    }
+
+    /// <summary>
+    /// A <see cref="MapCommandAck"/> whose <c>RequestId</c> does not match the last
+    /// tracked command must NOT call <see cref="IRequestTransactionManager.CompleteRequest"/>.
+    /// </summary>
+    [Fact]
+    public void Update_MapCommandAckUnknownRequestId_IsIgnored()
+    {
+        var (logic, _, txMgr, ackQueue) = CreateSutWithCommandWriter();
+
+        logic.StartPlacementMode(100L);
+
+        ackQueue.Enqueue(new MapCommandAck
+        {
+            RequestId  = Guid.NewGuid(), // deliberate mismatch
+            StatusCode = 0,
+            DataJson   = string.Empty
+        });
+
+        logic.Update();
+
+        txMgr.Verify(t => t.CompleteRequest(It.IsAny<Guid>(), It.IsAny<bool>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    /// <summary>
+    /// When <see cref="IosLogic.StartPlacementMode"/> is supplied with
+    /// <c>initialPropertiesJson</c>, the published <see cref="MapCommandRequest"/>
+    /// must embed it in <see cref="MapCommandRequest.CommandArgsJson"/>.
+    /// </summary>
+    [Fact]
+    public void StartPlacementMode_WithInitialPropertiesJson_IncludesItInArgsJson()
+    {
+        var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
+
+        const string propsJson = "{\"name\":\"Alpha-1\"}";
+        logic.StartPlacementMode(100L, initialPropertiesJson: propsJson);
+
+        commandWriter.Verify(w => w.Write(
+            It.Is<MapCommandRequest>(r =>
+                r.CommandArgsJson.Contains("initialPropertiesJson") &&
+                r.CommandArgsJson.Contains("Alpha-1"))),
+            Times.Once);
     }
 
     private sealed class LogCaptureScope : IDisposable

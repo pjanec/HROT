@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
@@ -34,7 +34,7 @@ public class MapPlacementIntegrationTests
         int initialDerCount = CountDerEntities(iosLogic.Repo);
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
-        iosLogic.StartPlacementMode(tkbType, eForceIdentifier.FORCE_FRIENDLY);
+        iosLogic.StartPlacementMode(tkbType);
         Assert.Equal(tkbType, iosLogic.PlacementType);
 
         bool configSynced = harness.PumpUntil(
@@ -252,7 +252,7 @@ public class MapPlacementIntegrationTests
 
         // Ask IOS to enter placement mode  this publishes a MapInteractionConfig
         // that IG receives and activates CreationTool.
-        iosLogic.StartPlacementMode(tkbType, eForceIdentifier.FORCE_FRIENDLY);
+        iosLogic.StartPlacementMode(tkbType);
 
         bool toolActive = harness.PumpUntil(
             () => iosLogic.ActiveContextId != Guid.Empty

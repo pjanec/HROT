@@ -121,13 +121,17 @@ public sealed class SpawnerPanel
 
     /// <summary>
     /// Handles the "ACTIVATE PLACEMENT TOOL" button press.
-    /// Calls <see cref="IIosLogic.StartPlacementMode"/> with the currently
-    /// selected type and affiliation.
+    /// Serializes the current affiliation into <c>initialPropertiesJson</c> and
+    /// calls <see cref="IIosLogic.StartPlacementMode"/> with the selected type.
     /// </summary>
     public void HandleActivatePlacementTool(IIosLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
-        logic.StartPlacementMode(_selectedType, _affiliation);
+        string propsJson = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            affiliation = _affiliation.ToString()
+        });
+        logic.StartPlacementMode(_selectedType, propsJson);
     }
 
     /// <summary>
@@ -154,8 +158,10 @@ public sealed class SpawnerPanel
     /// Renders the spawner panel via ImGui.
     /// Called once per frame from the application shell (Phase P9).
     ///
-    /// <para>Iterates <see cref="_filteredEntries"/> with a plain <c>for</c>-loop
-    /// — no LINQ allocations on the hot draw path (CODE-STANDARDS §4).</para>
+    /// <para>Uses a combo box to select an entity type from
+    /// <see cref="_filteredEntries"/> so that the currently selected item is
+    /// always visible in the combo header and the popup takes minimal vertical
+    /// space.</para>
     /// </summary>
     public void Draw(IIosLogic logic)
     {
@@ -168,12 +174,20 @@ public sealed class SpawnerPanel
         if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
             SearchFilter = filterBuf;
 
-        // Plain for-loop — _filteredEntries was pre-built, no LINQ here.
-        for (int i = 0; i < _filteredEntries.Count; i++)
+        // Combo box — shows selected entry in the header and filtered list in the popup.
+        string previewText = GetSelectedPreviewText();
+        if (ImGui.BeginCombo("Entity Type", previewText))
         {
-            var entry = _filteredEntries[i];
-            if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})"))
-                HandleTypeSelected(entry.TkbId);
+            for (int i = 0; i < _filteredEntries.Count; i++)
+            {
+                var entry      = _filteredEntries[i];
+                bool isSelected = entry.TkbId == _selectedType;
+                if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})", isSelected))
+                    HandleTypeSelected(entry.TkbId);
+                if (isSelected)
+                    ImGui.SetItemDefaultFocus();
+            }
+            ImGui.EndCombo();
         }
 
         ImGui.Separator();
@@ -200,6 +214,21 @@ public sealed class SpawnerPanel
     }
 
     // ── Private filter rebuild ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the display text for the combo header based on the currently selected type.
+    /// Searches the full catalog so the name remains visible even when the filter is active.
+    /// </summary>
+    private string GetSelectedPreviewText()
+    {
+        if (_selectedType == 0) return "(none)";
+        for (int i = 0; i < _catalog.Count; i++)
+        {
+            if (_catalog[i].TkbId == _selectedType)
+                return $"{_catalog[i].Name} (Type:{_catalog[i].TkbId})";
+        }
+        return $"(Type:{_selectedType})";
+    }
 
     private void RebuildFilter()
     {

@@ -92,12 +92,12 @@ public class ToolInteractionIntegrationTests
     [Fact]
     public void CreationTool_LeftClick_WritesDdsCreateEntityRequest()
     {
-        var writer = new CapturingDdsWriter<CreateEntityRequest>();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+        var captured = new List<CreateEntityRequest>();
+        var tool     = new CreationTool(req => captured.Add(req), tkbType: TestTkbType);
 
         tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
 
-        Assert.Single(writer.Written);
+        Assert.Single(captured);
     }
 
     /// <summary>
@@ -108,12 +108,12 @@ public class ToolInteractionIntegrationTests
     [Fact]
     public void CreationTool_LeftClick_RequestContainsMasterAndGeoSpatialDescriptors()
     {
-        var writer = new CapturingDdsWriter<CreateEntityRequest>();
-        var tool   = new CreationTool(writer, tkbType: TestTkbType);
+        var captured = new List<CreateEntityRequest>();
+        var tool     = new CreationTool(req => captured.Add(req), tkbType: TestTkbType);
 
         tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
 
-        var req         = writer.Written[0];
+        var req         = captured[0];
         var descriptors = req.InitialDescriptors;
 
         var master = descriptors.First(d => d._d == EDescriptorType.dtEntityMaster);

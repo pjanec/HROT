@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text.Json;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
-using Bagira.IG.Abstractions;
 using Bagira.IG.Components;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Vis2D;
@@ -15,18 +15,20 @@ namespace Bagira.IG.Tools;
 
 /// <summary>
 /// Map tool that translates a left-click on the canvas into a
-/// <see cref="CreateEntityRequest"/> written to the DDS network,
-/// asking the SimHost (authoritative node) to create a new entity at the clicked
-/// world position.
+/// <see cref="CreateEntityRequest"/> routed through the injected
+/// <see cref="OnEntityCreated"/> delegate, decoupling the tool from any
+/// specific network protocol.
 ///
 /// Workflow:
 /// <list type="number">
 ///   <item>Caller activates the tool (e.g. via <c>canvas.PushTool(creationTool)</c>).</item>
 ///   <item>Operator sees a ghost preview circle at the cursor.</item>
-///   <item>Left-click builds and writes the <see cref="CreateEntityRequest"/> via the
-///         injected <see cref="IDdsWriter{T}"/>; the tool then pops itself and returns
-///         to the previous tool.</item>
-///   <item>Right-click cancels without publishing, and the tool pops itself.</item>
+///   <item>Left-click builds a <see cref="CreateEntityRequest"/> and fires
+///         the <see cref="_onEntityCreated"/> delegate. When <c>autoPopOnPlace</c>
+///         is <c>true</c> (default) the tool pops itself immediately (single-placement);
+///         otherwise it remains active for multi-placement until right-click or ESC.</item>
+///   <item>Right-click or ESC cancels placement; the tool pops itself without firing
+///         the delegate.</item>
 /// </list>
 ///
 /// <see cref="CreateEntityRequest.InitialDescriptors"/> is seeded with:
@@ -36,6 +38,8 @@ namespace Bagira.IG.Tools;
 ///         converted to geodetic lat/lon via <see cref="IGeographicTransform.ToGeodetic"/>
 ///         when a transform is available, or mapped as
 ///         <c>Latitude = worldPos.Y, Longitude = worldPos.X</c> in offline/test mode.</item>
+///   <item>A <see cref="EntityDescriptorUnion"/> (dtEntityInfo) carrying affiliation
+///         and the optional entity name from the <c>initialPropertiesJson</c> override.</item>
 /// </list>
 ///
 /// <see cref="CreateEntityRequest.Owner"/> is left as <c>default(NodeId)</c> (all-zeros)
@@ -50,47 +54,72 @@ public class CreationTool : IMapTool
     /// <inheritdoc/>
     public string Name => CreationToolConstants.ToolName;
 
-    private readonly IDdsWriter<CreateEntityRequest> _ddsWriter;
-    private readonly IGeographicTransform?           _geoTransform;
-    private readonly long                            _tkbType;
-    private readonly ForceId                         _affiliation;
+    private readonly Action<CreateEntityRequest> _onEntityCreated;
+    private readonly IGeographicTransform?       _geoTransform;
+    private readonly long                        _tkbType;
+    private readonly ForceId                     _affiliationForDisplay;
+    private readonly string?                     _initialPropertiesJson;
+    private readonly bool                        _autoPopOnPlace;
 
     private MapCanvas? _canvas;
     private Vector2    _currentMouseWorld;
 
     /// <summary>
-    /// Raised after a <see cref="CreateEntityRequest"/> has been written so that
-    /// tests and integrators can observe the event without parsing DDS traffic.
+    /// Raised after a <see cref="CreateEntityRequest"/> has been constructed and passed
+    /// to the <see cref="_onEntityCreated"/> delegate, so tests and integrators can
+    /// observe the event without inspecting the delegate's capture list.
     /// </summary>
     public event Action<CreateEntityRequest>? OnCommandPublished;
 
-    /// <param name="ddsWriter">
-    /// DDS writer for the <c>CreateEntityRequest</c> topic; the SimHost listens on
-    /// this topic and creates the entity as the authoritative node.
+    /// <summary>
+    /// Raised when the tool exits the canvas (after placement or cancellation).
+    /// Allows the <c>MapCommandController</c> to detect tool lifecycle changes without
+    /// polling <c>MapCanvas.ActiveTool</c>.
+    /// </summary>
+    public event Action? Exited;
+
+    /// <param name="onEntityCreated">
+    /// Delegate invoked with the fully-constructed <see cref="CreateEntityRequest"/> when
+    /// the operator left-clicks. The caller is responsible for routing it to DDS or
+    /// processing it further. Must not be <c>null</c>.
     /// </param>
     /// <param name="geoTransform">
     /// Optional geographic transform for converting flat map world-space metres to
-    /// geodetic (lat/lon) coordinates.  When <c>null</c> (offline / test mode),
+    /// geodetic (lat/lon) coordinates. When <c>null</c> (offline / test mode),
     /// <c>worldPos.Y</c> is used as latitude and <c>worldPos.X</c> as longitude.
     /// Pass <see cref="WGS84Transform"/> (or any <see cref="IGeographicTransform"/>)
     /// when running with live DDS so the entity is placed at the correct real-world
     /// geographic position.
     /// </param>
     /// <param name="tkbType">
-    /// TKB template type to request.  Defaults to
+    /// TKB template type to request. Defaults to
     /// <see cref="CreationToolConstants.DefaultTkbType"/> when zero is passed.
     /// </param>
-    /// <param name="affiliation">Force affiliation for the new entity.</param>
+    /// <param name="initialPropertiesJson">
+    /// Optional JSON object with initial property overrides merged into the
+    /// <see cref="CreateEntityRequest.InitialDescriptors"/>.
+    /// Recognised fields: <c>name</c> (string) — entity name in <c>EntityInfo</c>;
+    /// <c>affiliation</c> (string, e.g. <c>"FORCE_FRIENDLY"</c>) — force identifier
+    /// and ghost colour. Unknown fields are silently ignored.
+    /// </param>
+    /// <param name="autoPopOnPlace">
+    /// When <c>true</c> (default) the tool pops itself immediately after a successful
+    /// left-click (single-placement mode). Set to <c>false</c> for continuous
+    /// multi-placement; the tool stays active until right-click or ESC.
+    /// </param>
     public CreationTool(
-        IDdsWriter<CreateEntityRequest> ddsWriter,
-        IGeographicTransform?           geoTransform = null,
-        long                            tkbType      = CreationToolConstants.DefaultTkbType,
-        ForceId                         affiliation  = ForceId.Unknown)
+        Action<CreateEntityRequest> onEntityCreated,
+        IGeographicTransform?       geoTransform          = null,
+        long                        tkbType               = CreationToolConstants.DefaultTkbType,
+        string?                     initialPropertiesJson = null,
+        bool                        autoPopOnPlace        = true)
     {
-        _ddsWriter    = ddsWriter ?? throw new ArgumentNullException(nameof(ddsWriter));
-        _geoTransform = geoTransform;
-        _tkbType      = tkbType == 0 ? CreationToolConstants.DefaultTkbType : tkbType;
-        _affiliation  = affiliation;
+        _onEntityCreated       = onEntityCreated ?? throw new ArgumentNullException(nameof(onEntityCreated));
+        _geoTransform          = geoTransform;
+        _tkbType               = tkbType == 0 ? CreationToolConstants.DefaultTkbType : tkbType;
+        _affiliationForDisplay = ParseAffiliationFromJson(initialPropertiesJson);
+        _initialPropertiesJson = initialPropertiesJson;
+        _autoPopOnPlace        = autoPopOnPlace;
     }
 
     //  IMapTool lifecycle 
@@ -105,6 +134,7 @@ public class CreationTool : IMapTool
     public void OnExit()
     {
         _canvas = null;
+        Exited?.Invoke();
     }
 
     /// <inheritdoc/>
@@ -117,8 +147,9 @@ public class CreationTool : IMapTool
     {
         if (button == MouseButton.Left)
         {
-            PublishCreateRequest(worldPos);
-            _canvas?.PopTool();
+            BuildAndPublishCreateRequest(worldPos);
+            if (_autoPopOnPlace)
+                _canvas?.PopTool();
             return true;
         }
 
@@ -168,7 +199,7 @@ public class CreationTool : IMapTool
     /// </remarks>
     public void Draw(RenderContext ctx)
     {
-        var ghostColor = GetAffiliationColor(_affiliation);
+        var ghostColor = GetAffiliationColor(_affiliationForDisplay);
         ghostColor.A = CreationToolConstants.GhostAlpha;
 
         Raylib.DrawCircle(
@@ -187,11 +218,11 @@ public class CreationTool : IMapTool
 
     //  Private helpers 
 
-    private void PublishCreateRequest(Vector2 worldPos)
+    private void BuildAndPublishCreateRequest(Vector2 worldPos)
     {
         // Convert flat map world-space metres to geodetic coordinates.
         // When a geo transform is available (live DDS mode), use it to get
-        // correct lat/lon.  When null (offline / unit-test mode) fall back to
+        // correct lat/lon. When null (offline / unit-test mode) fall back to
         // treating worldPos.Y as latitude and worldPos.X as longitude so the
         // existing test suite continues to work without a geo transform stub.
         double lat, lon, alt;
@@ -201,16 +232,38 @@ public class CreationTool : IMapTool
         }
         else
         {
-            // Offline fallback: map canvas X  east (longitude), Y  north (latitude).
+            // Offline fallback: map canvas X → east (longitude), Y → north (latitude).
             lat = worldPos.Y;
             lon = worldPos.X;
             alt = 0.0;
         }
 
+        // Parse optional initial-properties JSON overrides.
+        string entityName = string.Empty;
+        if (!string.IsNullOrWhiteSpace(_initialPropertiesJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(_initialPropertiesJson);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("name", out var nameEl)
+                 && nameEl.ValueKind == JsonValueKind.String)
+                {
+                    entityName = nameEl.GetString() ?? string.Empty;
+                }
+            }
+            catch
+            {
+                // Silently ignore malformed JSON; fall back to empty name.
+            }
+        }
+
+        ForceId aff = _affiliationForDisplay;
+
         var request = new CreateEntityRequest
         {
             RequestId = Guid.NewGuid(),
-            Owner     = default,   // zeroed NodeId  SimHost takes authoritative ownership
+            Owner     = default,   // zeroed NodeId → SimHost takes authoritative ownership
             Flags     = 0,
             InitialDescriptors = new List<EntityDescriptorUnion>
             {
@@ -238,16 +291,43 @@ public class CreationTool : IMapTool
                     EntityInfo = new EntityInfo
                     {
                         EntityId        = 0, // SimHost overwrites with allocated ID
-                        Name            = string.Empty,
-                        ForceIdentifier = MapAffiliation(_affiliation),
+                        Name            = entityName,
+                        ForceIdentifier = MapAffiliation(aff),
                         CommanderId     = 0,
                     },
                 },
             },
         };
 
-        _ddsWriter.Write(request);
+        _onEntityCreated(request);
         OnCommandPublished?.Invoke(request);
+    }
+
+    /// <summary>
+    /// Parses the <c>"affiliation"</c> field from <paramref name="json"/> and returns
+    /// the corresponding <see cref="ForceId"/>. Returns <see cref="ForceId.Unknown"/>
+    /// when the field is absent, unrecognised, or the JSON is malformed.
+    /// </summary>
+    private static ForceId ParseAffiliationFromJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return ForceId.Unknown;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("affiliation", out var el)
+             && el.ValueKind == JsonValueKind.String)
+            {
+                return el.GetString() switch
+                {
+                    "FORCE_FRIENDLY" => ForceId.Friend,
+                    "FORCE_OPPOSING" => ForceId.Hostile,
+                    "FORCE_NEUTRAL"  => ForceId.Neutral,
+                    _                => ForceId.Unknown,
+                };
+            }
+        }
+        catch { /* malformed JSON — fall through */ }
+        return ForceId.Unknown;
     }
 
     private static Color GetAffiliationColor(ForceId affiliation) =>

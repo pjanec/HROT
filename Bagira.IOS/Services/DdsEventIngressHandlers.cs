@@ -130,3 +130,36 @@ public sealed class CreateEntityAckIngressHandler : IIngressHandler, IDisposable
 
     public void Dispose() => _reader.Dispose();
 }
+/// <summary>
+/// DDS ingress handler that enqueues <see cref="MapCommandAck"/> samples so that
+/// <see cref="Bagira.IOS.IosLogic"/> can correlate command responses and close
+/// in-flight <c>CMD_PLACE_ENTITY</c> / <c>CMD_START_AUTHORING</c> transactions.
+/// </summary>
+public sealed class MapCommandAckIngressHandler : IIngressHandler, IDisposable
+{
+    private readonly DdsReader<MapCommandAck> _reader;
+    private readonly IEventQueue<MapCommandAck> _queue;
+    private readonly int _maxSamples;
+
+    public MapCommandAckIngressHandler(DdsParticipant participant, IEventQueue<MapCommandAck> queue, int maxSamples = 10)
+    {
+        _reader = new DdsReader<MapCommandAck>(participant, "MapCommandAck");
+        _queue  = queue ?? throw new ArgumentNullException(nameof(queue));
+        _maxSamples = Math.Max(1, maxSamples);
+    }
+
+    public void Poll()
+    {
+        using var loan = _reader.Take(_maxSamples);
+        foreach (var sample in loan)
+        {
+            if (!sample.IsValid) continue;
+            FdpLog<MapCommandAckIngressHandler>.Debug(
+                "[TRACE-IOS] MapCommandAck ingress req={0} status={1}",
+                sample.Data.RequestId, sample.Data.StatusCode);
+            _queue.Enqueue(sample.Data);
+        }
+    }
+
+    public void Dispose() => _reader.Dispose();
+}

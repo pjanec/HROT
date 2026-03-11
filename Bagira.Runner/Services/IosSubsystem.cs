@@ -43,6 +43,7 @@ namespace Bagira.Runner.Services
         private const string TopicMissionControl  = "MissionControlRequest";
         private const string TopicContextActions  = "ContextActionsUpdate";
         private const string TopicMapCommand      = "MapCommandRequest";
+        private const string TopicMapCommandAck   = "MapCommandAck";
 
         /// <summary>MapId of the IG this IOS issues tool-activation commands to (300 = default IG instance).</summary>
         private const int TargetMapId = 300;
@@ -71,10 +72,11 @@ namespace Bagira.Runner.Services
             var transactionMgr    = new RequestTransactionManager();
             var interactionPanel  = new InteractionPanel();
 
-            var clickQueue          = new ConcurrentEventQueue<MapClickEvent>();
-            var selectionQueue      = new ConcurrentEventQueue<SelectionChangedEvent>();
-            var missionAckQueue     = new ConcurrentEventQueue<MissionControlAck>();
+            var clickQueue           = new ConcurrentEventQueue<MapClickEvent>();
+            var selectionQueue       = new ConcurrentEventQueue<SelectionChangedEvent>();
+            var missionAckQueue      = new ConcurrentEventQueue<MissionControlAck>();
             var createEntityAckQueue = new ConcurrentEventQueue<CreateEntityAck>();
+            var mapCommandAckQueue   = new ConcurrentEventQueue<MapCommandAck>();
 
             // DDS ingress handlers for click/selection events.
             var ingressHandlers = new List<IIngressHandler>
@@ -83,6 +85,7 @@ namespace Bagira.Runner.Services
                 new SelectionChangedIngressHandler(_participant, selectionQueue),
                 new MissionControlAckIngressHandler(_participant, missionAckQueue),
                 new CreateEntityAckIngressHandler(_participant, createEntityAckQueue),
+                new MapCommandAckIngressHandler(_participant, mapCommandAckQueue),
                 new MasterIngressHandler<EntityMaster>(
                     _participant,
                     repo,
@@ -136,7 +139,20 @@ namespace Bagira.Runner.Services
                 createEntityAckQueue:    createEntityAckQueue,
                 mapGroupId:              DefaultMapGroupId,
                 commandWriter:        commandWriter,
-                targetMapId:          TargetMapId);
+                targetMapId:          TargetMapId,
+                mapCommandAckQueue:   mapCommandAckQueue);
+
+            var tkbCatalog = new TkbCatalogEntry[]
+            {
+                new(TkbEntityTypes.Tank_M1Abrams,      "M1 Abrams"),
+                new(TkbEntityTypes.IFV_Bradley,        "M2 Bradley IFV"),
+                new(TkbEntityTypes.Truck_HMMWV,        "HMMWV"),
+                new(TkbEntityTypes.Tank_T72,           "T-72"),
+                new(TkbEntityTypes.Infantry_Rifleman,  "Infantry Rifleman"),
+                new(TkbEntityTypes.Infantry_Officer,   "Infantry Officer"),
+                new(TkbEntityTypes.Unit_TankPlatoon,   "Tank Platoon"),
+                new(TkbEntityTypes.Unit_InfantrySquad, "Infantry Squad"),
+            };
 
             _mock = new IosMock(
                 logic:            logic,
@@ -144,7 +160,7 @@ namespace Bagira.Runner.Services
                 orbatPanel:       new OrbatPanel(),
                 missionPanel:     new MissionPanel(),
                 interactionPanel: interactionPanel,
-                spawnerPanel:     new SpawnerPanel(),
+                spawnerPanel:     new SpawnerPanel(tkbCatalog),
                 useDockSpace:     config.OwnWindow);
         }
 

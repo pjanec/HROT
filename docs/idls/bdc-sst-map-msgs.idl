@@ -140,6 +140,31 @@ module SSTM { // "M" as messages
     #pragma topic reliable volatile keep_all
 
 
+    // Response to the MapCommandRequest.
+    // One request can generate multiple responses. For example,
+    //   a map placement tool can be configured to create one entity every left click
+    //   and finish on right click or ESC key. 
+    @topic
+    struct MapCommandAck
+    {
+        // correlation id with the request
+        DDS::DM::Guid RequestId;
+
+        // 0 = request finished (request can be closed)
+        // 1 = intermediate result (request not closed yet, other acks to come)
+        // other values reserved for various error codes
+        long StatusCode;
+
+        // Carries request-type specific extra data, for example the id of entity created,
+        // or a list of ids. Or for example the 'tool finalized' flag indicating the tool
+        // use was finished (not necessarily meaning a success or failure)
+        // For each request type the app should define a data structure describing the expected
+        // content, serving as a schema definition (including what fields are optional).
+        string DataJson; 
+
+    };
+    #pragma topic reliable volatile keep_all
+
 
     // ===================================================================================
     // MAP INTERACTION: CONTEXT MENUS (PUSH MODEL)

@@ -1,4 +1,4 @@
-using Bagira.BDC.SSTD;
+﻿using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using Bagira.IOS.Logic;
@@ -275,7 +275,7 @@ public class StandaloneIosTests
         var ig = new IgStub();
         var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         Assert.NotEqual(Guid.Empty, logic.ActiveContextId);
         Assert.Single(ig.ConfigCapture.Written);
@@ -341,7 +341,7 @@ public class IosIgIntegrationTests
         var sh = new SimHostStub();
         var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
 
-        logic.StartPlacementMode(tkbType: 100L, affiliation: eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         ig.ClickQueue.Enqueue(new MapClickEvent
         {
@@ -360,7 +360,7 @@ public class IosIgIntegrationTests
         var sh = new SimHostStub();
         var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         ig.ClickQueue.Enqueue(new MapClickEvent
         {
@@ -379,7 +379,7 @@ public class IosIgIntegrationTests
         var sh = new SimHostStub();
         var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
         var ctx = logic.ActiveContextId;
 
         for (int i = 0; i < 3; i++)
@@ -403,7 +403,7 @@ public class IosIgIntegrationTests
         var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
         const long tkbType = 105L;
 
-        logic.StartPlacementMode(tkbType, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(tkbType);
         var pos = new GeoPosition { Latitude = 51.5, Longitude = -0.1 };
         ig.ClickQueue.Enqueue(new MapClickEvent
         {
@@ -485,7 +485,7 @@ public class IosIgIntegrationTests
         var ig = new IgStub();
         var (_, logic, _, _, _) = IntegrationFactory.Create(ig, new SimHostStub());
 
-        logic.StartPlacementMode(100L, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(100L);
 
         Assert.Single(ig.ConfigCapture.Written);
         Assert.Contains("PLACEMENT", ig.ConfigCapture.Written[0].ConfigurationJson);
@@ -615,7 +615,7 @@ public class IosSimHostIntegrationTests
         var (_, logic, _, _, _) = IntegrationFactory.Create(ig, sh);
         const long tkbType = 102L;
 
-        logic.StartPlacementMode(tkbType, eForceIdentifier.FORCE_FRIENDLY);
+        logic.StartPlacementMode(tkbType);
         ig.ClickQueue.Enqueue(new MapClickEvent
         {
             InteractionContextId = logic.ActiveContextId,
