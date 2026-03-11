@@ -2772,15 +2772,58 @@ public class IgApplication
         if (!_networkEnabled || _mapCommandController == null)
             return;
 
+        // Build a session-scoped name generator when the patch requests auto-naming.
+        Func<string>? nameGenerator = null;
+        if (!string.IsNullOrWhiteSpace(initialPropertiesJson))
+        {
+            try
+            {
+                var patch = System.Text.Json.JsonSerializer.Deserialize<EntityPropertyPatch>(
+                    initialPropertiesJson);
+
+                if (patch?.AutogenerateName == true)
+                {
+                    // Derive the prefix: prefer the explicit NamePrefix, fall back to the TKB
+                    // template name (e.g. "Tank-"), and finally fall back to "Unit-".
+                    string prefix = patch.NamePrefix ?? GetTkbPrefixForType(tkbType);
+                    nameGenerator = UniqueNameGenerator.CreateSessionGenerator(_world, prefix);
+                    FdpLog<IgApplication>.Info(
+                        "[IG] Auto-naming enabled for TkbType={0} prefix=\"{1}\".", tkbType, prefix);
+                }
+            }
+            catch (Exception ex)
+            {
+                FdpLog<IgApplication>.Warn(
+                    "[IG] ActivatePlacementTool: could not parse EntityPropertyPatch: {0}", ex.Message);
+            }
+        }
+
         _mapCommandController.ActivatePlacementCommand(
             requestId,
             _activeContextId,
             tkbType,
             _geoTransform,
-            initialPropertiesJson);
+            initialPropertiesJson,
+            nameGenerator);
 
         FdpLog<IgApplication>.Info(
             "[IG] Placement tool activated via controller. TkbType={0}", tkbType);
+    }
+
+    /// <summary>
+    /// Returns a name prefix string derived from the TKB template for
+    /// <paramref name="tkbType"/>. Falls back to <c>"Unit-"</c> when the
+    /// template is not found.
+    /// </summary>
+    private string GetTkbPrefixForType(long tkbType)
+    {
+        var tkbDb = _world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+        if (tkbDb != null && tkbDb.TryGetByType(tkbType, out var template)
+         && !string.IsNullOrWhiteSpace(template.Name))
+        {
+            return template.Name + "-";
+        }
+        return "Unit-";
     }
 
 

@@ -16,11 +16,6 @@ namespace Bagira.SimHost.Systems
 {
     public class MissionControlRequestSystem : ComponentSystem
     {
-        private const int ErrorCodeSuccess         = 0;
-        private const int ErrorCodeEntityNotFound  = 2;
-        private const int ErrorCodeNotSupported    = 6;
-        private const int ErrorCodeVersionConflict = 7;
-
         private const string EntityNotFoundMessage  = "ERR_ENTITY_NOT_FOUND";
         private const string VersionConflictMessage = "ERR_VERSION_CONFLICT";
 
@@ -93,7 +88,7 @@ namespace Bagira.SimHost.Systems
                     FdpLog<MissionControlRequestSystem>.Warn(
                         "[MissionControl] Entity {0} not found after {1} retry frames; rejecting request {2}.",
                         req.TargetEntityId, MaxEntityWaitFrames, req.RequestId);
-                    WriteAck(req.RequestId, ErrorCodeEntityNotFound, EntityNotFoundMessage, newVersion: 0);
+                    WriteAck(req.RequestId, SstErrorCode.EntityNotFound, EntityNotFoundMessage, newVersion: 0);
                 }
             }
 
@@ -132,7 +127,7 @@ namespace Bagira.SimHost.Systems
                 {
                     if (request.BaseVersion > 0 && request.BaseVersion != currentVersion)
                     {
-                        WriteAck(request.RequestId, ErrorCodeVersionConflict, VersionConflictMessage, newVersion: 0);
+                        WriteAck(request.RequestId, SstErrorCode.VersionConflict, VersionConflictMessage, newVersion: 0);
                         return;
                     }
 
@@ -146,7 +141,7 @@ namespace Bagira.SimHost.Systems
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;
 
-                    WriteAck(request.RequestId, ErrorCodeSuccess, errorMessage: null, newVersion: currentVersion);
+                    WriteAck(request.RequestId, SstErrorCode.Success, errorMessage: null, newVersion: currentVersion);
                     PublishEntityMission(request.TargetEntityId, plan);
                     return;
                 }
@@ -170,7 +165,7 @@ namespace Bagira.SimHost.Systems
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;
 
-                    WriteAck(request.RequestId, ErrorCodeSuccess, errorMessage: null, newVersion: currentVersion);
+                    WriteAck(request.RequestId, SstErrorCode.Success, errorMessage: null, newVersion: currentVersion);
                     return;
                 }
 
@@ -189,12 +184,12 @@ namespace Bagira.SimHost.Systems
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;
 
-                    WriteAck(request.RequestId, ErrorCodeSuccess, errorMessage: null, newVersion: currentVersion);
+                    WriteAck(request.RequestId, SstErrorCode.Success, errorMessage: null, newVersion: currentVersion);
                     return;
                 }
 
                 default:
-                    WriteAck(request.RequestId, ErrorCodeNotSupported, "ERR_NOT_SUPPORTED", newVersion: 0);
+                    WriteAck(request.RequestId, SstErrorCode.NotSupported, "ERR_NOT_SUPPORTED", newVersion: 0);
                     return;
             }
         }
@@ -208,12 +203,12 @@ namespace Bagira.SimHost.Systems
             });
         }
 
-        private void WriteAck(Guid requestId, int errorCode, string? errorMessage, long newVersion)
+        private void WriteAck(Guid requestId, SstErrorCode errorCode, string? errorMessage, long newVersion)
         {
             _writer.Write(new MissionControlAck
             {
                 RequestId    = requestId,
-                ErrorCode    = errorCode,
+                ErrorCode    = (int)errorCode,
                 ErrorMessage = errorMessage,
                 NewVersion   = newVersion
             });

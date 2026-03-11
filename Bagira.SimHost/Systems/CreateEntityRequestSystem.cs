@@ -96,6 +96,13 @@ namespace Bagira.SimHost.Systems
                 List<object> initialComponents =
                     DescriptorMapper.MapToComponents(request.InitialDescriptors, _geoTransform);
 
+                // 4b. Apply fine-grained attribute patches on top of the descriptor-derived components.
+                //     Patches are merged in a single pass so duplicate component types are never
+                //     written twice (EntityAttributeCompiler handles the deduplication).
+                if (request.InitialAttributes?.Count > 0)
+                    initialComponents = EntityAttributeCompiler.CompileOverrides(
+                        request.InitialAttributes, initialComponents, _geoTransform);
+
                 // 5. Publish SpawnEntityCommand — NetworkSpawningSystem handles all ECS work
                 if (view is EntityRepository repo)
                 {

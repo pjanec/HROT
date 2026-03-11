@@ -206,6 +206,17 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     }
 
     /// <inheritdoc/>
+    public void StartPlacementMode(long tkbType, EntityPropertyPatch? initialProperties)
+    {
+        string? propsJson = initialProperties == null
+            ? null
+            : JsonConvert.SerializeObject(
+                initialProperties,
+                new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
+        StartPlacementMode(tkbType, propsJson);
+    }
+
+    /// <inheritdoc/>
     public void StartPlacementMode(long tkbType, string? initialPropertiesJson = null)
     {
         ThrowIfDisposed();

@@ -67,12 +67,20 @@ public class MapCommandController
     /// <summary>Tool pushed onto the canvas for this session.</summary>
     private CreationTool? _activeCreationTool;
 
-    /// <summary>
-    /// Whether the active tool has already exited the stack (either via success-pop or
+    /// <summary>Whether the active tool has already exited the stack (either via success-pop or
     /// cancellation). Used to decide whether to send a final vs intermediate ack when a
     /// late <see cref="CreateEntityAck"/> arrives after the tool has already gone.
     /// </summary>
     private bool _toolFinished;
+
+    /// <summary>
+    /// Per-session name-generator delegate created by <see cref="IgApplication"/> when
+    /// auto-naming is requested (<see cref="Bagira.BDC.SSTM.EntityPropertyPatch.AutogenerateName"/>).
+    /// Invoked once per left-click inside <see cref="CreationTool"/> to produce a unique
+    /// sequential entity name (e.g. "Tank-3", "Tank-4", …). <c>null</c> when no
+    /// auto-naming is active for the current session.
+    /// </summary>
+    private Func<string>? _nameGenerator;
 
     /// <summary>
     /// Pending entity-creation request IDs forwarded to SimHost but not yet acknowledged.
@@ -119,12 +127,20 @@ public class MapCommandController
     /// Optional JSON override blob forwarded to <see cref="CreationTool"/>. The tool
     /// recognises <c>name</c> (string), <c>affiliation</c> (string) and ignores unknown fields.
     /// </param>
+    /// <param name="nameGenerator">
+    /// Optional per-click name-generator delegate. When provided it is passed to
+    /// <see cref="CreationTool"/> as its <c>nameResolver</c>, overriding any <c>name</c>
+    /// encoded in <paramref name="initialPropertiesJson"/>. Typically built by
+    /// <see cref="IgApplication"/> via <see cref="UniqueNameGenerator.CreateSessionGenerator"/>
+    /// when <c>AutogenerateName</c> is set in the placement patch.
+    /// </param>
     public void ActivatePlacementCommand(
         Guid                  requestId,
         Guid                  contextId,
         long                  tkbType,
         IGeographicTransform? geoTransform,
-        string?               initialPropertiesJson = null)
+        string?               initialPropertiesJson = null,
+        Func<string>?         nameGenerator         = null)
     {
         // Guard: same context already active.
         if (contextId != Guid.Empty && contextId == _sessionContextId && !_toolFinished)
@@ -139,13 +155,15 @@ public class MapCommandController
         _sessionRequestId = requestId;
         _sessionContextId = contextId;
         _toolFinished     = false;
+        _nameGenerator    = nameGenerator;
 
         var tool = new CreationTool(
             onEntityCreated:       OnEntityCreatedByTool,
             geoTransform:          geoTransform,
             tkbType:               tkbType,
             initialPropertiesJson: initialPropertiesJson,
-            autoPopOnPlace:        true);  // single-placement default
+            autoPopOnPlace:        true,
+            nameResolver:          _nameGenerator);  // null when no auto-naming
 
         tool.Exited += OnCreationToolExited;
         _activeCreationTool = tool;
@@ -314,6 +332,7 @@ public class MapCommandController
         _sessionContextId   = Guid.Empty;
         _toolFinished       = false;
         _activeCreationTool = null;
+        _nameGenerator      = null;
         _pendingEntityRequests.Clear();
     }
 

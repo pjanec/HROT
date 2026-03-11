@@ -60,6 +60,7 @@ public class CreationTool : IMapTool
     private readonly ForceId                     _affiliationForDisplay;
     private readonly string?                     _initialPropertiesJson;
     private readonly bool                        _autoPopOnPlace;
+    private readonly Func<string>?               _nameResolver;
 
     private MapCanvas? _canvas;
     private Vector2    _currentMouseWorld;
@@ -107,12 +108,20 @@ public class CreationTool : IMapTool
     /// left-click (single-placement mode). Set to <c>false</c> for continuous
     /// multi-placement; the tool stays active until right-click or ESC.
     /// </param>
+    /// <param name="nameResolver">
+    /// Optional delegate invoked on each left-click to obtain the entity name for that
+    /// placement. When provided it takes priority over any <c>name</c> field in
+    /// <paramref name="initialPropertiesJson"/>, enabling session-scoped sequential
+    /// naming strategies such as "Tank-1", "Tank-2", …
+    /// When <c>null</c> (default) the name is parsed from <paramref name="initialPropertiesJson"/>.
+    /// </param>
     public CreationTool(
         Action<CreateEntityRequest> onEntityCreated,
         IGeographicTransform?       geoTransform          = null,
         long                        tkbType               = CreationToolConstants.DefaultTkbType,
         string?                     initialPropertiesJson = null,
-        bool                        autoPopOnPlace        = true)
+        bool                        autoPopOnPlace        = true,
+        Func<string>?               nameResolver          = null)
     {
         _onEntityCreated       = onEntityCreated ?? throw new ArgumentNullException(nameof(onEntityCreated));
         _geoTransform          = geoTransform;
@@ -120,6 +129,7 @@ public class CreationTool : IMapTool
         _affiliationForDisplay = ParseAffiliationFromJson(initialPropertiesJson);
         _initialPropertiesJson = initialPropertiesJson;
         _autoPopOnPlace        = autoPopOnPlace;
+        _nameResolver          = nameResolver;
     }
 
     //  IMapTool lifecycle 
@@ -238,25 +248,9 @@ public class CreationTool : IMapTool
             alt = 0.0;
         }
 
-        // Parse optional initial-properties JSON overrides.
-        string entityName = string.Empty;
-        if (!string.IsNullOrWhiteSpace(_initialPropertiesJson))
-        {
-            try
-            {
-                using var doc = JsonDocument.Parse(_initialPropertiesJson);
-                var root = doc.RootElement;
-                if (root.TryGetProperty("name", out var nameEl)
-                 && nameEl.ValueKind == JsonValueKind.String)
-                {
-                    entityName = nameEl.GetString() ?? string.Empty;
-                }
-            }
-            catch
-            {
-                // Silently ignore malformed JSON; fall back to empty name.
-            }
-        }
+        // Resolve entity name: prefer the per-click nameResolver delegate (e.g. for
+        // session-scoped sequential naming); fall back to any name encoded in the JSON blob.
+        string entityName = _nameResolver?.Invoke() ?? ParseNameFromJson(_initialPropertiesJson);
 
         ForceId aff = _affiliationForDisplay;
 
@@ -301,6 +295,27 @@ public class CreationTool : IMapTool
 
         _onEntityCreated(request);
         OnCommandPublished?.Invoke(request);
+    }
+
+    /// <summary>
+    /// Parses the <c>"name"</c> field from <paramref name="json"/>.
+    /// Returns an empty string when the field is absent, null, or the JSON is malformed.
+    /// </summary>
+    private static string ParseNameFromJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return string.Empty;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("name", out var nameEl)
+             && nameEl.ValueKind == JsonValueKind.String)
+            {
+                return nameEl.GetString() ?? string.Empty;
+            }
+        }
+        catch { /* Silently ignore malformed JSON; fall back to empty name. */ }
+        return string.Empty;
     }
 
     /// <summary>

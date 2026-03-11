@@ -17,6 +17,7 @@ using ModuleHost.Core.Abstractions;
 
 namespace Bagira.Map.Common.Systems
 {
+    using SstErrorCode = Bagira.BDC.SSTM.SstErrorCode;
     /// <summary>
     /// Consumes <see cref="UpdateEntityDescriptorRequest"/> messages from DDS.
     ///
@@ -39,11 +40,6 @@ namespace Bagira.Map.Common.Systems
     {
         private const long GeoSpatialOrdinal        = (long)Bagira.BDC.SSTD.EDescriptorType.dtGeoSpatial;
         private const long MapVisualOverlayOrdinal   = (long)Bagira.BDC.SSTD.EDescriptorType.dtMapVisualOverlay;
-
-        private const int ErrorSuccess        = 0;
-        private const int ErrorEntityNotFound = 2;
-        private const int ErrorNotOwner       = 4;
-        private const int ErrorNotSupported   = 6;
 
         private readonly DdsReader<UpdateEntityDescriptorRequest> _reader;
         private readonly DdsWriter<UpdateEntityDescriptorAck>     _ackWriter;
@@ -95,7 +91,7 @@ namespace Bagira.Map.Common.Systems
             // 1. Resolve entity from network ID.
             if (!_entityMap.TryGetEntity(req.EntityId, out var entity))
             {
-                WriteAck(req.RequestId, req.EntityId, ErrorEntityNotFound);
+                WriteAck(req.RequestId, req.EntityId, SstErrorCode.EntityNotFound);
                 return;
             }
 
@@ -113,7 +109,7 @@ namespace Bagira.Map.Common.Systems
                     FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                         "[UpdDescReq] Ignoring unsupported DescriptorType {0} for Entity {1}.",
                         req.DescriptorType, req.EntityId);
-                    WriteAck(req.RequestId, req.EntityId, ErrorNotSupported);
+                    WriteAck(req.RequestId, req.EntityId, SstErrorCode.NotSupported);
                     break;
             }
         }
@@ -127,7 +123,7 @@ namespace Bagira.Map.Common.Systems
                 FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                     "[UpdDescReq] Not authoritative for GeoSpatial on Entity {0}. Ignoring.",
                     req.EntityId);
-                WriteAck(req.RequestId, req.EntityId, ErrorNotOwner);
+                WriteAck(req.RequestId, req.EntityId, SstErrorCode.NotOwner);
                 return;
             }
 
@@ -157,16 +153,16 @@ namespace Bagira.Map.Common.Systems
                 "[UpdDescReq] Applied GeoSpatial move for NetID {0} → ({1:F1}, {2:F1}, {3:F1}) Cartesian.",
                 req.EntityId, cartesian.X, cartesian.Y, cartesian.Z);
 
-            WriteAck(req.RequestId, req.EntityId, ErrorSuccess);
+            WriteAck(req.RequestId, req.EntityId, SstErrorCode.Success);
         }
 
-        private void WriteAck(Guid requestId, int entityId, int errorCode)
+        private void WriteAck(Guid requestId, int entityId, SstErrorCode errorCode)
         {
             _ackWriter.Write(new UpdateEntityDescriptorAck
             {
                 RequestId = requestId,
                 EntityId  = entityId,
-                ErrorCode = errorCode,
+                ErrorCode = (int)errorCode,
             });
         }
 
@@ -179,7 +175,7 @@ namespace Bagira.Map.Common.Systems
                 FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                     "[UpdDescReq] Not authoritative for MapVisualOverlay on Entity {0}. Ignoring.",
                     req.EntityId);
-                WriteAck(req.RequestId, req.EntityId, ErrorNotOwner);
+                WriteAck(req.RequestId, req.EntityId, SstErrorCode.NotOwner);
                 return;
             }
 
@@ -214,7 +210,7 @@ namespace Bagira.Map.Common.Systems
                 "[UpdDescReq] Applied MapVisualOverlay update for NetID {0} pts={1}.",
                 req.EntityId, polyline.Points?.Count ?? 0);
 
-            WriteAck(req.RequestId, req.EntityId, ErrorSuccess);
+            WriteAck(req.RequestId, req.EntityId, SstErrorCode.Success);
         }
     }
 }

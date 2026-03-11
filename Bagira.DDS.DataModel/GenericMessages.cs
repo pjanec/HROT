@@ -39,6 +39,37 @@ namespace Bagira.BDC.SSTM
     | 7    | ERR_VERSION_CONFLICT              | currentVersion mismatch        |
     */
 
+    /// <summary>
+    /// Strongly-typed, centralised error codes for all SST request/response protocols
+    /// (Create, Update, Delete, Mission, …).  Cast to <c>int</c> at the DDS boundary.
+    /// </summary>
+    public enum SstErrorCode : int
+    {
+        /// <summary>Operation completed successfully.</summary>
+        Success = 0,
+
+        /// <summary>The requested descriptor type is not handled by this node.</summary>
+        UnknownDescriptorType = 1,
+
+        /// <summary>No live <c>EntityMaster</c> found for the requested entity ID.</summary>
+        EntityNotFound = 2,
+
+        /// <summary>The requested descriptor instance ID does not exist.</summary>
+        DescriptorInstanceNotFound = 3,
+
+        /// <summary>This node does not own the targeted descriptor.</summary>
+        NotOwner = 4,
+
+        /// <summary>The provided value fails application-level validation.</summary>
+        ValidationFailed = 5,
+
+        /// <summary>Descriptor updates are not permitted for this descriptor type.</summary>
+        NotSupported = 6,
+
+        /// <summary>The provided <c>currentVersion</c> does not match the live version (optimistic locking).</summary>
+        VersionConflict = 7,
+    }
+
     // Message to change the ownership of a descriptor.
     // Used when a node wants to gracefully hand over control of a specific component
     // (e.g., simulation physics) to another node without deleting/recreating data.
@@ -93,6 +124,14 @@ namespace Bagira.BDC.SSTM
         // by the CGF with the newly allocated ID.
         [DdsManaged]
         public List<EntityDescriptorUnion> InitialDescriptors;
+
+        // Optional fine-grained attribute overrides applied AFTER TKB defaults and
+        // InitialDescriptors have been processed.  This lets callers set individual
+        // fields (e.g. just the Name) without having to supply a full EntityInfo
+        // descriptor, preventing accidental data-loss from monolithic descriptor
+        // overwrites.
+        [DdsManaged]
+        public List<EntityAttributePayload>? InitialAttributes;
     }
 
     // Acknowledgment for entity creation.

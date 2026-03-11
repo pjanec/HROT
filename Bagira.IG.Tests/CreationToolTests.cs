@@ -247,4 +247,74 @@ public class CreationToolTests
         Assert.Equal(ClickY, geoEntry.GeoSpatial.Pos.Latitude,  precision: 3);
         Assert.Equal(ClickX, geoEntry.GeoSpatial.Pos.Longitude, precision: 3);
     }
+
+    // ── nameResolver ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates a <see cref="CreationTool"/> with a custom name-resolver delegate,
+    /// using no JSON properties.
+    /// </summary>
+    private static (List<CreateEntityRequest> captured, CreationTool tool)
+        CreateToolWithResolver(Func<string> nameResolver, long tkbType = TestTkbType)
+    {
+        var captured = new List<CreateEntityRequest>();
+        var tool     = new CreationTool(
+            req => captured.Add(req),
+            tkbType:      tkbType,
+            nameResolver: nameResolver);
+        return (captured, tool);
+    }
+
+    /// <summary>
+    /// When a <c>nameResolver</c> is provided it must supply the entity name
+    /// instead of the JSON-derived one.
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_NameResolver_UsedInsteadOfJsonName()
+    {
+        var (captured, tool) = CreateToolWithResolver(() => "Generated-5");
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        var infoEntry = captured[0].InitialDescriptors
+            .First(d => d._d == EDescriptorType.dtEntityInfo);
+        Assert.Equal("Generated-5", infoEntry.EntityInfo.Name);
+    }
+
+    /// <summary>
+    /// The resolver must be called once per click, enabling session-sequential
+    /// naming — the second click receives a different name than the first.
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_NameResolver_IncrementsBetweenClicks()
+    {
+        int callIndex = 0;
+        var (captured, tool) = CreateToolWithResolver(() => "G-" + ++callIndex);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        Assert.Equal("G-1", captured[0].InitialDescriptors
+            .First(d => d._d == EDescriptorType.dtEntityInfo).EntityInfo.Name);
+        Assert.Equal("G-2", captured[1].InitialDescriptors
+            .First(d => d._d == EDescriptorType.dtEntityInfo).EntityInfo.Name);
+    }
+
+    /// <summary>
+    /// When no resolver is supplied and <c>initialPropertiesJson</c> contains a
+    /// <c>name</c> field the tool must use that JSON-derived name.
+    /// </summary>
+    [Fact]
+    public void HandleClick_LeftClick_NullNameResolver_FallsBackToJsonName()
+    {
+        const string jsonName = "MyUnit";
+        var (captured, tool) = CreateTool(
+            initialPropertiesJson: $"{{\"name\":\"{jsonName}\"}}");
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        var infoEntry = captured[0].InitialDescriptors
+            .First(d => d._d == EDescriptorType.dtEntityInfo);
+        Assert.Equal(jsonName, infoEntry.EntityInfo.Name);
+    }
 }

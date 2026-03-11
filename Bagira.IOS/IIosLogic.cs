@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
 using Bagira.IOS.Services;
 using FDP.Toolkit.DER;
 
@@ -52,6 +53,18 @@ public interface IIosLogic
     /// <c>MapInteractionConfig</c> fallback path.
     /// </param>
     void StartPlacementMode(long tkbType, string? initialPropertiesJson = null);
+
+    /// <summary>
+    /// Typed overload for <see cref="StartPlacementMode(long, string?)"/>.
+    /// Serialises <paramref name="initialProperties"/> to JSON (null properties omitted)
+    /// and delegates to the string-based overload.
+    /// </summary>
+    /// <param name="initialProperties">
+    /// Strongly-typed property patch.  Only non-<c>null</c> fields are serialised,
+    /// so the IG ignores unspecified fields and does not override TKB defaults for them.
+    /// Pass <c>null</c> to use no initial-property overrides.
+    /// </param>
+    void StartPlacementMode(long tkbType, EntityPropertyPatch? initialProperties);
 
     /// <summary>
     /// Activates polygonal area authoring. The application shell generates a

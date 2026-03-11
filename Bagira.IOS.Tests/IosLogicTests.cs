@@ -153,6 +153,88 @@ public class IosLogicTests
         Assert.NotEqual(first, second);
     }
 
+    // ── StartPlacementMode typed EntityPropertyPatch overload ─────────────────
+
+    /// <summary>
+    /// The typed <see cref="IosLogic.StartPlacementMode(long, EntityPropertyPatch?)"/> overload
+    /// must serialize the patch and embed it in <c>CommandArgsJson</c> under the
+    /// <c>initialPropertiesJson</c> key, so the IG receives the entity name.
+    /// </summary>
+    [Fact]
+    public void StartPlacementMode_WithEntityPropertyPatch_CommandArgsJsonContainsName()
+    {
+        var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
+        MapCommandRequest? captured = null;
+        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
+            .Callback<MapCommandRequest>(r => captured = r);
+
+        logic.StartPlacementMode(100L, new EntityPropertyPatch { Name = "Alpha-1" });
+
+        Assert.NotNull(captured);
+        Assert.Contains("Alpha-1", captured!.Value.CommandArgsJson);
+    }
+
+    /// <summary>
+    /// Null properties on the patch must be omitted from the serialized JSON
+    /// (<c>NullValueHandling.Ignore</c>), so the IG only receives set fields.
+    /// </summary>
+    [Fact]
+    public void StartPlacementMode_WithEntityPropertyPatch_NullPropertiesOmittedFromCommandArgsJson()
+    {
+        var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
+        MapCommandRequest? captured = null;
+        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
+            .Callback<MapCommandRequest>(r => captured = r);
+
+        // Name is set but Affiliation is left null.
+        logic.StartPlacementMode(100L, new EntityPropertyPatch { Name = "Alpha-1" });
+
+        Assert.NotNull(captured);
+        Assert.DoesNotContain("affiliation", captured!.Value.CommandArgsJson,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Passing <c>null</c> for the patch must behave identically to the
+    /// string overload with <c>null</c> — no <c>initialPropertiesJson</c> key in args.
+    /// </summary>
+    [Fact]
+    public void StartPlacementMode_WithNullEntityPropertyPatch_CommandArgsJsonHasNoInitialProperties()
+    {
+        var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
+        MapCommandRequest? captured = null;
+        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
+            .Callback<MapCommandRequest>(r => captured = r);
+
+        logic.StartPlacementMode(100L, (EntityPropertyPatch?)null);
+
+        Assert.NotNull(captured);
+        Assert.DoesNotContain("initialPropertiesJson", captured!.Value.CommandArgsJson);
+    }
+
+    /// <summary>
+    /// When <c>AutogenerateName = true</c> the serialized patch must carry the field
+    /// so the IG can trigger the unique-name generator.
+    /// </summary>
+    [Fact]
+    public void StartPlacementMode_WithAutogenerateNamePatch_CommandArgsJsonContainsAutogenerateName()
+    {
+        var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
+        MapCommandRequest? captured = null;
+        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
+            .Callback<MapCommandRequest>(r => captured = r);
+        var patch = new EntityPropertyPatch { AutogenerateName = true, NamePrefix = "Tank-" };
+
+        logic.StartPlacementMode(100L, patch);
+
+        Assert.NotNull(captured);
+        // The patch JSON is embedded inside CommandArgsJson as the initialPropertiesJson value.
+        Assert.True(
+            captured!.Value.CommandArgsJson.Contains("autogenerateName") ||
+            captured.Value.CommandArgsJson.Contains("AutogenerateName"),
+            $"Expected autogenerateName in: {captured.Value.CommandArgsJson}");
+    }
+
     // ── StartAreaAuthoringMode ──────────────────────────────────────────────
 
     [Fact]
