@@ -19,12 +19,14 @@
 - **/*.exe
 - **/*.md
 - **/*.fdp
-- FDP/Kernel/Fdp.Kernel.Examples 
-- FDP/ExtDeps
+#- FDP/Kernel/Fdp.Kernel.Examples 
+#- FDP/ExtDeps
 - scripts
 - TestResults
 - *.txt
 - *.log
--
+- FDP
++ FDP/Toolkits
+
 
 
