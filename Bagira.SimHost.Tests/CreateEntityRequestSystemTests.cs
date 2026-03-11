@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
 using Bagira.SimHost.Systems;
 using Fdp.Interfaces;
 using Fdp.Kernel;
+using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using Fdp.Toolkit.Tkb;
@@ -34,11 +36,11 @@ namespace Bagira.SimHost.Tests
 
         public void Enqueue(CreateEntityRequest r) => _pending.Add(r);
 
-        public List<CreateEntityRequest> TakeRequests()
+        public void ProcessRequests(Action<CreateEntityRequest> processor)
         {
-            var result = new List<CreateEntityRequest>(_pending);
+            foreach (var req in _pending)
+                processor(req);
             _pending.Clear();
-            return result;
         }
     }
 
@@ -178,6 +180,197 @@ namespace Bagira.SimHost.Tests
             Assert.Single(ackSink.WrittenAcks);
             Assert.Equal(100, ackSink.WrittenAcks[0].NewEntityId);
             Assert.Equal(0,   ackSink.WrittenAcks[0].ErrorCode);
+        }
+
+        // ── GC02: Struct component extraction ────────────────────────────────
+
+        /// <summary>
+        /// A trivial geographic transform stub: lat→Y, lon→X, alt→Z.
+        /// </summary>
+        private sealed class StubGeoTransform : IGeographicTransform
+        {
+            public void SetOrigin(double lat, double lon, double alt) { }
+            public Vector3 ToCartesian(double lat, double lon, double alt)
+                => new Vector3((float)lon, (float)lat, (float)alt);
+            public (double lat, double lon, double alt) ToGeodetic(Vector3 p)
+                => (p.Y, p.X, p.Z);
+        }
+
+        private static CreateEntityRequest MakeRequestWithGeoSpatial(
+            long tkbType = ValidTkbType,
+            double lat = 10.0,
+            double lon = 20.0) =>
+            new CreateEntityRequest
+            {
+                RequestId = Guid.NewGuid(),
+                Owner = new NodeId { AppDomainId = 1, AppInstanceId = 2 },
+                Flags = 0,
+                InitialDescriptors = new List<EntityDescriptorUnion>
+                {
+                    new EntityDescriptorUnion
+                    {
+                        _d = EDescriptorType.dtEntityMaster,
+                        EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = ValidDisType },
+                    },
+                    new EntityDescriptorUnion
+                    {
+                        _d = EDescriptorType.dtGeoSpatial,
+                        GeoSpatial = new GeoSpatial { Pos = new GeoPosition { Latitude = lat, Longitude = lon, Altitude = 0 } },
+                    },
+                },
+            };
+
+        [Fact]
+        public void ProcessRequest_SimTransformDescriptor_PromotedToTypedField_NotInFallbackList()
+        {
+            // Arrange — supply a GeoSpatial descriptor so DescriptorMapper emits a SimTransform.
+            var repo    = CreateWorld();
+            var tkb     = CreateTkb();
+            var source  = new StubRequestSource();
+            var request = MakeRequestWithGeoSpatial(lat: 10.0, lon: 20.0);
+            source.Enqueue(request);
+
+            var geoTransform = new StubGeoTransform();
+            var idAlloc  = new StubIdAllocator(startId: 200);
+            var ackSink  = new StubAckSink();
+            var system   = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId, geoTransform);
+
+            // Act
+            system.Execute(repo, 0f);
+
+            // Assert: SpawnEntityCommand has InitialTransform set; SimTransform NOT in fallback list.
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            var cmd = commands[0];
+
+            // Typed field must be populated.
+            Assert.True(cmd.InitialTransform.HasValue,
+                "SimTransform should be promoted to InitialTransform, not left in InitialComponents.");
+
+            // StubGeoTransform: X=lon=20, Y=lat=10, Z=alt=0.
+            Assert.Equal(20f, cmd.InitialTransform!.Value.Position.X, precision: 3);
+            Assert.Equal(10f, cmd.InitialTransform!.Value.Position.Y, precision: 3);
+
+            // SimTransform must NOT appear in the fallback list.
+            if (cmd.InitialComponents != null)
+            {
+                foreach (var c in cmd.InitialComponents)
+                    Assert.False(c is SimTransform,
+                        "SimTransform must not be boxed into the fallback InitialComponents list.");
+            }
+        }
+
+        [Fact]
+        public void ProcessRequest_NoSimTransformDescriptor_InitialTransformIsNull()
+        {
+            // Arrange — no GeoSpatial descriptor, so no SimTransform should be generated.
+            var repo    = CreateWorld();
+            var tkb     = CreateTkb();
+            var source  = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());
+
+            var (system, _, _) = BuildSystem(tkb, source);
+
+            // Act
+            system.Execute(repo, 0f);
+
+            // Assert
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.False(commands[0].InitialTransform.HasValue,
+                "InitialTransform should be null when no GeoSpatial descriptor is present.");
+        }
+
+        // ── GC04: Time-slicing ────────────────────────────────────────────────
+
+        [Fact]
+        public void TimeSlicing_OnThousandRequests_DispatchesExactlyMaxPerTickOnFirstFrame()
+        {
+            // Arrange — enqueue 1000 valid requests.
+            const int TotalRequests = 1000;
+            var repo   = CreateWorld();
+            var tkb    = CreateTkb();
+            var source = new StubRequestSource();
+            for (int i = 0; i < TotalRequests; i++)
+                source.Enqueue(MakeValidRequest());
+
+            var (system, _, _) = BuildSystem(tkb, source);
+
+            // Act — single tick.
+            system.Execute(repo, 0f);
+
+            // Assert: exactly MaxRequestsPerTick commands published this tick.
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            Assert.Equal(CreateEntityRequestSystem.MaxRequestsPerTick, commands.Count);
+
+            // Assert: remaining requests are still in the queue.
+            int expectedRemaining = TotalRequests - CreateEntityRequestSystem.MaxRequestsPerTick;
+            Assert.Equal(expectedRemaining, system.PendingQueueCount);
+        }
+
+        [Fact]
+        public void TimeSlicing_OnThousandRequests_AcksAllSentOnFirstFrame()
+        {
+            // Arrange — enqueue 1000 valid requests.
+            const int TotalRequests = 1000;
+            var repo   = CreateWorld();
+            var tkb    = CreateTkb();
+            var source = new StubRequestSource();
+            for (int i = 0; i < TotalRequests; i++)
+                source.Enqueue(MakeValidRequest());
+
+            var idAlloc = new StubIdAllocator(startId: 1);
+            var ackSink = new StubAckSink();
+            var system  = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId);
+
+            // Act — single tick.
+            system.Execute(repo, 0f);
+
+            // Assert: all 1000 ACKs sent synchronously, even though only MaxRequestsPerTick
+            // SpawnEntityCommands were dispatched this frame.
+            Assert.Equal(TotalRequests, ackSink.WrittenAcks.Count);
+
+            // Every ACK must be a success (error code 0).
+            foreach (var ack in ackSink.WrittenAcks)
+                Assert.Equal(0, ack.ErrorCode);
+        }
+
+        [Fact]
+        public void TimeSlicing_SecondFrame_ProcessesRemainingRequests()
+        {
+            // Arrange — enqueue exactly MaxRequestsPerTick + 1 requests.
+            int totalRequests = CreateEntityRequestSystem.MaxRequestsPerTick + 1;
+            var repo   = CreateWorld();
+            var tkb    = CreateTkb();
+            var source = new StubRequestSource();
+            for (int i = 0; i < totalRequests; i++)
+                source.Enqueue(MakeValidRequest());
+
+            var (system, _, _) = BuildSystem(tkb, source);
+
+            // Act — first tick: should dispatch MaxRequestsPerTick, leave 1 in queue.
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var firstFrameCmds = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            // Capture count *before* a second swap clears the backing buffer.
+            int firstFrameCount = firstFrameCmds.Count;
+
+            // Act — second tick: source is empty, queue has 1 item.
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var secondFrameCmds = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+
+            // Assert
+            Assert.Equal(CreateEntityRequestSystem.MaxRequestsPerTick, firstFrameCount);
+            Assert.Single(secondFrameCmds);
+            Assert.Equal(0, system.PendingQueueCount);
         }
     }
 }

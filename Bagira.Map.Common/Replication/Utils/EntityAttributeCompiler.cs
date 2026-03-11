@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Numerics;
 using Bagira.BDC.SSTM;
 using Bagira.IG.Components;
@@ -93,12 +92,17 @@ namespace Bagira.Map.Common.Replication.Utils
             // ── IgEntityData attributes ───────────────────────────────────────
             // Collect all attributes that map to IgEntityData so we can apply
             // them together to a single instance (avoiding the overwrite flaw).
-            bool needsIgData = attributes.Any(a => a._d == EntityAttribute.eaName);
+            bool needsIgData = false;
+            foreach (var a in attributes)
+                if (a._d == EntityAttribute.eaName) { needsIgData = true; break; }
 
             if (needsIgData)
             {
                 // Find existing IgEntityData in the base list or create a default.
-                var existing = result.OfType<IgEntityData>().FirstOrDefault();
+                IgEntityData? existing = null;
+                foreach (var c in result)
+                    if (c is IgEntityData igData) { existing = igData; break; }
+
                 var patched = existing != null
                     ? new IgEntityData { Name = existing.Name, ForceId = existing.ForceId, CommanderId = existing.CommanderId }
                     : new IgEntityData();
@@ -111,7 +115,9 @@ namespace Bagira.Map.Common.Replication.Utils
                 }
 
                 // Replace or append the component in the result list (exactly once).
-                int idx = result.FindIndex(c => c is IgEntityData);
+                int idx = -1;
+                for (int i = 0; i < result.Count; i++)
+                    if (result[i] is IgEntityData) { idx = i; break; }
                 if (idx >= 0)
                     result[idx] = patched;
                 else
@@ -119,18 +125,24 @@ namespace Bagira.Map.Common.Replication.Utils
             }
 
             // ── SimTransform attributes ───────────────────────────────────────
-            var geoAttr = attributes.FirstOrDefault(a => a._d == EntityAttribute.eaGeoPosition);
-            if (geoAttr._d == EntityAttribute.eaGeoPosition && geoTransform != null)
+            bool hasGeoAttr = false;
+            EntityAttributePayload geoAttr = default;
+            foreach (var a in attributes)
+                if (a._d == EntityAttribute.eaGeoPosition) { hasGeoAttr = true; geoAttr = a; break; }
+
+            if (hasGeoAttr && geoTransform != null)
             {
-                var existing = result.OfType<SimTransform>().Cast<SimTransform?>().FirstOrDefault();
+                SimTransform? existingSt = null;
+                foreach (var c in result)
+                    if (c is SimTransform st) { existingSt = st; break; }
 
                 var patched = new SimTransform
                 {
-                    Position = existing.HasValue
-                        ? existing.Value.Position
+                    Position = existingSt.HasValue
+                        ? existingSt.Value.Position
                         : Vector3.Zero,
-                    Rotation = existing.HasValue
-                        ? existing.Value.Rotation
+                    Rotation = existingSt.HasValue
+                        ? existingSt.Value.Rotation
                         : Quaternion.Identity,
                 };
 
@@ -138,7 +150,9 @@ namespace Bagira.Map.Common.Replication.Utils
                 patched.Position = geoTransform.ToCartesian(
                     geo.Latitude, geo.Longitude, geo.Altitude);
 
-                int idx = result.FindIndex(c => c is SimTransform);
+                int idx = -1;
+                for (int i = 0; i < result.Count; i++)
+                    if (result[i] is SimTransform) { idx = i; break; }
                 if (idx >= 0)
                     result[idx] = patched;
                 else
@@ -172,7 +186,16 @@ namespace Bagira.Map.Common.Replication.Utils
             // Build a snapshot of the current ECS state for affected components.
             var snapshot = new List<object>();
 
-            if (attributes.Any(a => a._d == EntityAttribute.eaName))
+            bool wantsIgData = false;
+            bool wantsGeoPosition = false;
+            foreach (var a in attributes)
+            {
+                if (a._d == EntityAttribute.eaName)        wantsIgData       = true;
+                if (a._d == EntityAttribute.eaGeoPosition) wantsGeoPosition  = true;
+                if (wantsIgData && wantsGeoPosition)        break;
+            }
+
+            if (wantsIgData)
             {
                 var view = (ISimulationView)world;
                 var ig = world.HasManagedComponent<IgEntityData>(entity)
@@ -184,8 +207,7 @@ namespace Bagira.Map.Common.Replication.Utils
                     : new IgEntityData());
             }
 
-            if (attributes.Any(a => a._d == EntityAttribute.eaGeoPosition)
-                && geoTransform != null)
+            if (wantsGeoPosition && geoTransform != null)
             {
                 if (world.HasComponent<SimTransform>(entity))
                     snapshot.Add(world.GetComponentRO<SimTransform>(entity));

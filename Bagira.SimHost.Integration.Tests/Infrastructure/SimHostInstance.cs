@@ -51,11 +51,11 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
         public void Enqueue(CreateEntityRequest r) => _pending.Add(r);
 
-        public List<CreateEntityRequest> TakeRequests()
+        public void ProcessRequests(Action<CreateEntityRequest> processor)
         {
-            var result = new List<CreateEntityRequest>(_pending);
+            foreach (var req in _pending)
+                processor(req);
             _pending.Clear();
-            return result;
         }
     }
 

@@ -14,8 +14,19 @@ namespace Bagira.SimHost.Systems
 {
     /// <summary>
     /// Handles <see cref="CreateEntityRequest"/> messages arriving over DDS.
-    /// Translates each valid request into a <see cref="SpawnEntityCommand"/> on the world bus
-    /// and immediately sends a <see cref="CreateEntityAck"/> to the requester.
+    ///
+    /// <para>
+    /// On every <see cref="Execute"/> call the system:
+    /// <list type="number">
+    ///   <item>Drains the source via a zero-allocation callback (no <c>List</c> alloc on ingress).</item>
+    ///   <item>Validates each request and allocates a network ID immediately.</item>
+    ///   <item>Sends a <see cref="CreateEntityAck"/> right away so the IG client unblocks
+    ///     with minimal latency regardless of how many entities are queued.</item>
+    ///   <item>Enqueues the pre-validated data for time-sliced processing.</item>
+    ///   <item>Pops up to <see cref="MaxRequestsPerTick"/> items and publishes
+    ///     <see cref="SpawnEntityCommand"/> events for <c>NetworkSpawningSystem</c>.</item>
+    /// </list>
+    /// </para>
     ///
     /// Design constraint: this system is a thin translator.
     /// It must NOT call CreateEntity, ApplyTo, or BeginConstruction directly —
@@ -24,12 +35,19 @@ namespace Bagira.SimHost.Systems
     [UpdateInPhase(SystemPhase.Input)]
     public class CreateEntityRequestSystem : IModuleSystem
     {
+        /// <summary>Maximum <see cref="SpawnEntityCommand"/> events published per tick.</summary>
+        public const int MaxRequestsPerTick = 500;
+
         private readonly ICreateEntityRequestSource _requestSource;
         private readonly ICreateEntityAckSink       _ackSink;
         private readonly ITkbDatabase               _tkbDb;
         private readonly INetworkIdAllocator        _idAllocator;
         private readonly IGeographicTransform?      _geoTransform;
         private readonly int                        _localNodeId;
+
+        // Pre-validated requests waiting to be converted into SpawnEntityCommands.
+        // Capacity pre-allocated to absorb large bursts without resizing.
+        private readonly Queue<PendingRequest> _pendingQueue = new(capacity: MaxRequestsPerTick * 4);
 
         /// <param name="requestSource">Source of incoming CreateEntityRequest messages (DDS-backed or stub).</param>
         /// <param name="ackSink">Sink for CreateEntityAck responses (DDS-backed or stub).</param>
@@ -56,84 +74,133 @@ namespace Bagira.SimHost.Systems
             _geoTransform  = geoTransform;
         }
 
+        /// <summary>Number of requests currently buffered and awaiting spawn commands.</summary>
+        public int PendingQueueCount => _pendingQueue.Count;
+
         /// <inheritdoc />
         public void Execute(ISimulationView view, float deltaTime)
         {
-            var requests = _requestSource.TakeRequests();
-            foreach (var request in requests)
-                ProcessRequest(view, request);
+            // ── Phase 1: Drain all incoming requests this frame ───────────────
+            // The callback fires synchronously for each valid DDS sample so no
+            // List<CreateEntityRequest> is ever allocated on ingress (GC03).
+            // Each valid request is validated, ID-allocated, ACK'd, and enqueued
+            // on the same frame it arrives, giving the requester minimum latency (GC04).
+            _requestSource.ProcessRequests(request =>
+            {
+                try
+                {
+                    // Validate TkbType presence.
+                    long tkbType = DescriptorMapper.ExtractTkbType(
+                        request.InitialDescriptors, out ulong disType);
+                    if (tkbType == 0)
+                    {
+                        FdpLog<CreateEntityRequestSystem>.Warn(
+                            $"[SimHost] CreateEntity {request.RequestId}: No EntityMaster descriptor or TkbType=0. Rejecting.");
+                        SendErrorAck(request.RequestId, errorCode: 400);
+                        return;
+                    }
+
+                    // Validate TkbType exists in the database.
+                    if (!_tkbDb.TryGetByType(tkbType, out _))
+                    {
+                        FdpLog<CreateEntityRequestSystem>.Warn(
+                            $"[SimHost] CreateEntity {request.RequestId}: TkbType={tkbType} not found. Rejecting.");
+                        SendErrorAck(request.RequestId, errorCode: 404);
+                        return;
+                    }
+
+                    // Allocate a network ID and immediately ACK — client unblocks now.
+                    long newNetworkId = _idAllocator.AllocateId();
+                    _ackSink.WriteAck(new CreateEntityAck
+                    {
+                        RequestId   = request.RequestId,
+                        NewEntityId = (int)newNetworkId,
+                        ErrorCode   = 0,
+                    });
+
+                    _pendingQueue.Enqueue(new PendingRequest
+                    {
+                        Request   = request,
+                        NetworkId = newNetworkId,
+                        TkbType   = tkbType,
+                        DisType   = disType,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    FdpLog<CreateEntityRequestSystem>.Error(
+                        $"[SimHost] CreateEntity ingress failed for request {request.RequestId}: {ex.Message}");
+                    SendErrorAck(request.RequestId, errorCode: 500);
+                }
+            });
+
+            // ── Phase 2: Time-sliced spawn dispatch ────────────────────────────
+            // Convert at most MaxRequestsPerTick buffered requests into
+            // SpawnEntityCommand events this tick to stay within the frame budget.
+            int toProcess = Math.Min(_pendingQueue.Count, MaxRequestsPerTick);
+            for (int i = 0; i < toProcess; i++)
+                ProcessPendingRequest(view, _pendingQueue.Dequeue());
         }
 
         // ─── Private helpers ─────────────────────────────────────────────────
 
-        private void ProcessRequest(ISimulationView view, CreateEntityRequest request)
+        private void ProcessPendingRequest(ISimulationView view, in PendingRequest pending)
         {
             try
             {
-                // 1. Extract TkbType from descriptors
-                long tkbType = DescriptorMapper.ExtractTkbType(request.InitialDescriptors, out ulong disType);
-                if (tkbType == 0)
+                // 1. Map descriptors → ECS component list.
+                List<object> allComponents =
+                    DescriptorMapper.MapToComponents(pending.Request.InitialDescriptors, _geoTransform);
+
+                // 2. Apply fine-grained attribute patches.
+                //    A single deduplicating pass via EntityAttributeCompiler ensures no
+                //    component type appears twice even if multiple attributes target it.
+                if (pending.Request.InitialAttributes?.Count > 0)
+                    allComponents = EntityAttributeCompiler.CompileOverrides(
+                        pending.Request.InitialAttributes, allComponents, _geoTransform);
+
+                // 3. Separate unmanaged structs into explicit typed SpawnEntityCommand fields
+                //    to avoid boxing them as List<object> items on the LOH (GC02).
+                SimTransform? initialTransform = null;
+                SimVelocity?  initialVelocity  = null;
+                List<object>? fallbackComponents = null;
+
+                foreach (var comp in allComponents)
                 {
-                    FdpLog<CreateEntityRequestSystem>.Warn(
-                        $"[SimHost] CreateEntity {request.RequestId}: No EntityMaster descriptor or TkbType=0. Rejecting.");
-                    SendErrorAck(request.RequestId, errorCode: 400);
-                    return;
+                    if (comp is SimTransform st) { initialTransform = st; continue; }
+                    if (comp is SimVelocity  sv) { initialVelocity  = sv; continue; }
+
+                    // All other (managed or rare) components go into the fallback list.
+                    fallbackComponents ??= new List<object>();
+                    fallbackComponents.Add(comp);
                 }
 
-                // 2. Validate TkbType exists in database
-                if (!_tkbDb.TryGetByType(tkbType, out _))
-                {
-                    FdpLog<CreateEntityRequestSystem>.Warn(
-                        $"[SimHost] CreateEntity {request.RequestId}: TkbType={tkbType} not found. Rejecting.");
-                    SendErrorAck(request.RequestId, errorCode: 404);
-                    return;
-                }
-
-                // 3. Allocate a new network ID
-                long newNetworkId = _idAllocator.AllocateId();
-
-                // 4. Map descriptors → ECS component list
-                List<object> initialComponents =
-                    DescriptorMapper.MapToComponents(request.InitialDescriptors, _geoTransform);
-
-                // 4b. Apply fine-grained attribute patches on top of the descriptor-derived components.
-                //     Patches are merged in a single pass so duplicate component types are never
-                //     written twice (EntityAttributeCompiler handles the deduplication).
-                if (request.InitialAttributes?.Count > 0)
-                    initialComponents = EntityAttributeCompiler.CompileOverrides(
-                        request.InitialAttributes, initialComponents, _geoTransform);
-
-                // 5. Publish SpawnEntityCommand — NetworkSpawningSystem handles all ECS work
+                // 4. Publish SpawnEntityCommand — NetworkSpawningSystem handles all ECS work.
                 if (view is EntityRepository repo)
                 {
                     repo.Bus.PublishManaged(new SpawnEntityCommand
                     {
-                        NetworkId         = newNetworkId,
-                        TkbType           = tkbType,
+                        NetworkId         = pending.NetworkId,
+                        TkbType           = pending.TkbType,
                         OwnerNodeId       = _localNodeId,
-                        DisType           = disType,
+                        DisType           = pending.DisType,
                         InitType          = ReliableInitType.AllPeers,
-                        InitialComponents = initialComponents,
-                        RequestId         = request.RequestId,
+                        InitialTransform  = initialTransform,
+                        InitialVelocity   = initialVelocity,
+                        InitialComponents = fallbackComponents,
+                        RequestId         = pending.Request.RequestId,
                     });
                 }
 
-                // 6. ACK immediately — entity will be live on the next ECS tick
-                _ackSink.WriteAck(new CreateEntityAck
-                {
-                    RequestId   = request.RequestId,
-                    NewEntityId = (int)newNetworkId,
-                    ErrorCode   = 0,
-                });
-
                 FdpLog<CreateEntityRequestSystem>.Info(
-                    $"[SimHost] Spawned entity {newNetworkId} (TkbType={tkbType}) for request {request.RequestId}.");
+                    $"[SimHost] Queued spawn entity {pending.NetworkId} (TkbType={pending.TkbType}) " +
+                    $"for request {pending.Request.RequestId}.");
             }
             catch (Exception ex)
             {
                 FdpLog<CreateEntityRequestSystem>.Error(
-                    $"[SimHost] CreateEntity failed for request {request.RequestId}: {ex.Message}");
-                SendErrorAck(request.RequestId, errorCode: 500);
+                    $"[SimHost] SpawnEntityCommand creation failed for request " +
+                    $"{pending.Request.RequestId}: {ex.Message}");
             }
         }
 
@@ -145,6 +212,17 @@ namespace Bagira.SimHost.Systems
                 NewEntityId = 0,
                 ErrorCode   = errorCode,
             });
+        }
+
+        // ─── Inner types ─────────────────────────────────────────────────────
+
+        /// <summary>Holds pre-validated spawn data waiting in the time-slice queue.</summary>
+        private struct PendingRequest
+        {
+            public CreateEntityRequest Request;
+            public long                NetworkId;
+            public long                TkbType;
+            public ulong               DisType;
         }
     }
 }

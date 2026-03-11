@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
 using Bagira.SimHost.Systems;
@@ -24,14 +25,12 @@ namespace Bagira.SimHost.Modules
         public DdsCreateEntityRequestSource(DdsParticipant participant)
             => _reader = new DdsReader<CreateEntityRequest>(participant);
 
-        public List<CreateEntityRequest> TakeRequests()
+        public void ProcessRequests(Action<CreateEntityRequest> processor)
         {
-            var list = new List<CreateEntityRequest>();
             using var loan = _reader.Take();
             foreach (var sample in loan)
                 if (sample.IsValid)
-                    list.Add(sample.Data);
-            return list;
+                    processor(sample.Data);
         }
     }
 
