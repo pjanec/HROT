@@ -117,7 +117,14 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
             if (cmd.InitType != ReliableInitType.None)
                 world.AddComponent(entity, new PendingNetworkAck { ExpectedType = cmd.InitType });
 
-            // 8. Apply caller-supplied component overrides on top of TKB defaults
+            // 8. Apply caller-supplied component overrides on top of TKB defaults.
+            // Fast path: explicitly typed fields, no boxing, no reflection.
+            if (cmd.InitialTransform.HasValue)
+                world.SetComponent(entity, cmd.InitialTransform.Value);
+            if (cmd.InitialVelocity.HasValue)
+                world.SetComponent(entity, cmd.InitialVelocity.Value);
+
+            // Fallback: rare/managed components via reflection.
             if (cmd.InitialComponents != null)
                 foreach (var component in cmd.InitialComponents)
                     EntityComponentReflector.SetComponent(world, entity, component);

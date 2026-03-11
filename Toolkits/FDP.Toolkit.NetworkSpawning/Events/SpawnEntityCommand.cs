@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Fdp.Kernel;
 using ModuleHost.Core.Network.Interfaces;
 
 namespace FDP.Toolkit.NetworkSpawning.Events
@@ -51,9 +52,22 @@ namespace FDP.Toolkit.NetworkSpawning.Events
         /// Optional list of ECS component instances to apply on top of TKB template defaults.
         /// Each item is an object whose runtime type is used by EntityComponentReflector
         /// to call world.SetComponent(entity, type, value).
-        /// Typical contents: GeoSpatial, EntityInfo, VehicleState, etc.
+        /// This is the fallback pool for rare dynamic or managed components.
+        /// Commonly-used unmanaged structs are promoted to the explicit typed fields below
+        /// to avoid boxing heap pressure on the large-object heap.
         /// </summary>
-        public List<object> InitialComponents;
+        public List<object>? InitialComponents;
+
+        // ── Explicitly typed fields for common unmanaged components ──────────────
+        // Populated by CreateEntityRequestSystem to avoid boxing SimTransform /
+        // SimVelocity into List<object> on the 10,000-entities-per-frame hot path.
+        // NetworkSpawningSystem reads these first before falling back to InitialComponents.
+
+        /// <summary>Initial world transform. Applied without boxing or reflection.</summary>
+        public SimTransform? InitialTransform;
+
+        /// <summary>Initial velocity. Applied without boxing or reflection.</summary>
+        public SimVelocity? InitialVelocity;
 
         /// <summary>
         /// Optional correlation ID for request tracking (used by gateway pattern).
