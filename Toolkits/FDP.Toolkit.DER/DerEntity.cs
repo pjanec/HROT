@@ -44,5 +44,11 @@ namespace FDP.Toolkit.DER
         {
             return _descriptors.Keys.Select(k => k.Item1).Distinct().ToList(); // Return unique descriptor types
         }
+
+        public IEnumerable<(Type Type, int PartId, object Data)> GetAllRawDescriptors()
+        {
+            foreach (var kvp in _descriptors)
+                yield return (kvp.Key.Item1, kvp.Key.Item2, kvp.Value);
+        }
     }
 }

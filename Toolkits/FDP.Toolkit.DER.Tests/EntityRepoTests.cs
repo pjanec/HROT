@@ -141,6 +141,94 @@ namespace FDP.Toolkit.DER.Tests
             Assert.AreEqual(1, entity.GetAllDescriptorTypes().Count()); // Still just one type
         }
 
+        // ── GetAllRawDescriptors ───────────────────────────────────────────────────
+
+        [TestMethod]
+        public void GetAllRawDescriptors_NoDescriptors_ReturnsEmpty()
+        {
+            var repo   = new DerRepo();
+            var entity = repo.CreateEntity(1, 100);
+
+            var raw = entity.GetAllRawDescriptors().ToList();
+
+            Assert.AreEqual(0, raw.Count);
+        }
+
+        [TestMethod]
+        public void GetAllRawDescriptors_SingleDescriptor_ReturnsCorrectTypeAndData()
+        {
+            var repo   = new DerRepo();
+            var entity = repo.CreateEntity(1, 100);
+            entity.SetDescriptor(new MockDescriptor { Data = "Hello", EntityId = 1 });
+
+            var raw = entity.GetAllRawDescriptors().ToList();
+
+            Assert.AreEqual(1, raw.Count);
+            Assert.AreEqual(typeof(MockDescriptor), raw[0].Type);
+            Assert.AreEqual(0, raw[0].PartId);
+
+            var data = (MockDescriptor)raw[0].Data;
+            Assert.AreEqual("Hello", data.Data);
+        }
+
+        [TestMethod]
+        public void GetAllRawDescriptors_MultipleTypes_ReturnsAll()
+        {
+            var repo   = new DerRepo();
+            var entity = repo.CreateEntity(1, 100);
+            entity.SetDescriptor(new MockDescriptor    { Data = "mock" });
+            entity.SetDescriptor(new AnotherDescriptor { Value = 42 });
+
+            var raw   = entity.GetAllRawDescriptors().ToList();
+            var types = raw.Select(r => r.Type).ToHashSet();
+
+            Assert.AreEqual(2, raw.Count);
+            Assert.IsTrue(types.Contains(typeof(MockDescriptor)));
+            Assert.IsTrue(types.Contains(typeof(AnotherDescriptor)));
+        }
+
+        [TestMethod]
+        public void GetAllRawDescriptors_AfterUpdate_RefChanges()
+        {
+            // Each SetDescriptor call boxes the struct into a new heap object,
+            // so the reference returned by GetAllRawDescriptors must differ.
+            var repo   = new DerRepo();
+            var entity = repo.CreateEntity(1, 100);
+            entity.SetDescriptor(new MockDescriptor { Data = "v1" });
+
+            var refBefore = entity.GetAllRawDescriptors()
+                .First(r => r.Type == typeof(MockDescriptor)).Data;
+
+            entity.SetDescriptor(new MockDescriptor { Data = "v2" });
+
+            var refAfter = entity.GetAllRawDescriptors()
+                .First(r => r.Type == typeof(MockDescriptor)).Data;
+
+            Assert.IsFalse(ReferenceEquals(refBefore, refAfter),
+                "Expected a new boxed reference after SetDescriptor.");
+            Assert.AreEqual("v2", ((MockDescriptor)refAfter).Data);
+        }
+
+        [TestMethod]
+        public void GetAllRawDescriptors_MultiPartDescriptors_ExposesAllParts()
+        {
+            var repo   = new DerRepo();
+            var entity = repo.CreateEntity(1, 100);
+            entity.SetDescriptor(new MockDescriptor { Data = "Part0" }, 0);
+            entity.SetDescriptor(new MockDescriptor { Data = "Part1" }, 1);
+
+            var raw = entity.GetAllRawDescriptors().ToList();
+
+            Assert.AreEqual(2, raw.Count);
+            Assert.IsTrue(raw.Any(r => r.PartId == 0), "Expected PartId=0");
+            Assert.IsTrue(raw.Any(r => r.PartId == 1), "Expected PartId=1");
+
+            var part0Data = (MockDescriptor)raw.First(r => r.PartId == 0).Data;
+            var part1Data = (MockDescriptor)raw.First(r => r.PartId == 1).Data;
+            Assert.AreEqual("Part0", part0Data.Data);
+            Assert.AreEqual("Part1", part1Data.Data);
+        }
+
         [TestMethod]
         public async Task Concurrency_StressTest()
         {

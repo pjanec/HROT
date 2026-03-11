@@ -1,0 +1,193 @@
+using System;
+using System.Numerics;
+using Fdp.Kernel;
+using Raylib_cs;
+using FDP.Toolkit.Vis2D.Abstractions;
+
+namespace FDP.Toolkit.Vis2D.Tools;
+
+/// <summary>
+/// A map tool that lets the operator click to pick a single entity from the
+/// canvas, filtered by domain-specific criteria supplied by an
+/// <see cref="IEntityFilterFactory"/>.
+///
+/// <para><b>Workflow:</b>
+/// <list type="number">
+///   <item>Caller pushes this tool onto the <see cref="MapCanvas"/> stack.</item>
+///   <item>Operator hovers over the map; a target crosshair follows the cursor.
+///         The crosshair turns red when the cursor is over a pickable entity.</item>
+///   <item>Left-click on a valid entity fires <see cref="OnEntityPicked"/> and
+///         pops the tool from the stack.</item>
+///   <item>Right-click or <c>Escape</c> fires <see cref="OnCancelled"/> and
+///         pops the tool without a result.</item>
+/// </list>
+/// </para>
+///
+/// <para><b>No allocations on the 60 FPS hot path.</b>
+/// The IEntityFilter is compiled exactly once in the constructor.
+/// <see cref="HandleHover"/> and <see cref="Draw"/> are entirely
+/// allocation-free.</para>
+/// </summary>
+public sealed class EntityPickerTool : IMapTool
+{
+    /// <inheritdoc/>
+    public string Name => "EntityPicker";
+
+    // ── Deps ──────────────────────────────────────────────────────────────────
+
+    private readonly IEntityFilter _filter;
+
+    // ── State ─────────────────────────────────────────────────────────────────
+
+    private MapCanvas? _canvas;
+    private Vector2    _mouseWorldPos;
+    private Entity     _hoveredEntity = Entity.Null;
+    private bool       _hoveredValid;
+
+    // ── Visual constants ──────────────────────────────────────────────────────
+
+    private const float CrosshairHalfSize  = 12f;
+    private const float CrosshairThickness = 1.5f;
+    private const float CrosshairGapRadius = 4f;
+
+    // ── Events ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fired when the operator left-clicks a valid (filter-passing) entity.
+    /// The tool pops itself immediately before firing the event.
+    /// </summary>
+    public event Action<Entity>? OnEntityPicked;
+
+    /// <summary>
+    /// Fired when the operator cancels the pick (right-click or <c>Escape</c>).
+    /// The tool pops itself immediately before firing the event.
+    /// </summary>
+    public event Action? OnCancelled;
+
+    // ── Constructor ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates an entity picker tool.
+    /// </summary>
+    /// <param name="filterFactory">
+    /// Domain-specific factory that compiles <paramref name="filterPresets"/> into a
+    /// high-performance <see cref="IEntityFilter"/>.  Injected by the hosting
+    /// application; the Vis2D toolkit has no knowledge of how filters are resolved.
+    /// </param>
+    /// <param name="filterPresets">
+    /// Array of preset names forwarded verbatim to <paramref name="filterFactory"/>.
+    /// E.g. <c>["road_graphs"]</c> or <c>["units_ground","vehicles"]</c>.
+    /// Null is treated as empty (match-all).
+    /// </param>
+    public EntityPickerTool(IEntityFilterFactory filterFactory, string[]? filterPresets = null)
+    {
+        ArgumentNullException.ThrowIfNull(filterFactory);
+        _filter = filterFactory.CreateFilter(filterPresets ?? Array.Empty<string>());
+    }
+
+    // ── IMapTool lifecycle ────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public void OnEnter(MapCanvas canvas)
+    {
+        _canvas        = canvas;
+        _hoveredEntity = Entity.Null;
+        _hoveredValid  = false;
+    }
+
+    /// <inheritdoc/>
+    public void OnExit()
+    {
+        _canvas = null;
+    }
+
+    /// <inheritdoc/>
+    public void Update(float dt) { /* stateless between frames */ }
+
+    // ── Input ─────────────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public bool HandleHover(Vector2 worldPos)
+    {
+        _mouseWorldPos = worldPos;
+
+        // Spatial hit-test: allocation-free, O(entity count) but terminates at first hit.
+        Entity candidate = _canvas?.PickTopmostEntity(worldPos) ?? Entity.Null;
+
+        // Apply domain filter compiled at construction time — O(1) bitwise check.
+        _hoveredEntity = candidate;
+        _hoveredValid  = !candidate.IsNull && _filter.IsMatch(candidate);
+
+        return false; // Do not consume hover; camera-pan may still read mouse pos.
+    }
+
+    /// <inheritdoc/>
+    public bool HandleClick(Vector2 worldPos, MouseButton button)
+    {
+        if (button == MouseButton.Left && _hoveredValid)
+        {
+            var picked = _hoveredEntity;
+            _canvas?.PopTool();
+            OnEntityPicked?.Invoke(picked);
+            return true;
+        }
+
+        if (button == MouseButton.Right)
+        {
+            _canvas?.PopTool();
+            OnCancelled?.Invoke();
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc/>
+    public bool HandleDrag(Vector2 worldPos, Vector2 delta) => false;
+
+    /// <inheritdoc/>
+    public bool HandleKeyPressed(KeyboardKey key)
+    {
+        if (key == KeyboardKey.Escape)
+        {
+            _canvas?.PopTool();
+            OnCancelled?.Invoke();
+            return true;
+        }
+        return false;
+    }
+
+    // ── Rendering ─────────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    /// <summary>
+    /// Draws a target crosshair at the mouse cursor.
+    /// <list type="bullet">
+    ///   <item>Red when the cursor is over a filter-passing entity.</item>
+    ///   <item>Light-gray otherwise.</item>
+    /// </list>
+    /// All draw calls are allocation-free.
+    /// </summary>
+    public void Draw(RenderContext ctx)
+    {
+        float zoom = ctx.Zoom > 0 ? ctx.Zoom : 1f;
+        float size  = CrosshairHalfSize  / zoom;
+        float thick = CrosshairThickness / zoom;
+        float gap   = CrosshairGapRadius / zoom;
+
+        Color color = _hoveredValid ? Color.Red : Color.LightGray;
+
+        var pos = _mouseWorldPos;
+
+        // Horizontal arm: left segment + right segment (gap in centre).
+        Raylib.DrawLineEx(new Vector2(pos.X - size, pos.Y), new Vector2(pos.X - gap, pos.Y), thick, color);
+        Raylib.DrawLineEx(new Vector2(pos.X + gap,  pos.Y), new Vector2(pos.X + size, pos.Y), thick, color);
+
+        // Vertical arm: top segment + bottom segment.
+        Raylib.DrawLineEx(new Vector2(pos.X, pos.Y - size), new Vector2(pos.X, pos.Y - gap), thick, color);
+        Raylib.DrawLineEx(new Vector2(pos.X, pos.Y + gap),  new Vector2(pos.X, pos.Y + size), thick, color);
+
+        // Circle outline around the gap.
+        Raylib.DrawCircleLinesV(pos, gap, color);
+    }
+}

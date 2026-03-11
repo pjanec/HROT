@@ -37,5 +37,14 @@ namespace FDP.Toolkit.DER
         /// Get types of all descriptors currently attached.
         /// </summary>
         IEnumerable<Type> GetAllDescriptorTypes();
+
+        /// <summary>
+        /// Gets all currently attached descriptors as raw boxed objects, including the type
+        /// and part ID for each.  This is the zero-reflection path used by live-updating UI
+        /// panels: because <see cref="SetDescriptor{T}"/> boxes each struct into a new heap
+        /// object on every write, callers can use <c>ReferenceEquals</c> to detect staleness
+        /// without any allocation.
+        /// </summary>
+        IEnumerable<(Type Type, int PartId, object Data)> GetAllRawDescriptors();
     }
 }
