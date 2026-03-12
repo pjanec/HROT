@@ -180,6 +180,23 @@ public class ListPatchContextTests
         Assert.Equal("new", found.Name);
         Assert.Equal(ForceId.Hostile, found.ForceId);
     }
+
+    /// <summary>
+    /// ATTR-S5T2 — <see cref="ListPatchContext.FlushDirtyMarks"/> is an explicit no-op:
+    /// it must not throw and must not produce any ECS side-effects (no SmartEgressUtil calls).
+    /// </summary>
+    [Fact]
+    public void ListPatchContext_FlushDirtyMarks_IsNoOp()
+    {
+        var ctx = new ListPatchContext(null);
+
+        // No exception must be thrown.
+        var ex = Record.Exception(() => ctx.FlushDirtyMarks());
+        Assert.Null(ex);
+
+        // No ECS repository exists here — the absence of any exception confirms
+        // that SmartEgressUtil was never called (it would fail without a live repo).
+    }
 }
 
 // ─────────────────────────────────────────────────────────────

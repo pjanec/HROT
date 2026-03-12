@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
+using Bagira.Map.Common.Replication.Utils;
 using Bagira.SimHost.Systems;
 using Bagira.Map.Common.Replication.Egress;
 using Bagira.Map.Common.Replication.Ingress;
@@ -79,7 +80,8 @@ namespace Bagira.SimHost.Modules
             NetworkEntityMap entityMap,
             DoctrineRegistry doctrineRegistry,
             GhostCreationSystem ghostCreationSystem,
-            IGeographicTransform? geoTransform = null)
+            IGeographicTransform? geoTransform = null,
+            JsonAttributeCompiler? jsonAttributeCompiler = null)
         {
             var requestSource = new DdsCreateEntityRequestSource(participant);
             var ackSink       = new DdsCreateEntityAckSink(participant);
@@ -90,7 +92,8 @@ namespace Bagira.SimHost.Modules
                 tkbDb,
                 idAllocator,
                 localNodeId,
-                geoTransform);
+                geoTransform,
+                jsonAttributeCompiler);
 
             _spawnSystem = spawnSystem;
 

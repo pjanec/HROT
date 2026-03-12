@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text.Json;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
 using Bagira.IG.Components;
@@ -183,6 +184,131 @@ namespace Bagira.Map.Common.Replication.Utils
 
             return result;
         }
+
+        /// <summary>
+        /// Converts each descriptor in <paramref name="descriptors"/> to ECS component instances,
+        /// using the shared <paramref name="compiler"/> routing delegates for
+        /// <c>dtEntityInfo</c> (Name, Affiliation) and
+        /// <c>dtGeoSpatial</c> (position via <see cref="ApplyGeoSpatialDescriptor"/>).
+        /// </summary>
+        /// <remarks>
+        /// This overload is the Phase 6 "unified routing" path (ATTR-S6T1, ATTR-S6T2).
+        /// The existing <see cref="MapToComponents(List{EntityDescriptorUnion},IGeographicTransform)"/>
+        /// overload is retained for backward compatibility.
+        /// </remarks>
+        /// <param name="descriptors">The descriptor list from the incoming DDS request.</param>
+        /// <param name="geoTransform">
+        /// Optional geographic transform. Required for <c>dtGeoSpatial</c> coordinate conversion.
+        /// </param>
+        /// <param name="compiler">
+        /// Shared <see cref="JsonAttributeCompiler"/> used to apply Name and Affiliation via the
+        /// same routing table as the JSON attribute patch path.
+        /// When <c>null</c> or no compiler is provided, falls back to direct field assignment.
+        /// </param>
+        public static List<object> MapToComponents(
+            List<EntityDescriptorUnion>? descriptors,
+            IGeographicTransform? geoTransform,
+            JsonAttributeCompiler? compiler)
+        {
+            if (compiler == null)
+                return MapToComponents(descriptors, geoTransform);
+
+            var result = new List<object>();
+
+            if (descriptors == null)
+                return result;
+
+            foreach (var d in descriptors)
+            {
+                switch (d._d)
+                {
+                    case EDescriptorType.dtEntityMaster:
+                        break;
+
+                    case EDescriptorType.dtEntityInfo:
+                    {
+                        // Use the shared compiler routing table for Name and Affiliation so that
+                        // the same delegates that process JSON patches also handle descriptor data.
+                        var ctx = new ListPatchContext(result);
+
+                        // Build a minimal JSON string with proper string escaping.
+                        string escapedName = JsonSerializer.Serialize(d.EntityInfo.Name ?? string.Empty);
+                        string affStr      = ForceIdentifierToAffiliationString(d.EntityInfo.ForceIdentifier);
+                        compiler.Compile(
+                            $"{{\"Name\":{escapedName},\"Affiliation\":\"{affStr}\"}}",
+                            ctx);
+
+                        // CommanderId is not in the JSON schema; set directly.
+                        ctx.GetManagedComponent<IgEntityData>().CommanderId = d.EntityInfo.CommanderId;
+
+                        result = ctx.FlushComponents();
+                        break;
+                    }
+
+                    case EDescriptorType.dtGeoSpatial:
+                        if (geoTransform != null)
+                        {
+                            var ctx = new ListPatchContext(result);
+                            ApplyGeoSpatialDescriptor(ctx, d.GeoSpatial, geoTransform);
+                            result = ctx.FlushComponents();
+                        }
+                        break;
+
+                    case EDescriptorType.dtGeoSpatialDR:
+                        result.Add(new SimVelocity
+                        {
+                            Linear = Dal3ToEnu(d.GeoSpatialDR.Vel),
+                            Angular = new Vector3(
+                                d.GeoSpatialDR.RotVel.Roll    * (MathF.PI / 180f),
+                                d.GeoSpatialDR.RotVel.Pitch   * (MathF.PI / 180f),
+                                d.GeoSpatialDR.RotVel.Heading * (MathF.PI / 180f))
+                        });
+                        break;
+
+                    default:
+                        FdpLog<Log>.Warn(
+                            "[DescriptorMapper] Unhandled descriptor type: {0} — skipping.", d._d);
+                        break;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Applies the coordinate conversion from a <c>dtGeoSpatial</c> descriptor to a
+        /// <see cref="SimTransform"/> via the provided <see cref="ListPatchContext"/>.
+        /// Sets <c>Position</c> only (no rotation) so the result aligns with the JSON path
+        /// delegates registered for <c>GeoPosition.Latitude/Longitude/Altitude</c>.
+        /// </summary>
+        /// <param name="ctx">The patch context to apply the transform into.</param>
+        /// <param name="geo">The geodetic position source.</param>
+        /// <param name="geoTransform">Transform used to convert geodetic → Cartesian.</param>
+        public static void ApplyGeoSpatialDescriptor(
+            ListPatchContext ctx,
+            GeoSpatial geo,
+            IGeographicTransform geoTransform)
+        {
+            var pos  = geo.Pos;
+            var cart = geoTransform.ToCartesian(pos.Latitude, pos.Longitude, pos.Altitude);
+
+            ref SimTransform st = ref ctx.GetUnmanagedComponent<SimTransform>();
+            st.Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
+        }
+
+        /// <summary>
+        /// Converts a wire-level <see cref="eForceIdentifier"/> to the JSON affiliation string
+        /// expected by the <c>"Affiliation"</c> route in the shared
+        /// <see cref="JsonAttributeCompiler"/>.
+        /// </summary>
+        private static string ForceIdentifierToAffiliationString(eForceIdentifier id) =>
+            id switch
+            {
+                eForceIdentifier.FORCE_FRIENDLY => "FORCE_FRIENDLY",
+                eForceIdentifier.FORCE_OPPOSING => "FORCE_OPPOSING",
+                eForceIdentifier.FORCE_NEUTRAL  => "FORCE_NEUTRAL",
+                _                               => "FORCE_UNKNOWN",
+            };
 
         /// <summary>
         /// Converts a compass heading (degrees, clockwise from North) to a normalised 2-D forward

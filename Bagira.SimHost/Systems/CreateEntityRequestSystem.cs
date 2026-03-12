@@ -8,6 +8,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network.Interfaces;
 
@@ -45,6 +46,7 @@ namespace Bagira.SimHost.Systems
         private readonly INetworkIdAllocator        _idAllocator;
         private readonly IGeographicTransform?      _geoTransform;
         private readonly int                        _localNodeId;
+        private readonly JsonAttributeCompiler?     _jsonCompiler;
 
         // Pre-validated requests waiting to be converted into SpawnEntityCommands.
         // Capacity pre-allocated to absorb large bursts without resizing.
@@ -59,13 +61,19 @@ namespace Bagira.SimHost.Systems
         /// Optional geographic transform for converting WGS84 GeoSpatial positions to local Cartesian.
         /// When <c>null</c>, GeoSpatial descriptors are included without a VehicleState override.
         /// </param>
+        /// <param name="jsonAttributeCompiler">
+        /// Optional <see cref="JsonAttributeCompiler"/> for applying <c>InitialAttributesJson</c>
+        /// overrides after descriptors have been mapped to components.
+        /// When <c>null</c>, <c>InitialAttributesJson</c> is ignored.
+        /// </param>
         public CreateEntityRequestSystem(
             ICreateEntityRequestSource requestSource,
             ICreateEntityAckSink       ackSink,
             ITkbDatabase               tkbDb,
             INetworkIdAllocator        idAllocator,
             int                        localNodeId,
-            IGeographicTransform?      geoTransform = null)
+            IGeographicTransform?      geoTransform = null,
+            JsonAttributeCompiler?     jsonAttributeCompiler = null)
         {
             _requestSource = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
             _ackSink       = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
@@ -73,6 +81,7 @@ namespace Bagira.SimHost.Systems
             _idAllocator   = idAllocator   ?? throw new ArgumentNullException(nameof(idAllocator));
             _localNodeId   = localNodeId;
             _geoTransform  = geoTransform;
+            _jsonCompiler  = jsonAttributeCompiler;
         }
 
         /// <summary>Number of requests currently buffered and awaiting spawn commands.</summary>
@@ -153,8 +162,15 @@ namespace Bagira.SimHost.Systems
                 List<object> allComponents =
                     DescriptorMapper.MapToComponents(pending.Request.InitialDescriptors, _geoTransform);
 
-                // 2. JSON attribute patches in InitialAttributesJson are applied by
-                //    JsonAttributeCompiler (ATTR-S5T2). Not yet implemented.
+                // 2. Apply JSON attribute patches from InitialAttributesJson (ATTR-S5T2).
+                //    Patches are applied AFTER descriptor-based defaults so fine-grained
+                //    overrides win over template values.
+                if (_jsonCompiler != null && !string.IsNullOrEmpty(pending.Request.InitialAttributesJson))
+                {
+                    var patchContext = new ListPatchContext(allComponents);
+                    _jsonCompiler.Compile(pending.Request.InitialAttributesJson, patchContext);
+                    allComponents = patchContext.FlushComponents();
+                }
 
                 // 3. Separate unmanaged structs into explicit typed SpawnEntityCommand fields
                 //    to avoid boxing them as List<object> items on the LOH (GC02).

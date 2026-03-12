@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
+using Fdp.Kernel;
 
 namespace Bagira.Map.Common.Replication.Utils;
 
@@ -112,6 +113,18 @@ public sealed class JsonAttributeCompiler
     /// Exposes the routing table so <see cref="EcsPatchContext"/> can be constructed with it.
     /// </summary>
     internal IReadOnlyDictionary<ulong, RoutingEntry> Routes => _routes;
+
+    /// <summary>
+    /// Creates an <see cref="EcsPatchContext"/> bound to the specified repository and entity,
+    /// using this compiler's routing table for ordinal lookup during
+    /// <see cref="EcsPatchContext.FlushDirtyMarks"/>.
+    /// </summary>
+    /// <remarks>
+    /// Prefer this factory method over constructing <see cref="EcsPatchContext"/> directly;
+    /// the constructor is <c>internal</c> and requires access to the routing entry type.
+    /// </remarks>
+    public EcsPatchContext CreatePatchContext(EntityRepository repo, Entity entity)
+        => new EcsPatchContext(repo, entity, _routes);
 
     internal JsonAttributeCompiler(IReadOnlyDictionary<ulong, RoutingEntry> routes)
     {

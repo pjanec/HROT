@@ -153,6 +153,12 @@ namespace Bagira.SimHost
             // ── 5. Geodetic configuration ─────────────────────────────────────
             var wgs84 = BagiraEnvironment.CreateGeoTransform();
 
+            // ── 5a. JSON Attribute Compiler (ATTR-S5T1 / ATTR-S5T4) ───────────
+            // Builds the zero-allocation JSON attribute compiler with routing delegates
+            // for Name, Affiliation, and GeoPosition registered at startup.  The same
+            // instance is shared by CreateEntityRequestSystem and UpdateEntityAttributeRequestSystem.
+            var jsonAttributeCompiler = AttributeCompilerFactory.Build(wgs84);
+
             // ── 6. Doctrine registry ──────────────────────────────────────────
             var doctrineRegistry = new DoctrineRegistry();
             doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
@@ -187,7 +193,7 @@ namespace Bagira.SimHost
             _kernelGroup.Create(_world);
             _kernelGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
             _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
-            _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant, entityMap, wgs84));
+            _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant, entityMap, wgs84, jsonAttributeCompiler));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
             // Seed GlobalTime singleton.
@@ -214,7 +220,7 @@ namespace Bagira.SimHost
             var simHostMod = new SimHostModule(
                 ddsParticipant, tkbDb, _idAllocator, SimHostNetworkConstants.LocalNodeId,
                 spawningSystem, entityMap, doctrineRegistry,
-                new GhostCreationSystem(entityMap), wgs84);
+                new GhostCreationSystem(entityMap), wgs84, jsonAttributeCompiler);
             _kernel.RegisterModule(simHostMod);
 
             // ── 10. Network module ──────────────────────────────────────────

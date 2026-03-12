@@ -1,0 +1,151 @@
+using System.Numerics;
+using System.Text.Json;
+using Bagira.BDC.SSTD;
+using Bagira.IG.Components;
+using Bagira.Map.Common.Replication.Utils;
+using Fdp.Kernel;
+using Fdp.Modules.Geographic;
+
+namespace Bagira.SimHost;
+
+/// <summary>
+/// Builds the application-wide <see cref="JsonAttributeCompiler"/> singleton used by
+/// <see cref="Systems.CreateEntityRequestSystem"/> and
+/// <see cref="Bagira.Map.Common.Systems.UpdateEntityAttributeRequestSystem"/>.
+///
+/// <para>
+/// Registers the following JSON attribute paths:
+/// <list type="bullet">
+///   <item><c>"Name"</c> → <see cref="IgEntityData.Name"/> (ordinal: <c>dtEntityInfo</c>)</item>
+///   <item><c>"Affiliation"</c> → <see cref="IgEntityData.ForceId"/> (ordinal: <c>dtEntityInfo</c>)</item>
+///   <item><c>"GeoPosition.Latitude"</c>, <c>"GeoPosition.Longitude"</c>, <c>"GeoPosition.Altitude"</c>
+///         → <see cref="FDP.Toolkit.Replication.Components.SimTransform.Position"/> via
+///         <c>IGeographicTransform.ToCartesian</c> (ordinal: <c>dtGeoSpatial</c>).
+///         Registered only when <paramref name="geoTransform"/> is non-null.</item>
+/// </list>
+/// </para>
+/// </summary>
+public static class AttributeCompilerFactory
+{
+    private const long EntityInfoOrdinal  = (long)EDescriptorType.dtEntityInfo;
+    private const long GeoSpatialOrdinal  = (long)EDescriptorType.dtGeoSpatial;
+
+    // ── Public factory ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Constructs an immutable <see cref="JsonAttributeCompiler"/> with the standard SimHost
+    /// attribute routing table.
+    /// </summary>
+    /// <param name="geoTransform">
+    /// Geographic transform used to convert geodetic coordinates to local Cartesian space.
+    /// When <c>null</c>, <c>GeoPosition</c> leaf paths are not registered and geo-position
+    /// patches are silently ignored.
+    /// </param>
+    public static JsonAttributeCompiler Build(IGeographicTransform? geoTransform)
+    {
+        var builder = new AttributeCompilerBuilder()
+
+            // ── IgEntityData — managed class paths ────────────────────────────
+            .RegisterReferencePath<IgEntityData>(
+                "Name",
+                (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                    c.Name = r.GetString() ?? string.Empty,
+                descriptorOrdinal: EntityInfoOrdinal)
+
+            .RegisterReferencePath<IgEntityData>(
+                "Affiliation",
+                (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                    c.ForceId = MapAffiliationString(r.GetString()),
+                descriptorOrdinal: EntityInfoOrdinal);
+
+        // ── SimTransform — unmanaged struct paths (GeoPosition) ───────────────
+        if (geoTransform != null)
+        {
+            var acc = new GeoCoordAccumulator(geoTransform);
+
+            builder
+                .RegisterValuePath<SimTransform>(
+                    "GeoPosition.Latitude",
+                    (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                    {
+                        acc.Lat = r.GetDouble();
+                        acc.TryApply(ref st);
+                    },
+                    descriptorOrdinal: GeoSpatialOrdinal)
+
+                .RegisterValuePath<SimTransform>(
+                    "GeoPosition.Longitude",
+                    (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                    {
+                        acc.Lon = r.GetDouble();
+                        acc.TryApply(ref st);
+                    },
+                    descriptorOrdinal: GeoSpatialOrdinal)
+
+                .RegisterValuePath<SimTransform>(
+                    "GeoPosition.Altitude",
+                    (ref SimTransform st, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                    {
+                        acc.Alt = r.GetDouble();
+                        acc.TryApply(ref st);
+                    },
+                    descriptorOrdinal: GeoSpatialOrdinal);
+        }
+
+        return builder.Build();
+    }
+
+    // ── Internal helpers ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Maps a JSON affiliation string (e.g. <c>"FORCE_FRIENDLY"</c>) to a <see cref="ForceId"/>.
+    /// Unrecognised values map to <see cref="ForceId.Unknown"/>.
+    /// </summary>
+    internal static ForceId MapAffiliationString(string? value) =>
+        value switch
+        {
+            "FORCE_FRIENDLY" => ForceId.Friend,
+            "FORCE_OPPOSING" => ForceId.Hostile,
+            "FORCE_NEUTRAL"  => ForceId.Neutral,
+            _                => ForceId.Unknown,
+        };
+
+    /// <summary>
+    /// Accumulates individual GeoPosition leaf values (Latitude, Longitude, Altitude) and
+    /// fires the Cartesian coordinate conversion only when all three are available.
+    /// Resets automatically after a successful conversion to prepare for the next entity.
+    /// </summary>
+    /// <remarks>
+    /// A single accumulator instance is captured by all three GeoPosition delegates registered
+    /// in <see cref="Build"/>. The delegates fire sequentially within a single
+    /// <c>JsonAttributeCompiler.Compile</c> call, so there is no concurrency concern.
+    /// Partial updates (fewer than three fields) are silently deferred; the final value applied
+    /// is always the result of the last complete Latitude/Longitude/Altitude triple received.
+    /// </remarks>
+    private sealed class GeoCoordAccumulator
+    {
+        private readonly IGeographicTransform _geo;
+
+        public double? Lat { get; set; }
+        public double? Lon { get; set; }
+        public double? Alt { get; set; }
+
+        public GeoCoordAccumulator(IGeographicTransform geo) => _geo = geo;
+
+        /// <summary>
+        /// Attempts to apply the accumulated coordinates to <paramref name="st"/>.
+        /// Fires only when all three (Lat, Lon, Alt) are non-null, then resets.
+        /// </summary>
+        public void TryApply(ref SimTransform st)
+        {
+            if (!Lat.HasValue || !Lon.HasValue || !Alt.HasValue)
+                return;
+
+            var cart = _geo.ToCartesian(Lat.Value, Lon.Value, Alt.Value);
+            st.Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
+
+            // Reset for subsequent entities.
+            Lat = Lon = Alt = null;
+        }
+    }
+}
