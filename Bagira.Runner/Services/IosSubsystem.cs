@@ -150,14 +150,18 @@ namespace Bagira.Runner.Services
                 new(TkbEntityTypes.Tank_T72,           "T-72"),
                 new(TkbEntityTypes.Infantry_Rifleman,  "Infantry Rifleman"),
                 new(TkbEntityTypes.Infantry_Officer,   "Infantry Officer"),
-                new(TkbEntityTypes.Unit_TankPlatoon,   "Tank Platoon"),
-                new(TkbEntityTypes.Unit_InfantrySquad, "Infantry Squad"),
+                new(TkbEntityTypes.Unit_TankPlatoon,   "Tank Platoon (Empty)"),
+                new(TkbEntityTypes.Unit_InfantrySquad, "Infantry Squad (Empty)"),
+                new(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto-Spawn)"),
             };
+
+            // Conceptually, ORBAT panel should only create organizational units.
+            var orbatCatalog = tkbCatalog.Where(e => e.Name.Contains("Platoon") || e.Name.Contains("Squad")).ToArray();
 
             _mock = new IosMock(
                 logic:            logic,
                 configPanel:      new ConfigPanel(),
-                orbatPanel:       new OrbatPanel(),
+                orbatPanel:       new OrbatPanel(orbatCatalog),
                 missionPanel:     new MissionPanel(),
                 interactionPanel: interactionPanel,
                 spawnerPanel:     new SpawnerPanel(tkbCatalog),

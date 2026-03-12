@@ -20,5 +20,6 @@ namespace Bagira.Map.Common
         // Composite Units
         public const long Unit_TankPlatoon = 301;
         public const long Unit_InfantrySquad = 302;
+        public const long Unit_TankPlatoon_Auto = 303;
     }
 }

@@ -211,6 +211,24 @@ namespace Bagira.Map.Definitions.Tkb
                 })
                 .WithDisType(TkbEntityTypes.Unit_InfantrySquad, new DISEntityType { Kind = 1, Domain = 1 });
 
+            // Tank Platoon (Auto-Spawning)
+            builder
+                .DefineVehicle(TkbEntityTypes.Unit_TankPlatoon_Auto, "Tank Platoon (Auto Spawn)")
+                .WithVisual(TkbEntityTypes.Unit_TankPlatoon_Auto, v =>
+                {
+                    v.SymbolCode = "SFGPUCIZ--H----"; // Platoon echelon
+                    v.ColorHex = "#0000FF";
+                    v.Scale = 1.5f;
+                })
+                .WithFaction(TkbEntityTypes.Unit_TankPlatoon_Auto, 1)
+                .AsComposite(TkbEntityTypes.Unit_TankPlatoon_Auto, comp =>
+                {
+                    comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, RoleTag = "Tank" });
+                    comp.Echelon = "Platoon";
+                    comp.AutoCreateChildren = true; // The engine will now auto-spawn 4x M1 Abrams when this is created
+                })
+                .WithDisType(TkbEntityTypes.Unit_TankPlatoon_Auto, new DISEntityType { Kind = 1, Domain = 1 });
+
             // Tactical graphic: area overlay
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
             areaTemplate.AddComponent(new FDP.Toolkit.Replication.Components.NetworkTransform());

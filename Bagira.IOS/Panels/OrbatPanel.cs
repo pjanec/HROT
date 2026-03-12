@@ -52,6 +52,19 @@ public sealed class OrbatPanel
 
     private readonly HashSet<int> _expandedNodes = new();
     private string _filterText = string.Empty;
+    
+    private readonly List<TkbCatalogEntry> _catalog;
+    private long _selectedType = 0;
+
+    // Inject the catalog. Default to empty to avoid breaking parameterless tests.
+    public OrbatPanel(IEnumerable<TkbCatalogEntry>? catalog = null)
+    {
+        _catalog = catalog?.ToList() ?? new List<TkbCatalogEntry>();
+        if (_catalog.Count > 0)
+        {
+            _selectedType = _catalog[0].TkbId;
+        }
+    }
 
     // ── Public state accessors ────────────────────────────────────────────────
 
@@ -136,7 +149,7 @@ public sealed class OrbatPanel
     }
 
     /// <summary>
-    /// Activates the IG placement tool for a new infantry squad.
+    /// Activates the IG placement tool for a new unit.
     ///
     /// <para><b>Architecture note</b>: this method intentionally performs <em>no</em>
     /// local DER repository mutations.  The authoritative lifecycle is:<br/>
@@ -150,11 +163,16 @@ public sealed class OrbatPanel
     public void HandleNewUnitClick(IIosLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
+        
+        if (_selectedType == 0) return; // Guard against uninitialized selection
+
         string propsJson = System.Text.Json.JsonSerializer.Serialize(new
         {
             affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString()
         });
-        logic.StartPlacementMode(TkbEntityTypes.Unit_InfantrySquad, propsJson);
+        
+        // Dynamically request the selected type instead of hardcoding Unit_InfantrySquad
+        logic.StartPlacementMode(_selectedType, propsJson);
     }
 
     // ── Visible node list (testable, used by Draw in Phase P9) ────────────────
@@ -228,6 +246,27 @@ public sealed class OrbatPanel
             }
             else if (_expandedNodes.Contains(node.EntityId))
                 ToggleExpanded(node.EntityId);
+        }
+
+        ImGui.Separator();
+
+        // Render the Combo Box for Unit selection
+        if (_catalog.Count > 0)
+        {
+            string previewText = _catalog.FirstOrDefault(c => c.TkbId == _selectedType)?.Name ?? "(none)";
+            if (ImGui.BeginCombo("Unit Type", previewText))
+            {
+                foreach (var entry in _catalog)
+                {
+                    bool isSelected = entry.TkbId == _selectedType;
+                    if (ImGui.Selectable($"{entry.Name} (Type:{entry.TkbId})", isSelected))
+                        _selectedType = entry.TkbId;
+                    
+                    if (isSelected)
+                        ImGui.SetItemDefaultFocus();
+                }
+                ImGui.EndCombo();
+            }
         }
 
         if (ImGui.Button("New Unit...")) HandleNewUnitClick(logic);

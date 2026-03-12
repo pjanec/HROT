@@ -230,11 +230,29 @@ namespace Bagira.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
             
-            template.AddManagedComponent(() => 
+            // Evaluate composition immediately to populate TkbTemplate metadata.
+            var compositionDef = new TkbCompositionDef();
+            configure(compositionDef);
+
+            if (compositionDef.AutoCreateChildren)
             {
-                var compositionDef = new TkbCompositionDef();
-                configure(compositionDef);
-                return compositionDef;
+                foreach (var slot in compositionDef.Subordinates)
+                {
+                    for (int i = 0; i < slot.Count; i++)
+                    {
+                        template.ChildBlueprints.Add(new ChildBlueprintDefinition(
+                            instanceId: template.ChildBlueprints.Count + 1,
+                            childTkbType: slot.TkbType
+                        ));
+                    }
+                }
+            }
+
+            template.AddManagedComponent(() =>
+            {
+                var freshDef = new TkbCompositionDef();
+                configure(freshDef);
+                return freshDef;
             });
             return this;
         }

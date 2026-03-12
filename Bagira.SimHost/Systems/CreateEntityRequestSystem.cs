@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
+using Bagira.BDC.SSTD;
 using Bagira.Map.Common.Replication.Utils;
 using FDP.Kernel.Logging;
 using Fdp.Interfaces;
@@ -190,7 +191,58 @@ namespace Bagira.SimHost.Systems
                         InitialComponents = fallbackComponents,
                         RequestId         = pending.Request.RequestId,
                     });
-                }
+                    // 5. Automatically spawn child entities if defined in the TKB template.
+                    if (_tkbDb.TryGetByType(pending.TkbType, out var parentTemplate) && parentTemplate.ChildBlueprints.Count > 0)
+                    {
+                        Bagira.IG.Components.IgEntityData parentInfo = null;
+                        if (fallbackComponents != null)
+                        {
+                            foreach (var comp in fallbackComponents)
+                            {
+                                if (comp is Bagira.IG.Components.IgEntityData info)
+                                {
+                                    parentInfo = info;
+                                    break; // Found the metadata component
+                                }
+                            }
+                        }
+
+                        foreach (var childDef in parentTemplate.ChildBlueprints)
+                        {
+                            long childNetworkId = _idAllocator.AllocateId();
+                            
+                            // Try to get child template to retrieve its DisType
+                            ulong childDisType = 0;
+                            if (_tkbDb.TryGetByType(childDef.ChildTkbType, out var childTemplate))
+                            {
+                                childDisType = childTemplate.DisType.Value;
+                            }
+
+                            var childComponents = new List<object>();
+                            if (parentInfo != null)
+                            {
+                                childComponents.Add(new Bagira.IG.Components.IgEntityData
+                                {
+                                    Name = $"{parentInfo.Name}-{childDef.InstanceId}",
+                                    ForceId = parentInfo.ForceId,
+                                    CommanderId = (int)pending.NetworkId
+                                });
+                            }
+
+                            repo.Bus.PublishManaged(new SpawnEntityCommand
+                            {
+                                NetworkId         = childNetworkId,
+                                TkbType           = childDef.ChildTkbType,
+                                OwnerNodeId       = _localNodeId,
+                                DisType           = childDisType,
+                                InitType          = ReliableInitType.AllPeers,
+                                InitialTransform  = initialTransform, // Spawn at parent pos
+                                InitialVelocity   = initialVelocity,
+                                InitialComponents = childComponents.Count > 0 ? childComponents : null,
+                                RequestId         = Guid.NewGuid(), // Separate trace ID for child
+                            });
+                        }
+                    }                }
 
                 FdpLog<CreateEntityRequestSystem>.Info(
                     $"[SimHost] Queued spawn entity {pending.NetworkId} (TkbType={pending.TkbType}) " +
