@@ -153,12 +153,8 @@ namespace Bagira.SimHost.Systems
                 List<object> allComponents =
                     DescriptorMapper.MapToComponents(pending.Request.InitialDescriptors, _geoTransform);
 
-                // 2. Apply fine-grained attribute patches.
-                //    A single deduplicating pass via EntityAttributeCompiler ensures no
-                //    component type appears twice even if multiple attributes target it.
-                if (pending.Request.InitialAttributes?.Count > 0)
-                    allComponents = EntityAttributeCompiler.CompileOverrides(
-                        pending.Request.InitialAttributes, allComponents, _geoTransform);
+                // 2. JSON attribute patches in InitialAttributesJson are applied by
+                //    JsonAttributeCompiler (ATTR-S5T2). Not yet implemented.
 
                 // 3. Separate unmanaged structs into explicit typed SpawnEntityCommand fields
                 //    to avoid boxing them as List<object> items on the LOH (GC02).

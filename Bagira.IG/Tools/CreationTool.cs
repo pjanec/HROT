@@ -38,12 +38,11 @@ namespace Bagira.IG.Tools;
 ///         converted to geodetic lat/lon via <see cref="IGeographicTransform.ToGeodetic"/>
 ///         when a transform is available, or mapped as
 ///         <c>Latitude = worldPos.Y, Longitude = worldPos.X</c> in offline/test mode.</item>
-///   <item>A <see cref="EntityDescriptorUnion"/> (dtEntityInfo) carrying affiliation
-///         and the optional entity name from the <c>initialPropertiesJson</c> override.</item>
 /// </list>
 ///
-/// <see cref="CreateEntityRequest.Owner"/> is left as <c>default(NodeId)</c> (all-zeros)
-/// so the SimHost assigns itself as the authoritative owner (ghost-node convention).
+/// <see cref="CreateEntityRequest.InitialAttributesJson"/> carries the raw
+/// <c>initialPropertiesJson</c> string verbatim so the SimHost's
+/// <c>JsonAttributeCompiler</c> can apply fine-grained field patches (ATTR-S5T2).
 ///
 /// No allocations on the hover / draw hot path (CODE-STANDARDS 4).
 /// The <see cref="List{T}"/> in <see cref="CreateEntityRequest.InitialDescriptors"/> is
@@ -250,9 +249,8 @@ public class CreationTool : IMapTool
 
         // Resolve entity name: prefer the per-click nameResolver delegate (e.g. for
         // session-scoped sequential naming); fall back to any name encoded in the JSON blob.
-        string entityName = _nameResolver?.Invoke() ?? ParseNameFromJson(_initialPropertiesJson);
-
-        ForceId aff = _affiliationForDisplay;
+        // NOTE: name resolution is forwarded via InitialAttributesJson so SimHost applies
+        // it through JsonAttributeCompiler (ATTR-S5T2). nameResolver is retained for future use.
 
         var request = new CreateEntityRequest
         {
@@ -279,43 +277,12 @@ public class CreationTool : IMapTool
                         },
                     },
                 },
-                new EntityDescriptorUnion
-                {
-                    _d         = EDescriptorType.dtEntityInfo,
-                    EntityInfo = new EntityInfo
-                    {
-                        EntityId        = 0, // SimHost overwrites with allocated ID
-                        Name            = entityName,
-                        ForceIdentifier = MapAffiliation(aff),
-                        CommanderId     = 0,
-                    },
-                },
             },
+            InitialAttributesJson = _initialPropertiesJson,
         };
 
         _onEntityCreated(request);
         OnCommandPublished?.Invoke(request);
-    }
-
-    /// <summary>
-    /// Parses the <c>"name"</c> field from <paramref name="json"/>.
-    /// Returns an empty string when the field is absent, null, or the JSON is malformed.
-    /// </summary>
-    private static string ParseNameFromJson(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return string.Empty;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            if (root.TryGetProperty("name", out var nameEl)
-             && nameEl.ValueKind == JsonValueKind.String)
-            {
-                return nameEl.GetString() ?? string.Empty;
-            }
-        }
-        catch { /* Silently ignore malformed JSON; fall back to empty name. */ }
-        return string.Empty;
     }
 
     /// <summary>
@@ -352,17 +319,5 @@ public class CreationTool : IMapTool
             ForceId.Hostile => Color.Red,
             ForceId.Neutral => Color.Green,
             _               => Color.White,
-        };
-
-    /// <summary>
-    /// Maps a local <see cref="ForceId"/> to the DDS-layer <see cref="eForceIdentifier"/> enum.
-    /// </summary>
-    private static eForceIdentifier MapAffiliation(ForceId affiliation) =>
-        affiliation switch
-        {
-            ForceId.Friend  => eForceIdentifier.FORCE_FRIENDLY,
-            ForceId.Hostile => eForceIdentifier.FORCE_OPPOSING,
-            ForceId.Neutral => eForceIdentifier.FORCE_NEUTRAL,
-            _               => eForceIdentifier.FORCE_UNKNOWN,
         };
 }

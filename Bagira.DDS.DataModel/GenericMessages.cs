@@ -126,12 +126,11 @@ namespace Bagira.BDC.SSTM
         public List<EntityDescriptorUnion> InitialDescriptors;
 
         // Optional fine-grained attribute overrides applied AFTER TKB defaults and
-        // InitialDescriptors have been processed.  This lets callers set individual
-        // fields (e.g. just the Name) without having to supply a full EntityInfo
-        // descriptor, preventing accidental data-loss from monolithic descriptor
-        // overwrites.
+        // InitialDescriptors have been processed.  Expressed as a JSON object whose
+        // keys are property paths (e.g. { "Name": "Alpha", "GeoPosition": { ... } }).
+        // Processed by JsonAttributeCompiler — see ATTR-DESIGN.md §3.
         [DdsManaged]
-        public List<EntityAttributePayload>? InitialAttributes;
+        public string? InitialAttributesJson;
     }
 
     // Acknowledgment for entity creation.
@@ -189,29 +188,6 @@ namespace Bagira.BDC.SSTM
         public int ErrorCode;
     }
 
-    // All possible entity attributes we can change (if the entity supports it).
-    public enum EntityAttribute
-    {
-        eaName,
-        eaGeoPosition
-    }
-
-    // Unified attribute payload - what data we provide for the attrinute
-    [DdsUnion]
-    [DdsIdlFile("bdc-sst-generic-msgs")]
-    [DdsManaged]
-    public partial struct EntityAttributePayload
-    {
-        [DdsDiscriminator]
-        public EntityAttribute _d;
-
-        [DdsCase(EntityAttribute.eaName)]
-        public string Name;
-
-        [DdsCase(EntityAttribute.eaGeoPosition)]
-        public GeoPosition GeoPosition;
-    }
-
     // SST-compliant entity single field update request
     // GENERIC - reusable across any SST application (map, radio, weather, etc.)
     // Used ONLY for updating attributes indescriptors owned by other participants
@@ -226,9 +202,11 @@ namespace Bagira.BDC.SSTM
 
         public int EntityId;
 
-        public EntityAttribute AttributeId; // what field to change
-
-        public EntityAttributePayload Payload;
+        // Hierarchical JSON attribute patch, e.g. {"Name":"Bravo-2"} or
+        // {"Weapons":{"0":{"Ammo":{"Count":5}}}}.  Processed by JsonAttributeCompiler
+        // using the same routing table as CreateEntityRequest.InitialAttributesJson.
+        [DdsManaged]
+        public string AttributePatchJson;
     }
 
     // Acknowledgment for entity creation, descriptor update, deletion, attribute update.

@@ -266,27 +266,30 @@ public class CreationToolTests
     }
 
     /// <summary>
-    /// When a <c>nameResolver</c> is provided it must supply the entity name
-    /// instead of the JSON-derived one.
+    /// With the dumb-pipe design the <c>nameResolver</c> delegate is retained for
+    /// future use but no longer affects the outgoing descriptor list.  The request
+    /// must still fire without throwing and <see cref="CreateEntityRequest.InitialAttributesJson"/>
+    /// is <c>null</c> because no <c>initialPropertiesJson</c> was supplied.
     /// </summary>
     [Fact]
-    public void HandleClick_LeftClick_NameResolver_UsedInsteadOfJsonName()
+    public void HandleClick_LeftClick_NameResolver_DoesNotThrowAndInitialAttributesJsonIsNull()
     {
         var (captured, tool) = CreateToolWithResolver(() => "Generated-5");
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        var infoEntry = captured[0].InitialDescriptors
-            .First(d => d._d == EDescriptorType.dtEntityInfo);
-        Assert.Equal("Generated-5", infoEntry.EntityInfo.Name);
+        Assert.Single(captured);
+        Assert.Null(captured[0].InitialAttributesJson);
     }
 
     /// <summary>
-    /// The resolver must be called once per click, enabling session-sequential
-    /// naming — the second click receives a different name than the first.
+    /// With the dumb-pipe design the resolver delegate is invoked on each click
+    /// (retained for future wiring) but does not affect the outgoing message.
+    /// Verify that two successive clicks still fire two requests using the same
+    /// <c>InitialAttributesJson = null</c> payload.
     /// </summary>
     [Fact]
-    public void HandleClick_LeftClick_NameResolver_IncrementsBetweenClicks()
+    public void HandleClick_LeftClick_NameResolver_TwoClicksProduceTwoRequests()
     {
         int callIndex = 0;
         var (captured, tool) = CreateToolWithResolver(() => "G-" + ++callIndex);
@@ -294,27 +297,97 @@ public class CreationToolTests
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        Assert.Equal("G-1", captured[0].InitialDescriptors
-            .First(d => d._d == EDescriptorType.dtEntityInfo).EntityInfo.Name);
-        Assert.Equal("G-2", captured[1].InitialDescriptors
-            .First(d => d._d == EDescriptorType.dtEntityInfo).EntityInfo.Name);
+        Assert.Equal(2, captured.Count);
+        // InitialAttributesJson is null in both because no initialPropertiesJson was supplied.
+        Assert.Null(captured[0].InitialAttributesJson);
+        Assert.Null(captured[1].InitialAttributesJson);
     }
 
     /// <summary>
-    /// When no resolver is supplied and <c>initialPropertiesJson</c> contains a
-    /// <c>name</c> field the tool must use that JSON-derived name.
+    /// When no resolver is supplied <c>InitialAttributesJson</c> carries the
+    /// raw <c>initialPropertiesJson</c> string verbatim (dumb-pipe forwarding).
     /// </summary>
     [Fact]
-    public void HandleClick_LeftClick_NullNameResolver_FallsBackToJsonName()
+    public void HandleClick_LeftClick_NullNameResolver_InitialAttributesJsonForwardedVerbatim()
     {
-        const string jsonName = "MyUnit";
+        const string json = "{\"name\":\"MyUnit\"}";
         var (captured, tool) = CreateTool(
-            initialPropertiesJson: $"{{\"name\":\"{jsonName}\"}}");
+            initialPropertiesJson: json);
 
         tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
 
-        var infoEntry = captured[0].InitialDescriptors
-            .First(d => d._d == EDescriptorType.dtEntityInfo);
-        Assert.Equal(jsonName, infoEntry.EntityInfo.Name);
+        Assert.Equal(json, captured[0].InitialAttributesJson);
+    }
+
+    // ── ATTR-S2T1: dumb-pipe descriptor / payload tests ──────────────────────
+
+    /// <summary>
+    /// After ATTR-S2T1 the <c>InitialDescriptors</c> list must contain exactly
+    /// two entries — <c>dtEntityMaster</c> and <c>dtGeoSpatial</c>.
+    /// <c>dtEntityInfo</c> must no longer be included.
+    /// </summary>
+    [Fact]
+    public void CreationTool_EmitsOnly_EntityMaster_And_GeoSpatial_Descriptors()
+    {
+        var (captured, tool) = CreateTool();
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        var descriptors = captured[0].InitialDescriptors;
+        Assert.Equal(2, descriptors.Count);
+        Assert.Contains(descriptors, d => d._d == EDescriptorType.dtEntityMaster);
+        Assert.Contains(descriptors, d => d._d == EDescriptorType.dtGeoSpatial);
+        Assert.DoesNotContain(descriptors, d => d._d == EDescriptorType.dtEntityInfo);
+    }
+
+    /// <summary>
+    /// When <c>initialPropertiesJson</c> is supplied at construction time, the
+    /// tool forwards it verbatim as <see cref="CreateEntityRequest.InitialAttributesJson"/>.
+    /// </summary>
+    [Fact]
+    public void CreationTool_SetsInitialAttributesJson_FromInitialPropertiesJson()
+    {
+        const string json = "{\"name\":\"Alpha\",\"affiliation\":\"FORCE_FRIENDLY\"}";
+        var (captured, tool) = CreateTool(initialPropertiesJson: json);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        Assert.Equal(json, captured[0].InitialAttributesJson);
+    }
+
+    /// <summary>
+    /// When no <c>initialPropertiesJson</c> is supplied, <c>InitialAttributesJson</c>
+    /// must be <c>null</c> — the tool must not synthesise a default value.
+    /// </summary>
+    [Fact]
+    public void CreationTool_InitialAttributesJson_IsNull_WhenNoPropertiesJson()
+    {
+        var (captured, tool) = CreateTool(); // no initialPropertiesJson
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        Assert.Null(captured[0].InitialAttributesJson);
+    }
+
+    /// <summary>
+    /// <c>ParseAffiliationFromJson</c> must still be called during construction so
+    /// the ghost-entity colour is correct even though the descriptor list no longer
+    /// carries <c>dtEntityInfo</c>.  Verify by inspecting the private
+    /// <c>_affiliationForDisplay</c> field via reflection.
+    /// </summary>
+    [Fact]
+    public void CreationTool_GhostColor_StillReflectsAffiliation()
+    {
+        const string json = "{\"affiliation\":\"FORCE_FRIENDLY\"}";
+        var captured = new List<CreateEntityRequest>();
+        var tool = new CreationTool(
+            req => captured.Add(req),
+            initialPropertiesJson: json);
+
+        var field = typeof(CreationTool).GetField(
+            "_affiliationForDisplay",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(field);
+        var affiliation = (ForceId)field!.GetValue(tool)!;
+        Assert.Equal(ForceId.Friend, affiliation);
     }
 }
