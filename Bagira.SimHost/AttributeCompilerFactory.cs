@@ -121,6 +121,14 @@ public static class AttributeCompilerFactory
     /// <c>JsonAttributeCompiler.Compile</c> call, so there is no concurrency concern.
     /// Partial updates (fewer than three fields) are silently deferred; the final value applied
     /// is always the result of the last complete Latitude/Longitude/Altitude triple received.
+    ///
+    /// TODO ATTR-BATCH-04: The coordinate math relies on a non-linear WGS84 transformation.
+    /// Because the Earth is curved, "Altitude" does not simply map to the Cartesian Z axis.
+    /// If an entity moves far from the tangent origin, its "Up" vector tilts.
+    /// Thus, to apply a partial update (e.g., just changing the Altitude), we cannot just offset
+    /// Z. We must first perform an inverse calculation: get the current Cartesian Position, 
+    /// convert it to Geodetic (Lat/Lon/Alt) via ToGeodetic, overwrite the provided coordinate(s), 
+    /// and then run ToCartesian again to get the final Cartesian Position.
     /// </remarks>
     private sealed class GeoCoordAccumulator
     {

@@ -281,6 +281,11 @@ namespace Bagira.Map.Common.Replication.Utils
         /// Sets <c>Position</c> only (no rotation) so the result aligns with the JSON path
         /// delegates registered for <c>GeoPosition.Latitude/Longitude/Altitude</c>.
         /// </summary>
+        /// <remarks>
+        /// TODO ATTR-BATCH-03: If new JSON path delegates are added for dtGeoSpatial (e.g. "Heading"),
+        /// this method MUST be updated to maintain convergence between the descriptor-union route
+        /// and the JSON-string route. Enforced currently by DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath.
+        /// </remarks>
         /// <param name="ctx">The patch context to apply the transform into.</param>
         /// <param name="geo">The geodetic position source.</param>
         /// <param name="geoTransform">Transform used to convert geodetic → Cartesian.</param>

@@ -129,12 +129,16 @@ namespace Bagira.Map.Common.Systems
             if (_jsonCompiler != null)
             {
                 // 2a. Build live-ECS patch context for this entity.
+                // TODO ATTR-BATCH-03: CreatePatchContext allocates a new EcsPatchContext and an inner HashSet<long>.
+                // If high-frequency attribute updates (e.g. physics) are introduced, investigate pooling this context.
                 var context = _jsonCompiler.CreatePatchContext(World, entity);
 
                 // 2b. Stream the JSON patch through the routing table.
                 _jsonCompiler.Compile(req.AttributePatchJson, context);
 
                 // 2c. Flush per-entity dirty marks, bypassing chunk-level egress ticks.
+                // TODO ATTR-BATCH-03: Consider adding [MustDisposeResource] and making EcsPatchContext IDisposable
+                // to statically enforce that FlushDirtyMarks is always called before the context goes out of scope.
                 context.FlushDirtyMarks();
             }
             else
