@@ -1028,6 +1028,18 @@ namespace Fdp.Kernel
 
 
         /// <summary>
+        /// Returns true if this peer has authority over the specified component type ID.
+        /// Returns false if the entity is not alive or the bit is not set.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public bool HasAuthority(Entity entity, int componentId)
+        {
+            if (!IsAlive(entity)) return false;
+            ref var header = ref _entityIndex.GetHeader(entity.Index);
+            return header.AuthorityMask.IsSet(componentId);
+        }
+
+        /// <summary>
         /// Sets whether this peer has authority over the specified component by Type ID.
         /// Throws if component is missing from entity's component mask.
         /// </summary>
