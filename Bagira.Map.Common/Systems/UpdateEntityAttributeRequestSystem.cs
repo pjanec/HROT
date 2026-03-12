@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using Bagira.BDC.SSTM;
+using Bagira.DDS.DM;
 using Bagira.Map.Common.Replication.Utils;
 using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
@@ -18,10 +20,25 @@ namespace Bagira.Map.Common.Systems
     /// <see cref="JsonAttributeCompiler"/> and <see cref="EcsPatchContext"/>.
     ///
     /// <para>
+    /// Authority is checked at ECS component type ID level: a route entry is only
+    /// dispatched when <c>EntityHeader.AuthorityMask.IsSet(componentId)</c> returns true.
+    /// Components owned by other nodes are silently skipped (zero-alloc <c>reader.Skip()</c>).
+    /// </para>
+    ///
+    /// <para>
     /// After all delegates fire, <see cref="EcsPatchContext.FlushDirtyMarks"/> is called
     /// to trigger targeted egress (ATTR-S5T3 / ATTR-§3.10). This bypasses coarse
     /// chunk-level ticks, guaranteeing per-entity egress precision.
     /// </para>
+    ///
+    /// <para><b>Silent bystander rule:</b> if this node did not apply any component
+    /// mutations (either because it has no authority or the JSON matched no routes),
+    /// no acknowledgment is sent regardless of <c>RequireAck</c>.</para>
+    ///
+    /// <para><b>Opt-in ACK:</b> a <see cref="CreateUpdateDeleteEntityAck"/> is sent only
+    /// when the request specifies <c>RequireAck = true</c> AND this node applied at least
+    /// one mutation.  The returned <c>OpaqueData</c> is a 256-bit bitmask where
+    /// bit N encodes that ECS component type ID N was applied.</para>
     ///
     /// <para>
     /// Two constructors are provided:
@@ -30,11 +47,6 @@ namespace Bagira.Map.Common.Systems
     ///   <item>DDS constructor — used by production code; creates DDS adapters internally.</item>
     /// </list>
     /// </para>
-    ///
-    /// <para>
-    /// A <see cref="CreateUpdateDeleteEntityAck"/> is always written for every processed sample
-    /// so the originating IG can correlate the response.
-    /// </para>
     /// </summary>
     public sealed class UpdateEntityAttributeRequestSystem : ComponentSystem
     {
@@ -42,6 +54,7 @@ namespace Bagira.Map.Common.Systems
         private readonly IUpdateEntityAttributeAckSink       _ackSink;
         private readonly NetworkEntityMap                    _entityMap;
         private readonly JsonAttributeCompiler?              _jsonCompiler;
+        private readonly NodeId                              _localNodeId;
 
         // ── Interface-based constructor (test-friendly) ───────────────────────
 
@@ -54,18 +67,25 @@ namespace Bagira.Map.Common.Systems
         /// <param name="jsonAttributeCompiler">
         /// Optional zero-allocation JSON attribute compiler.  When non-null, incoming
         /// <c>AttributePatchJson</c> is applied to live ECS components.  When <c>null</c>,
-        /// every request is acknowledged with <c>Success</c> without modifying ECS state.
+        /// every request with <c>RequireAck=true</c> is acknowledged with <c>Success</c>
+        /// without modifying ECS state.
+        /// </param>
+        /// <param name="localNodeId">
+        /// This node's <see cref="NodeId"/>, embedded in every ACK as <c>RespondingNode</c>.
+        /// Defaults to <c>default</c> (zero) when not provided.
         /// </param>
         public UpdateEntityAttributeRequestSystem(
             IUpdateEntityAttributeRequestSource requestSource,
             IUpdateEntityAttributeAckSink       ackSink,
             NetworkEntityMap                    entityMap,
-            JsonAttributeCompiler?              jsonAttributeCompiler = null)
+            JsonAttributeCompiler?              jsonAttributeCompiler = null,
+            NodeId                              localNodeId = default)
         {
             _requestSource = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
             _ackSink       = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
             _entityMap     = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
             _jsonCompiler  = jsonAttributeCompiler;
+            _localNodeId   = localNodeId;
         }
 
         // ── DDS-backed constructor (production) ───────────────────────────────
@@ -83,16 +103,21 @@ namespace Bagira.Map.Common.Systems
         /// <param name="jsonAttributeCompiler">
         /// Optional zero-allocation JSON attribute compiler.
         /// </param>
+        /// <param name="localNodeId">
+        /// This node's <see cref="NodeId"/>, embedded in every ACK as <c>RespondingNode</c>.
+        /// </param>
         public UpdateEntityAttributeRequestSystem(
             DdsParticipant        participant,
             NetworkEntityMap      entityMap,
             IGeographicTransform? geoTransform = null,
-            JsonAttributeCompiler? jsonAttributeCompiler = null)
+            JsonAttributeCompiler? jsonAttributeCompiler = null,
+            NodeId                 localNodeId = default)
             : this(
                 new DdsUpdateEntityAttributeRequestSource(participant),
                 new DdsUpdateEntityAttributeAckSink(participant),
                 entityMap,
-                jsonAttributeCompiler)
+                jsonAttributeCompiler,
+                localNodeId)
         {
         }
 
@@ -121,35 +146,51 @@ namespace Bagira.Map.Common.Systems
                 FdpLog<UpdateEntityAttributeRequestSystem>.Warn(
                     "[UpdAttrReq] Entity {0} not found. RequestId={1}",
                     req.EntityId, req.RequestId);
-                _ackSink.WriteAck(req.RequestId, (int)SstErrorCode.EntityNotFound);
+                // Only ACK if the requester asked for one.
+                if (req.RequireAck)
+                    _ackSink.WriteErrorAck(req.RequestId, (int)SstErrorCode.EntityNotFound);
                 return;
             }
 
-            // 2. Apply JSON attribute patch via zero-allocation compiler (ATTR-S5T3).
-            if (_jsonCompiler != null)
-            {
-                // 2a. Build live-ECS patch context for this entity.
-                // TODO ATTR-BATCH-03: CreatePatchContext allocates a new EcsPatchContext and an inner HashSet<long>.
-                // If high-frequency attribute updates (e.g. physics) are introduced, investigate pooling this context.
-                var context = _jsonCompiler.CreatePatchContext(World, entity);
-
-                // 2b. Stream the JSON patch through the routing table.
-                _jsonCompiler.Compile(req.AttributePatchJson, context);
-
-                // 2c. Flush per-entity dirty marks, bypassing chunk-level egress ticks.
-                // TODO ATTR-BATCH-03: Consider adding [MustDisposeResource] and making EcsPatchContext IDisposable
-                // to statically enforce that FlushDirtyMarks is always called before the context goes out of scope.
-                context.FlushDirtyMarks();
-            }
-            else
+            // 2. No compiler — acknowledge no-op only when explicitly requested.
+            if (_jsonCompiler == null)
             {
                 FdpLog<UpdateEntityAttributeRequestSystem>.Info(
                     "[UpdAttrReq] No JsonAttributeCompiler injected. Acknowledging no-op. " +
                     "EntityId={0}, RequestId={1}",
                     req.EntityId, req.RequestId);
+                if (req.RequireAck)
+                    _ackSink.WriteErrorAck(req.RequestId, (int)SstErrorCode.Success);
+                return;
             }
 
-            _ackSink.WriteAck(req.RequestId, (int)SstErrorCode.Success);
+            // 3. Build live-ECS patch context — component-level authority guard is wired
+            //    into the compiler's Compile() loop via EcsPatchContext.HasAuthority.
+            //    TODO ATTR-BATCH-03: investigate pooling EcsPatchContext for high-frequency updates.
+            var context = _jsonCompiler.CreatePatchContext(World, entity);
+
+            // 4. Stream the JSON patch through the routing table.
+            //    Routes whose component ID is not authorised by this node are silently skipped
+            //    (reader.Skip() — zero allocation, no ECS mutation).
+            _jsonCompiler.Compile(req.AttributePatchJson, context);
+
+            // 5. Flush per-entity dirty marks, bypassing chunk-level egress ticks.
+            context.FlushDirtyMarks();
+
+            // 6. SILENT BYSTANDER RULE — if this node applied nothing, leave quietly.
+            if (!context.HasAppliedAny)
+                return;
+
+            // 7. OPT-IN ACK — send only when the requester asked for a response.
+            if (req.RequireAck)
+            {
+                // Build 32-byte bitmask: bit N = ECS component type ID N was mutated.
+                Span<byte> opaqueMask = stackalloc byte[32];
+                foreach (int compId in context.AppliedComponentIds)
+                    opaqueMask[compId >> 3] |= (byte)(1 << (compId & 7));
+
+                _ackSink.WriteAck(req.RequestId, (int)SstErrorCode.Success, _localNodeId, opaqueMask);
+            }
         }
     }
 
@@ -184,7 +225,16 @@ namespace Bagira.Map.Common.Systems
         public DdsUpdateEntityAttributeAckSink(DdsParticipant participant)
             => _writer = new DdsWriter<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
 
-        public void WriteAck(Guid requestId, int errorCode)
+        public void WriteAck(Guid requestId, int errorCode, NodeId respondingNode, ReadOnlySpan<byte> opaqueData)
+            => _writer.Write(new CreateUpdateDeleteEntityAck
+            {
+                RequestId      = requestId,
+                ErrorCode      = errorCode,
+                RespondingNode = respondingNode,
+                OpaqueData     = new List<byte>(opaqueData.ToArray()),
+            });
+
+        public void WriteErrorAck(Guid requestId, int errorCode)
             => _writer.Write(new CreateUpdateDeleteEntityAck
             {
                 RequestId = requestId,

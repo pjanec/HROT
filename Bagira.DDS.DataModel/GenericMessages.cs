@@ -207,6 +207,10 @@ namespace Bagira.BDC.SSTM
         // using the same routing table as CreateEntityRequest.InitialAttributesJson.
         [DdsManaged]
         public string AttributePatchJson;
+
+        // When true, the processing node must send a CreateUpdateDeleteEntityAck after applying
+        // the patch.  When false (default), the message is fire-and-forget.
+        public bool RequireAck;
     }
 
     // Acknowledgment for entity creation, descriptor update, deletion, attribute update.
@@ -219,5 +223,18 @@ namespace Bagira.BDC.SSTM
 
         // 0 = success
         public int ErrorCode;
+
+        /// <summary>Identifies which node is sending this acknowledgment.</summary>
+        public NodeId RespondingNode;
+
+        /// <summary>
+        /// Optional 32-byte engine-specific execution receipt (256 bits).
+        /// FDP nodes pack a component-mutation bitmask here: bit N is set when ECS component
+        /// type ID N was authorised and written during this request.
+        /// Non-FDP nodes may use this field for custom flags or leave it null/zeroed.
+        /// Serialized as an unbounded DDS octet sequence.
+        /// </summary>
+        [DdsManaged]
+        public List<byte>? OpaqueData;
     }
 }
