@@ -129,3 +129,27 @@ public sealed class EntityRenderer : IImGuiRenderer
     /// </summary>
     public bool RenderValue(object value) => false;
 }
+
+[ImGuiRenderer(typeof(SimTransform))]
+public sealed class SimTransformRenderer : IImGuiRenderer
+{
+    public string? GetSummary(object value)
+    {
+        var st = (SimTransform)value;
+        return $"Pos: [{st.Position.X:G4}, {st.Position.Y:G4}, {st.Position.Z:G4}] Rot: [{st.Rotation.X:G4}, {st.Rotation.Y:G4}, {st.Rotation.Z:G4}, {st.Rotation.W:G4}]";
+    }
+
+    public bool RenderValue(object value) => false;
+}
+
+[ImGuiRenderer(typeof(SimVelocity))]
+public sealed class SimVelocityRenderer : IImGuiRenderer
+{
+    public string? GetSummary(object value)
+    {
+        var sv = (SimVelocity)value;
+        return $"Lin: [{sv.Linear.X:G4}, {sv.Linear.Y:G4}, {sv.Linear.Z:G4}] Ang: [{sv.Angular.X:G4}, {sv.Angular.Y:G4}, {sv.Angular.Z:G4}]";
+    }
+
+    public bool RenderValue(object value) => false;
+}

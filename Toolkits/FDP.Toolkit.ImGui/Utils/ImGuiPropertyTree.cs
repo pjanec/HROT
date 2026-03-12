@@ -93,7 +93,8 @@ public static class ImGuiPropertyTree
             try   { value = GetValue(member, obj); }
             catch { value = null; }
 
-            bool isFoldable = IsFoldable(mType, value);
+            Type effectiveType = value?.GetType() ?? mType;
+            bool isFoldable = IsFoldable(effectiveType, value);
 
             ImGuiApi.TableNextRow();
             ImGuiApi.TableSetColumnIndex(0);
@@ -121,15 +122,15 @@ public static class ImGuiPropertyTree
 
             // ── Value column ───────────────────────────────────────────
             ImGuiApi.TableSetColumnIndex(1);
-            RenderValueCell(value, mType, contextType, isFoldable);
+            RenderValueCell(value, effectiveType, contextType, isFoldable);
 
-            // ── Recurse into children ──────────────────────────────────
+            // ── Recurse into children ──
             if (opened && value != null)
             {
-                if (IsCollectionType(mType))
+                if (IsCollectionType(effectiveType))
                     RenderCollectionRows(value, depth + 1);
                 else
-                    RenderRows(value, mType, contextType, depth + 1);
+                    RenderRows(value, effectiveType, contextType, depth + 1);
 
                 ImGuiApi.TreePop();
             }
