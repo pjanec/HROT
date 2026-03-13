@@ -14,7 +14,7 @@ namespace Bagira.SimHost.Tests
             {
                 Name = "MoveToLocation",
                 BrainTier = BehaviorConstants.BrainTierBTree,
-                ParseParams = SimHostNodes.ParseMoveToParams
+                ParseParams = (json, ptr) => SimHostNodes.ParseMoveToParams(json, ptr, null)
             };
 
             const string json = "{\"x\":12.5,\"y\":-4.25,\"speed\":7.75,\"arrivalRadius\":2.5}";

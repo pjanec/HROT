@@ -127,7 +127,7 @@ namespace Bagira.SimHost.Modules
             // ── 1. MissionDirectorSystem ────────────────────────────────────────
             // Evaluates MissionPlanQueue triggers and advances doctrine phases.
             simGroup.AddSystem(new MissionDirectorSystem());
-
+            simGroup.AddSystem(new DoctrineIngressSystem(_doctrineRegistry));
             // ── 2. Channel arbitration ───────────────────────────────────────────
             // Preempts stale locomotion / weapon / interaction channels when the
             // active doctrine instance changes.

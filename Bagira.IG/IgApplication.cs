@@ -509,6 +509,8 @@ public class IgApplication
         _world.RegisterComponent<HealthData>();
         _world.RegisterComponent<PhysicsCollider>();
 
+        _world.RegisterManagedComponent<Bagira.IG.Components.IgMissionHolder>();
+
         //  IG Advanced Features components 
         _world.RegisterComponent<HistoryTrail>();
         _world.RegisterComponent<VisualEffectState>();
@@ -726,8 +728,10 @@ public class IgApplication
 
 
                 if (!_headless)
-
+                {
                     customTranslators.Add(new FireInteractionEventTranslator(participant, _entityMap));
+                    customTranslators.Add(new Bagira.IG.Translators.IgMissionIngressTranslator(participant, _entityMap, _ghostCreationSystem));
+                }
 
 
 
@@ -927,9 +931,10 @@ public class IgApplication
             .Build();
 
         var overlayLayer = new MapOverlayRenderLayer(_world, overlayQuery);
-
         _canvas.AddLayer(overlayLayer);
 
+        var missionLayer = new Bagira.IG.Systems.MissionRenderLayer(_world, _geoTransform);
+        _canvas.AddLayer(missionLayer);
 
 
         // StandardInteractionTool ÔÇö default canvas tool wiring selection to ECS.
@@ -950,7 +955,7 @@ public class IgApplication
 
         {
 
-            interactionTool.OnWorldClick += OnCanvasClicked;
+            interactionTool.OnWorldClick += (worldPos, button, shift, ctrl, hit) => OnCanvasClicked(worldPos, button, shift, ctrl, hit, true);
 
             interactionTool.OnEntityDragEnd += OnEntityDragEnded;
 
@@ -1898,7 +1903,7 @@ public class IgApplication
 
     /// </summary>
 
-    private void OnCanvasClicked(Vector2 worldPos, MouseButton button, bool shift, bool ctrl, Entity hit)
+    private void OnCanvasClicked(Vector2 worldPos, MouseButton button, bool shift, bool ctrl, Entity hit, bool updateSelection = true)
 
     {
 
@@ -1960,7 +1965,7 @@ public class IgApplication
 
         // Publish selection state so IOS can update the "Selection & Mission" panel.
         // A non-empty hit selects the entity; an empty-space click clears the selection.
-        if (_selectionWriter != null)
+        if (updateSelection && _selectionWriter != null)
         {
             var selIds = hitStack.Count > 0
                 ? hitStack.ConvertAll(r => r.EntityId)
@@ -3149,7 +3154,7 @@ public class IgApplication
 
         var tool = new LocationPickerTool();
         tool.OnLocationPicked += worldPos =>
-            OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null);
+            OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null, updateSelection: false);
         tool.OnCancelled += () =>
             FdpLog<IgApplication>.Debug("[IG] LocationPicker cancelled.");
 
@@ -3226,7 +3231,7 @@ public class IgApplication
         {
             // Re-use OnCanvasClicked to publish the MapClickEvent.
             // The entity will appear in HitStack so the IOS receives the networkId.
-            OnCanvasClicked(Vector2.Zero, MouseButton.Left, false, false, entity);
+            OnCanvasClicked(Vector2.Zero, MouseButton.Left, false, false, entity, updateSelection: false);
             FdpLog<IgApplication>.Info("[IG] EntityPicker picked entity {0}", entity.Index);
         };
 

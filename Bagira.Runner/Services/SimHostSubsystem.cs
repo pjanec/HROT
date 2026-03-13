@@ -412,12 +412,32 @@ namespace Bagira.Runner.Services
 
             // ── 4. Doctrine registry ──────────────────────────────────────────
             var doctrineRegistry = new DoctrineRegistry();
-            doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
-                new DoctrineDefinition { Name = "MoveToLocation", BrainTier = BehaviorConstants.BrainTierBTree });
-            doctrineRegistry.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
-                new DoctrineDefinition { Name = "FollowRoute",   BrainTier = BehaviorConstants.BrainTierBTree });
+            unsafe
+            {
+                doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
+                    new DoctrineDefinition
+                    {
+                        Name             = "MoveToLocation",
+                        BrainTier        = BehaviorConstants.BrainTierBTree,
+                        ParseParams      = (json, ptr) => SimHostNodes.ParseMoveToParams(json, ptr, wgs84),
+                        BTreeInterpreter = SimHostNodes.BuildMoveToLocationInterpreter()
+                    });
+                doctrineRegistry.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
+                    new DoctrineDefinition
+                    {
+                        Name             = "FollowRoute",
+                        BrainTier        = BehaviorConstants.BrainTierBTree,
+                        ParseParams      = (json, ptr) => SimHostNodes.ParseFollowRouteParams(json, ptr),
+                        BTreeInterpreter = SimHostNodes.BuildFollowRouteInterpreter()
+                    });
+            }
             doctrineRegistry.Register(SimHostDoctrineIds.JoinFormation_BT, "JoinFormation",
-                new DoctrineDefinition { Name = "JoinFormation", BrainTier = BehaviorConstants.BrainTierBTree });
+                new DoctrineDefinition
+                {
+                    Name             = "JoinFormation",
+                    BrainTier        = BehaviorConstants.BrainTierBTree,
+                    BTreeInterpreter = SimHostNodes.BuildJoinFormationInterpreter()
+                });
             doctrineRegistry.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
                 new DoctrineDefinition { Name = "Idle",          BrainTier = BehaviorConstants.BrainTierHsm });
             doctrineRegistry.Register(SimHostDoctrineIds.WanderMilitary_BT, "WanderMilitary",
@@ -443,6 +463,7 @@ namespace Bagira.Runner.Services
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
             _kernelGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
+            _kernelGroup.AddSystem(new MissionAdapterSystem(doctrineRegistry, entityMap));
             _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
             _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant, entityMap, wgs84, jsonAttributeCompiler));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);

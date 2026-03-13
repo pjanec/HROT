@@ -21,6 +21,7 @@ namespace Bagira.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<MissionPlanQueue>();
+            repo.RegisterManagedComponent<Bagira.SimHost.Components.EntityMissionHolder>();
             repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
             return repo;
         }

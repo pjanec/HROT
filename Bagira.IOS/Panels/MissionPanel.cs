@@ -318,10 +318,18 @@ public sealed class MissionPanel
 
     /// <summary>
     /// Builds the canonical <c>MoveToLocation</c> behavior-params JSON:
-    /// <c>{"targetLat":…,"targetLon":…}</c>.
+    /// <c>{"targetLat":…,"targetLon":…,"speed":…,"arrivalRadius":…}</c>.
+    /// The speed and arrival radius are set to the panel defaults
+    /// (<see cref="PanelConstants.MoveToLocationDefaultSpeed"/> and
+    /// <see cref="PanelConstants.MoveToLocationDefaultArrivalRadius"/>) so
+    /// the SimHost does not receive a zero-speed command when the operator uses
+    /// the "Pick Location" workflow without specifying these values explicitly.
     /// </summary>
     internal static string BuildMoveToLocationParams(double lat, double lon)
-        => $"{{\"targetLat\":{lat:F6},\"targetLon\":{lon:F6}}}";
+        => string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{{\"targetLat\":{lat:F6},\"targetLon\":{lon:F6}" +
+            $",\"speed\":{PanelConstants.MoveToLocationDefaultSpeed}" +
+            $",\"arrivalRadius\":{PanelConstants.MoveToLocationDefaultArrivalRadius}}}");
 
     /// <summary>
     /// Builds the canonical <c>FollowRoute</c> behavior-params JSON:

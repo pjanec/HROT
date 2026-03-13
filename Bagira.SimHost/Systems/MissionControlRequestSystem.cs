@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
@@ -136,6 +136,14 @@ namespace Bagira.SimHost.Systems
 
                     var queue = BuildQueue(plan, out var orderedTaskIds);
                     repo.SetComponent(entity, queue);
+                    repo.SetComponent(entity, new Bagira.SimHost.Components.EntityMissionHolder
+                    {
+                        Mission = new Bagira.BDC.SSTD.EntityMission
+                        {
+                            EntityId = request.TargetEntityId,
+                            Plan = plan
+                        }
+                    });
                     _taskOrder[request.TargetEntityId] = orderedTaskIds;
 
                     currentVersion++;
@@ -178,6 +186,7 @@ namespace Bagira.SimHost.Systems
                         PhaseElapsedSeconds = 0f
                     };
                     repo.SetComponent(entity, abortQueue);
+                    repo.RemoveComponent<Bagira.SimHost.Components.EntityMissionHolder>(entity);
 
                     _taskOrder[request.TargetEntityId] = new List<Guid>();
 

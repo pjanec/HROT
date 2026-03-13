@@ -196,7 +196,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             _entityMap        = new NetworkEntityMap();
             _tkbDb            = BuildTkbDatabase();
-            _doctrineRegistry = BuildDoctrineRegistry();
+            _doctrineRegistry = BuildDoctrineRegistry(_wgs84);
 
             // 3. Entity lifecycle module (empty participant list → bypass ACK protocol) ─
             _elm = new EntityLifecycleModule(_tkbDb, new List<int>());
@@ -233,6 +233,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 trajectoryPool:          trajectoryPool,
                 formationTemplateManager: null);
             simLogicModule.RegisterSystems(_inputGroup, _simGroup, _postSimGroup);
+            _simGroup.AddSystem(new Bagira.SimHost.Systems.MissionAdapterSystem(_doctrineRegistry, _entityMap));
 
             var physicsModule = new PhysicsToolkitModule();
             physicsModule.Initialize(_world);
@@ -302,6 +303,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             var queue = BuildQueue(mission.Plan);
             _world.SetComponent(entity, queue);
+            _world.SetManagedComponent(entity, new Bagira.SimHost.Components.EntityMissionHolder { Mission = mission });
         }
 
         private MissionPlanQueue BuildQueue(MissionPlan plan)
@@ -309,7 +311,8 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             var queue = new MissionPlanQueue
             {
                 CurrentPhase = 0,
-                PhaseElapsedSeconds = 0f
+                PhaseElapsedSeconds = 0f,
+                PhaseCount = (byte)Math.Min(plan.Tasks?.Count ?? 0, MissionPlanQueue.MaxPhases)
             };
 
             var tasks = plan.Tasks ?? new List<MissionTask>();
@@ -320,6 +323,8 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 var task = tasks[i];
                 int doctrineId = ResolveDoctrineId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers);
+                
+                System.Console.WriteLine($"[SimHostInstance] task {i}: trigger={trigger}, param={param}");
 
                 queue.Phases[i] = new MissionPhase
                 {
@@ -348,7 +353,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             List<Bagira.BDC.SSTD.MissionTrigger>? triggers)
         {
             if (triggers == null || triggers.Count == 0)
-                return (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, 0f);
+                return (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue);
 
             var trigger = triggers[0];
             var type = trigger.Type ?? string.Empty;
@@ -358,7 +363,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 "TimerElapsed"       => (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
                 "ReachedDestination" => (FDP.Toolkit.Behavior.Components.MissionTrigger.ReachedDestination, 0f),
                 "HealthCritical"     => (FDP.Toolkit.Behavior.Components.MissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
-                _                    => (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, 0f)
+                _                    => (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue)
             };
         }
 
@@ -443,6 +448,12 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         {
             var cart = _wgs84.ToCartesian(geoPos.Latitude, geoPos.Longitude, geoPos.Altitude);
             return new Vector2(cart.X, cart.Y);
+        }
+
+        public DDS.DM.GeoPosition CartesianToGeo(System.Numerics.Vector3 cartesian)
+        {
+            var geo = _wgs84.ToGeodetic(cartesian);
+            return new DDS.DM.GeoPosition { Latitude = geo.lat, Longitude = geo.lon, Altitude = geo.alt };
         }
 
         /// <summary>
@@ -548,6 +559,10 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             // Final flush for any cmd-buf writes from geo systems.
             cmdBuf.Playback(_world);
+            
+            // Swap event buffers so any events published this tick (e.g. AssignDoctrineEvent)
+            // become readable on the next tick.
+            _world.Bus.SwapBuffers();
         }
 
         /// <summary>
@@ -576,6 +591,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             // ── IG metadata component ─────────────────────────────────────────────
             world.RegisterManagedComponent<IgEntityData>();
+            world.RegisterManagedComponent<Bagira.SimHost.Components.EntityMissionHolder>();
 
             // ── Network components ────────────────────────────────────────────────
             world.RegisterComponent<NetworkIdentity>();
@@ -625,6 +641,8 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             // ── Mission components ────────────────────────────────────────────────
             world.RegisterComponent<MissionPlanQueue>();
+            world.RegisterComponent<Bagira.SimHost.Components.MissionAdapterState>();
+            world.RegisterComponent<Bagira.SimHost.Components.MissionAdapterState>();
 
             // ── Lifecycle events ───────────────────────────────────────────────────
             world.RegisterEvent<ConstructionOrder>();
@@ -688,13 +706,25 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             });
 
             // Behavior toolkit
-            tankTemplate.AddComponent(new DoctrineState());
+            tankTemplate.AddComponent(new DoctrineState
+            {
+                // Pre-set BrainTier so BTreeTickSystem runs immediately after the first
+                // AssignDoctrineEvent — matching the production BdcTkbBuilder convention.
+                BrainTier = FDP.Toolkit.Behavior.BehaviorConstants.BrainTierBTree
+            });
             tankTemplate.AddComponent(new BrainBlackboard());
             tankTemplate.AddComponent(new LocomotionChannel());
             tankTemplate.AddComponent(new WeaponChannel());
             tankTemplate.AddComponent(new InteractionChannel());
-            tankTemplate.AddComponent(new ActorCapabilityState());
+            // Vehicles can move and shoot by default — mirrors the production BdcTkbBuilder setup.
+            tankTemplate.AddComponent(new ActorCapabilityState
+            {
+                Capabilities = FDP.Toolkit.Behavior.Components.ActorCapabilities.CanMove
+                             | FDP.Toolkit.Behavior.Components.ActorCapabilities.CanShoot
+            });
             tankTemplate.AddComponent(new BrainBTreeState());
+            tankTemplate.AddComponent(new MissionPlanQueue());
+            tankTemplate.AddManagedComponent<Bagira.SimHost.Components.EntityMissionHolder>(() => new Bagira.SimHost.Components.EntityMissionHolder());
 
             db.Register(tankTemplate);
             return db;
@@ -702,38 +732,42 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
         // ── Doctrine registry factory ─────────────────────────────────────────────
 
-        private static DoctrineRegistry BuildDoctrineRegistry()
+        private static DoctrineRegistry BuildDoctrineRegistry(Fdp.Modules.Geographic.IGeographicTransform wgs84)
         {
             var reg = new DoctrineRegistry();
 
-            reg.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
-                new DoctrineDefinition
-                {
-                    Name       = "MoveToLocation",
-                    BrainTier  = BehaviorConstants.BrainTierBTree,
-                    ParseParams = null,
-                });
-            reg.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
-                new DoctrineDefinition
-                {
-                    Name       = "FollowRoute",
-                    BrainTier  = BehaviorConstants.BrainTierBTree,
-                    ParseParams = null,
-                });
-            reg.Register(SimHostDoctrineIds.JoinFormation_BT, "JoinFormation",
-                new DoctrineDefinition
-                {
-                    Name       = "JoinFormation",
-                    BrainTier  = BehaviorConstants.BrainTierBTree,
-                    ParseParams = null,
-                });
-            reg.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
-                new DoctrineDefinition
-                {
-                    Name       = "Idle",
-                    BrainTier  = BehaviorConstants.BrainTierHsm,
-                    ParseParams = null,
-                });
+            unsafe
+            {
+                reg.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
+                    new DoctrineDefinition
+                    {
+                        Name       = "MoveToLocation",
+                        BrainTier  = BehaviorConstants.BrainTierBTree,
+                        ParseParams = (json, ptr) => Bagira.SimHost.Brains.SimHostNodes.ParseMoveToParams(json, ptr, wgs84),
+                        BTreeInterpreter = Bagira.SimHost.Brains.SimHostNodes.BuildMoveToLocationInterpreter()
+                    });
+                reg.Register(SimHostDoctrineIds.FollowRoute_BT, "FollowRoute",
+                    new DoctrineDefinition
+                    {
+                        Name       = "FollowRoute",
+                        BrainTier  = BehaviorConstants.BrainTierBTree,
+                        ParseParams = null,
+                    });
+                reg.Register(SimHostDoctrineIds.JoinFormation_BT, "JoinFormation",
+                    new DoctrineDefinition
+                    {
+                        Name       = "JoinFormation",
+                        BrainTier  = BehaviorConstants.BrainTierBTree,
+                        ParseParams = null,
+                    });
+                reg.Register(SimHostDoctrineIds.Idle_HSM, "Idle",
+                    new DoctrineDefinition
+                    {
+                        Name       = "Idle",
+                        BrainTier  = BehaviorConstants.BrainTierHsm,
+                        ParseParams = null,
+                    });
+            }
 
             return reg;
         }

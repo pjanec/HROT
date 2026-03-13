@@ -40,11 +40,55 @@ namespace Bagira.SimHost.Brains
             public bool Loop;
         }
 
-        public static unsafe void ParseMoveToParams(string json, byte* ptr)
+        private class MoveToLocationParamsJsonDto
         {
-            var p = string.IsNullOrWhiteSpace(json)
-                ? default
-                : JsonSerializer.Deserialize<MoveToLocationParams>(json, JsonOptions);
+            public double TargetLat { get; set; }
+            public double TargetLon { get; set; }
+            public float Speed { get; set; }
+            public float ArrivalRadius { get; set; }
+            public float X { get; set; }
+            public float Y { get; set; }
+        }
+
+        /// <summary>
+        /// Fallback travel speed (m/s) applied when a <c>MoveToLocation</c> params JSON
+        /// does not carry an explicit <c>speed</c> field (e.g. legacy plans committed
+        /// before the field was added).  Prevents a zero-speed command that would cause
+        /// the entity to stand still indefinitely.
+        /// </summary>
+        private const float DefaultMoveToSpeed = 15f;
+
+        public static unsafe void ParseMoveToParams(string json, byte* ptr, Fdp.Modules.Geographic.IGeographicTransform geoTransform)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                Unsafe.Write(ptr, default(MoveToLocationParams));
+                return;
+            }
+
+            var dto = JsonSerializer.Deserialize<MoveToLocationParamsJsonDto>(json, JsonOptions);
+            if (dto == null)
+            {
+                Unsafe.Write(ptr, default(MoveToLocationParams));
+                return;
+            }
+
+            var p = new MoveToLocationParams
+            {
+                Speed = dto.Speed > 0f ? dto.Speed : DefaultMoveToSpeed,
+                ArrivalRadius = dto.ArrivalRadius > 0f ? dto.ArrivalRadius : 5f,
+                X = dto.X,
+                Y = dto.Y
+            };
+
+            // If geo-coords provided, map them
+            if ((dto.TargetLat != 0 || dto.TargetLon != 0) && geoTransform != null)
+            {
+                var cartesian = geoTransform.ToCartesian(dto.TargetLat, dto.TargetLon, 0.0);
+                p.X = cartesian.X;
+                p.Y = cartesian.Y;
+            }
+
             Unsafe.Write(ptr, p);
         }
 
@@ -270,6 +314,77 @@ namespace Bagira.SimHost.Brains
             var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
             registry.Register("Action_Wander", Action_Wander);
             var blob = TreeCompiler.CompileFromJson(WanderMilitaryJson);
+            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+        }
+
+        // ── Doctrine-specific interpreter builders ─────────────────────────────
+
+        private const string MoveToLocationJson = """
+            {
+              "TreeName": "MoveToLocation",
+              "Root": {
+                "Type": "Action",
+                "Action": "Action_WriteMoveToChannel"
+              }
+            }
+            """;
+
+        /// <summary>
+        /// Builds and returns a ready-to-use BTree interpreter for the
+        /// <see cref="SimHostDoctrineIds.MoveTo_BT"/> doctrine.
+        /// The tree consists of a single <c>Action_WriteMoveToChannel</c> action
+        /// that writes the parsed destination into the <see cref="LocomotionChannel"/>
+        /// every tick while the task is active.
+        /// </summary>
+        public static Interpreter<BrainBlackboard, BTreeContext> BuildMoveToLocationInterpreter()
+        {
+            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            registry.Register("Action_WriteMoveToChannel", Action_WriteMoveToChannel);
+            var blob = TreeCompiler.CompileFromJson(MoveToLocationJson);
+            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+        }
+
+        private const string FollowRouteJson = """
+            {
+              "TreeName": "FollowRoute",
+              "Root": {
+                "Type": "Action",
+                "Action": "Action_WriteFollowRouteChannel"
+              }
+            }
+            """;
+
+        /// <summary>
+        /// Builds and returns a ready-to-use BTree interpreter for the
+        /// <see cref="SimHostDoctrineIds.FollowRoute_BT"/> doctrine.
+        /// </summary>
+        public static Interpreter<BrainBlackboard, BTreeContext> BuildFollowRouteInterpreter()
+        {
+            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            registry.Register("Action_WriteFollowRouteChannel", Action_WriteFollowRouteChannel);
+            var blob = TreeCompiler.CompileFromJson(FollowRouteJson);
+            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+        }
+
+        private const string JoinFormationJson = """
+            {
+              "TreeName": "JoinFormation",
+              "Root": {
+                "Type": "Action",
+                "Action": "Action_WriteJoinFormationChannel"
+              }
+            }
+            """;
+
+        /// <summary>
+        /// Builds and returns a ready-to-use BTree interpreter for the
+        /// <see cref="SimHostDoctrineIds.JoinFormation_BT"/> doctrine.
+        /// </summary>
+        public static Interpreter<BrainBlackboard, BTreeContext> BuildJoinFormationInterpreter()
+        {
+            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            registry.Register("Action_WriteJoinFormationChannel", Action_WriteJoinFormationChannel);
+            var blob = TreeCompiler.CompileFromJson(JoinFormationJson);
             return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
         }
     }

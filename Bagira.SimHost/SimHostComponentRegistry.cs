@@ -48,6 +48,7 @@ public static class SimHostComponentRegistry
         world.RegisterComponent<BrainBTreeState>();
         world.RegisterComponent<BrainBlackboard>();
         world.RegisterComponent<MissionPlanQueue>();
+        world.RegisterComponent<Bagira.SimHost.Components.MissionAdapterState>();
 
         // ── Combat + perception ───────────────────────────────────────────────
         world.RegisterComponent<Faction>();

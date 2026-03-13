@@ -79,6 +79,20 @@ public static class PanelConstants
     public const int MissionBehaviorParamsMaxLength = 2048;
 
     /// <summary>
+    /// Default travel speed (m/s) injected into a <c>MoveToLocation</c> params
+    /// JSON when the operator uses the "Pick Location" map-pick workflow and
+    /// does not supply an explicit speed value.
+    /// </summary>
+    public const float MoveToLocationDefaultSpeed = 15f;
+
+    /// <summary>
+    /// Default arrival radius (metres) injected into a <c>MoveToLocation</c>
+    /// params JSON when the operator uses the "Pick Location" map-pick workflow
+    /// and does not supply an explicit arrival radius.
+    /// </summary>
+    public const float MoveToLocationDefaultArrivalRadius = 50f;
+
+    /// <summary>
     /// Number of text lines shown in the behavior-params editor.
     /// </summary>
     public const int MissionBehaviorParamsEditorLines = 4;

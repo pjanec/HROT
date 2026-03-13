@@ -144,7 +144,7 @@ namespace Bagira.SimHost.Tests
             Assert.Null(exception);
 
             Assert.Equal(3, inputGroup.SystemCount);
-            Assert.Equal(16, simGroup.SystemCount);
+            Assert.Equal(17, simGroup.SystemCount);
             Assert.Equal(1, postSimGroup.SystemCount);
 
             // ── Cleanup ───────────────────────────────────────────────────────

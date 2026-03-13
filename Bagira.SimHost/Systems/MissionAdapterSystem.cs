@@ -4,12 +4,33 @@ using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
+using FDP.Toolkit.Behavior.Events;
+using Bagira.DDS.DataModel;
+using Bagira.SimHost.Components;
 
 namespace Bagira.SimHost.Systems
 {
     /// <summary>
     /// Legacy adapter that keeps <see cref="DoctrineState"/> aligned with the current
     /// <see cref="MissionPlanQueue"/> phase.
+    ///
+    /// <para>
+    /// When the active phase changes, this system performs two actions:
+    /// <list type="number">
+    ///   <item>
+    ///     <b>Immediate blackboard update:</b> calls <see cref="DoctrineDefinition.ParseParams"/>
+    ///     directly so that <see cref="BrainBlackboard"/> contains the correct JSON-parsed
+    ///     parameters on the very same frame — independently of how many
+    ///     <c>Bus.SwapBuffers()</c> calls the host application performs per tick.
+    ///   </item>
+    ///   <item>
+    ///     <b>Event publication:</b> publishes an <see cref="AssignDoctrineEvent"/> so that
+    ///     <see cref="FDP.Toolkit.Behavior.Systems.DoctrineIngressSystem"/> can reset the
+    ///     <see cref="BrainBTreeState"/> execution pointer and set
+    ///     <c>DoctrineState.BrainTier</c> when the event is consumed on the next frame.
+    ///   </item>
+    /// </list>
+    /// </para>
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public class MissionAdapterSystem : ComponentSystem
@@ -23,7 +44,7 @@ namespace Bagira.SimHost.Systems
             _entityMap        = entityMap        ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
-        protected override void OnUpdate()
+        protected override unsafe void OnUpdate()
         {
             var query = World.Query()
                 .With<MissionPlanQueue>()
@@ -35,18 +56,68 @@ namespace Bagira.SimHost.Systems
                 ref var queue = ref World.GetComponentRW<MissionPlanQueue>(entity);
                 ref var doctrine = ref World.GetComponentRW<DoctrineState>(entity);
 
+                if (!World.HasComponent<Bagira.SimHost.Components.MissionAdapterState>(entity))
+                    World.AddComponent(entity, new Bagira.SimHost.Components.MissionAdapterState { LastPhase = byte.MaxValue });
+                    
+                ref var adapterState = ref World.GetComponentRW<Bagira.SimHost.Components.MissionAdapterState>(entity);
+                
+                var missionHolder = World.GetComponent<EntityMissionHolder>(entity);
+                
+                // Nothing to do if we are past the end of the queue
                 if (queue.CurrentPhase >= queue.PhaseCount)
                     continue;
 
-                // Use Span to safely read the inline Phases buffer without triggering
-                // the InlineArray defensive-copy behaviour on the JIT.
                 Span<MissionPhase> phases = queue.Phases;
                 var phase = phases[queue.CurrentPhase];
-                if (doctrine.ActiveDoctrineHash == phase.DoctrineId)
+
+                string jsonParams = "{}";
+                
+                if (missionHolder != null)
+                {
+                    var plan = missionHolder.Mission.Plan;
+                    if (plan.Tasks != null && queue.CurrentPhase < plan.Tasks.Count)
+                    {
+                        var task = plan.Tasks[queue.CurrentPhase];
+                        jsonParams = task.BehaviorParams ?? "{}";
+                    }
+                }
+                
+                uint currentDefHash = (uint)(jsonParams.GetHashCode() ^ phase.DoctrineId);
+
+                if (adapterState.LastPhase == queue.CurrentPhase && adapterState.LastPlanVersion == currentDefHash)
                     continue;
 
-                doctrine.ActiveDoctrineHash = phase.DoctrineId;
-                unchecked { doctrine.InstanceId++; }
+                adapterState.LastPhase = queue.CurrentPhase;
+                adapterState.LastPlanVersion = currentDefHash;
+
+                var defName = "Idle";
+                if (_doctrineRegistry.TryGetDefinition(phase.DoctrineId, out var def))
+                    defName = def.Name;
+
+                // ── Direct blackboard update ───────────────────────────────────────────────
+                // Parse the JSON params directly into BrainBlackboard so BTreeTickSystem
+                // has the correct data on the SAME frame — without depending on the number
+                // of Bus.SwapBuffers() calls the host performs between simulation steps.
+                // (DoctrineIngressSystem will still reset BrainBTreeState.State when the
+                // AssignDoctrineEvent is consumed on the next frame, which is fine.)
+                if (def?.ParseParams != null && World.HasComponent<BrainBlackboard>(entity))
+                {
+                    ref var bb = ref World.GetComponentRW<BrainBlackboard>(entity);
+                    fixed (byte* ptr = bb.Memory)
+                    {
+                        try { def.ParseParams(jsonParams, ptr); }
+                        catch { /* suppress malformed JSON — entity stays on previous params */ }
+                    }
+                }
+
+                // Also publish AssignDoctrineEvent so DoctrineIngressSystem can reset the
+                // BTree execution pointer and update BrainTier on the next frame.
+                World.Bus.PublishManaged(new AssignDoctrineEvent 
+                {
+                    Entity = entity,
+                    DoctrineName = defName,
+                    JsonParams = jsonParams
+                });
             }
         }
     }
