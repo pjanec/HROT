@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using Bagira.IG.Components;
-using Bagira.Map.Common.Replication.Utils;
+using FDP.Toolkit.Replication.Patching;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;

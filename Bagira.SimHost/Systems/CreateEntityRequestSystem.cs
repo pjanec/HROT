@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
 using Bagira.Map.Common.Replication.Utils;
+using FDP.Toolkit.Replication.Patching;
 using FDP.Kernel.Logging;
 using Fdp.Interfaces;
 using Fdp.Kernel;

@@ -7,6 +7,7 @@ using Bagira.DDS.DM;
 using Bagira.IG.Components;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Replication.Patching;
 using Fdp.Modules.Geographic;
 
 namespace Bagira.Map.Common.Replication.Utils

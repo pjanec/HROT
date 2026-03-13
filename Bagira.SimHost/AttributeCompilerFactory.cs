@@ -2,7 +2,7 @@ using System.Numerics;
 using System.Text.Json;
 using Bagira.BDC.SSTD;
 using Bagira.IG.Components;
-using Bagira.Map.Common.Replication.Utils;
+using FDP.Toolkit.Replication.Patching;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 

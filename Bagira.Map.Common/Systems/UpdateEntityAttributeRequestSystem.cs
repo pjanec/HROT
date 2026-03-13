@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
-using Bagira.Map.Common.Replication.Utils;
+using FDP.Toolkit.Replication.Patching;
 using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Services;

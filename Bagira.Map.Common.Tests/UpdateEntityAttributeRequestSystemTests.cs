@@ -6,7 +6,7 @@ using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using Bagira.IG.Components;
-using Bagira.Map.Common.Replication.Utils;
+using FDP.Toolkit.Replication.Patching;
 using Bagira.Map.Common.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;

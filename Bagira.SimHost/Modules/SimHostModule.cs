@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
-using Bagira.Map.Common.Replication.Utils;
+using FDP.Toolkit.Replication.Patching;
 using Bagira.SimHost.Systems;
 using Bagira.Map.Common.Replication.Egress;
 using Bagira.Map.Common.Replication.Ingress;
