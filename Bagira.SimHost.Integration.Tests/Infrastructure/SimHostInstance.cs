@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Numerics;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
+using Bagira.IG.Components;
 using Bagira.Map.Common;
 using Bagira.SimHost;
 using Bagira.SimHost.Modules;
@@ -202,8 +203,10 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             _elm.RegisterSystems(_elmSystems);
 
             // 4. Request / spawn systems ────────────────────────────────────────────
+            var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
             _requestSystem = new CreateEntityRequestSystem(
-                RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1, _wgs84);
+                RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1, _wgs84,
+                jsonAttributeCompiler);
 
             _spawnSystem = new NetworkSpawningSystem(
                 _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1);
@@ -570,6 +573,9 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         private static EntityRepository BuildWorld()
         {
             var world = new EntityRepository();
+
+            // ── IG metadata component ─────────────────────────────────────────────
+            world.RegisterManagedComponent<IgEntityData>();
 
             // ── Network components ────────────────────────────────────────────────
             world.RegisterComponent<NetworkIdentity>();

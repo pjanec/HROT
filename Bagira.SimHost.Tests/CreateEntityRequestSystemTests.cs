@@ -103,7 +103,8 @@ namespace Bagira.SimHost.Tests
             var idAlloc = new StubIdAllocator(startId: 100);
             var ackSink = new StubAckSink();
             var system  = new CreateEntityRequestSystem(
-                requestSource, ackSink, tkb, idAlloc, LocalNodeId);
+                requestSource, ackSink, tkb, idAlloc, LocalNodeId,
+                jsonAttributeCompiler: null);
             return (system, ackSink, idAlloc);
         }
 
@@ -234,7 +235,8 @@ namespace Bagira.SimHost.Tests
             var idAlloc  = new StubIdAllocator(startId: 200);
             var ackSink  = new StubAckSink();
             var system   = new CreateEntityRequestSystem(
-                source, ackSink, tkb, idAlloc, LocalNodeId, geoTransform);
+                source, ackSink, tkb, idAlloc, LocalNodeId, geoTransform,
+                jsonAttributeCompiler: null);
 
             // Act
             system.Execute(repo, 0f);
@@ -328,7 +330,8 @@ namespace Bagira.SimHost.Tests
             var idAlloc = new StubIdAllocator(startId: 1);
             var ackSink = new StubAckSink();
             var system  = new CreateEntityRequestSystem(
-                source, ackSink, tkb, idAlloc, LocalNodeId);
+                source, ackSink, tkb, idAlloc, LocalNodeId,
+                jsonAttributeCompiler: null);
 
             // Act — single tick.
             system.Execute(repo, 0f);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
+using Bagira.IG.Components;
 using Bagira.Map.Common;
 using Bagira.SimHost.Integration.Tests.Infrastructure;
 using Xunit;
@@ -118,9 +119,115 @@ namespace Bagira.SimHost.Integration.Tests
             Assert.NotEqual(0, ack!.Value.ErrorCode);  // Must be an error code
         }
 
+        // ── JSON attribute patching tests ────────────────────────────────────────────────
+
+        /// <summary>
+        /// Verifies the primary bug-fix: the IOS serialises <c>eForceIdentifier</c> as its raw
+        /// integer value (e.g. <c>{"Affiliation":2}</c> for FORCE_OPPOSING).
+        /// CreateEntityRequestSystem must route the integer through the JsonAttributeCompiler
+        /// and produce an entity whose IgEntityData has ForceId.Hostile.
+        /// </summary>
+        [Fact]
+        public async Task CreateEntity_WithAffiliationAsInteger_SetsForceIdHostile()
+        {
+            // Arrange — integer 2 = eForceIdentifier.FORCE_OPPOSING
+            var reqId   = Guid.NewGuid();
+            var request = BuildTankRequestWithJson(reqId, "{\"Affiliation\":2}");
+
+            // Act
+            _client.SendCreateRequest(request);
+            var ack = await _client.WaitForAckAsync(reqId, timeoutMs: 3000);
+
+            Assert.NotNull(ack);
+            Assert.Equal(0, ack!.Value.ErrorCode);
+            _host.RunForTicks(5);
+
+            // Assert
+            var igData = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            Assert.NotNull(igData);
+            Assert.Equal(ForceId.Hostile, igData!.ForceId);
+        }
+
+        /// <summary>
+        /// Verifies backward compatibility: legacy string-serialised affiliation
+        /// (<c>{"Affiliation":"FORCE_FRIENDLY"}</c>) still resolves to ForceId.Friend.
+        /// </summary>
+        [Fact]
+        public async Task CreateEntity_WithAffiliationAsString_SetsForceIdFriendly()
+        {
+            var reqId   = Guid.NewGuid();
+            var request = BuildTankRequestWithJson(reqId, "{\"Affiliation\":\"FORCE_FRIENDLY\"}");
+
+            _client.SendCreateRequest(request);
+            var ack = await _client.WaitForAckAsync(reqId, timeoutMs: 3000);
+
+            Assert.NotNull(ack);
+            Assert.Equal(0, ack!.Value.ErrorCode);
+            _host.RunForTicks(5);
+
+            var igData = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            Assert.NotNull(igData);
+            Assert.Equal(ForceId.Friend, igData!.ForceId);
+        }
+
+        /// <summary>
+        /// Verifies that both the <c>Name</c> and <c>Affiliation</c> fields are patched
+        /// in a single pass when both are present in <c>InitialAttributesJson</c>.
+        /// </summary>
+        [Fact]
+        public async Task CreateEntity_WithNameAndAffiliationJson_PatchesBothFields()
+        {
+            var reqId   = Guid.NewGuid();
+            var request = BuildTankRequestWithJson(
+                reqId,
+                "{\"Name\":\"Bravo-3\",\"Affiliation\":2}");
+
+            _client.SendCreateRequest(request);
+            var ack = await _client.WaitForAckAsync(reqId, timeoutMs: 3000);
+
+            Assert.NotNull(ack);
+            Assert.Equal(0, ack!.Value.ErrorCode);
+            _host.RunForTicks(5);
+
+            var igData = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            Assert.NotNull(igData);
+            Assert.Equal("Bravo-3",       igData!.Name);
+            Assert.Equal(ForceId.Hostile, igData.ForceId);
+        }
+
+        /// <summary>
+        /// Verifies that a null <c>InitialAttributesJson</c> does not produce an error and
+        /// leaves IgEntityData in its default-constructed state.
+        /// </summary>
+        [Fact]
+        public async Task CreateEntity_WithNullJson_DoesNotThrowAndIgDataIsDefault()
+        {
+            var reqId   = Guid.NewGuid();
+            var request = BuildTankRequestWithJson(reqId, initialAttributesJson: null);
+
+            _client.SendCreateRequest(request);
+            var ack = await _client.WaitForAckAsync(reqId, timeoutMs: 3000);
+
+            Assert.NotNull(ack);
+            Assert.Equal(0, ack!.Value.ErrorCode);
+            _host.RunForTicks(5);
+
+            // No IgEntityData patch was applied; the component is either absent or defaulted.
+            var igData = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            if (igData != null)
+                Assert.Equal(ForceId.Unknown, igData.ForceId);
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────────────────────
 
         private static CreateEntityRequest BuildTankRequest(Guid requestId)
+        {
+            return BuildTankRequestWithJson(requestId, initialAttributesJson: null);
+        }
+
+        private static CreateEntityRequest BuildTankRequestWithJson(
+            Guid    requestId,
+            string? initialAttributesJson)
         {
             return new CreateEntityRequest
             {
@@ -139,6 +246,7 @@ namespace Bagira.SimHost.Integration.Tests
                         },
                     },
                 },
+                InitialAttributesJson = initialAttributesJson,
             };
         }
     }

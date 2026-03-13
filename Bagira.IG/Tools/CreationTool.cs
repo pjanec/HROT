@@ -60,6 +60,7 @@ public class CreationTool : IMapTool
     private readonly string?                     _initialPropertiesJson;
     private readonly bool                        _autoPopOnPlace;
     private readonly Func<string>?               _nameResolver;
+    private readonly EntityPropertyPatch?        _parsedPatch;
 
     private MapCanvas? _canvas;
     private Vector2    _currentMouseWorld;
@@ -125,7 +126,8 @@ public class CreationTool : IMapTool
         _onEntityCreated       = onEntityCreated ?? throw new ArgumentNullException(nameof(onEntityCreated));
         _geoTransform          = geoTransform;
         _tkbType               = tkbType == 0 ? CreationToolConstants.DefaultTkbType : tkbType;
-        _affiliationForDisplay = ParseAffiliationFromJson(initialPropertiesJson);
+        _parsedPatch           = ParsePatchFromJson(initialPropertiesJson);
+        _affiliationForDisplay = MapAffiliation(_parsedPatch?.Affiliation);
         _initialPropertiesJson = initialPropertiesJson;
         _autoPopOnPlace        = autoPopOnPlace;
         _nameResolver          = nameResolver;
@@ -286,31 +288,38 @@ public class CreationTool : IMapTool
     }
 
     /// <summary>
-    /// Parses the <c>"affiliation"</c> field from <paramref name="json"/> and returns
-    /// the corresponding <see cref="ForceId"/>. Returns <see cref="ForceId.Unknown"/>
-    /// when the field is absent, unrecognised, or the JSON is malformed.
+    /// Deserialises the JSON payload into the shared <see cref="EntityPropertyPatch"/> DTO.
+    /// Uses case-insensitive property matching and a <c>JsonStringEnumConverter</c> so it
+    /// handles both legacy string payloads (<c>{"affiliation":"FORCE_OPPOSING"}</c>) and
+    /// the new strongly-typed integer payloads emitted by IOS (<c>{"Affiliation":2}</c>).
     /// </summary>
-    private static ForceId ParseAffiliationFromJson(string? json)
+    private static EntityPropertyPatch? ParsePatchFromJson(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return ForceId.Unknown;
+        if (string.IsNullOrWhiteSpace(json)) return null;
         try
         {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("affiliation", out var el)
-             && el.ValueKind == JsonValueKind.String)
+            var options = new JsonSerializerOptions
             {
-                return el.GetString() switch
-                {
-                    "FORCE_FRIENDLY" => ForceId.Friend,
-                    "FORCE_OPPOSING" => ForceId.Hostile,
-                    "FORCE_NEUTRAL"  => ForceId.Neutral,
-                    _                => ForceId.Unknown,
-                };
-            }
+                PropertyNameCaseInsensitive = true,
+                Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+            };
+            return JsonSerializer.Deserialize<EntityPropertyPatch>(json, options);
         }
         catch { /* malformed JSON — fall through */ }
-        return ForceId.Unknown;
+        return null;
     }
+
+    /// <summary>
+    /// Maps the DDS boundary enum to the IG visual force identifier.
+    /// </summary>
+    private static ForceId MapAffiliation(eForceIdentifier? affiliation) =>
+        affiliation switch
+        {
+            eForceIdentifier.FORCE_FRIENDLY => ForceId.Friend,
+            eForceIdentifier.FORCE_OPPOSING => ForceId.Hostile,
+            eForceIdentifier.FORCE_NEUTRAL  => ForceId.Neutral,
+            _                               => ForceId.Unknown,
+        };
 
     private static Color GetAffiliationColor(ForceId affiliation) =>
         affiliation switch

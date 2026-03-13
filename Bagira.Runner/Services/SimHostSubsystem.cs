@@ -405,6 +405,11 @@ namespace Bagira.Runner.Services
             var wgs84 = BagiraEnvironment.CreateGeoTransform();
             _geoTransform = wgs84;
 
+            // ── 3a. JSON Attribute Compiler ───────────────────────────────────
+            // Shared by CreateEntityRequestSystem (entity creation path) and
+            // UpdateEntityAttributeRequestSystem (live attribute update path).
+            var jsonAttributeCompiler = AttributeCompilerFactory.Build(wgs84);
+
             // ── 4. Doctrine registry ──────────────────────────────────────────
             var doctrineRegistry = new DoctrineRegistry();
             doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
@@ -439,6 +444,7 @@ namespace Bagira.Runner.Services
             _kernelGroup.Create(_world);
             _kernelGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
             _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
+            _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant, entityMap, wgs84, jsonAttributeCompiler));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
             // Seed GlobalTime singleton.
@@ -461,7 +467,7 @@ namespace Bagira.Runner.Services
             var simHostMod = new SimHostModule(
                 ddsParticipant, tkbDb, _idAllocator, 1,
                 spawningSystem, entityMap, doctrineRegistry,
-                new GhostCreationSystem(entityMap), wgs84);
+                new GhostCreationSystem(entityMap), wgs84, jsonAttributeCompiler);
             _kernel.RegisterModule(simHostMod);
             // ── 7. Network module ─────────────────────────────────────────────
             var localNodeId = 1;

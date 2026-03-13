@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
 using ImGuiNET;
 
 namespace Bagira.IOS.Panels;
@@ -127,11 +128,11 @@ public sealed class SpawnerPanel
     public void HandleActivatePlacementTool(IIosLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
-        string propsJson = System.Text.Json.JsonSerializer.Serialize(new
-        {
-            affiliation = _affiliation.ToString()
-        });
-        logic.StartPlacementMode(_selectedType, propsJson);
+        var patch = new EntityPropertyPatch 
+        { 
+            Affiliation = _affiliation 
+        };
+        logic.StartPlacementMode(_selectedType, patch);
     }
 
     /// <summary>

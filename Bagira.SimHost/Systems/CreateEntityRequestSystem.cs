@@ -81,7 +81,7 @@ namespace Bagira.SimHost.Systems
             INetworkIdAllocator        idAllocator,
             int                        localNodeId,
             IGeographicTransform?      geoTransform = null,
-            JsonAttributeCompiler?     jsonAttributeCompiler = null)
+            JsonAttributeCompiler      jsonAttributeCompiler = null!)
         {
             _requestSource = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
             _ackSink       = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));

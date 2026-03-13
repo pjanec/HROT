@@ -81,7 +81,7 @@ namespace Bagira.SimHost.Modules
             DoctrineRegistry doctrineRegistry,
             GhostCreationSystem ghostCreationSystem,
             IGeographicTransform? geoTransform = null,
-            JsonAttributeCompiler? jsonAttributeCompiler = null)
+            JsonAttributeCompiler jsonAttributeCompiler = null!)
         {
             var requestSource = new DdsCreateEntityRequestSource(participant);
             var ackSink       = new DdsCreateEntityAckSink(participant);

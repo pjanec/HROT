@@ -55,7 +55,9 @@ public static class AttributeCompilerFactory
             .RegisterReferencePath<IgEntityData>(
                 "Affiliation",
                 (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
-                    c.ForceId = MapAffiliationString(r.GetString()),
+                    c.ForceId = r.TokenType == JsonTokenType.Number
+                        ? MapAffiliationInt(r.GetInt32())
+                        : MapAffiliationString(r.GetString()),
                 descriptorOrdinal: EntityInfoOrdinal);
 
         // ── SimTransform — unmanaged struct paths (GeoPosition) ───────────────
@@ -108,6 +110,20 @@ public static class AttributeCompilerFactory
             "FORCE_OPPOSING" => ForceId.Hostile,
             "FORCE_NEUTRAL"  => ForceId.Neutral,
             _                => ForceId.Unknown,
+        };
+
+    /// <summary>
+    /// Maps a JSON affiliation integer (the raw <see cref="eForceIdentifier"/> ordinal) to a
+    /// <see cref="ForceId"/>. Handles the IOS default JSON serialisation which emits enums
+    /// as their underlying integer value (e.g. <c>2</c> for <c>FORCE_OPPOSING</c>).
+    /// </summary>
+    internal static ForceId MapAffiliationInt(int value) =>
+        (eForceIdentifier)value switch
+        {
+            eForceIdentifier.FORCE_FRIENDLY => ForceId.Friend,
+            eForceIdentifier.FORCE_OPPOSING => ForceId.Hostile,
+            eForceIdentifier.FORCE_NEUTRAL  => ForceId.Neutral,
+            _                               => ForceId.Unknown,
         };
 
     /// <summary>

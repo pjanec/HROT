@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
+using Bagira.IG.Components;
+using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
+using ModuleHost.Core.Abstractions;
 
 namespace Bagira.SimHost.Integration.Tests.Infrastructure
 {
@@ -99,6 +102,22 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             ref readonly var tkbId = ref _host.World.GetComponentRO<TkbIdentity>(entity);
             return tkbId;
+        }
+
+        /// <summary>
+        /// Reads the <see cref="IgEntityData"/> component from the ECS world for the entity
+        /// with network-id <paramref name="networkId"/>.
+        /// Returns <c>null</c> if no such entity exists or the component has not been assigned.
+        /// </summary>
+        public IgEntityData? ReadIgEntityData(int networkId)
+        {
+            if (!_host.EntityMap.TryGetEntity(networkId, out var entity))
+                return null;
+
+            if (!_host.World.HasManagedComponent<IgEntityData>(entity))
+                return null;
+
+            return ((ISimulationView)_host.World).GetManagedComponentRO<IgEntityData>(entity);
         }
     }
 }
