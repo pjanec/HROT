@@ -1248,11 +1248,12 @@ namespace Fdp.Kernel
             #if FDP_PARANOID_MODE
             if (!IsAlive(entity))
                 throw new InvalidOperationException($"Entity {entity} is not alive");
-            if (HasManagedComponent<T>(entity))
-                throw new InvalidOperationException($"Entity {entity} already has component {typeof(T).Name}");
-            #endif
-            
-            SetManagedComponent(entity, value);
+			// commented out because Add is currently an alias for Set (upsert). If we want strict Add semantics, we can re-enable this check.
+			//if (HasManagedComponent<T>(entity))
+			//    throw new InvalidOperationException($"Entity {entity} already has component {typeof(T).Name}");
+#endif
+
+			SetManagedComponent( entity, value);
         }
         
         /// <summary>
