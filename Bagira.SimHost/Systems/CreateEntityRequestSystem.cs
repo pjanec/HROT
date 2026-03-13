@@ -49,6 +49,13 @@ namespace Bagira.SimHost.Systems
         private readonly int                        _localNodeId;
         private readonly JsonAttributeCompiler?     _jsonCompiler;
 
+        /// <summary>
+        /// Reusable <see cref="ListPatchContext"/> instance. Reset per entity-creation call
+        /// to avoid allocating a new instance (and two internal dictionaries) for every
+        /// entity in a burst spawn, eliminating per-entity Gen0 GC pressure.
+        /// </summary>
+        private ListPatchContext? _reusablePatchContext;
+
         // Pre-validated requests waiting to be converted into SpawnEntityCommands.
         // Capacity pre-allocated to absorb large bursts without resizing.
         private readonly Queue<PendingRequest> _pendingQueue = new(capacity: MaxRequestsPerTick * 4);
@@ -168,9 +175,12 @@ namespace Bagira.SimHost.Systems
                 //    overrides win over template values.
                 if (_jsonCompiler != null && !string.IsNullOrEmpty(pending.Request.InitialAttributesJson))
                 {
-                    var patchContext = new ListPatchContext(allComponents);
-                    _jsonCompiler.Compile(pending.Request.InitialAttributesJson, patchContext);
-                    allComponents = patchContext.FlushComponents();
+                    // Reuse the single cached context (Reset clears slots without releasing
+                    // the underlying Dictionary objects, eliminating per-entity heap traffic).
+                    _reusablePatchContext ??= new ListPatchContext(null);
+                    _reusablePatchContext.Reset(allComponents);
+                    _jsonCompiler.Compile(pending.Request.InitialAttributesJson, _reusablePatchContext);
+                    allComponents = _reusablePatchContext.FlushComponents();
                 }
 
                 // 3. Separate unmanaged structs into explicit typed SpawnEntityCommand fields

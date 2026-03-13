@@ -311,7 +311,7 @@ public class JsonAttributeCompilerTests
         var compiler = new AttributeCompilerBuilder().Build();
         var ctx = new ListPatchContext(null);
 
-        var ex = Record.Exception(() => compiler.Compile(null, ctx));
+        var ex = Record.Exception(() => compiler.Compile((string?)null, ctx));
 
         Assert.Null(ex);
         Assert.Empty(ctx.FlushComponents());
@@ -470,5 +470,328 @@ public class FnvHashTests
         Assert.True(bInvoked, "Nested path 'A.B' should have been invoked.");
         Assert.True(cInvoked,
             "Top-level path 'C' should have been invoked after depth was restored by EndObject.");
+    }
+}
+// ─────────────────────────────────────────────────────────────
+// EcsPatchContext authority tests
+// ─────────────────────────────────────────────────────────────
+
+public class EcsPatchContextAuthorityTests
+{
+    private static EntityRepository CreateRepo()
+    {
+        var repo = new EntityRepository();
+        repo.RegisterComponent<SimTransform>();
+        repo.RegisterManagedComponent<IgEntityData>();
+        return repo;
+    }
+
+    [Fact]
+    public void EcsPatchContext_CanWrite_ReturnsFalseWithoutSetAuthority()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new SimTransform());
+        // No SetAuthority call — authority bit is off.
+
+        var compiler = new AttributeCompilerBuilder().Build();
+        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+
+        Assert.False(ctx.CanWrite<SimTransform>());
+    }
+
+    [Fact]
+    public void EcsPatchContext_CanWrite_ReturnsTrueAfterSetAuthority()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new SimTransform());
+        repo.SetAuthority<SimTransform>(entity, true);
+
+        var compiler = new AttributeCompilerBuilder().Build();
+        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+
+        Assert.True(ctx.CanWrite<SimTransform>());
+    }
+
+    [Fact]
+    public void EcsPatchContext_CanWriteManaged_ReturnsFalseWithoutSetAuthority()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.SetManagedComponent(entity, new IgEntityData { Name = "x" });
+        // No SetAuthority call.
+
+        var compiler = new AttributeCompilerBuilder().Build();
+        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+
+        Assert.False(ctx.CanWriteManaged<IgEntityData>());
+    }
+
+    [Fact]
+    public void EcsPatchContext_CanWriteManaged_ReturnsTrueAfterSetAuthority()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.SetManagedComponent(entity, new IgEntityData { Name = "x" });
+        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+
+        var compiler = new AttributeCompilerBuilder().Build();
+        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+
+        Assert.True(ctx.CanWriteManaged<IgEntityData>());
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Invoker-level split-authority tests
+// Using a stub context that wraps ListPatchContext but restricts
+// CanWrite/CanWriteManaged to a configurable set of owned types.
+// ─────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Test stub that wraps a <see cref="ListPatchContext"/> and overrides
+/// <c>CanWrite</c> / <c>CanWriteManaged</c> to simulate split-authority.
+/// </summary>
+internal sealed class SplitAuthorityContext : IEntityPatchContext
+{
+    private readonly ListPatchContext _inner;
+    private readonly System.Collections.Generic.HashSet<Type> _ownedTypes;
+
+    public SplitAuthorityContext(ListPatchContext inner, params Type[] ownedTypes)
+    {
+        _inner = inner;
+        _ownedTypes = new System.Collections.Generic.HashSet<Type>(ownedTypes);
+    }
+
+    public ref T GetUnmanagedComponent<T>() where T : struct => ref _inner.GetUnmanagedComponent<T>();
+    public T GetManagedComponent<T>() where T : class => _inner.GetManagedComponent<T>();
+    public void FlushDirtyMarks() => _inner.FlushDirtyMarks();
+    public bool CanWrite<T>() where T : struct => _ownedTypes.Contains(typeof(T));
+    public bool CanWriteManaged<T>() where T : class => _ownedTypes.Contains(typeof(T));
+}
+
+public class InvokerAuthorityTests
+{
+    /// <summary>
+    /// When a node owns only <c>IgEntityData</c> and not <c>TestWeaponState</c>, a JSON
+    /// payload containing both fields must: skip the unowned <c>Count</c> field without
+    /// crashing, and successfully apply the owned <c>Name</c> field.
+    /// This is the textbook split-authority scenario from a multicast update broadcast.
+    /// </summary>
+    [Fact]
+    public void ValueInvoker_SkipsUnownedComponent_OwnedComponentStillApplied()
+    {
+        bool weaponSetterCalled = false;
+
+        var compiler = new AttributeCompilerBuilder()
+            .RegisterValuePath<TestWeaponState>("Count",
+                (ref TestWeaponState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                {
+                    weaponSetterCalled = true;
+                    c.Count = r.GetInt32();
+                })
+            .RegisterReferencePath<IgEntityData>("Name",
+                (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                    c.Name = r.GetString() ?? string.Empty)
+            .Build();
+
+        var innerCtx = new ListPatchContext(null);
+        // Only IgEntityData is owned — TestWeaponState is not.
+        var splitCtx = new SplitAuthorityContext(innerCtx, typeof(IgEntityData));
+
+        // Should not throw — unowned JSON sub-tree is skipped via reader.Skip().
+        var ex = Record.Exception(() =>
+            compiler.Compile("{\"Count\":99,\"Name\":\"Alpha\"}", splitCtx));
+
+        Assert.Null(ex);
+        Assert.False(weaponSetterCalled, "Setter for unowned component must not be invoked.");
+
+        var results = innerCtx.FlushComponents();
+        var data = results.OfType<IgEntityData>().Single();
+        Assert.Equal("Alpha", data.Name);
+    }
+
+    /// <summary>
+    /// When JSON contains a known route path that is not owned, <c>reader.Skip()</c> must
+    /// leave the stream in a valid state so subsequent tokens are parsed correctly.
+    /// </summary>
+    [Fact]
+    public void ValueInvoker_SkipDoesNotCorruptStream_FollowingTokensStillParsed()
+    {
+        int nameInvocations = 0;
+        int weaponInvocations = 0;
+
+        var compiler = new AttributeCompilerBuilder()
+            .RegisterValuePath<TestWeaponState>("Count",
+                (ref TestWeaponState c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                {
+                    weaponInvocations++;
+                    c.Count = r.GetInt32();
+                })
+            .RegisterReferencePath<IgEntityData>("Name",
+                (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                {
+                    nameInvocations++;
+                    c.Name = r.GetString() ?? string.Empty;
+                })
+            .Build();
+
+        var innerCtx = new ListPatchContext(null);
+        // Neither type is owned — both routes must be silently skipped.
+        var splitCtx = new SplitAuthorityContext(innerCtx /*, empty owned set */);
+
+        var ex = Record.Exception(() =>
+            compiler.Compile("{\"Count\":5,\"Name\":\"Beta\"}", splitCtx));
+
+        Assert.Null(ex);
+        Assert.Equal(0, weaponInvocations);
+        Assert.Equal(0, nameInvocations);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ListPatchContext.Reset tests
+// ─────────────────────────────────────────────────────────────
+
+public class ListPatchContextResetTests
+{
+    [Fact]
+    public void ListPatchContext_Reset_PriorUnmanagedSlotsDontLeak()
+    {
+        var ctx = new ListPatchContext(null);
+
+        // Seed a value in the first "session".
+        ref var slot1 = ref ctx.GetUnmanagedComponent<TestWeaponState>();
+        slot1.Count = 42;
+
+        // Reset with empty seed — slots must be cleared.
+        ctx.Reset(null);
+
+        // After reset, GetUnmanagedComponent must return the zero-initialised default.
+        ref var slot2 = ref ctx.GetUnmanagedComponent<TestWeaponState>();
+        Assert.Equal(0, slot2.Count);
+    }
+
+    [Fact]
+    public void ListPatchContext_Reset_PriorManagedComponentsDontLeak()
+    {
+        var ctx = new ListPatchContext(null);
+
+        var first = ctx.GetManagedComponent<IgEntityData>();
+        first.Name = "first";
+
+        ctx.Reset(null);
+
+        // After reset, a new default instance must be created (not the old one).
+        var second = ctx.GetManagedComponent<IgEntityData>();
+        // The old instance may have been recycled, but the Name must be the default.
+        Assert.NotEqual("first", second.Name ?? string.Empty);
+    }
+
+    [Fact]
+    public void ListPatchContext_Reset_PicksUpNewSeedValues()
+    {
+        var ctx = new ListPatchContext(null);
+        _ = ctx.GetManagedComponent<IgEntityData>(); // prime the cache
+
+        var newSeed = new IgEntityData { Name = "seeded-name" };
+        ctx.Reset(new List<object> { newSeed });
+
+        var got = ctx.GetManagedComponent<IgEntityData>();
+        Assert.Equal("seeded-name", got.Name);
+    }
+
+    [Fact]
+    public void ListPatchContext_Reset_CanWriteStillReturnsTrue()
+    {
+        var ctx = new ListPatchContext(null);
+        ctx.Reset(new List<object>());
+
+        Assert.True(ctx.CanWrite<TestWeaponState>());
+        Assert.True(ctx.CanWriteManaged<IgEntityData>());
+    }
+
+    [Fact]
+    public void ListPatchContext_Reset_FlushComponentsReturnsOnlyNewValues()
+    {
+        var oldSeed = new IgEntityData { Name = "old" };
+        var ctx = new ListPatchContext(new List<object> { oldSeed });
+        _ = ctx.GetManagedComponent<IgEntityData>(); // prime cache with old seed
+
+        var newSeed = new IgEntityData { Name = "new" };
+        ctx.Reset(new List<object> { newSeed });
+
+        // Compile a patch using a no-op compiler (just access the component).
+        var got = ctx.GetManagedComponent<IgEntityData>();
+        got.Name = "patched";
+
+        var flushed = ctx.FlushComponents();
+        var entity = flushed.OfType<IgEntityData>().Single();
+        Assert.Equal("patched", entity.Name);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// JsonAttributeCompiler span overload tests
+// ─────────────────────────────────────────────────────────────
+
+public class JsonAttributeCompilerSpanOverloadTests
+{
+    [Fact]
+    public void Compile_SpanOverload_ProducesIdenticalResultToStringOverload()
+    {
+        var compiler = new AttributeCompilerBuilder()
+            .RegisterReferencePath<IgEntityData>("Name",
+                (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                    c.Name = r.GetString() ?? string.Empty)
+            .Build();
+
+        const string json = "{\"Name\":\"Span-Alpha\"}";
+
+        // String overload.
+        var ctxStr = new ListPatchContext(null);
+        compiler.Compile(json, ctxStr);
+        string fromString = ctxStr.FlushComponents().OfType<IgEntityData>().Single().Name;
+
+        // Span overload with pre-encoded bytes.
+        var ctxSpan = new ListPatchContext(null);
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(json);
+        compiler.Compile(new ReadOnlySpan<byte>(bytes), ctxSpan);
+        string fromSpan = ctxSpan.FlushComponents().OfType<IgEntityData>().Single().Name;
+
+        Assert.Equal(fromString, fromSpan);
+        Assert.Equal("Span-Alpha", fromString);
+    }
+
+    [Fact]
+    public void Compile_SpanOverload_EmptySpan_DoesNotThrow()
+    {
+        var compiler = new AttributeCompilerBuilder().Build();
+        var ctx = new ListPatchContext(null);
+
+        var ex = Record.Exception(() => compiler.Compile(ReadOnlySpan<byte>.Empty, ctx));
+
+        Assert.Null(ex);
+        Assert.Empty(ctx.FlushComponents());
+    }
+
+    [Fact]
+    public void Compile_SpanOverload_NestedProperty_InvokesDelegate()
+    {
+        double capturedLat = 0;
+
+        var compiler = new AttributeCompilerBuilder()
+            .RegisterValuePath<SimTransform>("GeoPosition.Latitude",
+                (ref SimTransform c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                    capturedLat = r.GetDouble())
+            .Build();
+
+        var ctx = new ListPatchContext(null);
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes(
+            "{\"GeoPosition\":{\"Latitude\":55.5,\"Longitude\":0}}");
+        compiler.Compile(new ReadOnlySpan<byte>(bytes), ctx);
+
+        Assert.Equal(55.5, capturedLat, precision: 5);
     }
 }

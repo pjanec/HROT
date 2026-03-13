@@ -103,6 +103,8 @@ namespace Bagira.SimHost.Tests
             var repo   = CreateRepo();
             var entity = repo.CreateEntity();
             repo.SetManagedComponent(entity, new IgEntityData { Name = "original" });
+            // Grant authority so the invoker dispatches the setter.
+            repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
 
             var context = compiler.CreatePatchContext(repo, entity);
             compiler.Compile("{\"Name\":\"X\"}", context);
@@ -123,6 +125,8 @@ namespace Bagira.SimHost.Tests
             var repo   = CreateRepo();
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new SimTransform());
+            // Grant authority so the invoker dispatches the setter.
+            repo.SetAuthority<SimTransform>(entity, true);
 
             var context = compiler.CreatePatchContext(repo, entity);
             compiler.Compile(
