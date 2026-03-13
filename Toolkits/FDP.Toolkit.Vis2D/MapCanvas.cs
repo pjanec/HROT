@@ -57,6 +57,15 @@ namespace FDP.Toolkit.Vis2D
         private bool _isDraggingInteraction = false;
 
         /// <summary>
+        /// Set when the right mouse button has been held and dragged beyond a small
+        /// threshold while the camera was panning.  Prevents the pan-release from
+        /// being misinterpreted as a right-click (e.g. opening a context menu).
+        /// Cleared on every right-button release, after the click check.
+        /// </summary>
+        private bool _rightButtonDragged = false;
+        private const float RightDragThresholdSq = 25f; // 5 px, matches DRAG_THRESHOLD in StandardInteractionTool
+
+        /// <summary>
         /// <c>true</c> when the active tool consumed one or more key presses during the
         /// last <see cref="Update"/> call.  Use this in the hosting application to gate
         /// camera or application-level keyboard handling so that tools that capture
@@ -256,6 +265,10 @@ namespace FDP.Toolkit.Vis2D
 
             bool consumed = false;
 
+            // Track right-button drags so that pan-then-release does not fire a click.
+            if (rightDown && delta.LengthSquared() > RightDragThresholdSq)
+                _rightButtonDragged = true;
+
             // 0. Keyboard routing to the active tool.
             // Drain the Raylib key-press queue and route each key to the active tool
             // before handling mouse input so that a Cancel (ESC) takes effect this frame.
@@ -292,7 +305,8 @@ namespace FDP.Toolkit.Vis2D
                     {
                         if (ActiveTool.HandleClick(mouseWorld, MouseButton.Left)) consumed = true;
                     }
-                    if (rightReleased && !consumed)
+                    // Suppress the right-click when the button was dragged to pan the map.
+                    if (rightReleased && !consumed && !_rightButtonDragged)
                     {
                         if (ActiveTool.HandleClick(mouseWorld, MouseButton.Right)) consumed = true;
                     }
@@ -300,10 +314,12 @@ namespace FDP.Toolkit.Vis2D
 
                 // Reset Drag State
                 if (leftReleased || rightReleased)
-                {
                     _isDraggingInteraction = false;
-                }
             }
+
+            // Reset right-drag flag unconditionally so it never leaks across tool changes.
+            if (rightReleased)
+                _rightButtonDragged = false;
 
             // 2. Camera Priority
             if (!consumed)
