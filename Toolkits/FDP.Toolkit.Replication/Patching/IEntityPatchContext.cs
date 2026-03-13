@@ -57,10 +57,19 @@ public interface IEntityPatchContext
     void FlushDirtyMarks();
 
     /// <summary>
-    /// Returns true if the current context has authority to mutate the component
-    /// identified by <paramref name="componentId"/>.
-    /// Always returns true in <see cref="ListPatchContext"/> (creation path).
-    /// Delegates to <c>EntityRepository.HasAuthority</c> in <see cref="EcsPatchContext"/> (live update path).
+    /// Returns true if the current context has authority to write the unmanaged struct component
+    /// <typeparamref name="T"/>. Always returns <c>true</c> in <see cref="ListPatchContext"/> (creation
+    /// path). Delegates to <c>EntityRepository.HasAuthority&lt;T&gt;</c> in <see cref="EcsPatchContext"/>,
+    /// which reads <c>EntityHeader.AuthorityMask</c> using the ECS component type ID — exactly
+    /// matching the kernel's own <c>ValidateWriteAccess&lt;T&gt;</c> guard.
     /// </summary>
-    bool HasAuthority(int componentId);
+    bool CanWrite<T>() where T : struct;
+
+    /// <summary>
+    /// Returns true if the current context has authority to write the managed class component
+    /// <typeparamref name="T"/>. Always returns <c>true</c> in <see cref="ListPatchContext"/> (creation
+    /// path). Delegates to <c>EntityRepository.HasAuthority</c> using
+    /// <c>ManagedComponentType&lt;T&gt;.ID</c> in <see cref="EcsPatchContext"/>.
+    /// </summary>
+    bool CanWriteManaged<T>() where T : class;
 }

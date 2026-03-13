@@ -37,7 +37,7 @@ public sealed class ListPatchContext : IEntityPatchContext
 
     // ── Fields ───────────────────────────────────────────────
 
-    private readonly List<object>? _baseComponents;
+    private List<object>? _baseComponents;
 
     /// <summary>
     /// Per-type stable slots for unmanaged struct components.
@@ -125,7 +125,32 @@ public sealed class ListPatchContext : IEntityPatchContext
     /// Always returns <c>true</c>: the entity creation path always has full authority over
     /// all components being initialised.
     /// </remarks>
-    public bool HasAuthority(int componentId) => true;
+    public bool CanWrite<T>() where T : struct => true;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Always returns <c>true</c>: the entity creation path always has full authority over
+    /// all components being initialised.
+    /// </remarks>
+    public bool CanWriteManaged<T>() where T : class => true;
+
+    // ── Pooling support ───────────────────────────────────────
+
+    /// <summary>
+    /// Resets this context for reuse with a new seed list, clearing all cached
+    /// component slots without releasing the underlying dictionary objects.
+    /// Call this instead of allocating a new <see cref="ListPatchContext"/> on every
+    /// entity-creation request to eliminate per-entity GC pressure.
+    /// </summary>
+    /// <param name="baseComponents">
+    /// New seed list from <c>DescriptorMapper.MapToComponents</c>, or <c>null</c>.
+    /// </param>
+    public void Reset(List<object>? baseComponents)
+    {
+        _baseComponents = baseComponents;
+        _unmanagedSlots.Clear();
+        _managedComponents.Clear();
+    }
 
     // ── Additional API ────────────────────────────────────────
 

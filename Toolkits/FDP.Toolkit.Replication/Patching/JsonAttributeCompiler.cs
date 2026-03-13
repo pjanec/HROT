@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.Json;
@@ -33,6 +34,10 @@ internal sealed class ValueInvoker<T> : IRoutingEntryInvoker where T : struct
 
     public void Invoke(IEntityPatchContext context, scoped ReadOnlySpan<int> indices, ref Utf8JsonReader reader)
     {
+        // Authority guard: if this node doesn't own the component, leapfrog the JSON
+        // value without touching ECS memory. reader.Skip() is O(1) bracket-matching,
+        // so unowned payloads generate zero allocations.
+        if (!context.CanWrite<T>()) { reader.Skip(); return; }
         ref T component = ref context.GetUnmanagedComponent<T>();
         _setter(ref component, indices, ref reader);
     }
@@ -48,6 +53,9 @@ internal sealed class ReferenceInvoker<T> : IRoutingEntryInvoker where T : class
 
     public void Invoke(IEntityPatchContext context, scoped ReadOnlySpan<int> indices, ref Utf8JsonReader reader)
     {
+        // Authority guard: if this node doesn't own the component, leapfrog the JSON
+        // value without touching ECS memory.
+        if (!context.CanWriteManaged<T>()) { reader.Skip(); return; }
         T component = context.GetManagedComponent<T>();
         _setter(component, indices, ref reader);
     }
@@ -61,6 +69,12 @@ internal sealed class ReferenceInvoker<T> : IRoutingEntryInvoker where T : class
 /// Maps a pre-computed FNV-1a path hash to the typed invoker and descriptor ordinal
 /// needed for dirty-mark flushing.
 /// </summary>
+/// <remarks>
+/// Authority is NOT checked at this level. The invoker (<see cref="ValueInvoker{T}"/> /
+/// <see cref="ReferenceInvoker{T}"/>) calls <c>IEntityPatchContext.CanWrite</c> /
+/// <c>CanWriteManaged</c> right before accessing the ECS component, keeping the generic
+/// JSON router completely oblivious to ECS ownership concepts.
+/// </remarks>
 internal readonly struct RoutingEntry
 {
     /// <summary>The ECS component type targeted by this route.</summary>
@@ -69,21 +83,13 @@ internal readonly struct RoutingEntry
     /// <summary>Descriptor ordinal used by <see cref="EcsPatchContext.FlushDirtyMarks"/>.</summary>
     public readonly long DescriptorOrdinal;
 
-    /// <summary>
-    /// ECS component type ID (from <c>ComponentType&lt;T&gt;.ID</c> or <c>ManagedComponentType&lt;T&gt;.ID</c>).
-    /// Used by the authority guard in <see cref="JsonAttributeCompiler.Compile"/> to check
-    /// whether the caller has authority over this component before dispatching the setter.
-    /// </summary>
-    public readonly int ComponentId;
-
     /// <summary>The type-erased invoker that calls the concrete setter delegate.</summary>
     internal readonly IRoutingEntryInvoker Invoker;
 
-    internal RoutingEntry(IRoutingEntryInvoker invoker, int componentId, long descriptorOrdinal = 0)
+    internal RoutingEntry(IRoutingEntryInvoker invoker, long descriptorOrdinal = 0)
     {
         Invoker = invoker;
         ComponentType = invoker.ComponentType;
-        ComponentId = componentId;
         DescriptorOrdinal = descriptorOrdinal;
     }
 
@@ -146,18 +152,45 @@ public sealed class JsonAttributeCompiler
     /// <paramref name="context"/>. No heap allocations occur if <paramref name="json"/>
     /// is null or empty.
     /// </summary>
+    /// <remarks>
+    /// Rents a <see cref="ArrayPool{T}"/> buffer for UTF-8 encoding, eliminating the
+    /// per-call <c>byte[]</c> heap allocation that would otherwise be created by
+    /// <c>Encoding.UTF8.GetBytes(string)</c>.
+    /// </remarks>
     public void Compile(string? json, IEntityPatchContext context)
     {
         if (string.IsNullOrEmpty(json))
             return;
 
-        // Convert string to UTF-8 bytes — single allocation per call (acceptable at startup;
-        // hot-path callers should pass pre-encoded bytes via the span overload).
-        // For the simulation hot-path the JSON string arrives over DDS already as a managed
-        // string, so this encoding step is unavoidable without a pooled buffer.
-        ReadOnlySpan<byte> utf8 = Encoding.UTF8.GetBytes(json);
+        int byteCount = Encoding.UTF8.GetByteCount(json);
+        byte[] rented = ArrayPool<byte>.Shared.Rent(byteCount);
+        try
+        {
+            Encoding.UTF8.GetBytes(json, 0, json.Length, rented, 0);
+            Compile(new ReadOnlySpan<byte>(rented, 0, byteCount), context);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
 
-        var reader = new Utf8JsonReader(utf8);
+    /// <summary>
+    /// Applies all JSON attribute overrides in <paramref name="utf8Json"/> to
+    /// <paramref name="context"/>. Zero heap allocations on the hot path.
+    /// </summary>
+    /// <remarks>
+    /// This is the canonical zero-allocation entry point. The string overload
+    /// encodes via a pooled buffer and then delegates here.
+    /// Authority for each route is checked inside the invoker — unowned JSON
+    /// sub-trees are skipped via <c>Utf8JsonReader.Skip()</c>.
+    /// </remarks>
+    public void Compile(ReadOnlySpan<byte> utf8Json, IEntityPatchContext context)
+    {
+        if (utf8Json.IsEmpty)
+            return;
+
+        var reader = new Utf8JsonReader(utf8Json);
 
         // ── Stack-allocated state machine ─────────────────────
         // contextStack[d] = FNV hash context for properties at depth d.
@@ -222,6 +255,9 @@ public sealed class JsonAttributeCompiler
                 }
 
                 // Primitive value tokens — attempt dispatch.
+                // Authority is checked inside ValueInvoker<T>/ReferenceInvoker<T>:
+                // if CanWrite/CanWriteManaged returns false the invoker calls reader.Skip()
+                // and returns without touching ECS memory.
                 case JsonTokenType.String:
                 case JsonTokenType.Number:
                 case JsonTokenType.True:
@@ -230,17 +266,8 @@ public sealed class JsonAttributeCompiler
                 {
                     if (_routes.TryGetValue(currentLeafHash, out var entry))
                     {
-                        if (context.HasAuthority(entry.ComponentId))
-                        {
-                            // Pass the compact list of numeric indices accumulated on this path.
-                            ReadOnlySpan<int> indices = indexStack[..wildcardTotal];
-                            entry.Dispatch(context, indices, ref reader);
-                        }
-                        else
-                        {
-                            // No authority — advance the reader without touching ECS memory.
-                            reader.Skip();
-                        }
+                        ReadOnlySpan<int> indices = indexStack[..wildcardTotal];
+                        entry.Dispatch(context, indices, ref reader);
                     }
                     break;
                 }

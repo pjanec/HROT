@@ -48,7 +48,7 @@ public sealed class AttributeCompilerBuilder
             throw new InvalidOperationException(
                 $"A route for path '{jsonPath}' (hash {hash}) is already registered. Duplicate paths are not allowed.");
 
-        _routes[hash] = new RoutingEntry(new ValueInvoker<T>(setter), ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)), descriptorOrdinal);
+        _routes[hash] = new RoutingEntry(new ValueInvoker<T>(setter), descriptorOrdinal);
         return this;
     }
 
@@ -76,7 +76,7 @@ public sealed class AttributeCompilerBuilder
             throw new InvalidOperationException(
                 $"A route for path '{jsonPath}' (hash {hash}) is already registered. Duplicate paths are not allowed.");
 
-        _routes[hash] = new RoutingEntry(new ReferenceInvoker<T>(setter), ManagedComponentType<T>.ID, descriptorOrdinal);
+        _routes[hash] = new RoutingEntry(new ReferenceInvoker<T>(setter), descriptorOrdinal);
         return this;
     }
 

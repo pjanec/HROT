@@ -119,11 +119,22 @@ public sealed class EcsPatchContext : IEntityPatchContext
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Delegates to <c>EntityRepository.HasAuthority(entity, componentId)</c>, which reads
-    /// <c>EntityHeader.AuthorityMask.IsSet(componentId)</c> — an O(1) bitwise test.
+    /// Looks up the ECS component type ID via the registry (O(1) cached fast-path) and
+    /// checks the entity's <c>AuthorityMask</c> — the same bit used by
+    /// <c>ValidateWriteAccess&lt;T&gt;</c>, preventing any mismatch between the invoker
+    /// guard and the kernel write-protection boundary.
     /// </remarks>
-    public bool HasAuthority(int componentId)
-        => _repo.HasAuthority(_entity, componentId);
+    public bool CanWrite<T>() where T : struct
+        => _repo.HasAuthority(_entity, ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)));
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Checks the <c>AuthorityMask</c> for the managed component type ID
+    /// (<c>ManagedComponentType&lt;T&gt;.ID</c>) — same bit the kernel uses when
+    /// a managed component slot is protected.
+    /// </remarks>
+    public bool CanWriteManaged<T>() where T : class
+        => _repo.HasAuthority(_entity, ManagedComponentType<T>.ID);
 
     // ── Additional API (used by UpdateEntityAttributeRequestSystem) ──────
 
