@@ -48,6 +48,30 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// </summary>
     private readonly HashSet<int> _appliedComponentIds = new();
 
+    // ── Standalone factory (no routing table) ────────────────────────────
+
+    /// <summary>
+    /// Empty routing table used by <see cref="Create"/> so that the binary-interpreter
+    /// path can construct an <see cref="EcsPatchContext"/> without a
+    /// <see cref="JsonAttributeCompiler"/> dependency.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<ulong, RoutingEntry> s_emptyRoutes =
+        new Dictionary<ulong, RoutingEntry>(0);
+
+    /// <summary>
+    /// Creates a bare <see cref="EcsPatchContext"/> bound to the specified entity,
+    /// with no ordinal mappings.  Suitable for binary-interpreter paths where
+    /// ordinal tracking and egress flushing are handled by the interpreter's own
+    /// flushers (<see cref="BinaryInterpreter.Apply"/> calls
+    /// <see cref="FlushDirtyMarks"/> via the <c>IEntityPatchContext</c> contract,
+    /// but the ordinal map is empty so the call is a no-op for dirty-descriptor
+    /// propagation — the installers drive <c>SmartEgress</c> themselves).
+    /// </summary>
+    /// <param name="repo">Live ECS world.</param>
+    /// <param name="entity">Entity being patched.</param>
+    public static EcsPatchContext Create(EntityRepository repo, Entity entity)
+        => new EcsPatchContext(repo, entity, s_emptyRoutes);
+
     /// <param name="repo">Live ECS world.</param>
     /// <param name="entity">Entity being patched.</param>
     /// <param name="routes">
@@ -57,7 +81,8 @@ public sealed class EcsPatchContext : IEntityPatchContext
     /// <remarks>
     /// The constructor is <c>internal</c> because <see cref="RoutingEntry"/> is an internal type.
     /// External callers should obtain <see cref="EcsPatchContext"/> through the compiler
-    /// returned by <see cref="AttributeCompilerBuilder.Build"/>.
+    /// returned by <see cref="AttributeCompilerBuilder.Build"/>, or via
+    /// <see cref="Create(EntityRepository, Entity)"/> for binary-only paths.
     /// </remarks>
     internal EcsPatchContext(
         EntityRepository repo,
