@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
 using Bagira.Map.Common.Replication.Utils;
@@ -48,6 +49,7 @@ namespace Bagira.SimHost.Systems
         private readonly IGeographicTransform?      _geoTransform;
         private readonly int                        _localNodeId;
         private readonly JsonAttributeCompiler?     _jsonCompiler;
+        private readonly BinaryInterpreter?         _binaryInterpreter;
 
         /// <summary>
         /// Reusable <see cref="ListPatchContext"/> instance. Reset per entity-creation call
@@ -74,6 +76,11 @@ namespace Bagira.SimHost.Systems
         /// overrides after descriptors have been mapped to components.
         /// When <c>null</c>, <c>InitialAttributesJson</c> is ignored.
         /// </param>
+        /// <param name="binaryInterpreter">
+        /// Optional <see cref="BinaryInterpreter"/> for applying <c>InitialAttributeRecords</c>
+        /// binary attribute overrides. Processed before the JSON path.
+        /// When <c>null</c>, <c>InitialAttributeRecords</c> is ignored.
+        /// </param>
         public CreateEntityRequestSystem(
             ICreateEntityRequestSource requestSource,
             ICreateEntityAckSink       ackSink,
@@ -81,15 +88,17 @@ namespace Bagira.SimHost.Systems
             INetworkIdAllocator        idAllocator,
             int                        localNodeId,
             IGeographicTransform?      geoTransform = null,
-            JsonAttributeCompiler      jsonAttributeCompiler = null!)
+            JsonAttributeCompiler      jsonAttributeCompiler = null!,
+            BinaryInterpreter?         binaryInterpreter = null)
         {
-            _requestSource = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
-            _ackSink       = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
-            _tkbDb         = tkbDb         ?? throw new ArgumentNullException(nameof(tkbDb));
-            _idAllocator   = idAllocator   ?? throw new ArgumentNullException(nameof(idAllocator));
-            _localNodeId   = localNodeId;
-            _geoTransform  = geoTransform;
-            _jsonCompiler  = jsonAttributeCompiler;
+            _requestSource    = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
+            _ackSink          = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
+            _tkbDb            = tkbDb         ?? throw new ArgumentNullException(nameof(tkbDb));
+            _idAllocator      = idAllocator   ?? throw new ArgumentNullException(nameof(idAllocator));
+            _localNodeId      = localNodeId;
+            _geoTransform     = geoTransform;
+            _jsonCompiler     = jsonAttributeCompiler;
+            _binaryInterpreter = binaryInterpreter;
         }
 
         /// <summary>Number of requests currently buffered and awaiting spawn commands.</summary>
@@ -170,10 +179,23 @@ namespace Bagira.SimHost.Systems
                 List<object> allComponents =
                     DescriptorMapper.MapToComponents(pending.Request.InitialDescriptors, _geoTransform);
 
-                // 2. Apply JSON attribute patches from InitialAttributesJson (ATTR-S5T2).
+                // 2. Apply binary attribute records from InitialAttributeRecords (ATTR2-P5T1).
+                //    Binary records take precedence over JSON overrides when present.
+                if (_binaryInterpreter != null
+                    && pending.Request.InitialAttributeRecords != null
+                    && pending.Request.InitialAttributeRecords.Count > 0)
+                {
+                    _reusablePatchContext ??= new ListPatchContext(null);
+                    _reusablePatchContext.Reset(allComponents);
+                    var binaryCtx = _binaryInterpreter.CreateContext(_reusablePatchContext);
+                    _binaryInterpreter.Apply(binaryCtx,
+                        CollectionsMarshal.AsSpan(pending.Request.InitialAttributeRecords));
+                    allComponents = _reusablePatchContext.FlushComponents();
+                }
+                // 2b. Apply JSON attribute patches from InitialAttributesJson (ATTR-S5T2).
                 //    Patches are applied AFTER descriptor-based defaults so fine-grained
                 //    overrides win over template values.
-                if (_jsonCompiler != null && !string.IsNullOrEmpty(pending.Request.InitialAttributesJson))
+                else if (_jsonCompiler != null && !string.IsNullOrEmpty(pending.Request.InitialAttributesJson))
                 {
                     // Reuse the single cached context (Reset clears slots without releasing
                     // the underlying Dictionary objects, eliminating per-entity heap traffic).

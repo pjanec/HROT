@@ -1,15 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
+using Bagira.IG.Components;
 using Bagira.SimHost.Systems;
+using Bagira.SimHost.Installers;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Patching;
 using Fdp.Toolkit.Tkb;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network;
@@ -347,8 +351,7 @@ namespace Bagira.SimHost.Tests
 
         [Fact]
         public void TimeSlicing_SecondFrame_ProcessesRemainingRequests()
-        {
-            // Arrange — enqueue exactly MaxRequestsPerTick + 1 requests.
+        {            // Arrange — enqueue exactly MaxRequestsPerTick + 1 requests.
             int totalRequests = CreateEntityRequestSystem.MaxRequestsPerTick + 1;
             var repo   = CreateWorld();
             var tkb    = CreateTkb();
@@ -374,6 +377,186 @@ namespace Bagira.SimHost.Tests
             Assert.Equal(CreateEntityRequestSystem.MaxRequestsPerTick, firstFrameCount);
             Assert.Single(secondFrameCmds);
             Assert.Equal(0, system.PendingQueueCount);
+        }
+
+        // ── ATTR2-P5T1: Binary attribute records path ─────────────────────────
+
+        private static BinaryInterpreter BuildBinaryInterpreter()
+            => AttributeCompilerFactory.BuildBinaryInterpreter(null);
+
+        private static EntityRepository CreateWorldWithIgEntityData()
+        {
+            var repo = CreateWorld();
+            repo.RegisterManagedComponent<IgEntityData>();
+            return repo;
+        }
+
+        /// <summary>
+        /// A <see cref="CreateEntityRequest"/> with <c>InitialAttributeRecords</c> containing
+        /// a Name record must produce a <c>SpawnEntityCommand</c> whose
+        /// <see cref="SpawnEntityCommand.InitialComponents"/> includes an
+        /// <see cref="IgEntityData"/> with the expected name.
+        /// </summary>
+        [Fact]
+        public void ProcessRequest_BinaryRecords_NameRecord_EntitySpawnedWithCorrectName()
+        {
+            // Arrange
+            var repo   = CreateWorldWithIgEntityData();
+            var tkb    = CreateTkb();
+            var source = new StubRequestSource();
+            var request = MakeValidRequest();
+            request.InitialAttributeRecords = new List<AttributeRecord>
+            {
+                new AttributeRecord
+                {
+                    AttributeId = AttributeIds.Name,
+                    Value = new AttributeValueUnion
+                    {
+                        ValueType   = AttributeValueType.KindString,
+                        StringValue = "Gamma",
+                    }
+                }
+            };
+            source.Enqueue(request);
+
+            var idAlloc  = new StubIdAllocator(startId: 100);
+            var ackSink  = new StubAckSink();
+            var system   = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId,
+                binaryInterpreter: BuildBinaryInterpreter());
+
+            // Act
+            system.Execute(repo, 0f);
+
+            // Assert: SpawnEntityCommand carries IgEntityData with Name = "Gamma".
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            Assert.Single(commands);
+
+            var initialComponents = commands[0].InitialComponents;
+            Assert.NotNull(initialComponents);
+            var entityData = initialComponents!.OfType<IgEntityData>().FirstOrDefault();
+            Assert.NotNull(entityData);
+            Assert.Equal("Gamma", entityData!.Name);
+        }
+
+        /// <summary>
+        /// When <c>InitialAttributeRecords</c> is null, the system falls back to the JSON path
+        /// and the entity spawns with the name from <c>InitialAttributesJson</c>.
+        /// </summary>
+        [Fact]
+        public void ProcessRequest_NullBinaryRecords_FallsBackToJsonPath()
+        {
+            // Arrange
+            var repo   = CreateWorldWithIgEntityData();
+            var tkb    = CreateTkb();
+            var source = new StubRequestSource();
+            var request = MakeValidRequest();
+            request.InitialAttributeRecords = null;
+            request.InitialAttributesJson   = "{\"Name\":\"Delta\"}";
+            source.Enqueue(request);
+
+            var jsonCompiler = AttributeCompilerFactory.Build(null);
+            var idAlloc      = new StubIdAllocator(startId: 100);
+            var ackSink      = new StubAckSink();
+            var system       = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId,
+                jsonAttributeCompiler: jsonCompiler,
+                binaryInterpreter:     BuildBinaryInterpreter());
+
+            // Act
+            system.Execute(repo, 0f);
+
+            // Assert: JSON fallback produces entity with Name = "Delta".
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            Assert.Single(commands);
+
+            var initialComponents = commands[0].InitialComponents;
+            Assert.NotNull(initialComponents);
+            var entityData = initialComponents!.OfType<IgEntityData>().FirstOrDefault();
+            Assert.NotNull(entityData);
+            Assert.Equal("Delta", entityData!.Name);
+        }
+
+        /// <summary>
+        /// When both <c>InitialAttributeRecords</c> and <c>InitialAttributesJson</c> are null,
+        /// the entity still spawns without exception (TKB defaults apply).
+        /// </summary>
+        [Fact]
+        public void ProcessRequest_BothNull_EntitySpawnsWithoutException()
+        {
+            // Arrange
+            var repo   = CreateWorldWithIgEntityData();
+            var tkb    = CreateTkb();
+            var source = new StubRequestSource();
+            var request = MakeValidRequest();
+            request.InitialAttributeRecords = null;
+            request.InitialAttributesJson   = null;
+            source.Enqueue(request);
+
+            var idAlloc = new StubIdAllocator(startId: 100);
+            var ackSink = new StubAckSink();
+            var system  = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId,
+                binaryInterpreter: BuildBinaryInterpreter());
+
+            // Act — should not throw.
+            system.Execute(repo, 0f);
+
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            Assert.Single(commands);
+        }
+
+        /// <summary>
+        /// When both binary records AND JSON are provided, the binary records take precedence
+        /// and the JSON payload is ignored.
+        /// </summary>
+        [Fact]
+        public void ProcessRequest_BinaryAndJson_BinaryTakesPrecedence()
+        {
+            // Arrange
+            var repo   = CreateWorldWithIgEntityData();
+            var tkb    = CreateTkb();
+            var source = new StubRequestSource();
+            var request = MakeValidRequest();
+            request.InitialAttributeRecords = new List<AttributeRecord>
+            {
+                new AttributeRecord
+                {
+                    AttributeId = AttributeIds.Name,
+                    Value = new AttributeValueUnion
+                    {
+                        ValueType   = AttributeValueType.KindString,
+                        StringValue = "BinaryWins",
+                    }
+                }
+            };
+            request.InitialAttributesJson = "{\"Name\":\"JsonLoses\"}";
+            source.Enqueue(request);
+
+            var jsonCompiler = AttributeCompilerFactory.Build(null);
+            var idAlloc      = new StubIdAllocator(startId: 100);
+            var ackSink      = new StubAckSink();
+            var system       = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId,
+                jsonAttributeCompiler: jsonCompiler,
+                binaryInterpreter:     BuildBinaryInterpreter());
+
+            // Act
+            system.Execute(repo, 0f);
+
+            // Assert: name comes from binary records, NOT from JSON.
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            Assert.Single(commands);
+
+            var initialComponents = commands[0].InitialComponents;
+            Assert.NotNull(initialComponents);
+            var entityData = initialComponents!.OfType<IgEntityData>().FirstOrDefault();
+            Assert.NotNull(entityData);
+            Assert.Equal("BinaryWins", entityData!.Name);
         }
     }
 }

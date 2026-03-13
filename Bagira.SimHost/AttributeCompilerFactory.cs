@@ -1,7 +1,9 @@
 using System.Numerics;
 using System.Text.Json;
 using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
 using Bagira.IG.Components;
+using Bagira.SimHost.Installers;
 using FDP.Toolkit.Replication.Patching;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
@@ -93,6 +95,46 @@ public static class AttributeCompilerFactory
                     },
                     descriptorOrdinal: GeoSpatialOrdinal);
         }
+
+        return builder.Build();
+    }
+
+    /// <summary>
+    /// Constructs an immutable <see cref="JsonToRecordCompiler"/> with the standard SimHost
+    /// binary attribute routing schema.
+    /// </summary>
+    /// <remarks>
+    /// Registers the same five paths as <see cref="Build"/> so that the JSON→ECS and
+    /// JSON→Binary pipelines stay in perfect sync.
+    /// </remarks>
+    public static JsonToRecordCompiler BuildEdgeCompiler()
+    {
+        return new JsonToRecordCompilerBuilder()
+            .Register("Name",                   AttributeIds.Name,        AttributeValueType.KindString)
+            .Register("Affiliation",             AttributeIds.Affiliation,  AttributeValueType.KindString)
+            .Register("GeoPosition.Latitude",   AttributeIds.GeoLat,      AttributeValueType.KindFloat64)
+            .Register("GeoPosition.Longitude",  AttributeIds.GeoLon,      AttributeValueType.KindFloat64)
+            .Register("GeoPosition.Altitude",   AttributeIds.GeoAlt,      AttributeValueType.KindFloat64)
+            .Build();
+    }
+
+    /// <summary>
+    /// Constructs a <see cref="BinaryInterpreter"/> configured with the standard SimHost
+    /// domain installers.
+    /// </summary>
+    /// <param name="geoTransform">
+    /// Geographic transform used by <see cref="SimTransformAttributeInstaller"/> to convert
+    /// geodetic coordinates to Cartesian space.  When <c>null</c>,
+    /// <see cref="SimTransformAttributeInstaller"/> is not added and geo-position attribute
+    /// records are silently ignored.
+    /// </param>
+    public static BinaryInterpreter BuildBinaryInterpreter(IGeographicTransform? geoTransform)
+    {
+        var builder = new BinaryInterpreterBuilder()
+            .AddInstaller(new EntityDataAttributeInstaller());
+
+        if (geoTransform != null)
+            builder.AddInstaller(new SimTransformAttributeInstaller(geoTransform));
 
         return builder.Build();
     }

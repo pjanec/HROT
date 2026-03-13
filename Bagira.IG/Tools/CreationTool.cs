@@ -1,12 +1,15 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Text;
 using System.Text.Json;
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using Bagira.IG.Components;
 using Fdp.Modules.Geographic;
+using FDP.Toolkit.Replication.Patching;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
@@ -61,6 +64,7 @@ public class CreationTool : IMapTool
     private readonly bool                        _autoPopOnPlace;
     private readonly Func<string>?               _nameResolver;
     private readonly EntityPropertyPatch?        _parsedPatch;
+    private readonly JsonToRecordCompiler?       _edgeCompiler;
 
     private MapCanvas? _canvas;
     private Vector2    _currentMouseWorld;
@@ -115,13 +119,21 @@ public class CreationTool : IMapTool
     /// naming strategies such as "Tank-1", "Tank-2", …
     /// When <c>null</c> (default) the name is parsed from <paramref name="initialPropertiesJson"/>.
     /// </param>
+    /// <param name="edgeCompiler">
+    /// Optional <see cref="JsonToRecordCompiler"/> for converting
+    /// <paramref name="initialPropertiesJson"/> to binary <see cref="AttributeRecord"/>s before
+    /// sending <see cref="CreateEntityRequest.InitialAttributeRecords"/>.
+    /// When non-null, <see cref="CreateEntityRequest.InitialAttributesJson"/> is set to
+    /// <c>null</c> (binary-only wire). When <c>null</c> (default), the legacy JSON path is used.
+    /// </param>
     public CreationTool(
         Action<CreateEntityRequest> onEntityCreated,
         IGeographicTransform?       geoTransform          = null,
         long                        tkbType               = CreationToolConstants.DefaultTkbType,
         string?                     initialPropertiesJson = null,
         bool                        autoPopOnPlace        = true,
-        Func<string>?               nameResolver          = null)
+        Func<string>?               nameResolver          = null,
+        JsonToRecordCompiler?       edgeCompiler          = null)
     {
         _onEntityCreated       = onEntityCreated ?? throw new ArgumentNullException(nameof(onEntityCreated));
         _geoTransform          = geoTransform;
@@ -131,6 +143,7 @@ public class CreationTool : IMapTool
         _initialPropertiesJson = initialPropertiesJson;
         _autoPopOnPlace        = autoPopOnPlace;
         _nameResolver          = nameResolver;
+        _edgeCompiler          = edgeCompiler;
     }
 
     //  IMapTool lifecycle 
@@ -280,8 +293,30 @@ public class CreationTool : IMapTool
                     },
                 },
             },
-            InitialAttributesJson = _initialPropertiesJson,
         };
+
+        // Binary edge-compiler path (ATTR2-P6T1): convert JSON to AttributeRecords.
+        if (_edgeCompiler != null && _initialPropertiesJson != null)
+        {
+            var utf8Json = Encoding.UTF8.GetBytes(_initialPropertiesJson);
+            var buffer   = ArrayPool<AttributeRecord>.Shared.Rent(64);
+            try
+            {
+                int count = _edgeCompiler.Compile(utf8Json, buffer);
+                request.InitialAttributeRecords = new List<AttributeRecord>(buffer[..count]);
+                // Binary-only wire: leave InitialAttributesJson null.
+                request.InitialAttributesJson = null;
+            }
+            finally
+            {
+                ArrayPool<AttributeRecord>.Shared.Return(buffer);
+            }
+        }
+        else
+        {
+            // Legacy JSON path: binary compiler not injected, or no JSON to convert.
+            request.InitialAttributesJson = _initialPropertiesJson;
+        }
 
         _onEntityCreated(request);
         OnCommandPublished?.Invoke(request);

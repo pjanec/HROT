@@ -463,6 +463,267 @@ public class UpdateEntityAttributeRequestSystemTests
         Assert.Empty(ackSink.WrittenAcks);
         Assert.Empty(ackSink.WrittenErrorAcks);
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ATTR2-P5T2: Binary attribute records path
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a <see cref="BinaryInterpreter"/> with a <c>Name</c> handler registered for
+    /// <c>AttributeId = 1</c>, matching the well-known schema constant.  Constructed
+    /// without importing Bagira.SimHost so there is no circular project dependency.
+    /// </summary>
+    private static BinaryInterpreter BuildBinaryInterpreterForTests()
+    {
+        const ushort NameId = 1;     // AttributeIds.Name
+        const long EntityInfoOrdinal = (long)EDescriptorType.dtEntityInfo;
+
+        return new BinaryInterpreterBuilder()
+            .RegisterHandler(NameId, static (ctx, record) =>
+            {
+                if (!ctx.PatchContext.CanWriteManaged<IgEntityData>())
+                    return;
+                var data = ctx.PatchContext.GetManagedComponent<IgEntityData>();
+                data.Name = record.Value.StringValue ?? string.Empty;
+                ctx.MarkDescriptorDirty(EntityInfoOrdinal);
+            })
+            .Build();
+    }
+
+    private static (UpdateEntityAttributeRequestSystem system,
+                    StubUpdateAttrRequestSource source,
+                    StubUpdateAttrAckSink ackSink)
+        BuildSystemWithBinary(NetworkEntityMap entityMap,
+                              JsonAttributeCompiler? compiler,
+                              BinaryInterpreter? binaryInterpreter)
+    {
+        var source  = new StubUpdateAttrRequestSource();
+        var ackSink = new StubUpdateAttrAckSink();
+        var system  = new UpdateEntityAttributeRequestSystem(
+            source, ackSink, entityMap,
+            jsonAttributeCompiler: compiler,
+            binaryInterpreter:     binaryInterpreter);
+        return (system, source, ackSink);
+    }
+
+    /// <summary>
+    /// A live entity with <c>InitialName = "Alpha"</c> receives an
+    /// <see cref="UpdateEntityAttributeRequest"/> carrying a binary Name record.
+    /// The live <see cref="IgEntityData.Name"/> must be updated to "Bravo".
+    /// </summary>
+    [Fact]
+    public void UpdateEntityAttributeRequestSystem_BinaryPath_MutatesName()
+    {
+        // Arrange
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.SetManagedComponent(entity, new IgEntityData { Name = "Alpha" });
+        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+
+        var entityMap = new NetworkEntityMap();
+        entityMap.Register(10L, entity);
+
+        var compiler         = BuildCompiler();
+        var binaryInterpreter = BuildBinaryInterpreterForTests();
+        var (system, source, ackSink) = BuildSystemWithBinary(entityMap, compiler, binaryInterpreter);
+
+        source.Enqueue(new UpdateEntityAttributeRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            EntityId           = 10,
+            AttributePatchJson = "{}",   // JSON has nothing matching
+            AttributeRecords   = new List<AttributeRecord>
+            {
+                new AttributeRecord
+                {
+                    AttributeId = 1, // Name
+                    Value = new AttributeValueUnion
+                    {
+                        ValueType   = AttributeValueType.KindString,
+                        StringValue = "Bravo",
+                    }
+                }
+            },
+            RequireAck = true,
+        });
+
+        // Act
+        system.Create(repo);
+        system.Run();
+
+        // Assert: name was updated.
+        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        Assert.Equal("Bravo", nameData.Name);
+
+        // ACK sent because RequireAck=true and something was applied.
+        Assert.Single(ackSink.WrittenAcks);
+        Assert.Equal((int)SstErrorCode.Success, ackSink.WrittenAcks[0].ErrorCode);
+    }
+
+    /// <summary>
+    /// With <c>RequireAck=true</c>, the binary path must produce an ACK whose OpaqueData
+    /// bitmask has the <see cref="IgEntityData"/> component type bit set.
+    /// </summary>
+    [Fact]
+    public void UpdateEntityAttributeRequestSystem_BinaryPath_AckBitmaskHasIgEntityDataBit()
+    {
+        // Arrange
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.SetManagedComponent(entity, new IgEntityData { Name = "old" });
+        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+
+        var entityMap = new NetworkEntityMap();
+        entityMap.Register(20L, entity);
+
+        var compiler          = BuildCompiler();
+        var binaryInterpreter = BuildBinaryInterpreterForTests();
+        var (system, source, ackSink) = BuildSystemWithBinary(entityMap, compiler, binaryInterpreter);
+
+        source.Enqueue(new UpdateEntityAttributeRequest
+        {
+            EntityId           = 20,
+            RequestId          = Guid.NewGuid(),
+            AttributePatchJson = "{}",
+            AttributeRecords   = new List<AttributeRecord>
+            {
+                new AttributeRecord
+                {
+                    AttributeId = 1, // Name
+                    Value       = new AttributeValueUnion
+                    {
+                        ValueType   = AttributeValueType.KindString,
+                        StringValue = "new",
+                    }
+                }
+            },
+            RequireAck = true,
+        });
+
+        system.Create(repo);
+        system.Run();
+
+        // Assert ACK bitmask.
+        Assert.Single(ackSink.WrittenAcks);
+        int    compId = ManagedComponentType<IgEntityData>.ID;
+        byte[] mask   = ackSink.WrittenAcks[0].OpaqueData;
+        bool   bitSet = (mask[compId >> 3] & (1 << (compId & 7))) != 0;
+        Assert.True(bitSet, "OpaqueData bitmask must have the IgEntityData component bit set.");
+    }
+
+    /// <summary>
+    /// When the authority guard returns false for <see cref="IgEntityData"/>, the binary
+    /// handler must skip the write and the silent bystander rule leaves no ACK.
+    /// </summary>
+    [Fact]
+    public void UpdateEntityAttributeRequestSystem_BinaryPath_AuthorityGuard_SkipsIfNoAuthority()
+    {
+        // Arrange — entity has NO authority for IgEntityData.
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.SetManagedComponent(entity, new IgEntityData { Name = "unchanged" });
+        // Do NOT call SetAuthority — authority bit remains 0.
+
+        var entityMap = new NetworkEntityMap();
+        entityMap.Register(30L, entity);
+
+        var compiler          = BuildCompiler();
+        var binaryInterpreter = BuildBinaryInterpreterForTests();
+        var (system, source, ackSink) = BuildSystemWithBinary(entityMap, compiler, binaryInterpreter);
+
+        source.Enqueue(new UpdateEntityAttributeRequest
+        {
+            EntityId           = 30,
+            RequestId          = Guid.NewGuid(),
+            AttributePatchJson = "{}",
+            AttributeRecords   = new List<AttributeRecord>
+            {
+                new AttributeRecord
+                {
+                    AttributeId = 1, // Name
+                    Value       = new AttributeValueUnion
+                    {
+                        ValueType   = AttributeValueType.KindString,
+                        StringValue = "should-not-apply",
+                    }
+                }
+            },
+            RequireAck = true,
+        });
+
+        system.Create(repo);
+        system.Run();
+
+        // Name must remain unchanged — authority guard blocked the write.
+        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        Assert.Equal("unchanged", nameData.Name);
+
+        // Silent bystander — no ACK even with RequireAck=true.
+        Assert.Empty(ackSink.WrittenAcks);
+        Assert.Empty(ackSink.WrittenErrorAcks);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // ATTR2-DEBT-06: EcsPatchContext standalone factory — binary path without JSON compiler
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ATTR2-DEBT-06: When <see cref="JsonAttributeCompiler"/> is <c>null</c> but a
+    /// <see cref="BinaryInterpreter"/> is provided, the binary path must still
+    /// successfully apply <see cref="AttributeRecord"/>s using the standalone
+    /// <see cref="EcsPatchContext.Create"/> factory.
+    ///
+    /// Verifies that <c>EcsPatchContext</c> no longer has an implicit dependency on
+    /// the JSON compiler in the binary code path.
+    /// </summary>
+    [Fact]
+    public void UpdateEntityAttributeRequestSystem_BinaryPath_WorksWithNullJsonCompiler()
+    {
+        // Arrange
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.SetManagedComponent(entity, new IgEntityData { Name = "Alpha" });
+        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+
+        var entityMap = new NetworkEntityMap();
+        entityMap.Register(50L, entity);
+
+        // No JSON compiler — binary-only mode (ATTR2-DEBT-06).
+        var binaryInterpreter = BuildBinaryInterpreterForTests();
+        var (system, source, ackSink) = BuildSystemWithBinary(entityMap, null, binaryInterpreter);
+
+        source.Enqueue(new UpdateEntityAttributeRequest
+        {
+            EntityId           = 50,
+            RequestId          = Guid.NewGuid(),
+            AttributePatchJson = null,
+            AttributeRecords   = new List<AttributeRecord>
+            {
+                new AttributeRecord
+                {
+                    AttributeId = 1, // AttributeIds.Name
+                    Value       = new AttributeValueUnion
+                    {
+                        ValueType   = AttributeValueType.KindString,
+                        StringValue = "Delta",
+                    }
+                }
+            },
+            RequireAck = true,
+        });
+
+        // Act
+        system.Create(repo);
+        system.Run();
+
+        // Assert: name was updated even though no JSON compiler was injected.
+        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        Assert.Equal("Delta", nameData.Name);
+
+        // ACK must be sent (RequireAck=true and the binary handler applied a mutation).
+        Assert.Single(ackSink.WrittenAcks);
+        Assert.Equal((int)SstErrorCode.Success, ackSink.WrittenAcks[0].ErrorCode);
+    }
 }
 
 

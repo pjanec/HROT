@@ -8,6 +8,7 @@ using Bagira.DDS.DM;
 using Bagira.IG.Components;
 using Bagira.IG.Tools;
 using Fdp.Modules.Geographic;
+using FDP.Toolkit.Replication.Patching;
 using Raylib_cs;
 
 namespace Bagira.IG.Tests;
@@ -389,5 +390,125 @@ public class CreationToolTests
         Assert.NotNull(field);
         var affiliation = (ForceId)field!.GetValue(tool)!;
         Assert.Equal(ForceId.Friend, affiliation);
+    }
+
+    // ── ATTR2-P6T1: EdgeCompiler injection ────────────────────────────────────
+
+    // Attribute IDs must match AT2 schema (AttributeIds.Name=1, GeoLat=10, GeoLon=11, GeoAlt=12).
+    private const ushort AttrName    = 1;
+    private const ushort AttrGeoLat  = 10;
+    private const ushort AttrGeoLon  = 11;
+    private const ushort AttrGeoAlt  = 12;
+
+    /// <summary>
+    /// Builds a minimal edge compiler that recognises "Name", "GeoPosition.Latitude",
+    /// "GeoPosition.Longitude", and "GeoPosition.Altitude" paths.
+    /// </summary>
+    private static JsonToRecordCompiler BuildTestEdgeCompiler()
+        => new JsonToRecordCompilerBuilder()
+            .Register("Name",                  AttrName,   AttributeValueType.KindString)
+            .Register("GeoPosition.Latitude",  AttrGeoLat, AttributeValueType.KindFloat64)
+            .Register("GeoPosition.Longitude", AttrGeoLon, AttributeValueType.KindFloat64)
+            .Register("GeoPosition.Altitude",  AttrGeoAlt, AttributeValueType.KindFloat64)
+            .Build();
+
+    /// <summary>
+    /// Creates a <see cref="CreationTool"/> with an injected edge compiler and returns
+    /// the captured requests and the tool.
+    /// </summary>
+    private static (List<CreateEntityRequest> captured, CreationTool tool) CreateToolWithEdgeCompiler(
+        string? initialPropertiesJson,
+        JsonToRecordCompiler edgeCompiler)
+    {
+        var captured = new List<CreateEntityRequest>();
+        var tool     = new CreationTool(
+            req => captured.Add(req),
+            tkbType:               TestTkbType,
+            initialPropertiesJson: initialPropertiesJson,
+            edgeCompiler:          edgeCompiler);
+        return (captured, tool);
+    }
+
+    /// <summary>
+    /// Without an edge compiler the tool must use the legacy JSON path:
+    /// <c>InitialAttributesJson</c> is set and <c>InitialAttributeRecords</c> is null.
+    /// </summary>
+    [Fact]
+    public void CreationTool_WithoutEdgeCompiler_UsesLegacyJsonPath()
+    {
+        const string json = "{\"Name\":\"Alpha\"}";
+        var (captured, tool) = CreateTool(initialPropertiesJson: json);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        Assert.Single(captured);
+        Assert.Equal(json, captured[0].InitialAttributesJson);
+        Assert.Null(captured[0].InitialAttributeRecords);
+    }
+
+    /// <summary>
+    /// With an edge compiler the tool must publish binary records and clear
+    /// <c>InitialAttributesJson</c> to null.
+    /// </summary>
+    [Fact]
+    public void CreationTool_WithEdgeCompiler_PublishesBinaryRecordsAndNullJson()
+    {
+        const string json = "{\"Name\":\"BinaryAlpha\"}";
+        var compiler         = BuildTestEdgeCompiler();
+        var (captured, tool) = CreateToolWithEdgeCompiler(json, compiler);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        Assert.Single(captured);
+        var req = captured[0];
+
+        // InitialAttributesJson must be null on the binary-only wire.
+        Assert.Null(req.InitialAttributesJson);
+
+        // InitialAttributeRecords must be non-null.
+        Assert.NotNull(req.InitialAttributeRecords);
+    }
+
+    /// <summary>
+    /// With a JSON fixture containing 1 registered path ("Name"), the compiler must
+    /// emit exactly 1 binary record with the correct attribute ID and value.
+    /// </summary>
+    [Fact]
+    public void CreationTool_WithEdgeCompiler_RecordCountMatchesRegisteredPaths()
+    {
+        const string json = "{\"Name\":\"Gamma\"}";
+        var compiler         = BuildTestEdgeCompiler();
+        var (captured, tool) = CreateToolWithEdgeCompiler(json, compiler);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        var records = captured[0].InitialAttributeRecords!;
+        Assert.Single(records);
+        Assert.Equal(AttrName, records[0].AttributeId);
+        Assert.Equal(AttributeValueType.KindString, records[0].Value.ValueType);
+        Assert.Equal("Gamma", records[0].Value.StringValue);
+    }
+
+    /// <summary>
+    /// A JSON fixture with 3 registered geo paths must produce exactly 3 binary records.
+    /// </summary>
+    [Fact]
+    public void CreationTool_WithEdgeCompiler_ThreeGeoPaths_ProducesThreeRecords()
+    {
+        const string json = "{\"GeoPosition\":{\"Latitude\":32.0,\"Longitude\":35.0,\"Altitude\":150.0}}";
+        var compiler         = BuildTestEdgeCompiler();
+        var (captured, tool) = CreateToolWithEdgeCompiler(json, compiler);
+
+        tool.HandleClick(new Vector2(ClickX, ClickY), MouseButton.Left);
+
+        var records = captured[0].InitialAttributeRecords!;
+        Assert.Equal(3, records.Count);
+
+        var latRecord = records.First(r => r.AttributeId == AttrGeoLat);
+        Assert.Equal(32.0, latRecord.Value.DoubleValue);
+        var lonRecord = records.First(r => r.AttributeId == AttrGeoLon);
+        Assert.Equal(35.0, lonRecord.Value.DoubleValue);
+        var altRecord = records.First(r => r.AttributeId == AttrGeoAlt);
+        Assert.Equal(150.0, altRecord.Value.DoubleValue);
     }
 }

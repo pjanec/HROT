@@ -29,4 +29,9 @@ if sample.IsValid==fasle
 
 ---------
 
+We have two identical components
+ - EntityMissionholder component
+ - IgMissionHolder component
+why? can't we unify them?
 
+If entity is tasked via Mission panel to make a Move To task, the Ig shows the destination point but the entity does not stat moving

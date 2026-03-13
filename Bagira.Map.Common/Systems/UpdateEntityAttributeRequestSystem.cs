@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using FDP.Toolkit.Replication.Patching;
@@ -54,6 +55,7 @@ namespace Bagira.Map.Common.Systems
         private readonly IUpdateEntityAttributeAckSink       _ackSink;
         private readonly NetworkEntityMap                    _entityMap;
         private readonly JsonAttributeCompiler?              _jsonCompiler;
+        private readonly BinaryInterpreter?                  _binaryInterpreter;
         private readonly NodeId                              _localNodeId;
 
         // ── Interface-based constructor (test-friendly) ───────────────────────
@@ -74,18 +76,25 @@ namespace Bagira.Map.Common.Systems
         /// This node's <see cref="NodeId"/>, embedded in every ACK as <c>RespondingNode</c>.
         /// Defaults to <c>default</c> (zero) when not provided.
         /// </param>
+        /// <param name="binaryInterpreter">
+        /// Optional <see cref="BinaryInterpreter"/> for applying <see cref="UpdateEntityAttributeRequest.AttributeRecords"/>
+        /// binary attribute records. Processed instead of JSON when records are present.
+        /// When <c>null</c>, binary records are ignored and the JSON path is used.
+        /// </param>
         public UpdateEntityAttributeRequestSystem(
             IUpdateEntityAttributeRequestSource requestSource,
             IUpdateEntityAttributeAckSink       ackSink,
             NetworkEntityMap                    entityMap,
             JsonAttributeCompiler?              jsonAttributeCompiler = null,
-            NodeId                              localNodeId = default)
+            NodeId                              localNodeId = default,
+            BinaryInterpreter?                  binaryInterpreter = null)
         {
-            _requestSource = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
-            _ackSink       = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
-            _entityMap     = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
-            _jsonCompiler  = jsonAttributeCompiler;
-            _localNodeId   = localNodeId;
+            _requestSource     = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
+            _ackSink           = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
+            _entityMap         = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
+            _jsonCompiler      = jsonAttributeCompiler;
+            _localNodeId       = localNodeId;
+            _binaryInterpreter = binaryInterpreter;
         }
 
         // ── DDS-backed constructor (production) ───────────────────────────────
@@ -152,7 +161,40 @@ namespace Bagira.Map.Common.Systems
                 return;
             }
 
-            // 2. No compiler — acknowledge no-op only when explicitly requested.
+            bool hasBinaryRecords = _binaryInterpreter != null
+                && req.AttributeRecords != null
+                && req.AttributeRecords.Count > 0;
+
+            // 2. Binary path: apply AttributeRecords via BinaryInterpreter.
+            if (hasBinaryRecords)
+            {
+                // Build a bare EcsPatchContext directly — independent of the JSON compiler.
+                // Authority checks and component access work without a routing table;
+                // FlushDirtyMarks is a no-op here because the binary installer flushers
+                // drive SmartEgress themselves (BinaryInterpreter.Apply calls FlushDirtyMarks
+                // at the end via IEntityPatchContext contract).
+                var ecsPatchCtx  = EcsPatchContext.Create(World, entity);
+                var binaryCtx    = _binaryInterpreter!.CreateContext(ecsPatchCtx);
+                _binaryInterpreter.Apply(binaryCtx,
+                    CollectionsMarshal.AsSpan(req.AttributeRecords));
+
+                // SILENT BYSTANDER RULE — nothing applied, leave quietly.
+                if (!ecsPatchCtx.HasAppliedAny)
+                    return;
+
+                // OPT-IN ACK.
+                if (req.RequireAck)
+                {
+                    Span<byte> opaqueMask = stackalloc byte[32];
+                    foreach (int compId in ecsPatchCtx.AppliedComponentIds)
+                        opaqueMask[compId >> 3] |= (byte)(1 << (compId & 7));
+
+                    _ackSink.WriteAck(req.RequestId, (int)SstErrorCode.Success, _localNodeId, opaqueMask);
+                }
+                return;
+            }
+
+            // 3. No compiler — acknowledge no-op only when explicitly requested.
             if (_jsonCompiler == null)
             {
                 FdpLog<UpdateEntityAttributeRequestSystem>.Info(
@@ -164,24 +206,24 @@ namespace Bagira.Map.Common.Systems
                 return;
             }
 
-            // 3. Build live-ECS patch context — component-level authority guard is wired
+            // 4. Build live-ECS patch context — component-level authority guard is wired
             //    into the compiler's Compile() loop via EcsPatchContext.HasAuthority.
             //    TODO ATTR-BATCH-03: investigate pooling EcsPatchContext for high-frequency updates.
             var context = _jsonCompiler.CreatePatchContext(World, entity);
 
-            // 4. Stream the JSON patch through the routing table.
+            // 5. Stream the JSON patch through the routing table.
             //    Routes whose component ID is not authorised by this node are silently skipped
             //    (reader.Skip() — zero allocation, no ECS mutation).
             _jsonCompiler.Compile(req.AttributePatchJson, context);
 
-            // 5. Flush per-entity dirty marks, bypassing chunk-level egress ticks.
+            // 6. Flush per-entity dirty marks, bypassing chunk-level egress ticks.
             context.FlushDirtyMarks();
 
-            // 6. SILENT BYSTANDER RULE — if this node applied nothing, leave quietly.
+            // 7. SILENT BYSTANDER RULE — if this node applied nothing, leave quietly.
             if (!context.HasAppliedAny)
                 return;
 
-            // 7. OPT-IN ACK — send only when the requester asked for a response.
+            // 8. OPT-IN ACK — send only when the requester asked for a response.
             if (req.RequireAck)
             {
                 // Build 32-byte bitmask: bit N = ECS component type ID N was mutated.
@@ -231,7 +273,7 @@ namespace Bagira.Map.Common.Systems
                 RequestId      = requestId,
                 ErrorCode      = errorCode,
                 RespondingNode = respondingNode,
-                OpaqueData     = new List<byte>(opaqueData.ToArray()),
+                OpaqueData     = opaqueData.ToArray(),
             });
 
         public void WriteErrorAck(Guid requestId, int errorCode)

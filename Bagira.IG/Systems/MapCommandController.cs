@@ -10,6 +10,7 @@ using Bagira.IG.Components;
 using Bagira.IG.Tools;
 using Fdp.Modules.Geographic;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Replication.Patching;
 using FDP.Toolkit.Vis2D;
 
 namespace Bagira.IG.Systems;
@@ -89,6 +90,14 @@ public class MapCommandController
     /// </summary>
     private readonly Dictionary<Guid, bool> _pendingEntityRequests = new();
 
+    /// <summary>
+    /// Edge compiler injected at construction time and forwarded to every
+    /// <see cref="CreationTool"/> so placement requests carry binary
+    /// <see cref="AttributeRecord"/>s instead of raw JSON on the DDS wire.
+    /// <c>null</c> in headless / test constructors that do not supply one.
+    /// </summary>
+    private readonly JsonToRecordCompiler? _edgeCompiler;
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     /// <param name="canvas">The <see cref="MapCanvas"/> on which tools are pushed and popped.</param>
@@ -99,14 +108,22 @@ public class MapCommandController
     /// <param name="ackWriter">
     /// Writer used to publish <see cref="MapCommandAck"/> messages back to the IOS.
     /// </param>
+    /// <param name="edgeCompiler">
+    /// Optional <see cref="JsonToRecordCompiler"/> forwarded to <see cref="CreationTool"/>
+    /// for binary attribute encoding.  When non-null the tool emits
+    /// <c>InitialAttributeRecords</c> and clears <c>InitialAttributesJson</c>.
+    /// When <c>null</c> (default / tests) the tool falls back to the legacy JSON wire.
+    /// </param>
     public MapCommandController(
         MapCanvas                        canvas,
         IDdsWriter<CreateEntityRequest>  createEntityWriter,
-        IDdsWriter<MapCommandAck>        ackWriter)
+        IDdsWriter<MapCommandAck>        ackWriter,
+        JsonToRecordCompiler?            edgeCompiler = null)
     {
         _canvas              = canvas              ?? throw new ArgumentNullException(nameof(canvas));
         _createEntityWriter  = createEntityWriter  ?? throw new ArgumentNullException(nameof(createEntityWriter));
         _ackWriter           = ackWriter           ?? throw new ArgumentNullException(nameof(ackWriter));
+        _edgeCompiler        = edgeCompiler;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -163,7 +180,8 @@ public class MapCommandController
             tkbType:               tkbType,
             initialPropertiesJson: initialPropertiesJson,
             autoPopOnPlace:        true,
-            nameResolver:          _nameGenerator);  // null when no auto-naming
+            nameResolver:          _nameGenerator,   // null when no auto-naming
+            edgeCompiler:          _edgeCompiler);   // ATTR2-DEBT-07: binary encoding for production DDS wire
 
         tool.Exited += OnCreationToolExited;
         _activeCreationTool = tool;

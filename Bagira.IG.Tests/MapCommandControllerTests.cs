@@ -8,6 +8,7 @@ using Bagira.IG.Abstractions;
 using Bagira.IG.Components;
 using Bagira.IG.Systems;
 using Bagira.IG.Tools;
+using FDP.Toolkit.Replication.Patching;
 using FDP.Toolkit.Vis2D;
 using Raylib_cs;
 
@@ -284,5 +285,91 @@ public class MapCommandControllerTests
         });
 
         Assert.Empty(ackWriter.Written);
+    }
+
+    // ── ATTR2-DEBT-07: Edge compiler DI wiring ────────────────────────────────
+
+    /// <summary>
+    /// Builds a <see cref="MapCommandController"/> that has a non-null
+    /// <see cref="JsonToRecordCompiler"/> injected via the constructor.
+    /// </summary>
+    private static (
+        MapCanvas                               canvas,
+        CapturingDdsWriter<CreateEntityRequest> entityWriter,
+        CapturingDdsWriter<MapCommandAck>       ackWriter,
+        MapCommandController                    controller)
+    BuildControllerWithEdgeCompiler()
+    {
+        var canvas       = new MapCanvas();
+        var entityWriter = new CapturingDdsWriter<CreateEntityRequest>();
+        var ackWriter    = new CapturingDdsWriter<MapCommandAck>();
+        var compiler     = new JsonToRecordCompilerBuilder()
+            .Register("Name",                  AttributeIds.Name,        AttributeValueType.KindString)
+            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueType.KindFloat64)
+            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueType.KindFloat64)
+            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueType.KindFloat64)
+            .Build();
+        var controller   = new MapCommandController(canvas, entityWriter, ackWriter, compiler);
+        return (canvas, entityWriter, ackWriter, controller);
+    }
+
+    /// <summary>
+    /// ATTR2-DEBT-07: When <see cref="MapCommandController"/> is constructed with a
+    /// non-null <see cref="JsonToRecordCompiler"/>, the <see cref="CreationTool"/> it
+    /// pushes must emit <c>InitialAttributeRecords</c> (non-null, non-empty) and
+    /// set <c>InitialAttributesJson</c> to <c>null</c> on a left-click.
+    ///
+    /// This verifies that the edge compiler flows from the DI root through the
+    /// controller into the tool, fulfilling the production binary-wire requirement.
+    /// </summary>
+    [Fact]
+    public void ActivatePlacementCommand_WithEdgeCompiler_CreationToolEmitsBinaryRecords()
+    {
+        var (canvas, entityWriter, _, ctrl) = BuildControllerWithEdgeCompiler();
+
+        ctrl.ActivatePlacementCommand(
+            Guid.NewGuid(), Guid.NewGuid(), 202L, null,
+            initialPropertiesJson: "{\"Name\":\"AlphaUnit\"}");
+
+        var tool = (CreationTool)canvas.ActiveTool!;
+        tool.HandleClick(new Vector2(100f, 200f), MouseButton.Left);
+
+        Assert.Single(entityWriter.Written);
+        var req = entityWriter.Written[0];
+
+        // Binary-only wire: InitialAttributesJson must be null.
+        Assert.Null(req.InitialAttributesJson);
+
+        // InitialAttributeRecords must be non-null and contain at least one record.
+        Assert.NotNull(req.InitialAttributeRecords);
+        Assert.NotEmpty(req.InitialAttributeRecords!);
+    }
+
+    /// <summary>
+    /// ATTR2-DEBT-07: Without an edge compiler (legacy path) the placement tool must
+    /// fall back to the JSON wire — <c>InitialAttributesJson</c> is set and
+    /// <c>InitialAttributeRecords</c> is null.  This confirms the optional wiring
+    /// does not break existing tests or headless scenarios.
+    /// </summary>
+    [Fact]
+    public void ActivatePlacementCommand_WithoutEdgeCompiler_CreationToolUsesJsonPath()
+    {
+        var (canvas, entityWriter, _, ctrl) = BuildController();
+
+        ctrl.ActivatePlacementCommand(
+            Guid.NewGuid(), Guid.NewGuid(), 202L, null,
+            initialPropertiesJson: "{\"Name\":\"BetaUnit\"}");
+
+        var tool = (CreationTool)canvas.ActiveTool!;
+        tool.HandleClick(new Vector2(100f, 200f), MouseButton.Left);
+
+        Assert.Single(entityWriter.Written);
+        var req = entityWriter.Written[0];
+
+        // Legacy wire: InitialAttributesJson must be forwarded verbatim.
+        Assert.Equal("{\"Name\":\"BetaUnit\"}", req.InitialAttributesJson);
+
+        // No binary records on the legacy path.
+        Assert.Null(req.InitialAttributeRecords);
     }
 }

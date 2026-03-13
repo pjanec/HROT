@@ -100,6 +100,128 @@ namespace Bagira.BDC.SSTM
     }
 
     // ===================================================================================
+    // ATTR2 BINARY CONTRACT: ATTRIBUTE WIRE TYPES
+    // ===================================================================================
+    // These types implement the binary DDS wire contract described in ATTR2-DESIGN.md §3.1.
+    // They carry strongly-typed attribute values without JSON parsing on the receiving host.
+    // ===================================================================================
+
+    /// <summary>
+    /// Discriminator tag for the active branch of <see cref="AttributeValueUnion"/>.
+    /// Nine scalar/vector types are supported to cover all well-known attribute schemas.
+    /// </summary>
+    public enum AttributeValueType : int
+    {
+        /// <summary>32-bit signed integer.</summary>
+        KindInt32 = 0,
+        /// <summary>64-bit signed integer.</summary>
+        KindInt64 = 1,
+        /// <summary>32-bit IEEE 754 floating-point.</summary>
+        KindFloat32 = 2,
+        /// <summary>64-bit IEEE 754 floating-point.</summary>
+        KindFloat64 = 3,
+        /// <summary>Boolean value.</summary>
+        KindBool = 4,
+        /// <summary>UTF-8 string.</summary>
+        KindString = 5,
+        /// <summary>3-component single-precision vector (x, y, z).</summary>
+        KindVec3f = 6,
+        /// <summary>3-component double-precision vector (x, y, z).</summary>
+        KindVec3d = 7,
+        /// <summary>4-component single-precision vector (x, y, z, w).</summary>
+        KindVec4f = 8,
+    }
+
+    /// <summary>
+    /// Tagged-union value container for a single attribute value transmitted over DDS.
+    /// The <see cref="ValueType"/> discriminator (annotated with <c>[DdsDiscriminator]</c>)
+    /// identifies which branch is active; each branch is annotated with the corresponding
+    /// <c>[DdsCase]</c> value so CycloneDDS generates a valid IDL union definition.
+    /// Marked <c>[DdsManaged]</c> because the <see cref="StringValue"/> branch holds a
+    /// managed <c>string</c> reference — an explicit layout is therefore not possible.
+    /// See ATTR2-DESIGN.md §3.1.
+    /// </summary>
+    [DdsUnion]
+    [DdsIdlFile("bdc-sst-generic-msgs")]
+    [DdsManaged]
+    public partial struct AttributeValueUnion
+    {
+        /// <summary>Discriminator: identifies which value field is populated.</summary>
+        [DdsDiscriminator]
+        public AttributeValueType ValueType;
+
+        /// <summary>Active when <see cref="ValueType"/> == <see cref="AttributeValueType.KindInt32"/>.</summary>
+        [DdsCase(AttributeValueType.KindInt32)]
+        public int IntValue;
+
+        /// <summary>Active when <see cref="ValueType"/> == <see cref="AttributeValueType.KindInt64"/>.</summary>
+        [DdsCase(AttributeValueType.KindInt64)]
+        public long LongValue;
+
+        /// <summary>Active when <see cref="ValueType"/> == <see cref="AttributeValueType.KindFloat32"/>.</summary>
+        [DdsCase(AttributeValueType.KindFloat32)]
+        public float FloatValue;
+
+        /// <summary>Active when <see cref="ValueType"/> == <see cref="AttributeValueType.KindFloat64"/>.</summary>
+        [DdsCase(AttributeValueType.KindFloat64)]
+        public double DoubleValue;
+
+        /// <summary>Active when <see cref="ValueType"/> == <see cref="AttributeValueType.KindBool"/>.</summary>
+        [DdsCase(AttributeValueType.KindBool)]
+        public bool BoolValue;
+
+        /// <summary>Active when <see cref="ValueType"/> == <see cref="AttributeValueType.KindString"/>.</summary>
+        [DdsCase(AttributeValueType.KindString)]
+        [DdsManaged]
+        public string? StringValue;
+
+        /// <summary>
+        /// Active when <see cref="ValueType"/> == <see cref="AttributeValueType.KindVec3f"/>.
+        /// 3-component single-precision vector. Value type — no heap allocation.
+        /// </summary>
+        [DdsCase(AttributeValueType.KindVec3f)]
+        public Vec3f Vec3fValue;
+
+        /// <summary>
+        /// Active when <see cref="ValueType"/> == <see cref="AttributeValueType.KindVec3d"/>.
+        /// 3-component double-precision vector. Value type — no heap allocation.
+        /// </summary>
+        [DdsCase(AttributeValueType.KindVec3d)]
+        public Vec3d Vec3dValue;
+
+        /// <summary>
+        /// Active when <see cref="ValueType"/> == <see cref="AttributeValueType.KindVec4f"/>.
+        /// 4-component single-precision vector. Value type — no heap allocation.
+        /// </summary>
+        [DdsCase(AttributeValueType.KindVec4f)]
+        public Vec4f Vec4fValue;
+    }
+
+    /// <summary>
+    /// The wire atom for a single binary attribute update.
+    /// Encodes one typed value identified by a 16-bit attribute ID and two optional
+    /// sub-index fields (e.g. list index, part slot).
+    /// See ATTR2-DESIGN.md §3.1.
+    /// </summary>
+    [DdsStruct]
+    [DdsIdlFile("bdc-sst-generic-msgs")]
+    public partial struct AttributeRecord
+    {
+        /// <summary>Well-known attribute schema ID — see <c>FDP.Toolkit.Replication.Patching.AttributeIds</c>.</summary>
+        public ushort AttributeId;
+
+        /// <summary>First optional sub-index (e.g. list position). Zero when not used.</summary>
+        public short SubIndex1;
+
+        /// <summary>Second optional sub-index (e.g. nested list position). Zero when not used.</summary>
+        public short SubIndex2;
+
+        /// <summary>The typed value payload. The active branch is identified by <see cref="AttributeValueUnion.ValueType"/>.</summary>
+        [DdsManaged]
+        public AttributeValueUnion Value;
+    }
+
+    // ===================================================================================
     // GENERIC REQUESTS (SST UTILITIES)
     // ===================================================================================
 
@@ -131,6 +253,15 @@ namespace Bagira.BDC.SSTM
         // Processed by JsonAttributeCompiler — see ATTR-DESIGN.md §3.
         [DdsManaged]
         public string? InitialAttributesJson;
+
+        /// <summary>
+        /// Optional binary attribute overrides applied alongside <see cref="InitialAttributesJson"/>.
+        /// Each <see cref="AttributeRecord"/> carries a strongly-typed value keyed by a 16-bit
+        /// attribute ID, eliminating JSON parsing on the receiving host.
+        /// See ATTR2-DESIGN.md §3.1.
+        /// </summary>
+        [DdsManaged]
+        public List<AttributeRecord>? InitialAttributeRecords;
     }
 
     // Acknowledgment for entity creation.
@@ -211,6 +342,15 @@ namespace Bagira.BDC.SSTM
         // When true, the processing node must send a CreateUpdateDeleteEntityAck after applying
         // the patch.  When false (default), the message is fire-and-forget.
         public bool RequireAck;
+
+        /// <summary>
+        /// Optional binary attribute patch applied alongside <see cref="AttributePatchJson"/>.
+        /// Each <see cref="AttributeRecord"/> carries a strongly-typed value keyed by a 16-bit
+        /// attribute ID, eliminating JSON parsing on the receiving host.
+        /// See ATTR2-DESIGN.md §3.1.
+        /// </summary>
+        [DdsManaged]
+        public List<AttributeRecord>? AttributeRecords;
     }
 
     // Acknowledgment for entity creation, descriptor update, deletion, attribute update.
@@ -234,7 +374,6 @@ namespace Bagira.BDC.SSTM
         /// Non-FDP nodes may use this field for custom flags or leave it null/zeroed.
         /// Serialized as an unbounded DDS octet sequence.
         /// </summary>
-        [DdsManaged]
-        public List<byte>? OpaqueData;
+        public byte[] OpaqueData;
     }
 }

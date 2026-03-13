@@ -70,6 +70,8 @@ using FDP.Toolkit.Replication;
 
 using FDP.Toolkit.Replication.Components;
 
+using FDP.Toolkit.Replication.Patching;
+
 using FDP.Toolkit.Replication.Services;
 
 using FDP.Toolkit.Replication.Systems;
@@ -278,6 +280,15 @@ public class IgApplication
     /// <see cref="MapCommandAck"/> messages.
     /// </summary>
     private MapCommandController?               _mapCommandController;
+
+    /// <summary>
+    /// Edge compiler built once at initialisation time and injected into every
+    /// <see cref="Bagira.IG.Tools.CreationTool"/> created by
+    /// <see cref="Bagira.IG.Systems.MapCommandController"/>.
+    /// Converts placement JSON property blobs to binary
+    /// <see cref="Bagira.BDC.SSTM.AttributeRecord"/>s on the DDS wire (ATTR2-DEBT-07).
+    /// </summary>
+    private JsonToRecordCompiler? _edgeCompiler;
 
     // ÔöÇÔöÇ Drag tracking: world-space drop position set by OnEntityMoved ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
@@ -563,6 +574,17 @@ public class IgApplication
 
         _world.AddComponent(_mapContextEntity, new NetworkIdentity(0));
 
+        // ── ATTR2-DEBT-07: Build edge compiler once, shared across all CreationTool instances ──
+        // Registers the same five paths used by AttributeCompilerFactory.BuildEdgeCompiler()
+        // in Bagira.SimHost so the JSON→Binary schema stays in sync on both ends of the wire.
+        _edgeCompiler = new JsonToRecordCompilerBuilder()
+            .Register("Name",                  AttributeIds.Name,        AttributeValueType.KindString)
+            .Register("Affiliation",           AttributeIds.Affiliation,  AttributeValueType.KindString)
+            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueType.KindFloat64)
+            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueType.KindFloat64)
+            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueType.KindFloat64)
+            .Build();
+
     }
 
 
@@ -745,10 +767,12 @@ public class IgApplication
                 ddsAllocator = new DdsIdAllocator(participant, $"IG_{IgNetworkConstants.InstanceId}");
 
                 // Create the MapCommandController now that canvas and DDS resources are ready.
+                // _edgeCompiler was built in InitializeEcs — inject it here for binary DDS wire (ATTR2-DEBT-07).
                 _mapCommandController = new MapCommandController(
                     _canvas,
                     new CycloneDdsWriterIgAdapter<CreateEntityRequest>(_createEntityDdsWriter!),
-                    new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!));
+                    new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!),
+                    _edgeCompiler);
 
                 _networkEnabled = true;
 
