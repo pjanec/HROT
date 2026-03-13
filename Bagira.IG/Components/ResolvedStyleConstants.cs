@@ -16,7 +16,7 @@ public static class ResolvedStyleConstants
     public const int TextureNameMaxBytes = 16;
 
     /// <summary>Maximum byte length of the label-text fixed buffer (null-terminated UTF-8).</summary>
-    public const int LabelTextMaxBytes = 24;
+    public const int LabelTextMaxBytes = 32;
 
     /// <summary>
     /// Cache-safety byte ceiling for <see cref="ResolvedStyle"/>.

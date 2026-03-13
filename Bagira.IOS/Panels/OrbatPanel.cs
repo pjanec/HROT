@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
 using Bagira.Map.Common;
 using FDP.Toolkit.DER;
 using ImGuiNET;
@@ -166,13 +167,13 @@ public sealed class OrbatPanel
         
         if (_selectedType == 0) return; // Guard against uninitialized selection
 
-        string propsJson = System.Text.Json.JsonSerializer.Serialize(new
+        var patch = new EntityPropertyPatch
         {
-            affiliation = eForceIdentifier.FORCE_FRIENDLY.ToString()
-        });
+            Affiliation = eForceIdentifier.FORCE_FRIENDLY
+        };
         
         // Dynamically request the selected type instead of hardcoding Unit_InfantrySquad
-        logic.StartPlacementMode(_selectedType, propsJson);
+        logic.StartPlacementMode(_selectedType, patch);
     }
 
     // ── Visible node list (testable, used by Draw in Phase P9) ────────────────

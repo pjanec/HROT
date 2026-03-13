@@ -199,6 +199,42 @@ namespace Bagira.SimHost.Systems
                     fallbackComponents.Add(comp);
                 }
 
+                // 3.5. Ensure parent has IgEntityData if it's an auto-spawn composite
+                Bagira.IG.Components.IgEntityData parentInfo = null;
+                if (_tkbDb.TryGetByType(pending.TkbType, out var parentTemplate) && parentTemplate.ChildBlueprints.Count > 0)
+                {
+                    if (fallbackComponents != null)
+                    {
+                        foreach (var comp in fallbackComponents)
+                        {
+                            if (comp is Bagira.IG.Components.IgEntityData info)
+                            {
+                                parentInfo = info;
+                                break; // Found the metadata component
+                            }
+                        }
+                    }
+
+                    // If the request didn't patch any metadata, ensure the parent has default metadata
+                    // so it's visible in the ORBAT tree and can be tracked.
+                    if (parentInfo == null)
+                    {
+                        parentInfo = new Bagira.IG.Components.IgEntityData
+                        {
+                            Name = parentTemplate.Name,
+                            ForceId = Bagira.IG.Components.ForceId.Unknown
+                        };
+                        fallbackComponents ??= new List<object>();
+                        fallbackComponents.Add(parentInfo);
+                    }
+
+                    // Ensure parent has a valid name if it's auto-spawned (using template name)
+                    if (string.IsNullOrWhiteSpace(parentInfo.Name))
+                    {
+                        parentInfo.Name = parentTemplate.Name;
+                    }
+                }
+
                 // 4. Publish SpawnEntityCommand — NetworkSpawningSystem handles all ECS work.
                 if (view is EntityRepository repo)
                 {
@@ -215,21 +251,8 @@ namespace Bagira.SimHost.Systems
                         RequestId         = pending.Request.RequestId,
                     });
                     // 5. Automatically spawn child entities if defined in the TKB template.
-                    if (_tkbDb.TryGetByType(pending.TkbType, out var parentTemplate) && parentTemplate.ChildBlueprints.Count > 0)
+                    if (parentTemplate != null && parentTemplate.ChildBlueprints.Count > 0)
                     {
-                        Bagira.IG.Components.IgEntityData parentInfo = null;
-                        if (fallbackComponents != null)
-                        {
-                            foreach (var comp in fallbackComponents)
-                            {
-                                if (comp is Bagira.IG.Components.IgEntityData info)
-                                {
-                                    parentInfo = info;
-                                    break; // Found the metadata component
-                                }
-                            }
-                        }
-
                         foreach (var childDef in parentTemplate.ChildBlueprints)
                         {
                             long childNetworkId = _idAllocator.AllocateId();
@@ -241,16 +264,15 @@ namespace Bagira.SimHost.Systems
                                 childDisType = childTemplate.DisType.Value;
                             }
 
-                            var childComponents = new List<object>();
-                            if (parentInfo != null)
+                            var childComponents = new List<object>
                             {
-                                childComponents.Add(new Bagira.IG.Components.IgEntityData
+                                new Bagira.IG.Components.IgEntityData
                                 {
                                     Name = $"{parentInfo.Name}-{childDef.InstanceId}",
                                     ForceId = parentInfo.ForceId,
                                     CommanderId = (int)pending.NetworkId
-                                });
-                            }
+                                }
+                            };
 
                             repo.Bus.PublishManaged(new SpawnEntityCommand
                             {
