@@ -37,7 +37,7 @@ internal class ComponentReflector
     /// </summary>
     public void DrawComponents(IInspectableSession session, Entity e)
     {
-        var allTypes = session.GetAllComponentTypes();
+        var allTypes = session.GetAllComponentTypes().OrderBy(t => t.Name).ToList();
 
         int componentIndex = 0;
         foreach (var type in allTypes)

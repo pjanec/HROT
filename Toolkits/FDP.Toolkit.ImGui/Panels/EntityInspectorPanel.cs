@@ -82,11 +82,23 @@ public class EntityInspectorPanel
         ImGuiApi.SameLine();
         ImGuiApi.InputTextWithHint("##search", "Search ID...", ref _searchFilter, 20);
         
+        if (context.SelectedEntity != null)
+        {
+            ImGuiApi.SameLine();
+            if (ImGuiApi.Button("Copy JSON"))
+            {
+                var json = EntityJsonDumper.Dump(session, context.SelectedEntity.Value);
+                ImGuiApi.SetClipboardText(json);
+            }
+            if (ImGuiApi.IsItemHovered())
+                ImGuiApi.SetTooltip("Dump exact entity state to clipboard as JSON");
+        }
+
         ImGuiApi.Separator();
 
         // 2. Left Column: Entity List | Right Column: Component Details
         float width = ImGuiApi.GetContentRegionAvail().X;
-        
+
         if (ImGuiApi.BeginTable("InspectorLayout", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.BordersInnerV))
         {
             ImGuiApi.TableSetupColumn("List", ImGuiTableColumnFlags.WidthFixed, width * 0.35f);
