@@ -22,4 +22,10 @@ public static class ContextMenuActions
     // ── Logistics strategy ────────────────────────────────────────────────────
     public const int Resupply = 30;
     public const int Transfer = 31;
-}
+    // ── Editor actions ─────────────────────────────────────────────────
+    /// <summary>Activate drawing edit mode for the selected tactical overlay.</summary>
+    public const int EditOverlay = 100;
+
+    // ── Map canvas actions ──────────────────────────────────────────────
+    /// <summary>Push the distance-measurement tool onto the map canvas.</summary>
+    public const int Measure = 200;}

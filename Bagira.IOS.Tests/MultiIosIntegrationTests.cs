@@ -101,7 +101,7 @@ internal static class MultiIosFactory
             var clickQueue    = new ConcurrentEventQueue<MapClickEvent>();
             var selectQueue   = new ConcurrentEventQueue<SelectionChangedEvent>();
             var txMgr         = new RequestTransactionManager();
-            var ctxMenu       = new ContextMenuLogic(new CapturingWriter<ContextActionsUpdate>());
+            var ctxMenu       = new ContextMenuLogic(repo, new CapturingWriter<ContextActionsUpdate>());
             var interPanel    = new InteractionPanel();
             var missionPanel  = new MissionPanel();
 

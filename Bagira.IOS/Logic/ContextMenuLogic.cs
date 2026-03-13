@@ -1,5 +1,7 @@
+﻿using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.Map.Common.Dds;
+using FDP.Toolkit.DER;
 using Newtonsoft.Json;
 
 namespace Bagira.IOS.Logic;
@@ -18,27 +20,29 @@ namespace Bagira.IOS.Logic;
 /// </summary>
 public sealed class ContextMenuLogic : IContextMenuLogic
 {
-    // ── Dependencies ──────────────────────────────────────────────────────────
+    // â”€â”€ Dependencies â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+    private readonly IDerRepo _repo;
     private readonly IDdsWriter<ContextActionsUpdate> _menuWriter;
 
-    // ── State ─────────────────────────────────────────────────────────────────
+    // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private MenuStrategy _currentStrategy = MenuStrategy.Standard;
 
-    // ── Events ────────────────────────────────────────────────────────────────
+    // â”€â”€ Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public event Action<ContextActionInvoked>? ActionInvoked;
 
-    // ── Constructor ───────────────────────────────────────────────────────────
+    // â”€â”€ Constructor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    public ContextMenuLogic(IDdsWriter<ContextActionsUpdate> menuWriter)
+    public ContextMenuLogic(IDerRepo repo, IDdsWriter<ContextActionsUpdate> menuWriter)
     {
+        _repo       = repo       ?? throw new ArgumentNullException(nameof(repo));
         _menuWriter = menuWriter ?? throw new ArgumentNullException(nameof(menuWriter));
     }
 
-    // ── IContextMenuLogic ─────────────────────────────────────────────────────
+    // â”€â”€ IContextMenuLogic â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public MenuStrategy CurrentStrategy => _currentStrategy;
@@ -52,13 +56,25 @@ public sealed class ContextMenuLogic : IContextMenuLogic
     /// <inheritdoc/>
     public void OnSelectionChanged(SelectionChangedEvent evt)
     {
-        var menuItems = BuildMenu(_currentStrategy);
+        List<ContextMenuItem> menuItems;
+
+        if (evt.SelectedEntityIds is not { Count: > 0 })
+        {
+            // No entity selected â€” this is a map-canvas right-click.
+            menuItems = BuildMapCanvasMenu();
+        }
+        else
+        {
+            var entity = _repo.GetEntity(evt.SelectedEntityIds[0]);
+            menuItems = BuildEntityMenu(_currentStrategy, entity);
+        }
+
         string menuJson = JsonConvert.SerializeObject(menuItems);
 
         _menuWriter.Write(new ContextActionsUpdate
         {
-            MapGroupId       = evt.MapId,
-            ForSelection     = evt.SelectedEntityIds,
+            MapGroupId         = evt.MapId,
+            ForSelection       = evt.SelectedEntityIds,
             MenuDefinitionJson = menuJson
         });
     }
@@ -69,15 +85,26 @@ public sealed class ContextMenuLogic : IContextMenuLogic
         ActionInvoked?.Invoke(evt);
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
-    /// Builds the concrete item list for the given strategy.
-    /// All action IDs are referenced by name from <see cref="ContextMenuActions"/>
-    /// to avoid magic numbers (CODE-STANDARDS §1).
+    /// Returns the map-canvas context menu shown when no entity is selected.
     /// </summary>
-    private static List<ContextMenuItem> BuildMenu(MenuStrategy strategy)
-        => strategy switch
+    private static List<ContextMenuItem> BuildMapCanvasMenu()
+        => new()
+        {
+            new() { Id = ContextMenuActions.Measure, Label = "Measure...", Icon = "measure" }
+        };
+
+    /// <summary>
+    /// Builds the item list for the given strategy, optionally appending entity-specific
+    /// actions (e.g. "Edit Drawing" for editable overlays).
+    /// <paramref name="entity"/> may be <c>null</c> when the entity is not yet in the
+    /// DER repo; the strategy menu is returned without dynamic additions in that case.
+    /// </summary>
+    private static List<ContextMenuItem> BuildEntityMenu(MenuStrategy strategy, IDerEntity? entity)
+    {
+        var items = strategy switch
         {
             MenuStrategy.Standard => new List<ContextMenuItem>
             {
@@ -105,4 +132,23 @@ public sealed class ContextMenuLogic : IContextMenuLogic
 
             _ => new List<ContextMenuItem>()
         };
+
+        // Dynamically append "Edit Drawing" when the entity has an editable tactical overlay.
+        if (entity != null && entity.HasDescriptor<MapVisualOverlay>())
+        {
+            // HasDescriptor confirmed the overlay exists; GetDescriptor is safe to call.
+            var overlay = entity.GetDescriptor<MapVisualOverlay>()!;
+            if (overlay.IsEditable)
+            {
+                items.Add(new ContextMenuItem
+                {
+                    Id    = ContextMenuActions.EditOverlay,
+                    Label = "Edit Drawing",
+                    Icon  = "edit"
+                });
+            }
+        }
+
+        return items;
+    }
 }

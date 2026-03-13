@@ -98,7 +98,7 @@ internal static class IntegrationFactory
             commitTimeoutMs: 200,           // Short timeout keeps tests fast.
             ackQueue:        simHostStub.AckQueue);
 
-        var contextMenuLogic = new ContextMenuLogic(new CapturingWriter<ContextActionsUpdate>());
+        var contextMenuLogic = new ContextMenuLogic(repo, new CapturingWriter<ContextActionsUpdate>());
         var transactionMgr   = new RequestTransactionManager();
         var interactionPanel = new InteractionPanel();
 

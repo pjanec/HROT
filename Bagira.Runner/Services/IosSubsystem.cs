@@ -119,7 +119,7 @@ namespace Bagira.Runner.Services
             var commandWriter      = new DdsWriterAdapter<MapCommandRequest>(_participant, TopicMapCommand);
 
             var missionEditorSvc = new MissionEditorService(repo, missionCmdWriter, ackQueue: missionAckQueue);
-            var contextMenuLogic  = new ContextMenuLogic(contextMenuWriter);
+            var contextMenuLogic  = new ContextMenuLogic(repo, contextMenuWriter);
 
             // MissionEditorService doubles as an IIngressHandler: its Poll() drains
             // the ack queue and resolves pending CommitMissionAsync tasks.

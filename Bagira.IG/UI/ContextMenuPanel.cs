@@ -51,10 +51,25 @@ public sealed class ContextMenuPanel
         if (!view.HasManagedComponent<ContextMenuState>(activeEntity))
             return;
 
+        // ── Timing guard: detect a pending open whose cmd has not been flushed yet ──
+        // ContextMenuSystem runs in PostSimulation and uses the command buffer.
+        // The buffer is flushed in BeforeSync, but Draw() is called BEFORE that flush.
+        // When Execute processes a right-click open it: (a) sets ActiveMenuEntity,
+        // (b) increments OpenSequence, and (c) queues SetManagedComponent(IsOpen=true)
+        // — but (c) is not yet visible in the ECS view.  Without this guard the stale
+        // IsOpen=false below would fire RequestClose and cancel the fresh open, making
+        // the context menu a one-shot feature.
+        bool freshOpen = _menuSystem.OpenSequence != _lastOpenSequence;
+
         var state = view.GetManagedComponentRO<ContextMenuState>(activeEntity);
         if (!state.IsOpen)
         {
-            _menuSystem.RequestClose(activeEntity);
+            if (!freshOpen)
+            {
+                // Safe to close: no pending open is in-flight.
+                _menuSystem.RequestClose(activeEntity);
+            }
+            // Either way, stop drawing this frame — IsOpen reflects stale state.
             return;
         }
 
@@ -74,9 +89,8 @@ public sealed class ContextMenuPanel
         ImGui.SetNextWindowSize(io.DisplaySize, ImGuiCond.Always);
         ImGui.Begin("##ContextMenuHost", hostFlags);
 
-        if (_menuSystem.OpenSequence != _lastOpenSequence)
+        if (freshOpen)
         {
-            _lastOpenSequence = _menuSystem.OpenSequence;
             ImGui.OpenPopup(popupId);
         }
 
@@ -85,9 +99,20 @@ public sealed class ContextMenuPanel
         if (!popupOpen)
         {
             ImGui.End();
-            _menuSystem.RequestClose(activeEntity);
+            // Only close the ECS state if we are NOT in the middle of a fresh-open
+            // attempt.  When freshOpen=true, the popup was just (re)requested and
+            // BeginPopup returning false means ImGui didn't accept the OpenPopup yet
+            // (same-frame dismiss + reopen race).  We leave the ECS menu open and
+            // retry calling OpenPopup next frame.
+            if (!freshOpen)
+            {
+                _menuSystem.RequestClose(activeEntity);
+            }
             return;
         }
+
+        // Popup is visually open — record the sequence so we don't call OpenPopup again.
+        _lastOpenSequence = _menuSystem.OpenSequence;
 
         if (state.Actions.Count == 0)
         {

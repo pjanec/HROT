@@ -147,24 +147,33 @@ public class ContextMenuSystem : IModuleSystem
 
                 if (view.HasManagedComponent<ContextMenuState>(target))
                 {
-                    // Preserve existing actions; update open flag and position.
+                    // Clone the list so we never mutate the previous tick's shared reference.
                     var prev   = view.GetManagedComponentRO<ContextMenuState>(target);
-                    state.Actions = prev.Actions;
+                    state.Actions = new System.Collections.Generic.List<ContextAction>(prev.Actions);
                     cmd.SetManagedComponent(target, state);
                 }
                 else
                 {
+                    state.Actions = new System.Collections.Generic.List<ContextAction>();
                     cmd.AddManagedComponent(target, state);
                 }
 
-                // If no IOS-provided actions are available, populate with IG defaults
-                // so the menu is always useful even without IOS customisation.
-                if (state.Actions.Count == 0)
+                // Only inject the spatial "Center on Entity" default if the target
+                // entity actually has a position in the world.  The _mapContextEntity
+                // (NetworkIdentity = 0, no SimTransform) is intentionally excluded.
+                if (view.HasComponent<SimTransform>(target))
                 {
-                    state.Actions = new System.Collections.Generic.List<ContextAction>
+                    bool hasCenter = state.Actions.Exists(
+                        a => a.ActionName == "IG_CenterOnEntity" || a.ActionName == "IG_Center");
+
+                    if (!hasCenter)
                     {
-                        new ContextAction { Label = "Center on Entity", ActionName = "IG_CenterOnEntity" },
-                    };
+                        state.Actions.Insert(0, new ContextAction
+                        {
+                            Label      = "Center on Entity",
+                            ActionName = "IG_CenterOnEntity"
+                        });
+                    }
                 }
             }
         }

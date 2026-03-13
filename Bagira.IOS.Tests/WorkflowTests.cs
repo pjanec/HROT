@@ -59,6 +59,7 @@ public class FullStackWorkflowTests
                 Repo, MissionCapture, commitTimeoutMs: 200, ackQueue: AckQueue);
 
             var contextMenuLogic = new ContextMenuLogic(
+                Repo,
                 new CapturingWriter<ContextActionsUpdate>());
 
             Logic = new IosLogic(

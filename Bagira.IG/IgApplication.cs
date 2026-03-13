@@ -2205,7 +2205,11 @@ public class IgApplication
 
     {
 
-        if (action.ActionName.StartsWith("IG_", StringComparison.Ordinal))
+        if (action.ActionName.StartsWith("IG_", StringComparison.Ordinal) ||
+
+            action.ActionName == "100" ||
+
+            action.ActionName == "200")
 
         {
 
@@ -2262,6 +2266,34 @@ public class IgApplication
                 CenterCameraOn(entity);
 
                 break;
+
+            case "100": // EditOverlay — activate area-editing tool on the selected entity
+
+            {
+
+                var view100 = (ISimulationView)_world;
+
+                if (view100.HasComponent<NetworkIdentity>(entity))
+
+                {
+
+                    ref readonly var netId = ref view100.GetComponentRO<NetworkIdentity>(entity);
+
+                    ActivateAreaEditingTool(netId.Value);
+
+                }
+
+                break;
+
+            }
+
+            case "200": // Measure — push the measurement tool onto the canvas
+
+                _canvas.PushTool(new Bagira.IG.Tools.MeasureTool());
+
+                break;
+
+
 
             default:
 

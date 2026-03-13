@@ -51,6 +51,25 @@ public class ContextMenuSystemTests
         cb.Playback(repo);
     }
 
+    /// <summary>
+    /// Runs only the Execute phase without flushing the command buffer.
+    /// Mirrors the real runtime where ContextMenuSystem (PostSimulation) calls Execute
+    /// and queues SetManagedComponent calls, but the buffer is flushed later in
+    /// BeforeSync — AFTER Draw() is already called.
+    /// </summary>
+    private static void RunExecuteOnly(EntityRepository repo, ContextMenuSystem system)
+    {
+        repo.Bus.SwapBuffers();
+        system.Execute(repo, 0f);
+    }
+
+    /// <summary>Flushes the ECS command buffer (simulates the BeforeSync flush).</summary>
+    private static void FlushCommandBuffer(EntityRepository repo)
+    {
+        var cb = (EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
+        cb.Playback(repo);
+    }
+
     private static ContextMenuState? TryGetMenuState(EntityRepository repo, Entity entity)
     {
         var view = (ISimulationView)repo;
@@ -331,5 +350,251 @@ public class ContextMenuSystemTests
         Assert.NotNull(state);
         Assert.False(state!.IsOpen, "A stand-alone close request must close the menu.");
         Assert.Equal(Entity.Null, system.ActiveMenuEntity);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SimTransform guard — "Center on Entity" injection
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// When an entity has a <see cref="SimTransform"/> the system must inject a
+    /// "Center on Entity" action at position 0 if none is already present.
+    /// </summary>
+    [Fact]
+    public void OpenMenu_EntityWithSimTransform_InjectsCenterOnEntity()
+    {
+        var repo   = CreateRepo();
+        repo.RegisterComponent<SimTransform>();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new SimTransform());
+        var system = new ContextMenuSystem();
+
+        // Seed the entity with an EMPTY action list so the injection path is exercised.
+        repo.SetManagedComponent(entity, new ContextMenuState
+        {
+            IsOpen  = false,
+            Actions = new List<ContextAction>()
+        });
+
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+
+        var state = TryGetMenuState(repo, entity);
+        Assert.NotNull(state);
+        var hasCenter = state!.Actions.Exists(
+            a => a.ActionName == "IG_CenterOnEntity" || a.ActionName == "IG_Center");
+        Assert.True(hasCenter, "SimTransform entity must get 'Center on Entity' injected.");
+    }
+
+    /// <summary>
+    /// When an entity does NOT have a <see cref="SimTransform"/> (e.g. the
+    /// <c>_mapContextEntity</c> used for empty-space clicks) the system must NOT
+    /// inject the spatial "Center on Entity" action.
+    /// </summary>
+    [Fact]
+    public void OpenMenu_EntityWithoutSimTransform_DoesNotInjectCenterOnEntity()
+    {
+        var repo   = CreateRepo();
+        repo.RegisterComponent<SimTransform>();
+        var entity = repo.CreateEntity(); // deliberately no SimTransform
+        var system = new ContextMenuSystem();
+
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+
+        var state = TryGetMenuState(repo, entity);
+        Assert.NotNull(state);
+        var hasCenter = state!.Actions.Exists(
+            a => a.ActionName == "IG_CenterOnEntity" || a.ActionName == "IG_Center");
+        Assert.False(hasCenter,
+            "Entity without SimTransform must NOT receive 'Center on Entity'.");
+    }
+
+    /// <summary>
+    /// When IOS provides a list that already contains "IG_CenterOnEntity", the system
+    /// must not add a duplicate.
+    /// </summary>
+    [Fact]
+    public void OpenMenu_AlreadyHasCenterAction_DoesNotDuplicate()
+    {
+        var repo   = CreateRepo();
+        repo.RegisterComponent<SimTransform>();
+        repo.RegisterComponent<NetworkIdentity>();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new SimTransform());
+        repo.AddComponent(entity, new NetworkIdentity(99));
+
+        // Pre-populate via a ContextActionsUpdate that includes the center action.
+        repo.SetManagedComponent(entity, new ContextMenuState
+        {
+            IsOpen  = false,
+            Actions = new List<ContextAction>
+            {
+                new ContextAction { Label = "Center on Entity", ActionName = "IG_CenterOnEntity" },
+                new ContextAction { Label = "Properties...",    ActionName = "2" }
+            }
+        });
+
+        var system = new ContextMenuSystem();
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+
+        var state = TryGetMenuState(repo, entity);
+        Assert.NotNull(state);
+        var centerCount = state!.Actions.Count(
+            a => a.ActionName == "IG_CenterOnEntity" || a.ActionName == "IG_Center");
+        Assert.Equal(1, centerCount);
+    }
+
+    /// <summary>
+    /// Verifies that re-opening a menu for the same entity does not permanently
+    /// mutate the action list stored from a previous open cycle.  Specifically,
+    /// the second open must still see the original IOS-provided actions.
+    /// </summary>
+    [Fact]
+    public void Reopen_ActionListIsCloned_NotSharedWithPreviousTick()
+    {
+        var repo   = CreateRepo();
+        repo.RegisterComponent<SimTransform>();
+        var entity = repo.CreateEntity();
+        // No SimTransform — prevents "Center on Entity" injection noise.
+
+        repo.SetManagedComponent(entity, new ContextMenuState
+        {
+            IsOpen  = false,
+            Actions = new List<ContextAction>
+            {
+                new ContextAction { Label = "Action A", ActionName = "a" }
+            }
+        });
+
+        var system = new ContextMenuSystem();
+
+        // First open.
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+        var state1 = TryGetMenuState(repo, entity);
+        Assert.Equal(1, state1!.Actions.Count);
+
+        // Close it (so the state goes back to a closed state).
+        system.TestHook_CloseContextMenu(entity);
+        RunSystem(repo, system);
+
+        // Second open — must get the same 1-action list, not an inflated one.
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+        var state2 = TryGetMenuState(repo, entity);
+        Assert.Equal(1, state2!.Actions.Count);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Regression: context menu must not be a one-shot feature
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Regression test for the "one-shot context menu" bug.
+    ///
+    /// Root cause: <see cref="ContextMenuSystem"/> runs in <c>PostSimulation</c> and
+    /// issues its state changes via <c>cmd.SetManagedComponent</c>.  The command
+    /// buffer is flushed in <c>BeforeSync</c> — which happens AFTER the UI Draw call.
+    /// When the operator right-clicks a second time, Execute processes the open and
+    /// (synchronously) increments <see cref="ContextMenuSystem.OpenSequence"/> and sets
+    /// <see cref="ContextMenuSystem.ActiveMenuEntity"/>.  However the
+    /// <see cref="ContextMenuState.IsOpen"/> flag is still <c>false</c> in the ECS
+    /// view because the command buffer hasn't been flushed yet.
+    ///
+    /// A naive Draw() that sees <c>IsOpen=false</c> while <c>ActiveMenuEntity != Null</c>
+    /// would call <c>RequestClose</c>, which in the next Execute would overwrite the
+    /// pending open with a close — leaving the menu permanently broken after the first
+    /// use.  The correct guard is: if <c>OpenSequence != _lastOpenSequence</c> (a fresh
+    /// open is in-flight), skip <c>RequestClose</c> this frame.
+    ///
+    /// This test verifies the two observable facts the panel relies on:
+    /// 1. After <c>RunExecuteOnly</c> (no playback), <c>OpenSequence</c> is already
+    ///    incremented — the panel can detect the in-flight open.
+    /// 2. After <c>FlushCommandBuffer</c>, <c>IsOpen</c> becomes <c>true</c>.
+    /// </summary>
+    [Fact]
+    public void Reopen_OpenSequenceAdvancesBeforePlayback_PreventsFalseClose()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        var system = new ContextMenuSystem();
+
+        // Frame 1: open.
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+        Assert.True(TryGetMenuState(repo, entity)!.IsOpen);
+        Assert.Equal(1, system.OpenSequence);
+
+        // Frame 2: close.
+        system.TestHook_CloseContextMenu(entity);
+        RunSystem(repo, system);
+        Assert.False(TryGetMenuState(repo, entity)!.IsOpen);
+        Assert.Equal(Entity.Null, system.ActiveMenuEntity);
+
+        // Frame 3 — Execute only (no cmd playback yet).  This mirrors the real
+        // runtime where Draw() fires between Execute and BeforeSync flush.
+        system.TestHook_TriggerContextMenu(entity, ScreenX + 10f, ScreenY + 10f);
+        RunExecuteOnly(repo, system);
+
+        // These two fields are updated synchronously inside Execute (no cmd needed).
+        // The panel's "freshOpen" guard relies on OpenSequence being already advanced
+        // here so it knows NOT to call RequestClose on the stale IsOpen=false.
+        Assert.True(system.OpenSequence == 2,
+            "OpenSequence must be incremented synchronously in Execute before cmd playback.");
+        Assert.True(system.ActiveMenuEntity == entity,
+            "ActiveMenuEntity must be set synchronously in Execute before cmd playback.");
+
+        // The ECS state is still stale (cmd not flushed).
+        var staleState = TryGetMenuState(repo, entity);
+        Assert.NotNull(staleState);
+        Assert.False(staleState!.IsOpen,
+            "ECS IsOpen must still be false before cmd playback — this is the stale state " +
+            "that was causing the false RequestClose.");
+
+        // Simulate BeforeSync flush.
+        FlushCommandBuffer(repo);
+
+        // After flush, IsOpen must be true — the reopen is complete.
+        var freshState = TryGetMenuState(repo, entity);
+        Assert.NotNull(freshState);
+        Assert.True(freshState!.IsOpen,
+            "After cmd playback IsOpen must be true — the menu reopen must succeed.");
+        Assert.Equal(ScreenX + 10f, freshState.ScreenX);
+        Assert.Equal(ScreenY + 10f, freshState.ScreenY);
+    }
+
+    /// <summary>
+    /// Verifies the full open → close → open lifecycle across multiple sequential
+    /// cycles using the normal (execute-then-playback) path.
+    /// </summary>
+    [Fact]
+    public void MultipleOpenCloseCycles_AllSucceed()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        var system = new ContextMenuSystem();
+
+        for (int i = 1; i <= 3; i++)
+        {
+            system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+            RunSystem(repo, system);
+
+            Assert.True(TryGetMenuState(repo, entity)!.IsOpen,
+                $"Cycle {i}: IsOpen must be true after open.");
+            Assert.True(system.ActiveMenuEntity == entity,
+                $"Cycle {i}: ActiveMenuEntity must be the entity.");
+            Assert.True(system.OpenSequence == i,
+                $"Cycle {i}: OpenSequence must equal cycle index.");
+
+            system.TestHook_CloseContextMenu(entity);
+            RunSystem(repo, system);
+
+            Assert.False(TryGetMenuState(repo, entity)!.IsOpen,
+                $"Cycle {i}: IsOpen must be false after close.");
+            Assert.True(system.ActiveMenuEntity == Entity.Null,
+                $"Cycle {i}: ActiveMenuEntity must be Null after close.");
+        }
     }
 }

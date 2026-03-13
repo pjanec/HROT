@@ -1,6 +1,8 @@
+using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.IOS.Logic;
 using Bagira.Map.Common.Dds;
+using FDP.Toolkit.DER;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -22,9 +24,21 @@ public class ContextMenuLogicTests
 
     private static (ContextMenuLogic Logic, CapturingMenuWriter Writer) CreateSut()
     {
+        var repo   = new DerRepo();
         var writer = new CapturingMenuWriter();
-        var logic  = new ContextMenuLogic(writer);
+        var logic  = new ContextMenuLogic(repo, writer);
         return (logic, writer);
+    }
+
+    /// <summary>
+    /// Factory that also exposes the repo so tests can seed entities.
+    /// </summary>
+    private static (ContextMenuLogic Logic, CapturingMenuWriter Writer, DerRepo Repo) CreateSutWithRepo()
+    {
+        var repo   = new DerRepo();
+        var writer = new CapturingMenuWriter();
+        var logic  = new ContextMenuLogic(repo, writer);
+        return (logic, writer, repo);
     }
 
     private static SelectionChangedEvent MakeSelectionEvent(int mapId, params int[] entityIds)
@@ -250,4 +264,139 @@ public class ContextMenuLogicTests
 
     private static List<JObject> ParseMenuItems(string json)
         => JArray.Parse(json).Cast<JObject>().ToList();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Map-canvas (empty selection) context menu
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// When no entity ID is in the selection, the IOS must return the map-canvas
+    /// menu which contains the "Measure..." action and nothing else.
+    /// </summary>
+    [Fact]
+    public void EmptySelection_ReturnsMeasureAction()
+    {
+        var (logic, writer) = CreateSut();
+        // Pass an event with an empty (non-null) list — simulates right-click on empty space.
+        logic.OnSelectionChanged(new SelectionChangedEvent
+        {
+            MapId             = 1,
+            SelectedEntityIds = new List<int>()
+        });
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.Contains(ContextMenuActions.Measure, ids);
+    }
+
+    [Fact]
+    public void EmptySelection_DoesNotReturnEntityActions()
+    {
+        var (logic, writer) = CreateSut();
+        logic.OnSelectionChanged(new SelectionChangedEvent
+        {
+            MapId             = 1,
+            SelectedEntityIds = new List<int>()
+        });
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.DoesNotContain(ContextMenuActions.CenterOnEntity, ids);
+        Assert.DoesNotContain(ContextMenuActions.Properties,     ids);
+    }
+
+    [Fact]
+    public void NullSelection_ReturnsMeasureAction()
+    {
+        var (logic, writer) = CreateSut();
+        logic.OnSelectionChanged(new SelectionChangedEvent
+        {
+            MapId             = 1,
+            SelectedEntityIds = null
+        });
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.Contains(ContextMenuActions.Measure, ids);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Edit Drawing (editable MapVisualOverlay)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// When the selected entity has a <see cref="MapVisualOverlay"/> with
+    /// <c>IsEditable = true</c>, "Edit Drawing" (ID 100) must appear in the menu.
+    /// </summary>
+    [Fact]
+    public void EditableOverlay_AddsEditDrawingAction()
+    {
+        var (logic, writer, repo) = CreateSutWithRepo();
+
+        var entity = repo.CreateEntity(42, tkbType: 0);
+        entity.SetDescriptor(new MapVisualOverlay { IsEditable = true });
+
+        logic.OnSelectionChanged(MakeSelectionEvent(1, 42));
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.Contains(ContextMenuActions.EditOverlay, ids);
+    }
+
+    [Fact]
+    public void EditableOverlay_EditDrawingLabel_IsCorrect()
+    {
+        var (logic, writer, repo) = CreateSutWithRepo();
+
+        var entity = repo.CreateEntity(42, tkbType: 0);
+        entity.SetDescriptor(new MapVisualOverlay { IsEditable = true });
+
+        logic.OnSelectionChanged(MakeSelectionEvent(1, 42));
+
+        var items = ParseMenuItems(writer.Written[0].MenuDefinitionJson);
+        var editItem = items.SingleOrDefault(i => (int)i["id"]! == ContextMenuActions.EditOverlay);
+
+        Assert.NotNull(editItem);
+        Assert.Equal("Edit Drawing", (string)editItem!["label"]!);
+    }
+
+    /// <summary>
+    /// An overlay with <c>IsEditable = false</c> must NOT produce "Edit Drawing".
+    /// </summary>
+    [Fact]
+    public void NonEditableOverlay_DoesNotAddEditDrawingAction()
+    {
+        var (logic, writer, repo) = CreateSutWithRepo();
+
+        var entity = repo.CreateEntity(42, tkbType: 0);
+        entity.SetDescriptor(new MapVisualOverlay { IsEditable = false });
+
+        logic.OnSelectionChanged(MakeSelectionEvent(1, 42));
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.DoesNotContain(ContextMenuActions.EditOverlay, ids);
+    }
+
+    /// <summary>
+    /// An entity without a MapVisualOverlay must NOT produce "Edit Drawing".
+    /// </summary>
+    [Fact]
+    public void EntityWithoutOverlay_DoesNotAddEditDrawingAction()
+    {
+        var (logic, writer, repo) = CreateSutWithRepo();
+        repo.CreateEntity(42, tkbType: 0); // no overlay descriptor
+
+        logic.OnSelectionChanged(MakeSelectionEvent(1, 42));
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.DoesNotContain(ContextMenuActions.EditOverlay, ids);
+    }
 }

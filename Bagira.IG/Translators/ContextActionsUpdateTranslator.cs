@@ -117,7 +117,14 @@ namespace Bagira.IG.Translators
                     if (item.TryGetProperty("id", out var idProp))
                     {
                         if (idProp.ValueKind == JsonValueKind.Number && idProp.TryGetInt32(out int id))
-                            actionName = id.ToString(CultureInfo.InvariantCulture);
+                        {
+                            // Map well-known IOS numeric IDs to IG-local action names so
+                            // they are executed on the IG side rather than round-tripped to IOS.
+                            // Bagira.IOS.Logic.ContextMenuActions.CenterOnEntity = 1.
+                            actionName = id == 1
+                                ? "IG_CenterOnEntity"
+                                : id.ToString(CultureInfo.InvariantCulture);
+                        }
                         else
                             actionName = idProp.ToString() ?? label;
                     }
