@@ -28,6 +28,12 @@ Update this file when an item is resolved. Do not delete resolved rows — mark 
 | SIM-DEBT-08 | P3 | INTS-BATCH-01-REPORT | `SimHostScenarioManager.MapVehicleClassToTkbType` uses arbitrary string-to-enum dispatch mapping which risks throwing on typos if converted. Harden this API before extending vehicle types. | Phase 2 | Open |
 | SIM-DEBT-09 | P4 | INTS-BATCH-03-REPORT | Duplicated app-bootstrap composition across IG/SimHost/Runner paths. Create a generalized, shared composition helper in an app-layer assembly. | Phase 4 | Open |
 
+| RUNNER-DEBT-001 | P3 | RUNNER-BATCH-01 | `AsyncRecorder` has `Dispose()` but doesn't implement `IDisposable` — violates .NET conventions, prevents polymorphic usage. | FDP.Kernel.FlightRecorder | Open |
+| RUNNER-DEBT-002 | P3 | RUNNER-BATCH-01 | `ComponentTypeRegistry` fully static — makes test isolation hard, requires `Clear()` in every fixture, breaks parallel test runners. Propose `AsyncLocal<ComponentTypeRegistry>` instance pattern. | FDP.Kernel | Open |
+| RUNNER-DEBT-003 | P3 | RUNNER-BATCH-01 | `PlaybackController.LoadMetadata()` swallows all exceptions, silently treats corrupted `.meta.json` as old recording. Add structured `MetadataLoadException` with file path. | FDP.Kernel.FlightRecorder | Open |
+| RUNNER-DEBT-004 | P3 | RUNNER-BATCH-01 | No binary format version negotiation — `FdpConfig.FORMAT_VERSION` not checked at playback. Add `RecordingMetadata.FormatVersion` validation. | FDP.Kernel.FlightRecorder | Open |
+| RUNNER-DEBT-005 | P3 | RUNNER-BATCH-01 | `ComponentTypeRegistry.GetOrRegister<T>()` is `internal` — third-party plugins cannot register custom components. Add public `Register<T>()` API with registration-phase lock. | FDP.Kernel | Open |
+
 ---
 
 ## Resolved Items (archive)
