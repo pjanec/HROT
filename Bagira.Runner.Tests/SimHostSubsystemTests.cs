@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
@@ -66,16 +65,12 @@ namespace Bagira.Runner.Tests
         {
             _subsystem.Initialize(HeadlessConfig());
 
-            var kernelField = typeof(SimHostSubsystem).GetField(
-                "_kernel",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-
-            Assert.NotNull(kernelField);
-
-            var kernel = kernelField!.GetValue(_subsystem) as ModuleHostKernel;
+            // Access the kernel via the internal App property (SimHostApp is the single
+            // source of truth; no longer needs reflection into SimHostSubsystem).
+            var kernel = _subsystem.App.Kernel;
             Assert.NotNull(kernel);
 
-            var profile = kernel!.SystemScheduler.GetProfileData<CycloneNetworkCleanupSystem>();
+            var profile = kernel.SystemScheduler.GetProfileData<CycloneNetworkCleanupSystem>();
 
             Assert.NotNull(profile);
         }

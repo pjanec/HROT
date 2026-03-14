@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using Bagira.DDS.DM;
 using Bagira.IG.Components;
 using Bagira.Map.Common;
 using Bagira.Map.Common.Events;
@@ -28,6 +29,7 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
+using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Physics.Components;
@@ -35,16 +37,21 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Time.Controllers;
+using FDP.Toolkit.Vis2D.Components;
 using ModuleHost.Core;
 using ModuleHost.Core.Network;
+using ModuleHost.Core.Network.Interfaces;
 using ModuleHost.Core.Time;
 using ModuleHost.Network.Cyclone.Modules;
 using ModuleHost.Network.Cyclone.Services;
 using ModuleHost.Network.Cyclone.Systems;
 using ModuleHost.Network.Cyclone.Translators;
 using Raylib_cs;
+using rlImGui_cs;
 using System;
 using System.Collections.Generic;
+using System.Numerics;
+using System.Threading;
 using IDescriptorTranslator = Fdp.Interfaces.IDescriptorTranslator;
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
@@ -76,6 +83,15 @@ namespace Bagira.SimHost
         private DdsIdAllocator?      _idAllocator;
         private FdpEventBus?         _eventBus;
 
+        // ── Data services ─────────────────────────────────────────────────────
+        private NetworkEntityMap?       _entityMap;
+        private IGeographicTransform?   _geoTransform;
+
+        // ── ID-allocator server (own background thread) ───────────────────────
+        private DdsIdAllocatorServer?    _idAllocatorServer;
+        private CancellationTokenSource? _idAllocatorServerCts;
+        private Thread?                  _idAllocatorServerThread;
+
         // ── Visualization ─────────────────────────────────────────────────────
         private SimHostVisualization? _vis;
 
@@ -85,11 +101,19 @@ namespace Bagira.SimHost
         // ── Headless/test support ────────────────────────────────────────────
         private bool _headless;
         private int? _domainOverride;
+        private bool _initialized;
 
         public new EntityRepository World => base.World
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
 
         public new ModuleHostKernel Kernel => base.Kernel
+            ?? throw new InvalidOperationException("SimHostApp is not initialized.");
+
+        /// <summary>Returns the ECS world, or <c>null</c> before <see cref="InitializeEmbedded"/> / <see cref="OnLoad"/> completes.</summary>
+        public EntityRepository? WorldOrNull => _initialized ? _world : null;
+
+        /// <summary>Returns the network entity map after initialization.</summary>
+        public NetworkEntityMap EntityMap => _entityMap
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
 
         // ── Constructor ───────────────────────────────────────────────────────
@@ -148,10 +172,30 @@ namespace Bagira.SimHost
             var ddsParticipant = BagiraEnvironment.CreateParticipant(domainId);
             var tkbDb          = BagiraEnvironment.CreateTkb();
             var entityMap      = new NetworkEntityMap();
-            _idAllocator       = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
+            _entityMap         = entityMap;
+
+            // ── ID-allocator server: start as early as possible on its own thread ──
+            // The server must be running (and DDS-matched) before the client sends its
+            // first request.  Starting it here — before the client is even created —
+            // ensures the DDS pub/sub match completes in the background while the rest
+            // of initialisation proceeds.
+            _idAllocatorServer    = new DdsIdAllocatorServer(ddsParticipant);
+            _idAllocatorServerCts = new CancellationTokenSource();
+            _idAllocatorServerThread = new Thread(() => RunIdAllocatorServerLoop(_idAllocatorServerCts.Token))
+            {
+                IsBackground = true,
+                Name         = "SimHost-IdAllocServer"
+            };
+            _idAllocatorServerThread.Start();
+
+            // Client is created AFTER the server thread is running.  DdsIdAllocator will
+            // wait for the PublicationMatched event (server reader matched) before sending
+            // the first request, so there is no "write-before-match" race.
+            _idAllocator = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
 
             // ── 5. Geodetic configuration ─────────────────────────────────────
-            var wgs84 = BagiraEnvironment.CreateGeoTransform();
+            var wgs84     = BagiraEnvironment.CreateGeoTransform();
+            _geoTransform = wgs84;
 
             // ── 5a. JSON Attribute Compiler (ATTR-S5T1 / ATTR-S5T4) ───────────
             // Builds the zero-allocation JSON attribute compiler with routing delegates
@@ -253,6 +297,7 @@ namespace Bagira.SimHost
             var entityMasterEgressTranslator = new EntityMasterEgressTranslator(
                 ddsParticipant, entityMap, SimHostNetworkConstants.LocalNodeId);
             translators.Add(entityMasterEgressTranslator);
+            translators.Add(new EntityInfoEgressTranslator(ddsParticipant, entityMap));
             translators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
             translators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));
 
@@ -288,6 +333,9 @@ namespace Bagira.SimHost
 
                 Logger.Info("[SimHost] Visualization ready. Window open.");
             }
+
+            _initialized = true;
+            Logger.Info("[SimHost] Initialized.");
         }
 
         protected override void OnUpdate(float dt)
@@ -310,12 +358,23 @@ namespace Bagira.SimHost
 
         protected override void OnUnload()
         {
-            _vis?.Dispose();
-            _vis = null;
-            _idAllocator?.Dispose();
-            _kernelGroup?.Dispose();
-            Logger.Info("[SimHost] Shutdown complete.");
-            base.OnUnload();
+            Shutdown();
+            // base.OnUnload() would call Kernel?.Dispose() and World?.Dispose() again;
+            // Shutdown() already handles that so we do not call base here to avoid double-dispose.
+        }
+
+        // ── Embedded lifecycle (IgApplication pattern) ────────────────────────
+
+        /// <summary>
+        /// Initializes SimHost for use inside an orchestrator or integration test,
+        /// without creating a Raylib window.  The caller owns the window lifecycle
+        /// (or passes <paramref name="headless"/> = <c>true</c> for windowless use).
+        /// </summary>
+        public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null)
+        {
+            _headless       = headless;
+            _domainOverride = domainIdOverride;
+            OnLoad();
         }
 
         /// <summary>
@@ -323,16 +382,249 @@ namespace Bagira.SimHost
         /// Intended for integration tests and headless runners.
         /// </summary>
         public void InitializeHeadless(int? domainIdOverride = null)
+            => InitializeEmbedded(headless: true, domainIdOverride: domainIdOverride);
+
+        /// <summary>
+        /// Disposes all SimHost resources.
+        /// Pass <paramref name="ownsWindow"/> = <c>false</c> when the orchestrator
+        /// owns the Raylib window (i.e. when used via <see cref="InitializeEmbedded"/>).
+        /// </summary>
+        public void Shutdown(bool ownsWindow = false)
         {
-            _headless = true;
-            _domainOverride = domainIdOverride;
-            OnLoad();
+            if (!_initialized) return;
+            _initialized = false;
+
+            // ── Stop ID-allocator server thread ───────────────────────────────
+            _idAllocatorServerCts?.Cancel();
+            _idAllocatorServerThread?.Join(TimeSpan.FromSeconds(2));
+            _idAllocatorServerCts?.Dispose();
+            _idAllocatorServerCts    = null;
+            _idAllocatorServerThread = null;
+            _idAllocatorServer?.Dispose();
+            _idAllocatorServer = null;
+
+            // ── Dispose simulation resources ──────────────────────────────────
+            _vis?.Dispose();
+            _vis = null;
+            _idAllocator?.Dispose();
+            _kernelGroup?.Dispose();
+            _kernel?.Dispose();
+
+            Logger.Info("[SimHost] Shutdown complete.");
+
+            if (ownsWindow)
+            {
+                rlImGui.Shutdown();
+                Raylib.CloseWindow();
+            }
+        }
+
+        /// <summary>Advances the SimHost kernel by one tick.</summary>
+        public void Tick(float dt) => OnUpdate(dt);
+
+        /// <summary>
+        /// Renders the 2-D map canvas (delegates to visualization; no-op in headless mode).
+        /// Call inside <c>Raylib.BeginDrawing()</c>.
+        /// </summary>
+        public void DrawWorld() => OnDrawWorld();
+
+        /// <summary>
+        /// Renders ImGui control panels (delegates to visualization; no-op in headless mode).
+        /// Call inside <c>rlImGui.Begin()</c>.
+        /// </summary>
+        public void DrawUI() => OnDrawUI();
+
+        /// <summary>Returns the current map camera, or <c>null</c> in headless mode.</summary>
+        public MapCamera? GetMapCamera() => _vis?.GetMapCamera();
+
+        // ── TestHooks ────────────────────────────────────────────────────────
+
+        /// <summary>TestHook: exposes the <see cref="NetworkEntityMap"/> after initialization.</summary>
+        public NetworkEntityMap TestHook_EntityMap => _entityMap
+            ?? throw new InvalidOperationException("SimHostApp is not initialized.");
+
+        /// <summary>
+        /// TestHook: spawns an entity via the network spawning pipeline and returns its network ID.
+        /// </summary>
+        public long TestHook_SpawnEntity(long tkbType, GeoPosition position)
+        {
+            if (_world == null || _idAllocator == null || _entityMap == null)
+                throw new InvalidOperationException("SimHostApp is not initialized.");
+
+            long networkId = _idAllocator.AllocateId();
+
+            var initialComponents = new List<object>();
+            if (_geoTransform != null)
+            {
+                var cart    = _geoTransform.ToCartesian(position.Latitude, position.Longitude, position.Altitude);
+                var cartPos = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z);
+                initialComponents.Add(new SimTransform
+                {
+                    Position = cartPos,
+                    Rotation = Quaternion.Identity
+                });
+            }
+
+            _world.Bus.PublishManaged(new SpawnEntityCommand
+            {
+                NetworkId         = networkId,
+                TkbType           = tkbType,
+                DisType           = 0,
+                OwnerNodeId       = 1,
+                InitType          = ReliableInitType.AllPeers,
+                InitialComponents = initialComponents,
+                RequestId         = Guid.Empty
+            });
+
+            return networkId;
         }
 
         /// <summary>
-        /// Advances the SimHost kernel by one tick.
+        /// TestHook: teleports the entity to <paramref name="worldPos"/> (simulates an IG drag).
         /// </summary>
-        public void Tick(float dt) => OnUpdate(dt);
+        public void TestHook_SimulateDrag(long networkId, Vector2 worldPos)
+        {
+            if (_world == null || _entityMap == null)
+                throw new InvalidOperationException("SimHostApp is not initialized.");
+
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                throw new InvalidOperationException($"Entity with networkId={networkId} not found in entity map.");
+
+            if (!_world.IsAlive(entity) || !_world.HasComponent<SimTransform>(entity))
+                throw new InvalidOperationException($"Entity {entity} is not alive or has no SimTransform.");
+
+            ref var tf = ref _world.GetComponentRW<SimTransform>(entity);
+            tf.Position = new Vector3(worldPos.X, worldPos.Y, 0f);
+        }
+
+        /// <summary>
+        /// TestHook: directly assigns the WanderMilitary BTree doctrine to an entity,
+        /// bypassing the DDS <c>MissionControlRequest</c> round-trip.
+        /// </summary>
+        public void TestHook_AssignWanderMission(long networkId)
+        {
+            if (_world == null || _entityMap == null)
+                throw new InvalidOperationException("SimHostApp is not initialized.");
+
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                throw new InvalidOperationException($"Entity with networkId={networkId} not found in entity map.");
+
+            if (!_world.IsAlive(entity))
+                throw new InvalidOperationException($"Entity {entity} is not alive.");
+
+            var newPhase = new MissionPhase
+            {
+                DoctrineId   = SimHostDoctrineIds.WanderMilitary_BT,
+                Trigger      = FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed,
+                TriggerParam = float.MaxValue,
+            };
+
+            if (_world.HasComponent<MissionPlanQueue>(entity))
+            {
+                var queue = _world.GetComponent<MissionPlanQueue>(entity);
+                queue.CurrentPhase        = 0;
+                queue.PhaseElapsedSeconds = 0f;
+                queue.PhaseCount          = 1;
+                Span<MissionPhase> phases = queue.Phases;
+                phases[0] = newPhase;
+                _world.SetComponent(entity, queue);
+            }
+            else
+            {
+                var queue = new MissionPlanQueue
+                {
+                    CurrentPhase        = 0,
+                    PhaseElapsedSeconds = 0f,
+                    PhaseCount          = 1,
+                };
+                Span<MissionPhase> phases = queue.Phases;
+                phases[0] = newPhase;
+                _world.AddComponent(entity, queue);
+            }
+
+            if (_world.HasComponent<DoctrineState>(entity))
+            {
+                ref var doctrine = ref _world.GetComponentRW<DoctrineState>(entity);
+                unchecked { doctrine.InstanceId++; }
+                doctrine.ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT;
+            }
+        }
+
+        /// <summary>TestHook: returns the current <see cref="SimTransform"/> of the entity, or default.</summary>
+        public SimTransform TestHook_GetSimTransform(long networkId)
+        {
+            if (_world == null || _entityMap == null) return default;
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
+            if (!_world.IsAlive(entity) || !_world.HasComponent<SimTransform>(entity)) return default;
+            return _world.GetComponent<SimTransform>(entity);
+        }
+
+        /// <summary>TestHook: returns the current <see cref="DoctrineState"/> of the entity, or default.</summary>
+        public DoctrineState TestHook_GetDoctrineState(long networkId)
+        {
+            if (_world == null || _entityMap == null) return default;
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
+            if (!_world.IsAlive(entity) || !_world.HasComponent<DoctrineState>(entity)) return default;
+            return _world.GetComponent<DoctrineState>(entity);
+        }
+
+        /// <summary>TestHook: returns <c>true</c> if the entity has a <see cref="MissionPlanQueue"/> component.</summary>
+        public bool TestHook_HasMissionPlanQueue(long networkId)
+        {
+            if (_world == null || _entityMap == null) return false;
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return false;
+            return _world.IsAlive(entity) && _world.HasComponent<MissionPlanQueue>(entity);
+        }
+
+        /// <summary>TestHook: returns the current <see cref="MissionPlanQueue"/> of the entity, or default.</summary>
+        public MissionPlanQueue TestHook_GetMissionPlanQueue(long networkId)
+        {
+            if (_world == null || _entityMap == null) return default;
+            if (!_entityMap.TryGetEntity(networkId, out var entity)) return default;
+            if (!_world.IsAlive(entity) || !_world.HasComponent<MissionPlanQueue>(entity)) return default;
+            return _world.GetComponent<MissionPlanQueue>(entity);
+        }
+
+        /// <summary>
+        /// TestHook: directly activates the WanderMilitary doctrine on the entity's
+        /// <see cref="DoctrineState"/>, bypassing <see cref="MissionDirectorSystem"/>.
+        /// </summary>
+        public void TestHook_ForceDoctrineActive(long networkId)
+        {
+            if (_world == null || _entityMap == null)
+                throw new InvalidOperationException("SimHostApp is not initialized.");
+
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                throw new InvalidOperationException($"Entity with networkId={networkId} not found.");
+
+            if (!_world.IsAlive(entity))
+                throw new InvalidOperationException($"Entity {entity} is not alive.");
+
+            if (_world.HasComponent<DoctrineState>(entity))
+            {
+                ref var doctrine = ref _world.GetComponentRW<DoctrineState>(entity);
+                unchecked { doctrine.InstanceId++; }
+                doctrine.ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT;
+            }
+        }
+
+        /// <summary>TestHook: returns child entities that reference the given parent via <see cref="PartMetadata"/>.</summary>
+        public List<Entity> TestHook_GetChildEntities(Entity parentEntity)
+        {
+            if (_world == null)
+                throw new InvalidOperationException("SimHostApp is not initialized.");
+
+            var children = new List<Entity>();
+            var query = _world.Query().With<PartMetadata>().Build();
+            foreach (var entity in query)
+            {
+                var meta = _world.GetComponent<PartMetadata>(entity);
+                if (meta.ParentEntity == parentEntity)
+                    children.Add(entity);
+            }
+
+            return children;
+        }
 
         // ── Component registration ────────────────────────────────────────────
 
@@ -342,5 +634,17 @@ namespace Bagira.SimHost
         /// </summary>
         private static void RegisterSimComponents(EntityRepository world)
             => SimHostComponentRegistry.RegisterAll(world);
+
+        // ── Private helpers ───────────────────────────────────────────────────
+
+        private void RunIdAllocatorServerLoop(CancellationToken ct)
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                _idAllocatorServer?.ProcessRequests();
+                Thread.Sleep(1); // ~1 kHz polling — fast enough for low-latency allocation
+            }
+            Logger.Info("[SimHost] IdAllocatorServer loop exited.");
+        }
     }
 }
