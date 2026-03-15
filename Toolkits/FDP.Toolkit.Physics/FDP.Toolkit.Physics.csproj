@@ -6,6 +6,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastBTree\src\Fbt.Kernel\Fbt.Kernel.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
     <!-- DEBT-031: HitEvent moved from Fdp.Kernel to FDP.Toolkit.Combat.Contracts -->

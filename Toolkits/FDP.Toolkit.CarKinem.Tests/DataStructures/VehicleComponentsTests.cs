@@ -44,10 +44,10 @@ namespace CarKinem.Tests.DataStructures
         }
 
         [Fact]
-        public void NavigationMode_IsOneByte()
+        public void KinematicsMode_IsOneByte()
         {
             // Usually enum is int (4 bytes) unless specified : byte
-            Assert.Equal(1, sizeof(NavigationMode));
+            Assert.Equal(1, sizeof(KinematicsMode));
         }
 
         private static bool IsBlittable<T>() where T : struct

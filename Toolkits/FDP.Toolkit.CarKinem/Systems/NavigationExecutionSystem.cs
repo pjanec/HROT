@@ -1,10 +1,8 @@
-using System.Collections.Generic;
 using System.Numerics;
 using CarKinem.Core;
 using Fdp.Kernel;
 using FDP.Toolkit.Navigation;
 
-// Disambiguate from CarKinem.Core.NavigationMode which exists for the legacy NavState.
 using NavMode   = FDP.Toolkit.Navigation.NavigationMode;
 using NavResult = FDP.Toolkit.Navigation.NavigationResult;
 
@@ -26,13 +24,19 @@ namespace CarKinem.Systems
     /// <list type="number">
     ///   <item>If <c>intent.Mode == NavigationMode.None</c> → skip (no active command).</item>
     ///   <item>If <c>status.IntentId != intent.IntentId</c> → new command: reset status to
-    ///     InProgress and clear the frustration counter.</item>
+    ///     InProgress and clear <see cref="FrustrationTicks"/> to zero.</item>
     ///   <item>Check Cartesian distance from current XY position to
     ///     <c>intent.FinalDestination</c>. If within <c>ArrivalRadius</c> → write Arrived.</item>
     ///   <item>Else if <c>SimVelocity.Linear.Length() &lt; FrustrationSpeedThreshold</c> for
     ///     more than <see cref="FrustrationTickLimit"/> consecutive ticks → write FailedBlocked.</item>
     ///   <item>Else keep InProgress.</item>
     /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Memory note:</b> the frustration counter is stored in the <see cref="FrustrationTicks"/>
+    /// ECS component on each entity.  This avoids the dictionary-based memory leak from the
+    /// previous implementation — the counter is automatically reclaimed when the entity is
+    /// destroyed (MOD1-BATCH-02 CT-MOD1-A).
     /// </para>
     /// <para>
     /// <b>No geo conversion:</b> all distance checks are Cartesian — the same coordinate
@@ -58,11 +62,6 @@ namespace CarKinem.Systems
         /// </summary>
         public const int FrustrationTickLimit = 120;
 
-        // ── Per-entity frustration counter ─────────────────────────────────────────────────────
-        // Keyed by entity Index (not Entity handle) for O(1) access.
-        // The dictionary is allocated once at system creation and reused.
-        private readonly Dictionary<int, int> _frustrationTicks = new();
-
         // ── OnUpdate ───────────────────────────────────────────────────────────────────────────
 
         protected override void OnUpdate()
@@ -70,6 +69,7 @@ namespace CarKinem.Systems
             var query = World.Query()
                 .With<NavigationIntent>()
                 .With<NavigationStatus>()
+                .With<FrustrationTicks>()
                 .With<SimTransform>()
                 .With<SimVelocity>()
                 .Build();
@@ -82,9 +82,10 @@ namespace CarKinem.Systems
                 if (intent.Mode == NavMode.None)
                     continue;
 
-                var status = World.GetComponent<NavigationStatus>(entity);
-                var tf     = World.GetComponent<SimTransform>(entity);
-                var vel    = World.GetComponent<SimVelocity>(entity);
+                var status      = World.GetComponent<NavigationStatus>(entity);
+                var frustration = World.GetComponent<FrustrationTicks>(entity);
+                var tf          = World.GetComponent<SimTransform>(entity);
+                var vel         = World.GetComponent<SimVelocity>(entity);
 
                 // ── New command detection: reset status and frustration counter ────────────────
                 if (status.IntentId != intent.IntentId)
@@ -95,18 +96,20 @@ namespace CarKinem.Systems
                         Result   = NavResult.InProgress,
                     };
                     World.SetComponent(entity, status);
-                    _frustrationTicks[entity.Index] = 0;
+                    frustration.Ticks = 0;
+                    World.SetComponent(entity, frustration);
                 }
 
                 // ── Arrival check (Cartesian XY only — no geo conversion) ─────────────────────
-                var pos2D    = new Vector2(tf.Position.X, tf.Position.Y);
-                float dist   = Vector2.Distance(pos2D, intent.FinalDestination);
+                var pos2D  = new Vector2(tf.Position.X, tf.Position.Y);
+                float dist = Vector2.Distance(pos2D, intent.FinalDestination);
 
                 if (dist <= intent.ArrivalRadius)
                 {
                     status.Result = NavResult.Arrived;
                     World.SetComponent(entity, status);
-                    _frustrationTicks.Remove(entity.Index);
+                    frustration.Ticks = 0;
+                    World.SetComponent(entity, frustration);
                     continue;
                 }
 
@@ -115,11 +118,10 @@ namespace CarKinem.Systems
 
                 if (speed < FrustrationSpeedThreshold)
                 {
-                    _frustrationTicks.TryGetValue(entity.Index, out int ticks);
-                    ticks++;
-                    _frustrationTicks[entity.Index] = ticks;
+                    frustration.Ticks++;
+                    World.SetComponent(entity, frustration);
 
-                    if (ticks > FrustrationTickLimit)
+                    if (frustration.Ticks > FrustrationTickLimit)
                     {
                         status.Result = NavResult.FailedBlocked;
                         World.SetComponent(entity, status);
@@ -129,7 +131,11 @@ namespace CarKinem.Systems
                 else
                 {
                     // Vehicle is moving — reset frustration counter.
-                    _frustrationTicks[entity.Index] = 0;
+                    if (frustration.Ticks != 0)
+                    {
+                        frustration.Ticks = 0;
+                        World.SetComponent(entity, frustration);
+                    }
                 }
 
                 // ── Keep InProgress ───────────────────────────────────────────────────────────

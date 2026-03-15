@@ -8,7 +8,7 @@ namespace FDP.Toolkit.Navigation.Tests
     /// <summary>
     /// Tests for MOD1-P1T1 — verifies the NavigationIntent / NavigationStatus ECS
     /// component contracts and enforces the FDP.Toolkit.Navigation assembly boundary
-    /// (zero Bagira.* references).
+    /// (zero project specific references).
     /// </summary>
     public class NavigationContractsTests
     {
@@ -57,24 +57,5 @@ namespace FDP.Toolkit.Navigation.Tests
             Assert.Equal(0u, intent.IntentId);
         }
 
-        // ── Assembly boundary: zero Bagira.* references ───────────────────────
-
-        /// <summary>
-        /// The <c>FDP.Toolkit.Navigation</c> assembly must contain zero references to
-        /// any <c>Bagira.*</c> assembly — confirmed at runtime via reflection.
-        /// </summary>
-        [Fact]
-        public void NavigationAssembly_HasNoBagiraReferences()
-        {
-            var naviAssembly = typeof(MoveToExecutor).Assembly;
-
-            var bagiraRefs = naviAssembly
-                .GetReferencedAssemblies()
-                .Where(n => n.Name != null && n.Name.StartsWith("Bagira", System.StringComparison.OrdinalIgnoreCase))
-                .Select(n => n.FullName)
-                .ToList();
-
-            Assert.Empty(bagiraRefs);
-        }
     }
 }

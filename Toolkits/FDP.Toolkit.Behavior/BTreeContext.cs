@@ -37,14 +37,6 @@ namespace FDP.Toolkit.Behavior
         float IAIContext.Time        => _time;
         int   IAIContext.FrameCount  => _frameCount;
 
-        // Raycast / pathfinding batching is not implemented in this adapter.
-        // Nodes that require these services must be integrated via a separate
-        // async request-response system (Phase 3+).
-        int           IAIContext.RequestRaycast(Vector3 origin, Vector3 direction, float maxDistance) => -1;
-        RaycastResult IAIContext.GetRaycastResult(int requestId)                                       => default;
-        int           IAIContext.RequestPath(Vector3 from, Vector3 to)                                => -1;
-        PathResult    IAIContext.GetPathResult(int requestId)                                          => default;
-
         float IAIContext.GetFloatParam(int index)
             => _floatParams != null && (uint)index < (uint)_floatParams.Length
                ? _floatParams[index] : 0f;
@@ -52,5 +44,12 @@ namespace FDP.Toolkit.Behavior
         int IAIContext.GetIntParam(int index)
             => _intParams != null && (uint)index < (uint)_intParams.Length
                ? _intParams[index] : 0;
+
+        // ── Physics/Pathfinding stubs (no-op: real implementations live in
+        //    PhysicsQueryActionNode / PathfindingActionNode inside their own toolkits) ──
+        int IAIContext.RequestRaycast(Vector3 origin, Vector3 direction, float maxDistance) => -1;
+        RaycastResult IAIContext.GetRaycastResult(int requestId) => default;
+        int IAIContext.RequestPath(Vector3 from, Vector3 to) => -1;
+        PathResult IAIContext.GetPathResult(int requestId) => default;
     }
 }

@@ -25,7 +25,7 @@ namespace CarKinem.Tests.Commands
             
             var entity = repo.CreateEntity();
             repo.AddComponent(entity, new VehicleState());
-            repo.AddComponent(entity, new NavState { Mode = NavigationMode.None });
+            repo.AddComponent(entity, new NavState { Mode = KinematicsMode.None });
             
             // Issue command
             var api = new VehicleAPI(repo);
@@ -43,7 +43,7 @@ namespace CarKinem.Tests.Commands
             Assert.Equal(new Vector2(100, 100), nav.FinalDestination);
             Assert.Equal(2.0f, nav.ArrivalRadius);
             Assert.Equal(15.0f, nav.TargetSpeed);
-            Assert.Equal(NavigationMode.None, nav.Mode); // Implementation sets None for direct nav
+            Assert.Equal(KinematicsMode.None, nav.Mode); // Implementation sets None for direct nav
             
             repo.Dispose();
         }
@@ -72,7 +72,7 @@ namespace CarKinem.Tests.Commands
             system.Run();
             
             var nav = repo.GetComponent<NavState>(entity);
-            Assert.Equal(NavigationMode.CustomTrajectory, nav.Mode);
+            Assert.Equal(KinematicsMode.CustomTrajectory, nav.Mode);
             Assert.Equal(42, nav.TrajectoryId);
             
             repo.Dispose();
@@ -102,7 +102,7 @@ namespace CarKinem.Tests.Commands
             system.Run();
             
             var nav = repo.GetComponent<NavState>(entity);
-            Assert.Equal(NavigationMode.RoadGraph, nav.Mode);
+            Assert.Equal(KinematicsMode.RoadGraph, nav.Mode);
             Assert.Equal(RoadGraphPhase.Approaching, nav.RoadPhase);
             Assert.Equal(new Vector2(200, 200), nav.FinalDestination);
             Assert.Equal(5.0f, nav.ArrivalRadius);
@@ -140,7 +140,7 @@ namespace CarKinem.Tests.Commands
             system.Run();
             
             var nav = repo.GetComponent<NavState>(entity);
-            Assert.Equal(NavigationMode.Formation, nav.Mode);
+            Assert.Equal(KinematicsMode.Formation, nav.Mode);
             
             Assert.True(repo.HasComponent<FormationMember>(entity));
             var member = repo.GetComponent<FormationMember>(entity);
@@ -162,7 +162,7 @@ namespace CarKinem.Tests.Commands
             system.Create(repo);
             
             var entity = repo.CreateEntity();
-            repo.AddComponent(entity, new NavState { Mode = NavigationMode.Formation });
+            repo.AddComponent(entity, new NavState { Mode = KinematicsMode.Formation });
             
             var api = new VehicleAPI(repo);
             api.LeaveFormation(entity);
@@ -175,7 +175,7 @@ namespace CarKinem.Tests.Commands
             system.Run();
             
             var nav = repo.GetComponent<NavState>(entity);
-            Assert.Equal(NavigationMode.None, nav.Mode);
+            Assert.Equal(KinematicsMode.None, nav.Mode);
             
             repo.Dispose();
         }
@@ -205,7 +205,7 @@ namespace CarKinem.Tests.Commands
             
             var nav = repo.GetComponent<NavState>(entity);
             Assert.Equal(0.0f, nav.TargetSpeed);
-            Assert.Equal(NavigationMode.None, nav.Mode);
+            Assert.Equal(KinematicsMode.None, nav.Mode);
             
             repo.Dispose();
         }

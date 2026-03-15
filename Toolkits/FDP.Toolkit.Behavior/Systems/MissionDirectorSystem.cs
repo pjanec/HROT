@@ -125,9 +125,9 @@ namespace FDP.Toolkit.Behavior.Systems
                     // Load the next phase's doctrine if there is one.
                     if (queue.CurrentPhase < queue.PhaseCount)
                     {
-                        // Increment InstanceId so ChannelArbitrationSystem preempts stale channels.
+                        // Use the NEW phase index — `phase` still refers to the old slot.
                         unchecked { doctrine.InstanceId++; }
-                        doctrine.ActiveDoctrineHash = phase.DoctrineId;
+                        doctrine.ActiveDoctrineHash = phases[queue.CurrentPhase].DoctrineId;
                     }
                 }
             }

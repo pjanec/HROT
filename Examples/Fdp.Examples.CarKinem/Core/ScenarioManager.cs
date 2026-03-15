@@ -149,7 +149,7 @@ namespace Fdp.Examples.CarKinem.Core
             _repository.AddComponent(e, VehicleColor.GreenYellow);
             
             _repository.AddComponent(e, new NavState {
-                Mode = NavigationMode.None
+                Mode = KinematicsMode.None
             });
             
             return e;
@@ -186,7 +186,7 @@ namespace Fdp.Examples.CarKinem.Core
              
              // Cleanup old trajectory
              var oldNav = _repository.GetComponentRO<NavState>(entity);
-             if (oldNav.Mode == NavigationMode.CustomTrajectory && oldNav.TrajectoryId > 0)
+             if (oldNav.Mode == KinematicsMode.CustomTrajectory && oldNav.TrajectoryId > 0)
              {
                  _trajectoryPool.RemoveTrajectory(oldNav.TrajectoryId);
              }

@@ -59,7 +59,7 @@ namespace FDP.Toolkit.Perception.Components
     /// </para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(252)]
+    [ComponentId(GlobalComponentIds.TargetMemory)]
     public unsafe struct TargetMemory
     {
         /// <summary>Number of valid entries currently stored (0–<see cref="PerceptionConstants.MaxTrackedTargets"/>).</summary>
@@ -84,6 +84,12 @@ namespace FDP.Toolkit.Perception.Components
         /// <summary>Simulation tick when this target was last perceived.</summary>
         public fixed uint LastSeenTick[PerceptionConstants.MaxTrackedTargets];
 
+        /// <summary>
+        /// Bitmask of <see cref="SensorModality"/> values that have detected each target.
+        /// OR-accumulated on re-observation; reset to the new modality on eviction.
+        /// </summary>
+        public fixed byte Modalities[PerceptionConstants.MaxTrackedTargets];
+
         // ── Mutation API ──────────────────────────────────────────────────────────
 
         /// <summary>
@@ -100,13 +106,15 @@ namespace FDP.Toolkit.Perception.Components
         /// <param name="posY">Target Y position (ground plane).</param>
         /// <param name="scoreBoost">Score contribution from this perception event.</param>
         /// <param name="tick">Current simulation tick.</param>
+        /// <param name="modality">Sensor modality that detected the target (default: <see cref="SensorModality.Visual"/>).</param>
         public static void AddOrUpdateTarget(
             ref TargetMemory mem,
             long entityId,
             float posX,
             float posY,
             float scoreBoost,
-            uint tick)
+            uint tick,
+            SensorModality modality = SensorModality.Visual)
         {
             // 1. Look for an existing slot with the same entity ID.
             int foundSlot = -1;
@@ -126,6 +134,8 @@ namespace FDP.Toolkit.Perception.Components
                 mem.PositionsX[foundSlot]    = posX;
                 mem.PositionsY[foundSlot]    = posY;
                 mem.LastSeenTick[foundSlot]  = tick;
+                // OR the new modality into the existing modality bitmask.
+                mem.Modalities[foundSlot]   |= (byte)modality;
             }
             else if (mem.Count < PerceptionConstants.MaxTrackedTargets)
             {
@@ -136,6 +146,7 @@ namespace FDP.Toolkit.Perception.Components
                 mem.PositionsY[slot]   = posY;
                 mem.ThreatScores[slot] = scoreBoost;
                 mem.LastSeenTick[slot] = tick;
+                mem.Modalities[slot]   = (byte)modality;
                 mem.Count++;
             }
             else
@@ -159,6 +170,8 @@ namespace FDP.Toolkit.Perception.Components
                     mem.PositionsY[lowestIdx]   = posY;
                     mem.ThreatScores[lowestIdx] = scoreBoost;
                     mem.LastSeenTick[lowestIdx] = tick;
+                    // Fresh modality for the new entry (eviction resets the bitmask).
+                    mem.Modalities[lowestIdx]   = (byte)modality;
                 }
             }
 
@@ -170,6 +183,7 @@ namespace FDP.Toolkit.Perception.Components
                 float  pyTmp    = mem.PositionsY[i];
                 float  scoreTmp = mem.ThreatScores[i];
                 uint   tickTmp  = mem.LastSeenTick[i];
+                byte   modTmp   = mem.Modalities[i];
 
                 int j = i - 1;
                 while (j >= 0 && mem.ThreatScores[j] < scoreTmp)
@@ -179,6 +193,7 @@ namespace FDP.Toolkit.Perception.Components
                     mem.PositionsY[j + 1]   = mem.PositionsY[j];
                     mem.ThreatScores[j + 1] = mem.ThreatScores[j];
                     mem.LastSeenTick[j + 1] = mem.LastSeenTick[j];
+                    mem.Modalities[j + 1]   = mem.Modalities[j];
                     j--;
                 }
 
@@ -187,6 +202,7 @@ namespace FDP.Toolkit.Perception.Components
                 mem.PositionsY[j + 1]   = pyTmp;
                 mem.ThreatScores[j + 1] = scoreTmp;
                 mem.LastSeenTick[j + 1] = tickTmp;
+                mem.Modalities[j + 1]   = modTmp;
             }
         }
     }

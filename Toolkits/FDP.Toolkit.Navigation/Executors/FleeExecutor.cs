@@ -7,10 +7,6 @@ using Fbt;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Executors;
 
-// Disambiguate from FDP.Toolkit.Navigation.NavigationMode (CQRS contract) which
-// inherits into this namespace via the parent namespace rule.
-using CarKinemNavMode = CarKinem.Core.NavigationMode;
-
 namespace FDP.Toolkit.Navigation.Executors
 {
     /// <summary>
@@ -97,7 +93,7 @@ namespace FDP.Toolkit.Navigation.Executors
         {
             var nav = world.GetComponent<NavState>(entity);
             nav.TargetSpeed = 0f;
-            nav.Mode        = CarKinemNavMode.None;
+            nav.Mode        = KinematicsMode.None;
             world.SetComponent(entity, nav);
         }
 
@@ -119,7 +115,7 @@ namespace FDP.Toolkit.Navigation.Executors
             awayVec = Vector2.Normalize(awayVec);
 
             var nav = world.GetComponent<NavState>(entity);
-            nav.Mode             = CarKinemNavMode.Direct;
+            nav.Mode             = KinematicsMode.Direct;
             nav.FinalDestination = myPos + awayVec * p.SafeDistance;
             nav.TargetSpeed      = p.Speed;
             nav.HasArrived       = 0;

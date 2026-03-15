@@ -5,10 +5,6 @@ using Fbt;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Executors;
 
-// Disambiguate from FDP.Toolkit.Navigation.NavigationMode (CQRS contract) which
-// inherits into this namespace via the parent namespace rule.
-using CarKinemNavMode = CarKinem.Core.NavigationMode;
-
 namespace FDP.Toolkit.Navigation.Executors
 {
     /// <summary>
@@ -27,7 +23,7 @@ namespace FDP.Toolkit.Navigation.Executors
                 p = *(FollowRoadGraphParams*)src;
 
             var nav = world.GetComponent<NavState>(entity);
-            nav.Mode           = CarKinemNavMode.RoadGraph;
+            nav.Mode           = KinematicsMode.RoadGraph;
             nav.RoadPhase      = RoadGraphPhase.Approaching;
             // Store the caller-supplied target node ID as the initial segment reference.
             // The road-graph navigator (CarKinematicsSystem) will resolve the actual road segments
@@ -55,7 +51,7 @@ namespace FDP.Toolkit.Navigation.Executors
         {
             var nav = world.GetComponent<NavState>(entity);
             nav.TargetSpeed = 0f;
-            nav.Mode        = CarKinemNavMode.None;
+            nav.Mode        = KinematicsMode.None;
             world.SetComponent(entity, nav);
         }
     }

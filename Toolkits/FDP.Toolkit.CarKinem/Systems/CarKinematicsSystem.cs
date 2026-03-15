@@ -61,10 +61,11 @@ namespace CarKinem.Systems
             var gridData = World.GetSingleton<SpatialGridData>();
             var spatialGrid = gridData.Grid;
             
-            // Get all vehicles
+            // Get all vehicles (owned only — skip ghost entities to enforce split-authority)
             var query = World.Query()
                 .With<VehicleState>()
                 .With<SimTransform>()
+                .WithOwned<SimTransform>()
                 .With<SimVelocity>()
                 .With<VehicleParams>()
                 .With<NavState>()
@@ -131,17 +132,17 @@ namespace CarKinem.Systems
             
             switch (nav.Mode)
             {
-                case NavigationMode.RoadGraph:
+                case KinematicsMode.RoadGraph:
                     // This updates nav state internal phase/progress, so we pass by ref
                     (targetPos, targetHeading, targetSpeed) = RoadGraphNavigator.UpdateRoadGraphNavigation(
                         ref nav, pos2D, _roadNetwork);
                     break;
                     
-                case NavigationMode.CustomTrajectory:
+                case KinematicsMode.CustomTrajectory:
                     (targetPos, targetHeading, targetSpeed) = SampleCustomTrajectory(ref nav);
                     break;
                     
-                case NavigationMode.Formation:
+                case KinematicsMode.Formation:
                     (targetPos, targetHeading, targetSpeed) = GetFormationTarget(entity);
 
                     // Drive towards the slot if not reached
@@ -158,8 +159,8 @@ namespace CarKinem.Systems
                     }
                     break;
                     
-                case NavigationMode.Direct:
-                case NavigationMode.None:
+                case KinematicsMode.Direct:
+                case KinematicsMode.None:
                 default:
                     // If we have a destination and we are not in a specific mode, drive to point
                     // Simple "Drive to point" logic
@@ -226,7 +227,7 @@ namespace CarKinem.Systems
             BicycleModel.Integrate(ref pos2D, ref fwd2D, ref state, steerAngle, accel, dt, @params.WheelBase);
             
             // Update progress (for trajectory/road modes)
-            if (nav.Mode == NavigationMode.CustomTrajectory || nav.Mode == NavigationMode.RoadGraph)
+            if (nav.Mode == KinematicsMode.CustomTrajectory || nav.Mode == KinematicsMode.RoadGraph)
             {
                 nav.ProgressS += state.Speed * dt;
             }

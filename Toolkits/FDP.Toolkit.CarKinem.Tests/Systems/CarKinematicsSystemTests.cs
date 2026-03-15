@@ -55,6 +55,7 @@ namespace CarKinem.Tests.Systems
                 Position = Vector3.Zero, 
                 Rotation = SimMath.FacingNorth
             });
+            repo.SetAuthority<SimTransform>(entity, true); // mark as locally-owned so WithOwned filter passes
             repo.AddComponent(entity, new SimVelocity { Linear = new Vector3(0, 10, 0) }); // North at 10 m/s
             
             repo.AddComponent(entity, new VehicleParams
@@ -72,7 +73,7 @@ namespace CarKinem.Tests.Systems
             
             repo.AddComponent(entity, new NavState
             {
-                Mode = NavigationMode.None
+                Mode = KinematicsMode.None
             });
             
             Vector3 initialPos = repo.GetComponent<SimTransform>(entity).Position;
@@ -134,7 +135,7 @@ namespace CarKinem.Tests.Systems
             });
             repo.AddComponent(entA, new SimVelocity { Linear = new Vector3(5, 0, 0) });
 
-            repo.AddComponent(entA, new NavState { Mode = NavigationMode.None }); // Move straight
+            repo.AddComponent(entA, new NavState { Mode = KinematicsMode.None }); // Move straight
             repo.AddComponent(entA, new VehicleParams { 
                 WheelBase = 2.0f, MaxSpeedFwd=10f, MaxAccel=10f, MaxDecel=10f, MaxSteerAngle=1f, 
                 LookaheadTimeMin=1f, LookaheadTimeMax=2f, AccelGain=1f, AvoidanceRadius=2.0f
@@ -149,7 +150,7 @@ namespace CarKinem.Tests.Systems
             });
             repo.AddComponent(entB, new SimVelocity { Linear = Vector3.Zero });
 
-            repo.AddComponent(entB, new NavState { Mode = NavigationMode.None });
+            repo.AddComponent(entB, new NavState { Mode = KinematicsMode.None });
             repo.AddComponent(entB, new VehicleParams { AvoidanceRadius=2.0f });
 
             // Run update
@@ -206,9 +207,10 @@ namespace CarKinem.Tests.Systems
                 Position = Vector3.Zero,
                 Rotation = SimMath.FacingEast
             });
+            repo.SetAuthority<SimTransform>(entity, true); // mark as locally-owned so WithOwned filter passes
             repo.AddComponent(entity, new SimVelocity { Linear = new Vector3(10, 0, 0) });
             
-            repo.AddComponent(entity, new NavState { Mode = NavigationMode.CustomTrajectory, TrajectoryId = trajId, ProgressS = 0f });
+            repo.AddComponent(entity, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = trajId, ProgressS = 0f });
             repo.AddComponent(entity, new VehicleParams { 
                 WheelBase = 2.0f, MaxSpeedFwd=20f, MaxAccel=10f, MaxDecel=10f, MaxSteerAngle=1f, 
                 LookaheadTimeMin=1f, LookaheadTimeMax=2f, AccelGain=1f, AvoidanceRadius=2.0f 

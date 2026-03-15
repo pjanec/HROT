@@ -96,7 +96,7 @@ namespace ModuleHost.Benchmarks
                 
                 _repo.AddComponent(entity, new NavState
                 {
-                    Mode = NavigationMode.None
+                    Mode = KinematicsMode.None
                 });
             }
         }

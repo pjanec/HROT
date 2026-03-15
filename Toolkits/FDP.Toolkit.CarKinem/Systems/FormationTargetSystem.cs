@@ -65,7 +65,7 @@ namespace CarKinem.Systems
             if (World.HasComponent<NavState>(leaderEntity))
             {
                 var nav = World.GetComponent<NavState>(leaderEntity);
-                if (nav.Mode == NavigationMode.CustomTrajectory && nav.TrajectoryId > 0)
+                if (nav.Mode == KinematicsMode.CustomTrajectory && nav.TrajectoryId > 0)
                 {
                      if (_trajectoryPool.TryGetTrajectory(nav.TrajectoryId, out trajectory))
                      {

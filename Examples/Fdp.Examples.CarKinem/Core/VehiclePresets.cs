@@ -37,9 +37,9 @@ namespace Fdp.Examples.CarKinem.Core
             else if (view.HasComponent<NavState>(entity))
             {
                 var nav = view.GetComponentRO<NavState>(entity);
-                if (nav.Mode == NavigationMode.RoadGraph)
+                if (nav.Mode == KinematicsMode.RoadGraph)
                     return ColorRoadNav;
-                else if (nav.Mode == NavigationMode.CustomTrajectory)
+                else if (nav.Mode == KinematicsMode.CustomTrajectory)
                      return ColorTrajectoryNav;
                 else
                     return ColorDefaultNav;

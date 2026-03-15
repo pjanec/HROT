@@ -165,12 +165,12 @@ public class VehicleVisualizer : IVisualizerAdapter
                     }
                 }
                 
-                if (nav.Mode == NavigationMode.None && !nav.HasArrived.Equals(1)) // Using Equals(1) for byte bool? Or just > 0
+                if (nav.Mode == KinematicsMode.None && !nav.HasArrived.Equals(1)) // Using Equals(1) for byte bool? Or just > 0
                 {
                     Raylib.DrawLineEx(position, nav.FinalDestination, 0.1f, new Color(0, 255, 255, 100));
                     Raylib.DrawCircleV(nav.FinalDestination, 0.5f, new Color(0, 255, 255, 100));
                 }
-                else if (nav.Mode == NavigationMode.Formation && view.HasComponent<FormationTarget>(entity))
+                else if (nav.Mode == KinematicsMode.Formation && view.HasComponent<FormationTarget>(entity))
                 {
                      var target = view.GetComponentRO<FormationTarget>(entity);
                      Raylib.DrawLineEx(position, target.TargetPosition, 0.1f, new Color(200, 200, 200, 100));

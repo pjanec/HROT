@@ -281,7 +281,7 @@ public sealed class JsonAttributeCompiler
     /// Computes the FNV-1a hash for a dot-separated JSON path string.
     /// Numeric path segments are normalised to <c>*</c>.
     /// </summary>
-    internal static ulong HashPath(string path)
+    public static ulong HashPath(string path)
     {
         ulong context = FnvOffset;
         ulong h = FnvOffset;

@@ -14,5 +14,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
+    <ProjectReference Include="..\..\ModuleHost\ModuleHost.Core\ModuleHost.Core.csproj" />
   </ItemGroup>
 </Project>

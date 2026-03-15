@@ -5,7 +5,6 @@ using Fdp.Kernel;
 using FDP.Toolkit.Navigation;
 using Xunit;
 
-// Disambiguate from CarKinem.Core.NavigationMode which exists for the legacy NavState.
 using NavMode   = FDP.Toolkit.Navigation.NavigationMode;
 using NavResult = FDP.Toolkit.Navigation.NavigationResult;
 
@@ -25,6 +24,7 @@ namespace CarKinem.Tests.Systems
             var repo = new EntityRepository();
             repo.RegisterComponent<NavigationIntent>();
             repo.RegisterComponent<NavigationStatus>();
+            repo.RegisterComponent<FrustrationTicks>();
             repo.RegisterComponent<SimTransform>();
             repo.RegisterComponent<SimVelocity>();
             repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
@@ -64,6 +64,7 @@ namespace CarKinem.Tests.Systems
                 IntentId = intentId,   // matching → no reset on first tick
                 Result   = NavResult.InProgress,
             });
+            repo.AddComponent(entity, new FrustrationTicks { Ticks = 0 });
             return entity;
         }
 
@@ -201,6 +202,44 @@ namespace CarKinem.Tests.Systems
             var status = repo.GetComponent<NavigationStatus>(entity);
             // Status should remain InProgress (unchanged).
             Assert.Equal(NavResult.InProgress, status.Result);
+
+            system.Dispose();
+        }
+
+        // ── Test 5: FrustrationTicks component increments (CT-MOD1-A) ────────────────────────────
+
+        /// <summary>
+        /// CT-MOD1-A: <see cref="FrustrationTicks.Ticks"/> must increment each tick when the
+        /// entity is stuck (speed below threshold).  The internal dictionary
+        /// <c>_frustrationTicks</c> must not exist (proven by the field not being present on
+        /// the system type).
+        /// </summary>
+        [Fact]
+        public void FrustrationTicks_ComponentIncrementsEachStuckTick()
+        {
+            using var repo = CreateWorld();
+            var system = new NavigationExecutionSystem();
+            system.Create(repo);
+
+            var entity = AddNavigatingEntity(repo,
+                position:     Vector2.Zero,
+                destination:  new Vector2(500f, 0f),
+                arrivalRadius: 2f,
+                velocityX:    0f);  // stuck — speed = 0
+
+            // Run 3 ticks.
+            system.Run();
+            system.Run();
+            system.Run();
+
+            var ticks = repo.GetComponent<FrustrationTicks>(entity).Ticks;
+            Assert.Equal(3, ticks);
+
+            // Verify dictionary field does not exist on the system type (CT-MOD1-A requirement).
+            var dictField = typeof(NavigationExecutionSystem).GetField(
+                "_frustrationTicks",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            Assert.Null(dictField);
 
             system.Dispose();
         }

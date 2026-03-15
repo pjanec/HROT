@@ -74,7 +74,7 @@ namespace CarKinem.Tests.Road
             
             var nav = new NavState
             {
-                Mode = NavigationMode.RoadGraph,
+                Mode = KinematicsMode.RoadGraph,
                 RoadPhase = RoadGraphPhase.Approaching,
                 FinalDestination = new Vector2(200, 0),
                 ArrivalRadius = 2.0f
@@ -111,7 +111,7 @@ namespace CarKinem.Tests.Road
             
             var nav = new NavState
             {
-                Mode = NavigationMode.RoadGraph,
+                Mode = KinematicsMode.RoadGraph,
                 RoadPhase = RoadGraphPhase.Following,
                 CurrentSegmentId = 0,
                 ProgressS = 25f,
@@ -149,7 +149,7 @@ namespace CarKinem.Tests.Road
             
             var nav = new NavState
             {
-                Mode = NavigationMode.RoadGraph,
+                Mode = KinematicsMode.RoadGraph,
                 RoadPhase = RoadGraphPhase.Leaving,
                 FinalDestination = new Vector2(110, 10),
                 ArrivalRadius = 2.0f
@@ -185,7 +185,7 @@ namespace CarKinem.Tests.Road
             
             var nav = new NavState
             {
-                Mode = NavigationMode.RoadGraph,
+                Mode = KinematicsMode.RoadGraph,
                 RoadPhase = RoadGraphPhase.Leaving,
                 FinalDestination = new Vector2(101, 0),
                 ArrivalRadius = 2.0f

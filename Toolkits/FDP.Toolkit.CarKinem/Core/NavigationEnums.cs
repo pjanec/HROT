@@ -1,10 +1,16 @@
 namespace CarKinem.Core
 {
     /// <summary>
-    /// Navigation mode enumeration.
-    /// Determines how vehicle calculates its target.
+    /// Kinematics navigation mode enumeration.
+    /// Determines how the vehicle physics controller calculates its steering target.
     /// </summary>
-    public enum NavigationMode : byte
+    /// <remarks>
+    /// Renamed from <c>NavigationMode</c> to <c>KinematicsMode</c> (MOD1-BATCH-02 DB-MOD1-01)
+    /// to eliminate the name collision with <c>FDP.Toolkit.Navigation.NavigationMode</c>
+    /// (the CQRS contract enum).  All references to the old name inside the CarKinem
+    /// toolkit and in the Navigation executor files have been updated.
+    /// </remarks>
+    public enum KinematicsMode : byte
     {
         None = 0,           // No active navigation (stationary or manual control)
         RoadGraph = 1,      // Follow road network (approach → follow → leave)

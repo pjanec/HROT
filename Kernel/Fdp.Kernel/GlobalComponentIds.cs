@@ -16,7 +16,7 @@ namespace Fdp.Kernel
     ///   <item><term>20–49</term> <description>FDP toolkit expansion: Behavior, Physics, Combat, CarKinem, Geographic</description></item>
     ///   <item><term>50–79</term> <description>FDP.Toolkit.Replication components</description></item>
     ///   <item><term>80–109</term><description>FDP.Toolkit.Vis2D components</description></item>
-    ///   <item><term>110–139</term><description>Bagira.IG components</description></item>
+    ///   <item><term>110–139</term><description>IG components</description></item>
     ///   <item><term>140–159</term><description>ModuleHost.Core network components (Cyclone)</description></item>
     ///   <item><term>160–199</term><description>Application-level descriptor components</description></item>
     ///   <item><term>200–255</term><description>Reserved — examples and future use</description></item>
@@ -229,7 +229,41 @@ namespace Fdp.Kernel
 
         // IDs 65–79 are reserved for future toolkit components.
         // IDs 67–68 are used for Navigation toolkit components (NavigationIntent, NavigationStatus).
-        // IDs 69–79 are reserved for future toolkit components.
+
+        /// <summary>
+        /// <c>FrustrationTicks</c> — per-entity frustration counter used by
+        /// <c>NavigationExecutionSystem</c> to detect stuck vehicles.  Replaces the
+        /// previous dictionary-based counter to allow automatic reclamation on entity
+        /// destruction.  See <c>FrustrationTicks.cs</c> in <c>FDP.Toolkit.CarKinem</c>.
+        /// </summary>
+        public const byte FrustrationTicks = 69;
+
+        // ── FDP.Toolkit expansion — additional toolkit IDs (70–79) ───────────────
+        // Toolkit components added after the 20–49 block was exhausted.
+
+        /// <summary><c>InFormationTag</c> — tag added to an entity that has successfully joined a formation slot (FDP.Toolkit.Navigation).</summary>
+        public const byte InFormationTag          = 70;
+
+        /// <summary><c>Faction</c> — entity side identifier used by perception broadphase (FDP.Toolkit.Perception).</summary>
+        public const byte Faction                 = 71;
+
+        /// <summary><c>PerceptionReceptor</c> — combined sensor range/FOV parameters (FDP.Toolkit.Perception).</summary>
+        public const byte PerceptionReceptor      = 72;
+
+        /// <summary><c>TargetMemory</c> — fixed-size threat table for perceived targets (FDP.Toolkit.Perception).</summary>
+        public const byte TargetMemory            = 73;
+
+        /// <summary><c>VisualReceptor</c> — optical sensor configuration: vision range and FOV cosine (FDP.Toolkit.Perception).</summary>
+        public const byte VisualReceptor          = 74;
+
+        /// <summary><c>RadarReceptor</c> — active radar configuration: max range, power, target mask (FDP.Toolkit.Perception).</summary>
+        public const byte RadarReceptor           = 75;
+
+        /// <summary><c>PathfindingBatchData</c> — zero-allocation singleton for batched pathfinding requests/results (FDP.Toolkit.Navigation).</summary>
+        public const byte PathfindingBatchData    = 76;
+
+        // IDs 77–79 are defined in GeographicComponentIds (Fdp.Toolkit.Geographic).
+        // GroundClampingConfig = 77, GroundClampingState = 78, TerrainQueryBatchData = 79.
 
         // ── FDP.Toolkit.Vis2D (80–109) ───────────────────────────────────────────
         // 2-D visualisation and map-layer components.
@@ -248,7 +282,7 @@ namespace Fdp.Kernel
 
         // IDs 84–109 are reserved for future Vis2D toolkit components.
 
-        // ── Bagira.IG (110–139) ──────────────────────────────────────────────────
+        // ── IG (110–139) ──────────────────────────────────────────────────
         // Image Generator ECS components used for rendering and interaction.
 
         /// <summary><c>ResolvedStyle</c> — computed visual rendering state (texture, tint, label).</summary>
@@ -266,7 +300,7 @@ namespace Fdp.Kernel
         /// <summary><c>TracerTarget</c> — world-space endpoint of a tracer-line effect.</summary>
         public const byte TracerTarget        = 114;
 
-        // IDs 115–139 are reserved for future Bagira.IG components.
+        // IDs 115–139 are reserved for future IG components.
 
         /// <summary><c>HistoryTrail</c> — circular-buffer of recent world-space positions for trail rendering.</summary>
         public const byte HistoryTrail            = 115;
@@ -292,7 +326,7 @@ namespace Fdp.Kernel
         /// <summary><c>TkbCompositionDef</c> — TKB composite unit definition.</summary>
         public const byte TkbCompositionDef       = 122;
 
-        // IDs 123–139 are reserved for future Bagira.IG components.
+        // IDs 123–139 are reserved for future IG components.
 
         // ── ModuleHost.Core Network (140–159) ────────────────────────────────────
         // Network ownership and coordination components managed by CycloneNetworkModule.
@@ -312,24 +346,13 @@ namespace Fdp.Kernel
         // IDs 144–159 are reserved for future ModuleHost.Core network components.
 
         // ── Application-level Descriptors (160–199) ──────────────────────────────
-        // DDS-sourced descriptor types repurposed as ECS components in FDP applications.
+        // These IDs are now declared in project specific ComponentIds.
+        // ID 161 (EntityDamage) is kept here only as a cross-reference comment.
+        // All other application-level IDs (162–166) have been migrated to project specific Ids.
+        //
+        // DO NOT add new project specific component IDs here — use project specific ComponentIds instead.
 
-        /// <summary><c>EntityDamage</c> — DDS damage descriptor stored as an ECS component for IG rendering.</summary>
-        public const byte EntityDamage            = 161;
-
-        /// <summary><c>EntityMissionHolder</c> — managed wrapper carrying an <c>EntityMission</c> payload. [Obsolete]</summary>
-        public const byte EntityMissionHolder     = 162;
-
-        /// <summary><c>InFormationTag</c> — tag added to an entity that has successfully joined a formation slot.</summary>
-        public const byte InFormationTag          = 163;
-
-        /// <summary><c>IgEntityData</c> — IG-internal entity metadata from EntityInfo.</summary>
-        public const byte IgEntityData            = 164;
-
-        /// <summary><c>IgHealthState</c> — IG-internal health state derived from EntityDamage.</summary>
-        public const byte IgHealthState           = 165;
-
-        // IDs 166–199 are reserved for future application-level components.
+        // IDs 160–199 are reserved for project specific application-level components.
 
         // ── Reserved (200–255) ───────────────────────────────────────────────────
         // IDs 200–255: reserved — future use.

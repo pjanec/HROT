@@ -1,28 +1,24 @@
 using FDP.Toolkit.Perception.Events;
-using Fdp.Kernel;
+using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Perception.Systems
 {
     /// <summary>
-    /// Main-thread system that bridges <see cref="LosCheckRequestEvent"/>s from the async
-    /// <see cref="PerceptionModule"/> to the physics raycast pipeline (or, in mock mode,
-    /// directly confirms visibility for all requests).
+    /// Background-thread system that bridges <see cref="LosCheckRequestEvent"/>s from the
+    /// <see cref="Modules.AutonomousPerceptionModule"/> to the physics raycast pipeline (or,
+    /// in mock mode, directly confirms visibility for all requests).
     /// <para>
-    /// <b>Normal mode (future):</b> For each <see cref="LosCheckRequestEvent"/>, adds a
-    /// ray entry to <c>RaycastBatchData</c>. After physics solves next frame,
-    /// <c>HitResolutionSystem</c> emits <see cref="TargetVisibleEvent"/> for unobstructed rays.
+    /// Runs exclusively on the background thread inside
+    /// <see cref="Modules.AutonomousPerceptionModule.Tick"/> — after
+    /// <see cref="VisionBroadphaseSystem"/> emits requests and before
+    /// <see cref="ThreatEvaluationSystem"/> processes the resulting visible-target events.
     /// </para>
     /// <para>
-    /// <b>Mock mode (<see cref="LOS_MOCK_MODE"/> = <c>true</c>):</b>
-    /// Skips ray submission entirely and immediately emits a <see cref="TargetVisibleEvent"/>
-    /// for every incoming <see cref="LosCheckRequestEvent"/>. Used in Phase 2 where no terrain
-    /// geometry exists yet. The constructor parameter makes the mode testable without conditional
-    /// compilation — a constructor flag was preferred over a compile-time <c>#define</c> so that
-    /// tests can instantiate both modes in the same test binary.
+    /// <b>Mock mode:</b> Skips ray submission and immediately emits a
+    /// <see cref="TargetVisibleEvent"/> for every incoming <see cref="LosCheckRequestEvent"/>.
     /// </para>
     /// </summary>
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public class LosRequestBatchingSystem : ComponentSystem
+    public sealed class LosRequestBatchingSystem : IModuleSystem
     {
         /// <summary>
         /// When <c>true</c>, every <see cref="LosCheckRequestEvent"/> is immediately resolved
@@ -39,37 +35,21 @@ namespace FDP.Toolkit.Perception.Systems
             _mockMode = mockMode;
         }
 
-        protected override void OnUpdate()
+        /// <inheritdoc/>
+        public void Execute(ISimulationView view, float deltaTime)
         {
-            var requests = World.Bus.Consume<LosCheckRequestEvent>();
+            var requests = view.ConsumeEvents<LosCheckRequestEvent>();
             if (requests.IsEmpty) return;
 
+            var cmds = view.GetCommandBuffer();
             if (_mockMode)
             {
                 // Mock mode: treat broadphase visibility as confirmed LOS.
-                // Directly publish a TargetVisibleEvent for every incoming request.
-                // Full Entity handles are passed straight through — no generation re-acquisition needed;
-                // the event was just emitted this frame and both entities were alive at emission.
+                // Full Entity handles are passed straight through — generation included.
                 foreach (ref readonly var req in requests)
-                {
-                    World.Bus.Publish(new TargetVisibleEvent
-                    {
-                        Observer = req.Observer,
-                        Target   = req.Target,
-                    });
-                }
+                    cmds.PublishEvent(new TargetVisibleEvent { Observer = req.Observer, Target = req.Target });
             }
-            else
-            {
-                // Production mode (Phase 3+): batch rays into RaycastBatchData.
-                // TODO: Add to RaycastBatchData.Requests when the Physics toolkit is available.
-                // Use req.Observer and req.Target (full Entity handles) — do NOT re-pack as raw indices.
-                // foreach (ref readonly var req in requests)
-                // {
-                //     var raycastBatch = ref World.GetSingleton<RaycastBatchData>();
-                //     raycastBatch.AddRequest(req.Observer, req.Target);
-                // }
-            }
+            // Production mode: TODO — add RaycastBatchData writes via command buffer when available.
         }
     }
 }

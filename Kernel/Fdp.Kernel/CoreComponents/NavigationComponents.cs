@@ -23,10 +23,6 @@ using Fdp.Kernel;
 namespace FDP.Toolkit.Navigation
 {
     // ── Engine-side enums ────────────────────────────────────────────────────
-    // These are the FDP-native (non-DDS) enums.  The DDS wire-enums
-    // (ENavigationMode / ENavigationResult) live in Bagira.BDC.SSTD and are
-    // mapped by translator classes.  See the Dual-Enum Pattern (Design §3.1.1a).
-
     /// <summary>
     /// Engine-side navigation mode.  Carried by <see cref="NavigationIntent"/>
     /// and written by <c>MoveToExecutor</c> on the Brain side.

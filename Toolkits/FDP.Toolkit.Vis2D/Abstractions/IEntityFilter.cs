@@ -27,7 +27,7 @@ public interface IEntityFilter
 /// <see cref="IEntityFilter"/> instance.
 ///
 /// <para>
-/// Hosting applications (e.g. <c>Bagira.IG</c>) inject their own
+/// Hosting applications (e.g. <c>IG</c>) inject their own
 /// domain-specific implementation so that the Vis2D toolkit remains decoupled
 /// from concrete ECS component types or layer-registry internals.
 /// The expensive string-to-mask translation is performed exactly once inside

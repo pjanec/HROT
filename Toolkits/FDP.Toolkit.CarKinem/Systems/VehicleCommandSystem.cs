@@ -74,7 +74,7 @@ namespace CarKinem.Systems
                 // Add NavState component (idle)
                 World.AddComponent(entity, new NavState
                 {
-                    Mode = NavigationMode.None,
+                    Mode = KinematicsMode.None,
                     RoadPhase = RoadGraphPhase.Approaching,
                     TrajectoryId = -1,
                     CurrentSegmentId = -1,
@@ -143,7 +143,7 @@ namespace CarKinem.Systems
                     continue;
                 
                 var nav = World.GetComponent<NavState>(entity);
-                nav.Mode = NavigationMode.None; // Direct navigation (no special mode)
+                nav.Mode = KinematicsMode.None; // Direct navigation (no special mode)
                 nav.FinalDestination = cmd.Destination;
                 nav.ArrivalRadius = cmd.ArrivalRadius;
                 nav.TargetSpeed = cmd.Speed;
@@ -165,7 +165,7 @@ namespace CarKinem.Systems
                     continue;
                 
                 var nav = World.GetComponent<NavState>(entity);
-                nav.Mode = NavigationMode.CustomTrajectory;
+                nav.Mode = KinematicsMode.CustomTrajectory;
                 nav.TrajectoryId = cmd.TrajectoryId;
                 nav.ProgressS = 0f;
                 nav.HasArrived = 0;
@@ -186,7 +186,7 @@ namespace CarKinem.Systems
                     continue;
                 
                 var nav = World.GetComponent<NavState>(entity);
-                nav.Mode = NavigationMode.RoadGraph;
+                nav.Mode = KinematicsMode.RoadGraph;
                 nav.RoadPhase = RoadGraphPhase.Approaching;
                 nav.FinalDestination = cmd.Destination;
                 nav.ArrivalRadius = cmd.ArrivalRadius;
@@ -242,7 +242,7 @@ namespace CarKinem.Systems
                 
                 // Set follower navigation mode to Formation
                 var nav = World.GetComponent<NavState>(followerEntity);
-                nav.Mode = NavigationMode.Formation;
+                nav.Mode = KinematicsMode.Formation;
                 nav.HasArrived = 0;
                 World.SetComponent(followerEntity, nav);
             }
@@ -260,7 +260,7 @@ namespace CarKinem.Systems
                     continue;
                 
                 var nav = World.GetComponent<NavState>(entity);
-                nav.Mode = NavigationMode.None;
+                nav.Mode = KinematicsMode.None;
                 
                 World.SetComponent(entity, nav);
             }
@@ -278,7 +278,7 @@ namespace CarKinem.Systems
                     continue;
                 
                 var nav = World.GetComponent<NavState>(entity);
-                nav.Mode = NavigationMode.None;
+                nav.Mode = KinematicsMode.None;
                 nav.TargetSpeed = 0f;
                 
                 World.SetComponent(entity, nav);

@@ -2,7 +2,6 @@ using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Systems;
 
 namespace FDP.Toolkit.Combat.Systems
 {
@@ -39,7 +38,10 @@ namespace FDP.Toolkit.Combat.Systems
     ///      is introduced. Ordering is maintained by the host application's registration order. -->
     /// </summary>
     [UpdateInGroup(typeof(PostSimulationSystemGroup))]
-    [UpdateAfter(typeof(LinearKinematicsSystem))]
+    // [UpdateAfter(typeof(LinearKinematicsSystem))] — CT-MOD1-F: LinearKinematicsSystem moved
+    //   to FDP.Toolkit.CarKinem.Systems. FDP.Toolkit.Combat does not reference CarKinem,
+    //   so the ordering attribute is omitted and maintained by registration order in
+    //   SimulationLogicModule (GroundKinematicsModule.RegisterSystems then postSimGroup).
     public class BallisticsSystem : ComponentSystem
     {
         protected override void OnUpdate()

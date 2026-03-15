@@ -51,10 +51,11 @@ namespace CarKinem.Tests.Systems
                     Position = new Vector3(i * 5, 0, 0), 
                     Rotation = SimMath.FacingNorth
                 });
+                repo.SetAuthority<SimTransform>(e, true); // mark as locally-owned so WithOwned filter passes
                 repo.AddComponent(e, new SimVelocity { Linear = new Vector3(0, 10, 0) });
                 
                 repo.AddComponent(e, new VehicleParams { WheelBase=2.7f, MaxSpeedFwd=30f, AvoidanceRadius=2.0f });
-                repo.AddComponent(e, new NavState { Mode = NavigationMode.None });
+                repo.AddComponent(e, new NavState { Mode = KinematicsMode.None });
             }
             
             // Run

@@ -13,7 +13,7 @@ namespace CarKinem.Core
     public struct NavState
     {
         // Navigation mode and state
-        public NavigationMode Mode;       // Current navigation mode
+        public KinematicsMode Mode;       // Current navigation mode
         public RoadGraphPhase RoadPhase;  // Road graph state machine (only if Mode == RoadGraph)
         
         // Trajectory references

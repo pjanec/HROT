@@ -7,10 +7,6 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Navigation.Executors;
 using Xunit;
 
-// Disambiguate from FDP.Toolkit.Navigation.NavigationMode (CQRS contract) accessible
-// via the ancestor namespace.
-using CarKinemNavMode = CarKinem.Core.NavigationMode;
-
 namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
 {
     /// <summary>
@@ -60,7 +56,7 @@ namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
             executor.OnEnter(entity, ref channel, world);
 
             var nav = world.GetComponent<NavState>(entity);
-            Assert.Equal(CarKinemNavMode.RoadGraph, nav.Mode);
+            Assert.Equal(KinematicsMode.RoadGraph, nav.Mode);
             Assert.Equal(targetNodeId,             nav.CurrentSegmentId);
             Assert.Equal(speed,                    nav.TargetSpeed);
             Assert.Equal(NodeStatus.Running,       channel.Status);

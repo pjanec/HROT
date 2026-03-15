@@ -30,6 +30,20 @@ namespace Fdp.Kernel.FlightRecorder
         public int MinRecordableId { get; set; } = 0;
 
         /// <summary>
+        /// Optional entity filter predicate.  When <c>null</c> (default), all entities
+        /// above <see cref="MinRecordableId"/> are recorded — existing behaviour is
+        /// completely unchanged.
+        /// <para>
+        /// When set, <c>FillLiveness</c> calls the predicate for every active entity;
+        /// entities for which the predicate returns <c>false</c> are treated as
+        /// non-live and their data is zeroed in the scratch buffer before writing.
+        /// The predicate receives the full <see cref="Entity"/> handle (index +
+        /// generation) so it can guard against recycled slots.
+        /// </para>
+        /// </summary>
+        public Predicate<Entity>? EntityFilter { get; set; } = null;
+
+        /// <summary>
         /// Records a delta frame containing only changed data since prevTick.
         /// Writes to the provided BinaryWriter.
         /// </summary>
@@ -465,15 +479,17 @@ namespace Fdp.Kernel.FlightRecorder
             int end = startId + count;
             for (int i = startId; i < end; i++)
             {
+                bool alive = false;
                 if (i >= MinRecordableId && i <= max)
                 {
                     ref var header = ref index.GetHeader(i);
-                    liveness[i - startId] = header.IsActive;
+                    alive = header.IsActive;
+                    // Apply entity filter when set — uses full Entity handle (index + generation)
+                    // to allow callers to validate the generation and avoid filtering recycled slots.
+                    if (alive && EntityFilter != null)
+                        alive = EntityFilter(new Entity(i, header.Generation));
                 }
-                else
-                {
-                    liveness[i - startId] = false;
-                }
+                liveness[i - startId] = alive;
             }
         }
 

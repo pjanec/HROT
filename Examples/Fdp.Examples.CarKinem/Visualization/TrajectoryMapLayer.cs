@@ -38,11 +38,11 @@ namespace Fdp.Examples.CarKinem.Visualization
             
             var nav = _view.GetComponentRO<NavState>(selectedEntity.Value);
             
-            if (nav.Mode == NavigationMode.CustomTrajectory)
+            if (nav.Mode == KinematicsMode.CustomTrajectory)
             {
                 RenderTrajectory(nav.TrajectoryId, nav.ProgressS, ctx, new Color(180, 180, 180, 128));
             }
-            else if (nav.Mode == NavigationMode.Formation)
+            else if (nav.Mode == KinematicsMode.Formation)
             {
                 if (_view.HasComponent<FormationMember>(selectedEntity.Value))
                 {

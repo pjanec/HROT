@@ -8,5 +8,6 @@
     <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
+    <ProjectReference Include="..\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
   </ItemGroup>
 </Project>

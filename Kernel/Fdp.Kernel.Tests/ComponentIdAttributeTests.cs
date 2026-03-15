@@ -158,7 +158,7 @@ namespace Fdp.Tests
             Assert.InRange<byte>(GlobalComponentIds.AggregateState,      80, 109);
             Assert.InRange<byte>(GlobalComponentIds.AggregateRoot,       80, 109);
 
-            // Bagira.IG block (110–139)
+            // IG block (110–139)
             Assert.InRange<byte>(GlobalComponentIds.ResolvedStyle,       110, 139);
             Assert.InRange<byte>(GlobalComponentIds.CullingState,        110, 139);
             Assert.InRange<byte>(GlobalComponentIds.SelectionState,      110, 139);

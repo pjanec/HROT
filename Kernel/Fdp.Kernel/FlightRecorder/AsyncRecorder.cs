@@ -47,6 +47,18 @@ namespace Fdp.Kernel.FlightRecorder
             set => _recorderSystem.MinRecordableId = value; 
         }
 
+        /// <summary>
+        /// Optional entity filter predicate.  Passthrough to the underlying
+        /// <see cref="RecorderSystem.EntityFilter"/>.  When <c>null</c> (default),
+        /// all entities above <see cref="MinRecordableId"/> are recorded — existing
+        /// behaviour is completely unchanged.
+        /// </summary>
+        public Predicate<Entity>? EntityFilter
+        {
+            get => _recorderSystem.EntityFilter;
+            set => _recorderSystem.EntityFilter = value;
+        }
+
         private bool _disposed;
         
         public AsyncRecorder(string filePath, RecordingMetadata? metadata = null)

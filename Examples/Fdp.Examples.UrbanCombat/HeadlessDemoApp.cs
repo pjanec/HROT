@@ -22,6 +22,7 @@ using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Perception.Systems;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Systems;
+using FDP.Toolkit.CarKinem.Systems;
 
 namespace Fdp.Examples.UrbanCombat
 {
