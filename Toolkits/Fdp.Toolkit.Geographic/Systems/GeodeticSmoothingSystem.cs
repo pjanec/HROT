@@ -2,7 +2,6 @@ using System;
 using System.Numerics;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network;
 using Fdp.Modules.Geographic.Components;
 
 using PositionGeodetic = Fdp.Modules.Geographic.Components.PositionGeodetic;
@@ -21,27 +20,23 @@ namespace Fdp.Modules.Geographic.Systems
         
         public void Execute(ISimulationView view, float deltaTime)
         {
-            // Inbound: Geodetic → Physics (for remote entities)
+            // Inbound: Geodetic → Physics (for ghost / remote entities only).
+            // .WithoutOwned<Position>() replaces the legacy manual
+            // PrimaryOwnerId == LocalNodeId check that broke split-authority deployments
+            // (MOD1-P1T3).  Ghost entities have Position present but are NOT locally owned,
+            // so WithoutOwned correctly selects them while skipping locally-owned entities.
             var inbound = view.Query()
                 .With<Position>()
                 .WithManaged<PositionGeodetic>()
-                // .With<NetworkTarget>() // TODO: Re-enable when implementing full Dead Reckoning (BATCH-08.1)
-                .With<NetworkOwnership>() // Manual ownership check
+                .WithoutOwned<Position>()
                 .Build();
             
             foreach (var entity in inbound)
             {
-                var ownership = view.GetComponentRO<NetworkOwnership>(entity);
-                // Must be REMOTE (PrimaryOwner != LocalNode)
-                if (ownership.PrimaryOwnerId == ownership.LocalNodeId)
-                    continue;
-
                 var geoPos = view.GetManagedComponentRO<PositionGeodetic>(entity);
-                // var target = view.GetComponentRO<NetworkTarget>(entity); // Unused
                 var currentPos = view.GetComponentRO<Position>(entity);
                 
                 // Convert latest geodetic to Cartesian target
-                // Note: We might use NetworkTarget timestamp for actual DR, but instructions use simplistic approach here.
                 var targetCartesian = _geo.ToCartesian(
                     geoPos.Latitude, 
                     geoPos.Longitude, 

@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Numerics;
 using System.Runtime.CompilerServices;
-using CarKinem.Core;
 using Fdp.Kernel;
 using Fbt;
 using FDP.Toolkit.Behavior.Components;
@@ -12,124 +8,105 @@ namespace FDP.Toolkit.Navigation.Executors
 {
     /// <summary>
     /// Executor for the <see cref="NavigationConstants.ActionIdMoveTo"/> action.
-    /// On entry it writes <see cref="NavState.FinalDestination"/>, <see cref="NavState.ArrivalRadius"/>,
-    /// <see cref="NavState.TargetSpeed"/> and <see cref="NavigationMode.Direct"/> into the entity's
-    /// <see cref="NavState"/>. Each tick it checks <see cref="NavState.HasArrived"/> for success and
-    /// applies a frustration guard to detect stuck vehicles.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is a pure CQRS <em>command writer</em>: it has no physics awareness.
+    /// The full lifecycle is:
+    /// </para>
+    /// <list type="number">
+    ///   <item><see cref="OnEnter"/> — copies <see cref="MoveToParams"/> into
+    ///     <see cref="NavigationIntent"/> (raw Cartesian copy, no geo conversion) and
+    ///     increments <see cref="NavigationIntent.IntentId"/>.</item>
+    ///   <item><see cref="Execute"/> — observes <see cref="NavigationStatus"/> written
+    ///     by the Muscle layer (<c>NavigationExecutionSystem</c>).  Returns Success,
+    ///     Failure, or keeps Running based on <see cref="NavigationStatus.Result"/>.</item>
+    ///   <item><see cref="OnExit"/> — clears the <see cref="NavigationIntent.Mode"/> so
+    ///     the Muscle layer stops executing the command.</item>
+    /// </list>
+    /// <para>
+    /// <b>No geo conversion:</b> <see cref="MoveToParams.Destination"/> is a Cartesian
+    /// <c>Vector2</c> and is written directly into
+    /// <see cref="NavigationIntent.FinalDestination"/> without any coordinate transform.
+    /// Conversion to WGS-84 is the responsibility of the egress translator, not the executor.
+    /// </para>
+    /// </remarks>
     public sealed class MoveToExecutor : IActionExecutor<LocomotionChannel>
     {
-        // ── Frustration counter storage ───────────────────────────────────────────────────────────
-        // IActionExecutor instances are singletons shared across all entities (one per action type,
-        // allocated at system startup). A simple `int _stuckTicks` field would be incorrectly shared
-        // across entities. We use a Dictionary<int, int> keyed by entity.Index instead.
-        // Trade-offs:
-        //   + Zero per-entity ECS component overhead; no schema changes needed.
-        //   + Allocation happens once at startup; dictionary is reused for the lifetime of the system.
-        //   - Dictionary look-up is O(1) amortised but not as cache-friendly as a component array.
-        //   Acceptable for the frustration path (called at most once per tick per moving entity).
-        //
-        // OnExit guarantee (DEBT-018 resolution):
-        //   OnExit is called by DispatcherSystemBase when a new action preempts the current one
-        //   (ActionInstanceId != DispatchedInstanceId). However, if an entity is destroyed while
-        //   a MoveTo action is still Running, the entity leaves the dispatcher query and OnExit
-        //   is NOT called. This means _stuckTicks will leak one entry per entity that dies
-        //   mid-action. The Execute fallback below removes the entry when the entity is dead,
-        //   providing a best-effort cleanup for the same-frame destruction case.
-        //   NOTE: OnExit is NOT guaranteed by DispatcherSystemBase on entity destruction
-        //   (verified BATCH-08, case b is unhandled).
-        private readonly Dictionary<int, int> _stuckTicks = new();
-
         // ── OnEnter ──────────────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Writes a new <see cref="NavigationIntent"/> from <see cref="MoveToParams"/> and sets
+        /// the channel to Running.
+        /// </summary>
         public unsafe void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
             MoveToParams p;
             fixed (byte* src = channel.Params)
                 p = *(MoveToParams*)src;
 
-            var nav = world.GetComponent<NavState>(entity);
-            nav.Mode             = NavigationMode.Direct;
-            nav.FinalDestination = p.Destination;
-            nav.ArrivalRadius    = p.ArrivalRadius;
-            nav.TargetSpeed      = p.Speed;
-            nav.HasArrived       = 0;
-            world.SetComponent(entity, nav);
+            // ── Read current IntentId (default 0 if new) then increment ──────────────────────
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            intent.IntentId++;
+            intent.Mode             = NavigationMode.DirectPoint;
+            intent.FinalDestination = p.Destination;   // raw Cartesian copy — no geo conversion
+            intent.TargetSpeed      = p.Speed;
+            intent.ArrivalRadius    = p.ArrivalRadius;
+            world.SetComponent(entity, intent);
 
-            // Reset the per-entity stuck counter so a fresh action starts clean.
-            _stuckTicks[entity.Index] = 0;
-
-            channel.Status = Fbt.NodeStatus.Running;
+            channel.Status = NodeStatus.Running;
         }
 
         // ── Execute ───────────────────────────────────────────────────────────────────────────────
 
-        public unsafe void Execute(Entity entity, ref LocomotionChannel channel, EntityRepository world, float dt)
+        /// <summary>
+        /// Observes <see cref="NavigationStatus"/> written by the Muscle layer.
+        /// Ignores stale status (when <c>status.IntentId != intent.IntentId</c>).
+        /// </summary>
+        public void Execute(Entity entity, ref LocomotionChannel channel, EntityRepository world, float dt)
         {
-            // DEBT-018 fallback: If the entity was destroyed in the same frame by another system
-            // (e.g., via immediate DestroyEntity on the main thread), OnExit was never called.
-            // Remove the stale counter entry so it does not accumulate indefinitely.
-            // This is a defensive guard; Execute should only be called for living entities in
-            // normal dispatcher flow, but entity death during iteration is a valid edge case.
             if (!world.IsAlive(entity))
-            {
-                _stuckTicks.Remove(entity.Index);
                 return;
-            }
 
-            var nav = world.GetComponent<NavState>(entity);
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            var status = world.GetComponent<NavigationStatus>(entity);
 
-            // ── Arrival check ─────────────────────────────────────────────────────────────────
-            if (nav.HasArrived != 0)
+            // ── Stale-check: ignore status reports for a different intent ──────────────────────
+            if (status.IntentId != intent.IntentId)
+                return;   // keep Running; Muscle layer hasn't caught up yet
+
+            // ── Map NavigationResult to channel status ─────────────────────────────────────────
+            switch (status.Result)
             {
-                channel.Status = Fbt.NodeStatus.Success;
-                return;
-            }
+                case NavigationResult.Arrived:
+                    channel.Status = NodeStatus.Success;
+                    break;
 
-            // ── Frustration guard ─────────────────────────────────────────────────────────────
-            MoveToParams p;
-            fixed (byte* src = channel.Params)
-                p = *(MoveToParams*)src;
+                case NavigationResult.FailedBlocked:
+                case NavigationResult.FailedUnreachable:
+                    channel.Status = NodeStatus.Failure;
+                    break;
 
-            var tf  = world.GetComponent<SimTransform>(entity);
-            var vel = world.GetComponent<SimVelocity>(entity);
-
-            var pos2D  = new Vector2(tf.Position.X, tf.Position.Y);
-            float dist = Vector2.Distance(pos2D, p.Destination);
-
-            if (vel.Linear.Length() < NavigationConstants.FrustrationSpeedThreshold
-                && dist > p.ArrivalRadius * 2f)
-            {
-                _stuckTicks.TryGetValue(entity.Index, out int ticks);
-                ticks++;
-                _stuckTicks[entity.Index] = ticks;
-
-                if (ticks > NavigationConstants.FrustrationTickThreshold)
-                {
-                    channel.Status = Fbt.NodeStatus.Failure;
-                    return;
-                }
-            }
-            else
-            {
-                // Vehicle is moving (or within double-arrival) — reset counter.
-                _stuckTicks[entity.Index] = 0;
+                case NavigationResult.InProgress:
+                default:
+                    // Keep Running — nothing to do.
+                    break;
             }
         }
 
         // ── OnExit ────────────────────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Clears the <see cref="NavigationIntent.Mode"/> so the Muscle layer stops
+        /// processing this command.
+        /// </summary>
         public void OnExit(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
-            // INVARIANT: channel still holds the OUTGOING action's IDs here.
-            // Stop the vehicle by zeroing TargetSpeed and clearing navigation mode.
-            var nav = world.GetComponent<NavState>(entity);
-            nav.TargetSpeed = 0f;
-            nav.Mode        = NavigationMode.None;
-            world.SetComponent(entity, nav);
-
-            // Clean up the frustration counter to avoid stale entries for recycled entity indices.
-            _stuckTicks.Remove(entity.Index);
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            intent.Mode        = NavigationMode.None;
+            intent.TargetSpeed = 0f;
+            world.SetComponent(entity, intent);
         }
     }
 }
+

@@ -186,6 +186,23 @@ namespace Fdp.Kernel
         /// <summary><c>GhostStateTracker</c> — tracks the birth frame of a ghost entity for promotion and timeout logic.</summary>
         public const byte GhostStateTracker       = 66;
 
+        /// <summary>
+        /// <c>NavigationIntent</c> — CQRS command component carrying the Brain's navigation order
+        /// (target position, speed, arrival radius, intent ID).
+        /// Defined in <c>FDP.Toolkit.Navigation</c> namespace; placed in Fdp.Kernel to avoid a
+        /// circular assembly dependency between <c>FDP.Toolkit.Navigation</c> and
+        /// <c>FDP.Toolkit.CarKinem</c>.  See <c>NavigationComponents.cs</c>.
+        /// </summary>
+        public const byte NavigationIntent        = 67;
+
+        /// <summary>
+        /// <c>NavigationStatus</c> — CQRS status component carrying the Muscle's navigation
+        /// result (echoed intent ID, result enum).
+        /// Defined in <c>FDP.Toolkit.Navigation</c> namespace; placed in Fdp.Kernel for the
+        /// same circular-dependency reason as <see cref="NavigationIntent"/>.
+        /// </summary>
+        public const byte NavigationStatus        = 68;
+
         /// <summary><c>ChildMap</c> — maps sub-entity instance IDs to local ECS entities.</summary>
         public const byte ChildMap                = 57;
 
@@ -210,7 +227,9 @@ namespace Fdp.Kernel
         /// <summary><c>NetworkEntityMap</c> — bidirectional map between network IDs and ECS entities.</summary>
         public const byte NetworkEntityMap        = 64;
 
-        // IDs 65–79 are reserved for future Replication toolkit components.
+        // IDs 65–79 are reserved for future toolkit components.
+        // IDs 67–68 are used for Navigation toolkit components (NavigationIntent, NavigationStatus).
+        // IDs 69–79 are reserved for future toolkit components.
 
         // ── FDP.Toolkit.Vis2D (80–109) ───────────────────────────────────────────
         // 2-D visualisation and map-layer components.

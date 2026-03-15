@@ -1,36 +1,39 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using CarKinem.Core;
 using Fdp.Kernel;
 using Fbt;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
 using Xunit;
 
 namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
 {
     /// <summary>
-    /// Unit tests for <see cref="MoveToExecutor"/> (BCS-P3-T2).
-    /// Covers success-on-arrival, frustration-guard failure (DEBT-016), and OnExit cleanup.
+    /// Unit tests for the refactored CQRS <see cref="MoveToExecutor"/> (MOD1-P1T2).
+    /// <para>
+    /// The executor is a pure observer of <see cref="NavigationStatus"/>.
+    /// It has no physics awareness: no geo conversion, no NavState, no SimTransform reads.
+    /// </para>
     /// </summary>
     public class MoveToExecutorTests
     {
         // ── Helpers ──────────────────────────────────────────────────────────────────────────────
 
-        /// <summary>Create an entity with all components required by MoveToExecutor.</summary>
+        /// <summary>
+        /// Creates a world and an entity equipped for CQRS MoveToExecutor tests.
+        /// </summary>
         private static (EntityRepository world, Entity entity, LocomotionChannel channel)
             BuildWorld(Vector2 destination, float arrivalRadius, float speed,
-                       Vector3 position, Vector3 linearVelocity)
+                       uint existingIntentId = 0)
         {
             var world  = NavigationTestWorldFactory.Create();
             var entity = world.CreateEntity();
 
-            world.AddComponent(entity, new SimTransform { Position = position, Rotation = Quaternion.Identity });
-            world.AddComponent(entity, new SimVelocity  { Linear   = linearVelocity });
-            world.AddComponent(entity, new NavState());
+            world.AddComponent(entity, new NavigationIntent { IntentId = existingIntentId });
+            world.AddComponent(entity, new NavigationStatus());
             world.AddComponent(entity, new LocomotionChannel());
 
-            // Build the channel with MoveToParams written into Params.
             var channel = world.GetComponent<LocomotionChannel>(entity);
             channel.ActiveAction = NavigationConstants.ActionIdMoveTo;
 
@@ -50,107 +53,170 @@ namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
             return (world, entity, channel);
         }
 
-        // ── Test 1 ────────────────────────────────────────────────────────────────────────────────
+        // ── Test 1: OnEnter increments IntentId and writes Intent ────────────────────────────────
 
         /// <summary>
-        /// When <see cref="NavState.HasArrived"/> is set to 1 (the kinematics system marks the
-        /// vehicle as arrived), <see cref="MoveToExecutor.Execute"/> must report
-        /// <see cref="NodeStatus.Success"/>.
+        /// MOD1-P1T2 T2: <see cref="MoveToExecutor.OnEnter"/> must increment
+        /// <see cref="NavigationIntent.IntentId"/>, set Mode to DirectPoint, and copy the
+        /// raw Cartesian destination directly — no geo conversion.
         /// </summary>
         [Fact]
-        public void MoveToExecutor_ReportsSuccess_WhenNavStateHasArrived()
+        public void MoveToExecutor_OnEnter_WritesNavigationIntentWithIncrementedId()
         {
-            var (world, entity, channel) = BuildWorld(
-                destination:    new Vector2(10f, 10f),
-                arrivalRadius:  1f,
-                speed:          5f,
-                position:       Vector3.Zero,
-                linearVelocity: new Vector3(5f, 0f, 0f));
+            var destination = new Vector2(300f, 150f);
+            var (world, entity, channel) = BuildWorld(destination, arrivalRadius: 5f, speed: 15f,
+                                                      existingIntentId: 5);
 
             var executor = new MoveToExecutor();
             executor.OnEnter(entity, ref channel, world);
 
-            // Simulate the kinematics system signalling arrival.
-            var nav = world.GetComponent<NavState>(entity);
-            nav.HasArrived = 1;
-            world.SetComponent(entity, nav);
+            var intent = world.GetComponent<NavigationIntent>(entity);
+
+            Assert.Equal(6u, intent.IntentId);                        // incremented from 5
+            Assert.Equal(NavigationMode.DirectPoint, intent.Mode);    // set to DirectPoint
+            Assert.Equal(destination, intent.FinalDestination);       // raw Cartesian copy
+            Assert.Equal(15f, intent.TargetSpeed);
+            Assert.Equal(5f,  intent.ArrivalRadius);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        // ── Test 2: Execute returns Success when status is Arrived ────────────────────────────────
+
+        /// <summary>
+        /// MOD1-P1T2 T3: When <see cref="NavigationStatus.Result"/> is Arrived and the
+        /// intent IDs match, <see cref="MoveToExecutor.Execute"/> must set channel status
+        /// to Success.
+        /// </summary>
+        [Fact]
+        public void MoveToExecutor_Execute_ReturnsSuccessWhenStatusArrived()
+        {
+            var (world, entity, channel) = BuildWorld(
+                new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f, existingIntentId: 5);
+
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            // IntentId is now 6 after OnEnter. Set status with matching id.
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            world.SetComponent(entity, new NavigationStatus
+            {
+                IntentId = intent.IntentId,
+                Result   = NavigationResult.Arrived,
+            });
 
             executor.Execute(entity, ref channel, world, 0.016f);
 
             Assert.Equal(NodeStatus.Success, channel.Status);
         }
 
-        // ── Test 2 ────────────────────────────────────────────────────────────────────────────────
+        // ── Test 3: Execute ignores stale status ──────────────────────────────────────────────────
 
         /// <summary>
-        /// When the vehicle velocity stays below <see cref="NavigationConstants.FrustrationSpeedThreshold"/>
-        /// and the destination is far away for more than <see cref="NavigationConstants.FrustrationTickThreshold"/>
-        /// consecutive ticks, <see cref="MoveToExecutor.Execute"/> must report
-        /// <see cref="NodeStatus.Failure"/>.
-        /// <para>
-        /// DEBT-016: the loop count references <see cref="NavigationConstants.FrustrationTickThreshold"/>
-        /// directly — not the hardcoded literal 120 — so changing the constant automatically keeps
-        /// this test honest.
-        /// </para>
+        /// MOD1-P1T2 T4: When <see cref="NavigationStatus.IntentId"/> does not match
+        /// <see cref="NavigationIntent.IntentId"/>, the executor must keep Running
+        /// (status is stale from a prior command).
         /// </summary>
         [Fact]
-        public void MoveToExecutor_ReportsFailure_WhenFrustrationThresholdExceeded()
+        public void MoveToExecutor_Execute_IgnoresStaleStatus()
         {
-            // Entity at origin; destination far away (>> ArrivalRadius * 2).
-            // Velocity is zero → stuck every tick.
             var (world, entity, channel) = BuildWorld(
-                destination:    new Vector2(1000f, 1000f),
-                arrivalRadius:  2f,
-                speed:          5f,
-                position:       Vector3.Zero,
-                linearVelocity: Vector3.Zero);  // stuck — speed = 0
+                new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f, existingIntentId: 5);
 
             var executor = new MoveToExecutor();
-            executor.OnEnter(entity, ref channel, world);
+            executor.OnEnter(entity, ref channel, world);  // IntentId becomes 6
 
-            // Run exactly FrustrationTickThreshold + 1 ticks; the (+1)th tick exceeds the threshold.
-            NodeStatus? lastStatus = null;
-            for (int i = 0; i <= NavigationConstants.FrustrationTickThreshold; i++)
+            // Write a status for an OLD intent id (stale).
+            world.SetComponent(entity, new NavigationStatus
             {
-                executor.Execute(entity, ref channel, world, 0.016f);
-                lastStatus = channel.Status;
-                if (lastStatus == NodeStatus.Failure)
-                    break;
-            }
+                IntentId = 3,                               // stale — does not match 6
+                Result   = NavigationResult.Arrived,
+            });
 
-            Assert.Equal(NodeStatus.Failure, lastStatus);
+            // Channel was set to Running by OnEnter. It must stay Running after Execute.
+            var statusBefore = channel.Status;
+            executor.Execute(entity, ref channel, world, 0.016f);
+
+            Assert.Equal(NodeStatus.Running, channel.Status);
+            Assert.Equal(statusBefore, channel.Status);   // unchanged
         }
 
-        // ── Test 3 ────────────────────────────────────────────────────────────────────────────────
+        // ── Test 4: Execute returns Failure when status is FailedBlocked ──────────────────────────
 
         /// <summary>
-        /// After <see cref="MoveToExecutor.OnExit"/> the entity's <see cref="NavState"/>
-        /// must have <see cref="NavState.TargetSpeed"/> zeroed and
-        /// <see cref="NavState.Mode"/> set to <see cref="NavigationMode.None"/>
-        /// to stop the vehicle.
+        /// MOD1-P1T2 T5: When <see cref="NavigationStatus.Result"/> is FailedBlocked (or
+        /// FailedUnreachable) the executor must set channel status to Failure.
         /// </summary>
         [Fact]
-        public void MoveToExecutor_OnExit_SetsNavStateSpeedToZero()
+        public void MoveToExecutor_Execute_ReturnsFailureWhenBlocked()
         {
             var (world, entity, channel) = BuildWorld(
-                destination:    new Vector2(50f, 0f),
-                arrivalRadius:  1f,
-                speed:          10f,
-                position:       Vector3.Zero,
-                linearVelocity: new Vector3(10f, 0f, 0f));
+                new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f, existingIntentId: 5);
 
             var executor = new MoveToExecutor();
             executor.OnEnter(entity, ref channel, world);
 
-            // Verify OnEnter actually set speed (sanity check).
-            var navAfterEnter = world.GetComponent<NavState>(entity);
-            Assert.Equal(10f, navAfterEnter.TargetSpeed);
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            world.SetComponent(entity, new NavigationStatus
+            {
+                IntentId = intent.IntentId,
+                Result   = NavigationResult.FailedBlocked,
+            });
+
+            executor.Execute(entity, ref channel, world, 0.016f);
+
+            Assert.Equal(NodeStatus.Failure, channel.Status);
+        }
+
+        // ── Test 5: OnExit clears NavigationIntent ────────────────────────────────────────────────
+
+        /// <summary>
+        /// After <see cref="MoveToExecutor.OnExit"/> the entity's
+        /// <see cref="NavigationIntent.Mode"/> must be cleared to stop the Muscle layer.
+        /// <see cref="NavigationIntent.TargetSpeed"/> must be zeroed.
+        /// </summary>
+        [Fact]
+        public void MoveToExecutor_OnExit_ClearsNavigationIntent()
+        {
+            var (world, entity, channel) = BuildWorld(
+                new Vector2(50f, 0f), arrivalRadius: 1f, speed: 10f);
+
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            // Verify OnEnter set Mode and speed.
+            var intentAfterEnter = world.GetComponent<NavigationIntent>(entity);
+            Assert.Equal(NavigationMode.DirectPoint, intentAfterEnter.Mode);
+            Assert.Equal(10f, intentAfterEnter.TargetSpeed);
 
             executor.OnExit(entity, ref channel, world);
 
-            var navAfterExit = world.GetComponent<NavState>(entity);
-            Assert.Equal(0f,                  navAfterExit.TargetSpeed);
-            Assert.Equal(NavigationMode.None, navAfterExit.Mode);
+            var intentAfterExit = world.GetComponent<NavigationIntent>(entity);
+            Assert.Equal(NavigationMode.None, intentAfterExit.Mode);
+            Assert.Equal(0f, intentAfterExit.TargetSpeed);
+        }
+
+        // ── Test 6: Execute returns Failure when FailedUnreachable ───────────────────────────────
+
+        [Fact]
+        public void MoveToExecutor_Execute_ReturnsFailureWhenUnreachable()
+        {
+            var (world, entity, channel) = BuildWorld(
+                new Vector2(100f, 0f), arrivalRadius: 5f, speed: 10f, existingIntentId: 0);
+
+            var executor = new MoveToExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            world.SetComponent(entity, new NavigationStatus
+            {
+                IntentId = intent.IntentId,
+                Result   = NavigationResult.FailedUnreachable,
+            });
+
+            executor.Execute(entity, ref channel, world, 0.016f);
+
+            Assert.Equal(NodeStatus.Failure, channel.Status);
         }
     }
 }
+

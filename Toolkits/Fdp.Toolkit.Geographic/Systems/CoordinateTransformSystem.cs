@@ -2,7 +2,6 @@ using System;
 using System.Numerics;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network; // For NetworkOwnership
 using Fdp.Modules.Geographic.Components;
 
 using PositionGeodetic = Fdp.Modules.Geographic.Components.PositionGeodetic;
@@ -23,22 +22,16 @@ namespace Fdp.Modules.Geographic.Systems
         {
             var cmd = view.GetCommandBuffer();
             
-            // Outbound: Physics → Geodetic (for locally owned entities)
-            // Using WithManaged since PositionGeodetic is a class
+            // Outbound: Physics → Geodetic (for locally-owned entities only).
+            // .WithOwned<Position>() replaces the legacy manual PrimaryOwnerId == LocalNodeId
+            // check that broke split-authority deployments (MOD1-P1T3).
             var outbound = view.Query()
-                .With<Position>()
-                .With<NetworkOwnership>() // explicit check relying on our component
+                .WithOwned<Position>()
                 .WithManaged<PositionGeodetic>()
                 .Build();
             
             foreach (var entity in outbound)
             {
-                var ownership = view.GetComponentRO<NetworkOwnership>(entity);
-                // Simple authority check: Primary Owner = Local Node
-                // Improvements: Could use OwningDescriptor check if we knew the DescriptorID for Position
-                if (ownership.PrimaryOwnerId != ownership.LocalNodeId)
-                    continue;
-
                 var localPos = view.GetComponentRO<Position>(entity);
                 var geoPos = view.GetManagedComponentRO<PositionGeodetic>(entity);
                 

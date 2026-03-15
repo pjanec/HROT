@@ -1,6 +1,7 @@
 using CarKinem.Core;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Navigation;
 
 namespace FDP.Toolkit.Navigation.Tests
 {
@@ -14,12 +15,18 @@ namespace FDP.Toolkit.Navigation.Tests
         {
             var world = new EntityRepository();
 
-            // Core spatial/velocity components required by all executor Execute() methods.
+            // Core spatial/velocity components required by legacy executors.
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
 
-            // CarKinem navigation state — written by OnEnter and read by Execute.
+            // CarKinem navigation state — still used by FollowRouteExecutor,
+            // FollowRoadGraphExecutor, and FleeExecutor.
             world.RegisterComponent<NavState>();
+
+            // CQRS navigation contract components — used by the refactored MoveToExecutor
+            // and written by NavigationExecutionSystem.
+            world.RegisterComponent<NavigationIntent>();
+            world.RegisterComponent<NavigationStatus>();
 
             // Behavior channel — holds action params, state payload, and status.
             world.RegisterComponent<LocomotionChannel>();
