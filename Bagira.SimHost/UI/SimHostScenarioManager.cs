@@ -252,7 +252,7 @@ namespace Bagira.SimHost.UI
             if (!_repo.HasComponent<NavState>(entity)) { SetDestination(entity, point, interp); return; }
 
             var nav = _repo.GetComponentRO<NavState>(entity);
-            if (nav.Mode == NavigationMode.CustomTrajectory && _traj.TryGetTrajectory(nav.TrajectoryId, out var existing))
+            if (nav.Mode == KinematicsMode.CustomTrajectory && _traj.TryGetTrajectory(nav.TrajectoryId, out var existing))
             {
                 // Extend the existing trajectory by one point
                 var pts = new System.Collections.Generic.List<Vector2>();

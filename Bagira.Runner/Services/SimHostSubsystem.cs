@@ -35,6 +35,11 @@ namespace Bagira.Runner.Services
         /// <inheritdoc/>
         public string Name => "SimHost";
 
+        /// <inheritdoc/>
+        /// <remarks>Dark red — distinct from IG (green) and IOS (violet).</remarks>
+        public System.Numerics.Vector4 TitleBarColor =>
+            new System.Numerics.Vector4(0.40f, 0.08f, 0.08f, 1f);
+
         // ── Core application ──────────────────────────────────────────────────
 
         private SimHostApp? _app;

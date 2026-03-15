@@ -1,11 +1,15 @@
 using Bagira.IG.Components;
 using Bagira.Map.Common;
 using Bagira.SimHost.Components;
+using Bagira.SimHost.Events;
 using CarKinem.Commands;
+using CarKinem.Core;
 using CarKinem.Formation;
 using Fdp.Kernel;
+using Fdp.Kernel.Collections;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Physics.Components;
 
@@ -39,34 +43,12 @@ public static class SimHostComponentRegistry
         // ── Foundation: network, geographic, definitions, lifecycle events ────
         BagiraSharedComponentRegistry.RegisterAll(world);
 
-        // ── Behaviour toolkit ─────────────────────────────────────────────────
-        world.RegisterComponent<DoctrineState>();
-        world.RegisterComponent<LocomotionChannel>();
-        world.RegisterComponent<WeaponChannel>();
-        world.RegisterComponent<InteractionChannel>();
-        world.RegisterComponent<ActorCapabilityState>();
-        world.RegisterComponent<BrainBTreeState>();
-        world.RegisterComponent<BrainBlackboard>();
-        world.RegisterComponent<MissionPlanQueue>();
-        world.RegisterComponent<Bagira.SimHost.Components.MissionAdapterState>();
-
-        // ── Combat + perception ───────────────────────────────────────────────
-        world.RegisterComponent<Faction>();
-        world.RegisterComponent<PerceptionReceptor>();
-        world.RegisterComponent<TargetMemory>();
-        world.RegisterComponent<WeaponState>();
-        world.RegisterComponent<Health>();
-        world.RegisterComponent<HealthData>();
-        world.RegisterComponent<BallisticProjectile>();
-        world.RegisterComponent<PhysicsCollider>();
-
-        // ── CarKinem / navigation ─────────────────────────────────────────────
-        world.RegisterComponent<CarKinem.Core.VehicleState>();
-        world.RegisterComponent<CarKinem.Core.VehicleParams>();
-        world.RegisterComponent<CarKinem.Core.NavState>();
-        world.RegisterComponent<FormationMember>();
-        world.RegisterComponent<FormationRoster>();
-        world.RegisterComponent<FormationTarget>();
+        // ── Domain-specific registries ────────────────────────────────────────
+        // Each registry is responsible for its own domain's ECS components so they
+        // can be composed independently by NodeBootstrapper for role-based deployments.
+        CognitiveComponentRegistry.RegisterAll(world);   // Brain-tier AI + CQRS NavigationIntent
+        KinematicComponentRegistry.RegisterAll(world);   // Muscle-tier physics + CQRS NavigationStatus
+        CombatComponentRegistry.RegisterAll(world);      // Perception, combat, physics colliders
 
         // ── Managed components ────────────────────────────────────────────────
         world.RegisterManagedComponent<IgEntityData>();
@@ -83,5 +65,22 @@ public static class SimHostComponentRegistry
         world.RegisterEvent<CmdLeaveFormation>();
         world.RegisterEvent<CmdStop>();
         world.RegisterEvent<CmdSetSpeed>();
+
+        // ── Presentation tier ─────────────────────────────────────────────────
+        // ActivePerspective singleton selects the active view (IG vs. Sim Map).
+        world.RegisterComponent<ActivePerspective>();
+        // TogglePerspectiveEvent lets UI code trigger a perspective switch via ECS bus.
+        world.RegisterEvent<TogglePerspectiveEvent>();
+
+        // ── Perception toolkit receptor components (MOD1-P6T1) ──────────────────
+        world.RegisterComponent<VisualReceptor>();
+        world.RegisterComponent<RadarReceptor>();
+
+        // ── Navigation batch singleton (MOD1-P6T3) ───────────────────────────
+        world.SetSingleton(new PathfindingBatchData
+        {
+            Requests = new NativeArray<PathRequest>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
+            Results  = new NativeArray<PathResult>(PathfindingBatchData.DefaultCapacity, Allocator.Persistent),
+        });
     }
 }

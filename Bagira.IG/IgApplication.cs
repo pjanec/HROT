@@ -521,6 +521,12 @@ public class IgApplication
         _world.RegisterComponent<MapDisplayComponent>();
         _world.RegisterManagedComponent<IgEntityData>();
 
+        // ── Ground clamping components (MOD1-P7T2) ────────────────────────────
+        // Registered unconditionally so they are available even when
+        // IgGroundClampingModule is not installed (e.g. 2D-only deployments).
+        _world.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingConfig>();
+        _world.RegisterComponent<Fdp.Modules.Geographic.Components.GroundClampingState>();
+
         // SimCombatDef, TkbCompositionDef, VisualData, lifecycle events, and
         // FireInteractionEvent are all handled by BagiraSharedComponentRegistry above.
         _userConfig     = new MapUserConfig();
@@ -731,6 +737,7 @@ public class IgApplication
                 {
                     customTranslators.Add(new FireInteractionEventTranslator(participant, _entityMap));
                     customTranslators.Add(new Bagira.IG.Translators.IgMissionIngressTranslator(participant, _entityMap, _ghostCreationSystem));
+                    customTranslators.Add(new Bagira.IG.Translators.GroundClampingOverrideTranslator(participant, _entityMap));
                 }
 
 
@@ -1818,6 +1825,26 @@ public class IgApplication
     /// </summary>
 
     internal NetworkEntityMap TestHook_EntityMap => _entityMap;
+
+    // ── Ground clamping (MOD1-P7T5) ───────────────────────────────────────────
+
+    private Fdp.Modules.Geographic.ITerrainProvider? _terrainProvider;
+
+    /// <summary>
+    /// Installs the ground-clamping pipeline.
+    ///
+    /// <para>
+    /// Must be called <em>before</em> the first frame is rendered (i.e. before
+    /// <see cref="Update"/> is invoked). Safe to omit for 2D-only deployments:
+    /// when not called neither <c>TerrainQueryBatchData</c> nor any clamping
+    /// systems will exist in the kernel.
+    /// </para>
+    /// </summary>
+    public void InstallGroundClamping(Fdp.Modules.Geographic.ITerrainProvider provider)
+    {
+        _terrainProvider = provider;
+        _kernel.RegisterModule(new Bagira.IG.Modules.IgGroundClampingModule(provider));
+    }
 
 
 

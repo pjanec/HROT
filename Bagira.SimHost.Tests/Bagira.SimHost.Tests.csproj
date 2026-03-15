@@ -26,5 +26,8 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
+    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Core\ModuleHost.Core.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Replay\FDP.Toolkit.Replay.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
   </ItemGroup>
 </Project>

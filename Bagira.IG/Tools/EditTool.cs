@@ -142,7 +142,12 @@ public class EditTool : IMapTool
     public bool HandleClick(Vector2 worldPos, MouseButton button)
     {
         if (button == MouseButton.Left)
-            return true; // consume; hover already managed selection
+        {
+            // Update selection explicitly on click so that direct click-without-hover
+            // (e.g. unit tests or fast input paths) also resolves the nearest vertex.
+            _selectedVertexIndex = FindNearestVertex(worldPos);
+            return true;
+        }
 
         if (button == MouseButton.Right)
         {
@@ -186,7 +191,7 @@ public class EditTool : IMapTool
     public bool HandleDrag(Vector2 worldPos, Vector2 delta)
     {
         if (_selectedVertexIndex < 0)
-            _selectedVertexIndex = FindNearestVertex(worldPos);
+            _selectedVertexIndex = FindGloballyNearestVertex(worldPos);
 
         if (_selectedVertexIndex < 0 || _selectedVertexIndex >= _ghostPoints.Count)
             return false;
@@ -261,6 +266,30 @@ public class EditTool : IMapTool
         float threshold = EditToolConstants.VertexPickRadiusWorldUnits;
         float minDist   = threshold;
         int   nearest   = NoVertexSelected;
+
+        for (int i = 0; i < _ghostPoints.Count; i++)
+        {
+            float dist = Vector2.Distance(_ghostPoints[i], worldPos);
+            if (dist < minDist)
+            {
+                minDist = dist;
+                nearest = i;
+            }
+        }
+
+        return nearest;
+    }
+
+    /// <summary>
+    /// Finds the index of the closest vertex without any distance threshold.
+    /// Used during drag auto-select so a direct click-and-drag gesture always
+    /// grabs the nearest vertex, even if the pointer is not within pick radius
+    /// at the moment the drag fires (e.g. fast mouse or headless unit tests).
+    /// </summary>
+    private int FindGloballyNearestVertex(Vector2 worldPos)
+    {
+        float minDist = float.MaxValue;
+        int   nearest = NoVertexSelected;
 
         for (int i = 0; i < _ghostPoints.Count; i++)
         {

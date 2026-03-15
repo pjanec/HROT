@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  CycloneDDS configuration for distributed node mode.
+
+  Enables multicast auto-discovery so that Brain, MuscleGround, and
+  ImageGenerator nodes find each other on the local subnet without
+  manual peer address configuration. Suitable for LAN test environments.
+
+  To restrict to a specific interface, replace "auto" with the interface name
+  (e.g., "eth0" or the Windows adapter GUID).
+-->
+<CycloneDDS>
+  <Domain>
+    <General>
+      <Interfaces>
+        <NetworkInterface name="auto" priority="default" multicast="true"/>
+      </Interfaces>
+      <EnableMulticastLoopback>true</EnableMulticastLoopback>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

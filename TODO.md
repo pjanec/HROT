@@ -1,4 +1,13 @@
-﻿----------
+﻿BUGS after implementing "docs\modularizing\MOD1-DESIGN.md"
+- Vehicle entities no longer avoid ieach other. For example the "Collision test".
+  maybe the new navigationIntent method has broke it.
+- Shift+Right click in SimHost perspective no longer adds to planned vehicle trajectory.
+  It looks like the point is added and drawn on the map for the first frame, but then disappear
+  and the vehicle seems to act as id just right click was used (no shift) - new mission with moveToLocation
+  gets generated..
+
+
+----------
 # Scene tree in ECS 
 Invent ECS components for scene graph implementation in ECS
  - parent component (contains parent entity id)
@@ -18,13 +27,6 @@ because disposal sample have sample.IsValid==false, the disposal migh not be det
 Some older implementation of cyclone dds had a bug where sample.Data was throwing exception
 if sample.IsValid==fasle
 
----------
-BUG: IOS entity inspector (DER-based) does NOT show changes in incoming geoSpatial descriptors
----------
-BUG: Center on entity (when IG perspective is active) deos not move the camera until i move the mouse cursor from ImGui panel to the map space.
----------
-clicking on "New unit..." activates placement tool which never ends - each click (left or right) creates a new entity. This is a regression.
-It stops when i click on "ACTIVATE PLACEMENT TOOL" and make a click to create entity.
 ---------
 
 

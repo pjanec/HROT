@@ -1,0 +1,51 @@
+using System.Collections.Generic;
+using Bagira.Map.Common.Replication.Egress;
+using Bagira.Map.Common.Replication.Ingress;
+using CycloneDDS.Runtime;
+using Fdp.Interfaces;
+using Fdp.Kernel;
+using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Replication.Systems;
+
+namespace Bagira.SimHost.Network
+{
+    /// <summary>
+    /// Factory for the shared translator set that all <see cref="NodeRole"/> values
+    /// install regardless of specialisation.
+    ///
+    /// <para><b>Translators created (in DDS ordinal order):</b></para>
+    /// <list type="number">
+    ///   <item><see cref="EntityMasterEgressTranslator"/>  — publishes entity births/deaths (ordinal 0).</item>
+    ///   <item><see cref="EntityMasterIngressTranslator"/> — ghost-creates remote entities (ordinal -2).</item>
+    ///   <item><see cref="EntityInfoEgressTranslator"/>    — publishes entity metadata such as affiliation (ordinal 21).</item>
+    /// </list>
+    /// </summary>
+    public static class SharedTranslatorPack
+    {
+        /// <summary>
+        /// Creates the shared translator instances.
+        /// </summary>
+        /// <param name="participant">Live DDS participant; passed to all translator constructors.</param>
+        /// <param name="entityMap">Shared <see cref="NetworkEntityMap"/> for egress/ingress lookups.</param>
+        /// <param name="localNodeId">Local node identifier; needed by <see cref="EntityMasterEgressTranslator"/>.</param>
+        /// <param name="eventBus">
+        ///   Application event bus; forwarded to <see cref="EntityMasterIngressTranslator"/>
+        ///   so it can publish <c>DestroyEntityCommand</c> on entity teardown.
+        /// </param>
+        /// <param name="ghostCreationSystem">
+        ///   Ghost-creation helper; used by <see cref="EntityMasterIngressTranslator"/>
+        ///   to materialise replicas of remote entities.
+        /// </param>
+        public static IEnumerable<IDescriptorTranslator> Create(
+            DdsParticipant       participant,
+            NetworkEntityMap     entityMap,
+            long                 localNodeId,
+            FdpEventBus          eventBus,
+            GhostCreationSystem  ghostCreationSystem)
+        {
+            yield return new EntityMasterEgressTranslator(participant, entityMap, localNodeId);
+            yield return new EntityMasterIngressTranslator(participant, entityMap, eventBus, ghostCreationSystem);
+            yield return new EntityInfoEgressTranslator(participant, entityMap);
+        }
+    }
+}

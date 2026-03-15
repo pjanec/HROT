@@ -21,7 +21,7 @@ namespace Bagira.SimHost.Integration.Tests;
 [Collection("LogCapture")]
 public sealed class TraceLoggingTests
 {
-    private const int DomainId = 10;
+    private const int DomainId = 11; // Use a different domain from EntityLifecycleIntegrationTests to avoid DDS state interference
     private const float Dt = 1f / 60f;
     private const int TimeoutMs = 2000;
     private const int TickSleepMs = 10;
@@ -47,8 +47,8 @@ public sealed class TraceLoggingTests
             "[TRACE-SH] SpawnVehicle: Requesting TkbType=",
             "[TRACE-SH] ProcessSpawn: NetworkId=",
             "[TRACE-SH] Egress: Writing EntityMaster for NetID=",
-            "[TRACE-SH] ELM: Entity ",
             "[TRACE-SH] Egress: Writing GeoSpatial for NetID=",
+            "[TRACE-SH] ELM: Entity ",
         };
 
         bool ackPublished = false;

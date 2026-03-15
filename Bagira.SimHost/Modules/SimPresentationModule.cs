@@ -1,0 +1,51 @@
+using Bagira.SimHost.Systems;
+using Fdp.Kernel;
+using FDP.Toolkit.Vis2D;
+using FDP.Toolkit.Vis2D.Components;
+
+namespace Bagira.SimHost.Modules
+{
+    /// <summary>
+    /// Formal presentation module for the Sim Map 2-D tactical overlay.
+    ///
+    /// <para>Registers <see cref="SimMapRenderSystem"/> into the
+    /// <see cref="PresentationSystemGroup"/>. The render system gates its <c>Draw</c>
+    /// call on <see cref="Components.ActivePerspective.Current"/> ==
+    /// <see cref="Components.PerspectiveType.Sim"/>.</para>
+    ///
+    /// <para>Implements <see cref="IMapCameraProvider"/> so that
+    /// <see cref="PerspectiveCoordinatorSystem"/> can snap cameras on perspective switch.</para>
+    /// </summary>
+    public sealed class SimPresentationModule : IMapCameraProvider
+    {
+        private readonly MapCanvas           _canvas;
+        private readonly SimMapRenderSystem  _renderSystem;
+
+        /// <summary>
+        /// Wraps a pre-configured <see cref="MapCanvas"/> in the Sim presentation module.
+        /// </summary>
+        /// <param name="canvas">
+        ///   The Sim Map canvas. Pass a canvas configured with a
+        ///   <c>SimHostVehicleVisualizer</c> for production use. Pass <c>null</c>
+        ///   only in headless/test contexts; doing so creates a default headless canvas.
+        /// </param>
+        public SimPresentationModule(MapCanvas? canvas = null)
+        {
+            _canvas       = canvas ?? new MapCanvas(input: null);
+            _renderSystem = new SimMapRenderSystem(canvas); // null in headless/test contexts → no Raylib call
+        }
+
+        /// <summary>Returns the render system for test-time inspection.</summary>
+        public SimMapRenderSystem RenderSystem => _renderSystem;
+
+        /// <inheritdoc/>
+        public MapCamera GetCamera() => _canvas.Camera;
+
+        /// <summary>
+        /// Registers <see cref="SimMapRenderSystem"/> into the provided
+        /// <see cref="PresentationSystemGroup"/> group.
+        /// </summary>
+        public void RegisterSystems(SystemGroup group) =>
+            group.AddSystem(_renderSystem);
+    }
+}

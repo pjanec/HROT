@@ -9,10 +9,12 @@ using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
+using FDP.Toolkit.Navigation;
+using FDP.Toolkit.Navigation.Systems;
 using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
-using FDP.Toolkit.Physics.Systems;
+using FDP.Toolkit.CarKinem.Systems;
 using FDP.Toolkit.Replication.Services;
 
 namespace Bagira.SimHost.Tests
@@ -68,6 +70,11 @@ namespace Bagira.SimHost.Tests
             world.RegisterComponent<VehicleParams>();
             world.RegisterComponent<NavState>();
             world.RegisterComponent<FormationRoster>();
+
+            // ── Navigation CQRS components (BATCH-01 + CT-MOD1-A) ─────────────
+            world.RegisterComponent<NavigationIntent>();
+            world.RegisterComponent<NavigationStatus>();
+            world.RegisterComponent<FrustrationTicks>();
 
             // GlobalTime singleton — ComponentSystem.DeltaTime reads this.
             world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
@@ -144,7 +151,7 @@ namespace Bagira.SimHost.Tests
             Assert.Null(exception);
 
             Assert.Equal(3, inputGroup.SystemCount);
-            Assert.Equal(17, simGroup.SystemCount);
+            Assert.Equal(19, simGroup.SystemCount);  // -1 vs pre-MOD1-BATCH-08: LosRequestBatchingSystem removed from CombatModule (CT-MOD1-N); it now runs only inside AutonomousPerceptionModule on the background thread.
             Assert.Equal(1, postSimGroup.SystemCount);
 
             // ── Cleanup ───────────────────────────────────────────────────────
@@ -228,6 +235,150 @@ namespace Bagira.SimHost.Tests
             }
 
             Assert.Null(exception);
+
+            inputGroup.Dispose();
+            simGroup.Dispose();
+            postSimGroup.Dispose();
+            DisposeRaycastBatchData(world);
+        }
+    }
+
+    // ── Role-conditional sub-module tests (DB-MOD1-08) ────────────────────────
+
+    /// <summary>
+    /// Verifies that <see cref="SimulationLogicModule"/> only creates the sub-modules
+    /// appropriate for the supplied <see cref="NodeRole"/>.
+    /// </summary>
+    public class SimulationLogicModule_RoleConditionalTests
+    {
+        private static EntityRepository CreateEmptyWorld()
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<DoctrineState>();
+            world.RegisterComponent<LocomotionChannel>();
+            world.RegisterComponent<WeaponChannel>();
+            world.RegisterComponent<InteractionChannel>();
+            world.RegisterComponent<ActorCapabilityState>();
+            world.RegisterComponent<BrainBTreeState>();
+            world.RegisterComponent<BrainBlackboard>();
+            world.RegisterComponent<BrainHsm64>();
+            world.RegisterComponent<BrainHsm128>();
+            world.RegisterComponent<PreviousCapabilities>();
+            world.RegisterComponent<PassengerBuffer>();
+            world.RegisterComponent<IsEmbarkedTag>();
+            world.RegisterComponent<Faction>();
+            world.RegisterComponent<PerceptionReceptor>();
+            world.RegisterComponent<TargetMemory>();
+            world.RegisterComponent<PhysicsCollider>();
+            world.RegisterComponent<WeaponState>();
+            world.RegisterComponent<Health>();
+            world.RegisterComponent<BallisticProjectile>();
+            world.RegisterComponent<HealthData>();
+            world.RegisterComponent<SimTransform>();
+            world.RegisterComponent<SimVelocity>();
+            world.RegisterComponent<VehicleState>();
+            world.RegisterComponent<VehicleParams>();
+            world.RegisterComponent<NavState>();
+            world.RegisterComponent<FormationRoster>();
+            world.RegisterComponent<NavigationIntent>();
+            world.RegisterComponent<NavigationStatus>();
+            world.RegisterComponent<FrustrationTicks>();
+            world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+            var physicsModule = new PhysicsToolkitModule();
+            physicsModule.Initialize(world);
+            return world;
+        }
+
+        private static void DisposeRaycastBatchData(EntityRepository world)
+        {
+            if (world.HasSingleton<RaycastBatchData>())
+            {
+                ref var batch = ref world.GetSingleton<RaycastBatchData>();
+                if (batch.Requests.IsCreated) batch.Requests.Dispose();
+                if (batch.Hits.IsCreated) batch.Hits.Dispose();
+            }
+        }
+
+        [Fact]
+        public void SimulationLogicModule_BrainRole_DoesNotRegisterGroundKinematics()
+        {
+            using var world = CreateEmptyWorld();
+            var module = new SimulationLogicModule(
+                new DoctrineRegistry(), new NetworkEntityMap(),
+                role: NodeRole.Brain);
+
+            var inputGroup   = new SystemGroup(); inputGroup.Create(world);
+            var simGroup     = new SystemGroup(); simGroup.Create(world);
+            var postSimGroup = new SystemGroup(); postSimGroup.Create(world);
+
+            module.RegisterSystems(inputGroup, simGroup, postSimGroup);
+
+            // Brain role must not include LinearKinematicsSystem (in GroundKinematicsModule).
+            Assert.DoesNotContain(simGroup.GetSystems(), s => s is LinearKinematicsSystem);
+
+            // Brain role must not register NavigationIntentBridgeSystem (needs GroundKinematics).
+            Assert.DoesNotContain(simGroup.GetSystems(), s => s is NavigationIntentBridgeSystem);
+
+            // Brain role must not expose a TrajectoryPool or FormationTemplates.
+            Assert.Null(module.TrajectoryPool);
+            Assert.Null(module.FormationTemplates);
+
+            inputGroup.Dispose();
+            simGroup.Dispose();
+            postSimGroup.Dispose();
+            DisposeRaycastBatchData(world);
+        }
+
+        [Fact]
+        public void SimulationLogicModule_MuscleGroundRole_DoesNotRegisterCognitiveModules()
+        {
+            using var world = CreateEmptyWorld();
+            var module = new SimulationLogicModule(
+                new DoctrineRegistry(), new NetworkEntityMap(),
+                role: NodeRole.MuscleGround);
+
+            var inputGroup   = new SystemGroup(); inputGroup.Create(world);
+            var simGroup     = new SystemGroup(); simGroup.Create(world);
+            var postSimGroup = new SystemGroup(); postSimGroup.Create(world);
+
+            module.RegisterSystems(inputGroup, simGroup, postSimGroup);
+
+            // MuscleGround must include LinearKinematicsSystem (ground movement).
+            Assert.Contains(simGroup.GetSystems(), s => s is LinearKinematicsSystem);
+
+            // MuscleGround must include NavigationIntentBridgeSystem.
+            Assert.Contains(simGroup.GetSystems(), s => s is NavigationIntentBridgeSystem);
+
+            // TrajectoryPool and FormationTemplates are available on MuscleGround.
+            Assert.NotNull(module.TrajectoryPool);
+            Assert.NotNull(module.FormationTemplates);
+
+            inputGroup.Dispose();
+            simGroup.Dispose();
+            postSimGroup.Dispose();
+            DisposeRaycastBatchData(world);
+        }
+
+        [Fact]
+        public void SimulationLogicModule_ImageGeneratorRole_RegistersNoSystems()
+        {
+            using var world = CreateEmptyWorld();
+            var module = new SimulationLogicModule(
+                new DoctrineRegistry(), new NetworkEntityMap(),
+                role: NodeRole.ImageGenerator);
+
+            var inputGroup   = new SystemGroup(); inputGroup.Create(world);
+            var simGroup     = new SystemGroup(); simGroup.Create(world);
+            var postSimGroup = new SystemGroup(); postSimGroup.Create(world);
+
+            module.RegisterSystems(inputGroup, simGroup, postSimGroup);
+
+            Assert.Equal(0, inputGroup.SystemCount);
+            Assert.Equal(0, simGroup.SystemCount);
+            Assert.Equal(0, postSimGroup.SystemCount);
+
+            Assert.Null(module.TrajectoryPool);
+            Assert.Null(module.FormationTemplates);
 
             inputGroup.Dispose();
             simGroup.Dispose();

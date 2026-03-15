@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Bagira.Runner.Models;
-using Bagira.Runner.Services;
 using Xunit;
 
 namespace Bagira.Runner.Tests

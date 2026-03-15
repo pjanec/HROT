@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using Bagira.IG.Components;
 using Bagira.Map.Common;
@@ -15,7 +16,9 @@ using Bagira.SimHost.Modules;
 using Bagira.SimHost.Systems;
 using Bagira.SimHost.Utilities;
 using CarKinem.Commands;
+using CarKinem.Formation;
 using CarKinem.Road;
+using CarKinem.Trajectory;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -102,7 +105,9 @@ namespace Bagira.SimHost
         private bool _headless;
         private int? _domainOverride;
         private bool _initialized;
-
+        // ── Role-based bootstrap ─────────────────────────────────────────────
+        private NodeRole          _role       = NodeRole.AllInOne;
+        private NodeConfiguration? _nodeConfig;
         public new EntityRepository World => base.World
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
 
@@ -118,6 +123,41 @@ namespace Bagira.SimHost
 
         // ── Constructor ───────────────────────────────────────────────────────
 
+        // ── Static CLI helpers ────────────────────────────────────────────
+
+        /// <summary>
+        /// Parses a <see cref="NodeRole"/> from a <c>--role &lt;value&gt;</c> argument pair.
+        /// Returns <see cref="NodeRole.AllInOne"/> when the flag is absent or unrecognised.
+        /// </summary>
+        public static NodeRole ParseRole(string[] args)
+        {
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i].Equals("--role", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (Enum.TryParse<NodeRole>(args[i + 1], ignoreCase: true, out var role))
+                        return role;
+                }
+            }
+            return NodeRole.AllInOne;
+        }
+
+        /// <summary>
+        /// Resolves the <see cref="NodeConfiguration"/> from a <c>--config &lt;path&gt;</c>
+        /// argument pair, or returns defaults when the flag is absent.
+        /// </summary>
+        public static NodeConfiguration ParseNodeConfig(string[] args)
+        {
+            for (int i = 0; i < args.Length - 1; i++)
+            {
+                if (args[i].Equals("--config", StringComparison.OrdinalIgnoreCase))
+                    return NodeConfiguration.LoadFrom(args[i + 1]);
+            }
+            return new NodeConfiguration();
+        }
+
+        // ── Constructor ───────────────────────────────────────────────────────
+
         /// <summary>
         /// Creates a SimHostApp with an optional DDS domain ID override.
         /// </summary>
@@ -126,7 +166,17 @@ namespace Bagira.SimHost
         /// in <c>config.json</c>.  Pass the value parsed from the <c>--domain</c>
         /// CLI argument; leave <see langword="null"/> to fall back to the JSON config.
         /// </param>
-        public SimHostApp(int? domainOverride = null) : base(new ApplicationConfig
+        /// <param name="role">
+        /// Node role controlling which simulation modules are activated.
+        /// Defaults to <see cref="NodeRole.AllInOne"/> for backward compatibility.
+        /// </param>
+        /// <param name="nodeConfig">
+        /// Optional <see cref="NodeConfiguration"/>; defaults are used when <c>null</c>.
+        /// </param>
+        public SimHostApp(
+            int?              domainOverride = null,
+            NodeRole          role           = NodeRole.AllInOne,
+            NodeConfiguration? nodeConfig    = null) : base(new ApplicationConfig
         {
             Width       = 1280,
             Height      = 720,
@@ -136,6 +186,8 @@ namespace Bagira.SimHost
         })
         {
             _domainOverride = domainOverride;
+            _role           = role;
+            _nodeConfig     = nodeConfig;
         }
 
         // ── FdpApplication lifecycle ──────────────────────────────────────────
@@ -144,6 +196,10 @@ namespace Bagira.SimHost
         {
             Console.Title = "Bagira.SimHost";
             Logger.Info("[SimHost] Starting graphical application...");
+
+            // ── 0. Apply node configuration (sets CYCLONEDDS_URI if needed) ───
+            _nodeConfig?.ApplyEnvironment();
+            Logger.Info($"[SimHost] Node role: {_role}");
 
             // ── 1. Load configuration ─────────────────────────────────────────
             var config = SimHostConfig.Load("config.json");
@@ -244,11 +300,13 @@ namespace Bagira.SimHost
             try { roadNetwork = RoadNetworkLoader.LoadFromJson("Assets/sample_road.json"); }
             catch { /* run fine without roads */ }
 
-            // ── 8. SimulationLogicModule ──────────────────────────────────────
-            _simLogicModule = new SimulationLogicModule(
+            // ── 8. SimulationLogicModule (role-based via NodeBootstrapper) ─────
+            var bootstrapper = new NodeBootstrapper();
+            _simLogicModule = bootstrapper.BuildSimulationLogic(
+                _role,
                 doctrineRegistry,
                 entityMap,
-                vehicleAPI:  null,
+                vehicleApi:  null,
                 roadNetwork: roadNetwork);
 
             _kernelGroup = new SystemGroup();
@@ -278,7 +336,18 @@ namespace Bagira.SimHost
                 elm,
                 entityMap,
                 _idAllocator,
-                SimHostNetworkConstants.LocalNodeId);
+                SimHostNetworkConstants.LocalNodeId,
+                onEntitySpawned: (world, entity, isLocalAuthority) =>
+                {
+                    // Mark locally-owned physics components as authoritative so
+                    // CarKinematicsSystem (.WithOwned<SimTransform>()) processes this entity.
+                    // This mirrors the same callback in SimHostInstance (integration tests).
+                    // Without this, vehicles spawned in SimHostApp never move because
+                    // CarKinematicsSystem (post MOD1 refactoring) skips entities whose
+                    // SimTransform authority flag is not set.
+                    if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
+                        world.SetAuthority<SimTransform>(entity, true);
+                });
 
             var simHostMod = new SimHostModule(
                 ddsParticipant, tkbDb, _idAllocator, SimHostNetworkConstants.LocalNodeId,
@@ -288,16 +357,18 @@ namespace Bagira.SimHost
 
             // ── 10. Network module ──────────────────────────────────────────
             var translators = new List<IDescriptorTranslator>();
+            // EntityMaster must be published before GeoSpatial so receivers can
+            // register the entity identity before its first position update.
+            var entityMasterEgressTranslator = new EntityMasterEgressTranslator(
+                ddsParticipant, entityMap, SimHostNetworkConstants.LocalNodeId);
+            translators.Add(entityMasterEgressTranslator);
+            translators.Add(new EntityInfoEgressTranslator(ddsParticipant, entityMap));
             if (simHostMod.GeoEgressTranslator != null)
                 translators.Add(simHostMod.GeoEgressTranslator);
             if (simHostMod.MapOverlayEgressTranslator != null)
                 translators.Add(simHostMod.MapOverlayEgressTranslator);
             translators.Add(simHostMod.MissionIngressTranslator);
             translators.Add(simHostMod.MissionEgressTranslator);
-            var entityMasterEgressTranslator = new EntityMasterEgressTranslator(
-                ddsParticipant, entityMap, SimHostNetworkConstants.LocalNodeId);
-            translators.Add(entityMasterEgressTranslator);
-            translators.Add(new EntityInfoEgressTranslator(ddsParticipant, entityMap));
             translators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
             translators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));
 
@@ -328,8 +399,9 @@ namespace Bagira.SimHost
                     _world,
                     _kernel,
                     _simLogicModule.RoadNetwork,
-                    _simLogicModule.TrajectoryPool,
-                    _simLogicModule.FormationTemplates);
+                    _simLogicModule.TrajectoryPool ?? new TrajectoryPoolManager(),
+                    _simLogicModule.FormationTemplates ?? new FormationTemplateManager(),
+                    new DdsWriter<MissionControlRequest>(ddsParticipant));
 
                 Logger.Info("[SimHost] Visualization ready. Window open.");
             }

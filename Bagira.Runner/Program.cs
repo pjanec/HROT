@@ -1,6 +1,8 @@
 ﻿using CommandLine;
+using Bagira.Map.Common;
 using Bagira.Runner.Configuration;
 using Bagira.Runner.Services;
+using CycloneDDS.Runtime;
 using NLog;
 using NLog.Config;
 using NLog.Targets;
@@ -42,8 +44,8 @@ class Program
         LogManager.Configuration = logConfig;
 
         // Parse CLI args
-        RunnerConfiguration? config = null;
-        var parseResult = Parser.Default.ParseArguments<RunnerConfiguration>(args);
+        BagiraRunnerConfiguration? config = null;
+        var parseResult = Parser.Default.ParseArguments<BagiraRunnerConfiguration>(args);
 
         parseResult.WithParsed(c => config = c)
                    .WithNotParsed(_ => Environment.Exit(1));
@@ -78,8 +80,38 @@ class Program
 
         Console.WriteLine($"[Runner] Starting – mode={config.ParsedMode}, domain={config.DomainId}, headless={config.Headless}");
 
-        // Create + run orchestrator
-        var orchestrator = new SubsystemOrchestrator(config);
+        // ── Waiting Room synchronisation ──────────────────────────────────────
+        if (config.WaitForPeers.Any())
+        {
+            string subsystemName = config.ParsedMode == RunMode.All ? "all"
+                : config.ParsedMode.HasFlag(RunMode.SimHost) ? "simhost"
+                : config.ParsedMode.HasFlag(RunMode.IG)      ? "ig"
+                : "ios";
+
+            using var wrcParticipant = BagiraEnvironment.CreateParticipant(config.DomainId);
+            using var coordinator   = new WaitingRoomCoordinator(
+                wrcParticipant, Environment.ProcessId, subsystemName, config.WaitForPeers);
+            try
+            {
+                coordinator.WaitForPeers();
+            }
+            catch (TimeoutException ex)
+            {
+                Console.Error.WriteLine($"[Runner] Waiting room timeout: {ex.Message}");
+                return 1;
+            }
+        }
+
+        // ── Build subsystems from mode ────────────────────────────────────────
+        var subsystems = new List<ISubsystem>();
+        if (config.ParsedMode.HasFlag(RunMode.SimHost)) subsystems.Add(new SimHostSubsystem());
+        if (config.ParsedMode.HasFlag(RunMode.IG))      subsystems.Add(new IgSubsystem());
+        if (config.ParsedMode.HasFlag(RunMode.IOS))     subsystems.Add(new IosSubsystem());
+
+        var options = new RunnerOptions { Headless = config.Headless, DomainId = config.DomainId };
+
+        // ── Create + run orchestrator ─────────────────────────────────────────
+        var orchestrator = new SubsystemOrchestrator(subsystems, options);
         try
         {
             orchestrator.Initialize();

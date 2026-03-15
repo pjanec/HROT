@@ -61,7 +61,7 @@ namespace Bagira.SimHost.Tests
         [Fact]
         public void ScanAndPublish_RemotelyOwnedEntity_DoesNotPublish()
         {
-            const uint domainId = 201u;
+            const uint domainId = 205u; // 201 fails on some machines; use 205 instead
             using var participant = new DdsParticipant(domainId);
             using var reader = new DdsReader<EntityMaster>(participant, "EntityMaster");
             var entityMap = new NetworkEntityMap();

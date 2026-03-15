@@ -1,8 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using CycloneDDS.Runtime;
+using ImGuiNET;
 using Raylib_cs;
 using Fdp.Kernel;
+using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTM;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
 using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
@@ -61,6 +65,9 @@ namespace Bagira.SimHost
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
 
+        // ── Mission control (right-click navigate via doctrine) ───────────────
+        private DdsWriter<MissionControlRequest>? _missionWriter;
+
         private bool _initialized;
 
         // ── Public access (tests / other subsystems) ──────────────────────────
@@ -85,10 +92,12 @@ namespace Bagira.SimHost
             ModuleHostKernel        kernel,
             CarKinem.Road.RoadNetworkBlob road,
             TrajectoryPoolManager    trajectoryPool,
-            CarKinem.Formation.FormationTemplateManager formationTemplates)
+            CarKinem.Formation.FormationTemplateManager formationTemplates,
+            DdsWriter<MissionControlRequest> missionWriter)
         {
-            _repo    = repo    ?? throw new ArgumentNullException(nameof(repo));
-            _kernel  = kernel  ?? throw new ArgumentNullException(nameof(kernel));
+            _repo          = repo         ?? throw new ArgumentNullException(nameof(repo));
+            _kernel        = kernel        ?? throw new ArgumentNullException(nameof(kernel));
+            _missionWriter = missionWriter ?? throw new ArgumentNullException(nameof(missionWriter));
 
             // ── Selection & inspector ─────────────────────────────────────────
             _selection = new SimHostSelectionManager();
@@ -169,15 +178,58 @@ namespace Bagira.SimHost
                 {
                     if (!repo.IsAlive(e)) continue;
                     if (shift)
+                    {
                         _scenario!.AddWaypoint(e, pos, _ui!.UIState.InterpolationMode);
+                    }
                     else
-                        repo.Bus.Publish(new CmdNavigateToPoint
+                    {
+                        // Navigate via doctrine: send a CMD_REPLACE_MISSION carrying a
+                        // single-task MoveToLocation plan so the brain pipeline handles
+                        // the preemption (InstanceId bump, BTree reset, NavigationIntent
+                        // update) rather than writing NavState directly.
+                        if (!repo.HasComponent<NetworkIdentity>(e)) continue;
+                        ref readonly var netId = ref repo.GetComponentRO<NetworkIdentity>(e);
+
+                        float speed = repo.HasComponent<VehicleParams>(e)
+                            ? repo.GetComponentRO<VehicleParams>(e).MaxSpeedFwd * 0.8f
+                            : 15f;
+
+                        // Build params JSON using X/Y cartesian form understood by
+                        // SimHostNodes.ParseMoveToParams (PropertyNameCaseInsensitive).
+                        var paramsJson = string.Format(
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            "{{\"X\":{0},\"Y\":{1},\"Speed\":{2},\"ArrivalRadius\":3.0}}",
+                            pos.X, pos.Y, speed);
+
+                        var taskId = Guid.NewGuid();
+                        var task = new MissionTask
                         {
-                            Entity        = e,
-                            Destination   = pos,
-                            ArrivalRadius = 3.0f,
-                            Speed         = repo.GetComponentRO<VehicleParams>(e).MaxSpeedFwd * 0.8f,
+                            TaskId          = taskId,
+                            ExecutingEngine = "CGFX",
+                            BehaviorId      = "MoveToLocation",
+                            BehaviorParams  = paramsJson,
+                            Triggers        = new List<Bagira.BDC.SSTD.MissionTrigger>(),
+                            State           = eTaskState.TASK_PLANNED,
+                        };
+
+                        var plan = new MissionPlan
+                        {
+                            ActiveTaskId = taskId,
+                            Tasks        = new List<MissionTask> { task },
+                        };
+
+                        _missionWriter!.Write(new MissionControlRequest
+                        {
+                            RequestId      = Guid.NewGuid(),
+                            TargetEntityId = netId.Value,
+                            BaseVersion    = 0,
+                            Payload        = new MissionCommandUnion
+                            {
+                                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                                FullMissionData = plan,
+                            },
                         });
+                    }
                 }
             };
 
@@ -246,6 +298,29 @@ namespace Bagira.SimHost
         {
             if (!_initialized || _ui == null || _repo == null || _kernel == null) return;
             _ui.Render(_repo, _kernel, _scenario!, _inspector!);
+
+            // ── Perspective toggle toolbar — DB-MOD1-11 ────────────────────────
+            if (_repo.HasSingleton<Components.ActivePerspective>())
+            {
+                var perspective = _repo.GetSingletonUnmanaged<Components.ActivePerspective>();
+                string label = perspective.Current == Components.PerspectiveType.IG
+                    ? "View: IG  (click → Sim)"
+                    : "View: Sim (click → IG)";
+
+                ImGui.SetNextWindowPos(new Vector2(10, 560), ImGuiCond.FirstUseEver);
+                ImGui.SetNextWindowSize(new Vector2(220, 48), ImGuiCond.FirstUseEver);
+                ImGui.Begin("##PerspectiveToggle",
+                    ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize |
+                    ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoScrollbar);
+
+                if (ImGui.Button(label))
+                {
+                    _repo.Bus.Publish(new Events.TogglePerspectiveEvent());
+                    _repo.Bus.SwapBuffers();
+                }
+
+                ImGui.End();
+            }
 
             SimHostPanelColors.Push();
             _fdpEntityInspector.Draw(_fdpRepoAdapter!, _fdpInspectorState, "SimHost Entity Inspector");

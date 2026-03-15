@@ -16,6 +16,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- FDP.Framework.Runner provides ISubsystem, SubsystemConfig, IMapCameraProvider,
+         SubsystemOrchestrator, WaitingRoomCoordinator, HeadlessTestExecutor, and RunnerConfiguration. -->
+    <ProjectReference Include="..\FDP\Framework\FDP.Framework.Runner\FDP.Framework.Runner.csproj" />
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />

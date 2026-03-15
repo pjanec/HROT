@@ -138,4 +138,174 @@ namespace Bagira.BDC.SSTD
         public ENavigationResult Result;
     }
 
+    // ── Shared coordinate helper (MOD1-P6T2) ──────────────────────────────────────────
+
+    /// <summary>ENU relative vector used by the raycast and pathfinding pipelines.
+    /// Expressed in metres relative to <c>BatchOrigin</c> to limit floating-point error over large maps.</summary>
+    [DdsStruct]
+    public partial struct RelativeVector3
+    {
+        /// <summary>Eastward component (metres).</summary>
+        public float East;
+        /// <summary>Northward component (metres).</summary>
+        public float North;
+        /// <summary>Upward component (metres).</summary>
+        public float Up;
+    }
+
+    // ── Dumb Raycast pipeline (MOD1-P6T2) ──────────────────────────────────────────
+
+    /// <summary>A single ray cast request submitted to the Navigation Solver node.</summary>
+    [DdsStruct]
+    public partial struct DdsRaycastRequest
+    {
+        public long           RayId;
+        public RelativeVector3 Start;
+        public RelativeVector3 End;
+        public int            LayerMask;
+        public long           IgnoreEntityId;
+    }
+
+    /// <summary>Batched raycast request published by a Brain node toward the Navigation Solver.</summary>
+    [DdsTopic("RaycastRequestBatch")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    public partial struct RaycastRequestBatch
+    {
+        [DdsKey] public int          SourceNodeId;
+        public uint                   BatchCorrelationId;
+        public GeoPosition            BatchOrigin;
+        [DdsManaged] public List<DdsRaycastRequest> Requests;
+    }
+
+    /// <summary>Hit result for one ray in a batch response.</summary>
+    [DdsStruct]
+    public partial struct DdsRaycastHit
+    {
+        public long  RayId;
+        public bool  HasHit;
+        public long  HitEntityId;
+        public float HitT;
+    }
+
+    /// <summary>Batched raycast response sent from the Navigation Solver back to the requesting node.</summary>
+    [DdsTopic("RaycastResponseBatch")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    public partial struct RaycastResponseBatch
+    {
+        [DdsKey] public int          TargetNodeId;
+        public uint                   BatchCorrelationId;
+        [DdsManaged] public List<DdsRaycastHit> Hits;
+    }
+
+    // ── Smart Sensor pipeline (MOD1-P6T2) ─────────────────────────────────────────
+
+    /// <summary>Sensor configuration broadcast for an observer entity. Key = EntityId.</summary>
+    [DdsTopic("SensorConfig")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct SensorConfig
+    {
+        [DdsKey] public long  EntityId;
+        public float          VisionRange;
+        public float          HearingRange;
+        public float          FovDegrees;
+    }
+
+    /// <summary>One tracked target entry in a <see cref="SensorTargets"/> sample.</summary>
+    [DdsStruct]
+    public partial struct DdsTrackedTarget
+    {
+        public long  TargetEntityId;
+        public float ThreatScore;
+        public float Distance;
+        public float BearingDegrees;
+    }
+
+    /// <summary>Per-observer snapshot of currently detected targets. Best-effort, volatile.</summary>
+    [DdsTopic("SensorTargets")]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile)]
+    public partial struct SensorTargets
+    {
+        [DdsKey] public long ObserverEntityId;
+        public uint          Tick;
+        [DdsManaged] public List<DdsTrackedTarget> Targets;
+    }
+
+    // ── Pathfinding pipeline (MOD1-P6T2) ───────────────────────────────────────────
+
+    /// <summary>A single path request submitted by a Brain node.</summary>
+    [DdsStruct]
+    public partial struct DdsPathRequest
+    {
+        public long           RequestId;
+        public RelativeVector3 Start;
+        public RelativeVector3 End;
+        /// <summary>0=Wheeled, 1=Tracked, 2=Infantry.</summary>
+        public byte           MobilityProfile;
+    }
+
+    /// <summary>Batched path requests published by a Brain node toward the Navigation Solver.</summary>
+    [DdsTopic("PathRequestBatch")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    public partial struct PathRequestBatch
+    {
+        [DdsKey] public int          SourceNodeId;
+        public GeoPosition            BatchOrigin;
+        [DdsManaged] public List<DdsPathRequest> Requests;
+    }
+
+    /// <summary>Computed path result for one request.</summary>
+    [DdsStruct]
+    public partial struct DdsPathResult
+    {
+        public long   RequestId;
+        public bool   IsReachable;
+        public float  TotalDistanceMeters;
+        public int    RouteHandle;
+        [DdsManaged] public List<RelativeVector3> CoarseWaypoints;
+    }
+
+    /// <summary>Batched path results returned by the Navigation Solver to the requesting node.</summary>
+    [DdsTopic("PathResponseBatch")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    public partial struct PathResponseBatch
+    {
+        [DdsKey] public int          TargetNodeId;
+        [DdsManaged] public List<DdsPathResult> Results;
+    }
+
+    // ── Ground Clamping IG contract (MOD1-P7T1) ──────────────────────────────
+
+    /// <summary>
+    /// Wire-format enumeration controlling per-entity terrain clamping on IG nodes.
+    /// Mirrors the engine-side <c>Fdp.Modules.Geographic.EClampingMode</c> enum;
+    /// kept separate per the Dual-Enum Pattern (MOD1-DESIGN §2.5) so the DDS layer
+    /// never takes a compile dependency on the FDP geographic toolkit.
+    /// </summary>
+    public enum EClampingMode : byte
+    {
+        /// <summary>Engine decides: grounded vehicle = clamped, airborne = unclamped.</summary>
+        CLAMP_DEFAULT   = 0,
+        /// <summary>Explicitly clamped — e.g. taxiing aircraft, editor drag-and-drop on terrain.</summary>
+        CLAMP_FORCE_ON  = 1,
+        /// <summary>Explicitly unclamped — e.g. in-flight, editor aerial drag.</summary>
+        CLAMP_FORCE_OFF = 2,
+    }
+
+    /// <summary>
+    /// Dynamic per-entity clamping override published by SimHost flight-dynamics
+    /// and the IOS editor.  <c>TransientLocal</c> durability guarantees late-joining
+    /// IG nodes immediately receive the current state without a republish.
+    /// </summary>
+    [DdsTopic("GroundClampingOverride")]
+    [DdsIdlFile("bdc-sst-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct GroundClampingOverride
+    {
+        /// <summary>Network entity ID matching <see cref="GeoSpatial.EntityId"/>.</summary>
+        [DdsKey] public int EntityId;
+
+        /// <summary>Desired clamping mode for this entity.</summary>
+        public EClampingMode Mode;
+    }
+
 }

@@ -1,5 +1,4 @@
-using Bagira.Runner.Abstractions;
-using Bagira.Runner.Models;
+using System.Numerics;
 
 namespace Bagira.Runner.Tests.Mocks
 {
@@ -10,6 +9,9 @@ namespace Bagira.Runner.Tests.Mocks
     public class MockSubsystem : ISubsystem
     {
         public string Name { get; }
+
+        /// <inheritdoc/>
+        public Vector4 TitleBarColor => new Vector4(0.5f, 0.5f, 0.5f, 1f);
 
         public bool InitializeCalled { get; private set; }
         public bool ShutdownCalled  { get; private set; }

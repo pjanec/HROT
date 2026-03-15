@@ -1,6 +1,8 @@
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using ImGuiNET;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace Bagira.IOS.Panels;
 
@@ -128,11 +130,16 @@ public sealed class SpawnerPanel
     public void HandleActivatePlacementTool(IIosLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
-        var patch = new EntityPropertyPatch 
-        { 
-            Affiliation = _affiliation 
+        var patch = new EntityPropertyPatch
+        {
+            Affiliation = _affiliation
         };
-        logic.StartPlacementMode(_selectedType, patch);
+        var propsJson = JsonConvert.SerializeObject(patch, new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore,
+            Converters = { new StringEnumConverter() }
+        });
+        logic.StartPlacementMode(_selectedType, propsJson);
     }
 
     /// <summary>

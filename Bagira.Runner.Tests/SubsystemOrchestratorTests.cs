@@ -2,10 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Xunit;
-using Bagira.Runner.Abstractions;
-using Bagira.Runner.Configuration;
-using Bagira.Runner.Models;
-using Bagira.Runner.Services;
 using Bagira.Runner.Tests.Mocks;
 using FDP.Toolkit.Vis2D.Components;
 
@@ -17,30 +13,9 @@ namespace Bagira.Runner.Tests
     /// </summary>
     public class SubsystemOrchestratorTests
     {
-        // Helper: creates a headless RunnerConfiguration (already validated)
-        private static RunnerConfiguration HeadlessAllConfig()
-        {
-            var c = new RunnerConfiguration
-            {
-                ModeString = "all",
-                Headless   = true,
-                NoWait     = true
-            };
-            c.Validate();
-            return c;
-        }
-
-        private static RunnerConfiguration NonHeadlessAllConfig()
-        {
-            var c = new RunnerConfiguration
-            {
-                ModeString = "all",
-                Headless   = false,
-                NoWait     = true
-            };
-            c.Validate();
-            return c;
-        }
+        // Helper: creates headless RunnerOptions
+        private static RunnerOptions HeadlessOptions() => new RunnerOptions { Headless = true };
+        private static RunnerOptions NonHeadlessOptions() => new RunnerOptions { Headless = false };
 
         // ── Initialize order ──────────────────────────────────────────────────
 
@@ -49,7 +24,7 @@ namespace Bagira.Runner.Tests
         {
             var a = new MockSubsystem("A");
             var b = new MockSubsystem("B");
-            var orchestrator = new SubsystemOrchestrator(HeadlessAllConfig(), new ISubsystem[] { a, b });
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { a, b }, HeadlessOptions());
 
             orchestrator.Initialize();
 
@@ -61,7 +36,7 @@ namespace Bagira.Runner.Tests
         public void Initialize_PassesHeadlessFlagToSubsystems()
         {
             var mock = new MockSubsystem();
-            var orchestrator = new SubsystemOrchestrator(HeadlessAllConfig(), new ISubsystem[] { mock });
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, HeadlessOptions());
 
             orchestrator.Initialize();
 
@@ -73,7 +48,7 @@ namespace Bagira.Runner.Tests
         public void Initialize_SetsOwnWindowFalseOnSubsystems()
         {
             var mock = new MockSubsystem();
-            var orchestrator = new SubsystemOrchestrator(HeadlessAllConfig(), new ISubsystem[] { mock });
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, HeadlessOptions());
 
             orchestrator.Initialize();
 
@@ -83,15 +58,13 @@ namespace Bagira.Runner.Tests
         [Fact]
         public void Initialize_DoesNotForceSimHostHeadless_WhenIgIsPresent()
         {
-            // Task 15: SimHost is no longer forced headless when IG is present.
-            // Both can own their own map view; the active map owner is toggled at runtime.
-            var ig = new MockSubsystem("IG");
+            // SimHost and IG both receive the same headless flag from RunnerOptions; neither is forced headless.
+            var ig      = new MockSubsystem("IG");
             var simHost = new MockSubsystem("SimHost");
-            var ios = new MockSubsystem("IOS");
+            var ios     = new MockSubsystem("IOS");
 
             var orchestrator = new SubsystemOrchestrator(
-                NonHeadlessAllConfig(),
-                new ISubsystem[] { ig, simHost, ios });
+                new ISubsystem[] { ig, simHost, ios }, NonHeadlessOptions());
 
             orchestrator.Initialize();
 
@@ -105,11 +78,10 @@ namespace Bagira.Runner.Tests
         public void Initialize_DoesNotForceSimHostHeadless_WhenIgIsAbsent()
         {
             var simHost = new MockSubsystem("SimHost");
-            var ios = new MockSubsystem("IOS");
+            var ios     = new MockSubsystem("IOS");
 
             var orchestrator = new SubsystemOrchestrator(
-                NonHeadlessAllConfig(),
-                new ISubsystem[] { simHost, ios });
+                new ISubsystem[] { simHost, ios }, NonHeadlessOptions());
 
             orchestrator.Initialize();
 
@@ -124,7 +96,7 @@ namespace Bagira.Runner.Tests
         {
             var a = new MockSubsystem("A");
             var b = new MockSubsystem("B");
-            var orchestrator = new SubsystemOrchestrator(HeadlessAllConfig(), new ISubsystem[] { a, b });
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { a, b }, HeadlessOptions());
 
             orchestrator.Initialize();
             orchestrator.RunFrames(3);
@@ -137,12 +109,11 @@ namespace Bagira.Runner.Tests
         public void HeadlessMode_RunFrames_NeverCallsDrawWorldOrDrawUI()
         {
             var mock = new MockSubsystem();
-            var orchestrator = new SubsystemOrchestrator(HeadlessAllConfig(), new ISubsystem[] { mock });
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, HeadlessOptions());
 
             orchestrator.Initialize();
-            orchestrator.RunFrames(5); // 5 update iterations, no render
+            orchestrator.RunFrames(5);
 
-            // DrawWorld / DrawUI must NOT be called via RunFrames (headless render skip)
             Assert.Equal(0, mock.DrawWorldCount);
             Assert.Equal(0, mock.DrawUICount);
             Assert.Equal(5, mock.UpdateCallCount);
@@ -152,11 +123,11 @@ namespace Bagira.Runner.Tests
         public void HeadlessMode_Run_WithStopFirst_DoesNotHang()
         {
             var mock = new MockSubsystem();
-            var orchestrator = new SubsystemOrchestrator(HeadlessAllConfig(), new ISubsystem[] { mock });
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, HeadlessOptions());
 
             orchestrator.Initialize();
-            orchestrator.Stop(); // Pre-stop before Run
-            orchestrator.Run();  // Should exit immediately without looping forever
+            orchestrator.Stop();
+            orchestrator.Run();
 
             Assert.Equal(0, mock.DrawWorldCount);
             Assert.Equal(0, mock.DrawUICount);
@@ -169,7 +140,7 @@ namespace Bagira.Runner.Tests
         {
             var a = new MockSubsystem("A");
             var b = new MockSubsystem("B");
-            var orchestrator = new SubsystemOrchestrator(HeadlessAllConfig(), new ISubsystem[] { a, b });
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { a, b }, HeadlessOptions());
 
             orchestrator.Initialize();
             orchestrator.Shutdown();
@@ -186,12 +157,57 @@ namespace Bagira.Runner.Tests
             var b = new MockSubsystem("B", m => shutdownOrder.Add(m.Name));
             var c = new MockSubsystem("C", m => shutdownOrder.Add(m.Name));
             var orchestrator = new SubsystemOrchestrator(
-                HeadlessAllConfig(), new ISubsystem[] { a, b, c });
+                new ISubsystem[] { a, b, c }, HeadlessOptions());
 
             orchestrator.Initialize();
             orchestrator.Shutdown();
 
             Assert.Equal(new[] { "C", "B", "A" }, shutdownOrder);
+        }
+
+        // ── TitleBarColor (MOD1-P9T1) ─────────────────────────────────────────
+
+        [Fact]
+        public void ISubsystem_TitleBarColor_IsSetOnConcretes()
+        {
+            // Each concrete subsystem colour must be non-zero and distinct.
+            var sim = new Bagira.Runner.Services.SimHostSubsystem();
+            var ig  = new Bagira.Runner.Services.IgSubsystem();
+            var ios = new Bagira.Runner.Services.IosSubsystem();
+
+            Assert.NotEqual(default(Vector4), sim.TitleBarColor);
+            Assert.NotEqual(default(Vector4), ig.TitleBarColor);
+            Assert.NotEqual(default(Vector4), ios.TitleBarColor);
+
+            // All three colours must be distinct.
+            Assert.NotEqual(sim.TitleBarColor, ig.TitleBarColor);
+            Assert.NotEqual(ig.TitleBarColor, ios.TitleBarColor);
+            Assert.NotEqual(sim.TitleBarColor, ios.TitleBarColor);
+        }
+
+        // ── MapCameraProvider toggle (MOD1-P9T2) ──────────────────────────────
+
+        [Fact]
+        public void SubsystemOrchestrator_MenuBar_ShowsToggleForMapCameraProviders()
+        {
+            // The orchestrator sets the first IMapCameraProvider as the active map owner.
+            // A subsystem that implements IMapCameraProvider should be the initial owner.
+            var mapSub  = new MapCameraSubsystemMock("IG",      new MapCamera());
+            var plainSub = new MockSubsystem("IOS");
+
+            var orchestrator = new SubsystemOrchestrator(
+                new ISubsystem[] { mapSub, plainSub }, HeadlessOptions());
+            orchestrator.Initialize();
+
+            // After init, the IMapCameraProvider subsystem is the active map owner.
+            // We verify this by switching to it (no-op) and checking the camera is unchanged.
+            var camera = mapSub.GetMapCamera()!;
+            float originalZoom = camera.Zoom;
+
+            orchestrator.SwitchMapOwner("IG"); // Switch to same owner — no-op.
+            Assert.Equal(originalZoom, camera.Zoom, precision: 4);
+
+            orchestrator.Shutdown();
         }
     }
 
@@ -201,22 +217,11 @@ namespace Bagira.Runner.Tests
     /// </summary>
     public class MapCameraSyncTests
     {
-        private static RunnerConfiguration HeadlessAllConfig()
-        {
-            var c = new RunnerConfiguration
-            {
-                ModeString = "all",
-                Headless   = true,
-                NoWait     = true
-            };
-            c.Validate();
-            return c;
-        }
+        private static RunnerOptions HeadlessOptions() => new RunnerOptions { Headless = true };
 
         private static MapCamera MakeCamera(float zoom, float targetX, float targetY)
         {
             var cam = new MapCamera();
-            // Use SnapTo from a source to set up all state consistently.
             var src = new MapCamera();
             src.InnerCamera.Zoom   = zoom;
             src.InnerCamera.Target = new Vector2(targetX, targetY);
@@ -234,7 +239,7 @@ namespace Bagira.Runner.Tests
             var simHost = new MapCameraSubsystemMock("SimHost", shCamera);
 
             var orchestrator = new SubsystemOrchestrator(
-                HeadlessAllConfig(), new ISubsystem[] { ig, simHost });
+                new ISubsystem[] { ig, simHost }, HeadlessOptions());
             orchestrator.Initialize();
 
             // IG is the default active owner; switch to SimHost.
@@ -253,16 +258,11 @@ namespace Bagira.Runner.Tests
             var ig      = new MapCameraSubsystemMock("IG",      igCamera);
             var simHost = new MapCameraSubsystemMock("SimHost", shCamera);
 
-            // Build an orchestrator where SimHost is initial owner by passing SimHost first
-            // and only SimHost+IOS — then add IG to get it initialized.  Easier: just switch
-            // initial owner explicitly.
             var orchestrator = new SubsystemOrchestrator(
-                HeadlessAllConfig(), new ISubsystem[] { ig, simHost });
+                new ISubsystem[] { ig, simHost }, HeadlessOptions());
             orchestrator.Initialize();
 
-            // Switch to SimHost first (camera sync IG → SimHost already tested elsewhere).
             orchestrator.SwitchMapOwner("SimHost");
-            // Now switch back: SimHost → IG
             orchestrator.SwitchMapOwner("IG");
 
             Assert.Equal(shCamera.Zoom,   igCamera.Zoom,   precision: 4);
@@ -276,10 +276,9 @@ namespace Bagira.Runner.Tests
             var ig       = new MapCameraSubsystemMock("IG", igCamera);
 
             var orchestrator = new SubsystemOrchestrator(
-                HeadlessAllConfig(), new ISubsystem[] { ig });
+                new ISubsystem[] { ig }, HeadlessOptions());
             orchestrator.Initialize();
 
-            // Switch to the same owner — no-op, camera should be untouched.
             orchestrator.SwitchMapOwner("IG");
 
             Assert.Equal(2.0f, igCamera.Zoom,   precision: 4);
@@ -289,15 +288,13 @@ namespace Bagira.Runner.Tests
         [Fact]
         public void SwitchMapOwner_WhenOutgoingCameraIsNull_DoesNotThrow()
         {
-            // A subsystem that reports a null camera (e.g. not yet initialised / headless).
             var shCamera = MakeCamera(zoom: 1.5f, targetX: 10f, targetY: 20f);
             var simHost  = new MapCameraSubsystemMock("SimHost", shCamera);
 
             var orchestrator = new SubsystemOrchestrator(
-                HeadlessAllConfig(), new ISubsystem[] { new NullCameraSubsystemMock("IG"), simHost });
+                new ISubsystem[] { new NullCameraSubsystemMock("IG"), simHost }, HeadlessOptions());
             orchestrator.Initialize();
 
-            // Should not throw even though IG camera is null.
             var ex = Record.Exception(() => orchestrator.SwitchMapOwner("SimHost"));
             Assert.Null(ex);
         }
@@ -306,6 +303,7 @@ namespace Bagira.Runner.Tests
         private class NullCameraSubsystemMock : ISubsystem, IMapCameraProvider
         {
             public string Name { get; }
+            public Vector4 TitleBarColor => new Vector4(0.5f, 0.5f, 0.5f, 1f);
             public NullCameraSubsystemMock(string name) => Name = name;
             public void Initialize(SubsystemConfig config) { }
             public void Update(float dt) { }

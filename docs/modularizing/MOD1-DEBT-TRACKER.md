@@ -5,7 +5,25 @@
 
 | ID | Priority | Description | Source | Target Batch | Status |
 |---|---|---|---|---|---|
-| CT-MOD1-A | P1 | `_frustrationTicks` dictionary memory leak in `NavigationExecutionSystem` for ephemeral entities. Replace with ECS component `FrustrationTicks`. | MOD1-BATCH-01 | MOD1-BATCH-02 | ⏳ Pending |
-| DB-MOD1-01 | P2 | `CarKinem.Core.NavigationMode` vs `FDP.Toolkit.Navigation.NavigationMode` naming ambiguity causing subtle C# namespace shadowing bugs. Rename old enum to `KinematicsMode`. | MOD1-BATCH-01 | MOD1-BATCH-02 | ⏳ Pending |
+| CT-MOD1-A | P1 | `_frustrationTicks` dictionary memory leak in `NavigationExecutionSystem` for ephemeral entities. Replace with ECS component `FrustrationTicks`. | MOD1-BATCH-01 | MOD1-BATCH-02 | ✅ Complete |
+| DB-MOD1-01 | P2 | `CarKinem.Core.NavigationMode` vs `FDP.Toolkit.Navigation.NavigationMode` naming ambiguity causing subtle C# namespace shadowing bugs. Rename old enum to `KinematicsMode`. | MOD1-BATCH-01 | MOD1-BATCH-02 | ✅ Complete |
 | DB-MOD1-02 | P3 | `GlobalComponentIds` 20-49 toolkit block is full. Needs compile-time automated uniqueness guard / unit tests to prevent silent data corruption. | MOD1-BATCH-01 | TBD | ⏳ Pending |
-| DB-MOD1-03 | P2 | `NetworkOwnership.PrimaryOwnerId` residue across other systems. System-wide audit needed to standardize to `WithOwned<T>()`. | MOD1-BATCH-01 | TBD | ⏳ Pending |
+| DB-MOD1-03 | P2 | `NetworkOwnership.PrimaryOwnerId` residue across other systems. System-wide audit needed to standardize to `WithOwned<T>()`. | MOD1-BATCH-01 | MOD1-BATCH-10 | ⏳ Pending |
+| DB-MOD1-04 | P3 | `System_AvoidanceMovesVehicle` test passes vacuously due to missing authority assignment. Needs assertion tightening and `SetAuthority` adding. | MOD1-BATCH-02 | TBD | ⏳ Pending |
+| DB-MOD1-05 | P3 | `BrainHsm64` system runs every frame unconditionally. Optimize to skip or lazily register to reduce overhead. | MOD1-BATCH-02 | TBD | ⏳ Pending |
+| DB-MOD1-06 | P4 | `GroundKinematicsModule` unconditionally allocates `TrajectoryPoolManager` and `FormationTemplateManager` at creation time. | MOD1-BATCH-02 | TBD | ⏳ Pending |
+| DB-MOD1-07 | P2 | CycloneDDS daemon dependency in `EntityMasterEgressTranslatorTests` causing failing test. | MOD1-BATCH-02 | TBD | ⏳ Pending |
+| DB-MOD1-08 | P2 | `SimulationLogicModule` creates all sub-modules unconditionally regardless of role, adding footprint on restricted nodes. | MOD1-BATCH-03 | MOD1-BATCH-09 | ✅ Complete |
+| DB-MOD1-09 | P3 | Unify `NodeConfiguration` and `SimHostConfig` into a single config type to reduce cognitive overhead. | MOD1-BATCH-03 | TBD | ⏳ Pending |
+| DB-MOD1-10 | P3 | Missing DDS participant cleanup in component registry tests might cause parallel test execution flakiness. | MOD1-BATCH-03 | MOD1-BATCH-10 | ⏳ Pending |
+| DB-MOD1-11 | P1 | `TogglePerspectiveEvent` needs UI wiring (ImGui toggle button) via `world.Bus.Publish` and `SwapBuffers` for full integration. | MOD1-BATCH-04 | MOD1-BATCH-05 | ✅ Complete |
+| DB-MOD1-12 | P2 | `IgPresentationModule` production construction needs real `SstVisualizerAdapter`-backed `MapCanvas` rather than headless fallback. | MOD1-BATCH-04 | TBD | ⏳ Pending |
+| DB-MOD1-13 | P1 | 4 tests failing in `Bagira.IG.Tests` (EditToolTests and Phase4 integration). Exposed when build was fixed in P5T1; left failing natively. | MOD1-BATCH-05 | MOD1-BATCH-06 | ✅ Complete |
+| DB-MOD1-14 | P1 | `PhysicsQueryActionNode` and `PathfindingActionNode` use OOP abstractions (`IRaycastService`) instead of native ECS Batch singletons as requested. | MOD1-BATCH-06 | MOD1-BATCH-07 | ✅ Complete |
+| DB-MOD1-15 | P2 | `AutonomousPerceptionModule` exposes `LosRequestBatchingSystem` as a public field instead of registering it natively, breaking module encapsulation. | MOD1-BATCH-06 | MOD1-BATCH-07 | ✅ Complete |
+| DB-MOD1-16 | P2 | Ground clamping component IDs (77–79) added to `GlobalComponentIds` instead of a local `GeographicComponentIds` class in `Fdp.Toolkit.Geographic`. Violates the per-toolkit registry pattern established in Phase 5. | MOD1-BATCH-07 | MOD1-BATCH-08 | ✅ Complete |
+| DB-MOD1-17 | P1 | `LosRequestBatchingSystem` has dual `ComponentSystem` + `IModuleSystem` inheritance: two divergent update paths that can fire on different threads simultaneously. Must be refactored to `IModuleSystem`-only. | MOD1-BATCH-07 | MOD1-BATCH-08 | ✅ Complete |
+| DB-MOD1-18 | P4 | `ReplayModule_SeekToFrameAsync_IsOffMainThread` test only awaits without verifying the task ran on a non-main thread. Strengthen by checking `Task.IsCompleted == false` immediately after `SeekToFrameAsync` returns. | MOD1-BATCH-08 | TBD | ⏳ Pending |
+| DB-MOD1-19 | P2 | `DrillSlave` is a skeleton: `RegisterHandler`/`IsHandlerRegistered` only. The 2PC DSM protocol (`NodeOpStatus`, `ACK/NAK` flow for drill commands) is deferred until the drill state machine design is ready. | MOD1-BATCH-08 | TBD | ⏳ Pending |
+| DB-MOD1-20 | N/A | ~~`StartPlacementMode` overload concern~~ — both `(long, EntityPropertyPatch?)` and `(long, string?)` overloads coexist. No call sites broken. Closed as false alarm. | MOD1-BATCH-09 | — | ✅ N/A |
+| DB-MOD1-21 | P3 | `TestMetricsCollector.cs` added to `FDP.Framework.Runner.Testing` without being specified in the design or task detail. Verify it has zero `Bagira.*` references and add it to the design doc. | MOD1-BATCH-09 | TBD | ⏳ Pending |

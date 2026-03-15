@@ -1,9 +1,10 @@
 using Bagira.BDC.SSTD;
+using Bagira.Map.Definitions;
 using Fdp.Kernel;
 
 namespace Bagira.IG.Components
 {
-    [ComponentId(GlobalComponentIds.IgEntityData)]
+    [ComponentId(BagiraComponentIds.IgEntityData)]
     public class IgEntityData
     {
         public string Name { get; set; } = string.Empty;

@@ -43,6 +43,7 @@
 
     <!-- Module host (for ISystemRegistry, IModule, etc.) -->
     <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Core\ModuleHost.Core.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Replay\FDP.Toolkit.Replay.csproj" />
   </ItemGroup>
 
 </Project>

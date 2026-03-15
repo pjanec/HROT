@@ -222,7 +222,7 @@ public class EcsPatchContextTests
 
         // Build an empty compiler (no routes needed for this test).
         var compiler = new AttributeCompilerBuilder().Build();
-        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+        var ctx = compiler.CreatePatchContext(repo, entity);
 
         // Mutate through the context ref.
         ref SimTransform t = ref ctx.GetUnmanagedComponent<SimTransform>();
@@ -249,7 +249,7 @@ public class EcsPatchContextTests
                 descriptorOrdinal: TestOrdinal)
             .Build();
 
-        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+        var ctx = compiler.CreatePatchContext(repo, entity);
 
         // Simulate a delegate invocation touching IgEntityData (ordinal TestOrdinal gets recorded).
         _ = ctx.GetManagedComponent<IgEntityData>();
@@ -284,7 +284,7 @@ public class EcsPatchContextTests
                 descriptorOrdinal: SharedOrdinal)
             .Build();
 
-        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+        var ctx = compiler.CreatePatchContext(repo, entity);
 
         // Simulate two delegate invocations on the same component type → same ordinal twice.
         _ = ctx.GetManagedComponent<IgEntityData>();
@@ -495,7 +495,7 @@ public class EcsPatchContextAuthorityTests
         // No SetAuthority call — authority bit is off.
 
         var compiler = new AttributeCompilerBuilder().Build();
-        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+        var ctx = compiler.CreatePatchContext(repo, entity);
 
         Assert.False(ctx.CanWrite<SimTransform>());
     }
@@ -509,7 +509,7 @@ public class EcsPatchContextAuthorityTests
         repo.SetAuthority<SimTransform>(entity, true);
 
         var compiler = new AttributeCompilerBuilder().Build();
-        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+        var ctx = compiler.CreatePatchContext(repo, entity);
 
         Assert.True(ctx.CanWrite<SimTransform>());
     }
@@ -523,7 +523,7 @@ public class EcsPatchContextAuthorityTests
         // No SetAuthority call.
 
         var compiler = new AttributeCompilerBuilder().Build();
-        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+        var ctx = compiler.CreatePatchContext(repo, entity);
 
         Assert.False(ctx.CanWriteManaged<IgEntityData>());
     }
@@ -537,7 +537,7 @@ public class EcsPatchContextAuthorityTests
         repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
 
         var compiler = new AttributeCompilerBuilder().Build();
-        var ctx = new EcsPatchContext(repo, entity, compiler.Routes);
+        var ctx = compiler.CreatePatchContext(repo, entity);
 
         Assert.True(ctx.CanWriteManaged<IgEntityData>());
     }

@@ -38,7 +38,7 @@ namespace Bagira.SimHost.Visualization
             if (!_view.HasComponent<NavState>(sel.Value))  return;
 
             var nav = _view.GetComponentRO<NavState>(sel.Value);
-            if (nav.Mode == NavigationMode.CustomTrajectory)
+            if (nav.Mode == KinematicsMode.CustomTrajectory)
                 RenderTrajectory(nav.TrajectoryId, nav.ProgressS, new Color(180, 180, 180, 160));
         }
 

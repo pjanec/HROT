@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Xunit;
 using Newtonsoft.Json;
 using Bagira.Runner.Configuration;
+using RunnerConfiguration = Bagira.Runner.Configuration.BagiraRunnerConfiguration;
 
 namespace Bagira.Runner.Tests
 {

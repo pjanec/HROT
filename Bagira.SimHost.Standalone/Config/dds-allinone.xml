@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  CycloneDDS configuration for AllInOne mode.
+
+  Restricts DDS discovery to loopback only so that an AllInOne process does
+  not emit multicast traffic on the local network. Suitable for single-machine
+  development / CI environments where no peer nodes exist.
+-->
+<CycloneDDS>
+  <Domain>
+    <General>
+      <Interfaces>
+        <NetworkInterface name="lo" priority="default" multicast="false"/>
+      </Interfaces>
+      <EnableMulticastLoopback>true</EnableMulticastLoopback>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+    </Discovery>
+  </Domain>
+</CycloneDDS>

@@ -1,3 +1,4 @@
+using Bagira.Map.Definitions;
 using Fdp.Kernel;
 
 namespace Bagira.IG.Components;
@@ -5,7 +6,7 @@ namespace Bagira.IG.Components;
 /// <summary>
 /// ECS value component caching damage level for IG rendering.
 /// </summary>
-[ComponentId(GlobalComponentIds.IgHealthState)]
+[ComponentId(BagiraComponentIds.IgHealthState)]
 public struct IgHealthState
 {
     /// <summary>0 = healthy, 100 = fully destroyed.</summary>

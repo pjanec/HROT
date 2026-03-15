@@ -1,7 +1,5 @@
 using System;
 using Xunit;
-using Bagira.Runner.Abstractions;
-using Bagira.Runner.Models;
 using Bagira.Runner.Services;
 
 namespace Bagira.Runner.Tests

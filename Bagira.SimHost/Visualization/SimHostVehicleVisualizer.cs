@@ -88,8 +88,8 @@ namespace Bagira.SimHost.Visualization
                 var nav = view.GetComponentRO<NavState>(entity);
                 return nav.Mode switch
                 {
-                    NavigationMode.RoadGraph       => ColRoadNav,
-                    NavigationMode.CustomTrajectory => ColTrajectoryNav,
+                    KinematicsMode.RoadGraph       => ColRoadNav,
+                    KinematicsMode.CustomTrajectory => ColTrajectoryNav,
                     _                              => ColDefault,
                 };
             }

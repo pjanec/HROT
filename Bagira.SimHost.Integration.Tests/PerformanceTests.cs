@@ -80,7 +80,7 @@ namespace Bagira.SimHost.Integration.Tests
 
                         // Navigation target: 2 km north-east so vehicles are always moving.
                         var nav = _host.World.GetComponent<NavState>(entity);
-                        nav.Mode             = NavigationMode.Direct;
+                        nav.Mode             = KinematicsMode.Direct;
                         nav.FinalDestination = new Vector2(pos.X + 2000f, pos.Y + 2000f);
                         nav.TargetSpeed      = 15.0f;
                         nav.ArrivalRadius    = 5.0f;
@@ -134,7 +134,7 @@ namespace Bagira.SimHost.Integration.Tests
             if (_host.EntityMap.TryGetEntity(ack.NewEntityId, out var entity))
             {
                 var nav = _host.World.GetComponent<NavState>(entity);
-                nav.Mode             = NavigationMode.Direct;
+                nav.Mode             = KinematicsMode.Direct;
                 nav.FinalDestination = new Vector2(5000f, 5000f);
                 nav.TargetSpeed      = 15.0f;
                 nav.ArrivalRadius    = 5.0f;

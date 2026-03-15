@@ -34,6 +34,11 @@ namespace Bagira.Runner.Services
         /// <inheritdoc/>
         public string Name => "IOS";
 
+        /// <inheritdoc/>
+        /// <remarks>Violet — distinct from IG (green) and SimHost (red).</remarks>
+        public System.Numerics.Vector4 TitleBarColor =>
+            new System.Numerics.Vector4(0.32f, 0.08f, 0.48f, 1f);
+
         // Map group 0 = broadcast to all IG instances (matches IosLogicConstants.DefaultMapGroupId).
         private const int DefaultMapGroupId = 0;
 

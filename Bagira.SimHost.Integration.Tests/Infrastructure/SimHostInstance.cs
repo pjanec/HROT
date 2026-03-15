@@ -6,6 +6,7 @@ using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.IG.Components;
 using Bagira.Map.Common;
+using Bagira.Map.Definitions.Tkb;
 using Bagira.SimHost;
 using Bagira.SimHost.Modules;
 using Bagira.SimHost.Systems;
@@ -209,7 +210,14 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 jsonAttributeCompiler);
 
             _spawnSystem = new NetworkSpawningSystem(
-                _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1);
+                _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1,
+                onEntitySpawned: (world, entity, isLocalAuthority) =>
+                {
+                    // Mark locally-owned physics components as authoritative so
+                    // CarKinematicsSystem (.WithOwned<SimTransform>()) processes this entity.
+                    if (isLocalAuthority && world.HasComponent<SimTransform>(entity))
+                        world.SetAuthority<SimTransform>(entity, true);
+                });
 
             // 5. Geographic systems ─────────────────────────────────────────────────
             new GeographicModule(_wgs84).RegisterSystems(_geoSystems);
@@ -644,6 +652,13 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<Bagira.SimHost.Components.MissionAdapterState>();
             world.RegisterComponent<Bagira.SimHost.Components.MissionAdapterState>();
 
+            // ── CQRS navigation contract (MOD1-P1T1 / CT-MOD1-C2) ─────────────────
+            // These components live in BdcTkbBuilder.WithBehavior templates
+            // and are written/read by MoveToExecutor and NavigationExecutionSystem.
+            world.RegisterComponent<FDP.Toolkit.Navigation.NavigationIntent>();
+            world.RegisterComponent<FDP.Toolkit.Navigation.NavigationStatus>();
+            world.RegisterComponent<CarKinem.Core.FrustrationTicks>();
+
             // ── Lifecycle events ───────────────────────────────────────────────────
             world.RegisterEvent<ConstructionOrder>();
             world.RegisterEvent<ConstructionAck>();
@@ -657,77 +672,76 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
         /// <summary>
         /// Builds a <see cref="TkbDatabase"/> with Tank_M1Abrams template.
-        /// The template adds all simulation components required by CarKiem / Behavior.
+        /// <summary>
+        /// Builds a <see cref="TkbDatabase"/> with templates for all vehicle entity types.
+        /// The template adds all simulation components required by CarKiem / Behavior,
+        /// including the CQRS navigation contract components (CT-MOD1-C2).
         /// </summary>
         private static TkbDatabase BuildTkbDatabase()
         {
             var db = new TkbDatabase();
 
-            // ── Tank M1 Abrams ────────────────────────────────────────────────────
-            var tankTemplate = new TkbTemplate("Tank_M1Abrams", TkbEntityTypes.Tank_M1Abrams);
+            // Register all entity types using the production builder.
+            // Unmanaged components not registered in the world are silently skipped.
+            // Managed components with factories (SimCombatDef, VisualData) are excluded
+            // from the production catalog registration here by building without .WithCombat/.WithVisual.
+            RegisterBehaviorTemplate(db, TkbEntityTypes.Tank_M1Abrams,     "M1 Abrams",    20.0f, VehicleClass.Tank);
+            RegisterBehaviorTemplate(db, TkbEntityTypes.IFV_Bradley,       "M2 Bradley",   18.0f, VehicleClass.Tank);
+            RegisterBehaviorTemplate(db, TkbEntityTypes.Truck_HMMWV,       "HMMWV",        25.0f, VehicleClass.Truck);
+            RegisterBehaviorTemplate(db, TkbEntityTypes.Tank_T72,          "T-72",         17.0f, VehicleClass.Tank);
+            RegisterBehaviorTemplate(db, TkbEntityTypes.Infantry_Rifleman, "Rifleman",      2.5f, VehicleClass.Pedestrian);
 
-            // Navigation / physics
-            tankTemplate.AddComponent(new CarKinem.Core.VehicleParams
-            {
-                Class          = CarKinem.Core.VehicleClass.Tank,
-                Length         = 7.93f,
-                Width          = 3.66f,
-                WheelBase      = 4.0f,
-                MaxSpeedFwd    = 20.0f,   // m/s
-                MaxAccel       = 2.5f,
-                MaxDecel       = 4.0f,
-                MaxSteerAngle  = 0.6f,
-                MaxSteerRate   = 0.5f,
-                MaxLatAccel    = 5.0f,
-                AvoidanceRadius = 4.0f,
-                LookaheadTimeMin = 1.0f,
-                LookaheadTimeMax = 3.0f,
-                AccelGain        = 1.5f,
-            });
-            tankTemplate.AddComponent(new CarKinem.Core.VehicleState());
-            tankTemplate.AddComponent(new CarKinem.Core.NavState
-            {
-                Mode           = CarKinem.Core.NavigationMode.Direct,
-                TargetSpeed    = 10.0f,
-                ArrivalRadius  = 5.0f,
-            });
-            tankTemplate.AddComponent(new CarKinem.Formation.FormationRoster());
+            return db;
+        }
 
-            // Simulation transform (spawned at origin by default)
-            tankTemplate.AddComponent(new SimTransform
-            {
-                Position = Vector3.Zero,
-                Rotation = Quaternion.Identity
-            });
-            tankTemplate.AddComponent(new SimVelocity
-            {
-                Linear  = Vector3.Zero,
-                Angular = Vector3.Zero
-            });
+        /// <summary>
+        /// Creates and registers a minimal simulation-ready vehicle template.
+        /// Mirrors production <c>BdcTkbBuilder.WithBehavior</c> without IG-only visual factories.
+        /// </summary>
+        private static void RegisterBehaviorTemplate(TkbDatabase db, long tkbType, string name,
+            float maxSpeed, CarKinem.Core.VehicleClass vehicleClass)
+        {
+            var template = new TkbTemplate(name, tkbType);
 
-            // Behavior toolkit
-            tankTemplate.AddComponent(new DoctrineState
-            {
-                // Pre-set BrainTier so BTreeTickSystem runs immediately after the first
-                // AssignDoctrineEvent — matching the production BdcTkbBuilder convention.
-                BrainTier = FDP.Toolkit.Behavior.BehaviorConstants.BrainTierBTree
-            });
-            tankTemplate.AddComponent(new BrainBlackboard());
-            tankTemplate.AddComponent(new LocomotionChannel());
-            tankTemplate.AddComponent(new WeaponChannel());
-            tankTemplate.AddComponent(new InteractionChannel());
-            // Vehicles can move and shoot by default — mirrors the production BdcTkbBuilder setup.
-            tankTemplate.AddComponent(new ActorCapabilityState
+            // Physics
+            var preset = CarKinem.Core.VehiclePresets.GetPreset(vehicleClass);
+            preset.Class = vehicleClass;
+            preset.MaxSpeedFwd = maxSpeed;
+            template.AddComponent(preset);
+            template.AddComponent(new CarKinem.Core.VehicleState());
+            template.AddComponent(new CarKinem.Core.NavState());
+            template.AddComponent(new CarKinem.Formation.FormationRoster());
+            template.AddComponent(new NetworkTransform());
+
+            // Simulation transform
+            template.AddComponent(new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            template.AddComponent(new SimVelocity  { Linear  = Vector3.Zero, Angular  = Vector3.Zero });
+
+            // Behavior
+            template.AddComponent(new DoctrineState { BrainTier = FDP.Toolkit.Behavior.BehaviorConstants.BrainTierBTree });
+            template.AddComponent(new BrainBlackboard());
+            template.AddComponent(new BrainBTreeState());
+            template.AddComponent(new LocomotionChannel());
+            template.AddComponent(new WeaponChannel());
+            template.AddComponent(new InteractionChannel());
+            template.AddComponent(new ActorCapabilityState
             {
                 Capabilities = FDP.Toolkit.Behavior.Components.ActorCapabilities.CanMove
                              | FDP.Toolkit.Behavior.Components.ActorCapabilities.CanShoot
             });
-            tankTemplate.AddComponent(new BrainBTreeState());
-            tankTemplate.AddComponent(new MissionPlanQueue());
-            tankTemplate.AddManagedComponent<Bagira.SimHost.Components.EntityMissionHolder>(() => new Bagira.SimHost.Components.EntityMissionHolder());
+            template.AddComponent(new MissionPlanQueue());
 
-            db.Register(tankTemplate);
-            return db;
+            // CQRS navigation contract (CT-MOD1-C2 fix):
+            // These must be present so MoveToExecutor.OnEnter does not throw
+            // "Entity missing NavigationIntent".
+            template.AddComponent(new FDP.Toolkit.Navigation.NavigationIntent());
+            template.AddComponent(new FDP.Toolkit.Navigation.NavigationStatus());
+            template.AddComponent(new CarKinem.Core.FrustrationTicks());
+
+            // Managed components
+            template.AddManagedComponent<Bagira.SimHost.Components.EntityMissionHolder>(() => new Bagira.SimHost.Components.EntityMissionHolder());
+
+            db.Register(template);
         }
 
         // ── Doctrine registry factory ─────────────────────────────────────────────

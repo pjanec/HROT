@@ -4,8 +4,6 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using Xunit;
 using CycloneDDS.Runtime;
-using Bagira.DDS.DataModel.Runner;
-using Bagira.Runner.Services;
 
 namespace Bagira.Runner.Tests
 {

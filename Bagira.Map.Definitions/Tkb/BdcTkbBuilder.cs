@@ -6,6 +6,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
@@ -217,6 +218,15 @@ namespace Bagira.Map.Definitions.Tkb
             {
                 Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot
             });
+
+            // CQRS navigation contract (MOD1-P1T1): Brain writes NavigationIntent;
+            // Muscle layer (NavigationExecutionSystem) writes NavigationStatus.
+            // FrustrationTicks is the per-entity stuck-detection counter.
+            // All three must be present on the template so MoveToExecutor never
+            // encounters a missing-component exception on entity spawn.
+            template.AddComponent(new NavigationIntent());
+            template.AddComponent(new NavigationStatus());
+            template.AddComponent(new FrustrationTicks());
 
             return this;
         }

@@ -3,6 +3,8 @@ using Bagira.BDC.SSTM;
 using Bagira.Map.Common;
 using FDP.Toolkit.DER;
 using ImGuiNET;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 namespace Bagira.IOS.Panels;
 
@@ -171,9 +173,13 @@ public sealed class OrbatPanel
         {
             Affiliation = eForceIdentifier.FORCE_FRIENDLY
         };
-        
+        var propsJson = JsonConvert.SerializeObject(patch, new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore,
+            Converters = { new StringEnumConverter() }
+        });
         // Dynamically request the selected type instead of hardcoding Unit_InfantrySquad
-        logic.StartPlacementMode(_selectedType, patch);
+        logic.StartPlacementMode(_selectedType, propsJson);
     }
 
     // ── Visible node list (testable, used by Draw in Phase P9) ────────────────

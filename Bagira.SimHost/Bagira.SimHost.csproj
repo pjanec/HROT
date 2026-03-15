@@ -47,6 +47,7 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.NetworkSpawning\FDP.Toolkit.NetworkSpawning.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Replay\FDP.Toolkit.Replay.csproj" />
 
     <!-- Network (CycloneDDS transitive — no separate NuGet needed) -->
     <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />

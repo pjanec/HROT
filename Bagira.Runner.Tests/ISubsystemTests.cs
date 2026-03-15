@@ -1,6 +1,4 @@
 using Xunit;
-using Bagira.Runner.Abstractions;
-using Bagira.Runner.Models;
 using Bagira.Runner.Tests.Mocks;
 
 namespace Bagira.Runner.Tests

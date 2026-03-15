@@ -1,13 +1,13 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using Bagira.Runner.Abstractions;
 using Bagira.Runner.Configuration;
 using Bagira.Runner.Services;
 using Bagira.Runner.Tests.Mocks;
 using Fdp.Kernel;
 using Microsoft.Extensions.Logging;
 using Xunit;
+using RunnerConfiguration = Bagira.Runner.Configuration.BagiraRunnerConfiguration;
 
 namespace Bagira.Runner.Tests
 {
@@ -50,8 +50,8 @@ namespace Bagira.Runner.Tests
             var ios     = new MockSubsystem("IOS");
 
             var orchestrator = new SubsystemOrchestrator(
-                HeadlessAllNoWait(),
-                new ISubsystem[] { simHost, ig, ios });
+                new ISubsystem[] { simHost, ig, ios },
+                new RunnerOptions { Headless = true });
 
             // Act
             orchestrator.Initialize();
@@ -106,8 +106,8 @@ namespace Bagira.Runner.Tests
             var ios     = new MockSubsystem("IOS");
 
             var orchestrator = new SubsystemOrchestrator(
-                HeadlessAllNoWait(),
-                new ISubsystem[] { simHost, ig, ios });
+                new ISubsystem[] { simHost, ig, ios },
+                new RunnerOptions { Headless = true });
 
             orchestrator.Initialize();
 
@@ -129,8 +129,8 @@ namespace Bagira.Runner.Tests
             var ios     = new MockSubsystem("IOS");
 
             var orchestrator = new SubsystemOrchestrator(
-                HeadlessAllNoWait(),
-                new ISubsystem[] { simHost, ig, ios });
+                new ISubsystem[] { simHost, ig, ios },
+                new RunnerOptions { Headless = true });
 
             orchestrator.Initialize();
             orchestrator.RunFrames(10);
@@ -206,8 +206,8 @@ namespace Bagira.Runner.Tests
             try
             {
                 var orchestrator = new SubsystemOrchestrator(
-                    HeadlessAllNoWait(),
-                    new ISubsystem[] { new MockSubsystem("All") });
+                    new ISubsystem[] { new MockSubsystem("All") },
+                    new RunnerOptions { Headless = true });
 
                 ILogger logger = new NullTestLogger();
                 var executor = new HeadlessTestExecutor(orchestrator, scriptPath, logger);
@@ -275,15 +275,17 @@ namespace Bagira.Runner.Tests
             try
             {
                 var orchestrator = new SubsystemOrchestrator(
-                    HeadlessAllNoWait(),
-                    new ISubsystem[] { new MockSubsystem("All") });
+                    new ISubsystem[] { new MockSubsystem("All") },
+                    new RunnerOptions { Headless = true });
 
                 // Provide an EntityRepository so spawn / assert_position handlers work.
                 using var world = new EntityRepository();
                 world.RegisterComponent<SimTransform>();
 
                 ILogger logger = new NullTestLogger();
-                var executor = new HeadlessTestExecutor(orchestrator, scriptPath, logger, world);
+                var executor = new HeadlessTestExecutor(orchestrator, scriptPath, logger);
+                executor.RegisterHandler(new Bagira.Runner.Testing.SpawnActionHandler(world, logger));
+                executor.RegisterHandler(new Bagira.Runner.Testing.AssertPositionActionHandler(world, logger));
 
                 int exitCode = await executor.RunAsync();
 
@@ -327,8 +329,8 @@ namespace Bagira.Runner.Tests
             try
             {
                 var orchestrator = new SubsystemOrchestrator(
-                    HeadlessAllNoWait(),
-                    new ISubsystem[] { new MockSubsystem("All") });
+                    new ISubsystem[] { new MockSubsystem("All") },
+                    new RunnerOptions { Headless = true });
 
                 ILogger logger = new NullTestLogger();
                 var executor = new HeadlessTestExecutor(orchestrator, scriptPath, logger);

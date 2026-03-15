@@ -1,6 +1,5 @@
 using System;
 using System.Threading;
-using Bagira.Runner.Abstractions;
 using Bagira.Runner.Configuration;
 using Bagira.Runner.Services;
 
@@ -40,24 +39,17 @@ public sealed class BagiraRunnerHarness : IDisposable
     {
         DomainId = Interlocked.Increment(ref _domainCounter);
 
-        var config = new RunnerConfiguration
-        {
-            Headless = true,
-            DomainId = DomainId,
-            ModeString = "all"
-        };
-        config.Validate();
-
         SimHost = new SimHostSubsystem();
         Ig = new IgSubsystem();
         Ios = new IosSubsystem();
 
-        Orchestrator = new SubsystemOrchestrator(config, new ISubsystem[]
+        var options = new RunnerOptions { Headless = true, DomainId = DomainId };
+        Orchestrator = new SubsystemOrchestrator(new ISubsystem[]
         {
             SimHost,
             Ig,
             Ios
-        });
+        }, options);
 
         Orchestrator.Initialize();
         Warmup();

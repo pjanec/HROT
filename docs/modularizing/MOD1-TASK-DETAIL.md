@@ -25,13 +25,13 @@ See [MOD1-DESIGN.md §3.1](./MOD1-DESIGN.md#phase-1--cqrs-navigation-contract--a
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Components/NavigationStatus.cs` | **Create** — ECS struct with `NavigationResult` engine enum |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/NavigationMode.cs` | **Create** — engine-side `enum NavigationMode : byte { None=0, DirectPoint, FollowRoute, JoinFormation }` |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/NavigationResult.cs` | **Create** — engine-side `enum NavigationResult : byte { InProgress=0, Arrived, FailedBlocked, FailedUnreachable }` |
-| `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` | Reserve two new constants in the **20–49 toolkit block** (e.g., `NavigationIntent = 24`, `NavigationStatus = 25`) |
+| `FDP/Toolkits/FDP.Toolkit.Navigation/NavigationComponentIds.cs` | **Create** — define your extension component IDs here instead of Fdp.Kernel (e.g., `NavigationIntent = 24`, `NavigationStatus = 25`) |
 | `Bagira.DDS.DataModel/SimDescriptors.cs` | Add DDS wire enums `ENavigationMode`, `ENavigationResult` and the two DDS descriptor partial structs |
 
 **`NavigationIntent` ECS struct spec (in `FDP.Toolkit.Navigation`):**
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
-[ComponentId(GlobalComponentIds.NavigationIntent)]   // toolkit block ID
+[ComponentId(NavigationComponentIds.NavigationIntent)]   
 public struct NavigationIntent
 {
     public NavigationMode Mode;         // None = 0; default is inactive
@@ -45,7 +45,7 @@ public struct NavigationIntent
 **`NavigationStatus` ECS struct spec (in `FDP.Toolkit.Navigation`):**
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
-[ComponentId(GlobalComponentIds.NavigationStatus)]   // toolkit block ID
+[ComponentId(NavigationComponentIds.NavigationStatus)]
 public struct NavigationStatus
 {
     public uint             IntentId;
@@ -626,13 +626,12 @@ See [MOD1-DESIGN.md §3.5](./MOD1-DESIGN.md#phase-5--component-id-registry-split
 
 ### MOD1-P5T1 — Create `BagiraComponentIds` in `Bagira.Map.Definitions`
 
-**Goal:** Extract all Bagira-specific component ID constants out of `GlobalComponentIds` (FDP kernel file) into a single project-local registry. No more editing FDP engine source to add a Bagira component.
+**Goal:** Extract all Bagira-specific component ID constants into a single project-local registry. `GlobalComponentIds` (FDP kernel file) must NOT be edited as FDP.Kernel is a third-party library.
 
 **Design reference:** [MOD1-DESIGN.md §3.5](./MOD1-DESIGN.md#352--target-state--two-registries-only)
 
 **Files:**
 - **Create:** `Bagira.Map.Definitions/BagiraComponentIds.cs`
-- **Modify:** `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` — remove constants for Bagira-owned structs (IDs that are referenced exclusively in Bagira assemblies); add a comment block documenting that IDs 160–255 live in `BagiraComponentIds`.
 
 **`BagiraComponentIds` minimal initial content:**
 
@@ -666,18 +665,18 @@ Update every `[ComponentId(GlobalComponentIds.X)]` on a Bagira-owned struct to `
 | `EntityMissionHolder` | `Bagira.SimHost/Components/EntityMissionHolder.cs` | Change to `[ComponentId(BagiraComponentIds.EntityMissionHolder)]`; remove `GlobalComponentIds.EntityMissionHolder` |
 | `InFormationTag` | `Bagira.SimHost/Components/InFormationTag.cs` | Change to `[ComponentId(BagiraComponentIds.InFormationTag)]`; remove `GlobalComponentIds.InFormationTag` |
 | `IgEntityData` | `Bagira.IG/Components/IgEntityData.cs` | Change to `[ComponentId(BagiraComponentIds.IgEntityData)]`; remove `GlobalComponentIds.IgEntityData` |
-| `IgHealthState` | `Bagira.IG/Components/IgHealthState.cs` | Change to `[ComponentId(BagiraComponentIds.IgHealthState)]`; remove `GlobalComponentIds.IgHealthState` |
+| `IgHealthState` | `Bagira.IG/Components/IgHealthState.cs` | Change to `[ComponentId(BagiraComponentIds.IgHealthState)]`; |
 
-After migrating: verify that `GlobalComponentIds` contains no references to the component names `EntityMissionHolder`, `InFormationTag`, `IgEntityData`, or `IgHealthState`. The FDP kernel file must be completely free of Bagira application knowledge.
+After migrating: verify that your code successfully maps these structures using `BagiraComponentIds`. Note: Do not attempt to physically delete lines from `GlobalComponentIds` as it is a third-party library; instead, treat its old definitions for these Bagira application terms as deprecated/ignored.
 
-> **Note:** `Faction` and `PerceptionReceptor` are **not** migrated here. Although they currently carry IDs in the 160–255 Bagira block (250, 251), they live in `FDP.Toolkit.Perception` and must use FDP toolkit IDs. That fix is performed in Phase 6 (MOD1-P6T1), which reassigns them to the 20–49 toolkit block and registers the new constants in `GlobalComponentIds`.
+> **Note:** `Faction` and `PerceptionReceptor` are **not** migrated here. Although they currently carry IDs in the 160–255 Bagira block (250, 251), they live in `FDP.Toolkit.Perception` and must use FDP toolkit IDs. That fix is performed in Phase 6 (MOD1-P6T1), which reassigns them to the 20–49 toolkit block via a local Toolkit registry.
 
-**Identifying any additional constants to move:** Any constant in `GlobalComponentIds` whose corresponding struct lives in `Bagira.*` rather than `FDP.*` or `ModuleHost.*` assemblies — grep for `[ComponentId(GlobalComponentIds` across all `Bagira.*` source files and verify each match against the table above.
+**Identifying any additional constants to move:** Any Bagira struct referencing `GlobalComponentIds` should be swapped to `BagiraComponentIds` if it acts as a project-local wrapper.
 
 **Success conditions:**
 
 1. `dotnet build` of the entire solution succeeds.
-2. No remaining `GlobalComponentIds` references for IDs ≥ 160 in any `Bagira.*` project.
+2. `Bagira.*` projects use `BagiraComponentIds` exclusively for their domain structures.
 3. Unit test `BagiraComponentIds_NoDuplicates`: collects all constants via reflection; asserts all values are unique.
 4. Startup smoke test: `SimHostApp` starts without `InvalidOperationException` from `ComponentTypeRegistry` (no ID collision).
 5. `dotnet build Bagira.IG` and `dotnet build Bagira.SimHost` both succeed; all existing unit tests pass.
@@ -702,13 +701,13 @@ See [MOD1-DESIGN.md §Phase 6](./MOD1-DESIGN.md#phase-6--distributed-perception-
 
 | File | Action |
 |------|--------|
-| `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` | **(ID fix)** Add constants `Faction` and `PerceptionReceptor` in the **20–49 toolkit block** (e.g., IDs 26 and 27 if available); reserve IDs for `VisualReceptor` and `RadarReceptor` (IDs 28, 29 or next available) |
-| `FDP/Toolkits/FDP.Toolkit.Perception/Components/Faction.cs` | **(ID fix)** Change `[ComponentId(250)]` → `[ComponentId(GlobalComponentIds.Faction)]` |
-| `FDP/Toolkits/FDP.Toolkit.Perception/Components/PerceptionReceptor.cs` | **(ID fix)** Change `[ComponentId(251)]` → `[ComponentId(GlobalComponentIds.PerceptionReceptor)]` |
+| `FDP/Toolkits/FDP.Toolkit.Perception/PerceptionComponentIds.cs` | **Create** - A local registry for Perception tooling IDs in the **20–49 toolkit block** (e.g., IDs 26, 27, 28, 29). Fdp.Kernel must NOT be edited. |
+| `FDP/Toolkits/FDP.Toolkit.Perception/Components/Faction.cs` | **(ID fix)** Change `[ComponentId(250)]` → `[ComponentId(PerceptionComponentIds.Faction)]` |
+| `FDP/Toolkits/FDP.Toolkit.Perception/Components/PerceptionReceptor.cs` | **(ID fix)** Change `[ComponentId(251)]` → `[ComponentId(PerceptionComponentIds.PerceptionReceptor)]` |
 | `FDP/Toolkits/FDP.Toolkit.Perception/Components/TargetMemory.cs` | Add `public fixed byte Modalities[MaxTrackedTargets]` and update `AddOrUpdateTarget` to accept a `SensorModality modalityMask` parameter and OR it into the slot |
 | `FDP/Toolkits/FDP.Toolkit.Perception/Components/SensorModality.cs` | New file — `[Flags] public enum SensorModality : byte { Visual = 1, Radar = 2, Thermal = 4, Acoustic = 8 }` |
-| `FDP/Toolkits/FDP.Toolkit.Perception/Components/VisualReceptor.cs` | New file — `[ComponentId(GlobalComponentIds.VisualReceptor)] public struct VisualReceptor { public float VisionRange; public float FovCos; }` |
-| `FDP/Toolkits/FDP.Toolkit.Perception/Components/RadarReceptor.cs` | New file — `[ComponentId(GlobalComponentIds.RadarReceptor)] public struct RadarReceptor { public float MaxRange; public float EmissionPower; public int TargetMask; }` |
+| `FDP/Toolkits/FDP.Toolkit.Perception/Components/VisualReceptor.cs` | New file — `[ComponentId(PerceptionComponentIds.VisualReceptor)] public struct VisualReceptor { public float VisionRange; public float FovCos; }` |
+| `FDP/Toolkits/FDP.Toolkit.Perception/Components/RadarReceptor.cs` | New file — `[ComponentId(PerceptionComponentIds.RadarReceptor)] public struct RadarReceptor { public float MaxRange; public float EmissionPower; public int TargetMask; }` |
 | `Bagira.SimHost/SimHostComponentRegistry.cs` | Register new receptor components |
 
 **`AddOrUpdateTarget` signature change:**
@@ -725,14 +724,11 @@ On eviction/replacement: `mem.Modalities[slot] = (byte)modality;` (fresh modalit
 
 **Success conditions:**
 
-1. **ID fix:** `Faction` and `PerceptionReceptor` structs no longer carry hardcoded numeric literals (`250`, `251`); they reference `GlobalComponentIds.Faction` and `GlobalComponentIds.PerceptionReceptor` respectively.
-2. **ID fix:** The new `Faction` and `PerceptionReceptor` constants in `GlobalComponentIds` are in the 20–49 toolkit range and do not collide with any existing constants (verified by `dotnet test` — startup `ComponentTypeRegistry` collision detection).
-3. `dotnet build FDP.Toolkit.Perception` passes.
-4. Existing `ThreatEvaluationSystemTests` and `VisionBroadphaseSystemTests` continue to pass (default `modality = Visual` keeps backward compatibility).
-5. New unit test `TargetMemory_ModalityFusion_OrsModalities`:  
-   — Add target with `Visual`, then `AddOrUpdateTarget` same entity with `Radar` → assert `Modalities[0] == Visual | Radar`.
-6. New unit test `TargetMemory_Eviction_ResetsModality`:  
-   — Fill all slots, add new target with `Thermal` that evicts lowest-threat → assert evicted slot's `Modalities` equals `Thermal`.
+1. **ID fix:** `Faction` and `PerceptionReceptor` structs no longer carry hardcoded numeric literals (`250`, `251`); they reference `PerceptionComponentIds.Faction` and `PerceptionComponentIds.PerceptionReceptor` respectively.
+2. `dotnet build FDP.Toolkit.Perception` passes.
+3. Existing `ThreatEvaluationSystemTests` and `VisionBroadphaseSystemTests` continue to pass (default `modality = Visual` keeps backward compatibility).
+4. New unit test `TargetMemory_ModalityFusion_OrsModalities`.
+5. New unit test `TargetMemory_Eviction_ResetsModality`.
 
 ---
 
@@ -804,7 +800,7 @@ public partial struct PathResponseBatch { [DdsKey] public int TargetNodeId; [Dds
 **Spec:**
 
 ```csharp
-[ComponentId(GlobalComponentIds.PathfindingBatchData)]
+[ComponentId(NavigationComponentIds.PathfindingBatchData)]
 public struct PathfindingBatchData
 {
     public const int DefaultCapacity = 64;
@@ -832,7 +828,7 @@ public struct PathResult
 }
 ```
 
-Register in `GlobalComponentIds` — **20–49 toolkit block** (e.g., next available ID after `RaycastBatchData`). `PathfindingBatchData` lives in `FDP.Toolkit.Navigation` so it uses the toolkit block, not the 160–199 application block.  
+Register in `NavigationComponentIds` in `FDP.Toolkit.Navigation` — **20–49 toolkit block**. NOT `Fdp.Kernel`.
 Add `world.RegisterSingleton<PathfindingBatchData>(new PathfindingBatchData { ... })` to `NodeBootstrapper` Brain and AllInOne branches (it is not Bagira-specific, so `SimHostComponentRegistry` should delegate to a `NavigationComponentRegistry` in `FDP.Toolkit.Navigation` or a thin Bagira wrapper — either is acceptable).
 
 **Success conditions:**
@@ -855,8 +851,9 @@ Add `world.RegisterSingleton<PathfindingBatchData>(new PathfindingBatchData { ..
 
 | File | Action |
 |---|---|
-| `FDP/Toolkits/FDP.Toolkit.Behavior/BTreeContext.cs` | **Delete** the `RequestRaycast` and `GetRaycastResult` stub methods |
-| `FDP/Toolkits/FDP.Toolkit.Behavior/Abstractions/IAIContext.cs` | **Remove** `RequestRaycast` and `GetRaycastResult` from the interface |
+| `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/IAIContext.cs` | **DO NOT MODIFY** (Third-party library) |
+| `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/BTreeActionNode.cs` | **DO NOT MODIFY** (Third-party library) |
+| `FDP/Toolkits/FDP.Toolkit.Behavior/BTreeContext.cs` | **Leave stubs as no-ops** — do not attempt to delete interface members that belong to `IAIContext` from `Fbt.Kernel`. |
 | `FDP/Toolkits/FDP.Toolkit.Physics/BTreeNodes/PhysicsQueryActionNode.cs` | **Create** — abstract base class (see spec below) |
 | `FDP/Toolkits/FDP.Toolkit.Physics/BTreeNodes/Action_QueryRaycast.cs` | **Create** — concrete example node subclassing `PhysicsQueryActionNode` |
 
@@ -925,8 +922,8 @@ public abstract class PhysicsQueryActionNode : BTreeActionNode
 
 | File | Action |
 |---|---|
-| `FDP/Toolkits/FDP.Toolkit.Behavior/BTreeContext.cs` | **Delete** the `RequestPath` and `GetPathResult` stub methods |
-| `FDP/Toolkits/FDP.Toolkit.Behavior/Abstractions/IAIContext.cs` | **Remove** `RequestPath` and `GetPathResult` from the interface |
+| `FDP/ExtDeps/FastBTree/src/Fbt.Kernel/IAIContext.cs` | **DO NOT MODIFY** (Third-party library) |
+| `FDP/Toolkits/FDP.Toolkit.Behavior/BTreeContext.cs` | **Leave stubs as no-ops** — do not attempt to delete interface members that belong to `Fbt.Kernel`. |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/BTreeNodes/PathfindingActionNode.cs` | **Create** — abstract base class (see spec below) |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/BTreeNodes/Action_PlanRoute.cs` | **Move/refactor** — the existing or placeholder `Action_PlanRoute` node must subclass `PathfindingActionNode` |
 

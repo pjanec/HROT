@@ -1,0 +1,7 @@
+{
+  "CycloneDdsConfigPath": "Config/dds-allinone.xml",
+  "DdsDomainId": 42,
+  "RoadNetworkBlobPath": "Assets/sample_road.json",
+  "DoctrineRegistryPath": "",
+  "EntityTemplatePath": ""
+}

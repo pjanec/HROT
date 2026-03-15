@@ -1,5 +1,4 @@
-using Bagira.Runner.Abstractions;
-using Bagira.Runner.Models;
+using System.Numerics;
 using FDP.Toolkit.Vis2D.Components;
 
 namespace Bagira.Runner.Tests.Mocks
@@ -12,6 +11,9 @@ namespace Bagira.Runner.Tests.Mocks
     public class MapCameraSubsystemMock : ISubsystem, IMapCameraProvider
     {
         public string Name { get; }
+
+        /// <inheritdoc/>
+        public Vector4 TitleBarColor => new Vector4(0.2f, 0.5f, 0.8f, 1f);
 
         /// <summary>The camera returned by <see cref="GetMapCamera"/>.</summary>
         public MapCamera Camera { get; }
