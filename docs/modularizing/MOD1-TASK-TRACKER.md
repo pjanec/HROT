@@ -10,10 +10,10 @@
 
 **Goal:** Introduce the engine-agnostic `NavigationIntent`/`NavigationStatus` ECS components (in **`FDP.Toolkit.Navigation`**; Cartesian `Vector2` destination; toolkit ID block 20–49) and matching DDS descriptors (in `Bagira.BDC.SSTD`). Apply the **dual-enum pattern**: engine-side `NavigationMode`/`NavigationResult` in `FDP.Toolkit.Navigation`; DDS wire `ENavigationMode`/`ENavigationResult` in `Bagira.BDC.SSTD`. Fix legacy `PrimaryOwnerId` authority guard bugs that break split-authority deployments. `MoveToExecutor` writes raw Cartesian coordinates — geo conversion is the translator’s responsibility.
 
-- [ ] **MOD1-P1T1** Define `NavigationIntent` and `NavigationStatus` ECS components + DDS descriptors [details](./MOD1-TASK-DETAIL.md#mod1-p1t1--define-navigationintent-and-navigationstatus-ecs-components--dds-descriptors)
-- [ ] **MOD1-P1T2** Refactor `MoveToExecutor` to CQRS Pattern [details](./MOD1-TASK-DETAIL.md#mod1-p1t2--refactor-movetoexecutor-to-cqrs-pattern)
-- [ ] **MOD1-P1T3** Fix authority guard bugs in Geographic Systems [details](./MOD1-TASK-DETAIL.md#mod1-p1t3--fix-authority-guard-bugs-in-geographic-systems)
-- [ ] **MOD1-P1T4** Add navigation fulfillment logic to `CarKinematicsSystem` [details](./MOD1-TASK-DETAIL.md#mod1-p1t4--add-navigation-fulfillment-logic-to-carkinematicssystem)
+- [x] **MOD1-P1T1** Define `NavigationIntent` and `NavigationStatus` ECS components + DDS descriptors [details](./MOD1-TASK-DETAIL.md#mod1-p1t1--define-navigationintent-and-navigationstatus-ecs-components--dds-descriptors) *(contracts in `Fdp.Kernel`, IDs 67/68)*
+- [x] **MOD1-P1T2** Refactor `MoveToExecutor` to CQRS Pattern [details](./MOD1-TASK-DETAIL.md#mod1-p1t2--refactor-movetoexecutor-to-cqrs-pattern)
+- [x] **MOD1-P1T3** Fix authority guard bugs in Geographic Systems [details](./MOD1-TASK-DETAIL.md#mod1-p1t3--fix-authority-guard-bugs-in-geographic-systems)
+- [x] **MOD1-P1T4** Add navigation fulfillment logic to `CarKinematicsSystem` [details](./MOD1-TASK-DETAIL.md#mod1-p1t4--add-navigation-fulfillment-logic-to-carkinematicssystem) *(as standalone `NavigationExecutionSystem`)*
 
 ---
 
