@@ -21,6 +21,7 @@ namespace Bagira.SimHost.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public void ScanAndPublish_LocallyOwnedEntity_PublishesEntityMasterDTO()
         {
             const uint domainId = 200u;
@@ -59,6 +60,7 @@ namespace Bagira.SimHost.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public void ScanAndPublish_RemotelyOwnedEntity_DoesNotPublish()
         {
             const uint domainId = 205u; // 201 fails on some machines; use 205 instead
@@ -92,6 +94,7 @@ namespace Bagira.SimHost.Tests
         }
 
         [Fact]
+        [Trait("Category", "Integration")]
         public void Dispose_CallsWriterDispose()
         {
             const uint domainId = 202u;

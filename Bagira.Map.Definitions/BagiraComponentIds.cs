@@ -33,7 +33,10 @@ namespace Bagira.Map.Definitions
         /// </summary>
         public const byte ActivePerspective   = 166;
 
-        // IDs 163 and 167–199 are reserved for future application-level components.
+        /// <summary><c>IgSymbolOverride</c> — IOS-sourced per-entity visual override (style-set, affiliation, texture; DB-MOD1-22).</summary>
+        public const byte IgSymbolOverride    = 167;
+
+        // IDs 163 and 168–199 are reserved for future application-level components.
         // NOTE: InFormationTag (formerly 163) has been moved to FDP.Toolkit.Navigation
         //       (GlobalComponentIds.InFormationTag = 70) as part of CT-MOD1-I executor migration.
     }

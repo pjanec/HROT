@@ -90,7 +90,7 @@ namespace Bagira.SimHost.Tests
             var mission = MakeMission(entityId: 1);
 
             var entityMap   = new NetworkEntityMap();
-            var participant = new DdsParticipant();
+            using var participant = new DdsParticipant();
             var translator  = new EntityMissionIngressTranslator(participant, entityMap, new DoctrineRegistry(), new GhostCreationSystem(entityMap));
 
             translator.ApplyToEntity(entity, mission, world);
@@ -113,7 +113,7 @@ namespace Bagira.SimHost.Tests
             var entity = world.CreateEntity();
 
             var entityMap   = new NetworkEntityMap();
-            var participant = new DdsParticipant();
+            using var participant = new DdsParticipant();
             var translator  = new EntityMissionIngressTranslator(participant, entityMap, new DoctrineRegistry(), new GhostCreationSystem(entityMap));
 
             var ex = Record.Exception(() => translator.ApplyToEntity(entity, "not_a_mission", world));
@@ -158,7 +158,7 @@ namespace Bagira.SimHost.Tests
             var entityMap = new NetworkEntityMap();
             // Do NOT register entity 99 in the map.
 
-            var participant = new DdsParticipant();
+            using var participant = new DdsParticipant();
             var translator  = new EntityMissionIngressTranslator(participant, entityMap, new DoctrineRegistry(), new GhostCreationSystem(entityMap));
 
             // PollIngress will Take() from an empty DDS reader, so there is nothing
@@ -183,7 +183,7 @@ namespace Bagira.SimHost.Tests
         {
             using var world = CreateWorld();
             var entityMap   = new NetworkEntityMap();
-            var participant = new DdsParticipant();
+            using var participant = new DdsParticipant();
             var translator  = new EntityMissionEgressTranslator(participant, entityMap);
 
             var ex = Record.Exception(() => translator.ScanAndPublish(world));
@@ -207,7 +207,7 @@ namespace Bagira.SimHost.Tests
             world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
-            var participant = new DdsParticipant();
+            using var participant = new DdsParticipant();
             var translator  = new EntityMissionEgressTranslator(participant, entityMap);
 
             var ex = Record.Exception(() => translator.ScanAndPublish(world));
@@ -229,7 +229,7 @@ namespace Bagira.SimHost.Tests
             world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
-            var participant = new DdsParticipant();
+            using var participant = new DdsParticipant();
             var translator  = new EntityMissionEgressTranslator(participant, entityMap);
 
             var ex = Record.Exception(() => translator.ScanAndPublish(world));
@@ -255,7 +255,7 @@ namespace Bagira.SimHost.Tests
             world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
-            var participant = new DdsParticipant();
+            using var participant = new DdsParticipant();
             var translator  = new EntityMissionEgressTranslator(participant, entityMap);
 
             // First scan — processes the dirty component.
@@ -282,7 +282,7 @@ namespace Bagira.SimHost.Tests
             world.SetComponent(entity, new MissionPlanQueue { PhaseCount = 1 });
 
             var entityMap   = new NetworkEntityMap();
-            var participant = new DdsParticipant();
+            using var participant = new DdsParticipant();
             var translator  = new EntityMissionEgressTranslator(participant, entityMap);
 
             translator.ScanAndPublish(world);
@@ -305,7 +305,7 @@ namespace Bagira.SimHost.Tests
         [Fact]
         public void SimHostModule_ExposesNonNullMissionTranslators()
         {
-            var participant = new DdsParticipant();
+            using var participant = new DdsParticipant();
             var tkb         = new TkbDatabase();
             var entityMap   = new NetworkEntityMap();
             var idAllocator = new DdsIdAllocator(participant, "test-alloc");

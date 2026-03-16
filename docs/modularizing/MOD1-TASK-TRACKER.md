@@ -67,11 +67,11 @@
 - [x] **MOD1-P6T1** Add `SensorModality` bitmask to `TargetMemory` + per-modality receptor components [details](./MOD1-TASK-DETAIL.md#mod1-p6t1--add-sensormodality-bitmask-to-targetmemory--per-modality-receptor-components)
 - [x] **MOD1-P6T2** Add DDS descriptors for perception & pathfinding [details](./MOD1-TASK-DETAIL.md#mod1-p6t2--add-dds-descriptors-for-perception--pathfinding)
 - [x] **MOD1-P6T3** Add `PathfindingBatchData` ECS singleton [details](./MOD1-TASK-DETAIL.md#mod1-p6t3--add-pathfindingbatchdata-ecs-singleton)
-- [ ] **MOD1-P6T4** Wire `BTreeContext.RequestRaycast` / `GetRaycastResult` to `RaycastBatchData` [details](./MOD1-TASK-DETAIL.md#mod1-p6t4--wire-btreecontextrequestraycast--getraycastresult-to-raycastbatchdata)
-- [ ] **MOD1-P6T5** Wire `BTreeContext.RequestPath` / `GetPathResult` to `PathfindingBatchData` [details](./MOD1-TASK-DETAIL.md#mod1-p6t5--wire-btreecontextrequestpath--getpathresult-to-pathfindingbatchdata)
-- [ ] **MOD1-P6T6** Create `AutonomousPerceptionModule` and `PhysicsQueryModule` [details](./MOD1-TASK-DETAIL.md#mod1-p6t6--create-autonomousperceptionmodule-and-physicsquerymodule)
-- [ ] **MOD1-P6T7** Create `NavigationSolverModule` [details](./MOD1-TASK-DETAIL.md#mod1-p6t7--create-navigationsolvermodule)
-- [ ] **MOD1-P6T8** Create perception & pathfinding translator packs [details](./MOD1-TASK-DETAIL.md#mod1-p6t8--create-perception--pathfinding-translator-packs)
+- [x] **MOD1-P6T4** Wire `BTreeContext.RequestRaycast` / `GetRaycastResult` to `RaycastBatchData` [details](./MOD1-TASK-DETAIL.md#mod1-p6t4--wire-btreecontextrequestraycast--getraycastresult-to-raycastbatchdata)
+- [x] **MOD1-P6T5** Wire `BTreeContext.RequestPath` / `GetPathResult` to `PathfindingBatchData` [details](./MOD1-TASK-DETAIL.md#mod1-p6t5--wire-btreecontextrequestpath--getpathresult-to-pathfindingbatchdata)
+- [x] **MOD1-P6T6** Create `AutonomousPerceptionModule` and `PhysicsQueryModule` [details](./MOD1-TASK-DETAIL.md#mod1-p6t6--create-autonomousperceptionmodule-and-physicsquerymodule)
+- [x] **MOD1-P6T7** Create `NavigationSolverModule` [details](./MOD1-TASK-DETAIL.md#mod1-p6t7--create-navigationsolvermodule)
+- [x] **MOD1-P6T8** Create perception & pathfinding translator packs [details](./MOD1-TASK-DETAIL.md#mod1-p6t8--create-perception--pathfinding-translator-packs)
 
 ---
 

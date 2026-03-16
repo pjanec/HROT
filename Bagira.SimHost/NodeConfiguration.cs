@@ -6,6 +6,16 @@ using System.Text.Json.Serialization;
 namespace Bagira.SimHost
 {
     /// <summary>
+    /// Geodetic reference origin for WGS-84 flat-earth projection (absorbed from SimHostConfig, DB-MOD1-09).
+    /// </summary>
+    public sealed record GeodeticOriginConfig
+    {
+        public double Latitude  { get; init; } = 32.0853;
+        public double Longitude { get; init; } = 34.7818;
+        public double Altitude  { get; init; } = 10.0;
+    }
+
+    /// <summary>
     /// JSON-serialisable configuration record for a SimHost node deployment.
     ///
     /// <para>
@@ -55,6 +65,14 @@ namespace Bagira.SimHost
         /// File-system path to the entity template database. Empty string means use built-in.
         /// </summary>
         public string EntityTemplatePath    { get; init; } = string.Empty;
+
+        // ── Simulation ────────────────────────────────────────────────────────
+
+        /// <summary>Target simulation loop rate in Hz (default 60). Absorbed from SimHostConfig (DB-MOD1-09).</summary>
+        public int SimulationRateHz { get; init; } = 60;
+
+        /// <summary>Geodetic reference origin for WGS-84 projection (default: Tel Aviv area). Absorbed from SimHostConfig (DB-MOD1-09).</summary>
+        public GeodeticOriginConfig GeodeticOrigin { get; init; } = new();
 
         // ── Serialisation ─────────────────────────────────────────────────────
 

@@ -1607,6 +1607,17 @@ Add a `Vector4 TitleBarColor { get; }` property to `ISubsystem`. The orchestrato
 3. Keep `SpawnActionHandler`, `MoveActionHandler`, `AssertPositionActionHandler` in `Bagira.Runner`.
 4. `HeadlessTestExecutor` already exposes `RegisterHandler(ITestActionHandler)`. During test startup `Bagira.Runner` calls this to inject Bagira-specific handlers.
 
+**`TestMetricsCollector`** (`FDP.Framework.Runner.Testing`) — thread-safe collector for numeric metrics sampled during a headless test run. Introduced alongside `HeadlessTestExecutor` to allow test scripts to assert on aggregate performance data (min/max/avg/P95) after a run completes. Contains no `Bagira.*` references and is fully generic. Usage pattern:
+
+```csharp
+var metrics = new TestMetricsCollector();
+// Record per-frame metrics during the simulation loop:
+metrics.SampleWorld(world, frameMs: stopwatch.ElapsedMilliseconds);
+metrics.RecordMetric("entity_count_peak", world.EntityCount);
+// Assert after the run:
+Assert.True(metrics.GetSummary("frame_duration_ms").P95 < 20.0, "P95 frame time must be under 20ms");
+```
+
 #### 3.9.5  How `Bagira.Runner` Uses the Toolkit
 
 ```csharp

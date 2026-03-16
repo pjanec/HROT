@@ -1,5 +1,5 @@
 {
-  "DomainId": 0,
+  "DdsDomainId": 0,
   "SimulationRateHz": 60,
   "GeodeticOrigin": {
     "Latitude": 32.0853,

@@ -140,5 +140,25 @@ namespace Bagira.SimHost.Tests
             Assert.Contains(systems, s => s is IgMapRenderSystem);
             Assert.Contains(systems, s => s is SimMapRenderSystem);
         }
+
+        /// <summary>
+        /// When a production canvas is supplied, <see cref="IgPresentationModule"/> must use
+        /// it (not the internal headless default). Verified by checking that
+        /// <see cref="IgPresentationModule.GetCamera"/> returns the same camera instance
+        /// as the provided canvas (DB-MOD1-12).
+        /// </summary>
+        [Fact]
+        public void IgPresentationModule_ProductionCanvas_IsSameAsProvided()
+        {
+            // Arrange: build a canvas without an input provider so no Raylib I/O is needed.
+            var productionCanvas = new MapCanvas(input: null);
+
+            // Act: create the module with the production canvas.
+            var module = new IgPresentationModule(canvas: productionCanvas);
+
+            // Assert: GetCamera() must return the same camera as the provided canvas,
+            // proving the module uses the supplied canvas and not an internal default.
+            Assert.Same(productionCanvas.Camera, module.GetCamera());
+        }
     }
 }

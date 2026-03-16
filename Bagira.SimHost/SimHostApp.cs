@@ -40,7 +40,9 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using FDP.Toolkit.Time.Controllers;
+using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
+using FDP.Toolkit.Vis2D.Defaults;
 using ModuleHost.Core;
 using ModuleHost.Core.Network;
 using ModuleHost.Core.Network.Interfaces;
@@ -97,6 +99,7 @@ namespace Bagira.SimHost
 
         // ── Visualization ─────────────────────────────────────────────────────
         private SimHostVisualization? _vis;
+        private IgPresentationModule? _igPresentationModule;
 
         // ── SimLogic ─────────────────────────────────────────────────────────
         private SimulationLogicModule? _simLogicModule;
@@ -202,10 +205,17 @@ namespace Bagira.SimHost
             Logger.Info($"[SimHost] Node role: {_role}");
 
             // ── 1. Load configuration ─────────────────────────────────────────
-            var config = SimHostConfig.Load("config.json");
-            var domainId = _domainOverride ?? config.DomainId;
+            // NodeConfiguration is the unified config type (DB-MOD1-09); SimHostConfig was absorbed.
+            // When no explicit config is injected (e.g. Runner path), load from config.json on disk —
+            // mirroring the old SimHostConfig.Load("config.json") behaviour.  LoadFrom returns
+            // defaults if the file is absent, so this is safe in all environments.
+            var nodeConfig = _nodeConfig ?? NodeConfiguration.LoadFrom("config.json");
+            // Apply environment side-effects (e.g. CYCLONEDDS_URI) using the resolved config.
+            // Safe to call even when _nodeConfig?.ApplyEnvironment() already ran above — idempotent.
+            if (_nodeConfig == null) nodeConfig.ApplyEnvironment();
+            var domainId = _domainOverride ?? (int)nodeConfig.DdsDomainId;
             Logger.Info($"[SimHost] Domain ID:       {domainId}");
-            Logger.Info($"[SimHost] Simulation Rate: {config.SimulationRateHz} Hz");
+            Logger.Info($"[SimHost] Simulation Rate: {nodeConfig.SimulationRateHz} Hz");
 
             // ── 2. ECS world ──────────────────────────────────────────────────
             _world = new EntityRepository();
@@ -320,7 +330,7 @@ namespace Bagira.SimHost
             // Seed GlobalTime singleton.
             _world.SetSingletonUnmanaged(new GlobalTime
             {
-                DeltaTime = 1.0f / config.SimulationRateHz,
+                DeltaTime = 1.0f / nodeConfig.SimulationRateHz,
                 TimeScale = 1.0f
             });
 
@@ -403,7 +413,16 @@ namespace Bagira.SimHost
                     _simLogicModule.FormationTemplates ?? new FormationTemplateManager(),
                     new DdsWriter<MissionControlRequest>(ddsParticipant));
 
+                // Wire IG presentation module with a real MapCanvas + SstVisualizerAdapter
+                // for production rendering (DB-MOD1-12).
+                var igCanvas = new MapCanvas(new RaylibInputProvider());
+                _igPresentationModule = new IgPresentationModule(canvas: igCanvas);
                 Logger.Info("[SimHost] Visualization ready. Window open.");
+            }
+            else
+            {
+                // Headless / integration-test path: headless canvas (no Raylib calls).
+                _igPresentationModule = new IgPresentationModule(canvas: null);
             }
 
             _initialized = true;
