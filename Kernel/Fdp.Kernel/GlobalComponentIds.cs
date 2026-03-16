@@ -186,22 +186,7 @@ namespace Fdp.Kernel
         /// <summary><c>GhostStateTracker</c> — tracks the birth frame of a ghost entity for promotion and timeout logic.</summary>
         public const byte GhostStateTracker       = 66;
 
-        /// <summary>
-        /// <c>NavigationIntent</c> — CQRS command component carrying the Brain's navigation order
-        /// (target position, speed, arrival radius, intent ID).
-        /// Defined in <c>FDP.Toolkit.Navigation</c> namespace; placed in Fdp.Kernel to avoid a
-        /// circular assembly dependency between <c>FDP.Toolkit.Navigation</c> and
-        /// <c>FDP.Toolkit.CarKinem</c>.  See <c>NavigationComponents.cs</c>.
-        /// </summary>
-        public const byte NavigationIntent        = 67;
-
-        /// <summary>
-        /// <c>NavigationStatus</c> — CQRS status component carrying the Muscle's navigation
-        /// result (echoed intent ID, result enum).
-        /// Defined in <c>FDP.Toolkit.Navigation</c> namespace; placed in Fdp.Kernel for the
-        /// same circular-dependency reason as <see cref="NavigationIntent"/>.
-        /// </summary>
-        public const byte NavigationStatus        = 68;
+        // 67–68 freed — moved to FDP.Toolkit.Navigation.Contracts (NavigationContractsComponentIds).
 
         /// <summary><c>ChildMap</c> — maps sub-entity instance IDs to local ECS entities.</summary>
         public const byte ChildMap                = 57;
@@ -228,7 +213,7 @@ namespace Fdp.Kernel
         public const byte NetworkEntityMap        = 64;
 
         // IDs 65–79 are reserved for future toolkit components.
-        // IDs 67–68 are used for Navigation toolkit components (NavigationIntent, NavigationStatus).
+        // 67–68 freed — moved to FDP.Toolkit.Navigation.Contracts (NavigationContractsComponentIds).
 
         /// <summary>
         /// <c>FrustrationTicks</c> — per-entity frustration counter used by
@@ -314,8 +299,7 @@ namespace Fdp.Kernel
         /// <summary><c>VisualData</c> — runtime TKB visual data (symbol, model path, colour) cached on entity.</summary>
         public const byte VisualData              = 118;
 
-        /// <summary><c>IgSymbolOverride</c> — IOS-sourced per-entity visual override (style-set, affiliation).</summary>
-        public const byte IgSymbolOverride        = 119;
+        // ID 119 was IgSymbolOverride; moved to BagiraComponentIds.IgSymbolOverride = 167 (DB-MOD1-22).
 
         /// <summary><c>MapOverlayStyle</c> — rendering style (fill colour, border colour, line thickness) for a map visual overlay.</summary>
         public const byte MapOverlayStyle         = 120;

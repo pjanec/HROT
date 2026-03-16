@@ -24,6 +24,13 @@ namespace ModuleHost.Core.Network
     {
         public int PrimaryOwnerId; // Default owner (EntityMaster)
         public int LocalNodeId;    // To verify ownership quickly
+
+        /// <summary>
+        /// True if the local node has authority over this entity.
+        /// Replaces direct <c>PrimaryOwnerId == LocalNodeId</c> comparisons in systems
+        /// (DB-MOD1-03 — standardize to the authority-check API).
+        /// </summary>
+        public bool HasAuthority => PrimaryOwnerId == LocalNodeId;
     }
     
     /// <summary>

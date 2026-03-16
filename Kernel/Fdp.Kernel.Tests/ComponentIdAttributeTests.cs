@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Reflection;
 using Xunit;
 using Fdp.Kernel;
 
@@ -164,6 +166,29 @@ namespace Fdp.Tests
             Assert.InRange<byte>(GlobalComponentIds.SelectionState,      110, 139);
             Assert.InRange<byte>(GlobalComponentIds.VisualEffectState,   110, 139);
             Assert.InRange<byte>(GlobalComponentIds.TracerTarget,        110, 139);
+        }
+
+        /// <summary>
+        /// Every <c>const byte</c> field on <see cref="GlobalComponentIds"/> must have a
+        /// unique value. A duplicate would mean two component types share the same ID,
+        /// causing silent data corruption in the ECS.
+        /// </summary>
+        [Fact]
+        public void GlobalComponentIds_NoToolkitBlockDuplicates()
+        {
+            var fields = typeof(GlobalComponentIds)
+                .GetFields(BindingFlags.Public | BindingFlags.Static)
+                .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(byte))
+                .ToList();
+
+            var seen = new Dictionary<byte, string>();
+            foreach (var field in fields)
+            {
+                var value = (byte)field.GetRawConstantValue()!;
+                if (seen.TryGetValue(value, out var existing))
+                    Assert.Fail($"Duplicate GlobalComponentId value {value}: '{existing}' and '{field.Name}'");
+                seen[value] = field.Name;
+            }
         }
     }
 }

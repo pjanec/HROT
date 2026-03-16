@@ -1,24 +1,10 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// NavigationIntent and NavigationStatus live in Fdp.Kernel (rather than
-// FDP.Toolkit.Navigation) for the same reason HealthData lives here: to
-// prevent a circular assembly dependency.
-//
-//   FDP.Toolkit.Navigation → FDP.Toolkit.CarKinem  (FollowRouteExecutor etc.)
-//   FDP.Toolkit.CarKinem   → Fdp.Kernel             (already)
-//
-// Placing the contracts in Fdp.Kernel lets both toolkits share them without
-// either referencing the other.  The C# namespace stays FDP.Toolkit.Navigation
-// to match the design document (§3.1.1 and §2.5).
-// ─────────────────────────────────────────────────────────────────────────────
-
-// GlobalComponentIds, ComponentIdAttribute, etc. live in the Fdp.Kernel namespace.
-// Files in the Fdp.Kernel *project* can use them without a using directive only if
-// they are in the same namespace.  Since this file uses a different namespace
-// (FDP.Toolkit.Navigation) the explicit using is required.
 using Fdp.Kernel;
+
+// DB-MOD1-23: NavigationIntent and NavigationStatus moved from Fdp.Kernel/CoreComponents/NavigationComponents.cs
+// into this thin contracts assembly so that both FDP.Toolkit.Navigation and FDP.Toolkit.CarKinem can
+// reference them without creating a circular assembly dependency.
 
 namespace FDP.Toolkit.Navigation
 {
@@ -89,7 +75,7 @@ namespace FDP.Toolkit.Navigation
     /// </para>
     /// </remarks>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.NavigationIntent)]
+    [ComponentId(NavigationContractsComponentIds.NavigationIntent)]
     public struct NavigationIntent
     {
         /// <summary>Active navigation mode; <see cref="NavigationMode.None"/> = inactive.</summary>
@@ -122,7 +108,7 @@ namespace FDP.Toolkit.Navigation
     /// Written by <c>NavigationExecutionSystem</c>; observed by <c>MoveToExecutor.Execute</c>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.NavigationStatus)]
+    [ComponentId(NavigationContractsComponentIds.NavigationStatus)]
     public struct NavigationStatus
     {
         /// <summary>

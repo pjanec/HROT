@@ -107,9 +107,11 @@ namespace FDP.Toolkit.Replay.Tests
             // (it runs on a background thread).
             var seekTask = module.SeekToFrameAsync(0);
 
-            // Assert: the Task must be a running Task, not a completed synchronous inline result.
-            // We check that it is a Task (not ValueTask/null) and can be awaited.
-            Assert.NotNull(seekTask);
+            // Assert: the Task must NOT be completed synchronously — it was genuinely
+            // dispatched to a background thread, proving it is off-main-thread.
+            Assert.False(seekTask.IsCompleted,
+                "SeekToFrameAsync completed synchronously; it must run on a background thread.");
+
             await seekTask; // completes without throwing
 
             module.Dispose();

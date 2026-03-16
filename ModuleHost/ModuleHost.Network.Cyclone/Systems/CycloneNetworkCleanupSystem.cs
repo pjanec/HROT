@@ -34,7 +34,7 @@ namespace ModuleHost.Network.Cyclone.Systems
             foreach (var entity in query)
             {
                  ref readonly var ownership = ref view.GetComponentRO<NetworkOwnership>(entity);
-                 if (ownership.PrimaryOwnerId != ownership.LocalNodeId) continue;
+                 if (!ownership.HasAuthority) continue; // DB-MOD1-03: replaced PrimaryOwnerId != LocalNodeId
                  
                  ref readonly var identity = ref view.GetComponentRO<NetworkIdentity>(entity);
                  long netId = identity.Value;

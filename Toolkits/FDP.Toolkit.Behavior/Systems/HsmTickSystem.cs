@@ -58,6 +58,9 @@ namespace FDP.Toolkit.Behavior.Systems
                 .With<T>()
                 .Build();
 
+            // Early-exit: skip the per-entity overhead when no HSM entities exist.
+            if (q.IsEmpty) return;
+
             foreach (var entity in q)
             {
                 var doctrine = World.GetComponent<DoctrineState>(entity);

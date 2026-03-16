@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!-- DB-MOD1-23: Thin contracts assembly that holds NavigationIntent, NavigationStatus
+       and the enums they depend on, accessible by both FDP.Toolkit.Navigation and
+       FDP.Toolkit.CarKinem without creating a circular project dependency.
+       This assembly references only Fdp.Kernel. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+  </ItemGroup>
+</Project>

@@ -37,8 +37,11 @@ namespace FDP.Toolkit.CarKinem.Modules
     public sealed class GroundKinematicsModule
     {
         private readonly RoadNetworkBlob          _roadNetwork;
-        private readonly TrajectoryPoolManager     _trajectoryPool;
-        private readonly FormationTemplateManager  _formationTemplates;
+        // Lazy-allocated: null until first access via the properties below.
+        // This avoids eagerly creating pools for roles that construct this module
+        // but never call RegisterSystems (e.g. unit test probing / dry-run inspection).
+        private TrajectoryPoolManager?    _trajectoryPool;
+        private FormationTemplateManager? _formationTemplates;
 
         /// <param name="roadNetwork">
         ///   Road network blob for <see cref="CarKinematicsSystem"/>.
@@ -46,11 +49,11 @@ namespace FDP.Toolkit.CarKinem.Modules
         /// </param>
         /// <param name="trajectoryPool">
         ///   Shared trajectory pool for <see cref="CarKinematicsSystem"/> and
-        ///   <see cref="FormationTargetSystem"/>. A new pool is created when <c>null</c>.
+        ///   <see cref="FormationTargetSystem"/>. A new pool is created lazily when <c>null</c>.
         /// </param>
         /// <param name="formationTemplates">
         ///   Formation layout templates for <see cref="FormationTargetSystem"/>.
-        ///   A new manager (with default templates) is created when <c>null</c>.
+        ///   A new manager (with default templates) is created lazily when <c>null</c>.
         /// </param>
         public GroundKinematicsModule(
             RoadNetworkBlob roadNetwork = default,
@@ -58,25 +61,27 @@ namespace FDP.Toolkit.CarKinem.Modules
             FormationTemplateManager? formationTemplates = null)
         {
             _roadNetwork        = roadNetwork;
-            _trajectoryPool     = trajectoryPool     ?? new TrajectoryPoolManager();
-            _formationTemplates = formationTemplates ?? new FormationTemplateManager();
+            _trajectoryPool     = trajectoryPool;     // null = lazy-allocate on first use
+            _formationTemplates = formationTemplates; // null = lazy-allocate on first use
         }
 
-        /// <summary>Shared trajectory pool (exposed for visualization and test observation).</summary>
-        public TrajectoryPoolManager TrajectoryPool => _trajectoryPool;
+        /// <summary>Shared trajectory pool (lazy-allocated on first access when not provided at construction).</summary>
+        public TrajectoryPoolManager TrajectoryPool => _trajectoryPool ??= new TrajectoryPoolManager();
 
-        /// <summary>Shared formation-template manager.</summary>
-        public FormationTemplateManager FormationTemplates => _formationTemplates;
+        /// <summary>Shared formation-template manager (lazy-allocated on first access when not provided at construction).</summary>
+        public FormationTemplateManager FormationTemplates => _formationTemplates ??= new FormationTemplateManager();
 
         /// <summary>
         /// Registers the ground kinematics systems into the provided simulation group.
+        /// Accessing this method triggers lazy allocation of <see cref="TrajectoryPool"/> and
+        /// <see cref="FormationTemplates"/> if they were not supplied at construction time.
         /// </summary>
         public void RegisterSystems(SystemGroup group)
         {
             group.AddSystem(new SpatialHashSystem());
-            group.AddSystem(new FormationTargetSystem(_formationTemplates, _trajectoryPool));
+            group.AddSystem(new FormationTargetSystem(FormationTemplates, TrajectoryPool));
             group.AddSystem(new VehicleCommandSystem());
-            group.AddSystem(new CarKinematicsSystem(_roadNetwork, _trajectoryPool));
+            group.AddSystem(new CarKinematicsSystem(_roadNetwork, TrajectoryPool));
             group.AddSystem(new NavigationExecutionSystem());
             // LinearKinematicsSystem was previously registered directly in SimulationLogicModule
             // because FDP.Toolkit.Physics→CarKinem made it circular.

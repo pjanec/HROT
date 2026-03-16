@@ -69,6 +69,20 @@ namespace Fdp.Kernel
         public EntityEnumerator GetEnumerator() => new EntityEnumerator(this);
 
         /// <summary>
+        /// Returns <c>true</c> if no entity currently matches this query.
+        /// Intended for cheap early-exit guards in systems that are registered
+        /// unconditionally but only do real work when matching entities exist.
+        /// </summary>
+        public bool IsEmpty
+        {
+            get
+            {
+                var en = GetEnumerator();
+                return !en.MoveNext();
+            }
+        }
+
+        /// <summary>
         /// Zero-allocation enumerator for EntityQuery.
         /// </summary>
         public ref struct EntityEnumerator

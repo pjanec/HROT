@@ -73,9 +73,14 @@ namespace FDP.Toolkit.Combat.Systems
                 // Sync HealthData mirror (Fdp.Kernel) so Behavior systems
                 // (e.g. MissionDirectorSystem) can react to health without
                 // a Combat → Behavior circular dependency (DEBT-033).
+                // Dirty-flag guard (DB-MOD1-25): only write when Current has changed.
                 if (World.HasComponent<HealthData>(evt.HitEntity))
-                    World.SetComponent(evt.HitEntity,
-                        new HealthData { Current = health.Current, Max = health.Max });
+                {
+                    var existingHd = World.GetComponent<HealthData>(evt.HitEntity);
+                    if (existingHd.Current != health.Current)
+                        World.SetComponent(evt.HitEntity,
+                            new HealthData { Current = health.Current, Max = health.Max });
+                }
 
                 // 7. If lethal: strip capabilities first (HsmDamageBridgeSystem reads this in
                 //    the same frame), then destroy the hit entity.
