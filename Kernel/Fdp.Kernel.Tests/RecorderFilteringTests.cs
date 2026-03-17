@@ -25,7 +25,7 @@ namespace Fdp.Tests
             using var writer = new BinaryWriter(ms);
             
             // Use Keyframe to force write all valid chunks
-            recorder.RecordKeyframe(repo, writer);
+            recorder.RecordKeyframe(repo, writer, 0L);
             writer.Flush();
             ms.Position = 0;
 

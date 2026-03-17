@@ -165,7 +165,7 @@ namespace Fdp.Tests
                 // Tick and record
                 repo.Tick();
                 _output.WriteLine($"\n2. Recording delta frame (version={repo.GlobalVersion})...");
-                recorder.RecordDeltaFrame(repo, 0, writer, eventBus);
+                recorder.RecordDeltaFrame(repo, 0, writer, 0L, eventBus);
                 
                 // Show what was written
                 byte[] recorded = ms.ToArray();

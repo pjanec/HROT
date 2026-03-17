@@ -98,14 +98,18 @@ namespace Fdp.Kernel.FlightRecorder
         /// <summary>
         /// Call this at End-Of-Frame (Phase: PostSimulation).
         /// </summary>
+        /// <param name="wallClockTicks">The frame-locked wall-clock timestamp (UTC ticks) for this frame.
+        /// Must be supplied by the caller — typically read from
+        /// <c>GlobalTime.TotalWallTicks</c> so the stamp is constant across all PostSimulation systems
+        /// and is never sampled inside the async recording path.</param>
         /// <param name="blocking">If true, waits for previous write to complete instead of dropping frame.</param>
         /// <param name="eventBus">Optional event bus to capture events from for this frame.</param>
-        public void CaptureFrame(EntityRepository repo, uint prevTick, bool blocking = false, FdpEventBus? eventBus = null)
+        public void CaptureFrame(EntityRepository repo, uint prevTick, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null)
         {
             // Auto-Recovery: If we dropped a frame previously, force a Keyframe now to restore state.
             if (_forceKeyframeNext)
             {
-                CaptureKeyframe(repo, blocking, eventBus);
+                CaptureKeyframe(repo, wallClockTicks, blocking, eventBus);
                 _forceKeyframeNext = false;
                 return;
             }
@@ -137,7 +141,7 @@ namespace Fdp.Kernel.FlightRecorder
             {
                 // Use the logic from FDP-DES-002
                 // Use the logic from FDP-DES-002
-                _recorderSystem.RecordDeltaFrame(repo, prevTick, writer, eventBus);
+                _recorderSystem.RecordDeltaFrame(repo, prevTick, writer, wallClockTicks, eventBus);
                 writer.Flush();
                 
                 bytesWritten = (int)ms.Position;
@@ -162,7 +166,11 @@ namespace Fdp.Kernel.FlightRecorder
         /// <summary>
         /// Captures a full keyframe instead of a delta.
         /// </summary>
-        public void CaptureKeyframe(EntityRepository repo, bool blocking = false, FdpEventBus? eventBus = null)
+        /// <param name="wallClockTicks">The frame-locked wall-clock timestamp (UTC ticks) for this frame.
+        /// Must be supplied by the caller — typically read from
+        /// <c>GlobalTime.TotalWallTicks</c> so the stamp is constant across all PostSimulation systems.
+        /// </param>
+        public void CaptureKeyframe(EntityRepository repo, long wallClockTicks, bool blocking = false, FdpEventBus? eventBus = null)
         {
             // Wait for previous frame to complete
             _workerTask?.Wait();
@@ -172,7 +180,7 @@ namespace Fdp.Kernel.FlightRecorder
             using (var ms = new MemoryStream(_frontBuffer))
             using (var writer = new BinaryWriter(ms))
             {
-                _recorderSystem.RecordKeyframe(repo, writer, eventBus);
+                _recorderSystem.RecordKeyframe(repo, writer, wallClockTicks, eventBus);
                 writer.Flush();
                 bytesWritten = (int)ms.Position;
             }
@@ -204,9 +212,10 @@ namespace Fdp.Kernel.FlightRecorder
             try
             {
                 // 1. Extract Metadata for Indexing (Duplicated in header to avoid decompression during scan)
-                // Format ensures [Tick: 8 bytes] [Type: 1 byte] are at start
+                // Format ensures [Tick: 8 bytes] [Type: 1 byte] [WallClockTicks: 8 bytes] are at start
                 ulong tick = BitConverter.ToUInt64(rawData, 0);
                 byte type = rawData[8];
+                long wallClockTicks = BitConverter.ToInt64(rawData, 9);
 
                 // 2. COMPRESS
                 // Compress the ENTIRE frame (including Tick/Type because PlaybackSystem expects them)
@@ -217,9 +226,9 @@ namespace Fdp.Kernel.FlightRecorder
                 lock (_outputStream)
                 {
                     // 3. WRITE HEADER
-                    // New Format: [CompLen: 4][UncompLen: 4][Tick: 8][Type: 1][CompressedData...]
+                    // New Format: [CompLen: 4][UncompLen: 4][Tick: 8][Type: 1][WallClockTicks: 8][CompressedData...]
                     
-                    Span<byte> header = stackalloc byte[17]; // 4 + 4 + 8 + 1
+                    Span<byte> header = stackalloc byte[25]; // 4 + 4 + 8 + 1 + 8
                     
                     // Compressed Length
                     System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(header.Slice(0, 4), encodedLength);
@@ -229,6 +238,8 @@ namespace Fdp.Kernel.FlightRecorder
                     System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(header.Slice(8, 8), tick);
                     // Type
                     header[16] = type;
+                    // WallClockTicks
+                    System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(header.Slice(17, 8), wallClockTicks);
                     
                     _outputStream.Write(header);
                     

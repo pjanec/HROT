@@ -128,7 +128,7 @@ namespace FDP.Toolkit.Replay.Tests
 
             using var recorder = new AsyncRecorder(filePath);
             for (int i = 0; i < frameCount; i++)
-                recorder.CaptureFrame(world, (uint)i, blocking: true);
+                recorder.CaptureFrame(world, (uint)i, DateTime.UtcNow.Ticks, blocking: true);
 
             // Dispose writes the file footer and .meta.json.
             return filePath;

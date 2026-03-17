@@ -23,7 +23,7 @@ namespace Fdp.Tests
             using var writer = new BinaryWriter(ms);
             
             var recorder = new RecorderSystem();
-            recorder.RecordKeyframe(sourceRepo, writer);
+            recorder.RecordKeyframe(sourceRepo, writer, 0L);
 
             // Act - Replay into a fresh repository
             using var destRepo = new EntityRepository();
@@ -60,7 +60,7 @@ namespace Fdp.Tests
             using var writer = new BinaryWriter(ms);
             
             var recorder = new RecorderSystem();
-            recorder.RecordKeyframe(sourceRepo, writer);
+            recorder.RecordKeyframe(sourceRepo, writer, 0L);
             
             // Act
             using var destRepo = new EntityRepository();

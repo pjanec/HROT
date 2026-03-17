@@ -42,7 +42,7 @@ namespace Fdp.Tests
                 temp.DestroyEntity(e1); // Kill 1
                 
                 // Record using the actual system
-                new RecorderSystem().RecordKeyframe(temp, writer);
+                new RecorderSystem().RecordKeyframe(temp, writer, 0L);
             }
             
             // Act

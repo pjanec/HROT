@@ -50,14 +50,17 @@ namespace Fdp.Kernel.FlightRecorder
         /// <param name="repo">Entity repository</param>
         /// <param name="prevTick">Previous version for delta comparison</param>
         /// <param name="writer">Binary writer to write to</param>
+        /// <param name="wallClockTicks">UTC wall-clock ticks at time of capture (DateTime.UtcNow.Ticks)</param>
         /// <param name="eventBus">Optional event bus for event recording</param>
-        public void RecordDeltaFrame(EntityRepository repo, uint prevTick, BinaryWriter writer, FdpEventBus? eventBus = null)
+        public void RecordDeltaFrame(EntityRepository repo, uint prevTick, BinaryWriter writer,
+            long wallClockTicks, FdpEventBus? eventBus = null)
         {
             // ---------------------------------------------------------
             // 1. WRITE FRAME METADATA
             // ---------------------------------------------------------
             writer.Write((ulong)repo.GlobalVersion); // Current Tick (ulong) - Explicit Cast!
             writer.Write((byte)0);            // Type: Delta (0)
+            writer.Write(wallClockTicks);     // WallClockTicks (long, 8 bytes)
             
             // ---------------------------------------------------------
             // 2. WRITE DESTRUCTIONS
@@ -296,12 +299,15 @@ namespace Fdp.Kernel.FlightRecorder
         /// </summary>
         /// <param name="repo">Entity repository</param>
         /// <param name="writer">Binary writer to write to</param>
+        /// <param name="wallClockTicks">UTC wall-clock ticks at time of capture (DateTime.UtcNow.Ticks)</param>
         /// <param name="eventBus">Optional event bus for event recording</param>
-        public void RecordKeyframe(EntityRepository repo, BinaryWriter writer, FdpEventBus? eventBus = null)
+        public void RecordKeyframe(EntityRepository repo, BinaryWriter writer,
+            long wallClockTicks, FdpEventBus? eventBus = null)
         {
             // Write frame metadata
             writer.Write((ulong)repo.GlobalVersion); // Current Tick - Explicit Cast!
             writer.Write((byte)1);            // Type: Keyframe (1)
+            writer.Write(wallClockTicks);     // WallClockTicks (long, 8 bytes)
             
             // Keyframes don't need destruction log (full state)
             writer.Write(0); // DestroyCount = 0

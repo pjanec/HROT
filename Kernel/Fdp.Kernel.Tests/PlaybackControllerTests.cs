@@ -51,12 +51,12 @@ namespace Fdp.Tests
                 
                 if (frame % keyframeInterval == 0)
                 {
-                    recorder.CaptureKeyframe(repo, blocking: true);
+                    recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 }
                 else
                 {
                     // Version check: currentTick > prevTick succeeds
-                    recorder.CaptureFrame(repo, prevTick, blocking: true);
+                    recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                 }
                 
                 prevTick = currentTick;

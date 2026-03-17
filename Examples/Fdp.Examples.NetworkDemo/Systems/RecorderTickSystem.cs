@@ -25,8 +25,11 @@ namespace Fdp.Examples.NetworkDemo.Systems
 
         public void Execute(ISimulationView view, float dt)
         {
+            // Sample wall clock once at the call site (frame-locked at the system boundary).
+            // Will be replaced by GlobalTime.TotalWallTicks in Phase 3.
+            long wallClockTicks = DateTime.UtcNow.Ticks;
             // Capture frame.
-            _recorder.CaptureFrame(_repo, _tickCount++);
+            _recorder.CaptureFrame(_repo, _tickCount++, wallClockTicks);
         }
     }
 }

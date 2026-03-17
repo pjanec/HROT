@@ -128,14 +128,14 @@ namespace Fdp.Tests
                 
                 if (frame % keyframeInterval == 0)
                 {
-                    recorder.CaptureKeyframe(repo, blocking: true);
+                    recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     frameInfo.IsKeyframe = true;
                 }
                 else
                 {
                     // Record delta against previous tick
                     // Version check: currentTick > prevTick will succeed
-                    recorder.CaptureFrame(repo, prevTick, blocking: true);
+                    recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     frameInfo.IsKeyframe = false;
                 }
                 

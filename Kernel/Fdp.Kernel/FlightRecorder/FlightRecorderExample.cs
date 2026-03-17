@@ -54,13 +54,13 @@ namespace Fdp.Examples
                 if (frame % 60 == 0)
                 {
                     Console.WriteLine($"Recording keyframe at frame {frame}");
-                    recorder.CaptureKeyframe(repo);
+                    recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks);
                 }
                 else
                 {
                     // Record delta frame
                     uint prevTick = repo.GlobalVersion - 1;
-                    recorder.CaptureFrame(repo, prevTick);
+                    recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks);
                 }
                 
                 // Randomly destroy an entity to test destruction logging

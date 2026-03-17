@@ -472,15 +472,20 @@ public class CarKinemApp : FdpApplication
             {
                 var time = _kernel.GetTimeController().GetCurrentState();
                 
+                // Use frame-locked wall clock: TotalWallTicks if populated, else sample at call-site.
+                long wallTicks = time.TotalWallTicks != 0
+                    ? time.TotalWallTicks
+                    : DateTime.UtcNow.Ticks;
+
                 // Capture Keyframe every 60 frames
                 if (time.FrameNumber % 60 == 0)
                 {
-                    _recorder.CaptureKeyframe(_repository);
+                    _recorder.CaptureKeyframe(_repository, wallTicks);
                 }
                 
                 // prevTick is previous frame index
                 uint prevTick = (uint)Math.Max(0, time.FrameNumber - 1);
-                _recorder.CaptureFrame(_repository, prevTick);
+                _recorder.CaptureFrame(_repository, prevTick, wallTicks);
             }
         }
 

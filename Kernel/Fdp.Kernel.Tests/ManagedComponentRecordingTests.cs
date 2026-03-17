@@ -48,7 +48,7 @@ namespace Fdp.Tests
                 // Then add component
                 repo.AddManagedComponent(e, new SquadName { Name = "Alpha" });
                 
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Replay

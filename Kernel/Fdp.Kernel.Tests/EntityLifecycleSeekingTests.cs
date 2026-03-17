@@ -56,23 +56,23 @@ namespace Fdp.Tests
                 {
                     repo.Tick();
                     if (i == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
                 
                 // Frame 5: Entity created
                 repo.Tick();
                 entity = repo.CreateEntity();
                 repo.AddComponent(entity, new IntComponent { Value = 100 });
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frames 6-10: Entity exists
                 for (int i = 6; i <= 10; i++)
                 {
                     repo.Tick();
                     repo.SetUnmanagedComponent(entity, new IntComponent { Value = i * 10 });
-                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             
@@ -113,32 +113,32 @@ namespace Fdp.Tests
             {
                 // Frame 0: Empty
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 1: Create entity
                 repo.Tick();
                 entity = repo.CreateEntity();
                 repo.AddComponent(entity, new IntComponent { Value = 100 });
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frames 2-4: Entity exists
                 for (int i = 2; i <= 4; i++)
                 {
                     repo.Tick();
                     repo.SetUnmanagedComponent(entity, new IntComponent { Value = i * 100 });
-                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
                 
                 // Frame 5: Destroy entity
                 repo.Tick();
                 repo.DestroyEntity(entity);
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frames 6-10: Entity is dead
                 for (int i = 6; i <= 10; i++)
                 {
                     repo.Tick();
-                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             
@@ -179,44 +179,44 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Cycle 1: Create, use, delete
                 repo.Tick(); // Frame 1
                 firstGen = repo.CreateEntity();
                 repo.AddComponent(firstGen, new IntComponent { Value = 100 });
                 repo.AddManagedComponent(firstGen, new UnitName { Name = "FirstGen" });
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 repo.Tick(); // Frame 2
                 repo.SetUnmanagedComponent(firstGen, new IntComponent { Value = 200 });
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 repo.Tick(); // Frame 3
                 repo.DestroyEntity(firstGen);
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Cycle 2: Recreate same slot (higher generation)
                 repo.Tick(); // Frame 4
                 secondGen = repo.CreateEntity();
                 repo.AddComponent(secondGen, new IntComponent { Value = 300 });
                 repo.AddManagedComponent(secondGen, new UnitName { Name = "SecondGen" });
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 repo.Tick(); // Frame 5
                 repo.SetUnmanagedComponent(secondGen, new IntComponent { Value = 400 });
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 repo.Tick(); // Frame 6
                 repo.DestroyEntity(secondGen);
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Cycle 3: Recreate again
                 repo.Tick(); // Frame 7
                 thirdGen = repo.CreateEntity();
                 repo.AddComponent(thirdGen, new IntComponent { Value = 500 });
                 repo.AddManagedComponent(thirdGen, new UnitName { Name = "ThirdGen" });
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Verify all three use the same slot but different generations
@@ -309,42 +309,42 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick(); // Frame 0
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 1: Knight spawns
                 repo.Tick();
                 knight = repo.CreateEntity();
                 repo.AddComponent(knight, new Position { X = 1, Y = 0, Z = 0 });
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 2: Archer spawns
                 repo.Tick();
                 archer = repo.CreateEntity();
                 repo.AddComponent(archer, new Position { X = 2, Y = 0, Z = 0 });
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 3: Both move
                 repo.Tick();
                 repo.SetUnmanagedComponent(knight, new Position { X = 1, Y = 1, Z = 0 });
                 repo.SetUnmanagedComponent(archer, new Position { X = 2, Y = 1, Z = 0 });
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 4: Knight dies
                 repo.Tick();
                 repo.DestroyEntity(knight);
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 5: Mage spawns (reuses knight's slot)
                 repo.Tick();
                 mage = repo.CreateEntity();
                 repo.AddComponent(mage, new Position { X = 3, Y = 0, Z = 0 });
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 6: Archer and Mage move
                 repo.Tick();
                 repo.SetUnmanagedComponent(archer, new Position { X = 2, Y = 2, Z = 0 });
                 repo.SetUnmanagedComponent(mage, new Position { X = 3, Y = 1, Z = 0 });
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             using var controller = new PlaybackController(_testFilePath);
@@ -412,7 +412,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Create complex pattern: spawn, modify, destroy entities
                 for (int frame = 1; frame <= totalFrames; frame++)
@@ -435,9 +435,9 @@ namespace Fdp.Tests
                     }
                     
                     if (frame % 5 == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             

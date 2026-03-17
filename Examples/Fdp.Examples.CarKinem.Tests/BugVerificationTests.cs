@@ -80,11 +80,11 @@ namespace Fdp.Examples.CarKinem.Tests
             {
                 _app.Repository.GetSingletonUnmanaged<GlobalTime>().DeltaTime = 0.016f;
                 // Capture Header (done in ctor)
-                recorder.CaptureKeyframe(_app.Repository, blocking: true); // Frame 0
+                recorder.CaptureKeyframe(_app.Repository, DateTime.UtcNow.Ticks, blocking: true); // Frame 0
                 for(int i=1; i<10; i++)
                 {
                     _app.Repository.GetSingletonUnmanaged<GlobalTime>().FrameNumber = (uint)i;
-                    recorder.CaptureFrame(_app.Repository, (uint)(i-1), blocking: true);
+                    recorder.CaptureFrame(_app.Repository, (uint)(i-1), DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             

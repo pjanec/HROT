@@ -212,11 +212,11 @@ namespace Fdp.Examples.Showcase.Core
                     
                     if (isKeyframe)
                     {
-                        DiskRecorder.CaptureKeyframe(Repo, blocking: false, eventBus: _eventBus);
+                        DiskRecorder.CaptureKeyframe(Repo, DateTime.UtcNow.Ticks, blocking: false, eventBus: _eventBus);
                     }
                     else
                     {
-                        DiskRecorder.CaptureFrame(Repo, _previousTick, blocking: false, eventBus: _eventBus);
+                        DiskRecorder.CaptureFrame(Repo, _previousTick, DateTime.UtcNow.Ticks, blocking: false, eventBus: _eventBus);
                     }
                     RecordPhaseTime("14. Recorder", phaseStart);
                     

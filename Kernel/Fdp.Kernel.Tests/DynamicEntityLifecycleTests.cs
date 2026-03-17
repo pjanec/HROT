@@ -55,7 +55,7 @@ namespace Fdp.Tests
             {
                 // Frame 0: Initial keyframe
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Frames 1-5: Spawn wave 1 (5 enemies)
@@ -66,7 +66,7 @@ namespace Fdp.Tests
                     repo.AddComponent(enemy, new Health { Value = frame * 10 });
                     spawnedEntities.Add((frame, enemy, frame * 10));
                     
-                    recorder.CaptureFrame(repo, prevTick, blocking: true);
+                    recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     prevTick = repo.GlobalVersion;
                 }
                 
@@ -77,7 +77,7 @@ namespace Fdp.Tests
                     repo.DestroyEntity(spawnedEntities[i].entity);
                     destroyedEntities.Add((6, spawnedEntities[i].entity));
                 }
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                 prevTick = repo.GlobalVersion;
                 
                 // Frames 7-9: Spawn wave 2 (reusing slots from first 3)
@@ -88,7 +88,7 @@ namespace Fdp.Tests
                     repo.AddComponent(enemy, new Health { Value = frame * 20 });
                     spawnedEntities.Add((frame, enemy, frame * 20));
                     
-                    recorder.CaptureFrame(repo, prevTick, blocking: true);
+                    recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     prevTick = repo.GlobalVersion;
                 }
             }
@@ -138,27 +138,27 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Frame 1: Create entity at slot 0
                 repo.Tick();
                 firstEntity = repo.CreateEntity();
                 repo.AddComponent(firstEntity, new IntComponent { Value = 100 });
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                 prevTick = repo.GlobalVersion;
                 
                 // Frame 2: Destroy entity
                 repo.Tick();
                 repo.DestroyEntity(firstEntity);
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                 prevTick = repo.GlobalVersion;
                 
                 // Frame 3: Create new entity (should reuse slot 0 with higher generation)
                 repo.Tick();
                 secondEntity = repo.CreateEntity();
                 repo.AddComponent(secondEntity, new IntComponent { Value = 200 });
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Verify they share the same index but different generations
@@ -207,7 +207,7 @@ namespace Fdp.Tests
             {
                 // Frame 0: Keyframe
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Frames 1-10: Wave 1 (10 units)
@@ -220,9 +220,9 @@ namespace Fdp.Tests
                     wave1.Add(unit);
                     
                     if (i % 5 == 0) // Keyframes at 5, 10
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, prevTick, blocking: true);
+                        recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     prevTick = repo.GlobalVersion;
                 }
                 
@@ -236,9 +236,9 @@ namespace Fdp.Tests
                     }
                     
                     if (i % 5 == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, prevTick, blocking: true);
+                        recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     prevTick = repo.GlobalVersion;
                 }
                 
@@ -252,9 +252,9 @@ namespace Fdp.Tests
                     wave2.Add(unit);
                     
                     if (i % 5 == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, prevTick, blocking: true);
+                        recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     prevTick = repo.GlobalVersion;
                 }
                 
@@ -270,9 +270,9 @@ namespace Fdp.Tests
                     }
                     
                     if (i % 5 == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, prevTick, blocking: true);
+                        recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     prevTick = repo.GlobalVersion;
                 }
             }
@@ -323,7 +323,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 var activeEntities = new List<Entity>();
@@ -351,9 +351,9 @@ namespace Fdp.Tests
                     }
                     
                     if (frame % 10 == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, prevTick, blocking: true);
+                        recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     prevTick = repo.GlobalVersion;
                 }
             }
@@ -390,7 +390,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Create and destroy slot 0 five times
@@ -401,13 +401,13 @@ namespace Fdp.Tests
                     var entity = repo.CreateEntity();
                     repo.AddComponent(entity, new IntComponent { Value = cycle * 100 });
                     generations.Add(entity);
-                    recorder.CaptureFrame(repo, prevTick, blocking: true);
+                    recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     prevTick = repo.GlobalVersion;
                     
                     // Destroy
                     repo.Tick();
                     repo.DestroyEntity(entity);
-                    recorder.CaptureFrame(repo, prevTick, blocking: true);
+                    recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                     prevTick = repo.GlobalVersion;
                 }
             }
@@ -456,7 +456,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Frame 1: Spawn 100 units at once
@@ -469,7 +469,7 @@ namespace Fdp.Tests
                     repo.AddManagedComponent(unit, new UnitData { UnitType = "Soldier", Level = i % 10 });
                     army.Add(unit);
                 }
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                 prevTick = repo.GlobalVersion;
                 
                 // Frame 2: Destroy 50 units
@@ -478,7 +478,7 @@ namespace Fdp.Tests
                 {
                     repo.DestroyEntity(army[i]);
                 }
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                 prevTick = repo.GlobalVersion;
                 
                 // Frame 3: Spawn 75 more (reusing 50 slots + 25 new)
@@ -489,7 +489,7 @@ namespace Fdp.Tests
                     repo.AddComponent(unit, new Health { Value = 120 });
                     repo.AddManagedComponent(unit, new UnitData { UnitType = "Elite", Level = 5 });
                 }
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback

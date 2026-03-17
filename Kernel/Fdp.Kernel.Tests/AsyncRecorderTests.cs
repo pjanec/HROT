@@ -56,7 +56,7 @@ namespace Fdp.Tests
             {
                 // 1. Initial Keyframe (Frame 0)
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint tickAfterK0 = repo.GlobalVersion;
                 
                 // 2. Simulate Load: Force a DROP
@@ -74,7 +74,7 @@ namespace Fdp.Tests
                 // Now CaptureFrame should see worker busy and DROP
                 // We pass blocking=false
                 repo.Tick(); // V=2
-                recorder.CaptureFrame(repo, tickAfterK0, blocking: false);
+                recorder.CaptureFrame(repo, tickAfterK0, DateTime.UtcNow.Ticks, blocking: false);
                 
                 // Check if dropped
                 Assert.Equal(1, recorder.DroppedFrames);
@@ -89,7 +89,7 @@ namespace Fdp.Tests
                 
                 // Pass prevTick as if it was against the *dropped* frame (V=2)
                 // Because of internal logic, it should ignore Delta logic and force Keyframe
-                recorder.CaptureFrame(repo, tickAfterDrop - 1, blocking: true);
+                recorder.CaptureFrame(repo, tickAfterDrop - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Verify recovery
                 Assert.Equal(2, recorder.RecordedFrames); // Frame 0 (Keyframe) + Frame 2 (Recovery Keyframe)
@@ -124,14 +124,14 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 // 1. Capture Frame 1 (Keyframe)
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // 2. Capture Frame 2 (Delta)
                 repo.Tick(); // V=2
                 ref IntComponent val = ref repo.GetComponentRW<IntComponent>(e);
                 val.Value = 100;
                 
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 Assert.Equal(2, recorder.RecordedFrames);
                 Assert.Equal(0, recorder.DroppedFrames);
@@ -164,7 +164,7 @@ namespace Fdp.Tests
                     // Non-blocking capture
                     // Since we are running fast in memory, disk I/O should lag eventually or 
                     // Task startup overhead might cause overlap if we go super fast.
-                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: false);
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: false);
                     
                     // Artificial delay to allow some writes? 
                     // Or no delay to force drops?
@@ -192,7 +192,7 @@ namespace Fdp.Tests
                 {
                     repo.Tick();
                     repo.SetUnmanagedComponent(e, new IntComponent { Value = i });
-                    recorder.CaptureKeyframe(repo, blocking: true);
+                    recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             
@@ -231,7 +231,7 @@ namespace Fdp.Tests
                     repo.SetUnmanagedComponent(e, new IntComponent { Value = i });
                     
                     // Non-blocking - should eventually start dropping frames
-                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: false);
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: false);
                     
                     // Small delay to create realistic timing
                     if (i % 10 == 0)
@@ -267,7 +267,7 @@ namespace Fdp.Tests
                     repo.SetUnmanagedComponent(e, new IntComponent { Value = i * 100 });
                     
                     // Blocking mode - should never drop
-                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             
@@ -311,7 +311,7 @@ namespace Fdp.Tests
                                 }
                                 
                                 // This is where thread safety of AsyncRecorder is tested
-                                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: false);
+                                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: false);
                                 
                                 Thread.Sleep(1); // Small delay
                             }
@@ -364,7 +364,7 @@ namespace Fdp.Tests
                 // This should either work or fail gracefully (not crash)
                 try
                 {
-                    recorder.CaptureKeyframe(repo, blocking: true);
+                    recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     
                     // If it succeeds, verify it was recorded
                     Assert.Equal(1, recorder.RecordedFrames);
@@ -396,7 +396,7 @@ namespace Fdp.Tests
                     repo.Tick();
                     repo.SetUnmanagedComponent(e, new IntComponent { Value = 42 });
                     
-                    recorder.CaptureFrame(repo, 0, blocking: false);
+                    recorder.CaptureFrame(repo, 0, DateTime.UtcNow.Ticks, blocking: false);
                     
                     // Give time for background error to occur
                     Thread.Sleep(100);
@@ -434,7 +434,7 @@ namespace Fdp.Tests
                     
                     // Alternate between blocking and non-blocking to test both paths
                     bool blocking = (i % 2 == 0);
-                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking);
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking);
                     
                     // No delay - maximum pressure
                 }
@@ -471,7 +471,7 @@ namespace Fdp.Tests
             {
                 // Warmup - let GC settle
                 repo.Tick();
-                recorder.CaptureFrame(repo, 0, blocking: true);
+                recorder.CaptureFrame(repo, 0, DateTime.UtcNow.Ticks, blocking: true);
                 
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
@@ -484,7 +484,7 @@ namespace Fdp.Tests
                 {
                     repo.Tick();
                     repo.SetUnmanagedComponent(e, new IntComponent { Value = i });
-                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                    recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
                 
                 long memAfter = GC.GetTotalMemory(false);

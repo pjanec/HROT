@@ -299,7 +299,7 @@ namespace Fdp.Kernel
         /// <summary><c>VisualData</c> — runtime TKB visual data (symbol, model path, colour) cached on entity.</summary>
         public const byte VisualData              = 118;
 
-        // ID 119 was IgSymbolOverride; moved to BagiraComponentIds.IgSymbolOverride = 167 (DB-MOD1-22).
+        // ID 119 was IgSymbolOverride; moved to project specific IgSymbolOverride = 167 (DB-MOD1-22).
 
         /// <summary><c>MapOverlayStyle</c> — rendering style (fill colour, border colour, line thickness) for a map visual overlay.</summary>
         public const byte MapOverlayStyle         = 120;

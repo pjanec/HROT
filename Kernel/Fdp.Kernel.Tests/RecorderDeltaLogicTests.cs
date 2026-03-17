@@ -61,7 +61,7 @@ namespace Fdp.Tests
             // Component Chunk 0 version should stay at 1 (creation time).
 
             // Record Delta relative to baselineTick (1)
-            recorder.RecordDeltaFrame(repo, baselineTick, writer);
+            recorder.RecordDeltaFrame(repo, baselineTick, writer, 0L);
 
             // Verify
             stream.Position = 0;
@@ -120,13 +120,14 @@ namespace Fdp.Tests
 
             repo.DestroyEntity(e1);
 
-            recorder.RecordDeltaFrame(repo, baseline, writer);
+            recorder.RecordDeltaFrame(repo, baseline, writer, 0L);
 
             stream.Position = 0;
             using var reader = new BinaryReader(stream);
 
             reader.ReadUInt64(); // Ver
             reader.ReadByte();   // Type
+            reader.ReadInt64();  // WallClockTicks (FORMAT_VERSION 3+)
             int dCount = reader.ReadInt32();
             
             Assert.Equal(1, dCount);
@@ -167,7 +168,7 @@ namespace Fdp.Tests
 
             // No need for another tick here strictly, but usually we record at end of frame
             
-            recorder.RecordDeltaFrame(repo, baseline, writer);
+            recorder.RecordDeltaFrame(repo, baseline, writer, 0L);
 
             stream.Position = 0;
             using var reader = new BinaryReader(stream);
@@ -214,7 +215,7 @@ namespace Fdp.Tests
             // Delta would be empty.
             // Keyframe should include everything.
 
-            recorder.RecordKeyframe(repo, writer);
+            recorder.RecordKeyframe(repo, writer, 0L);
 
             stream.Position = 0;
             using var reader = new BinaryReader(stream);
@@ -222,6 +223,7 @@ namespace Fdp.Tests
             ulong v = reader.ReadUInt64();
             byte type = reader.ReadByte(); // 1 = Keyframe
             Assert.Equal(1, type);
+            reader.ReadInt64(); // WallClockTicks (FORMAT_VERSION 3+)
             reader.ReadInt32(); // DestroyCount = 0
             reader.ReadInt32(); // Unmanaged Events
             reader.ReadInt32(); // Managed Events
@@ -236,6 +238,7 @@ namespace Fdp.Tests
         {
             reader.ReadUInt64(); // Version
             reader.ReadByte();   // Type
+            reader.ReadInt64();  // WallClockTicks (FORMAT_VERSION 3+)
             int dCount = reader.ReadInt32(); // Destructions
             for(int i=0; i<dCount; i++) { reader.ReadInt32(); reader.ReadUInt16(); }
             

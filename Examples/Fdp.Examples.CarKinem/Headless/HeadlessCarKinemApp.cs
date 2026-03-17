@@ -167,12 +167,17 @@ namespace Fdp.Examples.CarKinem.Headless
                  if (Recorder != null)
                  {
                     var time = Kernel.CurrentTime; // Use accessor
+                    // Use frame-locked wall clock: TotalWallTicks if populated, else sample at call-site.
+                    long wallTicks = time.TotalWallTicks != 0
+                        ? time.TotalWallTicks
+                        : DateTime.UtcNow.Ticks;
+
                     if (time.FrameNumber % 60 == 0)
-                        Recorder.CaptureKeyframe(Repository);
+                        Recorder.CaptureKeyframe(Repository, wallTicks);
                         
                     uint prevTick = (uint)Math.Max(0, time.FrameNumber - 1);
                     // Use blocking=true for headless tests to ensure no dropped frames
-                    Recorder.CaptureFrame(Repository, prevTick, blocking: true);
+                    Recorder.CaptureFrame(Repository, prevTick, wallTicks, blocking: true);
                  }
              }
         }

@@ -93,12 +93,12 @@ namespace Fdp.Tests
                     bool isKeyframe = (frame % 5 == 0);
                     if (isKeyframe)
                     {
-                        recorderSystem.RecordKeyframe(repo, writer, eventBus);
+                        recorderSystem.RecordKeyframe(repo, writer, 0L, eventBus);
                         _output.WriteLine($"Frame {frame}: Keyframe recorded with events");
                     }
                     else
                     {
-                        recorderSystem.RecordDeltaFrame(repo, (uint)(repo.GlobalVersion - 1), writer, eventBus);
+                        recorderSystem.RecordDeltaFrame(repo, (uint)(repo.GlobalVersion - 1), writer, 0L, eventBus);
                         _output.WriteLine($"Frame {frame}: Delta recorded with events");
                     }
                     
@@ -189,7 +189,7 @@ namespace Fdp.Tests
                     });
                     
                     repo.Tick();
-                    recorder.RecordDeltaFrame(repo, (uint)(repo.GlobalVersion - 1), writer, eventBus);
+                    recorder.RecordDeltaFrame(repo, (uint)(repo.GlobalVersion - 1), writer, 0L, eventBus);
                     eventBus.SwapBuffers();
                 }
             }
@@ -241,7 +241,7 @@ namespace Fdp.Tests
                 
                 // Record WITHOUT eventBus parameter (null by default)
                 repo.Tick();
-                recorder.RecordDeltaFrame(repo, 0, writer); // No eventBus!
+                recorder.RecordDeltaFrame(repo, 0, writer, 0L); // No eventBus!
             }
             
             using (var fs = File.OpenRead(_testFilePath))
@@ -355,7 +355,7 @@ namespace Fdp.Tests
                 });
                 
                 // Record
-                recorder.RecordDeltaFrame(repo, 0, writer, eventBus);
+                recorder.RecordDeltaFrame(repo, 0, writer, 0L, eventBus);
                 eventBus.SwapBuffers();
             }
             

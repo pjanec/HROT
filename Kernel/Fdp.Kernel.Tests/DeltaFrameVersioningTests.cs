@@ -39,19 +39,19 @@ namespace Fdp.Tests
                 // Frame 0: Keyframe
                 repo.Tick(); // V=2
                 repo.SetUnmanagedComponent(e, new IntComponent { Value = 100 });
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Frame 1: Delta (CORRECT ORDER)
                 repo.Tick(); // V=3
                 repo.SetUnmanagedComponent(e, new IntComponent { Value = 200 }); // Modified at V=3
-                recorder.CaptureFrame(repo, prevTick, blocking: true); // Record against V=2
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true); // Record against V=2
                 prevTick = repo.GlobalVersion;
                 
                 // Frame 2: Delta
                 repo.Tick(); // V=4
                 repo.SetUnmanagedComponent(e, new IntComponent { Value = 300 }); // Modified at V=4
-                recorder.CaptureFrame(repo, prevTick, blocking: true); // Record against V=3
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true); // Record against V=3
             }
             
             // Verify: Playback all frames
@@ -86,7 +86,7 @@ namespace Fdp.Tests
                 // Frame 0: Keyframe
                 repo.Tick(); // V=2
                 repo.SetUnmanagedComponent(e, new IntComponent { Value = 100 });
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 1: Delta (WRONG ORDER - will fail)
                 uint prevTick = repo.GlobalVersion; // V=2
@@ -94,7 +94,7 @@ namespace Fdp.Tests
                 repo.Tick(); // V=3
                 // Now currentVersion=3, modification wasAt V=2, prevTick=2
                 // Check: 2 > 2? FALSE - change not captured!
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Verify: The delta frame will be empty (no data captured)
@@ -125,13 +125,13 @@ namespace Fdp.Tests
             {
                 // Keyframe
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Delta with change
                 repo.Tick();
                 repo.SetUnmanagedComponent(e, new Position { X = 99, Y = 88, Z = 77 });
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Analyze file to check delta frame size

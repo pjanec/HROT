@@ -123,9 +123,9 @@ namespace Fdp.Tests
                     }
                     
                     if (frame % keyframeInterval == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             
@@ -206,9 +206,9 @@ namespace Fdp.Tests
                     }
                     
                     if (frame % keyframeInterval == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             
@@ -304,9 +304,9 @@ namespace Fdp.Tests
                     }
                     
                     if (frame % keyframeInterval == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             
@@ -455,9 +455,9 @@ namespace Fdp.Tests
                     updateFrame(repo, entities, frame);
                     
                     if (frame % 10 == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             

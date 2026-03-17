@@ -71,7 +71,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback
@@ -108,7 +108,7 @@ namespace Fdp.Tests
             {
                 // Keyframe
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Modify managed component
@@ -119,7 +119,7 @@ namespace Fdp.Tests
                 player.IsActive = false;
                 
                 // Record delta
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback
@@ -159,7 +159,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback
@@ -198,7 +198,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback
@@ -239,9 +239,9 @@ namespace Fdp.Tests
                     player.Score = frame * 10;
                     
                     if (frame % 5 == 0)
-                        recorder.CaptureKeyframe(repo, blocking: true);
+                        recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                     else
-                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                        recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             
@@ -287,7 +287,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback
@@ -323,26 +323,26 @@ namespace Fdp.Tests
             {
                 // Frame 0: No component
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
                 uint prevTick = repo.GlobalVersion;
                 
                 // Frame 1: Add component
                 repo.Tick();
                 repo.AddManagedComponent(e, new PlayerInfo { Name = "Added", Score = 50 });
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                 prevTick = repo.GlobalVersion;
                 
                 // Frame 2: Modify component
                 repo.Tick();
                 var player = repo.GetComponentRW<PlayerInfo>(e);
                 player.Score = 100;
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
                 prevTick = repo.GlobalVersion;
                 
                 // Frame 3: Remove component
                 repo.Tick();
                 repo.RemoveManagedComponent<PlayerInfo>(e);
-                recorder.CaptureFrame(repo, prevTick, blocking: true);
+                recorder.CaptureFrame(repo, prevTick, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback
@@ -389,7 +389,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 repo.Tick();
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback

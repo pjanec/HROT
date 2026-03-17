@@ -44,7 +44,7 @@ namespace Fdp.Tests
             // Record keyframe
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
-                recorder.CaptureKeyframe(sourceRepo, blocking: true);
+                recorder.CaptureKeyframe(sourceRepo, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback to fresh repo
@@ -75,13 +75,13 @@ namespace Fdp.Tests
             // Record keyframe + delta
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
-                recorder.CaptureKeyframe(sourceRepo, blocking: true);
+                recorder.CaptureKeyframe(sourceRepo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Make changes
                 sourceRepo.Tick();
                 sourceRepo.SetUnmanagedComponent(e1, new IntComponent { Value = 200 });
                 
-                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback sequence
@@ -115,14 +115,14 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 // Keyframe with 2 entities
-                recorder.CaptureKeyframe(sourceRepo, blocking: true);
+                recorder.CaptureKeyframe(sourceRepo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Destroy one entity
                 sourceRepo.Tick();
                 sourceRepo.DestroyEntity(e2);
                 
                 // Record delta
-                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback
@@ -167,25 +167,25 @@ namespace Fdp.Tests
                 sourceRepo.AddComponent(e1, new IntComponent { Value = 100 });
                 sourceRepo.AddComponent(e2, new IntComponent { Value = 200 });
                 sourceRepo.Tick();
-                recorder.CaptureKeyframe(sourceRepo, blocking: true);
+                recorder.CaptureKeyframe(sourceRepo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 2: Add component to e1
                 sourceRepo.Tick();
                 sourceRepo.AddComponent(e1, new FloatComponent { Value = 1.5f });
-                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 3: Create new entity
                 sourceRepo.Tick(); 
                 e3 = sourceRepo.CreateEntity();
                 sourceRepo.AddComponent(e3, new IntComponent { Value = 300 });
                 sourceRepo.AddComponent(e3, new FloatComponent { Value = 3.14f });
-                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 4: Modify and destroy
                 sourceRepo.Tick();
                 sourceRepo.SetUnmanagedComponent(e1, new IntComponent { Value = 150 });
                 sourceRepo.DestroyEntity(e2);
-                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback and verify each frame
@@ -244,7 +244,7 @@ namespace Fdp.Tests
             // Record
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
-                recorder.CaptureKeyframe(sourceRepo, blocking: true);
+                recorder.CaptureKeyframe(sourceRepo, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback to empty repo
@@ -285,7 +285,7 @@ namespace Fdp.Tests
             // Record partial frame then corrupt file
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
-                recorder.CaptureKeyframe(sourceRepo, blocking: true);
+                recorder.CaptureKeyframe(sourceRepo, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Corrupt the file by truncating it
@@ -332,7 +332,7 @@ namespace Fdp.Tests
             // Record many frames
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
-                recorder.CaptureKeyframe(sourceRepo, blocking: true);
+                recorder.CaptureKeyframe(sourceRepo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 for (int frame = 1; frame < frameCount; frame++)
                 {
@@ -344,7 +344,7 @@ namespace Fdp.Tests
                         sourceRepo.SetUnmanagedComponent(entities[i], new IntComponent { Value = entities[i].Index * frame });
                     }
                     
-                    recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, blocking: true);
+                    recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 }
             }
             
@@ -391,7 +391,7 @@ namespace Fdp.Tests
             // Record
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
-                recorder.CaptureKeyframe(sourceRepo, blocking: true);
+                recorder.CaptureKeyframe(sourceRepo, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Modify managed component
                 sourceRepo.Tick();
@@ -399,7 +399,7 @@ namespace Fdp.Tests
                 managed.Value = "Modified";
                 managed.Count = 456;
                 
-                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Playback
@@ -447,12 +447,12 @@ namespace Fdp.Tests
                 bus.PublishManaged(new TestManagedComponent { Value = "Event2", Count = 2 });
                 
                 // Frame 0: Has Managed Events
-                recorder.CaptureKeyframe(sourceRepo, blocking: true, eventBus: bus);
+                recorder.CaptureKeyframe(sourceRepo, DateTime.UtcNow.Ticks, blocking: true, eventBus: bus);
                 
                 // Frame 1: Simple delta to verify we landed correctly
                 sourceRepo.Tick();
                 sourceRepo.SetUnmanagedComponent(e1, new IntComponent { Value = 100 });
-                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, blocking: true, eventBus: bus);
+                recorder.CaptureFrame(sourceRepo, sourceRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true, eventBus: bus);
             }
             
             // Playback with skipping
@@ -483,7 +483,7 @@ namespace Fdp.Tests
                 // Manually read frame wrapper like RecordingReader does
                 int f0CompSize = binaryReader.ReadInt32();
                 int f0UncompSize = binaryReader.ReadInt32();
-                fs.Position += 9; // Skip Tick/Type in header
+                fs.Position += 17; // Skip Tick/Type/WallClockTicks in outer header
                 
                 byte[] f0Data = binaryReader.ReadBytes(f0CompSize);
                 byte[] f0Raw = new byte[f0UncompSize];

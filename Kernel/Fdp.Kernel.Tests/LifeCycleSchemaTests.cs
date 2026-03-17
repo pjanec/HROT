@@ -85,7 +85,7 @@ namespace Fdp.Tests
                 // Frame 0: Initial state (empty)
                 repo.Tick();
                 CaptureExpectedState(0);
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
 
                 // Frame 1: Create Entity with UA and MA
                 repo.Tick();
@@ -94,7 +94,7 @@ namespace Fdp.Tests
                 repo.AddManagedComponent(currentHandle, new CompA { Value = 100 });
                 
                 CaptureExpectedState(1);
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
 
                 // Frame 2: Add UB, Remove MA
                 repo.Tick();
@@ -102,19 +102,19 @@ namespace Fdp.Tests
                 repo.RemoveManagedComponent<CompA>(currentHandle);
                 
                 CaptureExpectedState(2);
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
 
                 // Frame 3: Destroy Entity
                 repo.Tick();
                 repo.DestroyEntity(currentHandle);
                 
                 CaptureExpectedState(3); // Captured using the now DEAD handle
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
 
                 // Frame 4: Empty frame
                 repo.Tick();
                 CaptureExpectedState(4);
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
 
                 // Frame 5: Re-create Entity (reuses slot, new generation) with UA, MA, MB
                 repo.Tick();
@@ -129,7 +129,7 @@ namespace Fdp.Tests
                 repo.AddManagedComponent(e2, new CompB { Name = "Reborn" });
 
                 CaptureExpectedState(5);
-                recorder.CaptureKeyframe(repo, blocking: true);
+                recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks, blocking: true);
 
                 // Frame 6: Modify State
                 repo.Tick();
@@ -137,13 +137,13 @@ namespace Fdp.Tests
                 repo.GetComponentRW<CompA>(e2).Value = 888;
                 
                 CaptureExpectedState(6);
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 // Frame 7: Destroy Again
                 repo.Tick();
                 repo.DestroyEntity(e2);
                 CaptureExpectedState(7);
-                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(repo, repo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
 
             } // Recorder disposal finishes file write
 

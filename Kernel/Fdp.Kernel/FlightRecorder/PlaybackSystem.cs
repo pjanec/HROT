@@ -29,6 +29,7 @@ namespace Fdp.Kernel.FlightRecorder
             ulong tick = reader.ReadUInt64();
             repo.SetGlobalVersion((uint)tick);
             byte frameType = reader.ReadByte();
+            reader.ReadInt64(); // Skip WallClockTicks (FORMAT_VERSION 3+, 8 bytes)
             
             // 1. APPLY DESTRUCTIONS (Delta Only)
             if (frameType == 0)
@@ -580,9 +581,9 @@ namespace Fdp.Kernel.FlightRecorder
                 }
                 int uncompSize = _reader.ReadInt32();
                 
-                // Skip duplicated metadata (Tick + Type) which is only for indexing
-                // The actual Tick/Type is also inside the compressed payload
-                const int HEADER_METADATA_SIZE = 9; // 8 bytes Tick + 1 byte Type
+                // Skip duplicated metadata (Tick + Type + WallClockTicks) which is only for indexing
+                // The actual Tick/Type/WallClockTicks is also inside the compressed payload
+                const int HEADER_METADATA_SIZE = 17; // 8 bytes Tick + 1 byte Type + 8 bytes WallClockTicks
                 if (_fileStream.Position + HEADER_METADATA_SIZE > _fileStream.Length)
                 {
                     Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Not enough bytes for metadata at {_fileStream.Position}");

@@ -1,3 +1,4 @@
+using System;
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
 using ModuleHost.Core.Abstractions;
@@ -36,14 +37,24 @@ namespace FDP.Toolkit.Replay
             // For synchronous (main-thread) modules, view IS the live EntityRepository.
             var repo = (EntityRepository)view;
 
+            // Read the atomic, frame-locked wall-clock timestamp from the GlobalTime singleton.
+            // This is the single source of truth populated by the time controller at the start
+            // of every frame, guaranteeing all PostSimulation systems see identical ticks.
+            // Falls back to DateTime.UtcNow.Ticks until Phase 3 time controllers populate
+            // GlobalTime.TotalWallTicks (WCR-P3-T002/T003).
+            var globalTime = repo.GetSingletonUnmanaged<GlobalTime>();
+            long wallClockTicks = globalTime.TotalWallTicks != 0
+                ? globalTime.TotalWallTicks
+                : DateTime.UtcNow.Ticks;
+
             if (++_framesSinceKeyframe >= KeyframeInterval)
             {
-                _recorder.CaptureKeyframe(repo);
+                _recorder.CaptureKeyframe(repo, wallClockTicks);
                 _framesSinceKeyframe = 0;
             }
             else
             {
-                _recorder.CaptureFrame(repo, _prevTick);
+                _recorder.CaptureFrame(repo, _prevTick, wallClockTicks);
             }
 
             _prevTick = repo.GlobalVersion;

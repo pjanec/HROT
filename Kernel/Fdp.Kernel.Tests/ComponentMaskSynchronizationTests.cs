@@ -76,7 +76,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // === REPLAY PHASE ===
@@ -126,7 +126,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // === REPLAY PHASE ===
@@ -173,7 +173,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo); // Keyframe with only unmanaged
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks); // Keyframe with only unmanaged
                 
                 recordRepo.Tick();
                 // Add managed component in next frame
@@ -183,7 +183,7 @@ namespace Fdp.Tests
                     Value = 999 
                 });
                 
-                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, blocking: true); // Delta frame
+                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true); // Delta frame
             }
             
             // === REPLAY PHASE ===
@@ -242,7 +242,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             using var replayRepo = new EntityRepository();
@@ -294,7 +294,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             using var replayRepo = new EntityRepository();

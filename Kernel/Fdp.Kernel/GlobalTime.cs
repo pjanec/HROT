@@ -51,6 +51,16 @@ namespace Fdp.Kernel
         public double UnscaledTotalTime;
 
         /// <summary>
+        /// Stable, frame-locked wall-clock ticks for the current simulation frame (UTC ticks).
+        /// This is the single source of truth for wall-clock time within a frame.
+        /// Populated once at the start of each frame by the time controller (Master: Stopwatch
+        /// accumulator; Slave: PLL virtual clock). Every system in the frame — including the
+        /// flight recorder — reads this field instead of calling DateTime.UtcNow directly,
+        /// guaranteeing a constant timestamp across all PostSimulation systems.
+        /// </summary>
+        public long TotalWallTicks;
+
+        /// <summary>
         /// Convenience flag (TimeScale == 0.0).
         /// </summary>
         public bool IsPaused => TimeScale == 0.0f;

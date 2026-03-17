@@ -107,7 +107,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Systems
             // Since this is just a test utility, we assume it writes.
             // Wait, AsyncRecorder might not write immediately?
             // Assuming the test logic itself is sound regarding recorder behaviour.
-            recorder.CaptureKeyframe(repo);
+            recorder.CaptureKeyframe(repo, DateTime.UtcNow.Ticks);
         }
 
         private void RegisterComponents(EntityRepository repo)

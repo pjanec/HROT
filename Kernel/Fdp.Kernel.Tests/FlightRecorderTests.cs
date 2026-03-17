@@ -45,7 +45,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Act - Replay
@@ -92,7 +92,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Act - Replay
@@ -124,13 +124,13 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
                 
                 recordRepo.Tick();
                 ref var pos = ref recordRepo.GetComponentRW<Position>(e1);
                 pos.X = 100;
                 
-                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Act - Replay
@@ -204,12 +204,12 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
                 
                 recordRepo.Tick();
                 recordRepo.DestroyEntity(e1);
                 
-                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Act - Replay
@@ -246,7 +246,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
                 
                 recordRepo.Tick();
                 for (int i = 0; i < 5; i++)
@@ -254,7 +254,7 @@ namespace Fdp.Tests
                     recordRepo.DestroyEntity(entities[i]);
                 }
                 
-                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Act - Replay
@@ -351,7 +351,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Act - Replay
@@ -379,14 +379,14 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
                 
                 recordRepo.Tick();
                 var temp = recordRepo.CreateEntity();
                 recordRepo.AddComponent(temp, new Position { X = 999, Y = 999, Z = 999 });
                 recordRepo.DestroyEntity(temp);
                 
-                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Act - Replay
@@ -427,7 +427,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Act - Replay
@@ -467,7 +467,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Act - Replay
@@ -510,15 +510,15 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
                 
                 recordRepo.Tick();
                 recordRepo.AddComponent(entity, new Velocity { X = 1, Y = 2, Z = 3 });
-                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
                 
                 recordRepo.Tick();
                 recordRepo.RemoveUnmanagedComponent<Velocity>(entity);
-                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, blocking: true);
+                recorder.CaptureFrame(recordRepo, recordRepo.GlobalVersion - 1, DateTime.UtcNow.Ticks, blocking: true);
             }
             
             // Act - Replay all frames
@@ -567,7 +567,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Act - Replay
@@ -610,7 +610,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Act - Replay
@@ -640,7 +640,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Act
@@ -693,7 +693,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Act
@@ -744,7 +744,7 @@ namespace Fdp.Tests
             using (var recorder = new AsyncRecorder(_testFilePath))
             {
                 recordRepo.Tick();
-                recorder.CaptureKeyframe(recordRepo);
+                recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
             }
             
             // Assert - Replay and verify
@@ -789,7 +789,7 @@ namespace Fdp.Tests
              
              using (var recorder = new AsyncRecorder(_testFilePath))
              {
-                 recorder.CaptureKeyframe(recordRepo);
+                 recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
              }
              
              using var replayRepo = new EntityRepository();
@@ -820,7 +820,7 @@ namespace Fdp.Tests
              
              using (var recorder = new AsyncRecorder(_testFilePath))
              {
-                 recorder.CaptureKeyframe(recordRepo);
+                 recorder.CaptureKeyframe(recordRepo, DateTime.UtcNow.Ticks);
              }
              
              using var replayRepo = new EntityRepository();

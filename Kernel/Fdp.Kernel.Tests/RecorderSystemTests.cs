@@ -21,7 +21,7 @@ namespace Fdp.Tests
             repo.Tick(); // GlobalVersion 2
             
             // Act
-            recorder.RecordDeltaFrame(repo, 0, writer);
+            recorder.RecordDeltaFrame(repo, 0, writer, 0L);
             
             // Assert
             stream.Position = 0;
@@ -29,6 +29,7 @@ namespace Fdp.Tests
             
             ulong version = reader.ReadUInt64();
             byte type = reader.ReadByte();
+            reader.ReadInt64(); // WallClockTicks (FORMAT_VERSION 3+)
             int destroyCount = reader.ReadInt32();
             
             Assert.Equal(2ul, version);
@@ -49,7 +50,7 @@ namespace Fdp.Tests
             repo.DestroyEntity(e1);
             
             // Act
-            recorder.RecordDeltaFrame(repo, 0, writer);
+            recorder.RecordDeltaFrame(repo, 0, writer, 0L);
             
             // Assert
             stream.Position = 0;
@@ -57,6 +58,7 @@ namespace Fdp.Tests
             
             reader.ReadUInt64(); // Version
             reader.ReadByte();   // Type
+            reader.ReadInt64();  // WallClockTicks (FORMAT_VERSION 3+)
             int destroyCount = reader.ReadInt32();
             
             Assert.Equal(1, destroyCount);
@@ -81,7 +83,7 @@ namespace Fdp.Tests
             
             // Act
             // PrevTick = 0, so changes (tick 1) > 0. Should record.
-            recorder.RecordDeltaFrame(repo, 0, writer);
+            recorder.RecordDeltaFrame(repo, 0, writer, 0L);
             
             // Assert
             stream.Position = 0;
@@ -90,6 +92,7 @@ namespace Fdp.Tests
             // Skip Header
             reader.ReadUInt64();
             reader.ReadByte();
+            reader.ReadInt64(); // WallClockTicks (FORMAT_VERSION 3+)
             reader.ReadInt32(); // Destructions
             
             // Read Chunk Count
@@ -130,7 +133,7 @@ namespace Fdp.Tests
             
             // Act
             // Ask for changes since V=2. No structural/component changes > 2.
-            recorder.RecordDeltaFrame(repo, 2, writer);
+            recorder.RecordDeltaFrame(repo, 2, writer, 0L);
             
             // Assert
             stream.Position = 0;
@@ -138,6 +141,7 @@ namespace Fdp.Tests
             
             Assert.Equal(3ul, reader.ReadUInt64());
             Assert.Equal(0, reader.ReadByte());
+            reader.ReadInt64(); // WallClockTicks (FORMAT_VERSION 3+)
             Assert.Equal(0, reader.ReadInt32()); // DestroyCount
             Assert.Equal(0, reader.ReadInt32()); // Unmanaged Events
             Assert.Equal(0, reader.ReadInt32()); // Managed Events
@@ -169,7 +173,7 @@ namespace Fdp.Tests
             
             // Act
             // prevTick = 2. 3 > 2, so should record.
-            recorder.RecordDeltaFrame(repo, 2, writer);
+            recorder.RecordDeltaFrame(repo, 2, writer, 0L);
             
             // Assert
             stream.Position = 0;
@@ -178,6 +182,7 @@ namespace Fdp.Tests
             // Skip to chunks
             reader.ReadUInt64();
             reader.ReadByte();
+            reader.ReadInt64(); // WallClockTicks (FORMAT_VERSION 3+)
             reader.ReadInt32(); // Destroy
             reader.ReadInt32(); // Unmanaged Events
             reader.ReadInt32(); // Managed Events
