@@ -36,6 +36,8 @@ namespace FDP.Framework.Runner
         private readonly int _windowWidth;
         private readonly int _windowHeight;
         private readonly int _targetFps;
+        private readonly bool _deterministic;
+        private readonly float _fixedDeltaSeconds;
         private volatile bool _running = true;
 
         /// <summary>
@@ -55,12 +57,14 @@ namespace FDP.Framework.Runner
         public SubsystemOrchestrator(IEnumerable<ISubsystem> subsystems, RunnerOptions? options = null)
         {
             options ??= new RunnerOptions();
-            _headless     = options.Headless;
-            _domainId     = options.DomainId;
-            _windowWidth  = options.WindowWidth;
-            _windowHeight = options.WindowHeight;
-            _targetFps    = options.TargetFps;
-            _subsystems   = new List<ISubsystem>(subsystems);
+            _headless          = options.Headless;
+            _domainId          = options.DomainId;
+            _windowWidth       = options.WindowWidth;
+            _windowHeight      = options.WindowHeight;
+            _targetFps         = options.TargetFps;
+            _deterministic     = options.Deterministic;
+            _fixedDeltaSeconds = options.FixedDeltaSeconds;
+            _subsystems        = new List<ISubsystem>(subsystems);
         }
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
@@ -85,10 +89,12 @@ namespace FDP.Framework.Runner
             {
                 var cfg = new SubsystemConfig
                 {
-                    DomainId      = _domainId,
-                    Headless      = _headless,
-                    OwnWindow     = false,
-                    SubsystemName = subsystem.Name
+                    DomainId          = _domainId,
+                    Headless          = _headless,
+                    OwnWindow         = false,
+                    SubsystemName     = subsystem.Name,
+                    Deterministic     = _deterministic,
+                    FixedDeltaSeconds = _fixedDeltaSeconds
                 };
                 subsystem.Initialize(cfg);
             }
@@ -101,7 +107,9 @@ namespace FDP.Framework.Runner
         {
             while (_running && (_headless || !Raylib.WindowShouldClose()))
             {
-                float dt = _headless ? 0f : Raylib.GetFrameTime();
+                float dt = _headless
+                    ? (_deterministic ? _fixedDeltaSeconds : 0f)
+                    : (_deterministic ? _fixedDeltaSeconds : Raylib.GetFrameTime());
                 Update(dt);
 
                 if (!_headless)
@@ -118,8 +126,9 @@ namespace FDP.Framework.Runner
         /// </summary>
         public void RunFrames(int frames)
         {
+            float dt = _deterministic ? _fixedDeltaSeconds : 0f;
             for (int i = 0; i < frames; i++)
-                Update(0f);
+                Update(dt);
         }
 
         /// <summary>Shuts down all subsystems in reverse order and closes the window.</summary>

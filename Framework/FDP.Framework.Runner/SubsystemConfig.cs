@@ -22,5 +22,13 @@ namespace FDP.Framework.Runner
 
         /// <summary>Human-readable name of the subsystem (e.g. "SimHost", "IG", "IOS").</summary>
         public string SubsystemName { get; set; } = string.Empty;
+
+        /// <summary>When <c>true</c>, <see cref="ScenarioSubsystem"/> uses
+        /// <c>SteppingTimeController</c> instead of wall-clock time.</summary>
+        public bool Deterministic { get; set; }
+
+        /// <summary>Fixed step in seconds. Used only when <see cref="Deterministic"/> is
+        /// <c>true</c>. Default = 1/60 s.</summary>
+        public float FixedDeltaSeconds { get; set; } = 1.0f / 60.0f;
     }
 }

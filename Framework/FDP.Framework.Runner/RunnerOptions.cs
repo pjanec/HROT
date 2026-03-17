@@ -22,5 +22,13 @@ namespace FDP.Framework.Runner
 
         /// <summary>Target frame rate cap; ignored in headless mode.</summary>
         public int TargetFps { get; set; } = 60;
+
+        /// <summary>When <c>true</c>, the orchestrator passes <see cref="FixedDeltaSeconds"/> to
+        /// <c>Update()</c> instead of <c>Raylib.GetFrameTime()</c>. Use for CI / deterministic tests.</summary>
+        public bool Deterministic { get; set; }
+
+        /// <summary>Fixed simulation delta in seconds used when <see cref="Deterministic"/> is
+        /// <c>true</c>. Default = 1/60 s (60 Hz).</summary>
+        public float FixedDeltaSeconds { get; set; } = 1.0f / 60.0f;
     }
 }

@@ -31,6 +31,14 @@ namespace FDP.Framework.Runner
         [Option("script", HelpText = "Path to headless test script JSON")]
         public string TestScriptPath { get; set; } = string.Empty;
 
+        /// <summary>Force fixed-step time instead of wall-clock dt (CI mode).</summary>
+        [Option("deterministic", Default = false, HelpText = "Force fixed-step time (CI mode)")]
+        public bool Deterministic { get; set; }
+
+        /// <summary>Fixed simulation delta in seconds used when Deterministic is true. Default = 1/60 s.</summary>
+        [Option("fixed-dt", Default = 0.016667f, HelpText = "Fixed delta in seconds (default 60 Hz)")]
+        public float FixedDeltaSeconds { get; set; } = 1.0f / 60.0f;
+
         // ── Parsed values ─────────────────────────────────────────────────────
 
         /// <summary>Lower-case subsystem names to wait for. Populated by <c>Validate()</c>.</summary>
