@@ -1,8 +1,11 @@
 using Fdp.Examples.Common;
+using Fdp.Examples.Scenarios.Cognitive;
 using Fdp.Examples.Scenarios.Kinematics;
+using Fdp.Examples.Scenarios.Physics;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Vis2D;
 using ModuleHost.Core;
 using NLog;
@@ -498,6 +501,141 @@ namespace Fdp.Examples.Scenarios.Tests
             Assert.Equal(0, code);
 
             Assert.Equal(CombatConstants.ActionIdAimAndFire, scenario.WeaponActionAtTick45);
+        }
+    }
+
+    // ── DEM1-D003: BallisticsAndHitScenario tests ─────────────────────────────
+
+    public class BallisticsAndHitScenarioTests
+    {
+        /// <summary>
+        /// Full scenario run — all 4 phases pass (bullet spawned, flies past target in raw
+        /// space, CCD hit applied, bullet destroyed) and exit code is 0 (CI SUCCESS).
+        /// </summary>
+        [Fact]
+        public void BallisticsAndHit_RunToCompletion_ExitsZero()
+        {
+            int code = ScenarioTestHarness.Run(new BallisticsAndHitScenario(), maxTicks: 10);
+            Assert.Equal(0, code);
+        }
+
+        /// <summary>
+        /// By tick 2 the bullet must have been spawned with the correct velocity.
+        /// Confirms <see cref="FDP.Toolkit.Combat.Systems.FireProcessingSystem"/> read the
+        /// muzzle velocity from <c>WeaponState.MuzzleVelocity</c> and applied it to
+        /// <c>SimVelocity.Linear.X</c>.
+        /// </summary>
+        [Fact]
+        public void BallisticsAndHit_Phase1_BulletSpawnedWithCorrectVelocity()
+        {
+            var scenario = new BallisticsAndHitScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 10);
+
+            Assert.NotEqual(1, code);
+
+            Assert.True(MathF.Abs(scenario.BulletVelocityXAtTick2 - BallisticsAndHitScenario.MuzzleVelocity) < 0.1f,
+                $"BulletVelocity.X={scenario.BulletVelocityXAtTick2:F1} expected {BallisticsAndHitScenario.MuzzleVelocity:F1} m/s");
+        }
+
+        /// <summary>
+        /// Runs the scenario to completion. Phase 3 asserts that CCD detected the hit even
+        /// though the bullet moved past the target in a single tick (anti-tunneling demo).
+        /// The scenario's own EvaluateTick throws <see cref="ScenarioFailureException"/>
+        /// (exit code 1) if damage was not applied, so exit code 0 confirms CCD worked.
+        /// </summary>
+        [Fact]
+        public void BallisticsAndHit_Phase3_TargetTakesDamage_NoBulletSwimthrough()
+        {
+            var scenario = new BallisticsAndHitScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 10);
+
+            Assert.Equal(0, code);
+
+            Assert.True(scenario.TargetHealthAfterHit < 100f,
+                $"TargetHealth={scenario.TargetHealthAfterHit:F1} expected < 100 (hit not applied)");
+        }
+
+        /// <summary>
+        /// By Phase 4 the bullet entity must have been destroyed by
+        /// <see cref="FDP.Toolkit.Combat.Systems.DamageSystem"/> after the impact.
+        /// Exit code 0 confirms the full scenario succeeded, which includes the Phase 4
+        /// assertion inside <see cref="BallisticsAndHitScenario.EvaluateTick"/>.
+        /// </summary>
+        [Fact]
+        public void BallisticsAndHit_Phase4_BulletDestroyedAfterImpact()
+        {
+            var scenario = new BallisticsAndHitScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 10);
+
+            // Exit code 0 means the Phase 4 assertion inside EvaluateTick passed:
+            // world.IsAlive(BulletEntity) == false confirmed bullet destruction.
+            Assert.Equal(0, code);
+        }
+    }
+
+    // ── DEM1-D004: BehaviorValidationScenario tests ───────────────────────────
+
+    public class BehaviorValidationScenarioTests
+    {
+        /// <summary>
+        /// Full scenario run — all 3 phases pass (flee when no threat, engage when threat
+        /// with ammo, flee again when ammo depleted) and exit code is 0 (CI SUCCESS).
+        /// </summary>
+        [Fact]
+        public void BehaviorValidation_RunToCompletion_ExitsZero()
+        {
+            int code = ScenarioTestHarness.Run(new BehaviorValidationScenario(), maxTicks: 40);
+            Assert.Equal(0, code);
+        }
+
+        /// <summary>
+        /// At tick 10 (before ThreatVisible is set) the agent must be fleeing:
+        /// WeaponChannel.ActiveAction == 0 and LocomotionChannel.ActiveAction == ActionIdFlee.
+        /// </summary>
+        [Fact]
+        public void BehaviorValidation_Phase1_AgentFlees_WhenNoThreat()
+        {
+            var scenario = new BehaviorValidationScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 40);
+
+            Assert.NotEqual(1, code);
+
+            Assert.Equal(NavigationConstants.ActionIdFlee, scenario.LocoActionAtTick10);
+            Assert.Equal(0, (int)scenario.WeaponActionAtTick10);
+        }
+
+        /// <summary>
+        /// At tick 20 (after ThreatVisible=true is set at tick 10) the agent must be
+        /// engaging: WeaponChannel.ActiveAction == ActionIdAimAndFire.
+        /// Confirms the BTree Selector evaluates the Sequence when conditions are met.
+        /// </summary>
+        [Fact]
+        public void BehaviorValidation_Phase2_AgentEngages_WhenThreatWithAmmo()
+        {
+            var scenario = new BehaviorValidationScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 40);
+
+            Assert.NotEqual(1, code);
+
+            Assert.Equal(CombatConstants.ActionIdAimAndFire, scenario.WeaponActionAtTick20);
+        }
+
+        /// <summary>
+        /// At tick 30 (after AmmoCount=0 is set at tick 20) the agent must have reverted to
+        /// fleeing: WeaponChannel.ActiveAction == 0, LocomotionChannel == ActionIdFlee.
+        /// Confirms the BTree Condition_HasAmmo failure causes the Selector to fall through
+        /// to Action_Flee. Exit code 0 means all phase assertions in EvaluateTick passed.
+        /// </summary>
+        [Fact]
+        public void BehaviorValidation_Phase3_AgentFleesAgain_WhenAmmoGone()
+        {
+            var scenario = new BehaviorValidationScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 40);
+
+            Assert.Equal(0, code);
+
+            Assert.Equal(NavigationConstants.ActionIdFlee, scenario.LocoActionAtTick30);
+            Assert.Equal(0, (int)scenario.WeaponActionAtTick30);
         }
     }
 }

@@ -24,6 +24,10 @@ namespace CarKinem.Controllers
             float maxDecel)
         {
             float speedError = targetSpeed - currentSpeed;
+
+            // Early exit: avoid unnecessary clamping when speeds already match closely.
+            if (MathF.Abs(speedError) < 0.001f) return 0f;
+
             float rawAccel = speedError * gain;
             
             // Clamp to vehicle limits

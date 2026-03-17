@@ -177,7 +177,11 @@ namespace CarKinem.Systems
                         targetPos = pos2D;
                         targetHeading = fwd2D;
                         targetSpeed = 0f;
-                        nav.HasArrived = 1; // Mark as arrived to stop logic
+                        // Only mark as arrived when the entity was actively navigating (TargetSpeed > 0).
+                        // Static entities (TargetSpeed == 0) must not receive HasArrived=1 on spawn —
+                        // that would falsely trigger arrival signals for entities with zero velocity.
+                        if (nav.TargetSpeed > 0)
+                            nav.HasArrived = 1;
                     }
                     break;
             }

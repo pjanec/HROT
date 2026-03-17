@@ -11,5 +11,7 @@
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Combat.Contracts\FDP.Toolkit.Combat.Contracts.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Navigation\FDP.Toolkit.Navigation.csproj" />
   </ItemGroup>
 </Project>
