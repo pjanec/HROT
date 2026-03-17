@@ -126,6 +126,9 @@ namespace Fdp.Examples.Common
         {
             _tick++;
 
+            // Trace every tick so CI logs show execution progress.
+            FdpLog<ScenarioSubsystem>.Trace("[{0}] tick={1}", _scenario.ScenarioName, _tick);
+
             // 1. Advance GlobalTime when running in deterministic mode.
             if (_deterministic)
             {

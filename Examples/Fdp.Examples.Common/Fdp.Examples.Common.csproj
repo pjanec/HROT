@@ -11,5 +11,7 @@
     <ProjectReference Include="..\..\Framework\FDP.Framework.Runner\FDP.Framework.Runner.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
+    <ProjectReference Include="..\..\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
   </ItemGroup>
 </Project>

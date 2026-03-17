@@ -278,6 +278,24 @@ namespace Fdp.Examples.Scenarios.Tests
             string content = File.ReadAllText(logFile);
             Assert.Contains("Y=5.3 expected >10", content);
         }
+
+        [Fact]
+        public void PerTickTrace_WritesAtLeastOneTickStatement()
+        {
+            string logFile = SetupFileLog("mocktrace");
+
+            var scenario = new MockSucceedAtTickScenario(3);
+            ScenarioTestHarness.Run(scenario, maxTicks: 10);
+
+            // Close NLog so the file handle is released before reading.
+            LogManager.Flush();
+            LogManager.Configuration = null;
+
+            Assert.True(File.Exists(logFile), $"Log file not found: {logFile}");
+            string content = File.ReadAllText(logFile);
+            // The ScenarioSubsystem.Update logs: "[<scenarioName>] tick=<N>" at Trace level each tick.
+            Assert.Contains("tick=", content);
+        }
     }
 
     // ── DEM1-F003: Runner integration tests ──────────────────────────────────

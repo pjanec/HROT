@@ -20,6 +20,7 @@
     <ProjectReference Include="..\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
     <ProjectReference Include="..\Fdp.Examples.Scenarios\Fdp.Examples.Scenarios.csproj" />
     <ProjectReference Include="..\Fdp.Examples.Runner\Fdp.Examples.Runner.csproj" />
+    <ProjectReference Include="..\Fdp.Examples.DDS\Fdp.Examples.DDS.csproj" />
     <ProjectReference Include="..\..\Framework\FDP.Framework.Runner\FDP.Framework.Runner.csproj" />
   </ItemGroup>
 </Project>
