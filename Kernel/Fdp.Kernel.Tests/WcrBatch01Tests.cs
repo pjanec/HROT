@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using Xunit;
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
@@ -94,7 +95,7 @@ namespace Fdp.Tests
         // ================================================================
 
         [Fact]
-        public void WCR_P1_T002_OuterHeader_Is25Bytes()
+        public void WCR_P1_T002_OuterHeader_WallClockTicks_WrittenCorrectly()
         {
             // Arrange: Record one keyframe (blocking) and capture surrounding timestamps
             using var repo = new EntityRepository();
@@ -112,30 +113,26 @@ namespace Fdp.Tests
 
             long captureTimeAfter = DateTime.UtcNow.Ticks;
 
-            // Act: Read the outer frame header manually
-            // File layout: [Global header: 18 bytes] [Frame: [CompLen:4][UncompLen:4][Tick:8][Type:1][WallClockTicks:8][CompressedData]]
+            // Act: Read the outer frame header using the typed struct (no magic numbers)
             using var fs = new FileStream(_testFilePath, FileMode.Open, FileAccess.Read);
-            using var reader = new BinaryReader(fs);
 
-            // Skip global header: Magic(6) + Version(4) + Timestamp(8) = 18 bytes
-            fs.Position = 18;
+            // Skip the global header using its compile-time size
+            fs.Position = RecordingGlobalHeader.Size;
 
-            int compLen    = reader.ReadInt32();
-            int uncompLen  = reader.ReadInt32();
-            ulong tick     = reader.ReadUInt64();
-            byte type      = reader.ReadByte();
-            long wallTicks = reader.ReadInt64(); // bytes 17-24 of the outer frame header
+            Span<byte> headerBytes = stackalloc byte[FrameOuterHeader.Size];
+            fs.Read(headerBytes);
+            FrameOuterHeader header = MemoryMarshal.Read<FrameOuterHeader>(headerBytes);
 
             // Assert
-            Assert.True(compLen > 0, "compLen must be positive");
-            Assert.True(uncompLen > 0, "uncompLen must be positive");
+            Assert.True(header.CompressedSize > 0, "CompressedSize must be positive");
+            Assert.True(header.UncompressedSize > 0, "UncompressedSize must be positive");
 
             // WallClockTicks must be within 1 second of the actual capture window
             long oneSecond = TimeSpan.FromSeconds(1).Ticks;
-            Assert.True(wallTicks >= captureTimeBefore - oneSecond,
-                $"wallTicks {wallTicks} must be >= capture start {captureTimeBefore} (delta: {captureTimeBefore - wallTicks} ticks)");
-            Assert.True(wallTicks <= captureTimeAfter + oneSecond,
-                $"wallTicks {wallTicks} must be <= capture end {captureTimeAfter} (delta: {wallTicks - captureTimeAfter} ticks)");
+            Assert.True(header.WallClockTicks >= captureTimeBefore - oneSecond,
+                $"WallClockTicks {header.WallClockTicks} must be >= capture start {captureTimeBefore} (delta: {captureTimeBefore - header.WallClockTicks} ticks)");
+            Assert.True(header.WallClockTicks <= captureTimeAfter + oneSecond,
+                $"WallClockTicks {header.WallClockTicks} must be <= capture end {captureTimeAfter} (delta: {header.WallClockTicks - captureTimeAfter} ticks)");
         }
 
         [Fact]
@@ -163,26 +160,25 @@ namespace Fdp.Tests
                 }
             }
 
-            // Act: Parse all three outer frame headers manually (without PlaybackController)
+            // Act: Parse all three outer frame headers using the typed struct (no magic numbers)
             using var fs = new FileStream(_testFilePath, FileMode.Open, FileAccess.Read);
-            using var reader = new BinaryReader(fs);
 
-            fs.Position = 18; // Skip global header
+            // Skip global header using its compile-time size
+            fs.Position = RecordingGlobalHeader.Size;
 
+            // Pre-allocate the buffer once outside the loop (avoids CA2014 stackalloc-in-loop warning)
+            Span<byte> headerBytes = stackalloc byte[FrameOuterHeader.Size];
             long prevTicks = long.MinValue;
             for (int frameIdx = 0; frameIdx < 3; frameIdx++)
             {
-                int compLen    = reader.ReadInt32();
-                int uncompLen  = reader.ReadInt32();
-                ulong tick     = reader.ReadUInt64();
-                byte type      = reader.ReadByte();
-                long wallTicks = reader.ReadInt64();
+                fs.Read(headerBytes);
+                FrameOuterHeader header = MemoryMarshal.Read<FrameOuterHeader>(headerBytes);
 
-                Assert.True(wallTicks >= prevTicks,
-                    $"Frame {frameIdx}: WallClockTicks {wallTicks} must be >= previous {prevTicks}");
+                Assert.True(header.WallClockTicks >= prevTicks,
+                    $"Frame {frameIdx}: WallClockTicks {header.WallClockTicks} must be >= previous {prevTicks}");
 
-                prevTicks = wallTicks;
-                fs.Position += compLen; // advance to next frame header
+                prevTicks = header.WallClockTicks;
+                fs.Position += header.CompressedSize; // advance to next frame header
             }
         }
 

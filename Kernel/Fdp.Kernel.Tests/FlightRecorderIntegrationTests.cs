@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Xunit;
 using Fdp.Kernel;
@@ -474,20 +475,20 @@ namespace Fdp.Tests
             using (var fs = new FileStream(_testFilePath, FileMode.Open))
             using (var binaryReader = new BinaryReader(fs))
             {
-                // Skip Global Header
-                fs.Position = 18; // Magic(6) + Version(4) + Timestamp(8)
-                
+                // Skip Global Header using its compile-time size
+                fs.Position = RecordingGlobalHeader.Size;
+
                 var playback = new PlaybackSystem();
-                
+
                 // --- READ FRAME 0 (Skip Events) ---
-                // Manually read frame wrapper like RecordingReader does
-                int f0CompSize = binaryReader.ReadInt32();
-                int f0UncompSize = binaryReader.ReadInt32();
-                fs.Position += 17; // Skip Tick/Type/WallClockTicks in outer header
-                
-                byte[] f0Data = binaryReader.ReadBytes(f0CompSize);
-                byte[] f0Raw = new byte[f0UncompSize];
-                K4os.Compression.LZ4.LZ4Codec.Decode(f0Data, 0, f0Data.Length, f0Raw, 0, f0UncompSize);
+                // Read the entire outer header in one go via the typed struct
+                Span<byte> f0HeaderBytes = stackalloc byte[FrameOuterHeader.Size];
+                fs.Read(f0HeaderBytes);
+                FrameOuterHeader f0Header = MemoryMarshal.Read<FrameOuterHeader>(f0HeaderBytes);
+
+                byte[] f0Data = binaryReader.ReadBytes(f0Header.CompressedSize);
+                byte[] f0Raw = new byte[f0Header.UncompressedSize];
+                K4os.Compression.LZ4.LZ4Codec.Decode(f0Data, 0, f0Data.Length, f0Raw, 0, f0Header.UncompressedSize);
                 
                 using (var ms0 = new MemoryStream(f0Raw))
                 using (var br0 = new BinaryReader(ms0))
@@ -514,8 +515,10 @@ namespace Fdp.Tests
                 Assert.Equal(42, targetRepo.GetComponentRO<IntComponent>(e1).Value);
                 
                 // Verify Frame 1 works too just in case
-                int f1CompSize = binaryReader.ReadInt32();
-                Assert.True(f1CompSize > 0);
+                Span<byte> f1HeaderBytes = stackalloc byte[FrameOuterHeader.Size];
+                fs.Read(f1HeaderBytes);
+                FrameOuterHeader f1Header = MemoryMarshal.Read<FrameOuterHeader>(f1HeaderBytes);
+                Assert.True(f1Header.CompressedSize > 0);
             }
         }
         #endregion

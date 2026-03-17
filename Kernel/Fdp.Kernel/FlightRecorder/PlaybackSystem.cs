@@ -558,38 +558,25 @@ namespace Fdp.Kernel.FlightRecorder
                     return false;
                 }
                 
-                // Read compSize
-                if (_fileStream.Position + 4 > _fileStream.Length)
+                // Read entire outer header in one bulk read via the typed struct
+                if (_fileStream.Position + FrameOuterHeader.Size > _fileStream.Length)
                 {
-                     Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Not enough bytes for compSize at {_fileStream.Position}");
-                     return false;
+                    Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Not enough bytes for outer header at {_fileStream.Position}/{_fileStream.Length}");
+                    return false;
                 }
 
-                int compSize = _reader.ReadInt32();
-                
+                Span<byte> outerHeaderBytes = stackalloc byte[FrameOuterHeader.Size];
+                _fileStream.Read(outerHeaderBytes);
+                FrameOuterHeader outerHeader = System.Runtime.InteropServices.MemoryMarshal.Read<FrameOuterHeader>(outerHeaderBytes);
+
+                int compSize = outerHeader.CompressedSize;
+                int uncompSize = outerHeader.UncompressedSize;
+
                 if (compSize <= 0)
                 {
-                    Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Invalid compSize {compSize} at {_fileStream.Position - 4}/{_fileStream.Length}");
-                    return false; // Invalid or end of file
-                }
-                
-                // Read uncompSize
-                if (_fileStream.Position + 4 > _fileStream.Length)
-                {
-                    Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Not enough bytes for uncompSize");
+                    Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Invalid compSize {compSize} at {_fileStream.Position - FrameOuterHeader.Size}/{_fileStream.Length}");
                     return false;
                 }
-                int uncompSize = _reader.ReadInt32();
-                
-                // Skip duplicated metadata (Tick + Type + WallClockTicks) which is only for indexing
-                // The actual Tick/Type/WallClockTicks is also inside the compressed payload
-                const int HEADER_METADATA_SIZE = 17; // 8 bytes Tick + 1 byte Type + 8 bytes WallClockTicks
-                if (_fileStream.Position + HEADER_METADATA_SIZE > _fileStream.Length)
-                {
-                    Console.WriteLine($"[KERNEL-DEBUG] ReadNextFrame: Not enough bytes for metadata at {_fileStream.Position}");
-                    return false;
-                }
-                _fileStream.Position += HEADER_METADATA_SIZE;
                 
                 // Read compressed data
                 if (_fileStream.Position + compSize > _fileStream.Length)

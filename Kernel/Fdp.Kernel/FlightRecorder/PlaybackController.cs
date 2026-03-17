@@ -100,36 +100,36 @@ namespace Fdp.Kernel.FlightRecorder
         {
             _frameIndex.Clear();
             _fileStream.Position = _headerEndPosition;
-            
+
+            // Pre-allocate the header buffer once outside the loop to avoid CA2014 (stackalloc in loop)
+            Span<byte> headerBytes = stackalloc byte[FrameOuterHeader.Size];
+
             while (_fileStream.Position < _fileStream.Length)
             {
                 try
                 {
                     long frameStart = _fileStream.Position;
-                    if (_fileStream.Position + 25 > _fileStream.Length) break; // Incomplete header
+                    if (_fileStream.Position + FrameOuterHeader.Size > _fileStream.Length) break; // Incomplete header
 
-                    // Read Header
-                    int compSize = _reader.ReadInt32();
-                    int uncompSize = _reader.ReadInt32(); // Unused for index, but part of format
-                    ulong tick = _reader.ReadUInt64();
-                    byte frameType = _reader.ReadByte();
-                    long wallClockTicks = _reader.ReadInt64();
-                    
-                    if (compSize <= 0) break;
-                    
+                    // Read the entire header in one bulk read
+                    _fileStream.Read(headerBytes);
+                    FrameOuterHeader header = System.Runtime.InteropServices.MemoryMarshal.Read<FrameOuterHeader>(headerBytes);
+
+                    if (header.CompressedSize <= 0) break;
+
                     _frameIndex.Add(new FrameMetadata
                     {
                         FilePosition = frameStart,
-                        CompressedSize = compSize,
-                        UncompressedSize = uncompSize,
-                        Tick = tick,
-                        FrameType = (FrameType)frameType,
-                        WallClockTicks = wallClockTicks
+                        CompressedSize = header.CompressedSize,
+                        UncompressedSize = header.UncompressedSize,
+                        Tick = header.Tick,
+                        FrameType = (FrameType)header.FrameType,
+                        WallClockTicks = header.WallClockTicks
                     });
-                    
+
                     // Skip compressed payload
-                    if (_fileStream.Position + compSize > _fileStream.Length) break; // Incomplete payload
-                    _fileStream.Position += compSize;
+                    if (_fileStream.Position + header.CompressedSize > _fileStream.Length) break; // Incomplete payload
+                    _fileStream.Position += header.CompressedSize;
                 }
                 catch (EndOfStreamException)
                 {
@@ -344,18 +344,16 @@ namespace Fdp.Kernel.FlightRecorder
             
             // Seek to frame position
             _fileStream.Position = metadata.FilePosition;
-            
-            // Read Header (25 bytes)
-            int compSize = _reader.ReadInt32();
-            int uncompSize = _reader.ReadInt32();
-            _fileStream.Position += 17; // Skip Tick(8) + Type(1) + WallClockTicks(8)
-            
+
+            // Skip the structured header to reach the compressed payload
+            _fileStream.Position += FrameOuterHeader.Size;
+
             // Read compressed data
-            byte[] compressedData = _reader.ReadBytes(compSize);
+            byte[] compressedData = _reader.ReadBytes(metadata.CompressedSize);
             
             // Decompress
-            byte[] rawFrame = new byte[uncompSize];
-            K4os.Compression.LZ4.LZ4Codec.Decode(compressedData, 0, compSize, rawFrame, 0, uncompSize);
+            byte[] rawFrame = new byte[metadata.UncompressedSize];
+            K4os.Compression.LZ4.LZ4Codec.Decode(compressedData, 0, metadata.CompressedSize, rawFrame, 0, metadata.UncompressedSize);
             
             // Apply frame
             using (var ms = new MemoryStream(rawFrame))

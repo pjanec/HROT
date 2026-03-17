@@ -226,23 +226,20 @@ namespace Fdp.Kernel.FlightRecorder
                 lock (_outputStream)
                 {
                     // 3. WRITE HEADER
-                    // New Format: [CompLen: 4][UncompLen: 4][Tick: 8][Type: 1][WallClockTicks: 8][CompressedData...]
-                    
-                    Span<byte> header = stackalloc byte[25]; // 4 + 4 + 8 + 1 + 8
-                    
-                    // Compressed Length
-                    System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(header.Slice(0, 4), encodedLength);
-                    // Uncompressed Length
-                    System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(header.Slice(4, 4), length);
-                    // Tick
-                    System.Buffers.Binary.BinaryPrimitives.WriteUInt64LittleEndian(header.Slice(8, 8), tick);
-                    // Type
-                    header[16] = type;
-                    // WallClockTicks
-                    System.Buffers.Binary.BinaryPrimitives.WriteInt64LittleEndian(header.Slice(17, 8), wallClockTicks);
-                    
-                    _outputStream.Write(header);
-                    
+                    FrameOuterHeader headerData = new FrameOuterHeader
+                    {
+                        CompressedSize = encodedLength,
+                        UncompressedSize = length,
+                        Tick = tick,
+                        FrameType = type,
+                        WallClockTicks = wallClockTicks
+                    };
+
+                    ReadOnlySpan<byte> headerSpan = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
+                        new ReadOnlySpan<FrameOuterHeader>(ref headerData));
+
+                    _outputStream.Write(headerSpan);
+
                     // 4. WRITE PAYLOAD
                     _outputStream.Write(_compressedBuffer, 0, encodedLength);
                     _outputStream.Flush();
