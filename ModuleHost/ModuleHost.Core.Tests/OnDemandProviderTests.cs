@@ -162,7 +162,7 @@ namespace ModuleHost.Core.Tests
             live.Tick();
             live.Bus.Publish(new TestEvent { Value = 999 });
             live.Bus.SwapBuffers();
-            acc.CaptureFrame(live.Bus, live.GlobalVersion, DateTime.UtcNow.Ticks);
+            acc.CaptureFrame(live.Bus, live.GlobalVersion);
             
             // Provider Update needed? In SoD Update just updates _lastSeenTick.
             // But we want to capture history.

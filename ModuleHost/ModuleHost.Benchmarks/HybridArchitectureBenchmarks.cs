@@ -65,7 +65,7 @@ namespace ModuleHost.Benchmarks
         public void EventAccumulator_CaptureFrame()
         {
             // Capture 100 events
-            _accumulator.CaptureFrame(_liveWorld.Bus, 0, DateTime.UtcNow.Ticks);
+            _accumulator.CaptureFrame(_liveWorld.Bus, 0);
         }
         
         [Benchmark]

@@ -42,11 +42,13 @@ namespace FDP.Toolkit.Time.Controllers
         
         public GlobalTime Update()
         {
-            // Calculate wall delta
-            double elapsedSeconds = _wallClock.Elapsed.TotalSeconds;
-            // Accumulate wall ticks from the just-elapsed interval before restarting
-            _totalWallTicks += (long)(elapsedSeconds * Stopwatch.Frequency);
-            
+            // Read native ticks directly — avoids float-multiplication drift that occurs when
+            // computing (elapsedSeconds * Stopwatch.Frequency) over long durations (DEBT-WCR-02).
+            long elapsedTicks = _wallClock.ElapsedTicks;
+            _totalWallTicks += elapsedTicks;
+
+            double elapsedSeconds = (double)elapsedTicks / Stopwatch.Frequency;
+
             // FIX: Reset stopwatch so next Update() measures fresh interval
             _wallClock.Restart();
             

@@ -32,7 +32,8 @@ namespace FDP.Toolkit.Time.Controllers
         public SteppedMasterController(FdpEventBus eventBus, HashSet<int> nodeIds, TimeConfig config) // Changed signature to match usage
         {
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
-            _slaveNodeIds = nodeIds ?? throw new ArgumentNullException(nameof(nodeIds));
+            if (nodeIds == null) throw new ArgumentNullException(nameof(nodeIds));
+            _slaveNodeIds = new HashSet<int>(nodeIds); // Defensive copy — prevents external mutation leaking into controller state
             _config = config ?? TimeConfig.Default;
             _pendingAcks = new HashSet<int>(_slaveNodeIds);
             

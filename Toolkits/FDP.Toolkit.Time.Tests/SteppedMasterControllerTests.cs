@@ -84,5 +84,39 @@ namespace FDP.Toolkit.Time.Tests
             Assert.Equal(2, time.FrameNumber);
             Assert.Equal(0.016f, time.DeltaTime, precision: 3);
         }
+
+        /// <summary>
+        /// DEBT-WCR-01: Verifies that mutating the original HashSet after construction
+        /// does not affect the controller's internal slave node set.
+        /// </summary>
+        [Fact]
+        public void Constructor_MakesDefensiveCopy_ExternalMutationIgnored()
+        {
+            var bus = new FdpEventBus();
+            var originalIds = new HashSet<int> { 1, 2 };
+            var master = new SteppedMasterController(bus, originalIds, new TimeConfig { FixedDeltaSeconds = 0.016f });
+
+            // Mutate the original set after construction
+            originalIds.Add(99);
+            originalIds.Remove(1);
+
+            // Frame 1: both nodes 1 and 2 must ACK (not the externally-mutated set)
+            master.Update(); // issues frame 1 order
+
+            // Send ACK only from node 1 (the one removed from the original)
+            bus.Publish(new FrameAckDescriptor { FrameID = 1, NodeID = 1 });
+            bus.SwapBuffers();
+
+            // Still waiting — controller expects ACK from node 2 as well (its internal copy is {1,2})
+            var timeAfterPartial = master.Update();
+            Assert.Equal(0.0f, timeAfterPartial.DeltaTime);
+
+            // Send ACK from node 2 — now all ACKs are satisfied
+            bus.Publish(new FrameAckDescriptor { FrameID = 1, NodeID = 2 });
+            bus.SwapBuffers();
+
+            var timeAfterFull = master.Update();
+            Assert.Equal(2, timeAfterFull.FrameNumber);
+        }
     }
 }

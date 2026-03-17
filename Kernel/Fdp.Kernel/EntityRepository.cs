@@ -150,6 +150,16 @@ namespace Fdp.Kernel
         {
             _globalVersion = version;
         }
+
+        /// <summary>
+        /// Resets the global version to the specified value (default: 1).
+        /// Intended for test setup so that version-dependent assertions start from a known baseline,
+        /// regardless of how many component registrations or internal ticks occurred during construction.
+        /// </summary>
+        public void ResetGlobalVersion(uint version = 1)
+        {
+            _globalVersion = version;
+        }
         
         /// <summary>
         /// Advances or changes the current execution phase.

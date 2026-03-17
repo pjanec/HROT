@@ -69,7 +69,7 @@ namespace ModuleHost.Core.Tests
             live.Bus.SwapBuffers(); // Make available for capture
             
             // Capture
-            acc.CaptureFrame(live.Bus, 1, DateTime.UtcNow.Ticks);
+            acc.CaptureFrame(live.Bus, 1);
             
             // Act: Update should flush to replica
             provider.Update();

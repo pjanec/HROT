@@ -16,6 +16,11 @@ namespace Fdp.Kernel.FlightRecorder
         private readonly PlaybackSystem _playback;
         private readonly List<FrameMetadata> _frameIndex;
         private readonly RecordingMetadata _metadata;
+
+        // Conservative average compressed frame size used to pre-size the frame index.
+        // Real frames vary: a small keyframe is ~150 bytes; a dense delta may reach ~400 bytes.
+        // 200 bytes is a safe middle ground that avoids repeated List growth on typical recordings.
+        private const int EstimatedAvgFrameSize = 200;
         
         private int _currentFrameIndex = -1;
         private long _headerEndPosition;
@@ -39,7 +44,12 @@ namespace Fdp.Kernel.FlightRecorder
             _fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             _reader = new BinaryReader(_fileStream);
             _playback = new PlaybackSystem();
-            _frameIndex = new List<FrameMetadata>();
+
+            // Pre-size the frame index based on the file length to avoid repeated List growth
+            // on large recordings. Capacity is clamped to at least 128 slots.
+            long fileLength = new FileInfo(filePath).Length;
+            int estimatedFrameCount = Math.Max(128, (int)(fileLength / EstimatedAvgFrameSize));
+            _frameIndex = new List<FrameMetadata>(estimatedFrameCount);
             
             ReadGlobalHeader();
             BuildFrameIndex();

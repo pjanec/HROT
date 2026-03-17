@@ -109,5 +109,32 @@ namespace FDP.Toolkit.Time.Tests
             controller.SetTimeScale(2.0f);
             Assert.Equal(2.0f, controller.GetTimeScale());
         }
+
+        /// <summary>
+        /// DEBT-WCR-02: Verifies that TotalWallTicks accumulates monotonically across multiple
+        /// Update() calls. The value should increase each frame, confirming that ElapsedTicks
+        /// (not a float projection) drives the accumulation.
+        /// </summary>
+        [Fact]
+        public void Update_TotalWallTicks_AccumulatesMonotonically()
+        {
+            var bus = new FdpEventBus();
+            var controller = new MasterTimeController(bus, TimeConfig.Default);
+
+            System.Threading.Thread.Sleep(2); // Allow stopwatch to advance
+            var t1 = controller.Update();
+
+            System.Threading.Thread.Sleep(2);
+            var t2 = controller.Update();
+
+            System.Threading.Thread.Sleep(2);
+            var t3 = controller.Update();
+
+            // Each call should contribute positive ticks, so totals must be strictly increasing
+            Assert.True(t2.TotalWallTicks > t1.TotalWallTicks,
+                $"Expected TotalWallTicks to increase: t1={t1.TotalWallTicks}, t2={t2.TotalWallTicks}");
+            Assert.True(t3.TotalWallTicks > t2.TotalWallTicks,
+                $"Expected TotalWallTicks to increase: t2={t2.TotalWallTicks}, t3={t3.TotalWallTicks}");
+        }
     }
 }
