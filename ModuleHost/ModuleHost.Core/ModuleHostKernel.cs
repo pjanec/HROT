@@ -395,6 +395,7 @@ namespace ModuleHost.Core
         /// if using master mode with manual dt.
         /// Use Update() (no args) for standard TimeController-driven execution.
         /// </summary>
+        [Obsolete("Use Update() utilizing SteppingTimeController instead. This legacy overload will cause deterministic desync.", false)]
         public void Update(float deltaTime)
         {
             // Create a synthetic GlobalTime if called manually

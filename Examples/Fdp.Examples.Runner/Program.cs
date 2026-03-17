@@ -69,7 +69,7 @@ namespace Fdp.Examples.Runner
             // 2. Configure NLog programmatically (no external NLog.config needed for CI).
             //    Set MDC["scenario"] first so NLog layout renderer ${scenario} resolves correctly
             //    when naming the file target.
-            NLog.MappedDiagnosticsContext.Set("scenario", opts.Scenario);
+            NLog.ScopeContext.PushProperty("scenario", opts.Scenario);
             string logPath = ConfigureNLog(opts.Scenario);
             stdout.WriteLine($"[RUNNER] Log: {logPath}");
             stdout.Flush();
@@ -140,7 +140,7 @@ namespace Fdp.Examples.Runner
             // ── File target: Trace and above ──────────────────────────────────
             var fileTarget = new FileTarget("logfile")
             {
-                FileName     = $"logs/demo-${{scenario}}-${{shortdate}}-${{cached:cached=true:inner=${{date:format=HHmmss}}}}.log",
+                FileName     = $"logs/demo-${{scopeproperty:scenario}}-${{shortdate}}-${{cached:cached=true:inner=${{date:format=HHmmss}}}}.log",
                 Layout       = "${longdate}|${level:uppercase=true}|${logger}|tick=${event-properties:tick}| ${message} ${exception:format=tostring}",
                 KeepFileOpen = true,
                 AutoFlush    = true

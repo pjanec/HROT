@@ -7,5 +7,9 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Combat.Contracts\FDP.Toolkit.Combat.Contracts.csproj" />
   </ItemGroup>
 </Project>

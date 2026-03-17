@@ -1,6 +1,8 @@
 using Fdp.Examples.Common;
+using Fdp.Examples.Scenarios.Kinematics;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
+using FDP.Toolkit.Combat;
 using FDP.Toolkit.Vis2D;
 using ModuleHost.Core;
 using NLog;
@@ -343,6 +345,159 @@ namespace Fdp.Examples.Scenarios.Tests
             Assert.Contains("[RUNNER] Log:", output);
             // Verify the log path matches the expected naming pattern.
             Assert.Matches(@"\[RUNNER\] Log:.*demo-placeholder.*\.log", output);
+        }
+    }
+
+    // ── DEM1-D001: AutoDriveScenario tests ───────────────────────────────────
+
+    public class AutoDriveScenarioTests
+    {
+        /// <summary>
+        /// Full scenario run — all 4 phases pass and both vehicles arrive at their
+        /// destinations within the 250-tick budget. Exit code must be 0 (CI SUCCESS).
+        /// </summary>
+        [Fact]
+        public void AutoDrive_RunToCompletion_ExitsZero()
+        {
+            var scenario = new AutoDriveScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 250);
+            string diag = $"Exit code {code}. Reason: {scenario.FailureReason ?? "(timeout or unknown)"}. " +
+                $"Speed@20={scenario.AlphaSpeedAtTick20:F3} |Y|@70={MathF.Abs(scenario.AlphaYAtTick70):F3} |Y|@160={MathF.Abs(scenario.AlphaYAtTick160):F3}";
+            Assert.True(code == 0, diag);
+        }
+
+        /// <summary>
+        /// By tick 20 both vehicles must have started accelerating (speed &gt; 0) and
+        /// must still be close to the X-axis (Y offset &lt; 0.5 m). If this fails,
+        /// the navigation command was not received or the kinematics pipeline is broken.
+        /// </summary>
+        [Fact]
+        public void AutoDrive_Phase1_VehiclesAccelerate_ByTick20()
+        {
+            var scenario = new AutoDriveScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 250);
+
+            // Scenario throws ScenarioFailureException (exit 1) if the Phase 1 check fails.
+            // If we reach here with code 0 it means the full scenario succeeded (fine).
+            Assert.True(code != 1, $"Exit code 1. Reason: {scenario.FailureReason}. Speed@20={scenario.AlphaSpeedAtTick20:F3} Y@70={scenario.AlphaYAtTick70:F3}");
+
+            // Direct value assertions for independent coverage.
+            Assert.True(scenario.AlphaSpeedAtTick20 > 0f,
+                $"Alpha speed at tick 20 = {scenario.AlphaSpeedAtTick20:F3} m/s — expected > 0");
+        }
+
+        /// <summary>
+        /// By tick 70 the RVO solver must have pushed Alpha laterally by more than 2 m,
+        /// confirming that collision avoidance activated during the head-on approach.
+        /// Modifying AvoidanceRadius to 0 would cause this assertion to fail.
+        /// </summary>
+        [Fact]
+        public void AutoDrive_Phase2_RVOActivates_ByTick70()
+        {
+            var scenario = new AutoDriveScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 250);
+
+            Assert.NotEqual(1, code);
+
+            Assert.True(MathF.Abs(scenario.AlphaYAtTick70) > 2.0f,
+                $"|Alpha.Y| at tick 70 = {MathF.Abs(scenario.AlphaYAtTick70):F3} m — expected > 2.0 m");
+        }
+
+        /// <summary>
+        /// Both vehicles must arrive at their destinations within 200 ticks.
+        /// The full scenario run (maxTicks=250) exercises phase 4 directly —
+        /// if arrivals are slow or blocked the scenario throws at tick > 200.
+        /// </summary>
+        [Fact]
+        public void AutoDrive_Phase4_BothVehiclesArrive_WithinBudget()
+        {
+            var scenario = new AutoDriveScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 250);
+
+            Assert.Equal(0, code);
+            Assert.True(scenario.BothArrivedByTick200,
+                "Both vehicles must have arrived at their destinations by tick 200.");
+        }
+    }
+
+    // ── DEM1-D002: ComponentDamageScenario tests ─────────────────────────────
+
+    public class ComponentDamageScenarioTests
+    {
+        /// <summary>
+        /// Full scenario run — all 5 phases pass and exit code is 0 (CI SUCCESS).
+        /// The APC receives a non-lethal hit, loses mobility but retains firepower.
+        /// </summary>
+        [Fact]
+        public void ComponentDamage_RunToCompletion_ExitsZero()
+        {
+            int code = ScenarioTestHarness.Run(new ComponentDamageScenario(), maxTicks: 60);
+            Assert.Equal(0, code);
+        }
+
+        /// <summary>
+        /// After the HitEvent at tick 20 is processed by DamageSystem, the APC's health
+        /// must be below its maximum value by tick 21. Changing HitDamage to 0 would
+        /// cause this test to fail.
+        /// </summary>
+        [Fact]
+        public void ComponentDamage_Phase2_HealthDecreases_AfterHit()
+        {
+            var scenario = new ComponentDamageScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.NotEqual(1, code);
+
+            Assert.True(scenario.HealthAfterHit < scenario.HealthAtBaseline,
+                $"Health after hit ({scenario.HealthAfterHit}) must be less than baseline ({scenario.HealthAtBaseline})");
+        }
+
+        /// <summary>
+        /// The MobilityKillSystem strips CanMove from the APC on tick 22 (first frame
+        /// after damage is applied). Removing or breaking that system causes this to fail.
+        /// </summary>
+        [Fact]
+        public void ComponentDamage_Phase3_MoveFlagStripped_AfterDamage()
+        {
+            var scenario = new ComponentDamageScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.NotEqual(1, code);
+
+            Assert.False(scenario.CanMoveAtTick22,
+                "CanMove flag must be stripped at tick 22 after the mobility kill hit.");
+        }
+
+        /// <summary>
+        /// After mobility is killed (CanMove stripped), the LocomotionClearOnMobilityKillSystem
+        /// (HSM bridge response) must zero out LocomotionChannel.ActiveAction by tick 25.
+        /// Removing that system causes this assertion to fail.
+        /// </summary>
+        [Fact]
+        public void ComponentDamage_Phase4_LocomotionCleared_ByHSM()
+        {
+            var scenario = new ComponentDamageScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.NotEqual(1, code);
+
+            Assert.Equal(0, (int)scenario.LocoActionAtTick25);
+        }
+
+        /// <summary>
+        /// WeaponChannel.ActiveAction must still equal <see cref="CombatConstants.ActionIdAimAndFire"/>
+        /// at tick 45, confirming that mobility kill does NOT strip firepower.
+        /// Changing combat constants or accidentally clearing WeaponChannel would fail this test.
+        /// </summary>
+        [Fact]
+        public void ComponentDamage_Phase5_WeaponStillFires_AfterMobilityKill()
+        {
+            var scenario = new ComponentDamageScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.Equal(0, code);
+
+            Assert.Equal(CombatConstants.ActionIdAimAndFire, scenario.WeaponActionAtTick45);
         }
     }
 }

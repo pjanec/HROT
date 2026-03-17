@@ -1,15 +1,12 @@
 using Fdp.Examples.Common;
 using Fdp.Examples.Common.Constants;
+using Fdp.Examples.Scenarios.Kinematics;
 
 namespace Fdp.Examples.Runner
 {
     /// <summary>
     /// Maps scenario name strings to <see cref="IScenario"/> factory functions.
     /// Registration is explicit (no reflection) to keep startup fast and errors obvious.
-    /// <para>
-    /// Phase 0: only the <c>placeholder</c> sentinel is registered. Concrete scenarios are
-    /// added in later batches as they are implemented in <c>Fdp.Examples.Scenarios</c>.
-    /// </para>
     /// </summary>
     public static class ScenarioRegistry
     {
@@ -23,10 +20,9 @@ namespace Fdp.Examples.Runner
             // ── Phase 0 placeholder ───────────────────────────────────────────
             "placeholder" => new PlaceholderScenario(),
 
-            // ── Phase 2+ scenarios (populated in future batches) ──────────────
-            // ScenarioNames.AutoDrive       => new AutoDriveScenario(),
-            // ScenarioNames.ComponentDamage => new ComponentDamageScenario(),
-            // ...
+            // ── Phase 2 demos (BATCH-03) ──────────────────────────────────────
+            ScenarioNames.AutoDrive       => new AutoDriveScenario(),
+            ScenarioNames.ComponentDamage => new ComponentDamageScenario(),
 
             _ => throw new ArgumentException($"Unknown scenario: '{name}'. " +
                  $"Check {nameof(ScenarioNames)} for valid keys.", nameof(name))
