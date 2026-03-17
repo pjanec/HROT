@@ -1,6 +1,4 @@
 using Bagira.IG;
-using Bagira.Runner.Abstractions;
-using Bagira.Runner.Models;
 using FDP.Toolkit.Vis2D.Components;
 
 namespace Bagira.Runner.Services

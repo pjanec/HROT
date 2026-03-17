@@ -200,25 +200,25 @@ public class IgApplication
 
 
 
-    // ÔöÇÔöÇ Network enabled flag ÔÇö false when DDS libraries are unavailable (e.g. unit-test host)
+    // -- Network enabled flag ÔÇö false when DDS libraries are unavailable (e.g. unit-test host)
 
     private bool _networkEnabled;
 
 
 
-    // ÔöÇÔöÇ Headless flag ÔÇö set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
+    // -- Headless flag ÔÇö set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
 
     private bool _headless;
 
 
 
-    // ÔöÇÔöÇ Optional domain override (tests) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // -- Optional domain override (tests) -------------------------------------
 
     private int? _domainOverride;
 
 
 
-    // ÔöÇÔöÇ Task 5: IG-to-IOS event translator state ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // -- Task 5: IG-to-IOS event translator state ----------------------------------------------
 
     private WGS84Transform?                  _geoTransform;
 
@@ -291,10 +291,11 @@ public class IgApplication
     private JsonToRecordCompiler? _edgeCompiler;
 
     // ÔöÇÔöÇ Drag tracking: world-space drop position set by OnEntityMoved ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // -- Drag tracking: world-space drop position set by OnEntityMoved --------------------------
 
     private System.Numerics.Vector2          _lastDragWorldPos;
 
-    // ÔöÇÔöÇ Style and culling objects ÔÇö updated and injected into modules
+    // -- Style and culling objects ÔÇö updated and injected into modules
 
     private MapUserConfig     _userConfig     = null!;
 
@@ -302,7 +303,7 @@ public class IgApplication
 
 
 
-    // ÔöÇÔöÇ ImGui UI panels (TASK-IF008) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // -- ImGui UI panels (TASK-IF008) ------------------------------------------
 
     private DebugPanelState       _debugPanelState   = null!;
 
@@ -348,7 +349,7 @@ public class IgApplication
 
 
 
-    // ÔöÇÔöÇ Context menu state ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // -- Context menu state ---------------------------------------------------
 
     private Entity _mapContextEntity = Entity.Null;
 
@@ -546,7 +547,7 @@ public class IgApplication
 
 
 
-        // ÔöÇÔöÇ ImGui UI panels (TASK-IF008) ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+        // -- ImGui UI panels (TASK-IF008) -------------------------------------
 
         _debugPanelState    = new DebugPanelState(_userConfig);
 
@@ -1622,7 +1623,7 @@ public class IgApplication
 
 
 
-    // ÔöÇÔöÇ Task 5: IG-to-IOS event translators ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // -- Task 5: IG-to-IOS event translators ----------------------------------
 
 
 
@@ -2387,7 +2388,7 @@ public class IgApplication
 
 
 
-    // ÔöÇÔöÇ Grid rendering ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // -- Grid rendering --------------------------------------------------------
 
 
 
@@ -2483,7 +2484,7 @@ public class IgApplication
 
 
 
-    // ÔöÇÔöÇ Config JSON parsing ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // -- Config JSON parsing ---------------------------------------------------
 
     // ─── CMD_* command handlers ────────────────────────────────────────────────
 
@@ -3296,7 +3297,7 @@ public class IgApplication
 
 
 
-    // ÔöÇÔöÇ Private adapter ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+    // -- Private adapter -------------------------------------------------------
 
 
 
