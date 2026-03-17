@@ -152,7 +152,8 @@ namespace FDP.Toolkit.Time.Controllers
                 TimeScale = _timeScale,
                 UnscaledDeltaTime = (float)rawDeltaSeconds,
                 UnscaledTotalTime = _unscaledTotalTime,
-                StartWallTicks = 0
+                StartWallTicks = 0,
+                TotalWallTicks = _virtualWallTicks
             };
         }
         
@@ -174,7 +175,8 @@ namespace FDP.Toolkit.Time.Controllers
                 TotalTime = _totalTime,
                 TimeScale = _timeScale,
                 UnscaledDeltaTime = 0.0f,
-                UnscaledTotalTime = _unscaledTotalTime
+                UnscaledTotalTime = _unscaledTotalTime,
+                TotalWallTicks = _virtualWallTicks
             };
         }
 

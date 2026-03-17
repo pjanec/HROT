@@ -199,25 +199,71 @@ namespace Fdp.Kernel.FlightRecorder
         }
         
         /// <summary>
-        /// Seeks to a specific simulation tick.
+        /// Seeks to the frame whose simulation tick is at or immediately after the given target tick.
+        /// Uses binary search (O(log N)) over the sorted <c>_frameIndex</c>.
         /// </summary>
         public void SeekToTick(EntityRepository repo, ulong tick)
         {
-            // Find frame with matching or closest tick
-            int frameIndex = -1;
-            for (int i = 0; i < _frameIndex.Count; i++)
+            if (_frameIndex.Count == 0) return;
+
+            int left = 0;
+            int right = _frameIndex.Count - 1;
+            int closestFrame = _frameIndex.Count - 1;
+
+            while (left <= right)
             {
-                if (_frameIndex[i].Tick >= tick)
+                int mid = left + (right - left) / 2;
+                if (_frameIndex[mid].Tick >= tick)
                 {
-                    frameIndex = i;
-                    break;
+                    closestFrame = mid;
+                    right = mid - 1;
+                }
+                else
+                {
+                    left = mid + 1;
                 }
             }
-            
-            if (frameIndex == -1)
-                frameIndex = _frameIndex.Count - 1;
-            
-            SeekToFrame(repo, frameIndex);
+
+            SeekToFrame(repo, closestFrame);
+        }
+
+        /// <summary>
+        /// Seeks to the frame at or immediately before the given UTC wall-clock ticks.
+        /// Uses binary search (O(log N)) — requires the recording invariant that
+        /// WallClockTicks is monotonically non-decreasing across frames.
+        /// </summary>
+        public void SeekToWallClockTicks(EntityRepository repo, long targetWallTicks)
+        {
+            if (_frameIndex.Count == 0) return;
+
+            int left = 0;
+            int right = _frameIndex.Count - 1;
+            int closestFrame = -1;
+
+            while (left <= right)
+            {
+                int mid = left + (right - left) / 2;
+                long midTicks = _frameIndex[mid].WallClockTicks;
+
+                if (midTicks == targetWallTicks)
+                {
+                    closestFrame = mid;
+                    break;
+                }
+
+                if (midTicks < targetWallTicks)
+                {
+                    closestFrame = mid;
+                    left = mid + 1;
+                }
+                else
+                {
+                    right = mid - 1;
+                }
+            }
+
+            if (closestFrame == -1) closestFrame = 0;
+            SeekToFrame(repo, closestFrame);
         }
         
         /// <summary>

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Fdp.Kernel;
 using ModuleHost.Core.Time;
 
@@ -42,7 +43,8 @@ namespace FDP.Toolkit.Time.Controllers
                 TotalTime = _totalTime,
                 TimeScale = _timeScale,
                 UnscaledDeltaTime = _lastUnscaledDeltaTime,
-                UnscaledTotalTime = _unscaledTotalTime
+                UnscaledTotalTime = _unscaledTotalTime,
+                TotalWallTicks = (long)(_unscaledTotalTime * Stopwatch.Frequency)
             };
         }
         
@@ -90,7 +92,8 @@ namespace FDP.Toolkit.Time.Controllers
                 TotalTime = _totalTime,
                 TimeScale = _timeScale,
                 UnscaledDeltaTime = 0.0f,
-                UnscaledTotalTime = _unscaledTotalTime
+                UnscaledTotalTime = _unscaledTotalTime,
+                TotalWallTicks = (long)(_unscaledTotalTime * Stopwatch.Frequency)
             };
         }
 

@@ -22,6 +22,7 @@ namespace FDP.Toolkit.Time.Controllers
         private double _unscaledTotalTime = 0.0;
         private float _timeScale = 1.0f;
         private long _frameNumber = 0;
+        private long _totalWallTicks = 0;
         
         // Network publishing
         private long _lastEventsTicks = 0;
@@ -43,6 +44,8 @@ namespace FDP.Toolkit.Time.Controllers
         {
             // Calculate wall delta
             double elapsedSeconds = _wallClock.Elapsed.TotalSeconds;
+            // Accumulate wall ticks from the just-elapsed interval before restarting
+            _totalWallTicks += (long)(elapsedSeconds * Stopwatch.Frequency);
             
             // FIX: Reset stopwatch so next Update() measures fresh interval
             _wallClock.Restart();
@@ -71,7 +74,8 @@ namespace FDP.Toolkit.Time.Controllers
                 TimeScale = _timeScale,
                 UnscaledDeltaTime = (float)elapsedSeconds,
                 UnscaledTotalTime = _unscaledTotalTime,
-                StartWallTicks = 0 
+                StartWallTicks = 0,
+                TotalWallTicks = _totalWallTicks
             };
         }
         
@@ -114,7 +118,8 @@ namespace FDP.Toolkit.Time.Controllers
                 TotalTime = _totalTime,
                 TimeScale = _timeScale,
                 UnscaledDeltaTime = 0.0f,
-                UnscaledTotalTime = _unscaledTotalTime
+                UnscaledTotalTime = _unscaledTotalTime,
+                TotalWallTicks = _totalWallTicks
             };
         }
 

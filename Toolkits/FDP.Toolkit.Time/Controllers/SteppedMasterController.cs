@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using ModuleHost.Core.Time;
@@ -143,7 +144,8 @@ namespace FDP.Toolkit.Time.Controllers
                 TimeScale = _timeScale,
                 UnscaledDeltaTime = unscaledDelta,
                 UnscaledTotalTime = _unscaledTotalTime,
-                StartWallTicks = 0
+                StartWallTicks = 0,
+                TotalWallTicks = (long)(_unscaledTotalTime * Stopwatch.Frequency)
             };
         }
 
