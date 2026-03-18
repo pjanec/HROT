@@ -8,7 +8,11 @@ using Fdp.Kernel.Collections;
 namespace CarKinem.Systems
 {
     /// <summary>
-    /// Builds spatial hash grid from vehicle positions each frame.
+    /// Builds spatial hash grid from positions of physics-collidable entities each frame.
+    /// Only entities that carry a <c>PhysicsCollider</c> component (component ID
+    /// <see cref="GlobalComponentIds.PhysicsCollider"/>) are inserted, ensuring that
+    /// non-collidable entities such as observation cameras, raw waypoints, and decoupled
+    /// projectiles do not incur broadphase insertion cost.
     /// Publishes grid as singleton component.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -35,8 +39,14 @@ namespace CarKinem.Systems
         {
             _grid.Clear();
             
-            // Query all vehicles (universal query via SimTransform)
-            var query = World.Query().With<SimTransform>().Build();
+            // Query only physics-collidable entities (SimTransform + PhysicsCollider).
+            // Using WithComponentId avoids a circular project dependency: FDP.Toolkit.Physics
+            // already references FDP.Toolkit.CarKinem, so CarKinem cannot reference Physics.
+            // GlobalComponentIds.PhysicsCollider is defined in Fdp.Kernel which CarKinem already references.
+            var query = World.Query()
+                .With<SimTransform>()
+                .WithComponentId(GlobalComponentIds.PhysicsCollider)
+                .Build();
             
             foreach (var entity in query)
             {

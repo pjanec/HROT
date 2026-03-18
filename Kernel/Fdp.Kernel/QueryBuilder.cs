@@ -48,6 +48,25 @@ namespace Fdp.Kernel
         }
 
         /// <summary>
+        /// Requires entity to have the component registered with the specified raw
+        /// <paramref name="componentId"/> (a <see cref="GlobalComponentIds"/> constant).
+        /// Use when the consumer project cannot directly reference the component's type due
+        /// to assembly dependency constraints (e.g. CarKinem filtering on
+        /// <c>GlobalComponentIds.PhysicsCollider</c> without depending on
+        /// <c>FDP.Toolkit.Physics</c>).
+        /// </summary>
+        /// <param name="componentId">
+        /// Raw component-type identifier in the range [0, 255].
+        /// Out-of-range values are silently ignored.
+        /// </param>
+        public QueryBuilder WithComponentId(int componentId)
+        {
+            if (componentId >= 0 && componentId < 256)
+                _includeMask.SetBit(componentId);
+            return this;
+        }
+
+        /// <summary>
         /// Requires entity to have managed component T.
         /// Can be chained multiple times for AND logic.
         /// </summary>

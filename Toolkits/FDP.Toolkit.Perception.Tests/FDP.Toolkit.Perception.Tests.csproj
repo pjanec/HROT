@@ -15,5 +15,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
+    <ProjectReference Include="..\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
   </ItemGroup>
 </Project>

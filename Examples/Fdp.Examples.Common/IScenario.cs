@@ -32,5 +32,13 @@ namespace Fdp.Examples.Common
         /// Called only when --attach-vis2d is set. Must be a no-op otherwise.
         /// </summary>
         void ConfigureVisuals(MapCanvas? canvas, EntityRepository world);
+
+        /// <summary>
+        /// Called by <see cref="ScenarioSubsystem"/> during teardown, after the kernel
+        /// and world have been disposed.  Override to release any unmanaged resources
+        /// allocated in <see cref="Configure"/> (e.g. <c>PhysicsToolkitModule</c>
+        /// NativeArrays).  The default implementation is a no-op.
+        /// </summary>
+        void OnShutdown() { }
     }
 }

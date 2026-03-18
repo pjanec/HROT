@@ -81,8 +81,16 @@ namespace CarKinem.Avoidance
                     
                     Vector2 repulsion = -dir * (10.0f / (dist + 0.1f));
                     
-                    // Lateral bias (steer right)
-                    Vector2 lateral = new Vector2(dir.Y, -dir.X) * (4.0f / (dist + 0.1f));
+                    // Velocity-relative lateral bias (BATCH-05 Task 3):
+                    // Scale the lateral component proportionally to the relative speed,
+                    // normalised by maxSpeed so the bias is contextual rather than fixed.
+                    // A fixed 4.0f caused jitter at high velocities because the perturbation
+                    // was disproportionate to the dynamic range of the encounter; proportional
+                    // scaling ensures the lateral nudge grows/shrinks with the actual approach
+                    // speed, smoothing divergence routes across the full velocity range.
+                    // Calibrated at relSpeed = maxSpeed → same magnitude as the old fixed 4.0f.
+                    float lateralScale = relSpeed / MathF.Max(relSpeed, maxSpeed);
+                    Vector2 lateral = new Vector2(dir.Y, -dir.X) * (4.0f / (dist + 0.1f)) * lateralScale;
                     
                     avoidanceForce += repulsion + lateral;
                 }

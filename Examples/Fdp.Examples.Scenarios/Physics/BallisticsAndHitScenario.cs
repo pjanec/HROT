@@ -65,6 +65,9 @@ namespace Fdp.Examples.Scenarios.Physics
         private const float TargetRadius  = 2f;
         private const float MaxHealth     = 100f;
 
+        // ── Physics module (held alive for NativeArray lifetime) ──────────────
+        private PhysicsToolkitModule? _physicsModule;
+
         // ── Observable state for test assertions ──────────────────────────────
 
         /// <summary>Bullet entity captured on spawn (tick 1).</summary>
@@ -112,9 +115,9 @@ namespace Fdp.Examples.Scenarios.Physics
             world.RegisterEvent<HitEvent>();
 
             // ── Physics singleton (RaycastBatchData with persistent NativeArrays) ──
-            // Ownership transfers to world on Initialize; the module's local handle is cleared.
-            using var physics = new PhysicsToolkitModule();
-            physics.Initialize(world);
+            // Module retains ownership; Dispose() is called via OnShutdown() at scenario teardown.
+            _physicsModule = new PhysicsToolkitModule();
+            _physicsModule.Initialize(world);
 
             // ── System pipeline ────────────────────────────────────────────────
             // Execution order is critical for CCD anti-tunneling integrity:
@@ -241,6 +244,9 @@ namespace Fdp.Examples.Scenarios.Physics
 
         /// <inheritdoc/>
         public void ConfigureVisuals(MapCanvas? canvas, EntityRepository world) { }
+
+        /// <inheritdoc/>
+        public void OnShutdown() => _physicsModule?.Dispose();
 
         // ── Entity factories ──────────────────────────────────────────────────
 

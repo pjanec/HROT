@@ -8,6 +8,7 @@ using CarKinem.Systems;
 using CarKinem.Trajectory;
 using Fdp.Examples.Common;
 using Fdp.Kernel;
+using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Vis2D;
 using ModuleHost.Core;
 using ModuleHost.Core.Abstractions;
@@ -84,6 +85,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
             world.RegisterComponent<NavState>();
             world.RegisterComponent<SimVelocity>();
             world.RegisterComponent<SpatialGridData>();
+            world.RegisterComponent<PhysicsCollider>(); // required by SpatialHashSystem filter (BATCH-05 Task 2)
 
             // ── Systems ───────────────────────────────────────────────────────
             var spatialHash = new SpatialHashSystem();
@@ -214,6 +216,10 @@ namespace Fdp.Examples.Scenarios.Kinematics
 
             // Pre-set speed in VehicleState to match initial SimVelocity.
             world.AddComponent(e, new VehicleState { Speed = DriveSpeed });
+
+            // PhysicsCollider is required so SpatialHashSystem (BATCH-05 Task 2) indexes
+            // this entity for broadphase neighbor queries used by RVO avoidance.
+            world.AddComponent(e, new PhysicsCollider { Radius = 2.0f, CollisionLayer = 1 });
 
             // Set NavState directly — no CmdNavigateToPoint bus event required.
             world.AddComponent(e, new NavState

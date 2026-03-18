@@ -1,6 +1,7 @@
 using Fdp.Examples.Common;
 using Fdp.Examples.Scenarios.Cognitive;
 using Fdp.Examples.Scenarios.Kinematics;
+using Fdp.Examples.Scenarios.Perception;
 using Fdp.Examples.Scenarios.Physics;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
@@ -636,6 +637,79 @@ namespace Fdp.Examples.Scenarios.Tests
 
             Assert.Equal(NavigationConstants.ActionIdFlee, scenario.LocoActionAtTick30);
             Assert.Equal(0, (int)scenario.WeaponActionAtTick30);
+        }
+    }
+
+    // ── DEM1-D005: SensorGridScenario tests ──────────────────────────────────
+
+    public class SensorGridScenarioTests
+    {
+        /// <summary>
+        /// Full scenario run — all 3 phases pass and exit code is 0 (CI SUCCESS).
+        /// The observer detects the target in open field, loses track when it enters
+        /// the wall's shadow, then reacquires it at tick 96.
+        /// </summary>
+        [Fact]
+        public void SensorGrid_RunToCompletion_ExitsZero()
+        {
+            var scenario = new SensorGridScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 100);
+            Assert.True(code == 0,
+                $"Exit code {code}. Phase1={scenario.Phase1Passed}, Phase2={scenario.Phase2Passed}");
+        }
+
+        /// <summary>
+        /// By tick 28 the observer's TargetMemory must show the target as an active threat.
+        /// The target is at (100, 28) — well within VisionRange=200 and in clear LOS before
+        /// the wall's blocking range (Y ∈ [29.17, 75.0]).
+        /// If this fails, the perception pipeline is broken or the pipeline lag is larger than
+        /// expected (target not yet detected within 24 ticks of sim start).
+        /// </summary>
+        [Fact]
+        public void SensorGrid_Phase1_TargetDetectedInOpenField()
+        {
+            var scenario = new SensorGridScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 100);
+
+            // Exit code 1 means a ScenarioFailureException was thrown at Phase 1.
+            Assert.NotEqual(1, code);
+
+            Assert.True(scenario.Phase1Passed,
+                "Phase 1: TargetMemory must show active threat at tick 28 (open field, clear LOS).");
+        }
+
+        /// <summary>
+        /// By tick 60 the target has been occluded by the wall for ~24 ticks (last seen ~
+        /// tick 36). The staleness threshold is 20 ticks, so the threat must be considered
+        /// stale and HasThreat must return false. If this fails, either the LOS block is not
+        /// working or the staleness threshold is not applied.
+        /// </summary>
+        [Fact]
+        public void SensorGrid_Phase2_TargetOccludedByWall()
+        {
+            var scenario = new SensorGridScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 100);
+
+            Assert.NotEqual(1, code);
+
+            Assert.True(scenario.Phase2Passed,
+                "Phase 2: threat must be stale at tick 60 (target hidden behind wall since ~tick 36).");
+        }
+
+        /// <summary>
+        /// At tick 96 the target has exited the wall's shadow (Y=96 &gt; 75) and the module
+        /// has had time to reacquire it (~6 ticks since last confirmed sighting at ~tick 90).
+        /// HasThreat must return true and EvaluateTick must return true to end the scenario.
+        /// Exit code 0 is the primary assertion; this test confirms the full-cycle reacquisition.
+        /// </summary>
+        [Fact]
+        public void SensorGrid_Phase3_TargetReacquiredAfterWall()
+        {
+            var scenario = new SensorGridScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 100);
+
+            // Exit code 0 means Phase 3 triggered return true inside EvaluateTick.
+            Assert.Equal(0, code);
         }
     }
 }

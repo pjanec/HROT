@@ -1,5 +1,9 @@
+using System;
+using System.Numerics;
+using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Perception.Events;
 using FDP.Toolkit.Perception.Systems;
+using FDP.Toolkit.Physics.Components;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 using Xunit;
@@ -19,6 +23,13 @@ namespace FDP.Toolkit.Perception.Tests
     /// </summary>
     public class LosRequestBatchingSystemTests
     {
+        private static EntityRepository CreateWorldWithPhysics()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            world.RegisterComponent<PhysicsCollider>();
+            return world;
+        }
+
         private static void FlushEcbAndSwap(ISimulationView view, EntityRepository world)
         {
             var ecb = (EntityCommandBuffer)view.GetCommandBuffer();
@@ -63,10 +74,10 @@ namespace FDP.Toolkit.Perception.Tests
         // ── Test 2 ───────────────────────────────────────────────────────────────
 
         [Fact]
-        public void LosRequestBatching_ProductionMode_DoesNotEmitTargetVisibleEvent()
+        public void LosRequestBatching_ProductionMode_SkipsDeadEntities()
         {
-            // Arrange
-            var world = PerceptionTestWorldFactory.Create();
+            // Arrange — ghost entity handles (not alive in world).
+            var world = CreateWorldWithPhysics();
             var sys   = new LosRequestBatchingSystem(mockMode: false);
 
             world.Bus.Publish(new LosCheckRequestEvent { Observer = new Entity(5, 1), Target = new Entity(6, 1) });
@@ -77,7 +88,86 @@ namespace FDP.Toolkit.Perception.Tests
             sys.Execute(view, 0f);
             FlushEcbAndSwap(view, world);
 
-            // Assert — production mode queues into raycast batch (TODO); no TargetVisibleEvents.
+            // Production mode skips dead/missing entities — no TargetVisibleEvents.
+            var events = world.Bus.Consume<TargetVisibleEvent>();
+            Assert.Equal(0, events.Length);
+        }
+
+        // ── Test 3 ───────────────────────────────────────────────────────────────
+
+        private static Func<ISimulationView, Entity, float> PhysicsRadiusReader() =>
+            (view, e) => view.HasComponent<PhysicsCollider>(e)
+                ? view.GetComponentRO<PhysicsCollider>(e).Radius : 0f;
+
+        [Fact]
+        public void LosRequestBatching_ProductionMode_EmitsVisible_WhenLOSisClear()
+        {
+            // Arrange — observer and target in open field (no occluder).
+            var world = CreateWorldWithPhysics();
+            var sys   = new LosRequestBatchingSystem(
+                mockMode: false,
+                colliderRadiusReader: PhysicsRadiusReader());
+
+            var obs = world.CreateEntity();
+            world.AddComponent(obs, new SimTransform { Position = new Vector3(0f, 0f, 0f) });
+            world.AddComponent(obs, new Faction { FactionId = 1 });
+            world.AddComponent(obs, new TargetMemory());
+
+            var tgt = world.CreateEntity();
+            world.AddComponent(tgt, new SimTransform { Position = new Vector3(100f, 0f, 0f) });
+            world.AddComponent(tgt, new PhysicsCollider { Radius = 2f });
+            world.AddComponent(tgt, new Faction { FactionId = 2 });
+
+            world.Bus.Publish(new LosCheckRequestEvent { Observer = obs, Target = tgt });
+            world.Bus.SwapBuffers();
+
+            // Act
+            ISimulationView view = world;
+            sys.Execute(view, 0f);
+            FlushEcbAndSwap(view, world);
+
+            // Assert — no occluder → TargetVisibleEvent emitted.
+            var events = world.Bus.Consume<TargetVisibleEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal(obs, events[0].Observer);
+            Assert.Equal(tgt, events[0].Target);
+        }
+
+        // ── Test 4 ───────────────────────────────────────────────────────────────
+
+        [Fact]
+        public void LosRequestBatching_ProductionMode_DoesNotEmit_WhenOccluded()
+        {
+            // Arrange — wall entity directly on the observer→target segment.
+            var world = CreateWorldWithPhysics();
+            var sys   = new LosRequestBatchingSystem(
+                mockMode: false,
+                colliderRadiusReader: PhysicsRadiusReader());
+
+            var obs = world.CreateEntity();
+            world.AddComponent(obs, new SimTransform { Position = new Vector3(0f, 0f, 0f) });
+            world.AddComponent(obs, new Faction { FactionId = 1 });
+            world.AddComponent(obs, new TargetMemory());
+
+            var tgt = world.CreateEntity();
+            world.AddComponent(tgt, new SimTransform { Position = new Vector3(100f, 0f, 0f) });
+            world.AddComponent(tgt, new PhysicsCollider { Radius = 2f });
+            world.AddComponent(tgt, new Faction { FactionId = 2 });
+
+            // Wall sits directly on the observer→target segment at mid-range.
+            var wall = world.CreateEntity();
+            world.AddComponent(wall, new SimTransform { Position = new Vector3(50f, 0f, 0f) });
+            world.AddComponent(wall, new PhysicsCollider { Radius = 10f });
+
+            world.Bus.Publish(new LosCheckRequestEvent { Observer = obs, Target = tgt });
+            world.Bus.SwapBuffers();
+
+            // Act
+            ISimulationView view = world;
+            sys.Execute(view, 0f);
+            FlushEcbAndSwap(view, world);
+
+            // Assert — wall blocks LOS → no TargetVisibleEvent.
             var events = world.Bus.Consume<TargetVisibleEvent>();
             Assert.Equal(0, events.Length);
         }

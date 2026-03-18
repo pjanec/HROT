@@ -183,6 +183,9 @@ namespace Fdp.Examples.Common
         {
             _kernel?.Dispose();
             _world?.Dispose();
+            // Allow scenarios to free unmanaged resources (e.g. PhysicsToolkitModule NativeArrays)
+            // AFTER the world is disposed so systems no longer access the native memory.
+            _scenario.OnShutdown();
         }
 
         // ── IMapCameraProvider ────────────────────────────────────────────────

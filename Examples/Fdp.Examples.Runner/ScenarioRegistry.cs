@@ -1,6 +1,8 @@
 using Fdp.Examples.Common;
 using Fdp.Examples.Common.Constants;
 using Fdp.Examples.Scenarios.Kinematics;
+using Fdp.Examples.Scenarios.Perception;
+using Fdp.Examples.Scenarios.Physics;
 
 namespace Fdp.Examples.Runner
 {
@@ -23,6 +25,10 @@ namespace Fdp.Examples.Runner
             // ── Phase 2 demos (BATCH-03) ──────────────────────────────────────
             ScenarioNames.AutoDrive       => new AutoDriveScenario(),
             ScenarioNames.ComponentDamage => new ComponentDamageScenario(),
+
+            // ── Phase 3 demos (BATCH-04 / BATCH-05) ───────────────────────────
+            ScenarioNames.BallisticsAndHit => new BallisticsAndHitScenario(),
+            ScenarioNames.SensorGrid       => new SensorGridScenario(),
 
             _ => throw new ArgumentException($"Unknown scenario: '{name}'. " +
                  $"Check {nameof(ScenarioNames)} for valid keys.", nameof(name))

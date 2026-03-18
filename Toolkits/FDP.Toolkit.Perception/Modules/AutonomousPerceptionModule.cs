@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using CarKinem.Spatial;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
@@ -24,6 +24,14 @@ namespace FDP.Toolkit.Perception.Modules
     /// <see cref="LosRequestBatchingSystem"/>, and <see cref="ThreatEvaluationSystem"/>—are
     /// registered via <see cref="RegisterSystems"/>. All four implement <see cref="IModuleSystem"/>
     /// and run on the background thread inside <see cref="Tick"/>.</para>
+    ///
+    /// <para><b>Physics-accurate LOS:</b> Pass a <paramref name="colliderRadiusReader"/> delegate
+    /// to enable accurate segment-circle occlusion checks in production LOS mode.  Use:
+    /// <code>
+    /// (view, e) => view.HasComponent&lt;PhysicsCollider&gt;(e)
+    ///              ? view.GetComponentRO&lt;PhysicsCollider&gt;(e).Radius : 0f
+    /// </code>
+    /// When <c>null</c>, occluders are treated as dimensionless points.</para>
     /// </summary>
     public sealed class AutonomousPerceptionModule : IModule, IDisposable
     {
@@ -43,8 +51,17 @@ namespace FDP.Toolkit.Perception.Modules
         private readonly LosRequestBatchingSystem _losRequestBatching;
         private readonly ThreatEvaluationSystem   _threatEvaluation;
 
-        /// <summary>Initialises the module and allocates the module-private spatial grid.</summary>
-        public AutonomousPerceptionModule()
+        /// <summary>
+        /// Initialises the module and allocates the module-private spatial grid.
+        /// </summary>
+        /// <param name="colliderRadiusReader">
+        /// Optional delegate for reading the bounding radius of each candidate collider entity.
+        /// When supplied, enables physics-accurate segment-circle occlusion tests in production
+        /// LOS mode.  Pass <c>null</c> to treat all occluders as point entities.
+        /// See <see cref="LosRequestBatchingSystem.ColliderRadiusReader"/>.
+        /// </param>
+        public AutonomousPerceptionModule(
+            Func<ISimulationView, Entity, float>? colliderRadiusReader = null)
         {
             _localGrid = SpatialHashGrid.Create(
                 PerceptionConstants.LocalGridWidth,
@@ -55,7 +72,9 @@ namespace FDP.Toolkit.Perception.Modules
 
             _localGridBuilder   = new LocalGridBuilderSystem(_localGrid);
             _visionBroadphase   = new VisionBroadphaseSystem(_localGrid);
-            _losRequestBatching = new LosRequestBatchingSystem();
+            _losRequestBatching = new LosRequestBatchingSystem(
+                mockMode: false,
+                colliderRadiusReader: colliderRadiusReader);
             _threatEvaluation   = new ThreatEvaluationSystem();
         }
 
@@ -64,10 +83,9 @@ namespace FDP.Toolkit.Perception.Modules
         /// </summary>
         public void RegisterSystems(ISystemRegistry registry)
         {
-            registry.RegisterSystem(_localGridBuilder);
-            registry.RegisterSystem(_visionBroadphase);
-            registry.RegisterSystem(_losRequestBatching);
-            registry.RegisterSystem(_threatEvaluation);
+            // All four systems are executed directly inside Tick() using the SlowBackground
+            // direct-execution pattern (same as PerceptionModule).  No kernel-level
+            // system-scheduler registration is required or supported.
         }
 
         /// <inheritdoc/>
@@ -87,3 +105,4 @@ namespace FDP.Toolkit.Perception.Modules
         public void Dispose() => _localGrid.Dispose();
     }
 }
+    /// <see cref="IModule"/> that can be installed independently of the Brain modules.

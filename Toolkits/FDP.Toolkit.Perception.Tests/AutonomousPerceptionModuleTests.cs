@@ -9,22 +9,24 @@ namespace FDP.Toolkit.Perception.Tests
     public class AutonomousPerceptionModuleTests
     {
         [Fact]
-        public void AutonomousPerceptionModule_RegistersAllPerceptionSystems()
+        public void AutonomousPerceptionModule_RegisterSystems_DoesNotRegisterSystems()
         {
             // Arrange
+            // AutonomousPerceptionModule uses the direct-execution Tick() pattern (same as
+            // PerceptionModule): all four systems are called inside Tick() rather than
+            // delegated to the kernel system scheduler. RegisterSystems() must be empty so
+            // the kernel does NOT try to schedule them via [UpdateInPhase].
             using var module = new AutonomousPerceptionModule();
             var mockRegistry = new Mock<ISystemRegistry>();
 
             // Act
             module.RegisterSystems(mockRegistry.Object);
 
-            // Assert – all four perception systems are registered via the registry.
-            // LosRequestBatchingSystem implements IModuleSystem only (no ComponentSystem base),
-            // so it runs exclusively on the background thread inside Tick().
-            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<LocalGridBuilderSystem>()),   Times.Once);
-            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<VisionBroadphaseSystem>()),   Times.Once);
-            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<LosRequestBatchingSystem>()), Times.Once);
-            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<ThreatEvaluationSystem>()),   Times.Once);
+            // Assert — zero registrations (systems run directly via Tick, not via scheduler).
+            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<LocalGridBuilderSystem>()),   Times.Never);
+            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<VisionBroadphaseSystem>()),   Times.Never);
+            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<LosRequestBatchingSystem>()), Times.Never);
+            mockRegistry.Verify(r => r.RegisterSystem(It.IsAny<ThreatEvaluationSystem>()),   Times.Never);
         }
     }
 }
