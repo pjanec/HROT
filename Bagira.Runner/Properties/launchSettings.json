@@ -1,8 +1,21 @@
 {
   "profiles": {
-    "Bagira.Runner": {
+    "IOS+IG+SIM": {
       "commandName": "Project",
       "commandLineArgs": "-m all"
+    },
+    "IG": {
+      "commandName": "Project",
+      "commandLineArgs": "-m ig --no-wait"
+    },
+    "SimHost": {
+      "commandName": "Project",
+      "commandLineArgs": "-m simhost --no-wait"
+    },
+    "IOS": {
+      "commandName": "Project",
+      "commandLineArgs": "-m ios --no-wait"
     }
+
   }
 }
