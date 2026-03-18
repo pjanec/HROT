@@ -81,7 +81,8 @@ namespace Bagira.SimHost.Modules
             DoctrineRegistry doctrineRegistry,
             GhostCreationSystem ghostCreationSystem,
             IGeographicTransform? geoTransform = null,
-            JsonAttributeCompiler jsonAttributeCompiler = null!)
+            JsonAttributeCompiler jsonAttributeCompiler = null!,
+            BinaryInterpreter? binaryInterpreter = null)
         {
             var requestSource = new DdsCreateEntityRequestSource(participant);
             var ackSink       = new DdsCreateEntityAckSink(participant);
@@ -93,7 +94,8 @@ namespace Bagira.SimHost.Modules
                 idAllocator,
                 localNodeId,
                 geoTransform,
-                jsonAttributeCompiler);
+                jsonAttributeCompiler,
+                binaryInterpreter);
 
             _spawnSystem = spawnSystem;
 

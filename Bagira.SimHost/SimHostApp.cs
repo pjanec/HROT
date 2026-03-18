@@ -269,6 +269,12 @@ namespace Bagira.SimHost
             // instance is shared by CreateEntityRequestSystem and UpdateEntityAttributeRequestSystem.
             var jsonAttributeCompiler = AttributeCompilerFactory.Build(wgs84);
 
+            // ── 5b. Binary Attribute Interpreter (ATTR2-P5T1) ─────────────────
+            // Builds the binary interpreter for decoding InitialAttributeRecords sent
+            // by the IG when it compiles JSON properties into binary wire format.
+            // Without this, binary attributes (e.g. Affiliation / Hostile) are silently dropped.
+            var binaryInterpreter = AttributeCompilerFactory.BuildBinaryInterpreter(wgs84);
+
             // ── 6. Doctrine registry ──────────────────────────────────────────
             var doctrineRegistry = new DoctrineRegistry();
             unsafe
@@ -362,7 +368,7 @@ namespace Bagira.SimHost
             var simHostMod = new SimHostModule(
                 ddsParticipant, tkbDb, _idAllocator, SimHostNetworkConstants.LocalNodeId,
                 spawningSystem, entityMap, doctrineRegistry,
-                new GhostCreationSystem(entityMap), wgs84, jsonAttributeCompiler);
+                new GhostCreationSystem(entityMap), wgs84, jsonAttributeCompiler, binaryInterpreter);
             _kernel.RegisterModule(simHostMod);
 
             // ── 10. Network module ──────────────────────────────────────────
