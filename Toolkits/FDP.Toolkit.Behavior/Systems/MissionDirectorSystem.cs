@@ -58,11 +58,10 @@ namespace FDP.Toolkit.Behavior.Systems
             // Consume all DoctrineFinishedEvents once, cache the entity indices, then
             // look them up in O(1) during the entity query loop below.
             _doctrineFinishedThisFrame.Clear();
-            var doctrineFinishedEvents = World.Bus.ConsumeManaged<DoctrineFinishedEvent>();
+            var doctrineFinishedEvents = World.Bus.Consume<DoctrineFinishedEvent>();
             foreach (var finishedEvt in doctrineFinishedEvents)
             {
-                if (finishedEvt != null)
-                    _doctrineFinishedThisFrame.Add(finishedEvt.Entity.Index);
+                _doctrineFinishedThisFrame.Add(finishedEvt.Entity.Index);
             }
 
             var query = World.Query()
@@ -72,8 +71,8 @@ namespace FDP.Toolkit.Behavior.Systems
 
             foreach (var entity in query)
             {
-                ref var queue   = ref World.GetComponentRW<MissionPlanQueue>(entity);
-                ref var doctrine = ref World.GetComponentRW<DoctrineState>(entity);
+                ref var queue = ref World.GetComponentRW<MissionPlanQueue>(entity);
+                var doctrine  = World.GetComponent<DoctrineState>(entity);
 
                 // Mission complete — nothing left to do.
                 if (queue.CurrentPhase >= queue.PhaseCount) continue;
@@ -84,13 +83,15 @@ namespace FDP.Toolkit.Behavior.Systems
                 var phase = phases[queue.CurrentPhase];
 
                 // Activate the current phase's doctrine if it hasn't been activated yet.
-                // This handles the initial assignment of a mission (phase 0 was never
-                // set by a trigger transition) and prevents the entity from staying idle
-                // when a single-phase mission has TriggerParam = float.MaxValue.
+                // Delegate the write to DoctrineIngressSystem via the event bus so that
+                // DoctrineState has a single owner.
                 if (doctrine.ActiveDoctrineHash != phase.DoctrineId)
                 {
-                    unchecked { doctrine.InstanceId++; }
-                    doctrine.ActiveDoctrineHash = phase.DoctrineId;
+                    World.Bus.Publish(new AssignDoctrineHashEvent
+                    {
+                        Entity      = entity,
+                        DoctrineHash = phase.DoctrineId,
+                    });
                 }
 
                 bool triggered = false;
@@ -157,15 +158,19 @@ namespace FDP.Toolkit.Behavior.Systems
                     if (queue.CurrentPhase < queue.PhaseCount)
                     {
                         // Use the NEW phase index — `phase` still refers to the old slot.
-                        unchecked { doctrine.InstanceId++; }
-                        doctrine.ActiveDoctrineHash = phases[queue.CurrentPhase].DoctrineId;
+                        // Delegate the write to DoctrineIngressSystem via the event bus.
+                        World.Bus.Publish(new AssignDoctrineHashEvent
+                        {
+                            Entity       = entity,
+                            DoctrineHash = phases[queue.CurrentPhase].DoctrineId,
+                        });
                     }
                     else
                     {
                         // Plan exhausted — delegate doctrine teardown via the event bus
                         // so DoctrineIngressSystem (the sole owner of DoctrineState writes)
                         // performs the brain-death reset. Do NOT mutate DoctrineState here.
-                        World.Bus.PublishManaged(new ClearDoctrineEvent { Entity = entity });
+                        World.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
                     }
                 }
             }

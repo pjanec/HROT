@@ -49,5 +49,15 @@ namespace FDP.Toolkit.Behavior
         /// Value must match the action ID used when registering the executor.
         /// </summary>
         public const ushort ActionIdEjectPassengers = 3;
+
+        // ── Unmanaged event IDs (Behavior doctrine range: 3100–3199) ─────────────
+        /// <summary>EventId for <c>ClearDoctrineEvent</c>.</summary>
+        public const int EventId_ClearDoctrine = 3100;
+
+        /// <summary>EventId for <c>DoctrineFinishedEvent</c>.</summary>
+        public const int EventId_DoctrineFinished = 3101;
+
+        /// <summary>EventId for <c>AssignDoctrineHashEvent</c>.</summary>
+        public const int EventId_AssignDoctrineHash = 3102;
     }
 }

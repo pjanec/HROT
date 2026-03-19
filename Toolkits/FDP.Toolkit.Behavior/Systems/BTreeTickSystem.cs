@@ -35,6 +35,16 @@ namespace FDP.Toolkit.Behavior.Systems
         /// </summary>
         private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
 
+        // Reusable collections for dead-entity pruning — pre-allocated to avoid per-frame heap pressure.
+        private readonly HashSet<int> _seenThisFrame = new();
+        private readonly List<int>    _staleKeys     = new();
+
+        /// <summary>
+        /// Number of entity indices currently tracked in the terminal-event deduplication
+        /// dictionary. Exposed for test verification only.
+        /// </summary>
+        internal int TrackedEntityCount => _publishedTerminalForInstanceId.Count;
+
         public BTreeTickSystem(DoctrineRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
@@ -48,8 +58,12 @@ namespace FDP.Toolkit.Behavior.Systems
                 .With<BrainBlackboard>()
                 .Build();
 
+            _seenThisFrame.Clear();
+
             foreach (var entity in q)
             {
+                _seenThisFrame.Add(entity.Index);
+
                 var doctrine = World.GetComponent<DoctrineState>(entity);
 
                 // Only process BTree-tier entities.
@@ -90,7 +104,7 @@ namespace FDP.Toolkit.Behavior.Systems
                     if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prevInstanceId)
                         || prevInstanceId != doctrine.InstanceId)
                     {
-                        World.Bus.PublishManaged(new DoctrineFinishedEvent
+                        World.Bus.Publish(new DoctrineFinishedEvent
                         {
                             Entity = entity,
                             Result = rootResult
@@ -99,6 +113,16 @@ namespace FDP.Toolkit.Behavior.Systems
                     }
                 }
             }
+
+            // Prune entries for entities that were not seen in this frame (destroyed or
+            // their required components removed). Uses pre-allocated collections to avoid
+            // per-frame heap allocations.
+            _staleKeys.Clear();
+            foreach (var key in _publishedTerminalForInstanceId.Keys)
+                if (!_seenThisFrame.Contains(key))
+                    _staleKeys.Add(key);
+            foreach (var key in _staleKeys)
+                _publishedTerminalForInstanceId.Remove(key);
         }
     }
 }

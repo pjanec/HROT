@@ -125,16 +125,34 @@ namespace FDP.Toolkit.Behavior.Systems
             // Forcibly resets the active doctrine to DoctrineIds.None (brain-death).
             // Published top-down by MissionDirectorSystem (plan exhausted) and
             // MissionControlRequestSystem (CMD_ABORT_ALL).
-            var clearEvents = World.Bus.ConsumeManaged<ClearDoctrineEvent>();
+            var clearEvents = World.Bus.Consume<ClearDoctrineEvent>();
             foreach (var evt in clearEvents)
             {
-                if (evt == null || !World.HasComponent<DoctrineState>(evt.Entity)) continue;
+                if (!World.HasComponent<DoctrineState>(evt.Entity)) continue;
 
                 ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
                 doctrine.ActiveDoctrineHash = DoctrineIds.None;
                 unchecked { doctrine.InstanceId++; }
                 doctrine.BrainTier = 0;
 
+                if (World.HasComponent<BrainBTreeState>(evt.Entity))
+                    World.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
+            }
+
+            // ── AssignDoctrineHashEvent handler ──────────────────────────────────────────
+            // Activates a doctrine by integer hash — published by MissionDirectorSystem
+            // during phase transitions where only the hash (not the name) is known.
+            // Increments InstanceId so ChannelArbitrationSystem preempts stale channels.
+            var hashEvents = World.Bus.Consume<AssignDoctrineHashEvent>();
+            foreach (var evt in hashEvents)
+            {
+                if (!World.HasComponent<DoctrineState>(evt.Entity)) continue;
+
+                ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
+                doctrine.ActiveDoctrineHash = evt.DoctrineHash;
+                unchecked { doctrine.InstanceId++; }
+
+                // Reset BTree execution pointer so the new phase starts from the root.
                 if (World.HasComponent<BrainBTreeState>(evt.Entity))
                     World.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
             }

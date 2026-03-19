@@ -18,6 +18,7 @@ namespace FDP.Toolkit.Behavior.Tests
     {
         private readonly EntityRepository _world;
         private readonly MissionDirectorSystem _sys;
+        private readonly DoctrineIngressSystem _ingressSys;
 
         public MissionDirectorSystemTests()
         {
@@ -27,13 +28,20 @@ namespace FDP.Toolkit.Behavior.Tests
             _world.RegisterComponent<NavState>();
             _world.RegisterComponent<HealthData>();
             _world.RegisterComponent<BrainBTreeState>();
+            _world.RegisterComponent<BrainBlackboard>();
 
             _sys = new MissionDirectorSystem();
             _sys.Create(_world);
+
+            // DoctrineIngressSystem owns DoctrineState writes; required for CORRECTIVE-2
+            // tests that verify AssignDoctrineHashEvent delegation.
+            _ingressSys = new DoctrineIngressSystem(new DoctrineRegistry());
+            _ingressSys.Create(_world);
         }
 
         public void Dispose()
         {
+            _ingressSys.Dispose();
             _sys.Dispose();
             _world.Dispose();
         }
@@ -44,6 +52,22 @@ namespace FDP.Toolkit.Behavior.Tests
 
         private void SetDeltaTime(float dt)
             => _world.SetSingleton(new GlobalTime { DeltaTime = dt, TimeScale = 1f });
+
+        /// <summary>
+        /// Flushes pending <c>AssignDoctrineHashEvent</c>s into <see cref="DoctrineIngressSystem"/>
+        /// so that <see cref="DoctrineState.ActiveDoctrineHash"/> reflects the result of a
+        /// phase transition in the same test step.
+        /// <para>
+        /// Required because CORRECTIVE-2 delegates doctrine writes through the event bus:
+        /// <see cref="MissionDirectorSystem"/> publishes the event; <c>DoctrineIngressSystem</c>
+        /// applies it on the next logical frame (after <c>SwapBuffers</c>).
+        /// </para>
+        /// </summary>
+        private void FlushDoctrineEvents()
+        {
+            _world.Bus.SwapBuffers();
+            _ingressSys.Run();
+        }
 
         /// <summary>
         /// Creates an entity with a two-phase timer-based mission plan.
@@ -92,6 +116,9 @@ namespace FDP.Toolkit.Behavior.Tests
 
             // Run 31 ticks: 31 × (1/60) ≈ 0.517 s ≥ 0.5 s → phase should advance.
             for (int i = 0; i < 31; i++) _sys.Run();
+
+            // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
+            FlushDoctrineEvents();
 
             ref var queue   = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var     doctrine = _world.GetComponent<DoctrineState>(entity);
@@ -171,6 +198,9 @@ namespace FDP.Toolkit.Behavior.Tests
 
             // Second tick — destination reached, phase must advance.
             _sys.Run();
+
+            // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
+            FlushDoctrineEvents();
 
             ref var q2      = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var     doctrine = _world.GetComponent<DoctrineState>(entity);
@@ -268,7 +298,8 @@ namespace FDP.Toolkit.Behavior.Tests
             _world.AddComponent(entity, new HealthData { Current = 5f, Max = 100f });
 
             _sys.Run();
-
+            // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
+            FlushDoctrineEvents();
             ref var q  = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             var doctrine = _world.GetComponent<DoctrineState>(entity);
 
@@ -325,7 +356,7 @@ namespace FDP.Toolkit.Behavior.Tests
         // Helper: publish DoctrineFinishedEvent and swap so system can consume it.
         private void PublishDoctrineFinished(Entity entity, NodeStatus result = NodeStatus.Success)
         {
-            _world.Bus.PublishManaged(new DoctrineFinishedEvent { Entity = entity, Result = result });
+            _world.Bus.Publish(new DoctrineFinishedEvent { Entity = entity, Result = result });
             _world.Bus.SwapBuffers();
         }
 
@@ -362,8 +393,8 @@ namespace FDP.Toolkit.Behavior.Tests
             // Plan exhausted → ClearDoctrineEvent must be on write buffer.
             _world.Bus.SwapBuffers();
             bool clearPublished = false;
-            foreach (var evt in _world.Bus.ConsumeManaged<ClearDoctrineEvent>())
-                if (evt != null && evt.Entity.Index == entity.Index) clearPublished = true;
+            foreach (var evt in _world.Bus.Consume<ClearDoctrineEvent>())
+                if (evt.Entity.Index == entity.Index) clearPublished = true;
             Assert.True(clearPublished);
         }
 
@@ -387,9 +418,12 @@ namespace FDP.Toolkit.Behavior.Tests
             // Phase advance: still in plan, so no ClearDoctrineEvent.
             _world.Bus.SwapBuffers();
             bool clearPublished = false;
-            foreach (var evt in _world.Bus.ConsumeManaged<ClearDoctrineEvent>())
-                if (evt != null && evt.Entity.Index == entity.Index) clearPublished = true;
+            foreach (var evt in _world.Bus.Consume<ClearDoctrineEvent>())
+                if (evt.Entity.Index == entity.Index) clearPublished = true;
             Assert.False(clearPublished);
+
+            // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies DocB.
+            _ingressSys.Run();
 
             var doctrine = _world.GetComponent<DoctrineState>(entity);
             Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
@@ -425,8 +459,8 @@ namespace FDP.Toolkit.Behavior.Tests
             // ClearDoctrineEvent goes to write buffer; swap to read it.
             _world.Bus.SwapBuffers();
             bool found = false;
-            foreach (var evt in _world.Bus.ConsumeManaged<ClearDoctrineEvent>())
-                if (evt != null && evt.Entity.Index == entity.Index) found = true;
+            foreach (var evt in _world.Bus.Consume<ClearDoctrineEvent>())
+                if (evt.Entity.Index == entity.Index) found = true;
 
             Assert.True(found);
         }

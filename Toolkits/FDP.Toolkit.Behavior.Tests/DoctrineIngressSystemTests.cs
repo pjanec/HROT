@@ -332,7 +332,7 @@ namespace FDP.Toolkit.Behavior.Tests
                 State = new Fbt.BehaviorTreeState { RunningNodeIndex = 3 }
             });
 
-            world.Bus.PublishManaged(new ClearDoctrineEvent { Entity = e });
+            world.Bus.Publish(new ClearDoctrineEvent { Entity = e });
             world.Bus.SwapBuffers();
             sys.Run();
 
@@ -357,7 +357,7 @@ namespace FDP.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             // Intentionally no DoctrineState component added.
 
-            world.Bus.PublishManaged(new ClearDoctrineEvent { Entity = e });
+            world.Bus.Publish(new ClearDoctrineEvent { Entity = e });
             world.Bus.SwapBuffers();
 
             var exception = Record.Exception(() => sys.Run());
@@ -379,7 +379,7 @@ namespace FDP.Toolkit.Behavior.Tests
             world.AddComponent(entityB, new DoctrineState { ActiveDoctrineHash = 1001, InstanceId = 1 });
 
             // Only clear entity A.
-            world.Bus.PublishManaged(new ClearDoctrineEvent { Entity = entityA });
+            world.Bus.Publish(new ClearDoctrineEvent { Entity = entityA });
             world.Bus.SwapBuffers();
             sys.Run();
 
@@ -416,7 +416,7 @@ namespace FDP.Toolkit.Behavior.Tests
             world.AddComponent(entityB, new DoctrineState { ActiveDoctrineHash = PatrolId, InstanceId = 1 });
 
             world.Bus.PublishManaged(new AssignDoctrineEvent { Entity = entityA, DoctrineName = doctrineName, JsonParams = "" });
-            world.Bus.PublishManaged(new ClearDoctrineEvent  { Entity = entityB });
+            world.Bus.Publish(new ClearDoctrineEvent  { Entity = entityB });
             world.Bus.SwapBuffers();
             sys.Run();
 

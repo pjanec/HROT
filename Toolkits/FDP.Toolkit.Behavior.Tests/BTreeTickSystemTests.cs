@@ -205,18 +205,18 @@ namespace FDP.Toolkit.Behavior.Tests
 
             // Events published by the system land in the write buffer; swap to read them.
             world.Bus.SwapBuffers();
-            var events = world.Bus.ConsumeManaged<DoctrineFinishedEvent>();
+            var events = world.Bus.Consume<DoctrineFinishedEvent>();
 
             int count = 0;
             DoctrineFinishedEvent? found = null;
             foreach (var evt in events)
             {
-                if (evt != null && evt.Entity.Index == e.Index) { found = evt; count++; }
+                if (evt.Entity.Index == e.Index) { found = evt; count++; }
             }
 
             Assert.Equal(1, count);
             Assert.NotNull(found);
-            Assert.Equal(NodeStatus.Success, found!.Result);
+            Assert.Equal(NodeStatus.Success, found!.Value.Result);
 
             sys.Dispose();
             world.Dispose();
@@ -237,14 +237,14 @@ namespace FDP.Toolkit.Behavior.Tests
             sys.Run();
 
             world.Bus.SwapBuffers();
-            var events = world.Bus.ConsumeManaged<DoctrineFinishedEvent>();
+            var events = world.Bus.Consume<DoctrineFinishedEvent>();
 
             DoctrineFinishedEvent? found = null;
             foreach (var evt in events)
-                if (evt != null && evt.Entity.Index == e.Index) found = evt;
+                if (evt.Entity.Index == e.Index) found = evt;
 
             Assert.NotNull(found);
-            Assert.Equal(NodeStatus.Failure, found!.Result);
+            Assert.Equal(NodeStatus.Failure, found!.Value.Result);
 
             sys.Dispose();
             world.Dispose();
@@ -265,11 +265,11 @@ namespace FDP.Toolkit.Behavior.Tests
             sys.Run();
 
             world.Bus.SwapBuffers();
-            var events = world.Bus.ConsumeManaged<DoctrineFinishedEvent>();
+            var events = world.Bus.Consume<DoctrineFinishedEvent>();
 
             bool anyForEntity = false;
             foreach (var evt in events)
-                if (evt != null && evt.Entity.Index == e.Index) anyForEntity = true;
+                if (evt.Entity.Index == e.Index) anyForEntity = true;
 
             Assert.False(anyForEntity);
 
@@ -295,15 +295,15 @@ namespace FDP.Toolkit.Behavior.Tests
             sys.Run();
             world.Bus.SwapBuffers();
             int frame1Count = 0;
-            foreach (var evt in world.Bus.ConsumeManaged<DoctrineFinishedEvent>())
-                if (evt != null && evt.Entity.Index == e.Index) frame1Count++;
+            foreach (var evt in world.Bus.Consume<DoctrineFinishedEvent>())
+                if (evt.Entity.Index == e.Index) frame1Count++;
 
             // Frame 2: same InstanceId — must NOT re-publish.
             sys.Run();
             world.Bus.SwapBuffers();
             int frame2Count = 0;
-            foreach (var evt in world.Bus.ConsumeManaged<DoctrineFinishedEvent>())
-                if (evt != null && evt.Entity.Index == e.Index) frame2Count++;
+            foreach (var evt in world.Bus.Consume<DoctrineFinishedEvent>())
+                if (evt.Entity.Index == e.Index) frame2Count++;
 
             Assert.Equal(1, frame1Count);
             Assert.Equal(0, frame2Count);
@@ -340,12 +340,46 @@ namespace FDP.Toolkit.Behavior.Tests
             // No DoctrineFinishedEvent should appear on the bus.
             world.Bus.SwapBuffers();
             bool anyEvent = false;
-            foreach (var evt in world.Bus.ConsumeManaged<DoctrineFinishedEvent>())
-                if (evt != null) anyEvent = true;
+            foreach (var evt in world.Bus.Consume<DoctrineFinishedEvent>())
+                if (evt.Entity.Index != 0) anyEvent = true;
 
             Assert.False(anyEvent);
 
             dispatcher.Dispose();
+            world.Dispose();
+        }
+
+        // ── CORRECTIVE-1 Test: memory leak pruning ───────────────────────────────
+
+        [Fact]
+        public void DestroyedEntity_PrunedFromTerminalTrackingDictionary()
+        {
+            // Arrange: terminal doctrine so the deduplication dictionary gets an entry.
+            var world = TestWorldFactory.Create();
+            const int doctrineId = 8010;
+            var (_, sys) = BuildTerminalSystem(world, doctrineId, "PruneDoc", NodeStatus.Success);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new DoctrineState
+            {
+                ActiveDoctrineHash = doctrineId,
+                BrainTier          = BehaviorConstants.BrainTierBTree,
+            });
+            world.AddComponent(e, new BrainBTreeState());
+            world.AddComponent(e, new BrainBlackboard());
+
+            // Frame 1: entity processed, entry added to deduplication dictionary.
+            sys.Run();
+            Assert.Equal(1, sys.TrackedEntityCount);
+
+            // Destroy the entity — no longer in query.
+            world.DestroyEntity(e);
+
+            // Frame 2: entity absent from query → entry pruned from dictionary.
+            sys.Run();
+            Assert.Equal(0, sys.TrackedEntityCount);
+
+            sys.Dispose();
             world.Dispose();
         }
     }

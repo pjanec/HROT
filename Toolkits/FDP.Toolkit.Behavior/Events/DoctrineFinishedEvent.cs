@@ -19,7 +19,8 @@ namespace FDP.Toolkit.Behavior.Events
     /// observes the full-tree root result and is the correct publisher.
     /// </para>
     /// </summary>
-    public sealed class DoctrineFinishedEvent
+    [EventId(BehaviorConstants.EventId_DoctrineFinished)]
+    public struct DoctrineFinishedEvent
     {
         /// <summary>The entity whose doctrine has completed.</summary>
         public Entity Entity;

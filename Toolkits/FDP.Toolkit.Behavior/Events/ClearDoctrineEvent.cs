@@ -19,7 +19,8 @@ namespace FDP.Toolkit.Behavior.Events
     /// systems may need to distinguish natural vs. forced termination in future increments.
     /// </para>
     /// </summary>
-    public sealed class ClearDoctrineEvent
+    [EventId(BehaviorConstants.EventId_ClearDoctrine)]
+    public struct ClearDoctrineEvent
     {
         /// <summary>The entity whose doctrine should be cleared.</summary>
         public Entity Entity;
