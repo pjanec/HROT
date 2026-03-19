@@ -96,7 +96,7 @@ namespace Bagira.Map.Common.Replication.Utils
                         break;
 
                     case EDescriptorType.dtEntityInfo:
-                        result.Add(new IgEntityData
+                        result.Add(new IG.Components.EntityInfo
                         {
                             Name = d.EntityInfo.Name,
                             ForceId = (ForceId)(int)d.EntityInfo.ForceIdentifier,
@@ -248,7 +248,7 @@ namespace Bagira.Map.Common.Replication.Utils
                             ctx);
 
                         // CommanderId is not in the JSON schema; set directly.
-                        ctx.GetManagedComponent<IgEntityData>().CommanderId = d.EntityInfo.CommanderId;
+                        ctx.GetManagedComponent<IG.Components.EntityInfo>().CommanderId = d.EntityInfo.CommanderId;
 
                         result = ctx.FlushComponents();
                         break;

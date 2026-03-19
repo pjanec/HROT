@@ -390,17 +390,17 @@ namespace Bagira.SimHost.Tests
         private static EntityRepository CreateWorldWithIgEntityData()
         {
             var repo = CreateWorld();
-            repo.RegisterManagedComponent<IgEntityData>();
+            repo.RegisterManagedComponent<IG.Components.EntityInfo>();
             return repo;
         }
 
-        /// <summary>
-        /// A <see cref="CreateEntityRequest"/> with <c>InitialAttributeRecords</c> containing
-        /// a Name record must produce a <c>SpawnEntityCommand</c> whose
-        /// <see cref="SpawnEntityCommand.InitialComponents"/> includes an
-        /// <see cref="IgEntityData"/> with the expected name.
-        /// </summary>
-        [Fact]
+		/// <summary>
+		/// A <see cref="CreateEntityRequest"/> with <c>InitialAttributeRecords</c> containing
+		/// a Name record must produce a <c>SpawnEntityCommand</c> whose
+		/// <see cref="SpawnEntityCommand.InitialComponents"/> includes an
+		/// <see cref="IG.Components.EntityInfo"/> with the expected name.
+		/// </summary>
+		[Fact]
         public void ProcessRequest_BinaryRecords_NameRecord_EntitySpawnedWithCorrectName()
         {
             // Arrange
@@ -438,7 +438,7 @@ namespace Bagira.SimHost.Tests
 
             var initialComponents = commands[0].InitialComponents;
             Assert.NotNull(initialComponents);
-            var entityData = initialComponents!.OfType<IgEntityData>().FirstOrDefault();
+            var entityData = initialComponents!.OfType<IG.Components.EntityInfo>().FirstOrDefault();
             Assert.NotNull(entityData);
             Assert.Equal("Gamma", entityData!.Name);
         }
@@ -477,7 +477,7 @@ namespace Bagira.SimHost.Tests
 
             var initialComponents = commands[0].InitialComponents;
             Assert.NotNull(initialComponents);
-            var entityData = initialComponents!.OfType<IgEntityData>().FirstOrDefault();
+            var entityData = initialComponents!.OfType<IG.Components.EntityInfo>().FirstOrDefault();
             Assert.NotNull(entityData);
             Assert.Equal("Delta", entityData!.Name);
         }
@@ -557,7 +557,7 @@ namespace Bagira.SimHost.Tests
 
             var initialComponents = commands[0].InitialComponents;
             Assert.NotNull(initialComponents);
-            var entityData = initialComponents!.OfType<IgEntityData>().FirstOrDefault();
+            var entityData = initialComponents!.OfType<IG.Components.EntityInfo>().FirstOrDefault();
             Assert.NotNull(entityData);
             Assert.Equal("BinaryWins", entityData!.Name);
         }

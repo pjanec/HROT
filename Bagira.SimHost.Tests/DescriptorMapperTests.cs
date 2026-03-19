@@ -39,9 +39,9 @@ namespace Bagira.SimHost.Tests
 
         private static EntityDescriptorUnion MakeEntityInfoDescriptor() =>
             new EntityDescriptorUnion
-            {
+			{
                 _d = EDescriptorType.dtEntityInfo,
-                EntityInfo = new EntityInfo { EntityId = 0, Name = "TestUnit" },
+                EntityInfo = new BDC.SSTD.EntityInfo { EntityId = 0, Name = "TestUnit" },
             };
 
         private static EntityDescriptorUnion MakeGeoSpatialDescriptor(double lat, double lon) =>
@@ -121,8 +121,8 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
-            var igData = Assert.Single(components, c => c is IgEntityData);
-            var entityInfo = (IgEntityData)igData;
+            var igData = Assert.Single( components, c => c is IG.Components.EntityInfo );
+            var entityInfo = (IG.Components.EntityInfo)igData;
             Assert.Equal("TestUnit", entityInfo.Name);
         }
 
@@ -136,7 +136,7 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, geoTransform: null);
 
-            Assert.DoesNotContain(components, c => c is EntityInfo);
+			Assert.DoesNotContain( components, c => c is BDC.SSTD.EntityInfo );
         }
 
         [Fact]

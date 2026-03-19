@@ -46,7 +46,7 @@ namespace Bagira.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
-            repo.RegisterManagedComponent<IgEntityData>();
+            repo.RegisterManagedComponent<IG.Components.EntityInfo>();
             return repo;
         }
 
@@ -61,7 +61,7 @@ namespace Bagira.SimHost.Tests
             compiler.Compile("{\"Name\":\"Test\"}", ctx);
 
             var result = ctx.FlushComponents();
-            var data   = result.OfType<IgEntityData>().Single();
+            var data   = result.OfType<IG.Components.EntityInfo>().Single();
             Assert.Equal("Test", data.Name);
         }
 
@@ -74,7 +74,7 @@ namespace Bagira.SimHost.Tests
             compiler.Compile("{\"Affiliation\":\"FORCE_FRIENDLY\"}", ctx);
 
             var result = ctx.FlushComponents();
-            var data   = result.OfType<IgEntityData>().Single();
+            var data   = result.OfType<IG.Components.EntityInfo>().Single();
             Assert.Equal(ForceId.Friend, data.ForceId);
         }
 
@@ -82,13 +82,13 @@ namespace Bagira.SimHost.Tests
         public void SimHostAttributeCompiler_Affiliation_PreservesExistingName()
         {
             var compiler = AttributeCompilerFactory.Build(new FactoryTestGeoTransform());
-            var seed     = new IgEntityData { Name = "Alpha", ForceId = ForceId.Unknown };
+            var seed     = new IG.Components.EntityInfo { Name = "Alpha", ForceId = ForceId.Unknown };
             var ctx      = new ListPatchContext(new List<object> { seed });
 
             compiler.Compile("{\"Affiliation\":\"FORCE_OPPOSING\"}", ctx);
 
             var result = ctx.FlushComponents();
-            var data   = result.OfType<IgEntityData>().Single();
+            var data   = result.OfType<IG.Components.EntityInfo>().Single();
             Assert.Equal("Alpha",         data.Name);  // unchanged
             Assert.Equal(ForceId.Hostile, data.ForceId);
         }
@@ -102,9 +102,9 @@ namespace Bagira.SimHost.Tests
 
             var repo   = CreateRepo();
             var entity = repo.CreateEntity();
-            repo.SetManagedComponent(entity, new IgEntityData { Name = "original" });
+            repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "original" });
             // Grant authority so the invoker dispatches the setter.
-            repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+            repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
             var context = compiler.CreatePatchContext(repo, entity);
             compiler.Compile("{\"Name\":\"X\"}", context);
@@ -160,7 +160,7 @@ namespace Bagira.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
-            repo.RegisterManagedComponent<IgEntityData>();
+            repo.RegisterManagedComponent<IG.Components.EntityInfo>();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<TkbIdentity>();
@@ -236,7 +236,7 @@ namespace Bagira.SimHost.Tests
             Assert.Single(commands);
             var cmd      = commands[0];
             var igData   = cmd.InitialComponents?
-                .OfType<IgEntityData>()
+                .OfType<IG.Components.EntityInfo>()
                 .SingleOrDefault();
 
             Assert.NotNull(igData);
@@ -250,9 +250,9 @@ namespace Bagira.SimHost.Tests
             var repo    = CreateWorld();
             var source  = new StubRequestSource();
             var entityInfoDescriptor = new EntityDescriptorUnion
-            {
+			{
                 _d = EDescriptorType.dtEntityInfo,
-                EntityInfo = new EntityInfo
+                EntityInfo = new BDC.SSTD.EntityInfo
                 {
                     EntityId        = 0,
                     Name            = "Original",
@@ -275,7 +275,7 @@ namespace Bagira.SimHost.Tests
 
             Assert.Single(commands);
             var igData = commands[0].InitialComponents?
-                .OfType<IgEntityData>()
+                .OfType<IG.Components.EntityInfo>()
                 .SingleOrDefault();
 
             Assert.NotNull(igData);
@@ -320,11 +320,11 @@ namespace Bagira.SimHost.Tests
         {
             var compiler = BuildCompiler();
             var descriptors = new List<EntityDescriptorUnion>
-            {
+			{
                 new EntityDescriptorUnion
-                {
+				{
                     _d = EDescriptorType.dtEntityInfo,
-                    EntityInfo = new EntityInfo
+                    EntityInfo = new BDC.SSTD.EntityInfo
                     {
                         EntityId        = 0,
                         Name            = "TestUnit",
@@ -336,7 +336,7 @@ namespace Bagira.SimHost.Tests
 
             var components = DescriptorMapper.MapToComponents(descriptors, GeoTransform, compiler);
 
-            var igData = Assert.Single(components.OfType<IgEntityData>());
+            var igData = Assert.Single( components.OfType<IG.Components.EntityInfo>());
             Assert.Equal("TestUnit",     igData.Name);
             Assert.Equal(ForceId.Friend, igData.ForceId);
             Assert.Equal(42,             igData.CommanderId);
@@ -347,17 +347,17 @@ namespace Bagira.SimHost.Tests
         {
             var compiler = BuildCompiler();
             var descriptors = new List<EntityDescriptorUnion>
-            {
+			{
                 new EntityDescriptorUnion
-                {
+				{
                     _d = EDescriptorType.dtEntityInfo,
-                    EntityInfo = new EntityInfo { EntityId = 0, Name = "Alpha" },
+                    EntityInfo = new BDC.SSTD.EntityInfo { EntityId = 0, Name = "Alpha" },
                 },
             };
 
             var components = DescriptorMapper.MapToComponents(descriptors, GeoTransform, compiler);
 
-            int count = components.OfType<IgEntityData>().Count();
+            int count = components.OfType<IG.Components.EntityInfo>().Count();
             Assert.Equal(1, count);
         }
 

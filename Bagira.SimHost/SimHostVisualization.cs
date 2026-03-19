@@ -20,6 +20,7 @@ using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Trajectory;
 using ModuleHost.Core;
+using ModuleHost.Core.Network.Interfaces;
 using Bagira.SimHost.UI;
 using Bagira.SimHost.Visualization;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -95,7 +96,8 @@ namespace Bagira.SimHost
             CarKinem.Road.RoadNetworkBlob road,
             TrajectoryPoolManager    trajectoryPool,
             CarKinem.Formation.FormationTemplateManager formationTemplates,
-            DdsWriter<MissionControlRequest> missionWriter)
+            DdsWriter<MissionControlRequest> missionWriter,
+            INetworkIdAllocator?    idAllocator = null)
         {
             _repo          = repo         ?? throw new ArgumentNullException(nameof(repo));
             _kernel        = kernel        ?? throw new ArgumentNullException(nameof(kernel));
@@ -118,7 +120,7 @@ namespace Bagira.SimHost
             }));
 
             // ── Scenario manager ──────────────────────────────────────────────
-            _scenario = new SimHostScenarioManager(repo, road, trajectoryPool, formationTemplates);
+            _scenario = new SimHostScenarioManager(repo, road, trajectoryPool, formationTemplates, idAllocator: idAllocator);
 
             // ── UI ────────────────────────────────────────────────────────────
             _ui = new SimHostMainUI();

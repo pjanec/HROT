@@ -16,7 +16,7 @@ namespace Bagira.IG.Tests
             CreateFixture()
         {
             var repo = new EntityRepository();
-            repo.RegisterManagedComponent<IgEntityData>();
+            repo.RegisterManagedComponent<Components.EntityInfo>();
             var entityMap = new NetworkEntityMap();
             var eventBus = new FdpEventBus();
             var ghostCreationSystem = new GhostCreationSystem(entityMap);
@@ -31,7 +31,7 @@ namespace Bagira.IG.Tests
             var entity = new Entity();
             entityMap.Register(1, entity);
 
-            var info = new EntityInfo
+            var info = new BDC.SSTD.EntityInfo
             {
                 EntityId = 1,
                 Name = "Alpha-1",
@@ -49,7 +49,7 @@ namespace Bagira.IG.Tests
             Assert.Equal(1, update.NetworkId);
             Assert.Single(update.ComponentsToUpdate);
 
-            var igData = Assert.IsType<IgEntityData>(update.ComponentsToUpdate[0]);
+            var igData = Assert.IsType<Components.EntityInfo>( update.ComponentsToUpdate[0]);
             Assert.Equal("Alpha-1", igData.Name);
             Assert.Equal(ForceId.Friend, igData.ForceId);
         }
@@ -61,7 +61,7 @@ namespace Bagira.IG.Tests
             var entity = new Entity();
             entityMap.Register(1, entity);
 
-            var info = new EntityInfo
+            var info = new BDC.SSTD.EntityInfo
             {
                 EntityId = 1,
                 Name = "Alpha-1",
@@ -75,7 +75,7 @@ namespace Bagira.IG.Tests
             var commands = eventBus.ConsumeManaged<UpdateEntityCommand>();
 
             Assert.Single(commands);
-            Assert.DoesNotContain(commands[0].ComponentsToUpdate, c => c is EntityInfo);
+			Assert.DoesNotContain( commands[0].ComponentsToUpdate, c => c is BDC.SSTD.EntityInfo );
         }
 
         [Fact]
@@ -84,7 +84,7 @@ namespace Bagira.IG.Tests
             var (repo, _, _, translator) = CreateFixture();
             var entity = repo.CreateEntity();
 
-            translator.ApplyToEntity(entity, new EntityInfo
+            translator.ApplyToEntity(entity, new BDC.SSTD.EntityInfo
             {
                 EntityId = 1,
                 Name = "Bravo",
@@ -93,7 +93,7 @@ namespace Bagira.IG.Tests
             }, repo);
 
             ISimulationView view = repo;
-            var data = view.GetManagedComponentRO<IgEntityData>(entity);
+            var data = view.GetManagedComponentRO<Components.EntityInfo>( entity );
 
             Assert.Equal("Bravo", data.Name);
             Assert.Equal(ForceId.Hostile, data.ForceId);

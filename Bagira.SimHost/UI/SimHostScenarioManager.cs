@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using Bagira.IG.Components;
 using Bagira.Map.Common;
+using Bagira.SimHost.Brains;
 using Bagira.SimHost.Configuration;
 using CarKinem.Commands;
 using CarKinem.Core;
@@ -10,28 +12,26 @@ using CarKinem.Road;
 using CarKinem.Trajectory;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
+using FDP.Toolkit.Behavior;
+using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Navigation;
+using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.NetworkSpawning.Events;
-using FDP.Toolkit.Physics;
-using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Network.Interfaces;
 
 namespace Bagira.SimHost.UI
 {
     /// <summary>
-    /// Provides local (GUI-driven) entity spawning and scenario utilities for the
-    /// SimHost 2-D window.
+    /// Provides GUI-driven entity spawning and scenario utilities for the SimHost 2-D window.
     ///
-    /// <para>The public <see cref="SpawnVehicle"/> method publishes a
-    /// <see cref="SpawnEntityCommand"/> onto the event bus so that
-    /// <c>NetworkSpawningSystem</c> constructs the entity with the full network
-    /// component set (<c>NetworkIdentity</c>, <c>NetworkOwnership</c>,
-    /// <c>NetworkSpawnRequest</c>) and publishes it over DDS.</para>
+    /// <para>All spawners publish <see cref="SpawnEntityCommand"/> onto the event bus so that
+    /// <c>NetworkSpawningSystem</c> creates entities with the full network component set and
+    /// publishes them over DDS, making them visible on the IG map.</para>
     ///
-    /// <para>Internal demo helpers (<see cref="SpawnRoamers"/>,
-    /// <see cref="SpawnFormation"/>, etc.) use <see cref="SpawnEntityLocal"/>
-    /// for immediate entity access required by navigation setup.</para>
+    /// <para>Each spawned entity carries a <see cref="DoctrineState"/> and
+    /// <see cref="BrainBlackboard"/> so the BTree cognitive tier drives its behaviour
+    /// autonomously from the first frame.</para>
     /// </summary>
     public class SimHostScenarioManager
     {
@@ -40,10 +40,8 @@ namespace Bagira.SimHost.UI
         private readonly TrajectoryPoolManager    _traj;
         private readonly FormationTemplateManager _formations;
         private readonly IEventBus               _spawnBus;
+        private readonly INetworkIdAllocator?    _idAllocator;
         private readonly Random                   _rng = new();
-
-        // Entities that wander to a random point when they arrive
-        private readonly HashSet<Entity> _roamers = new();
 
         /// <param name="repo">Live entity repository.</param>
         /// <param name="road">Road network (may be empty).</param>
@@ -53,34 +51,35 @@ namespace Bagira.SimHost.UI
         /// Event bus used to publish <see cref="SpawnEntityCommand"/> for network-visible
         /// entity creation.  Defaults to <paramref name="repo"/>.Bus when <c>null</c>.
         /// </param>
+        /// <param name="idAllocator">
+        /// Optional allocator for pre-allocating network IDs (required by
+        /// <see cref="SpawnFormation"/> to wire followers to their leader at spawn time).
+        /// When <c>null</c>, formation leaders use <c>NetworkId = 0</c> and followers
+        /// cannot pre-resolve the leader ID.
+        /// </param>
         public SimHostScenarioManager(
             EntityRepository        repo,
             RoadNetworkBlob          road,
             TrajectoryPoolManager    traj,
             FormationTemplateManager formations,
-            IEventBus?               spawnBus = null)
+            IEventBus?               spawnBus    = null,
+            INetworkIdAllocator?     idAllocator = null)
         {
-            _repo       = repo;
-            _road       = road;
-            _traj       = traj;
-            _formations = formations;
-            _spawnBus   = spawnBus ?? repo.Bus;
+            _repo        = repo;
+            _road        = road;
+            _traj        = traj;
+            _formations  = formations;
+            _spawnBus    = spawnBus ?? repo.Bus;
+            _idAllocator = idAllocator;
         }
 
         // ── Tick ─────────────────────────────────────────────────────────────
 
-        public void Update()
-        {
-            foreach (var entity in new List<Entity>(_roamers))
-            {
-                if (!_repo.IsAlive(entity)) { _roamers.Remove(entity); continue; }
-                if (!_repo.HasComponent<NavState>(entity)) continue;
-
-                var nav = _repo.GetComponentRO<NavState>(entity);
-                if (nav.HasArrived == 1)
-                    SetDestination(entity, RandomPos(500));
-            }
-        }
+        /// <summary>
+        /// No-op: autonomous wandering/routing is driven by each entity's BTree doctrine
+        /// (e.g. <c>WanderMilitary_BT</c>); the UI layer no longer polls entity state.
+        /// </summary>
+        public void Update() { }
 
         // ── Spawn helpers ─────────────────────────────────────────────────────
 
@@ -107,6 +106,13 @@ namespace Bagira.SimHost.UI
                 Rotation = SimMath.FromYaw(angle),
             };
 
+            var entityInfo = new EntityInfo
+            {
+                Name        = vehicleClass.ToString(),
+                ForceId     = ForceId.Unknown,
+                CommanderId = 0,
+            };
+
             var cmd = new SpawnEntityCommand
             {
                 NetworkId         = 0, // 0 = auto-allocate by DdsIdAllocator
@@ -114,51 +120,10 @@ namespace Bagira.SimHost.UI
                 DisType           = 0,
                 OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
                 InitType          = ReliableInitType.AllPeers,
-                InitialComponents = new List<object> { transform },
+                InitialComponents = new List<object> { transform, entityInfo },
             };
 
             _spawnBus.PublishManaged(cmd);
-        }
-
-        /// <summary>
-        /// Creates an entity directly in the ECS world for immediate use by
-        /// demo/scenario helpers that require an entity reference (roaming,
-        /// formations, collision tests).  Does NOT publish a DDS network event.
-        /// </summary>
-        private Entity SpawnEntityLocal(Vector2 position, Vector2 heading,
-            VehicleClass vehicleClass = VehicleClass.PersonalCar)
-        {
-            var e = _repo.CreateEntity();
-
-            float angle = VectorMath.SignedAngle(Vector2.UnitX, heading);
-            var rot     = SimMath.FromYaw(angle);
-
-            _repo.AddComponent(e, new SimTransform { Position = new Vector3(position.X, position.Y, 0), Rotation = rot });
-            // Mark SimTransform as locally authoritative so that CarKinematicsSystem
-            // (.WithOwned<SimTransform>()) includes this entity in its update query.
-            // Without this flag, kinematics are silently skipped and the entity never moves.
-            _repo.SetAuthority<SimTransform>(e, true);
-            _repo.AddComponent(e, new SimVelocity  { Linear = Vector3.Zero, Angular = Vector3.Zero });
-            _repo.AddComponent(e, new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
-
-            var preset = VehiclePresets.GetPreset(vehicleClass);
-            preset.Class = vehicleClass;
-            _repo.AddComponent(e, preset);
-            _repo.AddComponent(e, new NavState());
-            _repo.AddComponent(e, new PhysicsCollider
-            {
-                Radius         = Math.Max(preset.Length, preset.Width) / 2f,
-                CollisionLayer = PhysicsConstants.EntityCollisionLayer
-            });
-
-            // CQRS navigation contract components required by NavigationExecutionSystem
-            // and NavigationIntentBridgeSystem.  Mode defaults to None so the bridge
-            // leaves NavState untouched until a brain (or direct CmdFollowTrajectory) acts.
-            _repo.AddComponent(e, new NavigationIntent());
-            _repo.AddComponent(e, new NavigationStatus());
-            _repo.AddComponent(e, new FrustrationTicks());
-
-            return e;
         }
 
         /// <summary>Maps <see cref="VehicleClass"/> to the canonical TKB entity type constant.</summary>
@@ -170,64 +135,265 @@ namespace Bagira.SimHost.UI
                 _                       => TkbEntityTypes.Truck_HMMWV,
             };
 
+        /// <summary>
+        /// Spawns <paramref name="count"/> autonomous roaming vehicles via the network pipeline.
+        /// Each entity wakes up executing <c>WanderMilitary_BT</c> and continuously picks
+        /// random destinations without UI-layer polling.
+        /// </summary>
         public void SpawnRoamers(int count, VehicleClass cls, TrajectoryInterpolation interp = TrajectoryInterpolation.CatmullRom)
         {
-            for (int i = 0; i < count; i++)
-            {
-                var e = SpawnEntityLocal(RandomPos(500), RandomDir());
-                SetDestination(e, RandomPos(500), interp);
-                _roamers.Add(e);
-            }
-        }
-
-        public void SpawnRoadUsers(int count, VehicleClass cls)
-        {
-            if (!_road.Nodes.IsCreated || _road.Nodes.Length == 0)
-            {
-                SpawnRoamers(count, cls);
-                return;
-            }
+            long tkbType = MapVehicleClassToTkbType(cls);
 
             for (int i = 0; i < count; i++)
             {
-                int nodeIdx = _rng.Next(_road.Nodes.Length);
-                var e = SpawnEntityLocal(new Vector2(_road.Nodes[nodeIdx].Position.X, _road.Nodes[nodeIdx].Position.Y), RandomDir(), cls);
+                var pos     = RandomPos(500);
+                var heading = RandomDir();
+                float angle = VectorMath.SignedAngle(Vector2.UnitX, heading);
 
-                // Pick a random destination node
-                int destNodeIdx = _rng.Next(_road.Nodes.Length);
-                _repo.Bus.Publish(new CmdNavigateViaRoad
+                var transform = new SimTransform
                 {
-                    Entity        = e,
-                    Destination   = _road.Nodes[destNodeIdx].Position,
-                    ArrivalRadius = 5f,
+                    Position = new Vector3(pos.X, pos.Y, 0f),
+                    Rotation = SimMath.FromYaw(angle),
+                };
+
+                var doctrine = new DoctrineState
+                {
+                    ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT,
+                    BrainTier          = BehaviorConstants.BrainTierBTree,
+                    InstanceId         = 1,
+                };
+
+                // BrainBlackboard: WanderMilitary requires no parameters — a blank blackboard
+                // is correct.  To switch to a parameterised doctrine (e.g. MoveTo_BT), replace
+                // the doctrine hash above and optionally write params into the blackboard:
+                //
+                //   unsafe {
+                //       fixed (byte* ptr = blackboard.Memory) {
+                //           var p = (SimHostNodes.MoveToLocationParams*)ptr;
+                //           p->X = targetX; p->Y = targetY; p->Speed = 15f;
+                //       }
+                //   }
+                var blackboard = new BrainBlackboard();
+
+                var entityInfo = new EntityInfo
+                {
+                    Name        = $"Roamer-{i + 1}",
+                    ForceId     = ForceId.Unknown,
+                    CommanderId = 0,
+                };
+
+                _spawnBus.PublishManaged(new SpawnEntityCommand
+                {
+                    NetworkId         = 0,
+                    TkbType           = tkbType,
+                    DisType           = 0,
+                    OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
+                    InitType          = ReliableInitType.AllPeers,
+                    InitialTransform  = transform,
+                    InitialComponents = new List<object> { doctrine, blackboard, entityInfo },
                 });
             }
         }
 
-        public void SpawnFormation(VehicleClass cls, FormationType formType, int count, TrajectoryInterpolation interp = TrajectoryInterpolation.CatmullRom)
+        /// <summary>
+        /// Spawns <paramref name="count"/> road-user vehicles. When a road network is available
+        /// entities are placed at random road nodes; otherwise at random world positions.
+        /// All use the <c>WanderMilitary_BT</c> doctrine for autonomous roaming and are
+        /// visible on the IG map.
+        /// </summary>
+        public void SpawnRoadUsers(int count, VehicleClass cls)
         {
-            var center = RandomPos(300);
+            long tkbType = MapVehicleClassToTkbType(cls);
 
-            // Spawn leader
-            var leader = SpawnEntityLocal(center, Vector2.UnitX, cls);
-            _repo.AddComponent(leader, new FormationRoster { Type = formType });
-            SetDestination(leader, RandomPos(500), interp);
-            _roamers.Add(leader);
-
-            // Spawn members
-            for (int i = 0; i < count - 1; i++)
+            for (int i = 0; i < count; i++)
             {
-                var member = SpawnEntityLocal(center + new Vector2(_rng.Next(-20, 20), _rng.Next(-20, 20)), Vector2.UnitX, cls);
-                _repo.Bus.Publish(new CmdJoinFormation { Entity = member, LeaderEntity = leader });
+                Vector2 pos;
+                if (_road.Nodes.IsCreated && _road.Nodes.Length > 0)
+                {
+                    int nodeIdx = _rng.Next(_road.Nodes.Length);
+                    pos = new Vector2(_road.Nodes[nodeIdx].Position.X, _road.Nodes[nodeIdx].Position.Y);
+                }
+                else
+                {
+                    pos = RandomPos(500);
+                }
+
+                var heading = RandomDir();
+                float angle = VectorMath.SignedAngle(Vector2.UnitX, heading);
+
+                var transform = new SimTransform
+                {
+                    Position = new Vector3(pos.X, pos.Y, 0f),
+                    Rotation = SimMath.FromYaw(angle),
+                };
+
+                var doctrine = new DoctrineState
+                {
+                    ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT,
+                    BrainTier          = BehaviorConstants.BrainTierBTree,
+                    InstanceId         = 1,
+                };
+
+                var blackboard = new BrainBlackboard();
+
+                var entityInfo = new EntityInfo
+                {
+                    Name        = $"RoadUser-{i + 1}",
+                    ForceId     = ForceId.Unknown,
+                    CommanderId = 0,
+                };
+
+                _spawnBus.PublishManaged(new SpawnEntityCommand
+                {
+                    NetworkId         = 0,
+                    TkbType           = tkbType,
+                    DisType           = 0,
+                    OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
+                    InitType          = ReliableInitType.AllPeers,
+                    InitialTransform  = transform,
+                    InitialComponents = new List<object> { doctrine, blackboard, entityInfo },
+                });
             }
         }
 
-        public void SpawnCollisionTest(VehicleClass cls)
+        /// <summary>
+        /// Spawns a formation of <paramref name="count"/> vehicles: one leader executing
+        /// <c>WanderMilitary_BT</c> and <c>count-1</c> followers executing
+        /// <c>JoinFormation_BT</c> with the leader's network ID pre-wired in their blackboard.
+        /// Requires an <see cref="INetworkIdAllocator"/> (supplied at construction time) to
+        /// pre-allocate the leader ID so followers can wire it at spawn time.
+        /// </summary>
+        public unsafe void SpawnFormation(VehicleClass cls, FormationType formType, int count, TrajectoryInterpolation interp = TrajectoryInterpolation.CatmullRom)
         {
-            var a = SpawnEntityLocal(new Vector2(100, 100), Vector2.UnitX, cls);
-            var b = SpawnEntityLocal(new Vector2(300, 100), -Vector2.UnitX, cls);
-            SetDestination(a, new Vector2(350, 100));
-            SetDestination(b, new Vector2(50,  100));
+            long tkbType = MapVehicleClassToTkbType(cls);
+            var  center  = RandomPos(300);
+
+            // Pre-allocate the leader's network ID so followers can reference it at spawn time.
+            // Without an allocator the leader uses 0 (deferred) and followers cannot pre-wire it.
+            long leaderNetId = _idAllocator?.AllocateId() ?? 0L;
+
+            // 1. Leader — uses WanderMilitary so it roams autonomously while followers trail it.
+            var leaderDoctrine = new DoctrineState
+            {
+                ActiveDoctrineHash = SimHostDoctrineIds.WanderMilitary_BT,
+                BrainTier          = BehaviorConstants.BrainTierBTree,
+                InstanceId         = 1,
+            };
+
+            var leaderBlackboard = new BrainBlackboard();
+
+            var leaderInfo = new EntityInfo
+            {
+                Name        = "Leader",
+                ForceId     = ForceId.Friend,
+                CommanderId = 0,
+            };
+
+            _spawnBus.PublishManaged(new SpawnEntityCommand
+            {
+                NetworkId         = leaderNetId,
+                TkbType           = tkbType,
+                DisType           = 0,
+                OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
+                InitType          = ReliableInitType.AllPeers,
+                InitialTransform  = new SimTransform { Position = new Vector3(center.X, center.Y, 0f), Rotation = SimMath.FromYaw(0f) },
+                InitialComponents = new List<object> { leaderDoctrine, leaderBlackboard, leaderInfo },
+            });
+
+            // 2. Followers
+            for (int i = 0; i < count - 1; i++)
+            {
+                var followerDoctrine = new DoctrineState
+                {
+                    ActiveDoctrineHash = SimHostDoctrineIds.JoinFormation_BT,
+                    BrainTier          = BehaviorConstants.BrainTierBTree,
+                    InstanceId         = 1,
+                };
+
+                var followerBlackboard = new BrainBlackboard();
+                var jp = (JoinFormationParams*)(&followerBlackboard);
+                jp->LeaderNetworkId = (int)leaderNetId;
+                jp->FormationTypeId = (byte)formType;
+
+                var followerPos  = center + new Vector2(_rng.Next(-20, 20), _rng.Next(-20, 20));
+                var followerInfo = new EntityInfo
+                {
+                    Name        = $"Follower-{i + 1}",
+                    ForceId     = ForceId.Friend,
+                    CommanderId = 0,
+                };
+
+                _spawnBus.PublishManaged(new SpawnEntityCommand
+                {
+                    NetworkId         = 0,
+                    TkbType           = tkbType,
+                    DisType           = 0,
+                    OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
+                    InitType          = ReliableInitType.AllPeers,
+                    InitialTransform  = new SimTransform { Position = new Vector3(followerPos.X, followerPos.Y, 0f), Rotation = SimMath.FromYaw(0f) },
+                    InitialComponents = new List<object> { followerDoctrine, followerBlackboard, followerInfo },
+                });
+            }
+        }
+
+        /// <summary>
+        /// Spawns two opposing vehicles on a collision course using <c>FollowRoute_BT</c>.
+        /// Both entities are network-visible and their trajectories are pre-registered.
+        /// </summary>
+        public unsafe void SpawnCollisionTest(VehicleClass cls)
+        {
+            long tkbType = MapVehicleClassToTkbType(cls);
+
+            var pathA = new[] { new Vector2(100f, 100f), new Vector2(350f, 100f) };
+            var pathB = new[] { new Vector2(300f, 100f), new Vector2(50f,  100f) };
+
+            int trajIdA = _traj.RegisterTrajectory(pathA, interpolation: TrajectoryInterpolation.CatmullRom);
+            int trajIdB = _traj.RegisterTrajectory(pathB, interpolation: TrajectoryInterpolation.CatmullRom);
+
+            SpawnNetworkedTrajectoryVehicle(tkbType, new Vector2(100f, 100f),  Vector2.UnitX, trajIdA, "Test-A");
+            SpawnNetworkedTrajectoryVehicle(tkbType, new Vector2(300f, 100f), -Vector2.UnitX, trajIdB, "Test-B");
+        }
+
+        private unsafe void SpawnNetworkedTrajectoryVehicle(
+            long tkbType, Vector2 startPos, Vector2 heading, int trajId, string name)
+        {
+            float angle   = VectorMath.SignedAngle(Vector2.UnitX, heading);
+            var transform = new SimTransform
+            {
+                Position = new Vector3(startPos.X, startPos.Y, 0f),
+                Rotation = SimMath.FromYaw(angle),
+            };
+
+            var doctrine = new DoctrineState
+            {
+                ActiveDoctrineHash = SimHostDoctrineIds.FollowRoute_BT,
+                BrainTier          = BehaviorConstants.BrainTierBTree,
+                InstanceId         = 1,
+            };
+
+            var blackboard = new BrainBlackboard();
+            var rp = (SimHostNodes.FollowRouteParams*)(&blackboard);
+            rp->TrajectoryId = trajId;
+            rp->Speed        = 15f;
+            rp->Loop         = false;
+
+            var entityInfo = new EntityInfo
+            {
+                Name        = name,
+                ForceId     = ForceId.Unknown,
+                CommanderId = 0,
+            };
+
+            _spawnBus.PublishManaged(new SpawnEntityCommand
+            {
+                NetworkId         = 0,
+                TkbType           = tkbType,
+                DisType           = 0,
+                OwnerNodeId       = SimHostNetworkConstants.LocalNodeId,
+                InitType          = ReliableInitType.AllPeers,
+                InitialTransform  = transform,
+                InitialComponents = new List<object> { doctrine, blackboard, entityInfo },
+            });
         }
 
         /// <summary>
@@ -318,7 +484,6 @@ namespace Bagira.SimHost.UI
                     _repo.DestroyEntity(e);
                 }
             }
-            _roamers.Clear();
             _traj.Clear();
         }
 

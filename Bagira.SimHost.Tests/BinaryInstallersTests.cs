@@ -70,7 +70,7 @@ namespace Bagira.SimHost.Tests
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[] { StringRecord(AttributeIds.Name, "Bravo") });
 
-            var data = listCtx.GetManagedComponent<IgEntityData>();
+            var data = listCtx.GetManagedComponent<IG.Components.EntityInfo>();
             Assert.Equal("Bravo", data.Name);
         }
 
@@ -85,7 +85,7 @@ namespace Bagira.SimHost.Tests
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[] { StringRecord(AttributeIds.Affiliation, "FORCE_FRIENDLY") });
 
-            var data = listCtx.GetManagedComponent<IgEntityData>();
+            var data = listCtx.GetManagedComponent<IG.Components.EntityInfo>();
             Assert.Equal(ForceId.Friend, data.ForceId);
         }
 
@@ -102,7 +102,7 @@ namespace Bagira.SimHost.Tests
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[] { Int32Record(AttributeIds.Affiliation, friendlyInt) });
 
-            var data = listCtx.GetManagedComponent<IgEntityData>();
+            var data = listCtx.GetManagedComponent<IG.Components.EntityInfo>();
             Assert.Equal(ForceId.Friend, data.ForceId);
         }
 
@@ -252,7 +252,7 @@ namespace Bagira.SimHost.Tests
                 Float64Record(AttributeIds.GeoAlt, 100.0),
             });
 
-            var data = listCtx.GetManagedComponent<IgEntityData>();
+            var data = listCtx.GetManagedComponent<IG.Components.EntityInfo>();
             Assert.Equal("Delta", data.Name);
 
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();

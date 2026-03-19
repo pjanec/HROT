@@ -18,8 +18,8 @@ namespace Bagira.SimHost;
 /// <para>
 /// Registers the following JSON attribute paths:
 /// <list type="bullet">
-///   <item><c>"Name"</c> → <see cref="IgEntityData.Name"/> (ordinal: <c>dtEntityInfo</c>)</item>
-///   <item><c>"Affiliation"</c> → <see cref="IgEntityData.ForceId"/> (ordinal: <c>dtEntityInfo</c>)</item>
+///   <item><c>"Name"</c> → <see cref="IG.Components.EntityInfo.Name"/> (ordinal: <c>dtEntityInfo</c>)</item>
+///   <item><c>"Affiliation"</c> → <see cref="IG.Components.EntityInfo.ForceId"/> (ordinal: <c>dtEntityInfo</c>)</item>
 ///   <item><c>"GeoPosition.Latitude"</c>, <c>"GeoPosition.Longitude"</c>, <c>"GeoPosition.Altitude"</c>
 ///         → <see cref="FDP.Toolkit.Replication.Components.SimTransform.Position"/> via
 ///         <c>IGeographicTransform.ToCartesian</c> (ordinal: <c>dtGeoSpatial</c>).
@@ -48,19 +48,19 @@ public static class AttributeCompilerFactory
         var builder = new AttributeCompilerBuilder()
 
             // ── IgEntityData — managed class paths ────────────────────────────
-            .RegisterReferencePath<IgEntityData>(
+            .RegisterReferencePath<IG.Components.EntityInfo>(
                 "Name",
-                (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                ( IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.Name = r.GetString() ?? string.Empty,
-                descriptorOrdinal: EntityInfoOrdinal)
+                descriptorOrdinal: EntityInfoOrdinal )
 
-            .RegisterReferencePath<IgEntityData>(
+            .RegisterReferencePath<IG.Components.EntityInfo>(
                 "Affiliation",
-                (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                ( IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.ForceId = r.TokenType == JsonTokenType.Number
-                        ? MapAffiliationInt(r.GetInt32())
-                        : MapAffiliationString(r.GetString()),
-                descriptorOrdinal: EntityInfoOrdinal);
+                        ? MapAffiliationInt( r.GetInt32())
+                        : MapAffiliationString( r.GetString()),
+                descriptorOrdinal: EntityInfoOrdinal );
 
         // ── SimTransform — unmanaged struct paths (GeoPosition) ───────────────
         if (geoTransform != null)

@@ -7,7 +7,7 @@ namespace Bagira.SimHost.Installers;
 
 /// <summary>
 /// <see cref="IBinaryAttributeInstaller"/> that routes <c>Name</c> and
-/// <c>Affiliation</c> binary attribute records to <see cref="IgEntityData"/> ECS
+/// <c>Affiliation</c> binary attribute records to <see cref="IG.Components.EntityInfo"/> ECS
 /// component writes.
 ///
 /// <para>
@@ -36,10 +36,10 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller
 
     private static void HandleName(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWriteManaged<IgEntityData>())
+        if (!ctx.PatchContext.CanWriteManaged<IG.Components.EntityInfo>())
             return;
 
-        IgEntityData data = ctx.PatchContext.GetManagedComponent<IgEntityData>();
+		IG.Components.EntityInfo data = ctx.PatchContext.GetManagedComponent<IG.Components.EntityInfo>();
         data.Name = record.Value.StringValue ?? string.Empty;
 
         ctx.MarkDescriptorDirty(EntityInfoOrdinal);
@@ -47,10 +47,10 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller
 
     private static void HandleAffiliation(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWriteManaged<IgEntityData>())
+        if (!ctx.PatchContext.CanWriteManaged<IG.Components.EntityInfo>())
             return;
 
-        IgEntityData data = ctx.PatchContext.GetManagedComponent<IgEntityData>();
+		IG.Components.EntityInfo data = ctx.PatchContext.GetManagedComponent<IG.Components.EntityInfo>();
 
         data.ForceId = record.Value.ValueType == AttributeValueType.KindInt32
             ? AttributeCompilerFactory.MapAffiliationInt(record.Value.IntValue)

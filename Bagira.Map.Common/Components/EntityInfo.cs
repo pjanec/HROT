@@ -5,7 +5,7 @@ using Fdp.Kernel;
 namespace Bagira.IG.Components
 {
     [ComponentId(BagiraComponentIds.IgEntityData)]
-    public class IgEntityData
+    public class EntityInfo
     {
         public string Name { get; set; } = string.Empty;
         public ForceId ForceId { get; set; } = ForceId.Unknown;

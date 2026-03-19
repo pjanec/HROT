@@ -598,7 +598,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             var world = new EntityRepository();
 
             // ── IG metadata component ─────────────────────────────────────────────
-            world.RegisterManagedComponent<IgEntityData>();
+            world.RegisterManagedComponent<IG.Components.EntityInfo>();
             world.RegisterManagedComponent<Bagira.SimHost.Components.EntityMissionHolder>();
 
             // ── Network components ────────────────────────────────────────────────

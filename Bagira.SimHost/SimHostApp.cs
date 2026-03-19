@@ -417,7 +417,8 @@ namespace Bagira.SimHost
                     _simLogicModule.RoadNetwork,
                     _simLogicModule.TrajectoryPool ?? new TrajectoryPoolManager(),
                     _simLogicModule.FormationTemplates ?? new FormationTemplateManager(),
-                    new DdsWriter<MissionControlRequest>(ddsParticipant));
+                    new DdsWriter<MissionControlRequest>(ddsParticipant),
+                    idAllocator: _idAllocator);
 
                 // Wire IG presentation module with a real MapCanvas + SstVisualizerAdapter
                 // for production rendering (DB-MOD1-12).

@@ -51,7 +51,7 @@ public static class SimHostComponentRegistry
         CombatComponentRegistry.RegisterAll(world);      // Perception, combat, physics colliders
 
         // ── Managed components ────────────────────────────────────────────────
-        world.RegisterManagedComponent<IgEntityData>();
+        world.RegisterManagedComponent<EntityInfo>();
         world.RegisterManagedComponent<EntityMissionHolder>();
         world.RegisterManagedComponent<EditablePolyline>();
 

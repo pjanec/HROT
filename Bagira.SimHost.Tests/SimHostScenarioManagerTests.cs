@@ -1,198 +1,266 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using Bagira.IG.Components;
+using Bagira.Map.Common;
+using Bagira.SimHost.Configuration;
 using Bagira.SimHost.UI;
-using CarKinem.Commands;
 using CarKinem.Core;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using Fdp.Kernel;
-using FDP.Toolkit.Navigation;
-using FDP.Toolkit.Physics.Components;
-using Xunit;
+using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Navigation.Executors;
+using FDP.Toolkit.NetworkSpawning.Events;
+using ModuleHost.Core.Network.Interfaces;
 
 namespace Bagira.SimHost.Tests
 {
     /// <summary>
-    /// Tests for BD1-P3T2: <see cref="SimHostScenarioManager.SpawnEntityLocal"/> (called
-    /// via <see cref="SimHostScenarioManager.SpawnCollisionTest"/>) must attach a
-    /// <see cref="PhysicsCollider"/> so entities participate in the RVO spatial hash.
-    ///
-    /// Also covers the fix for "entities spawned from the SimHost control panel do not start
-    /// moving": <see cref="SimTransform"/> authority must be set, and the three CQRS navigation
-    /// contract components (<see cref="NavigationIntent"/>, <see cref="NavigationStatus"/>,
-    /// <see cref="FrustrationTicks"/>) must be present so that
-    /// <c>CarKinematicsSystem</c>, <c>NavigationIntentBridgeSystem</c>, and
-    /// <c>NavigationExecutionSystem</c> pick up the entity.
+    /// Verifies that <see cref="SimHostScenarioManager"/> publishes <see cref="SpawnEntityCommand"/>
+    /// events with correct doctrine, blackboard, and <see cref="EntityInfo"/> payloads so that
+    /// entities are visible on the IG map and execute their assigned BTree behaviours.
     /// </summary>
     public class SimHostScenarioManagerTests
     {
-        private static EntityRepository CreateWorld()
+        // ── CapturingBus stub ─────────────────────────────────────────────────────
+
+        private sealed class CapturingBus : IEventBus
         {
-            var repo = new EntityRepository();
-            repo.RegisterComponent<SimTransform>();
-            repo.RegisterComponent<SimVelocity>();
-            repo.RegisterComponent<VehicleState>();
-            repo.RegisterComponent<VehicleParams>();
-            repo.RegisterComponent<NavState>();
-            repo.RegisterComponent<PhysicsCollider>();
-            repo.RegisterComponent<NavigationIntent>();
-            repo.RegisterComponent<NavigationStatus>();
-            repo.RegisterComponent<FrustrationTicks>();
-            repo.RegisterEvent<CmdFollowTrajectory>();
-            return repo;
+            public readonly List<object> ManagedEvents = new();
+            public void Publish<T>(T evt) where T : unmanaged { }
+            public void PublishManaged<T>(T evt) => ManagedEvents.Add(evt!);
         }
 
-        private static SimHostScenarioManager CreateScenario(EntityRepository repo)
+        // ── Stub allocator ───────────────────────────────────────────────────────
+
+        private sealed class StubAllocator : INetworkIdAllocator
         {
-            var road       = new RoadNetworkBlob();
+            private long _next;
+            public StubAllocator(long startId = 500) => _next = startId;
+            public long AllocateId() => _next++;
+            public void Reset(long startId = 0) => _next = startId;
+            public void Dispose() { }
+        }
+
+        // ── Factory ───────────────────────────────────────────────────────────
+
+        private static (SimHostScenarioManager Sut, CapturingBus Bus) CreateSut(
+            INetworkIdAllocator? allocator = null)
+        {
+            var bus        = new CapturingBus();
+            var repo       = new EntityRepository();
             var traj       = new TrajectoryPoolManager();
             var formations = new FormationTemplateManager();
-            return new SimHostScenarioManager(repo, road, traj, formations);
+            var road       = new RoadNetworkBlob();
+
+            var sut = new SimHostScenarioManager(
+                repo:        repo,
+                road:        road,
+                traj:        traj,
+                formations:  formations,
+                spawnBus:    bus,
+                idAllocator: allocator);
+
+            return (sut, bus);
         }
 
-        /// <summary>
-        /// BD1-P3T2 SC1: Entities spawned by SpawnCollisionTest (via SpawnEntityLocal)
-        /// must carry a PhysicsCollider component.
-        /// </summary>
-        [Fact]
-        public void SpawnEntityLocal_AddsPhysicsCollider()
+        private static List<SpawnEntityCommand> ExtractCommands(CapturingBus bus)
         {
-            using var repo = CreateWorld();
-            var scenario   = CreateScenario(repo);
-
-            // SpawnCollisionTest calls SpawnEntityLocal twice.
-            scenario.SpawnCollisionTest(VehicleClass.PersonalCar);
-
-            var query = repo.Query().With<SimTransform>().With<PhysicsCollider>().Build();
-            int count = 0;
-            foreach (var _ in query) count++;
-
-            Assert.Equal(2, count);
+            var result = new List<SpawnEntityCommand>();
+            foreach (var ev in bus.ManagedEvents)
+                if (ev is SpawnEntityCommand cmd) result.Add(cmd);
+            return result;
         }
 
-        /// <summary>
-        /// BD1-P3T2 SC1: Radius of the PhysicsCollider must be greater than zero.
-        /// </summary>
+        // ── SpawnRoamers ────────────────────────────────────────────────────────
+
         [Fact]
-        public void SpawnEntityLocal_PhysicsCollider_RadiusIsPositive()
+        public void SpawnRoamers_PublishesCorrectNumberOfSpawnCommands()
         {
-            using var repo = CreateWorld();
-            var scenario   = CreateScenario(repo);
+            var (sut, bus) = CreateSut();
+            sut.SpawnRoamers(3, VehicleClass.PersonalCar);
+            Assert.Equal(3, ExtractCommands(bus).Count);
+        }
 
-            scenario.SpawnCollisionTest(VehicleClass.Tank);
+        [Fact]
+        public void SpawnRoamers_EachCommand_HasWanderMilitaryDoctrine()
+        {
+            var (sut, bus) = CreateSut();
+            sut.SpawnRoamers(2, VehicleClass.PersonalCar);
 
-            var query = repo.Query().With<PhysicsCollider>().Build();
-            foreach (var entity in query)
+            foreach (var cmd in ExtractCommands(bus))
             {
-                repo.TryGetComponent(entity, out PhysicsCollider collider);
-                Assert.True(collider.Radius > 0f,
-                    "PhysicsCollider.Radius must be positive for spawned entities.");
+                Assert.NotNull(cmd.InitialComponents);
+                var doctrine = cmd.InitialComponents.OfType<DoctrineState>().Single();
+                Assert.Equal(SimHostDoctrineIds.WanderMilitary_BT, doctrine.ActiveDoctrineHash);
             }
         }
 
-        // ── Authority fix: entities spawned from the control panel must move ────────────
-
-        /// <summary>
-        /// Entities from SpawnEntityLocal must have local authority over SimTransform so
-        /// that CarKinematicsSystem (.WithOwned&lt;SimTransform&gt;()) includes them.
-        /// </summary>
         [Fact]
-        public void SpawnEntityLocal_SimTransform_HasLocalAuthority()
+        public void SpawnRoamers_EachCommand_HasEntityInfo()
         {
-            using var repo = CreateWorld();
-            var scenario   = CreateScenario(repo);
+            var (sut, bus) = CreateSut();
+            sut.SpawnRoamers(2, VehicleClass.Tank);
 
-            scenario.SpawnCollisionTest(VehicleClass.PersonalCar);
-
-            int withAuth    = 0;
-            int withoutAuth = 0;
-            var query = repo.Query().With<SimTransform>().Build();
-            foreach (var entity in query)
+            foreach (var cmd in ExtractCommands(bus))
             {
-                if (repo.HasAuthority<SimTransform>(entity)) withAuth++;
-                else withoutAuth++;
+                Assert.NotNull(cmd.InitialComponents);
+                Assert.Contains(cmd.InitialComponents, c => c is EntityInfo);
+            }
+        }
+
+        [Fact]
+        public void SpawnRoamers_EachCommand_HasBrainBlackboard()
+        {
+            var (sut, bus) = CreateSut();
+            sut.SpawnRoamers(1, VehicleClass.PersonalCar);
+
+            var cmd = ExtractCommands(bus)[0];
+            Assert.NotNull(cmd.InitialComponents);
+            Assert.Contains(cmd.InitialComponents, c => c is BrainBlackboard);
+        }
+
+        [Fact]
+        public void SpawnRoamers_EachCommand_HasCorrectTkbType()
+        {
+            var (sut, bus) = CreateSut();
+            sut.SpawnRoamers(1, VehicleClass.Tank);
+
+            Assert.Equal(TkbEntityTypes.Tank_M1Abrams, ExtractCommands(bus)[0].TkbType);
+        }
+
+        // ── SpawnRoadUsers ─────────────────────────────────────────────────────
+
+        [Fact]
+        public void SpawnRoadUsers_NoRoad_PublishesWanderCommands()
+        {
+            var (sut, bus) = CreateSut();
+            sut.SpawnRoadUsers(3, VehicleClass.PersonalCar);
+
+            var cmds = ExtractCommands(bus);
+            Assert.Equal(3, cmds.Count);
+            foreach (var cmd in cmds)
+            {
+                var doctrine = cmd.InitialComponents!.OfType<DoctrineState>().Single();
+                Assert.Equal(SimHostDoctrineIds.WanderMilitary_BT, doctrine.ActiveDoctrineHash);
+            }
+        }
+
+        // ── SpawnCollisionTest ────────────────────────────────────────────────
+
+        [Fact]
+        public void SpawnCollisionTest_PublishesTwoSpawnCommands()
+        {
+            var (sut, bus) = CreateSut();
+            sut.SpawnCollisionTest(VehicleClass.PersonalCar);
+            Assert.Equal(2, ExtractCommands(bus).Count);
+        }
+
+        [Fact]
+        public void SpawnCollisionTest_BothCommands_HaveFollowRouteDoctrine()
+        {
+            var (sut, bus) = CreateSut();
+            sut.SpawnCollisionTest(VehicleClass.PersonalCar);
+
+            foreach (var cmd in ExtractCommands(bus))
+            {
+                Assert.NotNull(cmd.InitialComponents);
+                var doctrine = cmd.InitialComponents.OfType<DoctrineState>().Single();
+                Assert.Equal(SimHostDoctrineIds.FollowRoute_BT, doctrine.ActiveDoctrineHash);
+            }
+        }
+
+        [Fact]
+        public unsafe void SpawnCollisionTest_BothCommands_HaveDistinctNonZeroTrajectoryIds()
+        {
+            var (sut, bus) = CreateSut();
+            sut.SpawnCollisionTest(VehicleClass.PersonalCar);
+
+            var cmds   = ExtractCommands(bus);
+            var trajIds = new List<int>();
+
+            foreach (var cmd in cmds)
+            {
+                var bb = cmd.InitialComponents!.OfType<BrainBlackboard>().Single();
+                int trajId = *(int*)(&bb); // TrajectoryId is first int in FollowRouteParams
+                Assert.True(trajId > 0, $"Expected non-zero TrajectoryId but got {trajId}");
+                trajIds.Add(trajId);
             }
 
-            Assert.Equal(2, withAuth);
-            Assert.Equal(0, withoutAuth);
+            Assert.NotEqual(trajIds[0], trajIds[1]);
         }
 
-        /// <summary>
-        /// Entities from SpawnEntityLocal must carry NavigationIntent so that
-        /// NavigationIntentBridgeSystem and NavigationExecutionSystem can process them.
-        /// </summary>
         [Fact]
-        public void SpawnEntityLocal_HasNavigationIntent()
+        public void SpawnCollisionTest_BothCommands_HaveEntityInfo()
         {
-            using var repo = CreateWorld();
-            var scenario   = CreateScenario(repo);
+            var (sut, bus) = CreateSut();
+            sut.SpawnCollisionTest(VehicleClass.PersonalCar);
 
-            scenario.SpawnCollisionTest(VehicleClass.PersonalCar);
-
-            int count = 0;
-            var query = repo.Query().With<NavigationIntent>().Build();
-            foreach (var _ in query) count++;
-
-            Assert.Equal(2, count);
+            foreach (var cmd in ExtractCommands(bus))
+                Assert.Contains(cmd.InitialComponents!, c => c is EntityInfo);
         }
 
-        /// <summary>
-        /// Entities from SpawnEntityLocal must carry NavigationStatus so that
-        /// NavigationExecutionSystem can write the CQRS reply.
-        /// </summary>
+        // ── SpawnFormation ───────────────────────────────────────────────────────
+
         [Fact]
-        public void SpawnEntityLocal_HasNavigationStatus()
+        public void SpawnFormation_WithoutAllocator_PublishesExpectedNumberOfCommands()
         {
-            using var repo = CreateWorld();
-            var scenario   = CreateScenario(repo);
-
-            scenario.SpawnCollisionTest(VehicleClass.PersonalCar);
-
-            int count = 0;
-            var query = repo.Query().With<NavigationStatus>().Build();
-            foreach (var _ in query) count++;
-
-            Assert.Equal(2, count);
+            var (sut, bus) = CreateSut(allocator: null);
+            sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Wedge, count: 4);
+            Assert.Equal(4, ExtractCommands(bus).Count); // 1 leader + 3 followers
         }
 
-        /// <summary>
-        /// Entities from SpawnEntityLocal must carry FrustrationTicks so that
-        /// NavigationExecutionSystem's stuck-detection does not throw a missing-component exception.
-        /// </summary>
         [Fact]
-        public void SpawnEntityLocal_HasFrustrationTicks()
+        public void SpawnFormation_WithAllocator_LeaderUsesPreallocatedNetworkId()
         {
-            using var repo = CreateWorld();
-            var scenario   = CreateScenario(repo);
+            var alloc  = new StubAllocator(startId: 500);
+            var (sut, bus) = CreateSut(alloc);
+            sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Wedge, count: 2);
 
-            scenario.SpawnCollisionTest(VehicleClass.PersonalCar);
-
-            int count = 0;
-            var query = repo.Query().With<FrustrationTicks>().Build();
-            foreach (var _ in query) count++;
-
-            Assert.Equal(2, count);
+            var cmds = ExtractCommands(bus);
+            Assert.Equal(500L, cmds[0].NetworkId); // leader uses the pre-allocated ID
         }
 
-        /// <summary>
-        /// NavigationIntent on a freshly-spawned entity must default to Mode = None
-        /// (brain-death state), so the NavigationIntentBridgeSystem leaves NavState alone
-        /// and direct CmdFollowTrajectory / CmdNavigateToPoint commands take effect immediately.
-        /// </summary>
         [Fact]
-        public void SpawnEntityLocal_NavigationIntent_DefaultsToModeNone()
+        public void SpawnFormation_LeaderCommand_HasWanderMilitaryDoctrine()
         {
-            using var repo = CreateWorld();
-            var scenario   = CreateScenario(repo);
+            var alloc  = new StubAllocator();
+            var (sut, bus) = CreateSut(alloc);
+            sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Column, count: 2);
 
-            scenario.SpawnCollisionTest(VehicleClass.PersonalCar);
+            var leaderCmd = ExtractCommands(bus)[0];
+            var doctrine  = leaderCmd.InitialComponents!.OfType<DoctrineState>().Single();
+            Assert.Equal(SimHostDoctrineIds.WanderMilitary_BT, doctrine.ActiveDoctrineHash);
+        }
 
-            var query = repo.Query().With<NavigationIntent>().Build();
-            foreach (var entity in query)
-            {
-                repo.TryGetComponent(entity, out NavigationIntent intent);
-                Assert.Equal(NavigationMode.None, intent.Mode);
-            }
+        [Fact]
+        public unsafe void SpawnFormation_FollowerCommand_HasJoinFormationDoctrineWithLeaderNetworkId()
+        {
+            var alloc  = new StubAllocator(startId: 500);
+            var (sut, bus) = CreateSut(alloc);
+            sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Wedge, count: 2);
+
+            var followerCmd = ExtractCommands(bus)[1];
+            var doctrine    = followerCmd.InitialComponents!.OfType<DoctrineState>().Single();
+            Assert.Equal(SimHostDoctrineIds.JoinFormation_BT, doctrine.ActiveDoctrineHash);
+
+            var bb = followerCmd.InitialComponents.OfType<BrainBlackboard>().Single();
+            var p = (JoinFormationParams*)(&bb);
+            Assert.Equal(500, p->LeaderNetworkId); // must match pre-allocated leader ID
+        }
+
+        [Fact]
+        public void SpawnFormation_AllCommands_HaveEntityInfo()
+        {
+            var (sut, bus) = CreateSut();
+            sut.SpawnFormation(VehicleClass.PersonalCar, FormationType.Wedge, count: 3);
+
+            foreach (var cmd in ExtractCommands(bus))
+                Assert.Contains(cmd.InitialComponents!, c => c is EntityInfo);
         }
     }
 }
+

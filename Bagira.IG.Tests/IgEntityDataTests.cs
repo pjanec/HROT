@@ -11,7 +11,7 @@ namespace Bagira.IG.Tests
         [Fact]
         public void DefaultValues_AreCorrect()
         {
-            var data = new IgEntityData();
+            var data = new Components.EntityInfo();
 
             Assert.Equal(string.Empty, data.Name);
             Assert.Equal(ForceId.Unknown, data.ForceId);
@@ -21,7 +21,7 @@ namespace Bagira.IG.Tests
         [Fact]
         public void ComponentIdAttribute_IsPresent()
         {
-            var attribute = typeof(IgEntityData).GetCustomAttribute<ComponentIdAttribute>();
+            var attribute = typeof( Components.EntityInfo).GetCustomAttribute<ComponentIdAttribute>();
 
             Assert.NotNull(attribute);
         }

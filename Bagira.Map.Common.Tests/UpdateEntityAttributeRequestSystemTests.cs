@@ -64,7 +64,7 @@ public class UpdateEntityAttributeRequestSystemTests
     private static EntityRepository CreateRepo()
     {
         var repo = new EntityRepository();
-        repo.RegisterManagedComponent<IgEntityData>();
+        repo.RegisterManagedComponent<IG.Components.EntityInfo>();
         return repo;
     }
 
@@ -75,16 +75,16 @@ public class UpdateEntityAttributeRequestSystemTests
     private static JsonAttributeCompiler BuildCompiler()
     {
         return new AttributeCompilerBuilder()
-            .RegisterReferencePath<IgEntityData>(
+            .RegisterReferencePath<IG.Components.EntityInfo>(
                 "Name",
-                (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                ( IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.Name = r.GetString() ?? string.Empty,
-                descriptorOrdinal: EntityInfoOrdinal)
-            .RegisterReferencePath<IgEntityData>(
+                descriptorOrdinal: EntityInfoOrdinal )
+            .RegisterReferencePath<IG.Components.EntityInfo>(
                 "Affiliation",
-                (IgEntityData c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+                ( IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.ForceId = r.GetString() == "FORCE_FRIENDLY" ? ForceId.Friend : ForceId.Unknown,
-                descriptorOrdinal: EntityInfoOrdinal)
+                descriptorOrdinal: EntityInfoOrdinal )
             .Build();
     }
 
@@ -115,9 +115,9 @@ public class UpdateEntityAttributeRequestSystemTests
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "old" });
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "old" });
         // Grant authority so the compiler dispatches the setter.
-        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+        repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
         var entityMap = new NetworkEntityMap();
         entityMap.Register(42L, entity);
@@ -139,7 +139,7 @@ public class UpdateEntityAttributeRequestSystemTests
         system.Run();
 
         // Assert: IgEntityData.Name is updated in-place.
-        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
         Assert.Equal("new", nameData.Name);
 
         // ACK sent (RequireAck=true + something applied).
@@ -148,7 +148,7 @@ public class UpdateEntityAttributeRequestSystemTests
         Assert.Equal((int)SstErrorCode.Success, ackSink.WrittenAcks[0].ErrorCode);
 
         // OpaqueData bitmask has the IgEntityData component bit set.
-        int compId        = ManagedComponentType<IgEntityData>.ID;
+        int compId        = ManagedComponentType<IG.Components.EntityInfo>.ID;
         byte[] mask       = ackSink.WrittenAcks[0].OpaqueData;
         bool compBitIsSet = (mask[compId >> 3] & (1 << (compId & 7))) != 0;
         Assert.True(compBitIsSet, "OpaqueData bitmask should have the IgEntityData component bit set.");
@@ -166,8 +166,8 @@ public class UpdateEntityAttributeRequestSystemTests
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "alpha" });
-        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "alpha" });
+        repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
         var entityMap = new NetworkEntityMap();
         entityMap.Register(10L, entity);
@@ -202,8 +202,8 @@ public class UpdateEntityAttributeRequestSystemTests
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "old", ForceId = ForceId.Unknown });
-        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "old", ForceId = ForceId.Unknown });
+        repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
         var entityMap = new NetworkEntityMap();
         entityMap.Register(77L, entity);
@@ -223,7 +223,7 @@ public class UpdateEntityAttributeRequestSystemTests
         system.Run();
 
         // Assert: both fields patched.
-        var data = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        var data = ((ISimulationView)repo).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
         Assert.Equal("updated",       data.Name);
         Assert.Equal(ForceId.Friend,  data.ForceId);
 
@@ -276,8 +276,8 @@ public class UpdateEntityAttributeRequestSystemTests
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "unchanged" });
-        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "unchanged" });
+        repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
         var entityMap = new NetworkEntityMap();
         entityMap.Register(5L, entity);
@@ -301,7 +301,7 @@ public class UpdateEntityAttributeRequestSystemTests
         Assert.Null(ex);
 
         // Name is unchanged (nothing matched any route).
-        var data = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        var data = ((ISimulationView)repo).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
         Assert.Equal("unchanged", data.Name);
 
         // No ACK — nothing was applied, silent bystander rule.
@@ -323,9 +323,9 @@ public class UpdateEntityAttributeRequestSystemTests
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "before" });
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "before" });
         // Grant authority for IgEntityData.
-        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+        repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
         var entityMap = new NetworkEntityMap();
         entityMap.Register(1L, entity);
@@ -345,13 +345,13 @@ public class UpdateEntityAttributeRequestSystemTests
         system.Run();
 
         // Mutation applied.
-        var data = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        var data = ((ISimulationView)repo).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
         Assert.Equal("after", data.Name);
 
         // ACK with success + non-empty bitmask.
         Assert.Single(ackSink.WrittenAcks);
         Assert.Equal((int)SstErrorCode.Success, ackSink.WrittenAcks[0].ErrorCode);
-        int  compId = ManagedComponentType<IgEntityData>.ID;
+        int  compId = ManagedComponentType<IG.Components.EntityInfo>.ID;
         byte[] mask = ackSink.WrittenAcks[0].OpaqueData;
         Assert.True((mask[compId >> 3] & (1 << (compId & 7))) != 0);
     }
@@ -367,7 +367,7 @@ public class UpdateEntityAttributeRequestSystemTests
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "untouched" });
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "untouched" });
         // Authority is NOT set — entity's authority mask bit is 0.
 
         var entityMap = new NetworkEntityMap();
@@ -388,7 +388,7 @@ public class UpdateEntityAttributeRequestSystemTests
         system.Run();
 
         // ECS state unchanged — setter was bypassed.
-        var data = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        var data = ((ISimulationView)repo).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
         Assert.Equal("untouched", data.Name);
 
         // No ACK — silent bystander (nothing applied).
@@ -406,8 +406,8 @@ public class UpdateEntityAttributeRequestSystemTests
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "old" });
-        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "old" });
+        repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
         var entityMap = new NetworkEntityMap();
         entityMap.Register(3L, entity);
@@ -427,7 +427,7 @@ public class UpdateEntityAttributeRequestSystemTests
         system.Run();
 
         // Mutation DID happen.
-        var data = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        var data = ((ISimulationView)repo).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
         Assert.Equal("new", data.Name);
 
         // No ACK — RequireAck=false.
@@ -481,9 +481,9 @@ public class UpdateEntityAttributeRequestSystemTests
         return new BinaryInterpreterBuilder()
             .RegisterHandler(NameId, static (ctx, record) =>
             {
-                if (!ctx.PatchContext.CanWriteManaged<IgEntityData>())
+                if (!ctx.PatchContext.CanWriteManaged<IG.Components.EntityInfo>())
                     return;
-                var data = ctx.PatchContext.GetManagedComponent<IgEntityData>();
+                var data = ctx.PatchContext.GetManagedComponent<IG.Components.EntityInfo>();
                 data.Name = record.Value.StringValue ?? string.Empty;
                 ctx.MarkDescriptorDirty(EntityInfoOrdinal);
             })
@@ -506,19 +506,19 @@ public class UpdateEntityAttributeRequestSystemTests
         return (system, source, ackSink);
     }
 
-    /// <summary>
-    /// A live entity with <c>InitialName = "Alpha"</c> receives an
-    /// <see cref="UpdateEntityAttributeRequest"/> carrying a binary Name record.
-    /// The live <see cref="IgEntityData.Name"/> must be updated to "Bravo".
-    /// </summary>
-    [Fact]
+	/// <summary>
+	/// A live entity with <c>InitialName = "Alpha"</c> receives an
+	/// <see cref="UpdateEntityAttributeRequest"/> carrying a binary Name record.
+	/// The live <see cref="IG.Components.EntityInfo.Name"/> must be updated to "Bravo".
+	/// </summary>
+	[Fact]
     public void UpdateEntityAttributeRequestSystem_BinaryPath_MutatesName()
     {
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "Alpha" });
-        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "Alpha" });
+        repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
         var entityMap = new NetworkEntityMap();
         entityMap.Register(10L, entity);
@@ -552,7 +552,7 @@ public class UpdateEntityAttributeRequestSystemTests
         system.Run();
 
         // Assert: name was updated.
-        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
         Assert.Equal("Bravo", nameData.Name);
 
         // ACK sent because RequireAck=true and something was applied.
@@ -560,18 +560,18 @@ public class UpdateEntityAttributeRequestSystemTests
         Assert.Equal((int)SstErrorCode.Success, ackSink.WrittenAcks[0].ErrorCode);
     }
 
-    /// <summary>
-    /// With <c>RequireAck=true</c>, the binary path must produce an ACK whose OpaqueData
-    /// bitmask has the <see cref="IgEntityData"/> component type bit set.
-    /// </summary>
-    [Fact]
+	/// <summary>
+	/// With <c>RequireAck=true</c>, the binary path must produce an ACK whose OpaqueData
+	/// bitmask has the <see cref="IG.Components.EntityInfo"/> component type bit set.
+	/// </summary>
+	[Fact]
     public void UpdateEntityAttributeRequestSystem_BinaryPath_AckBitmaskHasIgEntityDataBit()
     {
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "old" });
-        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "old" });
+        repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
         var entityMap = new NetworkEntityMap();
         entityMap.Register(20L, entity);
@@ -605,23 +605,23 @@ public class UpdateEntityAttributeRequestSystemTests
 
         // Assert ACK bitmask.
         Assert.Single(ackSink.WrittenAcks);
-        int    compId = ManagedComponentType<IgEntityData>.ID;
+        int    compId = ManagedComponentType<IG.Components.EntityInfo>.ID;
         byte[] mask   = ackSink.WrittenAcks[0].OpaqueData;
         bool   bitSet = (mask[compId >> 3] & (1 << (compId & 7))) != 0;
         Assert.True(bitSet, "OpaqueData bitmask must have the IgEntityData component bit set.");
     }
 
-    /// <summary>
-    /// When the authority guard returns false for <see cref="IgEntityData"/>, the binary
-    /// handler must skip the write and the silent bystander rule leaves no ACK.
-    /// </summary>
-    [Fact]
+	/// <summary>
+	/// When the authority guard returns false for <see cref="IG.Components.EntityInfo"/>, the binary
+	/// handler must skip the write and the silent bystander rule leaves no ACK.
+	/// </summary>
+	[Fact]
     public void UpdateEntityAttributeRequestSystem_BinaryPath_AuthorityGuard_SkipsIfNoAuthority()
     {
         // Arrange — entity has NO authority for IgEntityData.
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "unchanged" });
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "unchanged" });
         // Do NOT call SetAuthority — authority bit remains 0.
 
         var entityMap = new NetworkEntityMap();
@@ -655,7 +655,7 @@ public class UpdateEntityAttributeRequestSystemTests
         system.Run();
 
         // Name must remain unchanged — authority guard blocked the write.
-        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
         Assert.Equal("unchanged", nameData.Name);
 
         // Silent bystander — no ACK even with RequireAck=true.
@@ -682,8 +682,8 @@ public class UpdateEntityAttributeRequestSystemTests
         // Arrange
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new IgEntityData { Name = "Alpha" });
-        repo.SetAuthority(entity, ManagedComponentType<IgEntityData>.ID, true);
+        repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "Alpha" });
+        repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
 
         var entityMap = new NetworkEntityMap();
         entityMap.Register(50L, entity);
@@ -717,7 +717,7 @@ public class UpdateEntityAttributeRequestSystemTests
         system.Run();
 
         // Assert: name was updated even though no JSON compiler was injected.
-        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IgEntityData>(entity);
+        var nameData = ((ISimulationView)repo).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
         Assert.Equal("Delta", nameData.Name);
 
         // ACK must be sent (RequireAck=true and the binary handler applied a mutation).

@@ -531,7 +531,7 @@ public class IgApplication
         _world.RegisterManagedComponent<EditablePolyline>();
         _world.RegisterComponent<MapOverlayStyle>();
         _world.RegisterComponent<MapDisplayComponent>();
-        _world.RegisterManagedComponent<IgEntityData>();
+		_world.RegisterManagedComponent<Components.EntityInfo>();
 
         // ── Ground clamping components (MOD1-P7T2) ────────────────────────────
         // Registered unconditionally so they are available even when

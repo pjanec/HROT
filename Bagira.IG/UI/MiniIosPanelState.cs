@@ -161,7 +161,7 @@ public class MiniIosPanelState
             descriptors.Add(new EntityDescriptorUnion
             {
                 _d         = EDescriptorType.dtEntityInfo,
-                EntityInfo = new EntityInfo { ForceIdentifier = MapAffiliation(Affiliation) },
+                EntityInfo = new BDC.SSTD.EntityInfo { ForceIdentifier = MapAffiliation(Affiliation) },
             });
         }
 
@@ -231,7 +231,7 @@ public class MiniIosPanelState
             descriptors.Add(new EntityDescriptorUnion
             {
                 _d         = EDescriptorType.dtEntityInfo,
-                EntityInfo = new EntityInfo { ForceIdentifier = MapAffiliation(Affiliation) },
+                EntityInfo = new BDC.SSTD.EntityInfo { ForceIdentifier = MapAffiliation(Affiliation) },
             });
         }
 

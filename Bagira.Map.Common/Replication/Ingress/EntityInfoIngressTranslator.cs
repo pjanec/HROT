@@ -13,25 +13,25 @@ using ModuleHost.Core.Abstractions;
 
 namespace Bagira.Map.Common.Replication.Ingress
 {
-    /// <summary>
-    /// Ingress translator for the Bagira <c>EntityInfo</c> DDS topic.
-    ///
-    /// <see cref="EntityInfo"/> contains managed fields (e.g. <c>string Name</c>) and
-    /// cannot be applied via <see cref="IEntityCommandBuffer.SetComponent{T}"/> which
-    /// requires <c>T : unmanaged</c>.  Instead, the translator publishes an
-    /// <see cref="UpdateEntityCommand"/> onto the <see cref="FdpEventBus"/>; the
-    /// <c>NetworkSpawningSystem</c> applies the component through
-    /// <c>EntityComponentReflector</c>, which handles managed struct types correctly.
-    ///
-    /// Entities not yet registered in the map are silently skipped.
-    /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
-    /// </summary>
-    public class EntityInfoIngressTranslator : IDescriptorTranslator
+	/// <summary>
+	/// Ingress translator for the Bagira <c>EntityInfo</c> DDS topic.
+	///
+	/// <see cref="BDC.SSTD.EntityInfo"/> contains managed fields (e.g. <c>string Name</c>) and
+	/// cannot be applied via <see cref="IEntityCommandBuffer.SetComponent{T}"/> which
+	/// requires <c>T : unmanaged</c>.  Instead, the translator publishes an
+	/// <see cref="UpdateEntityCommand"/> onto the <see cref="FdpEventBus"/>; the
+	/// <c>NetworkSpawningSystem</c> applies the component through
+	/// <c>EntityComponentReflector</c>, which handles managed struct types correctly.
+	///
+	/// Entities not yet registered in the map are silently skipped.
+	/// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
+	/// </summary>
+	public class EntityInfoIngressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "EntityInfo";
         private const long OrdinalValue = 20;
 
-        private readonly DdsReader<EntityInfo>? _reader;
+        private readonly DdsReader<BDC.SSTD.EntityInfo>? _reader;
         private readonly NetworkEntityMap _entityMap;
         private readonly FdpEventBus _eventBus;
         private readonly GhostCreationSystem _ghostCreationSystem;
@@ -45,8 +45,8 @@ namespace Bagira.Map.Common.Replication.Ingress
             FdpEventBus eventBus,
             GhostCreationSystem ghostCreationSystem)
         {
-            // participant may be null in unit-test mode — PollIngress becomes a no-op
-            _reader = participant is not null ? new DdsReader<EntityInfo>(participant) : null;
+			// participant may be null in unit-test mode — PollIngress becomes a no-op
+			_reader = participant is not null ? new DdsReader<BDC.SSTD.EntityInfo>( participant ) : null;
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
@@ -94,9 +94,9 @@ namespace Bagira.Map.Common.Replication.Ingress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo)
         {
-            if (data is EntityInfo info)
+            if ( data is BDC.SSTD.EntityInfo info)
             {
-                repo.SetManagedComponent(entity, new IgEntityData
+                repo.SetManagedComponent( entity, new IG.Components.EntityInfo
                 {
                     Name = info.Name,
                     ForceId = (ForceId)(int)info.ForceIdentifier,
@@ -109,9 +109,9 @@ namespace Bagira.Map.Common.Replication.Ingress
 
         public void Dispose(long networkEntityId) { /* IG does not write EntityInfo */ }
 
-        internal void ProcessSample(EntityInfo info, long netId)
+        internal void ProcessSample( BDC.SSTD.EntityInfo info, long netId)
         {
-            var igData = new IgEntityData
+            var igData = new IG.Components.EntityInfo
             {
                 Name = info.Name,
                 ForceId = (ForceId)(int)info.ForceIdentifier,

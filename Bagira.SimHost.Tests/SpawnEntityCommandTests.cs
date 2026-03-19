@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
+using Bagira.IG.Components;
 using Bagira.Map.Common;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.UI;
@@ -164,5 +166,18 @@ public class SpawnEntityCommandTests
         Assert.Equal(pos.X, transform.Position.X, precision: 3);
         Assert.Equal(pos.Y, transform.Position.Y, precision: 3);
         Assert.Equal(0f,    transform.Position.Z, precision: 3);
+    }
+
+    /// <summary>Published command must carry EntityInfo in InitialComponents so the IG renders the entity.</summary>
+    [Fact]
+    public void SpawnVehicle_PublishesCommand_WithEntityInfoInInitialComponents()
+    {
+        var (sut, bus) = CreateSut();
+
+        sut.SpawnVehicle(DefaultPos, DefaultHeading, VehicleClass.Tank);
+
+        var cmd = ExtractCommand(bus);
+        Assert.NotNull(cmd.InitialComponents);
+        Assert.Contains(cmd.InitialComponents, c => c is EntityInfo);
     }
 }

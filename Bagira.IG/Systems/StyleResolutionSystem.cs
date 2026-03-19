@@ -102,15 +102,15 @@ public class StyleResolutionSystem : IModuleSystem
 
         // ── Layer 1.5: IgEntityData (from EntityInfo DDS / spawn descriptor) ──
         // Provides force affiliation and human-readable name when no IgSymbolOverride is present.
-        if (view.HasManagedComponent<IgEntityData>(entity))
+        if ( view.HasManagedComponent<Components.EntityInfo>( entity ) )
         {
-            var entityData = view.GetManagedComponentRO<IgEntityData>(entity);
-            if (entityData.ForceId != ForceId.Unknown)
+            var entityData = view.GetManagedComponentRO<Components.EntityInfo>( entity );
+            if ( entityData.ForceId != ForceId.Unknown)
             {
                 affiliation = entityData.ForceId;
-                ApplyAffiliationColor(affiliation, out tintR, out tintG, out tintB, out tintA);
+				ApplyAffiliationColor( affiliation, out tintR, out tintG, out tintB, out tintA);
             }
-            if (!string.IsNullOrEmpty(entityData.Name))
+            if (!string.IsNullOrEmpty( entityData.Name))
                 labelText = entityData.Name;
         }
 

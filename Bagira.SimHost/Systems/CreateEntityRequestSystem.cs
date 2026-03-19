@@ -232,14 +232,14 @@ namespace Bagira.SimHost.Systems
                 }
 
                 // 3.5. Ensure parent has IgEntityData if it's an auto-spawn composite
-                Bagira.IG.Components.IgEntityData parentInfo = null;
+                Bagira.IG.Components.EntityInfo parentInfo = null;
                 if (_tkbDb.TryGetByType(pending.TkbType, out var parentTemplate) && parentTemplate.ChildBlueprints.Count > 0)
                 {
                     if (fallbackComponents != null)
                     {
                         foreach (var comp in fallbackComponents)
                         {
-                            if (comp is Bagira.IG.Components.IgEntityData info)
+                            if (comp is Bagira.IG.Components.EntityInfo info)
                             {
                                 parentInfo = info;
                                 break; // Found the metadata component
@@ -251,7 +251,7 @@ namespace Bagira.SimHost.Systems
                     // so it's visible in the ORBAT tree and can be tracked.
                     if (parentInfo == null)
                     {
-                        parentInfo = new Bagira.IG.Components.IgEntityData
+                        parentInfo = new Bagira.IG.Components.EntityInfo
                         {
                             Name = parentTemplate.Name,
                             ForceId = Bagira.IG.Components.ForceId.Unknown
@@ -298,7 +298,7 @@ namespace Bagira.SimHost.Systems
 
                             var childComponents = new List<object>
                             {
-                                new Bagira.IG.Components.IgEntityData
+                                new Bagira.IG.Components.EntityInfo
                                 {
                                     Name = $"{parentInfo.Name}-{childDef.InstanceId}",
                                     ForceId = parentInfo.ForceId,

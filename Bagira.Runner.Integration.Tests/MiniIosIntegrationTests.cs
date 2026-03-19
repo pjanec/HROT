@@ -468,26 +468,26 @@ public class MiniIosIntegrationTests
         return false;
     }
 
-    // ── Task-3 regression: hostile affiliation propagated from IG → SimHost → IG ──
+	// ── Task-3 regression: hostile affiliation propagated from IG → SimHost → IG ──
 
-    /// <summary>
-    /// Regression test for Task-3: entity spawned by the Mini IOS panel with a hostile
-    /// affiliation must arrive in the IG ECS world with
-    /// <see cref="IgEntityData.ForceId"/> == <see cref="ForceId.Hostile"/>.
-    ///
-    /// Flow:
-    /// <list type="number">
-    ///   <item><see cref="MiniIosPanelState.SubmitViaGateway"/> sends
-    ///         <see cref="CreateEntityRequest"/> with a <c>dtEntityInfo</c> descriptor
-    ///         carrying <c>FORCE_OPPOSING</c>.</item>
-    ///   <item>SimHost <see cref="CreateEntityRequestSystem"/> publishes the
-    ///         <see cref="EntityInfo"/> DDS topic after spawning the entity.</item>
-    ///   <item>IG <c>EntityInfoIngressTranslator</c> reads the topic and updates
-    ///         <see cref="IgEntityData.ForceId"/> on the matching ghost/active entity.</item>
-    ///   <item><see cref="StyleResolutionSystem"/> layer 1.5 applies hostile tint.</item>
-    /// </list>
-    /// </summary>
-    [Fact]
+	/// <summary>
+	/// Regression test for Task-3: entity spawned by the Mini IOS panel with a hostile
+	/// affiliation must arrive in the IG ECS world with
+	/// <see cref="IG.Components.EntityInfo.ForceId"/> == <see cref="ForceId.Hostile"/>.
+	///
+	/// Flow:
+	/// <list type="number">
+	///   <item><see cref="MiniIosPanelState.SubmitViaGateway"/> sends
+	///         <see cref="CreateEntityRequest"/> with a <c>dtEntityInfo</c> descriptor
+	///         carrying <c>FORCE_OPPOSING</c>.</item>
+	///   <item>SimHost <see cref="CreateEntityRequestSystem"/> publishes the
+	///         <see cref="BDC.SSTD.EntityInfo"/> DDS topic after spawning the entity.</item>
+	///   <item>IG <c>EntityInfoIngressTranslator</c> reads the topic and updates
+	///         <see cref="IG.Components.EntityInfo.ForceId"/> on the matching ghost/active entity.</item>
+	///   <item><see cref="StyleResolutionSystem"/> layer 1.5 applies hostile tint.</item>
+	/// </list>
+	/// </summary>
+	[Fact]
     public void MiniIosSpawn_HostileAffiliation_IgEntityGetsHostileForceId()
     {
         using var harness = new BagiraRunnerHarness();
@@ -545,9 +545,9 @@ public class MiniIosIntegrationTests
         if (!TryGetSimHostEntity(world, networkId, out var entity))
             return false;
         var view = (ISimulationView)world;
-        if (!view.HasManagedComponent<Bagira.IG.Components.IgEntityData>(entity))
+        if (!view.HasManagedComponent<Bagira.IG.Components.EntityInfo>(entity))
             return false;
-        var data = view.GetManagedComponentRO<Bagira.IG.Components.IgEntityData>(entity);
+        var data = view.GetManagedComponentRO<Bagira.IG.Components.EntityInfo>(entity);
         return data.ForceId == forceId;
     }
 

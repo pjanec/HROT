@@ -39,7 +39,7 @@ namespace Bagira.IG.Systems;
 public static class UniqueNameGenerator
 {
     /// <summary>
-    /// Scans the live ECS world for <see cref="IgEntityData"/> managed components and
+    /// Scans the live ECS world for <see cref="EntityInfo"/> managed components and
     /// returns the highest numeric suffix found for names that begin with
     /// <paramref name="prefix"/>.
     ///
@@ -64,11 +64,11 @@ public static class UniqueNameGenerator
         int maxIndex = 0;
 
         var view  = (ISimulationView)world;
-        var query = world.Query().WithManaged<IgEntityData>().Build();
+        var query = world.Query().WithManaged<EntityInfo>().Build();
         foreach (var entity in query)
         {
-            var data = world.HasManagedComponent<IgEntityData>(entity)
-                ? view.GetManagedComponentRO<IgEntityData>(entity)
+            var data = world.HasManagedComponent<EntityInfo>(entity)
+                ? view.GetManagedComponentRO<EntityInfo>(entity)
                 : null;
             if (data?.Name == null) continue;
 

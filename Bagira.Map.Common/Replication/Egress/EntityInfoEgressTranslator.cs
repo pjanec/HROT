@@ -12,27 +12,27 @@ using ModuleHost.Core.Abstractions;
 
 namespace Bagira.Map.Common.Replication.Egress
 {
-    /// <summary>
-    /// Egress translator that publishes <see cref="EntityInfo"/> DDS samples
-    /// from the internal <see cref="IgEntityData"/> managed ECS component.
-    ///
-    /// This ensures that when SimHost creates an entity with a force affiliation
-    /// (e.g. Hostile, set via <c>CreateEntityRequest.InitialDescriptors</c>),
-    /// the affiliation is broadcast back to IG and IOS via the DDS "EntityInfo"
-    /// topic so that rendering and selection panels show the correct side colour
-    /// and symbol (Task 18 fix).
-    ///
-    /// <para>
-    /// Only locally-owned entities are published (<see cref="AuthorityExtensions.HasAuthority"/>).
-    /// Publication is reliable (publish-once-on-first + dirty on change).
-    /// </para>
-    /// </summary>
-    public class EntityInfoEgressTranslator : IDescriptorTranslator
+	/// <summary>
+	/// Egress translator that publishes <see cref="BDC.SSTD.EntityInfo"/> DDS samples
+	/// from the internal <see cref="EntityInfo"/> managed ECS component.
+	///
+	/// This ensures that when SimHost creates an entity with a force affiliation
+	/// (e.g. Hostile, set via <c>CreateEntityRequest.InitialDescriptors</c>),
+	/// the affiliation is broadcast back to IG and IOS via the DDS "EntityInfo"
+	/// topic so that rendering and selection panels show the correct side colour
+	/// and symbol (Task 18 fix).
+	///
+	/// <para>
+	/// Only locally-owned entities are published (<see cref="AuthorityExtensions.HasAuthority"/>).
+	/// Publication is reliable (publish-once-on-first + dirty on change).
+	/// </para>
+	/// </summary>
+	public class EntityInfoEgressTranslator : IDescriptorTranslator
     {
         private const string DdsTopicName = "EntityInfo";
         private const long OrdinalValue = 21;
 
-        private readonly DdsWriter<EntityInfo> _writer;
+        private readonly DdsWriter<BDC.SSTD.EntityInfo> _writer;
         private readonly NetworkEntityMap _entityMap;
 
         public string TopicName => DdsTopicName;
@@ -42,7 +42,7 @@ namespace Bagira.Map.Common.Replication.Egress
             DdsParticipant participant,
             NetworkEntityMap entityMap)
         {
-            _writer    = new DdsWriter<EntityInfo>(participant, DdsTopicName);
+			_writer = new DdsWriter<BDC.SSTD.EntityInfo>( participant, DdsTopicName );
             _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
         }
 
@@ -50,19 +50,19 @@ namespace Bagira.Map.Common.Replication.Egress
 
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view) { }
 
-        // ── Egress ────────────────────────────────────────────────────────────
+		// ── Egress ────────────────────────────────────────────────────────────
 
-        /// <summary>
-        /// Scans all authority-owned entities with <see cref="IgEntityData"/> and
-        /// publishes <see cref="EntityInfo"/> DDS samples for dirty / new entries.
-        /// </summary>
-        public void ScanAndPublish(ISimulationView view)
+		/// <summary>
+		/// Scans all authority-owned entities with <see cref="EntityInfo"/> and
+		/// publishes <see cref="BDC.SSTD.EntityInfo"/> DDS samples for dirty / new entries.
+		/// </summary>
+		public void ScanAndPublish(ISimulationView view)
         {
             var query = view.Query()
                 .With<NetworkIdentity>()
-                .WithManaged<IgEntityData>()
+                .WithManaged<IG.Components.EntityInfo>()
                 // Include Constructing so affiliation is broadcast at spawn time.
-                .WithLifecycle(EntityLifecycle.All)
+                .WithLifecycle( EntityLifecycle.All)
                 .Build();
 
             foreach (var entity in query)
@@ -77,13 +77,13 @@ namespace Bagira.Map.Common.Replication.Egress
                     continue;
 
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-                var data = view.GetManagedComponentRO<IgEntityData>(entity);
+                var data = view.GetManagedComponentRO<IG.Components.EntityInfo>( entity );
 
-                _writer.Write(new EntityInfo
+				_writer.Write(new BDC.SSTD.EntityInfo
                 {
                     EntityId        = (int)netId.Value,
                     Name            = data?.Name ?? string.Empty,
-                    ForceIdentifier = MapForceId(data?.ForceId ?? ForceId.Unknown),
+                    ForceIdentifier = MapForceId( data?.ForceId ?? ForceId.Unknown),
                     CommanderId     = data?.CommanderId ?? 0,
                 });
 
@@ -99,12 +99,12 @@ namespace Bagira.Map.Common.Replication.Egress
 
         public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
-        /// <summary>
-        /// Sends a DDS dispose for the named <see cref="EntityInfo"/> instance.
-        /// </summary>
-        public void Dispose(long networkEntityId)
+		/// <summary>
+		/// Sends a DDS dispose for the named <see cref="BDC.SSTD.EntityInfo"/> instance.
+		/// </summary>
+		public void Dispose(long networkEntityId)
         {
-            _writer.DisposeInstance(new EntityInfo { EntityId = (int)networkEntityId });
+			_writer.DisposeInstance(new BDC.SSTD.EntityInfo { EntityId = (int)networkEntityId } );
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────

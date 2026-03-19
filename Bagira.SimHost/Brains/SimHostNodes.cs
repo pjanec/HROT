@@ -35,9 +35,14 @@ namespace Bagira.SimHost.Brains
         [StructLayout(LayoutKind.Sequential)]
         public struct FollowRouteParams
         {
-            // Waypoints serialized as flat X0,Y0,X1,Y1,... pairs (max 16 waypoints = 32 floats).
+            /// <summary>
+            /// ID of the registered trajectory in the <see cref="TrajectoryPoolManager"/> to follow.
+            /// Written into <see cref="BrainBlackboard.Memory"/> at spawn time and read by
+            /// <see cref="Action_WriteFollowRouteChannel"/> to populate the locomotion channel.
+            /// </summary>
+            public int   TrajectoryId;
             public float Speed;
-            public bool Loop;
+            public bool  Loop;
         }
 
         private class MoveToLocationParamsJsonDto
@@ -168,7 +173,7 @@ namespace Bagira.SimHost.Brains
 
             var route = new FDP.Toolkit.Navigation.FollowRouteParams
             {
-                TrajectoryId = 0,
+                TrajectoryId = p.TrajectoryId, // FIX: was hardcoded to 0; now reads from blackboard params
                 IsLooped     = (byte)(p.Loop ? 1 : 0)
             };
             fixed (byte* dst = channel.Params)
