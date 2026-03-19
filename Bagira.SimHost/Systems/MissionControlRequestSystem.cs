@@ -195,7 +195,7 @@ namespace Bagira.SimHost.Systems
                     // active doctrine to DoctrineIds.None (brain-death). This is a top-down
                     // forced abort — distinct from DoctrineFinishedEvent (natural completion).
                     // DoctrineIngressSystem guards against missing DoctrineState components.
-                    World.Bus.PublishManaged(new ClearDoctrineEvent { Entity = entity });
+                    World.Bus.Publish(new ClearDoctrineEvent { Entity = entity });
 
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;

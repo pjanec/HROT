@@ -24,6 +24,8 @@ using Bagira.SimHost.UI;
 using Bagira.SimHost.Visualization;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Behavior;
+using FDP.Toolkit.Behavior.Components;
 
 namespace Bagira.SimHost
 {
@@ -174,62 +176,15 @@ namespace Bagira.SimHost
                 var entities = new List<Fdp.Kernel.Entity>(_selection.SelectedEntities);
                 if (entities.Count == 0) return;
 
+                var interp = _ui!.UIState.InterpolationMode;
                 foreach (var e in entities)
                 {
                     if (!repo.IsAlive(e)) continue;
-                    if (shift)
-                    {
-                        _scenario!.AddWaypoint(e, pos, _ui!.UIState.InterpolationMode);
-                    }
-                    else
-                    {
-                        // Navigate via doctrine: send a CMD_REPLACE_MISSION carrying a
-                        // single-task MoveToLocation plan so the brain pipeline handles
-                        // the preemption (InstanceId bump, BTree reset, NavigationIntent
-                        // update) rather than writing NavState directly.
-                        if (!repo.HasComponent<NetworkIdentity>(e)) continue;
-                        ref readonly var netId = ref repo.GetComponentRO<NetworkIdentity>(e);
-
-                        float speed = repo.HasComponent<VehicleParams>(e)
-                            ? repo.GetComponentRO<VehicleParams>(e).MaxSpeedFwd * 0.8f
-                            : 15f;
-
-                        // Build params JSON using X/Y cartesian form understood by
-                        // SimHostNodes.ParseMoveToParams (PropertyNameCaseInsensitive).
-                        var paramsJson = string.Format(
-                            System.Globalization.CultureInfo.InvariantCulture,
-                            "{{\"X\":{0},\"Y\":{1},\"Speed\":{2},\"ArrivalRadius\":3.0}}",
-                            pos.X, pos.Y, speed);
-
-                        var taskId = Guid.NewGuid();
-                        var task = new MissionTask
-                        {
-                            TaskId          = taskId,
-                            ExecutingEngine = "CGFX",
-                            BehaviorId      = "MoveToLocation",
-                            BehaviorParams  = paramsJson,
-                            Triggers        = new List<Bagira.BDC.SSTD.MissionTrigger>(),
-                            State           = eTaskState.TASK_PLANNED,
-                        };
-
-                        var plan = new MissionPlan
-                        {
-                            ActiveTaskId = taskId,
-                            Tasks        = new List<MissionTask> { task },
-                        };
-
-                        _missionWriter!.Write(new MissionControlRequest
-                        {
-                            RequestId      = Guid.NewGuid(),
-                            TargetEntityId = netId.Value,
-                            BaseVersion    = 0,
-                            Payload        = new MissionCommandUnion
-                            {
-                                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
-                                FullMissionData = plan,
-                            },
-                        });
-                    }
+                    HandleRightClickForEntity(
+                        repo, e, pos, shift, interp,
+                        (ent, p, i) => _scenario!.SetDestination(ent, p, i),
+                        (ent, p, i) => _scenario!.AddWaypoint(ent, p, i),
+                        _missionWriter);
                 }
             };
 
@@ -239,6 +194,98 @@ namespace Bagira.SimHost
             //_scenario.SpawnFastOne();
 
             _initialized = true;
+        }
+
+        /// <summary>
+        /// Processes a right-click interaction for a single entity using brain-aware routing.
+        ///
+        /// <list type="bullet">
+        ///   <item><b>Brain-dead</b> (<c>DoctrineState</c> absent or
+        ///         <c>ActiveDoctrineHash == DoctrineIds.None</c>): talks directly to the
+        ///         muscle layer via <paramref name="setDestination"/> / <paramref name="addWaypoint"/>.</item>
+        ///   <item><b>Brain-active</b> (<c>ActiveDoctrineHash != DoctrineIds.None</c>): sends a
+        ///         <c>CMD_REPLACE_MISSION</c> via <paramref name="missionWriter"/>. The task
+        ///         includes a <c>ReachedDestination</c> trigger so <c>MissionDirectorSystem</c>
+        ///         can advance and ultimately clear the doctrine when the plan exhausts.</item>
+        /// </list>
+        ///
+        /// Extracted from the <c>OnWorldClick</c> lambda for unit-test accessibility.
+        /// </summary>
+        internal static void HandleRightClickForEntity(
+            EntityRepository repo,
+            Entity entity,
+            Vector2 pos,
+            bool shift,
+            TrajectoryInterpolation interp,
+            Action<Entity, Vector2, TrajectoryInterpolation> setDestination,
+            Action<Entity, Vector2, TrajectoryInterpolation> addWaypoint,
+            DdsWriter<MissionControlRequest>? missionWriter)
+        {
+            // Determine if the entity has an active (non-zero) doctrine.
+            bool brainActive = repo.HasComponent<DoctrineState>(entity)
+                && repo.GetComponent<DoctrineState>(entity).ActiveDoctrineHash != DoctrineIds.None;
+
+            if (!brainActive)
+            {
+                // Brain-dead path: bypass the mission machinery and talk directly to the
+                // muscle layer.  Restores the pre-CQRS-split behaviour for roamers, local
+                // collision-test entities, and entities that have been brought into brain-dead
+                // state by a completed or aborted mission.
+                if (shift)
+                    addWaypoint(entity, pos, interp);
+                else
+                    setDestination(entity, pos, interp);
+                return;
+            }
+
+            // Brain-active path: route through the mission pipeline.
+            // Shift is not yet supported for brain-active entities — behaves like plain click.
+            if (!repo.HasComponent<NetworkIdentity>(entity)) return;
+
+            ref readonly var netId = ref repo.GetComponentRO<NetworkIdentity>(entity);
+
+            float speed = repo.HasComponent<VehicleParams>(entity)
+                ? repo.GetComponent<VehicleParams>(entity).MaxSpeedFwd * 0.8f
+                : 15f;
+
+            var paramsJson = string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"X\":{0},\"Y\":{1},\"Speed\":{2},\"ArrivalRadius\":3.0}}",
+                pos.X, pos.Y, speed);
+
+            var taskId = Guid.NewGuid();
+            var task = new MissionTask
+            {
+                TaskId          = taskId,
+                ExecutingEngine = "CGFX",
+                BehaviorId      = "MoveToLocation",
+                BehaviorParams  = paramsJson,
+                // ReachedDestination trigger is required so MissionDirectorSystem fires
+                // task completion and the doctrine is cleared when the queue exhausts.
+                Triggers        = new List<Bagira.BDC.SSTD.MissionTrigger>
+                {
+                    new Bagira.BDC.SSTD.MissionTrigger { Type = "ReachedDestination" },
+                },
+                State           = eTaskState.TASK_PLANNED,
+            };
+
+            var plan = new MissionPlan
+            {
+                ActiveTaskId = taskId,
+                Tasks        = new List<MissionTask> { task },
+            };
+
+            missionWriter?.Write(new MissionControlRequest
+            {
+                RequestId      = Guid.NewGuid(),
+                TargetEntityId = netId.Value,
+                BaseVersion    = 0,
+                Payload        = new MissionCommandUnion
+                {
+                    _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                    FullMissionData = plan,
+                },
+            });
         }
 
         /// <summary>Advances input, tool state, and roaming AI each frame.</summary>

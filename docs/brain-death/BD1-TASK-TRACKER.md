@@ -21,7 +21,7 @@
 
 **Goal:** The SimHost right-click handler correctly routes commands to either the muscle layer (brain-dead entities) or the mission system (brain-active entities), with proper trigger configuration to enable the Phase 1 brain-death transition.
 
-- [ ] **BD1-P2T1** SimHostVisualization — Brain-Aware Right-Click Handler  [details](./BD1-TASK-DETAIL.md#bd1-p2t1-simhostvisualization--brain-aware-right-click-handler)
+- [x] **BD1-P2T1** SimHostVisualization — Brain-Aware Right-Click Handler  [details](./BD1-TASK-DETAIL.md#bd1-p2t1-simhostvisualization--brain-aware-right-click-handler)
 
 ---
 

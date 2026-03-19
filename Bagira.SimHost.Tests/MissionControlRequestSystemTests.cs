@@ -332,8 +332,8 @@ namespace Bagira.SimHost.Tests
             // ClearDoctrineEvent should be in the write buffer after ProcessRequest.
             repo.Bus.SwapBuffers();
             bool found = false;
-            foreach (var evt in repo.Bus.ConsumeManaged<ClearDoctrineEvent>())
-                if (evt != null && evt.Entity.Index == entity.Index) found = true;
+            foreach (var evt in repo.Bus.Consume<ClearDoctrineEvent>())
+                if (evt.Entity.Index == entity.Index) found = true;
 
             Assert.True(found);
             Assert.Equal(0, repo.GetComponent<MissionPlanQueue>(entity).PhaseCount);
@@ -379,8 +379,8 @@ namespace Bagira.SimHost.Tests
             // Guard: ClearDoctrineEvent still published even without DoctrineState component.
             repo.Bus.SwapBuffers();
             bool found = false;
-            foreach (var evt in repo.Bus.ConsumeManaged<ClearDoctrineEvent>())
-                if (evt != null && evt.Entity.Index == entity.Index) found = true;
+            foreach (var evt in repo.Bus.Consume<ClearDoctrineEvent>())
+                if (evt.Entity.Index == entity.Index) found = true;
             Assert.True(found);
         }
 
