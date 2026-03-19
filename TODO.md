@@ -15,6 +15,15 @@ FDP-specific fixed-layout DDS struct (for easy display during debug). But for qu
 fast comparison in the entity queries using the struct cast to long or something performance effective.
 
 
+[IMPROVEMENT] Entity inspector component change indication
+If the component content has changed since previous frame, the component's imgui representation should
+indicate it somehow (maybe changing the text color of the component's expander line for that frame when
+change was detected)
+For unmanaged component simple caching and memcmp might be ok; for managed ones it might be easier to ignore
+the change detection whatsoever as as managed onse can be very large and on each change we would need to
+clone a copy.
+
+
 [BUG] allocation on hot path
 
 Bagira.SimHost\Systems\CreateEntityRequestSystem.cs creates lambda every tick
