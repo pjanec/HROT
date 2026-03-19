@@ -1,27 +1,18 @@
-﻿
-BUGS
-[BUG] No RVO avoidance
- after implementing "docs\modularizing\MOD1-DESIGN.md"
-- Vehicle entities no longer avoid ieach other. For example the "Collision test".
-  maybe the new navigationIntent method has broke it.
-- Shift+Right click in SimHost perspective no longer adds to planned vehicle trajectory.
-  It looks like the point is added and drawn on the map for the first frame, but then disappear
-  and the vehicle seems to act as id just right click was used (no shift) - new mission with moveToLocation
-  gets generated..
-
-[BUG] DisType in entity master DDS topic struct is represented a plain long. It should be a @final structure with fields
-to be easily readable in DDS monitoring tool. Inside the engine in the entity header the DIS type should be stores as
-FDP-specific fixed-layout DDS struct (for easy display during debug). But for quick filtering it might support
-fast comparison in the entity queries using the struct cast to long or something performance effective.
+﻿[BUG] Edit drawing can not be ended
+When i create a map drawing entity shape and i select "Edit drawing" from the context menu,
+I am able to drag and drop the vertices of the shape using left mouse button but I am not able to finish it.
+when i click the right mouse button, it always moves the closest vertex to the right clicked location instead
+of committing the edit.
 
 
-[IMPROVEMENT] Entity inspector component change indication
-If the component content has changed since previous frame, the component's imgui representation should
-indicate it somehow (maybe changing the text color of the component's expander line for that frame when
-change was detected)
-For unmanaged component simple caching and memcmp might be ok; for managed ones it might be easier to ignore
-the change detection whatsoever as as managed onse can be very large and on each change we would need to
-clone a copy.
+
+[IMPROVEMENT] Entity inspector component change prevents opening the component details
+If the component changes, its "preview" text drawn to the component's imgui collapsible header changes as well,
+forcing the ImGui to forget the opened state of the header.
+We probably should not change the header text (it should stay fixed to component name).
+Instead we could user ImGui drawing functions to render the "preview" text just after where the compoennt name
+ends in the collapsible header.
+
 
 
 [BUG] allocation on hot path

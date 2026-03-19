@@ -1,0 +1,29 @@
+# Technical Debt Tracker
+
+This document tracks P2 and P3 technical debt, refactoring opportunities, and deferred minor issues discovered during development and reviews. P1 critical issues are fixed immediately in the next batch.
+
+| Status | Priority | Category | Source Batch | Description | Target Fix |
+|---|---|---|---|---|---|
+| ✅ | P3 | Testing | WCR-BATCH-02 | `EntityRepository` starts with non-zero, unpredictable `GlobalVersion` when setup requires component registration/creation. Add a way to reset version or specify `BaseVersion` to make tests robust without reading the actual starting tick. | WCR-BATCH-03 |
+| ✅ | P2 | Safety | WCR-BATCH-02 | `SteppedMasterController._slaveNodeIds` is a mutable `HashSet` passed by ref. The caller can mutate this set after construction. Suggest defensive copy or switching interface to `IReadOnlySet`. | WCR-BATCH-03 |
+| ✅ | P3 | Precision | WCR-BATCH-02 | `MasterTimeController` derives wall ticks implicitly using `elapsedSeconds * Stopwatch.Frequency`. Causes float-multiplication drift over long durations. Should read `_wallClock.ElapsedTicks` directly. | WCR-BATCH-03 |
+| ✅ | P2 | Architecture | WCR-BATCH-01 | `RecordingReader` duplicates outer frame header parsing logic from `BuildFrameIndex`/`ApplyFrame`. Introduce a shared `FrameOuterHeader` unmanaged struct to eliminate layout drift when the binary format changes. | Completed by Lead |
+| ✅ | P3 | Architecture | WCR-BATCH-01 | Uncompressed payload header parsing is duplicated across `ProcessBuffer`, `PlaybackController.ApplyFrame`, and `PlaybackSystem.ApplyFrame` with hardcoded offsets (e.g. 9). Should be extracted into constants like `PayloadLayout.WallClockTicksOffset`. | Completed by Lead |
+| ✅ | P3 | Testing | WCR-BATCH-01 | `FlightRecorderIntegrationTests` manually parses the binary format with byte arithmetic. Fragile to format changes. Tests should use `RecordingReader` and `PlaybackController` APIs to assert semantically. | Completed by Lead |
+| ✅ | P3 | Performance | WCR-BATCH-01 | `PlaybackController.BuildFrameIndex` allocates `new FrameMetadata` for every frame and inserts into a `List<FrameMetadata>` without upfront capacity, causing repeated list growth. Pre-allocate capacity based on file size estimate. | WCR-BATCH-03 |
+|   | P2 | Architecture | BATCH-01     | `ModuleHostKernel.Update(float deltaTime)` can desync `_timeController` state. It's a legacy overload that should be marked `[Obsolete]` or removed entirely.         | ✅ Completed in BATCH-03 |
+|   | P3 | Architecture | BATCH-02     | `NLog.MappedDiagnosticsContext` is obsolete in NLog 5.x. Migrate to `ScopeContext.PushProperty` with `${scopeproperty:scenario}`.        | ✅ Completed in BATCH-03 |
+|   | P2 | Architecture | BATCH-03     | `CarKinematicsSystem.KinematicsMode.None` unconditionally sets `HasArrived=1`, even when targeting speed 0 initially. Should require `TargetSpeed > 0 && dist <= radius`. | ✅ Completed in BATCH-04 |
+|   | P3 | Physics      | BATCH-03     | RVO lateral avoidance force is fixed-magnitude and scales poorly at high simulation speeds. Replace with a velocity-relative lateral bias. | BATCH-05     |
+|   | P3 | Performance  | BATCH-03     | `SpeedController.CalculateAcceleration` calculates every tick instead of early exiting when `abs(speedError) < 0.001f`. | ✅ Completed in BATCH-04 |
+|   | P3 | Architecture | BATCH-04     | FastBTree's `Selector` optimisation permanently blocks sequence re-evaluation. Requires documentation or a new `ReactiveSelector`. | BATCH-05     |
+|   | P2 | Architecture | BATCH-04     | Memory leak in test environments: `PhysicsToolkitModule.Initialize()` allocates `NativeArray` but `EntityRepository` does not free it on dispose. | ✅ Completed in BATCH-05 |
+|   | P3 | Performance  | BATCH-04     | `SpatialHashSystem` adds ALL entities (including non-collidable shooters) to the grid. Implement `PhysicsCollider` filter check. | ✅ Completed in BATCH-05 |
+|   | P3 | Performance  | BATCH-05     | `LocalGridBuilderSystem` rebuilds `SpatialHashGrid` completely from scratch. Implement dirty-flag incremental updates for 100+ entity scales. | BATCH-06     |
+|   | P2 | Architecture | BATCH-05     | Using `FlushEcbAndSwap` forces a global bus flush which could prematurely advance non-perception events in production pipelines. Design dedicated event bus or isolated reentrant snapshot logic for `AutonomousPerceptionModule`. | BATCH-06     |
+| ✅ | P3 | Memory       | BD1-BATCH-01 | `BTreeTickSystem._publishedTerminalForInstanceId` dictionary is never pruned when entities are destroyed, leading to a memory leak in long-running simulations. | BD1-BATCH-02 |
+| ✅ | P3 | Architecture | BD1-BATCH-01 | `MissionDirectorSystem` still directly mutates `DoctrineState` for triggers other than `DoctrineFinished`. This dual-write pattern breaks single ownership and should be delegated to `DoctrineIngressSystem` like the clear event. | BD1-BATCH-02 |
+|   | P3 | Architecture | BD1-BATCH-02 | `MissionDirectorSystem` publishing `AssignDoctrineHashEvent` introduces a one-frame delay for doctrine activation. `MissionAdapterSystem` acts as a redundant write. Document or unify this flow. | BD1-BATCH-04 |
+|   | P3 | Performance  | BD1-BATCH-03 | `ComponentReflector` byte cache diffing uses `Marshal.AllocHGlobal` every frame. Optimise to use a pooled `NativeArray<byte>` or `stackalloc` for small structs to eliminate native heap churn. | BD1-BATCH-04 |
+|   | P2 | Testing      | BD1-BATCH-03 | `EntityMission_MovesEntity` integration test is failing due to missing mission pipeline wiring in the `SimHostInstance` test harness. Pre-existing issue masked by CQRS split. | BD1-BATCH-04 |
+|   | P3 | Testing      | BD1-BATCH-03 | `FDP.Toolkit.ImGui.Tests` crashes when run in parallel with other assemblies due to native ImGui library loading conflict. Requires test isolation config. | BD1-BATCH-04 |
