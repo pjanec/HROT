@@ -128,6 +128,7 @@ namespace Bagira.SimHost
 
             // ── Map canvas & layers ───────────────────────────────────────────
             _map       = new MapCanvas();
+            _map.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
             _map.AddResource(trajectoryPool);
 
             _map.AddLayer(new SimHostRoadLayer(road));

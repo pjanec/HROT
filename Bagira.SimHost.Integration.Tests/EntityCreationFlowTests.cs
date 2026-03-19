@@ -242,7 +242,7 @@ namespace Bagira.SimHost.Integration.Tests
                         EntityMaster = new EntityMaster
                         {
                             TkbType = TkbEntityTypes.Tank_M1Abrams,
-                            DisType = 0x0100_0000_0000_0001UL
+                            DisType = new DisTypeStruct { Kind = 1, Extra = 1 }
                         },
                     },
                 },

@@ -29,8 +29,8 @@
 
 **Goal:** Restore RVO vehicle-to-vehicle collision avoidance by ensuring all spawned vehicles carry the `PhysicsCollider` component required by `SpatialHashSystem`.
 
-- [ ] **BD1-P3T1** BdcTkbBuilder — Add PhysicsCollider to WithPhysics  [details](./BD1-TASK-DETAIL.md#bd1-p3t1-bdctkbbuilder--add-physicscollider-to-withphysics)
-- [ ] **BD1-P3T2** SimHostScenarioManager — Add PhysicsCollider to SpawnEntityLocal  [details](./BD1-TASK-DETAIL.md#bd1-p3t2-simhostscenariomanager--add-physicscollider-to-spawnentitylocal)
+- [x] **BD1-P3T1** BdcTkbBuilder — Add PhysicsCollider to WithPhysics  [details](./BD1-TASK-DETAIL.md#bd1-p3t1-bdctkbbuilder--add-physicscollider-to-withphysics)
+- [x] **BD1-P3T2** SimHostScenarioManager — Add PhysicsCollider to SpawnEntityLocal  [details](./BD1-TASK-DETAIL.md#bd1-p3t2-simhostscenariomanager--add-physicscollider-to-spawnentitylocal)
 
 ---
 
@@ -38,7 +38,7 @@
 
 **Goal:** Fix the "Center on entity" map context menu teleporting the view to the top-left corner of the SimHost standalone window.
 
-- [ ] **BD1-P4T1** SimHostVisualization — Set Camera Offset on Initialize  [details](./BD1-TASK-DETAIL.md#bd1-p4t1-simhostvisualization--set-camera-offset-on-initialize)
+- [x] **BD1-P4T1** SimHostVisualization — Set Camera Offset on Initialize  [details](./BD1-TASK-DETAIL.md#bd1-p4t1-simhostvisualization--set-camera-offset-on-initialize)
 
 ---
 
@@ -46,7 +46,7 @@
 
 **Goal:** Replace the plain `long DisType` field on `EntityMaster` DDS topic with a named 8-field struct for readability in DDS monitoring tools.
 
-- [ ] **BD1-P5T1** EntityMaster — Replace Plain long DisType with DisTypeStruct  [details](./BD1-TASK-DETAIL.md#bd1-p5t1-entitymaster--replace-plain-long-distype-with-distypestruct)
+- [x] **BD1-P5T1** EntityMaster — Replace Plain long DisType with DisTypeStruct  [details](./BD1-TASK-DETAIL.md#bd1-p5t1-entitymaster--replace-plain-long-distype-with-distypestruct)
 
 ---
 
@@ -54,7 +54,7 @@
 
 **Goal:** Highlight mutated ECS components in the ImGui entity inspector by comparing per-frame byte snapshots.
 
-- [ ] **BD1-P6T1** ComponentReflector — Byte-Cache Change Detection  [details](./BD1-TASK-DETAIL.md#bd1-p6t1-componentreflector--byte-cache-change-detection)
+- [x] **BD1-P6T1** ComponentReflector — Byte-Cache Change Detection  [details](./BD1-TASK-DETAIL.md#bd1-p6t1-componentreflector--byte-cache-change-detection)
 
 ---
 
@@ -62,4 +62,4 @@
 
 **Goal:** Eliminate a per-tick `Action<CreateEntityRequest>` delegate allocation on the SimHost ingress hot path.
 
-- [ ] **BD1-P7T1** CreateEntityRequestSystem — Cache ProcessRequest Delegate  [details](./BD1-TASK-DETAIL.md#bd1-p7t1-createentityrequestsystem--cache-processrequest-delegate)
+- [x] **BD1-P7T1** CreateEntityRequestSystem — Cache ProcessRequest Delegate  [details](./BD1-TASK-DETAIL.md#bd1-p7t1-createentityrequestsystem--cache-processrequest-delegate)

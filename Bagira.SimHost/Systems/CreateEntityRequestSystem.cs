@@ -99,11 +99,14 @@ namespace Bagira.SimHost.Systems
             _geoTransform     = geoTransform;
             _jsonCompiler     = jsonAttributeCompiler;
             _binaryInterpreter = binaryInterpreter;
+            _processRequestDelegate = ProcessIncomingRequest;
         }
 
         /// <summary>Number of requests currently buffered and awaiting spawn commands.</summary>
         public int PendingQueueCount => _pendingQueue.Count;
 
+        // Cached delegate for ProcessIncomingRequest — avoids a per-tick lambda allocation.
+        private readonly Action<CreateEntityRequest> _processRequestDelegate;
         /// <inheritdoc />
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -112,54 +115,7 @@ namespace Bagira.SimHost.Systems
             // List<CreateEntityRequest> is ever allocated on ingress (GC03).
             // Each valid request is validated, ID-allocated, ACK'd, and enqueued
             // on the same frame it arrives, giving the requester minimum latency (GC04).
-            _requestSource.ProcessRequests(request =>
-            {
-                try
-                {
-                    // Validate TkbType presence.
-                    long tkbType = DescriptorMapper.ExtractTkbType(
-                        request.InitialDescriptors, out ulong disType);
-                    if (tkbType == 0)
-                    {
-                        FdpLog<CreateEntityRequestSystem>.Warn(
-                            $"[SimHost] CreateEntity {request.RequestId}: No EntityMaster descriptor or TkbType=0. Rejecting.");
-                        SendErrorAck(request.RequestId, errorCode: 400);
-                        return;
-                    }
-
-                    // Validate TkbType exists in the database.
-                    if (!_tkbDb.TryGetByType(tkbType, out _))
-                    {
-                        FdpLog<CreateEntityRequestSystem>.Warn(
-                            $"[SimHost] CreateEntity {request.RequestId}: TkbType={tkbType} not found. Rejecting.");
-                        SendErrorAck(request.RequestId, errorCode: 404);
-                        return;
-                    }
-
-                    // Allocate a network ID and immediately ACK — client unblocks now.
-                    long newNetworkId = _idAllocator.AllocateId();
-                    _ackSink.WriteAck(new CreateEntityAck
-                    {
-                        RequestId   = request.RequestId,
-                        NewEntityId = (int)newNetworkId,
-                        ErrorCode   = 0,
-                    });
-
-                    _pendingQueue.Enqueue(new PendingRequest
-                    {
-                        Request   = request,
-                        NetworkId = newNetworkId,
-                        TkbType   = tkbType,
-                        DisType   = disType,
-                    });
-                }
-                catch (Exception ex)
-                {
-                    FdpLog<CreateEntityRequestSystem>.Error(
-                        $"[SimHost] CreateEntity ingress failed for request {request.RequestId}: {ex.Message}");
-                    SendErrorAck(request.RequestId, errorCode: 500);
-                }
-            });
+            _requestSource.ProcessRequests(_processRequestDelegate);
 
             // ── Phase 2: Time-sliced spawn dispatch ────────────────────────────
             // Convert at most MaxRequestsPerTick buffered requests into
@@ -167,6 +123,60 @@ namespace Bagira.SimHost.Systems
             int toProcess = Math.Min(_pendingQueue.Count, MaxRequestsPerTick);
             for (int i = 0; i < toProcess; i++)
                 ProcessPendingRequest(view, _pendingQueue.Dequeue());
+        }
+
+        /// <summary>
+        /// Processes a single incoming <see cref="CreateEntityRequest"/> during the ingress phase.
+        /// Extracted from the inline lambda so the delegate instance can be cached once and
+        /// reused every tick (eliminates continuous Gen0 GC pressure from lambda captures).
+        /// </summary>
+        private void ProcessIncomingRequest(CreateEntityRequest request)
+        {
+            try
+            {
+                // Validate TkbType presence.
+                long tkbType = DescriptorMapper.ExtractTkbType(
+                    request.InitialDescriptors, out ulong disType);
+                if (tkbType == 0)
+                {
+                    FdpLog<CreateEntityRequestSystem>.Warn(
+                        $"[SimHost] CreateEntity {request.RequestId}: No EntityMaster descriptor or TkbType=0. Rejecting.");
+                    SendErrorAck(request.RequestId, errorCode: 400);
+                    return;
+                }
+
+                // Validate TkbType exists in the database.
+                if (!_tkbDb.TryGetByType(tkbType, out _))
+                {
+                    FdpLog<CreateEntityRequestSystem>.Warn(
+                        $"[SimHost] CreateEntity {request.RequestId}: TkbType={tkbType} not found. Rejecting.");
+                    SendErrorAck(request.RequestId, errorCode: 404);
+                    return;
+                }
+
+                // Allocate a network ID and immediately ACK — client unblocks now.
+                long newNetworkId = _idAllocator.AllocateId();
+                _ackSink.WriteAck(new CreateEntityAck
+                {
+                    RequestId   = request.RequestId,
+                    NewEntityId = (int)newNetworkId,
+                    ErrorCode   = 0,
+                });
+
+                _pendingQueue.Enqueue(new PendingRequest
+                {
+                    Request   = request,
+                    NetworkId = newNetworkId,
+                    TkbType   = tkbType,
+                    DisType   = disType,
+                });
+            }
+            catch (Exception ex)
+            {
+                FdpLog<CreateEntityRequestSystem>.Error(
+                    $"[SimHost] CreateEntity ingress failed for request {request.RequestId}: {ex.Message}");
+                SendErrorAck(request.RequestId, errorCode: 500);
+            }
         }
 
         // ─── Private helpers ─────────────────────────────────────────────────

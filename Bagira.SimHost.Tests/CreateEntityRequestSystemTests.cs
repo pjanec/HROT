@@ -59,7 +59,10 @@ namespace Bagira.SimHost.Tests
     public class CreateEntityRequestSystemTests
     {
         private const long  ValidTkbType  = 42L;
+        // ValidDisType is kept as ulong for engine-side assertions; the wire DisTypeStruct
+        // decomposes it as Kind=1, Extra=1 (0x01_00_0000_0000_0001).
         private const ulong ValidDisType  = 0x0100_0000_0000_0001UL;
+        private static readonly DisTypeStruct ValidDisTypeStruct = new DisTypeStruct { Kind = 1, Extra = 1 };
         private const int   LocalNodeId   = 7;
 
         // ── Fixture helpers ──────────────────────────────────────────────────
@@ -96,7 +99,7 @@ namespace Bagira.SimHost.Tests
                     new EntityDescriptorUnion
                     {
                         _d = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = ValidDisType },
+                        EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = ValidDisTypeStruct },
                     },
                 },
             };
@@ -215,7 +218,7 @@ namespace Bagira.SimHost.Tests
                     new EntityDescriptorUnion
                     {
                         _d = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = ValidDisType },
+                        EntityMaster = new EntityMaster { EntityId = 0, TkbType = tkbType, DisType = ValidDisTypeStruct },
                     },
                     new EntityDescriptorUnion
                     {
@@ -558,5 +561,75 @@ namespace Bagira.SimHost.Tests
             Assert.NotNull(entityData);
             Assert.Equal("BinaryWins", entityData!.Name);
         }
+
+        // ── BD1-P7T1: Delegate caching ────────────────────────────────────────
+
+        /// <summary>
+        /// BD1-P7T1 SC1: The delegate passed to <c>ProcessRequests</c> must be the same
+        /// cached instance on every <c>Execute</c> call — ReferenceEquals must return
+        /// <c>true</c> across two separate Execute invocations.
+        /// </summary>
+        [Fact]
+        public void ProcessRequests_UsesPreCachedDelegate()
+        {
+            var repo   = CreateWorld();
+            var tkb    = CreateTkb();
+            var source = new CapturingRequestSource();
+            var ackSink = new StubAckSink();
+            var idAlloc = new StubIdAllocator(startId: 100);
+
+            var system = new CreateEntityRequestSystem(
+                source, ackSink, tkb, idAlloc, LocalNodeId,
+                jsonAttributeCompiler: null);
+
+            // Execute twice so the source can capture the delegate both times.
+            system.Execute(repo, 0f);
+            system.Execute(repo, 0f);
+
+            Assert.Equal(2, source.CapturedDelegates.Count);
+            Assert.True(
+                ReferenceEquals(source.CapturedDelegates[0], source.CapturedDelegates[1]),
+                "The delegate passed to ProcessRequests must be the same cached instance on every Execute call.");
+        }
+
+        /// <summary>
+        /// BD1-P7T1 SC2: Refactored path must preserve existing behaviour —
+        /// a valid request still produces a SpawnEntityCommand and an ACK.
+        /// </summary>
+        [Fact]
+        public void ProcessRequests_DelegateCache_BehaviourRegression()
+        {
+            var repo    = CreateWorld();
+            var tkb     = CreateTkb();
+            var source  = new StubRequestSource();
+            source.Enqueue(MakeValidRequest());
+
+            var (system, ackSink, _) = BuildSystem(tkb, source);
+            system.Execute(repo, 0f);
+
+            // ACK sent.
+            Assert.Single(ackSink.WrittenAcks);
+            Assert.Equal(0, ackSink.WrittenAcks[0].ErrorCode);
+
+            // SpawnEntityCommand produced.
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
+            Assert.Single(commands);
+        }
+    }
+
+    // ── Delegate capture test helper ─────────────────────────────────────────
+
+    /// <summary>
+    /// A <see cref="ICreateEntityRequestSource"/> stub that records the delegate
+    /// instance passed to <see cref="ProcessRequests"/> on each call, allowing
+    /// tests to verify the delegate is cached (same instance on repeated calls).
+    /// </summary>
+    internal sealed class CapturingRequestSource : ICreateEntityRequestSource
+    {
+        public List<Action<CreateEntityRequest>> CapturedDelegates { get; } = new();
+
+        public void ProcessRequests(Action<CreateEntityRequest> processor)
+            => CapturedDelegates.Add(processor);
     }
 }

@@ -11,6 +11,8 @@ using CarKinem.Trajectory;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
+using FDP.Toolkit.Physics;
+using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Network.Interfaces;
 
@@ -138,6 +140,11 @@ namespace Bagira.SimHost.UI
             preset.Class = vehicleClass;
             _repo.AddComponent(e, preset);
             _repo.AddComponent(e, new NavState());
+            _repo.AddComponent(e, new PhysicsCollider
+            {
+                Radius         = Math.Max(preset.Length, preset.Width) / 2f,
+                CollisionLayer = PhysicsConstants.EntityCollisionLayer
+            });
 
             return e;
         }

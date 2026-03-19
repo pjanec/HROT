@@ -1937,7 +1937,16 @@ public class IgApplication
         cmd.AddComponent(entity, new TkbIdentity { TkbType = descriptor.TkbType });
 
         // Store DIS entity type natively in the entity header.
-        _world.SetDisType(entity, new DISEntityType { Value = descriptor.DisType });
+        var dt = descriptor.DisType;
+        ulong disValue
+            = ((ulong)dt.Kind        << 56)
+            | ((ulong)dt.Domain      << 48)
+            | ((ulong)dt.Country     << 32)
+            | ((ulong)dt.Category    << 24)
+            | ((ulong)dt.Subcategory << 16)
+            | ((ulong)dt.Specific    <<  8)
+            |  (ulong)dt.Extra;
+        _world.SetDisType(entity, new DISEntityType { Value = disValue });
 
         cmd.Playback(_world);
 

@@ -276,7 +276,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                     new EntityDescriptorUnion
                     {
                         _d           = EDescriptorType.dtEntityMaster,
-                        EntityMaster = new EntityMaster { TkbType = tkbType, DisType = 0 }
+                        EntityMaster = new EntityMaster { TkbType = tkbType, DisType = default }
                     }
                 }
             };

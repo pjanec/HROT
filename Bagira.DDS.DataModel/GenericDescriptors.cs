@@ -23,6 +23,48 @@ namespace Bagira.BDC.SSTD
     // - To update a descriptor owned by someone else, use 'UpdateEntityDescriptorRequest'.
     // ===================================================================================
 
+    /// <summary>
+    /// Wire representation of a DIS Entity Type decomposed into its eight standard fields.
+    /// Replacing the raw <c>ulong</c> makes each field legible to DDS monitoring tools
+    /// (RTI Spy, Cyclone introspection, etc.) without changing the engine-side
+    /// <c>Fdp.Kernel.DISEntityType</c> struct or any entity-query filter logic.
+    /// </summary>
+    [DdsStruct]
+    public partial struct DisTypeStruct
+    {
+        /// <summary>DIS Kind (byte). 1 = Platform, 2 = Munition, etc.</summary>
+        public byte Kind;
+        /// <summary>DIS Domain (byte). 1 = Land, 2 = Air, etc.</summary>
+        public byte Domain;
+        /// <summary>DIS Country (16-bit ISO country code).</summary>
+        public ushort Country;
+        /// <summary>DIS Category — e.g. Tank vs Truck.</summary>
+        public byte Category;
+        /// <summary>DIS Subcategory — e.g. M1A1 vs T-72.</summary>
+        public byte Subcategory;
+        /// <summary>DIS Specific variation.</summary>
+        public byte Specific;
+        /// <summary>DIS Extra field.</summary>
+        public byte Extra;
+    }
+    // ===================================================================================
+    // GENERAL PRINCIPLES: BDC SST ENTITY DESCRIPTORS
+    // ===================================================================================
+    // An entity in the BDC SST architecture is defined by the aggregation of its descriptors.
+    // There is no single "Entity Object" transmitted over the network; instead, separate
+    // DDS topics (Descriptors) share a common EntityId.
+    //
+    // Life Cycle:
+    // - Existence is determined solely by the 'EntityMaster' descriptor.
+    // - If EntityMaster is ALIVE, the entity exists.
+    // - If EntityMaster is DISPOSED, the entity is deleted.
+    //
+    // Ownership:
+    // - Ownership is granular per descriptor.
+    // - The "Owner" is simply the last node that successfully wrote to the topic.
+    // - To update a descriptor owned by someone else, use 'UpdateEntityDescriptorRequest'.
+    // ===================================================================================
+
     // Represents the instance of an entity.
     // When this topic is created, the entity instance starts its life, entering a temporary "incomplete" state.
     // Entity instance becomes "complete" as soon as all mandatory descriptors for that entity get created.
@@ -47,10 +89,11 @@ namespace Bagira.BDC.SSTD
         // 0=invalid
         public long TkbType;
 
-        // SISO-REF-010-2015 standardized, multiple-category-level type.
+        // SISO-REF-010-2015 standardized, multiple-category-level type decomposed into
+        // named fields so DDS monitoring tools can display each sub-field individually.
         // Must be correlated with TkbType, it's just another way to specify the same entity type.
         // All zeros = invalid.
-        public ulong DisType;
+        public DisTypeStruct DisType;
 
         // Entity type specific flags.
         // For example it might indicate whether the entity is using GeoSpatial or GeoSpatialDR

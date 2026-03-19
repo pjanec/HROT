@@ -58,7 +58,7 @@ public class GhostPromotionTests
         {
             EntityId = entityId,
             TkbType = TkbEntityTypes.Tank_M1Abrams,
-            DisType = 0
+            DisType = default
         });
 
         bool promoted = harness.PumpUntil(() =>

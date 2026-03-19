@@ -29,7 +29,9 @@ public class EntityMasterTranslatorTests
     // ── Test constants (§CODE-STANDARDS §1 — no magic numbers) ───────────────
     private const long  TestNetworkId = 77L;
     private const long  TestTkbType   = 42L;
+    // TestDisType is kept as ulong for assertion; the wire DisTypeStruct uses Extra=100.
     private const ulong TestDisType   = 100UL;
+    private static readonly DisTypeStruct TestDisTypeStruct = new DisTypeStruct { Extra = 100 };
 
     // ── Fixture factory ──────────────────────────────────────────────────────
 
@@ -58,7 +60,7 @@ public class EntityMasterTranslatorTests
     public void ProcessSample_NewEntity_AddsTkbIdentityWithCorrectTkbType()
     {
         var (repo, entityMap, _, translator) = CreateFixture();
-        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType, DisType = TestDisType };
+        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType, DisType = TestDisTypeStruct };
 
         ISimulationView view = repo;
         var cmd = new RecordingCommandBuffer();
@@ -135,7 +137,7 @@ public class EntityMasterTranslatorTests
         {
             EntityId = (int)TestNetworkId,
             TkbType  = TestTkbType,
-            DisType  = TestDisType,
+            DisType  = TestDisTypeStruct,
         };
 
         ISimulationView view = repo;
@@ -226,5 +228,51 @@ public class EntityMasterTranslatorTests
         eventBus.SwapBuffers();
         Assert.Empty(eventBus.ConsumeManaged<DestroyEntityCommand>());
         Assert.False(cmd.AddComponentCalled, "No AddComponent calls expected when PollIngress is a no-op");
+    }
+
+    // ── BD1-P5T1: DisTypeStruct ingress round-trip ────────────────────────────
+
+    /// <summary>
+    /// BD1-P5T1 SC2: ProcessSample must reconstruct <c>DISEntityType.Value</c> from the
+    /// individual <c>DisTypeStruct</c> fields and store it in the entity header.
+    /// The reconstructed ulong must encode all 8 fields correctly.
+    /// </summary>
+    [Fact]
+    public void DisTypeStruct_IngressRoundTrip_ReconstructsCorrectUlongValue()
+    {
+        var (repo, entityMap, _, translator) = CreateFixture();
+
+        var wireStruct = new DisTypeStruct
+        {
+            Kind        = 1,
+            Domain      = 2,
+            Country     = 225,
+            Category    = 3,
+            Subcategory = 4,
+            Specific    = 5,
+            Extra       = 6,
+        };
+
+        var master = new EntityMaster
+        {
+            EntityId = (int)TestNetworkId,
+            TkbType  = TestTkbType,
+            DisType  = wireStruct,
+        };
+
+        ISimulationView view = repo;
+        var cmd = new RecordingCommandBuffer();
+        translator.ProcessSample(in master, cmd, view);
+
+        Assert.True(entityMap.TryGetEntity(TestNetworkId, out var entity));
+
+        var stored = repo.GetHeader(entity.Index).DisType;
+        Assert.Equal(1,   (int)stored.Kind);
+        Assert.Equal(2,   (int)stored.Domain);
+        Assert.Equal(225, (int)stored.Country);
+        Assert.Equal(3,   (int)stored.Category);
+        Assert.Equal(4,   (int)stored.Subcategory);
+        Assert.Equal(5,   (int)stored.Specific);
+        Assert.Equal(6,   (int)stored.Extra);
     }
 }

@@ -72,15 +72,24 @@ namespace Bagira.Map.Common.Replication.Egress
                 ref readonly var tkb = ref view.GetComponentRO<TkbIdentity>(entity);
 
                 // Read DisType from entity header (written natively by NetworkSpawningSystem).
-                ulong disType = repo != null
-                    ? repo.GetHeader(entity.Index).DisType.Value
-                    : 0UL;
+                var dis = repo != null
+                    ? repo.GetHeader(entity.Index).DisType
+                    : default;
 
                 _writer.Write(new EntityMaster
                 {
                     EntityId = (int)netId.Value,
                     TkbType = tkb.TkbType,
-                    DisType = disType,
+                    DisType = new DisTypeStruct
+                    {
+                        Kind        = dis.Kind,
+                        Domain      = dis.Domain,
+                        Country     = dis.Country,
+                        Category    = dis.Category,
+                        Subcategory = dis.Subcategory,
+                        Specific    = dis.Specific,
+                        Extra       = dis.Extra,
+                    },
                     Flags = 0
                 });
 

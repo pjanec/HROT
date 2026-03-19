@@ -54,7 +54,7 @@ public sealed class TraceLoggingTests : IDisposable
         {
             EntityId = (int)networkId,
             TkbType = TkbEntityTypes.Tank_M1Abrams,
-            DisType = 0
+            DisType = default
         });
 
         var expected = new[]

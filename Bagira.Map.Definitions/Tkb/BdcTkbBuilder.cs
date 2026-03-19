@@ -95,6 +95,11 @@ namespace Bagira.Map.Definitions.Tkb
             configure(physicsDef);
 
             template.AddComponent(BuildVehicleParams(physicsDef));
+            template.AddComponent(new PhysicsCollider
+            {
+                Radius         = Math.Max(physicsDef.Length, physicsDef.Width) / 2f,
+                CollisionLayer = PhysicsConstants.EntityCollisionLayer
+            });
             return this;
         }
         

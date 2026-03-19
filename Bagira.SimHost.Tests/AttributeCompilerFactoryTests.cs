@@ -146,6 +146,7 @@ namespace Bagira.SimHost.Tests
     {
         private const long  ValidTkbType = 42L;
         private const ulong ValidDisType = 0x0100_0000_0000_0001UL;
+        private static readonly DisTypeStruct ValidDisTypeStruct = new DisTypeStruct { Kind = 1, Extra = 1 };
         private const int   LocalNodeId  = 7;
 
         private static TkbDatabase CreateTkb()
@@ -182,7 +183,7 @@ namespace Bagira.SimHost.Tests
                     {
                         EntityId = 0,
                         TkbType  = ValidTkbType,
-                        DisType  = ValidDisType,
+                        DisType  = ValidDisTypeStruct,
                     },
                 },
             };

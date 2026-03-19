@@ -150,7 +150,7 @@ public class MiniIosPanelState
             new EntityDescriptorUnion
             {
                 _d           = EDescriptorType.dtEntityMaster,
-                EntityMaster = new EntityMaster { TkbType = TkbType, DisType = 0 },
+                EntityMaster = new EntityMaster { TkbType = TkbType, DisType = default },
             }
         };
 
@@ -222,7 +222,7 @@ public class MiniIosPanelState
             new EntityDescriptorUnion
             {
                 _d           = EDescriptorType.dtEntityMaster,
-                EntityMaster = new EntityMaster { TkbType = TkbType, DisType = 0 },
+                EntityMaster = new EntityMaster { TkbType = TkbType, DisType = default },
             }
         };
 

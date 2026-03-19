@@ -133,9 +133,21 @@ namespace Bagira.Map.Common.Replication.Ingress
             // Permanent identity component — drives GhostPromotionSystem.
             cmd.AddComponent(entity, new TkbIdentity { TkbType = master.TkbType });
 
+            // Reconstruct DISEntityType.Value from the 8 named DisTypeStruct fields.
+            // FieldOffset layout (little-endian): Extra[0], Specific[1], Subcategory[2],
+            // Category[3], Country[4-5], Domain[6], Kind[7].
+            ulong disValue
+                = ((ulong)master.DisType.Kind        << 56)
+                | ((ulong)master.DisType.Domain      << 48)
+                | ((ulong)master.DisType.Country     << 32)
+                | ((ulong)master.DisType.Category    << 24)
+                | ((ulong)master.DisType.Subcategory << 16)
+                | ((ulong)master.DisType.Specific    <<  8)
+                |  (ulong)master.DisType.Extra;
+
             // Store DIS entity type natively in the entity header.
             if (view is EntityRepository repoForDis)
-                repoForDis.SetDisType(entity, new DISEntityType { Value = master.DisType });
+                repoForDis.SetDisType(entity, new DISEntityType { Value = disValue });
         }
     }
 }

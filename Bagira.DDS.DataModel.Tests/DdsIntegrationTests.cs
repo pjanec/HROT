@@ -23,7 +23,7 @@ namespace Bagira.DDS.DataModel.Tests
             {
                 EntityId = 12345,
                 TkbType = 100,
-                DisType = 0,
+                DisType = default,
                 Flags = 0
             };
             

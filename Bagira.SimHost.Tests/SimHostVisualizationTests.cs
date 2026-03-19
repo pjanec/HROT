@@ -6,12 +6,15 @@ using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.SimHost;
 using CarKinem.Core;
+using CarKinem.Formation;
+using CarKinem.Road;
 using CarKinem.Trajectory;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Components;
+using ModuleHost.Core;
 using Xunit;
 
 namespace Bagira.SimHost.Tests
@@ -177,6 +180,45 @@ namespace Bagira.SimHost.Tests
             Assert.NotNull(triggers);
             Assert.Single(triggers);
             Assert.Equal("ReachedDestination", triggers[0].Type);
+        }
+
+        // ── Task BD1-P4T1: Camera offset set on Initialize ────────────────────
+
+        /// <summary>
+        /// BD1-P4T1 SC1: <see cref="SimHostVisualization.Initialize"/> must set
+        /// <c>_map.Camera.Offset</c> to <c>new Vector2(640f, 360f)</c>, the centre of the
+        /// default 1280×720 window, so "Center on entity" teleports to screen centre
+        /// rather than pixel (0,0).
+        /// </summary>
+        [Fact]
+        [Trait("Category", "Integration")]
+        public void Initialize_SetsMapCameraOffset()
+        {
+            const uint domainId = 167u;
+            using var participant = new DdsParticipant(domainId);
+            using var writer      = new DdsWriter<MissionControlRequest>(participant);
+
+            var repo = new EntityRepository();
+            repo.RegisterComponent<DoctrineState>();
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<VehicleParams>();
+            repo.RegisterComponent<VehicleState>();
+
+            var evtAcc    = new EventAccumulator();
+            var kernel    = new ModuleHostKernel(repo, evtAcc);
+            var road      = new RoadNetworkBlob();
+            var traj      = new TrajectoryPoolManager();
+            var formations = new FormationTemplateManager();
+
+            var vis = new SimHostVisualization();
+            vis.Initialize(repo, kernel, road, traj, formations, writer);
+
+            var camera = vis.GetMapCamera();
+            Assert.NotNull(camera);
+            Assert.Equal(new Vector2(640f, 360f), camera.Offset);
+
+            kernel.Dispose();
+            repo.Dispose();
         }
     }
 }

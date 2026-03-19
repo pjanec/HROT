@@ -36,7 +36,15 @@ namespace Bagira.Map.Common.Replication.Utils
             {
                 if (d._d == EDescriptorType.dtEntityMaster)
                 {
-                    disType = d.EntityMaster.DisType;
+                    var dt = d.EntityMaster.DisType;
+                    disType
+                        = ((ulong)dt.Kind        << 56)
+                        | ((ulong)dt.Domain      << 48)
+                        | ((ulong)dt.Country     << 32)
+                        | ((ulong)dt.Category    << 24)
+                        | ((ulong)dt.Subcategory << 16)
+                        | ((ulong)dt.Specific    <<  8)
+                        |  (ulong)dt.Extra;
                     return d.EntityMaster.TkbType;
                 }
             }
