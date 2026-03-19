@@ -10,6 +10,7 @@ using CarKinem.Road;
 using CarKinem.Trajectory;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
@@ -133,6 +134,10 @@ namespace Bagira.SimHost.UI
             var rot     = SimMath.FromYaw(angle);
 
             _repo.AddComponent(e, new SimTransform { Position = new Vector3(position.X, position.Y, 0), Rotation = rot });
+            // Mark SimTransform as locally authoritative so that CarKinematicsSystem
+            // (.WithOwned<SimTransform>()) includes this entity in its update query.
+            // Without this flag, kinematics are silently skipped and the entity never moves.
+            _repo.SetAuthority<SimTransform>(e, true);
             _repo.AddComponent(e, new SimVelocity  { Linear = Vector3.Zero, Angular = Vector3.Zero });
             _repo.AddComponent(e, new VehicleState { Speed = 0, SteerAngle = 0, Accel = 0 });
 
@@ -145,6 +150,13 @@ namespace Bagira.SimHost.UI
                 Radius         = Math.Max(preset.Length, preset.Width) / 2f,
                 CollisionLayer = PhysicsConstants.EntityCollisionLayer
             });
+
+            // CQRS navigation contract components required by NavigationExecutionSystem
+            // and NavigationIntentBridgeSystem.  Mode defaults to None so the bridge
+            // leaves NavState untouched until a brain (or direct CmdFollowTrajectory) acts.
+            _repo.AddComponent(e, new NavigationIntent());
+            _repo.AddComponent(e, new NavigationStatus());
+            _repo.AddComponent(e, new FrustrationTicks());
 
             return e;
         }
