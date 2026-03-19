@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Numerics;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Linq;
 using Fdp.Kernel;
 using FDP.Toolkit.ImGui.Abstractions;
@@ -31,18 +33,73 @@ internal class ComponentReflector
     /// <summary>Set to <c>true</c> this frame to force-collapse all component headers.</summary>
     public bool ForceCollapseAll { get; set; }
 
+    // ── Byte-cache change detection (BD1-P6T1) ────────────────────────────────
+    /// <summary>Entity whose component bytes are currently cached.</summary>
+    private Entity _lastInspectedEntity = Entity.Null;
+
+    /// <summary>
+    /// Per-type byte snapshots of unmanaged components from the previous frame.
+    /// Populated only for value-type (unmanaged) components; managed class components
+    /// are never compared and never stored here.
+    /// </summary>
+    private readonly Dictionary<Type, byte[]> _unmanagedCache = new();
+
     /// <summary>
     /// Draws all components attached to <paramref name="e"/> as collapsible sections.
+    /// Value-type (unmanaged) components whose bytes differ from the previous frame
+    /// have their header drawn in <b>yellow</b> for that frame.
     /// Consumes <see cref="ForceExpandAll"/> / <see cref="ForceCollapseAll"/> after rendering.
     /// </summary>
     public void DrawComponents(IInspectableSession session, Entity e)
     {
+        // ── Entity switch: invalidate the per-type byte cache ─────────────────
+        if (!e.Equals(_lastInspectedEntity))
+        {
+            _unmanagedCache.Clear();
+            _lastInspectedEntity = e;
+        }
+
         var allTypes = session.GetAllComponentTypes().OrderBy(t => t.Name).ToList();
 
         int componentIndex = 0;
         foreach (var type in allTypes)
         {
             if (!session.HasComponent(e, type)) continue;
+
+            object? data = session.GetComponent(e, type);
+
+            // ── Byte-level change detection (value types only) ────────────────
+            bool changed = false;
+            if (type.IsValueType && data != null)
+            {
+                IntPtr ptr = IntPtr.Zero;
+                try
+                {
+                    int size = Marshal.SizeOf(type);
+                    ptr = Marshal.AllocHGlobal(size);
+                    Marshal.StructureToPtr(data, ptr, fDeleteOld: false);
+                    var current = new byte[size];
+                    Marshal.Copy(ptr, current, 0, size);
+
+                    if (_unmanagedCache.TryGetValue(type, out var cached))
+                    {
+                        for (int i = 0; i < size; i++)
+                        {
+                            if (current[i] != cached[i]) { changed = true; break; }
+                        }
+                    }
+                    // Always update cache. First visit sets the baseline silently
+                    // (no highlight) — avoids a false-positive flash on first render.
+                    _unmanagedCache[type] = current;
+                }
+                catch { /* skip types Marshal cannot measure (e.g. generics) */ }
+                finally
+                {
+                    if (ptr != IntPtr.Zero)
+                        Marshal.FreeHGlobal(ptr);
+                }
+            }
+            // Managed class components (reference types): no comparison, no cache entry.
 
             // Push a stable unique ID scope so the "##ptree" table inside
             // ImGuiPropertyTree.Render() gets a different ImGui ID per component.
@@ -55,11 +112,17 @@ internal class ComponentReflector
             else if (ForceCollapseAll)
                 ImGuiApi.SetNextItemOpen(false, ImGuiCond.Always);
 
-            object? data    = session.GetComponent(e, type);
-            string  label   = BuildHeaderLabel(type, data);
+            string label = BuildHeaderLabel(type, data);
+
+            // Draw header in yellow when the component was mutated since last frame.
+            if (changed)
+                ImGuiApi.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 1f, 0f, 1f));
 
             // Headers are collapsed by default (no DefaultOpen flag)
             bool open = ImGuiApi.CollapsingHeader(label);
+
+            if (changed)
+                ImGuiApi.PopStyleColor();
 
             if (open && data != null)
             {
