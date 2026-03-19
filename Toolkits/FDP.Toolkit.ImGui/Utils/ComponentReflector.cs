@@ -152,10 +152,12 @@ internal class ComponentReflector
         string? summary = renderer?.GetSummary(data);
 
         if (!string.IsNullOrEmpty(summary))
-            return $"{type.Name}  [{summary}]";
+            // Append ###{type.Name} to lock the ID
+            return $"{type.Name}  [{summary}]###{type.Name}";
 
         string? auto = GetAutoSummary(data, type);
-        return auto != null ? $"{type.Name}  {auto}" : type.Name;
+        // Append ###{type.Name} to lock the ID
+        return auto != null ? $"{type.Name}  {auto}###{type.Name}" : type.Name;
     }
 
     private static string? GetAutoSummary(object data, Type type)
