@@ -390,7 +390,7 @@ namespace Bagira.SimHost.Tests
         private static EntityRepository CreateWorldWithIgEntityData()
         {
             var repo = CreateWorld();
-            repo.RegisterManagedComponent<IG.Components.EntityInfo>();
+            repo.RegisterComponent<IG.Components.EntityInfo>();
             return repo;
         }
 
@@ -438,9 +438,8 @@ namespace Bagira.SimHost.Tests
 
             var initialComponents = commands[0].InitialComponents;
             Assert.NotNull(initialComponents);
-            var entityData = initialComponents!.OfType<IG.Components.EntityInfo>().FirstOrDefault();
-            Assert.NotNull(entityData);
-            Assert.Equal("Gamma", entityData!.Name);
+            var entityData = Assert.Single(initialComponents!.OfType<IG.Components.EntityInfo>());
+            Assert.Equal("Gamma", entityData.Name.ToString());
         }
 
         /// <summary>
@@ -475,11 +474,10 @@ namespace Bagira.SimHost.Tests
             var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
             Assert.Single(commands);
 
-            var initialComponents = commands[0].InitialComponents;
-            Assert.NotNull(initialComponents);
-            var entityData = initialComponents!.OfType<IG.Components.EntityInfo>().FirstOrDefault();
-            Assert.NotNull(entityData);
-            Assert.Equal("Delta", entityData!.Name);
+            var initialComponents2 = commands[0].InitialComponents;
+            Assert.NotNull(initialComponents2);
+            var entityData2 = Assert.Single(initialComponents2!.OfType<IG.Components.EntityInfo>());
+            Assert.Equal("Delta", entityData2.Name.ToString());
         }
 
         /// <summary>
@@ -555,11 +553,10 @@ namespace Bagira.SimHost.Tests
             var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
             Assert.Single(commands);
 
-            var initialComponents = commands[0].InitialComponents;
-            Assert.NotNull(initialComponents);
-            var entityData = initialComponents!.OfType<IG.Components.EntityInfo>().FirstOrDefault();
-            Assert.NotNull(entityData);
-            Assert.Equal("BinaryWins", entityData!.Name);
+            var initialComponents3 = commands[0].InitialComponents;
+            Assert.NotNull(initialComponents3);
+            var entityData3 = Assert.Single(initialComponents3!.OfType<IG.Components.EntityInfo>());
+            Assert.Equal("BinaryWins", entityData3.Name.ToString());
         }
 
         // ── BD1-P7T1: Delegate caching ────────────────────────────────────────

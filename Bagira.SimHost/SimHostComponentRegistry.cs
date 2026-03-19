@@ -50,8 +50,8 @@ public static class SimHostComponentRegistry
         KinematicComponentRegistry.RegisterAll(world);   // Muscle-tier physics + CQRS NavigationStatus
         CombatComponentRegistry.RegisterAll(world);      // Perception, combat, physics colliders
 
-        // ── Managed components ────────────────────────────────────────────────
-        world.RegisterManagedComponent<EntityInfo>();
+        // ── Unmanaged struct / managed components ─────────────────────────────
+        world.RegisterComponent<EntityInfo>();
         world.RegisterManagedComponent<EntityMissionHolder>();
         world.RegisterManagedComponent<EditablePolyline>();
 

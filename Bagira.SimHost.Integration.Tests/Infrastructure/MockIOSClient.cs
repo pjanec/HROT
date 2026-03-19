@@ -114,10 +114,10 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             if (!_host.EntityMap.TryGetEntity(networkId, out var entity))
                 return null;
 
-            if (!_host.World.HasManagedComponent<IG.Components.EntityInfo>( entity ) )
+            if (!_host.World.HasComponent<IG.Components.EntityInfo>( entity ) )
                 return null;
 
-            return ((ISimulationView)_host.World).GetManagedComponentRO<IG.Components.EntityInfo>( entity );
+            return ((ISimulationView)_host.World).GetComponentRO<IG.Components.EntityInfo>( entity );
         }
     }
 }

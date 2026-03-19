@@ -68,24 +68,24 @@ public class AttributeCompilerBuilderTests
     public void AttributeCompilerBuilder_DuplicatePath_Throws()
     {
         var builder = new AttributeCompilerBuilder()
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Name = r.GetString() ?? string.Empty);
 
         Assert.Throws<InvalidOperationException>(() =>
         {
-            builder.RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            builder.RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Name = r.GetString() ?? string.Empty);
         });
     }
 
     [Fact]
-    public void AttributeCompilerBuilder_RegisterReferencePath_CanBuildAndCompile()
+    public void AttributeCompilerBuilder_RegisterValuePath_CanBuildAndCompileForEntityInfo()
     {
         var compiler = new AttributeCompilerBuilder()
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Name = r.GetString() ?? string.Empty)
             .Build();
 
@@ -117,26 +117,24 @@ public class AttributeCompilerBuilderTests
 public class ListPatchContextTests
 {
     [Fact]
-    public void ListPatchContext_GetManagedComponent_ReturnsExistingInstance()
+    public void ListPatchContext_GetUnmanagedComponent_ReturnsSeedValue()
     {
         var existing = new EntityInfo { Name = "existing" };
         var ctx = new ListPatchContext(new List<object> { existing });
 
-        var got = ctx.GetManagedComponent<EntityInfo>();
+        ref var got = ref ctx.GetUnmanagedComponent<EntityInfo>();
 
-        Assert.Same(existing, got);
-        Assert.Equal("existing", got.Name);
+        Assert.Equal("existing", got.Name.ToString());
     }
 
     [Fact]
-    public void ListPatchContext_GetManagedComponent_CreatesDefaultWhenMissing()
+    public void ListPatchContext_GetUnmanagedComponent_CreatesDefaultWhenMissing()
     {
         var ctx = new ListPatchContext(null);
 
-        var got = ctx.GetManagedComponent<EntityInfo>();
+        ref var got = ref ctx.GetUnmanagedComponent<EntityInfo>();
 
-        Assert.NotNull(got);
-        Assert.IsType<EntityInfo>(got);
+        Assert.True(got.Name.IsEmpty);
     }
 
     [Fact]
@@ -144,10 +142,12 @@ public class ListPatchContextTests
     {
         var ctx = new ListPatchContext(null);
 
-        // Retrieve same type twice — both must return the same cached instance.
-        var data1 = ctx.GetManagedComponent<EntityInfo>();
-        var data2 = ctx.GetManagedComponent<EntityInfo>();
-        Assert.Same(data1, data2);
+        // Retrieve same slot twice — both refs point to the same ComponentSlot<T>.Value.
+        ref var data1 = ref ctx.GetUnmanagedComponent<EntityInfo>();
+        data1.Name = "sentinel";
+        ref var data2 = ref ctx.GetUnmanagedComponent<EntityInfo>();
+        // Mutation via data1 must be visible through data2 (same ref).
+        Assert.Equal("sentinel", data2.Name.ToString());
 
         var result = ctx.FlushComponents();
         int count = result.OfType<EntityInfo>().Count();
@@ -163,11 +163,11 @@ public class ListPatchContextTests
 
         // Build a compiler that patches "Name" and "Affiliation" on the same component type.
         var compiler = new AttributeCompilerBuilder()
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Name = r.GetString() ?? string.Empty)
-            .RegisterReferencePath<EntityInfo>("Affiliation",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Affiliation",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.ForceId = r.GetString() == "FORCE_HOSTILE" ? ForceId.Hostile : ForceId.Unknown)
             .Build();
 
@@ -209,7 +209,7 @@ public class EcsPatchContextTests
     {
         var repo = new EntityRepository();
         repo.RegisterComponent<SimTransform>();
-        repo.RegisterManagedComponent<EntityInfo>();
+        repo.RegisterComponent<EntityInfo>();
         return repo;
     }
 
@@ -240,11 +240,11 @@ public class EcsPatchContextTests
 
         var repo = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new EntityInfo { Name = "alpha" });
+        repo.SetComponent(entity, new EntityInfo { Name = "alpha" });
 
         var compiler = new AttributeCompilerBuilder()
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Name = r.GetString() ?? string.Empty,
                 descriptorOrdinal: TestOrdinal)
             .Build();
@@ -252,7 +252,7 @@ public class EcsPatchContextTests
         var ctx = compiler.CreatePatchContext(repo, entity);
 
         // Simulate a delegate invocation touching IgEntityData (ordinal TestOrdinal gets recorded).
-        _ = ctx.GetManagedComponent<EntityInfo>();
+        ctx.GetUnmanagedComponent<EntityInfo>();
 
         // Flush — should call SmartEgressUtil.MarkDirty(repo, entity, TestOrdinal).
         ctx.FlushDirtyMarks();
@@ -270,16 +270,16 @@ public class EcsPatchContextTests
 
         var repo = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new EntityInfo { Name = "beta" });
+        repo.SetComponent(entity, new EntityInfo { Name = "beta" });
 
         // Both "Name" and "Affiliation" map to the same ordinal (like dtEntityInfo).
         var compiler = new AttributeCompilerBuilder()
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Name = r.GetString() ?? string.Empty,
                 descriptorOrdinal: SharedOrdinal)
-            .RegisterReferencePath<EntityInfo>("Affiliation",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Affiliation",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.ForceId = ForceId.Hostile,
                 descriptorOrdinal: SharedOrdinal)
             .Build();
@@ -287,8 +287,8 @@ public class EcsPatchContextTests
         var ctx = compiler.CreatePatchContext(repo, entity);
 
         // Simulate two delegate invocations on the same component type → same ordinal twice.
-        _ = ctx.GetManagedComponent<EntityInfo>();
-        _ = ctx.GetManagedComponent<EntityInfo>();
+        ctx.GetUnmanagedComponent<EntityInfo>();
+        ctx.GetUnmanagedComponent<EntityInfo>();
 
         ctx.FlushDirtyMarks();
 
@@ -333,8 +333,8 @@ public class JsonAttributeCompilerTests
     public void JsonAttributeCompiler_FlatStringProperty_InvokesDelegate()
     {
         var compiler = new AttributeCompilerBuilder()
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Name = r.GetString() ?? string.Empty)
             .Build();
 
@@ -343,7 +343,7 @@ public class JsonAttributeCompilerTests
 
         var result = ctx.FlushComponents();
         var data = result.OfType<EntityInfo>().Single();
-        Assert.Equal("Alpha-1", data.Name);
+        Assert.Equal("Alpha-1", data.Name.ToString());
     }
 
     [Fact]
@@ -374,8 +374,8 @@ public class JsonAttributeCompilerTests
         bool delegateInvoked = false;
 
         var compiler = new AttributeCompilerBuilder()
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                 {
                     delegateInvoked = true;
                     c.Name = r.GetString() ?? string.Empty;
@@ -450,8 +450,8 @@ public class FnvHashTests
         bool cInvoked = false;
 
         var compiler = new AttributeCompilerBuilder()
-            .RegisterReferencePath<EntityInfo>("A.B",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("A.B",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                 {
                     bInvoked = true;
                     c.Name = r.GetString() ?? string.Empty;
@@ -482,7 +482,7 @@ public class EcsPatchContextAuthorityTests
     {
         var repo = new EntityRepository();
         repo.RegisterComponent<SimTransform>();
-        repo.RegisterManagedComponent<EntityInfo>();
+        repo.RegisterComponent<EntityInfo>();
         return repo;
     }
 
@@ -515,31 +515,31 @@ public class EcsPatchContextAuthorityTests
     }
 
     [Fact]
-    public void EcsPatchContext_CanWriteManaged_ReturnsFalseWithoutSetAuthority()
+    public void EcsPatchContext_CanWrite_EntityInfo_ReturnsFalseWithoutSetAuthority()
     {
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new EntityInfo { Name = "x" });
+        repo.SetComponent(entity, new EntityInfo { Name = "x" });
         // No SetAuthority call.
 
         var compiler = new AttributeCompilerBuilder().Build();
         var ctx = compiler.CreatePatchContext(repo, entity);
 
-        Assert.False(ctx.CanWriteManaged<EntityInfo>());
+        Assert.False(ctx.CanWrite<EntityInfo>());
     }
 
     [Fact]
-    public void EcsPatchContext_CanWriteManaged_ReturnsTrueAfterSetAuthority()
+    public void EcsPatchContext_CanWrite_EntityInfo_ReturnsTrueAfterSetAuthority()
     {
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
-        repo.SetManagedComponent(entity, new EntityInfo { Name = "x" });
-        repo.SetAuthority(entity, ManagedComponentType<EntityInfo>.ID, true);
+        repo.SetComponent(entity, new EntityInfo { Name = "x" });
+        repo.SetAuthority<EntityInfo>(entity, true);
 
         var compiler = new AttributeCompilerBuilder().Build();
         var ctx = compiler.CreatePatchContext(repo, entity);
 
-        Assert.True(ctx.CanWriteManaged<EntityInfo>());
+        Assert.True(ctx.CanWrite<EntityInfo>());
     }
 }
 
@@ -591,8 +591,8 @@ public class InvokerAuthorityTests
                     weaponSetterCalled = true;
                     c.Count = r.GetInt32();
                 })
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Name = r.GetString() ?? string.Empty)
             .Build();
 
@@ -609,7 +609,7 @@ public class InvokerAuthorityTests
 
         var results = innerCtx.FlushComponents();
         var data = results.OfType<EntityInfo>().Single();
-        Assert.Equal("Alpha", data.Name);
+        Assert.Equal("Alpha", data.Name.ToString());
     }
 
     /// <summary>
@@ -629,8 +629,8 @@ public class InvokerAuthorityTests
                     weaponInvocations++;
                     c.Count = r.GetInt32();
                 })
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                 {
                     nameInvocations++;
                     c.Name = r.GetString() ?? string.Empty;
@@ -678,28 +678,27 @@ public class ListPatchContextResetTests
     {
         var ctx = new ListPatchContext(null);
 
-        var first = ctx.GetManagedComponent<EntityInfo>();
+        ref var first = ref ctx.GetUnmanagedComponent<EntityInfo>();
         first.Name = "first";
 
         ctx.Reset(null);
 
-        // After reset, a new default instance must be created (not the old one).
-        var second = ctx.GetManagedComponent<EntityInfo>();
-        // The old instance may have been recycled, but the Name must be the default.
-        Assert.NotEqual("first", second.Name ?? string.Empty);
+        // After reset, slot must be cleared to the zero default.
+        ref var second = ref ctx.GetUnmanagedComponent<EntityInfo>();
+        Assert.True(second.Name.IsEmpty, "Name must be empty after reset — slot must not leak.");
     }
 
     [Fact]
     public void ListPatchContext_Reset_PicksUpNewSeedValues()
     {
         var ctx = new ListPatchContext(null);
-        _ = ctx.GetManagedComponent<EntityInfo>(); // prime the cache
+        ctx.GetUnmanagedComponent<EntityInfo>(); // prime the cache
 
         var newSeed = new EntityInfo { Name = "seeded-name" };
         ctx.Reset(new List<object> { newSeed });
 
-        var got = ctx.GetManagedComponent<EntityInfo>();
-        Assert.Equal("seeded-name", got.Name);
+        ref var got = ref ctx.GetUnmanagedComponent<EntityInfo>();
+        Assert.Equal("seeded-name", got.Name.ToString());
     }
 
     [Fact]
@@ -709,7 +708,7 @@ public class ListPatchContextResetTests
         ctx.Reset(new List<object>());
 
         Assert.True(ctx.CanWrite<TestWeaponState>());
-        Assert.True(ctx.CanWriteManaged<EntityInfo>());
+        Assert.True(ctx.CanWrite<EntityInfo>());
     }
 
     [Fact]
@@ -717,18 +716,18 @@ public class ListPatchContextResetTests
     {
         var oldSeed = new EntityInfo { Name = "old" };
         var ctx = new ListPatchContext(new List<object> { oldSeed });
-        _ = ctx.GetManagedComponent<EntityInfo>(); // prime cache with old seed
+        ctx.GetUnmanagedComponent<EntityInfo>(); // prime cache with old seed
 
         var newSeed = new EntityInfo { Name = "new" };
         ctx.Reset(new List<object> { newSeed });
 
         // Compile a patch using a no-op compiler (just access the component).
-        var got = ctx.GetManagedComponent<EntityInfo>();
+        ref var got = ref ctx.GetUnmanagedComponent<EntityInfo>();
         got.Name = "patched";
 
         var flushed = ctx.FlushComponents();
         var entity = flushed.OfType<EntityInfo>().Single();
-        Assert.Equal("patched", entity.Name);
+        Assert.Equal("patched", entity.Name.ToString());
     }
 }
 
@@ -742,8 +741,8 @@ public class JsonAttributeCompilerSpanOverloadTests
     public void Compile_SpanOverload_ProducesIdenticalResultToStringOverload()
     {
         var compiler = new AttributeCompilerBuilder()
-            .RegisterReferencePath<EntityInfo>("Name",
-                (EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
+            .RegisterValuePath<EntityInfo>("Name",
+                (ref EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
                     c.Name = r.GetString() ?? string.Empty)
             .Build();
 
@@ -752,13 +751,13 @@ public class JsonAttributeCompilerSpanOverloadTests
         // String overload.
         var ctxStr = new ListPatchContext(null);
         compiler.Compile(json, ctxStr);
-        string fromString = ctxStr.FlushComponents().OfType<EntityInfo>().Single().Name;
+        string fromString = ctxStr.FlushComponents().OfType<EntityInfo>().Single().Name.ToString();
 
         // Span overload with pre-encoded bytes.
         var ctxSpan = new ListPatchContext(null);
         byte[] bytes = System.Text.Encoding.UTF8.GetBytes(json);
         compiler.Compile(new ReadOnlySpan<byte>(bytes), ctxSpan);
-        string fromSpan = ctxSpan.FlushComponents().OfType<EntityInfo>().Single().Name;
+        string fromSpan = ctxSpan.FlushComponents().OfType<EntityInfo>().Single().Name.ToString();
 
         Assert.Equal(fromString, fromSpan);
         Assert.Equal("Span-Alpha", fromString);

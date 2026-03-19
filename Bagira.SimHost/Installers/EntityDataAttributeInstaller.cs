@@ -36,10 +36,10 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller
 
     private static void HandleName(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWriteManaged<IG.Components.EntityInfo>())
+        if (!ctx.PatchContext.CanWrite<IG.Components.EntityInfo>())
             return;
 
-		IG.Components.EntityInfo data = ctx.PatchContext.GetManagedComponent<IG.Components.EntityInfo>();
+		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<IG.Components.EntityInfo>();
         data.Name = record.Value.StringValue ?? string.Empty;
 
         ctx.MarkDescriptorDirty(EntityInfoOrdinal);
@@ -47,10 +47,10 @@ public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller
 
     private static void HandleAffiliation(BinaryPatchContext ctx, AttributeRecord record)
     {
-        if (!ctx.PatchContext.CanWriteManaged<IG.Components.EntityInfo>())
+        if (!ctx.PatchContext.CanWrite<IG.Components.EntityInfo>())
             return;
 
-		IG.Components.EntityInfo data = ctx.PatchContext.GetManagedComponent<IG.Components.EntityInfo>();
+		ref var data = ref ctx.PatchContext.GetUnmanagedComponent<IG.Components.EntityInfo>();
 
         data.ForceId = record.Value.ValueType == AttributeValueType.KindInt32
             ? AttributeCompilerFactory.MapAffiliationInt(record.Value.IntValue)

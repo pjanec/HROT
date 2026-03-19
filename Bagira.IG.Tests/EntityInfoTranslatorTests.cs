@@ -16,7 +16,7 @@ namespace Bagira.IG.Tests
             CreateFixture()
         {
             var repo = new EntityRepository();
-            repo.RegisterManagedComponent<Components.EntityInfo>();
+            repo.RegisterComponent<Components.EntityInfo>();
             var entityMap = new NetworkEntityMap();
             var eventBus = new FdpEventBus();
             var ghostCreationSystem = new GhostCreationSystem(entityMap);
@@ -93,9 +93,9 @@ namespace Bagira.IG.Tests
             }, repo);
 
             ISimulationView view = repo;
-            var data = view.GetManagedComponentRO<Components.EntityInfo>( entity );
+            ref readonly var data = ref view.GetComponentRO<Components.EntityInfo>( entity );
 
-            Assert.Equal("Bravo", data.Name);
+            Assert.Equal("Bravo", data.Name.ToString());
             Assert.Equal(ForceId.Hostile, data.ForceId);
         }
     }

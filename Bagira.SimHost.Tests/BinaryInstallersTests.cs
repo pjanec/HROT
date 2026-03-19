@@ -70,8 +70,8 @@ namespace Bagira.SimHost.Tests
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[] { StringRecord(AttributeIds.Name, "Bravo") });
 
-            var data = listCtx.GetManagedComponent<IG.Components.EntityInfo>();
-            Assert.Equal("Bravo", data.Name);
+            var data = listCtx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+            Assert.Equal("Bravo", data.Name.ToString());
         }
 
         [Fact]
@@ -85,8 +85,8 @@ namespace Bagira.SimHost.Tests
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[] { StringRecord(AttributeIds.Affiliation, "FORCE_FRIENDLY") });
 
-            var data = listCtx.GetManagedComponent<IG.Components.EntityInfo>();
-            Assert.Equal(ForceId.Friend, data.ForceId);
+            ref var data0 = ref listCtx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+            Assert.Equal(ForceId.Friend, data0.ForceId);
         }
 
         [Fact]
@@ -102,8 +102,8 @@ namespace Bagira.SimHost.Tests
             var ctx     = interpreter.CreateContext(listCtx);
             interpreter.Apply(ctx, new[] { Int32Record(AttributeIds.Affiliation, friendlyInt) });
 
-            var data = listCtx.GetManagedComponent<IG.Components.EntityInfo>();
-            Assert.Equal(ForceId.Friend, data.ForceId);
+            ref var data3 = ref listCtx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+            Assert.Equal(ForceId.Friend, data3.ForceId);
         }
 
         [Fact]
@@ -117,7 +117,7 @@ namespace Bagira.SimHost.Tests
             var binaryCtx = interpreter.CreateContext(denyCtx);
             interpreter.Apply(binaryCtx, new[] { StringRecord(AttributeIds.Name, "Should Not Apply") });
 
-            // The deny context should have received no managed-component access.
+            // The deny context should have received no unmanaged-component access.
             Assert.Equal(0, denyCtx.GetManagedComponentCallCount);
         }
 
@@ -252,8 +252,8 @@ namespace Bagira.SimHost.Tests
                 Float64Record(AttributeIds.GeoAlt, 100.0),
             });
 
-            var data = listCtx.GetManagedComponent<IG.Components.EntityInfo>();
-            Assert.Equal("Delta", data.Name);
+            var data2 = listCtx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+            Assert.Equal("Delta", data2.Name.ToString());
 
             ref SimTransform st = ref listCtx.GetUnmanagedComponent<SimTransform>();
             Assert.Equal(new Vector3(34f, 32f, 100f), st.Position);

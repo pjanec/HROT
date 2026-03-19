@@ -60,7 +60,7 @@ namespace Bagira.Map.Common.Replication.Egress
         {
             var query = view.Query()
                 .With<NetworkIdentity>()
-                .WithManaged<IG.Components.EntityInfo>()
+                .With<IG.Components.EntityInfo>()
                 // Include Constructing so affiliation is broadcast at spawn time.
                 .WithLifecycle( EntityLifecycle.All)
                 .Build();
@@ -76,22 +76,22 @@ namespace Bagira.Map.Common.Replication.Egress
                 if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
                     continue;
 
-                ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
-                var data = view.GetManagedComponentRO<IG.Components.EntityInfo>( entity );
+                ref readonly var netId  = ref view.GetComponentRO<NetworkIdentity>(entity);
+                ref readonly var data   = ref view.GetComponentRO<IG.Components.EntityInfo>(entity);
 
 				_writer.Write(new BDC.SSTD.EntityInfo
                 {
                     EntityId        = (int)netId.Value,
-                    Name            = data?.Name ?? string.Empty,
-                    ForceIdentifier = MapForceId( data?.ForceId ?? ForceId.Unknown),
-                    CommanderId     = data?.CommanderId ?? 0,
+                    Name            = data.Name.ToString(),
+                    ForceIdentifier = MapForceId(data.ForceId),
+                    CommanderId     = data.CommanderId,
                 });
 
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
 
                 FdpLog<EntityInfoEgressTranslator>.Debug(
                     "[TRACE-SH] Egress: EntityInfo NetID={0} Force={1}",
-                    netId.Value, data?.ForceId);
+                    netId.Value, data.ForceId);
             }
         }
 

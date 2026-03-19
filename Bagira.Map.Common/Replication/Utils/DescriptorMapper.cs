@@ -248,7 +248,8 @@ namespace Bagira.Map.Common.Replication.Utils
                             ctx);
 
                         // CommanderId is not in the JSON schema; set directly.
-                        ctx.GetManagedComponent<IG.Components.EntityInfo>().CommanderId = d.EntityInfo.CommanderId;
+                        ref var ei = ref ctx.GetUnmanagedComponent<IG.Components.EntityInfo>();
+                        ei.CommanderId = d.EntityInfo.CommanderId;
 
                         result = ctx.FlushComponents();
                         break;

@@ -145,7 +145,7 @@ namespace Bagira.SimHost.Integration.Tests
             // Assert
             var igData = _client.ReadIgEntityData(ack.Value.NewEntityId);
             Assert.NotNull(igData);
-            Assert.Equal(ForceId.Hostile, igData!.ForceId);
+            Assert.Equal(ForceId.Hostile, igData!.Value.ForceId);
         }
 
         /// <summary>
@@ -165,9 +165,9 @@ namespace Bagira.SimHost.Integration.Tests
             Assert.Equal(0, ack!.Value.ErrorCode);
             _host.RunForTicks(5);
 
-            var igData = _client.ReadIgEntityData(ack.Value.NewEntityId);
-            Assert.NotNull(igData);
-            Assert.Equal(ForceId.Friend, igData!.ForceId);
+            var igData2 = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            Assert.NotNull(igData2);
+            Assert.Equal(ForceId.Friend, igData2!.Value.ForceId);
         }
 
         /// <summary>
@@ -189,10 +189,10 @@ namespace Bagira.SimHost.Integration.Tests
             Assert.Equal(0, ack!.Value.ErrorCode);
             _host.RunForTicks(5);
 
-            var igData = _client.ReadIgEntityData(ack.Value.NewEntityId);
-            Assert.NotNull(igData);
-            Assert.Equal("Bravo-3",       igData!.Name);
-            Assert.Equal(ForceId.Hostile, igData.ForceId);
+            var igData3 = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            Assert.NotNull(igData3);
+            Assert.Equal("Bravo-3",       igData3!.Value.Name.ToString());
+            Assert.Equal(ForceId.Hostile, igData3!.Value.ForceId);
         }
 
         /// <summary>
@@ -213,9 +213,9 @@ namespace Bagira.SimHost.Integration.Tests
             _host.RunForTicks(5);
 
             // No IgEntityData patch was applied; the component is either absent or defaulted.
-            var igData = _client.ReadIgEntityData(ack.Value.NewEntityId);
-            if (igData != null)
-                Assert.Equal(ForceId.Unknown, igData.ForceId);
+            var igDataD = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            if (igDataD.HasValue)
+                Assert.Equal(ForceId.Unknown, igDataD.Value.ForceId);
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────────────

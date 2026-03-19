@@ -16,12 +16,12 @@ namespace Bagira.Map.Common.Replication.Ingress
 	/// <summary>
 	/// Ingress translator for the Bagira <c>EntityInfo</c> DDS topic.
 	///
-	/// <see cref="BDC.SSTD.EntityInfo"/> contains managed fields (e.g. <c>string Name</c>) and
-	/// cannot be applied via <see cref="IEntityCommandBuffer.SetComponent{T}"/> which
-	/// requires <c>T : unmanaged</c>.  Instead, the translator publishes an
+	/// The ECS <see cref="IG.Components.EntityInfo"/> is now an unmanaged struct, so it can
+	/// be applied directly via <see cref="EntityRepository.SetComponent{T}"/>.
+	/// For the update path the translator publishes an
 	/// <see cref="UpdateEntityCommand"/> onto the <see cref="FdpEventBus"/>; the
 	/// <c>NetworkSpawningSystem</c> applies the component through
-	/// <c>EntityComponentReflector</c>, which handles managed struct types correctly.
+	/// <c>EntityComponentReflector</c>.
 	///
 	/// Entities not yet registered in the map are silently skipped.
 	/// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
@@ -96,7 +96,7 @@ namespace Bagira.Map.Common.Replication.Ingress
         {
             if ( data is BDC.SSTD.EntityInfo info)
             {
-                repo.SetManagedComponent( entity, new IG.Components.EntityInfo
+                repo.SetComponent( entity, new IG.Components.EntityInfo
                 {
                     Name = info.Name,
                     ForceId = (ForceId)(int)info.ForceIdentifier,

@@ -64,17 +64,16 @@ public static class UniqueNameGenerator
         int maxIndex = 0;
 
         var view  = (ISimulationView)world;
-        var query = world.Query().WithManaged<EntityInfo>().Build();
+        var query = world.Query().With<EntityInfo>().Build();
         foreach (var entity in query)
         {
-            var data = world.HasManagedComponent<EntityInfo>(entity)
-                ? view.GetManagedComponentRO<EntityInfo>(entity)
-                : null;
-            if (data?.Name == null) continue;
+            ref readonly var data = ref view.GetComponentRO<EntityInfo>(entity);
+            if (data.Name.IsEmpty) continue;
 
-            if (data.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            string name = data.Name.ToString();
+            if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                string suffix = data.Name.Substring(prefix.Length);
+                string suffix = name.Substring(prefix.Length);
                 if (int.TryParse(suffix, out int index) && index > maxIndex)
                     maxIndex = index;
             }

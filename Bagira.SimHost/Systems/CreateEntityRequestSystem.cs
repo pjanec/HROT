@@ -232,16 +232,18 @@ namespace Bagira.SimHost.Systems
                 }
 
                 // 3.5. Ensure parent has IgEntityData if it's an auto-spawn composite
-                Bagira.IG.Components.EntityInfo parentInfo = null;
+                Bagira.IG.Components.EntityInfo? parentInfo = null;
+                int parentInfoIdx = -1;
                 if (_tkbDb.TryGetByType(pending.TkbType, out var parentTemplate) && parentTemplate.ChildBlueprints.Count > 0)
                 {
                     if (fallbackComponents != null)
                     {
-                        foreach (var comp in fallbackComponents)
+                        for (int fi = 0; fi < fallbackComponents.Count; fi++)
                         {
-                            if (comp is Bagira.IG.Components.EntityInfo info)
+                            if (fallbackComponents[fi] is Bagira.IG.Components.EntityInfo info)
                             {
                                 parentInfo = info;
+                                parentInfoIdx = fi;
                                 break; // Found the metadata component
                             }
                         }
@@ -251,19 +253,22 @@ namespace Bagira.SimHost.Systems
                     // so it's visible in the ORBAT tree and can be tracked.
                     if (parentInfo == null)
                     {
-                        parentInfo = new Bagira.IG.Components.EntityInfo
+                        var newInfo = new Bagira.IG.Components.EntityInfo
                         {
                             Name = parentTemplate.Name,
                             ForceId = Bagira.IG.Components.ForceId.Unknown
                         };
                         fallbackComponents ??= new List<object>();
-                        fallbackComponents.Add(parentInfo);
+                        fallbackComponents.Add(newInfo);
+                        parentInfo = newInfo;
                     }
-
-                    // Ensure parent has a valid name if it's auto-spawned (using template name)
-                    if (string.IsNullOrWhiteSpace(parentInfo.Name))
+                    else if (parentInfo.Value.Name.IsEmpty)
                     {
-                        parentInfo.Name = parentTemplate.Name;
+                        // Ensure parent has a valid name; update both the local copy and the list entry.
+                        var updated = parentInfo.Value;
+                        updated.Name = parentTemplate.Name;
+                        fallbackComponents![parentInfoIdx] = updated;
+                        parentInfo = updated;
                     }
                 }
 
@@ -300,8 +305,8 @@ namespace Bagira.SimHost.Systems
                             {
                                 new Bagira.IG.Components.EntityInfo
                                 {
-                                    Name = $"{parentInfo.Name}-{childDef.InstanceId}",
-                                    ForceId = parentInfo.ForceId,
+                                    Name = $"{parentInfo!.Value.Name}-{childDef.InstanceId}",
+                                    ForceId = parentInfo.Value.ForceId,
                                     CommanderId = (int)pending.NetworkId
                                 }
                             };

@@ -46,7 +46,7 @@ namespace Bagira.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
-            repo.RegisterManagedComponent<IG.Components.EntityInfo>();
+            repo.RegisterComponent<IG.Components.EntityInfo>();
             return repo;
         }
 
@@ -102,9 +102,9 @@ namespace Bagira.SimHost.Tests
 
             var repo   = CreateRepo();
             var entity = repo.CreateEntity();
-            repo.SetManagedComponent( entity, new IG.Components.EntityInfo { Name = "original" });
+            repo.SetComponent( entity, new IG.Components.EntityInfo { Name = "original" });
             // Grant authority so the invoker dispatches the setter.
-            repo.SetAuthority( entity, ManagedComponentType<IG.Components.EntityInfo>.ID, true);
+            repo.SetAuthority<IG.Components.EntityInfo>( entity, true);
 
             var context = compiler.CreatePatchContext(repo, entity);
             compiler.Compile("{\"Name\":\"X\"}", context);
@@ -160,7 +160,7 @@ namespace Bagira.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<SimTransform>();
-            repo.RegisterManagedComponent<IG.Components.EntityInfo>();
+            repo.RegisterComponent<IG.Components.EntityInfo>();
             repo.RegisterComponent<NetworkIdentity>();
             repo.RegisterComponent<NetworkOwnership>();
             repo.RegisterComponent<TkbIdentity>();
@@ -235,12 +235,9 @@ namespace Bagira.SimHost.Tests
 
             Assert.Single(commands);
             var cmd      = commands[0];
-            var igData   = cmd.InitialComponents?
-                .OfType<IG.Components.EntityInfo>()
-                .SingleOrDefault();
+            var igData   = Assert.Single(cmd.InitialComponents!.OfType<IG.Components.EntityInfo>());
 
-            Assert.NotNull(igData);
-            Assert.Equal("Delta-7", igData!.Name);
+            Assert.Equal("Delta-7", igData.Name.ToString());
         }
 
         [Fact]
@@ -274,13 +271,10 @@ namespace Bagira.SimHost.Tests
             var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
 
             Assert.Single(commands);
-            var igData = commands[0].InitialComponents?
-                .OfType<IG.Components.EntityInfo>()
-                .SingleOrDefault();
+            var igData2  = Assert.Single(commands[0].InitialComponents!.OfType<IG.Components.EntityInfo>());
 
-            Assert.NotNull(igData);
-            Assert.Equal("Echo-1",       igData!.Name);
-            Assert.Equal(ForceId.Friend, igData.ForceId);
+            Assert.Equal("Echo-1",       igData2.Name.ToString());
+            Assert.Equal(ForceId.Friend, igData2.ForceId);
         }
 
         [Fact]

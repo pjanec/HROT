@@ -545,9 +545,9 @@ public class MiniIosIntegrationTests
         if (!TryGetSimHostEntity(world, networkId, out var entity))
             return false;
         var view = (ISimulationView)world;
-        if (!view.HasManagedComponent<Bagira.IG.Components.EntityInfo>(entity))
+        if (!view.HasComponent<Bagira.IG.Components.EntityInfo>(entity))
             return false;
-        var data = view.GetManagedComponentRO<Bagira.IG.Components.EntityInfo>(entity);
+        ref readonly var data = ref view.GetComponentRO<Bagira.IG.Components.EntityInfo>(entity);
         return data.ForceId == forceId;
     }
 

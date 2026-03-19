@@ -47,16 +47,16 @@ public static class AttributeCompilerFactory
     {
         var builder = new AttributeCompilerBuilder()
 
-            // ── IgEntityData — managed class paths ────────────────────────────
-            .RegisterReferencePath<IG.Components.EntityInfo>(
+            // ── IgEntityData — unmanaged struct paths ───────────────────────────────────
+            .RegisterValuePath<IG.Components.EntityInfo>(
                 "Name",
-                ( IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
+                ( ref IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.Name = r.GetString() ?? string.Empty,
                 descriptorOrdinal: EntityInfoOrdinal )
 
-            .RegisterReferencePath<IG.Components.EntityInfo>(
+            .RegisterValuePath<IG.Components.EntityInfo>(
                 "Affiliation",
-                ( IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
+                ( ref IG.Components.EntityInfo c, scoped ReadOnlySpan<int> _, ref Utf8JsonReader r ) =>
                     c.ForceId = r.TokenType == JsonTokenType.Number
                         ? MapAffiliationInt( r.GetInt32())
                         : MapAffiliationString( r.GetString()),
