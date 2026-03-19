@@ -4,6 +4,7 @@ using Fbt;
 using Fbt.Runtime;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Events;
 using FDP.Toolkit.Behavior.Systems;
 using Xunit;
 
@@ -162,6 +163,189 @@ namespace FDP.Toolkit.Behavior.Tests
             Assert.Equal(1u, channel.ActionInstanceId); // instance was stamped
 
             sys.Dispose();
+            world.Dispose();
+        }
+
+        // ── Task-1 Tests: DoctrineFinishedEvent ──────────────────────────────────
+
+        // Helper: build a one-node tree that always returns the given status.
+        private static (DoctrineRegistry registry, BTreeTickSystem sys) BuildTerminalSystem(
+            EntityRepository world, int doctrineId, string doctrineName, NodeStatus status)
+        {
+            var registry  = new DoctrineRegistry();
+            var blob      = BuildSingleActionBlob(doctrineName);
+            var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            actionReg.Register(doctrineName,
+                (ref BrainBlackboard _, ref BehaviorTreeState _, ref BTreeContext _, int _) => status);
+            var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
+            registry.Register(doctrineId, doctrineName, new DoctrineDefinition
+            {
+                Name             = doctrineName,
+                BrainTier        = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = interpreter,
+            });
+            var sys = new BTreeTickSystem(registry);
+            sys.Create(world);
+            return (registry, sys);
+        }
+
+        [Fact]
+        public void DoctrineRoot_Success_PublishesDoctrineFinishedEvent()
+        {
+            var world = TestWorldFactory.Create();
+            const int doctrineId = 8001;
+            var (_, sys) = BuildTerminalSystem(world, doctrineId, "SuccessDoc", NodeStatus.Success);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = doctrineId, BrainTier = BehaviorConstants.BrainTierBTree });
+            world.AddComponent(e, new BrainBTreeState());
+            world.AddComponent(e, new BrainBlackboard());
+
+            sys.Run();
+
+            // Events published by the system land in the write buffer; swap to read them.
+            world.Bus.SwapBuffers();
+            var events = world.Bus.ConsumeManaged<DoctrineFinishedEvent>();
+
+            int count = 0;
+            DoctrineFinishedEvent? found = null;
+            foreach (var evt in events)
+            {
+                if (evt != null && evt.Entity.Index == e.Index) { found = evt; count++; }
+            }
+
+            Assert.Equal(1, count);
+            Assert.NotNull(found);
+            Assert.Equal(NodeStatus.Success, found!.Result);
+
+            sys.Dispose();
+            world.Dispose();
+        }
+
+        [Fact]
+        public void DoctrineRoot_Failure_PublishesDoctrineFinishedEvent()
+        {
+            var world = TestWorldFactory.Create();
+            const int doctrineId = 8002;
+            var (_, sys) = BuildTerminalSystem(world, doctrineId, "FailureDoc", NodeStatus.Failure);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = doctrineId, BrainTier = BehaviorConstants.BrainTierBTree });
+            world.AddComponent(e, new BrainBTreeState());
+            world.AddComponent(e, new BrainBlackboard());
+
+            sys.Run();
+
+            world.Bus.SwapBuffers();
+            var events = world.Bus.ConsumeManaged<DoctrineFinishedEvent>();
+
+            DoctrineFinishedEvent? found = null;
+            foreach (var evt in events)
+                if (evt != null && evt.Entity.Index == e.Index) found = evt;
+
+            Assert.NotNull(found);
+            Assert.Equal(NodeStatus.Failure, found!.Result);
+
+            sys.Dispose();
+            world.Dispose();
+        }
+
+        [Fact]
+        public void DoctrineRoot_Running_DoesNotPublishEvent()
+        {
+            var world = TestWorldFactory.Create();
+            const int doctrineId = 8003;
+            var (_, sys) = BuildTerminalSystem(world, doctrineId, "RunningDoc", NodeStatus.Running);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = doctrineId, BrainTier = BehaviorConstants.BrainTierBTree });
+            world.AddComponent(e, new BrainBTreeState());
+            world.AddComponent(e, new BrainBlackboard());
+
+            sys.Run();
+
+            world.Bus.SwapBuffers();
+            var events = world.Bus.ConsumeManaged<DoctrineFinishedEvent>();
+
+            bool anyForEntity = false;
+            foreach (var evt in events)
+                if (evt != null && evt.Entity.Index == e.Index) anyForEntity = true;
+
+            Assert.False(anyForEntity);
+
+            sys.Dispose();
+            world.Dispose();
+        }
+
+        [Fact]
+        public void DoctrineRoot_Success_PublishedOnlyOnce()
+        {
+            // BTree always returns Success. Event must be published on frame 1 but NOT frame 2
+            // (same InstanceId — suppressed by _publishedTerminalForInstanceId guard).
+            var world = TestWorldFactory.Create();
+            const int doctrineId = 8004;
+            var (_, sys) = BuildTerminalSystem(world, doctrineId, "AlwaysSuccessDoc", NodeStatus.Success);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = doctrineId, BrainTier = BehaviorConstants.BrainTierBTree });
+            world.AddComponent(e, new BrainBTreeState());
+            world.AddComponent(e, new BrainBlackboard());
+
+            // Frame 1: expect event.
+            sys.Run();
+            world.Bus.SwapBuffers();
+            int frame1Count = 0;
+            foreach (var evt in world.Bus.ConsumeManaged<DoctrineFinishedEvent>())
+                if (evt != null && evt.Entity.Index == e.Index) frame1Count++;
+
+            // Frame 2: same InstanceId — must NOT re-publish.
+            sys.Run();
+            world.Bus.SwapBuffers();
+            int frame2Count = 0;
+            foreach (var evt in world.Bus.ConsumeManaged<DoctrineFinishedEvent>())
+                if (evt != null && evt.Entity.Index == e.Index) frame2Count++;
+
+            Assert.Equal(1, frame1Count);
+            Assert.Equal(0, frame2Count);
+
+            sys.Dispose();
+            world.Dispose();
+        }
+
+        [Fact]
+        public void DoctrineFinished_NotPublishedByLocomotionDispatcher()
+        {
+            // Running LocomotionDispatcherSystem alone (no BTreeTickSystem) must NOT
+            // produce a DoctrineFinishedEvent even when the executor sets channel status.
+            var world = TestWorldFactory.Create();
+
+            var dispatcher = new LocomotionDispatcherSystem();
+            var spy        = new WritingSpyExecutor<LocomotionChannel>(); // writes Status = Running
+            dispatcher.RegisterExecutor(1, spy);
+            dispatcher.Create(world);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new DoctrineState { ActiveDoctrineHash = 1, BrainTier = BehaviorConstants.BrainTierBTree, InstanceId = 1 });
+            world.AddComponent(e, new LocomotionChannel
+            {
+                ActiveAction         = 1,
+                ActionInstanceId     = 1,
+                DoctrineInstanceId   = 1,
+                DispatchedInstanceId = 0, // triggers OnEnter + Execute
+            });
+            world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
+
+            dispatcher.Run();
+
+            // No DoctrineFinishedEvent should appear on the bus.
+            world.Bus.SwapBuffers();
+            bool anyEvent = false;
+            foreach (var evt in world.Bus.ConsumeManaged<DoctrineFinishedEvent>())
+                if (evt != null) anyEvent = true;
+
+            Assert.False(anyEvent);
+
+            dispatcher.Dispose();
             world.Dispose();
         }
     }

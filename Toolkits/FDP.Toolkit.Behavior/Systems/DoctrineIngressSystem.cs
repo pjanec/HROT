@@ -120,6 +120,24 @@ namespace FDP.Toolkit.Behavior.Systems
                     btState.State = default;
                 }
             }
+
+            // ── ClearDoctrineEvent handler ────────────────────────────────────────────────
+            // Forcibly resets the active doctrine to DoctrineIds.None (brain-death).
+            // Published top-down by MissionDirectorSystem (plan exhausted) and
+            // MissionControlRequestSystem (CMD_ABORT_ALL).
+            var clearEvents = World.Bus.ConsumeManaged<ClearDoctrineEvent>();
+            foreach (var evt in clearEvents)
+            {
+                if (evt == null || !World.HasComponent<DoctrineState>(evt.Entity)) continue;
+
+                ref var doctrine = ref World.GetComponentRW<DoctrineState>(evt.Entity);
+                doctrine.ActiveDoctrineHash = DoctrineIds.None;
+                unchecked { doctrine.InstanceId++; }
+                doctrine.BrainTier = 0;
+
+                if (World.HasComponent<BrainBTreeState>(evt.Entity))
+                    World.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
+            }
         }
     }
 }

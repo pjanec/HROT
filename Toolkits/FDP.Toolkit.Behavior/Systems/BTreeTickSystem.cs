@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Kernel;
+using Fbt;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Events;
 
 namespace FDP.Toolkit.Behavior.Systems
 {
@@ -12,12 +15,25 @@ namespace FDP.Toolkit.Behavior.Systems
     /// channels are cleared before the BTree writes new actions.
     ///
     /// Zero allocation per tick: <see cref="BTreeContext"/> is a stack-allocated struct.
+    ///
+    /// Publishes <see cref="DoctrineFinishedEvent"/> exactly once per terminal doctrine
+    /// transition (Success or Failure). A secondary tick on an already-terminal doctrine
+    /// does not re-publish; the event is suppressed until the doctrine's
+    /// <see cref="DoctrineState.InstanceId"/> changes (i.e. a new doctrine is assigned).
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(ChannelArbitrationSystem))]
     public class BTreeTickSystem : ComponentSystem
     {
         private readonly DoctrineRegistry _registry;
+
+        /// <summary>
+        /// Tracks the <see cref="DoctrineState.InstanceId"/> for which a terminal
+        /// <see cref="DoctrineFinishedEvent"/> was last published, keyed by entity index.
+        /// Prevents repeated publication when the same doctrine evaluation stays terminal
+        /// across consecutive ticks.
+        /// </summary>
+        private readonly Dictionary<int, uint> _publishedTerminalForInstanceId = new();
 
         public BTreeTickSystem(DoctrineRegistry registry)
         {
@@ -64,7 +80,24 @@ namespace FDP.Toolkit.Behavior.Systems
                     _intParams   = Array.Empty<int>(),
                 };
 
-                def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);
+                var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);
+
+                // Publish DoctrineFinishedEvent exactly once per terminal transition per
+                // doctrine instance. Suppress re-publication when the same InstanceId has
+                // already triggered the event (e.g. the BTree stays at Success across ticks).
+                if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
+                {
+                    if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prevInstanceId)
+                        || prevInstanceId != doctrine.InstanceId)
+                    {
+                        World.Bus.PublishManaged(new DoctrineFinishedEvent
+                        {
+                            Entity = entity,
+                            Result = rootResult
+                        });
+                        _publishedTerminalForInstanceId[entity.Index] = doctrine.InstanceId;
+                    }
+                }
             }
         }
     }

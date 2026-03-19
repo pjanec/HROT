@@ -200,7 +200,7 @@ namespace FDP.Toolkit.Behavior.Tests
 
             var channel = world.GetComponent<LocomotionChannel>(e);
             Assert.Equal(0, channel.ActiveAction);          // preemption chain complete
-            Assert.Equal(0u, channel.DoctrineInstanceId);   // full channel reset to default, not a selective clear
+            Assert.Equal(1u, channel.DoctrineInstanceId);   // selective-clear preserves DoctrineInstanceId (only ActiveAction zeroed)
 
             ingressSys.Dispose();
             arbitrationSys.Dispose();
@@ -308,6 +308,123 @@ namespace FDP.Toolkit.Behavior.Tests
             Assert.Equal(OldId, state.ActiveDoctrineHash);
             // InstanceId must NOT have been bumped.
             Assert.Equal(0u, state.InstanceId);
+
+            sys.Dispose();
+            world.Dispose();
+        }
+
+        // ── Task-2 Tests: ClearDoctrineEvent ─────────────────────────────────────
+
+        [Fact]
+        public void ClearDoctrineEvent_SetsDoctrineToNone()
+        {
+            var (world, sys, _) = CreateFixture();
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new DoctrineState
+            {
+                ActiveDoctrineHash = 2001,
+                InstanceId         = 5,
+                BrainTier          = BehaviorConstants.BrainTierBTree,
+            });
+            world.AddComponent(e, new BrainBTreeState
+            {
+                State = new Fbt.BehaviorTreeState { RunningNodeIndex = 3 }
+            });
+
+            world.Bus.PublishManaged(new ClearDoctrineEvent { Entity = e });
+            world.Bus.SwapBuffers();
+            sys.Run();
+
+            var doctrine = world.GetComponent<DoctrineState>(e);
+            Assert.Equal(DoctrineIds.None, doctrine.ActiveDoctrineHash);  // cleared
+            Assert.Equal(6u,              doctrine.InstanceId);           // incremented
+            Assert.Equal(0,               doctrine.BrainTier);            // reset to none
+
+            var btState = world.GetComponent<BrainBTreeState>(e);
+            Assert.Equal(0, btState.State.RunningNodeIndex);              // execution pointer reset
+
+            sys.Dispose();
+            world.Dispose();
+        }
+
+        [Fact]
+        public void ClearDoctrineEvent_NoDoctrineState_IsIgnored()
+        {
+            var (world, sys, _) = CreateFixture();
+
+            // Entity without DoctrineState — event must be silently skipped.
+            var e = world.CreateEntity();
+            // Intentionally no DoctrineState component added.
+
+            world.Bus.PublishManaged(new ClearDoctrineEvent { Entity = e });
+            world.Bus.SwapBuffers();
+
+            var exception = Record.Exception(() => sys.Run());
+            Assert.Null(exception);
+
+            sys.Dispose();
+            world.Dispose();
+        }
+
+        [Fact]
+        public void ClearDoctrineEvent_DoesNotAffectOtherEntities()
+        {
+            var (world, sys, _) = CreateFixture();
+
+            var entityA = world.CreateEntity();
+            world.AddComponent(entityA, new DoctrineState { ActiveDoctrineHash = 1001, InstanceId = 1 });
+
+            var entityB = world.CreateEntity();
+            world.AddComponent(entityB, new DoctrineState { ActiveDoctrineHash = 1001, InstanceId = 1 });
+
+            // Only clear entity A.
+            world.Bus.PublishManaged(new ClearDoctrineEvent { Entity = entityA });
+            world.Bus.SwapBuffers();
+            sys.Run();
+
+            var docA = world.GetComponent<DoctrineState>(entityA);
+            var docB = world.GetComponent<DoctrineState>(entityB);
+
+            Assert.Equal(DoctrineIds.None, docA.ActiveDoctrineHash); // cleared
+            Assert.Equal(1001,            docB.ActiveDoctrineHash);  // untouched
+
+            sys.Dispose();
+            world.Dispose();
+        }
+
+        [Fact]
+        public void ClearVsAssign_AreIndependent()
+        {
+            // In the same frame: AssignDoctrineEvent for A and ClearDoctrineEvent for B.
+            // After one Run, A has the assigned doctrine; B has DoctrineIds.None.
+            var (world, sys, registry) = CreateFixture();
+
+            const string doctrineName = "Patrol";
+            const int PatrolId = 5001;
+            registry.Register(PatrolId, doctrineName, new DoctrineDefinition
+            {
+                Name      = doctrineName,
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+
+            var entityA = world.CreateEntity();
+            world.AddComponent(entityA, new DoctrineState { ActiveDoctrineHash = 0, InstanceId = 0 });
+            world.AddComponent(entityA, new BrainBlackboard());
+
+            var entityB = world.CreateEntity();
+            world.AddComponent(entityB, new DoctrineState { ActiveDoctrineHash = PatrolId, InstanceId = 1 });
+
+            world.Bus.PublishManaged(new AssignDoctrineEvent { Entity = entityA, DoctrineName = doctrineName, JsonParams = "" });
+            world.Bus.PublishManaged(new ClearDoctrineEvent  { Entity = entityB });
+            world.Bus.SwapBuffers();
+            sys.Run();
+
+            var docA = world.GetComponent<DoctrineState>(entityA);
+            var docB = world.GetComponent<DoctrineState>(entityB);
+
+            Assert.Equal(PatrolId,        docA.ActiveDoctrineHash); // assigned
+            Assert.Equal(DoctrineIds.None, docB.ActiveDoctrineHash); // cleared
 
             sys.Dispose();
             world.Dispose();

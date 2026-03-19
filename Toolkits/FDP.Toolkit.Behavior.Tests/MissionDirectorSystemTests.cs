@@ -1,7 +1,9 @@
 using System;
 using CarKinem.Core;
 using Fdp.Kernel;
+using Fbt;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Events;
 using FDP.Toolkit.Behavior.Systems;
 using Xunit;
 
@@ -24,6 +26,7 @@ namespace FDP.Toolkit.Behavior.Tests
             _world.RegisterComponent<MissionPlanQueue>();
             _world.RegisterComponent<NavState>();
             _world.RegisterComponent<HealthData>();
+            _world.RegisterComponent<BrainBTreeState>();
 
             _sys = new MissionDirectorSystem();
             _sys.Create(_world);
@@ -315,6 +318,151 @@ namespace FDP.Toolkit.Behavior.Tests
 
             Assert.Equal(0, q.CurrentPhase);
             Assert.Equal(DocA, doctrine.ActiveDoctrineHash);
+        }
+
+        // ── Task-4 Tests: DoctrineFinished Trigger + End-of-Mission Clear ─────────────────
+
+        // Helper: publish DoctrineFinishedEvent and swap so system can consume it.
+        private void PublishDoctrineFinished(Entity entity, NodeStatus result = NodeStatus.Success)
+        {
+            _world.Bus.PublishManaged(new DoctrineFinishedEvent { Entity = entity, Result = result });
+            _world.Bus.SwapBuffers();
+        }
+
+        // Helper: build a single-phase mission with DoctrineFinished trigger.
+        private Entity CreateDoctrineFinishedEntity(int docId)
+        {
+            var entity = _world.CreateEntity();
+            var queue  = new MissionPlanQueue();
+            queue.PhaseCount = 1;
+            queue.Phases[0]  = new MissionPhase
+            {
+                DoctrineId   = docId,
+                Trigger      = MissionTrigger.DoctrineFinished,
+                TriggerParam = 0f,
+            };
+            _world.AddComponent(entity, queue);
+            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = docId, InstanceId = 0 });
+            return entity;
+        }
+
+        [Fact]
+        public void DoctrineFinishedTrigger_AdvancesPhase()
+        {
+            SetDeltaTime(Dt60Hz);
+            const int DocA  = 1100;
+            var entity = CreateDoctrineFinishedEntity(DocA);
+
+            PublishDoctrineFinished(entity);
+            _sys.Run();
+
+            var q = _world.GetComponent<MissionPlanQueue>(entity);
+            Assert.Equal(1, q.CurrentPhase); // advanced past the only phase
+
+            // Plan exhausted → ClearDoctrineEvent must be on write buffer.
+            _world.Bus.SwapBuffers();
+            bool clearPublished = false;
+            foreach (var evt in _world.Bus.ConsumeManaged<ClearDoctrineEvent>())
+                if (evt != null && evt.Entity.Index == entity.Index) clearPublished = true;
+            Assert.True(clearPublished);
+        }
+
+        [Fact]
+        public void DoctrineFinishedTrigger_MultiPhase_SetsNextDoctrine()
+        {
+            SetDeltaTime(Dt60Hz);
+            const int DocA = 1200, DocB = 1201;
+
+            var entity = _world.CreateEntity();
+            var queue  = new MissionPlanQueue();
+            queue.PhaseCount = 2;
+            queue.Phases[0]  = new MissionPhase { DoctrineId = DocA, Trigger = MissionTrigger.DoctrineFinished };
+            queue.Phases[1]  = new MissionPhase { DoctrineId = DocB, Trigger = MissionTrigger.TimerElapsed, TriggerParam = 1000f };
+            _world.AddComponent(entity, queue);
+            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+
+            PublishDoctrineFinished(entity);
+            _sys.Run();
+
+            // Phase advance: still in plan, so no ClearDoctrineEvent.
+            _world.Bus.SwapBuffers();
+            bool clearPublished = false;
+            foreach (var evt in _world.Bus.ConsumeManaged<ClearDoctrineEvent>())
+                if (evt != null && evt.Entity.Index == entity.Index) clearPublished = true;
+            Assert.False(clearPublished);
+
+            var doctrine = _world.GetComponent<DoctrineState>(entity);
+            Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
+        }
+
+        [Fact]
+        public void DoctrineFinishedTrigger_WrongEntity_DoesNotFire()
+        {
+            SetDeltaTime(Dt60Hz);
+            const int DocA = 1300;
+
+            var entityA = CreateDoctrineFinishedEntity(DocA); // phase trigger matches this entity
+            var entityB = _world.CreateEntity(); // unrelated entity (no queue component)
+
+            // Publish event for entityB — should NOT trigger phase advance on entityA.
+            PublishDoctrineFinished(entityB);
+            _sys.Run();
+
+            var q = _world.GetComponent<MissionPlanQueue>(entityA);
+            Assert.Equal(0, q.CurrentPhase); // no advance
+        }
+
+        [Fact]
+        public void MissionComplete_PublishesClearDoctrineEvent()
+        {
+            SetDeltaTime(Dt60Hz);
+            const int DocA = 1400;
+            var entity = CreateDoctrineFinishedEntity(DocA);
+
+            PublishDoctrineFinished(entity);
+            _sys.Run();
+
+            // ClearDoctrineEvent goes to write buffer; swap to read it.
+            _world.Bus.SwapBuffers();
+            bool found = false;
+            foreach (var evt in _world.Bus.ConsumeManaged<ClearDoctrineEvent>())
+                if (evt != null && evt.Entity.Index == entity.Index) found = true;
+
+            Assert.True(found);
+        }
+
+        [Fact]
+        public void MissionComplete_ViaDoctrineIngress_SetsDoctrineToNone()
+        {
+            // Integration: MissionDirectorSystem publishes ClearDoctrineEvent; on the NEXT
+            // frame DoctrineIngressSystem consumes it and sets ActiveDoctrineHash = 0.
+            SetDeltaTime(Dt60Hz);
+            const int DocA = 1500;
+
+            // Build world with BrainBlackboard so DoctrineIngressSystem can process.
+            _world.RegisterComponent<BrainBlackboard>();
+
+            var registry   = new DoctrineRegistry();
+            var ingressSys = new DoctrineIngressSystem(registry);
+            ingressSys.Create(_world);
+
+            var entity = CreateDoctrineFinishedEntity(DocA);
+            _world.AddComponent(entity, new BrainBlackboard());
+
+            // Frame 1: MissionDirector consumes DoctrineFinishedEvent → publishes ClearDoctrineEvent.
+            PublishDoctrineFinished(entity);
+            _sys.Run();
+
+            // Swap: ClearDoctrineEvent now in read buffer for DoctrineIngressSystem.
+            _world.Bus.SwapBuffers();
+
+            // Frame 2: DoctrineIngressSystem consumes ClearDoctrineEvent → sets hash to None.
+            ingressSys.Run();
+
+            var doctrine = _world.GetComponent<DoctrineState>(entity);
+            Assert.Equal(DoctrineIds.None, doctrine.ActiveDoctrineHash);
+
+            ingressSys.Dispose();
         }
     }
 }

@@ -25,7 +25,8 @@ namespace FDP.Toolkit.Behavior.Systems
 
                 if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
                 {
-                    channel = default;
+                    channel.ActiveAction = 0;
+                    unchecked { channel.ActionInstanceId++; }
                 }
             }
 
@@ -42,7 +43,8 @@ namespace FDP.Toolkit.Behavior.Systems
 
                 if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
                 {
-                    channel = default;
+                    channel.ActiveAction = 0;
+                    unchecked { channel.ActionInstanceId++; }
                 }
             }
 
@@ -59,7 +61,8 @@ namespace FDP.Toolkit.Behavior.Systems
 
                 if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.InstanceId)
                 {
-                    channel = default;
+                    channel.ActiveAction = 0;
+                    unchecked { channel.ActionInstanceId++; }
                 }
             }
         }

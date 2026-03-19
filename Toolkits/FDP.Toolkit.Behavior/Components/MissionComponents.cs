@@ -17,6 +17,9 @@ namespace FDP.Toolkit.Behavior.Components
         UnderAttack        = 2,
         /// <summary>Advances when <c>Health.Current / Health.Max</c> &lt;= <see cref="MissionPhase.TriggerParam"/>.</summary>
         HealthCritical     = 3,
+        /// <summary>Advances when a <see cref="Events.DoctrineFinishedEvent"/> is received for this entity,
+        /// indicating the doctrine's BTree root evaluated to Success or Failure.</summary>
+        DoctrineFinished   = 4,
     }
 
     /// <summary>

@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using CarKinem.Core;
 using Fdp.Kernel;
+using Fbt;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Events;
 using FDP.Toolkit.Perception.Components;
 
 namespace FDP.Toolkit.Behavior.Systems
@@ -31,6 +34,9 @@ namespace FDP.Toolkit.Behavior.Systems
     ///         <c>DamageSystem</c>) is &lt;= <c>TriggerParam</c>.  The entity must have
     ///         a <c>HealthData</c> component; if absent the trigger never fires.
     ///         <b>DEBT-033 resolved.</b></item>
+    ///   <item><see cref="MissionTrigger.DoctrineFinished"/> — fires when a
+    ///         <see cref="DoctrineFinishedEvent"/> is received for this entity, indicating
+    ///         the doctrine's BTree root evaluated to terminal (Success or Failure).</item>
     /// </list>
     /// </para>
     /// </summary>
@@ -38,9 +44,26 @@ namespace FDP.Toolkit.Behavior.Systems
     [UpdateBefore(typeof(ChannelArbitrationSystem))]
     public class MissionDirectorSystem : ComponentSystem
     {
+        /// <summary>
+        /// Entities for which a <see cref="DoctrineFinishedEvent"/> arrived this frame,
+        /// built once per <see cref="OnUpdate"/> call to allow O(1) per-entity lookup.
+        /// </summary>
+        private readonly HashSet<int> _doctrineFinishedThisFrame = new();
+
         protected override unsafe void OnUpdate()
         {
             float dt = DeltaTime;
+
+            // ── Build DoctrineFinished lookup for this frame ───────────────────────────
+            // Consume all DoctrineFinishedEvents once, cache the entity indices, then
+            // look them up in O(1) during the entity query loop below.
+            _doctrineFinishedThisFrame.Clear();
+            var doctrineFinishedEvents = World.Bus.ConsumeManaged<DoctrineFinishedEvent>();
+            foreach (var finishedEvt in doctrineFinishedEvents)
+            {
+                if (finishedEvt != null)
+                    _doctrineFinishedThisFrame.Add(finishedEvt.Entity.Index);
+            }
 
             var query = World.Query()
                 .With<MissionPlanQueue>()
@@ -115,6 +138,14 @@ namespace FDP.Toolkit.Behavior.Systems
                                 triggered = true;
                         }
                         break;
+
+                    case MissionTrigger.DoctrineFinished:
+                        // DoctrineFinishedEvent is consumed once per frame into
+                        // _doctrineFinishedThisFrame (built at the top of OnUpdate),
+                        // so this lookup is O(1).
+                        if (_doctrineFinishedThisFrame.Contains(entity.Index))
+                            triggered = true;
+                        break;
                 }
 
                 if (triggered)
@@ -128,6 +159,13 @@ namespace FDP.Toolkit.Behavior.Systems
                         // Use the NEW phase index — `phase` still refers to the old slot.
                         unchecked { doctrine.InstanceId++; }
                         doctrine.ActiveDoctrineHash = phases[queue.CurrentPhase].DoctrineId;
+                    }
+                    else
+                    {
+                        // Plan exhausted — delegate doctrine teardown via the event bus
+                        // so DoctrineIngressSystem (the sole owner of DoctrineState writes)
+                        // performs the brain-death reset. Do NOT mutate DoctrineState here.
+                        World.Bus.PublishManaged(new ClearDoctrineEvent { Entity = entity });
                     }
                 }
             }
