@@ -9,6 +9,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Events;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using Xunit;
@@ -21,6 +22,8 @@ namespace Bagira.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<MissionPlanQueue>();
+            repo.RegisterComponent<DoctrineState>();
+            repo.RegisterComponent<BrainBTreeState>();
             repo.RegisterManagedComponent<Bagira.SimHost.Components.EntityMissionHolder>();
             repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
             return repo;
@@ -271,6 +274,150 @@ namespace Bagira.SimHost.Tests
             }
 
             return false;
+        }
+
+        // ── Task-5 Tests: CMD_ABORT_ALL Doctrine Clear ────────────────────────────
+
+        [Fact]
+        public void AbortAll_PublishesClearDoctrineEvent()
+        {
+            const uint domainId = 160u;
+            using var participant = new DdsParticipant(domainId);
+            using var writer = new DdsWriter<MissionControlRequest>(participant);
+
+            var entityMap = new NetworkEntityMap();
+            using var repo = CreateWorld();
+            var entity = repo.CreateEntity();
+            entityMap.Register(2, entity);
+
+            // Give entity a non-empty plan and a DoctrineState.
+            repo.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = 2001, InstanceId = 3 });
+
+            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            system.Create(repo);
+
+            // First assign a mission so PhaseCount > 0.
+            var taskA = Guid.NewGuid();
+            writer.Write(new MissionControlRequest
+            {
+                RequestId      = Guid.NewGuid(),
+                TargetEntityId = 2,
+                BaseVersion    = 0,
+                Payload = new MissionCommandUnion
+                {
+                    _d              = eMissionCommandType.CMD_REPLACE_MISSION,
+                    FullMissionData = MakePlan(taskA)
+                }
+            });
+            Thread.Sleep(200);
+            system.Run();
+            Thread.Sleep(200);
+
+            // Now abort.
+            writer.Write(new MissionControlRequest
+            {
+                RequestId      = Guid.NewGuid(),
+                TargetEntityId = 2,
+                BaseVersion    = 0,
+                Payload = new MissionCommandUnion
+                {
+                    _d                = eMissionCommandType.CMD_ABORT_ALL,
+                    UnusedPlaceholder = true
+                }
+            });
+            Thread.Sleep(200);
+            system.Run();
+            Thread.Sleep(200);
+
+            // ClearDoctrineEvent should be in the write buffer after ProcessRequest.
+            repo.Bus.SwapBuffers();
+            bool found = false;
+            foreach (var evt in repo.Bus.ConsumeManaged<ClearDoctrineEvent>())
+                if (evt != null && evt.Entity.Index == entity.Index) found = true;
+
+            Assert.True(found);
+            Assert.Equal(0, repo.GetComponent<MissionPlanQueue>(entity).PhaseCount);
+        }
+
+        [Fact]
+        public void AbortAll_NoDoctrineState_DoesNotThrow()
+        {
+            // Entity without DoctrineState — ClearDoctrineEvent still published;
+            // DoctrineIngressSystem provides the guard against missing components.
+            const uint domainId = 161u;
+            using var participant = new DdsParticipant(domainId);
+            using var writer = new DdsWriter<MissionControlRequest>(participant);
+
+            var entityMap = new NetworkEntityMap();
+            using var repo = CreateWorld();
+            var entity = repo.CreateEntity();
+            entityMap.Register(3, entity);
+            // No DoctrineState added.
+
+            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            system.Create(repo);
+
+            writer.Write(new MissionControlRequest
+            {
+                RequestId      = Guid.NewGuid(),
+                TargetEntityId = 3,
+                BaseVersion    = 0,
+                Payload = new MissionCommandUnion
+                {
+                    _d                = eMissionCommandType.CMD_ABORT_ALL,
+                    UnusedPlaceholder = true
+                }
+            });
+            Thread.Sleep(200);
+
+            var exception = Record.Exception(() => system.Run());
+            Assert.Null(exception);
+
+            Thread.Sleep(200);
+            Assert.Equal(0, repo.GetComponent<MissionPlanQueue>(entity).PhaseCount);
+
+            // Guard: ClearDoctrineEvent still published even without DoctrineState component.
+            repo.Bus.SwapBuffers();
+            bool found = false;
+            foreach (var evt in repo.Bus.ConsumeManaged<ClearDoctrineEvent>())
+                if (evt != null && evt.Entity.Index == entity.Index) found = true;
+            Assert.True(found);
+        }
+
+        [Fact]
+        public void AbortAll_WritesSuccessAck()
+        {
+            const uint domainId = 162u;
+            using var participant = new DdsParticipant(domainId);
+            using var writer = new DdsWriter<MissionControlRequest>(participant);
+            using var reader = new DdsReader<MissionControlAck>(participant);
+
+            var entityMap = new NetworkEntityMap();
+            using var repo = CreateWorld();
+            var entity = repo.CreateEntity();
+            entityMap.Register(4, entity);
+
+            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            system.Create(repo);
+
+            var requestId = Guid.NewGuid();
+            writer.Write(new MissionControlRequest
+            {
+                RequestId      = requestId,
+                TargetEntityId = 4,
+                BaseVersion    = 0,
+                Payload = new MissionCommandUnion
+                {
+                    _d                = eMissionCommandType.CMD_ABORT_ALL,
+                    UnusedPlaceholder = true
+                }
+            });
+            Thread.Sleep(200);
+            system.Run();
+            Thread.Sleep(200);
+
+            using var loan = reader.Take();
+            Assert.True(LoanHasAck(loan, requestId, errorCode: 0)); // SstErrorCode.Success == 0
         }
     }
 }

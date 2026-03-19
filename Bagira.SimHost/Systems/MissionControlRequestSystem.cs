@@ -7,6 +7,7 @@ using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Behavior.Events;
 using ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Replication.Services;
 using DdsMissionTrigger = Bagira.BDC.SSTD.MissionTrigger;
@@ -189,6 +190,12 @@ namespace Bagira.SimHost.Systems
                     repo.RemoveComponent<Bagira.SimHost.Components.EntityMissionHolder>(entity);
 
                     _taskOrder[request.TargetEntityId] = new List<Guid>();
+
+                    // Publish ClearDoctrineEvent so DoctrineIngressSystem resets the entity's
+                    // active doctrine to DoctrineIds.None (brain-death). This is a top-down
+                    // forced abort — distinct from DoctrineFinishedEvent (natural completion).
+                    // DoctrineIngressSystem guards against missing DoctrineState components.
+                    World.Bus.PublishManaged(new ClearDoctrineEvent { Entity = entity });
 
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;
