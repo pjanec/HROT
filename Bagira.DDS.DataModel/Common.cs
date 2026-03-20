@@ -17,6 +17,7 @@ namespace Bagira.DDS.DM
     // position in geographical coordinates
     [DdsStruct]
     [DdsIdlFile("bdc-sst-common")]
+    [DdsTypeFormat("[Lat:{Latitude:0.000000:Number}, Lon:{Longitude:0.000000:Number}, Alt:{Altitude:0.000000:Number}]")]
     public partial struct GeoPosition
     {
         // latitude in degrees
@@ -33,6 +34,7 @@ namespace Bagira.DDS.DM
     // position in geographical coordinates
     [DdsStruct]
     [DdsIdlFile("bdc-sst-common")]
+    [DdsTypeFormat("[Heading:{Heading:0.0:Number}, Pitch:{Pitch:0.0:Number}, Roll:{Roll:0.0:Number}]")]
     public partial struct OrientationHPR
     {
         // angles in degrees
@@ -44,6 +46,7 @@ namespace Bagira.DDS.DM
     // "Direction Angles and Length" 3d vector defined by 2 directional angles and a length
     [DdsStruct]
     [DdsIdlFile("bdc-sst-common")]
+    [DdsTypeFormat("[Azimuth:{Azimuth:0.0:Number}, Elevation:{Elevation:0.0:Number}, Length:{Length:0.00:Number}]")]
     public partial struct DAL3
     {
         // angles in degrees

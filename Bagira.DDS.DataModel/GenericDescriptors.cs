@@ -30,7 +30,8 @@ namespace Bagira.BDC.SSTD
     /// <c>Fdp.Kernel.DISEntityType</c> struct or any entity-query filter logic.
     /// </summary>
     [DdsStruct]
-    public partial struct DisTypeStruct
+    [DdsTypeFormat("[{Kind:0:Number}:{Domain:0:Number}:{Country:0:Number}:{Category:0:Number}:{Subcategory:0:Number}:{Specific:0:Number}:{Extra:0:Number}]")]
+	public partial struct DisTypeStruct
     {
         /// <summary>DIS Kind (byte). 1 = Platform, 2 = Munition, etc.</summary>
         public byte Kind;

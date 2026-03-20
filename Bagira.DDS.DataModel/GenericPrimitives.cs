@@ -13,6 +13,7 @@ namespace Bagira.BDC.SSTM
     /// <summary>3-component single-precision vector (x, y, z). Value type — zero allocation.</summary>
     [DdsStruct]
     [DdsIdlFile("bdc-sst-generic-msgs")]
+    [DdsTypeFormat("[{X:0.000:Number}, {Y:0.000:Number}, {Z:0.000:Number}]")]
     public partial struct Vec3f
     {
         /// <summary>X component.</summary>
@@ -26,7 +27,8 @@ namespace Bagira.BDC.SSTM
     /// <summary>3-component double-precision vector (x, y, z). Value type — zero allocation.</summary>
     [DdsStruct]
     [DdsIdlFile("bdc-sst-generic-msgs")]
-    public partial struct Vec3d
+    [DdsTypeFormat("[{X:0.000:Number}, {Y:0.000:Number}, {Z:0.000:Number}]")]
+	public partial struct Vec3d
     {
         /// <summary>X component.</summary>
         public double X;
@@ -39,6 +41,7 @@ namespace Bagira.BDC.SSTM
     /// <summary>4-component single-precision vector (x, y, z, w). Value type — zero allocation.</summary>
     [DdsStruct]
     [DdsIdlFile("bdc-sst-generic-msgs")]
+    [DdsTypeFormat("[{X:0.000:Number}, {Y:0.000:Number}, {Z:0.000:Number}, {W:0.000:Number}]")]
     public partial struct Vec4f
     {
         /// <summary>X component.</summary>
