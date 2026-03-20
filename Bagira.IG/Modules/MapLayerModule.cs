@@ -11,7 +11,7 @@ namespace Bagira.IG.Modules;
 /// bitmask using the <see cref="MapLayerRegistry.All"/> predicate registry, enabling
 /// the rendering hot-path to perform O(1) bitwise layer filtering.</para>
 /// </summary>
-public class MapLayerModule : IModule
+public class MapLayerModule : IEcsModule
 {
     /// <inheritdoc/>
     public string Name => "MapLayerAssignment";

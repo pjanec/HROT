@@ -37,7 +37,7 @@ namespace Bagira.IG.Systems;
 /// </list>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
-public class MapCullingSystem : IModuleSystem
+public class MapCullingSystem : IEcsModuleSystem
 {
     private readonly MapCameraViewport _viewport;
 

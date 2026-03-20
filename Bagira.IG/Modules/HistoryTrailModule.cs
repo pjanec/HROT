@@ -10,7 +10,7 @@ namespace Bagira.IG.Modules;
 /// Follows the same thin-wrapper pattern as <see cref="StyleResolutionModule"/>
 /// so that tests can construct the system directly without a kernel.
 /// </summary>
-public class HistoryTrailModule : IModule
+public class HistoryTrailModule : IEcsModule
 {
     public string          Name   => "HistoryTrail";
     public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

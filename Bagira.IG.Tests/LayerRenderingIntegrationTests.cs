@@ -69,7 +69,7 @@ public class LayerRenderingIntegrationTests
     /// Runs a single system and immediately plays back its command buffer so that
     /// written components are visible in subsequent queries.
     /// </summary>
-    private static void RunSystem(EntityRepository repo, IModuleSystem system)
+    private static void RunSystem(EntityRepository repo, IEcsModuleSystem system)
     {
         system.Execute(repo, 0f);
         var cb = (EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();

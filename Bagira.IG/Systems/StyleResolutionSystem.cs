@@ -40,7 +40,7 @@ namespace Bagira.IG.Systems;
 /// so that freshly-received <see cref="IgSymbolOverride"/> data is visible in the view.
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
-public class StyleResolutionSystem : IModuleSystem
+public class StyleResolutionSystem : IEcsModuleSystem
 {
     private readonly MapUserConfig _userConfig;
 

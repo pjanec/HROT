@@ -45,15 +45,15 @@ public class TransformSyncSystemRegistrationTests
 
     /// <summary>
     /// SC1 (TASK-IF005): <see cref="TransformSyncSystem"/> must be constructable with
-    /// <c>driveFromNetwork: true</c> and must implement <see cref="IModuleSystem"/>
+    /// <c>driveFromNetwork: true</c> and must implement <see cref="IEcsModuleSystem"/>
     /// so it can be passed to <c>ModuleHostKernel.RegisterGlobalSystem</c>.
     /// </summary>
     [Fact]
-    public void TransformSyncSystem_DriveFromNetwork_ImplementsIModuleSystem()
+    public void TransformSyncSystem_DriveFromNetwork_ImplementsIEcsModuleSystem()
     {
         var system = new TransformSyncSystem(driveFromNetwork: true);
 
-        Assert.IsAssignableFrom<IModuleSystem>(system);
+        Assert.IsAssignableFrom<IEcsModuleSystem>(system);
     }
 
     // ── SC2: Behavioral interpolation for remote entities ─────────────────────

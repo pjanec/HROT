@@ -59,7 +59,7 @@ namespace Bagira.SimHost.Modules
     /// publishing GeoSpatial/GeoSpatialDR DDS topics by converting ECS SimTransform/SimVelocity
     /// to geodetic coordinates on-the-fly via IGeographicTransform.
     /// </summary>
-    public class SimHostModule : IModule
+    public class SimHostModule : IEcsModule
     {
         public string         Name   => "SimHost";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

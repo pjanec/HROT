@@ -37,7 +37,7 @@ namespace Bagira.SimHost.Systems
     /// all ECS spawning is delegated to NetworkSpawningSystem via the event bus.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    public class CreateEntityRequestSystem : IModuleSystem
+    public class CreateEntityRequestSystem : IEcsModuleSystem
     {
         /// <summary>Maximum <see cref="SpawnEntityCommand"/> events published per tick.</summary>
         public const int MaxRequestsPerTick = 500;

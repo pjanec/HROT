@@ -21,10 +21,10 @@ public sealed class IgGroundClampingModuleTests
 
     private sealed class CapturingRegistry : ISystemRegistry
     {
-        private readonly List<IModuleSystem> _systems = new();
-        public IReadOnlyList<IModuleSystem> RegisteredSystems => _systems;
+        private readonly List<IEcsModuleSystem> _systems = new();
+        public IReadOnlyList<IEcsModuleSystem> RegisteredSystems => _systems;
 
-        public void RegisterSystem<T>(T system) where T : IModuleSystem => _systems.Add(system);
+        public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => _systems.Add(system);
     }
 
     // ── Stub ITerrainProvider ─────────────────────────────────────────────────

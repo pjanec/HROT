@@ -40,7 +40,7 @@ namespace Bagira.SimHost.Modules
 
             // ── Simulation phase ──────────────────────────────────────────────
             simGroup.AddSystem(new PerceptionBroadphaseSystem());
-            // LosRequestBatchingSystem removed: it is now IModuleSystem-only and
+            // LosRequestBatchingSystem removed: it is now IEcsModuleSystem-only and
             // runs exclusively inside AutonomousPerceptionModule on the background thread.
             simGroup.AddSystem(new ThreatEvaluationAdapterSystem());
             simGroup.AddSystem(new DamageSystem());

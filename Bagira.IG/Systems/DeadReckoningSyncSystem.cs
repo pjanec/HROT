@@ -10,7 +10,7 @@ namespace Bagira.IG.Systems;
 /// transform toward the projected target for ghost entities.
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
-public class DeadReckoningSyncSystem : IModuleSystem
+public class DeadReckoningSyncSystem : IEcsModuleSystem
 {
     private const float SmoothingRate = 10.0f;
 

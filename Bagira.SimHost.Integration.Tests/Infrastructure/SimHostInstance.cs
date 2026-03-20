@@ -100,15 +100,15 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
     // ── Simple ISystemRegistry adapter around SystemList ─────────────────────────
 
     /// <summary>
-    /// Collects <see cref="IModuleSystem"/> instances registered via
-    /// <see cref="IModule.RegisterSystems"/> for manual per-frame execution.
+    /// Collects <see cref="IEcsModuleSystem"/> instances registered via
+    /// <see cref="IEcsModule.RegisterSystems"/> for manual per-frame execution.
     /// </summary>
     internal sealed class SystemList : ISystemRegistry
     {
-        private readonly List<IModuleSystem> _systems = new();
-        public IReadOnlyList<IModuleSystem> Systems => _systems;
+        private readonly List<IEcsModuleSystem> _systems = new();
+        public IReadOnlyList<IEcsModuleSystem> Systems => _systems;
 
-        public void RegisterSystem<T>(T system) where T : IModuleSystem
+        public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
             => _systems.Add(system);
 
         public void ExecuteAll(ISimulationView view, float dt)
@@ -166,7 +166,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         public readonly StubAckSink       AckSink       = new();
         public readonly StubIdAllocator   IdAllocator   = new(startId: 1000);
 
-        // ── Systems: IModuleSystem-based (executed manually each tick) ────────────
+        // ── Systems: IEcsModuleSystem-based (executed manually each tick) ────────────
         private readonly CreateEntityRequestSystem _requestSystem;
         private readonly NetworkSpawningSystem     _spawnSystem;
         private readonly SystemList                _elmSystems  = new();

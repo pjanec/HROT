@@ -30,7 +30,7 @@ namespace Bagira.IG.Systems;
 /// (§CODE-STANDARDS §1).
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
-public class HistoryRecordingSystem : IModuleSystem
+public class HistoryRecordingSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)

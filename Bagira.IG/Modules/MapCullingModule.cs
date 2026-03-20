@@ -10,7 +10,7 @@ namespace Bagira.IG.Modules;
 ///
 /// Follows the same system-based pattern as <see cref="SpawningModule"/>.
 /// </summary>
-public class MapCullingModule : IModule
+public class MapCullingModule : IEcsModule
 {
     public string          Name   => "MapCulling";
     public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

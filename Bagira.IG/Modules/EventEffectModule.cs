@@ -20,7 +20,7 @@ namespace Bagira.IG.Modules;
 ///   </item>
 /// </list>
 /// </summary>
-public class EventEffectModule : IModule
+public class EventEffectModule : IEcsModule
 {
     public string          Name   => "EventEffect";
     public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

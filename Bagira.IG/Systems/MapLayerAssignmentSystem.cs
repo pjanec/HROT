@@ -21,7 +21,7 @@ namespace Bagira.IG.Systems;
 /// <c>IReadOnlyList</c>.</para>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
-public class MapLayerAssignmentSystem : IModuleSystem
+public class MapLayerAssignmentSystem : IEcsModuleSystem
 {
     // ── Configuration ─────────────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ public class MapLayerAssignmentSystem : IModuleSystem
     public MapLayerAssignmentSystem(IReadOnlyList<MapLayerDefinition>? layers = null)
         => _layers = layers ?? MapLayerRegistry.All;
 
-    // ── IModuleSystem ─────────────────────────────────────────────────────────
+    // ── IEcsModuleSystem ─────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)

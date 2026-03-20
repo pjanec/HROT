@@ -25,7 +25,7 @@ namespace Bagira.IG.Modules
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class IgGroundClampingModule : IModule
+    public sealed class IgGroundClampingModule : IEcsModule
     {
         private readonly ITerrainProvider _terrainProvider;
 

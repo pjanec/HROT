@@ -30,7 +30,7 @@ namespace Bagira.IG.Systems;
 /// (§CODE-STANDARDS §1).
 /// </summary>
 [UpdateInPhase(SystemPhase.Simulation)]
-public class EventToEffectSystem : IModuleSystem
+public class EventToEffectSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)
@@ -116,7 +116,7 @@ public class EventToEffectSystem : IModuleSystem
 /// Zero allocations in <see cref="Execute"/> (§CODE-STANDARDS §4).
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
-public class VisualEffectCleanupSystem : IModuleSystem
+public class VisualEffectCleanupSystem : IEcsModuleSystem
 {
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)

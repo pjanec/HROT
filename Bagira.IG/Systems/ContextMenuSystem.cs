@@ -35,7 +35,7 @@ namespace Bagira.IG.Systems;
 /// </list>
 /// </summary>
 [UpdateInPhase(SystemPhase.PostSimulation)]
-public class ContextMenuSystem : IModuleSystem
+public class ContextMenuSystem : IEcsModuleSystem
 {
     // ── Internal pending-request state ────────────────────────────────────────
     // Queued by input code (or test hooks) before Execute runs.
@@ -62,7 +62,7 @@ public class ContextMenuSystem : IModuleSystem
     /// </summary>
     public int OpenSequence { get; private set; }
 
-    // ── IModuleSystem ──────────────────────────────────────────────────────────
+    // ── IEcsModuleSystem ──────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
     public void Execute(ISimulationView view, float deltaTime)

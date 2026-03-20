@@ -85,7 +85,7 @@ public class AdvancedFeaturesIntegrationTests
         return repo;
     }
 
-    private static void RunSystem(EntityRepository repo, IModuleSystem system, float dt = 0f)
+    private static void RunSystem(EntityRepository repo, IEcsModuleSystem system, float dt = 0f)
     {
         repo.Bus.SwapBuffers();
         system.Execute(repo, dt);
