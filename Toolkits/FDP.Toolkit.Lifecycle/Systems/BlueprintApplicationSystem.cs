@@ -7,7 +7,7 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Lifecycle.Systems
 {
     [UpdateInPhase(SystemPhase.BeforeSync)]
-    public class BlueprintApplicationSystem : IModuleSystem
+    public class BlueprintApplicationSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkb;
 

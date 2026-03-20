@@ -4,7 +4,7 @@ using Fdp.Kernel;
 
 namespace Fdp.Examples.NetworkDemo.Modules
 {
-    public class GameLogicModule : IModule
+    public class GameLogicModule : IEcsModule
     {
         public string Name => "GameLogic";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

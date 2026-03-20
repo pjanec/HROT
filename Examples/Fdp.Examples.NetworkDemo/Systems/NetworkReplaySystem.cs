@@ -12,7 +12,7 @@ using ModuleHost.Network.Cyclone.Abstractions;
 
 namespace Fdp.Examples.NetworkDemo.Systems
 {
-    public class NetworkReplaySystem : IModuleSystem
+    public class NetworkReplaySystem : IEcsModuleSystem
     {
         private readonly Dictionary<long, INetworkReplayTarget> _replayTargets;
         private readonly HashSet<long> _nonReplayOrdinals;
@@ -103,6 +103,6 @@ namespace Fdp.Examples.NetworkDemo.Systems
             }
         }
         
-        // Should implement IDisposable to close stream, but IModuleSystem doesn't enforce it.
+        // Should implement IDisposable to close stream, but IEcsModuleSystem doesn't enforce it.
     }
 }

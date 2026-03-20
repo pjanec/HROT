@@ -7,14 +7,14 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Navigation.Modules
 {
     /// <summary>
-    /// Wraps <see cref="PathfindingSolverSystem"/> into a self-contained <see cref="IModule"/>
+    /// Wraps <see cref="PathfindingSolverSystem"/> into a self-contained <see cref="IEcsModule"/>
     /// that can be installed on dedicated NavigationSolver nodes.
     ///
     /// <para><b>Execution model:</b> <see cref="ExecutionPolicy.Synchronous"/> — the solver
     /// runs on the main simulation thread after the Brain tier has submitted
     /// <see cref="PathRequest"/>s into <see cref="PathfindingBatchData"/>.</para>
     /// </summary>
-    public sealed class NavigationSolverModule : IModule
+    public sealed class NavigationSolverModule : IEcsModule
     {
         /// <inheritdoc/>
         public string Name => "NavigationSolver";

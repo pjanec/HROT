@@ -19,7 +19,7 @@ namespace ModuleHost.Core.Tests
         [ComponentId(236)]
         struct TestComponent3 { public byte Flag; }
         
-        class ModuleWithDeps : IModule
+        class ModuleWithDeps : IEcsModule
         {
             public string Name => "ModuleWithDeps";
             public ExecutionPolicy Policy => ExecutionPolicy.FastReplica();
@@ -33,7 +33,7 @@ namespace ModuleHost.Core.Tests
             public void Tick(ISimulationView view, float deltaTime) { }
         }
         
-        class ModuleWithNoDeps : IModule
+        class ModuleWithNoDeps : IEcsModule
         {
             public string Name => "ModuleWithNoDeps";
             public ExecutionPolicy Policy => ExecutionPolicy.FastReplica();
@@ -43,7 +43,7 @@ namespace ModuleHost.Core.Tests
             public void Tick(ISimulationView view, float deltaTime) { }
         }
         
-        class ModuleRequiringC2C3 : IModule
+        class ModuleRequiringC2C3 : IEcsModule
         {
             public string Name => "ModuleRequiringC2C3";
             public ExecutionPolicy Policy => ExecutionPolicy.FastReplica();
@@ -148,7 +148,7 @@ namespace ModuleHost.Core.Tests
         }
         
         // Reflected access to internal module entry
-        private BitMask256 GetModuleMask(ModuleHostKernel kernel, IModule module)
+        private BitMask256 GetModuleMask(ModuleHostKernel kernel, IEcsModule module)
         {
             // _modules is private List<ModuleEntry>
             var field = typeof(ModuleHostKernel)
@@ -163,7 +163,7 @@ namespace ModuleHost.Core.Tests
             {
                 var entryType = entryObj.GetType();
                 var modProp = entryType.GetProperty("Module");
-                var m = (IModule)modProp.GetValue(entryObj);
+                var m = (IEcsModule)modProp.GetValue(entryObj);
                 
                 if (m == module)
                 {
@@ -174,7 +174,7 @@ namespace ModuleHost.Core.Tests
             throw new Exception("Module not found");
         }
         
-        private ISnapshotProvider GetModuleProvider(ModuleHostKernel kernel, IModule module)
+        private ISnapshotProvider GetModuleProvider(ModuleHostKernel kernel, IEcsModule module)
         {
             var field = typeof(ModuleHostKernel)
                 .GetField("_modules", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -186,7 +186,7 @@ namespace ModuleHost.Core.Tests
             {
                 var entryType = entryObj.GetType();
                 var modProp = entryType.GetProperty("Module");
-                var m = (IModule)modProp.GetValue(entryObj);
+                var m = (IEcsModule)modProp.GetValue(entryObj);
                 
                 if (m == module)
                 {

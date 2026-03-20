@@ -5,7 +5,7 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class SubEntityCleanupSystem : IModuleSystem
+    public class SubEntityCleanupSystem : IEcsModuleSystem
     {
         private EntityQuery? _partQuery;
 

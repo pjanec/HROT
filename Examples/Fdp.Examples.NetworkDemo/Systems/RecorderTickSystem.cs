@@ -6,7 +6,7 @@ using ModuleHost.Core.Abstractions;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class RecorderTickSystem : IModuleSystem
+    public class RecorderTickSystem : IEcsModuleSystem
     {
         private readonly AsyncRecorder _recorder;
         private readonly EntityRepository _repo;

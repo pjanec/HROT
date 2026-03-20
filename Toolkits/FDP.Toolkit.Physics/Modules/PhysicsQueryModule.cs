@@ -13,12 +13,12 @@ namespace FDP.Toolkit.Physics.Modules
     /// run on the main simulation thread in the <c>InputSystemGroup</c>.</para>
     ///
     /// <para><b>Registration:</b> Because both systems extend <see cref="ComponentSystem"/>
-    /// (not <see cref="IModuleSystem"/>), they must be registered into a <see cref="SystemGroup"/>
-    /// via <see cref="RegisterSystems(SystemGroup)"/>.  The <see cref="IModule"/> overload
+    /// (not <see cref="IEcsModuleSystem"/>), they must be registered into a <see cref="SystemGroup"/>
+    /// via <see cref="RegisterSystems(SystemGroup)"/>.  The <see cref="IEcsModule"/> overload
     /// <see cref="RegisterSystems(ISystemRegistry)"/> is a no-op and is provided only for
     /// API compliance.</para>
     /// </summary>
-    public sealed class PhysicsQueryModule : IModule
+    public sealed class PhysicsQueryModule : IEcsModule
     {
         /// <inheritdoc/>
         public string Name => "PhysicsQuery";

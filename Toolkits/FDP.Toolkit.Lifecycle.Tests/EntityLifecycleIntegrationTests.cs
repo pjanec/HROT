@@ -38,7 +38,7 @@ namespace FDP.Toolkit.Lifecycle.Tests
             public void SeedState(GlobalTime state) { }
         }
 
-        private class MockModule : IModule
+        private class MockModule : IEcsModule
         {
             public int Id { get; set; }
             public string Name => $"Mock{Id}";
@@ -55,7 +55,7 @@ namespace FDP.Toolkit.Lifecycle.Tests
             public void Tick(ISimulationView view, float deltaTime) { }
             
             [UpdateInPhase(SystemPhase.Input)]
-            private class MockSystem : IModuleSystem
+            private class MockSystem : IEcsModuleSystem
             {
                 private MockModule _module;
                 public MockSystem(MockModule module) { _module = module; }

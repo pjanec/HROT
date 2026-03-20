@@ -10,7 +10,7 @@ namespace Fdp.Examples.NetworkDemo.Modules
     [ExecutionPolicy(ExecutionMode.Synchronous)]
     [UpdateInPhase(SystemPhase.PostSimulation)]
     [WatchEvents(typeof(DetonationEvent))]
-    public class DamageControlModule : IModuleSystem
+    public class DamageControlModule : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float dt)
         {

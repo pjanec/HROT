@@ -11,7 +11,7 @@ namespace FDP.Toolkit.Lifecycle.Systems
     /// Ensures initialization data doesn't linger.
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
-    public class LifecycleCleanupSystem : IModuleSystem
+    public class LifecycleCleanupSystem : IEcsModuleSystem
     {
         private List<int> _transientTypes = default!;
         private readonly MethodInfo _removeUnmanagedMethod;

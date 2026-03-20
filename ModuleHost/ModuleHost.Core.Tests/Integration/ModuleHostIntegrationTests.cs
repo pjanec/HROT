@@ -48,7 +48,7 @@ namespace ModuleHost.Core.Tests.Integration
             Assert.Equal(10, testModule.LastSeenX);
         }
 
-        private class TestModule : IModule
+        private class TestModule : IEcsModule
         {
             public string Name => "Test";
             public ModuleTier Tier => ModuleTier.Fast;

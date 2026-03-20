@@ -19,7 +19,7 @@ namespace FDP.Toolkit.Replay
     /// <c>if (isRecording)</c> guards on the hot path.
     /// </para>
     /// </summary>
-    public sealed class RecordingModule : IModule, IDisposable
+    public sealed class RecordingModule : IEcsModule, IDisposable
     {
         private readonly RecordingConfiguration _config;
         private AsyncRecorder? _recorder;

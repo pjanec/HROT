@@ -14,7 +14,7 @@ namespace FDP.Toolkit.Lifecycle
     /// Ensures entities are fully initialized before becoming Active,
     /// and properly cleaned up before destruction.
     /// </summary>
-    public class EntityLifecycleModule : IModule
+    public class EntityLifecycleModule : IEcsModule
     {
         public string Name => "EntityLifecycleManager";
         

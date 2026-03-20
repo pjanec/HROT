@@ -20,7 +20,7 @@ namespace Fdp.Modules.Geographic.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
-    public class TerrainQuerySolverSystem : IModuleSystem
+    public class TerrainQuerySolverSystem : IEcsModuleSystem
     {
         private readonly ITerrainProvider _terrainProvider;
 

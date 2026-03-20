@@ -7,7 +7,7 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
-    public class SmartEgressSystem : IModuleSystem
+    public class SmartEgressSystem : IEcsModuleSystem
     {
         private const uint REFRESH_INTERVAL = 600;  // Refresh every 10 seconds at 60Hz
 

@@ -25,7 +25,7 @@ namespace Fdp.Modules.Geographic.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class TerrainQueryResolutionSystem : IModuleSystem
+    public class TerrainQueryResolutionSystem : IEcsModuleSystem
     {
         /// <summary>Maximum Z-delta (metres) that is accepted as a valid terrain hit.</summary>
         public const float JumpRejectionThresholdMeters = 5f;

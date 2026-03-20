@@ -146,8 +146,8 @@ namespace FDP.Toolkit.Replay.Tests
 
         private sealed class CapturingSystemRegistry : ISystemRegistry
         {
-            public System.Collections.Generic.List<IModuleSystem> Systems { get; } = new();
-            public void RegisterSystem<T>(T system) where T : IModuleSystem => Systems.Add(system);
+            public System.Collections.Generic.List<IEcsModuleSystem> Systems { get; } = new();
+            public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => Systems.Add(system);
         }
     }
 }

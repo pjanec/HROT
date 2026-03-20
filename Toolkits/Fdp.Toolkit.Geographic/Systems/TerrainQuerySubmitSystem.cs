@@ -30,7 +30,7 @@ namespace Fdp.Modules.Geographic.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    public class TerrainQuerySubmitSystem : IModuleSystem
+    public class TerrainQuerySubmitSystem : IEcsModuleSystem
     {
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)

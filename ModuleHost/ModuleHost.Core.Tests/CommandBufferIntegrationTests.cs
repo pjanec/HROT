@@ -13,7 +13,7 @@ namespace ModuleHost.Core.Tests
         [ComponentId(214)]
         struct TestComponent { public int Value; }
 
-        private class CommandModule : IModule
+        private class CommandModule : IEcsModule
         {
             public string Name => "CommandModule";
             

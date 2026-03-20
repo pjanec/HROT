@@ -21,7 +21,7 @@ namespace ModuleHost.Network.Cyclone.Modules
     /// Cyclone-specific network implementation. The original in Core will be removed
     /// in a later phase of the extraction.
     /// </summary>
-    public class NetworkGatewayModule : IModule
+    public class NetworkGatewayModule : IEcsModule
     {
         public string Name => "NetworkGateway";
         

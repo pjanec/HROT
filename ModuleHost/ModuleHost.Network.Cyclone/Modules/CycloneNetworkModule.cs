@@ -21,7 +21,7 @@ using INetworkTopology = Fdp.Interfaces.INetworkTopology;
 
 namespace ModuleHost.Network.Cyclone.Modules
 {
-    public class CycloneNetworkModule : IModule
+    public class CycloneNetworkModule : IEcsModule
     {
         public string Name => "CycloneNetwork";
         
@@ -113,7 +113,7 @@ namespace ModuleHost.Network.Cyclone.Modules
 
     // Local implementation of Ingress System since it appears missing from Core
     [UpdateInPhase(SystemPhase.Input)]
-    public class CycloneNetworkIngressSystem : IModuleSystem
+    public class CycloneNetworkIngressSystem : IEcsModuleSystem
     {
         private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
         

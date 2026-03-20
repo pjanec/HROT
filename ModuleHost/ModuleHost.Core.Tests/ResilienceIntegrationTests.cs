@@ -15,7 +15,7 @@ namespace ModuleHost.Core.Tests
 {
     public class ResilienceIntegrationTests
     {
-        private class TestModule : IModule
+        private class TestModule : IEcsModule
         {
             public string Name { get; set; } = "TestModule";
             public ModuleTier Tier { get; set; } = ModuleTier.Slow;

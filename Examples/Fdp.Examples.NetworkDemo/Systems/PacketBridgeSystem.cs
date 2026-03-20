@@ -11,7 +11,7 @@ using ModuleHost.Network.Cyclone.Topics; // For NetworkAppId
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.Input)]
-    public class PacketBridgeSystem : IModuleSystem
+    public class PacketBridgeSystem : IEcsModuleSystem
     {
         private readonly FdpEventBus _bus;
         private readonly bool _isMaster;

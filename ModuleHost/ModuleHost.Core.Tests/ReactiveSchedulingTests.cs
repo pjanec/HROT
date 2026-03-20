@@ -12,7 +12,7 @@ namespace ModuleHost.Core.Tests
 {
     public class ReactiveSchedulingTests
     {
-        class MockModule : IModule
+        class MockModule : IEcsModule
         {
             public string Name => "MockModule";
             
@@ -34,7 +34,7 @@ namespace ModuleHost.Core.Tests
             public void Tick(ISimulationView view, float deltaTime) { }
         }
 
-        class MockAsyncModule : IModule
+        class MockAsyncModule : IEcsModule
         {
             public string Name => "MockAsyncModule";
             public ExecutionPolicy Policy { get; set; }

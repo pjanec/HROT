@@ -11,14 +11,14 @@ namespace ModuleHost.Core.Abstractions
     /// 
     /// <para><b>Pattern 1: System-Based Modules (Recommended)</b></para>
     /// <list type="bullet">
-    /// <item>Implement <see cref="RegisterSystems"/> to register IModuleSystem instances</item>
+    /// <item>Implement <see cref="RegisterSystems"/> to register IEcsModuleSystem instances</item>
     /// <item>Leave <see cref="Tick"/> empty (kernel executes systems automatically)</item>
     /// <item>Better separation of concerns, testability, and phase control</item>
     /// <item>Example: GeographicTransformModule, EntityLifecycleModule</item>
     /// </list>
     /// 
     /// <code>
-    /// public class MyModule : IModule
+    /// public class MyModule : IEcsModule
     /// {
     ///     public void RegisterSystems(ISystemRegistry registry)
     ///     {
@@ -41,7 +41,7 @@ namespace ModuleHost.Core.Abstractions
     /// </list>
     /// 
     /// <code>
-    /// public class SimpleModule : IModule
+    /// public class SimpleModule : IEcsModule
     /// {
     ///     public void Tick(ISimulationView view, float deltaTime)
     ///     {
@@ -79,7 +79,7 @@ namespace ModuleHost.Core.Abstractions
     /// 
     /// <para>See: FDP-ModuleHost-User-Guide.md#modules-modulehost for detailed examples</para>
     /// </summary>
-    public interface IModule
+    public interface IEcsModule
     {
         /// <summary>
         /// Module name for diagnostics and logging.
@@ -139,7 +139,7 @@ namespace ModuleHost.Core.Abstractions
         /// 
         /// <para><b>System-Based Module Pattern:</b></para>
         /// <list type="number">
-        /// <item>Create IModuleSystem instances (with phase attributes)</item>
+        /// <item>Create IEcsModuleSystem instances (with phase attributes)</item>
         /// <item>Register them via registry.RegisterSystem()</item>
         /// <item>Kernel executes systems in phase order automatically</item>
         /// <item>Leave Tick() empty</item>

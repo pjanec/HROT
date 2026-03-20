@@ -12,7 +12,7 @@ namespace ModuleHost.Core.Tests
 {
     public class ModuleEntryResilienceTests
     {
-        private class TestModule : IModule
+        private class TestModule : IEcsModule
         {
             public string Name => "TestModule";
             public ModuleTier Tier => ModuleTier.Slow;
@@ -21,7 +21,7 @@ namespace ModuleHost.Core.Tests
             public void RegisterSystems(ISystemRegistry registry) { }
         }
 
-        private class CustomTimeoutModule : IModule
+        private class CustomTimeoutModule : IEcsModule
         {
             public string Name => "CustomModule";
             public ModuleTier Tier => ModuleTier.Slow;
@@ -84,7 +84,7 @@ namespace ModuleHost.Core.Tests
             object entry = null;
             foreach (var item in modules)
             {
-                var m = item.GetType().GetProperty("Module").GetValue(item) as IModule;
+                var m = item.GetType().GetProperty("Module").GetValue(item) as IEcsModule;
                 if (m == module)
                 {
                     entry = item;
@@ -116,7 +116,7 @@ namespace ModuleHost.Core.Tests
             object entry = null;
             foreach (var item in modules)
             {
-                var m = item.GetType().GetProperty("Module").GetValue(item) as IModule;
+                var m = item.GetType().GetProperty("Module").GetValue(item) as IEcsModule;
                 if (m == module)
                 {
                     entry = item;

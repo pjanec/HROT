@@ -75,7 +75,7 @@ namespace ModuleHost.Core
         /// they can be re-inserted into every newly-compiled SystemScheduler during
         /// dynamic topology rebuilds without losing system instance state.
         /// </summary>
-        private readonly List<IModuleSystem> _registeredGlobalSystems = new();
+        private readonly List<IEcsModuleSystem> _registeredGlobalSystems = new();
 
         // ═══════════════════════════════════════════════════════════
         // Scheduling (legacy accessor — maintained for test/profiling access)
@@ -125,7 +125,7 @@ namespace ModuleHost.Core
         /// <summary>
         /// Register a global system (runs on main thread).
         /// </summary>
-        public void RegisterGlobalSystem<T>(T system) where T : IModuleSystem
+        public void RegisterGlobalSystem<T>(T system) where T : IEcsModuleSystem
         {
             if (_initialized)
                 throw new InvalidOperationException("Cannot register systems after Initialize() called");
@@ -134,7 +134,7 @@ namespace ModuleHost.Core
             // SystemPhase.Simulation is only run for module systems (background threads),
             // so a global system marked with it would silently never execute.
             // Use system.GetType() (not typeof(T)) to get the concrete type even when
-            // called polymorphically, e.g. RegisterGlobalSystem<IModuleSystem>(concreteInstance).
+            // called polymorphically, e.g. RegisterGlobalSystem<IEcsModuleSystem>(concreteInstance).
             var concreteType = system.GetType();
             var phaseAttr = (UpdateInPhaseAttribute?)Attribute.GetCustomAttribute(
                 concreteType, typeof(UpdateInPhaseAttribute), inherit: true);
@@ -245,7 +245,7 @@ namespace ModuleHost.Core
 
         /// <summary>
         /// Ensures that any component types declared by <paramref name="module"/> via
-        /// <see cref="IModule.GetRequiredComponents"/> are registered on the live
+        /// <see cref="IEcsModule.GetRequiredComponents"/> are registered on the live
         /// <see cref="EntityRepository"/> before provider allocation occurs.
         ///
         /// <para>
@@ -254,7 +254,7 @@ namespace ModuleHost.Core
         /// Silently skips types that are already registered globally.
         /// </para>
         /// </summary>
-        private void EnsureComponentsRegistered(IModule module)
+        private void EnsureComponentsRegistered(IEcsModule module)
         {
             var requiredComponents = module.GetRequiredComponents();
             if (requiredComponents == null) return;
@@ -287,7 +287,7 @@ namespace ModuleHost.Core
             }
         }
 
-        private BitMask256 GetComponentMask(IModule module)
+        private BitMask256 GetComponentMask(IEcsModule module)
         {
             var requiredComponents = module.GetRequiredComponents();
             
@@ -333,7 +333,7 @@ namespace ModuleHost.Core
         /// Registers a module with optional provider override.
         /// If provider is null, default will be assigned during Initialize().
         /// </summary>
-        public void RegisterModule(IModule module, ISnapshotProvider? provider = null)
+        public void RegisterModule(IEcsModule module, ISnapshotProvider? provider = null)
         {
             if (module == null) throw new ArgumentNullException(nameof(module));
             
@@ -1045,7 +1045,7 @@ namespace ModuleHost.Core
         /// <exception cref="InvalidOperationException">
         /// Kernel not initialized, or <paramref name="module"/> is already installed.
         /// </exception>
-        public async Task InstallModuleAsync(IModule module)
+        public async Task InstallModuleAsync(IEcsModule module)
         {
             if (module == null) throw new ArgumentNullException(nameof(module));
             if (!_initialized)
@@ -1134,7 +1134,7 @@ namespace ModuleHost.Core
         /// <exception cref="InvalidOperationException">
         /// Kernel not initialized, or <paramref name="module"/> is not currently installed.
         /// </exception>
-        public async Task UninstallModuleAsync(IModule module)
+        public async Task UninstallModuleAsync(IEcsModule module)
         {
             if (module == null) throw new ArgumentNullException(nameof(module));
             if (!_initialized)
@@ -1207,7 +1207,7 @@ namespace ModuleHost.Core
         /// <exception cref="InvalidOperationException">
         /// Kernel not initialized, or any module in the list is already installed.
         /// </exception>
-        public async Task InstallModulesAsync(IReadOnlyList<IModule> modules)
+        public async Task InstallModulesAsync(IReadOnlyList<IEcsModule> modules)
         {
             if (modules == null) throw new ArgumentNullException(nameof(modules));
             if (modules.Count == 0) return;
@@ -1299,7 +1299,7 @@ namespace ModuleHost.Core
         /// <exception cref="InvalidOperationException">
         /// Kernel not initialized, or any module in the list is not currently installed.
         /// </exception>
-        public async Task UninstallModulesAsync(IReadOnlyList<IModule> modules)
+        public async Task UninstallModulesAsync(IReadOnlyList<IEcsModule> modules)
         {
             if (modules == null) throw new ArgumentNullException(nameof(modules));
             if (modules.Count == 0) return;
@@ -1368,7 +1368,7 @@ namespace ModuleHost.Core
         /// <summary>
         /// Returns whether the specified module is currently installed and active in the kernel.
         /// </summary>
-        public bool IsModuleInstalled(IModule module)
+        public bool IsModuleInstalled(IEcsModule module)
         {
             if (!_initialized) return false;
             return _activeTopology.Modules.Any(e => e.Module == module);
@@ -1378,7 +1378,7 @@ namespace ModuleHost.Core
         /// Returns the <see cref="ModuleLifecycleState"/> of the specified module,
         /// or <c>null</c> if the module is not known to the kernel in any state.
         /// </summary>
-        public ModuleLifecycleState? GetModuleLifecycleState(IModule module)
+        public ModuleLifecycleState? GetModuleLifecycleState(IEcsModule module)
         {
             if (!_initialized) return null;
 
@@ -1609,7 +1609,7 @@ namespace ModuleHost.Core
 
         internal class ModuleEntry
         {
-            public IModule Module { get; set; } = null!;
+            public IEcsModule Module { get; set; } = null!;
             public ISnapshotProvider Provider { get; set; } = null!;
             public int FramesSinceLastRun { get; set; }
             public ISimulationView? LastView { get; set; }
@@ -1661,7 +1661,7 @@ namespace ModuleHost.Core
             /// Reused when rebuilding the execution topology to avoid re-creating system objects
             /// and losing any accumulated state (e.g. profiling counters, cached queries).
             /// </summary>
-            public List<IModuleSystem>? RegisteredSystems { get; set; }
+            public List<IEcsModuleSystem>? RegisteredSystems { get; set; }
 
             /// <summary>
             /// True when this entry owns its provider exclusively and should dispose it
@@ -1727,11 +1727,11 @@ namespace ModuleHost.Core
         private sealed class CapturingSystemRegistry : ISystemRegistry
         {
             private readonly SystemScheduler _scheduler;
-            public List<IModuleSystem> Captured { get; } = new();
+            public List<IEcsModuleSystem> Captured { get; } = new();
 
             public CapturingSystemRegistry(SystemScheduler scheduler) => _scheduler = scheduler;
 
-            public void RegisterSystem<T>(T system) where T : IModuleSystem
+            public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
             {
                 Captured.Add(system);
                 _scheduler.RegisterSystem(system);

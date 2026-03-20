@@ -9,7 +9,7 @@ using FDP.Toolkit.Replication.Services;
 namespace FDP.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.Input)]
-    public class OwnershipIngressSystem : IModuleSystem
+    public class OwnershipIngressSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;
         private readonly INetworkTopology? _topology;

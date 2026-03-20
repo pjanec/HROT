@@ -18,7 +18,7 @@ namespace Fdp.Modules.Geographic.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    public class TerrainQueryInitializationSystem : IModuleSystem
+    public class TerrainQueryInitializationSystem : IEcsModuleSystem
     {
         /// <inheritdoc/>
         public void Execute(ISimulationView view, float deltaTime)

@@ -7,7 +7,7 @@ using System;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class RefactoredPlayerInputSystem : IModuleSystem
+    public class RefactoredPlayerInputSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)
         {

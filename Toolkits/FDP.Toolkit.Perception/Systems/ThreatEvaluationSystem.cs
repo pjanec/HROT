@@ -36,7 +36,7 @@ namespace FDP.Toolkit.Perception.Systems
     /// </list>
     /// </para>
     /// </summary>
-    public class ThreatEvaluationSystem : IModuleSystem
+    public class ThreatEvaluationSystem : IEcsModuleSystem
     {
         // Boost applied when a target is confirmed visible by LosRequestBatchingSystem.
         private const float VisibleTargetScoreBoost = 50f;

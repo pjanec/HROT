@@ -9,7 +9,7 @@ namespace Fdp.Examples.NetworkDemo.Modules
     /// <c>SpawnEntityCommand</c>, <c>UpdateEntityCommand</c>, and
     /// <c>DestroyEntityCommand</c> events from the world bus each frame.
     /// </summary>
-    public class SpawningModule : IModule
+    public class SpawningModule : IEcsModule
     {
         public string Name => "NetworkSpawning";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

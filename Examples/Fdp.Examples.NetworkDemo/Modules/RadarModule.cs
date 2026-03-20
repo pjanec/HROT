@@ -4,7 +4,7 @@ using Fdp.Kernel;
 
 namespace Fdp.Examples.NetworkDemo.Modules
 {
-    public class RadarModule : IModule
+    public class RadarModule : IEcsModule
     {
         public string Name => "Radar";
         // Runs 5 times a second, on a background thread

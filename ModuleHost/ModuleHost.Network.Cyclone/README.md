@@ -76,7 +76,7 @@ Applications must bridge local and network components. Example:
 
 ```csharp
 [UpdateInPhase(SystemPhase.PostSimulation)]
-public class NetworkSyncSystem : IModuleSystem
+public class NetworkSyncSystem : IEcsModuleSystem
 {
     public void Execute(ISimulationView view, float deltaTime)
     {

@@ -43,7 +43,7 @@ namespace ModuleHost.Core.Tests
     /// A simple synchronous Direct-strategy module that counts Tick() invocations.
     /// Can be installed/uninstalled dynamically.
     /// </summary>
-    class CountingDirectModule : IModule, IDisposable
+    class CountingDirectModule : IEcsModule, IDisposable
     {
         public string Name { get; }
         public int TickCount;
@@ -63,7 +63,7 @@ namespace ModuleHost.Core.Tests
     /// A slowish background module that briefly sleeps in Tick().
     /// Useful for testing draining: the module may be mid-execution when uninstall is called.
     /// </summary>
-    class SlowBackgroundModule : IModule, IDisposable
+    class SlowBackgroundModule : IEcsModule, IDisposable
     {
         public string Name { get; }
         public int TickCount;
@@ -90,7 +90,7 @@ namespace ModuleHost.Core.Tests
     /// <summary>
     /// Module that registers a test system (to verify system lifecycle with hot-plug).
     /// </summary>
-    class SystemRegisteringModule : IModule
+    class SystemRegisteringModule : IEcsModule
     {
         public string Name { get; }
         public TrackingBeforeSyncSystem System { get; } = new();
@@ -106,7 +106,7 @@ namespace ModuleHost.Core.Tests
     }
 
     [UpdateInPhase(SystemPhase.BeforeSync)]
-    class TrackingBeforeSyncSystem : IModuleSystem
+    class TrackingBeforeSyncSystem : IEcsModuleSystem
     {
         public int ExecuteCount;
 
@@ -779,7 +779,7 @@ namespace ModuleHost.Core.Tests
     /// Snapshot-on-Demand (SlowBackground) module that reads from a snapshot view.
     /// Declares its required component types so the kernel can compute a precise mask.
     /// </summary>
-    class SodCountingModule : IModule, IDisposable
+    class SodCountingModule : IEcsModule, IDisposable
     {
         public string Name { get; }
         public int TickCount;
@@ -806,7 +806,7 @@ namespace ModuleHost.Core.Tests
     /// <summary>
     /// FrameSynced GDB module that reads from the DoubleBuffer replica.
     /// </summary>
-    class GdbCountingModule : IModule, IDisposable
+    class GdbCountingModule : IEcsModule, IDisposable
     {
         public string Name { get; }
         public int TickCount;
@@ -889,7 +889,7 @@ namespace ModuleHost.Core.Tests
         }
 
         private static ModuleHostKernel.ModuleEntry? GetEntry(
-            ModuleHostKernel kernel, IModule module)
+            ModuleHostKernel kernel, IEcsModule module)
             => GetActiveTopology(kernel).Modules.FirstOrDefault(e => e.Module == module);
 
         // ──────────────────────────────────────────────────────────────────────────
@@ -966,7 +966,7 @@ namespace ModuleHost.Core.Tests
             var loopTask = RunKernelLoop(_kernel, cts.Token);
 
             // Single await — all three should go live from the same BeforeSync swap.
-            await _kernel.InstallModulesAsync(new IModule[] { modA, modB, modC });
+            await _kernel.InstallModulesAsync(new IEcsModule[] { modA, modB, modC });
 
             // Post-await: all must be installed and provide a SharedSnapshotProvider
             // (three SoD modules with the same convoy policy → shared provider).
@@ -1070,13 +1070,13 @@ namespace ModuleHost.Core.Tests
             using var cts = new CancellationTokenSource();
             var loopTask = RunKernelLoop(_kernel, cts.Token);
 
-            await _kernel.InstallModulesAsync(new IModule[] { modA, modB });
+            await _kernel.InstallModulesAsync(new IEcsModule[] { modA, modB });
 
             Assert.True(_kernel.IsModuleInstalled(modA));
             Assert.True(_kernel.IsModuleInstalled(modB));
 
             // Single await removes both in one swap.
-            await _kernel.UninstallModulesAsync(new IModule[] { modA, modB });
+            await _kernel.UninstallModulesAsync(new IEcsModule[] { modA, modB });
 
             Assert.False(_kernel.IsModuleInstalled(modA));
             Assert.False(_kernel.IsModuleInstalled(modB));

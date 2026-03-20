@@ -14,7 +14,7 @@ namespace ModuleHost.Core.Tests
     [Collection("SerialTests")]
     public class ConvoyIntegrationTests
     {
-        private class TestModule : IModule
+        private class TestModule : IEcsModule
         {
             public string Name { get; set; } = "TestModule";
             public ModuleTier Tier { get; set; } = ModuleTier.Slow;
@@ -42,7 +42,7 @@ namespace ModuleHost.Core.Tests
             public void RegisterSystems(ISystemRegistry registry) { }
         }
 
-        private ISnapshotProvider? GetProvider(ModuleHostKernel kernel, IModule module)
+        private ISnapshotProvider? GetProvider(ModuleHostKernel kernel, IEcsModule module)
         {
             // Reflection helper to check provider assignment
             // Assuming ModuleEntry internal wrapper

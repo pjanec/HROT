@@ -14,7 +14,7 @@ namespace FDP.Toolkit.Replay
     /// is fully settled before snapshot capture.
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public sealed class RecorderTickSystem : IModuleSystem
+    public sealed class RecorderTickSystem : IEcsModuleSystem
     {
         /// <summary>Number of delta frames between keyframes.</summary>
         public const int KeyframeInterval = 60;

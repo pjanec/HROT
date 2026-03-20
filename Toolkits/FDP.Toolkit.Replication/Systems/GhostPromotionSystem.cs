@@ -23,7 +23,7 @@ namespace FDP.Toolkit.Replication.Systems
     /// <see cref="EntityHeader.ComponentMask"/> — no network concepts involved.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.BeforeSync)]
-    public class GhostPromotionSystem : IModuleSystem
+    public class GhostPromotionSystem : IEcsModuleSystem
     {
         private readonly ITkbDatabase _tkbDatabase;
         private readonly EntityLifecycleModule _lifecycleModule;

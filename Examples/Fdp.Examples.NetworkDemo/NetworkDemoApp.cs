@@ -42,7 +42,7 @@ using FDP.Kernel.Logging;
 namespace Fdp.Examples.NetworkDemo
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class ComponentSystemWrapper : IModuleSystem
+    public class ComponentSystemWrapper : IEcsModuleSystem
     {
         private readonly ComponentSystem _sys;
         public ComponentSystemWrapper(ComponentSystem sys) => _sys = sys;

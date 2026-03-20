@@ -13,18 +13,18 @@ namespace ModuleHost.Core.Scheduling
     /// </summary>
     public class SystemScheduler : ISystemRegistry
     {
-        private readonly Dictionary<SystemPhase, List<IModuleSystem>> _systemsByPhase = new();
-        private readonly Dictionary<SystemPhase, List<IModuleSystem>> _sortedSystems = new();
-        private readonly Dictionary<IModuleSystem, SystemPhase> _systemPhases = new();
+        private readonly Dictionary<SystemPhase, List<IEcsModuleSystem>> _systemsByPhase = new();
+        private readonly Dictionary<SystemPhase, List<IEcsModuleSystem>> _sortedSystems = new();
+        private readonly Dictionary<IEcsModuleSystem, SystemPhase> _systemPhases = new();
         
         // Profiling data
-        private readonly Dictionary<IModuleSystem, SystemProfileData> _profileData = new();
+        private readonly Dictionary<IEcsModuleSystem, SystemProfileData> _profileData = new();
         
         /// <summary>
         /// Register a system for execution.
         /// System's phase is determined by [UpdateInPhase] attribute.
         /// </summary>
-        public void RegisterSystem<T>(T system) where T : IModuleSystem
+        public void RegisterSystem<T>(T system) where T : IEcsModuleSystem
         {
             if (system == null)
                 throw new ArgumentNullException(nameof(system));
@@ -32,7 +32,7 @@ namespace ModuleHost.Core.Scheduling
             var phase = GetPhaseAttribute(system);
             
             if (!_systemsByPhase.ContainsKey(phase))
-                _systemsByPhase[phase] = new List<IModuleSystem>();
+                _systemsByPhase[phase] = new List<IEcsModuleSystem>();
             
             _systemsByPhase[phase].Add(system);
             _systemPhases[system] = phase;
@@ -79,7 +79,7 @@ namespace ModuleHost.Core.Scheduling
             }
         }
         
-        private void ExecuteSystem(IModuleSystem system, ISimulationView view, float deltaTime)
+        private void ExecuteSystem(IEcsModuleSystem system, ISimulationView view, float deltaTime)
         {
             var profile = _profileData[system];
             var sw = Stopwatch.StartNew();
@@ -126,7 +126,7 @@ namespace ModuleHost.Core.Scheduling
             groupProfile.RecordExecution(groupSw.Elapsed.TotalMilliseconds);
         }
         
-        private SystemPhase GetPhaseAttribute(IModuleSystem system)
+        private SystemPhase GetPhaseAttribute(IEcsModuleSystem system)
         {
             var attr = (UpdateInPhaseAttribute?)Attribute.GetCustomAttribute(
                 system.GetType(), typeof(UpdateInPhaseAttribute), inherit: true);
@@ -140,7 +140,7 @@ namespace ModuleHost.Core.Scheduling
             return attr.Phase;
         }
         
-        private DependencyGraph BuildDependencyGraph(List<IModuleSystem> systems)
+        private DependencyGraph BuildDependencyGraph(List<IEcsModuleSystem> systems)
         {
             var graph = new DependencyGraph();
             
@@ -195,12 +195,12 @@ namespace ModuleHost.Core.Scheduling
             return graph;
         }
         
-        private List<IModuleSystem>? TopologicalSort(DependencyGraph graph)
+        private List<IEcsModuleSystem>? TopologicalSort(DependencyGraph graph)
         {
             // Kahn's algorithm
-            var sorted = new List<IModuleSystem>();
-            var inDegree = new Dictionary<IModuleSystem, int>();
-            var queue = new Queue<IModuleSystem>();
+            var sorted = new List<IEcsModuleSystem>();
+            var inDegree = new Dictionary<IEcsModuleSystem, int>();
+            var queue = new Queue<IEcsModuleSystem>();
             
             // Calculate in-degrees
             foreach (var node in graph.Nodes)
@@ -236,7 +236,7 @@ namespace ModuleHost.Core.Scheduling
         /// <summary>
         /// Get profiling data for a specific system.
         /// </summary>
-        public SystemProfileData? GetProfileData(IModuleSystem system)
+        public SystemProfileData? GetProfileData(IEcsModuleSystem system)
         {
             return _profileData.TryGetValue(system, out var data) ? data : null;
         }
@@ -244,7 +244,7 @@ namespace ModuleHost.Core.Scheduling
         /// <summary>
         /// Get profiling data for a specific system by type.
         /// </summary>
-        public SystemProfileData? GetProfileData<T>() where T : IModuleSystem
+        public SystemProfileData? GetProfileData<T>() where T : IEcsModuleSystem
         {
             var system = _systemsByPhase.Values
                 .SelectMany(list => list)

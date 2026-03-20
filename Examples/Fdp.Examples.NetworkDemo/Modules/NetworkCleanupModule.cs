@@ -11,7 +11,7 @@ namespace Fdp.Examples.NetworkDemo.Modules
     /// destroyed, so that DDS readers on remote nodes receive the instance-disposed
     /// notification.
     /// </summary>
-    public class NetworkCleanupModule : IModule
+    public class NetworkCleanupModule : IEcsModule
     {
         public string Name => "NetworkCleanup";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

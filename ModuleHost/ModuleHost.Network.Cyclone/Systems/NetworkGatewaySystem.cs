@@ -13,7 +13,7 @@ using INetworkTopology = Fdp.Interfaces.INetworkTopology;
 namespace ModuleHost.Network.Cyclone.Systems
 {
     [UpdateInPhase(SystemPhase.BeforeSync)]
-    public class NetworkGatewaySystem : IModuleSystem
+    public class NetworkGatewaySystem : IEcsModuleSystem
     {
         private readonly int _gatewayModuleId;
         private readonly int _localNodeId;

@@ -14,7 +14,7 @@ namespace ModuleHost.Network.Cyclone.Systems
     /// Handles normal periodic publishing and force-publish requests.
     /// </summary>
     [UpdateInPhase(SystemPhase.Export)]
-    public class CycloneEgressSystem : IModuleSystem
+    public class CycloneEgressSystem : IEcsModuleSystem
     {
         private readonly IDescriptorTranslator[] _translators;
         

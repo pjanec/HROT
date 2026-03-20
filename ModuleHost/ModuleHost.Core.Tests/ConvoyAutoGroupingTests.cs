@@ -11,7 +11,7 @@ namespace ModuleHost.Core.Tests
 {
     public class ConvoyAutoGroupingTests
     {
-        private class TestModule : IModule
+        private class TestModule : IEcsModule
         {
             public string Name { get; set; } = "TestModule";
             public ModuleTier Tier { get; set; } = ModuleTier.Slow;
@@ -31,7 +31,7 @@ namespace ModuleHost.Core.Tests
             _eventAccum = new EventAccumulator();
         }
 
-        private ISnapshotProvider GetProvider(ModuleHostKernel kernel, IModule module)
+        private ISnapshotProvider GetProvider(ModuleHostKernel kernel, IEcsModule module)
         {
             // Use reflection to access private _modules list
             var field = typeof(ModuleHostKernel).GetField("_modules", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -42,7 +42,7 @@ namespace ModuleHost.Core.Tests
             {
                 // check Module property
                 var moduleProp = entry.GetType().GetProperty("Module");
-                var m = moduleProp.GetValue(entry) as IModule;
+                var m = moduleProp.GetValue(entry) as IEcsModule;
                 if (m == module)
                 {
                     var providerProp = entry.GetType().GetProperty("Provider");

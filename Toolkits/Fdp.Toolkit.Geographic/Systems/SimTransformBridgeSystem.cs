@@ -8,7 +8,7 @@ namespace Fdp.Modules.Geographic.Systems
     /// Static math helpers for converting between ECS SimTransform/SimVelocity and
     /// geodetic/compass representations used by network translators.
     /// <para>
-    /// The former Execute() / IModuleSystem implementation (SimTransformBridgeSystem
+    /// The former Execute() / IEcsModuleSystem implementation (SimTransformBridgeSystem
     /// copying SimTransform to GeoTransform every tick) has been removed. Geodetic
     /// conversion now happens on-demand in GeoSpatialEgressTranslator.
     /// </para>

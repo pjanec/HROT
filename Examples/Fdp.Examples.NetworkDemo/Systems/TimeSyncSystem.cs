@@ -9,7 +9,7 @@ using ModuleHost.Core.Time; // For casts
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.Input)]
-    public class TimeSyncSystem : IModuleSystem
+    public class TimeSyncSystem : IEcsModuleSystem
     {
         private readonly FdpEventBus _bus;
         private readonly bool _isMaster;

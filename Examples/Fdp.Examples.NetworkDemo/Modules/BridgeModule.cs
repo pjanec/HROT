@@ -4,7 +4,7 @@ using Fdp.Kernel;
 
 namespace Fdp.Examples.NetworkDemo.Modules
 {
-    public class BridgeModule : IModule
+    public class BridgeModule : IEcsModule
     {
         public string Name => "Bridge";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

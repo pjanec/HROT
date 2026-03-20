@@ -5,13 +5,13 @@ using ModuleHost.Core.Abstractions;
 
 namespace ModuleHost.Core.Tests
 {
-    public class IModuleTests
+    public class IEcsModuleTests
     {
         [Fact]
         public void Interface_Compiles_And_Implemented()
         {
-            // Verify IModule can be implemented
-            IModule module = new TestModule();
+            // Verify IEcsModule can be implemented
+            IEcsModule module = new TestModule();
             Assert.NotNull(module);
             Assert.Equal("Test", module.Name);
             Assert.Equal(ModuleTier.Fast, module.Tier);
@@ -24,7 +24,7 @@ namespace ModuleHost.Core.Tests
             Assert.Contains(ModuleTier.Slow, Enum.GetValues<ModuleTier>());
         }
 
-        private class TestModule : IModule
+        private class TestModule : IEcsModule
         {
             public string Name => "Test";
             public ModuleTier Tier => ModuleTier.Fast;

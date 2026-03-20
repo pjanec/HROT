@@ -27,7 +27,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
     }
 
     [UpdateInPhase(SystemPhase.Input)]
-    public class TimeInputSystem : IModuleSystem
+    public class TimeInputSystem : IEcsModuleSystem
     {
         private readonly IInputSource _input;
         private readonly FdpEventBus? _eventBus;

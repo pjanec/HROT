@@ -11,7 +11,7 @@ using FDP.Toolkit.Replication.Components;
 namespace ModuleHost.Network.Cyclone.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
-    public class CycloneNetworkCleanupSystem : IModuleSystem
+    public class CycloneNetworkCleanupSystem : IEcsModuleSystem
     {
         private readonly Fdp.Interfaces.IDescriptorTranslator _translator;
         private readonly Dictionary<long, Entity> _trackedEntities = new();

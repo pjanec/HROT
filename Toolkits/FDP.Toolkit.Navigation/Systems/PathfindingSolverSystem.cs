@@ -24,7 +24,7 @@ namespace FDP.Toolkit.Navigation.Systems
     /// request returns <see cref="PathResult.IsReachable"/> = <c>false</c>.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
-    public class PathfindingSolverSystem : IModuleSystem
+    public class PathfindingSolverSystem : IEcsModuleSystem
     {
         private readonly RoadNetworkBlob       _roadNetwork;
         private readonly TrajectoryPoolManager _trajectoryPool;

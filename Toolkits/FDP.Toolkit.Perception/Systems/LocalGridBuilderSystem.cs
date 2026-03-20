@@ -29,7 +29,7 @@ namespace FDP.Toolkit.Perception.Systems
     /// which iterates the linked-list chains rather than a count-bounded range.
     /// </para>
     /// </summary>
-    public class LocalGridBuilderSystem : IModuleSystem
+    public class LocalGridBuilderSystem : IEcsModuleSystem
     {
         // Value-copy of the PerceptionModule's grid struct.
         // Shares native-memory pointers with the caller's copy and VisionBroadphaseSystem's copy.

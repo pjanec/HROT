@@ -10,7 +10,7 @@ using ModuleHost.Core.Abstractions;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.Input)]
-    public class CombatInputSystem : IModuleSystem
+    public class CombatInputSystem : IEcsModuleSystem
     {
         private readonly int _localNodeId;
         private readonly IEventBus _eventBus;

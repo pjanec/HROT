@@ -10,7 +10,7 @@ using FDP.Kernel.Logging;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class CombatFeedbackSystem : IModuleSystem, IDisposable
+    public class CombatFeedbackSystem : IEcsModuleSystem, IDisposable
     {
         private readonly int _localNodeId;
         private readonly IEventBus _bus;

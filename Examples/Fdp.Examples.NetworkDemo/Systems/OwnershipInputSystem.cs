@@ -9,7 +9,7 @@ using ModuleHost.Core.Abstractions;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.Input)]
-    public class OwnershipInputSystem : IModuleSystem
+    public class OwnershipInputSystem : IEcsModuleSystem
     {
         private readonly int _localNodeId;
         private readonly IEventBus _eventBus;

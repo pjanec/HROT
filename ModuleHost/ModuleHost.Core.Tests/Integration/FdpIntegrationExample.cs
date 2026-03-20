@@ -124,7 +124,7 @@ namespace ModuleHost.Core.Tests.Integration
     }
     
     // Mock module for testing
-    public class MockModule : IModule
+    public class MockModule : IEcsModule
     {
         public string Name { get; }
         public ModuleTier Tier { get; }

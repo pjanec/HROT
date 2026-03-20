@@ -7,7 +7,7 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.Export)]
-    public class OwnershipEgressSystem : IModuleSystem
+    public class OwnershipEgressSystem : IEcsModuleSystem
     {
         // Cache to track changes: Entity -> (PackedKey -> OwnerNodeId)
         private readonly Dictionary<Entity, Dictionary<long, int>> _lastKnownOwnership = new();

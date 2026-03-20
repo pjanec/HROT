@@ -41,7 +41,7 @@ namespace FDP.Toolkit.Perception
     /// the actual native memory is only freed once, here in <see cref="Dispose"/>.
     /// </para>
     /// </summary>
-    public class PerceptionModule : IModule, IDisposable
+    public class PerceptionModule : IEcsModule, IDisposable
     {
         /// <inheritdoc/>
         public string Name => "Perception";

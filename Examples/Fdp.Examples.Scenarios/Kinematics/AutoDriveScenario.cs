@@ -239,12 +239,12 @@ namespace Fdp.Examples.Scenarios.Kinematics
         // ── Inner module helper ───────────────────────────────────────────────
 
         /// <summary>
-        /// Minimal <see cref="IModule"/> adapter that calls a list of
+        /// Minimal <see cref="IEcsModule"/> adapter that calls a list of
         /// <see cref="ComponentSystem"/> instances on the main thread each tick.
         /// Uses <c>ExecutionPolicy.Synchronous()</c> (DataStrategy.Direct) so the kernel
         /// passes the live <see cref="EntityRepository"/> directly to the module.
         /// </summary>
-        private sealed class DirectSystemsModule : IModule
+        private sealed class DirectSystemsModule : IEcsModule
         {
             private readonly ComponentSystem[] _systems;
 

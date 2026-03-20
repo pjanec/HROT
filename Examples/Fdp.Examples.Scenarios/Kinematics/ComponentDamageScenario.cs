@@ -272,7 +272,7 @@ namespace Fdp.Examples.Scenarios.Kinematics
 
         // ── Inner module helper (shared pattern) ──────────────────────────────
 
-        private sealed class DirectSystemsModule : IModule
+        private sealed class DirectSystemsModule : IEcsModule
         {
             private readonly ComponentSystem[] _systems;
 

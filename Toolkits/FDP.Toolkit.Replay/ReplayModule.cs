@@ -22,7 +22,7 @@ namespace FDP.Toolkit.Replay
     /// await them with <c>Task.WhenAll</c>.
     /// </para>
     /// </summary>
-    public sealed class ReplayModule : IModule, IDisposable
+    public sealed class ReplayModule : IEcsModule, IDisposable
     {
         private readonly string _filePath;
         private readonly EntityRepository _repo;

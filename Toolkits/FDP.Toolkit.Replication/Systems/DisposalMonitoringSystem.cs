@@ -6,7 +6,7 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class DisposalMonitoringSystem : IModuleSystem
+    public class DisposalMonitoringSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;
 

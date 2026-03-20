@@ -14,7 +14,7 @@ namespace ModuleHost.Core.Tests.Integration
         [ComponentId(230)]
         struct Velocity { public float X, Y; }
 
-        private class PhysicsModule : IModule
+        private class PhysicsModule : IEcsModule
         {
             public string Name => "Physics";
             public ModuleTier Tier => ModuleTier.Fast;
@@ -50,7 +50,7 @@ namespace ModuleHost.Core.Tests.Integration
             }
         }
         
-        private class SpawnerModule : IModule
+        private class SpawnerModule : IEcsModule
         {
             public string Name => "Spawner";
             public ModuleTier Tier => ModuleTier.Slow;
@@ -226,7 +226,7 @@ namespace ModuleHost.Core.Tests.Integration
             Assert.False(sawVelocity, "Should NOT see Velocity (filtered)");
         }
         
-        private class InlineModule : IModule
+        private class InlineModule : IEcsModule
         {
             public string Name { get; }
             public ModuleTier Tier { get; }

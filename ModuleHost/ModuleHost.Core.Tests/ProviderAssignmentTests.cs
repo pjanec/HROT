@@ -12,7 +12,7 @@ namespace ModuleHost.Core.Tests
 {
     public class ProviderAssignmentTests
     {
-        private class TestModule : IModule
+        private class TestModule : IEcsModule
         {
             public string Name => "TestModule-" + Guid.NewGuid();
             public ExecutionPolicy Policy { get; set; } = ExecutionPolicy.Synchronous();
@@ -26,7 +26,7 @@ namespace ModuleHost.Core.Tests
             return new ModuleHostKernel(liveWorld, eventAccum);
         }
 
-        private ModuleHostKernel.ModuleEntry GetModuleEntry(ModuleHostKernel kernel, IModule module)
+        private ModuleHostKernel.ModuleEntry GetModuleEntry(ModuleHostKernel kernel, IEcsModule module)
         {
             var field = typeof(ModuleHostKernel).GetField("_modules", BindingFlags.NonPublic | BindingFlags.Instance);
             var list = (List<ModuleHostKernel.ModuleEntry>)field.GetValue(kernel);

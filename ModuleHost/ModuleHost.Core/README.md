@@ -37,12 +37,12 @@ The `ModuleHostKernel` is the central coordinator. It:
 4. Schedules module execution (typically on a thread pool).
 5. Plays back command buffers after modules complete.
 
-### IModule Interface
+### IEcsModule Interface
 
-Modules implement the `IModule` interface:
+Modules implement the `IEcsModule` interface:
 
 ```csharp
-public interface IModule
+public interface IEcsModule
 {
     string Name { get; }
     ModuleTier Tier { get; }

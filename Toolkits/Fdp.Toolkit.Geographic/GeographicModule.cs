@@ -3,7 +3,7 @@ using Fdp.Modules.Geographic.Systems;
 
 namespace Fdp.Modules.Geographic
 {
-    public class GeographicModule : IModule
+    public class GeographicModule : IEcsModule
     {
         public string Name => "GeographicServices";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

@@ -5,7 +5,7 @@ namespace ModuleHost.Core.Abstractions
     /// Systems execute in a deterministic order based on declared dependencies.
     /// Differs from Fdp.Kernel.ComponentSystem by signature (receives View).
     /// </summary>
-    public interface IModuleSystem
+    public interface IEcsModuleSystem
     {
         /// <summary>
         /// Execute system logic.

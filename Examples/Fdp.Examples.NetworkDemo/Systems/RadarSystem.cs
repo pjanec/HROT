@@ -9,7 +9,7 @@ using ModuleHost.Core.Abstractions;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.Simulation)]
-    public class RadarSystem : IModuleSystem
+    public class RadarSystem : IEcsModuleSystem
     {
         private readonly IEventBus _eventBus;
         

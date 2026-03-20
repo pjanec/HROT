@@ -5,7 +5,7 @@ namespace ModuleHost.Core.Abstractions
     /// <summary>
     /// A group of related systems for hierarchical organization and profiling.
     /// </summary>
-    public interface ISystemGroup : IModuleSystem
+    public interface ISystemGroup : IEcsModuleSystem
     {
         /// <summary>
         /// Name of this system group (for profiling/debugging).
@@ -15,6 +15,6 @@ namespace ModuleHost.Core.Abstractions
         /// <summary>
         /// Systems contained in this group.
         /// </summary>
-        IReadOnlyList<IModuleSystem> GetSystems();
+        IReadOnlyList<IEcsModuleSystem> GetSystems();
     }
 }

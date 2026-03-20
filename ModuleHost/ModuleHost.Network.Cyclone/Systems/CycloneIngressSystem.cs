@@ -13,7 +13,7 @@ namespace ModuleHost.Network.Cyclone.Systems
     /// Iterates translators, which now own their data readers.
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    public class CycloneIngressSystem : IModuleSystem
+    public class CycloneIngressSystem : IEcsModuleSystem
     {
         private readonly DdsParticipant _participant;
         private readonly IDescriptorTranslator[] _translators;

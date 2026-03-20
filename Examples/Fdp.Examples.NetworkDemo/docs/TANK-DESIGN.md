@@ -393,7 +393,7 @@ Demonstrates `SlowBackground` execution policy with `Snapshot-on-Demand`.
 ```csharp
 [ExecutionPolicy(ExecutionMode.SlowBackground, priority: 1)]
 [SnapshotPolicy(SnapshotMode.OnDemand)]
-public class RadarModule : IModuleSystem {
+public class RadarModule : IEcsModuleSystem {
     public void Execute(ISimulationView view, float dt) {
         // Request snapshot of world state
         var snapshot = view.CaptureSnapshot();
@@ -420,7 +420,7 @@ Demonstrates `WatchEvents` reactive scheduling.
 ```csharp
 [ExecutionPolicy(ExecutionMode.Synchronous)]
 [WatchEvents(typeof(DetonationEvent))]
-public class DamageControlModule : IModuleSystem {
+public class DamageControlModule : IEcsModuleSystem {
     public void Execute(ISimulationView view, float dt) {
         // Only executes when DetonationEvent published
         var events = view.GetEvents<DetonationEvent>();
@@ -441,7 +441,7 @@ Demonstrates runtime authority transfer for partial ownership.
 **Scenario:** Node B can request control of the Turret from Node A.
 
 ```csharp
-public class OwnershipInputSystem : IModuleSystem {
+public class OwnershipInputSystem : IEcsModuleSystem {
     public void Execute(ISimulationView view, float dt) {
         if (Input.GetKeyDown(KeyCode.O)) {
             var tank = FindTank(view);

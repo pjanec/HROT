@@ -86,7 +86,7 @@ namespace ModuleHost.Core.Tests
     }
     
     // Test module that tracks delta time
-    class DeltaTimeTrackingModule : IModule
+    class DeltaTimeTrackingModule : IEcsModule
     {
         public string Name => "DeltaTimeTracker";
         public ModuleTier Tier => ModuleTier.Slow;
@@ -127,28 +127,28 @@ namespace ModuleHost.Core.Tests
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Input)]
-    class InputPhaseSystem : IModuleSystem
+    class InputPhaseSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) 
             => ExecutionOrderLog.Instance.Entries.Add("Input");
     }
     
     [UpdateInPhaseAttribute(SystemPhase.BeforeSync)]
-    class BeforeSyncPhaseSystem : IModuleSystem
+    class BeforeSyncPhaseSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) 
             => ExecutionOrderLog.Instance.Entries.Add("BeforeSync");
     }
     
     [UpdateInPhaseAttribute(SystemPhase.PostSimulation)]
-    class PostSimPhaseSystem : IModuleSystem
+    class PostSimPhaseSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) 
             => ExecutionOrderLog.Instance.Entries.Add("PostSim");
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Export)]
-    class ExportPhaseSystem : IModuleSystem
+    class ExportPhaseSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) 
             => ExecutionOrderLog.Instance.Entries.Add("Export");

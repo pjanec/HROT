@@ -6,7 +6,7 @@ using ModuleHost.Core.Abstractions;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.Input)]
-    public class ChatSystem : IModuleSystem
+    public class ChatSystem : IEcsModuleSystem
     {
         private readonly int _localNodeId;
         private string _lastMessage = "";

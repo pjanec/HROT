@@ -5,7 +5,7 @@ using Fdp.Kernel.FlightRecorder;
 
 namespace Fdp.Examples.NetworkDemo.Modules
 {
-    public class RecordingModule : IModule
+    public class RecordingModule : IEcsModule
     {
         public string Name => "Recording";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

@@ -9,7 +9,7 @@ namespace FDP.Toolkit.Perception.Modules
 {
     /// <summary>
     /// Wraps the four autonomous perception systems into a self-contained
-    /// <see cref="IModule"/> that can be installed independently of the Brain modules.
+    /// <see cref="IEcsModule"/> that can be installed independently of the Brain modules.
     ///
     /// <para><b>Execution model:</b> <see cref="ExecutionPolicy.SlowBackground"/> at 10 Hz.
     /// The kernel calls <see cref="Tick"/> on a background thread with a read-only
@@ -22,7 +22,7 @@ namespace FDP.Toolkit.Perception.Modules
     /// <para><b>System registration:</b>
     /// All four systems—<see cref="LocalGridBuilderSystem"/>, <see cref="VisionBroadphaseSystem"/>,
     /// <see cref="LosRequestBatchingSystem"/>, and <see cref="ThreatEvaluationSystem"/>—are
-    /// registered via <see cref="RegisterSystems"/>. All four implement <see cref="IModuleSystem"/>
+    /// registered via <see cref="RegisterSystems"/>. All four implement <see cref="IEcsModuleSystem"/>
     /// and run on the background thread inside <see cref="Tick"/>.</para>
     ///
     /// <para><b>Physics-accurate LOS:</b> Pass a <paramref name="colliderRadiusReader"/> delegate
@@ -33,7 +33,7 @@ namespace FDP.Toolkit.Perception.Modules
     /// </code>
     /// When <c>null</c>, occluders are treated as dimensionless points.</para>
     /// </summary>
-    public sealed class AutonomousPerceptionModule : IModule, IDisposable
+    public sealed class AutonomousPerceptionModule : IEcsModule, IDisposable
     {
         /// <inheritdoc/>
         public string Name => "AutonomousPerception";
@@ -105,4 +105,4 @@ namespace FDP.Toolkit.Perception.Modules
         public void Dispose() => _localGrid.Dispose();
     }
 }
-    /// <see cref="IModule"/> that can be installed independently of the Brain modules.
+    /// <see cref="IEcsModule"/> that can be installed independently of the Brain modules.

@@ -121,48 +121,48 @@ namespace ModuleHost.Core.Tests
     
     // Test systems
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
-    class TestSystemA : IModuleSystem
+    class TestSystemA : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(TestSystemA))]
-    class TestSystemB : IModuleSystem
+    class TestSystemB : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(TestSystemB))]
-    class TestSystemC : IModuleSystem
+    class TestSystemC : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(CircularSystemB))]
-    class CircularSystemA : IModuleSystem
+    class CircularSystemA : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(CircularSystemA))]
-    class CircularSystemB : IModuleSystem
+    class CircularSystemB : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Input)]
-    class InputSystem : IModuleSystem
+    class InputSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
     
     [UpdateInPhaseAttribute(SystemPhase.Export)]
     [UpdateAfterAttribute(typeof(InputSystem))] // Cross-phase - should be ignored
-    class ExportSystemDependingOnInput : IModuleSystem
+    class ExportSystemDependingOnInput : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime) { }
     }
@@ -173,13 +173,13 @@ namespace ModuleHost.Core.Tests
         public string Name => "TestGroup";
         public bool WasExecuted { get; private set; }
         
-        private readonly List<IModuleSystem> _systems = new()
+        private readonly List<IEcsModuleSystem> _systems = new()
         {
             new TestSystemA(),
             new TestSystemB()
         };
         
-        public IReadOnlyList<IModuleSystem> GetSystems() => _systems;
+        public IReadOnlyList<IEcsModuleSystem> GetSystems() => _systems;
         
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -191,7 +191,7 @@ namespace ModuleHost.Core.Tests
 
     // Tracking systems for execution order verification
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
-    class TrackingSystemA : IModuleSystem
+    class TrackingSystemA : IEcsModuleSystem
     {
         private readonly List<string> _log;
         public TrackingSystemA(List<string> log) => _log = log;
@@ -200,7 +200,7 @@ namespace ModuleHost.Core.Tests
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(TrackingSystemA))]
-    class TrackingSystemB : IModuleSystem
+    class TrackingSystemB : IEcsModuleSystem
     {
         private readonly List<string> _log;
         public TrackingSystemB(List<string> log) => _log = log;
@@ -209,7 +209,7 @@ namespace ModuleHost.Core.Tests
     
     [UpdateInPhaseAttribute(SystemPhase.Simulation)]
     [UpdateAfterAttribute(typeof(TrackingSystemB))]
-    class TrackingSystemC : IModuleSystem
+    class TrackingSystemC : IEcsModuleSystem
     {
         private readonly List<string> _log;
         public TrackingSystemC(List<string> log) => _log = log;

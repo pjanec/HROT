@@ -5,7 +5,7 @@ using FDP.Toolkit.Replication.Components;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class PhysicsSystem : IModuleSystem
+    public class PhysicsSystem : IEcsModuleSystem
     {
         public void Execute(ISimulationView view, float deltaTime)
         {

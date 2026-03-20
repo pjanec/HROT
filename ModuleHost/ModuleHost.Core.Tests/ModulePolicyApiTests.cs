@@ -9,7 +9,7 @@ namespace ModuleHost.Core.Tests
     public class ModulePolicyApiTests
     {
         // Mock module implementing the new Policy API explicitly
-        class ModernTestModule : IModule
+        class ModernTestModule : IEcsModule
         {
             public string Name => "ModernModule";
             
@@ -20,7 +20,7 @@ namespace ModuleHost.Core.Tests
         }
         
         // Mock module implementing the OLD Tier API
-        class LegacyTestModule : IModule
+        class LegacyTestModule : IEcsModule
         {
             public string Name => "LegacyModule";
             
@@ -31,7 +31,7 @@ namespace ModuleHost.Core.Tests
         }
 
         [Fact]
-        public void IModule_Policy_ReplacesOldAPI()
+        public void IEcsModule_Policy_ReplacesOldAPI()
         {
             var module = new ModernTestModule
             {
@@ -43,7 +43,7 @@ namespace ModuleHost.Core.Tests
         }
         
         [Fact]
-        public void IModule_BackwardCompat_TierReturnsCorrectValue()
+        public void IEcsModule_BackwardCompat_TierReturnsCorrectValue()
         {
             var fastModule = new ModernTestModule
             {
@@ -51,13 +51,13 @@ namespace ModuleHost.Core.Tests
             };
             
             #pragma warning disable CS0618
-            // Must cast to IModule to access default interface implementation
-            Assert.Equal(ModuleTier.Fast, ((IModule)fastModule).Tier);
+            // Must cast to IEcsModule to access default interface implementation
+            Assert.Equal(ModuleTier.Fast, ((IEcsModule)fastModule).Tier);
             #pragma warning restore CS0618
         }
         
         [Fact]
-        public void IModule_BackwardCompat_UpdateFrequencyComputed()
+        public void IEcsModule_BackwardCompat_UpdateFrequencyComputed()
         {
             var module = new ModernTestModule
             {
@@ -65,13 +65,13 @@ namespace ModuleHost.Core.Tests
             };
             
             #pragma warning disable CS0618
-            // Must cast to IModule
-            Assert.Equal(6, ((IModule)module).UpdateFrequency);
+            // Must cast to IEcsModule
+            Assert.Equal(6, ((IEcsModule)module).UpdateFrequency);
             #pragma warning restore CS0618
         }
         
         [Fact]
-        public void IModule_NewModule_UsesPolicy()
+        public void IEcsModule_NewModule_UsesPolicy()
         {
             var module = new ModernTestModule(); 
             
@@ -79,7 +79,7 @@ namespace ModuleHost.Core.Tests
         }
         
         [Fact]
-        public void IModule_LegacyModule_PolicyReturnsCorrectValue()
+        public void IEcsModule_LegacyModule_PolicyReturnsCorrectValue()
         {
             var module = new LegacyTestModule
             {
@@ -88,22 +88,22 @@ namespace ModuleHost.Core.Tests
             };
             
             // Check that the default implementation of Policy works.
-            // Must cast to IModule because LegacyTestModule does not implement Policy property itself.
-            var iModule = (IModule)module;
+            // Must cast to IEcsModule because LegacyTestModule does not implement Policy property itself.
+            var iModule = (IEcsModule)module;
             
             Assert.Equal(RunMode.Asynchronous, iModule.Policy.Mode);
             Assert.Equal(10, iModule.Policy.TargetFrequencyHz);
         }
         
         [Fact]
-        public void IModule_LegacyModule_FastTier_PolicyReturnsFastReplica()
+        public void IEcsModule_LegacyModule_FastTier_PolicyReturnsFastReplica()
         {
             var module = new LegacyTestModule
             {
                 Tier = ModuleTier.Fast
             };
             
-            var iModule = (IModule)module;
+            var iModule = (IEcsModule)module;
             
             Assert.Equal(RunMode.FrameSynced, iModule.Policy.Mode);
             Assert.Equal(DataStrategy.GDB, iModule.Policy.Strategy);

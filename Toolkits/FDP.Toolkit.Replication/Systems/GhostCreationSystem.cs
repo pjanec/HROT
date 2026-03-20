@@ -7,7 +7,7 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Replication.Systems
 {
     [UpdateInPhase(SystemPhase.BeforeSync)]
-    public class GhostCreationSystem : IModuleSystem
+    public class GhostCreationSystem : IEcsModuleSystem
     {
         private readonly NetworkEntityMap _entityMap;
 

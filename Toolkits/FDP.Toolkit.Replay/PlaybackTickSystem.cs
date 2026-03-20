@@ -25,7 +25,7 @@ namespace FDP.Toolkit.Replay
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public sealed class PlaybackTickSystem : IModuleSystem
+    public sealed class PlaybackTickSystem : IEcsModuleSystem
     {
         /// <summary>
         /// Frame-gap threshold above which Strategy B (SeekToFrame) is used

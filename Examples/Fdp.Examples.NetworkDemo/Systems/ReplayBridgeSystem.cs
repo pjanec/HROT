@@ -16,7 +16,7 @@ using FDP.Kernel.Logging;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.Input)]
-    public class ReplayBridgeSystem : IModuleSystem, IDisposable
+    public class ReplayBridgeSystem : IEcsModuleSystem, IDisposable
     {
         private struct ComponentCopyInstruction
         {

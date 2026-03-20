@@ -9,6 +9,6 @@ namespace ModuleHost.Core.Abstractions
         /// Register a system for execution.
         /// System's phase and dependencies are determined by attributes.
         /// </summary>
-        void RegisterSystem<T>(T system) where T : IModuleSystem;
+        void RegisterSystem<T>(T system) where T : IEcsModuleSystem;
     }
 }

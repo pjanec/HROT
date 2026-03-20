@@ -20,7 +20,7 @@ namespace FDP.Toolkit.Replay
     /// affecting any other running recorder module.
     /// </para>
     /// </summary>
-    public sealed class StoryRecorderModule : IModule, IDisposable
+    public sealed class StoryRecorderModule : IEcsModule, IDisposable
     {
         private readonly RecordingModule _inner;
 

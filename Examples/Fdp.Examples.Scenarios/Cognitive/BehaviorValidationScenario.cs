@@ -361,7 +361,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
         // ── Inner module ──────────────────────────────────────────────────────
 
-        private sealed class DirectSystemsModule : IModule
+        private sealed class DirectSystemsModule : IEcsModule
         {
             private readonly ComponentSystem[] _systems;
 

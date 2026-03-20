@@ -8,7 +8,7 @@ using ModuleHost.Core.Abstractions;
 
 namespace FDP.Toolkit.Replication
 {
-    public class ReplicationLogicModule : IModule
+    public class ReplicationLogicModule : IEcsModule
     {
         public string Name => "ReplicationLogic";
         // Runs every frame on main thread

@@ -27,7 +27,7 @@ namespace ModuleHost.Core.Tests
             _liveWorld.Dispose();
         }
 
-        class SlowModule : IModule
+        class SlowModule : IEcsModule
         {
             public string Name => "SlowModule";
             public ModuleTier Tier => ModuleTier.Slow; // Async
@@ -59,7 +59,7 @@ namespace ModuleHost.Core.Tests
             }
         }
         
-        class FastModule : IModule
+        class FastModule : IEcsModule
         {
             public string Name => "FastModule";
             public ModuleTier Tier => ModuleTier.Fast; // FrameSynced

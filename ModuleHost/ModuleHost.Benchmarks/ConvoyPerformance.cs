@@ -13,7 +13,7 @@ namespace ModuleHost.Benchmarks
     {
         private EntityRepository _liveWorld;
         private EventAccumulator _accumulator;
-        private List<IModule> _modules;
+        private List<IEcsModule> _modules;
         private ModuleHostKernel _kernel;
 
         [Params(false, true)]
@@ -35,7 +35,7 @@ namespace ModuleHost.Benchmarks
             
             _kernel = new ModuleHostKernel(_liveWorld, _accumulator);
             
-            _modules = new List<IModule>();
+            _modules = new List<IEcsModule>();
             for (int i = 0; i < ModuleCount; i++)
             {
                 var m = new BenchModule { Name = $"M{i}", Tier = ModuleTier.Slow, UpdateFrequency = 1 };
@@ -69,7 +69,7 @@ namespace ModuleHost.Benchmarks
             _kernel.Update(0.016f);
         }
 
-        private class BenchModule : IModule
+        private class BenchModule : IEcsModule
         {
             public string Name { get; set; }
             public ModuleTier Tier { get; set; }

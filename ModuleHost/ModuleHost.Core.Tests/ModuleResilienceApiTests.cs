@@ -7,7 +7,7 @@ namespace ModuleHost.Core.Tests
 {
     public class ModuleResilienceApiTests
     {
-        private class BasicTestModule : IModule
+        private class BasicTestModule : IEcsModule
         {
             public string Name => "Basic";
             public ModuleTier Tier => ModuleTier.Slow;
@@ -16,7 +16,7 @@ namespace ModuleHost.Core.Tests
             public void RegisterSystems(ISystemRegistry registry) { }
         }
 
-        private class CustomTimeoutModule : IModule
+        private class CustomTimeoutModule : IEcsModule
         {
             public string Name => "Custom";
             
@@ -42,11 +42,11 @@ namespace ModuleHost.Core.Tests
         }
 
         [Fact]
-        public void IModule_ResilienceDefaults_UseStandardValues()
+        public void IEcsModule_ResilienceDefaults_UseStandardValues()
         {
             var module = new BasicTestModule(); 
-            // Must cast to IModule to use default Policy implementation
-            var iModule = (IModule)module;
+            // Must cast to IEcsModule to use default Policy implementation
+            var iModule = (IEcsModule)module;
             
             // SlowBackground defaults:
             // MaxExpectedRuntimeMs: >= 100
@@ -57,7 +57,7 @@ namespace ModuleHost.Core.Tests
         }
 
         [Fact]
-        public void IModule_CustomResilience_CanOverride()
+        public void IEcsModule_CustomResilience_CanOverride()
         {
             var module = new CustomTimeoutModule
             {
@@ -66,7 +66,7 @@ namespace ModuleHost.Core.Tests
                 CircuitResetTimeoutMs = 1000
             };
             
-            // CustomTimeoutModule implements Policy directly, so no cast needed, but IModule cast safe.
+            // CustomTimeoutModule implements Policy directly, so no cast needed, but IEcsModule cast safe.
             // Using casting for consistency with verification logic if needed.
             // But here 'module.Policy' is valid because class implements it.
             

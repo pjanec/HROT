@@ -10,7 +10,7 @@ using Fdp.Modules.Geographic.Components;
 namespace Fdp.Examples.NetworkDemo.Systems
 {
     [UpdateInPhase(SystemPhase.PostSimulation)]
-    public class TransformSyncSystem : IModuleSystem
+    public class TransformSyncSystem : IEcsModuleSystem
     {
         private const long CHASSIS_KEY = 5; // Chassis descriptor ordinal
         private const float SMOOTHING_RATE = 10.0f;
