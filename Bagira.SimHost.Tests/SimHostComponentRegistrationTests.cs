@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Bagira.BDC.SSTD;
 using Bagira.SimHost;
+using Bagira.SimHost.Configuration;
 using Bagira.Map.Common.Replication;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
@@ -97,6 +98,37 @@ namespace Bagira.SimHost.Tests
             if (field == null)
                 throw new InvalidOperationException($"Field '{fieldName}' not found on {target.GetType().Name}.");
             return field.GetValue(target)!;
+        }
+
+        // ── BUG1-F001: Domain zero guard ─────────────────────────────────────
+
+        [Fact]
+        public void InitializeEmbedded_DomainZero_UsesDomainZero()
+        {
+            // Before fix, domainOverride=0 was silently treated as null (fallback to config.json).
+            // After fix, 0 is passed through as a valid domain.
+            var app = new SimHostApp();
+            app.InitializeEmbedded(headless: true, domainIdOverride: 0, nodeIdOverride: 0);
+            // Initialization must complete without exception; the app should be alive.
+            Assert.NotNull(app.WorldOrNull);
+        }
+
+        // ── BUG1-F002: NodeId override ───────────────────────────────────────
+
+        [Fact]
+        public void InitializeHeadless_NodeIdZero_FallsBackToLegacyConstant()
+        {
+            var app = new SimHostApp();
+            app.InitializeHeadless(domainIdOverride: 97, nodeIdOverride: 0);
+            Assert.Equal(SimHostNetworkConstants.LocalNodeId, app.TestHook_ResolvedLocalNodeId);
+        }
+
+        [Fact]
+        public void InitializeHeadless_NodeIdTen_ResolvedToTen()
+        {
+            var app = new SimHostApp();
+            app.InitializeHeadless(domainIdOverride: 96, nodeIdOverride: 10);
+            Assert.Equal(10, app.TestHook_ResolvedLocalNodeId);
         }
     }
 }

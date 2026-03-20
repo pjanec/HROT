@@ -216,7 +216,17 @@ public class IgApplication
 
     private int? _domainOverride;
 
+    // -- Optional node-id override (multi-instance support) -------------------
 
+    private int _nodeIdOverride;
+
+    /// <summary>
+    /// Effective DDS instance ID for this IG process.
+    /// When <c>_nodeIdOverride</c> is non-zero it is used directly; otherwise falls
+    /// back to <see cref="IgNetworkConstants.InstanceId"/> (legacy constant = 300).
+    /// Computed once in <see cref="InitializeEmbedded"/> and reused at runtime.
+    /// </summary>
+    private int _effectiveInstanceId;
 
     // -- Task 5: IG-to-IOS event translator state ----------------------------------------------
 
@@ -412,13 +422,17 @@ public class IgApplication
 
     /// </summary>
 
-    public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null)
+    public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null, int nodeIdOverride = 0)
 
     {
 
         _headless = headless;
 
-        _domainOverride = domainIdOverride;
+        _domainOverride     = domainIdOverride;
+
+        _nodeIdOverride     = nodeIdOverride;
+
+        _effectiveInstanceId = nodeIdOverride != 0 ? nodeIdOverride : IgNetworkConstants.InstanceId;
 
         _camera = new MapCamera
 
@@ -620,7 +634,7 @@ public class IgApplication
 
             localDomain:   domainId,
 
-            localInstance: IgNetworkConstants.InstanceId);
+            localInstance: _effectiveInstanceId);
 
 
 
@@ -765,7 +779,7 @@ public class IgApplication
 
 
 
-                ddsAllocator = new DdsIdAllocator(participant, $"IG_{IgNetworkConstants.InstanceId}");
+                ddsAllocator = new DdsIdAllocator(participant, $"IG_{_effectiveInstanceId}");
 
                 // Create the MapCommandController now that canvas and DDS resources are ready.
                 // _edgeCompiler was built in InitializeEcs — inject it here for binary DDS wire (ATTR2-DEBT-07).
@@ -1021,7 +1035,7 @@ public class IgApplication
 
         // Advertise this IG's capabilities so the IOS can build its layer-control UI.
         if (_networkEnabled && participant != null)
-            IgCapabilitiesPublisher.Publish(participant, IgNetworkConstants.InstanceId);
+            IgCapabilitiesPublisher.Publish(participant, _effectiveInstanceId);
 
     }
 
@@ -1110,7 +1124,7 @@ public class IgApplication
 
                 // Accept only broadcast (MapId==0) or commands addressed to this IG instance.
 
-                if (cmd.MapId != 0 && cmd.MapId != IgNetworkConstants.InstanceId)
+                if (cmd.MapId != 0 && cmd.MapId != _effectiveInstanceId)
 
                     continue;
 
@@ -2008,7 +2022,7 @@ public class IgApplication
 
         {
 
-            MapId                = IgNetworkConstants.InstanceId,
+            MapId                = _effectiveInstanceId,
 
             Position             = new GeoPosition { Latitude = lat, Longitude = lon, Altitude = alt },
 
@@ -2033,7 +2047,7 @@ public class IgApplication
                 : new System.Collections.Generic.List<int>();
             _selectionWriter.Write(new SelectionChangedEvent
             {
-                MapId             = IgNetworkConstants.InstanceId,
+                MapId             = _effectiveInstanceId,
                 SelectedEntityIds = selIds,
             });
             FdpLog<IgApplication>.Debug("[IG] SelectionChangedEvent published. count={0}", selIds.Count);

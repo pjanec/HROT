@@ -246,5 +246,24 @@ namespace Bagira.Runner.Tests
             var ex = Assert.Throws<InvalidOperationException>(() => config.Validate());
             Assert.Contains("badpeer", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
+
+        // ── BUG1-F002: NodeId property default ───────────────────────────────
+
+        [Fact]
+        public void NodeId_DefaultsToZero()
+        {
+            // When --node-id is not supplied the property must be 0 (legacy fallback sentinel).
+            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true };
+            config.Validate();
+            Assert.Equal(0, config.NodeId);
+        }
+
+        [Fact]
+        public void NodeId_SetExplicitly_PreservedAfterValidate()
+        {
+            var config = new RunnerConfiguration { ModeString = "simhost", NoWait = true, NodeId = 42 };
+            config.Validate();
+            Assert.Equal(42, config.NodeId);
+        }
     }
 }

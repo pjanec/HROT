@@ -27,3 +27,7 @@ This document tracks P2 and P3 technical debt, refactoring opportunities, and de
 |   | P3 | Performance  | BD1-BATCH-03 | `ComponentReflector` byte cache diffing uses `Marshal.AllocHGlobal` every frame. Optimise to use a pooled `NativeArray<byte>` or `stackalloc` for small structs to eliminate native heap churn. | BD1-BATCH-04 |
 |   | P2 | Testing      | BD1-BATCH-03 | `EntityMission_MovesEntity` integration test is failing due to missing mission pipeline wiring in the `SimHostInstance` test harness. Pre-existing issue masked by CQRS split. | BD1-BATCH-04 |
 |   | P3 | Testing      | BD1-BATCH-03 | `FDP.Toolkit.ImGui.Tests` crashes when run in parallel with other assemblies due to native ImGui library loading conflict. Requires test isolation config. | BD1-BATCH-04 |
+|   | P3 | Architecture | BUG1-BATCH-01 | `UpdateEntityDescriptorRequestSystem` creates DDS objects internally making unit testing hard. Inject the ack writer via constructor. | BUG1-BATCH-02 |
+|   | P3 | Architecture | BUG1-BATCH-01 | `translators` list in `SimHostApp.OnLoad()` includes `MissionIngressTranslator` which doesn't need to be disposed. Separate egress. | BUG1-BATCH-02 |
+|   | P2 | Architecture | BUG1-BATCH-01 | IOS subsystem app does not receive the node-id pass-through from orchestrator like IG and SimHost do. | BUG1-BATCH-02 |
+|   | P2 | Testing      | BUG1-BATCH-01 | Fix pre-existing IG test failures in `Bagira.IG.Tests.EditToolTests` and `TraceLoggingTests`. | BUG1-BATCH-02 |

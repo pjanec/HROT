@@ -299,6 +299,72 @@ namespace Bagira.Runner.Tests
             Assert.Null(ex);
         }
 
+        // ── BUG1-F002: NodeId offset resolution ──────────────────────────────
+
+        [Fact]
+        public void Initialize_NodeIdZero_SetsSubsystemConfigNodeIdToZero()
+        {
+            var mock = new MockSubsystem("SimHost");
+            var options = new RunnerOptions { Headless = true, NodeId = 0 };
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
+
+            orchestrator.Initialize();
+
+            Assert.Equal(0, mock.ReceivedConfig!.NodeId);
+        }
+
+        [Fact]
+        public void Initialize_NodeId10_SimHostReceivesTen()
+        {
+            // SimHost offset = +0, so resolved = 10 + 0 = 10
+            var mock = new MockSubsystem("SimHost");
+            var options = new RunnerOptions { Headless = true, NodeId = 10 };
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
+
+            orchestrator.Initialize();
+
+            Assert.Equal(10, mock.ReceivedConfig!.NodeId);
+        }
+
+        [Fact]
+        public void Initialize_NodeId5_IgReceivesOneHundredFive()
+        {
+            // IG offset = +100, so resolved = 5 + 100 = 105
+            var mock = new MockSubsystem("IG");
+            var options = new RunnerOptions { Headless = true, NodeId = 5 };
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
+
+            orchestrator.Initialize();
+
+            Assert.Equal(105, mock.ReceivedConfig!.NodeId);
+        }
+
+        [Fact]
+        public void Initialize_NodeId5_IosReceivesTwoHundredFive()
+        {
+            // IOS offset = +200, so resolved = 5 + 200 = 205
+            var mock = new MockSubsystem("IOS");
+            var options = new RunnerOptions { Headless = true, NodeId = 5 };
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
+
+            orchestrator.Initialize();
+
+            Assert.Equal(205, mock.ReceivedConfig!.NodeId);
+        }
+
+        [Fact]
+        public void Initialize_NodeId3_UnknownSubsystemReceivesThreeHundredThree()
+        {
+            // Other offset = +300, so resolved = 3 + 300 = 303
+            var mock = new MockSubsystem("OtherSub");
+            var options = new RunnerOptions { Headless = true, NodeId = 3 };
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
+
+            orchestrator.Initialize();
+
+            Assert.Equal(303, mock.ReceivedConfig!.NodeId);
+        }
+
         /// <summary>Helper mock whose <see cref="GetMapCamera"/> always returns null.</summary>
         private class NullCameraSubsystemMock : ISubsystem, IMapCameraProvider
         {

@@ -107,6 +107,7 @@ namespace Bagira.SimHost
         // ── Headless/test support ────────────────────────────────────────────
         private bool _headless;
         private int? _domainOverride;
+        private int  _nodeIdOverride;
         private bool _initialized;
         // ── Role-based bootstrap ─────────────────────────────────────────────
         private NodeRole          _role       = NodeRole.AllInOne;
@@ -213,8 +214,10 @@ namespace Bagira.SimHost
             // Apply environment side-effects (e.g. CYCLONEDDS_URI) using the resolved config.
             // Safe to call even when _nodeConfig?.ApplyEnvironment() already ran above — idempotent.
             if (_nodeConfig == null) nodeConfig.ApplyEnvironment();
-            var domainId = _domainOverride ?? (int)nodeConfig.DdsDomainId;
+            var domainId   = _domainOverride ?? (int)nodeConfig.DdsDomainId;
+            var localNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
             Logger.Info($"[SimHost] Domain ID:       {domainId}");
+            Logger.Info($"[SimHost] Node ID:         {localNodeId}");
             Logger.Info($"[SimHost] Simulation Rate: {nodeConfig.SimulationRateHz} Hz");
 
             // ── 2. ECS world ──────────────────────────────────────────────────
@@ -353,7 +356,7 @@ namespace Bagira.SimHost
                 elm,
                 entityMap,
                 _idAllocator,
-                SimHostNetworkConstants.LocalNodeId,
+                localNodeId,
                 onEntitySpawned: (world, entity, isLocalAuthority) =>
                 {
                     // Mark locally-owned physics components as authoritative so
@@ -367,7 +370,7 @@ namespace Bagira.SimHost
                 });
 
             var simHostMod = new SimHostModule(
-                ddsParticipant, tkbDb, _idAllocator, SimHostNetworkConstants.LocalNodeId,
+                ddsParticipant, tkbDb, _idAllocator, localNodeId,
                 spawningSystem, entityMap, doctrineRegistry,
                 new GhostCreationSystem(entityMap), wgs84, jsonAttributeCompiler, binaryInterpreter);
             _kernel.RegisterModule(simHostMod);
@@ -377,7 +380,7 @@ namespace Bagira.SimHost
             // EntityMaster must be published before GeoSpatial so receivers can
             // register the entity identity before its first position update.
             var entityMasterEgressTranslator = new EntityMasterEgressTranslator(
-                ddsParticipant, entityMap, SimHostNetworkConstants.LocalNodeId);
+                ddsParticipant, entityMap, localNodeId);
             translators.Add(entityMasterEgressTranslator);
             translators.Add(new EntityInfoEgressTranslator(ddsParticipant, entityMap));
             if (simHostMod.GeoEgressTranslator != null)
@@ -390,13 +393,13 @@ namespace Bagira.SimHost
             translators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));
 
             _kernel.RegisterGlobalSystem(
-                new CycloneNetworkCleanupSystem(entityMasterEgressTranslator));
+                new CycloneNetworkCleanupSystem(translators));
             _kernel.RegisterGlobalSystem(
                 new DisposalMonitoringSystem(entityMap));
 
-            var localNodeId = SimHostNetworkConstants.LocalNodeId;
-            var nodeMapper  = new NodeIdMapper(domainId, localNodeId);
-            var topology    = new StaticNetworkTopology(localNodeId, new[] { localNodeId });
+            var localNodeIdForMapper = localNodeId;
+            var nodeMapper  = new NodeIdMapper(domainId, localNodeIdForMapper);
+            var topology    = new StaticNetworkTopology(localNodeIdForMapper, new[] { localNodeIdForMapper });
 
             var cycloneModule = new CycloneNetworkModule(
                 ddsParticipant, nodeMapper, _idAllocator, topology, elm,
@@ -469,10 +472,11 @@ namespace Bagira.SimHost
         /// without creating a Raylib window.  The caller owns the window lifecycle
         /// (or passes <paramref name="headless"/> = <c>true</c> for windowless use).
         /// </summary>
-        public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null)
+        public void InitializeEmbedded(bool headless = false, int? domainIdOverride = null, int nodeIdOverride = 0)
         {
             _headless       = headless;
             _domainOverride = domainIdOverride;
+            _nodeIdOverride = nodeIdOverride;
             OnLoad();
         }
 
@@ -480,8 +484,8 @@ namespace Bagira.SimHost
         /// Initializes the SimHost application without creating a Raylib window.
         /// Intended for integration tests and headless runners.
         /// </summary>
-        public void InitializeHeadless(int? domainIdOverride = null)
-            => InitializeEmbedded(headless: true, domainIdOverride: domainIdOverride);
+        public void InitializeHeadless(int? domainIdOverride = null, int nodeIdOverride = 0)
+            => InitializeEmbedded(headless: true, domainIdOverride: domainIdOverride, nodeIdOverride: nodeIdOverride);
 
         /// <summary>
         /// Disposes all SimHost resources.
@@ -724,6 +728,10 @@ namespace Bagira.SimHost
 
             return children;
         }
+
+        /// <summary>TestHook: returns the resolved local node ID (override when non-zero, else legacy constant).</summary>
+        internal int TestHook_ResolvedLocalNodeId =>
+            _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
 
         // ── Component registration ────────────────────────────────────────────
 

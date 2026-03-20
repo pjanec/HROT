@@ -108,7 +108,7 @@ class Program
         if (config.ParsedMode.HasFlag(RunMode.IG))      subsystems.Add(new IgSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.IOS))     subsystems.Add(new IosSubsystem());
 
-        var options = new RunnerOptions { Headless = config.Headless, DomainId = config.DomainId };
+        var options = new RunnerOptions { Headless = config.Headless, DomainId = config.DomainId, NodeId = config.NodeId };
 
         // ── Create + run orchestrator ─────────────────────────────────────────
         var orchestrator = new SubsystemOrchestrator(subsystems, options);

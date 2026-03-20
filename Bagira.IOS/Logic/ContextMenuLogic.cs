@@ -109,12 +109,13 @@ public sealed class ContextMenuLogic : IContextMenuLogic
             MenuStrategy.Standard => new List<ContextMenuItem>
             {
                 new() { Id = ContextMenuActions.CenterOnEntity, Label = "Center on Entity",  Icon = "center"     },
-                new() { Id = ContextMenuActions.Properties,     Label = "Properties...",      Icon = "properties" }
+                new() { Id = ContextMenuActions.Properties,     Label = "Properties...",      Icon = "properties" },
+                new() { Id = ContextMenuActions.Delete,   Label = "DELETE",       Icon = "delete",   Style = "destructive" },
             },
 
             MenuStrategy.Admin => new List<ContextMenuItem>
             {
-                new() { Id = ContextMenuActions.Delete,   Label = "DELETE",       Icon = "delete",   Style = "destructive" },
+                //new() { Id = ContextMenuActions.Delete,   Label = "DELETE",       Icon = "delete",   Style = "destructive" },
                 new() { Id = ContextMenuActions.Teleport, Label = "Teleport...",  Icon = "teleport"  }
             },
 

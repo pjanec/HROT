@@ -91,7 +91,9 @@ namespace Bagira.Map.Common.Systems
             // 1. Resolve entity from network ID.
             if (!_entityMap.TryGetEntity(req.EntityId, out var entity))
             {
-                WriteAck(req.RequestId, req.EntityId, SstErrorCode.EntityNotFound);
+                FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
+                    "[UpdDescReq] Entity {0} not found. Silently discarding request.",
+                    req.EntityId);
                 return;
             }
 
@@ -109,7 +111,6 @@ namespace Bagira.Map.Common.Systems
                     FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                         "[UpdDescReq] Ignoring unsupported DescriptorType {0} for Entity {1}.",
                         req.DescriptorType, req.EntityId);
-                    WriteAck(req.RequestId, req.EntityId, SstErrorCode.NotSupported);
                     break;
             }
         }
@@ -123,7 +124,6 @@ namespace Bagira.Map.Common.Systems
                 FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                     "[UpdDescReq] Not authoritative for GeoSpatial on Entity {0}. Ignoring.",
                     req.EntityId);
-                WriteAck(req.RequestId, req.EntityId, SstErrorCode.NotOwner);
                 return;
             }
 
@@ -175,7 +175,6 @@ namespace Bagira.Map.Common.Systems
                 FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
                     "[UpdDescReq] Not authoritative for MapVisualOverlay on Entity {0}. Ignoring.",
                     req.EntityId);
-                WriteAck(req.RequestId, req.EntityId, SstErrorCode.NotOwner);
                 return;
             }
 

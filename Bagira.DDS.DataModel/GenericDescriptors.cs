@@ -24,7 +24,7 @@ namespace Bagira.BDC.SSTD
     // ===================================================================================
 
     /// <summary>
-    /// Wire representation of a DIS Entity Type decomposed into its eight standard fields.
+    /// Wire representation of a DIS Entity Type decomposed into its seven standard fields.
     /// Replacing the raw <c>ulong</c> makes each field legible to DDS monitoring tools
     /// (RTI Spy, Cyclone introspection, etc.) without changing the engine-side
     /// <c>Fdp.Kernel.DISEntityType</c> struct or any entity-query filter logic.

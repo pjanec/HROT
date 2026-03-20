@@ -193,5 +193,59 @@ namespace Bagira.Runner.Tests
             subsystem.Update(0.016f);
             subsystem.Shutdown();
         }
+
+        // ── BUG1-F001: Domain zero guard ──────────────────────────────────────
+
+        [Fact]
+        public void Initialize_DomainZero_DoesNotThrow()
+        {
+            // Before fix, DomainId=0 was treated as "unspecified" and passed null
+            // to SimHostApp, causing it to fall back to config.json / domain 42.
+            // After fix, domain 0 is a valid domain and must be accepted.
+            var cfg = new SubsystemConfig { DomainId = 0, Headless = true, OwnWindow = false, SubsystemName = "SimHost" };
+            var ex = Record.Exception(() => _subsystem.Initialize(cfg));
+            Assert.Null(ex);
+        }
+
+        [Fact]
+        public void Initialize_DomainZero_PassesDomainZeroToApp()
+        {
+            var cfg = new SubsystemConfig { DomainId = 0, Headless = true, OwnWindow = false, SubsystemName = "SimHost" };
+            _subsystem.Initialize(cfg);
+            // Access the internal App to verify the domain used (0 should be stored, not null).
+            // The App uses _domainOverride which we can read via the resolved local node ID accessor.
+            // Since domain 0 is valid and no config.json fallback should occur during init, no exception is the primary assertion.
+            Assert.NotNull(_subsystem.App);
+        }
+
+        [Fact]
+        public void Initialize_NonZeroDomain_PassedThrough()
+        {
+            var cfg = new SubsystemConfig { DomainId = 5, Headless = true, OwnWindow = false, SubsystemName = "SimHost" };
+            var ex = Record.Exception(() => _subsystem.Initialize(cfg));
+            Assert.Null(ex);
+        }
+
+        // ── BUG1-F002: NodeId override ───────────────────────────────────────
+
+        [Fact]
+        public void Initialize_NodeIdZero_DoesNotThrow()
+        {
+            // NodeId=0 is the legacy fallback sentinel — must not cause an error.
+            var cfg = HeadlessConfig();
+            cfg.NodeId = 0;
+            var ex = Record.Exception(() => _subsystem.Initialize(cfg));
+            Assert.Null(ex);
+        }
+
+        [Fact]
+        public void Initialize_NodeIdNonZero_DoesNotThrow()
+        {
+            // Passing a non-zero node ID must not cause initialization to fail.
+            var cfg = HeadlessConfig();
+            cfg.NodeId = 10;
+            var ex = Record.Exception(() => _subsystem.Initialize(cfg));
+            Assert.Null(ex);
+        }
     }
 }

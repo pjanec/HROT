@@ -116,9 +116,9 @@ namespace Bagira.Runner.Services
         public void Initialize(SubsystemConfig config)
         {
             _headless = config.Headless;
-            int? domainOverride = config.DomainId > 0 ? config.DomainId : (int?)null;
+            int? domainOverride = config.DomainId;
             _app = new SimHostApp(domainOverride);
-            _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride);
+            _app.InitializeEmbedded(headless: config.Headless, domainIdOverride: domainOverride, nodeIdOverride: config.NodeId);
         }
 
         /// <summary>
