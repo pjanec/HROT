@@ -64,10 +64,10 @@ public class EntityDragTool : IMapTool
         // Draw drag line from start to current
         Raylib.DrawLineEx(_startPos, _currentPos, 2.0f / ctx.Zoom, Color.Yellow);
         
-        // Draw target reticle at current pos
+        // Draw target reticle at current pos using float-precision draws to avoid truncation/stutter.
         float radius = 10.0f / ctx.Zoom;
-        Raylib.DrawCircleLines((int)_currentPos.X, (int)_currentPos.Y, radius, Color.Yellow);
-        Raylib.DrawCircle((int)_currentPos.X, (int)_currentPos.Y, 2.0f / ctx.Zoom, Color.Yellow);
+        Raylib.DrawPolyLines(_currentPos, 20, radius, 0.0f, Color.Yellow);
+        Raylib.DrawCircleV(_currentPos, 2.0f / ctx.Zoom, Color.Yellow);
     }
 
     public bool HandleClick(Vector2 worldPos, MouseButton button)

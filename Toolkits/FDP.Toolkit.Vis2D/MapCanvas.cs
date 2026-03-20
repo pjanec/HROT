@@ -189,6 +189,9 @@ namespace FDP.Toolkit.Vis2D
             // Update Camera Interpolation
             Camera.Update(dt);
 
+            // Handle Input Routing
+            ProcessInputPipeline();
+
             // Update Layers
             foreach (var layer in _layers)
             {
@@ -199,8 +202,6 @@ namespace FDP.Toolkit.Vis2D
             if (ActiveTool != null)
                 ActiveTool.Update(dt);
             
-            // Handle Input Routing
-            ProcessInputPipeline();
         }
 
         public void Draw()
