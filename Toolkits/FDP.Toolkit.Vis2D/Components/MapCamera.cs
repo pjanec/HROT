@@ -36,6 +36,9 @@ namespace FDP.Toolkit.Vis2D.Components
         public float MinZoom { get; set; } = 0.1f;
         public float MaxZoom { get; set; } = 10.0f;
         
+        // ── NEW: Smoothing Toggle ─────────────────────────────────────────
+        public bool EnableSmoothing { get; set; } = false;
+
         public Vis2DInputMap InputMap { get; set; } = Vis2DInputMap.Default;
 
         // State for dragging
@@ -68,11 +71,18 @@ namespace FDP.Toolkit.Vis2D.Components
             if (_targetZoom < MinZoom) _targetZoom = MinZoom;
             if (_targetZoom > MaxZoom) _targetZoom = MaxZoom;
 
-            // Interpolate Zoom
-            InnerCamera.Zoom = Lerp(InnerCamera.Zoom, _targetZoom, dt * ZoomDamping);
-
-            // Interpolate Target
-            InnerCamera.Target = Vector2.Lerp(InnerCamera.Target, _targetTarget, dt * PanDamping);
+            if (EnableSmoothing)
+            {
+                // Interpolate
+                InnerCamera.Zoom = Lerp(InnerCamera.Zoom, _targetZoom, dt * ZoomDamping);
+                InnerCamera.Target = Vector2.Lerp(InnerCamera.Target, _targetTarget, dt * PanDamping);
+            }
+            else
+            {
+                // Snap directly
+                InnerCamera.Zoom = _targetZoom;
+                InnerCamera.Target = _targetTarget;
+            }
         }
 
         private float Lerp(float a, float b, float t)
