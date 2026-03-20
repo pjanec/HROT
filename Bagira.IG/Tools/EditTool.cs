@@ -190,6 +190,10 @@ public class EditTool : IMapTool
     /// </remarks>
     public bool HandleDrag(Vector2 worldPos, Vector2 delta)
     {
+        // Only allow dragging if the left mouse button is held down.
+        if (_canvas?.Input.IsMouseButtonDown(MouseButton.Left) != true)
+            return false;
+
         if (_selectedVertexIndex < 0)
             _selectedVertexIndex = FindGloballyNearestVertex(worldPos);
 

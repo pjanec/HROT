@@ -1,8 +1,39 @@
-﻿[BUG] Edit drawing can not be ended
-When i create a map drawing entity shape and i select "Edit drawing" from the context menu,
-I am able to drag and drop the vertices of the shape using left mouse button but I am not able to finish it.
-when i click the right mouse button, it always moves the closest vertex to the right clicked location instead
-of committing the edit.
+
+[BUG] MissionTrigger.ReachedDestination  trigger (brain) checks NavState which lives in another node (muscle)
+and will never be set on the brain node
+
+In the current architecture, `MissionTrigger.ReachedDestination` directly polls the `NavState.HasArrived` field in the ECS. 
+
+If your navigation (Muscle tier) and brain (Cognitive tier) run on the same node (e.g., `NodeRole.AllInOne`), `NavState` is updated natively by the `CarKinematicsSystem` during the physics update. 
+
+However, if the navigation runs on a different node, **this trigger will fail and hang the mission indefinitely.**
+
+Here is why this happens, and why it is an architectural flaw:
+1. **Lack of Replication:** `NavState` is an internal kinematic component. It is never replicated over the DDS network.
+2. **CQRS Violation:** The engine uses a strict CQRS contract for distributed movement. The Brain node publishes a `NavigationIntent` command, and the Muscle node (running `NavigationExecutionSystem`) executes the physics and replies with a `NavigationStatus`. 
+3. Because `NavState` is never updated on the Brain node by the network ingress layer, `MissionDirectorSystem` will never see `HasArrived == 1`. It is a leaky abstraction that couples the cognitive tier directly to a local kinematic component.
+
+**The Correct Architectural Approach**
+To fix this in a distributed topology, you must stop using `MissionTrigger.ReachedDestination` and instead use **`MissionTrigger.DoctrineFinished`**.
+
+This fully respects the network boundary and leverages the CQRS pipeline correctly:
+1. The remote Muscle node determines that the vehicle is within the arrival radius and broadcasts `NavigationStatus.Result = Arrived` over DDS.
+2. The Brain node receives this via the `NavigationStatusIngressTranslator`.
+3. The `MoveToExecutor` (running on the Brain) reads the replicated `NavigationStatus` and returns `NodeStatus.Success`.
+4. The `BTreeTickSystem` observes that the doctrine's root node has reached a terminal state and publishes a `DoctrineFinishedEvent`.
+5. `MissionDirectorSystem` consumes the event and cleanly advances the mission phase without ever needing to touch `NavState`.
+
+--------
+
+[BUG] Entity health calculated on all systems from hit events
+Entity damage might be complex and should be calculated on a single node only (not in parallel on each node indepedently)
+The resulting health update should be published over network.
+TODO: THIS NEEDS MORE DETAILS - DO NOT IMPLEMENT UNTIL CLARIFIED
+
+
+
+
+
 
 
 ----------
