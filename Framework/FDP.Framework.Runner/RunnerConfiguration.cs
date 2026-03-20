@@ -31,6 +31,10 @@ namespace FDP.Framework.Runner
         [Option("script", HelpText = "Path to headless test script JSON")]
         public string TestScriptPath { get; set; } = string.Empty;
 
+        /// <summary>Base node ID for deterministic multi-instance offsetting (default 0 = use legacy constants).</summary>
+        [Option('n', "node-id", Default = 0, HelpText = "Base node ID for multi-instance offsetting (0 = legacy)")]
+        public int NodeId { get; set; }
+
         /// <summary>Force fixed-step time instead of wall-clock dt (CI mode).</summary>
         [Option("deterministic", Default = false, HelpText = "Force fixed-step time (CI mode)")]
         public bool Deterministic { get; set; }

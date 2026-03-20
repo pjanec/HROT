@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Interfaces;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Network.Cyclone.Systems;
@@ -18,9 +19,9 @@ namespace Fdp.Examples.NetworkDemo.Modules
 
         private readonly CycloneNetworkCleanupSystem _system;
 
-        public NetworkCleanupModule(IDescriptorTranslator masterEgressTranslator)
+        public NetworkCleanupModule(IEnumerable<IDescriptorTranslator> translators)
         {
-            _system = new CycloneNetworkCleanupSystem(masterEgressTranslator);
+            _system = new CycloneNetworkCleanupSystem(translators);
         }
 
         public void RegisterSystems(ISystemRegistry registry)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 using ModuleHost.Core.Network;
@@ -13,12 +14,13 @@ namespace ModuleHost.Network.Cyclone.Systems
     [UpdateInPhase(SystemPhase.Export)]
     public class CycloneNetworkCleanupSystem : IEcsModuleSystem
     {
-        private readonly Fdp.Interfaces.IDescriptorTranslator _translator;
+        private readonly Fdp.Interfaces.IDescriptorTranslator[] _translators;
         private readonly Dictionary<long, Entity> _trackedEntities = new();
         
-        public CycloneNetworkCleanupSystem(Fdp.Interfaces.IDescriptorTranslator translator)
+        public CycloneNetworkCleanupSystem(IEnumerable<Fdp.Interfaces.IDescriptorTranslator> translators)
         {
-            _translator = translator;
+            _translators = translators?.ToArray()
+                ?? throw new ArgumentNullException(nameof(translators));
         }
 
         public void Execute(ISimulationView view, float dt)
@@ -64,17 +66,23 @@ namespace ModuleHost.Network.Cyclone.Systems
                     FdpLog<CycloneNetworkCleanupSystem>.Info(
                         "Detected entity destruction {0}, sending dispose.",
                         netId);
-                    try 
+
+                    foreach (var translator in _translators)
                     {
-                        _translator.Dispose(netId);
+                        try
+                        {
+                            translator.Dispose(netId);
+                        }
+                        catch (Exception ex)
+                        {
+                            FdpLog<CycloneNetworkCleanupSystem>.Error(
+                                "Translator {0} failed to dispose entity {1}: {2}",
+                                translator.GetType().Name,
+                                netId,
+                                ex.Message);
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                         FdpLog<CycloneNetworkCleanupSystem>.Error(
-                             "Failed to dispose entity {0}: {1}",
-                             netId,
-                             ex.Message);
-                    }
+
                     _trackedEntities.Remove(netId);
                 }
             }

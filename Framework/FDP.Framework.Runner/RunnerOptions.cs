@@ -23,6 +23,9 @@ namespace FDP.Framework.Runner
         /// <summary>Target frame rate cap; ignored in headless mode.</summary>
         public int TargetFps { get; set; } = 60;
 
+        /// <summary>Base node ID forwarded to the orchestrator for per-subsystem offset resolution (0 = use legacy constants).</summary>
+        public int NodeId { get; set; }
+
         /// <summary>When <c>true</c>, the orchestrator passes <see cref="FixedDeltaSeconds"/> to
         /// <c>Update()</c> instead of <c>Raylib.GetFrameTime()</c>. Use for CI / deterministic tests.</summary>
         public bool Deterministic { get; set; }

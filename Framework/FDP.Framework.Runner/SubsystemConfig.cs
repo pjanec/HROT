@@ -23,6 +23,9 @@ namespace FDP.Framework.Runner
         /// <summary>Human-readable name of the subsystem (e.g. "SimHost", "IG", "IOS").</summary>
         public string SubsystemName { get; set; } = string.Empty;
 
+        /// <summary>Resolved node ID for this subsystem instance (0 = use legacy constants inside the subsystem).</summary>
+        public int NodeId { get; set; }
+
         /// <summary>When <c>true</c>, <see cref="ScenarioSubsystem"/> uses
         /// <c>SteppingTimeController</c> instead of wall-clock time.</summary>
         public bool Deterministic { get; set; }

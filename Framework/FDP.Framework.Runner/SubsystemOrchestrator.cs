@@ -33,6 +33,7 @@ namespace FDP.Framework.Runner
         private readonly List<ISubsystem> _subsystems;
         private readonly bool _headless;
         private readonly int _domainId;
+        private readonly int _nodeId;
         private readonly int _windowWidth;
         private readonly int _windowHeight;
         private readonly int _targetFps;
@@ -59,6 +60,7 @@ namespace FDP.Framework.Runner
             options ??= new RunnerOptions();
             _headless          = options.Headless;
             _domainId          = options.DomainId;
+            _nodeId            = options.NodeId;
             _windowWidth       = options.WindowWidth;
             _windowHeight      = options.WindowHeight;
             _targetFps         = options.TargetFps;
@@ -94,10 +96,32 @@ namespace FDP.Framework.Runner
                     OwnWindow         = false,
                     SubsystemName     = subsystem.Name,
                     Deterministic     = _deterministic,
-                    FixedDeltaSeconds = _fixedDeltaSeconds
+                    FixedDeltaSeconds = _fixedDeltaSeconds,
+                    NodeId            = ResolveNodeId(subsystem.Name)
                 };
                 subsystem.Initialize(cfg);
             }
+        }
+
+        /// <summary>
+        /// Resolves the effective node ID for a subsystem by applying a deterministic per-type
+        /// offset to the base <c>--node-id</c> value.
+        /// When the base node ID is 0 (default), returns 0 so each subsystem falls back to its
+        /// own legacy constant, preserving backwards compatibility.
+        /// </summary>
+        /// <param name="subsystemName">The value of <see cref="ISubsystem.Name"/>.</param>
+        /// <returns>The resolved node ID, or 0 to signal legacy fallback.</returns>
+        private int ResolveNodeId(string subsystemName)
+        {
+            if (_nodeId == 0) return 0;
+            int offset = subsystemName switch
+            {
+                "SimHost" => 0,
+                "IG"      => 100,
+                "IOS"     => 200,
+                _         => 300,
+            };
+            return _nodeId + offset;
         }
 
         /// <summary>

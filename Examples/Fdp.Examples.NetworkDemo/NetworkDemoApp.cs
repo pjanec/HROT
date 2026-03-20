@@ -192,7 +192,7 @@ namespace Fdp.Examples.NetworkDemo
                     allTranslators.Add(new Fdp.Examples.NetworkDemo.Translators.EntityMasterIngressTranslator(participant, EntityMap, replicationLogicModule.GhostCreationSystem, nodeMapper, localInternalId));
                     // Register the cleanup system that watches locally-owned entities and
                     // publishes DDS dispose signals when they are destroyed.
-                    Kernel.RegisterModule(new NetworkCleanupModule(masterEgress));
+                    Kernel.RegisterModule(new NetworkCleanupModule(new[] { masterEgress }));
                 }
 
                 // 2. Auto-generated
