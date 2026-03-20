@@ -90,6 +90,14 @@ namespace Bagira.Map.Common.Replication.Egress
                     });
                 }
 
+                // Extract the authoritative style to send to the IGs
+                string styleJson = string.Empty;
+                if (view.HasComponent<MapOverlayStyle>(entity))
+                {
+                    ref readonly var style = ref view.GetComponentRO<MapOverlayStyle>(entity);
+                    styleJson = System.Text.Json.JsonSerializer.Serialize(style);
+                }
+
                 _writer.Write(new MapVisualOverlay
                 {
                     EntityId        = (int)netId.Value,
@@ -97,6 +105,7 @@ namespace Bagira.Map.Common.Replication.Egress
                     Points          = geoPoints,
                     IsEditable      = true,
                     IsClickable     = true,
+                    StyleOverrideJson = styleJson // FIX: Inject the preserved style
                 });
 
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);

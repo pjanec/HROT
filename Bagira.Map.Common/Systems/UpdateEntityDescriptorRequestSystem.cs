@@ -202,7 +202,10 @@ namespace Bagira.Map.Common.Systems
             World.SetManagedComponent(entity, polyline);
 
             // Also refresh style if provided in the overlay.
-            World.SetComponent(entity, MapOverlayStyle.FromJson(overlay.StyleOverrideJson));
+            if (!string.IsNullOrEmpty(overlay.StyleOverrideJson))
+            {
+                World.SetComponent(entity, MapOverlayStyle.FromJson(overlay.StyleOverrideJson));
+            }
 
             SmartEgressUtil.MarkDirty(World, entity, MapVisualOverlayOrdinal);
 

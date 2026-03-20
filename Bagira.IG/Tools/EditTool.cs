@@ -218,7 +218,7 @@ public class EditTool : IMapTool
             Raylib.DrawLineEx(p1, p2, EditToolConstants.VertexHandleRadiusWorldUnits, Color.Yellow);
         }
 
-        // Draw vertex handles.
+        // Draw vertex handles (preserve sub-pixel precision).
         for (int i = 0; i < _ghostPoints.Count; i++)
         {
             var pos    = _ghostPoints[i];
@@ -227,7 +227,7 @@ public class EditTool : IMapTool
                 ? EditToolConstants.SelectedHandleRadiusWorldUnits
                 : EditToolConstants.VertexHandleRadiusWorldUnits;
             Color col  = sel ? Color.Red : Color.White;
-            Raylib.DrawCircle((int)pos.X, (int)pos.Y, r, col);
+            Raylib.DrawCircleV(pos, r, col);
         }
     }
 
