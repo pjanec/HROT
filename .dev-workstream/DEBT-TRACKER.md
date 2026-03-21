@@ -36,7 +36,7 @@ This document tracks P2 and P3 technical debt, refactoring opportunities, and de
 |   | P3 | Architecture | BUG1-BATCH-02 | `IosSubsystem` node-id isn't fully plumbed into `IosMock.InitializeEmbedded` yet. | BUG1-BATCH-03 |
 |   | P3 | Testing      | BUG1-BATCH-02 | No integration test covering the full `HandleAbort → SendControlCommandAsync → OnAckReceived → CommitInFlight = false` round-trip. | BUG1-BATCH-03 |
 | ✅ | P3 | Architecture | BUG2-BATCH-01 | The duplicate-copy of `ResolveTrigger` logic between `MissionControlRequestSystem` and `EntityMissionIngressTranslator` is tech debt. Target: Consolidate into a shared static helper in `Bagira.Map.Common`. | BUG2-BATCH-02 |
-|   | P2 | Architecture | BUG2-BATCH-02 | `SimHostInstance.Tick()` multi-swap architecture diverges from production `SimHostApp.OnUpdate()` causing silent event losses. Align or document. | DEBT-BURNDOWN-01 |
-|   | P3 | Testing      | BUG2-BATCH-02 | Pre-existing `FDP.Toolkit.Replay.Tests` failures (2 async timing tests) indicate race conditions in the recording module teardown path. | DEBT-BURNDOWN-01 |
-|   | P1 | Testing      | BUG2-BATCH-02 | `Fdp.Examples.UrbanCombat.Tests` access violation crash in native code requires interop debugging. | DEBT-BURNDOWN-01 |
-|   | P3 | Architecture | BUG2-BATCH-02 | `SimHostInstance` duplicate `RegisterComponent<MissionAdapterState>()` is harmless but should be cleaned up. | DEBT-BURNDOWN-01 |
+| ✅ | P2 | Architecture | BUG2-BATCH-02 | `SimHostInstance.Tick()` multi-swap architecture diverges from production `SimHostApp.OnUpdate()` causing silent event losses. Align or document. | DEBT-BURNDOWN-01 |
+| ✅ | P3 | Testing      | BUG2-BATCH-02 | Pre-existing `FDP.Toolkit.Replay.Tests` failures (2 async timing tests) indicate race conditions in the recording module teardown path. | DEBT-BURNDOWN-01 |
+| ✅ | P1 | Testing      | BUG2-BATCH-02 | `Fdp.Examples.UrbanCombat.Tests` access violation crash in native code requires interop debugging. | DEBT-BURNDOWN-01 |
+| ✅ | P3 | Architecture | BUG2-BATCH-02 | `SimHostInstance` duplicate `RegisterComponent<MissionAdapterState>()` is harmless but should be cleaned up. | DEBT-BURNDOWN-01 |

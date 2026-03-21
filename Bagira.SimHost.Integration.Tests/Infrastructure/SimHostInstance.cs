@@ -51,6 +51,9 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
     {
         private readonly List<CreateEntityRequest> _pending = new();
 
+        /// <summary>Returns <c>true</c> when at least one request is queued and not yet consumed.</summary>
+        public bool HasPendingRequests => _pending.Count > 0;
+
         public void Enqueue(CreateEntityRequest r) => _pending.Add(r);
 
         public void ProcessRequests(Action<CreateEntityRequest> processor)
@@ -283,14 +286,14 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             RequestSource.Enqueue(request);
 
-            // Tick 1: CreateEntityRequestSystem fires → SpawnEntityCommand published + ACK written
+            // The restructured Tick() runs simulation first, then spawn.
+            // Tick 1: CreateEntityRequestSystem fires (in spawn phase) → SpawnEntityCommand
+            //         published + ACK written; entity reaches Active within this same tick.
             Tick(1f / 60f);
 
-            // Tick 2: NetworkSpawningSystem consumes SpawnEntityCommand → entity created
-            Tick(1f / 60f);
-
-            // Ticks 3-5: ELM lifecycle events processed; entity promoted to Active
-            for (int i = 0; i < 3; i++) Tick(1f / 60f);
+            // Ticks 2-5: extra simulation ticks to let physics/doctrine settle.
+            // Entity is already Active after Tick 1; these ticks are safety margin.
+            for (int i = 0; i < 4; i++) Tick(1f / 60f);
 
             var ack = AckSink.TryGetAck(requestId)
                 ?? throw new InvalidOperationException($"No ACK received for request {requestId}");
@@ -517,7 +520,26 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         // ── Internal tick loop ────────────────────────────────────────────────────
 
         /// <summary>
-        /// Executes one simulation tick in the correct system-phase order.
+        /// Executes one simulation tick in the correct system-phase order,
+        /// aligned with <c>SimHostApp.OnUpdate()</c>: simulation logic runs first
+        /// (on the previous tick's read buffer), then entity spawn and lifecycle
+        /// processing runs last.
+        ///
+        /// <para>
+        /// When no spawn request is pending the lifecycle sub-swaps are skipped,
+        /// so the single end-of-tick <see cref="EntityEventBus.SwapBuffers"/> makes
+        /// this tick's simulation events (e.g. <c>AssignDoctrineEvent</c>) visible
+        /// on the read buffer for the next tick's input group — exactly mirroring
+        /// the production <c>SimHostApp.OnUpdate()</c> pattern.
+        /// </para>
+        ///
+        /// <para>
+        /// When a spawn IS pending, sub-swaps A and B are required so that the event bus
+        /// mediates the spawn pipeline synchronously within one tick.  During spawn ticks
+        /// the sub-swaps consume the simulation write-buffer early; <see cref="MissionAdapterSystem"/>'s
+        /// direct <c>DoctrineState</c> write ensures mission events are never silently
+        /// dropped regardless of bus timing.
+        /// </para>
         /// </summary>
         private void Tick(float dt)
         {
@@ -527,49 +549,58 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             // Update GlobalTime so ComponentSystem.DeltaTime is valid.
             _world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = dt, TimeScale = 1.0f });
 
-            // ── Phase 1: Input ─────────────────────────────────────────────────
-            // CreateEntityRequestSystem → publishes SpawnEntityCommand + writes ACK
-            _requestSystem.Execute(view, dt);
-
-            // Swap so the SpawnEntityCommand written to the write-buffer above is now
-            // visible on the read-buffer for NetworkSpawningSystem's ConsumeManagedEvents.
-            _world.Bus.SwapBuffers();
-
-            // ── Phase 2: BeforeSync ────────────────────────────────────────────
-            // NetworkSpawningSystem → consumes SpawnEntityCommand, creates ECS entity,
-            // calls elm.BeginConstruction (publishes ConstructionOrder to cmd buf).
-            _spawnSystem.Execute(view, dt);
-
-            // Flush cmd-buf so ConstructionOrder events become readable this tick.
-            cmdBuf.Playback(_world);
-            _world.Bus.SwapBuffers();
-
-            // ELM systems: BlueprintApplicationSystem processes ConstructionOrder,
-            // LifecycleSystem processes ConstructionAck (from previous frame).
-            _elmSystems.ExecuteAll(view, dt);
-
-            // Flush again so lifecycle state changes are visible.
-            cmdBuf.Playback(_world);
-            _world.Bus.SwapBuffers();
-
-            // Force-activate any entity still in Constructing state.
-            // (With zero participants the ELM never receives ConstructionAck, so we
-            // short-circuit the ACK protocol for the test harness.)
-            ActivateConstructingEntities();
-
-            // ── Phase 3: Simulation logic (ComponentSystem-based, sorted by [UpdateInGroup]) ─
+            // ── Phase 1: Simulation Logic ──────────────────────────────────────
+            // Matches SimHostApp.OnUpdate() order: simulation runs first on the
+            // previous tick's read buffer so DoctrineIngressSystem and other input
+            // systems correctly see events published in the prior tick.
             _inputGroup.Run();
             _simGroup.Run();
             _postSimGroup.Run();
 
-            // ── Phase 4: Geographic systems (smoothing, coordinate transforms) ──────
+            // ── Phase 2: Geographic systems ────────────────────────────────────
             _geoSystems.ExecuteAll(view, dt);
-
-            // Final flush for any cmd-buf writes from geo systems.
             cmdBuf.Playback(_world);
-            
-            // Swap event buffers so any events published this tick (e.g. AssignDoctrineEvent)
-            // become readable on the next tick.
+
+            // ── Phase 3: Entity Spawn & Lifecycle ──────────────────────────────
+            // Only execute the spawn pipeline (and its internal sub-swaps) when a
+            // create-entity request is actually pending.  Skipping sub-swaps in
+            // the common steady-state case preserves the simulation write-buffer
+            // so the final swap below makes sim events available next tick.
+            if (RequestSource.HasPendingRequests)
+            {
+                // CreateEntityRequestSystem → publishes SpawnEntityCommand + writes ACK.
+                _requestSystem.Execute(view, dt);
+
+                // Sub-swap A: SpawnEntityCommand moves to read buffer so
+                // NetworkSpawningSystem.ConsumeManagedEvents can pick it up.
+                _world.Bus.SwapBuffers();
+
+                // NetworkSpawningSystem → consumes SpawnEntityCommand, creates ECS entity,
+                // calls elm.BeginConstruction (publishes ConstructionOrder via cmd buf).
+                _spawnSystem.Execute(view, dt);
+                cmdBuf.Playback(_world);
+
+                // Sub-swap B: ConstructionOrder moves to read buffer so
+                // BlueprintApplicationSystem can apply the TKB template.
+                _world.Bus.SwapBuffers();
+
+                // ELM systems: BlueprintApplicationSystem stamps TKB components;
+                // LifecycleSystem processes any ConstructionAck (none expected with
+                // zero participants in the test harness).
+                _elmSystems.ExecuteAll(view, dt);
+                cmdBuf.Playback(_world);
+            }
+
+            // Force-activate any entity still in Constructing state.
+            // (With zero ELM participants the ACK protocol never completes, so we
+            // short-circuit it here for the test harness.)
+            ActivateConstructingEntities();
+
+            // ── Phase 4: Final swap ────────────────────────────────────────────
+            // In non-spawn ticks: sim events written in Phase 1 move to the read
+            // buffer and are visible to the next tick's input group.
+            // In spawn ticks:  spawn sub-swaps have already cycled the write buffer;
+            //                  this swap makes ELM lifecycle events available.
             _world.Bus.SwapBuffers();
         }
 
@@ -648,7 +679,6 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             // ── Mission components ────────────────────────────────────────────────
             world.RegisterComponent<MissionPlanQueue>();
-            world.RegisterComponent<Bagira.SimHost.Components.MissionAdapterState>();
             world.RegisterComponent<Bagira.SimHost.Components.MissionAdapterState>();
 
             // ── CQRS navigation contract (MOD1-P1T1 / CT-MOD1-C2) ─────────────────
