@@ -310,7 +310,10 @@ namespace Fdp.Kernel
         /// <summary><c>TkbCompositionDef</c> — TKB composite unit definition.</summary>
         public const byte TkbCompositionDef       = 122;
 
-        // IDs 123–139 are reserved for future IG components.
+        /// <summary><c>IgMissionHolder</c> — managed component caching decoded EntityMission for rendering.</summary>
+        public const byte IgMissionHolder             = 123;
+
+        // IDs 124–139 are reserved for future IG components.
 
         // ── ModuleHost.Core Network (140–159) ────────────────────────────────────
         // Network ownership and coordination components managed by CycloneNetworkModule.
