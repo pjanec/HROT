@@ -127,15 +127,17 @@ public class ContextMenuLogicTests
         var items = ParseMenuItems(writer.Written[0].MenuDefinitionJson);
         var ids   = items.Select(i => (int)i["id"]!).ToList();
 
-        Assert.Contains(ContextMenuActions.Delete,   ids);
+        // Delete was moved to Standard strategy; Admin only contains Teleport
+        Assert.DoesNotContain(ContextMenuActions.Delete,   ids);
         Assert.Contains(ContextMenuActions.Teleport, ids);
     }
 
     [Fact]
     public void AdminStrategy_DeleteItem_HasDestructiveStyle()
     {
+        // Delete is in Standard strategy (moved from Admin in BATCH-01)
         var (logic, writer) = CreateSut();
-        logic.SetStrategy(MenuStrategy.Admin);
+        logic.SetStrategy(MenuStrategy.Standard);
         logic.OnSelectionChanged(MakeSelectionEvent(1, 5));
 
         var items = ParseMenuItems(writer.Written[0].MenuDefinitionJson);
@@ -193,8 +195,11 @@ public class ContextMenuLogicTests
         var adminIds = ParseMenuItems(writer.Written[1].MenuDefinitionJson)
                          .Select(i => (int)i["id"]!).ToList();
 
-        Assert.DoesNotContain(ContextMenuActions.Delete, standardIds);
-        Assert.Contains(ContextMenuActions.Delete,       adminIds);
+        // Delete is in Standard (moved from Admin in BATCH-01); Admin has Teleport instead
+        Assert.Contains(ContextMenuActions.Delete,          standardIds);
+        Assert.DoesNotContain(ContextMenuActions.Delete,    adminIds);
+        Assert.Contains(ContextMenuActions.Teleport,        adminIds);
+        Assert.DoesNotContain(ContextMenuActions.Teleport,  standardIds);
     }
 
     [Fact]

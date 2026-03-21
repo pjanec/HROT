@@ -191,7 +191,10 @@ public class EditTool : IMapTool
     public bool HandleDrag(Vector2 worldPos, Vector2 delta)
     {
         // Only allow dragging if the left mouse button is held down.
-        if (_canvas?.Input.IsMouseButtonDown(MouseButton.Left) != true)
+        // When _canvas is null (headless / unit-test mode) we allow the drag to proceed
+        // because there is no input device to query; the caller is responsible for
+        // invoking HandleDrag only when a drag gesture is active.
+        if (_canvas != null && !_canvas.Input.IsMouseButtonDown(MouseButton.Left))
             return false;
 
         if (_selectedVertexIndex < 0)

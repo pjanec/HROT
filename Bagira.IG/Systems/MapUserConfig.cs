@@ -21,4 +21,15 @@ public class MapUserConfig
     /// omits text draw calls entirely.
     /// </summary>
     public bool HideLabels { get; set; }
+
+    /// <summary>
+    /// When <c>true</c>, the IG sends throttled <c>UpdateEntityDescriptorRequest</c>
+    /// (GeoSpatial) messages <em>during</em> a drag operation — not only on drop —
+    /// at a rate of approximately 10 Hz. Useful for observing network latency under
+    /// continuous positional updates.
+    ///
+    /// When <c>false</c> (default), no network message is sent until the entity is
+    /// released, matching the existing behavior.
+    /// </summary>
+    public bool ContinuousDragUpdates { get; set; }
 }

@@ -153,6 +153,54 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
     }
 
     /// <inheritdoc/>
+    public async Task<MissionCommitResult> SendControlCommandAsync(
+        long entityId, eMissionCommandType type, Guid taskId)
+    {
+        var requestId = Guid.NewGuid();
+        var tcs = new TaskCompletionSource<MissionCommitResult>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        lock (_pendingLock)
+        {
+            _pendingCommits[requestId] = tcs;
+        }
+
+        _requestWriter.Write(new MissionControlRequest
+        {
+            RequestId      = requestId,
+            TargetEntityId = entityId,
+            BaseVersion    = 0,   // Control commands don't perform version checks.
+            Payload = new MissionCommandUnion
+            {
+                _d           = type,
+                TargetTaskId = taskId
+            }
+        });
+
+        FdpLog<MissionEditorService>.Info(
+            "[IOS] SendControlCommandAsync sent: entityId={0} type={1} requestId={2}",
+            entityId, type, requestId);
+
+        using var cts = new CancellationTokenSource(_commitTimeoutMs);
+        try
+        {
+            return await tcs.Task.WaitAsync(cts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            FdpLog<MissionEditorService>.Warn(
+                "[IOS] Control command timed out: entityId={0} type={1} requestId={2}",
+                entityId, type, requestId);
+
+            return new MissionCommitResult
+            {
+                Success      = false,
+                ErrorMessage = "Timeout"
+            };
+        }
+    }
+
+    /// <inheritdoc/>
     public void SendControlCommand(long entityId, eMissionCommandType type, Guid taskId)
     {
         _requestWriter.Write(new MissionControlRequest

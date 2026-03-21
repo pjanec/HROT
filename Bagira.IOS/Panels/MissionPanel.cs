@@ -96,6 +96,13 @@ public sealed class MissionPanel
     /// <summary>True when the commit button should be enabled.</summary>
     public bool CommitButtonEnabled => CanCommit;
 
+    /// <summary>
+    /// The current optimistic-lock base version used for mission commits.
+    /// Exposed for unit-test assertions (e.g. verifying that an abort ACK
+    /// updates the version).
+    /// </summary>
+    internal long TestHook_DraftBaseVersion => _draftBaseVersion;
+
     // ── Task icon helper (public for testability) ─────────────────────────────
 
     /// <summary>
@@ -128,33 +135,37 @@ public sealed class MissionPanel
     /// <summary>
     /// Handles the "JUMP" button press: sends a
     /// <see cref="eMissionCommandType.CMD_JUMP_TO_TASK"/> control command for
-    /// the currently selected entity.
+    /// the currently selected entity and tracks the response so that
+    /// <see cref="PollCommitCompletion"/> can update <c>_draftBaseVersion</c>.
     /// </summary>
     public void HandleJump(IIosLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
         if (_selectedEntityId == 0) return;
 
-        logic.MissionEditorService.SendControlCommand(
+        _pendingCommit = logic.MissionEditorService.SendControlCommandAsync(
             _selectedEntityId,
             eMissionCommandType.CMD_JUMP_TO_TASK,
             Guid.Empty);
+        _commitInFlight = true;
     }
 
     /// <summary>
     /// Handles the "ABORT" button press: sends a
     /// <see cref="eMissionCommandType.CMD_ABORT_ALL"/> control command for the
-    /// currently selected entity.
+    /// currently selected entity and tracks the response so that
+    /// <see cref="PollCommitCompletion"/> can update <c>_draftBaseVersion</c>.
     /// </summary>
     public void HandleAbort(IIosLogic logic)
     {
         ArgumentNullException.ThrowIfNull(logic);
         if (_selectedEntityId == 0) return;
 
-        logic.MissionEditorService.SendControlCommand(
+        _pendingCommit = logic.MissionEditorService.SendControlCommandAsync(
             _selectedEntityId,
             eMissionCommandType.CMD_ABORT_ALL,
             Guid.Empty);
+        _commitInFlight = true;
     }
 
     // ── Draft editing handlers (public for testability) ─────────────────────
@@ -179,7 +190,7 @@ public sealed class MissionPanel
             ExecutingEngine = string.Empty,
             BehaviorId     = string.Empty,
             BehaviorParams = string.Empty,
-            Triggers       = new List<MissionTrigger>(),
+            Triggers       = new List<MissionTrigger> { new MissionTrigger { Type = "DoctrineFinished" } },
             State          = eTaskState.TASK_PLANNED
         });
     }
@@ -615,6 +626,12 @@ public sealed class MissionPanel
             HandleConflictResult(result);
         }
     }
+
+    /// <summary>
+    /// Internal test hook: manually drives the commit-completion polling cycle.
+    /// Equivalent to calling <see cref="Draw"/> with a valid logic and an empty plan view.
+    /// </summary>
+    internal void TestHook_PollCommitCompletion() => PollCommitCompletion();
 
     private static MissionPlan CreateEmptyPlan()
         => new MissionPlan { Tasks = new List<MissionTask>() };

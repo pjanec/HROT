@@ -1,4 +1,23 @@
 
+[BUG] Vehicle given MoveToLocation mission task does not start moving. Probably missing DoctrineFinished trigger case?
+[BUG] still getting 2 identical acks for update entity descriptor request dtGeoSpatial (running each IOS, IG, SimHost standalone)
+[BUG] map configuration IOS panel still contains tool selection combo although the tools are no more started via map configuration json
+[BUG] on IG no idea how to enable immediate drag mode - no UI for that. I would like to activate the immediate mode when SHIFT is pressed during dragging;
+[BUG] Selection & Mission editor does not show any trigger selection UI - there should be a combo for trigger and textbox for trigger parameters. With button for insering some valid default parameter json so that the user can easily change it. 
+[BUG] Buttons for Mission Task Up/Down/Delete should contain normal text, now unreadable symbol only.
+[BUG] When map layer with ground vehicles is turned off, now invisible entities still can be selected . Also currently selected but now invisible entity remains selected, still showing selection indicator on the 2d.
+[BUG] I still can not see any roag graph rendered on simhost, even if standalone ig app started from proper folder - maybe the roadmap file not found or failed to load or something
+[BUG] This might also prevent the road picking when mission task FollowRoute is selected in IOS mission task editor, preventing to use this kind of task
+[BUG] ENtity inspector UI should support in its context menu a field for deleting the entity (using proper networked way using ELM, no shortcuts)
+[BUG] GeoSpatialDR descriptor not disposed when entity deleted
+[BUG] ORBAT Tree in IOS does not indent the subordinates, they appear at the same level as ther commander
+[BUG] IOS Mission editor does not seem to handle the version conflict - no warning that information is obsolete, no possibility to forget user changes and update to latest
+
+
+
+
+
+
 [BUG] MissionTrigger.ReachedDestination  trigger (brain) checks NavState which lives in another node (muscle)
 and will never be set on the brain node
 

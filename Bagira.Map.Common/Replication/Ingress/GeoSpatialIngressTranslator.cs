@@ -65,8 +65,8 @@ namespace Bagira.Map.Common.Replication.Ingress
 
             var latitude = data.Pos.Latitude;
             var longitude = data.Pos.Longitude;
-            //FdpLog<GeoSpatialIngressTranslator>.Debug(
-            //    "[TRACE-IG] Ingress: GeoSpatial Entity={0} Lat={1} Lon={2}", entity.Index, latitude, longitude);
+            FdpLog<GeoSpatialIngressTranslator>.Debug(
+                "[TRACE-IG] Ingress: GeoSpatial Entity={0} Lat={1} Lon={2}", entity.Index, latitude, longitude);
 
             var cartesian = _geoTransform.ToCartesian(
                 data.Pos.Latitude,

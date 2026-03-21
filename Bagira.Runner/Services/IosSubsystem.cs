@@ -55,16 +55,24 @@ namespace Bagira.Runner.Services
         private bool             _headless;
         private DdsParticipant?  _participant;
         private List<IDisposable>? _ingressDisposables;
+        private int              _nodeIdOverride;
 
         /// <summary>
         /// Internal test hook for integration tests.
         /// </summary>
         internal IosLogic Logic => _mock?.Logic ?? throw new InvalidOperationException("Not initialized");
 
+        /// <summary>
+        /// Internal test hook: returns the effective NodeId wired from <see cref="SubsystemConfig.NodeId"/>
+        /// at initialization time.
+        /// </summary>
+        internal int TestHook_NodeIdOverride => _nodeIdOverride;
+
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
         {
             _headless = config.Headless;
+            _nodeIdOverride = config.NodeId;
 
             // ── DDS participant ────────────────────────────────────────────────
             _participant = BagiraEnvironment.CreateParticipant(config.DomainId);

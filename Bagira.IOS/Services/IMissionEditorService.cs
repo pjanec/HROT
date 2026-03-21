@@ -54,6 +54,15 @@ public interface IMissionEditorService : IDisposable
         long entityId, MissionPlan newPlan, long baseVersion);
 
     /// <summary>
+    /// Sends an imperative control command (Jump, Abort, etc.) and waits
+    /// asynchronously for the CGF to acknowledge it, returning the new OCC version.
+    /// Mirrors <see cref="CommitMissionAsync"/> but uses <c>BaseVersion = 0</c>
+    /// because control commands bypass the optimistic-lock check.
+    /// </summary>
+    Task<MissionCommitResult> SendControlCommandAsync(
+        long entityId, eMissionCommandType type, Guid taskId);
+
+    /// <summary>
     /// Sends an imperative control command (Jump, Abort, etc.) without waiting
     /// for an acknowledgment.
     /// </summary>

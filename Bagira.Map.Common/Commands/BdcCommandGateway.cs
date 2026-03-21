@@ -9,10 +9,22 @@ using System.Threading.Tasks;
 namespace Bagira.Map.Common.Commands
 {
     /// <summary>
+    /// Abstraction over the BDC command gateway that enables injecting a test stub
+    /// without requiring a live DDS participant.
+    /// </summary>
+    public interface IBdcCommandGateway
+    {
+        /// <summary>
+        /// Sends a fire-and-forget <see cref="UpdateEntityDescriptorRequest"/> over DDS.
+        /// </summary>
+        void SendUpdateDescriptor(UpdateEntityDescriptorRequest request);
+    }
+
+    /// <summary>
     /// A gateway for executing BDC-specific commands over DDS.
     /// This wraps generic DdsCommandClient instances for specific request types.
     /// </summary>
-    public class BdcCommandGateway : IDisposable
+    public class BdcCommandGateway : IBdcCommandGateway, IDisposable
     {
         private readonly DdsCommandClient<CreateEntityRequest, CreateEntityAck>       _createEntityClient;
         private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>   _missionControlClient;

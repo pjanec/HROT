@@ -147,5 +147,20 @@ namespace Bagira.Runner.Tests
             var ex = Record.Exception(() => subsystem.Update(0.016f));
             Assert.Null(ex);
         }
+
+        // ── BUG1-T003: NodeId wiring ──────────────────────────────────────────
+
+        [Fact]
+        public void Initialize_StoresNodeIdFromConfig()
+        {
+            var subsystem = new IosSubsystem();
+            var config    = HeadlessConfig();
+            config.NodeId = 7;
+
+            subsystem.Initialize(config);
+
+            Assert.Equal(7, subsystem.TestHook_NodeIdOverride);
+            subsystem.Shutdown();
+        }
     }
 }

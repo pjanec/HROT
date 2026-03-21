@@ -121,10 +121,13 @@ public class MissionPanelTests
     public void HandleJump_WithSelection_CallsSendControlCommandJump()
     {
         var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 5);
+        missionSvc.Setup(s => s.SendControlCommandAsync(
+            It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
 
         panel.HandleJump(logic.Object);
 
-        missionSvc.Verify(s => s.SendControlCommand(
+        missionSvc.Verify(s => s.SendControlCommandAsync(
             5L,
             eMissionCommandType.CMD_JUMP_TO_TASK,
             Guid.Empty),
@@ -138,7 +141,7 @@ public class MissionPanelTests
 
         panel.HandleJump(logic.Object);
 
-        missionSvc.Verify(s => s.SendControlCommand(
+        missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
             It.IsAny<eMissionCommandType>(),
             It.IsAny<Guid>()),
@@ -158,10 +161,13 @@ public class MissionPanelTests
     public void HandleAbort_WithSelection_CallsSendControlCommandAbortAll()
     {
         var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 7);
+        missionSvc.Setup(s => s.SendControlCommandAsync(
+            It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
 
         panel.HandleAbort(logic.Object);
 
-        missionSvc.Verify(s => s.SendControlCommand(
+        missionSvc.Verify(s => s.SendControlCommandAsync(
             7L,
             eMissionCommandType.CMD_ABORT_ALL,
             Guid.Empty),
@@ -175,7 +181,7 @@ public class MissionPanelTests
 
         panel.HandleAbort(logic.Object);
 
-        missionSvc.Verify(s => s.SendControlCommand(
+        missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
             It.IsAny<eMissionCommandType>(),
             It.IsAny<Guid>()),
@@ -195,15 +201,18 @@ public class MissionPanelTests
     public void HandleJump_SendsJumpToTask_NotAbortAll()
     {
         var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 3);
+        missionSvc.Setup(s => s.SendControlCommandAsync(
+            It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
 
         panel.HandleJump(logic.Object);
 
-        missionSvc.Verify(s => s.SendControlCommand(
+        missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
             eMissionCommandType.CMD_ABORT_ALL,
             It.IsAny<Guid>()),
             Times.Never);
-        missionSvc.Verify(s => s.SendControlCommand(
+        missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
             eMissionCommandType.CMD_JUMP_TO_TASK,
             It.IsAny<Guid>()),
@@ -214,15 +223,18 @@ public class MissionPanelTests
     public void HandleAbort_SendsAbortAll_NotJumpToTask()
     {
         var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 3);
+        missionSvc.Setup(s => s.SendControlCommandAsync(
+            It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
 
         panel.HandleAbort(logic.Object);
 
-        missionSvc.Verify(s => s.SendControlCommand(
+        missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
             eMissionCommandType.CMD_JUMP_TO_TASK,
             It.IsAny<Guid>()),
             Times.Never);
-        missionSvc.Verify(s => s.SendControlCommand(
+        missionSvc.Verify(s => s.SendControlCommandAsync(
             It.IsAny<long>(),
             eMissionCommandType.CMD_ABORT_ALL,
             It.IsAny<Guid>()),
@@ -468,5 +480,66 @@ public class MissionPanelTests
 
         Assert.True(panel.CommitInFlight);
         Assert.False(panel.CommitButtonEnabled);
+    }
+
+    // ── BUG1-M001: DoctrineFinished default trigger ───────────────────────────
+
+    [Fact]
+    public void AddTask_NewTask_HasDoctrineFinishedTrigger()
+    {
+        // Each newly-added task must carry exactly one default trigger of type "DoctrineFinished"
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+
+        panel.HandleAddTask();
+
+        var task = panel.DraftPlan!.Value.Tasks![0];
+        Assert.NotNull(task.Triggers);
+        Assert.Single(task.Triggers!);
+        Assert.Equal("DoctrineFinished", task.Triggers![0].Type);
+    }
+
+    [Fact]
+    public void AddTask_MultipleTasksEach_HaveDoctrineFinishedTrigger()
+    {
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+
+        panel.HandleAddTask();
+        panel.HandleAddTask();
+        panel.HandleAddTask();
+
+        foreach (var task in panel.DraftPlan!.Value.Tasks!)
+        {
+            Assert.NotNull(task.Triggers);
+            Assert.Single(task.Triggers!);
+            Assert.Equal("DoctrineFinished", task.Triggers![0].Type);
+        }
+    }
+
+    // ── BUG1-M002: HandleAbort/Jump set CommitInFlight ───────────────────────
+
+    [Fact]
+    public void HandleJump_WithSelection_SetsCommitInFlight()
+    {
+        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 5);
+        missionSvc.Setup(s => s.SendControlCommandAsync(
+            It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
+
+        panel.HandleJump(logic.Object);
+
+        Assert.True(panel.CommitInFlight);
+    }
+
+    [Fact]
+    public void HandleAbort_WithSelection_SetsCommitInFlight()
+    {
+        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 5);
+        missionSvc.Setup(s => s.SendControlCommandAsync(
+            It.IsAny<long>(), It.IsAny<eMissionCommandType>(), It.IsAny<Guid>()))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 1 });
+
+        panel.HandleAbort(logic.Object);
+
+        Assert.True(panel.CommitInFlight);
     }
 }

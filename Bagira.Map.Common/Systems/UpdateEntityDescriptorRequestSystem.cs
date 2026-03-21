@@ -5,6 +5,7 @@ using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using Bagira.IG.Components;
+using Bagira.Map.Common.Dds;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
@@ -42,7 +43,8 @@ namespace Bagira.Map.Common.Systems
         private const long MapVisualOverlayOrdinal   = (long)Bagira.BDC.SSTD.EDescriptorType.dtMapVisualOverlay;
 
         private readonly DdsReader<UpdateEntityDescriptorRequest> _reader;
-        private readonly DdsWriter<UpdateEntityDescriptorAck>     _ackWriter;
+        private readonly IDdsWriter<UpdateEntityDescriptorAck>     _ackWriter;
+        private readonly IDisposable?                              _ownedAckWriter;
         private readonly NetworkEntityMap                         _entityMap;
         private readonly IGeographicTransform                     _geoTransform;
 
@@ -55,13 +57,28 @@ namespace Bagira.Map.Common.Systems
         /// Geographic transform used to convert incoming geodetic coordinates to
         /// local Cartesian space (must match the transform used by egress translators).
         /// </param>
+        /// <param name="ackWriter">
+        /// Optional ACK writer. When <c>null</c> (default) a live
+        /// <see cref="DdsWriterAdapter{T}"/> is created from <paramref name="participant"/>.
+        /// Inject a stub in unit tests to avoid spinning up the full DDS layer.
+        /// </param>
         public UpdateEntityDescriptorRequestSystem(
             DdsParticipant       participant,
             NetworkEntityMap     entityMap,
-            IGeographicTransform geoTransform)
+            IGeographicTransform geoTransform,
+            IDdsWriter<UpdateEntityDescriptorAck>? ackWriter = null)
         {
-            _reader       = new DdsReader<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            _ackWriter    = new DdsWriter<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+            _reader    = new DdsReader<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            if (ackWriter != null)
+            {
+                _ackWriter      = ackWriter;
+            }
+            else
+            {
+                var owned       = new DdsWriterAdapter<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
+                _ackWriter      = owned;
+                _ownedAckWriter = owned;
+            }
             _entityMap    = entityMap     ?? throw new ArgumentNullException(nameof(entityMap));
             _geoTransform = geoTransform  ?? throw new ArgumentNullException(nameof(geoTransform));
         }
@@ -81,7 +98,7 @@ namespace Bagira.Map.Common.Systems
         protected override void OnDestroy()
         {
             _reader.Dispose();
-            _ackWriter.Dispose();
+            _ownedAckWriter?.Dispose();
         }
 
         // ── Request handling ──────────────────────────────────────────────────

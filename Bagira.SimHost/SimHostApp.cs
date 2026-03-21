@@ -376,24 +376,29 @@ namespace Bagira.SimHost
             _kernel.RegisterModule(simHostMod);
 
             // ── 10. Network module ──────────────────────────────────────────
-            var translators = new List<IDescriptorTranslator>();
+            // Egress translators: fan-out disposal on entity death + CycloneNetworkModule publication.
+            // Ingress translators: CycloneNetworkModule ingestion only (not disposed on entity death).
+            var egressTranslators = new List<IDescriptorTranslator>();
             // EntityMaster must be published before GeoSpatial so receivers can
             // register the entity identity before its first position update.
             var entityMasterEgressTranslator = new EntityMasterEgressTranslator(
                 ddsParticipant, entityMap, localNodeId);
-            translators.Add(entityMasterEgressTranslator);
-            translators.Add(new EntityInfoEgressTranslator(ddsParticipant, entityMap));
+            egressTranslators.Add(entityMasterEgressTranslator);
+            egressTranslators.Add(new EntityInfoEgressTranslator(ddsParticipant, entityMap));
             if (simHostMod.GeoEgressTranslator != null)
-                translators.Add(simHostMod.GeoEgressTranslator);
+                egressTranslators.Add(simHostMod.GeoEgressTranslator);
             if (simHostMod.MapOverlayEgressTranslator != null)
-                translators.Add(simHostMod.MapOverlayEgressTranslator);
+                egressTranslators.Add(simHostMod.MapOverlayEgressTranslator);
+            egressTranslators.Add(simHostMod.MissionEgressTranslator);
+            egressTranslators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
+            egressTranslators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));
+
+            // All translators (egress + ingress) passed to CycloneNetworkModule.
+            var translators = new List<IDescriptorTranslator>(egressTranslators);
             translators.Add(simHostMod.MissionIngressTranslator);
-            translators.Add(simHostMod.MissionEgressTranslator);
-            translators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
-            translators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));
 
             _kernel.RegisterGlobalSystem(
-                new CycloneNetworkCleanupSystem(translators));
+                new CycloneNetworkCleanupSystem(egressTranslators));
             _kernel.RegisterGlobalSystem(
                 new DisposalMonitoringSystem(entityMap));
 

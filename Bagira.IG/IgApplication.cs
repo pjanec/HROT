@@ -234,6 +234,13 @@ public class IgApplication
 
     private BdcCommandGateway?               _commandGateway;
 
+    /// <summary>
+    /// Injectable interface used by <see cref="SendGeoSpatialUpdate"/> so unit tests can
+    /// replace the production <see cref="BdcCommandGateway"/> with a stub via
+    /// <see cref="TestHook_SetCommandGateway"/>. Set to <c>_commandGateway</c> in production.
+    /// </summary>
+    private IBdcCommandGateway?              _commandGatewayInterface;
+
     private DdsWriter<MapClickEvent>?           _clickWriter;
 
     /// <summary>
@@ -300,10 +307,25 @@ public class IgApplication
     /// </summary>
     private JsonToRecordCompiler? _edgeCompiler;
 
-    // ÔöÇÔöÇ Drag tracking: world-space drop position set by OnEntityMoved ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
     // -- Drag tracking: world-space drop position set by OnEntityMoved --------------------------
 
     private System.Numerics.Vector2          _lastDragWorldPos;
+
+    /// <summary>
+    /// Accumulated time (seconds) since the last throttled network update during a drag.
+    /// Reset to 0 on each throttled send and on drag end.
+    /// Only active when <see cref="MapUserConfig.ContinuousDragUpdates"/> is <c>true</c>.
+    /// </summary>
+    private float _continuousDragTimer;
+
+    /// <summary>
+    /// Frame delta-time captured at the start of <see cref="Update"/> and used inside
+    /// the <c>OnEntityMoved</c> drag handler to accumulate the throttle timer.
+    /// </summary>
+    private float _frameDt;
+
+    /// <summary>Throttle interval for continuous drag network updates (10 Hz).</summary>
+    private const float ContinuousDragIntervalSec = 0.1f;
 
     // -- Style and culling objects ÔÇö updated and injected into modules
 
@@ -670,6 +692,11 @@ public class IgApplication
 
         _networkEnabled = false;
 
+        // GeoTransform is pure math — create it unconditionally so that
+        // SendGeoSpatialUpdate works even in tests that skip DDS initialisation.
+        _geoTransform = BagiraEnvironment.CreateGeoTransform();
+        _miniIosState.SetGeoTransform(_geoTransform);
+
         if (enableNetwork)
 
         {
@@ -684,7 +711,8 @@ public class IgApplication
 
                 // Task 5: Create command gateway, click writer and config reader.
 
-                _commandGateway = new BdcCommandGateway(participant);
+                _commandGateway          = new BdcCommandGateway(participant);
+                _commandGatewayInterface = _commandGateway;
 
                 _clickWriter     = new DdsWriter<MapClickEvent>(participant, "MapClickEvent");
 
@@ -697,12 +725,6 @@ public class IgApplication
                 _createEntityDdsWriter = new DdsWriter<CreateEntityRequest>(participant, "CreateEntityRequest");
                 _mapCommandAckWriter   = new DdsWriter<MapCommandAck>(participant, "MapCommandAck");
                 _createEntityAckReader = new DdsReader<CreateEntityAck>(participant, "CreateEntityAck");
-
-
-
-                _geoTransform = BagiraEnvironment.CreateGeoTransform();
-
-                _miniIosState.SetGeoTransform(_geoTransform);
 
 
 
@@ -815,7 +837,8 @@ public class IgApplication
 
                 participant?.Dispose();
 
-                _commandGateway = null;
+                _commandGateway          = null;
+                _commandGatewayInterface = null;
 
                 _clickWriter = null;
 
@@ -829,8 +852,6 @@ public class IgApplication
                 _mapCommandAckWriter   = null;
                 _createEntityAckReader = null;
                 _mapCommandController  = null;
-
-                _geoTransform = null;
 
                 _networkEnabled = false;
 
@@ -1005,11 +1026,20 @@ public class IgApplication
 
             interactionTool.OnEntityDragEnd += OnEntityDragEnded;
 
-            // Track world-space drag position so OnEntityDragEnded can read the actual drop
-
-            // location rather than the (potentially stale) SimTransform.
-
-            interactionTool.OnEntityMoved += (_, worldPos) => _lastDragWorldPos = worldPos;
+            // Track world-space drag position and drive continuous-drag throttle timer.
+            interactionTool.OnEntityMoved += (entity, worldPos) =>
+            {
+                _lastDragWorldPos = worldPos;
+                if (_userConfig.ContinuousDragUpdates)
+                {
+                    _continuousDragTimer += _frameDt;
+                    if (_continuousDragTimer >= ContinuousDragIntervalSec)
+                    {
+                        SendGeoSpatialUpdate(entity, worldPos);
+                        _continuousDragTimer = 0f;
+                    }
+                }
+            };
 
             _miniIosPanel.SetGateway(_commandGateway);
 
@@ -1058,6 +1088,8 @@ public class IgApplication
     public void Update(float dt)
 
     {
+
+        _frameDt = dt;
 
         if (!_headless)
 
@@ -2080,137 +2112,84 @@ public class IgApplication
 
 
     /// <summary>
-
     /// Handles the end of an entity drag on the 2-D map canvas.
-
-    /// Reads the entity's final drop position from <see cref="_lastDragWorldPos"/> (set on
-
-    /// every <c>OnEntityMoved</c> frame), converts it to geodetic coordinates, and publishes
-
-    /// an <see cref="UpdateEntityDescriptorRequest"/> so the authoritative node (SimHost)
-
-    /// can persist the new position.
-
-    ///
-
-    /// Reads from the tracked drag position rather than from <see cref="SimTransform"/> because
-
-    /// the drag tool does not write the ECS component during its drag frames ÔÇö only the visual
-
-    /// position is updated.  No-op when network is disabled or required services are unavailable.
-
+    /// Delegates to <see cref="SendGeoSpatialUpdate"/> using the last tracked drag position,
+    /// then resets the continuous-drag timer.
+    /// No-op when network is disabled or required services are unavailable.
     /// </summary>
-
     private void OnEntityDragEnded(Entity entity)
-
     {
+        // Determine drop position: use tracked drag pos, fall back to SimTransform.
+        var view = (ISimulationView)_world;
+        System.Numerics.Vector2 dropPos;
+        if (_lastDragWorldPos != default)
+        {
+            dropPos = _lastDragWorldPos;
+        }
+        else if (_networkEnabled && view.HasComponent<SimTransform>(entity))
+        {
+            var st = view.GetComponentRO<SimTransform>(entity);
+            dropPos = new System.Numerics.Vector2(st.Position.X, st.Position.Y);
+        }
+        else
+        {
+            _continuousDragTimer = 0f;
+            return;
+        }
 
-        if (!_networkEnabled || _commandGateway == null || _geoTransform == null) return;
+        SendGeoSpatialUpdate(entity, dropPos);
 
+        // Reset stale drag position and continuous-drag timer.
+        _lastDragWorldPos    = default;
+        _continuousDragTimer = 0f;
+    }
 
+    /// <summary>
+    /// Builds and sends an <see cref="UpdateEntityDescriptorRequest"/> (GeoSpatial) for
+    /// <paramref name="entity"/> at <paramref name="worldPos"/>. Used by both the
+    /// drag-end path and the throttled continuous-drag path.
+    /// No-op when network is disabled or required services are unavailable.
+    /// </summary>
+    private void SendGeoSpatialUpdate(Entity entity, System.Numerics.Vector2 worldPos)
+    {
+        if (!_networkEnabled || _commandGatewayInterface == null || _geoTransform == null) return;
 
         var view = (ISimulationView)_world;
-
         if (!view.HasComponent<NetworkIdentity>(entity)) return;
-
-
 
         long netId = view.GetComponentRO<NetworkIdentity>(entity).Value;
 
-
-
-        // Use the world-space drop position tracked by OnEntityMoved.
-
-        // Fall back to SimTransform only when no drag move was recorded (e.g. test path).
-
-        System.Numerics.Vector3 position;
-
-        if (_lastDragWorldPos != default)
-
-        {
-
-            position = new System.Numerics.Vector3(_lastDragWorldPos.X, _lastDragWorldPos.Y, 0f);
-
-        }
-
-        else if (view.HasComponent<SimTransform>(entity))
-
-        {
-
-            position = view.GetComponentRO<SimTransform>(entity).Position;
-
-        }
-
-        else
-
-        {
-
-            return;
-
-        }
-
+        var position = new System.Numerics.Vector3(worldPos.X, worldPos.Y, 0f);
         var (lat, lon, alt) = _geoTransform.ToGeodetic(position);
 
-
-
         var request = new UpdateEntityDescriptorRequest
-
         {
-
             RequestId      = Guid.NewGuid(),
-
             EntityId       = (int)netId,
-
             DescriptorType = EDescriptorType.dtGeoSpatial,
-
             Payload        = new EntityDescriptorUnion
-
             {
-
                 _d         = EDescriptorType.dtGeoSpatial,
-
                 GeoSpatial = new GeoSpatial
-
                 {
-
                     EntityId = (int)netId,
-
                     Time     = DateTime.UtcNow,
-
                     Pos      = new GeoPosition
-
                     {
-
                         Latitude  = lat,
-
                         Longitude = lon,
-
                         Altitude  = alt,
-
                     },
-
                     Rot = new OrientationHPR(),
-
                 },
-
             },
-
         };
 
-
-
-        _commandGateway.SendUpdateDescriptor(request);
-
-        // Reset stale drag position: a subsequent drag ending without movement must not reuse it.
-        _lastDragWorldPos = default;
-
+        _commandGatewayInterface.SendUpdateDescriptor(request);
 
         FdpLog<IgApplication>.Info(
-
-            "[IG] Drag end: sent UpdateEntityDescriptorRequest for NetID {0} to ({1:F5}T-, {2:F5}T-).",
-
+            "[IG] GeoSpatial update: sent UpdateEntityDescriptorRequest for NetID {0} to ({1:F5}, {2:F5}).",
             netId, lat, lon);
-
     }
 
 
@@ -2254,6 +2233,58 @@ public class IgApplication
         OnEntityDragEnded(entity);
 
     }
+
+    /// <summary>
+    /// Test hook: injects a mock command gateway so unit tests can verify
+    /// <see cref="SendGeoSpatialUpdate"/> calls without a live DDS participant.
+    /// Also enables network-dependent code paths (sets <c>_networkEnabled = true</c>)
+    /// so that the guard in <see cref="SendGeoSpatialUpdate"/> does not short-circuit.
+    /// Must be called after <see cref="InitializeEmbedded"/>.
+    /// </summary>
+    internal void TestHook_SetCommandGateway(IBdcCommandGateway gateway)
+    {
+        _commandGatewayInterface = gateway;
+        _networkEnabled = true;
+    }
+
+    /// <summary>
+    /// Test hook: accesses or overwrites the continuous-drag throttle timer
+    /// so tests can pre-seed a partial accumulation before firing events.
+    /// </summary>
+    internal float TestHook_ContinuousDragTimer
+    {
+        get => _continuousDragTimer;
+        set => _continuousDragTimer = value;
+    }
+
+    /// <summary>
+    /// Test hook: simulates the <c>OnEntityMoved</c> handler for the entity identified by
+    /// <paramref name="networkId"/> at <paramref name="worldPos"/> with an explicit
+    /// <paramref name="dt"/> (seconds). Drives the continuous-drag throttle timer and,
+    /// when the threshold is exceeded, calls <see cref="SendGeoSpatialUpdate"/>.
+    /// </summary>
+    internal void TestHook_SimulateEntityMoved(long networkId, System.Numerics.Vector2 worldPos, float dt)
+    {
+        if (!_entityMap.TryGetEntity(networkId, out var entity))
+            throw new InvalidOperationException($"Entity with networkId={networkId} not found in IG entity map.");
+
+        _lastDragWorldPos = worldPos;
+        if (_userConfig.ContinuousDragUpdates)
+        {
+            _continuousDragTimer += dt;
+            if (_continuousDragTimer >= ContinuousDragIntervalSec)
+            {
+                SendGeoSpatialUpdate(entity, worldPos);
+                _continuousDragTimer = 0f;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Test hook: exposes the <see cref="MapUserConfig"/> so tests can toggle
+    /// feature flags (e.g. <see cref="MapUserConfig.ContinuousDragUpdates"/>).
+    /// </summary>
+    internal MapUserConfig TestHook_UserConfig => _userConfig;
 
 
 

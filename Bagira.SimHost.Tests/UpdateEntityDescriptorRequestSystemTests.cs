@@ -77,6 +77,13 @@ namespace Bagira.SimHost.Tests
             };
 
         /// <summary>Reads all valid ACK samples from a reader; returns count.</summary>
+        /// <summary>Stub IDdsWriter that captures all Write calls for assertion.</summary>
+        private sealed class StubAckWriter : Bagira.Map.Common.Dds.IDdsWriter<UpdateEntityDescriptorAck>
+        {
+            public List<UpdateEntityDescriptorAck> Written { get; } = new();
+            public void Write(UpdateEntityDescriptorAck value) => Written.Add(value);
+        }
+
         private static int CountAcks(DdsReader<UpdateEntityDescriptorAck> reader)
         {
             int count = 0;
@@ -226,6 +233,66 @@ namespace Bagira.SimHost.Tests
 
             Assert.Equal(1, ackCount);
             Assert.True(hasSuccess, "Expected exactly one Success ACK for authoritative GeoSpatial update.");
+        }
+
+        // ── BUG1-T001: IDdsWriter injection ───────────────────────────────────
+
+        [Fact]
+        [Trait("Category", "Integration")]
+        public void InjectedAckWriter_NotAuthoritative_WriterNotCalled()
+        {
+            // SETUP: entity is NOT authoritative — injected stub must receive zero writes
+            const uint domain = 214u;
+            var stub      = new StubAckWriter();
+            using var participant = new DdsParticipant(domain);
+            var entityMap = new NetworkEntityMap();
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform(), stub);
+            var repo      = CreateWorld();
+            system.Create(repo);
+
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkIdentity(EntityId));
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1)); // NOT auth
+            entityMap.Register(EntityId, entity);
+
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            Thread.Sleep(200);
+            reqWriter.Write(MakeGeoRequest(EntityId));
+            Thread.Sleep(100);
+            system.Run();
+            Thread.Sleep(50);
+
+            Assert.Equal(0, stub.Written.Count);
+        }
+
+        [Fact]
+        [Trait("Category", "Integration")]
+        public void InjectedAckWriter_Authoritative_WriterCalledWithSuccessAck()
+        {
+            // SETUP: entity IS authoritative — injected stub must receive exactly one write
+            const uint domain = 215u;
+            var stub      = new StubAckWriter();
+            using var participant = new DdsParticipant(domain);
+            var entityMap = new NetworkEntityMap();
+            var system    = new UpdateEntityDescriptorRequestSystem(participant, entityMap, new StubGeoTransform(), stub);
+            var repo      = CreateWorld();
+            system.Create(repo);
+
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkIdentity(EntityId));
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1)); // auth
+            entityMap.Register(EntityId, entity);
+
+            using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
+            Thread.Sleep(200);
+            reqWriter.Write(MakeGeoRequest(EntityId));
+            Thread.Sleep(100);
+            system.Run();
+            Thread.Sleep(50);
+
+            Assert.Equal(1, stub.Written.Count);
+            Assert.Equal(EntityId, stub.Written[0].EntityId);
+            Assert.Equal((int)SstErrorCode.Success, stub.Written[0].ErrorCode);
         }
     }
 }
