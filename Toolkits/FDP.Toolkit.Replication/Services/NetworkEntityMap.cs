@@ -19,6 +19,13 @@ namespace FDP.Toolkit.Replication.Services
         private readonly List<GraveyardEntry> _graveyard = new();
         private readonly uint _graveyardDurationFrames;
 
+        /// <summary>
+        /// Raised immediately after a new (netId, entity) pair is registered.
+        /// Subscribers can use this to drain deferred retry queues keyed by network ID
+        /// without having to poll on every simulation tick.
+        /// </summary>
+        public event Action<long, Entity>? EntityRegistered;
+
         public NetworkEntityMap(uint graveyardDurationFrames = 60)
         {
             _graveyardDurationFrames = graveyardDurationFrames;
@@ -34,6 +41,8 @@ namespace FDP.Toolkit.Replication.Services
             
             // Remove from graveyard if ID is reused
             _graveyard.RemoveAll(g => g.NetworkId == netId);
+
+            EntityRegistered?.Invoke(netId, entity);
         }
 
         public void Unregister(long netId, uint currentFrame)
