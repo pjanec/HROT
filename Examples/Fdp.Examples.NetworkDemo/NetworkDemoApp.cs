@@ -113,6 +113,11 @@ namespace Fdp.Examples.NetworkDemo
             if (enableNetwork)
             {
                 participant = new DdsParticipant(domainId: 0);
+                participant.EnableSenderTracking(new SenderIdentityConfig
+                {
+                    AppDomainId   = 0,
+                    AppInstanceId = instanceId
+                });
             }
             // Force simple ID mapping for Demo/Test to ensure uniqueness in shared process
             nodeMapper = new NodeIdMapper(localDomain: 0, localInstance: instanceId);
