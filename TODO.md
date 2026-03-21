@@ -4,14 +4,17 @@
 [BUG] map configuration IOS panel still contains tool selection combo although the tools are no more started via map configuration json
 [BUG] on IG no idea how to enable immediate drag mode - no UI for that. I would like to activate the immediate mode when SHIFT is pressed during dragging;
 [BUG] Selection & Mission editor does not show any trigger selection UI - there should be a combo for trigger and textbox for trigger parameters. With button for insering some valid default parameter json so that the user can easily change it. 
-[BUG] Buttons for Mission Task Up/Down/Delete should contain normal text, now unreadable symbol only.
+[BUG] Buttons for Mission Task Up/Down/Delete operations should contain normal text, now unreadable symbol only.
 [BUG] When map layer with ground vehicles is turned off, now invisible entities still can be selected . Also currently selected but now invisible entity remains selected, still showing selection indicator on the 2d.
-[BUG] I still can not see any roag graph rendered on simhost, even if standalone ig app started from proper folder - maybe the roadmap file not found or failed to load or something
-[BUG] This might also prevent the road picking when mission task FollowRoute is selected in IOS mission task editor, preventing to use this kind of task
+[BUG] I still can not see any road graph rendered on simhost, even if standalone ig app started from proper Bagira.runner project folder - maybe the roadmap file not found or failed to load or something
+[BUG] This might also prevent the road picking when mission task FollowRoute is selected in IOS mission task editor, preventing to use this kind of task. The road picker should show specific cursor/indicator.
+[BUG] Measure tool should show specific cursor/inidcator when waiting for first click - now not clear that the tool is active.
 [BUG] ENtity inspector UI should support in its context menu a field for deleting the entity (using proper networked way using ELM, no shortcuts)
-[BUG] GeoSpatialDR descriptor not disposed when entity deleted
-[BUG] ORBAT Tree in IOS does not indent the subordinates, they appear at the same level as ther commander
+[BUG] GeoSpatialDR descriptor not disposed when entity deleted. Maybe this issue is there for other entity descriptors as well?
+[BUG] ORBAT Tree in IOS does not indent the subordinates, they appear at the same level as their commander - not good UX
 [BUG] IOS Mission editor does not seem to handle the version conflict - no warning that information is obsolete, no possibility to forget user changes and update to latest
+[BUG] There are similar ECS components Health and HealthData - are they needed both?
+[BUG] The DELETE context menu item sent from IOS does nothing when clicked on IOS - entity not deletes. Should use proper netwroked ELM mechanism.
 
 
 
