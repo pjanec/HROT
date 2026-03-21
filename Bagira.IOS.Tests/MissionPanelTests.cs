@@ -542,4 +542,130 @@ public class MissionPanelTests
 
         Assert.True(panel.CommitInFlight);
     }
+
+    // ── BUG2-M002 – Trigger selection UI handlers ─────────────────────────────
+
+    private static MissionPanel CreatePanelWithDraftTask(string initialTriggerType = "DoctrineFinished")
+    {
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+        var plan  = BuildPlan("MoveToLocation");
+        plan.Tasks![0] = plan.Tasks[0] with
+        {
+            Triggers = new List<MissionTrigger>
+            {
+                new MissionTrigger { Type = initialTriggerType, Params = MissionPanel.GetDefaultTriggerParams(initialTriggerType) }
+            }
+        };
+        panel.SetDraftPlan(plan, baseVersion: 0);
+        return panel;
+    }
+
+    [Theory]
+    [InlineData("DoctrineFinished",   "")]
+    [InlineData("TimerElapsed",       "10.0")]
+    [InlineData("ReachedDestination", "")]
+    [InlineData("HealthCritical",     "0.25")]
+    [InlineData("UnderAttack",        "")]
+    public void GetDefaultTriggerParams_KnownTypes_ReturnExpectedDefaults(string type, string expected)
+    {
+        Assert.Equal(expected, MissionPanel.GetDefaultTriggerParams(type));
+    }
+
+    [Fact]
+    public void HandleEditTriggerType_UpdatesTriggerTypeAndResetsParams()
+    {
+        var panel = CreatePanelWithDraftTask("DoctrineFinished");
+
+        panel.HandleEditTriggerType(0, 0, "TimerElapsed");
+
+        var trigger = panel.DraftPlan!.Value.Tasks![0].Triggers![0];
+        Assert.Equal("TimerElapsed", trigger.Type);
+        Assert.Equal("10.0", trigger.Params); // default params for TimerElapsed
+    }
+
+    [Fact]
+    public void HandleEditTriggerParams_UpdatesParams()
+    {
+        var panel = CreatePanelWithDraftTask("TimerElapsed");
+
+        panel.HandleEditTriggerParams(0, 0, "30.0");
+
+        var trigger = panel.DraftPlan!.Value.Tasks![0].Triggers![0];
+        Assert.Equal("30.0", trigger.Params);
+    }
+
+    [Fact]
+    public void HandleAddTrigger_AppendsTriggerWithDefaultParams()
+    {
+        var panel = new MissionPanel { SelectedEntityId = 1 };
+        var plan  = BuildPlan("MoveToLocation");
+        plan.Tasks![0] = plan.Tasks[0] with { Triggers = new List<MissionTrigger>() };
+        panel.SetDraftPlan(plan, baseVersion: 0);
+
+        panel.HandleAddTrigger(0, "DoctrineFinished");
+
+        var triggers = panel.DraftPlan!.Value.Tasks![0].Triggers!;
+        Assert.Single(triggers);
+        Assert.Equal("DoctrineFinished", triggers[0].Type);
+        Assert.Equal("", triggers[0].Params);
+    }
+
+    // ── BUG2-M004 – Inline version-conflict resolution ────────────────────────
+
+    [Fact]
+    public void HandleForceCommit_CallsCommitWithBaseVersionZero()
+    {
+        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 3);
+        panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 99);
+        missionSvc.Setup(s => s.CommitMissionAsync(
+                It.IsAny<long>(), It.IsAny<MissionPlan>(), It.IsAny<long>()))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 100 });
+
+        panel.HandleForceCommit(logic.Object);
+
+        missionSvc.Verify(
+            s => s.CommitMissionAsync(3L, It.IsAny<MissionPlan>(), 0L),
+            Times.Once);
+    }
+
+    [Fact]
+    public void HandleForceCommit_DismissesConflictAlert()
+    {
+        var (panel, logic, missionSvc) = CreateSut(selectedEntityId: 2);
+        panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 1);
+        panel.HandleConflictResult(new MissionCommitResult
+        {
+            Success      = false,
+            ErrorCode    = PanelConstants.VersionConflictErrorCode,
+            ErrorMessage = PanelConstants.VersionConflictErrorMessage
+        });
+        Assert.True(panel.HasConflictAlert);
+        missionSvc.Setup(s => s.CommitMissionAsync(
+                It.IsAny<long>(), It.IsAny<MissionPlan>(), It.IsAny<long>()))
+            .ReturnsAsync(new MissionCommitResult { Success = true, NewVersion = 2 });
+
+        panel.HandleForceCommit(logic.Object);
+
+        Assert.False(panel.HasConflictAlert);
+    }
+
+    [Fact]
+    public void DiscardDraftAndDismissConflict_ClearsConflictAndDraft()
+    {
+        var (panel, _, _) = CreateSut(selectedEntityId: 2);
+        panel.SetDraftPlan(BuildPlan("MoveToLocation"), baseVersion: 1);
+        panel.HandleConflictResult(new MissionCommitResult
+        {
+            Success      = false,
+            ErrorCode    = PanelConstants.VersionConflictErrorCode,
+            ErrorMessage = PanelConstants.VersionConflictErrorMessage
+        });
+        Assert.True(panel.HasConflictAlert);
+        Assert.True(panel.DraftPlan.HasValue);
+
+        panel.TestHook_ClearDraftAndDismissConflict();
+
+        Assert.False(panel.HasConflictAlert);
+        Assert.False(panel.DraftPlan.HasValue);
+    }
 }

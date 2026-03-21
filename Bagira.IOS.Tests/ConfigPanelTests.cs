@@ -1,6 +1,7 @@
 using Bagira.IOS.Panels;
 using Moq;
 using Newtonsoft.Json.Linq;
+using System.Reflection;
 
 namespace Bagira.IOS.Tests;
 
@@ -23,37 +24,25 @@ public class ConfigPanelTests
 
     // ── BuildPatch – JSON structure ───────────────────────────────────────────
 
+    // BUG2-U001: interaction key removed; verify it is absent
     [Fact]
-    public void BuildPatch_DefaultState_ContainsNavigationTool()
+    public void BuildPatch_DoesNotContainInteractionKey()
     {
         var (panel, _) = CreateSut();
 
         var json = JObject.Parse(panel.BuildPatch());
 
-        Assert.Equal("Navigation", (string?)json["interaction"]?["activeTool"]);
+        Assert.Null(json["interaction"]);
     }
 
+    // BUG2-U001: Tools static array removed; verify via reflection
     [Fact]
-    public void BuildPatch_ToolSelection_ReflectsChosenTool()
+    public void NoToolsField()
     {
-        var (panel, _) = CreateSut();
-        panel.SelectedTool = 2; // "Placement"
+        var field = typeof(ConfigPanel)
+            .GetField("Tools", BindingFlags.Public | BindingFlags.Static);
 
-        var json = JObject.Parse(panel.BuildPatch());
-
-        Assert.Equal("Placement", (string?)json["interaction"]?["activeTool"]);
-    }
-
-    [Fact]
-    public void BuildPatch_EachTool_ProducesCorrectToolName()
-    {
-        var (panel, _) = CreateSut();
-        for (int i = 0; i < ConfigPanel.Tools.Length; i++)
-        {
-            panel.SelectedTool = i;
-            var json = JObject.Parse(panel.BuildPatch());
-            Assert.Equal(ConfigPanel.Tools[i], (string?)json["interaction"]?["activeTool"]);
-        }
+        Assert.Null(field);
     }
 
     [Fact]
@@ -203,22 +192,7 @@ public class ConfigPanelTests
     // ── State clamp guards ────────────────────────────────────────────────────
 
     [Fact]
-    public void SelectedTool_BelowZero_ClampsToZero()
-    {
-        var (panel, _) = CreateSut();
-        panel.SelectedTool = -5;
-        Assert.Equal(0, panel.SelectedTool);
-    }
 
-    [Fact]
-    public void SelectedTool_AboveMax_ClampsToLastIndex()
-    {
-        var (panel, _) = CreateSut();
-        panel.SelectedTool = 999;
-        Assert.Equal(ConfigPanel.Tools.Length - 1, panel.SelectedTool);
-    }
-
-    [Fact]
     public void IconScale_BelowMin_ClampsToMin()
     {
         var (panel, _) = CreateSut();
@@ -250,7 +224,6 @@ public class ConfigPanelTests
     public void HandleSendConfigPatch_PassesPatchMatchingCurrentState()
     {
         var (panel, logic) = CreateSut();
-        panel.SelectedTool     = 1; // "Selection"
         panel.SatelliteLayer   = false;
         panel.TacticalGraphics = true;
 
@@ -262,7 +235,7 @@ public class ConfigPanelTests
 
         Assert.NotNull(capturedPatch);
         var json = JObject.Parse(capturedPatch!);
-        Assert.Equal("Selection",  (string?)json["interaction"]?["activeTool"]);
+        Assert.Null(json["interaction"]);
         Assert.False((bool?)json["view"]?["layers"]?["satellite"]);
         Assert.True((bool?)json["view"]?["layers"]?["tactical_graphics"]);
     }

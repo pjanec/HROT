@@ -35,3 +35,4 @@ This document tracks P2 and P3 technical debt, refactoring opportunities, and de
 |   | P3 | Testing      | BUG1-BATCH-02 | `SimHostApp.OnLoad()` translator separation lacks test coverage. | BUG1-BATCH-03 |
 |   | P3 | Architecture | BUG1-BATCH-02 | `IosSubsystem` node-id isn't fully plumbed into `IosMock.InitializeEmbedded` yet. | BUG1-BATCH-03 |
 |   | P3 | Testing      | BUG1-BATCH-02 | No integration test covering the full `HandleAbort → SendControlCommandAsync → OnAckReceived → CommitInFlight = false` round-trip. | BUG1-BATCH-03 |
+|   | P3 | Architecture | BUG2-BATCH-01 | The duplicate-copy of `ResolveTrigger` logic between `MissionControlRequestSystem` and `EntityMissionIngressTranslator` is tech debt. Target: Consolidate into a shared static helper in `Bagira.Map.Common`. | BUG2-BATCH-02 |

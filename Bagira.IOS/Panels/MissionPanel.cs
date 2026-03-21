@@ -63,6 +63,21 @@ public sealed class MissionPanel
     private const string BehaviorNameJoinFormation  = "JoinFormation";
     private const string BehaviorNameIdle           = "Idle";
 
+    // ── Trigger types (BUG2-M002) ─────────────────────────────────────────────
+
+    private static readonly string[] _triggerTypes =
+    {
+        "DoctrineFinished", "TimerElapsed", "ReachedDestination", "HealthCritical", "UnderAttack"
+    };
+
+    /// <summary>Returns the default params string for the given trigger type.</summary>
+    public static string GetDefaultTriggerParams(string triggerType) => triggerType switch
+    {
+        "TimerElapsed"   => "10.0",
+        "HealthCritical" => "0.25",
+        _                => ""
+    };
+
     // ── Construction ─────────────────────────────────────────────────────────
 
     /// <summary>
@@ -239,6 +254,52 @@ public sealed class MissionPanel
         tasks[index] = task;
     }
 
+    /// <summary>Updates the trigger type at the given task/trigger index and resets params to defaults.</summary>
+    public void HandleEditTriggerType(int taskIndex, int triggerIndex, string newType)
+    {
+        if (!TryGetDraftTasks(out var tasks)) return;
+        if (taskIndex < 0 || taskIndex >= tasks.Count) return;
+        var task = tasks[taskIndex];
+        if (task.Triggers != null && triggerIndex >= 0 && triggerIndex < task.Triggers.Count)
+        {
+            var trigger = task.Triggers[triggerIndex];
+            trigger.Type   = newType;
+            trigger.Params = GetDefaultTriggerParams(newType);
+            task.Triggers[triggerIndex] = trigger;
+            tasks[taskIndex] = task;
+        }
+    }
+
+    /// <summary>Updates the trigger params at the given task/trigger index.</summary>
+    public void HandleEditTriggerParams(int taskIndex, int triggerIndex, string newParams)
+    {
+        if (!TryGetDraftTasks(out var tasks)) return;
+        if (taskIndex < 0 || taskIndex >= tasks.Count) return;
+        var task = tasks[taskIndex];
+        if (task.Triggers != null && triggerIndex >= 0 && triggerIndex < task.Triggers.Count)
+        {
+            var trigger = task.Triggers[triggerIndex];
+            trigger.Params = newParams ?? string.Empty;
+            task.Triggers[triggerIndex] = trigger;
+            tasks[taskIndex] = task;
+        }
+    }
+
+    /// <summary>Adds a trigger of the specified type to the task at the given index.</summary>
+    public void HandleAddTrigger(int taskIndex, string type)
+    {
+        if (!TryGetDraftTasks(out var tasks)) return;
+        if (taskIndex < 0 || taskIndex >= tasks.Count) return;
+        var task = tasks[taskIndex];
+        task.Triggers ??= new List<MissionTrigger>();
+        task.Triggers.Add(new MissionTrigger
+        {
+            Type   = type,
+            Params = GetDefaultTriggerParams(type)
+        });
+        tasks[taskIndex] = task;
+    }
+
     /// <summary>Starts an async mission commit for the current draft plan.</summary>
     public void HandleCommit(IIosLogic logic)
     {
@@ -251,6 +312,22 @@ public sealed class MissionPanel
         _pendingCommit = logic.MissionEditorService
             .CommitMissionAsync(_selectedEntityId, plan, _draftBaseVersion);
         _commitInFlight = true;
+    }
+
+    /// <summary>
+    /// Handles "Force Commit": commits the current draft overriding any OCC version check
+    /// by passing <c>baseVersion == 0</c>.
+    /// </summary>
+    public void HandleForceCommit(IIosLogic logic)
+    {
+        ArgumentNullException.ThrowIfNull(logic);
+        if (!CanCommit) return;
+        var plan = _draftPlan!.Value;
+        FdpLog<MissionPanel>.Info("[IOS] Force Commit: entity={0} tasks={1}",
+            _selectedEntityId, plan.Tasks?.Count ?? 0);
+        _pendingCommit  = logic.MissionEditorService.CommitMissionAsync(_selectedEntityId, plan, 0);
+        _commitInFlight = true;
+        DismissConflict();
     }
 
     // ── Conflict alert (IOS.10.3) ────────────────────────────────────────────
@@ -493,13 +570,47 @@ public sealed class MissionPanel
                     }
                 }
 
-                if (ImGui.SmallButton($"↑##{i}"))
+                if (task.Triggers != null && task.Triggers.Count > 0)
+                {
+                    var trigger      = task.Triggers[0];
+                    string trigType  = trigger.Type   ?? "DoctrineFinished";
+                    string trigParam = trigger.Params ?? string.Empty;
+
+                    ImGui.Text("Trigger:");
+                    ImGui.SameLine();
+                    ImGui.SetNextItemWidth(150f);
+                    if (ImGui.BeginCombo($"##TrigType{i}", trigType))
+                    {
+                        for (int t = 0; t < _triggerTypes.Length; t++)
+                        {
+                            bool isSel = trigType == _triggerTypes[t];
+                            if (ImGui.Selectable(_triggerTypes[t], isSel))
+                                HandleEditTriggerType(i, 0, _triggerTypes[t]);
+                            if (isSel) ImGui.SetItemDefaultFocus();
+                        }
+                        ImGui.EndCombo();
+                    }
+                    ImGui.SameLine();
+                    ImGui.SetNextItemWidth(120f);
+                    if (ImGui.InputText($"##TrigParams{i}", ref trigParam, 1024))
+                        HandleEditTriggerParams(i, 0, trigParam);
+                    ImGui.SameLine();
+                    if (ImGui.Button($"Default##TrigDef{i}"))
+                        HandleEditTriggerParams(i, 0, GetDefaultTriggerParams(trigType));
+                }
+                else
+                {
+                    if (ImGui.Button($"+ Add Trigger##{i}"))
+                        HandleAddTrigger(i, "DoctrineFinished");
+                }
+
+                if (ImGui.SmallButton($"Up##{i}"))
                     HandleMoveTask(i, i - 1);
                 ImGui.SameLine();
-                if (ImGui.SmallButton($"↓##{i}"))
+                if (ImGui.SmallButton($"Down##{i}"))
                     HandleMoveTask(i, i + 1);
                 ImGui.SameLine();
-                if (ImGui.SmallButton($"✕##{i}"))
+                if (ImGui.SmallButton($"Delete##{i}"))
                     HandleDeleteTask(i);
 
                 ImGui.Separator();
@@ -509,17 +620,39 @@ public sealed class MissionPanel
                 HandleAddTask();
 
             ImGui.SameLine();
-            // Capture the enabled state once before the button so that HandleCommit()
-            // changing CommitButtonEnabled mid-frame cannot cause a mismatched
-            // BeginDisabled / EndDisabled pair (Task-7 fix).
-            bool commitEnabled = CommitButtonEnabled;
-            if (!commitEnabled) ImGui.BeginDisabled();
-            if (ImGui.Button("Commit")) HandleCommit(logic);
-            if (!commitEnabled) ImGui.EndDisabled();
 
-            if (ImGui.Button("JUMP"))  HandleJump(logic);
-            ImGui.SameLine();
-            if (ImGui.Button("ABORT")) HandleAbort(logic);
+            if (HasConflictAlert)
+            {
+                ImGui.TextColored(new System.Numerics.Vector4(1f, 0.4f, 0.4f, 1f),
+                    "⚠ Conflict: Mission plan was modified by another operator!");
+                if (ImGui.Button("Discard Draft (Reload)"))
+                {
+                    ClearDraft();
+                    DismissConflict();
+                }
+                ImGui.SameLine();
+                if (ImGui.Button("Force Commit (Overwrite)"))
+                    HandleForceCommit(logic);
+            }
+            else
+            {
+                // Capture the enabled state once before the button so that HandleCommit()
+                // changing CommitButtonEnabled mid-frame cannot cause a mismatched
+                // BeginDisabled / EndDisabled pair (Task-7 fix).
+                bool commitEnabled = CommitButtonEnabled;
+                if (!commitEnabled) ImGui.BeginDisabled();
+                if (ImGui.Button("Commit")) HandleCommit(logic);
+                if (!commitEnabled) ImGui.EndDisabled();
+
+                if (_draftPlan.HasValue)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.Button("Discard Draft")) ClearDraft();
+                }
+                if (ImGui.Button("JUMP"))  HandleJump(logic);
+                ImGui.SameLine();
+                if (ImGui.Button("ABORT")) HandleAbort(logic);
+            }
         }
 
         ImGui.End();
@@ -632,6 +765,16 @@ public sealed class MissionPanel
     /// Equivalent to calling <see cref="Draw"/> with a valid logic and an empty plan view.
     /// </summary>
     internal void TestHook_PollCommitCompletion() => PollCommitCompletion();
+
+    /// <summary>
+    /// Internal test hook: clears the draft plan and dismisses the conflict alert.
+    /// Simulates the "Discard Draft (Reload)" button in the conflict UI.
+    /// </summary>
+    internal void TestHook_ClearDraftAndDismissConflict()
+    {
+        ClearDraft();
+        DismissConflict();
+    }
 
     private static MissionPlan CreateEmptyPlan()
         => new MissionPlan { Tasks = new List<MissionTask>() };

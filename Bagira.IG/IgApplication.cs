@@ -46,6 +46,8 @@ using Bagira.Map.Definitions.Tkb;
 
 using CycloneDDS.Runtime;
 
+using CycloneDDS.Runtime.Tracking;
+
 using Fdp.Kernel;
 
 using Fdp.Modules.Geographic.Components;
@@ -707,7 +709,11 @@ public class IgApplication
 
                 participant = BagiraEnvironment.CreateParticipant(domainId);
 
-
+                participant.EnableSenderTracking(new SenderIdentityConfig
+                {
+                    AppDomainId   = domainId,
+                    AppInstanceId = _effectiveInstanceId
+                });
 
                 // Task 5: Create command gateway, click writer and config reader.
 

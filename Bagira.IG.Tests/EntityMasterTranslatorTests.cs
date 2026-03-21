@@ -6,6 +6,9 @@ using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
+using CycloneDDS.Runtime;
+using CycloneDDS.Runtime.Tracking;
+using System.Threading;
 
 namespace Bagira.IG.Tests;
 
@@ -274,5 +277,60 @@ public class EntityMasterTranslatorTests
         Assert.Equal(4,   (int)stored.Subcategory);
         Assert.Equal(5,   (int)stored.Specific);
         Assert.Equal(6,   (int)stored.Extra);
+    }
+
+    // ── BUG2-N002 – EnableSenderTracking integration test ─────────────────
+
+    /// <summary>
+    /// Verifies that when <see cref="DdsParticipant.EnableSenderTracking"/> is called
+    /// on both the sender and receiver participants, received samples expose non-null
+    /// sender identity (AppInstanceId = "OwnerId" of the remote participant).
+    /// </summary>
+    [Fact]
+    public void ProcessSample_WithSenderTracking_SetsOwnerId()
+    {
+        const uint domain  = 170u;
+        const int  ownerId = 42;
+
+        using var senderParticipant = new DdsParticipant(domain);
+        senderParticipant.EnableSenderTracking(new SenderIdentityConfig
+        {
+            AppDomainId   = (int)domain,
+            AppInstanceId = ownerId
+        });
+
+        using var receiverParticipant = new DdsParticipant(domain);
+        receiverParticipant.EnableSenderTracking(new SenderIdentityConfig
+        {
+            AppDomainId   = (int)domain,
+            AppInstanceId = 99
+        });
+
+        using var writer = new DdsWriter<EntityMaster>(senderParticipant);
+        using var reader = new DdsReader<EntityMaster>(receiverParticipant);
+        reader.EnableSenderTracking(receiverParticipant.SenderRegistry!);
+
+        Thread.Sleep(500); // discovery
+
+        writer.Write(new EntityMaster { EntityId = 77 });
+
+        Thread.Sleep(500); // let sample propagate
+
+        SenderIdentity? senderIdentity = null;
+        using var loan = reader.Take();
+        int sampleIdx = 0;
+        foreach (var sample in loan)
+        {
+            if (sample.Info.InstanceState == DdsInstanceState.Alive)
+            {
+                senderIdentity = loan.GetSender(sampleIdx);
+                break;
+            }
+            sampleIdx++;
+        }
+
+        Assert.NotNull(senderIdentity);
+        // AppInstanceId maps to OwnerId in the application domain.
+        Assert.Equal(ownerId, senderIdentity!.Value.AppInstanceId);
     }
 }

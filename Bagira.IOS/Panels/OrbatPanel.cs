@@ -240,6 +240,9 @@ public sealed class OrbatPanel
         var nodes = GetVisibleNodes(logic.Repo);
         foreach (var node in nodes)
         {
+            float indent = node.Depth * ImGui.GetStyle().IndentSpacing;
+            if (indent > 0) ImGui.Indent(indent);
+
             var flags = node.HasChildren
                 ? ImGuiTreeNodeFlags.OpenOnArrow
                 : ImGuiTreeNodeFlags.Leaf;
@@ -253,6 +256,8 @@ public sealed class OrbatPanel
             }
             else if (_expandedNodes.Contains(node.EntityId))
                 ToggleExpanded(node.EntityId);
+
+            if (indent > 0) ImGui.Unindent(indent);
         }
 
         ImGui.Separator();

@@ -22,15 +22,8 @@ namespace Bagira.IOS.Panels;
 /// </summary>
 public sealed class ConfigPanel
 {
-    // ── Tool list (ordered; index maps to Combo widget) ───────────────────────
+    // ── State ─────────────────────────────────────────────────────
 
-    /// <summary>Ordered list of map tools available in the toolbar combo-box.</summary>
-    public static readonly string[] Tools =
-        { "Navigation", "Selection", "Placement", "Measure" };
-
-    // ── State ─────────────────────────────────────────────────────────────────
-
-    private int   _selectedTool    = 0;
     private bool  _satelliteLayer  = true;
     private bool  _groundUnits     = true;
     private bool  _airUnits        = true;
@@ -41,13 +34,6 @@ public sealed class ConfigPanel
     private float _iconScale       = PanelConstants.IconScaleDefault;
 
     // ── Public state accessors ────────────────────────────────────────────────
-
-    /// <summary>Index into <see cref="Tools"/>. Clamped to valid range on set.</summary>
-    public int SelectedTool
-    {
-        get => _selectedTool;
-        set => _selectedTool = Math.Clamp(value, 0, Tools.Length - 1);
-    }
 
     public bool  SatelliteLayer   { get => _satelliteLayer;   set => _satelliteLayer   = value; }
     public bool  GroundUnits      { get => _groundUnits;      set => _groundUnits      = value; }
@@ -76,10 +62,6 @@ public sealed class ConfigPanel
     {
         return JsonConvert.SerializeObject(new
         {
-            interaction = new
-            {
-                activeTool = Tools[_selectedTool]
-            },
             view = new
             {
                 iconScale = _iconScale,
@@ -125,7 +107,6 @@ public sealed class ConfigPanel
         ImGui.Begin("Map Configuration");
         IosPanelColors.Pop();
 
-        ImGui.Combo("Tool", ref _selectedTool, Tools, Tools.Length);
         ImGui.Checkbox("Satellite Layer",    ref _satelliteLayer);
         ImGui.Checkbox("Ground Units",       ref _groundUnits);
         ImGui.Checkbox("Air Units",          ref _airUnits);

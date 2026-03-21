@@ -47,6 +47,16 @@ namespace Bagira.Map.Common.Replication.Egress
         }
 
         /// <summary>
+        /// Tombstones both the primary <see cref="GeoSpatial"/> topic instance (via base)
+        /// and the secondary <see cref="GeoSpatialDR"/> instance to prevent descriptor leaks.
+        /// </summary>
+        public override void Dispose(long networkEntityId)
+        {
+            base.Dispose(networkEntityId);
+            _drWriter.DisposeInstance(new GeoSpatialDR { EntityId = (int)networkEntityId });
+        }
+
+        /// <summary>
         /// Scans all locally-owned entities with <see cref="SimTransform"/> and publishes
         /// <see cref="GeoSpatial"/> (position/orientation) and <see cref="GeoSpatialDR"/>
         /// (velocity/acceleration) to DDS, converting Cartesian to geodetic on the fly.

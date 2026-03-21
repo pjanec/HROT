@@ -7,6 +7,7 @@ using Bagira.IOS.Services;
 using Bagira.Map.Common;
 using Bagira.Map.Common.Dds;
 using CycloneDDS.Runtime;
+using CycloneDDS.Runtime.Tracking;
 using FDP.Toolkit.DER;
 
 namespace Bagira.Runner.Services
@@ -76,6 +77,11 @@ namespace Bagira.Runner.Services
 
             // ── DDS participant ────────────────────────────────────────────────
             _participant = BagiraEnvironment.CreateParticipant(config.DomainId);
+            _participant.EnableSenderTracking(new SenderIdentityConfig
+            {
+                AppDomainId   = config.DomainId,
+                AppInstanceId = config.NodeId
+            });
 
             // ── Construct services ─────────────────────────────────────────────
             // DerRepo takes no external dependencies; node ID uses a fixed default.

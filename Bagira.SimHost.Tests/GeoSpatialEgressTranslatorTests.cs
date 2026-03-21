@@ -1,6 +1,12 @@
 using System;
 using System.Numerics;
+using System.Threading;
+using Bagira.BDC.SSTD;
+using Bagira.Map.Common;
+using Bagira.Map.Common.Replication.Egress;
+using CycloneDDS.Runtime;
 using Fdp.Modules.Geographic.Systems;
+using FDP.Toolkit.Replication.Services;
 using Xunit;
 
 namespace Bagira.SimHost.Tests
@@ -82,6 +88,81 @@ namespace Bagira.SimHost.Tests
             float computedHeading = SimTransformBridgeSystem.RotationToHeadingDeg(rotation);
 
             Assert.Equal(compassHeading, computedHeading, precision: 1);
+        }
+
+        // ── BUG2-N003 – GeoSpatialDR disposal integration tests ──────────────
+
+        /// <summary>
+        /// Verifies that calling <see cref="GeoSpatialEgressTranslator.Dispose(long)"/>
+        /// tombstones the <see cref="GeoSpatialDR"/> topic instance.
+        /// </summary>
+        [Fact]
+        public void Dispose_CallsDisposeOnDrWriter()
+        {
+            const uint domain = 165u;
+            using var participant = new DdsParticipant(domain);
+            using var drReader    = new DdsReader<GeoSpatialDR>(participant, "GeoSpatialDR");
+
+            var geoTransform = BagiraEnvironment.CreateGeoTransform();
+            var entityMap    = new NetworkEntityMap();
+            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
+
+            // Call Dispose — this should tombstone the GeoSpatialDR instance.
+            translator.Dispose(42L);
+
+            // Wait briefly for the loopback to complete.
+            Thread.Sleep(200);
+
+            // Check that a disposed (NOT_ALIVE) sample exists for EntityId=42.
+            bool receivedTombstone = false;
+            using var loan = drReader.Take();
+            foreach (var sample in loan)
+            {
+                if (sample.Info.InstanceState != DdsInstanceState.Alive)
+                {
+                    receivedTombstone = true;
+                    break;
+                }
+            }
+
+            Assert.True(receivedTombstone,
+                "Dispose(42) should tombstone the GeoSpatialDR instance (NOT_ALIVE sample expected).");
+        }
+
+        /// <summary>
+        /// Verifies that calling <see cref="GeoSpatialEgressTranslator.Dispose(long)"/>
+        /// also calls the base translator dispose (tombstoning the primary GeoSpatial topic).
+        /// </summary>
+        [Fact]
+        public void Dispose_AlsoCallsBaseDispose()
+        {
+            const uint domain = 166u;
+            using var participant  = new DdsParticipant(domain);
+            using var geoReader    = new DdsReader<GeoSpatial>(participant, "GeoSpatial");
+
+            var geoTransform = BagiraEnvironment.CreateGeoTransform();
+            var entityMap    = new NetworkEntityMap();
+            var translator   = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
+
+            // Call Dispose — base.Dispose should tombstone the GeoSpatial instance.
+            translator.Dispose(99L);
+
+            Thread.Sleep(200);
+
+            // Confirm a NOT_ALIVE sample exists for EntityId=99 on the primary GeoSpatial topic.
+            bool receivedTombstone = false;
+            using var loan = geoReader.Take();
+            foreach (var sample in loan)
+            {
+                if (sample.Info.InstanceState != DdsInstanceState.Alive)
+                {
+                    receivedTombstone = true;
+                    break;
+                }
+            }
+
+            Assert.True(receivedTombstone,
+                "Dispose(99) should tombstone the primary GeoSpatial instance (NOT_ALIVE sample expected).");
         }
     }
 }

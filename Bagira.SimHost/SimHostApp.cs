@@ -20,6 +20,7 @@ using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using CycloneDDS.Runtime;
+using CycloneDDS.Runtime.Tracking;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
@@ -239,6 +240,11 @@ namespace Bagira.SimHost
 
             // ── 4. Data services ──────────────────────────────────────────────
             var ddsParticipant = BagiraEnvironment.CreateParticipant(domainId);
+            ddsParticipant.EnableSenderTracking(new SenderIdentityConfig
+            {
+                AppDomainId   = domainId,
+                AppInstanceId = localNodeId
+            });
             var tkbDb          = BagiraEnvironment.CreateTkb();
             var entityMap      = new NetworkEntityMap();
             _entityMap         = entityMap;
@@ -334,7 +340,6 @@ namespace Bagira.SimHost
             _kernelGroup.AddSystem(new MissionAdapterSystem(doctrineRegistry, entityMap));
             _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
             _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant, entityMap, wgs84, jsonAttributeCompiler));
-            _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
             // Seed GlobalTime singleton.

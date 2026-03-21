@@ -175,7 +175,7 @@ namespace Bagira.Map.Common.Replication.Ingress
             return 0;
         }
 
-        private static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
+        internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
         {
             if (triggers == null || triggers.Count == 0)
                 return (EcsMissionTrigger.TimerElapsed, float.MaxValue); // no trigger = hold phase indefinitely
@@ -188,6 +188,9 @@ namespace Bagira.Map.Common.Replication.Ingress
                 "TimerElapsed" => (EcsMissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
                 "ReachedDestination" => (EcsMissionTrigger.ReachedDestination, 0f),
                 "HealthCritical" => (EcsMissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
+                "DoctrineFinished" => (EcsMissionTrigger.DoctrineFinished, 0f),
+                "UnderAttack"      => (EcsMissionTrigger.UnderAttack,      0f),
+                // Unknown trigger strings fall back to TimerElapsed(0) as a safe observable failure mode.
                 _ => (EcsMissionTrigger.TimerElapsed, 0f)
             };
         }

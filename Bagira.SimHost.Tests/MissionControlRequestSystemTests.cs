@@ -13,6 +13,7 @@ using FDP.Toolkit.Behavior.Events;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using Xunit;
+using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Bagira.SimHost.Tests
 {
@@ -418,6 +419,36 @@ namespace Bagira.SimHost.Tests
 
             using var loan = reader.Take();
             Assert.True(LoanHasAck(loan, requestId, errorCode: 0)); // SstErrorCode.Success == 0
+        }
+
+        // ── BUG2-M001 – ResolveTrigger new cases ─────────────────────────────
+
+        [Fact]
+        public void ResolveTrigger_DoctrineFinished_ReturnsCorrectEnum()
+        {
+            var triggers = new List<DdsMissionTrigger>
+            {
+                new DdsMissionTrigger { Type = "DoctrineFinished", Params = "" }
+            };
+
+            var (trigger, param) = MissionControlRequestSystem.ResolveTrigger(triggers);
+
+            Assert.Equal(EcsMissionTrigger.DoctrineFinished, trigger);
+            Assert.Equal(0f, param);
+        }
+
+        [Fact]
+        public void ResolveTrigger_UnderAttack_ReturnsCorrectEnum()
+        {
+            var triggers = new List<DdsMissionTrigger>
+            {
+                new DdsMissionTrigger { Type = "UnderAttack", Params = "" }
+            };
+
+            var (trigger, param) = MissionControlRequestSystem.ResolveTrigger(triggers);
+
+            Assert.Equal(EcsMissionTrigger.UnderAttack, trigger);
+            Assert.Equal(0f, param);
         }
     }
 }

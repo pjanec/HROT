@@ -10,9 +10,9 @@
 **Goal:** Stop duplicate ACKs on descriptor update requests, ensure DDS sender identity is
 broadcast by all participant types, and tombstone the GeoSpatialDR descriptor on entity deletion.
 
-- [ ] **BUG2-N001** Fix Duplicate UpdateEntityDescriptorRequestSystem Registration [details](./BUG2-TASK-DETAIL.md#bug2-n001-fix-duplicate-updateentitydescriptorrequestsystem-registration)
-- [ ] **BUG2-N002** Add EnableSenderTracking to All DDS Participant Initializations [details](./BUG2-TASK-DETAIL.md#bug2-n002-add-enablesendertracking-to-all-dds-participant-initializations)
-- [ ] **BUG2-N003** Fix GeoSpatialDR Descriptor Disposal Leak [details](./BUG2-TASK-DETAIL.md#bug2-n003-fix-geospatialdr-descriptor-disposal-leak)
+- [x] **BUG2-N001** Fix Duplicate UpdateEntityDescriptorRequestSystem Registration [details](./BUG2-TASK-DETAIL.md#bug2-n001-fix-duplicate-updateentitydescriptorrequestsystem-registration)
+- [x] **BUG2-N002** Add EnableSenderTracking to All DDS Participant Initializations [details](./BUG2-TASK-DETAIL.md#bug2-n002-add-enablesendertracking-to-all-dds-participant-initializations)
+- [x] **BUG2-N003** Fix GeoSpatialDR Descriptor Disposal Leak [details](./BUG2-TASK-DETAIL.md#bug2-n003-fix-geospatialdr-descriptor-disposal-leak)
 
 ---
 
@@ -21,10 +21,10 @@ broadcast by all participant types, and tombstone the GeoSpatialDR descriptor on
 **Goal:** Fix the trigger translation bug that prevents vehicles from moving; expose trigger
 editing in the task editor UI; fix unreadable task action buttons; add inline conflict resolution.
 
-- [ ] **BUG2-M001** Fix Missing ResolveTrigger Cases [details](./BUG2-TASK-DETAIL.md#bug2-m001-fix-missing-resolvetrigger-cases)
-- [ ] **BUG2-M002** Add Trigger Selection UI to MissionPanel [details](./BUG2-TASK-DETAIL.md#bug2-m002-add-trigger-selection-ui-to-missionpanel)
-- [ ] **BUG2-M003** Fix Unreadable Mission Task Action Buttons [details](./BUG2-TASK-DETAIL.md#bug2-m003-fix-unreadable-mission-task-action-buttons)
-- [ ] **BUG2-M004** Add Inline Version-Conflict Resolution to MissionPanel [details](./BUG2-TASK-DETAIL.md#bug2-m004-add-inline-version-conflict-resolution-to-missionpanel)
+- [x] **BUG2-M001** Fix Missing ResolveTrigger Cases [details](./BUG2-TASK-DETAIL.md#bug2-m001-fix-missing-resolvetrigger-cases)
+- [x] **BUG2-M002** Add Trigger Selection UI to MissionPanel [details](./BUG2-TASK-DETAIL.md#bug2-m002-add-trigger-selection-ui-to-missionpanel)
+- [x] **BUG2-M003** Fix Unreadable Mission Task Action Buttons [details](./BUG2-TASK-DETAIL.md#bug2-m003-fix-unreadable-mission-task-action-buttons)
+- [x] **BUG2-M004** Add Inline Version-Conflict Resolution to MissionPanel [details](./BUG2-TASK-DETAIL.md#bug2-m004-add-inline-version-conflict-resolution-to-missionpanel)
 
 ---
 
@@ -32,8 +32,8 @@ editing in the task editor UI; fix unreadable task action buttons; add inline co
 
 **Goal:** Remove dead-weight legacy code from ConfigPanel and fix ORBAT tree indentation.
 
-- [ ] **BUG2-U001** Remove Legacy Tool Combo from ConfigPanel [details](./BUG2-TASK-DETAIL.md#bug2-u001-remove-legacy-tool-combo-from-configpanel)
-- [ ] **BUG2-U002** Fix ORBAT Tree Indentation [details](./BUG2-TASK-DETAIL.md#bug2-u002-fix-orbat-tree-indentation)
+- [x] **BUG2-U001** Remove Legacy Tool Combo from ConfigPanel [details](./BUG2-TASK-DETAIL.md#bug2-u001-remove-legacy-tool-combo-from-configpanel)
+- [x] **BUG2-U002** Fix ORBAT Tree Indentation [details](./BUG2-TASK-DETAIL.md#bug2-u002-fix-orbat-tree-indentation)
 
 ---
 
