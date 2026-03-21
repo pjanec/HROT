@@ -39,7 +39,7 @@ namespace Fdp.Kernel
         /// <summary><see cref="SimVelocity"/> — linear and angular velocity.</summary>
         public const byte SimVelocity         = 1;
 
-        /// <summary><see cref="HealthData"/> — current / max hit-points mirror.</summary>
+        /// <summary>Reserved (was <c>HealthData</c> mirror, removed by BUG2-A001). ID preserved for serialization compatibility.</summary>
         public const byte HealthData          = 2;
 
         /// <summary><see cref="GlobalTime"/> — simulation time singleton.</summary>

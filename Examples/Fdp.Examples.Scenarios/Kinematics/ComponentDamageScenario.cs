@@ -83,7 +83,6 @@ namespace Fdp.Examples.Scenarios.Kinematics
             // ── Component registration ────────────────────────────────────────
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<Health>();
-            world.RegisterComponent<HealthData>();
             world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
@@ -236,7 +235,6 @@ namespace Fdp.Examples.Scenarios.Kinematics
             });
 
             world.AddComponent(e, new Health  { Current = MaxHealth, Max = MaxHealth });
-            world.AddComponent(e, new HealthData { Current = MaxHealth, Max = MaxHealth });
 
             world.AddComponent(e, new ActorCapabilityState
             {

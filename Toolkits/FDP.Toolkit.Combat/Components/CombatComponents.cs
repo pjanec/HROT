@@ -23,17 +23,6 @@ namespace FDP.Toolkit.Combat.Components
     }
 
     /// <summary>
-    /// Hit-point pool. <see cref="Current"/> &lt;= 0 means the entity is destroyed/defeated.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.CombatHealth)]
-    public struct Health
-    {
-        public float Current;
-        public float Max;
-    }
-
-    /// <summary>
     /// Marks a bullet entity. Added by FireProcessingSystem on spawn.
     /// <see cref="PreviousPosition"/> is updated by BallisticsSystem each frame to build
     /// the swept segment used for swept-sphere raycasting.

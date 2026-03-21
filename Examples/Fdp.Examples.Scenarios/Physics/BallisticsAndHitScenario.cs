@@ -105,7 +105,6 @@ namespace Fdp.Examples.Scenarios.Physics
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
             world.RegisterComponent<Health>();
-            world.RegisterComponent<HealthData>();
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<PhysicsCollider>();
@@ -276,7 +275,6 @@ namespace Fdp.Examples.Scenarios.Physics
                 Rotation = Quaternion.Identity,
             });
             world.AddComponent(e, new Health  { Current = MaxHealth, Max = MaxHealth });
-            world.AddComponent(e, new HealthData { Current = MaxHealth, Max = MaxHealth });
             world.AddComponent(e, new PhysicsCollider
             {
                 Radius         = TargetRadius,

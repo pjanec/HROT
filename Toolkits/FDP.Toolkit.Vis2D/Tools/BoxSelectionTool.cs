@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Raylib_cs;
 using FDP.Toolkit.Vis2D.Abstractions;
+using FDP.Toolkit.Vis2D.Components;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 
@@ -20,6 +21,7 @@ namespace FDP.Toolkit.Vis2D.Tools
         private readonly ISimulationView _view;
         private readonly EntityQuery _query;
         private readonly IVisualizerAdapter _adapter;
+        private MapCanvas? _canvas;
         
         private Vector2 _startPos;
         private Vector2 _currentPos;
@@ -45,11 +47,13 @@ namespace FDP.Toolkit.Vis2D.Tools
 
         public void OnEnter(MapCanvas canvas)
         {
+            _canvas = canvas;
             _isActive = true;
         }
 
         public void OnExit()
         {
+            _canvas = null;
             _isActive = false;
         }
 
@@ -61,7 +65,10 @@ namespace FDP.Toolkit.Vis2D.Tools
             // Wait, HandleDrag/Hover does this. But we might need active polling if mouse goes off screen?
             // Rely on IMapTool callbacks for position updates.
             
-            if (Raylib.IsMouseButtonReleased(MouseButton.Left))
+            bool released = _canvas is not null
+                ? _canvas.Input.IsMouseButtonReleased(MouseButton.Left)
+                : Raylib.IsMouseButtonReleased(MouseButton.Left);
+            if (released)
             {
                 FinishSelection();
             }
@@ -108,10 +115,20 @@ namespace FDP.Toolkit.Vis2D.Tools
             // Normalize Rect
             var min = Vector2.Min(_startPos, _currentPos);
             var max = Vector2.Max(_startPos, _currentPos);
-            
+
+            // Respect the canvas active layer mask so hidden-layer entities are not selectable.
+            uint activeMask = _canvas?.ActiveLayerMask ?? 0xFFFFFFFF;
+
             // Query
             foreach (var entity in _query)
             {
+                // Layer visibility check: skip entities whose layer mask is fully hidden.
+                if (_view.HasComponent<MapDisplayComponent>(entity))
+                {
+                    uint em = _view.GetComponentRO<MapDisplayComponent>(entity).LayerMask;
+                    if ((em & activeMask) == 0) continue;
+                }
+
                 var pos = _adapter.GetPosition(_view, entity);
                 if (!pos.HasValue) continue;
                 

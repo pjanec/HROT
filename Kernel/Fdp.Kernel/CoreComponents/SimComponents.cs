@@ -34,29 +34,4 @@ namespace Fdp.Kernel
 		// angular velocity in world coordinates (rad/s) [roll, pitch, yaw]
 		public Vector3 Angular;
     }
-
-    /// <summary>
-    /// Read-only health mirror written by <c>FDP.Toolkit.Combat.Systems.DamageSystem</c>
-    /// each frame after damage is applied.  Lives in <c>Fdp.Kernel</c> so that
-    /// <c>FDP.Toolkit.Behavior</c> systems (e.g. <c>MissionDirectorSystem</c>) can
-    /// react to health changes without creating a circular assembly dependency
-    /// (Combat already references Behavior).
-    /// </summary>
-    /// <remarks>
-    /// <b>DEBT-033:</b> Presence on an entity is optional.  Add this component at
-    /// spawn time alongside <c>Health</c> if you want behaviour-level reactions
-    /// to health state.
-    /// </remarks>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.HealthData)]
-    public struct HealthData
-    {
-        /// <summary>Current hit-points (0 = destroyed).</summary>
-        public float Current;
-
-        /// <summary>Maximum hit-points at full health.</summary>
-        public float Max;
-
-        /// <summary>Current / Max, clamped to [0, 1].  Returns 0 when <see cref="Max"/> is zero.</summary>
-        public float Fraction => Max > 0f ? Current / Max : 0f;
-    }}
+}

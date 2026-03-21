@@ -5,6 +5,7 @@ using Fdp.Kernel;
 using Fbt;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Events;
+using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Perception.Components;
 
 namespace FDP.Toolkit.Behavior.Systems
@@ -30,10 +31,10 @@ namespace FDP.Toolkit.Behavior.Systems
     ///   <item><see cref="MissionTrigger.UnderAttack"/> — checks <c>TargetMemory</c> for entries
     ///         with ThreatScore &gt; 0.</item>
     ///   <item><see cref="MissionTrigger.HealthCritical"/> — fires when
-    ///         <c>HealthData.Fraction</c> (a <c>Fdp.Kernel</c> mirror written by
-    ///         <c>DamageSystem</c>) is &lt;= <c>TriggerParam</c>.  The entity must have
-    ///         a <c>HealthData</c> component; if absent the trigger never fires.
-    ///         <b>DEBT-033 resolved.</b></item>
+    ///         <c>Health.Current / Health.Max</c> is &lt;= <c>TriggerParam</c>.  The entity must have
+    ///         a <c>Health</c> component (from <c>FDP.Toolkit.Combat.Contracts</c>);
+    ///         if absent the trigger never fires.
+    ///         <b>BUG2-A001.</b></item>
     ///   <item><see cref="MissionTrigger.DoctrineFinished"/> — fires when a
     ///         <see cref="DoctrineFinishedEvent"/> is received for this entity, indicating
     ///         the doctrine's BTree root evaluated to terminal (Success or Failure).</item>
@@ -129,13 +130,13 @@ namespace FDP.Toolkit.Behavior.Systems
                         break;
 
                     case MissionTrigger.HealthCritical:
-                        // DEBT-033 resolved: HealthData (Fdp.Kernel) is written by
-                        // DamageSystem each frame after damage is applied, so this
-                        // assembly does not need to reference FDP.Toolkit.Combat.
-                        if (World.HasComponent<HealthData>(entity))
+                        // BUG2-A001: Read Health directly from FDP.Toolkit.Combat.Contracts.
+                        // HealthData mirror (DEBT-033) is no longer needed.
+                        if (World.HasComponent<Health>(entity))
                         {
-                            var hd = World.GetComponent<HealthData>(entity);
-                            if (hd.Fraction <= phase.TriggerParam)
+                            var h = World.GetComponent<Health>(entity);
+                            float fraction = h.Max > 0f ? h.Current / h.Max : 0f;
+                            if (fraction <= phase.TriggerParam)
                                 triggered = true;
                         }
                         break;

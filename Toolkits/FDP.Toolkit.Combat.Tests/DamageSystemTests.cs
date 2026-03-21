@@ -25,7 +25,6 @@ namespace FDP.Toolkit.Combat.Tests
             _world.RegisterComponent<SimTransform>();
             _world.RegisterComponent<BallisticProjectile>();
             _world.RegisterComponent<Health>();
-            _world.RegisterComponent<HealthData>();
             _world.RegisterComponent<ActorCapabilityState>();
             _world.RegisterEvent<HitEvent>();
 
@@ -212,54 +211,28 @@ namespace FDP.Toolkit.Combat.Tests
         /// exception (the stripping branch executes cleanly) and the entity must be destroyed.
         /// </para>
         /// </summary>
-        // ── Test 7 ────────────────────────────────────────────────────────────
+        // ── Test 7 (BUG2-A001) ────────────────────────────────────────────────
 
         /// <summary>
-        /// Verifies the dirty-flag guard (DB-MOD1-25): <see cref="DamageSystem"/> must only call
-        /// <c>SetComponent&lt;HealthData&gt;</c> when <see cref="HealthData.Current"/> has actually
-        /// changed.
-        /// <para>
-        /// A <c>Max=999</c> sentinel is embedded in the pre-seeded <see cref="HealthData"/>.
-        /// </para>
-        /// <list type="bullet">
-        ///   <item>
-        ///     <b>Tick 1:</b> Health starts at 100; <see cref="HealthData.Current"/> is pre-set to 75
-        ///     (the expected post-damage value). After 25 damage, <c>Health.Current</c> becomes 75.
-        ///     Because <see cref="HealthData.Current"/> already equals 75, <c>SetComponent</c> is
-        ///     skipped — the <c>Max=999</c> sentinel is preserved, proving no write occurred.
-        ///   </item>
-        ///   <item>
-        ///     <b>Tick 2:</b> another 25-damage hit reduces Health to 50. Now
-        ///     <see cref="HealthData.Current"/> (75) differs from the new value (50), so
-        ///     <c>SetComponent</c> fires and overwrites <c>Max</c> with 100 — confirming exactly
-        ///     one write across the two ticks.
-        ///   </item>
-        /// </list>
+        /// Verifies that after BUG2-A001, <see cref="DamageSystem"/> no longer writes a
+        /// <c>HealthData</c> mirror component.  Only the canonical <see cref="Health"/>
+        /// component is updated.  The <c>HealthData</c> type no longer exists (deletion guard).
         /// </summary>
         [Fact]
-        public void HealthData_DirtyGuard_OnlyWritesWhenCurrentChanges()
+        public void ProcessHit_DoesNotSetHealthDataComponent()
         {
-            // Tick 1: HealthData pre-seeded to match post-damage value → write must be skipped.
+            // Arrange: target entity with Health only (no HealthData mirror).
             var target = SpawnTarget(currentHealth: 100f, maxHealth: 100f);
-            _world.AddComponent(target, new HealthData { Current = 75f, Max = 999f }); // sentinel
 
-            var bullet1 = SpawnBullet(damage: 25f);
-            PublishHitEvent(target, bullet1.Index);
+            var bullet = SpawnBullet(damage: 25f);
+            PublishHitEvent(target, bullet.Index);
             _sys.Run();
 
+            // Health is correctly updated and the entity survives (non-lethal hit).
+            Assert.True(_world.IsAlive(target));
             Assert.Equal(75f, _world.GetComponent<Health>(target).Current);
-            // Sentinel Max=999 must survive — SetComponent was skipped because Current was already 75.
-            Assert.Equal(999f, _world.GetComponent<HealthData>(target).Max);
-
-            // Tick 2: HealthData out of date (Current=75) after another 25 damage → write must fire.
-            var bullet2 = SpawnBullet(damage: 25f);
-            PublishHitEvent(target, bullet2.Index);
-            _sys.Run();
-
-            var hd = _world.GetComponent<HealthData>(target);
-            Assert.Equal(50f, hd.Current);
-            // Max=100 (health.Max) confirms SetComponent was called; sentinel 999 was overwritten.
-            Assert.Equal(100f, hd.Max);
+            // HealthData type no longer exists (BUG2-A001); any attempt to use it
+            // would prevent compilation — this test name serves as a deletion guard.
         }
 
         [Fact]

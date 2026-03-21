@@ -146,7 +146,6 @@ namespace Fdp.Examples.UrbanCombat.Setup
 
             // Health — damageable (BATCH-13 back-port)
             t.AddComponent(new Health { Current = UrbanCombatConstants.ApcMaxHealth, Max = UrbanCombatConstants.ApcMaxHealth });
-            t.AddComponent(new HealthData { Current = UrbanCombatConstants.ApcMaxHealth, Max = UrbanCombatConstants.ApcMaxHealth });
 
             t.AddComponent(new PhysicsCollider { Radius = UrbanCombatConstants.ApcColliderRadius, CollisionLayer = PhysicsConstants.EntityCollisionLayer });
             t.AddComponent(new PassengerBuffer());
@@ -196,7 +195,6 @@ namespace Fdp.Examples.UrbanCombat.Setup
 
             // Health — damageable (BATCH-13 back-port)
             t.AddComponent(new Health { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
-            t.AddComponent(new HealthData { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
 
             // Rifle: ammo=30, muzzle=800 m/s, 5 Hz → cooldown = 60/5 = 12 ticks
             t.AddComponent(new WeaponState
@@ -261,7 +259,6 @@ namespace Fdp.Examples.UrbanCombat.Setup
 
             // Health — damageable (BATCH-13 back-port)
             t.AddComponent(new Health { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
-            t.AddComponent(new HealthData { Current = UrbanCombatConstants.SoldierMaxHealth, Max = UrbanCombatConstants.SoldierMaxHealth });
 
             // RPG: ammo=1, muzzle=300 m/s, 0.1 Hz → cooldown = 60/0.1 = 600 ticks
             t.AddComponent(new WeaponState

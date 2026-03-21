@@ -5,6 +5,7 @@ using Fbt;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Events;
 using FDP.Toolkit.Behavior.Systems;
+using FDP.Toolkit.Combat.Components;
 using Xunit;
 
 namespace FDP.Toolkit.Behavior.Tests
@@ -26,7 +27,7 @@ namespace FDP.Toolkit.Behavior.Tests
             _world.RegisterComponent<DoctrineState>();
             _world.RegisterComponent<MissionPlanQueue>();
             _world.RegisterComponent<NavState>();
-            _world.RegisterComponent<HealthData>();
+            _world.RegisterComponent<Health>();
             _world.RegisterComponent<BrainBTreeState>();
             _world.RegisterComponent<BrainBlackboard>();
 
@@ -266,7 +267,7 @@ namespace FDP.Toolkit.Behavior.Tests
 
         /// <summary>
         /// A <see cref="MissionTrigger.HealthCritical"/> phase must advance when
-        /// <c>HealthData.Fraction</c> &lt;= <c>TriggerParam</c> (5 / 100 = 0.05 &lt;= 0.10).
+        /// <c>Health.Current / Health.Max</c> &lt;= <c>TriggerParam</c> (5 / 100 = 0.05 &lt;= 0.10).
         /// </summary>
         [Fact]
         public void MissionDirector_AdvancesPhase_WhenHealthCritical()
@@ -295,7 +296,7 @@ namespace FDP.Toolkit.Behavior.Tests
             _world.AddComponent(entity, queue);
             _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
             // 5 / 100 = 0.05 ≤ 0.10  →  trigger must fire.
-            _world.AddComponent(entity, new HealthData { Current = 5f, Max = 100f });
+            _world.AddComponent(entity, new Health { Current = 5f, Max = 100f });
 
             _sys.Run();
             // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
@@ -311,7 +312,7 @@ namespace FDP.Toolkit.Behavior.Tests
 
         /// <summary>
         /// A <see cref="MissionTrigger.HealthCritical"/> phase must NOT advance when
-        /// <c>HealthData.Fraction</c> &gt; <c>TriggerParam</c> (50 / 100 = 0.50 &gt; 0.10).
+        /// <c>Health.Current / Health.Max</c> &gt; <c>TriggerParam</c> (50 / 100 = 0.50 &gt; 0.10).
         /// </summary>
         [Fact]
         public void MissionDirector_DoesNotAdvance_WhenHealthAboveThreshold()
@@ -340,7 +341,7 @@ namespace FDP.Toolkit.Behavior.Tests
             _world.AddComponent(entity, queue);
             _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
             // 50 / 100 = 0.50 > 0.10  →  trigger must NOT fire.
-            _world.AddComponent(entity, new HealthData { Current = 50f, Max = 100f });
+            _world.AddComponent(entity, new Health { Current = 50f, Max = 100f });
 
             _sys.Run();
 
@@ -497,6 +498,48 @@ namespace FDP.Toolkit.Behavior.Tests
             Assert.Equal(DoctrineIds.None, doctrine.ActiveDoctrineHash);
 
             ingressSys.Dispose();
+        }
+
+        // ── BUG2-A001: HealthCritical reads Health directly ───────────────────
+
+        /// <summary>
+        /// BUG2-A001: With <c>HealthData</c> removed, the <c>HealthCritical</c> trigger must
+        /// evaluate by reading the <c>Health</c> component directly.
+        /// </summary>
+        [Fact]
+        public void EvaluateTrigger_HealthCritical_ReadFromHealthComponent()
+        {
+            SetDeltaTime(Dt60Hz);
+
+            const int DocA = 810;
+            const int DocB = 910;
+
+            var entity = _world.CreateEntity();
+
+            var queue = new MissionPlanQueue();
+            queue.PhaseCount = 2;
+            queue.Phases[0] = new MissionPhase
+            {
+                DoctrineId   = DocA,
+                Trigger      = MissionTrigger.HealthCritical,
+                TriggerParam = 0.25f,   // 25 % threshold
+            };
+            queue.Phases[1] = new MissionPhase
+            {
+                DoctrineId   = DocB,
+                Trigger      = MissionTrigger.TimerElapsed,
+                TriggerParam = 1000f,
+            };
+            _world.AddComponent(entity, queue);
+            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            // 20 / 100 = 0.20 ≤ 0.25 → trigger must fire with Health component only (no HealthData).
+            _world.AddComponent(entity, new Health { Current = 20f, Max = 100f });
+
+            _sys.Run();
+            FlushDoctrineEvents();
+
+            ref var q = ref _world.GetComponentRW<MissionPlanQueue>(entity);
+            Assert.Equal(1, q.CurrentPhase);
         }
     }
 }

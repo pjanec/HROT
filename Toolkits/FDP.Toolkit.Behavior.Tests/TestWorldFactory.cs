@@ -1,5 +1,6 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Combat.Components;
 
 namespace FDP.Toolkit.Behavior.Tests
 {
@@ -22,7 +23,7 @@ namespace FDP.Toolkit.Behavior.Tests
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
             world.RegisterComponent<SimTransform>();
-            world.RegisterComponent<HealthData>();
+            world.RegisterComponent<Health>();
             return world;
         }
     }

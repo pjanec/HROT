@@ -90,5 +90,53 @@ namespace FDP.Toolkit.Vis2D.Tests.Layers
             Assert.True(consumed);
             selection.VerifySet(s => s.PrimarySelected = e2);
         }
+
+        // ── BUG2-V001 — Catch-all mode filters hidden entities ──────────────────
+
+        /// <summary>
+        /// When <see cref="EntityRenderLayer"/> is created with <c>layerBitIndex = -1</c>
+        /// (catch-all mode), entities whose <see cref="MapDisplayComponent.LayerMask"/> has
+        /// NO bits in common with <see cref="RenderContext.VisibleLayersMask"/> must be skipped.
+        /// </summary>
+        [Fact]
+        public void Draw_CatchAllMode_HiddenEntities_Skipped()
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<MapDisplayComponent>();
+
+            var adapter   = new Mock<IVisualizerAdapter>();
+            var selection = new Mock<ISelectionState>();
+            var query     = world.Query().Build();
+
+            // Catch-all layer (layerBitIndex = -1).
+            var layer = new EntityRenderLayer("All", layerBitIndex: -1, world, query, adapter.Object, selection.Object);
+
+            // Entity with LayerMask=0x1 (layer 0) should be hidden when VisibleLayersMask=0x2.
+            var hidden = world.CreateEntity();
+            world.SetComponent(hidden, new MapDisplayComponent { LayerMask = 0x1u });
+
+            // Entity with LayerMask=0x2 (layer 1) should be rendered when VisibleLayersMask=0x2.
+            var visible = world.CreateEntity();
+            world.SetComponent(visible, new MapDisplayComponent { LayerMask = 0x2u });
+
+            adapter.Setup(a => a.GetPosition(It.IsAny<ISimulationView>(), It.IsAny<Entity>()))
+                   .Returns(Vector2.Zero);
+
+            // VisibleLayersMask = 0x2 → only layer 1 visible.
+            var ctx = new RenderContext { VisibleLayersMask = 0x2u };
+            layer.Draw(ctx);
+
+            // Hidden entity: Render must NOT be called.
+            adapter.Verify(
+                a => a.Render(It.IsAny<ISimulationView>(), hidden, It.IsAny<Vector2>(),
+                              It.IsAny<RenderContext>(), It.IsAny<bool>(), It.IsAny<bool>()),
+                Times.Never);
+
+            // Visible entity: Render must be called exactly once.
+            adapter.Verify(
+                a => a.Render(It.IsAny<ISimulationView>(), visible, It.IsAny<Vector2>(),
+                              It.IsAny<RenderContext>(), It.IsAny<bool>(), It.IsAny<bool>()),
+                Times.Once);
+        }
     }
 }

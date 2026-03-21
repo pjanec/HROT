@@ -163,8 +163,8 @@ public sealed class EntityPickerTool : IMapTool
     /// <summary>
     /// Draws a target crosshair at the mouse cursor.
     /// <list type="bullet">
-    ///   <item>Red when the cursor is over a filter-passing entity.</item>
-    ///   <item>Light-gray otherwise.</item>
+    ///   <item>Red <c>(255, 0, 0)</c> when the cursor is over a filter-passing entity.</item>
+    ///   <item>Amber <c>(255, 161, 0)</c> otherwise (waiting for a valid pick target).</item>
     /// </list>
     /// All draw calls are allocation-free.
     /// </summary>
@@ -175,19 +175,44 @@ public sealed class EntityPickerTool : IMapTool
         float thick = CrosshairThickness / zoom;
         float gap   = CrosshairGapRadius / zoom;
 
-        Color color = _hoveredValid ? Color.Red : Color.LightGray;
+        // Amber = waiting for pick; Red = valid target under cursor.
+        Color color = _hoveredValid
+            ? new Color(255, 0,   0,   255)   // red   — hovering a valid pick target
+            : new Color(255, 161, 0,   255);  // amber — waiting for operator to hover
+
+        TestHook_LastUsedColor = color;
 
         var pos = _mouseWorldPos;
 
-        // Horizontal arm: left segment + right segment (gap in centre).
-        Raylib.DrawLineEx(new Vector2(pos.X - size, pos.Y), new Vector2(pos.X - gap, pos.Y), thick, color);
-        Raylib.DrawLineEx(new Vector2(pos.X + gap,  pos.Y), new Vector2(pos.X + size, pos.Y), thick, color);
+        if (!TestHook_SkipRaylibCalls)
+        {
+            // Horizontal arm: left segment + right segment (gap in centre).
+            Raylib.DrawLineEx(new Vector2(pos.X - size, pos.Y), new Vector2(pos.X - gap, pos.Y), thick, color);
+            Raylib.DrawLineEx(new Vector2(pos.X + gap,  pos.Y), new Vector2(pos.X + size, pos.Y), thick, color);
 
-        // Vertical arm: top segment + bottom segment.
-        Raylib.DrawLineEx(new Vector2(pos.X, pos.Y - size), new Vector2(pos.X, pos.Y - gap), thick, color);
-        Raylib.DrawLineEx(new Vector2(pos.X, pos.Y + gap),  new Vector2(pos.X, pos.Y + size), thick, color);
+            // Vertical arm: top segment + bottom segment.
+            Raylib.DrawLineEx(new Vector2(pos.X, pos.Y - size), new Vector2(pos.X, pos.Y - gap), thick, color);
+            Raylib.DrawLineEx(new Vector2(pos.X, pos.Y + gap),  new Vector2(pos.X, pos.Y + size), thick, color);
 
-        // Circle outline around the gap.
-        Raylib.DrawCircleLinesV(pos, gap, color);
+            // Circle outline around the gap.
+            Raylib.DrawCircleLinesV(pos, gap, color);
+        }
+    }
+
+    // ── Test hooks ────────────────────────────────────────────────────────────
+
+    /// <summary>When <c>true</c>, Raylib calls are skipped; <see cref="TestHook_LastUsedColor"/> is still set.</summary>
+    internal bool TestHook_SkipRaylibCalls;
+
+    /// <summary>Color used in the last <see cref="Draw"/> call. Null before first call.</summary>
+    internal Color? TestHook_LastUsedColor;
+
+    /// <summary>
+    /// Force <c>_hoveredValid</c> for unit-test scenarios where a real canvas with entities
+    /// is not available. Set to <c>true</c> to exercise the red crosshair path.
+    /// </summary>
+    internal bool TestHook_ForceHoveredValid
+    {
+        set => _hoveredValid = value;
     }
 }

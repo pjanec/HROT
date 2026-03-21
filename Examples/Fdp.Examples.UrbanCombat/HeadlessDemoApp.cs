@@ -16,6 +16,7 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Executors;
 using FDP.Toolkit.Behavior.Systems;
 using FDP.Toolkit.Combat;
+using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Executors;
 using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Navigation;
@@ -212,7 +213,7 @@ namespace Fdp.Examples.UrbanCombat
             // Fdp.Kernel universal spatial primitives
             World.RegisterComponent<SimTransform>();
             World.RegisterComponent<SimVelocity>();
-            World.RegisterComponent<HealthData>();
+            World.RegisterComponent<Health>();
 
             // FDP.Toolkit.Behavior
             World.RegisterComponent<FDP.Toolkit.Behavior.Components.DoctrineState>();
