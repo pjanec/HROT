@@ -48,6 +48,13 @@ public sealed class DdsWriterAdapter<T> : IDdsWriter<T>, IDisposable
     }
 
     /// <inheritdoc/>
+    public void DisposeInstance(T key)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(DdsWriterAdapter<T>));
+        _writer.DisposeInstance(key);
+    }
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         if (_disposed) return;

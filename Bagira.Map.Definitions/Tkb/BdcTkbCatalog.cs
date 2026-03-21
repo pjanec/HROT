@@ -233,6 +233,15 @@ namespace Bagira.Map.Definitions.Tkb
             var areaTemplate = new TkbTemplate("TacGraphic_Area", TkbEntityTypes.TacGraphic_Area);
             areaTemplate.AddComponent(new FDP.Toolkit.Replication.Components.NetworkTransform());
             tkbDb.Register(areaTemplate);
+
+            // Tactical graphic: route entity (ROUTES1-T003)
+            // Provides a default SimTransform. RoutePlan (managed) is added by
+            // RouteTkbExtensions.ApplyRoutePlanToBlueprint() called from SimHostApp
+            // and IgApplication, where Bagira.Map.Common is reachable without
+            // introducing a circular project dependency.
+            var routeTemplate = new TkbTemplate("TacGraphic_Route", TkbEntityTypes.TacGraphic_Route);
+            routeTemplate.AddComponent(new SimTransform());
+            tkbDb.Register(routeTemplate);
         }
     }
 }

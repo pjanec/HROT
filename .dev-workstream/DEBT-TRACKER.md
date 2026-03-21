@@ -40,3 +40,16 @@ This document tracks P2 and P3 technical debt, refactoring opportunities, and de
 | ✅ | P3 | Testing      | BUG2-BATCH-02 | Pre-existing `FDP.Toolkit.Replay.Tests` failures (2 async timing tests) indicate race conditions in the recording module teardown path. | DEBT-BURNDOWN-01 |
 | ✅ | P1 | Testing      | BUG2-BATCH-02 | `Fdp.Examples.UrbanCombat.Tests` access violation crash in native code requires interop debugging. | DEBT-BURNDOWN-01 |
 | ✅ | P3 | Architecture | BUG2-BATCH-02 | `SimHostInstance` duplicate `RegisterComponent<MissionAdapterState>()` is harmless but should be cleaned up. | DEBT-BURNDOWN-01 |
+| ✅ | P2 | Architecture | ROUTES1-BATCH-01 | `RoutePlan.Version` has no enforced write path, putting burden on callers to remember to increment it. Add an explicit Mutate/SetWaypoints method. | ROUTES1-BATCH-02 |
+| ✅ | P3 | Performance | ROUTES1-BATCH-01 | `MapRouteEgressTranslator` tracks per-entity versions in a Dictionary causing GC pressure and O(n) lookups. Refactor to a secondary `RouteEgressMeta` component. | ROUTES1-BATCH-03 |
+| ✅ | P2 | Performance | ROUTES1-BATCH-01 | `MapRouteIngressTranslator` linearly re-scans `_pendingRoutes` every tick. Should use `NetworkEntityMap` registration callback. | ROUTES1-BATCH-03 |
+| ✅ | P2 | Performance | ROUTES1-BATCH-01 | `BuildRoutePlan` allocates a new `List<RouteWaypoint>` per sample. Switch to a pooled list or blittable array for high-frequency updates. | ROUTES1-BATCH-03 |
+| ✅ | P3 | Performance | ROUTES1-BATCH-02 | `World.Query().With<SelectionState>().Build()` inside `OnCanvasWorldClick` constructs a new query object every time. Should cache the query to avoid allocations. | ROUTES1-BATCH-03 |
+| ✅ | P2 | Architecture | ROUTES1-BATCH-02 | `RouteTrajectorySyncSystem` does not yet notify the kinematic layer to re-plan when a personal route's trajectory ID changes. Needs integration with `NavState.TrajectoryId`. | ROUTES1-BATCH-03 |
+| ✅ | P2 | Safety      | ROUTES1-BATCH-02 | `ActivateRouteAuthoringTool` accesses `_geoTransform` which may be `null` in edge cases where no geographic origin is configured. Requires a guard or fallback error message. | ROUTES1-BATCH-03 |
+| ✅ | P2 | Safety      | ROUTES1-BATCH-03 | `IgApplication`'s `RouteEditTool` commit handler does not check `World.IsAlive(routeEntity)`, crashing if the route is destroyed mid-edit. | ROUTES1-BATCH-04 |
+| ✅ | P3 | UX          | ROUTES1-BATCH-03 | `WaypointEditorPanel` can capture stale UI float inputs if a user commits the route during an active ImGui widget edit. | ROUTES1-BATCH-04 |
+| ✅ | P3 | Safety      | ROUTES1-BATCH-03 | `RouteRenderLayer.Draw` invokes `plan.Waypoints.Count` without guarding `plan.Waypoints` against null. Use `?.Count ?? 0`. | ROUTES1-BATCH-04 |
+| ✅ | P3 | Performance | ROUTES1-BATCH-03 | `RouteContextSystem` rebuilds `vehicleQuery` and `routeQuery` every tick. Cache these in `OnCreated()`. | ROUTES1-BATCH-04 |
+| ✅ | P3 | Performance | ROUTES1-BATCH-03 | `SimHostTrajectoryLayer` rebuilds `routeQuery` inside `Draw()` every frame. Store as cached member variable. | ROUTES1-BATCH-04 |
+| ✅ | P3 | Performance | ROUTES1-BATCH-03 | `WaypointEditorPanel` maps `wp.ExtensionJson` to string on every frame. Track `_lastWpIndex` to diff buffer updates. | ROUTES1-BATCH-04 |

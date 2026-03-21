@@ -11,6 +11,6 @@ namespace Bagira.IG.Components
     
     public static class IgComponentIds
     {
-        public const int IgMissionHolder = 221;
+        public const int IgMissionHolder = 123;
     }
 }

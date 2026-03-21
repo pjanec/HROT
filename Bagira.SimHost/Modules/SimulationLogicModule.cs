@@ -1,5 +1,6 @@
 using System;
 using Bagira.SimHost.Systems;
+using Bagira.SimHost.Systems.Routing;
 using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
@@ -186,7 +187,15 @@ namespace Bagira.SimHost.Modules
             // NavigationIntentBridgeSystem: translates NavigationIntent → NavState for
             // CarKinematicsSystem. Only added when ground kinematics are present.
             if (_groundKinematicsModule != null)
+            {
                 simGroup.AddSystem(new NavigationIntentBridgeSystem());
+                // Route → trajectory pool sync. Runs in BeforeSync phase (before kinematics).
+                simGroup.AddSystem(new RouteTrajectorySyncSystem(_groundKinematicsModule.TrajectoryPool!));
+                // Personal route authoring: processes CmdAppendPersonalWaypoint events.
+                inputGroup.AddSystem(new PersonalRouteAuthoringSystem());
+                // Route context: writes per-waypoint ExtensionJson advice to BrainBlackboard.
+                simGroup.AddSystem(new RouteContextSystem());
+            }
 
             // Ground kinematics (MuscleGround / AllInOne).
             _groundKinematicsModule?.RegisterSystems(simGroup);

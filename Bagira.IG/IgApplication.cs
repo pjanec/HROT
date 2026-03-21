@@ -283,6 +283,13 @@ public class IgApplication : IDisposable
     private BagiraEntityFilterFactory? _entityFilterFactory;
 
     private DdsWriter<CreateEntityRequest>?  _createEntityDdsWriter;
+
+    /// <summary>
+    /// Test-only callback: when non-null, receives every <see cref="CreateEntityRequest"/>
+    /// that would normally be forwarded to <see cref="_mapCommandController"/> or written via DDS.
+    /// Only set by <see cref="TestHook_SetCreateEntityRequestSink"/>.
+    /// </summary>
+    private Action<CreateEntityRequest>? _testCreateEntityRequestSink;
     /// <summary>
     /// Writer that publishes <see cref="MapCommandAck"/> responses back to the IOS,
     /// correlating tool outcomes with the original <see cref="MapCommandRequest"/>.
@@ -310,6 +317,13 @@ public class IgApplication : IDisposable
     /// <see cref="Bagira.BDC.SSTM.AttributeRecord"/>s on the DDS wire (ATTR2-DEBT-07).
     /// </summary>
     private JsonToRecordCompiler? _edgeCompiler;
+
+    /// <summary>
+    /// Cached query for all entities that carry <see cref="SelectionState"/>.
+    /// Built once during canvas setup and reused in <see cref="OnCanvasWorldClick"/>
+    /// to avoid per-click allocations (CT-2).
+    /// </summary>
+    private EntityQuery? _selectionStateQuery;
 
     // -- Drag tracking: world-space drop position set by OnEntityMoved --------------------------
 
@@ -348,6 +362,7 @@ public class IgApplication : IDisposable
     private EntityInspectorState  _inspectorState    = null!;
 
     private EntityInspectorPanel  _inspectorPanel    = null!;
+    private WaypointEditorPanel    _waypointEditorPanel = null!;
 
     private MiniIosPanelState     _miniIosState      = null!;
 
@@ -572,6 +587,11 @@ public class IgApplication : IDisposable
         _world.RegisterComponent<MapDisplayComponent>();
         _world.RegisterComponent<Components.EntityInfo>();
 
+        // ── Route planning components (ROUTES1) ───────────────────────────────
+        _world.RegisterManagedComponent<Bagira.Map.Common.Components.RoutePlan>();
+        _world.RegisterComponent<Bagira.Map.Common.Components.PersonalRouteRef>();
+        _world.RegisterComponent<Bagira.Map.Common.Components.RouteTrajectoryCache>();
+
         // ── Ground clamping components (MOD1-P7T2) ────────────────────────────
         // Registered unconditionally so they are available even when
         // IgGroundClampingModule is not installed (e.g. 2D-only deployments).
@@ -595,6 +615,8 @@ public class IgApplication : IDisposable
         _inspectorState     = new EntityInspectorState();
 
         _inspectorPanel     = new EntityInspectorPanel(_inspectorState);
+
+        _waypointEditorPanel = new WaypointEditorPanel(_canvas);
 
         _miniIosState       = new MiniIosPanelState();
 
@@ -767,6 +789,11 @@ public class IgApplication : IDisposable
 
                     participant, _entityMap, _geoTransform, _ghostCreationSystem);
 
+                var mapRouteIngressTranslator = _geoTransform != null
+                    ? new Bagira.Map.Common.Replication.Ingress.MapRouteIngressTranslator(
+                        participant, _entityMap, _geoTransform)
+                    : null;
+
                 var contextActionsTranslator = new ContextActionsUpdateTranslator(
 
                     participant, _entityMap, _world.Bus, _ghostCreationSystem);
@@ -797,7 +824,8 @@ public class IgApplication : IDisposable
 
                 };
 
-
+                if (mapRouteIngressTranslator != null)
+                    customTranslators.Add(mapRouteIngressTranslator);
 
                 if (!_headless)
                 {
@@ -1009,6 +1037,21 @@ public class IgApplication : IDisposable
 
         var missionLayer = new Bagira.IG.Systems.MissionRenderLayer(_world, _geoTransform);
         _canvas.AddLayer(missionLayer);
+
+        // RouteRenderLayer — draws RoutePlan waypoints for TacGraphic_Route entities.
+        var routeQuery = _world.Query()
+            .With<TkbIdentity>()
+            .WithManaged<Bagira.Map.Common.Components.RoutePlan>()
+            .WithLifecycle(EntityLifecycle.All)
+            .Build();
+        var routeRenderLayer = new Bagira.IG.Systems.RouteRenderLayer(_world, routeQuery, _fdpInspectorState);
+        _canvas.AddLayer(routeRenderLayer);
+
+        // Cache SelectionState query once to avoid per-click allocations (CT-2).
+        _selectionStateQuery = _world.Query()
+            .With<SelectionState>()
+            .WithLifecycle(EntityLifecycle.All)
+            .Build();
 
 
         // StandardInteractionTool ÔÇö default canvas tool wiring selection to ECS.
@@ -1386,6 +1429,8 @@ public class IgApplication : IDisposable
         _debugPanel.Draw();
 
         _inspectorPanel.Draw();
+
+        _waypointEditorPanel.Draw();
 
         _miniIosPanel.Draw();
 
@@ -1855,6 +1900,54 @@ public class IgApplication : IDisposable
 
     /// <summary>
 
+    /// Internal test hook: parses CMD_START_AUTHORING args JSON and activates the
+
+    /// appropriate authoring tool (area or route). Exposes
+
+    /// <see cref="ParseCommandAndActivateAreaTool"/> for unit tests.
+
+    /// </summary>
+
+    internal void TestHook_ParseCommandAndActivateAreaTool(Guid requestId, string argsJson)
+
+        => ParseCommandAndActivateAreaTool(requestId, argsJson);
+
+    /// <summary>
+
+    /// Internal test hook: injects a sink that captures every <see cref="CreateEntityRequest"/>
+
+    /// emitted by route/area authoring tools. Bypasses the DDS writer so tests work headless.
+
+    /// </summary>
+
+    internal void TestHook_SetCreateEntityRequestSink(Action<CreateEntityRequest>? sink)
+
+        => _testCreateEntityRequestSink = sink;
+
+    /// <summary>
+
+    /// Internal test hook: simulates a Shift+Right-Click at the given world position.
+
+    /// Exposes the private <c>OnCanvasWorldClick</c> handler for unit tests.
+
+    /// </summary>
+
+    internal void TestHook_SimulateShiftRightClick(System.Numerics.Vector2 worldPos)
+
+        => OnCanvasWorldClick(worldPos, MouseButton.Right, shift: true, ctrl: false, hit: Entity.Null);
+
+    /// <summary>
+
+    /// Internal test hook: simulates a plain (non-shift) right-click.
+
+    /// </summary>
+
+    internal void TestHook_SimulatePlainRightClick(System.Numerics.Vector2 worldPos)
+
+        => OnCanvasWorldClick(worldPos, MouseButton.Right, shift: false, ctrl: false, hit: Entity.Null);
+
+    /// <summary>
+
     /// Internal test hook to submit a Mini IOS spawn request via the DDS gateway.
 
     /// </summary>
@@ -1940,6 +2033,21 @@ public class IgApplication : IDisposable
     /// </summary>
 
     internal NetworkEntityMap TestHook_EntityMap => _entityMap;
+
+    /// <summary>
+    /// Internal test hook: activates the <see cref="RouteEditTool"/> for the given
+    /// network entity ID (same code path as a CMD_START_AUTHORING command).
+    /// Used by commit-handler safety tests (CT-1).
+    /// </summary>
+    internal void TestHook_ActivateRouteEditToolForNetworkId(long networkEntityId)
+        => ActivateAreaEditingTool(networkEntityId);
+
+    /// <summary>
+    /// Internal test hook: returns the currently active <see cref="RouteEditTool"/>,
+    /// or <see langword="null"/> when a different tool is active.
+    /// Used by commit-handler safety tests (CT-1).
+    /// </summary>
+    internal RouteEditTool? TestHook_ActiveRouteEditTool => _canvas.ActiveTool as RouteEditTool;
 
     // ── Ground clamping (MOD1-P7T5) ───────────────────────────────────────────
 
@@ -2141,7 +2249,43 @@ public class IgApplication : IDisposable
 
             return;
 
+        // Shift+Right-Click: publish CmdAppendPersonalWaypoint for each selected vehicle.
 
+        if (shift)
+
+        {
+
+            var q = _selectionStateQuery ?? _world.Query().With<SelectionState>().Build();
+
+            foreach (var entity in q)
+
+            {
+
+                var state = _world.GetComponent<SelectionState>(entity);
+
+                if (!state.IsSelected && !state.IsPrimarySelection) continue;
+
+                float altitude = _world.HasComponent<SimTransform>(entity)
+
+                    ? _world.GetComponent<SimTransform>(entity).Position.Y
+
+                    : 0f;
+
+                _world.Bus.Publish(new CmdAppendPersonalWaypoint
+
+                {
+
+                    VehicleEntity = entity,
+
+                    WorldPosition = new Vector3(worldPos.X, altitude, worldPos.Y),
+
+                });
+
+            }
+
+            return;
+
+        }
 
         var targetEntity = hit != Entity.Null ? hit : _mapContextEntity;
 
@@ -2671,6 +2815,15 @@ public class IgApplication : IDisposable
                 _activeContextId = ctx;
             }
 
+            // If TkbType specifies a route, use the route-specific authoring tool.
+            if (root.TryGetProperty("tkbType", out var tkbEl)
+             && tkbEl.TryGetInt64(out var tkbType)
+             && tkbType == TkbEntityTypes.TacGraphic_Route)
+            {
+                ActivateRouteAuthoringTool(requestId);
+                return;
+            }
+
             string styleJson = string.Empty;
             if (root.TryGetProperty("styleOverrideJson", out var styleEl)
              && styleEl.ValueKind == JsonValueKind.String)
@@ -2778,6 +2931,13 @@ public class IgApplication : IDisposable
     /// <c>dtMapVisualOverlay</c>, so the SimHost updates its authority copy and
     /// broadcasts the changes.
     /// </para>
+    ///
+    /// <para>
+    /// When the entity has a <see cref="Bagira.Map.Common.Components.RoutePlan"/> component,
+    /// the method pushes a <see cref="RouteEditTool"/> instead of the generic
+    /// <see cref="EditTool"/> so that route-specific interactions (waypoint insert/delete,
+    /// per-waypoint speed/advice editing) are available.
+    /// </para>
     /// </summary>
     private void ActivateAreaEditingTool(long networkEntityId)
     {
@@ -2787,6 +2947,76 @@ public class IgApplication : IDisposable
                 "[IG] ActivateAreaEditingTool: entity not found for NetID {0}.", networkEntityId);
             return;
         }
+
+        // ── Route entity path — use RouteEditTool ─────────────────────────────
+        if (World.HasManagedComponent<Bagira.Map.Common.Components.RoutePlan>(entity))
+        {
+            // Pop any stale edit tool to prevent stack accumulation.
+            if (_canvas.ActiveTool is RouteEditTool || _canvas.ActiveTool is EditTool)
+                _canvas.PopTool();
+
+            var view = (ISimulationView)World;
+            var plan = view.GetManagedComponentRO<Bagira.Map.Common.Components.RoutePlan>(entity);
+            var routeEditTool = new RouteEditTool(entity, plan,
+                onCommit: (committedEntity, updatedWaypoints) =>
+                {
+                    // CT-1: entity may be destroyed between edit-start and commit (e.g. SimHost
+                    // removes it mid-frame). Silently discard rather than crashing.
+                    if (!World.IsAlive(committedEntity)) return;
+
+                    var view2 = (ISimulationView)World;
+                    var existingPlan = view2.GetManagedComponentRO<Bagira.Map.Common.Components.RoutePlan>(committedEntity);
+                    existingPlan.Mutate(wps =>
+                    {
+                        wps.Clear();
+                        wps.AddRange(updatedWaypoints);
+                    });
+
+                    // Publish network update when connected.
+                    if (_networkEnabled && _commandGateway != null && _geoTransform != null
+                     && _entityMap.TryGetNetworkId(committedEntity, out long netId))
+                    {
+                        var waypoints = new List<Waypoint>(updatedWaypoints.Count);
+                        foreach (var wp in updatedWaypoints)
+                        {
+                            var (lat, lon, alt) = _geoTransform.ToGeodetic(wp.Position);
+                            waypoints.Add(new Waypoint
+                            {
+                                Position          = new GeoPosition { Latitude = lat, Longitude = lon, Altitude = alt },
+                                SpeedMetersPerSec = wp.TargetSpeed,
+                                ExtensionJson     = wp.ExtensionJson ?? string.Empty,
+                            });
+                        }
+
+                        var request = new UpdateEntityDescriptorRequest
+                        {
+                            RequestId      = Guid.NewGuid(),
+                            EntityId       = (int)netId,
+                            DescriptorType = EDescriptorType.dtMapRoute,
+                            Payload        = new EntityDescriptorUnion
+                            {
+                                _d       = EDescriptorType.dtMapRoute,
+                                MapRoute = new MapRoute
+                                {
+                                    EntityId = (int)netId,
+                                    Points   = waypoints,
+                                    IsLoop   = existingPlan.IsLoop,
+                                }
+                            }
+                        };
+
+                        _commandGateway.SendUpdateDescriptor(request);
+                        FdpLog<IgApplication>.Info(
+                            "[IG] Committed route edit for NetID {0}: {1} waypoints.", netId, updatedWaypoints.Count);
+                    }
+                });
+
+            _canvas.PushTool(routeEditTool);
+            FdpLog<IgApplication>.Info("[IG] Route editing tool activated for NetID {0}.", networkEntityId);
+            return;
+        }
+
+        // ── Area overlay entity path — use generic EditTool ─────────────────────
 
         if (!World.HasManagedComponent<EditablePolyline>(entity))
         {
@@ -3325,7 +3555,97 @@ public class IgApplication : IDisposable
 
     }
 
-    // ─── LocationPickerTool activation from CMD_PICK_LOCATION ────────────────
+    /// <summary>
+    /// Activates a <see cref="PointSequenceTool"/> configured for route authoring
+    /// (minimum 2 points). When finished, emits a <see cref="CreateEntityRequest"/>
+    /// with descriptors <c>dtEntityMaster</c>, <c>dtGeoSpatial</c>, and <c>dtMapRoute</c>.
+    /// </summary>
+    private void ActivateRouteAuthoringTool(Guid requestId)
+    {
+        if (!_networkEnabled && _testCreateEntityRequestSink == null)
+            return;
+
+        if (_canvas.ActiveTool is PointSequenceTool)
+            _canvas.PopTool();
+
+        var tool = new PointSequenceTool(points =>
+        {
+            if (points.Length < 2)
+            {
+                _canvas.PopTool();
+                return;
+            }
+
+            // Guard: cannot convert canvas positions to geodetic without a geo-transform.
+            // Passing raw XY canvas coordinates as lat/lon produces invalid DDS payloads.
+            if (_geoTransform == null)
+            {
+                FdpLog<IgApplication>.Error(
+                    "[IG] Cannot create route: geographic transform is unavailable. " +
+                    "Ensure the IG is initialised with a valid map origin before authoring routes.");
+                _canvas.PopTool();
+                return;
+            }
+
+            // Convert each canvas 2D point to an absolute GeoPosition.
+            var waypoints = new List<Waypoint>(points.Length);
+            GeoPosition anchorPos = default;
+
+            for (int i = 0; i < points.Length; i++)
+            {
+                var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(points[i].X, points[i].Y, 0f));
+
+                var geoPos = new GeoPosition { Latitude = lat, Longitude = lon, Altitude = alt };
+                waypoints.Add(new Waypoint { Position = geoPos, SpeedMetersPerSec = 0.0 });
+
+                if (i == 0) anchorPos = geoPos;
+            }
+
+            var request = new CreateEntityRequest
+            {
+                RequestId = Guid.NewGuid(),
+                Owner     = default,
+                Flags     = 0,
+                InitialDescriptors = new List<EntityDescriptorUnion>
+                {
+                    new EntityDescriptorUnion
+                    {
+                        _d           = EDescriptorType.dtEntityMaster,
+                        EntityMaster = new EntityMaster { TkbType = TkbEntityTypes.TacGraphic_Route },
+                    },
+                    new EntityDescriptorUnion
+                    {
+                        _d         = EDescriptorType.dtGeoSpatial,
+                        GeoSpatial = new GeoSpatial { Pos = anchorPos },
+                    },
+                    new EntityDescriptorUnion
+                    {
+                        _d        = EDescriptorType.dtMapRoute,
+                        MapRoute  = new MapRoute
+                        {
+                            Points = waypoints,
+                            IsLoop = false,
+                        },
+                    },
+                },
+            };
+
+            if (_testCreateEntityRequestSink != null)
+                _testCreateEntityRequestSink(request);
+            else if (_mapCommandController != null)
+                _mapCommandController.OnAreaEntityCreated(request, isToolDone: true);
+            else
+                _createEntityDdsWriter?.Write(request);
+
+            _canvas.PopTool();
+        });
+
+        _canvas.PushTool(tool);
+
+        FdpLog<IgApplication>.Info("[IG] Route authoring tool activated.");
+    }
+
+
 
     /// <summary>
     /// Handles an incoming <see cref="CommandType.CMD_PICK_LOCATION"/> command.

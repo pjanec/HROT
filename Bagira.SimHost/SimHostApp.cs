@@ -393,6 +393,8 @@ namespace Bagira.SimHost
                 egressTranslators.Add(simHostMod.GeoEgressTranslator);
             if (simHostMod.MapOverlayEgressTranslator != null)
                 egressTranslators.Add(simHostMod.MapOverlayEgressTranslator);
+            if (simHostMod.MapRouteEgressTranslator != null)
+                egressTranslators.Add(simHostMod.MapRouteEgressTranslator);
             egressTranslators.Add(simHostMod.MissionEgressTranslator);
             egressTranslators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
             egressTranslators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));

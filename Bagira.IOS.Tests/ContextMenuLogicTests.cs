@@ -14,6 +14,7 @@ internal sealed class CapturingMenuWriter : IDdsWriter<ContextActionsUpdate>
 {
     public List<ContextActionsUpdate> Written { get; } = new();
     public void Write(ContextActionsUpdate sample) => Written.Add(sample);
+    public void DisposeInstance(ContextActionsUpdate key) { }
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

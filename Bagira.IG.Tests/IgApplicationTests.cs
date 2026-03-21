@@ -1,7 +1,12 @@
+using Bagira.IG.Tools;
+using Bagira.Map.Common.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
+using Raylib_cs;
+using System.Collections.Generic;
+using System.Numerics;
 using Xunit;
 
 namespace Bagira.IG.Tests;
@@ -49,5 +54,51 @@ public class IgApplicationTests : System.IDisposable
 
         Assert.NotNull(captured);
         Assert.Equal(networkId, captured!.NetworkId);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Route edit commit safety guard (CT-1, ROUTES1-BATCH-04)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// When a route entity is destroyed between the start of editing and the
+    /// right-click commit, the commit handler must silently discard the update
+    /// (the <c>World.IsAlive</c> guard added in CT-1) rather than crashing.
+    ///
+    /// Steps: create route entity → activate RouteEditTool → destroy entity
+    /// → trigger right-click commit → assert no exception.
+    /// </summary>
+    [Fact]
+    public void CommitHandler_EntityDestroyedBeforeCommit_DropsUpdateSilently()
+    {
+        // ── Arrange ───────────────────────────────────────────────────────────
+        const long networkId = 9001L;
+
+        // Register a route entity with a minimal RoutePlan.
+        var routeEntity = _app.World.CreateEntity();
+        _app.World.RegisterManagedComponent<RoutePlan>(); // idempotent if already registered
+        var plan = new RoutePlan();
+        plan.Mutate(wps =>
+        {
+            wps.Add(new RouteWaypoint { Position = new Vector3(0f,  0f, 0f),   TargetSpeed = 5f });
+            wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 100f), TargetSpeed = 5f });
+        });
+        _app.World.SetManagedComponent(routeEntity, plan);
+        _app.TestHook_EntityMap.Register(networkId, routeEntity);
+
+        // Activate the route edit tool for that entity.
+        _app.TestHook_ActivateRouteEditToolForNetworkId(networkId);
+        Assert.NotNull(_app.TestHook_ActiveRouteEditTool);
+
+        // ── Act: destroy the entity BEFORE committing ─────────────────────────
+        _app.World.DestroyEntity(routeEntity);
+
+        // Trigger right-click commit — the onCommit lambda must detect the dead
+        // entity via World.IsAlive and return early without throwing.
+        var ex = Record.Exception(() =>
+            _app.TestHook_ActiveRouteEditTool!.HandleClick(Vector2.Zero, MouseButton.Right));
+
+        // ── Assert ────────────────────────────────────────────────────────────
+        Assert.Null(ex);
     }
 }

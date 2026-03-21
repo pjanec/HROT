@@ -5,11 +5,12 @@ namespace Bagira.BDC.SSTD
 {
     public enum EDescriptorType
     {
-        dtEntityMaster,
-        dtEntityInfo,
-        dtGeoSpatial,
-        dtGeoSpatialDR,
-        dtMapVisualOverlay
+        dtEntityMaster     = 0,
+        dtEntityInfo       = 1,
+        dtGeoSpatial       = 2,
+        dtGeoSpatialDR     = 3,
+        dtMapVisualOverlay = 4,
+        dtMapRoute         = 5,
         // etc., all known descriptor types here
     }
 
@@ -35,6 +36,9 @@ namespace Bagira.BDC.SSTD
 
         [DdsCase(EDescriptorType.dtMapVisualOverlay)]
         public MapVisualOverlay MapVisualOverlay;
+
+        [DdsCase(EDescriptorType.dtMapRoute)]
+        public MapRoute MapRoute;
 
     }
 }

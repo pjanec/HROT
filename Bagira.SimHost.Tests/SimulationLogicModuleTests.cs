@@ -149,8 +149,8 @@ namespace Bagira.SimHost.Tests
 
             Assert.Null(exception);
 
-            Assert.Equal(3, inputGroup.SystemCount);
-            Assert.Equal(19, simGroup.SystemCount);  // -1 vs pre-MOD1-BATCH-08: LosRequestBatchingSystem removed from CombatModule (CT-MOD1-N); it now runs only inside AutonomousPerceptionModule on the background thread.
+            Assert.Equal(4, inputGroup.SystemCount);
+            Assert.Equal(21, simGroup.SystemCount);  // +1 vs ROUTES1-BATCH-02: RouteContextSystem added.
             Assert.Equal(1, postSimGroup.SystemCount);
 
             // ── Cleanup ───────────────────────────────────────────────────────

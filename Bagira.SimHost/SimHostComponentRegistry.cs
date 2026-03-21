@@ -1,5 +1,6 @@
 using Bagira.IG.Components;
 using Bagira.Map.Common;
+using Bagira.Map.Common.Components;
 using Bagira.SimHost.Components;
 using Bagira.SimHost.Events;
 using CarKinem.Commands;
@@ -54,6 +55,11 @@ public static class SimHostComponentRegistry
         world.RegisterComponent<EntityInfo>();
         world.RegisterManagedComponent<EntityMissionHolder>();
         world.RegisterManagedComponent<EditablePolyline>();
+
+        // ── Route planning components (ROUTES1) ───────────────────────────────
+        world.RegisterManagedComponent<RoutePlan>();
+        world.RegisterComponent<PersonalRouteRef>();
+        world.RegisterComponent<RouteTrajectoryCache>();
 
         // ── CarKinem command events ───────────────────────────────────────────
         world.RegisterEvent<CmdSpawnVehicle>();

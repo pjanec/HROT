@@ -8,4 +8,11 @@ namespace Bagira.Map.Common.Dds;
 public interface IDdsWriter<T>
 {
     void Write(T sample);
+
+    /// <summary>
+    /// Tombstones the DDS instance identified by <paramref name="key"/>.
+    /// For Transient-Local topics, this removes the cached sample from
+    /// late-joining subscribers.
+    /// </summary>
+    void DisposeInstance(T key);
 }

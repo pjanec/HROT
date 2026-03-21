@@ -68,6 +68,7 @@ namespace Bagira.SimHost.Modules
         private readonly NetworkSpawningSystem        _spawnSystem;
         private readonly GeoSpatialEgressTranslator? _geoEgressTranslator;
         private readonly MapVisualOverlayEgressTranslator? _mapOverlayEgressTranslator;
+        private readonly MapRouteEgressTranslator? _mapRouteEgressTranslator;
         private readonly EntityMissionIngressTranslator _missionIngressTranslator;
         private readonly EntityMissionEgressTranslator _missionEgressTranslator;
 
@@ -104,6 +105,7 @@ namespace Bagira.SimHost.Modules
             {
                 _geoEgressTranslator = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
                 _mapOverlayEgressTranslator = new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform);
+                _mapRouteEgressTranslator   = new MapRouteEgressTranslator(participant, entityMap, geoTransform);
             }
 
             // Mission translators are always active regardless of geographic transform.
@@ -122,6 +124,12 @@ namespace Bagira.SimHost.Modules
         /// Returns null if no geographic transform was provided.
         /// </summary>
         public MapVisualOverlayEgressTranslator? MapOverlayEgressTranslator => _mapOverlayEgressTranslator;
+
+        /// <summary>
+        /// Gets the MapRoute egress translator for registration with the network module.
+        /// Returns null if no geographic transform was provided.
+        /// </summary>
+        public MapRouteEgressTranslator? MapRouteEgressTranslator => _mapRouteEgressTranslator;
 
         /// <summary>
         /// Gets the EntityMission ingress translator (DDS → ECS).

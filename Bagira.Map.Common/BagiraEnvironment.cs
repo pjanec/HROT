@@ -18,6 +18,7 @@ namespace Bagira.Map.Common
         {
             var tkb = new TkbDatabase();
             BdcTkbCatalog.RegisterAll(tkb);
+            RouteTkbExtensions.ApplyRoutePlanToBlueprint(tkb);
             return tkb;
         }
 

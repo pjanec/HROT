@@ -82,6 +82,7 @@ namespace Bagira.SimHost.Tests
         {
             public List<UpdateEntityDescriptorAck> Written { get; } = new();
             public void Write(UpdateEntityDescriptorAck value) => Written.Add(value);
+            public void DisposeInstance(UpdateEntityDescriptorAck key) { }
         }
 
         private static int CountAcks(DdsReader<UpdateEntityDescriptorAck> reader)

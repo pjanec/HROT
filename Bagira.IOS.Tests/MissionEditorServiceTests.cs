@@ -16,6 +16,7 @@ internal sealed class CapturingWriter<T> : IDdsWriter<T>
 {
     public List<T> Written { get; } = new();
     public void Write(T sample) => Written.Add(sample);
+    public void DisposeInstance(T key) { }
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

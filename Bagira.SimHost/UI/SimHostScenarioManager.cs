@@ -430,35 +430,6 @@ namespace Bagira.SimHost.UI
             });
         }
 
-        public void AddWaypoint(Entity entity, Vector2 point,
-            TrajectoryInterpolation interp = TrajectoryInterpolation.CatmullRom)
-        {
-            if (!_repo.IsAlive(entity)) return;
-            if (!_repo.HasComponent<NavState>(entity)) { SetDestination(entity, point, interp); return; }
-
-            var nav = _repo.GetComponentRO<NavState>(entity);
-            if (nav.Mode == KinematicsMode.CustomTrajectory && _traj.TryGetTrajectory(nav.TrajectoryId, out var existing))
-            {
-                // Extend the existing trajectory by one point
-                var pts = new System.Collections.Generic.List<Vector2>();
-                for (int i = 0; i < existing.Waypoints.Length; i++)
-                    pts.Add(existing.Waypoints[i].Position);
-                pts.Add(point);
-
-                _traj.RemoveTrajectory(nav.TrajectoryId);
-                var tId = _traj.RegisterTrajectory(pts.ToArray(), interpolation: interp);
-                _repo.Bus.Publish(new CmdFollowTrajectory
-                {
-                    Entity       = entity,
-                    TrajectoryId = tId,
-                });
-            }
-            else
-            {
-                SetDestination(entity, point, interp);
-            }
-        }
-
         public void ClearAll()
         {
             var q = _repo.Query().With<VehicleState>().Build();

@@ -27,6 +27,7 @@ using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
+using Bagira.Map.Common.Events;
 
 namespace Bagira.SimHost
 {
@@ -213,7 +214,13 @@ namespace Bagira.SimHost
                     HandleRightClickForEntity(
                         repo, e, pos, shift, interp,
                         (ent, p, i) => _scenario!.SetDestination(ent, p, i),
-                        (ent, p, i) => _scenario!.AddWaypoint(ent, p, i),
+                        // Shift+right-click: route through the ECS personal-route system
+                        // (PersonalRouteAuthoringSystem) instead of the legacy AddWaypoint path.
+                        (ent, p, i) => repo.Bus.Publish(new CmdAppendPersonalWaypoint
+                        {
+                            VehicleEntity = ent,
+                            WorldPosition = new System.Numerics.Vector3(p.X, 0f, p.Y),
+                        }),
                         _missionWriter);
                 }
             };
