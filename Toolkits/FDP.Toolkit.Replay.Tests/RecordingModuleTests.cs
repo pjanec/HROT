@@ -56,6 +56,9 @@ namespace FDP.Toolkit.Replay.Tests
             var captured = new CapturingSystemRegistry();
             module.RegisterSystems(captured);
 
+            // RecorderTickSystem reads GlobalTime.TotalWallTicks each tick.
+            world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+
             // Drive one tick via the registered system (simulates kernel calling Execute).
             ISimulationView view = world;
             foreach (var sys in captured.Systems)

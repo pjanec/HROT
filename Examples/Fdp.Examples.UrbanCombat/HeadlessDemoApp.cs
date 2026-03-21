@@ -110,6 +110,10 @@ namespace Fdp.Examples.UrbanCombat
         private PostSimulationSystemGroup?  _postSimGroup;
         private ExportSystemGroup?          _exportGroup;
 
+        // Physics module — retained for lifetime so native arrays stay valid;
+        // Dispose() frees the persistent NativeArrays after the world is torn down.
+        private PhysicsToolkitModule?       _physicsModule;
+
         private bool _initialized;
         private bool _disposed;
 
@@ -143,9 +147,12 @@ namespace Fdp.Examples.UrbanCombat
             // 3. Create the road network blob (disposed in Dispose()).
             Road = DemoEnvironmentSetup.CreateCityIntersection();
 
-            // 4. Allocate RaycastBatchData singleton (NativeArrays — ownership transferred to World).
-            using var physics = new PhysicsToolkitModule();
-            physics.Initialize(World);
+            // 4. Allocate RaycastBatchData singleton (NativeArrays — retained until Dispose()).
+            // The module is stored as a field so Dispose() can free the native arrays
+            // at the correct time. Using `using` here would free them prematurely,
+            // leaving the world singleton with a dangling pointer (AV on first tick).
+            _physicsModule = new PhysicsToolkitModule();
+            _physicsModule.Initialize(World);
 
             // 5. Register all doctrines.
             RegisterDoctrines();
@@ -362,13 +369,10 @@ namespace Fdp.Examples.UrbanCombat
                 // Dispose the trajectory pool.
                 _trajectoryPool?.Dispose();
 
-                // Dispose the RaycastBatchData native arrays (not auto-freed by World.Dispose).
-                if (_initialized && World.HasSingleton<FDP.Toolkit.Physics.Components.RaycastBatchData>())
-                {
-                    ref var batch = ref World.GetSingleton<FDP.Toolkit.Physics.Components.RaycastBatchData>();
-                    if (batch.Requests.IsCreated) batch.Requests.Dispose();
-                    if (batch.Hits.IsCreated)     batch.Hits.Dispose();
-                }
+                // Free the persistent NativeArrays owned by the physics module.
+                // This must happen before World.Dispose() to avoid use-after-free,
+                // and via the module (not the world's copy) to prevent double-free.
+                _physicsModule?.Dispose();
 
                 // Dispose the road network blob.
                 if (_initialized) Road.Dispose();

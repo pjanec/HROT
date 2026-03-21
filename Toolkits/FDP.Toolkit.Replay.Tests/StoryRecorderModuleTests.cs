@@ -128,6 +128,9 @@ namespace FDP.Toolkit.Replay.Tests
             moduleA.RegisterSystems(registryA);
             moduleB.RegisterSystems(registryB);
 
+            // RecorderTickSystem reads GlobalTime.TotalWallTicks each tick.
+            world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+
             // Tick both systems once.
             ISimulationView view = world;
             foreach (var sys in registryA.Systems) sys.Execute(view, 0.016f);
