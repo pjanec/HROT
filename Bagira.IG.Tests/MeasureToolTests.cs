@@ -1,5 +1,6 @@
 using System.Numerics;
 using Bagira.IG.Tools;
+using FDP.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
 namespace Bagira.IG.Tests;
@@ -194,5 +195,40 @@ public class MeasureToolTests
         bool consumed = tool.HandleHover(new Vector2(50f, 50f));
 
         Assert.False(consumed);
+    }
+
+    // ── BUG2-T001: Draw crosshair when no start point ─────────────────────────
+
+    /// <summary>
+    /// Calling <see cref="MeasureTool.Draw"/> with no start point set must not throw.
+    /// </summary>
+    [Fact]
+    public void Draw_NoStartPoint_DoesNotThrow()
+    {
+        var tool = new MeasureTool();
+        tool.TestHook_SkipRaylibCalls = true;
+
+        // Move cursor so _currentPoint is at a known non-default position.
+        tool.HandleHover(new Vector2(50f, 50f));
+
+        var ex = Record.Exception(() => tool.Draw(new RenderContext { Camera = new Camera2D { Zoom = 1f } }));
+        Assert.Null(ex);
+    }
+
+    /// <summary>
+    /// When no start point is set, <see cref="MeasureTool.Draw"/> must issue exactly
+    /// four line draw commands and one circle draw command (the crosshair cursor).
+    /// </summary>
+    [Fact]
+    public void Draw_NoStartPoint_DrawsCrosshair()
+    {
+        var tool = new MeasureTool();
+        tool.TestHook_SkipRaylibCalls = true;
+        tool.HandleHover(new Vector2(100f, 100f));
+
+        tool.Draw(new RenderContext { Camera = new Camera2D { Zoom = 1f } });
+
+        Assert.Equal(4, tool.TestHook_LineDrawCount);
+        Assert.Equal(1, tool.TestHook_CircleDrawCount);
     }
 }

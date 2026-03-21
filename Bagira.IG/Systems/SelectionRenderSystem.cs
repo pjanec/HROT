@@ -3,6 +3,7 @@ using Bagira.IG.Adapters;
 using Bagira.IG.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Abstractions;
+using FDP.Toolkit.Vis2D.Components;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
@@ -79,41 +80,59 @@ public class SelectionRenderSystem : IMapLayer
             if (!sel.IsSelected)
                 continue;
 
+            // Layer visibility: skip selection rings for entities on hidden layers.
+            if (_view.HasComponent<MapDisplayComponent>(entity))
+            {
+                uint em = _view.GetComponentRO<MapDisplayComponent>(entity).LayerMask;
+                if ((em & ctx.VisibleLayersMask) == 0) continue;
+            }
+
             if (!_view.HasComponent<SimTransform>(entity))
                 continue;
 
             ref readonly var transform = ref _view.GetComponentRO<SimTransform>(entity);
             var pos = new Vector2(transform.Position.X, transform.Position.Y);
 
-            if (sel.IsPrimarySelection)
-            {
-                // Filled green circle (semi-transparent) + green outline.
-                var fill = new Color(
-                    SelectionRenderConstants.PrimaryFillR,
-                    SelectionRenderConstants.PrimaryFillG,
-                    SelectionRenderConstants.PrimaryFillB,
-                    SelectionRenderConstants.PrimaryFillAlpha);
+            TestHook_RingDrawCount++;
 
-                Raylib.DrawCircle(
-                    (int)pos.X, (int)pos.Y,
-                    SstVisualizerAdapterConstants.SelectionRadiusPx,
-                    fill);
-
-                Raylib.DrawCircleLines(
-                    (int)pos.X, (int)pos.Y,
-                    SstVisualizerAdapterConstants.SelectionRadiusPx,
-                    Color.Green);
-            }
-            else
+            if (!TestHook_SkipRaylibCalls)
             {
-                // Yellow outline only for secondary selections.
-                Raylib.DrawCircleLines(
-                    (int)pos.X, (int)pos.Y,
-                    SstVisualizerAdapterConstants.SelectionRadiusPx,
-                    Color.Yellow);
+                if (sel.IsPrimarySelection)
+                {
+                    // Filled green circle (semi-transparent) + green outline.
+                    var fill = new Color(
+                        SelectionRenderConstants.PrimaryFillR,
+                        SelectionRenderConstants.PrimaryFillG,
+                        SelectionRenderConstants.PrimaryFillB,
+                        SelectionRenderConstants.PrimaryFillAlpha);
+
+                    Raylib.DrawCircle(
+                        (int)pos.X, (int)pos.Y,
+                        SstVisualizerAdapterConstants.SelectionRadiusPx,
+                        fill);
+
+                    Raylib.DrawCircleLines(
+                        (int)pos.X, (int)pos.Y,
+                        SstVisualizerAdapterConstants.SelectionRadiusPx,
+                        Color.Green);
+                }
+                else
+                {
+                    // Yellow outline only for secondary selections.
+                    Raylib.DrawCircleLines(
+                        (int)pos.X, (int)pos.Y,
+                        SstVisualizerAdapterConstants.SelectionRadiusPx,
+                        Color.Yellow);
+                }
             }
         }
     }
+
+    /// <summary>Suppresses Raylib calls in tests. Increment only <see cref="TestHook_RingDrawCount"/>.</summary>
+    internal bool TestHook_SkipRaylibCalls;
+
+    /// <summary>Counts selection ring draws reached. Reset between test assertions.</summary>
+    internal int TestHook_RingDrawCount;
 
     /// <inheritdoc/>
     /// <remarks>Selection rings do not consume mouse input.</remarks>

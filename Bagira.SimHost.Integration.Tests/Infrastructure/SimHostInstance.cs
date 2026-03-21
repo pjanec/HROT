@@ -639,7 +639,6 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<Health>();
             world.RegisterComponent<BallisticProjectile>();
-            world.RegisterComponent<HealthData>();
 
             // ── CarKinem / Navigation components ──────────────────────────────────
             world.RegisterComponent<CarKinem.Core.VehicleState>();

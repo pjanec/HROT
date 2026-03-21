@@ -33,6 +33,7 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Perception.Components;
@@ -321,9 +322,7 @@ namespace Bagira.SimHost
                 });
 
             // ── 7. Road network ───────────────────────────────────────────────
-            var roadNetwork = new RoadNetworkBlob();
-            try { roadNetwork = RoadNetworkLoader.LoadFromJson("Assets/sample_road.json"); }
-            catch { /* run fine without roads */ }
+            var roadNetwork = LoadRoadNetwork(nodeConfig.RoadNetworkBlobPath);
 
             // ── 8. SimulationLogicModule (role-based via NodeBootstrapper) ─────
             var bootstrapper = new NodeBootstrapper();
@@ -762,6 +761,30 @@ namespace Bagira.SimHost
                 Thread.Sleep(1); // ~1 kHz polling — fast enough for low-latency allocation
             }
             Logger.Info("[SimHost] IdAllocatorServer loop exited.");
+        }
+
+        /// <summary>
+        /// Loads a road-network blob from <paramref name="path"/> using the supplied
+        /// <paramref name="loader"/> (default: <see cref="RoadNetworkLoader.LoadFromJson"/>).
+        /// Returns a default <see cref="RoadNetworkBlob"/> when the path is empty or the
+        /// loader throws.  The <paramref name="loader"/> parameter exists for unit-testing.
+        /// </summary>
+        internal static RoadNetworkBlob LoadRoadNetwork(
+            string?                         path,
+            Func<string, RoadNetworkBlob>?  loader = null)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                return new RoadNetworkBlob();
+
+            try
+            {
+                return (loader ?? RoadNetworkLoader.LoadFromJson)(path);
+            }
+            catch (Exception ex)
+            {
+                FdpLog<SimHostApp>.Warn("[SimHost] Failed to load road network: {0}", ex.Message);
+                return new RoadNetworkBlob();
+            }
         }
     }
 }

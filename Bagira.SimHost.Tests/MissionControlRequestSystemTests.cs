@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
-using DdsMissionTrigger = Bagira.BDC.SSTD.MissionTrigger;
+using Bagira.Map.Common.Helpers;
 using Bagira.SimHost.Systems;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
@@ -13,6 +13,7 @@ using FDP.Toolkit.Behavior.Events;
 using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using Xunit;
+using DdsMissionTrigger = Bagira.BDC.SSTD.MissionTrigger;
 using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Bagira.SimHost.Tests
@@ -431,7 +432,7 @@ namespace Bagira.SimHost.Tests
                 new DdsMissionTrigger { Type = "DoctrineFinished", Params = "" }
             };
 
-            var (trigger, param) = MissionControlRequestSystem.ResolveTrigger(triggers);
+            var (trigger, param) = MissionTriggerHelper.ResolveTrigger(triggers);
 
             Assert.Equal(EcsMissionTrigger.DoctrineFinished, trigger);
             Assert.Equal(0f, param);
@@ -445,7 +446,7 @@ namespace Bagira.SimHost.Tests
                 new DdsMissionTrigger { Type = "UnderAttack", Params = "" }
             };
 
-            var (trigger, param) = MissionControlRequestSystem.ResolveTrigger(triggers);
+            var (trigger, param) = MissionTriggerHelper.ResolveTrigger(triggers);
 
             Assert.Equal(EcsMissionTrigger.UnderAttack, trigger);
             Assert.Equal(0f, param);

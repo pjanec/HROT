@@ -117,6 +117,33 @@ namespace Bagira.SimHost
                     _selection!.Set(entity);
                     _fdpInspectorState.SelectedEntity = entity;
                 });
+
+                builder.AddSeparator();
+                builder.AddItem("Delete entity", () =>
+                {
+                    if (_repo!.IsAlive(entity))
+                    {
+                        if (_repo.HasComponent<NetworkIdentity>(entity))
+                        {
+                            ref readonly var netId = ref _repo.GetComponentRO<NetworkIdentity>(entity);
+                            _repo.Bus.PublishManaged(new DestroyEntityCommand
+                            {
+                                NetworkId = netId.Value,
+                                Reason    = "inspector-deleted"
+                            });
+                        }
+                        else
+                        {
+                            _repo.DestroyEntity(entity);
+                        }
+
+                        if (_selection!.Contains(entity))
+                        {
+                            _selection.Remove(entity);
+                            _fdpInspectorState.SelectedEntity = null;
+                        }
+                    }
+                });
             }));
 
             // ── Scenario manager ──────────────────────────────────────────────

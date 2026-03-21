@@ -131,6 +131,8 @@ public class MeasureTool : IMapTool
 
     /// <inheritdoc/>
     /// <remarks>
+    /// When no start point is set, draws a crosshair cursor at the current mouse
+    /// position to indicate the tool is ready for the first click.
     /// When a start point is set, draws a cyan line from the start to the current
     /// cursor position and a distance label at the midpoint.
     /// Called inside <c>MapCanvas.Draw()</c> → <c>Camera.BeginMode()</c>.
@@ -138,7 +140,27 @@ public class MeasureTool : IMapTool
     public void Draw(RenderContext ctx)
     {
         if (!_startPoint.HasValue)
+        {
+            float zoom  = ctx.Zoom > 0 ? ctx.Zoom : 1f;
+            float size  = 14f / zoom;
+            float gap   = 5f  / zoom;
+            float thick = MeasureToolConstants.LineThickness / zoom;
+            Color color = MeasureToolConstants.LineColor;
+            var   pos   = _currentPoint;
+
+            TestHook_LineDrawCount += 4;
+            TestHook_CircleDrawCount++;
+
+            if (!TestHook_SkipRaylibCalls)
+            {
+                Raylib.DrawLineEx(new Vector2(pos.X - size, pos.Y), new Vector2(pos.X - gap,  pos.Y), thick, color);
+                Raylib.DrawLineEx(new Vector2(pos.X + gap,  pos.Y), new Vector2(pos.X + size, pos.Y), thick, color);
+                Raylib.DrawLineEx(new Vector2(pos.X, pos.Y - size), new Vector2(pos.X, pos.Y - gap),  thick, color);
+                Raylib.DrawLineEx(new Vector2(pos.X, pos.Y + gap),  new Vector2(pos.X, pos.Y + size), thick, color);
+                Raylib.DrawCircleLinesV(pos, gap, color);
+            }
             return;
+        }
 
         var start = _startPoint.Value;
         var end   = _currentPoint;
@@ -156,4 +178,15 @@ public class MeasureTool : IMapTool
             MeasureToolConstants.LabelFontSize,
             Color.White);
     }
+
+    // ── Test hooks ────────────────────────────────────────────────────────────
+
+    /// <summary>When <c>true</c>, crosshair Raylib calls are skipped; counters are still incremented.</summary>
+    internal bool TestHook_SkipRaylibCalls;
+
+    /// <summary>Number of line draw commands issued by the crosshair renderer.</summary>
+    internal int TestHook_LineDrawCount;
+
+    /// <summary>Number of circle draw commands issued by the crosshair renderer.</summary>
+    internal int TestHook_CircleDrawCount;
 }

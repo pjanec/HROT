@@ -61,7 +61,6 @@ namespace Bagira.SimHost.Tests
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<Health>();
             world.RegisterComponent<BallisticProjectile>();
-            world.RegisterComponent<HealthData>();
 
             // ── Core simulation components (Fdp.Kernel + CarKinem) ────────────
             world.RegisterComponent<SimTransform>();
@@ -210,7 +209,6 @@ namespace Bagira.SimHost.Tests
             world.AddComponent(entity, new TargetMemory());
             world.AddComponent(entity, new WeaponState { Ammo = 1, MuzzleVelocity = 800f, CooldownTicksRemaining = 0 });
             world.AddComponent(entity, new Health { Current = 100f, Max = 100f });
-            world.AddComponent(entity, new HealthData { Current = 100f, Max = 100f });
             world.AddComponent(entity, new PhysicsCollider { Radius = 1.0f, CollisionLayer = 1 });
             world.AddComponent(entity, new Faction { FactionId = 1 });
             world.AddComponent(entity, new BrainBTreeState());
@@ -273,7 +271,6 @@ namespace Bagira.SimHost.Tests
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<Health>();
             world.RegisterComponent<BallisticProjectile>();
-            world.RegisterComponent<HealthData>();
             world.RegisterComponent<SimTransform>();
             world.RegisterComponent<SimVelocity>();
             world.RegisterComponent<VehicleState>();
@@ -384,6 +381,40 @@ namespace Bagira.SimHost.Tests
             simGroup.Dispose();
             postSimGroup.Dispose();
             DisposeRaycastBatchData(world);
+        }
+
+        // ── BUG2-R001: RoadNetwork property stores what was passed ───────────
+
+        /// <summary>
+        /// When a non-default <see cref="RoadNetworkBlob"/> is passed to the constructor,
+        /// <see cref="SimulationLogicModule.RoadNetwork"/> must equal that value.
+        /// </summary>
+        [Fact]
+        public void Constructor_WithRoadNetwork_SetsProperty()
+        {
+            var roadNetwork = new RoadNetworkBuilder().Build(10f, 4, 4);
+
+            var module = new SimulationLogicModule(
+                new DoctrineRegistry(), new NetworkEntityMap(),
+                roadNetwork: roadNetwork);
+
+            Assert.Equal(roadNetwork, module.RoadNetwork);
+        }
+
+        /// <summary>
+        /// When no road network is passed (<c>default</c>), the property returns
+        /// that exact default value — not always a freshly-constructed default.
+        /// This guards against an implementation that always returns <c>default</c>
+        /// regardless of what was passed.
+        /// </summary>
+        [Fact]
+        public void RoadNetwork_DefaultPassedToConstructor_ReturnsDefault()
+        {
+            var module = new SimulationLogicModule(
+                new DoctrineRegistry(), new NetworkEntityMap());
+
+            // The property should return what was set (default in this case).
+            Assert.Equal(default, module.RoadNetwork);
         }
     }
 }

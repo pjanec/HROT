@@ -29,7 +29,6 @@ namespace Bagira.SimHost
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<Health>();
-            world.RegisterComponent<HealthData>();
             world.RegisterComponent<BallisticProjectile>();
             world.RegisterComponent<PhysicsCollider>();
         }

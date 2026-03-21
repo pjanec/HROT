@@ -161,4 +161,79 @@ public class ContinuousDragTests
         }
         finally { igApp.Shutdown(ownsWindow: false); }
     }
+
+    // ── BUG2-I001: Shift-key immediate drag path ──────────────────────────────
+
+    /// <summary>
+    /// When Shift is held and the entity moves to a different world position,
+    /// exactly one gateway call must fire — no throttle delay.
+    /// </summary>
+    [Fact]
+    public void OnEntityMoved_ShiftHeld_PositionChanged_SendsUpdate()
+    {
+        var igApp = CreateHeadlessIg(224);
+        try
+        {
+            var stub = new TallyGateway();
+            SetupEntity(igApp, NetworkId, stub);
+            igApp.TestHook_UserConfig.ContinuousDragUpdates = false;
+
+            // First call seeds _lastDragWorldPos to (0,0).
+            igApp.TestHook_SimulateEntityMoved(NetworkId, new Vector2(0f, 0f), Dt, isShiftHeld: false);
+            Assert.Equal(0, stub.Calls);
+
+            // Second call: position changed + shift held → one immediate send.
+            igApp.TestHook_SimulateEntityMoved(NetworkId, new Vector2(10f, 10f), Dt, isShiftHeld: true);
+            Assert.Equal(1, stub.Calls);
+        }
+        finally { igApp.Shutdown(ownsWindow: false); }
+    }
+
+    /// <summary>
+    /// When Shift is held but the world position has not changed, the gateway
+    /// must NOT be called (avoids sending redundant updates mid-drag).
+    /// </summary>
+    [Fact]
+    public void OnEntityMoved_ShiftHeld_SamePosition_DoesNotSend()
+    {
+        var igApp = CreateHeadlessIg(225);
+        try
+        {
+            var stub = new TallyGateway();
+            SetupEntity(igApp, NetworkId, stub);
+            igApp.TestHook_UserConfig.ContinuousDragUpdates = false;
+
+            var samePos = new Vector2(5f, 5f);
+            // Seed last pos.
+            igApp.TestHook_SimulateEntityMoved(NetworkId, samePos, Dt, isShiftHeld: false);
+
+            // Shift held but same position — no send.
+            igApp.TestHook_SimulateEntityMoved(NetworkId, samePos, Dt, isShiftHeld: true);
+            Assert.Equal(0, stub.Calls);
+        }
+        finally { igApp.Shutdown(ownsWindow: false); }
+    }
+
+    /// <summary>
+    /// When Shift is NOT held and continuous-drag-updates is disabled,
+    /// entity-moved events must not call the gateway at all.
+    /// Ensures the shift-path does not accidentally trigger without Shift.
+    /// </summary>
+    [Fact]
+    public void OnEntityMoved_ShiftNotHeld_ContinuousDragDisabled_DoesNotSend()
+    {
+        var igApp = CreateHeadlessIg(226);
+        try
+        {
+            var stub = new TallyGateway();
+            SetupEntity(igApp, NetworkId, stub);
+            igApp.TestHook_UserConfig.ContinuousDragUpdates = false;
+
+            for (int i = 0; i < 10; i++)
+                igApp.TestHook_SimulateEntityMoved(NetworkId, new Vector2(i * 3f, 0f), Dt, isShiftHeld: false);
+
+            Assert.Equal(0, stub.Calls);
+        }
+        finally { igApp.Shutdown(ownsWindow: false); }
+    }
 }

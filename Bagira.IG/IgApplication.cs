@@ -66,6 +66,8 @@ using FDP.Toolkit.Perception.Components;
 
 using FDP.Toolkit.Physics.Components;
 
+using FDP.Toolkit.NetworkSpawning.Events;
+
 using FDP.Toolkit.NetworkSpawning.Systems;
 
 using FDP.Toolkit.Replication;
@@ -138,7 +140,7 @@ namespace Bagira.IG;
 
 /// </summary>
 
-public class IgApplication
+public class IgApplication : IDisposable
 
 {
 
@@ -556,7 +558,6 @@ public class IgApplication
         _world.RegisterComponent<TargetMemory>();
         _world.RegisterComponent<WeaponState>();
         _world.RegisterComponent<Health>();
-        _world.RegisterComponent<HealthData>();
         _world.RegisterComponent<PhysicsCollider>();
 
         _world.RegisterManagedComponent<Bagira.IG.Components.IgMissionHolder>();
@@ -962,9 +963,9 @@ public class IgApplication
 
         var layer     = new EntityRenderLayer(
 
-            "Entities", layerBitIndex: 0,
+            "Entities", layerBitIndex: -1,
 
-            _world, query, adapter, selection);
+            _world, query, adapter, selection) { Canvas = _canvas };
 
         _canvas.AddLayer(layer);
 
@@ -1035,9 +1036,12 @@ public class IgApplication
             // Track world-space drag position and drive continuous-drag throttle timer.
             interactionTool.OnEntityMoved += (entity, worldPos) =>
             {
-                _lastDragWorldPos = worldPos;
+                bool isShiftHeld = Raylib.IsKeyDown(KeyboardKey.LeftShift)
+                                || Raylib.IsKeyDown(KeyboardKey.RightShift);
+
                 if (_userConfig.ContinuousDragUpdates)
                 {
+                    // Existing throttle path: keep unchanged.
                     _continuousDragTimer += _frameDt;
                     if (_continuousDragTimer >= ContinuousDragIntervalSec)
                     {
@@ -1045,6 +1049,13 @@ public class IgApplication
                         _continuousDragTimer = 0f;
                     }
                 }
+                else if (isShiftHeld && _lastDragWorldPos != worldPos)
+                {
+                    // Shift-held path: bypass throttle, send immediately if position changed.
+                    SendGeoSpatialUpdate(entity, worldPos);
+                }
+
+                _lastDragWorldPos = worldPos;
             };
 
             _miniIosPanel.SetGateway(_commandGateway);
@@ -1345,6 +1356,30 @@ public class IgApplication
                     builder.AddSeparator();
                     builder.AddItem("Edit overlay", () => ActivateAreaEditingTool(editNetId));
                 }
+
+                builder.AddSeparator();
+                builder.AddItem("Delete entity", () =>
+                {
+                    if (_world.IsAlive(entity))
+                    {
+                        if (_world.HasComponent<NetworkIdentity>(entity))
+                        {
+                            ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
+                            _world.Bus.PublishManaged(new DestroyEntityCommand
+                            {
+                                NetworkId = netId.Value,
+                                Reason    = "inspector-deleted"
+                            });
+                        }
+                        else
+                        {
+                            _world.DestroyEntity(entity);
+                        }
+
+                        if (_fdpInspectorState.SelectedEntity == entity)
+                            _fdpInspectorState.SelectedEntity = null;
+                    }
+                });
             }));
         }
 
@@ -1636,6 +1671,9 @@ public class IgApplication
     /// <summary>
 
     /// Releases all IG resources.  
+
+    /// <summary>Dispose alias for <see cref="Shutdown"/> (headless / test cleanup).</summary>
+    public void Dispose() => Shutdown(ownsWindow: false);
 
     /// Pass <c>ownsWindow = false</c> when the orchestrator owns the Raylib window.
 
@@ -2268,13 +2306,14 @@ public class IgApplication
     /// <paramref name="networkId"/> at <paramref name="worldPos"/> with an explicit
     /// <paramref name="dt"/> (seconds). Drives the continuous-drag throttle timer and,
     /// when the threshold is exceeded, calls <see cref="SendGeoSpatialUpdate"/>.
+    /// Pass <paramref name="isShiftHeld"/> = <c>true</c> to exercise the shift-key immediate-
+    /// send path (BUG2-I001).
     /// </summary>
-    internal void TestHook_SimulateEntityMoved(long networkId, System.Numerics.Vector2 worldPos, float dt)
+    internal void TestHook_SimulateEntityMoved(long networkId, System.Numerics.Vector2 worldPos, float dt, bool isShiftHeld = false)
     {
         if (!_entityMap.TryGetEntity(networkId, out var entity))
             throw new InvalidOperationException($"Entity with networkId={networkId} not found in IG entity map.");
 
-        _lastDragWorldPos = worldPos;
         if (_userConfig.ContinuousDragUpdates)
         {
             _continuousDragTimer += dt;
@@ -2284,6 +2323,12 @@ public class IgApplication
                 _continuousDragTimer = 0f;
             }
         }
+        else if (isShiftHeld && _lastDragWorldPos != worldPos)
+        {
+            SendGeoSpatialUpdate(entity, worldPos);
+        }
+
+        _lastDragWorldPos = worldPos;
     }
 
     /// <summary>
@@ -2384,6 +2429,50 @@ public class IgApplication
 
                 break;
 
+            case "IG_DeleteEntity":
+
+            {
+
+                if (_world.IsAlive(entity))
+
+                {
+
+                    if (_world.HasComponent<NetworkIdentity>(entity))
+
+                    {
+
+                        ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
+
+                        _world.Bus.PublishManaged(new DestroyEntityCommand
+
+                        {
+
+                            NetworkId = netId.Value,
+
+                            Reason    = "map-context-deleted"
+
+                        });
+
+                    }
+
+                    else
+
+                    {
+
+                        _world.DestroyEntity(entity);
+
+                    }
+
+                    if (_fdpInspectorState.SelectedEntity == entity)
+
+                        _fdpInspectorState.SelectedEntity = null;
+
+                }
+
+                break;
+
+            }
+
             case "100": // EditOverlay — activate area-editing tool on the selected entity
 
             {
@@ -2421,6 +2510,20 @@ public class IgApplication
         }
 
     }
+
+
+
+    /// <summary>
+
+    /// Exposes <see cref="ExecuteLocalContextAction"/> for unit tests that need to verify
+
+    /// the per-action routing logic without going through the full UI/DDS stack.
+
+    /// </summary>
+
+    internal void TestHook_ExecuteLocalContextAction(Entity entity, string actionName)
+
+        => ExecuteLocalContextAction(entity, actionName);
 
 
 

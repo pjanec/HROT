@@ -136,6 +136,8 @@ namespace Bagira.SimHost.Modules
                     roadNetwork,
                     trajectoryPool,
                     formationTemplateManager);
+
+            RoadNetwork = roadNetwork;
         }
 
         // ── Public accessors for shared resources ────────────────────────────────
@@ -155,7 +157,7 @@ namespace Bagira.SimHost.Modules
         public FormationTemplateManager? FormationTemplates => _groundKinematicsModule?.FormationTemplates;
 
         /// <summary>Road-network blob (used by CarKinematicsSystem and visualization).</summary>
-        public RoadNetworkBlob RoadNetwork => default;
+        public RoadNetworkBlob RoadNetwork { get; }
 
         /// <summary>
         /// Registers all simulation-logic systems in strict execution order by

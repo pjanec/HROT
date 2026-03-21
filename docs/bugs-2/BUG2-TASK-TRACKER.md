@@ -41,7 +41,7 @@ editing in the task editor UI; fix unreadable task action buttons; add inline co
 
 **Goal:** Enable per-frame drag updates when the operator holds SHIFT for real-time testing.
 
-- [ ] **BUG2-I001** Add Shift-Key Immediate Drag Mode [details](./BUG2-TASK-DETAIL.md#bug2-i001-add-shift-key-immediate-drag-mode)
+- [x] **BUG2-I001** Add Shift-Key Immediate Drag Mode [details](./BUG2-TASK-DETAIL.md#bug2-i001-add-shift-key-immediate-drag-mode)
 
 ---
 
@@ -50,7 +50,7 @@ editing in the task editor UI; fix unreadable task action buttons; add inline co
 **Goal:** Make all selection and rendering subsystems honour the map layer visibility mask so
 hidden entities cannot be selected or shown with selection rings.
 
-- [ ] **BUG2-V001** Enforce Layer Visibility in Selection and Rendering [details](./BUG2-TASK-DETAIL.md#bug2-v001-enforce-layer-visibility-in-selection-and-rendering)
+- [x] **BUG2-V001** Enforce Layer Visibility in Selection and Rendering [details](./BUG2-TASK-DETAIL.md#bug2-v001-enforce-layer-visibility-in-selection-and-rendering)
 
 ---
 
@@ -59,8 +59,8 @@ hidden entities cannot be selected or shown with selection rings.
 **Goal:** Provide clear visual feedback that the Measure and EntityPicker tools are active and
 waiting for user input.
 
-- [ ] **BUG2-T001** Add Crosshair Cursor to MeasureTool [details](./BUG2-TASK-DETAIL.md#bug2-t001-add-crosshair-cursor-to-measuretool)
-- [ ] **BUG2-T002** Add Crosshair Cursor to EntityPickerTool [details](./BUG2-TASK-DETAIL.md#bug2-t002-add-crosshair-cursor-to-entitypickertool)
+- [x] **BUG2-T001** Add Crosshair Cursor to MeasureTool [details](./BUG2-TASK-DETAIL.md#bug2-t001-add-crosshair-cursor-to-measuretool)
+- [x] **BUG2-T002** Add Crosshair Cursor to EntityPickerTool [details](./BUG2-TASK-DETAIL.md#bug2-t002-add-crosshair-cursor-to-entitypickertool)
 
 ---
 
@@ -69,8 +69,8 @@ waiting for user input.
 **Goal:** Expose networked entity deletion through all relevant UI entry points (inspector context
 menus and IOS map context menu).
 
-- [ ] **BUG2-E001** Add Delete to Inspector Context Menus [details](./BUG2-TASK-DETAIL.md#bug2-e001-add-delete-to-inspector-context-menus)
-- [ ] **BUG2-E002** Wire IOS DELETE Context Action to IG-Side ELM Deletion [details](./BUG2-TASK-DETAIL.md#bug2-e002-wire-ios-delete-context-action-to-ig-side-elm-deletion)
+- [x] **BUG2-E001** Add Delete to Inspector Context Menus [details](./BUG2-TASK-DETAIL.md#bug2-e001-add-delete-to-inspector-context-menus)
+- [x] **BUG2-E002** Wire IOS DELETE Context Action to IG-Side ELM Deletion [details](./BUG2-TASK-DETAIL.md#bug2-e002-wire-ios-delete-context-action-to-ig-side-elm-deletion)
 
 ---
 
@@ -79,7 +79,7 @@ menus and IOS map context menu).
 **Goal:** Fix the two independent bugs that prevent the static road network from appearing on the
 SimHost visualization.
 
-- [ ] **BUG2-R001** Fix SimHost Road Graph Rendering [details](./BUG2-TASK-DETAIL.md#bug2-r001-fix-simhost-road-graph-rendering)
+- [x] **BUG2-R001** Fix SimHost Road Graph Rendering [details](./BUG2-TASK-DETAIL.md#bug2-r001-fix-simhost-road-graph-rendering)
 
 ---
 
@@ -88,4 +88,4 @@ SimHost visualization.
 **Goal:** Replace the DEBT-033 HealthData mirror hack with a clean single-component design rooted
 in the Combat.Contracts shared assembly.
 
-- [ ] **BUG2-A001** Consolidate Health into FDP.Toolkit.Combat.Contracts [details](./BUG2-TASK-DETAIL.md#bug2-a001-consolidate-health-into-fdptoolkitcombatcontracts)
+- [x] **BUG2-A001** Consolidate Health into FDP.Toolkit.Combat.Contracts [details](./BUG2-TASK-DETAIL.md#bug2-a001-consolidate-health-into-fdptoolkitcombatcontracts)

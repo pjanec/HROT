@@ -78,7 +78,6 @@ namespace Bagira.Map.Common.Tests
             world.RegisterComponent<TargetMemory>();
             world.RegisterComponent<WeaponState>();
             world.RegisterComponent<Health>();
-            world.RegisterComponent<HealthData>();
             world.RegisterComponent<PhysicsCollider>();
             world.RegisterComponent<Faction>();
             world.RegisterComponent<VisualData>();

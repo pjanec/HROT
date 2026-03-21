@@ -89,7 +89,7 @@ namespace Bagira.IG.Translators
             return false;
         }
 
-        private static List<ContextAction> ParseActions(string? menuJson)
+        internal static List<ContextAction> ParseActions(string? menuJson)
         {
             var actions = new List<ContextAction>();
             if (string.IsNullOrWhiteSpace(menuJson))
@@ -121,9 +121,13 @@ namespace Bagira.IG.Translators
                             // Map well-known IOS numeric IDs to IG-local action names so
                             // they are executed on the IG side rather than round-tripped to IOS.
                             // Bagira.IOS.Logic.ContextMenuActions.CenterOnEntity = 1.
-                            actionName = id == 1
-                                ? "IG_CenterOnEntity"
-                                : id.ToString(CultureInfo.InvariantCulture);
+                            // Bagira.IOS.Logic.ContextMenuActions.Delete           = 10.
+                            actionName = id switch
+                            {
+                                1  => "IG_CenterOnEntity",
+                                10 => "IG_DeleteEntity",
+                                _  => id.ToString(CultureInfo.InvariantCulture)
+                            };
                         }
                         else
                             actionName = idProp.ToString() ?? label;

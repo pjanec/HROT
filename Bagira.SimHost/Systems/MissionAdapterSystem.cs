@@ -100,18 +100,44 @@ namespace Bagira.SimHost.Systems
                 // of Bus.SwapBuffers() calls the host performs between simulation steps.
                 // (DoctrineIngressSystem will still reset BrainBTreeState.State when the
                 // AssignDoctrineEvent is consumed on the next frame, which is fine.)
+                bool bbOk = false;
                 if (def?.ParseParams != null && World.HasComponent<BrainBlackboard>(entity))
                 {
                     ref var bb = ref World.GetComponentRW<BrainBlackboard>(entity);
                     fixed (byte* ptr = bb.Memory)
                     {
-                        try { def.ParseParams(jsonParams, ptr); }
+                        try { def.ParseParams(jsonParams, ptr); bbOk = true; }
                         catch { /* suppress malformed JSON — entity stays on previous params */ }
                     }
                 }
+                else if (def?.ParseParams == null)
+                {
+                    bbOk = true; // No params required — doctrine can be applied as-is.
+                }
 
-                // Also publish AssignDoctrineEvent so DoctrineIngressSystem can reset the
-                // BTree execution pointer and update BrainTier on the next frame.
+                // ── Direct DoctrineState update ───────────────────────────────────────────
+                // Apply the doctrine transition synchronously so BTreeTickSystem can begin
+                // execution on the NEXT simulation tick without waiting for AssignDoctrineEvent
+                // to survive through the Bus.SwapBuffers() calls that the test harness (and
+                // production runners) perform between lifecycle and simulation phases.
+                // DoctrineIngressSystem still receives the AssignDoctrineEvent published below
+                // and will re-apply the same values (idempotent for activeDoctrineHash/BrainTier;
+                // InstanceId will be incremented again, which is harmless).
+                if (bbOk && def != null)
+                {
+                    doctrine.ActiveDoctrineHash = phase.DoctrineId;
+                    unchecked { doctrine.InstanceId++; }
+                    doctrine.BrainTier = def.BrainTier;
+
+                    if (World.HasComponent<BrainBTreeState>(entity))
+                    {
+                        ref var btState = ref World.GetComponentRW<BrainBTreeState>(entity);
+                        btState.State = default;
+                    }
+                }
+
+                // Also publish AssignDoctrineEvent so DoctrineIngressSystem can re-apply
+                // the transition on the next tick (production pipeline compatibility).
                 World.Bus.PublishManaged(new AssignDoctrineEvent 
                 {
                     Entity = entity,

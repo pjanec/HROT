@@ -150,7 +150,6 @@ namespace Bagira.Map.Definitions.Tkb
                         : combatDefComponents.ArmorFront > 100f ? 150f
                         : 100f;
             template.AddComponent(new Health { Current = maxHp, Max = maxHp });
-            template.AddComponent(new HealthData { Current = maxHp, Max = maxHp });
             template.AddComponent(new PhysicsCollider
             {
                 Radius         = 2.5f,

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
+using Bagira.Map.Common.Helpers;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
@@ -284,35 +285,10 @@ namespace Bagira.SimHost.Systems
             return 0;
         }
 
+        /// <summary>
+        /// Delegates to <see cref="MissionTriggerHelper.ResolveTrigger"/> — shared implementation (BUG2-DEBT-01).
+        /// </summary>
         internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
-        {
-            if (triggers == null || triggers.Count == 0)
-                return (EcsMissionTrigger.TimerElapsed, float.MaxValue); // no trigger = hold phase indefinitely
-
-            var trigger = triggers[0];
-            var type = trigger.Type ?? string.Empty;
-
-            return type switch
-            {
-                "TimerElapsed"       => (EcsMissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
-                "ReachedDestination" => (EcsMissionTrigger.ReachedDestination, 0f),
-                "HealthCritical"     => (EcsMissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
-                "DoctrineFinished"   => (EcsMissionTrigger.DoctrineFinished, 0f),
-                "UnderAttack"        => (EcsMissionTrigger.UnderAttack,      0f),
-                // Unknown trigger strings fall back to TimerElapsed(0) as a safe observable failure mode.
-                _                    => (EcsMissionTrigger.TimerElapsed, 0f)
-            };
-        }
-
-        private static float ParseTriggerParam(string? raw)
-        {
-            if (string.IsNullOrWhiteSpace(raw))
-                return 0f;
-
-            return float.TryParse(raw, System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture, out var value)
-                ? value
-                : 0f;
-        }
+            => MissionTriggerHelper.ResolveTrigger(triggers);
     }
 }
