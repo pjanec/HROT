@@ -197,6 +197,7 @@ public sealed class DerEntityInspectorPanel
         var entity = repo.GetEntity(_selectedEntityId);
         if (entity == null)
         {
+            _selectedEntityId = NoSelection;
             ImGuiApi.TextDisabled("Entity no longer exists.");
             ImGuiApi.EndChild();
             return;
