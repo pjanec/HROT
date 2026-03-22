@@ -78,6 +78,12 @@ public interface IIosLogic
     void StartAreaAuthoringMode(string styleOverrideJson = "");
 
     /// <summary>
+    /// Activates the polyline route authoring tool. The operator draws a shared
+    /// <c>TacGraphic_Route</c> entity by clicking waypoints on the map canvas.
+    /// </summary>
+    void StartRouteAuthoringMode();
+
+    /// <summary>
     /// Activates the area polygon editing tool for the specified entity,
     /// allowing operators to drag individual vertices of an existing overlay.
     /// A <see cref="MapCommandRequest"/> with <c>CMD_START_EDITING</c> is

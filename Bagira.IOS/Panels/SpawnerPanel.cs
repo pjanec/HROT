@@ -160,6 +160,17 @@ public sealed class SpawnerPanel
         logic.StartAreaAuthoringMode(styleJson);
     }
 
+    /// <summary>
+    /// Handles the "DRAW ROUTE" button press.
+    /// Calls <see cref="IIosLogic.StartRouteAuthoringMode"/> to activate the
+    /// standalone <c>TacGraphic_Route</c> authoring pipeline on the IG canvas.
+    /// </summary>
+    public void HandleStartRouteAuthoring(IIosLogic logic)
+    {
+        ArgumentNullException.ThrowIfNull(logic);
+        logic.StartRouteAuthoringMode();
+    }
+
     // ── Draw stub (Phase P9) ──────────────────────────────────────────────────
 
     /// <summary>
@@ -217,6 +228,11 @@ public sealed class SpawnerPanel
 
         if (ImGui.Button("DRAW AREA"))
             HandleStartAreaAuthoring(logic);
+
+        ImGui.SameLine();
+
+        if (ImGui.Button("DRAW ROUTE"))
+            HandleStartRouteAuthoring(logic);
 
         ImGui.End();
     }

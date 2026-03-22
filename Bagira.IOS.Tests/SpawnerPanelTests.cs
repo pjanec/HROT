@@ -276,6 +276,26 @@ public class SpawnerPanelTests
         Assert.Throws<ArgumentNullException>(() => panel.HandleStartAreaAuthoring(null!));
     }
 
+    // ── HandleStartRouteAuthoring ────────────────────────────────────────────
+
+    [Fact]
+    public void HandleStartRouteAuthoring_CallsStartRouteAuthoringMode()
+    {
+        var logic = new Mock<IIosLogic>();
+        var panel = new SpawnerPanel(SampleCatalog);
+
+        panel.HandleStartRouteAuthoring(logic.Object);
+
+        logic.Verify(l => l.StartRouteAuthoringMode(), Times.Once);
+    }
+
+    [Fact]
+    public void HandleStartRouteAuthoring_NullLogic_Throws()
+    {
+        var panel = new SpawnerPanel();
+        Assert.Throws<ArgumentNullException>(() => panel.HandleStartRouteAuthoring(null!));
+    }
+
     // ── Negative: unselected type still forwarded ─────────────────────────────
 
     [Fact]

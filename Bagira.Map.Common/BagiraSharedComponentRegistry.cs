@@ -48,6 +48,9 @@ public static class BagiraSharedComponentRegistry
         world.RegisterComponent<SimTransform>();
         world.RegisterComponent<SimVelocity>();
 
+        // ── Hierarchical entity linking (personal routes, sub-entities) ──────
+        world.RegisterComponent<PartMetadata>();
+
         // ── Shared managed definitions ────────────────────────────────────────
         world.RegisterComponent<VisualData>();
         world.RegisterManagedComponent<SimCombatDef>();

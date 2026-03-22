@@ -127,6 +127,17 @@ namespace Bagira.SimHost.Brains
 
             bool needsActivation = channel.ActiveAction != NavigationConstants.ActionIdMoveTo
                 || channel.Status == NodeStatus.Failure;
+
+            // If this action is already active, forward the executor's terminal status so
+            // the BTree can finish and publish DoctrineFinishedEvent.
+            if (!needsActivation)
+            {
+                if (channel.Status == NodeStatus.Success)
+                    return NodeStatus.Success;
+                if (channel.Status == NodeStatus.Failure)
+                    return NodeStatus.Failure;
+            }
+
             if (needsActivation)
                 unchecked { channel.ActionInstanceId++; }
 

@@ -4,6 +4,7 @@ using Bagira.DDS.DM;
 using Bagira.IOS.Logic;
 using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
+using Bagira.Map.Common;
 using Bagira.Map.Common.Dds;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
@@ -322,6 +323,45 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
 
         FdpLog<IosLogic>.Debug(
             "[TRACE-IOS] Area Authoring Mode ON. ContextId={0}", ActiveContextId);
+    }
+
+    /// <inheritdoc/>
+    public void StartRouteAuthoringMode()
+    {
+        ThrowIfDisposed();
+
+        ActiveContextId = Guid.NewGuid();
+        PlacementType   = 0;
+
+        if (_commandWriter != null)
+        {
+            var requestId = Guid.NewGuid();
+            _lastCommandRequestId = requestId;
+            TransactionManager.TrackRequest(requestId, $"CMD_START_AUTHORING (Route) ctx={ActiveContextId:N}");
+
+            string argsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+            {
+                contextId = ActiveContextId.ToString("N"),
+                tkbType   = TkbEntityTypes.TacGraphic_Route
+            });
+
+            _commandWriter.Write(new MapCommandRequest
+            {
+                RequestId       = requestId,
+                MapId           = _targetMapId,
+                Type            = CommandType.CMD_START_AUTHORING,
+                CommandArgsJson = argsJson,
+            });
+            _interactionPanel.AddLog("TX", IosLogicConstants.LogTopicCommand,
+                $"CMD_START_AUTHORING (Route) ctx={ActiveContextId:N}");
+        }
+        else
+        {
+            _lastCommandRequestId = Guid.Empty;
+        }
+
+        FdpLog<IosLogic>.Debug(
+            "[TRACE-IOS] Route Authoring Mode ON. ContextId={0}", ActiveContextId);
     }
 
     /// <inheritdoc/>

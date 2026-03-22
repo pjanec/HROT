@@ -271,6 +271,85 @@ public class IosLogicTests
             Times.Once);
     }
 
+    // ── StartRouteAuthoringMode ─────────────────────────────────────────────
+
+    [Fact]
+    public void StartRouteAuthoringMode_SetsActiveContextId_ToNewNonEmptyGuid()
+    {
+        var (logic, _, _, _, _, _, _) = CreateSut();
+
+        logic.StartRouteAuthoringMode();
+
+        Assert.NotEqual(Guid.Empty, logic.ActiveContextId);
+    }
+
+    [Fact]
+    public void StartRouteAuthoringMode_ResetsPlacementType_ToZero()
+    {
+        var (logic, _, _, _, _, _, _) = CreateSut();
+
+        logic.StartPlacementMode(100L);
+        logic.StartRouteAuthoringMode();
+
+        Assert.Equal(0L, logic.PlacementType);
+    }
+
+    [Fact]
+    public void StartRouteAuthoringMode_CalledTwice_GeneratesDifferentContextIds()
+    {
+        var (logic, _, _, _, _, _, _) = CreateSut();
+
+        logic.StartRouteAuthoringMode();
+        var first = logic.ActiveContextId;
+
+        logic.StartRouteAuthoringMode();
+        var second = logic.ActiveContextId;
+
+        Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public void StartRouteAuthoringMode_WithCommandWriter_WritesCommandWithCmdStartAuthoring()
+    {
+        var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
+        MapCommandRequest? captured = null;
+        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
+            .Callback<MapCommandRequest>(r => captured = r);
+
+        logic.StartRouteAuthoringMode();
+
+        Assert.NotNull(captured);
+        Assert.Equal(CommandType.CMD_START_AUTHORING, captured!.Value.Type);
+    }
+
+    [Fact]
+    public void StartRouteAuthoringMode_WithCommandWriter_CommandArgsContainsTkbTypeRoute()
+    {
+        var (logic, commandWriter, _, _) = CreateSutWithCommandWriter();
+        MapCommandRequest? captured = null;
+        commandWriter.Setup(w => w.Write(It.IsAny<MapCommandRequest>()))
+            .Callback<MapCommandRequest>(r => captured = r);
+
+        logic.StartRouteAuthoringMode();
+
+        Assert.NotNull(captured);
+        // tkbType 8802 is TacGraphic_Route
+        Assert.Contains("8802", captured!.Value.CommandArgsJson);
+    }
+
+    [Fact]
+    public void StartRouteAuthoringMode_WithCommandWriter_TracksRequest()
+    {
+        var (logic, _, txMgr, _) = CreateSutWithCommandWriter();
+
+        logic.StartRouteAuthoringMode();
+
+        txMgr.Verify(t => t.TrackRequest(
+            It.Is<Guid>(id => id != Guid.Empty),
+            It.IsAny<string>()),
+            Times.Once);
+    }
+
     [Fact]
     public void PlacementFlow_EmitsTraceSequence()
     {

@@ -1,21 +1,18 @@
 
-[BUG] Vehicle given MoveToLocation mission task does not start moving. Probably missing DoctrineFinished trigger case?
-[BUG] still getting 2 identical acks for update entity descriptor request dtGeoSpatial (running each IOS, IG, SimHost standalone)
-[BUG] map configuration IOS panel still contains tool selection combo although the tools are no more started via map configuration json
-[BUG] on IG no idea how to enable immediate drag mode - no UI for that. I would like to activate the immediate mode when SHIFT is pressed during dragging;
-[BUG] Selection & Mission editor does not show any trigger selection UI - there should be a combo for trigger and textbox for trigger parameters. With button for insering some valid default parameter json so that the user can easily change it. 
-[BUG] Buttons for Mission Task Up/Down/Delete operations should contain normal text, now unreadable symbol only.
-[BUG] When map layer with ground vehicles is turned off, now invisible entities still can be selected . Also currently selected but now invisible entity remains selected, still showing selection indicator on the 2d.
-[BUG] I still can not see any road graph rendered on simhost, even if standalone ig app started from proper Bagira.runner project folder - maybe the roadmap file not found or failed to load or something
-[BUG] This might also prevent the road picking when mission task FollowRoute is selected in IOS mission task editor, preventing to use this kind of task. The road picker should show specific cursor/indicator.
-[BUG] Measure tool should show specific cursor/inidcator when waiting for first click - now not clear that the tool is active.
-[BUG] ENtity inspector UI should support in its context menu a field for deleting the entity (using proper networked way using ELM, no shortcuts)
-[BUG] GeoSpatialDR descriptor not disposed when entity deleted. Maybe this issue is there for other entity descriptors as well?
-[BUG] ORBAT Tree in IOS does not indent the subordinates, they appear at the same level as their commander - not good UX
-[BUG] IOS Mission editor does not seem to handle the version conflict - no warning that information is obsolete, no possibility to forget user changes and update to latest
-[BUG] There are similar ECS components Health and HealthData - are they needed both?
-[BUG] The DELETE context menu item sent from IOS does nothing when clicked on IOS - entity not deletes. Should use proper netwroked ELM mechanism.
+When i create a new vehicle entity, select it and in IG i press Shift+Right mouse button, i get exception 
+Error in system PersonalRouteAuthoringSystem: System.InvalidOperationException: Component PartMetadata is not registered. Call RegisterComponent<PartMetadata>() first.
+   at Fdp.Kernel.EntityRepository.GetTable[T](Boolean allowCreate) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Kernel\Fdp.Kernel\EntityRepository.cs:line 1337
+   at Fdp.Kernel.EntityRepository.AddUnmanagedComponent[T](Entity entity, T& component) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Kernel\Fdp.Kernel\EntityRepository.cs:line 900
+   at Bagira.SimHost.Systems.Routing.PersonalRouteAuthoringSystem.OnUpdate() in D:\Work\IOS-IG-SimHost-FDP-2\Bagira.SimHost\Systems\Routing\PersonalRouteAuthoringSystem.cs:line 132
+   at Fdp.Kernel.ComponentSystem.InternalUpdate() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Kernel\Fdp.Kernel\ComponentSystem.cs:line 114
+   at Fdp.Kernel.SystemGroup.OnUpdate() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Kernel\Fdp.Kernel\SystemGroup.cs:line 37
 
+[BUG] When i delete tank platoon unit entity, the subordinate (physical) units are not deleted. Shouldn't they?
+
+
+[BUG] When i delete the entity which is shown in the orbat tree on IOS, the entity stays shown. The IOS entity inspector
+is still showing this entity as existing. Maybe the DER library is not catching the disposal of EntityMaster
+and not deleting the entity from its repository?
 
 
 
