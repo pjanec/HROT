@@ -44,24 +44,29 @@ namespace FDP.Toolkit.DER
             foreach (var sample in loan)
             {
                 long handle = sample.Info.InstanceHandle;
-                
+
+                // NOTE: dispose notifications can arrive with IsValid == true when the dispose
+                // message carries key data. Must check instance state BEFORE IsValid so that
+                // entity teardown is never silently swallowed by the alive-update branch.
+                // Also covers NotAliveNoWriters (remote node crash / disconnect).
+                if (sample.Info.InstanceState != DdsInstanceState.Alive)
+                {
+                    if (_handleMap.TryRemove(handle, out int id))
+                    {
+                        _repo.DeleteEntity(id);
+                    }
+                    continue;
+                }
+
                 if (sample.IsValid)
                 {
                     int id = _getEntityId(sample.Data);
                     FdpLog<MasterIngressHandler<T>>.Debug(
                         "[TRACE-IOS] DER: Received EntityMaster for NetID {0}. Storing in Repo.", id);
                     _handleMap[handle] = id;
-                    
+
                     var entity = _repo.GetEntity(id) ?? _repo.CreateEntity(id, _getTkbType(sample.Data));
                     entity.SetDescriptor(sample.Data);
-                }
-                else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
-                {
-                    // Clean up entity when Master is disposed
-                    if (_handleMap.TryRemove(handle, out int id))
-                    {
-                        _repo.DeleteEntity(id);
-                    }
                 }
             }
         }
