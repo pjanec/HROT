@@ -98,19 +98,19 @@ public sealed class MissionControlAckIngressHandler : IIngressHandler, IDisposab
 }
 
 /// <summary>
-/// DDS ingress handler that enqueues <see cref="CreateEntityAck"/> samples so that
-/// <see cref="Bagira.IOS.IosLogic"/> can correlate creation responses, log them to the
-/// interaction panel, and auto-select the newly created entity.
+/// DDS ingress handler that enqueues <see cref="CreateUpdateDeleteEntityAck"/> samples so that
+/// <see cref="Bagira.IOS.IosLogic"/> can process two-phase entity lifecycle acknowledgments,
+/// manage the pending-entity set, and surface errors to the operator.
 /// </summary>
-public sealed class CreateEntityAckIngressHandler : IIngressHandler, IDisposable
+public sealed class CreateUpdateDeleteEntityAckIngressHandler : IIngressHandler, IDisposable
 {
-    private readonly DdsReader<CreateEntityAck> _reader;
-    private readonly IEventQueue<CreateEntityAck> _queue;
+    private readonly DdsReader<CreateUpdateDeleteEntityAck> _reader;
+    private readonly IEventQueue<CreateUpdateDeleteEntityAck> _queue;
     private readonly int _maxSamples;
 
-    public CreateEntityAckIngressHandler(DdsParticipant participant, IEventQueue<CreateEntityAck> queue, int maxSamples = 10)
+    public CreateUpdateDeleteEntityAckIngressHandler(DdsParticipant participant, IEventQueue<CreateUpdateDeleteEntityAck> queue, int maxSamples = 10)
     {
-        _reader = new DdsReader<CreateEntityAck>(participant, "CreateEntityAck");
+        _reader = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
         _queue  = queue ?? throw new ArgumentNullException(nameof(queue));
         _maxSamples = Math.Max(1, maxSamples);
     }
@@ -121,9 +121,9 @@ public sealed class CreateEntityAckIngressHandler : IIngressHandler, IDisposable
         foreach (var sample in loan)
         {
             if (!sample.IsValid) continue;
-            FdpLog<CreateEntityAckIngressHandler>.Debug(
-                "[TRACE-IOS] CreateEntityAck ingress req={0} newId={1} err={2}",
-                sample.Data.RequestId, sample.Data.NewEntityId, sample.Data.ErrorCode);
+            FdpLog<CreateUpdateDeleteEntityAckIngressHandler>.Debug(
+                "[TRACE-IOS] CreateUpdateDeleteEntityAck ingress req={0} entityId={1} status={2}",
+                sample.Data.RequestId, sample.Data.EntityId, sample.Data.StatusCode);
             _queue.Enqueue(sample.Data);
         }
     }

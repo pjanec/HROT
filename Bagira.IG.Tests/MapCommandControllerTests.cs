@@ -129,11 +129,11 @@ public class MapCommandControllerTests
         // Tool has auto-popped; entityWriter has one request.
 
         var entityReqId = entityWriter.Written[0].RequestId;
-        ctrl.OnCreateEntityAck(new CreateEntityAck
+        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck
         {
-            RequestId   = entityReqId,
-            NewEntityId = 99,
-            ErrorCode   = 0
+            RequestId  = entityReqId,
+            EntityId   = 99,
+            StatusCode = 0
         });
 
         Assert.Single(ackWriter.Written);
@@ -154,11 +154,11 @@ public class MapCommandControllerTests
         var tool = (CreationTool)canvas.ActiveTool!;
         tool.HandleClick(new Vector2(1f, 2f), MouseButton.Left);
 
-        ctrl.OnCreateEntityAck(new CreateEntityAck
+        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck
         {
-            RequestId   = Guid.NewGuid(), // deliberate mismatch
-            NewEntityId = 1,
-            ErrorCode   = 0
+            RequestId  = Guid.NewGuid(), // deliberate mismatch
+            EntityId   = 1,
+            StatusCode = 0
         });
 
         Assert.Empty(ackWriter.Written);
@@ -201,11 +201,11 @@ public class MapCommandControllerTests
 
         ((CreationTool)canvas.ActiveTool!).HandleClick(new Vector2(1f, 2f), MouseButton.Left);
 
-        ctrl.OnCreateEntityAck(new CreateEntityAck
+        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck
         {
-            RequestId   = entityWriter.Written[0].RequestId,
-            NewEntityId = 42,
-            ErrorCode   = 0
+            RequestId  = entityWriter.Written[0].RequestId,
+            EntityId   = 42,
+            StatusCode = 0
         });
 
         Assert.Contains("42", ackWriter.Written[0].DataJson);
@@ -233,11 +233,11 @@ public class MapCommandControllerTests
         // Entity request must have been forwarded.
         Assert.Single(entityWriter.Written);
 
-        ctrl.OnCreateEntityAck(new CreateEntityAck
+        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck
         {
-            RequestId   = areaRequest.RequestId,
-            NewEntityId = 10,
-            ErrorCode   = 0
+            RequestId  = areaRequest.RequestId,
+            EntityId   = 10,
+            StatusCode = 0
         });
 
         Assert.Single(ackWriter.Written);
@@ -277,11 +277,11 @@ public class MapCommandControllerTests
     {
         var (_, _, ackWriter, ctrl) = BuildController();
 
-        ctrl.OnCreateEntityAck(new CreateEntityAck
+        ctrl.OnCreateEntityAck(new CreateUpdateDeleteEntityAck
         {
-            RequestId   = Guid.NewGuid(),
-            NewEntityId = 1,
-            ErrorCode   = 0
+            RequestId  = Guid.NewGuid(),
+            EntityId   = 1,
+            StatusCode = 0
         });
 
         Assert.Empty(ackWriter.Written);
@@ -372,4 +372,45 @@ public class MapCommandControllerTests
         // No binary records on the legacy path.
         Assert.Null(req.InitialAttributeRecords);
     }
+
+    // ── OC1-B001 regression: BeginAreaAuthoringSession required before OnAreaEntityCreated ──
+
+    /// <summary>
+    /// OC1-B001 regression: Calling <see cref="MapCommandController.OnAreaEntityCreated"/>
+    /// without a preceding <see cref="MapCommandController.BeginAreaAuthoringSession"/> must
+    /// silently drop the request — the guard <c>if (_sessionRequestId == Guid.Empty) return</c>
+    /// prevents writes to the DDS writer when no session is established.
+    ///
+    /// <para>This test documents the bug condition so it is detectable if the guard is removed.</para>
+    /// </summary>
+    [Fact]
+    public void OnAreaEntityCreated_WithoutBeginSession_IsDropped()
+    {
+        var (_, entityWriter, _, ctrl) = BuildController();
+
+        ctrl.OnAreaEntityCreated(new CreateEntityRequest { RequestId = Guid.NewGuid() });
+
+        Assert.Empty(entityWriter.Written);
+    }
+
+    /// <summary>
+    /// OC1-B001 regression: After <see cref="MapCommandController.BeginAreaAuthoringSession"/>
+    /// is called with a non-empty requestId, <see cref="MapCommandController.OnAreaEntityCreated"/>
+    /// must forward the request to the entity writer.
+    ///
+    /// <para>This verifies the fix: <c>ActivateRouteAuthoringTool</c> must call
+    /// <c>BeginAreaAuthoringSession</c> before pushing the PointSequenceTool so the
+    /// session is established and <c>OnAreaEntityCreated</c> does not return early.</para>
+    /// </summary>
+    [Fact]
+    public void OnAreaEntityCreated_AfterBeginSession_WritesRequest()
+    {
+        var (_, entityWriter, _, ctrl) = BuildController();
+        ctrl.BeginAreaAuthoringSession(Guid.NewGuid(), Guid.NewGuid());
+
+        ctrl.OnAreaEntityCreated(new CreateEntityRequest { RequestId = Guid.NewGuid() });
+
+        Assert.Single(entityWriter.Written);
+    }
 }
+

@@ -41,6 +41,10 @@ public class ContinuousDragTests
     {
         public int Calls { get; private set; }
         public void SendUpdateDescriptor(UpdateEntityDescriptorRequest request) => Calls++;
+        public System.Threading.Tasks.Task<CreateUpdateDeleteEntityAck> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000)
+            => System.Threading.Tasks.Task.FromResult(new CreateUpdateDeleteEntityAck());
+        public System.Threading.Tasks.Task<MissionControlAck> SendMissionControlRequestAsync(MissionControlRequest request, int timeoutMs = 5000)
+            => System.Threading.Tasks.Task.FromResult(new MissionControlAck());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

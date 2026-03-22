@@ -112,6 +112,7 @@ internal static class IntegrationFactory
             clickQueue:          igStub.ClickQueue,
             selectionQueue:      igStub.SelectionQueue,
             interactionPanel:    interactionPanel,
+            createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>(),
             ingressHandlers:     new[] { (IIngressHandler)missionSvc });
 
         var mock = new IosMock(

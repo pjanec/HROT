@@ -112,7 +112,7 @@ public sealed class ConfigPanel
         ImGui.Checkbox("Air Units",          ref _airUnits);
         ImGui.Checkbox("Vehicles",           ref _vehicles);
         ImGui.Checkbox("Tactical Graphics",  ref _tacticalGraphics);
-        ImGui.Checkbox("Road Graphs",        ref _roadGraphs);
+        ImGui.Checkbox("Routes",             ref _roadGraphs);
         ImGui.Checkbox("Grid",               ref _grid);
 
         float scale = _iconScale;

@@ -5,6 +5,7 @@ using System.Text.Json;
 using Bagira.BDC.SSTD;
 using Bagira.DDS.DM;
 using Bagira.IG.Components;
+using Bagira.Map.Common.Components;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Replication.Patching;
@@ -135,6 +136,32 @@ namespace Bagira.Map.Common.Replication.Utils
                                 d.GeoSpatialDR.RotVel.Pitch * (MathF.PI / 180f),
                                 d.GeoSpatialDR.RotVel.Heading * (MathF.PI / 180f))
                         });
+                        break;
+
+                    case EDescriptorType.dtMapRoute:
+                        // Build a RoutePlan component from the incoming waypoints.
+                        // Silently skip if geoTransform is null or Points is null/empty.
+                        if (geoTransform != null && d.MapRoute.Points != null)
+                        {
+                            var routePlan = new RoutePlan { IsLoop = d.MapRoute.IsLoop };
+                            routePlan.Mutate(wps =>
+                            {
+                                foreach (var wp in d.MapRoute.Points)
+                                {
+                                    var cart = geoTransform.ToCartesian(
+                                        wp.Position.Latitude,
+                                        wp.Position.Longitude,
+                                        wp.Position.Altitude);
+                                    wps.Add(new RouteWaypoint
+                                    {
+                                        Position      = cart,
+                                        TargetSpeed   = (float)wp.SpeedMetersPerSec,
+                                        ExtensionJson = string.IsNullOrEmpty(wp.ExtensionJson) ? null : wp.ExtensionJson,
+                                    });
+                                }
+                            });
+                            result.Add(routePlan);
+                        }
                         break;
 
                     case EDescriptorType.dtMapVisualOverlay:

@@ -24,8 +24,9 @@ namespace Bagira.SimHost.Systems
     /// <list type="number">
     ///   <item>Drains the source via a zero-allocation callback (no <c>List</c> alloc on ingress).</item>
     ///   <item>Validates each request and allocates a network ID immediately.</item>
-    ///   <item>Sends a <see cref="CreateEntityAck"/> right away so the IG client unblocks
-    ///     with minimal latency regardless of how many entities are queued.</item>
+    ///   <item>Sends a Phase 1 <see cref="CreateUpdateDeleteEntityAck"/> (InProgress) right away
+    ///     so the IOS client unblocks with minimal latency regardless of how many entities are queued.</item>
+    ///   <item>Registers the request with <see cref="SstRequestFinalizationSystem"/> for Phase 2 tracking.</item>
     ///   <item>Enqueues the pre-validated data for time-sliced processing.</item>
     ///   <item>Pops up to <see cref="MaxRequestsPerTick"/> items and publishes
     ///     <see cref="SpawnEntityCommand"/> events for <c>NetworkSpawningSystem</c>.</item>
@@ -42,14 +43,15 @@ namespace Bagira.SimHost.Systems
         /// <summary>Maximum <see cref="SpawnEntityCommand"/> events published per tick.</summary>
         public const int MaxRequestsPerTick = 500;
 
-        private readonly ICreateEntityRequestSource _requestSource;
-        private readonly ICreateEntityAckSink       _ackSink;
-        private readonly ITkbDatabase               _tkbDb;
-        private readonly INetworkIdAllocator        _idAllocator;
-        private readonly IGeographicTransform?      _geoTransform;
-        private readonly int                        _localNodeId;
-        private readonly JsonAttributeCompiler?     _jsonCompiler;
-        private readonly BinaryInterpreter?         _binaryInterpreter;
+        private readonly ICreateEntityRequestSource         _requestSource;
+        private readonly ICreateUpdateDeleteEntityAckSink   _ackSink;
+        private readonly ITkbDatabase                       _tkbDb;
+        private readonly INetworkIdAllocator                _idAllocator;
+        private readonly IGeographicTransform?              _geoTransform;
+        private readonly int                                _localNodeId;
+        private readonly JsonAttributeCompiler?             _jsonCompiler;
+        private readonly BinaryInterpreter?                 _binaryInterpreter;
+        private readonly SstRequestFinalizationSystem?      _finalizationSystem;
 
         /// <summary>
         /// Reusable <see cref="ListPatchContext"/> instance. Reset per entity-creation call
@@ -63,7 +65,7 @@ namespace Bagira.SimHost.Systems
         private readonly Queue<PendingRequest> _pendingQueue = new(capacity: MaxRequestsPerTick * 4);
 
         /// <param name="requestSource">Source of incoming CreateEntityRequest messages (DDS-backed or stub).</param>
-        /// <param name="ackSink">Sink for CreateEntityAck responses (DDS-backed or stub).</param>
+        /// <param name="ackSink">Sink for CreateUpdateDeleteEntityAck responses (DDS-backed or stub).</param>
         /// <param name="tkbDb">TKB database used to validate that the requested entity type exists.</param>
         /// <param name="idAllocator">Allocator that produces unique network entity IDs.</param>
         /// <param name="localNodeId">This node's ID used as <c>OwnerNodeId</c> in SpawnEntityCommand.</param>
@@ -81,24 +83,30 @@ namespace Bagira.SimHost.Systems
         /// binary attribute overrides. Processed before the JSON path.
         /// When <c>null</c>, <c>InitialAttributeRecords</c> is ignored.
         /// </param>
+        /// <param name="finalizationSystem">
+        /// Optional <see cref="SstRequestFinalizationSystem"/> for Two-ACK lifecycle tracking.
+        /// When provided, the system registers each creation request for Phase 2 ACK dispatch.
+        /// </param>
         public CreateEntityRequestSystem(
-            ICreateEntityRequestSource requestSource,
-            ICreateEntityAckSink       ackSink,
-            ITkbDatabase               tkbDb,
-            INetworkIdAllocator        idAllocator,
-            int                        localNodeId,
-            IGeographicTransform?      geoTransform = null,
-            JsonAttributeCompiler      jsonAttributeCompiler = null!,
-            BinaryInterpreter?         binaryInterpreter = null)
+            ICreateEntityRequestSource          requestSource,
+            ICreateUpdateDeleteEntityAckSink    ackSink,
+            ITkbDatabase                        tkbDb,
+            INetworkIdAllocator                 idAllocator,
+            int                                 localNodeId,
+            IGeographicTransform?               geoTransform = null,
+            JsonAttributeCompiler               jsonAttributeCompiler = null!,
+            BinaryInterpreter?                  binaryInterpreter = null,
+            SstRequestFinalizationSystem?       finalizationSystem = null)
         {
-            _requestSource    = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
-            _ackSink          = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
-            _tkbDb            = tkbDb         ?? throw new ArgumentNullException(nameof(tkbDb));
-            _idAllocator      = idAllocator   ?? throw new ArgumentNullException(nameof(idAllocator));
-            _localNodeId      = localNodeId;
-            _geoTransform     = geoTransform;
-            _jsonCompiler     = jsonAttributeCompiler;
-            _binaryInterpreter = binaryInterpreter;
+            _requestSource      = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
+            _ackSink            = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));
+            _tkbDb              = tkbDb         ?? throw new ArgumentNullException(nameof(tkbDb));
+            _idAllocator        = idAllocator   ?? throw new ArgumentNullException(nameof(idAllocator));
+            _localNodeId        = localNodeId;
+            _geoTransform       = geoTransform;
+            _jsonCompiler       = jsonAttributeCompiler;
+            _binaryInterpreter  = binaryInterpreter;
+            _finalizationSystem = finalizationSystem;
             _processRequestDelegate = ProcessIncomingRequest;
         }
 
@@ -141,7 +149,7 @@ namespace Bagira.SimHost.Systems
                 {
                     FdpLog<CreateEntityRequestSystem>.Warn(
                         $"[SimHost] CreateEntity {request.RequestId}: No EntityMaster descriptor or TkbType=0. Rejecting.");
-                    SendErrorAck(request.RequestId, errorCode: 400);
+                    SendErrorAck(request.RequestId, SstStatusCode.UnknownDescriptorType);
                     return;
                 }
 
@@ -150,18 +158,21 @@ namespace Bagira.SimHost.Systems
                 {
                     FdpLog<CreateEntityRequestSystem>.Warn(
                         $"[SimHost] CreateEntity {request.RequestId}: TkbType={tkbType} not found. Rejecting.");
-                    SendErrorAck(request.RequestId, errorCode: 404);
+                    SendErrorAck(request.RequestId, SstStatusCode.UnknownDescriptorType);
                     return;
                 }
 
-                // Allocate a network ID and immediately ACK — client unblocks now.
+                // Allocate a network ID and immediately send Phase 1 ACK (InProgress) — client unblocks now.
                 long newNetworkId = _idAllocator.AllocateId();
-                _ackSink.WriteAck(new CreateEntityAck
+                _ackSink.WriteAck(new CreateUpdateDeleteEntityAck
                 {
-                    RequestId   = request.RequestId,
-                    NewEntityId = (int)newNetworkId,
-                    ErrorCode   = 0,
+                    RequestId  = request.RequestId,
+                    EntityId   = (int)newNetworkId,
+                    StatusCode = (int)SstStatusCode.InProgress,
                 });
+
+                // Register for Phase 2 ACK dispatch once ELM confirms lifecycle.
+                _finalizationSystem?.Track(newNetworkId, request.RequestId, RequestKind.Create);
 
                 _pendingQueue.Enqueue(new PendingRequest
                 {
@@ -175,7 +186,7 @@ namespace Bagira.SimHost.Systems
             {
                 FdpLog<CreateEntityRequestSystem>.Error(
                     $"[SimHost] CreateEntity ingress failed for request {request.RequestId}: {ex.Message}");
-                SendErrorAck(request.RequestId, errorCode: 500);
+                SendErrorAck(request.RequestId, SstStatusCode.UnknownDescriptorType);
             }
         }
 
@@ -338,13 +349,13 @@ namespace Bagira.SimHost.Systems
             }
         }
 
-        private void SendErrorAck(Guid requestId, int errorCode)
+        private void SendErrorAck(Guid requestId, SstStatusCode errorCode)
         {
-            _ackSink.WriteAck(new CreateEntityAck
+            _ackSink.WriteAck(new CreateUpdateDeleteEntityAck
             {
-                RequestId   = requestId,
-                NewEntityId = 0,
-                ErrorCode   = errorCode,
+                RequestId  = requestId,
+                EntityId   = 0,
+                StatusCode = (int)errorCode,
             });
         }
 

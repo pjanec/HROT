@@ -342,4 +342,139 @@ public class RouteEditToolTests
 
         Assert.Throws<InvalidOperationException>(() => tool.GetSelectedWaypointRef());
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Vertex context menu — right-click behaviour
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Right-clicking within pick radius of a waypoint must set
+    /// <see cref="RouteEditTool.PendingVertexContextMenu"/> and NOT commit.
+    /// </summary>
+    [Fact]
+    public void RightClickOnVertex_SetsPendingVertexContextMenu_NoCommit()
+    {
+        int commitCount = 0;
+        var tool = CreateAndEnter(MakeThreeWaypointPlan(),
+            onCommit: (_, _) => commitCount++);
+
+        tool.HandleClick(NearWp1, MouseButton.Right);
+
+        Assert.True(tool.PendingVertexContextMenu);
+        Assert.Equal(0, commitCount);
+    }
+
+    /// <summary>
+    /// Right-clicking far from all waypoints must commit immediately.
+    /// </summary>
+    [Fact]
+    public void RightClickFarFromVertices_CommitsImmediately()
+    {
+        int commitCount = 0;
+        var tool = CreateAndEnter(MakeThreeWaypointPlan(),
+            onCommit: (_, _) => commitCount++);
+
+        tool.HandleClick(FarClick, MouseButton.Right);
+
+        Assert.Equal(1, commitCount);
+        Assert.False(tool.PendingVertexContextMenu);
+    }
+
+    /// <summary>
+    /// <see cref="RouteEditTool.ContextMenuVertexIndex"/> must identify the right-clicked vertex.
+    /// </summary>
+    [Fact]
+    public void RightClickOnVertex_SetsCorrectContextMenuVertexIndex()
+    {
+        var tool = CreateAndEnter(MakeThreeWaypointPlan());
+
+        tool.HandleClick(NearWp1, MouseButton.Right);
+
+        Assert.Equal(1, tool.ContextMenuVertexIndex);
+    }
+
+    // ── Insert waypoint ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="RouteEditTool.InsertWaypointAfterSelected"/> must add one waypoint at the
+    /// midpoint between vertex[N] and vertex[N+1], inheriting speed, and clear the menu flag.
+    /// </summary>
+    [Fact]
+    public void InsertWaypointAfterSelected_AddsWaypointAtMidpointWithInheritedSpeed()
+    {
+        var tool = CreateAndEnter(MakeThreeWaypointPlan());
+        tool.HandleClick(NearWp1, MouseButton.Right); // ctx menu for waypoint 1
+
+        int countBefore = tool.GhostWaypoints.Count;
+        tool.InsertWaypointAfterSelected();
+
+        Assert.Equal(countBefore + 1, tool.GhostWaypoints.Count);
+        Assert.False(tool.PendingVertexContextMenu);
+
+        // New waypoint inherits speed of waypoint 1.
+        Assert.Equal(15f, tool.GhostWaypoints[2].TargetSpeed, precision: 4);
+    }
+
+    // ── Delete waypoint ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="RouteEditTool.DeleteSelectedWaypoint"/> must remove the waypoint and
+    /// clear PendingVertexContextMenu.
+    /// </summary>
+    [Fact]
+    public void DeleteSelectedWaypoint_RemovesWaypoint()
+    {
+        var tool = CreateAndEnter(MakeThreeWaypointPlan());
+        tool.HandleClick(NearWp1, MouseButton.Right);
+
+        tool.DeleteSelectedWaypoint();
+
+        Assert.Equal(2, tool.GhostWaypoints.Count);
+        Assert.False(tool.PendingVertexContextMenu);
+    }
+
+    /// <summary>
+    /// Attempting to delete when only 2 waypoints remain must be a no-op
+    /// (minimum viable route preserved).
+    /// </summary>
+    [Fact]
+    public void DeleteSelectedWaypoint_WhenOnly2Remain_IsNoOp()
+    {
+        var twoWpPlan = new RoutePlan();
+        twoWpPlan.Mutate(wps =>
+        {
+            wps.Add(new RouteWaypoint { Position = Wp0Pos });
+            wps.Add(new RouteWaypoint { Position = Wp1Pos });
+        });
+        var tool = CreateAndEnter(twoWpPlan);
+
+        // Right-click near Wp1 to open context menu.
+        tool.HandleClick(NearWp1, MouseButton.Right);
+        tool.DeleteSelectedWaypoint();
+
+        Assert.Equal(2, tool.GhostWaypoints.Count);
+        Assert.False(tool.PendingVertexContextMenu);
+    }
+
+    // ── Close context menu ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="RouteEditTool.CloseVertexContextMenu"/> must clear
+    /// <see cref="RouteEditTool.PendingVertexContextMenu"/> without committing.
+    /// </summary>
+    [Fact]
+    public void CloseVertexContextMenu_ClearsPendingFlagWithoutCommit()
+    {
+        int commitCount = 0;
+        var tool = CreateAndEnter(MakeThreeWaypointPlan(),
+            onCommit: (_, _) => commitCount++);
+
+        tool.HandleClick(NearWp1, MouseButton.Right);
+        Assert.True(tool.PendingVertexContextMenu);
+
+        tool.CloseVertexContextMenu();
+
+        Assert.False(tool.PendingVertexContextMenu);
+        Assert.Equal(0, commitCount);
+    }
 }

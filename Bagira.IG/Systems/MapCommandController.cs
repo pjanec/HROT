@@ -223,7 +223,12 @@ public class MapCommandController
     /// </summary>
     public void OnAreaEntityCreated(CreateEntityRequest request, bool isToolDone = true)
     {
-        if (_sessionRequestId == Guid.Empty) return;
+        if (_sessionRequestId == Guid.Empty)
+        {
+            FdpLog<MapCommandController>.Warn(
+                "[MapCommandController] OnAreaEntityCreated called with no active session — request dropped.");
+            return;
+        }
 
         _createEntityWriter.Write(request);
         _pendingEntityRequests[request.RequestId] = true;
@@ -257,31 +262,35 @@ public class MapCommandController
 
     /// <summary>
     /// Called by <see cref="IgApplication"/> each frame to forward an incoming
-    /// <see cref="CreateEntityAck"/> to the active session, if any.
+    /// <see cref="CreateUpdateDeleteEntityAck"/> to the active session, if any.
+    /// Only InProgress (StatusCode=1) and Success (StatusCode=0) ACKs with the entity ID are relevant.
     /// </summary>
-    public void OnCreateEntityAck(CreateEntityAck ack)
+    public void OnCreateEntityAck(CreateUpdateDeleteEntityAck ack)
     {
         if (_sessionRequestId == Guid.Empty) return;
         if (!_pendingEntityRequests.ContainsKey(ack.RequestId)) return;
 
-        _pendingEntityRequests.Remove(ack.RequestId);
+        // Only remove from pending on terminal ACKs (success or error).
+        // InProgress ACK (StatusCode=1) carries the EntityId — use it for routing but keep pending.
+        if (ack.StatusCode != (int)SstStatusCode.InProgress)
+            _pendingEntityRequests.Remove(ack.RequestId);
 
-        if (ack.ErrorCode != 0)
+        if (ack.StatusCode >= 2)
         {
             FdpLog<MapCommandController>.Warn(
-                "[MapCommandController] CreateEntityAck error={0} for req={1}",
-                ack.ErrorCode, ack.RequestId);
+                "[MapCommandController] CreateUpdateDeleteEntityAck error={0} for req={1}",
+                ack.StatusCode, ack.RequestId);
             // Treat as intermediate failure; don't abort the session.
             return;
         }
 
         FdpLog<MapCommandController>.Debug(
-            "[MapCommandController] CreateEntityAck OK entityId={0}", ack.NewEntityId);
+            "[MapCommandController] CreateUpdateDeleteEntityAck status={0} entityId={1}", ack.StatusCode, ack.EntityId);
 
         // If the tool is still active → intermediate ack (more entities may follow).
         // If the tool is already done → final ack.
         bool isFinal = _toolFinished && _pendingEntityRequests.Count == 0;
-        string dataJson = BuildEntityIdJson(ack.NewEntityId);
+        string dataJson = BuildEntityIdJson(ack.EntityId);
 
         PublishAck(isFinal ? StatusFinished : StatusIntermediate, dataJson);
 

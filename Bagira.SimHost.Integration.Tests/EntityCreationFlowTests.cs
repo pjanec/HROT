@@ -61,15 +61,15 @@ namespace Bagira.SimHost.Integration.Tests
             // ── Assert: ACK ───────────────────────────────────────────────────────────────
             Assert.NotNull(ack);
             Assert.Equal(requestId, ack!.Value.RequestId);
-            Assert.Equal(0, ack.Value.ErrorCode);
-            Assert.True(ack.Value.NewEntityId > 0,
-                $"Expected a positive network entity ID, got {ack.Value.NewEntityId}.");
+            Assert.Equal(0, ack.Value.StatusCode);
+            Assert.True(ack.Value.EntityId > 0,
+                $"Expected a positive network entity ID, got {ack.Value.EntityId}.");
 
             // ── Assert: TkbIdentity component ──────────────────────────────────────────────────────────────────────
             // Allow a few more ticks for ELM lifecycle processing to complete.
             _host.RunForTicks(5);
 
-            var tkbId = _client.ReadTkbIdentity(ack.Value.NewEntityId);
+            var tkbId = _client.ReadTkbIdentity(ack.Value.EntityId);
             Assert.NotNull(tkbId);
             Assert.Equal(TkbEntityTypes.Tank_M1Abrams, tkbId!.Value.TkbType);
         }
@@ -91,9 +91,9 @@ namespace Bagira.SimHost.Integration.Tests
 
             Assert.NotNull(ack1);
             Assert.NotNull(ack2);
-            Assert.Equal(0, ack1!.Value.ErrorCode);
-            Assert.Equal(0, ack2!.Value.ErrorCode);
-            Assert.NotEqual(ack1.Value.NewEntityId, ack2.Value.NewEntityId);
+            Assert.Equal(0, ack1!.Value.StatusCode);
+            Assert.Equal(0, ack2!.Value.StatusCode);
+            Assert.NotEqual(ack1.Value.EntityId, ack2.Value.EntityId);
         }
 
         /// <summary>
@@ -116,7 +116,7 @@ namespace Bagira.SimHost.Integration.Tests
             var ack = await _client.WaitForAckAsync(requestId, timeoutMs: 3000);
 
             Assert.NotNull(ack);
-            Assert.NotEqual(0, ack!.Value.ErrorCode);  // Must be an error code
+            Assert.NotEqual(0, ack!.Value.StatusCode);  // Must be an error code
         }
 
         // ── JSON attribute patching tests ────────────────────────────────────────────────
@@ -139,11 +139,11 @@ namespace Bagira.SimHost.Integration.Tests
             var ack = await _client.WaitForAckAsync(reqId, timeoutMs: 3000);
 
             Assert.NotNull(ack);
-            Assert.Equal(0, ack!.Value.ErrorCode);
+            Assert.Equal(0, ack!.Value.StatusCode);
             _host.RunForTicks(5);
 
             // Assert
-            var igData = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            var igData = _client.ReadIgEntityData(ack.Value.EntityId);
             Assert.NotNull(igData);
             Assert.Equal(ForceId.Hostile, igData!.Value.ForceId);
         }
@@ -162,10 +162,10 @@ namespace Bagira.SimHost.Integration.Tests
             var ack = await _client.WaitForAckAsync(reqId, timeoutMs: 3000);
 
             Assert.NotNull(ack);
-            Assert.Equal(0, ack!.Value.ErrorCode);
+            Assert.Equal(0, ack!.Value.StatusCode);
             _host.RunForTicks(5);
 
-            var igData2 = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            var igData2 = _client.ReadIgEntityData(ack.Value.EntityId);
             Assert.NotNull(igData2);
             Assert.Equal(ForceId.Friend, igData2!.Value.ForceId);
         }
@@ -186,10 +186,10 @@ namespace Bagira.SimHost.Integration.Tests
             var ack = await _client.WaitForAckAsync(reqId, timeoutMs: 3000);
 
             Assert.NotNull(ack);
-            Assert.Equal(0, ack!.Value.ErrorCode);
+            Assert.Equal(0, ack!.Value.StatusCode);
             _host.RunForTicks(5);
 
-            var igData3 = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            var igData3 = _client.ReadIgEntityData(ack.Value.EntityId);
             Assert.NotNull(igData3);
             Assert.Equal("Bravo-3",       igData3!.Value.Name.ToString());
             Assert.Equal(ForceId.Hostile, igData3!.Value.ForceId);
@@ -209,11 +209,11 @@ namespace Bagira.SimHost.Integration.Tests
             var ack = await _client.WaitForAckAsync(reqId, timeoutMs: 3000);
 
             Assert.NotNull(ack);
-            Assert.Equal(0, ack!.Value.ErrorCode);
+            Assert.Equal(0, ack!.Value.StatusCode);
             _host.RunForTicks(5);
 
             // No IgEntityData patch was applied; the component is either absent or defaulted.
-            var igDataD = _client.ReadIgEntityData(ack.Value.NewEntityId);
+            var igDataD = _client.ReadIgEntityData(ack.Value.EntityId);
             if (igDataD.HasValue)
                 Assert.Equal(ForceId.Unknown, igDataD.Value.ForceId);
         }

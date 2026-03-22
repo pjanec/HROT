@@ -71,7 +71,8 @@ public class IosLogicTests
             createEntityWriter:  createWriter.Object,
             clickQueue:          clickQueue,
             selectionQueue:      selectionQueue,
-            interactionPanel:    interactionPanel);
+            interactionPanel:    interactionPanel,
+            createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>());
 
         return (logic, configWriter, createWriter, clickQueue, selectionQueue,
                 transactionMgr, interactionPanel);
@@ -658,6 +659,7 @@ public class IosLogicTests
             clickQueue:           clickQueue,
             selectionQueue:       selectionQueue,
             interactionPanel:     interactionPanel,
+            createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>(),
             commandWriter:        commandWriter.Object,
             mapCommandAckQueue:   ackQueue);
 

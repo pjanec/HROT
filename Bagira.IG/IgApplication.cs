@@ -283,6 +283,11 @@ public class IgApplication : IDisposable
     private BagiraEntityFilterFactory? _entityFilterFactory;
 
     private DdsWriter<CreateEntityRequest>?  _createEntityDdsWriter;
+    /// <summary>
+    /// Writer that publishes <see cref="Bagira.BDC.SSTM.DeleteEntityRequest"/> to the SimHost
+    /// when the operator deletes an entity via the context menu while connected.
+    /// </summary>
+    private DdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>? _deleteEntityDdsWriter;
 
     /// <summary>
     /// Test-only callback: when non-null, receives every <see cref="CreateEntityRequest"/>
@@ -296,15 +301,15 @@ public class IgApplication : IDisposable
     /// </summary>
     private DdsWriter<MapCommandAck>?           _mapCommandAckWriter;
     /// <summary>
-    /// Reader that receives <see cref="CreateEntityAck"/> samples from the SimHost.
+    /// Reader that receives <see cref="CreateUpdateDeleteEntityAck"/> samples from the SimHost.
     /// Each sample is forwarded to <see cref="_mapCommandController"/> so it can
     /// correlate entity confirmations with active placement sessions.
     /// </summary>
-    private DdsReader<CreateEntityAck>?         _createEntityAckReader;
+    private DdsReader<CreateUpdateDeleteEntityAck>?   _createEntityAckReader;
     /// <summary>
     /// Orchestrator that manages tool-activation sessions for <see cref="MapCommandRequest"/>
     /// commands (<c>CMD_PLACE_ENTITY</c>, <c>CMD_START_AUTHORING</c>) and routes
-    /// <see cref="CreateEntityAck"/> confirmations back to the IOS as
+    /// <see cref="CreateUpdateDeleteEntityAck"/> confirmations back to the IOS as
     /// <see cref="MapCommandAck"/> messages.
     /// </summary>
     private MapCommandController?               _mapCommandController;
@@ -705,7 +710,8 @@ public class IgApplication : IDisposable
 
         _kernel.RegisterModule(replicationModule);
 
-
+        // Assign here so test hooks work even when DDS initialisation is skipped.
+        _ghostCreationSystem = replicationModule.GhostCreationSystem;
 
         DdsParticipant? participant = null;
 
@@ -751,13 +757,10 @@ public class IgApplication : IDisposable
 
                 _commandReader   = new DdsReader<MapCommandRequest>(participant, "MapCommandRequest");
 
-                _createEntityDdsWriter = new DdsWriter<CreateEntityRequest>(participant, "CreateEntityRequest");
-                _mapCommandAckWriter   = new DdsWriter<MapCommandAck>(participant, "MapCommandAck");
-                _createEntityAckReader = new DdsReader<CreateEntityAck>(participant, "CreateEntityAck");
-
-
-
-                _ghostCreationSystem = replicationModule.GhostCreationSystem;
+                _createEntityDdsWriter  = new DdsWriter<CreateEntityRequest>(participant, "CreateEntityRequest");
+                _mapCommandAckWriter    = new DdsWriter<MapCommandAck>(participant, "MapCommandAck");
+                _createEntityAckReader  = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
+                _deleteEntityDdsWriter  = new DdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>(participant, "DeleteEntityRequest");
 
 
 
@@ -869,6 +872,7 @@ public class IgApplication : IDisposable
                 _createEntityDdsWriter?.Dispose();
                 _mapCommandAckWriter?.Dispose();
                 _createEntityAckReader?.Dispose();
+                _deleteEntityDdsWriter?.Dispose();
 
                 participant?.Dispose();
 
@@ -886,6 +890,7 @@ public class IgApplication : IDisposable
                 _createEntityDdsWriter = null;
                 _mapCommandAckWriter   = null;
                 _createEntityAckReader = null;
+                _deleteEntityDdsWriter = null;
                 _mapCommandController  = null;
 
                 _networkEnabled = false;
@@ -970,6 +975,7 @@ public class IgApplication : IDisposable
 
         // D. EntityRenderLayer wired to the StubVisualizerAdapter
         // Area-overlay entities are excluded so they render via MapOverlayRenderLayer instead.
+        // Route entities are excluded so they render via RouteRenderLayer instead.
 
         var query = _world.Query()
 
@@ -978,6 +984,8 @@ public class IgApplication : IDisposable
             .With<SimTransform>()
 
             .Without<MapOverlayStyle>()
+
+            .WithoutManaged<Bagira.Map.Common.Components.RoutePlan>()
 
             .WithLifecycle(EntityLifecycle.All)
 
@@ -1259,13 +1267,31 @@ public class IgApplication : IDisposable
 
                         break;
 
+                    case CommandType.CMD_SET_SELECTION:
+
+                        ParseCommandAndSetSelection(cmd.CommandArgsJson);
+
+                        break;
+
+                    case CommandType.CMD_SET_VIEW:
+
+                        ParseCommandAndSetView(cmd.CommandArgsJson);
+
+                        break;
+
+                    case CommandType.CMD_DRAW_PERSONAL_ROUTE:
+
+                        ParseCommandAndActivatePersonalRoute(cmd.RequestId, cmd.CommandArgsJson);
+
+                        break;
+
                 }
 
             }
 
         }
 
-        // Forward CreateEntityAck samples to the MapCommandController for session correlation.
+        // Forward CreateUpdateDeleteEntityAck samples to the MapCommandController for session correlation.
         if (_networkEnabled && _createEntityAckReader != null && _mapCommandController != null)
         {
             using var ackLoan = _createEntityAckReader.Take(16);
@@ -1408,11 +1434,23 @@ public class IgApplication : IDisposable
                         if (_world.HasComponent<NetworkIdentity>(entity))
                         {
                             ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
-                            _world.Bus.PublishManaged(new DestroyEntityCommand
+                            if (_networkEnabled)
                             {
-                                NetworkId = netId.Value,
-                                Reason    = "inspector-deleted"
-                            });
+                                // Notify SimHost (the authoritative owner) to delete the entity over DDS.
+                                _deleteEntityDdsWriter?.Write(new Bagira.BDC.SSTM.DeleteEntityRequest
+                                {
+                                    RequestId = Guid.NewGuid(),
+                                    EntityId  = (int)netId.Value
+                                });
+                            }
+                            else
+                            {
+                                _world.Bus.PublishManaged(new DestroyEntityCommand
+                                {
+                                    NetworkId = netId.Value,
+                                    Reason    = "inspector-deleted"
+                                });
+                            }
                         }
                         else
                         {
@@ -1431,6 +1469,40 @@ public class IgApplication : IDisposable
         _inspectorPanel.Draw();
 
         _waypointEditorPanel.Draw();
+
+        // ── Vertex context menu for RouteEditTool ─────────────────────────────
+        if (_canvas.ActiveTool is RouteEditTool routeTool && routeTool.PendingVertexContextMenu)
+        {
+            ImGui.OpenPopup("##routeVtxCtx");
+        }
+        if (ImGui.BeginPopup("##routeVtxCtx"))
+        {
+            if (ImGui.MenuItem("Insert point after"))
+                (_canvas.ActiveTool as RouteEditTool)?.InsertWaypointAfterSelected();
+            if (ImGui.MenuItem("Delete point"))
+                (_canvas.ActiveTool as RouteEditTool)?.DeleteSelectedWaypoint();
+            ImGui.Separator();
+            if (ImGui.MenuItem("Cancel"))
+                (_canvas.ActiveTool as RouteEditTool)?.CloseVertexContextMenu();
+            ImGui.EndPopup();
+        }
+
+        // ── Vertex context menu for EditTool (overlay shapes) ─────────────────
+        if (_canvas.ActiveTool is EditTool editTool && editTool.PendingVertexContextMenu)
+        {
+            ImGui.OpenPopup("##overlayVtxCtx");
+        }
+        if (ImGui.BeginPopup("##overlayVtxCtx"))
+        {
+            if (ImGui.MenuItem("Insert point after"))
+                (_canvas.ActiveTool as EditTool)?.InsertPointAfterSelected();
+            if (ImGui.MenuItem("Delete point"))
+                (_canvas.ActiveTool as EditTool)?.DeleteSelectedPoint();
+            ImGui.Separator();
+            if (ImGui.MenuItem("Cancel"))
+                (_canvas.ActiveTool as EditTool)?.CloseVertexContextMenu();
+            ImGui.EndPopup();
+        }
 
         _miniIosPanel.Draw();
 
@@ -1641,8 +1713,8 @@ public class IgApplication : IDisposable
     /// </summary>
     private void SelectEntityOnMap(Entity entity)
     {
-        // 1. Clear all existing ECS selection state.
-        var q = _world.Query().With<SelectionState>().Build();
+        // 1. Clear all existing ECS selection state (include ghosts/spawning).
+        var q = _world.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
         foreach (var e in q)
         {
             if (_world.IsAlive(e))
@@ -1741,6 +1813,7 @@ public class IgApplication : IDisposable
         _createEntityDdsWriter?.Dispose();
         _mapCommandAckWriter?.Dispose();
         _createEntityAckReader?.Dispose();
+        _deleteEntityDdsWriter?.Dispose();
 
         _kernel?.Dispose();
 
@@ -2048,6 +2121,21 @@ public class IgApplication : IDisposable
     /// Used by commit-handler safety tests (CT-1).
     /// </summary>
     internal RouteEditTool? TestHook_ActiveRouteEditTool => _canvas.ActiveTool as RouteEditTool;
+
+    /// <summary>Test hook: calls <see cref="ParseCommandAndSetSelection"/> directly.</summary>
+    internal void TestHook_ParseCommandAndSetSelection(string argsJson)
+        => ParseCommandAndSetSelection(argsJson);
+
+    /// <summary>Test hook: calls <see cref="ParseCommandAndSetView"/> directly.</summary>
+    internal void TestHook_ParseCommandAndSetView(string argsJson)
+        => ParseCommandAndSetView(argsJson);
+
+    /// <summary>Test hook: calls <see cref="ParseCommandAndActivatePersonalRoute"/> directly.</summary>
+    internal void TestHook_ParseCommandAndActivatePersonalRoute(Guid requestId, string argsJson)
+        => ParseCommandAndActivatePersonalRoute(requestId, argsJson);
+
+    /// <summary>Test hook: the current camera keyboard-pan target (set by CenterCameraOn).</summary>
+    internal Vector2 TestHook_KeyboardPanTarget => _keyboardPanTarget;
 
     // ── Ground clamping (MOD1-P7T5) ───────────────────────────────────────────
 
@@ -2515,6 +2603,10 @@ public class IgApplication : IDisposable
 
             action.ActionName == "100" ||
 
+            action.ActionName == "101" ||
+
+            action.ActionName == "102" ||
+
             action.ActionName == "200")
 
         {
@@ -2630,6 +2722,52 @@ public class IgApplication : IDisposable
                     ref readonly var netId = ref view100.GetComponentRO<NetworkIdentity>(entity);
 
                     ActivateAreaEditingTool(netId.Value);
+
+                }
+
+                break;
+
+            }
+
+            case "101": // EditRoute — activate route editing for the selected route entity
+
+            {
+
+                var view101 = (ISimulationView)_world;
+
+                if (view101.HasComponent<NetworkIdentity>(entity))
+
+                {
+
+                    ref readonly var netId = ref view101.GetComponentRO<NetworkIdentity>(entity);
+
+                    ActivateAreaEditingTool(netId.Value);
+
+                }
+
+                break;
+
+            }
+
+            case "102": // EditPersonalRoute — locate the vehicle's personal route and edit it
+
+            {
+
+                if (_world.HasComponent<Bagira.Map.Common.Components.PersonalRouteRef>(entity))
+
+                {
+
+                    ref readonly var routeRef = ref _world.GetComponentRO<Bagira.Map.Common.Components.PersonalRouteRef>(entity);
+
+                    if (_world.IsAlive(routeRef.RouteEntity)
+
+                     && _entityMap.TryGetNetworkId(routeRef.RouteEntity, out long routeNetId))
+
+                    {
+
+                        ActivateAreaEditingTool(routeNetId);
+
+                    }
 
                 }
 
@@ -2920,6 +3058,258 @@ public class IgApplication : IDisposable
         }
     }
 
+    // ─── OC1-G001: CMD_SET_SELECTION ──────────────────────────────────────────
+
+    /// <summary>
+    /// Handles an incoming <see cref="CommandType.CMD_SET_SELECTION"/> command.
+    /// Selects the entity identified by <c>entityId</c> in the ECS without publishing
+    /// a <see cref="SelectionChangedEvent"/> (to avoid IOS→IG→IOS echo loops).
+    /// </summary>
+    private void ParseCommandAndSetSelection(string argsJson)
+    {
+        if (string.IsNullOrWhiteSpace(argsJson)) return;
+
+        try
+        {
+            using var doc  = JsonDocument.Parse(argsJson);
+            var       root = doc.RootElement;
+
+            if (!root.TryGetProperty("entityId", out var eidEl))
+                return;
+
+            long entityId = eidEl.GetInt64();
+
+            if (!_entityMap.TryGetEntity(entityId, out var entity))
+            {
+                FdpLog<IgApplication>.Warn(
+                    "[IG] CMD_SET_SELECTION: entity {0} not found.", entityId);
+                return;
+            }
+
+            SelectEntityOnMap(entity);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn("[IG] ParseCommandAndSetSelection failed: {0}", ex.Message);
+        }
+    }
+
+    // ─── OC1-G002: CMD_SET_VIEW ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Handles an incoming <see cref="CommandType.CMD_SET_VIEW"/> command (entity-centric path).
+    /// Centers the camera on the entity identified by <c>entityId</c>.
+    /// The raw lat/lon path is deferred to a future batch.
+    /// </summary>
+    private void ParseCommandAndSetView(string argsJson)
+    {
+        if (string.IsNullOrWhiteSpace(argsJson)) return;
+
+        try
+        {
+            using var doc  = JsonDocument.Parse(argsJson);
+            var       root = doc.RootElement;
+
+            if (!root.TryGetProperty("entityId", out var eidEl))
+                return;
+
+            long entityId = eidEl.GetInt64();
+
+            if (!_entityMap.TryGetEntity(entityId, out var entity))
+            {
+                FdpLog<IgApplication>.Warn(
+                    "[IG] CMD_SET_VIEW: entity {0} not found.", entityId);
+                return;
+            }
+
+            CenterCameraOn(entity);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn("[IG] ParseCommandAndSetView failed: {0}", ex.Message);
+        }
+    }
+
+    // ─── OC1-G003: CMD_DRAW_PERSONAL_ROUTE ───────────────────────────────────
+
+    /// <summary>
+    /// Handles an incoming <see cref="CommandType.CMD_DRAW_PERSONAL_ROUTE"/> command.
+    /// Pushes a <see cref="PointSequenceTool"/> requiring ≥ 2 points; on completion,
+    /// fire-and-forgets <see cref="OrchestratePersonalRouteAsync"/>.
+    /// </summary>
+    private void ParseCommandAndActivatePersonalRoute(Guid requestId, string argsJson)
+    {
+        if (string.IsNullOrWhiteSpace(argsJson)) return;
+
+        try
+        {
+            using var doc  = JsonDocument.Parse(argsJson);
+            var       root = doc.RootElement;
+
+            if (!root.TryGetProperty("entityId", out var eidEl))
+                return;
+
+            int vehicleId = eidEl.GetInt32();
+
+            // Pop any stale PointSequenceTool to avoid tool stack accumulation.
+            if (_canvas.ActiveTool is PointSequenceTool)
+                _canvas.PopTool();
+
+            var tool = new PointSequenceTool(points =>
+            {
+                if (points.Length < 2)
+                {
+                    // Too few points — cancel the command.
+                    if (_mapCommandAckWriter != null)
+                        _mapCommandAckWriter.Write(new MapCommandAck
+                        {
+                            RequestId  = requestId,
+                            StatusCode = MapCommandController.StatusCancelled,
+                        });
+                    _canvas.PopTool();
+                    return;
+                }
+
+                _ = OrchestratePersonalRouteAsync(requestId, vehicleId, points);
+                _canvas.PopTool();
+            });
+
+            _canvas.PushTool(tool);
+            FdpLog<IgApplication>.Info(
+                "[IG] CMD_DRAW_PERSONAL_ROUTE: point-sequence tool activated for vehicle {0}.", vehicleId);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn("[IG] ParseCommandAndActivatePersonalRoute failed: {0}", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Fire-and-forget orchestration for <c>CMD_DRAW_PERSONAL_ROUTE</c>.
+    /// Converts canvas points to geodetic waypoints, creates a route entity,
+    /// and assigns a <c>FollowRoute</c> mission to <paramref name="vehicleId"/>.
+    /// No-op when required services are unavailable (e.g. headless tests without DDS).
+    /// </summary>
+    private async System.Threading.Tasks.Task OrchestratePersonalRouteAsync(
+        Guid requestId, int vehicleId, Vector2[] canvasPoints)
+    {
+        if (_commandGatewayInterface == null || _geoTransform == null)
+            return;
+
+        // Convert canvas points to absolute geodetic waypoints.
+        var waypoints = new List<Waypoint>(canvasPoints.Length);
+        GeoPosition anchorPos = default;
+        for (int i = 0; i < canvasPoints.Length; i++)
+        {
+            // Canvas is XZ: canvas Y = world Z (North). Altitude (Vector3.Y) is 0 for authoring.
+            // Must match ActivateRouteAuthoringTool and RouteRenderLayer.ToCanvas(pos)=(pos.X,pos.Z).
+            var (lat, lon, alt) = _geoTransform.ToGeodetic(
+                new Vector3(canvasPoints[i].X, 0f, canvasPoints[i].Y));
+            var geoPos = new GeoPosition { Latitude = lat, Longitude = lon, Altitude = alt };
+            waypoints.Add(new Waypoint { Position = geoPos, SpeedMetersPerSec = 0.0 });
+            if (i == 0) anchorPos = geoPos;
+        }
+
+        // Build CreateEntityRequest for the route entity.
+        var createReq = new CreateEntityRequest
+        {
+            RequestId = Guid.NewGuid(),
+            Owner     = default,
+            Flags     = 0,
+            InitialDescriptors = new List<EntityDescriptorUnion>
+            {
+                new EntityDescriptorUnion
+                {
+                    _d           = EDescriptorType.dtEntityMaster,
+                    EntityMaster = new EntityMaster { TkbType = TkbEntityTypes.TacGraphic_Route }
+                },
+                new EntityDescriptorUnion
+                {
+                    _d         = EDescriptorType.dtGeoSpatial,
+                    GeoSpatial = new GeoSpatial { Pos = anchorPos }
+                },
+                new EntityDescriptorUnion
+                {
+                    _d       = EDescriptorType.dtMapRoute,
+                    MapRoute = new MapRoute { Points = waypoints, IsLoop = false }
+                },
+                new EntityDescriptorUnion
+                {
+                    _d         = EDescriptorType.dtEntityInfo,
+                    EntityInfo = new BDC.SSTD.EntityInfo { CommanderId = vehicleId }
+                },
+            }
+        };
+
+        CreateUpdateDeleteEntityAck createAck;
+        try
+        {
+            createAck = await _commandGatewayInterface.CreateEntityAsync(createReq);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn("[IG] OrchestratePersonalRoute: CreateEntityAsync failed: {0}", ex.Message);
+            SendPersonalRouteAck(requestId, MapCommandController.StatusCancelled);
+            return;
+        }
+
+        // StatusCode > 1 means failure (0=finished, 1=intermediate, 2=cancelled/error).
+        if (createAck.StatusCode > 1)
+        {
+            FdpLog<IgApplication>.Warn(
+                "[IG] OrchestratePersonalRoute: CreateEntityAsync returned status {0}.", createAck.StatusCode);
+            SendPersonalRouteAck(requestId, MapCommandController.StatusCancelled);
+            return;
+        }
+
+        // Assign a FollowRoute mission using the newly-created route entity's network ID.
+        var missionReq = new MissionControlRequest
+        {
+            RequestId      = Guid.NewGuid(),
+            TargetEntityId = vehicleId,
+            BaseVersion    = 0,
+            Payload        = new MissionCommandUnion
+            {
+                _d             = eMissionCommandType.CMD_REPLACE_MISSION,
+                FullMissionData = new MissionPlan
+                {
+                    Tasks = new List<MissionTask>
+                    {
+                        new MissionTask
+                        {
+                            TaskId          = Guid.NewGuid(),
+                            BehaviorId      = "FollowRoute",
+                            BehaviorParams  = $"{{\"routeEntityId\":{createAck.EntityId}}}",
+                            ExecutingEngine = string.Empty,
+                            State           = eTaskState.TASK_PLANNED,
+                            Triggers        = new List<BDC.SSTD.MissionTrigger>()
+                        }
+                    }
+                }
+            }
+        };
+
+        try
+        {
+            await _commandGatewayInterface.SendMissionControlRequestAsync(missionReq);
+        }
+        catch (Exception ex)
+        {
+            FdpLog<IgApplication>.Warn("[IG] OrchestratePersonalRoute: SendMissionControlRequestAsync failed: {0}", ex.Message);
+        }
+
+        SendPersonalRouteAck(requestId, MapCommandController.StatusFinished);
+    }
+
+    private void SendPersonalRouteAck(Guid requestId, long statusCode)
+    {
+        _mapCommandAckWriter?.Write(new MapCommandAck
+        {
+            RequestId  = requestId,
+            StatusCode = statusCode,
+        });
+    }
+
     /// <summary>
     /// Activates an <see cref="EditTool"/> for the area entity identified by
     /// <paramref name="networkEntityId"/>.
@@ -3064,6 +3454,7 @@ public class IgApplication : IDisposable
                 var relGeoPoints = new List<GeoPosition>(absCartPoints.Count);
                 for (int i = 0; i < absCartPoints.Count; i++)
                 {
+                    // Canvas is XY: canvas Y = world Y (North, ENU). Preserve altitude from SimTransform.Z.
                     var absCart = new Vector3(absCartPoints[i].X, absCartPoints[i].Y, simTr.Position.Z);
                     var (lat, lon, alt) = _geoTransform.ToGeodetic(absCart);
                     relGeoPoints.Add(new GeoPosition
@@ -3072,6 +3463,14 @@ public class IgApplication : IDisposable
                         Longitude = lon - refLon,
                         Altitude  = alt - refAlt,
                     });
+                }
+
+                // Preserve the original style so the update does not destroy it on the wire.
+                string? styleOverrideJson = null;
+                if (World.HasComponent<Bagira.IG.Components.MapOverlayStyle>(committedEntity))
+                {
+                    var style = World.GetComponent<Bagira.IG.Components.MapOverlayStyle>(committedEntity);
+                    styleOverrideJson = style.ToJson();
                 }
 
                 var request = new UpdateEntityDescriptorRequest
@@ -3084,11 +3483,12 @@ public class IgApplication : IDisposable
                         _d = EDescriptorType.dtMapVisualOverlay,
                         MapVisualOverlay = new MapVisualOverlay
                         {
-                            EntityId        = (int)netId,
-                            PersistenceMode = PersistenceMode.MODE_PERSISTENT,
-                            Points          = relGeoPoints,
-                            IsEditable      = true,
-                            IsClickable     = true,
+                            EntityId          = (int)netId,
+                            PersistenceMode   = PersistenceMode.MODE_PERSISTENT,
+                            Points            = relGeoPoints,
+                            IsEditable        = true,
+                            IsClickable       = true,
+                            StyleOverrideJson = styleOverrideJson,
                         }
                     }
                 };
@@ -3332,7 +3732,7 @@ public class IgApplication : IDisposable
 
 
 
-        if (!_networkEnabled || _createEntityDdsWriter == null)
+        if (!_networkEnabled && _testCreateEntityRequestSink == null)
 
             return;
 
@@ -3378,6 +3778,7 @@ public class IgApplication : IDisposable
 
                 {
 
+                    // Canvas is XY: canvas Y = world Y (North, ENU). Altitude (Vector3.Z) is 0 for authoring.
                     (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(points[i].X, points[i].Y, 0f));
 
                 }
@@ -3536,7 +3937,9 @@ public class IgApplication : IDisposable
 
 
 
-            if (_mapCommandController != null)
+            if (_testCreateEntityRequestSink != null)
+                _testCreateEntityRequestSink(request);
+            else if (_mapCommandController != null)
                 _mapCommandController.OnAreaEntityCreated(request, isToolDone: true);
             else
                 _createEntityDdsWriter?.Write(request);
@@ -3568,10 +3971,13 @@ public class IgApplication : IDisposable
         if (_canvas.ActiveTool is PointSequenceTool)
             _canvas.PopTool();
 
+        _mapCommandController?.BeginAreaAuthoringSession(requestId, _activeContextId);
+
         var tool = new PointSequenceTool(points =>
         {
             if (points.Length < 2)
             {
+                _mapCommandController?.OnAreaToolCancelled();
                 _canvas.PopTool();
                 return;
             }
@@ -3593,7 +3999,8 @@ public class IgApplication : IDisposable
 
             for (int i = 0; i < points.Length; i++)
             {
-                var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(points[i].X, points[i].Y, 0f));
+                // Canvas is XZ: canvas Y = world Z (North). Altitude (Vector3.Y) is 0 for authoring.
+                var (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(points[i].X, 0f, points[i].Y));
 
                 var geoPos = new GeoPosition { Latitude = lat, Longitude = lon, Altitude = alt };
                 waypoints.Add(new Waypoint { Position = geoPos, SpeedMetersPerSec = 0.0 });

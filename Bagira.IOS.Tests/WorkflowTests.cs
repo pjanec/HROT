@@ -72,6 +72,7 @@ public class FullStackWorkflowTests
                 clickQueue:          ClickQueue,
                 selectionQueue:      SelectionQueue,
                 interactionPanel:    Log,
+                createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>(),
                 ingressHandlers:     new[] { (IIngressHandler)MissionSvc });
 
             Mock = new IosMock(

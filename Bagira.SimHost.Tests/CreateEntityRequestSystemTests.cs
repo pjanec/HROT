@@ -48,10 +48,10 @@ namespace Bagira.SimHost.Tests
         }
     }
 
-    internal sealed class StubAckSink : ICreateEntityAckSink
+    internal sealed class StubAckSink : ICreateUpdateDeleteEntityAckSink
     {
-        public List<CreateEntityAck> WrittenAcks { get; } = new();
-        public void WriteAck(CreateEntityAck ack) => WrittenAcks.Add(ack);
+        public List<CreateUpdateDeleteEntityAck> WrittenAcks { get; } = new();
+        public void WriteAck(CreateUpdateDeleteEntityAck ack) => WrittenAcks.Add(ack);
     }
 
     // ─── Tests ────────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ namespace Bagira.SimHost.Tests
 
             // Assert: error ACK sent, no SpawnEntityCommand published
             Assert.Single(ackSink.WrittenAcks);
-            Assert.Equal(404, ackSink.WrittenAcks[0].ErrorCode);
+            Assert.Equal((int)SstStatusCode.UnknownDescriptorType, ackSink.WrittenAcks[0].StatusCode);
             Assert.Equal(request.RequestId, ackSink.WrittenAcks[0].RequestId);
 
             repo.Bus.SwapBuffers();
@@ -183,11 +183,11 @@ namespace Bagira.SimHost.Tests
             // Act
             system.Execute(repo, 0f);
 
-            // Assert: allocator was called and ACK carries the allocated ID
+            // Assert: allocator was called and Phase-1 InProgress ACK carries the allocated ID
             Assert.Equal(100L, idAlloc.LastAllocatedId);
             Assert.Single(ackSink.WrittenAcks);
-            Assert.Equal(100, ackSink.WrittenAcks[0].NewEntityId);
-            Assert.Equal(0,   ackSink.WrittenAcks[0].ErrorCode);
+            Assert.Equal(100, ackSink.WrittenAcks[0].EntityId);
+            Assert.Equal((int)SstStatusCode.InProgress, ackSink.WrittenAcks[0].StatusCode);
         }
 
         // ── GC02: Struct component extraction ────────────────────────────────
@@ -343,13 +343,13 @@ namespace Bagira.SimHost.Tests
             // Act — single tick.
             system.Execute(repo, 0f);
 
-            // Assert: all 1000 ACKs sent synchronously, even though only MaxRequestsPerTick
-            // SpawnEntityCommands were dispatched this frame.
+            // Assert: all 1000 Phase-1 InProgress ACKs sent synchronously, even though
+            // only MaxRequestsPerTick SpawnEntityCommands were dispatched this frame.
             Assert.Equal(TotalRequests, ackSink.WrittenAcks.Count);
 
-            // Every ACK must be a success (error code 0).
+            // Every Phase-1 ACK must be InProgress.
             foreach (var ack in ackSink.WrittenAcks)
-                Assert.Equal(0, ack.ErrorCode);
+                Assert.Equal((int)SstStatusCode.InProgress, ack.StatusCode);
         }
 
         [Fact]
@@ -604,9 +604,9 @@ namespace Bagira.SimHost.Tests
             var (system, ackSink, _) = BuildSystem(tkb, source);
             system.Execute(repo, 0f);
 
-            // ACK sent.
+            // ACK sent (Phase-1 InProgress — Phase-2 is dispatched by SstRequestFinalizationSystem).
             Assert.Single(ackSink.WrittenAcks);
-            Assert.Equal(0, ackSink.WrittenAcks[0].ErrorCode);
+            Assert.Equal((int)SstStatusCode.InProgress, ackSink.WrittenAcks[0].StatusCode);
 
             // SpawnEntityCommand produced.
             repo.Bus.SwapBuffers();

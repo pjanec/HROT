@@ -295,7 +295,9 @@ namespace Bagira.SimHost.Tests
             repo.Bus.SwapBuffers();
             var commands = ((ISimulationView)repo).ConsumeManagedEvents<SpawnEntityCommand>();
             Assert.Single(commands);
-            Assert.Equal(0, ackSink.WrittenAcks[0].ErrorCode);
+            // Phase-1 InProgress ACK is sent immediately; Phase-2 Success is dispatched
+            // by SstRequestFinalizationSystem once the entity reaches Active.
+            Assert.Equal((int)SstStatusCode.InProgress, ackSink.WrittenAcks[0].StatusCode);
         }
     }
 

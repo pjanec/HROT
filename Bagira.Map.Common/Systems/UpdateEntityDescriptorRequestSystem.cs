@@ -18,7 +18,7 @@ using ModuleHost.Core.Abstractions;
 
 namespace Bagira.Map.Common.Systems
 {
-    using SstErrorCode = Bagira.BDC.SSTM.SstErrorCode;
+    using SstStatusCode = Bagira.BDC.SSTM.SstStatusCode;
     /// <summary>
     /// Consumes <see cref="UpdateEntityDescriptorRequest"/> messages from DDS.
     ///
@@ -170,10 +170,10 @@ namespace Bagira.Map.Common.Systems
                 "[UpdDescReq] Applied GeoSpatial move for NetID {0} → ({1:F1}, {2:F1}, {3:F1}) Cartesian.",
                 req.EntityId, cartesian.X, cartesian.Y, cartesian.Z);
 
-            WriteAck(req.RequestId, req.EntityId, SstErrorCode.Success);
+            WriteAck(req.RequestId, req.EntityId, SstStatusCode.Success);
         }
 
-        private void WriteAck(Guid requestId, int entityId, SstErrorCode errorCode)
+        private void WriteAck(Guid requestId, int entityId, SstStatusCode errorCode)
         {
             _ackWriter.Write(new UpdateEntityDescriptorAck
             {
@@ -229,7 +229,7 @@ namespace Bagira.Map.Common.Systems
                 "[UpdDescReq] Applied MapVisualOverlay update for NetID {0} pts={1}.",
                 req.EntityId, polyline.Points?.Count ?? 0);
 
-            WriteAck(req.RequestId, req.EntityId, SstErrorCode.Success);
+            WriteAck(req.RequestId, req.EntityId, SstStatusCode.Success);
         }
     }
 }

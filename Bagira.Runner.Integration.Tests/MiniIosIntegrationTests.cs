@@ -29,7 +29,7 @@ public class MiniIosIntegrationTests
         var igApp = harness.Ig.App;
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
         using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader = new DdsReader<CreateEntityAck>(observerParticipant, "CreateEntityAck");
+        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
         igApp.TestHook_SubmitMiniIosSpawn(tkbType, ForceId.Friend, 125f, 210f);
@@ -44,15 +44,16 @@ public class MiniIosIntegrationTests
             HasMasterWithTkb(observedRequest.InitialDescriptors, tkbType),
             DescribeDescriptors("DDS", observedRequest.InitialDescriptors));
 
-        CreateEntityAck ack = default;
+        CreateUpdateDeleteEntityAck ack = default;
         bool ackObserved = harness.PumpUntil(
             () => TryTakeCreateAck(ackReader, observedRequest.RequestId, out ack),
             RequestTimeoutFrames);
-        Assert.True(ackObserved, "CreateEntityAck did not arrive in time.");
-        Assert.Equal(0, ack.ErrorCode);
-        Assert.True(ack.NewEntityId > 0, "CreateEntityAck did not include a valid network ID.");
+        Assert.True(ackObserved, "CreateUpdateDeleteEntityAck did not arrive in time.");
+        Assert.True(ack.StatusCode < (int)SstStatusCode.UnknownDescriptorType,
+            $"Expected InProgress or Success, got {ack.StatusCode}.");
+        Assert.True(ack.EntityId > 0, "CreateUpdateDeleteEntityAck did not include a valid network ID.");
 
-        long networkId = ack.NewEntityId;
+        long networkId = ack.EntityId;
 
         bool simHostSpawned = harness.PumpUntil(
             () => TryGetSimHostEntity(harness.SimHost.World, networkId, out _),
@@ -82,9 +83,9 @@ public class MiniIosIntegrationTests
     }
 
     private static bool TryTakeCreateAck(
-        DdsReader<CreateEntityAck> reader,
+        DdsReader<CreateUpdateDeleteEntityAck> reader,
         Guid requestId,
-        out CreateEntityAck ack)
+        out CreateUpdateDeleteEntityAck ack)
     {
         using var loan = reader.Take(1);
         foreach (var sample in loan)
@@ -92,6 +93,14 @@ public class MiniIosIntegrationTests
             if (!sample.IsValid) continue;
             var data = sample.Data;
             if (data.RequestId != requestId) continue;
+
+            // Skip Phase-1 InProgress ACKs — let PumpUntil retry until the
+            // terminal Success/Error ACK arrives.
+            if (data.StatusCode == (int)SstStatusCode.InProgress)
+            {
+                ack = default;
+                return false;
+            }
 
             ack = data;
             return true;
@@ -213,7 +222,7 @@ public class MiniIosIntegrationTests
 
         using var observerParticipant  = new DdsParticipant((uint)harness.DomainId);
         using var reqReader            = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader            = new DdsReader<CreateEntityAck>(observerParticipant, "CreateEntityAck");
+        using var ackReader            = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
         using var updateReqReader      = new DdsReader<UpdateEntityDescriptorRequest>(observerParticipant, "UpdateEntityDescriptorRequest");
         using var updateAckReader      = new DdsReader<UpdateEntityDescriptorAck>(observerParticipant, "UpdateEntityDescriptorAck");
 
@@ -226,13 +235,13 @@ public class MiniIosIntegrationTests
             harness.PumpUntil(() => TryTakeAnyCreateRequest(reqReader, out spawnReq), RequestTimeoutFrames),
             "CreateEntityRequest did not reach DDS in time.");
 
-        CreateEntityAck spawnAck = default;
+        CreateUpdateDeleteEntityAck spawnAck = default;
         Assert.True(
             harness.PumpUntil(() => TryTakeCreateAck(ackReader, spawnReq.RequestId, out spawnAck), RequestTimeoutFrames),
-            "CreateEntityAck did not arrive in time.");
-        Assert.Equal(0, spawnAck.ErrorCode);
+            "CreateUpdateDeleteEntityAck did not arrive in time.");
+        Assert.Equal(0, spawnAck.StatusCode);
 
-        long networkId = spawnAck.NewEntityId;
+        long networkId = spawnAck.EntityId;
         Assert.True(networkId > 0, "Spawn did not return a valid network ID.");
 
         // ── 2. Wait for both sides to be ready ───────────────────────────────
@@ -495,7 +504,7 @@ public class MiniIosIntegrationTests
         var igApp = harness.Ig.App;
         using var participant = new DdsParticipant((uint)harness.DomainId);
         using var reqReader   = new DdsReader<CreateEntityRequest>(participant, "CreateEntityRequest");
-        using var ackReader   = new DdsReader<CreateEntityAck>(participant, "CreateEntityAck");
+        using var ackReader   = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
         igApp.TestHook_SubmitMiniIosSpawn(tkbType, ForceId.Hostile, 100f, 200f);
@@ -511,14 +520,14 @@ public class MiniIosIntegrationTests
             DescribeDescriptors("Spawn request missing dtEntityInfo/FORCE_OPPOSING:", req.InitialDescriptors));
 
         // ── 2. Verify SimHost acknowledges ────────────────────────────────────
-        CreateEntityAck ack = default;
+        CreateUpdateDeleteEntityAck ack = default;
         Assert.True(
             harness.PumpUntil(() => TryTakeCreateAck(ackReader, req.RequestId, out ack), RequestTimeoutFrames),
-            "CreateEntityAck did not arrive in time.");
-        Assert.Equal(0, ack.ErrorCode);
+            "CreateUpdateDeleteEntityAck did not arrive in time.");
+        Assert.Equal(0, ack.StatusCode);
 
-        long networkId = ack.NewEntityId;
-        Assert.True(networkId > 0, "CreateEntityAck must return a valid network ID.");
+        long networkId = ack.EntityId;
+        Assert.True(networkId > 0, "CreateUpdateDeleteEntityAck must return a valid network ID.");
 
         // ── 3. Verify IG entity has ForceId.Hostile ───────────────────────────
         bool igEntityHostile = harness.PumpUntil(
@@ -576,7 +585,7 @@ public class MiniIosIntegrationTests
         var igApp = harness.Ig.App;
         using var participant = new DdsParticipant((uint)harness.DomainId);
         using var reqReader   = new DdsReader<CreateEntityRequest>(participant, "CreateEntityRequest");
-        using var ackReader   = new DdsReader<CreateEntityAck>(participant, "CreateEntityAck");
+        using var ackReader   = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
 
         // First spawn — must succeed.
         igApp.TestHook_SubmitMiniIosSpawn(TkbEntityTypes.Tank_M1Abrams, ForceId.Friend, 0f, 0f);
@@ -586,12 +595,12 @@ public class MiniIosIntegrationTests
             harness.PumpUntil(() => TryTakeAnyCreateRequest(reqReader, out req), RequestTimeoutFrames),
             "First CreateEntityRequest did not reach DDS — check DdsIdAllocator initialisation.");
 
-        CreateEntityAck ack = default;
+        CreateUpdateDeleteEntityAck ack = default;
         Assert.True(
             harness.PumpUntil(() => TryTakeCreateAck(ackReader, req.RequestId, out ack), RequestTimeoutFrames),
-            "First CreateEntityAck did not arrive — ID pool may have been exhausted on the first request.");
+            "First CreateUpdateDeleteEntityAck did not arrive — ID pool may have been exhausted on the first request.");
 
-        Assert.Equal(0, ack.ErrorCode);
-        Assert.True(ack.NewEntityId > 0, "First spawn must return a valid network ID.");
+        Assert.Equal(0, ack.StatusCode);
+        Assert.True(ack.EntityId > 0, "First spawn must return a valid network ID.");
     }
 }

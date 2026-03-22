@@ -18,6 +18,16 @@ namespace Bagira.Map.Common.Commands
         /// Sends a fire-and-forget <see cref="UpdateEntityDescriptorRequest"/> over DDS.
         /// </summary>
         void SendUpdateDescriptor(UpdateEntityDescriptorRequest request);
+
+        /// <summary>
+        /// Sends a <see cref="CreateEntityRequest"/> and awaits the acknowledgment.
+        /// </summary>
+        Task<CreateUpdateDeleteEntityAck> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000);
+
+        /// <summary>
+        /// Sends a <see cref="MissionControlRequest"/> and awaits the acknowledgment.
+        /// </summary>
+        Task<MissionControlAck> SendMissionControlRequestAsync(MissionControlRequest request, int timeoutMs = 5000);
     }
 
     /// <summary>
@@ -26,9 +36,9 @@ namespace Bagira.Map.Common.Commands
     /// </summary>
     public class BdcCommandGateway : IBdcCommandGateway, IDisposable
     {
-        private readonly DdsCommandClient<CreateEntityRequest, CreateEntityAck>       _createEntityClient;
-        private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>   _missionControlClient;
-        private readonly DdsWriter<UpdateEntityDescriptorRequest>                     _updateWriter;
+        private readonly DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>    _createEntityClient;
+        private readonly DdsCommandClient<MissionControlRequest, MissionControlAck>            _missionControlClient;
+        private readonly DdsWriter<UpdateEntityDescriptorRequest>                              _updateWriter;
 
         /// <summary>
         /// creates a new gateway instance.
@@ -39,10 +49,10 @@ namespace Bagira.Map.Common.Commands
             if (participant == null) throw new ArgumentNullException(nameof(participant));
 
             // Initialize the client for CreateEntityRequest
-            _createEntityClient = new DdsCommandClient<CreateEntityRequest, CreateEntityAck>(
+            _createEntityClient = new DdsCommandClient<CreateEntityRequest, CreateUpdateDeleteEntityAck>(
                 participant,
-                "CreateEntityRequest", // Must match [DdsTopic] attribute
-                "CreateEntityAck",     // Must match [DdsTopic] attribute
+                "CreateEntityRequest",          // Must match [DdsTopic] attribute
+                "CreateUpdateDeleteEntityAck",  // Must match [DdsTopic] attribute
                 req => req.RequestId,
                 ack => ack.RequestId
             );
@@ -66,8 +76,8 @@ namespace Bagira.Map.Common.Commands
         /// </summary>
         /// <param name="request">The request data.</param>
         /// <param name="timeoutMs">Timeout in milliseconds.</param>
-        /// <returns>The acknowledgment containing the new EntityId or error code.</returns>
-        public async Task<CreateEntityAck> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000)
+        /// <returns>The acknowledgment containing the entity ID or status code.</returns>
+        public async Task<CreateUpdateDeleteEntityAck> CreateEntityAsync(CreateEntityRequest request, int timeoutMs = 5000)
         {
             // If the caller didn't provide an ID, generate one.
             // Since CreateEntityRequest is a struct, we must ensure we pass the modified version.
@@ -79,9 +89,9 @@ namespace Bagira.Map.Common.Commands
             FdpLog<BdcCommandGateway>.Debug("[TRACE-GW] Sending CreateEntityRequest ID={0}", request.RequestId);
 
             var ack = await _createEntityClient.SendAsync(request, timeoutMs);
-            var ackDetails = string.Concat("Entity=", ack.NewEntityId, " Error=", ack.ErrorCode);
+            var ackDetails = string.Concat("Entity=", ack.EntityId, " Status=", ack.StatusCode);
             FdpLog<BdcCommandGateway>.Debug(
-                "[TRACE-GW] CreateEntityAck ID={0} {1}", ack.RequestId, ackDetails);
+                "[TRACE-GW] CreateUpdateDeleteEntityAck ID={0} {1}", ack.RequestId, ackDetails);
             return ack;
         }
 

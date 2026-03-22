@@ -62,9 +62,10 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     private readonly IDdsWriter<MapInteractionConfig>  _configWriter;
     private readonly IDdsWriter<CreateEntityRequest>   _createEntityWriter;
     private readonly IDdsWriter<MapCommandRequest>?    _commandWriter;
+    private readonly IDdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>? _deleteEntityWriter;
     private readonly IEventQueue<MapClickEvent>         _clickQueue;
     private readonly IEventQueue<SelectionChangedEvent> _selectionQueue;
-    private readonly IEventQueue<CreateEntityAck>?      _createEntityAckQueue;
+    private readonly IEventQueue<CreateUpdateDeleteEntityAck> _createEntityAckQueue;
     private readonly IEventQueue<MapCommandAck>?        _mapCommandAckQueue;
     private readonly InteractionPanel                   _interactionPanel;
     private readonly List<IIngressHandler>              _ingressHandlers;
@@ -107,6 +108,22 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     private bool _disposed;
 
     /// <summary>
+    /// Set of entity IDs for which a Phase-1 InProgress ACK has been received
+    /// but the Phase-2 final ACK has not yet arrived.
+    /// </summary>
+    private readonly HashSet<int> _pendingEntities = new();
+
+    /// <summary>
+    /// Set of entity IDs for which a <see cref="DeleteEntity"/> call has been issued
+    /// but the <see cref="Bagira.BDC.SSTM.CreateUpdateDeleteEntityAck"/> confirmation
+    /// has not yet arrived.
+    /// </summary>
+    private readonly HashSet<int> _pendingDeleteEntityIds = new();
+
+    /// <summary>Holds the last Phase-2 failure message, or null if none.</summary>
+    private string? _globalAlert;
+
+    /// <summary>
     /// The <c>MapCommandRequest.RequestId</c> of the most recently sent command (CMD_PLACE_ENTITY
     /// or CMD_START_AUTHORING). Used to correlate incoming <see cref="MapCommandAck"/> samples.
     /// <see cref="Guid.Empty"/> when no command is outstanding.
@@ -129,10 +146,11 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     /// <param name="selectionQueue">Pull queue for incoming <see cref="SelectionChangedEvent"/> samples.</param>
     /// <param name="interactionPanel">Event-log panel (also the DEBT-034 drain target).</param>
     /// <param name="createEntityAckQueue">
-    /// Optional pull queue for incoming <see cref="CreateEntityAck"/> samples.
-    /// When provided, <see cref="Update"/> drains the queue each frame, logs the result to
-    /// the interaction panel, and automatically selects the newly-spawned entity on success.
-    /// Pass <c>null</c> (the default) to skip ack processing (e.g. in unit tests).
+    /// Pull queue for incoming <see cref="CreateUpdateDeleteEntityAck"/> samples.
+    /// <see cref="Update"/> drains the queue each frame and processes
+    /// two-phase entity lifecycle acknowledgments.
+    /// Must not be <c>null</c>; pass <c>new ConcurrentEventQueue&lt;CreateUpdateDeleteEntityAck&gt;()</c>
+    /// in unit tests that do not exercise the ACK flow.
     /// </param>
     /// <param name="ingressHandlers">
     /// Optional list of DDS ingress handlers to <see cref="IIngressHandler.Poll"/> each frame.
@@ -162,12 +180,13 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         IEventQueue<MapClickEvent>          clickQueue,
         IEventQueue<SelectionChangedEvent>  selectionQueue,
         InteractionPanel                    interactionPanel,
-        IEventQueue<CreateEntityAck>?       createEntityAckQueue = null,
+        IEventQueue<CreateUpdateDeleteEntityAck> createEntityAckQueue,
         IEnumerable<IIngressHandler>?       ingressHandlers = null,
         int                                 mapGroupId      = IosLogicConstants.DefaultMapGroupId,
         IDdsWriter<MapCommandRequest>?      commandWriter   = null,
         int                                 targetMapId     = IosLogicConstants.DefaultTargetMapId,
-        IEventQueue<MapCommandAck>?         mapCommandAckQueue = null)
+        IEventQueue<MapCommandAck>?         mapCommandAckQueue = null,
+        IDdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>? deleteEntityWriter = null)
     {
         Repo                 = repo                 ?? throw new ArgumentNullException(nameof(repo));
         MissionEditorService = missionEditorService ?? throw new ArgumentNullException(nameof(missionEditorService));
@@ -176,14 +195,17 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         _configWriter        = configWriter         ?? throw new ArgumentNullException(nameof(configWriter));
         _createEntityWriter  = createEntityWriter   ?? throw new ArgumentNullException(nameof(createEntityWriter));
         _commandWriter       = commandWriter;   // null-ok; falls back to MapInteractionConfig
+        _deleteEntityWriter  = deleteEntityWriter; // null-ok; delete falls back to local only
         _clickQueue             = clickQueue           ?? throw new ArgumentNullException(nameof(clickQueue));
         _selectionQueue         = selectionQueue       ?? throw new ArgumentNullException(nameof(selectionQueue));
-        _createEntityAckQueue   = createEntityAckQueue; // null-ok
+        _createEntityAckQueue   = createEntityAckQueue ?? throw new ArgumentNullException(nameof(createEntityAckQueue));
         _mapCommandAckQueue     = mapCommandAckQueue;   // null-ok
         _interactionPanel       = interactionPanel     ?? throw new ArgumentNullException(nameof(interactionPanel));
         _ingressHandlers     = ingressHandlers?.ToList() ?? new List<IIngressHandler>();
         _mapGroupId          = mapGroupId;
         _targetMapId         = targetMapId;
+
+        Repo.EntityDeleted += OnEntityDeleted;
     }
 
     // ── IIosLogic ─────────────────────────────────────────────────────────────
@@ -400,6 +422,75 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         ThrowIfDisposed();
         SelectedEntityId = entityId;
     }
+
+    /// <inheritdoc/>
+    public void SendSetSelection(int entityId)
+    {
+        ThrowIfDisposed();
+        SelectEntity(entityId);
+        _commandWriter?.Write(new MapCommandRequest
+        {
+            RequestId       = Guid.NewGuid(),
+            MapId           = _targetMapId,
+            Type            = CommandType.CMD_SET_SELECTION,
+            CommandArgsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { entityId }),
+        });
+    }
+
+    /// <inheritdoc/>
+    public void CenterOnEntity(int entityId)
+    {
+        ThrowIfDisposed();
+        _commandWriter?.Write(new MapCommandRequest
+        {
+            RequestId       = Guid.NewGuid(),
+            MapId           = _targetMapId,
+            Type            = CommandType.CMD_SET_VIEW,
+            CommandArgsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new { entityId }),
+        });
+    }
+
+    /// <inheritdoc/>
+    public void DeleteEntity(int entityId)
+    {
+        ThrowIfDisposed();
+        _pendingDeleteEntityIds.Add(entityId);
+        _deleteEntityWriter?.Write(new Bagira.BDC.SSTM.DeleteEntityRequest
+        {
+            RequestId = Guid.NewGuid(),
+            EntityId  = entityId,
+        });
+    }
+
+    /// <inheritdoc/>
+    public bool IsEntityPendingDelete(int entityId) => _pendingDeleteEntityIds.Contains(entityId);
+
+    /// <inheritdoc/>
+    public void StartPersonalRouteAuthoring(int vehicleEntityId)
+    {
+        ThrowIfDisposed();
+        ActiveContextId = Guid.NewGuid();
+        _commandWriter?.Write(new MapCommandRequest
+        {
+            RequestId       = Guid.NewGuid(),
+            MapId           = _targetMapId,
+            Type            = CommandType.CMD_DRAW_PERSONAL_ROUTE,
+            CommandArgsJson = Newtonsoft.Json.JsonConvert.SerializeObject(new
+            {
+                contextId = ActiveContextId.ToString("N"),
+                entityId  = vehicleEntityId,
+            }),
+        });
+    }
+
+    /// <inheritdoc/>
+    public bool IsEntityPending(int entityId) => _pendingEntities.Contains(entityId);
+
+    /// <inheritdoc/>
+    public string? GlobalAlert => _globalAlert;
+
+    /// <inheritdoc/>
+    public void DismissAlert() => _globalAlert = null;
 
     /// <inheritdoc/>
     public void OpenSpawner()
@@ -669,26 +760,57 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
 
     private void ProcessEntityCreationAcks()
     {
-        if (_createEntityAckQueue == null) return;
-
         while (_createEntityAckQueue.TryDequeue(out var ack))
         {
-            TransactionManager.CompleteRequest(ack.RequestId, ack.ErrorCode == 0,
-                ack.ErrorCode == 0 ? null : $"ErrorCode={ack.ErrorCode}");
-
-            if (ack.ErrorCode != 0)
+            // ── Delete ACK path ────────────────────────────────────────────────
+            // Delete ACKs don't go through Phase-1 InProgress; detect them by the
+            // absence of an entry in _pendingEntities while being tracked for delete.
+            if (_pendingDeleteEntityIds.Contains(ack.EntityId))
             {
+                _pendingDeleteEntityIds.Remove(ack.EntityId);
+                if (ack.StatusCode >= (int)SstStatusCode.UnknownDescriptorType)
+                    _globalAlert = $"Entity deletion failed (code {ack.StatusCode}).";
                 _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicCreateAck,
-                    $"FAIL req={ack.RequestId:N} err={ack.ErrorCode}");
-                FdpLog<IosLogic>.Warn("[TRACE-IOS] CreateEntityAck FAILED: req={0} err={1}",
-                    ack.RequestId, ack.ErrorCode);
+                    $"DELETE-ACK entityId={ack.EntityId} status={ack.StatusCode}");
                 continue;
             }
 
+            if (ack.StatusCode == (int)SstStatusCode.InProgress)
+            {
+                // Phase 1: ID is now known; guard the entity against interactions
+                // until the ELM handshake completes.
+                _pendingEntities.Add(ack.EntityId);
+
+                _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicCreateAck,
+                    $"INPROGRESS newId={ack.EntityId} req={ack.RequestId:N}");
+                FdpLog<IosLogic>.Debug("[TRACE-IOS] CreateAck InProgress: newId={0}", ack.EntityId);
+                continue;
+            }
+
+            if (ack.StatusCode >= (int)SstStatusCode.UnknownDescriptorType)
+            {
+                // Phase 2 failure: remove from pending, surface alert, fail transaction.
+                _pendingEntities.Remove(ack.EntityId);
+                _globalAlert = $"Entity creation failed (code {ack.StatusCode}).";
+
+                TransactionManager.CompleteRequest(ack.RequestId, success: false,
+                    $"StatusCode={ack.StatusCode}");
+
+                _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicCreateAck,
+                    $"FAIL req={ack.RequestId:N} status={ack.StatusCode}");
+                FdpLog<IosLogic>.Warn("[TRACE-IOS] CreateAck FAILED: req={0} status={1}",
+                    ack.RequestId, ack.StatusCode);
+                continue;
+            }
+
+            // Phase 2 success (StatusCode == 0).
+            _pendingEntities.Remove(ack.EntityId);
+            TransactionManager.CompleteRequest(ack.RequestId, success: true, null);
+
             _interactionPanel.AddLog("RX", IosLogicConstants.LogTopicCreateAck,
-                $"OK newId={ack.NewEntityId} req={ack.RequestId:N}");
-            FdpLog<IosLogic>.Debug("[TRACE-IOS] CreateEntityAck OK: newId={0}", ack.NewEntityId);
-            SelectEntity(ack.NewEntityId);
+                $"OK newId={ack.EntityId} req={ack.RequestId:N}");
+            FdpLog<IosLogic>.Debug("[TRACE-IOS] CreateAck OK: newId={0}", ack.EntityId);
+            SelectEntity(ack.EntityId);
         }
     }
 
@@ -736,7 +858,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
             if (_mapGroupId != 0 && evt.MapId != 0 && evt.MapId != _mapGroupId)
                 continue;
 
-            ContextMenuLogic.OnSelectionChanged(evt);
+            ContextMenuLogic.OnSelectionChanged(evt, IsEntityPending);
             SelectedEntityId = evt.SelectedEntityIds is { Count: > 0 }
                 ? evt.SelectedEntityIds[0]
                 : PanelConstants.InspectorNoSelection;
@@ -842,6 +964,17 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
             throw new ObjectDisposedException(nameof(IosLogic));
     }
 
+    /// <summary>
+    /// Clears <see cref="SelectedEntityId"/> when the currently-selected entity is deleted
+    /// from the DER repository so the inspector does not display stale data.
+    /// Only reacts if the deleted entity matches the currently selected one; no-op otherwise.
+    /// </summary>
+    private void OnEntityDeleted(IDerEntity entity)
+    {
+        if (SelectedEntityId == entity.EntityId)
+            SelectedEntityId = 0;
+    }
+
     // ── IDisposable ───────────────────────────────────────────────────────────
 
     /// <summary>Marks the instance as disposed; idempotent.</summary>
@@ -849,5 +982,6 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        Repo.EntityDeleted -= OnEntityDeleted;
     }
 }

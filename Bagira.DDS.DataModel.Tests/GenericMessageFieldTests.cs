@@ -86,5 +86,92 @@ namespace Bagira.DDS.DataModel.Tests
             var type = Type.GetType("Bagira.BDC.SSTM.EntityAttribute, Bagira.DDS.DataModel");
             Assert.Null(type);
         }
+
+        // ── TWOACK-DM001: DeleteEntityRequest struct ────────────────────────────
+
+        [Fact]
+        public void DeleteEntityRequest_HasRequestIdField()
+        {
+            var field = typeof(Bagira.BDC.SSTM.DeleteEntityRequest).GetField("RequestId");
+            Assert.NotNull(field);
+            Assert.Equal(typeof(Guid), field!.FieldType);
+        }
+
+        [Fact]
+        public void DeleteEntityRequest_HasEntityIdField()
+        {
+            var field = typeof(Bagira.BDC.SSTM.DeleteEntityRequest).GetField("EntityId");
+            Assert.NotNull(field);
+            Assert.Equal(typeof(int), field!.FieldType);
+        }
+
+        // ── TWOACK-DM002: SstStatusCode enum ────────────────────────────────────
+
+        [Fact]
+        public void SstStatusCode_Success_IsZero()
+        {
+            Assert.Equal(0, (int)Bagira.BDC.SSTM.SstStatusCode.Success);
+        }
+
+        [Fact]
+        public void SstStatusCode_InProgress_IsOne()
+        {
+            Assert.Equal(1, (int)Bagira.BDC.SSTM.SstStatusCode.InProgress);
+        }
+
+        [Fact]
+        public void SstStatusCode_UnknownDescriptorType_IsTwo()
+        {
+            Assert.Equal(2, (int)Bagira.BDC.SSTM.SstStatusCode.UnknownDescriptorType);
+        }
+
+        [Fact]
+        public void SstStatusCode_ErrorCodesAreAllAboveOne()
+        {
+            // All error condition codes (i.e. not Success and not InProgress)
+            // must have a value >= 2 so that the check `statusCode >= 2` works.
+            var codes = (Bagira.BDC.SSTM.SstStatusCode[])Enum.GetValues(
+                typeof(Bagira.BDC.SSTM.SstStatusCode));
+            foreach (var code in codes)
+            {
+                if (code == Bagira.BDC.SSTM.SstStatusCode.Success ||
+                    code == Bagira.BDC.SSTM.SstStatusCode.InProgress)
+                    continue;
+                Assert.True((int)code >= 2,
+                    $"SstStatusCode.{code} = {(int)code} should be >= 2.");
+            }
+        }
+
+        // ── TWOACK-DM003: CreateUpdateDeleteEntityAck struct ───────────────────
+
+        [Fact]
+        public void CreateUpdateDeleteEntityAck_HasEntityIdField()
+        {
+            var field = typeof(Bagira.BDC.SSTM.CreateUpdateDeleteEntityAck).GetField("EntityId");
+            Assert.NotNull(field);
+            Assert.Equal(typeof(int), field!.FieldType);
+        }
+
+        [Fact]
+        public void CreateUpdateDeleteEntityAck_HasStatusCodeField()
+        {
+            var field = typeof(Bagira.BDC.SSTM.CreateUpdateDeleteEntityAck).GetField("StatusCode");
+            Assert.NotNull(field);
+            Assert.Equal(typeof(int), field!.FieldType);
+        }
+
+        [Fact]
+        public void CreateUpdateDeleteEntityAck_HasNoErrorCodeField()
+        {
+            var field = typeof(Bagira.BDC.SSTM.CreateUpdateDeleteEntityAck).GetField("ErrorCode");
+            Assert.Null(field);
+        }
+
+        [Fact]
+        public void CreateUpdateDeleteEntityAck_HasNoNewEntityIdField()
+        {
+            var field = typeof(Bagira.BDC.SSTM.CreateUpdateDeleteEntityAck).GetField("NewEntityId");
+            Assert.Null(field);
+        }
     }
 }

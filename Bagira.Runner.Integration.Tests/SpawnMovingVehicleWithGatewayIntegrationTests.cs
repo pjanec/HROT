@@ -68,7 +68,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         // and MissionControlAck to assert there is no ERR_ENTITY_NOT_FOUND race.
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
         using var reqReader           = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader           = new DdsReader<CreateEntityAck>(observerParticipant, "CreateEntityAck");
+        using var ackReader           = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
         using var missionAckReader    = new DdsReader<MissionControlAck>(observerParticipant, "MissionControlAck");
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
@@ -89,19 +89,20 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
             "CreateEntityRequest did not reach DDS in time. " +
             "BdcCommandGateway or DDS writer may not be initialised.");
 
-        // ── 3. Capture the CreateEntityAck to get the allocated network ID ───
-        CreateEntityAck spawnAck = default;
+        // ── 3. Capture the Phase-2 Success ACK to get the allocated network ID ───
+        CreateUpdateDeleteEntityAck spawnAck = default;
         bool ackObserved = harness.PumpUntil(
             () => TryTakeCreateAck(ackReader, spawnReq.RequestId, out spawnAck),
             GatewayTimeoutFrames);
         Assert.True(ackObserved,
-            $"CreateEntityAck for requestId={spawnReq.RequestId} did not arrive in time. " +
+            $"CreateUpdateDeleteEntityAck for requestId={spawnReq.RequestId} did not arrive in time. " +
             $"CreateEntityRequestSystem on SimHost may not have processed the request.");
-        Assert.Equal(0, spawnAck.ErrorCode);
-        Assert.True(spawnAck.NewEntityId > 0,
-            "CreateEntityAck returned a zero/negative entity ID.");
+        Assert.True(spawnAck.StatusCode < (int)SstStatusCode.UnknownDescriptorType,
+            $"Expected Success or InProgress status, got {spawnAck.StatusCode}.");;
+        Assert.True(spawnAck.EntityId > 0,
+            "CreateUpdateDeleteEntityAck returned a zero/negative entity ID.");
 
-        long networkId = spawnAck.NewEntityId;
+        long networkId = spawnAck.EntityId;
         _out.WriteLine($"[G2] Allocated networkId={networkId}.");
 
         // ── 4. Wait for the gateway Task to complete (both spawn + mission ACKs) ─
@@ -188,9 +189,9 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
     }
 
     private static bool TryTakeCreateAck(
-        DdsReader<CreateEntityAck> reader,
+        DdsReader<CreateUpdateDeleteEntityAck> reader,
         Guid requestId,
-        out CreateEntityAck ack)
+        out CreateUpdateDeleteEntityAck ack)
     {
         using var loan = reader.Take(1);
         foreach (var sample in loan)

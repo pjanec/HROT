@@ -54,6 +54,21 @@ public class RouteEditTool : IMapTool
     /// <summary>Read-only view of the ghost waypoint list for assertions.</summary>
     public IReadOnlyList<RouteWaypoint> GhostWaypoints => _ghost;
 
+    // ── Vertex context menu state ─────────────────────────────────────────────
+
+    /// <summary>
+    /// When <c>true</c>, a right-click landed on a vertex and the application should
+    /// display a context menu for \"Insert Point\" / \"Delete Point\".
+    /// Reset by <see cref="CloseVertexContextMenu"/>.
+    /// </summary>
+    public bool PendingVertexContextMenu { get; private set; }
+
+    /// <summary>
+    /// Index of the vertex that triggered the context menu.
+    /// Only valid when <see cref="PendingVertexContextMenu"/> is <c>true</c>.
+    /// </summary>
+    public int ContextMenuVertexIndex { get; private set; }
+
     // ── Events ────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -149,6 +164,17 @@ public class RouteEditTool : IMapTool
 
         if (button == MouseButton.Right)
         {
+            int nearestVtx = FindNearestVertex(worldPos);
+            if (nearestVtx >= 0)
+            {
+                // Right-click on a vertex → open vertex context menu (insert/delete).
+                _selectedVertexIndex   = nearestVtx;
+                PendingVertexContextMenu = true;
+                ContextMenuVertexIndex  = nearestVtx;
+                return true;
+            }
+
+            // Right-click away from vertices → commit and close.
             CommitChanges();
             _canvas?.PopTool();
             return true;
@@ -241,6 +267,66 @@ public class RouteEditTool : IMapTool
         if (_selectedVertexIndex < 0 || _selectedVertexIndex >= _ghost.Count)
             throw new InvalidOperationException("No waypoint is currently selected.");
         return ref System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_ghost)[_selectedVertexIndex];
+    }
+
+    // ── Vertex context menu actions ───────────────────────────────────────────
+
+    /// <summary>Closes the vertex context menu without performing any action.</summary>
+    public void CloseVertexContextMenu()
+    {
+        PendingVertexContextMenu = false;
+    }
+
+    /// <summary>
+    /// Inserts a new waypoint after <see cref="ContextMenuVertexIndex"/>, inheriting
+    /// <c>TargetSpeed</c> and <c>ExtensionJson</c> from the selected waypoint.
+    /// The new waypoint is placed at the midpoint between the selected vertex and its successor.
+    /// Clears <see cref="PendingVertexContextMenu"/> on completion.
+    /// </summary>
+    public void InsertWaypointAfterSelected()
+    {
+        int idx = ContextMenuVertexIndex;
+        if (idx < 0 || idx >= _ghost.Count)
+        {
+            PendingVertexContextMenu = false;
+            return;
+        }
+
+        int nextIdx = (idx + 1) % _ghost.Count;
+        var a = ToCanvas(_ghost[idx].Position);
+        var b = ToCanvas(_ghost[nextIdx].Position);
+        var midCanvas = (a + b) * 0.5f;
+
+        var inherited = _ghost[idx];
+        var inserted  = new RouteWaypoint
+        {
+            Position      = new System.Numerics.Vector3(midCanvas.X, 0f, midCanvas.Y),
+            TargetSpeed   = inherited.TargetSpeed,
+            ExtensionJson = inherited.ExtensionJson,
+        };
+        _ghost.Insert(idx + 1, inserted);
+        _selectedVertexIndex    = idx + 1;
+        PendingVertexContextMenu = false;
+    }
+
+    /// <summary>
+    /// Deletes the waypoint at <see cref="ContextMenuVertexIndex"/>.
+    /// No-op when fewer than 3 waypoints remain (minimum viable route = 2, but keeping ≥ 2
+    /// is enforced at authoring; editing retains at least 2).
+    /// Clears <see cref="PendingVertexContextMenu"/> on completion.
+    /// </summary>
+    public void DeleteSelectedWaypoint()
+    {
+        int idx = ContextMenuVertexIndex;
+        if (idx < 0 || idx >= _ghost.Count || _ghost.Count <= 2)
+        {
+            PendingVertexContextMenu = false;
+            return;
+        }
+
+        _ghost.RemoveAt(idx);
+        _selectedVertexIndex    = System.Math.Clamp(idx - 1, NoVertex, _ghost.Count - 1);
+        PendingVertexContextMenu = false;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

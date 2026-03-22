@@ -65,21 +65,33 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
     }
 
     /// <summary>
-    /// In-memory ACK sink: records every <see cref="CreateEntityAck"/> written by
+    /// In-memory ACK sink: records every <see cref="CreateUpdateDeleteEntityAck"/> written by
     /// <see cref="CreateEntityRequestSystem"/>.
     /// </summary>
-    public sealed class StubAckSink : ICreateEntityAckSink
+    public sealed class StubAckSink : ICreateUpdateDeleteEntityAckSink
     {
-        private readonly List<CreateEntityAck> _written = new();
+        private readonly List<CreateUpdateDeleteEntityAck> _written = new();
 
-        public IReadOnlyList<CreateEntityAck> WrittenAcks => _written;
+        public IReadOnlyList<CreateUpdateDeleteEntityAck> WrittenAcks => _written;
 
-        public void WriteAck(CreateEntityAck ack) => _written.Add(ack);
+        public void WriteAck(CreateUpdateDeleteEntityAck ack) => _written.Add(ack);
 
-        public CreateEntityAck? TryGetAck(Guid requestId)
+        public CreateUpdateDeleteEntityAck? TryGetAck(Guid requestId)
         {
             foreach (var a in _written)
                 if (a.RequestId == requestId)
+                    return a;
+            return null;
+        }
+
+        /// <summary>
+        /// Returns the first terminal (non-InProgress) ACK matching <paramref name="requestId"/>,
+        /// or <c>null</c> if no such ACK has been written yet.
+        /// </summary>
+        public CreateUpdateDeleteEntityAck? TryGetTerminalAck(Guid requestId)
+        {
+            foreach (var a in _written)
+                if (a.RequestId == requestId && a.StatusCode != (int)SstStatusCode.InProgress)
                     return a;
             return null;
         }
@@ -170,10 +182,11 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         public readonly StubIdAllocator   IdAllocator   = new(startId: 1000);
 
         // ── Systems: IEcsModuleSystem-based (executed manually each tick) ────────────
-        private readonly CreateEntityRequestSystem _requestSystem;
-        private readonly NetworkSpawningSystem     _spawnSystem;
-        private readonly SystemList                _elmSystems  = new();
-        private readonly SystemList                _geoSystems  = new();
+        private readonly CreateEntityRequestSystem      _requestSystem;
+        private readonly NetworkSpawningSystem          _spawnSystem;
+        private readonly SstRequestFinalizationSystem   _finalizationSystem;
+        private readonly SystemList                     _elmSystems  = new();
+        private readonly SystemList                     _geoSystems  = new();
 
         // ── Systems: ComponentSystem-based (executed via SystemGroup) ─────────────
         private readonly SystemGroup _inputGroup;
@@ -208,9 +221,10 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             // 4. Request / spawn systems ────────────────────────────────────────────
             var jsonAttributeCompiler = AttributeCompilerFactory.Build(_wgs84);
+            _finalizationSystem = new SstRequestFinalizationSystem(AckSink, _entityMap);
             _requestSystem = new CreateEntityRequestSystem(
                 RequestSource, AckSink, _tkbDb, IdAllocator, localNodeId: 1, _wgs84,
-                jsonAttributeCompiler);
+                jsonAttributeCompiler, finalizationSystem: _finalizationSystem);
 
             _spawnSystem = new NetworkSpawningSystem(
                 _tkbDb, _elm, _entityMap, IdAllocator, localNodeId: 1,
@@ -264,8 +278,8 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         /// </summary>
         /// <param name="tkbType">Entity template type (e.g. <see cref="TkbEntityTypes.Tank_M1Abrams"/>).</param>
         /// <param name="position">Cartesian spawn position (ENU metres from origin).</param>
-        /// <returns>The <see cref="CreateEntityAck"/> produced by <see cref="CreateEntityRequestSystem"/>.</returns>
-        public CreateEntityAck CreateEntity(long tkbType, Vector2 position = default)
+        /// <returns>The <see cref="CreateUpdateDeleteEntityAck"/> produced by <see cref="CreateEntityRequestSystem"/>.</returns>
+        public CreateUpdateDeleteEntityAck CreateEntity(long tkbType, Vector2 position = default)
         {
             var requestId = Guid.NewGuid();
 
@@ -295,8 +309,8 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             // Entity is already Active after Tick 1; these ticks are safety margin.
             for (int i = 0; i < 4; i++) Tick(1f / 60f);
 
-            var ack = AckSink.TryGetAck(requestId)
-                ?? throw new InvalidOperationException($"No ACK received for request {requestId}");
+            var ack = AckSink.TryGetTerminalAck(requestId)
+                ?? throw new InvalidOperationException($"No terminal ACK received for request {requestId}");
 
             return ack;
         }
@@ -595,6 +609,10 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             // (With zero ELM participants the ACK protocol never completes, so we
             // short-circuit it here for the test harness.)
             ActivateConstructingEntities();
+
+            // Phase-2 ACK dispatch: now that entities have been force-activated, the
+            // finalization system can detect Active lifecycle and emit Success ACKs.
+            _finalizationSystem.Execute(view, dt);
 
             // ── Phase 4: Final swap ────────────────────────────────────────────
             // In non-spawn ticks: sim events written in Phase 1 move to the read

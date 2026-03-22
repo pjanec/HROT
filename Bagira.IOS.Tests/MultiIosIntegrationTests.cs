@@ -115,6 +115,7 @@ internal static class MultiIosFactory
                 clickQueue:          clickQueue,
                 selectionQueue:      selectQueue,
                 interactionPanel:    interPanel,
+                createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>(),
                 ingressHandlers:     new[] { (IIngressHandler)msnSvc });
 
             clients[i] = new IosClient(logic, msnSvc, writer, ackQueue, missionPanel);

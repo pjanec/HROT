@@ -25,49 +25,53 @@ namespace Bagira.BDC.SSTM
     // ===================================================================================
 
     /*
-    **Error Codes** :
+    **Status Codes** :
 
     | Code | Name                              | Description                    |
     | ---- | --------------------------------- | ------------------------------ |
     | 0    | SUCCESS                           | Operation completed            |
-    | 1    | ERR_UNKNOWN_DESCRIPTOR_TYPE       | Descriptor type not supported  |
-    | 2    | ERR_ENTITY_NOT_FOUND              | EntityMaster not ALIVE         |
-    | 3    | ERR_DESCRIPTOR_INSTANCE_NOT_FOUND | Instance ID invalid            |
-    | 4    | ERR_NOT_OWNER                     | Request reached non-owner      |
-    | 5    | ERR_VALIDATION_FAILED             | Invalid value/state transition |
-    | 6    | ERR_NOT_SUPPORTED                 | Descriptor updates forbidden   |
-    | 7    | ERR_VERSION_CONFLICT              | currentVersion mismatch        |
+    | 1    | IN_PROGRESS                       | Request accepted, handshake in progress |
+    | 2    | ERR_UNKNOWN_DESCRIPTOR_TYPE       | Descriptor type not supported  |
+    | 3    | ERR_ENTITY_NOT_FOUND              | EntityMaster not ALIVE         |
+    | 4    | ERR_DESCRIPTOR_INSTANCE_NOT_FOUND | Instance ID invalid            |
+    | 5    | ERR_NOT_OWNER                     | Request reached non-owner      |
+    | 6    | ERR_VALIDATION_FAILED             | Invalid value/state transition |
+    | 7    | ERR_NOT_SUPPORTED                 | Descriptor updates forbidden   |
+    | 8    | ERR_VERSION_CONFLICT              | currentVersion mismatch        |
     */
 
     /// <summary>
-    /// Strongly-typed, centralised error codes for all SST request/response protocols
+    /// Strongly-typed, centralised status codes for all SST request/response protocols
     /// (Create, Update, Delete, Mission, …).  Cast to <c>int</c> at the DDS boundary.
     /// </summary>
-    public enum SstErrorCode : int
+    public enum SstStatusCode : int
     {
         /// <summary>Operation completed successfully.</summary>
         Success = 0,
 
+        /// <summary>Request accepted; distributed handshake in progress. A terminal ACK will follow.</summary>
+        InProgress = 1,
+
         /// <summary>The requested descriptor type is not handled by this node.</summary>
-        UnknownDescriptorType = 1,
+        UnknownDescriptorType = 2,
 
         /// <summary>No live <c>EntityMaster</c> found for the requested entity ID.</summary>
-        EntityNotFound = 2,
+        EntityNotFound = 3,
 
         /// <summary>The requested descriptor instance ID does not exist.</summary>
-        DescriptorInstanceNotFound = 3,
+        DescriptorInstanceNotFound = 4,
 
         /// <summary>This node does not own the targeted descriptor.</summary>
-        NotOwner = 4,
+        NotOwner = 5,
 
         /// <summary>The provided value fails application-level validation.</summary>
-        ValidationFailed = 5,
+        ValidationFailed = 6,
 
         /// <summary>Descriptor updates are not permitted for this descriptor type.</summary>
-        NotSupported = 6,
+        NotSupported = 7,
 
         /// <summary>The provided <c>currentVersion</c> does not match the live version (optimistic locking).</summary>
-        VersionConflict = 7,
+        VersionConflict = 8,
     }
 
     // Message to change the ownership of a descriptor.
@@ -264,19 +268,14 @@ namespace Bagira.BDC.SSTM
         public List<AttributeRecord>? InitialAttributeRecords;
     }
 
-    // Acknowledgment for entity creation.
-    [DdsTopic("CreateEntityAck")]
+    // Request to delete an entity; issued by non-owning nodes.
+    [DdsTopic("DeleteEntityRequest")]
     [DdsIdlFile("bdc-sst-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
-    public partial struct CreateEntityAck
+    public partial struct DeleteEntityRequest
     {
         public Guid RequestId;
-
-        // The newly allocated Entity ID (if successful).
-        public int NewEntityId;
-
-        // 0 = success
-        public int ErrorCode;
+        public int EntityId;
     }
 
     // Request to update a descriptor owned by another node.
@@ -353,7 +352,7 @@ namespace Bagira.BDC.SSTM
         public List<AttributeRecord>? AttributeRecords;
     }
 
-    // Acknowledgment for entity creation, descriptor update, deletion, attribute update.
+    // Unified acknowledgment for entity creation, descriptor update, and deletion.
     [DdsTopic("CreateUpdateDeleteEntityAck")]
     [DdsIdlFile("bdc-sst-generic-msgs")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
@@ -361,8 +360,11 @@ namespace Bagira.BDC.SSTM
     {
         public Guid RequestId;
 
-        // 0 = success
-        public int ErrorCode;
+        /// <summary>The affected entity. For creation requests this holds the newly allocated ID.</summary>
+        public int EntityId;
+
+        /// <summary>Maps to SstStatusCode: 0=Success, 1=InProgress, >=2=Error.</summary>
+        public int StatusCode;
 
         /// <summary>Identifies which node is sending this acknowledgment.</summary>
         public NodeId RespondingNode;

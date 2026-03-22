@@ -259,4 +259,35 @@ public class ConfigPanelTests
 
         logic.Verify(l => l.SendConfigPatch(It.IsAny<string>()), Times.Exactly(2));
     }
+
+    // ── OC1-B002: Routes layer default state and JSON key ────────────────────
+
+    /// <summary>
+    /// OC1-B002: The routes layer (<c>road_graphs</c> JSON key) must be enabled by
+    /// default so newly authored routes are visible without any operator configuration.
+    /// </summary>
+    [Fact]
+    public void RoadGraphs_DefaultValue_IsTrue()
+    {
+        var (panel, _) = CreateSut();
+
+        Assert.True(panel.RoadGraphs);
+    }
+
+    /// <summary>
+    /// OC1-B002: The JSON key emitted for the routes toggle must remain <c>"road_graphs"</c>
+    /// so it continues to match <c>MapLayerRegistry</c> and the IG layer-processing path.
+    /// The display label is "Routes" but the wire key is unchanged.
+    /// </summary>
+    [Fact]
+    public void BuildPatch_RoutesLayerKey_IsRoadGraphs()
+    {
+        var (panel, _) = CreateSut();
+
+        var json = JObject.Parse(panel.BuildPatch());
+
+        // Key must exist and must not be null.
+        Assert.NotNull(json["view"]?["layers"]?["road_graphs"]);
+    }
 }
+

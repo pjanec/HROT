@@ -327,4 +327,162 @@ public class EditToolTests
         // Ghost points must be unchanged.
         Assert.Equal(original, tool.GhostPoints[0]);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Vertex context menu — right-click on a vertex
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Right-clicking within pick radius of a vertex must set
+    /// <see cref="EditTool.PendingVertexContextMenu"/> to <c>true</c> instead of
+    /// committing the polyline.
+    /// </summary>
+    [Fact]
+    public void RightClickOnVertex_SetsPendingVertexContextMenu()
+    {
+        var repo   = CreateRepo();
+        var entity = CreatePolylineEntity(repo);
+        var tool   = CreateAndEnter(repo, entity);
+
+        int commitCount = 0;
+        tool.OnPolylineCommitted += (_, _) => commitCount++;
+
+        tool.HandleClick(NearVertex1, MouseButton.Right);
+
+        Assert.True(tool.PendingVertexContextMenu);
+        Assert.Equal(0, commitCount); // must NOT commit
+    }
+
+    /// <summary>
+    /// Right-clicking AWAY from any vertex should commit immediately (existing behaviour).
+    /// </summary>
+    [Fact]
+    public void RightClickFarFromVertices_CommitsImmediately()
+    {
+        var repo   = CreateRepo();
+        var entity = CreatePolylineEntity(repo);
+        var tool   = CreateAndEnter(repo, entity);
+
+        int commitCount = 0;
+        tool.OnPolylineCommitted += (_, _) => commitCount++;
+
+        tool.HandleClick(FarFromAll, MouseButton.Right);
+
+        Assert.Equal(1, commitCount);
+        Assert.False(tool.PendingVertexContextMenu);
+    }
+
+    /// <summary>
+    /// <see cref="EditTool.ContextMenuVertexIndex"/> must equal the vertex index
+    /// of the vertex that was right-clicked.
+    /// </summary>
+    [Fact]
+    public void RightClickOnVertex_SetsContextMenuVertexIndex()
+    {
+        var repo   = CreateRepo();
+        var entity = CreatePolylineEntity(repo);
+        var tool   = CreateAndEnter(repo, entity);
+
+        tool.HandleClick(NearVertex1, MouseButton.Right);
+
+        Assert.Equal(1, tool.ContextMenuVertexIndex);
+    }
+
+    // ── Insert point ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="EditTool.InsertPointAfterSelected"/> must add one vertex, placed at the
+    /// midpoint between vertex[N] and vertex[N+1], and clear PendingVertexContextMenu.
+    /// </summary>
+    [Fact]
+    public void InsertPointAfterSelected_AddsVertexAtMidpoint()
+    {
+        var repo   = CreateRepo();
+        var entity = CreatePolylineEntity(repo);
+        var tool   = CreateAndEnter(repo, entity);
+
+        tool.HandleClick(NearVertex1, MouseButton.Right); // opens ctx menu for vertex 1
+        int countBefore = tool.GhostPoints.Count;
+
+        tool.InsertPointAfterSelected();
+
+        Assert.Equal(countBefore + 1, tool.GhostPoints.Count);
+        Assert.False(tool.PendingVertexContextMenu);
+
+        // New vertex is midpoint of Vertex1 (index 1) and Vertex2 (index 2).
+        var expectedMid = (Vertex1 + Vertex2) * 0.5f;
+        Assert.Equal(expectedMid.X, tool.GhostPoints[2].X, precision: 2);
+        Assert.Equal(expectedMid.Y, tool.GhostPoints[2].Y, precision: 2);
+    }
+
+    // ── Delete point ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="EditTool.DeleteSelectedPoint"/> must remove the vertex at
+    /// <see cref="EditTool.ContextMenuVertexIndex"/> and clear PendingVertexContextMenu.
+    /// </summary>
+    [Fact]
+    public void DeleteSelectedPoint_RemovesVertex()
+    {
+        // Need 4 vertices so the polygon remains valid (≥ 3) after deletion.
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.SetManagedComponent(entity, new EditablePolyline
+        {
+            Points = new List<Vector2> { Vertex0, Vertex1, Vertex2, new Vector2(400f, 100f) },
+        });
+        var tool = new EditTool(entity, (ISimulationView)repo);
+        tool.OnEnter(null!);
+
+        tool.HandleClick(NearVertex1, MouseButton.Right); // ctx menu for vertex 1
+        tool.DeleteSelectedPoint();
+
+        Assert.Equal(3, tool.GhostPoints.Count);
+        Assert.False(tool.PendingVertexContextMenu);
+        // Vertex at index 1 is now Vertex2 (old index 2).
+        Assert.Equal(Vertex2, tool.GhostPoints[1]);
+    }
+
+    /// <summary>
+    /// Attempting to delete a vertex when only 3 remain must be a no-op
+    /// (minimum viable polygon preserved).
+    /// </summary>
+    [Fact]
+    public void DeleteSelectedPoint_WhenOnly3Points_IsNoOp()
+    {
+        var repo   = CreateRepo();
+        var entity = CreatePolylineEntity(repo); // exactly 3 points
+        var tool   = CreateAndEnter(repo, entity);
+
+        tool.HandleClick(NearVertex1, MouseButton.Right);
+        tool.DeleteSelectedPoint();
+
+        Assert.Equal(3, tool.GhostPoints.Count); // still 3
+        Assert.False(tool.PendingVertexContextMenu);
+    }
+
+    // ── Close context menu ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="EditTool.CloseVertexContextMenu"/> must clear
+    /// <see cref="EditTool.PendingVertexContextMenu"/> without committing.
+    /// </summary>
+    [Fact]
+    public void CloseVertexContextMenu_ClearsPendingFlag()
+    {
+        var repo   = CreateRepo();
+        var entity = CreatePolylineEntity(repo);
+        var tool   = CreateAndEnter(repo, entity);
+
+        tool.HandleClick(NearVertex1, MouseButton.Right);
+        Assert.True(tool.PendingVertexContextMenu);
+
+        int commitCount = 0;
+        tool.OnPolylineCommitted += (_, _) => commitCount++;
+
+        tool.CloseVertexContextMenu();
+
+        Assert.False(tool.PendingVertexContextMenu);
+        Assert.Equal(0, commitCount);
+    }
 }

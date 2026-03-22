@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using Bagira.BDC.SSTM;
 using Bagira.BDC.SSTD;
+using Bagira.Map.Common.Components;
 using Bagira.Map.Common.Helpers;
+using FDP.Toolkit.Replication.Components;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
@@ -62,6 +65,18 @@ namespace Bagira.SimHost.Systems
             _doctrineRegistry   = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
         }
 
+        /// <summary>Test hook: internal constructor that skips DDS setup for unit tests.</summary>
+        internal MissionControlRequestSystem(
+            NetworkEntityMap entityMap,
+            DoctrineRegistry doctrineRegistry)
+        {
+            _reader             = null!;
+            _writer             = null!;
+            _missionStateWriter = null!;
+            _entityMap          = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+            _doctrineRegistry   = doctrineRegistry ?? throw new ArgumentNullException(nameof(doctrineRegistry));
+        }
+
         protected override void OnUpdate()
         {
             // ── 1. Retry requests whose entity wasn't in the map yet ──────────
@@ -90,7 +105,7 @@ namespace Bagira.SimHost.Systems
                     FdpLog<MissionControlRequestSystem>.Warn(
                         "[MissionControl] Entity {0} not found after {1} retry frames; rejecting request {2}.",
                         req.TargetEntityId, MaxEntityWaitFrames, req.RequestId);
-                    WriteAck(req.RequestId, SstErrorCode.EntityNotFound, EntityNotFoundMessage, newVersion: 0);
+                    WriteAck(req.RequestId, SstStatusCode.EntityNotFound, EntityNotFoundMessage, newVersion: 0);
                 }
             }
 
@@ -129,14 +144,23 @@ namespace Bagira.SimHost.Systems
                 {
                     if (request.BaseVersion > 0 && request.BaseVersion != currentVersion)
                     {
-                        WriteAck(request.RequestId, SstErrorCode.VersionConflict, VersionConflictMessage, newVersion: 0);
+                        WriteAck(request.RequestId, SstStatusCode.VersionConflict, VersionConflictMessage, newVersion: 0);
                         return;
                     }
 
                     var plan = request.Payload.FullMissionData;
                     plan.Tasks ??= new List<MissionTask>();
 
-                    var queue = BuildQueue(plan, out var orderedTaskIds);
+                    if (!TryBuildQueue(repo, plan, out var queue, out var orderedTaskIds))
+                    {
+                        // A FollowRoute task's route entity is not yet ready — retry.
+                        FdpLog<MissionControlRequestSystem>.Debug(
+                            "[MissionControl] FollowRoute entity not ready; queuing request {0} for retry.",
+                            request.RequestId);
+                        _retryQueue.Enqueue((request, MaxEntityWaitFrames));
+                        return;
+                    }
+
                     repo.SetComponent(entity, queue);
                     repo.SetComponent(entity, new Bagira.SimHost.Components.EntityMissionHolder
                     {
@@ -151,7 +175,7 @@ namespace Bagira.SimHost.Systems
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;
 
-                    WriteAck(request.RequestId, SstErrorCode.Success, errorMessage: null, newVersion: currentVersion);
+                    WriteAck(request.RequestId, SstStatusCode.Success, errorMessage: null, newVersion: currentVersion);
                     PublishEntityMission(request.TargetEntityId, plan);
                     return;
                 }
@@ -175,7 +199,7 @@ namespace Bagira.SimHost.Systems
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;
 
-                    WriteAck(request.RequestId, SstErrorCode.Success, errorMessage: null, newVersion: currentVersion);
+                    WriteAck(request.RequestId, SstStatusCode.Success, errorMessage: null, newVersion: currentVersion);
                     return;
                 }
 
@@ -201,28 +225,28 @@ namespace Bagira.SimHost.Systems
                     currentVersion++;
                     _missionVersions[request.TargetEntityId] = currentVersion;
 
-                    WriteAck(request.RequestId, SstErrorCode.Success, errorMessage: null, newVersion: currentVersion);
+                    WriteAck(request.RequestId, SstStatusCode.Success, errorMessage: null, newVersion: currentVersion);
                     return;
                 }
 
                 default:
-                    WriteAck(request.RequestId, SstErrorCode.NotSupported, "ERR_NOT_SUPPORTED", newVersion: 0);
+                    WriteAck(request.RequestId, SstStatusCode.NotSupported, "ERR_NOT_SUPPORTED", newVersion: 0);
                     return;
             }
         }
 
         private void PublishEntityMission(long networkEntityId, MissionPlan plan)
         {
-            _missionStateWriter.Write(new EntityMission
+            _missionStateWriter?.Write(new EntityMission
             {
                 EntityId = networkEntityId,
                 Plan     = plan,
             });
         }
 
-        private void WriteAck(Guid requestId, SstErrorCode errorCode, string? errorMessage, long newVersion)
+        private void WriteAck(Guid requestId, SstStatusCode errorCode, string? errorMessage, long newVersion)
         {
-            _writer.Write(new MissionControlAck
+            _writer?.Write(new MissionControlAck
             {
                 RequestId    = requestId,
                 ErrorCode    = (int)errorCode,
@@ -231,11 +255,20 @@ namespace Bagira.SimHost.Systems
             });
         }
 
-        private MissionPlanQueue BuildQueue(MissionPlan plan, out List<Guid> orderedTaskIds)
+        /// <summary>
+        /// Builds the <see cref="MissionPlanQueue"/> for <paramref name="plan"/>.
+        /// Returns <c>false</c> when a <c>FollowRoute</c> task references a route entity whose
+        /// <see cref="RouteTrajectoryCache"/> is not yet compiled; the caller should re-enqueue
+        /// the request for retry instead of committing the plan.
+        /// When <c>true</c> is returned the <paramref name="plan"/> Tasks may have been mutated
+        /// to replace <c>routeEntityId</c> with the resolved <c>trajectoryId</c> in
+        /// <c>BehaviorParams</c>.
+        /// </summary>
+        private bool TryBuildQueue(EntityRepository repo, MissionPlan plan, out MissionPlanQueue queue, out List<Guid> orderedTaskIds)
         {
             orderedTaskIds = new List<Guid>();
 
-            var queue = new MissionPlanQueue
+            queue = new MissionPlanQueue
             {
                 CurrentPhase = 0,
                 PhaseElapsedSeconds = 0f
@@ -256,6 +289,16 @@ namespace Bagira.SimHost.Systems
                 var task = tasks[i];
                 orderedTaskIds.Add(task.TaskId);
 
+                // OC1-S001: translate network routeEntityId → local trajectoryId for FollowRoute tasks.
+                if (task.BehaviorId == "FollowRoute")
+                {
+                    if (!TryTranslateFollowRouteBehaviorParams(repo, task.BehaviorParams, out string translated))
+                        return false; // route entity not ready; caller must retry
+
+                    task.BehaviorParams = translated;
+                    tasks[i] = task; // struct copy back into the list
+                }
+
                 int doctrineId = ResolveDoctrineId(task.BehaviorId);
                 var (trigger, param) = ResolveTrigger(task.Triggers);
 
@@ -268,7 +311,82 @@ namespace Bagira.SimHost.Systems
             }
 
             queue.PhaseCount = (byte)count;
-            return queue;
+            return true;
+        }
+
+        /// <summary>
+        /// Attempts to rewrite <c>BehaviorParams</c> for a <c>FollowRoute</c> task by
+        /// resolving the <c>routeEntityId</c> (network ID) to a compiled
+        /// <see cref="RouteTrajectoryCache.TrajectoryId"/> (local ECS ID).
+        /// Returns <c>true</c> when the rewrite succeeded or when the params do not contain
+        /// a <c>routeEntityId</c> key (pass-through).  Returns <c>false</c> when the route
+        /// entity is not yet present or its trajectory has not been compiled.
+        /// </summary>
+        internal static bool TryTranslateFollowRouteBehaviorParams(
+            EntityRepository repo,
+            string? behaviorParams,
+            out string translatedParams)
+        {
+            translatedParams = behaviorParams ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(behaviorParams))
+                return true; // nothing to translate
+
+            long routeEntityId;
+            double speed = 0.0;
+            bool loop   = false;
+
+            try
+            {
+                using var doc  = JsonDocument.Parse(behaviorParams);
+                var       root = doc.RootElement;
+
+                if (!root.TryGetProperty("routeEntityId", out var routeEl))
+                    return true; // not a network-ID-based FollowRoute task; pass through
+
+                routeEntityId = routeEl.GetInt64();
+
+                if (root.TryGetProperty("Speed", out var speedEl))
+                    speedEl.TryGetDouble(out speed);
+
+                if (root.TryGetProperty("Loop", out var loopEl))
+                    loop = loopEl.GetBoolean();
+            }
+            catch
+            {
+                return true; // malformed JSON — let downstream handle it
+            }
+
+            // Find the route entity in ECS by NetworkIdentity.Value.
+            var routeQuery = repo.Query()
+                .With<NetworkIdentity>()
+                .With<RouteTrajectoryCache>()
+                .WithLifecycle(EntityLifecycle.All)
+                .Build();
+
+            Entity found = Entity.Null;
+            foreach (var e in routeQuery)
+            {
+                if (repo.GetComponent<NetworkIdentity>(e).Value == routeEntityId)
+                {
+                    found = e;
+                    break;
+                }
+            }
+
+            if (found == Entity.Null)
+                return false; // entity not yet registered; retry
+
+            var cache = repo.GetComponent<RouteTrajectoryCache>(found);
+            if (cache.TrajectoryId == 0)
+                return false; // route compiled but trajectory not yet ready; retry
+
+            // Rewrite params with the resolved local trajectory ID.
+            translatedParams =
+                $"{{\"trajectoryId\":{cache.TrajectoryId}" +
+                $",\"Speed\":{speed.ToString(System.Globalization.CultureInfo.InvariantCulture)}" +
+                $",\"Loop\":{(loop ? "true" : "false")}}}";
+            return true;
         }
 
         private int ResolveDoctrineId(string? behaviorId)
@@ -290,5 +408,36 @@ namespace Bagira.SimHost.Systems
         /// </summary>
         internal static (EcsMissionTrigger Trigger, float Param) ResolveTrigger(List<DdsMissionTrigger>? triggers)
             => MissionTriggerHelper.ResolveTrigger(triggers);
+
+        // ── Test hooks ─────────────────────────────────────────────────────────
+
+        /// <summary>Test hook: directly calls <see cref="ProcessRequest"/> bypassing DDS.</summary>
+        internal void TestHook_ProcessRequest(EntityRepository repo, MissionControlRequest req)
+            => ProcessRequest(repo, req);
+
+        /// <summary>Test hook: number of requests currently in the retry queue.</summary>
+        internal int TestHook_RetryQueueCount => _retryQueue.Count;
+
+        /// <summary>Test hook: run one retry-drain cycle (processes a snapshot of the queue).</summary>
+        internal void TestHook_DrainRetryQueue(EntityRepository repo)
+        {
+            int retryCount = _retryQueue.Count;
+            for (int i = 0; i < retryCount; i++)
+            {
+                var (req, framesLeft) = _retryQueue.Dequeue();
+                if (_entityMap.TryGetEntity(req.TargetEntityId, out _))
+                {
+                    ProcessRequest(repo, req);
+                }
+                else if (framesLeft > 0)
+                {
+                    _retryQueue.Enqueue((req, framesLeft - 1));
+                }
+                else
+                {
+                    WriteAck(req.RequestId, SstStatusCode.EntityNotFound, EntityNotFoundMessage, newVersion: 0);
+                }
+            }
+        }
     }
 }

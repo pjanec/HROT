@@ -50,9 +50,9 @@ namespace Bagira.SimHost.Integration.Tests
             // ── Arrange / Act ──────────────────────────────────────────────
             var ack = _host.CreateEntity(TkbEntityTypes.Tank_M1Abrams);
 
-            Assert.Equal(0, ack.ErrorCode);
-            Assert.True(_host.EntityMap.TryGetEntity(ack.NewEntityId, out var entity),
-                $"Entity {ack.NewEntityId} must be registered in EntityMap.");
+            Assert.Equal(0, ack.StatusCode);
+            Assert.True(_host.EntityMap.TryGetEntity(ack.EntityId, out var entity),
+                $"Entity {ack.EntityId} must be registered in EntityMap.");
 
             // ── Assert ────────────────────────────────────────────────────
             Assert.True(
@@ -72,8 +72,8 @@ namespace Bagira.SimHost.Integration.Tests
         {
             var ack = _host.CreateEntity(TkbEntityTypes.Tank_M1Abrams);
 
-            Assert.Equal(0, ack.ErrorCode);
-            Assert.True(_host.EntityMap.TryGetEntity(ack.NewEntityId, out var entity));
+            Assert.Equal(0, ack.StatusCode);
+            Assert.True(_host.EntityMap.TryGetEntity(ack.EntityId, out var entity));
 
             Assert.True(
                 _host.World.HasComponent<NavigationStatus>(entity),
@@ -91,8 +91,8 @@ namespace Bagira.SimHost.Integration.Tests
         {
             var ack = _host.CreateEntity(TkbEntityTypes.Tank_M1Abrams);
 
-            Assert.Equal(0, ack.ErrorCode);
-            Assert.True(_host.EntityMap.TryGetEntity(ack.NewEntityId, out var entity));
+            Assert.Equal(0, ack.StatusCode);
+            Assert.True(_host.EntityMap.TryGetEntity(ack.EntityId, out var entity));
 
             Assert.True(
                 _host.World.HasComponent<FrustrationTicks>(entity),
@@ -112,8 +112,8 @@ namespace Bagira.SimHost.Integration.Tests
         {
             // ── Arrange: spawn the entity ──────────────────────────────────
             var ack = _host.CreateEntity(TkbEntityTypes.Tank_M1Abrams);
-            Assert.Equal(0, ack.ErrorCode);
-            Assert.True(_host.EntityMap.TryGetEntity(ack.NewEntityId, out var entity));
+            Assert.Equal(0, ack.StatusCode);
+            Assert.True(_host.EntityMap.TryGetEntity(ack.EntityId, out var entity));
 
             // ── Arrange: configure a MoveTo mission ────────────────────────
             // Drive 500 m in +X direction from spawn point.
@@ -122,7 +122,7 @@ namespace Bagira.SimHost.Integration.Tests
 
             var mission = new Bagira.BDC.SSTD.EntityMission
             {
-                EntityId = ack.NewEntityId,
+                EntityId = ack.EntityId,
                 Plan = new Bagira.BDC.SSTD.MissionPlan
                 {
                     Tasks = new System.Collections.Generic.List<Bagira.BDC.SSTD.MissionTask>
@@ -169,9 +169,9 @@ namespace Bagira.SimHost.Integration.Tests
         {
             var ack = _host.CreateEntity(tkbType);
 
-            Assert.Equal(0, ack.ErrorCode);
-            Assert.True(_host.EntityMap.TryGetEntity(ack.NewEntityId, out var entity),
-                $"Entity {ack.NewEntityId} must appear in EntityMap for TkbType={tkbType}.");
+            Assert.Equal(0, ack.StatusCode);
+            Assert.True(_host.EntityMap.TryGetEntity(ack.EntityId, out var entity),
+                $"Entity {ack.EntityId} must appear in EntityMap for TkbType={tkbType}.");
 
             Assert.True(
                 _host.World.HasComponent<NavigationIntent>(entity),

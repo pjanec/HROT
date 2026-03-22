@@ -29,7 +29,7 @@ public class AreaAuthoringIntegrationTests
 
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
         using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader = new DdsReader<CreateEntityAck>(observerParticipant, "CreateEntityAck");
+        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
         using var overlayReader = new DdsReader<MapVisualOverlay>(observerParticipant, "MapVisualOverlay");
 
         iosLogic.StartAreaAuthoringMode();
@@ -67,15 +67,15 @@ public class AreaAuthoringIntegrationTests
             HasOverlayWithPointCount(observedRequest.InitialDescriptors, points.Count),
             DescribeDescriptors(observedRequest.InitialDescriptors));
 
-        CreateEntityAck ack = default;
+        CreateUpdateDeleteEntityAck ack = default;
         bool ackObserved = harness.PumpUntil(
             () => TryTakeCreateAck(ackReader, observedRequest.RequestId, out ack),
             AckTimeoutFrames);
-        Assert.True(ackObserved, "CreateEntityAck did not arrive in time.");
-        Assert.Equal(0, ack.ErrorCode);
-        Assert.True(ack.NewEntityId > 0, "CreateEntityAck returned a zero/negative entity ID.");
+        Assert.True(ackObserved, "CreateUpdateDeleteEntityAck did not arrive in time.");
+        Assert.Equal(0, ack.StatusCode);
+        Assert.True(ack.EntityId > 0, "CreateUpdateDeleteEntityAck returned a zero/negative entity ID.");
 
-        long networkId = ack.NewEntityId;
+        long networkId = ack.EntityId;
 
         MapVisualOverlay overlay = default;
         bool overlayObserved = harness.PumpUntil(
@@ -153,9 +153,9 @@ public class AreaAuthoringIntegrationTests
     }
 
     private static bool TryTakeCreateAck(
-        DdsReader<CreateEntityAck> reader,
+        DdsReader<CreateUpdateDeleteEntityAck> reader,
         System.Guid requestId,
-        out CreateEntityAck ack)
+        out CreateUpdateDeleteEntityAck ack)
     {
         using var loan = reader.Take(1);
         foreach (var sample in loan)
@@ -163,6 +163,14 @@ public class AreaAuthoringIntegrationTests
             if (!sample.IsValid) continue;
             var data = sample.Data;
             if (data.RequestId != requestId) continue;
+
+            // Skip Phase-1 InProgress ACKs — let PumpUntil retry until the
+            // terminal Success/Error ACK arrives.
+            if (data.StatusCode == (int)SstStatusCode.InProgress)
+            {
+                ack = default;
+                return false;
+            }
 
             ack = data;
             return true;

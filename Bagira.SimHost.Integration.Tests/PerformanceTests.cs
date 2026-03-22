@@ -62,11 +62,11 @@ namespace Bagira.SimHost.Integration.Tests
                 for (int col = 0; col < sideLength && spawned < EntityCount; col++, spawned++)
                 {
                     var ack = _host.CreateEntity(TkbEntityTypes.Tank_M1Abrams);
-                    Assert.Equal(0, ack.ErrorCode);
-                    entityIds.Add(ack.NewEntityId);
+                    Assert.Equal(0, ack.StatusCode);
+                    entityIds.Add(ack.EntityId);
 
                     // Place each tank at a distinct position and point it toward a distant target.
-                    if (_host.EntityMap.TryGetEntity(ack.NewEntityId, out var entity))
+                    if (_host.EntityMap.TryGetEntity(ack.EntityId, out var entity))
                     {
                         // Spawn position: grid layout
                         var pos = new Vector3(col * spacing, row * spacing, 0f);
@@ -129,9 +129,9 @@ namespace Bagira.SimHost.Integration.Tests
                 return;
 
             var ack = _host.CreateEntity(TkbEntityTypes.Tank_M1Abrams);
-            Assert.Equal(0, ack.ErrorCode);
+            Assert.Equal(0, ack.StatusCode);
 
-            if (_host.EntityMap.TryGetEntity(ack.NewEntityId, out var entity))
+            if (_host.EntityMap.TryGetEntity(ack.EntityId, out var entity))
             {
                 var nav = _host.World.GetComponent<NavState>(entity);
                 nav.Mode             = KinematicsMode.Direct;

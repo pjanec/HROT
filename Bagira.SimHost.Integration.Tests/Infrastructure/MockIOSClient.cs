@@ -18,7 +18,8 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
     /// Mirrors the IOS node's interaction pattern:
     /// 1. <see cref="SendCreateRequest"/> → publishes a <see cref="CreateEntityRequest"/>.
     /// 2. <see cref="WaitForAckAsync"/>   → polls the stub ACK sink until the matching
-    ///    <see cref="CreateEntityAck"/> arrives (or the timeout elapses).
+    ///    <see cref="CreateUpdateDeleteEntityAck"/> with a final status code arrives
+    ///    (or the timeout elapses).
     /// 3. <see cref="ReadTkbIdentity"/> → inspects the ECS world via the
     ///    <see cref="SimHostInstance"/> to verify spawn metadata is present.
     /// </summary>
@@ -44,19 +45,19 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
         // ── SimHost → IOS ─────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Polls the <see cref="StubAckSink"/> until a <see cref="CreateEntityAck"/>
-        /// matching <paramref name="requestId"/> arrives or <paramref name="timeoutMs"/>
-        /// milliseconds have elapsed.
+        /// Polls the <see cref="StubAckSink"/> until a <see cref="CreateUpdateDeleteEntityAck"/>
+        /// matching <paramref name="requestId"/> with a final status code (Success or error)
+        /// arrives or <paramref name="timeoutMs"/> milliseconds have elapsed.
         ///
         /// Each poll step runs one simulation tick so the host advances its state.
         /// </summary>
         /// <param name="requestId">The request GUID to match.</param>
         /// <param name="timeoutMs">Maximum wait time in milliseconds (default 3 000 ms).</param>
         /// <returns>
-        /// The matching <see cref="CreateEntityAck"/>, or <c>null</c> if the timeout
-        /// elapses without a matching ACK.
+        /// The final <see cref="CreateUpdateDeleteEntityAck"/> (StatusCode != InProgress),
+        /// or <c>null</c> if the timeout elapses without a matching final ACK.
         /// </returns>
-        public async Task<CreateEntityAck?> WaitForAckAsync(Guid requestId, int timeoutMs = 3000)
+        public async Task<CreateUpdateDeleteEntityAck?> WaitForAckAsync(Guid requestId, int timeoutMs = 3000)
         {
             // Each simulated "millisecond" is one tick (1/60 s in sim-time).
             // For deterministic polling we just run ticks and check synchronously.
@@ -64,7 +65,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
 
             for (int i = 0; i < maxTicks; i++)
             {
-                var ack = _host.AckSink.TryGetAck(requestId);
+                var ack = _host.AckSink.TryGetTerminalAck(requestId);
                 if (ack.HasValue)
                     return ack.Value;
 
@@ -75,7 +76,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
                 await Task.Yield();
             }
 
-            return _host.AckSink.TryGetAck(requestId);
+            return _host.AckSink.TryGetTerminalAck(requestId);
         }
 
         // ── World inspection (simulates IOS ingesting DDS topics) ────────────────

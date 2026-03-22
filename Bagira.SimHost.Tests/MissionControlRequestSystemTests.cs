@@ -256,7 +256,7 @@ namespace Bagira.SimHost.Tests
             Thread.Sleep(200);
 
             using var loan = reader.Take();
-            Assert.True(LoanHasAck(loan, requestId, errorCode: 2));
+            Assert.True(LoanHasAck(loan, requestId, errorCode: (int)SstStatusCode.EntityNotFound));
         }
 
         private static bool LoanHasAck(DdsLoan<MissionControlAck> loan, Guid requestId, int? errorCode)

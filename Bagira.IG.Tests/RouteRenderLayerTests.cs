@@ -231,4 +231,97 @@ public class RouteRenderLayerTests
         Assert.Equal(0, layer.TestHook_LineDrawCount);
         Assert.Equal(1, layer.TestHook_CircleDrawCount);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PickEntity — OC1-CORRECTIVE-02
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// OC1-CORRECTIVE-02 SC1: clicking directly on a route segment (within pick radius)
+    /// must return the route entity.
+    /// </summary>
+    [Fact]
+    public void PickEntity_ClickOnSegment_ReturnsRouteEntity()
+    {
+        var repo  = CreateRepo();
+        var layer = CreateLayer(repo);
+
+        // Two waypoints: (0,0,0) and (0,0,100) → canvas: (0,0)→(0,100).
+        var plan  = new RoutePlan();
+        plan.Mutate(wps =>
+        {
+            wps.Add(new RouteWaypoint { Position = new Vector3(0f, 0f, 0f) });
+            wps.Add(new RouteWaypoint { Position = new Vector3(0f, 0f, 100f) });
+        });
+        var entity = CreateRouteEntity(repo, plan);
+
+        // Click near the midpoint of the segment — (0, 50) is exactly on it.
+        var result = layer.PickEntity(new Vector2(0f, 50f));
+
+        Assert.Equal(entity, result);
+    }
+
+    /// <summary>
+    /// OC1-CORRECTIVE-02 SC2: clicking far from any segment must return null.
+    /// </summary>
+    [Fact]
+    public void PickEntity_ClickFarFromRoute_ReturnsNull()
+    {
+        var repo  = CreateRepo();
+        var layer = CreateLayer(repo);
+
+        var plan = new RoutePlan();
+        plan.Mutate(wps =>
+        {
+            wps.Add(new RouteWaypoint { Position = new Vector3(0f, 0f, 0f) });
+            wps.Add(new RouteWaypoint { Position = new Vector3(0f, 0f, 100f) });
+        });
+        CreateRouteEntity(repo, plan);
+
+        // Click well outside pick radius (100 units away in X).
+        var result = layer.PickEntity(new Vector2(100f, 50f));
+
+        Assert.Null(result);
+    }
+
+    /// <summary>
+    /// OC1-CORRECTIVE-02 SC3: PickEntity on an empty world returns null.
+    /// </summary>
+    [Fact]
+    public void PickEntity_NoRoutes_ReturnsNull()
+    {
+        var repo  = CreateRepo();
+        var layer = CreateLayer(repo);
+
+        var result = layer.PickEntity(Vector2.Zero);
+
+        Assert.Null(result);
+    }
+
+    /// <summary>
+    /// OC1-CORRECTIVE-02 SC4: for a looping route, the closing segment (last→first)
+    /// must also be pickable.
+    /// </summary>
+    [Fact]
+    public void PickEntity_ClickOnLoopClosingSegment_ReturnsRouteEntity()
+    {
+        var repo  = CreateRepo();
+        var layer = CreateLayer(repo);
+
+        // Triangle loop: (0,0)→(100,0)→(50,100)→back to (0,0) in canvas space.
+        // In ECS: pos.Z = canvas Y.
+        var plan = new RoutePlan { IsLoop = true };
+        plan.Mutate(wps =>
+        {
+            wps.Add(new RouteWaypoint { Position = new Vector3(0f,   0f, 0f)   }); // canvas (0,0)
+            wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 0f)   }); // canvas (100,0)
+            wps.Add(new RouteWaypoint { Position = new Vector3(50f,  0f, 100f) }); // canvas (50,100)
+        });
+        var entity = CreateRouteEntity(repo, plan);
+
+        // Midpoint of the closing segment (50,100)→(0,0): midpoint ~(25,50) in canvas.
+        var result = layer.PickEntity(new Vector2(25f, 50f));
+
+        Assert.Equal(entity, result);
+    }
 }

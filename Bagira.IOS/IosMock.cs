@@ -159,6 +159,26 @@ public sealed class IosMock : IDisposable
         _spawnerPanel.Draw(_logic);
         _diagnosticsPanel.Draw(_logic);
         _derEntityInspectorPanel.Draw(_logic.Repo, "IOS Entity Inspector");
+
+        // Two-ACK global alert modal: surface Phase-2 error ACKs to the operator.
+        if (_logic.GlobalAlert != null)
+        {
+            ImGui.OpenPopup("Entity Error");
+        }
+
+        bool alertOpen = true;
+        if (ImGui.BeginPopupModal("Entity Error", ref alertOpen,
+                ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoMove))
+        {
+            ImGui.TextUnformatted(_logic.GlobalAlert ?? string.Empty);
+            ImGui.Spacing();
+            if (ImGui.Button("OK", new System.Numerics.Vector2(80, 0)))
+            {
+                _logic.DismissAlert();
+                ImGui.CloseCurrentPopup();
+            }
+            ImGui.EndPopup();
+        }
     }
 
     // ── IDisposable ───────────────────────────────────────────────────────────

@@ -44,6 +44,7 @@ namespace Bagira.Runner.Services
         // DDS topic names — must match IosLogicConstants and IG/SimHost readers.
         private const string TopicMapConfig       = "MapInteractionConfig";
         private const string TopicCreateEntity    = "CreateEntityRequest";
+        private const string TopicDeleteEntity    = "DeleteEntityRequest";
         private const string TopicMissionControl  = "MissionControlRequest";
         private const string TopicContextActions  = "ContextActionsUpdate";
         private const string TopicMapCommand      = "MapCommandRequest";
@@ -89,11 +90,11 @@ namespace Bagira.Runner.Services
             var transactionMgr    = new RequestTransactionManager();
             var interactionPanel  = new InteractionPanel();
 
-            var clickQueue           = new ConcurrentEventQueue<MapClickEvent>();
-            var selectionQueue       = new ConcurrentEventQueue<SelectionChangedEvent>();
-            var missionAckQueue      = new ConcurrentEventQueue<MissionControlAck>();
-            var createEntityAckQueue = new ConcurrentEventQueue<CreateEntityAck>();
-            var mapCommandAckQueue   = new ConcurrentEventQueue<MapCommandAck>();
+            var clickQueue                   = new ConcurrentEventQueue<MapClickEvent>();
+            var selectionQueue               = new ConcurrentEventQueue<SelectionChangedEvent>();
+            var missionAckQueue              = new ConcurrentEventQueue<MissionControlAck>();
+            var createUpdateDeleteEntityAckQueue = new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>();
+            var mapCommandAckQueue           = new ConcurrentEventQueue<MapCommandAck>();
 
             // DDS ingress handlers for click/selection events.
             var ingressHandlers = new List<IIngressHandler>
@@ -101,7 +102,7 @@ namespace Bagira.Runner.Services
                 new MapClickIngressHandler(_participant, clickQueue),
                 new SelectionChangedIngressHandler(_participant, selectionQueue),
                 new MissionControlAckIngressHandler(_participant, missionAckQueue),
-                new CreateEntityAckIngressHandler(_participant, createEntityAckQueue),
+                new CreateUpdateDeleteEntityAckIngressHandler(_participant, createUpdateDeleteEntityAckQueue),
                 new MapCommandAckIngressHandler(_participant, mapCommandAckQueue),
                 new MasterIngressHandler<EntityMaster>(
                     _participant,
@@ -119,6 +120,8 @@ namespace Bagira.Runner.Services
                     _participant, repo, "EntityDamage",  d => d.EntityId),
                 new DescriptorIngressHandler<MapVisualOverlay>(
                     _participant, repo, "MapVisualOverlay", d => d.EntityId),
+                new DescriptorIngressHandler<MapRoute>(
+                    _participant, repo, "MapRoute", d => d.EntityId),
             };
 
             _ingressDisposables = new List<IDisposable>(ingressHandlers.Count);
@@ -131,6 +134,7 @@ namespace Bagira.Runner.Services
             // Live DDS writers — publish IOS state changes to the network.
             var configWriter       = new DdsWriterAdapter<MapInteractionConfig>(_participant, TopicMapConfig);
             var createEntityWriter = new DdsWriterAdapter<CreateEntityRequest>(_participant, TopicCreateEntity);
+            var deleteEntityWriter = new DdsWriterAdapter<Bagira.BDC.SSTM.DeleteEntityRequest>(_participant, TopicDeleteEntity);
             var missionCmdWriter   = new DdsWriterAdapter<MissionControlRequest>(_participant, TopicMissionControl);
             var contextMenuWriter  = new DdsWriterAdapter<ContextActionsUpdate>(_participant, TopicContextActions);
             var commandWriter      = new DdsWriterAdapter<MapCommandRequest>(_participant, TopicMapCommand);
@@ -151,13 +155,14 @@ namespace Bagira.Runner.Services
                 createEntityWriter:   createEntityWriter,
                 clickQueue:           clickQueue,
                 selectionQueue:       selectionQueue,
-                interactionPanel:     interactionPanel,
-                ingressHandlers:         ingressHandlers,
-                createEntityAckQueue:    createEntityAckQueue,
-                mapGroupId:              DefaultMapGroupId,
+                interactionPanel:             interactionPanel,
+                ingressHandlers:              ingressHandlers,
+                createEntityAckQueue:         createUpdateDeleteEntityAckQueue,
+                mapGroupId:                   DefaultMapGroupId,
                 commandWriter:        commandWriter,
                 targetMapId:          TargetMapId,
-                mapCommandAckQueue:   mapCommandAckQueue);
+                mapCommandAckQueue:   mapCommandAckQueue,
+                deleteEntityWriter:   deleteEntityWriter);
 
             var tkbCatalog = new TkbCatalogEntry[]
             {

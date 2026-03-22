@@ -503,6 +503,15 @@ public sealed class MissionPanel
 
         SyncDraftFromSnapshot(logic);
 
+        // Two-ACK pending guard: disable all controls while entity lifecycle handshake is in progress.
+        bool isPending = IsPendingGuardActive(logic);
+        if (isPending)
+        {
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.7f, 0f, 1f),
+                "[Constructing across network...]");
+            ImGui.BeginDisabled();
+        }
+
         var info    = entity.HasDescriptor<EntityInfo>()    ? entity.GetDescriptor<EntityInfo>()    : default;
         var mission = entity.HasDescriptor<EntityMission>() ? entity.GetDescriptor<EntityMission>() : default;
 
@@ -655,8 +664,16 @@ public sealed class MissionPanel
             }
         }
 
+        if (isPending) ImGui.EndDisabled();
         ImGui.End();
     }
+
+    /// <summary>
+    /// Returns <c>true</c> when the pending guard is active for the currently
+    /// selected entity. Exposed for unit testing without requiring an ImGui context.
+    /// </summary>
+    public bool IsPendingGuardActive(IIosLogic logic)
+        => _selectedEntityId != 0 && logic.IsEntityPending(_selectedEntityId);
 
     // ── Draft helpers ───────────────────────────────────────────────────────
 

@@ -405,4 +405,83 @@ public class ContextMenuLogicTests
 
         Assert.DoesNotContain(ContextMenuActions.EditOverlay, ids);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Edit Route (route entities — TkbType == TacGraphic_Route)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// A route entity (TkbType == TacGraphic_Route = 8802) must include
+    /// "Edit Route" (id = 101) in its context menu.
+    /// </summary>
+    [Fact]
+    public void RouteEntity_AddsEditRouteAction()
+    {
+        var (logic, writer, repo) = CreateSutWithRepo();
+        repo.CreateEntity(55, tkbType: Bagira.Map.Common.TkbEntityTypes.TacGraphic_Route);
+
+        logic.OnSelectionChanged(MakeSelectionEvent(1, 55));
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.Contains(ContextMenuActions.EditRoute, ids);
+    }
+
+    /// <summary>
+    /// A route entity must NOT include "Edit Personal Route" in its menu
+    /// (personal routes only apply to vehicle-type entities).
+    /// </summary>
+    [Fact]
+    public void RouteEntity_DoesNotAddEditPersonalRouteAction()
+    {
+        var (logic, writer, repo) = CreateSutWithRepo();
+        repo.CreateEntity(55, tkbType: Bagira.Map.Common.TkbEntityTypes.TacGraphic_Route);
+
+        logic.OnSelectionChanged(MakeSelectionEvent(1, 55));
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.DoesNotContain(ContextMenuActions.EditPersonalRoute, ids);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Edit Personal Route (vehicle/unit entities)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// A non-TacGraphic entity (e.g. a tank) should include
+    /// "Edit Personal Route" (id = 102) in its context menu.
+    /// </summary>
+    [Fact]
+    public void VehicleEntity_AddsEditPersonalRouteAction()
+    {
+        var (logic, writer, repo) = CreateSutWithRepo();
+        repo.CreateEntity(66, tkbType: Bagira.Map.Common.TkbEntityTypes.Tank_M1Abrams);
+
+        logic.OnSelectionChanged(MakeSelectionEvent(1, 66));
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.Contains(ContextMenuActions.EditPersonalRoute, ids);
+    }
+
+    /// <summary>
+    /// A TacGraphic_Area (area overlay) entity must NOT include "Edit Personal Route".
+    /// </summary>
+    [Fact]
+    public void AreaOverlayEntity_DoesNotAddEditPersonalRouteAction()
+    {
+        var (logic, writer, repo) = CreateSutWithRepo();
+        repo.CreateEntity(77, tkbType: Bagira.Map.Common.TkbEntityTypes.TacGraphic_Area);
+
+        logic.OnSelectionChanged(MakeSelectionEvent(1, 77));
+
+        var ids = ParseMenuItems(writer.Written[0].MenuDefinitionJson)
+                    .Select(i => (int)i["id"]!).ToList();
+
+        Assert.DoesNotContain(ContextMenuActions.EditPersonalRoute, ids);
+    }
 }

@@ -152,6 +152,21 @@ public sealed class OrbatPanel
     }
 
     /// <summary>
+    /// Returns <c>true</c> when the entity identified by <paramref name="entityId"/>
+    /// is a simulated (non-map-graphic) entity.
+    ///
+    /// <para>Returns <c>false</c> when the entity is not found in <paramref name="repo"/>
+    /// or when <see cref="IDerEntity.TkbType"/> ≥ <c>8000</c> (map graphic range).</para>
+    /// </summary>
+    public static bool IsSimulatedEntity(int entityId, IDerRepo repo)
+    {
+        ArgumentNullException.ThrowIfNull(repo);
+        var entity = repo.GetEntity(entityId);
+        if (entity == null) return false;
+        return entity.TkbType < 8000;
+    }
+
+    /// <summary>
     /// Activates the IG placement tool for a new unit.
     ///
     /// <para><b>Architecture note</b>: this method intentionally performs <em>no</em>
@@ -243,12 +258,49 @@ public sealed class OrbatPanel
             float indent = node.Depth * ImGui.GetStyle().IndentSpacing;
             if (indent > 0) ImGui.Indent(indent);
 
+            bool isPendingDelete = logic.IsEntityPendingDelete(node.EntityId);
+            if (isPendingDelete) ImGui.BeginDisabled();
+
             var flags = node.HasChildren
                 ? ImGuiTreeNodeFlags.OpenOnArrow
                 : ImGuiTreeNodeFlags.Leaf;
             string label = $"{node.Name} ({node.EntityId})";
             bool open = ImGui.TreeNodeEx(label, flags);
             if (ImGui.IsItemClicked()) HandleEntityClick(node.EntityId, logic);
+
+            // ── Context menu ─────────────────────────────────────────────────
+            // Use a per-node unique popup ID to avoid ImGui ID collisions.
+            string popupId = $"##ctx_{node.EntityId}";
+            if (ImGui.IsItemClicked(ImGuiMouseButton.Right))
+                ImGui.OpenPopup(popupId);
+
+            if (ImGui.BeginPopup(popupId))
+            {
+                if (ImGui.MenuItem("Select entity"))
+                    logic.SendSetSelection(node.EntityId);
+
+                if (ImGui.MenuItem("Center on entity"))
+                    logic.CenterOnEntity(node.EntityId);
+
+                if (ImGui.MenuItem("Delete"))
+                    logic.DeleteEntity(node.EntityId);
+
+                if (IsSimulatedEntity(node.EntityId, logic.Repo))
+                {
+                    if (ImGui.MenuItem("Edit Route"))
+                        logic.StartPersonalRouteAuthoring(node.EntityId);
+
+                    if (ImGui.MenuItem("Abort Mission"))
+                        _ = logic.MissionEditorService.SendControlCommandAsync(
+                                node.EntityId,
+                                eMissionCommandType.CMD_ABORT_ALL,
+                                Guid.Empty);
+                }
+
+                ImGui.EndPopup();
+            }
+            // ── End context menu ─────────────────────────────────────────────
+
             if (open)
             {
                 if (!_expandedNodes.Contains(node.EntityId)) ToggleExpanded(node.EntityId);
@@ -256,6 +308,8 @@ public sealed class OrbatPanel
             }
             else if (_expandedNodes.Contains(node.EntityId))
                 ToggleExpanded(node.EntityId);
+
+            if (isPendingDelete) ImGui.EndDisabled();
 
             if (indent > 0) ImGui.Unindent(indent);
         }

@@ -13,7 +13,7 @@ using ModuleHost.Core.Abstractions;
 
 namespace Bagira.Map.Common.Systems
 {
-    using SstErrorCode = Bagira.BDC.SSTM.SstErrorCode;
+    using SstStatusCode = Bagira.BDC.SSTM.SstStatusCode;
 
     /// <summary>
     /// Consumes <see cref="UpdateEntityAttributeRequest"/> messages and applies
@@ -157,7 +157,7 @@ namespace Bagira.Map.Common.Systems
                     req.EntityId, req.RequestId);
                 // Only ACK if the requester asked for one.
                 if (req.RequireAck)
-                    _ackSink.WriteErrorAck(req.RequestId, (int)SstErrorCode.EntityNotFound);
+                    _ackSink.WriteErrorAck(req.RequestId, (int)SstStatusCode.EntityNotFound);
                 return;
             }
 
@@ -189,7 +189,7 @@ namespace Bagira.Map.Common.Systems
                     foreach (int compId in ecsPatchCtx.AppliedComponentIds)
                         opaqueMask[compId >> 3] |= (byte)(1 << (compId & 7));
 
-                    _ackSink.WriteAck(req.RequestId, (int)SstErrorCode.Success, _localNodeId, opaqueMask);
+                    _ackSink.WriteAck(req.RequestId, (int)SstStatusCode.Success, _localNodeId, opaqueMask);
                 }
                 return;
             }
@@ -202,7 +202,7 @@ namespace Bagira.Map.Common.Systems
                     "EntityId={0}, RequestId={1}",
                     req.EntityId, req.RequestId);
                 if (req.RequireAck)
-                    _ackSink.WriteErrorAck(req.RequestId, (int)SstErrorCode.Success);
+                    _ackSink.WriteErrorAck(req.RequestId, (int)SstStatusCode.Success);
                 return;
             }
 
@@ -231,7 +231,7 @@ namespace Bagira.Map.Common.Systems
                 foreach (int compId in context.AppliedComponentIds)
                     opaqueMask[compId >> 3] |= (byte)(1 << (compId & 7));
 
-                _ackSink.WriteAck(req.RequestId, (int)SstErrorCode.Success, _localNodeId, opaqueMask);
+                _ackSink.WriteAck(req.RequestId, (int)SstStatusCode.Success, _localNodeId, opaqueMask);
             }
         }
     }
@@ -271,7 +271,7 @@ namespace Bagira.Map.Common.Systems
             => _writer.Write(new CreateUpdateDeleteEntityAck
             {
                 RequestId      = requestId,
-                ErrorCode      = errorCode,
+                StatusCode     = errorCode,
                 RespondingNode = respondingNode,
                 OpaqueData     = opaqueData.ToArray(),
             });
@@ -279,8 +279,8 @@ namespace Bagira.Map.Common.Systems
         public void WriteErrorAck(Guid requestId, int errorCode)
             => _writer.Write(new CreateUpdateDeleteEntityAck
             {
-                RequestId = requestId,
-                ErrorCode = errorCode,
+                RequestId  = requestId,
+                StatusCode = errorCode,
             });
 
         public void Dispose() => _writer.Dispose();

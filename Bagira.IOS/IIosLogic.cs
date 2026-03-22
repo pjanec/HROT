@@ -101,6 +101,56 @@ public interface IIosLogic
     void SelectEntity(int entityId);
 
     /// <summary>
+    /// Applies a local selection optimistically and publishes
+    /// <c>MapCommandRequest(CMD_SET_SELECTION, {"entityId": id})</c> to the IG.
+    /// </summary>
+    void SendSetSelection(int entityId);
+
+    /// <summary>
+    /// Publishes <c>MapCommandRequest(CMD_SET_VIEW, {"entityId": id})</c>
+    /// to request that the IG centres its camera on the specified entity.
+    /// </summary>
+    void CenterOnEntity(int entityId);
+
+    /// <summary>
+    /// Publishes a <see cref="Bagira.BDC.SSTM.DeleteEntityRequest"/> for the given
+    /// entity ID, adds it to the pending-delete set, and waits for the
+    /// <see cref="Bagira.BDC.SSTM.CreateUpdateDeleteEntityAck"/> to confirm or fail.
+    /// </summary>
+    void DeleteEntity(int entityId);
+
+    /// <summary>
+    /// Returns <c>true</c> while a <see cref="DeleteEntity"/> call has been issued
+    /// for the given entity but the ACK has not yet arrived.
+    /// Used to disable the ORBAT row while deletion is in flight.
+    /// </summary>
+    bool IsEntityPendingDelete(int entityId);
+
+    /// <summary>
+    /// Generates a new <see cref="ActiveContextId"/> and publishes
+    /// <c>MapCommandRequest(CMD_DRAW_PERSONAL_ROUTE, {"contextId":"…","entityId":vehicleEntityId})</c>
+    /// to the IG, which will activate the route-authoring tool for the specified vehicle.
+    /// </summary>
+    void StartPersonalRouteAuthoring(int vehicleEntityId);
+
+    /// <summary>
+    /// Returns <c>true</c> while a Phase-1 InProgress ACK has been received for
+    /// the given entity but the Phase-2 final ACK has not yet arrived.
+    /// Used to guard mission and context-menu interactions against half-baked entities.
+    /// </summary>
+    bool IsEntityPending(int entityId);
+
+    /// <summary>
+    /// A non-<c>null</c> value indicates that a Phase-2 failure ACK was received
+    /// and the error message should be surfaced to the operator as a modal alert.
+    /// Call <see cref="DismissAlert"/> to clear.
+    /// </summary>
+    string? GlobalAlert { get; }
+
+    /// <summary>Dismisses the current <see cref="GlobalAlert"/>, clearing it to <c>null</c>.</summary>
+    void DismissAlert();
+
+    /// <summary>
     /// Brings the spawner panel to the foreground / opens the spawner flow.
     /// Typically called when the user clicks "New Unit…" in the ORBAT panel.
     /// </summary>

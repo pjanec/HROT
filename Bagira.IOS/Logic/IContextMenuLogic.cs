@@ -32,7 +32,15 @@ public interface IContextMenuLogic
     /// change. Computes and pushes the correct <see cref="ContextActionsUpdate"/>
     /// for the new selection.
     /// </summary>
-    void OnSelectionChanged(SelectionChangedEvent evt);
+    /// <param name="evt">The incoming selection-change event.</param>
+    /// <param name="isEntityPending">
+    /// Optional predicate that returns <c>true</c> when a given entity ID is
+    /// currently in the Two-ACK pending state (Phase-1 received, Phase-2 not yet
+    /// arrived). When the selected entity is pending, an empty menu is pushed
+    /// so the operator cannot interact with a half-baked entity.
+    /// Pass <c>null</c> to skip the check (e.g. in unit tests).
+    /// </param>
+    void OnSelectionChanged(SelectionChangedEvent evt, Func<int, bool>? isEntityPending = null);
 
     /// <summary>
     /// Called when the IG user invokes an action from the context menu.

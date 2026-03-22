@@ -34,13 +34,13 @@ public class EntityInspectorPanel
         => _state = state ?? throw new ArgumentNullException(nameof(state));
 
     /// <summary>
-    /// Emits the Entity Inspector ImGui window.
+    /// Emits the Entity Properties ImGui window.
     /// Must be called within a <c>rlImGui.Begin() / rlImGui.End()</c> block.
     /// </summary>
     public void Draw()
     {
         IgPanelColors.Push();
-        bool panelVisible = ImGui.Begin("Entity Inspector");
+        bool panelVisible = ImGui.Begin("Entity Properties");
         IgPanelColors.Pop();
         if (!panelVisible)
         {
@@ -50,7 +50,7 @@ public class EntityInspectorPanel
 
         if (!_state.HasSelection)
         {
-            ImGui.Text("No entity selected");
+            ImGui.Text("No entity selected");   
             ImGui.End();
             return;
         }

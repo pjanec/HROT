@@ -140,10 +140,70 @@ public class RouteRenderLayer : IMapLayer
     /// <inheritdoc/>
     public bool HandleInput(Vector2 worldPos, MouseButton button, bool isPressed) => false;
 
-    /// <inheritdoc/>
-    public Entity? PickEntity(Vector2 worldPos) => null;
+    /// <summary>
+    /// Returns the route entity whose polyline passes within <see cref="PickRadius"/> of
+    /// <paramref name="worldPos"/>, or <c>null</c> when no route is close enough.
+    /// </summary>
+    /// <remarks>
+    /// Coordinate convention: <paramref name="worldPos"/> is in canvas space
+    /// (<c>X</c> = east, <c>Y</c> = north = world Z), matching the waypoint
+    /// representation produced by <see cref="ToCanvas"/>.
+    /// </remarks>
+    public Entity? PickEntity(Vector2 worldPos)
+    {
+        foreach (var entity in _query)
+        {
+            if (!_view.HasComponent<TkbIdentity>(entity))
+                continue;
+
+            ref readonly var tkb = ref _view.GetComponentRO<TkbIdentity>(entity);
+            if (tkb.TkbType != TkbEntityTypes.TacGraphic_Route)
+                continue;
+
+            if (!_view.HasManagedComponent<RoutePlan>(entity))
+                continue;
+
+            var plan = _view.GetManagedComponentRO<RoutePlan>(entity);
+            var waypoints = plan.Waypoints;
+            if (waypoints == null || waypoints.Count == 0)
+                continue;
+
+            int n        = waypoints.Count;
+            int segCount = plan.IsLoop ? n : n - 1;
+
+            for (int i = 0; i < segCount; i++)
+            {
+                var a = ToCanvas(waypoints[i].Position);
+                var b = ToCanvas(waypoints[(i + 1) % n].Position);
+
+                if (DistanceToSegment(worldPos, a, b) < PickRadius)
+                    return entity;
+            }
+        }
+
+        return null;
+    }
 
     // ── Private draw helpers ──────────────────────────────────────────────────
+
+    /// <summary>Pick radius in world units — used by <see cref="PickEntity"/>.</summary>
+    private const float PickRadius = 7.0f;
+
+    /// <summary>
+    /// Returns the minimum distance from point <paramref name="p"/> to the line
+    /// segment <paramref name="a"/>–<paramref name="b"/>.
+    /// </summary>
+    private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
+    {
+        var ab    = b - a;
+        var ap    = p - a;
+        float lenSq = Vector2.Dot(ab, ab);
+        if (lenSq < 1e-10f)
+            return Vector2.Distance(p, a);
+        float t    = Math.Clamp(Vector2.Dot(ap, ab) / lenSq, 0f, 1f);
+        var closest = a + t * ab;
+        return Vector2.Distance(p, closest);
+    }
 
     private void DrawRoute(RoutePlan plan, Color color)
     {

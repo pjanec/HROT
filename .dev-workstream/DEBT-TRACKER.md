@@ -53,3 +53,15 @@ This document tracks P2 and P3 technical debt, refactoring opportunities, and de
 | ✅ | P3 | Performance | ROUTES1-BATCH-03 | `RouteContextSystem` rebuilds `vehicleQuery` and `routeQuery` every tick. Cache these in `OnCreated()`. | ROUTES1-BATCH-04 |
 | ✅ | P3 | Performance | ROUTES1-BATCH-03 | `SimHostTrajectoryLayer` rebuilds `routeQuery` inside `Draw()` every frame. Store as cached member variable. | ROUTES1-BATCH-04 |
 | ✅ | P3 | Performance | ROUTES1-BATCH-03 | `WaypointEditorPanel` maps `wp.ExtensionJson` to string on every frame. Track `_lastWpIndex` to diff buffer updates. | ROUTES1-BATCH-04 |
+| ✅ | P2 | Testing     | TwoAck-BATCH-01  | `TwoAckIosTests` tests private `IsPendingGuardActive` in `MissionPanel` instead of mocking ImGui and asserting `BeginDisabled()` in `Draw()`. Violates testing spec. | TwoAck-BATCH-02 |
+| ✅ | P2 | Testing     | TwoAck-BATCH-01  | `IosMock` lacks tests verifying that the `GlobalAlert` ImGui modal explicitly opens and renders the message. | TwoAck-BATCH-02 |
+| ✅ | P3 | UX          | TwoAck-BATCH-01  | `MissionPanel` uses inaccurate pending text `(awaiting entity confirmation...)` instead of `[Constructing across network...]` specified in the design doc. | TwoAck-BATCH-02 |
+| ✅ | P3 | Architecture| TwoAck-BATCH-02  | `IosLogic` constructor accepts `createEntityAckQueue` as optional. It should be mandatory; update all factory sites. | TwoAck-BATCH-03 |
+|   | P3 | Testing     | TwoAck-BATCH-02  | Headless ImGui context creation is costly per test. Consider sharing a single `ImGuiTestFixture` across test classes. | TwoAck-BATCH-03 |
+|   | P3 | Architecture| TwoAck-BATCH-03  | `TryTakeCreateAck` helper is duplicated across 3 separate runner integration test files. Extract to `RunnerTestHelpers`. | TwoAck-BATCH-04 |
+| ✅ | P3 | Architecture | OC1-BATCH-01 | Asymmetric tool activation guards: `ActivateRouteAuthoringTool` uses `_testCreateEntityRequestSink == null` while `ActivateAreaAuthoringTool` uses `_createEntityDdsWriter == null`. Unify to a shared helper. | OC1-BATCH-02 |
+| ✅ | P3 | Architecture | OC1-BATCH-01 | `_lastAreaContextId` deduplication guard silently no-ops if `_activeContextId` is `Guid.Empty` on first call. Add `Debug.Assert(_activeContextId != Guid.Empty)`. | OC1-BATCH-02 |
+| ✅ | P3 | UX           | OC1-BATCH-01 | `MapCommandController.OnAreaEntityCreated` drops requests silently if `_sessionRequestId == Guid.Empty`. Add a `FdpLog.Warn` when dropped to surface configuration errors earlier. | OC1-BATCH-02 |
+|   | P2 | Engine Maths | OC1-BATCH-02 | Coordinate conversion bug matching Canvas Y to World Y (Altitude) instead of World Z (North) in `ActivateAreaAuthoringTool`, etc. causing route flattening bugs. | OC1-BATCH-03 |
+|   | P2 | Bug          | OC1-BATCH-02 | `RouteRenderLayer.PickEntity` hardcoded to return `null`, rendering drawn routes untouchable via Mouse/Map UI. | OC1-BATCH-03 |
+|   | P2 | Networking   | OC1-BATCH-02 | IG inspector network state divergence when running deletion; local DestroyEntity system invoked exclusively over propagating Network `DeleteEntityRequest`. | OC1-BATCH-03 |

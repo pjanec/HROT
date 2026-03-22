@@ -1,11 +1,15 @@
+[BUG] IOS "DRAW ROUTE" activate point tool but when confirmed no entity gets created. No route seen on IG.
+"Runnign Bagira.Runner -m all"
 
-When i create a new vehicle entity, select it and in IG i press Shift+Right mouse button, i get exception 
-Error in system PersonalRouteAuthoringSystem: System.InvalidOperationException: Component PartMetadata is not registered. Call RegisterComponent<PartMetadata>() first.
-   at Fdp.Kernel.EntityRepository.GetTable[T](Boolean allowCreate) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Kernel\Fdp.Kernel\EntityRepository.cs:line 1337
-   at Fdp.Kernel.EntityRepository.AddUnmanagedComponent[T](Entity entity, T& component) in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Kernel\Fdp.Kernel\EntityRepository.cs:line 900
-   at Bagira.SimHost.Systems.Routing.PersonalRouteAuthoringSystem.OnUpdate() in D:\Work\IOS-IG-SimHost-FDP-2\Bagira.SimHost\Systems\Routing\PersonalRouteAuthoringSystem.cs:line 132
-   at Fdp.Kernel.ComponentSystem.InternalUpdate() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Kernel\Fdp.Kernel\ComponentSystem.cs:line 114
-   at Fdp.Kernel.SystemGroup.OnUpdate() in D:\Work\IOS-IG-SimHost-FDP-2\FDP\Kernel\Fdp.Kernel\SystemGroup.cs:line 37
+[BUG] Do we have map layer for routes? I do not see it on IOS layer checkboxes.
+
+[BUG] tactical shape authoring runs a point tool but when comitted, the shape saved and shown is different from the one
+clicked by the tool! Maybe some centroin entity timing issue?
+
+[BUG] When i author a tactical drawing, it shows on the IG and in IG entity inspector and in IOS entity inspector.
+When I delete the entity using the context menu in the IG entity inspector, the entity stays shown
+in the IOS entity inspector (like if the entity deletion info did not reach the IOS)
+
 
 [BUG] When i delete tank platoon unit entity, the subordinate (physical) units are not deleted. Shouldn't they?
 

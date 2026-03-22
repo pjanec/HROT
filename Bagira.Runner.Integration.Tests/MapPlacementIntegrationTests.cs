@@ -29,7 +29,7 @@ public class MapPlacementIntegrationTests
         var igApp = harness.Ig.App;
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
         using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader = new DdsReader<CreateEntityAck>(observerParticipant, "CreateEntityAck");
+        using var ackReader = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
 
         int initialDerCount = CountDerEntities(iosLogic.Repo);
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
@@ -61,12 +61,12 @@ public class MapPlacementIntegrationTests
             HasMasterWithTkb(observedRequest.InitialDescriptors, tkbType),
             DescribeDescriptors("DDS", observedRequest.InitialDescriptors));
 
-        CreateEntityAck ack = default;
+        CreateUpdateDeleteEntityAck ack = default;
         bool ackObserved = harness.PumpUntil(
             () => TryTakeCreateAck(ackReader, observedRequest.RequestId, out ack),
             CreateRequestTimeoutFrames);
-        Assert.True(ackObserved, "CreateEntityAck did not arrive in time.");
-        Assert.Equal(0, ack.ErrorCode);
+        Assert.True(ackObserved, "CreateUpdateDeleteEntityAck did not arrive in time.");
+        Assert.Equal(0, ack.StatusCode);
 
         bool simHostSpawned = harness.PumpUntil(
             () => harness.SimHost.World.EntityCount > 0,
@@ -141,9 +141,9 @@ public class MapPlacementIntegrationTests
     }
 
     private static bool TryTakeCreateAck(
-        DdsReader<CreateEntityAck> reader,
+        DdsReader<CreateUpdateDeleteEntityAck> reader,
         Guid requestId,
-        out CreateEntityAck ack)
+        out CreateUpdateDeleteEntityAck ack)
     {
         using var loan = reader.Take(1);
         foreach (var sample in loan)
@@ -151,6 +151,14 @@ public class MapPlacementIntegrationTests
             if (!sample.IsValid) continue;
             var data = sample.Data;
             if (data.RequestId != requestId) continue;
+
+            // Skip Phase-1 InProgress ACKs — let PumpUntil retry until the
+            // terminal Success/Error ACK arrives.
+            if (data.StatusCode == (int)SstStatusCode.InProgress)
+            {
+                ack = default;
+                return false;
+            }
 
             ack = data;
             return true;
@@ -246,7 +254,7 @@ public class MapPlacementIntegrationTests
 
         using var observerParticipant = new DdsParticipant((uint)harness.DomainId);
         using var requestReader = new DdsReader<CreateEntityRequest>(observerParticipant, "CreateEntityRequest");
-        using var ackReader     = new DdsReader<CreateEntityAck>(observerParticipant, "CreateEntityAck");
+        using var ackReader     = new DdsReader<CreateUpdateDeleteEntityAck>(observerParticipant, "CreateUpdateDeleteEntityAck");
 
         long tkbType = TkbEntityTypes.Tank_M1Abrams;
 
@@ -288,12 +296,12 @@ public class MapPlacementIntegrationTests
         Assert.InRange(lon, -180.0, 180.0);
 
         // Verify SimHost acknowledged and spawned the entity.
-        CreateEntityAck ack = default;
+        CreateUpdateDeleteEntityAck ack = default;
         bool ackObserved = harness.PumpUntil(
             () => TryTakeCreateAck(ackReader, observedRequest.RequestId, out ack),
             CreateRequestTimeoutFrames);
-        Assert.True(ackObserved, "CreateEntityAck did not arrive in time.");
-        Assert.Equal(0, ack.ErrorCode);
+        Assert.True(ackObserved, "CreateUpdateDeleteEntityAck did not arrive in time.");
+        Assert.Equal(0, ack.StatusCode);
 
         bool simHostSpawned = harness.PumpUntil(
             () => SimHostHasEntityWithTkbType(harness.SimHost.World, tkbType),

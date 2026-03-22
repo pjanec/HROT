@@ -228,7 +228,7 @@ namespace Bagira.SimHost.Tests
                 if (!sample.IsValid) continue;
                 ackCount++;
                 if (sample.Data.EntityId == EntityId &&
-                    sample.Data.ErrorCode == (int)SstErrorCode.Success)
+                    sample.Data.ErrorCode == (int)SstStatusCode.Success)
                     hasSuccess = true;
             }
 
@@ -293,7 +293,7 @@ namespace Bagira.SimHost.Tests
 
             Assert.Equal(1, stub.Written.Count);
             Assert.Equal(EntityId, stub.Written[0].EntityId);
-            Assert.Equal((int)SstErrorCode.Success, stub.Written[0].ErrorCode);
+            Assert.Equal((int)SstStatusCode.Success, stub.Written[0].ErrorCode);
         }
     }
 }

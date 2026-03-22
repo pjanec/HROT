@@ -145,8 +145,12 @@ namespace Bagira.BDC.SSTM
         /// entity in <c>HitStack</c> and the correlated context ID.
         /// Args JSON: { "contextId": "&lt;guid&gt;", "filters": ["road_graphs", "tactical_graphics"] }
         /// </summary>
-        CMD_PICK_ENTITY,
-    }
+        CMD_PICK_ENTITY,        /// <summary>
+        /// Activates route-authoring on the IG and automatically assigns the
+        /// resulting route as a personal navigation mission for the target entity.
+        /// Args JSON: { "contextId": "&lt;guid&gt;", "entityId": 12345 }
+        /// </summary>
+        CMD_DRAW_PERSONAL_ROUTE,    }
 
     // Imperative commands sent from IOS to a specific IG Instance.
     // Used to force a specific behavior (e.g., "Pan Camera Here", "Enter Edit Mode").

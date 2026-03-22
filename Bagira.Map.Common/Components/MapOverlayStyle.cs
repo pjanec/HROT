@@ -70,6 +70,20 @@ public struct MapOverlayStyle
             IsClosed      = true,
         };
 
+    // ── JSON serialization ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Serialises this style to the JSON format consumed by <see cref="FromJson"/>.
+    /// </summary>
+    public string ToJson()
+    {
+        static string Hex(byte b) => b.ToString("X2");
+        string fill   = $"#{Hex(FillR)}{Hex(FillG)}{Hex(FillB)}{Hex(FillA)}";
+        string border = $"#{Hex(BorderR)}{Hex(BorderG)}{Hex(BorderB)}{Hex(BorderA)}";
+        string thickness = LineThickness.ToString("G9", System.Globalization.CultureInfo.InvariantCulture);
+        return $"{{\"FillColor\":\"{fill}\",\"BorderColor\":\"{border}\",\"LineThickness\":{thickness}}}";
+    }
+
     // ── JSON parsing ─────────────────────────────────────────────────────────
 
     /// <summary>

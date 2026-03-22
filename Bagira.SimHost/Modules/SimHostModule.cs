@@ -35,18 +35,34 @@ namespace Bagira.SimHost.Modules
         }
     }
 
-    // ─── DDS-backed adapter: writes CreateEntityAck responses ────────────────────────
+    // ─── DDS-backed adapter: writes CreateUpdateDeleteEntityAck responses ───────────────────────
 
-    internal sealed class DdsCreateEntityAckSink : ICreateEntityAckSink
+    internal sealed class DdsCreateUpdateDeleteEntityAckSink : ICreateUpdateDeleteEntityAckSink
     {
-        private readonly DdsWriter<CreateEntityAck> _writer;
+        private readonly DdsWriter<CreateUpdateDeleteEntityAck> _writer;
 
-        public DdsCreateEntityAckSink(DdsParticipant participant)
-            => _writer = new DdsWriter<CreateEntityAck>(participant);
+        public DdsCreateUpdateDeleteEntityAckSink(DdsParticipant participant)
+            => _writer = new DdsWriter<CreateUpdateDeleteEntityAck>(participant);
 
-        public void WriteAck(CreateEntityAck ack) => _writer.Write(ack);
+        public void WriteAck(CreateUpdateDeleteEntityAck ack) => _writer.Write(ack);
     }
+    // ─── DDS-backed adapter: polls the DDS reader for incoming DeleteEntityRequest ────────
 
+    internal sealed class DdsDeleteEntityRequestSource : IDeleteEntityRequestSource
+    {
+        private readonly DdsReader<DeleteEntityRequest> _reader;
+
+        public DdsDeleteEntityRequestSource(DdsParticipant participant)
+            => _reader = new DdsReader<DeleteEntityRequest>(participant);
+
+        public void ProcessRequests(Action<DeleteEntityRequest> processor)
+        {
+            using var loan = _reader.Take();
+            foreach (var sample in loan)
+                if (sample.IsValid)
+                    processor(sample.Data);
+        }
+    }
     // ─── Module ──────────────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -66,6 +82,8 @@ namespace Bagira.SimHost.Modules
 
         private readonly CreateEntityRequestSystem    _requestSystem;
         private readonly NetworkSpawningSystem        _spawnSystem;
+        private readonly SstRequestFinalizationSystem _finalizationSystem;
+        private readonly DeleteEntityRequestSystem    _deleteSystem;
         private readonly GeoSpatialEgressTranslator? _geoEgressTranslator;
         private readonly MapVisualOverlayEgressTranslator? _mapOverlayEgressTranslator;
         private readonly MapRouteEgressTranslator? _mapRouteEgressTranslator;
@@ -85,8 +103,11 @@ namespace Bagira.SimHost.Modules
             JsonAttributeCompiler jsonAttributeCompiler = null!,
             BinaryInterpreter? binaryInterpreter = null)
         {
-            var requestSource = new DdsCreateEntityRequestSource(participant);
-            var ackSink       = new DdsCreateEntityAckSink(participant);
+            var requestSource    = new DdsCreateEntityRequestSource(participant);
+            var ackSink           = new DdsCreateUpdateDeleteEntityAckSink(participant);
+            var deleteSource      = new DdsDeleteEntityRequestSource(participant);
+
+            _finalizationSystem = new SstRequestFinalizationSystem(ackSink, entityMap);
 
             _requestSystem = new CreateEntityRequestSystem(
                 requestSource,
@@ -96,7 +117,14 @@ namespace Bagira.SimHost.Modules
                 localNodeId,
                 geoTransform,
                 jsonAttributeCompiler,
-                binaryInterpreter);
+                binaryInterpreter,
+                _finalizationSystem);
+
+            _deleteSystem = new DeleteEntityRequestSystem(
+                deleteSource,
+                ackSink,
+                entityMap,
+                _finalizationSystem);
 
             _spawnSystem = spawnSystem;
 
@@ -147,6 +175,8 @@ namespace Bagira.SimHost.Modules
         {
             registry.RegisterSystem(_requestSystem);
             registry.RegisterSystem(_spawnSystem);
+            registry.RegisterSystem(_deleteSystem);
+            registry.RegisterSystem(_finalizationSystem);
         }
 
         public void Tick(ISimulationView view, float dt) { }

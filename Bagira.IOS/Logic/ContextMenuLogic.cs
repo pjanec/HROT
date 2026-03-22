@@ -1,5 +1,6 @@
 ﻿using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
+using Bagira.Map.Common;
 using Bagira.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using Newtonsoft.Json;
@@ -54,7 +55,7 @@ public sealed class ContextMenuLogic : IContextMenuLogic
     }
 
     /// <inheritdoc/>
-    public void OnSelectionChanged(SelectionChangedEvent evt)
+    public void OnSelectionChanged(SelectionChangedEvent evt, Func<int, bool>? isEntityPending = null)
     {
         List<ContextMenuItem> menuItems;
 
@@ -65,8 +66,19 @@ public sealed class ContextMenuLogic : IContextMenuLogic
         }
         else
         {
-            var entity = _repo.GetEntity(evt.SelectedEntityIds[0]);
-            menuItems = BuildEntityMenu(_currentStrategy, entity);
+            int entityId = evt.SelectedEntityIds[0];
+
+            // Guard: pending entity means Phase 1 received but ELM not yet confirmed.
+            // Return an empty menu so the operator cannot act on a half-baked entity.
+            if (isEntityPending != null && isEntityPending(entityId))
+            {
+                menuItems = new List<ContextMenuItem>();
+            }
+            else
+            {
+                var entity = _repo.GetEntity(entityId);
+                menuItems = BuildEntityMenu(_currentStrategy, entity);
+            }
         }
 
         string menuJson = JsonConvert.SerializeObject(menuItems);
@@ -148,6 +160,32 @@ public sealed class ContextMenuLogic : IContextMenuLogic
                     Icon  = "edit"
                 });
             }
+        }
+
+        // "Edit Route" — shown for standalone route entities so the operator can reshape them.
+        if (entity != null && entity.TkbType == TkbEntityTypes.TacGraphic_Route)
+        {
+            items.Add(new ContextMenuItem
+            {
+                Id    = ContextMenuActions.EditRoute,
+                Label = "Edit Route",
+                Icon  = "edit"
+            });
+        }
+
+        // "Edit Personal Route" — shown for non-TacGraphic unit/vehicle entities so the operator
+        // can reshape the vehicle's assigned personal route on the IG canvas.
+        if (entity != null
+         && entity.TkbType != TkbEntityTypes.TacGraphic_Route
+         && entity.TkbType != TkbEntityTypes.TacGraphic_Area
+         && entity.TkbType != TkbEntityTypes.TacGraphic_FireLine)
+        {
+            items.Add(new ContextMenuItem
+            {
+                Id    = ContextMenuActions.EditPersonalRoute,
+                Label = "Edit Personal Route",
+                Icon  = "edit-route"
+            });
         }
 
         return items;

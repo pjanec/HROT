@@ -263,7 +263,7 @@ public class MiniIosPanelState
             InitialDescriptors = descriptors,
         };
 
-        CreateEntityAck ack;
+        CreateUpdateDeleteEntityAck ack;
         try
         {
             ack = await gateway.CreateEntityAsync(createRequest);
@@ -274,10 +274,10 @@ public class MiniIosPanelState
             return;
         }
 
-        if (ack.ErrorCode != 0)
+        if (ack.StatusCode >= 2)
         {
             FdpLog<MiniIosPanelState>.Warn(
-                "[IG] CreateEntityAck returned error {0} — mission assignment skipped.", ack.ErrorCode);
+                "[IG] CreateUpdateDeleteEntityAck returned error {0} — mission assignment skipped.", ack.StatusCode);
             return;
         }
 
@@ -301,7 +301,7 @@ public class MiniIosPanelState
         var missionRequest = new MissionControlRequest
         {
             RequestId      = Guid.NewGuid(),
-            TargetEntityId = ack.NewEntityId,
+            TargetEntityId = ack.EntityId,
             BaseVersion    = 0,
             Payload = new MissionCommandUnion
             {
@@ -317,7 +317,7 @@ public class MiniIosPanelState
             {
                 FdpLog<MiniIosPanelState>.Warn(
                     "[IG] MissionControlAck returned error {0} for entity {1}.",
-                    missionAck.ErrorCode, ack.NewEntityId);
+                    missionAck.ErrorCode, ack.EntityId);
             }
         }
         catch (Exception ex)

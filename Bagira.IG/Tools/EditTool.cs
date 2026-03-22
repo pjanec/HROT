@@ -58,6 +58,21 @@ public class EditTool : IMapTool
 
     private const int NoVertexSelected = -1;
 
+    // ── Vertex context menu state ─────────────────────────────────────────────
+
+    /// <summary>
+    /// When <c>true</c>, a right-click landed on a vertex and the application
+    /// should display a context menu for "Insert Point" / "Delete Point".
+    /// Reset by <see cref="CloseVertexContextMenu"/>.
+    /// </summary>
+    public bool PendingVertexContextMenu { get; private set; }
+
+    /// <summary>
+    /// Index of the vertex that triggered the context menu.
+    /// Only valid when <see cref="PendingVertexContextMenu"/> is <c>true</c>.
+    /// </summary>
+    public int ContextMenuVertexIndex { get; private set; }
+
     // ── Public observable state ───────────────────────────────────────────────
 
     /// <summary>
@@ -137,7 +152,8 @@ public class EditTool : IMapTool
     /// Left-click is a no-op (consumed to prevent canvas fall-through); vertex selection
     /// is driven by <see cref="HandleHover"/> so that click-and-drag works without a
     /// separate click-to-select step.
-    /// Right-click commits the ghost polyline and pops the tool.
+    /// Right-click over a vertex opens the vertex context menu (insert/delete).
+    /// Right-click away from any vertex commits the ghost polyline and pops the tool.
     /// </remarks>
     public bool HandleClick(Vector2 worldPos, MouseButton button)
     {
@@ -151,6 +167,17 @@ public class EditTool : IMapTool
 
         if (button == MouseButton.Right)
         {
+            int nearestVtx = FindNearestVertex(worldPos);
+            if (nearestVtx >= 0)
+            {
+                // Right-click on a vertex → open vertex context menu instead of committing.
+                _selectedVertexIndex    = nearestVtx;
+                PendingVertexContextMenu = true;
+                ContextMenuVertexIndex  = nearestVtx;
+                return true;
+            }
+
+            // Right-click away from vertices → commit and close.
             CommitChanges();
             _canvas?.PopTool();
             return true;
@@ -246,11 +273,69 @@ public class EditTool : IMapTool
     {
         if (key == KeyboardKey.Escape)
         {
+            if (PendingVertexContextMenu)
+            {
+                // Close context menu first without cancelling the whole edit session.
+                PendingVertexContextMenu = false;
+                return true;
+            }
             // Cancel: discard ghost edits and return to previous tool.
             _canvas?.PopTool();
             return true;
         }
         return false;
+    }
+
+    // ── Vertex context menu actions ───────────────────────────────────────────
+
+    /// <summary>
+    /// Closes the vertex context menu without performing any action.
+    /// </summary>
+    public void CloseVertexContextMenu()
+    {
+        PendingVertexContextMenu = false;
+    }
+
+    /// <summary>
+    /// Inserts a new vertex after <see cref="ContextMenuVertexIndex"/> by interpolating
+    /// the midpoint between the target vertex and its successor.
+    /// Clears <see cref="PendingVertexContextMenu"/> on completion.
+    /// </summary>
+    public void InsertPointAfterSelected()
+    {
+        int idx = ContextMenuVertexIndex;
+        if (idx < 0 || idx >= _ghostPoints.Count)
+        {
+            PendingVertexContextMenu = false;
+            return;
+        }
+
+        // Midpoint between current and next vertex (wraps to first when at last vertex).
+        int    nextIdx   = (idx + 1) % _ghostPoints.Count;
+        Vector2 newPoint = (_ghostPoints[idx] + _ghostPoints[nextIdx]) * 0.5f;
+
+        _ghostPoints.Insert(idx + 1, newPoint);
+        _selectedVertexIndex    = idx + 1;
+        PendingVertexContextMenu = false;
+    }
+
+    /// <summary>
+    /// Deletes the vertex at <see cref="ContextMenuVertexIndex"/>.
+    /// No-op when fewer than 4 vertices remain (minimum viable polygon = 3 vertices).
+    /// Clears <see cref="PendingVertexContextMenu"/> on completion.
+    /// </summary>
+    public void DeleteSelectedPoint()
+    {
+        int idx = ContextMenuVertexIndex;
+        if (idx < 0 || idx >= _ghostPoints.Count || _ghostPoints.Count <= 3)
+        {
+            PendingVertexContextMenu = false;
+            return;
+        }
+
+        _ghostPoints.RemoveAt(idx);
+        _selectedVertexIndex    = Math.Clamp(idx, NoVertexSelected, _ghostPoints.Count - 1);
+        PendingVertexContextMenu = false;
     }
 
     private List<Vector2> LoadGhostPoints()
