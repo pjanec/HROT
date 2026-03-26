@@ -51,10 +51,13 @@ This fully respects the network boundary and leverages the CQRS pipeline correct
 
 --------
 
-[BUG] Entity health calculated on all systems from hit events
-Entity damage might be complex and should be calculated on a single node only (not in parallel on each node indepedently)
+[BUG] Entity health now calculated on all systems from hit events.
+Entity damage might be complex and should be calculated dedicated node(s), not in parallel on each node indepedently.
+Different entity types might need different damage calculators located at different nodes. In our current situation, the SimHost
+should be calulating the hit damage for all entitities. But the infrastructure should allow distributing this per entity type
+to multiple nodes.
 The resulting health update should be published over network.
-TODO: THIS NEEDS MORE DETAILS - DO NOT IMPLEMENT UNTIL CLARIFIED
+
 
 
 

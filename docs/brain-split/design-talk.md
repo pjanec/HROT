@@ -206,3 +206,160 @@ Architectural Benefits
 
 -   **Security & Authority:** A compromised Brain node can spam `WeaponFireRequest` messages, but it cannot dictate that it successfully destroyed a target. The Combat Server retains absolute authority over the `EntityHitDamage`.-   **Performance:** Heavy raycasting and CCD are isolated to the Physics node, while complex armor-penetration math is isolated to the Combat node.-   **IG Decoupling:** The Image Generator (IG) simply listens to `WeaponFire` and `MunitionDetonation` to play particle effects natively, completely detached from the underlying ECS hit resolution.
 
+
+
+
+
+does the following still apply?
+
+\[BUG\] MissionTrigger.ReachedDestination trigger (brain) checks NavState which lives in another node (muscle) and will never be set on the brain node
+
+In the current architecture, `MissionTrigger.ReachedDestination` directly polls the `NavState.HasArrived` field in the ECS.
+
+If your navigation (Muscle tier) and brain (Cognitive tier) run on the same node (e.g., `NodeRole.AllInOne`), `NavState` is updated natively by the `CarKinematicsSystem` during the physics update.
+
+However, if the navigation runs on a different node, **this trigger will fail and hang the mission indefinitely.**
+
+Here is why this happens, and why it is an architectural flaw:
+
+1.  **Lack of Replication:** `NavState` is an internal kinematic component. It is never replicated over the DDS network.
+2.  **CQRS Violation:** The engine uses a strict CQRS contract for distributed movement. The Brain node publishes a `NavigationIntent` command, and the Muscle node (running `NavigationExecutionSystem`) executes the physics and replies with a `NavigationStatus`.
+3.  Because `NavState` is never updated on the Brain node by the network ingress layer, `MissionDirectorSystem` will never see `HasArrived == 1`. It is a leaky abstraction that couples the cognitive tier directly to a local kinematic component.
+
+**The Correct Architectural Approach** To fix this in a distributed topology, you must stop using `MissionTrigger.ReachedDestination` and instead use **`MissionTrigger.DoctrineFinished`**.
+
+This fully respects the network boundary and leverages the CQRS pipeline correctly:
+
+1.  The remote Muscle node determines that the vehicle is within the arrival radius and broadcasts `NavigationStatus.Result = Arrived` over DDS.
+2.  The Brain node receives this via the `NavigationStatusIngressTranslator`.
+3.  The `MoveToExecutor` (running on the Brain) reads the replicated `NavigationStatus` and returns `NodeStatus.Success`.
+4.  The `BTreeTickSystem` observes that the doctrine's root node has reached a terminal state and publishes a `DoctrineFinishedEvent`.
+5.  `MissionDirectorSystem` consumes the event and cleanly advances the mission phase without ever needing to touch `NavState`.
+
+**Yes, this bug and architectural flaw still fully apply to the current codebase.**
+
+The engine currently suffers from this exact leaky abstraction, and it will break distributed Brain/Muscle topologies as you described. Here is what the source code confirms:
+
+-   **MissionDirectorSystem** **still polls** **NavState****:** Inside `MissionDirectorSystem.cs`, the `MissionTrigger.ReachedDestination` case still explicitly looks for the local `NavState` component and checks if `nav.HasArrived == 1`.-   **NavState** **is not replicated:** Looking at the network translators, `NavState` is completely absent from both the `KinematicTranslatorPack` (Muscle egress) and the `CognitiveTranslatorPack` (Brain ingress). Because it is never sent over DDS, the Brain node's `MissionDirectorSystem` will never observe `HasArrived == 1`.-   **The UI hardcodes the flawed trigger:** When a user right-clicks to send a vehicle to a location (`HandleRightClickForEntity`), the system generates a `MoveToLocation` task and hardcodes the `ReachedDestination` trigger into the mission plan. As a result, these generated missions will hang indefinitely if the vehicle's kinematics run on a separate node.
+
+**The CQRS Pipeline is already built to support your fix:** Your proposed architectural approach using `MissionTrigger.DoctrineFinished` is exactly how the distributed command pipeline was intended to be used:
+
+-   The Muscle node broadcasts `NavigationStatus` via the `NavigationStatusEgressTranslator`.-   The Brain node receives the status via `NavigationStatusIngressTranslator`.-   The `MoveToExecutor` correctly implements the CQRS contract: it observes `NavigationStatus.Result == Arrived` and translates it to `NodeStatus.Success`.-   The `BTreeTickSystem` detects this terminal success and cleanly publishes the `DoctrineFinishedEvent`.-   `MissionDirectorSystem` already has a working `MissionTrigger.DoctrineFinished` case that listens for this exact event to advance the phase.
+
+**Additional Note (A second manifestation of the bug):** If you are fixing this, you will also need to address the `FollowRouteExecutor`. It currently runs on the Brain tier but directly polls `NavState.HasArrived` to determine if a route loop has finished. Because of the same lack of `NavState` replication, `FollowRouteExecutor` will also fail to advance in a distributed topology and needs to be migrated to read the CQRS `NavigationStatus` component instead.
+
+what about the following bug?
+
+\[BUG\] Entity health now calculated on all systems from hit events. Entity damage might be complex and should be calculated dedicated node(s), not in parallel on each node indepedently. Different entity types might need different damage calculators located at different nodes. In our current situation, the SimHost should be calulating the hit damage for all entitities. But the infrastructure should allow distributing this per entity type to multiple nodes. The resulting health update should be published over network.
+
+**Yes, this bug is completely valid and still present in the current architecture.**
+
+The combat pipeline currently violates the single-source-of-truth principle. Instead of calculating damage on a dedicated authoritative node and replicating the resulting health, the engine distributes the _event_ and relies on every node to calculate the damage independently.
+
+Here is exactly how this architectural flaw manifests in the current codebase:
+
+**1\.** **DamageSystem** **lacks an Authority Check** In the core toolkit (`FDP.Toolkit.Combat.Systems.DamageSystem`), the system simply consumes `HitEvent`s and deducts damage directly from the target's `Health` component: `health.Current -= damage;`. There is no `HasAuthority(evt.HitEntity)` check anywhere in this system. As a result, any node that simulates the bullet and generates a `HitEvent` will independently mutate the entity's health.
+
+**2\. Events are replicated instead of State** Rather than replicating the health state, SimHost uses `FireInteractionEventTranslator` to bidirectionally replicate transient fire events (`FireInteractionEvent`) across the DDS network. Because the event is broadcasted, all nodes run their own local ballistics and hit resolution, leading to parallel damage calculations.
+
+**3\. The** **EntityDamage** **Egress is Missing** The infrastructure to publish health updates over the network is half-finished. The `EntityDamage` DDS topic is defined, and the Image Generator (IG) actively runs an `EntityDamageIngressTranslator` to receive it and update the visual `IgHealthState`. However, **SimHost never publishes it**. Looking at the egress pipeline setup in `SimHostApp.cs`, `EntityMaster`, `EntityInfo`, `GeoSpatial`, and `EntityMission` are all registered for egress, but `EntityDamage` is completely absent.
+
+**A Note on Regression:** Interestingly, older test code in the `NetworkDemo` handled this correctly. The `CombatFeedbackSystem` explicitly checked `if (own.PrimaryOwnerId == _localNodeId)` before applying damage to a tank. This critical ownership check was lost when the damage logic was extracted into the generalized `FDP.Toolkit.Combat.Systems.DamageSystem`.
+
+**The Correct Architectural Approach to Fix This:** To distribute damage calculations as you suggested, combat must be refactored to mimic the CQRS pattern used by the Navigation tier:
+
+-   **Enforce Authority:** `DamageSystem` must be updated to check `view.HasAuthority(evt.HitEntity)` before applying any damage.-   **Create the Egress Translator:** An `EntityDamageEgressTranslator` needs to be authored and registered in `SimHostApp.cs`. It should track changes to the `Health` component and publish them to the `EntityDamage` DDS topic.-   **Stop Replicating Fire Events to SimNodes:** `FireInteractionEvent` should only be sent to presentation nodes (like the IG for drawing tracers and explosions), rather than being used to trigger parallel physics calculations on peer simulation nodes.
+
+ad point #3 stop replicating to SimNodes. We are using dds so we publish to whoever is listening. SimNodes WILL receive the event but only the damage system on the primary owner should be processing it, correct?
+
+**Yes, you are exactly correct.** Your understanding perfectly aligns with how the engine's distributed authority model is designed to interact with the DDS publish-subscribe bus.
+
+Because DDS broadcasts to the domain, any node that has instantiated a `DdsReader` for a topic will receive the sample. The correct way to handle distributed logic in this architecture is to let the event arrive on the node, but use the ECS authority mask to gate the actual state mutation.
+
+Here is how your logic correctly applies to the combat pipeline:
+
+**1\. The Network Reception (DDS)** When a combat event is published over DDS, every SimNode listening to that topic will receive it via their ingress translator (e.g., `PollIngress` decoding the DDS sample and publishing it to the local ECS `FdpEventBus`).
+
+**2\. The Authority Guard (ECS)** Once the event is on the local event bus, the `DamageSystem` will consume it. This is where your point applies: the system must check if the local node is the authoritative owner of the target before doing any math. By wrapping the damage logic in an authority check—using `view.HasAuthority(evt.HitEntity)`—you ensure that while _every_ node sees the event, **only the primary owner of the target actually executes the damage calculation** and deducts from the `Health` component.
+
+**3\. The State Egress** Because the primary owner was the only one to mutate the `Health` component, it is now the only node with dirty state. Its egress translator will pick up this change and publish the resulting `EntityDamage` state (or `EntityInfo` for death) back to the DDS bus. The other SimNodes and IGs will receive this state update and apply it, keeping everyone perfectly synchronized.
+
+**One Minor Optimization Note:** While you are entirely correct that DDS publishes to whoever is listening, you _can_ prevent SimNodes from receiving the event at the network layer if you choose to. In this engine, a node only receives a DDS topic if you register an ingress translator for it in the `NodeBootstrapper` or `SimHostApp`.
+
+-   If a fire event is **purely visual** (like `Bagira.BDC.SSTM.FireInteractionEvent` which just contains X/Y coordinates for drawing tracers), you can optimize by only adding the ingress translator to the Image Generator (IG) nodes.-   If the event contains **logical hit data** that the simulation needs to process, then your approach is the exact intended architecture: let the SimNodes receive it, but enforce `HasAuthority` in the system before applying damage.
+
+Are there any other similar violations of Brain/Muscle topologies like with the navstate?
+
+**Yes, the** **NavState** **leaky abstraction is actually pervasive throughout the Cognitive (Brain) tier.**
+
+While the `MoveToExecutor` correctly implements the CQRS pattern by writing to `NavigationIntent` and reading from `NavigationStatus`, almost all other navigation executors and some BTree nodes completely bypass the network contract and directly mutate or poll the local `NavState` component.
+
+Because `NavState` is a local kinematic component that is not replicated over the network, **these behaviors will silently fail in a distributed topology** (the Brain node will write to its local `NavState`, but the Muscle node running the actual physics will never see the update).
+
+Here are the specific violations found in the codebase:
+
+**1\.** **FleeExecutor**
+
+-   **The Violation:** Instead of writing a `NavigationIntent`, `ComputeAndWriteFleeDestination` directly fetches the `NavState` component and overwrites its fields: `nav.Mode = KinematicsMode.Direct; nav.FinalDestination = ...; nav.TargetSpeed = p.Speed;`.-   **The Exit Bug:** In `OnExit`, it also directly wipes the state: `nav.TargetSpeed = 0f; nav.Mode = KinematicsMode.None;`.
+
+**2\.** **FollowRoadGraphExecutor**
+
+-   **The Violation:** In `OnEnter`, it directly mutates `NavState` to set up road navigation: `nav.Mode = KinematicsMode.RoadGraph; nav.RoadPhase = RoadGraphPhase.Approaching; nav.CurrentSegmentId = p.TargetNodeId;`.-   **The Poll Bug:** In `Execute`, it directly polls `nav.HasArrived != 0` instead of reading the CQRS `NavigationStatus.Result`.-   **The Exit Bug:** `OnExit` forces `nav.Mode = KinematicsMode.None;`.
+
+**3\.** **FollowRouteExecutor**
+
+-   **The Violation:** In `OnEnter`, it directly injects the trajectory into `NavState`: `nav.Mode = KinematicsMode.CustomTrajectory; nav.TrajectoryId = p.TrajectoryId;`.-   **The Poll Bug:** In `Execute`, it checks `nav.HasArrived == 0` to see if the route is finished.-   **The Exit Bug:** `OnExit` forces `nav.Mode = KinematicsMode.None;`.
+
+**4\.** **SimHostNodes.Action\_Wander** **(BTree Node)**
+
+-   **The Violation:** The BTree action itself directly polls `NavState` to figure out if it needs to pick a new random destination. It checks: `if (!needsNewTarget && ctx.World.HasComponent<NavState>(ctx.Self)) { var nav = ctx.World.GetComponent<NavState>(ctx.Self); if (nav.HasArrived != 0) needsNewTarget = true; }`. BTree nodes live exclusively on the Brain tier and should never poll Muscle-tier components directly.
+
+**How to Fix This:** The infrastructure to fix this already exists. The `NavigationMode` enum used by `NavigationIntent` already has definitions for `FollowRoute`, `DirectPoint`, and `JoinFormation`.
+
+To repair the distributed architecture, all of these executors must be rewritten to mimic `MoveToExecutor`. They need to translate their parameters into a `NavigationIntent` component, increment the `IntentId`, and let the `NavigationIntentBridgeSystem` on the Muscle node handle the translation into `NavState`.
+
+what about the smart-sensors/perception mechanism from the prespective of brain/muscle separation?
+
+Unlike the navigation mechanism that currently suffers from the leaky `NavState` abstraction, the **Smart Sensors and Perception mechanism is properly designed for distributed Brain/Muscle separation and strictly follows the CQRS network contract.**
+
+Instead of the Brain computing line-of-sight locally, the architecture offloads this heavy lifting to a dedicated perception solver node using a clean request/response loop over DDS.
+
+Here is how the perception mechanism correctly handles the distributed topology:
+
+**1\. The Command / Configuration (Brain -> Solver)** The Brain node (which runs the AI doctrines) owns the configuration of the entity's sensors but does not run the spatial queries.
+
+-   It uses the `BrainPerceptionTranslatorPack` to broadcast `SensorConfig` descriptors over DDS.-   This descriptor contains the parameters needed for sensing, such as `VisionRange`, `HearingRange`, and `FovDegrees`.-   The Brain can also publish explicit `RaycastRequestBatch` queries for specific line-of-sight checks.
+
+**2\. The Execution (Perception Node)** Instead of a "Muscle" node handling physics, perception uses a dedicated node running `NodeRole.Perception`.
+
+-   This node runs the `AutonomousPerceptionModule` on a background thread at 10 Hz.-   It receives the Brain's configurations via the `SimPerceptionTranslatorPack`.-   It executes the heavy spatial math using four dedicated systems: `LocalGridBuilderSystem` (building a spatial hash grid), `VisionBroadphaseSystem` (filtering by faction and FOV), `LosRequestBatchingSystem` (performing physics-accurate raycasts), and `ThreatEvaluationSystem` (scoring and decaying threats).
+
+**3\. The Status / Result (Solver -> Brain)** Once the perception node finishes evaluating what an entity can see or hear, it acts as the authoritative source of truth for the environment.
+
+-   It publishes `SensorTargets` over DDS (which contains a list of targets with their `ThreatScore`, `Distance`, and `BearingDegrees`).-   It also publishes `RaycastResponseBatch` messages for any explicit line-of-sight requests.
+
+**4\. The Ingestion and AI Decision (Brain)** The Brain node receives the `SensorTargets` messages via its `SensorTargetsIngressTranslator` and uses them to update the local `TargetMemory` ECS component attached to the observer entity.
+
+-   Behavior trees running on the Brain (like the Insurgent's `Ambush_BT` doctrine) simply use nodes like `Condition_HasTarget` to check if `TargetMemory.Count > 0`.
+
+**Summary:** Because the Brain tier never directly polls kinematic or spatial components to "see" targets, it completely avoids the distributed hang-ups seen in the navigation tier. It writes to `SensorConfig`, waits for `SensorTargets` to update its `TargetMemory`, and reacts accordingly—perfectly respecting the network boundary.
+
+what about vehicle navigation? Imagine the brain wants to tell the vehicle to go to given target point but using navmesh-based navigation mechanism. This meas the navigation infrastructure needs to find a path and then let the vehicle to follow this path; and this path migh be dynamically updated as the vehicle moves because the situation in the world can change (new obstacles etc.) So the navigated vehicle movements needs to be autonomous from the brain's point of view and the brain needs to know only if the vehicle successfully reached the destination or if it is still moving or if something failed (no part exists, vehicle got stuck etc.)
+
+The engine's CQRS (Command Query Responsibility Segregation) architecture is specifically designed to handle exactly this kind of autonomous, abstracted vehicle navigation. It completely decouples the "Brain" (which decides _where_ to go) from the "Muscle" (which figures out _how_ to get there and execute the physics).
+
+Here is how the distributed infrastructure currently handles autonomous navigation and status reporting:
+
+**1\. The Command (Brain -> Muscle/Solver)** When an AI doctrine on the Brain node wants a vehicle to move, it does not micromanage the steering or local pathing. Instead, it publishes a **NavigationIntent** component over the DDS network.
+
+-   This intent simply specifies the `FinalDestination` (in geographic coordinates), the `TargetSpeed`, the `ArrivalRadius`, and the `Mode` (e.g., `NAV_DIRECT_POINT` or `NAV_FOLLOW_ROUTE`).-   If a complex path needs to be found around obstacles, the Brain can offload this to a dedicated **Navigation Solver node** by publishing a `PathRequestBatch` containing the start, end, and mobility profile (wheeled, tracked, infantry). The solver computes the route across the road graph and returns a registered `RouteHandle` for the vehicle to follow.
+
+**2\. Autonomous Execution (Muscle)** Once the Muscle node receives the `NavigationIntent` (or the computed route trajectory), its local kinematics systems take full autonomous control:
+
+-   The `NavigationIntentBridgeSystem` translates the Brain's command into a local kinematic `NavState`.-   The **CarKinematicsSystem** handles the actual frame-by-frame movement physics, steering (via a Pure Pursuit controller), and following the trajectory.-   **Dynamic Updates & Obstacles:** The Muscle node autonomously handles dynamic situational changes using **RVO (Reciprocal Velocity Obstacles)**. It continuously queries a spatial hash grid for nearby neighbors and calculates avoidance forces to dynamically steer around unexpected obstacles while still trying to maintain its preferred path to the destination.
+
+**3\. Status and Feedback (Muscle -> Brain)** Just as you described, the Brain only needs to know the high-level outcome. The Muscle tier runs the **NavigationExecutionSystem**, which continuously monitors the vehicle's progress and publishes a **NavigationStatus** component back to the Brain. This CQRS status perfectly maps to the states you mentioned:
+
+-   **Still Moving:** It reports **RES\_IN\_PROGRESS** while the vehicle is actively driving toward the destination.-   **Successfully Reached:** Once the vehicle is within the requested `ArrivalRadius`, it reports **RES\_ARRIVED**.-   **Failed / Stuck:** To detect if a vehicle gets stuck (e.g., blocked by debris), the system uses a "frustration guard." If the vehicle's speed drops below a `FrustrationSpeedThreshold` (e.g., 0.2 m/s) for too many consecutive ticks, it autonomously reports **RES\_FAILED\_BLOCKED**. It can also report **RES\_FAILED\_UNREACHABLE** if the pathfinding solver determines no valid route exists.
+
+Back on the Brain node, the `MoveToExecutor` reads this status from the network and simply translates it into standard Behavior Tree signals (`Running`, `Success`, or `Failure`), allowing the AI to react cleanly without ever knowing the vehicle was actively dodging obstacles along the way.

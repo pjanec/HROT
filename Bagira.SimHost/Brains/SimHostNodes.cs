@@ -275,14 +275,6 @@ namespace Bagira.SimHost.Brains
                 || channel.Status == NodeStatus.Success
                 || channel.Status == NodeStatus.Failure;
 
-            // Also honour NavState.HasArrived as a secondary arrival signal.
-            if (!needsNewTarget && ctx.World.HasComponent<NavState>(ctx.Self))
-            {
-                var nav = ctx.World.GetComponent<NavState>(ctx.Self);
-                if (nav.HasArrived != 0)
-                    needsNewTarget = true;
-            }
-
             if (needsNewTarget)
             {
                 // Pick a random destination in the square [-WanderRadius, +WanderRadius]^2

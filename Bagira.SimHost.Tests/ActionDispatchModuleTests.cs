@@ -31,7 +31,7 @@ namespace Bagira.SimHost.Tests
                 },
                 weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
                 {
-                    (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
+                    (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor(entityMap)),
                 });
         }
 

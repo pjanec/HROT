@@ -25,7 +25,7 @@ namespace Bagira.SimHost.Tests
     ///
     /// BD1-P2T1 success criteria:
     /// - Brain-dead path uses SetDestination / AddWaypoint (muscle-layer direct).
-    /// - Brain-active path sends CMD_REPLACE_MISSION with a ReachedDestination trigger.
+    /// - Brain-active path sends CMD_REPLACE_MISSION with a DoctrineFinished trigger (BS1-T022).
     /// </summary>
     public class SimHostVisualizationTests : IDisposable
     {
@@ -127,7 +127,7 @@ namespace Bagira.SimHost.Tests
 
         /// <summary>
         /// Right-click on a brain-active entity must send a <c>CMD_REPLACE_MISSION</c>
-        /// request whose first task has exactly one trigger of type "ReachedDestination".
+        /// request whose first task has exactly one trigger of type "DoctrineFinished" (BS1-T022).
         /// </summary>
         [Fact]
         public void RightClick_BrainActive_WritesMissionWithTrigger()
@@ -179,7 +179,7 @@ namespace Bagira.SimHost.Tests
             var triggers = tasks[0].Triggers;
             Assert.NotNull(triggers);
             Assert.Single(triggers);
-            Assert.Equal("ReachedDestination", triggers[0].Type);
+            Assert.Equal("DoctrineFinished", triggers[0].Type);
         }
 
         // ── Task BD1-P4T1: Camera offset set on Initialize ────────────────────

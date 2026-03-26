@@ -71,6 +71,7 @@ namespace Bagira.BDC.SSTD
         NAV_DIRECT_POINT    = 1,
         NAV_FOLLOW_ROUTE    = 2,
         NAV_JOIN_FORMATION  = 3,
+        NAV_ROAD_GRAPH      = 4,
     }
 
     /// <summary>

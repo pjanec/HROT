@@ -3,6 +3,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Systems;
 using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Physics.Systems;
+using FDP.Toolkit.Replication.Services;
 
 namespace Bagira.SimHost.Modules
 {
@@ -31,10 +32,18 @@ namespace Bagira.SimHost.Modules
         /// <param name="inputGroup">Input-phase group — receives fire processing and raycast resolution.</param>
         /// <param name="simGroup">Simulation-phase group — receives perception broadphase, damage, and HSM bridge.</param>
         /// <param name="postSimGroup">Post-simulation group — receives ballistics integration.</param>
-        public void RegisterSystems(SystemGroup inputGroup, SystemGroup simGroup, SystemGroup postSimGroup)
+        /// <param name="entityMap">
+        /// Shared <see cref="NetworkEntityMap"/> injected into <see cref="FireProcessingSystem"/>
+        /// for resolving <c>WeaponFireIntent</c> network IDs to local ECS entities (BS1-T007).
+        /// </param>
+        public void RegisterSystems(
+            SystemGroup inputGroup,
+            SystemGroup simGroup,
+            SystemGroup postSimGroup,
+            NetworkEntityMap entityMap)
         {
             // ── Input phase ───────────────────────────────────────────────────
-            inputGroup.AddSystem(new FireProcessingSystem());
+            inputGroup.AddSystem(new FireProcessingSystem(entityMap));
             inputGroup.AddSystem(new RaycastSolverSystem());
             inputGroup.AddSystem(new HitResolutionSystem());
 

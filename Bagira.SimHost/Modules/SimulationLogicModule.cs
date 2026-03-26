@@ -13,6 +13,7 @@ using FDP.Toolkit.Behavior.Modules;
 using FDP.Toolkit.CarKinem.Modules;
 using FDP.Toolkit.Combat;
 using FDP.Toolkit.Combat.Executors;
+using FDP.Toolkit.Combat.Modules;
 using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
@@ -50,10 +51,12 @@ namespace Bagira.SimHost.Modules
     public class SimulationLogicModule
     {
         private readonly CombatModule?            _combatModule;
+        private readonly DamageAssessmentModule?  _damageAssessmentModule;
         private readonly MissionControlModule?    _missionControlModule;
         private readonly CognitiveRuntimeModule?  _cognitiveRuntimeModule;
         private readonly ActionDispatchModule?    _actionDispatchModule;
         private readonly GroundKinematicsModule?  _groundKinematicsModule;
+        private readonly NetworkEntityMap         _entityMap;
 
         /// <summary>
         /// Initialises a new <see cref="SimulationLogicModule"/>.
@@ -86,8 +89,8 @@ namespace Bagira.SimHost.Modules
         ///   Node role that determines which sub-modules are created.
         ///   Defaults to <see cref="NodeRole.AllInOne"/> (all five sub-modules).
         ///   Role → module mapping:
-        ///   AllInOne: all five; Brain: Combat+Mission+Cognitive+Action;
-        ///   MuscleGround: Combat+Action+GroundKinematics; ImageGenerator/Perception/NavigationSolver: none.
+        ///   AllInOne: all six; Brain: Mission+Cognitive+Action (no Combat, no DamageAssessment, no GroundKinematics);
+        ///   MuscleGround: Combat+DamageAssessment+Action+GroundKinematics; ImageGenerator/Perception/NavigationSolver: none.
         /// </param>
         public SimulationLogicModule(
             DoctrineRegistry         doctrineRegistry,
@@ -101,9 +104,16 @@ namespace Bagira.SimHost.Modules
             if (doctrineRegistry == null) throw new ArgumentNullException(nameof(doctrineRegistry));
             if (entityMap == null)        throw new ArgumentNullException(nameof(entityMap));
 
-            bool hasCombat         = role != NodeRole.ImageGenerator
+            _entityMap = entityMap;
+
+            bool hasCombat         = role != NodeRole.Brain
+                                  && role != NodeRole.ImageGenerator
                                   && role != NodeRole.Perception
                                   && role != NodeRole.NavigationSolver;
+            bool hasDamageAssessment = role != NodeRole.Brain
+                                     && role != NodeRole.ImageGenerator
+                                     && role != NodeRole.Perception
+                                     && role != NodeRole.NavigationSolver;
             bool hasMissionControl = role == NodeRole.AllInOne || role == NodeRole.Brain;
             bool hasCognitive      = role == NodeRole.AllInOne || role == NodeRole.Brain;
             bool hasActionDispatch = role == NodeRole.AllInOne || role == NodeRole.Brain
@@ -112,6 +122,9 @@ namespace Bagira.SimHost.Modules
 
             if (hasCombat)
                 _combatModule = new CombatModule();
+
+            if (hasDamageAssessment)
+                _damageAssessmentModule = new DamageAssessmentModule();
 
             if (hasMissionControl)
                 _missionControlModule = new MissionControlModule(doctrineRegistry);
@@ -129,7 +142,7 @@ namespace Bagira.SimHost.Modules
                     },
                     weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
                     {
-                        (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
+                        (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor(entityMap)),
                     });
 
             if (hasGroundKinem)
@@ -175,7 +188,7 @@ namespace Bagira.SimHost.Modules
             if (postSimGroup == null) throw new ArgumentNullException(nameof(postSimGroup));
 
             // Combat (present for all sim roles).
-            _combatModule?.RegisterSystems(inputGroup, simGroup, postSimGroup);
+            _combatModule?.RegisterSystems(inputGroup, simGroup, postSimGroup, _entityMap);
 
             // Brain tier: doctrine + cognitive (omitted on MuscleGround / IG / leaf nodes).
             _missionControlModule?.RegisterSystems(simGroup);
@@ -183,6 +196,9 @@ namespace Bagira.SimHost.Modules
 
             // Action dispatch (present for Brain, MuscleGround, AllInOne).
             _actionDispatchModule?.RegisterSystems(simGroup);
+
+            // DamageAssessment (Muscle and AllInOne): consumes DetonationNotification → DamageAssessedEvent.
+            _damageAssessmentModule?.RegisterSystems(simGroup, _entityMap);
 
             // NavigationIntentBridgeSystem: translates NavigationIntent → NavState for
             // CarKinematicsSystem. Only added when ground kinematics are present.

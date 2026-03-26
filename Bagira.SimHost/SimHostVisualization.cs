@@ -242,7 +242,7 @@ namespace Bagira.SimHost
         ///         muscle layer via <paramref name="setDestination"/> / <paramref name="addWaypoint"/>.</item>
         ///   <item><b>Brain-active</b> (<c>ActiveDoctrineHash != DoctrineIds.None</c>): sends a
         ///         <c>CMD_REPLACE_MISSION</c> via <paramref name="missionWriter"/>. The task
-        ///         includes a <c>ReachedDestination</c> trigger so <c>MissionDirectorSystem</c>
+        ///         includes a <c>DoctrineFinished</c> trigger so <c>MissionDirectorSystem</c>
         ///         can advance and ultimately clear the doctrine when the plan exhausts.</item>
         /// </list>
         ///
@@ -297,11 +297,13 @@ namespace Bagira.SimHost
                 ExecutingEngine = "CGFX",
                 BehaviorId      = "MoveToLocation",
                 BehaviorParams  = paramsJson,
-                // ReachedDestination trigger is required so MissionDirectorSystem fires
-                // task completion and the doctrine is cleared when the queue exhausts.
+                // DoctrineFinished trigger is required so MissionDirectorSystem fires
+                // task completion and the doctrine is cleared when the plan exhausts.
+                // Previously used "ReachedDestination" which consulted NavState on the Muscle
+                // tier; changed to DoctrineFinished for Brain-tier CQRS compliance (BS1-T022).
                 Triggers        = new List<Bagira.BDC.SSTD.MissionTrigger>
                 {
-                    new Bagira.BDC.SSTD.MissionTrigger { Type = "ReachedDestination" },
+                    new Bagira.BDC.SSTD.MissionTrigger { Type = "DoctrineFinished" },
                 },
                 State           = eTaskState.TASK_PLANNED,
             };

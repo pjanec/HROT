@@ -17,6 +17,7 @@ using FDP.Toolkit.Behavior.Modules;
 using FDP.Toolkit.CarKinem.Modules;
 using FDP.Toolkit.Combat;
 using FDP.Toolkit.Combat.Executors;
+using FDP.Toolkit.Combat.Modules;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.Navigation.Modules;
@@ -39,9 +40,9 @@ namespace Bagira.SimHost
     /// <para><b>Role → module mapping:</b></para>
     /// <list type="table">
     ///   <listheader><term>Role</term><description>Module set</description></listheader>
-    ///   <item><term>AllInOne</term><description>All five modules.</description></item>
-    ///   <item><term>Brain</term><description>MissionControl + CognitiveRuntime + ActionDispatch + Combat (no GroundKinematics).</description></item>
-    ///   <item><term>MuscleGround</term><description>ActionDispatch + GroundKinematics + Combat (no MissionControl or CognitiveRuntime).</description></item>
+    ///   <item><term>AllInOne</term><description>All six modules.</description></item>
+    ///   <item><term>Brain</term><description>MissionControl + CognitiveRuntime + ActionDispatch (no Combat, no GroundKinematics).</description></item>
+    ///   <item><term>MuscleGround</term><description>ActionDispatch + GroundKinematics + Combat + DamageAssessment (no MissionControl or CognitiveRuntime).</description></item>
     ///   <item><term>ImageGenerator</term><description>No simulation modules (presentation only).</description></item>
     /// </list>
     /// </summary>
@@ -127,7 +128,7 @@ namespace Bagira.SimHost
                     },
                     weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
                     {
-                        (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
+                        (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor(entityMap)),
                     }));
             }
 
@@ -137,10 +138,16 @@ namespace Bagira.SimHost
                 _registeredModules.Add(new GroundKinematicsModule(roadNetwork, trajectoryPool, formationTemplates));
             }
 
-            // Combat — present on all simulation roles.
-            if (role != NodeRole.ImageGenerator)
+            // Combat — present on Muscle and AllInOne; absent on Brain (no ballistics on the Brain tier).
+            if (role != NodeRole.ImageGenerator && role != NodeRole.Brain)
             {
                 _registeredModules.Add(new CombatModule());
+            }
+
+            // DamageAssessment — collocated with Muscle; also present on AllInOne.
+            if (role != NodeRole.Brain && role != NodeRole.ImageGenerator)
+            {
+                _registeredModules.Add(new DamageAssessmentModule());
             }
 
             // Return a SimulationLogicModule with role-filtered sub-module construction.

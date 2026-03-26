@@ -150,7 +150,7 @@ namespace Bagira.SimHost.Tests
             Assert.Null(exception);
 
             Assert.Equal(4, inputGroup.SystemCount);
-            Assert.Equal(21, simGroup.SystemCount);  // +1 vs ROUTES1-BATCH-02: RouteContextSystem added.
+            Assert.Equal(22, simGroup.SystemCount);  // +1 vs BS-1-BATCH-05: DamageAssessmentModule (DamageCalculationSystem) added.
             Assert.Equal(1, postSimGroup.SystemCount);
 
             // ── Cleanup ───────────────────────────────────────────────────────

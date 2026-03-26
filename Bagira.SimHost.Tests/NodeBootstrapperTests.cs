@@ -3,6 +3,8 @@ using Bagira.SimHost.Modules;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Modules;
 using FDP.Toolkit.CarKinem.Modules;
+using FDP.Toolkit.Combat;
+using FDP.Toolkit.Combat.Modules;
 using FDP.Toolkit.Replication.Services;
 using Xunit;
 
@@ -35,10 +37,11 @@ namespace Bagira.SimHost.Tests
             Assert.Contains(modules, m => m is ActionDispatchModule);
             Assert.Contains(modules, m => m is GroundKinematicsModule);
             Assert.Contains(modules, m => m is CombatModule);
+            Assert.Contains(modules, m => m is DamageAssessmentModule);
         }
 
         [Fact]
-        public void NodeBootstrapper_AllInOne_RegistersFiveModules()
+        public void NodeBootstrapper_AllInOne_RegistersSixModules()
         {
             var bootstrapper = new NodeBootstrapper();
             bootstrapper.BuildSimulationLogic(
@@ -46,7 +49,7 @@ namespace Bagira.SimHost.Tests
                 CreateRegistry(),
                 CreateEntityMap());
 
-            Assert.Equal(5, bootstrapper.RegisteredModules.Count);
+            Assert.Equal(6, bootstrapper.RegisteredModules.Count);
         }
 
         // ── Brain role ────────────────────────────────────────────────────────
@@ -76,6 +79,19 @@ namespace Bagira.SimHost.Tests
             Assert.Contains(bootstrapper.RegisteredModules, m => m is CognitiveRuntimeModule);
         }
 
+        /// <summary>BS1-T016: Brain must NOT carry the Combat module.</summary>
+        [Fact]
+        public void NodeBootstrapper_Brain_DoesNotRegisterCombatModule()
+        {
+            var bootstrapper = new NodeBootstrapper();
+            bootstrapper.BuildSimulationLogic(
+                NodeRole.Brain,
+                CreateRegistry(),
+                CreateEntityMap());
+
+            Assert.DoesNotContain(bootstrapper.RegisteredModules, m => m is CombatModule);
+        }
+
         // ── MuscleGround role ─────────────────────────────────────────────────
 
         [Fact]
@@ -101,6 +117,20 @@ namespace Bagira.SimHost.Tests
                 CreateEntityMap());
 
             Assert.Contains(bootstrapper.RegisteredModules, m => m is GroundKinematicsModule);
+        }
+
+        /// <summary>BS1-T016: MuscleGround must carry DamageAssessmentModule.</summary>
+        [Fact]
+        public void NodeBootstrapper_MuscleGround_RegistersDamageAssessmentModule()
+        {
+            var bootstrapper = new NodeBootstrapper();
+            bootstrapper.BuildSimulationLogic(
+                NodeRole.MuscleGround,
+                CreateRegistry(),
+                CreateEntityMap());
+
+            Assert.Contains(bootstrapper.RegisteredModules, m => m is DamageAssessmentModule);
+            Assert.DoesNotContain(bootstrapper.RegisteredModules, m => m is MissionControlModule);
         }
 
         // ── ImageGenerator role ───────────────────────────────────────────────

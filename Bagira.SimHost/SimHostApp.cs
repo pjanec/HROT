@@ -13,6 +13,8 @@ using Bagira.SimHost.Brains;
 using Bagira.SimHost.Components;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
+using Bagira.SimHost.Network.Egress;
+using Bagira.SimHost.Network.Ingress;
 using Bagira.SimHost.Systems;
 using Bagira.SimHost.Utilities;
 using CarKinem.Commands;
@@ -398,10 +400,41 @@ namespace Bagira.SimHost
             egressTranslators.Add(simHostMod.MissionEgressTranslator);
             egressTranslators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
             egressTranslators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));
+            // BS1-T015: Publish Health changes to the IG/IOS so health bars update.
+            egressTranslators.Add(new EntityDamageEgressTranslator(ddsParticipant, entityMap));
+
+            // BS1-T017: combat CQRS pipeline translators, registered by node role.
+            // Brain: emits WeaponFireIntent → DDS WeaponFireRequest.
+            if (_role == NodeRole.Brain || _role == NodeRole.AllInOne)
+            {
+                egressTranslators.Add(new WeaponFireIntentEgressTranslator(ddsParticipant, entityMap));
+            }
+
+            // Muscle: emits Notification + Detonation → DDS; Brain-side emits DamageAssessed → DDS.
+            if (_role == NodeRole.MuscleGround || _role == NodeRole.AllInOne)
+            {
+                egressTranslators.Add(new WeaponFireNotificationEgressTranslator(ddsParticipant));
+                egressTranslators.Add(new MunitionDetonationEgressTranslator(ddsParticipant));
+                egressTranslators.Add(new DamageAssessedEgressTranslator(ddsParticipant));
+            }
 
             // All translators (egress + ingress) passed to CycloneNetworkModule.
             var translators = new List<IDescriptorTranslator>(egressTranslators);
             translators.Add(simHostMod.MissionIngressTranslator);
+
+            // BS1-T017 (continued): ingress translators added after translators list is created.
+            // Muscle: receives WeaponFireRequest and MunitionDetonation from DDS → local events.
+            if (_role == NodeRole.MuscleGround || _role == NodeRole.AllInOne)
+            {
+                translators.Add(new WeaponFireRequestIngressTranslator(ddsParticipant, entityMap));
+                translators.Add(new MunitionDetonationIngressTranslator(ddsParticipant, entityMap));
+            }
+
+            // Brain (authority node): receives EntityHitDamage → applies health changes.
+            if (_role == NodeRole.Brain || _role == NodeRole.AllInOne)
+            {
+                translators.Add(new EntityHitDamageIngressTranslator(ddsParticipant, entityMap));
+            }
 
             _kernel.RegisterGlobalSystem(
                 new CycloneNetworkCleanupSystem(egressTranslators));

@@ -114,6 +114,7 @@ namespace Bagira.SimHost.Network
             EcsNavMode.DirectPoint   => ENavigationMode.NAV_DIRECT_POINT,
             EcsNavMode.FollowRoute   => ENavigationMode.NAV_FOLLOW_ROUTE,
             EcsNavMode.JoinFormation => ENavigationMode.NAV_JOIN_FORMATION,
+            EcsNavMode.RoadGraph     => ENavigationMode.NAV_ROAD_GRAPH,
             _                        => ENavigationMode.NAV_NONE,
         };
     }
