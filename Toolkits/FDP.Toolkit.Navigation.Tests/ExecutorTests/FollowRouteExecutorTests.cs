@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using CarKinem.Core;
 using Fdp.Kernel;
@@ -10,8 +9,10 @@ using Xunit;
 namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
 {
     /// <summary>
-    /// Unit tests for <see cref="FollowRouteExecutor"/> (BCS-P3-T5).
-    /// Covers single-run completion and loop-restart behaviour.
+    /// Unit tests for <see cref="FollowRouteExecutor"/> (BCS-P3-T5 / BS1-T020).
+    /// Verifies CQRS compliance: the executor writes <see cref="NavigationIntent"/>
+    /// and polls <see cref="NavigationStatus"/>; it never reads <c>NavState.HasArrived</c>
+    /// or writes <c>NavState.ProgressS</c> directly.
     /// </summary>
     public class FollowRouteExecutorTests
     {
@@ -23,9 +24,9 @@ namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
             var world  = NavigationTestWorldFactory.Create();
             var entity = world.CreateEntity();
 
-            world.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
-            world.AddComponent(entity, new SimVelocity());
             world.AddComponent(entity, new NavState());
+            world.AddComponent(entity, new NavigationIntent());
+            world.AddComponent(entity, new NavigationStatus());
             world.AddComponent(entity, new LocomotionChannel());
 
             var channel = world.GetComponent<LocomotionChannel>(entity);
@@ -39,61 +40,108 @@ namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
             return (world, entity, channel);
         }
 
-        // ── Test 1 ────────────────────────────────────────────────────────────────────────────────
+        // ── Test 1 (BS1-T020) ────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// When the route completes (<see cref="NavState.HasArrived"/> == 1) and
-        /// <see cref="FollowRouteParams.IsLooped"/> is 0, the executor reports
-        /// <see cref="NodeStatus.Success"/>.
+        /// BS1-T020: <see cref="FollowRouteExecutor.OnEnter"/> writes a
+        /// <see cref="NavigationMode.FollowRoute"/> intent with the correct TrajectoryId.
         /// </summary>
         [Fact]
-        public void FollowRouteExecutor_ReportsSuccess_WhenRouteCompleteAndNotLooped()
+        public void FollowRouteExecutor_OnEnter_WritesNavigationIntentWithTrajectoryId()
+        {
+            const int trajectoryId = 5;
+            var (world, entity, channel) = BuildWorld(trajectoryId: trajectoryId, isLooped: 0);
+
+            var executor = new FollowRouteExecutor();
+            executor.OnEnter(entity, ref channel, world);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            Assert.Equal(NavigationMode.FollowRoute, intent.Mode);
+            Assert.Equal(trajectoryId, intent.TrajectoryId);
+            Assert.Equal(NodeStatus.Running, channel.Status);
+        }
+
+        // ── Test 2 ───────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// BS1-T020: When <see cref="NavigationStatus.Result"/> is Arrived and the route is NOT looped,
+        /// the executor reports <see cref="NodeStatus.Success"/>.
+        /// </summary>
+        [Fact]
+        public void FollowRouteExecutor_ReportsSuccess_WhenArrivedAndNotLooped()
         {
             var (world, entity, channel) = BuildWorld(trajectoryId: 5, isLooped: 0);
             var executor = new FollowRouteExecutor();
             executor.OnEnter(entity, ref channel, world);
 
-            // Kinematics marks the route as completed.
-            var nav = world.GetComponent<NavState>(entity);
-            nav.HasArrived = 1;
-            world.SetComponent(entity, nav);
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            world.SetComponent(entity, new NavigationStatus
+            {
+                IntentId = intent.IntentId,
+                Result   = NavigationResult.Arrived,
+            });
 
             executor.Execute(entity, ref channel, world, 0.016f);
 
             Assert.Equal(NodeStatus.Success, channel.Status);
         }
 
-        // ── Test 2 ────────────────────────────────────────────────────────────────────────────────
+        // ── Test 3 (BS1-T020) ────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// When the route completes and <see cref="FollowRouteParams.IsLooped"/> is non-zero,
-        /// the executor resets <see cref="NavState.HasArrived"/> and <see cref="NavState.ProgressS"/>
-        /// to restart the route, keeping the channel status as <see cref="NodeStatus.Running"/>.
-        /// The <see cref="NavState.TrajectoryId"/> must still equal the original trajectory ID.
+        /// BS1-T020: When the route completes and <see cref="FollowRouteParams.IsLooped"/> is set,
+        /// the executor increments IntentId (loop-reset signal) and keeps the channel Running.
+        /// It does NOT directly write <c>NavState.ProgressS</c>.
         /// </summary>
         [Fact]
-        public void FollowRouteExecutor_LoopsRoute_WhenFlagSet()
+        public void FollowRouteExecutor_LoopsRoute_IncrementsIntentId_NotNavState()
         {
             const int trajectoryId = 12;
             var (world, entity, channel) = BuildWorld(trajectoryId: trajectoryId, isLooped: 1);
             var executor = new FollowRouteExecutor();
             executor.OnEnter(entity, ref channel, world);
 
-            // Route completes.
-            var nav = world.GetComponent<NavState>(entity);
-            nav.HasArrived = 1;
-            world.SetComponent(entity, nav);
+            var intentBeforeLoop = world.GetComponent<NavigationIntent>(entity);
+            uint intentIdBeforeLoop = intentBeforeLoop.IntentId;
 
+            // Simulate Arrived status.
+            world.SetComponent(entity, new NavigationStatus
+            {
+                IntentId = intentIdBeforeLoop,
+                Result   = NavigationResult.Arrived,
+            });
+
+            var navBefore = world.GetComponent<NavState>(entity);
             executor.Execute(entity, ref channel, world, 0.016f);
 
             // Status must stay Running — the action looped, not finished.
             Assert.Equal(NodeStatus.Running, channel.Status);
 
-            // NavState must be re-armed: the trajectory ID is preserved, progress reset, HasArrived cleared.
+            // IntentId must have been incremented (signals the bridge to restart the route).
+            var intentAfterLoop = world.GetComponent<NavigationIntent>(entity);
+            Assert.True(intentAfterLoop.IntentId > intentIdBeforeLoop,
+                "IntentId must be incremented on loop reset to signal the bridge system.");
+
+            // NavState.ProgressS must NOT be modified by the executor (BS1-T020).
             var navAfter = world.GetComponent<NavState>(entity);
-            Assert.Equal(trajectoryId, navAfter.TrajectoryId);
-            Assert.Equal(0,            navAfter.HasArrived);
-            Assert.Equal(0f,           navAfter.ProgressS);
+            Assert.Equal(navBefore.ProgressS, navAfter.ProgressS);
+        }
+
+        // ── Test 4 (BS1-T020) ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// BS1-T020: <see cref="FollowRouteExecutor.OnExit"/> clears NavigationIntent.Mode to None.
+        /// </summary>
+        [Fact]
+        public void FollowRouteExecutor_OnExit_ClearsNavigationIntent()
+        {
+            var (world, entity, channel) = BuildWorld(trajectoryId: 7, isLooped: 0);
+            var executor = new FollowRouteExecutor();
+            executor.OnEnter(entity, ref channel, world);
+            executor.OnExit(entity, ref channel, world);
+
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            Assert.Equal(NavigationMode.None, intent.Mode);
         }
     }
 }

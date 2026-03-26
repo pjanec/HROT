@@ -18,6 +18,7 @@ using FDP.Toolkit.Behavior.Systems;
 using FDP.Toolkit.Combat;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Executors;
+using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Perception.Systems;
@@ -102,7 +103,15 @@ namespace Fdp.Examples.UrbanCombat
 
         private readonly TkbDatabase        _tkb              = new TkbDatabase();
         private readonly DoctrineRegistry   _doctrineRegistry = new DoctrineRegistry();
+        private readonly NetworkEntityMap   _entityMap        = new NetworkEntityMap();
         private TrajectoryPoolManager?      _trajectoryPool;
+
+        /// <summary>
+        /// The shared <see cref="NetworkEntityMap"/> used by the combat CQRS chain.
+        /// Pass this to <see cref="ScenarioDirector"/> so spawned entities are registered
+        /// and <see cref="FDP.Toolkit.Combat.Events.WeaponFireIntent"/> IDs resolve correctly.
+        /// </summary>
+        public NetworkEntityMap EntityMap => _entityMap;
 
         // System groups — created in RegisterSystems(), disposed in Dispose().
         private InputSystemGroup?           _inputGroup;
@@ -310,7 +319,7 @@ namespace Fdp.Examples.UrbanCombat
             _inputGroup = new InputSystemGroup();
             _inputGroup.Create(World);
             _inputGroup.AddSystem(new DoctrineIngressSystem(_doctrineRegistry));
-            _inputGroup.AddSystem(new FireProcessingSystem());
+            _inputGroup.AddSystem(new FireProcessingSystem(_entityMap));
             _inputGroup.AddSystem(new RaycastSolverSystem());
             _inputGroup.AddSystem(new HitResolutionSystem());
 
@@ -328,7 +337,7 @@ namespace Fdp.Examples.UrbanCombat
             _simGroup.AddSystem(new AudioPerceptionSystem());
 
             var weaponSys = new WeaponDispatcherSystem();
-            weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
+            weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor(_entityMap));
             _simGroup.AddSystem(weaponSys);
 
             var interactSys = new InteractionDispatcherSystem();

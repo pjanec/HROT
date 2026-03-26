@@ -1,8 +1,10 @@
+using System.Numerics;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel to Combat.Contracts
 // BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Kernel — no extra using needed.
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Perception.Events;
+using FDP.Toolkit.Replication.Services;
 
 namespace FDP.Toolkit.Physics.Systems
 {
@@ -41,6 +43,15 @@ namespace FDP.Toolkit.Physics.Systems
     /// BATCH-09 when Combat systems started needing Physics types).
     /// </para>
     /// <para>
+    /// <b>BS1-T010:</b> When a <see cref="NetworkEntityMap"/> is provided at construction,
+    /// bullet impacts also emit a <see cref="DetonationNotification"/> carrying the world-space
+    /// hit position (interpolated from <see cref="RaycastRequest.Start"/>,
+    /// <see cref="RaycastRequest.End"/>, and <see cref="RaycastHit.T"/>) and both entity
+    /// network IDs.  LOS-check rays never produce a <see cref="DetonationNotification"/>.
+    /// When no <see cref="NetworkEntityMap"/> is injected (e.g. in legacy unit tests) the
+    /// notification path is skipped and the system behaves as before.
+    /// </para>
+    /// <para>
     /// <b>Count reset:</b> After all hits are dispatched <see cref="RaycastBatchData.Count"/>
     /// is set to zero so the next frame starts with a clean batch.
     /// </para>
@@ -49,6 +60,21 @@ namespace FDP.Toolkit.Physics.Systems
     [UpdateAfter(typeof(RaycastSolverSystem))]
     public class HitResolutionSystem : ComponentSystem
     {
+        private readonly NetworkEntityMap? _entityMap;
+
+        /// <summary>Default constructor (no <see cref="DetonationNotification"/> emitted).</summary>
+        public HitResolutionSystem() { }
+
+        /// <summary>
+        /// Constructor used in a Muscle-node context where network entity IDs are available.
+        /// With a valid <paramref name="entityMap"/>, each bullet impact additionally emits
+        /// a <see cref="DetonationNotification"/>.
+        /// </summary>
+        public HitResolutionSystem(NetworkEntityMap entityMap)
+        {
+            _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
+        }
+
         protected override void OnUpdate()
         {
             if (!World.HasSingleton<RaycastBatchData>()) return;
@@ -56,7 +82,8 @@ namespace FDP.Toolkit.Physics.Systems
 
             for (int i = 0; i < batch.Count; i++)
             {
-                ref readonly var hit = ref batch.Hits[i];
+                ref readonly var hit     = ref batch.Hits[i];
+                ref readonly var request = ref batch.Requests[i];
                 if (hit.HasHit == 0) continue;
 
                 if (PhysicsConstants.IsBulletRay(hit.RayId))
@@ -68,6 +95,28 @@ namespace FDP.Toolkit.Physics.Systems
                         BulletIndex = (int)(hit.RayId & 0x7FFF_FFFF_FFFF_FFFFL),
                         HitT        = hit.T,
                     });
+
+                    // BS1-T010: Emit DetonationNotification when entity map is available.
+                    // The shooter network ID is obtained from request.IgnoreEntity (set to the
+                    // bullet's Shooter by BallisticsSystem) — this avoids any direct reference
+                    // to BallisticProjectile (which is in FDP.Toolkit.Combat, a downstream assembly).
+                    if (_entityMap is not null)
+                    {
+                        // Compute world-space hit position by interpolating along the swept ray.
+                        var hitPos = request.Start + hit.T * (request.End - request.Start);
+
+                        _entityMap.TryGetNetworkId(hit.HitEntity,         out long hitNetId);
+                        _entityMap.TryGetNetworkId(request.IgnoreEntity,  out long shooterNetId);
+
+                        World.Bus.Publish(new DetonationNotification
+                        {
+                            ShooterEntityId = shooterNetId,
+                            HitEntityId     = hitNetId,
+                            HitX            = hitPos.X,
+                            HitY            = hitPos.Y,
+                            HitZ            = hitPos.Z,
+                        });
+                    }
                 }
                 else
                 {

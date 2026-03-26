@@ -88,6 +88,12 @@ namespace CarKinem.Systems
                 var vel         = World.GetComponent<SimVelocity>(entity);
 
                 // ── New command detection: reset status and frustration counter ────────────────
+                // Round-trip latency note (TD-12): FollowRouteExecutor increments IntentId on
+                // the Brain side to signal a loop reset.  This system (Muscle side) detects the
+                // mismatch here on the NEXT tick and resets NavigationStatus to InProgress.
+                // FollowRouteExecutor therefore always observes at least one tick of InProgress
+                // before the new lap can produce an Arrived result. This is intentional and
+                // ensures the executor never mistakes the previous lap's Arrived for a new one.
                 if (status.IntentId != intent.IntentId)
                 {
                     status = new NavigationStatus
@@ -100,11 +106,24 @@ namespace CarKinem.Systems
                     World.SetComponent(entity, frustration);
                 }
 
-                // ── Arrival check (Cartesian XY only — no geo conversion) ─────────────────────
-                var pos2D  = new Vector2(tf.Position.X, tf.Position.Y);
-                float dist = Vector2.Distance(pos2D, intent.FinalDestination);
+                // ── Arrival check ─────────────────────────────────────────────────────────────────
+                // DirectPoint: use Cartesian distance from intent.FinalDestination.
+                // RoadGraph and FollowRoute: delegate to NavState.HasArrived (set by CarKinematicsSystem).
+                bool arrived;
+                if ((intent.Mode == NavMode.RoadGraph || intent.Mode == NavMode.FollowRoute)
+                    && World.HasComponent<NavState>(entity))
+                {
+                    var nav = World.GetComponent<NavState>(entity);
+                    arrived = nav.HasArrived != 0;
+                }
+                else
+                {
+                    var pos2D = new Vector2(tf.Position.X, tf.Position.Y);
+                    float dist = Vector2.Distance(pos2D, intent.FinalDestination);
+                    arrived = dist <= intent.ArrivalRadius;
+                }
 
-                if (dist <= intent.ArrivalRadius)
+                if (arrived)
                 {
                     status.Result = NavResult.Arrived;
                     World.SetComponent(entity, status);

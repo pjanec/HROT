@@ -10,9 +10,9 @@ using Xunit;
 namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
 {
     /// <summary>
-    /// Unit tests for <see cref="FleeExecutor"/> (BCS-P3-T3).
+    /// Unit tests for <see cref="FleeExecutor"/> (BCS-P3-T3 / BS1-T018).
     /// Covers safe-distance success, dead-threat generational guard (DEBT-009 propagation),
-    /// and throttled flee-vector recalculation.
+    /// throttled flee-vector recalculation, and CQRS compliance (NavigationIntent instead of NavState).
     /// </summary>
     public class FleeExecutorTests
     {
@@ -31,6 +31,8 @@ namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
             world.AddComponent(self, new SimTransform { Position = selfPos, Rotation = Quaternion.Identity });
             world.AddComponent(self, new SimVelocity());
             world.AddComponent(self, new NavState());
+            world.AddComponent(self, new NavigationIntent());
+            world.AddComponent(self, new NavigationStatus());
             world.AddComponent(self, new LocomotionChannel());
 
             var channel = world.GetComponent<LocomotionChannel>(self);
@@ -123,12 +125,72 @@ namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
             Assert.Equal(NodeStatus.Success, channel.Status);
         }
 
-        // ── Test 3 ────────────────────────────────────────────────────────────────────────────────
+        // ── Test 3 (BS1-T018) ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// BS1-T018: <see cref="FleeExecutor.OnEnter"/> must write <see cref="NavigationIntent"/>
+        /// with <see cref="NavigationMode.DirectPoint"/> and the correct flee destination.
+        /// NavState must NOT be mutated by the executor.
+        /// </summary>
+        [Fact]
+        public void FleeExecutor_OnEnter_WritesNavigationIntent_NotNavState()
+        {
+            var (world, self, threat, channel) = BuildWorld(
+                selfPos:      Vector3.Zero,
+                threatPos:    new Vector3(5f, 0f, 0f),
+                safeDistance: 10f,
+                speed:        5f);
+
+            var navStateBefore = world.GetComponent<NavState>(self);
+
+            var executor = new FleeExecutor();
+            executor.OnEnter(self, ref channel, world);
+
+            var intent = world.GetComponent<NavigationIntent>(self);
+            Assert.Equal(NavigationMode.DirectPoint, intent.Mode);
+            Assert.NotEqual(Vector2.Zero, intent.FinalDestination);
+
+            // NavState must be untouched by the executor.
+            var navStateAfter = world.GetComponent<NavState>(self);
+            Assert.Equal(navStateBefore.Mode,             navStateAfter.Mode);
+            Assert.Equal(navStateBefore.FinalDestination, navStateAfter.FinalDestination);
+        }
+
+        // ── Test 4 (BS1-T018) ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// BS1-T018: <see cref="FleeExecutor.OnExit"/> must clear <see cref="NavigationIntent.Mode"/>
+        /// to <see cref="NavigationMode.None"/> and must NOT write to <c>NavState</c>.
+        /// </summary>
+        [Fact]
+        public void FleeExecutor_OnExit_ClearsNavigationIntent_NotNavState()
+        {
+            var (world, self, threat, channel) = BuildWorld(
+                selfPos:      Vector3.Zero,
+                threatPos:    new Vector3(5f, 0f, 0f),
+                safeDistance: 10f,
+                speed:        5f);
+
+            var executor = new FleeExecutor();
+            executor.OnEnter(self, ref channel, world);
+
+            var navStateBefore = world.GetComponent<NavState>(self);
+            executor.OnExit(self, ref channel, world);
+
+            var intent = world.GetComponent<NavigationIntent>(self);
+            Assert.Equal(NavigationMode.None, intent.Mode);
+
+            // NavState must be untouched by OnExit.
+            var navStateAfter = world.GetComponent<NavState>(self);
+            Assert.Equal(navStateBefore.Mode, navStateAfter.Mode);
+        }
+
+        // ── Test 5 ────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>
         /// <see cref="FleeExecutor"/> recalculates the flee vector every
         /// <see cref="NavigationConstants.FleeReplanIntervalTicks"/> ticks.
-        /// After the interval has elapsed, <see cref="NavState.FinalDestination"/> must be
+        /// After the interval has elapsed, <see cref="NavigationIntent.FinalDestination"/> must be
         /// different from its value immediately after the initial plan.
         /// </summary>
         [Fact]
@@ -145,7 +207,7 @@ namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
 
             // Tick 0: OnEnter computes the initial flee destination (self flees west).
             executor.OnEnter(self, ref channel, world);
-            var destAfterEnter = world.GetComponent<NavState>(self).FinalDestination;
+            var destAfterEnter = world.GetComponent<NavigationIntent>(self).FinalDestination;
 
             // Run FleeReplanIntervalTicks - 1 ticks without moving anything → no replan yet.
             for (int i = 1; i < NavigationConstants.FleeReplanIntervalTicks; i++)
@@ -153,7 +215,7 @@ namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
                 AdvanceTick(world);
                 executor.Execute(self, ref channel, world, 0.016f);
             }
-            var destBeforeReplan = world.GetComponent<NavState>(self).FinalDestination;
+            var destBeforeReplan = world.GetComponent<NavigationIntent>(self).FinalDestination;
             Assert.Equal(destAfterEnter, destBeforeReplan); // no replan yet
 
             // Move the threat to the north just before the replan tick.
@@ -166,7 +228,7 @@ namespace FDP.Toolkit.Navigation.Tests.ExecutorTests
             // Tick FleeReplanIntervalTicks: replan fires with threat in the north → flee south.
             AdvanceTick(world);
             executor.Execute(self, ref channel, world, 0.016f);
-            var destAfterReplan = world.GetComponent<NavState>(self).FinalDestination;
+            var destAfterReplan = world.GetComponent<NavigationIntent>(self).FinalDestination;
 
             // Destinations must differ because the threat moved.
             Assert.NotEqual(destBeforeReplan, destAfterReplan);

@@ -27,6 +27,18 @@ namespace FDP.Toolkit.Combat
         /// <summary>Event ID for <see cref="Events.FireRequestEvent"/>.</summary>
         public const int FireRequestEventId = 5002;
 
+        /// <summary>Event ID for <see cref="Events.WeaponFireIntent"/>.</summary>
+        public const int WeaponFireIntentEventId = 5003;
+
+        /// <summary>Event ID for <see cref="Events.WeaponFireNotification"/>.</summary>
+        public const int WeaponFireNotificationEventId = 5004;
+
+        /// <summary>Event ID for <see cref="global::FDP.Toolkit.Combat.Contracts.DetonationNotification"/> (moved to Contracts in BS1-T010).</summary>
+        public const int DetonationNotificationEventId = 5005;
+
+        /// <summary>Event ID for <see cref="Events.DamageAssessedEvent"/>.</summary>
+        public const int DamageAssessedEventId = 5006;
+
         // ── Bullet / projectile constants ─────────────────────────────────────
 
         /// <summary>Damage applied per bullet hit (sourced from BallisticProjectile.Damage on spawn).</summary>

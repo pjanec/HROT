@@ -55,8 +55,21 @@ namespace FDP.Toolkit.Physics.Components
         /// has <c>IsNull == true</c>, which the solver uses as the "no ignore" sentinel.
         /// </summary>
         /// <remarks>
+        /// <para>
         /// Using the full handle (Index + Generation) rather than a bare index means a re-used
         /// entity slot is never accidentally skipped.
+        /// </para>
+        /// <para>
+        /// <b>Convention for bullet rays (TD-7):</b>
+        /// <c>BallisticsSystem</c> populates this field with the shooter entity handle (the entity
+        /// that owns <c>BallisticProjectile.Shooter</c>) when submitting a swept-bullet ray.
+        /// <c>HitResolutionSystem</c> relies on this convention to recover the shooter's network ID
+        /// via <c>NetworkEntityMap.TryGetNetworkId(request.IgnoreEntity, out long shooterNetId)</c>
+        /// and embed it in the emitted <see cref="FDP.Toolkit.Combat.Contracts.DetonationNotification"/>.
+        /// Callers that add bullet rays to <see cref="RaycastBatchData"/> <b>must</b> set
+        /// <c>IgnoreEntity</c> to the shooter entity, or the shooter ID in
+        /// <c>DetonationNotification</c> will be zero (unknown).
+        /// </para>
         /// </remarks>
         public Entity IgnoreEntity;
 

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using CarKinem.Core;
 using Fdp.Kernel;
 using Fbt;
 using FDP.Toolkit.Behavior.Components;
@@ -27,7 +26,9 @@ namespace FDP.Toolkit.Behavior.Systems
     /// <b>Supported triggers:</b>
     /// <list type="bullet">
     ///   <item><see cref="MissionTrigger.TimerElapsed"/> — accumulates delta time.</item>
-    ///   <item><see cref="MissionTrigger.ReachedDestination"/> — checks <c>NavState.HasArrived</c>.</item>
+    ///   <item><see cref="MissionTrigger.ReachedDestination"/> — delegated to the
+    ///         <see cref="MissionTrigger.DoctrineFinished"/> path (BS1-T022); retained for
+    ///         backward compatibility with serialised mission plans.</item>
     ///   <item><see cref="MissionTrigger.UnderAttack"/> — checks <c>TargetMemory</c> for entries
     ///         with ThreatScore &gt; 0.</item>
     ///   <item><see cref="MissionTrigger.HealthCritical"/> — fires when
@@ -106,12 +107,15 @@ namespace FDP.Toolkit.Behavior.Systems
                         break;
 
                     case MissionTrigger.ReachedDestination:
-                        if (World.HasComponent<NavState>(entity))
-                        {
-                            var nav = World.GetComponent<NavState>(entity);
-                            if (nav.HasArrived == 1)
-                                triggered = true;
-                        }
+                        // BS1-T022: Previously polled NavState.HasArrived (Muscle-tier physics
+                        // component not available on a Brain node).  Now evaluated identically
+                        // to DoctrineFinished so that MissionDirectorSystem remains CQRS-clean.
+                        // The enum value is kept for backward compatibility with serialised
+                        // mission plans; new UI code should emit DoctrineFinished instead.
+#pragma warning disable CS0618 // intentional use of obsolete enum value for backward compat
+                        if (_doctrineFinishedThisFrame.Contains(entity.Index))
+                            triggered = true;
+#pragma warning restore CS0618
                         break;
 
                     case MissionTrigger.UnderAttack:

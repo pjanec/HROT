@@ -6,6 +6,7 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Behavior.Executors;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Events;
+using FDP.Toolkit.Replication.Services;
 
 namespace FDP.Toolkit.Combat.Executors
 {
@@ -14,12 +15,28 @@ namespace FDP.Toolkit.Combat.Executors
     /// Registered with <see cref="FDP.Toolkit.Behavior.Systems.WeaponDispatcherSystem"/> as the
     /// handler for the AimAndFire action ID.
     ///
+    /// <b>BS1-T004:</b> Now publishes <see cref="WeaponFireIntent"/> (using stable network entity
+    /// IDs) instead of <see cref="FireRequestEvent"/> (which used local ECS handles).  The
+    /// <see cref="NetworkEntityMap"/> required for entity-ID conversion is injected at
+    /// construction time.
+    ///
     /// <b>Phase 0 Adaptation:</b> Uses <see cref="Fdp.Kernel.SimTransform"/> for position
     /// (not <c>VehicleState</c>), consistent with the Phase 0 refactor that replaced
     /// VehicleState-derived positions with SimTransform.
     /// </summary>
     public sealed class AimAndFireExecutor : IActionExecutor<WeaponChannel>
     {
+        private readonly NetworkEntityMap _entityMap;
+
+        /// <param name="entityMap">
+        /// Shared network entity map used to convert ECS <see cref="Entity"/> handles to
+        /// stable <c>long</c> network IDs before publishing <see cref="WeaponFireIntent"/>.
+        /// </param>
+        public AimAndFireExecutor(NetworkEntityMap entityMap)
+        {
+            _entityMap = entityMap;
+        }
+
         // ── OnEnter ──────────────────────────────────────────────────────────
 
         public unsafe void OnEnter(Entity entity, ref WeaponChannel channel, EntityRepository world)
@@ -68,18 +85,18 @@ namespace FDP.Toolkit.Combat.Executors
                 return;
             }
 
-            // 4. Compute aim direction using SimTransform (Phase 0 Adaptation: NOT VehicleState).
-            Vector3 origin    = world.GetComponent<SimTransform>(entity).Position;
-            Vector3 targetPos = world.GetComponent<SimTransform>(p.Target).Position;
-            Vector3 direction = Vector3.Normalize(targetPos - origin);
+            // 4. Resolve network entity IDs for the intent payload.
+            //    If an entity is not yet mapped (edge case during spawn), default to 0.
+            _entityMap.TryGetNetworkId(entity, out long shooterId);
+            _entityMap.TryGetNetworkId(p.Target, out long targetId);
 
-            // 5. Publish FireRequestEvent for FireProcessingSystem to consume.
-            world.Bus.Publish(new FireRequestEvent
+            // 5. Publish WeaponFireIntent for FireProcessingSystem (local AllInOne) or
+            //    WeaponFireIntentEgressTranslator (split topology).
+            world.Bus.Publish(new WeaponFireIntent
             {
-                Shooter   = entity,
-                Target    = p.Target,
-                Origin    = origin,
-                Direction = direction,
+                ShooterEntityId = shooterId,
+                TargetEntityId  = targetId,
+                WeaponIndex     = 0,   // POC: single weapon slot
             });
 
             // 6. Consume one round and start cooldown.

@@ -9,6 +9,7 @@ using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Contracts;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Combat.Systems;
+using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.CarKinem.Systems;
 using FDP.Toolkit.Physics;
 using FDP.Toolkit.Physics.Components;
@@ -68,6 +69,13 @@ namespace Fdp.Examples.Scenarios.Physics
         // ── Physics module (held alive for NativeArray lifetime) ──────────────
         private PhysicsToolkitModule? _physicsModule;
 
+        // ── Network entity map for FireProcessingSystem ───────────────────────
+        private readonly NetworkEntityMap _entityMap = new NetworkEntityMap();
+
+        // Network IDs assigned to shooter and target.
+        private const long ShooterNetId = 1L;
+        private const long TargetNetId  = 2L;
+
         // ── Observable state for test assertions ──────────────────────────────
 
         /// <summary>Bullet entity captured on spawn (tick 1).</summary>
@@ -110,7 +118,7 @@ namespace Fdp.Examples.Scenarios.Physics
             world.RegisterComponent<PhysicsCollider>();
 
             // ── Event registration ─────────────────────────────────────────────
-            world.RegisterEvent<FireRequestEvent>();
+            world.RegisterEvent<WeaponFireIntent>();
             world.RegisterEvent<HitEvent>();
 
             // ── Physics singleton (RaycastBatchData with persistent NativeArrays) ──
@@ -130,7 +138,7 @@ namespace Fdp.Examples.Scenarios.Physics
             // the event one tick later after kernel.Update()'s SwapBuffers makes it readable.
             var systems = new ComponentSystem[]
             {
-                new FireProcessingSystem(),
+                new FireProcessingSystem(_entityMap),
                 new SpatialHashSystem(),
                 new BallisticsSystem(),
                 new LinearKinematicsSystem(),
@@ -147,6 +155,10 @@ namespace Fdp.Examples.Scenarios.Physics
             // ── Entity spawning ────────────────────────────────────────────────
             _shooter = SpawnShooter(world);
             _target  = SpawnTarget(world);
+
+            // Register entities in the map so FireProcessingSystem can resolve them.
+            _entityMap.Register(ShooterNetId, _shooter);
+            _entityMap.Register(TargetNetId,  _target);
         }
 
         /// <inheritdoc/>
@@ -156,12 +168,11 @@ namespace Fdp.Examples.Scenarios.Physics
             if (tick == 1 && !_fireInjected)
             {
                 _fireInjected = true;
-                world.Bus.Publish(new FireRequestEvent
+                world.Bus.Publish(new WeaponFireIntent
                 {
-                    Shooter   = _shooter,
-                    Target    = _target,
-                    Origin    = Vector3.Zero,
-                    Direction = Vector3.UnitX,   // East (+X)
+                    ShooterEntityId = ShooterNetId,
+                    TargetEntityId  = TargetNetId,
+                    WeaponIndex     = 0,
                 });
             }
 

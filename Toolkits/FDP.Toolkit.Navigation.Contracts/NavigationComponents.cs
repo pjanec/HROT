@@ -30,6 +30,9 @@ namespace FDP.Toolkit.Navigation
 
         /// <summary>Join and maintain a formation slot.</summary>
         JoinFormation = 3,
+
+        /// <summary>Navigate to a target road-graph node using the road network.</summary>
+        RoadGraph = 4,
     }
 
     /// <summary>
@@ -100,7 +103,34 @@ namespace FDP.Toolkit.Navigation
         /// The Muscle layer echoes this value in <see cref="NavigationStatus.IntentId"/>
         /// to allow the Brain to detect stale status reports.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Monotonic-id contract:</b> every call to <c>OnEnter</c> or <c>OnExit</c> in
+        /// any navigation executor increments this field before writing the component back.
+        /// The increment is also the mechanism used by <c>FollowRouteExecutor</c> to signal
+        /// a <em>loop reset</em>: when the route finishes and <c>IsLooped != 0</c>, the
+        /// executor increments <c>IntentId</c> again (without changing any other field).
+        /// <c>NavigationIntentBridgeSystem</c> detects the new id and resets
+        /// <c>NavState.ProgressS</c> to 0, restarting the route from the beginning.
+        /// <c>NavigationExecutionSystem</c> detects the new id and resets the
+        /// <c>NavigationStatus</c> to <see cref="NavigationResult.InProgress"/>, so the
+        /// executor does not see the stale <c>Arrived</c> result from the previous lap.
+        /// </para>
+        /// <para>
+        /// The id wraps at <c>uint.MaxValue + 1 == 0</c> (unchecked arithmetic).  Id 0 is
+        /// intentionally valid; the system only checks <em>equality with the last applied
+        /// value</em>, so a wrap-around reset is handled correctly.
+        /// </para>
+        /// </remarks>
         public uint IntentId;
+
+        // BS1-T019: Road-graph target (used when Mode == NavigationMode.RoadGraph).
+        /// <summary>Target road-graph node index; populated by <c>FollowRoadGraphExecutor</c>.</summary>
+        public int TargetNodeId;
+
+        // BS1-T020: Follow-route fields (used when Mode == NavigationMode.FollowRoute).
+        /// <summary>Trajectory pool ID; populated by <c>FollowRouteExecutor</c>.</summary>
+        public int TrajectoryId;
     }
 
     /// <summary>

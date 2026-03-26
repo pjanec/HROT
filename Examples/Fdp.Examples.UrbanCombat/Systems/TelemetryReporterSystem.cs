@@ -18,7 +18,7 @@ namespace Fdp.Examples.UrbanCombat.Systems
     /// <b>Events reported:</b>
     /// <list type="table">
     ///   <item><term>DOCTRINE ASSIGNED</term><description><see cref="DoctrineState.InstanceId"/> changes.</description></item>
-    ///   <item><term>GUNFIRE</term><description><see cref="FDP.Toolkit.Combat.Events.FireRequestEvent"/> on bus.</description></item>
+    ///   <item><term>GUNFIRE</term><description><see cref="FDP.Toolkit.Combat.Events.WeaponFireIntent"/> on bus.</description></item>
     ///   <item><term>HIT</term><description><see cref="FDP.Toolkit.Combat.Contracts.HitEvent"/> on bus.</description></item>
     ///   <item><term>CAPABILITY LOST</term><description><c>CanMove</c> cleared (compare vs prev frame).</description></item>
     ///   <item><term>HSM TRANSITION</term><description><see cref="BrainHsm128"/> state index changes.</description></item>
@@ -67,11 +67,11 @@ namespace Fdp.Examples.UrbanCombat.Systems
 
             // ── Bus events (GUNFIRE, HIT) ────────────────────────────────────────
 
-            var fireEvents = World.Bus.Consume<FireRequestEvent>();
-            for (int i = 0; i < fireEvents.Length; i++)
+            var fireIntents = World.Bus.Consume<WeaponFireIntent>();
+            for (int i = 0; i < fireIntents.Length; i++)
             {
-                ref readonly var evt = ref fireEvents[i];
-                System.Console.Out.WriteLine($"{frameTag} GUNFIRE: entity {evt.Shooter.Index}");
+                ref readonly var evt = ref fireIntents[i];
+                System.Console.Out.WriteLine($"{frameTag} GUNFIRE: shooter {evt.ShooterEntityId}");
             }
 
             var hitEvents = World.Bus.Consume<HitEvent>();

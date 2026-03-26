@@ -191,5 +191,58 @@ namespace FDP.Toolkit.Physics.Tests
             Assert.Equal(nearEntity, hit.HitEntity);
             Assert.NotEqual(farEntity, hit.HitEntity);
         }
+
+        // ── Test 6: TD-8 Parallel array contract ─────────────────────────────────
+
+        /// <summary>
+        /// TD-8: Verifies the parallel-array contract between <see cref="RaycastBatchData.Requests"/>
+        /// and <see cref="RaycastBatchData.Hits"/>.
+        ///
+        /// <para>
+        /// <c>HitResolutionSystem</c> (and other consumers) depend on
+        /// <c>batch.Hits[i]</c> being the resolved result for <c>batch.Requests[i]</c>.
+        /// This test submits two requests — one that should hit and one that should miss —
+        /// and confirms that each hit result occupies the same index as its corresponding request.
+        /// </para>
+        /// </summary>
+        [Fact]
+        public void RaycastSolver_HitsIsParallelToRequests()
+        {
+            // Request 0: a ray that hits an entity at (5, 0).
+            var hitEntity = SpawnCollider(new Vector2(5f, 0f), radius: 1f, layer: 1);
+
+            // Request 1: a ray that passes through empty space (no entity at y=50).
+            // Submit both manually so we control the index ordering.
+            ref var batch = ref _world.GetSingleton<RaycastBatchData>();
+
+            batch.Requests[0] = new RaycastRequest
+            {
+                Start     = new Vector3(0f, 0f, 0f),
+                End       = new Vector3(10f, 0f, 0f),
+                RayId     = PhysicsConstants.PackBulletRayId(10),
+                LayerMask = 1,
+            };
+            batch.Requests[1] = new RaycastRequest
+            {
+                Start     = new Vector3(0f, 50f, 0f),
+                End       = new Vector3(10f, 50f, 0f),
+                RayId     = PhysicsConstants.PackBulletRayId(11),
+                LayerMask = 1,
+            };
+            batch.Count = 2;
+
+            var sys = new RaycastSolverSystem();
+            sys.Create(_world);
+            sys.Run();
+
+            ref readonly var batchResult = ref _world.GetSingleton<RaycastBatchData>();
+
+            // Hits[0] corresponds to Requests[0] — the hitting ray.
+            Assert.Equal(1, batchResult.Hits[0].HasHit);
+            Assert.Equal(hitEntity, batchResult.Hits[0].HitEntity);
+
+            // Hits[1] corresponds to Requests[1] — the missing ray.
+            Assert.Equal(0, batchResult.Hits[1].HasHit);
+        }
     }
 }

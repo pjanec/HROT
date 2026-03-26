@@ -2,6 +2,7 @@ using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel 
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
+using FDP.Toolkit.Replication.Components;
 
 namespace FDP.Toolkit.Combat.Systems
 {
@@ -45,6 +46,15 @@ namespace FDP.Toolkit.Combat.Systems
             for (int i = 0; i < events.Length; i++)
             {
                 ref readonly var evt = ref events[i];
+
+                // Authority guard (BS1-T003): skip if a remote node owns this entity.
+                // When no NetworkAuthority component is present, treat as authoritative
+                // (single-node / AllInOne / unit-test scenario).
+                if (World.HasComponent<NetworkAuthority>(evt.HitEntity))
+                {
+                    ref readonly var auth = ref World.GetComponentRO<NetworkAuthority>(evt.HitEntity);
+                    if (!auth.HasAuthority) continue;
+                }
 
                 // 1. Skip if the target entity is already dead.
                 if (!World.IsAlive(evt.HitEntity)) continue;

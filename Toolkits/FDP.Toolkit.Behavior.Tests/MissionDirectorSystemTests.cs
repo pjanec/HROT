@@ -155,11 +155,13 @@ namespace FDP.Toolkit.Behavior.Tests
         // ── Test 3 ────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// A <see cref="MissionTrigger.ReachedDestination"/> phase must not advance while
-        /// <c>NavState.HasArrived == 0</c>, and must advance in the next tick after
-        /// <c>NavState.HasArrived</c> is set to 1.
+        /// A <see cref="MissionTrigger.ReachedDestination"/> phase must advance when a
+        /// <see cref="DoctrineFinishedEvent"/> is published for the entity (BS1-T022).
+        /// It must NOT advance while no event has arrived, regardless of any
+        /// <c>NavState</c> component present on the entity.
         /// </summary>
         [Fact]
+#pragma warning disable CS0618 // ReachedDestination obsolete — backward-compat regression test
         public void MissionDirector_AdvancesPhase_WhenReachedDestination()
         {
             SetDeltaTime(Dt60Hz);
@@ -185,19 +187,19 @@ namespace FDP.Toolkit.Behavior.Tests
             };
             _world.AddComponent(entity, queue);
             _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
-            _world.AddComponent(entity, new NavState { HasArrived = 0 });
+            // NavState present but HasArrived=1 must no longer be sufficient (BS1-T022).
+            _world.AddComponent(entity, new NavState { HasArrived = 1 });
 
-            // First tick — not arrived yet, phase must stay at 0.
+            // First tick — no DoctrineFinishedEvent; phase must stay at 0.
             _sys.Run();
 
             ref var q1 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(0, q1.CurrentPhase);
 
-            // Signal arrival.
-            ref var nav = ref _world.GetComponentRW<NavState>(entity);
-            nav.HasArrived = 1;
+            // Publish DoctrineFinishedEvent so the ReachedDestination path fires.
+            PublishDoctrineFinished(entity);
 
-            // Second tick — destination reached, phase must advance.
+            // Second tick — event arrived; phase must advance.
             _sys.Run();
 
             // Flush AssignDoctrineHashEvent so DoctrineIngressSystem applies the new hash.
@@ -209,6 +211,7 @@ namespace FDP.Toolkit.Behavior.Tests
             Assert.Equal(1, q2.CurrentPhase);
             Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
         }
+#pragma warning restore CS0618
 
         // ── Test 4 ────────────────────────────────────────────────────────────
 
@@ -541,5 +544,103 @@ namespace FDP.Toolkit.Behavior.Tests
             ref var q = ref _world.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(1, q.CurrentPhase);
         }
+
+        // ── BS1-T022: ReachedDestination delegates to DoctrineFinished path ──────────────────
+
+        /// <summary>
+        /// BS1-T022 SC1: A <see cref="MissionTrigger.ReachedDestination"/> phase must advance
+        /// when a <see cref="DoctrineFinishedEvent"/> is published for the entity.
+        /// No <c>NavState</c> component is needed (Brain-only world).
+        /// </summary>
+        [Fact]
+#pragma warning disable CS0618 // ReachedDestination obsolete — intentional backward-compat test
+        public void ReachedDestination_AdvancesPhase_ViaDoctrineFinishedEvent()
+        {
+            SetDeltaTime(Dt60Hz);
+
+            const int DocA = 2100;
+            const int DocB = 2101;
+
+            var entity = _world.CreateEntity();
+            var queue  = new MissionPlanQueue();
+            queue.PhaseCount = 2;
+            queue.Phases[0] = new MissionPhase
+            {
+                DoctrineId   = DocA,
+                Trigger      = MissionTrigger.ReachedDestination,
+                TriggerParam = 0f,
+            };
+            queue.Phases[1] = new MissionPhase
+            {
+                DoctrineId   = DocB,
+                Trigger      = MissionTrigger.TimerElapsed,
+                TriggerParam = 1000f,
+            };
+            _world.AddComponent(entity, queue);
+            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            // No NavState component — Brain-only entity.
+
+            // First tick: no DoctrineFinishedEvent — phase must NOT advance.
+            _sys.Run();
+            ref var q0 = ref _world.GetComponentRW<MissionPlanQueue>(entity);
+            Assert.Equal(0, q0.CurrentPhase);
+
+            // Publish DoctrineFinishedEvent and run — phase must advance.
+            PublishDoctrineFinished(entity);
+            _sys.Run();
+            FlushDoctrineEvents();
+
+            ref var q1      = ref _world.GetComponentRW<MissionPlanQueue>(entity);
+            var     doctrine = _world.GetComponent<DoctrineState>(entity);
+
+            Assert.Equal(1, q1.CurrentPhase);
+            Assert.Equal(DocB, doctrine.ActiveDoctrineHash);
+        }
+#pragma warning restore CS0618
+
+        /// <summary>
+        /// BS1-T022 SC2: <c>NavState.HasArrived == 1</c> alone must NOT advance a
+        /// <see cref="MissionTrigger.ReachedDestination"/> phase.  The runtime evaluation now
+        /// requires a <see cref="DoctrineFinishedEvent"/>, not a physics-layer flag.
+        /// </summary>
+        [Fact]
+#pragma warning disable CS0618 // ReachedDestination obsolete — intentional backward-compat test
+        public void ReachedDestination_DoesNotAdvance_WhenOnlyNavStateHasArrived()
+        {
+            SetDeltaTime(Dt60Hz);
+
+            const int DocA = 2200;
+            const int DocB = 2201;
+
+            var entity = _world.CreateEntity();
+            var queue  = new MissionPlanQueue();
+            queue.PhaseCount = 2;
+            queue.Phases[0] = new MissionPhase
+            {
+                DoctrineId   = DocA,
+                Trigger      = MissionTrigger.ReachedDestination,
+                TriggerParam = 0f,
+            };
+            queue.Phases[1] = new MissionPhase
+            {
+                DoctrineId   = DocB,
+                Trigger      = MissionTrigger.TimerElapsed,
+                TriggerParam = 1000f,
+            };
+            _world.AddComponent(entity, queue);
+            _world.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DocA, InstanceId = 0 });
+            // Add NavState with HasArrived=1 — should have no effect after BS1-T022.
+            _world.AddComponent(entity, new NavState { HasArrived = 1 });
+
+            // Run one tick: no DoctrineFinishedEvent, so the trigger must NOT fire.
+            _sys.Run();
+
+            ref var q       = ref _world.GetComponentRW<MissionPlanQueue>(entity);
+            var     doctrine = _world.GetComponent<DoctrineState>(entity);
+
+            Assert.Equal(0, q.CurrentPhase);
+            Assert.Equal(DocA, doctrine.ActiveDoctrineHash);
+        }
+#pragma warning restore CS0618
     }
 }

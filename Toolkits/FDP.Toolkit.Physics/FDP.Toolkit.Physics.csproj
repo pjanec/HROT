@@ -11,6 +11,8 @@
     <ProjectReference Include="..\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
     <!-- DEBT-031: HitEvent moved from Fdp.Kernel to FDP.Toolkit.Combat.Contracts -->
     <ProjectReference Include="..\FDP.Toolkit.Combat.Contracts\FDP.Toolkit.Combat.Contracts.csproj" />
+    <!-- BS1-T010: NetworkEntityMap needed for DetonationNotification entity-ID lookup -->
+    <ProjectReference Include="..\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
     <!-- BATCH-10: FDP.Toolkit.Combat reference removed. HitEvent moved to Fdp.Kernel to break
          the circular dependency: Combat now references Physics for PhysicsCollider/RaycastBatchData. -->
   </ItemGroup>

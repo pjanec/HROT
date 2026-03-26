@@ -32,8 +32,11 @@ namespace FDP.Toolkit.Replication.Extensions
             // NetworkAuthority component contains LocalNodeId + PrimaryOwnerId.
             if (!view.HasComponent<NetworkAuthority>(rootEntity))
             {
-                // If no NetworkAuthority, we assume local authority (creation phase?) or no networking.
-                return false;
+                // No NetworkAuthority component means the entity was created in an AllInOne or
+                // unit-test context where there is no distributed authority tracking.
+                // Treat as locally authoritative so systems and translators behave correctly
+                // without a live network stack (e.g. headless demo, single-process integration tests).
+                return true;
             }
 
             var netAuth = view.GetComponentRO<NetworkAuthority>(rootEntity);

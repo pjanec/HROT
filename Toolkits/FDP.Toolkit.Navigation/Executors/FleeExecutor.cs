@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using CarKinem.Core;
 using Fdp.Kernel;
 using Fbt;
 using FDP.Toolkit.Behavior.Components;
@@ -14,6 +13,11 @@ namespace FDP.Toolkit.Navigation.Executors
     /// Moves the entity away from a threat entity. Replans the flee vector every
     /// <see cref="NavigationConstants.FleeReplanIntervalTicks"/> ticks.
     /// Reports <see cref="NodeStatus.Success"/> when the threat is dead or safe distance is reached.
+    ///
+    /// <para><b>CQRS compliance (BS1-T018):</b> navigation commands are issued via
+    /// <see cref="NavigationIntent"/> (Brain-side CQRS component) rather than writing
+    /// <see cref="CarKinem.Core.NavState"/> directly, so this executor is safe to run on a
+    /// Brain node that has no physics layer.</para>
     /// </summary>
     public sealed class FleeExecutor : IActionExecutor<LocomotionChannel>
     {
@@ -41,7 +45,8 @@ namespace FDP.Toolkit.Navigation.Executors
             });
         }
 
-        // ── Execute ───────────────────────────────────────────────────────────────────────────────
+
+        // ── Execute ─────────────────────────────────────────────────────────────────────────────────────────
 
         public unsafe void Execute(Entity entity, ref LocomotionChannel channel, EntityRepository world, float dt)
         {
@@ -91,10 +96,12 @@ namespace FDP.Toolkit.Navigation.Executors
 
         public void OnExit(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
-            var nav = world.GetComponent<NavState>(entity);
-            nav.TargetSpeed = 0f;
-            nav.Mode        = KinematicsMode.None;
-            world.SetComponent(entity, nav);
+            // BS1-T018: cancel locomotion via NavigationIntent (DO NOT write NavState directly).
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            intent.Mode        = NavigationMode.None;
+            intent.TargetSpeed = 0f;
+            intent.IntentId++;
+            world.SetComponent(entity, intent);
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────────────────────────
@@ -114,12 +121,13 @@ namespace FDP.Toolkit.Navigation.Executors
                 awayVec = Vector2.UnitX;
             awayVec = Vector2.Normalize(awayVec);
 
-            var nav = world.GetComponent<NavState>(entity);
-            nav.Mode             = KinematicsMode.Direct;
-            nav.FinalDestination = myPos + awayVec * p.SafeDistance;
-            nav.TargetSpeed      = p.Speed;
-            nav.HasArrived       = 0;
-            world.SetComponent(entity, nav);
+            // BS1-T018: write NavigationIntent (CQRS pattern) instead of NavState directly.
+            var intent = world.GetComponent<NavigationIntent>(entity);
+            intent.IntentId++;
+            intent.Mode             = NavigationMode.DirectPoint;
+            intent.FinalDestination = myPos + awayVec * p.SafeDistance;
+            intent.TargetSpeed      = p.Speed;
+            world.SetComponent(entity, intent);
         }
 
         private static unsafe FleeState ReadFleeState(ref LocomotionChannel channel)

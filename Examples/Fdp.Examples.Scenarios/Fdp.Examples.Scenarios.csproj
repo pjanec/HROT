@@ -14,5 +14,6 @@
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Navigation\FDP.Toolkit.Navigation.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
   </ItemGroup>
 </Project>

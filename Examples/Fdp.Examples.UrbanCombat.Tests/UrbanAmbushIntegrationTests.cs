@@ -30,7 +30,9 @@ namespace Fdp.Examples.UrbanCombat.Tests
         {
             _app = new HeadlessDemoApp();
             _app.Initialize();
-            _director = new ScenarioDirector(_app.World, _app.Tkb, _app.Road, _app.DoctrineRegistry);
+            _director = new ScenarioDirector(
+                _app.World, _app.Tkb, _app.Road, _app.DoctrineRegistry,
+                entityMap: _app.EntityMap);
         }
 
         public void Dispose()
@@ -109,18 +111,18 @@ namespace Fdp.Examples.UrbanCombat.Tests
         // ─── T8: TelemetryReporterSystem unit tests ───────────────────────────────
 
         [Fact]
-        public void Telemetry_PrintsGunfireEvent_WhenFireRequestPublished()
+        public void Telemetry_PrintsGunfireEvent_WhenWeaponFireIntentPublished()
         {
             var writer = new StringWriter();
             Console.SetOut(writer);
 
-            // Publish a FireRequestEvent to the write buffer.
-            _app.World.Bus.Publish(new FireRequestEvent
+            // Publish a WeaponFireIntent (BS1-T004: AimAndFireExecutor now emits this instead
+            // of FireRequestEvent). TelemetryReporterSystem consumes it for GUNFIRE logging.
+            _app.World.Bus.Publish(new WeaponFireIntent
             {
-                Shooter   = new Entity(),
-                Target    = new Entity(),
-                Origin    = Vector3.Zero,
-                Direction = Vector3.UnitZ,
+                ShooterEntityId = 42L,
+                TargetEntityId  = 99L,
+                WeaponIndex     = 0,
             });
 
             // One frame: SwapBuffers moves event to read buffer → TelemetryReporterSystem sees it.
@@ -180,14 +182,18 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
             var log = output.ToString();
 
-            // Every milestone in narrative order (Contains does not enforce order):
-            Assert.Contains("DOCTRINE ASSIGNED",            log);   // Frame 1 — initial doctrines applied
-            Assert.Contains("GUNFIRE",                      log);   // ~Frame 181 — insurgent fires
-            Assert.Contains("HIT",                          log);   // ~Frame 182 — APC hit
-            Assert.Contains("CAPABILITY LOST",              log);   // ~Frame 182 — APC mobility lost
-            Assert.Contains("HSM TRANSITION",               log);   // ~Frame 183 — APC enters Disabled
-            Assert.Contains("INTERACTION: EjectPassengers", log);   // ~Frame 184 — soldiers ejected
-            Assert.Contains("FLEE",                         log);   // ~Frame 185+ — civilians flee
+            // ── Phase 1 milestones (T001–T004) ────────────────────────────────
+            Assert.Contains("DOCTRINE ASSIGNED", log);   // Frame 1 — initial doctrines applied
+            Assert.Contains("GUNFIRE",           log);   // ~Frame 181 — insurgent fires (WeaponFireIntent)
+
+            // ── Bullet-dependent milestones restored after BS1-T007 ───────────
+            // FireProcessingSystem now consumes WeaponFireIntent and spawns bullet entities,
+            // which unblocks the full hit→damage→capability-lost→HSM-transition chain.
+            Assert.Contains("HIT",               log);   // Bullet hits APC
+            Assert.Contains("CAPABILITY LOST",   log);   // APC loses capability after damage
+            Assert.Contains("HSM TRANSITION",    log);   // APC HSM transitions (e.g. to Damaged state)
+            Assert.Contains("INTERACTION",       log);   // EjectPassengers triggered
+            Assert.Contains("FLEE",             log);   // Civilian perceives threat and flees
         }
 
         [Fact]

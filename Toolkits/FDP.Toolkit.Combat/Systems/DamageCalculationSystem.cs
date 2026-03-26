@@ -1,0 +1,74 @@
+using System;
+using Fdp.Kernel;
+using FDP.Toolkit.Combat.Contracts;
+using FDP.Toolkit.Combat.Events;
+using FDP.Toolkit.Replication.Components;
+using FDP.Toolkit.Replication.Services;
+
+namespace FDP.Toolkit.Combat.Systems
+{
+    /// <summary>
+    /// Consumes <see cref="DetonationNotification"/> events, computes a flat HP loss
+    /// value and publishes a <see cref="DamageAssessedEvent"/> for the authoritative
+    /// node to apply to the entity's <c>Health</c> component.
+    ///
+    /// <para>
+    /// <b>Authority gate:</b> Only publishes <see cref="DamageAssessedEvent"/> when the
+    /// local node has authority over the target entity.  In the POC, the damage value is
+    /// always <see cref="CombatConstants.DefaultBulletDamage"/>; armor penetration curves
+    /// are deferred.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Execution phase:</b> <see cref="SimulationSystemGroup"/> — runs after ingress
+    /// translators so that <see cref="DetonationNotification"/> events published by
+    /// <c>MunitionDetonationIngressTranslator</c> in the same tick are available.
+    /// </para>
+    /// </summary>
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    public class DamageCalculationSystem : ComponentSystem
+    {
+        private readonly NetworkEntityMap _entityMap;
+
+        /// <param name="entityMap">
+        /// Shared network entity map used to resolve the target network ID to a local
+        /// <see cref="Entity"/> handle for the <c>HasAuthority</c> check.
+        /// Required; must not be null.
+        /// </param>
+        public DamageCalculationSystem(NetworkEntityMap entityMap)
+        {
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
+        }
+
+        protected override void OnUpdate()
+        {
+            var events = World.Bus.Consume<DetonationNotification>();
+            if (events.Length == 0) return;
+
+            for (int i = 0; i < events.Length; i++)
+            {
+                ref readonly var evt = ref events[i];
+
+                // Resolve target entity — skip if unknown on this node.
+                if (!_entityMap.TryGetEntity(evt.HitEntityId, out var targetEntity))
+                    continue;
+
+                // Authority gate: only the owning node computes and publishes damage.
+                // Fall through (authoritative) when no NetworkAuthority component is present
+                // (single-node / AllInOne / unit-test scenario).
+                if (World.HasComponent<NetworkAuthority>(targetEntity))
+                {
+                    ref readonly var auth = ref World.GetComponentRO<NetworkAuthority>(targetEntity);
+                    if (!auth.HasAuthority) continue;
+                }
+
+                // POC: flat damage value; armor/penetration curves are deferred.
+                World.Bus.Publish(new DamageAssessedEvent
+                {
+                    HitEntityId = evt.HitEntityId,
+                    TotalDamage = CombatConstants.DefaultBulletDamage,
+                });
+            }
+        }
+    }
+}

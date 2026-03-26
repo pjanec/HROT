@@ -5,6 +5,7 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Systems;
+using FDP.Toolkit.Replication.Components;
 using Xunit;
 
 namespace FDP.Toolkit.Combat.Tests
@@ -26,6 +27,7 @@ namespace FDP.Toolkit.Combat.Tests
             _world.RegisterComponent<BallisticProjectile>();
             _world.RegisterComponent<Health>();
             _world.RegisterComponent<ActorCapabilityState>();
+            _world.RegisterComponent<NetworkAuthority>();
             _world.RegisterEvent<HitEvent>();
 
             _sys = new DamageSystem();
@@ -271,6 +273,57 @@ namespace FDP.Toolkit.Combat.Tests
 
             Assert.False(_world.IsAlive(targetB),
                 "Lethal hit must destroy the target after capability-stripping.");
+        }
+
+        // ── BS1-T003: Authority guard ─────────────────────────────────────────
+
+        /// <summary>
+        /// BS1-T003 SC-1: When the target entity has a <see cref="NetworkAuthority"/>
+        /// component where <c>HasAuthority == false</c> (remote node), the system must
+        /// skip the hit silently — health remains unchanged.
+        /// </summary>
+        [Fact]
+        public void Damage_DoesNotApplyDamage_WhenEntityIsRemote()
+        {
+            var target = SpawnTarget(currentHealth: 100f);
+
+            // Mark as remote: PrimaryOwnerId (2) != LocalNodeId (1) → HasAuthority = false.
+            _world.AddComponent(target, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
+
+            var bullet = SpawnBullet(damage: 25f);
+            PublishHitEvent(target, bullet.Index);
+
+            _sys.Run();
+
+            // Health must remain at 100 — no damage applied.
+            var health = _world.GetComponent<Health>(target);
+            Assert.Equal(100f, health.Current);
+
+            // Entity must still be alive (was not destroyed).
+            Assert.True(_world.IsAlive(target));
+        }
+
+        /// <summary>
+        /// BS1-T003 SC-2: When the target entity has a <see cref="NetworkAuthority"/>
+        /// component where <c>HasAuthority == true</c> (local owner), the system must
+        /// apply damage normally.
+        /// </summary>
+        [Fact]
+        public void Damage_AppliesDamage_WhenEntityIsLocallyOwned()
+        {
+            var target = SpawnTarget(currentHealth: 100f);
+
+            // Mark as local owner: PrimaryOwnerId (1) == LocalNodeId (1) → HasAuthority = true.
+            _world.AddComponent(target, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+
+            var bullet = SpawnBullet(damage: 25f);
+            PublishHitEvent(target, bullet.Index);
+
+            _sys.Run();
+
+            // Health must be reduced: 100 − 25 = 75.
+            var health = _world.GetComponent<Health>(target);
+            Assert.Equal(75f, health.Current);
         }
     }
 }

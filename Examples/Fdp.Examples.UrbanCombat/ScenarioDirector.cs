@@ -8,6 +8,7 @@ using Fhsm.Kernel.Data;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Perception.Components;
+using FDP.Toolkit.Replication.Services;
 
 namespace Fdp.Examples.UrbanCombat
 {
@@ -54,10 +55,14 @@ namespace Fdp.Examples.UrbanCombat
 
         // ── Constructor ──────────────────────────────────────────────────────────
 
-        private readonly EntityRepository _world;
-        private readonly ITkbDatabase     _tkb;
-        private readonly RoadNetworkBlob  _road;
-        private readonly DoctrineRegistry _registry;
+        private readonly EntityRepository  _world;
+        private readonly ITkbDatabase      _tkb;
+        private readonly RoadNetworkBlob   _road;
+        private readonly DoctrineRegistry  _registry;
+        private readonly NetworkEntityMap? _entityMap;
+
+        // Auto-incrementing network ID counter used when _entityMap is provided.
+        private long _nextNetId = 1;
 
         // Cached APC HSM structure hash so BrainHsm128 can be pre-initialised.
         private readonly uint _apcHsmStructureHash;
@@ -66,12 +71,24 @@ namespace Fdp.Examples.UrbanCombat
         /// Initialises the director with the ECS world, TKB database and road network.
         /// No entities are created yet; call <see cref="SetupAmbushScenario"/> to spawn them.
         /// </summary>
-        public ScenarioDirector(EntityRepository world, ITkbDatabase tkb, RoadNetworkBlob road, DoctrineRegistry registry)
+        /// <param name="entityMap">
+        /// Optional <see cref="NetworkEntityMap"/> to register spawned entities in.
+        /// When provided every spawned entity is registered with a sequential network ID
+        /// so the combat CQRS chain (<see cref="FDP.Toolkit.Combat.Events.WeaponFireIntent"/>
+        /// → translator → Muscle) can resolve shooter/target IDs in headless mode.
+        /// </param>
+        public ScenarioDirector(
+            EntityRepository world,
+            ITkbDatabase tkb,
+            RoadNetworkBlob road,
+            DoctrineRegistry registry,
+            NetworkEntityMap? entityMap = null)
         {
-            _world    = world    ?? throw new ArgumentNullException(nameof(world));
-            _tkb      = tkb      ?? throw new ArgumentNullException(nameof(tkb));
-            _road     = road;
-            _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+            _world     = world    ?? throw new ArgumentNullException(nameof(world));
+            _tkb       = tkb      ?? throw new ArgumentNullException(nameof(tkb));
+            _road      = road;
+            _registry  = registry ?? throw new ArgumentNullException(nameof(registry));
+            _entityMap = entityMap;
 
             // Pre-build the APC HSM blob to extract the StructureHash for brain initialization.
             // The blob is also registered independently in HeadlessDemoApp.RegisterDoctrines();
@@ -208,6 +225,11 @@ namespace Fdp.Examples.UrbanCombat
                 brain.State.Header.Phase         = InstancePhase.RTC;         // already running
                 brain.State.ActiveLeafIds[0]     = Brains.ApcHsmSetup.CruisingStateIndex;
             }
+
+            // Register entity in NetworkEntityMap with a sequential network ID so the
+            // combat CQRS chain (WeaponFireIntent → DDS → FireProcessingSystem) can
+            // resolve shooter/target IDs in headless mode (TD-1).
+            _entityMap?.Register(_nextNetId++, entity);
 
             return entity;
         }
