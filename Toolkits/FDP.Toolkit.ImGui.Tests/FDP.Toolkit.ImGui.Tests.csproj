@@ -25,4 +25,12 @@
     <ProjectReference Include="..\..\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Prevents native ImGui library loading conflicts when tests run in parallel
+         with other assemblies (BD1-BATCH-04 debt row / BATCH-10 Task 4). -->
+    <None Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

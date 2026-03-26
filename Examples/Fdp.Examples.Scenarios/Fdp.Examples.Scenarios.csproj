@@ -15,5 +15,14 @@
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Perception\FDP.Toolkit.Perception.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Navigation\FDP.Toolkit.Navigation.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
+    <ProjectReference Include="..\..\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Replay\FDP.Toolkit.Replay.csproj" />
+    <ProjectReference Include="..\Fdp.Examples.DDS\Fdp.Examples.DDS.csproj" />
+    <ProjectReference Include="..\..\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.Compiler\Fhsm.Compiler.csproj" />
+    <ProjectReference Include="..\..\ExtDeps\FastHSM\src\Fhsm.SourceGen\Fhsm.SourceGen.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

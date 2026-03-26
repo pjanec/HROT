@@ -20,13 +20,20 @@ namespace FDP.Toolkit.Replay
         public const int KeyframeInterval = 60;
 
         private readonly AsyncRecorder _recorder;
+        private readonly bool _blocking;
         private int _framesSinceKeyframe;
         private uint _prevTick;
 
         /// <param name="recorder">The <see cref="AsyncRecorder"/> that owns the output file.</param>
-        public RecorderTickSystem(AsyncRecorder recorder)
+        /// <param name="blocking">
+        /// When <c>true</c>, each <c>CaptureFrame</c> / <c>CaptureKeyframe</c> call blocks
+        /// until the front-buffer swap completes, preventing delta drops in tight loops.
+        /// Mirrors <see cref="RecordingConfiguration.Blocking"/>.
+        /// </param>
+        public RecorderTickSystem(AsyncRecorder recorder, bool blocking = false)
         {
             _recorder = recorder;
+            _blocking = blocking;
             // Start at KeyframeInterval - 1 so the very first Execute call issues a keyframe.
             _framesSinceKeyframe = KeyframeInterval - 1;
         }
@@ -49,12 +56,12 @@ namespace FDP.Toolkit.Replay
 
             if (++_framesSinceKeyframe >= KeyframeInterval)
             {
-                _recorder.CaptureKeyframe(repo, wallClockTicks);
+                _recorder.CaptureKeyframe(repo, wallClockTicks, blocking: _blocking);
                 _framesSinceKeyframe = 0;
             }
             else
             {
-                _recorder.CaptureFrame(repo, _prevTick, wallClockTicks);
+                _recorder.CaptureFrame(repo, _prevTick, wallClockTicks, blocking: _blocking);
             }
 
             _prevTick = repo.GlobalVersion;

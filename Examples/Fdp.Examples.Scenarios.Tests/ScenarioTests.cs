@@ -1,8 +1,12 @@
 using Fdp.Examples.Common;
+using Fdp.Examples.Common.Constants;
 using Fdp.Examples.Scenarios.Cognitive;
+using Fdp.Examples.Scenarios.Integrated;
 using Fdp.Examples.Scenarios.Kinematics;
+using Fdp.Examples.Scenarios.Network;
 using Fdp.Examples.Scenarios.Perception;
 using Fdp.Examples.Scenarios.Physics;
+using Fdp.Examples.Scenarios.Replay;
 using FDP.Kernel.Logging;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat;
@@ -710,6 +714,511 @@ namespace Fdp.Examples.Scenarios.Tests
 
             // Exit code 0 means Phase 3 triggered return true inside EvaluateTick.
             Assert.Equal(0, code);
+        }
+    }
+
+    // ── DEM1-D006: MissionCommandScenario tests ────────────────────────────────
+
+    public class MissionCommandScenarioTests
+    {
+        /// <summary>
+        /// Full scenario run — all 4 phases pass (MoveTo written, enemy injected,
+        /// director advances phase + doctrine switch, channel arbitration clears stale
+        /// command) and exit code is 0 (CI SUCCESS).
+        /// </summary>
+        [Fact]
+        public void MissionCommand_RunToCompletion_ExitsZero()
+        {
+            var scenario = new MissionCommandScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 20);
+            Assert.Equal(0, code);
+        }
+
+        /// <summary>
+        /// At tick 11 MissionDirectorSystem must have incremented
+        /// <c>MissionPlanQueue.CurrentPhase</c> to 1 (transitioned from Patrol to Combat)
+        /// and DoctrineIngressSystem must have applied the Combat doctrine hash (200) to
+        /// <c>DoctrineState.ActiveDoctrineHash</c>. Removing MissionDirectorSystem or
+        /// breaking the manual-pipeline double-SwapBuffers pattern would cause one or both
+        /// assertions to fail.
+        /// </summary>
+        [Fact]
+        public void MissionCommand_Phase3_DirectorAdvancesPhase_WhenThreated()
+        {
+            var scenario = new MissionCommandScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 20);
+
+            Assert.NotEqual(1, code);
+
+            Assert.Equal(1, scenario.Phase3CurrentPhase);
+            // Must use Common constants: Fdp.Examples.Scenarios.Tests is nested under
+            // Fdp.Examples.Scenarios in namespace lookup, so unqualified DemoDoctrineIds
+            // would bind to Fdp.Examples.Scenarios.DemoDoctrineIds (Combat=2900).
+            Assert.Equal((int)Fdp.Examples.Common.Constants.DemoDoctrineIds.Combat, scenario.Phase3DoctrineHash);
+        }
+
+        /// <summary>
+        /// At tick 12 ChannelArbitrationSystem must have cleared the stale MoveTo command
+        /// written at tick 5 (its <c>DoctrineInstanceId</c> no longer matches the active
+        /// doctrine). <c>LocomotionChannel.ActiveAction</c> must equal 0. Removing
+        /// <see cref="ChannelArbitrationSystem"/> or keeping the channel's DoctrineInstanceId
+        /// in sync with the new doctrine would cause this to fail.
+        /// </summary>
+        [Fact]
+        public void MissionCommand_Phase4_ArbitrationPreemptsStaleLocoCommand()
+        {
+            var scenario = new MissionCommandScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 20);
+
+            Assert.NotEqual(1, code);
+
+            Assert.Equal(0, (int)scenario.Phase4LocoAction);
+        }
+    }
+
+    // ── DEM1-D007: TerrainClampingScenario tests ───────────────────────────────
+
+    public class TerrainClampingScenarioTests
+    {
+        /// <summary>
+        /// Full scenario run — all 4 phases pass (flat = no clamping, ramp = smoothing
+        /// active, spike = jump rejected, recovery = TargetZOffset ≈ 6.0) and
+        /// exit code is 0 (CI SUCCESS).
+        /// </summary>
+        [Fact]
+        public void TerrainClamping_RunToCompletion_ExitsZero()
+        {
+            var scenario = new TerrainClampingScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 350);
+            Assert.Equal(0, code);
+        }
+
+        /// <summary>
+        /// At tick 10 the vehicle is at X ≈ 1.67 m — inside the MockTerrainProvider's
+        /// flat zone (0–20 m, Z=0). No clamping should have been applied:
+        /// <c>CurrentZOffset</c> must be less than 0.01. Changing <see cref="EClampingMode"/>
+        /// to Disabled would cause Phase 1 to always pass trivially; enabling it with a
+        /// non-zero provider would cause it to fail.
+        /// </summary>
+        [Fact]
+        public void TerrainClamping_Phase1_NoClampingOnFlatGround()
+        {
+            var scenario = new TerrainClampingScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 350);
+
+            Assert.NotEqual(1, code);
+
+            Assert.True(scenario.Phase1CurrentZOffset < 0.01f,
+                $"Phase 1: CurrentZOffset={scenario.Phase1CurrentZOffset:F4} expected < 0.01 (flat zone)");
+        }
+
+        /// <summary>
+        /// At tick 150 the vehicle is at X ≈ 25 m — on the ramp (slope 0.2), provider
+        /// returns Z ≈ 1.0. <c>TargetZOffset</c> must exceed 0.5 and <c>CurrentZOffset</c>
+        /// must still be lagging behind <c>TargetZOffset</c> (smoothing in progress).
+        /// Removing <see cref="TransformSyncSystem"/> would eliminate the lag and cause
+        /// the second assertion to fail.
+        /// </summary>
+        [Fact]
+        public void TerrainClamping_Phase2_SmoothingActiveOnRamp()
+        {
+            var scenario = new TerrainClampingScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 350);
+
+            Assert.NotEqual(1, code);
+
+            Assert.True(scenario.Phase2TargetZOffset > 0.5f,
+                $"Phase 2: TargetZOffset={scenario.Phase2TargetZOffset:F4} expected > 0.5");
+            Assert.True(scenario.Phase2CurrentZOffset < scenario.Phase2TargetZOffset,
+                $"Phase 2: CurrentZOffset={scenario.Phase2CurrentZOffset:F4} must lag TargetZOffset={scenario.Phase2TargetZOffset:F4}");
+        }
+
+        /// <summary>
+        /// At tick 240 the vehicle is near the spike region (X ≈ 40 m, provider returns
+        /// Z = 100). The jump-rejection filter must have discarded the anomalous hit;
+        /// <c>LastValidIgAltitude</c> must be less than 10 (the last accepted valid reading
+        /// from the ramp, not 100). Removing jump-rejection in
+        /// <see cref="TerrainQueryResolutionSystem"/> would allow the spike through and
+        /// cause this assertion to fail.
+        /// </summary>
+        [Fact]
+        public void TerrainClamping_Phase3_JumpRejectionRejectsSpike()
+        {
+            var scenario = new TerrainClampingScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 350);
+
+            Assert.NotEqual(1, code);
+
+            Assert.True(scenario.Phase3LastValidIgAltitude < 10.0f,
+                $"Phase 3: LastValidIgAltitude={scenario.Phase3LastValidIgAltitude:F4} expected < 10 (spike must have been rejected)");
+        }
+
+        /// <summary>
+        /// Exit code 0 confirms the Phase 4 assertion inside
+        /// <see cref="TerrainClampingScenario.EvaluateTick"/> passed: at tick 300
+        /// (X ≈ 50 m, ramp Z ≈ 6.0) <c>TargetZOffset</c> is within ±1.0 m of 6.0,
+        /// meaning the vehicle recovered from the anomaly and resumed terrain-following.
+        /// </summary>
+        [Fact]
+        public void TerrainClamping_Phase4_RecoverAfterAnomaly()
+        {
+            var scenario = new TerrainClampingScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 350);
+
+            Assert.Equal(0, code);
+
+            Assert.True(MathF.Abs(scenario.Phase4TargetZOffset - 6.0f) <= 1.0f,
+                $"Phase 4: TargetZOffset={scenario.Phase4TargetZOffset:F4} expected 6.0 ±1.0");
+        }
+    }
+
+    // ── DEM1-D008: ParallelStoriesScenario tests ───────────────────────────
+
+    public class ParallelStoriesScenarioTests
+    {
+        /// <summary>
+        /// Full scenario run — Phase A records live kinematics for 50 ticks;
+        /// Phase B replays through <c>ReplayModule</c> and compares positions at frames
+        /// 25 and 50. Exit code 0 means both comparisons passed within 0.001 m.
+        /// </summary>
+        [Fact]
+        public void ParallelStories_RunToCompletion_ExitsZero()
+        {
+            var scenario = new ParallelStoriesScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+            Assert.Equal(0, code);
+        }
+
+        /// <summary>
+        /// After 25 replay frames have been applied (visible at EvaluateTick tick=26),
+        /// the replayed <c>SimTransform.Position</c> must match the live trajectory within
+        /// <see cref="ParallelStoriesScenario.PositionTolerance"/> metres.
+        /// Confirms that LZ4 recording + naked-node replay reproduce bit-identical positions.
+        /// </summary>
+        [Fact]
+        public void ParallelStories_ReplayMatchesLiveAtTick25()
+        {
+            var scenario = new ParallelStoriesScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            // Exit code 1 means a ScenarioFailureException was thrown at Phase 1.
+            Assert.NotEqual(1, code);
+
+            Assert.True(scenario.ReplayMatchedLiveAtTick25,
+                "Phase 1: replay position at frame 25 must match live position within " +
+                $"{ParallelStoriesScenario.PositionTolerance} m.");
+        }
+
+        /// <summary>
+        /// Confirms that the main (replay) kernel contains no ground-kinematics systems.
+        /// The scenario captures <see cref="ParallelStoriesScenario.ReplayKernelModuleTypeNames"/>
+        /// directly from <see cref="ModuleHostKernel.GetRegisteredModuleTypeNames"/> so the test
+        /// inspects the actual kernel topology, not an author-set flag.
+        /// </summary>
+        [Fact]
+        public void ParallelStories_NoCarKinimSystemsInReplayKernel()
+        {
+            var scenario = new ParallelStoriesScenario();
+            // Run the full scenario to verify it succeeds and Configure has been called.
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.Equal(0, code);
+
+            // Verify actual kernel module topology: no kinematics modules registered.
+            // Kinematics module type names that must be absent from the replay kernel.
+            var kinematicsTypeNames = new[] { "LiveKinematicsModule", "GroundKinematicsModule", "CarKinematicsModule" };
+            var registered = scenario.ReplayKernelModuleTypeNames;
+
+            Assert.NotEmpty(registered); // sanity check: at least ReplayModule was registered
+
+            foreach (var kinName in kinematicsTypeNames)
+            {
+                Assert.False(registered.Contains(kinName),
+                    $"The replay kernel must not register '{kinName}' — " +
+                    "positions must come purely from ReplayModule.");
+            }
+
+            // Confirm the replay module IS registered (proves positive coverage).
+            Assert.True(registered.Contains("ReplayModule"),
+                "ReplayModule must be registered in the replay kernel.");
+        }
+    }
+
+    // ── DEM1-D009: DistributedTank tests ──────────────────────────────────────
+
+    /// <summary>
+    /// Tests for <see cref="DistributedTankScenario"/> covering Phase A, Phase B Phase 1,
+    /// DDS EntityMaster ghost (BATCH-09/10/11), locomotion round-trip (BATCH-12 Phase B3),
+    /// turret split-authority (BATCH-12 Phase B4), DDS loco consumption assertion
+    /// (BATCH-14 Phase B3 gap), and turret-tracks-hull Phase 3 (BATCH-14 Phase 3).
+    /// </summary>
+    public class DistributedTankScenarioPhaseATests
+    {
+        /// <summary>
+        /// Running the scenario through <see cref="ScenarioTestHarness"/> up to
+        /// 60 ticks must succeed (exit code 0) without exception.
+        /// Proves: both kernels initialise, all phase milestones pass, and all DDS/ECS
+        /// resources are released cleanly via <see cref="IScenario.OnShutdown"/>.
+        /// </summary>
+        [Fact]
+        public void DistributedTank_PhaseA_RunToTick10_ExitsZero()
+        {
+            using var scenario = new DistributedTankScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+            Assert.Equal(0, code);
+        }
+
+        /// <summary>
+        /// After <see cref="ScenarioTestHarness.Run"/> completes, both kernel
+        /// initialization flags must be set — confirming that <c>Configure</c> ran without
+        /// exception and both DDS participants were created successfully.
+        /// </summary>
+        [Fact]
+        public void DistributedTank_PhaseA_BothKernelsInitialized()
+        {
+            using var scenario = new DistributedTankScenario();
+            ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.True(scenario.BrainInitialized,  "Brain kernel must be initialized after Configure().");
+            Assert.True(scenario.MuscleInitialized, "Muscle kernel must be initialized after Configure().");
+        }
+
+        /// <summary>
+        /// Phase B Phase 1 (BATCH-10): the Brain hull entity must reach
+        /// <see cref="EntityLifecycle.Active"/> by tick <see cref="DistributedTankScenario.PhaseBElmActiveTick"/>.
+        /// Proves that <see cref="EntityLifecycleModule"/> (zero-participant auto-promote) is wired to
+        /// the Brain kernel and that <c>LifecycleSystem.DrainInstantComplete</c> fires correctly.
+        /// </summary>
+        [Fact]
+        public void DistributedTank_PhaseB_BrainHullReachesActive_AtTick5()
+        {
+            using var scenario = new DistributedTankScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.Equal(0, code);
+            Assert.True(scenario.PhaseBElmActive,
+                "Brain hull must reach EntityLifecycle.Active by tick 5 via ELM zero-participant auto-promote.");
+        }
+
+        /// <summary>
+        /// Verifies that calling <see cref="IScenario.OnShutdown"/> followed by
+        /// <see cref="IDisposable.Dispose"/> does not throw (double-release guard).
+        /// </summary>
+        [Fact]
+        public void DistributedTank_OnShutdown_ThenDispose_DoesNotThrow()
+        {
+            using var scenario = new DistributedTankScenario();
+            // ScenarioTestHarness.Run calls Shutdown which calls OnShutdown.
+            // The using-var block will then call Dispose — must be a no-op.
+            ScenarioTestHarness.Run(scenario, maxTicks: 60);
+            // If we reach here without exception, the guard worked.
+        }
+
+        /// <summary>
+        /// Phase B DDS milestone (BATCH-11): after Brain publishes
+        /// <see cref="EntityMasterTopic"/> on Domain 0, the Muscle node must have a live
+        /// ghost entity registered in its <c>NetworkEntityMap</c>, proving the Cyclone DDS
+        /// loopback path between the Brain and Muscle <see cref="DdsParticipant"/> instances.
+        /// </summary>
+        [Fact]
+        public void DistributedTank_PhaseB_MuscleHasGhostForBrainHull()
+        {
+            using var scenario = new DistributedTankScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.Equal(0, code);
+            Assert.True(scenario.GhostVisibleOnMuscle,
+                "Muscle must have a live ghost entity for the Brain hull's network ID " +
+                "via EntityMasterTopic DDS loopback (Domain 0).");
+        }
+
+        /// <summary>
+        /// Phase B3: after tick 20 Brain publishes <see cref="DemoLocomotionMsg"/> and Muscle
+        /// translates it to <c>NavState</c> (poll before Muscle kernel update), the Muscle ghost's
+        /// <c>SimVelocity.Linear.X</c> must exceed 0.1 m/s by tick
+        /// <see cref="DistributedTankScenario.PhaseB3LocoAssertTick"/>.
+        /// Proves <see cref="GroundKinematicsModule"/> (CarKinematicsSystem) on Muscle and physics
+        /// authority after blueprint promotion.
+        /// </summary>
+        [Fact]
+        public void DistributedTank_Phase2_MuscleNodeMovesOnCommand()
+        {
+            using var scenario = new DistributedTankScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.Equal(0, code);
+            Assert.True(scenario.LocoObservable,
+                "Muscle ghost SimVelocity.Linear.X must exceed 0.1 m/s by tick 25 " +
+                "after NavState locomotion injection (CarKinematicsSystem + split-authority).");
+        }
+
+        /// <summary>
+        /// Phase B3 DDS path (BATCH-14): the Muscle node must have consumed a
+        /// <see cref="DemoLocomotionMsg"/> DDS sample — not an accidental direct
+        /// <see cref="NavState"/> mutation — before the ghost reaches the velocity milestone.
+        /// Proves the DDS loopback round-trip drove the locomotion command.
+        /// </summary>
+        [Fact]
+        public void DistributedTank_Phase2_LocoMsgConsumedViaDds()
+        {
+            using var scenario = new DistributedTankScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.Equal(0, code);
+            Assert.True(scenario.LocoCommandReceivedViaDds,
+                "Muscle must have consumed a DemoLocomotionMsg DDS sample (LocoCommandReceivedViaDds) " +
+                "confirming the DDS loopback path drove NavState, not a direct injection.");
+        }
+
+        /// <summary>
+        /// Phase 3 (BATCH-14 / DEM1-TASK-DETAIL §D009 tick 40): at tick
+        /// <see cref="DistributedTankScenario.PhaseB4TurretTrackTick"/> the Brain Turret
+        /// <see cref="SimTransform"/> must be within ±0.1 m of the Brain hull position.
+        /// Proves the split-authority layout: turret and hull share the origin until the
+        /// Muscle kinematic integration begins, so the distance is effectively 0.
+        /// </summary>
+        [Fact]
+        public void DistributedTank_Phase3_BrainTurretTracksHull_AtTick40()
+        {
+            using var scenario = new DistributedTankScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.Equal(0, code);
+            Assert.True(scenario.PhaseBTurretTracksHull,
+                "At tick 40 the Brain turret SimTransform must be within ±0.1 m of the Brain hull " +
+                "(Phase 3: turret tracks hull position in split-authority layout).");
+        }
+
+        /// <summary>
+        /// Phase B4 (BATCH-12): at tick <see cref="DistributedTankScenario.SuccessTick"/> the
+        /// Brain Turret's <c>WeaponChannel.ActiveAction</c> must still equal
+        /// <c>CombatConstants.ActionIdAimAndFire</c> AND the Muscle ghost hull must still be
+        /// moving (<c>SimVelocity.Linear.X</c> &gt; 0).  Proves split-authority: turret Brain
+        /// channel and hull Muscle physics both active simultaneously.
+        /// </summary>
+        [Fact]
+        public void DistributedTank_Phase4_SplitAuthorityBothChannelsActive()
+        {
+            using var scenario = new DistributedTankScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
+
+            Assert.Equal(0, code);
+            Assert.True(scenario.SplitAuthorityActive,
+                "At tick 50 the Brain turret weapon channel must be active AND " +
+                "the Muscle ghost hull must still be moving (split-authority).");
+        }
+    }
+
+    // ── DEM1-D010: UrbanCombatNewScenario tests ───────────────────────────────
+
+    /// <summary>
+    /// Integration tests for <see cref="UrbanCombatNewScenario"/> covering all five
+    /// sequential latches of the Grand Integration Demo (all toolkits).
+    ///
+    /// <para><b>Scenario narrative:</b> Insurgent fires RPG at northbound APC
+    /// → APC takes non-lethal hit, ApcMobilityTrigger strips CanMove
+    /// → HsmDamageBridgeSystem injects MobilityLost → APC transitions to Disabled state
+    /// → soldiers eject from APC → soldiers engage and kill insurgent → scenario exits 0.</para>
+    /// </summary>
+    public class UrbanCombatNewScenarioTests
+    {
+        /// <summary>
+        /// Full scenario run — all five sequential latches must fire within the 600-tick
+        /// budget. Exit code must be 0 (CI SUCCESS).
+        /// </summary>
+        [Fact]
+        public void UrbanCombatNew_RunToCompletion_ExitsZero()
+        {
+            var scenario = new UrbanCombatNewScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 600);
+            Assert.True(code == 0,
+                $"Exit code {code}. " +
+                $"ambush={scenario.LatchAmbushFired} " +
+                $"halt={scenario.LatchApcHalted} " +
+                $"hit={scenario.LatchInsurgentHit} " +
+                $"killed={scenario.LatchInsurgentKilled}");
+        }
+
+        /// <summary>
+        /// Within 100 ticks the Insurgent must have set its WeaponChannel.ActiveAction to
+        /// <c>ActionIdAimAndFire</c> (Latch 1: AmbushFired).
+        /// Confirms that DoctrineIngressSystem, BTreeTickSystem and the Ambush BTree's
+        /// Condition_HasTarget → Action_AimAndFire branch are all wired correctly, and
+        /// that the Insurgent's TargetMemory was pre-seeded with the APC.
+        /// </summary>
+        [Fact]
+        public void UrbanCombatNew_Latch1_InsurgentFiresWithin100Ticks()
+        {
+            var scenario = new UrbanCombatNewScenario();
+            // Run to at least 100 ticks (or success, whichever comes first).
+            ScenarioTestHarness.Run(scenario, maxTicks: 600);
+
+            Assert.True(scenario.LatchAmbushFired,
+                "Latch 1 (AmbushFired) must be set: Insurgent WeaponChannel.ActiveAction " +
+                "== ActionIdAimAndFire before tick 600.");
+        }
+
+        /// <summary>
+        /// After the RPG hits the APC (Latch 1 → Latch 2), the APC's
+        /// <c>LocomotionChannel.ActiveAction</c> must become 0.
+        /// Confirms: ApcMobilityTriggerSystem strips CanMove on non-lethal hit →
+        /// HsmDamageBridgeSystem fires MobilityLost → HsmTickSystem transitions APC to
+        /// Disabled → OnEnter_Disabled clears the locomotion channel.
+        /// </summary>
+        [Fact]
+        public void UrbanCombatNew_Latch2_ApcHaltsAfterAmbush()
+        {
+            var scenario = new UrbanCombatNewScenario();
+            ScenarioTestHarness.Run(scenario, maxTicks: 600);
+
+            Assert.True(scenario.LatchApcHalted,
+                "Latch 2 (ApcHalted) must be set: APC LocomotionChannel.ActiveAction == 0 " +
+                "after MobilityLost event is processed by HSM.");
+        }
+
+        /// <summary>
+        /// After soldiers disembark (Latch 2 → Latch 3) the Insurgent must take damage.
+        /// Confirms: EjectPassengersExecutor restores CanShoot on soldiers → soldiers'
+        /// InfantryCombat BTree fires via Action_AimAndFire → WeaponFireIntent →
+        /// FireProcessingSystem → bullet → HitResolutionSystem → DamageSystem reduces
+        /// Insurgent health below maximum.
+        /// </summary>
+        [Fact]
+        public void UrbanCombatNew_Latch4_InsurgentDies()
+        {
+            var scenario = new UrbanCombatNewScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 600);
+
+            Assert.True(scenario.LatchInsurgentKilled,
+                "Latch 4 (InsurgentKilled) must be set: Insurgent entity destroyed " +
+                "by combined soldier fire within tick budget.");
+            // Exit code 0 is sufficient to prove latch 4 since EvaluateTick returns true
+            // only after _latchInsurgentKilled is set.
+            Assert.Equal(0, code);
+        }
+
+        /// <summary>
+        /// After the Insurgent is killed (Latch 4), EvaluateTick must return true and
+        /// the log must contain "Mission Resumed" — confirming the scenario narrative
+        /// completed and the log line was emitted.
+        /// Exit code 0 proves EvaluateTick returned true (harness exits 0 on success).
+        /// </summary>
+        [Fact]
+        public void UrbanCombatNew_Latch5_MissionResumes()
+        {
+            var mem = new NLog.Targets.MemoryTarget("uc-test-mem") { Layout = "${message}" };
+            var cfg = new NLog.Config.LoggingConfiguration();
+            cfg.AddRuleForAllLevels(mem);
+            NLog.LogManager.Configuration = cfg;
+
+            var scenario = new UrbanCombatNewScenario();
+            int code = ScenarioTestHarness.Run(scenario, maxTicks: 600);
+
+            NLog.LogManager.Flush();
+            NLog.LogManager.Configuration = null;
+
+            Assert.Equal(0, code);
+            Assert.Contains(mem.Logs, l => l.Contains("Mission Resumed"));
         }
     }
 }

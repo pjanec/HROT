@@ -182,10 +182,9 @@ namespace Fdp.Examples.Common
         public void Shutdown()
         {
             _kernel?.Dispose();
-            _world?.Dispose();
-            // Allow scenarios to free unmanaged resources (e.g. PhysicsToolkitModule NativeArrays)
-            // AFTER the world is disposed so systems no longer access the native memory.
+            // Native resources (e.g. TerrainQueryBatchData NativeArrays) may need the world singleton.
             _scenario.OnShutdown();
+            _world?.Dispose();
         }
 
         // ── IMapCameraProvider ────────────────────────────────────────────────

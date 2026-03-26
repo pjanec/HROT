@@ -1,14 +1,31 @@
-using System;
 using System.Numerics;
 using Fdp.Kernel; // SimTransform
 using ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Extensions;
-using Fdp.Examples.NetworkDemo.Components;
 using Fdp.Modules.Geographic.Components;
 
-namespace Fdp.Examples.NetworkDemo.Systems
+namespace Fdp.Examples.Common.Systems
 {
+    /// <summary>
+    /// Synchronises <see cref="SimTransform"/> with <see cref="NetworkTransform"/> for all
+    /// entities that have network authority.
+    ///
+    /// <para><b>Owned entities</b> (PrimaryOwnerId == LocalNodeId): copies SimTransform →
+    /// NetworkTransform so that the recorded/published position tracks actual movement.</para>
+    ///
+    /// <para><b>Remote entities</b> (or all entities when <paramref name="driveFromNetwork"/>
+    /// is <c>true</c>): lerps SimTransform toward NetworkTransform at
+    /// <see cref="SMOOTHING_RATE"/> × deltaTime.  When a <see cref="GroundClampingState"/>
+    /// is present, also lerps <c>CurrentZOffset</c> toward <c>TargetZOffset</c> at
+    /// <paramref name="groundClampZSmoothingRate"/> × deltaTime.</para>
+    ///
+    /// <para><b>Placement note:</b> Originally defined in
+    /// <c>Fdp.Examples.NetworkDemo.Systems</c>; duplicated here so that
+    /// <c>Fdp.Examples.Scenarios</c> (and other projects that reference
+    /// <c>Fdp.Examples.Common</c>) avoid a dependency on the full NetworkDemo project.
+    /// NetworkDemo retains its own copy for its internal pipeline.</para>
+    /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
     public class TransformSyncSystem : IEcsModuleSystem
     {
@@ -130,7 +147,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
                     }
 
                     // Preserve rotation
-                    cmd.SetComponent(entity, new SimTransform { 
+                    cmd.SetComponent(entity, new SimTransform {
                         Position = smoothed,
                         Rotation = currentTf.Rotation
                     });

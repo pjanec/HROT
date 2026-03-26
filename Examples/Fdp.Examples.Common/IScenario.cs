@@ -35,9 +35,11 @@ namespace Fdp.Examples.Common
 
         /// <summary>
         /// Called by <see cref="ScenarioSubsystem"/> during teardown, after the kernel
-        /// and world have been disposed.  Override to release any unmanaged resources
-        /// allocated in <see cref="Configure"/> (e.g. <c>PhysicsToolkitModule</c>
-        /// NativeArrays).  The default implementation is a no-op.
+        /// has been disposed but <em>before</em> the world is disposed.
+        /// Actual order: <c>_kernel.Dispose()</c> → <c>OnShutdown()</c> → <c>_world.Dispose()</c>.
+        /// Override to release any unmanaged resources allocated in <see cref="Configure"/>
+        /// (e.g. DDS participants, <c>PhysicsToolkitModule</c> NativeArrays) while the
+        /// world singleton is still intact.  The default implementation is a no-op.
         /// </summary>
         void OnShutdown() { }
     }

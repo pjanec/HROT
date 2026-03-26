@@ -1,11 +1,12 @@
 namespace Fdp.Examples.Scenarios
 {
     /// <summary>
-    /// Stable compile-time integer IDs for doctrines used in demo scenarios.
-    /// Must not overlap with <see cref="FDP.Toolkit.Behavior.DoctrineIds"/>.
-    /// Uses the upper end of the military range (2001-2999) to avoid conflicts.
+    /// Stable compile-time integer IDs for doctrines used specifically in
+    /// <c>BehaviorValidationScenario</c>.  Uses the upper military range (2001-2999)
+    /// to avoid conflicts with <see cref="FDP.Toolkit.Behavior.DoctrineIds"/> and
+    /// <see cref="Fdp.Examples.Common.Constants.DemoDoctrineIds"/>.
     /// </summary>
-    public static class DemoDoctrineIds
+    public static class BehaviorValidationDoctrineIds
     {
         /// <summary>
         /// Combat BTree doctrine used by <c>BehaviorValidationScenario</c>.

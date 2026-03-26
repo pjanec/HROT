@@ -141,10 +141,104 @@ namespace CarKinem.Tests.Spatial
             int count = grid.QueryNeighbors(new Vector2(0f, 0f), radius: 1f, results);
 
             Assert.Equal(1, count);
-            // Generational equality â€” both Index AND Generation must match.
+            // Generational equality — both Index AND Generation must match.
             Assert.Equal(5,            results[0].entity.Index);
             Assert.Equal((ushort)3,    results[0].entity.Generation);
             Assert.Equal(original,     results[0].entity); // struct equality (both fields)
+
+            grid.Dispose();
+        }
+
+        // ── BATCH-09: Remove + free-list tests ───────────────────────────────
+
+        /// <summary>
+        /// BATCH-09 Task 1: <see cref="SpatialHashGrid.Remove"/> splices the entity out
+        /// of the linked-list chain for its cell so subsequent <see cref="SpatialHashGrid.QueryNeighbors"/>
+        /// calls no longer return it.
+        /// </summary>
+        [Fact]
+        public void SpatialHashGrid_Remove_SplicesEntryFromLinkedList()
+        {
+            var grid = SpatialHashGrid.Create(20, 20, 5f, 100, Allocator.Persistent);
+            grid.Clear();
+
+            var e1 = new Entity(1, 1);
+            var e2 = new Entity(2, 1);
+            grid.Add(e1, new Vector2(10f, 10f));
+            grid.Add(e2, new Vector2(10f, 10f)); // same cell
+
+            // Both entities visible before removal.
+            Span<(Entity entity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            Assert.Equal(2, grid.QueryNeighbors(new Vector2(10f, 10f), 1f, results));
+
+            // Remove e1.
+            bool removed = grid.Remove(e1, new Vector2(10f, 10f));
+            Assert.True(removed);
+
+            // Only e2 should remain in the query.
+            int count = grid.QueryNeighbors(new Vector2(10f, 10f), 1f, results);
+            Assert.Equal(1, count);
+            Assert.Equal(e2, results[0].entity);
+
+            grid.Dispose();
+        }
+
+        /// <summary>
+        /// BATCH-09 Task 1: A slot freed by <see cref="SpatialHashGrid.Remove"/> must be
+        /// reused by a subsequent <see cref="SpatialHashGrid.Add"/> call so that
+        /// <see cref="SpatialHashGrid.EntityCount"/> stays bounded and the new entity is
+        /// queryable from its new cell.
+        /// </summary>
+        [Fact]
+        public void SpatialHashGrid_FreeList_ReusesSlotsAfterRemove()
+        {
+            var grid = SpatialHashGrid.Create(20, 20, 5f, 100, Allocator.Persistent);
+            grid.Clear();
+
+            var e1 = new Entity(1, 1);
+            grid.Add(e1, new Vector2(10f, 10f));
+            int countBefore = grid.EntityCount; // should be 1
+
+            // Remove, then re-add at a different position.
+            bool removed = grid.Remove(e1, new Vector2(10f, 10f));
+            Assert.True(removed);
+
+            // FreeListCount should be 1 (slot 0 is now recycled).
+            Assert.Equal(1, grid.FreeListCount);
+
+            // Re-add the entity to a new cell — should reuse the freed slot.
+            grid.Add(e1, new Vector2(50f, 50f));
+            // EntityCount must NOT have grown beyond countBefore (slot was recycled).
+            Assert.Equal(countBefore, grid.EntityCount);
+            Assert.Equal(0, grid.FreeListCount);
+
+            // Entity must be queryable at its new position.
+            Span<(Entity entity, Vector2 pos)> results = stackalloc (Entity, Vector2)[10];
+            int countNew = grid.QueryNeighbors(new Vector2(50f, 50f), 1f, results);
+            Assert.Equal(1, countNew);
+            Assert.Equal(e1, results[0].entity);
+
+            // Old position must return nothing.
+            int countOld = grid.QueryNeighbors(new Vector2(10f, 10f), 1f, results);
+            Assert.Equal(0, countOld);
+
+            grid.Dispose();
+        }
+
+        /// <summary>
+        /// BATCH-09 Task 1: <see cref="SpatialHashGrid.Remove"/> returns <c>false</c> for
+        /// an entity that was never added.  No state corruption should occur.
+        /// </summary>
+        [Fact]
+        public void SpatialHashGrid_Remove_ReturnsFalse_WhenEntityNotPresent()
+        {
+            var grid = SpatialHashGrid.Create(10, 10, 5f, 100, Allocator.Persistent);
+            grid.Clear();
+
+            var e = new Entity(99, 2);
+            bool result = grid.Remove(e, new Vector2(5f, 5f));
+            Assert.False(result);
+            Assert.Equal(0, grid.FreeListCount);
 
             grid.Dispose();
         }

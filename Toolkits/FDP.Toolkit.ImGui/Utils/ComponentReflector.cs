@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Reflection;
@@ -72,32 +73,48 @@ internal class ComponentReflector
             bool changed = false;
             if (type.IsValueType && data != null)
             {
-                IntPtr ptr = IntPtr.Zero;
                 try
                 {
                     int size = Marshal.SizeOf(type);
-                    ptr = Marshal.AllocHGlobal(size);
-                    Marshal.StructureToPtr(data, ptr, fDeleteOld: false);
-                    var current = new byte[size];
-                    Marshal.Copy(ptr, current, 0, size);
-
-                    if (_unmanagedCache.TryGetValue(type, out var cached))
+                    // Rent a pooled buffer to avoid per-frame native heap allocation.
+                    // The buffer is returned immediately after comparison so it never
+                    // escapes this scope; the cache stores a separately-owned managed copy.
+                    byte[] pooled = ArrayPool<byte>.Shared.Rent(size);
+                    try
                     {
-                        for (int i = 0; i < size; i++)
+                        var pinHandle = GCHandle.Alloc(pooled, GCHandleType.Pinned);
+                        try
                         {
-                            if (current[i] != cached[i]) { changed = true; break; }
+                            Marshal.StructureToPtr(data, pinHandle.AddrOfPinnedObject(), fDeleteOld: false);
+                        }
+                        finally
+                        {
+                            pinHandle.Free();
+                        }
+
+                        if (_unmanagedCache.TryGetValue(type, out var cached))
+                        {
+                            for (int i = 0; i < size; i++)
+                            {
+                                if (pooled[i] != cached[i]) { changed = true; break; }
+                            }
+                            // Update cached snapshot in-place (avoids a managed alloc every frame).
+                            Array.Copy(pooled, cached, size);
+                        }
+                        else
+                        {
+                            // First visit: set baseline silently (no highlight on first render).
+                            var baseline = new byte[size];
+                            Array.Copy(pooled, baseline, size);
+                            _unmanagedCache[type] = baseline;
                         }
                     }
-                    // Always update cache. First visit sets the baseline silently
-                    // (no highlight) — avoids a false-positive flash on first render.
-                    _unmanagedCache[type] = current;
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(pooled);
+                    }
                 }
                 catch { /* skip types Marshal cannot measure (e.g. generics) */ }
-                finally
-                {
-                    if (ptr != IntPtr.Zero)
-                        Marshal.FreeHGlobal(ptr);
-                }
             }
             // Managed class components (reference types): no comparison, no cache entry.
 

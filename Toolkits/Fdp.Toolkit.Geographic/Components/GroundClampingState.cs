@@ -30,5 +30,13 @@ namespace Fdp.Modules.Geographic.Components
         /// threshold are discarded (geometry seams / tunnels).
         /// </summary>
         public float LastValidIgAltitude;
+
+        /// <summary>
+        /// Set to 1 after the first terrain hit is accepted for this entity.
+        /// Jump-rejection is suppressed while this is 0 so the pipeline can seed state;
+        /// sea-level worlds use <see cref="LastValidIgAltitude"/> = 0 as a <em>valid</em>
+        /// altitude, so "baseline unset" must not be inferred from that field alone.
+        /// </summary>
+        public byte IgAltitudeBaselineEstablished;
     }
 }

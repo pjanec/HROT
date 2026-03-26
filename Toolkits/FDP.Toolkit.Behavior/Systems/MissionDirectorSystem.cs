@@ -23,6 +23,22 @@ namespace FDP.Toolkit.Behavior.Systems
     /// same frame.
     /// </para>
     /// <para>
+    /// <b>One-frame activation delay (BD1-BATCH-02):</b>
+    /// When a phase trigger fires this system publishes <see cref="AssignDoctrineHashEvent"/>
+    /// to the event bus.  <see cref="DoctrineIngressSystem"/> — the sole owner of
+    /// <see cref="DoctrineState"/> writes — runs in <see cref="InputSystemGroup"/>, which
+    /// executes <em>before</em> <see cref="SimulationSystemGroup"/> each frame.  Therefore
+    /// <c>DoctrineState.ActiveDoctrineHash</c> is updated on the frame <em>after</em> the
+    /// trigger fires, and <see cref="ChannelArbitrationSystem"/> preempts stale action
+    /// channels one tick later.
+    /// This one-frame gap is by design: it preserves single-owner semantics for
+    /// <see cref="DoctrineState"/> and ensures atomic blackboard parameter parsing in
+    /// <see cref="DoctrineIngressSystem"/> (DEBT-035).  Callers that require same-frame
+    /// doctrine application (e.g. tests) must manually trigger
+    /// <see cref="DoctrineIngressSystem.OnUpdate"/> after <see cref="MissionDirectorSystem"/>
+    /// in their tick loop.
+    /// </para>
+    /// <para>
     /// <b>Supported triggers:</b>
     /// <list type="bullet">
     ///   <item><see cref="MissionTrigger.TimerElapsed"/> — accumulates delta time.</item>

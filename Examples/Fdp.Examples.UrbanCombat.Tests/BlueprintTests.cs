@@ -32,6 +32,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
     ///   <item><term>T6 (3)</term><description>APC ConvoyEscort_HSM build, initial state, and transition.</description></item>
     /// </list>
     /// </summary>
+    [Collection("SerialTests")]
     public unsafe class BlueprintTests : IDisposable
     {
         // ── Shared fixture ────────────────────────────────────────────────────────

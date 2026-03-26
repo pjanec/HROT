@@ -271,4 +271,54 @@ public class ComponentReflectorTests
         Assert.True(GetCache(reflector).ContainsKey(typeof(TestValueComponent)),
             "Cache must be re-seeded with entity B's baseline after the switch.");
     }
+
+    // ── Test 6: Three-frame change cycle — in-place cache update correctness ──
+
+    /// <summary>
+    /// BD1-P6T1 BD1-BATCH-03 optimisation: the cache array is updated in-place rather
+    /// than replaced each frame.  Validates that:
+    ///   frame 1 (Value=1) → baseline set, no highlight
+    ///   frame 2 (Value=2) → bytes differ  → highlight fires, cache updated
+    ///   frame 3 (Value=1) → bytes differ again → highlight fires again
+    /// The in-place update must not corrupt the baseline so that reverting to the
+    /// original value is detected correctly on frame 3.
+    /// </summary>
+    [Fact]
+    public void UnmanagedComponent_ThreeFrameCycle_InPlaceCacheDetectsAllChanges()
+    {
+        using var fixture = new ImGuiTestFixture();
+        var reflector = CreateReflector();
+        var entity    = MakeEntity(1);
+        var session   = new SingleComponentSession(
+            typeof(TestValueComponent),
+            new TestValueComponent { Value = 1 });
+
+        // Frame 1: establish baseline — no highlight expected.
+        fixture.NewFrame();
+        reflector.DrawComponents(session, entity);
+        fixture.Render();
+
+        byte[] afterFrame1 = (byte[])GetCache(reflector)[typeof(TestValueComponent)].Clone();
+
+        // Frame 2: mutate — highlight must fire; cache updated to Value=2 bytes.
+        session.SetData(new TestValueComponent { Value = 2 });
+        fixture.NewFrame();
+        reflector.DrawComponents(session, entity);
+        fixture.Render();
+
+        byte[] afterFrame2 = (byte[])GetCache(reflector)[typeof(TestValueComponent)].Clone();
+        Assert.NotEqual(afterFrame1, afterFrame2);
+
+        // Frame 3: revert back to Value=1 — bytes differ from frame-2 cache, must highlight again.
+        session.SetData(new TestValueComponent { Value = 1 });
+        fixture.NewFrame();
+        reflector.DrawComponents(session, entity);
+        fixture.Render();
+
+        byte[] afterFrame3 = GetCache(reflector)[typeof(TestValueComponent)];
+        // Frame 3 bytes should equal frame 1 bytes (both Value=1).
+        Assert.Equal(afterFrame1, afterFrame3);
+        // And frame 3 bytes should differ from frame 2 bytes (Value=2).
+        Assert.NotEqual(afterFrame2, afterFrame3);
+    }
 }

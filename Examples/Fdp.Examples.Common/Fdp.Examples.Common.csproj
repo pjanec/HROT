@@ -13,5 +13,8 @@
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
     <ProjectReference Include="..\..\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
+    <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
   </ItemGroup>
 </Project>

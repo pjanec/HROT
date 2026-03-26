@@ -35,5 +35,19 @@ namespace FDP.Toolkit.Replay
         /// Drill or Story identifier embedded in the recording header metadata.
         /// </summary>
         public required Guid DrillId { get; init; }
+
+        /// <summary>
+        /// When <c>true</c>, <see cref="RecorderTickSystem"/> calls
+        /// <c>AsyncRecorder.CaptureFrame(blocking: true)</c> on every frame, blocking the
+        /// caller until the front-buffer swap completes.  This prevents delta-frame drops
+        /// in CPU-bound tight loops (e.g. scenario-level deterministic recording) at the
+        /// cost of main-thread stalls.
+        /// <para>
+        /// Production default is <c>false</c> (non-blocking).  Set to <c>true</c> only for
+        /// offline tooling, test scenarios, or any pipeline that cannot tolerate frame drops
+        /// — the caller must ensure the main thread can tolerate the stall.
+        /// </para>
+        /// </summary>
+        public bool Blocking { get; init; } = false;
     }
 }

@@ -20,8 +20,8 @@ namespace Fdp.Modules.Geographic.Systems
     /// This prevents visual pops at geometry seams, tunnels, or bridge transitions.
     /// </para>
     ///
-    /// <para><b>First-frame bootstrap:</b> when <c>LastValidIgAltitude == 0</c>
-    /// the threshold is skipped so the first valid hit seeds the state immediately.
+    /// <para><b>First-frame bootstrap:</b> while <see cref="GroundClampingState.IgAltitudeBaselineEstablished"/>
+    /// is 0 the jump-rejection threshold is skipped so the first accepted hit seeds baseline state.
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.PostSimulation)]
@@ -54,11 +54,11 @@ namespace Fdp.Modules.Geographic.Systems
                 ref readonly var current = ref view.GetComponentRO<GroundClampingState>(req.Entity);
 
                 // Jump-rejection: skip results that move the reference altitude too abruptly.
-                // First-frame bootstrap: when LastValidIgAltitude is 0 accept unconditionally.
-                bool isFirstFrame = current.LastValidIgAltitude == 0f;
+                // Bootstrap: first accepted hit for this entity is always applied.
+                bool isBootstrap = current.IgAltitudeBaselineEstablished == 0;
                 bool withinThreshold = MathF.Abs(res.HitZ - current.LastValidIgAltitude) <= JumpRejectionThresholdMeters;
 
-                if (!isFirstFrame && !withinThreshold) continue;
+                if (!isBootstrap && !withinThreshold) continue;
 
                 // TargetZOffset is the extra height the entity's visual node must rise to sit on terrain.
                 float newTargetOffset = res.HitZ - req.ReferenceSimZ;
@@ -68,6 +68,7 @@ namespace Fdp.Modules.Geographic.Systems
                     TargetZOffset       = newTargetOffset,
                     CurrentZOffset      = current.CurrentZOffset, // Smoothed by TransformSyncSystem
                     LastValidIgAltitude = res.HitZ,
+                    IgAltitudeBaselineEstablished = 1,
                 };
 
                 cmd.SetComponent(req.Entity, updated);

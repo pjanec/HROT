@@ -135,6 +135,44 @@ namespace FDP.Toolkit.Replay.Tests
             Assert.Null(recorder.EntityFilter);
         }
 
+        // ── BATCH-09 Task 3: Blocking flag ───────────────────────────────────────
+
+        /// <summary>
+        /// BATCH-09 Task 3: When <see cref="RecordingConfiguration.Blocking"/> is <c>true</c>,
+        /// the module writes a valid <c>.fdp</c> file identical in behaviour to non-blocking mode
+        /// — the only difference is that each frame stalls the caller until the buffer swap
+        /// completes.  This test drives several ticks and asserts the file exists on disk
+        /// (proving no exception was thrown and Dispose flushed correctly).
+        /// </summary>
+        [Fact]
+        public void RecordingModule_BlockingTrue_WritesFileSuccessfully()
+        {
+            var config = new RecordingConfiguration
+            {
+                FilePath = Path.Combine(_tempDir, "blocking_test.fdp"),
+                DrillId  = Guid.NewGuid(),
+                Blocking = true,
+            };
+
+            using var world = CreateWorld();
+            world.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+
+            var module = new RecordingModule(config);
+            var captured = new CapturingSystemRegistry();
+            module.RegisterSystems(captured);
+
+            // Drive 5 ticks — all blocking; no delta drops expected.
+            ISimulationView view = world;
+            for (int i = 0; i < 5; i++)
+                foreach (var sys in captured.Systems)
+                    sys.Execute(view, 0.016f);
+
+            module.Dispose();
+
+            Assert.True(File.Exists(config.FilePath),
+                $"Expected .fdp file at {config.FilePath} after blocking Dispose().");
+        }
+
         // ── Helper: bare-minimum ISystemRegistry ─────────────────────────────────
 
         private sealed class CapturingSystemRegistry : ISystemRegistry

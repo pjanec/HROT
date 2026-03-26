@@ -18,6 +18,13 @@ namespace Fdp.Examples.UrbanCombat.Tests
     /// BCS-P7-T8  (3 unit tests)  — TelemetryReporterSystem gunfire / hit / flee detection.
     /// BCS-P7-T9  (2 integration) — Full 600-frame end-to-end scenario + APC northward.
     /// </summary>
+    /// <remarks>
+    /// Serialised with <see cref="SerialTestsCollection"/> to prevent parallel execution
+    /// against other <see cref="HeadlessDemoApp"/>-based classes (<c>BlueprintTests</c>,
+    /// <c>ApcBrainTests</c>).  Concurrent <c>HeadlessDemoApp.Initialize()</c> calls race on
+    /// the global component-type registry and cause intermittent entity-count mismatches.
+    /// </remarks>
+    [Collection("SerialTests")]
     public class UrbanAmbushIntegrationTests : IDisposable
     {
         // ─── Shared fixture ────────────────────────────────────────────────────────

@@ -9,6 +9,21 @@ namespace FDP.Toolkit.Time.Controllers
     /// Time controller for manual stepping only.
     /// Does not measure wall clock - advances only when Step() is called.
     /// Use for: Paused simulations, frame-by-frame debugging, tools.
+    ///
+    /// <para><b>First-frame DeltaTime contract:</b>
+    /// <see cref="Update"/> returns <c>DeltaTime = 0</c> until the first <see cref="Step"/>
+    /// call is made.  This is by design: the seed state carries a zero delta to
+    /// indicate that no simulation time has elapsed yet.
+    /// Any caller that drives a <see cref="ModuleHostKernel"/> or reads
+    /// <c>GlobalTime.DeltaTime</c> from a singleton <b>must call <see cref="Step"/> before
+    /// calling the kernel's <c>Update()</c></b> to avoid systems seeing <c>DeltaTime = 0</c>
+    /// and producing zero-velocity or degenerate results.
+    /// The correct call order each tick is:
+    /// <code>
+    /// controller.Step(fixedDelta);   // advance time
+    /// kernel.Update();               // kernel reads DeltaTime off the controller
+    /// </code>
+    /// </para>
     /// </summary>
     public class SteppingTimeController : ISteppableTimeController
     {
@@ -103,7 +118,10 @@ namespace FDP.Toolkit.Time.Controllers
             _frameNumber = state.FrameNumber;
             _timeScale = state.TimeScale;
             _unscaledTotalTime = state.UnscaledTotalTime;
-            // When seeding, reset delta
+            // Reset delta to zero: the seed establishes a temporal baseline but does not
+            // constitute a completed time step.  The next call to Update() will therefore
+            // return DeltaTime = 0 until Step() is called.  See class-level XML for the
+            // required Step-before-Update call order.
             _lastDeltaTime = 0.0f;
             _lastUnscaledDeltaTime = 0.0f;
         }

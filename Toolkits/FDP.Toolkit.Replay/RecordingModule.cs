@@ -52,7 +52,7 @@ namespace FDP.Toolkit.Replay
             if (_config.EntityFilter != null)
                 _recorder.EntityFilter = _config.EntityFilter;
 
-            registry.RegisterSystem(new RecorderTickSystem(_recorder));
+            registry.RegisterSystem(new RecorderTickSystem(_recorder, _config.Blocking));
         }
 
         /// <inheritdoc/>

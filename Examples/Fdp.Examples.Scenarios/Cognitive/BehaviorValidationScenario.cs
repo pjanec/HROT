@@ -139,7 +139,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
             var blob        = TreeCompiler.CompileFromJson(CombatBTreeJson);
             var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionReg);
 
-            registry.Register(DemoDoctrineIds.Combat, "MockCombat",
+            registry.Register(BehaviorValidationDoctrineIds.Combat, "MockCombat",
                 new DoctrineDefinition
                 {
                     Name             = "MockCombat",
@@ -254,7 +254,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
             world.AddComponent(e, new DoctrineState
             {
-                ActiveDoctrineHash = DemoDoctrineIds.Combat,
+                ActiveDoctrineHash = BehaviorValidationDoctrineIds.Combat,
                 InstanceId         = 1,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });

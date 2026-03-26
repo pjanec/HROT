@@ -175,7 +175,28 @@ namespace ModuleHost.Core
         /// </summary>
         public SystemScheduler SystemScheduler => _initialized ? _activeTopology.Scheduler
             : throw new InvalidOperationException("Kernel not yet initialized. Call Initialize() first.");
-        
+
+        /// <summary>
+        /// Returns a read-only snapshot of the <see cref="IEcsModule.Name"/> values for
+        /// all modules currently registered on this kernel.  Includes modules in any
+        /// lifecycle state (Ready / Draining).
+        ///
+        /// <para>Intended for diagnostics and test assertions only.
+        /// Do not use this API on the hot path.</para>
+        /// </summary>
+        public IReadOnlyList<string> GetRegisteredModuleNames()
+            => _modules.Select(m => m.Module.Name).ToList().AsReadOnly();
+
+        /// <summary>
+        /// Returns a read-only snapshot of the concrete <see cref="Type.Name"/> values for
+        /// all modules currently registered on this kernel.
+        ///
+        /// <para>Intended for diagnostics and test assertions only.
+        /// Do not use this API on the hot path.</para>
+        /// </summary>
+        public IReadOnlyList<string> GetRegisteredModuleTypeNames()
+            => _modules.Select(m => m.Module.GetType().Name).ToList().AsReadOnly();
+
         /// <summary>
         /// Initialize kernel: build execution orders, validate dependencies.
         /// Must be called after all modules/systems registered, before Update().
@@ -332,6 +353,16 @@ namespace ModuleHost.Core
         /// <summary>
         /// Registers a module with optional provider override.
         /// If provider is null, default will be assigned during Initialize().
+        ///
+        /// <para><b>Ownership contract:</b>
+        /// The kernel does <b>not</b> take ownership of registered modules.
+        /// Modules that implement <see cref="IDisposable"/> are <b>not</b> disposed when
+        /// <see cref="Dispose"/> is called on this kernel — only snapshot providers are
+        /// disposed automatically.  Callers must dispose modules themselves, either via
+        /// a <c>using</c> block declared outside the kernel's <c>using</c> scope (LIFO
+        /// ensures the kernel is disposed before the module is flushed), or via
+        /// <c>IScenario.OnShutdown</c> / a similar teardown hook.
+        /// </para>
         /// </summary>
         public void RegisterModule(IEcsModule module, ISnapshotProvider? provider = null)
         {
@@ -981,6 +1012,18 @@ namespace ModuleHost.Core
         
 
 
+        /// <summary>
+        /// Releases all kernel resources, waits for in-flight module tasks (up to 2 s),
+        /// and disposes snapshot providers.
+        ///
+        /// <para><b>Module disposal:</b>
+        /// Registered <see cref="IEcsModule"/> instances that implement <see cref="IDisposable"/>
+        /// are <b>not</b> disposed here (see <see cref="RegisterModule"/> for the ownership contract).
+        /// Only snapshot providers are disposed automatically.  Modules removed via
+        /// <see cref="UninstallModuleAsync"/> are an exception — they are disposed on the
+        /// background drain thread when their in-flight tasks complete.
+        /// </para>
+        /// </summary>
         public void Dispose()
         {
             // Collect all in-flight tasks: active + draining modules

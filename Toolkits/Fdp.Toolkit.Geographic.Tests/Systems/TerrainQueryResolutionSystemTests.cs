@@ -28,6 +28,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
                 TargetZOffset       = 0f,
                 CurrentZOffset      = 0f,
                 LastValidIgAltitude = 10f, // seed so jump-rejection threshold applies
+                IgAltitudeBaselineEstablished = 1,
             });
 
             _world.SetSingleton(new TerrainQueryBatchData
@@ -112,7 +113,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
         }
 
         /// <summary>
-        /// First-frame bootstrap: when <c>LastValidIgAltitude == 0</c> any hit should be
+        /// First accepted hit: while <c>IgAltitudeBaselineEstablished == 0</c> any hit should be
         /// accepted regardless of the jump-rejection threshold.
         /// </summary>
         [Fact]
@@ -124,6 +125,7 @@ namespace Fdp.Modules.Geographic.Tests.Systems
                 TargetZOffset       = 0f,
                 CurrentZOffset      = 0f,
                 LastValidIgAltitude = 0f,
+                IgAltitudeBaselineEstablished = 0,
             });
 
             // HitZ = 50, would normally fail threshold check against LastValidIgAltitude = 0
