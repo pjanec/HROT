@@ -343,15 +343,5 @@ namespace Fdp.Kernel
 
         // ── Reserved (200–255) ───────────────────────────────────────────────────
 
-        // ── Route planning components (ROUTES1) ──────────────────────────────────
-
-        /// <summary><c>RoutePlan</c> — managed component storing the ordered waypoint list and loop flag for a route entity.</summary>
-        public const byte RoutePlan            = 220;
-
-        /// <summary><c>PersonalRouteRef</c> — blittable component on a vehicle entity providing an O(1) lookup to its personal child route entity.</summary>
-        public const byte PersonalRouteRef     = 221;
-
-        /// <summary><c>RouteTrajectoryCache</c> — blittable component caching the compiled TrajectoryPoolManager entry for a route entity. Not replicated over DDS.</summary>
-        public const byte RouteTrajectoryCache = 222;
     }
 }
