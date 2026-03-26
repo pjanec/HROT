@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- this a local dirigent agen't config file -->
+<Local>
+  <!-- watching for new crash dump !-->
+  <FolderWatcher
+      Path = "CrashDumps"
+      IncludeSubdirs="false"
+      Conditions="NewFile"
+      Filter = "*.dmp"
+      >
+      <!-- what to do if change detected -->
+      <Action Type="StartPlan" PlanName="CollectLogs"/>
+      <!--Action Type="LaunchApp" AppIdTuple="DevelStation.LogCollector"/-->
+  </FolderWatcher>
+
+
+  <!-- This is similar to the App in shared config. Tools run always on local machine.
+       The CmdLineArgs specified here can be overridden by ToolActionDef's Args="xxx" attribute.
+       StartupDir can be overridden via ToolActionDef's StartupDir="xxx" attribute.
+   -->
+
+  <!-- Tool uses same format as App definition in SharedConfig -->
+  <Tool
+    AppIdTuple = "BatchScript"
+    Icon = "Icons\BatchScript.png"
+    ExeFullPath = "[cmd.file]"
+    CmdLineArgs = "%FILE_PATH%"
+    StartupDir = ""
+  />
+  
+  <Tool
+    AppIdTuple = "WinExplorer"
+    Icon = "Icons\WinExplorer.png"
+    ExeFullPath = "%SystemRoot%\explorer.exe"
+    CmdLineArgs = "%FILE_PATH%"
+    StartupDir = ""
+  />
+
+  <Tool
+    AppIdTuple = "VncViewer"
+    Icon = "Icons\TightVNC.png"
+    ExeFullPath = "%ProgramW6432%\TightVNC\tvnviewer_mouse_pan_zoom.exe"
+    CmdLineArgs = "%MACHINE_IP%"
+    StartupDir = ""
+  />
+
+  <Tool
+    AppIdTuple = "RemoteDesktop"
+    Icon = "Icons\RemoteDesktop.png"
+    ExeFullPath = "%windir%\\system32\\mstsc.exe"
+    CmdLineArgs = ""
+    StartupDir = ""
+  />
+
+  <Tool
+    AppIdTuple = "Notepad++"
+    Icon = "Icons\Notepad++.png"
+    ExeFullPath = "%ProgramW6432%\Notepad++\notepad++.exe"
+    CmdLineArgs = "%FILE_PATH%"
+    StartupDir = ""
+  />
+
+  <Tool
+    AppIdTuple = "DoubleCommander"
+    Icon = "Icons\DoubleCommander.png"
+    ExeFullPath = "%DIRIGENT_BIN%\tools\doublecmd\doublecmd.exe"
+    StartupDir = ""
+  />
+
+  <!-- These are added to each machine's context menu -->
+  <DefaultMachineActions>
+    <Tool Title="Do something with the machine" Name="Notepad++" Args="%MACHINE_ID% %MACHINE_IP%"/>
+    <Tool Title="Remote Desktop" Name="RemoteDesktop" Args="/v:%MACHINE_IP%"/>
+  </DefaultMachineActions>
+
+  <!-- These are added to each app's context menu -->
+  <DefaultAppActions>
+    <Tool Title="Do something with the app++" Name="Notepad++" Args="%APP_ID% %APP_PID%"/>
+  </DefaultAppActions>
+
+
+  <!-- These are added to each file's context menu -->
+  <DefaultFileActions>
+    <Tool Title="Edit in Notepad++" Name="Notepad++" Args="%FILE_PATH%"/>
+    <Script Title="Download zipped file" Name="BuiltIns/DownloadZipped.cs" Icon="Icons/Zipped.png" />
+  </DefaultFileActions>
+
+  <!-- These are added to each file pakage's context menu -->
+  <DefaultFilePackageActions>
+    <Script Title="Browse with DoubleCmd" Name="Builtins/BrowseInDblCmdVirtPanel.cs" Icon = "Icons\DoubleCommander.png" />
+    <Script Title="Download zipped package" Name="BuiltIns/DownloadZipped.cs" Icon="Icons/Zipped.png" />
+  </DefaultFilePackageActions>
+
+</Local>

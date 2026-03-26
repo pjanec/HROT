@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using Bagira.BDC.SSTM;
+using Bagira.IG.Abstractions;
 using Bagira.IG.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
@@ -37,6 +41,12 @@ namespace Bagira.IG.Systems;
 [UpdateInPhase(SystemPhase.PostSimulation)]
 public class ContextMenuSystem : IEcsModuleSystem
 {
+    // ── Cache-miss fallback writer (optional) ────────────────────────────────
+    // Injected after construction via SetCacheMissWriter. Null in tests and offline mode.
+
+    private IDdsWriter<ContextMenuRequest>? _contextMenuRequestWriter;
+    private int                             _mapId;
+
     // ── Internal pending-request state ────────────────────────────────────────
     // Queued by input code (or test hooks) before Execute runs.
 
@@ -84,7 +94,7 @@ public class ContextMenuSystem : IEcsModuleSystem
 
                 var updated = new ContextMenuState
                 {
-                    Actions = new System.Collections.Generic.List<ContextAction>(update.Actions),
+                    Actions = new List<ContextAction>(update.Actions),
                     IsOpen  = false,
                 };
 
@@ -149,13 +159,35 @@ public class ContextMenuSystem : IEcsModuleSystem
                 {
                     // Clone the list so we never mutate the previous tick's shared reference.
                     var prev   = view.GetManagedComponentRO<ContextMenuState>(target);
-                    state.Actions = new System.Collections.Generic.List<ContextAction>(prev.Actions);
+                    state.Actions = new List<ContextAction>(prev.Actions);
                     cmd.SetManagedComponent(target, state);
                 }
                 else
                 {
-                    state.Actions = new System.Collections.Generic.List<ContextAction>();
+                    state.Actions = new List<ContextAction>();
                     cmd.AddManagedComponent(target, state);
+                }
+
+                // ── Cache-miss fallback: if the entity has no IOS-provided actions cached,
+                // emit a ContextMenuRequest so the IOS can push back a ContextActionsUpdate.
+                // This handles the right-click-without-prior-selection scenario.
+                // Skip for the map-background entity (NetworkIdentity = 0) and when
+                // the writer is unavailable (offline / test mode).
+                if (_contextMenuRequestWriter != null && view.HasComponent<NetworkIdentity>(target))
+                {
+                    ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(target);
+                    bool hasIosActions = state.Actions.Exists(
+                        a => !a.ActionName.StartsWith("IG_", StringComparison.Ordinal));
+
+                    if (netId.Value != 0 && !hasIosActions)
+                    {
+                        _contextMenuRequestWriter.Write(new ContextMenuRequest
+                        {
+                            RequestId    = Guid.NewGuid(),
+                            MapId        = _mapId,
+                            ForSelection = new List<int> { (int)netId.Value },
+                        });
+                    }
                 }
 
                 // Only inject the spatial "Center on Entity" default if the target
@@ -177,6 +209,20 @@ public class ContextMenuSystem : IEcsModuleSystem
                 }
             }
         }
+    }
+
+    // ── DDS writer wiring ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Wires up the DDS writer used to emit <see cref="ContextMenuRequest"/> messages
+    /// on a cache miss (right-click without prior selection).
+    /// Called by <c>IgApplication</c> after DDS initialisation completes.
+    /// Passing <c>null</c> disables the fallback (offline / test mode).
+    /// </summary>
+    internal void SetCacheMissWriter(IDdsWriter<ContextMenuRequest>? writer, int mapId)
+    {
+        _contextMenuRequestWriter = writer;
+        _mapId                    = mapId;
     }
 
     // ── Test / input hooks ────────────────────────────────────────────────────

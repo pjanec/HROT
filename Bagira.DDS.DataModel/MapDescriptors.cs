@@ -161,9 +161,35 @@ namespace Bagira.BDC.SSTD
     [DdsManaged]
     public partial struct MapInteractionConfig
     {
-        // The Target Group ID.
+        /// <summary>
+        /// The Target Group ID (Logical Role).
+        /// Identifies a logical group of displays that share business logic, configuration, and 
+        /// styling (e.g., "Blue Force", "Instructor Station") [1].
+        /// 
+        /// Resolution Priority (Layer 3 - Group / Layer 2 - Global):
+        /// - Only evaluated if MapId == 0.
+        /// - If MapGroupId > 0, the configuration applies to all physical IG instances 
+        ///   assigned to this specific logical role [1, 3].
+        /// - If MapId == 0 AND MapGroupId == 0, the configuration applies to EVERYONE 
+        ///   as a Global baseline policy [2].
+        /// </summary>
         [DdsKey]
         public int MapGroupId;
+
+        /// <summary>
+        /// The Target Map ID (Concrete Instance / Hardware).
+        /// Identifies a specific physical application instance or window [1].
+        /// 
+        /// Resolution Priority (Layer 4 - Highest):
+        /// - If MapId > 0, this configuration serves as a strict local override for that specific screen.
+        /// - JSON settings defined here override any conflicting Group or Global settings.
+        /// - Omitted fields in the JSON payload are ignored, allowing the IG to safely inherit 
+        ///   the underlying Group or Global values for those specific fields.
+        /// - If MapId == 0, this instance-level tier is skipped entirely, and resolution falls back 
+        ///   to the MapGroupId [1, 2].
+        /// </summary>
+        [DdsKey]
+        public int MapId;
 
         // The Correlation ID of the currently active tool on the IOS side.
         // Example: IOS activates "Place Tank" tool -> Generates GUID "A".

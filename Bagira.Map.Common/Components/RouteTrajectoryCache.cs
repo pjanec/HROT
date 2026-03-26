@@ -1,3 +1,4 @@
+using Bagira.Map.Definitions;
 using Fdp.Kernel;
 
 namespace Bagira.Map.Common.Components;
@@ -11,7 +12,7 @@ namespace Bagira.Map.Common.Components;
 /// When <c>TrajectoryId == 0</c> the route has not been compiled yet.
 /// </para>
 /// </summary>
-[ComponentId(GlobalComponentIds.RouteTrajectoryCache)]
+[ComponentId(BagiraComponentIds.RouteTrajectoryCache)]
 public struct RouteTrajectoryCache
 {
     /// <summary>

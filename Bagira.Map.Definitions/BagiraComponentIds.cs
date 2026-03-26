@@ -36,7 +36,20 @@ namespace Bagira.Map.Definitions
         /// <summary><c>IgSymbolOverride</c> — IOS-sourced per-entity visual override (style-set, affiliation, texture; DB-MOD1-22).</summary>
         public const byte IgSymbolOverride    = 167;
 
-        // IDs 163 and 168–199 are reserved for future application-level components.
+
+        // ── Route planning components (ROUTES1) ──────────────────────────────────
+
+        /// <summary><c>RoutePlan</c> — managed component storing the ordered waypoint list and loop flag for a route entity.</summary>
+        public const byte RoutePlan            = 168;
+
+        /// <summary><c>PersonalRouteRef</c> — blittable component on a vehicle entity providing an O(1) lookup to its personal child route entity.</summary>
+        public const byte PersonalRouteRef     = 169;
+
+        /// <summary><c>RouteTrajectoryCache</c> — blittable component caching the compiled TrajectoryPoolManager entry for a route entity. Not replicated over DDS.</summary>
+        public const byte RouteTrajectoryCache = 170;
+
+
+        // IDs 163 and 171–199 are reserved for future application-level components.
         // NOTE: InFormationTag (formerly 163) has been moved to FDP.Toolkit.Navigation
         //       (GlobalComponentIds.InFormationTag = 70) as part of CT-MOD1-I executor migration.
     }

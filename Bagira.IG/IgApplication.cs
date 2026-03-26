@@ -284,7 +284,12 @@ public class IgApplication : IDisposable
 
     private DdsWriter<CreateEntityRequest>?  _createEntityDdsWriter;
     /// <summary>
-    /// Writer that publishes <see cref="Bagira.BDC.SSTM.DeleteEntityRequest"/> to the SimHost
+    /// Fallback writer for <see cref="ContextMenuRequest"/> — emitted by
+    /// <see cref="ContextMenuSystem"/> when the operator right-clicks an entity
+    /// that has no pre-cached action list (cache miss / no prior selection).
+    /// </summary>
+    private DdsWriter<ContextMenuRequest>? _contextMenuRequestWriter;
+    /// <summary>
     /// when the operator deletes an entity via the context menu while connected.
     /// </summary>
     private DdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>? _deleteEntityDdsWriter;
@@ -761,6 +766,7 @@ public class IgApplication : IDisposable
                 _mapCommandAckWriter    = new DdsWriter<MapCommandAck>(participant, "MapCommandAck");
                 _createEntityAckReader  = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
                 _deleteEntityDdsWriter  = new DdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>(participant, "DeleteEntityRequest");
+                _contextMenuRequestWriter = new DdsWriter<ContextMenuRequest>(participant, "ContextMenuRequest");
 
 
 
@@ -849,6 +855,10 @@ public class IgApplication : IDisposable
                     new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!),
                     _edgeCompiler);
 
+                _contextMenuSystem.SetCacheMissWriter(
+                    new CycloneDdsWriterIgAdapter<ContextMenuRequest>(_contextMenuRequestWriter!),
+                    _effectiveInstanceId);
+
                 _networkEnabled = true;
 
             }
@@ -873,6 +883,7 @@ public class IgApplication : IDisposable
                 _mapCommandAckWriter?.Dispose();
                 _createEntityAckReader?.Dispose();
                 _deleteEntityDdsWriter?.Dispose();
+                _contextMenuRequestWriter?.Dispose();
 
                 participant?.Dispose();
 
@@ -891,6 +902,7 @@ public class IgApplication : IDisposable
                 _mapCommandAckWriter   = null;
                 _createEntityAckReader = null;
                 _deleteEntityDdsWriter = null;
+                _contextMenuRequestWriter = null;
                 _mapCommandController  = null;
 
                 _networkEnabled = false;
@@ -1814,6 +1826,7 @@ public class IgApplication : IDisposable
         _mapCommandAckWriter?.Dispose();
         _createEntityAckReader?.Dispose();
         _deleteEntityDdsWriter?.Dispose();
+        _contextMenuRequestWriter?.Dispose();
 
         _kernel?.Dispose();
 

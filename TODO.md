@@ -1,22 +1,25 @@
-[BUG] IOS "DRAW ROUTE" activate point tool but when confirmed no entity gets created. No route seen on IG.
-"Runnign Bagira.Runner -m all"
 
-[BUG] Do we have map layer for routes? I do not see it on IOS layer checkboxes.
+[BUG] When i delete the entity using its context menu on IG, it gets deleted just from IG but not from SimHost - DeleteEntityRequest is necessary!
 
-[BUG] tactical shape authoring runs a point tool but when comitted, the shape saved and shown is different from the one
-clicked by the tool! Maybe some centroin entity timing issue?
+[BUG] Entity inspector when deleting entititie must use the entity deletion request message so it always reached the entity
+owner and the entity is deleted properly (the owner performs the ELM-based entity deletion procedure)
 
-[BUG] When i author a tactical drawing, it shows on the IG and in IG entity inspector and in IOS entity inspector.
-When I delete the entity using the context menu in the IG entity inspector, the entity stays shown
-in the IOS entity inspector (like if the entity deletion info did not reach the IOS)
+[BUG] on IG, 'Edit personal route' entity context menu does nothing
 
+
+[BUG] in IOS ORBAT panel, the JUMP TO seems to do nothing.
+
+[BUG] in IOS ORBAT panel, vehicle entity context menu 'Edit route' starts authoring a route entity (OK)
+When committed, the route entity is created as a subordinate of the vehicle (EntiyInfo.CommanderId=vehicle id)
+
+[BUG] The ECS component EntityInfo contains CommanderId = network entity id (int).
+Should be CommanderId = local entity id (Entity struct)
 
 [BUG] When i delete tank platoon unit entity, the subordinate (physical) units are not deleted. Shouldn't they?
 
+[BUG] ContextMenuRequest not seen to be sent if clicked entity not yet configured with context menu from IOS.
 
-[BUG] When i delete the entity which is shown in the orbat tree on IOS, the entity stays shown. The IOS entity inspector
-is still showing this entity as existing. Maybe the DER library is not catching the disposal of EntityMaster
-and not deleting the entity from its repository?
+[BUG] MapClickEvent does not recognize lef/right/middlele click!
 
 
 
@@ -60,7 +63,7 @@ TODO: THIS NEEDS MORE DETAILS - DO NOT IMPLEMENT UNTIL CLARIFIED
 
 
 ----------
-# Scene tree in ECS 
+# Scene tree graph in ECS?
 Invent ECS components for scene graph implementation in ECS
  - parent component (contains parent entity id)
  - child component (contains entity id of first child)
@@ -75,15 +78,9 @@ etc.
 Some places processing dds samples check sample.IsValid even before testing the instance state.
 because disposal sample have sample.IsValid==false, the disposal migh not be detected at all!
 -----------
-# sample.Data does not throw from disposal samples
-Some older implementation of cyclone dds had a bug where sample.Data was throwing exception
-if sample.IsValid==fasle
-
----------
 
 We have two identical components
  - EntityMissionholder component
  - IgMissionHolder component
 why? can't we unify them?
 
-If entity is tasked via Mission panel to make a Move To task, the Ig shows the destination point but the entity does not stat moving

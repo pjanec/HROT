@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Bagira.BDC.SSTM;
+using Bagira.IG.Abstractions;
 using Bagira.IG.Components;
 using Bagira.IG.Systems;
 using Fdp.Kernel;
@@ -474,7 +476,7 @@ public class ContextMenuSystemTests
         system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
         RunSystem(repo, system);
         var state1 = TryGetMenuState(repo, entity);
-        Assert.Equal(1, state1!.Actions.Count);
+        Assert.Single(state1!.Actions);
 
         // Close it (so the state goes back to a closed state).
         system.TestHook_CloseContextMenu(entity);
@@ -484,7 +486,7 @@ public class ContextMenuSystemTests
         system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
         RunSystem(repo, system);
         var state2 = TryGetMenuState(repo, entity);
-        Assert.Equal(1, state2!.Actions.Count);
+        Assert.Single(state2!.Actions);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -596,5 +598,166 @@ public class ContextMenuSystemTests
             Assert.True(system.ActiveMenuEntity == Entity.Null,
                 $"Cycle {i}: ActiveMenuEntity must be Null after close.");
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ContextMenuRequest cache-miss fallback (right-click without prior selection)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Minimal <see cref="IDdsWriter{T}"/> stub that records every written sample.
+    /// Used to assert that <see cref="ContextMenuSystem"/> emits
+    /// <see cref="ContextMenuRequest"/> at the right time without a live DDS stack.
+    /// </summary>
+    private sealed class FakeDdsWriter<T> : IDdsWriter<T>
+    {
+        public List<T> Written { get; } = new();
+        public void Write(T sample) => Written.Add(sample);
+    }
+
+    private static ContextMenuSystem CreateSystemWithWriter(
+        FakeDdsWriter<ContextMenuRequest> writer, int mapId = 1)
+    {
+        var system = new ContextMenuSystem();
+        system.SetCacheMissWriter(writer, mapId);
+        return system;
+    }
+
+    /// <summary>
+    /// When the operator right-clicks an entity that has NO cached IOS actions
+    /// (fresh right-click without prior selection), the system must publish a
+    /// <see cref="ContextMenuRequest"/> so the IOS can push back the menu definition.
+    /// </summary>
+    [Fact]
+    public void OpenMenu_CacheMiss_EmitsContextMenuRequest()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new NetworkIdentity(42));
+
+        var writer = new FakeDdsWriter<ContextMenuRequest>();
+        var system = CreateSystemWithWriter(writer, mapId: 7);
+
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+
+        Assert.Single(writer.Written);
+        var req = writer.Written[0];
+        Assert.Equal(7, req.MapId);
+        Assert.NotEqual(Guid.Empty, req.RequestId);
+        Assert.NotNull(req.ForSelection);
+        Assert.Single(req.ForSelection);
+        Assert.Equal(42, req.ForSelection[0]);
+    }
+
+    /// <summary>
+    /// When the entity already has IOS-provided actions cached (the normal push-model
+    /// happy path — entity was previously selected), no <see cref="ContextMenuRequest"/>
+    /// should be emitted on right-click.
+    /// </summary>
+    [Fact]
+    public void OpenMenu_CacheHit_DoesNotEmitContextMenuRequest()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new NetworkIdentity(10));
+
+        // Pre-populate with an IOS-provided action list (the "cache hit" scenario).
+        repo.SetManagedComponent(entity, new ContextMenuState
+        {
+            IsOpen  = false,
+            Actions = new List<ContextAction>
+            {
+                new ContextAction { Label = "Attack",  ActionName = "attack" },
+                new ContextAction { Label = "Move To", ActionName = "moveTo" },
+            }
+        });
+
+        var writer = new FakeDdsWriter<ContextMenuRequest>();
+        var system = CreateSystemWithWriter(writer);
+
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+
+        Assert.Empty(writer.Written);
+    }
+
+    /// <summary>
+    /// The map-background entity (<c>_mapContextEntity</c>, NetworkIdentity = 0)
+    /// represents empty-space right-clicks.  The IOS has no concept of a
+    /// zero-ID entity, so the system must NOT emit a <see cref="ContextMenuRequest"/>
+    /// for it even when its action list is empty.
+    /// </summary>
+    [Fact]
+    public void OpenMenu_MapContextEntity_DoesNotEmitContextMenuRequest()
+    {
+        var repo        = CreateRepo();
+        var mapContext  = repo.CreateEntity();
+        repo.AddComponent(mapContext, new NetworkIdentity(0));   // the background entity
+
+        var writer = new FakeDdsWriter<ContextMenuRequest>();
+        var system = CreateSystemWithWriter(writer);
+
+        system.TestHook_TriggerContextMenu(mapContext, ScreenX, ScreenY);
+        RunSystem(repo, system);
+
+        Assert.Empty(writer.Written);
+    }
+
+    /// <summary>
+    /// If the cached state contains ONLY IG-local defaults (e.g. <c>IG_CenterOnEntity</c>
+    /// was injected on a previous open but the IOS never responded), the entity still has
+    /// no IOS-provided actions — so a <see cref="ContextMenuRequest"/> must be emitted
+    /// on the next right-click.
+    /// </summary>
+    [Fact]
+    public void OpenMenu_OnlyIgLocalActionsInCache_EmitsContextMenuRequest()
+    {
+        var repo   = CreateRepo();
+        repo.RegisterComponent<SimTransform>();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new NetworkIdentity(99));
+        repo.AddComponent(entity, new SimTransform());
+
+        // Seed state as if a previous open injected IG_CenterOnEntity but IOS never responded.
+        repo.SetManagedComponent(entity, new ContextMenuState
+        {
+            IsOpen  = false,
+            Actions = new List<ContextAction>
+            {
+                new ContextAction { Label = "Center on Entity", ActionName = "IG_CenterOnEntity" }
+            }
+        });
+
+        var writer = new FakeDdsWriter<ContextMenuRequest>();
+        var system = CreateSystemWithWriter(writer);
+
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+
+        Assert.Single(writer.Written);
+        Assert.Equal(99, writer.Written[0].ForSelection[0]);
+    }
+
+    /// <summary>
+    /// When no writer is configured (<c>SetCacheMissWriter</c> not called), the system
+    /// must open the menu correctly and not throw — verifying offline / test-mode safety.
+    /// All existing tests implicitly cover this, but this test makes the contract explicit.
+    /// </summary>
+    [Fact]
+    public void OpenMenu_NoWriterConfigured_MenuOpensWithoutError()
+    {
+        var repo   = CreateRepo();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new NetworkIdentity(5));
+
+        var system = new ContextMenuSystem();   // no writer wired
+
+        system.TestHook_TriggerContextMenu(entity, ScreenX, ScreenY);
+        RunSystem(repo, system);
+
+        var state = TryGetMenuState(repo, entity);
+        Assert.NotNull(state);
+        Assert.True(state!.IsOpen);
     }
 }

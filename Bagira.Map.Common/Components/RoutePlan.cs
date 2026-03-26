@@ -1,6 +1,7 @@
+using Bagira.Map.Definitions;
+using Fdp.Kernel;
 using System.Collections.Generic;
 using System.Numerics;
-using Fdp.Kernel;
 
 namespace Bagira.Map.Common.Components;
 
@@ -48,7 +49,7 @@ public struct RouteWaypoint
 /// the change without manual bookkeeping.
 /// </para>
 /// </summary>
-[ComponentId(GlobalComponentIds.RoutePlan)]
+[ComponentId(BagiraComponentIds.RoutePlan)]
 public sealed class RoutePlan
 {
     private readonly List<RouteWaypoint> _waypoints = new();

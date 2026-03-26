@@ -1,8 +1,9 @@
-using System.Numerics;
-using System.Runtime.InteropServices;
 using Bagira.Map.Common.Components;
+using Bagira.Map.Definitions;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
+using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace Bagira.Map.Common.Tests;
 
@@ -173,7 +174,7 @@ public class RoutePlanTests
         var attr = (ComponentIdAttribute?)Attribute.GetCustomAttribute(
             typeof(RoutePlan), typeof(ComponentIdAttribute));
         Assert.NotNull(attr);
-        Assert.Equal(GlobalComponentIds.RoutePlan, attr!.Id);
+        Assert.Equal(BagiraComponentIds.RoutePlan, attr!.Id);
     }
 
     [Fact]
@@ -182,7 +183,7 @@ public class RoutePlanTests
         var attr = (ComponentIdAttribute?)Attribute.GetCustomAttribute(
             typeof(PersonalRouteRef), typeof(ComponentIdAttribute));
         Assert.NotNull(attr);
-        Assert.Equal(GlobalComponentIds.PersonalRouteRef, attr!.Id);
+        Assert.Equal(BagiraComponentIds.PersonalRouteRef, attr!.Id);
     }
 
     [Fact]
@@ -191,7 +192,7 @@ public class RoutePlanTests
         var attr = (ComponentIdAttribute?)Attribute.GetCustomAttribute(
             typeof(RouteTrajectoryCache), typeof(ComponentIdAttribute));
         Assert.NotNull(attr);
-        Assert.Equal(GlobalComponentIds.RouteTrajectoryCache, attr!.Id);
+        Assert.Equal(BagiraComponentIds.RouteTrajectoryCache, attr!.Id);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

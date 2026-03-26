@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Shared>
+    <!-- Plans -->
+    <Plan Name="RunAll">
+    	<App
+    	    AppIdTuple = "m1.IOS"
+    		Template = "apps.FDP.Runner"
+    		CmdLineArgs = "-m ios --no-wait"
+    	>
+    		<WindowPos titleregexp="FDP\sRunner" rect="0,0,400,900" screen="0" keep="0" />
+    	</App>
+
+    	<App
+    	    AppIdTuple = "m1.IG"
+    		Template = "apps.FDP.Runner"
+    		CmdLineArgs = "-m ig --no-wait"
+    	    >
+    		<WindowPos titleregexp="FDP\sRunner" rect="400,0,800,500" screen="0" keep="0" />
+    	</App>
+
+    	<App
+    	    AppIdTuple = "m1.SimHost"
+    		Template = "apps.FDP.Runner"
+    		CmdLineArgs = "-m simhost --no-wait"
+    	    >
+    		<WindowPos titleregexp="FDP\sRunner" rect="400,500,800,950" screen="0" keep="0" />
+    	</App>
+
+    	<App
+    	    AppIdTuple = "m1.DdsMonBackend"
+    		Template = "apps.DdsMon"
+    		CmdLineArgs = "--BrowserPort 10101 --NoBrowser true"
+    	    >
+    	</App>
+
+        	<App
+    	    AppIdTuple = "m1.DdsMonFrontend"
+    		Template = "apps.Chrome"
+    		CmdLineArgs = "--app=http://127.0.0.1:10101 --user-data-dir=C:\temp\ddsmon-spa-profile"
+    	    >
+    		<WindowPos titleregexp="DDS\sMonitor" rect="1200,0,350,950" screen="0" keep="0" />
+    	</App>
+
+    </Plan>
+    
+    <AppTemplate Name="apps.FDP.Runner"
+    		Template = ""
+    		ExeFullPath = "%DIRIGENT_SHAREDCONFDIR%\..\Bagira.Runner\bin\Debug\net8.0\Bagira.Runner.exe"
+    		StartupDir = "%DIRIGENT_SHAREDCONFDIR%\..\Bagira.Runner\bin\Debug\net8.0"
+    		WindowStyle = "minimized"
+    >
+    </AppTemplate>
+    
+    <AppTemplate Name="apps.DdsMon_LOCAL"
+    		Template = ""
+    		ExeFullPath = "%DIRIGENT_SHAREDCONFDIR%\..\FDP\ExtDeps\FastCycloneDds\tools\DdsMonitor\DdsMonitor.Blazor\bin\Debug\net8.0\DdsMonitor.exe"
+    		StartupDir = "%DIRIGENT_SHAREDCONFDIR%\..\FDP\ExtDeps\FastCycloneDds\tools\DdsMonitor\DdsMonitor.Blazor"
+    		WindowStyle = "minimized"
+    >
+    </AppTemplate>
+
+    <AppTemplate Name="apps.DdsMon"
+    		Template = ""
+    		ExeFullPath = "D:\Work\FastCycloneDdsCsharpBindings\tools\DdsMonitor\DdsMonitor.Blazor\bin\Debug\net8.0\DdsMonitor.exe"
+    		StartupDir = "D:\Work\FastCycloneDdsCsharpBindings\tools\DdsMonitor\DdsMonitor.Blazor"
+    		WindowStyle = "minimized"
+    >
+    </AppTemplate>
+
+    <AppTemplate Name="apps.Chrome"
+    		Template = ""
+    		ExeFullPath = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+    >
+    </AppTemplate>
+
+</Shared>

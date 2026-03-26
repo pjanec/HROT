@@ -1,3 +1,4 @@
+using Bagira.Map.Definitions;
 using Fdp.Kernel;
 
 namespace Bagira.Map.Common.Components;
@@ -6,7 +7,7 @@ namespace Bagira.Map.Common.Components;
 /// Blittable ECS component placed on a vehicle entity to provide an O(1)
 /// lookup from vehicle → its personal child route entity.
 /// </summary>
-[ComponentId(GlobalComponentIds.PersonalRouteRef)]
+[ComponentId(BagiraComponentIds.PersonalRouteRef)]
 public struct PersonalRouteRef
 {
     /// <summary>
