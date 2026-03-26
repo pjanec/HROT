@@ -46,7 +46,7 @@ public class MiniIosIntegrationTests
 
         CreateUpdateDeleteEntityAck ack = default;
         bool ackObserved = harness.PumpUntil(
-            () => TryTakeCreateAck(ackReader, observedRequest.RequestId, out ack),
+            () => RunnerTestHelpers.TryTakeCreateAck(ackReader, observedRequest.RequestId, out ack),
             RequestTimeoutFrames);
         Assert.True(ackObserved, "CreateUpdateDeleteEntityAck did not arrive in time.");
         Assert.True(ack.StatusCode < (int)SstStatusCode.UnknownDescriptorType,
@@ -79,34 +79,6 @@ public class MiniIosIntegrationTests
         }
 
         request = default;
-        return false;
-    }
-
-    private static bool TryTakeCreateAck(
-        DdsReader<CreateUpdateDeleteEntityAck> reader,
-        Guid requestId,
-        out CreateUpdateDeleteEntityAck ack)
-    {
-        using var loan = reader.Take(1);
-        foreach (var sample in loan)
-        {
-            if (!sample.IsValid) continue;
-            var data = sample.Data;
-            if (data.RequestId != requestId) continue;
-
-            // Skip Phase-1 InProgress ACKs — let PumpUntil retry until the
-            // terminal Success/Error ACK arrives.
-            if (data.StatusCode == (int)SstStatusCode.InProgress)
-            {
-                ack = default;
-                return false;
-            }
-
-            ack = data;
-            return true;
-        }
-
-        ack = default;
         return false;
     }
 
@@ -237,7 +209,7 @@ public class MiniIosIntegrationTests
 
         CreateUpdateDeleteEntityAck spawnAck = default;
         Assert.True(
-            harness.PumpUntil(() => TryTakeCreateAck(ackReader, spawnReq.RequestId, out spawnAck), RequestTimeoutFrames),
+            harness.PumpUntil(() => RunnerTestHelpers.TryTakeCreateAck(ackReader, spawnReq.RequestId, out spawnAck), RequestTimeoutFrames),
             "CreateUpdateDeleteEntityAck did not arrive in time.");
         Assert.Equal(0, spawnAck.StatusCode);
 
@@ -522,7 +494,7 @@ public class MiniIosIntegrationTests
         // ── 2. Verify SimHost acknowledges ────────────────────────────────────
         CreateUpdateDeleteEntityAck ack = default;
         Assert.True(
-            harness.PumpUntil(() => TryTakeCreateAck(ackReader, req.RequestId, out ack), RequestTimeoutFrames),
+            harness.PumpUntil(() => RunnerTestHelpers.TryTakeCreateAck(ackReader, req.RequestId, out ack), RequestTimeoutFrames),
             "CreateUpdateDeleteEntityAck did not arrive in time.");
         Assert.Equal(0, ack.StatusCode);
 
@@ -597,7 +569,7 @@ public class MiniIosIntegrationTests
 
         CreateUpdateDeleteEntityAck ack = default;
         Assert.True(
-            harness.PumpUntil(() => TryTakeCreateAck(ackReader, req.RequestId, out ack), RequestTimeoutFrames),
+            harness.PumpUntil(() => RunnerTestHelpers.TryTakeCreateAck(ackReader, req.RequestId, out ack), RequestTimeoutFrames),
             "First CreateUpdateDeleteEntityAck did not arrive — ID pool may have been exhausted on the first request.");
 
         Assert.Equal(0, ack.StatusCode);

@@ -92,7 +92,7 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         // ── 3. Capture the Phase-2 Success ACK to get the allocated network ID ───
         CreateUpdateDeleteEntityAck spawnAck = default;
         bool ackObserved = harness.PumpUntil(
-            () => TryTakeCreateAck(ackReader, spawnReq.RequestId, out spawnAck),
+            () => RunnerTestHelpers.TryTakeCreateAck(ackReader, spawnReq.RequestId, out spawnAck),
             GatewayTimeoutFrames);
         Assert.True(ackObserved,
             $"CreateUpdateDeleteEntityAck for requestId={spawnReq.RequestId} did not arrive in time. " +
@@ -185,26 +185,6 @@ public class SpawnMovingVehicleWithGatewayIntegrationTests
         }
 
         request = default;
-        return false;
-    }
-
-    private static bool TryTakeCreateAck(
-        DdsReader<CreateUpdateDeleteEntityAck> reader,
-        Guid requestId,
-        out CreateUpdateDeleteEntityAck ack)
-    {
-        using var loan = reader.Take(1);
-        foreach (var sample in loan)
-        {
-            if (!sample.IsValid) continue;
-            var data = sample.Data;
-            if (data.RequestId != requestId) continue;
-
-            ack = data;
-            return true;
-        }
-
-        ack = default;
         return false;
     }
 

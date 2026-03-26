@@ -37,13 +37,17 @@ namespace Bagira.Map.Common.Helpers
 
             return type switch
             {
-                "TimerElapsed"       => (EcsMissionTrigger.TimerElapsed,        ParseTriggerParam(trigger.Params)),
-                "ReachedDestination" => (EcsMissionTrigger.ReachedDestination,  0f),
-                "HealthCritical"     => (EcsMissionTrigger.HealthCritical,      ParseTriggerParam(trigger.Params)),
-                "DoctrineFinished"   => (EcsMissionTrigger.DoctrineFinished,    0f),
-                "UnderAttack"        => (EcsMissionTrigger.UnderAttack,         0f),
+                "TimerElapsed"       => (EcsMissionTrigger.TimerElapsed,     ParseTriggerParam(trigger.Params)),
+                // "ReachedDestination" is the legacy wire string for the navigation-arrival trigger.
+                // Per BS1-T022, arrival is now signalled via the DoctrineFinished path.
+                // Map to DoctrineFinished at ingress to preserve backward wire compatibility
+                // without referencing the [Obsolete] enum member.
+                "ReachedDestination" => (EcsMissionTrigger.DoctrineFinished, 0f),
+                "HealthCritical"     => (EcsMissionTrigger.HealthCritical,   ParseTriggerParam(trigger.Params)),
+                "DoctrineFinished"   => (EcsMissionTrigger.DoctrineFinished, 0f),
+                "UnderAttack"        => (EcsMissionTrigger.UnderAttack,      0f),
                 // Unknown trigger strings fall back to TimerElapsed(0) as a safe observable failure mode.
-                _                    => (EcsMissionTrigger.TimerElapsed,        0f)
+                _                    => (EcsMissionTrigger.TimerElapsed,     0f)
             };
         }
 

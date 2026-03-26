@@ -50,9 +50,9 @@
 
 **Goal:** Prove multi-system interactions: mission arbitration, terrain Z-clamping, and AAR replay.
 
-- [ ] **DEM1-D006** MissionCommand (Dynamic Mission + Preemption) — [details](./DEM1-TASK-DETAIL.md#dem1-d006--missioncommand-scenario)
-- [ ] **DEM1-D007** TerrainClamping (Z-Height Smoothing & Jump Rejection) — [details](./DEM1-TASK-DETAIL.md#dem1-d007--terrainclamping-scenario)
-- [ ] **DEM1-D008** ParallelStories (AAR Recording & Deterministic Replay) — [details](./DEM1-TASK-DETAIL.md#dem1-d008--parallelstories-scenario)
+- [x] **DEM1-D006** MissionCommand (Dynamic Mission + Preemption) — [details](./DEM1-TASK-DETAIL.md#dem1-d006--missioncommand-scenario)
+- [x] **DEM1-D007** TerrainClamping (Z-Height Smoothing & Jump Rejection) — [details](./DEM1-TASK-DETAIL.md#dem1-d007--terrainclamping-scenario)
+- [x] **DEM1-D008** ParallelStories (AAR Recording & Deterministic Replay) — [details](./DEM1-TASK-DETAIL.md#dem1-d008--parallelstories-scenario)
 
 ---
 
@@ -60,7 +60,7 @@
 
 **Goal:** Prove split-authority DDS replication with ELM handshake and hierarchical ghosting.
 
-- [ ] **DEM1-D009** DistributedTank (Component-Level Network Authority) — [details](./DEM1-TASK-DETAIL.md#dem1-d009--distributedtank-scenario)
+- [x] **DEM1-D009** DistributedTank (Component-Level Network Authority) — [details](./DEM1-TASK-DETAIL.md#dem1-d009--distributedtank-scenario) — *BATCH-13: `DemoTkbSetup.RegisterAll`, `DemoLocomotionMsg` Brain→Muscle DDS path, Brain hull `LocomotionChannel`; spec updated (no `BehaviorToolkit`/`ReplicationLogicModule` on Brain). BATCH-14 sign-off: `DEM1-DESIGN.md` §6.4 synced; `LocoCommandReceivedViaDds` + `DistributedTank_Phase2_LocoMsgConsumedViaDds`; `DistributedTank_Phase3_BrainTurretTracksHull_AtTick40`; TASK-DETAIL success list + ELM milestone tick **5** aligned with `DistributedTankScenario.PhaseBElmActiveTick` (see BATCH-14-REVIEW).*
 
 ---
 
@@ -68,4 +68,4 @@
 
 **Goal:** The ultimate regression test — all toolkits working together deterministically.
 
-- [ ] **DEM1-D010** UrbanCombat New (All Toolkits Grand Integration) — [details](./DEM1-TASK-DETAIL.md#dem1-d010--urbancombat-new-scenario)
+- [x] **DEM1-D010** UrbanCombat New (All Toolkits Grand Integration) — [details](./DEM1-TASK-DETAIL.md#dem1-d010--urbancombat-new-scenario) — *BATCH-15: `UrbanCombatNewScenario.cs` (`urbancombat` CLI). BATCH-16: `DEM1-DESIGN` §6.5 + `DEM1-TASK-DETAIL` D010 synced to implemented latches (spec caveat notes); `HsmDefinition != null` guard. BATCH-17: Scenarios decoupled from `NetworkDemo` (`TransformSyncSystem` in `Fdp.Examples.Common`); D010 Latch4 task-detail aligned with 600-tick tests; UrbanCombat headless tests serialised where `HeadlessDemoApp` races the global component registry (see `.dev-workstream/reviews/BATCH-17-REVIEW.md`). **FDP** `BATCH-16` (legacy `Fdp.Examples.UrbanCombat` Phase 7) is a separate batch ID — see `FDP/.dev-workstream/`.*

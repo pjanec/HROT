@@ -386,7 +386,7 @@ namespace Bagira.SimHost.Integration.Tests.Infrastructure
             return type switch
             {
                 "TimerElapsed"       => (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, ParseTriggerParam(trigger.Params)),
-                "ReachedDestination" => (FDP.Toolkit.Behavior.Components.MissionTrigger.ReachedDestination, 0f),
+                "ReachedDestination" => (FDP.Toolkit.Behavior.Components.MissionTrigger.DoctrineFinished, 0f),
                 "HealthCritical"     => (FDP.Toolkit.Behavior.Components.MissionTrigger.HealthCritical, ParseTriggerParam(trigger.Params)),
                 _                    => (FDP.Toolkit.Behavior.Components.MissionTrigger.TimerElapsed, float.MaxValue)
             };

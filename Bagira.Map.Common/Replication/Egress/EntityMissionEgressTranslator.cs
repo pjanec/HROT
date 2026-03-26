@@ -96,7 +96,7 @@ namespace Bagira.Map.Common.Replication.Egress
 
                 string triggerType = phase.Trigger switch
                 {
-                    EcsMissionTrigger.ReachedDestination => "ReachedDestination",
+                    EcsMissionTrigger.DoctrineFinished    => "DoctrineFinished",
                     EcsMissionTrigger.HealthCritical      => "HealthCritical",
                     EcsMissionTrigger.UnderAttack         => "UnderAttack",
                     _                                     => "TimerElapsed"

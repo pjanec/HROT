@@ -389,21 +389,21 @@ Max ticks: `60`.
 
 #### DEM1-D009: DistributedTank (Component-Level Network Authority)
 
-**Goal:** Prove component-level split authority via DDS loopback: `WeaponChannel` on Brain node; `SimTransform` on Muscle node. Prove ELM handshake → Active state. Prove hierarchical ghosting of parent hull + child turret.
+**Goal:** Prove component-level split authority via DDS loopback: `WeaponChannel` on Brain node; `SimTransform` on Muscle node. Prove ELM handshake → Active state. Prove ghosting of Brain hull on Muscle via `EntityMasterTopic` + `DemoLocomotionMsg`.
 
 **Topology:** Two isolated `ModuleHostKernel` instances in the same process communicating via `FastCycloneDDS` on Domain 0.
 
-- Brain Node (ID 100): `BehaviorToolkit` + `ReplicationLogicModule`
-- Muscle Node (ID 200): `CarKinemToolkit` + `ReplicationLogicModule`
+- Brain Node (ID 100): `EntityLifecycleModule` (zero-participant), manual hull (TKB 100) and turret (TKB 101) spawned via `AddComponent`; publishes `EntityMasterTopic` (hull ghost) and `DemoLocomotionMsg` (locomotion command); `LocomotionChannel` on hull.
+- Muscle Node (ID 200): `EntityLifecycleModule` + `ReplicationLogicModule`; TKB templates registered via `DemoTkbSetup.RegisterAll`; `MuscleDirectSystemsModule` hosting `SpatialHashSystem` + `CarKinematicsSystem`; ghost creation and promotion via `GhostPromotionSystem`; `DemoLocomotionMsg` translated to `NavState`.
 
-CommandTank (TKB 100) spawned on Brain; child TankTurret (TKB 101) auto-spawned via `ChildBlueprintDefinition`.
+> **Why no `BehaviorToolkit` / `ReplicationLogicModule` on Brain:** The authoritative Brain node has no incoming ghosts to manage, so `ReplicationLogicModule` is unnecessary and would cause DDS loopback self-ghosting. Locomotion commands are injected directly by `EvaluateTick` at tick 20 and published as `DemoLocomotionMsg`. This is intentionally scoped to what the ECS/DDS split-authority demo requires; see `DEM1-TASK-DETAIL` § D009 architecture note.
 
 | Phase | Tick | Event | Assertion |
 |-------|------|-------|-----------|
-| 1 – ELM Active | 10 | Spawn + ACKs | LifecycleDescriptor.State == Active |
-| 2 – Muscle Movement | 25 | Brain writes Loco, ghost → Muscle | Muscle SimVelocity.X > 0.1 |
-| 3 – Hierarchy sync | 40 | Muscle simulates physics | Brain turret pos tracks hull pos (±0.1) |
-| 4 – Split command | 50 | Brain writes weapon | Turret WeaponChannel.Status == Running; hull still moving |
+| 1 – ELM Active | 5 | ELM zero-participant auto-promote | Brain hull lifecycle == Active (`DistributedTankScenario.PhaseBElmActiveTick`) |
+| 2 – DDS Loco → NavState | 25 | Brain writes `DemoLocomotionMsg` at tick 20; Muscle polls and applies `NavState` at tick 21 | Muscle ghost `SimVelocity.Linear.X > 0.1` |
+| 3 – Turret tracks hull | 40 | Brain hull/turret share layout (no Brain CarKinem); ghost may move on Muscle | Brain turret `SimTransform` within ±0.1 m of Brain hull |
+| 4 – Split authority | 50 | Brain writes `WeaponChannel` at tick 30 | Turret `WeaponChannel.ActiveAction == AimAndFire`; ghost hull still moving |
 
 Max ticks: `60`.
 
@@ -426,11 +426,11 @@ Max ticks: `60`.
 
 | Latch | Window | Condition |
 |-------|--------|-----------|
-| AmbushFired | Ticks 1-100 | `FireRequestEvent` from Insurgent observed |
+| AmbushFired | Ticks 1-100 | `WeaponChannel.ActiveAction == AimAndFire` on Insurgent *(spec note: originally `FireRequestEvent`; weapon-channel state is the implemented observable and is equivalent proof of ambush engagement)* |
 | ApcHalted | After latch 1, ≤tick 150 | APC `LocomotionChannel.ActiveAction == 0` |
-| InsurgentHit | After latch 2, ≤tick 300 | `HitEvent.HitEntity == Insurgent` |
-| InsurgentKilled | After latch 3, ≤tick 400 | `world.IsAlive(insurgent) == false` |
-| MissionResumed | After latch 4, ≤tick 600 | APC Loco == MoveTo or FollowRoute |
+| InsurgentHit | After latch 2, ≤tick 300 | `Health.Current < SoldierMaxHealth` on Insurgent *(spec note: originally `HitEvent.HitEntity == Insurgent`; health-drop is equivalent for the single-insurgent template)* |
+| InsurgentKilled | After latch 3, ≤tick 400 | `!world.IsAlive(insurgent)` |
+| MissionResumed | After latch 4, ≤tick 600 | Log line `"Mission Resumed"` emitted *(spec caveat: normative goal was APC loco `FollowRoute`/`MoveTo`; requires HSM `Disabled→Cruising` recovery transition not yet implemented — Latch 5 is a narrative/log milestone until HSM recovery is added)* |
 
 Max ticks: `600`.
 

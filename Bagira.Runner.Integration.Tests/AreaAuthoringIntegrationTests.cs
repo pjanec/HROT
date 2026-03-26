@@ -69,7 +69,7 @@ public class AreaAuthoringIntegrationTests
 
         CreateUpdateDeleteEntityAck ack = default;
         bool ackObserved = harness.PumpUntil(
-            () => TryTakeCreateAck(ackReader, observedRequest.RequestId, out ack),
+            () => RunnerTestHelpers.TryTakeCreateAck(ackReader, observedRequest.RequestId, out ack),
             AckTimeoutFrames);
         Assert.True(ackObserved, "CreateUpdateDeleteEntityAck did not arrive in time.");
         Assert.Equal(0, ack.StatusCode);
@@ -149,34 +149,6 @@ public class AreaAuthoringIntegrationTests
         }
 
         request = default;
-        return false;
-    }
-
-    private static bool TryTakeCreateAck(
-        DdsReader<CreateUpdateDeleteEntityAck> reader,
-        System.Guid requestId,
-        out CreateUpdateDeleteEntityAck ack)
-    {
-        using var loan = reader.Take(1);
-        foreach (var sample in loan)
-        {
-            if (!sample.IsValid) continue;
-            var data = sample.Data;
-            if (data.RequestId != requestId) continue;
-
-            // Skip Phase-1 InProgress ACKs — let PumpUntil retry until the
-            // terminal Success/Error ACK arrives.
-            if (data.StatusCode == (int)SstStatusCode.InProgress)
-            {
-                ack = default;
-                return false;
-            }
-
-            ack = data;
-            return true;
-        }
-
-        ack = default;
         return false;
     }
 
