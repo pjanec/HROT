@@ -11,7 +11,7 @@ instructions. **Read everything before writing any code.**
 ## Folder Structure
 
 ```
-.dev-workstream/
+.dev/topic/
 ├── batches/BATCH-XX-INSTRUCTIONS.md    # Your assignment
 ├── reports/BATCH-XX-REPORT.md          # Your submission
 ├── questions/BATCH-XX-QUESTIONS.md     # If you need clarification
@@ -55,7 +55,7 @@ dotnet test [relative/path/to/tests/]    # Run after each task
 
 **Don't ask about:** implementation details within spec, code style, basics that can be researched.
 
-Create `.dev-workstream/questions/BATCH-XX-QUESTIONS.md` and notify the development lead.
+Create `.dev/topic/questions/BATCH-XX-QUESTIONS.md` and notify the development lead.
 Work on other tasks while waiting if possible.
 
 ### Step 5: Self-Review
@@ -73,8 +73,8 @@ Before submitting:
 ### Step 6: Submit Report
 
 ```bash
-cp .dev-workstream/templates/BATCH-REPORT-TEMPLATE.md \
-   .dev-workstream/reports/BATCH-XX-REPORT.md
+cp .dev/topic/templates/BATCH-REPORT-TEMPLATE.md \
+   .dev/topic/reports/BATCH-XX-REPORT.md
 ```
 
 Fill **every section** — see [references/report-guide.md](references/report-guide.md) for standards.

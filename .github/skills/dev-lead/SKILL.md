@@ -20,7 +20,7 @@ Manage implementation work through a structured batch system. Each batch may be 
 ## Folder Structure
 
 ```
-.dev-workstream/
+.dev/topic/
 ├── TASK-DEFINITIONS.md          # Stable atomic task specs (you maintain)
 ├── TASK-TRACKER.md              # Brief checklist (you maintain after each review)
 ├── DEBT-TRACKER.md              # P2/P3 deferred issues (you maintain)

@@ -114,7 +114,7 @@ Verify all tests pass. Identify any flaky tests.
 
 ## Writing the Review
 
-Create: `.dev-workstream/reviews/BATCH-XX-REVIEW.md`
+Create: `.dev/topic/reviews/BATCH-XX-REVIEW.md`
 
 **Principles:**
 - **Brief** — max ~100 lines. No praise, no fluff.

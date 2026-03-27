@@ -131,13 +131,13 @@ Related: TASK-DEFINITIONS.md, Architect Q6, docs/hsm-design.md
 ## Quick Reference
 
 ```
-Task Defs:    .dev-workstream/TASK-DEFINITIONS.md
-Tracker:      .dev-workstream/TASK-TRACKER.md
-Debt:         .dev-workstream/DEBT-TRACKER.md
-Instruction:  .dev-workstream/batches/BATCH-XX-INSTRUCTIONS.md
-Report:       .dev-workstream/reports/BATCH-XX-REPORT.md
-Questions:    .dev-workstream/questions/BATCH-XX-QUESTIONS.md
-Review:       .dev-workstream/reviews/BATCH-XX-REVIEW.md
+Task Defs:    .dev/topic/TASK-DEFINITIONS.md
+Tracker:      .dev/topic/TASK-TRACKER.md
+Debt:         .dev/topic/DEBT-TRACKER.md
+Instruction:  .dev/topic/batches/BATCH-XX-INSTRUCTIONS.md
+Report:       .dev/topic/reports/BATCH-XX-REPORT.md
+Questions:    .dev/topic/questions/BATCH-XX-QUESTIONS.md
+Review:       .dev/topic/reviews/BATCH-XX-REVIEW.md
 ```
 
 **Batch numbering:** BATCH-01, BATCH-02, BATCH-03…  

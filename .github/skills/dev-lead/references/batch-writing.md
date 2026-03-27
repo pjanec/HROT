@@ -22,10 +22,10 @@ Every `batches/BATCH-XX-INSTRUCTIONS.md` must follow this structure:
 [Brief introduction to this batch's goals — 2–3 sentences]
 
 ### Required Reading (IN ORDER)
-1. **Workflow Guide:** `.dev-workstream/guides/DEV-GUIDE.md`
+1. **Workflow Guide:** `.dev/topic/.guides/DEV-GUIDE.md`
 2. **Task Definitions:** `[path/to/TASK-DEFINITIONS.md]` — See TASK-ID1, TASK-ID2
 3. **Design Document:** `docs/[relevant-design-doc].md` — Section X.Y
-4. **Previous Review:** `.dev-workstream/reviews/BATCH-XX-REVIEW.md`
+4. **Previous Review:** `.dev/topic/reviews/BATCH-XX-REVIEW.md`
 
 ### Source Code Location
 - **Primary Work Area:** `[relative/path/to/main/code]`
@@ -33,8 +33,8 @@ Every `batches/BATCH-XX-INSTRUCTIONS.md` must follow this structure:
 - **Build Command:** `dotnet test [relative/path/to/tests/]`
 
 ### Report Submission
-Submit to: `.dev-workstream/reports/BATCH-XX-REPORT.md`
-Questions to: `.dev-workstream/questions/BATCH-XX-QUESTIONS.md`
+Submit to: `.dev/topic/reports/BATCH-XX-REPORT.md`
+Questions to: `.dev/topic/questions/BATCH-XX-QUESTIONS.md`
 
 ---
 
