@@ -25,15 +25,8 @@ You are the **Development Lead** managing implementation work through a structur
 ## 📋 Folder Structure Overview
 
 ```
-.dev-workstream/
-├── README.md                      # Developer workflow guide (generic)
-├── DEV-LEAD-GUIDE.md             # This file (your guide)
-├── TASK-TRACKER.md               # Brief checklist with task IDs (you maintain)
+.dev/topic/                       # topic = placeholder for the design topic we are implementing
 ├── DEBT-TRACKER.md               # P2/P3 deferred issues and technical debt (you maintain)
-│
-├── guides/                        # Standing rules for the project
-│   ├── CODE-STANDARDS.md         # Magic numbers, SimMath, GetComponentRW, test quality
-│   └── DEV-LEAD-GUIDE.md        # This file
 │
 ├── batches/                       # Batch instructions (you write)
 │   ├── BATCH-01-INSTRUCTIONS.md
@@ -110,10 +103,10 @@ TASK-master markdown → Design docs → TASK-TRACKER.md → BATCH-XX-INSTRUCTIO
 [Brief introduction to this batch's goals]
 
 ### Required Reading (IN ORDER)
-1. **Workflow Guide:** `.dev-workstream/README.md` - How to work with batches
-2. **Task Definitions:** `docs\FCDC-TASK-MASTER.md ` - See TASK-XX details
+1. **Workflow Guide:** `.dev/.guidesm/DEV-GUIDE.md` - How to work with batches
+2. **Task Definitions:** `docs\TOPIC-TASK-MASTER.md ` - See TASK-XX details
 3. **Design Document:** `docs/[relevant-design-doc].md` - Technical specifications
-4. **Previous Review:** `.dev-workstream/reviews/BATCH-XX-REVIEW.md` - Learn from feedback
+4. **Previous Review:** `.dev/topic/reviews/BATCH-XX-REVIEW.md` - Learn from feedback
 5. [Additional project-specific documents]
 
 ### Source Code Location
@@ -122,10 +115,10 @@ TASK-master markdown → Design docs → TASK-TRACKER.md → BATCH-XX-INSTRUCTIO
 
 ### Report Submission
 **When done, submit your report to:**  
-`.dev-workstream/reports/BATCH-XX-REPORT.md`
+`.dev/topic/reports/BATCH-XX-REPORT.md`
 
 **If you have questions, create:**  
-`.dev-workstream/questions/BATCH-XX-QUESTIONS.md`
+`.dev/topic/questions/BATCH-XX-QUESTIONS.md`
 ```
 
 **Why this matters:** Different developers may work on different batches. Each must be self-contained.
@@ -206,6 +199,7 @@ The report should gather valuable professional feedback, not test the developer'
 - **Improvement Opportunities:** What would you change if you could refactor?
 - **Edge Cases Discovered:** What scenarios weren't in the instructions?
 - **Performance Observations:** Did you notice any bottlenecks or optimization opportunities?
+- **Suggested commit mesage:** What did you achieve in this batch?
 
 **❌ What NOT to Ask:**
 - "Explain how X works" (baby-sitting question)
@@ -283,6 +277,8 @@ Make sure all the paths to tools and binary files and projects (previously used)
 #### do not duplicate design docs
 Reference the design doc precisely (use chapter names, line numbers etc.) instead of duplicating its content to the batch. developer can read the design doc himself. 
 
+#### prevent laziness
+In each batch instruction emphasize the need to finish the batch without stopping and asking if it is ok to do obvious things like running the tests and fixing the root cause until all ok. No laziness allowed. The developer should do it all until oll ok and then write the report. no useless asking for permission allowed.
 
 **For Combined Batches - MANDATORY WORKFLOW:**
 
@@ -373,7 +369,7 @@ Always include sections on:
 
 ### Review Workflow
 
-When developer submits `.dev-workstream/reports/BATCH-XX-REPORT.md`:
+When developer submits `.dev/topic/reports/BATCH-XX-REPORT.md`:
 
 
 Basic mind set when reviewing:
@@ -537,7 +533,7 @@ Test quantity says nothing. Always analyze tests for quality. Do not blindly ins
 
 ### Writing Your Review
 
-Create: `.dev-workstream/reviews/BATCH-XX-REVIEW.md`
+Create: `.dev/topic/reviews/BATCH-XX-REVIEW.md`
 
 **Review Principles:**
 - **Focus on Issues** - Document what's wrong, incomplete, or insufficient
@@ -1066,12 +1062,12 @@ Copy this for each review:
 ### File Locations
 
 ```
-Task Defs:    .dev-workstream/TASK-DEFINITIONS.md  (atomic task specs)
-Tracker:      .dev-workstream/TASK-TRACKER.md      (brief checklist)
-Instruction:  .dev-workstream/batches/BATCH-XX-INSTRUCTIONS.md
-Report:       .dev-workstream/reports/BATCH-XX-REPORT.md
-Questions:    .dev-workstream/questions/BATCH-XX-QUESTIONS.md  (if needed)
-Review:       .dev-workstream/reviews/BATCH-XX-REVIEW.md
+Task Defs:    .dev/topic/TASK-DETAILS.md  (atomic task specs)
+Tracker:      .dev/topic/TASK-TRACKER.md      (brief checklist)
+Instruction:  .dev/topic/batches/BATCH-XX-INSTRUCTIONS.md
+Report:       .dev/topic/reports/BATCH-XX-REPORT.md
+Questions:    .dev/topic/questions/BATCH-XX-QUESTIONS.md  (if needed)
+Review:       .dev/topic/reviews/BATCH-XX-REVIEW.md
 ```
 
 ### Batch Numbering
