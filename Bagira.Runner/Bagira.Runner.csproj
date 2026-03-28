@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -23,6 +23,8 @@
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
     <!-- Subsystem libraries (R2) -->
+    <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
+    <ProjectReference Include="..\Bagira.Orchestrator\Bagira.Orchestrator.csproj" />
     <ProjectReference Include="..\Bagira.SimHost\Bagira.SimHost.csproj" />
     <ProjectReference Include="..\Bagira.IG\Bagira.IG.csproj" />
     <ProjectReference Include="..\Bagira.IOS\Bagira.IOS.csproj" />

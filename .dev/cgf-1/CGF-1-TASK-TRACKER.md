@@ -3,11 +3,17 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
+**Active batch:** [CGF-1-BATCH-02](batches/CGF-1-BATCH-02-INSTRUCTIONS.md) — debt burn-down from BATCH-01 + **CGF1-S0104** (DrillSlave foundation).  
+**Last reviewed:** [CGF-1-BATCH-01](reviews/CGF-1-BATCH-01-REVIEW.md) — APPROVED (2026-03-28).  
+**Batches / reports / reviews:** `.dev/cgf-1/batches/`, `.dev/cgf-1/reports/`, `.dev/cgf-1/reviews/` (prefix `CGF-1-`).  
+**Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
+
 > **Scope:** Phases 1–3 of the CGF workstream — Control-Plane Foundation, State & Time
 > Synchronization, and Persistence. Phase 4 (Urban Combat AI) begins only after all
 > Phase 3 tasks are complete and their CI gates are passing.
 >
-> **Status key:** `[ ]` = not done | `[x]` = done
+> **Status key:** `[ ]` = not done | `[x]` = done  
+> **Progress (Phase 1):** 3 / 5 tasks done (after CGF-1-BATCH-01).
 
 ---
 
@@ -16,9 +22,9 @@
 **Goal:** Prove the Orchestrator can watch nodes and nodes can register with it;
 establish DDS schema, centralize identity allocation.
 
-- [ ] **CGF1-S0101** Orchestration DDS Schema Definition [details](./CGF-1-TASK-DETAIL.md#cgf1-s0101--orchestration-dds-schema-definition)
-- [ ] **CGF1-S0102** Bagira.Orchestrator Bootstrapping [details](./CGF-1-TASK-DETAIL.md#cgf1-s0102--bagiraorchestrator-bootstrapping)
-- [ ] **CGF1-S0103** Centralized Identity Migration [details](./CGF-1-TASK-DETAIL.md#cgf1-s0103--centralized-identity-migration)
+- [x] **CGF1-S0101** Orchestration DDS Schema Definition [details](./CGF-1-TASK-DETAIL.md#cgf1-s0101--orchestration-dds-schema-definition)
+- [x] **CGF1-S0102** Bagira.Orchestrator Bootstrapping [details](./CGF-1-TASK-DETAIL.md#cgf1-s0102--bagiraorchestrator-bootstrapping)
+- [x] **CGF1-S0103** Centralized Identity Migration [details](./CGF-1-TASK-DETAIL.md#cgf1-s0103--centralized-identity-migration)
 - [ ] **CGF1-S0104** DrillSlave Foundation [details](./CGF-1-TASK-DETAIL.md#cgf1-s0104--drillslave-foundation)
 - [ ] **CGF1-S0105** Orchestrator Health Monitoring & Bootstrap Recovery [details](./CGF-1-TASK-DETAIL.md#cgf1-s0105--orchestrator-health-monitoring--bootstrap-recovery)
 

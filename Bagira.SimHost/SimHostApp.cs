@@ -13,6 +13,7 @@ using Bagira.SimHost.Brains;
 using Bagira.SimHost.Components;
 using Bagira.SimHost.Configuration;
 using Bagira.SimHost.Modules;
+using Bagira.SimHost.Network;
 using Bagira.SimHost.Network.Egress;
 using Bagira.SimHost.Network.Ingress;
 using Bagira.SimHost.Systems;
@@ -96,10 +97,8 @@ namespace Bagira.SimHost
         private NetworkEntityMap?       _entityMap;
         private IGeographicTransform?   _geoTransform;
 
-        // ── ID-allocator server (own background thread) ───────────────────────
-        private DdsIdAllocatorServer?    _idAllocatorServer;
-        private CancellationTokenSource? _idAllocatorServerCts;
-        private Thread?                  _idAllocatorServerThread;
+        // ── ID-allocator local fallback (CGF1-S0103: central server lives on orchestrator) ──
+        private LocalIdAllocatorFallbackHost? _localIdAllocatorFallback;
 
         // ── Visualization ─────────────────────────────────────────────────────
         private SimHostVisualization? _vis;
@@ -252,24 +251,9 @@ namespace Bagira.SimHost
             var entityMap      = new NetworkEntityMap();
             _entityMap         = entityMap;
 
-            // ── ID-allocator server: start as early as possible on its own thread ──
-            // The server must be running (and DDS-matched) before the client sends its
-            // first request.  Starting it here — before the client is even created —
-            // ensures the DDS pub/sub match completes in the background while the rest
-            // of initialisation proceeds.
-            _idAllocatorServer    = new DdsIdAllocatorServer(ddsParticipant);
-            _idAllocatorServerCts = new CancellationTokenSource();
-            _idAllocatorServerThread = new Thread(() => RunIdAllocatorServerLoop(_idAllocatorServerCts.Token))
-            {
-                IsBackground = true,
-                Name         = "SimHost-IdAllocServer"
-            };
-            _idAllocatorServerThread.Start();
-
-            // Client is created AFTER the server thread is running.  DdsIdAllocator will
-            // wait for the PublicationMatched event (server reader matched) before sending
-            // the first request, so there is no "write-before-match" race.
+            // ── ID allocator client (server on orchestrator; optional in-process fallback after wait) ──
             _idAllocator = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
+            EnsureIdAllocatorRouting(ddsParticipant, nodeConfig);
 
             // ── 5. Geodetic configuration ─────────────────────────────────────
             var wgs84     = BagiraEnvironment.CreateGeoTransform();
@@ -541,14 +525,9 @@ namespace Bagira.SimHost
             if (!_initialized) return;
             _initialized = false;
 
-            // ── Stop ID-allocator server thread ───────────────────────────────
-            _idAllocatorServerCts?.Cancel();
-            _idAllocatorServerThread?.Join(TimeSpan.FromSeconds(2));
-            _idAllocatorServerCts?.Dispose();
-            _idAllocatorServerCts    = null;
-            _idAllocatorServerThread = null;
-            _idAllocatorServer?.Dispose();
-            _idAllocatorServer = null;
+            // ── Stop ID-allocator local fallback server ─────────────────────────
+            _localIdAllocatorFallback?.Dispose();
+            _localIdAllocatorFallback = null;
 
             // ── Dispose simulation resources ──────────────────────────────────
             _vis?.Dispose();
@@ -788,14 +767,34 @@ namespace Bagira.SimHost
 
         // ── Private helpers ───────────────────────────────────────────────────
 
-        private void RunIdAllocatorServerLoop(CancellationToken ct)
+        /// <summary>
+        /// Waits up to <see cref="NodeConfiguration.IdAllocatorLocalFallbackDelaySeconds"/> for a remote
+        /// allocator match. If still unmatched and local fallback is enabled, starts the in-process server.
+        /// </summary>
+        private void EnsureIdAllocatorRouting(DdsParticipant participant, NodeConfiguration nodeConfig)
         {
-            while (!ct.IsCancellationRequested)
+            if (_idAllocator == null) return;
+            var maxWaitSeconds = nodeConfig.IdAllocatorLocalFallbackEnabled
+                ? Math.Max(0, nodeConfig.IdAllocatorLocalFallbackDelaySeconds)
+                : 30;
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(maxWaitSeconds);
+            while (DateTime.UtcNow < deadline)
             {
-                _idAllocatorServer?.ProcessRequests();
-                Thread.Sleep(1); // ~1 kHz polling — fast enough for low-latency allocation
+                if (_idAllocator.HasPublicationMatch)
+                    return;
+                Thread.Sleep(50);
             }
-            Logger.Info("[SimHost] IdAllocatorServer loop exited.");
+
+            if (_idAllocator.HasPublicationMatch)
+                return;
+
+            if (!nodeConfig.IdAllocatorLocalFallbackEnabled)
+                return;
+
+            _localIdAllocatorFallback = new LocalIdAllocatorFallbackHost(participant);
+            _localIdAllocatorFallback.Start();
+            for (var i = 0; i < 100 && !_idAllocator.HasPublicationMatch; i++)
+                Thread.Sleep(20);
         }
 
         /// <summary>

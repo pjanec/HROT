@@ -71,6 +71,16 @@ namespace Bagira.SimHost
         /// <summary>Target simulation loop rate in Hz (default 60). Absorbed from SimHostConfig (DB-MOD1-09).</summary>
         public int SimulationRateHz { get; init; } = 60;
 
+        /// <summary>
+        /// When <c>true</c> (default), if no central <c>DdsIdAllocatorServer</c> is discovered within
+        /// <see cref="IdAllocatorLocalFallbackDelaySeconds"/>, SimHost starts an in-process server for standalone use (CGF1-S0103).
+        /// Set <c>false</c> when an orchestrator always provides the allocator.
+        /// </summary>
+        public bool IdAllocatorLocalFallbackEnabled { get; init; } = true;
+
+        /// <summary>Seconds to wait for a remote ID allocator before starting the local fallback server.</summary>
+        public int IdAllocatorLocalFallbackDelaySeconds { get; init; } = 5;
+
         /// <summary>Geodetic reference origin for WGS-84 projection (default: Tel Aviv area). Absorbed from SimHostConfig (DB-MOD1-09).</summary>
         public GeodeticOriginConfig GeodeticOrigin { get; init; } = new();
 

@@ -15,7 +15,7 @@ namespace Bagira.Runner.Configuration
         // ── Bagira-specific CLI options ───────────────────────────────────────
 
         /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, simhost,ig</summary>
-        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|simhost,ig")]
+        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|simhost,ig")]
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Optional JSON config file that overrides CLI defaults.</summary>
@@ -44,7 +44,7 @@ namespace Bagira.Runner.Configuration
             ParsedMode = ParseModeString(ModeString);
             if (ParsedMode == RunMode.None)
                 throw new InvalidOperationException(
-                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, or comma-separated combination.");
+                    $"Invalid mode: '{ModeString}'. Use: all, simhost, ig, ios, orchestrator, or comma-separated combination.");
 
             // Parse wait-for list → WaitForPeers
             if (!string.IsNullOrWhiteSpace(WaitForString))
@@ -65,7 +65,7 @@ namespace Bagira.Runner.Configuration
 
             // When launching a single subsystem that must synchronise with others,
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).
-            if (!NoWait && WaitForPeers.Count == 0 && ParsedMode != RunMode.All)
+            if (!NoWait && WaitForPeers.Count == 0 && ParsedMode != RunMode.All && ParsedMode != RunMode.Orchestrator)
                 throw new InvalidOperationException(
                     "--wait-for required when launching separate subsystems without --no-wait.");
         }
@@ -107,10 +107,11 @@ namespace Bagira.Runner.Configuration
         {
             var lower = str.ToLowerInvariant().Trim();
 
-            if (lower == "all")     return RunMode.All;
-            if (lower == "simhost") return RunMode.SimHost;
-            if (lower == "ig")      return RunMode.IG;
-            if (lower == "ios")     return RunMode.IOS;
+            if (lower == "all")          return RunMode.All;
+            if (lower == "simhost")      return RunMode.SimHost;
+            if (lower == "ig")           return RunMode.IG;
+            if (lower == "ios")          return RunMode.IOS;
+            if (lower == "orchestrator") return RunMode.Orchestrator;
 
             // Comma-separated combination (e.g. "simhost,ig")
             RunMode result = RunMode.None;
@@ -118,10 +119,11 @@ namespace Bagira.Runner.Configuration
             {
                 switch (part.Trim())
                 {
-                    case "simhost": result |= RunMode.SimHost; break;
-                    case "ig":      result |= RunMode.IG;      break;
-                    case "ios":     result |= RunMode.IOS;     break;
-                    default:        return RunMode.None; // Any invalid token → reject entire string
+                    case "simhost":      result |= RunMode.SimHost;      break;
+                    case "ig":           result |= RunMode.IG;           break;
+                    case "ios":          result |= RunMode.IOS;          break;
+                    case "orchestrator": result |= RunMode.Orchestrator; break;
+                    default:             return RunMode.None; // Any invalid token → reject entire string
                 }
             }
 

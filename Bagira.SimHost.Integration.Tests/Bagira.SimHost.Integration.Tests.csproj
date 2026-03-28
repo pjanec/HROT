@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <!-- Bagira application layer -->
+    <ProjectReference Include="..\Bagira.Orchestrator\Bagira.Orchestrator.csproj" />
     <ProjectReference Include="..\Bagira.SimHost\Bagira.SimHost.csproj" />
     <ProjectReference Include="..\Bagira.IG\Bagira.IG.csproj" />
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />

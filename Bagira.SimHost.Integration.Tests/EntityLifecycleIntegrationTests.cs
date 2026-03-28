@@ -128,7 +128,12 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
 
         int baselineCount = CountIgEntities(_ig.World);
 
-        using var simHostDomain0 = new SimHostApp();
+        var domain0Cfg = new NodeConfiguration
+        {
+            DdsDomainId = 0,
+            IdAllocatorLocalFallbackEnabled = false,
+        };
+        using var simHostDomain0 = new SimHostApp(0, NodeRole.AllInOne, domain0Cfg);
         using var idParticipant0 = new DdsParticipant(0);
         using var idServer0 = new DdsIdAllocatorServer(idParticipant0);
         simHostDomain0.InitializeHeadless(domainIdOverride: 0);

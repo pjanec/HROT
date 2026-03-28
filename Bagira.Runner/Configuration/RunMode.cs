@@ -19,6 +19,9 @@ namespace Bagira.Runner.Configuration
         /// <summary>Run the IOS subsystem.</summary>
         IOS = 1 << 2,      // 4
 
+        /// <summary>Run the distributed orchestrator (DrillMaster) only.</summary>
+        Orchestrator = 1 << 3, // 8
+
         /// <summary>Run all three subsystems in one aggregated process.</summary>
         All = SimHost | IG | IOS
     }

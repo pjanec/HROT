@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Bagira.Orchestrator.Standalone</RootNamespace>
+    <AssemblyName>Bagira.Orchestrator.Standalone</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
+    <ProjectReference Include="..\Bagira.Orchestrator\Bagira.Orchestrator.csproj" />
+  </ItemGroup>
+
+</Project>

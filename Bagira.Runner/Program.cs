@@ -1,4 +1,4 @@
-﻿using CommandLine;
+using CommandLine;
 using Bagira.Map.Common;
 using Bagira.Runner.Configuration;
 using Bagira.Runner.Services;
@@ -84,6 +84,7 @@ class Program
         if (config.WaitForPeers.Any())
         {
             string subsystemName = config.ParsedMode == RunMode.All ? "all"
+                : config.ParsedMode == RunMode.Orchestrator ? "orchestrator"
                 : config.ParsedMode.HasFlag(RunMode.SimHost) ? "simhost"
                 : config.ParsedMode.HasFlag(RunMode.IG)      ? "ig"
                 : "ios";
@@ -104,6 +105,7 @@ class Program
 
         // ── Build subsystems from mode ────────────────────────────────────────
         var subsystems = new List<ISubsystem>();
+        if (config.ParsedMode.HasFlag(RunMode.Orchestrator)) subsystems.Add(new OrchestratorSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.SimHost)) subsystems.Add(new SimHostSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.IG))      subsystems.Add(new IgSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.IOS))     subsystems.Add(new IosSubsystem());
