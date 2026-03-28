@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -25,6 +25,10 @@
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
     <ProjectReference Include="..\..\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
     <ProjectReference Include="..\ModuleHost.Core\ModuleHost.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
