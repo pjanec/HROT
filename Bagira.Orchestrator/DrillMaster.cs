@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using Bagira.BDC.SSTD.Orchestration;
 using CycloneDDS.Runtime;
@@ -7,27 +8,102 @@ using ModuleHost.Network.Cyclone.Services;
 namespace Bagira.Orchestrator;
 
 /// <summary>
-/// Orchestrator control-plane host: system state, node heartbeats, DDS network ID allocation server.
+/// Orchestrator control-plane host: system state, node heartbeats, DDS network ID allocation server,
+/// bootstrap latch, heartbeat-timeout eviction, and 2PC transaction history ring buffer.
 /// </summary>
 public sealed class DrillMaster : IDisposable
 {
-    public const double DefaultHeartbeatPruneSeconds = 5.0;
+    private readonly ClusterConfiguration _config;
 
-    private readonly DdsWriter<SystemStateTopic> _systemStateWriter;
-    private readonly DdsReader<NodeHeartbeat> _heartbeatReader;
+    // ── DDS infrastructure ────────────────────────────────────────────────
+    private readonly DdsWriter<SystemStateTopic>  _systemStateWriter;
+    private readonly DdsReader<NodeHeartbeat>     _heartbeatReader;
+    private readonly DdsReader<SysOpRequest>      _sysOpRequestReader;
+    private readonly DdsWriter<SysOpStatus>       _sysOpStatusWriter;
+    private readonly DdsWriter<NodeOpCommand>     _nodeOpCommandWriter;
+
+    // ── Roster ────────────────────────────────────────────────────────────
     private readonly NodeRoster _roster = new();
+
+    // ── ID allocator server ───────────────────────────────────────────────
     private DdsIdAllocatorServer? _idAllocatorServer;
     private CancellationTokenSource? _idServerCts;
     private Thread? _idServerThread;
+
+    // ── Bootstrap latch (CGF1-S0105) ──────────────────────────────────────
+    /// <summary>
+    /// <c>true</c> once every mandatory subsystem has appeared with <c>LocalDsmState == Standby</c>.
+    /// While <c>false</c> all <see cref="SysOpRequest"/> messages are rejected.
+    /// </summary>
+    private bool _bootstrapLatch;
+
+    // ── Active transaction ────────────────────────────────────────────────
+    private DistributedTransaction? _activeTransaction;
+
+    // ── 2PC history ring buffer (CGF1-S0105) ─────────────────────────────
+    private readonly DistributedTransaction[] _history;
+    private int  _historyHead;
+
     private bool _disposed;
 
+    // ── Public surface ────────────────────────────────────────────────────
     public NodeRoster NodeRoster => _roster;
 
-    public DrillMaster(DdsParticipant participant)
+    /// <summary><c>true</c> once all mandatory nodes have reached <c>Standby</c>.</summary>
+    public bool BootstrapComplete => _bootstrapLatch;
+
+    /// <summary>
+    /// Snapshot of completed and aborted transactions in insertion order.
+    /// The returned array may contain trailing nulls when the buffer is not yet full.
+    /// </summary>
+    public IReadOnlyList<DistributedTransaction> TransactionHistory
     {
-        _heartbeatReader = new DdsReader<NodeHeartbeat>(participant);
-        _systemStateWriter = new DdsWriter<SystemStateTopic>(participant);
-        PublishStandby();
+        get
+        {
+            var cap   = _history.Length;
+            var count = 0;
+            for (int i = 0; i < cap; i++)
+                if (_history[i] != null) count++;
+            var result = new DistributedTransaction[count];
+            int ri = 0;
+
+            // Return in chronological order (oldest → newest)
+            if (count == cap)
+            {
+                for (int i = 0; i < cap; i++)
+                    result[ri++] = _history[(_historyHead + i) % cap];
+            }
+            else
+            {
+                for (int i = 0; i < cap && ri < count; i++)
+                    if (_history[i] != null) result[ri++] = _history[i];
+            }
+            return result;
+        }
+    }
+
+    // ── Constructors ──────────────────────────────────────────────────────
+
+    public DrillMaster(DdsParticipant participant)
+        : this(participant, ClusterConfiguration.Default) { }
+
+    public DrillMaster(DdsParticipant participant, ClusterConfiguration config)
+    {
+        _config              = config ?? ClusterConfiguration.Default;
+        _history             = new DistributedTransaction[Math.Max(1, _config.TransactionHistoryCapacity)];
+
+        _heartbeatReader     = new DdsReader<NodeHeartbeat>(participant);
+        _systemStateWriter   = new DdsWriter<SystemStateTopic>(participant);
+        _sysOpRequestReader  = new DdsReader<SysOpRequest>(participant);
+        _sysOpStatusWriter   = new DdsWriter<SysOpStatus>(participant);
+        _nodeOpCommandWriter = new DdsWriter<NodeOpCommand>(participant);
+
+        // If no mandatory nodes are configured, the latch clears immediately.
+        if (_config.Mandatory.Length == 0)
+        {
+            _bootstrapLatch = true;
+            PublishStandby();
+        }
 
         _idAllocatorServer = new DdsIdAllocatorServer(participant);
         _idServerCts = new CancellationTokenSource();
@@ -39,23 +115,17 @@ public sealed class DrillMaster : IDisposable
         _idServerThread.Start();
     }
 
-    private void PublishStandby()
-    {
-        _systemStateWriter.Write(new SystemStateTopic
-        {
-            CurrentState = DSMState.Standby,
-            DrillId = Guid.Empty,
-            StateStartWallTicks = 0,
-            TransactionEpoch = 0
-        });
-    }
+    // ── Per-frame tick ────────────────────────────────────────────────────
 
     public void Tick()
     {
         IngestHeartbeats();
-        var now = UtcNowSeconds();
-        _roster.PruneStale(now, DefaultHeartbeatPruneSeconds);
+        CheckBootstrapLatch();
+        DetectAndEjectTimedOutNodes();
+        ProcessSysOpRequests();
     }
+
+    // ── Private helpers ───────────────────────────────────────────────────
 
     private void IngestHeartbeats()
     {
@@ -64,19 +134,208 @@ public sealed class DrillMaster : IDisposable
         {
             if (!sample.IsValid) continue;
             var hb = sample.Data;
-            var now = UtcNowSeconds();
             var profile = new NodeHealthProfile
             {
                 NodeId = hb.NodeId,
                 SubsystemName = hb.SubsystemName ?? string.Empty,
                 LocalDsmState = hb.LocalDsmState,
-                LastHeartbeatUtcSeconds = now
+                LastHeartbeatUtcSeconds = UtcNowSeconds()
             };
             _roster.Upsert(profile);
         }
     }
 
-    private static double UtcNowSeconds() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+    /// <summary>
+    /// Re-evaluates whether all mandatory subsystem names have a roster entry in <c>Standby</c>.
+    /// Clears the bootstrap latch and publishes <c>Standby</c> when the condition first becomes true.
+    /// </summary>
+    private void CheckBootstrapLatch()
+    {
+        if (_bootstrapLatch) return;
+        if (_config.Mandatory.Length == 0) return;
+
+        foreach (var name in _config.Mandatory)
+        {
+            bool found = false;
+            foreach (var kv in _roster.ActiveNodes)
+            {
+                if (kv.Value.SubsystemName == name && kv.Value.LocalDsmState == DSMState.Standby)
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) return;
+        }
+
+        // All mandatory nodes are in Standby — latch released.
+        _bootstrapLatch = true;
+        PublishStandby();
+        FdpLog<DrillMaster>.Info("[Orchestrator] All mandatory nodes reached Standby — bootstrap complete.");
+    }
+
+    /// <summary>
+    /// Iterates the roster and calls <see cref="EjectNode"/> for any node whose last heartbeat
+    /// is older than <see cref="ClusterConfiguration.HeartbeatTimeoutSeconds"/>.
+    /// If a mandatory-node ejection re-engages the bootstrap latch, processing stops so that
+    /// remaining nodes stay in the roster and receive the <c>PrepareState(Standby)</c> broadcast.
+    /// </summary>
+    private void DetectAndEjectTimedOutNodes()
+    {
+        var now          = UtcNowSeconds();
+        var timeout      = _config.HeartbeatTimeoutSeconds;
+        var timedOut     = new List<int>();
+
+        foreach (var kv in _roster.ActiveNodes)
+        {
+            if (now - kv.Value.LastHeartbeatUtcSeconds > timeout)
+                timedOut.Add(kv.Key);
+        }
+
+        foreach (var nodeId in timedOut)
+        {
+            EjectNode(nodeId);
+            // After a mandatory-node ejection the latch is re-engaged; stop here so surviving
+            // nodes remain in the roster and receive the broadcast in this same tick.
+            if (!_bootstrapLatch) break;
+        }
+    }
+
+    /// <summary>
+    /// Evicts a node from the cluster:
+    /// <list type="number">
+    ///   <item>Removes from the active roster.</item>
+    ///   <item>If the node was mandatory: aborts any in-flight transaction, publishes
+    ///         <c>Degraded</c>, broadcasts <c>AbortTransaction</c> + <c>PrepareState(Standby)</c>
+    ///         to surviving nodes, and re-engages the bootstrap latch.</item>
+    /// </list>
+    /// </summary>
+    public void EjectNode(int nodeId)
+    {
+        if (!_roster.ActiveNodes.TryGetValue(nodeId, out var profile))
+            return;
+
+        _roster.Remove(nodeId);
+        FdpLog<DrillMaster>.Warn("[Orchestrator] Node {0} ({1}) ejected (heartbeat timeout).",
+            nodeId, profile.SubsystemName);
+
+        bool isMandatory = Array.IndexOf(_config.Mandatory, profile.SubsystemName) >= 0;
+        if (!isMandatory) return;
+
+        // Abort any in-flight transaction.
+        if (_activeTransaction != null)
+        {
+            _activeTransaction.IsAborted = true;
+            AppendToHistory(_activeTransaction);
+            _activeTransaction = null;
+        }
+
+        // Publish Degraded system state.
+        _systemStateWriter.Write(new SystemStateTopic
+        {
+            CurrentState        = DSMState.Degraded,
+            DrillId             = Guid.Empty,
+            StateStartWallTicks = DateTimeOffset.UtcNow.Ticks,
+            TransactionEpoch    = 0
+        });
+        FdpLog<DrillMaster>.Warn("[Orchestrator] System entered Degraded state (mandatory node {0} lost).", profile.SubsystemName);
+
+        // Broadcast AbortTransaction + PrepareState(Standby) to surviving nodes only.
+        BroadcastNodeOp(new NodeOpCommand
+        {
+            TransactionId = Guid.NewGuid(),
+            Operation     = NodeOpType.AbortTransaction,
+            PayloadJson   = string.Empty
+        });
+        BroadcastNodeOp(new NodeOpCommand
+        {
+            TransactionId = Guid.NewGuid(),
+            Operation     = NodeOpType.PrepareState,
+            PayloadJson   = ((int)DSMState.Standby).ToString()
+        });
+
+        // Re-engage bootstrap latch until the mandatory node returns.
+        _bootstrapLatch = false;
+    }
+
+    /// <summary>
+    /// Reads all pending <see cref="SysOpRequest"/> messages and replies with
+    /// <see cref="SysOpStatus"/>. While the bootstrap latch is inactive all requests
+    /// are rejected with <see cref="OpStatus.Rejected"/>.
+    /// </summary>
+    private void ProcessSysOpRequests()
+    {
+        using var scope = _sysOpRequestReader.Take();
+        foreach (var sample in scope)
+        {
+            if (!sample.IsValid) continue;
+            var req = sample.Data;
+
+            if (!_bootstrapLatch)
+            {
+                _sysOpStatusWriter.Write(new SysOpStatus
+                {
+                    RequestId  = req.RequestId,
+                    Status     = OpStatus.Rejected,
+                    ErrorCode  = 0,
+                    ResultJson = string.Empty
+                });
+                continue;
+            }
+
+            // Accept the request — record a transaction.
+            var tx = new DistributedTransaction
+            {
+                TransactionId    = Guid.NewGuid(),
+                OriginRequestId  = req.RequestId,
+                TargetDsmState   = DSMState.Standby,  // resolved by planner in later phases
+                TotalSteps       = 1,
+                CompletedSteps   = 1,
+                IsAborted        = false
+            };
+            AppendToHistory(tx);
+
+            _sysOpStatusWriter.Write(new SysOpStatus
+            {
+                RequestId  = req.RequestId,
+                Status     = OpStatus.InProgress,
+                ErrorCode  = 0,
+                ResultJson = string.Empty
+            });
+
+            FdpLog<DrillMaster>.Info(
+                "[Orchestrator] SysOpRequest {0} ({1}) accepted (transaction {2}).",
+                req.RequestId, req.OperationType, tx.TransactionId);
+        }
+    }
+
+    /// <summary>Broadcasts a <see cref="NodeOpCommand"/> to all currently active nodes.</summary>
+    private void BroadcastNodeOp(NodeOpCommand cmd)
+    {
+        // In Phase 1.5, the NodeOpCommand DDS topic is keyed by node; writing it once
+        // with a broadcast payload delivers to all readers on the same domain.
+        _nodeOpCommandWriter.Write(cmd);
+    }
+
+    private void PublishStandby()
+    {
+        _systemStateWriter.Write(new SystemStateTopic
+        {
+            CurrentState        = DSMState.Standby,
+            DrillId             = Guid.Empty,
+            StateStartWallTicks = 0,
+            TransactionEpoch    = 0
+        });
+    }
+
+    private void AppendToHistory(DistributedTransaction tx)
+    {
+        _history[_historyHead] = tx;
+        _historyHead = (_historyHead + 1) % _history.Length;
+    }
+
+    private static double UtcNowSeconds() =>
+        DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
 
     private void RunIdServerLoop(CancellationToken ct)
     {
@@ -101,5 +360,8 @@ public sealed class DrillMaster : IDisposable
         _idAllocatorServer = null;
         _systemStateWriter.Dispose();
         _heartbeatReader.Dispose();
+        _sysOpRequestReader.Dispose();
+        _sysOpStatusWriter.Dispose();
+        _nodeOpCommandWriter.Dispose();
     }
 }

@@ -97,9 +97,6 @@ namespace Bagira.SimHost
         private NetworkEntityMap?       _entityMap;
         private IGeographicTransform?   _geoTransform;
 
-        // ── ID-allocator local fallback (CGF1-S0103: central server lives on orchestrator) ──
-        private LocalIdAllocatorFallbackHost? _localIdAllocatorFallback;
-
         // ── Visualization ─────────────────────────────────────────────────────
         private SimHostVisualization? _vis;
         private IgPresentationModule? _igPresentationModule;
@@ -254,9 +251,9 @@ namespace Bagira.SimHost
             var entityMap      = new NetworkEntityMap();
             _entityMap         = entityMap;
 
-            // ── ID allocator client (server on orchestrator; optional in-process fallback after wait) ──
+            // ── ID allocator client (server lives on Bagira.Orchestrator; throws if unavailable) ──
             _idAllocator = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
-            EnsureIdAllocatorRouting(ddsParticipant, nodeConfig);
+            EnsureIdAllocatorRouting(ddsParticipant);
 
             // ── 5. Geodetic configuration ─────────────────────────────────────
             var wgs84     = BagiraEnvironment.CreateGeoTransform();
@@ -536,10 +533,6 @@ namespace Bagira.SimHost
             if (!_initialized) return;
             _initialized = false;
 
-            // ── Stop ID-allocator local fallback server ─────────────────────────
-            _localIdAllocatorFallback?.Dispose();
-            _localIdAllocatorFallback = null;
-
             // ── Stop DrillSlave (CGF1-S0104) ──────────────────────────────────
             _drillSlave?.Dispose();
             _drillSlave = null;
@@ -783,20 +776,18 @@ namespace Bagira.SimHost
         // ── Private helpers ───────────────────────────────────────────────────
 
         /// <summary>
-        /// Waits up to <see cref="NodeConfiguration.IdAllocatorLocalFallbackDelaySeconds"/> for a remote
-        /// allocator match. If still unmatched and local fallback is enabled, starts the in-process server.
+        /// Waits up to 30 s for the remote DDS ID allocator server (hosted by <c>Bagira.Orchestrator</c>)
+        /// to announce publication. Throws <see cref="InvalidOperationException"/> if the server is not
+        /// found within the timeout — SimHost must not start without a working allocator.
         /// </summary>
-        private void EnsureIdAllocatorRouting(DdsParticipant participant, NodeConfiguration nodeConfig)
+        private void EnsureIdAllocatorRouting(DdsParticipant participant)
         {
             if (_idAllocator == null) return;
-            var maxWaitSeconds = nodeConfig.IdAllocatorLocalFallbackEnabled
-                ? Math.Max(0, nodeConfig.IdAllocatorLocalFallbackDelaySeconds)
-                : 30;
-            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(maxWaitSeconds);
-            var warnAt = !nodeConfig.IdAllocatorLocalFallbackEnabled
-                ? DateTime.UtcNow + TimeSpan.FromSeconds(5)
-                : DateTime.MaxValue;
-            bool warned = false;
+            const int MaxWaitSeconds = 30;
+            const int WarnAtSeconds  = 5;
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(MaxWaitSeconds);
+            var warnAt   = DateTime.UtcNow + TimeSpan.FromSeconds(WarnAtSeconds);
+            bool warned  = false;
             while (DateTime.UtcNow < deadline)
             {
                 if (_idAllocator.HasPublicationMatch)
@@ -804,9 +795,9 @@ namespace Bagira.SimHost
                 if (!warned && DateTime.UtcNow >= warnAt)
                 {
                     FdpLog<SimHostApp>.Warn(
-                        "[SimHost] IdAllocator: no remote orchestrator server after 5 s — still waiting " +
-                        "(up to {0:F0} s total). Verify that Bagira.Orchestrator is running.",
-                        maxWaitSeconds);
+                        "[SimHost] IdAllocator: no remote orchestrator server after {0} s — still waiting " +
+                        "(up to {1:F0} s total). Verify that Bagira.Orchestrator is running.",
+                        WarnAtSeconds, MaxWaitSeconds);
                     warned = true;
                 }
                 Thread.Sleep(50);
@@ -815,13 +806,9 @@ namespace Bagira.SimHost
             if (_idAllocator.HasPublicationMatch)
                 return;
 
-            if (!nodeConfig.IdAllocatorLocalFallbackEnabled)
-                return;
-
-            _localIdAllocatorFallback = new LocalIdAllocatorFallbackHost(participant);
-            _localIdAllocatorFallback.Start();
-            for (var i = 0; i < 100 && !_idAllocator.HasPublicationMatch; i++)
-                Thread.Sleep(20);
+            throw new InvalidOperationException(
+                $"[SimHost] DdsIdAllocator publication match not established within {MaxWaitSeconds} s. " +
+                "Bagira.Orchestrator must be running before SimHost starts.");
         }
 
         /// <summary>

@@ -23,7 +23,7 @@ public class DrawPersonalRouteCommandTests : IDisposable
     public DrawPersonalRouteCommandTests()
     {
         _app = new IgApplication();
-        _app.InitializeEmbedded(headless: true, domainIdOverride: 242);
+        _app.InitializeEmbedded(headless: true, domainIdOverride: 207);
         _app.TestHook_SetCommandGateway(_gateway);
     }
 

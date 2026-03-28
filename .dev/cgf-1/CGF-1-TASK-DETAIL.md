@@ -164,7 +164,7 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
 3. Implement heartbeat timeout detection in `DrillMaster.Tick()`:
    - For each node in `NodeRoster.ActiveNodes`, if
      `secondsSinceLastHeartbeat > HeartbeatTimeoutSeconds`, call `EjectNode(nodeId)`.
-4. Implement `EjectNode(Guid nodeId)`:
+4. Implement `EjectNode(int nodeId)`:  *(normative correction: wire type is `int`, matching `NodeHeartbeat.NodeId`)*
    - Cancel any active `DistributedTransaction` ACK wait for that node.
    - Remove from `NodeRoster.ActiveNodes`.
    - If the ejected node was mandatory:

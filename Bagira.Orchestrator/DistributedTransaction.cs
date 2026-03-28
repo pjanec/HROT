@@ -13,4 +13,10 @@ public sealed class DistributedTransaction
     public float ElapsedSeconds { get; set; }
     public float TimeoutSeconds { get; set; } = 30f;
     public bool AllowPartialSuccess { get; set; }
+
+    /// <summary><c>true</c> when the transaction was aborted (e.g. due to mandatory-node ejection).</summary>
+    public bool IsAborted { get; set; }
+
+    /// <summary>Per-node ACK latency in milliseconds, keyed by node ID. Populated on commit.</summary>
+    public Dictionary<int, float> NodeAckLatencyMs { get; } = new();
 }

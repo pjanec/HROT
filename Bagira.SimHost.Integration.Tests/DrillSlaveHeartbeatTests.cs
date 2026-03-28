@@ -55,8 +55,6 @@ namespace Bagira.SimHost.Integration.Tests
             var simHostCfg = new NodeConfiguration
             {
                 DdsDomainId = TestDomain,
-                IdAllocatorLocalFallbackEnabled = true,
-                IdAllocatorLocalFallbackDelaySeconds = 0,
             };
             var simHostApp = new SimHostApp(TestDomain, NodeRole.AllInOne, simHostCfg);
             try

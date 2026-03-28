@@ -262,6 +262,11 @@ namespace Bagira.SimHost
             DdsParticipant? participant = null,
             string subsystemName = "SimHost")
         {
+            if (participant == null && (role == NodeRole.Brain || role == NodeRole.AllInOne))
+                throw new ArgumentNullException(nameof(participant),
+                    $"[SimHost] A DDS participant is required for orchestration role '{role}'. " +
+                    "DrillSlave cannot run without DDS in production.");
+
             var drillSlave = participant != null
                 ? new DrillSlave(participant, nodeId, subsystemName)
                 : new DrillSlave();

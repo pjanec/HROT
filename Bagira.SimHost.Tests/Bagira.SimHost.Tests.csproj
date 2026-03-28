@@ -21,8 +21,7 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Bagira.SimHost\Bagira.SimHost.csproj" />
+  <ItemGroup>    <ProjectReference Include="..\Bagira.Orchestrator\Bagira.Orchestrator.csproj" />    <ProjectReference Include="..\Bagira.SimHost\Bagira.SimHost.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />

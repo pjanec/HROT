@@ -17,8 +17,7 @@ namespace Bagira.DDS.DataModel.Tests
             static bool IsCodeGenType(Type t) =>
                 t.Name.EndsWith("_Native", StringComparison.Ordinal) ||
                 t.Name.EndsWith("View", StringComparison.Ordinal) ||
-                t.Name.EndsWith("KeyHolder", StringComparison.Ordinal) ||
-                t.Name.Contains('_');
+                t.Name.EndsWith("KeyHolder", StringComparison.Ordinal);
 
             var orchestrationAssembly = typeof(SystemStateTopic).Assembly;
             var topicStructs = orchestrationAssembly.GetTypes()

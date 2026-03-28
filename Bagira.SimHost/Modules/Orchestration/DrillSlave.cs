@@ -37,14 +37,14 @@ namespace Bagira.SimHost.Modules.Orchestration
         private CancellationTokenSource? _listenerCts;
         private bool _disposed;
 
-        // ── DDS-less constructor (kept for tests that don't require heartbeats) ──
+        // ── DDS-less constructor (internal: used only by NodeBootstrapper for non-orchestration roles) ──
 
         /// <summary>
         /// Creates a DrillSlave without DDS writers/readers.
         /// Heartbeat publishing and command ingestion are disabled.
-        /// Use <see cref="DrillSlave(DdsParticipant, int, string)"/> for production.
+        /// Not available for production orchestration roles; use <see cref="DrillSlave(DdsParticipant, int, string)"/>.
         /// </summary>
-        public DrillSlave() { }
+        internal DrillSlave() { }
 
         // ── Production constructor ────────────────────────────────────────────
 

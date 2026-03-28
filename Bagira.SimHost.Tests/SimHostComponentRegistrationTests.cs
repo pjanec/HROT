@@ -3,9 +3,11 @@ using System.Collections;
 using System.Linq;
 using System.Reflection;
 using Bagira.BDC.SSTD;
+using Bagira.Orchestrator;
 using Bagira.SimHost;
 using Bagira.SimHost.Configuration;
 using Bagira.Map.Common.Replication;
+using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Perception.Components;
@@ -16,8 +18,27 @@ using Xunit;
 
 namespace Bagira.SimHost.Tests
 {
-    public class SimHostComponentRegistrationTests
+    public class SimHostComponentRegistrationTests : IDisposable
     {
+        // Provides DdsIdAllocatorServer on every domain used by the tests in this class.
+        private readonly (DdsParticipant Participant, DrillMaster Master)[] _allocators;
+
+        private static readonly int[] AllocatorDomains = { 0, 96, 97, 98, 99 };
+
+        public SimHostComponentRegistrationTests()
+        {
+            _allocators = AllocatorDomains.Select(d =>
+            {
+                var p = new DdsParticipant((uint)d);
+                return (p, new DrillMaster(p));
+            }).ToArray();
+        }
+
+        public void Dispose()
+        {
+            foreach (var (p, m) in _allocators) { m.Dispose(); p.Dispose(); }
+        }
+
         [Fact]
         public void RegisterSimComponents_DoesNotRegisterEntityMaster()
         {

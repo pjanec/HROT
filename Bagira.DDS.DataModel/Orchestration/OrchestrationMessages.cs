@@ -75,7 +75,7 @@ namespace Bagira.BDC.SSTD.Orchestration
 
     [DdsTopic("NodeOpCommand")]
     [DdsIdlFile("bdc-sst-orchestration")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct NodeOpCommand
     {
         public Guid TransactionId;

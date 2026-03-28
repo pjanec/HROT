@@ -36,8 +36,6 @@ public sealed class DdsIdAllocatorMigrationTests
         var cfg = new NodeConfiguration
         {
             DdsDomainId = 0,
-            IdAllocatorLocalFallbackEnabled = false,
-            IdAllocatorLocalFallbackDelaySeconds = 5
         };
 
         var app = new SimHostApp(0, NodeRole.AllInOne, cfg);

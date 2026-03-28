@@ -192,7 +192,7 @@ public enum NodeOpType : int
     PrepareBattlespace   = 7, CommitBattlespace     = 8,
     PrepareLive          = 9, FinalizeLive          = 10,
     PrepareReplay        = 11, FinalizeReplay        = 12,
-    ReplaySeek           = 13, UploadChunk          = 14,
+    ReplaySeek           = 13, UploadChunk          = 14,  // ← design name; C# implementation uses NodeReplaySeek to avoid IDL literal clash with SysOpType.ReplaySeek (value 9)
     SerializeLocal       = 15, CleanupTempFiles     = 16,
     StartStory           = 20, StopStory            = 21,
     ReplayStory          = 22, ForgetStory          = 23,

@@ -63,12 +63,8 @@ IOS-IG-SimHost-FDP-2/
 │   ├── StorageGatewayModule.cs
 │   └── ReplayMasterModule.cs
 │
-├── Bagira.Orchestrator.Standalone/    ← NEW: standalone process entry point
-│
 ├── Bagira.CGF/                        ← NEW project (Stage 1.4)
 │   └── Modules/Orchestration/DrillSlave.cs
-│
-├── Bagira.CGF.Standalone/             ← NEW: standalone process entry point
 │
 ├── Bagira.SimHost/
 │   └── Modules/Orchestration/         ← NEW: DrillSlave, EcsRecordReplayController,
@@ -120,19 +116,19 @@ If you are unsure which layer a file belongs to, check: does it need to know abo
 
 ```powershell
 # Full solution (from repo root)
-dotnet build IOS-IG-SimHost-FDP-2.sln
+dotnet build IOS-IG-SimHost.sln
 
 # Run all tests
-dotnet test IOS-IG-SimHost-FDP-2.sln
+dotnet test IOS-IG-SimHost.sln
 
-# Run the Orchestrator standalone
-dotnet run --project Bagira.Orchestrator.Standalone
+# Run Orchestrator via Runner
+dotnet run --project Bagira.Runner -- --mode orchestrator
 
-# Run SimHost standalone (connects to Orchestrator automatically)
-dotnet run --project Bagira.SimHost.Standalone
+# Run SimHost via Runner (connects to Orchestrator automatically)
+dotnet run --project Bagira.Runner -- --mode simhost
 
-# Run CGF standalone
-dotnet run --project Bagira.CGF.Standalone
+# Run CGF via Runner
+dotnet run --project Bagira.Runner -- --mode cgf
 
 # Run all-in-one (all subsystems in one process)
 run_all_together.bat
@@ -141,8 +137,8 @@ run_all_together.bat
 dotnet run --project Bagira.Runner -- --mode ci --scenario MinimalCI_01
 ```
 
-The `build_all_standalone.bat` script in the repository root builds all standalone
-process variants.
+The `build_all_standalone.bat` script in the repository root builds all subsystem
+process variants via the Runner.
 
 ---
 

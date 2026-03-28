@@ -131,7 +131,6 @@ public sealed class EntityLifecycleIntegrationTests : IDisposable
         var domain0Cfg = new NodeConfiguration
         {
             DdsDomainId = 0,
-            IdAllocatorLocalFallbackEnabled = false,
         };
         using var simHostDomain0 = new SimHostApp(0, NodeRole.AllInOne, domain0Cfg);
         using var idParticipant0 = new DdsParticipant(0);

@@ -16,7 +16,7 @@ public class SetViewCommandTests : IDisposable
     public SetViewCommandTests()
     {
         _app = new IgApplication();
-        _app.InitializeEmbedded(headless: true, domainIdOverride: 241);
+        _app.InitializeEmbedded(headless: true, domainIdOverride: 206);
     }
 
     public void Dispose() => _app.Dispose();

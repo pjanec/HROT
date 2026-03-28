@@ -2,7 +2,9 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Bagira.Map.Common;
 using Bagira.SimHost.Modules.Orchestration;
+using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Replay;
 using ModuleHost.Core;
@@ -18,10 +20,14 @@ namespace Bagira.SimHost.Integration.Tests
     /// </summary>
     public class RecordReplayIntegrationTests : IDisposable
     {
-        private readonly EntityRepository _world;
+        // Domain 18 is reserved for RecordReplay integration tests (CGF1-S0104 / A.4).
+        private const int TestDomain = 18;
+
+        private readonly EntityRepository  _world;
         private readonly EventAccumulator  _evtAcc;
         private readonly ModuleHostKernel  _kernel;
         private readonly string            _tempDir;
+        private readonly DdsParticipant    _ddsParticipant;
 
         public RecordReplayIntegrationTests()
         {
@@ -29,6 +35,7 @@ namespace Bagira.SimHost.Integration.Tests
             _evtAcc = new EventAccumulator();
             _kernel = new ModuleHostKernel(_world, _evtAcc);
             _kernel.InitializeForTest();
+            _ddsParticipant = BagiraEnvironment.CreateParticipant(TestDomain);
 
             _tempDir = Path.Combine(
                 Path.GetTempPath(),
@@ -40,6 +47,7 @@ namespace Bagira.SimHost.Integration.Tests
         {
             _kernel.Dispose();
             _world.Dispose();
+            _ddsParticipant.Dispose();
             try { Directory.Delete(_tempDir, recursive: true); } catch { }
         }
 
@@ -48,10 +56,10 @@ namespace Bagira.SimHost.Integration.Tests
         [Fact(Timeout = 15_000)]
         public async Task NodeBootstrapper_BrainRole_RegistersEcsRecordReplayController()
         {
-            // Arrange
+            // Arrange — Brain role requires a real DDS participant (CGF-1-BATCH-03 A.4).
             var bootstrapper = new NodeBootstrapper();
-            var drillSlave   = bootstrapper.BuildOrchestration(
-                NodeRole.Brain, _kernel, _world, nodeId: 1);
+            using var drillSlave = bootstrapper.BuildOrchestration(
+                NodeRole.Brain, _kernel, _world, nodeId: 1, participant: _ddsParticipant);
 
             // Assert: EcsRecordReplayController registered as a DSM handler.
             Assert.True(drillSlave.IsHandlerRegistered<EcsRecordReplayController>(),
@@ -61,6 +69,7 @@ namespace Bagira.SimHost.Integration.Tests
         [Fact(Timeout = 10_000)]
         public void NodeBootstrapper_ImageGeneratorRole_NoControllerRegistered()
         {
+            // ImageGenerator role does not participate in orchestration — null participant allowed.
             var bootstrapper = new NodeBootstrapper();
             var drillSlave   = bootstrapper.BuildOrchestration(
                 NodeRole.ImageGenerator, _kernel, _world, nodeId: 2);

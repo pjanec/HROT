@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Bagira.Runner.Services;
+using Bagira.Orchestrator;
+using CycloneDDS.Runtime;
 using ModuleHost.Core;
 using ModuleHost.Network.Cyclone.Systems;
 
@@ -19,6 +21,12 @@ namespace Bagira.Runner.Tests
     public class SimHostSubsystemTests : IDisposable
     {
         private readonly SimHostSubsystem _subsystem;
+        // Provides DdsIdAllocatorServer on the test domain so EnsureIdAllocatorRouting succeeds.
+        private readonly DdsParticipant _allocatorParticipant;
+        private readonly DrillMaster   _drillMaster;
+        // Extra allocator for domain 0 (used by Initialize_DomainZero_* tests).
+        private readonly DdsParticipant _allocatorParticipantDomain0;
+        private readonly DrillMaster   _drillMasterDomain0;
 
         private static SubsystemConfig HeadlessConfig(int domainId = 98) => new()
         {
@@ -30,13 +38,21 @@ namespace Bagira.Runner.Tests
 
         public SimHostSubsystemTests()
         {
-            _subsystem = new SimHostSubsystem();
+            _allocatorParticipant        = new DdsParticipant(98);
+            _drillMaster                 = new DrillMaster(_allocatorParticipant);
+            _allocatorParticipantDomain0 = new DdsParticipant(0);
+            _drillMasterDomain0          = new DrillMaster(_allocatorParticipantDomain0);
+            _subsystem                   = new SimHostSubsystem();
         }
 
         public void Dispose()
         {
             _subsystem.Stop();
             _subsystem.Shutdown();
+            _drillMaster.Dispose();
+            _allocatorParticipant.Dispose();
+            _drillMasterDomain0.Dispose();
+            _allocatorParticipantDomain0.Dispose();
         }
 
         // ── Name ──────────────────────────────────────────────────────────────
@@ -221,7 +237,8 @@ namespace Bagira.Runner.Tests
         [Fact]
         public void Initialize_NonZeroDomain_PassedThrough()
         {
-            var cfg = new SubsystemConfig { DomainId = 5, Headless = true, OwnWindow = false, SubsystemName = "SimHost" };
+            // Verifies that a non-zero DomainId is accepted (domain 98 = test allocator domain).
+            var cfg = new SubsystemConfig { DomainId = 98, Headless = true, OwnWindow = false, SubsystemName = "SimHost" };
             var ex = Record.Exception(() => _subsystem.Initialize(cfg));
             Assert.Null(ex);
         }

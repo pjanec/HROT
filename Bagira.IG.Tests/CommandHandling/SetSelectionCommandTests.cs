@@ -18,7 +18,7 @@ public class SetSelectionCommandTests : IDisposable
     public SetSelectionCommandTests()
     {
         _app = new IgApplication();
-        _app.InitializeEmbedded(headless: true, domainIdOverride: 240);
+        _app.InitializeEmbedded(headless: true, domainIdOverride: 205);
     }
 
     public void Dispose() => _app.Dispose();

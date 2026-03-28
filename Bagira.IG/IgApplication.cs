@@ -740,10 +740,6 @@ public class IgApplication : IDisposable
 
         {
 
-            try
-
-            {
-
                 participant = BagiraEnvironment.CreateParticipant(domainId);
 
                 participant.EnableSenderTracking(new SenderIdentityConfig
@@ -868,54 +864,6 @@ public class IgApplication : IDisposable
                 var igNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : IgNetworkConstants.LocalNodeId;
                 _drillSlave = new Bagira.IG.Modules.Orchestration.DrillSlave(
                     participant, igNodeId, "IG");
-
-            }
-
-            catch (Exception ex)
-
-            {
-
-                FdpLog<IgApplication>.Warn("[IG] Network init failed ({0}). Running offline.", ex.Message);
-
-                _commandGateway?.Dispose();
-
-                _clickWriter?.Dispose();
-
-                _selectionWriter?.Dispose();
-
-                _configReader?.Dispose();
-
-                _commandReader?.Dispose();
-
-                _createEntityDdsWriter?.Dispose();
-                _mapCommandAckWriter?.Dispose();
-                _createEntityAckReader?.Dispose();
-                _deleteEntityDdsWriter?.Dispose();
-                _contextMenuRequestWriter?.Dispose();
-
-                participant?.Dispose();
-
-                _commandGateway          = null;
-                _commandGatewayInterface = null;
-
-                _clickWriter = null;
-
-                _selectionWriter = null;
-
-                _configReader = null;
-
-                _commandReader = null;
-
-                _createEntityDdsWriter = null;
-                _mapCommandAckWriter   = null;
-                _createEntityAckReader = null;
-                _deleteEntityDdsWriter = null;
-                _contextMenuRequestWriter = null;
-                _mapCommandController  = null;
-
-                _networkEnabled = false;
-
-            }
 
         }
 

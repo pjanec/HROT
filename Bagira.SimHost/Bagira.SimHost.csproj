@@ -14,6 +14,9 @@
     <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
       <_Parameter1>Bagira.SimHost.Tests</_Parameter1>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Bagira.SimHost.Integration.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
