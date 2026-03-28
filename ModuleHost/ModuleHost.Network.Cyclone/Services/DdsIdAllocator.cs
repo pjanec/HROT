@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using CycloneDDS.Runtime;
@@ -41,6 +41,14 @@ namespace ModuleHost.Network.Cyclone.Services
 
         /// <summary>Signalled when the server is first discovered (or already matched).</summary>
         private readonly ManualResetEventSlim _serverReadyEvent = new(false);
+
+        /// <summary>
+        /// Whether the allocator server's reader is matched to this client's request writer
+        /// (or discovery already completed). Used for optional local-server fallback timing.
+        /// </summary>
+        public bool HasPublicationMatch =>
+            System.Threading.Volatile.Read(ref _serverDiscoveredFlag) != 0
+            || _requestWriter.CurrentStatus.CurrentCount > 0;
 
         public DdsIdAllocator(DdsParticipant participant, string clientId)
         {
