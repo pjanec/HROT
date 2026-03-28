@@ -140,6 +140,70 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
 
 ---
 
+### CGF1-S0105 — Orchestrator Health Monitoring & Bootstrap Recovery
+
+**Design ref:** [§3.5](./CGF-1-DESIGN.md#35-stage-15--orchestrator-health-monitoring--bootstrap-recovery)
+
+**Work to do:**
+1. Create `Bagira.Orchestrator/ClusterConfiguration.cs`:
+   ```csharp
+   public class ClusterConfiguration
+   {
+       public string[] Mandatory { get; init; } = Array.Empty<string>();
+       public string[] Optional  { get; init; } = Array.Empty<string>();
+       public float    HeartbeatTimeoutSeconds    { get; init; } = 5f;
+       public int      TransactionHistoryCapacity { get; init; } = 50;
+   }
+   ```
+   Loaded at startup from `orchestrator-config.json` via `System.Text.Json`.
+2. Add `_bootstrapLatch: bool` to `DrillMaster` (initially `false`):
+   - Set to `true` once every subsystem name in `Mandatory` has appeared in the roster
+     with `LocalDsmState == Standby`.
+   - While `false`, return `OpStatus.Rejected` for all incoming `SysOpRequest` messages.
+   - On becoming `true`, publish `SystemStateTopic { CurrentState = Standby }`.
+3. Implement heartbeat timeout detection in `DrillMaster.Tick()`:
+   - For each node in `NodeRoster.ActiveNodes`, if
+     `secondsSinceLastHeartbeat > HeartbeatTimeoutSeconds`, call `EjectNode(nodeId)`.
+4. Implement `EjectNode(Guid nodeId)`:
+   - Cancel any active `DistributedTransaction` ACK wait for that node.
+   - Remove from `NodeRoster.ActiveNodes`.
+   - If the ejected node was mandatory:
+     a. Abort the current transaction if in-flight.
+     b. Publish `SystemStateTopic { CurrentState = Degraded }`.
+     c. Broadcast `NodeOpCommand(AbortTransaction)` to surviving nodes.
+     d. Broadcast `NodeOpCommand(PrepareState, Standby)` to surviving nodes only.
+     e. Re-engage `_bootstrapLatch = false` until mandatory nodes return.
+5. Add a `DistributedTransaction[]` ring buffer of capacity `TransactionHistoryCapacity`.
+   Append every completed/aborted transaction to it.
+6. Orchestrator ImGui panel changes:
+   - Remove `WaitingRoomCoordinator` gate (Orchestrator boots unconditionally).
+   - Render a "Waiting for mandatory nodes: X, Y" banner while `!_bootstrapLatch`.
+   - Disable simulation control buttons while `!_bootstrapLatch`.
+   - Add system-health table: `NodeId | SubsystemName | ms ago | LocalDsmState | CPU% | RAM`.
+   - Add 2PC history table listing last N transactions with per-node ACK latency (ms).
+
+**Success conditions (unit/integration tests in `Bagira.Orchestrator.Tests`):**
+- `DrillMasterBootstrapTests.RejectsCommands_UntilMandatoryNodesReady`:
+  - Configure `mandatory: ["SimHost"]`.
+  - Send `SysOpRequest(TransitionState, LoadingLive)` before a SimHost heartbeat arrives.
+  - Assert response is `OpStatus.Rejected`.
+  - Deliver SimHost `NodeHeartbeat { LocalDsmState = Standby }`.
+  - Assert the next `SysOpRequest(TransitionState, LoadingLive)` is accepted (not rejected).
+- `DrillMasterBootstrapTests.EjectsMandatoryNode_EntersDegraded`:
+  - Bootstrap with SimHost present.
+  - Advance the heartbeat timer past `HeartbeatTimeoutSeconds`.
+  - Assert `SystemStateTopic.CurrentState == Degraded` is published.
+- `DrillMasterBootstrapTests.SurvivingNodes_CommandedToStandby_AfterEjection`:
+  - Configure `mandatory: ["SimHost"]`; add CGF as `optional`.
+  - Both nodes bootstrap; eject SimHost by timeout.
+  - Assert CGF receives `NodeOpCommand(PrepareState, Standby)`.
+  - Assert SimHost does **NOT** receive any command after ejection.
+- `DrillMasterBootstrapTests.TransactionHistory_RecordsCompletedTransaction`:
+  - Execute a successful `SysOpRequest(TransitionState, LoadingLive)` end-to-end.
+  - Assert `DrillMaster.TransactionHistory` contains one entry with `IsAborted == false`.
+
+---
+
 ## Phase 2 — State & Time: DSM and Synchronization
 
 See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synchronization).
@@ -216,9 +280,17 @@ See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synch
 
 **Design ref:** [§4.3](./CGF-1-DESIGN.md#43-stage-23--time-strategy-proxying)
 
+> **Implementation note:** `ITimeController`, `SwitchableTimeController`,
+> `MasterTimeController`, `SlaveTimeController`, `SteppedMasterController`, and
+> `SteppedSlaveController` are **already implemented** in
+> `FDP/Toolkits/FDP.Toolkit.Time/`. This task is **verification and targeted
+> extension** — confirm each class satisfies the requirements below and add only
+> the missing members (`SeedState`, `TotalWallTicks`).
+
 **Work to do:**
-1. Create `FDP/Toolkits/FDP.Toolkit.Time/ITimeController.cs` declaring the
-   `ITimeController` interface and `TimeMode` enum (both purely FDP, no Bagira refs).
+1. Verify `FDP/Toolkits/FDP.Toolkit.Time/ITimeController.cs` declares the
+   `ITimeController` interface and `TimeMode` enum. If missing, create them — but
+   expect them to exist.
 2. Verify (and extend if needed) `SwitchableTimeController`:
    - Implements `ITimeController`.
    - `SwitchTo(ITimeController)` calls `newController.SeedState(currentState)` before
@@ -257,11 +329,14 @@ See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synch
 
 **Design ref:** [§4.4](./CGF-1-DESIGN.md#44-stage-24--future-barrier-implementation)
 
-> **Architecture note:** Nodes run asynchronously in real-time mode and do NOT maintain
-> a globally shared ECS frame counter. The barrier is therefore expressed as an absolute
-> **UTC wall-clock timestamp** (`DateTime.UtcNow.Ticks`) that is globally comparable
-> across the cluster via NTP. Each node independently checks whether the local wall clock
-> has reached or passed `BarrierWallTicks` on each tick.
+> **Architecture note — why `GlobalTime.TotalWallTicks`, not `DateTime.UtcNow.Ticks`:**
+> Nodes run asynchronously in real-time mode. `DateTime.UtcNow` is an NTP-based OS clock
+> and drifts up to 50–100 ms across hosts, defeating the purpose of a coordinated barrier.
+> FDP already maintains a **PLL-synchronized virtual wall clock**: the `MasterTimeController`
+> drives a high-resolution `Stopwatch`-based `TotalWallTicks`; the `SlaveTimeController`
+> uses a PLL to keep its own `TotalWallTicks` aligned with the master's. This is
+> the only globally coherent timestamp in the cluster and is the correct clock for the
+> future barrier.
 
 **Work to do:**
 1. Add `SwitchTimeModeEvent` struct to
@@ -270,7 +345,7 @@ See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synch
    public struct SwitchTimeModeEvent
    {
        public TimeMode TargetMode;
-       public long     BarrierWallTicks;  // DateTime.UtcNow.Ticks; globally comparable via NTP
+       public long     BarrierWallTicks;  // GlobalTime.TotalWallTicks as absolute tick count
        public float    FixedDelta;        // Only used when TargetMode == Deterministic
    }
    ```
@@ -280,36 +355,36 @@ See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synch
 3. Extend `DistributedTimeCoordinator`:
    - On receiving a mode-switch request, call `SetTimeScale(0.0)` on the active
      `ITimeController`.
-   - Compute `BarrierWallTicks = DateTime.UtcNow.Ticks + LookaheadTicks`
-     (configurable; default ≈ 200 ms expressed as ticks — sufficient for DDS delivery
-     across a LAN even under moderate load).
+   - Compute `BarrierWallTicks = _masterTime.GetCurrentState().TotalWallTicks + LookaheadTicks`
+     (configurable; default ≈ 200 ms expressed as `Stopwatch` ticks — sufficient for DDS
+     delivery across a LAN even under moderate load).
    - Publish `SwitchTimeModeEvent { TargetMode, BarrierWallTicks, FixedDelta }`.
-   - Each subsequent tick, check `DateTime.UtcNow.Ticks >= BarrierWallTicks`; when
-     true, call `_switchableTime.SwitchTo(newStrategy)` then restore saved `TimeScale`.
+   - Each subsequent tick, check `_kernel.CurrentTime.TotalWallTicks >= BarrierWallTicks`;
+     when true, call `_switchableTime.SwitchTo(newStrategy)` then restore saved `TimeScale`.
 4. Extend `SlaveTimeModeListener`:
    - On receiving `SwitchTimeModeEvent`, store `(TargetMode, BarrierWallTicks, FixedDelta)`.
-   - Each tick, check `DateTime.UtcNow.Ticks >= BarrierWallTicks`; when true, call
-     `_switchableTime.SwitchTo(new SteppedSlaveController(...))` or
+   - Each tick, check `_kernel.CurrentTime.TotalWallTicks >= BarrierWallTicks`; when true,
+     call `_switchableTime.SwitchTo(new SteppedSlaveController(...))` or
      `_switchableTime.SwitchTo(new SlaveTimeController(...))`.
-   - No dependency on any ECS frame counter.
+   - No dependency on any ECS frame counter or OS wall clock.
 
 **Success conditions (unit/integration tests in `FDP.Toolkit.Time.Tests`):**
 - `FutureBarrierTests.SlaveCallsSwitchToAfterBarrierWallTicks`:
-  - Inject a mock clock (`Func<long> getNow`) into `SlaveTimeModeListener`.
-  - Feed `SwitchTimeModeEvent { TargetMode = Deterministic, BarrierWallTicks = T+200ms }`.
-  - Advance mock clock to `T+199ms`: assert `SwitchTo()` has **not** been called.
-  - Advance mock clock to `T+200ms`: assert `SwitchTo()` is called **exactly once**.
+  - Inject a mock `ITimeController` whose `GetCurrentState().TotalWallTicks` returns a
+    controllable `long` value into `SlaveTimeModeListener`.
+  - Feed `SwitchTimeModeEvent { TargetMode = Deterministic, BarrierWallTicks = T+200ms_in_ticks }`.
+  - Advance mock `TotalWallTicks` to `T+199ms_in_ticks`: assert `SwitchTo()` has **not** been called.
+  - Advance mock `TotalWallTicks` to `T+200ms_in_ticks`: assert `SwitchTo()` is called **exactly once**.
 - `FutureBarrierTests.MasterCallsSwitchToAfterBarrierWallTicks`:
-  - Same pattern on the `DistributedTimeCoordinator` side using the same mock clock.
+  - Same pattern on the `DistributedTimeCoordinator` side using the same mock.
 - `FutureBarrierTests.SwitchToIsNotCalledBeforeBarrierWallTicks`:
-  - Feed the event; advance mock clock to `BarrierWallTicks - 1`; assert zero calls
-    to `SwitchTo()`.
+  - Feed the event; advance to `BarrierWallTicks - 1`; assert zero calls to `SwitchTo()`.
 - `FutureBarrierTests.SwitchTimeModeEvent_FieldIsBarrierWallTicks_NotFrameCounter`:
   - Verify via reflection that `SwitchTimeModeEvent` has no field named `BarrierFrame`
     and does have a `long` field named `BarrierWallTicks`.
 - `FutureBarrierTests.BarrierWallTicks_IsSetToFuture`:
   - Trigger a mode-switch on `DistributedTimeCoordinator`; capture the published
-    `SwitchTimeModeEvent`; assert `BarrierWallTicks > DateTime.UtcNow.Ticks` at
+    `SwitchTimeModeEvent`; assert `BarrierWallTicks > currentState.TotalWallTicks` at
     the moment of publication.
 
 ---
@@ -570,3 +645,174 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
     Live-from-Replay branch; run 50 more ticks of branched live simulation.
   - Assert the `.fdp` file for the branched DrillId contains a keyframe at frame 0
     that matches the ECS snapshot at tick 50 of the original recording.
+
+---
+
+### CGF1-S0306 — Scenario/Story Serialization Toolkit
+
+**Design ref:** [§5.6](./CGF-1-DESIGN.md#56-stage-36--scenariostory-serialization-toolkit)
+
+**New project:** `FDP/Toolkits/FDP.Toolkit.Scenario` — no Bagira references.
+
+**Work to do:**
+1. Create project `FDP.Toolkit.Scenario.csproj` referencing only `Fdp.Kernel` and
+   `System.Text.Json`.
+2. Declare `IEntityScenarioTranslator<TDto>`:
+   ```csharp
+   public interface IEntityScenarioTranslator<TDto> where TDto : class
+   {
+       bool  CanTranslate(EntityRepository repo, Entity entity);
+       TDto  Extract(EntityRepository repo, Entity entity);
+       void  Inject(EntityRepository repo, Entity entity, TDto dto);
+   }
+   ```
+3. Implement `ScenarioSerializerBuilder`:
+   - `RegisterTranslator<TDto>(IEntityScenarioTranslator<TDto> translator)` stores the
+     translator alongside its `TDto` type.
+   - `Build()` compiles `Func<object, JsonObject>` and `Action<JsonObject, object>`
+     delegates for each registered `TDto` using `Expression.Property` trees. No
+     runtime `Type.GetProperties()` calls on the hot path.
+   - Returns a frozen `ScenarioSerializer` instance.
+4. Implement `ScenarioSerializer`:
+   - `JsonObject Serialize(EntityRepository repo, ScenarioHeader header)`: two-pass
+     GUID resolution (see design §5.6), produces a `JsonObject` matching the schema.
+   - `void Deserialize(EntityRepository repo, JsonObject dom, bool asStory = false, string? storyId = null)`:
+     two-pass GUID resolution; if `asStory`, stamps `StoryTag { StoryId = storyId }`
+     on every spawned entity.
+5. Add `[ScenarioProperty]` and `[ScenarioIgnore]` attributes.  
+   For components without a registered `IEntityScenarioTranslator`, the fallback path
+   reads these attributes at `Build()` time and pre-compiles delegates — still no
+   runtime reflection on the hot path.
+6. Define `ScenarioHeader`:
+   ```csharp
+   public record ScenarioHeader(string SubsystemType, int SchemaVersion = 1);
+   ```
+
+**Schema contract to assert:**
+```json
+{
+  "Header": { "SubsystemType": "...", "SchemaVersion": 1 },
+  "Entities": {
+    "<guid>": { "ComponentName": { "field": "..." } }
+  }
+}
+```
+
+**Success conditions (unit tests in `FDP.Toolkit.Scenario.Tests`):**
+- `ScenarioSerializerTests.RoundTrip_PreservesAllProperties`:
+  - Register a translator for a `DummyPosition` component; serialize 3 entities;
+    deserialize into a fresh `EntityRepository`; assert each entity's `DummyPosition`
+    matches the original.
+- `ScenarioSerializerTests.EntityCrossReference_ResolvedByTwoPass`:
+  - Entity A has a field `TargetEntityId: Entity` pointing to Entity B.
+  - After serialize/deserialize, assert the resolved entity handle is valid and
+    refers to an entity with the same component data as the original Entity B.
+- `ScenarioSerializerTests.StoryLoad_StampsStoryTag`:
+  - Deserialize with `asStory: true, storyId: "story_01"`.
+  - Assert every created entity has `StoryTag { StoryId = "story_01" }`.
+- `ScenarioSerializerTests.SubsystemType_PresentInHeader`:
+  - Serialize with `SubsystemType = "Bagira.CGF"`.
+  - Assert `dom["Header"]["SubsystemType"].GetValue<string>() == "Bagira.CGF"`.
+- `ScenarioSerializerTests.Deserialize_NonMatchingSubsystemType_DoesNotSpawnEntities`:
+  - Build a serializer for `"Bagira.CGF"`; call `Deserialize` with a DOM whose
+    `SubsystemType == "Bagira.SimHost"`.
+  - Assert `EntityRepository.EntityCount` does not increase.
+- `ScenarioSerializerBuilder_Build_CompilesWithoutReflectionOnHotPath`:
+  - After `Build()`, confirm no `PropertyInfo.GetValue` is reachable from any compiled
+    delegate (inspect via a `Func<>` wrapper that asserts `MethodInfo.IsSpecialName`).
+
+---
+
+### CGF1-S0307 — Application-Layer Scenario Save/Load Wiring
+
+**Design ref:** [§5.7](./CGF-1-DESIGN.md#57-stage-37--application-layer-scenario-saveload-wiring)
+
+**Work to do:**
+1. Create `Bagira.Orchestrator/GlobalContextDsmHandler.cs`:
+   - **Save:** on `SerializeLocal` command, build a `GlobalContextDto` (start wall
+     ticks, weather descriptor, scene identifier) and serialize to
+     `C:\FDP_Temp\<DrillId>\Orchestrator.json`. Return UNC path in `NodeOpStatus.ResultJson`.
+   - **Load:** on `CommitState(LoadingLive|LoadingEdit)`, parse `Orchestrator.json`,
+     call `MasterTimeController.SeedState(new GlobalTime { TotalWallTicks = dto.StartWallTicks })`,
+     then publish `OrchestratorContextMessage` to the DDS `OrchestratorContextTopic`.
+2. Register `GlobalContextDsmHandler` in the Orchestrator's own `DrillSlave` at startup.
+3. In `Bagira.SimHost` (and `Bagira.CGF`), create `ScenarioLoadDsmHandler`:
+   - `PrepareAsync`: peek at `Header.SubsystemType`; if mismatch, return `Success` immediately.
+   - If match: parse full DOM, call `ScenarioSerializer.Deserialize()`, return `Success`.
+4. Wire `ScenarioLoadDsmHandler` registration in `SimHostApp.OnLoad()` and `CgfApp.OnLoad()`.
+5. Extend `TransitionPlanner.PlanTrajectory()`:
+   - When `SysOpRequest` contains `ScenarioId`, insert a
+     `OperationStep(PrefetchScenario, scenarioId)` before the first `TransitionStep`.
+6. Extend `StorageGatewayModule`:
+   - `PrefetchScenarioAsync(string scenarioId)`: copies all files from
+     `\\NAS\Scenarios\<scenarioId>\` to each node's `C:\FDP_Temp\<scenarioId>\` via
+     `NodeOpCommand(PrefetchFiles, manifest)`.
+7. Extend `StorageGatewayModule` save path:
+   - After all nodes return UNC manifests, collect paths and copy to NAS under
+     `\\NAS\Scenarios\<scenarioId>\`.
+   - Write `scenario_manifest.json` listing all participating file names.
+
+**Success conditions (integration tests in `Bagira.Orchestrator.Integration.Tests`):**
+- `ScenarioSaveLoadTests.RoundTrip_SimHost_EntitiesMatchAfterLoad`:
+  - Run live simulation with 3 entities in SimHost.
+  - Trigger `SysOpRequest(SaveScenario, "test_01")`.
+  - Verify `scenario_manifest.json` is written to NAS.
+  - Clear ECS; trigger `SysOpRequest(LoadScenario, "test_01")`.
+  - Assert 3 entities present in SimHost `EntityRepository` with matching component data.
+- `ScenarioSaveLoadTests.OrchestratorContextRestored_AfterLoad`:
+  - Save scenario; clear Orchestrator context; load scenario.
+  - Assert `OrchestratorContextTopic.SceneId` matches the saved value.
+- `ScenarioSaveLoadTests.SubsystemTypeFilter_CGFFileNotLoadedBySimHost`:
+  - Create a scenario file with `SubsystemType = "Bagira.CGF"`.
+  - Let SimHost's `ScenarioLoadDsmHandler` process it.
+  - Assert `EntityRepository.EntityCount` in SimHost does not increase.
+
+---
+
+### CGF1-S0308 — Runtime Story Injection & Deletion
+
+**Design ref:** [§5.8](./CGF-1-DESIGN.md#58-stage-38--runtime-story-injection--deletion)
+
+**Work to do:**
+1. Add `ManageStory` operation to `TransitionPlanner`:
+   - Validate `CurrentState == RunningLive`; if not, return `OpStatus.InvalidState`.
+   - For `Mode:Start`: append `OperationStep(PrefetchStory, storyId)` then
+     `OperationStep(StartStory, { StoryId, ScenarioId })`.
+   - For `Mode:Stop`: append `OperationStep(StopStory, { StoryId })`.
+2. Implement `StoryLoadDsmHandler` in `Bagira.SimHost` (and `Bagira.CGF`):
+   - On `StartStory(storyId, scenarioId)`:
+     - Load DOM from `C:\FDP_Temp\<scenarioId>\{SubsystemType}.json`.
+     - Peek `Header.SubsystemType`; if mismatch, reply
+       `NodeOpStatus(Success, IsParticipating: false)`.
+     - If match, call `ScenarioSerializer.Deserialize(repo, dom, asStory: true, storyId)`.
+     - Reply `NodeOpStatus(Success, IsParticipating: true)`.
+   - On `StopStory(storyId)`:
+     - Query all entities with `StoryTag.StoryId == storyId`.
+     - Destroy each entity.
+     - Reply `NodeOpStatus(Success)`.
+3. Extend `DrillMaster` to track active stories in `OrchestratorContextTopic.ActiveStories`
+   (`List<string>` of active story IDs; published after each Start/Stop operation).
+4. Extend `NodeOpStatus` with `bool IsParticipating` field (default `true`).  
+   `DrillMaster` waits only for ACKs from nodes that replied `IsParticipating: true`
+   during the `PrepareStory` phase.
+
+**Success conditions (integration tests in `Bagira.SimHost.Integration.Tests`):**
+- `StoryInjectionTests.StartStory_EntitiesSpawnedWithStoryTag`:
+  - System is in `RunningLive`. Inject story `"story_01"` targeting `Bagira.SimHost`.
+  - Assert 3 new entities appear in `EntityRepository`.
+  - Assert each has `StoryTag.StoryId == "story_01"`.
+- `StoryInjectionTests.StopStory_EntitiesDestroyedByStoryTag`:
+  - Inject `"story_01"` (3 entities). Stop `"story_01"`.
+  - Assert those 3 entities are no longer in `EntityRepository`.
+- `StoryInjectionTests.StartStory_NonMatchingSubsystem_ReturnsIsParticipatingFalse`:
+  - Create a story file with `SubsystemType = "Bagira.CGF"`.
+  - Process it through `SimHost.StoryLoadDsmHandler`.
+  - Assert `NodeOpStatus.IsParticipating == false` and `EntityRepository.EntityCount`
+    unchanged.
+- `StoryInjectionTests.ManageStory_RejectedWhen_NotInRunningLive`:
+  - Issue `SysOpRequest(ManageStory, { Mode:Start })` while cluster is in `Standby`.
+  - Assert response is `OpStatus.InvalidState`.
+- `StoryInjectionTests.MultipleStoriesCoexist_IndependentDeletion`:
+  - Inject stories `"s1"` (3 entities) and `"s2"` (2 entities).
+  - Stop `"s1"`.
+  - Assert `"s1"` entities gone; assert `"s2"` entities still present.

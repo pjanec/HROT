@@ -556,7 +556,7 @@ class NodeHealthProfile
 }
 ```
 
-### 5.3 Tick() Logic (runs every ECS frame at BeforeSync phase)
+### 5.3 Tick() Logic
 
 ```
 ┌─ TICK ──────────────────────────────────────────────────────────────────┐

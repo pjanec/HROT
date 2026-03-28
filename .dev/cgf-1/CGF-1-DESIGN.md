@@ -25,6 +25,7 @@
    - [Stage 1.2 — Bagira.Orchestrator Bootstrapping](#32-stage-12--bagiraorchestrator-bootstrapping)
    - [Stage 1.3 — Centralized Identity Migration](#33-stage-13--centralized-identity-migration)
    - [Stage 1.4 — DrillSlave Foundation](#34-stage-14--drillslave-foundation)
+   - [Stage 1.5 — Orchestrator Health Monitoring & Bootstrap Recovery](#35-stage-15--orchestrator-health-monitoring--bootstrap-recovery)
 4. [Phase 2 — State & Time: DSM and Synchronization](#4-phase-2--state--time-dsm-and-synchronization)
    - [Stage 2.1 — BFS Transition Planner](#41-stage-21--bfs-transition-planner)
    - [Stage 2.2 — DSM Handler Wiring](#42-stage-22--dsm-handler-wiring)
@@ -37,6 +38,9 @@
    - [Stage 3.3 — 3-Step Binary Checkpointing](#53-stage-33--3-step-binary-checkpointing)
    - [Stage 3.4 — Dynamic Recording Modules](#54-stage-34--dynamic-recording-modules)
    - [Stage 3.5 — Live-from-Replay Temporal Interlock](#55-stage-35--live-from-replay-temporal-interlock)
+   - [Stage 3.6 — Scenario/Story Serialization Toolkit](#56-stage-36--scenariostory-serialization-toolkit)
+   - [Stage 3.7 — Application-Layer Scenario Save/Load Wiring](#57-stage-37--application-layer-scenario-saveload-wiring)
+   - [Stage 3.8 — Runtime Story Injection & Deletion](#58-stage-38--runtime-story-injection--deletion)
 6. [New Projects & File Map](#6-new-projects--file-map)
 7. [Modified Files](#7-modified-files)
 8. [Deferred Features (Phase 5+)](#8-deferred-features-phase-5)
@@ -104,8 +108,13 @@ platform, enabling:
 │                                                                          │
 │  Fdp.Kernel:                                                             │
 │    IRecordReplayController, IEntityRefPatchable, ComponentPatchMap,      │
-│    CheckpointIOWorker, RecordingConfiguration, EsmStateChangedEvent,     │
+│    CheckpointIOWorker, RecordingConfiguration,                           │
 │    NetworkLifecycleSystemGroup  (generic scheduling primitive)           │
+│                                                                          │
+│  FDP.Toolkit.Scenario (new):                                             │
+│    IEntityScenarioTranslator<TDto>, ScenarioSerializerBuilder,           │
+│    [ScenarioProperty], [ScenarioIgnore] attributes,                      │
+│    two-pass GUID resolution engine, JIT-compiled delegate cache          │
 │                                                                          │
 │  FDP.Toolkit.Time:                                                       │
 │    ITimeController, SwitchableTimeController,                            │
@@ -134,10 +143,13 @@ platform, enabling:
 
 **Rules enforced at compile time:**
 - No `Bagira.*` `using` statement or project reference in any `FDP/` project.
-- DSMState, SysOpType, NodeOpType, OpStatus, and all DDS orchestration structs live in
+- `DSMState`, `SysOpType`, `NodeOpType`, `OpStatus`, and all DDS orchestration structs live in
   `Bagira.DDS.DataModel` — not in any FDP library.
-- The generic `IRecordReplayController` in `Fdp.Kernel` uses `GlobalTime` (which is
-  already in `Fdp.Kernel`) but has no knowledge of `DSMState` or `DrillId`.
+- `DsmStateChangedEvent` carries `DSMState` fields and therefore lives in`Bagira.Runner` or
+  `Bagira.Common` — **not** in `Fdp.Kernel`.
+- `IRecordReplayController` in `Fdp.Kernel` uses only `Guid`, `string`, and `GlobalTime`
+  (already in `Fdp.Kernel`); no `DSMState`, no Bagira references.
+- `FDP.Toolkit.Scenario` is generic; it knows neither JSON file paths nor DSM states.
 
 ---
 
@@ -380,6 +392,86 @@ SimHost and CGF within a 2-second wall-clock window. See
 
 ---
 
+### 3.5 Stage 1.5 — Orchestrator Health Monitoring & Bootstrap Recovery
+
+**Location:** `Bagira.Orchestrator/DrillMaster.cs` (extensions) and
+`Bagira.Orchestrator/ClusterConfiguration.cs` (new)
+
+#### Mandatory Node Configuration
+
+`DrillMaster` reads a `ClusterConfiguration` at startup from `orchestrator-config.json`.
+Only subsystem names are listed — `NodeId` values are discovered dynamically via heartbeats:
+
+```json
+{
+  "mandatory": ["SimHost", "CGF"],
+  "optional":  ["IG", "DataLogger"],
+  "heartbeatTimeoutSeconds": 5,
+  "transactionHistoryCapacity": 50
+}
+```
+
+Nodes whose `SubsystemName` is in neither list are treated as transient observers.
+
+#### Bootstrap Phase
+
+`DrillMaster` starts in an internal `Bootstrapping` latch state (not a DSM state —
+purely local bookkeeping):
+- All incoming `SysOpRequest` commands are rejected with `OpStatus.Rejected`.
+- Once **all** subsystems named in `mandatory` appear in the heartbeat roster with
+  `LocalDsmState == Standby`, the latch clears.
+- On latch clear: publish `SystemStateTopic { CurrentState = Standby }` and begin
+  accepting `SysOpRequest` commands.
+- If a mandatory node later drops off, the latch re-engages.
+
+#### Emergency Eviction Path (Dead-Node 2PC Deadlock Prevention)
+
+Standard 2PC requires ACKs from every node in `PendingNodes`. If a mandatory node
+crashes mid-transaction, the loop hangs forever. When the heartbeat monitor detects
+`SecondsSinceLastHeartbeat > HeartbeatTimeoutSeconds` for any node:
+
+```
+EjectNode(nodeId):
+  1. Cancel active DistributedTransaction for that nodeId — remove from PendingNodes.
+     If PendingNodes becomes empty, proceed with Commit as normal.
+  2. Remove nodeId from NodeRoster.ActiveNodes.
+  3. If node was mandatory:
+       a. Abort current transaction if still open.
+       b. Publish SystemStateTopic(Degraded).
+       c. Send NodeOpCommand(AbortTransaction) to all surviving nodes.
+       d. Send NodeOpCommand(PrepareState, Standby) to surviving nodes.
+          Evaluate this recovery 2PC only against the reduced roster.
+       e. Re-engage bootstrap latch: system is locked until mandatory nodes return.
+```
+
+#### Orchestrator ImGui Panel
+
+The Orchestrator process **bypasses `WaitingRoomCoordinator`** (boots instantly, renders
+immediately). UI behaviour:
+- While `!bootstrapComplete`: a prominent banner "Waiting for: SimHost, CGF" is shown;
+  all simulation control buttons are **disabled**.
+- Once operational: full control panel is enabled.
+- **System health table:** one row per known node — NodeId, SubsystemName, ms since last
+  heartbeat, LocalDsmState, CPU%, RAM used.
+- **2PC history table:** reads `TransactionHistory` ring-buffer directly (same-process
+  memory, no lock needed for ImGui read). Shows per-node ACK latency in milliseconds
+  for the last N transactions.
+- **Time control:** Pause / Resume / SetSpeed / Step — invokes `DistributedTimeCoordinator`
+  methods directly.
+- **Scenario controls:** Initialize Live / Load Scenario / Save Scenario / Init Replay
+  (selection from recorded DrillId list) / Story list + inject/unload.
+
+#### 2PC History Ring Buffer
+
+`DrillMaster` maintains a `DistributedTransaction[]` circular buffer of capacity
+`TransactionHistoryCapacity`. Completed and aborted transactions are written here
+immediately. The ImGui panel reads the buffer directly; no serialization required.
+
+**Milestone validation:** See
+[CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0105).
+
+---
+
 ## 4. Phase 2 — State & Time: DSM and Synchronization
 
 **Goal:** Prove the cluster can traverse the DSM safely; prove deterministic lockstep
@@ -474,8 +566,13 @@ assert the event bus receives `DsmStateChangedEvent{Next = LoadingLive}`. See
 
 #### ITimeController Interface
 
+> **Note:** `ITimeController` and all concrete strategies (`MasterTimeController`,
+> `SlaveTimeController`, `SteppedMasterController`, `SteppedSlaveController`,
+> `SwitchableTimeController`) already exist in `FDP.Toolkit.Time`. Stage 2.3 extends
+> them with `SeedState()` and `TotalWallTicks` — it does not create them from scratch.
+
 ```csharp
-// Location: FDP/Toolkits/FDP.Toolkit.Time/ITimeController.cs  (new)
+// Location: FDP/Toolkits/FDP.Toolkit.Time/ITimeController.cs  (already exists; extended)
 // Pure FDP — no Bagira reference
 public interface ITimeController
 {
@@ -522,47 +619,58 @@ DDS message (which would differ by network latency).
 public struct SwitchTimeModeEvent
 {
     public TimeMode TargetMode;
-    public long     BarrierWallTicks;  // DateTime.UtcNow.Ticks at which each node must swap
+    public long     BarrierWallTicks;  // GlobalTime.TotalWallTicks at which each node must swap
     public float    FixedDelta;        // Only meaningful when TargetMode == Deterministic
 }
 ```
 
-> **Why wall-clock, not ECS frame counter:**  
-> In non-deterministic (real-time) mode, nodes run their ECS loops asynchronously at
-> different rates depending on CPU load. There is no globally shared frame counter;
-> each node's `globalFrameCounter` advances independently. Using an ECS frame number
-> as a barrier would cause nodes to swap at different simulation instants, destroying
-> determinism. Wall-clock UTC time (`DateTime.UtcNow.Ticks`) is synchronized across
-> the cluster via NTP and is the only truly global reference available during
-> asynchronous operation.
+> **Why `GlobalTime.TotalWallTicks`, not ECS frame counter or `DateTime.UtcNow.Ticks`:**
+>
+> In non-deterministic (real-time) mode nodes run their ECS loops **asynchronously at
+> different frame rates**. There is no globally shared frame counter; each node's local
+> counter advances independently with CPU load and rendering overhead. A frame-number
+> barrier would fire at different simulation instants on each node, destroying determinism.
+>
+> Raw OS clock (`DateTime.UtcNow`) is also unsuitable: NTP does not guarantee sub-100 ms
+> precision and introduces unpredictable slew jumps that are fatal to frame-perfect
+> simulation coordination.
+>
+> `GlobalTime.TotalWallTicks` is the FDP **virtual wall clock**: a high-resolution
+> Stopwatch-based timestamp maintained by `MasterTimeController` and synchronized to
+> every slave via the `SlaveTimeController` Phase-Locked Loop (PLL). The PLL filters
+> network jitter to keep all slaves' `TotalWallTicks` within milliseconds of the master,
+> making it the only globally coherent timestamp available in asynchronous
+> non-deterministic mode.
 
 #### Future Barrier Protocol
 
 ```
 Master (DistributedTimeCoordinator):
-  1. SetTimeScale(0.0) — pause before negotiating
-  2. BarrierWallTicks = DateTime.UtcNow.Ticks + LookaheadTicks
-     (LookaheadTicks configurable; default ≈ 200 ms — enough for DDS delivery
-      across the LAN even under moderate load)
-  3. Publish SwitchTimeModeEvent { TargetMode, BarrierWallTicks, FixedDelta }
+  1. Read currentState = _masterTime.GetCurrentState()
+  2. BarrierWallTicks = currentState.TotalWallTicks + LookaheadTicks
+     (LookaheadTicks = e.g. 200ms × Stopwatch.Frequency / 1000 — configurable;
+      must be large enough for DDS delivery across the LAN)
+  3. Optionally call SetTimeScale(0.0) if the switch requires a sim freeze first
+  4. Publish SwitchTimeModeEvent { TargetMode, BarrierWallTicks, FixedDelta }
      via BlitEventTranslator (zero-allocation raw memcpy)
-  4. Simulate normally; when DateTime.UtcNow.Ticks >= BarrierWallTicks →
+  5. Each update: when _masterTime.GetCurrentState().TotalWallTicks >= BarrierWallTicks →
      _switchableTime.SwitchTo(new SteppedMasterController(...))
-  5. Restore saved TimeScale
+  6. Restore saved TimeScale
 
 Slave (SlaveTimeModeListener — FDP.Toolkit.Time):
-  1. Receives SwitchTimeModeEvent from DDS
-  2. Simulates normally (each tick checks wall clock)
-  3. When DateTime.UtcNow.Ticks >= BarrierWallTicks →
+  1. Receives SwitchTimeModeEvent from DDS; stores BarrierWallTicks
+  2. Simulates normally; each tick reads _kernel.CurrentTime.TotalWallTicks
+  3. When TotalWallTicks >= BarrierWallTicks →
      _switchableTime.SwitchTo(new SteppedSlaveController(...) or SlaveTimeController)
 ```
 
-All nodes check the same absolute UTC timestamp, so the swap converges to within one
-ECS tick of each other across the cluster regardless of individual frame rates.
+Because all slaves' `TotalWallTicks` are PLL-synchronized to the master virtual clock,
+the swap fires within one ECS tick of each other across the entire cluster, regardless
+of individual frame rates.
 
-**Milestone validation:** Wall-clock barrier test — master publishes event with
-`BarrierWallTicks = now + 200ms`; slave asserts `SwitchTo()` is called only after
-`DateTime.UtcNow.Ticks >= BarrierWallTicks` and not before. See
+**Milestone validation:** `GlobalTime.TotalWallTicks`-based barrier test — master sets
+`BarrierWallTicks = currentTime.TotalWallTicks + 200ms`; slave asserts `SwitchTo()` is
+called only after slave's `TotalWallTicks >= BarrierWallTicks` and not before. See
 [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0204).
 
 ---
@@ -762,6 +870,188 @@ state preserved in-place). See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf
 
 ---
 
+### 5.6 Stage 3.6 — Scenario/Story Serialization Toolkit
+
+**New project:** `FDP/Toolkits/FDP.Toolkit.Scenario`  
+Pure FDP toolkit — **no Bagira references**. Provides the format-agnostic DOM
+serialization engine. Operates on in-memory DOM objects (compatible with
+`System.Text.Json.Nodes.JsonObject`). Knows nothing about files, DDS, or the DSM.
+
+#### JSON Schema (Format Contract)
+
+```json
+{
+  "Header": {
+    "SubsystemType": "Bagira.CGF",
+    "SchemaVersion": 1
+  },
+  "Entities": {
+    "<persistable-guid>": {
+      "ComponentName": { "field1": "...", "field2": "..." }
+    }
+  }
+}
+```
+
+- `SubsystemType` is the **edge-filter key**: a subsystem whose canonical name does
+  not match this header ignores the file entirely and returns `Success` immediately
+  from its DSM handler — no full DOM parse required.
+- A story file uses the **exact same schema**. The loader stamps `StoryTag` on each
+  created entity when called with `asStory: true`.
+
+#### IEntityScenarioTranslator\<TDto\>
+
+```csharp
+// FDP/Toolkits/FDP.Toolkit.Scenario/IEntityScenarioTranslator.cs
+public interface IEntityScenarioTranslator<TDto> where TDto : class
+{
+    bool  CanTranslate(EntityRepository repo, Entity entity);
+    TDto  Extract(EntityRepository repo, Entity entity);
+    void  Inject(EntityRepository repo, Entity entity, TDto dto);
+}
+```
+
+Translators are **entity-level** (not component-level). A single translator can
+read/write several components, enabling "simplify on save / re-derive on load"
+patterns (e.g. strip computed pathfinding caches; re-run them post-injection).
+
+#### ScenarioSerializerBuilder
+
+```csharp
+var serializer = new ScenarioSerializerBuilder()
+    .RegisterTranslator(new TankScenarioTranslator())
+    .RegisterTranslator(new InfantryBrainTranslator())
+    .Build();                // JIT-compiles delegates; reflection-free hot path
+```
+
+`Build()` walks the registered translators, discovers `TDto` property shapes via
+`Expression.Property`, and compiles typed `Func<TDto, JsonObject>` / 
+`Action<JsonObject, TDto>` delegates once at startup.
+
+#### Two-Pass GUID Resolution
+
+**Save:**
+1. Iterate all matching entities; allocate a stable `Guid` per entity; build
+   `Dictionary<Entity, Guid>`.  
+2. For each entity call `translator.Extract()`; any `Entity`-typed field in the DTO
+   is replaced by its `Guid` from the map before serialization.
+
+**Load:**
+1. Parse DOM entities; create ECS entities; build `Dictionary<Guid, Entity>`.  
+2. For each DOM entity call `translator.Inject()`; any serialized `Guid` that refers
+   to another entity is resolved to its live `Entity` handle.
+
+#### Annotations (Fallback Path)
+
+For components that do not have a hand-written `IEntityScenarioTranslator`, the
+toolkit provides a reflective fallback governed by attributes:
+
+```csharp
+[ScenarioProperty]   // include this field in auto-translated scenarios
+[ScenarioIgnore]     // exclude this field from auto-translation
+```
+
+These are evaluated at `Build()` time; the delegates are still pre-compiled.
+
+**Milestone validation:** See
+[CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0306).
+
+---
+
+### 5.7 Stage 3.7 — Application-Layer Scenario Save/Load Wiring
+
+Wires `FDP.Toolkit.Scenario` into the Bagira nodes (SimHost, CGF, Orchestrator). Each
+node owns a single file in the multi-file scenario bundle.
+
+#### Orchestrator's Own DrillSlave + GlobalContextDsmHandler
+
+The Orchestrator has no ECS, but it still participates in scenario save/load. It holds
+its own `DrillSlave` instance and registers a `GlobalContextDsmHandler`:
+
+- **Save path** (`SerializeLocal`): serializes global context (simulation start wall
+  ticks, global weather descriptor, scene identifier) to
+  `C:\FDP_Temp\<DrillId>\Orchestrator.json`. Returns the path as a UNC manifest entry.
+- **Load path** (`CommitState(LoadingLive|LoadingEdit)`): parses the pre-fetched
+  `Orchestrator.json`, writes `GlobalTime` epoch into `MasterTimeController.SeedState()`,
+  publishes weather + scene metadata to the `OrchestratorContextTopic`.
+
+#### SubsystemType Header for Edge Filtering
+
+Every scenario JSON file carries `Header.SubsystemType`. Each subsystem's DSM handler
+peeks at this field before embarking on a full DOM parse:
+
+```csharp
+if (header.SubsystemType != _subsystemTypeName)
+    return null;  // PrepareAsync success — skip gracefully
+```
+
+StorageGateway pushes the full set of scenario files to **all** nodes without
+routing logic; each node self-selects its own file.
+
+#### Multi-File Scenario Save Flow
+
+1. Orchestrator broadcasts `NodeOpCommand(SerializeLocal, scenarioId)`.
+2. Each node serializes its own files to local SSD.
+3. Each node returns a UNC manifest in `NodeOpStatus.ResultJson`.
+4. `StorageGatewayModule` pulls all manifests and copies all files to NAS under
+   `\\NAS\Scenarios\<scenarioId>\`.
+5. `scenario_manifest.json` (written by Orchestrator) lists all participating files.
+
+#### Multi-File Scenario Load Flow
+
+1. `TransitionPlanner` inserts a Storage Gateway pre-fetch step when `ScenarioId != null`.
+2. All scenario files for that ID are copied from NAS to each node's
+   `C:\FDP_Temp\<scenarioId>\`.
+3. Each node's DSM handler finds its own file via header match, deserializes, and
+   spawns entities.
+
+**Milestone validation:** See
+[CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0307).
+
+---
+
+### 5.8 Stage 3.8 — Runtime Story Injection & Deletion
+
+Stories execute while the global cluster remains in `RunningLive`. The
+`TransitionPlanner` models story injection as an **`OperationStep(ManageStory)`** —
+not a `TransitionStep` — so the cluster state does not change.
+
+#### Injection Flow
+
+1. IOS/UI sends `SysOpRequest(ManageStory, { StoryId, ScenarioId, Mode:Start })`.
+2. `TransitionPlanner` validates `CurrentState == RunningLive`; appends
+   `OperationStep(StartStory, payload)`.
+3. **Pre-fetch:** `StorageGatewayModule` copies story files from NAS to all node
+   local temp dirs before the 2PC broadcast.
+4. Master broadcasts `NodeOpCommand(StartStory, payload)` to all nodes.
+5. Each `DrillSlave` receives the command:
+   - Peeks at `Header.SubsystemType` in the story JSON.
+   - **Mismatch:** replies `NodeOpStatus(Success, IsParticipating: false)` immediately.
+   - **Match:** calls `ScenarioSerializer.Load(dom, asStory: true, storyId)`:
+     - Spawns entities; stamps `StoryTag { StoryId }` on each.
+     - Replies `NodeOpStatus(Success, IsParticipating: true)`.
+6. Master records the story as active in `OrchestratorContextTopic.ActiveStories`.
+
+#### Deletion Flow
+
+1. IOS/UI sends `SysOpRequest(ManageStory, { StoryId, Mode:Stop })`.
+2. `TransitionPlanner` appends `OperationStep(StopStory, { StoryId })`.
+3. Master broadcasts `NodeOpCommand(StopStory, { StoryId })`.
+4. Each matching `DrillSlave` queries all entities with `StoryTag.StoryId == storyId`
+   and destroys them.  Non-matching nodes reply `IsParticipating: false`.
+5. Master removes the story from `OrchestratorContextTopic.ActiveStories`.
+
+#### `IsParticipating` Opt-Out Semantics
+
+`NodeOpStatus.IsParticipating` signals intentional non-participation (not a failure).
+The Master only waits for ACKs from nodes that replied with `IsParticipating: true`
+during the Prepare phase. Nodes without matching story content opt out cleanly.
+
+**Milestone validation:** See
+[CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0308).
+
+---
+
 ## 6. New Projects & File Map
 
 ### New Projects
@@ -773,6 +1063,7 @@ state preserved in-place). See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf
 | `Bagira.CGF` | CGF subsystem scaffold; DrillSlave, future AI content |
 | `Bagira.CGF.Standalone` | Process entry point for standalone CGF |
 | `Bagira.CGF.Tests` | CGF unit and integration tests |
+| `FDP.Toolkit.Scenario` | Format-agnostic scenario/story DOM serialization engine; no Bagira refs |
 
 ### New Files in Existing Projects
 
@@ -795,13 +1086,24 @@ state preserved in-place). See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf
 | `Modules/Orchestration/Handlers/EditLoadDsmHandler.cs` | `Bagira.SimHost` | 3.2 |
 | `Modules/Orchestration/Handlers/CheckpointDsmHandler.cs` | `Bagira.SimHost` | 3.3 |
 | `Events/DsmStateChangedEvent.cs` | `Bagira.Runner` or `Bagira.Common` | 2.2 |
-| `ITimeController.cs` | `FDP.Toolkit.Time` | 2.3 |
+| `ITimeController.cs` | `FDP.Toolkit.Time` | 2.3 (already exists — verify & extend) |
 | `Orchestration/IRecordReplayController.cs` | `Fdp.Kernel` | 3.4 |
 | `Orchestration/RecordingConfiguration.cs` | `Fdp.Kernel` | 3.4 |
 | `Orchestration/CheckpointIOWorker.cs` | `Fdp.Kernel` | 3.3 |
 | `Orchestration/IEntityRefPatchable.cs` | `Fdp.Kernel` | 3.4 (pre-req for Phase 5 Stories) |
 | `Scheduling/NetworkLifecycleSystemGroup.cs` | `ModuleHost.Core` | 3.4/3.5 |
 | `Messages/TimeMessages.cs` (addition: `SwitchTimeModeEvent` with `BarrierWallTicks`) | `FDP.Toolkit.Time` | 2.4 |
+| `ClusterConfiguration.cs` | `Bagira.Orchestrator` | 1.5 |
+| `IEntityScenarioTranslator.cs` | `FDP.Toolkit.Scenario` | 3.6 |
+| `ScenarioSerializerBuilder.cs` | `FDP.Toolkit.Scenario` | 3.6 |
+| `ScenarioSerializer.cs` | `FDP.Toolkit.Scenario` | 3.6 |
+| `ScenarioPropertyAttribute.cs` | `FDP.Toolkit.Scenario` | 3.6 |
+| `ScenarioIgnoreAttribute.cs` | `FDP.Toolkit.Scenario` | 3.6 |
+| `GlobalContextDsmHandler.cs` | `Bagira.Orchestrator` | 3.7 |
+| `Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` | `Bagira.SimHost` | 3.7 |
+| `Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` | `Bagira.CGF` | 3.7 |
+| `Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | `Bagira.SimHost` | 3.8 |
+| `Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | `Bagira.CGF` | 3.8 |
 
 ---
 
@@ -812,8 +1114,8 @@ state preserved in-place). See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf
 | `FDP.Toolkit.Time/Controllers/MasterTimeController.cs` | Implement `ITimeController`; add `SeedState(GlobalTime)` with immediate `TimePulseDescriptor` publish | 2.3 |
 | `FDP.Toolkit.Time/Controllers/SlaveTimeController.cs` | Implement `ITimeController`; add `SeedState(GlobalTime)` bypassing `JitterFilter`; expose `TotalWallTicks` | 2.3 |
 | `FDP.Toolkit.Time/Controllers/SwitchableTimeController.cs` | Verify `SwitchTo()` calls `GetCurrentState()` then `SeedState()` on new instance | 2.3 |
-| `FDP.Toolkit.Time/Controllers/DistributedTimeCoordinator.cs` | Add BarrierFrame computation; publish `SwitchTimeModeEvent` via `BlitEventTranslator` | 2.4 |
-| `FDP.Toolkit.Time/Controllers/SlaveTimeModeListener.cs` | Subscribe to `SwitchTimeModeEvent`; call `SwitchTo()` at barrier frame | 2.4 |
+| `FDP.Toolkit.Time/Controllers/DistributedTimeCoordinator.cs` | Add BarrierWallTicks computation using `GlobalTime.TotalWallTicks + lookaheadTicks`; publish `SwitchTimeModeEvent` via `BlitEventTranslator` | 2.4 |
+| `FDP.Toolkit.Time/Controllers/SlaveTimeModeListener.cs` | Subscribe to `SwitchTimeModeEvent`; check `_kernel.CurrentTime.TotalWallTicks >= BarrierWallTicks`; call `SwitchTo()` at barrier | 2.4 |
 | `Fdp.Kernel/GlobalTime.cs` | Add `long TotalWallTicks` field | 2.3/3.4 |
 | `Fdp.Kernel/FlightRecorder/RecorderSystem.cs` | Add `EntityFilter` predicate; add `long WallClockTicks` to frame header; add `CaptureEventFrame(long, …)` | 3.4 |
 | `Fdp.Kernel/FlightRecorder/AsyncRecorder.cs` | Accept `EntityFilter`; expose `MaxNetworkId` at finalization | 3.4 |
@@ -832,8 +1134,7 @@ None of them are required before Phase 4 (Urban Combat AI):
 
 | Feature | Reason for deferral |
 |---------|---------------------|
-| **Stories** (§10 of mgmt-DESIGN) | Requires `ComponentPatchMap`, `IEntityRefPatchable`, `StoryPlaybackController`, zero-alloc entity-ref patching — massive complexity not needed until multi-tenant training sessions are required |
-| **Battlespaces** (§11) | Urban Combat demo uses a static city intersection; staged terrain loading is unnecessary for Phase 4 |
+| **Battlespaces** (§11 of mgmt-DESIGN) | Urban Combat demo uses a static city intersection; staged terrain loading is unnecessary for Phase 4 |
 | **"Always Recording" event frames during Edit** (§8.12) | Basic simulation-time recording is sufficient for CI validation; paused-time UTC event capture introduces edge cases distracting from Phase 3 correctness |
-| **Full Node Health Monitoring + Criticality** (§7) | Development uses simple heartbeat timeout; full fault-tolerance classifications are a deployment concern, not a CI concern |
 | **Archive Export/Import** (§13) | Pre/post replay file management can be manual during development; fully automated archive operations belong to deployment phase |
+| **Full Story Playback Controller** | `StoryPlaybackController` (timed/conditional story events that replay as narrative) is deferred until multi-tenant training sessions are needed; Stage 3.8 covers injection/deletion only |
