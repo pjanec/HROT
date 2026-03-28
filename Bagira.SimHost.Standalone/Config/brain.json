@@ -1,7 +1,0 @@
-{
-  "CycloneDdsConfigPath": "Config/dds-node.xml",
-  "DdsDomainId": 42,
-  "RoadNetworkBlobPath": "",
-  "DoctrineRegistryPath": "",
-  "EntityTemplatePath": ""
-}

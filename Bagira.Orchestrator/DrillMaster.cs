@@ -15,7 +15,6 @@ public sealed class DrillMaster : IDisposable
 
     private readonly DdsWriter<SystemStateTopic> _systemStateWriter;
     private readonly DdsReader<NodeHeartbeat> _heartbeatReader;
-    private readonly Dictionary<int, NodeHealthProfile> _profiles = new();
     private readonly NodeRoster _roster = new();
     private DdsIdAllocatorServer? _idAllocatorServer;
     private CancellationTokenSource? _idServerCts;
@@ -56,7 +55,6 @@ public sealed class DrillMaster : IDisposable
         IngestHeartbeats();
         var now = UtcNowSeconds();
         _roster.PruneStale(now, DefaultHeartbeatPruneSeconds);
-        _idAllocatorServer?.ProcessRequests();
     }
 
     private void IngestHeartbeats()
@@ -74,7 +72,6 @@ public sealed class DrillMaster : IDisposable
                 LocalDsmState = hb.LocalDsmState,
                 LastHeartbeatUtcSeconds = now
             };
-            _profiles[hb.NodeId] = profile;
             _roster.Upsert(profile);
         }
     }

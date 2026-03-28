@@ -174,3 +174,34 @@ Key points:
   the required success conditions pass.
 - Do not skip ahead to Phase 2 tasks until all Phase 1 success conditions are green.
 - Update [CGF-1-TASK-TRACKER.md](./CGF-1-TASK-TRACKER.md) as tasks complete.
+
+---
+
+## DDS Test Isolation — Contributor Note
+
+**Problem:** Several test assemblies use DDS domain 0. When `dotnet test IOS-IG-SimHost.sln`
+runs all assemblies in parallel, DDS participants in different test processes discover each
+other and cause intermittent failures (e.g. `DomainIsolation_*`, migration tests).
+
+**Mitigations applied (CGF-1-BATCH-02):**
+
+| Where | Mitigation |
+|-------|-----------|
+| `Bagira.Orchestrator.Tests` | Uses **domain 15** exclusively; all tests grouped in `[Collection("OrchestratorTests")]` with `DisableParallelization = true`. |
+| `Bagira.SimHost.Integration.Tests` | Existing `[Collection("LogCapture")]` with `DisableParallelization = true` — applies to migration and lifecycle tests. |
+| `Bagira.SimHost.Integration.Tests` | New CGF-related tests (`DrillSlaveHeartbeatTests`) use **domain 16**. |
+
+**Until a broader multi-assembly domain-isolation strategy is adopted**, CI pipelines that still
+see flakes should run integration tests serially:
+
+```powershell
+dotnet test IOS-IG-SimHost.sln --maxcpucount:1 -- dotnet test
+```
+
+or target individual integration-test assemblies in isolation:
+
+```powershell
+dotnet test Bagira.SimHost.Integration.Tests
+dotnet test Bagira.Orchestrator.Tests
+```
+

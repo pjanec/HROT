@@ -107,6 +107,9 @@ namespace Bagira.SimHost
         // ── SimLogic ─────────────────────────────────────────────────────────
         private SimulationLogicModule? _simLogicModule;
 
+        // ── Orchestration (CGF1-S0104) ────────────────────────────────────────
+        private Bagira.SimHost.Modules.Orchestration.DrillSlave? _drillSlave;
+
         // ── Headless/test support ────────────────────────────────────────────
         private bool _headless;
         private int? _domainOverride;
@@ -319,6 +322,13 @@ namespace Bagira.SimHost
                 vehicleApi:  null,
                 roadNetwork: roadNetwork);
 
+            // ── 8a. DrillSlave (CGF1-S0104) ───────────────────────────────────
+            // Built here so SimHostApp owns lifetime; Tick() called in OnUpdate.
+            _drillSlave = bootstrapper.BuildOrchestration(
+                _role, _kernel, _world, localNodeId,
+                participant: ddsParticipant,
+                subsystemName: "SimHost");
+
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
             _kernelGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
@@ -470,6 +480,7 @@ namespace Bagira.SimHost
 
         protected override void OnUpdate(float dt)
         {
+            _drillSlave?.Tick();
             _vis?.Update(dt);
             _kernelGroup?.Run();   // process incoming requests first (sets dirty flags)
             _kernel?.Update();     // then run egress scan (picks up dirty → publishes immediately)
@@ -528,6 +539,10 @@ namespace Bagira.SimHost
             // ── Stop ID-allocator local fallback server ─────────────────────────
             _localIdAllocatorFallback?.Dispose();
             _localIdAllocatorFallback = null;
+
+            // ── Stop DrillSlave (CGF1-S0104) ──────────────────────────────────
+            _drillSlave?.Dispose();
+            _drillSlave = null;
 
             // ── Dispose simulation resources ──────────────────────────────────
             _vis?.Dispose();
@@ -778,10 +793,22 @@ namespace Bagira.SimHost
                 ? Math.Max(0, nodeConfig.IdAllocatorLocalFallbackDelaySeconds)
                 : 30;
             var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(maxWaitSeconds);
+            var warnAt = !nodeConfig.IdAllocatorLocalFallbackEnabled
+                ? DateTime.UtcNow + TimeSpan.FromSeconds(5)
+                : DateTime.MaxValue;
+            bool warned = false;
             while (DateTime.UtcNow < deadline)
             {
                 if (_idAllocator.HasPublicationMatch)
                     return;
+                if (!warned && DateTime.UtcNow >= warnAt)
+                {
+                    FdpLog<SimHostApp>.Warn(
+                        "[SimHost] IdAllocator: no remote orchestrator server after 5 s — still waiting " +
+                        "(up to {0:F0} s total). Verify that Bagira.Orchestrator is running.",
+                        maxWaitSeconds);
+                    warned = true;
+                }
                 Thread.Sleep(50);
             }
 

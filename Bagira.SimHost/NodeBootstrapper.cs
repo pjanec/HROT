@@ -243,22 +243,28 @@ namespace Bagira.SimHost
         /// Creates a <see cref="DrillSlave"/> with role-appropriate
         /// <see cref="IDsmHandler"/> registrations.
         /// <para>
-        /// For <see cref="NodeRole.Brain"/> and <see cref="NodeRole.AllInOne"/>,
-        /// an <see cref="EcsRecordReplayController"/> is registered so that the slave
-        /// can dispatch recording/replay DSM commands to it.
+        /// When <paramref name="participant"/> is provided the slave publishes
+        /// heartbeats and subscribes to <c>NodeOpCommand</c> messages. Pass
+        /// <c>null</c> in unit tests that only verify handler registration.
         /// </para>
         /// </summary>
         /// <param name="role">Node role that determines which handlers are wired.</param>
         /// <param name="kernel">Kernel used by <see cref="EcsRecordReplayController"/> for module installs.</param>
         /// <param name="world">Live entity repository forwarded to the controller.</param>
-        /// <param name="nodeId">Local node identifier embedded in recording file names.</param>
+        /// <param name="nodeId">Local node identifier embedded in recording file names and heartbeats.</param>
+        /// <param name="participant">Optional DDS participant. Supply to enable heartbeat/command DDS I/O.</param>
+        /// <param name="subsystemName">Subsystem name published in heartbeats (default <c>"SimHost"</c>).</param>
         public DrillSlave BuildOrchestration(
             NodeRole role,
             ModuleHost.Core.ModuleHostKernel kernel,
             Fdp.Kernel.EntityRepository world,
-            int nodeId)
+            int nodeId,
+            DdsParticipant? participant = null,
+            string subsystemName = "SimHost")
         {
-            var drillSlave = new DrillSlave();
+            var drillSlave = participant != null
+                ? new DrillSlave(participant, nodeId, subsystemName)
+                : new DrillSlave();
 
             if (role == NodeRole.Brain || role == NodeRole.AllInOne)
             {

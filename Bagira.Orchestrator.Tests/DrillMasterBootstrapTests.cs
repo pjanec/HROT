@@ -3,19 +3,27 @@ using CycloneDDS.Runtime;
 
 namespace Bagira.Orchestrator.Tests;
 
+// Domain 15 is reserved for orchestrator unit tests to avoid interfering with
+// domain-0 tests in Bagira.SimHost.Integration.Tests and other assemblies.
+[CollectionDefinition("OrchestratorTests", DisableParallelization = true)]
+public class OrchestratorTestCollection { }
+
+[Collection("OrchestratorTests")]
 public sealed class DrillMasterBootstrapTests
 {
+    private const int TestDomain = 15;
+
     [Fact]
     public void OrchestratorPublishesStandbyOnStartup()
     {
-        using var participant = new DdsParticipant(0);
+        using var participant = new DdsParticipant(TestDomain);
         using var reader = new DdsReader<SystemStateTopic>(participant);
-        SystemStateTopic? received = null;
+        var received = new List<SystemStateTopic>();
         var deadline = DateTime.UtcNow.AddSeconds(3);
 
         using (var drill = new DrillMaster(participant))
         {
-            while (DateTime.UtcNow < deadline && received == null)
+            while (DateTime.UtcNow < deadline)
             {
                 drill.Tick();
                 using (var scope = reader.Take())
@@ -23,18 +31,19 @@ public sealed class DrillMasterBootstrapTests
                     foreach (var sample in scope)
                     {
                         if (!sample.IsValid) continue;
-                        received = sample.Data;
-                        break;
+                        received.Add(sample.Data);
                     }
                 }
 
-                if (received == null)
-                    Thread.Sleep(20);
+                if (received.Count >= 1) break;
+                Thread.Sleep(20);
             }
         }
 
-        Assert.True(received.HasValue, "No SystemStateTopic sample within 3 s.");
-        Assert.Equal(DSMState.Standby, received!.Value.CurrentState);
-        Assert.Equal(0, received.Value.TransactionEpoch);
+        Assert.True(received.Count > 0, "No SystemStateTopic sample within 3 s.");
+        Assert.Equal(1, received.Count);
+        Assert.Equal(DSMState.Standby, received[0].CurrentState);
+        Assert.Equal(0, received[0].TransactionEpoch);
     }
 }
+

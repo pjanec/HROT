@@ -32,6 +32,7 @@
 
   <ItemGroup>
     <!-- Bagira data model and map types -->
+    <ProjectReference Include="..\Bagira.Common\Bagira.Common.csproj" />
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
     <ProjectReference Include="..\Bagira.IG\Bagira.IG.csproj" />
     <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />

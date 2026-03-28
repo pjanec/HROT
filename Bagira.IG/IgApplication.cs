@@ -204,9 +204,12 @@ public class IgApplication : IDisposable
 
 
 
-    // -- Network enabled flag ÔÇö false when DDS libraries are unavailable (e.g. unit-test host)
+    // -- Network enabled flag — false when DDS libraries are unavailable (e.g. unit-test host)
 
     private bool _networkEnabled;
+
+    // -- DrillSlave (CGF1-S0104) — wired in InitializeNetwork ----------------
+    private Bagira.IG.Modules.Orchestration.DrillSlave? _drillSlave;
 
 
 
@@ -861,6 +864,11 @@ public class IgApplication : IDisposable
 
                 _networkEnabled = true;
 
+                // CGF1-S0104: wire DrillSlave once DDS participant is confirmed healthy.
+                var igNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : IgNetworkConstants.LocalNodeId;
+                _drillSlave = new Bagira.IG.Modules.Orchestration.DrillSlave(
+                    participant, igNodeId, "IG");
+
             }
 
             catch (Exception ex)
@@ -1170,6 +1178,7 @@ public class IgApplication : IDisposable
     {
 
         _frameDt = dt;
+        _drillSlave?.Tick();
 
         if (!_headless)
 
@@ -1811,6 +1820,9 @@ public class IgApplication : IDisposable
     public void Shutdown(bool ownsWindow = true)
 
     {
+
+        _drillSlave?.Dispose();
+        _drillSlave = null;
 
         _commandGateway?.Dispose();
 

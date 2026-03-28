@@ -3,8 +3,8 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-02](batches/CGF-1-BATCH-02-INSTRUCTIONS.md) — debt burn-down from BATCH-01 + **CGF1-S0104** (DrillSlave foundation).  
-**Last reviewed:** [CGF-1-BATCH-01](reviews/CGF-1-BATCH-01-REVIEW.md) — APPROVED (2026-03-28).  
+**Active batch:** [CGF-1-BATCH-03](batches/CGF-1-BATCH-03-INSTRUCTIONS.md) — **P1 policy / cleanup** (fail-fast DDS, remove Standalone + ID fallback) + **CGF1-S0105**.  
+**Last reviewed:** [CGF-1-BATCH-02](reviews/CGF-1-BATCH-02-REVIEW.md) — APPROVED with mandatory BATCH-03 follow-up (2026-03-28).  
 **Batches / reports / reviews:** `.dev/cgf-1/batches/`, `.dev/cgf-1/reports/`, `.dev/cgf-1/reviews/` (prefix `CGF-1-`).  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
@@ -13,7 +13,7 @@
 > Phase 3 tasks are complete and their CI gates are passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 3 / 5 tasks done (after CGF-1-BATCH-01).
+> **Progress (Phase 1):** 4 / 5 tasks done (after CGF-1-BATCH-02); S0105 pending.
 
 ---
 
@@ -25,7 +25,7 @@ establish DDS schema, centralize identity allocation.
 - [x] **CGF1-S0101** Orchestration DDS Schema Definition [details](./CGF-1-TASK-DETAIL.md#cgf1-s0101--orchestration-dds-schema-definition)
 - [x] **CGF1-S0102** Bagira.Orchestrator Bootstrapping [details](./CGF-1-TASK-DETAIL.md#cgf1-s0102--bagiraorchestrator-bootstrapping)
 - [x] **CGF1-S0103** Centralized Identity Migration [details](./CGF-1-TASK-DETAIL.md#cgf1-s0103--centralized-identity-migration)
-- [ ] **CGF1-S0104** DrillSlave Foundation [details](./CGF-1-TASK-DETAIL.md#cgf1-s0104--drillslave-foundation)
+- [x] **CGF1-S0104** DrillSlave Foundation [details](./CGF-1-TASK-DETAIL.md#cgf1-s0104--drillslave-foundation) — done (CGF-1-BATCH-02); see BATCH-02 review for P1 follow-up in BATCH-03
 - [ ] **CGF1-S0105** Orchestrator Health Monitoring & Bootstrap Recovery [details](./CGF-1-TASK-DETAIL.md#cgf1-s0105--orchestrator-health-monitoring--bootstrap-recovery)
 
 ---

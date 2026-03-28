@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Bagira.Common</RootNamespace>
+    <AssemblyName>Bagira.Common</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Orchestration DDS types (NodeOpType, NodeOpCommand) -->
+    <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
+    <!-- EntityRepository parameter used by Commit/Abort -->
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+  </ItemGroup>
+
+</Project>

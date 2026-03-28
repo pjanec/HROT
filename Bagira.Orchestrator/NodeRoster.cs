@@ -4,6 +4,7 @@ namespace Bagira.Orchestrator;
 public sealed class NodeRoster
 {
     private readonly Dictionary<int, NodeHealthProfile> _active = new();
+    private readonly List<int> _staleBuffer = new();
 
     public IReadOnlyDictionary<int, NodeHealthProfile> ActiveNodes => _active;
 
@@ -17,13 +18,13 @@ public sealed class NodeRoster
     /// <summary>Removes nodes whose last heartbeat is older than <paramref name="maxSilenceSeconds"/>.</summary>
     public void PruneStale(double nowUtcSeconds, double maxSilenceSeconds)
     {
-        var stale = new List<int>();
+        _staleBuffer.Clear();
         foreach (var kv in _active)
         {
             if (nowUtcSeconds - kv.Value.LastHeartbeatUtcSeconds > maxSilenceSeconds)
-                stale.Add(kv.Key);
+                _staleBuffer.Add(kv.Key);
         }
-        foreach (var id in stale)
+        foreach (var id in _staleBuffer)
             _active.Remove(id);
     }
 }

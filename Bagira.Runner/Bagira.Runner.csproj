@@ -24,6 +24,7 @@
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Schema\CycloneDDS.Schema.csproj" />
     <!-- Subsystem libraries (R2) -->
     <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
+    <ProjectReference Include="..\Bagira.CGF\Bagira.CGF.csproj" />
     <ProjectReference Include="..\Bagira.Orchestrator\Bagira.Orchestrator.csproj" />
     <ProjectReference Include="..\Bagira.SimHost\Bagira.SimHost.csproj" />
     <ProjectReference Include="..\Bagira.IG\Bagira.IG.csproj" />

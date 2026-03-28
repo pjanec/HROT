@@ -22,6 +22,9 @@ namespace Bagira.Runner.Configuration
         /// <summary>Run the distributed orchestrator (DrillMaster) only.</summary>
         Orchestrator = 1 << 3, // 8
 
+        /// <summary>Run the CGF (Computer Generated Forces) subsystem.</summary>
+        CGF = 1 << 4,          // 16
+
         /// <summary>Run all three subsystems in one aggregated process.</summary>
         All = SimHost | IG | IOS
     }

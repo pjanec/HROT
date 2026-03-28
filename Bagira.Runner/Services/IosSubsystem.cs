@@ -2,6 +2,7 @@ using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
 using Bagira.IOS;
 using Bagira.IOS.Logic;
+using Bagira.IOS.Orchestration;
 using Bagira.IOS.Panels;
 using Bagira.IOS.Services;
 using Bagira.Map.Common;
@@ -58,6 +59,7 @@ namespace Bagira.Runner.Services
         private DdsParticipant?  _participant;
         private List<IDisposable>? _ingressDisposables;
         private int              _nodeIdOverride;
+        private DrillSlave?      _drillSlave;
 
         /// <summary>
         /// Internal test hook for integration tests.
@@ -83,6 +85,10 @@ namespace Bagira.Runner.Services
                 AppDomainId   = config.DomainId,
                 AppInstanceId = config.NodeId
             });
+
+            // ── DrillSlave (CGF1-S0104) ────────────────────────────────────────
+            var iosNodeId = config.NodeId != 0 ? config.NodeId : 500;
+            _drillSlave = new DrillSlave(_participant, iosNodeId, "IOS");
 
             // ── Construct services ─────────────────────────────────────────────
             // DerRepo takes no external dependencies; node ID uses a fixed default.
@@ -193,6 +199,7 @@ namespace Bagira.Runner.Services
         /// <inheritdoc/>
         public void Update(float deltaTime)
         {
+            _drillSlave?.Tick();
             _mock?.Update(deltaTime);
         }
 
@@ -214,6 +221,8 @@ namespace Bagira.Runner.Services
         /// <inheritdoc/>
         public void Shutdown()
         {
+            _drillSlave?.Dispose();
+            _drillSlave = null;
             _mock?.Dispose();
             _mock = null;
             if (_ingressDisposables != null)

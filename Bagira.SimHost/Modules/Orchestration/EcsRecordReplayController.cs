@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
+using Bagira.BDC.SSTD.Orchestration;
+using Bagira.Common.Orchestration;
 using Fdp.Kernel;
 using FDP.Toolkit.Replay;
 using ModuleHost.Core;
@@ -21,6 +24,8 @@ namespace Bagira.SimHost.Modules.Orchestration
     /// <c>AsyncRecorder</c> or <c>PlaybackController</c>.
     /// </para>
     /// </summary>
+    /// <summary>Implements <see cref="IDsmHandler"/> — CanHandle/PrepareAsync/Commit/Abort
+    /// stubs wire the full 2PC in CGF1-S0202.</summary>
     public sealed class EcsRecordReplayController : IDsmHandler
     {
         private readonly ModuleHostKernel _kernel;
@@ -153,5 +158,21 @@ namespace Bagira.SimHost.Modules.Orchestration
             entity =>
                 _repo.HasComponent<StoryTag>(entity) &&
                 _repo.GetComponentRO<StoryTag>(entity).StoryId == storyId;
+
+        // ── IDsmHandler (full 2PC dispatch wired in CGF1-S0202) ──────────────────
+
+        /// <inheritdoc />
+        /// <remarks>Returns <c>false</c> until S0202 wires per-operation handling.</remarks>
+        public bool CanHandle(NodeOpType op) => false;
+
+        /// <inheritdoc />
+        public Task<string?> PrepareAsync(NodeOpCommand cmd, CancellationToken ct)
+            => Task.FromResult<string?>(null);
+
+        /// <inheritdoc />
+        public void Commit(NodeOpCommand cmd, EntityRepository? repo) { }
+
+        /// <inheritdoc />
+        public void Abort(NodeOpCommand cmd, EntityRepository? repo) { }
     }
 }

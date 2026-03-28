@@ -10,22 +10,35 @@ namespace Bagira.DDS.DataModel.Tests
         [Fact]
         public void AllTopicStructsHaveDdsTopicAttribute()
         {
-            Type[] topics =
-            [
-                typeof(SystemStateTopic),
-                typeof(SysOpRequest),
-                typeof(SysOpStatus),
-                typeof(NodeOpCommand),
-                typeof(NodeOpStatus),
-                typeof(NodeHeartbeat),
-                typeof(OrchestratorContextTopic),
-            ];
-            foreach (var t in topics)
+            // Reflect over ALL partial struct types in Bagira.BDC.SSTD.Orchestration
+            // so that any newly added topic structs are automatically covered.
+            // Code-gen suffixes produced by CycloneDDS for internal plumbing types.
+            // Topic structs declared by hand never have these suffixes.
+            static bool IsCodeGenType(Type t) =>
+                t.Name.EndsWith("_Native", StringComparison.Ordinal) ||
+                t.Name.EndsWith("View", StringComparison.Ordinal) ||
+                t.Name.EndsWith("KeyHolder", StringComparison.Ordinal) ||
+                t.Name.Contains('_');
+
+            var orchestrationAssembly = typeof(SystemStateTopic).Assembly;
+            var topicStructs = orchestrationAssembly.GetTypes()
+                .Where(t => t.IsValueType && !t.IsEnum && t.IsPublic
+                    && !IsCodeGenType(t)
+                    && t.Namespace == "Bagira.BDC.SSTD.Orchestration")
+                .ToList();
+
+            Assert.NotEmpty(topicStructs);
+
+            foreach (var t in topicStructs)
             {
-                Assert.NotNull(t.GetCustomAttribute<DdsTopicAttribute>());
-                var idl = t.GetCustomAttribute<DdsIdlFileAttribute>();
-                Assert.NotNull(idl);
-                Assert.Equal("bdc-sst-orchestration", idl!.FileName);
+                var topicAttr = t.GetCustomAttribute<DdsTopicAttribute>();
+                Assert.True(topicAttr != null,
+                    $"Type {t.Name} is missing [DdsTopic] attribute.");
+
+                var idlAttr = t.GetCustomAttribute<DdsIdlFileAttribute>();
+                Assert.True(idlAttr != null,
+                    $"Type {t.Name} is missing [DdsIdlFile] attribute.");
+                Assert.Equal("bdc-sst-orchestration", idlAttr!.FileName);
             }
         }
 

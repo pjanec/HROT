@@ -109,6 +109,7 @@ class Program
         if (config.ParsedMode.HasFlag(RunMode.SimHost)) subsystems.Add(new SimHostSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.IG))      subsystems.Add(new IgSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.IOS))     subsystems.Add(new IosSubsystem());
+        if (config.ParsedMode.HasFlag(RunMode.CGF))     subsystems.Add(new CgfSubsystem());
 
         var options = new RunnerOptions { Headless = config.Headless, DomainId = config.DomainId, NodeId = config.NodeId };
 
