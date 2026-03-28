@@ -18,6 +18,7 @@ using Xunit;
 
 namespace Bagira.SimHost.Tests
 {
+    [Collection("SimHostDds")]
     public class SimHostComponentRegistrationTests : IDisposable
     {
         // Provides DdsIdAllocatorServer on every domain used by the tests in this class.

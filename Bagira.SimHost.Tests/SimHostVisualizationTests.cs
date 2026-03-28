@@ -27,6 +27,7 @@ namespace Bagira.SimHost.Tests
     /// - Brain-dead path uses SetDestination / AddWaypoint (muscle-layer direct).
     /// - Brain-active path sends CMD_REPLACE_MISSION with a DoctrineFinished trigger (BS1-T022).
     /// </summary>
+    [Collection("SimHostDds")]
     public class SimHostVisualizationTests : IDisposable
     {
         private static readonly Vector2 ClickPos = new(300f, 400f);
@@ -156,7 +157,7 @@ namespace Bagira.SimHost.Tests
             Assert.False(setDestinationCalled);
 
             // Allow DDS loopback delivery.
-            Thread.Sleep(200);
+            Thread.Sleep(50);
 
             // Assert: exactly one request written with a ReachedDestination trigger.
             using var loan = reader.Take();

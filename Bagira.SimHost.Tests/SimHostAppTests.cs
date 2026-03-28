@@ -15,6 +15,7 @@ namespace Bagira.SimHost.Tests
     /// <summary>
     /// Tests for <see cref="SimHostApp"/> system registration.
     /// </summary>
+    [Collection("SimHostDds")]
     public class SimHostAppTests
     {
         // ── BUG2-N001 ── No duplicate system registrations ────────────────────

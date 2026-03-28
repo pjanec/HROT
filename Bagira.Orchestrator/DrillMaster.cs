@@ -41,6 +41,24 @@ public sealed class DrillMaster : IDisposable
     private DistributedTransaction? _activeTransaction;
 
     // ── Current DSM state (tracked here so the planner can compute relative paths) ─
+    /// <summary>
+    /// Optimistic cluster DSM state used as the <c>current</c> argument to
+    /// <see cref="TransitionPlanner.PlanTrajectory"/>.
+    ///
+    /// <para><b>Update rule (Phase 2.0 — optimistic):</b> Whenever a
+    /// <see cref="SysOpType.TransitionState"/> request is <em>accepted</em> (plan
+    /// succeeds), this field is immediately advanced to the final
+    /// <see cref="TransitionStep.TargetState"/> in the computed trajectory.
+    /// This ensures that a second <c>TransitionState</c> request issued before the
+    /// first completes is planned from the <em>intended</em> end-state rather than
+    /// the stale initial state.</para>
+    ///
+    /// <para><b>Limitation:</b> Until proper two-phase commit ACKs land in
+    /// <c>CGF1-S0202+</c> the value is optimistic and may diverge from cluster
+    /// reality if a transaction is aborted mid-flight.  The field will be replaced
+    /// with authoritative tracking (last written <see cref="SystemStateTopic.CurrentState"/>
+    /// or aggregated <c>NodeOpStatus</c> confirmation) in a later stage.</para>
+    /// </summary>
     private DSMState _currentDsmState = DSMState.Standby;
 
     // ── Transition planner (CGF1-S0201) ─────────────────────────────────────
@@ -301,13 +319,17 @@ public sealed class DrillMaster : IDisposable
                 {
                     var trajectory = _planner.PlanTrajectory(_currentDsmState, req);
                     totalSteps     = trajectory.Count;
-                    // Extract the final TransitionStep target for history recording.
+                    // Extract the final TransitionStep target for history recording
+                    // and optimistic _currentDsmState advance.
                     resolvedTarget = _currentDsmState;
                     foreach (var step in trajectory)
                     {
                         if (step is TransitionStep ts)
                             resolvedTarget = ts.TargetState;
                     }
+                    // Advance optimistically so the next PlanTrajectory call starts from
+                    // the intended end-state (see _currentDsmState XML docs for caveats).
+                    _currentDsmState = resolvedTarget;
                 }
                 catch (InvalidOperationException ex)
                 {

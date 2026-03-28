@@ -10,6 +10,7 @@ using EcsFireInteractionEvent = Bagira.Map.Common.Events.FireInteractionEvent;
 
 namespace Bagira.SimHost.Tests
 {
+    [Collection("SimHostDds")]
     public class FireInteractionEventTranslatorTests
     {
         [Fact]

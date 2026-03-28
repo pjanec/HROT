@@ -391,5 +391,92 @@ public sealed class DrillMasterBootstrapTests
         using var scope = reader.Take();
         // intentionally discard
     }
+
+    /// <summary>
+    /// A.3 (CGF-1-BATCH-05): After an accepted <c>TransitionState</c> request advances the
+    /// cluster to <c>LoadingLive</c>, a subsequent request is planned from <c>LoadingLive</c>
+    /// (not the initial <c>Standby</c>).  Verifies optimistic <c>_currentDsmState</c> advance.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void CurrentDsmState_AdvancesOptimistically_AfterAcceptedTransition()
+    {
+        // No mandatory nodes → bootstrap immediately.
+        var config = new ClusterConfiguration
+        {
+            Mandatory                  = Array.Empty<string>(),
+            TransactionHistoryCapacity = 10,
+        };
+
+        using var orchParticipant = new DdsParticipant(TestDomain);
+        using var sysOpWriter     = new DdsWriter<SysOpRequest>(orchParticipant);
+        using var sysOpReader     = new DdsReader<SysOpStatus>(orchParticipant);
+
+        using var drill = new DrillMaster(orchParticipant, config);
+        Thread.Sleep(400);
+
+        Assert.True(drill.BootstrapComplete, "Empty mandatory list: bootstrap should be immediate.");
+
+        // ── First request: Standby → LoadingLive ──────────────────────────────
+        var req1Id = Guid.NewGuid();
+        sysOpWriter.Write(new SysOpRequest
+        {
+            RequestId     = req1Id,
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
+        });
+
+        var deadline1 = DateTime.UtcNow.AddSeconds(3);
+        bool req1Accepted = false;
+        while (DateTime.UtcNow < deadline1)
+        {
+            drill.Tick();
+            using var scope = sysOpReader.Take();
+            foreach (var s in scope)
+            {
+                if (!s.IsValid || s.Data.RequestId != req1Id) continue;
+                req1Accepted = s.Data.Status != OpStatus.Rejected;
+            }
+            if (req1Accepted) break;
+            Thread.Sleep(20);
+        }
+        Assert.True(req1Accepted, "First TransitionState request should be accepted.");
+
+        // ── Second request: from (now-optimistically) LoadingLive → RunningLive ─
+        // If _currentDsmState had NOT advanced, this would be planned from Standby and the
+        // path to RunningLive from Standby would be [LoadingLive, RunningLive] (2 steps).
+        // After the correct optimistic advance the path from LoadingLive → RunningLive
+        // is a single direct step.  History should reflect 1 step for the second transaction.
+        var req2Id = Guid.NewGuid();
+        sysOpWriter.Write(new SysOpRequest
+        {
+            RequestId     = req2Id,
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = ((int)DSMState.RunningLive).ToString(),
+        });
+
+        var deadline2 = DateTime.UtcNow.AddSeconds(3);
+        bool req2Accepted = false;
+        while (DateTime.UtcNow < deadline2)
+        {
+            drill.Tick();
+            using var scope = sysOpReader.Take();
+            foreach (var s in scope)
+            {
+                if (!s.IsValid || s.Data.RequestId != req2Id) continue;
+                req2Accepted = s.Data.Status != OpStatus.Rejected;
+            }
+            if (req2Accepted) break;
+            Thread.Sleep(20);
+        }
+        Assert.True(req2Accepted, "Second TransitionState request should be accepted.");
+
+        // The second transaction's TotalSteps should be 1 (LoadingLive → RunningLive directly),
+        // proving the planner used LoadingLive as current state, not Standby.
+        var history = drill.TransactionHistory;
+        Assert.True(history.Count >= 2, "Expected at least two transactions in history.");
+        var tx2 = history[history.Count - 1];
+        Assert.Equal(req2Id, tx2.OriginRequestId);
+        Assert.Equal(1, tx2.TotalSteps);
+    }
 }
 

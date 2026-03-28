@@ -28,6 +28,7 @@ namespace Bagira.SimHost.Tests
     /// <see cref="NavigationIntentEgressTranslator"/>, <see cref="NavigationIntentIngressTranslator"/>,
     /// <see cref="NavigationStatusEgressTranslator"/>, and <see cref="NavigationStatusIngressTranslator"/>.
     /// </summary>
+    [Collection("SimHostDds")]
     public class NavigationTranslatorTests
     {
         // ── Stubs ─────────────────────────────────────────────────────────────

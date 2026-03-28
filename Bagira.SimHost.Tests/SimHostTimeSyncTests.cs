@@ -7,6 +7,7 @@ using Xunit;
 
 namespace Bagira.SimHost.Tests
 {
+    [Collection("SimHostDds")]
     public class SimHostTimeSyncTests : IDisposable
     {
         private const uint TestDomain = 210u;
@@ -35,9 +36,9 @@ namespace Bagira.SimHost.Tests
             var app = new SimHostApp();
             app.InitializeHeadless(domainIdOverride: (int)domainId);
 
-            Thread.Sleep(200);
+            Thread.Sleep(100);
             app.Tick(0.1f);
-            Thread.Sleep(200);
+            Thread.Sleep(100);
 
             using var loan = reader.Take();
             bool found = false;

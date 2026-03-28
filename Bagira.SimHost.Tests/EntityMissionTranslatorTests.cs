@@ -37,6 +37,7 @@ namespace Bagira.SimHost.Tests
     /// with a real <see cref="DdsParticipant"/> to verify query/filter logic does
     /// not throw.
     /// </summary>
+    [Collection("SimHostDds")]
     public class EntityMissionTranslatorTests
     {
         // ── Helpers ──────────────────────────────────────────────────────────────

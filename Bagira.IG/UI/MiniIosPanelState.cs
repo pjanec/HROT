@@ -209,12 +209,12 @@ public class MiniIosPanelState
     /// Returns silently and logs a warning when <paramref name="gateway"/> is <c>null</c>.
     /// </summary>
     /// <param name="gateway">Live command gateway; may be <c>null</c> when network is off.</param>
-    public async Task SubmitWithWanderMissionViaGateway(BdcCommandGateway? gateway)
+    public async Task<long> SubmitWithWanderMissionViaGateway(BdcCommandGateway? gateway)
     {
         if (gateway == null)
         {
             FdpLog<MiniIosPanelState>.Warn("[IG] Network disabled — wander spawn ignored.");
-            return;
+            return 0L;
         }
 
         var descriptors = new List<EntityDescriptorUnion>
@@ -271,14 +271,14 @@ public class MiniIosPanelState
         catch (Exception ex)
         {
             FdpLog<MiniIosPanelState>.Error("[IG] CreateEntityAsync failed: {0}", ex.Message);
-            return;
+            return 0L;
         }
 
         if (ack.StatusCode >= 2)
         {
             FdpLog<MiniIosPanelState>.Warn(
                 "[IG] CreateUpdateDeleteEntityAck returned error {0} — mission assignment skipped.", ack.StatusCode);
-            return;
+            return 0L;
         }
 
         var taskId = Guid.NewGuid();
@@ -324,6 +324,8 @@ public class MiniIosPanelState
         {
             FdpLog<MiniIosPanelState>.Error("[IG] SendMissionControlRequestAsync failed: {0}", ex.Message);
         }
+
+        return ack.EntityId;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

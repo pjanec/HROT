@@ -20,6 +20,7 @@ namespace Bagira.SimHost.Tests
     /// Silent Bystander Rule (BUG1-N001): non-authoritative paths must emit no
     /// <see cref="UpdateEntityDescriptorAck"/>, only debug log entries.
     /// </summary>
+    [Collection("SimHostDds")]
     public class UpdateEntityDescriptorRequestSystemTests
     {
         private const int EntityId = 42;
@@ -113,13 +114,13 @@ namespace Bagira.SimHost.Tests
             using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
             using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
 
-            Thread.Sleep(200); // allow pub/sub matching
+            Thread.Sleep(100); // allow pub/sub matching
 
             reqWriter.Write(MakeGeoRequest(entityId: 999));
-            Thread.Sleep(100);
+            Thread.Sleep(30);
 
             system.Run();
-            Thread.Sleep(50);
+            Thread.Sleep(10);
 
             // ASSERT: no ACK should be written
             Assert.Equal(0, CountAcks(ackReader));
@@ -146,13 +147,13 @@ namespace Bagira.SimHost.Tests
             using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
             using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
 
-            Thread.Sleep(200);
+            Thread.Sleep(50);
 
             reqWriter.Write(MakeGeoRequest(EntityId));
-            Thread.Sleep(100);
+            Thread.Sleep(30);
 
             system.Run();
-            Thread.Sleep(50);
+            Thread.Sleep(10);
 
             Assert.Equal(0, CountAcks(ackReader));
         }
@@ -178,13 +179,13 @@ namespace Bagira.SimHost.Tests
             using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
             using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
 
-            Thread.Sleep(200);
+            Thread.Sleep(50);
 
             reqWriter.Write(MakeUnsupportedTypeRequest(EntityId));
-            Thread.Sleep(100);
+            Thread.Sleep(30);
 
             system.Run();
-            Thread.Sleep(50);
+            Thread.Sleep(10);
 
             Assert.Equal(0, CountAcks(ackReader));
         }
@@ -210,14 +211,14 @@ namespace Bagira.SimHost.Tests
             using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
             using var ackReader = new DdsReader<UpdateEntityDescriptorAck>(participant, "UpdateEntityDescriptorAck");
 
-            Thread.Sleep(200);
+            Thread.Sleep(50);
 
             var req = MakeGeoRequest(EntityId);
             reqWriter.Write(req);
-            Thread.Sleep(100);
+            Thread.Sleep(30);
 
             system.Run();
-            Thread.Sleep(100);
+            Thread.Sleep(30);
 
             // ASSERT: exactly one Success ACK
             int ackCount = 0;
@@ -257,11 +258,11 @@ namespace Bagira.SimHost.Tests
             entityMap.Register(EntityId, entity);
 
             using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            Thread.Sleep(200);
-            reqWriter.Write(MakeGeoRequest(EntityId));
-            Thread.Sleep(100);
-            system.Run();
             Thread.Sleep(50);
+            reqWriter.Write(MakeGeoRequest(EntityId));
+            Thread.Sleep(30);
+            system.Run();
+            Thread.Sleep(10);
 
             Assert.Equal(0, stub.Written.Count);
         }
@@ -285,11 +286,11 @@ namespace Bagira.SimHost.Tests
             entityMap.Register(EntityId, entity);
 
             using var reqWriter = new DdsWriter<UpdateEntityDescriptorRequest>(participant, "UpdateEntityDescriptorRequest");
-            Thread.Sleep(200);
-            reqWriter.Write(MakeGeoRequest(EntityId));
-            Thread.Sleep(100);
-            system.Run();
             Thread.Sleep(50);
+            reqWriter.Write(MakeGeoRequest(EntityId));
+            Thread.Sleep(30);
+            system.Run();
+            Thread.Sleep(10);
 
             Assert.Equal(1, stub.Written.Count);
             Assert.Equal(EntityId, stub.Written[0].EntityId);

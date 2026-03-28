@@ -2034,7 +2034,7 @@ public class IgApplication : IDisposable
 
     /// </summary>
 
-    internal Task TestHook_SubmitMiniIosSpawnWithWanderMission(
+    internal Task<long> TestHook_SubmitMiniIosSpawnWithWanderMission(
 
         long tkbType, ForceId affiliation, float positionX, float positionY)
 

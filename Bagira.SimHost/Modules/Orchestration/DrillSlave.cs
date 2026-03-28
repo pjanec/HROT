@@ -7,6 +7,7 @@ using System.Threading;
 using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Common.Orchestration;
 using CycloneDDS.Runtime;
+using Fdp.Kernel;
 using FDP.Kernel.Logging;
 
 namespace Bagira.SimHost.Modules.Orchestration
@@ -33,6 +34,19 @@ namespace Bagira.SimHost.Modules.Orchestration
         private readonly int _nodeId;
         private readonly string _subsystemName;
 
+        // ── Event bus (optional; injected for testability) ────────────────────
+        private readonly FdpEventBus? _eventBus;
+
+        // ── Current local DSM state (updated on each CommitState) ─────────────
+        private DSMState _localDsmState = DSMState.Standby;
+
+        // ── Duplicate-TransactionId deduplication (CGF1-S0202) ───────────────
+        /// <summary>
+        /// Set of already-processed <see cref="NodeOpCommand.TransactionId"/> values used
+        /// to silently drop re-delivered DDS reliable messages.
+        /// </summary>
+        private readonly HashSet<Guid> _seenTransactionIds = new();
+
         private Thread? _listenerThread;
         private CancellationTokenSource? _listenerCts;
         private bool _disposed;
@@ -42,19 +56,30 @@ namespace Bagira.SimHost.Modules.Orchestration
         /// <summary>
         /// Creates a DrillSlave without DDS writers/readers.
         /// Heartbeat publishing and command ingestion are disabled.
-        /// Not available for production orchestration roles; use <see cref="DrillSlave(DdsParticipant, int, string)"/>.
+        /// Not available for production orchestration roles; use <see cref="DrillSlave(DdsParticipant, int, string, FdpEventBus?)"/>.
         /// </summary>
         internal DrillSlave() { }
+
+        /// <summary>
+        /// Creates a DrillSlave without DDS writers/readers but with the provided event bus.
+        /// Used by unit tests that exercise handler dispatch and event publication without DDS.
+        /// </summary>
+        internal DrillSlave(FdpEventBus eventBus)
+        {
+            _eventBus = eventBus;
+        }
 
         // ── Production constructor ────────────────────────────────────────────
 
         /// <param name="participant">DDS domain participant owned by the calling application.</param>
         /// <param name="nodeId">Unique integer node identifier for this subsystem instance.</param>
         /// <param name="subsystemName">Human-readable name published in <see cref="NodeHeartbeat.SubsystemName"/>.</param>
-        public DrillSlave(DdsParticipant participant, int nodeId, string subsystemName)
+        /// <param name="eventBus">Optional event bus used to publish <see cref="DsmStateChangedEvent"/> on commit.</param>
+        public DrillSlave(DdsParticipant participant, int nodeId, string subsystemName, FdpEventBus? eventBus = null)
         {
             _nodeId = nodeId;
             _subsystemName = subsystemName;
+            _eventBus = eventBus;
             _heartbeatWriter = new DdsWriter<NodeHeartbeat>(participant);
             _commandReader = new DdsReader<NodeOpCommand>(participant);
 
@@ -85,6 +110,13 @@ namespace Bagira.SimHost.Modules.Orchestration
 
         /// <summary>All registered DSM handlers.</summary>
         public IReadOnlyList<IDsmHandler> RegisteredHandlers => _handlers;
+
+        /// <summary>
+        /// Enqueues a command directly into the pending queue without DDS.
+        /// For unit testing only — bypasses the background listener thread.
+        /// </summary>
+        internal void EnqueueCommandForTest(NodeOpCommand cmd) =>
+            _pendingCommands.Enqueue(cmd);
 
         // ── Per-frame tick ────────────────────────────────────────────────────
 
@@ -124,6 +156,33 @@ namespace Bagira.SimHost.Modules.Orchestration
 
         private void DispatchCommand(NodeOpCommand cmd)
         {
+            // ── Idempotency: silently drop re-delivered commands ──────────────
+            if (!_seenTransactionIds.Add(cmd.TransactionId))
+            {
+                FdpLog<DrillSlave>.Debug(
+                    "[SimHost.DrillSlave] Duplicate TransactionId {0} dropped.", cmd.TransactionId);
+                return;
+            }
+
+            // ── CommitState: update local state and raise DsmStateChangedEvent ─
+            if (cmd.Operation == NodeOpType.CommitState)
+            {
+                if (int.TryParse(cmd.PayloadJson, out var stateInt))
+                {
+                    var nextState = (DSMState)stateInt;
+                    PublishDsmStateChanged(_localDsmState, nextState);
+                    _localDsmState = nextState;
+                }
+                else
+                {
+                    FdpLog<DrillSlave>.Warn(
+                        "[SimHost.DrillSlave] CommitState payload '{0}' could not be parsed as DSMState.",
+                        cmd.PayloadJson);
+                }
+                return;
+            }
+
+            // ── Handler dispatch ──────────────────────────────────────────────
             foreach (var handler in _handlers)
             {
                 if (!handler.CanHandle(cmd.Operation)) continue;
@@ -133,6 +192,15 @@ namespace Bagira.SimHost.Modules.Orchestration
             }
             FdpLog<DrillSlave>.Debug(
                 "[SimHost.DrillSlave] No handler for NodeOpCommand {0}.", cmd.Operation);
+        }
+
+        /// <summary>
+        /// Publishes a <see cref="DsmStateChangedEvent"/> to the injected event bus.
+        /// No-op when no bus was provided (non-orchestration roles).
+        /// </summary>
+        internal void PublishDsmStateChanged(DSMState previous, DSMState next)
+        {
+            _eventBus?.Publish(new DsmStateChangedEvent { Previous = previous, Next = next });
         }
 
         private void RunCommandListener(CancellationToken ct)

@@ -490,7 +490,7 @@ application-layer class — no FDP dependency.
 ```
 Standby          → LoadingEdit, LoadingLive, LoadingReplay
 LoadingEdit      → RunningEdit, Standby (failure)
-RunningEdit      → LoadingDryRun, LoadingLive, UnloadingEdit
+RunningEdit      → LoadingDryRun, UnloadingEdit
 LoadingDryRun    → RunningDryRun, RunningEdit (failure)
 RunningDryRun    → UnloadingDryRun
 UnloadingDryRun  → RunningEdit
@@ -502,6 +502,12 @@ LoadingReplay    → RunningReplay, Standby (failure)
 RunningReplay    → UnloadingReplay, LoadingLive (Live-from-Replay)
 UnloadingReplay  → Standby
 ```
+
+> **¹ RunningEdit → LoadingLive removed:** An active Edit session must be explicitly
+> unloaded before a Live load can begin. The trajectory table row
+> `RunningEdit → RunningLive = [UnloadingEdit, Standby, LoadingLive, RunningLive]`
+> is normative; appending a direct `RunningEdit → LoadingLive` shortcut would bypass
+> the unload phase and leave edit-session resources dangling.
 
 #### Example Trajectories
 

@@ -18,6 +18,7 @@ using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Bagira.SimHost.Tests
 {
+    [Collection("SimHostDds")]
     public class MissionControlRequestSystemTests
     {
         private static EntityRepository CreateWorld()

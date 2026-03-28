@@ -173,4 +173,65 @@ public sealed class TransitionPlannerTests
         Assert.Contains("Degraded", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Standby",  ex.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    // -- A.2: Payload fail-fast tests (CGF-1-BATCH-05) --
+
+    /// <summary>
+    /// An empty PayloadJson for a TransitionState request must throw rather than silently
+    /// default to Standby.
+    /// </summary>
+    [Fact]
+    public void PlanTrajectory_EmptyPayload_ThrowsInvalidOperationException()
+    {
+        var request = new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = string.Empty,
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => _planner.PlanTrajectory(DSMState.Standby, request));
+
+        Assert.Contains("empty", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Garbage (non-parseable) JSON must throw rather than silently default to Standby.
+    /// </summary>
+    [Fact]
+    public void PlanTrajectory_GarbageJson_ThrowsInvalidOperationException()
+    {
+        var request = new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = "not-valid-json!!!",
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => _planner.PlanTrajectory(DSMState.Standby, request));
+
+        Assert.NotNull(ex.Message);
+    }
+
+    /// <summary>
+    /// A valid JSON object that lacks the TargetState property must throw rather than
+    /// silently default to Standby (which could produce a seemingly-valid plan).
+    /// </summary>
+    [Fact]
+    public void PlanTrajectory_JsonWithoutTargetState_ThrowsInvalidOperationException()
+    {
+        var request = new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = "{}",
+        };
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => _planner.PlanTrajectory(DSMState.Standby, request));
+
+        Assert.Contains("TargetState", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }

@@ -11,6 +11,7 @@ namespace Bagira.SimHost.Tests
     /// <see cref="JsonToRecordCompilerBuilder"/> covering all nine scenarios defined in
     /// ATTR2-P2T1 plus the zero-allocation (GC) assertion.
     /// </summary>
+    [Collection("SimHostDds")]
     public class JsonToRecordCompilerTests
     {
         // ── Shared WeaponAmmo test constant ─────────────────────────────────────

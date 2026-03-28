@@ -124,13 +124,18 @@ public sealed class TransitionPlanner
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Payload encoding:</b> <see cref="SysOpRequest.PayloadJson"/> may be:
+    /// <b>Payload encoding (normative — prefer JSON object form in new code):</b>
+    /// <see cref="SysOpRequest.PayloadJson"/> must be one of:
     /// <list type="bullet">
-    ///   <item>A plain integer string (e.g. <c>"41"</c>): target DSM state numeric value.</item>
+    ///   <item>A plain integer string (e.g. <c>"30"</c>): target DSM state numeric value.
+    ///         Supported for backward compatibility; new code should use the JSON object form.</item>
     ///   <item>A JSON object with at least <c>TargetState</c> (int) and optionally
-    ///         <c>TargetWallTicks</c> (long):
-    ///         <code>{ "TargetState": 41, "TargetWallTicks": 999000 }</code></item>
+    ///         <c>TargetWallTicks</c> (long) — the <b>preferred</b> encoding:
+    ///         <code>{ "TargetState": 30, "TargetWallTicks": 999000 }</code></item>
     /// </list>
+    /// An empty, whitespace-only, non-parseable JSON string, or a JSON object that
+    /// lacks <c>TargetState</c> is a caller error and will cause an
+    /// <see cref="InvalidOperationException"/> to be thrown.
     /// </para>
     /// <para>
     /// When the resolved target is <see cref="DSMState.RunningReplay"/> AND
@@ -140,32 +145,51 @@ public sealed class TransitionPlanner
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// Propagated from <see cref="CalculateShortestPath"/> if the path is unreachable.
-    /// Thrown before any DDS command is issued.
+    /// Thrown when <paramref name="request"/> has an empty, whitespace-only, non-parseable,
+    /// or structurally incomplete <see cref="SysOpRequest.PayloadJson"/> (missing
+    /// <c>TargetState</c>).  Also propagated from <see cref="CalculateShortestPath"/> when
+    /// the requested path is unreachable.  Always thrown before any DDS command is issued.
     /// </exception>
     public Queue<ISysOpStep> PlanTrajectory(DSMState current, SysOpRequest request)
     {
         DSMState targetState  = DSMState.Standby;
         string?  seekTicksRaw = null;
 
+        if (string.IsNullOrWhiteSpace(request.PayloadJson))
+        {
+            throw new InvalidOperationException(
+                "[TransitionPlanner] TransitionState payload is empty or whitespace — " +
+                "a valid target DSM state is required (integer or JSON object with TargetState).");
+        }
+
         if (int.TryParse(request.PayloadJson, out var rawInt))
         {
             targetState = (DSMState)rawInt;
         }
-        else if (!string.IsNullOrEmpty(request.PayloadJson))
+        else
         {
+            JsonDocument doc;
             try
             {
-                using var doc = JsonDocument.Parse(request.PayloadJson);
-                if (doc.RootElement.TryGetProperty("TargetState", out var tsProp))
-                    targetState = (DSMState)tsProp.GetInt32();
+                doc = JsonDocument.Parse(request.PayloadJson);
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidOperationException(
+                    $"[TransitionPlanner] TransitionState payload is not valid JSON: {ex.Message}", ex);
+            }
+
+            using (doc)
+            {
+                if (!doc.RootElement.TryGetProperty("TargetState", out var tsProp))
+                    throw new InvalidOperationException(
+                        "[TransitionPlanner] TransitionState JSON payload does not contain " +
+                        "required 'TargetState' property.");
+
+                targetState = (DSMState)tsProp.GetInt32();
 
                 if (doc.RootElement.TryGetProperty("TargetWallTicks", out var seekProp))
                     seekTicksRaw = seekProp.GetRawText();
-            }
-            catch (JsonException)
-            {
-                // Malformed JSON; leave targetState at default.
             }
         }
 

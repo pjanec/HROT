@@ -324,7 +324,8 @@ namespace Bagira.SimHost
             _drillSlave = bootstrapper.BuildOrchestration(
                 _role, _kernel, _world, localNodeId,
                 participant: ddsParticipant,
-                subsystemName: "SimHost");
+                subsystemName: "SimHost",
+                eventBus: _eventBus);
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);

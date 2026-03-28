@@ -9,28 +9,34 @@ namespace Bagira.Runner.Integration.Tests;
 /// Domain-isolated orchestration harness for Runner integration tests.
 ///
 /// <para>
-/// The ID-allocator server is owned by <see cref="SimHostSubsystem"/> and runs on its
-/// own background thread (started inside <see cref="SimHostSubsystem.Initialize"/>).
-/// The harness no longer needs a separate server — removing the duplicate avoids the
-/// ID-range collision that occurred when two servers both started their counter at 1.
+/// <see cref="OrchestratorSubsystem"/> is the FIRST subsystem in the list so that
+/// <see cref="DrillMaster"/> (and its embedded <c>DdsIdAllocatorServer</c>) are running
+/// before <see cref="SimHostSubsystem"/> initialises. This ensures that
+/// <c>SimHostApp.EnsureIdAllocatorRouting</c> finds a publication match immediately
+/// instead of waiting up to 30 s before throwing.
 /// </para>
 /// </summary>
 public sealed class BagiraRunnerHarness : IDisposable
 {
     private const int DomainIdBase = 100;
-    private const int WarmupFrames = 200;   // 1 s of simulation ticks to give CycloneDDS time to match
+    // Warmup is intentionally short: OrchestratorSubsystem (first in the list) starts
+    // DdsIdAllocatorServer before SimHostSubsystem calls EnsureIdAllocatorRouting, so the
+    // ID-allocator match is near-instant. CycloneDDS loopback SPDP/SEDP discovery for the
+    // remaining application topics completes within ~200 ms on typical hardware.
+    private const int WarmupFrames = 20;    // 20 × 5 ms = 100 ms of pumped frames
     private const int PumpSleepMs = 5;
     /// <summary>
     /// Extra wall-clock sleep AFTER warmup frames, allowing DDS SPDP/SEDP discovery to complete
     /// for any topic whose reader/writer pair was not yet matched by the last warmup frame.
-    /// 1 s is sufficient for loopback CycloneDDS discovery on all topics used by the harness.
+    /// 200 ms is sufficient for loopback CycloneDDS discovery on all topics used by the harness.
     /// </summary>
-    private const int PostWarmupSettleMs = 1000;
+    private const int PostWarmupSettleMs = 200;
 
     private static int _domainCounter = DomainIdBase - 1;
 
     public int DomainId { get; }
     public SubsystemOrchestrator Orchestrator { get; }
+    public OrchestratorSubsystem OrchestratorSvc { get; }
     public SimHostSubsystem SimHost { get; }
     public IgSubsystem Ig { get; }
     public IosSubsystem Ios { get; }
@@ -39,6 +45,7 @@ public sealed class BagiraRunnerHarness : IDisposable
     {
         DomainId = Interlocked.Increment(ref _domainCounter);
 
+        OrchestratorSvc = new OrchestratorSubsystem();
         SimHost = new SimHostSubsystem();
         Ig = new IgSubsystem();
         Ios = new IosSubsystem();
@@ -46,6 +53,7 @@ public sealed class BagiraRunnerHarness : IDisposable
         var options = new RunnerOptions { Headless = true, DomainId = DomainId };
         Orchestrator = new SubsystemOrchestrator(new ISubsystem[]
         {
+            OrchestratorSvc,   // must be first: starts DdsIdAllocatorServer before SimHost
             SimHost,
             Ig,
             Ios
@@ -97,3 +105,4 @@ public sealed class BagiraRunnerHarness : IDisposable
         Thread.Sleep(PostWarmupSettleMs);
     }
 }
+

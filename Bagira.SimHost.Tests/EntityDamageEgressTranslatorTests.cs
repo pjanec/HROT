@@ -16,6 +16,7 @@ namespace Bagira.SimHost.Tests
     /// Uses a live DDS participant/reader pair to verify end-to-end publication.
     /// </summary>
     [Trait("Category", "Integration")]
+    [Collection("SimHostDds")]
     public class EntityDamageEgressTranslatorTests : IDisposable
     {
         private readonly EntityRepository _world;

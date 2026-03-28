@@ -23,6 +23,7 @@ namespace Bagira.SimHost.Tests
     /// Full integration tests (ECS world ? DDS publish) require a DDS participant
     /// and are deferred to the integration test suite.
     /// </summary>
+    [Collection("SimHostDds")]
     public class GeoSpatialEgressTranslatorTests
     {
         // ?? Heading ? GeoSpatial.Rot.Heading wire value ???????????????????????

@@ -16,6 +16,7 @@ namespace Bagira.SimHost.Tests
     /// Unit tests for the static translator-pack factories introduced by MOD1-P3T1.
     /// Verifies that each pack yields the correct number and types of translators.
     /// </summary>
+    [Collection("SimHostDds")]
     public class TranslatorPackTests
     {
         // ── Minimal geo-transform stub ────────────────────────────────────────

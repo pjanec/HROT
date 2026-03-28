@@ -9,6 +9,7 @@ using Xunit;
 
 namespace Bagira.SimHost.Tests
 {
+    [Collection("SimHostDds")]
     public class EntityMasterEgressTranslatorTests
     {
         private static EntityRepository CreateWorld()

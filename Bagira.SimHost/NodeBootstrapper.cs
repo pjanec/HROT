@@ -254,13 +254,17 @@ namespace Bagira.SimHost
         /// <param name="nodeId">Local node identifier embedded in recording file names and heartbeats.</param>
         /// <param name="participant">Optional DDS participant. Supply to enable heartbeat/command DDS I/O.</param>
         /// <param name="subsystemName">Subsystem name published in heartbeats (default <c>"SimHost"</c>).</param>
+        /// <param name="eventBus">Optional event bus; when provided, a <c>LiveLoadDsmHandler</c> is
+        /// registered and <see cref="Bagira.Common.Orchestration.DsmStateChangedEvent"/> will be
+        /// published on commit.</param>
         public DrillSlave BuildOrchestration(
             NodeRole role,
             ModuleHost.Core.ModuleHostKernel kernel,
             Fdp.Kernel.EntityRepository world,
             int nodeId,
             DdsParticipant? participant = null,
-            string subsystemName = "SimHost")
+            string subsystemName = "SimHost",
+            Fdp.Kernel.FdpEventBus? eventBus = null)
         {
             if (participant == null && (role == NodeRole.Brain || role == NodeRole.AllInOne))
                 throw new ArgumentNullException(nameof(participant),
@@ -268,13 +272,19 @@ namespace Bagira.SimHost
                     "DrillSlave cannot run without DDS in production.");
 
             var drillSlave = participant != null
-                ? new DrillSlave(participant, nodeId, subsystemName)
+                ? new DrillSlave(participant, nodeId, subsystemName, eventBus)
                 : new DrillSlave();
 
             if (role == NodeRole.Brain || role == NodeRole.AllInOne)
             {
                 var controller = new EcsRecordReplayController(kernel, nodeId, world);
                 drillSlave.RegisterHandler(controller);
+            }
+
+            // Wire LiveLoadDsmHandler when an event bus is available (CGF1-S0202).
+            if (eventBus != null)
+            {
+                drillSlave.RegisterHandler(new LiveLoadDsmHandler(drillSlave, eventBus));
             }
 
             return drillSlave;
