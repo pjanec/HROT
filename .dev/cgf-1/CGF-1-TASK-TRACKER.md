@@ -3,8 +3,8 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-07](batches/CGF-1-BATCH-07-INSTRUCTIONS.md) — wall-tick / orchestration debt + **CGF1-S0204** (future barrier).  
-**Last reviewed:** [CGF-1-BATCH-06](reviews/CGF-1-BATCH-06-REVIEW.md) — APPROVED (2026-03-29).  
+**Active batch:** [CGF-1-BATCH-08](batches/CGF-1-BATCH-08-INSTRUCTIONS.md) — DDS time-mode wiring + orchestration debt + **CGF1-S0205** (deterministic CI).  
+**Last reviewed:** [CGF-1-BATCH-07](reviews/CGF-1-BATCH-07-REVIEW.md) — APPROVED (2026-03-29).  
 **Batches / reports / reviews:** `.dev/cgf-1/batches/`, `.dev/cgf-1/reports/`, `.dev/cgf-1/reviews/` (prefix `CGF-1-`).  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
@@ -13,7 +13,7 @@
 > Phase 3 tasks are complete and their CI gates are passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 5 / 5 tasks done. **Phase 2:** 3 / 5 (CGF1-S0201 BATCH-04; CGF1-S0202 BATCH-05; CGF1-S0203 BATCH-06).
+> **Progress (Phase 1):** 5 / 5 tasks done. **Phase 2:** 4 / 5 (CGF1-S0201 BATCH-04 … CGF1-S0204 BATCH-07).
 
 ---
 
@@ -37,8 +37,8 @@ Future Barrier time-mode swap is frame-perfect; establish deterministic CI loop.
 
 - [x] **CGF1-S0201** BFS Transition Planner [details](./CGF-1-TASK-DETAIL.md#cgf1-s0201--bfs-transition-planner) — done (CGF-1-BATCH-04)
 - [x] **CGF1-S0202** DSM Handler Wiring [details](./CGF-1-TASK-DETAIL.md#cgf1-s0202--dsm-handler-wiring) — done (CGF-1-BATCH-05); heartbeat `LocalDsmState` → [CGF-1-BATCH-06](batches/CGF-1-BATCH-06-INSTRUCTIONS.md)
-- [x] **CGF1-S0203** Time Strategy Proxying [details](./CGF-1-TASK-DETAIL.md#cgf1-s0203--time-strategy-proxying) — done (CGF-1-BATCH-06); stepped `TotalWallTicks` on `SwitchTo` → [CGF-1-BATCH-07](batches/CGF-1-BATCH-07-INSTRUCTIONS.md)
-- [ ] **CGF1-S0204** Future Barrier Implementation [details](./CGF-1-TASK-DETAIL.md#cgf1-s0204--future-barrier-implementation)
+- [x] **CGF1-S0203** Time Strategy Proxying [details](./CGF-1-TASK-DETAIL.md#cgf1-s0203--time-strategy-proxying) — done (CGF-1-BATCH-06)
+- [x] **CGF1-S0204** Future Barrier Implementation [details](./CGF-1-TASK-DETAIL.md#cgf1-s0204--future-barrier-implementation) — done (CGF-1-BATCH-07); DDS translator wiring → [CGF-1-BATCH-08](batches/CGF-1-BATCH-08-INSTRUCTIONS.md)
 - [ ] **CGF1-S0205** Deterministic CI Hookup [details](./CGF-1-TASK-DETAIL.md#cgf1-s0205--deterministic-ci-hookup)
 
 ---
