@@ -72,11 +72,18 @@ namespace Fdp.Examples.NetworkDemo
         private FDP.Toolkit.Time.Controllers.DistributedTimeCoordinator? _timeCoordinator;
         private FDP.Toolkit.Time.Controllers.SlaveTimeModeListener? _slaveListener;
         private bool _testMode;
+
+        /// <summary>
+        /// Delay in milliseconds between frames in <see cref="RunLoopAsync"/>.
+        /// Set to 0 in test environments for the fastest possible loop rate.
+        /// Defaults to 33 ms (~30 FPS) for production use.
+        /// </summary>
+        public int FrameDelayMs { get; set; } = 33;
         
         private readonly ConcurrentQueue<Action<EntityRepository>> _actionQueue = new();
         public void EnqueueAction(Action<EntityRepository> action) => _actionQueue.Enqueue(action);
 
-        public async Task InitializeAsync(int nodeId, bool replayMode, string? recPath = null, bool autoSpawn = true, bool enableNetwork = true, bool testMode = false)
+        public async Task InitializeAsync(int nodeId, bool replayMode, string? recPath = null, bool autoSpawn = true, bool enableNetwork = true, bool testMode = false, uint ddsDomainId = 0)
         {
             using (ScopeContext.PushProperty("NodeId", nodeId))
             {
@@ -112,7 +119,7 @@ namespace Fdp.Examples.NetworkDemo
             // --- 1. Network & Topology ---
             if (enableNetwork)
             {
-                participant = new DdsParticipant(domainId: 0);
+                participant = new DdsParticipant(domainId: ddsDomainId);
                 participant.EnableSenderTracking(new SenderIdentityConfig
                 {
                     AppDomainId   = 0,
@@ -367,7 +374,15 @@ namespace Fdp.Examples.NetworkDemo
                 {
                     Update(0.1f);
                     if (frameCount % 60 == 0) PrintStatus();
-                    try { await Task.Delay(33, token); } catch (TaskCanceledException) { break; }
+                    if (FrameDelayMs > 0)
+                    {
+                        try { await Task.Delay(FrameDelayMs, token); } catch (TaskCanceledException) { break; }
+                    }
+                    else
+                    {
+                        await Task.Yield();
+                        if (token.IsCancellationRequested) break;
+                    }
                     frameCount++;
                 }
              }
@@ -444,7 +459,11 @@ namespace Fdp.Examples.NetworkDemo
                 }
             }
             
-            participant?.Dispose();
+            // In test mode, skip the blocking DDS participant teardown (reliable ACK waits
+            // can take 2+ s per participant). The native resources are released when the
+            // test-host process exits, which is acceptable for a test context.
+            if (!_testMode)
+                participant?.Dispose();
             replaySystem?.Dispose();
             FdpLog<NetworkDemoApp>.Info("[SHUTDOWN] Done.");
         }

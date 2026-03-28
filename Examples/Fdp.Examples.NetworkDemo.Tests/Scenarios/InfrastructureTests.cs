@@ -6,6 +6,7 @@ using NLog;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
 {
+    [Collection("DdsIntegration")]
     public class InfrastructureTests
     {
         private readonly ITestOutputHelper _output;

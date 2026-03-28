@@ -65,7 +65,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
             using (var app = new NetworkDemoApp())
             {
                 // live mode, with recording path
-                await app.InitializeAsync(nodeId, replayMode: false, recPath: _recordingFile, autoSpawn: true);
+                await app.InitializeAsync(nodeId, replayMode: false, recPath: _recordingFile, autoSpawn: true, testMode: true);
 
                 // Run for N frames
                 // We'll manually tick the kernel if possible, or use a short loop

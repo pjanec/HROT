@@ -8,6 +8,7 @@ using FDP.Toolkit.Lifecycle;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
 {
+    [Collection("DdsIntegration")]
     public class LifecycleTests
     {
         private readonly ITestOutputHelper _output;

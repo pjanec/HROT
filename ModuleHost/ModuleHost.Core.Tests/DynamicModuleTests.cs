@@ -120,6 +120,7 @@ namespace ModuleHost.Core.Tests
     // Test collection
     // ─────────────────────────────────────────────────────────────────────────────
 
+    [Collection("SerialTests")]
     public class DynamicModuleTests : IDisposable
     {
         private readonly EntityRepository _world;
@@ -838,6 +839,7 @@ namespace ModuleHost.Core.Tests
     // DoubleBufferProvider via genuine SoD and GDB strategies.
     // ─────────────────────────────────────────────────────────────────────────────
 
+    [Collection("SerialTests")]
     public class HonestSodGdbTests : IDisposable
     {
         private readonly EntityRepository _world;

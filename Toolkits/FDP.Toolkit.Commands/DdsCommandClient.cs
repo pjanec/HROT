@@ -52,8 +52,13 @@ namespace FDP.Toolkit.Commands
             _writer = new DdsWriter<TRequest>(participant, requestTopic);
             _reader = new DdsReader<TAck>(participant, ackTopic);
 
-            // Start listener loop
-            _listenerTask = Task.Run(AckListenerLoop);
+            // Start listener on a dedicated long-running thread so AckListenerLoop
+            // is immune to thread-pool saturation that can occur during parallel test runs.
+            _listenerTask = Task.Factory.StartNew(
+                AckListenerLoopBlocking,
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
         }
 
         /// <summary>
@@ -108,6 +113,34 @@ namespace FDP.Toolkit.Commands
             }
         }
 
+        private void AckListenerLoopBlocking()
+        {
+            try
+            {
+                while (!_cts.IsCancellationRequested)
+                {
+                    try
+                    {
+                        ProcessSamples();
+                        // Thread.Sleep on a dedicated thread — not affected by thread-pool saturation.
+                        Thread.Sleep(5);
+                    }
+                    catch (DdsException ex)
+                    {
+                        if (!_cts.IsCancellationRequested)
+                        {
+                            Console.WriteLine($"DDS Reader error: {ex.Message}");
+                            Thread.Sleep(100);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) when (!_cts.IsCancellationRequested)
+            {
+                Console.WriteLine($"AckListenerLoop crashed: {ex}");
+            }
+        }
+
         private async Task AckListenerLoop()
         {
             try
@@ -132,7 +165,7 @@ namespace FDP.Toolkit.Commands
                         
                         // Let's try to look for samples.
                         ProcessSamples();
-                        await Task.Delay(10, _cts.Token);
+                        await Task.Delay(5, _cts.Token);
                    }
                    catch (DdsException ex)
                    {

@@ -21,8 +21,9 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
         public async Task Nodes_WaitForPeers_BeforeBecomingActive()
         {
             // ── Step 1: Boot Node A ──────────────────────────────────────────
+            uint ddsDomain = Fdp.Examples.NetworkDemo.Tests.Infrastructure.TestDomainAllocator.Next();
             using var nodeA = new NetworkDemoApp();
-            await nodeA.InitializeAsync(100, false, autoSpawn: true, enableNetwork: true, testMode: true);
+            await nodeA.InitializeAsync(100, false, autoSpawn: true, enableNetwork: true, testMode: true, ddsDomainId: ddsDomain);
 
             // Run a short burst so the spawn command and BeginConstruction events are processed.
             for (int i = 0; i < 10; i++)
@@ -46,7 +47,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
 
             // ── Step 3: Boot Node B ──────────────────────────────────────────
             using var nodeB = new NetworkDemoApp();
-            await nodeB.InitializeAsync(200, false, autoSpawn: true, enableNetwork: true, testMode: true);
+            await nodeB.InitializeAsync(200, false, autoSpawn: true, enableNetwork: true, testMode: true, ddsDomainId: ddsDomain);
 
             // ── Step 4: Drive both nodes until both local entities become Active ──
             // In test mode, network timeout is 30 frames, ELM timeout is 50 frames

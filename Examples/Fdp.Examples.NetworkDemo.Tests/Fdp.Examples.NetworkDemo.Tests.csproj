@@ -27,4 +27,10 @@
     <ProjectReference Include="..\..\..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="fdp-test-cyclonedds.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

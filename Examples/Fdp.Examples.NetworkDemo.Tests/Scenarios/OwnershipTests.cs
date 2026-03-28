@@ -11,7 +11,6 @@ using System.Linq;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
 {
-    [Collection("DdsIntegration")]
     public class OwnershipTests
     {
         private readonly ITestOutputHelper _output;

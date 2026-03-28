@@ -6,6 +6,7 @@ using Xunit;
 using Xunit.Abstractions;
 using NLog;
 using NLog.Config;
+using NLog.Targets;
 using Fdp.Examples.NetworkDemo;
 
 namespace Fdp.Examples.NetworkDemo.Tests.Infrastructure
@@ -20,30 +21,49 @@ namespace Fdp.Examples.NetworkDemo.Tests.Infrastructure
         private CancellationTokenSource _cts;
         private readonly ITestOutputHelper _output;
         private readonly TestLogCapture _logCapture;
+        private readonly LoggingRule _loggingRule;
+        private readonly string _sessionId;
+
+        private static readonly object _configLock = new object();
 
         public DistributedTestEnv(ITestOutputHelper output)
         {
             _output = output;
             _cts = new CancellationTokenSource();
+            _sessionId = Guid.NewGuid().ToString("N")[..8]; // unique 8-char ID per test
             
-            // Setup in-memory logging
-            _logCapture = new TestLogCapture 
-            { 
-                Layout = "${longdate}|${level:uppercase=true}|[${scopeproperty:NodeId}] ${logger:shortName}|${message}" 
+            // Setup in-memory logging — use an ADDITIVE rule so parallel tests don't
+            // clobber each other's LogManager.Configuration. The session ID in the
+            // layout lets AssertLogContains distinguish this test's messages from others.
+            _logCapture = new TestLogCapture
+            {
+                Layout = "${longdate}|${level:uppercase=true}|session=${scopeproperty:TestSessionId}|[${scopeproperty:NodeId}] ${logger:shortName}|${message}"
             };
-            
-            var config = new LoggingConfiguration();
-            // Default to Info, but usually for tests we want Trace/Debug?
-            // "Ensure GenericDescriptorTranslator logs detailed authority checks (trace level)"
-            // So we need Trace enabled.
-            config.AddRule(LogLevel.Trace, LogLevel.Fatal, _logCapture);
-            LogManager.Configuration = config;
+
+            _loggingRule = new LoggingRule("*", LogLevel.Trace, _logCapture) { RuleName = _sessionId };
+
+            lock (_configLock)
+            {
+                var config = LogManager.Configuration ?? new LoggingConfiguration();
+                config.AddRule(_loggingRule);
+                LogManager.Configuration = config;
+                LogManager.ReconfigExistingLoggers();
+            }
         }
 
         public async Task StartNodesAsync()
         {
             NodeA = new NetworkDemoApp();
             NodeB = new NetworkDemoApp();
+
+            // Run the loop as fast as possible in tests so frame-count-based timeouts
+            // (e.g. gateway handshake) complete in milliseconds instead of seconds.
+            NodeA.FrameDelayMs = 0;
+            NodeB.FrameDelayMs = 0;
+
+            // Each test gets its own CycloneDDS domain so parallel tests do not
+            // receive each other's DDS traffic.
+            uint ddsDomain = TestDomainAllocator.Next();
             
             var uniqueId = Guid.NewGuid().ToString("N");
             var pathA = $"node_100_{uniqueId}.fdp";
@@ -54,10 +74,11 @@ namespace Fdp.Examples.NetworkDemo.Tests.Infrastructure
 
             _taskA = Task.Run(async () => {
                 // Ensure context is fresh for this task
+                using (ScopeContext.PushProperty("TestSessionId", _sessionId))
                 using (ScopeContext.PushProperty("NodeId", 100))
                 {
                     try {
-                        await NodeA.InitializeAsync(100, false, pathA, autoSpawn: false);
+                        await NodeA.InitializeAsync(100, false, pathA, autoSpawn: false, testMode: true, ddsDomainId: ddsDomain);
                         initTcsA.SetResult(true);
                         await NodeA.RunLoopAsync(_cts.Token);
                     } catch (TaskCanceledException) {
@@ -72,10 +93,11 @@ namespace Fdp.Examples.NetworkDemo.Tests.Infrastructure
 
             _taskB = Task.Run(async () => {
                 await Task.Delay(100); // Stagger start
+                using (ScopeContext.PushProperty("TestSessionId", _sessionId))
                 using (ScopeContext.PushProperty("NodeId", 200))
                 {
                     try {
-                        await NodeB.InitializeAsync(200, false, pathB, autoSpawn: false);
+                        await NodeB.InitializeAsync(200, false, pathB, autoSpawn: false, testMode: true, ddsDomainId: ddsDomain);
                         initTcsB.SetResult(true);
                         await NodeB.RunLoopAsync(_cts.Token);
                     } catch (TaskCanceledException) {
@@ -95,8 +117,9 @@ namespace Fdp.Examples.NetworkDemo.Tests.Infrastructure
         {
              var logs = _logCapture.Logs.ToArray();
              
+             string sessionMarker = $"session={_sessionId}";
              string nodeMarker = $"[{nodeId}]";
-             bool found = logs.Any(l => l.Contains(nodeMarker) && l.Contains(partialMessage));
+             bool found = logs.Any(l => l.Contains(sessionMarker) && l.Contains(nodeMarker) && l.Contains(partialMessage));
              
              if (!found) {
                  // Print all logs to output for debug
@@ -148,6 +171,17 @@ namespace Fdp.Examples.NetworkDemo.Tests.Infrastructure
             NodeA?.Dispose();
             NodeB?.Dispose();
             _cts.Dispose();
+
+            // Remove the log capture rule so it doesn't accumulate across tests.
+            lock (_configLock)
+            {
+                var config = LogManager.Configuration;
+                if (config != null)
+                {
+                    config.LoggingRules.Remove(_loggingRule);
+                    LogManager.ReconfigExistingLoggers();
+                }
+            }
         }
     }
 }

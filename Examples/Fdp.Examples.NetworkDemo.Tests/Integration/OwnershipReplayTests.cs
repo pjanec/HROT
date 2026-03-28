@@ -27,7 +27,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
                 // 1. Record
                 using (var app = new NetworkDemoApp())
                 {
-                    await app.InitializeAsync(100, false, recFile, true, false);
+                    await app.InitializeAsync(100, false, recFile, true, false, testMode: true);
                     
                     Entity testEntity = default;
                     app.EnqueueAction(repo => {

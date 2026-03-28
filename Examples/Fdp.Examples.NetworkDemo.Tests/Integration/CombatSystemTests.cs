@@ -20,6 +20,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
         public async Task TwoNodes_FireEvent_DamageApplied()
         {
             // 1. Setup two nodes
+            uint ddsDomain = Fdp.Examples.NetworkDemo.Tests.Infrastructure.TestDomainAllocator.Next();
             string recA = $"combat_node_100_{Guid.NewGuid()}.fdp";
             string recB = $"combat_node_200_{Guid.NewGuid()}.fdp";
             
@@ -28,8 +29,8 @@ namespace Fdp.Examples.NetworkDemo.Tests.Integration
             using var nodeA = new NetworkDemoApp();
             using var nodeB = new NetworkDemoApp();
             
-            await nodeA.InitializeAsync(100, false, recA, autoSpawn: true, enableNetwork: true);
-            await nodeB.InitializeAsync(200, false, recB, autoSpawn: true, enableNetwork: true);
+            await nodeA.InitializeAsync(100, false, recA, autoSpawn: true, enableNetwork: true, testMode: true, ddsDomainId: ddsDomain);
+            await nodeB.InitializeAsync(200, false, recB, autoSpawn: true, enableNetwork: true, testMode: true, ddsDomainId: ddsDomain);
             
             // 2. Let entities discover
             for (int i = 0; i < 5; i++)
