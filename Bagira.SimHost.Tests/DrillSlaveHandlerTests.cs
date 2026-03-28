@@ -23,7 +23,7 @@ namespace Bagira.SimHost.Tests
         /// <c>Next == DSMState.LoadingLive</c>.
         /// </summary>
         [Fact]
-        public void CommitState_RaisesEsmStateChangedEvent()
+        public void CommitState_RaisesDsmStateChangedEvent()
         {
             var eventBus = new FdpEventBus();
             using var slave = new DrillSlave(eventBus);
@@ -87,6 +87,37 @@ namespace Bagira.SimHost.Tests
                 t.Namespace?.StartsWith("Fdp.", StringComparison.Ordinal) == true ||
                 t.Namespace?.StartsWith("FDP.", StringComparison.Ordinal) == true,
                 $"DsmStateChangedEvent must not be in an FDP namespace; actual: {t.Namespace}");
+        }
+
+        // ── A.1 (BATCH-06): LocalDsmState heartbeat reflects committed state ────
+
+        /// <summary>
+        /// After a <see cref="NodeOpType.CommitState"/> command is processed by
+        /// <see cref="DrillSlave.Tick"/>, the slave's stored local DSM state must match
+        /// the committed value — confirming that the next heartbeat would carry the
+        /// updated state rather than the hardcoded <c>Standby</c> that was the pre-fix bug.
+        /// </summary>
+        [Fact]
+        public void LocalDsmState_ReflectsCommittedState_AfterCommitState()
+        {
+            var eventBus = new FdpEventBus();
+            using var slave = new DrillSlave(eventBus);
+
+            // Initial state must be Standby.
+            Assert.Equal(DSMState.Standby, slave.LocalDsmStateForTest);
+
+            slave.EnqueueCommandForTest(new NodeOpCommand
+            {
+                TransactionId = Guid.NewGuid(),
+                Operation     = NodeOpType.CommitState,
+                PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
+            });
+
+            slave.Tick();
+
+            // After Tick() the stored state must be LoadingLive — this is exactly what
+            // a subsequent PublishHeartbeat() will write into LocalDsmState.
+            Assert.Equal(DSMState.LoadingLive, slave.LocalDsmStateForTest);
         }
     }
 }

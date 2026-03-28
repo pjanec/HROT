@@ -177,6 +177,25 @@ public sealed class TransitionPlannerTests
     // -- A.2: Payload fail-fast tests (CGF-1-BATCH-05) --
 
     /// <summary>
+    /// A whitespace-only PayloadJson for a TransitionState request must throw rather than
+    /// silently default to Standby. Whitespace is caught by the same IsNullOrWhiteSpace
+    /// guard as the empty string case.
+    /// </summary>
+    [Fact]
+    public void PlanTrajectory_WhitespaceOnlyPayload_Throws()
+    {
+        var request = new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = "   ",
+        };
+
+        Assert.Throws<InvalidOperationException>(
+            () => _planner.PlanTrajectory(DSMState.Standby, request));
+    }
+
+    /// <summary>
     /// An empty PayloadJson for a TransitionState request must throw rather than silently
     /// default to Standby.
     /// </summary>

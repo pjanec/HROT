@@ -145,7 +145,7 @@ namespace Bagira.SimHost.Modules.Orchestration
             {
                 NodeId = _nodeId,
                 SubsystemName = _subsystemName,
-                LocalDsmState = DSMState.Standby,
+                LocalDsmState = _localDsmState,
                 WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
                 CpuUsagePercent = 0f,
                 RamUsedBytes = 0L,
@@ -153,6 +153,12 @@ namespace Bagira.SimHost.Modules.Orchestration
                 SubsystemsJson = string.Empty,
             });
         }
+
+        /// <summary>
+        /// Current local DSM state as it would be written into the next heartbeat.
+        /// Exposed for unit-test assertions only — do not use in production code.
+        /// </summary>
+        internal DSMState LocalDsmStateForTest => _localDsmState;
 
         private void DispatchCommand(NodeOpCommand cmd)
         {
