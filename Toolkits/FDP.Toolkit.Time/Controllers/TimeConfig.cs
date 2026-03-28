@@ -50,10 +50,18 @@ namespace FDP.Toolkit.Time.Controllers
         public double LockstepTimeoutMs { get; set; } = 1000.0;  // 1 second
         
         /// <summary>
-        /// Number of frames to plan ahead for distributed pause barrier.
-        /// Higher values = safer for high jitter networks.
-        /// Lower values = faster pause response.
+        /// Wall-clock lookahead (Stopwatch ticks) for the Future Barrier protocol.
+        /// <para>
+        /// <see cref="DistributedTimeCoordinator"/> adds this to the master's current
+        /// <see cref="Fdp.Kernel.GlobalTime.TotalWallTicks"/> when computing
+        /// <see cref="FDP.Toolkit.Time.Messages.SwitchTimeModeEvent.BarrierWallTicks"/>.
+        /// All PLL-synchronized slaves will reach that wall-tick value within
+        /// approximately one ECS frame of the master, so the default
+        /// of ≈ 200 ms (expressed as Stopwatch ticks) is sufficient for DDS delivery
+        /// across a LAN even under moderate load.
+        /// </para>
+        /// Set to a smaller value (e.g. 10–50 ms) in unit tests that use wall-clock sleeps.
         /// </summary>
-        public int PauseBarrierFrames { get; set; } = 10;
+        public long LookaheadWallTicks { get; set; } = (long)(0.2 * Stopwatch.Frequency);
     }
 }

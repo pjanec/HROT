@@ -57,29 +57,43 @@ namespace FDP.Toolkit.Time.Messages
     }
 
     /// <summary>
-    /// Network event to switch time mode across distributed system.
-    /// Published by Master, consumed by all Slaves.
+    /// Network event to switch time mode across a distributed cluster.
+    /// Published by the Master (<see cref="FDP.Toolkit.Time.Controllers.DistributedTimeCoordinator"/>),
+    /// consumed by every Slave (<see cref="FDP.Toolkit.Time.Controllers.SlaveTimeModeListener"/>).
+    /// <para>
+    /// Each node performs the controller swap when its own
+    /// <see cref="Fdp.Kernel.GlobalTime.TotalWallTicks"/> reaches
+    /// <see cref="BarrierWallTicks"/>: the FDP PLL-synchronized virtual wall clock —
+    /// not a frame counter or OS clock — guaranteeing cluster-wide alignment
+    /// regardless of per-node frame rates.
+    /// </para>
+    /// <para>
+    /// <b>DDS transport note:</b> wire the event via
+    /// <c>BlitEventTranslator&lt;SwitchTimeModeEvent&gt;</c> in
+    /// <c>TimeNetworkModule.RegisterTranslators()</c> at the composition root.
+    /// The IDL registration avoids specifying <see cref="Fdp.Kernel.GlobalTime"/> enums
+    /// directly in the IDL; the struct is kept as an unmanaged value type.
+    /// </para>
     /// </summary>
     [MessagePackObject]
     [EventId(103)]
     public struct SwitchTimeModeEvent
     {
+        /// <summary>Target time mode: <see cref="TimeMode.Continuous"/> or <see cref="TimeMode.Deterministic"/>.</summary>
         [Key(0)]
-        public TimeMode TargetMode { get; set; }  // Continuous or Deterministic
-        
+        public TimeMode TargetMode { get; set; }
+
+        /// <summary>
+        /// Absolute <see cref="Fdp.Kernel.GlobalTime.TotalWallTicks"/> at which every node
+        /// must perform the mode swap. Derived from the master's virtual wall clock at the
+        /// moment of publishing, plus a configurable lookahead
+        /// (≈ 200 ms by default, expressed as Stopwatch ticks).
+        /// </summary>
         [Key(1)]
-        public long FrameNumber { get; set; }  // Current frame for synchronization
-        
+        public long BarrierWallTicks { get; set; }
+
+        /// <summary>Fixed delta time (seconds) for Deterministic mode. Ignored for Continuous.</summary>
         [Key(2)]
-        public double TotalTime { get; set; }  // Current simulation time
-        
-        // Removed to satisfy unmanaged constraint
-        // public HashSet<int>? AllNodeIds { get; set; }
-        
-        [Key(3)]
-        public float FixedDeltaSeconds { get; set; }  // For Deterministic mode
-        
-        [Key(4)]
-        public long BarrierFrame { get; set; } // Frame at which to switch (0 = immediate)
+        public float FixedDelta { get; set; }
     }
 }

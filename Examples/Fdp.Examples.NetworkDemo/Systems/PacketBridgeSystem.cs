@@ -65,7 +65,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
                      ref readonly var prev = ref view.GetComponentRO<TimeModeComponent>(timeEnt);
                      var next = prev;
                      next.FrameNumber = order.FrameID;
-                     next.FixedDeltaSeconds = order.FixedDelta;
+                     next.FixedDelta = order.FixedDelta;
                      cmds.SetComponent(timeEnt, next);
                 }
             }
@@ -112,7 +112,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
                          mode.FrameNumber);
                     _bus.Publish(new FrameOrderDescriptor {
                         FrameID = mode.FrameNumber,
-                        FixedDelta = mode.FixedDeltaSeconds,
+                        FixedDelta = mode.FixedDelta,
                         SequenceID = mode.FrameNumber
                     });
                     _lastEmittedOrderFrame = mode.FrameNumber;

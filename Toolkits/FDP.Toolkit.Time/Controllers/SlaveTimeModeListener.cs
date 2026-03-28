@@ -9,30 +9,36 @@ using FDP.Toolkit.Time.Messages;
 namespace FDP.Toolkit.Time.Controllers
 {
     /// <summary>
-    /// Listens for mode switch events on Slave nodes.
-    /// Handles Future Barrier waiting before swapping controllers.
+    /// Listens for <see cref="SwitchTimeModeEvent"/> on Slave nodes and performs the
+    /// controller swap once the local <see cref="GlobalTime.TotalWallTicks"/> reaches the
+    /// Future Barrier specified in the event — ensuring the swap fires within one ECS tick
+    /// of the master regardless of per-node frame rates or ECS frame counters.
     /// </summary>
     public class SlaveTimeModeListener
     {
         private readonly FdpEventBus _eventBus;
         private readonly ModuleHostKernel _kernel;
         private readonly TimeControllerConfig _config;
-        
-        // Barrier State
-        private long _pendingBarrierFrame = -1;
+
+        // Barrier state — wall-tick-based (not frame-based).
+        // -1 means no pending barrier.
+        private long _pendingBarrierWallTicks = -1;
         private SwitchTimeModeEvent? _pendingEvent;
-        
+
         public SlaveTimeModeListener(FdpEventBus eventBus, ModuleHostKernel kernel, TimeControllerConfig config)
         {
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _kernel = kernel ?? throw new ArgumentNullException(nameof(kernel));
             _config = config ?? throw new ArgumentNullException(nameof(config));
-            
+
             _eventBus.Register<SwitchTimeModeEvent>();
         }
-        
-        // Removed direct callback, logic moved to Update
-        
+
+        /// <summary>
+        /// Polls for incoming <see cref="SwitchTimeModeEvent"/> events and fires the
+        /// controller swap when <see cref="GlobalTime.TotalWallTicks"/> crosses the barrier.
+        /// Must be called every frame.
+        /// </summary>
         public void Update()
         {
             // Poll for events
@@ -40,94 +46,75 @@ namespace FDP.Toolkit.Time.Controllers
             {
                 OnModeSwitchRequested(evt);
             }
-            
-            if (_pendingBarrierFrame != -1 && _kernel.CurrentTime.FrameNumber >= _pendingBarrierFrame)
+
+            if (_pendingBarrierWallTicks >= 0
+                && _kernel.CurrentTime.TotalWallTicks >= _pendingBarrierWallTicks)
             {
-                 if (_pendingEvent.HasValue)
-                 {
-                     ExecuteSwapToDeterministic(_pendingEvent.Value);
-                 }
-                 _pendingBarrierFrame = -1;
-                 _pendingEvent = null;
+                if (_pendingEvent.HasValue)
+                {
+                    ExecuteSwapToDeterministic(_pendingEvent.Value);
+                }
+                _pendingBarrierWallTicks = -1;
+                _pendingEvent = null;
             }
         }
-        
+
         private void OnModeSwitchRequested(SwitchTimeModeEvent evt)
         {
             if (evt.TargetMode == TimeMode.Deterministic)
             {
-                // Pause requested
-                _pendingBarrierFrame = evt.BarrierFrame;
+                _pendingBarrierWallTicks = evt.BarrierWallTicks;
                 _pendingEvent = evt;
-                
+
                 FdpLog<SlaveTimeModeListener>.Info(
-                    "[Slave] Received Pause Request. Barrier Frame: {0} (Current: {1})",
-                    evt.BarrierFrame,
-                    _kernel.CurrentTime.FrameNumber);
-                
-                // Safety check: If we are already past the barrier (latency > lookahead), we must snap IMMEDIATELY
-                if (_kernel.CurrentTime.FrameNumber >= evt.BarrierFrame)
+                    "[Slave] Received Deterministic barrier BarrierWallTicks={0} (current TotalWallTicks={1})",
+                    evt.BarrierWallTicks,
+                    _kernel.CurrentTime.TotalWallTicks);
+
+                // Safety: if we are already past the barrier (very late DDS delivery), swap immediately.
+                if (_kernel.CurrentTime.TotalWallTicks >= evt.BarrierWallTicks)
                 {
-                     FdpLog<SlaveTimeModeListener>.Warn(
-                         "[Slave] Warning: Already past barrier ({0} >= {1}). Swapping immediately.",
-                         _kernel.CurrentTime.FrameNumber,
-                         evt.BarrierFrame);
-                     ExecuteSwapToDeterministic(evt);
-                     _pendingBarrierFrame = -1;
-                     _pendingEvent = null;
+                    FdpLog<SlaveTimeModeListener>.Warn(
+                        "[Slave] Already past barrier (TotalWallTicks={0} >= {1}). Swapping immediately.",
+                        _kernel.CurrentTime.TotalWallTicks,
+                        evt.BarrierWallTicks);
+                    ExecuteSwapToDeterministic(evt);
+                    _pendingBarrierWallTicks = -1;
+                    _pendingEvent = null;
                 }
             }
             else if (evt.TargetMode == TimeMode.Continuous)
             {
-                // Unpause requested - Immediate
+                // Unpause is always immediate — no barrier needed.
                 ExecuteSwapToContinuous(evt);
             }
         }
-        
+
         private void ExecuteSwapToDeterministic(SwitchTimeModeEvent evt)
         {
-            FdpLog<SlaveTimeModeListener>.Info("[Slave] Barrier Reached. Swapping to SteppedSlaveController.");
-            
-            // 1. Create SteppedSlave
-            // Use config values or event values?
-            float fixedDelta = evt.FixedDeltaSeconds > 0 ? evt.FixedDeltaSeconds : _config.SyncConfig.FixedDeltaSeconds;
-            
+            FdpLog<SlaveTimeModeListener>.Info(
+                "[Slave] Barrier reached (TotalWallTicks={0}). Swapping to SteppedSlaveController.",
+                _kernel.CurrentTime.TotalWallTicks);
+
+            float fixedDelta = evt.FixedDelta > 0 ? evt.FixedDelta : _config.SyncConfig.FixedDeltaSeconds;
+
             var steppedSlave = new SteppedSlaveController(_eventBus, _config.LocalNodeId, fixedDelta);
-            
-            // 2. Seed it
-            // We use our LOCAL state to avoid rewinding.
-            // We assume we are at BarrierFrame.
-            // If we drifted slightly in SimTime, we accept the local drift and lock it there.
+
+            // Seed from local state to ensure no rewind — jitter-free continuity.
             var localState = _kernel.GetTimeController().GetCurrentState();
-            
-            // Ensure Frame matches exactly (just in case of weird off-by-one in check)
-            // But usually we want to preserve local state continuity.
-            // If we are at Frame 101 and Barrier was 100, we technically overshot.
-            // But snapping back to 100 might cause replay?
-            // "Jitter-Free" goal implies NO Rewinds.
-            // So we seed with Current Local State.
-            
             steppedSlave.SeedState(localState);
-            
-            // 3. Swap
+
             _kernel.SwapTimeController(steppedSlave);
         }
-        
+
         private void ExecuteSwapToContinuous(SwitchTimeModeEvent evt)
         {
-            FdpLog<SlaveTimeModeListener>.Info("[Slave] Unpausing to Continuous Mode.");
-            
+            FdpLog<SlaveTimeModeListener>.Info("[Slave] Switching to Continuous Mode.");
+
             var slave = new SlaveTimeController(_eventBus, _config.SyncConfig);
-            
-            // Seed with current state (Stepped state)
-            // Master sends evt.TotalTime?
-            // Usually we want to continue from where WE are (which should be synced via Lockstep).
-            // But Master's Unpause event contains Ref Time.
-            // If we use Local State, we are safe from jumps.
             var localState = _kernel.GetTimeController().GetCurrentState();
-            
             slave.SeedState(localState);
-            
+
             _kernel.SwapTimeController(slave);
         }
     }

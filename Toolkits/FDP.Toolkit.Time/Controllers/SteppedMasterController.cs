@@ -23,6 +23,15 @@ namespace FDP.Toolkit.Time.Controllers
         private long _frameNumber = 0;
         private float _timeScale = 1.0f;
         private double _unscaledTotalTime;
+        /// <summary>
+        /// Wall-clock tick accumulator seeded from <see cref="SeedState"/> so that
+        /// <see cref="GlobalTime.TotalWallTicks"/> is continuous after a
+        /// <see cref="SwitchableTimeController.SwitchTo"/> from a
+        /// <see cref="MasterTimeController"/>. Each <see cref="Step"/> advances this by
+        /// <c>(long)(fixedDeltaTime * Stopwatch.Frequency)</c> — the deterministic
+        /// mapping from fixed delta seconds to Stopwatch ticks.
+        /// </summary>
+        private long _totalWallTicks;
         
         // Lockstep state
         private bool _waitingForAcks;
@@ -83,6 +92,7 @@ namespace FDP.Toolkit.Time.Controllers
             _frameNumber++;
             _totalTime += scaledDelta;
             _unscaledTotalTime += fixedDeltaTime;
+            _totalWallTicks += (long)(fixedDeltaTime * Stopwatch.Frequency);
             
             // Send Order for current frame
             var order = new FrameOrderDescriptor 
@@ -146,7 +156,7 @@ namespace FDP.Toolkit.Time.Controllers
                 UnscaledDeltaTime = unscaledDelta,
                 UnscaledTotalTime = _unscaledTotalTime,
                 StartWallTicks = 0,
-                TotalWallTicks = (long)(_unscaledTotalTime * Stopwatch.Frequency)
+                TotalWallTicks = _totalWallTicks
             };
         }
 
@@ -158,6 +168,11 @@ namespace FDP.Toolkit.Time.Controllers
             _totalTime = state.TotalTime;
             _unscaledTotalTime = state.UnscaledTotalTime;
             _timeScale = state.TimeScale;
+            // Preserves wall-clock continuity across SwitchableTimeController.SwitchTo:
+            // barrier math in DistributedTimeCoordinator/SlaveTimeModeListener depends on
+            // TotalWallTicks being the same PLL-synchronized virtual clock, not a
+            // re-derived approximation from _unscaledTotalTime * Stopwatch.Frequency.
+            _totalWallTicks = state.TotalWallTicks;
             
             _pendingAcks.Clear();
             _waitingForAcks = false;

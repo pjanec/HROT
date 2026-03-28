@@ -89,8 +89,7 @@ namespace Fdp.Examples.NetworkDemo.Systems
                             _eventBus.Publish(new SwitchTimeModeEvent 
                             { 
                                 TargetMode = TimeMode.Deterministic,
-                                // Let coordinator decide barrier
-                                BarrierFrame = 0 
+                                BarrierWallTicks = 0  // coordinator will override
                             });
                         }
                         break;

@@ -139,5 +139,38 @@ namespace FDP.Toolkit.Time.Tests
             // Must be ≈ 900, not slewing toward it from 1.0
             Assert.Equal(900.0, seeded.TotalTime, precision: 1);
         }
+
+        /// <summary>
+        /// CGF1-S0203 / Part A.2: A non-zero <c>TotalWallTicks</c> seeded via
+        /// <see cref="SlaveTimeController.SeedState"/> must survive the very next
+        /// <see cref="SlaveTimeController.Update"/> call within a small delta tolerance —
+        /// proving the PLL jitter filter is bypassed and the baseline is preserved for
+        /// Future Barrier comparisons.
+        /// </summary>
+        [Fact]
+        public void SeedState_NonZeroWallTicks_ArePreservedAfterUpdate()
+        {
+            var bus = new FdpEventBus();
+            var controller = new SlaveTimeController(bus, TimeConfig.Default, GetTicks);
+
+            const long seedWallTicks = 987_654_321L;
+
+            // Seed with a non-zero TotalWallTicks to prove the baseline is preserved
+            controller.SeedState(new GlobalTime { TotalTime = 50.0, TotalWallTicks = seedWallTicks });
+
+            // Advance a single small tick (≈ 1 ms) so rawDelta > 0 but tiny
+            AdvanceTime(0.001);
+            var afterUpdate = controller.Update();
+
+            // Delta contributed by a 1 ms tick: Stopwatch.Frequency / 1000
+            long maxExpectedDelta = Stopwatch.Frequency / 100; // generous 10 ms tolerance
+
+            Assert.True(
+                afterUpdate.TotalWallTicks >= seedWallTicks,
+                $"TotalWallTicks should be >= seed ({seedWallTicks}); got {afterUpdate.TotalWallTicks}");
+            Assert.True(
+                afterUpdate.TotalWallTicks < seedWallTicks + maxExpectedDelta,
+                $"TotalWallTicks drifted too far from seed ({seedWallTicks}); got {afterUpdate.TotalWallTicks}");
+        }
     }
 }

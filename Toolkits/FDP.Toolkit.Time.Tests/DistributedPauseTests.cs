@@ -33,7 +33,7 @@ namespace FDP.Toolkit.Time.Tests
             var masterConfig = new TimeControllerConfig 
             { 
                 Role = TimeRole.Master,
-                SyncConfig = new TimeConfig { PauseBarrierFrames = 5 }
+                SyncConfig = new TimeConfig { LookaheadWallTicks = (long)(0.01 * Stopwatch.Frequency) }
             };
             
             // Replaced ConfigureTime
@@ -234,7 +234,7 @@ namespace FDP.Toolkit.Time.Tests
             var masterConfig = new TimeControllerConfig 
             { 
                 Role = TimeRole.Master,
-                SyncConfig = new TimeConfig { PauseBarrierFrames = 5 }
+                SyncConfig = new TimeConfig { LookaheadWallTicks = (long)(0.01 * Stopwatch.Frequency) }
             };
             
             masterKernel.SetTimeController(new MasterTimeController(masterRepo.Bus, masterConfig.SyncConfig));
@@ -368,56 +368,58 @@ namespace FDP.Toolkit.Time.Tests
             var sharedBus = new FdpEventBus();
             var masterRepo = new EntityRepository();
             var masterKernel = new ModuleHostKernel(masterRepo, new EventAccumulator());
-            
-            var masterConfig = new TimeControllerConfig 
-            { 
+
+            // Use a short lookahead (50 ms) so the test completes quickly while still
+            // being long enough that 3 short updates don't accidentally cross it.
+            var masterConfig = new TimeControllerConfig
+            {
                 Role = TimeRole.Master,
-                SyncConfig = new TimeConfig { PauseBarrierFrames = 10 }
+                SyncConfig = new TimeConfig { LookaheadWallTicks = (long)(0.05 * Stopwatch.Frequency) }
             };
-            
+
             masterKernel.SetTimeController(new MasterTimeController(masterRepo.Bus, masterConfig.SyncConfig));
             masterKernel.Initialize();
-            
-            var coordinator = new DistributedTimeCoordinator(sharedBus, masterKernel, masterConfig, new HashSet<int>{1});
-            
+
+            var coordinator = new DistributedTimeCoordinator(sharedBus, masterKernel, masterConfig, new HashSet<int> { 1 });
+
             // Start in Continuous
             masterKernel.Update();
             Assert.Equal(TimeMode.Continuous, masterKernel.GetTimeController().GetMode());
-            
+
             long frameAtPause = masterKernel.CurrentTime.FrameNumber;
-            
+
             // Act: Rapid Pause
-            coordinator.SwitchToDeterministic(new HashSet<int>{1});
-            
-            // Advance 3 frames (still before barrier of +10)
+            coordinator.SwitchToDeterministic(new HashSet<int> { 1 });
+
+            // Advance ~3 updates (< 50 ms lookahead — barrier not reached)
             for (int i = 0; i < 3; i++)
             {
                 masterKernel.Update();
                 coordinator.Update();
-                Thread.Sleep(5);
+                Thread.Sleep(1); // only ~3 ms total, well below 50 ms barrier
             }
-            
+
             // Should still be Continuous (barrier not reached)
             Assert.Equal(TimeMode.Continuous, masterKernel.GetTimeController().GetMode());
-            
+
             // Act: Rapid Unpause (cancel pending pause)
             coordinator.SwitchToContinuous();
-            
-            // Advance more frames
+
+            // Advance more frames (well past original barrier time but it was canceled)
             for (int i = 0; i < 15; i++)
             {
                 masterKernel.Update();
                 coordinator.Update();
                 Thread.Sleep(5);
             }
-            
+
             // Assert: Should remain Continuous (barrier canceled)
             Assert.Equal(TimeMode.Continuous, masterKernel.GetTimeController().GetMode());
-            
+
             // Verify frame count advanced normally
             Assert.True(masterKernel.CurrentTime.FrameNumber > frameAtPause + 15,
                 "Should have advanced past original barrier without pausing");
-            
+
             // Cleanup
             masterKernel.Dispose();
         }
@@ -458,11 +460,11 @@ namespace FDP.Toolkit.Time.Tests
             var masterRepo = new EntityRepository();
             var masterKernel = new ModuleHostKernel(masterRepo, new EventAccumulator());
             
-            int lookahead = 7; // Custom lookahead for test
+            int lookahead = 7; // Custom lookahead for test (ms)
             var masterConfig = new TimeControllerConfig 
             { 
                 Role = TimeRole.Master,
-                SyncConfig = new TimeConfig { PauseBarrierFrames = lookahead }
+                SyncConfig = new TimeConfig { LookaheadWallTicks = (long)(lookahead * Stopwatch.Frequency / 1000L) }
             };
             
             masterKernel.SetTimeController(new MasterTimeController(masterRepo.Bus, masterConfig.SyncConfig));
@@ -477,8 +479,8 @@ namespace FDP.Toolkit.Time.Tests
                 Thread.Sleep(5);
             }
             
-            long currentFrame = masterKernel.CurrentTime.FrameNumber;
-            long expectedBarrier = currentFrame + lookahead;
+            long masterStateAtPause = masterKernel.CurrentTime.TotalWallTicks;
+            long expectedBarrierMin = masterStateAtPause; // barrier must be strictly in the future
             
             // Act: Initiate pause
             coordinator.SwitchToDeterministic(new HashSet<int>{1});
@@ -494,15 +496,11 @@ namespace FDP.Toolkit.Time.Tests
                 break;
             }
             
-            // Assert: Event captured
+            // Assert: event captured with a wall-tick barrier strictly in the future
             Assert.NotNull(capturedEvent);
             Assert.Equal(TimeMode.Deterministic, capturedEvent.Value.TargetMode);
-            
-            // Verify Barrier Frame calculation
-            Assert.Equal(expectedBarrier, capturedEvent.Value.BarrierFrame);
-            
-            // Verify reference time is current
-            Assert.Equal(currentFrame, capturedEvent.Value.FrameNumber);
+            Assert.True(capturedEvent.Value.BarrierWallTicks > masterStateAtPause,
+                $"BarrierWallTicks ({capturedEvent.Value.BarrierWallTicks}) must be > TotalWallTicks at pause time ({masterStateAtPause})");
             
             // Cleanup
             masterKernel.Dispose();

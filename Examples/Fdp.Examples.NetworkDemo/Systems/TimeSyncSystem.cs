@@ -44,10 +44,8 @@ namespace Fdp.Examples.NetworkDemo.Systems
                     cmd.SetComponent(entity, new TimeModeComponent
                     {
                         TargetMode = (int)evt.TargetMode,
-                        FrameNumber = evt.FrameNumber,
-                        TotalTime = evt.TotalTime,
-                        FixedDeltaSeconds = evt.FixedDeltaSeconds,
-                        BarrierFrame = evt.BarrierFrame
+                        BarrierWallTicks = evt.BarrierWallTicks,
+                        FixedDelta = evt.FixedDelta
                     });
                      // Singleton, break after first
                      break; 
@@ -64,17 +62,15 @@ namespace Fdp.Examples.NetworkDemo.Systems
             {
                 ref readonly var comp = ref view.GetComponentRO<TimeModeComponent>(entity);
                 
-                if (comp.BarrierFrame > _lastProcessedBarrier && comp.BarrierFrame > 0)
+                if (comp.BarrierWallTicks > _lastProcessedBarrier && comp.BarrierWallTicks > 0)
                 {
-                     _lastProcessedBarrier = comp.BarrierFrame;
+                     _lastProcessedBarrier = comp.BarrierWallTicks;
                      
                      var evt = new SwitchTimeModeEvent
                      {
                         TargetMode = (TimeMode)comp.TargetMode,
-                        FrameNumber = comp.FrameNumber,
-                        TotalTime = comp.TotalTime,
-                        FixedDeltaSeconds = comp.FixedDeltaSeconds,
-                        BarrierFrame = comp.BarrierFrame
+                        BarrierWallTicks = comp.BarrierWallTicks,
+                        FixedDelta = comp.FixedDelta
                      };
                      
                      _bus.Publish(evt);

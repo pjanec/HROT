@@ -16,7 +16,7 @@ namespace Fdp.Examples.NetworkDemo.Components
         public int TargetMode; // Cast to TimeMode
         public long FrameNumber;
         public double TotalTime;
-        public float FixedDeltaSeconds;
-        public long BarrierFrame;
+        public float FixedDelta;
+        public long BarrierWallTicks;
     }
 }

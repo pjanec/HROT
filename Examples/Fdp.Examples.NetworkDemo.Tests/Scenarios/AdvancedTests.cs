@@ -34,7 +34,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
             env.NodeA.EventBus.Publish(new SwitchTimeModeEvent 
             { 
                TargetMode = TimeMode.Deterministic,
-               BarrierFrame = 0 // Immediate
+               BarrierWallTicks = 0  // immediate
             });
 
             // 2. Wait for propagation and switch

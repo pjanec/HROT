@@ -301,7 +301,7 @@ namespace Fdp.Examples.NetworkDemo
                 timeController = new MasterTimeController(eventBus, null);
 
                 var timeConfig = new FDP.Toolkit.Time.Controllers.TimeControllerConfig { LocalNodeId = localInternalId };
-                timeConfig.SyncConfig.PauseBarrierFrames = 10;
+                timeConfig.SyncConfig.LookaheadWallTicks = (long)(0.2 * System.Diagnostics.Stopwatch.Frequency);
 
                 if (instanceId == 100)
                 {
