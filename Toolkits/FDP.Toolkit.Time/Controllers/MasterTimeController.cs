@@ -131,12 +131,14 @@ namespace FDP.Toolkit.Time.Controllers
             _totalTime = state.TotalTime;
             _unscaledTotalTime = state.UnscaledTotalTime;
             _timeScale = state.TimeScale;
+            _totalWallTicks = state.TotalWallTicks;
             
             _wallClock.Restart();
             
-            // FORCE PULSE on next update to lock slaves immediately
-            // By setting last ticks to 'long ago'
-            _lastEventsTicks = Stopwatch.GetTimestamp() - (PulseIntervalTicks * 2); 
+            // Publish immediately so slaves lock to the seeded state before the next Update().
+            long now = Stopwatch.GetTimestamp();
+            PublishTimePulse(now, _totalTime);
+            _lastEventsTicks = now;
         }
 
         public float GetTimeScale() => _timeScale;

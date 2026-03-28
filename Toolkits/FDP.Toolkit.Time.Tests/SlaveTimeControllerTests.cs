@@ -112,5 +112,32 @@ namespace FDP.Toolkit.Time.Tests
             Assert.Equal(0.0f, dt, precision: 2);
             Assert.Equal(6.1, total, precision: 1); 
         }
+
+        /// <summary>
+        /// CGF1-S0203: <see cref="SlaveTimeController.SeedState"/> must bypass the
+        /// JitterFilter PLL and set <c>_virtualWallTicks</c> directly, so that the very
+        /// next <c>Update()</c> returns the seeded <c>TotalTime</c> without any slew.
+        /// </summary>
+        [Fact]
+        public void SeedState_BypassesJitterFilter()
+        {
+            var bus = new FdpEventBus();
+            var controller = new SlaveTimeController(bus, TimeConfig.Default, GetTicks);
+
+            // Advance to TotalTime ≈ 1.0
+            AdvanceTime(1.0);
+            var initial = controller.Update();
+            Assert.Equal(1.0, initial.TotalTime, precision: 2);
+
+            // Seed directly to 900 s — bypasses PLL; no gradual slew from 1.0
+            controller.SeedState(new GlobalTime { TotalTime = 900.0, TotalWallTicks = 0L });
+
+            // Tiny advance so rawDelta ≈ 0
+            AdvanceTime(0.001);
+            var seeded = controller.Update();
+
+            // Must be ≈ 900, not slewing toward it from 1.0
+            Assert.Equal(900.0, seeded.TotalTime, precision: 1);
+        }
     }
 }

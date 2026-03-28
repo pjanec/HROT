@@ -136,5 +136,27 @@ namespace FDP.Toolkit.Time.Tests
             Assert.True(t3.TotalWallTicks > t2.TotalWallTicks,
                 $"Expected TotalWallTicks to increase: t2={t2.TotalWallTicks}, t3={t3.TotalWallTicks}");
         }
+
+        /// <summary>
+        /// CGF1-S0203: <see cref="MasterTimeController.SeedState"/> must publish a
+        /// <see cref="TimePulseDescriptor"/> immediately (not deferred to the next
+        /// <c>Update()</c>) so that slaves lock to the seeded state at once.
+        /// </summary>
+        [Fact]
+        public void SeedState_PublishesTimePulseImmediately()
+        {
+            var bus = new FdpEventBus();
+            var controller = new MasterTimeController(bus, TimeConfig.Default);
+
+            // Act
+            controller.SeedState(new GlobalTime { TotalTime = 100.0, TimeScale = 1.0f });
+
+            bus.SwapBuffers();
+            var pulses = bus.Consume<TimePulseDescriptor>().ToArray();
+
+            // Assert: exactly one pulse published synchronously inside SeedState
+            Assert.Single(pulses);
+            Assert.Equal(100.0, pulses[0].SimTimeSnapshot, precision: 3);
+        }
     }
 }

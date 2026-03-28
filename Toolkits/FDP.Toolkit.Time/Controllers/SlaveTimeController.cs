@@ -187,10 +187,12 @@ namespace FDP.Toolkit.Time.Controllers
             _unscaledTotalTime = state.UnscaledTotalTime;
             _timeScale = state.TimeScale;
             
+            // Bypass the PLL/JitterFilter: set virtual wall ticks directly from the seeded
+            // state so that the very next Update() reflects the seeded position without slew.
+            _virtualWallTicks = state.TotalWallTicks;
+            
             _wallClock.Restart();
             _errorFilter.Reset();
-            // Should we approximate virtual wall ticks? 
-            // No, wait for pulse to sync PLL.
         }
         
         public float GetTimeScale() => _timeScale;
