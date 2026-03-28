@@ -40,6 +40,12 @@ public sealed class DrillMaster : IDisposable
     // ── Active transaction ────────────────────────────────────────────────
     private DistributedTransaction? _activeTransaction;
 
+    // ── Current DSM state (tracked here so the planner can compute relative paths) ─
+    private DSMState _currentDsmState = DSMState.Standby;
+
+    // ── Transition planner (CGF1-S0201) ─────────────────────────────────────
+    private readonly TransitionPlanner _planner = new();
+
     // ── 2PC history ring buffer (CGF1-S0105) ─────────────────────────────
     private readonly DistributedTransaction[] _history;
     private int  _historyHead;
@@ -139,7 +145,9 @@ public sealed class DrillMaster : IDisposable
                 NodeId = hb.NodeId,
                 SubsystemName = hb.SubsystemName ?? string.Empty,
                 LocalDsmState = hb.LocalDsmState,
-                LastHeartbeatUtcSeconds = UtcNowSeconds()
+                LastHeartbeatUtcSeconds = UtcNowSeconds(),
+                CpuUsagePercent = hb.CpuUsagePercent,
+                RamUsedBytes    = hb.RamUsedBytes,
             };
             _roster.Upsert(profile);
         }
@@ -283,14 +291,47 @@ public sealed class DrillMaster : IDisposable
                 continue;
             }
 
-            // Accept the request — record a transaction.
+            // Accept the request — resolve target via planner for TransitionState ops.
+            DSMState resolvedTarget = _currentDsmState;
+            int totalSteps = 1;
+
+            if (req.OperationType == SysOpType.TransitionState)
+            {
+                try
+                {
+                    var trajectory = _planner.PlanTrajectory(_currentDsmState, req);
+                    totalSteps     = trajectory.Count;
+                    // Extract the final TransitionStep target for history recording.
+                    resolvedTarget = _currentDsmState;
+                    foreach (var step in trajectory)
+                    {
+                        if (step is TransitionStep ts)
+                            resolvedTarget = ts.TargetState;
+                    }
+                }
+                catch (InvalidOperationException ex)
+                {
+                    FdpLog<DrillMaster>.Warn(
+                        "[Orchestrator] TransitionState request {0} rejected by planner: {1}",
+                        req.RequestId, ex.Message);
+                    _sysOpStatusWriter.Write(new SysOpStatus
+                    {
+                        RequestId  = req.RequestId,
+                        Status     = OpStatus.Failure,
+                        ErrorCode  = 1,
+                        ResultJson = string.Empty
+                    });
+                    continue;
+                }
+            }
+
             var tx = new DistributedTransaction
             {
                 TransactionId    = Guid.NewGuid(),
                 OriginRequestId  = req.RequestId,
-                TargetDsmState   = DSMState.Standby,  // resolved by planner in later phases
-                TotalSteps       = 1,
-                CompletedSteps   = 1,
+                TargetDsmState   = resolvedTarget,
+                TotalSteps       = totalSteps,
+                CompletedSteps   = totalSteps,
                 IsAborted        = false
             };
             AppendToHistory(tx);

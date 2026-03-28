@@ -3,8 +3,8 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-04](batches/CGF-1-BATCH-04-INSTRUCTIONS.md) — S0105 polish + **CGF1-S0201** (TransitionPlanner).  
-**Last reviewed:** [CGF-1-BATCH-03](reviews/CGF-1-BATCH-03-REVIEW.md) — APPROVED (2026-03-29).  
+**Active batch:** [CGF-1-BATCH-05](batches/CGF-1-BATCH-05-INSTRUCTIONS.md) — planner/orchestrator debt + **CGF1-S0202** (DSM handler wiring).  
+**Last reviewed:** [CGF-1-BATCH-04](reviews/CGF-1-BATCH-04-REVIEW.md) — APPROVED (2026-03-29).  
 **Batches / reports / reviews:** `.dev/cgf-1/batches/`, `.dev/cgf-1/reports/`, `.dev/cgf-1/reviews/` (prefix `CGF-1-`).  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
@@ -13,7 +13,7 @@
 > Phase 3 tasks are complete and their CI gates are passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 5 / 5 tasks done (CGF1-S0105 complete per BATCH-03; BATCH-04 = polish + Phase 2).
+> **Progress (Phase 1):** 5 / 5 tasks done. **Phase 2:** 1 / 5 (CGF1-S0201 done in BATCH-04).
 
 ---
 
@@ -26,7 +26,7 @@ establish DDS schema, centralize identity allocation.
 - [x] **CGF1-S0102** Bagira.Orchestrator Bootstrapping [details](./CGF-1-TASK-DETAIL.md#cgf1-s0102--bagiraorchestrator-bootstrapping)
 - [x] **CGF1-S0103** Centralized Identity Migration [details](./CGF-1-TASK-DETAIL.md#cgf1-s0103--centralized-identity-migration)
 - [x] **CGF1-S0104** DrillSlave Foundation [details](./CGF-1-TASK-DETAIL.md#cgf1-s0104--drillslave-foundation) — done (CGF-1-BATCH-02); see BATCH-02 review for P1 follow-up in BATCH-03
-- [x] **CGF1-S0105** Orchestrator Health Monitoring & Bootstrap Recovery [details](./CGF-1-TASK-DETAIL.md#cgf1-s0105--orchestrator-health-monitoring--bootstrap-recovery) — done (CGF-1-BATCH-03); ImGui/test/doc polish → [CGF-1-BATCH-04](batches/CGF-1-BATCH-04-INSTRUCTIONS.md)
+- [x] **CGF1-S0105** Orchestrator Health Monitoring & Bootstrap Recovery [details](./CGF-1-TASK-DETAIL.md#cgf1-s0105--orchestrator-health-monitoring--bootstrap-recovery) — done (CGF-1-BATCH-03 + polish CGF-1-BATCH-04)
 
 ---
 
@@ -35,7 +35,7 @@ establish DDS schema, centralize identity allocation.
 **Goal:** Prove the cluster can traverse the Drill State Machine safely; validate
 Future Barrier time-mode swap is frame-perfect; establish deterministic CI loop.
 
-- [ ] **CGF1-S0201** BFS Transition Planner [details](./CGF-1-TASK-DETAIL.md#cgf1-s0201--bfs-transition-planner)
+- [x] **CGF1-S0201** BFS Transition Planner [details](./CGF-1-TASK-DETAIL.md#cgf1-s0201--bfs-transition-planner) — done (CGF-1-BATCH-04); `_currentDsmState` / payload strictness → [CGF-1-BATCH-05](batches/CGF-1-BATCH-05-INSTRUCTIONS.md)
 - [ ] **CGF1-S0202** DSM Handler Wiring [details](./CGF-1-TASK-DETAIL.md#cgf1-s0202--dsm-handler-wiring)
 - [ ] **CGF1-S0203** Time Strategy Proxying [details](./CGF-1-TASK-DETAIL.md#cgf1-s0203--time-strategy-proxying)
 - [ ] **CGF1-S0204** Future Barrier Implementation [details](./CGF-1-TASK-DETAIL.md#cgf1-s0204--future-barrier-implementation)

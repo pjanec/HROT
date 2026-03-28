@@ -46,7 +46,7 @@ public sealed class DrillMasterBootstrapTests
         }
 
         Assert.True(received.Count > 0, "No SystemStateTopic sample within 3 s.");
-        Assert.Equal(1, received.Count);
+        Assert.Single(received);
         Assert.Equal(DSMState.Standby, received[0].CurrentState);
         Assert.Equal(0, received[0].TransactionEpoch);
     }
@@ -82,8 +82,8 @@ public sealed class DrillMasterBootstrapTests
         sysOpWriter.Write(new SysOpRequest
         {
             RequestId     = reqId1,
-            OperationType = SysOpType.PauseTime,
-            PayloadJson   = string.Empty,
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
         });
 
         OpStatus? phase1Status = null;
@@ -132,8 +132,8 @@ public sealed class DrillMasterBootstrapTests
         sysOpWriter.Write(new SysOpRequest
         {
             RequestId     = reqId2,
-            OperationType = SysOpType.PauseTime,
-            PayloadJson   = string.Empty,
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
         });
 
         OpStatus? phase3Status = null;
@@ -232,6 +232,16 @@ public sealed class DrillMasterBootstrapTests
     /// <summary>
     /// Verifies that after a mandatory node is ejected, all surviving nodes receive
     /// a <c>PrepareState(Standby)</c> command, and the ejected node is removed from the roster.
+    /// <para>
+    /// <b>Phase 1 broadcast limitation:</b> <c>BroadcastNodeOp</c> writes a single sample to
+    /// the <c>NodeOpCommand</c> topic without per-node key filtering.  All active DDS readers
+    /// on the same domain will receive the broadcast, including a reader owned by the ejected
+    /// node if it were still running.  The robust per-node delivery guarantee ("SimHost does NOT
+    /// receive PrepareState after ejection") requires keyed per-node topics and is tracked in
+    /// <see href="../../cgf-1/CGF-1-TASK-DETAIL.md#cgf1-s0105">CGF-1-TASK-DETAIL §CGF1-S0105</see>.
+    /// This test validates: (a) ejected node is removed from the roster so the orchestrator
+    /// won't issue future commands to it, and (b) the broadcast command set is correct.
+    /// </para>
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void SurvivingNodes_CommandedToStandby_AfterEjection()
@@ -344,8 +354,8 @@ public sealed class DrillMasterBootstrapTests
         sysOpWriter.Write(new SysOpRequest
         {
             RequestId     = reqId,
-            OperationType = SysOpType.PauseTime,
-            PayloadJson   = string.Empty,
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
         });
 
         // Tick until the request is processed and history contains the entry.

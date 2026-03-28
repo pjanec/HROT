@@ -30,20 +30,42 @@ public sealed class ClusterConfiguration
 
     /// <summary>
     /// Loads a <see cref="ClusterConfiguration"/> from <paramref name="filePath"/>.
-    /// Returns <see cref="Default"/> when the file does not exist or cannot be parsed.
-    /// Never throws.
+    /// <para>
+    /// <b>Rule:</b> If the file is <em>absent</em>, <see cref="Default"/> is returned (zero-config dev mode).
+    /// If the file <em>exists</em> but is unreadable or contains invalid JSON, a clear
+    /// <see cref="InvalidOperationException"/> is thrown — fail-fast prevents silent misconfiguration.
+    /// </para>
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when <paramref name="filePath"/> exists but cannot be read or deserialized.
+    /// </exception>
     public static ClusterConfiguration LoadFrom(string filePath)
     {
+        if (!File.Exists(filePath)) return Default;
+
+        string json;
         try
         {
-            if (!File.Exists(filePath)) return Default;
-            var json = File.ReadAllText(filePath);
-            return JsonSerializer.Deserialize<ClusterConfiguration>(json, _jsonOptions) ?? Default;
+            json = File.ReadAllText(filePath);
         }
-        catch
+        catch (Exception ex)
         {
-            return Default;
+            throw new InvalidOperationException(
+                $"[Orchestrator] Failed to read cluster configuration from '{filePath}': {ex.Message}", ex);
         }
+
+        ClusterConfiguration? result;
+        try
+        {
+            result = JsonSerializer.Deserialize<ClusterConfiguration>(json, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"[Orchestrator] Failed to deserialize cluster configuration from '{filePath}': {ex.Message}", ex);
+        }
+
+        return result ?? throw new InvalidOperationException(
+            $"[Orchestrator] Cluster configuration file '{filePath}' deserialized to null.");
     }
 }

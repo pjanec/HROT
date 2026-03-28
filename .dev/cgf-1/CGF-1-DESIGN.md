@@ -293,7 +293,7 @@ attributes and that the IDL file constant matches `bdc-sst-orchestration`. See
 
 **New project:** `Bagira.Orchestrator` (solution root)  
 **Entry point:** launched by `Bagira.Runner` when `--mode orchestrator` is passed, or
-as a separate process via `Bagira.Orchestrator.Standalone`.
+as a subsystem hosted inside `Bagira.Runner`.
 
 #### DrillMaster Responsibilities
 
@@ -1058,10 +1058,8 @@ during the Prepare phase. Nodes without matching story content opt out cleanly.
 
 | Project | Description |
 |---------|-------------|
-| `Bagira.Orchestrator` | DrillMaster, TransitionPlanner, StorageGatewayModule, ReplayMasterModule |
-| `Bagira.Orchestrator.Standalone` | Process entry point for standalone Orchestrator |
-| `Bagira.CGF` | CGF subsystem scaffold; DrillSlave, future AI content |
-| `Bagira.CGF.Standalone` | Process entry point for standalone CGF |
+| `Bagira.Orchestrator` | DrillMaster, TransitionPlanner, StorageGatewayModule, ReplayMasterModule — hosted in Runner |
+| `Bagira.CGF` | CGF subsystem scaffold; DrillSlave, future AI content — hosted in Runner |
 | `Bagira.CGF.Tests` | CGF unit and integration tests |
 | `FDP.Toolkit.Scenario` | Format-agnostic scenario/story DOM serialization engine; no Bagira refs |
 

@@ -57,17 +57,18 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
 **Work to do:**
 1. Create the `Bagira.Orchestrator` C# project (net8.0; references
    `Bagira.DDS.DataModel`, `Fdp.Kernel`, FDP toolkit projects as needed).
-2. Create `Bagira.Orchestrator.Standalone` process project (mirrors
-   `Bagira.SimHost.Standalone` pattern).
-3. Implement `DrillMaster` class:
+2. Implement `DrillMaster` class:
    - Subscribes to `NodeHeartbeat`; maintains `Dictionary<int, NodeHealthProfile>`.
    - Publishes `SystemStateTopic { CurrentState = DSMState.Standby }` on startup.
    - Exposes a `Tick()` method called by the application loop (BeforeSync phase).
-4. Implement skeleton `DistributedTransaction` data class (no 2PC execution yet —
+3. Implement skeleton `DistributedTransaction` data class (no 2PC execution yet —
    that comes in Stage 2.1).
-5. Implement skeleton `NodeRoster` (heartbeat pruning at > 5 s silence).
-6. Add `Bagira.Orchestrator` as a subsystem in `Bagira.Runner` (activated by
+4. Implement skeleton `NodeRoster` (heartbeat pruning at > 5 s silence).
+5. Add `Bagira.Orchestrator` as a subsystem in `Bagira.Runner` (activated by
    `--mode orchestrator` command-line flag or configuration).
+
+> **Runner-only launch:** `Bagira.Orchestrator.Standalone` is removed; the Orchestrator
+> is exclusively launched via `Bagira.Runner --mode orchestrator`.
 
 **Success conditions:**
 - New integration test `DrillMasterBootstrapTests.OrchestratorPublishesStandbyOnStartup`:
@@ -75,8 +76,6 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
   - An out-of-process DDS reader subscribes to `SystemStateTopic`.
   - Within 3 s wall-clock, assert exactly one sample is received with
     `CurrentState == DSMState.Standby` and `TransactionEpoch == 0`.
-- The `Bagira.Orchestrator.Standalone` binary runs without exception and the process
-  exits cleanly when Ctrl+C is received.
 - All pre-existing tests continue to pass.
 
 ---
@@ -111,7 +110,7 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
 **Design ref:** [§3.4](./CGF-1-DESIGN.md#34-stage-14--drillslave-foundation)
 
 **Work to do:**
-1. Create `Bagira.CGF` project and `Bagira.CGF.Standalone` process project.
+1. Create `Bagira.CGF` project.
 2. Implement `DrillSlave` in each subsystem:
    - `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`
    - `Bagira.IG/Modules/Orchestration/DrillSlave.cs`
@@ -197,7 +196,14 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
   - Configure `mandatory: ["SimHost"]`; add CGF as `optional`.
   - Both nodes bootstrap; eject SimHost by timeout.
   - Assert CGF receives `NodeOpCommand(PrepareState, Standby)`.
-  - Assert SimHost does **NOT** receive any command after ejection.
+  - Assert SimHost is **removed from the orchestrator roster** after ejection.
+  - **Phase 1 broadcast note:** `BroadcastNodeOp` writes a single DDS sample without
+    per-node key filtering; all domain participants receive the broadcast.  A second
+    in-process participant representing the ejected node would still receive the sample.
+    The normative guarantee that "SimHost does NOT receive any command after ejection"
+    requires keyed per-node topics (Phase 2+).  The current test asserts roster eviction
+    and command correctness; per-node delivery isolation is deferred to when per-node
+    topic keys exist.
 - `DrillMasterBootstrapTests.TransactionHistory_RecordsCompletedTransaction`:
   - Execute a successful `SysOpRequest(TransitionState, LoadingLive)` end-to-end.
   - Assert `DrillMaster.TransactionHistory` contains one entry with `IsAborted == false`.
@@ -234,11 +240,17 @@ See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synch
     the queue has exactly 1 `TransitionStep(LoadingEdit)`.
   - `RunningLiveToRunningReplay_Produces_FourSteps`: assert queue is
     `[UnloadingLive, Standby, LoadingReplay, RunningReplay]`.
-  - `RunningLiveToRunningReplayWithSeek_Produces_FiveSteps`: same + 1 `OperationStep(ReplaySeek)`.
+  - `RunningLiveToRunningReplayWithSeek_Produces_FiveSteps`: same 4 + 1
+    `OperationStep(ReplaySeek)`.  Payload: `{"TargetState":41,"TargetWallTicks":N}`.
   - `RunningEditToRunningLive_Produces_FourSteps`: assert
     `[UnloadingEdit, Standby, LoadingLive, RunningLive]`.
-  - `ImpossibleRequest_ThrowsInvalidOperationException`: feed `RunningDryRun → RunningReplay`;
+  - `ImpossibleRequest_ThrowsInvalidOperationException`: feed `Degraded → RunningLive`;
     assert `InvalidOperationException` is thrown with message containing both state names.
+    **Note:** `DSMState.Degraded` is the canonical impossible source — it has no outgoing
+    planning edges.  The previous entry (`RunningDryRun → RunningReplay`) was incorrect:
+    BFS proves that path is reachable in 6 steps via
+    `UnloadingDryRun → RunningEdit → UnloadingEdit → Standby → LoadingReplay → RunningReplay`.
+    That reachability is covered by `RunningDryRunToRunningReplay_Produces_SixSteps`.
   - `SameState_ReturnsEmptyQueue`: feed `Standby → Standby`; assert queue is empty.
 
 ---

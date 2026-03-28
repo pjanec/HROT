@@ -75,24 +75,29 @@ public sealed class OrchestratorSubsystem : ISubsystem
         if (ImGui.CollapsingHeader("Node Health", ImGuiTreeNodeFlags.DefaultOpen))
         {
             var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            if (ImGui.BeginTable("NodeHealth", 4,
+            if (ImGui.BeginTable("NodeHealth", 6,
                     ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
             {
                 ImGui.TableSetupColumn("NodeId");
                 ImGui.TableSetupColumn("Subsystem");
                 ImGui.TableSetupColumn("Last HB (ms ago)");
                 ImGui.TableSetupColumn("DSM State");
+                ImGui.TableSetupColumn("CPU %");
+                ImGui.TableSetupColumn("RAM (MB)");
                 ImGui.TableHeadersRow();
 
                 foreach (var kv in _drillMaster.NodeRoster.ActiveNodes)
                 {
                     var p     = kv.Value;
                     var msAgo = (long)(nowMs - p.LastHeartbeatUtcSeconds * 1000.0);
+                    var ramMb = p.RamUsedBytes / (1024.0 * 1024.0);
                     ImGui.TableNextRow();
                     ImGui.TableNextColumn(); ImGui.Text(p.NodeId.ToString());
                     ImGui.TableNextColumn(); ImGui.Text(p.SubsystemName);
                     ImGui.TableNextColumn(); ImGui.Text(msAgo.ToString());
                     ImGui.TableNextColumn(); ImGui.Text(p.LocalDsmState.ToString());
+                    ImGui.TableNextColumn(); ImGui.Text($"{p.CpuUsagePercent:F1}");
+                    ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
                 }
                 ImGui.EndTable();
             }
@@ -102,20 +107,27 @@ public sealed class OrchestratorSubsystem : ISubsystem
         if (ImGui.CollapsingHeader("2PC History"))
         {
             var history = _drillMaster.TransactionHistory;
-            if (ImGui.BeginTable("TxHistory", 3,
+            if (ImGui.BeginTable("TxHistory", 4,
                     ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
             {
                 ImGui.TableSetupColumn("TransactionId");
                 ImGui.TableSetupColumn("Target State");
                 ImGui.TableSetupColumn("Result");
+                ImGui.TableSetupColumn("ACK Latency (ms)");
                 ImGui.TableHeadersRow();
 
                 foreach (var tx in history)
                 {
+                    // Build a compact ACK-latency summary: "node:ms, ..." or "0" when not yet populated.
+                    string latency = tx.NodeAckLatencyMs.Count == 0
+                        ? "0"
+                        : string.Join(", ", tx.NodeAckLatencyMs.Select(kv => $"{kv.Key}:{kv.Value:F0}ms"));
+
                     ImGui.TableNextRow();
                     ImGui.TableNextColumn(); ImGui.Text(tx.TransactionId.ToString()[..8] + "...");
                     ImGui.TableNextColumn(); ImGui.Text(tx.TargetDsmState.ToString());
                     ImGui.TableNextColumn(); ImGui.Text(tx.IsAborted ? "Aborted" : "Completed");
+                    ImGui.TableNextColumn(); ImGui.Text(latency);
                 }
                 ImGui.EndTable();
             }
