@@ -2,8 +2,7 @@ using System.Collections.Generic;
 using Bagira.SimHost.Modules;
 using Bagira.SimHost.Modules.Orchestration;
 using Bagira.SimHost.Modules.Orchestration.Handlers;
-using Bagira.SimHost.Network;
-using CarKinem.Commands;
+using Bagira.SimHost.Network;using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
@@ -298,11 +297,23 @@ namespace Bagira.SimHost
                 drillSlave.RegisterHandler(new LiveLoadDsmHandler(drillSlave, eventBus));
             }
 
+            // Wire PrefetchFilesDsmHandler so this node can stage scenario files and ACK
+            // the orchestrator (CGF1-S0302 / A.2).  Registered for all roles that participate
+            // in DDS orchestration; passes the slave's NodeOpStatus writer for ACKs.
+            drillSlave.RegisterHandler(
+                new PrefetchFilesDsmHandler(drillSlave.NodeOpStatusWriter, nodeId, localTempRoot));
+
             // Wire ScenarioLoadDsmHandler when a serializer is provided (CGF1-S0307).
+            // Passes 'world' so entity injection works through the DrillSlave dispatch
+            // path that calls Commit(cmd, repo: null).
             if (scenarioSerializer != null)
             {
                 drillSlave.RegisterHandler(
-                    new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot));
+                    new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot, world));
+
+                // Wire EditLoadDsmHandler for LoadingEdit (CGF1-S0302).
+                drillSlave.RegisterHandler(
+                    new EditLoadDsmHandler(scenarioSerializer, localTempRoot, world));
             }
 
             return drillSlave;

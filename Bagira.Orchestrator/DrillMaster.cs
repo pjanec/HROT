@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Text.Json;
 using System.Threading;
 using Bagira.BDC.SSTD.Orchestration;
@@ -52,6 +53,7 @@ public sealed class DrillMaster : IDisposable
     private sealed class SerializeLocalTask
     {
         public int RemainingAcks;
+        public int FailureCount;
         public readonly List<FileManifestEntry> Manifests = new();
     }
 
@@ -388,6 +390,17 @@ public sealed class DrillMaster : IDisposable
                     // the intended end-state (see _currentDsmState XML docs for caveats).
                     _currentDsmState = resolvedTarget;
 
+                    // CGF1-S0302 / A.1: Execute any PrefetchScenario step immediately so
+                    // scenario files reach all nodes before the first TransitionStep runs.
+                    foreach (var step in trajectory)
+                    {
+                        if (step is OperationStep { Operation: SysOpType.PrefetchScenario } prefetchStep)
+                        {
+                            ExecutePrefetchScenario(prefetchStep.PayloadJson);
+                            break;
+                        }
+                    }
+
                     // CGF1-S0205: If the trajectory passes through LoadingLive, check
                     // for "TimeMode": "Deterministic" in the payload and store it so
                     // the hosting subsystem (OrchestratorSubsystem) can instruct the
@@ -603,10 +616,11 @@ public sealed class DrillMaster : IDisposable
                 }
                 catch (JsonException)
                 {
-                    // Malformed ResultJson — skip manifest for this node.
+                    // Malformed ResultJson — skip manifest for this node and record the failure.
                     FdpLog<DrillMaster>.Warn(
-                        "[Orchestrator] SerializeLocal ACK from node {0} has invalid ResultJson — skipping manifest.",
+                        "[Orchestrator] SerializeLocal ACK from node {0} has invalid ResultJson — incrementing failure count.",
                         status.NodeId);
+                    task.FailureCount++;
                 }
             }
 
@@ -614,6 +628,11 @@ public sealed class DrillMaster : IDisposable
             if (task.RemainingAcks <= 0)
             {
                 _pendingSerializeTasks.Remove(status.TransactionId);
+
+                if (task.FailureCount > 0)
+                    FdpLog<DrillMaster>.Error(
+                        "[Orchestrator] SaveScenario completed with {0} node(s) reporting malformed ResultJson — NAS manifest may be incomplete.",
+                        task.FailureCount);
 
                 // Append the Orchestrator's own manifest entry if the local handler produced one.
                 if (_globalContextHandler?.CommitManifestEntry != null)
@@ -634,8 +653,86 @@ public sealed class DrillMaster : IDisposable
         }
     }
 
-    private void PublishStandby()
+    // ── Prefetch execution (CGF1-S0302 / A.1) ─────────────────────────────
+
+    /// <summary>
+    /// Executes a <see cref="SysOpType.PrefetchScenario"/> step from the transition
+    /// trajectory: pushes scenario files from the NAS to every active node's local
+    /// staging directory via <see cref="StorageGatewayModule.PrefetchScenarioAsync"/>,
+    /// then fans out a <see cref="NodeOpType.PrefetchFiles"/> command so each node can
+    /// verify its staging directory is ready.
+    /// </summary>
+    /// <param name="scenarioId">Logical scenario identifier (sub-directory under NAS root).</param>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when no <see cref="StorageGatewayModule"/> or NAS base path has been
+    /// configured — both are required for prefetch to proceed.
+    /// </exception>
+    private void ExecutePrefetchScenario(string scenarioId)
     {
+        if (_gateway == null)
+            throw new InvalidOperationException(
+                "[Orchestrator] PrefetchScenario step requires a StorageGatewayModule to be registered. " +
+                "Call SetStorageGateway() before issuing load transitions with a ScenarioId.");
+
+        if (string.IsNullOrWhiteSpace(_nasBasePath))
+            throw new InvalidOperationException(
+                "[Orchestrator] PrefetchScenario step requires a non-empty NAS base path. " +
+                "Call SetStorageGateway() with a valid nasBasePath before issuing load transitions.");
+
+        var targets = BuildNodeDistributionTargets(scenarioId);
+
+        _ = _gateway.PrefetchScenarioAsync(scenarioId, targets, _nasBasePath)
+            .ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    FdpLog<DrillMaster>.Error(
+                        "[Orchestrator] PrefetchScenarioAsync for '{0}' faulted: {1}",
+                        scenarioId, t.Exception?.GetBaseException().Message);
+                else
+                    FdpLog<DrillMaster>.Info(
+                        "[Orchestrator] PrefetchScenarioAsync for '{0}' complete: {1} succeeded, {2} failed.",
+                        scenarioId, t.Result.SuccessCount, t.Result.FailureCount);
+            }, System.Threading.Tasks.TaskScheduler.Default);
+
+        // Fan-out PrefetchFiles command so nodes can verify/create their staging directories.
+        FanOutNodeOp(new NodeOpCommand
+        {
+            TransactionId = Guid.NewGuid(),
+            Operation     = NodeOpType.PrefetchFiles,
+            PayloadJson   = $"{{\"ScenarioId\":\"{scenarioId}\"}}",
+        }, new List<int>(_roster.ActiveNodes.Keys));
+
+        FdpLog<DrillMaster>.Info(
+            "[Orchestrator] PrefetchScenario dispatched for '{0}' to {1} node(s).",
+            scenarioId, _roster.ActiveNodes.Count);
+    }
+
+    /// <summary>
+    /// Builds a <see cref="NodeDistributionTarget"/> list for all currently active
+    /// roster nodes using the local staging directory convention
+    /// <c>C:\FDP_Temp\&lt;scenarioId&gt;\</c>.
+    ///
+    /// <para><b>Production note:</b> Production environments that span multiple physical
+    /// hosts should replace these local paths with UNC paths of the form
+    /// <c>\\&lt;hostname&gt;\c$\FDP_Temp\&lt;scenarioId&gt;\</c>.  The node hostname
+    /// registry is not available in <see cref="NodeHealthProfile"/> and must be resolved
+    /// via a separate configuration map.</para>
+    /// </summary>
+    private List<NodeDistributionTarget> BuildNodeDistributionTargets(string scenarioId)
+    {
+        var targets = new List<NodeDistributionTarget>();
+        foreach (var kv in _roster.ActiveNodes)
+        {
+            targets.Add(new NodeDistributionTarget
+            {
+                NodeId          = kv.Key,
+                DestinationPath = Path.Combine(@"C:\FDP_Temp", scenarioId),
+            });
+        }
+        return targets;
+    }
+
+    private void PublishStandby()    {
         _systemStateWriter.Write(new SystemStateTopic
         {
             CurrentState        = DSMState.Standby,

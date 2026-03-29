@@ -33,8 +33,9 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
     {
         private const string DefaultLocalTempRoot = @"C:\FDP_Temp";
 
-        private readonly ScenarioSerializer _serializer;
-        private readonly string _localTempRoot;
+        private readonly ScenarioSerializer   _serializer;
+        private readonly string               _localTempRoot;
+        private readonly EntityRepository?    _world;
 
         // Cached between PrepareAsync and Commit for the current transaction.
         private JsonObject? _pendingDom;
@@ -48,10 +49,20 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         /// Root of the local staging area where pre-fetched scenario directories land.
         /// Defaults to <c>C:\FDP_Temp</c>.
         /// </param>
-        public ScenarioLoadDsmHandler(ScenarioSerializer serializer, string localTempRoot = DefaultLocalTempRoot)
+        /// <param name="world">
+        /// Optional entity repository.  When provided it is used as the deserialization
+        /// target when <see cref="DrillSlave"/> passes <c>repo: null</c> from its dispatch
+        /// loop.  Pass <c>null</c> in unit/integration tests that supply the repository
+        /// directly via the <see cref="Commit"/> <paramref name="repo"/> parameter.
+        /// </param>
+        public ScenarioLoadDsmHandler(
+            ScenarioSerializer  serializer,
+            string              localTempRoot = DefaultLocalTempRoot,
+            EntityRepository?   world         = null)
         {
             _serializer    = serializer   ?? throw new ArgumentNullException(nameof(serializer));
             _localTempRoot = string.IsNullOrWhiteSpace(localTempRoot) ? DefaultLocalTempRoot : localTempRoot;
+            _world         = world;
         }
 
         /// <inheritdoc />
@@ -131,7 +142,9 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         public void Commit(NodeOpCommand cmd, EntityRepository? repo)
         {
             if (_pendingDom == null || _pendingTransactionId != cmd.TransactionId) return;
-            if (repo == null)
+
+            var targetRepo = repo ?? _world;
+            if (targetRepo == null)
             {
                 FdpLog<ScenarioLoadDsmHandler>.Warn(
                     "[SimHost] ScenarioLoadDsmHandler.Commit: EntityRepository is null — cannot deserialize entities.");
@@ -142,7 +155,7 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
 
             try
             {
-                _serializer.Deserialize(repo, _pendingDom);
+                _serializer.Deserialize(targetRepo, _pendingDom);
                 FdpLog<ScenarioLoadDsmHandler>.Info(
                     "[SimHost] ScenarioLoadDsmHandler.Commit: entities deserialized successfully.");
             }

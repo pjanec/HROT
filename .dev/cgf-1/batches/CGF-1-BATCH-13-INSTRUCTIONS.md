@@ -72,15 +72,15 @@ Close **Part A** rows when merged.
 
 ## Success criteria
 
-- [ ] Part A: prefetch **executed**; node **PrefetchFiles** path; **GlobalContext** / **SeedState** / XML honest; **SimHost** serializer wired; DEBT rows closed.  
-- [ ] Part B: CGF1-S0302 success conditions + tests green.  
-- [ ] Solution build clean.  
-- [ ] **CGF-1-TASK-TRACKER** marks **S0302** `[x]`; **DEBT-TRACKER** updated.  
-- [ ] Report filed.
+- [x] Part A: prefetch **executed**; node **PrefetchFiles** path; **GlobalContext** / **SeedState** / XML honest; **SimHost** serializer wired; DEBT rows closed.  
+- [x] Part B: CGF1-S0302 success conditions + tests green.  
+- [x] Solution build clean.  
+- [x] **CGF-1-TASK-TRACKER** marks **S0302** `[x]`; **DEBT-TRACKER** updated.  
+- [x] Report filed.
 
 ---
 
 ## Reference
 
 - [CGF-1-BATCH-12 review — S0302 overlap](../reviews/CGF-1-BATCH-12-REVIEW.md#overlap-with-cgf1-s0302-portable-scenario-loading)  
-- **Next (planned):** **CGF-1-BATCH-14** — **CGF1-S0303** (checkpointing) or parallel hardening per lead.
+- **Next:** [CGF-1-BATCH-14](CGF-1-BATCH-14-INSTRUCTIONS.md) — prefetch hardening first, then **CGF1-S0303** (checkpointing).

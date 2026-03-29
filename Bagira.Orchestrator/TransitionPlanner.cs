@@ -202,13 +202,11 @@ public sealed class TransitionPlanner
         string? scenarioId = null;
         if (!string.IsNullOrWhiteSpace(request.PayloadJson) && !int.TryParse(request.PayloadJson, out _))
         {
-            try
-            {
-                using var scenarioDoc = JsonDocument.Parse(request.PayloadJson);
-                if (scenarioDoc.RootElement.TryGetProperty("ScenarioId", out var sidProp))
-                    scenarioId = sidProp.GetString();
-            }
-            catch (JsonException) { /* ignore malformed JSON — handled above */ }
+            // The payload was already validated as JSON in the TargetState block above,
+            // so this parse cannot throw JsonException — no try/catch needed here.
+            using var scenarioDoc = JsonDocument.Parse(request.PayloadJson);
+            if (scenarioDoc.RootElement.TryGetProperty("ScenarioId", out var sidProp))
+                scenarioId = sidProp.GetString();
         }
 
         if (!string.IsNullOrWhiteSpace(scenarioId))

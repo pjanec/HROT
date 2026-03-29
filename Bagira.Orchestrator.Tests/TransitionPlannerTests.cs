@@ -253,4 +253,38 @@ public sealed class TransitionPlannerTests
 
         Assert.Contains("TargetState", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    // -- CGF1-S0302 success condition (B.4) --
+
+    /// <summary>
+    /// A payload with <c>ScenarioId</c> targeting <see cref="DSMState.LoadingEdit"/>
+    /// must inject a storage-gateway prefetch step as the very
+    /// first entry in the planned queue, before the
+    /// <see cref="TransitionStep"/>(<see cref="DSMState.LoadingEdit"/>).
+    /// CGF1-S0302 success condition: <c>PlanWithScenarioId_InjectsStorageGatewayStep</c>.
+    /// </summary>
+    [Fact]
+    public void PlanWithScenarioId_InjectsStorageGatewayStep()
+    {
+        var request = new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingEdit},\"ScenarioId\":\"Alpha\"}}",
+        };
+
+        var queue = _planner.PlanTrajectory(DSMState.Standby, request);
+
+        // Must have at least the prefetch step + the LoadingEdit transition step.
+        Assert.True(queue.Count >= 2);
+
+        var first = queue.Dequeue();
+        var prefetch = Assert.IsType<OperationStep>(first);
+        Assert.Equal(SysOpType.PrefetchScenario, prefetch.Operation);
+        Assert.Equal("Alpha", prefetch.PayloadJson);
+
+        var second = queue.Dequeue();
+        var transition = Assert.IsType<TransitionStep>(second);
+        Assert.Equal(DSMState.LoadingEdit, transition.TargetState);
+    }
 }

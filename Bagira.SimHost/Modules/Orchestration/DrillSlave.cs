@@ -28,6 +28,7 @@ namespace Bagira.SimHost.Modules.Orchestration
     {
         private readonly DdsWriter<NodeHeartbeat>? _heartbeatWriter;
         private readonly DdsReader<NodeOpCommand>? _commandReader;
+        private readonly DdsWriter<NodeOpStatus>?  _nodeOpStatusWriter;
         private readonly ConcurrentQueue<NodeOpCommand> _pendingCommands = new();
         private readonly List<IDsmHandler> _handlers = new();
         private readonly Stopwatch _heartbeatTimer = Stopwatch.StartNew();
@@ -82,6 +83,7 @@ namespace Bagira.SimHost.Modules.Orchestration
             _eventBus = eventBus;
             _heartbeatWriter = new DdsWriter<NodeHeartbeat>(participant);
             _commandReader = new DdsReader<NodeOpCommand>(participant);
+            _nodeOpStatusWriter = new DdsWriter<NodeOpStatus>(participant);
             // Only process commands addressed to this node's roster ID.
             _commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId);
 
@@ -112,6 +114,14 @@ namespace Bagira.SimHost.Modules.Orchestration
 
         /// <summary>All registered DSM handlers.</summary>
         public IReadOnlyList<IDsmHandler> RegisteredHandlers => _handlers;
+
+        /// <summary>
+        /// DDS writer for <see cref="NodeOpStatus"/> ACKs.
+        /// Exposed so <see cref="NodeBootstrapper"/> can supply it to handlers that need
+        /// to publish acknowledgements back to the orchestrator.
+        /// <c>null</c> in DDS-less test construction paths.
+        /// </summary>
+        internal DdsWriter<NodeOpStatus>? NodeOpStatusWriter => _nodeOpStatusWriter;
 
         /// <summary>
         /// Enqueues a command directly into the pending queue without DDS.
@@ -238,6 +248,7 @@ namespace Bagira.SimHost.Modules.Orchestration
             _listenerCts = null;
             _listenerThread = null;
             _commandReader?.Dispose();
+            _nodeOpStatusWriter?.Dispose();
             _heartbeatWriter?.Dispose();
         }
     }

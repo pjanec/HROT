@@ -48,6 +48,7 @@ using FDP.Toolkit.Time.Controllers;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Components;
 using FDP.Toolkit.Vis2D.Defaults;
+using FDP.Toolkit.Scenario;
 using ModuleHost.Core;
 using ModuleHost.Core.Network;
 using ModuleHost.Core.Network.Interfaces;
@@ -320,12 +321,18 @@ namespace Bagira.SimHost
                 roadNetwork: roadNetwork);
 
             // ── 8a. DrillSlave (CGF1-S0104) ───────────────────────────────────
+            // Build ScenarioSerializer for production scenario load/save (CGF1-S0307 / CGF1-S0302).
+            // Must be built after RegisterSimComponents so the auto-serializer compiles
+            // delegates for all registered component types.
+            var scenarioSerializer = new ScenarioSerializerBuilder("Bagira.SimHost").Build();
+
             // Built here so SimHostApp owns lifetime; Tick() called in OnUpdate.
             _drillSlave = bootstrapper.BuildOrchestration(
                 _role, _kernel, _world, localNodeId,
                 participant: ddsParticipant,
                 subsystemName: "SimHost",
-                eventBus: _eventBus);
+                eventBus: _eventBus,
+                scenarioSerializer: scenarioSerializer);
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);

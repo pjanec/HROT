@@ -3,8 +3,8 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-13](batches/CGF-1-BATCH-13-INSTRUCTIONS.md) — in progress.  
-**Last reviewed:** [CGF-1-BATCH-12](reviews/CGF-1-BATCH-12-REVIEW.md) — APPROVED (2026-04-07).  
+**Active batch:** [CGF-1-BATCH-14](batches/CGF-1-BATCH-14-INSTRUCTIONS.md).  
+**Last reviewed:** [CGF-1-BATCH-13](reviews/CGF-1-BATCH-13-REVIEW.md) — APPROVED with P2 follow-ups (2026-03-28).  
 **Batches / reports / reviews:** `.dev/cgf-1/batches/`, `.dev/cgf-1/reports/`, `.dev/cgf-1/reviews/` (prefix `CGF-1-`).  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
@@ -13,7 +13,7 @@
 > Phase 3 tasks are complete and their CI gates are passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 5 / 5 tasks done. **Phase 2:** 5 / 5 complete. **Phase 3:** 3 / 8 done (S0301, S0306, S0307); **S0302** → [CGF-1-BATCH-13](batches/CGF-1-BATCH-13-INSTRUCTIONS.md) (prefetch/SimHost wiring debt first). S0205 residual closed in BATCH-10; subprocess CI Opportunistic.
+> **Progress (Phase 1):** 5 / 5 tasks done. **Phase 2:** 5 / 5 complete. **Phase 3:** 4 / 8 done (S0301, S0302, S0306, S0307); S0205 residual closed in BATCH-10; subprocess CI Opportunistic.
 
 ---
 
@@ -49,7 +49,7 @@ Future Barrier time-mode swap is frame-perfect; establish deterministic CI loop.
 management, and live-from-replay temporal interlock — all regression-tested.
 
 - [x] **CGF1-S0301** Storage Gateway [details](./CGF-1-TASK-DETAIL.md#cgf1-s0301--storage-gateway) — done (CGF-1-BATCH-10): `StorageGatewayModule`, `FileManifestEntry`, `GatewayResult`, `NodeDistributionTarget`; `PullToNasAsync`/`PushToNodesAsync`; `DrillMaster` gateway hook + `NodeOpStatus` reader; `StorageGatewayTests` (2 pass)
-- [ ] **CGF1-S0302** Portable Scenario Loading [details](./CGF-1-TASK-DETAIL.md#cgf1-s0302--portable-scenario-loading) — planned [CGF-1-BATCH-13](batches/CGF-1-BATCH-13-INSTRUCTIONS.md) Part B (overlaps only partially with BATCH-12 planner step; **EditLoad** / tests not done)
+- [x] **CGF1-S0302** Portable Scenario Loading [details](./CGF-1-TASK-DETAIL.md#cgf1-s0302--portable-scenario-loading) — done [CGF-1-BATCH-13](batches/CGF-1-BATCH-13-INSTRUCTIONS.md) Part B (`EditLoadDsmHandler`; `ScenarioSerializer` DOM; `PrefetchScenario` before `LoadingEdit`; 3 unit tests + `TransitionPlannerTests.PlanWithScenarioId_InjectsStorageGatewayStep`)
 - [ ] **CGF1-S0303** 3-Step Binary Checkpointing [details](./CGF-1-TASK-DETAIL.md#cgf1-s0303--3-step-binary-checkpointing)
 - [ ] **CGF1-S0304** Dynamic Recording Modules [details](./CGF-1-TASK-DETAIL.md#cgf1-s0304--dynamic-recording-modules)
 - [ ] **CGF1-S0305** Live-from-Replay Temporal Interlock [details](./CGF-1-TASK-DETAIL.md#cgf1-s0305--live-from-replay-temporal-interlock)

@@ -27,9 +27,13 @@ namespace Bagira.Orchestrator;
 /// <para>
 /// <b>Load path</b> (<see cref="NodeOpType.CommitState"/> for
 /// <see cref="DSMState.LoadingLive"/> or <see cref="DSMState.LoadingEdit"/>):
-/// Parses the pre-fetched <c>Orchestrator.json</c>, restores
-/// <c>MasterTimeController.SeedState</c>, and publishes updated
-/// <c>OrchestratorContextTopic</c> over DDS.
+/// Parses the pre-fetched <c>Orchestrator.json</c> and populates
+/// <see cref="LoadedStartWallTicks"/> / <see cref="LoadedSceneId"/> for
+/// the hosting application to consume (e.g. <c>MasterTimeController.SeedState</c>).
+/// Also publishes an updated <c>OrchestratorContextTopic</c> over DDS.
+/// The hosting application is responsible for calling
+/// <c>MasterTimeController.SeedState(LoadedStartWallTicks)</c> after this handler
+/// completes.
 /// </para>
 /// </summary>
 public sealed class GlobalContextDsmHandler : IDsmHandler
@@ -197,15 +201,20 @@ public sealed class GlobalContextDsmHandler : IDsmHandler
     {
         // Derive the local path from the payload ScenarioId or a known convention.
         var scenarioId = ParseScenarioId(cmd.PayloadJson);
-        if (string.IsNullOrWhiteSpace(scenarioId)) return;
+        if (string.IsNullOrWhiteSpace(scenarioId))
+        {
+            // No ScenarioId in payload — context load is optional; blank world is acceptable.
+            FdpLog<GlobalContextDsmHandler>.Info(
+                "[Orchestrator] CommitLoad: no ScenarioId in payload — skipping context restore (blank world).");
+            return;
+        }
 
         var filePath = Path.Combine(LocalTempRoot, scenarioId, "Orchestrator.json");
         if (!File.Exists(filePath))
         {
-            FdpLog<GlobalContextDsmHandler>.Warn(
-                "[Orchestrator] CommitLoad: Orchestrator.json not found at '{0}'. " +
-                "Skipping context restore.", filePath);
-            return;
+            throw new InvalidOperationException(
+                $"[Orchestrator] CommitLoad: Orchestrator.json not found at '{filePath}'. " +
+                "Ensure PrefetchScenario completed before the LoadingLive/LoadingEdit transition.");
         }
 
         try
@@ -215,9 +224,9 @@ public sealed class GlobalContextDsmHandler : IDsmHandler
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             if (dto == null)
             {
-                FdpLog<GlobalContextDsmHandler>.Warn(
-                    "[Orchestrator] CommitLoad: Orchestrator.json deserialized to null.");
-                return;
+                throw new InvalidOperationException(
+                    $"[Orchestrator] CommitLoad: Orchestrator.json at '{filePath}' deserialized to null. " +
+                    "The file may be empty or structurally invalid.");
             }
 
             LoadedStartWallTicks = dto.StartWallTicks;
@@ -233,7 +242,7 @@ public sealed class GlobalContextDsmHandler : IDsmHandler
                 "[Orchestrator] GlobalContext loaded: SceneId={0}, WallTicks={1}",
                 dto.SceneId, dto.StartWallTicks);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not InvalidOperationException)
         {
             FdpLog<GlobalContextDsmHandler>.Error(
                 "[Orchestrator] GlobalContext load failed: {0}", ex.Message);
