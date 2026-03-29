@@ -29,7 +29,11 @@ namespace Fdp.Kernel.Orchestration
         /// Finalizes and closes the active recording.  Blocks until all LZ4
         /// buffers are flushed and the <c>.meta.json</c> manifest is written.
         /// </summary>
-        Task FinalizeRecordingAsync();
+        /// <param name="maxNetworkId">
+        /// Highest network entity ID used during the recording session.  Pass <c>0</c>
+        /// (or omit) when no network map is available (e.g. offline / test scenarios).
+        /// </param>
+        Task FinalizeRecordingAsync(long maxNetworkId = 0);
 
         /// <summary>
         /// Opens a drill recording for playback.  Installs the replay module and

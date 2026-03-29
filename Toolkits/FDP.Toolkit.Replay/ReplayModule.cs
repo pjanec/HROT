@@ -99,6 +99,24 @@ namespace FDP.Toolkit.Replay
         }
 
         /// <summary>
+        /// Off-main-thread wall-clock seek.  Delegates to
+        /// <see cref="PlaybackController.SeekToWallClockTicks"/> so the caller can
+        /// await completion before branching to live (CGF1-S0305).
+        /// Must not be called before <see cref="RegisterSystems"/>.
+        /// </summary>
+        /// <param name="targetWallTicks">
+        /// UTC wall-clock ticks (<see cref="System.DateTime.UtcNow"/>.Ticks scale).
+        /// The controller floor-seeks to the frame whose wall timestamp is ≤ this value.
+        /// </param>
+        public Task SeekToWallClockTicksAsync(long targetWallTicks)
+        {
+            if (_playback == null)
+                throw new InvalidOperationException(
+                    "ReplayModule.RegisterSystems() must be called before SeekToWallClockTicksAsync.");
+            return Task.Run(() => _playback.SeekToWallClockTicks(_repo, targetWallTicks));
+        }
+
+        /// <summary>
         /// Number of frames in the recording.
         /// Returns 0 if <see cref="RegisterSystems"/> has not been called yet.
         /// </summary>
