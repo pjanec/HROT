@@ -59,6 +59,17 @@ namespace FDP.Toolkit.Replay
         public void Tick(ISimulationView view, float deltaTime) { /* driven by RecorderTickSystem */ }
 
         /// <summary>
+        /// Sets the maximum network entity ID for the recording session; written to
+        /// <c>.meta.json</c> when <see cref="Dispose"/> is called.
+        /// Callers supply the value from the network entity map just before requesting uninstall.
+        /// </summary>
+        public void SetMaxNetworkId(long maxNetworkId)
+        {
+            if (_recorder != null)
+                _recorder.MaxNetworkId = maxNetworkId;
+        }
+
+        /// <summary>
         /// Blocking dispose: drains the LZ4 front-buffer, writes
         /// <c>MaxNetworkId</c> and <c>.meta.json</c> manifest before returning.
         /// <c>NodeOpStatus(Success)</c> must not be sent before this completes.

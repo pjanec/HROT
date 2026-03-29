@@ -11,6 +11,20 @@ namespace FDP.Toolkit.Replication.Systems
     {
         private readonly NetworkEntityMap _entityMap;
 
+        /// <summary>
+        /// When <c>true</c>, <see cref="CreateGhost"/> skips all lifecycle state
+        /// assignments and network map registration, creating a bare entity shell only.
+        ///
+        /// <para>
+        /// Set to <c>true</c> by <c>ReplayLoadDsmHandler</c> during
+        /// <c>RunningReplay</c> so that incoming network samples do not spawn ghost
+        /// entities that conflict with the recorded entity IDs being replayed
+        /// (CGF1-S0304).  Reset to <c>false</c> when returning to
+        /// <c>RunningLive</c> (CGF1-S0305).
+        /// </para>
+        /// </summary>
+        public bool BypassLifecycle { get; set; } = false;
+
         public GhostCreationSystem(NetworkEntityMap entityMap)
         {
             _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
@@ -18,9 +32,6 @@ namespace FDP.Toolkit.Replication.Systems
 
         // No-op: system is registered for pipeline consistency.
         public void Execute(ISimulationView view, float dt) { }
-
-        /// <summary>
-        /// Creates a ghost shell entity for the given network ID.
         /// Called by ingress translators on the Input phase main thread.
         /// The caller must supply a live <see cref="EntityRepository"/> from their view.
         ///

@@ -104,6 +104,18 @@ namespace FDP.Toolkit.Replay
         /// </summary>
         public int TotalFrames => _playback?.TotalFrames ?? 0;
 
+        /// <summary>
+        /// The maximum network entity ID present in the recording, as reported by
+        /// the recording session's <c>AsyncRecorder</c>.
+        /// Returns <c>0</c> if the recording pre-dates <c>MaxNetworkId</c> support,
+        /// if <see cref="RegisterSystems"/> has not been called, or if the
+        /// <c>.meta.json</c> file was absent at open time.
+        /// Used by <c>ReplayLoadDsmHandler</c> to populate <c>NodeOpStatus.ResultJson</c>
+        /// so the orchestrator can reset the ID allocator above the replay's ID space
+        /// (CGF1-S0304).
+        /// </summary>
+        public long MaxNetworkId => _playback?.Metadata.MaxNetworkId ?? 0;
+
         /// <summary>ACID-safe dispose: closes the <c>PlaybackController</c> file handles.</summary>
         public void Dispose()
         {

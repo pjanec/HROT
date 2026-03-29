@@ -59,6 +59,17 @@ namespace Fdp.Kernel.FlightRecorder
             set => _recorderSystem.EntityFilter = value;
         }
 
+        /// <summary>
+        /// The highest network (DIS) entity ID observed during the recording session.
+        /// Set this property before calling <see cref="Dispose"/> so the value is
+        /// persisted to the <c>.meta.json</c> manifest.  The application layer
+        /// (e.g. <c>RecordingModule</c>) is responsible for querying the network
+        /// entity map to determine the correct value.
+        /// When left at the default of <c>0</c>, the field is written as <c>0</c>
+        /// in the manifest (pre-feature recordings are treated as unknown).
+        /// </summary>
+        public long MaxNetworkId { get; set; } = 0;
+
         private bool _disposed;
         
         public AsyncRecorder(string filePath, RecordingMetadata? metadata = null)
@@ -281,6 +292,7 @@ namespace Fdp.Kernel.FlightRecorder
             {
                 _metadata.TotalFrames = RecordedFrames;
                 _metadata.Duration = DateTime.UtcNow - _metadata.Timestamp;
+                _metadata.MaxNetworkId = MaxNetworkId;
 
                 // Capture the component schema manifest so playback can detect struct drift.
                 _metadata.SchemaManifest = BuildSchemaManifest();

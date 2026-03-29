@@ -25,5 +25,21 @@ namespace Fdp.Kernel.FlightRecorder.Metadata
         /// </para>
         /// </summary>
         public Dictionary<int, ComponentSchemaInfo>? SchemaManifest { get; set; }
+
+        /// <summary>
+        /// The highest network (DIS) entity ID observed during the recording session.
+        /// Written by <see cref="Fdp.Kernel.FlightRecorder.AsyncRecorder"/> when
+        /// <c>Dispose()</c> finalizes the recording.
+        ///
+        /// <para>
+        /// Used by <c>ReplayLoadDsmHandler</c> to report the cluster-wide maximum entity
+        /// ID to the orchestrator so the <c>DdsIdAllocatorServer</c> can reset its
+        /// counter above the replay's ID space, preventing collisions when new entities
+        /// are created during a Live-from-Replay branch (CGF1-S0304).
+        /// A value of <c>0</c> means the recording pre-dates this feature or the recorder
+        /// was not supplied with a network entity map.
+        /// </para>
+        /// </summary>
+        public long MaxNetworkId { get; set; } = 0;
     }
 }

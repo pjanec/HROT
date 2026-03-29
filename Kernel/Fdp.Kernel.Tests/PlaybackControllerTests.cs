@@ -507,5 +507,86 @@ namespace Fdp.Tests
                 Assert.Equal(expectedX * 3, pos.Z);
             }
         }
+
+        // ── CGF1-S0304 success condition 4 ───────────────────────────────────────
+
+        /// <summary>
+        /// Records a 1 000-frame sequence with incrementing wall-clock ticks, seeks to
+        /// the midpoint using <see cref="PlaybackController.SeekToWallClockTicks"/>, and
+        /// asserts:
+        /// <list type="bullet">
+        ///   <item>The seek completes in less than 5 ms (binary search — O(log n)).</item>
+        ///   <item>The entity state after the seek matches the state recorded at that
+        ///   wall-clock tick (floor-seek semantics).</item>
+        /// </list>
+        /// </summary>
+        [Fact]
+        public void SeekToWallClockTicks_UsesBinarySearch()
+        {
+            // Arrange: 1 000 frames, one keyframe every 100 frames.
+            const int FrameCount      = 1_000;
+            const int KeyInterval     = 100;
+            const long TicksPerFrame  = 160_000L; // 16 ms expressed in 100-ns ticks
+
+            using var world = new EntityRepository();
+            world.RegisterComponent<Position>();
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new Position { X = 0, Y = 0, Z = 0 });
+
+            using var recorder = new AsyncRecorder(_testFilePath);
+            uint prevTick = 0;
+            long wallTicks = 1_000_000L; // arbitrary start
+
+            for (int frame = 0; frame < FrameCount; frame++)
+            {
+                world.Tick();
+                uint currentTick = world.GlobalVersion;
+
+                ref var pos = ref world.GetComponentRW<Position>(entity);
+                pos.X = frame;
+                pos.Y = frame * 2;
+                pos.Z = frame * 3;
+
+                if (frame % KeyInterval == 0)
+                    recorder.CaptureKeyframe(world, wallTicks, blocking: true);
+                else
+                    recorder.CaptureFrame(world, prevTick, wallTicks, blocking: true);
+
+                prevTick  = currentTick;
+                wallTicks += TicksPerFrame;
+            }
+            recorder.Dispose();
+
+            using var controller = new PlaybackController(_testFilePath);
+            using var repoSeek   = new EntityRepository();
+            repoSeek.RegisterComponent<Position>();
+
+            // Target: midpoint frame.
+            int  midFrame     = FrameCount / 2;
+            long midWallTicks = 1_000_000L + midFrame * TicksPerFrame;
+
+            // Act: measure seek time.
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            controller.SeekToWallClockTicks(repoSeek, midWallTicks);
+            sw.Stop();
+
+            // Assert: O(log n) binary search must finish well within 5 ms even on slow CI.
+            Assert.True(sw.Elapsed.TotalMilliseconds < 5.0,
+                $"SeekToWallClockTicks took {sw.Elapsed.TotalMilliseconds:F2} ms — expected < 5 ms.");
+
+            // Floor-seek: landed at or before the target tick.
+            int seekedFrame = controller.CurrentFrame;
+            Assert.True(seekedFrame >= 0 && seekedFrame <= midFrame,
+                $"CurrentFrame {seekedFrame} must be in [0, {midFrame}].");
+
+            // Entity X matches the frame we landed on.
+            var q = repoSeek.Query().With<Position>().Build();
+            foreach (var e in q)
+            {
+                ref readonly var pos = ref repoSeek.GetComponentRO<Position>(e);
+                Assert.Equal((float)seekedFrame, pos.X);
+            }
+        }
     }
 }
+

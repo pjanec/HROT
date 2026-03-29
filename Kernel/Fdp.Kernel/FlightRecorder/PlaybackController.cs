@@ -377,6 +377,13 @@ namespace Fdp.Kernel.FlightRecorder
         /// Optional EventBus to restore events into during playback.
         /// </summary>
         public FdpEventBus? EventBus { get; set; }
+
+        /// <summary>
+        /// Recording metadata loaded from the companion <c>.meta.json</c> file.
+        /// Provides access to fields such as <see cref="Fdp.Kernel.FlightRecorder.Metadata.RecordingMetadata.MaxNetworkId"/>
+        /// for use during replay setup (e.g. ID allocator reset).
+        /// </summary>
+        public Fdp.Kernel.FlightRecorder.Metadata.RecordingMetadata Metadata => _metadata;
         
         public void Dispose()
         {
