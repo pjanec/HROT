@@ -48,6 +48,8 @@ namespace Bagira.IOS.Orchestration
             _subsystemName = subsystemName;
             _heartbeatWriter = new DdsWriter<NodeHeartbeat>(participant);
             _commandReader = new DdsReader<NodeOpCommand>(participant);
+            // Only process commands addressed to this node's roster ID.
+            _commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId);
 
             _listenerThread = new Thread(() => RunCommandListener(_listenerCts.Token))
             {

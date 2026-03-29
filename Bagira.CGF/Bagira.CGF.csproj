@@ -24,8 +24,10 @@
     <ProjectReference Include="..\Bagira.Common\Bagira.Common.csproj" />
     <!-- CycloneDDS transitive via DataModel, but explicit for DdsParticipant -->
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
-    <!-- FdpLog<T> -->
+    <!-- FdpLog<T> + FdpEventBus -->
     <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
   </ItemGroup>
 
 </Project>

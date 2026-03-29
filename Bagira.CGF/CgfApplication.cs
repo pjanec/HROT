@@ -2,7 +2,10 @@ using System;
 using System.Threading;
 using Bagira.CGF.Modules.Orchestration;
 using CycloneDDS.Runtime;
+using Fdp.Interfaces;
+using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Time;
 
 namespace Bagira.CGF
 {
@@ -18,6 +21,8 @@ namespace Bagira.CGF
 
         private readonly DdsParticipant _participant;
         private readonly DrillSlave _drillSlave;
+        private readonly FdpEventBus _eventBus;
+        private readonly IDescriptorTranslator _timeModeTranslator;
         private bool _disposed;
 
         /// <summary>Exposes the <see cref="DrillSlave"/> for test assertions.</summary>
@@ -32,6 +37,10 @@ namespace Bagira.CGF
         {
             _participant = new DdsParticipant((uint)domainId);
             _drillSlave = new DrillSlave(_participant, nodeId, SubsystemName);
+            // CGF1-A.2 (BATCH-09): wire SwitchTimeModeEvent bridge so time-mode switches
+            // coordinated by the orchestrator are received and forwarded on the CGF node.
+            _eventBus = new FdpEventBus();
+            _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
             FdpLog<CgfApplication>.Info("[CGF] Initialized on domain {0}, nodeId {1}.", domainId, nodeId);
         }
 
@@ -42,6 +51,10 @@ namespace Bagira.CGF
         public void Tick()
         {
             _drillSlave.Tick();
+            // Bridge SwitchTimeModeEvent: egress coordinator events to DDS, ingress DDS events to bus.
+            _timeModeTranslator.ScanAndPublish(null!);
+            _timeModeTranslator.PollIngress(null!, null!);
+            _eventBus.SwapBuffers();
         }
 
         /// <inheritdoc />

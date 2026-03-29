@@ -62,8 +62,8 @@ public class MinimalCIScenarioTests
 
     /// <summary>
     /// CGF1-S0205 / DeterministicRun_IsReproducible:
-    /// Running the scenario twice with identical parameters yields identical outcomes.
-    /// Both runs must exit with code 0 and reach tick 600 (exact same tick count).
+    /// Running the scenario twice with identical parameters yields structurally-identical
+    /// outcomes: same exit code <b>and</b> bit-identical entity IDs at tick 600.
     /// </summary>
     [Fact]
     public void DeterministicRun_IsReproducible()
@@ -71,17 +71,26 @@ public class MinimalCIScenarioTests
         const int maxTicks = MinimalCIScenario.TargetTicks + 100;
         const float dt     = 1.0f / 60.0f;
 
-        int codeA = RunScenario(new MinimalCIScenario(), maxTicks, dt);
-        int codeB = RunScenario(new MinimalCIScenario(), maxTicks, dt);
+        var scenarioA = new MinimalCIScenario();
+        var scenarioB = new MinimalCIScenario();
+
+        int codeA = RunScenario(scenarioA, maxTicks, dt);
+        int codeB = RunScenario(scenarioB, maxTicks, dt);
 
         // Both runs must succeed.
         Assert.Equal(0, codeA);
         Assert.Equal(0, codeB);
 
-        // The outcomes are bit-identical: same exit code, same scenario name, same tick target.
-        // Since MinimalCIScenario uses no wall-clock time or random state,
-        // the ECS world state at tick 600 is deterministic across runs.
-        Assert.Equal(codeA, codeB);
+        // Structural equality: entity IDs at tick 600 must be bit-identical across runs.
+        // MinimalCIScenario uses no wall-clock time or random state; entity creation order
+        // is fully determined by the ECS world initialization sequence.
+        var snapshotA = scenarioA.FinalEntitySnapshot;
+        var snapshotB = scenarioB.FinalEntitySnapshot;
+
+        Assert.Equal(snapshotA.E1.Index,      snapshotB.E1.Index);
+        Assert.Equal(snapshotA.E1.Generation, snapshotB.E1.Generation);
+        Assert.Equal(snapshotA.E2.Index,      snapshotB.E2.Index);
+        Assert.Equal(snapshotA.E2.Generation, snapshotB.E2.Generation);
     }
 
     // ── CGF1-S0205 success condition 3 ───────────────────────────────────────

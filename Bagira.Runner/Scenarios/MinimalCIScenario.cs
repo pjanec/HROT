@@ -30,6 +30,13 @@ internal sealed class MinimalCIScenario : IScenario
     private Entity _e1;
     private Entity _e2;
 
+    /// <summary>
+    /// Structural snapshot captured at <see cref="TargetTicks"/>.
+    /// Used by <c>DeterministicRun_IsReproducible</c> to assert bit-identical entity IDs
+    /// between two independent runs of the same scenario with the same configuration.
+    /// </summary>
+    internal (Entity E1, Entity E2) FinalEntitySnapshot { get; private set; }
+
     // ── IScenario ─────────────────────────────────────────────────────────
 
     /// <inheritdoc/>
@@ -53,7 +60,13 @@ internal sealed class MinimalCIScenario : IScenario
         if (!world.IsAlive(_e2))
             throw new ScenarioFailureException(1, $"[MinimalCI] Entity 2 (id={_e2}) is no longer alive at tick {currentTick}.");
 
-        return currentTick >= TargetTicks;
+        if (currentTick >= TargetTicks)
+        {
+            // Capture entity IDs for reproducibility assertion.
+            FinalEntitySnapshot = (_e1, _e2);
+            return true;
+        }
+        return false;
     }
 
     /// <inheritdoc/>

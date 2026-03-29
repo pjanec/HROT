@@ -1,9 +1,16 @@
+using System.Collections.Generic;
 using System.Linq;
 using Bagira.Map.Common;
 using Bagira.Orchestrator;
 using CycloneDDS.Runtime;
+using Fdp.Interfaces;
+using Fdp.Kernel;
 using FDP.Framework.Runner;
+using FDP.Toolkit.Time;
+using FDP.Toolkit.Time.Controllers;
 using ImGuiNET;
+using ModuleHost.Core;
+using ModuleHost.Core.Time;
 
 namespace Bagira.Runner.Services;
 
@@ -18,6 +25,18 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private DrillMaster? _drillMaster;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
 
+    // ── Time coordinator (CGF1-A.1, BATCH-09) ─────────────────────────────
+    // Minimal kernel + coordinator so PendingTimeMode drives SwitchToDeterministic.
+    private FdpEventBus? _eventBus;
+    private EntityRepository? _timeWorld;
+    private ModuleHostKernel? _timeKernel;
+    private DistributedTimeCoordinator? _timeCoordinator;
+    private IDescriptorTranslator? _timeModeTranslator;
+    private string? _lastProcessedTimeMode;
+
+    /// <summary>Internal event bus exposed for test assertions on SwitchTimeModeEvent.</summary>
+    internal FdpEventBus? TimeBusForTest => _eventBus;
+
     public string Name => "Orchestrator";
 
     public System.Numerics.Vector4 TitleBarColor => new(0.12f, 0.18f, 0.42f, 1f);
@@ -28,11 +47,53 @@ public sealed class OrchestratorSubsystem : ISubsystem
             System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
         _participant = BagiraEnvironment.CreateParticipant(config.DomainId);
         _drillMaster = new DrillMaster(_participant, _config);
+
+        // ── Time coordinator setup (CGF1-A.1, BATCH-09) ──────────────────────
+        // A minimal ECS kernel gives the DistributedTimeCoordinator a wall-clock source
+        // (MasterTimeController.GetCurrentState().TotalWallTicks) without needing a full
+        // simulation world on the orchestrator process.
+        _eventBus  = new FdpEventBus();
+        _timeWorld = new EntityRepository();
+        var accumulator = new EventAccumulator();
+        _timeKernel = new ModuleHostKernel(_timeWorld, accumulator);
+        var timeConfig = new TimeControllerConfig { Mode = TimeMode.Continuous, Role = TimeRole.Master };
+        var timeCtrl   = TimeControllerFactory.Create(_eventBus, timeConfig);
+        _timeKernel.SetTimeController(timeCtrl);
+        _timeKernel.Initialize();
+
+        var coordConfig = new TimeControllerConfig { Mode = TimeMode.Continuous, Role = TimeRole.Master,
+            SyncConfig = TimeConfig.Default };
+        _timeCoordinator   = new DistributedTimeCoordinator(_eventBus, _timeKernel, coordConfig,
+            new HashSet<int>());
+        _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
     }
 
     public void Update(float deltaTime)
     {
+        // Advance the orchestrator's wall clock so the coordinator has a monotonic
+        // TotalWallTicks reference for future-barrier calculations.
+        _timeKernel?.Update();
+        _eventBus?.SwapBuffers();
+
         _drillMaster?.Tick();
+
+        // CGF1-A.1: Consume PendingTimeMode and drive DistributedTimeCoordinator.
+        var pendingMode = _drillMaster?.PendingTimeMode;
+        if (pendingMode != _lastProcessedTimeMode)
+        {
+            if (pendingMode == "Deterministic" && _timeCoordinator != null && _drillMaster != null)
+            {
+                // Collect current roster IDs as slave targets for the barrier broadcast.
+                var slaveIds = new HashSet<int>(_drillMaster.NodeRoster.ActiveNodes.Keys);
+                _timeCoordinator.SwitchToDeterministic(slaveIds);
+            }
+            _lastProcessedTimeMode = pendingMode;
+        }
+
+        // Poll coordinator barrier and egress/ingress translate SwitchTimeModeEvent to DDS.
+        _timeCoordinator?.Update();
+        _timeModeTranslator?.ScanAndPublish(null!);
+        _timeModeTranslator?.PollIngress(null!, null!);
     }
 
     public void DrawWorld() { }
@@ -138,6 +199,12 @@ public sealed class OrchestratorSubsystem : ISubsystem
     {
         _drillMaster?.Dispose();
         _drillMaster = null;
+        _timeKernel?.Dispose();
+        _timeKernel = null;
+        _timeWorld = null;
+        _eventBus = null;
+        _timeCoordinator = null;
+        _lastProcessedTimeMode = null;
         _participant?.Dispose();
         _participant = null;
     }

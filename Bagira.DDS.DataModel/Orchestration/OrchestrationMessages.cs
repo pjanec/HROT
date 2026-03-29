@@ -78,6 +78,13 @@ namespace Bagira.BDC.SSTD.Orchestration
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct NodeOpCommand
     {
+        /// <summary>
+        /// Per-node delivery key.  Orchestrator writes one sample per roster entry with this
+        /// field set to the target node's <see cref="NodeHeartbeat.NodeId"/>.  DrillSlave
+        /// readers apply a client-side filter (<c>cmd.TargetNodeId == _nodeId</c>) so each
+        /// node only processes commands addressed to it.
+        /// </summary>
+        [DdsKey] public int TargetNodeId;
         public Guid TransactionId;
         public NodeOpType Operation;
         [DdsManaged] public string PayloadJson;

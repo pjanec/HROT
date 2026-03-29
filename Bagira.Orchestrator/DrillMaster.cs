@@ -5,7 +5,6 @@ using Bagira.BDC.SSTD.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
 using ModuleHost.Network.Cyclone.Services;
-
 namespace Bagira.Orchestrator;
 
 /// <summary>
@@ -21,7 +20,13 @@ public sealed class DrillMaster : IDisposable
     private readonly DdsReader<NodeHeartbeat>     _heartbeatReader;
     private readonly DdsReader<SysOpRequest>      _sysOpRequestReader;
     private readonly DdsWriter<SysOpStatus>       _sysOpStatusWriter;
-    private readonly DdsWriter<NodeOpCommand>     _nodeOpCommandWriter;
+
+    // Per-node writer cache (Part B: keyed NodeOpCommand fan-out).
+    // Each key is the target node's roster ID; the value is the dedicated writer
+    // for that instance key.  Writers are created lazily on first use and disposed
+    // when the node is ejected.
+    private readonly Dictionary<int, DdsWriter<NodeOpCommand>> _nodeOpWriterCache = new();
+    private readonly DdsParticipant _nodeOpParticipant;
 
     // ── Roster ────────────────────────────────────────────────────────────
     private readonly NodeRoster _roster = new();
@@ -136,7 +141,7 @@ public sealed class DrillMaster : IDisposable
         _systemStateWriter   = new DdsWriter<SystemStateTopic>(participant);
         _sysOpRequestReader  = new DdsReader<SysOpRequest>(participant);
         _sysOpStatusWriter   = new DdsWriter<SysOpStatus>(participant);
-        _nodeOpCommandWriter = new DdsWriter<NodeOpCommand>(participant);
+        _nodeOpParticipant   = participant;
 
         // If no mandatory nodes are configured, the latch clears immediately.
         if (_config.Mandatory.Length == 0)
@@ -258,6 +263,12 @@ public sealed class DrillMaster : IDisposable
             return;
 
         _roster.Remove(nodeId);
+        // Dispose and remove the per-node writer so no further commands reach the ejected node.
+        if (_nodeOpWriterCache.TryGetValue(nodeId, out var ejectedWriter))
+        {
+            ejectedWriter.Dispose();
+            _nodeOpWriterCache.Remove(nodeId);
+        }
         FdpLog<DrillMaster>.Warn("[Orchestrator] Node {0} ({1}) ejected (heartbeat timeout).",
             nodeId, profile.SubsystemName);
 
@@ -283,18 +294,19 @@ public sealed class DrillMaster : IDisposable
         FdpLog<DrillMaster>.Warn("[Orchestrator] System entered Degraded state (mandatory node {0} lost).", profile.SubsystemName);
 
         // Broadcast AbortTransaction + PrepareState(Standby) to surviving nodes only.
-        BroadcastNodeOp(new NodeOpCommand
+        var survivingIds = new List<int>(_roster.ActiveNodes.Keys);
+        FanOutNodeOp(new NodeOpCommand
         {
             TransactionId = Guid.NewGuid(),
             Operation     = NodeOpType.AbortTransaction,
             PayloadJson   = string.Empty
-        });
-        BroadcastNodeOp(new NodeOpCommand
+        }, survivingIds);
+        FanOutNodeOp(new NodeOpCommand
         {
             TransactionId = Guid.NewGuid(),
             Operation     = NodeOpType.PrepareState,
             PayloadJson   = ((int)DSMState.Standby).ToString()
-        });
+        }, survivingIds);
 
         // Re-engage bootstrap latch until the mandatory node returns.
         _bootstrapLatch = false;
@@ -424,13 +436,30 @@ public sealed class DrillMaster : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes a <see cref="NodeOpCommand"/> to each specified target node using per-node
+    /// keyed writers.  Writers are created lazily and cached in
+    /// <see cref="_nodeOpWriterCache"/>; they are disposed in <see cref="EjectNode"/> when
+    /// a node leaves the roster, ensuring no further samples reach the evicted instance key.
+    /// </summary>
+    private void FanOutNodeOp(NodeOpCommand template, IEnumerable<int> targetNodeIds)
+    {
+        foreach (var nodeId in targetNodeIds)
+        {
+            if (!_nodeOpWriterCache.TryGetValue(nodeId, out var writer))
+            {
+                writer = new DdsWriter<NodeOpCommand>(_nodeOpParticipant);
+                _nodeOpWriterCache[nodeId] = writer;
+            }
+            var cmd = template;
+            cmd.TargetNodeId = nodeId;
+            writer.Write(cmd);
+        }
+    }
+
     /// <summary>Broadcasts a <see cref="NodeOpCommand"/> to all currently active nodes.</summary>
     private void BroadcastNodeOp(NodeOpCommand cmd)
-    {
-        // In Phase 1.5, the NodeOpCommand DDS topic is keyed by node; writing it once
-        // with a broadcast payload delivers to all readers on the same domain.
-        _nodeOpCommandWriter.Write(cmd);
-    }
+        => FanOutNodeOp(cmd, _roster.ActiveNodes.Keys);
 
     private void PublishStandby()
     {
@@ -477,6 +506,8 @@ public sealed class DrillMaster : IDisposable
         _heartbeatReader.Dispose();
         _sysOpRequestReader.Dispose();
         _sysOpStatusWriter.Dispose();
-        _nodeOpCommandWriter.Dispose();
+        foreach (var w in _nodeOpWriterCache.Values)
+            w.Dispose();
+        _nodeOpWriterCache.Clear();
     }
 }

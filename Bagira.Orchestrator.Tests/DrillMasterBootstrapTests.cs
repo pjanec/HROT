@@ -230,17 +230,14 @@ public sealed class DrillMasterBootstrapTests
     }
 
     /// <summary>
-    /// Verifies that after a mandatory node is ejected, all surviving nodes receive
-    /// a <c>PrepareState(Standby)</c> command, and the ejected node is removed from the roster.
+    /// Verifies that after a mandatory node is ejected, surviving nodes receive
+    /// <c>PrepareState(Standby)</c> commands and the ejected node is removed from the roster.
     /// <para>
-    /// <b>Phase 1 broadcast limitation:</b> <c>BroadcastNodeOp</c> writes a single sample to
-    /// the <c>NodeOpCommand</c> topic without per-node key filtering.  All active DDS readers
-    /// on the same domain will receive the broadcast, including a reader owned by the ejected
-    /// node if it were still running.  The robust per-node delivery guarantee ("SimHost does NOT
-    /// receive PrepareState after ejection") requires keyed per-node topics and is tracked in
-    /// <see href="../../cgf-1/CGF-1-TASK-DETAIL.md#cgf1-s0105">CGF-1-TASK-DETAIL §CGF1-S0105</see>.
-    /// This test validates: (a) ejected node is removed from the roster so the orchestrator
-    /// won't issue future commands to it, and (b) the broadcast command set is correct.
+    /// <b>Keyed per-node delivery (CGF-1-BATCH-09 §B):</b> <c>NodeOpCommand</c> has
+    /// <c>[DdsKey] TargetNodeId</c>.  <c>DrillMaster.FanOutNodeOp</c> writes one sample per
+    /// surviving roster entry; the per-node writer for the ejected node is disposed before the
+    /// fan-out, so no more samples reach its instance key.  Each reader applies a client-side
+    /// filter (<c>cmd.TargetNodeId == ownNodeId</c>) to drop any stale cross-key samples.
     /// </para>
     /// </summary>
     [Fact(Timeout = 10_000)]
@@ -253,9 +250,20 @@ public sealed class DrillMasterBootstrapTests
             HeartbeatTimeoutSeconds = 0.1f,
         };
 
-        using var orchParticipant = new DdsParticipant(TestDomain);
-        using var hbWriter        = new DdsWriter<NodeHeartbeat>(orchParticipant);
-        using var cmdReader       = new DdsReader<NodeOpCommand>(orchParticipant);
+        // Two separate participants simulate the per-node reader isolation.
+        using var orchParticipant    = new DdsParticipant(TestDomain);
+        using var cgfParticipant     = new DdsParticipant(TestDomain);
+        using var simHostParticipant = new DdsParticipant(TestDomain);
+
+        using var hbWriter = new DdsWriter<NodeHeartbeat>(orchParticipant);
+
+        // CGF reader (nodeId 400) — should receive PrepareState after SimHost ejection.
+        using var cgfCmdReader = new DdsReader<NodeOpCommand>(cgfParticipant);
+        cgfCmdReader.SetFilter(cmd => cmd.TargetNodeId == 400);
+
+        // SimHost reader (nodeId 1) — should receive ZERO commands after ejection.
+        using var simHostCmdReader = new DdsReader<NodeOpCommand>(simHostParticipant);
+        simHostCmdReader.SetFilter(cmd => cmd.TargetNodeId == 1);
 
         using var drill = new DrillMaster(orchParticipant, config);
         Thread.Sleep(400);
@@ -285,47 +293,46 @@ public sealed class DrillMasterBootstrapTests
         Assert.True(drill.BootstrapComplete, "Both nodes bootstrapped.");
         Assert.Equal(2, drill.NodeRoster.ActiveNodes.Count);
 
-        // Drain stale command samples before ejection.
-        DrainCmdReader(cmdReader);
+        // Drain any pre-ejection samples from both readers.
+        DrainCmdReader(cgfCmdReader);
+        DrainCmdReader(simHostCmdReader);
 
         // Stop SimHost heartbeats; wait for timeout, then trigger ejection via Tick.
         Thread.Sleep(200);
 
-        var cmds = new List<NodeOpCommand>();
+        var cgfCmds     = new List<NodeOpCommand>();
+        var simHostCmds = new List<NodeOpCommand>();
         var ejectionDeadline = DateTime.UtcNow.AddSeconds(2);
         while (DateTime.UtcNow < ejectionDeadline)
         {
             drill.Tick();
-            using var scope = cmdReader.Take();
-            foreach (var s in scope)
-            {
-                if (!s.IsValid) continue;
-                cmds.Add(s.Data);
-            }
+            using (var scope = cgfCmdReader.Take())
+                foreach (var s in scope) { if (s.IsValid) cgfCmds.Add(s.Data); }
+            using (var scope = simHostCmdReader.Take())
+                foreach (var s in scope) { if (s.IsValid) simHostCmds.Add(s.Data); }
             if (!drill.NodeRoster.ActiveNodes.ContainsKey(1)) break;
             Thread.Sleep(20);
         }
 
-        // Give any in-flight broadcast samples a moment to arrive, then do a final drain.
+        // Give any in-flight samples a moment to arrive, then do a final drain.
         Thread.Sleep(50);
-        using (var finalScope = cmdReader.Take())
-        {
-            foreach (var s in finalScope)
-            {
-                if (!s.IsValid) continue;
-                cmds.Add(s.Data);
-            }
-        }
+        using (var scope = cgfCmdReader.Take())
+            foreach (var s in scope) { if (s.IsValid) cgfCmds.Add(s.Data); }
+        using (var scope = simHostCmdReader.Take())
+            foreach (var s in scope) { if (s.IsValid) simHostCmds.Add(s.Data); }
 
-        // SimHost (nodeId 1) should be removed from the roster.
+        // SimHost (nodeId 1) must be removed from the roster.
         Assert.False(drill.NodeRoster.ActiveNodes.ContainsKey(1),
             "SimHost must be removed from roster after ejection.");
         Assert.True(drill.NodeRoster.ActiveNodes.ContainsKey(400),
             "CGF must remain in roster as a surviving node.");
 
-        // The broadcast should include AbortTransaction and PrepareState(Standby).
-        Assert.Contains(cmds, c => c.Operation == NodeOpType.AbortTransaction);
-        Assert.Contains(cmds, c => c.Operation == NodeOpType.PrepareState);
+        // CGF should receive both AbortTransaction and PrepareState(Standby).
+        Assert.Contains(cgfCmds, c => c.Operation == NodeOpType.AbortTransaction);
+        Assert.Contains(cgfCmds, c => c.Operation == NodeOpType.PrepareState);
+
+        // SimHost reader must receive zero commands after ejection (writer disposed/no new writes).
+        Assert.Empty(simHostCmds);
     }
 
     /// <summary>
