@@ -13,6 +13,19 @@ namespace Bagira.CGF
     /// Minimal CGF application shell.  Owns the DDS participant and <see cref="DrillSlave"/>
     /// lifecycle.  In Phase 1 the CGF subsystem acts only as a heartbeating DrillSlave;
     /// AI and entity logic are added in Phase 4.
+    ///
+    /// <para><b>Time bus (CGF1-A.2 — Option B — Phase 3 note):</b>
+    /// A <see cref="FDP.Toolkit.Time.TimeNetworkModule"/>.<c>CreateDescriptorTranslator</c>
+    /// instance is wired to the private <c>_eventBus</c> so that
+    /// <c>SwitchTimeModeWireDto</c> samples are bridged on/off DDS each frame via
+    /// <see cref="Tick"/>.  This proves the wire path is functional.
+    /// However <see cref="DrillSlave"/> is constructed <em>without</em> that bus and
+    /// no <c>SlaveTimeModeListener</c> is registered, so ingressed
+    /// <c>SwitchTimeModeEvent</c> messages are not acted on by this shell.
+    /// Full time-mode switching (CGF1-S0205 end-to-end: <c>SteppedSlaveController</c>
+    /// via Future Barrier) requires wiring a <c>ModuleHostKernel</c> and
+    /// <c>SlaveTimeModeListener</c>, which land in Phase 3+ when the CGF subsystem
+    /// acquires simulation entity management.</para>
     /// </summary>
     public sealed class CgfApplication : IDisposable
     {

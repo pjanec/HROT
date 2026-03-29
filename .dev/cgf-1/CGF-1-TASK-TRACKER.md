@@ -3,8 +3,8 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-10](batches/CGF-1-BATCH-10-INSTRUCTIONS.md) — IG DrillSlave filter + CGF time-bus + **CGF1-S0301** (Storage Gateway).  
-**Last reviewed:** [CGF-1-BATCH-09](reviews/CGF-1-BATCH-09-REVIEW.md) — APPROVED (2026-05-12).  
+**Active batch:** [CGF-1-BATCH-11](batches/CGF-1-BATCH-11-INSTRUCTIONS.md) — in progress.  
+**Last reviewed:** [CGF-1-BATCH-10](reviews/CGF-1-BATCH-10-REVIEW.md) — APPROVED (2026-03-28).  
 **Batches / reports / reviews:** `.dev/cgf-1/batches/`, `.dev/cgf-1/reports/`, `.dev/cgf-1/reviews/` (prefix `CGF-1-`).  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
@@ -13,7 +13,7 @@
 > Phase 3 tasks are complete and their CI gates are passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 5 / 5 tasks done. **Phase 2:** 5 / 5 complete. **Phase 3:** 0 / 8 (first: **CGF1-S0301** in [CGF-1-BATCH-10](batches/CGF-1-BATCH-10-INSTRUCTIONS.md)). **S0205** residual debt (IG filter, CGF shell, subprocess CI) → BATCH-10 — see [BATCH-09 review](reviews/CGF-1-BATCH-09-REVIEW.md).
+> **Progress (Phase 1):** 5 / 5 tasks done. **Phase 2:** 5 / 5 complete. **Phase 3:** 1 / 8 (CGF1-S0301 done in [CGF-1-BATCH-10](batches/CGF-1-BATCH-10-INSTRUCTIONS.md); **CGF1-S0302** deferred until **S0306+S0307** in [CGF-1-BATCH-11](batches/CGF-1-BATCH-11-INSTRUCTIONS.md)). S0205 BATCH-09 residual (IG filter, CGF bus doc) closed in BATCH-10; subprocess `dotnet run` CI remains Opportunistic.
 
 ---
 
@@ -48,11 +48,11 @@ Future Barrier time-mode swap is frame-perfect; establish deterministic CI loop.
 **Goal:** Non-blocking recording, replay, binary checkpointing, scenario file
 management, and live-from-replay temporal interlock — all regression-tested.
 
-- [ ] **CGF1-S0301** Storage Gateway [details](./CGF-1-TASK-DETAIL.md#cgf1-s0301--storage-gateway)
-- [ ] **CGF1-S0302** Portable Scenario Loading [details](./CGF-1-TASK-DETAIL.md#cgf1-s0302--portable-scenario-loading)
+- [x] **CGF1-S0301** Storage Gateway [details](./CGF-1-TASK-DETAIL.md#cgf1-s0301--storage-gateway) — done (CGF-1-BATCH-10): `StorageGatewayModule`, `FileManifestEntry`, `GatewayResult`, `NodeDistributionTarget`; `PullToNasAsync`/`PushToNodesAsync`; `DrillMaster` gateway hook + `NodeOpStatus` reader; `StorageGatewayTests` (2 pass)
+- [ ] **CGF1-S0302** Portable Scenario Loading [details](./CGF-1-TASK-DETAIL.md#cgf1-s0302--portable-scenario-loading) — **after** S0306+S0307 ([CGF-1-BATCH-11](batches/CGF-1-BATCH-11-INSTRUCTIONS.md))
 - [ ] **CGF1-S0303** 3-Step Binary Checkpointing [details](./CGF-1-TASK-DETAIL.md#cgf1-s0303--3-step-binary-checkpointing)
 - [ ] **CGF1-S0304** Dynamic Recording Modules [details](./CGF-1-TASK-DETAIL.md#cgf1-s0304--dynamic-recording-modules)
 - [ ] **CGF1-S0305** Live-from-Replay Temporal Interlock [details](./CGF-1-TASK-DETAIL.md#cgf1-s0305--live-from-replay-temporal-interlock)
-- [ ] **CGF1-S0306** Scenario/Story Serialization Toolkit [details](./CGF-1-TASK-DETAIL.md#cgf1-s0306--scenariostory-serialization-toolkit)
-- [ ] **CGF1-S0307** Application-Layer Scenario Save/Load Wiring [details](./CGF-1-TASK-DETAIL.md#cgf1-s0307--application-layer-scenario-saveload-wiring)
+- [ ] **CGF1-S0306** Scenario/Story Serialization Toolkit [details](./CGF-1-TASK-DETAIL.md#cgf1-s0306--scenariostory-serialization-toolkit) — planned [CGF-1-BATCH-11](batches/CGF-1-BATCH-11-INSTRUCTIONS.md) Part B
+- [ ] **CGF1-S0307** Application-Layer Scenario Save/Load Wiring [details](./CGF-1-TASK-DETAIL.md#cgf1-s0307--application-layer-scenario-saveload-wiring) — planned [CGF-1-BATCH-11](batches/CGF-1-BATCH-11-INSTRUCTIONS.md) Part C
 - [ ] **CGF1-S0308** Runtime Story Injection & Deletion [details](./CGF-1-TASK-DETAIL.md#cgf1-s0308--runtime-story-injection--deletion)

@@ -68,16 +68,17 @@ Implement **`StorageGatewayModule`** (or equivalent), **`FileManifestEntry`**, *
 
 ## Success criteria
 
-- [ ] Part A: IG **`SetFilter`**; CGF bus doc or wiring; **`TimeNetworkModule`** XML; DEBT updated.  
-- [ ] Part B: CGF1-S0301 success conditions met.  
-- [ ] Solution build clean; tests green.  
-- [ ] DEBT-TRACKER updated.  
-- [ ] Report filed.  
+- [x] Part A: IG **`SetFilter`**; CGF bus doc or wiring; **`TimeNetworkModule`** XML; DEBT updated. — [review §Part A](../reviews/CGF-1-BATCH-10-REVIEW.md#summary)  
+- [x] Part B: CGF1-S0301 success conditions met. — [review §Part B](../reviews/CGF-1-BATCH-10-REVIEW.md#summary)  
+- [x] Solution build clean; tests green.  
+- [x] DEBT-TRACKER updated.  
+- [x] Report filed.  
 
 ---
 
 ## Reference
 
 - [CGF-1-BATCH-09 review Issues](../reviews/CGF-1-BATCH-09-REVIEW.md#gaps-schedule-batch-10)  
+- **Review:** [CGF-1-BATCH-10-REVIEW.md](../reviews/CGF-1-BATCH-10-REVIEW.md) — APPROVED  
 
-**Next preview:** **CGF-1-BATCH-11** — **CGF1-S0302** (portable scenario loading) or parallel SMB hardening.
+**Next:** [CGF-1-BATCH-11](CGF-1-BATCH-11-INSTRUCTIONS.md) — debt + **CGF1-S0306**, **CGF1-S0307** (then **S0302**).

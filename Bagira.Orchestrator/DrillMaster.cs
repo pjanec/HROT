@@ -5,6 +5,7 @@ using Bagira.BDC.SSTD.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
 using ModuleHost.Network.Cyclone.Services;
+
 namespace Bagira.Orchestrator;
 
 /// <summary>
@@ -20,6 +21,7 @@ public sealed class DrillMaster : IDisposable
     private readonly DdsReader<NodeHeartbeat>     _heartbeatReader;
     private readonly DdsReader<SysOpRequest>      _sysOpRequestReader;
     private readonly DdsWriter<SysOpStatus>       _sysOpStatusWriter;
+    private readonly DdsReader<NodeOpStatus>      _nodeOpStatusReader;
 
     // Per-node writer cache (Part B: keyed NodeOpCommand fan-out).
     // Each key is the target node's roster ID; the value is the dedicated writer
@@ -30,6 +32,28 @@ public sealed class DrillMaster : IDisposable
 
     // ── Roster ────────────────────────────────────────────────────────────
     private readonly NodeRoster _roster = new();
+
+    // ── Storage gateway (CGF1-S0301) ──────────────────────────────────────
+    /// <summary>
+    /// Optional storage gateway used to collect node snapshots onto the NAS after a
+    /// <c>SerializeLocal</c> round.  Set via <see cref="SetStorageGateway"/>.
+    /// </summary>
+    private StorageGatewayModule? _gateway;
+    private string _nasBasePath = string.Empty;
+
+    /// <summary>
+    /// Tracks in-progress <c>SerializeLocal</c> rounds keyed by transaction ID.
+    /// Each entry records the number of outstanding ACKs and the manifests collected
+    /// so far.  When <see cref="_remainingAcks"/> reaches zero,
+    /// <see cref="ConsumeNodeOpStatuses"/> fires <see cref="StorageGatewayModule.PullToNasAsync"/>.
+    /// </summary>
+    private readonly Dictionary<Guid, SerializeLocalTask> _pendingSerializeTasks = new();
+
+    private sealed class SerializeLocalTask
+    {
+        public int RemainingAcks;
+        public readonly List<FileManifestEntry> Manifests = new();
+    }
 
     // ── ID allocator server ───────────────────────────────────────────────
     private DdsIdAllocatorServer? _idAllocatorServer;
@@ -141,6 +165,7 @@ public sealed class DrillMaster : IDisposable
         _systemStateWriter   = new DdsWriter<SystemStateTopic>(participant);
         _sysOpRequestReader  = new DdsReader<SysOpRequest>(participant);
         _sysOpStatusWriter   = new DdsWriter<SysOpStatus>(participant);
+        _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(participant);
         _nodeOpParticipant   = participant;
 
         // If no mandatory nodes are configured, the latch clears immediately.
@@ -168,6 +193,7 @@ public sealed class DrillMaster : IDisposable
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
         ProcessSysOpRequests();
+        ConsumeNodeOpStatuses();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────
@@ -461,6 +487,98 @@ public sealed class DrillMaster : IDisposable
     private void BroadcastNodeOp(NodeOpCommand cmd)
         => FanOutNodeOp(cmd, _roster.ActiveNodes.Keys);
 
+    // ── Storage gateway integration (CGF1-S0301) ─────────────────────────
+
+    /// <summary>
+    /// Registers the <see cref="StorageGatewayModule"/> instance used to collect node
+    /// snapshots onto the NAS after every <c>SerializeLocal</c> round.
+    /// Call this once at startup, before any simulation transitions are issued.
+    /// </summary>
+    /// <param name="gateway">The storage gateway instance to use.</param>
+    /// <param name="nasBasePath">
+    /// Root path on the NAS (local or UNC) under which manifest
+    /// <see cref="FileManifestEntry.RelativeDest"/> paths are resolved.
+    /// </param>
+    public void SetStorageGateway(StorageGatewayModule gateway, string nasBasePath)
+    {
+        _gateway     = gateway ?? throw new ArgumentNullException(nameof(gateway));
+        _nasBasePath = nasBasePath ?? throw new ArgumentNullException(nameof(nasBasePath));
+    }
+
+    /// <summary>
+    /// Sends a <see cref="NodeOpType.SerializeLocal"/> command to each node in
+    /// <paramref name="nodeIds"/> and registers a pending task that waits for all
+    /// <c>NodeOpStatus(Success)</c> ACKs before invoking
+    /// <see cref="StorageGatewayModule.PullToNasAsync"/> on the collected manifests.
+    ///
+    /// <para>Intended to be called from Phase 3 <c>SysOpType.SaveScenario</c> handling
+    /// in <see cref="ProcessSysOpRequests"/>.  If no <see cref="StorageGatewayModule"/>
+    /// has been registered the manifest pull step is skipped.</para>
+    /// </summary>
+    internal void FanOutSerializeLocal(Guid requestId, IReadOnlyList<int> nodeIds, string payloadJson = "")
+    {
+        if (nodeIds.Count == 0) return;
+        _pendingSerializeTasks[requestId] = new SerializeLocalTask { RemainingAcks = nodeIds.Count };
+        FanOutNodeOp(new NodeOpCommand
+        {
+            TransactionId = requestId,
+            Operation     = NodeOpType.SerializeLocal,
+            PayloadJson   = payloadJson ?? string.Empty
+        }, nodeIds);
+    }
+
+    /// <summary>
+    /// Reads all pending <see cref="NodeOpStatus"/> samples.  For each sample that
+    /// matches a tracked <c>SerializeLocal</c> task, deserializes the
+    /// <see cref="FileManifestEntry"/> list from <c>ResultJson</c> and decrements the
+    /// outstanding ACK counter.  When the counter reaches zero the full collected
+    /// manifest is passed to <see cref="StorageGatewayModule.PullToNasAsync"/> if a
+    /// gateway is registered.
+    /// </summary>
+    private void ConsumeNodeOpStatuses()
+    {
+        using var scope = _nodeOpStatusReader.Take();
+        foreach (var sample in scope)
+        {
+            if (!sample.IsValid) continue;
+            var status = sample.Data;
+
+            if (!_pendingSerializeTasks.TryGetValue(status.TransactionId, out var task))
+                continue;
+
+            if (status.Status == OpStatus.Success && !string.IsNullOrEmpty(status.ResultJson))
+            {
+                try
+                {
+                    var entries = JsonSerializer.Deserialize<List<FileManifestEntry>>(
+                        status.ResultJson,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (entries != null)
+                        task.Manifests.AddRange(entries);
+                }
+                catch (JsonException)
+                {
+                    // Malformed ResultJson — skip manifest for this node.
+                    FdpLog<DrillMaster>.Warn(
+                        "[Orchestrator] SerializeLocal ACK from node {0} has invalid ResultJson — skipping manifest.",
+                        status.NodeId);
+                }
+            }
+
+            task.RemainingAcks--;
+            if (task.RemainingAcks <= 0)
+            {
+                _pendingSerializeTasks.Remove(status.TransactionId);
+                if (_gateway != null && task.Manifests.Count > 0)
+                {
+                    // Fire-and-forget: the pull is async; DrillMaster continues ticking.
+                    // Phase 3+ will track completion and publish SysOpStatus(Success)/Failure.
+                    _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath);
+                }
+            }
+        }
+    }
+
     private void PublishStandby()
     {
         _systemStateWriter.Write(new SystemStateTopic
@@ -506,6 +624,7 @@ public sealed class DrillMaster : IDisposable
         _heartbeatReader.Dispose();
         _sysOpRequestReader.Dispose();
         _sysOpStatusWriter.Dispose();
+        _nodeOpStatusReader.Dispose();
         foreach (var w in _nodeOpWriterCache.Values)
             w.Dispose();
         _nodeOpWriterCache.Clear();

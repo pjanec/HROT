@@ -63,11 +63,13 @@ Implement the **§CGF1-S0105** ADR: **`[DdsKey]`** (or approved wire shape), **`
 
 ## Success criteria
 
-- [ ] Part A: S0205 **normative** gaps from BATCH-08 review **closed** (coordinator consumption, CGF translator, stronger tests, obsolete API / domain flake as scoped).  
-- [ ] Part B: Keyed **`NodeOpCommand`** + tests; **SurvivingNodes** debt **✅** or explicitly re-rolled with justification.  
-- [ ] Solution build clean; tests green (document parallel policy if needed).  
-- [ ] DEBT-TRACKER updated.  
-- [ ] Report filed.  
+- [x] Part A: S0205 **normative** gaps from BATCH-08 review **closed** (coordinator consumption, CGF translator, stronger tests, obsolete API / domain flake as scoped).  
+- [x] Part B: Keyed **`NodeOpCommand`** + tests; **SurvivingNodes** debt **✅** or explicitly re-rolled with justification.  
+- [x] Solution build clean; tests green (document parallel policy if needed).  
+- [x] DEBT-TRACKER updated.  
+- [x] Report filed.  
+
+**Post-review:** [CGF-1-BATCH-09 review](../reviews/CGF-1-BATCH-09-REVIEW.md) — IG **`SetFilter`**, CGF bus, docs → **CGF-1-BATCH-10**.
 
 ---
 

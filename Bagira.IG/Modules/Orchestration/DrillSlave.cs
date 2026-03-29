@@ -46,6 +46,8 @@ namespace Bagira.IG.Modules.Orchestration
             _subsystemName = subsystemName;
             _heartbeatWriter = new DdsWriter<NodeHeartbeat>(participant);
             _commandReader = new DdsReader<NodeOpCommand>(participant);
+            // Only process commands addressed to this node's roster ID (parity with SimHost/IOS/CGF).
+            _commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId);
 
             _listenerThread = new Thread(() => RunCommandListener(_listenerCts.Token))
             {
