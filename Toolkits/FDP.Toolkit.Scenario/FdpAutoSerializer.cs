@@ -69,6 +69,20 @@ namespace FDP.Toolkit.Scenario
         /// Must be called once before any <see cref="TryExtract"/> or
         /// <see cref="TryInject"/> calls.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// <b>Why the static <see cref="ComponentTypeRegistry"/>?</b>
+        /// <c>FDP.Toolkit.Scenario</c> may not reference any Bagira assembly; it has access
+        /// only to <c>Fdp.Kernel</c>.  The single global <see cref="ComponentTypeRegistry"/>
+        /// maintained by <c>Fdp.Kernel</c> is the authoritative roster of all registered
+        /// component types at any point in the application lifecycle.  Accepting a registry
+        /// parameter (as shown in the CGF1-S0306 task detail) would require the caller to
+        /// pass an instance that is actually the same static registry — adding indirection
+        /// without benefit.  If a future design introduces multiple independent registries
+        /// (e.g. per-world component sets), the signature should be updated to
+        /// <c>Build(ComponentTypeRegistry registry)</c> at that time.
+        /// </para>
+        /// </remarks>
         public void Build()
         {
             _entries.Clear();

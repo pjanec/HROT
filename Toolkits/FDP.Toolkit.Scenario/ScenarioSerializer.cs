@@ -33,7 +33,7 @@ namespace FDP.Toolkit.Scenario
     /// <para>
     /// <b>Load pipeline:</b> Peek <c>Header.SubsystemType</c>; on mismatch return
     /// immediately.  Otherwise two-pass: create entities → resolve GUIDs → inject
-    /// components.  Optionally stamps <see cref="StoryTag"/> when <c>asStory == true</c>.
+    /// components.  Optionally stamps <see cref="Fdp.Kernel.StoryTag"/> when <c>asStory == true</c>.
     /// </para>
     /// </remarks>
     public sealed class ScenarioSerializer
@@ -53,6 +53,15 @@ namespace FDP.Toolkit.Scenario
             _translators   = translators;
             AutoSerializer = autoSerializer;
         }
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="subsystemType"/> matches the type
+        /// string this serializer was built for (ordinal, case-sensitive).
+        /// Used by application-layer handlers to peek the file header and determine whether
+        /// a scenario file belongs to this subsystem before committing a full parse.
+        /// </summary>
+        public bool IsMatchingSubsystem(string? subsystemType)
+            => string.Equals(subsystemType, _subsystemType, StringComparison.Ordinal);
 
         // ── Serialize ────────────────────────────────────────────────────────────
 
@@ -113,7 +122,13 @@ namespace FDP.Toolkit.Scenario
                             float   f  => JsonValue.Create(f),
                             double  d  => JsonValue.Create(d),
                             bool    b  => JsonValue.Create(b),
-                            _          => JsonValue.Create(rawValue?.ToString())
+                            null       => throw new InvalidOperationException(
+                                $"[ScenarioSerializer] Translator '{translator.GetType().Name}' returned null for key '{kv.Key}'. " +
+                                "Translator.Extract must return non-null values."),
+                            _          => throw new InvalidOperationException(
+                                $"[ScenarioSerializer] Translator '{translator.GetType().Name}' returned unsupported payload type " +
+                                $"'{rawValue.GetType().Name}' for key '{kv.Key}'. " +
+                                "Supported types: JsonNode, string, int, float, double, bool.")
                         };
                         entityNode.Add(kv.Key, node);
                     }
@@ -161,23 +176,37 @@ namespace FDP.Toolkit.Scenario
         /// <param name="repo">Target repository.</param>
         /// <param name="dom">Scenario DOM previously produced by <see cref="Serialize"/>.</param>
         /// <param name="asStory">
-        /// When <see langword="true"/>, stamps <see cref="StoryTag"/> on every created
-        /// entity.
+        /// When <see langword="true"/>, stamps <see cref="Fdp.Kernel.StoryTag"/> on every created
+        /// entity.  <paramref name="storyId"/> must be a non-null, non-empty <see cref="Guid"/>;
+        /// passing <see langword="null"/> or <see cref="Guid.Empty"/> throws
+        /// <see cref="InvalidOperationException"/>.
         /// </param>
-        /// <param name="storyId">Story identifier written to <see cref="StoryTag.StoryId"/>.</param>
+        /// <param name="storyId">Story identifier written to <see cref="Fdp.Kernel.StoryTag.StoryId"/>.</param>
         /// <remarks>
         /// Returns immediately (without creating any entities) if
         /// <c>Header.SubsystemType</c> does not match the type this serializer was
         /// configured with.
         /// </remarks>
+        /// <exception cref="InvalidOperationException">
+        /// Thrown when the DOM is structurally invalid (missing or wrong-typed <c>Entities</c>
+        /// node, invalid GUID keys, or unrecognised component type names).  Also thrown when
+        /// <paramref name="asStory"/> is <see langword="true"/> but <paramref name="storyId"/> is
+        /// <see langword="null"/> or <see cref="Guid.Empty"/>.
+        /// </exception>
         public void Deserialize(
             EntityRepository repo,
             JsonObject dom,
-            bool asStory      = false,
-            string? storyId   = null)
+            bool asStory     = false,
+            Guid? storyId    = null)
         {
             if (repo == null) throw new ArgumentNullException(nameof(repo));
             if (dom  == null) throw new ArgumentNullException(nameof(dom));
+
+            // Validate story arguments before touching the DOM.
+            if (asStory && (storyId == null || storyId == Guid.Empty))
+                throw new InvalidOperationException(
+                    "[ScenarioSerializer] Deserialize called with asStory=true but storyId is null or Guid.Empty. " +
+                    "A non-empty Guid is required to stamp Fdp.Kernel.StoryTag on loaded entities.");
 
             // Peek header for subsystem-type filter.
             var headerNode = dom["Header"] as JsonObject;
@@ -186,14 +215,24 @@ namespace FDP.Toolkit.Scenario
                 return; // Graceful subsystem mismatch — no entities created.
 
             var entitiesNode = dom["Entities"] as JsonObject;
-            if (entitiesNode == null) return;
+            if (entitiesNode == null)
+                throw new InvalidOperationException(
+                    "[ScenarioSerializer] Deserialize: scenario DOM is missing or has a non-object 'Entities' node. " +
+                    "The file may be corrupt or written by an incompatible version.");
+            if (entitiesNode.GetType() != typeof(JsonObject))
+                throw new InvalidOperationException(
+                    "[ScenarioSerializer] Deserialize: 'Entities' node is not a JsonObject. " +
+                    "The file may be corrupt or written by an incompatible version.");
 
             // ── Pass 1: create entities, build load-side IGuidResolver ───────────
             var guidToEntity = new Dictionary<Guid, Entity>(entitiesNode.Count);
 
             foreach (var kvp in entitiesNode)
             {
-                if (!Guid.TryParse(kvp.Key, out var guid)) continue;
+                if (!Guid.TryParse(kvp.Key, out var guid))
+                    throw new InvalidOperationException(
+                        $"[ScenarioSerializer] Deserialize: entity key '{kvp.Key}' is not a valid Guid. " +
+                        "The scenario file is invalid or corrupt.");
                 var entity = repo.CreateEntity();
                 guidToEntity[guid] = entity;
             }
@@ -203,7 +242,9 @@ namespace FDP.Toolkit.Scenario
             // ── Pass 2: inject components ────────────────────────────────────────
             foreach (var kvp in entitiesNode)
             {
-                if (!Guid.TryParse(kvp.Key, out var guid)) continue;
+                if (!Guid.TryParse(kvp.Key, out var guid))
+                    throw new InvalidOperationException(
+                        $"[ScenarioSerializer] Deserialize (pass 2): entity key '{kvp.Key}' is not a valid Guid.");
                 if (!guidToEntity.TryGetValue(guid, out var entity)) continue;
 
                 var entityNode = kvp.Value as JsonObject;
@@ -229,6 +270,11 @@ namespace FDP.Toolkit.Scenario
                     // does not try to re-process them as plain auto-serialize entries.
                     foreach (var name in BuildConsumedNames(translator.GetConsumedComponentsMask()))
                         translatorHandled.Add(name);
+
+                    // Also mark the custom DOM keys the translator produces in Extract
+                    // (e.g. "OrdnanceDef") so the fail-fast unknown-key check skips them.
+                    foreach (var key in translator.GetOutputDomKeys())
+                        translatorHandled.Add(key);
                 }
 
                 // Auto-serializer handles the rest.
@@ -238,15 +284,19 @@ namespace FDP.Toolkit.Scenario
 
                     // Find type ID by component name.
                     int typeId = FindTypeIdByName(compKvp.Key);
-                    if (typeId < 0) continue;
+                    if (typeId < 0)
+                        throw new InvalidOperationException(
+                            $"[ScenarioSerializer] Deserialize: unknown component type name '{compKvp.Key}'. " +
+                            "The scenario file references a component that is not registered in the current " +
+                            "ComponentTypeRegistry. This may indicate a file version skew or a typo.");
 
                     AutoSerializer.TryInject(repo, entity, typeId, compKvp.Value, loadResolver);
                 }
 
-                // Stamp StoryTag if requested.
+                // Stamp Fdp.Kernel.StoryTag if requested.
                 if (asStory)
                 {
-                    repo.SetComponent(entity, new StoryTag { StoryId = storyId });
+                    repo.SetComponent(entity, new Fdp.Kernel.StoryTag { StoryId = storyId!.Value });
                 }
             }
         }
@@ -318,8 +368,10 @@ namespace FDP.Toolkit.Scenario
             {
                 if (_entityToGuid.TryGetValue(entity, out var guid))
                     return guid.ToString();
-                // Entity not in the save set (may be destroyed or ignored) — use a zero GUID.
-                return Guid.Empty.ToString();
+                throw new InvalidOperationException(
+                    $"[ScenarioSerializer] SaveResolver: entity {entity} is not in the save map. " +
+                    "This is a programmer error — ensure all cross-referenced entities are included " +
+                    "in the saveable entity set (not tagged with ScenarioIgnoreTag or DataPolicy.NoSave).");
             }
 
             public Entity Resolve(string guidStr)
@@ -340,10 +392,15 @@ namespace FDP.Toolkit.Scenario
 
             public Entity Resolve(string guidStr)
             {
-                if (Guid.TryParse(guidStr, out var guid) &&
-                    _guidToEntity.TryGetValue(guid, out var entity))
-                    return entity;
-                return default; // Entity.Null
+                if (!Guid.TryParse(guidStr, out var guid))
+                    throw new InvalidOperationException(
+                        $"[ScenarioSerializer] LoadResolver: reference GUID string '{guidStr}' is not a valid Guid. " +
+                        "The scenario file is corrupt.");
+                if (!_guidToEntity.TryGetValue(guid, out var entity))
+                    throw new InvalidOperationException(
+                        $"[ScenarioSerializer] LoadResolver: GUID {guid} does not resolve to any loaded entity. " +
+                        "This may indicate a forward reference or a corrupt scenario file.");
+                return entity;
             }
         }
     }

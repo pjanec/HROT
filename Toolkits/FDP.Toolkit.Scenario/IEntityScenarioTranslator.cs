@@ -52,5 +52,24 @@ namespace FDP.Toolkit.Scenario
         void Inject(
             EntityRepository repo, Entity entity,
             Dictionary<string, object> scenarioData, IGuidResolver guidResolver);
+
+        /// <summary>
+        /// Returns the DOM key names that this translator <em>produces</em> during
+        /// <see cref="Extract"/> (i.e. the keys it writes into the entity's scenario node).
+        /// <para>
+        /// The serializer adds these names to the "translator-handled" set so the
+        /// auto-serializer does not attempt to process them as ECS component type names —
+        /// they are custom compound keys (e.g. <c>"OrdnanceDef"</c>) that only this
+        /// translator understands.  Failing to declare output keys will cause a strict
+        /// <see cref="System.InvalidOperationException"/> at deserialize time for any
+        /// unrecognised key not excluded by some other mechanism.
+        /// </para>
+        /// </summary>
+        /// <returns>
+        /// Zero or more DOM key strings.  Return an empty collection (not <see langword="null"/>)
+        /// when the translator's output keys happen to coincide with ECS type names and are
+        /// therefore already covered by the consumed-component-mask exclusion.
+        /// </returns>
+        IEnumerable<string> GetOutputDomKeys() => System.Array.Empty<string>();
     }
 }

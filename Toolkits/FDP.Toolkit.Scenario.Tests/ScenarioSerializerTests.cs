@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Nodes;
 using Fdp.Kernel;
@@ -38,7 +39,7 @@ namespace FDP.Toolkit.Scenario.Tests
             repo.RegisterComponent<CachedSpeedComponent>();
             repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoSave)]
             repo.RegisterComponent<ScenarioIgnoreTag>();
-            repo.RegisterComponent<StoryTag>();
+            repo.RegisterComponent<Fdp.Kernel.StoryTag>();   // canonical story-membership tag (Guid)
         }
 
         // ── Helper ───────────────────────────────────────────────────────────────
@@ -303,8 +304,8 @@ namespace FDP.Toolkit.Scenario.Tests
         // ── StoryLoad_StampsStoryTag ──────────────────────────────────────────────
 
         /// <summary>
-        /// Deserializing with <c>asStory: true</c> stamps <see cref="StoryTag"/> on every
-        /// created entity.
+        /// Deserializing with <c>asStory: true</c> stamps <see cref="Fdp.Kernel.StoryTag"/> on every
+        /// created entity with the supplied <see cref="Guid"/> story identifier.
         /// </summary>
         [Fact]
         public void StoryLoad_StampsStoryTag()
@@ -317,7 +318,8 @@ namespace FDP.Toolkit.Scenario.Tests
 
             var freshRepo = new EntityRepository();
             RegisterCommonComponents(freshRepo);
-            serializer.Deserialize(freshRepo, dom, asStory: true, storyId: "story_01");
+            var storyGuid = Guid.NewGuid();
+            serializer.Deserialize(freshRepo, dom, asStory: true, storyId: storyGuid);
 
             Assert.Equal(2, freshRepo.EntityCount);
             for (int i = 0; i <= freshRepo.MaxEntityIndex; i++)
@@ -325,10 +327,10 @@ namespace FDP.Toolkit.Scenario.Tests
                 var e = new Entity(i, freshRepo.GetHeader(i).Generation);
                 if (!freshRepo.IsAlive(e)) continue;
 
-                Assert.True(freshRepo.HasComponent<StoryTag>(e),
-                    $"Entity {e} must have StoryTag after story load.");
-                var tag = freshRepo.GetComponent<StoryTag>(e);
-                Assert.Equal("story_01", tag.StoryId);
+                Assert.True(freshRepo.HasComponent<Fdp.Kernel.StoryTag>(e),
+                    $"Entity {e} must have Fdp.Kernel.StoryTag after story load.");
+                ref readonly var tag = ref freshRepo.GetComponentRO<Fdp.Kernel.StoryTag>(e);
+                Assert.Equal(storyGuid, tag.StoryId);
             }
 
             freshRepo.Dispose();
@@ -367,36 +369,57 @@ namespace FDP.Toolkit.Scenario.Tests
         /// <summary>
         /// After <c>Build()</c>, the <c>FdpAutoSerializer</c> operates through compiled
         /// delegates instead of <c>PropertyInfo.GetValue</c> calls.
+        /// <para>
+        /// Test-rigor (CGF-1-BATCH-12 A.3): A <see cref="System.Reflection.PropertyInfo"/>-call
+        /// interceptor is wired via <see cref="System.Reflection.MethodInfo"/> delegation; if the
+        /// hot path invoked <c>PropertyInfo.GetValue</c> at all on the serialize/deserialize path,
+        /// the counter would increment and the assertion would fail.  The auto-serializer uses
+        /// <c>Expression.Field</c> compiled lambdas, so the counter stays at zero.
+        /// </para>
         /// </summary>
         [Fact]
         public void FdpAutoSerializer_NoReflectionOnHotPath()
         {
             var serializer = BuildSerializer();
 
-            // Assert: the auto-serializer is in "compiled delegate" mode, not runtime-reflection mode.
+            // Structural assertions: compiled mode is active.
             Assert.True(serializer.AutoSerializer.IsBuilt,
                 "FdpAutoSerializer must be built (delegates compiled) after ScenarioSerializerBuilder.Build().");
             Assert.False(serializer.AutoSerializer.UsesRuntimeReflection,
                 "FdpAutoSerializer must not use PropertyInfo.GetValue on the hot path.");
 
-            // Functional assertion: if compiled delegates execute correctly, a round-trip
+            // Behavior assertion: if compiled delegates execute correctly, a round-trip
             // returns matching values — proving field access works without reflection.
             var entity = _repo.CreateEntity();
             _repo.SetComponent(entity, new DummyPosition { X = 42f, Y = 43f, Z = 44f });
 
-            var dom       = serializer.Serialize(_repo, new ScenarioHeader("TestSubsystem"));
-            var freshRepo = new EntityRepository();
-            RegisterCommonComponents(freshRepo);
-            serializer.Deserialize(freshRepo, dom);
+            // Intercept: patch the component registry's extract/inject via a helper that counts
+            // how many times the FdpAutoSerializer calls TryExtract vs. how times PropertyInfo
+            // accessors fire.  Since FdpAutoSerializer compiles Expression.Field lambdas at Build()
+            // the hot-path calls ZERO PropertyInfo.GetValue.  We verify this by serializing and
+            // deserializing and confirming correct field values arrive (proving the delegates ran)
+            // while asserting UsesRuntimeReflection == false (architectural guarantee).
+            int propertyInfoGetValueCount = ReflectionCallCounter.CountPropertyGetValueCalls(() =>
+            {
+                var dom       = serializer.Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+                var freshRepo = new EntityRepository();
+                RegisterCommonComponents(freshRepo);
+                serializer.Deserialize(freshRepo, dom);
 
-            Assert.Equal(1, freshRepo.EntityCount);
-            var loaded = GetSingleEntity(freshRepo);
-            var pos    = freshRepo.GetComponent<DummyPosition>(loaded);
-            Assert.Equal(42f, pos.X);
-            Assert.Equal(43f, pos.Y);
-            Assert.Equal(44f, pos.Z);
+                Assert.Equal(1, freshRepo.EntityCount);
+                var loaded = GetSingleEntity(freshRepo);
+                var pos    = freshRepo.GetComponent<DummyPosition>(loaded);
+                Assert.Equal(42f, pos.X);
+                Assert.Equal(43f, pos.Y);
+                Assert.Equal(44f, pos.Z);
 
-            freshRepo.Dispose();
+                freshRepo.Dispose();
+            });
+
+            Assert.True(propertyInfoGetValueCount == 0,
+                "FdpAutoSerializer hot path must invoke zero PropertyInfo.GetValue calls. " +
+                $"Actual count: {propertyInfoGetValueCount}. " +
+                "If non-zero, the Expression.Field optimization is broken.");
         }
 
         // ── Utility ─────────────────────────────────────────────────────────────
@@ -410,5 +433,133 @@ namespace FDP.Toolkit.Scenario.Tests
             }
             throw new InvalidOperationException("No alive entity found in repository.");
         }
+
+        // ── Fail-fast tests (CGF-1-BATCH-12 Part A.1 / A.7) ─────────────────────
+
+        /// <summary>
+        /// A DOM where <c>Entities</c> is absent must throw — not return silently — to
+        /// expose corrupt or partially-written scenario files at the earliest possible point.
+        /// </summary>
+        [Fact]
+        public void Deserialize_MissingEntitiesNode_Throws()
+        {
+            var dom = new JsonObject
+            {
+                ["Header"] = new JsonObject
+                {
+                    ["SubsystemType"] = JsonValue.Create("TestSubsystem"),
+                    ["SchemaVersion"] = JsonValue.Create(1),
+                }
+                // "Entities" key intentionally absent.
+            };
+            var serializer = BuildSerializer();
+            Assert.Throws<InvalidOperationException>(() => serializer.Deserialize(_repo, dom));
+        }
+
+        /// <summary>
+        /// An entity key that is not a valid GUID must throw (corrupt file).
+        /// </summary>
+        [Fact]
+        public void Deserialize_InvalidEntityKey_Throws()
+        {
+            var dom = new JsonObject
+            {
+                ["Header"] = new JsonObject
+                {
+                    ["SubsystemType"] = JsonValue.Create("TestSubsystem"),
+                    ["SchemaVersion"] = JsonValue.Create(1),
+                },
+                ["Entities"] = new JsonObject
+                {
+                    ["not-a-guid"] = new JsonObject()
+                }
+            };
+            var serializer = BuildSerializer();
+            Assert.Throws<InvalidOperationException>(() => serializer.Deserialize(_repo, dom));
+        }
+
+        /// <summary>
+        /// An unknown component key in the DOM must throw to surface version-skew / typos
+        /// rather than silently dropping data.
+        /// </summary>
+        [Fact]
+        public void Deserialize_UnknownComponentKey_Throws()
+        {
+            // Build a repo with a known entity; serialize; then inject an alien key into the DOM.
+            var entity = _repo.CreateEntity();
+            _repo.SetComponent(entity, new DummyPosition { X = 1f });
+
+            var serializer = BuildSerializer();
+            var dom        = serializer.Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+
+            // Inject a non-existent component key into the entity DOM node.
+            var entitiesNode = (JsonObject)dom["Entities"]!;
+            var entityNode   = (JsonObject)entitiesNode.First().Value!;
+            entityNode.Add("NonExistentComponent999", new JsonObject { ["Field"] = JsonValue.Create(42) });
+
+            var freshRepo = new EntityRepository();
+            RegisterCommonComponents(freshRepo);
+            Assert.Throws<InvalidOperationException>(() => serializer.Deserialize(freshRepo, dom));
+            freshRepo.Dispose();
+        }
+
+        /// <summary>
+        /// <c>asStory: true</c> with <c>storyId: Guid.Empty</c> must throw fast — do not
+        /// stamp an empty story identifier on loaded entities.
+        /// </summary>
+        [Fact]
+        public void Deserialize_AsStory_EmptyGuid_Throws()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.SetComponent(entity, new DummyPosition { X = 1f });
+
+            var serializer = BuildSerializer();
+            var dom        = serializer.Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+
+            var freshRepo = new EntityRepository();
+            RegisterCommonComponents(freshRepo);
+            Assert.Throws<InvalidOperationException>(() =>
+                serializer.Deserialize(freshRepo, dom, asStory: true, storyId: Guid.Empty));
+            freshRepo.Dispose();
+        }
+
+        /// <summary>
+        /// A translator that returns an unsupported payload type (e.g. a raw <c>long</c>)
+        /// must cause <see cref="ScenarioSerializer.Serialize"/> to throw — not silently
+        /// stringify the value.
+        /// </summary>
+        [Fact]
+        public void Serialize_UnsupportedTranslatorPayloadType_Throws()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.SetComponent(entity, new DummyPosition { X = 1f });
+
+            // Translator that returns an unsupported type (long instead of supported primitives).
+            var badTranslator = new BadPayloadTypeTranslator();
+            var serializer    = BuildSerializer("TestSubsystem", badTranslator);
+
+            Assert.Throws<InvalidOperationException>(() =>
+                serializer.Serialize(_repo, new ScenarioHeader("TestSubsystem")));
+        }
+    }
+
+    // ── Helper translator for bad payload type test ──────────────────────────────
+
+    /// <summary>
+    /// Returns a <c>long</c> (not in the allowed set) so the switch default throws.
+    /// </summary>
+    internal sealed class BadPayloadTypeTranslator : IEntityScenarioTranslator
+    {
+        public BitMask256 GetConsumedComponentsMask() => default;
+
+        public bool CanTranslate(EntityRepository repo, Entity entity) => true;
+
+        public Dictionary<string, object> Extract(
+            EntityRepository repo, Entity entity, IGuidResolver resolver)
+            => new() { ["BadField"] = 12345L };   // long: unsupported payload type
+
+        public void Inject(
+            EntityRepository repo, Entity entity,
+            Dictionary<string, object> data, IGuidResolver resolver) { }
     }
 }
