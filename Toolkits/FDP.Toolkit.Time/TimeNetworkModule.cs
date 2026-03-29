@@ -30,6 +30,7 @@ namespace FDP.Toolkit.Time
         /// </summary>
         /// <param name="participant">The CycloneDDS domain participant shared by this node.</param>
         /// <returns>A configured translator ready for per-frame egress/ingress calls.</returns>
+        [Obsolete("Use CreateDescriptorTranslator(participant, eventBus) instead. RegisterTranslators produces a BlitEventTranslator that cannot carry SwitchTimeModeWireDto and is incompatible with the CycloneNetworkModule composition root.")]
         public static BlitEventTranslator<SwitchTimeModeEvent> RegisterTranslators(
             DdsParticipant participant)
         {
