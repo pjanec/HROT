@@ -392,6 +392,9 @@ namespace Bagira.SimHost
             egressTranslators.Add(simHostMod.MissionEgressTranslator);
             egressTranslators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
             egressTranslators.Add(new TimePulseEgressTranslator(ddsParticipant, _eventBus));
+            // CGF1-A.1: Bridge SwitchTimeModeEvent between FdpEventBus and DDS for distributed
+            // time-mode switching (DistributedTimeCoordinator egress / SlaveTimeModeListener ingress).
+            egressTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(ddsParticipant, _eventBus));
             // BS1-T015: Publish Health changes to the IG/IOS so health bars update.
             egressTranslators.Add(new EntityDamageEgressTranslator(ddsParticipant, entityMap));
 

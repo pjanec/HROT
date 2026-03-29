@@ -14,9 +14,13 @@ namespace Bagira.Runner.Configuration
     {
         // ── Bagira-specific CLI options ───────────────────────────────────────
 
-        /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, simhost,ig</summary>
-        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|simhost,ig")]
+        /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, simhost,ig, ci</summary>
+        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|ci|simhost,ig")]
         public string ModeString { get; set; } = string.Empty;
+
+        /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
+        [Option('s', "scenario", Required = false, HelpText = "Scenario name for --mode ci (e.g. MinimalCI_01)")]
+        public string ScenarioName { get; set; } = string.Empty;
 
         /// <summary>Optional JSON config file that overrides CLI defaults.</summary>
         [Option('c', "config", HelpText = "JSON config file path")]
@@ -62,6 +66,9 @@ namespace Bagira.Runner.Configuration
                             $"Invalid wait-for peer: '{peer}'. Valid values: simhost, ig, ios.");
                 }
             }
+
+            // CI mode is always standalone (no peer synchronisation required).
+            if (ParsedMode == RunMode.CI) return;
 
             // When launching a single subsystem that must synchronise with others,
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).
@@ -112,6 +119,7 @@ namespace Bagira.Runner.Configuration
             if (lower == "ig")           return RunMode.IG;
             if (lower == "ios")          return RunMode.IOS;
             if (lower == "orchestrator") return RunMode.Orchestrator;
+            if (lower == "ci")           return RunMode.CI;
 
             // Comma-separated combination (e.g. "simhost,ig")
             RunMode result = RunMode.None;

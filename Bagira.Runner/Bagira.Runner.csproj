@@ -31,6 +31,8 @@
     <ProjectReference Include="..\Bagira.IOS\Bagira.IOS.csproj" />
     <!-- Map camera synchronisation (IMapCameraProvider uses MapCamera directly) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
+    <!-- IScenario + ScenarioSubsystem for mode ci -->
+    <ProjectReference Include="..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>

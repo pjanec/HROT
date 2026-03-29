@@ -103,6 +103,37 @@ class Program
             }
         }
 
+        // ── CI mode: headless deterministic scenario run ──────────────────
+        if (config.ParsedMode == RunMode.CI)
+        {
+            if (string.IsNullOrWhiteSpace(config.ScenarioName))
+            {
+                Console.Error.WriteLine("[Runner] --scenario is required for --mode ci.");
+                return 1;
+            }
+
+            Console.WriteLine($"[Runner] CI mode – scenario={config.ScenarioName}");
+
+            var ciSub       = new CiSubsystem(config.ScenarioName);
+            var ciOptions   = new RunnerOptions
+            {
+                Headless          = true,
+                Deterministic     = true,
+                FixedDeltaSeconds = 1.0f / 60.0f,
+                DomainId          = config.DomainId
+            };
+            var ciOrchestrator = new SubsystemOrchestrator(new[] { (ISubsystem)ciSub }, ciOptions);
+            ciSub.AttachOrchestrator(ciOrchestrator);
+
+            ciOrchestrator.Initialize();
+            ciOrchestrator.Run();
+            ciOrchestrator.Shutdown();
+
+            // ScenarioSubsystem calls Environment.Exit(code) before reaching here.
+            // This return is a safety fallback.
+            return 0;
+        }
+
         // ── Build subsystems from mode ────────────────────────────────────────
         var subsystems = new List<ISubsystem>();
         if (config.ParsedMode.HasFlag(RunMode.Orchestrator)) subsystems.Add(new OrchestratorSubsystem());

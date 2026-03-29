@@ -71,11 +71,11 @@ Implement **`SwitchTimeModeEvent`**, network translators, **`DistributedTimeCoor
 
 ## Success criteria
 
-- [ ] Part A: stepped **`TotalWallTicks`** continuity + slave wall-tick test; **SurvivingNodes** / isolation row **addressed** per A.3.  
-- [ ] Part B: CGF1-S0204 success conditions met.  
-- [ ] Solution build clean; tests green.  
-- [ ] DEBT-TRACKER updated.  
-- [ ] Report filed.  
+- [x] Part A: stepped **`TotalWallTicks`** continuity + slave wall-tick test; **SurvivingNodes** / isolation row **addressed** per A.3.  
+- [x] Part B: CGF1-S0204 success conditions met.  
+- [x] Solution build clean; tests green.  
+- [x] DEBT-TRACKER updated.  
+- [x] Report filed.  
 
 ---
 

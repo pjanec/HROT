@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading;
 using Bagira.BDC.SSTD.Orchestration;
 using CycloneDDS.Runtime;
@@ -67,6 +68,21 @@ public sealed class DrillMaster : IDisposable
     // ── 2PC history ring buffer (CGF1-S0105) ─────────────────────────────
     private readonly DistributedTransaction[] _history;
     private int  _historyHead;
+
+    // ── Time mode hint (CGF1-S0205) ──────────────────────────────────────
+    /// <summary>
+    /// Set when a <see cref="SysOpType.TransitionState"/> request heading toward
+    /// <see cref="DSMState.LoadingLive"/> carries <c>"TimeMode": "Deterministic"</c>
+    /// in its <see cref="SysOpRequest.PayloadJson"/>.
+    ///
+    /// <para>Consumers (e.g. <c>OrchestratorSubsystem</c>) should read this property
+    /// after <see cref="Tick"/> and trigger <c>DistributedTimeCoordinator.SwitchToDeterministic</c>
+    /// before the cluster enters <see cref="DSMState.RunningLive"/>.</para>
+    ///
+    /// <para>Reset to <c>null</c> when a <see cref="DSMState.Standby"/> trajectory clears the
+    /// pending mode.</para>
+    /// </summary>
+    public string? PendingTimeMode { get; private set; }
 
     private bool _disposed;
 
@@ -330,6 +346,42 @@ public sealed class DrillMaster : IDisposable
                     // Advance optimistically so the next PlanTrajectory call starts from
                     // the intended end-state (see _currentDsmState XML docs for caveats).
                     _currentDsmState = resolvedTarget;
+
+                    // CGF1-S0205: If the trajectory passes through LoadingLive, check
+                    // for "TimeMode": "Deterministic" in the payload and store it so
+                    // the hosting subsystem (OrchestratorSubsystem) can instruct the
+                    // DistributedTimeCoordinator to switch before RunningLive.
+                    bool passesLoadingLive = false;
+                    foreach (var step in trajectory)
+                    {
+                        if (step is TransitionStep ts && ts.TargetState == DSMState.LoadingLive)
+                        {
+                            passesLoadingLive = true;
+                            break;
+                        }
+                    }
+                    if (passesLoadingLive && !string.IsNullOrWhiteSpace(req.PayloadJson))
+                    {
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(req.PayloadJson);
+                            // Only attempt property lookup when the root is a JSON object.
+                            // Plain-integer payloads (e.g. legacy TransitionState) are
+                            // intentionally ignored.
+                            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                                doc.RootElement.TryGetProperty("TimeMode", out var timeModeEl))
+                            {
+                                PendingTimeMode = timeModeEl.GetString();
+                            }
+                        }
+                        catch (JsonException)
+                        {
+                            // Malformed JSON — leave PendingTimeMode unchanged.
+                        }
+                    }
+                    // Clear pending mode when transitioning back to Standby.
+                    if (resolvedTarget == DSMState.Standby)
+                        PendingTimeMode = null;
                 }
                 catch (InvalidOperationException ex)
                 {

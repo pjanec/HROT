@@ -68,12 +68,12 @@ Implement **`MinimalCIScenario`**, **`DrillMaster`** payload hint for determinis
 
 ## Success criteria
 
-- [ ] Part A.1: **`SwitchTimeModeEvent`** egress/ingress wired on every relevant node; verified in tests or documented procedure.  
-- [ ] Part A.2: **SurvivingNodes** debt **addressed** per options above.  
-- [ ] Part B: CGF1-S0205 success conditions met.  
-- [ ] Solution build clean; tests green.  
-- [ ] DEBT-TRACKER updated.  
-- [ ] Report filed.  
+- [x] Part A.1: **`SwitchTimeModeEvent`** egress/ingress wired on every relevant node; verified in tests or documented procedure.  
+- [x] Part A.2: **SurvivingNodes** debt **addressed** per options above.  
+- [x] Part B: CGF1-S0205 success conditions met (see [BATCH-08 review](../reviews/CGF-1-BATCH-08-REVIEW.md) for partial vs task-detail gaps).  
+- [x] Solution build clean; tests green.  
+- [x] DEBT-TRACKER updated.  
+- [x] Report filed.  
 
 ---
 

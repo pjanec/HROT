@@ -25,6 +25,7 @@
     <ProjectReference Include="..\FDP\Framework\FDP.Framework.Runner\FDP.Framework.Runner.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
     <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
+    <ProjectReference Include="..\FDP\Examples\Fdp.Examples.Common\Fdp.Examples.Common.csproj" />
   </ItemGroup>
 
 </Project>

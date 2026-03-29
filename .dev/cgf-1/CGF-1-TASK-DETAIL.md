@@ -208,6 +208,50 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
   - Execute a successful `SysOpRequest(TransitionState, LoadingLive)` end-to-end.
   - Assert `DrillMaster.TransactionHistory` contains one entry with `IsAborted == false`.
 
+#### ADR: Per-Node Keyed `NodeOpCommand` Topics (deferred to CGF-1-BATCH-09)
+
+**Context:**
+The current `BroadcastNodeOp` implementation writes a single `NodeOpCommand` DDS sample
+to a non-keyed topic. All domain participants — including ejected nodes that lost their
+roster entry — will still receive this sample because DDS reader filtering is keyed only
+when a `[DdsKey]` attribute is applied. Phase 1 accepts this limitation: the test
+`SurvivingNodes_CommandedToStandby_AfterEjection` asserts roster eviction and correct
+command content, not delivery isolation.
+
+**Decision: Defer to CGF-1-BATCH-09.**
+Capacity was consumed by A.1 (DDS time-mode wiring) and S0205 (deterministic CI hookup).
+
+**Proposed Phase 2 design:**
+
+1. **Topic key:** Add `[DdsKey] public int TargetNodeId;` to `NodeOpCommand`. The
+   orchestrator participant creates one `DdsWriter<NodeOpCommand>` per active roster
+   entry, keyed by `TargetNodeId`. Leaf nodes create `DdsReader<NodeOpCommand>` with a
+   content-or-instance filter matching their own `nodeId`.
+
+2. **`DrillMaster` fan-out:** Replace `BroadcastNodeOp(NodeOpCommand)` with
+   `FanOutNodeOp(NodeOpCommand template, IReadOnlyCollection<int> targetNodeIds)`.
+   Arguments: a populated `NodeOpCommand` prototype and the roster subset to address.
+   `FanOutNodeOp` iterates the targets, sets `template.TargetNodeId = nodeId`, and writes
+   via a per-key writer (cache writers in `Dictionary<int, DdsWriter<NodeOpCommand>>`
+   keyed by `nodeId`; create lazily on first fan-out to that node).
+
+3. **Ejected-node isolation:** After `_roster.Remove(nodeId)`, the ejected node's writer
+   key is disposed and removed from the cache. From that point forward, even if the
+   ejected node's participant is still running, it will not receive any `NodeOpCommand`
+   sample because no writer will write to its instance key.
+
+4. **Test strategy:**
+   - `SurvivingNodes_CommandedToStandby_AfterEjection` (updated): use two separate
+     in-process `DdsParticipant` instances (one for CGF, one for ejected SimHost), each
+     with a reader filtered to its own `nodeId`. Eject SimHost; assert CGF's reader
+     yields one sample and SimHost's reader yields zero samples.
+   - `FanOutNodeOp_WritesToCorrectKeys`: unit test with a mock `DdsWriter` that records
+     written samples; assert only the expected `TargetNodeId` values appear.
+
+5. **Migration note:** Adding `[DdsKey]` to `NodeOpCommand` is a breaking IDL change
+   (historic samples change partition semantics). A domain restart is required when
+   upgrading from the Phase 1 broadcast schema.
+
 ---
 
 ## Phase 2 — State & Time: DSM and Synchronization

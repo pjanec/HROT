@@ -832,6 +832,12 @@ public class IgApplication : IDisposable
 
                 };
 
+                // CGF1-A.1: Bridge SwitchTimeModeEvent for distributed time-mode switching
+                // (SlaveTimeModeListener ingress + DistributedTimeCoordinator egress if this
+                // node ever acts as master).
+                customTranslators.Add(
+                    FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, _world.Bus));
+
                 if (mapRouteIngressTranslator != null)
                     customTranslators.Add(mapRouteIngressTranslator);
 
