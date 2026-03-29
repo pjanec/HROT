@@ -48,6 +48,17 @@ namespace Bagira.SimHost.Modules.Orchestration
         /// </summary>
         private readonly HashSet<Guid> _seenTransactionIds = new();
 
+        // ── Pending async prepare (BATCH-18 A.3) ─────────────────────────────
+        /// <summary>
+        /// Holds a <c>PrepareAsync</c> task that has not yet completed, together with the
+        /// originating command and handler.  When set, <see cref="Tick"/> defers processing
+        /// new commands and calls <see cref="IDsmHandler.Commit"/> only once the task is
+        /// done, ensuring correct <c>PrepareAsync → Commit</c> ordering for handlers whose
+        /// prepare work is genuinely async (e.g. <c>InstallModuleAsync</c> /
+        /// <c>UninstallModuleAsync</c> in <c>ReplayLoadDsmHandler</c>).
+        /// </summary>
+        private (Task<string?> PrepareTask, NodeOpCommand Cmd, IDsmHandler Handler)? _pendingPrepare;
+
         private Thread? _listenerThread;
         private CancellationTokenSource? _listenerCts;
         private bool _disposed;
@@ -152,8 +163,36 @@ namespace Bagira.SimHost.Modules.Orchestration
                     tickable.DrainDeferredAcks();
             }
 
+            // BATCH-18 A.3: drain any pending async PrepareAsync before accepting new commands.
+            // This guarantees Commit is never called before PrepareAsync finishes (fixes the
+            // race condition identified in the BATCH-17 review).
+            if (_pendingPrepare.HasValue)
+            {
+                var pending = _pendingPrepare.Value;
+                if (!pending.PrepareTask.IsCompleted)
+                    return; // still in flight; process next tick
+
+                _pendingPrepare = null;
+                if (pending.PrepareTask.IsFaulted)
+                {
+                    FdpLog<DrillSlave>.Error(
+                        "[SimHost.DrillSlave] PrepareAsync faulted for operation {0} "
+                        + "(transactionId={1}): {2}. Commit skipped.",
+                        pending.Cmd.Operation,
+                        pending.Cmd.TransactionId,
+                        pending.PrepareTask.Exception?.GetBaseException().Message);
+                    return;
+                }
+
+                pending.Handler.Commit(pending.Cmd, repo: null);
+            }
+
             while (_pendingCommands.TryDequeue(out var cmd))
+            {
                 DispatchCommand(cmd);
+                // If DispatchCommand stored a new pending task, stop dequeuing until next tick.
+                if (_pendingPrepare.HasValue) break;
+            }
         }
 
         // ── Private helpers ───────────────────────────────────────────────────
@@ -208,11 +247,33 @@ namespace Bagira.SimHost.Modules.Orchestration
             }
 
             // ── Handler dispatch ──────────────────────────────────────────────
+            // BATCH-18 A.3: await PrepareAsync before calling Commit.
+            // When PrepareAsync returns a Task that is already completed (synchronous handlers
+            // such as DryRunDsmHandler or CheckpointDsmHandler), Commit is called immediately
+            // — no behaviour change for those paths.
+            // When PrepareAsync is genuinely async (e.g. ReplayLoadDsmHandler calling
+            // InstallModuleAsync / UninstallModuleAsync), the Task is stored in
+            // _pendingPrepare and Commit is deferred to the next Tick() that sees the task
+            // complete, preventing Commit from racing the async module install/teardown.
             foreach (var handler in _handlers)
             {
                 if (!handler.CanHandle(cmd.Operation)) continue;
-                _ = handler.PrepareAsync(cmd, default);
-                handler.Commit(cmd, repo: null);
+                var prepareTask = handler.PrepareAsync(cmd, default);
+                if (prepareTask.IsCompleted)
+                {
+                    if (prepareTask.IsFaulted)
+                        FdpLog<DrillSlave>.Error(
+                            "[SimHost.DrillSlave] PrepareAsync faulted for operation {0} "
+                            + "(transactionId={1}): {2}. Commit skipped.",
+                            cmd.Operation, cmd.TransactionId,
+                            prepareTask.Exception?.GetBaseException().Message);
+                    else
+                        handler.Commit(cmd, repo: null);
+                }
+                else
+                {
+                    _pendingPrepare = (prepareTask, cmd, handler);
+                }
                 return;
             }
             FdpLog<DrillSlave>.Debug(

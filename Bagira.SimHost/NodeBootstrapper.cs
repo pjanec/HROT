@@ -324,17 +324,11 @@ namespace Bagira.SimHost
                 // as a dependency factory by LiveLoadDsmHandler and ReplayLoadDsmHandler.
             }
 
-            // Wire LiveLoadDsmHandler when an event bus is available (CGF1-S0202/S0304).
-            // Pass checkpointWorker (may be null) so FinalizeLive awaits drain (CGF1-S0303).
-            // Pass controller (may be null for non-Brain roles) to start / stop recording.
-            if (eventBus != null)
-            {
-                drillSlave.RegisterHandler(new LiveLoadDsmHandler(
-                    drillSlave, eventBus, checkpointWorker, controller, localTempRoot));
-            }
-
-            // Wire ReplayLoadDsmHandler when all three replay-gating objects are supplied
-            // and we have a controller (Brain/AllInOne only) (CGF1-S0304).
+            // Wire ReplayLoadDsmHandler BEFORE LiveLoadDsmHandler so the dispatch loop
+            // considers the Live-from-Replay branch first.  ReplayLoadDsmHandler.CanHandle
+            // narrows PrepareLive to only when a replay session is active, so there is no
+            // double-claim on normal (cold) PrepareLive commands
+            // (CGF1-S0305 / BATCH-18 A.1 fix — registration order + conditional CanHandle).
             if (controller != null
                 && simGroup         != null
                 && lifecycleGroup   != null
@@ -348,6 +342,15 @@ namespace Bagira.SimHost
                     drillSlave.NodeOpStatusWriter,
                     nodeId,
                     localTempRoot));
+            }
+
+            // Wire LiveLoadDsmHandler when an event bus is available (CGF1-S0202/S0304).
+            // Registered after ReplayLoadDsmHandler so cold PrepareLive (no active replay)
+            // falls through to this handler as the default live-session start path.
+            if (eventBus != null)
+            {
+                drillSlave.RegisterHandler(new LiveLoadDsmHandler(
+                    drillSlave, eventBus, checkpointWorker, controller, localTempRoot));
             }
 
             // Wire CheckpointDsmHandler when a checkpoint worker is provided (CGF1-S0303 A.1).

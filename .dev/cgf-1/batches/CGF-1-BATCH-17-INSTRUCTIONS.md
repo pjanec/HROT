@@ -37,7 +37,7 @@ Land **Part A** first: without **`ReplayLoadDsmHandler`** registered from **`Sim
 4. [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md) — rows **Target Fix = CGF-1-BATCH-17** (CGF-1 section)  
 5. **Architecture note** (above) — **CGF + SimHost** recording/replay parity; scenario ownership vs orchestrator globals
 
-**Report:** `.dev/cgf-1/reports/CGF-1-BATCH-17-REPORT.md` (when complete)
+**Report:** [CGF-1-BATCH-17-REPORT.md](../reports/CGF-1-BATCH-17-REPORT.md) — **Review:** [CGF-1-BATCH-17-REVIEW.md](../reviews/CGF-1-BATCH-17-REVIEW.md)
 
 ---
 
@@ -107,11 +107,12 @@ Implement per task detail:
 
 ## Success criteria
 
-- [ ] Part A: `ReplayLoadDsmHandler` registered on real SimHost path; interface alignment; fail-loud parse; finalize policy + XML; dry-run test/TASK-DETAIL aligned; DEBT rows closed; **CGF vs SimHost recording/replay participation** documented (and CGF wired or explicit fail-loud stubs per **Architecture note** above).  
-- [ ] Part B: CGF1-S0305 artefacts + tests per task detail (or explicit split note + tracker); orchestrator scope remains **global context / time freeze** — **not** full scenario DOM.  
-- [ ] Solution build clean.  
-- [ ] **CGF-1-TASK-TRACKER** updates **S0305** and Phase 3 progress.  
-- [ ] Report filed.
+- [x] Part A: `ReplayLoadDsmHandler` registered on real SimHost path; interface alignment; fail-loud parse; finalize policy + XML; dry-run test/TASK-DETAIL aligned; DEBT rows closed; **CGF vs SimHost recording/replay participation** documented (and CGF wired or explicit fail-loud stubs per **Architecture note** above).  
+- [x] Part B: CGF1-S0305 artefacts + tests per task detail (or explicit split note + tracker); orchestrator scope remains **global context / time freeze** — **not** full scenario DOM.  
+- [x] Solution build clean.  
+- [x] **CGF-1-TASK-TRACKER** updates **S0305** and Phase 3 progress.  
+- [x] Report filed.  
+- **Lead follow-up:** [CGF-1-BATCH-17-REVIEW.md](../reviews/CGF-1-BATCH-17-REVIEW.md) — **`PrepareLive` dispatch order** and related gaps → [CGF-1-BATCH-18](CGF-1-BATCH-18-INSTRUCTIONS.md).
 
 ---
 

@@ -82,4 +82,4 @@ ScenarioLoad; await PrepareAsync or sync barrier; FullBranchPipelineTests.
 
 ## Next batch
 
-**[CGF-1-BATCH-18](batches/CGF-1-BATCH-18-INSTRUCTIONS.md)** — **Part A:** fix **`PrepareLive`** dispatch (replay branch vs normal live load), CGF **`PrepareLive`** when payload is **`DrillId`**-only, and **`DrillSlave`/`PrepareAsync`** sequencing; **Part B:** **`FullBranchPipelineTests`** + close **S0305** residual in tracker.
+**[CGF-1-BATCH-18](../batches/CGF-1-BATCH-18-INSTRUCTIONS.md)** — **Part A:** fix **`PrepareLive`** dispatch (replay branch vs normal live load), CGF **`PrepareLive`** when payload is **`DrillId`**-only, and **`DrillSlave`/`PrepareAsync`** sequencing; **Part B:** **`FullBranchPipelineTests`** + close **S0305** residual in tracker.

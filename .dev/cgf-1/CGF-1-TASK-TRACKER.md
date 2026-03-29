@@ -3,8 +3,8 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-18](batches/CGF-1-BATCH-18-INSTRUCTIONS.md).  
-**Last reviewed:** [CGF-1-BATCH-17](reviews/CGF-1-BATCH-17-REVIEW.md) — CONDITIONALLY APPROVED (2026-04-10).  
+**Active batch:** [CGF-1-BATCH-19](batches/CGF-1-BATCH-19-INSTRUCTIONS.md).  
+**Last reviewed:** [CGF-1-BATCH-18](reviews/CGF-1-BATCH-18-REVIEW.md) — CONDITIONALLY APPROVED (2026-03-29).  
 **Batches / reports / reviews:** `.dev/cgf-1/batches/`, `.dev/cgf-1/reports/`, `.dev/cgf-1/reviews/` (prefix `CGF-1-`).  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
@@ -13,7 +13,7 @@
 > Phase 3 tasks are complete and their CI gates are passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 5 / 6 tasks done. **Phase 2:** 5 / 5 complete. **Phase 3:** 8 / 10 done (S0301–S0307, S0309); S0305 **orchestrator freeze + `ReplayLoadDsmHandler` branch code + unit tests** → [CGF-1-BATCH-17](batches/CGF-1-BATCH-17-INSTRUCTIONS.md) ✅; **S0305 residual** (SimHost **`DrillSlave` `PrepareLive` dispatch**, CGF branch visibility, **`PrepareAsync` await**, **`FullBranchPipelineTests`**) → [CGF-1-BATCH-18](batches/CGF-1-BATCH-18-INSTRUCTIONS.md) ([BATCH-17 review](reviews/CGF-1-BATCH-17-REVIEW.md#critical-gap---preparelive-never-reaches-replayloaddsmhandler-on-simhost)); S0205 residual closed in BATCH-10; subprocess CI Opportunistic.
+> **Progress (Phase 1):** 5 / 6 tasks done. **Phase 2:** 5 / 5 complete. **Phase 3:** 9 / 10 done (S0301–S0307, S0309); S0305 **SimHost + orchestrator + `FullBranchPipelineTests`** closed in [CGF-1-BATCH-18](batches/CGF-1-BATCH-18-INSTRUCTIONS.md) ✅; **CGF `PrepareLive` vs `ScenarioLoadDsmHandler` + CGF `DrillSlave` async ordering** → [CGF-1-BATCH-19](batches/CGF-1-BATCH-19-INSTRUCTIONS.md) Part A ([BATCH-18 review](reviews/CGF-1-BATCH-18-REVIEW.md)); S0205 residual closed in BATCH-10; subprocess CI Opportunistic.
 
 ---
 
@@ -53,7 +53,7 @@ management, and live-from-replay temporal interlock — all regression-tested.
 - [x] **CGF1-S0302** Portable Scenario Loading [details](./CGF-1-TASK-DETAIL.md#cgf1-s0302--portable-scenario-loading) — done [CGF-1-BATCH-13](batches/CGF-1-BATCH-13-INSTRUCTIONS.md) Part B (`EditLoadDsmHandler`; `ScenarioSerializer` DOM; `PrefetchScenario` before `LoadingEdit`; 3 unit tests + `TransitionPlannerTests.PlanWithScenarioId_InjectsStorageGatewayStep`)
 - [x] **CGF1-S0303** 3-Step Binary Checkpointing — [CGF-1-BATCH-14](batches/CGF-1-BATCH-14-INSTRUCTIONS.md) (worker, handler, `ITickableDsmHandler`, tests) + [CGF-1-BATCH-15](batches/CGF-1-BATCH-15-INSTRUCTIONS.md) Part A (`SimHostApp` / `NodeBootstrapper` production wiring, empty NAS dir fail-loud).
 - [x] **CGF1-S0304** Dynamic Recording Modules [details](./CGF-1-TASK-DETAIL.md#cgf1-s0304--dynamic-recording-modules) — **implementation + tests** in [CGF-1-BATCH-16](batches/CGF-1-BATCH-16-INSTRUCTIONS.md); **production `SimHostApp` replay handler wiring** + contract polish → [CGF-1-BATCH-17](batches/CGF-1-BATCH-17-INSTRUCTIONS.md) Part A ✅ ([BATCH-16 review](reviews/CGF-1-BATCH-16-REVIEW.md))
-- [x] **CGF1-S0305** Live-from-Replay Temporal Interlock [details](./CGF-1-TASK-DETAIL.md#cgf1-s0305--live-from-replay-temporal-interlock) — orchestrator **`ReplayMasterModule`** + **`ReplayLoadDsmHandler`** branch implementation + tests in [CGF-1-BATCH-17](batches/CGF-1-BATCH-17-INSTRUCTIONS.md) Part B ✅; **production `DrillSlave` path still routes `PrepareLive` to `LiveLoadDsmHandler` first** (branch dead) + CGF branch **`PrepareLive`** vs **`ScenarioLoadDsmHandler`** + **`FullBranchPipelineTests`** → [CGF-1-BATCH-18](batches/CGF-1-BATCH-18-INSTRUCTIONS.md) ([review](reviews/CGF-1-BATCH-17-REVIEW.md))
+- [x] **CGF1-S0305** Live-from-Replay Temporal Interlock [details](./CGF-1-TASK-DETAIL.md#cgf1-s0305--live-from-replay-temporal-interlock) — orchestrator **`ReplayMasterModule`** + SimHost **`ReplayLoadDsmHandler`** / **`DrillSlave`** fixes + **`FullBranchPipelineTests`** ✅ [CGF-1-BATCH-17](batches/CGF-1-BATCH-17-INSTRUCTIONS.md) / [CGF-1-BATCH-18](batches/CGF-1-BATCH-18-INSTRUCTIONS.md); **CGF node `PrepareLive`/scenario regression** ([BATCH-18 review](reviews/CGF-1-BATCH-18-REVIEW.md)) → [CGF-1-BATCH-19](batches/CGF-1-BATCH-19-INSTRUCTIONS.md) Part A
 - [x] **CGF1-S0306** Scenario/Story Serialization Toolkit [details](./CGF-1-TASK-DETAIL.md#cgf1-s0306--scenariostory-serialization-toolkit) — ✅ [CGF-1-BATCH-11](batches/CGF-1-BATCH-11-INSTRUCTIONS.md) Part B
 - [x] **CGF1-S0307** Application-Layer Scenario Save/Load Wiring [details](./CGF-1-TASK-DETAIL.md#cgf1-s0307--application-layer-scenario-saveload-wiring) — done [CGF-1-BATCH-12](batches/CGF-1-BATCH-12-INSTRUCTIONS.md); follow-ups → [CGF-1-BATCH-12 review](reviews/CGF-1-BATCH-12-REVIEW.md#gaps-vs-task-detail-cgf1-s0307)
 - [ ] **CGF1-S0308** Runtime Story Injection & Deletion [details](./CGF-1-TASK-DETAIL.md#cgf1-s0308--runtime-story-injection--deletion)

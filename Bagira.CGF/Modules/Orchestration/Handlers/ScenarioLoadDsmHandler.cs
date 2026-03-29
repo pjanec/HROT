@@ -50,12 +50,36 @@ namespace Bagira.CGF.Modules.Orchestration.Handlers
         /// Peeks <c>Header.SubsystemType</c> in the scenario file.  Always returns
         /// <see langword="null"/> (success): a mismatch means "not our file" and a match means
         /// "acknowledged — no entities to spawn in CGF".
+        /// <para>
+        /// <b>Branch guard (BATCH-18 A.2):</b> When the payload contains a
+        /// <c>DrillId</c> field but <b>no</b> <c>ScenarioId</c> field the command is a
+        /// Live-from-Replay branch <see cref="NodeOpType.PrepareLive"/> issued by the
+        /// orchestrator.  CGF does not yet host a recordable kernel, so this handler logs an
+        /// <c>Error</c> to surface the gap — matching the intent of
+        /// <see cref="FailLoudRecordReplayStub"/> — and returns without attempting a file read.
+        /// </para>
         /// </remarks>
         public Task<string?> PrepareAsync(NodeOpCommand cmd, CancellationToken ct)
         {
             var scenarioId = ParseScenarioId(cmd.PayloadJson);
             if (string.IsNullOrWhiteSpace(scenarioId))
+            {
+                // BATCH-18 A.2: distinguish branch PrepareLive (has DrillId, no ScenarioId)
+                // from other no-ScenarioId cases.  If the payload carries a DrillId it is a
+                // Live-from-Replay branch command that should be handled by FailLoudRecordReplayStub.
+                // Log Error so the brain-side persistence gap remains visible in structured logs.
+                if (HasDrillId(cmd.PayloadJson))
+                {
+                    FdpLog<ScenarioLoadDsmHandler>.Error(
+                        "[CGF] ScenarioLoadDsmHandler: branch PrepareLive received " +
+                        "(DrillId-only payload, no ScenarioId — transactionId={0}).  " +
+                        "CGF does not yet host a recordable kernel; this op should be " +
+                        "handled by FailLoudRecordReplayStub.  Ensure FailLoudRecordReplayStub " +
+                        "is registered before ScenarioLoadDsmHandler for PrepareLive.",
+                        cmd.TransactionId);
+                }
                 return Task.FromResult<string?>(null);
+            }
 
             var scenarioDir = Path.Combine(_localTempRoot, scenarioId);
             if (!Directory.Exists(scenarioDir))
@@ -114,6 +138,25 @@ namespace Bagira.CGF.Modules.Orchestration.Handlers
             catch
             {
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="payloadJson"/> contains a
+        /// <c>DrillId</c> field, indicating a Live-from-Replay branch
+        /// <see cref="NodeOpType.PrepareLive"/> command (no <c>ScenarioId</c> present).
+        /// </summary>
+        private static bool HasDrillId(string? payloadJson)
+        {
+            if (string.IsNullOrWhiteSpace(payloadJson)) return false;
+            try
+            {
+                var node = JsonNode.Parse(payloadJson);
+                return node?["DrillId"] != null;
+            }
+            catch
+            {
+                return false;
             }
         }
     }

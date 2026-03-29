@@ -68,18 +68,29 @@ namespace Bagira.CGF
             _eventBus = new FdpEventBus();
             _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
 
+            // CGF1-BATCH-18 A.2: register FailLoudRecordReplayStub BEFORE ScenarioLoadDsmHandler
+            // so that branch-style PrepareLive commands (DrillId-only payload, no ScenarioId)
+            // are intercepted by the stub and produce an Error log rather than being silently
+            // acknowledged by ScenarioLoadDsmHandler.  For a normal scenario PrepareLive
+            // (ScenarioId present) the stub's CanHandle returns true but PrepareAsync logs the
+            // Error, which is the correct behaviour until CGF hosts a recordable kernel.
+            // When CGF acquires a real brain kernel, both this stub and its registration order
+            // must be reconsidered (replace with LiveLoadDsmHandler / ReplayLoadDsmHandler path).
+            _drillSlave.RegisterHandler(new FailLoudRecordReplayStub(SubsystemName));
+
             // CGF1-S0307: wire scenario load handler when a serializer is provided.
+            // Registered after FailLoudRecordReplayStub: for PrepareLive the stub wins on the
+            // recording/replay ops; for LoadingLive with a ScenarioId the stub also fires but
+            // the scenario load still acknowledges (two handlers both run the same command only
+            // if the first uses dispatch-and-continue — the current single-dispatch loop means
+            // only FailLoudRecordReplayStub runs for PrepareLive).  The ScenarioLoadDsmHandler
+            // therefore only runs for PrepareLive when registered first; BATCH-18 A.2 keeps it
+            // second so the fail-loud path is always reachable.
             if (scenarioSerializer != null)
                 _drillSlave.RegisterHandler(new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot));
 
             // CGF1-S0309: wire dry-run snapshot/rewind handler (no ECS state on CGF skeleton).
             _drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null));
-
-            // CGF1-BATCH-17 architecture note: explicit fail-loud stubs for recording/replay ops.
-            // Until CGF hosts a recordable kernel, PrepareLive / FinalizeLive / PrepareReplay /
-            // FinalizeReplay are unsupported — the stub logs Error so missing brain-side persistence
-            // surfaces in structured logs rather than silently succeeding (no-op path).
-            _drillSlave.RegisterHandler(new FailLoudRecordReplayStub(SubsystemName));
 
             FdpLog<CgfApplication>.Info("[CGF] Initialized on domain {0}, nodeId {1}.", domainId, nodeId);
         }

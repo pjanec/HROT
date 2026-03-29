@@ -7,6 +7,8 @@
 core) fully implemented; `FullBranchPipelineTests` deferred to BATCH-18 (see §Deferral); build
 clean; all new and existing tests passing.
 
+**Lead review:** [CGF-1-BATCH-17-REVIEW.md](../reviews/CGF-1-BATCH-17-REVIEW.md) — **CONDITIONALLY APPROVED** (`PrepareLive` **handler-order** gap on SimHost, CGF **ScenarioLoad** swallowing branch **`PrepareLive`**, **`DrillSlave` `PrepareAsync` not awaited** → [CGF-1-BATCH-18](../batches/CGF-1-BATCH-18-INSTRUCTIONS.md)).
+
 ---
 
 ## Summary

@@ -108,12 +108,21 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        /// <remarks>Returns <c>true</c> for <see cref="NodeOpType.PrepareReplay"/>,
-        /// <see cref="NodeOpType.FinalizeReplay"/>, and the Live-from-Replay
-        /// <see cref="NodeOpType.PrepareLive"/> branch.</remarks>
+        /// <remarks>
+        /// Returns <c>true</c> for <see cref="NodeOpType.PrepareReplay"/> and
+        /// <see cref="NodeOpType.FinalizeReplay"/> unconditionally.
+        /// <para>
+        /// Returns <c>true</c> for <see cref="NodeOpType.PrepareLive"/> <b>only</b> when
+        /// a replay session is currently active
+        /// (<see cref="EcsRecordReplayController.ActiveReplayModule"/> is not <c>null</c>).
+        /// This conditional prevents the Live-from-Replay branch from stealing cold
+        /// <see cref="NodeOpType.PrepareLive"/> commands that belong to
+        /// <see cref="LiveLoadDsmHandler"/> (CGF1-S0305 / BATCH-18 A.1).
+        /// </para>
+        /// </remarks>
         public bool CanHandle(NodeOpType op) =>
             op == NodeOpType.PrepareReplay || op == NodeOpType.FinalizeReplay
-                || op == NodeOpType.PrepareLive;
+                || (op == NodeOpType.PrepareLive && _controller.ActiveReplayModule != null);
 
         /// <summary>
         /// For <see cref="NodeOpType.PrepareReplay"/>: opens the recording file via
