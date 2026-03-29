@@ -8,13 +8,25 @@ using FDP.Toolkit.Time.Messages;
 namespace FDP.Toolkit.Time
 {
     /// <summary>
-    /// Composition-root helper for wiring <see cref="SwitchTimeModeEvent"/> over CycloneDDS.
+    /// Composition-root helper for wiring <see cref="SwitchTimeModeEvent"/> over CycloneDDS
+    /// via the <see cref="SwitchTimeModeWireDto"/> wire DTO.
     /// <para>
-    /// Must be called on <strong>every</strong> node (both Master and Slaves) during
-    /// application startup, before the simulation loop begins.  The
-    /// <see cref="BlitEventTranslator{T}"/> performs a zero-allocation raw memcpy from/to
-    /// the DDS wire format, so <see cref="SwitchTimeModeEvent"/> must remain an
-    /// <c>unmanaged</c> struct (e.g. no reference-type fields).
+    /// <b>Supported path — <see cref="CreateDescriptorTranslator"/>:</b>
+    /// Returns a <see cref="SwitchTimeModeDescriptorTranslator"/> that bridges
+    /// <see cref="SwitchTimeModeEvent"/> events between the local <see cref="FdpEventBus"/>
+    /// and the DDS topic <c>"SwitchTimeModeEvent"</c> using
+    /// <see cref="SwitchTimeModeWireDto"/> (integer <c>TargetModeInt</c> field avoids
+    /// Cyclone IDL limitations with <c>enum</c> types).  Add the returned translator to
+    /// the <c>customTranslators</c> list of every node's <c>CycloneNetworkModule</c> so
+    /// that mode-switch events cross DDS on both the Master and every Slave.
+    /// </para>
+    /// <para>
+    /// <b>Deprecated path — <see cref="RegisterTranslators"/>:</b>
+    /// Returns a raw <see cref="BlitEventTranslator{T}"/> for <see cref="SwitchTimeModeEvent"/>.
+    /// This method is marked <see cref="ObsoleteAttribute"/>: the blit translator
+    /// cannot carry <see cref="SwitchTimeModeWireDto"/> and is incompatible with the
+    /// <c>CycloneNetworkModule</c> composition root.  Use
+    /// <see cref="CreateDescriptorTranslator"/> instead.
     /// </para>
     /// </summary>
     public static class TimeNetworkModule
