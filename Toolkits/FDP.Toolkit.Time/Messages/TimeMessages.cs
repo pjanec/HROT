@@ -68,11 +68,11 @@ namespace FDP.Toolkit.Time.Messages
     /// regardless of per-node frame rates.
     /// </para>
     /// <para>
-    /// <b>DDS transport note:</b> wire the event via
-    /// <c>BlitEventTranslator&lt;SwitchTimeModeEvent&gt;</c> in
-    /// <c>TimeNetworkModule.RegisterTranslators()</c> at the composition root.
-    /// The IDL registration avoids specifying <see cref="Fdp.Kernel.GlobalTime"/> enums
-    /// directly in the IDL; the struct is kept as an unmanaged value type.
+    /// <b>DDS transport note:</b> use <see cref="SwitchTimeModeWireDto"/> with
+    /// <see cref="FDP.Toolkit.Time.SwitchTimeModeDescriptorTranslator"/> via
+    /// <c>TimeNetworkModule.CreateDescriptorTranslator</c> at the composition root.
+    /// Do not register <c>SwitchTimeModeEvent</c> directly on DDS (see
+    /// <see cref="SwitchTimeModeWireDto"/> XML).
     /// </para>
     /// </summary>
     [MessagePackObject]
@@ -96,4 +96,52 @@ namespace FDP.Toolkit.Time.Messages
         [Key(2)]
         public float FixedDelta { get; set; }
     }
-}
+    /// <summary>
+    /// Blittable wire DTO for <see cref="SwitchTimeModeEvent"/> over CycloneDDS.
+    ///
+    /// <para>
+    /// <see cref="SwitchTimeModeEvent"/> cannot carry <see cref="TimeMode"/> directly in
+    /// the DDS IDL because the Cyclone source generator cannot represent arbitrary C# enums
+    /// in CDR-scope.  This struct uses <c>int</c> for the time-mode field and is the only
+    /// type registered with <see cref="CycloneDDS.Runtime.DdsReader{T}"/> /
+    /// <see cref="CycloneDDS.Runtime.DdsWriter{T}"/>.
+    ///
+    /// Conversion helpers: <see cref="ToWire"/> / <see cref="ToEvent"/>.
+    /// </para>
+    /// </summary>
+    [DdsTopic("SwitchTimeModeEvent")]
+    public partial struct SwitchTimeModeWireDto
+    {
+        /// <summary>
+        /// Encoded <see cref="TimeMode"/> cast to <c>int</c>.
+        /// 0 = <see cref="TimeMode.Continuous"/>, 1 = <see cref="TimeMode.Deterministic"/>.
+        /// </summary>
+        [DdsId(0)]
+        public int TargetModeInt { get; set; }
+
+        /// <summary><see cref="SwitchTimeModeEvent.BarrierWallTicks"/>.</summary>
+        [DdsId(1)]
+        public long BarrierWallTicks { get; set; }
+
+        /// <summary><see cref="SwitchTimeModeEvent.FixedDelta"/>.</summary>
+        [DdsId(2)]
+        public float FixedDelta { get; set; }
+
+        /// <summary>Converts a <see cref="SwitchTimeModeEvent"/> to its wire representation.</summary>
+        public static SwitchTimeModeWireDto ToWire(SwitchTimeModeEvent evt) =>
+            new SwitchTimeModeWireDto
+            {
+                TargetModeInt    = (int)evt.TargetMode,
+                BarrierWallTicks = evt.BarrierWallTicks,
+                FixedDelta       = evt.FixedDelta
+            };
+
+        /// <summary>Converts a wire DTO back to a <see cref="SwitchTimeModeEvent"/>.</summary>
+        public SwitchTimeModeEvent ToEvent() =>
+            new SwitchTimeModeEvent
+            {
+                TargetMode       = (TimeMode)TargetModeInt,
+                BarrierWallTicks = BarrierWallTicks,
+                FixedDelta       = FixedDelta
+            };
+    }}
