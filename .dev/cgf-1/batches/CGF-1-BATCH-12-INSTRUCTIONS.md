@@ -124,15 +124,16 @@ Use **real temp directories** (and local paths substituting for **`\\NAS\...`** 
 
 ## Success criteria
 
-- [ ] Part A: fail-fast behaviour + tests; reflection test strengthened; **`FanOutSerializeLocal`** wired when save path exists; **`StoryTag`** unified to **`FDP.Toolkit.Replay.StoryTag`** / **`Guid`** (A.7); task detail + design aligned; DEBT updated.  
-- [ ] Part B: CGF1-S0307 items 1–7 + **all three** integration tests green (or lead-approved documented substitute).  
-- [ ] Solution build clean; relevant test projects green.  
-- [ ] **DEBT-TRACKER** and **CGF-1-TASK-TRACKER** updated (**S0307** `[x]` when done).  
-- [ ] Report filed.
+- [x] Part A: fail-fast behaviour + tests; reflection test strengthened; **`FanOutSerializeLocal`** wired; **`StoryTag`** unified (**`Fdp.Kernel.StoryTag`**, **`Guid`**); DEBT updated. — [review §Summary](../reviews/CGF-1-BATCH-12-REVIEW.md#summary)  
+- [x] Part B: CGF1-S0307 core deliverables + **3** integration tests green — [review §Gaps](../reviews/CGF-1-BATCH-12-REVIEW.md#gaps-vs-task-detail-cgf1-s0307) for deferred execution/wiring.  
+- [x] Solution build clean; relevant test projects green.  
+- [x] **DEBT-TRACKER** / **CGF-1-TASK-TRACKER** updated.  
+- [x] Report filed.
 
 ---
 
 ## Reference
 
+- **Review:** [CGF-1-BATCH-12-REVIEW.md](../reviews/CGF-1-BATCH-12-REVIEW.md) — APPROVED (with follow-ups)  
 - [CGF-1-BATCH-11 review — gaps](../reviews/CGF-1-BATCH-11-REVIEW.md#gaps-vs-fail-early-and-aloud-review-criterion)  
-- **Next (planned):** **CGF-1-BATCH-13** — **CGF1-S0302** (portable scenario loading) unless reprioritised.
+- **Next:** [CGF-1-BATCH-13](CGF-1-BATCH-13-INSTRUCTIONS.md) — BATCH-12 debt + **CGF1-S0302**.

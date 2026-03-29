@@ -55,6 +55,9 @@ public sealed class DrillMaster : IDisposable
         public readonly List<FileManifestEntry> Manifests = new();
     }
 
+    // ── Global context handler (CGF1-S0307) ──────────────────────────────
+    private GlobalContextDsmHandler? _globalContextHandler;
+
     // ── ID allocator server ───────────────────────────────────────────────
     private DdsIdAllocatorServer? _idAllocatorServer;
     private CancellationTokenSource? _idServerCts;
@@ -436,6 +439,38 @@ public sealed class DrillMaster : IDisposable
                     continue;
                 }
             }
+            else if (req.OperationType == SysOpType.SaveScenario)
+            {
+                // A.5 / CGF1-S0307: Fan out SerializeLocal to all active nodes so each
+                // writes its own scenario file to local SSD.  ConsumeNodeOpStatuses then
+                // pulls the manifests to the NAS once all ACKs arrive.
+                var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var txId    = Guid.NewGuid();
+                FanOutSerializeLocal(txId, nodeIds, req.PayloadJson);
+
+                // Orchestrator's own context — handled in-process (no DDS round-trip).
+                if (_globalContextHandler != null)
+                {
+                    var localCmd = new NodeOpCommand
+                    {
+                        TransactionId = txId,
+                        Operation     = NodeOpType.SerializeLocal,
+                        PayloadJson   = req.PayloadJson ?? string.Empty,
+                    };
+                    // PrepareAsync + Commit are lightweight / synchronous by convention;
+                    // fire-and-forget from the tick thread (errors are logged inside handler).
+                    _ = _globalContextHandler.PrepareAsync(localCmd, System.Threading.CancellationToken.None)
+                        .ContinueWith(t =>
+                        {
+                            if (!t.IsFaulted)
+                                _globalContextHandler.Commit(localCmd, null);
+                        }, System.Threading.Tasks.TaskScheduler.Default);
+                }
+
+                FdpLog<DrillMaster>.Info(
+                    "[Orchestrator] SaveScenario request {0} → SerializeLocal fan-out to {1} node(s).",
+                    req.RequestId, nodeIds.Count);
+            }
 
             var tx = new DistributedTransaction
             {
@@ -506,6 +541,16 @@ public sealed class DrillMaster : IDisposable
     }
 
     /// <summary>
+    /// Registers the <see cref="GlobalContextDsmHandler"/> that serializes/restores the
+    /// Orchestrator's own global context during scenario save/load operations.
+    /// Call once at startup, before any scenario operations are issued.
+    /// </summary>
+    public void SetGlobalContextHandler(GlobalContextDsmHandler handler)
+    {
+        _globalContextHandler = handler ?? throw new ArgumentNullException(nameof(handler));
+    }
+
+    /// <summary>
     /// Sends a <see cref="NodeOpType.SerializeLocal"/> command to each node in
     /// <paramref name="nodeIds"/> and registers a pending task that waits for all
     /// <c>NodeOpStatus(Success)</c> ACKs before invoking
@@ -569,11 +614,21 @@ public sealed class DrillMaster : IDisposable
             if (task.RemainingAcks <= 0)
             {
                 _pendingSerializeTasks.Remove(status.TransactionId);
+
+                // Append the Orchestrator's own manifest entry if the local handler produced one.
+                if (_globalContextHandler?.CommitManifestEntry != null)
+                    task.Manifests.Add(_globalContextHandler.CommitManifestEntry);
+
                 if (_gateway != null && task.Manifests.Count > 0)
                 {
                     // Fire-and-forget: the pull is async; DrillMaster continues ticking.
                     // Phase 3+ will track completion and publish SysOpStatus(Success)/Failure.
-                    _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath);
+                    _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath)
+                        .ContinueWith(pullTask =>
+                        {
+                            if (pullTask.IsCompletedSuccessfully)
+                                _ = _gateway.WriteScenarioManifestAsync(task.Manifests, _nasBasePath);
+                        }, System.Threading.Tasks.TaskScheduler.Default);
                 }
             }
         }

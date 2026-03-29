@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -184,5 +185,88 @@ public sealed class StorageGatewayModule
         }).ConfigureAwait(false);
 
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
+    }
+
+    /// <summary>
+    /// Copies all scenario files for <paramref name="scenarioId"/> from the NAS
+    /// (<c>&lt;nasBasePath&gt;\&lt;scenarioId&gt;\</c>) to each target node's
+    /// local staging directory (<c>C:\FDP_Temp\&lt;scenarioId&gt;\</c>) by pushing
+    /// every file in the source directory to every <see cref="NodeDistributionTarget"/>.
+    ///
+    /// <para>Any files that do not exist locally are silently skipped.  Per-file errors are
+    /// counted but do not abort the operation.</para>
+    /// </summary>
+    /// <param name="scenarioId">Logical scenario identifier (directory name under the NAS base).</param>
+    /// <param name="targets">Target nodes; each entry's <see cref="NodeDistributionTarget.DestinationPath"/>
+    /// should be the fully-qualified destination <em>directory</em> on the target node.</param>
+    /// <param name="nasBasePath">NAS root under which <paramref name="scenarioId"/> is a sub-directory.</param>
+    public async Task<GatewayResult> PrefetchScenarioAsync(
+        string scenarioId,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        string nasBasePath)
+    {
+        if (string.IsNullOrWhiteSpace(scenarioId)) throw new ArgumentNullException(nameof(scenarioId));
+        if (targets == null)                        throw new ArgumentNullException(nameof(targets));
+        if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
+
+        var sourceDir = Path.Combine(nasBasePath, scenarioId);
+        if (!Directory.Exists(sourceDir))
+            return new GatewayResult { SuccessCount = 0, FailureCount = 0 };
+
+        var files   = Directory.GetFiles(sourceDir);
+        int success = 0, failure = 0;
+        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
+
+        // For each (file, target) pair: push the file to the target node's staging dir.
+        var pairs = new List<(string sourceFile, NodeDistributionTarget target)>(files.Length * targets.Count);
+        foreach (var file in files)
+            foreach (var target in targets)
+                pairs.Add((file, target));
+
+        await Task.Run(() =>
+        {
+            Parallel.ForEach(pairs, options, pair =>
+            {
+                var (srcFile, tgt) = pair;
+                try
+                {
+                    var destPath = Path.Combine(tgt.DestinationPath, Path.GetFileName(srcFile));
+                    var destDir  = Path.GetDirectoryName(destPath);
+                    if (!string.IsNullOrEmpty(destDir))
+                        Directory.CreateDirectory(destDir);
+                    File.Copy(srcFile, destPath, overwrite: true);
+                    Interlocked.Increment(ref success);
+                }
+                catch (Exception)
+                {
+                    Interlocked.Increment(ref failure);
+                }
+            });
+        }).ConfigureAwait(false);
+
+        return new GatewayResult { SuccessCount = success, FailureCount = failure };
+    }
+
+    /// <summary>
+    /// Writes a <c>scenario_manifest.json</c> file to
+    /// <c>&lt;nasBasePath&gt;\scenario_manifest.json</c> listing the
+    /// <see cref="FileManifestEntry.RelativeDest"/> of every entry in
+    /// <paramref name="manifests"/>.
+    /// </summary>
+    public async Task WriteScenarioManifestAsync(
+        IReadOnlyList<FileManifestEntry> manifests,
+        string nasBasePath)
+    {
+        if (manifests == null)                      throw new ArgumentNullException(nameof(manifests));
+        if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
+
+        var names = manifests.Select(m => m.RelativeDest).ToArray();
+        var json  = System.Text.Json.JsonSerializer.Serialize(
+            new { files = names },
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+        var manifestPath = Path.Combine(nasBasePath, "scenario_manifest.json");
+        Directory.CreateDirectory(nasBasePath);
+        await File.WriteAllTextAsync(manifestPath, json).ConfigureAwait(false);
     }
 }

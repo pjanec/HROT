@@ -195,6 +195,25 @@ public sealed class TransitionPlanner
 
         var path  = CalculateShortestPath(current, targetState);
         var queue = new Queue<ISysOpStep>();
+
+        // CGF1-S0307: If the payload carries a ScenarioId, prepend a PrefetchScenario
+        // step so the StorageGateway copies scenario files to all nodes before the first
+        // DSM transition executes.
+        string? scenarioId = null;
+        if (!string.IsNullOrWhiteSpace(request.PayloadJson) && !int.TryParse(request.PayloadJson, out _))
+        {
+            try
+            {
+                using var scenarioDoc = JsonDocument.Parse(request.PayloadJson);
+                if (scenarioDoc.RootElement.TryGetProperty("ScenarioId", out var sidProp))
+                    scenarioId = sidProp.GetString();
+            }
+            catch (JsonException) { /* ignore malformed JSON — handled above */ }
+        }
+
+        if (!string.IsNullOrWhiteSpace(scenarioId))
+            queue.Enqueue(new OperationStep(SysOpType.PrefetchScenario, scenarioId!));
+
         foreach (var state in path)
             queue.Enqueue(new TransitionStep(state));
 

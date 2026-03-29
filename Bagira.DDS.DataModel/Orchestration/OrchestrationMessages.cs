@@ -19,6 +19,7 @@ namespace Bagira.BDC.SSTD.Orchestration
         TakeCheckpoint = 4, CollectCheckpoint = 5, ExportArchive = 6,
         ImportArchive = 7, ManageStory = 8, ReplaySeek = 9,
         PauseTime = 10, ResumeTime = 11,
+        PrefetchScenario = 12,
     }
 
     public enum OpStatus : int
@@ -39,6 +40,7 @@ namespace Bagira.BDC.SSTD.Orchestration
         StartStory = 20, StopStory = 21,
         ReplayStory = 22, ForgetStory = 23,
         LoadStoryAssets = 24,
+        PrefetchFiles = 25,
     }
 
     [DdsTopic("SystemState")]

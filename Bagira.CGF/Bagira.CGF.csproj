@@ -28,6 +28,8 @@
     <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
     <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
+    <!-- Scenario serialization toolkit for ScenarioLoadDsmHandler (CGF1-S0307) -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Scenario\FDP.Toolkit.Scenario.csproj" />
   </ItemGroup>
 
 </Project>

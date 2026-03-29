@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Bagira.SimHost.Modules;
 using Bagira.SimHost.Modules.Orchestration;
+using Bagira.SimHost.Modules.Orchestration.Handlers;
 using Bagira.SimHost.Network;
 using CarKinem.Commands;
 using CarKinem.Formation;
@@ -257,6 +258,14 @@ namespace Bagira.SimHost
         /// <param name="eventBus">Optional event bus; when provided, a <c>LiveLoadDsmHandler</c> is
         /// registered and <see cref="Bagira.Common.Orchestration.DsmStateChangedEvent"/> will be
         /// published on commit.</param>
+        /// <param name="scenarioSerializer">
+        /// Optional scenario serializer; when provided, a <c>ScenarioLoadDsmHandler</c> is registered
+        /// so the node can load its scenario file during <see cref="NodeOpType.PrepareLive"/> (CGF1-S0307).
+        /// </param>
+        /// <param name="localTempRoot">
+        /// Local staging directory root used by <c>ScenarioLoadDsmHandler</c> to locate pre-fetched
+        /// scenario files.  Defaults to <c>C:\FDP_Temp</c>.
+        /// </param>
         public DrillSlave BuildOrchestration(
             NodeRole role,
             ModuleHost.Core.ModuleHostKernel kernel,
@@ -264,7 +273,9 @@ namespace Bagira.SimHost
             int nodeId,
             DdsParticipant? participant = null,
             string subsystemName = "SimHost",
-            Fdp.Kernel.FdpEventBus? eventBus = null)
+            Fdp.Kernel.FdpEventBus? eventBus = null,
+            FDP.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,
+            string localTempRoot = @"C:\FDP_Temp")
         {
             if (participant == null && (role == NodeRole.Brain || role == NodeRole.AllInOne))
                 throw new ArgumentNullException(nameof(participant),
@@ -285,6 +296,13 @@ namespace Bagira.SimHost
             if (eventBus != null)
             {
                 drillSlave.RegisterHandler(new LiveLoadDsmHandler(drillSlave, eventBus));
+            }
+
+            // Wire ScenarioLoadDsmHandler when a serializer is provided (CGF1-S0307).
+            if (scenarioSerializer != null)
+            {
+                drillSlave.RegisterHandler(
+                    new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot));
             }
 
             return drillSlave;

@@ -1,10 +1,12 @@
 using System;
 using System.Threading;
 using Bagira.CGF.Modules.Orchestration;
+using Bagira.CGF.Modules.Orchestration.Handlers;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Scenario;
 using FDP.Toolkit.Time;
 
 namespace Bagira.CGF
@@ -46,7 +48,17 @@ namespace Bagira.CGF
         /// Node identifier published in <see cref="NodeHeartbeat.NodeId"/>.
         /// Defaults to <c>400</c>.
         /// </param>
-        public CgfApplication(int domainId = 0, int nodeId = DefaultNodeId)
+        /// <param name="scenarioSerializer">
+        /// Optional pre-built scenario serializer (CGF1-S0307).  When provided a
+        /// <see cref="ScenarioLoadDsmHandler"/> is registered on the <see cref="DrillSlave"/>
+        /// so the CGF node participates in scenario load operations.
+        /// </param>
+        /// <param name="localTempRoot">
+        /// Local staging directory root for pre-fetched scenario files.
+        /// Defaults to <c>C:\FDP_Temp</c>.
+        /// </param>
+        public CgfApplication(int domainId = 0, int nodeId = DefaultNodeId,
+            ScenarioSerializer? scenarioSerializer = null, string localTempRoot = @"C:\FDP_Temp")
         {
             _participant = new DdsParticipant((uint)domainId);
             _drillSlave = new DrillSlave(_participant, nodeId, SubsystemName);
@@ -54,6 +66,11 @@ namespace Bagira.CGF
             // coordinated by the orchestrator are received and forwarded on the CGF node.
             _eventBus = new FdpEventBus();
             _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
+
+            // CGF1-S0307: wire scenario load handler when a serializer is provided.
+            if (scenarioSerializer != null)
+                _drillSlave.RegisterHandler(new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot));
+
             FdpLog<CgfApplication>.Info("[CGF] Initialized on domain {0}, nodeId {1}.", domainId, nodeId);
         }
 
