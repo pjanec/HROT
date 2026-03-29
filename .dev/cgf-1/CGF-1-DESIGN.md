@@ -112,9 +112,11 @@ platform, enabling:
 │    NetworkLifecycleSystemGroup  (generic scheduling primitive)           │
 │                                                                          │
 │  FDP.Toolkit.Scenario (new):                                             │
-│    IEntityScenarioTranslator<TDto>, ScenarioSerializerBuilder,           │
-│    [ScenarioProperty], [ScenarioIgnore] attributes,                      │
-│    two-pass GUID resolution engine, JIT-compiled delegate cache          │
+│    IEntityScenarioTranslator (non-generic, N:M, consumption mask),      │
+│    IGuidResolver, FdpAutoSerializer (JIT 1:1 fallback),                  │
+│    ScenarioSerializerBuilder, ScenarioSerializer,                        │
+│    [ScenarioIgnore] attribute, ScenarioIgnoreTag                         │
+│    (StoryTag lives in FDP.Toolkit.Replay — Guid StoryId; shared w/ replay) │
 │                                                                          │
 │  FDP.Toolkit.Time:                                                       │
 │    ITimeController, SwitchableTimeController,                            │
@@ -902,62 +904,146 @@ serialization engine. Operates on in-memory DOM objects (compatible with
 - `SubsystemType` is the **edge-filter key**: a subsystem whose canonical name does
   not match this header ignores the file entirely and returns `Success` immediately
   from its DSM handler — no full DOM parse required.
-- A story file uses the **exact same schema**. The loader stamps `StoryTag` on each
-  created entity when called with `asStory: true`.
+- A story file uses the **exact same schema**. The loader stamps **`FDP.Toolkit.Replay.StoryTag`**
+  (`Guid StoryId`) on each created entity when called with `asStory: true` — **one** canonical
+  story marker type shared with **`StoryRecorderModule`** (do not duplicate a second `StoryTag` in
+  `FDP.Toolkit.Scenario`).
+- `ComponentName` entries come from **both** custom translators and the 1:1
+  auto-serializer fallback; a single entity can have N ECS components serialize
+  into M scenario components (N:M).
 
-#### IEntityScenarioTranslator\<TDto\>
+#### IEntityScenarioTranslator (Non-Generic, N:M)
+
+Custom translators handle cases where ECS component groups must be compressed or
+restructured for the scenario file (e.g. `BallisticProjectile` + `PhysicsCollider`
+→ single `"OrdnanceDef"` JSON entry, or `NavigationStatus` + `NavState` + `LocomotionChannel`
+→ `"ScenarioMovement"` + `"ScenarioPath"`).
 
 ```csharp
 // FDP/Toolkits/FDP.Toolkit.Scenario/IEntityScenarioTranslator.cs
-public interface IEntityScenarioTranslator<TDto> where TDto : class
+public interface IEntityScenarioTranslator
 {
-    bool  CanTranslate(EntityRepository repo, Entity entity);
-    TDto  Extract(EntityRepository repo, Entity entity);
-    void  Inject(EntityRepository repo, Entity entity, TDto dto);
+    // Which ECS component type IDs this translator will consume.
+    // The serializer clears these bits from the consumption mask so the
+    // auto-serializer fallback skips them entirely.
+    BitMask256 GetConsumedComponentsMask();
+
+    bool CanTranslate(EntityRepository repo, Entity entity);
+
+    // Returns Dict keyed by desired scenario component name (1 or more entries).
+    Dictionary<string, object> Extract(
+        EntityRepository repo, Entity entity, IGuidResolver guidResolver);
+
+    // Reconstitutes N ECS components from the saved Dict entries.
+    void Inject(
+        EntityRepository repo, Entity entity,
+        Dictionary<string, object> scenarioData, IGuidResolver guidResolver);
 }
 ```
 
-Translators are **entity-level** (not component-level). A single translator can
-read/write several components, enabling "simplify on save / re-derive on load"
-patterns (e.g. strip computed pathfinding caches; re-run them post-injection).
+#### IGuidResolver
+
+Passed into `Extract` and `Inject` so translators can patch volatile `Entity`
+handles ↔ persistent `Guid` strings without coupling to serialization plumbing:
+
+```csharp
+// FDP/Toolkits/FDP.Toolkit.Scenario/IGuidResolver.cs
+public interface IGuidResolver
+{
+    string Resolve(Entity entity);           // save-time: Entity → stable Guid string
+    Entity Resolve(string guidString);       // load-time: Guid string → live Entity
+}
+```
+
+The `ScenarioSerializer` builds the `IGuidResolver` during the first pass (entity
+enumeration), before any `Extract` or `Inject` calls.
+
+#### FdpAutoSerializer — 1:1 JIT Fallback
+
+`FdpAutoSerializer` handles the majority of components that map directly 1:1 to
+scenario JSON objects. It operates on whatever component bits remain in the
+**consumption mask** after all custom translators have run.
+
+- `Build()` is called once at startup. For each component type registered in the
+  kernel's `ComponentTypeRegistry`, it uses `Expression.Property` to compile
+  typed delegates (`Func<object, JsonObject>` extract, `Action<JsonObject, object>`
+  inject). No `Type.GetProperties()` calls on the hot path.
+- It respects `[DataPolicy(DataPolicy.NoSave)]` (already filtered out by
+  `EntityRepository.GetSaveableMask()` before the auto-serializer even runs).
+- It respects `[ScenarioIgnore]` on individual fields: those property delegates are
+  simply not compiled into the extraction function.
+- `Entity`-typed fields in any component are automatically patched via `IGuidResolver`.
+
+#### Data Policy and Exclusion Mechanisms
+
+Three complementary exclusion mechanisms, each operating at a different granularity:
+
+| Granularity | Mechanism | Where declared |
+|-------------|-----------|----------------|
+| Whole component excluded from all saves | `[DataPolicy(DataPolicy.NoSave)]` on the struct | FDP component definition (or registration-time override — see below) |
+| Individual field excluded from scenario | `[ScenarioIgnore]` on the field | FDP component definition |
+| Whole entity excluded from scenario | `[DataPolicy(DataPolicy.NoSave)] public struct ScenarioIgnoreTag {}` + `.Without<ScenarioIgnoreTag>()` query filter | Application layer |
+
+**Registration-time policy override:** The application layer can override the
+attribute-based `DataPolicy` at startup:
+
+```csharp
+// In SimHostApp or CgfApp module setup:
+repo.RegisterComponent<SharedToolkitComponent>(DataPolicy.Default);
+// Forces inclusion even if the struct has [DataPolicy(DataPolicy.NoSave)]
+```
+
+This is the correct intercept point for cases where a shared FDP toolkit component
+carries `NoSave` by default but a specific subsystem needs it in its scenario file.
+Custom `IEntityScenarioTranslator` supremacy overrides even this: if a translator's
+`CanTranslate` returns `true`, its bits are consumed regardless of `DataPolicy`.
+
+#### Orchestrated Save Pipeline Per Entity
+
+```
+GetSaveableMask(entity)          // FDP already filters DataPolicy.NoSave
+  → run each registered IEntityScenarioTranslator:
+      if CanTranslate → Extract → add named entries → clear consumed bits
+  → run FdpAutoSerializer on remaining set bits:
+      for each bit → auto-extract with [ScenarioIgnore] field skips
+                     + IGuidResolver patches on Entity-typed fields
+```
 
 #### ScenarioSerializerBuilder
 
 ```csharp
 var serializer = new ScenarioSerializerBuilder()
-    .RegisterTranslator(new TankScenarioTranslator())
+    .RegisterTranslator(new MissileOrdnanceTranslator())   // no type param
     .RegisterTranslator(new InfantryBrainTranslator())
-    .Build();                // JIT-compiles delegates; reflection-free hot path
+    .Build();   // compiles FdpAutoSerializer delegates; freezes translator list
 ```
 
-`Build()` walks the registered translators, discovers `TDto` property shapes via
-`Expression.Property`, and compiles typed `Func<TDto, JsonObject>` / 
-`Action<JsonObject, TDto>` delegates once at startup.
+`Build()` compiles `FdpAutoSerializer` delegates for every component registered in
+`ComponentTypeRegistry` that is not fully covered by a custom translator's
+`GetConsumedComponentsMask()`. Custom translator objects are stored as-is; their
+`Extract`/`Inject` methods run at hot-path without any additional wrapper allocation.
 
-#### Two-Pass GUID Resolution
+#### DOM-aware FdpAutoserializer
+To maintain a strict separation of concerns, we must distinguish between the existing `FdpAutoSerializer` utility and the actual scenario serialization pipeline we are building. 
 
-**Save:**
-1. Iterate all matching entities; allocate a stable `Guid` per entity; build
-   `Dictionary<Entity, Guid>`.  
-2. For each entity call `translator.Extract()`; any `Entity`-typed field in the DTO
-   is replaced by its `Guid` from the map before serialization.
+The native `FdpAutoSerializer` strictly produces and consumes a raw binary byte stream via `System.IO.BinaryWriter` and `System.IO.BinaryReader`. It is a highly optimized tool built specifically for the Flight Recorder to capture binary snapshots of memory. Because the architectural design explicitly dictates that scenarios must use a forward- and backward-compatible JSON format—rather than a raw binary memory dump—we cannot use the output of the `FdpAutoSerializer` directly for saving scenarios.
 
-**Load:**
-1. Parse DOM entities; create ECS entities; build `Dictionary<Guid, Entity>`.  
-2. For each DOM entity call `translator.Inject()`; any serialized `Guid` that refers
-   to another entity is resolved to its live `Entity` handle.
+However, we reuse its brilliant underlying architectural paradigm: JIT-compiled Expression Trees. 
 
-#### Annotations (Fallback Path)
+Instead of routing data to a `BinaryWriter`, we build a scenario-specific 1:1 fallback serializer that generates expression trees tailored for a Document Object Model (DOM). By compiling these delegates at runtime, we avoid the heavy CPU and allocation overhead of standard reflection on the hot path. 
 
-For components that do not have a hand-written `IEntityScenarioTranslator`, the
-toolkit provides a reflective fallback governed by attributes:
+Here is exactly how the data formats flow through this scenario-specific engine:
 
-```csharp
-[ScenarioProperty]   // include this field in auto-translated scenarios
-[ScenarioIgnore]     // exclude this field from auto-translation
-```
+**1. Extraction (Saving)**
+*   **Consumes:** Pure, unmanaged ECS structs read directly from the highly-optimized chunk tables via `GetComponentRO<T>()`. 
+*   **Produces:** An intermediate, format-agnostic DOM representation (such as a nested `Dictionary<string, object>` or `JObject`). The JIT-compiled delegate extracts the fields of the struct (ignoring any marked with `[ScenarioIgnore]`) and maps them to JSON primitives where keys are the property names. Any volatile `Entity` handles are resolved into persistable GUIDs during this step.
 
-These are evaluated at `Build()` time; the delegates are still pre-compiled.
+**2. Injection (Loading)**
+*   **Consumes:** The in-memory DOM object parsed from the JSON scenario file. 
+*   **Produces:** Reconstructed, raw ECS structs. The JIT-compiled loading delegate reads the JSON primitives, resolves the persistent GUIDs back into live `Entity` indices, populates the unmanaged struct, and injects it back into the ECS world via the `EntityCommandBuffer` or `EntityRepository`.
+
+This design creates a perfect architectural boundary. It leverages the zero-allocation, high-performance JIT techniques of the `FdpAutoSerializer`, while strictly adhering to the requirement that the application layer handles the final JSON schema representation.
+
 
 **Milestone validation:** See
 [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0306).
@@ -1033,8 +1119,8 @@ not a `TransitionStep` — so the cluster state does not change.
 5. Each `DrillSlave` receives the command:
    - Peeks at `Header.SubsystemType` in the story JSON.
    - **Mismatch:** replies `NodeOpStatus(Success, IsParticipating: false)` immediately.
-   - **Match:** calls `ScenarioSerializer.Load(dom, asStory: true, storyId)`:
-     - Spawns entities; stamps `StoryTag { StoryId }` on each.
+   - **Match:** calls `ScenarioSerializer.Deserialize(..., asStory: true, storyId)` (**`storyId`: `Guid`**):
+     - Spawns entities; stamps **`FDP.Toolkit.Replay.StoryTag { StoryId }`** on each.
      - Replies `NodeOpStatus(Success, IsParticipating: true)`.
 6. Master records the story as active in `OrchestratorContextTopic.ActiveStories`.
 
@@ -1043,8 +1129,8 @@ not a `TransitionStep` — so the cluster state does not change.
 1. IOS/UI sends `SysOpRequest(ManageStory, { StoryId, Mode:Stop })`.
 2. `TransitionPlanner` appends `OperationStep(StopStory, { StoryId })`.
 3. Master broadcasts `NodeOpCommand(StopStory, { StoryId })`.
-4. Each matching `DrillSlave` queries all entities with `StoryTag.StoryId == storyId`
-   and destroys them.  Non-matching nodes reply `IsParticipating: false`.
+4. Each matching `DrillSlave` queries all entities with **`FDP.Toolkit.Replay.StoryTag.StoryId == storyId`**
+   (**`Guid`**) and destroys them.  Non-matching nodes reply `IsParticipating: false`.
 5. Master removes the story from `OrchestratorContextTopic.ActiveStories`.
 
 #### `IsParticipating` Opt-Out Semantics
@@ -1099,10 +1185,13 @@ during the Prepare phase. Nodes without matching story content opt out cleanly.
 | `Messages/TimeMessages.cs` (addition: `SwitchTimeModeEvent` with `BarrierWallTicks`) | `FDP.Toolkit.Time` | 2.4 |
 | `ClusterConfiguration.cs` | `Bagira.Orchestrator` | 1.5 |
 | `IEntityScenarioTranslator.cs` | `FDP.Toolkit.Scenario` | 3.6 |
+| `IGuidResolver.cs` | `FDP.Toolkit.Scenario` | 3.6 |
+| `FdpAutoSerializer.cs` | `FDP.Toolkit.Scenario` | 3.6 |
 | `ScenarioSerializerBuilder.cs` | `FDP.Toolkit.Scenario` | 3.6 |
 | `ScenarioSerializer.cs` | `FDP.Toolkit.Scenario` | 3.6 |
-| `ScenarioPropertyAttribute.cs` | `FDP.Toolkit.Scenario` | 3.6 |
+| `ScenarioEntityDto.cs` | `FDP.Toolkit.Scenario` | 3.6 |
 | `ScenarioIgnoreAttribute.cs` | `FDP.Toolkit.Scenario` | 3.6 |
+| `StoryTag.cs` | `FDP.Toolkit.Replay` only (`Guid StoryId`) — **not** duplicated under `FDP.Toolkit.Scenario` | 3.6 / 3.8 |
 | `GlobalContextDsmHandler.cs` | `Bagira.Orchestrator` | 3.7 |
 | `Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` | `Bagira.SimHost` | 3.7 |
 | `Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` | `Bagira.CGF` | 3.7 |

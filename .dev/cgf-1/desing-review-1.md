@@ -751,3 +751,247 @@ var scenarioSerializer = new ScenarioSerializerBuilder()
 
 -------------------------
 
+
+
+How can we save the entity to multiple scenario-file-level components in case most ECS components are (almost) identical to the scenario format (maybe just the entity references are persistable in the scenario format of the component) and just a few ECS components need to be saved in different format (like for example 3 ECS components are 'compressed' into just 2 scenario components)?
+
+To cleanly achieve this N-to-M mapping without polluting your raw ECS memory layout with JSON serialization logic, we must rely on an **Entity-Level Translator Pipeline** augmented with a **Consumption Mask**. This approach perfectly aligns with the Single Responsibility Principle (SRP) and leverages the platform's existing zero-allocation paradigms.
+
+Here is the architectural blueprint for combining the 1:1 default mappings with your custom 3-to-2 compression logic.
+
+1\. The Consumption Mask (Avoiding Duplication)
+
+Since FDP already uses a highly optimized `BitMask256` to track component presence on an entity, we can use the exact same bitmask concept to track _serialization consumption_.
+
+When you process an entity for saving, you start with its live `EntityHeader.ComponentMask` and filter it against the global saveable mask (ignoring `[DataPolicy(DataPolicy.NoSave)]` components). As your custom translators process specific components, they clear those bits from the mask, effectively telling the default 1:1 serializer: _"I already handled these; ignore them."_
+
+2\. The Custom Entity-Level Translator Contract
+
+We define a clean interface for your custom domain translators. Notice how it explicitly declares which ECS components it "consumes" and outputs a dictionary of scenario-formatted DTOs.
+
+```
+public interface IEntityScenarioTranslator
+{
+    // Identifies which ECS components this translator will consume and compress
+    BitMask256 GetConsumedComponentsMask();
+
+    // Evaluates if the entity has the required components
+    bool CanTranslate(EntityRepository repo, Entity entity);
+
+    // Extracts the 3 ECS components and returns the 2 JSON DTOs, keyed by their scenario component names
+    Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver);
+}
+```
+
+If you have three ECS components (`NavigationStatus`, `NavState`, and `LocomotionChannel`) that you want to compress into two Scenario JSON objects (`"ScenarioMovement"` and `"ScenarioPath"`), your concrete translator reads those three unmanaged structs via high-performance `repo.GetComponentRO<T>()` and builds the simplified DTOs.
+
+3\. The 1:1 Auto-Serializer Fallback
+
+For the vast majority of components that map 1:1, we reuse the JIT-compiled Expression Tree pattern established by `FdpAutoSerializer`. This engine evaluates the remaining set bits in the consumption mask.
+
+For each remaining bit, the engine:
+
+-   Looks up the pre-compiled extraction delegate for that component type.-   Extracts the ECS struct.-   Uses a patching mechanism (like an `IGuidResolver` built during pass 1) to swap any volatile `Entity` handles (index + generation) into persistable GUID strings.-   Wraps it in a format-agnostic DOM object (like a `JObject` or generic DTO).
+
+4\. The Orchestrated Save Pipeline
+
+When the `EditLoadDsmHandler` (or your scenario saving orchestrator) processes a save request, it executes this clean pipeline per entity:
+
+```
+public ScenarioEntityDto SerializeEntity(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+{
+    var scenarioEntity = new ScenarioEntityDto { Components = new Dictionary<string, object>() };
+    
+    // 1. Get the baseline saveable mask for this entity
+    BitMask256 remainingMask = GetSaveableMaskForEntity(repo, entity);
+
+    // 2. Run Custom Translators (The N:M mapping)
+    foreach (var translator in _registeredTranslators)
+    {
+        if (translator.CanTranslate(repo, entity))
+        {
+            // Extract the compressed components
+            var customScenarioComponents = translator.Extract(repo, entity, guidResolver);
+            
+            foreach (var kvp in customScenarioComponents)
+            {
+                scenarioEntity.Components[kvp.Key] = kvp.Value;
+            }
+
+            // 3. Mark the ECS components as consumed so the auto-serializer skips them
+            remainingMask.BitwiseAndNot(translator.GetConsumedComponentsMask());
+        }
+    }
+
+    // 4. Fallback 1:1 Auto-Serialization for whatever is left
+    foreach (int typeId in remainingMask.GetSetBits())
+    {
+        string componentName = ComponentTypeRegistry.GetType(typeId).Name;
+        object standardDto = _autoSerializer.ExtractAndPatch(repo, entity, typeId, guidResolver);
+        
+        scenarioEntity.Components[componentName] = standardDto;
+    }
+
+    return scenarioEntity;
+}
+```
+
+Why this is exceptionally clean architecture:
+
+-   **Absolute Purity:** Your ECS structs remain purely unmanaged, cache-line optimized data. They never implement serialization interfaces or know about JSON.-   **Open/Closed Principle:** If a new application layer needs a completely different scenario structure, you simply register a new `IEntityScenarioTranslator` into the builder. The core FDP toolkit code remains untouched.-   **Zero-Allocation Pathing:** By using `BitMask256` for the consumption filter and Expression Trees for the 1:1 fallback, you avoid heavy reflection and heap allocations when iterating over the thousands of entities being saved.
+
+How does this all relates to the scenario persistence specific attributes for exclusing some fields from being saved to scenario, or making some ECS entities as persistable/non-persistable? Could those attribute simplify the translation process somehow, should ve use them?
+
+Yes, we absolutely should use them. From a clean architecture perspective, relying on metadata attributes represents a shift from imperative boilerplate to declarative configuration, which is exactly how you scale an ECS engine maintainably.
+
+Here is how these persistence attributes fit into the overall pipeline and drastically simplify the translation process:
+
+**1\. Component-Level Exclusion (The Native FDP Way)** We do not need to invent a new mechanism for wholesale component exclusion, because FDP already provides the `[DataPolicy(DataPolicy.NoSave)]` attribute. When you apply this to a component struct, the framework's `ComponentTypeRegistry` flags it as strictly runtime-only memory. When your scenario saver begins its execution, it calls `EntityRepository.GetSaveableMask()` to generate an optimized bitmask. This automatically filters out all transient physics caches, volatile network acks, or rendering states across the entire ECS chunk table with zero custom logic required from your application layer.
+
+**2\. Field-Level Exclusion (Simplifying the 1:1 Fallback)** For components that _are_ saveable but contain runtime noise (e.g., a component that tracks maximum speed but also caches the current wheel steering angle), field-level attributes like `[ScenarioIgnore]` are a massive force multiplier. Instead of writing a custom `IEntityScenarioTranslator` for every single component in your game, you let the generic 1:1 Auto-Serializer handle the 90% of your data. At application startup, the expression-tree builder reflects over the struct, sees the `[ScenarioIgnore]` attributes, and JIT-compiles a delegate that simply skips emitting those specific fields. This gives you extremely fast, zero-allocation serialization without forcing you to maintain hundreds of custom serializer classes.
+
+**3\. Entity-Level Exclusion (Composition over Inheritance)** In a pure ECS, we do not mark an "Entity" as non-persistable; an entity is just an integer ID. Its persistence is dictated entirely by its composition. If an entity is spawned purely for a visual effect and contains only `[DataPolicy(DataPolicy.NoSave)]` components, its saveable component mask evaluates to zero and the serializer naturally skips it. If you have a specific domain requirement to explicitly exclude otherwise-saveable entities (like dynamically spawned civilian traffic that shouldn't be in the master scenario file), you simply create an empty `[DataPolicy(DataPolicy.NoSave)] public struct ScenarioIgnoreTag {}` component and attach it to the entity. Your saver's base `EntityQuery` can then just chain `.Without<ScenarioIgnoreTag>()` to cleanly bypass them during the iteration loop.
+
+**The Architectural Sweet Spot** By leveraging these attributes, you create a perfectly balanced pipeline:
+
+-   **Declarative (Attributes):** Use `[DataPolicy]` and `[ScenarioIgnore]` to handle the vast majority of your data. It keeps your ECS structs pure and pushes the filtering logic into the platform's high-performance compilation phase.-   **Imperative (Translators):** Reserve your custom `IEntityScenarioTranslator` interface strictly for the complex 10% of cases where state must be genuinely "saved in simplified form and re-calculated to full form on load" across multiple combined ECS components.
+
+This strategy ensures we only serialize the "domain-specific schematic instructions needed to reconstruct the world", minimizing scenario file sizes while preserving a highly decoupled, maintainable C# codebase.
+
+what of a component is marked with those attributes but in the application layer we need to force different handling, how can we make sure we can alw alway override the default attribute-imposed handling with custom translators if necessary but utilize the default attribute-imposed handling when no overriding translators are defined/registered?
+
+To handle this elegantly without tightly coupling your shared FDP components to specific application needs, the architecture provides two distinct interception points: **Registration-Time Overrides** and the **Custom Translator Pipeline**. This fully satisfies the Open/Closed Principle, ensuring you can radically alter serialization behavior per application without touching the core component structs.
+
+1\. Registration-Time Policy Override
+
+The `[DataPolicy]` attribute on a component acts only as a convention-based default. The platform explicitly allows the application layer (e.g., your CGF or SimHost setup) to override these attributes when the component is registered with the ECS `EntityRepository`.
+
+When you call `RegisterComponent<T>(DataPolicy? policyOverride = null)`, the explicit `policyOverride` takes absolute priority over any attributes decorating the struct.
+
+-   If a shared toolkit component is marked `[DataPolicy(DataPolicy.NoSave)]`, but your specific CGF application needs it persisted to reconstruct AI state, you simply register it with `RegisterComponent<MyComponent>(DataPolicy.Default)`.-   The kernel updates its internal `ComponentTypeRegistry` using your application's override.-   When the fallback 1:1 auto-serializer calls `GetSaveableMask()` later, it uses your injected policy, ensuring the component is included in the default save pass.
+
+2\. Custom Translator Pipeline Authority
+
+If you need to change _how_ the data is formatted—or if you need to merge multiple components into one JSON object—you rely on the `IEntityScenarioTranslator` pipeline we established.
+
+Because custom translators execute _before_ the 1:1 auto-serializer, they have supreme authority:
+
+-   **Active Override:** Your custom translator manually reads the raw ECS memory using `repo.GetComponentRO<T>()`. It does not care about `[ScenarioIgnore]` or `DataPolicy` rules because you are writing the explicit extraction logic. Once it extracts the data into a simplified DTO, it clears those component bits from the entity's consumption mask so the auto-serializer skips them.-   **Passive Fallback:** If no custom translator is registered for a specific component (or if a translator's `CanTranslate` returns false), the component's bit remains set in the consumption mask. The pipeline naturally falls through to the 1:1 Expression Tree auto-serializer. This fallback serializer strictly obeys whatever `DataPolicy` was resolved during the Registration-Time step.
+
+By combining these two mechanisms, you achieve perfectly clean architecture. The application layer dictates _what_ is saved via registration overrides, and _how_ complex data is shaped by injecting custom translators, while seamlessly falling back to high-performance, attribute-driven 1:1 serialization for the rest of your data.
+
+pls show conceptual example of a complex situation where an ECS entity contains some component that map 1:1 to scenario ones (but some contain entity references) and other ECS components that need to be 'compressed' to a different set of scenario components. What entity attributes, what translator registration and what translator (conceptual) implementation we will need for that?
+
+To cleanly handle this level of complexity, we must strictly separate the unmanaged ECS memory layout from the persistence schema. We will leverage a combination of declarative attributes for the simple cases and a custom Strategy implementation (the translator) for the complex N:M compressions.
+
+Let's model a `SmartMissile` entity. In the live ECS, it requires `SimTransform` (position), `GuidedTarget` (holds an `Entity` reference to the locked target), `SimVelocity` (transient physics state), `BallisticProjectile` (flight parameters), and `PhysicsCollider` (broadphase bounds).
+
+For the scenario file, we only want to save the instructions to reconstruct it. We want `SimTransform` and `GuidedTarget` to map 1:1, drop `SimVelocity` entirely, and compress `BallisticProjectile` and `PhysicsCollider` into a single, clean `ScenarioOrdnanceDef` JSON object.
+
+Here is the architectural blueprint for this implementation.
+
+1\. Declarative Attributes (The 1:1 and Ignored Paths)
+
+We keep the ECS structs pure. We use the platform's existing `[DataPolicy]` to completely exclude transient data from the scenario pipeline, pushing the filtering logic into the platform's high-performance compilation phase.
+
+```
+// 1:1 Mapping (Standard)
+public struct SimTransform { public Vector3 Position; public Quaternion Rotation; }
+
+// 1:1 Mapping with an Entity Reference
+public struct GuidedTarget { 
+    public Entity TargetId; // The auto-serializer will use IGuidResolver to patch this
+}
+
+// Completely Ignored (Never saved to scenario)
+[DataPolicy(DataPolicy.NoSave)]
+public struct SimVelocity { public Vector3 Linear; public Vector3 Angular; }
+```
+
+2\. The Scenario DTO (The Target Shape)
+
+This is the format-agnostic representation of your compressed data. It knows nothing about ECS chunks.
+
+```
+public class ScenarioOrdnanceDef
+{
+    public float Caliber { get; set; }
+    public float MaxRange { get; set; }
+}
+```
+
+3\. The Custom Entity-Level Translator (The N:M Mapping)
+
+We implement the custom translator. This explicitly declares a "Consumption Mask" using the platform's `BitMask256`. When the pipeline processes the entity, it removes these consumed bits from the entity's `ComponentMask`, guaranteeing the 1:1 auto-serializer ignores them.
+
+```
+using Fdp.Kernel;
+
+public class MissileOrdnanceTranslator : IEntityScenarioTranslator
+{
+    // 1. Declare what ECS components this translator compresses
+    public BitMask256 GetConsumedComponentsMask()
+    {
+        var mask = new BitMask256();
+        mask.SetBit(ComponentType<BallisticProjectile>.ID);
+        mask.SetBit(ComponentType<PhysicsCollider>.ID);
+        return mask;
+    }
+
+    // 2. Guard clause
+    public bool CanTranslate(EntityRepository repo, Entity entity)
+    {
+        return repo.HasComponent<BallisticProjectile>(entity) && 
+               repo.HasComponent<PhysicsCollider>(entity);
+    }
+
+    // 3. Extract and Compress (N ECS -> 1 DTO)
+    public Dictionary<string, object> Extract(EntityRepository repo, Entity entity, IGuidResolver guidResolver)
+    {
+        ref readonly var projectile = ref repo.GetComponentRO<BallisticProjectile>(entity);
+        ref readonly var collider = ref repo.GetComponentRO<PhysicsCollider>(entity);
+
+        var dto = new ScenarioOrdnanceDef
+        {
+            Caliber = collider.Radius * 2f, // Derive caliber from collider radius
+            MaxRange = projectile.MaxFlightTime * projectile.MuzzleVelocity // Domain math
+        };
+
+        // Return keyed by the desired Scenario component name
+        return new Dictionary<string, object> { { "OrdnanceDef", dto } };
+    }
+
+    // 4. Expand and Inject (1 DTO -> N ECS)
+    public void Inject(EntityRepository repo, Entity entity, Dictionary<string, object> scenarioData, IGuidResolver guidResolver)
+    {
+        if (!scenarioData.TryGetValue("OrdnanceDef", out var rawDto)) return;
+        var dto = (ScenarioOrdnanceDef)rawDto;
+
+        // Reconstruct the unmanaged ECS structs from the simplified DTO
+        repo.SetComponent(entity, new PhysicsCollider { Radius = dto.Caliber / 2f });
+        repo.SetComponent(entity, new BallisticProjectile { 
+            MuzzleVelocity = 1000f, 
+            MaxFlightTime = dto.MaxRange / 1000f 
+        });
+    }
+}
+```
+
+4\. Registration and Execution
+
+At application startup (e.g., inside your `SimHostApp` or `CGF` module), you inject this translator into the builder.
+
+```
+var scenarioSerializer = new ScenarioSerializerBuilder()
+    .RegisterTranslator(new MissileOrdnanceTranslator())
+    .Build();
+```
+
+**How the Pipeline Executes:** When the Drill State Machine orchestrates a save, the serialization pipeline processes the `SmartMissile` entity:
+
+-   It reads the entity's full `ComponentMask`. `SimVelocity` is instantly excluded because of `[DataPolicy(DataPolicy.NoSave)]`.-   It evaluates `MissileOrdnanceTranslator`. The translator consumes `BallisticProjectile` and `PhysicsCollider`, clearing their bits from the mask and emitting the `"OrdnanceDef"` JSON object.-   The pipeline falls back to the JIT-compiled 1:1 auto-serializer for the remaining bits. It sees `SimTransform` and `GuidedTarget`.-   For `GuidedTarget`, the auto-serializer identifies the `Entity` field, queries the `IGuidResolver`, and patches the volatile memory index into a persistent GUID string seamlessly.
+
+This architecture strictly enforces the Open/Closed Principle. The core ECS memory layout remains heavily optimized for CPU cache lines, while the scenario saving mechanism remains infinitely extensible without ever polluting the domain models.
+
+Dnes • 22:06
+

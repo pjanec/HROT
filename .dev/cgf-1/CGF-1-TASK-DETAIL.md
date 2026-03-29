@@ -713,36 +713,71 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
 **Work to do:**
 1. Create project `FDP.Toolkit.Scenario.csproj` referencing only `Fdp.Kernel` and
    `System.Text.Json`.
-2. Declare `IEntityScenarioTranslator<TDto>`:
+2. Declare non-generic `IEntityScenarioTranslator` with consumption mask:
    ```csharp
-   public interface IEntityScenarioTranslator<TDto> where TDto : class
+   public interface IEntityScenarioTranslator
    {
-       bool  CanTranslate(EntityRepository repo, Entity entity);
-       TDto  Extract(EntityRepository repo, Entity entity);
-       void  Inject(EntityRepository repo, Entity entity, TDto dto);
+       BitMask256 GetConsumedComponentsMask();
+       bool CanTranslate(EntityRepository repo, Entity entity);
+       Dictionary<string, object> Extract(
+           EntityRepository repo, Entity entity, IGuidResolver guidResolver);
+       void Inject(
+           EntityRepository repo, Entity entity,
+           Dictionary<string, object> scenarioData, IGuidResolver guidResolver);
    }
    ```
-3. Implement `ScenarioSerializerBuilder`:
-   - `RegisterTranslator<TDto>(IEntityScenarioTranslator<TDto> translator)` stores the
-     translator alongside its `TDto` type.
-   - `Build()` compiles `Func<object, JsonObject>` and `Action<JsonObject, object>`
-     delegates for each registered `TDto` using `Expression.Property` trees. No
-     runtime `Type.GetProperties()` calls on the hot path.
-   - Returns a frozen `ScenarioSerializer` instance.
-4. Implement `ScenarioSerializer`:
-   - `JsonObject Serialize(EntityRepository repo, ScenarioHeader header)`: two-pass
-     GUID resolution (see design §5.6), produces a `JsonObject` matching the schema.
-   - `void Deserialize(EntityRepository repo, JsonObject dom, bool asStory = false, string? storyId = null)`:
-     two-pass GUID resolution; if `asStory`, stamps `StoryTag { StoryId = storyId }`
-     on every spawned entity.
-5. Add `[ScenarioProperty]` and `[ScenarioIgnore]` attributes.  
-   For components without a registered `IEntityScenarioTranslator`, the fallback path
-   reads these attributes at `Build()` time and pre-compiles delegates — still no
-   runtime reflection on the hot path.
-6. Define `ScenarioHeader`:
+3. Declare `IGuidResolver`:
+   ```csharp
+   public interface IGuidResolver
+   {
+       string Resolve(Entity entity);    // save: Entity → stable Guid string
+       Entity Resolve(string guidStr);   // load: Guid string → live Entity
+   }
+   ```
+   `ScenarioSerializer` builds two concrete implementations — one for save (backed by
+   `Dictionary<Entity, Guid>`) and one for load (backed by `Dictionary<Guid, Entity>`).
+   Both are populated during the first entity-enumeration pass.
+4. Implement `FdpAutoSerializer` (DOM-aware, not the already existing binary one!):
+   - `Build(ComponentTypeRegistry registry)` iterates all registered component types.
+   - For each type, use `Expression.Property` to compile:
+     - `Func<object, JsonObject, IGuidResolver, JsonObject>` (extract: reads struct fields,
+       skips `[ScenarioIgnore]` fields, patches `Entity`-typed fields via `guidResolver.Resolve(entity)`).
+     - `Action<object, JsonObject, IGuidResolver>` (inject: writes struct fields, patches
+       guid strings back to `Entity` via `guidResolver.Resolve(guidStr)`).
+   - No `Type.GetProperties()` or `PropertyInfo.GetValue` on the hot path.
+   - Components flagged `DataPolicy.NoSave` in the `ComponentTypeRegistry` are excluded
+     from delegate compilation entirely (they will never appear in the consumption mask).
+5. Implement `ScenarioSerializerBuilder`:
+   - `RegisterTranslator(IEntityScenarioTranslator translator)` stores the translator.
+   - `Build()` compiles `FdpAutoSerializer`, freezes the translator list, returns a
+     `ScenarioSerializer` instance.
+6. Implement `ScenarioSerializer`:
+   - `JsonObject Serialize(EntityRepository repo, ScenarioHeader header)`:
+     - Pass 1: enumerate all entities **not** carrying `ScenarioIgnoreTag`; build
+       `IGuidResolver` (save variant).
+     - Pass 2: for each entity, run the consumption-mask pipeline:
+       1. `remainingMask = repo.GetSaveableMask(entity)` (already excludes `DataPolicy.NoSave`).
+       2. For each registered translator: if `CanTranslate` → `Extract` → add named
+          entries to entity DOM → `remainingMask.BitwiseAndNot(consumedMask)`.
+       3. `FdpAutoSerializer` processes remaining set bits (with `[ScenarioIgnore]` skips
+          and `IGuidResolver` patches).
+   - `void Deserialize(EntityRepository repo, JsonObject dom, bool asStory = false, Guid? storyId = null)`:
+     - Peek `Header.SubsystemType`: if mismatched, return immediately (no entity creation).
+     - Pass 1: create all ECS entities; build `IGuidResolver` (load variant).
+     - Pass 2: for each entity, route named scenario components to matching translator
+       `Inject` calls; remaining components to `FdpAutoSerializer` inject delegates.
+     - If `asStory`, stamp **`FDP.Toolkit.Replay.StoryTag { StoryId = storyId.Value }`** on every created entity (`storyId` must be non-null and not `Guid.Empty`, or throw). **Single canonical type:** do not define a second `StoryTag` in `FDP.Toolkit.Scenario` — reuse the existing **`struct`** in **`FDP.Toolkit.Replay`** (`Guid StoryId`, `ReplayComponentIds.StoryTag`). Application-layer JSON may still carry story id as a string; **parse to `Guid` once** before calling `Deserialize`.
+7. Define `ScenarioHeader`:
    ```csharp
    public record ScenarioHeader(string SubsystemType, int SchemaVersion = 1);
    ```
+8. Add `[ScenarioIgnore]` attribute for field-level exclusion.
+   Add `ScenarioIgnoreTag` empty component (`[DataPolicy(DataPolicy.NoSave)]`) for
+   entity-level exclusion; queries chain `.Without<ScenarioIgnoreTag>()` to skip them.
+
+**Note on `[DataPolicy(DataPolicy.NoSave)]`:** This is an existing FDP mechanism;
+`EntityRepository.GetSaveableMask()` already filters excluded components automatically.
+Do not reinvent it — just call `GetSaveableMask()` as the starting point.
 
 **Schema contract to assert:**
 ```json
@@ -755,27 +790,47 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
 ```
 
 **Success conditions (unit tests in `FDP.Toolkit.Scenario.Tests`):**
-- `ScenarioSerializerTests.RoundTrip_PreservesAllProperties`:
-  - Register a translator for a `DummyPosition` component; serialize 3 entities;
-    deserialize into a fresh `EntityRepository`; assert each entity's `DummyPosition`
-    matches the original.
-- `ScenarioSerializerTests.EntityCrossReference_ResolvedByTwoPass`:
-  - Entity A has a field `TargetEntityId: Entity` pointing to Entity B.
-  - After serialize/deserialize, assert the resolved entity handle is valid and
-    refers to an entity with the same component data as the original Entity B.
+- `ScenarioSerializerTests.RoundTrip_1to1_PreservesAllFields`:
+  - Register no custom translators. Create 3 entities each with a `DummyPosition`
+    component (not `NoSave`). Serialize; deserialize into fresh repo.
+  - Assert each entity's `DummyPosition` matches original via `FdpAutoSerializer`.
+- `ScenarioSerializerTests.NtoM_CustomTranslator_CompressesComponents`:
+  - Register `MissileOrdnanceTranslator` (consumes `BallisticProjectile` + `PhysicsCollider`;
+    outputs single `"OrdnanceDef"` entry).
+  - Serialize one entity with all three components; assert DOM has `"OrdnanceDef"` key,
+    no `"BallisticProjectile"` key, no `"PhysicsCollider"` key.
+  - Deserialize; assert entity has both `BallisticProjectile` and `PhysicsCollider`
+    with reconstructed values.
+- `ScenarioSerializerTests.ConsumptionMask_PreventsDuplication`:
+  - Verify that after `MissileOrdnanceTranslator.Extract()` runs, the consumed bits
+    are cleared from `remainingMask` and `FdpAutoSerializer` does not emit entries for
+    `BallisticProjectile` or `PhysicsCollider`.
+- `ScenarioSerializerTests.EntityCrossReference_ResolvedViaIGuidResolver`:
+  - Entity A has `GuidedTarget { TargetId: Entity }` pointing to Entity B.
+  - Serialize; assert DOM field for `TargetId` is a GUID string, not an integer index.
+  - Deserialize into fresh repo; assert resolved handle is valid and refers to an
+    entity whose component data matches original Entity B.
+- `ScenarioSerializerTests.DataPolicyNoSave_ComponentExcluded`:
+  - Create an entity with `SimVelocity` (`[DataPolicy(DataPolicy.NoSave)]`).
+  - Serialize; assert DOM has no `"SimVelocity"` key for that entity.
+- `ScenarioSerializerTests.ScenarioIgnore_FieldExcluded`:
+  - Component `CachedSpeedComponent` has `float MaxSpeed` (saved) and
+    `[ScenarioIgnore] float CachedWheelAngle` (excluded).
+  - Serialize; assert DOM object for `CachedSpeedComponent` has `"MaxSpeed"` but
+    no `"CachedWheelAngle"` key.
+- `ScenarioSerializerTests.ScenarioIgnoreTag_EntitySkipped`:
+  - Create one entity with `ScenarioIgnoreTag`. Serialize; assert it does not appear
+    in `dom["Entities"]`.
 - `ScenarioSerializerTests.StoryLoad_StampsStoryTag`:
-  - Deserialize with `asStory: true, storyId: "story_01"`.
-  - Assert every created entity has `StoryTag { StoryId = "story_01" }`.
-- `ScenarioSerializerTests.SubsystemType_PresentInHeader`:
-  - Serialize with `SubsystemType = "Bagira.CGF"`.
-  - Assert `dom["Header"]["SubsystemType"].GetValue<string>() == "Bagira.CGF"`.
-- `ScenarioSerializerTests.Deserialize_NonMatchingSubsystemType_DoesNotSpawnEntities`:
-  - Build a serializer for `"Bagira.CGF"`; call `Deserialize` with a DOM whose
-    `SubsystemType == "Bagira.SimHost"`.
+  - Deserialize with `asStory: true` and a non-empty **`Guid`** (e.g. a fixed test `Guid`).
+  - Assert every created entity has **`FDP.Toolkit.Replay.StoryTag`** with matching **`StoryId`**.
+- `ScenarioSerializerTests.SubsystemType_MismatchSkipsDeserialize`:
+  - Deserialize a DOM with `SubsystemType = "Bagira.SimHost"` using a serializer
+    configured for `"Bagira.CGF"`.
   - Assert `EntityRepository.EntityCount` does not increase.
-- `ScenarioSerializerBuilder_Build_CompilesWithoutReflectionOnHotPath`:
-  - After `Build()`, confirm no `PropertyInfo.GetValue` is reachable from any compiled
-    delegate (inspect via a `Func<>` wrapper that asserts `MethodInfo.IsSpecialName`).
+- `ScenarioSerializerTests.FdpAutoSerializer_NoReflectionOnHotPath`:
+  - After `Build()`, invoke `Serialize`; assert no `PropertyInfo.GetValue` calls
+    occur (use a profiling stub or delegate inspection).
 
 ---
 
@@ -836,29 +891,29 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
      `OperationStep(StartStory, { StoryId, ScenarioId })`.
    - For `Mode:Stop`: append `OperationStep(StopStory, { StoryId })`.
 2. Implement `StoryLoadDsmHandler` in `Bagira.SimHost` (and `Bagira.CGF`):
-   - On `StartStory(storyId, scenarioId)`:
+   - On `StartStory(storyId, scenarioId)` (**`storyId`: `Guid`** — parse from payload JSON if the wire format uses strings):
      - Load DOM from `C:\FDP_Temp\<scenarioId>\{SubsystemType}.json`.
      - Peek `Header.SubsystemType`; if mismatch, reply
        `NodeOpStatus(Success, IsParticipating: false)`.
      - If match, call `ScenarioSerializer.Deserialize(repo, dom, asStory: true, storyId)`.
      - Reply `NodeOpStatus(Success, IsParticipating: true)`.
-   - On `StopStory(storyId)`:
-     - Query all entities with `StoryTag.StoryId == storyId`.
+   - On `StopStory(storyId)` (**`Guid`**):
+     - Query all entities with **`FDP.Toolkit.Replay.StoryTag`** where **`StoryId == storyId`**.
      - Destroy each entity.
      - Reply `NodeOpStatus(Success)`.
 3. Extend `DrillMaster` to track active stories in `OrchestratorContextTopic.ActiveStories`
-   (`List<string>` of active story IDs; published after each Start/Stop operation).
+   (**`List<Guid>`** of active story IDs, or a wire-serializable equivalent; published after each Start/Stop operation).
 4. Extend `NodeOpStatus` with `bool IsParticipating` field (default `true`).  
    `DrillMaster` waits only for ACKs from nodes that replied `IsParticipating: true`
    during the `PrepareStory` phase.
 
 **Success conditions (integration tests in `Bagira.SimHost.Integration.Tests`):**
 - `StoryInjectionTests.StartStory_EntitiesSpawnedWithStoryTag`:
-  - System is in `RunningLive`. Inject story `"story_01"` targeting `Bagira.SimHost`.
+  - System is in `RunningLive`. Inject a story with a known **`Guid`** `storyId` targeting `Bagira.SimHost`.
   - Assert 3 new entities appear in `EntityRepository`.
-  - Assert each has `StoryTag.StoryId == "story_01"`.
+  - Assert each has **`FDP.Toolkit.Replay.StoryTag`** with **`StoryId == storyId`**.
 - `StoryInjectionTests.StopStory_EntitiesDestroyedByStoryTag`:
-  - Inject `"story_01"` (3 entities). Stop `"story_01"`.
+  - Inject `storyId` (3 entities). Stop the same **`Guid`**.
   - Assert those 3 entities are no longer in `EntityRepository`.
 - `StoryInjectionTests.StartStory_NonMatchingSubsystem_ReturnsIsParticipatingFalse`:
   - Create a story file with `SubsystemType = "Bagira.CGF"`.
@@ -869,6 +924,6 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
   - Issue `SysOpRequest(ManageStory, { Mode:Start })` while cluster is in `Standby`.
   - Assert response is `OpStatus.InvalidState`.
 - `StoryInjectionTests.MultipleStoriesCoexist_IndependentDeletion`:
-  - Inject stories `"s1"` (3 entities) and `"s2"` (2 entities).
-  - Stop `"s1"`.
-  - Assert `"s1"` entities gone; assert `"s2"` entities still present.
+  - Inject two distinct story **`Guid`**s `s1` / `s2` (3 and 2 entities).
+  - Stop `s1`.
+  - Assert `s1` entities gone; assert `s2` entities still present.

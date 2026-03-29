@@ -81,4 +81,4 @@ Implement **`StorageGatewayModule`** (or equivalent), **`FileManifestEntry`**, *
 - [CGF-1-BATCH-09 review Issues](../reviews/CGF-1-BATCH-09-REVIEW.md#gaps-schedule-batch-10)  
 - **Review:** [CGF-1-BATCH-10-REVIEW.md](../reviews/CGF-1-BATCH-10-REVIEW.md) — APPROVED  
 
-**Next:** [CGF-1-BATCH-11](CGF-1-BATCH-11-INSTRUCTIONS.md) — debt + **CGF1-S0306**, **CGF1-S0307** (then **S0302**).
+**Next:** [CGF-1-BATCH-11](CGF-1-BATCH-11-INSTRUCTIONS.md) — debt + **CGF1-S0306**; **CGF1-S0307** → **BATCH-12**; **S0302** after S0306+S0307.

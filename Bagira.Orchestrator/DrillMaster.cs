@@ -44,7 +44,7 @@ public sealed class DrillMaster : IDisposable
     /// <summary>
     /// Tracks in-progress <c>SerializeLocal</c> rounds keyed by transaction ID.
     /// Each entry records the number of outstanding ACKs and the manifests collected
-    /// so far.  When <see cref="_remainingAcks"/> reaches zero,
+    /// so far.  When <c>SerializeLocalTask.RemainingAcks</c> reaches zero,
     /// <see cref="ConsumeNodeOpStatuses"/> fires <see cref="StorageGatewayModule.PullToNasAsync"/>.
     /// </summary>
     private readonly Dictionary<Guid, SerializeLocalTask> _pendingSerializeTasks = new();

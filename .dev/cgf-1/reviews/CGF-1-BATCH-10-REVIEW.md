@@ -68,4 +68,4 @@ Refs: CGF-1-BATCH-10, CGF1-S0301
 
 ## Next batch
 
-See **[CGF-1-BATCH-11](../batches/CGF-1-BATCH-11-INSTRUCTIONS.md)**: tech-debt first, then **CGF1-S0306** and **CGF1-S0307** before **CGF1-S0302** (per sequencing decision).
+See **[CGF-1-BATCH-11](../batches/CGF-1-BATCH-11-INSTRUCTIONS.md)**: tech-debt first, then **CGF1-S0306**. **CGF1-S0307** is scheduled for **CGF-1-BATCH-12**; **CGF1-S0302** follows after both land.
