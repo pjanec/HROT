@@ -331,10 +331,12 @@ namespace Bagira.SimHost
             var scenarioSerializer = new ScenarioSerializerBuilder("Bagira.SimHost").Build();
 
             // CheckpointIOWorker: starts its background I/O thread here; owned by SimHostApp
-            // and disposed in Shutdown().  Storage directory: C:\FDP_Temp\checkpoints.
-            // Passed to BuildOrchestration so CheckpointDsmHandler and LiveLoadDsmHandler
-            // are wired with the same instance (CGF1-S0303 production wiring, Part A.1).
-            const string checkpointStoragePath = @"C:\FDP_Temp\checkpoints";
+            // and disposed in Shutdown().
+            // Storage directory: derived from NodeConfiguration.LocalTempRoot so that checkpoints
+            // are co-located with pre-fetched scenario files under the same root volume
+            // (CGF1-S0303 / A.3 config alignment).  Default: C:\FDP_Temp\checkpoints.
+            // Override LocalTempRoot in config.json for non-default deployments.
+            var checkpointStoragePath = System.IO.Path.Combine(nodeConfig.LocalTempRoot, "checkpoints");
             _checkpointWorker = new CheckpointIOWorker(checkpointStoragePath, localNodeId);
 
             // Built here so SimHostApp owns lifetime; Tick() called in OnUpdate.
@@ -344,6 +346,7 @@ namespace Bagira.SimHost
                 subsystemName: "SimHost",
                 eventBus: _eventBus,
                 scenarioSerializer: scenarioSerializer,
+                localTempRoot: nodeConfig.LocalTempRoot,
                 checkpointWorker: _checkpointWorker);
 
             _kernelGroup = new SystemGroup();

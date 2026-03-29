@@ -578,7 +578,9 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
   - Inject two rapid `TakeSnapshot` commands (Req_A then Req_B, 100 ms apart sim time).
   - Assert `NodeOpStatus(InProgress)` messages are published immediately for both.
   - Assert `NodeOpStatus(Success)` messages arrive only **after** disk writes complete
-    (verified by mocking `CheckpointIOWorker.OnItemWritten` callback).
+    (verified by polling `CheckpointIOWorker.TakeCompletedResults()` to confirm the
+    deferred ACK path — i.e. the frame-monitor loop in `DrainDeferredAcks` publishes
+    Success only once `TakeCompletedResults` returns the matching `requestId`).
 - `CheckpointDsmHandlerTests.SecondSnapshotCaptures_DifferentState_thanFirst`:
   - Between Req_A and Req_B, mutate a component value in `liveRepo`.
   - Assert that the deserialized snapshot from Req_A has the old value and
@@ -962,7 +964,7 @@ primitive into the DSM lifecycle to power the edit-preview-rewind loop.
 **Work to do:**
 
 1. Implement `DryRunDsmHandler` in
-   `Bagira.SimHost/Modules/Orchestration/Handlers/DryRunDsmHandler.cs`:
+   `Bagira.Common/Orchestration/Handlers/DryRunDsmHandler.cs`:
    - Constructor accepts `EntityRepository? liveRepo` (nullable for subsystems
      without ECS, e.g. `Bagira.IOS`).
    - `CanHandle(NodeOpType op)` returns `true` for `NodeOpType.PrepareState`.
@@ -984,31 +986,33 @@ primitive into the DSM lifecycle to power the edit-preview-rewind loop.
    - **Do not** implement `ITickableDsmHandler` — there are no deferred ACKs.
    - **Do not** touch `CheckpointIOWorker` — this is a RAM-only path.
 
-2. Register `DryRunDsmHandler` in `SimHostApp` (and `CgfApp`) alongside the
-   existing `CheckpointDsmHandler` and `EditLoadDsmHandler` registrations.
-   Pass the live `EntityRepository` reference from `ModuleHostKernel`.
+2. Register `DryRunDsmHandler` in `NodeBootstrapper.BuildOrchestration` (already done via
+   `Bagira.Common`), and in `CgfApplication` alongside the existing DSM handlers.
+   Pass the live `EntityRepository` reference (or `null` for ECS-less subsystems).
 
-3. Add the same handler (with `liveRepo = null`) in `Bagira.IOS` and `Bagira.IG`
-   `DrillSlave` registrations so those subsystems participate in the 2PC round-trip
-   without error even though they have no ECS world.
+3. `Bagira.IOS` and `Bagira.IG` register the handler with `liveRepo = null` so they
+   participate in the 2PC round-trip without error.
 
 **Success conditions:**
 
 - `DryRunDsmHandlerTests.LoadingDryRun_SnapshotCapturesLiveState`:
-  - Build a `liveRepo` with 4 entities, each with a known `SimPosition` value.
+  - Build a `liveRepo` registered with `DryRunTestPos` (ComponentId 210).
+    Create 4 entities, each with a known `DryRunTestPos` value.
   - Create `DryRunDsmHandler(liveRepo)`.
   - Call `Commit(PrepareState → LoadingDryRun, liveRepo)`.
-  - Assert `_snap` (exposed via internal test accessor) is non-null.
+  - Assert `_snap` (exposed via `TestHook_Snap` internal accessor) is non-null.
   - Assert `_snap.EntityCount == 4`.
-  - Assert the `SimPosition` values in `_snap` match those in `liveRepo`.
+  - Assert the `DryRunTestPos` values in `_snap` match those in `liveRepo`.
 
 - `DryRunDsmHandlerTests.UnloadingDryRun_RewindsLiveRepo`:
-  - After `LoadingDryRun` commit (4 entities, known positions), mutate one
-    `SimPosition` in `liveRepo` to a different value.
-  - Add a 5th entity to `liveRepo`.
-  - Call `Commit(PrepareState → UnloadingDryRun, liveRepo)`.
-  - Assert `liveRepo.EntityCount == 4` (5th entity gone).
-  - Assert the mutated `SimPosition` has been **reverted** to its original value.
+  - Build a `liveRepo` with 4 entities, each with known `DryRunTestPos` values.
+  - Call `Commit(PrepareState → LoadingDryRun)` — snapshot captures 4 entities.
+  - Tick `liveRepo` once (required so `SyncDirtyChunks` detects mutation).
+  - Mutate one entity's `DryRunTestPos` in `liveRepo`.
+  - **Spawn an extra (5th) entity** in `liveRepo`.
+  - Call `Commit(PrepareState → UnloadingDryRun)`.
+  - Assert `liveRepo.EntityCount == 4` (5th entity removed by rewind).
+  - Assert the mutated `DryRunTestPos` has been **reverted** to its original value.
 
 - `DryRunDsmHandlerTests.UnloadingDryRun_DisposesSnapshot`:
   - After a full `LoadingDryRun` + `UnloadingDryRun` cycle, assert `_snap == null`

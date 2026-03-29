@@ -74,38 +74,55 @@ namespace Bagira.SimHost.Tests
 
         /// <summary>
         /// After an UnloadingDryRun commit the live repository must reflect the state
-        /// that was snapshotted at LoadingDryRun time, reversing any in-flight changes.
+        /// that was snapshotted at LoadingDryRun time — reversing both component mutations
+        /// AND entity creations that occurred during the dry-run session.
+        ///
+        /// <para>Specifically: a 5th entity spawned during the dry run must be absent
+        /// after rewind (EntityCount == 4), proving that SyncFrom removes entities
+        /// created during the dry run, not only rewinding component values.</para>
         /// </summary>
         [Fact]
         public async Task UnloadingDryRun_RewindsLiveRepo()
         {
-            var e = _liveRepo.CreateEntity();
-            _liveRepo.SetComponent(e, new DryRunTestPos { X = 10f, Y = 20f, Z = 30f });
+            // 1. Build a 4-entity live repo with known positions.
+            var entities = new Entity[4];
+            for (int i = 0; i < 4; i++)
+            {
+                entities[i] = _liveRepo.CreateEntity();
+                _liveRepo.SetComponent(entities[i], new DryRunTestPos { X = i * 10f, Y = i * 20f, Z = i * 30f });
+            }
+            Assert.Equal(4, _liveRepo.EntityCount);
 
             var handler = new DryRunDsmHandler(_liveRepo);
 
-            // 1. Enter dry run — snapshot captures (10, 20, 30).
+            // 2. Enter dry run — snapshot captures 4 entities with original positions.
             var loadCmd = MakePrepareStateCmd(DSMState.LoadingDryRun);
             await handler.PrepareAsync(loadCmd, default);
             handler.Commit(loadCmd, _liveRepo);
 
-            // 2. Advance one frame (simulates normal engine tick during the dry-run session).
-            //    Without Tick(), SetComponent reuses the same global version and chunk version
-            //    matches the snapshot, so SyncDirtyChunks would skip the rewind copy.
+            // 3. Advance one frame so SyncDirtyChunks detects mutations after the snapshot.
             _liveRepo.Tick();
 
-            // 3. Simulate in-flight dry-run mutation.
-            _liveRepo.SetComponent(e, new DryRunTestPos { X = 99f, Y = 99f, Z = 99f });
+            // 4. Mutate an existing entity's component during the dry-run session.
+            _liveRepo.SetComponent(entities[0], new DryRunTestPos { X = 99f, Y = 99f, Z = 99f });
 
-            // 3. Exit dry run — live repo must rewind to (10, 20, 30).
+            // 5. Spawn an extra (5th) entity during the dry-run session.
+            _liveRepo.CreateEntity();
+            Assert.Equal(5, _liveRepo.EntityCount);
+
+            // 6. Exit dry run — live repo must rewind to pre-dry-run state.
             var unloadCmd = MakePrepareStateCmd(DSMState.UnloadingDryRun);
             await handler.PrepareAsync(unloadCmd, default);
             handler.Commit(unloadCmd, _liveRepo);
 
-            var pos = _liveRepo.GetComponent<DryRunTestPos>(e);
-            Assert.Equal(10f, pos.X);
-            Assert.Equal(20f, pos.Y);
-            Assert.Equal(30f, pos.Z);
+            // 7. Entity count must be back to 4 (5th entity removed by SyncFrom).
+            Assert.Equal(4, _liveRepo.EntityCount);
+
+            // 8. Mutated component must be reverted to its original value.
+            var pos = _liveRepo.GetComponent<DryRunTestPos>(entities[0]);
+            Assert.Equal(0f, pos.X);
+            Assert.Equal(0f, pos.Y);
+            Assert.Equal(0f, pos.Z);
         }
 
         // ── S0309-T3: UnloadingDryRun disposes snapshot ───────────────────────

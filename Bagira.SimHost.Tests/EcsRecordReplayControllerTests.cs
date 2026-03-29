@@ -146,6 +146,72 @@ namespace Bagira.SimHost.Tests
             await loopTask;
         }
 
+        // ── CGF1-S0304 success condition 3 ───────────────────────────────────────
+
+        /// <summary>
+        /// After a 10-tick recording session is finalized:
+        /// <list type="bullet">
+        ///   <item>A <c>.meta.json</c> file exists at the expected path.</item>
+        ///   <item>The JSON contains <c>"MaxNetworkId"</c> &gt;= 0 (well-formed manifest).</item>
+        /// </list>
+        /// When <c>maxNetworkId > 0</c> is passed to <c>FinalizeRecordingAsync</c> the
+        /// value is faithfully round-tripped to disk (CGF1-S0304).
+        /// </summary>
+        [Fact(Timeout = 15_000)]
+        public async Task FinalizeRecording_WritesMetaJson()
+        {
+            var drillId    = Guid.NewGuid();
+            var controller = new EcsRecordReplayController(_kernel, nodeId: 1, _world);
+
+            using var cts      = new CancellationTokenSource();
+            var       loopTask = RunKernelLoop(_kernel, cts.Token);
+
+            _world.SetSingletonUnmanaged(new Fdp.Kernel.GlobalTime
+            {
+                DeltaTime       = 0.016f,
+                TimeScale       = 1.0f,
+                TotalWallTicks  = 1000L,
+            });
+
+            await controller.PrepareRecordingAsync(drillId, _tempDir);
+
+            // Drive 10 update frames so the recorder has real data.
+            for (int i = 0; i < 10; i++)
+            {
+                _world.SetSingletonUnmanaged(new Fdp.Kernel.GlobalTime
+                {
+                    DeltaTime       = 0.016f,
+                    TimeScale       = 1.0f,
+                    TotalWallTicks  = 1000L + i * 16L,
+                });
+                await Task.Delay(20);   // let kernel loop tick
+            }
+
+            // Finalize with a known MaxNetworkId so the value is verifiable.
+            const long expectedMaxNetworkId = 42L;
+            await controller.FinalizeRecordingAsync(maxNetworkId: expectedMaxNetworkId);
+
+            cts.Cancel();
+            await loopTask;
+
+            // Assert .meta.json exists somewhere under _tempDir (search recursively to be
+            // agnostic of the exact drill-directory naming convention).
+            var metaFiles = Directory.GetFiles(_tempDir, "*.meta.json", SearchOption.AllDirectories);
+            Assert.True(metaFiles.Length > 0,
+                $"Expected at least one .meta.json under {_tempDir} after FinalizeRecordingAsync.");
+
+            var metaPath = metaFiles[0];
+            Assert.True(File.Exists(metaPath), $"Expected .meta.json at {metaPath}.");
+
+            var json = await File.ReadAllTextAsync(metaPath);
+            Assert.Contains("MaxNetworkId", json);
+
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            Assert.True(doc.RootElement.TryGetProperty("MaxNetworkId", out var prop),
+                "meta.json must contain MaxNetworkId field.");
+            Assert.Equal(expectedMaxNetworkId, prop.GetInt64());
+        }
+
         // ── Helpers ───────────────────────────────────────────────────────────────
 
         private static Task RunKernelLoop(ModuleHostKernel kernel, CancellationToken ct) =>

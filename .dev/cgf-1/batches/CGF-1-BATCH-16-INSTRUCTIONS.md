@@ -22,7 +22,7 @@ Ship **Part A** first so **TASK-DETAIL**, **tests**, and **checkpoint path** do 
 3. [.dev/cgf-1/reviews/CGF-1-BATCH-15-REVIEW.md](../reviews/CGF-1-BATCH-15-REVIEW.md) — gaps (spec/test/config)  
 4. [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md) — rows **Target Fix = CGF-1-BATCH-16**
 
-**Report:** `.dev/cgf-1/reports/CGF-1-BATCH-16-REPORT.md` (when complete)
+**Report:** [CGF-1-BATCH-16-REPORT.md](../reports/CGF-1-BATCH-16-REPORT.md) — **Review:** [CGF-1-BATCH-16-REVIEW.md](../reviews/CGF-1-BATCH-16-REVIEW.md)
 
 ---
 
@@ -72,11 +72,11 @@ Implement per task detail (high level):
 
 ## Success criteria
 
-- [ ] Part A: TASK-DETAIL S0309 accurate; dry-run test proves entity removal on rewind; checkpoint path documented or configurable; optional S0303 wording; DEBT rows closed.  
-- [ ] Part B: CGF1-S0304 artefacts + tests per task detail.  
-- [ ] Solution build clean.  
-- [ ] **CGF-1-TASK-TRACKER** marks **S0304** `[x]` when Part B complete.  
-- [ ] Report filed.
+- [x] Part A: TASK-DETAIL S0309 accurate; dry-run test proves entity removal on rewind; checkpoint path documented or configurable; optional S0303 wording; DEBT rows closed.  
+- [x] Part B: CGF1-S0304 artefacts + tests per task detail (production **`ReplayLoadDsmHandler`** wiring deferred — [BATCH-16 review](../reviews/CGF-1-BATCH-16-REVIEW.md)).  
+- [x] Solution build clean.  
+- [x] **CGF-1-TASK-TRACKER** marks **S0304** `[x]` when Part B complete (with BATCH-17 follow-up for SimHost replay registration).  
+- [x] Report filed.
 
 ---
 

@@ -74,6 +74,23 @@ namespace Bagira.SimHost
         /// <summary>Geodetic reference origin for WGS-84 projection (default: Tel Aviv area). Absorbed from SimHostConfig (DB-MOD1-09).</summary>
         public GeodeticOriginConfig GeodeticOrigin { get; init; } = new();
 
+        // ── Persistence ───────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Root directory for all node-local temporary data: pre-fetched scenario files,
+        /// checkpoints, and drill recording manifests.
+        ///
+        /// <para>
+        /// Scenario staging uses sub-directories of the form
+        /// <c>{LocalTempRoot}/{ScenarioId}/</c>.
+        /// Checkpoint storage uses <c>{LocalTempRoot}/checkpoints/</c> so that both
+        /// are co-located and share the same root for capacity planning and cleanup.
+        /// Override in <c>config.json</c> on nodes where <c>C:\FDP_Temp</c> is not
+        /// the correct volume (e.g. Linux deployments, non-<c>C:</c> drives).
+        /// </para>
+        /// </summary>
+        public string LocalTempRoot { get; init; } = @"C:\FDP_Temp";
+
         // ── Serialisation ─────────────────────────────────────────────────────
 
         private static readonly JsonSerializerOptions _jsonOptions = new()

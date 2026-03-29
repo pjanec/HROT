@@ -4,13 +4,14 @@ using Bagira.SimHost.Modules;
 using Bagira.SimHost.Modules.Orchestration;
 using Bagira.SimHost.Modules.Orchestration.Handlers;
 using Bagira.SimHost.Network;
-using Fdp.Kernel.Orchestration;using CarKinem.Commands;
+using Fdp.Kernel;
+using Fdp.Kernel.Orchestration;
+using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
-using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
@@ -273,6 +274,22 @@ namespace Bagira.SimHost
         /// same worker is forwarded to <see cref="LiveLoadDsmHandler"/> so that
         /// <c>FinalizeLive</c> awaits checkpoint drain before unloading (CGF1-S0303 A.1).
         /// </param>
+        /// <param name="simGroup">
+        /// Optional <see cref="Fdp.Kernel.SimulationSystemGroup"/>.  When provided together
+        /// with <paramref name="lifecycleGroup"/> and <paramref name="ghostCreationSystem"/>,
+        /// a <see cref="ReplayLoadDsmHandler"/> is registered and these objects are disabled /
+        /// re-enabled during <c>PrepareReplay</c> / <c>FinalizeReplay</c> transitions
+        /// (CGF1-S0304).
+        /// </param>
+        /// <param name="lifecycleGroup">
+        /// Optional <see cref="ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup"/> gating
+        /// the three network lifecycle systems during replay.
+        /// </param>
+        /// <param name="ghostCreationSystem">
+        /// Optional <see cref="FDP.Toolkit.Replication.Systems.GhostCreationSystem"/> whose
+        /// <see cref="FDP.Toolkit.Replication.Systems.GhostCreationSystem.BypassLifecycle"/>
+        /// flag is toggled during replay transitions.
+        /// </param>
         public DrillSlave BuildOrchestration(
             NodeRole role,
             ModuleHost.Core.ModuleHostKernel kernel,
@@ -283,7 +300,10 @@ namespace Bagira.SimHost
             Fdp.Kernel.FdpEventBus? eventBus = null,
             FDP.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,
             string localTempRoot = @"C:\FDP_Temp",
-            CheckpointIOWorker? checkpointWorker = null)
+            CheckpointIOWorker? checkpointWorker = null,
+            Fdp.Kernel.SimulationSystemGroup? simGroup = null,
+            ModuleHost.Core.Scheduling.NetworkLifecycleSystemGroup? lifecycleGroup = null,
+            FDP.Toolkit.Replication.Systems.GhostCreationSystem? ghostCreationSystem = null)
         {
             if (participant == null && (role == NodeRole.Brain || role == NodeRole.AllInOne))
                 throw new ArgumentNullException(nameof(participant),
@@ -294,17 +314,40 @@ namespace Bagira.SimHost
                 ? new DrillSlave(participant, nodeId, subsystemName, eventBus)
                 : new DrillSlave();
 
+            // Create EcsRecordReplayController for Brain/AllInOne.
+            // The controller is shared between LiveLoadDsmHandler and ReplayLoadDsmHandler.
+            EcsRecordReplayController? controller = null;
             if (role == NodeRole.Brain || role == NodeRole.AllInOne)
             {
-                var controller = new EcsRecordReplayController(kernel, nodeId, world);
-                drillSlave.RegisterHandler(controller);
+                controller = new EcsRecordReplayController(kernel, nodeId, world);
+                // Note: controller.CanHandle returns false for all ops; it is used purely
+                // as a dependency factory by LiveLoadDsmHandler and ReplayLoadDsmHandler.
             }
 
-            // Wire LiveLoadDsmHandler when an event bus is available (CGF1-S0202).
-            // Pass checkpointWorker (may be null) so FinalizeLive awaits drain (CGF1-S0303 A.1).
+            // Wire LiveLoadDsmHandler when an event bus is available (CGF1-S0202/S0304).
+            // Pass checkpointWorker (may be null) so FinalizeLive awaits drain (CGF1-S0303).
+            // Pass controller (may be null for non-Brain roles) to start / stop recording.
             if (eventBus != null)
             {
-                drillSlave.RegisterHandler(new LiveLoadDsmHandler(drillSlave, eventBus, checkpointWorker));
+                drillSlave.RegisterHandler(new LiveLoadDsmHandler(
+                    drillSlave, eventBus, checkpointWorker, controller, localTempRoot));
+            }
+
+            // Wire ReplayLoadDsmHandler when all three replay-gating objects are supplied
+            // and we have a controller (Brain/AllInOne only) (CGF1-S0304).
+            if (controller != null
+                && simGroup         != null
+                && lifecycleGroup   != null
+                && ghostCreationSystem != null)
+            {
+                drillSlave.RegisterHandler(new ReplayLoadDsmHandler(
+                    controller,
+                    simGroup,
+                    lifecycleGroup,
+                    ghostCreationSystem,
+                    drillSlave.NodeOpStatusWriter,
+                    nodeId,
+                    localTempRoot));
             }
 
             // Wire CheckpointDsmHandler when a checkpoint worker is provided (CGF1-S0303 A.1).
@@ -340,3 +383,4 @@ namespace Bagira.SimHost
         }
     }
 }
+

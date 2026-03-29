@@ -1,3 +1,5 @@
+using System;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Bagira.BDC.SSTD.Orchestration;
@@ -8,23 +10,39 @@ using Fdp.Kernel.Orchestration;
 namespace Bagira.SimHost.Modules.Orchestration
 {
     /// <summary>
-    /// Stub DSM handler for live-session load operations.
+    /// DSM handler for live-session load and finalize operations (CGF1-S0304).
     ///
     /// <para>Handles <see cref="NodeOpType.PrepareLive"/> and
-    /// <see cref="NodeOpType.FinalizeLive"/> commands.  In Phase 2.0 the prepare step
-    /// returns immediately (no work to do until Stage 3.4 wires the ECS record/replay
-    /// controller).  The commit step publishes <see cref="DsmStateChangedEvent"/> as a
-    /// safeguard in case the slave-level <c>CommitState</c> event was not already raised
-    /// for this transaction.</para>
+    /// <see cref="NodeOpType.FinalizeLive"/> commands.</para>
     ///
-    /// <para>Full implementation is deferred to <c>CGF1-S0304</c> (dynamic recording
-    /// modules); this stub satisfies the CGF1-S0202 success conditions.</para>
+    /// <para>
+    /// <b>PrepareLive flow:</b>
+    /// Calls <see cref="EcsRecordReplayController.PrepareRecordingAsync"/> so a new
+    /// recording session starts on the next kernel frame.  When no controller is
+    /// provided (test / legacy path) the call is a no-op.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>FinalizeLive flow:</b>
+    /// Awaits any pending checkpoint drain
+    /// (<see cref="CheckpointIOWorker.DrainAsync"/>), then calls
+    /// <see cref="EcsRecordReplayController.FinalizeRecordingAsync"/> to flush the
+    /// LZ4 buffer and write the <c>.meta.json</c> manifest (CGF1-S0303 + CGF1-S0304).
+    /// </para>
+    ///
+    /// <para>
+    /// The commit step publishes <see cref="DsmStateChangedEvent"/> as a safeguard
+    /// in case the slave-level <c>CommitState</c> event was not already raised for
+    /// this transaction.
+    /// </para>
     /// </summary>
     public sealed class LiveLoadDsmHandler : IDsmHandler
     {
-        private readonly DrillSlave         _slave;
-        private readonly FdpEventBus        _eventBus;
-        private readonly CheckpointIOWorker? _checkpointWorker;
+        private readonly DrillSlave                  _slave;
+        private readonly FdpEventBus                 _eventBus;
+        private readonly CheckpointIOWorker?         _checkpointWorker;
+        private readonly EcsRecordReplayController?  _controller;
+        private readonly string                      _storageDirectory;
 
         /// <param name="slave">
         /// Owning slave; used to call
@@ -37,11 +55,30 @@ namespace Bagira.SimHost.Modules.Orchestration
         /// <see cref="NodeOpType.FinalizeLive"/> to ensure all in-flight checkpoint writes
         /// complete before the live session is torn down (CGF1-S0303).
         /// </param>
-        public LiveLoadDsmHandler(DrillSlave slave, FdpEventBus eventBus, CheckpointIOWorker? checkpointWorker = null)
+        /// <param name="controller">
+        /// Optional <see cref="EcsRecordReplayController"/>; when provided,
+        /// <see cref="PrepareAsync"/> calls <see cref="EcsRecordReplayController.PrepareRecordingAsync"/>
+        /// for <see cref="NodeOpType.PrepareLive"/> and
+        /// <see cref="EcsRecordReplayController.FinalizeRecordingAsync"/> for
+        /// <see cref="NodeOpType.FinalizeLive"/> (CGF1-S0304).
+        /// </param>
+        /// <param name="storageDirectory">
+        /// Root directory where drill recording files are staged; forwarded to
+        /// <see cref="EcsRecordReplayController.PrepareRecordingAsync"/>.
+        /// Defaults to <c>C:\FDP_Temp</c>.
+        /// </param>
+        public LiveLoadDsmHandler(
+            DrillSlave                  slave,
+            FdpEventBus                 eventBus,
+            CheckpointIOWorker?         checkpointWorker = null,
+            EcsRecordReplayController?  controller       = null,
+            string                      storageDirectory = @"C:\FDP_Temp")
         {
-            _slave            = slave;
-            _eventBus         = eventBus;
+            _slave            = slave     ?? throw new ArgumentNullException(nameof(slave));
+            _eventBus         = eventBus  ?? throw new ArgumentNullException(nameof(eventBus));
             _checkpointWorker = checkpointWorker;
+            _controller       = controller;
+            _storageDirectory = storageDirectory;
         }
 
         /// <inheritdoc />
@@ -49,18 +86,36 @@ namespace Bagira.SimHost.Modules.Orchestration
             op == NodeOpType.PrepareLive || op == NodeOpType.FinalizeLive;
 
         /// <summary>
-        /// Phase 2.0 stub — for <see cref="NodeOpType.FinalizeLive"/> awaits any pending
-        /// checkpoint drain (<see cref="CheckpointIOWorker.DrainAsync"/>) before returning,
-        /// ensuring in-flight checkpoint I/O completes before the live session is torn down
-        /// (CGF1-S0303).  For all other operations returns <c>null</c> immediately.
-        /// Full live-session prepare work is deferred to Stage 3.4.
+        /// For <see cref="NodeOpType.PrepareLive"/>: calls
+        /// <see cref="EcsRecordReplayController.PrepareRecordingAsync"/> when a controller
+        /// is injected, starting a new flight-recorder session.
+        /// <para>
+        /// For <see cref="NodeOpType.FinalizeLive"/>: awaits any pending checkpoint drain
+        /// (<see cref="CheckpointIOWorker.DrainAsync"/>), then calls
+        /// <see cref="EcsRecordReplayController.FinalizeRecordingAsync"/> to flush and
+        /// write the <c>.meta.json</c> manifest (CGF1-S0303 + CGF1-S0304).
+        /// </para>
         /// </summary>
         public async Task<string?> PrepareAsync(NodeOpCommand cmd, CancellationToken ct)
         {
-            if (cmd.Operation == NodeOpType.FinalizeLive && _checkpointWorker != null)
+            if (cmd.Operation == NodeOpType.PrepareLive)
             {
-                await _checkpointWorker.DrainAsync().ConfigureAwait(false);
+                if (_controller != null)
+                {
+                    var drillId = ParseDrillId(cmd.PayloadJson);
+                    await _controller.PrepareRecordingAsync(drillId, _storageDirectory)
+                        .ConfigureAwait(false);
+                }
             }
+            else if (cmd.Operation == NodeOpType.FinalizeLive)
+            {
+                if (_checkpointWorker != null)
+                    await _checkpointWorker.DrainAsync().ConfigureAwait(false);
+
+                if (_controller != null)
+                    await _controller.FinalizeRecordingAsync().ConfigureAwait(false);
+            }
+
             return null;
         }
 
@@ -68,25 +123,38 @@ namespace Bagira.SimHost.Modules.Orchestration
         /// Commits the live-load command.  Publishes <see cref="DsmStateChangedEvent"/>
         /// via the event bus as a safeguard if the slave-level <c>CommitState</c> handling
         /// has not already done so for this transaction.
-        /// <para>
-        /// <b>Note:</b> In Phase 2.0 the live-load transition target is hardcoded to
-        /// <see cref="DSMState.LoadingLive"/>.  The authoritative post-commit state will be
-        /// derived from the command payload once 2PC plumbing is complete in
-        /// <c>CGF1-S0202+</c>.
-        /// </para>
         /// </summary>
         public void Commit(NodeOpCommand cmd, EntityRepository? repo)
         {
-            // Guard: publish DsmStateChangedEvent if not already raised by the slave for
-            // this transaction.  The slave's CommitState path is the primary publisher;
-            // this call is defensive for handler-only commit flows.
+            // Guard: publish DsmStateChangedEvent if not already raised by the slave.
             _slave.PublishDsmStateChanged(DSMState.Standby, DSMState.LoadingLive);
         }
 
         /// <inheritdoc />
         public void Abort(NodeOpCommand cmd, EntityRepository? repo)
         {
-            // No resources to release in the Phase 2.0 stub.
+            // No resources to release.
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────────
+
+        private static Guid ParseDrillId(string? payloadJson)
+        {
+            if (!string.IsNullOrWhiteSpace(payloadJson))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(payloadJson);
+                    if (doc.RootElement.TryGetProperty("DrillId", out var prop))
+                    {
+                        var raw = prop.GetString();
+                        if (Guid.TryParse(raw, out var g)) return g;
+                    }
+                }
+                catch { /* malformed JSON — fall through to new Guid */ }
+            }
+            return Guid.NewGuid();
         }
     }
 }
+

@@ -78,13 +78,19 @@ namespace Bagira.SimHost.Modules.Orchestration
         }
 
         /// <summary>
-        /// Finalizes the active recording.  Uninstalls the <see cref="RecordingModule"/>
-        /// which triggers its blocking <see cref="RecordingModule.Dispose"/>:
-        /// flushes LZ4 buffers, writes <c>MaxNetworkId</c> and <c>.meta.json</c>.
+        /// Finalizes the active recording.  Sets <paramref name="maxNetworkId"/> on the
+        /// recorder (so it is persisted to <c>.meta.json</c>), then uninstalls the
+        /// <see cref="RecordingModule"/> which triggers its blocking
+        /// <see cref="RecordingModule.Dispose"/>: flushes LZ4 buffers and writes the manifest.
         /// </summary>
-        public async Task FinalizeRecordingAsync()
+        /// <param name="maxNetworkId">
+        /// Highest network entity ID used during the recording session.  Pass <c>0</c> (or omit)
+        /// when no network map is available (e.g. offline / test scenarios).
+        /// </param>
+        public async Task FinalizeRecordingAsync(long maxNetworkId = 0)
         {
             if (_activeRecordingModule == null) return;
+            _activeRecordingModule.SetMaxNetworkId(maxNetworkId);
             await _kernel.UninstallModuleAsync(_activeRecordingModule);
             _activeRecordingModule = null;
         }
