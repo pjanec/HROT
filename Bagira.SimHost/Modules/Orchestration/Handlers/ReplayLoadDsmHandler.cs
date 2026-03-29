@@ -13,8 +13,9 @@ using ModuleHost.Core.Scheduling;
 namespace Bagira.SimHost.Modules.Orchestration.Handlers
 {
     /// <summary>
-    /// DSM handler for <see cref="NodeOpType.PrepareReplay"/> and
-    /// <see cref="NodeOpType.FinalizeReplay"/> commands (CGF1-S0304).
+    /// DSM handler for <see cref="NodeOpType.PrepareReplay"/>,
+    /// <see cref="NodeOpType.FinalizeReplay"/>, and the Live-from-Replay
+    /// <see cref="NodeOpType.PrepareLive"/> branch (CGF1-S0304 / CGF1-S0305).
     ///
     /// <para>
     /// <b>PrepareReplay flow:</b>
@@ -107,10 +108,12 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        /// <remarks>Returns <c>true</c> for <see cref="NodeOpType.PrepareReplay"/> and
-        /// <see cref="NodeOpType.FinalizeReplay"/>.</remarks>
+        /// <remarks>Returns <c>true</c> for <see cref="NodeOpType.PrepareReplay"/>,
+        /// <see cref="NodeOpType.FinalizeReplay"/>, and the Live-from-Replay
+        /// <see cref="NodeOpType.PrepareLive"/> branch.</remarks>
         public bool CanHandle(NodeOpType op) =>
-            op == NodeOpType.PrepareReplay || op == NodeOpType.FinalizeReplay;
+            op == NodeOpType.PrepareReplay || op == NodeOpType.FinalizeReplay
+                || op == NodeOpType.PrepareLive;
 
         /// <summary>
         /// For <see cref="NodeOpType.PrepareReplay"/>: opens the recording file via
@@ -120,6 +123,14 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         /// <para>
         /// For <see cref="NodeOpType.FinalizeReplay"/>: calls
         /// <see cref="EcsRecordReplayController.TeardownReplayAsync"/> and returns.
+        /// </para>
+        /// <para>
+        /// For the Live-from-Replay <see cref="NodeOpType.PrepareLive"/> branch
+        /// (CGF1-S0305): tears down the active replay without mutating the
+        /// <see cref="EntityRepository"/> (historical state preserved in-place),
+        /// then installs a new <see cref="FDP.Toolkit.Replay.RecordingModule"/> for
+        /// the branched drill.  Publishes a <see cref="NodeOpStatus"/>(<c>Success</c>)
+        /// ACK so the orchestrator can restore time scale.
         /// </para>
         /// </summary>
         public async Task<string?> PrepareAsync(NodeOpCommand cmd, CancellationToken ct)
@@ -152,6 +163,30 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
                 FdpLog<ReplayLoadDsmHandler>.Info(
                     "[SimHost] ReplayLoadDsmHandler: TeardownReplay complete.");
             }
+            else if (cmd.Operation == NodeOpType.PrepareLive)
+            {
+                // CGF1-S0305: Live-from-Replay branch.
+                // 1. Tear down replay — EntityRepository is left at historical state (no memcpy).
+                // 2. Immediately start recording under the new branched DrillId.
+                var branchedDrillId = ParseDrillId(cmd.PayloadJson);
+                await _controller.TeardownReplayAsync().ConfigureAwait(false);
+                await _controller.PrepareRecordingAsync(branchedDrillId, _storageDirectory)
+                    .ConfigureAwait(false);
+
+                _statusWriter?.Write(new NodeOpStatus
+                {
+                    TransactionId   = cmd.TransactionId,
+                    NodeId          = _nodeId,
+                    Status          = OpStatus.Success,
+                    IsParticipating = true,
+                    ErrorCode       = 0,
+                    ResultJson      = string.Empty,
+                });
+
+                FdpLog<ReplayLoadDsmHandler>.Info(
+                    "[SimHost] ReplayLoadDsmHandler: Live-from-Replay branch complete (branchedDrillId={0}).",
+                    branchedDrillId);
+            }
 
             return null;
         }
@@ -163,6 +198,12 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         /// <para>
         /// For <see cref="NodeOpType.FinalizeReplay"/>: re-enables both system groups and
         /// resets <see cref="GhostCreationSystem.BypassLifecycle"/> to <c>false</c>.
+        /// </para>
+        /// <para>
+        /// For the Live-from-Replay <see cref="NodeOpType.PrepareLive"/> branch
+        /// (CGF1-S0305): re-enables both system groups and clears
+        /// <see cref="GhostCreationSystem.BypassLifecycle"/> so the live simulation
+        /// resumes from the historical snapshot state.
         /// </para>
         /// </summary>
         public void Commit(NodeOpCommand cmd, EntityRepository? repo)
@@ -185,6 +226,17 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
                 FdpLog<ReplayLoadDsmHandler>.Info(
                     "[SimHost] ReplayLoadDsmHandler: Commit(FinalizeReplay) — sim+lifecycle re-enabled, BypassLifecycle=false.");
             }
+            else if (cmd.Operation == NodeOpType.PrepareLive)
+            {
+                // CGF1-S0305: Live-from-Replay branch — re-enable simulation so live
+                // ticks resume from the historical snapshot state.
+                _simGroup.Enabled                    = true;
+                _lifecycleGroup.Enabled              = true;
+                _ghostCreationSystem.BypassLifecycle = false;
+
+                FdpLog<ReplayLoadDsmHandler>.Info(
+                    "[SimHost] ReplayLoadDsmHandler: Commit(PrepareLive/branch) — sim+lifecycle re-enabled, BypassLifecycle=false.");
+            }
         }
 
         /// <inheritdoc />
@@ -200,18 +252,19 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         {
             if (!string.IsNullOrWhiteSpace(payloadJson))
             {
-                try
+                using var doc = JsonDocument.Parse(payloadJson);
+                if (doc.RootElement.TryGetProperty("DrillId", out var prop))
                 {
-                    using var doc = JsonDocument.Parse(payloadJson);
-                    if (doc.RootElement.TryGetProperty("DrillId", out var prop))
-                    {
-                        var raw = prop.GetString();
-                        if (Guid.TryParse(raw, out var g)) return g;
-                    }
+                    var raw = prop.GetString();
+                    if (Guid.TryParse(raw, out var g)) return g;
+                    throw new InvalidOperationException(
+                        $"[SimHost] ReplayLoadDsmHandler: 'DrillId' value '{raw}' is not a valid GUID. " +
+                        "Refusing to open a recording under an unintended drill id.");
                 }
-                catch { /* malformed JSON — fall through to new Guid */ }
             }
-            return Guid.NewGuid();
+            throw new InvalidOperationException(
+                "[SimHost] ReplayLoadDsmHandler: PayloadJson is missing or does not contain a 'DrillId' " +
+                $"property. Payload: '{payloadJson}'. Refusing to open replay under an unknown drill id.");
         }
     }
 }

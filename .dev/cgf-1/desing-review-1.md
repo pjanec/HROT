@@ -995,3 +995,263 @@ This architecture strictly enforces the Open/Closed Principle. The core ECS memo
 
 Dnes • 22:06
 
+
+-----------------------
+
+
+In the orchestrator detail source there is a specification what the bagira.irchestrator imgui based ui should implement. Is this covered in the design and the task-detail source?
+
+The informal requirements specify a comprehensive Orchestrator UI that must handle system health monitoring, 2PC transaction history, simulation time control, and extensive scenario/story management. When cross-referencing this against the formal `CGF-1-TASK-DETAIL.md` and `DESIGN.md` specifications, the architectural coverage is split: the core diagnostic UI is explicitly tasked, but the rich scenario management UI is entirely missing from the frontend task list, despite the backend being fully specified.
+
+Here is the architectural breakdown of what is covered and where we have a specification gap:
+
+1\. What IS Formally Covered (Health & Diagnostics)
+
+The foundational ImGui panel for the Orchestrator is well-defined under task **CGF1-S0105 (Orchestrator Health Monitoring & Bootstrap Recovery)**. This task explicitly satisfies the monitoring requirements by mandating:
+
+-   A "system-health table" displaying NodeId, SubsystemName, heartbeat latency, LocalDsmState, CPU%, and RAM.-   A "2PC history table" listing the last N transactions along with per-node ACK latency, directly satisfying the requirement to monitor the Drill Master and 2PC communication status.-   A bootstrap banner that disables "simulation control buttons" while waiting for mandatory nodes to join, which implies that basic simulation controls (Play/Pause) are part of this UI.
+
+2\. What is MISSING (Scenario & Story Management UI)
+
+The informal notes demand UI controls to initialize live drills, save snapshots, initialize replays, use dry runs, save scenarios, and manage stories (load, list, unload).
+
+From a clean architecture perspective, the **control-plane backend** for all of these features is perfectly detailed in the task source:
+
+-   The `TransitionPlanner` is tasked to resolve `SysOpRequest` commands for complex state transitions (like `RunningLive` to `RunningReplay`).-   Task **CGF1-S0308 (Runtime Story Injection & Deletion)** defines the exact backend logic for the Orchestrator to track active stories and route `ManageStory` operations.-   The 2PC payloads for scenario and story injection are fully modeled.
+
+**The Gap:** There are absolutely no tasks in `CGF-1-TASK-DETAIL.md` instructing the developer to actually build the ImGui buttons, modals, or lists to expose these scenario and story capabilities in the `Bagira.Orchestrator` UI. The backend `DrillMaster` is ready to receive a `SysOpRequest(ManageStory)`, but the frontend orchestrator panel has no task assigned to emit it.
+
+Architectural Recommendation
+
+To maintain best practices and ensure the UI doesn't fall behind the backend capabilities, we must amend the task details. We should add a new frontend-specific task (e.g., `CGF1-S0106 — Orchestrator ImGui Scenario & Story Controls`) that instructs the developer to wire up the ImGui presentation layer. This panel will simply construct the appropriate `SysOpRequest` DTOs and dispatch them to the `DrillMaster`, keeping the UI perfectly decoupled from the actual transition logic while satisfying all requirements outlined in the design notes.
+
+Does the dedign or tasks include some way of e2e automated test that could if the whole orchestration and drill state machine and scenario persistence and checkpointing and recording/replay etc work properly? Something that follows/stimulates the sample drill sm transitions with a simple scenario like a user would do and checking it on an all-in-one runner configuration (all subsystems in a single process), verifying if everything works as expected?
+
+The architecture handles end-to-end (E2E) automated testing beautifully by combining a dedicated headless test executor with a robust suite of deterministic integration scenarios. This ensures that the complex distributed control plane—including the Drill State Machine (DSM), 2PC orchestration, and persistence layers—remains regression-free.
+
+Here is how the platform achieves this E2E validation:
+
+**1\. The Headless Test Executor** To simulate user interactions without the overhead of a graphical interface, the platform provides a `HeadlessTestExecutor`. This engine drives the `SubsystemOrchestrator` in a purely headless mode, executing a time-sequenced JSON `TestScript`. It initializes the subsystems, dispatches scripted actions at exact simulation timestamps, and evaluates strict assertion rules on the resulting state. When the script completes, it generates a comprehensive metrics report and returns an exit code of 0 (pass) or 1 (fail).
+
+**2\. Deterministic CI Hookup** Automated testing relies heavily on the "Deterministic CI Hookup" (Task CGF1-S0205). By utilizing the `SteppedMasterController` and `SteppedSlaveController`, the system halts the real-time wall clock and advances simulation time purely logically. This ensures bit-exact, reproducible runs across different hardware. Scenarios executed via the command line (e.g., `dotnet run --project Bagira.Runner -- --mode ci --scenario MinimalCI_01`) automatically boot the required configuration, run the simulation for a predefined number of ticks, and exit with code 0 upon success.
+
+**3\. Built-in E2E Integration Scenarios** The architecture includes highly specific E2E integration tests designed to validate the exact DSM transitions and storage mechanisms you mentioned:
+
+-   **Scenario Persistence (Save/Load):** The `ScenarioSaveLoadTests.RoundTrip_SimHost_EntitiesMatchAfterLoad` test proves the full serialization pipeline. It runs a live simulation, triggers a `SaveScenario` 2PC command, verifies the files hit the NAS, completely clears the ECS, issues a `LoadScenario` command, and asserts that the re-instantiated entities perfectly match the pre-save state.-   **Recording and Replay Bit-Exactness:** The `ParallelStoriesScenario` is dedicated to proving the recording integrity. In Phase A, it runs a live world with a blocking `RecordingModule` to capture the simulation to an LZ4 `.fdprec` file. In Phase B, it boots a naked replay kernel and strictly asserts that the replayed positions match the live trajectory down to a 0.001-meter tolerance.-   **Complex DSM Transitions (Live-from-Replay):** The `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` test validates the temporal interlock during hot-swaps. It runs 100 live ticks, seeks backwards to tick 50 in replay mode, executes a Live-from-Replay branch transition, and asserts that the new branched recording successfully captures the historical state.-   **Distributed 2PC Orchestration:** The `DistributedTankScenario` rigorously exercises the 2PC loop. It initializes two separate `ModuleHostKernel` instances communicating via a FastCycloneDDS loopback to prove that the orchestrator, Entity Lifecycle Module (ELM) auto-promotions, and time-stepping mechanisms coordinate flawlessly without deadlocking or crashing.
+
+By pushing E2E testing down to a deterministic, headless script runner that exercises the exact same orchestration paths as the UI, the design adheres perfectly to clean architecture principles, guaranteeing that the complex multi-node orchestration works exactly as a human operator would experience it.
+
+good then maybe we could to use HeadlessTestExecutor to stimulate the system in various ways as described by the mermaid diagrams in the DESIGN to exercise the drill state machine transitions, and somehow automatically (tests must be autonomous and runnable in CI environment) check if all went fine. The scenario must contain something that automatically change in time (for example the position of an entity) so that we can check various time related stuf (like seeking in the recording). For the sake of these tests we could define a simple "scenario execution" infrastructure that somehow changes the simulation state in time (moves and entity or changes its state in another way)
+
+Your intuition for a deterministic, automated "scenario execution" infrastructure is absolutely spot-on. From a clean architecture perspective, decoupling the test orchestration from the simulation domain is exactly how we ensure robust, flake-free CI pipelines. The excellent news is that we do not need to build this from scratch; the architecture already provides two highly refined, zero-allocation mechanisms to achieve exactly what you described.
+
+Here is how the platform currently handles deterministic state stimulation and CI assertions:
+
+1\. The `IScenario` Contract (Code-Driven CI Tests)
+
+For testing internal system mechanics like the recording/replay precision you mentioned, the platform uses the `IScenario` interface wrapped in a `ScenarioSubsystem`. This provides a tightly controlled, programmatic execution loop.
+
+The interface exposes an `EvaluateTick(uint currentTick, EntityRepository world)` method that runs every frame _after_ the time controller is stepped but _before_ the ECS kernel processes the frame. This allows the test script to manually inject events or mutate state over time.
+
+We already have a perfect example of your replay-seeking idea implemented in the `ParallelStoriesScenario`.
+
+-   **Stimulation:** In Phase A, it spawns a vehicle, runs the `CarKinematicsSystem` to move it forward for 50 ticks, and records the exact positional trajectory to an LZ4 `.fdprec` file.-   **Replay & Assertion:** In Phase B, it mounts the recording in a naked replay kernel (with no physics modules running) and uses `EvaluateTick` to assert the state. At tick 26, it checks if the replayed `SimTransform` matches the originally recorded frame-25 position down to a 0.001-meter tolerance.-   **CI Integration:** If the positions diverge, it throws a `ScenarioFailureException` which the `ScenarioSubsystem` catches, immediately exiting the process with code 1 to cleanly fail the CI build.
+
+2\. `HeadlessTestExecutor` & JSON Scripts (Data-Driven Orchestration)
+
+For testing complex Drill State Machine (DSM) transitions exactly as an IOS operator would trigger them, the `HeadlessTestExecutor` is our tool of choice.
+
+Instead of hardcoded C#, it consumes a JSON `TestScript` containing a time-sequenced list of `TestStep` actions. It evaluates these steps against the simulation timeline, executing specific handlers at exact simulation seconds.
+
+-   **Stimulating State:** We already have built-in test action handlers like `SpawnActionHandler` and `MoveActionHandler`. The script can use these to teleport an entity's `SimTransform` to a new position at a specific time, simulating external movement.-   **Autonomous Assertions:** The script can then invoke an `AssertPositionActionHandler`. The executor runs automated validation rules (checking minimums, maximums, or exact equality) against the handler's output.-   **Reporting:** When the duration expires, it generates a structured `TestReport` (including a statistical summary of the metrics) and exits with code 0 (Pass) or 1 (Fail).
+
+The Architectural Beauty
+
+Both of these approaches adhere strictly to the Single Responsibility Principle. The core ECS systems (like the DSM or the physics engines) remain completely oblivious to the fact that they are being driven by a test harness. Furthermore, both test runners leverage the `SteppingTimeController` to decouple the simulation from the erratic OS wall-clock. This guarantees that whether you are testing a complex 2PC scenario load or a fast-forward replay seek, the execution is bit-exact and 100% reproducible across any CI hardware.
+
+pls give an example how to write the "test script" to exercise various "paths" and "states" of the Drill State machine and to check that the mechanism and features described in the DESIGN work well (2pc comm, loading/running/unloading, recording/replay, checkpointing, dry run, replay-to-live etc.) We might need a whole set of smaller "test scripts" to check all that, each focused on few aspects/features (but still being e2e test, not a unit test), with clear success conditions.
+
+Using data-driven JSON test scripts for end-to-end (E2E) validation is a textbook example of clean architecture, as it perfectly decouples the test orchestration from the core ECS domain. The `HeadlessTestExecutor` consumes a `TestScript` containing a `Duration` and a time-sequenced list of `TestStep` actions, allowing us to stimulate the simulation exactly as an operator would.
+
+To fully exercise the Drill State Machine (DSM) and the features described in the design, we simply need to assume the registration of a custom `sysop` action handler alongside the platform's existing `spawn`, `move`, and `assert_position` handlers. This `sysop` handler will construct a `SysOpRequest` and dispatch it to the `DrillMaster`, relying on the `TransitionPlanner` to automatically resolve complex multi-step trajectories (like `RunningLive` to `RunningReplay`).
+
+Here is a set of focused, E2E test scripts demonstrating how to validate these specific architectural mechanisms.
+
+1\. The Recording & Replay Bit-Exactness Script
+
+**Focus:** Validates the Two-Phase Commit (2PC) transition into live simulation, continuous delta-recording, transitioning to replay, and the binary-search temporal seeking. **Success Conditions:** The executor exits with code 0, proving that after transitioning to replay and seeking to a specific wall-clock tick, the `assert_position` action evaluates the replayed `SimTransform.Position` as identical to the live-recorded state down to a 0.001-meter tolerance.
+
+```
+{
+  "TestName": "E2E_Record_And_Replay_Seek",
+  "Duration": 10.0,
+  "Steps": [
+    {
+      "Time": 1.0,
+      "Action": "sysop",
+      "Args": { "TargetState": "RunningLive", "DrillId": "test-drill-01" }
+    },
+    {
+      "Time": 2.0,
+      "Action": "spawn",
+      "Args": { "entity_id": 100, "x": 0, "y": 0, "z": 0 }
+    },
+    {
+      "Time": 4.0,
+      "Action": "move",
+      "Args": { "entity_id": 100, "x": 500, "y": 0, "z": 0 }
+    },
+    {
+      "Time": 6.0,
+      "Action": "sysop",
+      "Args": { "TargetState": "RunningReplay", "DrillId": "test-drill-01" }
+    },
+    {
+      "Time": 8.0,
+      "Action": "sysop",
+      "Args": { "TargetState": "RunningReplay", "TargetWallTicks": 40000000 }
+    },
+    {
+      "Time": 9.0,
+      "Action": "assert_position",
+      "Args": { "entity_id": 100 },
+      "Assert": {
+        "x": { "Equals": 500.0 }
+      }
+    }
+  ]
+}
+```
+
+2\. The Dry Run (Edit-to-Live-and-Back) Script
+
+**Focus:** Validates the zero-allocation RAM cloning mechanics where the `EntityRepository` is duplicated in memory upon entering a dry run, and cleanly rewound upon exiting. **Success Conditions:** The script moves the entity during the `RunningDryRun` state, but after issuing a transition back to `RunningEdit` (which triggers the `UnloadingDryRun` state to restore the RAM snapshot), the entity's position is perfectly reverted to its original `x: 100` coordinate.
+
+```
+{
+  "TestName": "E2E_DryRun_State_Restore",
+  "Duration": 8.0,
+  "Steps": [
+    {
+      "Time": 1.0,
+      "Action": "sysop",
+      "Args": { "TargetState": "RunningEdit" }
+    },
+    {
+      "Time": 2.0,
+      "Action": "spawn",
+      "Args": { "entity_id": 200, "x": 100, "y": 0, "z": 0 }
+    },
+    {
+      "Time": 3.0,
+      "Action": "sysop",
+      "Args": { "TargetState": "RunningDryRun" }
+    },
+    {
+      "Time": 4.0,
+      "Action": "move",
+      "Args": { "entity_id": 200, "x": 999, "y": 0, "z": 0 }
+    },
+    {
+      "Time": 6.0,
+      "Action": "sysop",
+      "Args": { "TargetState": "RunningEdit" }
+    },
+    {
+      "Time": 7.0,
+      "Action": "assert_position",
+      "Args": { "entity_id": 200 },
+      "Assert": {
+        "x": { "Equals": 100.0 }
+      }
+    }
+  ]
+}
+```
+
+3\. The Live-From-Replay Temporal Interlock Script
+
+**Focus:** Validates the highly complex branch transition where an operator takes control of a replaying simulation, ensuring time is hard-frozen during the pipeline swap and that the `EntityRepository` is preserved in place without a memory copy. **Success Conditions:** The transition to `RunningLive` is accepted by the DSM while currently in `RunningReplay`, the system branches the `DrillId`, and a new entity can be spawned successfully without throwing ID allocator collisions (proving the `MaxNetworkId` high-water mark reset succeeded during the transition).
+
+```
+{
+  "TestName": "E2E_Live_From_Replay_Branch",
+  "Duration": 12.0,
+  "Steps": [
+    {
+      "Time": 1.0,
+      "Action": "sysop",
+      "Args": { "TargetState": "RunningReplay", "DrillId": "historical-drill-01" }
+    },
+    {
+      "Time": 4.0,
+      "Action": "sysop",
+      "Args": { "TargetState": "RunningLive", "DrillId": "branched-drill-02" }
+    },
+    {
+      "Time": 8.0,
+      "Action": "spawn",
+      "Args": { "entity_id": 300, "x": 50, "y": 50, "z": 0 }
+    },
+    {
+      "Time": 10.0,
+      "Action": "assert_position",
+      "Args": { "entity_id": 300 },
+      "Assert": {
+        "x": { "Equals": 50.0 }
+      }
+    }
+  ]
+}
+```
+
+4\. Distributed Checkpointing Loop Script
+
+**Focus:** Validates the 3-step non-blocking snapshot mechanism, ensuring that taking a checkpoint defers the 2PC ACK until the background `CheckpointIOWorker` flushes the LZ4 compression to disk, without stalling the simulation tick. **Success Conditions:** Two overlapping checkpoints requested rapidly do not crash or stall the engine; the simulation entities continue to move smoothly across the checkpointing boundary, verified by capturing the time-stepped position post-checkpoint.
+
+```
+{
+  "TestName": "E2E_Overlapping_Checkpoints",
+  "Duration": 8.0,
+  "Steps": [
+    {
+      "Time": 1.0,
+      "Action": "sysop",
+      "Args": { "TargetState": "RunningLive" }
+    },
+    {
+      "Time": 2.0,
+      "Action": "spawn",
+      "Args": { "entity_id": 400, "x": 0, "y": 0, "z": 0 }
+    },
+    {
+      "Time": 3.0,
+      "Action": "move",
+      "Args": { "entity_id": 400, "x": 10, "y": 0, "z": 0 }
+    },
+    {
+      "Time": 3.1,
+      "Action": "sysop",
+      "Args": { "TargetState": "TakeCheckpoint" }
+    },
+    {
+      "Time": 3.2,
+      "Action": "sysop",
+      "Args": { "TargetState": "TakeCheckpoint" }
+    },
+    {
+      "Time": 6.0,
+      "Action": "assert_position",
+      "Args": { "entity_id": 400 },
+      "Assert": {
+        "x": { "Equals": 10.0 }
+      }
+    }
+  ]
+}
+```
+
+By structuring our validation around this `HeadlessTestExecutor` pipeline, we enforce strict determinism and ensure that CI test conditions perfectly match the distributed timing an operator experiences in production.
+
+
+

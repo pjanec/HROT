@@ -254,6 +254,98 @@ Capacity was consumed by A.1 (DDS time-mode wiring) and S0205 (deterministic CI 
 
 ---
 
+### CGF1-S0106 — Orchestrator ImGui Scenario & Story Controls
+
+**Design ref:** [§3.6](./CGF-1-DESIGN.md#36-stage-16--orchestrator-imgui-scenario--story-controls)
+
+**Depends on:** CGF1-S0105 (health panel already implemented), CGF1-S0303 (checkpoint
+backend), CGF1-S0307 (scenario save/load wiring), CGF1-S0308 (story injection backend).
+
+**Context:** S0105 added the system-health table, 2PC history display, and time controls
+to the Orchestrator ImGui panel. The scenario and story management buttons referenced in
+the design §3.5 bullet "_Scenario controls: Initialize Live / Load Scenario / Save
+Scenario / Init Replay / Story list + inject/unload_" have no corresponding
+implementation task. This task fills that gap.
+
+**Work to do:**
+1. Create `Bagira.Orchestrator/UI/OrchestratorScenarioPanel.cs`:
+   - Constructor receives `DrillMaster drillMaster`, `NodeRoster roster`, and
+     `ILogger logger`.
+   - `Render()` method (called from `OrchestratorSubsystem.DrawUI()`) draws **six
+     ImGui child windows** (Status Banner, Drill Control, Checkpoint, Scenario, Replay,
+     Stories). All controls use `ImGui.BeginDisabled` when `!drillMaster.BootstrapComplete`
+     or `drillMaster.HasInFlightTransaction`.
+   - **Status Banner** (always enabled): `ImGui.Text` showing `CurrentState`,
+     short `DrillId` (first 8 hex chars), and elapsed ms of in-flight transaction
+     (or "idle"). Read directly from `drillMaster.CurrentSystemState` and
+     `drillMaster.ActiveTransaction`.
+   - **Drill Control** section: one `ImGui.Button` per reachable DSM target from the
+     current state. Buttons are generated dynamically from
+     `TransitionPlanner.GetReachableTargets(currentState)`. Clicking emits:
+     `drillMaster.HandleSysOpRequestAsync(new SysOpRequest { OperationType =
+     SysOpType.TransitionState, PayloadJson = ... })`.
+   - **Checkpoint** section: single [Take Checkpoint] button; button is additionally
+     disabled when `CurrentState != RunningLive`.
+   - **Scenario** section:
+     - `_saveScenarioId` string input field + [Save Scenario] button →
+       `SysOpType.SaveScenario` with `_saveScenarioId` in payload.
+     - `_loadScenarioId` string input field (or dropdown populated via
+       `drillMaster.StorageGateway?.ListScenariosAsync()`) + two buttons
+       [Load into Edit] / [Load into Live] → `SysOpType.TransitionState` with
+       `TargetState = LoadingEdit|LoadingLive` and `ScenarioId` in payload.
+   - **Replay** section:
+     - `_replayDrillId` string input (dropdown when NAS available) + [Load Replay] →
+       `SysOpType.TransitionState, TargetState = RunningReplay` with DrillId.
+     - Seek slider (float, 0 … replay length in seconds) shown only when
+       `CurrentState == RunningReplay`; dragging emits `SysOpType.ReplaySeek` with
+       `TargetWallTicks` converted from seconds.
+   - **Stories** section:
+     - Scrollable list read from `drillMaster.ActiveStories` (list of `Guid`). Per row:
+       short GUID string label + [Unload] button → `SysOpType.ManageStory,
+       Mode:Stop, StoryId`.
+     - `_injectScenarioId` + `_injectStoryId` text inputs + [Inject Story] button →
+       `SysOpType.ManageStory, Mode:Start, ScenarioId, StoryId`.
+2. Wire `OrchestratorScenarioPanel` into `OrchestratorSubsystem.DrawUI()` after the
+   existing health table and 2PC history table calls.
+3. Expose `bool BootstrapComplete`, `bool HasInFlightTransaction`,
+   `DSMState CurrentSystemState`, `DistributedTransaction? ActiveTransaction`, and
+   `IReadOnlyList<Guid> ActiveStories` as read-only properties on `DrillMaster`
+   (or via a thin read-only `DrillMasterState` snapshot record if `DrillMaster` is
+   not currently accessible from the `OrchestratorSubsystem`).
+
+**Success conditions:**
+
+- `OrchestratorScenarioPanelTests.AllButtons_DisabledBeforeBootstrap`:
+  - Instantiate `OrchestratorScenarioPanel` with a mock `DrillMaster` where
+    `BootstrapComplete = false`.
+  - Call `Render()` against a headless ImGui context.
+  - Assert `DrillMaster.HandleSysOpRequestAsync` was never called.
+
+- `OrchestratorScenarioPanelTests.DrillControlButtons_EmitCorrectSysOpRequests`:
+  - Mock `DrillMaster` with `BootstrapComplete = true`, `CurrentSystemState = Standby`.
+  - Simulate click on the button that corresponds to `LoadingLive`.
+  - Assert `HandleSysOpRequestAsync` was called with
+    `OperationType == SysOpType.TransitionState` and payload containing
+    `"TargetState": "RunningLive"` (or the equivalent integer).
+
+- `OrchestratorScenarioPanelTests.TakeCheckpoint_Button_DisabledOutsideRunningLive`:
+  - Set `CurrentSystemState = RunningEdit`.
+  - Assert the [Take Checkpoint] button is disabled (no call to
+    `HandleSysOpRequestAsync` on simulated click).
+
+- `OrchestratorScenarioPanelTests.SaveScenario_EmitsCorrectPayload`:
+  - Set `_saveScenarioId = "Alpha"`.
+  - Simulate click on [Save Scenario].
+  - Assert payload JSON contains `"ScenarioId": "Alpha"` and
+    `OperationType == SysOpType.SaveScenario`.
+
+- `OrchestratorScenarioPanelTests.UnloadStory_EmitsManageStoryStop`:
+  - Mock `ActiveStories` with one Guid `s1`.
+  - Simulate click on [Unload] for `s1`.
+  - Assert payload JSON contains `"Mode": "Stop"` and `"StoryId": "<s1 guid>"`.
+
+---
+
 ## Phase 2 — State & Time: DSM and Synchronization
 
 See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synchronization).
@@ -1033,3 +1125,208 @@ primitive into the DSM lifecycle to power the edit-preview-rewind loop.
   - Call `Commit(PrepareState → UnloadingDryRun, liveRepo)` **without** a prior
     `LoadingDryRun` commit (simulates an aborted prepare where snap was never set).
   - Assert no exception is thrown; assert `liveRepo` is unchanged.
+
+---
+
+### CGF1-S0310 — E2E DSM Test Script Suite
+
+**Design ref:** [§5.10](./CGF-1-DESIGN.md#510-stage-310--e2e-dsm-test-script-suite)
+
+**Depends on:** CGF1-S0303, CGF1-S0304, CGF1-S0305, CGF1-S0309, and the existing
+`HeadlessTestExecutor` + `BagiraActionHandlers` infrastructure.
+
+**Context:** The platform has `HeadlessTestExecutor` (in `FDP.Framework.Runner`), and
+three generic action handlers (`spawn`, `move`, `assert_position`) in
+`Bagira.Runner/Testing/BagiraActionHandlers.cs`. There is no DSM-aware action handler
+and no concrete E2E scripts that exercise the distributed orchestration paths. This task
+adds both.
+
+**Work to do:**
+
+1. Create `Bagira.Runner/Testing/OrchestratorActionHandlers.cs` with two handler classes:
+   a. **`SysopActionHandler`** (action name `"sysop"`):
+      - Constructor: `SysopActionHandler(DrillMaster drillMaster, DdsReader<SysOpStatus>
+        statusReader, double timeoutSeconds = 10.0)`.
+      - `ExecuteAsync(args)`: reads `args["TargetState"]` (string or integer).
+        - If value is a `DSMState` name → calls
+          `drillMaster.HandleSysOpRequestAsync(new SysOpRequest { OperationType =
+          SysOpType.TransitionState, PayloadJson = ... })` including optional
+          `DrillId`, `ScenarioId`, `TargetWallTicks` from `args`.
+        - `"TakeCheckpoint"` special value → `SysOpType.TakeSnapshot`.
+        - `"ReplaySeek"` special value + mandatory `args["TargetWallTicks"]` →
+          `SysOpType.ReplaySeek`.
+      - Polls `statusReader` (up to `timeoutSeconds`) for a `SysOpStatus` whose
+        `RequestId` matches. Returns `{"status": "success"}` or throws
+        `TestAssertionException` with the failure message on timeout or
+        `SysOpStatus.Failure`.
+   b. **`AssertEntityCountActionHandler`** (action name `"assert_entity_count"`):
+      - `ExecuteAsync(args)`: reads `args["expected"]` (int); asserts
+        `_world.EntityCount == expected`; throws `TestAssertionException` on mismatch.
+
+2. Create `Bagira.Runner.Integration.Tests/Systems/MovingEntitySystem.cs`:
+   - Registered only by the E2E test fixture (not in production boots).
+   - Each tick: for every entity with `MovingTestTag`, advances
+     `SimTransform.Position.X += MovingTestTag.VelocityX * GlobalTime.DeltaTime`.
+   - `MovingTestTag` is an unmanaged ECS component `{ float VelocityX; }` declared in
+     the same file.
+
+3. Create four JSON test scripts in
+   `Bagira.Runner.Integration.Tests/TestScripts/`:
+
+   **`e2e_record_and_replay_seek.json`**
+   ```json
+   {
+     "TestName": "E2E_Record_And_Replay_Seek",
+     "TimeMode": "Deterministic",
+     "FixedDeltaSeconds": 0.1,
+     "Duration": 20.0,
+     "Steps": [
+       { "Time": 0.5,  "Action": "sysop",
+         "Args": { "TargetState": "RunningLive", "DrillId": "e2e-rec-01" } },
+       { "Time": 1.0,  "Action": "spawn",
+         "Args": { "x": 0.0, "y": 0.0, "z": 0.0 },
+         "SaveResult": "entity_a" },
+       { "Time": 1.1,  "Action": "add_moving_tag",
+         "Args": { "entity_ref": "entity_a", "velocity_x": 10.0 } },
+       { "Time": 7.0,  "Action": "sysop",
+         "Args": { "TargetState": "RunningReplay", "DrillId": "e2e-rec-01" } },
+       { "Time": 9.0,  "Action": "sysop",
+         "Args": { "TargetState": "ReplaySeek",
+                   "TargetWallTicks": 30000000 } },
+       { "Time": 10.0, "Action": "assert_position",
+         "Args": { "entity_ref": "entity_a" },
+         "Assert": { "x": { "ApproxEquals": 30.0, "Tolerance": 0.001 } } }
+     ]
+   }
+   ```
+   **Success condition:** Entity at `x ≈ 30.0 m` (3 s × 10 m/s) at the seeked tick, within 0.001 m.
+
+   **`e2e_dryrun_state_restore.json`**
+   ```json
+   {
+     "TestName": "E2E_DryRun_State_Restore",
+     "TimeMode": "Deterministic",
+     "FixedDeltaSeconds": 0.1,
+     "Duration": 15.0,
+     "Steps": [
+       { "Time": 0.5, "Action": "sysop",
+         "Args": { "TargetState": "RunningEdit" } },
+       { "Time": 1.0, "Action": "spawn",
+         "Args": { "x": 100.0, "y": 0.0, "z": 0.0 },
+         "SaveResult": "entity_b" },
+       { "Time": 2.0, "Action": "sysop",
+         "Args": { "TargetState": "RunningDryRun" } },
+       { "Time": 3.0, "Action": "move",
+         "Args": { "entity_ref": "entity_b", "x": 999.0, "y": 0.0, "z": 0.0 } },
+       { "Time": 4.0, "Action": "spawn",
+         "Args": { "x": 50.0, "y": 0.0, "z": 0.0 } },
+       { "Time": 5.0, "Action": "assert_entity_count",
+         "Args": { "expected": 2 } },
+       { "Time": 7.0, "Action": "sysop",
+         "Args": { "TargetState": "RunningEdit" } },
+       { "Time": 8.0, "Action": "assert_position",
+         "Args": { "entity_ref": "entity_b" },
+         "Assert": { "x": { "Equals": 100.0 } } },
+       { "Time": 8.1, "Action": "assert_entity_count",
+         "Args": { "expected": 1 } }
+     ]
+   }
+   ```
+   **Success condition:** After returning to RunningEdit, entity_b is at `x = 100.0` and the 5th entity is gone.
+
+   **`e2e_live_from_replay_branch.json`**
+   ```json
+   {
+     "TestName": "E2E_Live_From_Replay_Branch",
+     "TimeMode": "Deterministic",
+     "FixedDeltaSeconds": 0.1,
+     "Duration": 25.0,
+     "Steps": [
+       { "Time": 0.5,  "Action": "sysop",
+         "Args": { "TargetState": "RunningLive", "DrillId": "e2e-branch-src" } },
+       { "Time": 1.0,  "Action": "spawn",
+         "Args": { "x": 0.0, "y": 0.0, "z": 0.0 },
+         "SaveResult": "entity_c" },
+       { "Time": 1.1,  "Action": "add_moving_tag",
+         "Args": { "entity_ref": "entity_c", "velocity_x": 5.0 } },
+       { "Time": 8.0,  "Action": "sysop",
+         "Args": { "TargetState": "RunningReplay", "DrillId": "e2e-branch-src" } },
+       { "Time": 12.0, "Action": "sysop",
+         "Args": { "TargetState": "RunningLive", "DrillId": "e2e-branch-dst" } },
+       { "Time": 14.0, "Action": "spawn",
+         "Args": { "x": 50.0, "y": 50.0, "z": 0.0 },
+         "SaveResult": "entity_d" },
+       { "Time": 15.0, "Action": "assert_position",
+         "Args": { "entity_ref": "entity_d" },
+         "Assert": { "x": { "Equals": 50.0 } } }
+     ]
+   }
+   ```
+   **Success condition:** A new entity spawned post-branch has correct position; no ID-allocator collision exception is thrown (proves `MaxNetworkId` high-water reset succeeded).
+
+   **`e2e_overlapping_checkpoints.json`**
+   ```json
+   {
+     "TestName": "E2E_Overlapping_Checkpoints",
+     "TimeMode": "Deterministic",
+     "FixedDeltaSeconds": 0.1,
+     "Duration": 15.0,
+     "Steps": [
+       { "Time": 0.5, "Action": "sysop",
+         "Args": { "TargetState": "RunningLive" } },
+       { "Time": 1.0, "Action": "spawn",
+         "Args": { "x": 0.0, "y": 0.0, "z": 0.0 },
+         "SaveResult": "entity_e" },
+       { "Time": 2.0, "Action": "move",
+         "Args": { "entity_ref": "entity_e", "x": 10.0, "y": 0.0, "z": 0.0 } },
+       { "Time": 3.0, "Action": "sysop",
+         "Args": { "TargetState": "TakeCheckpoint" } },
+       { "Time": 3.1, "Action": "sysop",
+         "Args": { "TargetState": "TakeCheckpoint" } },
+       { "Time": 9.0, "Action": "assert_position",
+         "Args": { "entity_ref": "entity_e" },
+         "Assert": { "x": { "Equals": 10.0 } } }
+     ]
+   }
+   ```
+   **Success condition:** Both checkpoints succeed (both deferred `SysOpStatus(Success)` ACKs arrive within timeout); simulation continues and entity position is intact.
+
+4. Create `Bagira.Runner.Integration.Tests/DsmE2eScriptTests.cs` with four xUnit
+   `[Fact]` methods, one per script:
+   - Each fact boots an in-process all-in-one stack:
+     ```
+     SubsystemOrchestrator(Headless=true, Stepping=true) + [OrchestratorSubsystem,
+     SimHostSubsystem(ECS=true, NAS=MockNas)]
+     ```
+   - Registers `SysopActionHandler`, `AssertEntityCountActionHandler`, `SpawnActionHandler`,
+     `MoveActionHandler`, `AssertPositionActionHandler`, `AddMovingTagActionHandler`.
+   - Loads the JSON script from `TestScripts/` (embedded resource or relative path).
+   - Calls `HeadlessTestExecutor.RunAsync()` and asserts return value is `TestResult.Pass`.
+   - On failure, the test message includes the script name and the `TestAssertionException`
+     message from the failing step.
+   - **Wall-clock timeout:** each test must complete within 60 s (xUnit `[Fact(Timeout
+     = 60000)]`) to prevent CI hang.
+
+5. Create `AddMovingTagActionHandler` (action name `"add_moving_tag"`) in
+   `OrchestratorActionHandlers.cs`:
+   - Reads `entity_ref` (looked up in `HeadlessTestExecutor.SavedResults`) and
+     `velocity_x` (float).
+   - Adds `MovingTestTag { VelocityX = velocityX }` to the entity via `EntityRepository`.
+
+**Success conditions:**
+
+- `DsmE2eScriptTests.RecordAndReplaySeek_Passes`:
+  - Run `e2e_record_and_replay_seek.json` in-process.
+  - Assert `TestResult.Pass` (entity within 0.001 m of expected position at seeked tick).
+
+- `DsmE2eScriptTests.DryRunStateRestore_Passes`:
+  - Run `e2e_dryrun_state_restore.json` in-process.
+  - Assert `TestResult.Pass` (entity reverts, extra entity gone).
+
+- `DsmE2eScriptTests.LiveFromReplayBranch_Passes`:
+  - Run `e2e_live_from_replay_branch.json` in-process.
+  - Assert `TestResult.Pass` (post-branch entity spawns without crash or ID collision).
+
+- `DsmE2eScriptTests.OverlappingCheckpoints_Passes`:
+  - Run `e2e_overlapping_checkpoints.json` in-process.
+  - Assert `TestResult.Pass` (both checkpoints acknowledged; entity state intact).

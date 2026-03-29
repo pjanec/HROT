@@ -51,6 +51,7 @@ using FDP.Toolkit.Vis2D.Defaults;
 using FDP.Toolkit.Scenario;
 using ModuleHost.Core;
 using ModuleHost.Core.Network;
+using ModuleHost.Core.Scheduling;
 using Fdp.Kernel.Orchestration;
 using ModuleHost.Core.Network.Interfaces;
 using ModuleHost.Core.Time;
@@ -339,6 +340,17 @@ namespace Bagira.SimHost
             var checkpointStoragePath = System.IO.Path.Combine(nodeConfig.LocalTempRoot, "checkpoints");
             _checkpointWorker = new CheckpointIOWorker(checkpointStoragePath, localNodeId);
 
+            // ── Two-phase bootstrap: construct replay-control objects before BuildOrchestration ──
+            // GhostCreationSystem, SimulationSystemGroup, and NetworkLifecycleSystemGroup must
+            // be constructed here — before BuildOrchestration — so NodeBootstrapper can register
+            // ReplayLoadDsmHandler (which requires all three).  The same ghostCreationSystem
+            // instance is forwarded to SimHostModule below so both paths share one object.
+            // (CGF1-S0304 Part A.1 — BATCH-17; previously constructed inline inside SimHostModule
+            // after BuildOrchestration, which meant all three were null at registration time.)
+            var ghostCreationSystem   = new GhostCreationSystem(entityMap);
+            var simulationSystemGroup = new SimulationSystemGroup();
+            var networkLifecycleGroup = new NetworkLifecycleSystemGroup(ghostCreationSystem);
+
             // Built here so SimHostApp owns lifetime; Tick() called in OnUpdate.
             _drillSlave = bootstrapper.BuildOrchestration(
                 _role, _kernel, _world, localNodeId,
@@ -347,7 +359,10 @@ namespace Bagira.SimHost
                 eventBus: _eventBus,
                 scenarioSerializer: scenarioSerializer,
                 localTempRoot: nodeConfig.LocalTempRoot,
-                checkpointWorker: _checkpointWorker);
+                checkpointWorker: _checkpointWorker,
+                simGroup: simulationSystemGroup,
+                lifecycleGroup: networkLifecycleGroup,
+                ghostCreationSystem: ghostCreationSystem);
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
@@ -392,7 +407,7 @@ namespace Bagira.SimHost
             var simHostMod = new SimHostModule(
                 ddsParticipant, tkbDb, _idAllocator, localNodeId,
                 spawningSystem, entityMap, doctrineRegistry,
-                new GhostCreationSystem(entityMap), wgs84, jsonAttributeCompiler, binaryInterpreter);
+                ghostCreationSystem, wgs84, jsonAttributeCompiler, binaryInterpreter);
             _kernel.RegisterModule(simHostMod);
 
             // ── 10. Network module ──────────────────────────────────────────

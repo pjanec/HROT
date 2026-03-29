@@ -75,6 +75,12 @@ namespace Bagira.CGF
             // CGF1-S0309: wire dry-run snapshot/rewind handler (no ECS state on CGF skeleton).
             _drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null));
 
+            // CGF1-BATCH-17 architecture note: explicit fail-loud stubs for recording/replay ops.
+            // Until CGF hosts a recordable kernel, PrepareLive / FinalizeLive / PrepareReplay /
+            // FinalizeReplay are unsupported — the stub logs Error so missing brain-side persistence
+            // surfaces in structured logs rather than silently succeeding (no-op path).
+            _drillSlave.RegisterHandler(new FailLoudRecordReplayStub(SubsystemName));
+
             FdpLog<CgfApplication>.Info("[CGF] Initialized on domain {0}, nodeId {1}.", domainId, nodeId);
         }
 

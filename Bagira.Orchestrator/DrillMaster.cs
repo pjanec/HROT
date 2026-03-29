@@ -89,6 +89,23 @@ public sealed class DrillMaster : IDisposable
     // ── Active transaction ────────────────────────────────────────────────
     private DistributedTransaction? _activeTransaction;
 
+    // ── Live-from-Replay temporal interlock (CGF1-S0305) ─────────────────
+    /// <summary>
+    /// Optional module that freezes / restores the cluster time scale during
+    /// Live-from-Replay branch transitions.  Set via <see cref="SetReplayMasterModule"/>.
+    /// </summary>
+    private ReplayMasterModule? _replayMasterModule;
+
+    /// <summary>
+    /// Tracks in-progress Live-from-Replay branch fan-outs keyed by the
+    /// <see cref="NodeOpCommand.TransactionId"/> broadcast to nodes.  Each entry
+    /// holds the number of outstanding ACKs; when <c>RemainingAcks</c> reaches zero
+    /// <see cref="ConsumeNodeOpStatuses"/> calls <see cref="ReplayMasterModule.RestoreTime"/>.
+    /// </summary>
+    private readonly Dictionary<Guid, BranchTransitionTask> _pendingBranchTasks = new();
+
+    private sealed class BranchTransitionTask { public int RemainingAcks; }
+
     // ── Current DSM state (tracked here so the planner can compute relative paths) ─
     /// <summary>
     /// Optimistic cluster DSM state used as the <c>current</c> argument to
@@ -391,6 +408,9 @@ public sealed class DrillMaster : IDisposable
             {
                 try
                 {
+                    // Capture current state before optimistic advance (needed for S0305 detection).
+                    var stateBeforeAdvance = _currentDsmState;
+
                     var trajectory = _planner.PlanTrajectory(_currentDsmState, req);
                     totalSteps     = trajectory.Count;
                     // Extract the final TransitionStep target for history recording
@@ -453,6 +473,44 @@ public sealed class DrillMaster : IDisposable
                     // Clear pending mode when transitioning back to Standby.
                     if (resolvedTarget == DSMState.Standby)
                         PendingTimeMode = null;
+
+                    // CGF1-S0305: Live-from-Replay temporal interlock.
+                    // When the trajectory passes through LoadingLive from RunningReplay,
+                    // hard-freeze time and fan out PrepareLive with a new branched DrillId
+                    // before any node begins recording.  Time is restored once all nodes ACK.
+                    if (passesLoadingLive && stateBeforeAdvance == DSMState.RunningReplay)
+                    {
+                        _replayMasterModule?.FreezeTime();
+
+                        var branchedDrillId = Guid.NewGuid();
+                        var branchTxId      = Guid.NewGuid();
+                        var activeNodeIds   = new List<int>(_roster.ActiveNodes.Keys);
+
+                        if (activeNodeIds.Count > 0)
+                        {
+                            _pendingBranchTasks[branchTxId] = new BranchTransitionTask
+                            {
+                                RemainingAcks = activeNodeIds.Count
+                            };
+                            FanOutNodeOp(new NodeOpCommand
+                            {
+                                TransactionId = branchTxId,
+                                Operation     = NodeOpType.PrepareLive,
+                                PayloadJson   = $"{{\"DrillId\":\"{branchedDrillId}\"}}"
+                            }, activeNodeIds);
+                            FdpLog<DrillMaster>.Info(
+                                "[Orchestrator] S0305: Live-from-Replay branch — time frozen, " +
+                                "PrepareLive fan-out (branchedDrillId={0}, nodes={1}).",
+                                branchedDrillId, activeNodeIds.Count);
+                        }
+                        else
+                        {
+                            // No nodes to wait for; restore time immediately.
+                            _replayMasterModule?.RestoreTime();
+                            FdpLog<DrillMaster>.Warn(
+                                "[Orchestrator] S0305: Live-from-Replay branch with zero active nodes — time restored immediately.");
+                        }
+                    }
                 }
                 catch (InvalidOperationException ex)
                 {
@@ -581,6 +639,17 @@ public sealed class DrillMaster : IDisposable
     }
 
     /// <summary>
+    /// Registers the <see cref="ReplayMasterModule"/> used to freeze and restore
+    /// the cluster time scale during Live-from-Replay branch transitions (CGF1-S0305).
+    /// Call once at startup, before any simulation transitions are issued.
+    /// </summary>
+    /// <param name="module">The replay master module instance to register.</param>
+    public void SetReplayMasterModule(ReplayMasterModule module)
+    {
+        _replayMasterModule = module ?? throw new ArgumentNullException(nameof(module));
+    }
+
+    /// <summary>
     /// Sends a <see cref="NodeOpType.SerializeLocal"/> command to each node in
     /// <paramref name="nodeIds"/> and registers a pending task that waits for all
     /// <c>NodeOpStatus(Success)</c> ACKs before invoking
@@ -617,6 +686,20 @@ public sealed class DrillMaster : IDisposable
         {
             if (!sample.IsValid) continue;
             var status = sample.Data;
+
+            // CGF1-S0305: Branch-transition ACK — decrement and restore time on completion.
+            if (_pendingBranchTasks.TryGetValue(status.TransactionId, out var branchTask))
+            {
+                branchTask.RemainingAcks--;
+                if (branchTask.RemainingAcks <= 0)
+                {
+                    _pendingBranchTasks.Remove(status.TransactionId);
+                    _replayMasterModule?.RestoreTime();
+                    FdpLog<DrillMaster>.Info(
+                        "[Orchestrator] S0305: All branch ACKs received — time scale restored.");
+                }
+                continue;
+            }
 
             if (!_pendingSerializeTasks.TryGetValue(status.TransactionId, out var task))
                 continue;

@@ -142,18 +142,19 @@ namespace Bagira.SimHost.Modules.Orchestration
         {
             if (!string.IsNullOrWhiteSpace(payloadJson))
             {
-                try
+                using var doc = JsonDocument.Parse(payloadJson);
+                if (doc.RootElement.TryGetProperty("DrillId", out var prop))
                 {
-                    using var doc = JsonDocument.Parse(payloadJson);
-                    if (doc.RootElement.TryGetProperty("DrillId", out var prop))
-                    {
-                        var raw = prop.GetString();
-                        if (Guid.TryParse(raw, out var g)) return g;
-                    }
+                    var raw = prop.GetString();
+                    if (Guid.TryParse(raw, out var g)) return g;
+                    throw new InvalidOperationException(
+                        $"[SimHost] LiveLoadDsmHandler: 'DrillId' value '{raw}' is not a valid GUID. " +
+                        "Refusing to start recording under an unintended drill id.");
                 }
-                catch { /* malformed JSON — fall through to new Guid */ }
             }
-            return Guid.NewGuid();
+            throw new InvalidOperationException(
+                "[SimHost] LiveLoadDsmHandler: PayloadJson is missing or does not contain a 'DrillId' " +
+                $"property. Payload: '{payloadJson}'. Refusing to start recording under an unknown drill id.");
         }
     }
 }

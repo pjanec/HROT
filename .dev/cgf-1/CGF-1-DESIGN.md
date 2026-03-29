@@ -26,6 +26,7 @@
    - [Stage 1.3 — Centralized Identity Migration](#33-stage-13--centralized-identity-migration)
    - [Stage 1.4 — DrillSlave Foundation](#34-stage-14--drillslave-foundation)
    - [Stage 1.5 — Orchestrator Health Monitoring & Bootstrap Recovery](#35-stage-15--orchestrator-health-monitoring--bootstrap-recovery)
+   - [Stage 1.6 — Orchestrator ImGui Scenario & Story Controls](#36-stage-16--orchestrator-imgui-scenario--story-controls)
 4. [Phase 2 — State & Time: DSM and Synchronization](#4-phase-2--state--time-dsm-and-synchronization)
    - [Stage 2.1 — BFS Transition Planner](#41-stage-21--bfs-transition-planner)
    - [Stage 2.2 — DSM Handler Wiring](#42-stage-22--dsm-handler-wiring)
@@ -42,6 +43,7 @@
    - [Stage 3.7 — Application-Layer Scenario Save/Load Wiring](#57-stage-37--application-layer-scenario-saveload-wiring)
    - [Stage 3.8 — Runtime Story Injection & Deletion](#58-stage-38--runtime-story-injection--deletion)
    - [Stage 3.9 — Dry Run DSM Handler](#59-stage-39--dry-run-dsm-handler)
+   - [Stage 3.10 — E2E DSM Test Script Suite](#510-stage-310--e2e-dsm-test-script-suite)
 6. [New Projects & File Map](#6-new-projects--file-map)
 7. [Modified Files](#7-modified-files)
 8. [Deferred Features (Phase 5+)](#8-deferred-features-phase-5)
@@ -472,6 +474,48 @@ immediately. The ImGui panel reads the buffer directly; no serialization require
 
 **Milestone validation:** See
 [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0105).
+
+---
+
+### 3.6 Stage 1.6 — Orchestrator ImGui Scenario & Story Controls
+
+**Extends:** Stage 1.5 (Orchestrator Health Monitoring & Bootstrap Recovery)
+
+The existing health-monitoring panel covers system status, 2PC history, and time
+controls. This stage adds the **scenario and story management frontend**: the ImGui
+layer that translates operator intent into `SysOpRequest` DDS messages dispatched to
+`DrillMaster`. The panel has zero knowledge of the transition planner or 2PC protocol —
+it simply constructs `SysOpRequest` DTOs and calls `DrillMaster.HandleSysOpRequestAsync()`.
+
+**Location:** `Bagira.Orchestrator/UI/OrchestratorScenarioPanel.cs`
+
+#### Panel Layout
+
+| Section | Controls |
+|---------|----------|
+| **Status Banner** | Read-only: current `DSMState`, active `DrillId` (short hex), in-flight transaction ID + elapsed ms. Always rendered. |
+| **Drill Control** | Buttons: [Init Live] [Stop Live] [Init Edit] [Stop Edit] [Dry Run] [Stop Dry Run] [Init Replay] [Stop Replay]. Each emits the appropriate `SysOpRequest(TransitionState, TargetState)`. Entire row is disabled while `!bootstrapComplete` or while a transaction is in-flight; hovering shows a tooltip explaining the reason. |
+| **Checkpoint** | [Take Checkpoint] → `SysOpRequest(TakeSnapshot)`. Button disabled outside `RunningLive`. |
+| **Scenario** | [Save Scenario] text input + button → `SysOpRequest(SaveScenario, scenarioId)`. [Load Scenario] dropdown (names pulled from NAS via `StorageGatewayModule.ListScenariosAsync()`) + [Load into Edit] / [Load into Live] split button. |
+| **Replay** | Dropdown listing recorded `DrillId`s from NAS. [Load Replay] → `SysOpRequest(TransitionState, RunningReplay, drillId)`. When `CurrentState == RunningReplay`, a seek slider (in whole-second steps, converted to wall ticks) is shown; dragging emits `SysOpRequest(ReplaySeek, targetWallTicks)`. |
+| **Stories** | Scrollable list of active story GUIDs from `OrchestratorContextTopic.ActiveStories`. [Inject Story] two text inputs (ScenarioId + StoryId) + button → `SysOpRequest(ManageStory, {Mode:Start, StoryId, ScenarioId})`. Per-row [Unload] button → `SysOpRequest(ManageStory, {Mode:Stop, StoryId})`. |
+
+#### Interaction Contract
+
+```
+OrchestratorScenarioPanel
+   ↓ builds SysOpRequest
+DrillMaster.HandleSysOpRequestAsync()
+   ↓ BFS → 2PC → DDS broadcast
+All leaf DrillSlaves
+```
+
+`OrchestratorScenarioPanel` holds no async state machines. It fires requests and the
+panel's status banner (polling `DrillMaster.CurrentState` each frame) reflects the
+outcome when the transaction completes.
+
+**Milestone validation:** See
+[CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0106--orchestrator-imgui-scenario--story-controls).
 
 ---
 
@@ -1230,6 +1274,67 @@ this is an optional, user-driven action, not a protocol requirement.
 
 ---
 
+### 5.10 Stage 3.10 — E2E DSM Test Script Suite
+
+**Depends on:** Stages 3.3, 3.4, 3.5, 3.9, and the existing `HeadlessTestExecutor`
+infrastructure in `FDP.Framework.Runner`.
+
+End-to-end validation of the full distributed control plane requires driving the DSM
+through its realistic operator workflows and asserting outcomes at the ECS level.
+This stage extends the data-driven `HeadlessTestExecutor` pipeline with a DSM-aware
+action handler and four focused test scripts that map to the primary Mermaid-diagram
+paths in the design.
+
+#### SysopActionHandler
+
+A new `"sysop"` action handler registered alongside the existing `spawn`, `move`, and
+`assert_position` handlers in `Bagira.Runner.Testing`:
+
+```csharp
+// Location: Bagira.Runner/Testing/OrchestratorActionHandlers.cs
+// Constructs a SysOpRequest, dispatches to a local in-process DrillMaster,
+// and blocks (up to configurable timeout, default 10 s wall-clock) until
+// SysOpStatus(Success) or SysOpStatus(Failure) is received.
+new SysopActionHandler(drillMaster, sysOpStatusReader, timeoutSeconds: 10)
+```
+
+`Args.TargetState` accepts all `DSMState` string names plus the pseudo-target
+`"TakeCheckpoint"` (maps to `SysOpType.TakeSnapshot`) and `"ReplaySeek"` (requires
+`Args.TargetWallTicks`). On `SysOpStatus(Failure)` the handler throws
+`TestAssertionException`, failing the script immediately with a descriptive message.
+
+#### MovingEntitySystem
+
+A lightweight headless-only ECS system installed only during E2E test boots:
+
+```csharp
+// Location: Bagira.Runner.Integration.Tests/Systems/MovingEntitySystem.cs
+// Each tick: SimTransform.Position.X += VelocityX * DeltaTime
+// Entities tagged with MovingTestTag are automatically driven.
+// Provides deterministic per-frame position change for replay-seek assertions.
+```
+
+#### E2E Test Scripts
+
+Four JSON scripts installed in `Bagira.Runner.Integration.Tests/TestScripts/`:
+
+| Script | DSM path exercised | Key assertion |
+|--------|-------------------|---------------|
+| `e2e_record_and_replay_seek.json` | `Standby → RunningLive → RunningReplay` + seek | Replayed `SimTransform.Position.X` within 0.001 m of recorded value at targeted tick |
+| `e2e_dryrun_state_restore.json` | `RunningEdit → RunningDryRun → RunningEdit` | Entity position reverts after dry run; 5th entity spawned during dry run is gone |
+| `e2e_live_from_replay_branch.json` | `RunningReplay → RunningLive` (branch) | New entity spawnable post-branch; `MaxNetworkId` watermark not colliding |
+| `e2e_overlapping_checkpoints.json` | Two rapid `TakeSnapshot` operations in `RunningLive` | Both checkpoints succeed (deferred ACKs arrive); entity state intact post-checkpoint |
+
+All scripts run under `RunnerOptions.Headless = true` with `SteppedMasterController`
+(deterministic time-stepping, no wall-clock dependency). Each script is executed by a
+standalone xUnit `[Fact]` in `DsmE2eScriptTests` that boots the full in-process stack
+(Orchestrator + SimHost via `SubsystemOrchestrator`) and asserts process exit code 0.
+
+**Milestone validation:** See
+[CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0310--e2e-dsm-test-script-suite).
+
+---
+
 ## 6. New Projects & File Map
 
 ### New Projects
@@ -1285,6 +1390,13 @@ this is an optional, user-driven action, not a protocol requirement.
 | `Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | `Bagira.CGF` | 3.8 |
 | `Modules/Orchestration/Handlers/DryRunDsmHandler.cs` | `Bagira.SimHost` | 3.9 |
 | `Modules/Orchestration/Handlers/DryRunDsmHandler.cs` | `Bagira.CGF` | 3.9 |
+| `UI/OrchestratorScenarioPanel.cs` | `Bagira.Orchestrator` | 1.6 |
+| `Testing/OrchestratorActionHandlers.cs` | `Bagira.Runner` | 3.10 |
+| `TestScripts/e2e_record_and_replay_seek.json` | `Bagira.Runner.Integration.Tests` | 3.10 |
+| `TestScripts/e2e_dryrun_state_restore.json` | `Bagira.Runner.Integration.Tests` | 3.10 |
+| `TestScripts/e2e_live_from_replay_branch.json` | `Bagira.Runner.Integration.Tests` | 3.10 |
+| `TestScripts/e2e_overlapping_checkpoints.json` | `Bagira.Runner.Integration.Tests` | 3.10 |
+| `Systems/MovingEntitySystem.cs` | `Bagira.Runner.Integration.Tests` | 3.10 |
 
 ---
 
@@ -1302,6 +1414,7 @@ this is an optional, user-driven action, not a protocol requirement.
 | `Fdp.Kernel/FlightRecorder/AsyncRecorder.cs` | Accept `EntityFilter`; expose `MaxNetworkId` at finalization | 3.4 |
 | `Fdp.Kernel/FlightRecorder/PlaybackController.cs` | Add `WallClockTicks` to `FrameMetadata`; add `SeekToWallClockTicks()` with binary search | 3.4 |
 | `FDP/Toolkits/FDP.Toolkit.Replication/Systems/GhostCreationSystem.cs` | Add `bool BypassLifecycle` property | 3.5 |
+| `Bagira.Runner/Services/OrchestratorSubsystem.cs` | Wire `OrchestratorScenarioPanel` into `DrawUI()` alongside health and 2PC panels | 1.6 |
 | `Bagira.SimHost/SimHostApp.cs` | Remove `DdsIdAllocatorServer`; register `DrillSlave` | 1.3/1.4 |
 | `Bagira.IG/IgApplication.cs` | Register `DrillSlave` | 1.4 |
 | `Bagira.Runner/Services/SimHostSubsystem.cs` | Integrate DSM `Standby` entry; launch Orchestrator subprocess if enabled | 1.2 |

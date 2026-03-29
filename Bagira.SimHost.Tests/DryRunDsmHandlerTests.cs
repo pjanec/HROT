@@ -47,12 +47,22 @@ namespace Bagira.SimHost.Tests
         /// <summary>
         /// After a LoadingDryRun commit the handler must hold a snapshot whose
         /// content matches the live repository at capture time.
+        /// <para>
+        /// Uses four entities to match the §CGF1-S0309 TASK-DETAIL success text
+        /// ("four entities … <c>EntityCount == 4</c> on snapshot").
+        /// </para>
         /// </summary>
         [Fact]
         public async Task LoadingDryRun_SnapshotCapturesLiveState()
         {
-            var e = _liveRepo.CreateEntity();
-            _liveRepo.SetComponent(e, new DryRunTestPos { X = 1f, Y = 2f, Z = 3f });
+            // Build a 4-entity live repo with known, distinct positions.
+            var entities = new Entity[4];
+            for (int i = 0; i < 4; i++)
+            {
+                entities[i] = _liveRepo.CreateEntity();
+                _liveRepo.SetComponent(entities[i], new DryRunTestPos { X = i + 1f, Y = i + 2f, Z = i + 3f });
+            }
+            Assert.Equal(4, _liveRepo.EntityCount);
 
             var handler = new DryRunDsmHandler(_liveRepo);
             var cmd     = MakePrepareStateCmd(DSMState.LoadingDryRun);
@@ -62,9 +72,11 @@ namespace Bagira.SimHost.Tests
 
             var snap = handler.TestHook_Snap;
             Assert.NotNull(snap);
-            Assert.True(snap.HasComponent<DryRunTestPos>(e));
+            Assert.Equal(4, snap.EntityCount);  // §CGF1-S0309: EntityCount == 4 on snapshot
 
-            var snapPos = snap.GetComponent<DryRunTestPos>(e);
+            // Spot-check first entity's component values.
+            Assert.True(snap.HasComponent<DryRunTestPos>(entities[0]));
+            var snapPos = snap.GetComponent<DryRunTestPos>(entities[0]);
             Assert.Equal(1f, snapPos.X);
             Assert.Equal(2f, snapPos.Y);
             Assert.Equal(3f, snapPos.Z);
