@@ -61,6 +61,19 @@ namespace Bagira.SimHost.Tests
         private EditLoadDsmHandler CreateHandler() =>
             new EditLoadDsmHandler(_serializer, _tempDir);
 
+        private System.Collections.Generic.HashSet<(float X, float Y, float Z)>
+            CollectPositions(EntityRepository repo)
+        {
+            var positions = new System.Collections.Generic.HashSet<(float X, float Y, float Z)>();
+            var query = repo.Query().With<EditLoadTestPos>().Build();
+            foreach (var e in query)
+            {
+                var pos = repo.GetComponentRO<EditLoadTestPos>(e);
+                positions.Add((pos.X, pos.Y, pos.Z));
+            }
+            return positions;
+        }
+
         // ── Test 1 ────────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -85,7 +98,8 @@ namespace Bagira.SimHost.Tests
         /// <summary>
         /// Writing a scenario file with 3 entities and calling
         /// <see cref="EditLoadDsmHandler.Commit"/> must produce exactly 3 entities in the
-        /// repository with matching position data (CGF1-S0302 second success condition).
+        /// repository whose <see cref="EditLoadTestPos"/> component values match the
+        /// serialized source data (CGF1-S0302 second success condition).
         /// </summary>
         [Fact]
         public async Task LoadExistingScenario_SpawnsCorrectEntityCount()
@@ -123,6 +137,12 @@ namespace Bagira.SimHost.Tests
             handler.Commit(cmd, _repo);
 
             Assert.Equal(3, _repo.EntityCount);
+
+            // Assert component values match serialized source data (§CGF1-S0302).
+            var actualPositions = CollectPositions(_repo);
+            Assert.Contains((1f, 2f, 3f), actualPositions);
+            Assert.Contains((4f, 5f, 6f), actualPositions);
+            Assert.Contains((7f, 8f, 9f), actualPositions);
         }
 
         // ── Test 3 ────────────────────────────────────────────────────────────────

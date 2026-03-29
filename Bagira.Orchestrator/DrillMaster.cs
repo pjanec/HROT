@@ -57,11 +57,25 @@ public sealed class DrillMaster : IDisposable
         public readonly List<FileManifestEntry> Manifests = new();
     }
 
+    // ── Pending prefetch state (CGF1-S0302 / A.1) ─────────────────────────
+    /// <summary>
+    /// Tracks an in-flight <see cref="StorageGatewayModule.PrefetchScenarioAsync"/> task.
+    /// <c>PrefetchFiles</c> is only fan-out to nodes <em>after</em> the gateway copy
+    /// completes successfully, preventing nodes from running <c>LoadingEdit</c> before
+    /// staging files are physically present on their local SSD.
+    /// </summary>
+    private sealed class PendingPrefetchOp
+    {
+        public Guid                    RequestId;
+        public string                  ScenarioId = string.Empty;
+        public Task<GatewayResult>     GatewayTask = null!;
+    }
+
+    private PendingPrefetchOp? _pendingPrefetch;
+
     // ── Global context handler (CGF1-S0307) ──────────────────────────────
     private GlobalContextDsmHandler? _globalContextHandler;
-
-    // ── ID allocator server ───────────────────────────────────────────────
-    private DdsIdAllocatorServer? _idAllocatorServer;
+    private DdsIdAllocatorServer?    _idAllocatorServer;
     private CancellationTokenSource? _idServerCts;
     private Thread? _idServerThread;
 
@@ -197,6 +211,7 @@ public sealed class DrillMaster : IDisposable
         IngestHeartbeats();
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
+        DrainPendingPrefetch();
         ProcessSysOpRequests();
         ConsumeNodeOpStatuses();
     }
@@ -392,11 +407,13 @@ public sealed class DrillMaster : IDisposable
 
                     // CGF1-S0302 / A.1: Execute any PrefetchScenario step immediately so
                     // scenario files reach all nodes before the first TransitionStep runs.
+                    // The gateway copy runs async; PrefetchFiles fan-out is deferred until
+                    // DrainPendingPrefetch() confirms success (see Tick()).
                     foreach (var step in trajectory)
                     {
                         if (step is OperationStep { Operation: SysOpType.PrefetchScenario } prefetchStep)
                         {
-                            ExecutePrefetchScenario(prefetchStep.PayloadJson);
+                            ExecutePrefetchScenario(prefetchStep.PayloadJson, req.RequestId);
                             break;
                         }
                     }
@@ -656,18 +673,67 @@ public sealed class DrillMaster : IDisposable
     // ── Prefetch execution (CGF1-S0302 / A.1) ─────────────────────────────
 
     /// <summary>
-    /// Executes a <see cref="SysOpType.PrefetchScenario"/> step from the transition
-    /// trajectory: pushes scenario files from the NAS to every active node's local
-    /// staging directory via <see cref="StorageGatewayModule.PrefetchScenarioAsync"/>,
-    /// then fans out a <see cref="NodeOpType.PrefetchFiles"/> command so each node can
-    /// verify its staging directory is ready.
+    /// Resolves a pending prefetch: if the gateway task has completed, either fans out
+    /// <see cref="NodeOpType.PrefetchFiles"/> on success or publishes
+    /// <see cref="SysOpStatus.Failure"/> on fault / policy violation (FailureCount &gt; 0).
+    /// Must be called each <see cref="Tick"/> before <see cref="ProcessSysOpRequests"/> to
+    /// ensure <c>PrefetchFiles</c> is delivered only after files are physically on-disk.
+    /// </summary>
+    private void DrainPendingPrefetch()
+    {
+        if (_pendingPrefetch == null) return;
+        var op = _pendingPrefetch;
+        if (!op.GatewayTask.IsCompleted) return;
+
+        _pendingPrefetch = null;
+
+        bool hasFault  = op.GatewayTask.IsFaulted || op.GatewayTask.IsCanceled;
+        bool hasFailure = !hasFault && op.GatewayTask.Result.FailureCount > 0;
+
+        if (hasFault || hasFailure)
+        {
+            var reason = hasFault
+                ? op.GatewayTask.Exception?.GetBaseException().Message ?? "task faulted"
+                : $"{op.GatewayTask.Result.FailureCount} file(s) failed to copy";
+            FdpLog<DrillMaster>.Error(
+                "[Orchestrator] PrefetchScenario for '{0}' failed ({1}) — publishing SysOpStatus.Failure for request {2}.",
+                op.ScenarioId, reason, op.RequestId);
+            _sysOpStatusWriter.Write(new SysOpStatus
+            {
+                RequestId  = op.RequestId,
+                Status     = OpStatus.Failure,
+                ErrorCode  = 2,
+                ResultJson = string.Empty
+            });
+            return;
+        }
+
+        // Success — now safe to fan-out PrefetchFiles so nodes verify their staging dirs.
+        FdpLog<DrillMaster>.Info(
+            "[Orchestrator] PrefetchScenario for '{0}' succeeded ({1} file(s)) — fanning out PrefetchFiles to {2} node(s).",
+            op.ScenarioId, op.GatewayTask.Result.SuccessCount, _roster.ActiveNodes.Count);
+        FanOutNodeOp(new NodeOpCommand
+        {
+            TransactionId = Guid.NewGuid(),
+            Operation     = NodeOpType.PrefetchFiles,
+            PayloadJson   = $"{{\"ScenarioId\":\"{op.ScenarioId}\"}}",
+        }, new List<int>(_roster.ActiveNodes.Keys));
+    }
+
+    /// <summary>
+    /// Starts an asynchronous <see cref="StorageGatewayModule.PrefetchScenarioAsync"/>
+    /// task and stores it in <see cref="_pendingPrefetch"/>.  The <see cref="NodeOpType.PrefetchFiles"/>
+    /// fan-out is deferred to <see cref="DrainPendingPrefetch"/> once the copy completes,
+    /// ensuring nodes never receive <c>PrefetchFiles</c> before staging files are present.
     /// </summary>
     /// <param name="scenarioId">Logical scenario identifier (sub-directory under NAS root).</param>
+    /// <param name="requestId">Originating <see cref="SysOpRequest.RequestId"/>; used to
+    /// surface <see cref="SysOpStatus.Failure"/> if the gateway copy fails.</param>
     /// <exception cref="InvalidOperationException">
     /// Thrown when no <see cref="StorageGatewayModule"/> or NAS base path has been
     /// configured — both are required for prefetch to proceed.
     /// </exception>
-    private void ExecutePrefetchScenario(string scenarioId)
+    private void ExecutePrefetchScenario(string scenarioId, Guid requestId)
     {
         if (_gateway == null)
             throw new InvalidOperationException(
@@ -681,30 +747,16 @@ public sealed class DrillMaster : IDisposable
 
         var targets = BuildNodeDistributionTargets(scenarioId);
 
-        _ = _gateway.PrefetchScenarioAsync(scenarioId, targets, _nasBasePath)
-            .ContinueWith(t =>
-            {
-                if (t.IsFaulted)
-                    FdpLog<DrillMaster>.Error(
-                        "[Orchestrator] PrefetchScenarioAsync for '{0}' faulted: {1}",
-                        scenarioId, t.Exception?.GetBaseException().Message);
-                else
-                    FdpLog<DrillMaster>.Info(
-                        "[Orchestrator] PrefetchScenarioAsync for '{0}' complete: {1} succeeded, {2} failed.",
-                        scenarioId, t.Result.SuccessCount, t.Result.FailureCount);
-            }, System.Threading.Tasks.TaskScheduler.Default);
-
-        // Fan-out PrefetchFiles command so nodes can verify/create their staging directories.
-        FanOutNodeOp(new NodeOpCommand
+        _pendingPrefetch = new PendingPrefetchOp
         {
-            TransactionId = Guid.NewGuid(),
-            Operation     = NodeOpType.PrefetchFiles,
-            PayloadJson   = $"{{\"ScenarioId\":\"{scenarioId}\"}}",
-        }, new List<int>(_roster.ActiveNodes.Keys));
+            RequestId  = requestId,
+            ScenarioId = scenarioId,
+            GatewayTask = _gateway.PrefetchScenarioAsync(scenarioId, targets, _nasBasePath),
+        };
 
         FdpLog<DrillMaster>.Info(
-            "[Orchestrator] PrefetchScenario dispatched for '{0}' to {1} node(s).",
-            scenarioId, _roster.ActiveNodes.Count);
+            "[Orchestrator] PrefetchScenario started for '{0}' (requestId={1}); PrefetchFiles deferred until copy completes.",
+            scenarioId, requestId);
     }
 
     /// <summary>

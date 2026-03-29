@@ -145,6 +145,13 @@ namespace Bagira.SimHost.Modules.Orchestration
                 PublishHeartbeat();
             }
 
+            // Poll tickable handlers for deferred ACKs (e.g. completed checkpoint I/O).
+            foreach (var handler in _handlers)
+            {
+                if (handler is ITickableDsmHandler tickable)
+                    tickable.DrainDeferredAcks();
+            }
+
             while (_pendingCommands.TryDequeue(out var cmd))
                 DispatchCommand(cmd);
         }

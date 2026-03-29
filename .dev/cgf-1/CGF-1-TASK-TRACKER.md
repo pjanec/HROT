@@ -3,8 +3,8 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-14](batches/CGF-1-BATCH-14-INSTRUCTIONS.md).  
-**Last reviewed:** [CGF-1-BATCH-13](reviews/CGF-1-BATCH-13-REVIEW.md) — APPROVED with P2 follow-ups (2026-03-28).  
+**Active batch:** [CGF-1-BATCH-15](batches/CGF-1-BATCH-15-INSTRUCTIONS.md).  
+**Last reviewed:** [CGF-1-BATCH-14](reviews/CGF-1-BATCH-14-REVIEW.md) — CONDITIONALLY APPROVED (2026-03-28).  
 **Batches / reports / reviews:** `.dev/cgf-1/batches/`, `.dev/cgf-1/reports/`, `.dev/cgf-1/reviews/` (prefix `CGF-1-`).  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
@@ -13,7 +13,7 @@
 > Phase 3 tasks are complete and their CI gates are passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 5 / 5 tasks done. **Phase 2:** 5 / 5 complete. **Phase 3:** 4 / 8 done (S0301, S0302, S0306, S0307); S0205 residual closed in BATCH-10; subprocess CI Opportunistic.
+> **Progress (Phase 1):** 5 / 5 tasks done. **Phase 2:** 5 / 5 complete. **Phase 3:** 5 / 9 done (S0301–S0303, S0306–S0307); S0303 production checkpoint wiring → [CGF-1-BATCH-15](batches/CGF-1-BATCH-15-INSTRUCTIONS.md) Part A; S0205 residual closed in BATCH-10; subprocess CI Opportunistic.
 
 ---
 
@@ -50,9 +50,10 @@ management, and live-from-replay temporal interlock — all regression-tested.
 
 - [x] **CGF1-S0301** Storage Gateway [details](./CGF-1-TASK-DETAIL.md#cgf1-s0301--storage-gateway) — done (CGF-1-BATCH-10): `StorageGatewayModule`, `FileManifestEntry`, `GatewayResult`, `NodeDistributionTarget`; `PullToNasAsync`/`PushToNodesAsync`; `DrillMaster` gateway hook + `NodeOpStatus` reader; `StorageGatewayTests` (2 pass)
 - [x] **CGF1-S0302** Portable Scenario Loading [details](./CGF-1-TASK-DETAIL.md#cgf1-s0302--portable-scenario-loading) — done [CGF-1-BATCH-13](batches/CGF-1-BATCH-13-INSTRUCTIONS.md) Part B (`EditLoadDsmHandler`; `ScenarioSerializer` DOM; `PrefetchScenario` before `LoadingEdit`; 3 unit tests + `TransitionPlannerTests.PlanWithScenarioId_InjectsStorageGatewayStep`)
-- [ ] **CGF1-S0303** 3-Step Binary Checkpointing [details](./CGF-1-TASK-DETAIL.md#cgf1-s0303--3-step-binary-checkpointing)
+- [x] **CGF1-S0303** 3-Step Binary Checkpointing — **artefacts** in [CGF-1-BATCH-14](batches/CGF-1-BATCH-14-INSTRUCTIONS.md) (`CheckpointIOWorker`, `ITickableDsmHandler`, `CheckpointDsmHandler`, `DrillSlave` polling, `LiveLoadDsmHandler` drain hook; tests). **Production SimHost wiring** (bootstrap + `SimHostApp`) → [CGF-1-BATCH-15](batches/CGF-1-BATCH-15-INSTRUCTIONS.md) Part A — see [BATCH-14 review](reviews/CGF-1-BATCH-14-REVIEW.md#critical-gap-checkpoint-path-not-registered-in-production-simhost).
 - [ ] **CGF1-S0304** Dynamic Recording Modules [details](./CGF-1-TASK-DETAIL.md#cgf1-s0304--dynamic-recording-modules)
 - [ ] **CGF1-S0305** Live-from-Replay Temporal Interlock [details](./CGF-1-TASK-DETAIL.md#cgf1-s0305--live-from-replay-temporal-interlock)
 - [x] **CGF1-S0306** Scenario/Story Serialization Toolkit [details](./CGF-1-TASK-DETAIL.md#cgf1-s0306--scenariostory-serialization-toolkit) — ✅ [CGF-1-BATCH-11](batches/CGF-1-BATCH-11-INSTRUCTIONS.md) Part B
 - [x] **CGF1-S0307** Application-Layer Scenario Save/Load Wiring [details](./CGF-1-TASK-DETAIL.md#cgf1-s0307--application-layer-scenario-saveload-wiring) — done [CGF-1-BATCH-12](batches/CGF-1-BATCH-12-INSTRUCTIONS.md); follow-ups → [CGF-1-BATCH-12 review](reviews/CGF-1-BATCH-12-REVIEW.md#gaps-vs-task-detail-cgf1-s0307)
 - [ ] **CGF1-S0308** Runtime Story Injection & Deletion [details](./CGF-1-TASK-DETAIL.md#cgf1-s0308--runtime-story-injection--deletion)
+- [ ] **CGF1-S0309** Dry Run DSM Handler [details](./CGF-1-TASK-DETAIL.md#cgf1-s0309--dry-run-dsm-handler)

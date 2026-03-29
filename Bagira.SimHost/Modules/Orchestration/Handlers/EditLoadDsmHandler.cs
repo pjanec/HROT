@@ -194,11 +194,12 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
             var targetRepo = repo ?? _world;
             if (targetRepo == null)
             {
-                FdpLog<EditLoadDsmHandler>.Warn(
-                    "[SimHost] EditLoadDsmHandler.Commit: EntityRepository is null — cannot deserialize entities.");
                 _pendingDom           = null;
                 _pendingTransactionId = null;
-                return;
+                throw new InvalidOperationException(
+                    "[SimHost] EditLoadDsmHandler.Commit: EntityRepository is null but scenario " +
+                    "deserialization is required. Ensure a valid world is injected via the " +
+                    "constructor or passed through the repo parameter.");
             }
 
             try

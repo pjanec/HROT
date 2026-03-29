@@ -22,7 +22,8 @@
 3. [.dev/cgf-1/reviews/CGF-1-BATCH-13-REVIEW.md](../reviews/CGF-1-BATCH-13-REVIEW.md) — **Critical gap: prefetch ordering**  
 4. [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md) — rows **Target Fix = CGF-1-BATCH-14**
 
-**Report:** `.dev/cgf-1/reports/CGF-1-BATCH-14-REPORT.md` (file when complete)
+**Report:** [.dev/cgf-1/reports/CGF-1-BATCH-14-REPORT.md](../reports/CGF-1-BATCH-14-REPORT.md)  
+**Review:** [.dev/cgf-1/reviews/CGF-1-BATCH-14-REVIEW.md](../reviews/CGF-1-BATCH-14-REVIEW.md)
 
 ---
 
@@ -85,15 +86,16 @@ Implement per task detail:
 
 ## Success criteria
 
-- [ ] Part A: prefetch **ordered** vs gateway; **fail-loud** on missing NAS / failed copy policy; **EditLoad** throws on null repo when load required; tests + TASK-DETAIL **S0302** text aligned; DEBT rows closed.  
-- [ ] Part B: CGF1-S0303 artefacts + tests green.  
-- [ ] Solution build clean.  
-- [ ] **CGF-1-TASK-TRACKER** marks **S0303** `[x]` when Part B complete; **DEBT-TRACKER** updated.  
-- [ ] Report filed.
+- [x] Part A: prefetch **ordered** vs gateway; **fail-loud** on missing NAS / failed copy policy; **EditLoad** throws on null repo when load required; tests + TASK-DETAIL **S0302** text aligned; DEBT rows closed.  
+- [x] Part B: CGF1-S0303 artefacts + tests green.  
+- [x] Solution build clean.  
+- [x] **CGF-1-TASK-TRACKER** marks **S0303** `[x]` when Part B complete; **DEBT-TRACKER** updated.  
+- [x] Report filed.
 
 ---
 
 ## Reference
 
 - [CGF-1-BATCH-13 review — prefetch race](../reviews/CGF-1-BATCH-13-REVIEW.md#critical-gap-prefetch-ordering-and-failure-visibility)  
-- **Prior checkpoint context:** none in repo — green-field to task detail.
+- **Prior checkpoint context:** none in repo — green-field to task detail.  
+- **Next:** [CGF-1-BATCH-15](CGF-1-BATCH-15-INSTRUCTIONS.md) — checkpoint **production wiring** + **CGF1-S0309** Dry Run.

@@ -41,6 +41,7 @@
    - [Stage 3.6 — Scenario/Story Serialization Toolkit](#56-stage-36--scenariostory-serialization-toolkit)
    - [Stage 3.7 — Application-Layer Scenario Save/Load Wiring](#57-stage-37--application-layer-scenario-saveload-wiring)
    - [Stage 3.8 — Runtime Story Injection & Deletion](#58-stage-38--runtime-story-injection--deletion)
+   - [Stage 3.9 — Dry Run DSM Handler](#59-stage-39--dry-run-dsm-handler)
 6. [New Projects & File Map](#6-new-projects--file-map)
 7. [Modified Files](#7-modified-files)
 8. [Deferred Features (Phase 5+)](#8-deferred-features-phase-5)
@@ -1144,6 +1145,91 @@ during the Prepare phase. Nodes without matching story content opt out cleanly.
 
 ---
 
+### 5.9 Stage 3.9 — Dry Run DSM Handler
+
+A Dry Run is a **RAM-only, zero-disk variant of checkpointing** that lets an operator
+preview a live simulation and then instantly rewind the world back to its exact
+pre-dry-run state. It reuses the `EntityRepository.SyncFrom()` primitive that was
+introduced for 3-step binary checkpointing (Stage 3.3); the only architectural
+difference is that the cloned repository is **never passed to `CheckpointIOWorker`**
+— it lives entirely in process RAM for the duration of the dry run.
+
+#### State Machine Integration
+
+The dry-run lifecycle sits entirely within the `RunningEdit` bubble:
+
+```
+RunningEdit → LoadingDryRun → RunningDryRun → UnloadingDryRun → RunningEdit
+```
+
+`LoadingDryRun` failure falls back to `RunningEdit` (BFS adjacency already
+specified in §4.1).
+
+#### Two-Act Protocol
+
+**Act 1 — Snapshot (at `CommitState(LoadingDryRun)`):**
+1. Main thread, BeforeSync phase: `_snap = new EntityRepository();`
+2. `_snap.SyncFrom(liveRepo)` — unmanaged `NativeChunkTable` memcpy, ~2 ms.
+3. Snapshot stays in RAM; `CheckpointIOWorker` is **not** involved.
+4. Simulation resumes in `RunningDryRun` — physics, AI, recording all behave
+   identically to `RunningLive`.
+
+**Act 2 — Restore (at `CommitState(UnloadingDryRun)`):**
+1. Main thread, BeforeSync phase: `liveRepo.SyncFrom(_snap)` — restores the
+   world to the frame that was captured in Act 1; ~2 ms.
+2. `_snap.Dispose()` — frees the unmanaged chunk memory.
+3. `_snap = null`.  Cluster transitions back to `RunningEdit`.
+
+> **Performance contract:** both acts execute synchronously on the main thread
+> at BeforeSync, exactly like the Step 2 clone in `CheckpointDsmHandler`.
+> Total hot-path cost is two `SyncFrom()` calls (~4 ms each direction);
+> no disk I/O, no background threads, no `ConcurrentQueue`.
+
+#### DryRunDsmHandler
+
+**Location:** `Bagira.SimHost/Modules/Orchestration/Handlers/DryRunDsmHandler.cs`
+
+```csharp
+// Bagira.SimHost — Bagira application layer only; no Fdp.Kernel references
+public sealed class DryRunDsmHandler : IDsmHandler
+{
+    private readonly EntityRepository?        _liveRepo;
+    private          EntityRepository?        _snap;    // null when no dry run is active
+
+    public bool CanHandle(NodeOpType op) => op == NodeOpType.PrepareState;
+
+    // PrepareAsync: no async work for either act — snapshot & restore are
+    // synchronous memcpys performed in Commit().
+    public Task<string?> PrepareAsync(NodeOpCommand cmd, CancellationToken ct)
+        => Task.FromResult<string?>(null);
+
+    // Commit — Act 1 (LoadingDryRun) or Act 2 (UnloadingDryRun).
+    public void Commit(NodeOpCommand cmd, EntityRepository? repo) { /* see task */ }
+
+    public void Abort(NodeOpCommand cmd, EntityRepository? repo)
+    {
+        // Abort during LoadingDryRun: discard the in-progress snap if any.
+        _snap?.Dispose();
+        _snap = null;
+    }
+}
+```
+
+`DryRunDsmHandler` does **not** implement `ITickableDsmHandler` — there are no
+deferred ACKs to poll because no background I/O thread is involved.
+
+#### Absence of Time Control Changes
+
+The simulation time controller is **not paused** when entering `LoadingDryRun`.
+The clock continues exactly as in `RunningLive`. If the operator needs to freeze
+time during the dry run they use the existing `SetTimeScale(0.0)` control path —
+this is an optional, user-driven action, not a protocol requirement.
+
+**Milestone validation:** See
+[CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0309).
+
+---
+
 ## 6. New Projects & File Map
 
 ### New Projects
@@ -1197,6 +1283,8 @@ during the Prepare phase. Nodes without matching story content opt out cleanly.
 | `Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` | `Bagira.CGF` | 3.7 |
 | `Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | `Bagira.SimHost` | 3.8 |
 | `Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | `Bagira.CGF` | 3.8 |
+| `Modules/Orchestration/Handlers/DryRunDsmHandler.cs` | `Bagira.SimHost` | 3.9 |
+| `Modules/Orchestration/Handlers/DryRunDsmHandler.cs` | `Bagira.CGF` | 3.9 |
 
 ---
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using FDP.Kernel.Logging;
 
 namespace Bagira.Orchestrator;
 
@@ -211,7 +212,9 @@ public sealed class StorageGatewayModule
 
         var sourceDir = Path.Combine(nasBasePath, scenarioId);
         if (!Directory.Exists(sourceDir))
-            return new GatewayResult { SuccessCount = 0, FailureCount = 0 };
+            throw new DirectoryNotFoundException(
+                $"[Gateway] PrefetchScenario: NAS source directory '{sourceDir}' does not exist. " +
+                $"Ensure scenario '{scenarioId}' is staged to the NAS before issuing a prefetch transition.");
 
         var files   = Directory.GetFiles(sourceDir);
         int success = 0, failure = 0;
@@ -237,8 +240,11 @@ public sealed class StorageGatewayModule
                     File.Copy(srcFile, destPath, overwrite: true);
                     Interlocked.Increment(ref success);
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    FdpLog<StorageGatewayModule>.Error(
+                        "[Gateway] PrefetchScenario: failed to copy '{0}' → '{1}': {2}",
+                        Path.GetFileName(srcFile), tgt.DestinationPath, ex.Message);
                     Interlocked.Increment(ref failure);
                 }
             });

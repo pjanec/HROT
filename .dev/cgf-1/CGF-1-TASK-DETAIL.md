@@ -520,13 +520,15 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
 1. Implement `EditLoadDsmHandler` in `Bagira.SimHost`:
    - `PrepareAsync()`: if `IsNewScenario = true`, skips file I/O and returns success.
      If `ScenarioId != null`, verifies the pre-fetched JSON exists in `C:\FDP_Temp\`.
-   - `Commit()`: bootstraps blank world (`BaseTerrain`) OR deserializes the JSON and
-     spawns entities via `EntityCommandBuffer`. Does not block the main thread beyond
-     baseline spawning cost.
-2. Define a minimal scenario JSON schema:
-   ```json
-   { "SchemaVersion": 1, "Entities": [ { "Type": "Dummy", "Position": [0,0,0] } ] }
-   ```
+   - `Commit()`: leaves world blank for new scenarios OR deserializes the cached
+     `ScenarioSerializer` DOM and spawns entities via `ScenarioSerializer.Deserialize`.
+     Does not block the main thread beyond baseline spawning cost.
+     **Throws `InvalidOperationException`** when deserialization is required but both
+     the `repo` parameter and the injected `_world` are null (mis-wired production path).
+2. **Canonical scenario format:** `ScenarioSerializer` DOM (same as `ScenarioLoadDsmHandler`
+   for `PrepareLive`). Files follow the naming convention `<subsystemType>.json` within
+   the scenario directory. _The minimal `{ "SchemaVersion": 1, "Entities": [...] }` schema
+   described in earlier batch instructions is superseded by the ScenarioSerializer DOM._
 3. Extend `TransitionPlanner` to inject a pre-fetch `StorageGateway` step before
    `LoadingEdit` when `ScenarioId != null` in the payload.
 
@@ -534,8 +536,11 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
 - `EditLoadDsmHandlerTests.NewScenario_SpawnsNoEntities`:
   - Invoke `Commit(cmd, repo)` with `IsNewScenario = true`; assert `repo.EntityCount == 0`.
 - `EditLoadDsmHandlerTests.LoadExistingScenario_SpawnsCorrectEntityCount`:
-  - Write a local JSON file with 3 entity entries; invoke `Commit` with that path in payload.
-  - Assert `repo.EntityCount == 3` and their `Position` components match the JSON.
+  - Write a local `ScenarioSerializer` DOM file with 3 entities carrying `EditLoadTestPos`
+    components; invoke `PrepareAsync` + `Commit` with that scenario in the payload.
+  - Assert `repo.EntityCount == 3`.
+  - Assert each expected `(X, Y, Z)` position is present in the deserialized entities
+    (component values survive the serialize/deserialize round-trip).
 - `EditLoadDsmHandlerTests.Commit_DoesNotBlockLongerThan50ms`:
   - Measure wall-clock time of `Commit()` with a 100-entity JSON.
   - Assert elapsed < 50 ms.
@@ -586,6 +591,22 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
   - Assert the `LiveLoadDsmHandler.PrepareAsync()` call does not complete until the
     in-flight checkpoint finishes writing.
 
+
+** notes on similarity to the fligth recorder module **
+
+Reuse the building blocks of the existing async recorder for checkpointing as much as possible - keep the "DRY" principle. 
+
+Duplicating complex memory serialization logic would be a massive architectural anti-pattern. Fortunately, the sources confirm that the true low-level implementation building blocks are already heavily modularized and strictly shared between both operations.
+
+The architecture avoids code duplication by pushing the shared mechanics down into the core ECS memory layer, specifically through the `NativeChunkTable<T>` and the `IUnmanagedComponentTable` interface. Both the async flight recorder and the checkpointing system rely on the exact same zero-allocation primitives for memory extraction, such as `CopyChunkToBuffer`, `SyncDirtyChunks`, and `SanitizeChunk` (which explicitly zeros out dead entity slots in unmanaged memory to maximize LZ4 compression efficiency). 
+
+Furthermore, both pipelines respect the exact same declarative attribute system to filter out transient data. Whether you are recording or saving a checkpoint, the engine generates an optimized `BitMask256` from `[DataPolicy(DataPolicy.NoSave)]` or `[DataPolicy(DataPolicy.NoRecord)]` and applies it using the exact same bitwise filtering mechanisms to ensure temporary runtime states never hit the disk.
+
+Where the two mechanisms diverge is strictly in how they compose these shared blocks to satisfy their different performance profiles. The checkpointing mechanism needs to capture a single, perfect frame instantly, so it uses `EntityRepository.SyncFrom()` to perform a ~2 ms synchronous `memcpy` of the live chunk tables into an isolated, secondary `EntityRepository` living in RAM. It then passes this entire cloned repository to the background `CheckpointIOWorker` for compression, freeing the main thread immediately. 
+
+Conversely, the `AsyncRecorder` streams data continuously, so it iterates over the live chunks, copies them into a pre-allocated scratch buffer, sanitizes them in-place, and feeds them directly into the compression worker chunk-by-chunk without ever allocating a full secondary repository. 
+
+By keeping the low-level chunk manipulation, sanitization, and policy masking completely unified inside `Fdp.Kernel`, the architecture perfectly satisfies the DRY principle while allowing the application layer to compose those blocks optimally for either continuous delta-streaming or isolated full-RAM cloning.
 ---
 
 ### CGF1-S0304 — Dynamic Recording Modules
@@ -927,3 +948,84 @@ Do not reinvent it — just call `GetSaveableMask()` as the starting point.
   - Inject two distinct story **`Guid`**s `s1` / `s2` (3 and 2 entities).
   - Stop `s1`.
   - Assert `s1` entities gone; assert `s2` entities still present.
+
+---
+
+### CGF1-S0309 — Dry Run DSM Handler
+
+**Design ref:** [§5.9](./CGF-1-DESIGN.md#59-stage-39--dry-run-dsm-handler)
+
+**Context:** The checkpointing primitive (`EntityRepository.SyncFrom()`) introduced in
+CGF1-S0303 is fully implemented. This task wires the RAM-only variant of that
+primitive into the DSM lifecycle to power the edit-preview-rewind loop.
+
+**Work to do:**
+
+1. Implement `DryRunDsmHandler` in
+   `Bagira.SimHost/Modules/Orchestration/Handlers/DryRunDsmHandler.cs`:
+   - Constructor accepts `EntityRepository? liveRepo` (nullable for subsystems
+     without ECS, e.g. `Bagira.IOS`).
+   - `CanHandle(NodeOpType op)` returns `true` for `NodeOpType.PrepareState`.
+   - `PrepareAsync` returns `Task.FromResult<string?>(null)` — no async work needed
+     for either act.
+   - `Commit` implements both acts via target-state inspection of `cmd.PayloadJson`
+     (same `ParseTargetState` helper pattern as `EditLoadDsmHandler`):
+     - **`LoadingDryRun`:** if `liveRepo != null`, allocate `_snap = new EntityRepository()`,
+       call `_snap.SyncFrom(liveRepo)` on the main thread (BeforeSync, ~2 ms).
+       If `liveRepo == null`, log a warning and set `_snap = null` — handler
+       treats a null repo as a participating no-op (ECS-less subsystems pass through).
+     - **`UnloadingDryRun`:** if `_snap != null`, call `liveRepo!.SyncFrom(_snap)`,
+       then `_snap.Dispose()`, then `_snap = null`.
+       If `_snap == null` (snapshot was never taken or already released), log a
+       warning and return — do **not** throw; the state machine must complete.
+     - All other `PrepareState` targets: no-op (return without touching `_snap`).
+   - `Abort`: dispose and null `_snap` if it was allocated (handles aborted
+     `LoadingDryRun` transactions).
+   - **Do not** implement `ITickableDsmHandler` — there are no deferred ACKs.
+   - **Do not** touch `CheckpointIOWorker` — this is a RAM-only path.
+
+2. Register `DryRunDsmHandler` in `SimHostApp` (and `CgfApp`) alongside the
+   existing `CheckpointDsmHandler` and `EditLoadDsmHandler` registrations.
+   Pass the live `EntityRepository` reference from `ModuleHostKernel`.
+
+3. Add the same handler (with `liveRepo = null`) in `Bagira.IOS` and `Bagira.IG`
+   `DrillSlave` registrations so those subsystems participate in the 2PC round-trip
+   without error even though they have no ECS world.
+
+**Success conditions:**
+
+- `DryRunDsmHandlerTests.LoadingDryRun_SnapshotCapturesLiveState`:
+  - Build a `liveRepo` with 4 entities, each with a known `SimPosition` value.
+  - Create `DryRunDsmHandler(liveRepo)`.
+  - Call `Commit(PrepareState → LoadingDryRun, liveRepo)`.
+  - Assert `_snap` (exposed via internal test accessor) is non-null.
+  - Assert `_snap.EntityCount == 4`.
+  - Assert the `SimPosition` values in `_snap` match those in `liveRepo`.
+
+- `DryRunDsmHandlerTests.UnloadingDryRun_RewindsLiveRepo`:
+  - After `LoadingDryRun` commit (4 entities, known positions), mutate one
+    `SimPosition` in `liveRepo` to a different value.
+  - Add a 5th entity to `liveRepo`.
+  - Call `Commit(PrepareState → UnloadingDryRun, liveRepo)`.
+  - Assert `liveRepo.EntityCount == 4` (5th entity gone).
+  - Assert the mutated `SimPosition` has been **reverted** to its original value.
+
+- `DryRunDsmHandlerTests.UnloadingDryRun_DisposesSnapshot`:
+  - After a full `LoadingDryRun` + `UnloadingDryRun` cycle, assert `_snap == null`
+    (internal accessor returns null after restore).
+
+- `DryRunDsmHandlerTests.Abort_DuringLoadingDryRun_DiscardsSnap`:
+  - Call `Commit(PrepareState → LoadingDryRun, liveRepo)` to allocate the snap.
+  - Call `Abort(...)`.
+  - Assert `_snap == null`.
+
+- `DryRunDsmHandlerTests.OtherPrepareStateTargets_AreNoOps`:
+  - Call `Commit(PrepareState → LoadingLive, liveRepo)` and
+    `Commit(PrepareState → LoadingEdit, liveRepo)` in sequence.
+  - Assert `_snap == null` after both calls (handler ignored both).
+
+- `DryRunDsmHandlerTests.UnloadingDryRun_WithNullSnap_LogsWarningAndReturns`:
+  - Construct `DryRunDsmHandler(liveRepo)`.
+  - Call `Commit(PrepareState → UnloadingDryRun, liveRepo)` **without** a prior
+    `LoadingDryRun` commit (simulates an aborted prepare where snap was never set).
+  - Assert no exception is thrown; assert `liveRepo` is unchanged.

@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Common.Orchestration;
 using Fdp.Kernel;
+using Fdp.Kernel.Orchestration;
 
 namespace Bagira.SimHost.Modules.Orchestration
 {
@@ -21,18 +22,26 @@ namespace Bagira.SimHost.Modules.Orchestration
     /// </summary>
     public sealed class LiveLoadDsmHandler : IDsmHandler
     {
-        private readonly DrillSlave _slave;
-        private readonly FdpEventBus _eventBus;
+        private readonly DrillSlave         _slave;
+        private readonly FdpEventBus        _eventBus;
+        private readonly CheckpointIOWorker? _checkpointWorker;
 
         /// <param name="slave">
         /// Owning slave; used to call
         /// <see cref="DrillSlave.PublishDsmStateChanged"/> as a guard.
         /// </param>
         /// <param name="eventBus">Event bus for <see cref="DsmStateChangedEvent"/> publication.</param>
-        public LiveLoadDsmHandler(DrillSlave slave, FdpEventBus eventBus)
+        /// <param name="checkpointWorker">
+        /// Optional <see cref="CheckpointIOWorker"/>; when provided, <see cref="PrepareAsync"/>
+        /// calls <see cref="CheckpointIOWorker.DrainAsync"/> before returning for
+        /// <see cref="NodeOpType.FinalizeLive"/> to ensure all in-flight checkpoint writes
+        /// complete before the live session is torn down (CGF1-S0303).
+        /// </param>
+        public LiveLoadDsmHandler(DrillSlave slave, FdpEventBus eventBus, CheckpointIOWorker? checkpointWorker = null)
         {
-            _slave    = slave;
-            _eventBus = eventBus;
+            _slave            = slave;
+            _eventBus         = eventBus;
+            _checkpointWorker = checkpointWorker;
         }
 
         /// <inheritdoc />
@@ -40,11 +49,20 @@ namespace Bagira.SimHost.Modules.Orchestration
             op == NodeOpType.PrepareLive || op == NodeOpType.FinalizeLive;
 
         /// <summary>
-        /// Phase 2.0 stub — returns <c>null</c> (success) immediately.
-        /// Full implementation (scenario load, ECS warm-up) is deferred to Stage 3.4.
+        /// Phase 2.0 stub — for <see cref="NodeOpType.FinalizeLive"/> awaits any pending
+        /// checkpoint drain (<see cref="CheckpointIOWorker.DrainAsync"/>) before returning,
+        /// ensuring in-flight checkpoint I/O completes before the live session is torn down
+        /// (CGF1-S0303).  For all other operations returns <c>null</c> immediately.
+        /// Full live-session prepare work is deferred to Stage 3.4.
         /// </summary>
-        public Task<string?> PrepareAsync(NodeOpCommand cmd, CancellationToken ct) =>
-            Task.FromResult<string?>(null);
+        public async Task<string?> PrepareAsync(NodeOpCommand cmd, CancellationToken ct)
+        {
+            if (cmd.Operation == NodeOpType.FinalizeLive && _checkpointWorker != null)
+            {
+                await _checkpointWorker.DrainAsync().ConfigureAwait(false);
+            }
+            return null;
+        }
 
         /// <summary>
         /// Commits the live-load command.  Publishes <see cref="DsmStateChangedEvent"/>
