@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using Bagira.CGF.Modules.Orchestration;
 using Bagira.CGF.Modules.Orchestration.Handlers;
+using Bagira.Common.Orchestration.Handlers;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -70,6 +71,9 @@ namespace Bagira.CGF
             // CGF1-S0307: wire scenario load handler when a serializer is provided.
             if (scenarioSerializer != null)
                 _drillSlave.RegisterHandler(new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot));
+
+            // CGF1-S0309: wire dry-run snapshot/rewind handler (no ECS state on CGF skeleton).
+            _drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null));
 
             FdpLog<CgfApplication>.Info("[CGF] Initialized on domain {0}, nodeId {1}.", domainId, nodeId);
         }

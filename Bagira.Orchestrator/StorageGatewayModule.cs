@@ -217,6 +217,15 @@ public sealed class StorageGatewayModule
                 $"Ensure scenario '{scenarioId}' is staged to the NAS before issuing a prefetch transition.");
 
         var files   = Directory.GetFiles(sourceDir);
+
+        // An empty scenario directory is a mis-configuration: fail fast so the
+        // orchestrator publishes SysOpStatus.Failure rather than fanning out
+        // PrefetchFiles that would result in no staged content (CGF1 BATCH-15 A.2).
+        if (files.Length == 0)
+            throw new InvalidOperationException(
+                $"[Gateway] PrefetchScenario: NAS source directory '{sourceDir}' is empty. " +
+                $"Ensure scenario '{scenarioId}' contains at least one file before prefetching.");
+
         int success = 0, failure = 0;
         var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
 

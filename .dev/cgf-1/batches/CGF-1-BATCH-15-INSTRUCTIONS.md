@@ -22,7 +22,8 @@ Complete **Part A** first so **`TakeSnapshot`** and **`FinalizeLive` drain** wor
 3. [.dev/cgf-1/reviews/CGF-1-BATCH-14-REVIEW.md](../reviews/CGF-1-BATCH-14-REVIEW.md) — production wiring gap  
 4. [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md) — rows **Target Fix = CGF-1-BATCH-15**
 
-**Report:** `.dev/cgf-1/reports/CGF-1-BATCH-15-REPORT.md` (when complete)
+**Report:** [.dev/cgf-1/reports/CGF-1-BATCH-15-REPORT.md](../reports/CGF-1-BATCH-15-REPORT.md)  
+**Review:** [.dev/cgf-1/reviews/CGF-1-BATCH-15-REVIEW.md](../reviews/CGF-1-BATCH-15-REVIEW.md)
 
 ---
 
@@ -73,14 +74,15 @@ Close **Part A** rows when merged.
 
 ## Success criteria
 
-- [ ] Part A: production **checkpoint** path wired + disposed; optional empty-dir prefetch policy; DEBT rows closed.  
-- [ ] Part B: **CGF1-S0309** complete + tests green.  
-- [ ] Solution build clean.  
-- [ ] **CGF-1-TASK-TRACKER** marks **S0309** `[x]`; clarify **S0303** line if wiring completes this batch.  
-- [ ] Report filed.
+- [x] Part A: production **checkpoint** path wired + disposed; optional empty-dir prefetch policy; DEBT rows closed.  
+- [x] Part B: **CGF1-S0309** complete + tests green.  
+- [x] Solution build clean.  
+- [x] **CGF-1-TASK-TRACKER** marks **S0309** `[x]`; clarify **S0303** line if wiring completes this batch.  
+- [x] Report filed.
 
 ---
 
 ## Reference
 
-- [CGF-1-BATCH-14 review — checkpoint wiring](../reviews/CGF-1-BATCH-14-REVIEW.md#critical-gap-checkpoint-path-not-registered-in-production-simhost)
+- [CGF-1-BATCH-14 review — checkpoint wiring](../reviews/CGF-1-BATCH-14-REVIEW.md#critical-gap-checkpoint-path-not-registered-in-production-simhost)  
+- **Next:** [CGF-1-BATCH-16](CGF-1-BATCH-16-INSTRUCTIONS.md)

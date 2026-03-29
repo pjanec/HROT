@@ -195,4 +195,32 @@ public sealed class StorageGatewayTests
             if (Directory.Exists(goodDir)) Directory.Delete(goodDir, recursive: true);
         }
     }
+
+    /// <summary>
+    /// When the NAS source directory for a scenario exists but contains no files,
+    /// <c>PrefetchScenarioAsync</c> must throw <see cref="InvalidOperationException"/>
+    /// so the orchestrator treats the transition as a failure (CGF1 BATCH-15 A.2).
+    /// </summary>
+    [Fact]
+    public async Task PrefetchScenarioAsync_EmptyDirectory_ThrowsInvalidOperation()
+    {
+        var nasDir     = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var scenarioId = "empty_scenario";
+        var scenarioDir = Path.Combine(nasDir, scenarioId);
+        Directory.CreateDirectory(scenarioDir);   // exists but contains no files
+
+        try
+        {
+            var gateway = new StorageGatewayModule();
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => gateway.PrefetchScenarioAsync(scenarioId, new List<NodeDistributionTarget>(), nasDir));
+
+            Assert.Contains("empty", ex.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains(scenarioId, ex.Message);
+        }
+        finally
+        {
+            if (Directory.Exists(nasDir)) Directory.Delete(nasDir, recursive: true);
+        }
+    }
 }

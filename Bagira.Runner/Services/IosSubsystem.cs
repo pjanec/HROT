@@ -1,5 +1,6 @@
 using Bagira.BDC.SSTD;
 using Bagira.BDC.SSTM;
+using Bagira.Common.Orchestration.Handlers;
 using Bagira.IOS;
 using Bagira.IOS.Logic;
 using Bagira.IOS.Orchestration;
@@ -89,6 +90,9 @@ namespace Bagira.Runner.Services
             // ── DrillSlave (CGF1-S0104) ────────────────────────────────────────
             var iosNodeId = config.NodeId != 0 ? config.NodeId : 500;
             _drillSlave = new DrillSlave(_participant, iosNodeId, "IOS");
+
+            // CGF1-S0309: wire dry-run snapshot/rewind handler (IOS carries no ECS state).
+            _drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null));
 
             // ── Construct services ─────────────────────────────────────────────
             // DerRepo takes no external dependencies; node ID uses a fixed default.

@@ -80,6 +80,8 @@ using FDP.Toolkit.Replication.Services;
 
 using FDP.Toolkit.Replication.Systems;
 
+using Bagira.Common.Orchestration.Handlers;
+
 using FDP.Toolkit.Time.Controllers;
 
 using FDP.Toolkit.Vis2D;
@@ -870,6 +872,9 @@ public class IgApplication : IDisposable
                 var igNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : IgNetworkConstants.LocalNodeId;
                 _drillSlave = new Bagira.IG.Modules.Orchestration.DrillSlave(
                     participant, igNodeId, "IG");
+
+                // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in DrillSlave).
+                _drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null));
 
         }
 

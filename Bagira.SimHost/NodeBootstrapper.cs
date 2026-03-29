@@ -1,8 +1,10 @@
 using System.Collections.Generic;
+using Bagira.Common.Orchestration.Handlers;
 using Bagira.SimHost.Modules;
 using Bagira.SimHost.Modules.Orchestration;
 using Bagira.SimHost.Modules.Orchestration.Handlers;
-using Bagira.SimHost.Network;using CarKinem.Commands;
+using Bagira.SimHost.Network;
+using Fdp.Kernel.Orchestration;using CarKinem.Commands;
 using CarKinem.Formation;
 using CarKinem.Road;
 using CarKinem.Trajectory;
@@ -265,6 +267,12 @@ namespace Bagira.SimHost
         /// Local staging directory root used by <c>ScenarioLoadDsmHandler</c> to locate pre-fetched
         /// scenario files.  Defaults to <c>C:\FDP_Temp</c>.
         /// </param>
+        /// <param name="checkpointWorker">
+        /// Optional <see cref="CheckpointIOWorker"/> owned by the caller.  When provided a
+        /// <see cref="CheckpointDsmHandler"/> is registered (handles <c>TakeSnapshot</c>) and the
+        /// same worker is forwarded to <see cref="LiveLoadDsmHandler"/> so that
+        /// <c>FinalizeLive</c> awaits checkpoint drain before unloading (CGF1-S0303 A.1).
+        /// </param>
         public DrillSlave BuildOrchestration(
             NodeRole role,
             ModuleHost.Core.ModuleHostKernel kernel,
@@ -274,7 +282,8 @@ namespace Bagira.SimHost
             string subsystemName = "SimHost",
             Fdp.Kernel.FdpEventBus? eventBus = null,
             FDP.Toolkit.Scenario.ScenarioSerializer? scenarioSerializer = null,
-            string localTempRoot = @"C:\FDP_Temp")
+            string localTempRoot = @"C:\FDP_Temp",
+            CheckpointIOWorker? checkpointWorker = null)
         {
             if (participant == null && (role == NodeRole.Brain || role == NodeRole.AllInOne))
                 throw new ArgumentNullException(nameof(participant),
@@ -292,10 +301,21 @@ namespace Bagira.SimHost
             }
 
             // Wire LiveLoadDsmHandler when an event bus is available (CGF1-S0202).
+            // Pass checkpointWorker (may be null) so FinalizeLive awaits drain (CGF1-S0303 A.1).
             if (eventBus != null)
             {
-                drillSlave.RegisterHandler(new LiveLoadDsmHandler(drillSlave, eventBus));
+                drillSlave.RegisterHandler(new LiveLoadDsmHandler(drillSlave, eventBus, checkpointWorker));
             }
+
+            // Wire CheckpointDsmHandler when a checkpoint worker is provided (CGF1-S0303 A.1).
+            if (checkpointWorker != null)
+            {
+                drillSlave.RegisterHandler(new CheckpointDsmHandler(
+                    checkpointWorker, world, drillSlave.NodeOpStatusWriter, nodeId));
+            }
+
+            // Wire DryRunDsmHandler for LoadingDryRun / UnloadingDryRun (CGF1-S0309).
+            drillSlave.RegisterHandler(new DryRunDsmHandler(world));
 
             // Wire PrefetchFilesDsmHandler so this node can stage scenario files and ACK
             // the orchestrator (CGF1-S0302 / A.2).  Registered for all roles that participate

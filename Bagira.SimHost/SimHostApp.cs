@@ -51,6 +51,7 @@ using FDP.Toolkit.Vis2D.Defaults;
 using FDP.Toolkit.Scenario;
 using ModuleHost.Core;
 using ModuleHost.Core.Network;
+using Fdp.Kernel.Orchestration;
 using ModuleHost.Core.Network.Interfaces;
 using ModuleHost.Core.Time;
 using ModuleHost.Network.Cyclone.Modules;
@@ -107,6 +108,9 @@ namespace Bagira.SimHost
 
         // ── Orchestration (CGF1-S0104) ────────────────────────────────────────
         private Bagira.SimHost.Modules.Orchestration.DrillSlave? _drillSlave;
+        // CheckpointIOWorker owns the background I/O thread; created in OnLoad,
+        // passed to BuildOrchestration, and disposed in Shutdown (CGF1-S0303 A.1).
+        private CheckpointIOWorker? _checkpointWorker;
 
         // ── Headless/test support ────────────────────────────────────────────
         private bool _headless;
@@ -326,13 +330,21 @@ namespace Bagira.SimHost
             // delegates for all registered component types.
             var scenarioSerializer = new ScenarioSerializerBuilder("Bagira.SimHost").Build();
 
+            // CheckpointIOWorker: starts its background I/O thread here; owned by SimHostApp
+            // and disposed in Shutdown().  Storage directory: C:\FDP_Temp\checkpoints.
+            // Passed to BuildOrchestration so CheckpointDsmHandler and LiveLoadDsmHandler
+            // are wired with the same instance (CGF1-S0303 production wiring, Part A.1).
+            const string checkpointStoragePath = @"C:\FDP_Temp\checkpoints";
+            _checkpointWorker = new CheckpointIOWorker(checkpointStoragePath, localNodeId);
+
             // Built here so SimHostApp owns lifetime; Tick() called in OnUpdate.
             _drillSlave = bootstrapper.BuildOrchestration(
                 _role, _kernel, _world, localNodeId,
                 participant: ddsParticipant,
                 subsystemName: "SimHost",
                 eventBus: _eventBus,
-                scenarioSerializer: scenarioSerializer);
+                scenarioSerializer: scenarioSerializer,
+                checkpointWorker: _checkpointWorker);
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
@@ -547,6 +559,10 @@ namespace Bagira.SimHost
             // ── Stop DrillSlave (CGF1-S0104) ──────────────────────────────────
             _drillSlave?.Dispose();
             _drillSlave = null;
+
+            // ── Dispose CheckpointIOWorker (lets background I/O finish before kernel teardown)
+            _checkpointWorker?.Dispose();
+            _checkpointWorker = null;
 
             // ── Dispose simulation resources ──────────────────────────────────
             _vis?.Dispose();
