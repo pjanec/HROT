@@ -3,9 +3,9 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** CGF-1-BATCH-30 (Phase 5 final: S0507).
-**Last reviewed:** [CGF-1-BATCH-29](reviews/CGF-1-BATCH-29-REVIEW.md) — APPROVED (2026-03-30); S0506 complete; _drillTime P3 closed; +18 tests (DataModel 47, Runner 177).
-**Last completed:** [CGF-1-BATCH-29](reports/CGF-1-BATCH-29-REPORT.md) — AssetInventoryTopic DDS struct, DrillMaster inventory publisher, ClusterUiCache (8 DDS readers), ClusterScenarioPanel (replaced OrchestratorScenarioPanel), OrchestratorSubsystem CQRS-clean DrawUI(); **Phase 5 S0506 done**.
+**Active batch:** Phase 5 COMPLETE — Phase 6 (Urban Combat AI) may begin.
+**Last reviewed:** [CGF-1-BATCH-30](reviews/CGF-1-BATCH-30-REVIEW.md) — APPROVED; S0507 complete; P3 cleanup (OrchestratorScenarioPanel deleted, _drillTime removed); +9 net new tests (IOS 340→348, Runner 177→161 after P3 deletion).
+**Last completed:** [CGF-1-BATCH-30](batches/CGF-1-BATCH-30-INSTRUCTIONS.md) — TimePulseIngressHandler, TimeModeIngressHandler, IIosLogic time API, IosLogic time commands via SysOpRequest, IosSubsystem wired with ClusterUiCache + ClusterScenarioPanel; "Cluster Control" ImGui window in IOS; **Phase 5 S0507 done — Phase 5 COMPLETE**.
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
 > **Extended specs:** [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) and [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) define **CGF1-S0106** and **CGF1-S0310**. **Phase 4** ✅ complete (**CGF-1-BATCH-22**). **BATCH-23:** brain/muscle **DSM parity** (CGF record/replay, IG/IOS matrix), **orchestrator globals** (`GlobalContextDto`), then **S0310** / **S0106**.
@@ -102,4 +102,4 @@ with graceful cancellation; and cap the phase with full CQRS decoupling so that
 - [x] **CGF1-S0504** Asset Combo Selection [details](./CGF-1-TASK-DETAIL.md#cgf1-s0504--asset-combo-selection-local-filesystem-scan) ✅ BATCH-27
 - [x] **CGF1-S0505** Archive Export/Import Pipeline [details](./CGF-1-TASK-DETAIL.md#cgf1-s0505--archive-exportimport-pipeline) ✅ BATCH-28
 - [x] **CGF1-S0506** CQRS Decoupling: AssetInventoryTopic + ClusterUiCache [details](./CGF-1-TASK-DETAIL.md#cgf1-s0506--cqrs-decoupling-assetinventorytopic--clusteruicache) ✅ BATCH-29
-- [ ] **CGF1-S0507** IOS Remote Cluster Control Panel [details](./CGF-1-TASK-DETAIL.md#cgf1-s0507--ios-remote-cluster-control-panel)
+- [x] **CGF1-S0507** IOS Remote Cluster Control Panel [details](./CGF-1-TASK-DETAIL.md#cgf1-s0507--ios-remote-cluster-control-panel) ✅ BATCH-30

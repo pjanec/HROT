@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTD.Orchestration;
 using Bagira.BDC.SSTM;
 using Bagira.Common.Orchestration;
 using Bagira.IOS;
@@ -12,6 +13,7 @@ using Bagira.Map.Common.Dds;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using FDP.Toolkit.DER;
+using ImGuiNET;
 
 namespace Bagira.Runner.Services
 {
@@ -62,6 +64,14 @@ namespace Bagira.Runner.Services
         private List<IDisposable>? _ingressDisposables;
         private int              _nodeIdOverride;
         private FDP.Toolkit.Orchestration.DrillSlave? _drillSlave;
+
+        // ── S0507: Cluster control ─────────────────────────────────────────────
+        private DdsWriter<SysOpRequest>?          _sysOpWriter;
+        private DdsWriterAdapter<SysOpRequest>?   _iosLogicSysOpWriter;
+        private ClusterUiCache?                   _uiCache;
+        private ClusterScenarioPanel?             _clusterPanel;
+        private TimePulseIngressHandler?          _timePulseHandler;
+        private TimeModeIngressHandler?           _timeModeHandler;
 
         /// <summary>
         /// Internal test hook for integration tests.
@@ -189,6 +199,12 @@ namespace Bagira.Runner.Services
             // the ack queue and resolves pending CommitMissionAsync tasks.
             ingressHandlers.Add(missionEditorSvc);
 
+            // ── Cluster control wiring (S0507) ─────────────────────────────────────────
+            _sysOpWriter         = new DdsWriter<SysOpRequest>(_participant);
+            _iosLogicSysOpWriter = new DdsWriterAdapter<SysOpRequest>(_participant, "SysOpRequest");
+            _uiCache      = new ClusterUiCache(_participant);
+            _clusterPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
+
             var logic = new IosLogic(
                 repo:                 repo,
                 missionEditorService: missionEditorSvc,
@@ -205,7 +221,14 @@ namespace Bagira.Runner.Services
                 commandWriter:        commandWriter,
                 targetMapId:          TargetMapId,
                 mapCommandAckQueue:   mapCommandAckQueue,
-                deleteEntityWriter:   deleteEntityWriter);
+                deleteEntityWriter:   deleteEntityWriter,
+                sysOpWriter:          _iosLogicSysOpWriter);
+
+            // S0507: Time ingress — must be constructed after `logic` to capture the callback
+            _timePulseHandler = new TimePulseIngressHandler(_participant, pulse => logic.OnTimePulse(pulse));
+            _timeModeHandler  = new TimeModeIngressHandler(_participant, mode  => logic.OnTimeMode(mode));
+            _ingressDisposables!.Add(_timePulseHandler);
+            _ingressDisposables!.Add(_timeModeHandler);
 
             var tkbCatalog = new TkbCatalogEntry[]
             {
@@ -237,6 +260,10 @@ namespace Bagira.Runner.Services
         public void Update(float deltaTime)
         {
             _drillSlave?.Tick();
+            _uiCache?.Update();
+            _timePulseHandler?.Poll();
+            _timeModeHandler?.Poll();
+            _clusterPanel?.Update(deltaTime);
             _mock?.Update(deltaTime);
         }
 
@@ -251,8 +278,16 @@ namespace Bagira.Runner.Services
         /// </remarks>
         public void DrawUI()
         {
-            if (!_headless)
-                _mock?.DrawUI();
+            if (_headless) return;
+
+            _mock?.DrawUI();
+
+            if (ImGui.Begin("Cluster Control"))
+            {
+                bool disableAll = _uiCache == null || !_uiCache.IsBootstrapped || _uiCache.HasInFlightTransaction;
+                _clusterPanel?.Render(_uiCache!, disableAll);
+            }
+            ImGui.End();
         }
 
         /// <inheritdoc/>
@@ -260,6 +295,13 @@ namespace Bagira.Runner.Services
         {
             _drillSlave?.Dispose();
             _drillSlave = null;
+            _clusterPanel = null;
+            _uiCache?.Dispose();
+            _uiCache = null;
+            _iosLogicSysOpWriter?.Dispose();
+            _iosLogicSysOpWriter = null;
+            _sysOpWriter?.Dispose();
+            _sysOpWriter = null;
             _mock?.Dispose();
             _mock = null;
             if (_ingressDisposables != null)

@@ -32,7 +32,6 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private DdsWriter<SysOpRequest>? _sysOpWriter;  // S0502
 
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
-    private float _drillTime; // S0503: current drill time in seconds for panel
 
     // ── Time coordinator (CGF1-A.1, BATCH-09) ─────────────────────────────
     // Minimal kernel + coordinator so PendingTimeMode drives SwitchToDeterministic.
@@ -148,8 +147,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _timeModeTranslator?.ScanAndPublish(null!);
         _timeModeTranslator?.PollIngress(null!, null!);
 
-        // S0503: Update drillTime cache and advance seek debounce.
-        _drillTime = (float)(_timeKernel?.CurrentTime.TotalTime ?? 0.0);
+        // S0503: Advance seek debounce.
         _scenarioPanel?.Update(deltaTime);
     }
 

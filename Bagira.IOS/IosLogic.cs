@@ -1,4 +1,5 @@
 using Bagira.BDC.SSTD;
+using Bagira.BDC.SSTD.Orchestration;
 using Bagira.BDC.SSTM;
 using Bagira.DDS.DM;
 using Bagira.IOS.Logic;
@@ -8,6 +9,8 @@ using Bagira.Map.Common;
 using Bagira.Map.Common.Dds;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
+using FDP.Toolkit.Time.Messages;
+using ModuleHost.Core.Time;
 using Newtonsoft.Json;
 
 namespace Bagira.IOS;
@@ -63,6 +66,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     private readonly IDdsWriter<CreateEntityRequest>   _createEntityWriter;
     private readonly IDdsWriter<MapCommandRequest>?    _commandWriter;
     private readonly IDdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>? _deleteEntityWriter;
+    private readonly IDdsWriter<SysOpRequest>?         _sysOpWriter;
     private readonly IEventQueue<MapClickEvent>         _clickQueue;
     private readonly IEventQueue<SelectionChangedEvent> _selectionQueue;
     private readonly IEventQueue<CreateUpdateDeleteEntityAck> _createEntityAckQueue;
@@ -130,6 +134,12 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
     /// </summary>
     private Guid _lastCommandRequestId;
 
+    // ── Time state ────────────────────────────────────────────────────────────
+    public double MasterSimTime   { get; private set; }
+    public long   MasterWallTicks { get; private set; }
+    public float  MasterTimeScale { get; private set; } = 1f;
+    public bool   IsPaused        { get; private set; }
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -186,7 +196,8 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         IDdsWriter<MapCommandRequest>?      commandWriter   = null,
         int                                 targetMapId     = IosLogicConstants.DefaultTargetMapId,
         IEventQueue<MapCommandAck>?         mapCommandAckQueue = null,
-        IDdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>? deleteEntityWriter = null)
+        IDdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>? deleteEntityWriter = null,
+        IDdsWriter<SysOpRequest>?           sysOpWriter     = null)
     {
         Repo                 = repo                 ?? throw new ArgumentNullException(nameof(repo));
         MissionEditorService = missionEditorService ?? throw new ArgumentNullException(nameof(missionEditorService));
@@ -196,6 +207,7 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         _createEntityWriter  = createEntityWriter   ?? throw new ArgumentNullException(nameof(createEntityWriter));
         _commandWriter       = commandWriter;   // null-ok; falls back to MapInteractionConfig
         _deleteEntityWriter  = deleteEntityWriter; // null-ok; delete falls back to local only
+        _sysOpWriter         = sysOpWriter;    // null-ok; time commands silently no-op
         _clickQueue             = clickQueue           ?? throw new ArgumentNullException(nameof(clickQueue));
         _selectionQueue         = selectionQueue       ?? throw new ArgumentNullException(nameof(selectionQueue));
         _createEntityAckQueue   = createEntityAckQueue ?? throw new ArgumentNullException(nameof(createEntityAckQueue));
@@ -963,6 +975,36 @@ public sealed class IosLogic : IIosLogic, IMapPickService, IDisposable
         if (_disposed)
             throw new ObjectDisposedException(nameof(IosLogic));
     }
+
+    // ── Time state ingress ────────────────────────────────────────────────────
+
+    /// <summary>Called by TimePulseIngressHandler each frame to update observed time state.</summary>
+    public void OnTimePulse(TimePulseDescriptor pulse)
+    {
+        MasterSimTime   = pulse.SimTimeSnapshot;
+        MasterWallTicks = pulse.MasterWallTicks;
+        MasterTimeScale = pulse.TimeScale;
+    }
+
+    /// <summary>Called by TimeModeIngressHandler to update IsPaused state.</summary>
+    public void OnTimeMode(SwitchTimeModeWireDto dto)
+    {
+        IsPaused = (TimeMode)dto.TargetModeInt == TimeMode.Deterministic;
+    }
+
+    // ── Time commands ─────────────────────────────────────────────────────────
+
+    /// <inheritdoc/>
+    public void RequestPause()  => _sysOpWriter?.Write(new SysOpRequest { RequestId = Guid.NewGuid(), OperationType = SysOpType.PauseTime,  PayloadJson = "{}" });
+
+    /// <inheritdoc/>
+    public void RequestResume() => _sysOpWriter?.Write(new SysOpRequest { RequestId = Guid.NewGuid(), OperationType = SysOpType.ResumeTime, PayloadJson = "{}" });
+
+    /// <inheritdoc/>
+    public void RequestStep()   => _sysOpWriter?.Write(new SysOpRequest { RequestId = Guid.NewGuid(), OperationType = SysOpType.StepTime,   PayloadJson = "{}" });
+
+    /// <inheritdoc/>
+    public void SetTimeScale(float scale) => _sysOpWriter?.Write(new SysOpRequest { RequestId = Guid.NewGuid(), OperationType = SysOpType.SetTimeScale, PayloadJson = $"{{\"scale\":{scale.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}" });
 
     /// <summary>
     /// Clears <see cref="SelectedEntityId"/> when the currently-selected entity is deleted

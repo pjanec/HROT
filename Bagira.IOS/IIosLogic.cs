@@ -155,4 +155,32 @@ public interface IIosLogic
     /// Typically called when the user clicks "New Unit…" in the ORBAT panel.
     /// </summary>
     void OpenSpawner();
+
+    // ── Time state (observed from network) ───────────────────────────────────
+
+    /// <summary>Current simulation time in seconds, received via TimePulseDescriptor.</summary>
+    double MasterSimTime   { get; }
+
+    /// <summary>Current wall-clock ticks (UTC), received via TimePulseDescriptor.</summary>
+    long   MasterWallTicks { get; }
+
+    /// <summary>Current time scale factor, received via TimePulseDescriptor.</summary>
+    float  MasterTimeScale { get; }
+
+    /// <summary>True when the simulation is paused (TimeMode = Deterministic).</summary>
+    bool   IsPaused        { get; }
+
+    // ── Time commands (dispatched to Orchestrator over DDS) ──────────────────
+
+    /// <summary>Sends a PauseTime SysOpRequest to the Orchestrator.</summary>
+    void RequestPause();
+
+    /// <summary>Sends a ResumeTime SysOpRequest to the Orchestrator.</summary>
+    void RequestResume();
+
+    /// <summary>Sends a StepTime SysOpRequest to the Orchestrator.</summary>
+    void RequestStep();
+
+    /// <summary>Sends a SetTimeScale SysOpRequest with the given scale to the Orchestrator.</summary>
+    void SetTimeScale(float scale);
 }

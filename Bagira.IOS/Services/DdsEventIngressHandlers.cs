@@ -3,6 +3,7 @@ using Bagira.BDC.SSTM;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.DER;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Time.Messages;
 
 namespace Bagira.IOS.Services;
 
@@ -158,6 +159,60 @@ public sealed class MapCommandAckIngressHandler : IIngressHandler, IDisposable
                 "[TRACE-IOS] MapCommandAck ingress req={0} status={1}",
                 sample.Data.RequestId, sample.Data.StatusCode);
             _queue.Enqueue(sample.Data);
+        }
+    }
+
+    public void Dispose() => _reader.Dispose();
+}
+
+/// <summary>
+/// DDS ingress handler that forwards TimePulseDescriptor samples to IosLogic.
+/// </summary>
+public sealed class TimePulseIngressHandler : IIngressHandler, IDisposable
+{
+    private readonly DdsReader<TimePulseDescriptor>  _reader;
+    private readonly Action<TimePulseDescriptor>     _onPulse;
+
+    public TimePulseIngressHandler(DdsParticipant participant, Action<TimePulseDescriptor> onPulse)
+    {
+        _reader  = new DdsReader<TimePulseDescriptor>(participant);
+        _onPulse = onPulse ?? throw new ArgumentNullException(nameof(onPulse));
+    }
+
+    public void Poll()
+    {
+        using var loan = _reader.Take();
+        foreach (var s in loan)
+        {
+            if (!s.IsValid) continue;
+            _onPulse(s.Data);
+        }
+    }
+
+    public void Dispose() => _reader.Dispose();
+}
+
+/// <summary>
+/// DDS ingress handler that forwards SwitchTimeModeWireDto samples to IosLogic.
+/// </summary>
+public sealed class TimeModeIngressHandler : IIngressHandler, IDisposable
+{
+    private readonly DdsReader<SwitchTimeModeWireDto>  _reader;
+    private readonly Action<SwitchTimeModeWireDto>     _onMode;
+
+    public TimeModeIngressHandler(DdsParticipant participant, Action<SwitchTimeModeWireDto> onMode)
+    {
+        _reader  = new DdsReader<SwitchTimeModeWireDto>(participant);
+        _onMode  = onMode ?? throw new ArgumentNullException(nameof(onMode));
+    }
+
+    public void Poll()
+    {
+        using var loan = _reader.Take();
+        foreach (var s in loan)
+        {
+            if (!s.IsValid) continue;
+            _onMode(s.Data);
         }
     }
 
