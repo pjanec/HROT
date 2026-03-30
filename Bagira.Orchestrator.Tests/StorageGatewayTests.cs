@@ -223,4 +223,105 @@ public sealed class StorageGatewayTests
             if (Directory.Exists(nasDir)) Directory.Delete(nasDir, recursive: true);
         }
     }
+
+    // ── CGF1-S0505: Cancellation cleanup tests ───────────────────────────────
+
+    /// <summary>
+    /// When a <see cref="CancellationToken"/> is cancelled before or during
+    /// <see cref="StorageGatewayModule.PullToNasAsync"/>, the call must:
+    ///   1. Throw <see cref="OperationCanceledException"/>.
+    ///   2. Delete any partially-written destination files.
+    /// </summary>
+    [Fact]
+    public async Task PullToNasAsync_CancelsAndCleansPartialFiles()
+    {
+        var srcDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var nasDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(srcDir);
+        Directory.CreateDirectory(nasDir);
+
+        try
+        {
+            // Create 3 source files.
+            var manifests = Enumerable.Range(1, 3).Select(i =>
+            {
+                var srcFile = Path.Combine(srcDir, $"cancel_{i}.bin");
+                File.WriteAllText(srcFile, $"content_{i}");
+                return new FileManifestEntry
+                {
+                    SourceUnc    = srcFile,
+                    RelativeDest = $"cancel_{i}.bin",
+                };
+            }).ToList();
+
+            // Cancel immediately so the operation is aborted before any file copies complete.
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            var gateway = new StorageGatewayModule();
+
+            // Must throw OperationCanceledException.
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => gateway.PullToNasAsync(manifests, nasDir, cts.Token));
+
+            // Any partially-written files must have been cleaned up.
+            foreach (var entry in manifests)
+            {
+                var dest = Path.Combine(nasDir, entry.RelativeDest);
+                Assert.False(File.Exists(dest),
+                    $"Partial file should have been cleaned up: {dest}");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(srcDir)) Directory.Delete(srcDir, recursive: true);
+            if (Directory.Exists(nasDir)) Directory.Delete(nasDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Parity test for <see cref="StorageGatewayModule.PushToNodesAsync"/>:
+    /// when the <see cref="CancellationToken"/> is cancelled before the call,
+    /// <see cref="OperationCanceledException"/> must propagate and any partially-written
+    /// destination files must be deleted.
+    /// </summary>
+    [Fact]
+    public async Task PushToNodesAsync_CancelsAndCleansPartialFiles()
+    {
+        var baseDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(baseDir);
+        var nasFile = Path.Combine(baseDir, "source.bin");
+        File.WriteAllText(nasFile, "src content");
+
+        var destDirs = Enumerable.Range(1, 3)
+            .Select(_ => Path.Combine(Path.GetTempPath(), Path.GetRandomFileName()))
+            .ToList();
+
+        try
+        {
+            var targets = destDirs.Select((d, i) => new NodeDistributionTarget
+            {
+                NodeId          = i + 1,
+                DestinationPath = Path.Combine(d, "source.bin"),
+            }).ToList();
+
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();  // cancel before the call
+
+            var gateway = new StorageGatewayModule();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => gateway.PushToNodesAsync(nasFile, targets, cts.Token));
+
+            foreach (var t in targets)
+                Assert.False(File.Exists(t.DestinationPath),
+                    $"Partial destination file should have been cleaned up: {t.DestinationPath}");
+        }
+        finally
+        {
+            if (Directory.Exists(baseDir)) Directory.Delete(baseDir, recursive: true);
+            foreach (var d in destDirs)
+                if (Directory.Exists(d)) Directory.Delete(d, recursive: true);
+        }
+    }
 }

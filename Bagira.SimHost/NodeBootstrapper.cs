@@ -352,6 +352,9 @@ namespace Bagira.SimHost
             // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
             drillSlave.RegisterHandler(new ReferencePrefetchHandler(transport, nodeId, storageProvider));
 
+            // Wire ReferenceArchiveHandler so this node can report .fdp archives to DrillMaster (CGF1-S0505).
+            drillSlave.RegisterHandler(new ReferenceArchiveHandler(transport, localTempRoot, nodeId));
+
             // Wire scenario/story handlers when a serializer is provided.
             if (scenarioSerializer != null)
             {

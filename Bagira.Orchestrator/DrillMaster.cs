@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -56,6 +57,10 @@ public sealed class DrillMaster : IDisposable
         public int RemainingAcks;
         public int FailureCount;
         public readonly List<FileManifestEntry> Manifests = new();
+
+        // Archive export tracking: non-Empty => this is an ExportArchive operation.
+        public Guid ArchiveRequestId = Guid.Empty;
+        public CancellationTokenSource? ArchiveCts;
     }
 
     // ── Pending prefetch state (CGF1-S0302 / A.1) ─────────────────────────
@@ -73,6 +78,15 @@ public sealed class DrillMaster : IDisposable
     }
 
     private PendingPrefetchOp? _pendingPrefetch;
+
+    // ── Active archive operation cancellations (CGF1-S0505) ──────────────
+    /// <summary>
+    /// Tracks <see cref="CancellationTokenSource"/> instances for in-progress
+    /// <see cref="SysOpType.ExportArchive"/> and <see cref="SysOpType.ImportArchive"/>
+    /// operations, keyed by their originating <see cref="SysOpRequest.RequestId"/>.
+    /// Cancelled by a <see cref="SysOpType.CancelOperation"/> request.
+    /// </summary>
+    private readonly Dictionary<Guid, CancellationTokenSource> _activeCancellations = new();
 
     // ── Global context handler (CGF1-S0307) ──────────────────────────────
     private GlobalContextDsmHandler? _globalContextHandler;
@@ -813,6 +827,169 @@ public sealed class DrillMaster : IDisposable
                     return;
                 }
             }
+            else if (req.OperationType == SysOpType.ExportArchive)
+            {
+                // CGF1-S0505: Fan out SerializeLocal to all nodes to write .fdp archives,
+                // then pull manifests to NAS when all ACKs arrive.
+                string? exportDrillId = ParsePayloadString(req.PayloadJson, "DrillId");
+                if (exportDrillId is null)
+                {
+                    FdpLog<DrillMaster>.Warn("[Orchestrator] ExportArchive request {0} missing DrillId — rejected.", req.RequestId);
+                    _sysOpStatusWriter.Write(new SysOpStatus
+                    {
+                        RequestId  = req.RequestId,
+                        StatusCode = OrchestrationStatusCode.Rejected,
+                        ResultJson = string.Empty
+                    });
+                    return;
+                }
+
+                var exportCts    = new CancellationTokenSource();
+                _activeCancellations[req.RequestId] = exportCts;
+
+                var exportNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                var exportTxId    = Guid.NewGuid();
+                FanOutSerializeLocal(exportTxId, exportNodeIds, req.PayloadJson ?? string.Empty);
+
+                // Mark the pending task as an archive export so ConsumeNodeOpStatuses
+                // applies the gateway pull with CT and publishes the final SysOpStatus.
+                if (_pendingSerializeTasks.TryGetValue(exportTxId, out var archTask))
+                {
+                    archTask.ArchiveRequestId = req.RequestId;
+                    archTask.ArchiveCts       = exportCts;
+                }
+                else if (exportNodeIds.Count == 0)
+                {
+                    // No nodes — complete immediately.
+                    _activeCancellations.Remove(req.RequestId);
+                    exportCts.Dispose();
+                    _sysOpStatusWriter.Write(new SysOpStatus
+                    {
+                        RequestId  = req.RequestId,
+                        StatusCode = OrchestrationStatusCode.Success,
+                        ResultJson = string.Empty
+                    });
+                }
+
+                _sysOpStatusWriter.Write(new SysOpStatus
+                {
+                    RequestId  = req.RequestId,
+                    StatusCode = OrchestrationStatusCode.InProgress,
+                    ResultJson = string.Empty
+                });
+                return;   // skip generic transaction creation below
+            }
+            else if (req.OperationType == SysOpType.ImportArchive)
+            {
+                // CGF1-S0505: Fetch per-node .fdp archives from NAS and distribute to nodes.
+                string? importDrillId = ParsePayloadString(req.PayloadJson, "DrillId");
+                if (importDrillId is null)
+                {
+                    FdpLog<DrillMaster>.Warn("[Orchestrator] ImportArchive request {0} missing DrillId — rejected.", req.RequestId);
+                    _sysOpStatusWriter.Write(new SysOpStatus
+                    {
+                        RequestId  = req.RequestId,
+                        StatusCode = OrchestrationStatusCode.Rejected,
+                        ResultJson = string.Empty
+                    });
+                    return;
+                }
+
+                var importCts = new CancellationTokenSource();
+                _activeCancellations[req.RequestId] = importCts;
+
+                var importTargets   = BuildNodeDistributionTargetsForDrill(importDrillId);
+                var importRequestId = req.RequestId;
+
+                if (_gateway != null)
+                {
+                    _ = _gateway.PrefetchArchiveAsync(importDrillId, importTargets, _nasBasePath, importCts.Token)
+                        .ContinueWith(t =>
+                        {
+                            _activeCancellations.Remove(importRequestId);
+                            if (t.IsCanceled)
+                                _sysOpStatusWriter.Write(new SysOpStatus
+                                {
+                                    RequestId  = importRequestId,
+                                    StatusCode = OrchestrationStatusCode.Rejected,
+                                    ResultJson = string.Empty
+                                });
+                            else if (t.IsFaulted)
+                            {
+                                FdpLog<DrillMaster>.Error("[Orchestrator] ImportArchive gateway error: {0}",
+                                    t.Exception?.GetBaseException().Message);
+                                _sysOpStatusWriter.Write(new SysOpStatus
+                                {
+                                    RequestId  = importRequestId,
+                                    StatusCode = OrchestrationStatusCode.Rejected,
+                                    ResultJson = string.Empty
+                                });
+                            }
+                            else
+                                _sysOpStatusWriter.Write(new SysOpStatus
+                                {
+                                    RequestId  = importRequestId,
+                                    StatusCode = OrchestrationStatusCode.Success,
+                                    ResultJson = string.Empty
+                                });
+                        }, System.Threading.Tasks.TaskScheduler.Default);
+                }
+                else
+                {
+                    _activeCancellations.Remove(req.RequestId);
+                    importCts.Dispose();
+                    _sysOpStatusWriter.Write(new SysOpStatus
+                    {
+                        RequestId  = req.RequestId,
+                        StatusCode = OrchestrationStatusCode.Success,
+                        ResultJson = string.Empty
+                    });
+                }
+
+                _sysOpStatusWriter.Write(new SysOpStatus
+                {
+                    RequestId  = req.RequestId,
+                    StatusCode = OrchestrationStatusCode.InProgress,
+                    ResultJson = string.Empty
+                });
+                return;   // skip generic transaction creation below
+            }
+            else if (req.OperationType == SysOpType.CancelOperation)
+            {
+                // CGF1-S0505: Cancel an in-progress archive operation.
+                // Payload = raw GUID string of the target operation's RequestId.
+                Guid targetId = Guid.Empty;
+                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
+                    Guid.TryParse(req.PayloadJson.Trim(), out targetId);
+
+                if (targetId != Guid.Empty && _activeCancellations.TryGetValue(targetId, out var cancelCts))
+                {
+                    cancelCts.Cancel();
+                    // Note: removal happens lazily in the ContinueWith callbacks or via Dispose().
+                    FdpLog<DrillMaster>.Info("[Orchestrator] CancelOperation: cancelled operation {0}.", targetId);
+                }
+                else
+                {
+                    FdpLog<DrillMaster>.Warn("[Orchestrator] CancelOperation: no active operation found for {0}.", targetId);
+                }
+
+                // Fan out AbortTransaction to all active nodes.
+                if (targetId != Guid.Empty)
+                {
+                    var cancelNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                    if (cancelNodeIds.Count > 0)
+                    {
+                        FanOutNodeOp(new NodeOpCommand
+                        {
+                            TransactionId = Guid.NewGuid(),
+                            Operation     = NodeOpType.AbortTransaction,
+                            PayloadJson   = targetId.ToString(),
+                        }, cancelNodeIds);
+                    }
+                }
+
+                return;   // No SysOpStatus reply for CancelOperation itself
+            }
             else if (req.OperationType == SysOpType.ReplaySeek)
             {
                 // Standalone ReplaySeek: fan out NodeReplaySeek to all active nodes immediately.
@@ -1115,8 +1292,59 @@ public sealed class DrillMaster : IDisposable
                 if (_globalContextHandler?.CommitManifestEntry != null)
                     task.Manifests.Add(_globalContextHandler.CommitManifestEntry);
 
-                if (_gateway != null && task.Manifests.Count > 0)
+                if (task.ArchiveCts != null)
                 {
+                    // ─── Archive export path (CGF1-S0505) ─────────────────────────────
+                    var archRequestId = task.ArchiveRequestId;
+                    var archCts       = task.ArchiveCts;
+                    if (_gateway != null && task.Manifests.Count > 0)
+                    {
+                        _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath, archCts.Token)
+                            .ContinueWith(pullTask =>
+                            {
+                                _activeCancellations.Remove(archRequestId);
+                                if (pullTask.IsCanceled)
+                                    _sysOpStatusWriter.Write(new SysOpStatus
+                                    {
+                                        RequestId  = archRequestId,
+                                        StatusCode = OrchestrationStatusCode.Rejected,
+                                        ResultJson = string.Empty
+                                    });
+                                else if (pullTask.IsFaulted)
+                                {
+                                    FdpLog<DrillMaster>.Error("[Orchestrator] ExportArchive gateway error: {0}",
+                                        pullTask.Exception?.GetBaseException().Message);
+                                    _sysOpStatusWriter.Write(new SysOpStatus
+                                    {
+                                        RequestId  = archRequestId,
+                                        StatusCode = OrchestrationStatusCode.Rejected,
+                                        ResultJson = string.Empty
+                                    });
+                                }
+                                else
+                                    _sysOpStatusWriter.Write(new SysOpStatus
+                                    {
+                                        RequestId  = archRequestId,
+                                        StatusCode = OrchestrationStatusCode.Success,
+                                        ResultJson = string.Empty
+                                    });
+                            }, System.Threading.Tasks.TaskScheduler.Default);
+                    }
+                    else
+                    {
+                        _activeCancellations.Remove(archRequestId);
+                        archCts.Dispose();
+                        _sysOpStatusWriter.Write(new SysOpStatus
+                        {
+                            RequestId  = archRequestId,
+                            StatusCode = OrchestrationStatusCode.Success,
+                            ResultJson = string.Empty
+                        });
+                    }
+                }
+                else if (_gateway != null && task.Manifests.Count > 0)
+                {
+                    // ─── Legacy SaveScenario path ──────────────────────────────────
                     // Fire-and-forget: the pull is async; DrillMaster continues ticking.
                     // Phase 3+ will track completion and publish SysOpStatus(Success)/Failure.
                     _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath)
@@ -1243,6 +1471,41 @@ public sealed class DrillMaster : IDisposable
         return targets;
     }
 
+    /// <summary>
+    /// Builds <see cref="NodeDistributionTarget"/> list for archive import: each
+    /// node's destination is the per-node <c>.fdp</c> file path under its local temp root.
+    /// </summary>
+    private List<NodeDistributionTarget> BuildNodeDistributionTargetsForDrill(string drillId)
+    {
+        var targets = new List<NodeDistributionTarget>();
+        foreach (var kv in _roster.ActiveNodes)
+        {
+            targets.Add(new NodeDistributionTarget
+            {
+                NodeId          = kv.Key,
+                DestinationPath = Path.Combine(@"C:\FDP_Temp", drillId, $"node_{kv.Key}.fdp"),
+            });
+        }
+        return targets;
+    }
+
+    /// <summary>
+    /// Extracts a string property value from a JSON payload; returns <c>null</c> if
+    /// the payload is absent, malformed, or the property is missing.
+    /// </summary>
+    private static string? ParsePayloadString(string? json, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty(propertyName, out var el))
+                return el.GetString();
+        }
+        catch (JsonException) { }
+        return null;
+    }
+
     private void PublishStandby()    {
         _systemStateWriter.Write(new SystemStateTopic
         {
@@ -1291,5 +1554,8 @@ public sealed class DrillMaster : IDisposable
         foreach (var w in _nodeOpWriterCache.Values)
             w.Dispose();
         _nodeOpWriterCache.Clear();
+        foreach (var cts in _activeCancellations.Values)
+            cts.Dispose();
+        _activeCancellations.Clear();
     }
 }

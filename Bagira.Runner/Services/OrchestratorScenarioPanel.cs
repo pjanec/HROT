@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Orchestrator;
@@ -39,7 +40,12 @@ public sealed class OrchestratorScenarioPanel
     private float _seekDebounceTimer = 0f;
     private bool  _seekPending       = false;
     private float _replayDuration    = 3600f;
-
+    // ── Archive Management state (S0505) ─────────────────────────────
+    private string[] _archivedDrills        = Array.Empty<string>();
+    private string[] _unarchivedLocalDrills  = Array.Empty<string>();
+    private int      _selectedArchiveIdx     = -1;
+    private int      _selectedUnarchivedIdx  = -1;
+    private Guid     _activeArchiveOpId      = Guid.Empty;
     // ── Child window sizes (0,0 = auto-fit) ──────────────────────────────
     private static readonly Vector2 AutoSize = Vector2.Zero;
 
@@ -118,6 +124,19 @@ public sealed class OrchestratorScenarioPanel
         if (_selectedLoadScenarioIdx >= _availableScenarios.Length) _selectedLoadScenarioIdx = -1;
         if (_selectedStoryIdx        >= _availableStories.Length)   _selectedStoryIdx        = -1;
         if (_selectedDrillIdx        >= _availableDrills.Length)    _selectedDrillIdx        = -1;
+
+        // Archive management lists (S0505)
+        var gateway = _drillMaster.StorageGateway;
+        var nasRoot = @"C:\FDP_Temp\nas";
+        _archivedDrills = gateway?.ScanNasDrills(nasRoot).ToArray()
+                          ?? Array.Empty<string>();
+        var archivedSet = new HashSet<string>(_archivedDrills);
+        _unarchivedLocalDrills = _availableDrills
+                                 .Where(d => !archivedSet.Contains(d))
+                                 .ToArray();
+
+        if (_selectedArchiveIdx    >= _archivedDrills.Length)        _selectedArchiveIdx    = -1;
+        if (_selectedUnarchivedIdx >= _unarchivedLocalDrills.Length) _selectedUnarchivedIdx = -1;
     }
 
     /// <summary>
@@ -150,7 +169,8 @@ public sealed class OrchestratorScenarioPanel
 
         // ── 6. Stories ─────────────────────────────────────────────────────
         RenderStoriesSection(disableAll);
-    }
+        // ── 7. Archive Management ─────────────────────────────────────
+        RenderArchiveSection(currentState, disableAll);    }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Private rendering helpers
@@ -323,6 +343,12 @@ public sealed class OrchestratorScenarioPanel
             if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedDrillIdx >= 0)
             {
                 string drillId = _availableDrills[_selectedDrillIdx];
+
+                // P3 debt: wire _replayDuration from the drill's meta.json (CGF1-BATCH-27 #2).
+                string metaPath = Path.Combine(@"C:\FDP_Temp", drillId, "recording.meta.json");
+                if (File.Exists(metaPath))
+                    _replayDuration = GetReplayDuration(File.ReadAllText(metaPath));
+
                 _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
@@ -353,6 +379,88 @@ public sealed class OrchestratorScenarioPanel
             if (disableAll) ImGui.EndDisabled();
         }
         ImGui.EndChild();
+    }
+
+    private void RenderArchiveSection(DSMState state, bool disableAll)
+    {
+        if (!ImGui.CollapsingHeader("Archive Management##OrcArchive")) return;
+
+        bool archiveDisable = disableAll;
+
+        // — Unarchived Local Drills —
+        ImGui.Text("Unarchived Local:");
+        ImGui.Combo("##UnarchivedCombo", ref _selectedUnarchivedIdx,
+                    _unarchivedLocalDrills, _unarchivedLocalDrills.Length);
+        ImGui.SameLine();
+        if (ImGui.Button("⟳##RefreshUnarchived")) RefreshLocalAssets();
+
+        if (archiveDisable || _selectedUnarchivedIdx < 0 || _activeArchiveOpId != Guid.Empty)
+            ImGui.BeginDisabled();
+        if (ImGui.Button("Export to NAS ▶##OrcExport")
+            && _selectedUnarchivedIdx >= 0
+            && _activeArchiveOpId == Guid.Empty)
+        {
+            var drillName  = _unarchivedLocalDrills[_selectedUnarchivedIdx];
+            var requestId  = Guid.NewGuid();
+            _activeArchiveOpId = requestId;
+            _sysOpWriter.Write(new SysOpRequest
+            {
+                RequestId     = requestId,
+                OperationType = SysOpType.ExportArchive,
+                PayloadJson   = $"{{\"DrillId\":\"{drillName}\"}}",
+            });
+        }
+        if (archiveDisable || _selectedUnarchivedIdx < 0 || _activeArchiveOpId != Guid.Empty)
+            ImGui.EndDisabled();
+
+        ImGui.Separator();
+
+        // — Archived NAS Drills —
+        ImGui.Text("Archived on NAS:");
+        ImGui.Combo("##ArchivedCombo", ref _selectedArchiveIdx,
+                    _archivedDrills, _archivedDrills.Length);
+        ImGui.SameLine();
+        if (ImGui.Button("⟳##RefreshArchived")) RefreshLocalAssets();
+
+        if (archiveDisable || _selectedArchiveIdx < 0 || _activeArchiveOpId != Guid.Empty)
+            ImGui.BeginDisabled();
+        if (ImGui.Button("Import from NAS ◄##OrcImport")
+            && _selectedArchiveIdx >= 0
+            && _activeArchiveOpId == Guid.Empty)
+        {
+            var drillName  = _archivedDrills[_selectedArchiveIdx];
+            var requestId  = Guid.NewGuid();
+            _activeArchiveOpId = requestId;
+            _sysOpWriter.Write(new SysOpRequest
+            {
+                RequestId     = requestId,
+                OperationType = SysOpType.ImportArchive,
+                PayloadJson   = $"{{\"DrillId\":\"{drillName}\"}}",
+            });
+        }
+        if (archiveDisable || _selectedArchiveIdx < 0 || _activeArchiveOpId != Guid.Empty)
+            ImGui.EndDisabled();
+
+        // — Progress / Cancel (visible while op in-flight) —
+        if (_activeArchiveOpId != Guid.Empty)
+        {
+            ImGui.Separator();
+            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.8f, 0f, 1f));
+            ImGui.Text("Archive operation in progress...");
+            ImGui.PopStyleColor();
+            ImGui.ProgressBar(-1f * (float)ImGui.GetTime(), new System.Numerics.Vector2(-1, 0), "");
+            // Cancel is always active regardless of disableAll
+            if (ImGui.Button("CANCEL OPERATION##OrcCancelArchive"))
+            {
+                _sysOpWriter.Write(new SysOpRequest
+                {
+                    RequestId     = Guid.NewGuid(),
+                    OperationType = SysOpType.CancelOperation,
+                    PayloadJson   = _activeArchiveOpId.ToString(),
+                });
+                _activeArchiveOpId = Guid.Empty;  // optimistic clear
+            }
+        }
     }
 
     private void RenderStoriesSection(bool disableAll)

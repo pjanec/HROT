@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -104,7 +105,9 @@ public sealed class StorageGatewayModule
     /// A <see cref="GatewayResult"/> reporting per-file success and failure counts.
     /// </returns>
     public async Task<GatewayResult> PullToNasAsync(
-        IReadOnlyList<FileManifestEntry> manifests, string nasBasePath)
+        IReadOnlyList<FileManifestEntry> manifests,
+        string nasBasePath,
+        CancellationToken ct = default)
     {
         if (manifests == null)  throw new ArgumentNullException(nameof(manifests));
         if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
@@ -112,28 +115,41 @@ public sealed class StorageGatewayModule
         int successCount = 0;
         int failureCount = 0;
 
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
+        var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
+        var partial = new ConcurrentBag<string>();
 
-        await Task.Run(() =>
+        try
         {
-            Parallel.ForEach(manifests, options, entry =>
+            await Task.Run(() =>
             {
-                try
+                Parallel.ForEach(manifests, opts, entry =>
                 {
-                    var destPath = Path.Combine(nasBasePath, entry.RelativeDest);
-                    var destDir  = Path.GetDirectoryName(destPath);
-                    if (!string.IsNullOrEmpty(destDir))
-                        Directory.CreateDirectory(destDir);
+                    try
+                    {
+                        var destPath = Path.Combine(nasBasePath, entry.RelativeDest);
+                        var destDir  = Path.GetDirectoryName(destPath);
+                        if (!string.IsNullOrEmpty(destDir))
+                            Directory.CreateDirectory(destDir);
 
-                    File.Copy(entry.SourceUnc, destPath, overwrite: true);
-                    Interlocked.Increment(ref successCount);
-                }
-                catch (Exception)
-                {
-                    Interlocked.Increment(ref failureCount);
-                }
-            });
-        }).ConfigureAwait(false);
+                        partial.Add(destPath);
+                        File.Copy(entry.SourceUnc, destPath, overwrite: true);
+                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
+                        Interlocked.Increment(ref successCount);
+                    }
+                    catch (Exception)
+                    {
+                        Interlocked.Increment(ref failureCount);
+                    }
+                });
+            }, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Delete partially-written NAS files to keep storage consistent.
+            foreach (var f in partial)
+                try { File.Delete(f); } catch { /* best-effort */ }
+            throw;
+        }
 
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
     }
@@ -155,7 +171,9 @@ public sealed class StorageGatewayModule
     /// A <see cref="GatewayResult"/> reporting per-target success and failure counts.
     /// </returns>
     public async Task<GatewayResult> PushToNodesAsync(
-        string nasSourcePath, IReadOnlyList<NodeDistributionTarget> targets)
+        string nasSourcePath,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(nasSourcePath)) throw new ArgumentNullException(nameof(nasSourcePath));
         if (targets == null) throw new ArgumentNullException(nameof(targets));
@@ -163,27 +181,40 @@ public sealed class StorageGatewayModule
         int successCount = 0;
         int failureCount = 0;
 
-        var options = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies };
+        var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
+        var partial = new ConcurrentBag<string>();
 
-        await Task.Run(() =>
+        try
         {
-            Parallel.ForEach(targets, options, target =>
+            await Task.Run(() =>
             {
-                try
+                Parallel.ForEach(targets, opts, target =>
                 {
-                    var destDir = Path.GetDirectoryName(target.DestinationPath);
-                    if (!string.IsNullOrEmpty(destDir))
-                        Directory.CreateDirectory(destDir);
+                    try
+                    {
+                        var destDir = Path.GetDirectoryName(target.DestinationPath);
+                        if (!string.IsNullOrEmpty(destDir))
+                            Directory.CreateDirectory(destDir);
 
-                    File.Copy(nasSourcePath, target.DestinationPath, overwrite: true);
-                    Interlocked.Increment(ref successCount);
-                }
-                catch (Exception)
-                {
-                    Interlocked.Increment(ref failureCount);
-                }
-            });
-        }).ConfigureAwait(false);
+                        partial.Add(target.DestinationPath);
+                        File.Copy(nasSourcePath, target.DestinationPath, overwrite: true);
+                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
+                        Interlocked.Increment(ref successCount);
+                    }
+                    catch (Exception)
+                    {
+                        Interlocked.Increment(ref failureCount);
+                    }
+                });
+            }, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Delete partially-written destination files to keep storage consistent.
+            foreach (var f in partial)
+                try { File.Delete(f); } catch { /* best-effort */ }
+            throw;
+        }
 
         return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
     }
@@ -260,6 +291,111 @@ public sealed class StorageGatewayModule
         }).ConfigureAwait(false);
 
         return new GatewayResult { SuccessCount = success, FailureCount = failure };
+    }
+
+    /// <summary>
+    /// Fetches per-node <c>.fdp</c> archives from <paramref name="nasBasePath"/>
+    /// and delivers each to the node-specific <see cref="NodeDistributionTarget.DestinationPath"/>.
+    /// Each node receives <c>&lt;nasBasePath&gt;/&lt;drillId&gt;/node_&lt;nodeId&gt;.fdp</c>.
+    /// </summary>
+    public async Task<GatewayResult> PrefetchArchiveAsync(
+        string drillId,
+        IReadOnlyList<NodeDistributionTarget> targets,
+        string nasBasePath,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(drillId))     throw new ArgumentNullException(nameof(drillId));
+        if (targets == null)                         throw new ArgumentNullException(nameof(targets));
+        if (string.IsNullOrWhiteSpace(nasBasePath)) throw new ArgumentNullException(nameof(nasBasePath));
+
+        int successCount = 0;
+        int failureCount = 0;
+
+        var opts    = new ParallelOptions { MaxDegreeOfParallelism = MaxParallelCopies, CancellationToken = ct };
+        var partial = new ConcurrentBag<string>();
+
+        try
+        {
+            await Task.Run(() =>
+            {
+                Parallel.ForEach(targets, opts, target =>
+                {
+                    try
+                    {
+                        var srcPath = Path.Combine(nasBasePath, drillId, $"node_{target.NodeId}.fdp");
+                        var destDir = Path.GetDirectoryName(target.DestinationPath);
+                        if (!string.IsNullOrEmpty(destDir))
+                            Directory.CreateDirectory(destDir);
+
+                        partial.Add(target.DestinationPath);
+                        File.Copy(srcPath, target.DestinationPath, overwrite: true);
+                        partial.TryTake(out _);   // remove on success — only tracked while in-flight
+                        Interlocked.Increment(ref successCount);
+                    }
+                    catch (Exception)
+                    {
+                        Interlocked.Increment(ref failureCount);
+                    }
+                });
+            }, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Delete partially-written destination files to keep storage consistent.
+            foreach (var f in partial)
+                try { File.Delete(f); } catch { /* best-effort */ }
+            throw;
+        }
+
+        return new GatewayResult { SuccessCount = successCount, FailureCount = failureCount };
+    }
+
+    /// <summary>
+    /// Returns the names of subdirectories under <paramref name="root"/> that
+    /// contain at least one <c>*.json</c> file. Represents locally available scenarios.
+    /// Returns an empty list if <paramref name="root"/> does not exist.
+    /// </summary>
+    public IReadOnlyList<string> ScanLocalScenarios(string root)
+    {
+        if (!Directory.Exists(root)) return Array.Empty<string>();
+        return Directory.GetDirectories(root)
+            .Where(d => Directory.GetFiles(d, "*.json").Length > 0)
+            .Select(Path.GetFileName)
+            .Where(n => n != null)
+            .Select(n => n!)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Returns the names of subdirectories under <paramref name="root"/> that
+    /// contain at least one <c>*.fdp</c> file. Represents locally recorded drills.
+    /// Returns an empty list if <paramref name="root"/> does not exist.
+    /// </summary>
+    public IReadOnlyList<string> ScanLocalDrills(string root)
+    {
+        if (!Directory.Exists(root)) return Array.Empty<string>();
+        return Directory.GetDirectories(root)
+            .Where(d => Directory.GetFiles(d, "*.fdp").Length > 0)
+            .Select(Path.GetFileName)
+            .Where(n => n != null)
+            .Select(n => n!)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Returns the names of subdirectories under <paramref name="nasRoot"/> that
+    /// contain at least one <c>*.fdp</c> file. Represents drills archived to NAS.
+    /// Returns an empty list if <paramref name="nasRoot"/> does not exist.
+    /// </summary>
+    public IReadOnlyList<string> ScanNasDrills(string nasRoot)
+    {
+        if (!Directory.Exists(nasRoot)) return Array.Empty<string>();
+        return Directory.GetDirectories(nasRoot)
+            .Where(d => Directory.GetFiles(d, "*.fdp").Length > 0)
+            .Select(Path.GetFileName)
+            .Where(n => n != null)
+            .Select(n => n!)
+            .ToList();
     }
 
     /// <summary>
