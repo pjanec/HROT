@@ -53,6 +53,12 @@ namespace Bagira.SimHost.Modules.Orchestration
         /// <summary>Module installed by the most recent <see cref="PrepareReplayAsync"/> call.</summary>
         public ReplayModule? ActiveReplayModule => _activeReplayModule;
 
+        /// <inheritdoc />
+        public bool IsReplayActive => _activeReplayModule != null;
+
+        /// <inheritdoc />
+        public long ActiveMaxNetworkId => _activeReplayModule?.MaxNetworkId ?? 0;
+
         /// <param name="kernel">Kernel that manages module topology.</param>
         /// <param name="nodeId">Local node identifier embedded in recording file names.</param>
         /// <param name="repo">

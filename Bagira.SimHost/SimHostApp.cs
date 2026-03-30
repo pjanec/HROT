@@ -108,7 +108,7 @@ namespace Bagira.SimHost
         private SimulationLogicModule? _simLogicModule;
 
         // ── Orchestration (CGF1-S0104) ────────────────────────────────────────
-        private Bagira.SimHost.Modules.Orchestration.DrillSlave? _drillSlave;
+        private FDP.Toolkit.Orchestration.DrillSlave? _drillSlave;
         // CheckpointIOWorker owns the background I/O thread; created in OnLoad,
         // passed to BuildOrchestration, and disposed in Shutdown (CGF1-S0303 A.1).
         private CheckpointIOWorker? _checkpointWorker;

@@ -3,8 +3,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Bagira.BDC.SSTD.Orchestration;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
+using Bagira.Common.Orchestration;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using Xunit;
 
@@ -21,7 +23,7 @@ namespace Bagira.SimHost.Tests
     }
 
     /// <summary>
-    /// Unit tests for <see cref="EditLoadDsmHandler"/> — CGF1-S0302 success conditions.
+    /// Unit tests for <see cref="ReferenceEditLoadHandler"/> — CGF1-S0302 success conditions.
     /// </summary>
     public sealed class EditLoadDsmHandlerTests : IDisposable
     {
@@ -51,15 +53,14 @@ namespace Bagira.SimHost.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
-        private NodeOpCommand MakePrepareStateCmd(string payloadJson) => new()
-        {
-            TransactionId = Guid.NewGuid(),
-            Operation     = NodeOpType.PrepareState,
-            PayloadJson   = payloadJson,
-        };
+        private OrchestrationCommand MakePrepareStateCmd(string payloadJson) =>
+            new OrchestrationCommand(
+                Guid.NewGuid(), 0,
+                ReferenceEditLoadHandler.PrepareStateOperationId,
+                payloadJson);
 
-        private EditLoadDsmHandler CreateHandler() =>
-            new EditLoadDsmHandler(_serializer, _tempDir);
+        private ReferenceEditLoadHandler CreateHandler() =>
+            new ReferenceEditLoadHandler(_serializer, new LocalDiskStorageProvider(_tempDir));
 
         private System.Collections.Generic.HashSet<(float X, float Y, float Z)>
             CollectPositions(EntityRepository repo)

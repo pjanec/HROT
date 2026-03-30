@@ -3,11 +3,11 @@ using System.Numerics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Common.Orchestration;
 using Bagira.SimHost.Modules.Orchestration;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core;
@@ -21,7 +21,7 @@ namespace Bagira.SimHost.Tests
     ///
     /// <para>
     /// These tests exercise <see cref="EcsRecordReplayController.TeardownReplayAsync"/>
-    /// and the <see cref="ReplayLoadDsmHandler"/> <see cref="NodeOpType.PrepareLive"/>
+    /// and the <see cref="ReferenceReplayLoadHandler"/> <c>PrepareLive</c> (operationId=9)
     /// path, verifying that entity state is preserved in-place after teardown and that
     /// the recording module is properly installed for the branched drill.
     /// </para>
@@ -128,8 +128,8 @@ namespace Bagira.SimHost.Tests
         // ── CGF1-S0305 success condition: AfterBranch_RecordingModuleIsInstalled ──
 
         /// <summary>
-        /// After <see cref="ReplayLoadDsmHandler.PrepareAsync"/> handles a
-        /// <see cref="NodeOpType.PrepareLive"/> command (the Live-from-Replay branch),
+        /// After <see cref="ReferenceReplayLoadHandler.PrepareAsync"/> handles a
+        /// <c>PrepareLive</c> (operationId=9) command (the Live-from-Replay branch),
         /// the <see cref="EcsRecordReplayController"/> must have an active
         /// <see cref="FDP.Toolkit.Replay.RecordingModule"/> installed in the kernel scheduler.
         /// </summary>
@@ -166,17 +166,16 @@ namespace Bagira.SimHost.Tests
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
-            var handler      = new ReplayLoadDsmHandler(
-                controller, simGroup, lifecycleGroup, ghostSys,
-                statusWriter: null, nodeId: 1, storageDirectory: _tempDir);
+            var handler      = new ReferenceReplayLoadHandler(
+                controller, simGroup, lifecycleGroup,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                transport: null, nodeId: 1, storageDirectory: _tempDir);
 
             var branchedDrillId = Guid.NewGuid();
-            var branchCmd       = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.PrepareLive,
-                PayloadJson   = $"{{\"DrillId\":\"{branchedDrillId:D}\"}}",
-            };
+            var branchCmd       = new OrchestrationCommand(
+                Guid.NewGuid(), 0,
+                ReferenceReplayLoadHandler.PrepareLiveOperationId,
+                $"{{\"DrillId\":\"{branchedDrillId:D}\"}}");
 
             await handler.PrepareAsync(branchCmd, CancellationToken.None);
 
@@ -193,8 +192,8 @@ namespace Bagira.SimHost.Tests
         // ── CGF1-S0305 success condition: AfterBranch_SimGroupsReEnabled ──────
 
         /// <summary>
-        /// After <see cref="ReplayLoadDsmHandler.Commit"/> handles a
-        /// <see cref="NodeOpType.PrepareLive"/> command (the Live-from-Replay branch),
+        /// After <see cref="ReferenceReplayLoadHandler.Commit"/> handles a
+        /// <c>PrepareLive</c> (operationId=9) command (the Live-from-Replay branch),
         /// <see cref="SimulationSystemGroup.Enabled"/> must be <c>true</c> and
         /// <see cref="GhostCreationSystem.BypassLifecycle"/> must be <c>false</c>.
         /// </summary>
@@ -230,28 +229,25 @@ namespace Bagira.SimHost.Tests
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
-            var handler = new ReplayLoadDsmHandler(
-                controller, simGroup, lifecycleGroup, ghostSys,
-                statusWriter: null, nodeId: 1, storageDirectory: _tempDir);
+            var handler = new ReferenceReplayLoadHandler(
+                controller, simGroup, lifecycleGroup,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                transport: null, nodeId: 1, storageDirectory: _tempDir);
 
             // Simulate PrepareReplay commit so groups start disabled.
-            var prepCmd = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.PrepareReplay,
-                PayloadJson   = $"{{\"DrillId\":\"{drillId:D}\"}}",
-            };
+            var prepCmd = new OrchestrationCommand(
+                Guid.NewGuid(), 0,
+                ReferenceReplayLoadHandler.PrepareReplayOperationId,
+                $"{{\"DrillId\":\"{drillId:D}\"}}");
             handler.Commit(prepCmd, repo: null);
             Assert.False(simGroup.Enabled, "SimulationSystemGroup must be disabled during replay.");
 
             // ── Step 3: issue PrepareLive (Live-from-Replay branch) ───────────
             var branchedDrillId = Guid.NewGuid();
-            var branchCmd       = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.PrepareLive,
-                PayloadJson   = $"{{\"DrillId\":\"{branchedDrillId:D}\"}}",
-            };
+            var branchCmd       = new OrchestrationCommand(
+                Guid.NewGuid(), 0,
+                ReferenceReplayLoadHandler.PrepareLiveOperationId,
+                $"{{\"DrillId\":\"{branchedDrillId:D}\"}}");
             await handler.PrepareAsync(branchCmd, CancellationToken.None);
             handler.Commit(branchCmd, repo: null);
 

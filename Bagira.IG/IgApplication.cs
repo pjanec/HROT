@@ -80,7 +80,9 @@ using FDP.Toolkit.Replication.Services;
 
 using FDP.Toolkit.Replication.Systems;
 
-using Bagira.Common.Orchestration.Handlers;
+using Bagira.Common.Orchestration;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 
 using FDP.Toolkit.Time.Controllers;
 
@@ -211,7 +213,7 @@ public class IgApplication : IDisposable
     private bool _networkEnabled;
 
     // -- DrillSlave (CGF1-S0104) — wired in InitializeNetwork ----------------
-    private Bagira.IG.Modules.Orchestration.DrillSlave? _drillSlave;
+    private FDP.Toolkit.Orchestration.DrillSlave? _drillSlave;
 
 
 
@@ -870,11 +872,12 @@ public class IgApplication : IDisposable
 
                 // CGF1-S0104: wire DrillSlave once DDS participant is confirmed healthy.
                 var igNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : IgNetworkConstants.LocalNodeId;
-                _drillSlave = new Bagira.IG.Modules.Orchestration.DrillSlave(
-                    participant, igNodeId, "IG");
+                var igTransport = new DdsOrchestrationTransport(participant, igNodeId);
+                _drillSlave = new FDP.Toolkit.Orchestration.DrillSlave(
+                    igTransport, igNodeId, "IG");
 
                 // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in DrillSlave).
-                _drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null));
+                _drillSlave.RegisterHandler(new ReferenceDryRunHandler(liveRepo: null));
 
         }
 

@@ -1,8 +1,8 @@
+using System;
 using System.Collections.Generic;
-using Bagira.Common.Orchestration.Handlers;
+using Bagira.Common.Orchestration;
 using Bagira.SimHost.Modules;
 using Bagira.SimHost.Modules.Orchestration;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
 using Bagira.SimHost.Network;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
@@ -24,6 +24,8 @@ using FDP.Toolkit.Combat.Modules;
 using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.Navigation.Modules;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Perception.Modules;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
@@ -310,83 +312,58 @@ namespace Bagira.SimHost
                     $"[SimHost] A DDS participant is required for orchestration role '{role}'. " +
                     "DrillSlave cannot run without DDS in production.");
 
-            var drillSlave = participant != null
-                ? new DrillSlave(participant, nodeId, subsystemName, eventBus)
-                : new DrillSlave();
+            IOrchestrationTransport? transport = participant != null
+                ? new DdsOrchestrationTransport(participant, nodeId)
+                : null;
+
+            var drillSlave = new DrillSlave(transport, nodeId, subsystemName, eventBus);
+            var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
             // Create EcsRecordReplayController for Brain/AllInOne.
-            // The controller is shared between LiveLoadDsmHandler and ReplayLoadDsmHandler.
             EcsRecordReplayController? controller = null;
             if (role == NodeRole.Brain || role == NodeRole.AllInOne)
-            {
                 controller = new EcsRecordReplayController(kernel, nodeId, world);
-                // Note: controller.CanHandle returns false for all ops; it is used purely
-                // as a dependency factory by LiveLoadDsmHandler and ReplayLoadDsmHandler.
-            }
 
-            // Wire ReplayLoadDsmHandler BEFORE LiveLoadDsmHandler so the dispatch loop
-            // considers the Live-from-Replay branch first.  ReplayLoadDsmHandler.CanHandle
-            // narrows PrepareLive to only when a replay session is active, so there is no
-            // double-claim on normal (cold) PrepareLive commands
-            // (CGF1-S0305 / BATCH-18 A.1 fix — registration order + conditional CanHandle).
-            if (controller != null
-                && simGroup         != null
-                && lifecycleGroup   != null
-                && ghostCreationSystem != null)
+            // Wire ReferenceReplayLoadHandler BEFORE ReferenceLiveLoadHandler so the
+            // dispatch loop considers the Live-from-Replay branch first (CGF1-S0305).
+            if (controller != null && simGroup != null && lifecycleGroup != null)
             {
-                drillSlave.RegisterHandler(new ReplayLoadDsmHandler(
-                    controller,
-                    simGroup,
-                    lifecycleGroup,
-                    ghostCreationSystem,
-                    drillSlave.NodeOpStatusWriter,
-                    nodeId,
-                    localTempRoot));
+                Action<bool>? bypassToggle = ghostCreationSystem != null
+                    ? bypass => ghostCreationSystem.BypassLifecycle = bypass
+                    : (Action<bool>?)null;
+
+                drillSlave.RegisterHandler(new ReferenceReplayLoadHandler(
+                    controller, simGroup, lifecycleGroup, bypassToggle,
+                    transport, nodeId, localTempRoot));
             }
 
-            // Wire LiveLoadDsmHandler when an event bus is available (CGF1-S0202/S0304).
-            // Registered after ReplayLoadDsmHandler so cold PrepareLive (no active replay)
-            // falls through to this handler as the default live-session start path.
-            if (eventBus != null)
-            {
-                drillSlave.RegisterHandler(new LiveLoadDsmHandler(
-                    drillSlave, eventBus, checkpointWorker, controller, localTempRoot));
-            }
+            // Wire ReferenceLiveLoadHandler for cold PrepareLive / FinalizeLive.
+            drillSlave.RegisterHandler(new ReferenceLiveLoadHandler(
+                checkpointWorker, controller, localTempRoot));
 
-            // Wire CheckpointDsmHandler when a checkpoint worker is provided (CGF1-S0303 A.1).
+            // Wire ReferenceCheckpointHandler when a checkpoint worker is provided (CGF1-S0303).
             if (checkpointWorker != null)
-            {
-                drillSlave.RegisterHandler(new CheckpointDsmHandler(
-                    checkpointWorker, world, drillSlave.NodeOpStatusWriter, nodeId));
-            }
+                drillSlave.RegisterHandler(new ReferenceCheckpointHandler(
+                    checkpointWorker, world, transport, nodeId));
 
-            // Wire DryRunDsmHandler for LoadingDryRun / UnloadingDryRun (CGF1-S0309).
-            drillSlave.RegisterHandler(new DryRunDsmHandler(world));
+            // Wire ReferenceDryRunHandler for LoadingDryRun / UnloadingDryRun (CGF1-S0309).
+            drillSlave.RegisterHandler(new ReferenceDryRunHandler(world));
 
-            // Wire PrefetchFilesDsmHandler so this node can stage scenario files and ACK
-            // the orchestrator (CGF1-S0302 / A.2).  Registered for all roles that participate
-            // in DDS orchestration; passes the slave's NodeOpStatus writer for ACKs.
-            drillSlave.RegisterHandler(
-                new PrefetchFilesDsmHandler(drillSlave.NodeOpStatusWriter, nodeId, localTempRoot));
+            // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
+            drillSlave.RegisterHandler(new ReferencePrefetchHandler(transport, nodeId, storageProvider));
 
-            // Wire ScenarioLoadDsmHandler when a serializer is provided (CGF1-S0307).
-            // Passes 'world' so entity injection works through the DrillSlave dispatch
-            // path that calls Commit(cmd, repo: null).
+            // Wire scenario/story handlers when a serializer is provided.
             if (scenarioSerializer != null)
             {
                 drillSlave.RegisterHandler(
-                    new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot, world));
+                    new ReferenceScenarioLoadHandler(scenarioSerializer, storageProvider, world));
 
-                // Wire EditLoadDsmHandler for LoadingEdit (CGF1-S0302).
                 drillSlave.RegisterHandler(
-                    new EditLoadDsmHandler(scenarioSerializer, localTempRoot, world));
+                    new ReferenceEditLoadHandler(scenarioSerializer, storageProvider, world));
 
-                // Wire StoryLoadDsmHandler for StartStory / StopStory (CGF1-S0308).
-                // Passes NodeOpStatusWriter + nodeId so the handler can publish
-                // IsParticipating ACKs back to the orchestrator (BATCH-20 A.2).
                 drillSlave.RegisterHandler(
-                    new StoryLoadDsmHandler(scenarioSerializer, localTempRoot, world,
-                        drillSlave.NodeOpStatusWriter, nodeId));
+                    new ReferenceStoryLoadHandler(scenarioSerializer, storageProvider, world,
+                        transport, nodeId));
             }
 
             return drillSlave;

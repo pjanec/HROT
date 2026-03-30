@@ -1,12 +1,13 @@
 using System;
 using System.Threading;
-using Bagira.CGF.Modules.Orchestration;
 using Bagira.CGF.Modules.Orchestration.Handlers;
-using Bagira.Common.Orchestration.Handlers;
+using Bagira.Common.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using FDP.Toolkit.Time;
 
@@ -36,13 +37,13 @@ namespace Bagira.CGF
         private const string SubsystemName = "CGF";
 
         private readonly DdsParticipant _participant;
-        private readonly DrillSlave _drillSlave;
+        private readonly FDP.Toolkit.Orchestration.DrillSlave _drillSlave;
         private readonly FdpEventBus _eventBus;
         private readonly IDescriptorTranslator _timeModeTranslator;
         private bool _disposed;
 
-        /// <summary>Exposes the <see cref="DrillSlave"/> for test assertions.</summary>
-        public DrillSlave DrillSlave => _drillSlave;
+        /// <summary>Exposes the <see cref="FDP.Toolkit.Orchestration.DrillSlave"/> for test assertions.</summary>
+        public FDP.Toolkit.Orchestration.DrillSlave DrillSlave => _drillSlave;
 
         /// <param name="domainId">DDS domain used for all topics.</param>
         /// <param name="nodeId">
@@ -50,9 +51,10 @@ namespace Bagira.CGF
         /// Defaults to <c>400</c>.
         /// </param>
         /// <param name="scenarioSerializer">
-        /// Optional pre-built scenario serializer (CGF1-S0307).  When provided a
-        /// <see cref="ScenarioLoadDsmHandler"/> is registered on the <see cref="DrillSlave"/>
-        /// so the CGF node participates in scenario load operations.
+        /// Optional pre-built scenario serializer (CGF1-S0307).  When provided,
+        /// <see cref="ReferenceScenarioLoadHandler"/> and <see cref="ReferenceStoryLoadHandler"/>
+        /// are registered so the CGF node participates in scenario/story DSM operations
+        /// (header-peek / ACK only until record/replay wiring lands on CGF).
         /// </param>
         /// <param name="localTempRoot">
         /// Local staging directory root for pre-fetched scenario files.
@@ -62,38 +64,33 @@ namespace Bagira.CGF
             ScenarioSerializer? scenarioSerializer = null, string localTempRoot = @"C:\FDP_Temp")
         {
             _participant = new DdsParticipant((uint)domainId);
-            _drillSlave = new DrillSlave(_participant, nodeId, SubsystemName);
-            // CGF1-A.2 (BATCH-09): wire SwitchTimeModeEvent bridge so time-mode switches
-            // coordinated by the orchestrator are received and forwarded on the CGF node.
+            // CGF1-A.2 (BATCH-09): wire SwitchTimeModeEvent bridge.
             _eventBus = new FdpEventBus();
             _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
 
-            // CGF1-BATCH-19 A.1: register FailLoudRecordReplayStub for FinalizeLive,
-            // PrepareReplay and FinalizeReplay (unsupported until CGF hosts a recordable kernel).
-            // PrepareLive is intentionally absent from the stub's CanHandle so that ALL
-            // PrepareLive commands route to ScenarioLoadDsmHandler, which handles both normal
-            // scenario payloads (ScenarioId present) and branch payloads (DrillId-only, no
-            // ScenarioId) via its built-in HasDrillId guard.
-            _drillSlave.RegisterHandler(new FailLoudRecordReplayStub(SubsystemName));
+            var transport = new DdsOrchestrationTransport(_participant, nodeId);
+            _drillSlave   = new FDP.Toolkit.Orchestration.DrillSlave(transport, nodeId, SubsystemName);
+
+            var storageProvider = new LocalDiskStorageProvider(localTempRoot);
+
+            // CGF1-BATCH-19 A.1: register FailLoudRecordReplayStub (Bagira handler, wrapped).
+            _drillSlave.RegisterHandler(new BagiraHandlerAdapter(new FailLoudRecordReplayStub(SubsystemName)));
 
             // CGF1-S0307: wire scenario load handler when a serializer is provided.
-            // Registered after FailLoudRecordReplayStub — the two handlers handle disjoint
-            // NodeOpType values (PrepareLive vs FinalizeLive/PrepareReplay/FinalizeReplay),
-            // so registration order does not affect dispatch for their respective operations.
             if (scenarioSerializer != null)
             {
-                _drillSlave.RegisterHandler(new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot));
+                // CGF header-peek-only path: world=null because CGF has no ECS repo.
+                _drillSlave.RegisterHandler(
+                    new ReferenceScenarioLoadHandler(scenarioSerializer, storageProvider, world: null));
 
-                // CGF1-S0308 (BATCH-20 A.1): wire StoryLoadDsmHandler for StartStory / StopStory.
-                // CGF has no ECS so the handler is header-peek-only; publishes NodeOpStatus
-                // IsParticipating via the DrillSlave NodeOpStatusWriter when a DDS stack is live.
-                _drillSlave.RegisterHandler(new StoryLoadDsmHandler(
-                    scenarioSerializer, localTempRoot,
-                    _drillSlave.NodeOpStatusWriter, nodeId));
+                // CGF1-S0308: wire story handler; CGF is header-peek only (world=null).
+                _drillSlave.RegisterHandler(
+                    new ReferenceStoryLoadHandler(scenarioSerializer, storageProvider,
+                        world: null, transport, nodeId));
             }
 
-            // CGF1-S0309: wire dry-run snapshot/rewind handler (no ECS state on CGF skeleton).
-            _drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null));
+            // CGF1-S0309: wire dry-run handler (no ECS state on CGF skeleton).
+            _drillSlave.RegisterHandler(new ReferenceDryRunHandler(liveRepo: null));
 
             FdpLog<CgfApplication>.Info("[CGF] Initialized on domain {0}, nodeId {1}.", domainId, nodeId);
         }

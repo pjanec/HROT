@@ -620,6 +620,18 @@ public sealed class DrillMaster : IDisposable
                         catch (JsonException) { }
                     }
 
+                    // BATCH-22 A.2: Fail loud on unparseable or incomplete ManageStory payload.
+                    // Reject the request rather than issuing a silent FanOutNodeOp with no
+                    // pending task tracking (orphan node ops).
+                    if (storyId == Guid.Empty)
+                        throw new InvalidOperationException(
+                            $"[Orchestrator] ManageStory payload is missing or has an invalid 'StoryId' field. " +
+                            $"PayloadJson='{req.PayloadJson}'.");
+                    if (string.IsNullOrWhiteSpace(storyMode))
+                        throw new InvalidOperationException(
+                            $"[Orchestrator] ManageStory payload is missing or has an invalid 'Mode' field. " +
+                            $"PayloadJson='{req.PayloadJson}'.");
+
                     // Execute the planned story steps.
                     foreach (var step in storySteps)
                     {
@@ -828,19 +840,44 @@ public sealed class DrillMaster : IDisposable
                 continue;
             }
 
-            // BATCH-21 Part A.1: ManageStory 2PC — consume node ACKs.
+            // BATCH-21 Part A.1 / BATCH-22 A.1: ManageStory 2PC — consume node ACKs.
             // Policy: every ACK (IsParticipating true or false) counts as the node's
             // acknowledgement for the transaction.  _activeStories is updated only after
             // all targeted nodes have responded, preventing silent divergence between
             // orchestrator story state and on-node reality.
+            // BATCH-22 A.1: If any node returns an error StatusCode, abort immediately —
+            // do NOT update _activeStories and publish SysOpStatus.Rejected.
             if (_pendingManageStoryTasks.TryGetValue(status.TransactionId, out var storyTask))
             {
+                if (OrchestrationStatusCode.IsError(status.StatusCode))
+                {
+                    _pendingManageStoryTasks.Remove(status.TransactionId);
+                    FdpLog<DrillMaster>.Warn(
+                        "[Orchestrator] ManageStory 2PC aborted for story {0}: node {1} returned error StatusCode {2}.",
+                        storyTask.StoryId, status.NodeId, status.StatusCode);
+                    _sysOpStatusWriter.Write(new SysOpStatus
+                    {
+                        RequestId  = storyTask.RequestId,
+                        StatusCode = OrchestrationStatusCode.Rejected,
+                        ResultJson = string.Empty
+                    });
+                    continue;
+                }
+
                 storyTask.RemainingNodeIds.Remove(status.NodeId);
                 if (storyTask.RemainingNodeIds.Count == 0)
                 {
                     _pendingManageStoryTasks.Remove(status.TransactionId);
                     if (storyTask.IsStart) _activeStories.Add(storyTask.StoryId);
                     else                   _activeStories.Remove(storyTask.StoryId);
+                    // BATCH-22 A.1: Publish SysOpStatus.Completed so clients can correlate
+                    // the full ManageStory round-trip via the sys-op channel.
+                    _sysOpStatusWriter.Write(new SysOpStatus
+                    {
+                        RequestId  = storyTask.RequestId,
+                        StatusCode = OrchestrationStatusCode.Success,
+                        ResultJson = string.Empty
+                    });
                     FdpLog<DrillMaster>.Info(
                         "[Orchestrator] ManageStory 2PC complete for story {0}: all node ACKs received.",
                         storyTask.StoryId);

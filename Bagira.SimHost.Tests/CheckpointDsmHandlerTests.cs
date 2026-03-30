@@ -1,11 +1,10 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using Bagira.BDC.SSTD.Orchestration;
-using Bagira.SimHost.Modules.Orchestration;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using Xunit;
 
 namespace Bagira.SimHost.Tests
@@ -19,7 +18,7 @@ namespace Bagira.SimHost.Tests
     }
 
     /// <summary>
-    /// Tests for <see cref="CheckpointDsmHandler"/> — CGF1-S0303 success conditions.
+    /// Tests for <see cref="ReferenceCheckpointHandler"/> — CGF1-S0303 success conditions.
     /// </summary>
     public sealed class CheckpointDsmHandlerTests : IDisposable
     {
@@ -45,15 +44,14 @@ namespace Bagira.SimHost.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
-        private NodeOpCommand MakeSnapshotCmd(Guid? txId = null) => new()
-        {
-            TransactionId = txId ?? Guid.NewGuid(),
-            Operation     = NodeOpType.TakeSnapshot,
-            PayloadJson   = string.Empty,
-        };
+        private OrchestrationCommand MakeSnapshotCmd(Guid? txId = null) =>
+            new OrchestrationCommand(
+                txId ?? Guid.NewGuid(), 0,
+                ReferenceCheckpointHandler.TakeSnapshotOperationId,
+                string.Empty);
 
-        private CheckpointDsmHandler CreateHandler(CheckpointIOWorker worker) =>
-            new CheckpointDsmHandler(worker, _liveRepo, statusWriter: null, _nodeId);
+        private ReferenceCheckpointHandler CreateHandler(CheckpointIOWorker worker) =>
+            new ReferenceCheckpointHandler(worker, _liveRepo, transport: null, _nodeId);
 
         // ── CGF1-S0303: TwoOverlappingCheckpoints_ACKsAreBothDeferred ─────────
 
@@ -149,7 +147,7 @@ namespace Bagira.SimHost.Tests
         {
             using var worker  = new CheckpointIOWorker(_storageDir, _nodeId);
             // Construct handler with null liveRepo so there is no fallback.
-            var handler = new CheckpointDsmHandler(worker, liveRepo: null, statusWriter: null, _nodeId);
+            var handler = new ReferenceCheckpointHandler(worker, liveRepo: null, transport: null, _nodeId);
 
             var id  = Guid.NewGuid();
             var cmd = MakeSnapshotCmd(id);
@@ -178,7 +176,7 @@ namespace Bagira.SimHost.Tests
             using var worker  = new CheckpointIOWorker(_storageDir, _nodeId);
             var ckptHandler = CreateHandler(worker);
             // DrillSlave internal parameterless ctor (no DDS) is accessible via InternalsVisibleTo.
-            var liveHandler = new LiveLoadDsmHandler(new DrillSlave(), new FdpEventBus(), worker);
+            var liveHandler = new ReferenceLiveLoadHandler(worker);
 
             // Enqueue a checkpoint while "live" (not yet drained).
             var id  = Guid.NewGuid();
@@ -188,12 +186,10 @@ namespace Bagira.SimHost.Tests
 
             // FinalizeLive PrepareAsync must not return until write completes.
             await liveHandler.PrepareAsync(
-                new NodeOpCommand
-                {
-                    TransactionId = Guid.NewGuid(),
-                    Operation     = NodeOpType.FinalizeLive,
-                    PayloadJson   = string.Empty,
-                },
+                new OrchestrationCommand(
+                    Guid.NewGuid(), 0,
+                    ReferenceLiveLoadHandler.FinalizeLiveOperationId,
+                    string.Empty),
                 default);
 
             var path = Path.Combine(_storageDir, $"{id}_node_{_nodeId}.fdp");

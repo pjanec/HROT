@@ -3,19 +3,19 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-22](batches/CGF-1-BATCH-22-INSTRUCTIONS.md) (pending — tech debt + G0404 remainder + G0405 + G0406).  
-**Last reviewed:** [CGF-1-BATCH-21](reviews/CGF-1-BATCH-21-REVIEW.md) — APPROVED (2026-04-05).  
-**Last completed:** [CGF-1-BATCH-21](reports/CGF-1-BATCH-21-REPORT.md) — Part A complete + Phase 4 G0401/G0402/G0403 complete, G0404 partial; follow-up in BATCH-22. **S0310** / **S0106** **remain deferred** until Phase 4 fully done.  
+**Active batch:** [CGF-1-BATCH-23](batches/CGF-1-BATCH-23-INSTRUCTIONS.md) (subsystem parity + orchestrator globals + S0310/S0106).  
+**Last reviewed:** [CGF-1-BATCH-22](reviews/CGF-1-BATCH-22-REVIEW.md) — APPROVED with corrections (2026-04-10).  
+**Last completed:** [CGF-1-BATCH-22](reports/CGF-1-BATCH-22-REPORT.md) — Part A (ManageStory NAK + SysOpStatus + bad payload) + Phase 4 G0404/G0405/G0406; **Phase 4 complete**; subsystem wiring gaps → **BATCH-23**.  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
-> **Extended specs:** [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) and [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) define **CGF1-S0106** and **CGF1-S0310**. **Phase 4:** [CGF-1-GENERALIZATION.md](./CGF-1-GENERALIZATION.md) is design authority for **CGF1-G0401**–**G0406**. **S0106** / **S0310** resume only after Phase 4 CI is green.
+> **Extended specs:** [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) and [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) define **CGF1-S0106** and **CGF1-S0310**. **Phase 4** ✅ complete (**CGF-1-BATCH-22**). **BATCH-23:** brain/muscle **DSM parity** (CGF record/replay, IG/IOS matrix), **orchestrator globals** (`GlobalContextDto`), then **S0310** / **S0106**.
 
 > **Scope:** Phases 1–4 of the CGF workstream — Control-Plane Foundation, State & Time
 > Synchronization, Persistence, and Generalization. Phase 5 (Urban Combat AI) begins
 > only after the Phase 3 + Phase 4 CI gates are all passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 5 / 6 tasks done (**S0106** deferred until Phase 4 complete). **Phase 2:** 5 / 5 complete. **Phase 3:** 9 / 10 done (**S0310** deferred until Phase 4 complete); **§S0308 TASK-DETAIL residual** closed ✅. **Phase 4:** G0401 ✅ G0402 ✅ G0403 ✅ G0404 partial (LocalDiskStorageProvider + ReferencePrefetchHandler done) → continuing BATCH-22.
+> **Progress (Phase 1):** 5 / 6 tasks done (**S0106** → **BATCH-23** Part B). **Phase 2:** 5 / 5 complete. **Phase 3:** 9 / 10 done (**S0310** → **BATCH-23** Part B). **Phase 4:** **COMPLETE (BATCH-22)**. **Cross-cutting:** CGF record/replay + IG/IOS + orchestrator globals → **BATCH-23** Part A ([review](reviews/CGF-1-BATCH-22-REVIEW.md#subsystem-parity-lead--product-concern)).
 
 ---
 
@@ -29,7 +29,7 @@ establish DDS schema, centralize identity allocation.
 - [x] **CGF1-S0103** Centralized Identity Migration [details](./CGF-1-TASK-DETAIL.md#cgf1-s0103--centralized-identity-migration)
 - [x] **CGF1-S0104** DrillSlave Foundation [details](./CGF-1-TASK-DETAIL.md#cgf1-s0104--drillslave-foundation) — done (CGF-1-BATCH-02); see BATCH-02 review for P1 follow-up in BATCH-03
 - [x] **CGF1-S0105** Orchestrator Health Monitoring & Bootstrap Recovery [details](./CGF-1-TASK-DETAIL.md#cgf1-s0105--orchestrator-health-monitoring--bootstrap-recovery) — done (CGF-1-BATCH-03 + polish CGF-1-BATCH-04)
-- [ ] **CGF1-S0106** Orchestrator ImGui Scenario & Story Controls [details](./CGF-1-TASK-DETAIL.md#cgf1-s0106--orchestrator-imgui-scenario--story-controls) — **deferred until Phase 4 complete** ([CGF-1-BATCH-21](batches/CGF-1-BATCH-21-INSTRUCTIONS.md))
+- [ ] **CGF1-S0106** Orchestrator ImGui Scenario & Story Controls [details](./CGF-1-TASK-DETAIL.md#cgf1-s0106--orchestrator-imgui-scenario--story-controls) — **[CGF-1-BATCH-23](batches/CGF-1-BATCH-23-INSTRUCTIONS.md)** Part B (Phase 4 ✅)
 
 ---
 
@@ -60,7 +60,7 @@ management, and live-from-replay temporal interlock — all regression-tested.
 - [x] **CGF1-S0307** Application-Layer Scenario Save/Load Wiring [details](./CGF-1-TASK-DETAIL.md#cgf1-s0307--application-layer-scenario-saveload-wiring) — done [CGF-1-BATCH-12](batches/CGF-1-BATCH-12-INSTRUCTIONS.md); follow-ups → [CGF-1-BATCH-12 review](reviews/CGF-1-BATCH-12-REVIEW.md#gaps-vs-task-detail-cgf1-s0307)
 - [x] **CGF1-S0308** Runtime Story Injection & Deletion [details](./CGF-1-TASK-DETAIL.md#cgf1-s0308--runtime-story-injection--deletion) — SimHost MVP ✅ [CGF-1-BATCH-19](batches/CGF-1-BATCH-19-INSTRUCTIONS.md) Part B; **TASK-DETAIL residual closed** ✅ [CGF-1-BATCH-20](batches/CGF-1-BATCH-20-INSTRUCTIONS.md) Part A (CGF `StoryLoadDsmHandler` + `NodeOpStatus.IsParticipating` ACK wired; `DrillMaster` ACK gating = intentional MVP delta — see §S0308 note in TASK-DETAIL)
 - [x] **CGF1-S0309** Dry Run DSM Handler [details](./CGF-1-TASK-DETAIL.md#cgf1-s0309--dry-run-dsm-handler)
-- [ ] **CGF1-S0310** E2E DSM Test Script Suite [details](./CGF-1-TASK-DETAIL.md#cgf1-s0310--e2e-dsm-test-script-suite) — **deferred until Phase 4 complete** ([CGF-1-BATCH-21](batches/CGF-1-BATCH-21-INSTRUCTIONS.md))
+- [ ] **CGF1-S0310** E2E DSM Test Script Suite [details](./CGF-1-TASK-DETAIL.md#cgf1-s0310--e2e-dsm-test-script-suite) — **[CGF-1-BATCH-23](batches/CGF-1-BATCH-23-INSTRUCTIONS.md)** Part B (Phase 4 ✅)
 
 ---
 
@@ -73,13 +73,13 @@ wiring toolkit reference handlers with constructor injection — no Bagira infra
 copy-paste required.
 
 **Design authority:** [CGF-1-GENERALIZATION.md](./CGF-1-GENERALIZATION.md)  
-**Execution:** [CGF-1-BATCH-21](batches/CGF-1-BATCH-21-INSTRUCTIONS.md) Part B (done through G0403 + partial G0404) → [CGF-1-BATCH-22](batches/CGF-1-BATCH-22-INSTRUCTIONS.md).
+**Execution:** [CGF-1-BATCH-21](batches/CGF-1-BATCH-21-INSTRUCTIONS.md) Part B (done through G0403 + partial G0404) → [CGF-1-BATCH-22](batches/CGF-1-BATCH-22-INSTRUCTIONS.md) (G0404–G0406 complete).
 
-**Progress:** 3.5 / 6 tasks done (G0401, G0402, G0403 complete; G0404 partial; G0405/G0406 open → BATCH-22).
+**Progress:** 6 / 6 tasks done — **COMPLETE**.
 
 - [x] **CGF1-G0401** FDP.Toolkit.Orchestration Core Contracts — COMPLETE (BATCH-21) [details](./CGF-1-TASK-DETAIL.md#cgf1-g0401--fdptoolkitorchestration-core-contracts)
 - [x] **CGF1-G0402** Generic DrillSlave + DdsOrchestrationTransport — COMPLETE (BATCH-21) [details](./CGF-1-TASK-DETAIL.md#cgf1-g0402--generic-drillslave--ddsorchestrationtransport)
 - [x] **CGF1-G0403** Generalize TransitionPlanner with ITransitionGraph — COMPLETE (BATCH-21) [details](./CGF-1-TASK-DETAIL.md#cgf1-g0403--generalize-transitionplanner-with-itransitiongraph)
-- [ ] **CGF1-G0404** Reference Scenario, Story, and Prefetch Handlers — PARTIAL (BATCH-21): `LocalDiskStorageProvider` + `ReferencePrefetchHandler` done; `ReferenceScenarioLoadHandler`, `ReferenceEditLoadHandler`, `ReferenceStoryLoadHandler`, NodeBootstrapper/CgfApplication wiring deferred → BATCH-22 [details](./CGF-1-TASK-DETAIL.md#cgf1-g0404--reference-scenario-story-and-prefetch-handlers)
-- [ ] **CGF1-G0405** Reference DryRun, Checkpoint, and RecordReplay Handlers — OPEN → BATCH-22+ [details](./CGF-1-TASK-DETAIL.md#cgf1-g0405--reference-dryrun-checkpoint-and-recordreplay-handlers)
-- [ ] **CGF1-G0406** Final Wiring Cleanup and CI Validation — OPEN → BATCH-22+ [details](./CGF-1-TASK-DETAIL.md#cgf1-g0406--final-wiring-cleanup-and-ci-validation)
+- [x] **CGF1-G0404** Reference Scenario, Story, and Prefetch Handlers — COMPLETE (BATCH-22): `ReferenceScenarioLoadHandler`, `ReferenceEditLoadHandler`, `ReferenceStoryLoadHandler`; NodeBootstrapper + CgfApplication + IgApplication + IosSubsystem wired [details](./CGF-1-TASK-DETAIL.md#cgf1-g0404--reference-scenario-story-and-prefetch-handlers)
+- [x] **CGF1-G0405** Reference DryRun, Checkpoint, and RecordReplay Handlers — COMPLETE (BATCH-22): `ReferenceDryRunHandler`, `ReferenceCheckpointHandler`, `ReferenceLiveLoadHandler`, `ReferenceReplayLoadHandler`; `IRecordReplayController` extended [details](./CGF-1-TASK-DETAIL.md#cgf1-g0405--reference-dryrun-checkpoint-and-recordreplay-handlers)
+- [x] **CGF1-G0406** Final Wiring Cleanup and CI Validation — COMPLETE (BATCH-22): all app layers wired to toolkit DrillSlave + Reference* handlers; 14 old handler/DrillSlave files deleted; 13 test files updated; all 6 test projects green (521+ tests) [details](./CGF-1-TASK-DETAIL.md#cgf1-g0406--final-wiring-cleanup-and-ci-validation)

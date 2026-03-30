@@ -2,14 +2,14 @@ using System;
 using System.Linq;
 using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Common.Orchestration;
-using Bagira.SimHost.Modules.Orchestration;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
 using Xunit;
 
 namespace Bagira.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="DrillSlave"/> DSM handler wiring and event publication
+    /// Unit tests for the toolkit <see cref="DrillSlave"/> DSM handler wiring and event publication
     /// (CGF1-S0202 success conditions).  No DDS or ECS — all tests are pure in-process.
     /// </summary>
     public sealed class DrillSlaveHandlerTests
@@ -27,21 +27,17 @@ namespace Bagira.SimHost.Tests
         {
             var eventBus = new FdpEventBus();
             using var slave = new DrillSlave(eventBus);
-            slave.RegisterHandler(new LiveLoadDsmHandler(slave, eventBus));
 
-            slave.EnqueueCommandForTest(new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.CommitState,
-                PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
-            });
+            slave.EnqueueCommandForTest(new OrchestrationCommand(
+                Guid.NewGuid(), 0, 2,
+                ((int)DSMState.LoadingLive).ToString()));
 
             slave.Tick();
             eventBus.SwapBuffers();
 
-            var events = eventBus.Consume<DsmStateChangedEvent>().ToArray();
+            var events = eventBus.Consume<TkDsmStateChangedEvent>().ToArray();
             Assert.Single(events);
-            Assert.Equal(DSMState.LoadingLive, events[0].Next);
+            Assert.Equal((int)DSMState.LoadingLive, events[0].NextStateId);
         }
 
         /// <summary>
@@ -56,12 +52,9 @@ namespace Bagira.SimHost.Tests
             using var slave = new DrillSlave(eventBus);
 
             var txId = Guid.NewGuid();
-            var cmd  = new NodeOpCommand
-            {
-                TransactionId = txId,
-                Operation     = NodeOpType.CommitState,
-                PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
-            };
+            var cmd  = new OrchestrationCommand(
+                txId, 0, 2,
+                ((int)DSMState.LoadingLive).ToString());
 
             // Enqueue the same command twice (simulates DDS re-delivery).
             slave.EnqueueCommandForTest(cmd);
@@ -70,23 +63,23 @@ namespace Bagira.SimHost.Tests
             slave.Tick();
             eventBus.SwapBuffers();
 
-            var events = eventBus.Consume<DsmStateChangedEvent>().ToArray();
+            var events = eventBus.Consume<TkDsmStateChangedEvent>().ToArray();
             Assert.Single(events);
         }
 
         /// <summary>
-        /// <see cref="DsmStateChangedEvent"/> is defined in <c>Bagira.Common</c>, not in
-        /// any <c>FDP/</c> project.  This test serves as a compile-time guard: if the type
-        /// were moved to an FDP project the import would break.
+        /// <see cref="TkDsmStateChangedEvent"/> is published by the toolkit
+        /// <see cref="DrillSlave"/> on <c>CommitState</c>.  This test serves as a
+        /// compile-time guard confirming the event is in an FDP namespace.
         /// </summary>
         [Fact]
         public void DsmStateChangedEvent_IsNotInFdpNamespace()
         {
-            var t = typeof(DsmStateChangedEvent);
-            Assert.False(
+            var t = typeof(TkDsmStateChangedEvent);
+            Assert.True(
                 t.Namespace?.StartsWith("Fdp.", StringComparison.Ordinal) == true ||
                 t.Namespace?.StartsWith("FDP.", StringComparison.Ordinal) == true,
-                $"DsmStateChangedEvent must not be in an FDP namespace; actual: {t.Namespace}");
+                $"TkDsmStateChangedEvent must be in an FDP namespace; actual: {t.Namespace}");
         }
 
         // ── A.1 (BATCH-06): LocalDsmState heartbeat reflects committed state ────
@@ -104,20 +97,16 @@ namespace Bagira.SimHost.Tests
             using var slave = new DrillSlave(eventBus);
 
             // Initial state must be Standby.
-            Assert.Equal(DSMState.Standby, slave.LocalDsmStateForTest);
+            Assert.Equal((int)DSMState.Standby, slave.LocalStateIdForTest);
 
-            slave.EnqueueCommandForTest(new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.CommitState,
-                PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
-            });
+            slave.EnqueueCommandForTest(new OrchestrationCommand(
+                Guid.NewGuid(), 0, 2,
+                ((int)DSMState.LoadingLive).ToString()));
 
             slave.Tick();
 
-            // After Tick() the stored state must be LoadingLive — this is exactly what
-            // a subsequent PublishHeartbeat() will write into LocalDsmState.
-            Assert.Equal(DSMState.LoadingLive, slave.LocalDsmStateForTest);
+            // After Tick() the stored state must be LoadingLive.
+            Assert.Equal((int)DSMState.LoadingLive, slave.LocalStateIdForTest);
         }
     }
 }

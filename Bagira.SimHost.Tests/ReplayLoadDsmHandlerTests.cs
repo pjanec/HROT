@@ -2,11 +2,11 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Common.Orchestration;
 using Bagira.SimHost.Modules.Orchestration;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Replay;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
@@ -17,7 +17,7 @@ using Xunit;
 namespace Bagira.SimHost.Tests
 {
     /// <summary>
-    /// Integration tests for <see cref="ReplayLoadDsmHandler"/> (CGF1-S0304).
+    /// Integration tests for <see cref="ReferenceReplayLoadHandler"/> (CGF1-S0304).
     /// </summary>
     public class ReplayLoadDsmHandlerTests : IDisposable
     {
@@ -99,23 +99,21 @@ namespace Bagira.SimHost.Tests
             var ghostSys         = new GhostCreationSystem(entityMap);
             var lifecycleGroup   = new NetworkLifecycleSystemGroup(ghostSys);
 
-            var handler = new ReplayLoadDsmHandler(
+            var handler = new ReferenceReplayLoadHandler(
                 controller,
                 simGroup,
                 lifecycleGroup,
-                ghostSys,
-                statusWriter:     null,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                transport:        null,
                 nodeId:           1,
                 storageDirectory: _tempDir);
 
             // ── Step 3: dispatch PrepareReplay → Commit. ──
             var payload = $"{{\"DrillId\":\"{drillId:D}\"}}";
-            var cmd = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.PrepareReplay,
-                PayloadJson   = payload,
-            };
+            var cmd = new OrchestrationCommand(
+                Guid.NewGuid(), 0,
+                ReferenceReplayLoadHandler.PrepareReplayOperationId,
+                payload);
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
             handler.Commit(cmd, repo: null);
@@ -158,16 +156,15 @@ namespace Bagira.SimHost.Tests
             var ghostSys       = new GhostCreationSystem(entityMap);
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
-            var handler = new ReplayLoadDsmHandler(
-                controller, simGroup, lifecycleGroup, ghostSys,
-                statusWriter: null, nodeId: 1, storageDirectory: _tempDir);
+            var handler = new ReferenceReplayLoadHandler(
+                controller, simGroup, lifecycleGroup,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                transport: null, nodeId: 1, storageDirectory: _tempDir);
 
-            var prepareCmd = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.PrepareReplay,
-                PayloadJson   = $"{{\"DrillId\":\"{drillId:D}\"}}",
-            };
+            var prepareCmd = new OrchestrationCommand(
+                Guid.NewGuid(), 0,
+                ReferenceReplayLoadHandler.PrepareReplayOperationId,
+                $"{{\"DrillId\":\"{drillId:D}\"}}");
             await handler.PrepareAsync(prepareCmd, CancellationToken.None);
             handler.Commit(prepareCmd, repo: null);
 
@@ -175,12 +172,10 @@ namespace Bagira.SimHost.Tests
             Assert.False(simGroup.Enabled);
 
             // ── Step 3: dispatch FinalizeReplay → Commit. ──
-            var finalizeCmd = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.FinalizeReplay,
-                PayloadJson   = string.Empty,
-            };
+            var finalizeCmd = new OrchestrationCommand(
+                Guid.NewGuid(), 0,
+                ReferenceReplayLoadHandler.FinalizeReplayOperationId,
+                string.Empty);
             await handler.PrepareAsync(finalizeCmd, CancellationToken.None);
             handler.Commit(finalizeCmd, repo: null);
 

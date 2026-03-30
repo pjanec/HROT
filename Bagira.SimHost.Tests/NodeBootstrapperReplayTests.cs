@@ -3,26 +3,26 @@ using System.IO;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Common.Orchestration;
+using Bagira.SimHost.Modules.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core;
 using ModuleHost.Core.Scheduling;
 using Bagira.SimHost;
-using Bagira.SimHost.Modules.Orchestration;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
 using Xunit;
 
 namespace Bagira.SimHost.Tests
 {
     /// <summary>
     /// Focused bootstrap tests confirming that <see cref="NodeBootstrapper.BuildOrchestration"/>
-    /// registers <see cref="ReplayLoadDsmHandler"/> when the replay-control objects are supplied —
+    /// registers <see cref="ReferenceReplayLoadHandler"/> when the replay-control objects are supplied —
     /// matching the production <see cref="SimHostApp.OnLoad"/> wiring (CGF1-S0304 Part A.1).
-    /// Also verifies correct <see cref="NodeOpType.PrepareLive"/> dispatch routing
+    /// Also verifies correct <c>PrepareLive</c> (operationId=9) dispatch routing
     /// (CGF1-S0305 / BATCH-18 A.1).
     /// </summary>
     public sealed class NodeBootstrapperReplayTests : System.IDisposable
@@ -93,8 +93,8 @@ namespace Bagira.SimHost.Tests
                 ghostCreationSystem: ghostSys);
 
             Assert.True(
-                slave.IsHandlerRegistered<ReplayLoadDsmHandler>(),
-                "ReplayLoadDsmHandler must be registered by BuildOrchestration when replay params are provided.");
+                slave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
+                "ReferenceReplayLoadHandler must be registered by BuildOrchestration when replay params are provided.");
         }
 
         /// <summary>
@@ -116,18 +116,17 @@ namespace Bagira.SimHost.Tests
                 nodeId: 1);
 
             Assert.False(
-                slave.IsHandlerRegistered<ReplayLoadDsmHandler>(),
-                "ReplayLoadDsmHandler must NOT be registered when replay params are absent.");
+                slave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
+                "ReferenceReplayLoadHandler must NOT be registered when replay params are absent.");
         }
 
         // ── BATCH-18 A.1: Dispatch routing — PrepareLive reaches ReplayLoadDsmHandler when replay active ──
 
         /// <summary>
         /// Verifies the BATCH-18 A.1 fix: when a replay session is active,
-        /// <see cref="DrillSlave"/> dispatch routes a
-        /// <see cref="NodeOpType.PrepareLive"/> command to
-        /// <see cref="ReplayLoadDsmHandler"/> (the Live-from-Replay branch) rather than
-        /// to <see cref="LiveLoadDsmHandler"/>.
+        /// <see cref="DrillSlave"/> dispatch routes a <c>PrepareLive</c> (operationId=9) command
+        /// to <see cref="ReferenceReplayLoadHandler"/> (the Live-from-Replay branch) rather than
+        /// to <see cref="ReferenceLiveLoadHandler"/>.
         ///
         /// <para>
         /// Uses real <see cref="DrillSlave"/> dispatch (<see cref="DrillSlave.EnqueueCommandForTest"/>
@@ -136,7 +135,7 @@ namespace Bagira.SimHost.Tests
         /// The observable side-effect is that <see cref="EcsRecordReplayController.ActiveReplayModule"/>
         /// becomes <c>null</c> (teardown completed) and
         /// <see cref="EcsRecordReplayController.ActiveRecordingModule"/> is set (recording started),
-        /// which only happens on the Live-from-Replay path in <see cref="ReplayLoadDsmHandler"/>.
+        /// which only happens on the Live-from-Replay path in <see cref="ReferenceReplayLoadHandler"/>.
         /// </para>
         /// </summary>
         [Fact(Timeout = 20_000)]
@@ -180,22 +179,21 @@ namespace Bagira.SimHost.Tests
 
             using var slave = new DrillSlave(eventBus);
             // Registration order matches the fixed NodeBootstrapper.BuildOrchestration:
-            // ReplayLoadDsmHandler first (CanHandle(PrepareLive) is true while replay is active),
-            // LiveLoadDsmHandler second (cold PrepareLive fallback).
-            slave.RegisterHandler(new ReplayLoadDsmHandler(
-                controller, simGroup, lifecycleGroup, ghostSys,
-                statusWriter: null, nodeId: 1, storageDirectory: _tempDir));
-            slave.RegisterHandler(new LiveLoadDsmHandler(
-                slave, eventBus, checkpointWorker: null, controller, _tempDir));
+            // ReferenceReplayLoadHandler first (CanHandle(PrepareLive) is true while replay is active),
+            // ReferenceLiveLoadHandler second (cold PrepareLive fallback).
+            slave.RegisterHandler(new ReferenceReplayLoadHandler(
+                controller, simGroup, lifecycleGroup,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                transport: null, nodeId: 1, storageDirectory: _tempDir));
+            slave.RegisterHandler(new ReferenceLiveLoadHandler(
+                checkpointWorker: null, controller, _tempDir));
 
             // ── Step 3: dispatch PrepareLive via DrillSlave ───────────────────
             var branchedDrillId = Guid.NewGuid();
-            slave.EnqueueCommandForTest(new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.PrepareLive,
-                PayloadJson   = $"{{\"DrillId\":\"{branchedDrillId:D}\"}}",
-            });
+            slave.EnqueueCommandForTest(new OrchestrationCommand(
+                Guid.NewGuid(), 0,
+                ReferenceReplayLoadHandler.PrepareLiveOperationId,
+                $"{{\"DrillId\":\"{branchedDrillId:D}\"}}"));
 
             // Drive slave ticks until async prepare completes (kernel loop running in bg).
             var deadline = DateTime.UtcNow.AddSeconds(10);

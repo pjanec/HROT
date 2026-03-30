@@ -4,12 +4,12 @@ using System.IO;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Common.Orchestration;
 using Bagira.SimHost.Modules.Orchestration;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
 using Fdp.Kernel;
 using Fdp.Kernel.FlightRecorder;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core;
@@ -28,8 +28,8 @@ namespace Bagira.SimHost.Tests
     ///   <item>Record a live drill (original recording).</item>
     ///   <item>Open the recording in replay and seek to a mid-point frame.</item>
     ///   <item>Execute the Live-from-Replay branch via
-    ///     <see cref="ReplayLoadDsmHandler.PrepareAsync"/> /
-    ///     <see cref="ReplayLoadDsmHandler.Commit"/>.</item>
+    ///     <see cref="ReferenceReplayLoadHandler.PrepareAsync"/> /
+    ///     <see cref="ReferenceReplayLoadHandler.Commit"/>.</item>
     ///   <item>Record a branched drill that starts from the historical snapshot.</item>
     ///   <item>Assert that the branched <c>.fdp</c> file's first frame is a keyframe
     ///     containing the entity state captured at the seek point of the original recording.</item>
@@ -73,7 +73,7 @@ namespace Bagira.SimHost.Tests
         ///   <item>Runs 80+ ticks of live simulation (enough to exceed frame 50 in the recording).</item>
         ///   <item>Seeks the replay to frame 50 — blasts the saved ECS snapshot into <c>_world</c>.</item>
         ///   <item>Executes the Live-from-Replay branch via
-        ///     <see cref="ReplayLoadDsmHandler.PrepareAsync"/> + <see cref="ReplayLoadDsmHandler.Commit"/>
+        ///     <see cref="ReferenceReplayLoadHandler.PrepareAsync"/> + <see cref="ReferenceReplayLoadHandler.Commit"/>
         ///     (matching the production dispatch path fixed in BATCH-18 A.1).</item>
         ///   <item>Records 50 additional ticks of branched live simulation.</item>
         ///   <item>Asserts that the branched <c>.fdp</c> file contains a keyframe at
@@ -147,16 +147,15 @@ namespace Bagira.SimHost.Tests
             var lifecycleGroup = new NetworkLifecycleSystemGroup(ghostSys);
 
             var branchedDrillId = Guid.NewGuid();
-            var branchCmd       = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.PrepareLive,
-                PayloadJson   = $"{{\"DrillId\":\"{branchedDrillId:D}\"}}",
-            };
+            var branchCmd       = new OrchestrationCommand(
+                Guid.NewGuid(), 0,
+                ReferenceReplayLoadHandler.PrepareLiveOperationId,
+                $"{{\"DrillId\":\"{branchedDrillId:D}\"}}");
 
-            var handler = new ReplayLoadDsmHandler(
-                controller, simGroup, lifecycleGroup, ghostSys,
-                statusWriter: null, nodeId: 1, storageDirectory: _tempDir);
+            var handler = new ReferenceReplayLoadHandler(
+                controller, simGroup, lifecycleGroup,
+                bypass => ghostSys.BypassLifecycle = bypass,
+                transport: null, nodeId: 1, storageDirectory: _tempDir);
 
             // Mirrors the fixed DrillSlave dispatch (BATCH-18 A.1/A.3): await PrepareAsync first.
             await handler.PrepareAsync(branchCmd, CancellationToken.None);

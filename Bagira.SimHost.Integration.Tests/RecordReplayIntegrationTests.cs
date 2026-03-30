@@ -4,9 +4,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bagira.Map.Common;
 using Bagira.SimHost.Modules.Orchestration;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Replay;
 using ModuleHost.Core;
 using Xunit;
@@ -68,9 +68,9 @@ namespace Bagira.SimHost.Integration.Tests
                 NodeRole.Brain, _kernel, _world, nodeId: 1, participant: _ddsParticipant,
                 eventBus: eventBus);
 
-            // Assert: LiveLoadDsmHandler is registered (it owns EcsRecordReplayController).
-            Assert.True(drillSlave.IsHandlerRegistered<LiveLoadDsmHandler>(),
-                "Brain role must register a LiveLoadDsmHandler (which owns EcsRecordReplayController).");
+            // Assert: ReferenceLiveLoadHandler is registered.
+            Assert.True(drillSlave.IsHandlerRegistered<ReferenceLiveLoadHandler>(),
+                "Brain role must register a ReferenceLiveLoadHandler (owns record/replay lifecycle).");
         }
 
         [Fact(Timeout = 10_000)]
@@ -81,8 +81,8 @@ namespace Bagira.SimHost.Integration.Tests
             var drillSlave   = bootstrapper.BuildOrchestration(
                 NodeRole.ImageGenerator, _kernel, _world, nodeId: 2);
 
-            Assert.False(drillSlave.IsHandlerRegistered<EcsRecordReplayController>(),
-                "ImageGenerator role must NOT register an EcsRecordReplayController.");
+            Assert.False(drillSlave.IsHandlerRegistered<ReferenceReplayLoadHandler>(),
+                "ImageGenerator role must NOT register a ReferenceReplayLoadHandler.");
         }
 
         // ── MOD1-P8T5 success condition 3 ────────────────────────────────────────

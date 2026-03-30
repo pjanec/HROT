@@ -3,10 +3,12 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Bagira.BDC.SSTD.Orchestration;
+using Bagira.Common.Orchestration;
 using Bagira.Orchestrator;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 
 namespace Bagira.Orchestrator.Integration.Tests;
@@ -90,13 +92,10 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             freshRepo.RegisterComponent<TestScenarioPos>();
 
             // ── Load via handler ─────────────────────────────────────────────────
-            var handler = new ScenarioLoadDsmHandler(serializer, tempRoot);
-            var cmd     = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.PrepareLive,
-                PayloadJson   = $"{{\"ScenarioId\":\"{scenarioId}\"}}",
-            };
+            var handler = new ReferenceScenarioLoadHandler(serializer, new LocalDiskStorageProvider(tempRoot));
+            var cmd     = new OrchestrationCommand(
+                Guid.NewGuid(), 0, ReferenceScenarioLoadHandler.PrepareLiveOperationId,
+                $"{{\"ScenarioId\":\"{scenarioId}\"}}");
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
             handler.Commit(cmd, freshRepo);
@@ -196,13 +195,10 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             var simHostSerializer = new ScenarioSerializerBuilder("Bagira.SimHost").Build();
             var simHostRepo       = new EntityRepository();
 
-            var handler = new ScenarioLoadDsmHandler(simHostSerializer, tempRoot);
-            var cmd     = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.PrepareLive,
-                PayloadJson   = $"{{\"ScenarioId\":\"{scenarioId}\"}}",
-            };
+            var handler = new ReferenceScenarioLoadHandler(simHostSerializer, new LocalDiskStorageProvider(tempRoot));
+            var cmd     = new OrchestrationCommand(
+                Guid.NewGuid(), 0, ReferenceScenarioLoadHandler.PrepareLiveOperationId,
+                $"{{\"ScenarioId\":\"{scenarioId}\"}}");
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
             handler.Commit(cmd, simHostRepo);

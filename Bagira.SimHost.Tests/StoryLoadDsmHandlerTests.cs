@@ -3,16 +3,17 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Bagira.BDC.SSTD.Orchestration;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
+using Bagira.Common.Orchestration;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using Xunit;
 
 namespace Bagira.SimHost.Tests
 {
     /// <summary>
-    /// Tests for <see cref="StoryLoadDsmHandler"/> — CGF1-S0308 / BATCH-21 Part A.2
+    /// Tests for <see cref="ReferenceStoryLoadHandler"/> — CGF1-S0308 / BATCH-21 Part A.2
     /// success conditions: every Prepare→Commit path emits an ACK or throws; no silent
     /// no-op (<c>_pendingTransactionId</c> mismatch → swallowed Commit).
     /// </summary>
@@ -40,7 +41,7 @@ namespace Bagira.SimHost.Tests
         // ── A.2 fix 1: invalid StoryId in StartStory ─────────────────────────
 
         /// <summary>
-        /// A <see cref="NodeOpType.StartStory"/> command with no StoryId in the
+        /// A <c>StartStory</c> (operationId=20) command with no StoryId in the
         /// payload must call <see cref="IDsmHandler.Commit"/> (because
         /// <c>_pendingTransactionId</c> is now set) and publish a
         /// non-participating ACK rather than silently swallowing the Commit.
@@ -48,13 +49,10 @@ namespace Bagira.SimHost.Tests
         [Fact]
         public async Task StartStory_MissingStoryId_SetsTransactionId_SoCommitFires()
         {
-            var handler = new StoryLoadDsmHandler(_serializer, _tempRoot, _repo);
-            var cmd = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.StartStory,
-                PayloadJson   = "{\"ScenarioId\":\"s1\"}",   // no StoryId
-            };
+            var handler = new ReferenceStoryLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot), _repo);
+            var cmd = new OrchestrationCommand(
+                Guid.NewGuid(), 0, ReferenceStoryLoadHandler.StartStoryOperationId,
+                "{\"ScenarioId\":\"s1\"}");   // no StoryId
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
 
@@ -72,13 +70,11 @@ namespace Bagira.SimHost.Tests
         [Fact]
         public async Task StartStory_MissingScenarioId_SetsTransactionId_SoCommitFires()
         {
-            var handler = new StoryLoadDsmHandler(_serializer, _tempRoot, _repo);
-            var cmd = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.StartStory,
-                PayloadJson   = $"{{\"StoryId\":\"{Guid.NewGuid()}\"}}",  // no ScenarioId
-            };
+            var handler = new ReferenceStoryLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot), _repo);
+            var cmd = new OrchestrationCommand(
+                Guid.NewGuid(), 0, ReferenceStoryLoadHandler.StartStoryOperationId,
+                $"{{\"StoryId\":\"{Guid.NewGuid()}\"}}"  // no ScenarioId
+            );
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
 
@@ -105,14 +101,11 @@ namespace Bagira.SimHost.Tests
             buildRepo.Dispose();
 
             // Handler constructed without _world so repo must come from Commit param.
-            var handlerNoWorld = new StoryLoadDsmHandler(_serializer, _tempRoot);
+            var handlerNoWorld = new ReferenceStoryLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
             var storyId = Guid.NewGuid();
-            var cmd = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.StartStory,
-                PayloadJson   = JsonSerializer.Serialize(new { StoryId = storyId, ScenarioId = scenarioId }),
-            };
+            var cmd = new OrchestrationCommand(
+                Guid.NewGuid(), 0, ReferenceStoryLoadHandler.StartStoryOperationId,
+                JsonSerializer.Serialize(new { StoryId = storyId, ScenarioId = scenarioId }));
 
             await handlerNoWorld.PrepareAsync(cmd, CancellationToken.None);
             Assert.True(handlerNoWorld.IsParticipatingForTest,
@@ -127,13 +120,10 @@ namespace Bagira.SimHost.Tests
         [Fact]
         public async Task StopStory_MissingStoryId_SetsTransactionId_SoCommitFires()
         {
-            var handler = new StoryLoadDsmHandler(_serializer, _tempRoot, _repo);
-            var cmd = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.StopStory,
-                PayloadJson   = "{}",  // no StoryId
-            };
+            var handler = new ReferenceStoryLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot), _repo);
+            var cmd = new OrchestrationCommand(
+                Guid.NewGuid(), 0, ReferenceStoryLoadHandler.StopStoryOperationId,
+                "{}");  // no StoryId
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
 
@@ -149,14 +139,11 @@ namespace Bagira.SimHost.Tests
         public async Task StopStory_NullRepo_WhenParticipating_Throws()
         {
             // Handler constructed without _world so repo must come from Commit param.
-            var handlerNoWorld = new StoryLoadDsmHandler(_serializer, _tempRoot);
+            var handlerNoWorld = new ReferenceStoryLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
             var storyId = Guid.NewGuid();
-            var cmd = new NodeOpCommand
-            {
-                TransactionId = Guid.NewGuid(),
-                Operation     = NodeOpType.StopStory,
-                PayloadJson   = JsonSerializer.Serialize(new { StoryId = storyId }),
-            };
+            var cmd = new OrchestrationCommand(
+                Guid.NewGuid(), 0, ReferenceStoryLoadHandler.StopStoryOperationId,
+                JsonSerializer.Serialize(new { StoryId = storyId }));
 
             await handlerNoWorld.PrepareAsync(cmd, CancellationToken.None);
             Assert.True(handlerNoWorld.IsParticipatingForTest,

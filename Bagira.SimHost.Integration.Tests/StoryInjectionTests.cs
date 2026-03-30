@@ -4,9 +4,11 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Bagira.BDC.SSTD.Orchestration;
+using Bagira.Common.Orchestration;
 using Bagira.Orchestrator;
-using Bagira.SimHost.Modules.Orchestration.Handlers;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using Xunit;
 
@@ -27,8 +29,8 @@ internal struct StoryTestPos
 /// <summary>
 /// Integration tests for CGF1-S0308: Runtime Story Injection &amp; Deletion.
 ///
-/// <para>Tests exercise <see cref="StoryLoadDsmHandler"/> and
-/// <see cref="TransitionPlanner.PlanManageStory"/> directly — no DDS or kernel required.</para>
+/// <para>Tests exercise <see cref="ReferenceStoryLoadHandler"/> and
+    /// <see cref="DrillMasterPlanner.PlanManageStory"/> directly — no DDS or kernel required.</para>
 /// </summary>
 public sealed class StoryInjectionTests : IDisposable
 {
@@ -94,8 +96,8 @@ public sealed class StoryInjectionTests : IDisposable
         var storyId    = Guid.NewGuid();
         var scenarioId = await WriteStoryScenario("story_start_01", entityCount: 3);
 
-        var handler = new StoryLoadDsmHandler(_serializer, _tempRoot);
-        var cmd     = MakeCmd(NodeOpType.StartStory, storyId, scenarioId);
+        var handler = new ReferenceStoryLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
+        var cmd     = MakeCmd(ReferenceStoryLoadHandler.StartStoryOperationId, storyId, scenarioId);
 
         await handler.PrepareAsync(cmd, CancellationToken.None);
         handler.Commit(cmd, _repo);
@@ -120,10 +122,10 @@ public sealed class StoryInjectionTests : IDisposable
         var storyId    = Guid.NewGuid();
         var scenarioId = await WriteStoryScenario("story_stop_01", entityCount: 3);
 
-        var handler = new StoryLoadDsmHandler(_serializer, _tempRoot);
+        var handler = new ReferenceStoryLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
 
         // Start
-        var startCmd = MakeCmd(NodeOpType.StartStory, storyId, scenarioId);
+        var startCmd = MakeCmd(ReferenceStoryLoadHandler.StartStoryOperationId, storyId, scenarioId);
         await handler.PrepareAsync(startCmd, CancellationToken.None);
         handler.Commit(startCmd, _repo);
         Assert.Equal(3, _repo.EntityCount);
@@ -140,7 +142,7 @@ public sealed class StoryInjectionTests : IDisposable
 
     /// <summary>
     /// When the story scenario file has <c>SubsystemType = "Bagira.CGF"</c> (not matching
-    /// this SimHost handler), <see cref="StoryLoadDsmHandler.IsParticipatingForTest"/> is
+    /// this SimHost handler), <see cref="ReferenceStoryLoadHandler.IsParticipatingForTest"/> is
     /// <c>false</c> and <see cref="EntityRepository.EntityCount"/> is unchanged.
     /// </summary>
     [Fact]
@@ -155,8 +157,8 @@ public sealed class StoryInjectionTests : IDisposable
         var cgfJson = "{\"Header\":{\"SubsystemType\":\"Bagira.CGF\",\"SchemaVersion\":1},\"Entities\":{}}";
         await File.WriteAllTextAsync(Path.Combine(dir, "Bagira.CGF.json"), cgfJson);
 
-        var handler = new StoryLoadDsmHandler(_serializer, _tempRoot);
-        var cmd     = MakeCmd(NodeOpType.StartStory, storyId, scenarioId);
+        var handler = new ReferenceStoryLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
+        var cmd     = MakeCmd(ReferenceStoryLoadHandler.StartStoryOperationId, storyId, scenarioId);
 
         await handler.PrepareAsync(cmd, CancellationToken.None);
         handler.Commit(cmd, _repo);
@@ -168,13 +170,13 @@ public sealed class StoryInjectionTests : IDisposable
     // ── Test 4 ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// <see cref="TransitionPlanner.PlanManageStory"/> throws when the cluster is not in
+    /// <see cref="DrillMasterPlanner.PlanManageStory"/> throws when the cluster is not in
     /// <see cref="DSMState.RunningLive"/>.
     /// </summary>
     [Fact]
     public void ManageStory_RejectedWhen_NotInRunningLive()
     {
-        var planner = new TransitionPlanner();
+        var planner = new DrillMasterPlanner(BagiraStateGraph.Build());
         var req     = new SysOpRequest
         {
             RequestId     = Guid.NewGuid(),
@@ -210,16 +212,16 @@ public sealed class StoryInjectionTests : IDisposable
         var sc1 = await WriteStoryScenario("story_multi_s1", entityCount: 3);
         var sc2 = await WriteStoryScenario("story_multi_s2", entityCount: 2);
 
-        var handler = new StoryLoadDsmHandler(_serializer, _tempRoot);
+        var handler = new ReferenceStoryLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
 
         // Inject story 1.
-        var start1 = MakeCmd(NodeOpType.StartStory, s1Id, sc1);
+        var start1 = MakeCmd(ReferenceStoryLoadHandler.StartStoryOperationId, s1Id, sc1);
         await handler.PrepareAsync(start1, CancellationToken.None);
         handler.Commit(start1, _repo);
         Assert.Equal(3, _repo.EntityCount);
 
         // Inject story 2.
-        var start2 = MakeCmd(NodeOpType.StartStory, s2Id, sc2);
+        var start2 = MakeCmd(ReferenceStoryLoadHandler.StartStoryOperationId, s2Id, sc2);
         await handler.PrepareAsync(start2, CancellationToken.None);
         handler.Commit(start2, _repo);
         Assert.Equal(5, _repo.EntityCount);
@@ -241,26 +243,24 @@ public sealed class StoryInjectionTests : IDisposable
 
     // ── Factories ─────────────────────────────────────────────────────────────
 
-    private static NodeOpCommand MakeCmd(NodeOpType op, Guid storyId, string scenarioId) =>
-        new NodeOpCommand
-        {
-            TransactionId = Guid.NewGuid(),
-            Operation     = op,
-            PayloadJson   = JsonSerializer.Serialize(new
+    private static OrchestrationCommand MakeCmd(int op, Guid storyId, string scenarioId) =>
+        new OrchestrationCommand(
+            TransactionId: Guid.NewGuid(),
+            TargetNodeId:  0,
+            OperationId:   op,
+            PayloadJson:   JsonSerializer.Serialize(new
             {
                 StoryId    = storyId.ToString("D"),
                 ScenarioId = scenarioId,
-            }),
-        };
+            }));
 
-    private static NodeOpCommand MakeStopCmd(Guid storyId) =>
-        new NodeOpCommand
-        {
-            TransactionId = Guid.NewGuid(),
-            Operation     = NodeOpType.StopStory,
-            PayloadJson   = JsonSerializer.Serialize(new
+    private static OrchestrationCommand MakeStopCmd(Guid storyId) =>
+        new OrchestrationCommand(
+            TransactionId: Guid.NewGuid(),
+            TargetNodeId:  0,
+            OperationId:   ReferenceStoryLoadHandler.StopStoryOperationId,
+            PayloadJson:   JsonSerializer.Serialize(new
             {
                 StoryId = storyId.ToString("D"),
-            }),
-        };
+            }));
 }
