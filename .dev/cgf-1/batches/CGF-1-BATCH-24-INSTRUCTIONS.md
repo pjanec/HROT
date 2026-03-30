@@ -26,8 +26,8 @@
 5. `Bagira.Runner/Program.cs` — `RunnerOptions.NodeId`  
 6. `Bagira.SimHost/SimHostApp.cs`, `Bagira.IG/IgApplication.cs`, `Bagira.Runner/Services/IosSubsystem.cs` — behaviour when `SubsystemConfig.NodeId == 0`
 
-**Report:** `.dev/cgf-1/reports/CGF-1-BATCH-24-REPORT.md` (when complete)  
-**Review:** `.dev/cgf-1/reviews/CGF-1-BATCH-24-REVIEW.md`
+**Report:** [.dev/cgf-1/reports/CGF-1-BATCH-24-REPORT.md](../reports/CGF-1-BATCH-24-REPORT.md)  
+**Review:** [.dev/cgf-1/reviews/CGF-1-BATCH-24-REVIEW.md](../reviews/CGF-1-BATCH-24-REVIEW.md) — follow-ups → [CGF-1-BATCH-25](./CGF-1-BATCH-25-INSTRUCTIONS.md)
 
 ---
 
@@ -93,4 +93,5 @@ Per **TASK-DETAIL** §S0310: deliver the **scripted end-to-end** DSM validation 
 
 - [CGF-1-BATCH-23 instructions](./CGF-1-BATCH-23-INSTRUCTIONS.md)  
 - [CGF-1-BATCH-23 review](../reviews/CGF-1-BATCH-23-REVIEW.md)  
-- [RunMode](../../../Bagira.Runner/Configuration/RunMode.cs) — `All` composition (CGF not in `All` today; document if Part B touches this)
+- [RunMode](../../../Bagira.Runner/Configuration/RunMode.cs) — `All` composition (CGF not in `All` today; document if Part B touches this)  
+- **Next batch (debt / CI):** [CGF-1-BATCH-25](./CGF-1-BATCH-25-INSTRUCTIONS.md)

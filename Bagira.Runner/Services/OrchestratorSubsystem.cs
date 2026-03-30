@@ -38,6 +38,13 @@ public sealed class OrchestratorSubsystem : ISubsystem
     /// <summary>Internal event bus exposed for test assertions on SwitchTimeModeEvent.</summary>
     internal FdpEventBus? TimeBusForTest => _eventBus;
 
+    /// <summary>
+    /// Internal test hook: exposes the <see cref="DrillMaster"/> hosted by this subsystem so
+    /// E2E test fixtures can inject <see cref="SysOpRequest"/> values via
+    /// <see cref="DrillMaster.HandleSysOpRequest"/> and read cluster state.
+    /// </summary>
+    internal DrillMaster? TestHook_DrillMaster => _drillMaster;
+
     public string Name => "Orchestrator";
 
     public System.Numerics.Vector4 TitleBarColor => new(0.12f, 0.18f, 0.42f, 1f);

@@ -871,7 +871,10 @@ public class IgApplication : IDisposable
                 _networkEnabled = true;
 
                 // CGF1-S0104: wire DrillSlave once DDS participant is confirmed healthy.
-                var igNodeId = _nodeIdOverride != 0 ? _nodeIdOverride : IgNetworkConstants.LocalNodeId;
+                // Use _effectiveInstanceId (= _nodeIdOverride when set, else IgNetworkConstants.InstanceId=300)
+                // so the IG DrillSlave always registers on a cluster-unique node ID.
+                // Using IgNetworkConstants.LocalNodeId (1) caused collision with SimHost when --node-id 0.
+                var igNodeId = _effectiveInstanceId;
                 var igTransport = new DdsOrchestrationTransport(participant, igNodeId);
                 _drillSlave = new FDP.Toolkit.Orchestration.DrillSlave(
                     igTransport, igNodeId, "IG");

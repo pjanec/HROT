@@ -809,6 +809,19 @@ namespace Bagira.SimHost
         internal int TestHook_ResolvedLocalNodeId =>
             _nodeIdOverride != 0 ? _nodeIdOverride : SimHostNetworkConstants.LocalNodeId;
 
+        /// <summary>
+        /// TestHook: appends an additional ECS system to the kernel system group.
+        /// Must be called after <see cref="InitializeEmbedded"/> and before the first
+        /// <see cref="Tick"/> so that the system participates from the first frame.
+        /// Intended only for in-process integration/E2E tests.
+        /// </summary>
+        public void TestHook_AddSystem(ComponentSystem system)
+        {
+            if (_kernelGroup == null)
+                throw new InvalidOperationException("SimHostApp is not initialized.");
+            _kernelGroup.AddSystem(system);
+        }
+
         // ── Component registration ────────────────────────────────────────────
 
         /// <summary>

@@ -1,0 +1,22 @@
+{
+  "TestName": "E2E_Overlapping_Checkpoints",
+  "TimeMode": "Deterministic",
+  "FixedDeltaSeconds": 0.1,
+  "Duration": 15.0,
+  "Steps": [
+    { "Time": 0.5, "Action": "sysop",
+      "Args": { "TargetState": "RunningLive" } },
+    { "Time": 1.0, "Action": "spawn",
+      "Args": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "SaveResult": "entity_e" },
+    { "Time": 2.0, "Action": "move",
+      "Args": { "entity_ref": "entity_e", "x": 10.0, "y": 0.0, "z": 0.0 } },
+    { "Time": 3.0, "Action": "sysop",
+      "Args": { "TargetState": "TakeCheckpoint" } },
+    { "Time": 3.1, "Action": "sysop",
+      "Args": { "TargetState": "TakeCheckpoint" } },
+    { "Time": 9.0, "Action": "assert_position",
+      "Args": { "entity_ref": "entity_e" },
+      "Assert": { "x": { "Equals": 10.0 } } }
+  ]
+}

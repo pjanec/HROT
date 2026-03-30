@@ -330,6 +330,19 @@ public sealed class DrillMaster : IDisposable
         _injectedRequests.Enqueue(request);
     }
 
+    /// <summary>
+    /// Async wrapper around <see cref="HandleSysOpRequest"/> for use by UI panels and
+    /// headless test action handlers that await the enqueue step.  The returned
+    /// <see cref="Task"/> completes immediately after the request is enqueued; callers
+    /// that need to wait for the resulting <see cref="SysOpStatus"/> must poll a
+    /// <c>DdsReader&lt;SysOpStatus&gt;</c> independently.
+    /// </summary>
+    public Task HandleSysOpRequestAsync(SysOpRequest request)
+    {
+        HandleSysOpRequest(request);
+        return Task.CompletedTask;
+    }
+
     private void DrainInjectedRequests()
     {
         while (_injectedRequests.TryDequeue(out var req))

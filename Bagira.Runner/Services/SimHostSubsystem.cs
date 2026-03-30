@@ -107,6 +107,13 @@ namespace Bagira.Runner.Services
         internal List<Entity> TestHook_GetChildEntities(Entity parentEntity)
             => App.TestHook_GetChildEntities(parentEntity);
 
+        /// <summary>
+        /// TestHook: appends a custom ECS system to the kernel group after initialization.
+        /// For use by in-process E2E test fixtures only.
+        /// </summary>
+        internal void TestHook_AddSystem(Fdp.Kernel.ComponentSystem system)
+            => App.TestHook_AddSystem(system);
+
         // ── ISubsystem ────────────────────────────────────────────────────────
 
         /// <summary>

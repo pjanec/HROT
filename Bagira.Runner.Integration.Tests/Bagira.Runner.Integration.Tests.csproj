@@ -26,4 +26,10 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="TestScripts\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

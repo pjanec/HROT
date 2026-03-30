@@ -353,16 +353,96 @@ namespace Bagira.Runner.Tests
         }
 
         [Fact]
-        public void Initialize_NodeId3_UnknownSubsystemReceivesThreeHundredThree()
+        public void Initialize_NodeId3_UnknownSubsystemReceivesSixHundredThree()
         {
-            // Other offset = +300, so resolved = 3 + 300 = 303
+            // Catch-all offset = +600, so resolved = 3 + 600 = 603
             var mock = new MockSubsystem("OtherSub");
             var options = new RunnerOptions { Headless = true, NodeId = 3 };
             var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
 
             orchestrator.Initialize();
 
-            Assert.Equal(303, mock.ReceivedConfig!.NodeId);
+            Assert.Equal(603, mock.ReceivedConfig!.NodeId);
+        }
+
+        // ── BATCH-24 Part B: pairwise-distinct offsets for Orchestrator / CGF ─
+
+        [Fact]
+        public void Initialize_NodeId10_OrchestratorReceivesThreeHundredTen()
+        {
+            // Orchestrator offset = +300, so resolved = 10 + 300 = 310
+            var mock = new MockSubsystem("Orchestrator");
+            var options = new RunnerOptions { Headless = true, NodeId = 10 };
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
+
+            orchestrator.Initialize();
+
+            Assert.Equal(310, mock.ReceivedConfig!.NodeId);
+        }
+
+        [Fact]
+        public void Initialize_NodeId10_CgfReceivesFourHundredTen()
+        {
+            // CGF offset = +400, so resolved = 10 + 400 = 410
+            var mock = new MockSubsystem("CGF");
+            var options = new RunnerOptions { Headless = true, NodeId = 10 };
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
+
+            orchestrator.Initialize();
+
+            Assert.Equal(410, mock.ReceivedConfig!.NodeId);
+        }
+
+        [Fact]
+        public void Initialize_NodeId10_CiReceivesFiveHundredTen()
+        {
+            // CI offset = +500, so resolved = 10 + 500 = 510
+            var mock = new MockSubsystem("CI");
+            var options = new RunnerOptions { Headless = true, NodeId = 10 };
+            var orchestrator = new SubsystemOrchestrator(new ISubsystem[] { mock }, options);
+
+            orchestrator.Initialize();
+
+            Assert.Equal(510, mock.ReceivedConfig!.NodeId);
+        }
+
+        [Fact]
+        public void Initialize_AllModeSubsystems_DistinctNodeIds_WithBase1()
+        {
+            // All subsystems in the "All" mode must receive distinct node IDs.
+            var simHost = new MockSubsystem("SimHost");
+            var ig      = new MockSubsystem("IG");
+            var ios     = new MockSubsystem("IOS");
+            var orch    = new MockSubsystem("Orchestrator");
+            var options = new RunnerOptions { Headless = true, NodeId = 1 };
+            var orchestrator = new SubsystemOrchestrator(
+                new ISubsystem[] { simHost, ig, ios, orch }, options);
+
+            orchestrator.Initialize();
+
+            var nodeIds = new[]
+            {
+                simHost.ReceivedConfig!.NodeId,
+                ig     .ReceivedConfig!.NodeId,
+                ios    .ReceivedConfig!.NodeId,
+                orch   .ReceivedConfig!.NodeId,
+            };
+            Assert.Equal(nodeIds.Length, nodeIds.Distinct().Count());
+        }
+
+        [Fact]
+        public void Initialize_OrchestratorAndCgf_DistinctNodeIds_WithBase1()
+        {
+            // CGF and Orchestrator previously collided on offset +300; verify they no longer do.
+            var cgf  = new MockSubsystem("CGF");
+            var orch = new MockSubsystem("Orchestrator");
+            var options = new RunnerOptions { Headless = true, NodeId = 1 };
+            var orchestrator = new SubsystemOrchestrator(
+                new ISubsystem[] { cgf, orch }, options);
+
+            orchestrator.Initialize();
+
+            Assert.NotEqual(cgf.ReceivedConfig!.NodeId, orch.ReceivedConfig!.NodeId);
         }
 
         /// <summary>Helper mock whose <see cref="GetMapCamera"/> always returns null.</summary>

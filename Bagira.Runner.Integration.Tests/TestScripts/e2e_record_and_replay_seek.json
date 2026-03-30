@@ -1,0 +1,23 @@
+{
+  "TestName": "E2E_Record_And_Replay_Seek",
+  "TimeMode": "Deterministic",
+  "FixedDeltaSeconds": 0.1,
+  "Duration": 20.0,
+  "Steps": [
+    { "Time": 0.5,  "Action": "sysop",
+      "Args": { "TargetState": "RunningLive", "DrillId": "e2e-rec-01" } },
+    { "Time": 1.0,  "Action": "spawn",
+      "Args": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "SaveResult": "entity_a" },
+    { "Time": 1.1,  "Action": "add_moving_tag",
+      "Args": { "entity_ref": "entity_a", "velocity_x": 10.0 } },
+    { "Time": 7.0,  "Action": "sysop",
+      "Args": { "TargetState": "RunningReplay", "DrillId": "e2e-rec-01" } },
+    { "Time": 9.0,  "Action": "sysop",
+      "Args": { "TargetState": "ReplaySeek",
+                "TargetWallTicks": 30000000 } },
+    { "Time": 10.0, "Action": "assert_position",
+      "Args": { "entity_ref": "entity_a" },
+      "Assert": { "x": { "ApproxEquals": 30.0, "Tolerance": 0.001 } } }
+  ]
+}
