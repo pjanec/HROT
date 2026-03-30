@@ -192,7 +192,7 @@ namespace Bagira.Runner.Tests
                       "Time": 0.0,
                       "Action": "tick",
                       "Args": { "frames": 10 },
-                      "Assert": { "frames_run": { "Equals": 10.0 } }
+                      "Assert": { "frames_run": { "Exactly": 10.0 } }
                     }
                   ]
                 }
@@ -262,8 +262,8 @@ namespace Bagira.Runner.Tests
                       "Action": "assert_position",
                       "Args": { "entity_id": 0 },
                       "Assert": {
-                        "x": { "Equals": 10.0 },
-                        "z": { "Equals": 30.0 }
+                        "x": { "Exactly": 10.0 },
+                        "z": { "Exactly": 30.0 }
                       }
                     }
                   ]
@@ -318,7 +318,7 @@ namespace Bagira.Runner.Tests
                       "Time": 0.0,
                       "Action": "tick",
                       "Args": { "frames": 5 },
-                      "Assert": { "frames_run": { "Equals": 99.0 } }
+                      "Assert": { "frames_run": { "Exactly": 99.0 } }
                     }
                   ]
                 }

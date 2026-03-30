@@ -32,6 +32,7 @@ namespace Bagira.BDC.SSTD.Orchestration
         PrepareReplay = 11, FinalizeReplay = 12,
         NodeReplaySeek = 13, UploadChunk = 14,
         SerializeLocal = 15, CleanupTempFiles = 16,
+        PrepareEdit = 26, FinalizeEdit = 27,
         StartStory = 20, StopStory = 21,
         ReplayStory = 22, ForgetStory = 23,
         LoadStoryAssets = 24,

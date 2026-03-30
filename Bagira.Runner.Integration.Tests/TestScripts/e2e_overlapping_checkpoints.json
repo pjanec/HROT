@@ -17,6 +17,6 @@
       "Args": { "TargetState": "TakeCheckpoint" } },
     { "Time": 9.0, "Action": "assert_position",
       "Args": { "entity_ref": "entity_e" },
-      "Assert": { "x": { "Equals": 10.0 } } }
+      "Assert": { "x": { "Exactly": 10.0 } } }
   ]
 }

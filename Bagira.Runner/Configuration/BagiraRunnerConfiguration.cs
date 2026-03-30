@@ -14,8 +14,8 @@ namespace Bagira.Runner.Configuration
     {
         // ── Bagira-specific CLI options ───────────────────────────────────────
 
-        /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, simhost,ig, ci</summary>
-        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|ci|simhost,ig")]
+        /// <summary>Mode string supplied via --mode.  Examples: all, simhost, ig, ios, orchestrator, cgf, ci, simhost,ig, orchestrator,cgf</summary>
+        [Option('m', "mode", Required = true, HelpText = "all|simhost|ig|ios|orchestrator|cgf|ci|simhost,ig|orchestrator,cgf")]
         public string ModeString { get; set; } = string.Empty;
 
         /// <summary>Scenario name forwarded to <see cref="ScenarioSubsystem"/> when <c>--mode ci</c>.</summary>
@@ -119,9 +119,10 @@ namespace Bagira.Runner.Configuration
             if (lower == "ig")           return RunMode.IG;
             if (lower == "ios")          return RunMode.IOS;
             if (lower == "orchestrator") return RunMode.Orchestrator;
+            if (lower == "cgf")          return RunMode.CGF;
             if (lower == "ci")           return RunMode.CI;
 
-            // Comma-separated combination (e.g. "simhost,ig")
+            // Comma-separated combination (e.g. "simhost,ig" or "orchestrator,cgf")
             RunMode result = RunMode.None;
             foreach (var part in lower.Split(',', StringSplitOptions.RemoveEmptyEntries))
             {
@@ -131,6 +132,7 @@ namespace Bagira.Runner.Configuration
                     case "ig":           result |= RunMode.IG;           break;
                     case "ios":          result |= RunMode.IOS;          break;
                     case "orchestrator": result |= RunMode.Orchestrator; break;
+                    case "cgf":          result |= RunMode.CGF;          break;
                     default:             return RunMode.None; // Any invalid token → reject entire string
                 }
             }

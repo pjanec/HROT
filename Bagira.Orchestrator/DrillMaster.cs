@@ -90,6 +90,13 @@ public sealed class DrillMaster : IDisposable
     // ── Active transaction ────────────────────────────────────────────────
     private DistributedTransaction? _activeTransaction;
 
+    /// <summary>
+    /// Tracks the most-recently created <see cref="SysOpType.TransitionState"/> transaction
+    /// so that <see cref="ConsumeNodeOpStatuses"/> can populate
+    /// <see cref="DistributedTransaction.NodeResponses"/> as node ACKs arrive (CGF1-S0501).
+    /// </summary>
+    private DistributedTransaction? _inflightTransitionTx;
+
     // ── Live-from-Replay temporal interlock (CGF1-S0305) ─────────────────
     /// <summary>
     /// Optional module that freezes / restores the cluster time scale during
@@ -528,6 +535,12 @@ public sealed class DrillMaster : IDisposable
             DSMState resolvedTarget = _currentDsmState;
             int totalSteps = 1;
 
+            // S0501: capture source state before any mutation so it can be stored in the transaction.
+            DSMState capturedSourceState = _currentDsmState;
+            // S0502: capture trajectory and branch-flag for the fan-out loop below.
+            Queue<ISysOpStep>? capturedTrajectory = null;
+            bool isLiveFromReplayBranch = false;
+
             if (req.OperationType == SysOpType.TransitionState)
             {
                 try
@@ -536,7 +549,8 @@ public sealed class DrillMaster : IDisposable
                     var stateBeforeAdvance = _currentDsmState;
 
                     var trajectory = _planner.PlanTrajectory(_currentDsmState, req);
-                    totalSteps     = trajectory.Count;
+                    totalSteps         = trajectory.Count;
+                    capturedTrajectory = trajectory; // S0502: capture for fan-out loop
                     // Extract the final TransitionStep target for history recording
                     // and optimistic _currentDsmState advance.
                     resolvedTarget = _currentDsmState;
@@ -604,6 +618,7 @@ public sealed class DrillMaster : IDisposable
                     // before any node begins recording.  Time is restored once all nodes ACK.
                     if (passesLoadingLive && stateBeforeAdvance == DSMState.RunningReplay)
                     {
+                        isLiveFromReplayBranch = true; // S0502: suppress general fan-out for this path
                         _replayMasterModule?.FreezeTime();
 
                         var branchedDrillId = Guid.NewGuid();
@@ -791,9 +806,67 @@ public sealed class DrillMaster : IDisposable
                 TargetDsmState   = resolvedTarget,
                 TotalSteps       = totalSteps,
                 CompletedSteps   = totalSteps,
-                IsAborted        = false
+                IsAborted        = false,
+                SourceDsmState   = capturedSourceState,       // S0501
+                PayloadJson      = req.PayloadJson ?? string.Empty, // S0501
             };
+            _activeTransaction     = tx;        // S0501: expose as HasInFlightTransaction / ActiveTransaction
+            _inflightTransitionTx  = tx;        // S0501: used by ConsumeNodeOpStatuses for NodeResponses
             AppendToHistory(tx);
+
+            // S0502: Fan out PrepareXxx + CommitState to all active nodes for TransitionState operations.
+            // The S0305 live-from-replay path handles its own fan-out above; skip the general loop there.
+            if (capturedTrajectory != null && !isLiveFromReplayBranch)
+            {
+                var activeNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                if (activeNodeIds.Count > 0)
+                {
+                    foreach (var step in capturedTrajectory)
+                    {
+                        if (step is TransitionStep tStep)
+                        {
+                            NodeOpType prepareOp = tStep.TargetState switch
+                            {
+                                DSMState.LoadingLive     => NodeOpType.PrepareLive,
+                                DSMState.UnloadingLive   => NodeOpType.FinalizeLive,
+                                DSMState.LoadingReplay   => NodeOpType.PrepareReplay,
+                                DSMState.UnloadingReplay => NodeOpType.FinalizeReplay,
+                                DSMState.LoadingEdit     => NodeOpType.PrepareEdit,
+                                DSMState.UnloadingEdit   => NodeOpType.FinalizeEdit,
+                                _                        => NodeOpType.PrepareState,
+                            };
+
+                            FanOutNodeOp(new NodeOpCommand
+                            {
+                                TransactionId = tx.TransactionId,
+                                Operation     = prepareOp,
+                                PayloadJson   = req.PayloadJson ?? string.Empty,
+                            }, activeNodeIds);
+
+                            FanOutNodeOp(new NodeOpCommand
+                            {
+                                TransactionId = tx.TransactionId,
+                                Operation     = NodeOpType.CommitState,
+                                PayloadJson   = ((int)tStep.TargetState).ToString(),
+                            }, activeNodeIds);
+                        }
+                        else if (step is OperationStep opStep &&
+                                 opStep.Operation == SysOpType.ReplaySeek)
+                        {
+                            FanOutNodeOp(new NodeOpCommand
+                            {
+                                TransactionId = tx.TransactionId,
+                                Operation     = NodeOpType.NodeReplaySeek,
+                                PayloadJson   = opStep.PayloadJson,
+                            }, activeNodeIds);
+                        }
+                    }
+
+                    FdpLog<DrillMaster>.Info(
+                        "[Orchestrator] S0502: TransitionState fan-out complete " +
+                        "(transaction={0}, nodes={1}).", tx.TransactionId, activeNodeIds.Count);
+                }
+            }
 
             _sysOpStatusWriter.Write(new SysOpStatus
             {
@@ -966,6 +1039,14 @@ public sealed class DrillMaster : IDisposable
                         storyTask.StoryId);
                 }
                 continue;
+            }
+
+            // S0501: Record per-node ResultJson responses for the active transition transaction.
+            // This runs before the serialize-task early-exit so that transition ACKs (which are
+            // NOT in _pendingSerializeTasks) still get their NodeResponses populated.
+            if (_inflightTransitionTx != null && _inflightTransitionTx.TransactionId == status.TransactionId)
+            {
+                _inflightTransitionTx.NodeResponses[status.NodeId] = status.ResultJson ?? string.Empty;
             }
 
             if (!_pendingSerializeTasks.TryGetValue(status.TransactionId, out var task))

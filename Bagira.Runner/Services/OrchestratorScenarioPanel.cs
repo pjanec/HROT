@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Orchestrator;
+using CycloneDDS.Runtime;
 using ImGuiNET;
 
 namespace Bagira.Runner.Services;
@@ -17,6 +18,7 @@ public sealed class OrchestratorScenarioPanel
 {
     // ── Dependencies ──────────────────────────────────────────────────────
     private readonly DrillMaster _drillMaster;
+    private readonly DdsWriter<SysOpRequest> _sysOpWriter;  // S0502
 
     // ── Scenario section state ────────────────────────────────────────────
     private string _saveScenarioId  = string.Empty;
@@ -30,16 +32,15 @@ public sealed class OrchestratorScenarioPanel
     private string _injectScenarioId = string.Empty;
     private string _injectStoryId    = string.Empty;
 
-    // ── Beige child window background (different from SimHost/IOS/IG/CGF) ──
-    private static readonly Vector4 BeigeChildBg = new(0.72f, 0.64f, 0.47f, 1f);
-
     // ── Child window sizes (0,0 = auto-fit) ──────────────────────────────
     private static readonly Vector2 AutoSize = Vector2.Zero;
 
     /// <param name="drillMaster">The DrillMaster instance hosted by the Orchestrator subsystem.</param>
-    public OrchestratorScenarioPanel(DrillMaster drillMaster)
+    /// <param name="sysOpWriter">DDS writer used to publish SysOpRequest commands to the network (S0502).</param>
+    public OrchestratorScenarioPanel(DrillMaster drillMaster, DdsWriter<SysOpRequest> sysOpWriter)
     {
-        _drillMaster = drillMaster ?? throw new ArgumentNullException(nameof(drillMaster));
+        _drillMaster = drillMaster   ?? throw new ArgumentNullException(nameof(drillMaster));
+        _sysOpWriter = sysOpWriter   ?? throw new ArgumentNullException(nameof(sysOpWriter));
     }
 
     /// <summary>
@@ -81,7 +82,6 @@ public sealed class OrchestratorScenarioPanel
     private static void RenderStatusBanner(DSMState currentState, DistributedTransaction? activeTx,
         bool bootstrapped, bool hasInFlight)
     {
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, BeigeChildBg);
         if (ImGui.BeginChild("##OrcStatusBanner", new Vector2(-1, 54), ImGuiChildFlags.Borders))
         {
             string drillShort = activeTx != null
@@ -92,21 +92,28 @@ public sealed class OrchestratorScenarioPanel
                 ? $"TX {drillShort}... in flight"
                 : "idle";
 
-            ImGui.Text($"State: {currentState}");
+            // S0501: show Source→Target when a transition is in flight
+            if (hasInFlight && activeTx != null &&
+                activeTx.SourceDsmState != activeTx.TargetDsmState)
+            {
+                ImGui.Text($"State: {activeTx.SourceDsmState} → {activeTx.TargetDsmState}");
+            }
+            else
+            {
+                ImGui.Text($"State: {currentState}");
+            }
             ImGui.SameLine();
             ImGui.Text("|");
             ImGui.SameLine();
             ImGui.Text(bootstrapped ? txStatus : "NOT BOOTSTRAPPED");
         }
         ImGui.EndChild();
-        ImGui.PopStyleColor();
     }
 
     private void RenderDrillControl(DSMState currentState, bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Drill Control", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, BeigeChildBg);
         if (ImGui.BeginChild("##OrcDrillControl", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
             if (disableAll) ImGui.BeginDisabled();
@@ -121,14 +128,12 @@ public sealed class OrchestratorScenarioPanel
                 foreach (var target in reachable)
                 {
                     if (ImGui.Button(target.ToString()))
-                    {
-                        _drillMaster.HandleSysOpRequest(new SysOpRequest
+                        _sysOpWriter.Write(new SysOpRequest
                         {
                             RequestId     = Guid.NewGuid(),
                             OperationType = SysOpType.TransitionState,
                             PayloadJson   = $"{{\"TargetState\":{(int)target}}}",
                         });
-                    }
                     ImGui.SameLine();
                 }
                 ImGui.NewLine();
@@ -137,28 +142,24 @@ public sealed class OrchestratorScenarioPanel
             if (disableAll) ImGui.EndDisabled();
         }
         ImGui.EndChild();
-        ImGui.PopStyleColor();
     }
 
     private void RenderCheckpointSection(DSMState currentState, bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Checkpoint")) return;
 
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, BeigeChildBg);
         if (ImGui.BeginChild("##OrcCheckpoint", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
             bool checkpointDisabled = disableAll || currentState != DSMState.RunningLive;
             if (checkpointDisabled) ImGui.BeginDisabled();
 
             if (ImGui.Button("Take Checkpoint"))
-            {
-                _drillMaster.HandleSysOpRequest(new SysOpRequest
+                _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.TakeCheckpoint,
                     PayloadJson   = string.Empty,
                 });
-            }
 
             if (checkpointDisabled) ImGui.EndDisabled();
 
@@ -169,14 +170,12 @@ public sealed class OrchestratorScenarioPanel
             }
         }
         ImGui.EndChild();
-        ImGui.PopStyleColor();
     }
 
     private void RenderScenarioSection(DSMState currentState, bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Scenario")) return;
 
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, BeigeChildBg);
         if (ImGui.BeginChild("##OrcScenario", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
             if (disableAll) ImGui.BeginDisabled();
@@ -185,14 +184,12 @@ public sealed class OrchestratorScenarioPanel
             ImGui.InputText("Save Scenario ID##OrcSaveId", ref _saveScenarioId, 128);
             ImGui.SameLine();
             if (ImGui.Button("Save Scenario##OrcBtn") && !string.IsNullOrWhiteSpace(_saveScenarioId))
-            {
-                _drillMaster.HandleSysOpRequest(new SysOpRequest
+                _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.SaveScenario,
                     PayloadJson   = $"{{\"ScenarioId\":\"{_saveScenarioId}\"}}",
                 });
-            }
 
             ImGui.Spacing();
 
@@ -200,38 +197,32 @@ public sealed class OrchestratorScenarioPanel
             ImGui.InputText("Load Scenario ID##OrcLoadId", ref _loadScenarioId, 128);
             ImGui.SameLine();
             if (ImGui.Button("Load into Edit##OrcLoadEdit") && !string.IsNullOrWhiteSpace(_loadScenarioId))
-            {
-                _drillMaster.HandleSysOpRequest(new SysOpRequest
+                _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.TransitionState,
                     PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingEdit}," +
                                     $"\"ScenarioId\":\"{_loadScenarioId}\"}}",
                 });
-            }
             ImGui.SameLine();
             if (ImGui.Button("Load into Live##OrcLoadLive") && !string.IsNullOrWhiteSpace(_loadScenarioId))
-            {
-                _drillMaster.HandleSysOpRequest(new SysOpRequest
+                _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.TransitionState,
                     PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingLive}," +
                                     $"\"ScenarioId\":\"{_loadScenarioId}\"}}",
                 });
-            }
 
             if (disableAll) ImGui.EndDisabled();
         }
         ImGui.EndChild();
-        ImGui.PopStyleColor();
     }
 
     private void RenderReplaySection(DSMState currentState, bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Replay")) return;
 
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, BeigeChildBg);
         if (ImGui.BeginChild("##OrcReplay", AutoSize, ImGuiChildFlags.Borders | ImGuiChildFlags.AutoResizeY))
         {
             if (disableAll) ImGui.BeginDisabled();
@@ -240,15 +231,13 @@ public sealed class OrchestratorScenarioPanel
             ImGui.InputText("Drill ID##OrcReplayId", ref _replayDrillId, 64);
             ImGui.SameLine();
             if (ImGui.Button("Load Replay##OrcReplayBtn") && !string.IsNullOrWhiteSpace(_replayDrillId))
-            {
-                _drillMaster.HandleSysOpRequest(new SysOpRequest
+                _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.TransitionState,
                     PayloadJson   = $"{{\"TargetState\":{(int)DSMState.RunningReplay}," +
                                     $"\"DrillId\":\"{_replayDrillId}\"}}",
                 });
-            }
 
             // Seek slider — only when RunningReplay
             if (currentState == DSMState.RunningReplay)
@@ -260,7 +249,7 @@ public sealed class OrchestratorScenarioPanel
                 if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f, 3600f))
                 {
                     long wallTicks = (long)(_seekSliderValue * 10_000_000L); // seconds → 100-ns ticks
-                    _drillMaster.HandleSysOpRequest(new SysOpRequest
+                    _sysOpWriter.Write(new SysOpRequest
                     {
                         RequestId     = Guid.NewGuid(),
                         OperationType = SysOpType.ReplaySeek,
@@ -272,14 +261,12 @@ public sealed class OrchestratorScenarioPanel
             if (disableAll) ImGui.EndDisabled();
         }
         ImGui.EndChild();
-        ImGui.PopStyleColor();
     }
 
     private void RenderStoriesSection(bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Stories")) return;
 
-        ImGui.PushStyleColor(ImGuiCol.ChildBg, BeigeChildBg);
         if (ImGui.BeginChild("##OrcStories", new Vector2(-1, 180), ImGuiChildFlags.Borders))
         {
             if (disableAll) ImGui.BeginDisabled();
@@ -298,14 +285,12 @@ public sealed class OrchestratorScenarioPanel
                     ImGui.Text(shortId);
                     ImGui.SameLine();
                     if (ImGui.Button($"Unload##OrcUnload{storyId}"))
-                    {
-                        _drillMaster.HandleSysOpRequest(new SysOpRequest
+                        _sysOpWriter.Write(new SysOpRequest
                         {
                             RequestId     = Guid.NewGuid(),
                             OperationType = SysOpType.ManageStory,
                             PayloadJson   = $"{{\"Mode\":\"Stop\",\"StoryId\":\"{storyId}\"}}",
                         });
-                    }
                 }
             }
 
@@ -317,8 +302,7 @@ public sealed class OrchestratorScenarioPanel
             if (ImGui.Button("Inject Story##OrcInjectBtn") &&
                 !string.IsNullOrWhiteSpace(_injectScenarioId) &&
                 !string.IsNullOrWhiteSpace(_injectStoryId))
-            {
-                _drillMaster.HandleSysOpRequest(new SysOpRequest
+                _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.ManageStory,
@@ -326,11 +310,9 @@ public sealed class OrchestratorScenarioPanel
                                     $"\"StoryId\":\"{_injectStoryId}\"," +
                                     $"\"ScenarioId\":\"{_injectScenarioId}\"}}",
                 });
-            }
 
             if (disableAll) ImGui.EndDisabled();
         }
         ImGui.EndChild();
-        ImGui.PopStyleColor();
     }
 }

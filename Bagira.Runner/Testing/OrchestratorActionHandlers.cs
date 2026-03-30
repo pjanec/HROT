@@ -216,8 +216,8 @@ namespace Bagira.Runner.Testing
 
             if (_world == null)
             {
-                _log.LogWarning("assert_entity_count: no EntityRepository — skipping.");
-                return Task.FromResult<object?>(new Dictionary<string, object> { ["entity_count"] = 0 });
+                throw new InvalidOperationException(
+                    "assert_entity_count: EntityRepository is null — fixture is mis-wired. Ensure the handler is constructed with a live world.");
             }
 
             int actual = _world.EntityCount;
@@ -261,8 +261,8 @@ namespace Bagira.Runner.Testing
         {
             if (_world == null)
             {
-                _log.LogWarning("add_moving_tag: no EntityRepository — skipping.");
-                return Task.FromResult<object?>(null);
+                throw new InvalidOperationException(
+                    "add_moving_tag: EntityRepository is null — fixture is mis-wired. Ensure the handler is constructed with a live world.");
             }
 
             int entityIdx = args.TryGetValue("entity_id", out var ve) ? Convert.ToInt32(ve) : -1;
@@ -273,8 +273,8 @@ namespace Bagira.Runner.Testing
             var entity = _world.GetEntityByIndex(entityIdx);
             if (!_world.IsAlive(entity))
             {
-                _log.LogWarning("add_moving_tag: entity {Id} is not alive.", entityIdx);
-                return Task.FromResult<object?>(null);
+                throw new InvalidOperationException(
+                    $"add_moving_tag: entity at index {entityIdx} is not alive. The entity may have died before this action ran.");
             }
 
             if (_world.HasComponent<MovingTestTag>(entity))

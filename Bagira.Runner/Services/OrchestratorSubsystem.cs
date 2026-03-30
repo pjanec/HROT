@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
+using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Map.Common;
 using Bagira.Orchestrator;
 using CycloneDDS.Runtime;
@@ -25,6 +28,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private DrillMaster? _drillMaster;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private OrchestratorScenarioPanel? _scenarioPanel;
+    private DdsWriter<SysOpRequest>? _sysOpWriter;  // S0502
 
     // ── Time coordinator (CGF1-A.1, BATCH-09) ─────────────────────────────
     // Minimal kernel + coordinator so PendingTimeMode drives SwitchToDeterministic.
@@ -47,7 +51,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
 
     public string Name => "Orchestrator";
 
-    public System.Numerics.Vector4 TitleBarColor => new(0.12f, 0.18f, 0.42f, 1f);
+    public System.Numerics.Vector4 TitleBarColor => new(0.72f, 0.64f, 0.47f, 1f);  // S0501: beige
 
     public void Initialize(SubsystemConfig config)
     {
@@ -55,7 +59,8 @@ public sealed class OrchestratorSubsystem : ISubsystem
             System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
         _participant = BagiraEnvironment.CreateParticipant(config.DomainId);
         _drillMaster = new DrillMaster(_participant, _config);
-        _scenarioPanel = new OrchestratorScenarioPanel(_drillMaster);
+        _sysOpWriter   = new DdsWriter<SysOpRequest>(_participant);    // S0502
+        _scenarioPanel = new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter);
 
         // ── Time coordinator setup (CGF1-A.1, BATCH-09) ──────────────────────
         // A minimal ECS kernel gives the DistributedTimeCoordinator a wall-clock source
@@ -110,6 +115,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
     public void DrawUI()
     {
         if (_drillMaster == null) return;
+        if (!ImGui.Begin("Orchestrator")) { ImGui.End(); return; }   // S0501
 
         var bootstrapped = _drillMaster.BootstrapComplete;
 
@@ -119,10 +125,10 @@ public sealed class OrchestratorSubsystem : ISubsystem
             var waiting = _config.Mandatory
                 .Where(name => !_drillMaster.NodeRoster.ActiveNodes.Values
                     .Any(p => p.SubsystemName == name &&
-                              p.LocalDsmState == Bagira.BDC.SSTD.Orchestration.DSMState.Standby))
+                              p.LocalDsmState == DSMState.Standby))
                 .ToArray();
 
-            ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.8f, 0.2f, 1f));
+            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.8f, 0.2f, 1f));
             ImGui.TextWrapped($"Waiting for mandatory nodes: {string.Join(", ", waiting)}");
             ImGui.PopStyleColor();
             ImGui.Separator();
@@ -131,11 +137,30 @@ public sealed class OrchestratorSubsystem : ISubsystem
         // ── Simulation controls (disabled until bootstrapped) ─────────────────
         if (!bootstrapped) ImGui.BeginDisabled();
 
-        if (ImGui.Button("Initialize Live"))  { /* TODO: S0201 SysOpRequest */ }
+        // S0502: wire TODO buttons to real SysOpRequest writes
+        if (ImGui.Button("Initialize Live") && _sysOpWriter != null)
+            _sysOpWriter.Write(new SysOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = SysOpType.TransitionState,
+                PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingLive}}}",
+            });
         ImGui.SameLine();
-        if (ImGui.Button("Pause"))            { /* TODO: S0201 SysOpRequest */ }
+        if (ImGui.Button("Pause") && _sysOpWriter != null)
+            _sysOpWriter.Write(new SysOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = SysOpType.PauseTime,
+                PayloadJson   = string.Empty,
+            });
         ImGui.SameLine();
-        if (ImGui.Button("Resume"))           { /* TODO: S0201 SysOpRequest */ }
+        if (ImGui.Button("Resume") && _sysOpWriter != null)
+            _sysOpWriter.Write(new SysOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = SysOpType.ResumeTime,
+                PayloadJson   = string.Empty,
+            });
 
         if (!bootstrapped) ImGui.EndDisabled();
 
@@ -173,31 +198,92 @@ public sealed class OrchestratorSubsystem : ISubsystem
             }
         }
 
-        // ── 2PC history table ─────────────────────────────────────────────────
+        // ── 2PC history table (S0501: 5-column overhaul) ──────────────────────
         if (ImGui.CollapsingHeader("2PC History"))
         {
             var history = _drillMaster.TransactionHistory;
-            if (ImGui.BeginTable("TxHistory", 4,
-                    ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+            float rowHeight = ImGui.GetTextLineHeightWithSpacing();
+            if (ImGui.BeginTable("TxHistory", 5,
+                    ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
+                    ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.ScrollY,
+                    new Vector2(0, rowHeight * 11.5f)))
             {
+                ImGui.TableSetupScrollFreeze(0, 1);
                 ImGui.TableSetupColumn("TransactionId");
                 ImGui.TableSetupColumn("Target State");
                 ImGui.TableSetupColumn("Result");
                 ImGui.TableSetupColumn("ACK Latency (ms)");
+                ImGui.TableSetupColumn("Payload");
                 ImGui.TableHeadersRow();
 
                 foreach (var tx in history)
                 {
-                    // Build a compact ACK-latency summary: "node:ms, ..." or "0" when not yet populated.
-                    string latency = tx.NodeAckLatencyMs.Count == 0
-                        ? "0"
-                        : string.Join(", ", tx.NodeAckLatencyMs.Select(kv => $"{kv.Key}:{kv.Value:F0}ms"));
-
                     ImGui.TableNextRow();
-                    ImGui.TableNextColumn(); ImGui.Text(tx.TransactionId.ToString()[..8] + "...");
+
+                    // Column 1: full GUID as a TreeNode for expandability
+                    ImGui.TableNextColumn();
+                    bool open = ImGui.TreeNodeEx(tx.TransactionId.ToString(),
+                        ImGuiTreeNodeFlags.SpanFullWidth);
+
+                    // Context menu on row
+                    if (ImGui.BeginPopupContextItem($"ctx_{tx.TransactionId}"))
+                    {
+                        string line = $"{tx.TransactionId} | {tx.TargetDsmState} | " +
+                                      $"{(tx.IsAborted ? "Aborted" : "Completed")} | {tx.PayloadJson}";
+                        if (ImGui.MenuItem("Copy line to clipboard"))
+                            ImGui.SetClipboardText(line);
+                        ImGui.EndPopup();
+                    }
+
+                    // Column 2: target state
                     ImGui.TableNextColumn(); ImGui.Text(tx.TargetDsmState.ToString());
+
+                    // Column 3: result
                     ImGui.TableNextColumn(); ImGui.Text(tx.IsAborted ? "Aborted" : "Completed");
+
+                    // Column 4: aggregate ACK latency summary
+                    string latency = tx.NodeAckLatencyMs.Count == 0
+                        ? "—"
+                        : string.Join(", ", tx.NodeAckLatencyMs.Select(kv => $"{kv.Key}:{kv.Value:F0}ms"));
                     ImGui.TableNextColumn(); ImGui.Text(latency);
+
+                    // Column 5: payload snippet with tooltip
+                    ImGui.TableNextColumn();
+                    string payloadSnippet = tx.PayloadJson.Length > 25
+                        ? tx.PayloadJson[..25] + "..."
+                        : tx.PayloadJson;
+                    ImGui.TextUnformatted(payloadSnippet);
+                    if (!string.IsNullOrWhiteSpace(tx.PayloadJson) && ImGui.IsItemHovered())
+                    {
+                        ImGui.BeginTooltip();
+                        ImGui.TextUnformatted(FormatPrettyJson(tx.PayloadJson));
+                        ImGui.EndTooltip();
+                    }
+
+                    // Expanded rows: one child row per NodeResponse entry
+                    if (open)
+                    {
+                        foreach (var nr in tx.NodeResponses)
+                        {
+                            ImGui.TableNextRow();
+                            ImGui.TableNextColumn();
+                            ImGui.TreeNodeEx($"↳ Node {nr.Key}",
+                                ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen |
+                                ImGuiTreeNodeFlags.SpanFullWidth);
+                            ImGui.TableNextColumn(); ImGui.Text("—");
+                            ImGui.TableNextColumn(); ImGui.Text("—");
+                            ImGui.TableNextColumn();
+                            string nodeLatency = tx.NodeAckLatencyMs.TryGetValue(nr.Key, out float ms)
+                                ? $"{ms:F0}ms" : "—";
+                            ImGui.Text(nodeLatency);
+                            ImGui.TableNextColumn();
+                            string nodeSnippet = nr.Value.Length > 25
+                                ? nr.Value[..25] + "..."
+                                : nr.Value;
+                            ImGui.Text(nodeSnippet);
+                        }
+                        ImGui.TreePop();
+                    }
                 }
                 ImGui.EndTable();
             }
@@ -205,11 +291,14 @@ public sealed class OrchestratorSubsystem : ISubsystem
 
         // ── Scenario & Story controls (CGF1-S0106) ───────────────────────────
         _scenarioPanel?.Render();
+        ImGui.End();   // S0501
     }
 
     public void Shutdown()
     {
         _scenarioPanel = null;
+        _sysOpWriter?.Dispose();     // S0502
+        _sysOpWriter = null;
         _drillMaster?.Dispose();
         _drillMaster = null;
         _timeKernel?.Dispose();
@@ -220,5 +309,21 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _lastProcessedTimeMode = null;
         _participant?.Dispose();
         _participant = null;
+    }
+
+    /// <summary>
+    /// Formats a JSON string with indentation for tooltip display.
+    /// Returns the original string if parsing fails (CGF1-S0501).
+    /// </summary>
+    internal static string FormatPrettyJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return string.Empty;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            return System.Text.Json.JsonSerializer.Serialize(doc,
+                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch { return json; }
     }
 }

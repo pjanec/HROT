@@ -125,7 +125,7 @@ namespace Bagira.Runner.Tests
                 Assert.True(assertions!.ContainsKey("fps"));
                 Assert.Equal(30.0,  assertions["fps"].Min);
                 Assert.Equal(120.0, assertions["fps"].Max);
-                Assert.Null(assertions["fps"].Equals);
+                Assert.Null(assertions!["fps"].Exactly);
                 Assert.Equal(50.0,  assertions["latency"].Max);
             }
             finally

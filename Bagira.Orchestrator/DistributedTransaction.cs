@@ -17,6 +17,15 @@ public sealed class DistributedTransaction
     /// <summary><c>true</c> when the transaction was aborted (e.g. due to mandatory-node ejection).</summary>
     public bool IsAborted { get; set; }
 
+    /// <summary>DSM state the cluster was in immediately before this transaction started (CGF1-S0501).</summary>
+    public DSMState SourceDsmState { get; set; }
+
+    /// <summary>The SysOpRequest JSON payload that initiated this transaction (CGF1-S0501).</summary>
+    public string PayloadJson { get; set; } = string.Empty;
+
+    /// <summary>Per-node ResultJson from each node's final NodeOpStatus ACK, keyed by node ID (CGF1-S0501).</summary>
+    public Dictionary<int, string> NodeResponses { get; } = new();
+
     /// <summary>Per-node ACK latency in milliseconds, keyed by node ID. Populated on commit.</summary>
     public Dictionary<int, float> NodeAckLatencyMs { get; } = new();
 }

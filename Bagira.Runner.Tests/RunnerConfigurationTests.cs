@@ -57,11 +57,36 @@ namespace Bagira.Runner.Tests
         }
 
         [Fact]
-        public void ParseMode_ComboAllThree_EqualsAllFlag()
+        public void ParseMode_ComboAllFour_EqualsAllFlag()
         {
-            var config = new RunnerConfiguration { ModeString = "simhost,ig,ios", NoWait = true };
+            // RunMode.All = Orchestrator | SimHost | IG | IOS; all four tokens are required.
+            var config = new RunnerConfiguration { ModeString = "simhost,ig,ios,orchestrator", NoWait = true };
             config.Validate();
             Assert.Equal(RunMode.All, config.ParsedMode);
+        }
+
+        [Fact]
+        public void ParseMode_Cgf_ReturnsCgfFlag()
+        {
+            var config = new RunnerConfiguration { ModeString = "cgf", NoWait = true };
+            config.Validate();
+            Assert.Equal(RunMode.CGF, config.ParsedMode);
+        }
+
+        [Fact]
+        public void ParseMode_ComboCgfOrchestrator_ReturnsBothFlags()
+        {
+            var config = new RunnerConfiguration { ModeString = "orchestrator,cgf", NoWait = true };
+            config.Validate();
+            Assert.True(config.ParsedMode.HasFlag(RunMode.CGF));
+            Assert.True(config.ParsedMode.HasFlag(RunMode.Orchestrator));
+        }
+
+        [Fact]
+        public void ParseMode_CgfNotInAll_ConfirmedByDirectCheck()
+        {
+            // CGF is a standalone mode; it is NOT included in RunMode.All by design.
+            Assert.False(RunMode.All.HasFlag(RunMode.CGF));
         }
 
         [Fact]
@@ -226,13 +251,16 @@ namespace Bagira.Runner.Tests
         }
 
         [Fact]
-        public void ParseMode_AllMode_HasAllThreeFlags()
+        public void ParseMode_AllMode_HasAllFourFlags()
         {
+            // RunMode.All includes Orchestrator; CGF is excluded from All by design.
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
             Assert.True(config.ParsedMode.HasFlag(RunMode.SimHost));
             Assert.True(config.ParsedMode.HasFlag(RunMode.IG));
             Assert.True(config.ParsedMode.HasFlag(RunMode.IOS));
+            Assert.True(config.ParsedMode.HasFlag(RunMode.Orchestrator));
+            Assert.False(config.ParsedMode.HasFlag(RunMode.CGF));
         }
 
         [Fact]

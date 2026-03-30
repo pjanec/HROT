@@ -20,6 +20,6 @@
       "SaveResult": "entity_d" },
     { "Time": 15.0, "Action": "assert_position",
       "Args": { "entity_ref": "entity_d" },
-      "Assert": { "x": { "Equals": 50.0 } } }
+      "Assert": { "x": { "Exactly": 50.0 } } }
   ]
 }

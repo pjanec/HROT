@@ -21,7 +21,7 @@
       "Args": { "TargetState": "RunningEdit" } },
     { "Time": 8.0, "Action": "assert_position",
       "Args": { "entity_ref": "entity_b" },
-      "Assert": { "x": { "Equals": 100.0 } } },
+      "Assert": { "x": { "Exactly": 100.0 } } },
     { "Time": 8.1, "Action": "assert_entity_count",
       "Args": { "expected": 1 } }
   ]

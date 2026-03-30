@@ -25,20 +25,22 @@ public sealed class OrchestratorScenarioPanelTests : IDisposable
 
     private readonly DdsParticipant  _participant;
     private readonly DrillMaster     _drillMaster;
+    private readonly DdsWriter<SysOpRequest> _sysOpWriter;  // S0502
     private readonly OrchestratorScenarioPanel _panel;
     private IntPtr _imguiCtx;
 
     public OrchestratorScenarioPanelTests()
     {
-        _participant = new DdsParticipant(TestDomain);
+        _participant  = new DdsParticipant(TestDomain);
         // Use a non-empty mandatory list so the bootstrap latch does NOT clear
         // immediately, allowing the "BeforeBootstrap" tests to exercise that path.
-        _drillMaster = new DrillMaster(_participant, new ClusterConfiguration
+        _drillMaster  = new DrillMaster(_participant, new ClusterConfiguration
         {
             Mandatory = new[] { "FakeMandatoryNode" },
         });
-        _panel       = new OrchestratorScenarioPanel(_drillMaster);
-        _imguiCtx    = CreateHeadlessContext();
+        _sysOpWriter  = new DdsWriter<SysOpRequest>(_participant);
+        _panel        = new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter);
+        _imguiCtx     = CreateHeadlessContext();
     }
 
     public void Dispose()
@@ -48,6 +50,7 @@ public sealed class OrchestratorScenarioPanelTests : IDisposable
             ImGui.DestroyContext(_imguiCtx);
             _imguiCtx = IntPtr.Zero;
         }
+        _sysOpWriter.Dispose();
         _drillMaster.Dispose();
         _participant.Dispose();
     }
@@ -70,7 +73,7 @@ public sealed class OrchestratorScenarioPanelTests : IDisposable
     [Fact]
     public void Constructor_DoesNotThrow()
     {
-        var ex = Record.Exception(() => new OrchestratorScenarioPanel(_drillMaster));
+        var ex = Record.Exception(() => new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter));
         Assert.Null(ex);
     }
 
@@ -78,7 +81,7 @@ public sealed class OrchestratorScenarioPanelTests : IDisposable
     [Fact]
     public void Constructor_NullDrillMaster_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => new OrchestratorScenarioPanel(null!));
+        Assert.Throws<ArgumentNullException>(() => new OrchestratorScenarioPanel(null!, _sysOpWriter));
     }
 
     // ── Rendering (headless ImGui) ─────────────────────────────────────────────
@@ -155,6 +158,48 @@ public sealed class OrchestratorScenarioPanelTests : IDisposable
             "Expected at least 2 reachable targets from Standby.");
         Assert.Contains(DSMState.LoadingEdit,  targets);
         Assert.Contains(DSMState.LoadingLive,  targets);
+    }
+
+    // ── S0501: Status banner source→target rendering ───────────────────────────
+
+    /// <summary>
+    /// S0501: When a transaction is in flight, Render() must complete without
+    /// exception even with a populated <c>ActiveTransaction</c> that has
+    /// differing Source and Target states (exercises the "→" banner path).
+    /// </summary>
+    [Fact]
+    public void StatusBanner_ShowsArrow_WhenInFlight_DoesNotThrow()
+    {
+        // Bootstrap the latch so the panel renders the full content.
+        // No mandatory nodes → latch is immediately true.
+        using var p = new DdsParticipant(TestDomain);
+        using var dm = new DrillMaster(p, new ClusterConfiguration
+        {
+            Mandatory = Array.Empty<string>(),
+        });
+        using var w = new DdsWriter<SysOpRequest>(p);
+        var panel = new OrchestratorScenarioPanel(dm, w);
+
+        // Inject a TransitionState request to create an in-flight transaction.
+        dm.HandleSysOpRequest(new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
+        });
+        dm.Tick();  // process request → creates active transaction
+
+        Assert.True(dm.HasInFlightTransaction,
+            "Expected HasInFlightTransaction == true after ticking a TransitionState request.");
+
+        // Render without throwing.
+        ImGui.NewFrame();
+        ImGui.Begin("##BannerTest");
+        var ex = Record.Exception(() => panel.Render());
+        ImGui.End();
+        ImGui.Render();
+
+        Assert.Null(ex);
     }
 }
 

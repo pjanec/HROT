@@ -3,9 +3,9 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** CGF-1-BATCH-25 (tech-debt-first follow-up to BATCH-24).  
-**Last reviewed:** [CGF-1-BATCH-24](reviews/CGF-1-BATCH-24-REVIEW.md) — APPROVED with corrections (2026-03-28).  
-**Last completed:** [CGF-1-BATCH-24](reports/CGF-1-BATCH-24-REPORT.md) — Part A (CGF1-S0310 E2E DSM test script suite) + Part B (Runner multi-subsystem nodeId correctness); **Phase 3 complete** (operational caveats: CI + CLI + fail-loud — see review + DEBT).  
+**Active batch:** CGF-1-BATCH-27 (Phase 5 continuation: S0503 + S0504).  
+**Last reviewed:** [CGF-1-BATCH-26](reviews/CGF-1-BATCH-26-REVIEW.md) — APPROVED (2026-03-30); S0501+S0502 complete; +18 tests (Orchestrator 46, Runner 148).  
+**Last completed:** [CGF-1-BATCH-26](reports/CGF-1-BATCH-26-REPORT.md) — ImGui window overhaul, beige TitleBar, 5-col 2PC table, real DDS SysOpRequest dispatch, PrepareXxx/CommitState fan-out; **Phase 5 S0501+S0502 done**.  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
 > **Extended specs:** [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) and [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) define **CGF1-S0106** and **CGF1-S0310**. **Phase 4** ✅ complete (**CGF-1-BATCH-22**). **BATCH-23:** brain/muscle **DSM parity** (CGF record/replay, IG/IOS matrix), **orchestrator globals** (`GlobalContextDto`), then **S0310** / **S0106**.
@@ -96,8 +96,8 @@ with graceful cancellation; and cap the phase with full CQRS decoupling so that
 
 **Design authority:** [CGF-1-ADDENDUM-3.md](./CGF-1-ADDENDUM-3.md)
 
-- [ ] **CGF1-S0501** Orchestrator ImGui Window & 2PC History Overhaul [details](./CGF-1-TASK-DETAIL.md#cgf1-s0501--orchestrator-imgui-window--2pc-history-overhaul)
-- [ ] **CGF1-S0502** Real Network Dispatch + DrillMaster Fan-out [details](./CGF-1-TASK-DETAIL.md#cgf1-s0502--real-network-dispatch--drillmaster-fan-out)
+- [x] **CGF1-S0501** Orchestrator ImGui Window & 2PC History Overhaul [details](./CGF-1-TASK-DETAIL.md#cgf1-s0501--orchestrator-imgui-window--2pc-history-overhaul) ✅ BATCH-26
+- [x] **CGF1-S0502** Real Network Dispatch + DrillMaster Fan-out [details](./CGF-1-TASK-DETAIL.md#cgf1-s0502--real-network-dispatch--drillmaster-fan-out) ✅ BATCH-26
 - [ ] **CGF1-S0503** Time Control Section + Remote Time Commands [details](./CGF-1-TASK-DETAIL.md#cgf1-s0503--time-control-section--remote-time-commands)
 - [ ] **CGF1-S0504** Asset Combo Selection [details](./CGF-1-TASK-DETAIL.md#cgf1-s0504--asset-combo-selection-local-filesystem-scan)
 - [ ] **CGF1-S0505** Archive Export/Import Pipeline [details](./CGF-1-TASK-DETAIL.md#cgf1-s0505--archive-exportimport-pipeline)
