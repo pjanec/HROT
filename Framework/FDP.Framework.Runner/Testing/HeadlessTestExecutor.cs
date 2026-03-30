@@ -29,6 +29,14 @@ namespace FDP.Framework.Runner.Testing
         private readonly TestMetricsCollector _metrics;
         private readonly List<string> _assertionFailures = new();
 
+        /// <summary>
+        /// Stores the return values of steps that specify <see cref="TestStep.SaveResult"/>.
+        /// Steps in later script entries can resolve an <c>entity_ref</c> argument to the
+        /// corresponding saved <c>entity_id</c> by looking up the key here.
+        /// </summary>
+        public readonly Dictionary<string, object?> SavedResults =
+            new(StringComparer.OrdinalIgnoreCase);
+
         // Populated during RunAsync and read by GenerateReport.
         private readonly Stopwatch _runStopwatch = new();
         private int _totalAssertionChecks;
@@ -48,6 +56,14 @@ namespace FDP.Framework.Runner.Testing
         // ── Public API ───────────────────────────────────────────────────────
 
         /// <summary>
+        /// Optional callback invoked after <see cref="SubsystemOrchestrator.Initialize"/> completes
+        /// but before the orchestrator run loop starts.
+        /// Use this to register additional ECS components or systems that must be present
+        /// from the first simulation frame (e.g. test-only <c>MovingEntitySystem</c>).
+        /// </summary>
+        public Action? AfterInitialize { get; set; }
+
+        /// <summary>
         /// Runs the full test: initialises subsystems, executes all steps, waits for
         /// <see cref="TestScript.Duration"/>, shuts down, and returns 0 (pass) or 1 (fail).
         /// </summary>
@@ -58,6 +74,9 @@ namespace FDP.Framework.Runner.Testing
 
             // 1. Initialise the orchestrator (headless — no Raylib window).
             _orchestrator.Initialize();
+
+            // 1a. Optional post-init setup (e.g. register test-only ECS components/systems).
+            AfterInitialize?.Invoke();
 
             // 2. Run the orchestrator update loop in a background thread so we can
             //    schedule async step dispatch from this task concurrently.
@@ -156,10 +175,14 @@ namespace FDP.Framework.Runner.Testing
                 return;
             }
 
+            // Resolve entity_ref arguments: replace the string reference key with the
+            // saved entity_id integer from a previous step's SaveResult.
+            var resolvedArgs = ResolveEntityRefs(step.Args);
+
             object? result;
             try
             {
-                result = await handler.ExecuteAsync(step.Args).ConfigureAwait(false);
+                result = await handler.ExecuteAsync(resolvedArgs).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -169,8 +192,37 @@ namespace FDP.Framework.Runner.Testing
                 return;
             }
 
+            // Persist the result under the requested key so later steps can reference it.
+            if (!string.IsNullOrEmpty(step.SaveResult))
+            {
+                SavedResults[step.SaveResult] = result;
+                _logger.LogDebug("Saved result '{Key}' = {Result}", step.SaveResult, result);
+            }
+
             if (step.Assert != null)
                 ValidateAssertions(step.Assert, result, step.Action);
+        }
+
+        /// <summary>
+        /// For every argument value that is a string matching a key in <see cref="SavedResults"/>,
+        /// replaces <c>"entity_ref"</c> keys with the entity_id stored in the saved result.
+        /// </summary>
+        private Dictionary<string, object> ResolveEntityRefs(Dictionary<string, object> args)
+        {
+            if (!args.ContainsKey("entity_ref"))
+                return args;
+
+            var resolved = new Dictionary<string, object>(args, StringComparer.OrdinalIgnoreCase);
+            if (resolved.TryGetValue("entity_ref", out var refKeyObj) &&
+                refKeyObj is string refKey &&
+                SavedResults.TryGetValue(refKey, out var savedResult) &&
+                savedResult is IDictionary<string, object> savedDict &&
+                savedDict.TryGetValue("entity_id", out var entityId))
+            {
+                resolved.Remove("entity_ref");
+                resolved["entity_id"] = entityId;
+            }
+            return resolved;
         }
 
         private void ValidateAssertions(
@@ -213,6 +265,17 @@ namespace FDP.Framework.Runner.Testing
                     var msg = $"[{stepAction}] ASSERT FAIL: {metricName} = {value:F4}, expected == {rule.Equals}";
                     _logger.LogError(msg);
                     _assertionFailures.Add(msg);
+                }
+
+                if (rule.ApproxEquals.HasValue)
+                {
+                    double tol = rule.Tolerance > 0 ? rule.Tolerance : 0.001;
+                    if (Math.Abs(value - rule.ApproxEquals.Value) > tol)
+                    {
+                        var msg = $"[{stepAction}] ASSERT FAIL: {metricName} = {value:F6}, expected ≈ {rule.ApproxEquals} ±{tol}";
+                        _logger.LogError(msg);
+                        _assertionFailures.Add(msg);
+                    }
                 }
             }
         }

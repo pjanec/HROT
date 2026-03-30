@@ -109,6 +109,10 @@ namespace FDP.Framework.Runner
         /// When the base node ID is 0 (default), returns 0 so each subsystem falls back to its
         /// own legacy constant, preserving backwards compatibility.
         /// </summary>
+        /// <remarks>
+        /// Offset table (all values pairwise-unique):
+        /// SimHost +0, IG +100, IOS +200, Orchestrator +300, CGF +400, CI +500, unknown +600.
+        /// </remarks>
         /// <param name="subsystemName">The value of <see cref="ISubsystem.Name"/>.</param>
         /// <returns>The resolved node ID, or 0 to signal legacy fallback.</returns>
         private int ResolveNodeId(string subsystemName)
@@ -116,10 +120,13 @@ namespace FDP.Framework.Runner
             if (_nodeId == 0) return 0;
             int offset = subsystemName switch
             {
-                "SimHost" => 0,
-                "IG"      => 100,
-                "IOS"     => 200,
-                _         => 300,
+                "SimHost"      => 0,
+                "IG"           => 100,
+                "IOS"          => 200,
+                "Orchestrator" => 300,
+                "CGF"          => 400,
+                "CI"           => 500,
+                _              => 600,
             };
             return _nodeId + offset;
         }

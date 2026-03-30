@@ -36,6 +36,14 @@ namespace FDP.Framework.Runner.Testing
         public Dictionary<string, AssertionRule>? Assert { get; set; }
 
         /// <summary>
+        /// Optional key under which the handler's return value is stored in
+        /// <c>HeadlessTestExecutor.SavedResults</c>.  Later steps can reference
+        /// the entity by passing <c>"entity_ref": "&lt;key&gt;"</c> in their
+        /// <c>Args</c> dictionary instead of a raw <c>entity_id</c>.
+        /// </summary>
+        public string? SaveResult { get; set; }
+
+        /// <summary>
         /// Number of times to repeat this step. Defaults to 1 (run once).
         /// Combined with <see cref="Interval"/> to produce multiple steps at
         /// <c>Time</c>, <c>Time + Interval</c>, <c>Time + 2*Interval</c>, …
@@ -60,5 +68,12 @@ namespace FDP.Framework.Runner.Testing
 
         /// <summary>Exact equality check (tolerance: 0.001). Fails if value differs.</summary>
         public double? Equals { get; set; }
+
+        /// <summary>Approximate equality check with configurable tolerance.
+        /// Fails if <c>|value - ApproxEquals| &gt; Tolerance</c>.</summary>
+        public double? ApproxEquals { get; set; }
+
+        /// <summary>Tolerance used with <see cref="ApproxEquals"/>. Defaults to 0.001.</summary>
+        public double Tolerance { get; set; } = 0.001;
     }
 }
