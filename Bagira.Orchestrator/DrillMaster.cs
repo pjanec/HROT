@@ -149,6 +149,20 @@ public sealed class DrillMaster : IDisposable
     /// </summary>
     public string? PendingTimeMode { get; private set; }
 
+    // ── Active stories (CGF1-S0308) ──────────────────────────────────────
+    /// <summary>
+    /// Set of story IDs currently injected into the running drill via
+    /// <see cref="SysOpType.ManageStory"/> Start operations.  Entries are removed
+    /// by corresponding Stop operations.
+    /// </summary>
+    private readonly HashSet<Guid> _activeStories = new();
+
+    /// <summary>
+    /// Read-only view of the currently active story IDs.
+    /// Updated by <c>ManageStory</c> <c>SysOpRequest</c> processing.
+    /// </summary>
+    public IReadOnlyCollection<Guid> ActiveStories => _activeStories;
+
     private bool _disposed;
 
     // ── Public surface ────────────────────────────────────────────────────
@@ -558,6 +572,78 @@ public sealed class DrillMaster : IDisposable
                 FdpLog<DrillMaster>.Info(
                     "[Orchestrator] SaveScenario request {0} → SerializeLocal fan-out to {1} node(s).",
                     req.RequestId, nodeIds.Count);
+            }
+            else if (req.OperationType == SysOpType.ManageStory)
+            {
+                // CGF1-S0308: validate state, plan story steps, fan out to nodes.
+                try
+                {
+                    var storySteps = _planner.PlanManageStory(_currentDsmState, req);
+                    totalSteps     = storySteps.Count;
+
+                    // Parse Mode and StoryId from the payload for story set maintenance.
+                    string? storyMode = null;
+                    Guid    storyId   = Guid.Empty;
+                    if (!string.IsNullOrWhiteSpace(req.PayloadJson))
+                    {
+                        try
+                        {
+                            using var sd = JsonDocument.Parse(req.PayloadJson);
+                            if (sd.RootElement.TryGetProperty("Mode",    out var mp)) storyMode = mp.GetString();
+                            if (sd.RootElement.TryGetProperty("StoryId", out var sp)) Guid.TryParse(sp.GetString(), out storyId);
+                        }
+                        catch (JsonException) { }
+                    }
+
+                    // Execute the planned story steps.
+                    foreach (var step in storySteps)
+                    {
+                        if (step is OperationStep { Operation: SysOpType.PrefetchScenario } prefetch)
+                        {
+                            ExecutePrefetchScenario(prefetch.PayloadJson, req.RequestId);
+                        }
+                        else if (step is OperationStep { Operation: SysOpType.ManageStory } manageStep)
+                        {
+                            // Determine NodeOpType from mode.
+                            bool isStart = string.Equals(storyMode, "Start", StringComparison.OrdinalIgnoreCase);
+                            var nodeOp   = isStart ? NodeOpType.StartStory : NodeOpType.StopStory;
+
+                            var txId     = Guid.NewGuid();
+                            var nodeIds  = new List<int>(_roster.ActiveNodes.Keys);
+                            FanOutNodeOp(new NodeOpCommand
+                            {
+                                TransactionId = txId,
+                                Operation     = nodeOp,
+                                PayloadJson   = manageStep.PayloadJson,
+                            }, nodeIds);
+
+                            // Update in-memory active story set.
+                            if (storyId != Guid.Empty)
+                            {
+                                if (isStart) _activeStories.Add(storyId);
+                                else         _activeStories.Remove(storyId);
+                            }
+
+                            FdpLog<DrillMaster>.Info(
+                                "[Orchestrator] ManageStory {0}: story {1} → {2} to {3} node(s).",
+                                storyMode, storyId, nodeOp, nodeIds.Count);
+                        }
+                    }
+                }
+                catch (InvalidOperationException ex)
+                {
+                    FdpLog<DrillMaster>.Warn(
+                        "[Orchestrator] ManageStory request {0} rejected: {1}",
+                        req.RequestId, ex.Message);
+                    _sysOpStatusWriter.Write(new SysOpStatus
+                    {
+                        RequestId  = req.RequestId,
+                        Status     = OpStatus.Rejected,
+                        ErrorCode  = 2,
+                        ResultJson = string.Empty
+                    });
+                    continue;
+                }
             }
 
             var tx = new DistributedTransaction

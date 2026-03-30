@@ -380,6 +380,10 @@ namespace Bagira.SimHost
                 // Wire EditLoadDsmHandler for LoadingEdit (CGF1-S0302).
                 drillSlave.RegisterHandler(
                     new EditLoadDsmHandler(scenarioSerializer, localTempRoot, world));
+
+                // Wire StoryLoadDsmHandler for StartStory / StopStory (CGF1-S0308).
+                drillSlave.RegisterHandler(
+                    new StoryLoadDsmHandler(scenarioSerializer, localTempRoot, world));
             }
 
             return drillSlave;

@@ -13,9 +13,18 @@ namespace Bagira.CGF.Modules.Orchestration.Handlers
     ///
     /// <para>
     /// Until CGF hosts a recordable <c>ModuleHostKernel</c> (Phase 3+ brain kernel),
-    /// operations <see cref="NodeOpType.PrepareLive"/>, <see cref="NodeOpType.FinalizeLive"/>,
-    /// <see cref="NodeOpType.PrepareReplay"/>, and <see cref="NodeOpType.FinalizeReplay"/>
-    /// are <b>explicitly unsupported</b> on this node.
+    /// operations <see cref="NodeOpType.FinalizeLive"/>, <see cref="NodeOpType.PrepareReplay"/>,
+    /// and <see cref="NodeOpType.FinalizeReplay"/> are <b>explicitly unsupported</b> on this node.
+    /// </para>
+    ///
+    /// <para>
+    /// <b><c>PrepareLive</c> disambiguation (BATCH-19 A.1):</b>
+    /// <see cref="NodeOpType.PrepareLive"/> is intentionally <b>excluded</b> from
+    /// <see cref="CanHandle"/> so that <see cref="ScenarioLoadDsmHandler"/> receives all
+    /// <c>PrepareLive</c> commands.  <see cref="ScenarioLoadDsmHandler.PrepareAsync"/> already
+    /// contains a <c>HasDrillId</c> guard that logs an <c>Error</c> for branch-style payloads
+    /// (those carrying a <c>DrillId</c> but no <c>ScenarioId</c>), preserving the fail-loud
+    /// intent for Live-from-Replay branches while allowing normal scenario loads to run.
     /// </para>
     ///
     /// <para>
@@ -48,13 +57,18 @@ namespace Bagira.CGF.Modules.Orchestration.Handlers
 
         /// <inheritdoc />
         /// <remarks>
-        /// Returns <c>true</c> for <see cref="NodeOpType.PrepareLive"/>,
-        /// <see cref="NodeOpType.FinalizeLive"/>, <see cref="NodeOpType.PrepareReplay"/>, and
-        /// <see cref="NodeOpType.FinalizeReplay"/> — all recording/replay lifecycle operations
-        /// that are unsupported until CGF hosts a recordable kernel.
+        /// Returns <c>true</c> for <see cref="NodeOpType.FinalizeLive"/>,
+        /// <see cref="NodeOpType.PrepareReplay"/>, and <see cref="NodeOpType.FinalizeReplay"/> —
+        /// the recording/replay lifecycle operations that are unsupported until CGF hosts a
+        /// recordable kernel.
+        ///
+        /// <para><see cref="NodeOpType.PrepareLive"/> is intentionally <b>absent</b> so that
+        /// the single-dispatch <see cref="DrillSlave"/> routes all <c>PrepareLive</c> commands to
+        /// <see cref="ScenarioLoadDsmHandler"/>, which handles both normal scenario payloads
+        /// (with <c>ScenarioId</c>) and branch payloads (with <c>DrillId</c>, no <c>ScenarioId</c>)
+        /// via its built-in <c>HasDrillId</c> guard.</para>
         /// </remarks>
         public bool CanHandle(NodeOpType op) =>
-            op == NodeOpType.PrepareLive   ||
             op == NodeOpType.FinalizeLive  ||
             op == NodeOpType.PrepareReplay ||
             op == NodeOpType.FinalizeReplay;

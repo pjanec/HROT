@@ -132,5 +132,12 @@ namespace Bagira.BDC.SSTD.Orchestration
         [DdsManaged] public string ArchiveBasePath;
         [DdsManaged] public string RequiredNodeIdsJson;
         public long StateStartWallTicks;
+        /// <summary>
+        /// JSON-serialized <c>string[]</c> of active story IDs (Guid strings) injected into
+        /// the running drill.  Published by <c>DrillMaster</c> after each
+        /// <see cref="SysOpType.ManageStory"/> Start/Stop operation (CGF1-S0308).
+        /// Empty string when no stories are active.
+        /// </summary>
+        [DdsManaged] public string ActiveStoriesJson;
     }
 }

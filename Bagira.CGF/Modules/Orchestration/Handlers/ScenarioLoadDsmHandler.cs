@@ -43,7 +43,20 @@ namespace Bagira.CGF.Modules.Orchestration.Handlers
         }
 
         /// <inheritdoc />
+        /// <remarks>
+        /// This handler is the sole <c>PrepareLive</c> handler on the CGF node (BATCH-19 A.1).
+        /// <see cref="FailLoudRecordReplayStub"/> was narrowed to exclude <c>PrepareLive</c> so
+        /// that both normal scenario payloads (with <c>ScenarioId</c>) and branch payloads
+        /// (with <c>DrillId</c>, no <c>ScenarioId</c>) route here.  Branch payloads are
+        /// detected in <see cref="PrepareAsync"/> via the <c>HasDrillId</c> guard.
+        /// </remarks>
         public bool CanHandle(NodeOpType op) => op == NodeOpType.PrepareLive;
+
+        /// <summary>
+        /// Incremented each time <see cref="PrepareAsync"/> is invoked.  Exposed for unit/integration
+        /// tests that need to assert the handler was reached via DrillSlave dispatch.
+        /// </summary>
+        internal int PrepareCallCountForTest { get; private set; }
 
         /// <inheritdoc />
         /// <remarks>
@@ -51,31 +64,30 @@ namespace Bagira.CGF.Modules.Orchestration.Handlers
         /// <see langword="null"/> (success): a mismatch means "not our file" and a match means
         /// "acknowledged — no entities to spawn in CGF".
         /// <para>
-        /// <b>Branch guard (BATCH-18 A.2):</b> When the payload contains a
-        /// <c>DrillId</c> field but <b>no</b> <c>ScenarioId</c> field the command is a
-        /// Live-from-Replay branch <see cref="NodeOpType.PrepareLive"/> issued by the
-        /// orchestrator.  CGF does not yet host a recordable kernel, so this handler logs an
-        /// <c>Error</c> to surface the gap — matching the intent of
-        /// <see cref="FailLoudRecordReplayStub"/> — and returns without attempting a file read.
+        /// <b>Branch guard (BATCH-19 A.1):</b> When the payload contains a <c>DrillId</c> field
+        /// but <b>no</b> <c>ScenarioId</c> field the command is a Live-from-Replay branch
+        /// <see cref="NodeOpType.PrepareLive"/> issued by the orchestrator.  CGF does not yet
+        /// host a recordable kernel, so this handler logs an <c>Error</c> to surface the gap
+        /// and returns without attempting a file read.
         /// </para>
         /// </remarks>
         public Task<string?> PrepareAsync(NodeOpCommand cmd, CancellationToken ct)
         {
+            PrepareCallCountForTest++;
+
             var scenarioId = ParseScenarioId(cmd.PayloadJson);
             if (string.IsNullOrWhiteSpace(scenarioId))
             {
-                // BATCH-18 A.2: distinguish branch PrepareLive (has DrillId, no ScenarioId)
-                // from other no-ScenarioId cases.  If the payload carries a DrillId it is a
-                // Live-from-Replay branch command that should be handled by FailLoudRecordReplayStub.
-                // Log Error so the brain-side persistence gap remains visible in structured logs.
+                // BATCH-19 A.1: distinguish branch PrepareLive (has DrillId, no ScenarioId).
+                // This handler is now the sole PrepareLive handler on CGF, so it must
+                // fail loud for branch commands just as FailLoudRecordReplayStub used to.
                 if (HasDrillId(cmd.PayloadJson))
                 {
                     FdpLog<ScenarioLoadDsmHandler>.Error(
                         "[CGF] ScenarioLoadDsmHandler: branch PrepareLive received " +
                         "(DrillId-only payload, no ScenarioId — transactionId={0}).  " +
-                        "CGF does not yet host a recordable kernel; this op should be " +
-                        "handled by FailLoudRecordReplayStub.  Ensure FailLoudRecordReplayStub " +
-                        "is registered before ScenarioLoadDsmHandler for PrepareLive.",
+                        "CGF does not yet host a recordable kernel — brain-side persistence " +
+                        "is incomplete.  Replace with a real handler when the CGF kernel is wired.",
                         cmd.TransactionId);
                 }
                 return Task.FromResult<string?>(null);

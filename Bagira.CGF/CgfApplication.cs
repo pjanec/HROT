@@ -68,24 +68,18 @@ namespace Bagira.CGF
             _eventBus = new FdpEventBus();
             _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
 
-            // CGF1-BATCH-18 A.2: register FailLoudRecordReplayStub BEFORE ScenarioLoadDsmHandler
-            // so that branch-style PrepareLive commands (DrillId-only payload, no ScenarioId)
-            // are intercepted by the stub and produce an Error log rather than being silently
-            // acknowledged by ScenarioLoadDsmHandler.  For a normal scenario PrepareLive
-            // (ScenarioId present) the stub's CanHandle returns true but PrepareAsync logs the
-            // Error, which is the correct behaviour until CGF hosts a recordable kernel.
-            // When CGF acquires a real brain kernel, both this stub and its registration order
-            // must be reconsidered (replace with LiveLoadDsmHandler / ReplayLoadDsmHandler path).
+            // CGF1-BATCH-19 A.1: register FailLoudRecordReplayStub for FinalizeLive,
+            // PrepareReplay and FinalizeReplay (unsupported until CGF hosts a recordable kernel).
+            // PrepareLive is intentionally absent from the stub's CanHandle so that ALL
+            // PrepareLive commands route to ScenarioLoadDsmHandler, which handles both normal
+            // scenario payloads (ScenarioId present) and branch payloads (DrillId-only, no
+            // ScenarioId) via its built-in HasDrillId guard.
             _drillSlave.RegisterHandler(new FailLoudRecordReplayStub(SubsystemName));
 
             // CGF1-S0307: wire scenario load handler when a serializer is provided.
-            // Registered after FailLoudRecordReplayStub: for PrepareLive the stub wins on the
-            // recording/replay ops; for LoadingLive with a ScenarioId the stub also fires but
-            // the scenario load still acknowledges (two handlers both run the same command only
-            // if the first uses dispatch-and-continue — the current single-dispatch loop means
-            // only FailLoudRecordReplayStub runs for PrepareLive).  The ScenarioLoadDsmHandler
-            // therefore only runs for PrepareLive when registered first; BATCH-18 A.2 keeps it
-            // second so the fail-loud path is always reachable.
+            // Registered after FailLoudRecordReplayStub — the two handlers handle disjoint
+            // NodeOpType values (PrepareLive vs FinalizeLive/PrepareReplay/FinalizeReplay),
+            // so registration order does not affect dispatch for their respective operations.
             if (scenarioSerializer != null)
                 _drillSlave.RegisterHandler(new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot));
 

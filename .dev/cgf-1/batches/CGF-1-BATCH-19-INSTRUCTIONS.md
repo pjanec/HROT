@@ -21,7 +21,7 @@
 2. [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md) — rows **Target Fix = CGF-1-BATCH-19**  
 3. [.dev/cgf-1/CGF-1-TASK-DETAIL.md](../CGF-1-TASK-DETAIL.md) §CGF1-S0308 (if doing Part B)
 
-**Report:** `.dev/cgf-1/reports/CGF-1-BATCH-19-REPORT.md` (when complete)
+**Report:** [CGF-1-BATCH-19-REPORT.md](../reports/CGF-1-BATCH-19-REPORT.md) — **Review:** [CGF-1-BATCH-19-REVIEW.md](../reviews/CGF-1-BATCH-19-REVIEW.md)
 
 ---
 
@@ -58,11 +58,12 @@ Close **Part A** rows when merged (Status ✅).
 
 ## Success criteria
 
-- [ ] Part A: CGF **`PrepareLive`** disambiguation fixed; CGF **`DrillSlave`** ordering aligned; DEBT rows closed; tests prove scenario path.  
-- [ ] Part B: §S0308 artefacts + tests **or** explicit defer note + tracker.  
-- [ ] Solution build clean.  
-- [ ] **CGF-1-TASK-TRACKER** updated.  
-- [ ] Report filed.
+- [x] Part A: CGF **`PrepareLive`** disambiguation fixed; CGF **`DrillSlave`** ordering aligned; DEBT rows closed; tests prove scenario path.  
+- [x] Part B: §S0308 artefacts + tests **or** explicit defer note + tracker.  
+- [x] Solution build clean.  
+- [x] **CGF-1-TASK-TRACKER** updated.  
+- [x] Report filed.  
+- **Lead follow-up:** [CGF-1-BATCH-19-REVIEW.md](../reviews/CGF-1-BATCH-19-REVIEW.md) — §S0308 TASK-DETAIL gaps + integration test fix → [CGF-1-BATCH-20](CGF-1-BATCH-20-INSTRUCTIONS.md).
 
 ---
 

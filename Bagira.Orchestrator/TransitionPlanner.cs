@@ -221,4 +221,109 @@ public sealed class TransitionPlanner
 
         return queue;
     }
+
+    /// <summary>
+    /// Plans a <see cref="SysOpType.ManageStory"/> operation for an in-flight drill.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Precondition:</b> <paramref name="current"/> must be
+    /// <see cref="DSMState.RunningLive"/>.  Any other state causes an
+    /// <see cref="InvalidOperationException"/> with <c>OpStatus.InvalidState</c> semantics.
+    /// </para>
+    /// <para>
+    /// <b>Payload JSON (required fields):</b>
+    /// <code>
+    /// {
+    ///   "Mode": "Start" | "Stop",
+    ///   "StoryId": "&lt;guid&gt;",
+    ///   "ScenarioId": "&lt;id&gt;"   // required for Mode:Start; ignored for Mode:Stop
+    /// }
+    /// </code>
+    /// </para>
+    /// <para>
+    /// <b>Start trajectory:</b>
+    /// <list type="bullet">
+    ///   <item><see cref="OperationStep"/>(<see cref="SysOpType.PrefetchScenario"/>, scenarioId) —
+    ///         ensures story asset files are staged on all nodes.</item>
+    ///   <item><see cref="OperationStep"/>(<see cref="SysOpType.ManageStory"/>, fullPayload) —
+    ///         signals <c>DrillMaster</c> to fan out <c>StartStory</c> to nodes.</item>
+    /// </list>
+    /// </para>
+    /// <para>
+    /// <b>Stop trajectory:</b>
+    /// <list type="bullet">
+    ///   <item><see cref="OperationStep"/>(<see cref="SysOpType.ManageStory"/>, fullPayload) —
+    ///         signals <c>DrillMaster</c> to fan out <c>StopStory</c> to nodes.</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when <paramref name="current"/> is not <see cref="DSMState.RunningLive"/>,
+    /// or when the payload is missing required fields (<c>Mode</c>, <c>StoryId</c>, or
+    /// <c>ScenarioId</c> for Start mode).
+    /// </exception>
+    public Queue<ISysOpStep> PlanManageStory(DSMState current, SysOpRequest request)
+    {
+        if (current != DSMState.RunningLive)
+            throw new InvalidOperationException(
+                $"[TransitionPlanner] ManageStory requires RunningLive; current state is {current}.");
+
+        if (string.IsNullOrWhiteSpace(request.PayloadJson))
+            throw new InvalidOperationException(
+                "[TransitionPlanner] ManageStory payload is empty or whitespace.");
+
+        JsonDocument doc;
+        try
+        {
+            doc = JsonDocument.Parse(request.PayloadJson);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException(
+                $"[TransitionPlanner] ManageStory payload is not valid JSON: {ex.Message}", ex);
+        }
+
+        string? mode;
+        string? storyId;
+        string? scenarioId;
+        using (doc)
+        {
+            mode       = doc.RootElement.TryGetProperty("Mode",       out var m) ? m.GetString()      : null;
+            storyId    = doc.RootElement.TryGetProperty("StoryId",    out var s) ? s.GetString()      : null;
+            scenarioId = doc.RootElement.TryGetProperty("ScenarioId", out var sc) ? sc.GetString()    : null;
+        }
+
+        if (string.IsNullOrWhiteSpace(mode))
+            throw new InvalidOperationException(
+                "[TransitionPlanner] ManageStory payload missing required 'Mode' field (Start|Stop).");
+        if (string.IsNullOrWhiteSpace(storyId))
+            throw new InvalidOperationException(
+                "[TransitionPlanner] ManageStory payload missing required 'StoryId' field.");
+
+        var queue = new Queue<ISysOpStep>();
+
+        if (string.Equals(mode, "Start", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(scenarioId))
+                throw new InvalidOperationException(
+                    "[TransitionPlanner] ManageStory Mode:Start payload missing required 'ScenarioId' field.");
+
+            // Prefetch story asset files to all nodes before injection.
+            queue.Enqueue(new OperationStep(SysOpType.PrefetchScenario, scenarioId!));
+            // Fan out StartStory to all nodes.
+            queue.Enqueue(new OperationStep(SysOpType.ManageStory, request.PayloadJson));
+        }
+        else if (string.Equals(mode, "Stop", StringComparison.OrdinalIgnoreCase))
+        {
+            queue.Enqueue(new OperationStep(SysOpType.ManageStory, request.PayloadJson));
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"[TransitionPlanner] ManageStory unknown Mode '{mode}'; expected 'Start' or 'Stop'.");
+        }
+
+        return queue;
+    }
 }
