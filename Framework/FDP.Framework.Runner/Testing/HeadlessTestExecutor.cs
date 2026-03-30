@@ -260,9 +260,9 @@ namespace FDP.Framework.Runner.Testing
                     _assertionFailures.Add(msg);
                 }
 
-                if (rule.Equals.HasValue && Math.Abs(value - rule.Equals.Value) > 0.001)
+                if (rule.Exactly.HasValue && Math.Abs(value - rule.Exactly.Value) > 0.001)
                 {
-                    var msg = $"[{stepAction}] ASSERT FAIL: {metricName} = {value:F4}, expected == {rule.Equals}";
+                    var msg = $"[{stepAction}] ASSERT FAIL: {metricName} = {value:F4}, expected == {rule.Exactly}";
                     _logger.LogError(msg);
                     _assertionFailures.Add(msg);
                 }

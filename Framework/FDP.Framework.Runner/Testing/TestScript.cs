@@ -67,7 +67,7 @@ namespace FDP.Framework.Runner.Testing
         public double? Max { get; set; }
 
         /// <summary>Exact equality check (tolerance: 0.001). Fails if value differs.</summary>
-        public double? Equals { get; set; }
+        public double? Exactly { get; set; }
 
         /// <summary>Approximate equality check with configurable tolerance.
         /// Fails if <c>|value - ApproxEquals| &gt; Tolerance</c>.</summary>
