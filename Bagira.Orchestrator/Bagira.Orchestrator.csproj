@@ -13,6 +13,7 @@
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
     <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
     <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
   </ItemGroup>
 
 </Project>

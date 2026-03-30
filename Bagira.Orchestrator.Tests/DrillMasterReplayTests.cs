@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Bagira.BDC.SSTD.Orchestration;
 using CycloneDDS.Runtime;
+using FDP.Toolkit.Orchestration;
 using Xunit;
 
 namespace Bagira.Orchestrator.Tests;
@@ -188,9 +189,8 @@ public sealed class DrillMasterReplayTests
         {
             TransactionId   = branchTxId!.Value,
             NodeId          = 1,
-            Status          = OpStatus.Success,
+            StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
-            ErrorCode       = 0,
             ResultJson      = string.Empty,
         });
         Thread.Sleep(200);

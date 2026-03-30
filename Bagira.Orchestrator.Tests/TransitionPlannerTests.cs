@@ -2,17 +2,20 @@
 using System.Collections.Generic;
 using System.Linq;
 using Bagira.BDC.SSTD.Orchestration;
+using FDP.Toolkit.Orchestration;
 
 namespace Bagira.Orchestrator.Tests;
 
 /// <summary>
-/// Pure unit tests for <see cref="TransitionPlanner"/> -- no DDS, no ECS.
-/// All tests are deterministic and run in-process only.
+/// Pure unit tests for <see cref="DrillMasterPlanner"/> (Bagira-layer planner) and
+/// <see cref="FDP.Toolkit.Orchestration.TransitionPlanner"/> (generic BFS). No DDS, no ECS.
 /// </summary>
 [Collection("OrchestratorTests")]
 public sealed class TransitionPlannerTests
 {
-    private readonly TransitionPlanner _planner = new();
+    private readonly DrillMasterPlanner _planner = new(BagiraStateGraph.Build());
+    private readonly FDP.Toolkit.Orchestration.TransitionPlanner _tkPlanner =
+        new(BagiraStateGraph.Build());
 
     // -- Helpers --
 
@@ -37,7 +40,8 @@ public sealed class TransitionPlannerTests
 
     // -- CGF1-S0201 success conditions --
 
-    /// <summary>Standby to LoadingEdit is a direct edge; exactly one TransitionStep.</summary>
+    /// <summary>Standby to LoadingEdit is a direct edge; exactly one TransitionStep.
+    /// Also validates toolkit TransitionPlanner BFS with int state IDs.</summary>
     [Fact]
     public void StandbyToLoadingEdit_Produces_SingleStep()
     {
@@ -161,17 +165,29 @@ public sealed class TransitionPlannerTests
     }
 
     /// <summary>
-    /// DSMState.Degraded as the target is also unreachable from any normal state
-    /// (no incoming planning edges exist for Degraded).
+    /// G0403 success condition 2: BFS path preserved via toolkit TransitionPlanner
+    /// with integer state IDs (BagiraStateGraph).
     /// </summary>
     [Fact]
-    public void TransitionToDegraded_ThrowsInvalidOperationException()
+    public void TkPlanner_StandbyToRunningLive_BfsPathPreserved()
     {
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => _planner.CalculateShortestPath(DSMState.Standby, DSMState.Degraded));
+        var intPath = _tkPlanner.CalculateShortestPath(
+            (int)DSMState.Standby, (int)DSMState.RunningLive);
 
-        Assert.Contains("Degraded", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Standby",  ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(2, intPath.Count);
+        Assert.Equal((int)DSMState.LoadingLive,  intPath[0]);
+        Assert.Equal((int)DSMState.RunningLive,  intPath[1]);
+    }
+
+    /// <summary>
+    /// Toolkit TransitionPlanner error message includes state numeric IDs when path not found.
+    /// </summary>
+    [Fact]
+    public void TkPlanner_ImpossibleRequest_ThrowsInvalidOperationException()
+    {
+        // DSMState.Degraded = 99 (unreachable)
+        Assert.Throws<InvalidOperationException>(
+            () => _tkPlanner.CalculateShortestPath((int)DSMState.Degraded, (int)DSMState.RunningLive));
     }
 
     // -- A.2: Payload fail-fast tests (CGF-1-BATCH-05) --

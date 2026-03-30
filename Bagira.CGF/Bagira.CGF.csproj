@@ -30,6 +30,8 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
     <!-- Scenario serialization toolkit for ScenarioLoadDsmHandler (CGF1-S0307) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Scenario\FDP.Toolkit.Scenario.csproj" />
+    <!-- Orchestration toolkit contracts -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
   </ItemGroup>
 
 </Project>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Bagira.BDC.SSTD.Orchestration;
 using CycloneDDS.Runtime;
+using FDP.Toolkit.Orchestration;
 
 namespace Bagira.Orchestrator.Tests;
 
@@ -86,7 +87,7 @@ public sealed class DrillMasterBootstrapTests
             PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
         });
 
-        OpStatus? phase1Status = null;
+        int? phase1Status = null;
         var deadline1 = DateTime.UtcNow.AddSeconds(3);
         while (DateTime.UtcNow < deadline1)
         {
@@ -97,7 +98,7 @@ public sealed class DrillMasterBootstrapTests
                 if (!s.IsValid) continue;
                 if (s.Data.RequestId == reqId1)
                 {
-                    phase1Status = s.Data.Status;
+                    phase1Status = s.Data.StatusCode;
                     break;
                 }
             }
@@ -106,7 +107,7 @@ public sealed class DrillMasterBootstrapTests
         }
 
         Assert.True(phase1Status.HasValue, "DrillMaster did not respond to SysOpRequest before bootstrap.");
-        Assert.Equal(OpStatus.Rejected, phase1Status!.Value);
+        Assert.Equal(OrchestrationStatusCode.Rejected, phase1Status!.Value);
         Assert.False(drill.BootstrapComplete, "Bootstrap latch must not be set before mandatory heartbeat.");
 
         // ── Phase 2: Deliver SimHost heartbeat (Standby) → latch clears ──────
@@ -136,7 +137,7 @@ public sealed class DrillMasterBootstrapTests
             PayloadJson   = ((int)DSMState.LoadingLive).ToString(),
         });
 
-        OpStatus? phase3Status = null;
+        int? phase3Status = null;
         var deadline3 = DateTime.UtcNow.AddSeconds(3);
         while (DateTime.UtcNow < deadline3)
         {
@@ -147,7 +148,7 @@ public sealed class DrillMasterBootstrapTests
                 if (!s.IsValid) continue;
                 if (s.Data.RequestId == reqId2)
                 {
-                    phase3Status = s.Data.Status;
+                    phase3Status = s.Data.StatusCode;
                     break;
                 }
             }
@@ -156,7 +157,7 @@ public sealed class DrillMasterBootstrapTests
         }
 
         Assert.True(phase3Status.HasValue, "DrillMaster did not respond to accepted SysOpRequest.");
-        Assert.NotEqual(OpStatus.Rejected, phase3Status!.Value);
+        Assert.NotEqual(OrchestrationStatusCode.Rejected, phase3Status!.Value);
     }
 
     /// <summary>
@@ -441,7 +442,7 @@ public sealed class DrillMasterBootstrapTests
             foreach (var s in scope)
             {
                 if (!s.IsValid || s.Data.RequestId != req1Id) continue;
-                req1Accepted = s.Data.Status != OpStatus.Rejected;
+                req1Accepted = s.Data.StatusCode != OrchestrationStatusCode.Rejected;
             }
             if (req1Accepted) break;
             Thread.Sleep(20);
@@ -470,7 +471,7 @@ public sealed class DrillMasterBootstrapTests
             foreach (var s in scope)
             {
                 if (!s.IsValid || s.Data.RequestId != req2Id) continue;
-                req2Accepted = s.Data.Status != OpStatus.Rejected;
+                req2Accepted = s.Data.StatusCode != OrchestrationStatusCode.Rejected;
             }
             if (req2Accepted) break;
             Thread.Sleep(20);

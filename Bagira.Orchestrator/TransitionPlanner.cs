@@ -1,6 +1,8 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using Bagira.BDC.SSTD.Orchestration;
+using FDP.Toolkit.Orchestration;
 
 namespace Bagira.Orchestrator;
 
@@ -46,33 +48,28 @@ public sealed class OperationStep : ISysOpStep
 /// automatic rollback paths triggered by node-side errors, not plannable transitions.
 /// <c>DSMState.Degraded</c> is a system-imposed state with no outgoing planning edges
 /// and is therefore unreachable/invalid as a planning target.
+///
+/// <para>
+/// BFS is delegated to <see cref="FDP.Toolkit.Orchestration.TransitionPlanner"/> using
+/// the graph provided at construction time.  Use <see cref="BagiraStateGraph.Build()"/>
+/// to create the canonical Bagira DSM graph.
+/// </para>
 /// </remarks>
-public sealed class TransitionPlanner
+public sealed class DrillMasterPlanner
 {
-    // ── DSM adjacency (forward planning edges only; failure/rollback edges excluded) ──
-    // NOTE: RunningEdit → LoadingLive is intentionally absent even though the design
-    // adjacency list includes it.  The example trajectories (RunningEdit → RunningLive =
-    // 4 steps) are normative and require routing through UnloadingEdit → Standby.
-    // Logical rationale: you cannot start live-load from an active Edit session without
-    // first unloading.  The design's adjacency entry is considered a documentation error.
-    private static readonly IReadOnlyDictionary<DSMState, DSMState[]> Adjacency =
-        new Dictionary<DSMState, DSMState[]>
-        {
-            [DSMState.Standby]         = new[] { DSMState.LoadingEdit, DSMState.LoadingLive, DSMState.LoadingReplay },
-            [DSMState.LoadingEdit]     = new[] { DSMState.RunningEdit },
-            [DSMState.RunningEdit]     = new[] { DSMState.LoadingDryRun, DSMState.UnloadingEdit },
-            [DSMState.LoadingDryRun]   = new[] { DSMState.RunningDryRun },
-            [DSMState.RunningDryRun]   = new[] { DSMState.UnloadingDryRun },
-            [DSMState.UnloadingDryRun] = new[] { DSMState.RunningEdit },
-            [DSMState.UnloadingEdit]   = new[] { DSMState.Standby },
-            [DSMState.LoadingLive]     = new[] { DSMState.RunningLive },
-            [DSMState.RunningLive]     = new[] { DSMState.UnloadingLive },
-            [DSMState.UnloadingLive]   = new[] { DSMState.Standby },
-            [DSMState.LoadingReplay]   = new[] { DSMState.RunningReplay },
-            [DSMState.RunningReplay]   = new[] { DSMState.UnloadingReplay, DSMState.LoadingLive },
-            [DSMState.UnloadingReplay] = new[] { DSMState.Standby },
-            // DSMState.Degraded has no planning outgoing edges (system-imposed state).
-        };
+    private readonly FDP.Toolkit.Orchestration.TransitionPlanner _tkPlanner;
+
+    /// <summary>
+    /// Creates a planner backed by the provided transition graph.
+    /// </summary>
+    /// <param name="graph">
+    /// DSM graph to use for BFS path-finding.
+    /// Pass <see cref="BagiraStateGraph.Build()"/> in production.
+    /// </param>
+    public DrillMasterPlanner(ITransitionGraph graph)
+    {
+        _tkPlanner = new FDP.Toolkit.Orchestration.TransitionPlanner(graph);
+    }
 
     /// <summary>
     /// Computes the shortest path from <paramref name="current"/> to <paramref name="target"/>
@@ -89,33 +86,17 @@ public sealed class TransitionPlanner
     /// </exception>
     public IReadOnlyList<DSMState> CalculateShortestPath(DSMState current, DSMState target)
     {
-        if (current == target) return Array.Empty<DSMState>();
-
-        // BFS
-        var visited = new HashSet<DSMState> { current };
-        var queue   = new Queue<(DSMState state, List<DSMState> path)>();
-        queue.Enqueue((current, new List<DSMState>()));
-
-        while (queue.Count > 0)
+        try
         {
-            var (state, path) = queue.Dequeue();
-
-            if (!Adjacency.TryGetValue(state, out var neighbors)) continue;
-
-            foreach (var next in neighbors)
-            {
-                if (!visited.Add(next)) continue;
-
-                var newPath = new List<DSMState>(path) { next };
-                if (next == target) return newPath;
-
-                queue.Enqueue((next, newPath));
-            }
+            var intPath = _tkPlanner.CalculateShortestPath((int)current, (int)target);
+            return intPath.Select(i => (DSMState)i).ToList();
         }
-
-        throw new InvalidOperationException(
-            $"[TransitionPlanner] No valid DSM path from {current} to {target}. " +
-            $"The transition '{current}' → '{target}' is not reachable in the planning graph.");
+        catch (InvalidOperationException)
+        {
+            throw new InvalidOperationException(
+                $"[TransitionPlanner] No valid DSM path from {current} to {target}. " +
+                $"The transition '{current}' → '{target}' is not reachable in the planning graph.");
+        }
     }
 
     /// <summary>

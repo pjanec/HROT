@@ -60,6 +60,8 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Replay\FDP.Toolkit.Replay.csproj" />
     <!-- Scenario serialization toolkit for ScenarioLoadDsmHandler (CGF1-S0307) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Scenario\FDP.Toolkit.Scenario.csproj" />
+    <!-- Orchestration toolkit (contracts, StatusCode, TkDsmStateChangedEvent) -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
 
     <!-- Network (CycloneDDS transitive — no separate NuGet needed) -->
     <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />

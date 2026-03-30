@@ -1,11 +1,12 @@
 # CGF-1 Design Document
-## Distributed Drill Management & CGF Subsystem — Phases 1–3
+## Distributed Drill Management & CGF Subsystem — Phases 1–4
 
-> **Source:** Derived from [design-talk.md](./design-talk.md) and
-> [mgmt-DESIGN.md](./mgmt-DESIGN.md).  
-> **Scope:** Phases 1–3 only (Skeleton, State & Time, Persistence).  
-> Phase 4 (Urban Combat AI) is out of scope and will be addressed in a separate workstream
-> once the management infrastructure established here is stable and regression-tested.
+> **Source:** Derived from [design-talk.md](./design-talk.md),
+> [mgmt-DESIGN.md](./mgmt-DESIGN.md), and [design-review-2.md](./design-review-2.md).  
+> **Scope:** Phases 1–4 (Skeleton, State & Time, Persistence, Generalization).  
+> See [CGF-1-GENERALIZATION.md](./CGF-1-GENERALIZATION.md) for the Phase 4 design authority.  
+> Phase 5 (Urban Combat AI) is out of scope and will be addressed in a separate workstream
+> once Phases 1–4 are stable and regression-tested.
 >
 > **Critical architectural constraint:**  
 > _FDP infrastructure (Fdp.Kernel and all FDP.Toolkit.* projects) must never reference
@@ -44,9 +45,10 @@
    - [Stage 3.8 — Runtime Story Injection & Deletion](#58-stage-38--runtime-story-injection--deletion)
    - [Stage 3.9 — Dry Run DSM Handler](#59-stage-39--dry-run-dsm-handler)
    - [Stage 3.10 — E2E DSM Test Script Suite](#510-stage-310--e2e-dsm-test-script-suite)
-6. [New Projects & File Map](#6-new-projects--file-map)
-7. [Modified Files](#7-modified-files)
-8. [Deferred Features (Phase 5+)](#8-deferred-features-phase-5)
+6. [Phase 4 — Generalization: FDP Toolkit Orchestration](#6-phase-4--generalization-fdp-toolkit-orchestration)
+7. [New Projects & File Map](#7-new-projects--file-map)
+8. [Modified Files](#8-modified-files)
+9. [Deferred Features (Phase 5+)](#9-deferred-features-phase-5)
 
 ---
 
@@ -1187,6 +1189,16 @@ during the Prepare phase. Nodes without matching story content opt out cleanly.
 **Milestone validation:** See
 [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md#cgf1-s0308).
 
+#### ManageStory 2PC — MVP Implementation Note
+
+**BATCH-21:** `DrillMaster` now defers `ActiveStories` mutation until all
+targeted-node `NodeOpStatus` ACKs have been consumed via the
+`_pendingManageStoryTasks` dictionary (matching the `_pendingSerializeTasks` /
+`_pendingBranchTasks` pattern). Policy: every ACK — `IsParticipating=true` or
+`false` — removes the node from the pending `RemainingNodeIds` set.  When the
+set reaches zero the `ActiveStories` list is updated atomically.  See
+[CGF1-S0308](./CGF-1-TASK-DETAIL.md#cgf1-s0308) for the normative end-state.
+
 ---
 
 ### 5.9 Stage 3.9 — Dry Run DSM Handler
@@ -1335,7 +1347,30 @@ standalone xUnit `[Fact]` in `DsmE2eScriptTests` that boots the full in-process 
 
 ---
 
-## 6. New Projects & File Map
+## 6. Phase 4 — Generalization: FDP Toolkit Orchestration
+
+Phase 4 lifts the reusable orchestration engine — `IDsmHandler`, the `DrillSlave`
+dispatch loop, the BFS `TransitionPlanner`, and all reference handler implementations
+— out of the Bagira application layer into a new `FDP.Toolkit.Orchestration` toolkit
+project. The full design is maintained in a dedicated companion document:
+
+> **→ [CGF-1-GENERALIZATION.md](./CGF-1-GENERALIZATION.md)**
+
+The generalization is organized as six tasks in
+[CGF-1-TASK-DETAIL.md §Phase 4](./CGF-1-TASK-DETAIL.md#phase-4--generalization-fdp-toolkit-orchestration):
+
+| Task | Title | Key deliverable |
+|------|-------|-----------------|
+| CGF1-G0401 | Core Contracts | New `FDP.Toolkit.Orchestration` project; `IDsmHandler`, `IOrchestrationTransport`, `ITransitionGraph`, `IScenarioStorageProvider`, `OrchestrationCommand`; unified `int StatusCode` scheme (`OrchestrationStatusCode`) replacing `OpStatus` enum + `ErrorCode`; `NodeOpStatus`/`SysOpStatus` DDS structs updated |
+| CGF1-G0402 | Generic DrillSlave | Single canonical `DrillSlave` + `DdsOrchestrationTransport`; 4 Bagira copies removed |
+| CGF1-G0403 | TransitionPlanner + BagiraStateGraph | BFS planner in toolkit; hardcoded adjacency dict replaced by injectable `ITransitionGraph` |
+| CGF1-G0404 | Scenario/Story/Prefetch handlers | `ReferencePrefetchHandler`, `ReferenceScenarioLoadHandler`, `ReferenceEditLoadHandler`, `ReferenceStoryLoadHandler` + `IScenarioStorageProvider` |
+| CGF1-G0405 | DryRun/Checkpoint/RecordReplay handlers | `ReferenceDryRunHandler`, `ReferenceCheckpointHandler`, `ReferenceLiveLoadHandler`, `ReferenceReplayLoadHandler`; `CheckpointIOWorker` relocated |
+| CGF1-G0406 | Cleanup & CI | Dead code deleted; layer boundary verified; full test suite green |
+
+---
+
+## 7. New Projects & File Map
 
 ### New Projects
 
@@ -1345,6 +1380,7 @@ standalone xUnit `[Fact]` in `DsmE2eScriptTests` that boots the full in-process 
 | `Bagira.CGF` | CGF subsystem scaffold; DrillSlave, future AI content — hosted in Runner |
 | `Bagira.CGF.Tests` | CGF unit and integration tests |
 | `FDP.Toolkit.Scenario` | Format-agnostic scenario/story DOM serialization engine; no Bagira refs |
+| `FDP.Toolkit.Orchestration` | Generic DrillSlave, IDsmHandler, IOrchestrationTransport, ITransitionGraph, IScenarioStorageProvider, reference handlers — Phase 4; no Bagira refs |
 
 ### New Files in Existing Projects
 
@@ -1400,7 +1436,35 @@ standalone xUnit `[Fact]` in `DsmE2eScriptTests` that boots the full in-process 
 
 ---
 
-## 7. Modified Files
+### New Files in Existing Projects (Phase 4 additions)
+
+| File | Project | Stage |
+|------|---------|-------|
+| `IDsmHandler.cs` | `FDP.Toolkit.Orchestration` | 4.1 (moved from `Bagira.Common`) |
+| `ITickableDsmHandler.cs` | `FDP.Toolkit.Orchestration` | 4.1 (moved) |
+| `IOrchestrationTransport.cs` | `FDP.Toolkit.Orchestration` | 4.1 (new) |
+| `ITransitionGraph.cs` + `TransitionGraphBuilder.cs` | `FDP.Toolkit.Orchestration` | 4.1 (new) |
+| `IScenarioStorageProvider.cs` | `FDP.Toolkit.Orchestration` | 4.1 (new) |
+| `OrchestrationCommand.cs` + `OrchestrationStatus.cs` | `FDP.Toolkit.Orchestration` | 4.1 (new) |
+| `TkDsmStateChangedEvent.cs` | `FDP.Toolkit.Orchestration` | 4.1 (new) |
+| `DrillSlave.cs` | `FDP.Toolkit.Orchestration` | 4.2 (consolidated from 4 copies) |
+| `DdsOrchestrationTransport.cs` | `Bagira.Common` | 4.2 (new) |
+| `TransitionPlanner.cs` | `FDP.Toolkit.Orchestration` | 4.3 (moved from `Bagira.Orchestrator`) |
+| `BagiraStateGraph.cs` | `Bagira.Orchestrator` | 4.3 (new) |
+| `LocalDiskStorageProvider.cs` | `Bagira.Common` | 4.4 (new) |
+| `Handlers/ReferencePrefetchHandler.cs` | `FDP.Toolkit.Orchestration` | 4.4 |
+| `Handlers/ReferenceScenarioLoadHandler.cs` | `FDP.Toolkit.Orchestration` | 4.4 |
+| `Handlers/ReferenceEditLoadHandler.cs` | `FDP.Toolkit.Orchestration` | 4.4 |
+| `Handlers/ReferenceStoryLoadHandler.cs` | `FDP.Toolkit.Orchestration` | 4.4 |
+| `CheckpointIOWorker.cs` | `FDP.Toolkit.Orchestration` | 4.5 (moved from `Bagira.SimHost`) |
+| `Handlers/ReferenceDryRunHandler.cs` | `FDP.Toolkit.Orchestration` | 4.5 |
+| `Handlers/ReferenceCheckpointHandler.cs` | `FDP.Toolkit.Orchestration` | 4.5 |
+| `Handlers/ReferenceLiveLoadHandler.cs` | `FDP.Toolkit.Orchestration` | 4.5 |
+| `Handlers/ReferenceReplayLoadHandler.cs` | `FDP.Toolkit.Orchestration` | 4.5 |
+
+---
+
+## 8. Modified Files
 
 | File | Change | Stage |
 |------|--------|-------|
@@ -1421,7 +1485,7 @@ standalone xUnit `[Fact]` in `DsmE2eScriptTests` that boots the full in-process 
 
 ---
 
-## 8. Deferred Features (Phase 5+)
+## 9. Deferred Features (Phase 5+)
 
 The following features from `mgmt-DESIGN.md` are explicitly out of scope for Phases 1–3.
 None of them are required before Phase 4 (Urban Combat AI):

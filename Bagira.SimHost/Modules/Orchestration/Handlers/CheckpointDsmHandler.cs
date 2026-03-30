@@ -8,6 +8,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Orchestration;
 
 namespace Bagira.SimHost.Modules.Orchestration.Handlers
 {
@@ -46,7 +47,7 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
     /// and the worker processes them sequentially (one LZ4 write at a time).
     /// </para>
     /// </summary>
-    public sealed class CheckpointDsmHandler : IDsmHandler, ITickableDsmHandler
+    public sealed class CheckpointDsmHandler : Bagira.Common.Orchestration.IDsmHandler, Bagira.Common.Orchestration.ITickableDsmHandler
     {
         private readonly CheckpointIOWorker          _worker;
         private readonly EntityRepository?           _liveRepo;
@@ -96,9 +97,8 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
             {
                 TransactionId  = cmd.TransactionId,
                 NodeId         = _nodeId,
-                Status         = OpStatus.InProgress,
+                StatusCode     = OrchestrationStatusCode.InProgress,
                 IsParticipating = true,
-                ErrorCode      = 0,
                 ResultJson     = string.Empty,
             });
             FdpLog<CheckpointDsmHandler>.Info(
@@ -131,9 +131,8 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
                 {
                     TransactionId  = cmd.TransactionId,
                     NodeId         = _nodeId,
-                    Status         = OpStatus.Failure,
+                    StatusCode     = OrchestrationStatusCode.Timeout,
                     IsParticipating = true,
-                    ErrorCode      = 1,
                     ResultJson     = string.Empty,
                 });
                 return;
@@ -166,19 +165,18 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         {
             foreach (var (requestId, success) in _worker.TakeCompletedResults())
             {
-                var status = success ? OpStatus.Success : OpStatus.Failure;
+                var statusCode = success ? OrchestrationStatusCode.Success : OrchestrationStatusCode.Timeout;
                 _statusWriter?.Write(new NodeOpStatus
                 {
                     TransactionId  = requestId,
                     NodeId         = _nodeId,
-                    Status         = status,
+                    StatusCode     = statusCode,
                     IsParticipating = true,
-                    ErrorCode      = success ? 0 : 3,
                     ResultJson     = string.Empty,
                 });
                 FdpLog<CheckpointDsmHandler>.Info(
                     "[SimHost] CheckpointDsmHandler: deferred ACK published — request {0} → {1}.",
-                    requestId, status);
+                    requestId, statusCode);
             }
         }
     }

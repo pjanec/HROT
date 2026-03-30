@@ -7,6 +7,7 @@ using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Common.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Scenario;
 
 namespace Bagira.CGF.Modules.Orchestration.Handlers
@@ -37,7 +38,7 @@ namespace Bagira.CGF.Modules.Orchestration.Handlers
     /// the ACK is silently skipped.
     /// </para>
     /// </summary>
-    public sealed class StoryLoadDsmHandler : IDsmHandler
+    public sealed class StoryLoadDsmHandler : Bagira.Common.Orchestration.IDsmHandler
     {
         private const string DefaultLocalTempRoot = @"C:\FDP_Temp";
 
@@ -207,9 +208,8 @@ namespace Bagira.CGF.Modules.Orchestration.Handlers
             {
                 TransactionId  = transactionId,
                 NodeId         = _nodeId,
-                Status         = OpStatus.Success,
+                StatusCode     = OrchestrationStatusCode.Success,
                 IsParticipating = isParticipating,
-                ErrorCode      = 0,
                 ResultJson     = string.Empty,
             });
         }

@@ -20,6 +20,14 @@ namespace Bagira.Common.Orchestration
     /// (Bagira application layer).  This event therefore lives in <c>Bagira.Common</c>
     /// rather than in any <c>FDP/</c> project.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Migration note (Phase 4):</b> The preferred toolkit-level equivalent is
+    /// <c>FDP.Toolkit.Orchestration.TkDsmStateChangedEvent</c> — which uses generic
+    /// integer state IDs and has no dependency on <c>DSMState</c>.  The Bagira wiring
+    /// layer forwards <c>TkDsmStateChangedEvent</c> to this event for backward
+    /// compatibility with existing Bagira subscribers.
+    /// </para>
     /// </summary>
     [EventId(7001)]
     public struct DsmStateChangedEvent

@@ -22,11 +22,6 @@ namespace Bagira.BDC.SSTD.Orchestration
         PrefetchScenario = 12,
     }
 
-    public enum OpStatus : int
-    {
-        Pending = 0, InProgress = 1, Success = 2, Failure = 3, Rejected = 4
-    }
-
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="SysOpType.ReplaySeek"/>.</summary>
     public enum NodeOpType : int
     {
@@ -70,8 +65,7 @@ namespace Bagira.BDC.SSTD.Orchestration
     public partial struct SysOpStatus
     {
         public Guid RequestId;
-        public OpStatus Status;
-        public int ErrorCode;
+        public int StatusCode;
         [DdsManaged] public string ResultJson;
     }
 
@@ -99,9 +93,8 @@ namespace Bagira.BDC.SSTD.Orchestration
     {
         public Guid TransactionId;
         public int NodeId;
-        public OpStatus Status;
+        public int StatusCode;
         public bool IsParticipating;
-        public int ErrorCode;
         [DdsManaged] public string ResultJson;
     }
 

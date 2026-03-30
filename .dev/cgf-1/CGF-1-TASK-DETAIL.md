@@ -1344,3 +1344,490 @@ adds both.
 - `DsmE2eScriptTests.OverlappingCheckpoints_Passes`:
   - Run `e2e_overlapping_checkpoints.json` in-process.
   - Assert `TestResult.Pass` (both checkpoints acknowledged; entity state intact).
+
+---
+
+## Phase 4 — Generalization: FDP Toolkit Orchestration
+
+**Goal:** Lift the reusable orchestration engine — `IDsmHandler`, the `DrillSlave`
+dispatch loop, the BFS `TransitionPlanner`, and all reference handler implementations
+— out of the Bagira application layer into `FDP.Toolkit.Orchestration`, so any FDP
+application can participate in a 2PC state machine without copying Bagira infrastructure.
+
+**Design authority:** [CGF-1-GENERALIZATION.md](./CGF-1-GENERALIZATION.md)
+
+---
+
+### CGF1-G0401 — FDP.Toolkit.Orchestration Core Contracts
+
+**Design ref:** [§4 — New Project: FDP.Toolkit.Orchestration](./CGF-1-GENERALIZATION.md#4-new-project-fdptoolkitorchestration)
+
+**Context:** `IDsmHandler` and `ITickableDsmHandler` currently live in
+`Bagira.Common.Orchestration`, which violates the architectural goal of a reusable
+FDP toolkit. This task creates the new project, moves the core interfaces, and adds
+the new abstraction contracts (`IOrchestrationTransport`, `ITransitionGraph`,
+`IScenarioStorageProvider`) alongside the toolkit-level plain value types
+(`OrchestrationCommand`, `OrchestrationStatus`, `TkDsmStateChangedEvent`).
+
+**Work to do:**
+
+1. Create `FDP/Toolkits/FDP.Toolkit.Orchestration/FDP.Toolkit.Orchestration.csproj`
+   referencing `Fdp.Kernel`, `FDP.Toolkit.Scenario`, `FDP.Toolkit.Replay`, and
+   `ModuleHost.Core`. No `Bagira.*` or `CycloneDDS.*` references are permitted.
+
+2. Move `IDsmHandler` (verbatim) from
+   `Bagira.Common/Orchestration/IDsmHandler.cs` → new project under
+   `FDP/Toolkits/FDP.Toolkit.Orchestration/IDsmHandler.cs`, changing the namespace to
+   `FDP.Toolkit.Orchestration`. Rename the `CanHandle` parameter from `NodeOpType op`
+   to `int operationId`. Update the XML doc to note that callers may cast `operationId`
+   back to their specific enum type.
+
+3. Move `ITickableDsmHandler` similarly to `FDP.Toolkit.Orchestration`.
+
+4. Add to the new project:
+   - `OrchestrationCommand` — `readonly record struct` with `Guid TransactionId`,
+     `int TargetNodeId`, `int OperationId`, `string PayloadJson`.
+   - `OrchestrationStatus` — `readonly record struct` with `Guid TransactionId`,
+     `int NodeId`, `int StatusCode` (unified — see §4.2.1 of the generalization addendum),
+     `bool IsParticipating`, `string ResultJson`. **No separate `ErrorCode` field.**
+   - `OrchestrationStatusCode` — `static class` with named constants:
+     `Success=0`, `InProgress=1`, `Pending=2`, `Rejected=10`, `Timeout=11`,
+     `Cancelled=12`, `InvalidZone=101`, `ExerciseMismatch=102`,
+     `OutOfMemory=1000`, `AssetNotFound=1001`; helper `static bool IsError(int)`.
+     **Rationale:** `0` is the C# default for uninitialized `int` fields, so a
+     zero-initialised wire struct naturally means «OK» — consistent with
+     `SstStatusCode` already in use across Bagira DDS messages.
+   - Update `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs`:
+     remove `OpStatus` enum, replace `OpStatus Status` + `int ErrorCode` fields in
+     `NodeOpStatus` and `SysOpStatus` with a single `int StatusCode`.
+   - `IOrchestrationTransport` — interface with `PublishHeartbeat(int, string, int,
+     long)`, `PublishStatus(OrchestrationStatus)`, `bool TryDequeueCommand(out
+     OrchestrationCommand)`, inherits `IDisposable`.
+   - `ITransitionGraph` — interface with `IReadOnlyList<int> GetNeighbors(int)` and
+     `IReadOnlyList<int> AllStates`.
+   - `TransitionGraphBuilder` — fluent builder implementing `AddState(int, string)`,
+     `AddTransition(int, int)`, `Build() → ITransitionGraph`.
+   - `IScenarioStorageProvider` — interface with `Stream? OpenScenarioFile(string,
+     string)`, `string EnsureStagingDirectory(string)`,
+     `IEnumerable<string> EnumerateScenarioFiles(string)`.
+   - `TkDsmStateChangedEvent` — unmanaged `[EventId(7002)] struct` with
+     `int PreviousStateId`, `int NextStateId`.
+
+5. Update all Bagira `using` directives: replace
+   `using Bagira.Common.Orchestration;` with
+   `using FDP.Toolkit.Orchestration;` in every file that references `IDsmHandler`
+   or `ITickableDsmHandler`. Leave `Bagira.Common.Orchestration` namespace intact
+   (do not rename the `.cs` files) — only the `IDsmHandler.cs` stub, which already
+   contains only a comment, is left in place.
+
+6. Leave `Bagira.Common.Orchestration.DsmStateChangedEvent` unchanged; add a
+   comment referencing the toolkit's `TkDsmStateChangedEvent` as the preferred
+   new type.
+
+**Success conditions:**
+
+- `Fact: FDP.Toolkit.Orchestration project builds` — solution builds with zero
+  errors after the move; no `Bagira.*` type appears in the new project's source.
+
+- `Fact: All Bagira handler files still compile` — every existing `IDsmHandler`
+  implementation compiles after the using-directive update with no changes to
+  logic.
+
+- `Fact: OrchestrationCommand round-trips through JSON` — a simple unit test in
+  `FDP.Toolkit.Orchestration.Tests` constructs an `OrchestrationCommand`, serialises
+  to JSON, deserialises, and asserts field equality.
+
+- `Fact: TransitionGraphBuilder builds valid graph` — a unit test calls
+  `AddTransition(0, 1).AddTransition(1, 2).Build()`, then asserts
+  `GetNeighbors(0)` returns `[1]` and `GetNeighbors(1)` returns `[2]`.
+
+- `Fact: Unified status code scheme` — unit test asserts
+  `OrchestrationStatusCode.IsError(OrchestrationStatusCode.Success) == false`,
+  `OrchestrationStatusCode.IsError(OrchestrationStatusCode.Rejected) == true`,
+  `OrchestrationStatusCode.IsError(1001) == true`.
+
+- `Fact: DDS NodeOpStatus has single StatusCode field` — `NodeOpStatus` IDL struct
+  compiles with a `StatusCode int` field; any reference to the removed `OpStatus`
+  enum or `ErrorCode` field produces a build error (verified by grepping for
+  `OpStatus` in `OrchestrationMessages.cs` returning zero matches).
+
+---
+
+### CGF1-G0402 — Generic DrillSlave + DdsOrchestrationTransport
+
+**Design ref:** [§4.3](./CGF-1-GENERALIZATION.md#43-generic-drillslave) and
+[§5.1](./CGF-1-GENERALIZATION.md#51-ddsorchestrationtransport)
+
+**Depends on:** CGF1-G0401
+
+**Context:** There are four near-identical `DrillSlave` classes across
+`Bagira.SimHost`, `Bagira.CGF`, `Bagira.IG`, and `Bagira.IOS`. The SimHost version
+is the most complete (async-prepare deferral, `ITickableDsmHandler` poll, EventBus,
+deduplication). This task consolidates them into a single generic implementation in
+`FDP.Toolkit.Orchestration`, implements `DdsOrchestrationTransport` in
+`Bagira.Common`, and replaces all four application-layer copies.
+
+**Work to do:**
+
+1. Implement `FDP.Toolkit.Orchestration.DrillSlave` following the contract in
+   §4.3 of the generalization addendum:
+   - Two constructors: production (takes `IOrchestrationTransport`, `int nodeId`,
+     `string subsystemName`, `FdpEventBus?`) and test-only `internal DrillSlave(FdpEventBus?)`.
+   - `RegisterHandler(IDsmHandler)`, `IsHandlerRegistered<T>()`,
+     `IReadOnlyList<IDsmHandler> RegisteredHandlers`.
+   - `Tick()`: publishes heartbeat via transport every 1 s; polls
+     `ITickableDsmHandler.DrainDeferredAcks()`; processes `_pendingPrepare` if
+     active; dequeues and dispatches via `TryDequeueCommand`.
+   - `DispatchCommand()`: on `CommitState` updates `_localStateId` and publishes
+     `TkDsmStateChangedEvent` via eventBus; on other ops delegates
+     async-prepare + commit/defer using the BATCH-18 pattern.
+   - Duplicate `TransactionId` deduplication (same `HashSet<Guid>` pattern).
+   - `internal void EnqueueCommandForTest(OrchestrationCommand cmd)` for unit tests.
+   - `internal int LocalStateIdForTest { get; }`.
+
+2. Implement `Bagira.Common.Orchestration.DdsOrchestrationTransport : IOrchestrationTransport`
+   following §5.1 of the addendum:
+   - Constructor `(DdsParticipant participant, int nodeId)`.
+   - `PublishHeartbeat` → writes `NodeHeartbeat`.
+   - `PublishStatus` → writes `NodeOpStatus` (cast `OrchestrationStatus` fields to
+     Bagira DDS types).
+   - `TryDequeueCommand` → dequeues from an internal `ConcurrentQueue<OrchestrationCommand>`.
+   - Background `Thread` listener reads `NodeOpCommand`, maps to
+     `OrchestrationCommand`, enqueues.
+   - `Dispose` cancels listener and joins thread.
+
+3. Add wiring helper in `Bagira.Common` (or in each subsystem app):
+   Register a forwarder so that `TkDsmStateChangedEvent` published by the toolkit
+   DrillSlave gets picked up and re-published as `DsmStateChangedEvent { DSMState }`:
+   ```csharp
+   eventBus.Register<TkDsmStateChangedEvent>();
+   // Forwarder registered on the event bus subscription path
+   ```
+   The exact subscription API is at the implementer's discretion; the invariant is
+   that `DsmStateChangedEvent` consumers in Bagira still work without change.
+
+4. Replace the four application-layer DrillSlave copies with wiring to the toolkit:
+   - `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs` → delete (replace with a
+     `using alias` or remove class entirely; `NodeBootstrapper` now uses toolkit type).
+   - `Bagira.CGF/Modules/Orchestration/DrillSlave.cs` → delete; `CgfApplication`
+     switches to toolkit `DrillSlave`.
+   - `Bagira.IG/Modules/Orchestration/DrillSlave.cs` → delete; `IgApplication`
+     switches to toolkit.
+   - `Bagira.IOS/Orchestration/DrillSlave.cs` → delete; `IosSubsystem` switches to
+     toolkit.
+   - All existing unit and integration tests that use
+     `new DrillSlave()` (test constructor) must be updated to use
+     `new FDP.Toolkit.Orchestration.DrillSlave()`.
+
+**Success conditions:**
+
+- `Fact: Toolkit DrillSlave dispatches PrepareAsync + Commit` — unit test with a stub
+  `IDsmHandler` verifies `Commit` is called after `PrepareAsync` completes; a second
+  test confirms Commit is deferred one tick when `PrepareAsync` returns an incomplete
+  task.
+
+- `Fact: Toolkit DrillSlave deduplicates transactions` — two commands with the same
+  `TransactionId` are enqueued; handler's `PrepareAsync` call count is 1 (second
+  dropped).
+
+- `Fact: TkDsmStateChangedEvent published on CommitState` — inject event bus; send
+  CommitState(nextState=5); assert `TkDsmStateChangedEvent { PreviousStateId=0,
+  NextStateId=5 }` was published.
+
+- `Fact: DdsOrchestrationTransport delivers commands to DrillSlave` — integration
+  test sends a `NodeOpCommand` DDS sample addressed to nodeId; asserts the toolkit
+  DrillSlave receives it within 2 s (`Timeout=5000`).
+
+- `Fact: All existing DrillSlave-based integration tests still pass` — run the full
+  `Bagira.SimHost.Integration.Tests` suite and confirm no regressions.
+
+---
+
+### CGF1-G0403 — Generalize TransitionPlanner with ITransitionGraph
+
+**Design ref:** [§4.4](./CGF-1-GENERALIZATION.md#44-itransitiongraph-and-transitiongraphbuilder)
+and [§5.3](./CGF-1-GENERALIZATION.md#53-bagirastrategraph)
+
+**Depends on:** CGF1-G0401
+
+**Context:** `TransitionPlanner` in `Bagira.Orchestrator` contains a hardcoded
+`static readonly Dictionary<DSMState, DSMState[]>` adjacency dictionary. The BFS
+algorithm itself has no Bagira dependencies — it operates purely on integers. This task
+extracts the planner into the FDP toolkit, adds `TransitionGraphBuilder`, and introduces
+`BagiraStateGraph` as the Bagira-specific state graph definition.
+
+**Work to do:**
+
+1. Move `TransitionPlanner` from `Bagira.Orchestrator/TransitionPlanner.cs` to
+   `FDP/Toolkits/FDP.Toolkit.Orchestration/TransitionPlanner.cs`:
+   - Change constructor to `TransitionPlanner(ITransitionGraph graph)`.
+   - Change `CalculateShortestPath(DSMState from, DSMState to)` to
+     `CalculateShortestPath(int fromStateId, int toStateId)` returning
+     `IReadOnlyList<int>`.
+   - The BFS algorithm itself needs no changes; only the type signatures and the
+     adjacency source change.
+   - Remove the hardcoded `_adjacency` dictionary entirely.
+
+2. Create `Bagira.Orchestrator/BagiraStateGraph.cs`:
+   - Static class `BagiraStateGraph` with `static ITransitionGraph Build()`.
+   - Calls `TransitionGraphBuilder` with all valid `DSMState` edges that were
+     previously hardcoded in `TransitionPlanner._adjacency`.
+
+3. Update `Bagira.Orchestrator/DrillMaster.cs`:
+   - Replace the direct `new TransitionPlanner()` call with
+     `new TransitionPlanner(BagiraStateGraph.Build())`.
+   - Update call sites that passed `DSMState` enum values to cast to `int`;
+     update call sites that received `IReadOnlyList<DSMState>` paths to
+     `IReadOnlyList<int>`.
+
+4. Add `FDP.Toolkit.Orchestration` project reference to `Bagira.Orchestrator.csproj`.
+
+**Success conditions:**
+
+- `Fact: TransitionPlanner lives only in FDP toolkit` — `grep` / Roslyn analysis
+  shows `TransitionPlanner` in `FDP.Toolkit.Orchestration` namespace only; no copy
+  in `Bagira.Orchestrator`.
+
+- `Fact: BFS path preserved` — unit test constructs a `BagiraStateGraph.Build()`
+  derived graph and calls `CalculateShortestPath((int)DSMState.Standby,
+  (int)DSMState.RunningLive)`, asserts the returned path passes through the same
+  intermediate states as the prior `TransitionPlannerTests` verified.
+
+- `Fact: All existing TransitionPlanner unit tests pass` — migrate
+  `Bagira.Orchestrator.Tests/TransitionPlannerTests.cs` to use the toolkit type;
+  all previously-passing tests remain green.
+
+- `Fact: DrillMaster uses BagiraStateGraph` — `DrillMaster` constructs
+  `TransitionPlanner` from `BagiraStateGraph.Build()`; no direct reference to
+  `DSMState` inside `TransitionPlanner.cs`.
+
+---
+
+### CGF1-G0404 — Reference Scenario, Story, and Prefetch Handlers
+
+**Design ref:** [§4.7](./CGF-1-GENERALIZATION.md#47-reference-handler-catalogue),
+[§4.5](./CGF-1-GENERALIZATION.md#45-iscenariосtorageprovider),
+[§5.2](./CGF-1-GENERALIZATION.md#52-localdiskstorageprovider)
+
+**Depends on:** CGF1-G0401, CGF1-G0402
+
+**Context:** `PrefetchFilesDsmHandler`, `ScenarioLoadDsmHandler`, `EditLoadDsmHandler`,
+and `StoryLoadDsmHandler` exist in `Bagira.SimHost` (complete) and a subset in
+`Bagira.CGF` (header-peek-only variants). The duplicated CGF variants show the
+maintenance burden. Introducing `IScenarioStorageProvider` lets the handlers become
+FDP types, covering both subsystem variants with a single parameterized implementation.
+
+**Work to do:**
+
+1. Add `Bagira.Common/Orchestration/LocalDiskStorageProvider.cs` implementing
+   `IScenarioStorageProvider` as described in §4.5 of the addendum. The
+   `localTempRoot` defaults to `@"C:\FDP_Temp"`.
+
+2. Migrate `PrefetchFilesDsmHandler` →
+   `FDP.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler`:
+   - Replace `DdsWriter<NodeOpStatus>?` parameter with `IOrchestrationTransport?`.
+   - Replace raw `string localTempRoot` parameter with `IScenarioStorageProvider`.
+   - Call `storageProvider.EnsureStagingDirectory(scenarioId)` in `PrepareAsync`.
+   - Call `transport?.PublishStatus(...)` in `Commit`.
+
+3. Migrate `ScenarioLoadDsmHandler` (SimHost variant) →
+   `FDP.Toolkit.Orchestration.Handlers.ReferenceScenarioLoadHandler`:
+   - Constructor: `(ScenarioSerializer, IScenarioStorageProvider, EntityRepository?)`.
+   - Use `storageProvider.EnumerateScenarioFiles(scenarioId)` and
+     `storageProvider.OpenScenarioFile(scenarioId, fileName)` instead of
+     `Directory.GetFiles` / `File.ReadAllText`.
+   - The CGF "header-peek-only" path is a natural specialisation: when
+     `EntityRepository? world == null`, `Commit` skips `Deserialize` (exactly what
+     the CGF variant did). This eliminates the need for a separate CGF copy.
+
+4. Migrate `EditLoadDsmHandler` →
+   `FDP.Toolkit.Orchestration.Handlers.ReferenceEditLoadHandler`:
+   - Same `IScenarioStorageProvider` substitution.
+
+5. Migrate `StoryLoadDsmHandler` (both SimHost and CGF variants) →
+   `FDP.Toolkit.Orchestration.Handlers.ReferenceStoryLoadHandler`:
+   - Constructor: `(ScenarioSerializer, IScenarioStorageProvider, EntityRepository?,
+     IOrchestrationTransport?, int nodeId)`.
+   - When `EntityRepository? world == null`, the handler behaves as the CGF
+     header-peek-only path (no entity operations, participates based on type match).
+
+6. Update `Bagira.SimHost/NodeBootstrapper.BuildOrchestration`: replace all four
+   handler instantiations with their `Reference*` equivalents; inject
+   `new LocalDiskStorageProvider(localTempRoot)` and `transport`.
+
+7. Update `Bagira.CGF/CgfApplication`: inject `LocalDiskStorageProvider` and
+   `transport` into the relevant handlers; delete the duplicate CGF-specific
+   `ScenarioLoadDsmHandler` and `StoryLoadDsmHandler` files.
+
+8. Add `FDP.Toolkit.Orchestration` project reference to `Bagira.SimHost.csproj`,
+   `Bagira.CGF.csproj`, `Bagira.IOS.csproj`.
+
+**Success conditions:**
+
+- `Fact: ReferencePrefetchHandler ACKs via transport` — unit test injects a mock
+  `IOrchestrationTransport`; runs Prepare + Commit; asserts `PublishStatus` was
+  called with `StatusCode = OrchestrationStatusCode.Success`.
+
+- `Fact: ReferenceScenarioLoadHandler loads entities` — unit test seeds a temp dir
+  with a valid scenario JSON (same format as existing `ScenarioLoadDsmHandler`
+  tests); constructs a real `ScenarioSerializer` + `LocalDiskStorageProvider`;
+  runs Prepare + Commit; asserts entities were spawned in `EntityRepository`.
+
+- `Fact: ReferenceScenarioLoadHandler no-ops for non-matching subsystem` — a JSON
+  file with a different `SubsystemType` causes Prepare + Commit to be no-ops;
+  no entities spawned.
+
+- `Fact: ReferenceStoryLoadHandler ECS-less path participates but spawns nothing` —
+  pass `world = null`; call Prepare(`StartStory`); assert
+  `IsParticipatingForTest == true` when type matches, `false` otherwise.
+
+- `Fact: All existing scenario handler unit tests pass` — migrate all test files in
+  `Bagira.SimHost.Tests` that reference `ScenarioLoadDsmHandler`,
+  `EditLoadDsmHandler`, `StoryLoadDsmHandler`, `PrefetchFilesDsmHandler` to use
+  the new `Reference*` names; all tests remain green.
+
+---
+
+### CGF1-G0405 — Reference DryRun, Checkpoint, and RecordReplay Handlers
+
+**Design ref:** [§4.7 — Reference Handler Catalogue](./CGF-1-GENERALIZATION.md#47-reference-handler-catalogue)
+
+**Depends on:** CGF1-G0401, CGF1-G0402, CGF1-G0404
+
+**Context:** `DryRunDsmHandler` is already in `Bagira.Common` — one step from
+FDP. `CheckpointDsmHandler`, `LiveLoadDsmHandler`, and `ReplayLoadDsmHandler` are
+SimHost-specific but all depend only on FDP toolkit types (`EntityRepository`,
+`FDP.Toolkit.Replay.*`, `ModuleHost.Core.*`). This task moves them to the toolkit
+and relocates `CheckpointIOWorker` (which has no Bagira dependencies) to join them.
+
+**Work to do:**
+
+1. Relocate `Bagira.SimHost/Modules/Orchestration/CheckpointIOWorker.cs` →
+   `FDP/Toolkits/FDP.Toolkit.Orchestration/CheckpointIOWorker.cs`. Update
+   namespace to `FDP.Toolkit.Orchestration`. Update the `using` in `Bagira.SimHost`
+   sources that reference it.
+
+2. Migrate `DryRunDsmHandler` from `Bagira.Common/Orchestration/Handlers/` →
+   `FDP.Toolkit.Orchestration.Handlers.ReferenceDryRunHandler`:
+   - Rename class; update namespace. No logic changes needed.
+   - Leave `Bagira.Common/Orchestration/Handlers/DryRunDsmHandler.cs` as a one-line
+     empty stub with a migration comment (preserves git history).
+
+3. Migrate `CheckpointDsmHandler` →
+   `FDP.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler`:
+   - Replace `DdsWriter<NodeOpStatus>?` with `IOrchestrationTransport?`.
+   - `PrepareAsync` calls `transport?.PublishStatus(InProgress)`.
+   - `DrainDeferredAcks` calls `transport?.PublishStatus(Success/Failure)`.
+
+4. Migrate `LiveLoadDsmHandler` →
+   `FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler`:
+   - Replace `DrillSlave slave` (the Bagira type) with the toolkit `DrillSlave`.
+   - The existing call `_slave.PublishDsmStateChanged(...)` becomes a no-op since
+     the toolkit DrillSlave publishes `TkDsmStateChangedEvent` automatically on
+     `CommitState`. Remove that guard call; the `_eventBus.Publish` guard in
+     `Commit` can also be removed as the state-change event is already published.
+     If an explicit redundant guard is desired, publish `TkDsmStateChangedEvent`
+     directly on the bus.
+
+5. Migrate `ReplayLoadDsmHandler` →
+   `FDP.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler`:
+   - Replace `DdsWriter<NodeOpStatus>?` with `IOrchestrationTransport?`.
+   - Call `transport?.PublishStatus(...)` instead of `_statusWriter?.Write(...)`.
+
+6. Update `Bagira.SimHost/NodeBootstrapper.BuildOrchestration` to use all five
+   renamed `Reference*` handlers from the toolkit.
+
+7. Register `FDP.Toolkit.Orchestration` as a project reference in
+   `Bagira.SimHost.csproj` (if not already added in G0404).
+
+**Success conditions:**
+
+- `Fact: ReferenceCheckpointHandler publishes InProgress then Success` — unit test
+  with a real `CheckpointIOWorker` (temp dir) and mock transport; calls Prepare
+  + Commit; calls `DrainDeferredAcks` in a polling loop until the background write
+  completes; asserts transport received `InProgress` then `Success` for the same
+  `TransactionId`.
+
+- `Fact: ReferenceDryRunHandler rewrites live repo` — existing `DryRunDsmHandler`
+  tests (renamed to `ReferenceDryRunHandlerTests`) stay green with only a name
+  substitution; logic unchanged.
+
+- `Fact: ReferenceLiveLoadHandler starts recording on PrepareLive` — inject mock
+  `EcsRecordReplayController`; call PrepareAsync(PrepareLive); assert
+  `PrepareRecordingAsync` was called once.
+
+- `Fact: ReferenceReplayLoadHandler publishes MaxNetworkId status` — inject mock
+  `EcsRecordReplayController` returning `MaxNetworkId=42`; call
+  PrepareAsync(PrepareReplay); assert transport received a `Success` status with
+  `ResultJson` containing `"MaxNetworkId":42`.
+
+- `Fact: All existing SimHost handler integration tests pass` — the full
+  `Bagira.SimHost.Integration.Tests` suite stays green after the renames.
+
+---
+
+### CGF1-G0406 — Final Wiring Cleanup and CI Validation
+
+**Design ref:** [§7 — Migration Playbook](./CGF-1-GENERALIZATION.md#7-migration-playbook)
+and [§8 — Files Deleted vs Retained](./CGF-1-GENERALIZATION.md#8-files-deleted-vs-retained)
+
+**Depends on:** CGF1-G0401 through CGF1-G0405
+
+**Context:** Tasks G0401–G0405 perform the mechanical moves. This cleanup task
+eliminates all dead code, verifies the architectural layer boundary is intact, and
+ensures no test regression has been introduced across the full solution.
+
+**Work to do:**
+
+1. Delete all Bagira application-layer source files whose functionality has been
+   superseded by FDP toolkit reference implementations (see §8 of the addendum).
+   Specifically:
+   - `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`
+   - `Bagira.CGF/Modules/Orchestration/DrillSlave.cs`
+   - `Bagira.IG/Modules/Orchestration/DrillSlave.cs`
+   - `Bagira.IOS/Orchestration/DrillSlave.cs`
+   - `Bagira.SimHost/Modules/Orchestration/IDsmHandler.cs` (was already a stub)
+   - `Bagira.SimHost/Modules/Orchestration/Handlers/PrefetchFilesDsmHandler.cs`
+   - `Bagira.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
+   - `Bagira.SimHost/Modules/Orchestration/Handlers/EditLoadDsmHandler.cs`
+   - `Bagira.SimHost/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs`
+   - `Bagira.SimHost/Modules/Orchestration/Handlers/CheckpointDsmHandler.cs`
+   - `Bagira.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs`
+   - `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
+   - `Bagira.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
+   - `Bagira.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs`
+   - `Bagira.Orchestrator/TransitionPlanner.cs`
+
+2. Verify no `FDP.Toolkit.*` project contains a `using Bagira.*` directive:
+   - Run `rg "using Bagira\." FDP/` in the terminal; assert zero matches.
+
+3. Update `IOS-IG-SimHost.sln` to include the new
+   `FDP.Toolkit.Orchestration.csproj`.
+
+4. Run the full solution build (`dotnet build IOS-IG-SimHost.sln`) and assert
+   zero warnings of type CS0234 (missing type), CS0246 (type not found), or
+   CS0535 (interface not fully implemented).
+
+5. Run the full test suite (`dotnet test IOS-IG-SimHost.sln`); assert all tests pass.
+   Failures are P1 blockers for this task.
+
+6. Update `CGF-1-DESIGN.md` §6 (New Projects & File Map) to include
+   `FDP.Toolkit.Orchestration` and its contained files.
+
+**Success conditions:**
+
+- `Fact: No Bagira.* references in FDP.Toolkit.Orchestration` — `dotnet build`
+  produces zero dependency-layer-violation warnings; a Roslyn analysis
+  (`FDP.*` projects have no `<ProjectReference>` to `Bagira.*`) confirms clean
+  separation.
+
+- `Fact: Solution builds with zero new warnings` — `dotnet build --no-incremental
+  IOS-IG-SimHost.sln` exits 0.
+
+- `Fact: Full test suite green` — `dotnet test IOS-IG-SimHost.sln` exits 0; all
+  tests that existed before Phase 4 still pass; new tests added in G0401–G0405
+  also pass.
+
+- `Fact: DrillSlave class count = 1` — a grep of the solution source for
+  `public sealed class DrillSlave` returns exactly one match in
+  `FDP.Toolkit.Orchestration`.

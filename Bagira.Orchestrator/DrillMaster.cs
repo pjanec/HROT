@@ -5,6 +5,7 @@ using System.Threading;
 using Bagira.BDC.SSTD.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Orchestration;
 using ModuleHost.Network.Cyclone.Services;
 
 namespace Bagira.Orchestrator;
@@ -106,10 +107,36 @@ public sealed class DrillMaster : IDisposable
 
     private sealed class BranchTransitionTask { public int RemainingAcks; }
 
+    // ── Story 2PC (CGF1-S0308 / BATCH-21 Part A.1) ───────────────────────
+    /// <summary>
+    /// Tracks an in-progress <see cref="SysOpType.ManageStory"/> fan-out waiting for
+    /// all targeted nodes to ACK with <see cref="NodeOpStatus"/>.
+    /// <para>
+    /// Policy: every ACK — whether <c>IsParticipating == true</c> or <c>false</c> —
+    /// counts as the node's response.  When <see cref="RemainingNodeIds"/> is empty
+    /// the story set is updated and the operation is considered complete.
+    /// </para>
+    /// </summary>
+    private sealed class ManageStoryTask
+    {
+        public Guid        RequestId;
+        public bool        IsStart;
+        public Guid        StoryId;
+        /// <summary>Node IDs that still owe an ACK for this transaction.</summary>
+        public HashSet<int> RemainingNodeIds = new();
+    }
+
+    /// <summary>
+    /// Active ManageStory fan-outs keyed by <see cref="NodeOpCommand.TransactionId"/>.
+    /// Entries are removed once all targeted nodes have ACKed (see
+    /// <see cref="ConsumeNodeOpStatuses"/>).
+    /// </summary>
+    private readonly Dictionary<Guid, ManageStoryTask> _pendingManageStoryTasks = new();
+
     // ── Current DSM state (tracked here so the planner can compute relative paths) ─
     /// <summary>
     /// Optimistic cluster DSM state used as the <c>current</c> argument to
-    /// <see cref="TransitionPlanner.PlanTrajectory"/>.
+    /// <see cref="DrillMasterPlanner.PlanTrajectory"/>.
     ///
     /// <para><b>Update rule (Phase 2.0 — optimistic):</b> Whenever a
     /// <see cref="SysOpType.TransitionState"/> request is <em>accepted</em> (plan
@@ -128,7 +155,7 @@ public sealed class DrillMaster : IDisposable
     private DSMState _currentDsmState = DSMState.Standby;
 
     // ── Transition planner (CGF1-S0201) ─────────────────────────────────────
-    private readonly TransitionPlanner _planner = new();
+    private readonly DrillMasterPlanner _planner = new DrillMasterPlanner(BagiraStateGraph.Build());
 
     // ── 2PC history ring buffer (CGF1-S0105) ─────────────────────────────
     private readonly DistributedTransaction[] _history;
@@ -407,8 +434,7 @@ public sealed class DrillMaster : IDisposable
                 _sysOpStatusWriter.Write(new SysOpStatus
                 {
                     RequestId  = req.RequestId,
-                    Status     = OpStatus.Rejected,
-                    ErrorCode  = 0,
+                    StatusCode = OrchestrationStatusCode.Rejected,
                     ResultJson = string.Empty
                 });
                 continue;
@@ -534,8 +560,7 @@ public sealed class DrillMaster : IDisposable
                     _sysOpStatusWriter.Write(new SysOpStatus
                     {
                         RequestId  = req.RequestId,
-                        Status     = OpStatus.Failure,
-                        ErrorCode  = 1,
+                        StatusCode = OrchestrationStatusCode.Rejected + 1,  // Failure=11 (Timeout range)
                         ResultJson = string.Empty
                     });
                     continue;
@@ -600,7 +625,9 @@ public sealed class DrillMaster : IDisposable
                     {
                         if (step is OperationStep { Operation: SysOpType.PrefetchScenario } prefetch)
                         {
-                            ExecutePrefetchScenario(prefetch.PayloadJson, req.RequestId);
+                            // Skip silently when no storage gateway is present (e.g. unit tests).
+                            if (_gateway != null)
+                                ExecutePrefetchScenario(prefetch.PayloadJson, req.RequestId);
                         }
                         else if (step is OperationStep { Operation: SysOpType.ManageStory } manageStep)
                         {
@@ -608,8 +635,8 @@ public sealed class DrillMaster : IDisposable
                             bool isStart = string.Equals(storyMode, "Start", StringComparison.OrdinalIgnoreCase);
                             var nodeOp   = isStart ? NodeOpType.StartStory : NodeOpType.StopStory;
 
-                            var txId     = Guid.NewGuid();
-                            var nodeIds  = new List<int>(_roster.ActiveNodes.Keys);
+                            var txId    = Guid.NewGuid();
+                            var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
                             FanOutNodeOp(new NodeOpCommand
                             {
                                 TransactionId = txId,
@@ -617,16 +644,32 @@ public sealed class DrillMaster : IDisposable
                                 PayloadJson   = manageStep.PayloadJson,
                             }, nodeIds);
 
-                            // Update in-memory active story set.
+                            // 2PC (BATCH-21 Part A.1): defer _activeStories update until all
+                            // targeted nodes have ack-ed.  When there are no nodes, update
+                            // immediately (no ACKs will arrive).
                             if (storyId != Guid.Empty)
                             {
-                                if (isStart) _activeStories.Add(storyId);
-                                else         _activeStories.Remove(storyId);
+                                if (nodeIds.Count > 0)
+                                {
+                                    _pendingManageStoryTasks[txId] = new ManageStoryTask
+                                    {
+                                        RequestId        = req.RequestId,
+                                        IsStart          = isStart,
+                                        StoryId          = storyId,
+                                        RemainingNodeIds = new HashSet<int>(nodeIds),
+                                    };
+                                }
+                                else
+                                {
+                                    // No targeted nodes — update immediately.
+                                    if (isStart) _activeStories.Add(storyId);
+                                    else         _activeStories.Remove(storyId);
+                                }
                             }
 
                             FdpLog<DrillMaster>.Info(
                                 "[Orchestrator] ManageStory {0}: story {1} → {2} to {3} node(s).",
-                                storyMode, storyId, nodeOp, nodeIds.Count);
+                                storyMode ?? "?", storyId, nodeOp, nodeIds.Count);
                         }
                     }
                 }
@@ -638,8 +681,7 @@ public sealed class DrillMaster : IDisposable
                     _sysOpStatusWriter.Write(new SysOpStatus
                     {
                         RequestId  = req.RequestId,
-                        Status     = OpStatus.Rejected,
-                        ErrorCode  = 2,
+                        StatusCode = OrchestrationStatusCode.Rejected,
                         ResultJson = string.Empty
                     });
                     continue;
@@ -660,8 +702,7 @@ public sealed class DrillMaster : IDisposable
             _sysOpStatusWriter.Write(new SysOpStatus
             {
                 RequestId  = req.RequestId,
-                Status     = OpStatus.InProgress,
-                ErrorCode  = 0,
+                StatusCode = OrchestrationStatusCode.InProgress,
                 ResultJson = string.Empty
             });
 
@@ -787,10 +828,30 @@ public sealed class DrillMaster : IDisposable
                 continue;
             }
 
+            // BATCH-21 Part A.1: ManageStory 2PC — consume node ACKs.
+            // Policy: every ACK (IsParticipating true or false) counts as the node's
+            // acknowledgement for the transaction.  _activeStories is updated only after
+            // all targeted nodes have responded, preventing silent divergence between
+            // orchestrator story state and on-node reality.
+            if (_pendingManageStoryTasks.TryGetValue(status.TransactionId, out var storyTask))
+            {
+                storyTask.RemainingNodeIds.Remove(status.NodeId);
+                if (storyTask.RemainingNodeIds.Count == 0)
+                {
+                    _pendingManageStoryTasks.Remove(status.TransactionId);
+                    if (storyTask.IsStart) _activeStories.Add(storyTask.StoryId);
+                    else                   _activeStories.Remove(storyTask.StoryId);
+                    FdpLog<DrillMaster>.Info(
+                        "[Orchestrator] ManageStory 2PC complete for story {0}: all node ACKs received.",
+                        storyTask.StoryId);
+                }
+                continue;
+            }
+
             if (!_pendingSerializeTasks.TryGetValue(status.TransactionId, out var task))
                 continue;
 
-            if (status.Status == OpStatus.Success && !string.IsNullOrEmpty(status.ResultJson))
+            if (!OrchestrationStatusCode.IsError(status.StatusCode) && !string.IsNullOrEmpty(status.ResultJson))
             {
                 try
                 {
@@ -870,8 +931,7 @@ public sealed class DrillMaster : IDisposable
             _sysOpStatusWriter.Write(new SysOpStatus
             {
                 RequestId  = op.RequestId,
-                Status     = OpStatus.Failure,
-                ErrorCode  = 2,
+                StatusCode = OrchestrationStatusCode.Timeout,
                 ResultJson = string.Empty
             });
             return;

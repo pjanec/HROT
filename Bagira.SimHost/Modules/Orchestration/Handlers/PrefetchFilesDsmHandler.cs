@@ -8,6 +8,7 @@ using Bagira.Common.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Orchestration;
 
 namespace Bagira.SimHost.Modules.Orchestration.Handlers
 {
@@ -33,7 +34,7 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
     /// to the orchestrator via the injected <see cref="DdsWriter{T}"/>.
     /// </para>
     /// </summary>
-    public sealed class PrefetchFilesDsmHandler : IDsmHandler
+    public sealed class PrefetchFilesDsmHandler : Bagira.Common.Orchestration.IDsmHandler
     {
         private const string DefaultLocalTempRoot = @"C:\FDP_Temp";
 
@@ -107,9 +108,8 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
                 {
                     TransactionId    = cmd.TransactionId,
                     NodeId           = _nodeId,
-                    Status           = OpStatus.Success,
+                    StatusCode       = OrchestrationStatusCode.Success,
                     IsParticipating  = true,
-                    ErrorCode        = 0,
                     ResultJson       = string.Empty,
                 });
                 FdpLog<PrefetchFilesDsmHandler>.Info(

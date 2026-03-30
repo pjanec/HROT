@@ -7,6 +7,7 @@ using Bagira.Common.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Scheduling;
 
@@ -55,7 +56,7 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class ReplayLoadDsmHandler : IDsmHandler
+    public sealed class ReplayLoadDsmHandler : Bagira.Common.Orchestration.IDsmHandler
     {
         private readonly EcsRecordReplayController   _controller;
         private readonly SimulationSystemGroup       _simGroup;
@@ -155,9 +156,8 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
                 {
                     TransactionId   = cmd.TransactionId,
                     NodeId          = _nodeId,
-                    Status          = OpStatus.Success,
+                    StatusCode      = OrchestrationStatusCode.Success,
                     IsParticipating = true,
-                    ErrorCode       = 0,
                     ResultJson      = $"{{\"MaxNetworkId\":{maxNetworkId}}}",
                 });
 
@@ -186,9 +186,8 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
                 {
                     TransactionId   = cmd.TransactionId,
                     NodeId          = _nodeId,
-                    Status          = OpStatus.Success,
+                    StatusCode      = OrchestrationStatusCode.Success,
                     IsParticipating = true,
-                    ErrorCode       = 0,
                     ResultJson      = string.Empty,
                 });
 

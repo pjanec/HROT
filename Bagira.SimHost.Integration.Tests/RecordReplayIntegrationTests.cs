@@ -55,7 +55,7 @@ namespace Bagira.SimHost.Integration.Tests
         // ── MOD1-P8T5 success condition 2 ────────────────────────────────────────
 
         [Fact(Timeout = 15_000)]
-        public async Task NodeBootstrapper_BrainRole_RegistersEcsRecordReplayController()
+        public async Task NodeBootstrapper_BrainRole_RegistersLiveLoadDsmHandler()
         {
             // Arrange — Brain role requires a real DDS participant (CGF-1-BATCH-03 A.4).
             // Provide an event bus so LiveLoadDsmHandler is registered; it wraps the

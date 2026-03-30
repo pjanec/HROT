@@ -4,6 +4,7 @@ using System.IO;
 using System.Threading;
 using Bagira.BDC.SSTD.Orchestration;
 using CycloneDDS.Runtime;
+using FDP.Toolkit.Orchestration;
 using Xunit;
 
 namespace Bagira.Orchestrator.Tests;
@@ -150,10 +151,10 @@ public sealed class DrillMasterPrefetchTests : IDisposable
         });
 
         // Spin until the failure status arrives (InProgress may come first; keep looping).
-        OpStatus? observedStatus = null;
+        int? observedStatus = null;
         bool     prefetchFilesReceived = false;
         var deadline = DateTime.UtcNow.AddSeconds(8);
-        while (DateTime.UtcNow < deadline && observedStatus != OpStatus.Failure)
+        while (DateTime.UtcNow < deadline && !OrchestrationStatusCode.IsError(observedStatus ?? 0))
         {
             drill.Tick();
             Thread.Sleep(15);
@@ -161,7 +162,7 @@ public sealed class DrillMasterPrefetchTests : IDisposable
             using var statusScope = sysOpStatus.Take();
             foreach (var s in statusScope)
                 if (s.IsValid && s.Data.RequestId == reqId)
-                    observedStatus = s.Data.Status;
+                    observedStatus = s.Data.StatusCode;
 
             using var cmdScope = cmdReader.Take();
             foreach (var s in cmdScope)
@@ -169,7 +170,8 @@ public sealed class DrillMasterPrefetchTests : IDisposable
                     prefetchFilesReceived = true;
         }
 
-        Assert.Equal(OpStatus.Failure, observedStatus);
+        Assert.True(OrchestrationStatusCode.IsError(observedStatus ?? 0),
+            $"Expected a failure status (>=10) but got: {observedStatus}");
         Assert.False(prefetchFilesReceived,
             "PrefetchFiles command must NOT be sent when the NAS source directory is missing.");
     }

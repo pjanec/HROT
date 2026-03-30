@@ -19,6 +19,8 @@
     <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
     <!-- EntityRepository parameter used by Commit/Abort -->
     <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <!-- Toolkit orchestration contracts (IOrchestrationTransport, IDsmHandler) -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
   </ItemGroup>
 
 </Project>

@@ -10,6 +10,7 @@ using Bagira.Common.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Scenario;
 
 namespace Bagira.SimHost.Modules.Orchestration.Handlers
@@ -43,7 +44,7 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
     /// <b>StopStory commit path:</b> Destroys all cached story entities.
     /// </para>
     /// </summary>
-    public sealed class StoryLoadDsmHandler : IDsmHandler
+    public sealed class StoryLoadDsmHandler : Bagira.Common.Orchestration.IDsmHandler
     {
         private const string DefaultLocalTempRoot = @"C:\FDP_Temp";
 
@@ -156,16 +157,23 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
             var (storyId, scenarioId) = ParseStartStoryPayload(cmd.PayloadJson);
             if (storyId == Guid.Empty)
             {
-                FdpLog<StoryLoadDsmHandler>.Warn(
+                FdpLog<StoryLoadDsmHandler>.Error(
                     "[SimHost] StoryLoadDsmHandler: StartStory payload missing valid StoryId " +
-                    "(transactionId={0}).", cmd.TransactionId);
+                    "(transactionId={0}) — will ACK as non-participating.", cmd.TransactionId);
+                // Set _pendingTransactionId so Commit fires and publishes a non-participating ACK
+                // rather than silently no-oping (A.2: always emit ACK or throw).
+                _pendingTransactionId   = cmd.TransactionId;
+                _pendingIsParticipating = false;
                 return Task.FromResult<string?>(null);
             }
             if (string.IsNullOrWhiteSpace(scenarioId))
             {
-                FdpLog<StoryLoadDsmHandler>.Warn(
+                FdpLog<StoryLoadDsmHandler>.Error(
                     "[SimHost] StoryLoadDsmHandler: StartStory payload missing ScenarioId " +
-                    "(transactionId={0}).", cmd.TransactionId);
+                    "(transactionId={0}) — will ACK as non-participating.", cmd.TransactionId);
+                // Same: set _pendingTransactionId so Commit publishes non-participating ACK.
+                _pendingTransactionId   = cmd.TransactionId;
+                _pendingIsParticipating = false;
                 return Task.FromResult<string?>(null);
             }
 
@@ -232,13 +240,15 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
             var targetRepo = repo ?? _world;
             if (targetRepo == null)
             {
-                FdpLog<StoryLoadDsmHandler>.Warn(
-                    "[SimHost] StoryLoadDsmHandler.CommitStartStory: EntityRepository is null — " +
-                    "cannot deserialize story entities.");
+                // Fail loud: participating node cannot commit without a repo.
+                // Throw so the DrillSlave logs this as an error rather than silently
+                // swallowing it (A.2: always emit ACK or throw).
                 _pendingDom             = null;
                 _pendingTransactionId   = null;
                 _pendingIsParticipating = false;
-                return;
+                throw new InvalidOperationException(
+                    "[SimHost] StoryLoadDsmHandler.CommitStartStory: EntityRepository is null — " +
+                    "cannot deserialize story entities.");
             }
 
             try
@@ -269,9 +279,13 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
             var storyId = ParseStopStoryPayload(cmd.PayloadJson);
             if (storyId == Guid.Empty)
             {
-                FdpLog<StoryLoadDsmHandler>.Warn(
+                FdpLog<StoryLoadDsmHandler>.Error(
                     "[SimHost] StoryLoadDsmHandler: StopStory payload missing valid StoryId " +
-                    "(transactionId={0}).", cmd.TransactionId);
+                    "(transactionId={0}) — will ACK as non-participating.", cmd.TransactionId);
+                // Set _pendingTransactionId so Commit fires and publishes non-participating ACK
+                // rather than silently no-oping (A.2: always emit ACK or throw).
+                _pendingTransactionId   = cmd.TransactionId;
+                _pendingIsParticipating = false;
                 return Task.FromResult<string?>(null);
             }
 
@@ -290,15 +304,25 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
 
         private void CommitStopStory(NodeOpCommand cmd, EntityRepository? repo)
         {
-            var targetRepo = repo ?? _world;
-            if (targetRepo == null)
+            // Invalid payload in PrepareStopStory sets IsParticipating=false;
+            // publish non-participating ACK and return without touching the repo.
+            if (!_pendingIsParticipating)
             {
-                FdpLog<StoryLoadDsmHandler>.Warn(
-                    "[SimHost] StoryLoadDsmHandler.CommitStopStory: EntityRepository is null — " +
-                    "cannot destroy story entities.");
+                PublishAck(cmd.TransactionId, isParticipating: false);
                 _pendingTransactionId = null;
                 _pendingStopEntities  = null;
                 return;
+            }
+
+            var targetRepo = repo ?? _world;
+            if (targetRepo == null)
+            {
+                // Fail loud: participating node cannot commit without a repo (A.2).
+                _pendingTransactionId = null;
+                _pendingStopEntities  = null;
+                throw new InvalidOperationException(
+                    "[SimHost] StoryLoadDsmHandler.CommitStopStory: EntityRepository is null — " +
+                    "cannot destroy story entities.");
             }
 
             // Build entity list if not already collected in PrepareStopStory (e.g. _world was null then).
@@ -329,9 +353,8 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
             {
                 TransactionId   = transactionId,
                 NodeId          = _nodeId,
-                Status          = OpStatus.Success,
+                StatusCode      = OrchestrationStatusCode.Success,
                 IsParticipating = isParticipating,
-                ErrorCode       = 0,
                 ResultJson      = string.Empty,
             });
         }
