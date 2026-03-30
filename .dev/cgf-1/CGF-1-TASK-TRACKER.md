@@ -3,9 +3,9 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-20](batches/CGF-1-BATCH-20-INSTRUCTIONS.md).  
-**Last reviewed:** [CGF-1-BATCH-19](reviews/CGF-1-BATCH-19-REVIEW.md) — CONDITIONALLY APPROVED (2026-03-29).  
-**Batches / reports / reviews:** `.dev/cgf-1/batches/`, `.dev/cgf-1/reports/`, `.dev/cgf-1/reviews/` (prefix `CGF-1-`).  
+**Active batch:** [CGF-1-BATCH-21](batches/CGF-1-BATCH-21-INSTRUCTIONS.md) (pending).  
+**Last reviewed:** [CGF-1-BATCH-20](reviews/CGF-1-BATCH-20-REVIEW.md) — APPROVED (2026-03-30).  
+**Last completed:** [CGF-1-BATCH-20](reports/CGF-1-BATCH-20-REPORT.md) — Part A complete; Part B (S0310, S0106) deferred to BATCH-21.  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
 > **Extended specs:** [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) and [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) were expanded to fully define **CGF1-S0106** (Orchestrator ImGui scenario & story controls) and **CGF1-S0310** (E2E DSM test script suite). For **BATCH-20 onward**, re-read those sections before scoping; batch markdown is supplementary only.
@@ -15,7 +15,7 @@
 > Phase 3 tasks are complete and their CI gates are passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 5 / 6 tasks done. **Phase 2:** 5 / 5 complete. **Phase 3:** 9 / 10 done (S0301–S0309 closed; **S0310** open); **CGF `PrepareLive` + `DrillSlave` latch** → [CGF-1-BATCH-19](batches/CGF-1-BATCH-19-INSTRUCTIONS.md) Part A ✅; **S0308** SimHost MVP → BATCH-19 Part B ✅ (**§S0308 TASK-DETAIL residual** → [CGF-1-BATCH-20](batches/CGF-1-BATCH-20-INSTRUCTIONS.md) Part A, [review](reviews/CGF-1-BATCH-19-REVIEW.md#part-b--mvp-vs-cgf1-s0308)).
+> **Progress (Phase 1):** 5 / 6 tasks done (S0106 open → BATCH-21). **Phase 2:** 5 / 5 complete. **Phase 3:** 9 / 10 done (S0301–S0309 closed; **S0310** open → BATCH-21); **§S0308 TASK-DETAIL residual** closed ✅ [CGF-1-BATCH-20](batches/CGF-1-BATCH-20-INSTRUCTIONS.md) Part A (CGF handler + `NodeOpStatus.IsParticipating`; `DrillMaster` ACK gating = intentional MVP delta).
 
 ---
 
@@ -58,6 +58,6 @@ management, and live-from-replay temporal interlock — all regression-tested.
 - [x] **CGF1-S0305** Live-from-Replay Temporal Interlock [details](./CGF-1-TASK-DETAIL.md#cgf1-s0305--live-from-replay-temporal-interlock) — orchestrator **`ReplayMasterModule`** + SimHost **`ReplayLoadDsmHandler`** / **`DrillSlave`** + **`FullBranchPipelineTests`** ✅ [CGF-1-BATCH-17](batches/CGF-1-BATCH-17-INSTRUCTIONS.md) / [CGF-1-BATCH-18](batches/CGF-1-BATCH-18-INSTRUCTIONS.md); CGF **`PrepareLive`** / **`DrillSlave`** ✅ [CGF-1-BATCH-19](batches/CGF-1-BATCH-19-INSTRUCTIONS.md) Part A
 - [x] **CGF1-S0306** Scenario/Story Serialization Toolkit [details](./CGF-1-TASK-DETAIL.md#cgf1-s0306--scenariostory-serialization-toolkit) — ✅ [CGF-1-BATCH-11](batches/CGF-1-BATCH-11-INSTRUCTIONS.md) Part B
 - [x] **CGF1-S0307** Application-Layer Scenario Save/Load Wiring [details](./CGF-1-TASK-DETAIL.md#cgf1-s0307--application-layer-scenario-saveload-wiring) — done [CGF-1-BATCH-12](batches/CGF-1-BATCH-12-INSTRUCTIONS.md); follow-ups → [CGF-1-BATCH-12 review](reviews/CGF-1-BATCH-12-REVIEW.md#gaps-vs-task-detail-cgf1-s0307)
-- [x] **CGF1-S0308** Runtime Story Injection & Deletion [details](./CGF-1-TASK-DETAIL.md#cgf1-s0308--runtime-story-injection--deletion) — SimHost MVP ✅ [CGF-1-BATCH-19](batches/CGF-1-BATCH-19-INSTRUCTIONS.md) Part B (`StoryLoadDsmHandler`, `PlanManageStory`, `DrillMaster` `ManageStory`, `ActiveStoriesJson`, 5 integration tests); **TASK-DETAIL residual** (CGF handler, `NodeOpStatus` participation, `DrillMaster` ACK filter) → [CGF-1-BATCH-20](batches/CGF-1-BATCH-20-INSTRUCTIONS.md) Part A ([BATCH-19 review](reviews/CGF-1-BATCH-19-REVIEW.md#part-b--mvp-vs-cgf1-s0308))
+- [x] **CGF1-S0308** Runtime Story Injection & Deletion [details](./CGF-1-TASK-DETAIL.md#cgf1-s0308--runtime-story-injection--deletion) — SimHost MVP ✅ [CGF-1-BATCH-19](batches/CGF-1-BATCH-19-INSTRUCTIONS.md) Part B; **TASK-DETAIL residual closed** ✅ [CGF-1-BATCH-20](batches/CGF-1-BATCH-20-INSTRUCTIONS.md) Part A (CGF `StoryLoadDsmHandler` + `NodeOpStatus.IsParticipating` ACK wired; `DrillMaster` ACK gating = intentional MVP delta — see §S0308 note in TASK-DETAIL)
 - [x] **CGF1-S0309** Dry Run DSM Handler [details](./CGF-1-TASK-DETAIL.md#cgf1-s0309--dry-run-dsm-handler)
 - [ ] **CGF1-S0310** E2E DSM Test Script Suite [details](./CGF-1-TASK-DETAIL.md#cgf1-s0310--e2e-dsm-test-script-suite)

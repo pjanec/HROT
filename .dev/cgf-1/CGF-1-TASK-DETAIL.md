@@ -999,6 +999,17 @@ Do not reinvent it — just call `GetSaveableMask()` as the starting point.
 
 **Design ref:** [§5.8](./CGF-1-DESIGN.md#58-stage-38--runtime-story-injection--deletion)
 
+> **Implementation status (BATCH-20):**
+> Items 1–3 and `NodeOpStatus.IsParticipating` wire-field (item 4) are complete.
+> The `DrillMaster` **ACK gating** (item 4 — "waits only for participating nodes")
+> is an **intentional MVP delta**: `ManageStory` currently fans out and immediately
+> resolves `SysOpStatus.InProgress` with `CompletedSteps == totalSteps` without a
+> `NodeOpStatus` round-trip.  Full 2PC for story ops (subscribe on orchestrator side,
+> per-transaction participation tracking, timeout) is deferred to a future batch when
+> multi-node story coordination becomes a hard product requirement.  The CGF
+> `DrillSlave` now has a `NodeOpStatusWriter` so nodes *can* publish the ACK; the
+> orchestrator-side consumption is the missing piece.
+
 **Work to do:**
 1. Add `ManageStory` operation to `TransitionPlanner`:
    - Validate `CurrentState == RunningLive`; if not, return `OpStatus.InvalidState`.
@@ -1021,6 +1032,9 @@ Do not reinvent it — just call `GetSaveableMask()` as the starting point.
 4. Extend `NodeOpStatus` with `bool IsParticipating` field (default `true`).  
    `DrillMaster` waits only for ACKs from nodes that replied `IsParticipating: true`
    during the `PrepareStory` phase.
+   > **MVP delta (BATCH-20):** The `IsParticipating` field exists in the DDS schema and
+   > nodes publish it.  `DrillMaster`-side ACK gating (subscribe + per-transaction
+   > participation filter + timeout) is deferred — see implementation status note above.
 
 **Success conditions (integration tests in `Bagira.SimHost.Integration.Tests`):**
 - `StoryInjectionTests.StartStory_EntitiesSpawnedWithStoryTag`:

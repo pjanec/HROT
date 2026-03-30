@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bagira.Map.Common;
 using Bagira.SimHost.Modules.Orchestration;
+using Bagira.SimHost.Modules.Orchestration.Handlers;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Replay;
@@ -57,13 +58,19 @@ namespace Bagira.SimHost.Integration.Tests
         public async Task NodeBootstrapper_BrainRole_RegistersEcsRecordReplayController()
         {
             // Arrange — Brain role requires a real DDS participant (CGF-1-BATCH-03 A.4).
+            // Provide an event bus so LiveLoadDsmHandler is registered; it wraps the
+            // EcsRecordReplayController for the Brain-role recording/replay lifecycle
+            // (CGF1-S0304 / BATCH-20 A.3: EcsRecordReplayController.CanHandle is always
+            // false — factory-only; direct registration as IDsmHandler is intentionally absent).
+            var eventBus     = new FdpEventBus();
             var bootstrapper = new NodeBootstrapper();
             using var drillSlave = bootstrapper.BuildOrchestration(
-                NodeRole.Brain, _kernel, _world, nodeId: 1, participant: _ddsParticipant);
+                NodeRole.Brain, _kernel, _world, nodeId: 1, participant: _ddsParticipant,
+                eventBus: eventBus);
 
-            // Assert: EcsRecordReplayController registered as a DSM handler.
-            Assert.True(drillSlave.IsHandlerRegistered<EcsRecordReplayController>(),
-                "Brain role must register an EcsRecordReplayController with the DrillSlave.");
+            // Assert: LiveLoadDsmHandler is registered (it owns EcsRecordReplayController).
+            Assert.True(drillSlave.IsHandlerRegistered<LiveLoadDsmHandler>(),
+                "Brain role must register a LiveLoadDsmHandler (which owns EcsRecordReplayController).");
         }
 
         [Fact(Timeout = 10_000)]

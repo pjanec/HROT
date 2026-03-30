@@ -382,8 +382,11 @@ namespace Bagira.SimHost
                     new EditLoadDsmHandler(scenarioSerializer, localTempRoot, world));
 
                 // Wire StoryLoadDsmHandler for StartStory / StopStory (CGF1-S0308).
+                // Passes NodeOpStatusWriter + nodeId so the handler can publish
+                // IsParticipating ACKs back to the orchestrator (BATCH-20 A.2).
                 drillSlave.RegisterHandler(
-                    new StoryLoadDsmHandler(scenarioSerializer, localTempRoot, world));
+                    new StoryLoadDsmHandler(scenarioSerializer, localTempRoot, world,
+                        drillSlave.NodeOpStatusWriter, nodeId));
             }
 
             return drillSlave;

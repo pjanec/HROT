@@ -34,6 +34,7 @@ namespace Bagira.CGF.Modules.Orchestration
     {
         private readonly DdsWriter<NodeHeartbeat>? _heartbeatWriter;
         private readonly DdsReader<NodeOpCommand>? _commandReader;
+        private readonly DdsWriter<NodeOpStatus>?  _nodeOpStatusWriter;
         private readonly ConcurrentQueue<NodeOpCommand> _pendingCommands = new();
         private readonly List<IDsmHandler> _handlers = new();
         private readonly Stopwatch _heartbeatTimer = Stopwatch.StartNew();
@@ -72,8 +73,9 @@ namespace Bagira.CGF.Modules.Orchestration
         {
             _nodeId = nodeId;
             _subsystemName = subsystemName;
-            _heartbeatWriter = new DdsWriter<NodeHeartbeat>(participant);
-            _commandReader = new DdsReader<NodeOpCommand>(participant);
+            _heartbeatWriter    = new DdsWriter<NodeHeartbeat>(participant);
+            _commandReader      = new DdsReader<NodeOpCommand>(participant);
+            _nodeOpStatusWriter = new DdsWriter<NodeOpStatus>(participant);
             // Only process commands addressed to this node's roster ID.
             _commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId);
 
@@ -85,6 +87,13 @@ namespace Bagira.CGF.Modules.Orchestration
             };
             _listenerThread.Start();
         }
+
+        /// <summary>
+        /// DDS writer for <see cref="NodeOpStatus"/> ACKs.
+        /// Exposed so handlers (e.g. <see cref="Handlers.StoryLoadDsmHandler"/>) can publish
+        /// acknowledgements back to the orchestrator.  <c>null</c> in DDS-less test paths.
+        /// </summary>
+        internal DdsWriter<NodeOpStatus>? NodeOpStatusWriter => _nodeOpStatusWriter;
 
         /// <summary>Registers a DSM handler.  A handler may be registered only once.</summary>
         public void RegisterHandler(IDsmHandler handler)
@@ -213,6 +222,7 @@ namespace Bagira.CGF.Modules.Orchestration
             _listenerCts = null;
             _listenerThread = null;
             _commandReader?.Dispose();
+            _nodeOpStatusWriter?.Dispose();
             _heartbeatWriter?.Dispose();
         }
     }

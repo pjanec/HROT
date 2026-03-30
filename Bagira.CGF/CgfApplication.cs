@@ -81,7 +81,16 @@ namespace Bagira.CGF
             // NodeOpType values (PrepareLive vs FinalizeLive/PrepareReplay/FinalizeReplay),
             // so registration order does not affect dispatch for their respective operations.
             if (scenarioSerializer != null)
+            {
                 _drillSlave.RegisterHandler(new ScenarioLoadDsmHandler(scenarioSerializer, localTempRoot));
+
+                // CGF1-S0308 (BATCH-20 A.1): wire StoryLoadDsmHandler for StartStory / StopStory.
+                // CGF has no ECS so the handler is header-peek-only; publishes NodeOpStatus
+                // IsParticipating via the DrillSlave NodeOpStatusWriter when a DDS stack is live.
+                _drillSlave.RegisterHandler(new StoryLoadDsmHandler(
+                    scenarioSerializer, localTempRoot,
+                    _drillSlave.NodeOpStatusWriter, nodeId));
+            }
 
             // CGF1-S0309: wire dry-run snapshot/rewind handler (no ECS state on CGF skeleton).
             _drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null));

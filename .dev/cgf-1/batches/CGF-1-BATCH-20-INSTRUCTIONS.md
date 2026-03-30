@@ -22,7 +22,8 @@
 3. [.dev/cgf-1/CGF-1-DESIGN.md](../CGF-1-DESIGN.md) — matching §§ for story / orchestrator UI  
 4. [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md) — rows **Target Fix = CGF-1-BATCH-20**
 
-**Report:** `.dev/cgf-1/reports/CGF-1-BATCH-20-REPORT.md` (when complete)
+**Report:** [CGF-1-BATCH-20-REPORT.md](../reports/CGF-1-BATCH-20-REPORT.md)  
+**Review:** [CGF-1-BATCH-20-REVIEW.md](../reviews/CGF-1-BATCH-20-REVIEW.md)
 
 ---
 
@@ -59,11 +60,11 @@ If Part B must split: land **S0310** test harness first, then **S0106** UI in **
 
 ## Success criteria
 
-- [ ] Part A: §S0308 residual addressed or TASK-DETAIL revised with lead approval; integration test suite **0** failures from **`RecordReplayIntegrationTests`** regression; DEBT rows closed.  
-- [ ] Part B: §S0310 and/or §S0106 per TASK-DETAIL success conditions (or explicit defer + tracker).  
-- [ ] Solution build clean.  
-- [ ] **CGF-1-TASK-TRACKER** updated (Phase 1 / Phase 3 progress).  
-- [ ] Report filed.
+- [x] Part A: §S0308 residual addressed or TASK-DETAIL revised with lead approval; integration test suite **0** failures from **`RecordReplayIntegrationTests`** regression; DEBT rows closed.  
+- [x] Part B: §S0310 and/or §S0106 per TASK-DETAIL success conditions (or explicit defer + tracker).  
+- [x] Solution build clean (subject to pre-existing **`Fhsm.SourceGen`** DLL lock in some environments).  
+- [x] **CGF-1-TASK-TRACKER** updated (Phase 1 / Phase 3 progress).  
+- [x] Report filed; review: [CGF-1-BATCH-20-REVIEW.md](../reviews/CGF-1-BATCH-20-REVIEW.md).
 
 ---
 

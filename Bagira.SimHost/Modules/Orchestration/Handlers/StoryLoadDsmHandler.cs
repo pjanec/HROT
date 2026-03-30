@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Common.Orchestration;
+using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Scenario;
@@ -46,9 +47,11 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
     {
         private const string DefaultLocalTempRoot = @"C:\FDP_Temp";
 
-        private readonly ScenarioSerializer _serializer;
-        private readonly string             _localTempRoot;
-        private readonly EntityRepository?  _world;
+        private readonly ScenarioSerializer      _serializer;
+        private readonly string                  _localTempRoot;
+        private readonly EntityRepository?       _world;
+        private readonly DdsWriter<NodeOpStatus>? _statusWriter;
+        private readonly int                     _nodeId;
 
         // ── Pending state between PrepareAsync and Commit ────────────────────
         private JsonObject?      _pendingDom;
@@ -71,14 +74,26 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         /// Pass <c>null</c> in tests that supply the repository directly via the
         /// <see cref="Commit"/> parameter.
         /// </param>
+        /// <param name="statusWriter">
+        /// Optional DDS writer used to publish <see cref="NodeOpStatus"/> ACKs back to
+        /// the orchestrator after <see cref="Commit"/> completes.  Pass <c>null</c> in
+        /// unit/integration tests that verify dispatch behaviour without a live DDS stack.
+        /// </param>
+        /// <param name="nodeId">
+        /// Local node identifier embedded in ACK messages.
+        /// </param>
         public StoryLoadDsmHandler(
-            ScenarioSerializer serializer,
-            string             localTempRoot = DefaultLocalTempRoot,
-            EntityRepository?  world         = null)
+            ScenarioSerializer       serializer,
+            string                   localTempRoot = DefaultLocalTempRoot,
+            EntityRepository?        world         = null,
+            DdsWriter<NodeOpStatus>? statusWriter  = null,
+            int                      nodeId        = 0)
         {
             _serializer    = serializer   ?? throw new ArgumentNullException(nameof(serializer));
             _localTempRoot = string.IsNullOrWhiteSpace(localTempRoot) ? DefaultLocalTempRoot : localTempRoot;
             _world         = world;
+            _statusWriter  = statusWriter;
+            _nodeId        = nodeId;
         }
 
         /// <inheritdoc />
@@ -208,7 +223,8 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
         {
             if (_pendingDom == null)
             {
-                // Not participating — nothing to do.
+                // Not participating — nothing to do; publish non-participating ACK.
+                PublishAck(cmd.TransactionId, isParticipating: false);
                 _pendingTransactionId = null;
                 return;
             }
@@ -231,6 +247,7 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
                 FdpLog<StoryLoadDsmHandler>.Info(
                     "[SimHost] StoryLoadDsmHandler.CommitStartStory: story {0} entities injected.",
                     _pendingStoryId);
+                PublishAck(cmd.TransactionId, isParticipating: true);
             }
             catch (Exception ex)
             {
@@ -296,9 +313,27 @@ namespace Bagira.SimHost.Modules.Orchestration.Handlers
                 "[SimHost] StoryLoadDsmHandler.CommitStopStory: story {0} — {1} entity/entities destroyed.",
                 _pendingStoryId, toDestroy.Count);
 
+            PublishAck(cmd.TransactionId, isParticipating: true);
+
             _pendingStopEntities    = null;
             _pendingTransactionId   = null;
             _pendingIsParticipating = false;
+        }
+
+        // ── ACK helper ──────────────────────────────────────────────────────
+
+        private void PublishAck(Guid transactionId, bool isParticipating)
+        {
+            if (_statusWriter == null) return;
+            _statusWriter.Write(new NodeOpStatus
+            {
+                TransactionId   = transactionId,
+                NodeId          = _nodeId,
+                Status          = OpStatus.Success,
+                IsParticipating = isParticipating,
+                ErrorCode       = 0,
+                ResultJson      = string.Empty,
+            });
         }
 
         // ── Helpers ──────────────────────────────────────────────────────────
