@@ -10,9 +10,9 @@
 
 > **Extended specs:** [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) and [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) define **CGF1-S0106** and **CGF1-S0310**. **Phase 4** ✅ complete (**CGF-1-BATCH-22**). **BATCH-23:** brain/muscle **DSM parity** (CGF record/replay, IG/IOS matrix), **orchestrator globals** (`GlobalContextDto`), then **S0310** / **S0106**.
 
-> **Scope:** Phases 1–4 of the CGF workstream — Control-Plane Foundation, State & Time
-> Synchronization, Persistence, and Generalization. Phase 5 (Urban Combat AI) begins
-> only after the Phase 3 + Phase 4 CI gates are all passing.
+> **Scope:** Phases 1–5 of the CGF workstream — Control-Plane Foundation, State & Time
+> Synchronization, Persistence, Generalization, and Operational UI / CQRS Architecture.
+> Phase 6 (Urban Combat AI) begins only after the Phase 5 CI gates are passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
 > **Progress (Phase 1):** 6 / 6 tasks done (**S0106** ✅ BATCH-23). **Phase 2:** 5 / 5 complete. **Phase 3:** 10 / 10 done (**S0310** ✅ BATCH-24). **Phase 4:** **COMPLETE (BATCH-22)**. **Cross-cutting (BATCH-23 Part A):** CGF record/replay ✅, IG matrix ✅, IOS stubs ✅, orchestrator globals ✅.
@@ -83,3 +83,23 @@ copy-paste required.
 - [x] **CGF1-G0404** Reference Scenario, Story, and Prefetch Handlers — COMPLETE (BATCH-22): `ReferenceScenarioLoadHandler`, `ReferenceEditLoadHandler`, `ReferenceStoryLoadHandler`; NodeBootstrapper + CgfApplication + IgApplication + IosSubsystem wired [details](./CGF-1-TASK-DETAIL.md#cgf1-g0404--reference-scenario-story-and-prefetch-handlers)
 - [x] **CGF1-G0405** Reference DryRun, Checkpoint, and RecordReplay Handlers — COMPLETE (BATCH-22): `ReferenceDryRunHandler`, `ReferenceCheckpointHandler`, `ReferenceLiveLoadHandler`, `ReferenceReplayLoadHandler`; `IRecordReplayController` extended [details](./CGF-1-TASK-DETAIL.md#cgf1-g0405--reference-dryrun-checkpoint-and-recordreplay-handlers)
 - [x] **CGF1-G0406** Final Wiring Cleanup and CI Validation — COMPLETE (BATCH-22): all app layers wired to toolkit DrillSlave + Reference* handlers; 14 old handler/DrillSlave files deleted; 13 test files updated; all 6 test projects green (521+ tests) [details](./CGF-1-TASK-DETAIL.md#cgf1-g0406--final-wiring-cleanup-and-ci-validation)
+
+---
+
+## Phase 5 — Operational UI, Real Network Dispatch & CQRS Architecture
+
+**Goal:** Fix the critical fan-out gap (buttons do nothing on the network); overhaul
+the Orchestrator ImGui panel (window wrapper, beige title, 2PC history, time control,
+combo-based asset selection); implement the deferred archive export/import pipeline
+with graceful cancellation; and cap the phase with full CQRS decoupling so that
+`IOS` — or any node — can render an identical cluster control panel purely over DDS.
+
+**Design authority:** [CGF-1-ADDENDUM-3.md](./CGF-1-ADDENDUM-3.md)
+
+- [ ] **CGF1-S0501** Orchestrator ImGui Window & 2PC History Overhaul [details](./CGF-1-TASK-DETAIL.md#cgf1-s0501--orchestrator-imgui-window--2pc-history-overhaul)
+- [ ] **CGF1-S0502** Real Network Dispatch + DrillMaster Fan-out [details](./CGF-1-TASK-DETAIL.md#cgf1-s0502--real-network-dispatch--drillmaster-fan-out)
+- [ ] **CGF1-S0503** Time Control Section + Remote Time Commands [details](./CGF-1-TASK-DETAIL.md#cgf1-s0503--time-control-section--remote-time-commands)
+- [ ] **CGF1-S0504** Asset Combo Selection [details](./CGF-1-TASK-DETAIL.md#cgf1-s0504--asset-combo-selection-local-filesystem-scan)
+- [ ] **CGF1-S0505** Archive Export/Import Pipeline [details](./CGF-1-TASK-DETAIL.md#cgf1-s0505--archive-exportimport-pipeline)
+- [ ] **CGF1-S0506** CQRS Decoupling: AssetInventoryTopic + ClusterUiCache [details](./CGF-1-TASK-DETAIL.md#cgf1-s0506--cqrs-decoupling-assetinventorytopic--clusteruicache)
+- [ ] **CGF1-S0507** IOS Remote Cluster Control Panel [details](./CGF-1-TASK-DETAIL.md#cgf1-s0507--ios-remote-cluster-control-panel)

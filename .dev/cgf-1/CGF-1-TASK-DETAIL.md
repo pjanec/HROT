@@ -1831,3 +1831,570 @@ ensures no test regression has been introduced across the full solution.
 - `Fact: DrillSlave class count = 1` — a grep of the solution source for
   `public sealed class DrillSlave` returns exactly one match in
   `FDP.Toolkit.Orchestration`.
+---
+
+## Phase 5 — Operational UI, Real Network Dispatch & CQRS Architecture
+
+See **[CGF-1-ADDENDUM-3.md](./CGF-1-ADDENDUM-3.md)** for full design specifications.
+
+---
+
+### CGF1-S0501 — Orchestrator ImGui Window & 2PC History Overhaul
+
+**Design ref:** [§2](./CGF-1-ADDENDUM-3.md#2-orchestrator-imgui-window--2pc-history-overhaul)
+
+**Depends on:** CGF1-S0106 (existing OrchestratorScenarioPanel), CGF1-S0502 should
+follow directly (fan-out fix needs S0501's DistributedTransaction extensions).
+
+**Work to do:**
+
+1. **`OrchestratorSubsystem.cs` — beige title bar:**  
+   Change `TitleBarColor` to `new(0.72f, 0.64f, 0.47f, 1f)`.
+
+2. **`OrchestratorSubsystem.cs` — add `ImGui.Begin` / `ImGui.End` wrapper:**  
+   Wrap the entire body of `DrawUI()` in:
+   ```csharp
+   if (!ImGui.Begin("Orchestrator")) { ImGui.End(); return; }
+   // ... existing content ...
+   ImGui.End();
+   ```
+
+3. **`OrchestratorScenarioPanel.cs` — remove `BeigeChildBg`:**  
+   Delete `private static readonly Vector4 BeigeChildBg`. Remove every
+   `ImGui.PushStyleColor(ImGuiCol.ChildBg, BeigeChildBg)` and its matching
+   `ImGui.PopStyleColor()` from all six `Render*` helpers.
+
+4. **`DistributedTransaction.cs` — new properties:**  
+   Add:
+   ```csharp
+   public string PayloadJson { get; set; } = string.Empty;
+   public Dictionary<int, string> NodeResponses { get; } = new();
+   public DSMState SourceDsmState { get; set; }
+   ```
+
+5. **`DrillMaster.cs` — populate new fields:**  
+   - Capture `DSMState sourceState = _currentDsmState;` before any optimistic advance
+     in `ProcessSingleSysOpRequest`. Assign `SourceDsmState = sourceState` in the new
+     transaction.  
+   - Assign `tx.PayloadJson = req.PayloadJson ?? string.Empty` when creating the
+     transaction object.  
+   - In `ConsumeNodeOpStatuses`: `tx.NodeResponses[status.NodeId] = status.ResultJson`
+     when processing each ACK.
+
+6. **`OrchestratorSubsystem.cs` — overhaul the 2PC history table:**  
+   Replace the existing 4-column `BeginTable("TxHistory", 4, ...)` block with a 5-column
+   table (`TransactionId`, `Target State`, `Result`, `ACK Latency`, `Payload`) using:
+   - `ImGuiTableFlags.ScrollY` + `ImGui.TableSetupScrollFreeze(0, 1)`.
+   - Height capped at `rowHeight * 11.5f` (~10 data rows + header).
+   - Column 1 rendered via `ImGui.TreeNodeEx(tx.TransactionId.ToString(), ...)` (full GUID).
+   - Context menu on right-click: `ImGui.BeginPopupContextItem` with
+     `MenuItem("Copy line to clipboard")` → `ImGui.SetClipboardText(...)`.
+   - Column 5 shows first 25 chars + `"..."` of `tx.PayloadJson`; on hover:
+     `ImGui.BeginTooltip()` showing `FormatPrettyJson(payloadStr)`.
+   - When `TreeNodeEx` expanded, render child rows per `tx.NodeResponses` entry
+     (indent `↳ Node {id}`, per-node latency, `ResultJson`).
+
+7. **`OrchestratorSubsystem.cs` — add `FormatPrettyJson` static helper** (see addendum
+   §2.3 for implementation).
+
+8. **`OrchestratorScenarioPanel.cs` — Source→Target banner:**  
+   Update `RenderStatusBanner` to show `{activeTx.SourceDsmState} → {activeTx.TargetDsmState}`
+   when an in-flight transaction with differing source/target is active.
+
+**Success conditions:**
+
+- `Fact: Window wraps UI` — opening the Orchestrator panel shows a titled ImGui window;
+  all child sections appear inside it; `ImGui.End()` is balanced.
+
+- `Fact: No BeigeChildBg in child sections` — grep for `BeigeChildBg` in
+  `OrchestratorScenarioPanel.cs` returns zero matches.
+
+- `Fact: 2PC table caps at 10 rows` — a unit test (or manual verification) with 15
+  completed transactions shows only 10 in the table with a scroll bar.
+
+- `Fact: Full GUID displayed` — `TransactionId` column shows 36-char UUID string
+  (not the truncated 8-char form).
+
+- `Fact: JSON tooltip on hover` — hovering the Payload column calls
+  `FormatPrettyJson`; a unit test feeding `{"a":1}` returns indented JSON.
+
+- `Fact: Clipboard context menu` — right-clicking a row shows "Copy line to clipboard"
+  menu item; clicking it calls `ImGui.SetClipboardText` with a non-empty string.
+
+- `Fact: Source→Target banner` — when `SourceDsmState != TargetDsmState` and
+  `HasInFlightTransaction`, status banner text is `"State: Standby → LoadingLive"`.
+
+- `Fact: SourceDsmState populated` — unit test: call `HandleSysOpRequest` for
+  transition from `Standby` to `LoadingLive`; assert resulting transaction's
+  `SourceDsmState == DSMState.Standby`.
+
+---
+
+### CGF1-S0502 — Real Network Dispatch + DrillMaster Fan-out
+
+**Design ref:** [§3](./CGF-1-ADDENDUM-3.md#3-real-network-dispatch-fix)
+
+**Depends on:** CGF1-S0501 (DistributedTransaction fields must exist before fan-out
+assigns `txId`).
+
+**Context:** Pressing any state-transition button in the Orchestrator UI currently
+does nothing to the cluster because `DrillMaster.ProcessSingleSysOpRequest` plans
+the trajectory and optimistically advances its local state but never sends any
+`NodeOpCommand` DDS messages. All nodes remain in Standby.
+
+**Work to do:**
+
+1. **`OrchestratorSubsystem.cs` — add `DdsWriter<SysOpRequest>`:**  
+   ```csharp
+   private DdsWriter<SysOpRequest>? _sysOpWriter;
+   ```
+   In `Initialize`: `_sysOpWriter = new DdsWriter<SysOpRequest>(_participant);`  
+   In `Shutdown`: `_sysOpWriter?.Dispose(); _sysOpWriter = null;`
+
+2. **`OrchestratorSubsystem.cs` — pass writer to panel:**  
+   `_scenarioPanel = new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter);`
+
+3. **`OrchestratorScenarioPanel.cs` — update constructor:**  
+   ```csharp
+   private readonly DdsWriter<SysOpRequest> _sysOpWriter;
+   public OrchestratorScenarioPanel(DrillMaster drillMaster,
+                                    DdsWriter<SysOpRequest> sysOpWriter) { ... }
+   ```
+
+4. **`OrchestratorScenarioPanel.cs` — replace all direct DrillMaster calls:**  
+   Every `_drillMaster.HandleSysOpRequest(new SysOpRequest { ... })` call in
+   `RenderDrillControl`, `RenderCheckpointSection`, `RenderScenarioSection`,
+   `RenderReplaySection`, and `RenderStoriesSection` is replaced with
+   `_sysOpWriter.Write(new SysOpRequest { RequestId = Guid.NewGuid(), ... })`.
+   Refer to addendum §3.2 for the exact payload mapping per operation type.
+
+5. **`OrchestratorSubsystem.cs` — implement TODO simulation buttons:**  
+   Replace the empty TODO Pause/Resume/Initialize Live placeholders in `DrawUI()`
+   with `_sysOpWriter.Write(new SysOpRequest { OperationType = SysOpType.xxx, ... })`.
+
+6. **`DrillMaster.cs` — add fan-out loop:**  
+   After the `DistributedTransaction tx` is created in `ProcessSingleSysOpRequest`,
+   iterate the planned `trajectory` and for each `TransitionStep`, call
+   `FanOutNodeOp` twice:
+   - A `PrepareXxx` command (`NodeOpType.PrepareLive` for `LoadingLive`,
+     `NodeOpType.PrepareReplay` for `LoadingReplay`, etc.) carrying the original
+     `req.PayloadJson` so handlers can extract `ScenarioId` / `DrillId`.
+   - A `NodeOpType.CommitState` command carrying `((int)tStep.TargetState).ToString()`
+     as the payload.  
+   For each `OperationStep` with `SysOpType.ReplaySeek`, fan out
+   `NodeOpType.NodeReplaySeek` with `opStep.PayloadJson`.
+   See addendum §3.3 for the complete switch expression mapping target state →
+   `NodeOpType`.
+
+**Success conditions:**
+
+- `Fact: DdsWriter created and disposed` — `OrchestratorSubsystem.Shutdown` calls
+  `_sysOpWriter.Dispose()`; no leak in test teardown.
+
+- `Fact: Panel uses writer, not direct DrillMaster` — grep for `HandleSysOpRequest`
+  in `OrchestratorScenarioPanel.cs` returns zero matches after this task.
+
+- `Fact: Button click publishes SysOpRequest` — integration test simulates clicking
+  the "Standby → LoadingLive" button; asserts a `SysOpRequest` with
+  `OperationType == SysOpType.TransitionState` and payload containing `LoadingLive`
+  was written to the DDS topic within 200 ms.
+
+- `Fact: Node receives PrepareXxx after button click` — in a headless integration
+  test with one live `SimHostSubsystem`, clicking "LoadingLive" results in the
+  `DrillSlave` on that node receiving `NodeOpType.PrepareLive` within 3 s
+  (`Timeout = 10000`).
+
+- `Fact: Fan-out sends CommitState` — after `PrepareLive` ACK arrives, the same
+  `SimHostSubsystem` node receives `NodeOpType.CommitState` with the target state
+  integer; `LocalDsmState` in the next heartbeat transitions to `LoadingLive`.
+
+---
+
+### CGF1-S0503 — Time Control Section + Remote Time Commands
+
+**Design ref:** [§4](./CGF-1-ADDENDUM-3.md#4-time-control-section)
+
+**Depends on:** CGF1-S0502 (DdsWriter must exist), CGF1-S0205 (DistributedTimeCoordinator
+must be operational).
+
+**Work to do:**
+
+1. **`OrchestrationMessages.cs` — extend `SysOpType`:**  
+   Add:
+   ```csharp
+   CancelOperation = 13,
+   StepTime        = 14,
+   SetTimeScale    = 15,
+   ```
+
+2. **`DrillMaster.cs` — `TimeControlRequested` event + early return:**  
+   ```csharp
+   public event Action<SysOpType, string>? TimeControlRequested;
+   ```
+   At the start of `ProcessSingleSysOpRequest`, before the main dispatch:
+   ```csharp
+   if (req.OperationType is SysOpType.PauseTime or SysOpType.ResumeTime
+                         or SysOpType.StepTime  or SysOpType.SetTimeScale)
+   {
+       TimeControlRequested?.Invoke(req.OperationType, req.PayloadJson ?? string.Empty);
+       return;
+   }
+   ```
+
+3. **`OrchestratorSubsystem.cs` — subscribe to event:**  
+   In `Initialize`, after `_drillMaster` is created, wire the event to
+   `_timeCoordinator`/`_timeKernel` (see addendum §4.2 for full handler body).
+
+4. **`OrchestratorSubsystem.cs` — "Time Control" section in `DrawUI()`:**  
+   Add `ImGui.CollapsingHeader("Time Control", ImGuiTreeNodeFlags.DefaultOpen)` block
+   containing:
+   - `ImGui.Text("Master Time: {wallTimeStr}")` and `ImGui.Text("Drill Time: {drillTime:F2} s")`
+   - `Button(isPaused ? "Resume" : "Pause")` → dispatches `PauseTime` or `ResumeTime`
+     via `_sysOpWriter`.
+   - `Button("Step")` (wrapped in `BeginDisabled`/`EndDisabled` when not paused) →
+     dispatches `StepTime`.
+   - `SliderFloat("Speed", ref timeScale, 0.1f, 10.0f, "%.1fx")` → on change,
+     dispatches `SetTimeScale` with `scale.ToString()` as payload.
+   - `isPaused` is read from `_uiCache.IsPaused` (populated from `SwitchTimeModeWireDto`).
+
+5. **`OrchestratorScenarioPanel.cs` — add `Update(float dt)` and pause callback:**  
+   - Add `private readonly Action? _requestPause;` and accept it in constructor.
+   - Add `_seekDebounceTimer`, `_seekPending` fields.
+   - `Update(float dt)`: decrements debounce timer; when expired, writes
+     `SysOpType.ReplaySeek` request and invokes `_requestPause?.Invoke()`.
+   - `OrchestratorSubsystem.Update` calls `_scenarioPanel?.Update(deltaTime)`.
+
+6. **`OrchestratorScenarioPanel.cs` — replay seek with debounce and dynamic cap:**  
+   - `RenderReplaySection(DSMState, bool, float currentDrillTime)` signature.
+   - When slider moves: `_seekPending = true; _seekDebounceTimer = 0.5f;`  
+     When not pending: `_seekSliderValue = currentDrillTime;` (passive tracking).
+   - `_replayDuration` loaded from the selected drill's `*.meta.json` when "Load
+     Replay" is clicked; `GetReplayDuration(string drillId)` reads `TotalFrames`
+     from the JSON and divides by 60 to get seconds; fallback 3600.
+
+7. **`OrchestratorSubsystem.cs` — pass drill time to panel:**  
+   `float drillTime = (float)(_timeKernel?.CurrentTime.TotalTime ?? 0.0);`  
+   `_scenarioPanel?.Render(drillTime);` (update `Render` signature accordingly).
+
+**Success conditions:**
+
+- `Fact: SysOpType values correct` — unit test asserts
+  `(int)SysOpType.StepTime == 14` and `(int)SysOpType.SetTimeScale == 15`.
+
+- `Fact: TimeControlRequested fires on PauseTime` — unit test: call
+  `HandleSysOpRequest(new SysOpRequest { OperationType = SysOpType.PauseTime })`;
+  assert `TimeControlRequested` was invoked once with `SysOpType.PauseTime`.
+
+- `Fact: TimeControlRequested bypasses 2PC` — same call as above; assert no
+  `DistributedTransaction` was appended to `TransactionHistory`.
+
+- `Fact: Pause/Resume toggle` — Time Control section shows "Pause" when
+  `IsPaused == false` and "Resume" when `IsPaused == true`; clicking either
+  dispatches the corresponding `SysOpRequest`.
+
+- `Fact: Step disabled when running` — when `IsPaused == false`, the Step button
+  is in `BeginDisabled` state; clicking it does not dispatch any request.
+
+- `Fact: Seek debounce delays write` — drag slider; assert no `SysOpRequest` is
+  written within 400 ms; after 600 ms assert exactly 1 `ReplaySeek` request written.
+
+- `Fact: Replay duration capped` — `GetReplayDuration` for a fake `.meta.json`
+  with `"TotalFrames": 3600` returns `60.0f` seconds.
+
+---
+
+### CGF1-S0504 — Asset Combo Selection (Local Filesystem Scan)
+
+**Design ref:** [§5](./CGF-1-ADDENDUM-3.md#5-asset-combo-selection-local-scan)
+
+**Depends on:** CGF1-S0502.
+
+**Work to do:**
+
+1. **`OrchestratorScenarioPanel.cs` — replace text input fields:**  
+   Remove `_loadScenarioId`, `_replayDrillId`, `_injectScenarioId`, `_injectStoryId`
+   string fields.  
+   Add:
+   ```csharp
+   private string[] _availableScenarios    = Array.Empty<string>();
+   private string[] _availableStories      = Array.Empty<string>();
+   private string[] _availableDrills       = Array.Empty<string>();
+   private int      _selectedLoadScenarioIdx = -1;
+   private int      _selectedDrillIdx        = -1;
+   private int      _selectedStoryIdx        = -1;
+   ```
+
+2. **`OrchestratorScenarioPanel.cs` — add `RefreshLocalAssets()` method:**  
+   Scan `C:\FDP_Temp` (or parameterized root): directories containing `.fdp` files
+   → drills; directories containing `.json` files → scenarios. Stories share the
+   same array as scenarios.  
+   Add `using System.IO;`. Clamp selection indices after refresh.  
+   Call `RefreshLocalAssets()` from the constructor.
+
+3. **`OrchestratorScenarioPanel.cs` — update `RenderScenarioSection`:**  
+   Replace the `_loadScenarioId` `InputText` with
+   `ImGui.Combo("Select Scenario##OrcLoadId", ref _selectedLoadScenarioIdx,
+   _availableScenarios, _availableScenarios.Length)` + a `"⟳##RefScen"` button.  
+   Use `_availableScenarios[_selectedLoadScenarioIdx]` as `scenId` in the two
+   load button payloads; guard with `_selectedLoadScenarioIdx >= 0`.  
+   Keep the Save section's `_saveScenarioId` `InputText` unchanged (creating new
+   scenario names still requires free text).
+
+4. **`OrchestratorScenarioPanel.cs` — update `RenderReplaySection`:**  
+   Replace `_replayDrillId` `InputText` with
+   `ImGui.Combo("Select Drill##OrcReplayId", ref _selectedDrillIdx, _availableDrills,
+   _availableDrills.Length)` + `"⟳##RefDrill"` button.  
+   Use `_availableDrills[_selectedDrillIdx]` as `drillId`; guard as above.
+
+5. **`OrchestratorScenarioPanel.cs` — update `RenderStoriesSection`:**  
+   Remove `_injectScenarioId` and `_injectStoryId` text inputs.  
+   Add `ImGui.Combo("Story Package##OrcInjectScen", ref _selectedStoryIdx,
+   _availableStories, _availableStories.Length)` + `"⟳##RefStory"` button.  
+   On "Inject Story" click: `string scenId = _availableStories[_selectedStoryIdx];
+   string newStoryId = Guid.NewGuid().ToString();`; include both in payload.
+
+**Success conditions:**
+
+- `Fact: Combos populated at construction` — instantiate panel against a test
+  tmp directory containing one `<id>/entities.json` subfolder and one
+  `<id>/node_1.fdp` subfolder; assert `_availableScenarios.Length == 1` and
+  `_availableDrills.Length == 1` after construction.
+
+- `Fact: Refresh button updates list` — write a new scenario folder after
+  construction; click refresh; assert `_availableScenarios.Length` increased.
+
+- `Fact: Story StoryId auto-generated` — two successive "Inject Story" clicks
+  produce two `SysOpRequest` payloads with different `StoryId` values.
+
+- `Fact: Empty selection disables Load buttons` — with `_selectedLoadScenarioIdx = -1`,
+  clicking "Load into Live" results in no `SysOpRequest` being written.
+
+---
+
+### CGF1-S0505 — Archive Export/Import Pipeline
+
+**Design ref:** [§6](./CGF-1-ADDENDUM-3.md#6-archive-exportimport-pipeline)
+
+**Depends on:** CGF1-S0502 (fan-out mechanism), CGF1-G0401 (toolkit
+`IDsmHandler`/`OrchestrationCommand`).
+
+**Work to do:**
+
+1. **`OrchestrationMessages.cs` — `SysOpType.CancelOperation = 13`** (if not already
+   added in S0503; ensure it is present regardless of ordering).
+
+2. **`StorageGatewayModule.cs` — thread `CancellationToken` through bulk methods:**  
+   - `PullToNasAsync` and `PushToNodesAsync` gain `CancellationToken ct = default`.  
+   - Pass `ct` to `ParallelOptions.CancellationToken`.  
+   - On `OperationCanceledException`: delete any partially-written output files (NAS
+     side for Pull; local SSD side for Push); rethrow.  
+   - Add `PrefetchArchiveAsync(string drillId, IReadOnlyList<NodeDistributionTarget>
+     targets, string nasBasePath, CancellationToken ct = default)`:  
+     reads `<nasBasePath>/<drillId>/node_<target.NodeId>.fdp` for each target node
+     and copies to `target.DestinationPath`.
+
+3. **Add `ScanLocalDrills(string root)`, `ScanNasDrills(string nasRoot)`,
+   `ScanLocalScenarios(string root)` helper methods to `StorageGatewayModule`**
+   (pure filesystem scan, no DDS). Used by both `DrillMaster.PublishAssetInventory`
+   and the fallback `RefreshLocalAssets`.
+
+4. **`FDP.Toolkit.Orchestration` — add `ReferenceArchiveHandler.cs`:**  
+   Implement `IDsmHandler`:
+   - `CanHandle`: returns `true` for `NodeOpType.SerializeLocal` when payload
+     contains `"DrillId"` key.
+   - `PrepareAsync`: returns `null` immediately.
+   - `Commit`: locates local `.fdp` file, builds `FileManifestEntry`, serialises it
+     as `ResultJson` in the transport `PublishStatus` call.
+   - `Abort`: deletes any partial `.fdp` file for the given `DrillId`.
+
+5. **`DrillMaster.cs` — `_activeCancellations` registry:**  
+   ```csharp
+   private readonly Dictionary<Guid, CancellationTokenSource> _activeCancellations = new();
+   ```
+
+6. **`DrillMaster.cs` — handle `ExportArchive`, `ImportArchive`, `CancelOperation`**
+   in `ProcessSingleSysOpRequest`:
+   - `ExportArchive`: create `CancellationTokenSource`; store; call
+     `FanOutSerializeLocal(txId, activeNodeIds, req.PayloadJson)`.
+     In `ConsumeNodeOpStatuses`, pass the CTS token to `_gateway.PullToNasAsync`.
+   - `ImportArchive`: create CTS; call `_gateway.PrefetchArchiveAsync` with CT;
+     on completion publish `SysOpStatus` with `Success` or `Timeout` code.
+   - `CancelOperation`: parse target Guid from payload; cancel CTS if present;
+     fan out `NodeOpType.AbortTransaction`.
+
+7. **`NodeBootstrapper.BuildOrchestration` — register `ReferenceArchiveHandler`:**  
+   `handlers.Add(new ReferenceArchiveHandler(localTempRoot, nodeId));`
+
+8. **`OrchestratorScenarioPanel.cs` — add Archive Management section:**  
+   - New state fields: `_archivedDrills`, `_unarchivedLocalDrills`,
+     `_selectedArchiveIdx`, `_selectedUnarchivedIdx`, `_activeArchiveOpId`,
+     `_archiveProgress`.
+   - `RefreshLocalAssets` extended: also reads NAS drill list via
+     `_gateway.ScanNasDrills` (or deferred to `ClusterUiCache` in S0506).
+   - `RenderArchiveSection(DSMState, bool)` (see addendum §6.5 for layout).
+   - Archives section added to `Render()` call sequence.
+
+**Success conditions:**
+
+- `Fact: PullToNasAsync cleans up on cancel` — unit test: start a pull of 3 files;
+  cancel after 1 completes; assert the 2 incomplete destination files are deleted;
+  no exception escapes.
+
+- `Fact: ReferenceArchiveHandler Commit produces manifest` — unit test: create a
+  fake `.fdp` file; call `Commit`; assert `ResultJson` deserialises to a
+  `FileManifestEntry` with the correct path.
+
+- `Fact: ReferenceArchiveHandler Abort deletes partial file` — unit test: create a
+  partial `.fdp` file; call `Abort`; assert file no longer exists.
+
+- `Fact: CancelOperation kills gateway task` — integration test: start ExportArchive;
+  immediately send CancelOperation; assert `PullToNasAsync` throws
+  `OperationCanceledException`; assert `AbortTransaction` was fanned out to nodes.
+
+- `Fact: Archive UI progress visible` — when `_activeArchiveOpId != Guid.Empty`,
+  `ProgressBar` is rendered and "CANCEL OPERATION" button is active regardless of
+  `disableAll`.
+
+---
+
+### CGF1-S0506 — CQRS Decoupling: AssetInventoryTopic + ClusterUiCache
+
+**Design ref:** [§7](./CGF-1-ADDENDUM-3.md#7-cqrs-decoupling-assetinventorytopic--clusteruicache)
+
+**Depends on:** CGF1-S0501, CGF1-S0502, CGF1-S0503, CGF1-S0504, CGF1-S0505.
+
+**Work to do:**
+
+1. **`OrchestrationMessages.cs` — add `AssetInventoryTopic` struct:**  
+   DDS topic with `NodeId` key; four `[DdsManaged] string` fields:
+   `LocalScenariosJson`, `LocalDrillsJson`, `ArchivedDrillsJson`,
+   `UnarchivedLocalDrillsJson`. `TransientLocal` QoS, `KeepLast` history depth 1.
+   See addendum §7.1 for full struct definition and attributes.
+
+2. **`DrillMaster.cs` — `_inventoryWriter` + `PublishAssetInventory()`:**  
+   - Add `DdsWriter<AssetInventoryTopic>? _inventoryWriter`. Initialise/dispose.  
+   - Add `public string NasBasePath => _nasBasePath;` property.  
+   - In `Tick()`, throttle to every 5 s (compare `DateTime.UtcNow` to
+     `_lastInventoryScan`); call `PublishAssetInventory()`.  
+   - `PublishAssetInventory` calls the three `ScanXxx` methods from
+     `StorageGatewayModule` (added in S0505) and writes `AssetInventoryTopic`.
+
+3. **`Bagira.Runner.Services` — create `ClusterUiCache.cs`:**  
+   Construct all 8 required `DdsReader`s (see addendum §7.3 for the full list).
+   Implement `Update()` that drains readers, updates all public properties, and
+   calls `Process2PcNetworkTraffic()`. Cap `TxHistory` at 10 entries.
+   Implement `Dispose()`.
+
+4. **`OrchestratorScenarioPanel.cs` → rename to `ClusterScenarioPanel.cs`:**  
+   - Remove `private readonly DrillMaster _drillMaster` field entirely.  
+   - Replace constructor with `(DdsWriter<SysOpRequest>, ClusterUiCache,
+     Action? requestPause = null)`.  
+   - All reads from `_drillMaster.*` properties replaced by the equivalent
+     `_uiCache.*` property.  
+   - `RefreshLocalAssets()` is superseded by `_uiCache.AvailableScenarios` etc.;
+     the method may be removed or kept as a local fallback.
+   - `Render(ClusterUiCache cache, bool disableAll)` becomes the public entry point.
+
+5. **`OrchestratorSubsystem.cs` — use `ClusterUiCache` and `ClusterScenarioPanel`:**  
+   - Add `ClusterUiCache? _uiCache;` field. Instantiate in `Initialize`; dispose in
+     `Shutdown`.  
+   - Replace `OrchestratorScenarioPanel` field/instantiation with `ClusterScenarioPanel`.  
+   - `DrawUI()` reads `_uiCache.IsBootstrapped`, `_uiCache.HasInFlightTransaction`,
+     `_uiCache.ActiveNodes`, `_uiCache.TxHistory`, `_uiCache.MasterWallTicks`,
+     `_uiCache.MasterSimTime`, `_uiCache.IsPaused` — **no direct `_drillMaster`
+     property access inside `DrawUI`**.  
+   - `Update()` calls `_uiCache?.Update()`.
+   - Keep `internal DrillMaster? TestHook_DrillMaster` for E2E tests.
+
+**Success conditions:**
+
+- `Fact: AssetInventoryTopic published by DrillMaster` — unit test: tick DrillMaster
+  6 seconds; assert `_inventoryWriter` made at least one `Write` call.
+
+- `Fact: ClusterUiCache reflects SystemStateTopic` — write a `SystemStateTopic`
+  sample with `CurrentState = LoadingLive`; call `Update()`; assert
+  `cache.CurrentState == LoadingLive`.
+
+- `Fact: ClusterUiCache sniffs 2PC traffic` — write a `NodeOpCommand` with
+  `Operation = PrepareState`; call `Update()`; assert `cache.TxHistory.Count == 1`.
+
+- `Fact: OrchestratorSubsystem.DrawUI has no _drillMaster reads` — static analysis
+  (or grep): `DrawUI()` method body contains no direct access to `_drillMaster`
+  fields or methods except `TestHook_DrillMaster`.
+
+- `Fact: ClusterScenarioPanel compiles with ClusterUiCache` — solution builds with
+  zero errors after the rename/refactoring.
+
+- `Fact: No regression in E2E DSM test suite` — `DsmE2eScriptTests` all pass.
+
+---
+
+### CGF1-S0507 — IOS Remote Cluster Control Panel
+
+**Design ref:** [§8](./CGF-1-ADDENDUM-3.md#8-ios-remote-cluster-control-panel)
+
+**Depends on:** CGF1-S0506 (`ClusterScenarioPanel` and `ClusterUiCache` must exist).
+
+**Work to do:**
+
+1. **`Bagira.IOS` — add `TimePulseIngressHandler.cs`:**  
+   `IIngressHandler, IDisposable`; polls `DdsReader<TimePulseDescriptor>`;
+   invokes `Action<TimePulseDescriptor>` callback.
+
+2. **`Bagira.IOS` — add `TimeModeIngressHandler.cs`:**  
+   Same pattern; polls `DdsReader<SwitchTimeModeWireDto>`;
+   invokes `Action<SwitchTimeModeWireDto>` callback.
+
+3. **`Bagira.IOS/Abstractions/IIosLogic.cs` — extend interface:**  
+   Add `double MasterSimTime`, `long MasterWallTicks`, `float MasterTimeScale`,
+   `bool IsPaused` read-only properties and `RequestPause()`, `RequestResume()`,
+   `RequestStep()`, `SetTimeScale(float)` methods.
+
+4. **`Bagira.IOS/IosLogic.cs` — implement new members:**  
+   - Back the four properties with private setters populated by the ingress handler
+     callbacks.  
+   - Implement the four command methods by writing a `SysOpRequest` via
+     `_sysOpWriter`:
+     - `RequestPause()` → `SysOpType.PauseTime`
+     - `RequestResume()` → `SysOpType.ResumeTime`
+     - `RequestStep()` → `SysOpType.StepTime`
+     - `SetTimeScale(float s)` → `SysOpType.SetTimeScale`, payload `s.ToString()`
+
+5. **`Bagira.IOS/IosSubsystem.cs` — wire new components in `Initialize`:**  
+   - Construct `ClusterUiCache(_participant)` and store as `_uiCache`.
+   - Construct `_sysOpWriter = new DdsWriter<SysOpRequest>(_participant)`.
+   - Construct `ClusterScenarioPanel(_sysOpWriter, _uiCache)` and store.
+   - Register `TimePulseIngressHandler` and `TimeModeIngressHandler` in the IOS
+     ingress handler list.
+   - Wire handler callbacks to update `IosLogic.MasterSimTime` etc.
+   - Dispose all in `Shutdown`.
+
+6. **`Bagira.IOS/IosSubsystem.cs` — `DrawUI()` renders cluster panel:**  
+   ```csharp
+   if (ImGui.Begin("Cluster Control", ImGuiWindowFlags.None))
+   {
+       _clusterPanel?.Render(_uiCache!, !_uiCache!.IsBootstrapped);
+   }
+   ImGui.End();
+   ```
+
+**Success conditions:**
+
+- `Fact: IOS TimePulse updates MasterSimTime` — write a `TimePulseDescriptor` with
+  `SimTimeSnapshot = 42.5` to the DDS bus; poll `TimePulseIngressHandler`; assert
+  `iosLogic.MasterSimTime == 42.5`.
+
+- `Fact: IOS RequestPause dispatches SysOpRequest` — call `iosLogic.RequestPause()`;
+  assert `SysOpRequest { OperationType = SysOpType.PauseTime }` was written.
+
+- `Fact: IOS renders cluster panel` — `IosSubsystem.DrawUI()` does not throw;
+  the "Cluster Control" window contains State Banner, Drill Control, and Time Control
+  sections sourced from `ClusterUiCache`.
+
+- `Fact: IOS Drill Control targets match Orchestrator` — both `IosSubsystem` and
+  `OrchestratorSubsystem` render reachable targets from the same `ClusterUiCache.CurrentState`;
+  assert that `GetReachableTargets(currentState)` called with the cached state
+  produces the same list from `BagiraStateGraph`.
+
+- `Fact: No direct DrillMaster reference in IosSubsystem` — grep: `IosSubsystem.cs`
+  does not import or reference the `Bagira.Orchestrator` namespace.

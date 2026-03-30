@@ -22,6 +22,8 @@ Should be CommanderId = local entity id (Entity struct)
 [BUG] MapClickEvent does not recognize lef/right/middlele click!
 
 
+I saw default NodeId assignment by subsystem name being inside FDP engine. Concrete Subsystem names are application layer stuff thas must not be inside FDP folder but in the application layer.
+
 
 
 
@@ -86,4 +88,48 @@ We have two identical components
  - EntityMissionholder component
  - IgMissionHolder component
 why? can't we unify them?
+
+
+
+
+
+
+------------------
+
+I am running "Bagira.Runner -m all"
+
+Orchestrator's ImGui panel should have beige color (now that color is used INSIDE the panel, but it should be used JUST for the TITLE of the panel) Now there is an ImGui window missing and all the stuff are stacked into DrawUI(). Pls add it into a single ImGui window with beige title bar (similarly to what other panels are made).
+
+
+I saw default NodeId assignment by subsystem name being inside FDP engine. Concrete Subsystem names are application layer stuff thas must not be inside FDP folder but in the application layer.
+
+
+The 2PC History should show full GUID and should show also the Json payload in the table (on hover over the json payload column the pretty formatted json tooltip window should pop up)
+
+The 2PC History table should NOT grow indefinitely; it should show max 10 lines and support scrolling. Each transaction line should be expandable showing the responses from the nodes.
+
+The "Drill Control" panel should not take shortcut directly to the handler, it should send the SysOpRequest messages!
+
+Some buttons in the Orchestrator ImGui are no-op just with TODO comments, needs to be fully implemented.
+
+Pressing the State machine state button does NOT result in sending NodeOpRequest - pressing those buttons do nothing in the system.
+
+The Orchestrator in the Drill Control should indicate the most recent drill SM state confirmed (if all nodes completed) or it should show "Old State -> New State" transition (if not all nodes completed the transition yet).
+
+The Scenario control (where loading is possible) should support selecting an existing scenario from a combo when loading a scenario - the system should support enumerating available scenario ids.
+
+The same shoudl apply to the Drill ID for replay - the system should support enumerating existing drill ids (available locally - not those archived).
+
+
+I do not understand why in the "Stories" section there is ScenarioId and not just SotryId. I thought the story is just another json file saved in different folder that the scenario files. 
+
+I would like to have a combo-based selection of existing stories - the Inject will use the one selected from the combo.
+
+There should be another section for archive management - the system should support enumerating the archived drills, archiving current (locally stored) drills and restoring a drill from archive. Same should be working for scenarios and stories - saving current scenarios to archive and restoring current scenarios from archive.
+
+
+Orchestrator UI should show the time control section. The should be current master time (wall clock time) as well as the drill time. And should have button for making a single step. The Pause should enter (using the future barrier) the deterministic stepping mode where pressing the "Step" button makes a short deterministic step. Pressing "Resume" should resume continuous time flow. There should be a slider for controlling the time flow speed in range 0.1 till 10times faster that real time. "Step" button must be disabled if not paused. Pause button should turn into Resume if time is paused (no need for 2 separate buttons, no need for extra Play button). Just two buttons: Pause/Resume and Step. The stepping should work both in live as well as in replay modes. In replay mode this shoudl be capped to the end time of the recording.
+
+While in replay, there should be a slider showing current relative time position in a recording (drill time). If the slider is moved by the user, after a debounce period the system should execute the Jump-to-time operation and enter paused state once finished by all nodes.
+
 

@@ -1,12 +1,13 @@
 # CGF-1 Design Document
-## Distributed Drill Management & CGF Subsystem — Phases 1–4
+## Distributed Drill Management & CGF Subsystem — Phases 1–5
 
 > **Source:** Derived from [design-talk.md](./design-talk.md),
-> [mgmt-DESIGN.md](./mgmt-DESIGN.md), and [design-review-2.md](./design-review-2.md).  
-> **Scope:** Phases 1–4 (Skeleton, State & Time, Persistence, Generalization).  
+> [mgmt-DESIGN.md](./mgmt-DESIGN.md), [design-review-2.md](./design-review-2.md),
+> and [design-review-3.md](./design-review-3.md).  
+> **Scope:** Phases 1–5 (Skeleton, State & Time, Persistence, Generalization, Operational UI & CQRS).  
 > See [CGF-1-GENERALIZATION.md](./CGF-1-GENERALIZATION.md) for the Phase 4 design authority.  
-> Phase 5 (Urban Combat AI) is out of scope and will be addressed in a separate workstream
-> once Phases 1–4 are stable and regression-tested.
+> See [CGF-1-ADDENDUM-3.md](./CGF-1-ADDENDUM-3.md) for the Phase 5 design authority.  
+> Phase 6 (Urban Combat AI) is out of scope until Phases 1–5 are stable.
 >
 > **Critical architectural constraint:**  
 > _FDP infrastructure (Fdp.Kernel and all FDP.Toolkit.* projects) must never reference
@@ -48,7 +49,8 @@
 6. [Phase 4 — Generalization: FDP Toolkit Orchestration](#6-phase-4--generalization-fdp-toolkit-orchestration)
 7. [New Projects & File Map](#7-new-projects--file-map)
 8. [Modified Files](#8-modified-files)
-9. [Deferred Features (Phase 5+)](#9-deferred-features-phase-5)
+9. [Phase 5 — Operational UI, Real Network Dispatch & CQRS Architecture](#9-phase-5--operational-ui-real-network-dispatch--cqrs-architecture)
+10. [Deferred Features (Phase 6+)](#10-deferred-features-phase-6)
 
 ---
 
@@ -1485,14 +1487,32 @@ The generalization is organized as six tasks in
 
 ---
 
-## 9. Deferred Features (Phase 5+)
+## 9. Phase 5 — Operational UI, Real Network Dispatch & CQRS Architecture
+
+Phase 5 corrects critical runtime gaps and decouples the cluster UI from local service
+instances. The full design is in a dedicated companion document:
+
+> **→ [CGF-1-ADDENDUM-3.md](./CGF-1-ADDENDUM-3.md)**
+
+| Task | Title | Key deliverable |
+|------|-------|-----------------|
+| CGF1-S0501 | ImGui Window & 2PC History | Beige title bar; `ImGui.Begin` wrapper; `DistributedTransaction.{PayloadJson,NodeResponses,SourceDsmState}`; 5-col scrollable 2PC table; JSON hover tooltip; context-menu clipboard |
+| CGF1-S0502 | Real Network Dispatch + Fan-out | `DdsWriter<SysOpRequest>` in `OrchestratorSubsystem`; all panel `HandleSysOpRequest` calls replaced; `DrillMaster` fan-out loop for `PrepareXxx`/`CommitState` |
+| CGF1-S0503 | Time Control Section | `SysOpType.{StepTime,SetTimeScale}`; `DrillMaster.TimeControlRequested` event; Pause/Resume/Step/Speed UI; replay seek debounce |
+| CGF1-S0504 | Asset Combo Selection | `RefreshLocalAssets()` scanning `C:\FDP_Temp`; scenario/drill/story combos; auto-generated `StoryId` |
+| CGF1-S0505 | Archive Export/Import Pipeline | `SysOpType.CancelOperation`; `PrefetchArchiveAsync`; `ReferenceArchiveHandler`; DrillMaster archive branches; Archive Management UI with progress bar + cancel |
+| CGF1-S0506 | CQRS: AssetInventoryTopic + ClusterUiCache | `AssetInventoryTopic` DDS struct; DrillMaster publishes every 5 s; `ClusterUiCache`; `OrchestratorScenarioPanel` → `ClusterScenarioPanel`; `OrchestratorSubsystem` uses cache |
+| CGF1-S0507 | IOS Remote Cluster Control Panel | Time ingress handlers on IOS; `IIosLogic` time API; `IosSubsystem` renders `ClusterScenarioPanel` over pure DDS |
+
+---
+
+## 10. Deferred Features (Phase 6+)
 
 The following features from `mgmt-DESIGN.md` are explicitly out of scope for Phases 1–3.
 None of them are required before Phase 4 (Urban Combat AI):
 
 | Feature | Reason for deferral |
 |---------|---------------------|
-| **Battlespaces** (§11 of mgmt-DESIGN) | Urban Combat demo uses a static city intersection; staged terrain loading is unnecessary for Phase 4 |
+| **Battlespaces** (§11 of mgmt-DESIGN) | Urban Combat demo uses a static city intersection; staged terrain loading is unnecessary for Phase 5 |
 | **"Always Recording" event frames during Edit** (§8.12) | Basic simulation-time recording is sufficient for CI validation; paused-time UTC event capture introduces edge cases distracting from Phase 3 correctness |
-| **Archive Export/Import** (§13) | Pre/post replay file management can be manual during development; fully automated archive operations belong to deployment phase |
 | **Full Story Playback Controller** | `StoryPlaybackController` (timed/conditional story events that replay as narrative) is deferred until multi-tenant training sessions are needed; Stage 3.8 covers injection/deletion only |
