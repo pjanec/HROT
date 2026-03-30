@@ -199,6 +199,40 @@ public sealed class DrillMaster : IDisposable
     public bool BootstrapComplete => _bootstrapLatch;
 
     /// <summary>
+    /// Current cluster DSM state (optimistic — advances on accepted transitions).
+    /// Exposed for UI panels (CGF1-S0106) and time-mode consumers.
+    /// </summary>
+    public DSMState CurrentSystemState => _currentDsmState;
+
+    /// <summary>
+    /// <c>true</c> when a distributed transaction is currently in flight.
+    /// Used by <c>OrchestratorScenarioPanel</c> to disable command buttons while
+    /// a 2PC round is pending (CGF1-S0106).
+    /// </summary>
+    public bool HasInFlightTransaction => _activeTransaction != null;
+
+    /// <summary>
+    /// The currently active distributed transaction, or <see langword="null"/> when idle.
+    /// Exposed for the status banner in <c>OrchestratorScenarioPanel</c> (CGF1-S0106).
+    /// </summary>
+    public DistributedTransaction? ActiveTransaction => _activeTransaction;
+
+    /// <summary>
+    /// Optional storage-gateway reference for scenarios list / NAS operations.
+    /// Exposed so <c>OrchestratorScenarioPanel</c> can call
+    /// <c>ListScenariosAsync()</c> (CGF1-S0106).
+    /// </summary>
+    public StorageGatewayModule? StorageGateway => _gateway;
+
+    /// <summary>
+    /// Returns the DSM states that can be reached from the current cluster state in a
+    /// single planning step.  Used by <c>OrchestratorScenarioPanel</c> to populate
+    /// the Drill Control buttons dynamically (CGF1-S0106).
+    /// </summary>
+    public IReadOnlyList<DSMState> GetReachableTargets() =>
+        _planner.GetReachableTargets(_currentDsmState);
+
+    /// <summary>
     /// Snapshot of completed and aborted transactions in insertion order.
     /// The returned array may contain trailing nulls when the buffer is not yet full.
     /// </summary>
@@ -270,8 +304,36 @@ public sealed class DrillMaster : IDisposable
         CheckBootstrapLatch();
         DetectAndEjectTimedOutNodes();
         DrainPendingPrefetch();
+        DrainInjectedRequests();
         ProcessSysOpRequests();
         ConsumeNodeOpStatuses();
+    }
+
+    // ── UI / test injection path ──────────────────────────────────────────
+
+    private readonly System.Collections.Concurrent.ConcurrentQueue<SysOpRequest>
+        _injectedRequests = new();
+
+    /// <summary>
+    /// Injects a <see cref="SysOpRequest"/> directly into the DrillMaster processing
+    /// queue, bypassing DDS.  Used by UI panels (e.g. <c>OrchestratorScenarioPanel</c>)
+    /// and integration tests that need to drive the orchestrator without creating a
+    /// separate DDS publisher (CGF1-S0106).
+    ///
+    /// <para>
+    /// Thread-safe: may be called from any thread.  The request is processed on the
+    /// next <see cref="Tick"/> call on the main thread.
+    /// </para>
+    /// </summary>
+    public void HandleSysOpRequest(SysOpRequest request)
+    {
+        _injectedRequests.Enqueue(request);
+    }
+
+    private void DrainInjectedRequests()
+    {
+        while (_injectedRequests.TryDequeue(out var req))
+            ProcessSingleSysOpRequest(req);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────
@@ -427,8 +489,17 @@ public sealed class DrillMaster : IDisposable
         foreach (var sample in scope)
         {
             if (!sample.IsValid) continue;
-            var req = sample.Data;
+            ProcessSingleSysOpRequest(sample.Data);
+        }
+    }
 
+    /// <summary>
+    /// Processes a single <see cref="SysOpRequest"/> — called from both the DDS drain
+    /// path (<see cref="ProcessSysOpRequests"/>) and the UI/test injection path
+    /// (<see cref="DrainInjectedRequests"/>).
+    /// </summary>
+    private void ProcessSingleSysOpRequest(SysOpRequest req)
+    {
             if (!_bootstrapLatch)
             {
                 _sysOpStatusWriter.Write(new SysOpStatus
@@ -437,7 +508,7 @@ public sealed class DrillMaster : IDisposable
                     StatusCode = OrchestrationStatusCode.Rejected,
                     ResultJson = string.Empty
                 });
-                continue;
+                return;
             }
 
             // Accept the request — resolve target via planner for TransitionState ops.
@@ -563,7 +634,7 @@ public sealed class DrillMaster : IDisposable
                         StatusCode = OrchestrationStatusCode.Rejected + 1,  // Failure=11 (Timeout range)
                         ResultJson = string.Empty
                     });
-                    continue;
+                    return;
                 }
             }
             else if (req.OperationType == SysOpType.SaveScenario)
@@ -696,7 +767,7 @@ public sealed class DrillMaster : IDisposable
                         StatusCode = OrchestrationStatusCode.Rejected,
                         ResultJson = string.Empty
                     });
-                    continue;
+                    return;
                 }
             }
 
@@ -721,7 +792,6 @@ public sealed class DrillMaster : IDisposable
             FdpLog<DrillMaster>.Info(
                 "[Orchestrator] SysOpRequest {0} ({1}) accepted (transaction {2}).",
                 req.RequestId, req.OperationType, tx.TransactionId);
-        }
     }
 
     /// <summary>

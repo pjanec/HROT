@@ -28,7 +28,7 @@ namespace Bagira.Runner.Configuration
         /// <summary>Run a headless deterministic CI scenario and exit with the scenario result code.</summary>
         CI = 1 << 5,           // 32
 
-        /// <summary>Run all three subsystems in one aggregated process.</summary>
-        All = SimHost | IG | IOS
+        /// <summary>Run all subsystems (Orchestrator + SimHost + IG + IOS) in one aggregated process.</summary>
+        All = Orchestrator | SimHost | IG | IOS
     }
 }

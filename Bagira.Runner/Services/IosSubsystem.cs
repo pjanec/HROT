@@ -74,6 +74,12 @@ namespace Bagira.Runner.Services
         /// </summary>
         internal int TestHook_NodeIdOverride => _nodeIdOverride;
 
+        /// <summary>
+        /// Internal test hook: exposes the <see cref="FDP.Toolkit.Orchestration.DrillSlave"/>
+        /// for handler-registration assertions (CGF1-S0104 / A.3).
+        /// </summary>
+        internal FDP.Toolkit.Orchestration.DrillSlave? TestHook_DrillSlave => _drillSlave;
+
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
         {
@@ -92,6 +98,31 @@ namespace Bagira.Runner.Services
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;
             var iosTransport = new DdsOrchestrationTransport(_participant, iosNodeId);
             _drillSlave = new FDP.Toolkit.Orchestration.DrillSlave(iosTransport, iosNodeId, "IOS");
+
+            // CGF1-BATCH-23 A.3: IOS is an orchestrator instructor — it does NOT
+            // save scenario fragments or drill recordings.  If the orchestrator fans
+            // out PrepareLive / FinalizeLive / PrepareReplay / FinalizeReplay to IOS,
+            // this node must ACK so the cluster 2PC is never stalled.
+            // Shared listener controller tracks IsReplayActive for branch gating.
+            var iosRrController = new Bagira.Common.Orchestration.ListenerRecordReplayController("IOS");
+
+            // Wire ReferenceReplayLoadHandler FIRST (PrepareReplay / FinalizeReplay;
+            // PrepareLive only when replay active — Live-from-Replay branch gate).
+            _drillSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
+                iosRrController,
+                simGroup:              null,
+                lifecycleGroup:        null,
+                bypassLifecycleToggle: null,
+                iosTransport,
+                iosNodeId,
+                storageDirectory:      @"C:\FDP_Temp"));
+
+            // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive.
+            // IOS carries no ECS state and does not start a recording.
+            _drillSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
+                checkpointWorker: null,
+                controller:       iosRrController,
+                storageDirectory: @"C:\FDP_Temp"));
 
             // CGF1-S0309: wire dry-run snapshot/rewind handler (IOS carries no ECS state).
             _drillSlave.RegisterHandler(new ReferenceDryRunHandler(liveRepo: null));

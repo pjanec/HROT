@@ -876,6 +876,39 @@ public class IgApplication : IDisposable
                 _drillSlave = new FDP.Toolkit.Orchestration.DrillSlave(
                     igTransport, igNodeId, "IG");
 
+                // CGF1-BATCH-23 A.2: IG participates in recording/replay DSM as a
+                // listen-only node.  Shared controller tracks IsReplayActive so the
+                // Live-from-Replay branch (CGF1-S0305) is correctly gated.
+                var igRrController = new Bagira.Common.Orchestration.ListenerRecordReplayController("IG");
+
+                // Wire ReferenceReplayLoadHandler FIRST (PrepareReplay / FinalizeReplay
+                // unconditional; PrepareLive only when replay active).
+                _drillSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler(
+                    igRrController,
+                    simGroup:              null,
+                    lifecycleGroup:        null,
+                    bypassLifecycleToggle: null,
+                    igTransport,
+                    igNodeId,
+                    storageDirectory:      @"C:\FDP_Temp"));
+
+                // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive
+                // without recording (IG carries no ECS frame data).
+                _drillSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
+                    checkpointWorker: null,
+                    controller:       igRrController,
+                    storageDirectory: @"C:\FDP_Temp"));
+
+                // CGF1-BATCH-23 A.2: dummy battlespace handler — IG acknowledges
+                // PrepareBattlespace / CommitBattlespace without terrain DB load.
+                // Full terrain-DB preload from scenario entities is future work.
+                _drillSlave.RegisterHandler(new Bagira.IG.Modules.Orchestration.IgBattlespaceDummyHandler());
+
+                // Wire ReferencePrefetchHandler so IG can stage scenario files and ACK.
+                var igStorageProvider = new Bagira.Common.Orchestration.LocalDiskStorageProvider(@"C:\FDP_Temp");
+                _drillSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(
+                    igTransport, igNodeId, igStorageProvider));
+
                 // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in DrillSlave).
                 _drillSlave.RegisterHandler(new ReferenceDryRunHandler(liveRepo: null));
 
@@ -1821,15 +1854,17 @@ public class IgApplication : IDisposable
     // -- Task 5: IG-to-IOS event translators ----------------------------------
 
 
+    /// <summary>
+    /// Internal test hook: exposes the <see cref="FDP.Toolkit.Orchestration.DrillSlave"/>
+    /// for handler-registration assertions (CGF1-S0104 / A.2).  <c>null</c> when
+    /// <see cref="InitializeNetwork"/> was not called (e.g. headless tests without DDS).
+    /// </summary>
+    internal FDP.Toolkit.Orchestration.DrillSlave? TestHook_DrillSlave => _drillSlave;
 
     /// <summary>
-
     /// Internal test hook to simulate a map click without Raylib input.
-
     /// </summary>
-
     internal void TestHook_SimulateMapClick(Vector2 worldPos)
-
         => OnCanvasClicked(worldPos, MouseButton.Left, false, false, Entity.Null);
 
 

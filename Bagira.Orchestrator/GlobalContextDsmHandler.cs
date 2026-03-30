@@ -61,11 +61,28 @@ public sealed class GlobalContextDsmHandler : IDsmHandler
     public string? LoadedSceneId { get; private set; }
 
     /// <summary>
-    /// Pending save ticks — populated during <see cref="PrepareAsync"/> for the
-    /// SerializeLocal command so <see cref="Commit"/> can write the file.
+    /// Elapsed simulation time in seconds read from the most recently loaded
+    /// <c>Orchestrator.json</c> (CGF-1-BATCH-23 §A.4).
     /// </summary>
+    public double LoadedScenarioTimeSeconds { get; private set; }
+
+    /// <summary>
+    /// Scenario identifier read from the most recently loaded <c>Orchestrator.json</c>
+    /// (separate from <see cref="LoadedSceneId"/> which is the map/terrain identifier).
+    /// </summary>
+    public string? LoadedScenarioId { get; private set; }
+
+    /// <summary>
+    /// Elapsed simulation time in seconds at the point of the pending save.
+    /// Set by callers (e.g. <c>OrchestratorSubsystem</c>) before
+    /// <see cref="NodeOpType.SerializeLocal"/> is dispatched.
+    /// </summary>
+    public double ScenarioTimeSeconds { get; set; }
+
+    /// <summary>Pending save ticks — populated during <see cref="PrepareAsync"/>.</summary>
     private long _pendingSaveWallTicks;
     private string? _pendingSaveSceneId;
+    private double _pendingSaveScenarioTimeSeconds;
     private string? _pendingFilePath;
 
     /// <summary>
@@ -105,9 +122,10 @@ public sealed class GlobalContextDsmHandler : IDsmHandler
             // Determine the drill ID from the payload (if provided) or generate one.
             var drillId = ParseDrillId(cmd.PayloadJson);
             var dir     = Path.Combine(LocalTempRoot, drillId.ToString("N"));
-            _pendingFilePath   = Path.Combine(dir, "Orchestrator.json");
-            _pendingSaveWallTicks = DateTimeOffset.UtcNow.Ticks;   // wall-clock snapshot at prepare time
-            _pendingSaveSceneId   = _scenarioId;
+            _pendingFilePath                  = Path.Combine(dir, "Orchestrator.json");
+            _pendingSaveWallTicks             = DateTimeOffset.UtcNow.Ticks;   // wall-clock snapshot at prepare time
+            _pendingSaveSceneId               = _scenarioId;
+            _pendingSaveScenarioTimeSeconds   = ScenarioTimeSeconds;
         }
         return Task.FromResult<string?>(null);
     }
@@ -138,9 +156,10 @@ public sealed class GlobalContextDsmHandler : IDsmHandler
     public void Abort(NodeOpCommand cmd, EntityRepository? repo)
     {
         // Reset pending state; no I/O was committed.
-        _pendingFilePath     = null;
-        _pendingSaveWallTicks = 0;
-        _pendingSaveSceneId  = null;
+        _pendingFilePath                = null;
+        _pendingSaveWallTicks           = 0;
+        _pendingSaveSceneId             = null;
+        _pendingSaveScenarioTimeSeconds = 0;
     }
 
     // ── Manifest output (read by DrillMaster after Commit) ───────────────────────
@@ -165,9 +184,11 @@ public sealed class GlobalContextDsmHandler : IDsmHandler
 
             var dto = new GlobalContextDto
             {
-                StartWallTicks = _pendingSaveWallTicks,
-                SceneId        = _pendingSaveSceneId ?? string.Empty,
-                SchemaVersion  = 1,
+                StartWallTicks        = _pendingSaveWallTicks,
+                SceneId               = _pendingSaveSceneId ?? string.Empty,
+                ScenarioId            = _scenarioId,
+                ScenarioTimeSeconds   = _pendingSaveScenarioTimeSeconds,
+                SchemaVersion         = 2,
             };
 
             var json = JsonSerializer.Serialize(dto,
@@ -229,8 +250,10 @@ public sealed class GlobalContextDsmHandler : IDsmHandler
                     "The file may be empty or structurally invalid.");
             }
 
-            LoadedStartWallTicks = dto.StartWallTicks;
-            LoadedSceneId        = dto.SceneId;
+            LoadedStartWallTicks        = dto.StartWallTicks;
+            LoadedSceneId               = dto.SceneId;
+            LoadedScenarioTimeSeconds   = dto.ScenarioTimeSeconds;
+            LoadedScenarioId            = dto.ScenarioId;
 
             // Publish restored context over DDS so all nodes receive the scene information.
             _contextWriter.Write(new OrchestratorContextTopic
@@ -239,8 +262,9 @@ public sealed class GlobalContextDsmHandler : IDsmHandler
             });
 
             FdpLog<GlobalContextDsmHandler>.Info(
-                "[Orchestrator] GlobalContext loaded: SceneId={0}, WallTicks={1}",
-                dto.SceneId, dto.StartWallTicks);
+                "[Orchestrator] GlobalContext loaded: SceneId={0}, ScenarioId={1}, "
+                + "WallTicks={2}, ScenarioTimeSeconds={3:F1}",
+                dto.SceneId, dto.ScenarioId, dto.StartWallTicks, dto.ScenarioTimeSeconds);
         }
         catch (Exception ex) when (ex is not InvalidOperationException)
         {
@@ -308,7 +332,22 @@ public sealed class GlobalContextDto
     [JsonPropertyName("sceneId")]
     public string SceneId { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Elapsed simulation time in seconds at the moment of save.
+    /// Used by consumers (e.g. <c>MasterTimeController.SeedState</c>) to resume
+    /// scenario time from the correct offset after a load / checkpoint restore.
+    /// </summary>
+    [JsonPropertyName("scenarioTimeSeconds")]
+    public double ScenarioTimeSeconds { get; set; }
+
+    /// <summary>
+    /// Scenario identifier that was active at the time of save
+    /// (separate from <see cref="SceneId"/> which is the map/terrain identifier).
+    /// </summary>
+    [JsonPropertyName("scenarioId")]
+    public string ScenarioId { get; set; } = string.Empty;
+
     /// <summary>Schema version for forward-compatibility guards.</summary>
     [JsonPropertyName("schemaVersion")]
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 }

@@ -25,7 +25,8 @@
 4. [.dev/cgf-1/CGF-1-TASK-DETAIL.md](../CGF-1-TASK-DETAIL.md) §**CGF1-G0404**–**G0406**  
 5. [CGF-1-BATCH-21 report](../reports/CGF-1-BATCH-21-REPORT.md) — deferred work table
 
-**Report:** `.dev/cgf-1/reports/CGF-1-BATCH-22-REPORT.md` (when complete)
+**Report:** [CGF-1-BATCH-22-REPORT.md](../reports/CGF-1-BATCH-22-REPORT.md)  
+**Review:** [CGF-1-BATCH-22-REVIEW.md](../reviews/CGF-1-BATCH-22-REVIEW.md)
 
 ---
 
@@ -68,12 +69,12 @@ Per [CGF-1-BATCH-21 report](../reports/CGF-1-BATCH-21-REPORT.md) deferred table:
 
 ## Success criteria
 
-- [ ] Part A: story 2PC honours **NAK** / **StatusCode**; **`SysOpStatus`** reflects completion; bad **`ManageStory`** payloads **fail loud**; SimHost tests green when CI permits; DEBT rows closed.  
-- [ ] Part B: **G0404**–**G0406** per TASK-DETAIL + **GENERALIZATION** (or explicit defer of **G0406** subset + tracker note).  
-- [ ] **S0310** / **S0106** still not claimed unless Phase 4 is **fully** complete.  
-- [ ] Solution build clean.  
-- [ ] **CGF-1-TASK-TRACKER** Phase 4 checkboxes updated.  
-- [ ] Report filed.
+- [x] Part A: story 2PC honours **NAK** / **StatusCode**; **`SysOpStatus`** reflects completion; bad **`ManageStory`** payloads **fail loud**; SimHost tests green; DEBT rows closed.  
+- [x] Part B: **G0404**–**G0406** per TASK-DETAIL + **GENERALIZATION**.  
+- [x] **S0310** / **S0106** not claimed (unblocked for **CGF-1-BATCH-23**).  
+- [x] Solution build clean.  
+- [x] **CGF-1-TASK-TRACKER** Phase 4 checkboxes updated.  
+- [x] Report filed; review: [CGF-1-BATCH-22-REVIEW.md](../reviews/CGF-1-BATCH-22-REVIEW.md).
 
 ---
 

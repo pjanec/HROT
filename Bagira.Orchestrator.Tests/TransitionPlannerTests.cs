@@ -303,4 +303,44 @@ public sealed class TransitionPlannerTests
         var transition = Assert.IsType<TransitionStep>(second);
         Assert.Equal(DSMState.LoadingEdit, transition.TargetState);
     }
+
+    // -- CGF1-S0106: GetReachableTargets (CGF-1-BATCH-23) --
+
+    /// <summary>
+    /// From Standby, the valid one-step transitions are LoadingEdit, LoadingLive,
+    /// LoadingDryRun, and LoadingReplay — per the BagiraStateGraph adjacency list.
+    /// </summary>
+    [Fact]
+    public void GetReachableTargets_FromStandby_ContainsLoadingEdit()
+    {
+        var targets = _planner.GetReachableTargets(DSMState.Standby);
+
+        Assert.Contains(DSMState.LoadingEdit,  targets);
+        Assert.Contains(DSMState.LoadingLive,  targets);
+        Assert.DoesNotContain(DSMState.RunningLive,   targets); // multi-step — not direct
+        Assert.DoesNotContain(DSMState.Standby, targets);       // self-loops should not appear
+    }
+
+    /// <summary>
+    /// From Degraded (no outgoing planning edges), the reachable target list is empty.
+    /// </summary>
+    [Fact]
+    public void GetReachableTargets_FromDegraded_ReturnsEmpty()
+    {
+        var targets = _planner.GetReachableTargets(DSMState.Degraded);
+
+        Assert.Empty(targets);
+    }
+
+    /// <summary>
+    /// From RunningLive, only UnloadingLive is a valid one-step neighbour.
+    /// </summary>
+    [Fact]
+    public void GetReachableTargets_FromRunningLive_ContainsOnlyUnloadingLive()
+    {
+        var targets = _planner.GetReachableTargets(DSMState.RunningLive);
+
+        Assert.Single(targets);
+        Assert.Equal(DSMState.UnloadingLive, targets[0]);
+    }
 }

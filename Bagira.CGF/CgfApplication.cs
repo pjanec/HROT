@@ -1,6 +1,6 @@
 using System;
 using System.Threading;
-using Bagira.CGF.Modules.Orchestration.Handlers;
+using Bagira.CGF.Modules.Orchestration;
 using Bagira.Common.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
@@ -73,10 +73,27 @@ namespace Bagira.CGF
 
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
-            // CGF1-BATCH-19 A.1: register FailLoudRecordReplayStub (Bagira handler, wrapped).
-            _drillSlave.RegisterHandler(new BagiraHandlerAdapter(new FailLoudRecordReplayStub(SubsystemName)));
+            // CGF1-BATCH-23 A.1: brain-appropriate record/replay controller seam.
+            // Phase 3 skeleton: participates in the DSM handshake (ACK) without writing
+            // ECS frames.  Shared between ReferenceReplayLoadHandler and
+            // ReferenceLiveLoadHandler so IsReplayActive state is consistent.
+            var rrController = new CgfRecordReplayController();
+
+            // Wire ReferenceReplayLoadHandler FIRST so it claims PrepareReplay /
+            // FinalizeReplay unconditionally and claims PrepareLive only when a replay
+            // session is currently active (Live-from-Replay branch, CGF1-S0305).
+            _drillSlave.RegisterHandler(new ReferenceReplayLoadHandler(
+                rrController,
+                simGroup:              null,
+                lifecycleGroup:        null,
+                bypassLifecycleToggle: null,
+                transport,
+                nodeId,
+                storageDirectory:      localTempRoot));
 
             // CGF1-S0307: wire scenario load handler when a serializer is provided.
+            // Registered AFTER ReferenceReplayLoadHandler so the replay branch is
+            // checked first; ReferenceScenarioLoadHandler claims cold PrepareLive.
             if (scenarioSerializer != null)
             {
                 // CGF header-peek-only path: world=null because CGF has no ECS repo.
@@ -88,6 +105,17 @@ namespace Bagira.CGF
                     new ReferenceStoryLoadHandler(scenarioSerializer, storageProvider,
                         world: null, transport, nodeId));
             }
+
+            // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only
+            // claims FinalizeLive (and cold PrepareLive when no scenario handler
+            // was registered).  controller is shared with ReferenceReplayLoadHandler.
+            _drillSlave.RegisterHandler(new ReferenceLiveLoadHandler(
+                checkpointWorker: null,
+                controller:       rrController,
+                storageDirectory: localTempRoot));
+
+            // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
+            _drillSlave.RegisterHandler(new ReferencePrefetchHandler(transport, nodeId, storageProvider));
 
             // CGF1-S0309: wire dry-run handler (no ECS state on CGF skeleton).
             _drillSlave.RegisterHandler(new ReferenceDryRunHandler(liveRepo: null));

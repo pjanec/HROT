@@ -3,9 +3,9 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** [CGF-1-BATCH-23](batches/CGF-1-BATCH-23-INSTRUCTIONS.md) (subsystem parity + orchestrator globals + S0310/S0106).  
-**Last reviewed:** [CGF-1-BATCH-22](reviews/CGF-1-BATCH-22-REVIEW.md) — APPROVED with corrections (2026-04-10).  
-**Last completed:** [CGF-1-BATCH-22](reports/CGF-1-BATCH-22-REPORT.md) — Part A (ManageStory NAK + SysOpStatus + bad payload) + Phase 4 G0404/G0405/G0406; **Phase 4 complete**; subsystem wiring gaps → **BATCH-23**.  
+**Active batch:** CGF-1-BATCH-24 (pending).  
+**Last reviewed:** [CGF-1-BATCH-23](reviews/CGF-1-BATCH-23-REVIEW.md) — APPROVED with minor corrections (2026-04-10).  
+**Last completed:** [CGF-1-BATCH-23](reports/CGF-1-BATCH-23-REPORT.md) — Part A (CGF/IG/IOS handler matrix + orchestrator globals) + Part B (CGF1-S0106 `OrchestratorScenarioPanel`); **Phase 1 complete**; S0310 deferred → [CGF-1-BATCH-24](batches/CGF-1-BATCH-24-INSTRUCTIONS.md).  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
 > **Extended specs:** [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) and [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) define **CGF1-S0106** and **CGF1-S0310**. **Phase 4** ✅ complete (**CGF-1-BATCH-22**). **BATCH-23:** brain/muscle **DSM parity** (CGF record/replay, IG/IOS matrix), **orchestrator globals** (`GlobalContextDto`), then **S0310** / **S0106**.
@@ -15,7 +15,7 @@
 > only after the Phase 3 + Phase 4 CI gates are all passing.
 >
 > **Status key:** `[ ]` = not done | `[x]` = done  
-> **Progress (Phase 1):** 5 / 6 tasks done (**S0106** → **BATCH-23** Part B). **Phase 2:** 5 / 5 complete. **Phase 3:** 9 / 10 done (**S0310** → **BATCH-23** Part B). **Phase 4:** **COMPLETE (BATCH-22)**. **Cross-cutting:** CGF record/replay + IG/IOS + orchestrator globals → **BATCH-23** Part A ([review](reviews/CGF-1-BATCH-22-REVIEW.md#subsystem-parity-lead--product-concern)).
+> **Progress (Phase 1):** 6 / 6 tasks done (**S0106** ✅ BATCH-23). **Phase 2:** 5 / 5 complete. **Phase 3:** 9 / 10 done (**S0310** → deferred). **Phase 4:** **COMPLETE (BATCH-22)**. **Cross-cutting (BATCH-23 Part A):** CGF record/replay ✅, IG matrix ✅, IOS stubs ✅, orchestrator globals ✅.
 
 ---
 
@@ -29,7 +29,7 @@ establish DDS schema, centralize identity allocation.
 - [x] **CGF1-S0103** Centralized Identity Migration [details](./CGF-1-TASK-DETAIL.md#cgf1-s0103--centralized-identity-migration)
 - [x] **CGF1-S0104** DrillSlave Foundation [details](./CGF-1-TASK-DETAIL.md#cgf1-s0104--drillslave-foundation) — done (CGF-1-BATCH-02); see BATCH-02 review for P1 follow-up in BATCH-03
 - [x] **CGF1-S0105** Orchestrator Health Monitoring & Bootstrap Recovery [details](./CGF-1-TASK-DETAIL.md#cgf1-s0105--orchestrator-health-monitoring--bootstrap-recovery) — done (CGF-1-BATCH-03 + polish CGF-1-BATCH-04)
-- [ ] **CGF1-S0106** Orchestrator ImGui Scenario & Story Controls [details](./CGF-1-TASK-DETAIL.md#cgf1-s0106--orchestrator-imgui-scenario--story-controls) — **[CGF-1-BATCH-23](batches/CGF-1-BATCH-23-INSTRUCTIONS.md)** Part B (Phase 4 ✅)
+- [x] **CGF1-S0106** Orchestrator ImGui Scenario & Story Controls [details](./CGF-1-TASK-DETAIL.md#cgf1-s0106--orchestrator-imgui-scenario--story-controls) — done (CGF-1-BATCH-23 Part B: `OrchestratorScenarioPanel` with beige child panels, 6 sections, wired into `OrchestratorSubsystem`)
 
 ---
 
@@ -60,7 +60,7 @@ management, and live-from-replay temporal interlock — all regression-tested.
 - [x] **CGF1-S0307** Application-Layer Scenario Save/Load Wiring [details](./CGF-1-TASK-DETAIL.md#cgf1-s0307--application-layer-scenario-saveload-wiring) — done [CGF-1-BATCH-12](batches/CGF-1-BATCH-12-INSTRUCTIONS.md); follow-ups → [CGF-1-BATCH-12 review](reviews/CGF-1-BATCH-12-REVIEW.md#gaps-vs-task-detail-cgf1-s0307)
 - [x] **CGF1-S0308** Runtime Story Injection & Deletion [details](./CGF-1-TASK-DETAIL.md#cgf1-s0308--runtime-story-injection--deletion) — SimHost MVP ✅ [CGF-1-BATCH-19](batches/CGF-1-BATCH-19-INSTRUCTIONS.md) Part B; **TASK-DETAIL residual closed** ✅ [CGF-1-BATCH-20](batches/CGF-1-BATCH-20-INSTRUCTIONS.md) Part A (CGF `StoryLoadDsmHandler` + `NodeOpStatus.IsParticipating` ACK wired; `DrillMaster` ACK gating = intentional MVP delta — see §S0308 note in TASK-DETAIL)
 - [x] **CGF1-S0309** Dry Run DSM Handler [details](./CGF-1-TASK-DETAIL.md#cgf1-s0309--dry-run-dsm-handler)
-- [ ] **CGF1-S0310** E2E DSM Test Script Suite [details](./CGF-1-TASK-DETAIL.md#cgf1-s0310--e2e-dsm-test-script-suite) — **[CGF-1-BATCH-23](batches/CGF-1-BATCH-23-INSTRUCTIONS.md)** Part B (Phase 4 ✅)
+- [ ] **CGF1-S0310** E2E DSM Test Script Suite [details](./CGF-1-TASK-DETAIL.md#cgf1-s0310--e2e-dsm-test-script-suite) — **[CGF-1-BATCH-24](batches/CGF-1-BATCH-24-INSTRUCTIONS.md)** Part A (deferred from BATCH-23)
 
 ---
 

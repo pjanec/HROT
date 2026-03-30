@@ -24,6 +24,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private DdsParticipant? _participant;
     private DrillMaster? _drillMaster;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
+    private OrchestratorScenarioPanel? _scenarioPanel;
 
     // ── Time coordinator (CGF1-A.1, BATCH-09) ─────────────────────────────
     // Minimal kernel + coordinator so PendingTimeMode drives SwitchToDeterministic.
@@ -47,6 +48,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
             System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
         _participant = BagiraEnvironment.CreateParticipant(config.DomainId);
         _drillMaster = new DrillMaster(_participant, _config);
+        _scenarioPanel = new OrchestratorScenarioPanel(_drillMaster);
 
         // ── Time coordinator setup (CGF1-A.1, BATCH-09) ──────────────────────
         // A minimal ECS kernel gives the DistributedTimeCoordinator a wall-clock source
@@ -193,10 +195,14 @@ public sealed class OrchestratorSubsystem : ISubsystem
                 ImGui.EndTable();
             }
         }
+
+        // ── Scenario & Story controls (CGF1-S0106) ───────────────────────────
+        _scenarioPanel?.Render();
     }
 
     public void Shutdown()
     {
+        _scenarioPanel = null;
         _drillMaster?.Dispose();
         _drillMaster = null;
         _timeKernel?.Dispose();

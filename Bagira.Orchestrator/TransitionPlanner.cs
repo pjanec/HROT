@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -58,6 +59,7 @@ public sealed class OperationStep : ISysOpStep
 public sealed class DrillMasterPlanner
 {
     private readonly FDP.Toolkit.Orchestration.TransitionPlanner _tkPlanner;
+    private readonly ITransitionGraph _graph;
 
     /// <summary>
     /// Creates a planner backed by the provided transition graph.
@@ -68,7 +70,22 @@ public sealed class DrillMasterPlanner
     /// </param>
     public DrillMasterPlanner(ITransitionGraph graph)
     {
+        _graph     = graph ?? throw new ArgumentNullException(nameof(graph));
         _tkPlanner = new FDP.Toolkit.Orchestration.TransitionPlanner(graph);
+    }
+
+    /// <summary>
+    /// Returns the DSM states directly reachable from <paramref name="current"/> via a
+    /// single planning edge (i.e. one-step neighbours in the transition graph).
+    /// </summary>
+    /// <remarks>
+    /// Used by the Orchestrator UI panel to enumerate valid next-state buttons without
+    /// needing the full BFS trajectory.
+    /// </remarks>
+    public IReadOnlyList<DSMState> GetReachableTargets(DSMState current)
+    {
+        var neighbors = _graph.GetNeighbors((int)current);
+        return neighbors.Select(i => (DSMState)i).ToList();
     }
 
     /// <summary>
