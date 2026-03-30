@@ -77,5 +77,31 @@ namespace Bagira.DDS.DataModel.Tests
             Assert.Equal(DdsDurability.TransientLocal, qos!.Durability);
             Assert.Equal(1, qos.HistoryDepth);
         }
+
+        /// <summary>
+        /// CGF1-S0506: AssetInventoryTopic must be codegen-registered in the orchestration IDL assembly.
+        /// </summary>
+        [Fact]
+        public void AssetInventoryTopic_IsRegisteredInIdl()
+        {
+            var types = typeof(AssetInventoryTopic).Assembly.GetTypes()
+                .Where(t => t.Namespace == "Bagira.BDC.SSTD.Orchestration")
+                .Select(t => t.Name)
+                .ToArray();
+            Assert.Contains("AssetInventoryTopic", types);
+        }
+
+        /// <summary>
+        /// CGF1-S0506: AssetInventoryTopic must be TransientLocal with KeepLast/depth=1.
+        /// </summary>
+        [Fact]
+        public void AssetInventoryTopicQos_IsTransientLocalKeepLast1()
+        {
+            var qos = typeof(AssetInventoryTopic).GetCustomAttribute<DdsQosAttribute>();
+            Assert.NotNull(qos);
+            Assert.Equal(DdsDurability.TransientLocal, qos!.Durability);
+            Assert.Equal(DdsHistoryKind.KeepLast, qos.HistoryKind);
+            Assert.Equal(1, qos.HistoryDepth);
+        }
     }
 }

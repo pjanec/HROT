@@ -53,6 +53,36 @@ namespace Bagira.BDC.SSTD.Orchestration
         public int TransactionEpoch;
     }
 
+    /// <summary>
+    /// Published by the Orchestrator every 5 seconds. Carries the NAS/local asset lists
+    /// so that any subscriber — including IOS — can populate asset combo-boxes purely over DDS,
+    /// with no direct reference to <see cref="Bagira.Orchestrator.DrillMaster"/>
+    /// or <see cref="Bagira.Orchestrator.StorageGatewayModule"/>.
+    /// </summary>
+    [DdsTopic("AssetInventory")]
+    [DdsIdlFile("bdc-sst-orchestration")]
+    [DdsQos(Reliability = DdsReliability.Reliable,
+            Durability  = DdsDurability.TransientLocal,
+            HistoryKind = DdsHistoryKind.KeepLast,
+            HistoryDepth = 1)]
+    public partial struct AssetInventoryTopic
+    {
+        /// <summary>Key: 0 = singleton cluster orchestrator.</summary>
+        [DdsKey] public int NodeId;
+
+        /// <summary>JSON-serialised <c>string[]</c> of locally available scenario directory names.</summary>
+        [DdsManaged] public string LocalScenariosJson;
+
+        /// <summary>JSON-serialised <c>string[]</c> of locally recorded drill directory names.</summary>
+        [DdsManaged] public string LocalDrillsJson;
+
+        /// <summary>JSON-serialised <c>string[]</c> of drill directory names archived on NAS.</summary>
+        [DdsManaged] public string ArchivedDrillsJson;
+
+        /// <summary>JSON-serialised <c>string[]</c> of local drills that are NOT yet on NAS.</summary>
+        [DdsManaged] public string UnarchivedLocalDrillsJson;
+    }
+
     [DdsTopic("SysOpRequest")]
     [DdsIdlFile("bdc-sst-orchestration")]
     [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]

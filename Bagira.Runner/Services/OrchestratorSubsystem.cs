@@ -27,7 +27,8 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private DdsParticipant? _participant;
     private DrillMaster? _drillMaster;
     private ClusterConfiguration _config = ClusterConfiguration.Default;
-    private OrchestratorScenarioPanel? _scenarioPanel;
+    private ClusterUiCache?        _uiCache;
+    private ClusterScenarioPanel?  _scenarioPanel;
     private DdsWriter<SysOpRequest>? _sysOpWriter;  // S0502
 
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
@@ -66,7 +67,8 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _participant = BagiraEnvironment.CreateParticipant(config.DomainId);
         _drillMaster = new DrillMaster(_participant, _config);
         _sysOpWriter   = new DdsWriter<SysOpRequest>(_participant);    // S0502
-        _scenarioPanel = new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter);
+        _uiCache       = new ClusterUiCache(_participant);
+        _scenarioPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
 
         // S0503: Subscribe to time-control events from DrillMaster.
         _drillMaster.TimeControlRequested += (op, payload) =>
@@ -125,6 +127,9 @@ public sealed class OrchestratorSubsystem : ISubsystem
 
         _drillMaster?.Tick();
 
+        // CGF1-S0506: Update cache after DrillMaster tick so it reflects latest DDS state.
+        _uiCache?.Update();
+
         // CGF1-A.1: Consume PendingTimeMode and drive DistributedTimeCoordinator.
         var pendingMode = _drillMaster?.PendingTimeMode;
         if (pendingMode != _lastProcessedTimeMode)
@@ -152,216 +157,21 @@ public sealed class OrchestratorSubsystem : ISubsystem
 
     public void DrawUI()
     {
-        if (_drillMaster == null) return;
+        if (_uiCache == null) return;
         if (!ImGui.Begin("Orchestrator")) { ImGui.End(); return; }   // S0501
 
-        var bootstrapped = _drillMaster.BootstrapComplete;
+        bool disableAll = !_uiCache.IsBootstrapped || _uiCache.HasInFlightTransaction;
 
-        // ── Bootstrap banner ──────────────────────────────────────────────────
-        if (!bootstrapped)
-        {
-            var waiting = _config.Mandatory
-                .Where(name => !_drillMaster.NodeRoster.ActiveNodes.Values
-                    .Any(p => p.SubsystemName == name &&
-                              p.LocalDsmState == DSMState.Standby))
-                .ToArray();
+        _scenarioPanel?.Render(_uiCache, disableAll);
 
-            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.8f, 0.2f, 1f));
-            ImGui.TextWrapped($"Waiting for mandatory nodes: {string.Join(", ", waiting)}");
-            ImGui.PopStyleColor();
-            ImGui.Separator();
-        }
-
-        // ── Simulation controls (disabled until bootstrapped) ─────────────────
-        if (!bootstrapped) ImGui.BeginDisabled();
-
-        // S0502: wire TODO buttons to real SysOpRequest writes
-        if (ImGui.Button("Initialize Live") && _sysOpWriter != null)
-            _sysOpWriter.Write(new SysOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = SysOpType.TransitionState,
-                PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingLive}}}",
-            });
-
-        if (!bootstrapped) ImGui.EndDisabled();
-
-        ImGui.Separator();
-
-        // ── System health table ───────────────────────────────────────────────
-        if (ImGui.CollapsingHeader("Node Health", ImGuiTreeNodeFlags.DefaultOpen))
-        {
-            var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            if (ImGui.BeginTable("NodeHealth", 6,
-                    ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
-            {
-                ImGui.TableSetupColumn("NodeId");
-                ImGui.TableSetupColumn("Subsystem");
-                ImGui.TableSetupColumn("Last HB (ms ago)");
-                ImGui.TableSetupColumn("DSM State");
-                ImGui.TableSetupColumn("CPU %");
-                ImGui.TableSetupColumn("RAM (MB)");
-                ImGui.TableHeadersRow();
-
-                foreach (var kv in _drillMaster.NodeRoster.ActiveNodes)
-                {
-                    var p     = kv.Value;
-                    var msAgo = (long)(nowMs - p.LastHeartbeatUtcSeconds * 1000.0);
-                    var ramMb = p.RamUsedBytes / (1024.0 * 1024.0);
-                    ImGui.TableNextRow();
-                    ImGui.TableNextColumn(); ImGui.Text(p.NodeId.ToString());
-                    ImGui.TableNextColumn(); ImGui.Text(p.SubsystemName);
-                    ImGui.TableNextColumn(); ImGui.Text(msAgo.ToString());
-                    ImGui.TableNextColumn(); ImGui.Text(p.LocalDsmState.ToString());
-                    ImGui.TableNextColumn(); ImGui.Text($"{p.CpuUsagePercent:F1}");
-                    ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
-                }
-                ImGui.EndTable();
-            }
-        }
-
-        // ── Time Control section (S0503) ──────────────────────────────────────
-        if (ImGui.CollapsingHeader("Time Control", ImGuiTreeNodeFlags.DefaultOpen))
-        {
-            long wallTicks = DateTimeOffset.UtcNow.Ticks;
-            string wallTimeStr = new DateTime(wallTicks, DateTimeKind.Utc).ToString("HH:mm:ss.fff");
-            ImGui.Text($"Wall Time: {wallTimeStr}");
-
-            if (!bootstrapped) ImGui.BeginDisabled();
-
-            float timeScale = 1.0f;  // future: read from _uiCache when S0506 lands
-            if (ImGui.Button(_isPaused ? "Resume##OrcResume" : "Pause##OrcPause") && _sysOpWriter != null)
-                _sysOpWriter.Write(new SysOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = _isPaused ? SysOpType.ResumeTime : SysOpType.PauseTime,
-                    PayloadJson   = string.Empty,
-                });
-
-            ImGui.SameLine();
-            if (!_isPaused) ImGui.BeginDisabled();
-            if (ImGui.Button("Step##OrcStep") && _sysOpWriter != null)
-                _sysOpWriter.Write(new SysOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.StepTime,
-                    PayloadJson   = string.Empty,
-                });
-            if (!_isPaused) ImGui.EndDisabled();
-
-            ImGui.SameLine();
-            ImGui.SetNextItemWidth(150f);
-            if (ImGui.SliderFloat("Speed##OrcSpeed", ref timeScale, 0.1f, 10.0f, "%.1fx") && _sysOpWriter != null)
-                _sysOpWriter.Write(new SysOpRequest
-                {
-                    RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.SetTimeScale,
-                    PayloadJson   = timeScale.ToString("F2",
-                        System.Globalization.CultureInfo.InvariantCulture),
-                });
-
-            if (!bootstrapped) ImGui.EndDisabled();
-        }
-
-        // ── 2PC history table (S0501: 5-column overhaul) ──────────────────────
-        if (ImGui.CollapsingHeader("2PC History"))
-        {
-            var history = _drillMaster.TransactionHistory;
-            float rowHeight = ImGui.GetTextLineHeightWithSpacing();
-            if (ImGui.BeginTable("TxHistory", 5,
-                    ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
-                    ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.ScrollY,
-                    new Vector2(0, rowHeight * 11.5f)))
-            {
-                ImGui.TableSetupScrollFreeze(0, 1);
-                ImGui.TableSetupColumn("TransactionId");
-                ImGui.TableSetupColumn("Target State");
-                ImGui.TableSetupColumn("Result");
-                ImGui.TableSetupColumn("ACK Latency (ms)");
-                ImGui.TableSetupColumn("Payload");
-                ImGui.TableHeadersRow();
-
-                foreach (var tx in history)
-                {
-                    ImGui.TableNextRow();
-
-                    // Column 1: full GUID as a TreeNode for expandability
-                    ImGui.TableNextColumn();
-                    bool open = ImGui.TreeNodeEx(tx.TransactionId.ToString(),
-                        ImGuiTreeNodeFlags.SpanFullWidth);
-
-                    // Context menu on row
-                    if (ImGui.BeginPopupContextItem($"ctx_{tx.TransactionId}"))
-                    {
-                        string line = $"{tx.TransactionId} | {tx.TargetDsmState} | " +
-                                      $"{(tx.IsAborted ? "Aborted" : "Completed")} | {tx.PayloadJson}";
-                        if (ImGui.MenuItem("Copy line to clipboard"))
-                            ImGui.SetClipboardText(line);
-                        ImGui.EndPopup();
-                    }
-
-                    // Column 2: target state
-                    ImGui.TableNextColumn(); ImGui.Text(tx.TargetDsmState.ToString());
-
-                    // Column 3: result
-                    ImGui.TableNextColumn(); ImGui.Text(tx.IsAborted ? "Aborted" : "Completed");
-
-                    // Column 4: aggregate ACK latency summary
-                    string latency = tx.NodeAckLatencyMs.Count == 0
-                        ? "—"
-                        : string.Join(", ", tx.NodeAckLatencyMs.Select(kv => $"{kv.Key}:{kv.Value:F0}ms"));
-                    ImGui.TableNextColumn(); ImGui.Text(latency);
-
-                    // Column 5: payload snippet with tooltip
-                    ImGui.TableNextColumn();
-                    string payloadSnippet = tx.PayloadJson.Length > 25
-                        ? tx.PayloadJson[..25] + "..."
-                        : tx.PayloadJson;
-                    ImGui.TextUnformatted(payloadSnippet);
-                    if (!string.IsNullOrWhiteSpace(tx.PayloadJson) && ImGui.IsItemHovered())
-                    {
-                        ImGui.BeginTooltip();
-                        ImGui.TextUnformatted(FormatPrettyJson(tx.PayloadJson));
-                        ImGui.EndTooltip();
-                    }
-
-                    // Expanded rows: one child row per NodeResponse entry
-                    if (open)
-                    {
-                        foreach (var nr in tx.NodeResponses)
-                        {
-                            ImGui.TableNextRow();
-                            ImGui.TableNextColumn();
-                            ImGui.TreeNodeEx($"↳ Node {nr.Key}",
-                                ImGuiTreeNodeFlags.Leaf | ImGuiTreeNodeFlags.NoTreePushOnOpen |
-                                ImGuiTreeNodeFlags.SpanFullWidth);
-                            ImGui.TableNextColumn(); ImGui.Text("—");
-                            ImGui.TableNextColumn(); ImGui.Text("—");
-                            ImGui.TableNextColumn();
-                            string nodeLatency = tx.NodeAckLatencyMs.TryGetValue(nr.Key, out float ms)
-                                ? $"{ms:F0}ms" : "—";
-                            ImGui.Text(nodeLatency);
-                            ImGui.TableNextColumn();
-                            string nodeSnippet = nr.Value.Length > 25
-                                ? nr.Value[..25] + "..."
-                                : nr.Value;
-                            ImGui.Text(nodeSnippet);
-                        }
-                        ImGui.TreePop();
-                    }
-                }
-                ImGui.EndTable();
-            }
-        }
-
-        // ── Scenario & Story controls (CGF1-S0106) ───────────────────────────
-        _scenarioPanel?.Render(_isPaused, _drillTime);
         ImGui.End();   // S0501
     }
 
     public void Shutdown()
     {
         _scenarioPanel = null;
+        _uiCache?.Dispose();
+        _uiCache = null;
         _sysOpWriter?.Dispose();     // S0502
         _sysOpWriter = null;
         _drillMaster?.Dispose();

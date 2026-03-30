@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using Bagira.BDC.SSTD.Orchestration;
@@ -43,6 +44,10 @@ public sealed class DrillMaster : IDisposable
     /// </summary>
     private StorageGatewayModule? _gateway;
     private string _nasBasePath = string.Empty;
+
+    // ── Asset inventory publisher (CGF1-S0506) ────────────────────────────
+    private DdsWriter<AssetInventoryTopic>? _inventoryWriter;
+    private DateTime _lastInventoryScan = DateTime.MinValue;
 
     /// <summary>
     /// Tracks in-progress <c>SerializeLocal</c> rounds keyed by transaction ID.
@@ -252,6 +257,9 @@ public sealed class DrillMaster : IDisposable
     /// </summary>
     public StorageGatewayModule? StorageGateway => _gateway;
 
+    /// <summary>NAS base path configured via <see cref="SetStorageGateway"/>. Used for inventory publishing.</summary>
+    public string NasBasePath => _nasBasePath;
+
     /// <summary>
     /// Returns the DSM states that can be reached from the current cluster state in a
     /// single planning step.  Used by <c>OrchestratorScenarioPanel</c> to populate
@@ -306,6 +314,7 @@ public sealed class DrillMaster : IDisposable
         _sysOpStatusWriter   = new DdsWriter<SysOpStatus>(participant);
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(participant);
         _nodeOpParticipant   = participant;
+        _inventoryWriter     = new DdsWriter<AssetInventoryTopic>(participant);
 
         // If no mandatory nodes are configured, the latch clears immediately.
         if (_config.Mandatory.Length == 0)
@@ -335,12 +344,39 @@ public sealed class DrillMaster : IDisposable
         DrainInjectedRequests();
         ProcessSysOpRequests();
         ConsumeNodeOpStatuses();
+
+        if ((DateTime.UtcNow - _lastInventoryScan).TotalSeconds >= 5.0)
+        {
+            PublishAssetInventory();
+            _lastInventoryScan = DateTime.UtcNow;
+        }
     }
 
     // ── UI / test injection path ──────────────────────────────────────────
 
     private readonly System.Collections.Concurrent.ConcurrentQueue<SysOpRequest>
         _injectedRequests = new();
+
+    // ── Asset inventory publisher (CGF1-S0506) ────────────────────────────
+
+    private void PublishAssetInventory()
+    {
+        if (_gateway == null || _inventoryWriter == null) return;
+
+        var localScenarios = _gateway.ScanLocalScenarios(_nasBasePath);
+        var localDrills    = _gateway.ScanLocalDrills(_nasBasePath);
+        var archivedDrills = _gateway.ScanNasDrills(_nasBasePath);
+        var unarchived     = localDrills.Except(archivedDrills).ToList();
+
+        _inventoryWriter.Write(new AssetInventoryTopic
+        {
+            NodeId                    = 0,
+            LocalScenariosJson        = JsonSerializer.Serialize(localScenarios),
+            LocalDrillsJson           = JsonSerializer.Serialize(localDrills),
+            ArchivedDrillsJson        = JsonSerializer.Serialize(archivedDrills),
+            UnarchivedLocalDrillsJson = JsonSerializer.Serialize(unarchived),
+        });
+    }
 
     /// <summary>
     /// Injects a <see cref="SysOpRequest"/> directly into the DrillMaster processing
@@ -1551,6 +1587,8 @@ public sealed class DrillMaster : IDisposable
         _sysOpRequestReader.Dispose();
         _sysOpStatusWriter.Dispose();
         _nodeOpStatusReader.Dispose();
+        _inventoryWriter?.Dispose();
+        _inventoryWriter = null;
         foreach (var w in _nodeOpWriterCache.Values)
             w.Dispose();
         _nodeOpWriterCache.Clear();

@@ -28,4 +28,11 @@ public sealed class DistributedTransaction
 
     /// <summary>Per-node ACK latency in milliseconds, keyed by node ID. Populated on commit.</summary>
     public Dictionary<int, float> NodeAckLatencyMs { get; } = new();
+
+    /// <summary>
+    /// <c>true</c> when the operation completed with <c>OrchestrationStatusCode.Success</c>.
+    /// Set by <c>ClusterUiCache.DrainSysOpStatus()</c> when tracking 2PC traffic over DDS
+    /// (CGF1-S0506). Distinct from <see cref="IsAborted"/> which is set by DrillMaster locally.
+    /// </summary>
+    public bool Completed { get; set; }
 }
