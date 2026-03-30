@@ -64,5 +64,22 @@ namespace Fdp.Kernel.Orchestration
         /// for a Live-from-Replay branch (CGF1-S0305).
         /// </summary>
         Task TeardownReplayAsync();
+
+        /// <summary>
+        /// Returns <see langword="true"/> when a replay session is currently active
+        /// (i.e. <see cref="PrepareReplayAsync"/> has completed and
+        /// <see cref="TeardownReplayAsync"/> has not yet been called).
+        /// Used by <see cref="ReferenceReplayLoadHandler.CanHandle"/> to gate the
+        /// Live-from-Replay <c>PrepareLive</c> branch (CGF1-S0305).
+        /// </summary>
+        bool IsReplayActive { get; }
+
+        /// <summary>
+        /// Returns the highest network entity ID encountered in the active recording,
+        /// or <c>0</c> when no replay is active.  Published to the orchestrator via
+        /// <c>ResultJson</c> so the ID allocator can be reset above the replay's ID
+        /// space before live entities are spawned (CGF1-S0304).
+        /// </summary>
+        long ActiveMaxNetworkId { get; }
     }
 }

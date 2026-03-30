@@ -49,18 +49,20 @@ namespace FDP.Toolkit.Orchestration
 
         /// <summary>
         /// Creates a DrillSlave backed by <paramref name="transport"/> for all DDS I/O.
+        /// When <paramref name="transport"/> is <c>null</c>, heartbeat publishing and
+        /// command polling are disabled (standalone / test mode without DDS).
         /// </summary>
-        /// <param name="transport">DDS (or other) transport; owned by the caller.</param>
+        /// <param name="transport">DDS (or other) transport; owned by the caller.  May be <c>null</c>.</param>
         /// <param name="nodeId">Node identifier published in heartbeats.</param>
         /// <param name="subsystemName">Subsystem name published in heartbeats.</param>
         /// <param name="eventBus">Optional event bus for <see cref="TkDsmStateChangedEvent"/> publication.</param>
         public DrillSlave(
-            IOrchestrationTransport transport,
+            IOrchestrationTransport? transport,
             int    nodeId,
             string subsystemName,
             FdpEventBus? eventBus = null)
         {
-            _transport     = transport     ?? throw new ArgumentNullException(nameof(transport));
+            _transport     = transport;
             _nodeId        = nodeId;
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
             _eventBus      = eventBus;
