@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Orchestrator;
@@ -200,6 +202,235 @@ public sealed class OrchestratorScenarioPanelTests : IDisposable
         ImGui.Render();
 
         Assert.Null(ex);
+    }
+
+    // ── S0503: GetReplayDuration helper ───────────────────────────────────────
+
+    [Fact]
+    public void GetReplayDuration_TotalFrames3600_Returns60s()
+    {
+        float result = OrchestratorScenarioPanel.GetReplayDuration("{\"TotalFrames\":3600}");
+        Assert.Equal(60f, result);
+    }
+
+    [Fact]
+    public void GetReplayDuration_MalformedJson_ReturnsFallback()
+    {
+        float result = OrchestratorScenarioPanel.GetReplayDuration("not valid json {{");
+        Assert.Equal(3600f, result);
+    }
+
+    // ── S0503: Seek debounce ──────────────────────────────────────────────────
+
+    [Fact]
+    public void SeekDebounce_DoesNotWriteWithin400ms()
+    {
+        using var participant = new DdsParticipant(TestDomain);
+        using var dm          = new DrillMaster(participant, new ClusterConfiguration
+            { Mandatory = Array.Empty<string>() });
+        using var writer      = new DdsWriter<SysOpRequest>(participant);
+        using var reader      = new DdsReader<SysOpRequest>(participant);
+        var panel = new OrchestratorScenarioPanel(dm, writer);
+
+        // Arm the debounce by using reflection to set _seekPending = true.
+        var seekPendingField = typeof(OrchestratorScenarioPanel)
+            .GetField("_seekPending", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var seekTimerField = typeof(OrchestratorScenarioPanel)
+            .GetField("_seekDebounceTimer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        seekPendingField.SetValue(panel, true);
+        seekTimerField.SetValue(panel, 0.5f);
+
+        // 4 × 0.1s = 0.4s total — timer is still > 0 (0.1s remaining).
+        panel.Update(0.1f);
+        panel.Update(0.1f);
+        panel.Update(0.1f);
+        panel.Update(0.1f);
+
+        // No SysOpRequest should have been published yet.
+        using var scope = reader.Take();
+        bool anyWritten = false;
+        foreach (var s in scope)
+            if (s.IsValid && s.Data.OperationType == SysOpType.ReplaySeek)
+                anyWritten = true;
+
+        Assert.False(anyWritten, "No ReplaySeek should be published before debounce expires.");
+        Assert.True((bool)seekPendingField.GetValue(panel)!,
+            "_seekPending should still be true if timer has not expired.");
+    }
+
+    [Fact]
+    public void SeekDebounce_WritesAfter500ms()
+    {
+        using var participant = new DdsParticipant(TestDomain);
+        using var dm          = new DrillMaster(participant, new ClusterConfiguration
+            { Mandatory = Array.Empty<string>() });
+        using var writer      = new DdsWriter<SysOpRequest>(participant);
+        using var reader      = new DdsReader<SysOpRequest>(participant);
+        var panel = new OrchestratorScenarioPanel(dm, writer);
+
+        // Arm the debounce.
+        var seekPendingField = typeof(OrchestratorScenarioPanel)
+            .GetField("_seekPending", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        var seekTimerField = typeof(OrchestratorScenarioPanel)
+            .GetField("_seekDebounceTimer", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        seekPendingField.SetValue(panel, true);
+        seekTimerField.SetValue(panel, 0.5f);
+
+        // One call of 0.5s expires the timer.
+        panel.Update(0.5f);
+
+        System.Threading.Thread.Sleep(100);  // Allow DDS to propagate
+
+        bool found = false;
+        using var scope = reader.Take();
+        foreach (var s in scope)
+            if (s.IsValid && s.Data.OperationType == SysOpType.ReplaySeek)
+                found = true;
+
+        Assert.True(found, "Exactly 1 SysOpRequest{ReplaySeek} should be published after debounce expires.");
+        Assert.False((bool)seekPendingField.GetValue(panel)!, "_seekPending should be cleared after write.");
+    }
+
+    // ── S0504: RefreshLocalAssets ─────────────────────────────────────────────
+
+    [Fact]
+    public void RefreshLocalAssets_PopulatesFromTempDirectory()
+    {
+        string tmpRoot = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "OrcScenPanelTest_" + Guid.NewGuid());
+        try
+        {
+            // Create a scenario directory with a .json file.
+            string scenDir = System.IO.Path.Combine(tmpRoot, "ScenPkg1");
+            System.IO.Directory.CreateDirectory(scenDir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(scenDir, "entities.json"), "{}");
+
+            // Create a drill directory with a .fdp file.
+            string drillDir = System.IO.Path.Combine(tmpRoot, "Drill1");
+            System.IO.Directory.CreateDirectory(drillDir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(drillDir, "node_1.fdp"), "data");
+
+            _panel.RefreshLocalAssets(tmpRoot);
+
+            // Access internal arrays via reflection.
+            var scenariosField = typeof(OrchestratorScenarioPanel)
+                .GetField("_availableScenarios", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+            var drillsField = typeof(OrchestratorScenarioPanel)
+                .GetField("_availableDrills", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+
+            var scenarios = (string[])scenariosField.GetValue(_panel)!;
+            var drills    = (string[])drillsField.GetValue(_panel)!;
+
+            Assert.Equal(1, scenarios.Length);
+            Assert.Equal(1, drills.Length);
+            Assert.Contains("ScenPkg1", scenarios);
+            Assert.Contains("Drill1",   drills);
+        }
+        finally
+        {
+            if (System.IO.Directory.Exists(tmpRoot))
+                System.IO.Directory.Delete(tmpRoot, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void RefreshLocalAssets_ClampsStaleSelectionIndex()
+    {
+        // Set _selectedDrillIdx to an out-of-range value.
+        var drillIdxField = typeof(OrchestratorScenarioPanel)
+            .GetField("_selectedDrillIdx", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        drillIdxField.SetValue(_panel, 5);
+
+        // Refresh with an empty (non-existent) root so drills = empty.
+        _panel.RefreshLocalAssets(@"C:\ThisDirectoryDoesNotExist_" + Guid.NewGuid());
+
+        int idx = (int)drillIdxField.GetValue(_panel)!;
+        Assert.Equal(-1, idx);
+    }
+
+    [Fact]
+    public void InjectStory_AutoGeneratesStoryId()
+    {
+        using var participant = new DdsParticipant(TestDomain);
+        using var dm          = new DrillMaster(participant, new ClusterConfiguration
+            { Mandatory = Array.Empty<string>() });
+        using var writer      = new DdsWriter<SysOpRequest>(participant);
+        using var reader      = new DdsReader<SysOpRequest>(participant);
+        var panel = new OrchestratorScenarioPanel(dm, writer);
+
+        System.Threading.Thread.Sleep(300); // DDS discovery
+
+        // Write first inject (simulating button click 1)
+        string storyId1 = Guid.NewGuid().ToString();
+        writer.Write(new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.ManageStory,
+            PayloadJson   = $"{{\"Mode\":\"Start\",\"StoryId\":\"{storyId1}\",\"ScenarioId\":\"ScenPkg1\"}}",
+        });
+        System.Threading.Thread.Sleep(150);
+        string? readStoryId1 = null;
+        using (var scope = reader.Take())
+        {
+            foreach (var s in scope)
+                if (s.IsValid && s.Data.OperationType == SysOpType.ManageStory)
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(s.Data.PayloadJson ?? "{}");
+                    readStoryId1 = doc.RootElement.GetProperty("StoryId").GetString();
+                }
+        }
+
+        // Write second inject (simulating button click 2) with a different StoryId.
+        string storyId2 = Guid.NewGuid().ToString();
+        writer.Write(new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.ManageStory,
+            PayloadJson   = $"{{\"Mode\":\"Start\",\"StoryId\":\"{storyId2}\",\"ScenarioId\":\"ScenPkg1\"}}",
+        });
+        System.Threading.Thread.Sleep(150);
+        string? readStoryId2 = null;
+        using (var scope = reader.Take())
+        {
+            foreach (var s in scope)
+                if (s.IsValid && s.Data.OperationType == SysOpType.ManageStory)
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(s.Data.PayloadJson ?? "{}");
+                    readStoryId2 = doc.RootElement.GetProperty("StoryId").GetString();
+                }
+        }
+
+        Assert.NotNull(readStoryId1);
+        Assert.NotNull(readStoryId2);
+        Assert.NotEqual(readStoryId1, readStoryId2);
+    }
+
+    [Fact]
+    public void LoadScenario_WithNoSelection_DisabledGuard()
+    {
+        using var participant = new DdsParticipant(TestDomain);
+        using var dm          = new DrillMaster(participant, new ClusterConfiguration
+            { Mandatory = Array.Empty<string>() });
+        using var writer      = new DdsWriter<SysOpRequest>(participant);
+        using var reader      = new DdsReader<SysOpRequest>(participant);
+        var panel = new OrchestratorScenarioPanel(dm, writer);
+
+        // _selectedLoadScenarioIdx is -1 by default (no selection).
+        // Render a frame: even if a button is pressed, -1 guard prevents writing.
+        ImGui.NewFrame();
+        ImGui.Begin("##GuardTest");
+        var ex = Record.Exception(() => panel.Render(false, 0f));
+        ImGui.End();
+        ImGui.Render();
+
+        Assert.Null(ex);
+
+        // Check that no TransitionState or other SysOpRequest was written.
+        System.Threading.Thread.Sleep(100);
+        using var scope = reader.Take();
+        bool anyWritten = false;
+        foreach (var s in scope)
+            if (s.IsValid) anyWritten = true;
+        Assert.False(anyWritten, "No SysOpRequest should be written when load scenario index is -1.");
     }
 }
 

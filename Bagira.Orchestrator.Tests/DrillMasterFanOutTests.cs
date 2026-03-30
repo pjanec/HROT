@@ -232,4 +232,69 @@ public sealed class DrillMasterFanOutTests
         var tx = drill.TransactionHistory[drill.TransactionHistory.Count - 1];
         Assert.Equal(payload, tx.PayloadJson);
     }
+
+    // ── P3 Debt: standalone ReplaySeek fan-out ────────────────────────────────
+
+    /// <summary>
+    /// A standalone <see cref="SysOpType.ReplaySeek"/> request fans out
+    /// <see cref="NodeOpType.NodeReplaySeek"/> to all active nodes.
+    /// Requires the cluster to be in <see cref="DSMState.RunningReplay"/> first.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ReplaySeekStep_FansOutNodeReplaySeek()
+    {
+        using var participant     = new DdsParticipant(TestDomain);
+        using var hbWriter        = new DdsWriter<NodeHeartbeat>(participant);
+        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
+
+        using var drill = new DrillMaster(participant, NoMandatoryConfig());
+        Thread.Sleep(400);
+
+        RegisterNode(hbWriter, drill);
+
+        // Transition to RunningReplay (optimistic: sets _currentDsmState without waiting for node ACKs).
+        drill.HandleSysOpRequest(new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.TransitionState,
+            PayloadJson   = $"{{\"TargetState\":{(int)DSMState.RunningReplay}}}",
+        });
+        drill.Tick();
+
+        // Allow DDS to propagate transition fan-out messages.
+        Thread.Sleep(200);
+
+        // Drain any PrepareReplay / CommitState messages from the transition.
+        using (var drained = nodeOpCmdReader.Take()) { }
+
+        // Now send standalone ReplaySeek.
+        drill.HandleSysOpRequest(new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.ReplaySeek,
+            PayloadJson   = "{\"TargetWallTicks\":1000}",
+        });
+        drill.Tick();
+
+        bool foundNodeReplaySeek = false;
+        var deadline = DateTime.UtcNow.AddSeconds(3);
+        while (DateTime.UtcNow < deadline)
+        {
+            drill.Tick();
+            using var cmdScope = nodeOpCmdReader.Take();
+            foreach (var s in cmdScope)
+            {
+                if (s.IsValid && s.Data.Operation == NodeOpType.NodeReplaySeek)
+                {
+                    foundNodeReplaySeek = true;
+                    break;
+                }
+            }
+            if (foundNodeReplaySeek) break;
+            Thread.Sleep(20);
+        }
+
+        Assert.True(foundNodeReplaySeek,
+            "DrillMaster must fan out a NodeReplaySeek command for a standalone ReplaySeek request.");
+    }
 }

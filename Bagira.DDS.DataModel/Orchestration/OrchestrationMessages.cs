@@ -20,6 +20,9 @@ namespace Bagira.BDC.SSTD.Orchestration
         ImportArchive = 7, ManageStory = 8, ReplaySeek = 9,
         PauseTime = 10, ResumeTime = 11,
         PrefetchScenario = 12,
+        CancelOperation = 13,
+        StepTime        = 14,
+        SetTimeScale    = 15,
     }
 
     /// <summary>Wire value 13 is replay seek on nodes; C# name avoids IDL literal clash with <see cref="SysOpType.ReplaySeek"/>.</summary>

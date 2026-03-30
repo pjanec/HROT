@@ -30,6 +30,9 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private OrchestratorScenarioPanel? _scenarioPanel;
     private DdsWriter<SysOpRequest>? _sysOpWriter;  // S0502
 
+    private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
+    private float _drillTime; // S0503: current drill time in seconds for panel
+
     // ── Time coordinator (CGF1-A.1, BATCH-09) ─────────────────────────────
     // Minimal kernel + coordinator so PendingTimeMode drives SwitchToDeterministic.
     private FdpEventBus? _eventBus;
@@ -49,6 +52,9 @@ public sealed class OrchestratorSubsystem : ISubsystem
     /// </summary>
     internal DrillMaster? TestHook_DrillMaster => _drillMaster;
 
+    /// <summary>Internal test hook: exposes current pause state for assertions.</summary>
+    internal bool IsPausedForTest => _isPaused;
+
     public string Name => "Orchestrator";
 
     public System.Numerics.Vector4 TitleBarColor => new(0.72f, 0.64f, 0.47f, 1f);  // S0501: beige
@@ -61,6 +67,34 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _drillMaster = new DrillMaster(_participant, _config);
         _sysOpWriter   = new DdsWriter<SysOpRequest>(_participant);    // S0502
         _scenarioPanel = new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter);
+
+        // S0503: Subscribe to time-control events from DrillMaster.
+        _drillMaster.TimeControlRequested += (op, payload) =>
+        {
+            switch (op)
+            {
+                case SysOpType.PauseTime:
+                    var ids = new HashSet<int>(_drillMaster.NodeRoster.ActiveNodes.Keys);
+                    _timeCoordinator?.SwitchToDeterministic(ids);
+                    _isPaused = true;
+                    break;
+                case SysOpType.ResumeTime:
+                    _timeCoordinator?.SwitchToContinuous();
+                    _isPaused = false;
+                    break;
+                case SysOpType.StepTime:
+                    try { _timeKernel?.StepFrame(1f / 60f); }
+                    catch (InvalidOperationException) { /* MasterTimeController does not support stepping; step deferred */ }
+                    break;
+                case SysOpType.SetTimeScale:
+                    if (float.TryParse(payload,
+                            System.Globalization.NumberStyles.Float,
+                            System.Globalization.CultureInfo.InvariantCulture,
+                            out float s))
+                        _timeKernel?.GetTimeController()?.SetTimeScale(s);
+                    break;
+            }
+        };
 
         // ── Time coordinator setup (CGF1-A.1, BATCH-09) ──────────────────────
         // A minimal ECS kernel gives the DistributedTimeCoordinator a wall-clock source
@@ -108,6 +142,10 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _timeCoordinator?.Update();
         _timeModeTranslator?.ScanAndPublish(null!);
         _timeModeTranslator?.PollIngress(null!, null!);
+
+        // S0503: Update drillTime cache and advance seek debounce.
+        _drillTime = (float)(_timeKernel?.CurrentTime.TotalTime ?? 0.0);
+        _scenarioPanel?.Update(deltaTime);
     }
 
     public void DrawWorld() { }
@@ -145,22 +183,6 @@ public sealed class OrchestratorSubsystem : ISubsystem
                 OperationType = SysOpType.TransitionState,
                 PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingLive}}}",
             });
-        ImGui.SameLine();
-        if (ImGui.Button("Pause") && _sysOpWriter != null)
-            _sysOpWriter.Write(new SysOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = SysOpType.PauseTime,
-                PayloadJson   = string.Empty,
-            });
-        ImGui.SameLine();
-        if (ImGui.Button("Resume") && _sysOpWriter != null)
-            _sysOpWriter.Write(new SysOpRequest
-            {
-                RequestId     = Guid.NewGuid(),
-                OperationType = SysOpType.ResumeTime,
-                PayloadJson   = string.Empty,
-            });
 
         if (!bootstrapped) ImGui.EndDisabled();
 
@@ -196,6 +218,49 @@ public sealed class OrchestratorSubsystem : ISubsystem
                 }
                 ImGui.EndTable();
             }
+        }
+
+        // ── Time Control section (S0503) ──────────────────────────────────────
+        if (ImGui.CollapsingHeader("Time Control", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            long wallTicks = DateTimeOffset.UtcNow.Ticks;
+            string wallTimeStr = new DateTime(wallTicks, DateTimeKind.Utc).ToString("HH:mm:ss.fff");
+            ImGui.Text($"Wall Time: {wallTimeStr}");
+
+            if (!bootstrapped) ImGui.BeginDisabled();
+
+            float timeScale = 1.0f;  // future: read from _uiCache when S0506 lands
+            if (ImGui.Button(_isPaused ? "Resume##OrcResume" : "Pause##OrcPause") && _sysOpWriter != null)
+                _sysOpWriter.Write(new SysOpRequest
+                {
+                    RequestId     = Guid.NewGuid(),
+                    OperationType = _isPaused ? SysOpType.ResumeTime : SysOpType.PauseTime,
+                    PayloadJson   = string.Empty,
+                });
+
+            ImGui.SameLine();
+            if (!_isPaused) ImGui.BeginDisabled();
+            if (ImGui.Button("Step##OrcStep") && _sysOpWriter != null)
+                _sysOpWriter.Write(new SysOpRequest
+                {
+                    RequestId     = Guid.NewGuid(),
+                    OperationType = SysOpType.StepTime,
+                    PayloadJson   = string.Empty,
+                });
+            if (!_isPaused) ImGui.EndDisabled();
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(150f);
+            if (ImGui.SliderFloat("Speed##OrcSpeed", ref timeScale, 0.1f, 10.0f, "%.1fx") && _sysOpWriter != null)
+                _sysOpWriter.Write(new SysOpRequest
+                {
+                    RequestId     = Guid.NewGuid(),
+                    OperationType = SysOpType.SetTimeScale,
+                    PayloadJson   = timeScale.ToString("F2",
+                        System.Globalization.CultureInfo.InvariantCulture),
+                });
+
+            if (!bootstrapped) ImGui.EndDisabled();
         }
 
         // ── 2PC history table (S0501: 5-column overhaul) ──────────────────────
@@ -290,7 +355,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
         }
 
         // ── Scenario & Story controls (CGF1-S0106) ───────────────────────────
-        _scenarioPanel?.Render();
+        _scenarioPanel?.Render(_isPaused, _drillTime);
         ImGui.End();   // S0501
     }
 

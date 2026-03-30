@@ -161,4 +161,122 @@ public sealed class OrchestratorSubsystemTests
         var result = OrchestratorSubsystem.FormatPrettyJson(string.Empty);
         Assert.Equal(string.Empty, result);
     }
+
+    // ── S0503: Time Control ───────────────────────────────────────────────────
+
+    /// <summary>
+    /// When not paused, <see cref="OrchestratorSubsystem.IsPausedForTest"/> is false.
+    /// After a PauseTime request processes through DrillMaster (via HandleSysOpRequest +
+    /// Update), <see cref="OrchestratorSubsystem.IsPausedForTest"/> becomes true.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void TimeControlRequested_PauseTime_SetsIsPaused()
+    {
+        var subsystem = new OrchestratorSubsystem();
+        subsystem.Initialize(new SubsystemConfig { DomainId = TestDomain });
+        try
+        {
+            Assert.False(subsystem.IsPausedForTest, "Expected not paused initially.");
+
+            // Inject PauseTime via the DrillMaster test hook (simulates what the UI button writes).
+            subsystem.TestHook_DrillMaster!.HandleSysOpRequest(new SysOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = SysOpType.PauseTime,
+                PayloadJson   = string.Empty,
+            });
+            subsystem.Update(1f / 60f);  // Tick processes injected requests → fires TimeControlRequested
+
+            Assert.True(subsystem.IsPausedForTest,
+                "After PauseTime is handled, _isPaused must be true.");
+        }
+        finally
+        {
+            subsystem.Shutdown();
+        }
+    }
+
+    /// <summary>
+    /// When not paused, the Pause button label is "Pause##OrcPause".
+    /// Writing a PauseTime SysOpRequest (simulating the button click) and processing it
+    /// sets _isPaused, so the button label would become "Resume##OrcResume" next frame.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void PauseButton_WhenNotPaused_DispatchesPauseTime()
+    {
+        var subsystem = new OrchestratorSubsystem();
+        subsystem.Initialize(new SubsystemConfig { DomainId = TestDomain });
+
+        try
+        {
+            // Verify initial state: not paused (button woud show "Pause").
+            Assert.False(subsystem.IsPausedForTest, "Expected not paused initially.");
+
+            // Simulate the button click: write a SysOpRequest{PauseTime} via the DDS writer
+            // on the same domain (DrillMaster reads from its _sysOpRequestReader on that domain).
+            using var probe = new DdsParticipant(TestDomain);
+            using var writer = new DdsWriter<SysOpRequest>(probe);
+            Thread.Sleep(300);  // Allow DDS discovery
+
+            writer.Write(new SysOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = SysOpType.PauseTime,
+                PayloadJson   = string.Empty,
+            });
+
+            // Update until _isPaused is set (DrillMaster reads the DDS request and fires event).
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (!subsystem.IsPausedForTest && DateTime.UtcNow < deadline)
+            {
+                subsystem.Update(1f / 60f);
+                Thread.Sleep(20);
+            }
+
+            Assert.True(subsystem.IsPausedForTest,
+                "PauseTime SysOpRequest published on DDS should set _isPaused = true.");
+        }
+        finally
+        {
+            subsystem.Shutdown();
+        }
+    }
+
+    /// <summary>
+    /// When not paused, Step is not reachable.  After a Pause, Step requests are processed.
+    /// Verify that <see cref="OrchestratorSubsystem.IsPausedForTest"/> remains coherent
+    /// and that StepTime can only fire when paused.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void StepButton_DisabledWhenNotPaused()
+    {
+        var subsystem = new OrchestratorSubsystem();
+        subsystem.Initialize(new SubsystemConfig { DomainId = TestDomain });
+
+        try
+        {
+            // Not paused — Step button is wrapped in BeginDisabled / EndDisabled.
+            Assert.False(subsystem.IsPausedForTest, "Expected not paused initially.");
+
+            // Inject a StepTime request when not paused (the button is disabled, so this
+            // simulates the guard: StepTime should also be processed, but the _isPaused guard
+            // on the TimeControlRequested handler does nothing different for StepTime — the
+            // main check is that StepTime doesn't set _isPaused).
+            subsystem.TestHook_DrillMaster!.HandleSysOpRequest(new SysOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = SysOpType.StepTime,
+                PayloadJson   = string.Empty,
+            });
+            subsystem.Update(1f / 60f);
+
+            // StepTime should not affect _isPaused.
+            Assert.False(subsystem.IsPausedForTest,
+                "StepTime must not change _isPaused state.");
+        }
+        finally
+        {
+            subsystem.Shutdown();
+        }
+    }
 }

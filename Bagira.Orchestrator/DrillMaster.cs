@@ -202,6 +202,13 @@ public sealed class DrillMaster : IDisposable
     // ── Public surface ────────────────────────────────────────────────────
     public NodeRoster NodeRoster => _roster;
 
+    /// <summary>
+    /// Raised for time-control operations (Pause/Resume/Step/SetTimeScale) that do
+    /// not require 2PC across simulation nodes.  <see cref="OrchestratorSubsystem"/>
+    /// subscribes to route these to <see cref="DistributedTimeCoordinator"/>.
+    /// </summary>
+    public event Action<SysOpType, string>? TimeControlRequested;
+
     /// <summary><c>true</c> once all mandatory nodes have reached <c>Standby</c>.</summary>
     public bool BootstrapComplete => _bootstrapLatch;
 
@@ -531,6 +538,14 @@ public sealed class DrillMaster : IDisposable
                 return;
             }
 
+            // S0503: Time-control operations bypass 2PC — route directly and return.
+            if (req.OperationType is SysOpType.PauseTime or SysOpType.ResumeTime
+                                  or SysOpType.StepTime  or SysOpType.SetTimeScale)
+            {
+                TimeControlRequested?.Invoke(req.OperationType, req.PayloadJson ?? string.Empty);
+                return;
+            }
+
             // Accept the request — resolve target via planner for TransitionState ops.
             DSMState resolvedTarget = _currentDsmState;
             int totalSteps = 1;
@@ -796,6 +811,20 @@ public sealed class DrillMaster : IDisposable
                         ResultJson = string.Empty
                     });
                     return;
+                }
+            }
+            else if (req.OperationType == SysOpType.ReplaySeek)
+            {
+                // Standalone ReplaySeek: fan out NodeReplaySeek to all active nodes immediately.
+                var seekNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                if (seekNodeIds.Count > 0)
+                {
+                    FanOutNodeOp(new NodeOpCommand
+                    {
+                        TransactionId = Guid.NewGuid(),
+                        Operation     = NodeOpType.NodeReplaySeek,
+                        PayloadJson   = req.PayloadJson ?? string.Empty,
+                    }, seekNodeIds);
                 }
             }
 

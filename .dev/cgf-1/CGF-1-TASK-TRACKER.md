@@ -3,9 +3,9 @@
 **Reference:** See [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) for full task descriptions and success conditions.  
 **Design:** See [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) for the architectural design.
 
-**Active batch:** CGF-1-BATCH-27 (Phase 5 continuation: S0503 + S0504).  
-**Last reviewed:** [CGF-1-BATCH-26](reviews/CGF-1-BATCH-26-REVIEW.md) — APPROVED (2026-03-30); S0501+S0502 complete; +18 tests (Orchestrator 46, Runner 148).  
-**Last completed:** [CGF-1-BATCH-26](reports/CGF-1-BATCH-26-REPORT.md) — ImGui window overhaul, beige TitleBar, 5-col 2PC table, real DDS SysOpRequest dispatch, PrepareXxx/CommitState fan-out; **Phase 5 S0501+S0502 done**.  
+**Active batch:** CGF-1-BATCH-28 (Phase 5 continuation: S0505).  
+**Last reviewed:** [CGF-1-BATCH-27](reviews/CGF-1-BATCH-27-REVIEW.md) — APPROVED (2026-03-30); S0503+S0504 complete; +16 tests (DataModel 45, Orchestrator 49, Runner 159).  
+**Last completed:** [CGF-1-BATCH-27](reports/CGF-1-BATCH-27-REPORT.md) — Time Control section, seek debounce, asset combo selection, standalone ReplaySeek fan-out fix; **Phase 5 S0503+S0504 done**.  
 **Debt (P2/P3):** [.dev/DEBT-TRACKER.md](../DEBT-TRACKER.md).
 
 > **Extended specs:** [CGF-1-DESIGN.md](./CGF-1-DESIGN.md) and [CGF-1-TASK-DETAIL.md](./CGF-1-TASK-DETAIL.md) define **CGF1-S0106** and **CGF1-S0310**. **Phase 4** ✅ complete (**CGF-1-BATCH-22**). **BATCH-23:** brain/muscle **DSM parity** (CGF record/replay, IG/IOS matrix), **orchestrator globals** (`GlobalContextDto`), then **S0310** / **S0106**.
@@ -98,8 +98,8 @@ with graceful cancellation; and cap the phase with full CQRS decoupling so that
 
 - [x] **CGF1-S0501** Orchestrator ImGui Window & 2PC History Overhaul [details](./CGF-1-TASK-DETAIL.md#cgf1-s0501--orchestrator-imgui-window--2pc-history-overhaul) ✅ BATCH-26
 - [x] **CGF1-S0502** Real Network Dispatch + DrillMaster Fan-out [details](./CGF-1-TASK-DETAIL.md#cgf1-s0502--real-network-dispatch--drillmaster-fan-out) ✅ BATCH-26
-- [ ] **CGF1-S0503** Time Control Section + Remote Time Commands [details](./CGF-1-TASK-DETAIL.md#cgf1-s0503--time-control-section--remote-time-commands)
-- [ ] **CGF1-S0504** Asset Combo Selection [details](./CGF-1-TASK-DETAIL.md#cgf1-s0504--asset-combo-selection-local-filesystem-scan)
+- [x] **CGF1-S0503** Time Control Section + Remote Time Commands [details](./CGF-1-TASK-DETAIL.md#cgf1-s0503--time-control-section--remote-time-commands) ✅ BATCH-27
+- [x] **CGF1-S0504** Asset Combo Selection [details](./CGF-1-TASK-DETAIL.md#cgf1-s0504--asset-combo-selection-local-filesystem-scan) ✅ BATCH-27
 - [ ] **CGF1-S0505** Archive Export/Import Pipeline [details](./CGF-1-TASK-DETAIL.md#cgf1-s0505--archive-exportimport-pipeline)
 - [ ] **CGF1-S0506** CQRS Decoupling: AssetInventoryTopic + ClusterUiCache [details](./CGF-1-TASK-DETAIL.md#cgf1-s0506--cqrs-decoupling-assetinventorytopic--clusteruicache)
 - [ ] **CGF1-S0507** IOS Remote Cluster Control Panel [details](./CGF-1-TASK-DETAIL.md#cgf1-s0507--ios-remote-cluster-control-panel)

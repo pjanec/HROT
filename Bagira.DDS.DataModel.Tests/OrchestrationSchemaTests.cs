@@ -50,6 +50,18 @@ namespace Bagira.DDS.DataModel.Tests
         }
 
         [Fact]
+        public void SysOpType_StepTime_Is14()
+        {
+            Assert.Equal(14, (int)SysOpType.StepTime);
+        }
+
+        [Fact]
+        public void SysOpType_SetTimeScale_Is15()
+        {
+            Assert.Equal(15, (int)SysOpType.SetTimeScale);
+        }
+
+        [Fact]
         public void NodeHeartbeatHasDdsKeyOnNodeId()
         {
             var f = typeof(NodeHeartbeat).GetField(nameof(NodeHeartbeat.NodeId));

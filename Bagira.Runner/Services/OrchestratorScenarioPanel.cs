@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Numerics;
 using Bagira.BDC.SSTD.Orchestration;
 using Bagira.Orchestrator;
@@ -22,15 +23,22 @@ public sealed class OrchestratorScenarioPanel
 
     // ── Scenario section state ────────────────────────────────────────────
     private string _saveScenarioId  = string.Empty;
-    private string _loadScenarioId  = string.Empty;
+
+    // ── Asset combo state (S0504) ─────────────────────────────────────────
+    private string[] _availableScenarios     = Array.Empty<string>();
+    private string[] _availableStories       = Array.Empty<string>();
+    private string[] _availableDrills        = Array.Empty<string>();
+    private int      _selectedLoadScenarioIdx = -1;
+    private int      _selectedDrillIdx        = -1;
+    private int      _selectedStoryIdx        = -1;
 
     // ── Replay section state ──────────────────────────────────────────────
-    private string _replayDrillId   = string.Empty;
     private float  _seekSliderValue = 0f;
 
-    // ── Stories section state ─────────────────────────────────────────────
-    private string _injectScenarioId = string.Empty;
-    private string _injectStoryId    = string.Empty;
+    // ── Seek debounce (S0503) ─────────────────────────────────────────────
+    private float _seekDebounceTimer = 0f;
+    private bool  _seekPending       = false;
+    private float _replayDuration    = 3600f;
 
     // ── Child window sizes (0,0 = auto-fit) ──────────────────────────────
     private static readonly Vector2 AutoSize = Vector2.Zero;
@@ -41,12 +49,81 @@ public sealed class OrchestratorScenarioPanel
     {
         _drillMaster = drillMaster   ?? throw new ArgumentNullException(nameof(drillMaster));
         _sysOpWriter = sysOpWriter   ?? throw new ArgumentNullException(nameof(sysOpWriter));
+        RefreshLocalAssets();
+    }
+
+    /// <summary>
+    /// Advances the seek debounce timer.  Call once per frame from
+    /// <see cref="OrchestratorSubsystem.Update"/>.
+    /// </summary>
+    public void Update(float dt)
+    {
+        if (!_seekPending) return;
+        _seekDebounceTimer -= dt;
+        if (_seekDebounceTimer > 0f) return;
+
+        _seekPending = false;
+        long wallTicks = (long)(_seekSliderValue * 10_000_000L);
+        _sysOpWriter.Write(new SysOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = SysOpType.ReplaySeek,
+            PayloadJson   = $"{{\"TargetWallTicks\":{wallTicks}}}",
+        });
+    }
+
+    /// <summary>
+    /// Reads the replay duration in seconds from the drill's meta.json.
+    /// Returns 3600 if the file is absent or malformed.
+    /// </summary>
+    internal static float GetReplayDuration(string metaJsonContent)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(metaJsonContent);
+            if (doc.RootElement.TryGetProperty("TotalFrames", out var el))
+                return el.GetInt32() / 60f;
+        }
+        catch { }
+        return 3600f;
+    }
+
+    /// <summary>
+    /// Scans <c>C:\FDP_Temp</c> for asset folders.
+    /// Subdirectories containing <c>*.fdp</c> files are drills;
+    /// subdirectories containing <c>*.json</c> files are scenario/story packages.
+    /// </summary>
+    internal void RefreshLocalAssets(string? root = null)
+    {
+        root ??= @"C:\FDP_Temp";
+        var scenarios = new List<string>();
+        var drills    = new List<string>();
+
+        if (Directory.Exists(root))
+        {
+            foreach (var dir in Directory.GetDirectories(root))
+            {
+                var name = Path.GetFileName(dir)!;
+                if (Directory.GetFiles(dir, "*.fdp").Length > 0)
+                    drills.Add(name);
+                else if (Directory.GetFiles(dir, "*.json").Length > 0)
+                    scenarios.Add(name);
+            }
+        }
+
+        _availableScenarios = scenarios.ToArray();
+        _availableStories   = scenarios.ToArray();   // stories share scenario packages
+        _availableDrills    = drills.ToArray();
+
+        if (_selectedLoadScenarioIdx >= _availableScenarios.Length) _selectedLoadScenarioIdx = -1;
+        if (_selectedStoryIdx        >= _availableStories.Length)   _selectedStoryIdx        = -1;
+        if (_selectedDrillIdx        >= _availableDrills.Length)    _selectedDrillIdx        = -1;
     }
 
     /// <summary>
     /// Renders all six control sections.  Must be called from within an active ImGui frame.
     /// </summary>
-    public void Render()
+    public void Render(bool isPaused = false, float drillTime = 0f)
     {
         var bootstrapped   = _drillMaster.BootstrapComplete;
         var hasInFlight    = _drillMaster.HasInFlightTransaction;
@@ -69,7 +146,7 @@ public sealed class OrchestratorScenarioPanel
         RenderScenarioSection(currentState, disableAll);
 
         // ── 5. Replay ──────────────────────────────────────────────────────
-        RenderReplaySection(currentState, disableAll);
+        RenderReplaySection(currentState, disableAll, isPaused, drillTime);
 
         // ── 6. Stories ─────────────────────────────────────────────────────
         RenderStoriesSection(disableAll);
@@ -194,32 +271,42 @@ public sealed class OrchestratorScenarioPanel
             ImGui.Spacing();
 
             // Load Scenario
-            ImGui.InputText("Load Scenario ID##OrcLoadId", ref _loadScenarioId, 128);
+            ImGui.Combo("Select Scenario##OrcLoadId", ref _selectedLoadScenarioIdx,
+                _availableScenarios, _availableScenarios.Length);
             ImGui.SameLine();
-            if (ImGui.Button("Load into Edit##OrcLoadEdit") && !string.IsNullOrWhiteSpace(_loadScenarioId))
+            if (ImGui.Button("⟳##RefScen")) RefreshLocalAssets();
+            ImGui.SameLine();
+            if (ImGui.Button("Load into Edit##OrcLoadEdit") && _selectedLoadScenarioIdx >= 0)
+            {
+                string scenId = _availableScenarios[_selectedLoadScenarioIdx];
                 _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.TransitionState,
                     PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingEdit}," +
-                                    $"\"ScenarioId\":\"{_loadScenarioId}\"}}",
+                                    $"\"ScenarioId\":\"{scenId}\"}}",
                 });
+            }
             ImGui.SameLine();
-            if (ImGui.Button("Load into Live##OrcLoadLive") && !string.IsNullOrWhiteSpace(_loadScenarioId))
+            if (ImGui.Button("Load into Live##OrcLoadLive") && _selectedLoadScenarioIdx >= 0)
+            {
+                string scenId = _availableScenarios[_selectedLoadScenarioIdx];
                 _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.TransitionState,
                     PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingLive}," +
-                                    $"\"ScenarioId\":\"{_loadScenarioId}\"}}",
+                                    $"\"ScenarioId\":\"{scenId}\"}}",
                 });
+            }
 
             if (disableAll) ImGui.EndDisabled();
         }
         ImGui.EndChild();
     }
 
-    private void RenderReplaySection(DSMState currentState, bool disableAll)
+    private void RenderReplaySection(DSMState currentState, bool disableAll,
+        bool isPaused = false, float currentDrillTime = 0f)
     {
         if (!ImGui.CollapsingHeader("Replay")) return;
 
@@ -228,33 +315,38 @@ public sealed class OrchestratorScenarioPanel
             if (disableAll) ImGui.BeginDisabled();
 
             // Load Replay
-            ImGui.InputText("Drill ID##OrcReplayId", ref _replayDrillId, 64);
+            ImGui.Combo("Select Drill##OrcReplayId", ref _selectedDrillIdx,
+                _availableDrills, _availableDrills.Length);
             ImGui.SameLine();
-            if (ImGui.Button("Load Replay##OrcReplayBtn") && !string.IsNullOrWhiteSpace(_replayDrillId))
+            if (ImGui.Button("⟳##RefDrill")) RefreshLocalAssets();
+            ImGui.SameLine();
+            if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedDrillIdx >= 0)
+            {
+                string drillId = _availableDrills[_selectedDrillIdx];
                 _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.TransitionState,
                     PayloadJson   = $"{{\"TargetState\":{(int)DSMState.RunningReplay}," +
-                                    $"\"DrillId\":\"{_replayDrillId}\"}}",
+                                    $"\"DrillId\":\"{drillId}\"}}",
                 });
+            }
 
             // Seek slider — only when RunningReplay
             if (currentState == DSMState.RunningReplay)
             {
+                // Passive tracking: keep slider in sync unless a seek is pending.
+                if (!_seekPending)
+                    _seekSliderValue = currentDrillTime;
+
                 ImGui.Spacing();
                 ImGui.Text("Seek (s):");
                 ImGui.SameLine();
                 ImGui.SetNextItemWidth(300f);
-                if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f, 3600f))
+                if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f, _replayDuration))
                 {
-                    long wallTicks = (long)(_seekSliderValue * 10_000_000L); // seconds → 100-ns ticks
-                    _sysOpWriter.Write(new SysOpRequest
-                    {
-                        RequestId     = Guid.NewGuid(),
-                        OperationType = SysOpType.ReplaySeek,
-                        PayloadJson   = $"{{\"TargetWallTicks\":{wallTicks}}}",
-                    });
+                    _seekPending       = true;
+                    _seekDebounceTimer = 0.5f;
                 }
             }
 
@@ -297,19 +389,23 @@ public sealed class OrchestratorScenarioPanel
             ImGui.Spacing();
             ImGui.Separator();
             ImGui.Text("Inject Story:");
-            ImGui.InputText("Scenario ID##OrcInjectScen", ref _injectScenarioId, 128);
-            ImGui.InputText("Story ID##OrcInjectStory",   ref _injectStoryId,    64);
-            if (ImGui.Button("Inject Story##OrcInjectBtn") &&
-                !string.IsNullOrWhiteSpace(_injectScenarioId) &&
-                !string.IsNullOrWhiteSpace(_injectStoryId))
+            ImGui.Combo("Story Package##OrcInjectScen", ref _selectedStoryIdx,
+                _availableStories, _availableStories.Length);
+            ImGui.SameLine();
+            if (ImGui.Button("⟳##RefStory")) RefreshLocalAssets();
+            if (ImGui.Button("Inject Story##OrcInjectBtn") && _selectedStoryIdx >= 0)
+            {
+                string scenId     = _availableStories[_selectedStoryIdx];
+                string newStoryId = Guid.NewGuid().ToString();
                 _sysOpWriter.Write(new SysOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = SysOpType.ManageStory,
                     PayloadJson   = $"{{\"Mode\":\"Start\"," +
-                                    $"\"StoryId\":\"{_injectStoryId}\"," +
-                                    $"\"ScenarioId\":\"{_injectScenarioId}\"}}",
+                                    $"\"StoryId\":\"{newStoryId}\"," +
+                                    $"\"ScenarioId\":\"{scenId}\"}}",
                 });
+            }
 
             if (disableAll) ImGui.EndDisabled();
         }
