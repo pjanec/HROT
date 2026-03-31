@@ -279,4 +279,61 @@ public sealed class OrchestratorSubsystemTests
             subsystem.Shutdown();
         }
     }
+
+    // ── S0503: ParseStepDelta ─────────────────────────────────────────────────
+
+    [Fact]
+    public void ParseStepDelta_ValidPayload_ReturnsParsedValue()
+    {
+        float result = OrchestratorSubsystem.ParseStepDelta("{\"FixedDelta\":0.1}", 1f / 60f);
+        Assert.Equal(0.1f, result, precision: 5);
+    }
+
+    [Fact]
+    public void ParseStepDelta_MissingField_ReturnsFallback()
+    {
+        float fallback = 1f / 60f;
+        float result = OrchestratorSubsystem.ParseStepDelta("{\"SomethingElse\":99}", fallback);
+        Assert.Equal(fallback, result);
+    }
+
+    [Fact]
+    public void ParseStepDelta_EmptyPayload_ReturnsFallback()
+    {
+        float fallback = 1f / 60f;
+        float result = OrchestratorSubsystem.ParseStepDelta(string.Empty, fallback);
+        Assert.Equal(fallback, result);
+    }
+
+    [Fact]
+    public void ParseStepDelta_NullPayload_ReturnsFallback()
+    {
+        float fallback = 1f / 60f;
+        float result = OrchestratorSubsystem.ParseStepDelta(null!, fallback);
+        Assert.Equal(fallback, result);
+    }
+
+    [Fact]
+    public void ParseStepDelta_ZeroDelta_ReturnsFallback()
+    {
+        float fallback = 1f / 60f;
+        float result = OrchestratorSubsystem.ParseStepDelta("{\"FixedDelta\":0}", fallback);
+        Assert.Equal(fallback, result);
+    }
+
+    [Fact]
+    public void ParseStepDelta_NegativeDelta_ReturnsFallback()
+    {
+        float fallback = 1f / 60f;
+        float result = OrchestratorSubsystem.ParseStepDelta("{\"FixedDelta\":-0.5}", fallback);
+        Assert.Equal(fallback, result);
+    }
+
+    [Fact]
+    public void ParseStepDelta_MalformedJson_ReturnsFallback()
+    {
+        float fallback = 1f / 60f;
+        float result = OrchestratorSubsystem.ParseStepDelta("not json at all", fallback);
+        Assert.Equal(fallback, result);
+    }
 }

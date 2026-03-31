@@ -71,6 +71,9 @@ public sealed class ClusterScenarioPanel
     private int  _selectedUnarchivedIdx  = -1;
     private Guid _activeArchiveOpId      = Guid.Empty;
 
+    // ── Step size for deterministic stepping ─────────────────────────────
+    private float _stepDeltaSeconds = 1f / 60f;
+
     // ── Child window sizes ────────────────────────────────────────────────
     private static readonly Vector2 AutoSize = Vector2.Zero;
 
@@ -266,13 +269,23 @@ public sealed class ClusterScenarioPanel
 
         ImGui.SameLine();
         if (!isPaused) ImGui.BeginDisabled();
+        ImGui.SetNextItemWidth(80f);
+        ImGui.InputFloat("Step (s)##OrcStepDelta", ref _stepDeltaSeconds, 0f, 0f, "%.4f");
+        if (_stepDeltaSeconds <= 0f) _stepDeltaSeconds = 1f / 60f;
+        ImGui.SameLine();
         if (ImGui.Button("Step##OrcStep"))
+        {
+            string stepPayload = string.Format(
+                System.Globalization.CultureInfo.InvariantCulture,
+                "{{\"FixedDelta\":{0:G9}}}",
+                _stepDeltaSeconds);
             SendRequest(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
                 OperationType = ClusterOpType.StepTime,
-                PayloadJson   = string.Empty,
+                PayloadJson   = stepPayload,
             });
+        }
         if (!isPaused) ImGui.EndDisabled();
 
         ImGui.SameLine();

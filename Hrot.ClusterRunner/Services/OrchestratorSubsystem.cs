@@ -83,8 +83,9 @@ public sealed class OrchestratorSubsystem : ISubsystem
                     _isPaused = false;
                     break;
                 case ClusterOpType.StepTime:
-                    try { _timeKernel?.StepFrame(1f / 60f); }
-                    catch (InvalidOperationException) { /* MasterTimeController does not support stepping; step deferred */ }
+                    float stepDelta = ParseStepDelta(payload, 1f / 60f);
+                    try { _timeKernel?.StepFrame(stepDelta); }
+                    catch (InvalidOperationException) { /* not in stepped mode; step ignored */ }
                     break;
                 case ClusterOpType.SetTimeScale:
                     if (float.TryParse(payload,
@@ -200,6 +201,28 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _lastProcessedTimeMode = null;
         _participant?.Dispose();
         _participant = null;
+    }
+
+    /// <summary>
+    /// Parses <c>FixedDelta</c> (seconds) from a JSON payload string.
+    /// Returns <paramref name="fallback"/> when the field is absent, zero, negative, or the
+    /// JSON is malformed.
+    /// </summary>
+    internal static float ParseStepDelta(string payload, float fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(payload))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(payload);
+                if (doc.RootElement.TryGetProperty("FixedDelta", out var el)
+                    && el.TryGetSingle(out float val)
+                    && val > 0f)
+                    return val;
+            }
+            catch { }
+        }
+        return fallback;
     }
 
     /// <summary>
