@@ -39,6 +39,7 @@ namespace FDP.Framework.Runner
         private readonly int _targetFps;
         private readonly bool _deterministic;
         private readonly float _fixedDeltaSeconds;
+        private readonly Func<string, int, int>? _nodeIdResolver;
         private volatile bool _running = true;
 
         /// <summary>
@@ -66,6 +67,7 @@ namespace FDP.Framework.Runner
             _targetFps         = options.TargetFps;
             _deterministic     = options.Deterministic;
             _fixedDeltaSeconds = options.FixedDeltaSeconds;
+            _nodeIdResolver    = options.NodeIdResolver;
             _subsystems        = new List<ISubsystem>(subsystems);
         }
 
@@ -97,38 +99,10 @@ namespace FDP.Framework.Runner
                     SubsystemName     = subsystem.Name,
                     Deterministic     = _deterministic,
                     FixedDeltaSeconds = _fixedDeltaSeconds,
-                    NodeId            = ResolveNodeId(subsystem.Name)
+                    NodeId            = _nodeIdResolver != null ? _nodeIdResolver(subsystem.Name, _nodeId) : _nodeId
                 };
                 subsystem.Initialize(cfg);
             }
-        }
-
-        /// <summary>
-        /// Resolves the effective node ID for a subsystem by applying a deterministic per-type
-        /// offset to the base <c>--node-id</c> value.
-        /// When the base node ID is 0 (default), returns 0 so each subsystem falls back to its
-        /// own legacy constant, preserving backwards compatibility.
-        /// </summary>
-        /// <remarks>
-        /// Offset table (all values pairwise-unique):
-        /// SimHost +0, IG +100, ExCon +200, Orchestrator +300, CGF +400, CI +500, unknown +600.
-        /// </remarks>
-        /// <param name="subsystemName">The value of <see cref="ISubsystem.Name"/>.</param>
-        /// <returns>The resolved node ID, or 0 to signal legacy fallback.</returns>
-        private int ResolveNodeId(string subsystemName)
-        {
-            if (_nodeId == 0) return 0;
-            int offset = subsystemName switch
-            {
-                "SimHost"      => 0,
-                "IG"           => 100,
-                "ExCon"          => 200,
-                "Orchestrator" => 300,
-                "CGF"          => 400,
-                "CI"           => 500,
-                _              => 600,
-            };
-            return _nodeId + offset;
         }
 
         /// <summary>

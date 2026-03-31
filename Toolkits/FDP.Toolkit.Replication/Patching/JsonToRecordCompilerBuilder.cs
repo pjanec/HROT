@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Hrot.NED.Messages;
 
 namespace FDP.Toolkit.Replication.Patching;
 
@@ -15,12 +14,12 @@ internal readonly struct EdgeSchemaEntry
 
     /// <summary>The expected value type for this path, used to extract the correct
     /// branch from the JSON token.</summary>
-    public readonly AttributeValueType ExpectedType;
+    public readonly AttributeValueKind ExpectedKind;
 
-    internal EdgeSchemaEntry(ushort attributeId, AttributeValueType expectedType)
+    internal EdgeSchemaEntry(ushort attributeId, AttributeValueKind expectedKind)
     {
-        AttributeId = attributeId;
-        ExpectedType = expectedType;
+        AttributeId  = attributeId;
+        ExpectedKind = expectedKind;
     }
 }
 
@@ -65,7 +64,7 @@ public sealed class JsonToRecordCompilerBuilder
     /// <returns>This builder (fluent API).</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="path"/> is null or empty.</exception>
     /// <exception cref="InvalidOperationException">Thrown when <paramref name="path"/> collides with an already-registered path.</exception>
-    public JsonToRecordCompilerBuilder Register(string path, ushort attributeId, AttributeValueType expectedType)
+    public JsonToRecordCompilerBuilder Register(string path, ushort attributeId, AttributeValueKind expectedKind)
     {
         if (string.IsNullOrEmpty(path))
             throw new ArgumentNullException(nameof(path), "Path must not be null or empty.");
@@ -75,7 +74,7 @@ public sealed class JsonToRecordCompilerBuilder
             throw new InvalidOperationException(
                 $"A route for path '{path}' (hash {hash}) is already registered.");
 
-        _routes[hash] = new EdgeSchemaEntry(attributeId, expectedType);
+        _routes[hash] = new EdgeSchemaEntry(attributeId, expectedKind);
         return this;
     }
 

@@ -100,6 +100,56 @@ namespace FDP.Framework.Runner.Tests
             Assert.Equal(0.025f, capturedConfig.FixedDeltaSeconds);
         }
 
+        [Fact]
+        public void NodeIdResolver_WhenProvided_IsCalledWithSubsystemNameAndBaseId()
+        {
+            string? resolvedName = null;
+            int     resolvedBase = -1;
+
+            var options = new RunnerOptions
+            {
+                Headless = true,
+                NodeId   = 1000,
+                NodeIdResolver = (name, baseId) =>
+                {
+                    resolvedName = name;
+                    resolvedBase = baseId;
+                    return baseId + 42;
+                },
+            };
+
+            SubsystemConfig? capturedConfig = null;
+            var sub = new CapturingSubsystem(cfg => capturedConfig = cfg);
+            var orch = new SubsystemOrchestrator(new[] { sub }, options);
+
+            orch.Initialize();
+            orch.Shutdown();
+
+            Assert.Equal("Capturing", resolvedName);
+            Assert.Equal(1000, resolvedBase);
+            Assert.Equal(1042, capturedConfig!.NodeId);
+        }
+
+        [Fact]
+        public void NodeIdResolver_WhenNull_SubsystemReceivesBaseNodeId()
+        {
+            var options = new RunnerOptions
+            {
+                Headless       = true,
+                NodeId         = 500,
+                NodeIdResolver = null,
+            };
+
+            SubsystemConfig? capturedConfig = null;
+            var sub = new CapturingSubsystem(cfg => capturedConfig = cfg);
+            var orch = new SubsystemOrchestrator(new[] { sub }, options);
+
+            orch.Initialize();
+            orch.Shutdown();
+
+            Assert.Equal(500, capturedConfig!.NodeId);
+        }
+
         private sealed class CapturingSubsystem : ISubsystem
         {
             private readonly System.Action<SubsystemConfig> _onInit;

@@ -1,34 +1,38 @@
-using Hrot.NED.Messages;
-using System;
 using System.Numerics;
+using FDP.Toolkit.Replication.Patching;
 
 namespace FDP.Toolkit.Replication.Patching;
 
 /// <summary>
-/// Zero-overhead dispatch engine that applies a span of <see cref="AttributeRecord"/>s
-/// to an <see cref="IEntityPatchContext"/> using a pre-built O(1) handler array.
+/// Zero-overhead dispatch engine: maps attribute IDs to strongly-typed handlers
+/// registered by one or more <see cref="IBinaryAttributeInstaller{TRecord}"/> plug-ins.
 ///
 /// <para>
-/// Instances are created by <see cref="BinaryInterpreterBuilder.Build"/>.
+/// Instances are created by <see cref="BinaryInterpreterBuilder{TRecord}.Build"/>.
 /// Thread-safe and reusable — all mutable state lives in the per-call
 /// <see cref="BinaryPatchContext"/> returned by <see cref="CreateContext"/>.
 /// </para>
 ///
 /// <para>
-/// Dispatch model: <see cref="AttributeRecord.AttributeId"/> is used directly as an
-/// array index into a pre-built handler array, giving O(1) lookup with no branching
-/// beyond a null-check on each slot.
+/// Dispatch model: <typeparamref name="TRecord"/> is mapped to a handler via the
+/// <c>getIdFunc</c> delegate supplied at build time, giving O(1) lookup with no
+/// branching beyond a null-check on each slot.
 /// </para>
 /// </summary>
-public sealed class BinaryInterpreter
+/// <typeparam name="TRecord">The application-level attribute record type.</typeparam>
+/// <remarks>
+/// Instances are immutable after construction; obtain one via
+/// <see cref="BinaryInterpreterBuilder{TRecord}"/>.
+/// </remarks>
+public sealed class BinaryInterpreter<TRecord> where TRecord : struct
 {
     // ── Internal state (immutable after Build) ────────────────────────────────
 
     /// <summary>
-    /// Handler dispatch table. Index = <see cref="AttributeRecord.AttributeId"/>.
+    /// Handler dispatch table. Index = extracted attribute ID.
     /// Null entries are unregistered IDs and are silently skipped.
     /// </summary>
-    private readonly Action<BinaryPatchContext, AttributeRecord>[] _handlers;
+    private readonly Action<BinaryPatchContext, TRecord>[] _handlers;
 
     /// <summary>
     /// Per-bit flusher array. Entry at index <c>N</c> is invoked when bit <c>N</c>
@@ -36,28 +40,35 @@ public sealed class BinaryInterpreter
     /// have been processed.  Null entries indicate no flusher registered for that bit.
     /// </summary>
     private readonly Action<BinaryPatchContext>[] _flushers;
+
     /// <summary>
     /// Pre-apply handlers invoked once per <see cref="Apply"/> call after the scratchpad
     /// is zeroed, before the dispatch loop.  Used to pre-populate installer scratchpad
-    /// state from the entity’s current component values (e.g. existing geodetic position)
+    /// state from the entity's current component values (e.g. existing geodetic position)
     /// without branching inside the hot dispatch loop.
     /// </summary>
     private readonly Action<BinaryPatchContext>[] _preApplyHandlers;
+
     /// <summary>Total scratchpad bytes to allocate per context.</summary>
     private readonly int _scratchpadSize;
+
+    /// <summary>Delegate that extracts the dispatch key (attribute ID) from a record.</summary>
+    private readonly Func<TRecord, ushort> _getIdFunc;
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
     internal BinaryInterpreter(
-        Action<BinaryPatchContext, AttributeRecord>[] handlers,
+        Action<BinaryPatchContext, TRecord>[] handlers,
         Action<BinaryPatchContext>[] flushers,
         Action<BinaryPatchContext>[] preApplyHandlers,
-        int scratchpadSize)
+        int scratchpadSize,
+        Func<TRecord, ushort> getIdFunc)
     {
         _handlers         = handlers;
         _flushers         = flushers;
         _preApplyHandlers = preApplyHandlers;
         _scratchpadSize   = scratchpadSize;
+        _getIdFunc        = getIdFunc;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -78,9 +89,9 @@ public sealed class BinaryInterpreter
         => new BinaryPatchContext(patchCtx, _scratchpadSize);
 
     /// <summary>
-    /// Applies all <see cref="AttributeRecord"/>s in <paramref name="records"/> to the
-    /// ECS context encapsulated by <paramref name="ctx"/>, then runs deferred flushers
-    /// and calls <see cref="IEntityPatchContext.FlushDirtyMarks"/>.
+    /// Applies all records in <paramref name="records"/> to the ECS context
+    /// encapsulated by <paramref name="ctx"/>, then runs deferred flushers and
+    /// calls <see cref="IEntityPatchContext.FlushDirtyMarks"/>.
     /// </summary>
     /// <param name="ctx">
     /// The per-request context created by <see cref="CreateContext"/>.
@@ -88,11 +99,11 @@ public sealed class BinaryInterpreter
     /// entry to support context reuse.
     /// </param>
     /// <param name="records">Attribute records to process.</param>
-    public void Apply(BinaryPatchContext ctx, ReadOnlySpan<AttributeRecord> records)
+    public void Apply(BinaryPatchContext ctx, ReadOnlySpan<TRecord> records)
     {
         // Reset transient state so the context can be reused across Apply calls.
-        ctx.DirtySubsystemsMask  = 0;
-        ctx.DirtyDescriptorMask  = 0;
+        ctx.DirtySubsystemsMask = 0;
+        ctx.DirtyDescriptorMask = 0;
         // Predictably zero the scratchpad so installers never see stale data from a
         // previous Apply call.  Pre-apply handlers then re-populate it from current
         // entity state, removing per-handler Initialized flag branches.
@@ -101,10 +112,11 @@ public sealed class BinaryInterpreter
         // ── Pre-apply phase ────────────────────────────────────────────────
         foreach (var preApply in _preApplyHandlers)
             preApply(ctx);
+
         // ── Dispatch phase ────────────────────────────────────────────────────
         foreach (ref readonly var record in records)
         {
-            ushort id = record.AttributeId;
+            ushort id = _getIdFunc(record);
             if (id < _handlers.Length)
             {
                 var handler = _handlers[id];

@@ -33,5 +33,16 @@ namespace FDP.Framework.Runner
         /// <summary>Fixed simulation delta in seconds used when <see cref="Deterministic"/> is
         /// <c>true</c>. Default = 1/60 s (60 Hz).</summary>
         public float FixedDeltaSeconds { get; set; } = 1.0f / 60.0f;
+
+        /// <summary>
+        /// Optional delegate used by <see cref="SubsystemOrchestrator"/> to resolve the
+        /// per-subsystem node ID from the base <see cref="NodeId"/>.
+        /// <para>
+        /// The delegate receives <c>(subsystemName, baseNodeId)</c> and must return the
+        /// concrete node ID to assign to that subsystem.  When <c>null</c>, every
+        /// subsystem receives the raw <see cref="NodeId"/> value unchanged.
+        /// </para>
+        /// </summary>
+        public Func<string, int, int>? NodeIdResolver { get; set; }
     }
 }

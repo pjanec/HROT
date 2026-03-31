@@ -1,15 +1,14 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text.Json;
-using Hrot.NED.Messages;
 
 namespace FDP.Toolkit.Replication.Patching;
 
 /// <summary>
-/// Zero-allocation edge compiler that converts a UTF-8 JSON attribute patch into a
-/// sequence of <see cref="AttributeRecord"/>s written to a caller-supplied
-/// <see cref="Span{T}"/> buffer.
+/// Zero-allocation edge compiler that converts a UTF-8 JSON attribute patch into
+/// a sequence of typed values emitted to a caller-supplied
+/// <see cref="IAttributeRecordEmitter"/>.
 ///
 /// <para>
 /// Handles three JSON shapes without heap allocation:
@@ -17,8 +16,7 @@ namespace FDP.Toolkit.Replication.Patching;
 ///   <item>Flat dotted keys: <c>{ "GeoPosition.Latitude": 32.0 }</c></item>
 ///   <item>Nested objects: <c>{ "GeoPosition": { "Latitude": 32.0 } }</c></item>
 ///   <item>Array-indexed nested objects: <c>{ "Weapon": { "2": { "Ammo": 5 } } }</c>
-///         — integer string keys are captured as <see cref="AttributeRecord.SubIndex1"/> /
-///         <see cref="AttributeRecord.SubIndex2"/>.</item>
+///         — integer string keys are captured as SubIndex1 / SubIndex2.</item>
 /// </list>
 /// </para>
 ///
@@ -43,7 +41,7 @@ public sealed class JsonToRecordCompiler
     private readonly Dictionary<ulong, EdgeSchemaEntry> _routes;
 
     /// <summary>
-    /// Per-instance string intern pool for <see cref="AttributeValueType.KindString"/> values.
+    /// Per-instance string intern pool for <see cref="AttributeValueKind.String"/> values.
     /// High-cardinality domains (e.g. faction enums) send the same strings repeatedly;
     /// interning returns the cached reference and lets the GC skip short-lived duplicates.
     /// The pool has no hard capacity limit — the string domain is bounded by the attribute schema.
@@ -59,22 +57,15 @@ public sealed class JsonToRecordCompiler
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Compiles all JSON attribute values in <paramref name="utf8Json"/> to
-    /// <see cref="AttributeRecord"/>s and writes them into <paramref name="output"/>.
+    /// Compiles all JSON attribute values in <paramref name="utf8Json"/> and emits
+    /// typed attribute records to <paramref name="emitter"/>.
     /// </summary>
-    /// <param name="utf8Json">Valid UTF-8 JSON object. Empty input returns 0.</param>
-    /// <param name="output">Caller-supplied output buffer.  Use <c>stackalloc</c> or an
-    /// <c>ArrayPool</c>-rented buffer to keep the call site allocation-free.</param>
-    /// <returns>Number of records written to <paramref name="output"/>.</returns>
-    /// <remarks>
-    /// If <paramref name="output"/> has fewer slots than the number of matching paths
-    /// in <paramref name="utf8Json"/>, records are emitted up to the buffer length;
-    /// the remainder are silently dropped.
-    /// </remarks>
-    public int Compile(ReadOnlySpan<byte> utf8Json, Span<AttributeRecord> output)
+    /// <param name="utf8Json">Valid UTF-8 JSON object. Empty input is a no-op.</param>
+    /// <param name="emitter">Callback that receives each resolved attribute value.</param>
+    public void Compile(ReadOnlySpan<byte> utf8Json, IAttributeRecordEmitter emitter)
     {
         if (utf8Json.IsEmpty)
-            return 0;
+            return;
 
         var reader = new Utf8JsonReader(utf8Json);
 
@@ -86,14 +77,13 @@ public sealed class JsonToRecordCompiler
         Span<byte>  hadNumericAtDepth = stackalloc byte[MaxDepth + 1];
 
         contextStack[0] = JsonAttributeCompiler.FnvOffset;
-        int    depth        = 0;
+        int    depth           = 0;
         ulong  currentLeafHash = JsonAttributeCompiler.FnvOffset;
-        int    outputCount  = 0;
 
         // Sub-index accumulation: numeric key strings become SubIndex1/SubIndex2.
-        short  subIndex1    = 0;
-        short  subIndex2    = 0;
-        int    numericCount = 0; // how many numeric keys are active in current path
+        short  subIndex1       = 0;
+        short  subIndex2       = 0;
+        int    numericCount    = 0; // how many numeric keys are active in current path
 
         while (reader.Read())
         {
@@ -167,55 +157,50 @@ public sealed class JsonToRecordCompiler
                 case JsonTokenType.False:
                 case JsonTokenType.Null:
                 {
-                    if (outputCount >= output.Length)
-                        break;  // Buffer full — silently drop remaining matches.
-
                     if (_routes.TryGetValue(currentLeafHash, out var entry))
                     {
-                        output[outputCount++] = new AttributeRecord
-                        {
-                            AttributeId = entry.AttributeId,
-                            SubIndex1   = subIndex1,
-                            SubIndex2   = subIndex2,
-                            Value       = ExtractValue(ref reader, entry.ExpectedType),
-                        };
+                        EmitRecord(ref reader, entry, subIndex1, subIndex2, emitter);
                     }
                     break;
                 }
             }
         }
-
-        return outputCount;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// Extracts a typed <see cref="AttributeValueUnion"/> from the current
-    /// <see cref="Utf8JsonReader"/> position based on <paramref name="expectedType"/>.
-    /// For <see cref="AttributeValueType.KindString"/>, the raw string is interned
-    /// through <see cref="_stringPool"/> to eliminate duplicate allocations on repeated
-    /// payloads (e.g. faction enum strings).
+    /// Dispatches to the correct <see cref="IAttributeRecordEmitter"/> overload based on
+    /// <see cref="EdgeSchemaEntry.ExpectedKind"/> and the current JSON token value.
     /// </summary>
-    private AttributeValueUnion ExtractValue(ref Utf8JsonReader reader, AttributeValueType expectedType)
+    private void EmitRecord(
+        ref Utf8JsonReader reader,
+        EdgeSchemaEntry entry,
+        short subIndex1,
+        short subIndex2,
+        IAttributeRecordEmitter emitter)
     {
-        return expectedType switch
+        switch (entry.ExpectedKind)
         {
-            AttributeValueType.KindInt32   => new AttributeValueUnion
-                { ValueType = AttributeValueType.KindInt32,   IntValue    = reader.GetInt32()  },
-            AttributeValueType.KindInt64   => new AttributeValueUnion
-                { ValueType = AttributeValueType.KindInt64,   LongValue   = reader.GetInt64()  },
-            AttributeValueType.KindFloat32 => new AttributeValueUnion
-                { ValueType = AttributeValueType.KindFloat32, FloatValue  = reader.GetSingle() },
-            AttributeValueType.KindFloat64 => new AttributeValueUnion
-                { ValueType = AttributeValueType.KindFloat64, DoubleValue = reader.GetDouble() },
-            AttributeValueType.KindBool    => new AttributeValueUnion
-                { ValueType = AttributeValueType.KindBool,    BoolValue   = reader.GetBoolean() },
-            AttributeValueType.KindString  => new AttributeValueUnion
-                { ValueType = AttributeValueType.KindString,
-                  StringValue = InternString(reader.GetString()) },
-            _ => default,
-        };
+            case AttributeValueKind.Int32:
+                emitter.EmitInt32(entry.AttributeId, reader.GetInt32(), subIndex1, subIndex2);
+                break;
+            case AttributeValueKind.Int64:
+                emitter.EmitInt64(entry.AttributeId, reader.GetInt64(), subIndex1, subIndex2);
+                break;
+            case AttributeValueKind.Float32:
+                emitter.EmitFloat32(entry.AttributeId, reader.GetSingle(), subIndex1, subIndex2);
+                break;
+            case AttributeValueKind.Float64:
+                emitter.EmitFloat64(entry.AttributeId, reader.GetDouble(), subIndex1, subIndex2);
+                break;
+            case AttributeValueKind.Bool:
+                emitter.EmitBool(entry.AttributeId, reader.GetBoolean(), subIndex1, subIndex2);
+                break;
+            case AttributeValueKind.String:
+                emitter.EmitString(entry.AttributeId, InternString(reader.GetString()), subIndex1, subIndex2);
+                break;
+        }
     }
 
     /// <summary>
