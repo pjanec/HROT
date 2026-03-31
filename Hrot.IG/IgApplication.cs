@@ -902,7 +902,7 @@ public class IgApplication : IDisposable
                 _clusterSlave.RegisterHandler(new Hrot.IG.Modules.Orchestration.IgZoneDummyHandler());
 
                 // Wire ReferencePrefetchHandler so IG can stage scenario files and ACK.
-                var igStorageProvider = new Hrot.Common.Orchestration.LocalDiskStorageProvider(@"C:\FDP_Temp");
+                var igStorageProvider = new FDP.Toolkit.Orchestration.LocalDiskStorageProvider(@"C:\FDP_Temp");
                 _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(
                     igTransport, igNodeId, igStorageProvider));
 
