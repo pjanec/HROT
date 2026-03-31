@@ -75,7 +75,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
     [Fact]
     public void Constructor_NullSysOpWriter_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => new ClusterScenarioPanel(null!, _uiCache));
+        Assert.Throws<ArgumentNullException>(() => new ClusterScenarioPanel((DdsWriter<ClusterOpRequest>)null!, _uiCache));
     }
 
     [Fact]
@@ -93,7 +93,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
         Exception? ex = null;
         ImGui.NewFrame();
         ImGui.Begin("##PanelTestWin");
-        ex = Record.Exception(() => _panel.Render(_uiCache, disableAll: true));
+        ex = Record.Exception(() => _panel.Render());
         ImGui.End();
         ImGui.Render();
 
@@ -107,7 +107,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
         {
             ImGui.NewFrame();
             ImGui.Begin("##PanelTestWin");
-            var ex = Record.Exception(() => _panel.Render(_uiCache, disableAll: false));
+            var ex = Record.Exception(() => _panel.Render());
             ImGui.End();
             ImGui.Render();
 
@@ -200,7 +200,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
 
         ImGui.NewFrame();
         ImGui.Begin("##ArchiveTest");
-        var ex = Record.Exception(() => _panel.Render(_uiCache, disableAll: false));
+        var ex = Record.Exception(() => _panel.Render());
         ImGui.End();
         ImGui.Render();
 
@@ -216,7 +216,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
 
         ImGui.NewFrame();
         ImGui.Begin("##GuardTest");
-        var ex = Record.Exception(() => _panel.Render(_uiCache, disableAll: false));
+        var ex = Record.Exception(() => _panel.Render());
         ImGui.End();
         ImGui.Render();
 

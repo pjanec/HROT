@@ -284,8 +284,7 @@ namespace Hrot.ClusterRunner.Services
 
             if (ImGui.Begin("Cluster Control"))
             {
-                bool disableAll = _uiCache == null || !_uiCache.IsBootstrapped || _uiCache.HasInFlightTransaction;
-                _clusterPanel?.Render(_uiCache!, disableAll);
+                _clusterPanel?.Render();
             }
             ImGui.End();
         }

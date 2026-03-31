@@ -1078,16 +1078,20 @@ public sealed class ClusterMaster : IDisposable
                                 _                        => NodeOpType.PrepareState,
                             };
 
+                            // S0502 fix: each FanOutNodeOp gets its own unique TransactionId.
+                            // Using tx.TransactionId for BOTH PrepareXxx and CommitState caused
+                            // ClusterSlave._seenTransactionIds to drop CommitState as a duplicate,
+                            // preventing slaves from ever advancing their local state.
                             FanOutNodeOp(new NodeOpCommand
                             {
-                                TransactionId = tx.TransactionId,
+                                TransactionId = Guid.NewGuid(),
                                 Operation     = prepareOp,
                                 PayloadJson   = req.PayloadJson ?? string.Empty,
                             }, activeNodeIds);
 
                             FanOutNodeOp(new NodeOpCommand
                             {
-                                TransactionId = tx.TransactionId,
+                                TransactionId = Guid.NewGuid(),
                                 Operation     = NodeOpType.CommitState,
                                 PayloadJson   = ((int)tStep.TargetState).ToString(),
                             }, activeNodeIds);
@@ -1120,7 +1124,7 @@ public sealed class ClusterMaster : IDisposable
                         {
                             FanOutNodeOp(new NodeOpCommand
                             {
-                                TransactionId = tx.TransactionId,
+                                TransactionId = Guid.NewGuid(),
                                 Operation     = NodeOpType.NodeReplaySeek,
                                 PayloadJson   = opStep.PayloadJson,
                             }, activeNodeIds);
@@ -1139,6 +1143,12 @@ public sealed class ClusterMaster : IDisposable
                 StatusCode = OrchestrationStatusCode.InProgress,
                 ResultJson = string.Empty
             });
+
+            // For TransitionState, commands are fully fanned out synchronously — there are
+            // no ACKs tracked by ClusterMaster.  Clear _activeTransaction so that
+            // HasInFlightTransaction correctly returns false between back-to-back transitions.
+            if (req.OperationType == ClusterOpType.TransitionState)
+                _activeTransaction = null;
 
             FdpLog<ClusterMaster>.Info(
                 "[Orchestrator] ClusterOpRequest {0} ({1}) accepted (transaction {2}).",

@@ -23,8 +23,32 @@ namespace Hrot.ClusterRunner.Services;
 public sealed class ClusterScenarioPanel
 {
     // ── Dependencies ──────────────────────────────────────────────────────
-    private readonly ClusterUiCache          _uiCache;
-    private readonly DdsWriter<ClusterOpRequest> _sysOpWriter;
+    // One of these two is always non-null depending on construction path:
+    //  - _master: Orchestrator's internal panel  — direct binding to ClusterMaster
+    //  - _sysOpWriter: remote client (ExCon)     — sends commands over DDS
+    private readonly ClusterMaster?               _master;
+    private readonly DdsWriter<ClusterOpRequest>? _sysOpWriter;
+    private readonly ClusterUiCache               _uiCache;
+
+    // ── Helper: send a request via whichever channel is available ─────────
+    private void SendRequest(ClusterOpRequest req)
+    {
+        if (_master != null) _master.HandleClusterOpRequest(req);
+        else                 _sysOpWriter!.Write(req);
+    }
+
+    // ── Adapter properties: use _master when present, else fall back to _uiCache ─
+    private bool         IsBootstrapped    => _master?.BootstrapComplete     ?? _uiCache.IsBootstrapped;
+    private bool         HasFlight         => _master?.HasInFlightTransaction ?? _uiCache.HasInFlightTransaction;
+    private ClusterState EffectiveState    => _master?.CurrentSystemState     ?? _uiCache.CurrentState;
+    private DistributedTransaction? EffectiveActiveTx
+        => _master?.ActiveTransaction ?? _uiCache.ActiveTransaction;
+    private IReadOnlyList<DistributedTransaction> EffectiveTxHistory
+        => (IReadOnlyList<DistributedTransaction>?)_master?.TransactionHistory ?? _uiCache.TxHistory;
+    private IReadOnlyList<ClusterState> EffectiveReachable
+        => _master?.GetReachableTargets() ?? _uiCache.ReachableTargets;
+    private IReadOnlyCollection<Guid> EffectiveEpisodes
+        => _master?.ActiveEpisodes ?? _uiCache.ActiveEpisodes;
 
     // ── Scenario section state ────────────────────────────────────────────
     private string _saveScenarioId  = string.Empty;
@@ -50,15 +74,22 @@ public sealed class ClusterScenarioPanel
     // ── Child window sizes ────────────────────────────────────────────────
     private static readonly Vector2 AutoSize = Vector2.Zero;
 
-    /// <param name="sysOpWriter">DDS writer for ClusterOpRequest commands (S0502).</param>
-    /// <param name="uiCache">Network projection cache to read cluster state from (S0506).</param>
-    /// <param name="requestPause">Optional callback; reserved for future use.</param>
-    public ClusterScenarioPanel(DdsWriter<ClusterOpRequest> sysOpWriter,
-                                ClusterUiCache uiCache,
-                                Action? requestPause = null)
+    /// <param name="clusterMaster">ClusterMaster — source of true internal state and command target (Orchestrator path).</param>
+    /// <param name="uiCache">Network cache — used for asset inventory and time data.</param>
+    public ClusterScenarioPanel(ClusterMaster clusterMaster, ClusterUiCache uiCache)
+    {
+        _master      = clusterMaster ?? throw new ArgumentNullException(nameof(clusterMaster));
+        _uiCache     = uiCache       ?? throw new ArgumentNullException(nameof(uiCache));
+        _sysOpWriter = null;
+    }
+
+    /// <param name="sysOpWriter">DDS writer for ClusterOpRequest commands (remote/ExCon path).</param>
+    /// <param name="uiCache">Network projection cache to read cluster state from.</param>
+    public ClusterScenarioPanel(DdsWriter<ClusterOpRequest> sysOpWriter, ClusterUiCache uiCache)
     {
         _sysOpWriter = sysOpWriter ?? throw new ArgumentNullException(nameof(sysOpWriter));
         _uiCache     = uiCache     ?? throw new ArgumentNullException(nameof(uiCache));
+        _master      = null;
     }
 
     /// <summary>Advances the seek debounce timer. Call once per frame from the subsystem Update().</summary>
@@ -70,7 +101,7 @@ public sealed class ClusterScenarioPanel
 
         _seekPending = false;
         long wallTicks = (long)(_seekSliderValue * 10_000_000L);
-        _sysOpWriter.Write(new ClusterOpRequest
+        SendRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.ReplaySeek,
@@ -99,10 +130,15 @@ public sealed class ClusterScenarioPanel
     /// </summary>
     /// <param name="cache">Cache snapshot for this frame (same instance as constructed with).</param>
     /// <param name="disableAll">When <c>true</c>, all interactive controls are disabled.</param>
-    public void Render(ClusterUiCache cache, bool disableAll)
+    public void Render()
     {
+        // Compute disable flag from ClusterMaster's true internal state.
+        // HasInFlightTransaction is reset to false immediately after the fan-out
+        // completes, so buttons re-enable as soon as the transition is dispatched.
+        bool disableAll = !IsBootstrapped || HasFlight;
+
         // ── Bootstrap banner ───────────────────────────────────────────────
-        if (!cache.IsBootstrapped)
+        if (!IsBootstrapped)
         {
             ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.8f, 0.2f, 1f));
             ImGui.TextWrapped("Cluster not bootstrapped — waiting for mandatory nodes.");
@@ -111,47 +147,47 @@ public sealed class ClusterScenarioPanel
         }
 
         // ── Node Health table ──────────────────────────────────────────────
-        RenderNodeHealthTable(cache);
+        RenderNodeHealthTable();
 
         // ── Time Control section (S0503) ───────────────────────────────────
-        RenderTimeControl(cache, disableAll);
+        RenderTimeControl(disableAll);
 
         // ── 2PC History table (S0501) ──────────────────────────────────────
-        RenderTxHistory(cache);
+        RenderTxHistory();
 
         ImGui.Separator();
 
         // ── 1. Status Banner (always enabled) ─────────────────────────────
-        RenderStatusBanner(cache);
+        RenderStatusBanner();
 
         // ── 2. Cluster Control ───────────────────────────────────────────────
-        RenderClusterControl(cache, disableAll);
+        RenderClusterControl(disableAll);
 
         // ── 3. Checkpoint ─────────────────────────────────────────────────
-        RenderCheckpointSection(cache.CurrentState, disableAll);
+        RenderCheckpointSection(EffectiveState, disableAll);
 
         // ── 4. Scenario ────────────────────────────────────────────────────
-        RenderScenarioSection(cache, disableAll);
+        RenderScenarioSection(disableAll);
 
         // ── 5. Replay ──────────────────────────────────────────────────────
-        RenderReplaySection(cache, disableAll);
+        RenderReplaySection(disableAll);
 
         // ── 6. Episodes ─────────────────────────────────────────────────────
-        RenderEpisodesSection(cache, disableAll);
+        RenderEpisodesSection(disableAll);
 
         // ── 7. Archive Management ──────────────────────────────────────────
-        RenderArchiveSection(cache, disableAll);
+        RenderArchiveSection(disableAll);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // Sections moved from OrchestratorSubsystem.DrawUI()
     // ─────────────────────────────────────────────────────────────────────────
 
-    private void RenderNodeHealthTable(ClusterUiCache cache)
+    private void RenderNodeHealthTable()
     {
         if (!ImGui.CollapsingHeader("Node Health", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
-        var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        double nowSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
         if (ImGui.BeginTable("NodeHealth", 6,
                 ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
         {
@@ -163,25 +199,47 @@ public sealed class ClusterScenarioPanel
             ImGui.TableSetupColumn("RAM (MB)");
             ImGui.TableHeadersRow();
 
-            foreach (var kv in cache.ActiveNodes)
+            if (_master != null)
             {
-                var p        = kv.Value;
-                var lastSeen = cache.GetNodeLastSeenMs(p.NodeId);
-                var msAgo    = lastSeen > 0 ? (nowMs - lastSeen) : -1L;
-                var ramMb    = p.RamUsedBytes / (1024.0 * 1024.0);
-                ImGui.TableNextRow();
-                ImGui.TableNextColumn(); ImGui.Text(p.NodeId.ToString());
-                ImGui.TableNextColumn(); ImGui.Text(p.SubsystemName ?? "—");
-                ImGui.TableNextColumn(); ImGui.Text(msAgo >= 0 ? msAgo.ToString() : "—");
-                ImGui.TableNextColumn(); ImGui.Text(p.LocalClusterState.ToString());
-                ImGui.TableNextColumn(); ImGui.Text($"{p.CpuUsagePercent:F1}");
-                ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
+                foreach (var kv in _master.NodeRoster.ActiveNodes)
+                {
+                    var p     = kv.Value;
+                    var msAgo = p.LastHeartbeatUtcSeconds > 0
+                        ? (int)((nowSec - p.LastHeartbeatUtcSeconds) * 1000.0)
+                        : -1;
+                    var ramMb = p.RamUsedBytes / (1024.0 * 1024.0);
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn(); ImGui.Text(p.NodeId.ToString());
+                    ImGui.TableNextColumn(); ImGui.Text(p.SubsystemName ?? "—");
+                    ImGui.TableNextColumn(); ImGui.Text(msAgo >= 0 ? msAgo.ToString() : "—");
+                    ImGui.TableNextColumn(); ImGui.Text(p.LocalClusterState.ToString());
+                    ImGui.TableNextColumn(); ImGui.Text($"{p.CpuUsagePercent:F1}");
+                    ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
+                }
+            }
+            else
+            {
+                foreach (var kv in _uiCache.ActiveNodes)
+                {
+                    var hb    = kv.Value;
+                    var msAgo = hb.WallTicksUtc > 0
+                        ? (int)((nowSec - hb.WallTicksUtc / 10_000_000.0) * 1000.0)
+                        : -1;
+                    var ramMb = hb.RamUsedBytes / (1024.0 * 1024.0);
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn(); ImGui.Text(hb.NodeId.ToString());
+                    ImGui.TableNextColumn(); ImGui.Text(hb.SubsystemName ?? "—");
+                    ImGui.TableNextColumn(); ImGui.Text(msAgo >= 0 ? msAgo.ToString() : "—");
+                    ImGui.TableNextColumn(); ImGui.Text(hb.LocalClusterState.ToString());
+                    ImGui.TableNextColumn(); ImGui.Text($"{hb.CpuUsagePercent:F1}");
+                    ImGui.TableNextColumn(); ImGui.Text($"{ramMb:F1}");
+                }
             }
             ImGui.EndTable();
         }
     }
 
-    private void RenderTimeControl(ClusterUiCache cache, bool disableAll)
+    private void RenderTimeControl(bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Time Control", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
@@ -197,29 +255,30 @@ public sealed class ClusterScenarioPanel
         if (disableAll) ImGui.BeginDisabled();
 
         float timeScale = cache.MasterTimeScale;
-        if (ImGui.Button(cache.IsPaused ? "Resume##OrcResume" : "Pause##OrcPause"))
-            _sysOpWriter.Write(new ClusterOpRequest
+        bool isPaused = _uiCache.IsPaused;
+        if (ImGui.Button(isPaused ? "Resume##OrcResume" : "Pause##OrcPause"))
+            SendRequest(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
-                OperationType = cache.IsPaused ? ClusterOpType.ResumeTime : ClusterOpType.PauseTime,
+                OperationType = isPaused ? ClusterOpType.ResumeTime : ClusterOpType.PauseTime,
                 PayloadJson   = string.Empty,
             });
 
         ImGui.SameLine();
-        if (!cache.IsPaused) ImGui.BeginDisabled();
+        if (!isPaused) ImGui.BeginDisabled();
         if (ImGui.Button("Step##OrcStep"))
-            _sysOpWriter.Write(new ClusterOpRequest
+            SendRequest(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
                 OperationType = ClusterOpType.StepTime,
                 PayloadJson   = string.Empty,
             });
-        if (!cache.IsPaused) ImGui.EndDisabled();
+        if (!isPaused) ImGui.EndDisabled();
 
         ImGui.SameLine();
         ImGui.SetNextItemWidth(150f);
         if (ImGui.SliderFloat("Speed##OrcSpeed", ref timeScale, 0.1f, 10.0f, "%.1fx"))
-            _sysOpWriter.Write(new ClusterOpRequest
+            SendRequest(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
                 OperationType = ClusterOpType.SetTimeScale,
@@ -230,11 +289,11 @@ public sealed class ClusterScenarioPanel
         if (disableAll) ImGui.EndDisabled();
     }
 
-    private static void RenderTxHistory(ClusterUiCache cache)
+    private void RenderTxHistory()
     {
         if (!ImGui.CollapsingHeader("2PC History")) return;
 
-        var history    = cache.TxHistory;
+        var history    = EffectiveTxHistory;
         float rowHeight = ImGui.GetTextLineHeightWithSpacing();
         if (ImGui.BeginTable("TxHistory", 5,
                 ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg |
@@ -243,9 +302,9 @@ public sealed class ClusterScenarioPanel
         {
             ImGui.TableSetupScrollFreeze(0, 1);
             ImGui.TableSetupColumn("TransactionId");
-            ImGui.TableSetupColumn("Target State");
-            ImGui.TableSetupColumn("Result");
-            ImGui.TableSetupColumn("ACK Latency (ms)");
+            ImGui.TableSetupColumn("Transition");
+            ImGui.TableSetupColumn("Status");
+            ImGui.TableSetupColumn("ACKs");
             ImGui.TableSetupColumn("Payload");
             ImGui.TableHeadersRow();
 
@@ -253,26 +312,37 @@ public sealed class ClusterScenarioPanel
             {
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                bool open = ImGui.TreeNodeEx(tx.TransactionId.ToString(),
-                    ImGuiTreeNodeFlags.SpanFullWidth);
+                string shortId = tx.TransactionId.ToString()[..8] + "...";
+                bool open = ImGui.TreeNodeEx(shortId, ImGuiTreeNodeFlags.SpanFullWidth);
 
                 if (ImGui.BeginPopupContextItem($"ctx_{tx.TransactionId}"))
                 {
-                    string result = tx.Completed ? "Completed" : (tx.IsAborted ? "Aborted" : "In Flight");
-                    string line   = $"{tx.TransactionId} | {tx.TargetDsmState} | {result} | {tx.PayloadJson}";
+                    string statusStr = tx.IsAborted ? "Aborted" : "OK";
+                    string line = $"{tx.TransactionId} | {tx.SourceDsmState}→{tx.TargetDsmState} | {statusStr} | {tx.PayloadJson}";
                     if (ImGui.MenuItem("Copy line to clipboard"))
                         ImGui.SetClipboardText(line);
                     ImGui.EndPopup();
                 }
 
-                ImGui.TableNextColumn(); ImGui.Text(tx.TargetDsmState.ToString());
                 ImGui.TableNextColumn();
-                ImGui.Text(tx.Completed ? "Completed" : (tx.IsAborted ? "Aborted" : "In Flight"));
+                ImGui.Text($"{tx.SourceDsmState} → {tx.TargetDsmState}");
 
-                string latency = tx.NodeAckLatencyMs.Count == 0
-                    ? "—"
-                    : string.Join(", ", tx.NodeAckLatencyMs.Select(kv => $"{kv.Key}:{kv.Value:F0}ms"));
-                ImGui.TableNextColumn(); ImGui.Text(latency);
+                ImGui.TableNextColumn();
+                if (tx.IsAborted)
+                {
+                    ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.4f, 0.4f, 1f));
+                    ImGui.Text("Aborted");
+                    ImGui.PopStyleColor();
+                }
+                else
+                {
+                    ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.4f, 1f, 0.4f, 1f));
+                    ImGui.Text("OK");
+                    ImGui.PopStyleColor();
+                }
+
+                ImGui.TableNextColumn();
+                ImGui.Text(tx.NodeResponses.Count == 0 ? "—" : tx.NodeResponses.Count.ToString());
 
                 ImGui.TableNextColumn();
                 string payloadSnippet = tx.PayloadJson.Length > 25
@@ -297,10 +367,7 @@ public sealed class ClusterScenarioPanel
                             ImGuiTreeNodeFlags.SpanFullWidth);
                         ImGui.TableNextColumn(); ImGui.Text("—");
                         ImGui.TableNextColumn(); ImGui.Text("—");
-                        ImGui.TableNextColumn();
-                        string nodeLatency = tx.NodeAckLatencyMs.TryGetValue(nr.Key, out float ms)
-                            ? $"{ms:F0}ms" : "—";
-                        ImGui.Text(nodeLatency);
+                        ImGui.TableNextColumn(); ImGui.Text("—");
                         ImGui.TableNextColumn();
                         string nodeSnippet = nr.Value.Length > 25 ? nr.Value[..25] + "..." : nr.Value;
                         ImGui.Text(nodeSnippet);
@@ -316,41 +383,33 @@ public sealed class ClusterScenarioPanel
     // Sections from OrchestratorScenarioPanel (adapted to use ClusterUiCache)
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static void RenderStatusBanner(ClusterUiCache cache)
+    private void RenderStatusBanner()
     {
-        var activeTx    = cache.ActiveTransaction;
-        var hasInFlight = cache.HasInFlightTransaction;
-        var bootstrapped = cache.IsBootstrapped;
-        var currentState = cache.CurrentState;
+        var activeTx     = EffectiveActiveTx;
+        var hasInFlight  = HasFlight;
+        var currentState = EffectiveState;
 
         if (ImGui.BeginChild("##OrcStatusBanner", new Vector2(-1, 54), ImGuiChildFlags.Borders))
         {
-            string drillShort = activeTx != null
-                ? activeTx.TransactionId.ToString()[..8]
-                : "--------";
-
-            string txStatus = hasInFlight
-                ? $"TX {drillShort}... in flight"
-                : "idle";
-
-            if (hasInFlight && activeTx != null &&
-                activeTx.SourceDsmState != activeTx.TargetDsmState)
+            if (hasInFlight && activeTx != null)
             {
+                ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1f, 0.8f, 0.2f, 1f));
                 ImGui.Text($"State: {activeTx.SourceDsmState} → {activeTx.TargetDsmState}");
+                ImGui.PopStyleColor();
+                ImGui.SameLine(); ImGui.Text("|"); ImGui.SameLine();
+                ImGui.Text($"TX {activeTx.TransactionId.ToString()[..8]}... in flight");
             }
             else
             {
                 ImGui.Text($"State: {currentState}");
+                ImGui.SameLine(); ImGui.Text("|"); ImGui.SameLine();
+                ImGui.Text(IsBootstrapped ? "idle" : "NOT BOOTSTRAPPED");
             }
-            ImGui.SameLine();
-            ImGui.Text("|");
-            ImGui.SameLine();
-            ImGui.Text(bootstrapped ? txStatus : "NOT BOOTSTRAPPED");
         }
         ImGui.EndChild();
     }
 
-    private void RenderClusterControl(ClusterUiCache cache, bool disableAll)
+    private void RenderClusterControl(bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Cluster Control", ImGuiTreeNodeFlags.DefaultOpen)) return;
 
@@ -358,7 +417,7 @@ public sealed class ClusterScenarioPanel
         {
             if (disableAll) ImGui.BeginDisabled();
 
-            var reachable = cache.ReachableTargets;
+            var reachable = EffectiveReachable;
             if (reachable.Count == 0)
             {
                 ImGui.TextDisabled("No reachable transitions from current state.");
@@ -368,11 +427,11 @@ public sealed class ClusterScenarioPanel
                 foreach (var target in reachable)
                 {
                     if (ImGui.Button(target.ToString()))
-                        _sysOpWriter.Write(new ClusterOpRequest
+                        SendRequest(new ClusterOpRequest
                         {
                             RequestId     = Guid.NewGuid(),
                             OperationType = ClusterOpType.TransitionState,
-                            PayloadJson   = $"{{\"TargetState\":{(int)target}}}",
+                            PayloadJson   = $"{{\"TargetState\":{(int)target}, \"ExerciseId\":\"{Guid.NewGuid()}\"}}",
                         });
                     ImGui.SameLine();
                 }
@@ -394,7 +453,7 @@ public sealed class ClusterScenarioPanel
             if (checkpointDisabled) ImGui.BeginDisabled();
 
             if (ImGui.Button("Take Checkpoint"))
-                _sysOpWriter.Write(new ClusterOpRequest
+                SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TakeCheckpoint,
@@ -412,7 +471,7 @@ public sealed class ClusterScenarioPanel
         ImGui.EndChild();
     }
 
-    private void RenderScenarioSection(ClusterUiCache cache, bool disableAll)
+    private void RenderScenarioSection(bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Scenario")) return;
 
@@ -420,15 +479,14 @@ public sealed class ClusterScenarioPanel
         {
             if (disableAll) ImGui.BeginDisabled();
 
-            // Clamp index if list shrank
-            if (_selectedLoadScenarioIdx >= cache.AvailableScenarios.Length)
+            if (_selectedLoadScenarioIdx >= _uiCache.AvailableScenarios.Length)
                 _selectedLoadScenarioIdx = -1;
 
             // Save Scenario
             ImGui.InputText("Save Scenario ID##OrcSaveId", ref _saveScenarioId, 128);
             ImGui.SameLine();
             if (ImGui.Button("Save Scenario##OrcBtn") && !string.IsNullOrWhiteSpace(_saveScenarioId))
-                _sysOpWriter.Write(new ClusterOpRequest
+                SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.SaveScenario,
@@ -439,12 +497,12 @@ public sealed class ClusterScenarioPanel
 
             // Load Scenario
             ImGui.Combo("Select Scenario##OrcLoadId", ref _selectedLoadScenarioIdx,
-                cache.AvailableScenarios, cache.AvailableScenarios.Length);
+                _uiCache.AvailableScenarios, _uiCache.AvailableScenarios.Length);
             ImGui.SameLine();
             if (ImGui.Button("Load into Edit##OrcLoadEdit") && _selectedLoadScenarioIdx >= 0)
             {
-                string scenId = cache.AvailableScenarios[_selectedLoadScenarioIdx];
-                _sysOpWriter.Write(new ClusterOpRequest
+                string scenId = _uiCache.AvailableScenarios[_selectedLoadScenarioIdx];
+                SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
@@ -455,13 +513,13 @@ public sealed class ClusterScenarioPanel
             ImGui.SameLine();
             if (ImGui.Button("Load into Live##OrcLoadLive") && _selectedLoadScenarioIdx >= 0)
             {
-                string scenId = cache.AvailableScenarios[_selectedLoadScenarioIdx];
-                _sysOpWriter.Write(new ClusterOpRequest
+                string scenId = _uiCache.AvailableScenarios[_selectedLoadScenarioIdx];
+                SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
                     PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.OperatingLive}," +
-                                    $"\"ScenarioId\":\"{scenId}\"}}",
+                                    $"\"ScenarioId\":\"{scenId}\",\"ExerciseId\":\"{Guid.NewGuid()}\"}}",
                 });
             }
 
@@ -470,7 +528,7 @@ public sealed class ClusterScenarioPanel
         ImGui.EndChild();
     }
 
-    private void RenderReplaySection(ClusterUiCache cache, bool disableAll)
+    private void RenderReplaySection(bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Replay")) return;
 
@@ -478,22 +536,22 @@ public sealed class ClusterScenarioPanel
         {
             if (disableAll) ImGui.BeginDisabled();
 
-            if (_selectedExerciseIdx >= cache.AvailableExercises.Length) _selectedExerciseIdx = -1;
+            if (_selectedExerciseIdx >= _uiCache.AvailableExercises.Length) _selectedExerciseIdx = -1;
 
             // Load Replay
             ImGui.Combo("Select Exercise##OrcReplayId", ref _selectedExerciseIdx,
-                cache.AvailableExercises, cache.AvailableExercises.Length);
+                _uiCache.AvailableExercises, _uiCache.AvailableExercises.Length);
             ImGui.SameLine();
             if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedExerciseIdx >= 0)
             {
-                string exerciseId = cache.AvailableExercises[_selectedExerciseIdx];
+                string exerciseId = _uiCache.AvailableExercises[_selectedExerciseIdx];
 
                 // Read replay duration from meta.json if available
                 string metaPath = Path.Combine(@"C:\FDP_Temp", exerciseId, "recording.meta.json");
                 if (File.Exists(metaPath))
                     _replayDuration = GetReplayDuration(File.ReadAllText(metaPath));
 
-                _sysOpWriter.Write(new ClusterOpRequest
+                SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
@@ -503,9 +561,9 @@ public sealed class ClusterScenarioPanel
             }
 
             // Seek slider — only when RunningReplay
-            if (cache.CurrentState == ClusterState.OperatingReplay)
+            if (EffectiveState == ClusterState.OperatingReplay)
             {
-                float currentExerciseTime = (float)cache.MasterSimTime;
+                float currentExerciseTime = (float)_uiCache.MasterSimTime;
                 if (!_seekPending)
                     _seekSliderValue = currentExerciseTime;
 
@@ -525,7 +583,7 @@ public sealed class ClusterScenarioPanel
         ImGui.EndChild();
     }
 
-    private void RenderEpisodesSection(ClusterUiCache cache, bool disableAll)
+    private void RenderEpisodesSection(bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Episodes")) return;
 
@@ -533,8 +591,8 @@ public sealed class ClusterScenarioPanel
         {
             if (disableAll) ImGui.BeginDisabled();
 
-            // Active episodes list (from cache)
-            var activeEpisodes = cache.ActiveEpisodes;
+            // Active episodes from ClusterMaster directly
+            var activeEpisodes = EffectiveEpisodes;
             if (activeEpisodes.Count == 0)
             {
                 ImGui.TextDisabled("No active episodes.");
@@ -547,7 +605,7 @@ public sealed class ClusterScenarioPanel
                     ImGui.Text(shortId);
                     ImGui.SameLine();
                     if (ImGui.Button($"Unload##OrcUnload{episodeId}"))
-                        _sysOpWriter.Write(new ClusterOpRequest
+                        SendRequest(new ClusterOpRequest
                         {
                             RequestId     = Guid.NewGuid(),
                             OperationType = ClusterOpType.ManageEpisode,
@@ -560,15 +618,15 @@ public sealed class ClusterScenarioPanel
             ImGui.Separator();
             ImGui.Text("Inject Episode:");
 
-            if (_selectedEpisodeIdx >= cache.AvailableScenarios.Length) _selectedEpisodeIdx = -1;
+            if (_selectedEpisodeIdx >= _uiCache.AvailableScenarios.Length) _selectedEpisodeIdx = -1;
 
             ImGui.Combo("Episode Package##OrcInjectScen", ref _selectedEpisodeIdx,
-                cache.AvailableScenarios, cache.AvailableScenarios.Length);
+                _uiCache.AvailableScenarios, _uiCache.AvailableScenarios.Length);
             if (ImGui.Button("Inject Episode##OrcInjectBtn") && _selectedEpisodeIdx >= 0)
             {
-                string scenId     = cache.AvailableScenarios[_selectedEpisodeIdx];
+                string scenId     = _uiCache.AvailableScenarios[_selectedEpisodeIdx];
                 string newEpisodeId = Guid.NewGuid().ToString();
-                _sysOpWriter.Write(new ClusterOpRequest
+                SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.ManageEpisode,
@@ -583,16 +641,20 @@ public sealed class ClusterScenarioPanel
         ImGui.EndChild();
     }
 
-    private void RenderArchiveSection(ClusterUiCache cache, bool disableAll)
+    private void RenderArchiveSection(bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Archive Management##OrcArchive")) return;
 
+        // Auto-clear archive op ID once the operation has completed (SysOpStatus terminal arrived).
+        if (_activeArchiveOpId != Guid.Empty && !_uiCache.HasInFlightTransaction)
+            _activeArchiveOpId = Guid.Empty;
+
         // — Unarchived Local Exercises —
-        if (_selectedUnarchivedIdx >= cache.UnarchivedLocalExercises.Length) _selectedUnarchivedIdx = -1;
+        if (_selectedUnarchivedIdx >= _uiCache.UnarchivedLocalExercises.Length) _selectedUnarchivedIdx = -1;
 
         ImGui.Text("Unarchived Local:");
         ImGui.Combo("##UnarchivedCombo", ref _selectedUnarchivedIdx,
-                    cache.UnarchivedLocalExercises, cache.UnarchivedLocalExercises.Length);
+                    _uiCache.UnarchivedLocalExercises, _uiCache.UnarchivedLocalExercises.Length);
 
         if (disableAll || _selectedUnarchivedIdx < 0 || _activeArchiveOpId != Guid.Empty)
             ImGui.BeginDisabled();
@@ -600,10 +662,10 @@ public sealed class ClusterScenarioPanel
             && _selectedUnarchivedIdx >= 0
             && _activeArchiveOpId == Guid.Empty)
         {
-            var exerciselName = cache.UnarchivedLocalExercises[_selectedUnarchivedIdx];
+            var exerciselName = _uiCache.UnarchivedLocalExercises[_selectedUnarchivedIdx];
             var requestId = Guid.NewGuid();
             _activeArchiveOpId = requestId;
-            _sysOpWriter.Write(new ClusterOpRequest
+            SendRequest(new ClusterOpRequest
             {
                 RequestId     = requestId,
                 OperationType = ClusterOpType.ExportArchive,
@@ -616,11 +678,11 @@ public sealed class ClusterScenarioPanel
         ImGui.Separator();
 
         // — Archived NAS Exercises —
-        if (_selectedArchiveIdx >= cache.ArchivedExercises.Length) _selectedArchiveIdx = -1;
+        if (_selectedArchiveIdx >= _uiCache.ArchivedExercises.Length) _selectedArchiveIdx = -1;
 
         ImGui.Text("Archived on NAS:");
         ImGui.Combo("##ArchivedCombo", ref _selectedArchiveIdx,
-                    cache.ArchivedExercises, cache.ArchivedExercises.Length);
+                    _uiCache.ArchivedExercises, _uiCache.ArchivedExercises.Length);
 
         if (disableAll || _selectedArchiveIdx < 0 || _activeArchiveOpId != Guid.Empty)
             ImGui.BeginDisabled();
@@ -628,10 +690,10 @@ public sealed class ClusterScenarioPanel
             && _selectedArchiveIdx >= 0
             && _activeArchiveOpId == Guid.Empty)
         {
-            var exerciseName = cache.ArchivedExercises[_selectedArchiveIdx];
+            var exerciseName = _uiCache.ArchivedExercises[_selectedArchiveIdx];
             var requestId = Guid.NewGuid();
             _activeArchiveOpId = requestId;
-            _sysOpWriter.Write(new ClusterOpRequest
+            SendRequest(new ClusterOpRequest
             {
                 RequestId     = requestId,
                 OperationType = ClusterOpType.ImportArchive,
@@ -651,7 +713,7 @@ public sealed class ClusterScenarioPanel
             ImGui.ProgressBar(-1f * (float)ImGui.GetTime(), new Vector2(-1, 0), "");
             if (ImGui.Button("CANCEL OPERATION##OrcCancelArchive"))
             {
-                _sysOpWriter.Write(new ClusterOpRequest
+                SendRequest(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.CancelOperation,

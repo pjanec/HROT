@@ -29,6 +29,6 @@ namespace Hrot.ClusterRunner.Configuration
         CI = 1 << 5,           // 32
 
         /// <summary>Run all subsystems (Orchestrator + SimHost + IG + ExCon) in one aggregated process.</summary>
-        All = Orchestrator | SimHost | IG | ExCon
+        All = Orchestrator | SimHost | IG | ExCon | CGF
     }
 }

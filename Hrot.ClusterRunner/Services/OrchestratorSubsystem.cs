@@ -30,7 +30,6 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private ClusterUiCache?        _uiCache;
     private ClusterScenarioPanel?  _scenarioPanel;
-    private DdsWriter<ClusterOpRequest>? _sysOpWriter;  // S0502
 
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
 
@@ -66,9 +65,8 @@ public sealed class OrchestratorSubsystem : ISubsystem
             System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
         _participant = HrotEnvironment.CreateParticipant(config.DomainId);
         _clusterMaster = new ClusterMaster(_participant, _config);
-        _sysOpWriter   = new DdsWriter<ClusterOpRequest>(_participant);    // S0502
         _uiCache       = new ClusterUiCache(_participant);
-        _scenarioPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
+        _scenarioPanel = new ClusterScenarioPanel(_clusterMaster, _uiCache);
 
         // S0503: Subscribe to time-control events from ClusterMaster.
         _clusterMaster.TimeControlRequested += (op, payload) =>
@@ -179,12 +177,10 @@ public sealed class OrchestratorSubsystem : ISubsystem
 
     public void DrawUI()
     {
-        if (_uiCache == null) return;
+        if (_clusterMaster == null || _scenarioPanel == null) return;
         if (!ImGui.Begin("Orchestrator")) { ImGui.End(); return; }   // S0501
 
-        bool disableAll = !_uiCache.IsBootstrapped || _uiCache.HasInFlightTransaction;
-
-        _scenarioPanel?.Render(_uiCache, disableAll);
+        _scenarioPanel.Render();
 
         ImGui.End();   // S0501
     }
@@ -194,8 +190,6 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _scenarioPanel = null;
         _uiCache?.Dispose();
         _uiCache = null;
-        _sysOpWriter?.Dispose();     // S0502
-        _sysOpWriter = null;
         _clusterMaster?.Dispose();
         _clusterMaster = null;
         _timeKernel?.Dispose();

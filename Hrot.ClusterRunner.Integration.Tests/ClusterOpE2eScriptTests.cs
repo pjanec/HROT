@@ -74,7 +74,7 @@ public sealed class ClusterOpE2eScriptTests
             executor.RegisterHandler(new AssertPositionActionHandler(world, logger));
             executor.RegisterHandler(new AssertEntityCountActionHandler(world, logger));
             executor.RegisterHandler(new AddMovingTagActionHandler(world, logger));
-            executor.RegisterHandler(new SysopActionHandler(clusterMaster, statusReader, logger));
+            executor.RegisterHandler(new ClusterOpActionHandler(clusterMaster, statusReader, logger));
         };
 
         return await executor.RunAsync().ConfigureAwait(false);

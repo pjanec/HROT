@@ -83,6 +83,11 @@ public sealed class ClusterUiCache : IDisposable
         _nodeOpStatusReader = new DdsReader<NodeOpStatus>(participant);
         _timePulseReader    = new DdsReader<TimePulseDescriptor>(participant);
         _timeModeReader     = new DdsReader<SwitchTimeModeWireDto>(participant);
+
+        // even before the first network message arrives, the UI cache already knows what transitions
+        // are legal from the default Idle state, and buttons like LoadingEdit, LoadingLive, and LoadingReplay
+        // will immediately appear
+        ReachableTargets = _planner.GetReachableTargets(CurrentState);
     }
 
     /// <summary>Drains all readers and updates the published state. Call once per frame.</summary>
@@ -126,7 +131,7 @@ public sealed class ClusterUiCache : IDisposable
             if (!s.IsValid) continue;
             var prev = CurrentState;
             CurrentState   = s.Data.CurrentState;
-            IsBootstrapped = s.Data.CurrentState != ClusterState.Idle;
+            IsBootstrapped = s.Data.CurrentState != ClusterState.Degraded;
             if (CurrentState != prev)
                 ReachableTargets = _planner.GetReachableTargets(CurrentState);
         }
@@ -198,7 +203,7 @@ public sealed class ClusterUiCache : IDisposable
                 if (episodeId != Guid.Empty) _activeEpisodes.Remove(episodeId);
             }
 
-            if (s.Data.Operation != NodeOpType.PrepareState) continue;
+            //if (s.Data.Operation != NodeOpType.PrepareState) continue;
 
             var txId = s.Data.TransactionId;
             if (!_inFlight.ContainsKey(txId))

@@ -25,7 +25,7 @@ namespace Hrot.ClusterRunner.Testing
     }
     /// <summary>
     /// Drives a Cluster state transition or operation via <see cref="ClusterMaster"/>.
-    /// Action name: <c>"sysop"</c>.
+    /// Action name: <c>"clusterop"</c>.
     ///
     /// <para>
     /// Args:
@@ -42,14 +42,14 @@ namespace Hrot.ClusterRunner.Testing
     /// <c>RequestId</c> matches and whose <c>StatusCode</c> is not
     /// <c>OrchestrationStatusCode.InProgress</c> arrives (or timeout expires).</para>
     /// </summary>
-    public sealed class SysopActionHandler : ITestActionHandler
+    public sealed class ClusterOpActionHandler : ITestActionHandler
     {
         private readonly ClusterMaster _clusterMaster;
         private readonly DdsReader<ClusterOpStatus> _statusReader;
         private readonly double _timeoutSeconds;
         private readonly ILogger _log;
 
-        public string ActionName => "sysop";
+        public string ActionName => "clusterop";
 
         /// <summary>
         /// Creates a new handler.
@@ -58,7 +58,7 @@ namespace Hrot.ClusterRunner.Testing
         /// <param name="statusReader">Reader on the <c>SysOpStatus</c> DDS topic in the same domain.</param>
         /// <param name="log">Logger for tracing and error output.</param>
         /// <param name="timeoutSeconds">Maximum seconds to wait for operation completion.</param>
-        public SysopActionHandler(
+        public ClusterOpActionHandler(
             ClusterMaster clusterMaster,
             DdsReader<ClusterOpStatus> statusReader,
             ILogger log,
