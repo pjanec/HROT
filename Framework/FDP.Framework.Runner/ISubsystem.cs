@@ -3,7 +3,7 @@ using System.Numerics;
 namespace FDP.Framework.Runner
 {
     /// <summary>
-    /// Interface for Runner subsystems (SimHost, IG, IOS).
+    /// Interface for Runner subsystems (SimHost, IG, ExCon).
     /// The orchestrator calls lifecycle methods in strict order:
     /// <list type="bullet">
     ///   <item><description><see cref="Initialize"/> — once, before the render loop.</description></item>

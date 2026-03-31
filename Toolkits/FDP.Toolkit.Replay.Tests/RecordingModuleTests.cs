@@ -47,7 +47,7 @@ namespace FDP.Toolkit.Replay.Tests
             var config = new RecordingConfiguration
             {
                 FilePath = Path.Combine(_tempDir, "test.fdp"),
-                DrillId  = Guid.NewGuid(),
+                ExerciseId  = Guid.NewGuid(),
             };
             using var world  = CreateWorld();
             var module = new RecordingModule(config);
@@ -150,7 +150,7 @@ namespace FDP.Toolkit.Replay.Tests
             var config = new RecordingConfiguration
             {
                 FilePath = Path.Combine(_tempDir, "blocking_test.fdp"),
-                DrillId  = Guid.NewGuid(),
+                ExerciseId  = Guid.NewGuid(),
                 Blocking = true,
             };
 
@@ -187,7 +187,7 @@ namespace FDP.Toolkit.Replay.Tests
             var config = new RecordingConfiguration
             {
                 FilePath = Path.Combine(_tempDir, "sc_install.fdp"),
-                DrillId  = Guid.NewGuid(),
+                ExerciseId  = Guid.NewGuid(),
             };
             var module   = new RecordingModule(config);
             var registry = new CapturingSystemRegistry();
@@ -220,7 +220,7 @@ namespace FDP.Toolkit.Replay.Tests
             var config = new RecordingConfiguration
             {
                 FilePath = Path.Combine(_tempDir, "sc_uninstall.fdp"),
-                DrillId  = Guid.NewGuid(),
+                ExerciseId  = Guid.NewGuid(),
             };
             var module   = new RecordingModule(config);
             var registry = new CapturingSystemRegistry();

@@ -9,36 +9,36 @@ using FDP.Kernel.Logging;
 namespace FDP.Toolkit.Orchestration
 {
     /// <summary>
-    /// Generic drill state machine slave.
+    /// Generic cluster state machine slave.
     ///
     /// <para>Publishes a node heartbeat at 1 Hz via <see cref="IOrchestrationTransport"/>
     /// and dispatches inbound <see cref="OrchestrationCommand"/> messages to registered
-    /// <see cref="IDsmHandler"/> instances.  All DDS I/O is delegated to the transport,
-    /// keeping this class free of any Bagira or CycloneDDS references.</para>
+    /// <see cref="IClusterStateHandler"/> instances.  All DDS I/O is delegated to the transport,
+    /// keeping this class free of any Hrot or CycloneDDS references.</para>
     ///
     /// <para><b>Prepare/Commit ordering:</b> when a handler's
-    /// <see cref="IDsmHandler.PrepareAsync"/> returns an incomplete <see cref="System.Threading.Tasks.Task"/>,
-    /// the result is stored in <c>_pendingPrepare</c> and <see cref="IDsmHandler.Commit"/> is
+    /// <see cref="IClusterStateHandler.PrepareAsync"/> returns an incomplete <see cref="System.Threading.Tasks.Task"/>,
+    /// the result is stored in <c>_pendingPrepare</c> and <see cref="IClusterStateHandler.Commit"/> is
     /// deferred to the next <see cref="Tick"/> that sees the task complete.</para>
     ///
     /// <para><b>Deduplication:</b> commands with a <see cref="OrchestrationCommand.TransactionId"/>
     /// already seen are silently dropped.</para>
     /// </summary>
-    public sealed class DrillSlave : IDisposable
+    public sealed class ClusterSlave : IDisposable
     {
         private readonly IOrchestrationTransport? _transport;
         private readonly int    _nodeId;
         private readonly string _subsystemName;
         private readonly FdpEventBus? _eventBus;
 
-        private readonly List<IDsmHandler> _handlers = new();
+        private readonly List<IClusterStateHandler> _handlers = new();
         private readonly Stopwatch _heartbeatTimer = Stopwatch.StartNew();
 
         // ── Deduplication (CGF1-S0202) ────────────────────────────────────────
         private readonly System.Collections.Generic.HashSet<Guid> _seenTransactionIds = new();
 
         // ── Pending async prepare (BATCH-18 pattern) ─────────────────────────
-        private (System.Threading.Tasks.Task<string?> PrepareTask, OrchestrationCommand Cmd, IDsmHandler Handler)? _pendingPrepare;
+        private (System.Threading.Tasks.Task<string?> PrepareTask, OrchestrationCommand Cmd, IClusterStateHandler Handler)? _pendingPrepare;
 
         // ── Local state id ────────────────────────────────────────────────────
         private int _localStateId;
@@ -48,15 +48,15 @@ namespace FDP.Toolkit.Orchestration
         // ── Production constructor ────────────────────────────────────────────
 
         /// <summary>
-        /// Creates a DrillSlave backed by <paramref name="transport"/> for all DDS I/O.
+        /// Creates a ClusterSlave backed by <paramref name="transport"/> for all DDS I/O.
         /// When <paramref name="transport"/> is <c>null</c>, heartbeat publishing and
         /// command polling are disabled (standalone / test mode without DDS).
         /// </summary>
         /// <param name="transport">DDS (or other) transport; owned by the caller.  May be <c>null</c>.</param>
         /// <param name="nodeId">Node identifier published in heartbeats.</param>
         /// <param name="subsystemName">Subsystem name published in heartbeats.</param>
-        /// <param name="eventBus">Optional event bus for <see cref="TkDsmStateChangedEvent"/> publication.</param>
-        public DrillSlave(
+        /// <param name="eventBus">Optional event bus for <see cref="TkClusterStateChangedEvent"/> publication.</param>
+        public ClusterSlave(
             IOrchestrationTransport? transport,
             int    nodeId,
             string subsystemName,
@@ -71,10 +71,10 @@ namespace FDP.Toolkit.Orchestration
         // ── Test-only constructor ─────────────────────────────────────────────
 
         /// <summary>
-        /// Creates a DrillSlave without a transport.  Heartbeat publishing is disabled.
+        /// Creates a ClusterSlave without a transport.  Heartbeat publishing is disabled.
         /// Use <see cref="EnqueueCommandForTest"/> to inject commands without DDS.
         /// </summary>
-        internal DrillSlave(FdpEventBus? eventBus = null)
+        internal ClusterSlave(FdpEventBus? eventBus = null)
         {
             _transport     = null;
             _nodeId        = 0;
@@ -84,8 +84,8 @@ namespace FDP.Toolkit.Orchestration
 
         // ── Handler registration ──────────────────────────────────────────────
 
-        /// <summary>Registers a DSM handler.  A handler may be registered only once.</summary>
-        public void RegisterHandler(IDsmHandler handler)
+        /// <summary>Registers a Cluster handler.  A handler may be registered only once.</summary>
+        public void RegisterHandler(IClusterStateHandler handler)
         {
             if (!_handlers.Contains(handler))
                 _handlers.Add(handler);
@@ -94,13 +94,13 @@ namespace FDP.Toolkit.Orchestration
         /// <summary>
         /// Returns <c>true</c> when at least one handler of type <typeparamref name="T"/>
         /// is registered, either directly or wrapped in a
-        /// <see cref="Bagira.Common.Orchestration.BagiraHandlerAdapter"/>.
+        /// <see cref="Hrot.Common.Orchestration.HrotHandlerAdapter"/>.
         /// </summary>
-        public bool IsHandlerRegistered<T>() where T : IDsmHandler =>
+        public bool IsHandlerRegistered<T>() where T : IClusterStateHandler =>
             _handlers.OfType<T>().Any();
 
-        /// <summary>All registered DSM handlers.</summary>
-        public IReadOnlyList<IDsmHandler> RegisteredHandlers => _handlers;
+        /// <summary>All registered Cluster state handlers.</summary>
+        public IReadOnlyList<IClusterStateHandler> RegisteredHandlers => _handlers;
 
         // ── Per-frame tick ────────────────────────────────────────────────────
 
@@ -122,7 +122,7 @@ namespace FDP.Toolkit.Orchestration
             // Poll tickable handlers for deferred ACKs.
             foreach (var handler in _handlers)
             {
-                if (handler is ITickableDsmHandler tickable)
+                if (handler is ITickableClusterStateHandler tickable)
                     tickable.DrainDeferredAcks();
             }
 
@@ -136,8 +136,8 @@ namespace FDP.Toolkit.Orchestration
                 _pendingPrepare = null;
                 if (pending.PrepareTask.IsFaulted)
                 {
-                    FdpLog<DrillSlave>.Error(
-                        "[DrillSlave] PrepareAsync faulted for operationId {0} " +
+                    FdpLog<ClusterSlave>.Error(
+                        "[ClusterSlave] PrepareAsync faulted for operationId {0} " +
                         "(transactionId={1}): {2}. Commit skipped.",
                         pending.Cmd.OperationId,
                         pending.Cmd.TransactionId,
@@ -183,12 +183,12 @@ namespace FDP.Toolkit.Orchestration
             // Idempotency: silently drop re-delivered commands.
             if (!_seenTransactionIds.Add(cmd.TransactionId))
             {
-                FdpLog<DrillSlave>.Debug(
-                    "[DrillSlave] Duplicate TransactionId {0} dropped.", cmd.TransactionId);
+                FdpLog<ClusterSlave>.Debug(
+                    "[ClusterSlave] Duplicate TransactionId {0} dropped.", cmd.TransactionId);
                 return;
             }
 
-            // CommitState: update local state and raise TkDsmStateChangedEvent.
+            // CommitState: update local state and raise TkClusterStateChangedEvent.
             if (cmd.OperationId == CommitStateOperationId)
             {
                 if (int.TryParse(cmd.PayloadJson, out var nextStateId))
@@ -196,7 +196,7 @@ namespace FDP.Toolkit.Orchestration
                     var previousStateId = _localStateId;
                     _localStateId = nextStateId;
 
-                    _eventBus?.Publish(new TkDsmStateChangedEvent
+                    _eventBus?.Publish(new TkClusterStateChangedEvent
                     {
                         PreviousStateId = previousStateId,
                         NextStateId     = nextStateId,
@@ -204,8 +204,8 @@ namespace FDP.Toolkit.Orchestration
                 }
                 else
                 {
-                    FdpLog<DrillSlave>.Warn(
-                        "[DrillSlave] CommitState payload '{0}' could not be parsed as int.",
+                    FdpLog<ClusterSlave>.Warn(
+                        "[ClusterSlave] CommitState payload '{0}' could not be parsed as int.",
                         cmd.PayloadJson);
                 }
                 return;
@@ -220,8 +220,8 @@ namespace FDP.Toolkit.Orchestration
                 if (prepareTask.IsCompleted)
                 {
                     if (prepareTask.IsFaulted)
-                        FdpLog<DrillSlave>.Error(
-                            "[DrillSlave] PrepareAsync faulted for operationId {0} " +
+                        FdpLog<ClusterSlave>.Error(
+                            "[ClusterSlave] PrepareAsync faulted for operationId {0} " +
                             "(transactionId={1}): {2}. Commit skipped.",
                             cmd.OperationId, cmd.TransactionId,
                             prepareTask.Exception?.GetBaseException().Message ?? "unknown");
@@ -235,8 +235,8 @@ namespace FDP.Toolkit.Orchestration
                 return;
             }
 
-            FdpLog<DrillSlave>.Debug(
-                "[DrillSlave] No handler for operationId {0}.", cmd.OperationId);
+            FdpLog<ClusterSlave>.Debug(
+                "[ClusterSlave] No handler for operationId {0}.", cmd.OperationId);
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────

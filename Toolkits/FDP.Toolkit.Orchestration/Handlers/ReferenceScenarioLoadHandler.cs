@@ -10,7 +10,7 @@ using FDP.Toolkit.Scenario;
 namespace FDP.Toolkit.Orchestration.Handlers
 {
     /// <summary>
-    /// Reference implementation of the scenario-load DSM handler (CGF1-G0404).
+    /// Reference implementation of the scenario-load Cluster handler (CGF1-G0404).
     ///
     /// <para>
     /// Handles <c>PrepareLive (operationId=9)</c>: locates a matching scenario file from
@@ -25,7 +25,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// CGF-specific copy of the handler.
     /// </para>
     /// </summary>
-    public sealed class ReferenceScenarioLoadHandler : IDsmHandler
+    public sealed class ReferenceScenarioLoadHandler : IClusterStateHandler
     {
         /// <summary>Integer value of <c>NodeOpType.PrepareLive</c> (stable constant).</summary>
         public const int PrepareLiveOperationId = 9;

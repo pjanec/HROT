@@ -10,10 +10,10 @@ namespace ModuleHost.Core.Scheduling
     /// <para>
     /// When <see cref="Enabled"/> is <c>true</c> (default), all three inner
     /// systems execute normally each frame.  When set to <c>false</c>
-    /// (e.g. during <c>RunningReplay</c> by <c>ReplayLoadDsmHandler</c>),
+    /// (e.g. during <c>RunningReplay</c> by <c>ReplayLoadClusterStateHandler</c>),
     /// <see cref="ExecuteGroup"/> iterates zero systems so no lifecycle state
     /// changes or ghost promotions occur during playback (CGF1-S0304).
-    /// Reset to <c>true</c> by <c>ReplayLoadDsmHandler</c> when returning to
+    /// Reset to <c>true</c> by <c>ReplayLoadClusterStateHandler</c> when returning to
     /// <c>RunningLive</c> (CGF1-S0305).
     /// </para>
     /// </summary>

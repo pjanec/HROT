@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Bagira.BDC.SSTD.Orchestration;
-using Bagira.Common.Orchestration;
+using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Common.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
@@ -12,13 +12,13 @@ using Xunit;
 namespace FDP.Toolkit.Orchestration.Tests;
 
 /// <summary>
-/// Unit and integration tests for <see cref="DrillSlave"/> (G0402 success conditions).
+/// Unit and integration tests for <see cref="ClusterSlave"/> (G0402 success conditions).
 /// </summary>
-public sealed class DrillSlaveTests
+public sealed class ClusterSlaveTests
 {
-    // ── Stub IDsmHandler used by unit tests ───────────────────────────────
+    // ── Stub IClusterStateHandler used by unit tests ───────────────────────────────
 
-    private sealed class StubHandler : IDsmHandler
+    private sealed class StubHandler : IClusterStateHandler
     {
         private readonly int _operationId;
         public int PrepareCallCount;
@@ -50,16 +50,16 @@ public sealed class DrillSlaveTests
     // ── CGF1-G0402 success condition 1 ───────────────────────────────────
 
     /// <summary>
-    /// Fact: Toolkit DrillSlave dispatches PrepareAsync + Commit.
+    /// Fact: Toolkit ClusterSlave dispatches PrepareAsync + Commit.
     /// A stub handler receives PrepareAsync then Commit on the same Tick() when
     /// PrepareAsync completes synchronously.
     /// </summary>
     [Fact]
-    public void DrillSlave_DispatchesPrepareAsyncAndCommit_SynchronousHandler()
+    public void ClusterSlave_DispatchesPrepareAsyncAndCommit_SynchronousHandler()
     {
         const int opId = 5; // arbitrary non-CommitState id
         var handler = new StubHandler(opId);
-        using var slave = new DrillSlave();
+        using var slave = new ClusterSlave();
         slave.RegisterHandler(handler);
 
         slave.EnqueueCommandForTest(new OrchestrationCommand(
@@ -72,14 +72,14 @@ public sealed class DrillSlaveTests
     }
 
     /// <summary>
-    /// Fact: Toolkit DrillSlave defers Commit to next tick when PrepareAsync is async.
+    /// Fact: Toolkit ClusterSlave defers Commit to next tick when PrepareAsync is async.
     /// </summary>
     [Fact]
-    public void DrillSlave_DeferCommit_WhenPrepareAsyncIsAsync()
+    public void ClusterSlave_DeferCommit_WhenPrepareAsyncIsAsync()
     {
         const int opId = 5;
         var handler = new StubHandler(opId) { PrepareGate = new TaskCompletionSource<string?>() };
-        using var slave = new DrillSlave();
+        using var slave = new ClusterSlave();
         slave.RegisterHandler(handler);
 
         slave.EnqueueCommandForTest(new OrchestrationCommand(
@@ -97,15 +97,15 @@ public sealed class DrillSlaveTests
     // ── CGF1-G0402 success condition 2 ───────────────────────────────────
 
     /// <summary>
-    /// Fact: Toolkit DrillSlave deduplicates transactions.
+    /// Fact: Toolkit ClusterSlave deduplicates transactions.
     /// Two commands with the same TransactionId — handler PrepareAsync called only once.
     /// </summary>
     [Fact]
-    public void DrillSlave_DeduplicatesTransactions()
+    public void ClusterSlave_DeduplicatesTransactions()
     {
         const int opId = 7;
         var handler = new StubHandler(opId);
-        using var slave = new DrillSlave();
+        using var slave = new ClusterSlave();
         slave.RegisterHandler(handler);
 
         var txId = Guid.NewGuid();
@@ -123,17 +123,17 @@ public sealed class DrillSlaveTests
     // ── CGF1-G0402 success condition 3 ───────────────────────────────────
 
     /// <summary>
-    /// Fact: TkDsmStateChangedEvent published on CommitState.
-    /// CommitState(nextStateId=5) → TkDsmStateChangedEvent{PreviousStateId=0, NextStateId=5}.
+    /// Fact: TkClusterStateChangedEvent published on CommitState.
+    /// CommitState(nextStateId=5) → TkClusterStateChangedEvent{PreviousStateId=0, NextStateId=5}.
     /// </summary>
     [Fact]
-    public void DrillSlave_PublishesTkDsmStateChangedEvent_OnCommitState()
+    public void ClusterSlave_PublishesTkClusterStateChangedEvent_OnCommitState()
     {
         const int CommitState = 2; // NodeOpType.CommitState
         const int nextState   = 5;
 
         var eventBus = new FdpEventBus();
-        using var slave = new DrillSlave(eventBus);
+        using var slave = new ClusterSlave(eventBus);
 
         slave.EnqueueCommandForTest(new OrchestrationCommand(
             Guid.NewGuid(), TargetNodeId: 0, OperationId: CommitState,
@@ -142,8 +142,8 @@ public sealed class DrillSlaveTests
         slave.Tick();
         eventBus.SwapBuffers();
 
-        var events = new List<TkDsmStateChangedEvent>();
-        foreach (var e in eventBus.Consume<TkDsmStateChangedEvent>())
+        var events = new List<TkClusterStateChangedEvent>();
+        foreach (var e in eventBus.Consume<TkClusterStateChangedEvent>())
             events.Add(e);
 
         Assert.Single(events);
@@ -155,12 +155,12 @@ public sealed class DrillSlaveTests
     // ── CGF1-G0402 success condition 4 (DDS integration) ─────────────────
 
     /// <summary>
-    /// Fact: DdsOrchestrationTransport delivers commands to DrillSlave.
-    /// Sends a NodeOpCommand over DDS and verifies the toolkit DrillSlave
+    /// Fact: DdsOrchestrationTransport delivers commands to ClusterSlave.
+    /// Sends a NodeOpCommand over DDS and verifies the toolkit ClusterSlave
     /// dispatches it to a registered handler within 2 s.
     /// </summary>
     [Fact(Timeout = 5_000)]
-    public void DdsTransport_DeliversCommand_ToDrillSlave()
+    public void DdsTransport_DeliversCommand_ToClusterSlave()
     {
         // Domain 17 reserved for this test.
         const int TestDomain = 17;
@@ -172,7 +172,7 @@ public sealed class DrillSlaveTests
         using var transport        = new DdsOrchestrationTransport(participant, nodeId);
 
         var handler = new StubHandler(opId);
-        using var slave = new DrillSlave(transport, nodeId, "TestSubsystem");
+        using var slave = new ClusterSlave(transport, nodeId, "TestSubsystem");
         slave.RegisterHandler(handler);
 
         Thread.Sleep(200); // DDS discovery

@@ -111,7 +111,7 @@ namespace FDP.Framework.Runner
         /// </summary>
         /// <remarks>
         /// Offset table (all values pairwise-unique):
-        /// SimHost +0, IG +100, IOS +200, Orchestrator +300, CGF +400, CI +500, unknown +600.
+        /// SimHost +0, IG +100, ExCon +200, Orchestrator +300, CGF +400, CI +500, unknown +600.
         /// </remarks>
         /// <param name="subsystemName">The value of <see cref="ISubsystem.Name"/>.</param>
         /// <returns>The resolved node ID, or 0 to signal legacy fallback.</returns>
@@ -122,7 +122,7 @@ namespace FDP.Framework.Runner
             {
                 "SimHost"      => 0,
                 "IG"           => 100,
-                "IOS"          => 200,
+                "ExCon"          => 200,
                 "Orchestrator" => 300,
                 "CGF"          => 400,
                 "CI"           => 500,

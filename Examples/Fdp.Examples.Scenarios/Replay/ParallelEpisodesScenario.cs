@@ -22,7 +22,7 @@ using ModuleHost.Core.Abstractions;
 namespace Fdp.Examples.Scenarios.Replay
 {
     /// <summary>
-    /// DEM1-D008 — ParallelStories: prove <c>Fdp.Kernel.FlightRecorder</c> LZ4 recording and
+    /// DEM1-D008 — ParallelEpisodes: prove <c>Fdp.Kernel.FlightRecorder</c> LZ4 recording and
     /// naked-node replay produce bit-identical positions.
     ///
     /// <para><b>Phase A (Configure, synchronous):</b> A separate live world + kernel drives a
@@ -45,7 +45,7 @@ namespace Fdp.Examples.Scenarios.Replay
     ///   <item><term>Phase 2 (tick 51)</term><description>|livePos[50] − replayPos| &lt; 0.001 m → SUCCESS</description></item>
     /// </list>
     /// </summary>
-    public sealed class ParallelStoriesScenario : IScenario
+    public sealed class ParallelEpisodesScenario : IScenario
     {
         // ── Constants ─────────────────────────────────────────────────────────
 
@@ -90,14 +90,14 @@ namespace Fdp.Examples.Scenarios.Replay
         // ── IScenario ─────────────────────────────────────────────────────────
 
         /// <inheritdoc/>
-        public string ScenarioName => ScenarioNames.ParallelStories;
+        public string ScenarioName => ScenarioNames.ParallelEpisodes;
 
         /// <inheritdoc/>
         public void Configure(EntityRepository world, ModuleHostKernel kernel)
         {
             _recFilePath = Path.Combine(
                 Path.GetTempPath(),
-                $"parallelstories_{Guid.NewGuid():N}.fdprec");
+                $"parallelepisodes_{Guid.NewGuid():N}.fdprec");
 
             // ── Phase A: live recording ───────────────────────────────────────
             RunLivePhase(_recFilePath, _livePositions, out _replayVehicle);
@@ -136,7 +136,7 @@ namespace Fdp.Examples.Scenarios.Replay
                         $"live={liveTf} replay={replayTf.Position}");
 
                 ReplayMatchedLiveAtTick25 = true;
-                FdpLog<ParallelStoriesScenario>.Info(
+                FdpLog<ParallelEpisodesScenario>.Info(
                     "[{0}] Phase 1 PASSED tick={1} |live[25]-replay|={2:F6} m",
                     ScenarioName, tick, dist);
             }
@@ -157,7 +157,7 @@ namespace Fdp.Examples.Scenarios.Replay
                         $"[Phase 2 FAILED] tick={tick} |live[50]-replay|={dist:F6} m (>= {PositionTolerance})  " +
                         $"live={liveTf} replay={replayTf.Position}");
 
-                FdpLog<ParallelStoriesScenario>.Info(
+                FdpLog<ParallelEpisodesScenario>.Info(
                     "[{0}] Phase 2 PASSED tick={1} |live[50]-replay|={2:F6} m",
                     ScenarioName, tick, dist);
 
@@ -204,7 +204,7 @@ namespace Fdp.Examples.Scenarios.Replay
             using var recordingModule = new RecordingModule(new RecordingConfiguration
             {
                 FilePath = recFilePath,
-                DrillId  = Guid.NewGuid(),
+                ExerciseId  = Guid.NewGuid(),
                 Blocking = true    // prevents delta-frame drops in CPU-bound tight loop
             });
             using var liveKernel = new ModuleHostKernel(liveWorld, liveAccumulator);
@@ -313,7 +313,7 @@ namespace Fdp.Examples.Scenarios.Replay
             private readonly SpatialHashSystem    _spatial;
             private readonly CarKinematicsSystem  _kinematics;
 
-            public string Name                      => "LiveKinematics_ParallelStories";
+            public string Name                      => "LiveKinematics_ParallelEpisodes";
             public ExecutionPolicy Policy           => ExecutionPolicy.Synchronous();
             public IReadOnlyList<Type>? WatchComponents => null;
             public IReadOnlyList<Type>? WatchEvents     => null;

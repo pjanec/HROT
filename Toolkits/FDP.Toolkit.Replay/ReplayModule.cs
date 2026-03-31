@@ -128,7 +128,7 @@ namespace FDP.Toolkit.Replay
         /// Returns <c>0</c> if the recording pre-dates <c>MaxNetworkId</c> support,
         /// if <see cref="RegisterSystems"/> has not been called, or if the
         /// <c>.meta.json</c> file was absent at open time.
-        /// Used by <c>ReplayLoadDsmHandler</c> to populate <c>NodeOpStatus.ResultJson</c>
+        /// Used by <c>ReplayLoadClusterStateHandler</c> to populate <c>NodeOpStatus.ResultJson</c>
         /// so the orchestrator can reset the ID allocator above the replay's ID space
         /// (CGF1-S0304).
         /// </summary>

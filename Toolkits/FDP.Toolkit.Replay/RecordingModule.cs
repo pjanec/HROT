@@ -25,7 +25,7 @@ namespace FDP.Toolkit.Replay
         private AsyncRecorder? _recorder;
 
         /// <inheritdoc/>
-        public string Name => $"Recording_{_config.DrillId:N}";
+        public string Name => $"Recording_{_config.ExerciseId:N}";
 
         /// <inheritdoc/>
         /// <remarks>

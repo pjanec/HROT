@@ -23,7 +23,7 @@ namespace FDP.Framework.Runner
         [DdsKey]
         public int NodeId;
 
-        /// <summary>Human-readable subsystem name (e.g. "SimHost", "IG", "IOS").</summary>
+        /// <summary>Human-readable subsystem name (e.g. "SimHost", "IG", "ExCon").</summary>
         public string SubsystemName;
 
         /// <summary>DDS domain ID the subsystem is operating on.</summary>

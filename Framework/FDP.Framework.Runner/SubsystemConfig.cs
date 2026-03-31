@@ -20,7 +20,7 @@ namespace FDP.Framework.Runner
         /// </summary>
         public bool OwnWindow { get; set; }
 
-        /// <summary>Human-readable name of the subsystem (e.g. "SimHost", "IG", "IOS").</summary>
+        /// <summary>Human-readable name of the subsystem (e.g. "SimHost", "IG", "ExCon").</summary>
         public string SubsystemName { get; set; } = string.Empty;
 
         /// <summary>Resolved node ID for this subsystem instance (0 = use legacy constants inside the subsystem).</summary>

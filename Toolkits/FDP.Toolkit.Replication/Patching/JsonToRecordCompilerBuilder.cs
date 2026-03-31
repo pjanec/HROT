@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Bagira.BDC.SSTM;
+using Hrot.NED.Messages;
 
 namespace FDP.Toolkit.Replication.Patching;
 

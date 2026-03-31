@@ -9,7 +9,7 @@ namespace FDP.Toolkit.Replay
     /// Per-frame recording system that alternates between keyframes (every
     /// <see cref="KeyframeInterval"/> ticks) and delta frames.
     /// Registered into the scheduler by <see cref="RecordingModule"/> and
-    /// <see cref="StoryRecorderModule"/> via <see cref="ISystemRegistry"/>.
+    /// <see cref="EpisodeRecorderModule"/> via <see cref="ISystemRegistry"/>.
     /// Runs in the <see cref="SystemPhase.PostSimulation"/> phase so entity state
     /// is fully settled before snapshot capture.
     /// </summary>

@@ -43,7 +43,7 @@ namespace Fdp.Interfaces
 
         /// <summary>
         /// DIS Entity Type associated with this template.
-        /// Set by <see cref="BdcTkbBuilder"/> during catalog registration.
+        /// Set by <see cref="NedTkbBuilder"/> during catalog registration.
         /// When non-zero, <see cref="ApplyTo"/> stamps it onto the entity header via
         /// <see cref="EntityRepository.SetDisType"/> so that rendering systems can
         /// perform bitwise layer-mask evaluation without string look-ups.

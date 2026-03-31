@@ -33,7 +33,7 @@ namespace FDP.Toolkit.Scenario
     /// <para>
     /// <b>Load pipeline:</b> Peek <c>Header.SubsystemType</c>; on mismatch return
     /// immediately.  Otherwise two-pass: create entities → resolve GUIDs → inject
-    /// components.  Optionally stamps <see cref="Fdp.Kernel.StoryTag"/> when <c>asStory == true</c>.
+    /// components.  Optionally stamps <see cref="Fdp.Kernel.EpisodeTag"/> when <c>asEpisode == true</c>.
     /// </para>
     /// </remarks>
     public sealed class ScenarioSerializer
@@ -175,13 +175,13 @@ namespace FDP.Toolkit.Scenario
         /// </summary>
         /// <param name="repo">Target repository.</param>
         /// <param name="dom">Scenario DOM previously produced by <see cref="Serialize"/>.</param>
-        /// <param name="asStory">
-        /// When <see langword="true"/>, stamps <see cref="Fdp.Kernel.StoryTag"/> on every created
-        /// entity.  <paramref name="storyId"/> must be a non-null, non-empty <see cref="Guid"/>;
+        /// <param name="asEpisode">
+        /// When <see langword="true"/>, stamps <see cref="Fdp.Kernel.EpisodeTag"/> on every created
+        /// entity.  <paramref name="episodeId"/> must be a non-null, non-empty <see cref="Guid"/>;
         /// passing <see langword="null"/> or <see cref="Guid.Empty"/> throws
         /// <see cref="InvalidOperationException"/>.
         /// </param>
-        /// <param name="storyId">Story identifier written to <see cref="Fdp.Kernel.StoryTag.StoryId"/>.</param>
+        /// <param name="episodeId">Episode identifier written to <see cref="Fdp.Kernel.EpisodeTag.EpisodeId"/>.</param>
         /// <remarks>
         /// Returns immediately (without creating any entities) if
         /// <c>Header.SubsystemType</c> does not match the type this serializer was
@@ -190,23 +190,23 @@ namespace FDP.Toolkit.Scenario
         /// <exception cref="InvalidOperationException">
         /// Thrown when the DOM is structurally invalid (missing or wrong-typed <c>Entities</c>
         /// node, invalid GUID keys, or unrecognised component type names).  Also thrown when
-        /// <paramref name="asStory"/> is <see langword="true"/> but <paramref name="storyId"/> is
+        /// <paramref name="asEpisode"/> is <see langword="true"/> but <paramref name="episodeId"/> is
         /// <see langword="null"/> or <see cref="Guid.Empty"/>.
         /// </exception>
         public void Deserialize(
             EntityRepository repo,
             JsonObject dom,
-            bool asStory     = false,
-            Guid? storyId    = null)
+            bool asEpisode     = false,
+            Guid? episodeId    = null)
         {
             if (repo == null) throw new ArgumentNullException(nameof(repo));
             if (dom  == null) throw new ArgumentNullException(nameof(dom));
 
-            // Validate story arguments before touching the DOM.
-            if (asStory && (storyId == null || storyId == Guid.Empty))
+            // Validate episode arguments before touching the DOM.
+            if (asEpisode && (episodeId == null || episodeId == Guid.Empty))
                 throw new InvalidOperationException(
-                    "[ScenarioSerializer] Deserialize called with asStory=true but storyId is null or Guid.Empty. " +
-                    "A non-empty Guid is required to stamp Fdp.Kernel.StoryTag on loaded entities.");
+                    "[ScenarioSerializer] Deserialize called with asEpisode=true but episodeId is null or Guid.Empty. " +
+                    "A non-empty Guid is required to stamp Fdp.Kernel.EpisodeTag on loaded entities.");
 
             // Peek header for subsystem-type filter.
             var headerNode = dom["Header"] as JsonObject;
@@ -293,10 +293,10 @@ namespace FDP.Toolkit.Scenario
                     AutoSerializer.TryInject(repo, entity, typeId, compKvp.Value, loadResolver);
                 }
 
-                // Stamp Fdp.Kernel.StoryTag if requested.
-                if (asStory)
+                // Stamp Fdp.Kernel.EpisodeTag if requested.
+                if (asEpisode)
                 {
-                    repo.SetComponent(entity, new Fdp.Kernel.StoryTag { StoryId = storyId!.Value });
+                    repo.SetComponent(entity, new Fdp.Kernel.EpisodeTag { EpisodeId = episodeId!.Value });
                 }
             }
         }

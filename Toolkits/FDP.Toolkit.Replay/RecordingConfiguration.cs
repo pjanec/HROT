@@ -5,7 +5,7 @@ namespace FDP.Toolkit.Replay
 {
     /// <summary>
     /// Initialization contract for <see cref="RecordingModule"/> and
-    /// <see cref="StoryRecorderModule"/>.  Passed at construction time so that
+    /// <see cref="EpisodeRecorderModule"/>.  Passed at construction time so that
     /// <c>AsyncRecorder</c> is decoupled from any global state.
     /// </summary>
     public sealed class RecordingConfiguration
@@ -19,8 +19,8 @@ namespace FDP.Toolkit.Replay
         /// Optional entity filter predicate.  When <c>null</c>, all entities
         /// above <c>AsyncRecorder.MinRecordableId</c> are recorded.
         /// <para>
-        /// For story recorders, inject a predicate that checks
-        /// <c>StoryTag.StoryId == targetStoryId</c> so only the story's own
+        /// For episode recorders, inject a predicate that checks
+        /// <c>EpisodeTag.EpisodeId == targetEpisodeId</c> so only the episode's own
         /// entities enter that recorder's <c>AsyncRecorder</c>.
         /// </para>
         /// <para>
@@ -32,9 +32,9 @@ namespace FDP.Toolkit.Replay
         public Predicate<Entity>? EntityFilter { get; init; }
 
         /// <summary>
-        /// Drill or Story identifier embedded in the recording header metadata.
+        /// Exercise or Episode identifier embedded in the recording header metadata.
         /// </summary>
-        public required Guid DrillId { get; init; }
+        public required Guid ExerciseId { get; init; }
 
         /// <summary>
         /// When <c>true</c>, <see cref="RecorderTickSystem"/> calls

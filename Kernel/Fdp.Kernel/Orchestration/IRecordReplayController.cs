@@ -9,21 +9,21 @@ namespace Fdp.Kernel.Orchestration
     /// <para>
     /// Implementations are responsible for wiring <c>RecordingModule</c> /
     /// <c>ReplayModule</c> into the <c>ModuleHostKernel</c> in response to
-    /// DSM state transitions.  The interface itself only uses types from
-    /// <c>Fdp.Kernel</c> — no <c>Bagira.*</c> references are permitted here.
+    /// Cluster state transitions.  The interface itself only uses types from
+    /// <c>Fdp.Kernel</c> — no <c>Hrot.*</c> references are permitted here.
     /// </para>
     /// </summary>
     public interface IRecordReplayController
     {
         /// <summary>
-        /// Opens a new drill recording.  Installs the recording module into the
+        /// Opens a new exercise recording.  Installs the recording module into the
         /// kernel so that every subsequent frame is captured to disk.
         /// </summary>
-        /// <param name="drillId">Unique identifier for this drill session.</param>
+        /// <param name="exerciseId">Unique identifier for this exercise session.</param>
         /// <param name="storageDirectory">
-        /// Root directory under which per-drill recording files are created.
+        /// Root directory under which per-exercise recording files are created.
         /// </param>
-        Task PrepareRecordingAsync(Guid drillId, string storageDirectory);
+        Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory);
 
         /// <summary>
         /// Finalizes and closes the active recording.  Blocks until all LZ4
@@ -36,14 +36,14 @@ namespace Fdp.Kernel.Orchestration
         Task FinalizeRecordingAsync(long maxNetworkId = 0);
 
         /// <summary>
-        /// Opens a drill recording for playback.  Installs the replay module and
+        /// Opens a exercise recording for playback.  Installs the replay module and
         /// validates the schema manifest so drift is detected before the first tick.
         /// </summary>
-        /// <param name="drillId">Drill identifier whose recording to open.</param>
+        /// <param name="exerciseId">Exercise identifier whose recording to open.</param>
         /// <param name="storageDirectory">
         /// Root directory from which the recording file is resolved.
         /// </param>
-        Task PrepareReplayAsync(Guid drillId, string storageDirectory);
+        Task PrepareReplayAsync(Guid exerciseId, string storageDirectory);
 
         /// <summary>
         /// Seeks to the specified wall-clock position within the active replay.
@@ -53,7 +53,7 @@ namespace Fdp.Kernel.Orchestration
 
         /// <summary>
         /// Advances playback by one frame.  Called by the application loop
-        /// on every tick when <c>RunningReplay</c> is the active DSM state.
+        /// on every tick when <c>RunningReplay</c> is the active Cluster state.
         /// </summary>
         /// <param name="currentTime">Current simulation time for rate-control.</param>
         void ProcessPlaybackTick(GlobalTime currentTime);

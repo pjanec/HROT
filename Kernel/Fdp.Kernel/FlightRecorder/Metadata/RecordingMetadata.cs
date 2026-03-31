@@ -32,7 +32,7 @@ namespace Fdp.Kernel.FlightRecorder.Metadata
         /// <c>Dispose()</c> finalizes the recording.
         ///
         /// <para>
-        /// Used by <c>ReplayLoadDsmHandler</c> to report the cluster-wide maximum entity
+        /// Used by <c>ReplayLoadClusterStateHandler</c> to report the cluster-wide maximum entity
         /// ID to the orchestrator so the <c>DdsIdAllocatorServer</c> can reset its
         /// counter above the replay's ID space, preventing collisions when new entities
         /// are created during a Live-from-Replay branch (CGF1-S0304).

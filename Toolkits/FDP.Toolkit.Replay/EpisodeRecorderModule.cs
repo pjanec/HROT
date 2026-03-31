@@ -5,27 +5,27 @@ using ModuleHost.Core.Abstractions;
 namespace FDP.Toolkit.Replay
 {
     /// <summary>
-    /// Data-plane module for per-story recording.  Functions identically to
+    /// Data-plane module for per-episode recording.  Functions identically to
     /// <see cref="RecordingModule"/> but is constructed with an entity filter that
-    /// restricts the <c>AsyncRecorder</c> to entities tagged with a specific story.
+    /// restricts the <c>AsyncRecorder</c> to entities tagged with a specific episode.
     /// <para>
-    /// Multiple <see cref="StoryRecorderModule"/> instances may run concurrently
+    /// Multiple <see cref="EpisodeRecorderModule"/> instances may run concurrently
     /// alongside the global <see cref="RecordingModule"/>: each owns a distinct
     /// <c>AsyncRecorder</c>, a distinct LZ4 background worker, and a distinct file
     /// stream — no shared I/O bottleneck, no mutex.
     /// </para>
     /// <para>
-    /// Uninstalling a specific <see cref="StoryRecorderModule"/> at
-    /// <c>StopStory</c> flushes its buffers and closes its file handles without
+    /// Uninstalling a specific <see cref="EpisodeRecorderModule"/> at
+    /// <c>StopEpisode</c> flushes its buffers and closes its file handles without
     /// affecting any other running recorder module.
     /// </para>
     /// </summary>
-    public sealed class StoryRecorderModule : IEcsModule, IDisposable
+    public sealed class EpisodeRecorderModule : IEcsModule, IDisposable
     {
         private readonly RecordingModule _inner;
 
         /// <inheritdoc/>
-        public string Name => $"StoryRecording_{_config.DrillId:N}";
+        public string Name => $"EpisodeRecording_{_config.ExerciseId:N}";
 
         /// <inheritdoc/>
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
@@ -33,12 +33,12 @@ namespace FDP.Toolkit.Replay
         private readonly RecordingConfiguration _config;
 
         /// <summary>
-        /// Creates a story recorder module.  The <paramref name="config"/> must
+        /// Creates a episode recorder module.  The <paramref name="config"/> must
         /// include an <see cref="RecordingConfiguration.EntityFilter"/> predicate that
-        /// selects only entities whose <see cref="StoryTag.StoryId"/> matches the
-        /// target story — typically constructed by the caller before passing in.
+        /// selects only entities whose <see cref="EpisodeTag.EpisodeId"/> matches the
+        /// target episode — typically constructed by the caller before passing in.
         /// </summary>
-        public StoryRecorderModule(RecordingConfiguration config)
+        public EpisodeRecorderModule(RecordingConfiguration config)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
             _inner  = new RecordingModule(config);

@@ -16,7 +16,7 @@ namespace FDP.Toolkit.Replication.Systems
         /// assignments and network map registration, creating a bare entity shell only.
         ///
         /// <para>
-        /// Set to <c>true</c> by <c>ReplayLoadDsmHandler</c> during
+        /// Set to <c>true</c> by <c>ReplayLoadClusterStateHandler</c> during
         /// <c>RunningReplay</c> so that incoming network samples do not spawn ghost
         /// entities that conflict with the recorded entity IDs being replayed
         /// (CGF1-S0304).  Reset to <c>false</c> when returning to

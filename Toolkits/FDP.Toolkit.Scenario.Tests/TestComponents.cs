@@ -5,7 +5,7 @@ using FDP.Toolkit.Scenario;
 
 // ── Test-only component IDs (200–255 reserved block) ────────────────────────
 // ScenarioIgnoreTag = 200 (defined in FDP.Toolkit.Scenario)
-// StoryTag = 84 (now Fdp.Kernel.StoryTag, unmanaged struct, Guid StoryId)
+// EpisodeTag = 84 (now Fdp.Kernel.EpisodeTag, unmanaged struct, Guid EpisodeId)
 // Test components occupy IDs 210–219.
 
 namespace FDP.Toolkit.Scenario.Tests

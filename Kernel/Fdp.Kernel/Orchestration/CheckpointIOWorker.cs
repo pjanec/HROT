@@ -20,7 +20,7 @@ namespace Fdp.Kernel.Orchestration
     ///     unmanaged memcpy) then call <see cref="Enqueue"/>.</item>
     ///   <item>Step 3 (this class, background thread): LZ4-compress the snapshot and write
     ///     to <c>{storageDir}/{requestId}_node_{nodeId}.fdp</c>. Sets
-    ///     <c>CompletionResults[requestId]</c> when done. The caller's <c>DrillSlave.Tick()</c>
+    ///     <c>CompletionResults[requestId]</c> when done. The caller's <c>ClusterSlave.Tick()</c>
     ///     polls <see cref="TakeCompletedResults"/> each frame and publishes the deferred
     ///     <c>NodeOpStatus(Success/Failure)</c>.</item>
     /// </list>
@@ -129,7 +129,7 @@ namespace Fdp.Kernel.Orchestration
         /// <summary>
         /// Removes and returns all completed checkpoint results accumulated since the
         /// last call.  Each entry maps a <c>requestId</c> to <c>true</c> (success) or
-        /// <c>false</c> (failure).  Call from <c>DrillSlave.Tick()</c> each frame.
+        /// <c>false</c> (failure).  Call from <c>ClusterSlave.Tick()</c> each frame.
         /// </summary>
         public System.Collections.Generic.IReadOnlyList<(Guid RequestId, bool Success)> TakeCompletedResults()
         {
@@ -159,7 +159,7 @@ namespace Fdp.Kernel.Orchestration
                 }
                 catch (Exception ex)
                 {
-                    // Failure recorded; DrillSlave will publish NodeOpStatus.Failure.
+                    // Failure recorded; ClusterSlave will publish NodeOpStatus.Failure.
                     _ = ex;
                 }
                 finally

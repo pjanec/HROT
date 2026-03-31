@@ -10,7 +10,7 @@ namespace FDP.Toolkit.Behavior.Events
     ///
     /// <para>
     /// Publishers: <see cref="Systems.MissionDirectorSystem"/> (end of plan) and
-    /// <c>Bagira.SimHost.Systems.MissionControlRequestSystem</c> (<c>CMD_ABORT_ALL</c>).
+    /// <c>Hrot.SimHost.Systems.MissionControlRequestSystem</c> (<c>CMD_ABORT_ALL</c>).
     /// </para>
     ///
     /// <para>

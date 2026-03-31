@@ -9,7 +9,7 @@ namespace FDP.Framework.Runner
         /// <summary>DDS node ID of the peer process.</summary>
         public int NodeId { get; set; }
 
-        /// <summary>Logical subsystem name (e.g. "SimHost", "IG", "IOS").</summary>
+        /// <summary>Logical subsystem name (e.g. "SimHost", "IG", "ExCon").</summary>
         public string SubsystemName { get; set; } = string.Empty;
 
         /// <summary>DDS domain the peer is operating on.</summary>

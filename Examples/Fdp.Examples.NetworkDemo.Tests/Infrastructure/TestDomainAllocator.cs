@@ -6,7 +6,7 @@ namespace Fdp.Examples.NetworkDemo.Tests.Infrastructure
     /// Allocates unique CycloneDDS domain IDs for each test so that parallel test
     /// execution does not cause cross-test DDS traffic on the same domain.
     /// Domain IDs start at 16 to avoid clashing with domain 0 (production code) and
-    /// domain 15 (reserved for <c>Bagira.Orchestrator.Tests</c>).
+    /// domain 15 (reserved for <c>Hrot.Orchestrator.Tests</c>).
     /// CycloneDDS supports domain IDs 0-232; 23 parallel tests fit easily within that range.
     /// </summary>
     internal static class TestDomainAllocator

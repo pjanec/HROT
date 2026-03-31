@@ -18,7 +18,7 @@ namespace FDP.Toolkit.Combat.Modules
     ///
     /// <para>
     /// The companion translator pair (<c>MunitionDetonationIngressTranslator</c> and
-    /// <c>DamageAssessedEgressTranslator</c>) live in <c>Bagira.SimHost/Network</c> and are
+    /// <c>DamageAssessedEgressTranslator</c>) live in <c>Hrot.SimHost/Network</c> and are
     /// registered separately in <c>SimHostApp</c> / <c>NodeBootstrapper</c>.
     /// </para>
     /// </summary>

@@ -10,7 +10,7 @@ using ModuleHost.Core.Scheduling;
 namespace FDP.Toolkit.Orchestration.Handlers
 {
     /// <summary>
-    /// Reference implementation of the replay-load DSM handler (CGF1-G0405).
+    /// Reference implementation of the replay-load Cluster handler (CGF1-G0405).
     ///
     /// <para>
     /// Handles <c>PrepareReplay (operationId=11)</c>, <c>FinalizeReplay (operationId=12)</c>,
@@ -64,7 +64,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// application wiring layer.
     /// </para>
     /// </summary>
-    public sealed class ReferenceReplayLoadHandler : IDsmHandler
+    public sealed class ReferenceReplayLoadHandler : IClusterStateHandler
     {
         /// <summary>Integer value of <c>NodeOpType.PrepareReplay</c>.</summary>
         public const int PrepareReplayOperationId  = 11;
@@ -105,7 +105,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// </param>
         /// <param name="nodeId">Local node identifier included in ACK messages.</param>
         /// <param name="storageDirectory">
-        /// Root directory where drill recording files are staged; forwarded to
+        /// Root directory where exercise recording files are staged; forwarded to
         /// <see cref="IRecordReplayController.PrepareReplayAsync"/>.
         /// </param>
         public ReferenceReplayLoadHandler(
@@ -148,8 +148,8 @@ namespace FDP.Toolkit.Orchestration.Handlers
         {
             if (cmd.OperationId == PrepareReplayOperationId)
             {
-                var drillId = ParseDrillId(cmd.PayloadJson);
-                await _controller.PrepareReplayAsync(drillId, _storageDirectory)
+                var exerciseId = ParseExerciseId(cmd.PayloadJson);
+                await _controller.PrepareReplayAsync(exerciseId, _storageDirectory)
                     .ConfigureAwait(false);
 
                 var maxNetworkId = _controller.ActiveMaxNetworkId;
@@ -161,8 +161,8 @@ namespace FDP.Toolkit.Orchestration.Handlers
                     ResultJson:      $"{{\"MaxNetworkId\":{maxNetworkId}}}"));
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
-                    "[ReferenceReplayLoadHandler] PrepareReplay complete (drillId={0}, MaxNetworkId={1}).",
-                    drillId, maxNetworkId);
+                    "[ReferenceReplayLoadHandler] PrepareReplay complete (exerciseId={0}, MaxNetworkId={1}).",
+                    exerciseId, maxNetworkId);
             }
             else if (cmd.OperationId == FinalizeReplayOperationId)
             {
@@ -175,10 +175,10 @@ namespace FDP.Toolkit.Orchestration.Handlers
             {
                 // CGF1-S0305: Live-from-Replay branch.
                 // 1. Tear down replay — EntityRepository is left at historical state.
-                // 2. Start recording under the branched DrillId.
-                var branchedDrillId = ParseDrillId(cmd.PayloadJson);
+                // 2. Start recording under the branched ExerciseId.
+                var branchedExerciseId = ParseExerciseId(cmd.PayloadJson);
                 await _controller.TeardownReplayAsync().ConfigureAwait(false);
-                await _controller.PrepareRecordingAsync(branchedDrillId, _storageDirectory)
+                await _controller.PrepareRecordingAsync(branchedExerciseId, _storageDirectory)
                     .ConfigureAwait(false);
 
                 _transport?.PublishStatus(new OrchestrationStatus(
@@ -189,8 +189,8 @@ namespace FDP.Toolkit.Orchestration.Handlers
                     ResultJson:      string.Empty));
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
-                    "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedDrillId={0}).",
-                    branchedDrillId);
+                    "[ReferenceReplayLoadHandler] Live-from-Replay branch complete (branchedExerciseId={0}).",
+                    branchedExerciseId);
             }
 
             return null;
@@ -238,23 +238,23 @@ namespace FDP.Toolkit.Orchestration.Handlers
             if (_lifecycleGroup != null) _lifecycleGroup.Enabled = enabled;
         }
 
-        private static Guid ParseDrillId(string? payloadJson)
+        private static Guid ParseExerciseId(string? payloadJson)
         {
             if (!string.IsNullOrWhiteSpace(payloadJson))
             {
                 using var doc = JsonDocument.Parse(payloadJson);
-                if (doc.RootElement.TryGetProperty("DrillId", out var prop))
+                if (doc.RootElement.TryGetProperty("ExerciseId", out var prop))
                 {
                     var raw = prop.GetString();
                     if (Guid.TryParse(raw, out var g)) return g;
                     throw new InvalidOperationException(
-                        $"[ReferenceReplayLoadHandler] 'DrillId' value '{raw}' is not a valid GUID. " +
-                        "Refusing to open a recording under an unintended drill id.");
+                        $"[ReferenceReplayLoadHandler] 'ExerciseId' value '{raw}' is not a valid GUID. " +
+                        "Refusing to open a recording under an unintended exercise id.");
                 }
             }
             throw new InvalidOperationException(
-                "[ReferenceReplayLoadHandler] PayloadJson is missing or does not contain a 'DrillId' " +
-                $"property. Payload: '{payloadJson}'. Refusing to open replay under an unknown drill id.");
+                "[ReferenceReplayLoadHandler] PayloadJson is missing or does not contain a 'ExerciseId' " +
+                $"property. Payload: '{payloadJson}'. Refusing to open replay under an unknown exercise id.");
         }
     }
 }

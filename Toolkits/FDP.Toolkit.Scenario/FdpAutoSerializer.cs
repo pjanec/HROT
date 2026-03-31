@@ -72,7 +72,7 @@ namespace FDP.Toolkit.Scenario
         /// <remarks>
         /// <para>
         /// <b>Why the static <see cref="ComponentTypeRegistry"/>?</b>
-        /// <c>FDP.Toolkit.Scenario</c> may not reference any Bagira assembly; it has access
+        /// <c>FDP.Toolkit.Scenario</c> may not reference any Hrot assembly; it has access
         /// only to <c>Fdp.Kernel</c>.  The single global <see cref="ComponentTypeRegistry"/>
         /// maintained by <c>Fdp.Kernel</c> is the authoritative roster of all registered
         /// component types at any point in the application lifecycle.  Accepting a registry

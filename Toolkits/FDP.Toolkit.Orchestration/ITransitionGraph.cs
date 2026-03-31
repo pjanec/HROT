@@ -5,8 +5,8 @@ namespace FDP.Toolkit.Orchestration
     /// compute BFS shortest paths between state IDs.
     ///
     /// <para>
-    /// Bagira's concrete implementation, <c>BagiraStateGraph</c>, is constructed
-    /// via <see cref="TransitionGraphBuilder"/> using the <c>DSMState</c> edge table
+    /// Hrot's concrete implementation, <c>HrotStateGraph</c>, is constructed
+    /// via <see cref="TransitionGraphBuilder"/> using the <c>ClusterState</c> edge table
     /// previously hardcoded inside <c>TransitionPlanner</c>.
     /// </para>
     /// </summary>

@@ -7,7 +7,7 @@ namespace Fdp.Kernel
     /// Each ID constant is used in conjunction with <see cref="ComponentIdAttribute"/> on
     /// the corresponding component struct, guaranteeing deterministic and collision-free ID
     /// assignment regardless of assembly load order.  This is a prerequisite for merging
-    /// SimHost, IG, and IOS into a single Runner process (Phase R0).
+    /// SimHost, IG, and ExCon into a single Runner process (Phase R0).
     /// </para>
     ///
     /// <para><b>ID block allocation</b></para>

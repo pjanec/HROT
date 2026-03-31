@@ -9,7 +9,7 @@ using FDP.Kernel.Logging;
 namespace FDP.Toolkit.Orchestration.Handlers
 {
     /// <summary>
-    /// Reference implementation of the live-load DSM handler (CGF1-G0405).
+    /// Reference implementation of the live-load Cluster handler (CGF1-G0405).
     ///
     /// <para>Handles <c>PrepareLive (operationId=9)</c> and
     /// <c>FinalizeLive (operationId=10)</c> commands.</para>
@@ -29,13 +29,13 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// </para>
     ///
     /// <para>
-    /// <b>Commit path:</b> No-op.  The toolkit <c>DrillSlave</c> publishes
-    /// <c>TkDsmStateChangedEvent</c> automatically on <c>CommitState</c>, so the
-    /// guard call previously present in the Bagira <c>LiveLoadDsmHandler</c> is
+    /// <b>Commit path:</b> No-op.  The toolkit <c>ClusterSlave</c> publishes
+    /// <c>TkClusterStateChangedEvent</c> automatically on <c>CommitState</c>, so the
+    /// guard call previously present in the Hrot <c>LiveLoadClusterStateHandler</c> is
     /// no longer required.
     /// </para>
     /// </summary>
-    public sealed class ReferenceLiveLoadHandler : IDsmHandler
+    public sealed class ReferenceLiveLoadHandler : IClusterStateHandler
     {
         /// <summary>Integer value of <c>NodeOpType.PrepareLive</c>.</summary>
         public const int PrepareLiveOperationId  = 9;
@@ -59,7 +59,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// for <c>FinalizeLive</c> (CGF1-S0304).
         /// </param>
         /// <param name="storageDirectory">
-        /// Root directory where drill recording files are staged; forwarded to
+        /// Root directory where exercise recording files are staged; forwarded to
         /// <see cref="IRecordReplayController.PrepareRecordingAsync"/>.
         /// Defaults to <c>C:\FDP_Temp</c>.
         /// </param>
@@ -85,8 +85,8 @@ namespace FDP.Toolkit.Orchestration.Handlers
             {
                 if (_controller != null)
                 {
-                    var drillId = ParseDrillId(cmd.PayloadJson);
-                    await _controller.PrepareRecordingAsync(drillId, _storageDirectory)
+                    var exerciseId = ParseExerciseId(cmd.PayloadJson);
+                    await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
                         .ConfigureAwait(false);
                 }
             }
@@ -104,8 +104,8 @@ namespace FDP.Toolkit.Orchestration.Handlers
 
         /// <inheritdoc />
         /// <remarks>
-        /// No-op.  The toolkit <c>DrillSlave</c> automatically publishes
-        /// <c>TkDsmStateChangedEvent</c> on <c>CommitState</c>, so no guard is
+        /// No-op.  The toolkit <c>ClusterSlave</c> automatically publishes
+        /// <c>TkClusterStateChangedEvent</c> on <c>CommitState</c>, so no guard is
         /// needed here.
         /// </remarks>
         public void Commit(OrchestrationCommand cmd, EntityRepository? repo) { }
@@ -115,23 +115,23 @@ namespace FDP.Toolkit.Orchestration.Handlers
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
-        private static Guid ParseDrillId(string? payloadJson)
+        private static Guid ParseExerciseId(string? payloadJson)
         {
             if (!string.IsNullOrWhiteSpace(payloadJson))
             {
                 using var doc = JsonDocument.Parse(payloadJson);
-                if (doc.RootElement.TryGetProperty("DrillId", out var prop))
+                if (doc.RootElement.TryGetProperty("ExerciseId", out var prop))
                 {
                     var raw = prop.GetString();
                     if (Guid.TryParse(raw, out var g)) return g;
                     throw new InvalidOperationException(
-                        $"[ReferenceLiveLoadHandler] 'DrillId' value '{raw}' is not a valid GUID. " +
-                        "Refusing to start recording under an unintended drill id.");
+                        $"[ReferenceLiveLoadHandler] 'ExerciseId' value '{raw}' is not a valid GUID. " +
+                        "Refusing to start recording under an unintended exercise id.");
                 }
             }
             throw new InvalidOperationException(
-                "[ReferenceLiveLoadHandler] PayloadJson is missing or does not contain a 'DrillId' " +
-                $"property. Payload: '{payloadJson}'. Refusing to start recording under an unknown drill id.");
+                "[ReferenceLiveLoadHandler] PayloadJson is missing or does not contain a 'ExerciseId' " +
+                $"property. Payload: '{payloadJson}'. Refusing to start recording under an unknown exercise id.");
         }
     }
 }

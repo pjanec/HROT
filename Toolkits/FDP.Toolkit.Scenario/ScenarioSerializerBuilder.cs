@@ -11,7 +11,7 @@ namespace FDP.Toolkit.Scenario
     /// <para>
     /// Usage:
     /// <code>
-    /// var serializer = new ScenarioSerializerBuilder("Bagira.CGF")
+    /// var serializer = new ScenarioSerializerBuilder("Hrot.CGF")
     ///     .RegisterTranslator(new MissileOrdnanceTranslator())
     ///     .Build();
     /// </code>
@@ -33,7 +33,7 @@ namespace FDP.Toolkit.Scenario
         /// </summary>
         /// <param name="subsystemType">
         /// Human-readable subsystem identifier written into every saved scenario's
-        /// <c>Header.SubsystemType</c> field (e.g. <c>"Bagira.CGF"</c>).
+        /// <c>Header.SubsystemType</c> field (e.g. <c>"Hrot.CGF"</c>).
         /// On <c>Deserialize</c>, the <see cref="ScenarioSerializer"/> peeks this
         /// value and skips the file if it does not match.
         /// </param>

@@ -40,7 +40,7 @@ namespace Fdp.Examples.Runner
             ScenarioNames.TerrainClamping => new TerrainClampingScenario(),
 
             // ── Phase 4 demos (BATCH-07) ──────────────────────────────────────
-            ScenarioNames.ParallelStories => new ParallelStoriesScenario(),
+            ScenarioNames.ParallelEpisodes => new ParallelEpisodesScenario(),
 
             // ── Phase 5 demos (BATCH-09) ──────────────────────────────────────
             ScenarioNames.DistributedTank => new DistributedTankScenario(),

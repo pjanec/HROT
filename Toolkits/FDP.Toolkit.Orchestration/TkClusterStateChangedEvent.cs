@@ -3,20 +3,20 @@ using Fdp.Kernel;
 namespace FDP.Toolkit.Orchestration
 {
     /// <summary>
-    /// Published to the local <see cref="FdpEventBus"/> whenever the cluster DSM
+    /// Published to the local <see cref="FdpEventBus"/> whenever the cluster 
     /// state transitions at the toolkit level.
     ///
     /// <para>
-    /// Uses generic integer state IDs rather than Bagira's <c>DSMState</c> enum
+    /// Uses generic integer state IDs rather than Hrot's <c>ClusterState</c> enum
     /// so it can be consumed by FDP toolkit code without a dependency on the
-    /// Bagira DDS layer.  The Bagira wiring layer forwards this event to the
-    /// Bagira-specific <c>DsmStateChangedEvent { DSMState Previous, Next }</c>.
+    /// Hrot DDS layer.  The Hrot wiring layer forwards this event to the
+    /// Hrot-specific <c>DsmStateChangedEvent { ClusterState Previous, Next }</c>.
     /// </para>
     ///
-    /// <para>EventId 7002 — adjacent to Bagira's DsmStateChangedEvent (7001).</para>
+    /// <para>EventId 7002 — adjacent to Hrot's DsmStateChangedEvent (7001).</para>
     /// </summary>
     [EventId(7002)]
-    public struct TkDsmStateChangedEvent
+    public struct TkClusterStateChangedEvent
     {
         /// <summary>The integer state ID the cluster was in before the transition.</summary>
         public int PreviousStateId;

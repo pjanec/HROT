@@ -8,8 +8,8 @@ namespace FDP.Toolkit.Orchestration
     /// an <see cref="ITransitionGraph"/>.
     ///
     /// <para>This class is fully generic — it operates on integer state IDs and has no
-    /// dependency on any Bagira or application-layer type.  Bagira callers cast their
-    /// <c>DSMState</c> enum values to and from <c>int</c> at the call site.</para>
+    /// dependency on any Hrot or application-layer type.  Hrot callers cast their
+    /// <c>ClusterState</c> enum values to and from <c>int</c> at the call site.</para>
     /// </summary>
     public sealed class TransitionPlanner
     {
@@ -17,7 +17,7 @@ namespace FDP.Toolkit.Orchestration
 
         /// <param name="graph">
         /// State-transition graph that defines the valid directed edges.
-        /// Build a Bagira-specific graph with <c>BagiraStateGraph.Build()</c>.
+        /// Build a Hrot-specific graph with <c>HrotStateGraph.Build()</c>.
         /// </param>
         public TransitionPlanner(ITransitionGraph graph)
         {

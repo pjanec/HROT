@@ -83,7 +83,7 @@ namespace Fdp.Kernel
         /// </para>
         ///
         /// <para>
-        /// Set to <c>true</c> in production entry-points (SimHost, IG, IOS <c>Program.cs</c>)
+        /// Set to <c>true</c> in production entry-points (SimHost, IG, ExCon <c>Program.cs</c>)
         /// before constructing any ECS world to guarantee deterministic IDs across the merged
         /// Runner process.  Leave <c>false</c> in test code during the transition period.
         /// </para>

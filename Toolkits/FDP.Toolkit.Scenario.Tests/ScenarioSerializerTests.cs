@@ -39,7 +39,7 @@ namespace FDP.Toolkit.Scenario.Tests
             repo.RegisterComponent<CachedSpeedComponent>();
             repo.RegisterComponent<NoSaveVelocity>(); // [DataPolicy(DataPolicy.NoSave)]
             repo.RegisterComponent<ScenarioIgnoreTag>();
-            repo.RegisterComponent<Fdp.Kernel.StoryTag>();   // canonical story-membership tag (Guid)
+            repo.RegisterComponent<Fdp.Kernel.EpisodeTag>();   // canonical episode-membership tag (Guid)
         }
 
         // ── Helper ───────────────────────────────────────────────────────────────
@@ -301,14 +301,14 @@ namespace FDP.Toolkit.Scenario.Tests
             Assert.Single(entitiesNode);
         }
 
-        // ── StoryLoad_StampsStoryTag ──────────────────────────────────────────────
+        // ── EpisodeLoad_StampsEpisodeTag ──────────────────────────────────────────────
 
         /// <summary>
-        /// Deserializing with <c>asStory: true</c> stamps <see cref="Fdp.Kernel.StoryTag"/> on every
-        /// created entity with the supplied <see cref="Guid"/> story identifier.
+        /// Deserializing with <c>asEpisode: true</c> stamps <see cref="Fdp.Kernel.EpisodeTag"/> on every
+        /// created entity with the supplied <see cref="Guid"/> episode identifier.
         /// </summary>
         [Fact]
-        public void StoryLoad_StampsStoryTag()
+        public void EpisodeLoad_StampsEpisodeTag()
         {
             var e1 = _repo.CreateEntity(); _repo.SetComponent(e1, new DummyPosition { X = 1f });
             var e2 = _repo.CreateEntity(); _repo.SetComponent(e2, new DummyPosition { X = 2f });
@@ -318,8 +318,8 @@ namespace FDP.Toolkit.Scenario.Tests
 
             var freshRepo = new EntityRepository();
             RegisterCommonComponents(freshRepo);
-            var storyGuid = Guid.NewGuid();
-            serializer.Deserialize(freshRepo, dom, asStory: true, storyId: storyGuid);
+            var episodeGuid = Guid.NewGuid();
+            serializer.Deserialize(freshRepo, dom, asEpisode: true, episodeId: episodeGuid);
 
             Assert.Equal(2, freshRepo.EntityCount);
             for (int i = 0; i <= freshRepo.MaxEntityIndex; i++)
@@ -327,10 +327,10 @@ namespace FDP.Toolkit.Scenario.Tests
                 var e = new Entity(i, freshRepo.GetHeader(i).Generation);
                 if (!freshRepo.IsAlive(e)) continue;
 
-                Assert.True(freshRepo.HasComponent<Fdp.Kernel.StoryTag>(e),
-                    $"Entity {e} must have Fdp.Kernel.StoryTag after story load.");
-                ref readonly var tag = ref freshRepo.GetComponentRO<Fdp.Kernel.StoryTag>(e);
-                Assert.Equal(storyGuid, tag.StoryId);
+                Assert.True(freshRepo.HasComponent<Fdp.Kernel.EpisodeTag>(e),
+                    $"Entity {e} must have Fdp.Kernel.EpisodeTag after episode load.");
+                ref readonly var tag = ref freshRepo.GetComponentRO<Fdp.Kernel.EpisodeTag>(e);
+                Assert.Equal(episodeGuid, tag.EpisodeId);
             }
 
             freshRepo.Dispose();
@@ -350,11 +350,11 @@ namespace FDP.Toolkit.Scenario.Tests
             var e = sourceRepo.CreateEntity();
             sourceRepo.SetComponent(e, new DummyPosition { X = 1f });
 
-            var cgfSerializer  = BuildSerializer("Bagira.CGF");
-            var simhostSerializer = BuildSerializer("Bagira.SimHost");
+            var cgfSerializer  = BuildSerializer("Hrot.CGF");
+            var simhostSerializer = BuildSerializer("Hrot.SimHost");
 
             // Serialize as SimHost.
-            var dom = simhostSerializer.Serialize(sourceRepo, new ScenarioHeader("Bagira.SimHost"));
+            var dom = simhostSerializer.Serialize(sourceRepo, new ScenarioHeader("Hrot.SimHost"));
 
             Assert.Equal(0, _repo.EntityCount);
             // Deserialize using a serializer configured for CGF — should be a no-op.
@@ -504,11 +504,11 @@ namespace FDP.Toolkit.Scenario.Tests
         }
 
         /// <summary>
-        /// <c>asStory: true</c> with <c>storyId: Guid.Empty</c> must throw fast — do not
-        /// stamp an empty story identifier on loaded entities.
+        /// <c>asEpisode: true</c> with <c>episodeId: Guid.Empty</c> must throw fast — do not
+        /// stamp an empty episode identifier on loaded entities.
         /// </summary>
         [Fact]
-        public void Deserialize_AsStory_EmptyGuid_Throws()
+        public void Deserialize_AsEpisode_EmptyGuid_Throws()
         {
             var entity = _repo.CreateEntity();
             _repo.SetComponent(entity, new DummyPosition { X = 1f });
@@ -519,7 +519,7 @@ namespace FDP.Toolkit.Scenario.Tests
             var freshRepo = new EntityRepository();
             RegisterCommonComponents(freshRepo);
             Assert.Throws<InvalidOperationException>(() =>
-                serializer.Deserialize(freshRepo, dom, asStory: true, storyId: Guid.Empty));
+                serializer.Deserialize(freshRepo, dom, asEpisode: true, episodeId: Guid.Empty));
             freshRepo.Dispose();
         }
 

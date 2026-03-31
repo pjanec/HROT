@@ -17,7 +17,7 @@ namespace FDP.Toolkit.Orchestration
     /// <para>
     /// <b>Default-value guarantee:</b> <c>0</c> is the C# default for uninitialized
     /// <c>int</c> fields, so a zero-initialised wire struct naturally means "OK" —
-    /// consistent with <c>SstStatusCode</c> already used in Bagira DDS messages.
+    /// consistent with <c>NedStatusCode</c> already used in Hrot DDS messages.
     /// </para>
     /// </summary>
     public static class OrchestrationStatusCode

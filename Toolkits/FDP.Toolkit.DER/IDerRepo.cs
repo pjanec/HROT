@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace FDP.Toolkit.DER
 {
     /// <summary>
-    /// Non-ECS entity repository for IOS Mock.
+    /// Non-ECS entity repository for ExCon Mock.
     /// Thread-safe dictionary-based storage.
     /// </summary>
     public interface IDerRepo

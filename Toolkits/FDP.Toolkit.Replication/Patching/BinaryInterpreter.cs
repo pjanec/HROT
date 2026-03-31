@@ -1,6 +1,6 @@
+using Hrot.NED.Messages;
 using System;
 using System.Numerics;
-using Bagira.BDC.SSTM;
 
 namespace FDP.Toolkit.Replication.Patching;
 

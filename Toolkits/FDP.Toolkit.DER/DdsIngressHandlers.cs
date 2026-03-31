@@ -62,7 +62,7 @@ namespace FDP.Toolkit.DER
                 {
                     int id = _getEntityId(sample.Data);
                     FdpLog<MasterIngressHandler<T>>.Debug(
-                        "[TRACE-IOS] DER: Received EntityMaster for NetID {0}. Storing in Repo.", id);
+                        "[TRACE-ExCon] DER: Received EntityMaster for NetID {0}. Storing in Repo.", id);
                     _handleMap[handle] = id;
 
                     var entity = _repo.GetEntity(id) ?? _repo.CreateEntity(id, _getTkbType(sample.Data));

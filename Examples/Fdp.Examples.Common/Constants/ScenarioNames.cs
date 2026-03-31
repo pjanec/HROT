@@ -13,7 +13,7 @@ namespace Fdp.Examples.Common.Constants
         public const string SensorGrid         = "sensorgrid";
         public const string MissionCommand     = "missioncommand";
         public const string TerrainClamping    = "terrainclamping";
-        public const string ParallelStories    = "parallelstories";
+        public const string ParallelEpisodes    = "parallelepisodes";
         public const string DistributedTank    = "distributedtank";
         public const string UrbanCombat        = "urbancombat";
     }

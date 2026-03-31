@@ -9,16 +9,16 @@ using Xunit;
 namespace FDP.Toolkit.Replay.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="StoryRecorderModule"/>, <see cref="StoryTag"/>,
-    /// and <see cref="StoryReplayTag"/> (P8T3).
+    /// Unit tests for <see cref="EpisodeRecorderModule"/>, <see cref="EpisodeTag"/>,
+    /// and <see cref="EpisodeReplayTag"/> (P8T3).
     /// </summary>
-    public class StoryRecorderModuleTests : IDisposable
+    public class EpisodeRecorderModuleTests : IDisposable
     {
         private readonly string _tempDir;
 
-        public StoryRecorderModuleTests()
+        public EpisodeRecorderModuleTests()
         {
-            _tempDir = Path.Combine(Path.GetTempPath(), $"StoryRecorderTests_{Guid.NewGuid():N}");
+            _tempDir = Path.Combine(Path.GetTempPath(), $"EpisodeRecorderTests_{Guid.NewGuid():N}");
             Directory.CreateDirectory(_tempDir);
         }
 
@@ -30,28 +30,28 @@ namespace FDP.Toolkit.Replay.Tests
         // ── P8T3 success condition 2 ─────────────────────────────────────────────
 
         [Fact]
-        public void StoryRecorderModule_EntityFilter_RestrictsToStoryEntities()
+        public void EpisodeRecorderModule_EntityFilter_RestrictsToEpisodeEntities()
         {
-            // Arrange: build a world with one story entity and one non-story entity.
+            // Arrange: build a world with one episode entity and one non-episode entity.
             using var world = new EntityRepository();
             world.RegisterComponent<SimTransform>();
-            world.RegisterComponent<StoryTag>();
+            world.RegisterComponent<EpisodeTag>();
 
-            var storyId = Guid.NewGuid();
+            var episodeId = Guid.NewGuid();
 
             // The filter predicate mirrors what EcsRecordReplayController builds.
             Predicate<Entity> filter = entity =>
-                world.HasComponent<StoryTag>(entity) &&
-                world.GetComponentRO<StoryTag>(entity).StoryId == storyId;
+                world.HasComponent<EpisodeTag>(entity) &&
+                world.GetComponentRO<EpisodeTag>(entity).EpisodeId == episodeId;
 
             var config = new RecordingConfiguration
             {
-                FilePath     = Path.Combine(_tempDir, "story.fdp"),
+                FilePath     = Path.Combine(_tempDir, "episode.fdp"),
                 EntityFilter = filter,
-                DrillId      = storyId,
+                ExerciseId      = episodeId,
             };
 
-            var module   = new StoryRecorderModule(config);
+            var module   = new EpisodeRecorderModule(config);
             var registry = new CapturingSystemRegistry();
             module.RegisterSystems(registry);
 
@@ -64,63 +64,63 @@ namespace FDP.Toolkit.Replay.Tests
         // ── P8T3 success condition 4 ─────────────────────────────────────────────
 
         [Fact]
-        public void StoryReplayTag_IsDistinctFromStoryTag()
+        public void EpisodeReplayTag_IsDistinctFromEpisodeTag()
         {
             // Both components must have distinct component IDs.
-            Assert.NotEqual(ReplayComponentIds.StoryTag, ReplayComponentIds.StoryReplayTag);
+            Assert.NotEqual(ReplayComponentIds.EpisodeTag, ReplayComponentIds.EpisodeReplayTag);
         }
 
         // ── Component registration ────────────────────────────────────────────────
 
         [Fact]
-        public void StoryTag_CanBeRegisteredAndRead()
+        public void EpisodeTag_CanBeRegisteredAndRead()
         {
             using var world = new EntityRepository();
-            world.RegisterComponent<StoryTag>();
+            world.RegisterComponent<EpisodeTag>();
 
             var entity  = world.CreateEntity();
-            var storyId = Guid.NewGuid();
-            world.AddComponent(entity, new StoryTag { StoryId = storyId });
+            var episodeId = Guid.NewGuid();
+            world.AddComponent(entity, new EpisodeTag { EpisodeId = episodeId });
 
-            ref readonly var tag = ref world.GetComponentRO<StoryTag>(entity);
-            Assert.Equal(storyId, tag.StoryId);
+            ref readonly var tag = ref world.GetComponentRO<EpisodeTag>(entity);
+            Assert.Equal(episodeId, tag.EpisodeId);
         }
 
         [Fact]
-        public void StoryReplayTag_CanBeRegisteredAndRead()
+        public void EpisodeReplayTag_CanBeRegisteredAndRead()
         {
             using var world = new EntityRepository();
-            world.RegisterComponent<StoryReplayTag>();
+            world.RegisterComponent<EpisodeReplayTag>();
 
             var entity = world.CreateEntity();
-            world.AddComponent(entity, new StoryReplayTag { StoryId = Guid.NewGuid(), OriginalEntityId = 7 });
+            world.AddComponent(entity, new EpisodeReplayTag { EpisodeId = Guid.NewGuid(), OriginalEntityId = 7 });
 
-            ref readonly var tag = ref world.GetComponentRO<StoryReplayTag>(entity);
+            ref readonly var tag = ref world.GetComponentRO<EpisodeReplayTag>(entity);
             Assert.Equal(7, tag.OriginalEntityId);
         }
 
-        // ── Two concurrent stories produce isolated files ───────────────────────
+        // ── Two concurrent episodes produce isolated files ───────────────────────
 
         [Fact]
-        public void TwoStoryRecorderModules_RunConcurrently_ProduceIsolatedFiles()
+        public void TwoEpisodeRecorderModules_RunConcurrently_ProduceIsolatedFiles()
         {
             // Arrange: two modules with distinct file paths.
-            var storyA = Guid.NewGuid();
-            var storyB = Guid.NewGuid();
+            var episodeA = Guid.NewGuid();
+            var episodeB = Guid.NewGuid();
 
-            var pathA = Path.Combine(_tempDir, "storyA.fdp");
-            var pathB = Path.Combine(_tempDir, "storyB.fdp");
+            var pathA = Path.Combine(_tempDir, "episodeA.fdp");
+            var pathB = Path.Combine(_tempDir, "episodeB.fdp");
 
             using var world = new EntityRepository();
             world.RegisterComponent<SimTransform>();
 
-            var moduleA = new StoryRecorderModule(new RecordingConfiguration
+            var moduleA = new EpisodeRecorderModule(new RecordingConfiguration
             {
-                FilePath = pathA, DrillId = storyA,
+                FilePath = pathA, ExerciseId = episodeA,
             });
-            var moduleB = new StoryRecorderModule(new RecordingConfiguration
+            var moduleB = new EpisodeRecorderModule(new RecordingConfiguration
             {
-                FilePath = pathB, DrillId = storyB,
+                FilePath = pathB, ExerciseId = episodeB,
             });
 
             var registryA = new CapturingSystemRegistry();
@@ -141,8 +141,8 @@ namespace FDP.Toolkit.Replay.Tests
             moduleB.Dispose();
 
             // Assert: both files were created independently.
-            Assert.True(File.Exists(pathA), $"Story A file missing: {pathA}");
-            Assert.True(File.Exists(pathB), $"Story B file missing: {pathB}");
+            Assert.True(File.Exists(pathA), $"Episode A file missing: {pathA}");
+            Assert.True(File.Exists(pathB), $"Episode B file missing: {pathB}");
             Assert.NotEqual(new FileInfo(pathA).Length, 0);
             Assert.NotEqual(new FileInfo(pathB).Length, 0);
         }

@@ -9,7 +9,7 @@ using FDP.Kernel.Logging;
 namespace FDP.Toolkit.Orchestration.Handlers
 {
     /// <summary>
-    /// Reference implementation of the checkpoint DSM handler (CGF1-G0405).
+    /// Reference implementation of the checkpoint Cluster handler (CGF1-G0405).
     ///
     /// <para>
     /// Handles <c>TakeSnapshot (operationId=4)</c> — implements Steps 1–2 of the
@@ -32,7 +32,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
     ///
     /// <para>
     /// <b>DrainDeferredAcks (Step 3 — deferred Success/Failure ACK):</b>
-    /// Called each frame by <c>DrillSlave.Tick()</c> via <see cref="ITickableDsmHandler"/>.
+    /// Called each frame by <c>ClusterSlave.Tick()</c> via <see cref="ITickableClusterStateHandler"/>.
     /// Polls <see cref="CheckpointIOWorker.TakeCompletedResults"/> and publishes
     /// <c>NodeOpStatus(Success)</c> or <c>NodeOpStatus(Failure)</c> for each
     /// completed checkpoint write.
@@ -44,7 +44,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// worker processes them sequentially.
     /// </para>
     /// </summary>
-    public sealed class ReferenceCheckpointHandler : ITickableDsmHandler
+    public sealed class ReferenceCheckpointHandler : ITickableClusterStateHandler
     {
         /// <summary>Integer value of <c>NodeOpType.TakeSnapshot</c>.</summary>
         public const int TakeSnapshotOperationId = 4;
@@ -59,7 +59,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// <param name="worker">Background I/O worker that owns the LZ4+disk pipeline.</param>
         /// <param name="liveRepo">
         /// Live <see cref="EntityRepository"/> to snapshot; used when <see cref="Commit"/>
-        /// is called with <c>repo: null</c> (production path via DrillSlave dispatch).
+        /// is called with <c>repo: null</c> (production path via ClusterSlave dispatch).
         /// </param>
         /// <param name="transport">
         /// Optional transport for publishing <c>NodeOpStatus</c> ACKs.
@@ -146,7 +146,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// <summary>
         /// Step 3 (poll): Drains <see cref="CheckpointIOWorker.TakeCompletedResults"/>
         /// and publishes deferred <c>NodeOpStatus(Success/Failure)</c> ACKs.
-        /// Called each frame from <c>DrillSlave.Tick()</c>.
+        /// Called each frame from <c>ClusterSlave.Tick()</c>.
         /// </summary>
         public void DrainDeferredAcks()
         {

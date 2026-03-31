@@ -872,9 +872,9 @@ namespace Fdp.Examples.Scenarios.Tests
         }
     }
 
-    // ── DEM1-D008: ParallelStoriesScenario tests ───────────────────────────
+    // ── DEM1-D008: ParallelEpisodesScenario tests ───────────────────────────
 
-    public class ParallelStoriesScenarioTests
+    public class ParallelEpisodesScenarioTests
     {
         /// <summary>
         /// Full scenario run — Phase A records live kinematics for 50 ticks;
@@ -882,9 +882,9 @@ namespace Fdp.Examples.Scenarios.Tests
         /// 25 and 50. Exit code 0 means both comparisons passed within 0.001 m.
         /// </summary>
         [Fact]
-        public void ParallelStories_RunToCompletion_ExitsZero()
+        public void ParallelEpisodes_RunToCompletion_ExitsZero()
         {
-            var scenario = new ParallelStoriesScenario();
+            var scenario = new ParallelEpisodesScenario();
             int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
             Assert.Equal(0, code);
         }
@@ -892,13 +892,13 @@ namespace Fdp.Examples.Scenarios.Tests
         /// <summary>
         /// After 25 replay frames have been applied (visible at EvaluateTick tick=26),
         /// the replayed <c>SimTransform.Position</c> must match the live trajectory within
-        /// <see cref="ParallelStoriesScenario.PositionTolerance"/> metres.
+        /// <see cref="ParallelEpisodesScenario.PositionTolerance"/> metres.
         /// Confirms that LZ4 recording + naked-node replay reproduce bit-identical positions.
         /// </summary>
         [Fact]
-        public void ParallelStories_ReplayMatchesLiveAtTick25()
+        public void ParallelEpisodes_ReplayMatchesLiveAtTick25()
         {
-            var scenario = new ParallelStoriesScenario();
+            var scenario = new ParallelEpisodesScenario();
             int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
 
             // Exit code 1 means a ScenarioFailureException was thrown at Phase 1.
@@ -906,19 +906,19 @@ namespace Fdp.Examples.Scenarios.Tests
 
             Assert.True(scenario.ReplayMatchedLiveAtTick25,
                 "Phase 1: replay position at frame 25 must match live position within " +
-                $"{ParallelStoriesScenario.PositionTolerance} m.");
+                $"{ParallelEpisodesScenario.PositionTolerance} m.");
         }
 
         /// <summary>
         /// Confirms that the main (replay) kernel contains no ground-kinematics systems.
-        /// The scenario captures <see cref="ParallelStoriesScenario.ReplayKernelModuleTypeNames"/>
+        /// The scenario captures <see cref="ParallelEpisodesScenario.ReplayKernelModuleTypeNames"/>
         /// directly from <see cref="ModuleHostKernel.GetRegisteredModuleTypeNames"/> so the test
         /// inspects the actual kernel topology, not an author-set flag.
         /// </summary>
         [Fact]
-        public void ParallelStories_NoCarKinimSystemsInReplayKernel()
+        public void ParallelEpisodes_NoCarKinimSystemsInReplayKernel()
         {
-            var scenario = new ParallelStoriesScenario();
+            var scenario = new ParallelEpisodesScenario();
             // Run the full scenario to verify it succeeds and Configure has been called.
             int code = ScenarioTestHarness.Run(scenario, maxTicks: 60);
 

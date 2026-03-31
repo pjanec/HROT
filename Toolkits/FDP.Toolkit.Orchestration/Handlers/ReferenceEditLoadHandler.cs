@@ -11,11 +11,11 @@ using FDP.Toolkit.Scenario;
 namespace FDP.Toolkit.Orchestration.Handlers
 {
     /// <summary>
-    /// Reference implementation of the edit-load DSM handler (CGF1-G0404).
+    /// Reference implementation of the edit-load Cluster handler (CGF1-G0404).
     ///
     /// <para>
     /// Handles <c>PrepareState (operationId=1)</c> payloads that target
-    /// <c>DSMState.LoadingEdit (state 10)</c>.  All other <c>PrepareState</c>
+    /// <c>ClusterState.LoadingEdit (state 10)</c>.  All other <c>PrepareState</c>
     /// targets are passed through as no-ops.
     /// </para>
     ///
@@ -32,12 +32,12 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// repository.  For new scenarios the world is left blank.
     /// </para>
     /// </summary>
-    public sealed class ReferenceEditLoadHandler : IDsmHandler
+    public sealed class ReferenceEditLoadHandler : IClusterStateHandler
     {
         /// <summary>Integer value of <c>NodeOpType.PrepareState</c> (stable constant).</summary>
         public const int PrepareStateOperationId = 1;
 
-        /// <summary>Integer value of <c>DSMState.LoadingEdit</c>.</summary>
+        /// <summary>Integer value of <c>ClusterState.LoadingEdit</c>.</summary>
         private const int LoadingEditState = 10;
 
         private readonly ScenarioSerializer   _serializer;

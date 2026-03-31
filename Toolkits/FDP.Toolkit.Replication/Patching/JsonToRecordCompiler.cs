@@ -2,7 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Text.Json;
-using Bagira.BDC.SSTM;
+using Hrot.NED.Messages;
 
 namespace FDP.Toolkit.Replication.Patching;
 

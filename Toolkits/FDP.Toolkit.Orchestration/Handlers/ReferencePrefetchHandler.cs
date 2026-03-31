@@ -8,10 +8,10 @@ using FDP.Kernel.Logging;
 namespace FDP.Toolkit.Orchestration.Handlers
 {
     /// <summary>
-    /// Reference implementation of the prefetch-files DSM handler.
+    /// Reference implementation of the prefetch-files Cluster handler.
     ///
     /// <para>Handles the <c>PrefetchFiles</c> operation (integer id 25).
-    /// When the orchestrator's DrillMaster copies scenario files to a node's staging
+    /// When the orchestrator's ClusterMaster copies scenario files to a node's staging
     /// directory via a storage gateway, it also fans out a <c>PrefetchFiles</c> command.
     /// This handler ensures the local staging directory exists and acknowledges completion
     /// via <see cref="IOrchestrationTransport"/>.</para>
@@ -25,7 +25,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// <see cref="OrchestrationStatusCode.Success"/>.
     /// </para>
     /// </summary>
-    public sealed class ReferencePrefetchHandler : IDsmHandler
+    public sealed class ReferencePrefetchHandler : IClusterStateHandler
     {
         /// <summary>Integer value of <c>NodeOpType.PrefetchFiles</c> (stable constant).</summary>
         public const int PrefetchFilesOperationId = 25;
