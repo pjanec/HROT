@@ -42,6 +42,9 @@ namespace FDP.Toolkit.Time
         private readonly DdsWriter<SwitchTimeModeWireDto>? _writer;
         private readonly FdpEventBus _eventBus;
 
+        // Tracks the last message received from the network to break the echo loop.
+        private SwitchTimeModeWireDto? _lastIngressed;
+
         public string TopicName         => TopicNameValue;
         public long   DescriptorOrdinal => OrdinalValue;
 
@@ -84,7 +87,18 @@ namespace FDP.Toolkit.Time
         {
             if (_writer is null) return;
             foreach (var evt in _eventBus.Consume<SwitchTimeModeEvent>())
+            {
+                // Break the echo loop: skip events that were just ingested from DDS.
+                if (_lastIngressed.HasValue &&
+                    _lastIngressed.Value.BarrierWallTicks == evt.BarrierWallTicks &&
+                    _lastIngressed.Value.TargetModeInt    == (int)evt.TargetMode &&
+                    _lastIngressed.Value.FixedDelta       == evt.FixedDelta)
+                {
+                    continue;
+                }
+
                 _writer.Write(SwitchTimeModeWireDto.ToWire(evt));
+            }
         }
 
         // ── Ingress ──────────────────────────────────────────────────────────
@@ -102,6 +116,7 @@ namespace FDP.Toolkit.Time
             foreach (var sample in loan)
             {
                 if (!sample.IsValid) continue;
+                _lastIngressed = sample.Data;
                 _eventBus.Publish(sample.Data.ToEvent());
             }
         }
