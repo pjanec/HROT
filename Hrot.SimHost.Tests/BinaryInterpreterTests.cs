@@ -6,8 +6,8 @@ using FDP.Toolkit.Replication.Patching;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for the P3T1 core: <see cref="BinaryInterpreterBuilder"/> and
-    /// <see cref="BinaryInterpreter"/>.  Tests use <see cref="ListPatchContext"/> for
+    /// Unit tests for the P3T1 core: <see cref="BinaryInterpreterBuilder{TRecord}"/> and
+    /// <see cref="BinaryInterpreter{TRecord}"/>.  Tests use <see cref="ListPatchContext"/> for
     /// assertions and plain lambda installers to avoid domain-layer dependencies.
     /// </summary>
     public class BinaryInterpreterTests
@@ -15,6 +15,9 @@ namespace Hrot.SimHost.Tests
         // ── Helper: build a minimal ListPatchContext (no seed) ───────────────────
 
         private static ListPatchContext EmptyCtx() => new ListPatchContext(null);
+
+        private static BinaryInterpreterBuilder<AttributeRecord> Builder()
+            => new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId);
 
         private static AttributeRecord Float64Record(ushort id, double val) =>
             new AttributeRecord
@@ -36,7 +39,7 @@ namespace Hrot.SimHost.Tests
         public void Apply_KnownId_HandlerInvoked()
         {
             double received = 0;
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = Builder()
                 .RegisterHandler(1, (ctx, rec) => received = rec.Value.DoubleValue)
                 .Build();
 
@@ -52,7 +55,7 @@ namespace Hrot.SimHost.Tests
         public void Apply_UnknownId_NoException()
         {
             int callCount = 0;
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = Builder()
                 .RegisterHandler(1, (ctx, rec) => callCount++)
                 .Build();
 
@@ -68,7 +71,7 @@ namespace Hrot.SimHost.Tests
         public void Apply_FlusherBitSet_FlusherCalledOnce()
         {
             int flusherCallCount = 0;
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = Builder()
                 .RegisterHandler(1, (ctx, rec) => ctx.MarkSubsystemDirty(0))
                 .RegisterSubsystemFlusher(0, ctx => flusherCallCount++)
                 .Build();
@@ -86,7 +89,7 @@ namespace Hrot.SimHost.Tests
         public void Apply_FlusherBitNotSet_FlusherNotCalled()
         {
             int flusherCallCount = 0;
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = Builder()
                 .RegisterHandler(1, (ctx, rec) => { /* does NOT call MarkSubsystemDirty */ })
                 .RegisterSubsystemFlusher(0, ctx => flusherCallCount++)
                 .Build();
@@ -109,7 +112,7 @@ namespace Hrot.SimHost.Tests
             var installer2 = new DelegateInstaller(b =>
                 b.RegisterHandler(2, (ctx, rec) => touched.Add(2)));
 
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = Builder()
                 .AddInstaller(installer1)
                 .AddInstaller(installer2)
                 .Build();
@@ -134,7 +137,7 @@ namespace Hrot.SimHost.Tests
                 offsetB = b.ReserveScratchpad(SizeB);
             });
 
-            new BinaryInterpreterBuilder().AddInstaller(installer).Build();
+            Builder().AddInstaller(installer).Build();
 
             Assert.Equal(0, offsetA);
             Assert.Equal(SizeA, offsetB);
@@ -146,7 +149,7 @@ namespace Hrot.SimHost.Tests
         public void Apply_SecondCall_DirtyMasksReset()
         {
             ulong capturedMask = ulong.MaxValue;
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = Builder()
                 .RegisterHandler(1, (ctx, rec) => ctx.MarkDescriptorDirty(5))
                 .RegisterHandler(2, (ctx, rec) =>
                 {
@@ -168,12 +171,12 @@ namespace Hrot.SimHost.Tests
 
         // ── Private helper: installer backed by a delegate ────────────────────────
 
-        private sealed class DelegateInstaller : IBinaryAttributeInstaller
+        private sealed class DelegateInstaller : IBinaryAttributeInstaller<AttributeRecord>
         {
-            private readonly Action<BinaryInterpreterBuilder> _configure;
-            public DelegateInstaller(Action<BinaryInterpreterBuilder> configure) =>
+            private readonly Action<BinaryInterpreterBuilder<AttributeRecord>> _configure;
+            public DelegateInstaller(Action<BinaryInterpreterBuilder<AttributeRecord>> configure) =>
                 _configure = configure;
-            public void Install(BinaryInterpreterBuilder builder) => _configure(builder);
+            public void Install(BinaryInterpreterBuilder<AttributeRecord> builder) => _configure(builder);
         }
 
         // ── Test 8: Scratchpad zeroed between Apply calls (ATTR2-DEBT-04) ─────────
@@ -188,7 +191,7 @@ namespace Hrot.SimHost.Tests
             // and whose id=2 handler reads the scratchpad value before id=1 writes it.
             long valueAtStartOfSecondCall = long.MaxValue;
 
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = Builder()
                 .AddInstaller(new DelegateInstaller(b =>
                 {
                     int offset = b.ReserveScratchpad(ScratchpadSize);

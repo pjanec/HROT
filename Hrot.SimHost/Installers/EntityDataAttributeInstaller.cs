@@ -21,12 +21,12 @@ namespace Hrot.SimHost.Installers;
 /// stays in sync with the JSON pipeline's affiliation mapping logic.
 /// </para>
 /// </summary>
-public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller
+public sealed class EntityDataAttributeInstaller : IBinaryAttributeInstaller<AttributeRecord>
 {
     private const long EntityInfoOrdinal = (long)EDescriptorType.dtEntityInfo;
 
     /// <inheritdoc/>
-    public void Install(BinaryInterpreterBuilder builder)
+    public void Install(BinaryInterpreterBuilder<AttributeRecord> builder)
     {
         builder.RegisterHandler(AttributeIds.Name, HandleName);
         builder.RegisterHandler(AttributeIds.Affiliation, HandleAffiliation);

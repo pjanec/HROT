@@ -110,11 +110,11 @@ public static class AttributeCompilerFactory
     public static JsonToRecordCompiler BuildEdgeCompiler()
     {
         return new JsonToRecordCompilerBuilder()
-            .Register("Name",                   AttributeIds.Name,        AttributeValueType.KindString)
-            .Register("Affiliation",             AttributeIds.Affiliation,  AttributeValueType.KindString)
-            .Register("GeoPosition.Latitude",   AttributeIds.GeoLat,      AttributeValueType.KindFloat64)
-            .Register("GeoPosition.Longitude",  AttributeIds.GeoLon,      AttributeValueType.KindFloat64)
-            .Register("GeoPosition.Altitude",   AttributeIds.GeoAlt,      AttributeValueType.KindFloat64)
+            .Register("Name",                   AttributeIds.Name,        AttributeValueKind.String)
+            .Register("Affiliation",             AttributeIds.Affiliation,  AttributeValueKind.String)
+            .Register("GeoPosition.Latitude",   AttributeIds.GeoLat,      AttributeValueKind.Float64)
+            .Register("GeoPosition.Longitude",  AttributeIds.GeoLon,      AttributeValueKind.Float64)
+            .Register("GeoPosition.Altitude",   AttributeIds.GeoAlt,      AttributeValueKind.Float64)
             .Build();
     }
 
@@ -128,9 +128,9 @@ public static class AttributeCompilerFactory
     /// <see cref="SimTransformAttributeInstaller"/> is not added and geo-position attribute
     /// records are silently ignored.
     /// </param>
-    public static BinaryInterpreter BuildBinaryInterpreter(IGeographicTransform? geoTransform)
+    public static BinaryInterpreter<AttributeRecord> BuildBinaryInterpreter(IGeographicTransform? geoTransform)
     {
-        var builder = new BinaryInterpreterBuilder()
+        var builder = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
             .AddInstaller(new EntityDataAttributeInstaller());
 
         if (geoTransform != null)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Numerics;
 using Hrot.NED.Descriptors;
 using CycloneDDS.Runtime;
@@ -16,15 +16,9 @@ using ModuleHost.Network.Cyclone.Translators;
 namespace Hrot.Map.Common.Replication.Ingress
 {
     /// <summary>
-    /// Ingress translator for the Hrot <c>GeoSpatial</c> DDS topic.
-    ///
+    /// Ingress translator for the Hrot <c>WorldPos</c> DDS topic.
     /// Converts geodetic coordinates (lat/lon/alt) into <see cref="NetworkTransform"/>
-    /// using the supplied <see cref="IGeographicTransform"/>.
-    ///
-    /// Entities not yet in <see cref="NetworkEntityMap"/> are silently skipped — they will
-    /// be processed on the next tick once <c>NetworkSpawningSystem</c> has registered them.
-    ///
-    /// This translator is ingress-only; <see cref="ScanAndPublish"/> is a no-op.
+    /// and polar velocity into <see cref="NetworkVelocity"/> in a single unified pass.
     /// </summary>
     public class GeoSpatialIngressTranslator : CycloneTranslator<WorldPos, WorldPos>
     {
@@ -45,8 +39,6 @@ namespace Hrot.Map.Common.Replication.Ingress
             _ghostCreationSystem = ghostCreationSystem ?? throw new ArgumentNullException(nameof(ghostCreationSystem));
         }
 
-        // ── Ingress ──────────────────────────────────────────────────────────
-
         protected override void Decode(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view)
         {
             long netId = data.EntityId;
@@ -63,54 +55,59 @@ namespace Hrot.Map.Common.Replication.Ingress
                 entity = _ghostCreationSystem.CreateGhost(repo, netId);
             }
 
-            var latitude = data.Pos.Latitude;
+            var latitude  = data.Pos.Latitude;
             var longitude = data.Pos.Longitude;
             FdpLog<GeoSpatialIngressTranslator>.Debug(
                 "[TRACE-IG] Ingress: GeoSpatial Entity={0} Lat={1} Lon={2}", entity.Index, latitude, longitude);
 
+            // 1. Position & rotation
             var cartesian = _geoTransform.ToCartesian(
-                data.Pos.Latitude,
-                data.Pos.Longitude,
-                data.Pos.Altitude);
+                data.Pos.Latitude, data.Pos.Longitude, data.Pos.Altitude);
 
             var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
-            // Reconstruct orientation from the heading carried in the GeoSpatial message so
-            // that drag-repositioned (or autonomously moving) entities keep their facing
-            // direction.  Previously this always wrote Quaternion.Identity which reset every
-            // entity to east-facing on every GeoSpatial update.
             var rotation = SimTransformBridgeSystem.HeadingDegToRotation(data.Ori.Heading);
 
             cmd.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
+            cmd.SetComponent(entity, new SimTransform    { Position = position, Rotation = rotation });
 
-            // SetComponent is upsert — adds the component if absent, updates it if present.
-            cmd.SetComponent(entity, new SimTransform
-            {
-                Position = position,
-                Rotation = rotation
-            });
+            // 2. Velocity (merged from former GeoSpatialDRIngressTranslator)
+            float speedMs = (float)data.Vel.Length;
+            float azimRad = (float)data.Vel.Azimuth   * (MathF.PI / 180f);
+            float elevRad = (float)data.Vel.Elevation * (MathF.PI / 180f);
+
+            var cartVel = new Vector3(
+                speedMs * MathF.Cos(elevRad) * MathF.Sin(azimRad),
+                speedMs * MathF.Cos(elevRad) * MathF.Cos(azimRad),
+                speedMs * MathF.Sin(elevRad));
+
+            cmd.SetComponent(entity, new NetworkVelocity { Value = cartVel });
         }
 
-        // ── Egress (ingress-only translator — nothing to publish) ────────────
-
         public override void ScanAndPublish(ISimulationView view) { }
-
-        // ── Ghost promotion helper ────────────────────────────────────────────
 
         public override void ApplyToEntity(Entity entity, object data, EntityRepository repo)
         {
             if (data is not WorldPos geo) return;
+
+            // 1. Position & rotation
             var cartesian = _geoTransform.ToCartesian(geo.Pos.Latitude, geo.Pos.Longitude, geo.Pos.Altitude);
-            var position = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
-            var rotation = SimTransformBridgeSystem.HeadingDegToRotation(geo.Ori.Heading);
+            var position  = new Vector3((float)cartesian.X, (float)cartesian.Y, (float)cartesian.Z);
+            var rotation  = SimTransformBridgeSystem.HeadingDegToRotation(geo.Ori.Heading);
 
             repo.SetComponent(entity, new NetworkTransform { LastPosition = position, LastRotation = rotation });
+            repo.SetComponent(entity, new SimTransform    { Position = position, Rotation = rotation });
 
-            // SetComponent is upsert — adds the component if absent, updates it if present.
-            repo.SetComponent(entity, new SimTransform
-            {
-                Position = position,
-                Rotation = rotation
-            });
+            // 2. Velocity
+            float speedMs = (float)geo.Vel.Length;
+            float azimRad = (float)geo.Vel.Azimuth   * (MathF.PI / 180f);
+            float elevRad = (float)geo.Vel.Elevation * (MathF.PI / 180f);
+
+            var cartVel = new Vector3(
+                speedMs * MathF.Cos(elevRad) * MathF.Sin(azimRad),
+                speedMs * MathF.Cos(elevRad) * MathF.Cos(azimRad),
+                speedMs * MathF.Sin(elevRad));
+
+            repo.SetComponent(entity, new NetworkVelocity { Value = cartVel });
         }
     }
 }

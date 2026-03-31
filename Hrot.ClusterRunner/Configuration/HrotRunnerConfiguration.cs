@@ -118,6 +118,7 @@ namespace Hrot.ClusterRunner.Configuration
             if (lower == "simhost")      return RunMode.SimHost;
             if (lower == "ig")           return RunMode.IG;
             if (lower == "excon")        return RunMode.ExCon;
+            if (lower == "ios")          return RunMode.ExCon;
             if (lower == "orchestrator") return RunMode.Orchestrator;
             if (lower == "cgf")          return RunMode.CGF;
             if (lower == "ci")           return RunMode.CI;
@@ -131,6 +132,7 @@ namespace Hrot.ClusterRunner.Configuration
                     case "simhost":      result |= RunMode.SimHost;      break;
                     case "ig":           result |= RunMode.IG;           break;
                     case "excon":          result |= RunMode.ExCon;      break;
+                    case "ios":          result |= RunMode.ExCon;        break;
                     case "orchestrator": result |= RunMode.Orchestrator; break;
                     case "cgf":          result |= RunMode.CGF;          break;
                     default:             return RunMode.None; // Any invalid token → reject entire string

@@ -50,7 +50,7 @@ namespace Hrot.SimHost.Systems
         private readonly IGeographicTransform?              _geoTransform;
         private readonly int                                _localNodeId;
         private readonly JsonAttributeCompiler?             _jsonCompiler;
-        private readonly BinaryInterpreter?                 _binaryInterpreter;
+        private readonly BinaryInterpreter<AttributeRecord>?         _binaryInterpreter;
         private readonly NedRequestFinalizationSystem?      _finalizationSystem;
 
         /// <summary>
@@ -95,7 +95,7 @@ namespace Hrot.SimHost.Systems
             int                                 localNodeId,
             IGeographicTransform?               geoTransform = null,
             JsonAttributeCompiler               jsonAttributeCompiler = null!,
-            BinaryInterpreter?                  binaryInterpreter = null,
+            BinaryInterpreter<AttributeRecord>?          binaryInterpreter = null,
             NedRequestFinalizationSystem?       finalizationSystem = null)
         {
             _requestSource      = requestSource ?? throw new ArgumentNullException(nameof(requestSource));

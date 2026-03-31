@@ -384,7 +384,7 @@ namespace Hrot.SimHost.Tests
 
         // ── ATTR2-P5T1: Binary attribute records path ─────────────────────────
 
-        private static BinaryInterpreter BuildBinaryInterpreter()
+        private static BinaryInterpreter<AttributeRecord> BuildBinaryInterpreter()
             => AttributeCompilerFactory.BuildBinaryInterpreter(null);
 
         private static EntityRepository CreateWorldWithIgEntityData()

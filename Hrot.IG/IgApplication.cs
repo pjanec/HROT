@@ -657,11 +657,11 @@ public class IgApplication : IDisposable
         // Registers the same five paths used by AttributeCompilerFactory.BuildEdgeCompiler()
         // in Hrot.SimHost so the JSON→Binary schema stays in sync on both ends of the wire.
         _edgeCompiler = new JsonToRecordCompilerBuilder()
-            .Register("Name",                  AttributeIds.Name,        AttributeValueType.KindString)
-            .Register("Affiliation",           AttributeIds.Affiliation,  AttributeValueType.KindString)
-            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueType.KindFloat64)
-            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueType.KindFloat64)
-            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueType.KindFloat64)
+            .Register("Name",                  AttributeIds.Name,        AttributeValueKind.String)
+            .Register("Affiliation",           AttributeIds.Affiliation,  AttributeValueKind.String)
+            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueKind.Float64)
+            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueKind.Float64)
+            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.Float64)
             .Build();
 
     }
@@ -781,10 +781,6 @@ public class IgApplication : IDisposable
 
                     participant, _entityMap, _geoTransform, _ghostCreationSystem);
 
-                var geoSpatialDrTranslator = new GeoSpatialDRIngressTranslator(
-
-                    participant, _entityMap, _geoTransform, _ghostCreationSystem);
-
                 var entityInfoTranslator = new EntityInfoIngressTranslator(
 
                     participant, _entityMap, _world.Bus, _ghostCreationSystem);
@@ -819,8 +815,6 @@ public class IgApplication : IDisposable
                     entityMasterTranslator,
 
                     _geoSpatialIngressTranslator,
-
-                    geoSpatialDrTranslator,
 
                     entityInfoTranslator,
 

@@ -30,7 +30,7 @@ namespace Hrot.SimHost.Installers;
 /// <see cref="AttributeCompilerFactory"/>.
 /// </para>
 /// </summary>
-public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller
+public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller<AttributeRecord>
 {
     // ── Subsystem flusher bit ─────────────────────────────────────────────────
     private const int GeoFlushBit = 0;
@@ -70,7 +70,7 @@ public sealed class SimTransformAttributeInstaller : IBinaryAttributeInstaller
     }
 
     /// <inheritdoc/>
-    public void Install(BinaryInterpreterBuilder builder)
+    public void Install(BinaryInterpreterBuilder<AttributeRecord> builder)
     {
         _scratchpadOffset = builder.ReserveScratchpad(Unsafe.SizeOf<GeoCoordScratchpad>());
 

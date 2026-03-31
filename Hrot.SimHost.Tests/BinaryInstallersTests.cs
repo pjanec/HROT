@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -7,6 +7,7 @@ using Hrot.NED.Messages;
 using Hrot.IG.Components;
 using Hrot.SimHost.Installers;
 using FDP.Toolkit.Replication.Patching;
+using Hrot.Map.Common.Replication;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 
@@ -62,7 +63,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EntityData_Name_WrittenToComponent()
         {
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -77,7 +78,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EntityData_Affiliation_StringVariant_WrittenToComponent()
         {
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -94,7 +95,7 @@ namespace Hrot.SimHost.Tests
         {
             // Use the FORCE_FRIENDLY enum int value to avoid calling the internal factory method.
             int friendlyInt = (int)eForceIdentifier.FORCE_FRIENDLY;
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -109,7 +110,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EntityData_AuthorityGuard_NoWriteWhenDenied()
         {
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -124,7 +125,7 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void EntityData_DescriptorDirtyBit_SetAfterNameWrite()
         {
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new EntityDataAttributeInstaller())
                 .Build();
 
@@ -143,7 +144,7 @@ namespace Hrot.SimHost.Tests
         public void SimTransform_FullUpdate_CartesianPositionWritten()
         {
             var geo         = new FactoryTestGeoTransform(); // lat→Y, lon→X, alt→Z
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 
@@ -170,7 +171,7 @@ namespace Hrot.SimHost.Tests
             var listCtx = new ListPatchContext(new List<object> { seedTransform });
 
             var geo         = new FactoryTestGeoTransform(); // lat→Y, lon→X, alt→Z
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 
@@ -187,7 +188,7 @@ namespace Hrot.SimHost.Tests
         public void SimTransform_MultipleRecordsSameApply_ToCartesianCalledOnce()
         {
             var geo         = new CountingGeoTransform();
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 
@@ -207,7 +208,7 @@ namespace Hrot.SimHost.Tests
         public void SimTransform_AuthorityGuard_NoWriteWhenDenied()
         {
             var geo          = new CountingGeoTransform();
-            var interpreter  = new BinaryInterpreterBuilder()
+            var interpreter  = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 
@@ -222,7 +223,7 @@ namespace Hrot.SimHost.Tests
         public void SimTransform_DescriptorDirtyBit_SetAfterPositionFlush()
         {
             var geo         = new FactoryTestGeoTransform();
-            var interpreter = new BinaryInterpreterBuilder()
+            var interpreter = new BinaryInterpreterBuilder<AttributeRecord>(r => r.AttributeId)
                 .AddInstaller(new SimTransformAttributeInstaller(geo))
                 .Build();
 
@@ -280,32 +281,34 @@ namespace Hrot.SimHost.Tests
         public void BuildEdgeCompiler_Name_EmitsNameRecord()
         {
             var compiler = AttributeCompilerFactory.BuildEdgeCompiler();
-            var output   = new AttributeRecord[8];
+            var buffer   = new AttributeRecord[8];
+            var emitter  = new NedAttributeRecordEmitter(buffer);
 
-            int count = compiler.Compile(
+            compiler.Compile(
                 System.Text.Encoding.UTF8.GetBytes("{\"Name\":\"Charlie\"}"),
-                output);
+                emitter);
 
-            Assert.Equal(1, count);
-            Assert.Equal(AttributeIds.Name, output[0].AttributeId);
-            Assert.Equal("Charlie", output[0].Value.StringValue);
+            Assert.Equal(1, emitter.Count);
+            Assert.Equal(AttributeIds.Name, emitter.Written[0].AttributeId);
+            Assert.Equal("Charlie", emitter.Written[0].Value.StringValue);
         }
 
         [Fact]
         public void BuildEdgeCompiler_GeoPosition_EmitsThreeRecords()
         {
             var compiler = AttributeCompilerFactory.BuildEdgeCompiler();
-            var output   = new AttributeRecord[8];
+            var buffer   = new AttributeRecord[8];
+            var emitter  = new NedAttributeRecordEmitter(buffer);
 
-            int count = compiler.Compile(
+            compiler.Compile(
                 System.Text.Encoding.UTF8.GetBytes(
                     "{\"GeoPosition\":{\"Latitude\":32.0,\"Longitude\":34.0,\"Altitude\":100.0}}"),
-                output);
+                emitter);
 
-            Assert.Equal(3, count);
-            Assert.Contains(output.Take(count).ToArray(), r => r.AttributeId == AttributeIds.GeoLat);
-            Assert.Contains(output.Take(count).ToArray(), r => r.AttributeId == AttributeIds.GeoLon);
-            Assert.Contains(output.Take(count).ToArray(), r => r.AttributeId == AttributeIds.GeoAlt);
+            Assert.Equal(3, emitter.Count);
+            Assert.Contains(emitter.Written.ToArray(), r => r.AttributeId == AttributeIds.GeoLat);
+            Assert.Contains(emitter.Written.ToArray(), r => r.AttributeId == AttributeIds.GeoLon);
+            Assert.Contains(emitter.Written.ToArray(), r => r.AttributeId == AttributeIds.GeoAlt);
         }
 
         // ── Private stubs ─────────────────────────────────────────────────────

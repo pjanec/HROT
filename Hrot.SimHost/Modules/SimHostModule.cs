@@ -101,7 +101,7 @@ namespace Hrot.SimHost.Modules
             GhostCreationSystem ghostCreationSystem,
             IGeographicTransform? geoTransform = null,
             JsonAttributeCompiler jsonAttributeCompiler = null!,
-            BinaryInterpreter? binaryInterpreter = null)
+            BinaryInterpreter<AttributeRecord>? binaryInterpreter = null)
         {
             var requestSource    = new DdsCreateEntityRequestSource(participant);
             var ackSink           = new DdsCreateUpdateDeleteEntityAckSink(participant);

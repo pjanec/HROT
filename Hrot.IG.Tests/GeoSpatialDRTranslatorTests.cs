@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using Hrot.Map.Common.Replication.Ingress;
@@ -13,6 +13,11 @@ using Xunit;
 
 namespace Hrot.IG.Tests
 {
+    /// <summary>
+    /// Tests for the velocity plane of the unified <see cref="GeoSpatialIngressTranslator"/>.
+    /// These scenarios previously lived in a separate GeoSpatialDRIngressTranslator which was
+    /// merged into the unified translator.
+    /// </summary>
     public class GeoSpatialDRTranslatorTests
     {
         private const long KnownId   = 1L;
@@ -28,7 +33,7 @@ namespace Hrot.IG.Tests
             entityMap.Register(KnownId, entity);
 
             var ghostCreationSystem = new GhostCreationSystem(entityMap);
-            var translator = new TestGeoSpatialDRIngressTranslator(participant, entityMap, new StubGeoTransform(), ghostCreationSystem);
+            var translator = new TestGeoSpatialIngressTranslator(participant, entityMap, new StubGeoTransform(), ghostCreationSystem);
             var cmd = new RecordingCommandBuffer();
 
             translator.DecodeForTest(new WorldPos
@@ -44,21 +49,17 @@ namespace Hrot.IG.Tests
             Assert.Equal(0f,  velocity.Z, 3);
         }
 
-        /// <summary>
-        /// When the entity is not yet in the map, the translator must create a ghost
-        /// and still apply the velocity component via the command buffer.
-        /// </summary>
         [Fact]
         public void Decode_UnknownEntity_CreatesGhostAndSetsNetworkVelocity()
         {
             using var participant = new DdsParticipant(0);
             var repo      = new EntityRepository();
-            repo.RegisterComponent<NetworkIdentity>(); // required by GhostCreationSystem
-            repo.RegisterComponent<GhostStateTracker>(); // required by GhostCreationSystem
+            repo.RegisterComponent<NetworkIdentity>();
+            repo.RegisterComponent<GhostStateTracker>();
             var entityMap = new NetworkEntityMap();
 
             var ghostCreationSystem = new GhostCreationSystem(entityMap);
-            var translator = new TestGeoSpatialDRIngressTranslator(participant, entityMap, new StubGeoTransform(), ghostCreationSystem);
+            var translator = new TestGeoSpatialIngressTranslator(participant, entityMap, new StubGeoTransform(), ghostCreationSystem);
             var cmd = new RecordingCommandBuffer();
 
             translator.DecodeForTest(new WorldPos
@@ -73,9 +74,9 @@ namespace Hrot.IG.Tests
                 "SetComponent<NetworkVelocity> must be called even for freshly created ghost entities");
         }
 
-        private sealed class TestGeoSpatialDRIngressTranslator : GeoSpatialDRIngressTranslator
+        private sealed class TestGeoSpatialIngressTranslator : GeoSpatialIngressTranslator
         {
-            public TestGeoSpatialDRIngressTranslator(
+            public TestGeoSpatialIngressTranslator(
                 DdsParticipant participant,
                 NetworkEntityMap entityMap,
                 IGeographicTransform geoTransform,
@@ -124,3 +125,4 @@ namespace Hrot.IG.Tests
         }
     }
 }
+

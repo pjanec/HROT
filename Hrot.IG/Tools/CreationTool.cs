@@ -8,6 +8,7 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
 using Hrot.IG.Components;
+using Hrot.Map.Common.Replication;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Patching;
 using FDP.Toolkit.Vis2D;
@@ -302,8 +303,10 @@ public class CreationTool : IMapTool
             var buffer   = ArrayPool<AttributeRecord>.Shared.Rent(64);
             try
             {
-                int count = _edgeCompiler.Compile(utf8Json, buffer);
-                request.InitialAttributeRecords = new List<AttributeRecord>(buffer[..count]);
+                var emitter = new NedAttributeRecordEmitter(buffer);
+                _edgeCompiler.Compile(utf8Json, emitter);
+                if (emitter.Count > 0)
+                    request.InitialAttributeRecords = new List<AttributeRecord>(emitter.Written.ToArray());
                 // Binary-only wire: leave InitialAttributesJson null.
                 request.InitialAttributesJson = null;
             }

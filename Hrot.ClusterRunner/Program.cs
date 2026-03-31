@@ -142,7 +142,13 @@ class Program
         if (config.ParsedMode.HasFlag(RunMode.ExCon ))     subsystems.Add(new ExConSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.CGF))     subsystems.Add(new CgfSubsystem());
 
-        var options = new RunnerOptions { Headless = config.Headless, DomainId = config.DomainId, NodeId = config.NodeId };
+        var options = new RunnerOptions
+        {
+            Headless       = config.Headless,
+            DomainId       = config.DomainId,
+            NodeId         = config.NodeId,
+            NodeIdResolver = ResolveAppNodeId,
+        };
 
         // ── Create + run orchestrator ─────────────────────────────────────────
         var orchestrator = new SubsystemOrchestrator(subsystems, options);
@@ -158,6 +164,28 @@ class Program
 
         Console.WriteLine("[Runner] Shutdown complete.");
         return 0;
+    }
+
+    /// <summary>
+    /// Application-layer node-ID resolver.  Maps each concrete subsystem name to a
+    /// deterministic, pairwise-unique offset added to the base node ID so every
+    /// subsystem in a multi-process cluster receives a distinct ID.
+    /// Returns 0 (legacy fallback) when <paramref name="baseNodeId"/> is 0.
+    /// </summary>
+    private static int ResolveAppNodeId(string subsystemName, int baseNodeId)
+    {
+        if (baseNodeId == 0) return 0;
+        int offset = subsystemName switch
+        {
+            "SimHost"      => 0,
+            "IG"           => 100,
+            "ExCon"        => 200,
+            "Orchestrator" => 300,
+            "CGF"          => 400,
+            "CI"           => 500,
+            _              => 600,
+        };
+        return baseNodeId + offset;
     }
 }
 

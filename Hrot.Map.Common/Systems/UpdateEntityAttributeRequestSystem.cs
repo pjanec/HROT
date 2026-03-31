@@ -55,7 +55,7 @@ namespace Hrot.Map.Common.Systems
         private readonly IUpdateEntityAttributeAckSink       _ackSink;
         private readonly NetworkEntityMap                    _entityMap;
         private readonly JsonAttributeCompiler?              _jsonCompiler;
-        private readonly BinaryInterpreter?                  _binaryInterpreter;
+        private readonly BinaryInterpreter<AttributeRecord>?            _binaryInterpreter;
         private readonly NodeId                              _localNodeId;
 
         // ── Interface-based constructor (test-friendly) ───────────────────────
@@ -87,7 +87,7 @@ namespace Hrot.Map.Common.Systems
             NetworkEntityMap                    entityMap,
             JsonAttributeCompiler?              jsonAttributeCompiler = null,
             NodeId                              localNodeId = default,
-            BinaryInterpreter?                  binaryInterpreter = null)
+            BinaryInterpreter<AttributeRecord>?          binaryInterpreter = null)
         {
             _requestSource     = requestSource ?? throw new ArgumentNullException(nameof(requestSource));
             _ackSink           = ackSink       ?? throw new ArgumentNullException(nameof(ackSink));

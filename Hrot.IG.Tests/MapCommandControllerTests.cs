@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.NED.Descriptors;
@@ -304,10 +304,10 @@ public class MapCommandControllerTests
         var entityWriter = new CapturingDdsWriter<CreateEntityRequest>();
         var ackWriter    = new CapturingDdsWriter<MapCommandAck>();
         var compiler     = new JsonToRecordCompilerBuilder()
-            .Register("Name",                  AttributeIds.Name,        AttributeValueType.KindString)
-            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueType.KindFloat64)
-            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueType.KindFloat64)
-            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueType.KindFloat64)
+            .Register("Name",                  AttributeIds.Name,        AttributeValueKind.String)
+            .Register("GeoPosition.Latitude",  AttributeIds.GeoLat,      AttributeValueKind.Float64)
+            .Register("GeoPosition.Longitude", AttributeIds.GeoLon,      AttributeValueKind.Float64)
+            .Register("GeoPosition.Altitude",  AttributeIds.GeoAlt,      AttributeValueKind.Float64)
             .Build();
         var controller   = new MapCommandController(canvas, entityWriter, ackWriter, compiler);
         return (canvas, entityWriter, ackWriter, controller);

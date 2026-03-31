@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -406,10 +406,10 @@ public class CreationToolTests
     /// </summary>
     private static JsonToRecordCompiler BuildTestEdgeCompiler()
         => new JsonToRecordCompilerBuilder()
-            .Register("Name",                  AttrName,   AttributeValueType.KindString)
-            .Register("GeoPosition.Latitude",  AttrGeoLat, AttributeValueType.KindFloat64)
-            .Register("GeoPosition.Longitude", AttrGeoLon, AttributeValueType.KindFloat64)
-            .Register("GeoPosition.Altitude",  AttrGeoAlt, AttributeValueType.KindFloat64)
+            .Register("Name",                  AttrName,   AttributeValueKind.String)
+            .Register("GeoPosition.Latitude",  AttrGeoLat, AttributeValueKind.Float64)
+            .Register("GeoPosition.Longitude", AttrGeoLon, AttributeValueKind.Float64)
+            .Register("GeoPosition.Altitude",  AttrGeoAlt, AttributeValueKind.Float64)
             .Build();
 
     /// <summary>
