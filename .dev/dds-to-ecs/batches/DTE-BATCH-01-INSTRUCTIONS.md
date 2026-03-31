@@ -2,8 +2,8 @@
 
 **Batch Number:** DTE-BATCH-01  
 **Tasks:** DDS2ECS-S1T1, DDS2ECS-S1T2  
-**Phase:** Phase 1 — Purify DDS Data Model  
-**Estimated Effort:** 4–6 hours  
+**Phase:** Phase 1 ï¿½ Purify DDS Data Model  
+**Estimated Effort:** 4ï¿½6 hours  
 **Priority:** HIGH  
 **Dependencies:** None (first batch)
 
@@ -13,17 +13,17 @@
 
 ### Developer Instructions
 This batch removes ECS `[ComponentId]` attributes from DDS DTOs and adds reflection guard tests.
-Follow the design rules in `docs/dds-to-ecs/DESIGN.md` — DDS types must never be ECS components.
+Follow the design rules in `docs/dds-to-ecs/DESIGN.md` ï¿½ DDS types must never be ECS components.
 
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
 2. **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md` (DDS2ECS-S1T1, DDS2ECS-S1T2)
-3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (§2.1, §3.1)
+3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (ï¿½2.1, ï¿½3.1)
 4. **Previous Review:** N/A (first batch)
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.DDS.DataModel/`
-- **Test Project:** `Bagira.DDS.DataModel.Tests/`
+- **Primary Work Area:** `Hrot.NED/`
+- **Test Project:** `Hrot.NED.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -68,7 +68,7 @@ These tasks eliminate the ECS coupling on DDS DTOs. This unblocks later phases t
 
 ### Task 1: Remove `[ComponentId]` from `EntityMaster` (DDS2ECS-S1T1)
 
-**File:** `Bagira.DDS.DataModel/GenericDescriptors.cs` (UPDATE)  
+**File:** `Hrot.NED/GenericDescriptors.cs` (UPDATE)  
 **Task Definition:** See `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s1t1--remove-componentid-from-entitymaster`
 
 **Description:**
@@ -79,17 +79,17 @@ Keep all DDS attributes intact.
 - Delete only the ECS attribute line.
 - No other structural changes to `EntityMaster`.
 
-**Design Reference:** `docs/dds-to-ecs/DESIGN.md` §2.1, §3.1
+**Design Reference:** `docs/dds-to-ecs/DESIGN.md` ï¿½2.1, ï¿½3.1
 
 **Tests Required (xUnit):**
-- Add xUnit test `EntityMaster_HasNo_ComponentIdAttribute` in `Bagira.DDS.DataModel.Tests/`:
+- Add xUnit test `EntityMaster_HasNo_ComponentIdAttribute` in `Hrot.NED.Tests/`:
   - Assert `typeof(EntityMaster).GetCustomAttributes(typeof(ComponentIdAttribute), false)` is empty.
 
 ---
 
 ### Task 2: Remove `[ComponentId]` from `EntityDamage` (DDS2ECS-S1T2)
 
-**File:** `Bagira.DDS.DataModel/SimDescriptors.cs` (UPDATE)  
+**File:** `Hrot.NED/SimDescriptors.cs` (UPDATE)  
 **Task Definition:** See `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s1t2--remove-componentid-from-entitydamage`
 
 **Description:**
@@ -97,20 +97,20 @@ Remove the `[ComponentId(GlobalComponentIds.EntityDamage)]` attribute from `Enti
 
 **Requirements:**
 - Delete only the ECS attribute line.
-- Ensure no `Bagira.*` (non-FDP) code references `GlobalComponentIds.EntityDamage` after change.
+- Ensure no `Hrot.*` (non-FDP) code references `GlobalComponentIds.EntityDamage` after change.
   Use a solution-wide search to verify and include the result in your report.
 
-**Design Reference:** `docs/dds-to-ecs/DESIGN.md` §2.1, §3.1
+**Design Reference:** `docs/dds-to-ecs/DESIGN.md` ï¿½2.1, ï¿½3.1
 
 **Tests Required (xUnit):**
-- Add xUnit test `EntityDamage_HasNo_ComponentIdAttribute` in `Bagira.DDS.DataModel.Tests/`:
+- Add xUnit test `EntityDamage_HasNo_ComponentIdAttribute` in `Hrot.NED.Tests/`:
   - Assert `typeof(EntityDamage).GetCustomAttributes(typeof(ComponentIdAttribute), false)` is empty.
 
 ---
 
 ## ?? Testing Requirements
-- Update or add tests in `Bagira.DDS.DataModel.Tests/`.
-- Run: `dotnet test Bagira.DDS.DataModel.Tests/Bagira.DDS.DataModel.Tests.csproj`
+- Update or add tests in `Hrot.NED.Tests/`.
+- Run: `dotnet test Hrot.NED.Tests/Hrot.NED.Tests.csproj`
 - All tests must pass before reporting completion.
 
 ---
@@ -162,4 +162,4 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 - **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md`
-- **Design:** `docs/dds-to-ecs/DESIGN.md` (§2.1, §3.1)
+- **Design:** `docs/dds-to-ecs/DESIGN.md` (ï¿½2.1, ï¿½3.1)

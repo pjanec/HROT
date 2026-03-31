@@ -16,32 +16,32 @@
 
 ### Task IG.1.3 — Integrate NetworkDemo Network Module
 New files:
-- `Bagira.IG/IgNetworkConstants.cs` — all DDS/network constants (DdsDomain=0, InstanceId=300, LocalNodeId=1, geo origin)
-- `Bagira.IG/Translators/EntityMasterTranslator.cs` — ingress: DDS `EntityMaster` → `SpawnEntityCommand` / `DestroyEntityCommand` on FdpEventBus
-- `Bagira.IG/Translators/GeoSpatialTranslator.cs` — extends `CycloneTranslator<GeoSpatial,GeoSpatial>`; converts WGS84 → `SimTransform`
-- `Bagira.IG/Translators/EntityInfoTranslator.cs` — ingress: DDS `EntityInfo` → `UpdateEntityCommand` on FdpEventBus
-- `Bagira.IG/Translators/TimePulseTranslator.cs` — bridges DDS `TimePulse` → `FdpEventBus.Publish<TimePulseDescriptor>()` for `SlaveTimeController`
+- `Hrot.IG/IgNetworkConstants.cs` — all DDS/network constants (DdsDomain=0, InstanceId=300, LocalNodeId=1, geo origin)
+- `Hrot.IG/Translators/EntityMasterTranslator.cs` — ingress: DDS `EntityMaster` → `SpawnEntityCommand` / `DestroyEntityCommand` on FdpEventBus
+- `Hrot.IG/Translators/WorldPosTranslator.cs` — extends `CycloneTranslator<WorldPos,WorldPos>`; converts WGS84 → `SimTransform`
+- `Hrot.IG/Translators/EntityInfoTranslator.cs` — ingress: DDS `EntityInfo` → `UpdateEntityCommand` on FdpEventBus
+- `Hrot.IG/Translators/TimePulseTranslator.cs` — bridges DDS `TimePulse` → `FdpEventBus.Publish<TimePulseDescriptor>()` for `SlaveTimeController`
 
 Modified:
-- `Bagira.IG/IgApplication.cs` — added full kernel + network init: `InitializeEcs()`, `InitializeNetwork()`, updated `Run()` and `Shutdown()`
+- `Hrot.IG/IgApplication.cs` — added full kernel + network init: `InitializeEcs()`, `InitializeNetwork()`, updated `Run()` and `Shutdown()`
 
 ### Task IG.1.3b — Register NetworkSpawningSystem via SpawningModule
 New file:
-- `Bagira.IG/Modules/SpawningModule.cs` — thin `IModule` wrapper for `NetworkSpawningSystem`; Name=`"NetworkSpawning"`, Policy=`ExecutionPolicy.Synchronous()`
+- `Hrot.IG/Modules/SpawningModule.cs` — thin `IModule` wrapper for `NetworkSpawningSystem`; Name=`"NetworkSpawning"`, Policy=`ExecutionPolicy.Synchronous()`
 
 Support:
-- `Bagira.IG/IgSequentialIdAllocator.cs` — local `INetworkIdAllocator` (ghost node only; no IDs transmitted to network)
+- `Hrot.IG/IgSequentialIdAllocator.cs` — local `INetworkIdAllocator` (ghost node only; no IDs transmitted to network)
 
 ### Task IG.1.4 — Add EntityRenderLayer with Stub Visualizer
 New files:
-- `Bagira.IG/Adapters/StubVisualizerAdapter.cs` — implements `IVisualizerAdapter`; 10 px red/yellow/orange circle, `#netId` label when `NetworkIdentity` present
-- `Bagira.IG/Adapters/StubVisualizerConstants.cs` — `CircleRadiusPx=10`, `LabelOffsetPx=15`, `LabelFontSize=10`, `HitRadiusWorldUnits=20f`
+- `Hrot.IG/Adapters/StubVisualizerAdapter.cs` — implements `IVisualizerAdapter`; 10 px red/yellow/orange circle, `#netId` label when `NetworkIdentity` present
+- `Hrot.IG/Adapters/StubVisualizerConstants.cs` — `CircleRadiusPx=10`, `LabelOffsetPx=15`, `LabelFontSize=10`, `HitRadiusWorldUnits=20f`
 
 ### Test Files
-- `Bagira.IG.Tests/EntityMasterTranslatorTests.cs` — 5 tests (spawn path, known-entity update, dispose, PollIngress no-op)
-- `Bagira.IG.Tests/TimePulseTranslatorTests.cs` — 4 tests (bus registration, HasEvent after swap, field round-trip, PollIngress no-op)
-- `Bagira.IG.Tests/SpawningModuleIntegrationTests.cs` — 5 tests (module properties, entity manifests with correct identity, initial components applied, duplicate suppressed)
-- `Bagira.IG.Tests/StubVisualizerAdapterTests.cs` — 7 tests (position null/present/Z-ignored, hitRadius constant, hoverLabel null/formatted/two-entities)
+- `Hrot.IG.Tests/EntityMasterTranslatorTests.cs` — 5 tests (spawn path, known-entity update, dispose, PollIngress no-op)
+- `Hrot.IG.Tests/TimePulseTranslatorTests.cs` — 4 tests (bus registration, HasEvent after swap, field round-trip, PollIngress no-op)
+- `Hrot.IG.Tests/SpawningModuleIntegrationTests.cs` — 5 tests (module properties, entity manifests with correct identity, initial components applied, duplicate suppressed)
+- `Hrot.IG.Tests/StubVisualizerAdapterTests.cs` — 7 tests (position null/present/Z-ignored, hitRadius constant, hoverLabel null/formatted/two-entities)
 
 ---
 
@@ -67,7 +67,7 @@ A secondary issue was **`NetworkEntityMap` existing in two namespaces**: `FDP.To
 
 The correct approach for a production visualizer is a zoom-adaptive hit radius: `CircleRadiusPx / camera.Zoom`. However, for Phase-1 stub rendering this is acceptable. The constant has been named `HitRadiusWorldUnits` and is pinned by a test so any future zoom change immediately breaks the test and forces a review.
 
-A second edge case: `GetPosition` returns `null` when `SimTransform` is absent. `EntityRenderLayer` skips rendering for null positions. However, entities can exist in the ECS (spawned from `EntityMaster`) *before* a `GeoSpatial` update arrives, because `GeoSpatialTranslator` silently skips unmapped entities. During that first-tick gap the entity is in the network map but has no position, so it is invisible. This is correct and intentional behaviour for a ghost node.
+A second edge case: `GetPosition` returns `null` when `SimTransform` is absent. `EntityRenderLayer` skips rendering for null positions. However, entities can exist in the ECS (spawned from `EntityMaster`) *before* a `WorldPos` update arrives, because `WorldPosTranslator` silently skips unmapped entities. During that first-tick gap the entity is in the network map but has no position, so it is invisible. This is correct and intentional behaviour for a ghost node.
 
 ### Q4: Performance drift translating SimTransform over 100 entity counts
 
@@ -94,18 +94,18 @@ None. The managed-struct workaround for `EntityInfo` is documented in the transl
 | `README.md` | Created | Native build prereqs |
 | `docs/design/TASK-DETAILS-IG.md` | Modified | `rlImGui` → `rlImgui-cs 3.2.0` |
 | `.dev-workstream/IG-DEBT-TRACKER.md` | Modified | Resolved IG-DEBT-001, IG-DEBT-002 |
-| `Bagira.IG/IgNetworkConstants.cs` | Created | DDS/network constants |
-| `Bagira.IG/IgSequentialIdAllocator.cs` | Created | Local `INetworkIdAllocator` |
-| `Bagira.IG/IgApplication.cs` | Modified | Full kernel + network integration |
-| `Bagira.IG/Bagira.IG.csproj` | Modified | `InternalsVisibleTo("Bagira.IG.Tests")` |
-| `Bagira.IG/Translators/EntityMasterTranslator.cs` | Created | DDS EntityMaster → SpawnEntityCommand |
-| `Bagira.IG/Translators/GeoSpatialTranslator.cs` | Created | DDS GeoSpatial → SimTransform |
-| `Bagira.IG/Translators/EntityInfoTranslator.cs` | Created | DDS EntityInfo → UpdateEntityCommand |
-| `Bagira.IG/Translators/TimePulseTranslator.cs` | Created | DDS TimePulse → FdpEventBus |
-| `Bagira.IG/Modules/SpawningModule.cs` | Created | IModule wrapping NetworkSpawningSystem |
-| `Bagira.IG/Adapters/StubVisualizerAdapter.cs` | Created | `IVisualizerAdapter` red circles |
-| `Bagira.IG/Adapters/StubVisualizerConstants.cs` | Created | Named rendering constants |
-| `Bagira.IG.Tests/EntityMasterTranslatorTests.cs` | Created | 5 tests |
-| `Bagira.IG.Tests/TimePulseTranslatorTests.cs` | Created | 4 tests |
-| `Bagira.IG.Tests/SpawningModuleIntegrationTests.cs` | Created | 5 tests |
-| `Bagira.IG.Tests/StubVisualizerAdapterTests.cs` | Created | 7 tests |
+| `Hrot.IG/IgNetworkConstants.cs` | Created | DDS/network constants |
+| `Hrot.IG/IgSequentialIdAllocator.cs` | Created | Local `INetworkIdAllocator` |
+| `Hrot.IG/IgApplication.cs` | Modified | Full kernel + network integration |
+| `Hrot.IG/Hrot.IG.csproj` | Modified | `InternalsVisibleTo("Hrot.IG.Tests")` |
+| `Hrot.IG/Translators/EntityMasterTranslator.cs` | Created | DDS EntityMaster → SpawnEntityCommand |
+| `Hrot.IG/Translators/WorldPosTranslator.cs` | Created | DDS WorldPos → SimTransform |
+| `Hrot.IG/Translators/EntityInfoTranslator.cs` | Created | DDS EntityInfo → UpdateEntityCommand |
+| `Hrot.IG/Translators/TimePulseTranslator.cs` | Created | DDS TimePulse → FdpEventBus |
+| `Hrot.IG/Modules/SpawningModule.cs` | Created | IModule wrapping NetworkSpawningSystem |
+| `Hrot.IG/Adapters/StubVisualizerAdapter.cs` | Created | `IVisualizerAdapter` red circles |
+| `Hrot.IG/Adapters/StubVisualizerConstants.cs` | Created | Named rendering constants |
+| `Hrot.IG.Tests/EntityMasterTranslatorTests.cs` | Created | 5 tests |
+| `Hrot.IG.Tests/TimePulseTranslatorTests.cs` | Created | 4 tests |
+| `Hrot.IG.Tests/SpawningModuleIntegrationTests.cs` | Created | 5 tests |
+| `Hrot.IG.Tests/StubVisualizerAdapterTests.cs` | Created | 7 tests |

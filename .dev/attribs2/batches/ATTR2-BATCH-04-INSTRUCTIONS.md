@@ -21,12 +21,12 @@ Welcome back! With Phase 6 completed, the complete binary pipeline from IG UI in
 
 ### Source Code Location
 - **Primary Work Areas:**
-  - `Bagira.Map.Common/Replication/Patching/EcsPatchContext.cs` (and factory locations)
-  - `Bagira.Map.Common/Replication/Utils/JsonAttributeCompiler.cs`
-  - `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
-  - `Bagira.Map.Common/Systems/CreateEntityRequestSystem.cs`
-  - `Bagira.IG/IgApplication.cs` (or DI entry point)
-- **Test Projects:** `Bagira.Map.Common.Tests`, `Bagira.IG.Tests`
+  - `Hrot.Map.Common/Replication/Patching/EcsPatchContext.cs` (and factory locations)
+  - `Hrot.Map.Common/Replication/Utils/JsonAttributeCompiler.cs`
+  - `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
+  - `Hrot.Map.Common/Systems/CreateEntityRequestSystem.cs`
+  - `Hrot.IG/IgApplication.cs` (or DI entry point)
+- **Test Projects:** `Hrot.Map.Common.Tests`, `Hrot.IG.Tests`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -52,7 +52,7 @@ Welcome back! With Phase 6 completed, the complete binary pipeline from IG UI in
 
 ### Task 1: Standalone `EcsPatchContext` Factory (ATTR2-DEBT-06)
 
-**File:** `Bagira.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` & Associated consumers  
+**File:** `Hrot.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` & Associated consumers  
 
 **Description:** In Batch 3, the `UpdateEntityAttributeRequestSystem` binary branch was forced to use the `_jsonCompiler` field just to gain access to `CreatePatchContext()`. 
 **Requirements:**
@@ -67,7 +67,7 @@ Welcome back! With Phase 6 completed, the complete binary pipeline from IG UI in
 
 ### Task 2: IG DI Wiring for `CreationTool` (ATTR2-DEBT-07)
 
-**File:** `Bagira.IG/IgApplication.cs` (or equivalent DI registration class)  
+**File:** `Hrot.IG/IgApplication.cs` (or equivalent DI registration class)  
 
 **Description:** The Edge Compiler `JsonToRecordCompiler` currently only exists in unit tests and factory files. The live UI `CreationTool` must have it injected for production usage.
 **Requirements:**
@@ -92,5 +92,5 @@ Welcome back! With Phase 6 completed, the complete binary pipeline from IG UI in
 - [ ] Task 1 Completed: `EcsPatchContext` constructed without `JsonAttributeCompiler`.
 - [ ] Task 1 Completed: Binary interpretation works independent of JSON dependencies in ECS systems.
 - [ ] Task 2 Completed: Production `CreationTool` initialized securely with `JsonToRecordCompiler` in DI container.
-- [ ] No regression failures across `Bagira.IG.Tests` or `Bagira.Map.Common.Tests`.
+- [ ] No regression failures across `Hrot.IG.Tests` or `Hrot.Map.Common.Tests`.
 - [ ] Report submitted.

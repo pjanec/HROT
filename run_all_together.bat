@@ -1,5 +1,5 @@
 set DOMAIN=0
 
-SET RUNNER=Bagira.Runner\bin\Debug\net8.0\Bagira.Runner.exe -d %DOMAIN%
+SET RUNNER=Hrot.ClusterRunner\bin\Debug\net8.0\Hrot.ClusterRunner.exe -d %DOMAIN%
 
 %RUNNER% -m all

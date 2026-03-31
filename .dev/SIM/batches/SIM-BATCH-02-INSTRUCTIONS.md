@@ -20,8 +20,8 @@ Welcome to the next phase of SimHost. This batch focuses on registering the Beha
 3. **Previous Review:** `.dev-workstream/reviews/SIM-BATCH-01-REVIEW.md` - Please remember to submit the report file for this batch!
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`
-- **Test Project:** `Bagira.SimHost.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/`
+- **Test Project:** `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -64,7 +64,7 @@ Currently, `SimulationLogicModule` in SimHost does not register the logic proces
 
 ### Task 1: Register Behavior / Navigation / Physics Systems (TASK-S4.1)
 
-**File:** `[Replace or Create the SimulationLogicModule inside Bagira.SimHost]`  (If it exists, update it. Otherwise, create it)
+**File:** `[Replace or Create the SimulationLogicModule inside Hrot.SimHost]`  (If it exists, update it. Otherwise, create it)
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s41-register-behavior--navigation--physics-systems)
 
 **Description:**
@@ -82,7 +82,7 @@ In `SimulationLogicModule.RegisterSystems()`, register in **strict order**:
 8. `new SpatialHashSystem()`, `new FormationTargetSystem()`, `new VehicleCommandSystem()`, `new CarKinematicsSystem(...)` (provide valid stub/dummy parameters if necessary)
 9. `new LinearKinematicsSystem()`
 
-*Requirement Updates*: Some systems may not yet exist in `Bagira.SimHost` directly or may require external APIs. For `MissionAdapterSystem` and `JoinFormationExecutor`, create empty class stubs extending `ComponentSystem` or using `IActionExecutor` if needed, so it compiles. 
+*Requirement Updates*: Some systems may not yet exist in `Hrot.SimHost` directly or may require external APIs. For `MissionAdapterSystem` and `JoinFormationExecutor`, create empty class stubs extending `ComponentSystem` or using `IActionExecutor` if needed, so it compiles. 
 
 You must also update `SimulationLogicModule` constructor to accept `DoctrineRegistry` and `NetworkEntityMap` parameters.
 

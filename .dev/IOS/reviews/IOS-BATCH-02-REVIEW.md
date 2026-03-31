@@ -36,7 +36,7 @@ Completes IOS.7.1, IOS.7.2, IOS.7.3, IOS.7.4, IOS.7.5
 
 Implements the user interface elements for system configuration, ORBAT tracking, mission assignment editing, interaction/transaction logging, and an entity Spawner lookup. All panels adhere to a dual-layered design enabling complete unit testing abstraction independent of ImGui logic loops.
 
-Bagira.IOS Panels:
+Hrot.ExCon Panels:
 - ConfigPanel implemented mapping view and interaction configurations.
 - OrbatPanel renders entity command topologies preventing infinite loops.
 - MissionPanel integrated against the MissionEditorService logic boundaries. 

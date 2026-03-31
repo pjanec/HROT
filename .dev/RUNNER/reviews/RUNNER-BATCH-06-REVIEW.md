@@ -28,7 +28,7 @@ The developer successfully completed the final tasks for the Runner Application 
 **Overall:** Pass. `dotnet test IOS-IG-SimHost.sln` completes successfully across the entire ecosystem.
 
 ## 🎓 Conclusion
-This officially completes the `Bagira.Runner` development track. The application scales dynamically from single-role components (e.g. `SimHost.exe`) to a completely managed local-process orchestrator (`Runner.exe --mode all`), resolving the `GlobalComponentIds` limitations across the board.
+This officially completes the `Hrot.ClusterRunner` development track. The application scales dynamically from single-role components (e.g. `SimHost.exe`) to a completely managed local-process orchestrator (`Runner.exe --mode all`), resolving the `GlobalComponentIds` limitations across the board.
 
 ## 💡 Suggested Commit Message
 ```text

@@ -9,7 +9,7 @@
 
 ## Summary
 
-You successfully completed the mechanical relocation and renaming required for the Phase 5 (Part B) Translator Unification. The `Bagira.Map.Common` library successfully encapsulates `DescriptorMapper` and the disparate Ingress/Egress pipelines. You also brought up the Integration Tests for Phase 4.
+You successfully completed the mechanical relocation and renaming required for the Phase 5 (Part B) Translator Unification. The `Hrot.Map.Common` library successfully encapsulates `DescriptorMapper` and the disparate Ingress/Egress pipelines. You also brought up the Integration Tests for Phase 4.
 
 However, the batch **FAILED** its architectural and integration validation because you did not verify the results natively, and you bypassed testing the full `dotnet test` suite. The solution crashes at runtime during standard interactions. 
 

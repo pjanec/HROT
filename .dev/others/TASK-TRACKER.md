@@ -31,7 +31,7 @@
 
 ### Phase 2: Data Model Assembly
 
-- [x] **P2.1** Create Bagira.DDS.DataModel Project [details](./TASK-DETAILS-SHARED.md#task-p21-create-bagiraddsdatamodel-project)
+- [x] **P2.1** Create Hrot.NED Project [details](./TASK-DETAILS-SHARED.md#task-p21-create-hrotddsdatamodel-project)
 - [x] **P2.2** Import FcdCsharp Types [details](./TASK-DETAILS-SHARED.md#task-p22-import-fcdcsharp-types)
 - [x] **P2.3** Add DDS Attributes [details](./TASK-DETAILS-SHARED.md#task-p23-add-dds-attributes)
 - [-] **P2.4** Create DDS Publisher/Subscriber Test [details](./TASK-DETAILS-SHARED.md#task-p24-create-dds-publishersubscriber-test)
@@ -56,9 +56,9 @@
 - [x] **P4.4** Write Commands Unit Tests [details](./TASK-DETAILS-SHARED.md#task-p44-write-commands-unit-tests)
 - [x] **P4.5** Document Commands Library [details](./TASK-DETAILS-SHARED.md#task-p45-document-commands-library)
 
-### Phase 5: Bagira.Map.Definitions (TKB Extensions)
+### Phase 5: Hrot.Map.Definitions (TKB Extensions)
 
-- [x] **P5.1** Create Bagira.Map.Definitions Project [details](./TASK-DETAILS-SHARED.md#task-p51-create-bagiramapdefinitions-project)
+- [x] **P5.1** Create Hrot.Map.Definitions Project [details](./TASK-DETAILS-SHARED.md#task-p51-create-hrotmapdefinitions-project)
 - [x] **P5.2** Implement IG Visual Descriptor [details](./TASK-DETAILS-SHARED.md#task-p52-implement-ig-visual-descriptor)
 - [x] **P5.3** Implement SimHost Vehicle Descriptor [details](./TASK-DETAILS-SHARED.md#task-p53-implement-simhost-vehicle-descriptor)
 - [x] **P5.4** Implement SimHost Combat Descriptor [details](./TASK-DETAILS-SHARED.md#task-p54-implement-simhost-combat-descriptor)
@@ -68,13 +68,13 @@
 - [-] **P5.8** Write TKB Extensions Tests [details](./TASK-DETAILS-SHARED.md#task-p58-write-tkb-extensions-tests) (Skipped - obsolete architecture)
 - [x] **P5.9** Document TKB Extensions Library [details](./TASK-DETAILS-SHARED.md#task-p59-document-tkb-extensions-library)
 
-### Phase 6: Bagira.Map.Common Assembly
+### Phase 6: Hrot.Map.Common Assembly
 
-- [x] **P6.1** Create Bagira.Map.Common Project [details](./TASK-DETAILS-SHARED.md#task-p61-create-bagiramapcommon-project)
+- [x] **P6.1** Create Hrot.Map.Common Project [details](./TASK-DETAILS-SHARED.md#task-p61-create-hrotmapcommon-project)
 - [x] **P6.2** Add TKB Entity Types Constants [details](./TASK-DETAILS-SHARED.md#task-p62-add-tkb-entity-types-constants)
 - [x] **P6.3** Add Map Configuration Constants [details](./TASK-DETAILS-SHARED.md#task-p63-add-map-configuration-constants)
-- [x] **P6.4** Create Bagira.Map.Common README [details](./TASK-DETAILS-SHARED.md#task-p64-create-bagiramapcommon-readme)
-- [x] **P6.5** Build and Validate Bagira.Map.Common [details](./TASK-DETAILS-SHARED.md#task-p65-build-and-validate-bagiramapcommon)
+- [x] **P6.4** Create Hrot.Map.Common README [details](./TASK-DETAILS-SHARED.md#task-p64-create-hrotmapcommon-readme)
+- [x] **P6.5** Build and Validate Hrot.Map.Common [details](./TASK-DETAILS-SHARED.md#task-p65-build-and-validate-hrotmapcommon)
 
 ### Phase 7: Integration Testing (SKIPPED)
 
@@ -185,7 +185,7 @@
 
 ### Phase IG1: Core Infrastructure
 
-- [x] **IG.1.1** Create Bagira.IG Project [details](./TASK-DETAILS-IG.md#task-ig11-create-bagiraig-project)
+- [x] **IG.1.1** Create Hrot.IG Project [details](./TASK-DETAILS-IG.md#task-ig11-create-hrotig-project)
 - [x] **IG.1.2** Setup MapCanvas with Camera Controls [details](./TASK-DETAILS-IG.md#task-ig12-setup-mapcanvas-with-camera-controls)
 - [x] **IG.1.3** Integrate NetworkDemo Network Module (translators publish SpawnEntityCommand) [details](./TASK-DETAILS-IG.md#task-ig13-integrate-networkdemo-network-module)
 - [x] **IG.1.3b** Register NetworkSpawningSystem via SpawningModule [details](./TASK-DETAILS-IG.md#task-ig13b-register-networkspawningsystem-in-ig-kernel)
@@ -232,7 +232,7 @@
 
 ### Phase IOS-P5: Project Setup
 
-- [x] **IOS.P5.1** Create Bagira.IOS Console Project [details](./TASK-DETAILS-IOS.md#p51-create-bagiraios-project)
+- [x] **IOS.P5.1** Create Hrot.ExCon Console Project [details](./TASK-DETAILS-IOS.md#p51-create-hrotios-project)
 - [x] **IOS.P5.2** Add Dependencies [details](./TASK-DETAILS-IOS.md#p52-add-dependencies)
 
 ### Phase IOS-P6: IOS Services
@@ -289,11 +289,11 @@
 - [x] **R0.1** Make Component IDs Deterministic (`[ComponentId]` attribute + `GlobalComponentIds` catalog) [details](./TASK-DETAILS-RUNNER.md#r01-make-component-ids-deterministic)
 - [x] **R0.2** Implement Flight Recorder Schema Manifest + Validator [details](./TASK-DETAILS-RUNNER.md#r02-implement-flight-recorder-schema-manifest)
 
-> **✅ Phase R1 Complete (2026-03-07):** Runner Core Infrastructure implemented. `Bagira.Runner` project created with `RunnerConfiguration` (CLI + JSON), `SubsystemOrchestrator` (Raylib window ownership, reverse-shutdown), `ISubsystem` interface, `SubsystemStatusAnnounce` DDS topic, and `WaitingRoomCoordinator`. 39 Runner tests + 2 new DDS DataModel tests. Zero regressions. See [RUNNER-BATCH-02-REPORT.md](../../.dev-workstream/reports/RUNNER-BATCH-02-REPORT.md).
+> **✅ Phase R1 Complete (2026-03-07):** Runner Core Infrastructure implemented. `Hrot.ClusterRunner` project created with `RunnerConfiguration` (CLI + JSON), `SubsystemOrchestrator` (Raylib window ownership, reverse-shutdown), `ISubsystem` interface, `SubsystemStatusAnnounce` DDS topic, and `WaitingRoomCoordinator`. 39 Runner tests + 2 new DDS DataModel tests. Zero regressions. See [RUNNER-BATCH-02-REPORT.md](../../.dev-workstream/reports/RUNNER-BATCH-02-REPORT.md).
 
 ### Phase R1: Runner Core Infrastructure ✅ COMPLETE
 
-- [x] **R1.1** Create `Bagira.Runner` Project Structure [details](./TASK-DETAILS-RUNNER.md#r11-create-bagirarunner-project-structure)
+- [x] **R1.1** Create `Hrot.ClusterRunner` Project Structure [details](./TASK-DETAILS-RUNNER.md#r11-create-hrotrunner-project-structure)
 - [x] **R1.2** Implement `RunnerConfiguration` + `RunMode` Enum [details](./TASK-DETAILS-RUNNER.md#r12-implement-runnerconfiguration--runmode-enum)
 - [x] **R1.3** Implement `SubsystemOrchestrator` [details](./TASK-DETAILS-RUNNER.md#r13-implement-subsystemorchestrator)
 - [x] **R1.4** Implement `ISubsystem` Interface + Stubs [details](./TASK-DETAILS-RUNNER.md#r14-implement-isubsystem-interface--stubs)

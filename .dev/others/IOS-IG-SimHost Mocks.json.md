@@ -402,8 +402,8 @@ Here is the detailed functional breakdown for each mock, designed for architectu
 
 To make this modular, we need a **Common Library** used by all three:
 
-1.  **`Bagira.DDS.DataModel`:** Contains the compiled IDL structs (`bdc-sst-dm.txt`).
-2.  **`Bagira.Map.Definitions`:**
+1.  **`Hrot.NED`:** Contains the compiled IDL structs (`bdc-sst-dm.txt`).
+2.  **`Hrot.Map.Definitions`:**
     *   **TKB Mocks:** A simple static class/JSON defining the known Entity Types (e.g., Type 100 = Tank, Type 8801 = Fire Line) and their default styles.
     *   **Layer Constants:** String constants for layer names (`"units_ground"`, `"tactical_graphics"`).
     *   **Style Enums:** Presets for line styles (Solid, Dashed).
@@ -462,8 +462,8 @@ In BDC SST, an "Entity" is not a monolithic object. It is a composition of loose
 - **EntityMaster:** Controls the lifecycle. If this descriptor is disposed, the entity ceases to exist.
 - **Partial Ownership:** A Simulation Node (e.g., CGF) may own the `EntityMission` descriptor, while a different node (e.g., GUI or Umpire) might request changes to `EntityInfo`.
 
-See [BDC SST rules](/Products-and-components/Bagira.Infra/BDC/BDC-SST-Principles)
-See [BDC SST Data Model Basics](/Products-and-components/Bagira.Infra/BDC/BDC-SST-Data-Model-Basics)
+See [BDC SST rules](/Products-and-components/Hrot.Infra/BDC/BDC-SST-Principles)
+See [BDC SST Data Model Basics](/Products-and-components/Hrot.Infra/BDC/BDC-SST-Data-Model-Basics)
 
 ## 3. Data Model: ORBAT (Order of Battle)
 
@@ -846,7 +846,7 @@ The components are categorized by their architectural layer.
 | :--- | :--- |
 | **`NetworkIdentity`** | Holds the global `long EntityId`. Keys every entity to the network map. |
 | **`NetworkAuthority`** | Tracks `PrimaryOwnerId` vs `LocalNodeId`. Used to determine if we can write to descriptors. |
-| **`NetworkPosition`** | **Buffered State.** Holds the *Flat Cartesian* position derived from the DDS `GeoPosition`. The `FastGeodeticTranslator` updates this. |
+| **`NetworkPosition`** | **Buffered State.** Holds the *Flat Cartesian* position derived from the DDS `GeoPoint`. The `FastGeodeticTranslator` updates this. |
 | **`NetworkVelocity`** | **Buffered State.** Linear velocity vector (for dead reckoning). |
 | **`NetworkOrientation`** | **Buffered State.** Quaternion orientation. |
 | **`EntityMaster`** | **Managed Component.** Wraps the `EntityMaster` struct (Type ID, Flags). Controls lifecycle. |
@@ -919,13 +919,13 @@ The components are categorized by their architectural layer.
     *   **Feedback:** Mouse Input -> `LocalDragGhost` -> `UpdateEntityDescriptorRequest` (DDS Message, not component).
 
 --- user ---------------------------------------------------
-the DDS network descriptors for communicating position and orientation should be the GeoSpatial and GeoSpatialDR (attached). 
+the DDS network descriptors for communicating position and orientation should be the WorldPos and WorldPos (attached). 
 
 EntityMaster is NOT a managed component (does not contain any managed data type) - this one is "native", unmanaged. But it does not affect much, just a minor note.
 
 NetworkIdentity, NetworkAuthority are NOT part of the DDS BDC SST descriptors - they might be some internal representation, but the BDC SST rules say that the network entity id is part of each DDS descriptor (so no extra identity needed elsewhere), the owner information (the NodeId) is provided by the Cyclone DDS wrapper based on the last writer so no extra NetworkAuthority is necessary on DDS. 
 
-NetworkPosition and NetworkVelocity and NetworkOrientation also not part of the DDS descriptors because they are combined to one single DDS descriptor GeoSpatial which exists also in dead-reckoning friendly variant GeoSpatialDR (optional, replacing the GeopSpatial for entities where dead reckoning is desired).
+NetworkPosition and NetworkVelocity and NetworkOrientation also not part of the DDS descriptors because they are combined to one single DDS descriptor WorldPos which exists also in dead-reckoning friendly variant WorldPos (optional, replacing the GeopSpatial for entities where dead reckoning is desired).
 
 Translators should take the DDS descriptors and translate into suitable ECS components as needed.
 
@@ -938,7 +938,7 @@ Here is the corrected breakdown of **ECS Components** and how they map to the **
 
 The system relies on **Translators** to bridge the gap between the **Network Domain** (Geodetic, Sparse, DDS-controlled) and the **Simulation Domain** (Flat Cartesian, Continuous, ECS-controlled).
 
-1.  **DDS Side:** Uses `GeoSpatial` / `GeoSpatialDR` (WGS84 Lat/Lon/Alt + HPR).
+1.  **DDS Side:** Uses `WorldPos` / `WorldPos` (WGS84 Lat/Lon/Alt + HPR).
 2.  **ECS Side:** Uses `NetworkPosition` / `NetworkOrientation` (Vector3 Flat + Quaternion).
 3.  **Translator:** Converts coordinates on the fly.
 
@@ -956,8 +956,8 @@ These components exist inside the `EntityRepository` of the **IG** and **SimHost
 | **`NetworkIdentity`** | `long EntityId` | The primary key. Links the local ECS entity to the global DDS topic key. |
 | **`NetworkAuthority`** | `int PrimaryOwnerId`<br>`int LocalNodeId` | Derived from DDS Sample Metadata (Last Writer).<br>Systems check this to decide: *Simulate* (Owner) vs. *Interpolate* (Proxy). |
 | **`NetworkPosition`** | `Vector3 Value` | **Flat Cartesian** position (meters from local origin).<br>*SimHost:* Written by Physics, Read by Translator.<br>*IG:* Written by Translator, Read by Renderer. |
-| **`NetworkOrientation`** | `Quaternion Value` | Rotation in local flat space.<br>Converted to/from `OrientationHPR` (Degrees) by Translator. |
-| **`NetworkVelocity`** | `Vector3 Value` | Linear velocity (Flat). Used for Dead Reckoning on IG side if `GeoSpatialDR` is used. |
+| **`NetworkOrientation`** | `Quaternion Value` | Rotation in local flat space.<br>Converted to/from `EulerOri` (Degrees) by Translator. |
+| **`NetworkVelocity`** | `Vector3 Value` | Linear velocity (Flat). Used for Dead Reckoning on IG side if `WorldPos` is used. |
 | **`EntityMaster`** | `EntityMaster` (Struct) | Wraps the raw `EntityMaster` DDS struct (Type IDs, Flags). Used for lifecycle logic. |
 
 #### B. Simulation Logic (SimHost Only)
@@ -988,17 +988,17 @@ These components exist inside the `EntityRepository` of the **IG** and **SimHost
 This is how data moves between the ECS components and the DDS Topics.
 
 #### 1. Geodetic Translator (Physics)
-*   **Topic:** `GeoSpatial` (or `GeoSpatialDR`)
+*   **Topic:** `WorldPos` (or `WorldPos`)
 *   **SimHost (Egress):**
     1.  Reads `NetworkPosition` (Cartesian).
-    2.  Converts to `GeoPosition` (Lat/Lon/Alt) using `IGeographicTransform`.
+    2.  Converts to `GeoPoint` (Lat/Lon/Alt) using `IGeographicTransform`.
     3.  Reads `NetworkOrientation` (Quaternion).
-    4.  Converts to `OrientationHPR` (Heading/Pitch/Roll degrees).
-    5.  Publishes `GeoSpatial`.
+    4.  Converts to `EulerOri` (Heading/Pitch/Roll degrees).
+    5.  Publishes `WorldPos`.
 *   **IG (Ingress):**
-    1.  Receives `GeoSpatial`.
-    2.  Converts `GeoPosition` $\to$ `NetworkPosition` (Cartesian).
-    3.  Converts `OrientationHPR` $\to$ `NetworkOrientation` (Quaternion).
+    1.  Receives `WorldPos`.
+    2.  Converts `GeoPoint` $\to$ `NetworkPosition` (Cartesian).
+    3.  Converts `EulerOri` $\to$ `NetworkOrientation` (Quaternion).
     4.  Updates ECS.
 
 #### 2. Master Translator (Lifecycle)
@@ -1019,7 +1019,7 @@ These are the actual types on the wire (from `bdc-sst-dm.txt` + `SimDescriptors.
 
 1.  **`EntityMaster`** (Key: EntityId) - Lifecycle & Type.
 2.  **`EntityInfo`** (Key: EntityId) - Name, Side, CommanderId (ORBAT).
-3.  **`GeoSpatial`** / **`GeoSpatialDR`** (Key: EntityId) - Position & Rotation.
+3.  **`WorldPos`** / **`WorldPos`** (Key: EntityId) - Position & Rotation.
 4.  **`EntityMission`** (Key: EntityId) - Mission Plan.
 5.  **`MapVisualOverlay`** (Key: EntityId) - Geometry Lines/Areas.
 6.  **`MapEntitySymbol`** (Key: EntityId + GroupId) - Symbol overrides.
@@ -1078,7 +1078,7 @@ You need a specific **System** to bridge these two worlds inside the SimHost.
 **System:** `FastGeodeticTranslator` (The generic infrastructure)
 1.  Reads `NetworkPosition` / `NetworkOrientation` / `NetworkVelocity`.
 2.  Converts Flat Cartesian $\to$ WGS84 Geodetic.
-3.  Publishes `GeoSpatial` (or `GeoSpatialDR`) to DDS.
+3.  Publishes `WorldPos` (or `WorldPos`) to DDS.
 
 ### 4. Is this conversion necessary?
 
@@ -1198,7 +1198,7 @@ We should refactor the logic from `CarKinem` to fit this pattern:
 
 **Yes, we will use general components.**
 
-*   **`SimPosition`** (Internal Physics) $\to$ **`NetworkPosition`** (Network Buffer) $\to$ **`GeoSpatial`** (DDS).
+*   **`SimPosition`** (Internal Physics) $\to$ **`NetworkPosition`** (Network Buffer) $\to$ **`WorldPos`** (DDS).
 
 This allows the **SimHost** to easily support cars today, and tanks, aircraft, or ships tomorrow, without rewriting the networking or the basic physics integration code.
 
@@ -1287,7 +1287,7 @@ We will effectively rename `VehicleState.Position` to a generic `SimPosition` an
 On the IG side, we will rename `NetworkPosition` to `NetworkTargetPosition` to clearly indicate its role as an interpolation buffer, keeping the architecture clean and performant on both ends.
 
 --- user ---------------------------------------------------
-The simhost might need the interpolation system as well. Imagine there are many simhosts to distribute the load to multiple machine. Not all of them run at 60Hz, some calculate the new state at 10Hz or even at 1Hz and provide the dead reckoning information (sending GeoSpatialDR descriptors). But the ghost entities in other simhost running at much higher frequencies need interpolated positions so they are not "jumping" from the point of view of the simhost physics and collision systems etc.
+The simhost might need the interpolation system as well. Imagine there are many simhosts to distribute the load to multiple machine. Not all of them run at 60Hz, some calculate the new state at 10Hz or even at 1Hz and provide the dead reckoning information (sending WorldPos descriptors). But the ghost entities in other simhost running at much higher frequencies need interpolated positions so they are not "jumping" from the point of view of the simhost physics and collision systems etc.
 
 --- model --------------------------------------------------
 You are absolutely correct. In a distributed simulation environment (Distributed Simulation), every node—whether it's a Visualizer (IG) or a Physics Server (SimHost)—must treat **Ghost Entities** (entities owned by others) identically.
@@ -1316,7 +1316,7 @@ This component stores the **last known state received from the network**. It is 
 
 | Component | Type | Description |
 | :--- | :--- | :--- |
-| **`NetworkReceivedState`** | `Struct` | Snapshot of the raw data from `GeoSpatial` or `GeoSpatialDR`. <br> Contains: `TargetPos`, `TargetRot`, `TargetVel`, `Timestamp`, `DR_Algorithm` (Static, DRM_FPW, etc.) |
+| **`NetworkReceivedState`** | `Struct` | Snapshot of the raw data from `WorldPos` or `WorldPos`. <br> Contains: `TargetPos`, `TargetRot`, `TargetVel`, `Timestamp`, `DR_Algorithm` (Static, DRM_FPW, etc.) |
 
 ---
 
@@ -1325,7 +1325,7 @@ This component stores the **last known state received from the network**. It is 
 This pipeline runs on **IGs** and **SimHosts** alike. The only difference is which entities are "Local" vs. "Ghost".
 
 #### Step 1: Network Ingress (Translator)
-*   **Input:** `GeoSpatial` / `GeoSpatialDR` (DDS).
+*   **Input:** `WorldPos` / `WorldPos` (DDS).
 *   **Logic:**
     1.  Convert Geodetic $\to$ Flat Cartesian.
     2.  Writes to **`NetworkReceivedState`**.
@@ -1356,7 +1356,7 @@ This pipeline runs on **IGs** and **SimHosts** alike. The only difference is whi
 *   **Logic:**
     1.  Reads **`SimTransform`** and **`SimVelocity`**.
     2.  Converts Flat Cartesian $\to$ Geodetic.
-    3.  Publishes `GeoSpatial` or `GeoSpatialDR`.
+    3.  Publishes `WorldPos` or `WorldPos`.
 
 ---
 
@@ -1393,7 +1393,7 @@ public struct NetworkReceivedState
     public Vector3 AngularVelocity;
     
     public double Timestamp; // Absolute simulation time of the snapshot
-    public bool IsDeadReckoning; // True if source sent GeoSpatialDR
+    public bool IsDeadReckoning; // True if source sent WorldPos
 }
 ```
 
@@ -1402,7 +1402,7 @@ The translator becomes very simple because it always targets the buffer.
 
 ```csharp
 // Ingress Logic
-public void Decode(GeoSpatialDR data, IEntityCommandBuffer cmd, Entity e)
+public void Decode(WorldPos data, IEntityCommandBuffer cmd, Entity e)
 {
     var flatPos = GeoConverter.ToFlat(data.Pos);
     // ... convert vectors ...
@@ -1447,7 +1447,7 @@ The SimHost provides the `DdsIdAllocatorServer` service for the entire domain.
 
 ### C. Coordinate Translation Authority
 *   **Responsibility:** Maintaining the reference point (Lat/Lon/Alt origin) for the simulation.
-*   **Logic:** Converts internal **Flat Cartesian** (`SimTransform`) $\leftrightarrow$ **WGS84 Geodetic** (`GeoSpatial` DDS).
+*   **Logic:** Converts internal **Flat Cartesian** (`SimTransform`) $\leftrightarrow$ **WGS84 Geodetic** (`WorldPos` DDS).
 *   **Component:** `FastGeodeticTranslator`.
 
 ### D. Recording & Replay
@@ -1466,7 +1466,7 @@ The SimHost provides the `DdsIdAllocatorServer` service for the entire domain.
     1.  Validates the request.
     2.  Allocates ID(s).
     3.  **TKB Expansion:** If the request is for a "Tank Platoon" (Composite), the SimHost expands this into 1 Parent (Platoon HQ) + 4 Children (Tanks).
-    4.  **Publishes:** `EntityMaster`, `EntityInfo` (with correct `CommanderId` links), and initial `GeoSpatial` pose.
+    4.  **Publishes:** `EntityMaster`, `EntityInfo` (with correct `CommanderId` links), and initial `WorldPos` pose.
 
 ### B. Ownership & Concurrency (Optimistic Locking)
 *   **Input:** `UpdateEntityDescriptorRequest` (e.g., IG dragging a Tank).
@@ -1487,7 +1487,7 @@ Uses the **Unified Component Model** discussed previously.
     *   **`KinematicIntegrationSystem`:** The generic integrator. `SimTransform.Pos += SimVelocity * dt`.
 *   **Dead Reckoning Egress:**
     *   The SimHost calculates `SimAcceleration` based on physics changes.
-    *   It publishes `GeoSpatialDR` (Position + Velocity + Acceleration) to DDS.
+    *   It publishes `WorldPos` (Position + Velocity + Acceleration) to DDS.
     *   *Result:* The IG can extrapolate smooth movement even if SimHost updates at 10Hz.
 
 ### B. Mission Execution Engine (AI)
@@ -1546,7 +1546,7 @@ The SimHost is a "Headless Server" conceptually, but needs a GUI for the mock/te
 1.  **Network In:** `CreateEntityRequest` $\to$ **EntityFactory** $\to$ ECS.
 2.  **Network In:** `MissionControlRequest` $\to$ **MissionSystem** $\to$ `MissionExecutor` $\to$ `NavigationTarget`.
 3.  **Physics:** `NavigationTarget` $\to$ **SteeringSystem** $\to$ `SimVelocity` $\to$ **Integration** $\to$ `SimTransform`.
-4.  **Network Out:** `SimTransform` + `SimVelocity` $\to$ **Translator** $\to$ `GeoSpatialDR`.
+4.  **Network Out:** `SimTransform` + `SimVelocity` $\to$ **Translator** $\to$ `WorldPos`.
 
 --- user ---------------------------------------------------
 It should also handle all the partial ownership and entity lifecycle stuff in similar way as the network demo, reusing same toolkits.
@@ -1578,14 +1578,14 @@ When the IOS requests a new unit, the SimHost acts as the **Factory**.
     *   Creates the entity in the local ECS.
     *   Adds **`NetworkAuthority`**: Sets `PrimaryOwnerId = Self`, `LocalNodeId = Self`.
     *   Adds **`NetworkOwnership`**: Sets default ownership.
-    *   Adds **`DescriptorOwnership`**: Maps all descriptors (Master, Mission, GeoSpatial) to `Self`.
+    *   Adds **`DescriptorOwnership`**: Maps all descriptors (Master, Mission, WorldPos) to `Self`.
 4.  **Composite Logic (TKB Expansion):**
     *   If the request is for a "Platoon" (Type X), the system looks up the TKB definition.
     *   It creates the Commander (Root).
     *   It creates Subordinates (Children), setting their `EntityInfo.CommanderId` to the Root's ID.
 5.  **Publish:**
     *   The ECS `SmartEgressSystem` detects the new entities.
-    *   It publishes `EntityMaster`, `EntityInfo`, `GeoSpatial`, `EntityMission` to DDS.
+    *   It publishes `EntityMaster`, `EntityInfo`, `WorldPos`, `EntityMission` to DDS.
 6.  **Acknowledge:** Sends `CreateEntityAck` to the IOS with the Root Entity ID.
 
 ### C. Handling IG-Created Entities (Ghost Role)
@@ -1637,13 +1637,13 @@ Since the SimHost is the default owner of simulation entities, it is the primary
 **System:** `RequestProcessingSystem`
 
 ### Scenario A: IG Drags a Tank (Geometry Update)
-1.  **Receive:** `UpdateEntityDescriptorRequest` (Target: Tank, Desc: GeoSpatial, Payload: New Pos).
+1.  **Receive:** `UpdateEntityDescriptorRequest` (Target: Tank, Desc: WorldPos, Payload: New Pos).
 2.  **Lock Check:** Verifies `CurrentVersion` against `DescriptorOptimisticLock`.
 3.  **Apply:**
     *   Updates local `SimTransform`.
     *   **Crucial:** Also updates `SimVelocity` to zero (stops the physics engine from fighting the drag).
     *   Increments Lock Version.
-4.  **Publish:** The `SmartEgressSystem` automatically publishes the new `GeoSpatial` and `DescriptorOptimisticLock` in the next tick.
+4.  **Publish:** The `SmartEgressSystem` automatically publishes the new `WorldPos` and `DescriptorOptimisticLock` in the next tick.
 
 ### Scenario B: IOS Renames a Unit (Attribute Update)
 1.  **Receive:** `UpdateEntityAttributeRequest` (Target: Tank, Attr: Name, Val: "Bravo-1").
@@ -1680,7 +1680,7 @@ The SimHost ECS deals with transient `Entity` structs (effectively an integer in
 *   **Responsibility:** Maintains a thread-safe, bidirectional mapping between **Global Network IDs** and **Local ECS Entities**.
 *   **Usage in SimHost:**
     *   **Ingress (Translators):** When `MissionControlRequest` arrives for Entity `5000001`, the translator asks the map: *"Which local entity is this?"* $\to$ Returns Entity `105`.
-    *   **Egress (Translators):** When publishing `GeoSpatial`, the translator asks: *"What is the Network ID for Entity 105?"* $\to$ Returns `5000001`.
+    *   **Egress (Translators):** When publishing `WorldPos`, the translator asks: *"What is the Network ID for Entity 105?"* $\to$ Returns `5000001`.
     *   **Lifecycle:**
         *   On `CreateEntityRequest`: SimHost allocates ID `5000002`, creates ECS Entity `106`, and registers pair `[5000002, 106]` in the map immediately.
         *   On `EntityMaster` Dispose: Unregisters the ID.
@@ -1807,7 +1807,7 @@ graph TD
 3.  [ ] **Register** `CycloneNetworkModule` with the Kernel.
 4.  [ ] **Implement** `DdsIdAllocatorServer` (Since SimHost is the authority).
 5.  [ ] **Implement** `MissionSystem` handling `MissionControlRequest` with `RequestId` pass-through for Acks.
-6.  [ ] **Ensure** `CarKinematicsSystem` runs on `SimTransform` (Internal) but `FastGeodeticTranslator` handles the conversion to `GeoSpatial`.
+6.  [ ] **Ensure** `CarKinematicsSystem` runs on `SimTransform` (Internal) but `FastGeodeticTranslator` handles the conversion to `WorldPos`.
 
 --- user ---------------------------------------------------
 Ok. Now lets focus on the ig. It should use most of the stuff and concepts as the simhost as it the part of the same distributed infrastructure and can create its own entities. But on top of that it must contain a big set of 2d map rendering and editing features. Lets begin with overwiew and the we will go to the details.
@@ -1937,7 +1937,7 @@ The IG acts as a "dumb terminal" that reports its state back to the IOS.
 
 ## Summary of Data Flow (IG)
 
-1.  **Network In:** `GeoSpatial` $\to$ **Translator** $\to$ `NetworkReceivedState`.
+1.  **Network In:** `WorldPos` $\to$ **Translator** $\to$ `NetworkReceivedState`.
 2.  **Smoothing:** `NetworkReceivedState` $\to$ **DeadReckoning** $\to$ `InterpolatedTransform` (Visual Position).
 3.  **Logic:** `Input` $\to$ **ActiveTool** $\to$ `SelectionState` / `LocalDragGhost`.
 4.  **Rendering:** `InterpolatedTransform` + `ResolvedStyle` $\to$ **MapRenderSystem** $\to$ Screen.
@@ -1983,7 +1983,7 @@ To support this, the IG Mock needs specific Systems and Components in its ECS.
 
 **A. Camera Infrastructure**
 *   **Component:** `MapCameraState` (Singleton).
-    *   `GeoPosition FocusPoint` (Lat/Lon).
+    *   `GeoPoint FocusPoint` (Lat/Lon).
     *   `float ZoomLevel` (Meters per pixel or Scale factor).
     *   `Matrix4x4 ViewMatrix` (Calculated for Raylib).
 *   **System:** `MapCameraSystem`.
@@ -2237,12 +2237,12 @@ This tool handles both Entity Dragging and Vertex Editing.
 
 **Scenario 2: Immediate Mode (The "Ownership" Strategy)**
 1.  **Mouse Down:**
-    *   Send `OwnershipUpdate` request (Target: Self, Descriptor: `GeoSpatial`).
+    *   Send `OwnershipUpdate` request (Target: Self, Descriptor: `WorldPos`).
     *   **Optimistic Start:** Immediately mark entity as `IsManipulating = true` locally.
 2.  **Mouse Drag:**
     *   Update `SimTransform` locally (immediate visual response).
     *   **Network Check:** If `DescriptorOwnership` confirms we are now Owner:
-        *   Publish `GeoSpatial` updates (throttled to ~30Hz).
+        *   Publish `WorldPos` updates (throttled to ~30Hz).
     *   *Note:* SimHost sees these updates and moves the entity in its physics engine (interpolated).
 3.  **Mouse Up:**
     *   Send `OwnershipUpdate` request (Target: SimHost/Default Owner).
@@ -2302,7 +2302,7 @@ To test this, the **IOS Mock** ImGui panel needs:
 ### Summary of Testing Flows
 
 1.  **Ghost Drag:** Set IG to "Ghost Mode" -> Drag Tank. Verify SimHost receives *one* request on release.
-2.  **Live Drag:** Set IG to "Immediate Mode" -> Drag Tank. Verify SimHost receives *stream* of `GeoSpatial` updates (after ownership change).
+2.  **Live Drag:** Set IG to "Immediate Mode" -> Drag Tank. Verify SimHost receives *stream* of `WorldPos` updates (after ownership change).
 3.  **ID Allocation:** Start IG *before* SimHost. Verify IG waits. Start SimHost. Verify IG gets IDs and enables drawing.
 4.  **Menu Push:** Select Tank on IG. Change IOS logic dropdown to "Damaged". Right-click Tank on IG. Verify "Repair" option appears.
 
@@ -2339,7 +2339,7 @@ You are right to correct the course on the IG tools and ownership. Before we div
 3.  **Immediate Drag (Ownership):**
     *   **Confirmed:** The Network Demo uses the `OwnershipUpdateRequest` message (via `OwnershipUpdateTranslator`).
     *   **Flow:**
-        1.  IG publishes `OwnershipUpdateRequest` (Target: Self, Descriptor: GeoSpatial).
+        1.  IG publishes `OwnershipUpdateRequest` (Target: Self, Descriptor: WorldPos).
         2.  SimHost (Current Owner) receives it $\to$ **Stops Writing**.
         3.  IG detects change in `DescriptorOwnership` component $\to$ **Starts Writing** (High Freq).
         4.  On Drop: IG publishes `OwnershipUpdateRequest` (Target: SimHost) $\to$ Stops Writing.
@@ -2435,7 +2435,7 @@ The IOS Mock UI is organized into specific testing panels.
 
 #### **F. Raw Data Inspector (The Debugger)**
 *   **Topic Browser:**
-    *   Tabs for `EntityMaster`, `GeoSpatial`, `MapVisualOverlay`.
+    *   Tabs for `EntityMaster`, `WorldPos`, `MapVisualOverlay`.
     *   Shows raw field values of the latest samples received.
     *   Useful to verify if SimHost is actually publishing what we expect.
 
@@ -2509,7 +2509,7 @@ Here is the design and implementation of the new **FDP.Toolkit.DER**.
 We start by defining how the application (IOS Mock) sees the world.
 
 ```csharp
-using Bagira.DDS.DM; // For NodeId
+using Hrot.NED.Common; // For NodeId
 using CycloneDDS.Schema; // For attributes
 
 namespace FDP.Toolkit.DER
@@ -2577,7 +2577,7 @@ The Repo acts as the central hub. It owns the `DdsParticipant` and manages the T
 using System;
 using System.Collections.Generic;
 using CycloneDDS.Runtime;
-using Bagira.BDC.SSTD; // EntityMaster
+using Hrot.NED.Descriptors; // EntityMaster
 using ModuleHost.Network.Cyclone.Topics; // OwnershipUpdate
 
 namespace FDP.Toolkit.DER
@@ -3516,8 +3516,8 @@ We will organize the code into a modular solution to prevent "spaghetti referenc
     /Fdp.Mocks.SimHost         (FDP Engine + CarKinem + Lifecycle)
   
   /Common
-    /Bagira.DDS.DataModel      (Generated IDL structs - bdc-sst-dm)
-    /Bagira.Map.Definitions    (Shared TKB, Layers, Enums)
+    /Hrot.NED      (Generated IDL structs - bdc-sst-dm)
+    /Hrot.Map.Definitions    (Shared TKB, Layers, Enums)
     /FDP.Toolkit.DER           (The dynamic entity repo for IOS)
 ```
 
@@ -4195,7 +4195,7 @@ private void OnMapClick(MapClickEvent evt)
         var req = new CreateEntityRequest 
         {
             Owner = new NodeId { AppInstanceId = 1 }, // SimHost
-            // ... Payload with TkbType and GeoPosition ...
+            // ... Payload with TkbType and GeoPoint ...
         };
         _dds.Write(req);
         
@@ -4217,7 +4217,7 @@ private void OnMapClick(MapClickEvent evt)
     *   **Hierarchy:** Spawn Platoon $\to$ Verify ORBAT panel shows tree structure.
     *   **Mission:** Click "Jump" $\to$ Verify SimHost acknowledges and IG map updates status label.
 
-This design is ready for implementation. It requires the `FDP.Toolkit.DER` and `Bagira.DDS.DataModel` libraries.
+This design is ready for implementation. It requires the `FDP.Toolkit.DER` and `Hrot.NED` libraries.
 
 --- user ---------------------------------------------------
 oh i did not mean the exact sources. This shoudl stay more conceptual. Pls show the layout as ascii art design and describe how each of its part works.
@@ -4434,7 +4434,7 @@ c9d8...       MissionJump    4500ms    TIMEOUT
 
 The IOS Mock needs to know *what* entities exist to populate the Spawner list. It shouldn't hardcode "Tank" and "Car".
 
-*   **Shared Library Usage:** It should reference the `FDP.Toolkit.TKB` (or `Bagira.Map.Definitions`).
+*   **Shared Library Usage:** It should reference the `FDP.Toolkit.TKB` (or `Hrot.Map.Definitions`).
 *   **Initialization:**
     *   Instantiates `InMemoryTkbService`.
     *   Queries `GetAll()` to build the "Entity Spawner" list.
@@ -4865,7 +4865,7 @@ Here is how the dependencies will look to enforce this reuse:
 Solution: Fdp.Mocks.sln
 
 1. Fdp.Mocks.Common (Library)
-   - References: Fdp.Interfaces, Bagira.DDS.DataModel
+   - References: Fdp.Interfaces, Hrot.NED
    - Content: IMockSubsystem, Shared Constants, AppConfig
 
 2. Fdp.Mocks.SimHost (Library)
@@ -5159,7 +5159,7 @@ We extend the generic Vis2D tools to add BDC-specific logic.
         *   Send `OwnershipUpdateRequest` (Acquire).
         *   Wait/Assume success.
         *   Update `SimTransform` on the *real* entity.
-        *   Let `SmartEgressSystem` publish `GeoSpatial` updates.
+        *   Let `SmartEgressSystem` publish `WorldPos` updates.
         *   On Release: Send `OwnershipUpdateRequest` (Release).
 
 ---
@@ -5292,7 +5292,7 @@ This is the most complex part. We reuse `IMapTool` from Vis2D but implement spec
         *   *Drop:* Sends `UpdateEntityDescriptorRequest` (Pose) to SimHost.
     *   **Direct Mode (Ownership Transfer):**
         *   *Grab:* Sends `OwnershipUpdateRequest` (Acquire).
-        *   *Drag:* Writes to `GeoSpatial` topic at 30Hz.
+        *   *Drag:* Writes to `WorldPos` topic at 30Hz.
         *   *Drop:* Sends `OwnershipUpdateRequest` (Release).
 *   **Vertex Editing:** If the selected entity is a `MapVisualOverlay` (Line/Area), this tool renders "Grips" (small squares) at vertices. Dragging a grip updates the `MapVisualOverlay.Points` array (using Partial Updates).
 
@@ -5339,7 +5339,7 @@ The generic Vis2D `MapCanvas` needs specific adapters for our data.
 #### **2. `OverlayRenderer` (The Geometry Renderer)**
 *   **Input:** `MapVisualOverlay` component.
 *   **Logic:**
-    *   Converts `GeoPosition[]` $\to$ `ScreenPosition[]`.
+    *   Converts `GeoPoint[]` $\to$ `ScreenPosition[]`.
     *   Draws Lines (Routes), Filled Polygons (Areas), or Strips (Corridors).
     *   Handles **Stippling** (Dashed lines for "Planned" routes vs Solid for "Active").
 
@@ -5552,7 +5552,7 @@ namespace Fdp.Mocks.IG.Panels
         /// Manually triggers a position update (teleport).
         /// Handles the logic of Local vs Remote ownership automatically.
         /// </summary>
-        void TeleportEntity(Entity entity, GeoPosition newPos);
+        void TeleportEntity(Entity entity, GeoPoint newPos);
         
         /// <summary>
         /// Deletes the entity.
@@ -5806,7 +5806,7 @@ This design decouples "Game Logic" from "Visuals" and "Input," allowing the IG t
 Are you ready to move on to **Part 1.4: The Logic Engine** (Dead Reckoning & Smoothing) and **Part 1.5: The Network Bridge**?
 
 --- user ---------------------------------------------------
-remember there is nothing like NetworkPosition. We are using types from DDS descriptor data model. We have GeoSpatial and GeoSpatialDR descriptors on the network. Internally we have unified NetworkReceivedState.
+remember there is nothing like NetworkPosition. We are using types from DDS descriptor data model. We have WorldPos and WorldPos descriptors on the network. Internally we have unified NetworkReceivedState.
 
 when constructing and sending stuff like CreateEntityRequest and receiving the responses/acks, are we using plain Cyclone DDS csharp wrapper API or should we use some helper (like in IOS) which we can reuse? Something similar to the DER library but focused on thie command-based "remote control"...
 
@@ -5816,10 +5816,10 @@ You are absolutely right to flag the `NetworkPosition` error. Let's strictly adh
 ### 1. Correction: The Data Pipeline
 Just to confirm we are aligned before moving to the Command Helper:
 
-*   **Wire Format:** `GeoSpatial` (Position + HPR) or `GeoSpatialDR` (Pos + Vel + Acc). defined in `bdc-sst-dm`.
-*   **ECS Ingress:** `FastGeodeticTranslator` receives `GeoSpatial`, converts to Flat Cartesian, and writes to **`NetworkReceivedState`** (The unified buffer component).
+*   **Wire Format:** `WorldPos` (Position + HPR) or `WorldPos` (Pos + Vel + Acc). defined in `bdc-sst-dm`.
+*   **ECS Ingress:** `FastGeodeticTranslator` receives `WorldPos`, converts to Flat Cartesian, and writes to **`NetworkReceivedState`** (The unified buffer component).
 *   **ECS Logic:** `DeadReckoningSystem` reads `NetworkReceivedState` -> updates `SimTransform`.
-*   **ECS Egress:** `FastGeodeticTranslator` reads `SimTransform` -> converts to Geodetic -> publishes `GeoSpatial`.
+*   **ECS Egress:** `FastGeodeticTranslator` reads `SimTransform` -> converts to Geodetic -> publishes `WorldPos`.
 
 ---
 
@@ -5984,12 +5984,12 @@ The IG uses the same Gateway for "Shared" operations (dragging SimHost entities)
 public async void OnMouseUp()
 {
     // 1. Commit drag
-    var geoSpatial = new GeoSpatial { Pos = _currentGeoPos };
+    var geoSpatial = new WorldPos { Pos = _currentGeoPos };
     
     // 2. Send Update
     await _gateway.SendUpdateDescriptorAsync(
         entityId: _targetId,
-        type: EDescriptorType.dtGeoSpatial, // Mapped
+        type: EDescriptorType.dtWorldPos, // Mapped
         descriptorData: geoSpatial,
         currentVersion: _optimisticLockVersion
     );
@@ -6043,7 +6043,7 @@ This layer sits between the **Network Ingress** and the **Rendering**. Its job i
 ```text
 [ NETWORK INGRESS ]        [ LOGIC ENGINE ]                 [ RENDERING ]
                                   |
-GeoSpatial (DDS) ------------> [ Dead Reckoning ] --------> SimTransform
+WorldPos (DDS) ------------> [ Dead Reckoning ] --------> SimTransform
                                   |                             |
 EntityMaster (DDS) ----------> [ Style Resolution ] ------> ResolvedStyle
 MapEntitySymbol (DDS)             |                             |
@@ -6245,7 +6245,7 @@ The IG needs to send requests to the SimHost (Create, Move, Delete) and wait for
 *   **Dependencies:** `ISstCommandGateway`.
 *   **Responsibilities:**
     *   **Entity Creation:** `SendCreateEntity(TkbType, Position)`
-        *   Automatically constructs `EntityMaster` + `GeoSpatial` + `EntityInfo`.
+        *   Automatically constructs `EntityMaster` + `WorldPos` + `EntityInfo`.
         *   Wraps them in `EntityDescriptorUnion`.
         *   Sends via `CommandClient`.
     *   **Entity Modification:** `SendUpdateDescriptor(EntityId, Type, Payload, Version)`
@@ -6258,7 +6258,7 @@ The IG needs to send requests to the SimHost (Create, Move, Delete) and wait for
 
 ### 4. Special Translators (Custom for IG)
 
-While we reuse standard translators (`EntityMaster`, `GeoSpatial`), the IG has specific needs for **Visualization Topics**.
+While we reuse standard translators (`EntityMaster`, `WorldPos`), the IG has specific needs for **Visualization Topics**.
 
 #### **A. `MapVisualOverlayTranslator`**
 *   **Topic:** `MapVisualOverlay` (Geometry Lines/Areas).
@@ -6316,7 +6316,7 @@ For "Immediate Drag," the IG must handle ownership transfer logic.
 *   **Input:** `IgEditTool` signals "Request Ownership".
 *   **Action:**
     *   Publishes `OwnershipUpdate` (NewOwner = Self).
-    *   **Optimistic:** Sets `NetworkAuthority` locally *immediately* to allow the `SmartEgressSystem` to start publishing `GeoSpatial` updates in the very next frame.
+    *   **Optimistic:** Sets `NetworkAuthority` locally *immediately* to allow the `SmartEgressSystem` to start publishing `WorldPos` updates in the very next frame.
     *   *Note:* Real-world systems might wait for Ack, but for responsive dragging, optimistic assumption is standard (if it fails, the entity snaps back later).
 
 ---
@@ -6513,7 +6513,7 @@ We will use the **Ghost Pattern** to ensure the "Real" entity (SimHost state) re
 #### **Phase A: Drag Start**
 1.  **Create Ghost:**
     *   Create local Entity.
-    *   **Deep Copy:** Copy `MapVisualOverlay` component. *Crucial:* You must allocate a new `List<GeoPosition>` and copy the points, otherwise modifying the Ghost modifies the Real entity (reference type).
+    *   **Deep Copy:** Copy `MapVisualOverlay` component. *Crucial:* You must allocate a new `List<GeoPoint>` and copy the points, otherwise modifying the Ghost modifies the Real entity (reference type).
     *   Add `LocalDragGhost { OriginalEntity = ID }`.
 2.  **Hide Real Entity:**
     *   Set `CullingState.IsHidden = true` on the original entity locally.
@@ -6567,7 +6567,7 @@ This interface provides batch operations using `Span<T>` to ensure memory safety
 
 ```csharp
 using System;
-using Bagira.DDS.DM; // GeoPosition
+using Hrot.NED.Common; // GeoPoint
 
 namespace Fdp.Mocks.IG.Interfaces
 {
@@ -6588,7 +6588,7 @@ namespace Fdp.Mocks.IG.Interfaces
         /// </summary>
         /// <param name="coordinates">Input Lat/Lon points.</param>
         /// <param name="results">Output buffer for Altitudes. Must match length of inputs.</param>
-        void SampleHeights(ReadOnlySpan<GeoPosition> coordinates, Span<double> results);
+        void SampleHeights(ReadOnlySpan<GeoPoint> coordinates, Span<double> results);
 
 
         // ---------------------------------------------------------
@@ -6617,8 +6617,8 @@ namespace Fdp.Mocks.IG.Interfaces
 {
     public struct LosRequest
     {
-        public GeoPosition Observer;
-        public GeoPosition Target;
+        public GeoPoint Observer;
+        public GeoPoint Target;
         
         // Optional: Offset above terrain
         public float ObserverOffsetMeters; 
@@ -6628,7 +6628,7 @@ namespace Fdp.Mocks.IG.Interfaces
     public struct LosResult
     {
         public bool IsVisible;       // True if clear line of sight
-        public GeoPosition HitPoint; // If occluded, where did it hit?
+        public GeoPoint HitPoint; // If occluded, where did it hit?
         public float Distance;       // Distance to target (or hit point)
         public float PercentVisible; // 0.0 to 1.0 (Optional partial occlusion logic)
     }
@@ -6642,7 +6642,7 @@ namespace Fdp.Mocks.IG.Interfaces
 Here is how the `IgMeasureTool` (LOS Mode) would use this API efficiently to draw a visibility fan.
 
 ```csharp
-public unsafe void UpdateLosFan(GeoPosition center)
+public unsafe void UpdateLosFan(GeoPoint center)
 {
     int rays = 360;
     float radius = 5000.0f; // 5km
@@ -6657,7 +6657,7 @@ public unsafe void UpdateLosFan(GeoPosition center)
         double angle = (Math.PI * 2.0 * i) / rays;
         
         // Calculate destination lat/lon
-        GeoPosition target = GeoMath.Move(center, angle, radius);
+        GeoPoint target = GeoMath.Move(center, angle, radius);
         
         requests[i] = new LosRequest 
         {
@@ -6725,13 +6725,13 @@ For the mock app, we don't have real DTED data. We can simulate terrain features
 ```csharp
 public class MockTerrainService : ITerrainService
 {
-    private struct Mountain { public GeoPosition Center; public float Radius; public float Height; }
+    private struct Mountain { public GeoPoint Center; public float Radius; public float Height; }
     private List<Mountain> _obstacles = new();
 
     public MockTerrainService()
     {
         // Add a fake mountain at the origin so we have something to look at
-        _obstacles.Add(new Mountain { Center = new GeoPosition(0,0,0), Radius = 500, Height = 100 });
+        _obstacles.Add(new Mountain { Center = new GeoPoint(0,0,0), Radius = 500, Height = 100 });
     }
 
     public void ComputeLineOfSight(ReadOnlySpan<LosRequest> requests, Span<LosResult> results)
@@ -6768,7 +6768,7 @@ This covers the implementation of the **Context Menu System**, focusing on the *
 To answer your first question: **No, the messages should not be defined in `FDP.Toolkit.Commands`.**
 
 *   **Why:** `FDP.Toolkit.Commands` is a generic infrastructure library for handling Request/Response patterns (timeouts, correlation).
-*   **Where instead:** The specific messages (`ContextMenuRequest`, `ContextActionsUpdate`, `ContextActionInvoked`) are domain-specific to the BDC SST protocol. They are already defined in your **`bdc-sst-dm.txt`** (Namespace `Bagira.BDC.SSTM`).
+*   **Where instead:** The specific messages (`ContextMenuRequest`, `ContextActionsUpdate`, `ContextActionInvoked`) are domain-specific to the BDC SST protocol. They are already defined in your **`bdc-sst-dm.txt`** (Namespace `Hrot.NED.Messages`).
 *   **The Bridge:** You *can* use `FDP.Toolkit.Commands` to *send* the `ContextMenuRequest` if you want to track timeouts, but since the response (`ContextActionsUpdate`) is often pushed proactively without a request, it fits better as a standard **Pub/Sub** pattern rather than a strict RPC.
 
 ---
@@ -7034,7 +7034,7 @@ public interface IMapInteractionService
     /// <summary>
     /// Suspends logic until user clicks map or cancels.
     /// </summary>
-    Task<GeoPosition?> PickLocationAsync(string label, string cursorIcon = "default");
+    Task<GeoPoint?> PickLocationAsync(string label, string cursorIcon = "default");
 }
 ```
 
@@ -7043,12 +7043,12 @@ public interface IMapInteractionService
 public class DdsGateway : IMapInteractionService
 {
     // Dictionary to hold the pending tasks
-    private Dictionary<Guid, TaskCompletionSource<GeoPosition?>> _pendingPicks = new();
+    private Dictionary<Guid, TaskCompletionSource<GeoPoint?>> _pendingPicks = new();
 
-    public async Task<GeoPosition?> PickLocationAsync(string label, string cursorIcon)
+    public async Task<GeoPoint?> PickLocationAsync(string label, string cursorIcon)
     {
         var reqId = Guid.NewGuid();
-        var tcs = new TaskCompletionSource<GeoPosition?>();
+        var tcs = new TaskCompletionSource<GeoPoint?>();
         
         // 1. Register pending task
         _pendingPicks[reqId] = tcs;
@@ -7156,7 +7156,7 @@ public class IgLocationPickerTool : IMapTool
 The IG renders different cursors by hiding the OS cursor and drawing a **Software Cursor** in the `Presentation` phase.
 
 #### **A. Cursor Definitions**
-Defined in `Bagira.Map.Definitions` or loaded from JSON assets.
+Defined in `Hrot.Map.Definitions` or loaded from JSON assets.
 
 | Cursor ID | Description | Visual |
 | :--- | :--- | :--- |
@@ -7863,7 +7863,7 @@ A new translator is required to bridge the DDS `EntityDamage` topic to the ECS `
 
 using Fdp.Kernel;
 using ModuleHost.Core.Network;
-using Bagira.BDC.SSTD; // Assuming EntityDamage struct is here
+using Hrot.NED.Descriptors; // Assuming EntityDamage struct is here
 // ... other usings
 
 namespace ModuleHost.Network.Cyclone.Translators
@@ -7989,7 +7989,7 @@ private void DrawDamageBar(Vector2 centerPos, float damagePct, float scale)
 
 ### 6. Integration Checklist
 
-1.  **DDS:** Ensure `EntityDamage` struct is generated and available in `Bagira.BDC.SSTD`.
+1.  **DDS:** Ensure `EntityDamage` struct is generated and available in `Hrot.NED.Descriptors`.
 2.  **Kernel:** Register `EntityDamage` component in `EntityRepository`.
 3.  **IG Module:**
     *   Register `EntityDamageTranslator`.
@@ -8496,7 +8496,7 @@ Handles `UpdateEntityDescriptorRequest` (e.g., IG dragging a unit).
 *   **Process:**
     1.  **Validate Lock:** Check `DescriptorOptimisticLock`.
     2.  **Apply:**
-        *   If `DescriptorType == GeoSpatial`: Update `SimTransform` + Reset `VehicleState.Velocity` to 0 (Stop the car).
+        *   If `DescriptorType == WorldPos`: Update `SimTransform` + Reset `VehicleState.Velocity` to 0 (Stop the car).
         *   If `DescriptorType == EntityInfo`: Update Name/Side.
     3.  **Ack:** Send Success/Failure.
 
@@ -8547,8 +8547,8 @@ This runs in the `Update` loop but is logically separate.
 
 ### **AsyncRecorder**
 *   It captures the **Entire World State** every 60 frames (Keyframe) and deltas in between.
-*   It records `EntityMaster`, `GeoSpatial`, `EntityInfo`, `EntityMission`.
-*   *Note:* It does **not** record `VehicleState` (internal physics). Replay relies on `GeoSpatial` to position visual ghosts.
+*   It records `EntityMaster`, `WorldPos`, `EntityInfo`, `EntityMission`.
+*   *Note:* It does **not** record `VehicleState` (internal physics). Replay relies on `WorldPos` to position visual ghosts.
 
 ---
 
@@ -8626,7 +8626,7 @@ graph LR
     2.  **Position:** Copy `VehicleState.Position` (2D) $\to$ `SimTransform.Position` (3D, keeping Z from terrain if needed, though CarKinem is 2D, we assume Flat Earth Z=0 for now or raycast).
     3.  **Rotation:** Convert `VehicleState.Heading` (Angle) $\to$ `Quaternion` $\to$ `SimTransform.Rotation`.
     4.  **Velocity:** Calculate 3D vector from `VehicleState.Forward * VehicleState.Speed` $\to$ `SimVelocity.Linear`.
-    5.  **Acceleration:** Map `VehicleState.Accel` $\to$ `SimAcceleration.Linear` (Crucial for `GeoSpatialDR` Dead Reckoning output).
+    5.  **Acceleration:** Map `VehicleState.Accel` $\to$ `SimAcceleration.Linear` (Crucial for `WorldPos` Dead Reckoning output).
 
 #### **4. Integration with Toolkit.Commands**
 
@@ -9156,7 +9156,7 @@ public class EntitySpawner
     private readonly ITkbService _tkb;
     private readonly IGeographicTransform _geo;
 
-    public Entity Spawn(long globalId, long tkbType, GeoPosition pos, Quaternion rot, long commanderId = 0)
+    public Entity Spawn(long globalId, long tkbType, GeoPoint pos, Quaternion rot, long commanderId = 0)
     {
         var e = _repo.CreateEntity();
         
@@ -9314,7 +9314,7 @@ public class EntityFactorySystem : ComponentSystem
                 long childId = startId + childOffset++;
                 
                 // Calculate Child Position (Offset logic)
-                GeoPosition childPos = CalculateOffset(req.Payload.Position, childDef.Offset);
+                GeoPoint childPos = CalculateOffset(req.Payload.Position, childDef.Offset);
                 
                 Entity child = SpawnSingle(childDef.ChildTkbType, childId, childPos, startId, cmd);
             }
@@ -9325,7 +9325,7 @@ public class EntityFactorySystem : ComponentSystem
         }
     }
 
-    private Entity SpawnSingle(long tkbType, long netId, GeoPosition pos, long commanderId, IEntityCommandBuffer cmd)
+    private Entity SpawnSingle(long tkbType, long netId, GeoPoint pos, long commanderId, IEntityCommandBuffer cmd)
     {
         var e = cmd.CreateEntity();
 
@@ -9439,8 +9439,8 @@ private bool ValidateRequest(Entity entity, EDescriptorType type, int requestVer
 
 This request carries a `EntityDescriptorUnion`. The system switches on the type to determine which ECS component to update.
 
-**Case A: `EDescriptorType.dtGeoSpatial` (Movement)**
-*   **Payload:** `GeoSpatial` (Lat/Lon/Alt + Heading).
+**Case A: `EDescriptorType.dtWorldPos` (Movement)**
+*   **Payload:** `WorldPos` (Lat/Lon/Alt + Heading).
 *   **Action:**
     1.  Convert Lat/Lon/Alt $\to$ `Vector3` (Flat).
     2.  Update `SimTransform.Position`.
@@ -9471,7 +9471,7 @@ This request is used for property-grid style edits (e.g., renaming an entity in 
 
 **Supported Attributes:**
 *   `EntityAttribute.eaName`: Updates `EntityInfo.Name`.
-*   `EntityAttribute.eaGeoPosition`: Updates `SimTransform.Position` (Telemetry only, no rotation).
+*   `EntityAttribute.eaGeoPoint`: Updates `SimTransform.Position` (Telemetry only, no rotation).
 
 ---
 
@@ -9533,9 +9533,9 @@ public class RequestProcessorSystem : ComponentSystem
     {
         switch (type)
         {
-            case EDescriptorType.dtGeoSpatial:
+            case EDescriptorType.dtWorldPos:
                 // Full Physics Reset Logic
-                var geo = payload.GeoSpatial;
+                var geo = payload.WorldPos;
                 var flatPos = _geo.ToCartesian(geo.Pos.Latitude, geo.Pos.Longitude, geo.Pos.Altitude);
                 
                 World.SetComponent(e, new SimTransform { Position = flatPos, Rotation = ... });
@@ -9800,7 +9800,7 @@ However, there are **three critical missing pieces** to make the SimHost a funct
 
 1.  **The Environment (Roads & Terrain):** Cars need roads to drive on. The SimHost needs to load the navigation graph.
 2.  **Combat Logic:** We defined the `FireInteractionEvent`, but the SimHost needs to actually process it (reduce health, destroy entities).
-3.  **Dead Reckoning Egress:** To allow the IG to smooth movement (as defined in the architecture), the SimHost must calculate and publish **Acceleration** (`GeoSpatialDR`), not just Position.
+3.  **Dead Reckoning Egress:** To allow the IG to smooth movement (as defined in the architecture), the SimHost must calculate and publish **Acceleration** (`WorldPos`), not just Position.
 
 Here is the design for these final SimHost components.
 
@@ -9875,7 +9875,7 @@ Update the translator to support the **DR** topic variant.
     *   Read `SimTransform` (Pos/Rot).
     *   Read `SimVelocity` (Linear/Angular).
     *   Read `SimAcceleration` (Linear).
-    *   **Construct `GeoSpatialDR`:**
+    *   **Construct `WorldPos`:**
         *   Convert all vectors from Flat $\to$ Geodetic/ENU frames.
         *   Populate `Vel`, `Acc`, `RotVel` fields.
     *   **Publish.**
@@ -9918,7 +9918,7 @@ Here is the feature-by-feature comparison:
 | Feature | Network Demo Implementation | SimHost Mock Design | Status |
 | :--- | :--- | :--- | :--- |
 | **Identity** | `NetworkEntityMap` + `NodeIdMapper` | Explicitly included. SimHost is Node 1. | ✅ **Match** |
-| **Coordinate System** | `FastGeodeticTranslator` (Lat/Lon $\leftrightarrow$ Flat) | Included. Bridges `SimTransform` (Flat) to `GeoSpatial`. | ✅ **Match** |
+| **Coordinate System** | `FastGeodeticTranslator` (Lat/Lon $\leftrightarrow$ Flat) | Included. Bridges `SimTransform` (Flat) to `WorldPos`. | ✅ **Match** |
 | **Time Sync** | Master/Slave, Continuous/Stepped, Future Barriers | Uses `SwitchableTimeController` (Master) + ImGui controls. | ✅ **Match** |
 | **Recording** | `AsyncRecorder` + `PlaybackController` | Reused verbatim. Adds "Resume Live" feature. | ✅ **Exceeds** |
 | **Event Bus** | Zero-Alloc `FdpEventBus` + Native Translators | Used for `FireInteractionEvent` and `MissionControlRequest`. | ✅ **Match** |
@@ -9945,7 +9945,7 @@ In the Network Demo, ownership transfer was demonstrated (e.g., passing the "Tok
 For the **IG Mock's "Immediate Drag"** to work:
 1.  IG sends `OwnershipUpdateRequest` (Acquire).
 2.  SimHost **MUST** have `OwnershipIngressSystem` registered.
-3.  SimHost receives update $\to$ changes `DescriptorOwnership` component $\to$ `SmartEgressSystem` stops publishing `GeoSpatial`.
+3.  SimHost receives update $\to$ changes `DescriptorOwnership` component $\to$ `SmartEgressSystem` stops publishing `WorldPos`.
 4.  *Result:* IG drives the physics.
 
 **Correction:** Ensure `OwnershipIngressSystem` and `OwnershipEgressSystem` are registered in the `SimNetworkModule`.

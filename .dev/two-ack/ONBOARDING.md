@@ -16,7 +16,7 @@ We are implementing a **two-phase acknowledgment pattern** for entity creation a
 
 The IOS uses this to display entities as "pending" (locked from operator interaction) until fully confirmed, and to show an explicit error modal if creation fails.
 
-**Importantly: FDP is not touched.** All logic lives in `Bagira.SimHost` (which watches FDP's lifecycle transitions) and `Bagira.IOS`.
+**Importantly: FDP is not touched.** All logic lives in `Hrot.SimHost` (which watches FDP's lifecycle transitions) and `Hrot.ExCon`.
 
 ---
 
@@ -35,31 +35,31 @@ The IOS uses this to display entities as "pending" (locked from operator interac
 ## Relevant Code Locations
 
 ### Data Model (DDS contract)
-- `Bagira.DDS.DataModel/GenericMessages.cs` — All DDS message structs including `CreateUpdateDeleteEntityAck`, `CreateEntityRequest`, and the new `DeleteEntityRequest`. The `SstErrorCode` enum here is being renamed to `SstStatusCode`.
+- `Hrot.NED/GenericMessages.cs` — All DDS message structs including `CreateUpdateDeleteEntityAck`, `CreateEntityRequest`, and the new `DeleteEntityRequest`. The `SstErrorCode` enum here is being renamed to `SstStatusCode`.
 
 ### SimHost (server-side two-ACK logic)
-- `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` — Existing creation handler. Will be updated to send Phase 1 ACK and register with the new finalization system.
-- `Bagira.SimHost/Systems/SstRequestFinalizationSystem.cs` — **New file** to create. Watches FDP lifecycle states and sends Phase 2 ACKs.
-- `Bagira.SimHost/Systems/DeleteEntityRequestSystem.cs` — **New file** to create. Handles incoming `DeleteEntityRequest` messages.
-- `Bagira.SimHost/SimHostApp.cs` and `Bagira.SimHost/Modules/SimHostModule.cs` — Registration points for systems.
+- `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` — Existing creation handler. Will be updated to send Phase 1 ACK and register with the new finalization system.
+- `Hrot.SimHost/Systems/SstRequestFinalizationSystem.cs` — **New file** to create. Watches FDP lifecycle states and sends Phase 2 ACKs.
+- `Hrot.SimHost/Systems/DeleteEntityRequestSystem.cs` — **New file** to create. Handles incoming `DeleteEntityRequest` messages.
+- `Hrot.SimHost/SimHostApp.cs` and `Hrot.SimHost/Modules/SimHostModule.cs` — Registration points for systems.
 
 ### IOS (client-side)
-- `Bagira.Runner/Services/IosSubsystem.cs` — DDS ingress wiring. Swap `CreateEntityAck` queue for `CreateUpdateDeleteEntityAck`.
-- `Bagira.IOS/Services/DdsEventIngressHandlers.cs` — Ingress handler implementations.
-- `Bagira.IOS/IosLogic.cs` — Core logic. Rewrite `ProcessEntityCreationAcks()`, add `_pendingEntities`.
-- `Bagira.IOS/Abstractions/IIosLogic.cs` — Interface to extend with `IsEntityPending(int)` and `GlobalAlert`.
-- `Bagira.IOS/Panels/MissionPanel.cs` — Add `ImGui.BeginDisabled/EndDisabled` guard when entity is pending.
-- `Bagira.IOS/Logic/ContextMenuLogic.cs` — Return empty menu when entity is pending.
-- `Bagira.IOS/UI/IosMock.cs` — Draw global error modal when `GlobalAlert` is set.
+- `Hrot.ClusterRunner/Services/IosSubsystem.cs` — DDS ingress wiring. Swap `CreateEntityAck` queue for `CreateUpdateDeleteEntityAck`.
+- `Hrot.ExCon/Services/DdsEventIngressHandlers.cs` — Ingress handler implementations.
+- `Hrot.ExCon/IosLogic.cs` — Core logic. Rewrite `ProcessEntityCreationAcks()`, add `_pendingEntities`.
+- `Hrot.ExCon/Abstractions/IIosLogic.cs` — Interface to extend with `IsEntityPending(int)` and `GlobalAlert`.
+- `Hrot.ExCon/Panels/MissionPanel.cs` — Add `ImGui.BeginDisabled/EndDisabled` guard when entity is pending.
+- `Hrot.ExCon/Logic/ContextMenuLogic.cs` — Return empty menu when entity is pending.
+- `Hrot.ExCon/UI/IosMock.cs` — Draw global error modal when `GlobalAlert` is set.
 
 ### FDP (read-only reference — do not modify)
 - `FDP/Toolkits/FDP.Toolkit.Lifecycle/EntityLifecycleModule.cs` — The distributed handshake engine. `SstRequestFinalizationSystem` observes its output only.
 - `FDP/Kernel/Fdp.Kernel/EntityLifecycleState.cs` — `EntityLifecycle` enum: `Constructing`, `Active`, `TearDown`, `Ghost`.
 
 ### Tests
-- `Bagira.DDS.DataModel.Tests/` — Data model tests
-- `Bagira.SimHost.Tests/` — SimHost unit tests
-- `Bagira.IOS.Tests/` (or `Bagira.IG.Tests/`) — IOS unit and integration tests
+- `Hrot.NED.Tests/` — Data model tests
+- `Hrot.SimHost.Tests/` — SimHost unit tests
+- `Hrot.ExCon.Tests/` (or `Hrot.IG.Tests/`) — IOS unit and integration tests
 
 ---
 
@@ -73,9 +73,9 @@ dotnet build IOS-IG-SimHost.sln
 
 Run tests for the affected projects:
 ```powershell
-dotnet test Bagira.DDS.DataModel.Tests --no-restore -v q
-dotnet test Bagira.SimHost.Tests --no-restore -v q
-dotnet test Bagira.IG.Tests --no-restore -v q
+dotnet test Hrot.NED.Tests --no-restore -v q
+dotnet test Hrot.SimHost.Tests --no-restore -v q
+dotnet test Hrot.IG.Tests --no-restore -v q
 ```
 
 ---

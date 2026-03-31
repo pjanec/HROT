@@ -45,15 +45,15 @@ All three files live in `docs/brain-death/`.
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs` | BD1-P1T0b |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/ChannelArbitrationSystem.cs` | BD1-P1T1 |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` | BD1-P1T2 |
-| `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` | BD1-P1T3 |
-| `Bagira.SimHost/SimHostVisualization.cs` | BD1-P2T1, BD1-P4T1 |
-| `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs` | BD1-P3T1 |
-| `Bagira.SimHost/UI/SimHostScenarioManager.cs` | BD1-P3T2 |
-| `Bagira.DDS.DataModel/GenericDescriptors.cs` | BD1-P5T1 |
-| `Bagira.Map.Common/Replication/Egress/EntityMasterEgressTranslator.cs` | BD1-P5T1 |
+| `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` | BD1-P1T3 |
+| `Hrot.SimHost/SimHostVisualization.cs` | BD1-P2T1, BD1-P4T1 |
+| `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs` | BD1-P3T1 |
+| `Hrot.SimHost/UI/SimHostScenarioManager.cs` | BD1-P3T2 |
+| `Hrot.NED/GenericDescriptors.cs` | BD1-P5T1 |
+| `Hrot.Map.Common/Replication/Egress/EntityMasterEgressTranslator.cs` | BD1-P5T1 |
 | Ingress translators consuming `EntityMaster.DisType` | BD1-P5T1 |
 | `FDP/Toolkits/FDP.Toolkit.ImGui/Utils/ComponentReflector.cs` | BD1-P6T1 |
-| `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` | BD1-P7T1 |
+| `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` | BD1-P7T1 |
 
 ### Key Supporting Files (Read-Only Reference)
 
@@ -74,8 +74,8 @@ All three files live in `docs/brain-death/`.
 |---|---|
 | `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/` | BD1-P1T0b, BD1-P1T1, BD1-P1T2 |
 | `FDP/Toolkits/FDP.Toolkit.Navigation.Tests/` | BD1-P1T0a (LocomotionDispatcher) |
-| `Bagira.SimHost.Tests/` | BD1-P1T3, BD1-P2T1, BD1-P4T1, BD1-P7T1 |
-| `Bagira.Map.Common.Tests/` | BD1-P3T1, BD1-P5T1 (egress) |
+| `Hrot.SimHost.Tests/` | BD1-P1T3, BD1-P2T1, BD1-P4T1, BD1-P7T1 |
+| `Hrot.Map.Common.Tests/` | BD1-P3T1, BD1-P5T1 (egress) |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem.Tests/` | BD1-P3T1 (SpatialHashSystem test) |
 | `FDP/Toolkits/FDP.Toolkit.ImGui.Tests/` (or nearest host) | BD1-P6T1 |
 
@@ -97,7 +97,7 @@ dotnet test IOS-IG-SimHost.sln --logger "console;verbosity=minimal"
 
 # Run a specific test project
 dotnet test FDP/Toolkits/FDP.Toolkit.Behavior.Tests/ --logger "console;verbosity=minimal"
-dotnet test Bagira.SimHost.Tests/ --logger "console;verbosity=minimal"
+dotnet test Hrot.SimHost.Tests/ --logger "console;verbosity=minimal"
 ```
 
 To run SimHost standalone for manual verification:

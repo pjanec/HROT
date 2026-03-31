@@ -1,5 +1,5 @@
 --- user ---------------------------------------------------
-fdp.txt is the  game engine. apps.txt is the source code for the apps using it. The idea was that simhost owns most of the the entities (like cars) and simulates their behavior and publishes them over the network according to bdc-sst-rules, IG is showing a 2d map of the situation (receiveing the vehicles from simhost over the network) and allows to draw extra shapes (as map entities owned by the IG but published over the network), and IOS is controlling the IG map remotely. There is also a Runner app which is able to run all three parts (SimHost, IG and IOS) in a single a optionally headless app for easier debugging and automated AI driven development debugging and testing. IG can create request creating new vehicles by sending network request to SimHost. IG should also show the ORBAT by scanning the entities on the network and building the tree of the entities. My trouble is that when i press UI buttons, basically nothing is happening. For example, if i run the Runner with "-m all" parameter to instantiate all 3 parts, pressing the "New unit..." does nothing. Pressing "Spawn" from the "Mini IOS" panel" does nothing. Map does not zoom and pan. No entities visible. When i run Bagira.SimHost separately as standalone app, it shows its own 2d window with car entities that moves. But i do not see those in the IG window. When i run Bagira.IG separately, the map can zoom and pan but no entities shown. If i press Spawn on the IG's "Mini IOS" panel, nothing happens. Similarly if i run Bagira.IOS app (it shows Node 10) and press "New unit..." from its "ORBAT Tree" panel, nothing happens. Map has to right-click context menu. Map click are supposed to travel to IOS as network messages but i see nothing. The apps look just drafted but not much integrated. SimHost and IG are buld on top of the full FDP ECS stack and are supposed to mimic the network distrobution as the Fdp.Examples.NetworkDemo project is showing. IOS is a lightweight app communicating via requests and responses via the DER library. Pls analyze and find the troubles and suggest solutions.
+fdp.txt is the  game engine. apps.txt is the source code for the apps using it. The idea was that simhost owns most of the the entities (like cars) and simulates their behavior and publishes them over the network according to bdc-sst-rules, IG is showing a 2d map of the situation (receiveing the vehicles from simhost over the network) and allows to draw extra shapes (as map entities owned by the IG but published over the network), and IOS is controlling the IG map remotely. There is also a Runner app which is able to run all three parts (SimHost, IG and IOS) in a single a optionally headless app for easier debugging and automated AI driven development debugging and testing. IG can create request creating new vehicles by sending network request to SimHost. IG should also show the ORBAT by scanning the entities on the network and building the tree of the entities. My trouble is that when i press UI buttons, basically nothing is happening. For example, if i run the Runner with "-m all" parameter to instantiate all 3 parts, pressing the "New unit..." does nothing. Pressing "Spawn" from the "Mini IOS" panel" does nothing. Map does not zoom and pan. No entities visible. When i run Hrot.SimHost separately as standalone app, it shows its own 2d window with car entities that moves. But i do not see those in the IG window. When i run Hrot.IG separately, the map can zoom and pan but no entities shown. If i press Spawn on the IG's "Mini IOS" panel, nothing happens. Similarly if i run Hrot.ExCon app (it shows Node 10) and press "New unit..." from its "ORBAT Tree" panel, nothing happens. Map has to right-click context menu. Map click are supposed to travel to IOS as network messages but i see nothing. The apps look just drafted but not much integrated. SimHost and IG are buld on top of the full FDP ECS stack and are supposed to mimic the network distrobution as the Fdp.Examples.NetworkDemo project is showing. IOS is a lightweight app communicating via requests and responses via the DER library. Pls analyze and find the troubles and suggest solutions.
 
 --- model --------------------------------------------------
 Based on a thorough analysis of the provided source code, the applications look exactly as you described: they are individually drafted but lack the "connective tissue" required to bridge the local ECS logic to the DDS network, and to link the UI panels to the data plane.
@@ -13,27 +13,27 @@ When IG or SimHost attempts to spawn an entity (e.g., via `SpawnEntityCommand` o
 *Result:* The spawn requests are silently rejected with `"[NS] Unknown TkbType"`.
 
 **Solution:** Load the catalog into both `SimHostApp` and `IgApplication`.
-In **`Bagira.SimHost/SimHostApp.cs`** and **`Bagira.IG/IgApplication.cs`**, find where `tkbDb` is instantiated and add the registration call:
+In **`Hrot.SimHost/SimHostApp.cs`** and **`Hrot.IG/IgApplication.cs`**, find where `tkbDb` is instantiated and add the registration call:
 ```csharp
 var tkbDb = new TkbDatabase();
 // ADD THIS LINE:
-Bagira.Map.Definitions.Tkb.BdcTkbCatalog.RegisterAll(tkbDb);
+Hrot.Map.Definitions.Tkb.BdcTkbCatalog.RegisterAll(tkbDb);
 ```
 
 ### Root Cause 2: SimHost Spawns "Local-Only" Invisible Cars
 In standalone mode, the SimHost shows cars moving. However, `SimHostScenarioManager.SpawnVehicle` bypasses the ECS Network and TKB architecture. It uses `_repo.CreateEntity()` and manually adds `SimTransform` and `VehicleState`, but it **forgets to add** `NetworkIdentity`, `NetworkOwnership`, or `EntityMaster`.
-Because these network components are missing, the `GeoSpatialEgressTranslator` ignores them, and they never broadcast to DDS.
+Because these network components are missing, the `WorldPosEgressTranslator` ignores them, and they never broadcast to DDS.
 
 **Solution:** Refactor `SimHostScenarioManager.cs` to publish a `SpawnEntityCommand` so the `NetworkSpawningSystem` handles the TKB templates and network components automatically.
 ```csharp
-// In Bagira.SimHost/UI/SimHostScenarioManager.cs
+// In Hrot.SimHost/UI/SimHostScenarioManager.cs
 public void SpawnVehicle(Vector2 position, Vector2 heading, VehicleClass vehicleClass = VehicleClass.PersonalCar)
 {
     // Map the local VehicleClass to the global TKB type
     long tkbType = vehicleClass switch {
-        VehicleClass.Tank => Bagira.Map.Common.TkbEntityTypes.Tank_M1Abrams,
-        VehicleClass.Pedestrian => Bagira.Map.Common.TkbEntityTypes.Infantry_Rifleman,
-        _ => Bagira.Map.Common.TkbEntityTypes.Truck_HMMWV
+        VehicleClass.Tank => Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams,
+        VehicleClass.Pedestrian => Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman,
+        _ => Hrot.Map.Common.TkbEntityTypes.Truck_HMMWV
     };
 
     float angle = VectorMath.SignedAngle(Vector2.UnitX, heading);
@@ -57,7 +57,7 @@ public void SpawnVehicle(Vector2 position, Vector2 heading, VehicleClass vehicle
 ```
 
 ### Root Cause 3: The IOS App uses "Null" Stub Writers
-If you look at **`Bagira.IOS/Program.cs`** (and `Bagira.Runner/Services/IosSubsystem.cs`), the network writers are completely stubbed out:
+If you look at **`Hrot.ExCon/Program.cs`** (and `Hrot.ClusterRunner/Services/IosSubsystem.cs`), the network writers are completely stubbed out:
 ```csharp
 var configWriter       = new NullDdsWriter<MapInteractionConfig>();
 var createEntityWriter = new NullDdsWriter<CreateEntityRequest>();
@@ -65,7 +65,7 @@ var createEntityWriter = new NullDdsWriter<CreateEntityRequest>();
 ```
 When you click "New Unit..." and fill out the spawner, it generates the configuration patches and spawn requests, but pushes them into a black hole.
 
-**Solution:** Wire up real CycloneDDS writers in `IosSubsystem.cs` and `Bagira.IOS/Program.cs`.
+**Solution:** Wire up real CycloneDDS writers in `IosSubsystem.cs` and `Hrot.ExCon/Program.cs`.
 ```csharp
 // 1. Create a real adapter class
 public class DdsWriterAdapter<T> : IDdsWriter<T> where T : unmanaged
@@ -85,12 +85,12 @@ var createEntityWriter = new DdsWriterAdapter<CreateEntityRequest>(participant, 
 ```
 
 ### Root Cause 4: ImGui Dockspace Blocks Map Panning
-In the Runner app, the Map doesn't pan or zoom. This is because **`Bagira.IOS/IosMock.cs`** executes `ImGui.DockSpaceOverViewport(0);`. 
+In the Runner app, the Map doesn't pan or zoom. This is because **`Hrot.ExCon/IosMock.cs`** executes `ImGui.DockSpaceOverViewport(0);`. 
 By default, this creates a full-screen invisible ImGui window that consumes *all* mouse inputs, preventing Raylib and the `MapCanvas` from ever receiving clicks or scroll events.
 
 **Solution:** Add the `PassthruCentralNode` flag to let the mouse penetrate the empty areas of the dockspace down to the map.
 ```csharp
-// In Bagira.IOS/IosMock.cs, inside DrawUI()
+// In Hrot.ExCon/IosMock.cs, inside DrawUI()
 ImGui.DockSpaceOverViewport(0, ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
 ```
 
@@ -100,8 +100,8 @@ When the user left-clicks or right-clicks in the IG map, the `CreationTool` or `
 **Solution:** 
 1. Use the `BdcCommandGateway` inside IG so it can actually send requests:
 ```csharp
-// In Bagira.IG/IgApplication.cs
-var gateway = new Bagira.Map.Common.Commands.BdcCommandGateway(participant);
+// In Hrot.IG/IgApplication.cs
+var gateway = new Hrot.Map.Common.Commands.BdcCommandGateway(participant);
 ```
 2. When the IG's MiniIOS UI panel (`MiniIosPanelState.cs`) requests a spawn, instead of pushing a `SpawnEntityCommand` to the local EventBus (which results in an invisible local ghost), it should issue a DDS `CreateEntityRequest` to the SimHost so the SimHost authoritatively creates and publishes it.
 
@@ -132,7 +132,7 @@ If you run `-m all`, the **IG** should be the sole owner of the visual map, whil
 
 **The Fix:** Modify the `SubsystemOrchestrator` in the Runner to force the SimHost into headless mode if the IG is also present.
 
-Update **`Bagira.Runner/Services/SubsystemOrchestrator.cs`**:
+Update **`Hrot.ClusterRunner/Services/SubsystemOrchestrator.cs`**:
 
 ```csharp
 public void Initialize()
@@ -173,23 +173,23 @@ public void Initialize()
 
 ### Part 2: Unifying Initialization
 
-Instead of manually creating and configuring the TKB, Geodetic origin, and DDS participant in three different places, we should extract a `BagiraEnvironment` bootstrapper into `Bagira.Map.Common`.
+Instead of manually creating and configuring the TKB, Geodetic origin, and DDS participant in three different places, we should extract a `HrotEnvironment` bootstrapper into `Hrot.Map.Common`.
 
-Create a new file **`Bagira.Map.Common/BagiraEnvironment.cs`**:
+Create a new file **`Hrot.Map.Common/HrotEnvironment.cs`**:
 
 ```csharp
 using CycloneDDS.Runtime;
 using Fdp.Modules.Geographic.Transforms;
 using Fdp.Toolkit.Tkb;
-using Bagira.Map.Definitions.Tkb;
+using Hrot.Map.Definitions.Tkb;
 
-namespace Bagira.Map.Common
+namespace Hrot.Map.Common
 {
     /// <summary>
-    /// Unified environment factory for Bagira subsystems to ensure 
+    /// Unified environment factory for Hrot subsystems to ensure 
     /// everyone uses the exact same coordinate spaces and TKB blueprints.
     /// </summary>
-    public static class BagiraEnvironment
+    public static class HrotEnvironment
     {
         public static TkbDatabase CreateTkb()
         {
@@ -219,22 +219,22 @@ namespace Bagira.Map.Common
 
 Now you can strip out the duplicated boilerplate in your application shells.
 
-**1. Update `IgApplication.cs` (Bagira.IG)**
+**1. Update `IgApplication.cs` (Hrot.IG)**
 ```csharp
 private void InitializeNetwork(bool enableNetwork)
 {
     _networkEnabled = enableNetwork;
 
     // Use shared Bootstrapper
-    var tkb = BagiraEnvironment.CreateTkb();
+    var tkb = HrotEnvironment.CreateTkb();
     _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
 
     // ... (Elm setup remains)
 
     if (enableNetwork)
     {
-        var participant = BagiraEnvironment.CreateParticipant(IgNetworkConstants.DdsDomain);
-        var geoTransform = BagiraEnvironment.CreateGeoTransform();
+        var participant = HrotEnvironment.CreateParticipant(IgNetworkConstants.DdsDomain);
+        var geoTransform = HrotEnvironment.CreateGeoTransform();
 
         // Pass into translators...
     }
@@ -242,16 +242,16 @@ private void InitializeNetwork(bool enableNetwork)
 }
 ```
 
-**2. Update `SimHostApp.cs` (Bagira.SimHost)**
+**2. Update `SimHostApp.cs` (Hrot.SimHost)**
 ```csharp
 protected override void OnLoad()
 {
     // ... world setup
     
     // Use shared Bootstrapper
-    var ddsParticipant = BagiraEnvironment.CreateParticipant(config.DomainId);
-    var tkbDb          = BagiraEnvironment.CreateTkb();
-    var wgs84          = BagiraEnvironment.CreateGeoTransform();
+    var ddsParticipant = HrotEnvironment.CreateParticipant(config.DomainId);
+    var tkbDb          = HrotEnvironment.CreateTkb();
+    var wgs84          = HrotEnvironment.CreateGeoTransform();
     var entityMap      = new NetworkEntityMap();
     _idAllocator       = new DdsIdAllocator(ddsParticipant, "SimHostAllocator");
 
@@ -259,14 +259,14 @@ protected override void OnLoad()
 }
 ```
 
-**3. Update `IosSubsystem.cs` (Bagira.Runner)**
+**3. Update `IosSubsystem.cs` (Hrot.ClusterRunner)**
 ```csharp
 public void Initialize(SubsystemConfig config)
 {
     _headless = config.Headless;
 
     var repo = new DerRepo();
-    var participant = BagiraEnvironment.CreateParticipant(config.DomainId);
+    var participant = HrotEnvironment.CreateParticipant(config.DomainId);
 
     // Create real writers instead of NullDdsWriters
     var configWriter = new DdsWriterAdapter<MapInteractionConfig>(participant, "MapInteractionConfig");
@@ -282,11 +282,11 @@ public void Initialize(SubsystemConfig config)
 1. **Runner** starts up.
 2. It initializes **SimHost**, **IG**, and **IOS**.
 3. It detects IG is present, so it forces **SimHost** into pure-simulation mode (Headless = true).
-4. All three apps use `BagiraEnvironment` to create their respective DDS participants, WGS84 coordinates, and fully populated TKBs.
+4. All three apps use `HrotEnvironment` to create their respective DDS participants, WGS84 coordinates, and fully populated TKBs.
 5. The **IG** draws the world Map in Raylib. The **IOS** draws its windows on top using ImGui.
 6. The user clicks "Spawn" in an IOS panel. ImGui intercepts the mouse click.
 7. IOS sends a `CreateEntityRequest` over DDS.
-8. **SimHost** (running headlessly) receives the request, spawns the TKB entity, applies the WGS84 transforms, and pushes the `EntityMaster` and `GeoSpatial` components to the DDS network.
+8. **SimHost** (running headlessly) receives the request, spawns the TKB entity, applies the WGS84 transforms, and pushes the `EntityMaster` and `WorldPos` components to the DDS network.
 9. **IG** receives the new DDS components, creates a ghost entity, applies its local `StyleResolutionSystem`, and draws the newly spawned Tank on the map.
 
 --- user ---------------------------------------------------
@@ -300,7 +300,7 @@ pls help me debugging the issue. tell me what should i look for, where to place 
 you are free to identify other major flows
 
 --- model --------------------------------------------------
-Here is a comprehensive debugging guide for the Bagira distributed simulation architecture. 
+Here is a comprehensive debugging guide for the Hrot distributed simulation architecture. 
 
 To debug these asynchronous, multi-phase ECS architectures effectively, you need to place trace logs at the **boundaries** between components: 
 1. **Input/UI generation**
@@ -331,11 +331,11 @@ sequenceDiagram
     ELM->>ECS: Set State = Active
     ECS->>Egress: ScanAndPublish() (Export Phase)
     Egress->>DDS: Write(EntityMaster)
-    Egress->>DDS: Write(GeoSpatial)
+    Egress->>DDS: Write(WorldPos)
 ```
 
 #### 📍 Where to place Debug Prints:
-*   **`Bagira.SimHost/UI/SimHostScenarioManager.cs`** -> `SpawnVehicle()`
+*   **`Hrot.SimHost/UI/SimHostScenarioManager.cs`** -> `SpawnVehicle()`
     *   *Print:* `"SimHost UI: Requesting SpawnEntityCommand for TKB {tkbType}"`
 *   **`Toolkits/FDP.Toolkit.NetworkSpawning/Systems/NetworkSpawningSystem.cs`** -> `ProcessSpawn()`
     *   *Print:* `"SimHost ECS: ProcessSpawn NetworkId={networkId}, TkbType={cmd.TkbType}"`
@@ -343,14 +343,14 @@ sequenceDiagram
     *   *Print:* `"ELM: Entity {ack.Entity.Index} received all ACKs. Promoting to Active."`
 *   **`ModuleHost/ModuleHost.Network.Cyclone/Translators/EntityMasterTranslator.cs`** -> `ScanAndPublish()`
     *   *Print:* `"SimHost Egress: Publishing EntityMaster for NetID {topic.EntityId}"`
-*   **`Bagira.SimHost/Translators/GeoSpatialEgressTranslator.cs`** -> `ScanAndPublish()`
-    *   *Print:* `"SimHost Egress: Publishing GeoSpatial for NetID {netId.Value}"`
+*   **`Hrot.SimHost/Translators/WorldPosEgressTranslator.cs`** -> `ScanAndPublish()`
+    *   *Print:* `"SimHost Egress: Publishing WorldPos for NetID {netId.Value}"`
 
 ---
 
 ### Flow 2: IG receives network-published entities from SimHost
 
-IG acts as a "Ghost" node. It receives `EntityMaster`, spawns an empty placeholder, and then hydrates it with components as other topics (`GeoSpatial`, `EntityInfo`) arrive.
+IG acts as a "Ghost" node. It receives `EntityMaster`, spawns an empty placeholder, and then hydrates it with components as other topics (`WorldPos`, `EntityInfo`) arrive.
 
 ```mermaid
 sequenceDiagram
@@ -363,8 +363,8 @@ sequenceDiagram
     DDS->>Ingress: Receive EntityMaster
     Ingress->>ECS: PublishManaged(SpawnEntityCommand)<br/>(InitType = None)
     ECS->>ECS: Create Ghost Entity
-    DDS->>Ingress: Receive GeoSpatial
-    Ingress->>ECS: SetComponent(GeoSpatial)
+    DDS->>Ingress: Receive WorldPos
+    Ingress->>ECS: SetComponent(WorldPos)
     ECS->>Style: Evaluate visual styles (TKB + Overrides)
     Style->>ECS: SetComponent(ResolvedStyle)
     ECS->>Render: SstVisualizerAdapter.Render()
@@ -373,11 +373,11 @@ sequenceDiagram
 #### 📍 Where to place Debug Prints:
 *   **`ModuleHost/ModuleHost.Network.Cyclone/Translators/EntityMasterTranslator.cs`** -> `ProcessSample()`
     *   *Print:* `"IG Ingress: Received EntityMaster NetID={master.EntityId}. Publishing SpawnEntityCommand for Ghost."`
-*   **`Bagira.IG/Translators/GeoSpatialTranslator.cs`** -> `Decode()`
-    *   *Print:* `"IG Ingress: Applied GeoSpatial (Lat: {data.Pos.Latitude}, Lon: {data.Pos.Longitude}) to Entity {entity.Index}"`
-*   **`Bagira.IG/Systems/StyleResolutionSystem.cs`** -> `Execute()`
+*   **`Hrot.IG/Translators/WorldPosTranslator.cs`** -> `Decode()`
+    *   *Print:* `"IG Ingress: Applied WorldPos (Lat: {data.Pos.Latitude}, Lon: {data.Pos.Longitude}) to Entity {entity.Index}"`
+*   **`Hrot.IG/Systems/StyleResolutionSystem.cs`** -> `Execute()`
     *   *Print:* `"IG Style: Resolved Style for Entity {entity.Index}. Texture={style.GetTextureName()}"`
-*   **`Bagira.IG/Adapters/SstVisualizerAdapter.cs`** -> `Render()`
+*   **`Hrot.IG/Adapters/SstVisualizerAdapter.cs`** -> `Render()`
     *   *Print:* `"IG Render: Drawing Entity {entity.Index} at {position}"` (Warning: this will spam, so conditionalize it for a specific entity ID).
 
 ---
@@ -404,11 +404,11 @@ sequenceDiagram
 ```
 
 #### 📍 Where to place Debug Prints:
-*   **`Bagira.Map.Common/Commands/BdcCommandGateway.cs`** -> `CreateEntityAsync()`
+*   **`Hrot.Map.Common/Commands/BdcCommandGateway.cs`** -> `CreateEntityAsync()`
     *   *Print:* `"IG Gateway: Sending CreateEntityRequest ID={request.RequestId}"`
-*   **`Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`** -> `ProcessRequest()`
+*   **`Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`** -> `ProcessRequest()`
     *   *Print:* `"SimHost: Received CreateEntityRequest {request.RequestId}. Spawning TkbType={tkbType}"`
-*   **`Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`** -> `SendErrorAck()` (Very important!)
+*   **`Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`** -> `SendErrorAck()` (Very important!)
     *   *Print:* `"SimHost ERROR: Rejecting Request {requestId} with Code {errorCode}"`
 
 ---
@@ -433,11 +433,11 @@ sequenceDiagram
 ```
 
 #### 📍 Where to place Debug Prints:
-*   **`Bagira.IOS/IosLogic.cs`** -> `StartPlacementMode()`
+*   **`Hrot.ExCon/IosLogic.cs`** -> `StartPlacementMode()`
     *   *Print:* `"IOS: Activated Placement Mode. ContextId={ActiveContextId}, TKB={tkbType}"`
-*   **`Bagira.IG/Tools/CreationTool.cs`** -> `PublishCreateRequest()` / `HandleClick()`
+*   **`Hrot.IG/Tools/CreationTool.cs`** -> `PublishCreateRequest()` / `HandleClick()`
     *   *Print:* `"IG Tool: Map clicked at {worldPos}. Sending MapClickEvent / Request."`
-*   **`Bagira.IOS/IosLogic.cs`** -> `ProcessClickEvents()`
+*   **`Hrot.ExCon/IosLogic.cs`** -> `ProcessClickEvents()`
     *   *Print:* `"IOS: Received MapClickEvent. ContextId={evt.InteractionContextId} (Expected: {ActiveContextId})"` (Look out for "DROP" logs here, which already exist in your code).
 
 ---
@@ -465,11 +465,11 @@ sequenceDiagram
 ```
 
 #### 📍 Where to place Debug Prints:
-*   **`Bagira.IOS/IosLogic.cs`** -> `ProcessClickEvents()`
+*   **`Hrot.ExCon/IosLogic.cs`** -> `ProcessClickEvents()`
     *   *Print:* `"IOS: Sending CreateEntityRequest to SimHost for TKB={PlacementType}"`
-*   **`Bagira.IOS/Services/RequestTransactionManager.cs`** -> `CompleteRequest()`
+*   **`Hrot.ExCon/Services/RequestTransactionManager.cs`** -> `CompleteRequest()`
     *   *Print:* `"IOS TxMgr: Request {requestId} completed. Success={success}"`
-*   **`Bagira.IOS/Services/RequestTransactionManager.cs`** -> `CheckTimeouts()`
+*   **`Hrot.ExCon/Services/RequestTransactionManager.cs`** -> `CheckTimeouts()`
     *   *Print:* `"IOS TxMgr WARNING: Request {id} timed out!"`
 *   **`Toolkits/FDP.Toolkit.DER/DdsIngressHandlers.cs`** -> `MasterIngressHandler.Poll()`
     *   *Print:* `"IOS DER: Received EntityMaster for NetID {id}. Stored in repo."`
@@ -496,11 +496,11 @@ sequenceDiagram
 ```
 
 #### 📍 Where to place Debug Prints:
-*   **`Bagira.IOS/Panels/ConfigPanel.cs`** -> `HandleSendConfigPatch()`
+*   **`Hrot.ExCon/Panels/ConfigPanel.cs`** -> `HandleSendConfigPatch()`
     *   *Print:* `"IOS Config: Sending JSON Patch: {BuildPatch()}"`
-*   **`Bagira.IG/Systems/MapUserConfig.cs`** (or wherever the `MapInteractionConfig` translator lives in IG).
+*   **`Hrot.IG/Systems/MapUserConfig.cs`** (or wherever the `MapInteractionConfig` translator lives in IG).
     *   *Print:* `"IG Config: Received MapInteractionConfig. Applying JSON patch."`
-*   **`Bagira.IG/Systems/StyleResolutionSystem.cs`** -> `BuildStyle()`
+*   **`Hrot.IG/Systems/StyleResolutionSystem.cs`** -> `BuildStyle()`
     *   *Print:* `"IG Style: Applying MapUserConfig layer. ForceHostile={_userConfig.ForceHostile}"`
 
 ---

@@ -16,16 +16,16 @@ A secondary class of bugs deals with entities that are not properly registered i
 | Doctrine finished event (new) | `FDP/Toolkits/FDP.Toolkit.Behavior/Events/DoctrineFinishedEvent.cs` |
 | BTree doctrine runner | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs` |
 | Mission director | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` |
-| Mission adapter (existing) | `Bagira.SimHost/Systems/MissionAdapterSystem.cs` |
-| Mission abort | `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` |
+| Mission adapter (existing) | `Hrot.SimHost/Systems/MissionAdapterSystem.cs` |
+| Mission abort | `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` |
 | RVO spatial grid | `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/SpatialHashSystem.cs` |
-| TKB vehicle builder | `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs` |
-| SimHost local spawner | `Bagira.SimHost/UI/SimHostScenarioManager.cs` |
-| SimHost right-click UI | `Bagira.SimHost/SimHostVisualization.cs` |
-| DDS data model — DisType | `Bagira.DDS.DataModel/GenericDescriptors.cs` |
-| DDS egress translator | `Bagira.Map.Common/Replication/Egress/EntityMasterEgressTranslator.cs` |
+| TKB vehicle builder | `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs` |
+| SimHost local spawner | `Hrot.SimHost/UI/SimHostScenarioManager.cs` |
+| SimHost right-click UI | `Hrot.SimHost/SimHostVisualization.cs` |
+| DDS data model — DisType | `Hrot.NED/GenericDescriptors.cs` |
+| DDS egress translator | `Hrot.Map.Common/Replication/Egress/EntityMasterEgressTranslator.cs` |
 | Entity inspector | `FDP/Toolkits/FDP.Toolkit.ImGui/Utils/ComponentReflector.cs` |
-| SimHost entity request | `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` |
+| SimHost entity request | `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` |
 
 ---
 
@@ -319,7 +319,7 @@ The complete lifecycle for a right-click-navigated entity after all fixes:
 
 **Fix — DDS boundary only:**
 
-1. Add `DisTypeStruct` (8 fields, all byte/ushort) to `Bagira.DDS.DataModel/GenericDescriptors.cs`.
+1. Add `DisTypeStruct` (8 fields, all byte/ushort) to `Hrot.NED/GenericDescriptors.cs`.
 2. Change `EntityMaster.DisType` from `long` → `DisTypeStruct`.
 3. In `EntityMasterEgressTranslator`, map `DISEntityType` fields → `DisTypeStruct` fields before publishing.
 4. In ingress translators (wherever `EntityMaster` is decoded), reconstruct `DISEntityType` from the 8 `DisTypeStruct` fields.

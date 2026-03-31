@@ -43,7 +43,7 @@ Core Data Layer (T001, T002, T003):
 - Registered `TacGraphic_Route` in `TkbEntityTypes` mapping `RoutePlan` components safely.
 
 DDS Replication (T004, T005):
-- Egress translator with delta version checking logic and GeoPosition conversion.
+- Egress translator with delta version checking logic and GeoPoint conversion.
 - Ingress translator handles deserialisation into entity `RoutePlan` using replay queue for deferred entity creations.
 
 Testing:

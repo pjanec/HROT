@@ -8,7 +8,7 @@
 ---
 
 ## Summary
-Fire interaction events now flow SimHost ? DDS ? IG, and SimHost accepts mission-control requests with DDS acknowledgments. The code follows the design’s ingress/egress separation and adds behavior-based tests for both transient event flow and mission control.
+Fire interaction events now flow SimHost ? DDS ? IG, and SimHost accepts mission-control requests with DDS acknowledgments. The code follows the designï¿½s ingress/egress separation and adds behavior-based tests for both transient event flow and mission control.
 
 ---
 
@@ -17,7 +17,7 @@ Fire interaction events now flow SimHost ? DDS ? IG, and SimHost accepts mission
 - `MissionControlRequestSystem` implements `CMD_REPLACE_MISSION`, `CMD_JUMP_TO_TASK`, and `CMD_ABORT_ALL`, with version checking and explicit error codes; aligns with Phase 13.
 - `SimHostApp` and `SimHostSubsystem` wire the new system and translators consistently.
 
-**Design concern:** `FireInteractionEvent` uses `EventId=3001` in both `Bagira.IG` and `Bagira.SimHost`. In aggregated Runner mode this risks event-id collisions. Logged as debt.
+**Design concern:** `FireInteractionEvent` uses `EventId=3001` in both `Hrot.IG` and `Hrot.SimHost`. In aggregated Runner mode this risks event-id collisions. Logged as debt.
 
 ---
 

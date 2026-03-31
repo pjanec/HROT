@@ -28,7 +28,7 @@ repair work were completed in this session.
 
 ## Files Modified
 
-### Bagira.SimHost (IF001–IF003)
+### Hrot.SimHost (IF001–IF003)
 
 | File | Change |
 |------|--------|
@@ -36,7 +36,7 @@ repair work were completed in this session.
 | `Systems/DoctrineProcessingSystem.cs` | IF002: added `unchecked { doctrine.InstanceId++; }` on every doctrine update |
 | `Systems/EntityMasterPublishingSystem.cs` | IF003: created — publishes `EntityMasterDescriptor` DDS topic per changed entity |
 
-### Bagira.IG (IF004–IF006, IF008)
+### Hrot.IG (IF004–IF006, IF008)
 
 | File | Change |
 |------|--------|
@@ -45,7 +45,7 @@ repair work were completed in this session.
 | `Tools/CreationTool.cs` | IF006: replaced `FdpEventBus`/`SpawnEntityCommand` with `IDdsWriter<CreateEntityRequest>` |
 | `Abstractions/IDdsWriter.cs` | IF006: **new** — thin `IDdsWriter<T>` interface (IG has no reference to IOS's equivalent) |
 
-### Bagira.IOS (IF007)
+### Hrot.ExCon (IF007)
 
 | File | Change |
 |------|--------|
@@ -64,19 +64,19 @@ repair work were completed in this session.
 
 | File | Purpose |
 |------|---------|
-| `Bagira.IG/Abstractions/IDdsWriter.cs` | Thin `IDdsWriter<T>` abstraction for DDS production/test separation |
-| `Bagira.IG.Tests/IgApplicationPanelTests.cs` | 6 structural tests for IF008: panel construction (SC2) + `WantCaptureMouse` gate (SC3) |
-| `Bagira.SimHost/Systems/EntityMasterPublishingSystem.cs` | IF003: ECS system that publishes EntityMaster DDS topic |
-| `Bagira.SimHost.Tests/<related tests>` | Unit tests for IF001–IF003 |
+| `Hrot.IG/Abstractions/IDdsWriter.cs` | Thin `IDdsWriter<T>` abstraction for DDS production/test separation |
+| `Hrot.IG.Tests/IgApplicationPanelTests.cs` | 6 structural tests for IF008: panel construction (SC2) + `WantCaptureMouse` gate (SC3) |
+| `Hrot.SimHost/Systems/EntityMasterPublishingSystem.cs` | IF003: ECS system that publishes EntityMaster DDS topic |
+| `Hrot.SimHost.Tests/<related tests>` | Unit tests for IF001–IF003 |
 
 ---
 
 ## Test Run Results
 
 ```
-Bagira.IG.Tests      — Failed: 0, Passed: 229, Total: 229  ✅
-Bagira.SimHost.Tests — Failed: 0, Passed:  55, Total:  55  ✅
-Bagira.IOS.Tests     — Failed: 0, Passed: 252, Total: 252  ✅
+Hrot.IG.Tests      — Failed: 0, Passed: 229, Total: 229  ✅
+Hrot.SimHost.Tests — Failed: 0, Passed:  55, Total:  55  ✅
+Hrot.ExCon.Tests     — Failed: 0, Passed: 252, Total: 252  ✅
 ```
 
 All three primary test projects pass cleanly.  Network-dependent integration tests in
@@ -89,15 +89,15 @@ to this batch.
 
 ### IF006 — IDdsWriter<T> placement
 
-`Bagira.IOS.Services` already contains an `IDdsWriter<T>` interface, but `Bagira.IG` does not
-reference `Bagira.IOS` (doing so would create a circular dependency).  A minimal duplicate was
-created at `Bagira.IG/Abstractions/IDdsWriter.cs`.  The two interfaces are structurally identical
+`Hrot.ExCon.Services` already contains an `IDdsWriter<T>` interface, but `Hrot.IG` does not
+reference `Hrot.ExCon` (doing so would create a circular dependency).  A minimal duplicate was
+created at `Hrot.IG/Abstractions/IDdsWriter.cs`.  The two interfaces are structurally identical
 (`void Write(T sample)`) and could be unified in a shared library in a future cleanup batch.
 
 ### IF006 — Coordinate mapping
 
 `CreateEntityRequest` uses geodetic coordinates: `Latitude = worldPos.Y, Longitude = worldPos.X`.
-This convention matches the existing `GeoSpatial` usage elsewhere in the codebase.  `Owner` is
+This convention matches the existing `WorldPos` usage elsewhere in the codebase.  `Owner` is
 zeroed (`default(NodeId)`) so SimHost takes authoritative ownership of the spawned entity.
 
 ### IF006 — Test double pattern
@@ -153,7 +153,7 @@ one-frame lag.
 | Spec point | Actual | Reason |
 |---|---|---|
 | IosMock shows node ID in title | Shows "IOS Mock" (no ID) | `IDerRepo` has no `LocalNodeId`; cosmetic only |
-| IF006: reuse IOS `IDdsWriter<T>` | Duplicate created in `Bagira.IG.Abstractions` | Circular dependency prevention |
+| IF006: reuse IOS `IDdsWriter<T>` | Duplicate created in `Hrot.IG.Abstractions` | Circular dependency prevention |
 
 ---
 

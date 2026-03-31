@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.Common</RootNamespace>
+    <AssemblyName>Hrot.Common</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.SimHost.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Orchestration DDS types (NodeOpType, NodeOpCommand) -->
+    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
+    <!-- EntityRepository parameter used by Commit/Abort -->
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <!-- Toolkit orchestration contracts (IOrchestrationTransport, IClusterStateHandler) -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
+  </ItemGroup>
+
+</Project>

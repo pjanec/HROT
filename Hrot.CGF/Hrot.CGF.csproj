@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.CGF</RootNamespace>
+    <AssemblyName>Hrot.CGF</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.CGF.Tests</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.SimHost.Integration.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Orchestration DDS types and IClusterStateHandler -->
+    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
+    <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
+    <!-- CycloneDDS transitive via DataModel, but explicit for DdsParticipant -->
+    <ProjectReference Include="..\FDP\ExtDeps\FastCycloneDds\src\CycloneDDS.Runtime\CycloneDDS.Runtime.csproj" />
+    <!-- FdpLog<T> + FdpEventBus -->
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <!-- SwitchTimeModeDescriptorTranslator (CGF1-A.2, BATCH-09) -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
+    <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Scenario\FDP.Toolkit.Scenario.csproj" />
+    <!-- Orchestration toolkit contracts -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
+  </ItemGroup>
+
+</Project>

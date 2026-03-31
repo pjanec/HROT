@@ -109,7 +109,7 @@ Create `docs/design1_AG/FDP-API-REFERENCE.md` with:
 
 3. **WGS84Transform API:**
    ```csharp
-   var origin = new GeoPosition { Latitude = 50.0, Longitude = 14.0, Altitude = 200 };
+   var origin = new GeoPoint { Latitude = 50.0, Longitude = 14.0, Altitude = 200 };
    var transform = new WGS84Transform(origin);
    var cartesian = transform.ToCartesian(geoPos);
    ```
@@ -145,24 +145,24 @@ Create `docs/design1_AG/FDP-API-REFERENCE.md` with:
 
 ## Phase 2: Data Model Assembly (3 days)
 
-### Task P2.1: Create Bagira.DDS.DataModel Project
+### Task P2.1: Create Hrot.NED Project
 
 **Goal:** Create C# class library for BDC SST data model.
 
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new classlib -n Bagira.DDS.DataModel -f net8.0
+   dotnet new classlib -n Hrot.NED -f net8.0
    ```
 2. Add project to solution:
    ```
-   Location: Bagira.DDS.DataModel/
+   Location: Hrot.NED/
    ```
 3. Add NuGet packages:
    - `CycloneDDS.NET` (latest version)
 4. Create project structure:
    ```
-   Bagira.DDS.DataModel/
+   Hrot.NED/
      Common/          (Core types)
      Descriptors/     (Entity descriptors)
      Messages/        (Request/Ack messages)
@@ -186,26 +186,26 @@ Create `docs/design1_AG/FDP-API-REFERENCE.md` with:
 **Goal:** Copy corrected type definitions from `docs/FcdCsharp/` to new project.
 
 **Steps:**
-1. Copy `docs/FcdCsharp/Common.cs` → `Bagira.DDS.DataModel/Common/`
-   - Types: GeoPosition, OrientationHPR, DAL3, NodeId
-2. Copy `docs/FcdCsharp/GenericDescriptors.cs` → `Bagira.DDS.DataModel/Descriptors/`
+1. Copy `docs/FcdCsharp/Common.cs` → `Hrot.NED/Common/`
+   - Types: GeoPoint, EulerOri, AngularVector, NodeId
+2. Copy `docs/FcdCsharp/GenericDescriptors.cs` → `Hrot.NED/Descriptors/`
    - Types: EntityMaster, EntityInfo
-3. Copy `docs/FcdCsharp/SimDescriptors.cs` → `Bagira.DDS.DataModel/Descriptors/`
-   - Types: GeoSpatial, GeoSpatialDR
-4. Copy `docs/FcdCsharp/MapDescriptors.cs` → `Bagira.DDS.DataModel/Map/`
+3. Copy `docs/FcdCsharp/SimDescriptors.cs` → `Hrot.NED/Descriptors/`
+   - Types: WorldPos, WorldPos
+4. Copy `docs/FcdCsharp/MapDescriptors.cs` → `Hrot.NED/Map/`
    - Types: MapEntitySymbol, MapVisualOverlay, MapRoute, MapInteractionConfig, MapConfigStatus
-5. Copy `docs/FcdCsharp/MissionDescriptors.cs` → `Bagira.DDS.DataModel/Mission/`
+5. Copy `docs/FcdCsharp/MissionDescriptors.cs` → `Hrot.NED/Mission/`
    - Types: EntityMission, MissionPlan, MissionTask
-6. Copy `docs/FcdCsharp/GenericMessages.cs` → `Bagira.DDS.DataModel/Messages/`
+6. Copy `docs/FcdCsharp/GenericMessages.cs` → `Hrot.NED/Messages/`
    - Types: CreateEntityRequest, CreateEntityAck, UpdateEntityDescriptorRequest, UpdateEntityDescriptorAck
-7. Copy `docs/FcdCsharp/MissionMessages.cs` → `Bagira.DDS.DataModel/Messages/`
+7. Copy `docs/FcdCsharp/MissionMessages.cs` → `Hrot.NED/Messages/`
    - Types: MissionControlRequest, MissionControlAck
-8. Copy `docs/FcdCsharp/MapMessages.cs` → `Bagira.DDS.DataModel/Map/`
+8. Copy `docs/FcdCsharp/MapMessages.cs` → `Hrot.NED/Map/`
    - Types: MapClickEvent, DragEvent, SelectionChangedEvent, ContextActionsUpdate
 
 **Acceptance Criteria:**
 - ✅ All 8 files copied and organized
-- ✅ Namespaces updated to `Bagira.DDS.DataModel.*`
+- ✅ Namespaces updated to `Hrot.NED.*`
 - ✅ Project compiles without errors
 
 **Estimated Effort:** 0.5 days
@@ -252,7 +252,7 @@ public partial struct EntityMaster
 **Goal:** Verify data model compiles with CycloneDDS and can publish/subscribe.
 
 **Test Implementation:**
-Create `Bagira.DDS.DataModel.Tests/EntityMasterPubSubTests.cs`:
+Create `Hrot.NED.Tests/EntityMasterPubSubTests.cs`:
 
 ```csharp
 [TestClass]
@@ -294,7 +294,7 @@ public class EntityMasterPubSubTests
 **Acceptance Criteria:**
 - ✅ Test project created
 - ✅ EntityMaster pub/sub test passes
-- ✅ GeoSpatial pub/sub test passes
+- ✅ WorldPos pub/sub test passes
 - ✅ CreateEntityRequest/Ack pub/sub test passes
 
 **Estimated Effort:** 1 day
@@ -308,25 +308,25 @@ public class EntityMasterPubSubTests
 **Goal:** Create README for data model project.
 
 **Deliverables:**
-Create `Bagira.DDS.DataModel/README.md`:
+Create `Hrot.NED/README.md`:
 
 ```markdown
-# Bagira.DDS.DataModel
+# Hrot.NED
 
 BDC SST (Simulate, Stimulate, Track) data model for DDS.
 
 ## Namespaces
 
-- `Bagira.DDS.DM` - Common types (GeoPosition, OrientationHPR, etc.)
-- `Bagira.BDC.SSTD` - Descriptors (EntityMaster, GeoSpatial, etc.)
-- `Bagira.BDC.SSTM` - Messages (CreateEntityRequest, etc.)
+- `Hrot.NED.Common` - Common types (GeoPoint, EulerOri, etc.)
+- `Hrot.NED.Descriptors` - Descriptors (EntityMaster, WorldPos, etc.)
+- `Hrot.NED.Messages` - Messages (CreateEntityRequest, etc.)
 
 ## Usage
 
 ### Publishing EntityMaster
 
 ```csharp
-using Bagira.BDC.SSTD;
+using Hrot.NED.Descriptors;
 
 var sample = new EntityMaster
 {
@@ -339,10 +339,10 @@ var sample = new EntityMaster
 writer.Write(sample);
 ```
 
-### Subscribing to GeoSpatial
+### Subscribing to WorldPos
 
 ```csharp
-var reader = subscriber.CreateDataReader<GeoSpatial>("GeoSpatial");
+var reader = subscriber.CreateDataReader<WorldPos>("WorldPos");
 var samples = reader.Take();
 
 foreach (var sample in samples)
@@ -886,7 +886,7 @@ Create `FDP.Toolkit.DER.Examples/EntityMasterIngressExample.cs`:
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Bagira.DDS.DataModel;
+using Hrot.NED;
 using CycloneDDS.Runtime;
 
 public class EntityMasterIngressTranslator
@@ -1233,13 +1233,13 @@ namespace FDP.Toolkit.Commands
 **Goal:** BDC SST-specific command gateway facade.
 
 **Implementation:**
-Create `Bagira.Map.Common/Commands/BdcCommandGateway.cs`:
+Create `Hrot.Map.Common/Commands/BdcCommandGateway.cs`:
 
 ```csharp
 using FDP.Toolkit.Commands;
-using Bagira.DDS.DataModel;
+using Hrot.NED;
 
-namespace Bagira.Map.Common.Commands
+namespace Hrot.Map.Common.Commands
 {
     /// <summary>
     /// Convenience gateway for BDC SST commands.
@@ -1504,7 +1504,7 @@ catch (TaskCanceledException)
 ### BDC SST Gateway
 
 ```csharp
-using Bagira.Map.Common.Commands;
+using Hrot.Map.Common.Commands;
 
 var gateway = new BdcCommandGateway(participant);
 
@@ -1544,27 +1544,27 @@ if (ack.ErrorCode == 0)
 
 ---
 
-## Phase 5: Bagira.Map.Definitions (TKB Extensions) (6 days)
+## Phase 5: Hrot.Map.Definitions (TKB Extensions) (6 days)
 
-### Task P5.1: Create Bagira.Map.Definitions Project
+### Task P5.1: Create Hrot.Map.Definitions Project
 
 **Goal:** Create domain-specific TKB descriptor library.
 
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new classlib -n Bagira.Map.Definitions -f net8.0
+   dotnet new classlib -n Hrot.Map.Definitions -f net8.0
    ```
 2. Add project to solution:
    ```
-   Location: Bagira.Map.Definitions/
+   Location: Hrot.Map.Definitions/
    ```
 3. Add project references:
    - `FDP.Interfaces`
    - `FDP.Toolkit.Tkb`
 4. Create project structure:
    ```
-   Bagira.Map.Definitions/
+   Hrot.Map.Definitions/
      Tkb/
        IgVisualDef.cs
        SimVehicleDef.cs
@@ -1588,10 +1588,10 @@ if (ack.ErrorCode == 0)
 **Goal:** Create visual properties descriptor for IG.
 
 **Implementation:**
-Create `Bagira.Map.Definitions/Tkb/IgVisualDef.cs`:
+Create `Hrot.Map.Definitions/Tkb/IgVisualDef.cs`:
 
 ```csharp
-namespace Bagira.Map.Definitions.Tkb
+namespace Hrot.Map.Definitions.Tkb
 {
     /// <summary>
     /// IG visual properties (color, symbol, 3D model).
@@ -1647,10 +1647,10 @@ namespace Bagira.Map.Definitions.Tkb
 **Goal:** Create physics properties descriptor for SimHost.
 
 **Implementation:**
-Create `Bagira.Map.Definitions/Tkb/SimVehicleDef.cs`:
+Create `Hrot.Map.Definitions/Tkb/SimVehicleDef.cs`:
 
 ```csharp
-namespace Bagira.Map.Definitions.Tkb
+namespace Hrot.Map.Definitions.Tkb
 {
     public enum TerrainMobility
     {
@@ -1735,10 +1735,10 @@ namespace Bagira.Map.Definitions.Tkb
 **Goal:** Create combat properties descriptor for future (stubbed for now).
 
 **Implementation:**
-Create `Bagira.Map.Definitions/Tkb/SimCombatDef.cs`:
+Create `Hrot.Map.Definitions/Tkb/SimCombatDef.cs`:
 
 ```csharp
-namespace Bagira.Map.Definitions.Tkb
+namespace Hrot.Map.Definitions.Tkb
 {
     public struct WeaponMount
     {
@@ -1818,10 +1818,10 @@ namespace Bagira.Map.Definitions.Tkb
 **Goal:** Create composite unit (ORBAT) descriptor.
 
 **Implementation:**
-Create `Bagira.Map.Definitions/Tkb/TkbCompositionDef.cs`:
+Create `Hrot.Map.Definitions/Tkb/TkbCompositionDef.cs`:
 
 ```csharp
-namespace Bagira.Map.Definitions.Tkb
+namespace Hrot.Map.Definitions.Tkb
 {
     public struct TkbChildSlot
     {
@@ -1881,13 +1881,13 @@ namespace Bagira.Map.Definitions.Tkb
 **Goal:** Fluent API for registering TKB templates.
 
 **Implementation:**
-Create `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs`:
+Create `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs`:
 
 ```csharp
 using FDP.Interfaces;
 using FDP.Toolkit.Tkb;
 
-namespace Bagira.Map.Definitions.Tkb
+namespace Hrot.Map.Definitions.Tkb
 {
     public class BdcTkbBuilder
     {
@@ -1912,7 +1912,7 @@ namespace Bagira.Map.Definitions.Tkb
                     // BDC SST required descriptors (mapped to ECS components)
                     // typeof(EntityMasterComponent),
                     // typeof(EntityInfoComponent),
-                    // typeof(GeoSpatialComponent)
+                    // typeof(WorldPosComponent)
                 }
             };
             
@@ -1999,10 +1999,10 @@ namespace Bagira.Map.Definitions.Tkb
 **Goal:** Register 10-15 example entity types using builder.
 
 **Implementation:**
-Create `Bagira.Map.Definitions/Tkb/BdcTkbCatalog.cs`:
+Create `Hrot.Map.Definitions/Tkb/BdcTkbCatalog.cs`:
 
 ```csharp
-namespace Bagira.Map.Definitions.Tkb
+namespace Hrot.Map.Definitions.Tkb
 {
     public static class TkbEntityTypes
     {
@@ -2233,7 +2233,7 @@ namespace Bagira.Map.Definitions.Tkb
 **Goal:** Validate template registration and descriptor retrieval.
 
 **Test Implementation:**
-Create `Bagira.Map.Definitions.Tests/TkbBuilderTests.cs`:
+Create `Hrot.Map.Definitions.Tests/TkbBuilderTests.cs`:
 
 ```csharp
 [TestClass]
@@ -2309,10 +2309,10 @@ public class TkbBuilderTests
 **Goal:** Create README with usage examples.
 
 **Deliverables:**
-Create `Bagira.Map.Definitions/README.md`:
+Create `Hrot.Map.Definitions/README.md`:
 
 ```markdown
-# Bagira.Map.Definitions
+# Hrot.Map.Definitions
 
 Domain-specific TKB descriptors for BDC SST.
 
@@ -2328,7 +2328,7 @@ Domain-specific TKB descriptors for BDC SST.
 ### Registering Entity Types
 
 ```csharp
-using Bagira.Map.Definitions.Tkb;
+using Hrot.Map.Definitions.Tkb;
 
 var tkbDb = world.GetModule<TkbDatabase>();
 BdcTkbCatalog.RegisterAll(tkbDb);
@@ -2369,7 +2369,7 @@ Console.WriteLine($"Mass: {physicsDef.Mass} kg");
 
 ## See Also
 
-- [DESIGN-SHARED.md](../../docs/design1_AG/DESIGN-SHARED.md#43-bagiramapdefinitions-tkb-extensions)
+- [DESIGN-SHARED.md](../../docs/design1_AG/DESIGN-SHARED.md#43-hrotmapdefinitions-tkb-extensions)
 ```
 
 **Acceptance Criteria:**
@@ -2382,22 +2382,22 @@ Console.WriteLine($"Mass: {physicsDef.Mass} kg");
 
 ---
 
-## Phase 6: Bagira.Map.Common Assembly (2 days)
+## Phase 6: Hrot.Map.Common Assembly (2 days)
 
-### Task P6.1: Create Bagira.Map.Common Project
+### Task P6.1: Create Hrot.Map.Common Project
 
 **Goal:** Consolidate shared constants and utilities.
 
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new classlib -n Bagira.Map.Common -f net8.0
+   dotnet new classlib -n Hrot.Map.Common -f net8.0
    ```
 2. Add project to solution:
-   ```   Location: Bagira.Map.Common/
+   ```   Location: Hrot.Map.Common/
    ```
 3. Add project references:
-   - `Bagira.DDS.DataModel`
+   - `Hrot.NED`
    - `FDP.Toolkit.Commands`
 4. Move `BdcCommandGateway.cs` from P4.3 to this project
 
@@ -2416,13 +2416,13 @@ Console.WriteLine($"Mass: {physicsDef.Mass} kg");
 ** Goal:** Centralize entity type ID constants.
 
 **Implementation:**
-Create `Bagira.Map.Common/TkbEntityTypes.cs`:
+Create `Hrot.Map.Common/TkbEntityTypes.cs`:
 
 ```csharp
-namespace Bagira.Map.Common
+namespace Hrot.Map.Common
 {
     /// <summary>
-    /// TKB entity type ID constants (matches Bagira.Map.Definitions).
+    /// TKB entity type ID constants (matches Hrot.Map.Definitions).
     /// </summary>
     public static class TkbEntityTypes
     {
@@ -2451,7 +2451,7 @@ namespace Bagira.Map.Common
 
 **Acceptance Criteria:**
 - ✅ File compiles
-- ✅ Constants match Bagira.Map.Definitions
+- ✅ Constants match Hrot.Map.Definitions
 
 **Estimated Effort:** 0.25 days
 
@@ -2464,10 +2464,10 @@ namespace Bagira.Map.Common
 **Goal:** Centralize map and context constants.
 
 **Implementation:**
-Create `Bagira.Map.Common/MapConfig.cs`:
+Create `Hrot.Map.Common/MapConfig.cs`:
 
 ```csharp
-namespace Bagira.Map.Common
+namespace Hrot.Map.Common
 {
     public static class MapConfig
     {
@@ -2527,15 +2527,15 @@ namespace Bagira.Map.Common
 
 ---
 
-### Task P6.4: Create Bagira.Map.Common README
+### Task P6.4: Create Hrot.Map.Common README
 
 **Goal:** Document shared constants and command gateway.
 
 **Deliverables:**
-Create `Bagira.Map.Common/README.md`:
+Create `Hrot.Map.Common/README.md`:
 
 ```markdown
-# Bagira.Map.Common
+# Hrot.Map.Common
 
 Shared constants, utilities, and command gateway for BDC SST.
 
@@ -2558,8 +2558,8 @@ Map and context configuration constants.
 ### Command Gateway
 
 ```csharp
-using Bagira.Map.Common;
-using Bagira.Map.Common.Commands;
+using Hrot.Map.Common;
+using Hrot.Map.Common.Commands;
 
 var gateway = new BdcCommandGateway(participant);
 
@@ -2596,16 +2596,16 @@ string contextKey = ContextKeys.PlaceTank;
 
 ---
 
-### Task P6.5: Build and Validate Bagira.Map.Common
+### Task P6.5: Build and Validate Hrot.Map.Common
 
 **Goal:** Ensure clean compilation and no circular dependencies.
 
 **Steps:**
-1. Build `Bagira.Map.Common` project
+1. Build `Hrot.Map.Common` project
 2. Run dependency analysis:
    ```
-   Bagira.Map.Common
-   ├── Bagira.DDS.DataModel
+   Hrot.Map.Common
+   ├── Hrot.NED
    ├── FDP.Toolkit.Commands
    └── CycloneDDS.NET (transitive)
    ```
@@ -2631,15 +2631,15 @@ string contextKey = ContextKeys.PlaceTank;
 **Steps:**
 1. Create new C# project:
    ```
-   dotnet new mstest -n Bagira.Map.Integration.Tests -f net8.0
+   dotnet new mstest -n Hrot.Map.Integration.Tests -f net8.0
    ```
 2. Add project to solution
 3. Add project references:
-   - `Bagira.DDS.DataModel`
-   - `Bagira.Map.Common`
+   - `Hrot.NED`
+   - `Hrot.Map.Common`
    - `FDP.Toolkit.DER`
    - `FDP.Toolkit.Commands`
-   - `Bagira.Map.Definitions`
+   - `Hrot.Map.Definitions`
    - `FDP.Toolkit.Tkb`
 
 **Acceptance Criteria:**
@@ -2657,7 +2657,7 @@ string contextKey = ContextKeys.PlaceTank;
 **Goal:** Test full workflow: IOS creates entity → SimHost allocates ID → IOS ingests.
 
 **Test Implementation:**
-Create `Bagira.Map.Integration.Tests/EntityCreationE2ETests.cs`:
+Create `Hrot.Map.Integration.Tests/EntityCreationE2ETests.cs`:
 
 ```csharp
 [TestClass]
@@ -2812,7 +2812,7 @@ class MockSimHost
 **Goal:** Verify performance within acceptable bounds.
 
 **Test Implementation:**
-Create `Bagira.Map.Integration.Tests/PerformanceTests.cs`:
+Create `Hrot.Map.Integration.Tests/PerformanceTests.cs`:
 
 ```csharp
 [TestClass]
@@ -2914,15 +2914,15 @@ This guide shows how to integrate shared components into IOS, IG, and SimHost mo
 ### Add Dependency
 
 ```xml
-<ProjectReference Include="..\..\Common\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
+<ProjectReference Include="..\..\Common\Hrot.NED\Hrot.NED.csproj" />
 ```
 
 ### Usage
 
 ```csharp
-using Bagira.DDS.DataModel;
-using Bagira.BDC.SSTD;
-using Bagira.BDC.SSTM;
+using Hrot.NED;
+using Hrot.NED.Descriptors;
+using Hrot.NED.Messages;
 
 var entityMaster = new EntityMaster
 {
@@ -2977,13 +2977,13 @@ reader.DataAvailable += (samples) =>
 ### Add Dependency
 
 ```xml
-<ProjectReference Include="..\..\Common\Bagira.Map.Common\Bagira.Map.Common.csproj" />
+<ProjectReference Include="..\..\Common\Hrot.Map.Common\Hrot.Map.Common.csproj" />
 ```
 
 ### Setup (IOS)
 
 ```csharp
-using Bagira.Map.Common.Commands;
+using Hrot.Map.Common.Commands;
 
 var gateway = new BdcCommandGateway(participant);
 
@@ -3044,13 +3044,13 @@ requestReader.DataAvailable += async (samples) =>
 ### Add Dependency
 
 ```xml
-<ProjectReference Include="..\..\Common\Bagira.Map.Definitions\Bagira.Map.Definitions.csproj" />
+<ProjectReference Include="..\..\Common\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
 ```
 
 ### Registration
 
 ```csharp
-using Bagira.Map.Definitions.Tkb;
+using Hrot.Map.Definitions.Tkb;
 
 var tkbDb = world.GetModule<TkbDatabase>();
 BdcTkbCatalog.RegisterAll(tkbDb);
@@ -3098,8 +3098,8 @@ Console.WriteLine($"Model: {visualDef.ModelPath}");
 | P2 | Data Model Assembly | 3 | P1 |
 | P3 | FDP.Toolkit.DER | 5 | None (parallel) |
 | P4 | FDP.Toolkit.Commands | 4 | None (parallel) |
-| P5 | Bagira.Map.Definitions | 6 | P1 |
-| P6 | Bagira.Map.Common | 2 | P4 |
+| P5 | Hrot.Map.Definitions | 6 | P1 |
+| P6 | Hrot.Map.Common | 2 | P4 |
 | P7 | Integration Testing | 3 | P2, P3, P4, P5, P6 |
 | **TOTAL** | | **25** | |
 

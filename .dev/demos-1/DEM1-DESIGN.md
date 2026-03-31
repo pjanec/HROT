@@ -18,7 +18,7 @@ The DEM1 workstream creates a **self-contained, CI-friendly demo suite** inside 
 2. Runs fully **headless** for autonomous AI-agent development and CI pipelines — exit code `0` = pass, non-zero = fail.
 3. Optionally renders a **2D map** (`FDP.Toolkit.Vis2D`) for human debugging without changing simulation outcomes.
 4. Uses **deterministic time stepping** (`SteppingTimeController`, `1/60 s` fixed delta) so physics and AI produce bit-identical results across all CI hardware.
-5. Is **completely isolated from `Bagira.*`** — no geodetic coordinates, no Entity Master, no Bagira-specific DDS schemas.
+5. Is **completely isolated from `Hrot.*`** — no geodetic coordinates, no Entity Master, no Hrot-specific DDS schemas.
 6. Produces **structured trace logs** (via `FdpLog` + NLog file target) written every run so that AI coding agents can diagnose failures without interactive debugging.
 
 ---
@@ -27,11 +27,11 @@ The DEM1 workstream creates a **self-contained, CI-friendly demo suite** inside 
 
 | Rule | Rationale |
 |------|-----------|
-| All new code lives under `FDP/Examples/` in the `Fdp.Examples.*` namespace. | Strict domain isolation from `Bagira.*`. |
+| All new code lives under `FDP/Examples/` in the `Fdp.Examples.*` namespace. | Strict domain isolation from `Hrot.*`. |
 | Legacy demo projects (`Fdp.Examples.CarKinem`, `Fdp.Examples.NetworkDemo`, `Fdp.Examples.UrbanCombat`) must not be modified. | They remain functional until explicitly deprecated. |
 | No wall-clock timing (`Thread.Sleep`, `DateTime.Now`) in scenario logic. | All time is injected via `GlobalTime` singleton. |
 | Each scenario exits the process deterministically (exit 0 or exit non-zero) within `--max-ticks`. | Enables CI pipelines to treat the runner binary as a test binary. |
-| Only Cartesian 3D maths — no WGS84/geodetic conversions. | Simplifies math, removes Bagira dependency. |
+| Only Cartesian 3D maths — no WGS84/geodetic conversions. | Simplifies math, removes Hrot dependency. |
 | No `EntityMaster` concept. | Simplified bootstrapping via lightweight `DemoSpawnMsg`. |
 
 ---

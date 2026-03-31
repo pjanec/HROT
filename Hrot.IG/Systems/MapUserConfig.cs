@@ -1,0 +1,35 @@
+namespace Hrot.IG.Systems;
+
+/// <summary>
+/// Operator-facing runtime configuration supplying the highest-priority (Layer-3)
+/// overrides inside <see cref="StyleResolutionSystem"/>.
+///
+/// Mutated from the ImGui settings panel and read every simulation frame.
+/// Not an ECS component — owned by the application shell and injected at construction.
+/// </summary>
+public class MapUserConfig
+{
+    /// <summary>
+    /// When <c>true</c>, <see cref="StyleResolutionSystem"/> forces every entity's
+    /// affiliation to <see cref="Hrot.IG.Components.ForceId.Hostile"/> and applies a
+    /// red tint, overriding both TKB defaults and network overrides.
+    /// </summary>
+    public bool ForceHostile { get; set; }
+
+    /// <summary>
+    /// When <c>true</c>, label text is suppressed (set to empty string) so the renderer
+    /// omits text draw calls entirely.
+    /// </summary>
+    public bool HideLabels { get; set; }
+
+    /// <summary>
+    /// When <c>true</c>, the IG sends throttled <c>UpdateEntityDescriptorRequest</c>
+    /// (GeoSpatial) messages <em>during</em> a drag operation — not only on drop —
+    /// at a rate of approximately 10 Hz. Useful for observing network latency under
+    /// continuous positional updates.
+    ///
+    /// When <c>false</c> (default), no network message is sent until the entity is
+    /// released, matching the existing behavior.
+    /// </summary>
+    public bool ContinuousDragUpdates { get; set; }
+}

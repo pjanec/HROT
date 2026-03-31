@@ -17,13 +17,13 @@ Gateway) are fully delivered.  Solution builds clean; 20 / 20 orchestrator tests
 
 ## Part A — Tech debt closures
 
-### A.1 — IG `DrillSlave` `SetFilter` (Issue 1, P2)
+### A.1 — IG `ClusterSlave` `SetFilter` (Issue 1, P2)
 
-**File:** `Bagira.IG/Modules/Orchestration/DrillSlave.cs`
+**File:** `Hrot.IG/Modules/Orchestration/ClusterSlave.cs`
 
 Added `_commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId);` immediately after
 constructing `DdsReader<NodeOpCommand>`, matching the established pattern in
-`Bagira.CGF`, `Bagira.IOS`, and `Bagira.SimHost`.
+`Hrot.CGF`, `Hrot.ExCon`, and `Hrot.SimHost`.
 
 ```csharp
 _commandReader = new DdsReader<NodeOpCommand>(participant);
@@ -33,7 +33,7 @@ _commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId);
 
 **Test coverage:** No dedicated IG+DDS integration test exists; manual verification —
 confirmed `SetFilter` is the only code path that prevents the IG slave accepting
-foreign-key `NodeOpCommand` samples.  Parity with the three other `DrillSlave`
+foreign-key `NodeOpCommand` samples.  Parity with the three other `ClusterSlave`
 implementations is now code-identical.
 
 **DEBT-TRACKER:** Row closed `✅`.
@@ -42,14 +42,14 @@ implementations is now code-identical.
 
 ### A.2 — `CgfApplication` time bus documentation (Issue 2, P2 — Option B)
 
-**File:** `Bagira.CGF/CgfApplication.cs`
+**File:** `Hrot.CGF/CgfApplication.cs`
 
 Selected **Option B**: keep the minimal shell and document the wire path vs. listener
 gap explicitly in the class-level XML `<summary>`.  The updated doc states:
 
 - `TimeNetworkModule.CreateDescriptorTranslator` is wired, so `SwitchTimeModeWireDto`
   samples are bridged on/off DDS each frame in `Tick()` — the wire path is proven.
-- `DrillSlave` is constructed **without** the `_eventBus`; no `SlaveTimeModeListener`
+- `ClusterSlave` is constructed **without** the `_eventBus`; no `SlaveTimeModeListener`
   is registered.
 - Ingressed `SwitchTimeModeEvent` messages are therefore **not acted on** by the
   minimal CGF shell.
@@ -81,7 +81,7 @@ The body of both methods is unchanged.
 
 ### A.4 — Subprocess CI (P3 — Opportunistic)
 
-No change.  The subprocess `dotnet run --project Bagira.Runner -- --mode ci ...` path
+No change.  The subprocess `dotnet run --project Hrot.ClusterRunner -- --mode ci ...` path
 remains in-process via `MinimalCIScenario.FinalEntitySnapshot` + `DeterministicRun_IsReproducible`
 (BATCH-09 delivery).  DEBT-TRACKER row `Opportunistic` — not targeted for BATCH-10.
 
@@ -95,7 +95,7 @@ Rows for A.1 and A.2 closed `✅` (see above).
 
 ### B.1 — `FileManifestEntry`, `NodeDistributionTarget`, `GatewayResult`
 
-**File:** `Bagira.Orchestrator/StorageGatewayModule.cs` (new)
+**File:** `Hrot.Orchestrator/StorageGatewayModule.cs` (new)
 
 Three supporting types:
 
@@ -107,7 +107,7 @@ Three supporting types:
 
 ### B.2 — `StorageGatewayModule`
 
-**File:** `Bagira.Orchestrator/StorageGatewayModule.cs` (same file)
+**File:** `Hrot.Orchestrator/StorageGatewayModule.cs` (same file)
 
 ```
 public sealed class StorageGatewayModule
@@ -123,11 +123,11 @@ the method always completes (no throw on partial failure).
 `PullToNasAsync` creates intermediate destination directories automatically via
 `Directory.CreateDirectory` before `File.Copy`.
 
-### B.3 — `DrillMaster` hook (CGF1-S0301 task item 2)
+### B.3 — `ClusterMaster` hook (CGF1-S0301 task item 2)
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`
 
-New infrastructure added to `DrillMaster`:
+New infrastructure added to `ClusterMaster`:
 
 | Addition | Purpose |
 |----------|---------|
@@ -143,11 +143,11 @@ New infrastructure added to `DrillMaster`:
 deserialized as `List<FileManifestEntry>` (JSON, case-insensitive); malformed entries
 are logged and skipped.  When `RemainingAcks` reaches zero the gateway pull is invoked
 fire-and-forget (`_ = _gateway.PullToNasAsync(...)`); Phase 3 SaveScenario handling
-will add the full completion → `SysOpStatus` pipeline.
+will add the full completion → `ClusterOpStatus` pipeline.
 
 ### B.4 — `StorageGatewayTests`
 
-**File:** `Bagira.Orchestrator.Tests/StorageGatewayTests.cs` (new)
+**File:** `Hrot.Orchestrator.Tests/StorageGatewayTests.cs` (new)
 
 | Test | What it verifies |
 |------|-----------------|
@@ -162,7 +162,7 @@ simulate the NAS path; no real SMB connection needed.
 ## Test results
 
 ```
-dotnet test Bagira.Orchestrator.Tests --nologo --no-build
+dotnet test Hrot.Orchestrator.Tests --nologo --no-build
 
 Passed!  - Failed: 0, Passed: 20, Skipped: 0, Total: 20, Duration: 3 s
 ```
@@ -175,12 +175,12 @@ Passed!  - Failed: 0, Passed: 20, Skipped: 0, Total: 20, Duration: 3 s
 
 | File | Change |
 |------|--------|
-| `Bagira.IG/Modules/Orchestration/DrillSlave.cs` | A.1: `SetFilter(cmd => cmd.TargetNodeId == _nodeId)` |
-| `Bagira.CGF/CgfApplication.cs` | A.2: class XML — Option B bus / listener gap documented |
+| `Hrot.IG/Modules/Orchestration/ClusterSlave.cs` | A.1: `SetFilter(cmd => cmd.TargetNodeId == _nodeId)` |
+| `Hrot.CGF/CgfApplication.cs` | A.2: class XML — Option B bus / listener gap documented |
 | `FDP/Toolkits/FDP.Toolkit.Time/TimeNetworkModule.cs` | A.3: class XML — `CreateDescriptorTranslator` / `SwitchTimeModeWireDto` as supported path |
-| `Bagira.Orchestrator/StorageGatewayModule.cs` | **NEW** — `FileManifestEntry`, `NodeDistributionTarget`, `GatewayResult`, `StorageGatewayModule` |
-| `Bagira.Orchestrator/DrillMaster.cs` | B.3: `_nodeOpStatusReader`, gateway fields, `SetStorageGateway`, `FanOutSerializeLocal`, `ConsumeNodeOpStatuses` |
-| `Bagira.Orchestrator.Tests/StorageGatewayTests.cs` | **NEW** — 2 `StorageGatewayTests` |
+| `Hrot.Orchestrator/StorageGatewayModule.cs` | **NEW** — `FileManifestEntry`, `NodeDistributionTarget`, `GatewayResult`, `StorageGatewayModule` |
+| `Hrot.Orchestrator/ClusterMaster.cs` | B.3: `_nodeOpStatusReader`, gateway fields, `SetStorageGateway`, `FanOutSerializeLocal`, `ConsumeNodeOpStatuses` |
+| `Hrot.Orchestrator.Tests/StorageGatewayTests.cs` | **NEW** — 2 `StorageGatewayTests` |
 | `.dev/DEBT-TRACKER.md` | A.1 + A.2 rows closed `✅` |
 | `.dev/cgf-1/CGF-1-TASK-TRACKER.md` | CGF1-S0301 marked `[x]`; progress counter updated |
 
@@ -191,7 +191,7 @@ Passed!  - Failed: 0, Passed: 20, Skipped: 0, Total: 20, Duration: 3 s
 - [x] Part A: IG `SetFilter` added; CGF bus documented (Option B); `TimeNetworkModule` XML refreshed; DEBT-TRACKER updated.
 - [x] Part B: CGF1-S0301 success conditions met (`PullToNas_CopiesAllFiles`, `PullToNas_FailingFile_ReturnsPartialFailureResult` — both pass).
 - [x] Solution build clean (0 errors, 265 pre-existing warnings unchanged).
-- [x] Tests green: 20 / 20 `Bagira.Orchestrator.Tests`.
+- [x] Tests green: 20 / 20 `Hrot.Orchestrator.Tests`.
 - [x] DEBT-TRACKER updated.
 - [x] Report filed.
 
@@ -203,4 +203,4 @@ Passed!  - Failed: 0, Passed: 20, Skipped: 0, Total: 20, Duration: 3 s
 |------|--------|
 | A.4 subprocess CI (`dotnet run … --mode ci`) | Opportunistic — no change |
 | CGF1-S0205 full end-to-end (`SlaveTimeModeListener` in CGF) | Phase 3+ (`ModuleHostKernel` prerequisite) |
-| `DrillMaster.ConsumeNodeOpStatuses` full lifecycle (`SysOpStatus` publish on pull completion) | Phase 3 SaveScenario handling |
+| `ClusterMaster.ConsumeNodeOpStatuses` full lifecycle (`ClusterOpStatus` publish on pull completion) | Phase 3 SaveScenario handling |

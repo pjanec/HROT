@@ -35,7 +35,7 @@ Total time:  4.3 seconds
 | `FullFlow_IOSCreateTank_ReceivesAckAndEntityMasterIsSet` | 34 ms | ✅ Pass |
 | `TwoRequests_ProduceTwoDistinctEntityIds` | 4 ms | ✅ Pass |
 | `MissingEntityMaster_ReturnsErrorAck` | 181 ms | ✅ Pass |
-| `MoveToLocation_TankNavigates_GeoSpatialChangesAfter10s` | 85 ms | ✅ Pass |
+| `MoveToLocation_TankNavigates_WorldPosChangesAfter10s` | 85 ms | ✅ Pass |
 | `ArrivedEntity_DoesNotDrift_After10s` | 316 ms | ✅ Pass |
 | `Performance_100Entities_Maintains60Hz` | 3 s | ✅ Pass |
 | `Performance_SingleEntity_OverheadIsNegligible` | 373 ms | ✅ Pass |
@@ -45,8 +45,8 @@ Total time:  4.3 seconds
 ## Project Structure Created
 
 ```
-Bagira.SimHost.Integration.Tests/
-├── Bagira.SimHost.Integration.Tests.csproj
+Hrot.SimHost.Integration.Tests/
+├── Hrot.SimHost.Integration.Tests.csproj
 ├── Infrastructure/
 │   ├── SimHostInstance.cs          ← DDS-free full-pipeline test harness
 │   └── MockIOSClient.cs            ← Simulated IOS node (stub-backed)
@@ -79,9 +79,9 @@ Three tests validate the full IOS → SimHost request/response path without DDS:
 
 Two tests validate vehicle physics integration:
 
-1. **`MoveToLocation_TankNavigates_GeoSpatialChangesAfter10s`** — creates a tank entity,
+1. **`MoveToLocation_TankNavigates_WorldPosChangesAfter10s`** — creates a tank entity,
    directly sets `NavState.FinalDestination = (1000, 0)` and `TargetSpeed = 15 m/s`, runs
-   600 ticks (10 s at 60 Hz), reads the entity's `GeoTransform` via `ReadGeoSpatial`, converts
+   600 ticks (10 s at 60 Hz), reads the entity's `GeoTransform` via `ReadWorldPos`, converts
    to local Cartesian with `GeoToCartesian`, and asserts the tank moved > 50 m.  Measured
    displacement after 10 s: ≈ 110–130 m (physics + steering model).
 
@@ -150,7 +150,7 @@ Two tests gate performance:
 | 4 | `SimHostInstance.Tick()` | Missing `Bus.SwapBuffers()` between `CreateEntityRequestSystem` and `NetworkSpawningSystem`; spawn commands were never consumed | Added `_world.Bus.SwapBuffers()` at the correct phase boundary |
 | 5 | `SimHostInstance.cs` | `EntityMaster` was not registered as a component; `EntityComponentReflector.SetComponent` threw at runtime | Added `world.RegisterComponent<EntityMaster>()` to `BuildWorld()` |
 | 6 | `SimHostInstance.cs` | `INetworkIdAllocator.Reset(long)` not implemented by `StubIdAllocator` | Implemented `Reset(long startId = 0)` |
-| 7 | `SimHostInstance.cs` | Missing `using ModuleHost.Core.Network;` (NetworkOwnership, PendingNetworkAck) and `using Bagira.SimHost.Modules;` (SimulationLogicModule) | Added missing using directives |
+| 7 | `SimHostInstance.cs` | Missing `using ModuleHost.Core.Network;` (NetworkOwnership, PendingNetworkAck) and `using Hrot.SimHost.Modules;` (SimulationLogicModule) | Added missing using directives |
 
 ---
 
@@ -191,12 +191,12 @@ deterministic, and requires zero infrastructure.
 
 | File | Action |
 |------|--------|
-| `Bagira.SimHost.Integration.Tests/Bagira.SimHost.Integration.Tests.csproj` | Created |
-| `Bagira.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs` | Created + fixed |
-| `Bagira.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs` | Created |
-| `Bagira.SimHost.Integration.Tests/EntityCreationFlowTests.cs` | Created |
-| `Bagira.SimHost.Integration.Tests/MissionExecutionFlowTests.cs` | Created |
-| `Bagira.SimHost.Integration.Tests/PerformanceTests.cs` | Created |
+| `Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj` | Created |
+| `Hrot.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs` | Created + fixed |
+| `Hrot.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs` | Created |
+| `Hrot.SimHost.Integration.Tests/EntityCreationFlowTests.cs` | Created |
+| `Hrot.SimHost.Integration.Tests/MissionExecutionFlowTests.cs` | Created |
+| `Hrot.SimHost.Integration.Tests/PerformanceTests.cs` | Created |
 | `IOS-IG-SimHost.sln` | Added project + build configurations |
 | `.dev-workstream/reports/SIM-BATCH-06-REPORT.md` | Created (this file) |
 

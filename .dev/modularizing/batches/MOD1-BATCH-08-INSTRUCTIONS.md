@@ -15,10 +15,10 @@
 You are a developer implementing the modularization of the IOS-IG-SimHost application. This is an ongoing, multi-batch effort. **Read this section entirely before touching any code.**
 
 ### Project Goal
-The whole effort is to refactor towards better modularization and generalization. **What should be generic must come under FDP, not be left in the Bagira domain.** Bagira assemblies are application-specific. FDP assemblies are generic engine infrastructure.
+The whole effort is to refactor towards better modularization and generalization. **What should be generic must come under FDP, not be left in the Hrot domain.** Hrot assemblies are application-specific. FDP assemblies are generic engine infrastructure.
 
 ### Non-Negotiable Rules
-1. **The application must keep working.** We are doing refactoring, not rewriting. `Bagira.Runner -x all` integration tests must pass after every task.
+1. **The application must keep working.** We are doing refactoring, not rewriting. `Hrot.ClusterRunner -x all` integration tests must pass after every task.
 2. **Tests must check real behaviour**, not just call counts or that no exception was thrown.
 3. **Do not modify third-party submodules.** The path `FDP\ExtDeps\` contains Git submodules. Never modify files under that path. Check with `git status` in that directory if unsure.
 4. **Component IDs belong in toolkit-local registries.** Each FDP toolkit owns a local `*ComponentIds` class (e.g. `NavigationComponentIds`, `GeographicComponentIds`). Do not add IDs to `GlobalComponentIds` in `Fdp.Kernel`.
@@ -33,7 +33,7 @@ The whole effort is to refactor towards better modularization and generalization
 
 ### Source Code Location
 - **Corrections:** `FDP/Toolkits/FDP.Toolkit.Perception/Systems/LosRequestBatchingSystem.cs`, `FDP/Toolkits/Fdp.Toolkit.Geographic/`
-- **Phase 8 primary work:** `FDP/Toolkits/FDP.Toolkit.Replay/`, `Bagira.SimHost/Modules/Orchestration/`
+- **Phase 8 primary work:** `FDP/Toolkits/FDP.Toolkit.Replay/`, `Hrot.SimHost/Modules/Orchestration/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -83,7 +83,7 @@ The ground clamping IDs (77–79 for `GroundClampingConfig`, `GroundClampingStat
 4. **MOD1-P8T2:** `RecordingModule` + `RecorderSystem.EntityFilter` extension → **ALL tests pass** ✅
 5. **MOD1-P8T3:** `StoryRecorderModule` + `StoryTag`/`StoryReplayTag` components → **ALL tests pass** ✅
 6. **MOD1-P8T4:** `ReplayModule` → **ALL tests pass** ✅
-7. **MOD1-P8T5:** `NodeBootstrapper` integration + `DrillSlave` registration → **ALL tests pass + integration tests pass** ✅
+7. **MOD1-P8T5:** `NodeBootstrapper` integration + `ClusterSlave` registration → **ALL tests pass + integration tests pass** ✅
 
 ---
 
@@ -101,7 +101,7 @@ The ground clamping IDs (77–79 for `GroundClampingConfig`, `GroundClampingStat
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P8T1](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p8t1--recordingconfiguration--ecsrecordreplaycontroller-skeleton)
 
-**Assembly:** `EcsRecordReplayController` stays in `Bagira.SimHost.Modules.Orchestration` (Bagira `IDsmHandler` binding). `RecordingConfiguration` lands in `FDP.Toolkit.Replay`.
+**Assembly:** `EcsRecordReplayController` stays in `Hrot.SimHost.Modules.Orchestration` (Hrot `IDsmHandler` binding). `RecordingConfiguration` lands in `FDP.Toolkit.Replay`.
 
 ---
 
@@ -129,11 +129,11 @@ The ground clamping IDs (77–79 for `GroundClampingConfig`, `GroundClampingStat
 
 ---
 
-### Task 5: MOD1-P8T5 — `NodeBootstrapper` Integration + `DrillSlave` Registration
+### Task 5: MOD1-P8T5 — `NodeBootstrapper` Integration + `ClusterSlave` Registration
 
-**Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P8T5](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p8t5--nodebootstrapper-integration--drillslave-registration)
+**Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P8T5](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p8t5--nodebootstrapper-integration--clustslave-registration)
 
-Wire `RecordingModule`, `StoryRecorderModule`, `ReplayModule` into `NodeBootstrapper` for appropriate `NodeRole` values. Ensure `DrillSlave` integration does not break existing `Bagira.Runner -x all` tests.
+Wire `RecordingModule`, `StoryRecorderModule`, `ReplayModule` into `NodeBootstrapper` for appropriate `NodeRole` values. Ensure `ClusterSlave` integration does not break existing `Hrot.ClusterRunner -x all` tests.
 
 ---
 
@@ -147,9 +147,9 @@ Submit `.dev-workstream/reports/MOD1-BATCH-08-REPORT.md` with:
 
 **Q2:** For the replay modules (P8T2-P8T4) — how did you achieve the zero-cost idle path? Specifically, what does `RecorderSystem.OnUpdate()` do when no recording is active?
 
-**Q3:** For P8T5 — did the `DrillSlave` integration cause any timing or registration order issues in the `Bagira.Runner -x all` integration test run?
+**Q3:** For P8T5 — did the `ClusterSlave` integration cause any timing or registration order issues in the `Hrot.ClusterRunner -x all` integration test run?
 
-**Q4:** Were there any circular dependency issues when referencing `FDP.Toolkit.Replay` from `Bagira.SimHost.Modules.Orchestration`?
+**Q4:** Were there any circular dependency issues when referencing `FDP.Toolkit.Replay` from `Hrot.SimHost.Modules.Orchestration`?
 
 ---
 
@@ -159,6 +159,6 @@ This batch is DONE when:
 - [ ] `LosRequestBatchingSystem` implements ONLY `IModuleSystem` — no `ComponentSystem` base, no `OnUpdate`, no `[UpdateInGroup]` attribute. `AutonomousPerceptionModule.Tick()` drives all 4 systems uniformly.
 - [ ] Ground clamping component IDs live in `FDP.Toolkit.Geographic.GeographicComponentIds`, NOT in `GlobalComponentIds`.
 - [ ] `RecordingModule`, `StoryRecorderModule`, and `ReplayModule` all live in `FDP.Toolkit.Replay`.
-- [ ] `EcsRecordReplayController` stays in `Bagira.SimHost.Modules.Orchestration` (Bagira binding layer).
-- [ ] `Bagira.Runner -x all` integration tests pass unconditionally.
+- [ ] `EcsRecordReplayController` stays in `Hrot.SimHost.Modules.Orchestration` (Hrot binding layer).
+- [ ] `Hrot.ClusterRunner -x all` integration tests pass unconditionally.
 - [ ] All unit and integration test suites pass with 0 failures.

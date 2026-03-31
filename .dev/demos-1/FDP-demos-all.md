@@ -1,4 +1,4 @@
-﻿# **FDP Demo Framework Spec**
+# **FDP Demo Framework Spec**
 
 WARNING: OBSOLETE, for reference only from new documents, superseded by new ideas!
 
@@ -148,7 +148,7 @@ These structs represent the serialized data crossing the network boundaries betw
 
 ## **3\. ECS Components (Fdp.Examples.Common)**
 
-While the FDP Toolkits (Behavior, Navigation, CarKinem) provide core components like BTreeComponent and LocomotionChannel, the validation suite requires specific mocked components to stitch the logic together without bringing in Bagira domain code.
+While the FDP Toolkits (Behavior, Navigation, CarKinem) provide core components like BTreeComponent and LocomotionChannel, the validation suite requires specific mocked components to stitch the logic together without bringing in Hrot domain code.
 
 ### **3.1. Entity Definition & Hierarchy**
 
@@ -285,7 +285,7 @@ It validates that the FDP.Toolkit.Replication module can capture a live stream o
 
 This demo rigorously tests the boundary between Simulation and Data Representation:
 
-* **The Recording Phase:** A fully equipped node runs a short simulation. A RecordingModule hooks into the FDP.Toolkit.Replication outbound queues, saving the serialized Bagira.DDS.DataModel SST descriptors to a memory buffer or disk, timestamped by the exact simulation tick.  
+* **The Recording Phase:** A fully equipped node runs a short simulation. A RecordingModule hooks into the FDP.Toolkit.Replication outbound queues, saving the serialized Hrot.NED SST descriptors to a memory buffer or disk, timestamped by the exact simulation tick.  
 * **The Replay Phase:** The node is completely purged of ActionDispatchModule, BehaviorToolkit, and CarKinemToolkit. A ReplayPumpModule reads the recorded descriptors and directly mutates the ECS components (Transform3D, HealthComponent) at the designated ticks.  
 * **No Re-Simulation:** Proves that an entity can move and fire a weapon during a replay *without* triggering the Batched Raycast physics solver or the LocomotionDispatcherSystem, because those systems literally do not exist in the replay node's composition.
 
@@ -384,7 +384,7 @@ The ability to deterministically replay scenarios is the holy grail of military 
 By validating that the ReplayPumpModule interfaces directly with Fdp.Kernel and FDP.Toolkit.Replication while ignoring the actual simulation toolkits, this test ensures:
 
 1. **Debugging Confidence:** If an AI agent does something anomalous in a live test, a developer can replay the exact sequence of ECS states locally without worrying about butterfly-effect physics divergence.  
-2. **Bandwidth Efficiency:** It proves that your Bagira.DDS.DataModel SST serialization is complete and robust enough to hold the entire state of the world in a generic format.
+2. **Bandwidth Efficiency:** It proves that your Hrot.NED SST serialization is complete and robust enough to hold the entire state of the world in a generic format.
 
 # **Specification: Fdp.Examples.BehaviorValidation**
 

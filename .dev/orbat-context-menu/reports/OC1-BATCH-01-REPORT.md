@@ -22,19 +22,19 @@
 ## 🧪 Testing Results
 
 **Unit Tests Passed:**
-- Bagira.IG.Tests: 387 / 387 ✅
-- Bagira.IOS.Tests: 316 / 316 ✅
-- Bagira.Map.Common.Tests: 94 / 94 ✅
-- Bagira.DDS.DataModel.Tests: 33 / 33 ✅
-- Bagira.SimHost.Tests: 326 / 326 ✅ (passes standalone; intermittently fails in sequential batch due to pre-existing DDS port contention — not caused by this batch)
-- Bagira.Runner.Tests: 112 / 112 ✅
+- Hrot.IG.Tests: 387 / 387 ✅
+- Hrot.ExCon.Tests: 316 / 316 ✅
+- Hrot.Map.Common.Tests: 94 / 94 ✅
+- Hrot.NED.Tests: 33 / 33 ✅
+- Hrot.SimHost.Tests: 326 / 326 ✅ (passes standalone; intermittently fails in sequential batch due to pre-existing DDS port contention — not caused by this batch)
+- Hrot.ClusterRunner.Tests: 112 / 112 ✅
 
 **New Tests Added:**
-- `Bagira.IG.Tests/AreaAuthoringTests.cs` — 8 new tests (B003)
-- `Bagira.IG.Tests/MapCommandControllerTests.cs` — 2 new regression tests (B001)
-- `Bagira.IOS.Tests/IosLogicEntityDeletionTests.cs` — 4 new tests (B004)
-- `Bagira.IOS.Tests/ConfigPanelTests.cs` — 2 new tests (B002)
-- `Bagira.Map.Common.Tests/DescriptorMapperAreaShapeTests.cs` — 4 new tests (B003 coordinate contract)
+- `Hrot.IG.Tests/AreaAuthoringTests.cs` — 8 new tests (B003)
+- `Hrot.IG.Tests/MapCommandControllerTests.cs` — 2 new regression tests (B001)
+- `Hrot.ExCon.Tests/IosLogicEntityDeletionTests.cs` — 4 new tests (B004)
+- `Hrot.ExCon.Tests/ConfigPanelTests.cs` — 2 new tests (B002)
+- `Hrot.Map.Common.Tests/DescriptorMapperAreaShapeTests.cs` — 4 new tests (B003 coordinate contract)
 
 **Key Test Scenarios Verified:**
 - [x] `OnAreaEntityCreated` without session is a no-op (B001 regression)

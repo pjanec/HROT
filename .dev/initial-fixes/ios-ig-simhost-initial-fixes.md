@@ -1,4 +1,4 @@
-﻿I implemented the SimHost (Bagira.SimHost), IG (Bagira.IG) and IOS (Bagira.IOS). Pls see the sources attached. Pls check if they implement each task from the task tracker properly, not violating any FDP rules, using the FDP best practices and if they overall "fit" to the FDP engine. For SimHost and IG pls check how well they implement the network distribution part (where the Fdp.Examples.NetworkDemois the golden example of correct usage) and for simhost how well it implements teh behavior control and entity simulation part (where the Fdp.Examples.UrbanCombat is the golden example of the correct usage). Check if they properly register all the components, if they properly use the network translators, if they properly handle the ownership and entity life cycle management and other parts of the distributed architecture.
+I implemented the SimHost (Hrot.SimHost), IG (Hrot.IG) and IOS (Hrot.ExCon). Pls see the sources attached. Pls check if they implement each task from the task tracker properly, not violating any FDP rules, using the FDP best practices and if they overall "fit" to the FDP engine. For SimHost and IG pls check how well they implement the network distribution part (where the Fdp.Examples.NetworkDemois the golden example of correct usage) and for simhost how well it implements teh behavior control and entity simulation part (where the Fdp.Examples.UrbanCombat is the golden example of the correct usage). Check if they properly register all the components, if they properly use the network translators, if they properly handle the ownership and entity life cycle management and other parts of the distributed architecture.
 ----
 
 
@@ -10,7 +10,7 @@ However, when comparing the code against the strict rules of the FDP engine and 
 Here are the specific fixes required to make the system fully compliant with the FDP architecture:
 
 ### 1. SimHost: `VehicleState` Contamination (Physics Bug)
-**Issue:** In `Bagira.SimHost/Util/DescriptorMapper.cs`, you are unconditionally adding `VehicleState` to *any* entity that has a `GeoSpatial` descriptor.
+**Issue:** In `Hrot.SimHost/Util/DescriptorMapper.cs`, you are unconditionally adding `VehicleState` to *any* entity that has a `WorldPos` descriptor.
 ```csharp
 // In DescriptorMapper.cs
 result.Add(new VehicleState { Speed = 0, SteerAngle = 0 });
@@ -19,7 +19,7 @@ result.Add(new VehicleState { Speed = 0, SteerAngle = 0 });
 **Fix:** **Delete** the `result.Add(new VehicleState...);` line from `DescriptorMapper.MapToComponents`. `SimTransform` alone is sufficient for the spatial data.
 
 ### 2. SimHost: Missing Doctrine Preemption (Behavior Bug)
-**Issue:** In `Bagira.SimHost/Systems/MissionAdapterSystem.cs`, when applying a new doctrine, you set the hash but fail to increment the instance ID.
+**Issue:** In `Hrot.SimHost/Systems/MissionAdapterSystem.cs`, when applying a new doctrine, you set the hash but fail to increment the instance ID.
 ```csharp
 // In MissionAdapterSystem.cs
 if (doctrine.ActiveDoctrineHash != doctrineId) {
@@ -38,14 +38,14 @@ if (doctrine.ActiveDoctrineHash != doctrineId) {
 
 ### 3. SimHost: Invisible Entities (Network Egress Bug)
 **Issue:** SimHost does not publish the `EntityMaster` DDS topic.
-**Why it violates FDP rules:** SimHost is the authority. If it doesn't publish `EntityMaster`, the IG and IOS will never know the entities exist. Because `Bagira.BDC.SSTD.EntityMaster` lacks the `[FdpDescriptor]` attribute in the DataModel, `ReplicationBootstrap` does not auto-generate a translator for it.
-**Fix:** In `Bagira.SimHost/Program.cs`, manually add the auto-translator for `EntityMaster` to the `translators` list before passing it to `CycloneNetworkModule`:
+**Why it violates FDP rules:** SimHost is the authority. If it doesn't publish `EntityMaster`, the IG and IOS will never know the entities exist. Because `Hrot.NED.Descriptors.EntityMaster` lacks the `[FdpDescriptor]` attribute in the DataModel, `ReplicationBootstrap` does not auto-generate a translator for it.
+**Fix:** In `Hrot.SimHost/Program.cs`, manually add the auto-translator for `EntityMaster` to the `translators` list before passing it to `CycloneNetworkModule`:
 ```csharp
 translators.Add(new AutoCycloneTranslator<EntityMaster>(ddsParticipant, "EntityMaster", 0, entityMap));
 ```
 
 ### 4. IG: Ghost Ownership Theft (Network Ingress Bug)
-**Issue:** In `Bagira.IG/Translators/EntityMasterTranslator.cs`, when IG sees a new entity, it assigns ownership to itself.
+**Issue:** In `Hrot.IG/Translators/EntityMasterTranslator.cs`, when IG sees a new entity, it assigns ownership to itself.
 ```csharp
 // In EntityMasterTranslator.cs
 OwnerNodeId = IgNetworkConstants.LocalNodeId, // <--- BUG
@@ -57,8 +57,8 @@ OwnerNodeId = 0, // Force remote ownership for dead reckoning
 ```
 
 ### 5. IG: Missing Dead Reckoning (Visual Bug)
-**Issue:** `TransformSyncSystem` is completely missing from `Bagira.IG/IgApplication.cs`.
-**Why it violates FDP rules:** The `GeoSpatialTranslator` writes incoming network coordinates to `NetworkPosition`. Without `TransformSyncSystem` to smoothly interpolate (Lerp) `NetworkPosition` into the visual `SimTransform`, the entities on the IG map will remain frozen at their spawn points.
+**Issue:** `TransformSyncSystem` is completely missing from `Hrot.IG/IgApplication.cs`.
+**Why it violates FDP rules:** The `WorldPosTranslator` writes incoming network coordinates to `NetworkPosition`. Without `TransformSyncSystem` to smoothly interpolate (Lerp) `NetworkPosition` into the visual `SimTransform`, the entities on the IG map will remain frozen at their spawn points.
 **Fix:** Register the sync system globally in `IgApplication.cs` just before `_kernel.Initialize()`:
 ```csharp
 // IG is driven entirely by the network, so driveFromNetwork = true
@@ -66,7 +66,7 @@ _kernel.RegisterGlobalSystem(new TransformSyncSystem(driveFromNetwork: true));
 ```
 
 ### 6. IG: Rogue Local Spawning (Architecture Bug)
-**Issue:** `Bagira.IG/Tools/CreationTool.cs` publishes a local `SpawnEntityCommand` to the `FdpEventBus`. 
+**Issue:** `Hrot.IG/Tools/CreationTool.cs` publishes a local `SpawnEntityCommand` to the `FdpEventBus`. 
 **Why it violates FDP rules:** The IG task `IG.3.3` specifies this tool should send a `CreateEntityRequest` over DDS via the `BdcCommandGateway`. By publishing `SpawnEntityCommand` locally, IG bypasses SimHost entirely. SimHost will never simulate the entity, and the IOS will never see it.
 **Fix:** Refactor `CreationTool.cs` to inject `IDdsWriter<CreateEntityRequest>` (or `BdcCommandGateway`) instead of `FdpEventBus`, and write the DDS request:
 ```csharp
@@ -76,14 +76,14 @@ var request = new CreateEntityRequest {
     Owner = new NodeId { AppDomainId = 0, AppInstanceId = 0 },
     InitialDescriptors = new List<EntityDescriptorUnion> {
         new EntityDescriptorUnion { _d = EDescriptorType.dtEntityMaster, EntityMaster = new EntityMaster { TkbType = _tkbType } },
-        new EntityDescriptorUnion { _d = EDescriptorType.dtGeoSpatial, GeoSpatial = new GeoSpatial { Pos = new GeoPosition { Latitude = worldPos.Y, Longitude = worldPos.X } } } // Example mapping
+        new EntityDescriptorUnion { _d = EDescriptorType.dtWorldPos, WorldPos = new WorldPos { Pos = new GeoPoint { Latitude = worldPos.Y, Longitude = worldPos.X } } } // Example mapping
     }
 };
 _ddsWriter.Write(request);
 ```
 
 ### IOS Review
-The `Bagira.IOS` implementation is excellent. You correctly utilized the `DerRepo` to avoid ECS overhead for the UI, decoupled the UI through `IosLogic` for testability, and the memory disciplines (pre-allocated collections, no LINQ in draw loops) adhere perfectly to the FDP performance standards. 
+The `Hrot.ExCon` implementation is excellent. You correctly utilized the `DerRepo` to avoid ECS overhead for the UI, decoupled the UI through `IosLogic` for testability, and the memory disciplines (pre-allocated collections, no LINQ in draw loops) adhere perfectly to the FDP performance standards. 
 
 ---
 
@@ -97,15 +97,15 @@ When i run the IG and IOS apps, they open the graphical window but the are not I
 You are absolutely right. The UI panels are fully implemented in the code, but they are currently "disconnected." 
 
 Here is exactly what is happening:
-1. **In `Bagira.IOS`:** The ImGui rendering code inside the `Draw()` methods of the panels and `IosMock.cs` was left commented out (it was stubbed out as part of "Phase P9"). 
-2. **In `Bagira.IG`:** The panel classes (`IgDebugPanel`, `MiniIosPanel`, etc.) are written, but they were never instantiated or called in the main `IgApplication.cs` render loop.
+1. **In `Hrot.ExCon`:** The ImGui rendering code inside the `Draw()` methods of the panels and `IosMock.cs` was left commented out (it was stubbed out as part of "Phase P9"). 
+2. **In `Hrot.IG`:** The panel classes (`IgDebugPanel`, `MiniIosPanel`, etc.) are written, but they were never instantiated or called in the main `IgApplication.cs` render loop.
 
 Here are the fixes to make them appear and work perfectly.
 
-### 1. Fix `Bagira.IOS` (Uncomment the Draw Methods)
-In the `Bagira.IOS` project, you simply need to remove the `//` comments in the `Draw` methods. 
+### 1. Fix `Hrot.ExCon` (Uncomment the Draw Methods)
+In the `Hrot.ExCon` project, you simply need to remove the `//` comments in the `Draw` methods. 
 
-**A. In `Bagira.IOS/IosMock.cs`**, update the `DrawUI` method:
+**A. In `Hrot.ExCon/IosMock.cs`**, update the `DrawUI` method:
 ```csharp
 using ImGuiNET; // Add this at the top!
 
@@ -134,7 +134,7 @@ public void DrawUI()
 }
 ```
 
-**B. In all files under `Bagira.IOS/Panels/`**:
+**B. In all files under `Hrot.ExCon/Panels/`**:
 Open each of the following files, find the `Draw(IIosLogic logic)` method, and uncomment the ImGui code inside them. Make sure to add `using ImGuiNET;` at the top of the files if it isn't there already.
 *   `ConfigPanel.cs`
 *   `DiagnosticsPanel.cs`
@@ -146,14 +146,14 @@ Open each of the following files, find the `Draw(IIosLogic logic)` method, and u
 
 ---
 
-### 2. Fix `Bagira.IG` (Connect the Panels to the App Loop)
-In `Bagira.IG/IgApplication.cs`, the ImGui panels need to be instantiated and ticked between `rlImGui.Begin()` and `rlImGui.End()`. We also need to prevent map-clicks from bleeding through the UI panels.
+### 2. Fix `Hrot.IG` (Connect the Panels to the App Loop)
+In `Hrot.IG/IgApplication.cs`, the ImGui panels need to be instantiated and ticked between `rlImGui.Begin()` and `rlImGui.End()`. We also need to prevent map-clicks from bleeding through the UI panels.
 
-**A. Open `Bagira.IG/IgApplication.cs` and add the UI fields:**
+**A. Open `Hrot.IG/IgApplication.cs` and add the UI fields:**
 ```csharp
 // Add to the other 'using' statements:
 using ImGuiNET;
-using Bagira.IG.UI;
+using Hrot.IG.UI;
 
 // ... inside the IgApplication class, add these fields:
 private DebugPanelState _debugPanelState = null!;

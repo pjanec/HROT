@@ -36,14 +36,14 @@
 | **Time Controller** | ✅ EXISTS | `FDP.Toolkit.Time.MasterTimeController` | Simulation time authority |
 | **Geographic Transform** | ✅ EXISTS | `Fdp.Toolkit.Geographic.WGS84Transform` | WGS84 ↔ Cartesian projection |
 | **Network Spawning** | ❌ NEW (shared) | `FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem` | Unified entity creation: ID, TKB, network infra, ELM — see [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) |
-| **Descriptor Mapper** | ❌ NEW | `Bagira.SimHost.Util.DescriptorMapper` | Converts DDS `EntityDescriptorUnion` list → `List<object>` for SpawnEntityCommand |
-| **CreateEntity Handler** | ❌ NEW | `Bagira.SimHost.Systems.CreateEntityRequestSystem` | Translates DDS CreateEntityRequest → SpawnEntityCommand (thin, no direct ELM/TKB calls) |
+| **Descriptor Mapper** | ❌ NEW | `Hrot.SimHost.Util.DescriptorMapper` | Converts DDS `EntityDescriptorUnion` list → `List<object>` for SpawnEntityCommand |
+| **CreateEntity Handler** | ❌ NEW | `Hrot.SimHost.Systems.CreateEntityRequestSystem` | Translates DDS CreateEntityRequest → SpawnEntityCommand (thin, no direct ELM/TKB calls) |
 | **Mission Execution** | ✅ EXISTS | `FDP.Toolkit.Behavior` / `FDP.Toolkit.Navigation` | BTree doctrine pipeline: ChannelArbitrationSystem → BTreeTickSystem → Executors |
-| **GeoSpatial Bridge** | ✅ EXISTS | `Fdp.Toolkit.Geographic.SimTransformBridgeSystem` | Converts SimTransform/SimVelocity → GeoTransform/GeoVelocity post-physics |
-| **MissionAdapterSystem** | ❌ NEW | `Bagira.SimHost.Systems.MissionAdapterSystem` | Maps active MissionTask.BehaviorId → DoctrineId, writes BrainBlackboard params, advances ActiveTaskId on channel success |
-| **EntityMissionTranslator** | ❌ NEW | `Bagira.SimHost.Translators.EntityMissionTranslator` | Syncs DDS EntityMission topic ↔ ECS managed component (ingress + egress) |
-| **JoinFormationExecutor** | ❌ NEW | `Bagira.SimHost.Systems.JoinFormationExecutor` | `IActionExecutor<LocomotionChannel>` for formation joining |
-| **SimHost Application** | ❌ NEW | `Bagira.SimHost.Program` | Main application shell, initialization |
+| **WorldPos Bridge** | ✅ EXISTS | `Fdp.Toolkit.Geographic.SimTransformBridgeSystem` | Converts SimTransform/SimVelocity → GeoTransform/GeoVelocity post-physics |
+| **MissionAdapterSystem** | ❌ NEW | `Hrot.SimHost.Systems.MissionAdapterSystem` | Maps active MissionTask.BehaviorId → DoctrineId, writes BrainBlackboard params, advances ActiveTaskId on channel success |
+| **EntityMissionTranslator** | ❌ NEW | `Hrot.SimHost.Translators.EntityMissionTranslator` | Syncs DDS EntityMission topic ↔ ECS managed component (ingress + egress) |
+| **JoinFormationExecutor** | ❌ NEW | `Hrot.SimHost.Systems.JoinFormationExecutor` | `IActionExecutor<LocomotionChannel>` for formation joining |
+| **SimHost Application** | ❌ NEW | `Hrot.SimHost.Program` | Main application shell, initialization |
 
 > ⚠️ **VehicleState scope:** `VehicleState` is strictly physics metadata (`Speed`, `SteerAngle`, `Accel`, `CurrentLaneIndex`) for `CarKinematicsSystem`. It is **never** a source of position or orientation. All systems requiring position/orientation must query `SimTransform`; all systems requiring velocity must query `SimVelocity`. Only wheeled/tracked ground platforms receive a `VehicleState` component in their TKB template.
 
@@ -59,7 +59,7 @@ SimHost Mock is the **"truth" authority** for the simulation. It:
 - **Owns Entity Lifecycle**: Creates, updates, and destroys all simulation entities
 - **Runs Physics**: Executes vehicle kinematics using CarKinem toolkit
 - **Executes Missions**: Interprets MissionPlan and drives vehicle behavior
-- **Publishes State**: Sends EntityMaster, GeoSpatial, EntityInfo to DDS
+- **Publishes State**: Sends EntityMaster, WorldPos, EntityInfo to DDS
 - **Responds to Requests**: Handles CreateEntityRequest from IOS/IG
 
 ### 2.2 Design Principles
@@ -196,7 +196,7 @@ entityMap.Unregister(networkId: 12345, currentFrame: frameCounter);
 // CORRECT: Pass translators into CycloneNetworkModule — it owns egress internally.
 var allTranslators = new List<ITranslator>();
 allTranslators.Add(new EntityMasterTranslator(participant, entityMap));
-allTranslators.Add(new GeoSpatialTranslator(participant, entityMap));
+allTranslators.Add(new WorldPosTranslator(participant, entityMap));
 // (plus auto-translators from ReplicationBootstrap)
 
 var networkModule = new CycloneNetworkModule(
@@ -276,7 +276,7 @@ world.AddModule(timeController);
 
 **Usage:**
 ```csharp
-var origin = new GeoPosition { Latitude = 50.0755, Longitude = 14.4378, Altitude = 200.0 };
+var origin = new GeoPoint { Latitude = 50.0755, Longitude = 14.4378, Altitude = 200.0 };
 var geoTransform = new WGS84Transform(origin);
 
 // CarKinem uses flat Vector2 coordinates
@@ -284,7 +284,7 @@ var vehiclePos = new Vector2(1000, 500); // meters from origin
 
 // Convert to geodetic for DDS publishing
 var (lat, lon, alt) = geoTransform.ToGeodetic(new Vector3(vehiclePos.X, vehiclePos.Y, 0));
-// lat, lon, alt → publish to GeoSpatial topic
+// lat, lon, alt → publish to WorldPos topic
 ```
 
 ---
@@ -331,10 +331,10 @@ public interface IModule
 **Architecture:**
 
 ```csharp
-namespace Bagira.SimHost.Modules
+namespace Hrot.SimHost.Modules
 {
     using ModuleHost.Core.Abstractions;
-    using Bagira.SimHost.Systems;
+    using Hrot.SimHost.Systems;
     
     /// <summary>
     /// Module for handling entity creation requests.
@@ -381,10 +381,10 @@ namespace Bagira.SimHost.Modules
 > **Toolkit Integration:** `CreateEntityRequestSystem` now only translates `CreateEntityRequest` into `SpawnEntityCommand`. All entity creation mechanics (TKB, network infra, ELM) are handled by `NetworkSpawningSystem` from `FDP.Toolkit.NetworkSpawning`. See [DESIGN-NetworkSpawning.md §8.1](./DESIGN-NetworkSpawning.md#81-simhost-authority-node).
 
 ```csharp
-namespace Bagira.SimHost.Systems
+namespace Hrot.SimHost.Systems
 {
-    using Bagira.BDC.SSTM;
-    using Bagira.SimHost.Util;
+    using Hrot.NED.Messages;
+    using Hrot.SimHost.Util;
     using FDP.Toolkit.NetworkSpawning.Events;
     using Fdp.Kernel;
     using ModuleHost.Core.Network.Interfaces;
@@ -487,10 +487,10 @@ namespace Bagira.SimHost.Systems
 }
 ```
 
-**DescriptorMapper** (`Bagira.SimHost.Util.DescriptorMapper`) — converts DDS `EntityDescriptorUnion` list to ECS component overrides for `SpawnEntityCommand.InitialComponents`:
+**DescriptorMapper** (`Hrot.SimHost.Util.DescriptorMapper`) — converts DDS `EntityDescriptorUnion` list to ECS component overrides for `SpawnEntityCommand.InitialComponents`:
 
 ```csharp
-namespace Bagira.SimHost.Util
+namespace Hrot.SimHost.Util
 {
     public static class DescriptorMapper
     {
@@ -515,14 +515,14 @@ namespace Bagira.SimHost.Util
                     case EDescriptorType.dtEntityInfo:
                         result.Add(d.EntityInfo);
                         break;
-                    case EDescriptorType.dtGeoSpatial:
-                        result.Add(d.GeoSpatial);    // Replicated via AutoCycloneTranslator
-                        var cart = geo.ToCartesian(d.GeoSpatial.Pos);
+                    case EDescriptorType.dtWorldPos:
+                        result.Add(d.WorldPos);    // Replicated via AutoCycloneTranslator
+                        var cart = geo.ToCartesian(d.WorldPos.Pos);
                         // ⚠️ Phase 0: VehicleState.Position and .Forward removed. Instead, add SimTransform component to the entity.
                         result.Add(new VehicleState
                         {
                             Position   = new Vector2((float)cart.X, (float)cart.Y), // ⚠️ Phase 0: → world.AddComponent(entity, new SimTransform { Position = new Vector3((float)cart.X, (float)cart.Y, 0), Rotation = Quaternion.CreateFromYawPitchRoll(headingRad, 0, 0) })
-                            Forward    = HeadingToVector(d.GeoSpatial.Rot.Heading),  // ⚠️ Phase 0: Rotation now encoded in SimTransform.Rotation (see above)
+                            Forward    = HeadingToVector(d.WorldPos.Rot.Heading),  // ⚠️ Phase 0: Rotation now encoded in SimTransform.Rotation (see above)
                             Speed      = 0, SteerAngle = 0
                         });
                         break;
@@ -607,10 +607,10 @@ public class CreateEntityAckTranslator : IEgressTranslator
 **Architecture:**
 
 ```csharp
-namespace Bagira.SimHost.Modules
+namespace Hrot.SimHost.Modules
 {
     using ModuleHost.Core.Abstractions;
-    using Bagira.SimHost.Systems;
+    using Hrot.SimHost.Systems;
     using CarKinem.Systems;
     
     /// <summary>
@@ -684,9 +684,9 @@ namespace Bagira.SimHost.Modules
 **Architecture:**
 
 ```csharp
-namespace Bagira.SimHost.Systems
+namespace Hrot.SimHost.Systems
 {
-    using Bagira.DDS.DataModel;
+    using Hrot.NED;
     using FDP.Toolkit.Behavior;
     using FDP.Toolkit.Replication.Services;
     using Fdp.Kernel;
@@ -810,13 +810,13 @@ namespace Bagira.SimHost.Systems
 | `"Idle"` | `DoctrineIds.Idle_HSM` | *(no params)* |
 ### 4.5 GeographicModule (Fdp.Toolkit.Geographic)
 
-**`GeoSpatialBridgeModule` is removed.** `GeographicModule` from `Fdp.Toolkit.Geographic` is registered at kernel startup and provides all coordinate-bridge functionality automatically.
+**`WorldPosBridgeModule` is removed.** `GeographicModule` from `Fdp.Toolkit.Geographic` is registered at kernel startup and provides all coordinate-bridge functionality automatically.
 
 > **Registration (in `Program.cs`):** Follow the `NetworkDemoApp.cs` pattern to register `GeographicModule` with the configured `WGS84Transform`. The module internally registers `SimTransformBridgeSystem`, which runs post-physics for all locally-owned entities and converts `SimTransform` + `SimVelocity` → `GeoTransform` + `GeoVelocity`.
 
-`GeoSpatialEgressTranslator` (already implemented in `Bagira.SimHost/Translators/`) reads `GeoTransform` and `GeoVelocity` written by the toolkit and publishes the DDS `GeoSpatial` / `GeoSpatialDR` topics unchanged — no code changes to the translator are required.
+`WorldPosEgressTranslator` (already implemented in `Hrot.SimHost/Translators/`) reads `GeoTransform` and `GeoVelocity` written by the toolkit and publishes the DDS `WorldPos` / `WorldPos` topics unchanged — no code changes to the translator are required.
 
-**No source files to create.** `GeoSpatialBridgeModule.cs` and `GeoSpatialBridgeSystem.cs` are **not created**.
+**No source files to create.** `WorldPosBridgeModule.cs` and `WorldPosBridgeSystem.cs` are **not created**.
 
 ---
 
@@ -827,7 +827,7 @@ namespace Bagira.SimHost.Systems
 **Architecture:**
 
 ```csharp
-namespace Bagira.SimHost
+namespace Hrot.SimHost
 {
     using Fdp.Kernel;
     using FDP.Toolkit.Lifecycle;
@@ -836,7 +836,7 @@ namespace Bagira.SimHost
     using FDP.Toolkit.Time.Controllers;
     using ModuleHost.Network.Cyclone;
     using ModuleHost.Network.Cyclone.Services;
-    using Bagira.SimHost.Modules;
+    using Hrot.SimHost.Modules;
     using CarKinem;
     
     /// <summary>
@@ -882,7 +882,7 @@ namespace Bagira.SimHost
             
             // --- 4. Geographic Transform ---
             
-            var geoOrigin = new GeoPosition { Latitude = 50.0755, Longitude = 14.4378, Altitude = 200.0 };
+            var geoOrigin = new GeoPoint { Latitude = 50.0755, Longitude = 14.4378, Altitude = 200.0 };
             var geoTransform = new WGS84Transform(geoOrigin);
             
             // --- 5. Register Core Modules (Like NetworkDemo) ---
@@ -901,7 +901,7 @@ namespace Bagira.SimHost
             allTranslators.Add(new CreateEntityRequestTranslator(participant, eventBus));
             allTranslators.Add(new CreateEntityAckTranslator(participant, eventBus));
             allTranslators.Add(new EntityMasterTranslator(participant, entityMap));
-            allTranslators.Add(new GeoSpatialTranslator(participant, entityMap));
+            allTranslators.Add(new WorldPosTranslator(participant, entityMap));
             
             // 2. Auto-generated translators
             var (autoTranslators, _) = ReplicationBootstrap.CreateAutoTranslators(
@@ -931,8 +931,8 @@ namespace Bagira.SimHost
             kernel.RegisterModule(new SimulationLogicModule(
                 vehicleAPI, roadNetwork, trajectoryPool));
             
-            // C. GeoSpatial Bridge
-            kernel.RegisterModule(new GeoSpatialBridgeModule(geoTransform));
+            // C. WorldPos Bridge
+            kernel.RegisterModule(new WorldPosBridgeModule(geoTransform));
             
             // --- 7. Time Controller ---
             
@@ -1032,8 +1032,8 @@ SimVelocity updated
 SimTransform.Position integrated
   ↓ SimTransformBridgeSystem (GeographicModule, registered by kernel)
 GeoTransform + GeoVelocity written
-  ↓ GeoSpatialEgressTranslator
-DDS GeoSpatial / GeoSpatialDR → IOS/IG
+  ↓ WorldPosEgressTranslator
+DDS WorldPos / WorldPos → IOS/IG
 
 MissionAdapterSystem (next frame):
   LocomotionChannel.Status == Success → AdvanceToNextTask → EntityMission component updated
@@ -1060,11 +1060,11 @@ DDS EntityMission → IOS (feedback loop)
 │   ↓                                          │
 │ SimTransformBridgeSystem → GeoTransform      │
 │   ↓                         ↓               │
-│ GeoSpatialEgressTranslator  EntityMission-  │
+│ WorldPosEgressTranslator  EntityMission-  │
 │   → DDS                     EgressTranslator │
 └──────────────┬──────────────┬───────────────┘
                ↓              ↓
-        GeoSpatial/DR   EntityMission (DDS)
+        WorldPos/DR   EntityMission (DDS)
                ↓              ↓
            IOS/IG          IOS (feedback)
 ```
@@ -1079,7 +1079,7 @@ DDS EntityMission → IOS (feedback loop)
 
 **Solution:**
 - `SimTransformBridgeSystem` (from `GeographicModule`) reads `SimTransform.Position.Z` directly for altitude — no separate preservation step needed.
-- At entity creation, `DescriptorMapper` sets `SimTransform.Position.Z = (float)cart.Z` from the initial `GeoSpatial` descriptor.
+- At entity creation, `DescriptorMapper` sets `SimTransform.Position.Z = (float)cart.Z` from the initial `WorldPos` descriptor.
 - `CarKinematicsSystem` integrates only X/Y, leaving Z unchanged.
 
 **Future Enhancement:** Integrate with `ITerrainService` for dynamic height lookup.
@@ -1137,11 +1137,11 @@ public void Update(float dt)
 **Goal:** Create SimHost project structure and configure dependencies.
 
 **Tasks:**
-1. Create `Bagira.SimHost` C# console project (.NET 8)
+1. Create `Hrot.SimHost` C# console project (.NET 8)
 2. Add project references:
-   - `Bagira.DDS.DataModel` (generated from IDLs)
-   - `Bagira.Map.Common`
-   - `Bagira.Map.Definitions`
+   - `Hrot.NED` (generated from IDLs)
+   - `Hrot.Map.Common`
+   - `Hrot.Map.Definitions`
    - `Fdp.Kernel` (EntityRepository, ECS primitives)
    - `FDP.Toolkit.CarKinem` (vehicle physics)
    - `FDP.Toolkit.Lifecycle` (EntityLifecycleModule)
@@ -1156,7 +1156,7 @@ public void Update(float dt)
    - `ModuleHost.Network.Cyclone` (CycloneNetworkModule, DdsParticipant)
 3. Create folder structure:
    ```
-   Bagira.SimHost/
+   Hrot.SimHost/
      Program.cs
      DoctrineIds.cs
      Modules/
@@ -1205,12 +1205,12 @@ public void Update(float dt)
 
 ### Phase S3: Geographic Module Integration (0.25 days)
 
-**Goal:** Register `GeographicModule` from `Fdp.Toolkit.Geographic` — replaces the custom `GeoSpatialBridgeModule` entirely.
+**Goal:** Register `GeographicModule` from `Fdp.Toolkit.Geographic` — replaces the custom `WorldPosBridgeModule` entirely.
 
 **Tasks:**
 1. Register `GeographicModule` via kernel (follow `NetworkDemoApp.cs` pattern); the module registers `SimTransformBridgeSystem` which converts `SimTransform`/`SimVelocity` → `GeoTransform`/`GeoVelocity` for locally-owned entities post-physics.
-2. Verify `GeoSpatialEgressTranslator` (already implemented) publishes correct lat/lon for the configured `GeodeticOrigin`.
-3. No new source files — `GeoSpatialBridgeModule.cs` and `GeoSpatialBridgeSystem.cs` are **not created**.
+2. Verify `WorldPosEgressTranslator` (already implemented) publishes correct lat/lon for the configured `GeodeticOrigin`.
+3. No new source files — `WorldPosBridgeModule.cs` and `WorldPosBridgeSystem.cs` are **not created**.
 
 **Estimated Effort:** 2 days
 
@@ -1265,12 +1265,12 @@ public void Update(float dt)
    - IOS ingests EntityMaster
 2. Test physics simulation:
    - Entity spawns at location
-   - GeoSpatial published correctly
+   - WorldPos published correctly
    - IG receives and renders
 3. Test mission execution:
    - IOS publishes EntityMission
    - SimHost navigates vehicle
-   - GeoSpatial updates reflect movement
+   - WorldPos updates reflect movement
 4. Test formation behavior:
    - Create platoon of 4 tanks
    - Verify formation maintained
@@ -1329,8 +1329,8 @@ S1 (1d) → S2 (3d) → S3 (2d) → S4 (5d) → S5 (3d) → S6 (3d) → S7 (1d)
 ### 7.1 Overview
 
 SimHost is designed to run in **two deployment modes**:
-1. **Standalone Application** - Independent executable (`Bagira.SimHost.Standalone.exe`)
-2. **Embedded Subsystem** - Library embedded in aggregated runner (`Bagira.Runner.exe`)
+1. **Standalone Application** - Independent executable (`Hrot.SimHost.Standalone.exe`)
+2. **Embedded Subsystem** - Library embedded in aggregated runner (`Hrot.ClusterRunner.exe`)
 
 This dual-mode design enables:
 - Independent testing and development
@@ -1342,7 +1342,7 @@ This dual-mode design enables:
 
 ### 7.2 ISubsystem Interface Implementation
 
-**Interface:** `ISubsystem` (defined in `Bagira.Runner.Models.ISubsystem.cs`)
+**Interface:** `ISubsystem` (defined in `Hrot.ClusterRunner.Models.ISubsystem.cs`)
 
 SimHost implements the standard subsystem interface:
 
@@ -1429,7 +1429,7 @@ public class SimHostSubsystem : SubsystemBase
 
 **Current Structure:**
 ```
-Bagira.SimHost/
+Hrot.SimHost/
 ├── Program.cs (main entry point)
 ├── Systems/
 │   ├── CreateEntityRequestHandler.cs
@@ -1441,7 +1441,7 @@ Bagira.SimHost/
 
 **Refactored Structure:**
 ```
-Bagira.SimHost/ (Library)
+Hrot.SimHost/ (Library)
 ├── SimHostSubsystem.cs          ← NEW: ISubsystem implementation
 ├── SimHostConfiguration.cs       ← NEW: Configuration model
 ├── Systems/                      ← UNCHANGED: All systems
@@ -1451,7 +1451,7 @@ Bagira.SimHost/ (Library)
 └── Components/                   ← UNCHANGED: All components
     └── ...
 
-Bagira.SimHost.Standalone/ (Executable)
+Hrot.SimHost.Standalone/ (Executable)
 └── Program.cs                    ← NEW: Thin wrapper using SimHostSubsystem
 ```
 
@@ -1526,7 +1526,7 @@ public class SubsystemStatusAnnounce
 Thin wrapper that uses `SimHostSubsystem`:
 
 ```csharp
-// Bagira.SimHost.Standalone/Program.cs
+// Hrot.SimHost.Standalone/Program.cs
 class Program
 {
     static async Task<int> Main(string[] args)
@@ -1569,18 +1569,18 @@ class Program
 
 **Mode 1: Standalone SimHost**
 ```bash
-Bagira.SimHost.Standalone.exe --domain 0 --node-id 1 --time-scale 1.0
+Hrot.SimHost.Standalone.exe --domain 0 --node-id 1 --time-scale 1.0
 ```
 
 **Mode 2: Embedded in Runner (Combined View)**
 ```bash
-Bagira.Runner.exe --mode all --domain 0
+Hrot.ClusterRunner.exe --mode all --domain 0
 # SimHost runs alongside IG and IOS in one process
 ```
 
 **Mode 3: Embedded in Runner (Headless Testing)**
 ```bash
-Bagira.Runner.exe --mode simhost --domain 0 --headless --script test.json
+Hrot.ClusterRunner.exe --mode simhost --domain 0 --headless --script test.json
 # SimHost runs without UI for automated testing
 ```
 

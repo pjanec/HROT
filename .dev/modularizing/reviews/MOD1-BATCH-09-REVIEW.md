@@ -9,7 +9,7 @@
 
 ## Summary
 
-BATCH-09 is another strong delivery. `FDP.Framework.Runner` is cleanly extracted with zero `Bagira.*` references, `SubsystemOrchestrator` is properly generic, `Bagira.Runner.Program` is a true composition root, and `SimulationLogicModule` now skips sub-modules correctly by role. The `SubsystemStatusAnnounce` duplication issue (Q4) was handled pragmatically — the solution is correct and keeps wire compatibility.
+BATCH-09 is another strong delivery. `FDP.Framework.Runner` is cleanly extracted with zero `Hrot.*` references, `SubsystemOrchestrator` is properly generic, `Hrot.ClusterRunner.Program` is a true composition root, and `SimulationLogicModule` now skips sub-modules correctly by role. The `SubsystemStatusAnnounce` duplication issue (Q4) was handled pragmatically — the solution is correct and keeps wire compatibility.
 
 ---
 
@@ -29,16 +29,16 @@ The implementation is correct and the role/module mapping table is exactly right
 The boolean flag approach is clean and readable. Note that `TrajectoryPool` and `FormationTemplates` now correctly return `null` for roles without kinematics — callers must be null-aware.
 
 ### P9T2 — `SubsystemOrchestrator` Generalization
-140 lines of Bagira-coupled code removed. The replacement is clean:
+140 lines of Hrot-coupled code removed. The replacement is clean:
 - `TitleBarColor` loop with lightened `TitleBgActive` variant is elegant.
 - `DrawMainMenuBar` using `_subsystems.Where(s => s is IMapCameraProvider)` correctly generates the map toggle entries dynamically.
 - `SwitchMapOwner` camera-snapping sync is a good UX touch.
 
 ### P9T5 — `Program.cs` is a Pure Composition Root
-Zero Raylib/ImGui imports in `Program.cs`. Confirmed via developer's grep output. The six remaining imports (`CommandLine`, `MapConfig`, `BagiraRunnerConfiguration`, concrete subsystem constructors, `DdsApplication`, `NLog`) are all legitimately composition-root concerns.
+Zero Raylib/ImGui imports in `Program.cs`. Confirmed via developer's grep output. The six remaining imports (`CommandLine`, `MapConfig`, `HrotRunnerConfiguration`, concrete subsystem constructors, `DdsApplication`, `NLog`) are all legitimately composition-root concerns.
 
 ### Q4 — `SubsystemStatusAnnounce` Duplication Resolution  
-Creating a parallel `FDP.Framework.Runner.SubsystemStatusAnnounce` DDS struct with identical topic name and field layout to preserve wire compatibility is the correct solution here. The alternative — referencing `Bagira.DDS.DataModel` from `FDP.Framework.Runner` — would create a forbidden `FDP → Bagira` dependency. The duplication is well-justified and documented.
+Creating a parallel `FDP.Framework.Runner.SubsystemStatusAnnounce` DDS struct with identical topic name and field layout to preserve wire compatibility is the correct solution here. The alternative — referencing `Hrot.NED` from `FDP.Framework.Runner` — would create a forbidden `FDP → Hrot` dependency. The duplication is well-justified and documented.
 
 ---
 
@@ -46,7 +46,7 @@ Creating a parallel `FDP.Framework.Runner.SubsystemStatusAnnounce` DDS struct wi
 
 ### Minor: `IosSubsystem.StartPlacementMode` Fix is Undocumented (DB-MOD1-20)
 
-The report mentions that 5 `Bagira.IOS.Tests` initially failed due to a `StartPlacementMode` signature mismatch and were fixed by serializing `EntityPropertyPatch` to JSON. This is not a debt item per se, but it represents an undocumented API change: callers that were passing `EntityPropertyPatch` directly now need to serialize to JSON first. This is a legitimate concern since:
+The report mentions that 5 `Hrot.ExCon.Tests` initially failed due to a `StartPlacementMode` signature mismatch and were fixed by serializing `EntityPropertyPatch` to JSON. This is not a debt item per se, but it represents an undocumented API change: callers that were passing `EntityPropertyPatch` directly now need to serialize to JSON first. This is a legitimate concern since:
 - Any call site outside the test suite that uses the old overload will silently break.
 - The `IIosLogic` interface contract changed, but there is no mention of what else calls `StartPlacementMode(long, EntityPropertyPatch)`.
 
@@ -54,7 +54,7 @@ A quick grep audit of all `StartPlacementMode` call sites should be done to conf
 
 ### Minor: `TestStep.cs` and `TestMetricsCollector.cs` Not Mentioned in Design (DB-MOD1-21)
 
-The file listing shows `FDP.Framework.Runner.Testing.TestMetricsCollector.cs`. This class was not specified in the MOD1-P9T4 task description or the design doc. Its presence is fine if it's purely generic — but it needs to be verified that it has no `Bagira.*` references.
+The file listing shows `FDP.Framework.Runner.Testing.TestMetricsCollector.cs`. This class was not specified in the MOD1-P9T4 task description or the design doc. Its presence is fine if it's purely generic — but it needs to be verified that it has no `Hrot.*` references.
 
 ---
 
@@ -62,7 +62,7 @@ The file listing shows `FDP.Framework.Runner.Testing.TestMetricsCollector.cs`. T
 
 **Status:** ✅ APPROVED
 
-Both minor findings are low risk and logged as debt. Phase 9 is complete. The application is now correctly layered with `FDP.Framework.Runner` as a Bagira-free orchestration toolkit.
+Both minor findings are low risk and logged as debt. Phase 9 is complete. The application is now correctly layered with `FDP.Framework.Runner` as a Hrot-free orchestration toolkit.
 
 ---
 

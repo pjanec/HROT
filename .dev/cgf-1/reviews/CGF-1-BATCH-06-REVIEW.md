@@ -11,7 +11,7 @@
 
 ## Summary
 
-**Part A** matches the report and instructions: **`DrillSlave.PublishHeartbeat`** sets **`LocalDsmState = _localDsmState`**; **`LocalDsmStateForTest`** is a narrow internal seam consistent with **`EnqueueCommandForTest`**; **`LocalDsmState_ReflectsCommittedState_AfterCommitState`** proves the post-**CommitState** value is what the next heartbeat would publish. **`CommitState_RaisesDsmStateChangedEvent`** rename and **`PlanTrajectory_WhitespaceOnlyPayload_Throws`** are present. **DEBT-TRACKER** already marks the heartbeat and typo rows ✅ (verified).
+**Part A** matches the report and instructions: **`ClusterSlave.PublishHeartbeat`** sets **`LocalClusterState = _localClusterState`**; **`LocalClusterStateForTest`** is a narrow internal seam consistent with **`EnqueueCommandForTest`**; **`LocalClusterState_ReflectsCommittedState_AfterCommitState`** proves the post-**CommitState** value is what the next heartbeat would publish. **`CommitState_RaisesClusterStateChangedEvent`** rename and **`PlanTrajectory_WhitespaceOnlyPayload_Throws`** are present. **DEBT-TRACKER** already marks the heartbeat and typo rows ✅ (verified).
 
 **Part B (CGF1-S0203)** is **delivered**: **`MasterTimeController.SeedState`** publishes **`TimePulseDescriptor`** immediately and seeds **`_totalWallTicks`** from **`state.TotalWallTicks`**; **`SlaveTimeController.SeedState`** assigns **`_virtualWallTicks = state.TotalWallTicks`** and resets the jitter filter. **`SwitchableTimeController.SwitchTo`** still seeds the new controller from **`GetCurrentState()`** with a same-instance no-op. All five named success-condition tests exist; **`FDP.Toolkit.Time.Tests`** passes (**57** passed, **1** skip — pre-existing).
 
@@ -25,7 +25,7 @@
 
 | Item | Verdict |
 |------|---------|
-| **A.1** Heartbeat **`LocalDsmState`** | **Done** — see `PublishHeartbeat` + test + seam. |
+| **A.1** Heartbeat **`LocalClusterState`** | **Done** — see `PublishHeartbeat` + test + seam. |
 | **A.2** DEBT hygiene | **Done** — per report; open **SurvivingNodes** row remains **CGF-1-BATCH-07** (unchanged). |
 | **A.3** Rename + whitespace test | **Done**. |
 | **B** CGF1-S0203 | **Done** — code + tests align with [CGF-1-TASK-DETAIL §S0203](../CGF-1-TASK-DETAIL.md#cgf1-s0203--time-strategy-proxying). |
@@ -52,7 +52,7 @@ Instructions allowed a test seam; the implementation matches. A future **integra
 
 | Area | Verdict |
 |------|---------|
-| **DrillSlave** | **Good** — committed DSM is tied to heartbeat payload via **`LocalDsmStateForTest`** and clear comments. |
+| **ClusterSlave** | **Good** — committed DSM is tied to heartbeat payload via **`LocalClusterStateForTest`** and clear comments. |
 | **TransitionPlanner** | **Good** — whitespace case explicitly covered. |
 | **Switchable / Master / Slave / GlobalTime** | **Strong** — **`SeedState`** immediate pulse, swap continuity (**`TotalTime`**), no-op **`SwitchTo`**, slave snap, **`TotalWallTicks > 0`** on master **Update**. |
 
@@ -60,7 +60,7 @@ Instructions allowed a test seam; the implementation matches. A future **integra
 
 ## Design alignment
 
-- **§4.2** (DSM visible on heartbeats): **Aligned** after **`LocalDsmState = _localDsmState`**.  
+- **§4.2** (DSM visible on heartbeats): **Aligned** after **`LocalClusterState = _localClusterState`**.  
 - **§4.3** (time strategy proxying, **`TotalWallTicks`**, **`SeedState`**, **`SwitchTo`**): **Aligned** for continuous master/slave; **stepped** wall-tick continuity (**Issue 1**) should be closed before relying on **barrier** semantics.
 
 ---
@@ -76,7 +76,7 @@ Instructions allowed a test seam; the implementation matches. A future **integra
 ```
 feat(cgf-1): BATCH-06 heartbeat DSM + S0203 time SeedState/SwitchTo tests
 
-- DrillSlave: heartbeat LocalDsmState from _localDsmState; LocalDsmStateForTest seam + test.
+- ClusterSlave: heartbeat LocalClusterState from _localClusterState; LocalClusterStateForTest seam + test.
 - TransitionPlannerTests: whitespace-only TransitionState payload throws.
 - MasterTimeController.SeedState: immediate TimePulse + seed TotalWallTicks; throttle baseline.
 - SlaveTimeController.SeedState: set virtual wall ticks from seed; reset jitter filter.

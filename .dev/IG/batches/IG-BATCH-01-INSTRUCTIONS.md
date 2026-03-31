@@ -22,8 +22,8 @@ Welcome to the first batch of the IG Mock implementation! This batch focuses on 
 5. **Design Document:** `docs/design/DESIGN-IG.md` - Technical specifications
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`
-- **Test Project:** `Bagira.IG.Tests/`
+- **Primary Work Area:** `Hrot.IG/`
+- **Test Project:** `Hrot.IG.Tests/`
 - **Solution File:** `IOS-IG-SimHost.sln`
 
 ### Report Submission
@@ -62,22 +62,22 @@ This batch initializes the IG mock component, introducing the Raylib frontend wi
 ---
 
 ## 🎯 Batch Objectives
-- Create the main `Bagira.IG` project and link all prerequisite toolkit libraries from the FDP core structure.
-- Initialize `Bagira.IG.Tests` project.
+- Create the main `Hrot.IG` project and link all prerequisite toolkit libraries from the FDP core structure.
+- Initialize `Hrot.IG.Tests` project.
 - Create an empty functioning Raylib window (`IgApplication`) with basic `MapCanvas` and `MapCamera` control functionalities.
 
 ---
 
 ## ✅ Tasks
 
-### Task 1: IG.1.1 Create Bagira.IG Project
+### Task 1: IG.1.1 Create Hrot.IG Project
 
-**File:** `Bagira.IG/Bagira.IG.csproj`  
+**File:** `Hrot.IG/Hrot.IG.csproj`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.1.1)
 
 **Description:** Set up the IG project structure and link necessary DLLs/packages.
 **Requirements:**
-- Create `Bagira.IG` as a `net8.0` console application.
+- Create `Hrot.IG` as a `net8.0` console application.
 - Follow precisely the package list (`Raylib-cs`, `rlImGui`, `CycloneDDS.NET`, `NLog`) and internal project references outlined in the task definition.
 - Set up the folder structure as defined (`Components/`, `Systems/`, `Tools/`, `Translators/`, `UI/`, `Adapters/`).
 - Add the project to the central `IOS-IG-SimHost.sln`.
@@ -87,15 +87,15 @@ This batch initializes the IG mock component, introducing the Raylib frontend wi
 
 ---
 
-### Task 2: IG.1.5 Create Bagira.IG.Tests Project
+### Task 2: IG.1.5 Create Hrot.IG.Tests Project
 
-**File:** `Bagira.IG.Tests/Bagira.IG.Tests.csproj`  
+**File:** `Hrot.IG.Tests/Hrot.IG.Tests.csproj`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.1.5)
 
 **Description:** Set up the test project.
 **Requirements:**
-- Create `Bagira.IG.Tests` matching `net8.0` test project template.
-- Reference `Bagira.IG` project.
+- Create `Hrot.IG.Tests` matching `net8.0` test project template.
+- Reference `Hrot.IG` project.
 - Add to `IOS-IG-SimHost.sln`.
 
 **Tests Required:**
@@ -105,7 +105,7 @@ This batch initializes the IG mock component, introducing the Raylib frontend wi
 
 ### Task 3: IG.1.2 Setup MapCanvas with Camera Controls
 
-**File:** `Bagira.IG/Program.cs` and `Bagira.IG/IgApplication.cs`  
+**File:** `Hrot.IG/Program.cs` and `Hrot.IG/IgApplication.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.1.2)
 
 **Description:** Initialize Raylib 1600x900 window and construct MapCanvas/MapCamera.
@@ -157,7 +157,7 @@ This batch is DONE when:
 - [ ] Task IG.1.1 completed (Compiles successfully, all refs included).
 - [ ] Task IG.1.5 completed (Test project functional).
 - [ ] Task IG.1.2 completed (Raylib window opens, pan/zoom works natively, 60fps stable, debug overlay visible).
-- [ ] `Bagira.IG.Tests` contains verification tests for behavior logic.
+- [ ] `Hrot.IG.Tests` contains verification tests for behavior logic.
 - [ ] All code conforms to `CODE-STANDARDS.md` limits (No Magic Numbers rule applied to window/zoom defaults).
 - [ ] Developer Report submitted.
 

@@ -21,8 +21,8 @@
 
 ## 🧪 Testing Results
 
-**Unit Tests Passed:** 158 / 158 (`Bagira.SimHost.Tests`)  
-**Integration Tests Passed:** 24 / 24 (`Bagira.SimHost.Integration.Tests`)  
+**Unit Tests Passed:** 158 / 158 (`Hrot.SimHost.Tests`)  
+**Integration Tests Passed:** 24 / 24 (`Hrot.SimHost.Integration.Tests`)  
 **CarKinem Tests Passed:** 126 / 126 (`FDP.Toolkit.CarKinem.Tests`)  
 **Physics Tests Passed:** 17 / 17 (`FDP.Toolkit.Physics.Tests`)
 
@@ -41,20 +41,20 @@
 
 **Q1: What was structurally blocking vehicle movement for CT-MOD1-D? Provide exact paths.**
 
-The movement was already restored by the time this batch session began — the 24 integration tests in `Bagira.SimHost.Integration.Tests` all passed on first run with no changes required. Earlier diagnosis (from MOD1-BATCH-03 session) identified that `NavigationExecutionSystem` was not registered in the `SimulationLogicModule` group under the `-x all` runner config; once that registration was added, move intents began flowing through `MoveToExecutor` into `CarKinematicsSystem`. The integration test `EntityMission_MovesEntity` (located in `Bagira.SimHost.Integration.Tests`) verifies the vehicle's `SimTransform.Position` changes from its spawn coordinates after advancing the simulation.
+The movement was already restored by the time this batch session began — the 24 integration tests in `Hrot.SimHost.Integration.Tests` all passed on first run with no changes required. Earlier diagnosis (from MOD1-BATCH-03 session) identified that `NavigationExecutionSystem` was not registered in the `SimulationLogicModule` group under the `-x all` runner config; once that registration was added, move intents began flowing through `MoveToExecutor` into `CarKinematicsSystem`. The integration test `EntityMission_MovesEntity` (located in `Hrot.SimHost.Integration.Tests`) verifies the vehicle's `SimTransform.Position` changes from its spawn coordinates after advancing the simulation.
 
 **Q2: How exactly did you untangle the circular dependency for Action Dispatch (CT-MOD1-E)?**
 
-The cycle was `Bagira.SimHost → FDP.Toolkit.Behavior` (ActionDispatch) `→ Bagira.SimHost` (JoinFormationExecutor, AimAndFireExecutor).
+The cycle was `Hrot.SimHost → FDP.Toolkit.Behavior` (ActionDispatch) `→ Hrot.SimHost` (JoinFormationExecutor, AimAndFireExecutor).
 
 Resolution via **Dependency Inversion**:
 1. Created a generic `IActionExecutor<TChannel>` interface in `FDP.Toolkit.Behavior.Abstractions` — the toolkit owns the abstraction.
 2. Moved `ActionDispatchModule` to `FDP.Toolkit.Behavior.Modules`. Its constructor accepts `(ushort entityType, IActionExecutor<LocomotionChannel>)[]` and an optional weapon executor array. The module has no concrete executor references.
-3. Concrete executors (`JoinFormationExecutor`, `AimAndFireExecutor`) remain in `Bagira.SimHost` where their dependencies live. They implement the `IActionExecutor<T>` interface.
+3. Concrete executors (`JoinFormationExecutor`, `AimAndFireExecutor`) remain in `Hrot.SimHost` where their dependencies live. They implement the `IActionExecutor<T>` interface.
 4. `SimulationLogicModule` and `NodeBootstrapper` (composition root) construct executor arrays and inject them into `new ActionDispatchModule(locoExecutors, weaponExecutors)`.
-5. The old `Bagira.SimHost/Modules/ActionDispatchModule.cs` was tombstoned with a redirect comment.
+5. The old `Hrot.SimHost/Modules/ActionDispatchModule.cs` was tombstoned with a redirect comment.
 
-No circular dependency remains: `FDP.Toolkit.Behavior` knows nothing about `Bagira.SimHost`.
+No circular dependency remains: `FDP.Toolkit.Behavior` knows nothing about `Hrot.SimHost`.
 
 **Q3: How exactly did you untangle the circular dependency for Linear Kinematics (CT-MOD1-F)?**
 

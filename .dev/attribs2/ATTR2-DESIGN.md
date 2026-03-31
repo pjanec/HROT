@@ -27,7 +27,7 @@ SimHost simulation tick entirely.
 
 ### 1.2 High Bandwidth (JSON Verbosity)
 
-A JSON attribute patch such as `{"GeoPosition.Latitude":32.085}` is ~34 bytes.  The equivalent
+A JSON attribute patch such as `{"GeoPoint.Latitude":32.085}` is ~34 bytes.  The equivalent
 binary record (2-byte id + 2-byte sub-index + 8-byte double) is 12 bytes — a **~65 % reduction**.
 For live entity tracking scenarios streaming position updates to hundreds of entities, this
 difference is significant.
@@ -73,7 +73,7 @@ pipeline; it only processes structured binary records.
 
 ### 3.1 Binary Wire Contract (`AttributeRecord`)
 
-A new pair of DDS-compatible C# structs is added to `Bagira.DDS.DataModel/GenericMessages.cs`.
+A new pair of DDS-compatible C# structs is added to `Hrot.NED/GenericMessages.cs`.
 
 **`AttributeValueUnion`** carries the value as an extended primitive.  Supported value types:
 
@@ -92,7 +92,7 @@ A new pair of DDS-compatible C# structs is added to `Bagira.DDS.DataModel/Generi
 `AttributeRecord` is the packet atom:
 
 ```csharp
-// Bagira.DDS.DataModel/GenericMessages.cs
+// Hrot.NED/GenericMessages.cs
 public struct AttributeRecord
 {
     public ushort AttributeId;   // maps to the well-known schema table
@@ -136,8 +136,8 @@ Converts a JSON attribute patch (flat or hierarchically nested) to a
 
 - Accepts `ReadOnlySpan<byte>` (not `string`); callers avoid encoding allocation.
 - Uses `Utf8JsonReader` with a `stackalloc PathSegment[16]` stack to handle both formats:
-  - **Flat**: `{ "GeoPosition.Latitude": 32.0 }` — the property key is tokenised inline.
-  - **Nested**: `{ "GeoPosition": { "Latitude": 32.0 } }` — the stack accumulates segments.
+  - **Flat**: `{ "GeoPoint.Latitude": 32.0 }` — the property key is tokenised inline.
+  - **Nested**: `{ "GeoPoint": { "Latitude": 32.0 } }` — the stack accumulates segments.
   - **Array with integer-keyed children**: `{ "Weapon": { "2": { "Ammo": 5 } } }` — an
     integer key is extracted as `SubIndex1`.
 - The routing table maps `ulong` FNV-1a path hashes → `EdgeSchemaEntry` (AttributeId + expected
@@ -151,9 +151,9 @@ Converts a JSON attribute patch (flat or hierarchically nested) to a
 // FDP.Toolkit.Replication.Patching.JsonToRecordCompilerBuilder
 builder
     .Register("Name",                   AttributeId.Name,             AttributeValueType.String)
-    .Register("GeoPosition.Latitude",   AttributeId.GeoLat,           AttributeValueType.Float64)
-    .Register("GeoPosition.Longitude",  AttributeId.GeoLon,           AttributeValueType.Float64)
-    .Register("GeoPosition.Altitude",   AttributeId.GeoAlt,           AttributeValueType.Float64)
+    .Register("GeoPoint.Latitude",   AttributeId.GeoLat,           AttributeValueType.Float64)
+    .Register("GeoPoint.Longitude",  AttributeId.GeoLon,           AttributeValueType.Float64)
+    .Register("GeoPoint.Altitude",   AttributeId.GeoAlt,           AttributeValueType.Float64)
     .Register("Weapon.*.Ammo",          AttributeId.WeaponAmmo,       AttributeValueType.Int32);
 
 JsonToRecordCompiler compiler = builder.Build();
@@ -260,7 +260,7 @@ Numeric ranges are reserved per subsystem to avoid collisions when modules are a
 
 ### 3.7 `CreationTool` (IG Side) Changes
 
-- `CreationTool` (in `Bagira.IG/Tools/`) is injected with a `JsonToRecordCompiler`.
+- `CreationTool` (in `Hrot.IG/Tools/`) is injected with a `JsonToRecordCompiler`.
 - Before publishing `CreateEntityRequest`, it calls `compiler.Compile(utf8Json, buffer)` to
   convert `_initialPropertiesJson` into binary records.
 - Sets `request.InitialAttributeRecords` with the result, and leaves `InitialAttributesJson`
@@ -288,7 +288,7 @@ optional list fields.  No runtime behaviour changes.
 
 Implement `JsonToRecordCompiler` and `JsonToRecordCompilerBuilder` in
 `FDP.Toolkit.Replication.Patching`.  Implement the domain-specific schema registration
-(`EdgeCompilerFactory` in `Bagira.SimHost` or `Bagira.IG`).
+(`EdgeCompilerFactory` in `Hrot.SimHost` or `Hrot.IG`).
 
 ### Phase 3: Binary Interpreter Core
 
@@ -298,7 +298,7 @@ Implement `BinaryInterpreter`, `BinaryInterpreterBuilder`, `IBinaryAttributeInst
 ### Phase 4: Domain Installers
 
 Implement `EntityDataAttributeInstaller` and `SimTransformAttributeInstaller` in
-`Bagira.SimHost`, wiring the concrete ECS component handlers and GeoCoord scratchpad logic.
+`Hrot.SimHost`, wiring the concrete ECS component handlers and GeoCoord scratchpad logic.
 
 ### Phase 5: System Integration
 
@@ -333,7 +333,7 @@ Inject `JsonToRecordCompiler` into `CreationTool`; convert `_initialPropertiesJs
 
 | File | Change |
 |------|--------|
-| `Bagira.DDS.DataModel/GenericMessages.cs` | Add `AttributeValueUnion`, `AttributeRecord`; add list fields to existing requests |
+| `Hrot.NED/GenericMessages.cs` | Add `AttributeValueUnion`, `AttributeRecord`; add list fields to existing requests |
 | `FDP.Toolkit.Replication/Patching/AttributeIds.cs` | New — well-known ID constants |
 | `FDP.Toolkit.Replication/Patching/AttributeValueUnion.cs` | New — C# repr of the union |
 | `FDP.Toolkit.Replication/Patching/JsonToRecordCompiler.cs` | New — Edge Compiler impl |
@@ -342,9 +342,9 @@ Inject `JsonToRecordCompiler` into `CreationTool`; convert `_initialPropertiesJs
 | `FDP.Toolkit.Replication/Patching/BinaryInterpreterBuilder.cs` | New — Core Interpreter builder |
 | `FDP.Toolkit.Replication/Patching/IBinaryAttributeInstaller.cs` | New — installer interface |
 | `FDP.Toolkit.Replication/Patching/BinaryPatchContext.cs` | New — context for binary patching |
-| `Bagira.SimHost/AttributeCompilerFactory.cs` | Add `BuildEdgeCompiler()` and `BuildBinaryInterpreter()` |
-| `Bagira.SimHost/Installers/EntityDataAttributeInstaller.cs` | New |
-| `Bagira.SimHost/Installers/SimTransformAttributeInstaller.cs` | New |
-| `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` | Accept + use BinaryInterpreter |
-| `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` | Accept + use BinaryInterpreter |
-| `Bagira.IG/Tools/CreationTool.cs` | Inject + use JsonToRecordCompiler |
+| `Hrot.SimHost/AttributeCompilerFactory.cs` | Add `BuildEdgeCompiler()` and `BuildBinaryInterpreter()` |
+| `Hrot.SimHost/Installers/EntityDataAttributeInstaller.cs` | New |
+| `Hrot.SimHost/Installers/SimTransformAttributeInstaller.cs` | New |
+| `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` | Accept + use BinaryInterpreter |
+| `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` | Accept + use BinaryInterpreter |
+| `Hrot.IG/Tools/CreationTool.cs` | Inject + use JsonToRecordCompiler |

@@ -12,14 +12,14 @@
 ## 1. Onboarding
 
 ### 1.1 Project Context
-You are working on **Bagira** — a distributed military simulation system. The system runs
-four node types: **Orchestrator** (DrillMaster), **SimHost** (muscle), **CGF** (brain),
+You are working on **Hrot** — a distributed military simulation system. The system runs
+four node types: **Orchestrator** (ClusterMaster), **SimHost** (muscle), **CGF** (brain),
 and **IOS** (commander UI). All cluster state is published over CycloneDDS.
 
 The guiding principle for this batch is **CQRS** (Command-Query Responsibility Segregation):
 the Orchestrator UI and any remote UI (IOS, future nodes) must never hold a reference to
-`DrillMaster` or other local C# services. They observe network state (`ClusterUiCache`)
-and emit commands (`SysOpRequest`). This makes the same `ClusterScenarioPanel`
+`ClusterMaster` or other local C# services. They observe network state (`ClusterUiCache`)
+and emit commands (`ClusterOpRequest`). This makes the same `ClusterScenarioPanel`
 instantiable on any node.
 
 ### 1.2 Relevant Design Documents
@@ -32,20 +32,20 @@ instantiable on any node.
 
 | File | Purpose |
 |------|---------|
-| `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs` | Add `AssetInventoryTopic` struct |
-| `Bagira.Orchestrator/DrillMaster.cs` | Add inventory writer, `PublishAssetInventory()`, `NasBasePath` property |
-| `Bagira.Runner/Services/ClusterUiCache.cs` | **New file** — 8-reader network projection |
-| `Bagira.Runner/Services/OrchestratorScenarioPanel.cs` | Rename to `ClusterScenarioPanel.cs`; remove `_drillMaster`; switch to `ClusterUiCache` |
-| `Bagira.Runner/Services/ClusterScenarioPanel.cs` | **New file** (renamed panel) |
-| `Bagira.Runner/Services/OrchestratorSubsystem.cs` | Use `ClusterUiCache` + `ClusterScenarioPanel`; `DrawUI()` reads only cache |
-| `Bagira.Runner.Tests/ClusterUiCacheTests.cs` | **New file** — cache unit tests |
-| `Bagira.Runner.Tests/OrchestratorSubsystemTests.cs` | Update references from OrchestratorScenarioPanel → ClusterScenarioPanel |
-| `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs` | Rename to `ClusterScenarioPanelTests.cs` |
+| `Hrot.NED/Orchestration/OrchestrationMessages.cs` | Add `AssetInventoryTopic` struct |
+| `Hrot.Orchestrator/ClusterMaster.cs` | Add inventory writer, `PublishAssetInventory()`, `NasBasePath` property |
+| `Hrot.ClusterRunner/Services/ClusterUiCache.cs` | **New file** — 8-reader network projection |
+| `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` | Rename to `ClusterScenarioPanel.cs`; remove `_drillMaster`; switch to `ClusterUiCache` |
+| `Hrot.ClusterRunner/Services/ClusterScenarioPanel.cs` | **New file** (renamed panel) |
+| `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` | Use `ClusterUiCache` + `ClusterScenarioPanel`; `DrawUI()` reads only cache |
+| `Hrot.ClusterRunner.Tests/ClusterUiCacheTests.cs` | **New file** — cache unit tests |
+| `Hrot.ClusterRunner.Tests/OrchestratorSubsystemTests.cs` | Update references from OrchestratorScenarioPanel → ClusterScenarioPanel |
+| `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs` | Rename to `ClusterScenarioPanelTests.cs` |
 
 ### 1.4 Current Test Baseline
-- `Bagira.DDS.DataModel.Tests`: 45
-- `Bagira.Orchestrator.Tests`: 60
-- `Bagira.Runner.Tests`: 161
+- `Hrot.NED.Tests`: 45
+- `Hrot.Orchestrator.Tests`: 60
+- `Hrot.ClusterRunner.Tests`: 161
 
 All 266 tests were passing after BATCH-28. Build the solution first:
 `dotnet build IOS-IG-SimHost.sln -c Debug`
@@ -54,7 +54,7 @@ All 266 tests were passing after BATCH-28. Build the solution first:
 
 ## 2. Task A — `AssetInventoryTopic` DDS Struct
 
-**File:** `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs`
+**File:** `Hrot.NED/Orchestration/OrchestrationMessages.cs`
 
 Add the following struct after `SystemStateTopic` (keep `[DdsIdlFile("bdc-sst-orchestration")]`
 consistent with the existing topics):
@@ -63,8 +63,8 @@ consistent with the existing topics):
 /// <summary>
 /// Published by the Orchestrator every 5 seconds. Carries the NAS/local asset lists
 /// so that any subscriber — including IOS — can populate asset combo-boxes purely over DDS,
-/// with no direct reference to <see cref="Bagira.Orchestrator.DrillMaster"/>
-/// or <see cref="Bagira.Orchestrator.StorageGatewayModule"/>.
+/// with no direct reference to <see cref="Hrot.Orchestrator.ClusterMaster"/>
+/// or <see cref="Hrot.Orchestrator.StorageGatewayModule"/>.
 /// </summary>
 [DdsTopic("AssetInventory")]
 [DdsIdlFile("bdc-sst-orchestration")]
@@ -95,10 +95,10 @@ public partial struct AssetInventoryTopic
 inventory sample.
 
 After adding the struct, rebuild the DataModel project:
-`dotnet build Bagira.DDS.DataModel/Bagira.DDS.DataModel.csproj -c Debug`
+`dotnet build Hrot.NED/Hrot.NED.csproj -c Debug`
 The source generator will emit the required partial class.
 
-Add a schema pin test in `Bagira.DDS.DataModel.Tests/OrchestrationSchemaTests.cs` to
+Add a schema pin test in `Hrot.NED.Tests/OrchestrationSchemaTests.cs` to
 verify `AssetInventoryTopic` is present in the generated IDL:
 
 ```csharp
@@ -107,7 +107,7 @@ public void AssetInventoryTopic_IsRegisteredInIdl()
 {
     // Verify AssetInventoryTopic is a codegen type in the orchestration IDL
     var types = typeof(AssetInventoryTopic).Assembly.GetTypes()
-        .Where(t => t.Namespace == "Bagira.BDC.SSTD.Orchestration")
+        .Where(t => t.Namespace == "Hrot.NED.Descriptors.Orchestration")
         .Select(t => t.Name)
         .ToArray();
     Assert.Contains("AssetInventoryTopic", types);
@@ -116,13 +116,13 @@ public void AssetInventoryTopic_IsRegisteredInIdl()
 
 ---
 
-## 3. Task B — DrillMaster Publishes Asset Inventory
+## 3. Task B — ClusterMaster Publishes Asset Inventory
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`
 
 ### B.1 — `NasBasePath` Property and Inventory Writer
 
-Add to DrillMaster:
+Add to ClusterMaster:
 ```csharp
 public string NasBasePath => _nasBasePath;
 
@@ -178,31 +178,31 @@ Add required `using System.Text.Json;` and `using System.Linq;` if not present.
 
 ## 4. Task C — `ClusterUiCache`
 
-**File:** `Bagira.Runner/Services/ClusterUiCache.cs` *(new)*
+**File:** `Hrot.ClusterRunner/Services/ClusterUiCache.cs` *(new)*
 
 ```csharp
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using Bagira.BDC.SSTD.Orchestration;
-using Bagira.Orchestrator;
+using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Orchestrator;
 using CycloneDDS.Runtime;
 
-namespace Bagira.Runner.Services;
+namespace Hrot.ClusterRunner.Services;
 
 /// <summary>
 /// Network projection of cluster state — the CQRS read-model (CGF1-S0506).
 ///
 /// <para>Constructs 8 DDS readers and maintains all published properties by draining
 /// them on every <see cref="Update"/> call. No direct reference to
-/// <see cref="DrillMaster"/> or any local service. Thread-unsafe; must be updated
+/// <see cref="ClusterMaster"/> or any local service. Thread-unsafe; must be updated
 /// from a single thread.</para>
 /// </summary>
 public sealed class ClusterUiCache : IDisposable
 {
     // ── Published state ────────────────────────────────────────────────────────
-    public DSMState    CurrentState           { get; private set; }
+    public ClusterState    CurrentState           { get; private set; }
     public bool        IsBootstrapped         { get; private set; }
     public bool        HasInFlightTransaction  { get; private set; }
 
@@ -222,7 +222,7 @@ public sealed class ClusterUiCache : IDisposable
     private readonly DdsReader<SystemStateTopic>      _stateReader;
     private readonly DdsReader<AssetInventoryTopic>   _inventoryReader;
     private readonly DdsReader<NodeHeartbeat>         _heartbeatReader;
-    private readonly DdsReader<SysOpStatus>           _sysOpStatusReader;
+    private readonly DdsReader<ClusterOpStatus>           _sysOpStatusReader;
     private readonly DdsReader<NodeOpCommand>         _nodeOpCmdReader;
     private readonly DdsReader<NodeOpStatus>          _nodeOpStatusReader;
     private readonly DdsReader<TimePulseDescriptor>   _timePulseReader;
@@ -238,7 +238,7 @@ public sealed class ClusterUiCache : IDisposable
         _stateReader       = new DdsReader<SystemStateTopic>(participant);
         _inventoryReader   = new DdsReader<AssetInventoryTopic>(participant);
         _heartbeatReader   = new DdsReader<NodeHeartbeat>(participant);
-        _sysOpStatusReader = new DdsReader<SysOpStatus>(participant);
+        _sysOpStatusReader = new DdsReader<ClusterOpStatus>(participant);
         _nodeOpCmdReader   = new DdsReader<NodeOpCommand>(participant);
         _nodeOpStatusReader= new DdsReader<NodeOpStatus>(participant);
         _timePulseReader   = new DdsReader<TimePulseDescriptor>(participant);
@@ -254,7 +254,7 @@ public sealed class ClusterUiCache : IDisposable
         DrainTimePulse();
         DrainTimeMode();
         Process2PcNetworkTraffic();
-        DrainSysOpStatus();
+        DrainClusterOpStatus();
     }
 
     public void Dispose()
@@ -278,7 +278,7 @@ public sealed class ClusterUiCache : IDisposable
         {
             if (!s.IsValid) continue;
             CurrentState    = s.Data.CurrentState;
-            IsBootstrapped  = s.Data.CurrentState != DSMState.Standby;
+            IsBootstrapped  = s.Data.CurrentState != ClusterState.Standby;
         }
     }
 
@@ -340,7 +340,7 @@ public sealed class ClusterUiCache : IDisposable
                 var tx = new DistributedTransaction
                 {
                     TransactionId  = txId,
-                    TargetDsmState = s.Data.TargetState,
+                    TargetClusterState = s.Data.TargetState,
                 };
                 _inFlight[txId] = tx;
                 _txHistory.Insert(0, tx);
@@ -359,16 +359,16 @@ public sealed class ClusterUiCache : IDisposable
         }
     }
 
-    private void DrainSysOpStatus()
+    private void DrainClusterOpStatus()
     {
         using var l = _sysOpStatusReader.Take();
         foreach (var s in l)
         {
             if (!s.IsValid) continue;
-            // If the transaction that produced this SysOpStatus is in-flight, close it
+            // If the transaction that produced this ClusterOpStatus is in-flight, close it
             if (_inFlight.Remove(s.Data.RequestId, out var tx))
             {
-                tx.Completed = s.Data.StatusCode == SysOpStatusCode.Completed;
+                tx.Completed = s.Data.StatusCode == ClusterOpStatusCode.Completed;
             }
             HasInFlightTransaction = _inFlight.Count > 0;
         }
@@ -389,10 +389,10 @@ public sealed class ClusterUiCache : IDisposable
    `using var lease = reader.Take(); foreach (var sample in lease) { if (!sample.IsValid) continue; ... }`.
 2. `TimePulseDescriptor`, `SwitchTimeModeWireDto`, and `TimeSyncMode` may be in different
    namespaces — grep the codebase to find them.
-3. `DistributedTransaction` already exists in `Bagira.Orchestrator`. Check if it has the
-   `NodeResponses` dictionary, `SourceDsmState`, `PayloadJson`, and `Completed` fields
+3. `DistributedTransaction` already exists in `Hrot.Orchestrator`. Check if it has the
+   `NodeResponses` dictionary, `SourceClusterState`, `PayloadJson`, and `Completed` fields
    added in earlier batches, or whether you need to add `Completed` as a new property.
-4. `SysOpStatus`, `SysOpStatusCode`, `NodeOpCommand`, `NodeOpStatus` — find their exact
+4. `ClusterOpStatus`, `ClusterOpStatusCode`, `NodeOpCommand`, `NodeOpStatus` — find their exact
    field names in OrchestrationMessages.cs.
 5. If `NodeOpCommand.TargetState` does not exist as a property, check the actual field name.
 
@@ -400,8 +400,8 @@ public sealed class ClusterUiCache : IDisposable
 
 ## 5. Task D — Rename OrchestratorScenarioPanel → ClusterScenarioPanel
 
-**Old file:** `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`  
-**New file:** `Bagira.Runner/Services/ClusterScenarioPanel.cs`
+**Old file:** `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`  
+**New file:** `Hrot.ClusterRunner/Services/ClusterScenarioPanel.cs`
 
 **Steps:**
 1. Create `ClusterScenarioPanel.cs` by **copying** the contents of `OrchestratorScenarioPanel.cs`.
@@ -409,16 +409,16 @@ public sealed class ClusterUiCache : IDisposable
 3. Replace constructor signature:
    ```csharp
    // Old:
-   public OrchestratorScenarioPanel(DrillMaster drillMaster,
-                                     DdsWriter<SysOpRequest> sysOpWriter,
+   public OrchestratorScenarioPanel(ClusterMaster drillMaster,
+                                     DdsWriter<ClusterOpRequest> sysOpWriter,
                                      StorageGatewayModule? gateway = null,
                                      Action? requestPause = null)
    // New:
-   public ClusterScenarioPanel(DdsWriter<SysOpRequest> sysOpWriter,
+   public ClusterScenarioPanel(DdsWriter<ClusterOpRequest> sysOpWriter,
                                 ClusterUiCache uiCache,
                                 Action? requestPause = null)
    ```
-4. Remove `private readonly DrillMaster _drillMaster` field entirely.
+4. Remove `private readonly ClusterMaster _drillMaster` field entirely.
 5. Add `private readonly ClusterUiCache _uiCache` field.
 6. Replace all data reads from `_drillMaster.*` with equivalent `_uiCache.*` reads:
 
@@ -426,15 +426,15 @@ public sealed class ClusterUiCache : IDisposable
    |------------------------|-------------------|
    | `_drillMaster.BootstrapComplete` | `_uiCache.IsBootstrapped` |
    | `_drillMaster.HasInFlightTransaction` | `_uiCache.HasInFlightTransaction` |
-   | `_drillMaster.CurrentDsmState` | `_uiCache.CurrentState` |
+   | `_drillMaster.CurrentClusterState` | `_uiCache.CurrentState` |
    | `_drillMaster.TransactionHistory` | `_uiCache.TxHistory` |
    | `_drillMaster.NodeRoster.ActiveNodes` | `_uiCache.ActiveNodes` |
    | `_drillMaster.ActiveStories` | from `_uiCache` (see note below) |
 
-   **Active stories:** `DrillMaster.ActiveStories` is a set of story IDs. Check what
+   **Active stories:** `ClusterMaster.ActiveStories` is a set of story IDs. Check what
    `ClusterUiCache` should expose for this. If `SystemStateTopic` carries an active-stories
    list, read from there. Otherwise, add `IReadOnlySet<Guid> ActiveStories` to
-   `ClusterUiCache` that is populated from a `ManageStory` ACK sniffer in
+   `ClusterUiCache` that is populated from a `ManageEpisode` ACK sniffer in
    `Process2PcNetworkTraffic`. For now, if not available, the Stories section can fall back
    to an empty set from the cache (the UI degrades gracefully to showing "no active stories").
    **Do not add a `_drillMaster` fallback** — keep the CQRS separation strict.
@@ -464,7 +464,7 @@ public sealed class ClusterUiCache : IDisposable
 
 ## 6. Task E — Refactor OrchestratorSubsystem
 
-**File:** `Bagira.Runner/Services/OrchestratorSubsystem.cs`
+**File:** `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs`
 
 ### E.1 — Field Changes
 
@@ -498,7 +498,7 @@ Add `_uiCache?.Update();` to the `Update()` method (alongside the existing `_dri
 **Goal:** `DrawUI()` must read only from `_uiCache` and `_scenarioPanel`. No direct
 `_drillMaster.*` property access is allowed inside `DrawUI()`.
 
-The `internal DrillMaster? TestHook_DrillMaster { get; }` property is kept for tests.
+The `internal ClusterMaster? TestHook_ClusterMaster { get; }` property is kept for tests.
 
 Rewrite `DrawUI()` to:
 ```csharp
@@ -538,8 +538,8 @@ _uiCache = null;
 
 ### 7.1 — Rename and Update Panel Tests
 
-**File:** `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`  
-→ rename to `Bagira.Runner.Tests/ClusterScenarioPanelTests.cs`
+**File:** `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs`  
+→ rename to `Hrot.ClusterRunner.Tests/ClusterScenarioPanelTests.cs`
 
 Update:
 - Class name: `OrchestratorScenarioPanelTests` → `ClusterScenarioPanelTests`
@@ -554,21 +554,21 @@ Ensure all existing passing tests still compile and pass.
 
 ### 7.2 — Update OrchestratorSubsystemTests
 
-**File:** `Bagira.Runner.Tests/OrchestratorSubsystemTests.cs`
+**File:** `Hrot.ClusterRunner.Tests/OrchestratorSubsystemTests.cs`
 
 Update any instantiation of `OrchestratorScenarioPanel` to `ClusterScenarioPanel`.
-Verify that tests using `TestHook_DrillMaster` still compile.
+Verify that tests using `TestHook_ClusterMaster` still compile.
 
 ### 7.3 — New ClusterUiCacheTests
 
-**File:** `Bagira.Runner.Tests/ClusterUiCacheTests.cs` *(new)*
+**File:** `Hrot.ClusterRunner.Tests/ClusterUiCacheTests.cs` *(new)*
 
 Four facts per success conditions:
 
 **`Fact: ClusterUiCache_ReflectsSystemStateTopic`**
-- Write a `SystemStateTopic` sample with `CurrentState = DSMState.LoadingLive`.
+- Write a `SystemStateTopic` sample with `CurrentState = ClusterState.LoadingLive`.
 - Call `uiCache.Update()`.
-- Assert `uiCache.CurrentState == DSMState.LoadingLive`.
+- Assert `uiCache.CurrentState == ClusterState.LoadingLive`.
 - Assert `uiCache.IsBootstrapped == true`.
 
 **`Fact: ClusterUiCache_Sniffs2PcTraffic`**
@@ -594,7 +594,7 @@ Four facts per success conditions:
 
 All five success conditions from CGF-1-TASK-DETAIL.md §CGF1-S0506 must be covered:
 
-1. **`Fact: AssetInventoryTopic published by DrillMaster`** — unit test: tick DrillMaster
+1. **`Fact: AssetInventoryTopic published by ClusterMaster`** — unit test: tick ClusterMaster
    for 6 seconds (advance internal time mock or use `Thread.Sleep(6000)` + `Tick()`);
    read `AssetInventoryTopic` via a `DdsReader`; assert at least one sample received.
 
@@ -604,7 +604,7 @@ All five success conditions from CGF-1-TASK-DETAIL.md §CGF1-S0506 must be cover
 
 4. **`Fact: OrchestratorSubsystem.DrawUI has no _drillMaster reads`** — use
    `grep_search` on `OrchestratorSubsystem.cs` to confirm the `DrawUI()` method body
-   contains no `_drillMaster.` (except `TestHook_DrillMaster`). Document the result in
+   contains no `_drillMaster.` (except `TestHook_ClusterMaster`). Document the result in
    your report. This is a static-analysis success condition.
 
 5. **`Fact: ClusterScenarioPanel compiles with ClusterUiCache`** — the solution must
@@ -612,7 +612,7 @@ All five success conditions from CGF-1-TASK-DETAIL.md §CGF1-S0506 must be cover
    `dotnet build IOS-IG-SimHost.sln -c Debug`.
 
 6. **`Fact: No regression in E2E DSM test suite`** — all existing `DsmE2eScriptTests`
-   still pass (they are in `Bagira.Runner.Tests`).
+   still pass (they are in `Hrot.ClusterRunner.Tests`).
 
 ---
 
@@ -651,16 +651,16 @@ Write your completion report to `.dev/cgf-1/reports/CGF-1-BATCH-29-REPORT.md` wi
 
 ## Tasks Completed
 - [ ] A: AssetInventoryTopic DDS struct
-- [ ] B: DrillMaster publishes inventory (NasBasePath, _inventoryWriter, Tick throttle)
+- [ ] B: ClusterMaster publishes inventory (NasBasePath, _inventoryWriter, Tick throttle)
 - [ ] C: ClusterUiCache (8 readers, Update(), Dispose())
 - [ ] D: OrchestratorScenarioPanel → ClusterScenarioPanel refactor
 - [ ] E: OrchestratorSubsystem uses ClusterUiCache + ClusterScenarioPanel
 - [ ] Tests: all 6 success conditions covered
 
 ## Test Counts (before → after)
-- Bagira.DDS.DataModel.Tests: 45 →
-- Bagira.Orchestrator.Tests:  60 →
-- Bagira.Runner.Tests:        161 →
+- Hrot.NED.Tests: 45 →
+- Hrot.Orchestrator.Tests:  60 →
+- Hrot.ClusterRunner.Tests:        161 →
 
 ## Developer Insights
 ### Issues Encountered
@@ -677,10 +677,10 @@ Write your completion report to `.dev/cgf-1/reports/CGF-1-BATCH-29-REPORT.md` wi
 ## 12. Important Notes
 
 - **Do not break S0507 preconditions.** S0507 will require that `ClusterScenarioPanel`
-  and `ClusterUiCache` exist in `Bagira.Runner.Services` with the exact constructor
+  and `ClusterUiCache` exist in `Hrot.ClusterRunner.Services` with the exact constructor
   signatures defined here. Do not deviate.
 
-- **`Bagira.Runner.Tests` collection isolation:** The existing `[Collection("RunnerTests")]`
+- **`Hrot.ClusterRunner.Tests` collection isolation:** The existing `[Collection("RunnerTests")]`
   or equivalent isolation attributes must be preserved for DDS-based tests.
 
 - **TimePulseDescriptor:** Find the exact field name for sim time (likely `SimTimeSnapshot`)

@@ -64,7 +64,7 @@ Completes BS1-T001, BS1-T002, BS1-T003, BS1-T004.
 
 Adds unmanaged ECS event structs and CycloneDDS `DdsTopic`-annotated DDS messages with layout/topic unit tests. Refactors the Brain-tier `AimAndFireExecutor` to publish `WeaponFireIntent` and prevents non-authority nodes from applying damage.
 
-Tests: dotnet test FDP/Toolkits/FDP.Toolkit.Combat.Tests/FDP.Toolkit.Combat.Tests.csproj and dotnet test Bagira.DDS.DataModel.Tests/Bagira.DDS.DataModel.Tests.csproj
+Tests: dotnet test FDP/Toolkits/FDP.Toolkit.Combat.Tests/FDP.Toolkit.Combat.Tests.csproj and dotnet test Hrot.NED.Tests/Hrot.NED.Tests.csproj
 Related: docs/brain-split/BS-1-DESIGN.md, docs/brain-split/BS-1-TASK-DETAIL.md
 ```
 

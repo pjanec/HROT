@@ -21,7 +21,7 @@ The debt items have been sorted by highest priority.
 2. **Debt Tracker:** `.dev-workstream/SIM-DEBT-TRACKER.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`, `Bagira.SimHost.Integration.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/`, `Hrot.SimHost.Integration.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -76,10 +76,10 @@ You must execute the following debt tasks in sequential descending order of seve
 - Move logic node instantiation out of `Program.cs` into the module directly to maintain bounds.
 
 ### Task 6: Extract Integration Test Mocks (SIM-DEBT-07 | P4)
-**Area:** `Bagira.SimHost.Integration.Tests`
+**Area:** `Hrot.SimHost.Integration.Tests`
 **Description:** Extract the integration mocks to be shared for future toolkit node projects.
 **Acceptance Criteria:**
-- Create a new project `Bagira.DDS.TestMocks` or similar internal library.
+- Create a new project `Hrot.DDS.TestMocks` or similar internal library.
 - Move `SimHostInstance` and `MockIOSClient` implementations.
 - Update Integration Tests to reference this new library to consume.
 

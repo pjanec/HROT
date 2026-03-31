@@ -15,8 +15,8 @@ This document details every implementation task for the Replication Fixes workst
 
 **Total Estimated Effort:** ~5 developer-days  
 **Primary Affected Library:** `FDP/Toolkits/FDP.Toolkit.Replication/`  
-**Secondary Affected Libraries:** `Bagira.IG/`, `Bagira.Runner/`, `ModuleHost.Network.Cyclone/`  
-**Test Project:** `Bagira.Runner.Integration.Tests/`
+**Secondary Affected Libraries:** `Hrot.IG/`, `Hrot.ClusterRunner/`, `ModuleHost.Network.Cyclone/`  
+**Test Project:** `Hrot.ClusterRunner.Integration.Tests/`
 
 ---
 
@@ -738,7 +738,7 @@ The zombie memory leak is fixed as a side-effect of Phase 1 (DisposalMonitoringS
 
 **Design Reference:** [REPL-DESIGN.md §8.3](./REPL-DESIGN.md#83-update-ig-entitymastertranslator-part-c)
 
-**File:** `Bagira.IG/Translators/EntityMasterTranslator.cs`
+**File:** `Hrot.IG/Translators/EntityMasterTranslator.cs`
 
 **Problem:** Current code fires `SpawnEntityCommand` when encountering an unknown NetID, bypassing the Ghost pipeline. This means `GhostCreationSystem` is never involved for IG-originated spawns.
 
@@ -794,13 +794,13 @@ public void Decode(EntityMasterDescriptor master, ICommandBuffer cmd, EntityRepo
 ```
 
 **Implementation Steps:**
-1. Open `Bagira.IG/Translators/EntityMasterTranslator.cs`.
+1. Open `Hrot.IG/Translators/EntityMasterTranslator.cs`.
 2. Add `private readonly GhostCreationSystem _ghostCreationSystem;` field.
 3. Add `GhostCreationSystem ghostCreationSystem` parameter to constructor; assign field.
 4. Locate `ProcessSample` / `Decode`: find the block that calls `_eventBus.PublishManaged(new SpawnEntityCommand {...})`.
 5. Ensure the method (or calling ingress system) passes `EntityRepository repo` — obtained from the ingress system's `Execute` via `view as EntityRepository`.
 6. Replace the `SpawnEntityCommand` publish block with the `CreateGhost(repo, netId)` + `cmd.AddComponent(NetworkSpawnRequest)` pattern.
-7. Build `Bagira.IG.csproj`.
+7. Build `Hrot.IG.csproj`.
 
 **Acceptance Criteria:**
 - ✅ **No** `SpawnEntityCommand` published from `EntityMasterTranslator`.
@@ -820,12 +820,12 @@ public void Decode(EntityMasterDescriptor master, ICommandBuffer cmd, EntityRepo
 **Design Reference:** [REPL-DESIGN.md §8.4](./REPL-DESIGN.md#84-update-ig-ingress-translators--ghost-fallback-part-d)
 
 **Files to modify:**
-- `Bagira.IG/Translators/GeoSpatialTranslator.cs`
-- `Bagira.IG/Translators/GeoSpatialDRTranslator.cs`
-- `Bagira.IG/Translators/EntityInfoTranslator.cs`
-- `Bagira.IG/Translators/EntityDamageTranslator.cs`
-- `Bagira.IG/Translators/MapEntitySymbolTranslator.cs`
-- `Bagira.IG/Translators/ContextActionsUpdateTranslator.cs`
+- `Hrot.IG/Translators/WorldPosTranslator.cs`
+- `Hrot.IG/Translators/WorldPosTranslator.cs`
+- `Hrot.IG/Translators/EntityInfoTranslator.cs`
+- `Hrot.IG/Translators/EntityDamageTranslator.cs`
+- `Hrot.IG/Translators/MapEntitySymbolTranslator.cs`
+- `Hrot.IG/Translators/ContextActionsUpdateTranslator.cs`
 
 **Problem:** Each of these translators silently drops data when the NetID is not yet in `_entityMap`. This violates BDC-SST (data-before-entity delivery order is valid; entity creation is not guaranteed before all its descriptors arrive).
 
@@ -860,7 +860,7 @@ cmd.SetComponent(entity, new NetworkPosition { Value = position });
 4. Find the `return;` guard on unknown NetID (typically line ~40).
 5. Replace `return;` with the ghost-fallback block above (`CreateGhost(repo, netId)` with null guard).
 6. Ensure the translator then invokes `cmd.SetComponent(entity, <relevant component>)` on the next line.
-7. Build `Bagira.IG.csproj`.
+7. Build `Hrot.IG.csproj`.
 8. Repeat for all 6 files.
 
 **Acceptance Criteria:**
@@ -870,7 +870,7 @@ cmd.SetComponent(entity, new NetworkPosition { Value = position });
 - ✅ `CreateGhost(repo, netId)` called with live repo — **no** version without repo.
 - ✅ **No** bare `return;` on unknown NetID without ghost fallback.
 - ✅ Each translator sets the appropriate ECS component on the ghost entity.
-- ✅ `Bagira.IG` compiles with zero errors.
+- ✅ `Hrot.IG` compiles with zero errors.
 
 **Dependencies:** REPL-P1-T4, REPL-P3-T1 (for wiring)
 
@@ -928,7 +928,7 @@ cmd.AddComponent(newEntity, new NetworkSpawnRequest { ... });
 
 **Design Reference:** [REPL-DESIGN.md §9.1](./REPL-DESIGN.md#91-affected-files), [§9.2](./REPL-DESIGN.md#92-ghostcreationsystem-wiring-in-ig)
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Change 1 — ReplicationLogicModule constructor** (~line 285 in `InitializeNetwork()`):
 ```csharp
@@ -947,7 +947,7 @@ _kernel.RegisterModule(replicationModule);
 var ghostCreation = replicationModule.GhostCreationSystem;
 
 // Pass ghostCreation to translators that were updated in P2-T3 and P2-T4:
-//   EntityMasterTranslator, GeoSpatialTranslator, GeoSpatialDRTranslator,
+//   EntityMasterTranslator, WorldPosTranslator, WorldPosTranslator,
 //   EntityInfoTranslator, EntityDamageTranslator,
 //   MapEntitySymbolTranslator, ContextActionsUpdateTranslator
 ```
@@ -960,12 +960,12 @@ var ghostCreation = replicationModule.GhostCreationSystem;
 3. Replace with the 2-argument form; store the module instance in a local `replicationModule`.
 4. Add `public GhostCreationSystem GhostCreationSystem { get; }` property to `ReplicationLogicModule` (or use an accessor).
 5. Extract `ghostCreation` from the module and pass it to the 7 modified translators.
-6. Build `Bagira.IG.csproj` to verify.
+6. Build `Hrot.IG.csproj` to verify.
 
 **Acceptance Criteria:**
 - ✅ `ReplicationLogicModule` constructed with `(_entityMap, tkb)` — **no** `ISerializationRegistry`.
 - ✅ `GhostCreationSystem` instance is passed to all 7 IG ingress translators.
-- ✅ `Bagira.IG` compiles with zero errors.
+- ✅ `Hrot.IG` compiles with zero errors.
 - ✅ `_entityMap` is not `null` at point of construction.
 
 **Dependencies:** REPL-P1-T8, REPL-P2-T3, REPL-P2-T4
@@ -978,7 +978,7 @@ var ghostCreation = replicationModule.GhostCreationSystem;
 
 **Design Reference:** [REPL-DESIGN.md §9.1](./REPL-DESIGN.md#91-affected-files)
 
-**File:** `Bagira.Runner/Services/SimHostSubsystem.cs`
+**File:** `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`
 
 **Current state:** `ReplicationLogicModule` is not currently registered in `SimHostSubsystem` at all. The SimHost uses `SimHostModule` for DDS I/O. `ReplicationLogicModule` must be added **after** the lifecycle module registration.
 
@@ -995,12 +995,12 @@ _kernel.RegisterModule(new ReplicationLogicModule(entityMap, tkbDb));
 2. Locate the section after `_kernel.RegisterModule(elm);` (the lifecycle module registration).
 3. Add `_kernel.RegisterModule(new ReplicationLogicModule(entityMap, tkbDb));`.
 4. Add required `using FDP.Toolkit.Replication;` import.
-5. Build `Bagira.Runner.csproj` to verify.
+5. Build `Hrot.ClusterRunner.csproj` to verify.
 
 **Acceptance Criteria:**
 - ✅ `ReplicationLogicModule` registered in `SimHostSubsystem` initialization.
 - ✅ Constructor uses `(entityMap, tkbDb)` — **no** `ISerializationRegistry`.
-- ✅ `Bagira.Runner` project compiles with zero errors.
+- ✅ `Hrot.ClusterRunner` project compiles with zero errors.
 
 **Dependencies:** REPL-P1-T8
 
@@ -1051,13 +1051,13 @@ if (!isReplay)
 
 ## Phase 4 — Integration Test Coverage
 
-**Goal:** Add automated integration tests in `Bagira.Runner.Integration.Tests` that prove:
+**Goal:** Add automated integration tests in `Hrot.ClusterRunner.Integration.Tests` that prove:
 1. Replication systems execute each frame (Phase Bug fix is working).
 2. `NetworkEntityMap` is pruned after entity destruction (Zombie Leak fix is working).
 3. Child entities are cascaded-destroyed when parent is destroyed (`SubEntityCleanupSystem` working).
 4. Out-of-order descriptors result in a properly promoted entity with ECS-as-Staging data preserved.
 
-All tests use `BagiraRunnerHarness` (already available in the test project) and are fully autonomous (no manual setup, no external infrastructure beyond what the harness provides).
+All tests use `HrotRunnerHarness` (already available in the test project) and are fully autonomous (no manual setup, no external infrastructure beyond what the harness provides).
 
 ---
 
@@ -1065,7 +1065,7 @@ All tests use `BagiraRunnerHarness` (already available in the test project) and 
 
 **Design Reference:** [REPL-DESIGN.md §9.1](./REPL-DESIGN.md#91-tests)
 
-**File to create:** `Bagira.Runner.Integration.Tests/ReplicationPhaseExecutionTests.cs`
+**File to create:** `Hrot.ClusterRunner.Integration.Tests/ReplicationPhaseExecutionTests.cs`
 
 **What this verifies:**
 - After the SimWrapper fix, `DisposalMonitoringSystem` (PostSimulation) and `SubEntityCleanupSystem` (PostSimulation) actually execute, which is measurable by observing their side-effects on the `NetworkEntityMap`.
@@ -1075,15 +1075,15 @@ All tests use `BagiraRunnerHarness` (already available in the test project) and 
 
 ```csharp
 using System;
-using Bagira.BDC.SSTM;
-using Bagira.BDC.SSTD;
-using Bagira.Map.Common;
+using Hrot.NED.Messages;
+using Hrot.NED.Descriptors;
+using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Kernel;
 using Xunit;
 
-namespace Bagira.Runner.Integration.Tests;
+namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
 /// Verifies that DisposalMonitoringSystem and SubEntityCleanupSystem
@@ -1103,7 +1103,7 @@ public class ReplicationPhaseExecutionTests
     [Fact]
     public void DisposalMonitoringSystem_PrunesMapAfterEntityDestroyed()
     {
-        using var harness = new BagiraRunnerHarness();
+        using var harness = new HrotRunnerHarness();
 
         // Access SimHost's NetworkEntityMap via TestHook (to be added in REPL-P4-T1 helper).
         var entityMap = harness.SimHost.TestHook_EntityMap;
@@ -1111,7 +1111,7 @@ public class ReplicationPhaseExecutionTests
         // Spawn and immediately get a live entity handle
         long networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
-            new GeoPosition { Latitude = 32.0, Longitude = 34.0 });
+            new GeoPoint { Latitude = 32.0, Longitude = 34.0 });
 
         // Wait for entity to be registered
         Entity simHostEntity = Entity.Null;
@@ -1144,7 +1144,7 @@ public class ReplicationPhaseExecutionTests
 
 **Prerequisites — TestHook additions to `SimHostSubsystem`:**
 
-Add to `Bagira.Runner/Services/SimHostSubsystem.cs`:
+Add to `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`:
 ```csharp
 /// <summary>TestHook: exposes the NetworkEntityMap for integration test assertions.</summary>
 public NetworkEntityMap TestHook_EntityMap => _entityMap;
@@ -1157,7 +1157,7 @@ public NetworkEntityMap TestHook_EntityMap => _entityMap;
 3. Add the `TestHook_EntityMap` property.
 4. Create `ReplicationPhaseExecutionTests.cs` with the test class above.
 5. Add required `using` directives.
-6. Run: `dotnet test Bagira.Runner.Integration.Tests/Bagira.Runner.Integration.Tests.csproj --filter ReplicationPhaseExecutionTests`.
+6. Run: `dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj --filter ReplicationPhaseExecutionTests`.
 
 **Acceptance Criteria:**
 - ✅ Test exists and compiles.
@@ -1175,7 +1175,7 @@ public NetworkEntityMap TestHook_EntityMap => _entityMap;
 
 **Design Reference:** [REPL-DESIGN.md §7](./REPL-DESIGN.md#7-phase-2--fix-zombie-memory-leak), [§9.1](./REPL-DESIGN.md#91-tests)
 
-**File to create:** `Bagira.Runner.Integration.Tests/ZombieEntityMapTests.cs`
+**File to create:** `Hrot.ClusterRunner.Integration.Tests/ZombieEntityMapTests.cs`
 
 **What this verifies:**
 - After a full entity lifecycle (spawn → active → destroy via `DestroyEntityCommand`), the corresponding `NetworkEntityMap` entry on both **SimHost** and **IG** sides is removed, proving `DisposalMonitoringSystem` runs on both nodes.
@@ -1185,15 +1185,15 @@ public NetworkEntityMap TestHook_EntityMap => _entityMap;
 
 ```csharp
 using System;
-using Bagira.BDC.SSTM;
-using Bagira.BDC.SSTD;
-using Bagira.Map.Common;
+using Hrot.NED.Messages;
+using Hrot.NED.Descriptors;
+using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Lifecycle.Events;
 using Fdp.Kernel;
 using Xunit;
 
-namespace Bagira.Runner.Integration.Tests;
+namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
 /// End-to-end test proving that entity destruction results in map cleanup on both nodes.
@@ -1208,11 +1208,11 @@ public class ZombieEntityMapTests
     [Fact]
     public void DestroyedEntity_IsRemovedFromNetworkEntityMap_OnSimHost()
     {
-        using var harness = new BagiraRunnerHarness();
+        using var harness = new HrotRunnerHarness();
 
         long networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,
-            new GeoPosition { Latitude = 32.0, Longitude = 34.0 });
+            new GeoPoint { Latitude = 32.0, Longitude = 34.0 });
 
         // 1. Wait for entity to appear in SimHost map
         var simHostMap = harness.SimHost.TestHook_EntityMap;
@@ -1242,7 +1242,7 @@ public class ZombieEntityMapTests
     [Fact]
     public void DestroyedEntity_IsRemovedFromNetworkEntityMap_OnIg()
     {
-        using var harness = new BagiraRunnerHarness();
+        using var harness = new HrotRunnerHarness();
 
         long networkId = SpawnEntityViaPlacement(harness);
 
@@ -1270,7 +1270,7 @@ public class ZombieEntityMapTests
             $"Verify ReplicationLogicModule is registered in IgApplication with _entityMap.");
     }
 
-    private static long SpawnEntityViaPlacement(BagiraRunnerHarness harness)
+    private static long SpawnEntityViaPlacement(HrotRunnerHarness harness)
     {
         var iosLogic = harness.Ios.Logic;
         var igApp    = harness.Ig.App;
@@ -1318,7 +1318,7 @@ private long _lastSpawnedNetworkId;
 1. Add `TestHook_EntityMap` property to `IgApplication`.
 2. Ensure `IgSubsystem` exposes its `IgApplication` as `App` (already exists per harness usage).
 3. Create `ZombieEntityMapTests.cs` with the test class above.
-4. Run: `dotnet test Bagira.Runner.Integration.Tests/Bagira.Runner.Integration.Tests.csproj --filter ZombieEntityMapTests`.
+4. Run: `dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj --filter ZombieEntityMapTests`.
 
 **Acceptance Criteria:**
 - ✅ Both tests exist and compile.
@@ -1336,7 +1336,7 @@ private long _lastSpawnedNetworkId;
 
 **Design Reference:** [REPL-DESIGN.md §4.4](./REPL-DESIGN.md#44-sub-entity-cleanup-subentitycleanupsystem), [§9.1](./REPL-DESIGN.md#91-tests)
 
-**File to create:** `Bagira.Runner.Integration.Tests/SubEntityCascadeDestroyTests.cs`
+**File to create:** `Hrot.ClusterRunner.Integration.Tests/SubEntityCascadeDestroyTests.cs`
 
 **What this verifies:**
 - When a parent entity is destroyed, its child entities (with `PartMetadata` pointing to the dead parent) are also destroyed by `SubEntityCleanupSystem`.
@@ -1346,15 +1346,15 @@ private long _lastSpawnedNetworkId;
 
 ```csharp
 using System;
-using Bagira.BDC.SSTM;
-using Bagira.BDC.SSTD;
-using Bagira.Map.Common;
+using Hrot.NED.Messages;
+using Hrot.NED.Descriptors;
+using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Lifecycle.Events;
 using Fdp.Kernel;
 using Xunit;
 
-namespace Bagira.Runner.Integration.Tests;
+namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
 /// Verifies that SubEntityCleanupSystem cascades entity destruction to child entities.
@@ -1369,13 +1369,13 @@ public class SubEntityCascadeDestroyTests
     [Fact]
     public void DestroyParentEntity_ChildEntitiesAreAlsoDestroyed()
     {
-        using var harness = new BagiraRunnerHarness();
+        using var harness = new HrotRunnerHarness();
 
         // Spawn a composite entity (e.g., Tank with turret child).
         // Use a TKB type that has ChildBlueprints defined.
         long networkId = harness.SimHost.TestHook_SpawnEntity(
             TkbEntityTypes.Tank_M1Abrams,   // Must have child blueprints in TKB
-            new GeoPosition { Latitude = 32.0, Longitude = 34.0 });
+            new GeoPoint { Latitude = 32.0, Longitude = 34.0 });
 
         // Wait for parent entity to be active
         Entity parentEntity = Entity.Null;
@@ -1450,7 +1450,7 @@ public List<Entity> TestHook_GetChildEntities(Entity parent)
 1. Add `TestHook_GetChildEntities` to `SimHostSubsystem.cs`.
 2. Create `SubEntityCascadeDestroyTests.cs` with the test class above.
 3. Verify the `Tank_M1Abrams` TKB type has child blueprints; if not, use a different composite type or document the skip condition.
-4. Run: `dotnet test Bagira.Runner.Integration.Tests/Bagira.Runner.Integration.Tests.csproj --filter SubEntityCascadeDestroyTests`.
+4. Run: `dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj --filter SubEntityCascadeDestroyTests`.
 
 **Acceptance Criteria:**
 - ✅ Test exists and compiles.
@@ -1468,10 +1468,10 @@ public List<Entity> TestHook_GetChildEntities(Entity parent)
 
 **Design Reference:** [REPL-DESIGN.md §10](./REPL-DESIGN.md#10-phase-4--integration-test-coverage)
 
-**File to create:** `Bagira.Runner.Integration.Tests/GhostPromotionTests.cs`
+**File to create:** `Hrot.ClusterRunner.Integration.Tests/GhostPromotionTests.cs`
 
 **What this verifies:**
-- An entity whose first-received descriptor is **GeoSpatial** (not EntityMaster) results in a ghost with `NetworkPosition` set directly.
+- An entity whose first-received descriptor is **WorldPos** (not EntityMaster) results in a ghost with `NetworkPosition` set directly.
 - When `EntityMaster` arrives later, `GhostPromotionSystem` promotes the entity.
 - After promotion, the entity retains `NetworkPosition` (because `preserveExisting: true`).
 - This proves the ECS-as-Staging architecture preserves out-of-order component data.
@@ -1480,18 +1480,18 @@ public List<Entity> TestHook_GetChildEntities(Entity parent)
 
 ```csharp
 using System;
-using Bagira.BDC.SSTM;
-using Bagira.BDC.SSTD;
-using Bagira.Map.Common;
+using Hrot.NED.Messages;
+using Hrot.NED.Descriptors;
+using Hrot.Map.Common;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using Fdp.Kernel;
 using Xunit;
 
-namespace Bagira.Runner.Integration.Tests;
+namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
-/// Verifies that out-of-order descriptor arrival (GeoSpatial before EntityMaster)
+/// Verifies that out-of-order descriptor arrival (WorldPos before EntityMaster)
 /// results in a properly promoted entity with ECS-as-Staging component preservation.
 /// </summary>
 public class GhostPromotionTests
@@ -1499,15 +1499,15 @@ public class GhostPromotionTests
     private const int TimeoutFrames = 120;
 
     [Fact]
-    public void OutOfOrder_GeoSpatialBeforeEntityMaster_PositionPreservedAfterPromotion()
+    public void OutOfOrder_WorldPosBeforeEntityMaster_PositionPreservedAfterPromotion()
     {
-        using var harness = new BagiraRunnerHarness();
+        using var harness = new HrotRunnerHarness();
 
         long networkId = 123_456_789L;
         var expectedPosition = new System.Numerics.Vector3(100f, 200f, 10f);
 
-        // Step 1: Inject a GeoSpatial descriptor for an unknown entity (no EntityMaster yet)
-        harness.Ig.App.TestHook_InjectGeoSpatialDescriptor(new GeoSpatialDescriptor
+        // Step 1: Inject a WorldPos descriptor for an unknown entity (no EntityMaster yet)
+        harness.Ig.App.TestHook_InjectWorldPosDescriptor(new WorldPosDescriptor
         {
             EntityId = networkId,
             Position = expectedPosition
@@ -1522,12 +1522,12 @@ public class GhostPromotionTests
             return harness.Ig.World.HasComponent<NetworkPosition>(ghostEntity);
         }, TimeoutFrames);
 
-        Assert.True(ghostCreated, "Ghost entity with NetworkPosition was not created after GeoSpatial descriptor.");
+        Assert.True(ghostCreated, "Ghost entity with NetworkPosition was not created after WorldPos descriptor.");
 
         var posAfterGeo = harness.Ig.World.GetComponent<NetworkPosition>(ghostEntity).Value;
         Assert.Equal(expectedPosition, posAfterGeo);
 
-        // Step 3: Inject the EntityMaster descriptor (arrives after GeoSpatial)
+        // Step 3: Inject the EntityMaster descriptor (arrives after WorldPos)
         harness.Ig.App.TestHook_InjectEntityMasterDescriptor(new EntityMasterDescriptor
         {
             EntityId = networkId,
@@ -1554,9 +1554,9 @@ public class GhostPromotionTests
 
 **Prerequisites — TestHook additions to `IgApplication` / `IgSubsystem`:**
 ```csharp
-/// <summary>TestHook: directly injects a GeoSpatial descriptor into the IG translator pipeline.</summary>
+/// <summary>TestHook: directly injects a WorldPos descriptor into the IG translator pipeline.</summary>
 /// Passes the live world repo so CreateGhost can execute synchronously in the test.
-public void TestHook_InjectGeoSpatialDescriptor(GeoSpatialDescriptor descriptor)
+public void TestHook_InjectWorldPosDescriptor(WorldPosDescriptor descriptor)
 {
     var cmd = _world.GetCommandBuffer();
     _geoSpatialTranslator.Decode(descriptor, cmd, (EntityRepository)_world);
@@ -1573,10 +1573,10 @@ public void TestHook_InjectEntityMasterDescriptor(EntityMasterDescriptor descrip
 ```
 
 **Implementation Steps:**
-1. Add `TestHook_InjectGeoSpatialDescriptor` and `TestHook_InjectEntityMasterDescriptor` to `IgApplication`.
+1. Add `TestHook_InjectWorldPosDescriptor` and `TestHook_InjectEntityMasterDescriptor` to `IgApplication`.
 2. Expose `IgApplication` from `IgSubsystem` as `App` (if not already present).
 3. Create `GhostPromotionTests.cs` with the test above.
-4. Run: `dotnet test Bagira.Runner.Integration.Tests/Bagira.Runner.Integration.Tests.csproj --filter GhostPromotionTests`.
+4. Run: `dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj --filter GhostPromotionTests`.
 
 **Acceptance Criteria:**
 - ✅ Test exists and compiles.
@@ -1593,36 +1593,36 @@ public void TestHook_InjectEntityMasterDescriptor(EntityMasterDescriptor descrip
 
 ## Phase 5 — Translator Unification
 
-**Goal:** `Bagira.IG` and `Bagira.SimHost` use independent sets of translators, generating completely unnecessary code duplication. The logic in `Bagira.IG/Translators` and `Bagira.SimHost/Translators` must be unified and moved into `Bagira.Map.Common`, an existing shared library.
+**Goal:** `Hrot.IG` and `Hrot.SimHost` use independent sets of translators, generating completely unnecessary code duplication. The logic in `Hrot.IG/Translators` and `Hrot.SimHost/Translators` must be unified and moved into `Hrot.Map.Common`, an existing shared library.
 
-### REPL-P5-T1: Update Bagira.Map.Common Project References
-Update `Bagira.Map.Common/Bagira.Map.Common.csproj` to include project references to the necessary libraries required to run `NetworkEntityMap` and the replication framework. Add `FDP.Toolkit.Replication`, `Bagira.DDS.DataModel`, `Fdp.Kernel`, `ModuleHost.Core`, and `ModuleHost.Network.Cyclone`. Add to `.csproj` and `dotnet restore`.
+### REPL-P5-T1: Update Hrot.Map.Common Project References
+Update `Hrot.Map.Common/Hrot.Map.Common.csproj` to include project references to the necessary libraries required to run `NetworkEntityMap` and the replication framework. Add `FDP.Toolkit.Replication`, `Hrot.NED`, `Fdp.Kernel`, `ModuleHost.Core`, and `ModuleHost.Network.Cyclone`. Add to `.csproj` and `dotnet restore`.
 
 ### REPL-P5-T2: Migrate IG Ingress Translators
-Move the following translators from `Bagira.IG` to `Bagira.Map.Common/Replication/Ingress/`. Rename them explicitly with the `IngressTranslator` postfix (e.g. `GeoSpatialIngressTranslator`). Change their namespaces to `Bagira.Map.Common.Replication.Ingress`. These modules MUST retain the ECS-as-Staging (Ghost Fallback) pattern implemented in Phase 2.
+Move the following translators from `Hrot.IG` to `Hrot.Map.Common/Replication/Ingress/`. Rename them explicitly with the `IngressTranslator` postfix (e.g. `WorldPosIngressTranslator`). Change their namespaces to `Hrot.Map.Common.Replication.Ingress`. These modules MUST retain the ECS-as-Staging (Ghost Fallback) pattern implemented in Phase 2.
 List:
 - `EntityMasterTranslator.cs`
-- `GeoSpatialTranslator.cs`
-- `GeoSpatialDRTranslator.cs`
+- `WorldPosTranslator.cs`
+- `WorldPosTranslator.cs`
 - `EntityInfoTranslator.cs`
 - `EntityDamageTranslator.cs`
 - `MapEntitySymbolTranslator.cs`
 
 ### REPL-P5-T3: Migrate SimHost Egress Translators
-Move the following EGRESS translators from `Bagira.SimHost` to `Bagira.Map.Common/Replication/Egress/`. Remove SimHost-specific fast paths that break pure FDP abstractions. Rename them to explicit `EgressTranslator` postfixes and change to namespace `Bagira.Map.Common.Replication.Egress`.
+Move the following EGRESS translators from `Hrot.SimHost` to `Hrot.Map.Common/Replication/Egress/`. Remove SimHost-specific fast paths that break pure FDP abstractions. Rename them to explicit `EgressTranslator` postfixes and change to namespace `Hrot.Map.Common.Replication.Egress`.
 List:
 - `EntityMasterEgressTranslator.cs`
-- `GeoSpatialEgressTranslator.cs`
+- `WorldPosEgressTranslator.cs`
 - `TimePulseEgressTranslator.cs`
 
 ### REPL-P5-T4: Migrate EntityMission Translators
-The `EntityMission` feature has both Ingress AND Egress components (currently mixed). Move `Bagira.SimHost.Translators.EntityMissionTranslator` to `Bagira.Map.Common/Replication/Ingress/EntityMissionIngressTranslator.cs`. Move `EntityMissionEgressTranslator` to the equivalent target directory. Maintain identical ECS translation mapping.
+The `EntityMission` feature has both Ingress AND Egress components (currently mixed). Move `Hrot.SimHost.Translators.EntityMissionTranslator` to `Hrot.Map.Common/Replication/Ingress/EntityMissionIngressTranslator.cs`. Move `EntityMissionEgressTranslator` to the equivalent target directory. Maintain identical ECS translation mapping.
 
 ### REPL-P5-T5: Migrate DescriptorMapper
-Move `Bagira.SimHost/Util/DescriptorMapper.cs` into `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs`. This utility maps `EntityDescriptorUnion` (DDS) to ECS Components. Make sure any coupling to concrete instances is dropped; reference through interfaces like `IGeographicTransform`.
+Move `Hrot.SimHost/Util/DescriptorMapper.cs` into `Hrot.Map.Common/Replication/Utils/DescriptorMapper.cs`. This utility maps `EntityDescriptorUnion` (DDS) to ECS Components. Make sure any coupling to concrete instances is dropped; reference through interfaces like `IGeographicTransform`.
 
 ### REPL-P5-T6: Update Composition Roots
-Update `Bagira.IG/IgApplication.cs` and `Bagira.SimHost/Modules/SimHostModule.cs`. 
+Update `Hrot.IG/IgApplication.cs` and `Hrot.SimHost/Modules/SimHostModule.cs`. 
 In IG, use the new `IngressTranslator` variants and pass the necessary dependencies (via constructor injections matching the Phase 2 changes) inside the `customTranslators` list.
 In SimHost, use the explicit new `EgressTranslator` references.
 
@@ -1643,8 +1643,8 @@ In SimHost, use the explicit new `EgressTranslator` references.
 | REPL-P1-T8 | Phase 1 | `ReplicationLogicModule.cs` | 0.3d | P1-T1 through P1-T7 |
 | REPL-P2-T1 | Phase 2 | (covered by P1-T4) | 0.0d | P1-T4 |
 | REPL-P2-T2 | Phase 2 | (covered by P1-T5) | 0.0d | P1-T5 |
-| REPL-P2-T3 | Phase 2 | `Bagira.IG/Translators/EntityMasterTranslator.cs` | 0.3d | P1-T4 |
-| REPL-P2-T4 | Phase 2 | `Bagira.IG/Translators/*.cs` (6 files) | 0.3d | P1-T4 |
+| REPL-P2-T3 | Phase 2 | `Hrot.IG/Translators/EntityMasterTranslator.cs` | 0.3d | P1-T4 |
+| REPL-P2-T4 | Phase 2 | `Hrot.IG/Translators/*.cs` (6 files) | 0.3d | P1-T4 |
 | REPL-P2-T5 | Phase 2 | `ModuleHost.Network.Cyclone/.../EntityMasterTranslator.cs` | 0.1d | P0-T1 |
 | REPL-P3-T1 | Phase 3 | `IgApplication.cs` | 0.3d | P1-T8, P2-T3, P2-T4 |
 | REPL-P3-T2 | Phase 3 | `SimHostSubsystem.cs` | 0.1d | P1-T8 |

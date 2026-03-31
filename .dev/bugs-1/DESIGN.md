@@ -27,7 +27,7 @@ recorded here for completeness (see [Section 1.4](#14-ios-context-menu-delete-ac
 
 ### 1.1 Fix SimHost DDS Domain Zero Guard
 
-**Files:** `Bagira.Runner/Services/SimHostSubsystem.cs`
+**Files:** `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`
 
 `SimHostSubsystem.Initialize()` extracts the CLI domain flag with:
 
@@ -60,9 +60,9 @@ default and the guard should be rewritten to check `hasValue` instead of `> 0`.
 - `FDP/Framework/FDP.Framework.Runner/RunnerOptions.cs`  
 - `FDP/Framework/FDP.Framework.Runner/SubsystemConfig.cs`  
 - `FDP/Framework/FDP.Framework.Runner/SubsystemOrchestrator.cs`  
-- `Bagira.Runner/Program.cs`  
-- `Bagira.Runner/Services/SimHostSubsystem.cs`  
-- `Bagira.Runner/Services/IgSubsystem.cs`
+- `Hrot.ClusterRunner/Program.cs`  
+- `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`  
+- `Hrot.ClusterRunner/Services/IgSubsystem.cs`
 
 Currently all node identifiers are **static constants** (`SimHostNetworkConstants.LocalNodeId = 1`,
 `IgNetworkConstants.InstanceId = 300`). This prevents running multiple instances of the same
@@ -85,8 +85,8 @@ constants so no existing launch scripts break.
 Running two IGs requires two separate runner processes, each with a distinct `--node-id`:
 
 ```
-Bagira.Runner.exe -m ig --node-id 300
-Bagira.Runner.exe -m ig --node-id 301
+Hrot.ClusterRunner.exe -m ig --node-id 300
+Hrot.ClusterRunner.exe -m ig --node-id 301
 ```
 
 These resolve to internal IDs 400 and 401 respectively (applying the IG offset of +100).
@@ -115,8 +115,8 @@ When the batch scripts run from the solution root, all relative asset paths (e.g
 setlocal
 
 set DOMAIN=0
-cd /d "%~dp0Bagira.Runner\bin\Debug\net8.0"
-set RUNNER=Bagira.Runner.exe
+cd /d "%~dp0Hrot.ClusterRunner\bin\Debug\net8.0"
+set RUNNER=Hrot.ClusterRunner.exe
 
 start "SimHost" %RUNNER% -d %DOMAIN% -m simhost --no-wait
 start "IG"      %RUNNER% -d %DOMAIN% -m ig      --no-wait
@@ -130,7 +130,7 @@ automatically sets CWD to the output directory.
 
 ### 1.4 IOS Context Menu — Delete Action ✅ Already Done
 
-**Files:** `Bagira.IOS/Logic/ContextMenuLogic.cs`
+**Files:** `Hrot.ExCon/Logic/ContextMenuLogic.cs`
 
 The design talk identified that the "Delete" context menu action (`ContextMenuActions.Delete`,
 ID = 10) was restricted to `MenuStrategy.Admin`. The current code already has it in
@@ -153,7 +153,7 @@ The `Admin` strategy's Delete line is commented out. No further work is required
 
 ### 2.1 Enforce Silent Bystander Rule in `UpdateEntityDescriptorRequestSystem`
 
-**Files:** `Bagira.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs`
+**Files:** `Hrot.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs`
 
 The BDC SST architecture mandates the **Silent Bystander Rule**: a node that is not authoritative
 for a resource must not emit an ACK — it must silently discard the request. This rule is correctly
@@ -166,7 +166,7 @@ Current anti-patterns:
 |---|---|---|
 | `ProcessRequest` — entity not found | `WriteAck(EntityNotFound)` | Silent return |
 | `ProcessRequest` — unsupported type | `WriteAck(NotSupported)` | Silent return |
-| `ProcessGeoSpatialUpdate` — not authoritative | `WriteAck(NotOwner)` | Silent return |
+| `ProcessWorldPosUpdate` — not authoritative | `WriteAck(NotOwner)` | Silent return |
 | `ProcessMapVisualOverlayUpdate` — not authoritative | `WriteAck(NotOwner)` | Silent return |
 
 The practical consequence of the current behaviour: with two SimHost instances accidentally running
@@ -186,7 +186,7 @@ ever call `WriteAck(Success)`.
 - Wherever `CycloneNetworkCleanupSystem` / `NetworkCleanupModule` is constructed (SimHost bootstrap)
 
 When an entity is deleted, only the `EntityMaster` DDS topic instance is disposed. Every other
-descriptor topic (`GeoSpatial`, `EntityInfo`, `MapVisualOverlay`, etc.) retains a live
+descriptor topic (`WorldPos`, `EntityInfo`, `MapVisualOverlay`, etc.) retains a live
 `TransientLocal` sample in the DDS middleware queue. Late-joining IGs accumulate these as **ghost
 descriptors** — partial records waiting for a master that will never arrive — burning CPU and memory.
 
@@ -209,16 +209,16 @@ Update the `NetworkCleanupModule` wrapper and the SimHost bootstrap registration
 ### 3.1 Add Continuous Drag Update Toggle
 
 **Files:**  
-- `Bagira.IG/Systems/MapUserConfig.cs`  
-- `Bagira.IG/IgApplication.cs`
+- `Hrot.IG/Systems/MapUserConfig.cs`  
+- `Hrot.IG/IgApplication.cs`
 
-Currently the IG only sends a `UpdateEntityDescriptorRequest` for a `GeoSpatial` update when the
+Currently the IG only sends a `UpdateEntityDescriptorRequest` for a `WorldPos` update when the
 operator **drops** the entity (fires `OnEntityDragEnded`). The SimHost ghost-preview mechanism
 works correctly because the drag sends nothing and the drop sends the final position.
 
 To test how the system behaves under various network latencies, a **Continuous Backbone** mode is
 needed: the IG sends throttled position updates *during* the drag, allowing the SimHost to mutate
-the authoritative ECS state and egress the GeoSpatial confirmation back in real-time.
+the authoritative ECS state and egress the WorldPos confirmation back in real-time.
 
 #### Throttling requirement
 
@@ -229,14 +229,14 @@ measure. The update rate must be throttled (design talk specifies **10 Hz**).
 #### Design
 
 1. **`MapUserConfig.ContinuousDragUpdates`** (bool, default `false`) — toggled via the Debug Panel.
-2. **`IgApplication.SendGeoSpatialUpdate(Entity, Vector2)`** — extracted helper that contains the
+2. **`IgApplication.SendWorldPosUpdate(Entity, Vector2)`** — extracted helper that contains the
    full request-building and publishing logic currently inlined in `OnEntityDragEnded`. Both the
    drag-move path and the drag-end path call this helper.
 3. **`IgApplication._continuousDragTimer`** (float) — per-frame accumulator; fires the update and
    resets when it exceeds 0.1 s (10 Hz).
 4. **`OnEntityMoved` subscription** — updated to use the entity parameter, accumulate the timer,
-   and call `SendGeoSpatialUpdate` when throttle fires (only when `ContinuousDragUpdates == true`).
-5. **`OnEntityDragEnded`** — simplified to delegate to `SendGeoSpatialUpdate` using the tracked
+   and call `SendWorldPosUpdate` when throttle fires (only when `ContinuousDragUpdates == true`).
+5. **`OnEntityDragEnded`** — simplified to delegate to `SendWorldPosUpdate` using the tracked
    `_lastDragWorldPos`; resets `_continuousDragTimer`.
 
 ---
@@ -245,7 +245,7 @@ measure. The update rate must be throttled (design talk specifies **10 Hz**).
 
 ### 4.1 Default `DoctrineFinished` Trigger on Task Creation
 
-**Files:** `Bagira.IOS/Panels/MissionPanel.cs`
+**Files:** `Hrot.ExCon/Panels/MissionPanel.cs`
 
 When the IOS `HandleAddTask()` method creates a new `MissionTask`, it populates `Triggers` with an
 **empty list**. On the SimHost, `MissionControlRequestSystem.ResolveTrigger()` receives zero
@@ -281,9 +281,9 @@ No SimHost-side changes are required.
 ### 4.2 Track Control Commands for OCC Version Sync
 
 **Files:**  
-- `Bagira.IOS/Services/IMissionEditorService.cs`  
-- `Bagira.IOS/Services/MissionEditorService.cs`  
-- `Bagira.IOS/Panels/MissionPanel.cs`
+- `Hrot.ExCon/Services/IMissionEditorService.cs`  
+- `Hrot.ExCon/Services/MissionEditorService.cs`  
+- `Hrot.ExCon/Panels/MissionPanel.cs`
 
 When the operator clicks **ABORT**, the IOS sends `CMD_ABORT_ALL` via `SendControlCommand()`. The
 SimHost processes the command, increments the OCC version (e.g. 1 → 2), and returns a

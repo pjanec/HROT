@@ -4,17 +4,17 @@
 **Goal:** Close **P1–P2 debt** from [CGF-1-BATCH-24 review](../reviews/CGF-1-BATCH-24-REVIEW.md) so **tech debt does not accumulate**: green default unit tests, **no silent skips** in S0310 handlers, **reachable `cgf`** mode, and **proven** E2E execution path.  
 **Phase:** Post Phase 3 hardening; optional P3 if capacity  
 **Estimated effort:** 4–10 h (Part A) + 4–8 h (Part B) + 4–8 h (Part C optional)  
-**Priority:** **P1** Part A — `Bagira.Runner.Tests` currently fails one mode test  
+**Priority:** **P1** Part A — `Hrot.ClusterRunner.Tests` currently fails one mode test  
 **Dependencies:** [CGF-1-BATCH-24 review](../reviews/CGF-1-BATCH-24-REVIEW.md); [CGF-1-BATCH-24 report](../reports/CGF-1-BATCH-24-REPORT.md)
 
 ---
 
 ## Sequencing (tech debt first)
 
-1. **Part A (P1)** — Restore **`Bagira.Runner.Tests` green** and align **`RunMode` / parser** with product (`All` includes Orchestrator; optional explicit `cgf`).  
-2. **Part B (P2)** — **Fail-loud** fixes in [`OrchestratorActionHandlers.cs`](../../../Bagira.Runner/Testing/OrchestratorActionHandlers.cs) + **`AssertionRule`** rename (CS0108).  
+1. **Part A (P1)** — Restore **`Hrot.ClusterRunner.Tests` green** and align **`RunMode` / parser** with product (`All` includes Orchestrator; optional explicit `cgf`).  
+2. **Part B (P2)** — **Fail-loud** fixes in [`OrchestratorActionHandlers.cs`](../../../Hrot.ClusterRunner/Testing/OrchestratorActionHandlers.cs) + **`AssertionRule`** rename (CS0108).  
 3. **Part C (P2)** — **CI / integration** for `DsmE2eScriptTests` (or documented pipeline + traits).  
-4. **Part D (P3)** — IG `TestHook_DrillSlave` harness; TASK-DETAIL vs `MovingTestTag` placement.
+4. **Part D (P3)** — IG `TestHook_ClusterSlave` harness; TASK-DETAIL vs `MovingTestTag` placement.
 
 ---
 
@@ -22,8 +22,8 @@
 
 1. [CGF-1-BATCH-24 review](../reviews/CGF-1-BATCH-24-REVIEW.md)  
 2. [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md) — rows **Target Fix = CGF-1-BATCH-25**  
-3. [`BagiraRunnerConfiguration.cs`](../../../Bagira.Runner/Configuration/BagiraRunnerConfiguration.cs) — `ParseModeString`  
-4. [`RunMode.cs`](../../../Bagira.Runner/Configuration/RunMode.cs)
+3. [`HrotRunnerConfiguration.cs`](../../../Hrot.ClusterRunner/Configuration/HrotRunnerConfiguration.cs) — `ParseModeString`  
+4. [`RunMode.cs`](../../../Hrot.ClusterRunner/Configuration/RunMode.cs)
 
 **Report:** `.dev/cgf-1/reports/CGF-1-BATCH-25-REPORT.md`  
 **Review:** `.dev/cgf-1/reviews/CGF-1-BATCH-25-REVIEW.md`
@@ -37,12 +37,12 @@
 - **`ParseMode_ComboAllThree_EqualsAllFlag`:** Either rename and assert **`RunMode.SimHost | RunMode.IG | RunMode.IOS`** only, **or** extend combo to **`simhost,ig,ios,orchestrator`** if the test name must stay “equals `All`”.  
 - **`ParseMode_AllMode_HasAllThreeFlags`:** Rename / extend to assert **Orchestrator** as well (and document **CGF** not in `All` unless product changes).
 
-**Acceptance:** `dotnet test Bagira.Runner.Tests` — **0 failures**.
+**Acceptance:** `dotnet test Hrot.ClusterRunner.Tests` — **0 failures**.
 
-### A.2 — Parse `cgf` in `BagiraRunnerConfiguration` (P2)
+### A.2 — Parse `cgf` in `HrotRunnerConfiguration` (P2)
 
 - Support **`cgf`** as standalone `ModeString` and in **comma-separated** lists (e.g. `orchestrator,cgf`), mirroring `simhost` / `ig` / `ios`.  
-- Update **CLI help** in [`BagiraRunnerConfiguration`](../../../Bagira.Runner/Configuration/BagiraRunnerConfiguration.cs) / [`Program.cs`](../../../Bagira.Runner/Program.cs) comments if needed.  
+- Update **CLI help** in [`HrotRunnerConfiguration`](../../../Hrot.ClusterRunner/Configuration/HrotRunnerConfiguration.cs) / [`Program.cs`](../../../Hrot.ClusterRunner/Program.cs) comments if needed.  
 - Add tests: standalone `cgf`; combo `orchestrator,cgf`; invalid token still rejects whole string.
 
 **Acceptance:** `RunMode.CGF` reachable from CLI; Part B node-id offsets for **`CgfSubsystem`** become **product-relevant**, not mock-only.
@@ -68,7 +68,7 @@
 
 ## Part C — E2E DSM tests in CI (P2)
 
-- Add **integration test** stage (or document existing) that runs **`Bagira.Runner.Integration.Tests`** with DDS-friendly settings (serial collection, domain isolation).  
+- Add **integration test** stage (or document existing) that runs **`Hrot.ClusterRunner.Integration.Tests`** with DDS-friendly settings (serial collection, domain isolation).  
 - Optionally **`[Trait("Category", "DsmE2e")]`** on `DsmE2eScriptTests` so default fast runs can skip while **nightly** runs full suite — **document** in report if that is the chosen policy.
 
 **Acceptance:** Lead-signed definition of “S0310 verified in CI” (either every PR or scheduled).
@@ -83,7 +83,7 @@
 
 ## Success criteria
 
-- [ ] `Bagira.Runner.Tests` **all pass**.  
+- [ ] `Hrot.ClusterRunner.Tests` **all pass**.  
 - [ ] **`cgf`** mode parseable from CLI; tests cover combos.  
 - [ ] No **silent skip** paths in S0310 handlers listed in review.  
 - [ ] **`AssertionRule`** CS0108 resolved.  

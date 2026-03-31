@@ -8,7 +8,7 @@
 
 ## Phase 1 — CQRS Navigation Contract + Authority Bug Fixes
 
-**Goal:** Introduce the engine-agnostic `NavigationIntent`/`NavigationStatus` ECS components (in **`FDP.Toolkit.Navigation`**; Cartesian `Vector2` destination; toolkit ID block 20–49) and matching DDS descriptors (in `Bagira.BDC.SSTD`). Apply the **dual-enum pattern**: engine-side `NavigationMode`/`NavigationResult` in `FDP.Toolkit.Navigation`; DDS wire `ENavigationMode`/`ENavigationResult` in `Bagira.BDC.SSTD`. Fix legacy `PrimaryOwnerId` authority guard bugs that break split-authority deployments. `MoveToExecutor` writes raw Cartesian coordinates — geo conversion is the translator’s responsibility.
+**Goal:** Introduce the engine-agnostic `NavigationIntent`/`NavigationStatus` ECS components (in **`FDP.Toolkit.Navigation`**; Cartesian `Vector2` destination; toolkit ID block 20–49) and matching DDS descriptors (in `Hrot.NED.Descriptors`). Apply the **dual-enum pattern**: engine-side `NavigationMode`/`NavigationResult` in `FDP.Toolkit.Navigation`; DDS wire `ENavigationMode`/`ENavigationResult` in `Hrot.NED.Descriptors`. Fix legacy `PrimaryOwnerId` authority guard bugs that break split-authority deployments. `MoveToExecutor` writes raw Cartesian coordinates — geo conversion is the translator’s responsibility.
 
 - [x] **MOD1-P1T1** Define `NavigationIntent` and `NavigationStatus` ECS components + DDS descriptors [details](./MOD1-TASK-DETAIL.md#mod1-p1t1--define-navigationintent-and-navigationstatus-ecs-components--dds-descriptors) *(contracts in `Fdp.Kernel`, IDs 67/68)*
 - [x] **MOD1-P1T2** Refactor `MoveToExecutor` to CQRS Pattern [details](./MOD1-TASK-DETAIL.md#mod1-p1t2--refactor-movetoexecutor-to-cqrs-pattern)
@@ -19,7 +19,7 @@
 
 ## Phase 2 — Brain & Muscle Module Decomposition
 
-**Goal:** Break the monolithic `SimulationLogicModule` into five focused `IModule` implementations. Cognitive modules (`MissionControlModule`, `CognitiveRuntimeModule`, `ActionDispatchModule`) land in **`FDP.Toolkit.Behavior`**; `GroundKinematicsModule` lands in **`FDP.Toolkit.CarKinem`**; `CombatModule` stays in `Bagira.SimHost.Modules` (Bagira weapon domain). See §2.5.
+**Goal:** Break the monolithic `SimulationLogicModule` into five focused `IModule` implementations. Cognitive modules (`MissionControlModule`, `CognitiveRuntimeModule`, `ActionDispatchModule`) land in **`FDP.Toolkit.Behavior`**; `GroundKinematicsModule` lands in **`FDP.Toolkit.CarKinem`**; `CombatModule` stays in `Hrot.SimHost.Modules` (Hrot weapon domain). See §2.5.
 
 - [x] **MOD1-P2T1** Create `MissionControlModule` [details](./MOD1-TASK-DETAIL.md#mod1-p2t1--create-missioncontrolmodule)
 - [x] **MOD1-P2T2** Create `CognitiveRuntimeModule` [details](./MOD1-TASK-DETAIL.md#mod1-p2t2--create-cognitiveruntimemodule)
@@ -54,15 +54,15 @@
 
 ## Phase 5 — Component ID Registry Split
 
-**Goal:** Move all Bagira-specific component ID constants out of `Fdp.Kernel.GlobalComponentIds` into a single `BagiraComponentIds` class in `Bagira.Map.Definitions`. Two registries only: FDP owns `GlobalComponentIds`; Bagira owns `BagiraComponentIds`.
+**Goal:** Move all Hrot-specific component ID constants out of `Fdp.Kernel.GlobalComponentIds` into a single `HrotComponentIds` class in `Hrot.Map.Definitions`. Two registries only: FDP owns `GlobalComponentIds`; Hrot owns `HrotComponentIds`.
 
-- [x] **MOD1-P5T1** Create `BagiraComponentIds` in `Bagira.Map.Definitions`; migrate all Bagira-owned `[ComponentId]` usages [details](./MOD1-TASK-DETAIL.md#mod1-p5t1--create-bagiracomponentids-in-bagiramapdefinitions)
+- [x] **MOD1-P5T1** Create `HrotComponentIds` in `Hrot.Map.Definitions`; migrate all Hrot-owned `[ComponentId]` usages [details](./MOD1-TASK-DETAIL.md#mod1-p5t1--create-hrotcomponentids-in-hrotmapdefinitions)
 
 ---
 
 ## Phase 6 — Distributed Perception & Pathfinding Modules
 
-**Goal:** Modularise the perception pipeline and pathfinding. `AutonomousPerceptionModule`, `PhysicsQueryModule`, `SensorModality`, and per-modality receptor components land in **`FDP.Toolkit.Perception`**; `NavigationSolverModule`, `PathfindingBatchData`, and `PathfindingSolverSystem` land in **`FDP.Toolkit.Navigation`**. Translator packs (Bagira DDS schema) stay in `Bagira.SimHost.Network`. Wire `BTreeContext` stubs to real singletons.
+**Goal:** Modularise the perception pipeline and pathfinding. `AutonomousPerceptionModule`, `PhysicsQueryModule`, `SensorModality`, and per-modality receptor components land in **`FDP.Toolkit.Perception`**; `NavigationSolverModule`, `PathfindingBatchData`, and `PathfindingSolverSystem` land in **`FDP.Toolkit.Navigation`**. Translator packs (Hrot DDS schema) stay in `Hrot.SimHost.Network`. Wire `BTreeContext` stubs to real singletons.
 
 - [x] **MOD1-P6T1** Add `SensorModality` bitmask to `TargetMemory` + per-modality receptor components [details](./MOD1-TASK-DETAIL.md#mod1-p6t1--add-sensormodality-bitmask-to-targetmemory--per-modality-receptor-components)
 - [x] **MOD1-P6T2** Add DDS descriptors for perception & pathfinding [details](./MOD1-TASK-DETAIL.md#mod1-p6t2--add-dds-descriptors-for-perception--pathfinding)
@@ -77,7 +77,7 @@
 
 ## Phase 7 — IG Ground Clamping Module
 
-**Goal:** Solve the Heterogeneous Terrain Correlation problem. Generic terrain-query types (`TerrainQueryBatchData`, systems, `ITerrainProvider`, `EClampingMode`, `GroundClampingConfig/State`) land in **`FDP.Toolkit.Geographic`**. `IgGroundClampingModule` (IG-specific wiring) stays in `Bagira.IG`. DDS contract (`GroundClampingOverride`) stays in `Bagira.BDC.SSTD`.
+**Goal:** Solve the Heterogeneous Terrain Correlation problem. Generic terrain-query types (`TerrainQueryBatchData`, systems, `ITerrainProvider`, `EClampingMode`, `GroundClampingConfig/State`) land in **`FDP.Toolkit.Geographic`**. `IgGroundClampingModule` (IG-specific wiring) stays in `Hrot.IG`. DDS contract (`GroundClampingOverride`) stays in `Hrot.NED.Descriptors`.
 
 - [x] **MOD1-P7T1** `GroundClampingOverride` DDS descriptor + `EClampingMode` enum [details](./MOD1-TASK-DETAIL.md#mod1-p7t1--groundclampingoverride-dds-descriptor--eclampingmode-enum)
 - [x] **MOD1-P7T2** ECS components: `GroundClampingConfig`, `GroundClampingState`, `TerrainQueryBatchData` [details](./MOD1-TASK-DETAIL.md#mod1-p7t2--ecs-components-groundclampingconfig-groundclampingstate-terrainquerybatchdata)
@@ -89,24 +89,24 @@
 
 ## Phase 8 — Recording/Replay Module Architecture
 
-**Goal:** `RecordingModule`, `ReplayModule`, `StoryRecorderModule`, `RecordingConfiguration`, `StoryTag`, `StoryReplayTag` land in **`FDP.Toolkit.Replay`** (generic; purely ECS memory). `EcsRecordReplayController` stays in `Bagira.SimHost.Modules.Orchestration` (Bagira `IDsmHandler` / DSM binding). Achieves zero-cost idle path, concurrent per-story I/O isolation, and ACID-safe `Dispose()`.
+**Goal:** `RecordingModule`, `ReplayModule`, `StoryRecorderModule`, `RecordingConfiguration`, `StoryTag`, `StoryReplayTag` land in **`FDP.Toolkit.Replay`** (generic; purely ECS memory). `EcsRecordReplayController` stays in `Hrot.SimHost.Modules.Orchestration` (Hrot `IDsmHandler` / DSM binding). Achieves zero-cost idle path, concurrent per-story I/O isolation, and ACID-safe `Dispose()`.
 
 - [x] **MOD1-P8T1** `RecordingConfiguration` + `EcsRecordReplayController` skeleton [details](./MOD1-TASK-DETAIL.md#mod1-p8t1--recordingconfiguration--ecsrecordreplaycontroller-skeleton)
 - [x] **MOD1-P8T2** `RecordingModule` + `RecorderSystem.EntityFilter` extension [details](./MOD1-TASK-DETAIL.md#mod1-p8t2--recordingmodule--recordersystementityfilter-extension)
 - [x] **MOD1-P8T3** `StoryRecorderModule` + `StoryTag` / `StoryReplayTag` components [details](./MOD1-TASK-DETAIL.md#mod1-p8t3--storyrecordermodule--storytag--storyreplaytag-components)
 - [x] **MOD1-P8T4** `ReplayModule` [details](./MOD1-TASK-DETAIL.md#mod1-p8t4--replaymodule)
-- [x] **MOD1-P8T5** `NodeBootstrapper` integration + `DrillSlave` registration [details](./MOD1-TASK-DETAIL.md#mod1-p8t5--nodebootstrapper-integration--drillslave-registration)
+- [x] **MOD1-P8T5** `NodeBootstrapper` integration + `ClusterSlave` registration [details](./MOD1-TASK-DETAIL.md#mod1-p8t5--nodebootstrapper-integration--clustslave-registration)
 
 ---
 
 ## Phase 9 — `FDP.Framework.Runner` — Generic Application Lifecycle Toolkit
 
-**Goal:** Extract application orchestration infrastructure (`ISubsystem`, `SubsystemOrchestrator`, `WaitingRoomCoordinator`, `HeadlessTestExecutor`, test models, and generic handlers) into a new **`FDP.Framework.Runner`** toolkit. Remove all three Bagira coupling points from `SubsystemOrchestrator` (hardcoded construction, hardcoded UI colours, hardcoded menu buttons). `Bagira.Runner` becomes a pure composition root that wires concrete subsystems and domain-specific test handlers into the generic framework.
+**Goal:** Extract application orchestration infrastructure (`ISubsystem`, `SubsystemOrchestrator`, `WaitingRoomCoordinator`, `HeadlessTestExecutor`, test models, and generic handlers) into a new **`FDP.Framework.Runner`** toolkit. Remove all three Hrot coupling points from `SubsystemOrchestrator` (hardcoded construction, hardcoded UI colours, hardcoded menu buttons). `Hrot.ClusterRunner` becomes a pure composition root that wires concrete subsystems and domain-specific test handlers into the generic framework.
 
 - [x] **MOD1-P9T1** Create `FDP.Framework.Runner` project + extract `ISubsystem` / `IMapCameraProvider` (add `TitleBarColor`) [details](./MOD1-TASK-DETAIL.md#mod1-p9t1--create-fdpframeworkrunner-project--extract-isubsystem--imapcameraprovider)
 - [x] **MOD1-P9T2** Refactor `SubsystemOrchestrator` into `FDP.Framework.Runner` (remove `BuildSubsystems`, hardcoded colours, hardcoded menu) [details](./MOD1-TASK-DETAIL.md#mod1-p9t2--refactor-subsystemorchestrator-into-fdpframeworkrunner)
 - [x] **MOD1-P9T3** Extract `WaitingRoomCoordinator` and `RunnerConfiguration` base into `FDP.Framework.Runner` [details](./MOD1-TASK-DETAIL.md#mod1-p9t3--extract-waitingroomcoordinator-and-runnerconfiguration-into-fdpframeworkrunner)
 - [x] **MOD1-P9T4** Extract `HeadlessTestExecutor` core + generic action handlers into `FDP.Framework.Runner` [details](./MOD1-TASK-DETAIL.md#mod1-p9t4--extract-headlesstestexecutor-core--generic-action-handlers-into-fdpframeworkrunner)
-- [x] **MOD1-P9T5** Refactor `Bagira.Runner` as pure composition root [details](./MOD1-TASK-DETAIL.md#mod1-p9t5--refactor-bagirarunner-as-pure-composition-root)
+- [x] **MOD1-P9T5** Refactor `Hrot.ClusterRunner` as pure composition root [details](./MOD1-TASK-DETAIL.md#mod1-p9t5--refactor-hrotrunner-as-pure-composition-root)
 
 

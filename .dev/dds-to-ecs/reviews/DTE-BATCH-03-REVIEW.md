@@ -16,13 +16,13 @@ Core Phase 4/5 logic is implemented and aligns with the DDS/ECS separation. Howe
 
 ### Issue 1: Missing test for `IgEntityData` registration (S5T4)
 
-**File:** `Bagira.IG.Tests`  
+**File:** `Hrot.IG.Tests`  
 **Problem:** The batch requires an xUnit test that `IgApplication.InitializeEcs` registers `IgEntityData`. No test currently asserts this requirement.  
 **Fix:** Add the S5T4 test (per task detail) to validate `IsRegisteredManaged<IgEntityData>()` after `InitializeEmbedded(headless: true)`.
 
 ### Issue 2: Phase 8 changes landed without Phase 8 tests
 
-**Files:** `Bagira.IG/IgApplication.cs`  
+**Files:** `Hrot.IG/IgApplication.cs`  
 **Problem:** Phase 8 updates (switching the render query to `NetworkIdentity`, using `NetworkSpawnRequest` in `DisTypeExtractor`, and removing `EntityMaster` registration) were applied without the Phase 8 success-condition tests.  
 **Fix:** Either (a) add the Phase 8 tests per `TASK-DETAIL.md` or (b) revert those Phase 8 changes and keep them for the Phase 8 batch.
 

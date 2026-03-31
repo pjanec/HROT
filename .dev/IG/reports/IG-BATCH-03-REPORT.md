@@ -13,11 +13,11 @@
 
 New files:
 
-- **`Bagira.IG/Components/ForceId.cs`** — `enum ForceId : byte { Unknown=0, Friend=1, Hostile=2, Neutral=3 }`. Byte-backed so it fits in the reserved affiliation slot without widening the struct. Deliberately not aliased to `eForceIdentifier` (DDS layer) to avoid coupling the component layer to the DDS model.
+- **`Hrot.IG/Components/ForceId.cs`** — `enum ForceId : byte { Unknown=0, Friend=1, Hostile=2, Neutral=3 }`. Byte-backed so it fits in the reserved affiliation slot without widening the struct. Deliberately not aliased to `eForceIdentifier` (DDS layer) to avoid coupling the component layer to the DDS model.
 
-- **`Bagira.IG/Components/ResolvedStyleConstants.cs`** — Centralises all named constants per §CODE-STANDARDS §1: `TextureNameMaxBytes=16`, `LabelTextMaxBytes=24`, `MaxStyleBytes=64`; per-affiliation RGBA channel constants (Friend blue, Hostile red, Neutral green, Unknown white); `DamageMin=0f`, `DamageMax=100f`. This single file is the sole source of truth for `ResolvedStyle`, `StyleResolutionSystem`, and tests.
+- **`Hrot.IG/Components/ResolvedStyleConstants.cs`** — Centralises all named constants per §CODE-STANDARDS §1: `TextureNameMaxBytes=16`, `LabelTextMaxBytes=24`, `MaxStyleBytes=64`; per-affiliation RGBA channel constants (Friend blue, Hostile red, Neutral green, Unknown white); `DamageMin=0f`, `DamageMax=100f`. This single file is the sole source of truth for `ResolvedStyle`, `StyleResolutionSystem`, and tests.
 
-- **`Bagira.IG/Components/ResolvedStyle.cs`** — `[StructLayout(LayoutKind.Sequential, Pack=1)]` `unsafe struct`. Layout:
+- **`Hrot.IG/Components/ResolvedStyle.cs`** — `[StructLayout(LayoutKind.Sequential, Pack=1)]` `unsafe struct`. Layout:
   ```
   fixed byte[16]  _textureName    16 bytes
   fixed byte[24]  _labelText      24 bytes
@@ -31,11 +31,11 @@ New files:
   ```
   Exposes `CreateDefault()`, `SetTextureName/GetTextureName`, `SetLabelText/GetLabelText` with null-terminated UTF-8 codec helpers.
 
-- **`Bagira.IG/Components/IgSymbolOverride.cs`** — Managed class component (Tier 2). Holds `StyleSetId`, `TextureOverride`, `LabelOverride`, `ShowHistory` — fields that include strings and therefore cannot live in an unmanaged Tier-1 table (IG-DEBT-008). Exposes `StyleSetHostile/StyleSetFriend/StyleSetNeutral/StyleSetUnknown` string constants used by `StyleResolutionSystem.ResolveAffiliation`.
+- **`Hrot.IG/Components/IgSymbolOverride.cs`** — Managed class component (Tier 2). Holds `StyleSetId`, `TextureOverride`, `LabelOverride`, `ShowHistory` — fields that include strings and therefore cannot live in an unmanaged Tier-1 table (IG-DEBT-008). Exposes `StyleSetHostile/StyleSetFriend/StyleSetNeutral/StyleSetUnknown` string constants used by `StyleResolutionSystem.ResolveAffiliation`.
 
 Modified:
 
-- **`Bagira.IG/Bagira.IG.csproj`** — Added `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>`. Required for the `fixed byte` buffers in `ResolvedStyle`.
+- **`Hrot.IG/Hrot.IG.csproj`** — Added `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>`. Required for the `fixed byte` buffers in `ResolvedStyle`.
 
 ---
 
@@ -43,9 +43,9 @@ Modified:
 
 New files:
 
-- **`Bagira.IG/Systems/MapUserConfig.cs`** — Plain C# class (not an ECS component). Injected into `StyleResolutionSystem` at construction. Provides `ForceHostile` (Layer-3 override: forces all entities to Hostile/red) and `HideLabels` (Layer-3 override: clears rendered label).
+- **`Hrot.IG/Systems/MapUserConfig.cs`** — Plain C# class (not an ECS component). Injected into `StyleResolutionSystem` at construction. Provides `ForceHostile` (Layer-3 override: forces all entities to Hostile/red) and `HideLabels` (Layer-3 override: clears rendered label).
 
-- **`Bagira.IG/Systems/StyleResolutionSystem.cs`** — `[UpdateInPhase(SystemPhase.Simulation)]`, implements `IModuleSystem`. Constructor receives `MapUserConfig`. Hot path:
+- **`Hrot.IG/Systems/StyleResolutionSystem.cs`** — `[UpdateInPhase(SystemPhase.Simulation)]`, implements `IModuleSystem`. Constructor receives `MapUserConfig`. Hot path:
   1. Queries `EntityMaster` ∧ `SimTransform`.
   2. **Layer 1 (TKB):** reads `IgVisualDef` managed component (applied to entity at spawn by TKB) — extracts `SymbolCode` into texture, parses `ColorHex` into RGBA.
   2. **Layer 2 (Network):** reads `IgSymbolOverride` — maps `StyleSetId` token → `ForceId` → RGBA tint; applies `TextureOverride`, `LabelOverride`, `ShowHistory`.
@@ -57,7 +57,7 @@ New files:
 
 ### Test File
 
-- **`Bagira.IG.Tests/StyleResolutionSystemTests.cs`** — 22 new test cases (19 `[Fact]` + 1 `[Theory]` × 3 `[InlineData]`):
+- **`Hrot.IG.Tests/StyleResolutionSystemTests.cs`** — 22 new test cases (19 `[Fact]` + 1 `[Theory]` × 3 `[InlineData]`):
   - 7 structural tests for `ResolvedStyle` (size, defaults, round-trip buffers)
   - 3 TKB-layer tests (texture from `IgVisualDef`, colour decode, missing-def fallback)
   - 5 network-override tests (hostile/friendly tint, texture override, label override, trail flag)

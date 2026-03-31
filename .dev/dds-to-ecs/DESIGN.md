@@ -16,7 +16,7 @@ The FDP engine enforces a strict three-layer separation between the network and 
 ```
 
 **Rule 1 — DDS types are DTOs.**  
-A DDS descriptor struct (`EntityMaster`, `GeoSpatial`, `EntityInfo`, `EntityDamage`, etc.) is a
+A DDS descriptor struct (`EntityMaster`, `WorldPos`, `EntityInfo`, `EntityDamage`, etc.) is a
 *Data Transfer Object* for the network wire. It is designed around what remote nodes need to
 communicate, not around what the simulation engine needs internally.
 
@@ -33,7 +33,7 @@ structs must never appear in `SpawnEntityCommand.InitialComponents`, `UpdateEnti
 **Rule 4 — `AutoCycloneTranslator` is only valid for structurally-pure ECS types.**  
 Its only legitimate use is when the DDS type happens to be a perfect ECS component (i.e. it carries
 only internal simulation data and has a `[ComponentId]`). DDS DTOs like `EntityMaster` and
-`GeoSpatial` are **not** structurally-pure ECS types and must never be used with it.
+`WorldPos` are **not** structurally-pure ECS types and must never be used with it.
 
 ### The Gold Standard: NetworkDemo
 
@@ -52,26 +52,26 @@ ECS components — none of which are DDS types.
 
 ## 2. Current Violations (What Is Wrong and Where)
 
-### 2.1 Violations in `Bagira.DDS.DataModel`
+### 2.1 Violations in `Hrot.NED`
 
 | File | Violation |
 |------|-----------|
 | `GenericDescriptors.cs` | `EntityMaster` carries `[ComponentId(GlobalComponentIds.EntityMaster)]` — a network DTO dual-purposed as an ECS component |
 | `SimDescriptors.cs` | `EntityDamage` carries `[ComponentId(GlobalComponentIds.EntityDamage)]` — same anti-pattern |
 
-### 2.2 Violations in `Bagira.SimHost`
+### 2.2 Violations in `Hrot.SimHost`
 
 | File | Violation |
 |------|-----------|
 | `Util/DescriptorMapper.cs` | `dtEntityMaster` case: `result.Add(d.EntityMaster)` — raw DDS DTO stuffed into `InitialComponents` |
 | `Util/DescriptorMapper.cs` | `dtEntityInfo` case: `result.Add(d.EntityInfo)` — raw DDS DTO stuffed into `InitialComponents` |
-| `Util/DescriptorMapper.cs` | `dtGeoSpatial` case: `result.Add(d.GeoSpatial)` raw add (alongside the correct `SimTransform`) — partial violation, raw DDS DTO still leaks in |
-| `Util/DescriptorMapper.cs` | `dtGeoSpatialDR` case: `result.Add(d.GeoSpatialDR)` — raw DDS DTO, never translated to internal kinematics |
+| `Util/DescriptorMapper.cs` | `dtWorldPos` case: `result.Add(d.WorldPos)` raw add (alongside the correct `SimTransform`) — partial violation, raw DDS DTO still leaks in |
+| `Util/DescriptorMapper.cs` | `dtWorldPos` case: `result.Add(d.WorldPos)` — raw DDS DTO, never translated to internal kinematics |
 | `SimHostApp.cs` | `world.RegisterComponent<EntityMaster>()` — DDS DTO registered as ECS component |
 | `SimHostApp.cs` | `new AutoCycloneTranslator<EntityMaster>(...)` — magic shortcut relying on `[ComponentId]` on a DDS type |
 | `SimHostApp.cs` | `onEntitySpawned` callback: `world.HasComponent<EntityMaster>(entity)` — queries a DDS DTO from the ECS |
 
-### 2.3 Violations in `Bagira.IG`
+### 2.3 Violations in `Hrot.IG`
 
 | File | Violation |
 |------|-----------|
@@ -113,8 +113,8 @@ public partial struct EntityMaster { ... }
 |--------------------|--------------------|
 | `dtEntityMaster` | *(nothing — TkbType already flows via `SpawnEntityCommand.TkbType`)* |
 | `dtEntityInfo` | *(nothing — EntityInfo is not needed at spawn time for SimHost)* |
-| `dtGeoSpatial` | `SimTransform` (Cartesian position from WGS84) + `GeoTransform` (geodetic coords) |
-| `dtGeoSpatialDR` | `GeoVelocity` (speed/heading from DR polar coords) |
+| `dtWorldPos` | `SimTransform` (Cartesian position from WGS84) + `GeoTransform` (geodetic coords) |
+| `dtWorldPos` | `GeoVelocity` (speed/heading from DR polar coords) |
 
 ### 3.3 SimHost — EntityMaster Egress
 
@@ -196,7 +196,7 @@ or adjust extraction accordingly.)*
 
 ### Phase 1 — Purify DDS Data Model
 **Goal:** Remove all ECS kernel attributes from DDS descriptor types.  
-**Files touched:** `Bagira.DDS.DataModel/GenericDescriptors.cs`, `SimDescriptors.cs`
+**Files touched:** `Hrot.NED/GenericDescriptors.cs`, `SimDescriptors.cs`
 
 | Task | Description |
 |------|-------------|
@@ -211,21 +211,21 @@ be restored).
 
 ### Phase 2 — SimHost: Fix DescriptorMapper
 **Goal:** `DescriptorMapper.MapToComponents` produces only pure ECS components.  
-**Files touched:** `Bagira.SimHost/Util/DescriptorMapper.cs`
+**Files touched:** `Hrot.SimHost/Util/DescriptorMapper.cs`
 
 | Task | Description |
 |------|-------------|
 | DDS2ECS-S2T1 | `dtEntityMaster` case: produce nothing (remove `result.Add(d.EntityMaster)`) |
 | DDS2ECS-S2T2 | `dtEntityInfo` case: produce nothing (remove `result.Add(d.EntityInfo)`) |
-| DDS2ECS-S2T3 | `dtGeoSpatial` case: remove `result.Add(d.GeoSpatial)` raw add; add `GeoTransform` alongside the existing `SimTransform` generation |
-| DDS2ECS-S2T4 | `dtGeoSpatialDR` case: replace `result.Add(d.GeoSpatialDR)` with `GeoVelocity` translation from the DR polar vector |
+| DDS2ECS-S2T3 | `dtWorldPos` case: remove `result.Add(d.WorldPos)` raw add; add `GeoTransform` alongside the existing `SimTransform` generation |
+| DDS2ECS-S2T4 | `dtWorldPos` case: replace `result.Add(d.WorldPos)` with `GeoVelocity` translation from the DR polar vector |
 
 ---
 
 ### Phase 3 — SimHost: Replace `AutoCycloneTranslator<EntityMaster>`
 **Goal:** SimHost publishes `EntityMaster` to DDS via a proper egress translator — never via
 auto-magic.  
-**Files touched:** `Bagira.SimHost/SimHostApp.cs`; new file `Bagira.SimHost/Translators/EntityMasterEgressTranslator.cs`
+**Files touched:** `Hrot.SimHost/SimHostApp.cs`; new file `Hrot.SimHost/Translators/EntityMasterEgressTranslator.cs`
 
 | Task | Description |
 |------|-------------|
@@ -238,7 +238,7 @@ auto-magic.
 
 ### Phase 4 — IG: Fix `EntityMasterTranslator`
 **Goal:** IG's translator no longer injects the raw `EntityMaster` DDS struct into the ECS.  
-**Files touched:** `Bagira.IG/Translators/EntityMasterTranslator.cs`
+**Files touched:** `Hrot.IG/Translators/EntityMasterTranslator.cs`
 
 | Task | Description |
 |------|-------------|
@@ -250,7 +250,7 @@ auto-magic.
 
 ### Phase 5 — IG: Create `IgEntityData` and Fix `EntityInfoTranslator`
 **Goal:** `EntityInfo` DDS data is translated into an IG-internal ECS component.  
-**Files touched:** new `Bagira.IG/Components/IgEntityData.cs`; `Bagira.IG/Translators/EntityInfoTranslator.cs`; `Bagira.IG/IgApplication.cs`
+**Files touched:** new `Hrot.IG/Components/IgEntityData.cs`; `Hrot.IG/Translators/EntityInfoTranslator.cs`; `Hrot.IG/IgApplication.cs`
 
 | Task | Description |
 |------|-------------|
@@ -263,7 +263,7 @@ auto-magic.
 
 ### Phase 6 — IG: Create `IgHealthState` and `EntityDamageTranslator`
 **Goal:** `EntityDamage` DDS data is translated into an IG-internal ECS component.  
-**Files touched:** new `Bagira.IG/Components/IgHealthState.cs`; new `Bagira.IG/Translators/EntityDamageTranslator.cs`; `Bagira.IG/IgApplication.cs`
+**Files touched:** new `Hrot.IG/Components/IgHealthState.cs`; new `Hrot.IG/Translators/EntityDamageTranslator.cs`; `Hrot.IG/IgApplication.cs`
 
 | Task | Description |
 |------|-------------|
@@ -276,7 +276,7 @@ auto-magic.
 
 ### Phase 7 — IG: Create `MapEntitySymbolTranslator`
 **Goal:** `MapEntitySymbol` DDS data is translated into the existing `IgSymbolOverride` ECS component.  
-**Files touched:** new `Bagira.IG/Translators/MapEntitySymbolTranslator.cs`; `Bagira.IG/IgApplication.cs`
+**Files touched:** new `Hrot.IG/Translators/MapEntitySymbolTranslator.cs`; `Hrot.IG/IgApplication.cs`
 
 | Task | Description |
 |------|-------------|
@@ -287,7 +287,7 @@ auto-magic.
 
 ### Phase 8 — IG: Fix `IgApplication` Registrations and Queries
 **Goal:** Remove all `EntityMaster` DDS type usage from the IG application shell.  
-**Files touched:** `Bagira.IG/IgApplication.cs`
+**Files touched:** `Hrot.IG/IgApplication.cs`
 
 | Task | Description |
 |------|-------------|
@@ -303,9 +303,9 @@ These behaviours must remain identical after the cleanup:
 
 - SimHost spawns entities via `CreateEntityRequest` DDS message → entities appear in the world.
 - IG receives `EntityMaster` DDS samples → ghost entities are spawned and rendered.
-- SimHost publishes `GeoSpatial` / `GeoSpatialDR` → IG's `GeoSpatialTranslator` updates `SimTransform`.
+- SimHost publishes `WorldPos` / `WorldPos` → IG's `WorldPosTranslator` updates `SimTransform`.
 - IG renders entities using `ResolvedStyle` driven by `IgVisualDef`, `IgSymbolOverride`, `ResolvedStyle`.
-- SimHost `GeoSpatialEgressTranslator` reads `GeoTransform` + `GeoVelocity` and publishes DDS (unchanged).
+- SimHost `WorldPosEgressTranslator` reads `GeoTransform` + `GeoVelocity` and publishes DDS (unchanged).
 - All existing unit tests pass; new tests added per task specs in `TASK-DETAIL.md`.
 
 ---
@@ -337,7 +337,7 @@ _kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(entityMasterEgressT
 
 ### 6.2 Deviation 2 — Missing Transient Event Translators (Invisible Combat)
 
-**Root cause:** `Bagira.IG` registers `EventEffectModule` which listens for
+**Root cause:** `Hrot.IG` registers `EventEffectModule` which listens for
 `FireInteractionEvent` to draw explosions and laser tracers. But neither SimHost nor IG registers
 a `CycloneNativeEventTranslator` for the event — no DDS topic bridges this ECS event across nodes.
 
@@ -353,19 +353,19 @@ Register it in:
 
 ### 6.3 Deviation 3 — Hard-Snapping vs. Dead Reckoning (Stuttering Movement)
 
-**Root cause:** `Bagira.IG/Translators/GeoSpatialTranslator.cs` overwrites `SimTransform`
+**Root cause:** `Hrot.IG/Translators/WorldPosTranslator.cs` overwrites `SimTransform`
 directly from the DDS position update. Because network packets arrive at irregular intervals, the
 entity's visual position teleports (hard-snaps) every time a packet arrives.
 
-**Effect:** Vehicles visibly stutter and teleport on the IG map. The `GeoSpatialDR` topic is sent
+**Effect:** Vehicles visibly stutter and teleport on the IG map. The `WorldPos` topic is sent
 by SimHost but never used for dead reckoning.
 
 **Fix — Two-part:**
 
 **Part A — Fix ingress path:**  
-`GeoSpatialTranslator.Decode` must write to `NetworkPosition` (not `SimTransform`) after
+`WorldPosTranslator.Decode` must write to `NetworkPosition` (not `SimTransform`) after
 converting geodetic → Cartesian.  
-Create `GeoSpatialDRTranslator` in IG that converts the DR packet to both `NetworkPosition` and
+Create `WorldPosTranslator` in IG that converts the DR packet to both `NetworkPosition` and
 `NetworkVelocity`.  
 `TransformSyncSystem` (already registered in IG) then Lerps `SimTransform` toward `NetworkPosition`
 smoothly.
@@ -374,7 +374,7 @@ smoothly.
 The current `TransformSyncSystem` only Lerps; it does not project the anchor forward using
 velocity, so entities slip backward toward a static `NetworkPosition` between packets.
 
-Create `DeadReckoningSyncSystem` in `Bagira.IG/Systems/` with a **"Project and Blend"** algorithm:
+Create `DeadReckoningSyncSystem` in `Hrot.IG/Systems/` with a **"Project and Blend"** algorithm:
 
 1. **Project:** Advance `NetworkPosition` by `NetworkVelocity * deltaTime` each frame so the
    anchor continues moving even when no new packet has arrived.
@@ -414,10 +414,10 @@ into two steps.
 SimHost physics systems update `SimTransform` + `SimVelocity` in local Cartesian space.
 `SimTransformBridgeSystem` (geographic toolkit) runs in the `PostSimulation` phase, converts
 Cartesian → WGS84, and writes `GeoTransform` + `GeoVelocity`.  
-`GeoSpatialEgressTranslator` then copies `GeoTransform` → `GeoSpatial` DDS struct for the wire.
+`WorldPosEgressTranslator` then copies `GeoTransform` → `WorldPos` DDS struct for the wire.
 
 ```
-SimTransform ──► SimTransformBridgeSystem ──► GeoTransform ──► GeoSpatialEgressTranslator ──► DDS
+SimTransform ──► SimTransformBridgeSystem ──► GeoTransform ──► WorldPosEgressTranslator ──► DDS
 ```
 
 `GeoTransform` is never used for smoothing/interpolation. It is a staging area between the physics
@@ -441,7 +441,7 @@ and stored in `NetworkPosition`. Lerping/dead reckoning happens in cheap Cartesi
 expensive Geodetic space (which would require great-circle formulas every frame).
 
 ```
-DDS ──► GeoSpatialDRTranslator ──► NetworkPosition + NetworkVelocity
+DDS ──► WorldPosTranslator ──► NetworkPosition + NetworkVelocity
                                          │
                                    DeadReckoningSyncSystem
                                     (Project + Blend)
@@ -459,7 +459,7 @@ Complete round-trip:
 - IOS activates placement tool → broadcasts `MapInteractionConfig` with `ContextId` to IG.
 - IG user clicks map → `OnCanvasClicked` sends `MapClickEvent` (WGS84 position + `ContextId`) to DDS.
 - IOS receives click, verifies `ContextId`, sends `CreateEntityRequest` to SimHost.
-- SimHost spawns entity; `EntityMaster` and `GeoSpatial` propagate back to IOS and IG.
+- SimHost spawns entity; `EntityMaster` and `WorldPos` propagate back to IOS and IG.
 
 ### 8.2 Context Menu Push ✓ (Logic complete; IG rendering missing)
 
@@ -491,7 +491,7 @@ draw the menu. The ECS state is populated but never shown.
 
 ### 8.5 IOS Mission Editor UI — Incomplete
 
-`Bagira.IOS/Panels/MissionPanel.cs` is a viewer/controller only:
+`Hrot.ExCon/Panels/MissionPanel.cs` is a viewer/controller only:
 - ✓ Displays task list with play/stop icons.
 - ✓ JUMP and ABORT buttons.
 - ✗ Cannot add, insert, or delete tasks.
@@ -520,10 +520,10 @@ draw the menu. The ECS state is populated but never shown.
 
 | Task | Description |
 |------|-------------|
-| DDS2ECS-S10T1 | Fix `GeoSpatialTranslator.Decode` (IG): write `NetworkPosition` instead of `SimTransform` |
-| DDS2ECS-S10T2 | Create `GeoSpatialDRTranslator` (IG): converts `GeoSpatialDR` DDS → `NetworkPosition` + `NetworkVelocity` |
+| DDS2ECS-S10T1 | Fix `WorldPosTranslator.Decode` (IG): write `NetworkPosition` instead of `SimTransform` |
+| DDS2ECS-S10T2 | Create `WorldPosTranslator` (IG): converts `WorldPos` DDS → `NetworkPosition` + `NetworkVelocity` |
 | DDS2ECS-S10T3 | Create `DeadReckoningSyncSystem` (IG): Project-and-Blend algorithm in `PostSimulation` phase |
-| DDS2ECS-S10T4 | `IgApplication.InitializeNetwork`: add `GeoSpatialDRTranslator`; replace/supplement `TransformSyncSystem` registration with `DeadReckoningSyncSystem` |
+| DDS2ECS-S10T4 | `IgApplication.InitializeNetwork`: add `WorldPosTranslator`; replace/supplement `TransformSyncSystem` registration with `DeadReckoningSyncSystem` |
 
 ---
 
@@ -557,7 +557,7 @@ draw the menu. The ECS state is populated but never shown.
 
 | Task | Description |
 |------|-------------|
-| DDS2ECS-S13T1 | Create `MissionControlRequestSystem` in `Bagira.SimHost/Systems/`: reads DDS `MissionControlRequest`, applies commands to `EntityMissionHolder`, writes `MissionControlAck` |
+| DDS2ECS-S13T1 | Create `MissionControlRequestSystem` in `Hrot.SimHost/Systems/`: reads DDS `MissionControlRequest`, applies commands to `EntityMissionHolder`, writes `MissionControlAck` |
 | DDS2ECS-S13T2 | `SimHostApp.cs` / `SimHostSubsystem.cs`: register `MissionControlRequestSystem` |
 
 ---
@@ -580,7 +580,7 @@ draw the menu. The ECS state is populated but never shown.
 
 **Strategy:**
 - Each test class gets a unique DDS domain ID (domain isolation — tests cannot cross-talk).
-- `BagiraRunnerHarness` wraps `SubsystemOrchestrator` and provides a `PumpUntil(condition, timeoutFrames)` helper.
+- `HrotRunnerHarness` wraps `SubsystemOrchestrator` and provides a `PumpUntil(condition, timeoutFrames)` helper.
 - Subsystems expose `internal` test hooks so the harness can inspect ECS state and inject inputs
   without production-code changes (only visibility modifiers).
 
@@ -593,7 +593,7 @@ draw the menu. The ECS state is populated but never shown.
 | Task | Description |
 |------|-------------|
 | DDS2ECS-S15T1 | Add `internal` test-hook properties/methods to `IgSubsystem`, `SimHostSubsystem`, `IosSubsystem`, `IgApplication` |
-| DDS2ECS-S15T2 | Create `BagiraRunnerHarness.cs` in `Bagira.Runner.Integration.Tests`: domain-isolated orchestrator wrapper with `PumpUntil` |
+| DDS2ECS-S15T2 | Create `HrotRunnerHarness.cs` in `Hrot.ClusterRunner.Integration.Tests`: domain-isolated orchestrator wrapper with `PumpUntil` |
 | DDS2ECS-S15T3 | Create `MapPlacementIntegrationTests.cs`: end-to-end placement flow test (IOS activates tool → IG click → SimHost spawns → IG and IOS receive entity) |
 | DDS2ECS-S15T4 | Create `ContextMenuIntegrationTests.cs`: selection → IOS pushes menu → IG `ContextMenuState` populated |
 | DDS2ECS-S15T5 | Create `EntityDestroyIntegrationTests.cs`: SimHost destroys entity → IG ghost is removed (validates Phase 9) |
@@ -619,7 +619,7 @@ update that reference to `MissionPlanQueue` as part of S16T1.
 | DDS2ECS-S16T1 | Delete `EntityMissionHolder.cs`; replace `RegisterManagedComponent<EntityMissionHolder>()` with `RegisterComponent<MissionPlanQueue>()` in `SimHostApp.cs` |
 | DDS2ECS-S16T2 | Rewrite `EntityMissionTranslator` to write `MissionPlanQueue` (resolve `BehaviorId` → `doctrineId` via `DoctrineRegistry.TryGetId`; map trigger strings → `MissionTrigger` enum); update `EntityMissionTranslatorTests.cs` |
 | DDS2ECS-S16T3 | Delete `MissionAdapterSystem.cs`; in `SimulationLogicModule.RegisterSystems()` replace `new MissionAdapterSystem(...)` with `new MissionDirectorSystem()` |
-| DDS2ECS-S16T4 | Compile BTree JSON blobs for `MoveTo_BT`, `FollowRoute_BT`, `JoinFormation_BT` and register real `Interpreter<BrainBlackboard,BTreeContext>` in each `DoctrineDefinition` in `SimHostApp.cs`; create `Bagira.SimHost/Brains/SimHostNodes.cs` |
+| DDS2ECS-S16T4 | Compile BTree JSON blobs for `MoveTo_BT`, `FollowRoute_BT`, `JoinFormation_BT` and register real `Interpreter<BrainBlackboard,BTreeContext>` in each `DoctrineDefinition` in `SimHostApp.cs`; create `Hrot.SimHost/Brains/SimHostNodes.cs` |
 | DDS2ECS-S16T5 | Wire `ParseParams` delegates for `MoveTo_BT` and `FollowRoute_BT` so `BrainBlackboard.Memory` is hydrated with target coordinates on phase activation |
 
 ---
@@ -640,7 +640,7 @@ perception, combat, and damage — matching the `UrbanCombat` golden standard.
 
 | Task | Description |
 |------|-------------|
-| DDS2ECS-S17T1 | Add `FDP.Toolkit.Perception` and `FDP.Toolkit.Combat` / `FDP.Toolkit.Combat.Contracts` `<ProjectReference>` entries to `Bagira.SimHost/Bagira.SimHost.csproj` |
+| DDS2ECS-S17T1 | Add `FDP.Toolkit.Perception` and `FDP.Toolkit.Combat` / `FDP.Toolkit.Combat.Contracts` `<ProjectReference>` entries to `Hrot.SimHost/Hrot.SimHost.csproj` |
 | DDS2ECS-S17T2 | Add Perception, Combat, Physics, and HSM component registrations to `SimHostApp.RegisterSimComponents()` (mirror `HeadlessDemoApp.RegisterComponents()`) |
 | DDS2ECS-S17T3 | Initialize `PhysicsToolkitModule` in `SimHostApp.OnLoad()` before `_kernel.Initialize()` to allocate `RaycastBatchData` singleton |
 | DDS2ECS-S17T4 | Expand `SimulationLogicModule.RegisterSystems()` with Input-phase systems (`FireProcessingSystem`, `RaycastSolverSystem`, `HitResolutionSystem`), Sim-phase systems (`WeaponDispatcherSystem` + `AimAndFireExecutor`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `ThreatEvaluationSystem`, `DamageSystem`, `HsmDamageBridgeSystem`, `HsmTickSystem<BrainHsm128>`), and PostSim-phase system (`BallisticsSystem`) |
@@ -663,7 +663,7 @@ receives an `EntityMission` will never move.*
 
 **SimHost deviation:** `EntityMissionHolder` holds the raw DDS `EntityMission` struct. Because
 `EntityMission.Plan.Tasks` is a `List<MissionTask>` (managed), the wrapper forces all mission
-logic through the GC every frame — the exact same anti-pattern as `GeoSpatial` (Phase 2).
+logic through the GC every frame — the exact same anti-pattern as `WorldPos` (Phase 2).
 `MissionDirectorSystem` cannot operate on this type.
 
 **Fix:** S16T1 + S16T2 — delete `EntityMissionHolder`, rewrite `EntityMissionTranslator` to write
@@ -727,7 +727,7 @@ take damage, or apply entity-specific combat parameters from the TKB.*
 
 ### 11.1 Missing Project References
 
-`Bagira.SimHost.csproj` references `FDP.Toolkit.Physics`, `FDP.Toolkit.Behavior`,
+`Hrot.SimHost.csproj` references `FDP.Toolkit.Physics`, `FDP.Toolkit.Behavior`,
 `FDP.Toolkit.Navigation`, and `FDP.Toolkit.CarKinem`, but is **missing**:
 
 ```xml

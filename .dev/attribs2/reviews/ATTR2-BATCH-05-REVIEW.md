@@ -13,7 +13,7 @@
 - **Tests:** The code generates efficiently with the fixes applied to `SerializerEmitter.EmitFieldDynamicSize` and `ViewEmitter.GenerateToManagedFieldAssignment`.
 
 ### ATTR2-DEBT-02: Primitive IDL Extraction
-- **Implementation:** Moving the generic Vector primitives into `GenericPrimitives.cs` resolves the codebase organization smell appropriately. Leaving them inside the `Bagira.BDC.SSTM` namespace allowed smooth compilation without requiring extensive using block refactoring, which demonstrates mature decision making.
+- **Implementation:** Moving the generic Vector primitives into `GenericPrimitives.cs` resolves the codebase organization smell appropriately. Leaving them inside the `Hrot.NED.Messages` namespace allowed smooth compilation without requiring extensive using block refactoring, which demonstrates mature decision making.
 - **Tests:** Confirmed passing seamlessly without namespace modifications.
 
 ### ATTR2-DEBT-03: Edge Compiler String Interning

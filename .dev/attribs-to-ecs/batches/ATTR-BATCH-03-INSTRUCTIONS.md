@@ -24,13 +24,13 @@ Now that the foundational wire formats are updated, and the zero-allocation `Jso
 
 ### Source Code Location
 - **Primary Work Area:**
-  - `Bagira.SimHost/SimHostApp.cs`
-  - `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`
-  - `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
-  - `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs`
+  - `Hrot.SimHost/SimHostApp.cs`
+  - `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`
+  - `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
+  - `Hrot.Map.Common/Replication/Utils/DescriptorMapper.cs`
 - **Test Projects:**
-  - `Bagira.Map.Common.Tests/Bagira.Map.Common.Tests.csproj`
-  - `Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+  - `Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj`
+  - `Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -63,7 +63,7 @@ The isolated compiler now needs a list of property names targeting setters to be
 
 - `CreateEntityRequestSystem` will use `ListPatchContext` to fold dynamic attribute patches directly onto components before entity spawn events.
 - `UpdateEntityAttributeRequestSystem` will use `EcsPatchContext` over the live network IDs, bypassing string deserialization overhead inside the tight update loops.
-- `DescriptorMapper` will become the final consumer of the unified JSON path translation, letting us discard the duplicate construction algorithms for `dtEntityInfo` and `dtGeoSpatial` entirely.
+- `DescriptorMapper` will become the final consumer of the unified JSON path translation, letting us discard the duplicate construction algorithms for `dtEntityInfo` and `dtWorldPos` entirely.
 
 **Related Tasks:**
 - [ATTR-S5T1 & ATTR-S5T4](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s5t1--register-component-paths-in-simhost-startup) - Dependency injection setup and ordinal registration.
@@ -74,7 +74,7 @@ The isolated compiler now needs a list of property names targeting setters to be
 ---
 
 ## 🎯 Batch Objectives
-- Define the routing delegates for `Name`, `Affiliation`, and `GeoPosition`.
+- Define the routing delegates for `Name`, `Affiliation`, and `GeoPoint`.
 - Inject `JsonAttributeCompiler` into the SimHost DDS consumer systems.
 - Connect live patching in `UpdateEntityAttributeRequestSystem` (replacing the temporary acknowledged stubs from Batch 1) using `EcsPatchContext` and `FlushDirtyMarks`.
 - Wire `CreateEntityRequestSystem` using `ListPatchContext` to fold properties onto component pools before spawning.
@@ -86,14 +86,14 @@ The isolated compiler now needs a list of property names targeting setters to be
 
 ### Task 1: ATTR-S5T1 & ATTR-S5T4 (Register Component Paths and Ordinals)
 
-**File:** `Bagira.SimHost/SimHostApp.cs` (or create `AttributeCompilerFactory.cs` next to it)  
+**File:** `Hrot.SimHost/SimHostApp.cs` (or create `AttributeCompilerFactory.cs` next to it)  
 **Task Definition:** [ATTR-S5T1](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s5t1--register-component-paths-in-simhost-startup), [ATTR-S5T4](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s5t4--register-descriptor-ordinals-in-simhost-compiler-startup)
 
 **Description:** Register the compiler using `AttributeCompilerBuilder` providing setters for properties.
 
 **Requirements:**
 - Register `IgEntityData` references for `"Name"` and `"Affiliation"`, passing their correct `descriptorOrdinal` targeting `EDescriptorType.dtEntityInfo`.
-- Register leaf values for `GeoPosition` fields that target `SimTransform`. (e.g. `GeoPosition.Latitude`). Supply the ordinal `EDescriptorType.dtGeoSpatial`. Note you may need a helper accumulator tracking `lat/lon/alt` if `ToCartesian` requires all 3 coordinates simultaneously.
+- Register leaf values for `GeoPoint` fields that target `SimTransform`. (e.g. `GeoPoint.Latitude`). Supply the ordinal `EDescriptorType.dtWorldPos`. Note you may need a helper accumulator tracking `lat/lon/alt` if `ToCartesian` requires all 3 coordinates simultaneously.
 - Provide the generated `JsonAttributeCompiler` singleton instance into the DI/constructor pipelines for `CreateEntityRequestSystem` and `UpdateEntityAttributeRequestSystem`.
 
 **Tests Required:**
@@ -101,13 +101,13 @@ The isolated compiler now needs a list of property names targeting setters to be
 - ✅ `SimHostAttributeCompiler_Affiliation_Registered`
 - ✅ `SimHostAttributeCompiler_Affiliation_PreservesExistingName`
 - ✅ `AttributeCompiler_NamePatch_TriggersEntityInfoDirtyOnEcsPatchContext`
-- ✅ `AttributeCompiler_GeoPatch_TriggersGeoSpatialDirty`
+- ✅ `AttributeCompiler_GeoPatch_TriggersWorldPosDirty`
 
 ---
 
 ### Task 2: ATTR-S5T2 (Update CreateEntityRequestSystem)
 
-**File:** `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`  
+**File:** `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`  
 **Task Definition:** [ATTR-S5T2](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s5t2--update-createentityrequestsystem-to-use-jsonattributecompiler)
 
 **Description:** Wire `ListPatchContext` into the creation path.
@@ -126,7 +126,7 @@ The isolated compiler now needs a list of property names targeting setters to be
 
 ### Task 3: ATTR-S5T3 (UpdateEntityAttributeRequestSystem Integration)
 
-**File:** `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`  
+**File:** `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`  
 **Task Definition:** [ATTR-S5T3](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s5t3--updateentityattributerequestsystem-full-json-pipeline-integration)
 
 **Description:** Replace the acknowledged batch 1 stubs with live ECS integration.
@@ -148,19 +148,19 @@ The isolated compiler now needs a list of property names targeting setters to be
 
 ### Task 4: ATTR-S6T1 & ATTR-S6T2 (DescriptorMapper Uses Routing Delegates)
 
-**File:** `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs`  
+**File:** `Hrot.Map.Common/Replication/Utils/DescriptorMapper.cs`  
 **Task Definition:** [ATTR-S6T1](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s6t1--descriptormapper-dtentityinfo-uses-routing-delegates), [ATTR-S6T2](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s6t2--descriptormapper-dtgeospatial-uses-routing-delegates)
 
 **Description:** Refactor Descriptor mapping so the initial static arrays build off the same logic loops that the JSON property patchers use.
 
 **Requirements:**
 - Update `dtEntityInfo` cases to use the shared compiler. (Fallback to `CommanderId` direct modifications as noted).
-- Update the `dtGeoSpatial` conversion cases to share target coordinate transform delegates.
+- Update the `dtWorldPos` conversion cases to share target coordinate transform delegates.
 
 **Tests Required:**
 - ✅ `DescriptorMapper_WithCompiler_DtEntityInfoProducesIgEntityData`
 - ✅ `DescriptorMapper_WithCompiler_NoDuplicateIgEntityData`
-- ✅ `DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath`
+- ✅ `DescriptorMapper_WorldPos_SharedDelegate_ProducesSameResultAsDirectPath`
 
 ---
 
@@ -177,8 +177,8 @@ We've covered the logic and bounds cases in the last batch; this batch covers ac
 When completing the batch, submit `.dev-workstream/reports/ATTR-BATCH-03-REPORT.md`.
 
 **Developer Insights**  
-**Q1:** What difficulties did you encounter when wiring up the multi-coordinate `GeoPosition` struct logic for `SimTransform` conversions?  
-**Q2:** Phase 6 centralizes `dtGeoSpatial` and `dtEntityInfo` mapping via `DescriptorMapper`. Does this structure feel sustainable going forward compared to hardcoded maps, or do you perceive any code duplication risk vectors in the delegate injection structures?  
+**Q1:** What difficulties did you encounter when wiring up the multi-coordinate `GeoPoint` struct logic for `SimTransform` conversions?  
+**Q2:** Phase 6 centralizes `dtWorldPos` and `dtEntityInfo` mapping via `DescriptorMapper`. Does this structure feel sustainable going forward compared to hardcoded maps, or do you perceive any code duplication risk vectors in the delegate injection structures?  
 **Q3:** The entire ATTR architectural objective is "Zero-Allocation JSON patching". Through your testing profiling, were you able to verify any lingering allocations triggered during the hot path `UpdateEntityAttributeRequestSystem` loop across this PR?  
 **Q4:** In what scenarios could a caller bypass the compile safety bounds of `FlushComponents()` and `FlushDirtyMarks()` within these refactored systems?
 

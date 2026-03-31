@@ -52,7 +52,7 @@ a `stackalloc`-based state machine that tracks depth, hash, and array indices on
 
 ## Phase 5: Registration and Integration
 
-**Goal:** Register all current ECS property paths (Name, Affiliation, GeoPosition); wire the
+**Goal:** Register all current ECS property paths (Name, Affiliation, GeoPoint); wire the
 `JsonAttributeCompiler` into `CreateEntityRequestSystem` and `UpdateEntityAttributeRequestSystem`.
 
 - [x] **ATTR-S5T1** Register component paths in SimHost startup — [details](./ATTR-TASK-DETAIL.md#attr-s5t1--register-component-paths-in-simhost-startup)
@@ -65,7 +65,7 @@ a `stackalloc`-based state machine that tracks depth, hash, and array indices on
 ## Phase 6: Unified Descriptor Routing (Advanced)
 
 **Goal:** `DescriptorMapper` reuses the same pre-compiled delegates as the JSON compiler,
-eliminating duplicate field-mapping logic for `dtEntityInfo` and `dtGeoSpatial`.
+eliminating duplicate field-mapping logic for `dtEntityInfo` and `dtWorldPos`.
 
 - [x] **ATTR-S6T1** `DescriptorMapper` `dtEntityInfo` case uses routing delegates — [details](./ATTR-TASK-DETAIL.md#attr-s6t1--descriptormapper-dtentityinfo-uses-routing-delegates)
-- [x] **ATTR-S6T2** `DescriptorMapper` `dtGeoSpatial` case uses routing delegates — [details](./ATTR-TASK-DETAIL.md#attr-s6t2--descriptormapper-dtgeospatial-uses-routing-delegates)
+- [x] **ATTR-S6T2** `DescriptorMapper` `dtWorldPos` case uses routing delegates — [details](./ATTR-TASK-DETAIL.md#attr-s6t2--descriptormapper-dtgeospatial-uses-routing-delegates)

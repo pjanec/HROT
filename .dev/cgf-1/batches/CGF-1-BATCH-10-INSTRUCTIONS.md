@@ -29,9 +29,9 @@ Complete **Part A** (small, correctness-first) **before** large SMB / **`Storage
 
 ## Part A — Tech debt first
 
-### A.1 — **`Bagira.IG` `DrillSlave` `SetFilter`** (P2 — BATCH-09 Issue 1)
+### A.1 — **`Hrot.IG` `ClusterSlave` `SetFilter`** (P2 — BATCH-09 Issue 1)
 
-**File:** `Bagira.IG/Modules/Orchestration/DrillSlave.cs`  
+**File:** `Hrot.IG/Modules/Orchestration/ClusterSlave.cs`  
 
 - After creating **`DdsReader<NodeOpCommand>`**, add **`SetFilter(cmd => cmd.TargetNodeId == _nodeId)`** to match **SimHost / IOS / CGF**.  
 - Add or extend a **unit/integration** test if an IG+DDS harness exists; otherwise document **manual** verification in the report.
@@ -40,7 +40,7 @@ Complete **Part A** (small, correctness-first) **before** large SMB / **`Storage
 
 Pick one and document in XML + report:
 
-- **Option A:** Pass the same **`FdpEventBus`** into **`DrillSlave`** (if/when ctor supports it) and register a minimal **`SlaveTimeModeListener`** + kernel when scope allows; **or**  
+- **Option A:** Pass the same **`FdpEventBus`** into **`ClusterSlave`** (if/when ctor supports it) and register a minimal **`SlaveTimeModeListener`** + kernel when scope allows; **or**  
 - **Option B:** Keep minimal shell but **document** explicitly that **`SwitchTimeModeDescriptorTranslator`** only moves bytes on/off DDS until Phase 3+ kernel lands.
 
 ### A.3 — **Docs hygiene** (P3 — BATCH-09 Issue 4)
@@ -49,7 +49,7 @@ Pick one and document in XML + report:
 
 ### A.4 — **Optional subprocess CI** (P3)
 
-If CI agents allow: one integration test spawning **`dotnet run --project Bagira.Runner -- --mode ci --scenario minimalci_01`** with timeout — **or** confirm pipeline runs that command and **close** the opportunistic DEBT row.
+If CI agents allow: one integration test spawning **`dotnet run --project Hrot.ClusterRunner -- --mode ci --scenario minimalci_01`** with timeout — **or** confirm pipeline runs that command and **close** the opportunistic DEBT row.
 
 ### A.5 — **DEBT-TRACKER**
 
@@ -62,7 +62,7 @@ Close **A.1–A.3** rows when done.
 **Task definition:** [CGF-1-TASK-DETAIL.md §CGF1-S0301](../CGF-1-TASK-DETAIL.md#cgf1-s0301--storage-gateway)  
 **Design:** [CGF-1-DESIGN.md §5.1](../CGF-1-DESIGN.md#51-stage-31--storage-gateway)
 
-Implement **`StorageGatewayModule`** (or equivalent), **`FileManifestEntry`**, **`PullToNasAsync` / `PushToNodesAsync`**, **`DrillMaster`** hook after **`SerializeLocal`** ACKs, and **all** **`StorageGatewayTests`** success conditions.
+Implement **`StorageGatewayModule`** (or equivalent), **`FileManifestEntry`**, **`PullToNasAsync` / `PushToNodesAsync`**, **`ClusterMaster`** hook after **`SerializeLocal`** ACKs, and **all** **`StorageGatewayTests`** success conditions.
 
 ---
 

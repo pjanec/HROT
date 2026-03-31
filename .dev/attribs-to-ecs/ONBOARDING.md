@@ -64,32 +64,32 @@ We replace it with a `JsonAttributeCompiler` built on:
 
 | Component | Location | Change |
 |-----------|----------|--------|
-| DDS wire message | `Bagira.DDS.DataModel/GenericMessages.cs` | Replace `InitialAttributes` list with `InitialAttributesJson` string |
-| Entity property POCO | `Bagira.DDS.DataModel/EntityPropertyPatch.cs` | No change — already defines the JSON schema |
-| IG creation tool | `Bagira.IG/Tools/CreationTool.cs` | Remove `dtEntityInfo` descriptor; forward JSON verbatim |
-| Existing attribute compiler | `Bagira.Map.Common/Replication/Utils/EntityAttributeCompiler.cs` | Superseded by `JsonAttributeCompiler` |
-| DescriptorMapper | `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs` | Phase 6 only: share delegates |
-| SimHost spawn system | `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` | Use `JsonAttributeCompiler` |
-| Live update system | `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` | Use `JsonAttributeCompiler` |
-| SimHost app startup | `Bagira.SimHost/SimHostApp.cs` | Build `AttributeCompilerBuilder` and inject compiler |
+| DDS wire message | `Hrot.NED/GenericMessages.cs` | Replace `InitialAttributes` list with `InitialAttributesJson` string |
+| Entity property POCO | `Hrot.NED/EntityPropertyPatch.cs` | No change — already defines the JSON schema |
+| IG creation tool | `Hrot.IG/Tools/CreationTool.cs` | Remove `dtEntityInfo` descriptor; forward JSON verbatim |
+| Existing attribute compiler | `Hrot.Map.Common/Replication/Utils/EntityAttributeCompiler.cs` | Superseded by `JsonAttributeCompiler` |
+| DescriptorMapper | `Hrot.Map.Common/Replication/Utils/DescriptorMapper.cs` | Phase 6 only: share delegates |
+| SimHost spawn system | `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` | Use `JsonAttributeCompiler` |
+| Live update system | `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` | Use `JsonAttributeCompiler` |
+| SimHost app startup | `Hrot.SimHost/SimHostApp.cs` | Build `AttributeCompilerBuilder` and inject compiler |
 
 ### New Files to Create
 
 | File | Location | Purpose |
 |------|----------|---------|
-| `JsonAttributeCompiler.cs` | `Bagira.Map.Common/Replication/Utils/` | Core streaming compiler |
-| `IEntityPatchContext.cs` | `Bagira.Map.Common/Replication/Utils/` | Context abstraction + delegate types |
-| `AttributeCompilerBuilder.cs` | `Bagira.Map.Common/Replication/Utils/` | Builder / registration API |
-| `ListPatchContext.cs` | `Bagira.Map.Common/Replication/Utils/` | Spawn-time context (list baseline) |
-| `EcsPatchContext.cs` | `Bagira.Map.Common/Replication/Utils/` | Live-update context (ECS baseline) |
+| `JsonAttributeCompiler.cs` | `Hrot.Map.Common/Replication/Utils/` | Core streaming compiler |
+| `IEntityPatchContext.cs` | `Hrot.Map.Common/Replication/Utils/` | Context abstraction + delegate types |
+| `AttributeCompilerBuilder.cs` | `Hrot.Map.Common/Replication/Utils/` | Builder / registration API |
+| `ListPatchContext.cs` | `Hrot.Map.Common/Replication/Utils/` | Spawn-time context (list baseline) |
+| `EcsPatchContext.cs` | `Hrot.Map.Common/Replication/Utils/` | Live-update context (ECS baseline) |
 
 ### Tests
 
 | Test project | Key files |
 |-------------|-----------|
-| `Bagira.Map.Common.Tests` | `EntityAttributeCompilerTests.cs` — update for new compiler; add `JsonAttributeCompilerTests.cs` |
-| `Bagira.IG.Tests` | `CreationToolTests.cs` — update descriptor-count assertions |
-| `Bagira.SimHost.Tests` | `CreateEntityRequestSystemTests.cs` — add JSON attribute path tests |
+| `Hrot.Map.Common.Tests` | `EntityAttributeCompilerTests.cs` — update for new compiler; add `JsonAttributeCompilerTests.cs` |
+| `Hrot.IG.Tests` | `CreationToolTests.cs` — update descriptor-count assertions |
+| `Hrot.SimHost.Tests` | `CreateEntityRequestSystemTests.cs` — add JSON attribute path tests |
 
 ---
 
@@ -102,12 +102,12 @@ Before touching any code, read these:
 | [ATTR-DESIGN.md](./ATTR-DESIGN.md) | Full architectural context for this workstream |
 | [CODE-STANDARDS.md](../../.dev-workstream/guides/CODE-STANDARDS.md) | Zero-allocation rules, naming conventions, test requirements |
 | [DEV-GUIDE.md](../../.dev-workstream/guides/DEV-GUIDE.md) | How to work in this codebase (batch workflow, review process) |
-| `Bagira.DDS.DataModel/EntityPropertyPatch.cs` | The JSON schema the IOS already produces |
-| `Bagira.DDS.DataModel/GenericMessages.cs` | Current `CreateEntityRequest` and `EntityAttributePayload` shapes |
-| `Bagira.Map.Common/Replication/Utils/EntityAttributeCompiler.cs` | What the new compiler replaces |
-| `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs` | How descriptors become ECS components |
-| `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` | Where the spawn pipeline is orchestrated |
-| `Bagira.IG/Tools/CreationTool.cs` | Current IG-side emit logic (becomes a dumb pipe) |
+| `Hrot.NED/EntityPropertyPatch.cs` | The JSON schema the IOS already produces |
+| `Hrot.NED/GenericMessages.cs` | Current `CreateEntityRequest` and `EntityAttributePayload` shapes |
+| `Hrot.Map.Common/Replication/Utils/EntityAttributeCompiler.cs` | What the new compiler replaces |
+| `Hrot.Map.Common/Replication/Utils/DescriptorMapper.cs` | How descriptors become ECS components |
+| `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` | Where the spawn pipeline is orchestrated |
+| `Hrot.IG/Tools/CreationTool.cs` | Current IG-side emit logic (becomes a dumb pipe) |
 
 ---
 
@@ -128,13 +128,13 @@ dotnet build IOS-IG-SimHost.sln
 
 ```powershell
 # Map.Common compiler tests:
-dotnet test Bagira.Map.Common.Tests\Bagira.Map.Common.Tests.csproj --no-build --nologo -v q
+dotnet test Hrot.Map.Common.Tests\Hrot.Map.Common.Tests.csproj --no-build --nologo -v q
 
 # IG tool tests:
-dotnet test Bagira.IG.Tests\Bagira.IG.Tests.csproj --no-build --nologo -v q
+dotnet test Hrot.IG.Tests\Hrot.IG.Tests.csproj --no-build --nologo -v q
 
 # SimHost system tests:
-dotnet test Bagira.SimHost.Tests\Bagira.SimHost.Tests.csproj --no-build --nologo -v q
+dotnet test Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj --no-build --nologo -v q
 ```
 
 ---

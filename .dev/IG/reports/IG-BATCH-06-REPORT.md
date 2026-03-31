@@ -14,37 +14,37 @@
 
 | File | Purpose |
 |------|---------|
-| `Bagira.IG/Components/HistoryTrailConstants.cs` | Named constants for trail buffer size, sample interval, colour, line width |
-| `Bagira.IG/Components/HistoryTrail.cs` | Unmanaged circular-buffer component (`unsafe struct`, `fixed float[64]`) |
-| `Bagira.IG/Components/VisualEffectStateConstants.cs` | Duration, scale, and RGBA constants for explosions and tracers |
-| `Bagira.IG/Components/VisualEffectState.cs` | Unmanaged ECS component for ephemeral visual effects; `EffectType` enum; `TracerTarget` companion component |
-| `Bagira.IG/Components/ContextMenuState.cs` | Managed class component holding the open/close flag, screen position, and action list |
-| `Bagira.IG/Components/EditablePolyline.cs` | Managed class component holding a `List<Vector2>` of editable vertices |
-| `Bagira.IG/IgEvents.cs` | `FireInteractionEvent` (unmanaged, `[EventId(3001)]`); `ContextActionsUpdate` / `ContextActionTriggered` (managed class events) |
-| `Bagira.IG/Systems/HistoryRecordingSystem.cs` | Simulation-phase system that samples entity XY positions into `HistoryTrail` at configurable intervals |
-| `Bagira.IG/Systems/EventToEffectSystem.cs` | Simulation-phase system that spawns explosion + tracer entities from `FireInteractionEvent` |
-| `Bagira.IG/Systems/VisualEffectCleanupSystem.cs` | PostSimulation system (co-located in EventToEffectSystem.cs) that ages and destroys expired effect entities |
-| `Bagira.IG/Systems/ContextMenuSystem.cs` | Simulation-phase system managing `ContextMenuState` open/close lifecycle and `ContextActionsUpdate` event ingestion |
-| `Bagira.IG/Tools/EditToolConstants.cs` | Pick radius and handle-size constants for `EditTool` |
-| `Bagira.IG/Tools/EditTool.cs` | `IMapTool` for vertex drag-editing of `EditablePolyline`; raises `OnPolylineCommitted` on right-click |
-| `Bagira.IG/Modules/HistoryTrailModule.cs` | Thin `IModule` wrapper registering `HistoryRecordingSystem` |
-| `Bagira.IG/Modules/EventEffectModule.cs` | Thin `IModule` wrapper registering `EventToEffectSystem` + `VisualEffectCleanupSystem` |
+| `Hrot.IG/Components/HistoryTrailConstants.cs` | Named constants for trail buffer size, sample interval, colour, line width |
+| `Hrot.IG/Components/HistoryTrail.cs` | Unmanaged circular-buffer component (`unsafe struct`, `fixed float[64]`) |
+| `Hrot.IG/Components/VisualEffectStateConstants.cs` | Duration, scale, and RGBA constants for explosions and tracers |
+| `Hrot.IG/Components/VisualEffectState.cs` | Unmanaged ECS component for ephemeral visual effects; `EffectType` enum; `TracerTarget` companion component |
+| `Hrot.IG/Components/ContextMenuState.cs` | Managed class component holding the open/close flag, screen position, and action list |
+| `Hrot.IG/Components/EditablePolyline.cs` | Managed class component holding a `List<Vector2>` of editable vertices |
+| `Hrot.IG/IgEvents.cs` | `FireInteractionEvent` (unmanaged, `[EventId(3001)]`); `ContextActionsUpdate` / `ContextActionTriggered` (managed class events) |
+| `Hrot.IG/Systems/HistoryRecordingSystem.cs` | Simulation-phase system that samples entity XY positions into `HistoryTrail` at configurable intervals |
+| `Hrot.IG/Systems/EventToEffectSystem.cs` | Simulation-phase system that spawns explosion + tracer entities from `FireInteractionEvent` |
+| `Hrot.IG/Systems/VisualEffectCleanupSystem.cs` | PostSimulation system (co-located in EventToEffectSystem.cs) that ages and destroys expired effect entities |
+| `Hrot.IG/Systems/ContextMenuSystem.cs` | Simulation-phase system managing `ContextMenuState` open/close lifecycle and `ContextActionsUpdate` event ingestion |
+| `Hrot.IG/Tools/EditToolConstants.cs` | Pick radius and handle-size constants for `EditTool` |
+| `Hrot.IG/Tools/EditTool.cs` | `IMapTool` for vertex drag-editing of `EditablePolyline`; raises `OnPolylineCommitted` on right-click |
+| `Hrot.IG/Modules/HistoryTrailModule.cs` | Thin `IModule` wrapper registering `HistoryRecordingSystem` |
+| `Hrot.IG/Modules/EventEffectModule.cs` | Thin `IModule` wrapper registering `EventToEffectSystem` + `VisualEffectCleanupSystem` |
 
 ### Modified production files
 
 | File | Change |
 |------|--------|
-| `Bagira.IG/IgApplication.cs` | Added `RegisterComponent<HistoryTrail/VisualEffectState/TracerTarget>()`, `RegisterManagedComponent<ContextMenuState/EditablePolyline>()`, `RegisterEvent<FireInteractionEvent>()`, `RegisterModule(new HistoryTrailModule())`, `RegisterModule(new EventEffectModule())` |
+| `Hrot.IG/IgApplication.cs` | Added `RegisterComponent<HistoryTrail/VisualEffectState/TracerTarget>()`, `RegisterManagedComponent<ContextMenuState/EditablePolyline>()`, `RegisterEvent<FireInteractionEvent>()`, `RegisterModule(new HistoryTrailModule())`, `RegisterModule(new EventEffectModule())` |
 
 ### New test files
 
 | File | Tests |
 |------|-------|
-| `Bagira.IG.Tests/HistoryRecordingSystemTests.cs` | 9 tests — buffer overflow, ordering, ShowTrail flag, sub-frame timing, multi-tick accumulation |
-| `Bagira.IG.Tests/EventToEffectSystemTests.cs` | 10 tests — no-event guard, explosion / tracer spawn counts, positions, TracerTarget values, cleanup tick, boundary expiry |
-| `Bagira.IG.Tests/ContextMenuSystemTests.cs` | 8 tests — open/close flag, screen position, `ActiveMenuEntity`, multi-entity isolation, `ContextActionsUpdate` ingestion |
-| `Bagira.IG.Tests/EditToolTests.cs` | 12 tests — ghost-point loading, vertex pick hit/miss, drag moves ghost, drag returns false without selection, right-click commit, committed-list copy independence |
-| `Bagira.IG.Tests/AdvancedFeaturesIntegrationTests.cs` | 3 tests — full end-to-end scenario, multi-event spawn, per-entity trail flag isolation |
+| `Hrot.IG.Tests/HistoryRecordingSystemTests.cs` | 9 tests — buffer overflow, ordering, ShowTrail flag, sub-frame timing, multi-tick accumulation |
+| `Hrot.IG.Tests/EventToEffectSystemTests.cs` | 10 tests — no-event guard, explosion / tracer spawn counts, positions, TracerTarget values, cleanup tick, boundary expiry |
+| `Hrot.IG.Tests/ContextMenuSystemTests.cs` | 8 tests — open/close flag, screen position, `ActiveMenuEntity`, multi-entity isolation, `ContextActionsUpdate` ingestion |
+| `Hrot.IG.Tests/EditToolTests.cs` | 12 tests — ghost-point loading, vertex pick hit/miss, drag moves ghost, drag returns false without selection, right-click commit, committed-list copy independence |
+| `Hrot.IG.Tests/AdvancedFeaturesIntegrationTests.cs` | 3 tests — full end-to-end scenario, multi-event spawn, per-entity trail flag isolation |
 
 ---
 

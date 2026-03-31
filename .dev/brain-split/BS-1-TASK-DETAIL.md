@@ -31,7 +31,7 @@ corresponding simplified DDS message types:
 | File | Change |
 |---|---|
 | `FDP/Toolkits/FDP.Toolkit.Combat/Events/WeaponFireEvents.cs` | Create — contains ECS event structs |
-| `Bagira.DDS.DataModel/FireInteractionMessages.cs` | Extend — add DDS message structs |
+| `Hrot.NED/FireInteractionMessages.cs` | Extend — add DDS message structs |
 
 **Constraints**
 
@@ -120,7 +120,7 @@ Add two new ECS event structs and two DDS message types for the detonation/damag
 | File | Change |
 |---|---|
 | `FDP/Toolkits/FDP.Toolkit.Combat/Events/DetonationEvents.cs` | Create |
-| `Bagira.DDS.DataModel/FireInteractionMessages.cs` | Extend |
+| `Hrot.NED/FireInteractionMessages.cs` | Extend |
 
 **Constraints**
 
@@ -208,7 +208,7 @@ Modify `FDP/Toolkits/FDP.Toolkit.Combat/Systems/DamageSystem.cs` to check
    Action: publish `HitEvent { HitEntity = B, damage = 10f }`.  
    Assert: `Health.Current` on B is reduced by 10.
 
-3. *AllInOne regression:* existing `DamageSystem` unit tests (in `Bagira.SimHost.Tests` or
+3. *AllInOne regression:* existing `DamageSystem` unit tests (in `Hrot.SimHost.Tests` or
    `FDP.Toolkit.Combat.Tests`) continue to pass unchanged — they use `AllInOne` where
    `HasAuthority` is always true.
 
@@ -282,7 +282,7 @@ event bus and publishes a `WeaponFireRequest` DDS message.
 
 | File | Notes |
 |---|---|
-| `Bagira.SimHost/Network/Egress/WeaponFireIntentEgressTranslator.cs` | New class |
+| `Hrot.SimHost/Network/Egress/WeaponFireIntentEgressTranslator.cs` | New class |
 
 **Constraints**
 
@@ -323,7 +323,7 @@ re-publishes them as local `WeaponFireIntent` ECS events on the Muscle's event b
 
 | File | Notes |
 |---|---|
-| `Bagira.SimHost/Network/Ingress/WeaponFireRequestIngressTranslator.cs` | New class |
+| `Hrot.SimHost/Network/Ingress/WeaponFireRequestIngressTranslator.cs` | New class |
 
 **Constraints**
 
@@ -407,7 +407,7 @@ publishes `WeaponFire` DDS messages (for the IG to draw muzzle flashes).
 
 | File | Notes |
 |---|---|
-| `Bagira.SimHost/Network/Egress/WeaponFireNotificationEgressTranslator.cs` | New class |
+| `Hrot.SimHost/Network/Egress/WeaponFireNotificationEgressTranslator.cs` | New class |
 
 **Constraints**
 
@@ -440,8 +440,8 @@ and publishes a local `IgWeaponFireEvent` for the IG visual layer.
 
 | File | Notes |
 |---|---|
-| `Bagira.IG/Translators/WeaponFireIngressTranslator.cs` | New class |
-| `Bagira.IG/IgEvents.cs` | Add `IgWeaponFireEvent` struct (if not already present) |
+| `Hrot.IG/Translators/WeaponFireIngressTranslator.cs` | New class |
+| `Hrot.IG/IgEvents.cs` | Add `IgWeaponFireEvent` struct (if not already present) |
 
 **Constraints**
 
@@ -517,7 +517,7 @@ Create a translator on the Muscle node that reads `DetonationNotification` event
 
 | File | Notes |
 |---|---|
-| `Bagira.SimHost/Network/Egress/MunitionDetonationEgressTranslator.cs` | New class |
+| `Hrot.SimHost/Network/Egress/MunitionDetonationEgressTranslator.cs` | New class |
 
 **Constraints**
 
@@ -540,7 +540,7 @@ Create a translator on the Muscle node that reads `DetonationNotification` event
 
 **Scope**
 
-Create `DamageAssessmentModule` in `FDP/Toolkits/FDP.Toolkit.Combat/` (or `Bagira.SimHost/Modules/`).
+Create `DamageAssessmentModule` in `FDP/Toolkits/FDP.Toolkit.Combat/` (or `Hrot.SimHost/Modules/`).
 The module registers:
 
 1. `MunitionDetonationIngressTranslator` — reads `MunitionDetonation` DDS and publishes local
@@ -557,7 +557,7 @@ The module registers:
 |---|---|
 | `FDP/Toolkits/FDP.Toolkit.Combat/Modules/DamageAssessmentModule.cs` | Module class |
 | `FDP/Toolkits/FDP.Toolkit.Combat/Systems/DamageCalculationSystem.cs` | New system |
-| `Bagira.SimHost/Network/Ingress/MunitionDetonationIngressTranslator.cs` | New translator |
+| `Hrot.SimHost/Network/Ingress/MunitionDetonationIngressTranslator.cs` | New translator |
 
 **Constraints**
 
@@ -597,7 +597,7 @@ Create a translator that reads `DamageAssessedEvent` from the local bus and publ
 
 | File | Notes |
 |---|---|
-| `Bagira.SimHost/Network/Egress/DamageAssessedEgressTranslator.cs` | New class |
+| `Hrot.SimHost/Network/Egress/DamageAssessedEgressTranslator.cs` | New class |
 
 **Constraints**
 
@@ -634,7 +634,7 @@ On the authority node (Brain or Muscle depending on topology):
 
 | File | Notes |
 |---|---|
-| `Bagira.SimHost/Network/Ingress/EntityHitDamageIngressTranslator.cs` | New class |
+| `Hrot.SimHost/Network/Ingress/EntityHitDamageIngressTranslator.cs` | New class |
 | `FDP/Toolkits/FDP.Toolkit.Combat/Systems/HealthApplicationSystem.cs` | New system |
 
 **Constraints**
@@ -682,12 +682,12 @@ Register the new translator in `SimHostApp.cs` egress list.
 
 | File | Change |
 |---|---|
-| `Bagira.Map.Common/Replication/Egress/EntityDamageEgressTranslator.cs` | Create |
-| `Bagira.SimHost/SimHostApp.cs` | Register translator in egress list |
+| `Hrot.Map.Common/Replication/Egress/EntityDamageEgressTranslator.cs` | Create |
+| `Hrot.SimHost/SimHostApp.cs` | Register translator in egress list |
 
 **Constraints**
 
-- Reuse the existing `EntityDamage` DDS message type (already in `Bagira.DDS.DataModel`).
+- Reuse the existing `EntityDamage` DDS message type (already in `Hrot.NED`).
 - Track health changes using `SimulationView.GetDirtyEntities<Health>()` (or equivalent dirty
   tracking pattern used by other egress translators such as `EntityInfoEgressTranslator`).
 - Only publish when `Health.Current` has actually changed (avoid flooding DDS on every tick).
@@ -720,7 +720,7 @@ Register the new translator in `SimHostApp.cs` egress list.
 
 **Scope**
 
-Modify `Bagira.SimHost/NodeBootstrapper.cs`:
+Modify `Hrot.SimHost/NodeBootstrapper.cs`:
 
 - Remove `CombatModule` from the `NodeRole.Brain` role.
 - Add `DamageAssessmentModule` to the `NodeRole.MuscleGround` role.
@@ -732,7 +732,7 @@ Modify `Bagira.SimHost/NodeBootstrapper.cs`:
 
 | File | Change |
 |---|---|
-| `Bagira.SimHost/NodeBootstrapper.cs` | Module assignment conditions |
+| `Hrot.SimHost/NodeBootstrapper.cs` | Module assignment conditions |
 
 **Constraints**
 
@@ -765,14 +765,14 @@ Modify `Bagira.SimHost/NodeBootstrapper.cs`:
 
 **Scope**
 
-Modify `Bagira.SimHost/SimHostApp.cs` to register all translators created in Phases 2–3
+Modify `Hrot.SimHost/SimHostApp.cs` to register all translators created in Phases 2–3
 conditional on the current node role.
 
 **Files to modify**
 
 | File | Change |
 |---|---|
-| `Bagira.SimHost/SimHostApp.cs` | Add translator registrations |
+| `Hrot.SimHost/SimHostApp.cs` | Add translator registrations |
 
 **Registration map:**
 
@@ -937,7 +937,7 @@ Remove the secondary `NavState.HasArrived` check in `SimHostNodes.Action_Wander`
 
 | File | Change |
 |---|---|
-| `Bagira.SimHost/Brains/SimHostNodes.cs` | Remove NavState block in Action_Wander |
+| `Hrot.SimHost/Brains/SimHostNodes.cs` | Remove NavState block in Action_Wander |
 
 **Constraints**
 

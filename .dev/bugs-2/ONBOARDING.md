@@ -12,7 +12,7 @@ testing of the IOS / IG / SimHost federated simulation stack. The issues span ni
 
 | Area | Summary |
 |---|---|
-| **Network Correctness** | Duplicate ACKs from a double-registered system; all DDS participants missing `EnableSenderTracking`; GeoSpatialDR topic instance not tombstoned on entity deletion |
+| **Network Correctness** | Duplicate ACKs from a double-registered system; all DDS participants missing `EnableSenderTracking`; WorldPos topic instance not tombstoned on entity deletion |
 | **Mission System** | `DoctrineFinished` and `UnderAttack` triggers silently fall back to `TimerElapsed(0f)`, causing vehicles to skip their first task; no trigger editing UI in the IOS task editor; unreadable Unicode symbol buttons; no version-conflict resolution UI |
 | **IOS UI Clean-up** | Legacy tool-selection combo still present in Map Configuration panel; ORBAT tree subordinates rendered without indentation |
 | **IG Interaction** | No per-frame drag update mode; SHIFT key should trigger immediate DDS geo-spatial broadcast for testing |
@@ -55,35 +55,35 @@ It defines how batches are structured, how to write a batch report, and what "do
 
 | Path | Relevance |
 |---|---|
-| `Bagira.SimHost/SimHostApp.cs` | Duplicate system registration (BUG2-N001), sender tracking (BUG2-N002), road network loading (BUG2-R001) |
-| `Bagira.SimHost/SimHostVisualization.cs` | Inspector context menu Delete action (BUG2-E001) |
-| `Bagira.SimHost/Modules/SimulationLogicModule.cs` | Road network blob property fix (BUG2-R001) |
-| `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` | Missing trigger cases (BUG2-M001) |
+| `Hrot.SimHost/SimHostApp.cs` | Duplicate system registration (BUG2-N001), sender tracking (BUG2-N002), road network loading (BUG2-R001) |
+| `Hrot.SimHost/SimHostVisualization.cs` | Inspector context menu Delete action (BUG2-E001) |
+| `Hrot.SimHost/Modules/SimulationLogicModule.cs` | Road network blob property fix (BUG2-R001) |
+| `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` | Missing trigger cases (BUG2-M001) |
 
 ### IG — Image Generator
 
 | Path | Relevance |
 |---|---|
-| `Bagira.IG/IgApplication.cs` | Sender tracking (BUG2-N002), SHIFT drag mode (BUG2-I001), entity render layer catch-all (BUG2-V001), inspector Delete (BUG2-E001), IOS action routing (BUG2-E002) |
-| `Bagira.IG/Tools/MeasureTool.cs` | Crosshair cursor (BUG2-T001) |
-| `Bagira.IG/Systems/SelectionRenderSystem.cs` | Layer visibility for selection rings (BUG2-V001) |
-| `Bagira.IG/Translators/ContextActionsUpdateTranslator.cs` | Map IOS action ID 10 → `IG_DeleteEntity` (BUG2-E002) |
+| `Hrot.IG/IgApplication.cs` | Sender tracking (BUG2-N002), SHIFT drag mode (BUG2-I001), entity render layer catch-all (BUG2-V001), inspector Delete (BUG2-E001), IOS action routing (BUG2-E002) |
+| `Hrot.IG/Tools/MeasureTool.cs` | Crosshair cursor (BUG2-T001) |
+| `Hrot.IG/Systems/SelectionRenderSystem.cs` | Layer visibility for selection rings (BUG2-V001) |
+| `Hrot.IG/Translators/ContextActionsUpdateTranslator.cs` | Map IOS action ID 10 → `IG_DeleteEntity` (BUG2-E002) |
 
 ### IOS — Operator Interface
 
 | Path | Relevance |
 |---|---|
-| `Bagira.IOS/Panels/MissionPanel.cs` | Trigger UI (BUG2-M002), button symbols (BUG2-M003), conflict UI (BUG2-M004) |
-| `Bagira.IOS/Panels/ConfigPanel.cs` | Remove legacy tool combo (BUG2-U001) |
-| `Bagira.IOS/Panels/OrbatPanel.cs` | Tree indentation fix (BUG2-U002) |
-| `Bagira.Runner/Services/IosSubsystem.cs` | Sender tracking (BUG2-N002) |
+| `Hrot.ExCon/Panels/MissionPanel.cs` | Trigger UI (BUG2-M002), button symbols (BUG2-M003), conflict UI (BUG2-M004) |
+| `Hrot.ExCon/Panels/ConfigPanel.cs` | Remove legacy tool combo (BUG2-U001) |
+| `Hrot.ExCon/Panels/OrbatPanel.cs` | Tree indentation fix (BUG2-U002) |
+| `Hrot.ClusterRunner/Services/IosSubsystem.cs` | Sender tracking (BUG2-N002) |
 
 ### Map Common & Replication
 
 | Path | Relevance |
 |---|---|
-| `Bagira.Map.Common/Replication/Egress/GeoSpatialEgressTranslator.cs` | GeoSpatialDR disposal (BUG2-N003) |
-| `Bagira.Map.Common/Translators/EntityMissionIngressTranslator.cs` | Missing trigger cases (BUG2-M001) |
+| `Hrot.Map.Common/Replication/Egress/WorldPosEgressTranslator.cs` | WorldPos disposal (BUG2-N003) |
+| `Hrot.Map.Common/Translators/EntityMissionIngressTranslator.cs` | Missing trigger cases (BUG2-M001) |
 
 ### FDP Toolkit — Vis2D
 
@@ -126,10 +126,10 @@ dotnet test IOS-IG-SimHost.sln
 
 Individual project tests:
 ```powershell
-dotnet test Bagira.IG.Tests/Bagira.IG.Tests.csproj
-dotnet test Bagira.IOS.Tests/Bagira.IOS.Tests.csproj
-dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj
-dotnet test Bagira.Map.Common.Tests/Bagira.Map.Common.Tests.csproj
+dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj
+dotnet test Hrot.ExCon.Tests/Hrot.ExCon.Tests.csproj
+dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj
+dotnet test Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj
 ```
 
 ---

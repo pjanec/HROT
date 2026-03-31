@@ -36,20 +36,20 @@ Complete **Part A** (debt + correctness) **before** large S0202 surface area. Fu
 
 ### A.2 — **PlanTrajectory** fail-fast payload rules (DEBT P2)
 
-**File:** `Bagira.Orchestrator/TransitionPlanner.cs`  
+**File:** `Hrot.Orchestrator/TransitionPlanner.cs`  
 
 - For **`TransitionState`** requests, **never** silently default **`targetState`** to **`Standby`** when the payload is empty, whitespace-only, or non-parseable JSON (unless the contract explicitly allows “omit = Standby” — if so, document in XML and task detail).  
 - **`InvalidOperationException`** with a clear message when the payload does not yield a valid target.  
 - Add **unit tests** for: garbage JSON, empty string, `{ }` without `TargetState`.
 
-### A.3 — **DrillMaster** authoritative **`_currentDsmState`** (DEBT P2)
+### A.3 — **ClusterMaster** authoritative **`_currentClusterState`** (DEBT P2)
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`  
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`  
 
-- Implement a **documented** rule for updating **`_currentDsmState`** so **`PlanTrajectory(current, …)`** matches cluster reality. Acceptable Phase 2.0 approaches (pick one, document in class XML):  
+- Implement a **documented** rule for updating **`_currentClusterState`** so **`PlanTrajectory(current, …)`** matches cluster reality. Acceptable Phase 2.0 approaches (pick one, document in class XML):  
   - Track last **`SystemStateTopic.CurrentState`** the orchestrator **wrote**; **or**  
   - Advance only when a **minimal** transaction step completes (may stay stubbed until more of 2PC exists — if so, document limitation and add a **single** integration-style test or clear **`TODO`** gated by S0202).  
-- **Minimum bar:** after accepting a **`TransitionState`** request whose plan’s **final `TransitionStep`** is state **T**, set **`_currentDsmState = T`** for **optimistic** planning of the **next** request, **or** prove why not and keep **`Failure`** until real ACKs land in **S0202+**.
+- **Minimum bar:** after accepting a **`TransitionState`** request whose plan’s **final `TransitionStep`** is state **T**, set **`_currentClusterState = T`** for **optimistic** planning of the **next** request, **or** prove why not and keep **`Failure`** until real ACKs land in **S0202+**.
 
 ### A.4 — Payload protocol (DEBT P3)
 
@@ -66,13 +66,13 @@ Mark **✅** rows closed when done; add none without a target batch.
 **Task definition:** [CGF-1-TASK-DETAIL.md §CGF1-S0202](../CGF-1-TASK-DETAIL.md#cgf1-s0202--dsm-handler-wiring)  
 **Design:** [CGF-1-DESIGN.md §4.2](../CGF-1-DESIGN.md#42-stage-22--dsm-handler-wiring)
 
-Implement **`DsmStateChangedEvent`**, extend **`DrillSlave.Tick()`**, stub **`LiveLoadDsmHandler`**, register in **`SimHostApp`**, **duplicate `TransactionId` drop**, **`FDP/` grep audit**, and **all** success-condition tests in the task detail (**behavior-level**, not log substring tests).
+Implement **`ClusterStateChangedEvent`**, extend **`ClusterSlave.Tick()`**, stub **`LiveLoadDsmHandler`**, register in **`SimHostApp`**, **duplicate `TransactionId` drop**, **`FDP/` grep audit**, and **all** success-condition tests in the task detail (**behavior-level**, not log substring tests).
 
 ---
 
 ## Success criteria
 
-- [ ] Part A: design §4.1 fixed; planner payload tests; `_currentDsmState` rule implemented and documented.  
+- [ ] Part A: design §4.1 fixed; planner payload tests; `_currentClusterState` rule implemented and documented.  
 - [ ] Part B: CGF1-S0202 success conditions met.  
 - [ ] Solution build clean; tests green.  
 - [ ] DEBT-TRACKER updated.  
@@ -82,6 +82,6 @@ Implement **`DsmStateChangedEvent`**, extend **`DrillSlave.Tick()`**, stub **`Li
 
 ## Reference
 
-- [CGF-1-BATCH-04 review Issues](../reviews/CGF-1-BATCH-04-REVIEW.md#issue-1-drillmaster_currentdsmstate-never-advances-p2)  
+- [CGF-1-BATCH-04 review Issues](../reviews/CGF-1-BATCH-04-REVIEW.md#issue-1-clustmaster_currentdsmstate-never-advances-p2)  
 
 **Next preview:** **CGF-1-BATCH-06** — **CGF1-S0203** (time strategy proxying) after S0202 CI green.

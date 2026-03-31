@@ -22,11 +22,11 @@ This batch focuses on fixing critical integration bugs across SimHost, IG, and I
 
 ### Source Code Location
 - **Primary Work Areas:** 
-  - `Bagira.SimHost`
-  - `Bagira.IG`
-  - `Bagira.IOS`
-  - `Bagira.Runner`
-  - `Bagira.Map.Common`
+  - `Hrot.SimHost`
+  - `Hrot.IG`
+  - `Hrot.ExCon`
+  - `Hrot.ClusterRunner`
+  - `Hrot.Map.Common`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -73,15 +73,15 @@ To successfully register TKB blueprints, allow cross-subsystem entity spawning o
 ## ✅ Tasks
 
 ### Task 1: Register TKB Catalog in SimHost and IG (INTS-P1-001)
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.IG/IgApplication.cs`
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.IG/IgApplication.cs`
 **Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-001--register-tkb-catalog-in-simhost-and-ig)
 
 **Requirements & Custom Overrides:**
 - Follow the requirements in the Task Definition document exactly.
-- **Do not** refactor into `BagiraEnvironment` yet (that is for Phase 2).
+- **Do not** refactor into `HrotEnvironment` yet (that is for Phase 2).
 
 ### Task 2: Fix SimHost Vehicle Spawning to Use SpawnEntityCommand (INTS-P1-002)
-**Files:** `Bagira.SimHost/UI/SimHostScenarioManager.cs`
+**Files:** `Hrot.SimHost/UI/SimHostScenarioManager.cs`
 **Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-002--fix-simhost-vehicle-spawning-to-use-spawnentitycommand)
 
 **Requirements & Custom Overrides:**
@@ -89,15 +89,15 @@ To successfully register TKB blueprints, allow cross-subsystem entity spawning o
 - Conform strictly to the entity configurations mapping outlined in the task details.
 
 ### Task 3: Replace NullDdsWriter with DdsWriterAdapter in IOS (INTS-P1-003)
-**Files:** `Bagira.Map.Common/Dds/DdsWriterAdapter.cs` (New), `Bagira.IOS/Program.cs`, `Bagira.Runner/Services/IosSubsystem.cs`
+**Files:** `Hrot.Map.Common/Dds/DdsWriterAdapter.cs` (New), `Hrot.ExCon/Program.cs`, `Hrot.ClusterRunner/Services/IosSubsystem.cs`
 **Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-003--replace-nullddswriter-with-ddswriteradapter-in-ios)
 
 ### Task 4: Add PassthruCentralNode to ImGui DockSpace (INTS-P1-004)
-**Files:** `Bagira.IOS/IosMock.cs`
+**Files:** `Hrot.ExCon/IosMock.cs`
 **Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-004--add-passthrucentralnode-to-imgui-dockspace)
 
 ### Task 5: Wire IG-to-IOS Map Event Translators (INTS-P1-005)
-**Files:** `Bagira.IG/IgApplication.cs` and related translator files.
+**Files:** `Hrot.IG/IgApplication.cs` and related translator files.
 **Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-005--wire-ig-to-ios-map-event-translators)
 
 ---

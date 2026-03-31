@@ -18,21 +18,21 @@
 3. [Real Network Dispatch Fix](#3-real-network-dispatch-fix)
    - 3.1 [DdsWriter in OrchestratorSubsystem](#31-ddswriter-in-orchestratorsubsystem)
    - 3.2 [OrchestratorScenarioPanel Uses SysOpWriter](#32-orchestratorscenariopanel-uses-sysopwriter)
-   - 3.3 [DrillMaster Fan-out Loop (Critical Fix)](#33-drillmaster-fan-out-loop-critical-fix)
+   - 3.3 [ClusterMaster Fan-out Loop (Critical Fix)](#33-clustmaster-fan-out-loop-critical-fix)
 4. [Time Control Section](#4-time-control-section)
-   - 4.1 [New SysOpType Entries](#41-new-sysoptype-entries)
-   - 4.2 [DrillMaster.TimeControlRequested Event](#42-drillmastertimecontrolrequested-event)
+   - 4.1 [New ClusterOpType Entries](#41-new-sysoptype-entries)
+   - 4.2 [ClusterMaster.TimeControlRequested Event](#42-clustmastertimecontrolrequested-event)
    - 4.3 [Replay Seek Debounce](#43-replay-seek-debounce)
 5. [Asset Combo Selection (Local Scan)](#5-asset-combo-selection-local-scan)
 6. [Archive Export/Import Pipeline](#6-archive-exportimport-pipeline)
-   - 6.1 [SysOpType.CancelOperation](#61-sysoptypecanceloperation)
+   - 6.1 [ClusterOpType.CancelOperation](#61-sysoptypecanceloperation)
    - 6.2 [Cancellation Threading in StorageGatewayModule](#62-cancellation-threading-in-storagegatewaymodule)
    - 6.3 [ReferenceArchiveHandler (Toolkit, Node-Side)](#63-referencearchivehandler-toolkit-node-side)
-   - 6.4 [DrillMaster Orchestration Branches](#64-drillmaster-orchestration-branches)
+   - 6.4 [ClusterMaster Orchestration Branches](#64-clustmaster-orchestration-branches)
    - 6.5 [Archive Management UI Section](#65-archive-management-ui-section)
 7. [CQRS Decoupling: AssetInventoryTopic + ClusterUiCache](#7-cqrs-decoupling-assetinventorytopic--clusteruicache)
    - 7.1 [AssetInventoryTopic DDS Message](#71-assetinventorytopic-dds-message)
-   - 7.2 [DrillMaster Publishes Inventory](#72-drillmaster-publishes-inventory)
+   - 7.2 [ClusterMaster Publishes Inventory](#72-clustmaster-publishes-inventory)
    - 7.3 [ClusterUiCache — Network Projection](#73-clusteruicache--network-projection)
    - 7.4 [ClusterScenarioPanel — Shared UI Component](#74-clusterscenariopanel--shared-ui-component)
    - 7.5 [OrchestratorSubsystem Refactored](#75-orchestratorsubsystem-refactored)
@@ -52,15 +52,15 @@ Phase 5 is driven by a set of interrelated problems surfaced in design-review-3.
 | Problem | Symptom | Fix |
 |---------|---------|-----|
 | **Missing ImGui window wrapper** | All Orchestrator UI stacks directly inside `DrawUI()` with no `ImGui.Begin` block; beige colour bleeds into child backgrounds instead of the panel title bar | §2.1 |
-| **Buttons do nothing on the network** | Clicking "Standby → LoadingLive" triggers `DrillMaster.HandleSysOpRequest` locally but never fans out `PrepareState`/`CommitState` DDS commands, so all nodes remain in Standby | §3.3 |
-| **UI talks directly to DrillMaster** | Tightly coupled; IOS/CGF cannot independently render the same control panel without a local `DrillMaster` reference | §7, §8 |
+| **Buttons do nothing on the network** | Clicking "Standby → LoadingLive" triggers `ClusterMaster.HandleClusterOpRequest` locally but never fans out `PrepareState`/`CommitState` DDS commands, so all nodes remain in Standby | §3.3 |
+| **UI talks directly to ClusterMaster** | Tightly coupled; IOS/CGF cannot independently render the same control panel without a local `ClusterMaster` reference | §7, §8 |
 | **No time control in UI** | Pause/Resume/Step/Speed are not currently exposed in the Orchestrator panel | §4 |
-| **Archive pipeline not implemented** | `SysOpType.ExportArchive`/`ImportArchive` are defined but never handled; drill recordings stay permanently on local SSD | §6 |
+| **Archive pipeline not implemented** | `ClusterOpType.ExportArchive`/`ImportArchive` are defined but never handled; drill recordings stay permanently on local SSD | §6 |
 | **Scenario/Drill/Story are text inputs** | Operators must type GUIDs manually; combo-box selection from local filesystem scan is the right UX | §5 |
 | **IOS cannot see cluster state or control the drill** | IOS has no orchestrator UI; it should be functionally equivalent to the Orchestrator panel via pure DDS messaging | §8 |
 
 The solution is organized around a **CQRS** (Command–Query Responsibility Segregation)
-principle: all UI components publish `SysOpRequest` commands and observe
+principle: all UI components publish `ClusterOpRequest` commands and observe
 `SystemStateTopic`, `NodeHeartbeat`, `AssetInventoryTopic`, and time topics — never
 reaching into local C# service instances.
 
@@ -102,21 +102,21 @@ Remove `private static readonly Vector4 BeigeChildBg` and all `PushStyleColor` /
 
 ### 2.2 Source→Target Transition Indicator
 
-Add `SourceDsmState` to `DistributedTransaction`:
+Add `SourceClusterState` to `DistributedTransaction`:
 ```csharp
-public DSMState SourceDsmState { get; set; }
+public ClusterState SourceClusterState { get; set; }
 ```
 
-In `DrillMaster.ProcessSingleSysOpRequest`, capture `_currentDsmState` before any
+In `ClusterMaster.ProcessSingleClusterOpRequest`, capture `_currentClusterState` before any
 optimistic advance and assign it to the new transaction:
 ```csharp
-DSMState sourceState = _currentDsmState;
+ClusterState sourceState = _currentClusterState;
 // ... resolve trajectory, optimistic advance ...
 var tx = new DistributedTransaction
 {
     TransactionId  = txId,
-    SourceDsmState = sourceState,   // NEW
-    TargetDsmState = resolvedTarget,
+    SourceClusterState = sourceState,   // NEW
+    TargetClusterState = resolvedTarget,
     // ...
 };
 ```
@@ -124,9 +124,9 @@ var tx = new DistributedTransaction
 In `RenderStatusBanner` inside `OrchestratorScenarioPanel` / `ClusterScenarioPanel`:
 ```csharp
 if (hasInFlight && activeTx != null &&
-    activeTx.SourceDsmState != activeTx.TargetDsmState)
+    activeTx.SourceClusterState != activeTx.TargetClusterState)
 {
-    ImGui.Text($"State: {activeTx.SourceDsmState} → {activeTx.TargetDsmState}");
+    ImGui.Text($"State: {activeTx.SourceClusterState} → {activeTx.TargetClusterState}");
 }
 else
 {
@@ -138,14 +138,14 @@ else
 
 Add to `DistributedTransaction`:
 ```csharp
-/// <summary>The SysOpRequest JSON payload that initiated this transaction.</summary>
+/// <summary>The ClusterOpRequest JSON payload that initiated this transaction.</summary>
 public string PayloadJson { get; set; } = string.Empty;
 
 /// <summary>Per-node ResultJson from the final NodeOpStatus ACK, keyed by node ID.</summary>
 public Dictionary<int, string> NodeResponses { get; } = new();
 ```
 
-Populate in `DrillMaster`:
+Populate in `ClusterMaster`:
 - `PayloadJson = req.PayloadJson ?? string.Empty` when creating the transaction.
 - `tx.NodeResponses[status.NodeId] = status.ResultJson` in `ConsumeNodeOpStatuses`.
 
@@ -178,10 +178,10 @@ private static string FormatPrettyJson(string json)
 ### 3.1 DdsWriter in OrchestratorSubsystem
 
 ```csharp
-private DdsWriter<SysOpRequest>? _sysOpWriter;
+private DdsWriter<ClusterOpRequest>? _sysOpWriter;
 ```
 
-In `Initialize`: `_sysOpWriter = new DdsWriter<SysOpRequest>(_participant);`  
+In `Initialize`: `_sysOpWriter = new DdsWriter<ClusterOpRequest>(_participant);`  
 In `Shutdown`: `_sysOpWriter?.Dispose(); _sysOpWriter = null;`  
 Pass to panel: `_scenarioPanel = new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter);`
 (later renamed `ClusterScenarioPanel` with `ClusterUiCache` in S0506).
@@ -190,27 +190,27 @@ Pass to panel: `_scenarioPanel = new OrchestratorScenarioPanel(_drillMaster, _sy
 
 Constructor updated to:
 ```csharp
-public OrchestratorScenarioPanel(DrillMaster drillMaster, DdsWriter<SysOpRequest> sysOpWriter)
+public OrchestratorScenarioPanel(ClusterMaster drillMaster, DdsWriter<ClusterOpRequest> sysOpWriter)
 ```
 
-Every button that was calling `_drillMaster.HandleSysOpRequest(...)` is replaced with
-`_sysOpWriter.Write(new SysOpRequest { RequestId = Guid.NewGuid(), OperationType = ...,
+Every button that was calling `_drillMaster.HandleClusterOpRequest(...)` is replaced with
+`_sysOpWriter.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ...,
 PayloadJson = ... })`. This applies to all six render helpers:
 `RenderDrillControl`, `RenderCheckpointSection`, `RenderScenarioSection`,
 `RenderReplaySection`, `RenderStoriesSection`, and the "Initialize Live / Pause / Resume"
 buttons that were left as TODO comments in `DrawUI()`.
 
-### 3.3 DrillMaster Fan-out Loop (Critical Fix)
+### 3.3 ClusterMaster Fan-out Loop (Critical Fix)
 
-**Root cause:** `DrillMaster.ProcessSingleSysOpRequest` plans the trajectory and
-optimistically advances `_currentDsmState`, but never fans out `NodeOpCommand` DDS
+**Root cause:** `ClusterMaster.ProcessSingleClusterOpRequest` plans the trajectory and
+optimistically advances `_currentClusterState`, but never fans out `NodeOpCommand` DDS
 messages. Nodes never receive a `PrepareState` or `CommitState` packet.
 
 After the trajectory is resolved and the `DistributedTransaction` is created, iterate
 the planned steps and fan out:
 
 ```csharp
-if (req.OperationType == SysOpType.TransitionState && activeNodeIds.Count > 0)
+if (req.OperationType == ClusterOpType.TransitionState && activeNodeIds.Count > 0)
 {
     foreach (var step in trajectory)
     {
@@ -219,12 +219,12 @@ if (req.OperationType == SysOpType.TransitionState && activeNodeIds.Count > 0)
             // Map TargetState to lifecycle prepare operation
             NodeOpType prepareOp = tStep.TargetState switch
             {
-                DSMState.LoadingLive     => NodeOpType.PrepareLive,
-                DSMState.UnloadingLive   => NodeOpType.FinalizeLive,
-                DSMState.LoadingReplay   => NodeOpType.PrepareReplay,
-                DSMState.UnloadingReplay => NodeOpType.FinalizeReplay,
-                DSMState.LoadingEdit     => NodeOpType.PrepareEdit,
-                DSMState.UnloadingEdit   => NodeOpType.FinalizeEdit,
+                ClusterState.LoadingLive     => NodeOpType.PrepareLive,
+                ClusterState.UnloadingLive   => NodeOpType.FinalizeLive,
+                ClusterState.LoadingReplay   => NodeOpType.PrepareReplay,
+                ClusterState.UnloadingReplay => NodeOpType.FinalizeReplay,
+                ClusterState.LoadingEdit     => NodeOpType.PrepareEdit,
+                ClusterState.UnloadingEdit   => NodeOpType.FinalizeEdit,
                 _                       => NodeOpType.PrepareState,
             };
 
@@ -243,7 +243,7 @@ if (req.OperationType == SysOpType.TransitionState && activeNodeIds.Count > 0)
             }, activeNodeIds);
         }
         else if (step is OperationStep opStep &&
-                 opStep.Operation == SysOpType.ReplaySeek)
+                 opStep.Operation == ClusterOpType.ReplaySeek)
         {
             FanOutNodeOp(new NodeOpCommand
             {
@@ -258,7 +258,7 @@ if (req.OperationType == SysOpType.TransitionState && activeNodeIds.Count > 0)
 
 **Why correct:** The `PrepareXxx` operation routes to each node's registered
 `IDsmHandler` (e.g. `ReferenceLiveLoadHandler`) with the full payload, allowing async
-file staging. `CommitState` forces the `DrillSlave` to update `_localStateId`. Node
+file staging. `CommitState` forces the `ClusterSlave` to update `_localStateId`. Node
 heartbeats then reflect the new state within one 1 Hz cycle, updating the Node Health
 table.
 
@@ -266,11 +266,11 @@ table.
 
 ## 4. Time Control Section
 
-### 4.1 New SysOpType Entries
+### 4.1 New ClusterOpType Entries
 
-Extend `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs`:
+Extend `Hrot.NED/Orchestration/OrchestrationMessages.cs`:
 ```csharp
-public enum SysOpType : int
+public enum ClusterOpType : int
 {
     // ... existing 0–12 ...
     CancelOperation = 13,   // S0505 — force-cancel an in-flight archive op
@@ -279,21 +279,21 @@ public enum SysOpType : int
 }
 ```
 
-### 4.2 DrillMaster.TimeControlRequested Event
+### 4.2 ClusterMaster.TimeControlRequested Event
 
 Time manipulation does not require 2PC across simulation nodes (only the
 `DistributedTimeCoordinator` needs to act). Intercept these requests in
-`DrillMaster.ProcessSingleSysOpRequest` before the main switch:
+`ClusterMaster.ProcessSingleClusterOpRequest` before the main switch:
 
 ```csharp
-if (req.OperationType is SysOpType.PauseTime or SysOpType.ResumeTime
-                      or SysOpType.StepTime  or SysOpType.SetTimeScale)
+if (req.OperationType is ClusterOpType.PauseTime or ClusterOpType.ResumeTime
+                      or ClusterOpType.StepTime  or ClusterOpType.SetTimeScale)
 {
     TimeControlRequested?.Invoke(req.OperationType, req.PayloadJson ?? string.Empty);
     return;
 }
 
-public event Action<SysOpType, string>? TimeControlRequested;
+public event Action<ClusterOpType, string>? TimeControlRequested;
 ```
 
 `OrchestratorSubsystem.Initialize` subscribes:
@@ -302,17 +302,17 @@ _drillMaster.TimeControlRequested += (op, payload) =>
 {
     switch (op)
     {
-        case SysOpType.PauseTime:
+        case ClusterOpType.PauseTime:
             var ids = new HashSet<int>(_drillMaster.NodeRoster.ActiveNodes.Keys);
             _timeCoordinator?.SwitchToDeterministic(ids);
             break;
-        case SysOpType.ResumeTime:
+        case ClusterOpType.ResumeTime:
             _timeCoordinator?.SwitchToContinuous();
             break;
-        case SysOpType.StepTime:
+        case ClusterOpType.StepTime:
             _timeKernel?.StepFrame(1f / 60f);
             break;
-        case SysOpType.SetTimeScale:
+        case ClusterOpType.SetTimeScale:
             if (float.TryParse(payload, out float s))
                 _timeKernel?.GetTimeController()?.SetTimeScale(s);
             break;
@@ -348,10 +348,10 @@ public void Update(float dt)
 
     _seekPending = false;
     long wallTicks = (long)(_seekSliderValue * 10_000_000L);
-    _sysOpWriter.Write(new SysOpRequest
+    _sysOpWriter.Write(new ClusterOpRequest
     {
         RequestId     = Guid.NewGuid(),
-        OperationType = SysOpType.ReplaySeek,
+        OperationType = ClusterOpType.ReplaySeek,
         PayloadJson   = $"{{\"TargetWallTicks\":{wallTicks}}}",
     });
     _requestPause?.Invoke();   // enter deterministic once seek is dispatched
@@ -368,7 +368,7 @@ playback position passively).
 ## 5. Asset Combo Selection (Local Scan)
 
 `OrchestratorScenarioPanel` (and later `ClusterScenarioPanel`) replaces
-`_loadScenarioId`, `_replayDrillId`, and `_injectScenarioId` / `_injectStoryId` text
+`_loadScenarioId`, `_replayExerciseId`, and `_injectScenarioId` / `_injectStoryId` text
 inputs with combo-box selections backed by `RefreshLocalAssets()`.
 
 ```csharp
@@ -395,7 +395,7 @@ private void RefreshLocalAssets()
     // Clamp selection indices
     if (_selectedLoadScenarioIdx >= _availableScenarios.Length) _selectedLoadScenarioIdx = -1;
     if (_selectedStoryIdx        >= _availableStories.Length)   _selectedStoryIdx        = -1;
-    if (_selectedDrillIdx        >= _availableDrills.Length)    _selectedDrillIdx        = -1;
+    if (_selectedExerciseIdx        >= _availableDrills.Length)    _selectedExerciseIdx        = -1;
 }
 ```
 
@@ -407,7 +407,7 @@ selects the `ScenarioId` (asset package folder), and the StoryId is an auto-gene
 runtime identifier.
 
 > **Note:** In S0506 (CQRS decoupling), `RefreshLocalAssets()` is superseded by the
-> `AssetInventoryTopic` DDS feed from DrillMaster, which queries the actual NAS
+> `AssetInventoryTopic` DDS feed from ClusterMaster, which queries the actual NAS
 > rather than the Orchestrator's local SSD. The combo array-filling logic is moved
 > into `ClusterUiCache.Update()`.
 
@@ -418,7 +418,7 @@ runtime identifier.
 This phase implements the previously-deferred `ExportArchive` and `ImportArchive`
 operations (§9 of CGF-1-DESIGN.md).
 
-### 6.1 SysOpType.CancelOperation
+### 6.1 ClusterOpType.CancelOperation
 
 `CancelOperation = 13` carries `PayloadJson = "<target-operation-request-guid>"`.  
 On receipt, the Orchestrator kills the local `CancellationTokenSource` for that GUID
@@ -490,7 +490,7 @@ public sealed class ReferenceArchiveHandler : IDsmHandler
 
     public void Commit(OrchestrationCommand cmd, EntityRepository? repo)
     {
-        var drillId = ParseDrillId(cmd.PayloadJson);   // looks for "DrillId" key
+        var drillId = ParseExerciseId(cmd.PayloadJson);   // looks for "ExerciseId" key
         if (drillId is null) return;                    // not an archive request; skip
 
         var file = Path.Combine(_localTempRoot, drillId, $"node_{_nodeId}.fdp");
@@ -502,13 +502,13 @@ public sealed class ReferenceArchiveHandler : IDsmHandler
             SourceUnc    = file,
             RelativeDest = Path.Combine(drillId, $"node_{_nodeId}.fdp"),
         }};
-        // ResultJson carries serialised manifest for DrillMaster.ConsumeNodeOpStatuses
+        // ResultJson carries serialised manifest for ClusterMaster.ConsumeNodeOpStatuses
     }
 
     public void Abort(OrchestrationCommand cmd, EntityRepository? repo)
     {
         // Delete any partially-written local file so the cluster remains consistent
-        var drillId = ParseDrillId(cmd.PayloadJson);
+        var drillId = ParseExerciseId(cmd.PayloadJson);
         if (drillId is null) return;
         var file = Path.Combine(_localTempRoot, drillId, $"node_{_nodeId}.fdp");
         try { if (File.Exists(file)) File.Delete(file); } catch { /* best-effort */ }
@@ -518,28 +518,28 @@ public sealed class ReferenceArchiveHandler : IDsmHandler
 
 Registered by `NodeBootstrapper.BuildOrchestration()` alongside the existing handlers.
 
-### 6.4 DrillMaster Orchestration Branches
+### 6.4 ClusterMaster Orchestration Branches
 
-`DrillMaster` gains:
+`ClusterMaster` gains:
 ```csharp
 private readonly Dictionary<Guid, CancellationTokenSource> _activeCancellations = new();
 ```
 
-New branches in `ProcessSingleSysOpRequest`:
+New branches in `ProcessSingleClusterOpRequest`:
 
 ```
-SysOpType.ExportArchive:
+ClusterOpType.ExportArchive:
   1. Create CancellationTokenSource, store in _activeCancellations[req.RequestId].
-  2. FanOutSerializeLocal(txId, activeNodeIds, req.PayloadJson)   // payload contains DrillId
+  2. FanOutSerializeLocal(txId, activeNodeIds, req.PayloadJson)   // payload contains ExerciseId
   // ConsumeNodeOpStatuses already aggregates FileManifestEntry lists and calls
   // _gateway.PullToNasAsync when all ACKs arrive — pass the CTS token.
 
-SysOpType.ImportArchive:
+ClusterOpType.ImportArchive:
   1. Create CancellationTokenSource.
   2. _ = _gateway.PrefetchArchiveAsync(drillId, targets, _nasBasePath, cts.Token)
-         .ContinueWith(t => { /* publish SysOpStatus Success or Timeout */ });
+         .ContinueWith(t => { /* publish ClusterOpStatus Success or Timeout */ });
 
-SysOpType.CancelOperation:
+ClusterOpType.CancelOperation:
   1. Parse target op Guid from PayloadJson.
   2. If _activeCancellations.Remove(targetId, out var cts): cts.Cancel().
   3. FanOutNodeOp AbortTransaction to all active nodes with targetId.
@@ -547,16 +547,16 @@ SysOpType.CancelOperation:
 
 ### 6.5 Archive Management UI Section
 
-New `RenderArchiveSection(DSMState, bool)` in `ClusterScenarioPanel`:
+New `RenderArchiveSection(ClusterState, bool)` in `ClusterScenarioPanel`:
 
 | Control | Action |
 |---------|--------|
 | Combo "Unarchived Local" | Lists drills present locally but absent from NAS |
-| Button "Export to NAS ▶" | Writes `SysOpRequest { ExportArchive, DrillId }` |
+| Button "Export to NAS ▶" | Writes `ClusterOpRequest { ExportArchive, ExerciseId }` |
 | Combo "Archived Drills" | Lists drills present on NAS |
-| Button "Import from NAS ◀" | Writes `SysOpRequest { ImportArchive, DrillId }` |
+| Button "Import from NAS ◀" | Writes `ClusterOpRequest { ImportArchive, ExerciseId }` |
 | `ProgressBar` + yellow label | Shown only while `_activeArchiveOpId != Guid.Empty` |
-| Red Button "CANCEL OPERATION" | Always active while archiving; writes `SysOpType.CancelOperation`; optimistically clears `_activeArchiveOpId` |
+| Red Button "CANCEL OPERATION" | Always active while archiving; writes `ClusterOpType.CancelOperation`; optimistically clears `_activeArchiveOpId` |
 
 The combo lists are populated from `ClusterUiCache` (which receives `AssetInventoryTopic`
 carrying both local and NAS drill lists), so they reflect NAS reality, not local SSD.
@@ -566,13 +566,13 @@ carrying both local and NAS drill lists), so they reflect NAS reality, not local
 ## 7. CQRS Decoupling: AssetInventoryTopic + ClusterUiCache
 
 **Principle:** The Orchestrator UI and any remote UI (IOS, future CGF console) must never
-hold a reference to `DrillMaster`, `StorageGatewayModule`, or any local C# service. They
+hold a reference to `ClusterMaster`, `StorageGatewayModule`, or any local C# service. They
 observe network state and emit commands. This makes the same `ClusterScenarioPanel`
 instantiable on any node.
 
 ### 7.1 AssetInventoryTopic DDS Message
 
-Add to `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs`:
+Add to `Hrot.NED/Orchestration/OrchestrationMessages.cs`:
 
 ```csharp
 [DdsTopic("AssetInventory")]
@@ -593,7 +593,7 @@ public partial struct AssetInventoryTopic
 `TransientLocal` QoS ensures late-joining subscribers (IOS boots after Orchestrator)
 receive the latest inventory sample immediately.
 
-### 7.2 DrillMaster Publishes Inventory
+### 7.2 ClusterMaster Publishes Inventory
 
 ```csharp
 private DdsWriter<AssetInventoryTopic>? _inventoryWriter;
@@ -636,13 +636,13 @@ used for fallback) can reach it.
 
 ### 7.3 ClusterUiCache — Network Projection
 
-New class `Bagira.Runner.Services.ClusterUiCache` (also usable from `IosSubsystem`):
+New class `Hrot.ClusterRunner.Services.ClusterUiCache` (also usable from `IosSubsystem`):
 
 ```csharp
 public sealed class ClusterUiCache : IDisposable
 {
     // ── Published state ──────────────────────────────────────────────────
-    public DSMState       CurrentState          { get; private set; }
+    public ClusterState       CurrentState          { get; private set; }
     public bool           IsBootstrapped        { get; private set; }
     public bool           HasInFlightTransaction { get; private set; }
 
@@ -662,7 +662,7 @@ public sealed class ClusterUiCache : IDisposable
     private readonly DdsReader<SystemStateTopic>        _stateReader;
     private readonly DdsReader<AssetInventoryTopic>     _inventoryReader;
     private readonly DdsReader<NodeHeartbeat>           _heartbeatReader;
-    private readonly DdsReader<SysOpStatus>             _sysOpStatusReader;
+    private readonly DdsReader<ClusterOpStatus>             _sysOpStatusReader;
     private readonly DdsReader<NodeOpCommand>           _nodeOpCmdReader;
     private readonly DdsReader<NodeOpStatus>            _nodeOpStatusReader;
     private readonly DdsReader<TimePulseDescriptor>     _timePulseReader;
@@ -674,7 +674,7 @@ public sealed class ClusterUiCache : IDisposable
     {
         // Drain all readers; update published state properties.
         // Process2PcNetworkTraffic() sniffs NodeOpCommand/NodeOpStatus to build TxHistory
-        // without requiring direct DrillMaster access.
+        // without requiring direct ClusterMaster access.
         // IsPaused is inferred from SwitchTimeModeWireDto.Mode == Deterministic.
     }
 
@@ -689,13 +689,13 @@ appends `NodeResponses` as `NodeOpStatus` ACKs arrive.
 ### 7.4 ClusterScenarioPanel — Shared UI Component
 
 `OrchestratorScenarioPanel.cs` is **renamed** to
-`Bagira.Runner.Services.ClusterScenarioPanel.cs`.
+`Hrot.ClusterRunner.Services.ClusterScenarioPanel.cs`.
 
 Constructor changes:
 ```csharp
-// Old: (DrillMaster drillMaster, DdsWriter<SysOpRequest> sysOpWriter)
+// Old: (ClusterMaster drillMaster, DdsWriter<ClusterOpRequest> sysOpWriter)
 // New:
-public ClusterScenarioPanel(DdsWriter<SysOpRequest> sysOpWriter,
+public ClusterScenarioPanel(DdsWriter<ClusterOpRequest> sysOpWriter,
                              ClusterUiCache uiCache,
                              Action? requestPause = null)
 ```
@@ -703,7 +703,7 @@ public ClusterScenarioPanel(DdsWriter<SysOpRequest> sysOpWriter,
 The `_drillMaster` field is removed entirely. All data (current state, active
 transaction, active stories list, node roster) is read from `uiCache`. The seven render
 sections — Status Banner, Drill Control, Checkpoint, Scenario, Replay, Stories, Archive
-Management — remain structurally identical; their data source switches from DrillMaster
+Management — remain structurally identical; their data source switches from ClusterMaster
 properties to `ClusterUiCache` properties.
 
 `ClusterScenarioPanel.Render(ClusterUiCache cache, bool disableAll)` is the public entry
@@ -716,17 +716,17 @@ After S0506:
 
 ```csharp
 // Data plane (headless)
-private DrillMaster?                 _drillMaster;
+private ClusterMaster?                 _drillMaster;
 private ModuleHostKernel?            _timeKernel;
 private DistributedTimeCoordinator?  _timeCoordinator;
 
 // Control plane (UI clients — no direct _drillMaster references in DrawUI)
-private DdsWriter<SysOpRequest>?     _sysOpWriter;
+private DdsWriter<ClusterOpRequest>?     _sysOpWriter;
 private ClusterUiCache?              _uiCache;
 private ClusterScenarioPanel?        _scenarioPanel;
 ```
 
-`DrawUI()` reads only from `_uiCache` and `_scenarioPanel`. The `TestHook_DrillMaster`
+`DrawUI()` reads only from `_uiCache` and `_scenarioPanel`. The `TestHook_ClusterMaster`
 internal property is kept for E2E test access.
 
 ---
@@ -735,7 +735,7 @@ internal property is kept for E2E test access.
 
 ### 8.1 Time Ingress Handlers
 
-Two lightweight `IIngressHandler` implementations added to `Bagira.IOS`:
+Two lightweight `IIngressHandler` implementations added to `Hrot.ExCon`:
 
 ```csharp
 public sealed class TimePulseIngressHandler : IIngressHandler, IDisposable
@@ -771,7 +771,7 @@ void RequestStep();
 void SetTimeScale(float scale);
 ```
 
-`IosLogic` implements each method by writing a `SysOpRequest` via its
+`IosLogic` implements each method by writing a `ClusterOpRequest` via its
 existing `_sysOpWriter`. The observed properties are updated by
 `TimePulseIngressHandler` and `TimeModeIngressHandler`.
 
@@ -832,12 +832,12 @@ Key invariants:
 
 | Task | Title | Key deliverables |
 |------|-------|-----------------|
-| **CGF1-S0501** | Orchestrator ImGui Window & 2PC History Overhaul | Beige title bar; `ImGui.Begin` wrapper; `DistributedTransaction.{PayloadJson,NodeResponses,SourceDsmState}`; 5-col scrollable 2PC table with full GUID, JSON tooltip, context menu, expandable node rows; `FormatPrettyJson`; "Old→New" banner |
-| **CGF1-S0502** | Real Network Dispatch + DrillMaster Fan-out | `DdsWriter<SysOpRequest>` in `OrchestratorSubsystem`; panel constructor updated; all direct `HandleSysOpRequest` calls replaced; `DrillMaster` fan-out loop (PrepareXxx + CommitState per step) |
-| **CGF1-S0503** | Time Control Section + Remote Time Commands | `SysOpType.{StepTime,SetTimeScale}`; `DrillMaster.TimeControlRequested` event; `OrchestratorSubsystem` event→`_timeCoordinator`; "Time Control" collapsing header; replay seek debounce + `.meta.json` duration cap |
+| **CGF1-S0501** | Orchestrator ImGui Window & 2PC History Overhaul | Beige title bar; `ImGui.Begin` wrapper; `DistributedTransaction.{PayloadJson,NodeResponses,SourceClusterState}`; 5-col scrollable 2PC table with full GUID, JSON tooltip, context menu, expandable node rows; `FormatPrettyJson`; "Old→New" banner |
+| **CGF1-S0502** | Real Network Dispatch + ClusterMaster Fan-out | `DdsWriter<ClusterOpRequest>` in `OrchestratorSubsystem`; panel constructor updated; all direct `HandleClusterOpRequest` calls replaced; `ClusterMaster` fan-out loop (PrepareXxx + CommitState per step) |
+| **CGF1-S0503** | Time Control Section + Remote Time Commands | `ClusterOpType.{StepTime,SetTimeScale}`; `ClusterMaster.TimeControlRequested` event; `OrchestratorSubsystem` event→`_timeCoordinator`; "Time Control" collapsing header; replay seek debounce + `.meta.json` duration cap |
 | **CGF1-S0504** | Asset Combo Selection | `RefreshLocalAssets()` scanning `C:\FDP_Temp`; scenario/drill/story combos; auto-generated `StoryId`; refresh buttons |
-| **CGF1-S0505** | Archive Export/Import Pipeline | `SysOpType.CancelOperation`; `_activeCancellations` dict in `DrillMaster`; `PrefetchArchiveAsync` + cancellation in `StorageGatewayModule`; `ReferenceArchiveHandler`; Archive Management UI section with progress bar and Cancel button |
-| **CGF1-S0506** | CQRS Decoupling: AssetInventoryTopic + ClusterUiCache | `AssetInventoryTopic` DDS struct; `DrillMaster` publishes inventory every 5 s; `ClusterUiCache`; `OrchestratorScenarioPanel` → `ClusterScenarioPanel`; `OrchestratorSubsystem` uses cache |
+| **CGF1-S0505** | Archive Export/Import Pipeline | `ClusterOpType.CancelOperation`; `_activeCancellations` dict in `ClusterMaster`; `PrefetchArchiveAsync` + cancellation in `StorageGatewayModule`; `ReferenceArchiveHandler`; Archive Management UI section with progress bar and Cancel button |
+| **CGF1-S0506** | CQRS Decoupling: AssetInventoryTopic + ClusterUiCache | `AssetInventoryTopic` DDS struct; `ClusterMaster` publishes inventory every 5 s; `ClusterUiCache`; `OrchestratorScenarioPanel` → `ClusterScenarioPanel`; `OrchestratorSubsystem` uses cache |
 | **CGF1-S0507** | IOS Remote Cluster Control Panel | `TimePulse`/`TimeMode` ingress handlers; `IIosLogic` time API; `IosSubsystem` wires `ClusterScenarioPanel`; IOS renders identical cluster control UI over DDS |
 
 **Dependency order:** S0501 → S0502 → S0503 → S0504 → S0505 → S0506 → S0507.

@@ -24,14 +24,14 @@
 
 **Full solution (`dotnet test IOS-IG-SimHost.sln`):**
 - All relevant test assemblies passed.
-- 3 test assemblies (`Bagira.SimHost.Tests`, `ModuleHost.Core.Tests`, `Bagira.IOS.Tests`) show intermittent failures when run together but pass consistently in isolation — confirmed pre-existing flakiness unrelated to this batch (likely shared static state / xUnit parallelism).
+- 3 test assemblies (`Hrot.SimHost.Tests`, `ModuleHost.Core.Tests`, `Hrot.ExCon.Tests`) show intermittent failures when run together but pass consistently in isolation — confirmed pre-existing flakiness unrelated to this batch (likely shared static state / xUnit parallelism).
 
 **New tests added:**
 
 | File | Tests Added |
 |------|-------------|
 | `FDP.Toolkit.Combat.Tests/CombatComponentTests.cs` | `WeaponFireIntent_IsUnmanaged_AndHasCorrectSize`, `WeaponFireNotification_IsUnmanaged_AndHasCorrectSize`, `WeaponFireIntent_HasCorrectEventIdAttribute`, `DetonationNotification_IsUnmanaged_AndHasCorrectSize`, `DamageAssessedEvent_IsUnmanaged_AndHasCorrectSize` |
-| `Bagira.DDS.DataModel.Tests/FireInteractionMessageTests.cs` (new) | `WeaponFireRequest_HasDdsTopicAttribute_WithCorrectName`, `WeaponFire_HasDdsTopicAttribute_WithCorrectName`, `MunitionDetonation_HasDdsTopicAttribute_WithCorrectName`, `EntityHitDamage_HasDdsTopicAttribute_WithCorrectName` |
+| `Hrot.NED.Tests/FireInteractionMessageTests.cs` (new) | `WeaponFireRequest_HasDdsTopicAttribute_WithCorrectName`, `WeaponFire_HasDdsTopicAttribute_WithCorrectName`, `MunitionDetonation_HasDdsTopicAttribute_WithCorrectName`, `EntityHitDamage_HasDdsTopicAttribute_WithCorrectName` |
 | `FDP.Toolkit.Combat.Tests/DamageSystemTests.cs` | `Damage_DoesNotApplyDamage_WhenEntityIsRemote`, `Damage_AppliesDamage_WhenEntityIsLocallyOwned` |
 | `FDP.Toolkit.Combat.Tests/AimAndFireExecutorTests.cs` | `AimAndFire_EmitsWeaponFireIntent_WhenConditionsAreMet`, `AimAndFire_DoesNotEmitFireRequestEvent_WhenConditionsAreMet`, `AimAndFire_DoesNotFire_WhenCooldownActive` (updated), `AimAndFire_ReportsFailure_WhenAmmoZero` (updated), `AimAndFire_ReportsSuccess_WhenTargetDead` (updated), `AimAndFire_DecrementsCooldown_EachTick_UntilCanFire` (updated) |
 
@@ -66,7 +66,7 @@
 **Q4: What edge cases did you discover that weren't mentioned in the spec?**
 
 - **`HeadlessDemoApp` had no `NetworkEntityMap`.** The executor constructor requires one; the demo had to be updated to create and own a `NetworkEntityMap` instance. The map stays empty (no registered entities) so IDs published in `WeaponFireIntent` are 0/0, which is fine until T007.
-- **Two other `AimAndFireExecutor` callsites outside the main project.** `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` and `Bagira.SimHost.Tests/ActionDispatchModuleTests.cs` both instantiated `AimAndFireExecutor` with no arguments. Both had to be updated when the constructor changed.
+- **Two other `AimAndFireExecutor` callsites outside the main project.** `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` and `Hrot.SimHost.Tests/ActionDispatchModuleTests.cs` both instantiated `AimAndFireExecutor` with no arguments. Both had to be updated when the constructor changed.
 - **`UrbanCombat` → `FDP.Toolkit.Replication` dependency gap.** `HeadlessDemoApp` references `FDP.Toolkit.Combat`, which now references `FDP.Toolkit.Replication`. The transitive reference was sufficient; no direct reference needed in `Fdp.Examples.UrbanCombat.csproj`.
 
 **Q5: Any performance or allocation concerns noticed on hot paths?**

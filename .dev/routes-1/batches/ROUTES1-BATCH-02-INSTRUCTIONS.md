@@ -24,9 +24,9 @@ We also have a pair of Corrective Tasks based on technical debt from Batch 1. **
 5. **Previous Review:** `.dev-workstream/reviews/ROUTES1-BATCH-01-REVIEW.md`
 
 ### Source Code Location
-- **Bagira.SimHost:** ECS systems and trajectory pool integration.
-- **Bagira.IG:** Map command hooks and `PointSequenceTool`.
-- **Test Projects:** `Bagira.SimHost.Tests/`, `Bagira.IG.Tests/`
+- **Hrot.SimHost:** ECS systems and trajectory pool integration.
+- **Hrot.IG:** Map command hooks and `PointSequenceTool`.
+- **Test Projects:** `Hrot.SimHost.Tests/`, `Hrot.IG.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -81,7 +81,7 @@ We also have a pair of Corrective Tasks based on technical debt from Batch 1. **
 
 ### Task 1: RouteTrajectorySyncSystem (ROUTES1-T006)
 
-**Files:** `Bagira.SimHost/Systems/Routing/RouteTrajectorySyncSystem.cs`
+**Files:** `Hrot.SimHost/Systems/Routing/RouteTrajectorySyncSystem.cs`
 **Task Definition:** See [ROUTES1-TASK-DETAIL.md](../../docs/routes-1/ROUTES1-TASK-DETAIL.md#routes1-t006--routetrajectorysyncystem)
 
 **Description:** Register and unregister trajectory instances derived from `RoutePlan` coordinates, bridging the declarative ECS data with the deterministic Trajectory Pool arrays.
@@ -92,7 +92,7 @@ We also have a pair of Corrective Tasks based on technical debt from Batch 1. **
 
 ### Task 2: Shared Route Authoring (ROUTES1-T007)
 
-**Files:** `Bagira.IG/Controllers/MapCommandController.cs`, `Bagira.IG/Tools/*`
+**Files:** `Hrot.IG/Controllers/MapCommandController.cs`, `Hrot.IG/Tools/*`
 **Task Definition:** See [ROUTES1-TASK-DETAIL.md](../../docs/routes-1/ROUTES1-TASK-DETAIL.md#routes1-t007--shared-route-authoring-via-cmd_start_authoring)
 
 **Description:** Wire IG `CMD_START_AUTHORING` parameters to the `PointSequenceTool` driving native entity publishing events via the DDS network.
@@ -103,7 +103,7 @@ We also have a pair of Corrective Tasks based on technical debt from Batch 1. **
 
 ### Task 3: PersonalRouteAuthoringSystem (ROUTES1-T008)
 
-**Files:** `Bagira.SimHost/Systems/Routing/PersonalRouteAuthoringSystem.cs`
+**Files:** `Hrot.SimHost/Systems/Routing/PersonalRouteAuthoringSystem.cs`
 **Task Definition:** See [ROUTES1-TASK-DETAIL.md](../../docs/routes-1/ROUTES1-TASK-DETAIL.md#routes1-t008--personalrouteauthoringsystem)
 
 **Description:** Build the ingestion mechanism consuming `CmdAppendPersonalWaypoint` payloads to drive the construction or mutating of `PersonalRouteRef`-guided child route instances attached to individual tracked vehicles. Include the `CmdFollowTrajectory` invocation step appropriately.
@@ -114,7 +114,7 @@ We also have a pair of Corrective Tasks based on technical debt from Batch 1. **
 
 ### Task 4: IG Input Wiring for Shift+Right-Click (ROUTES1-T009)
 
-**Files:** `Bagira.IG/Application/IgApplication.cs` (or relevant input tool wrapper).
+**Files:** `Hrot.IG/Application/IgApplication.cs` (or relevant input tool wrapper).
 **Task Definition:** See [ROUTES1-TASK-DETAIL.md](../../docs/routes-1/ROUTES1-TASK-DETAIL.md#routes1-t009--ig-input-wiring-for-shiftright-click)
 
 **Description:** Hook `Shift + Right Click` in the active IG viewport configuration to iterate over selected vehicles mapping them to the newly implemented `CmdAppendPersonalWaypoint` channels natively. 

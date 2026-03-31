@@ -1,5 +1,5 @@
-﻿
-I am running "Bagira.Runner -m all"
+
+I am running "Hrot.ClusterRunner -m all"
 
 Orchestrator component's ImGui panel should have beige color (now that color is used INSIDE the panel, but it should be used JUST for the TITLE of the panel) Now there is an ImGui window missing and all the stuff are stacked into DrawUI(). Pls add it into a single ImGui window with beige title bar (similarly to what other panels are made).
 
@@ -9,7 +9,7 @@ Because the `SubsystemOrchestrator` automatically applies a subsystem's `TitleBa
 
 Here are the changes to make:
 
-1\. Update `Bagira.Runner/Services/OrchestratorSubsystem.cs`
+1\. Update `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs`
 
 Change the `TitleBarColor` property to the beige color, and wrap the contents of `DrawUI()` in a standard `ImGui.Begin("Orchestrator")` block:
 
@@ -37,7 +37,7 @@ public void DrawUI()
         var waiting = _config.Mandatory
             .Where(name => !_drillMaster.NodeRoster.ActiveNodes.Values
                 .Any(p => p.SubsystemName == name &&
-                          p.LocalDsmState == Bagira.BDC.SSTD.Orchestration.DSMState.Standby))
+                          p.LocalClusterState == Hrot.NED.Descriptors.Orchestration.ClusterState.Standby))
             .ToArray();
 
         ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.8f, 0.2f, 1f));
@@ -56,7 +56,7 @@ public void DrawUI()
 }
 ```
 
-2\. Clean up `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`
+2\. Clean up `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`
 
 Now that the window title bar is beige, strip out all the inner `BeigeChildBg` styles that were incorrectly tinting the backgrounds of the child regions.
 
@@ -70,7 +70,7 @@ Now that the window title bar is beige, strip out all the inner `BeigeChildBg` s
 **Remove the** **PushStyleColor** **and** **PopStyleColor** **calls** from all the `Render*` helper methods. For example, your `RenderStatusBanner` should now look like this:
 
 ```
-private static void RenderStatusBanner(DSMState currentState, DistributedTransaction? activeTx,
+private static void RenderStatusBanner(ClusterState currentState, DistributedTransaction? activeTx,
     bool bootstrapped, bool hasInFlight)
 {
     // Removed ImGui.PushStyleColor(...)
@@ -110,7 +110,7 @@ Here are the changes to implement the new behavior:
 Add the fields required to store the initial payload and the individual node responses.
 
 ```
-// In Bagira.Orchestrator/DistributedTransaction.cs
+// In Hrot.Orchestrator/DistributedTransaction.cs
 public sealed class DistributedTransaction
 {
     // ... existing properties ...
@@ -122,7 +122,7 @@ public sealed class DistributedTransaction
 }
 ```
 
-_(Note: Be sure to populate_ _PayloadJson = req.PayloadJson_ _when creating the transaction in_ _DrillMaster.ProcessSingleSysOpRequest__, and populate_ _tx.NodeResponses\[status.NodeId\] = status.ResultJson_ _when receiving ACKs in_ _DrillMaster.ConsumeNodeOpStatuses__)._
+_(Note: Be sure to populate_ _PayloadJson = req.PayloadJson_ _when creating the transaction in_ _ClusterMaster.ProcessSingleClusterOpRequest__, and populate_ _tx.NodeResponses\[status.NodeId\] = status.ResultJson_ _when receiving ACKs in_ _ClusterMaster.ConsumeNodeOpStatuses__)._
 
 2\. Update `OrchestratorSubsystem.cs`
 
@@ -184,7 +184,7 @@ if (ImGui.CollapsingHeader("2PC History"))
             {
                 if (ImGui.MenuItem("Copy line to clipboard"))
                 {
-                    string copyText = $"{tx.TransactionId} | {tx.TargetDsmState} | {(tx.IsAborted ? "Aborted" : "Completed")} | Payload: {tx.PayloadJson}";
+                    string copyText = $"{tx.TransactionId} | {tx.TargetClusterState} | {(tx.IsAborted ? "Aborted" : "Completed")} | Payload: {tx.PayloadJson}";
                     ImGui.SetClipboardText(copyText);
                 }
                 ImGui.EndPopup();
@@ -192,7 +192,7 @@ if (ImGui.CollapsingHeader("2PC History"))
 
             // --- Column 2: Target State ---
             ImGui.TableNextColumn(); 
-            ImGui.Text(tx.TargetDsmState.ToString());
+            ImGui.Text(tx.TargetClusterState.ToString());
             
             // --- Column 3: Result ---
             ImGui.TableNextColumn(); 
@@ -258,23 +258,23 @@ if (ImGui.CollapsingHeader("2PC History"))
 }
 ```
 
-The "Drill Control" panel should not take shortcut directly to the handler, it should send the SysOpRequest messages!
+The "Drill Control" panel should not take shortcut directly to the handler, it should send the ClusterOpRequest messages!
 
 Some buttons in the Orchestrator ImGui are no-op just with TODO comments, needs to be fully implemented.
 
 Pressing the State machine state button does NOT result in sending network Request - pressing those buttons do nothing in the system. they should send real requests!
 
-To implement the real network requests and replace the local shortcuts, you need to introduce a `DdsWriter<SysOpRequest>` in the `OrchestratorSubsystem`, use it to implement the TODO buttons, and pass it to the `OrchestratorScenarioPanel` so all drill control actions are sent over the network.
+To implement the real network requests and replace the local shortcuts, you need to introduce a `DdsWriter<ClusterOpRequest>` in the `OrchestratorSubsystem`, use it to implement the TODO buttons, and pass it to the `OrchestratorScenarioPanel` so all drill control actions are sent over the network.
 
 Here is how you can update both files:
 
-1\. Update `Bagira.Runner/Services/OrchestratorSubsystem.cs`
+1\. Update `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs`
 
 Add the `_sysOpWriter` field, initialize it, dispose it, and implement the TODO buttons in `DrawUI()` using this writer.
 
 ```
 // Add this field to the class
-private DdsWriter<SysOpRequest>? _sysOpWriter;
+private DdsWriter<ClusterOpRequest>? _sysOpWriter;
 ```
 
 Update the `Initialize` method to create the writer and pass it to the panel:
@@ -284,11 +284,11 @@ public void Initialize(SubsystemConfig config)
 {
     _config      = ClusterConfiguration.LoadFrom(
         System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
-    _participant = BagiraEnvironment.CreateParticipant(config.DomainId);
-    _drillMaster = new DrillMaster(_participant, _config);
+    _participant = HrotEnvironment.CreateParticipant(config.DomainId);
+    _drillMaster = new ClusterMaster(_participant, _config);
     
-    // NEW: Create the DDS writer for SysOpRequest
-    _sysOpWriter = new DdsWriter<SysOpRequest>(_participant);
+    // NEW: Create the DDS writer for ClusterOpRequest
+    _sysOpWriter = new DdsWriter<ClusterOpRequest>(_participant);
     
     // Update the panel instantiation to accept the writer
     _scenarioPanel = new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter);
@@ -315,7 +315,7 @@ public void Shutdown()
 }
 ```
 
-Replace the "Simulation controls" section in `DrawUI()` to send actual `SysOpRequest` messages instead of empty TODOs:
+Replace the "Simulation controls" section in `DrawUI()` to send actual `ClusterOpRequest` messages instead of empty TODOs:
 
     ```
     // ── Simulation controls (disabled until bootstrapped) ─────────────────
@@ -323,21 +323,21 @@ Replace the "Simulation controls" section in `DrawUI()` to send actual `SysOpReq
     
     if (ImGui.Button("Initialize Live"))
     {
-        _sysOpWriter?.Write(new SysOpRequest
+        _sysOpWriter?.Write(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
-            OperationType = SysOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":{(int)Bagira.BDC.SSTD.Orchestration.DSMState.LoadingLive}}}"
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = $"{{\"TargetState\":{(int)Hrot.NED.Descriptors.Orchestration.ClusterState.LoadingLive}}}"
         });
     }
     ImGui.SameLine();
     
     if (ImGui.Button("Pause"))
     {
-        _sysOpWriter?.Write(new SysOpRequest
+        _sysOpWriter?.Write(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
-            OperationType = SysOpType.PauseTime,
+            OperationType = ClusterOpType.PauseTime,
             PayloadJson   = string.Empty
         });
     }
@@ -345,10 +345,10 @@ Replace the "Simulation controls" section in `DrawUI()` to send actual `SysOpReq
     
     if (ImGui.Button("Resume"))
     {
-        _sysOpWriter?.Write(new SysOpRequest
+        _sysOpWriter?.Write(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
-            OperationType = SysOpType.ResumeTime,
+            OperationType = ClusterOpType.ResumeTime,
             PayloadJson   = string.Empty
         });
     }
@@ -356,9 +356,9 @@ Replace the "Simulation controls" section in `DrawUI()` to send actual `SysOpReq
     if (!bootstrapped) ImGui.EndDisabled();
 ```
 
-2\. Update `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`
+2\. Update `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`
 
-Import `CycloneDDS.Runtime`, update the constructor to receive the `DdsWriter`, and replace all `_drillMaster.HandleSysOpRequest` shortcut calls with `_sysOpWriter.Write`.
+Import `CycloneDDS.Runtime`, update the constructor to receive the `DdsWriter`, and replace all `_drillMaster.HandleClusterOpRequest` shortcut calls with `_sysOpWriter.Write`.
 
 **Add the missing import at the top of the file:**
 
@@ -370,10 +370,10 @@ using CycloneDDS.Runtime;
 
 ```
 // ── Dependencies ──────────────────────────────────────────────────────
-private readonly DrillMaster _drillMaster;
-private readonly DdsWriter<SysOpRequest> _sysOpWriter; // NEW
+private readonly ClusterMaster _drillMaster;
+private readonly DdsWriter<ClusterOpRequest> _sysOpWriter; // NEW
 
-public OrchestratorScenarioPanel(DrillMaster drillMaster, DdsWriter<SysOpRequest> sysOpWriter)
+public OrchestratorScenarioPanel(ClusterMaster drillMaster, DdsWriter<ClusterOpRequest> sysOpWriter)
 {
     _drillMaster = drillMaster ?? throw new ArgumentNullException(nameof(drillMaster));
     _sysOpWriter = sysOpWriter ?? throw new ArgumentNullException(nameof(sysOpWriter));
@@ -384,13 +384,13 @@ public OrchestratorScenarioPanel(DrillMaster drillMaster, DdsWriter<SysOpRequest
 
 ```
 // Change this:
-// _drillMaster.HandleSysOpRequest(new SysOpRequest { ... });
+// _drillMaster.HandleClusterOpRequest(new ClusterOpRequest { ... });
 
 // To this:
-_sysOpWriter.Write(new SysOpRequest
+_sysOpWriter.Write(new ClusterOpRequest
 {
     RequestId     = Guid.NewGuid(),
-    OperationType = SysOpType.TransitionState,
+    OperationType = ClusterOpType.TransitionState,
     PayloadJson   = $"{{\"TargetState\":{(int)target}}}",
 });
 ```
@@ -398,10 +398,10 @@ _sysOpWriter.Write(new SysOpRequest
 **Replace the calls in** **RenderCheckpointSection****:**
 
 ```
-_sysOpWriter.Write(new SysOpRequest
+_sysOpWriter.Write(new ClusterOpRequest
 {
     RequestId     = Guid.NewGuid(),
-    OperationType = SysOpType.TakeCheckpoint,
+    OperationType = ClusterOpType.TakeCheckpoint,
     PayloadJson   = string.Empty,
 });
 ```
@@ -410,28 +410,28 @@ _sysOpWriter.Write(new SysOpRequest
 
 ```
 // Save Scenario
-_sysOpWriter.Write(new SysOpRequest
+_sysOpWriter.Write(new ClusterOpRequest
 {
     RequestId     = Guid.NewGuid(),
-    OperationType = SysOpType.SaveScenario,
+    OperationType = ClusterOpType.SaveScenario,
     PayloadJson   = $"{{\"ScenarioId\":\"{_saveScenarioId}\"}}",
 });
 
 // Load into Edit
-_sysOpWriter.Write(new SysOpRequest
+_sysOpWriter.Write(new ClusterOpRequest
 {
     RequestId     = Guid.NewGuid(),
-    OperationType = SysOpType.TransitionState,
-    PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingEdit}," +
+    OperationType = ClusterOpType.TransitionState,
+    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingEdit}," +
                     $"\"ScenarioId\":\"{_loadScenarioId}\"}}",
 });
 
 // Load into Live
-_sysOpWriter.Write(new SysOpRequest
+_sysOpWriter.Write(new ClusterOpRequest
 {
     RequestId     = Guid.NewGuid(),
-    OperationType = SysOpType.TransitionState,
-    PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingLive}," +
+    OperationType = ClusterOpType.TransitionState,
+    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}," +
                     $"\"ScenarioId\":\"{_loadScenarioId}\"}}",
 });
 ```
@@ -440,19 +440,19 @@ _sysOpWriter.Write(new SysOpRequest
 
 ```
 // Load Replay
-_sysOpWriter.Write(new SysOpRequest
+_sysOpWriter.Write(new ClusterOpRequest
 {
     RequestId     = Guid.NewGuid(),
-    OperationType = SysOpType.TransitionState,
-    PayloadJson   = $"{{\"TargetState\":{(int)DSMState.RunningReplay}," +
-                    $"\"DrillId\":\"{_replayDrillId}\"}}",
+    OperationType = ClusterOpType.TransitionState,
+    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.RunningReplay}," +
+                    $"\"ExerciseId\":\"{_replayExerciseId}\"}}",
 });
 
 // Seek slider
-_sysOpWriter.Write(new SysOpRequest
+_sysOpWriter.Write(new ClusterOpRequest
 {
     RequestId     = Guid.NewGuid(),
-    OperationType = SysOpType.ReplaySeek,
+    OperationType = ClusterOpType.ReplaySeek,
     PayloadJson   = $"{{\"TargetWallTicks\":{wallTicks}}}",
 });
 ```
@@ -461,67 +461,67 @@ _sysOpWriter.Write(new SysOpRequest
 
 ```
 // Unload Story
-_sysOpWriter.Write(new SysOpRequest
+_sysOpWriter.Write(new ClusterOpRequest
 {
     RequestId     = Guid.NewGuid(),
-    OperationType = SysOpType.ManageStory,
+    OperationType = ClusterOpType.ManageEpisode,
     PayloadJson   = $"{{\"Mode\":\"Stop\",\"StoryId\":\"{storyId}\"}}",
 });
 
 // Inject Story
-_sysOpWriter.Write(new SysOpRequest
+_sysOpWriter.Write(new ClusterOpRequest
 {
     RequestId     = Guid.NewGuid(),
-    OperationType = SysOpType.ManageStory,
+    OperationType = ClusterOpType.ManageEpisode,
     PayloadJson   = $"{{\"Mode\":\"Start\"," +
                     $"\"StoryId\":\"{_injectStoryId}\"," +
                     $"\"ScenarioId\":\"{_injectScenarioId}\"}}",
 });
 ```
 
-By switching all these over to `_sysOpWriter.Write(...)`, the Orchestrator's UI will now send real DDS messages which the `DrillMaster` will consume asynchronously off the network bus, mimicking exact production topology behavior.
+By switching all these over to `_sysOpWriter.Write(...)`, the Orchestrator's UI will now send real DDS messages which the `ClusterMaster` will consume asynchronously off the network bus, mimicking exact production topology behavior.
 
 The Orchestrator in the Drill Control should indicate the most recent drill SM state confirmed (if all nodes completed) or it should show "Old State -> New State" transition (if not all nodes completed the transition yet).
 
-To implement the "Old State -> New State" transition indicator, we need to track the state that the cluster was in _before_ the transition started. Because `_currentDsmState` is optimistically updated as soon as a `TransitionState` request is accepted, we must capture the source state right before this update and expose it to the UI panel.
+To implement the "Old State -> New State" transition indicator, we need to track the state that the cluster was in _before_ the transition started. Because `_currentClusterState` is optimistically updated as soon as a `TransitionState` request is accepted, we must capture the source state right before this update and expose it to the UI panel.
 
 Here are the 3 files to update to achieve this:
 
-1\. Update `Bagira.Orchestrator/DistributedTransaction.cs`
+1\. Update `Hrot.Orchestrator/DistributedTransaction.cs`
 
-Add a new `SourceDsmState` property to the transaction record so it can carry the pre-transition state.
+Add a new `SourceClusterState` property to the transaction record so it can carry the pre-transition state.
 
 ```
 public sealed class DistributedTransaction
 {
     public Guid TransactionId { get; set; }
     public Guid OriginRequestId { get; set; }
-    public DSMState SourceDsmState { get; set; } // NEW: Track the state we are transitioning from
-    public DSMState TargetDsmState { get; set; }
+    public ClusterState SourceClusterState { get; set; } // NEW: Track the state we are transitioning from
+    public ClusterState TargetClusterState { get; set; }
     public int TotalSteps { get; set; }
     public int CompletedSteps { get; set; }
     // ... (keep the rest of your properties, including PayloadJson and NodeResponses from the previous step)
 }
 ```
 
-2\. Update `Bagira.Orchestrator/DrillMaster.cs`
+2\. Update `Hrot.Orchestrator/ClusterMaster.cs`
 
-In the `ProcessSingleSysOpRequest` method, capture `_currentDsmState` before the planner logic executes and pass it to the new `DistributedTransaction`.
+In the `ProcessSingleClusterOpRequest` method, capture `_currentClusterState` before the planner logic executes and pass it to the new `DistributedTransaction`.
 
 ```
     // Accept the request — resolve target via planner for TransitionState ops.
-    DSMState resolvedTarget = _currentDsmState;
+    ClusterState resolvedTarget = _currentClusterState;
     int totalSteps = 1;
     
     // NEW: Capture the source state before any optimistic updates
-    DSMState sourceState = _currentDsmState; 
+    ClusterState sourceState = _currentClusterState; 
     
-    if (req.OperationType == SysOpType.TransitionState)
+    if (req.OperationType == ClusterOpType.TransitionState)
     {
         try
         {
             // Capture current state before optimistic advance (needed for S0305 detection).
-            var stateBeforeAdvance = _currentDsmState;
+            var stateBeforeAdvance = _currentClusterState;
             // ... (keep the rest of the try-catch block)
 ```
 
@@ -532,20 +532,20 @@ Scroll down to where the transaction is instantiated and assign the captured `so
     {
         TransactionId    = Guid.NewGuid(),
         OriginRequestId  = req.RequestId,
-        SourceDsmState   = sourceState,     // NEW: Populate the source state
-        TargetDsmState   = resolvedTarget,
+        SourceClusterState   = sourceState,     // NEW: Populate the source state
+        TargetClusterState   = resolvedTarget,
         TotalSteps       = totalSteps,
         CompletedSteps   = totalSteps,
         IsAborted        = false
     };
 ```
 
-3\. Update `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`
+3\. Update `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`
 
 Update the `RenderStatusBanner` method. Check if the cluster has an in-flight transaction where the source and target states differ. If so, display the arrow transition; otherwise, just show the current state.
 
 ```
-private static void RenderStatusBanner(DSMState currentState, DistributedTransaction? activeTx,
+private static void RenderStatusBanner(ClusterState currentState, DistributedTransaction? activeTx,
     bool bootstrapped, bool hasInFlight)
 {
     if (ImGui.BeginChild("##OrcStatusBanner", new Vector2(-1, 54), ImGuiChildFlags.Borders))
@@ -559,9 +559,9 @@ private static void RenderStatusBanner(DSMState currentState, DistributedTransac
             : "idle";
     
         // NEW: Indicate Old State -> New State during transitions
-        if (hasInFlight && activeTx != null && activeTx.SourceDsmState != activeTx.TargetDsmState)
+        if (hasInFlight && activeTx != null && activeTx.SourceClusterState != activeTx.TargetClusterState)
         {
-            ImGui.Text($"State: {activeTx.SourceDsmState} -> {activeTx.TargetDsmState}");
+            ImGui.Text($"State: {activeTx.SourceClusterState} -> {activeTx.TargetClusterState}");
         }
         else
         {
@@ -585,7 +585,7 @@ While it is true that a story can be injected independently into any currently r
 
 Here is exactly how the system uses the `ScenarioId` when you inject a story:
 
--   **File Distribution (Prefetching):** When you issue a `ManageStory` command in "Start" mode, the system's transition planner automatically prepends a `PrefetchScenario` step using the `ScenarioId`. This step uses the storage gateway to ensure that all the story's asset files are physically copied and staged onto the local SSDs of all participating simulation nodes before the injection begins.-   **File Loading:** Once the files are staged across the cluster, the `ReferenceStoryLoadHandler` on each node uses the `ScenarioId` to query its local storage provider, locate the specific JSON files, and deserialize the story entities into the live world.
+-   **File Distribution (Prefetching):** When you issue a `ManageEpisode` command in "Start" mode, the system's transition planner automatically prepends a `PrefetchScenario` step using the `ScenarioId`. This step uses the storage gateway to ensure that all the story's asset files are physically copied and staged onto the local SSDs of all participating simulation nodes before the injection begins.-   **File Loading:** Once the files are staged across the cluster, the `ReferenceStoryLoadHandler` on each node uses the `ScenarioId` to query its local storage provider, locate the specific JSON files, and deserialize the story entities into the live world.
 
 If the `ScenarioId` is missing from the payload when attempting to start a story, the orchestrator will reject the request with an error, as it has no way to locate the story's data.
 
@@ -605,7 +605,7 @@ Folders containing `.json` files will be enumerated as **Scenarios** and **Stori
 
 Additionally, because we are switching the Story Injector to a combo box, we can greatly simplify the workflow: the operator simply selects the story package (the `ScenarioId`) from the dropdown, and the UI will **automatically generate a new unique** **StoryId** **(Guid)** under the hood when "Inject Story" is clicked. This completely eliminates the need to manually type GUIDs.
 
-Here is the complete update for **Bagira.Runner/Services/OrchestratorScenarioPanel.cs**:
+Here is the complete update for **Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs**:
 
 1\. Update Imports and Fields
 
@@ -616,17 +616,17 @@ using System;
 using System.Collections.Generic;
 using System.IO;           // NEW: Required for Directory scanning
 using System.Numerics;
-using Bagira.BDC.SSTD.Orchestration;
-using Bagira.Orchestrator;
+using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Orchestrator;
 using CycloneDDS.Runtime;
 using ImGuiNET;
 
-namespace Bagira.Runner.Services;
+namespace Hrot.ClusterRunner.Services;
 
 public sealed class OrchestratorScenarioPanel
 {
-    private readonly DrillMaster _drillMaster;
-    private readonly DdsWriter<SysOpRequest> _sysOpWriter;
+    private readonly ClusterMaster _drillMaster;
+    private readonly DdsWriter<ClusterOpRequest> _sysOpWriter;
 
     // ── Scenario section state ────────────────────────────────────────────
     private string _saveScenarioId = string.Empty;
@@ -636,7 +636,7 @@ public sealed class OrchestratorScenarioPanel
     // ── Replay section state ──────────────────────────────────────────────
     private float _seekSliderValue = 0f;
     private string[] _availableDrills = Array.Empty<string>();
-    private int _selectedDrillIdx = -1;
+    private int _selectedExerciseIdx = -1;
     
     // ── Stories section state ─────────────────────────────────────────────
     private string[] _availableStories = Array.Empty<string>();
@@ -644,7 +644,7 @@ public sealed class OrchestratorScenarioPanel
     
     private static readonly Vector2 AutoSize = Vector2.Zero;
     
-    public OrchestratorScenarioPanel(DrillMaster drillMaster, DdsWriter<SysOpRequest> sysOpWriter)
+    public OrchestratorScenarioPanel(ClusterMaster drillMaster, DdsWriter<ClusterOpRequest> sysOpWriter)
     {
         _drillMaster = drillMaster ?? throw new ArgumentNullException(nameof(drillMaster));
         _sysOpWriter = sysOpWriter ?? throw new ArgumentNullException(nameof(sysOpWriter));
@@ -692,7 +692,7 @@ Add this method to scan the standard temporary directory for scenarios and drill
             // Clamp indices if the list shrank
             if (_selectedLoadScenarioIdx >= _availableScenarios.Length) _selectedLoadScenarioIdx = -1;
             if (_selectedStoryIdx >= _availableStories.Length) _selectedStoryIdx = -1;
-            if (_selectedDrillIdx >= _availableDrills.Length) _selectedDrillIdx = -1;
+            if (_selectedExerciseIdx >= _availableDrills.Length) _selectedExerciseIdx = -1;
         }
         catch
         {
@@ -706,7 +706,7 @@ Add this method to scan the standard temporary directory for scenarios and drill
 Replace your existing `RenderScenarioSection`, `RenderReplaySection`, and `RenderStoriesSection` with these updated versions utilizing `ImGui.Combo`:
 
 ```
-    private void RenderScenarioSection(DSMState currentState, bool disableAll)
+    private void RenderScenarioSection(ClusterState currentState, bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Scenario")) return;
     
@@ -719,10 +719,10 @@ Replace your existing `RenderScenarioSection`, `RenderReplaySection`, and `Rende
             ImGui.SameLine();
             if (ImGui.Button("Save Scenario##OrcBtn") && !string.IsNullOrWhiteSpace(_saveScenarioId))
             {
-                _sysOpWriter.Write(new SysOpRequest
+                _sysOpWriter.Write(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.SaveScenario,
+                    OperationType = ClusterOpType.SaveScenario,
                     PayloadJson   = $"{{\"ScenarioId\":\"{_saveScenarioId}\"}}",
                 });
             }
@@ -737,11 +737,11 @@ Replace your existing `RenderScenarioSection`, `RenderReplaySection`, and `Rende
             if (ImGui.Button("Load into Edit##OrcLoadEdit") && _selectedLoadScenarioIdx >= 0)
             {
                 string scenId = _availableScenarios[_selectedLoadScenarioIdx];
-                _sysOpWriter.Write(new SysOpRequest
+                _sysOpWriter.Write(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.TransitionState,
-                    PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingEdit}," +
+                    OperationType = ClusterOpType.TransitionState,
+                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingEdit}," +
                                     $"\"ScenarioId\":\"{scenId}\"}}",
                 });
             }
@@ -749,11 +749,11 @@ Replace your existing `RenderScenarioSection`, `RenderReplaySection`, and `Rende
             if (ImGui.Button("Load into Live##OrcLoadLive") && _selectedLoadScenarioIdx >= 0)
             {
                 string scenId = _availableScenarios[_selectedLoadScenarioIdx];
-                _sysOpWriter.Write(new SysOpRequest
+                _sysOpWriter.Write(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.TransitionState,
-                    PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingLive}," +
+                    OperationType = ClusterOpType.TransitionState,
+                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}," +
                                     $"\"ScenarioId\":\"{scenId}\"}}",
                 });
             }
@@ -763,7 +763,7 @@ Replace your existing `RenderScenarioSection`, `RenderReplaySection`, and `Rende
         ImGui.EndChild();
     }
     
-    private void RenderReplaySection(DSMState currentState, bool disableAll)
+    private void RenderReplaySection(ClusterState currentState, bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Replay")) return;
     
@@ -772,24 +772,24 @@ Replace your existing `RenderScenarioSection`, `RenderReplaySection`, and `Rende
             if (disableAll) ImGui.BeginDisabled();
     
             // Load Replay (Combo Box)
-            ImGui.Combo("Select Drill##OrcReplayId", ref _selectedDrillIdx, _availableDrills, _availableDrills.Length);
+            ImGui.Combo("Select Drill##OrcReplayId", ref _selectedExerciseIdx, _availableDrills, _availableDrills.Length);
             ImGui.SameLine();
             if (ImGui.Button("⟳##RefDrill")) RefreshLocalAssets();
     
-            if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedDrillIdx >= 0)
+            if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedExerciseIdx >= 0)
             {
-                string drillId = _availableDrills[_selectedDrillIdx];
-                _sysOpWriter.Write(new SysOpRequest
+                string drillId = _availableDrills[_selectedExerciseIdx];
+                _sysOpWriter.Write(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.TransitionState,
-                    PayloadJson   = $"{{\"TargetState\":{(int)DSMState.RunningReplay}," +
-                                    $"\"DrillId\":\"{drillId}\"}}",
+                    OperationType = ClusterOpType.TransitionState,
+                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.RunningReplay}," +
+                                    $"\"ExerciseId\":\"{drillId}\"}}",
                 });
             }
     
             // Seek slider — only when RunningReplay
-            if (currentState == DSMState.RunningReplay)
+            if (currentState == ClusterState.RunningReplay)
             {
                 ImGui.Spacing();
                 ImGui.Text("Seek (s):");
@@ -798,10 +798,10 @@ Replace your existing `RenderScenarioSection`, `RenderReplaySection`, and `Rende
                 if (ImGui.SliderFloat("##OrcSeek", ref _seekSliderValue, 0f, 3600f))
                 {
                     long wallTicks = (long)(_seekSliderValue * 10_000_000L);
-                    _sysOpWriter.Write(new SysOpRequest
+                    _sysOpWriter.Write(new ClusterOpRequest
                     {
                         RequestId     = Guid.NewGuid(),
-                        OperationType = SysOpType.ReplaySeek,
+                        OperationType = ClusterOpType.ReplaySeek,
                         PayloadJson   = $"{{\"TargetWallTicks\":{wallTicks}}}",
                     });
                 }
@@ -835,10 +835,10 @@ Replace your existing `RenderScenarioSection`, `RenderReplaySection`, and `Rende
                     ImGui.SameLine();
                     if (ImGui.Button($"Unload##OrcUnload{storyId}"))
                     {
-                        _sysOpWriter.Write(new SysOpRequest
+                        _sysOpWriter.Write(new ClusterOpRequest
                         {
                             RequestId     = Guid.NewGuid(),
-                            OperationType = SysOpType.ManageStory,
+                            OperationType = ClusterOpType.ManageEpisode,
                             PayloadJson   = $"{{\"Mode\":\"Stop\",\"StoryId\":\"{storyId}\"}}",
                         });
                     }
@@ -861,10 +861,10 @@ Replace your existing `RenderScenarioSection`, `RenderReplaySection`, and `Rende
                 // Auto-generate the unique runtime StoryId so the operator doesn't have to
                 string newStoryId = Guid.NewGuid().ToString();
     
-                _sysOpWriter.Write(new SysOpRequest
+                _sysOpWriter.Write(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.ManageStory,
+                    OperationType = ClusterOpType.ManageEpisode,
                     PayloadJson   = $"{{\"Mode\":\"Start\"," +
                                     $"\"StoryId\":\"{newStoryId}\"," +
                                     $"\"ScenarioId\":\"{scenId}\"}}",
@@ -885,7 +885,7 @@ To fulfill your requirements, we need to introduce a dedicated "Time Control" se
 
 Here are the updates for the two relevant files:
 
-1\. Update `Bagira.Runner/Services/OrchestratorSubsystem.cs`
+1\. Update `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs`
 
 We will add the new **Time Control** panel, stripping out the old placeholder simulation controls. We will also pass a pause callback to the scenario panel and tick its new `Update` method.
 
@@ -896,9 +896,9 @@ public void Initialize(SubsystemConfig config)
 {
     _config      = ClusterConfiguration.LoadFrom(
         System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
-    _participant = BagiraEnvironment.CreateParticipant(config.DomainId);
-    _drillMaster = new DrillMaster(_participant, _config);
-    _sysOpWriter = new DdsWriter<SysOpRequest>(_participant);
+    _participant = HrotEnvironment.CreateParticipant(config.DomainId);
+    _drillMaster = new ClusterMaster(_participant, _config);
+    _sysOpWriter = new DdsWriter<ClusterOpRequest>(_participant);
     
     // NEW: Inject the Pause callback so the Scenario Panel can pause time after seeking
     _scenarioPanel = new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter, () => 
@@ -958,7 +958,7 @@ public void DrawUI()
         var waiting = _config.Mandatory
             .Where(name => !_drillMaster.NodeRoster.ActiveNodes.Values
                 .Any(p => p.SubsystemName == name &&
-                          p.LocalDsmState == Bagira.BDC.SSTD.Orchestration.DSMState.Standby))
+                          p.LocalClusterState == Hrot.NED.Descriptors.Orchestration.ClusterState.Standby))
             .ToArray();
     
         ImGui.PushStyleColor(ImGuiCol.Text, new System.Numerics.Vector4(1f, 0.8f, 0.2f, 1f));
@@ -1032,14 +1032,14 @@ public void DrawUI()
 }
 ```
 
-2\. Update `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`
+2\. Update `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`
 
 We will add the `Update` loop to process the debounce timer and modify the constructor to accept the new pause callback. We will also dynamically determine the replay maximum length by peeking into the `.meta.json` file.
 
 ```
 // Update fields at the top of the class
-private readonly DrillMaster _drillMaster;
-private readonly DdsWriter<SysOpRequest> _sysOpWriter;
+private readonly ClusterMaster _drillMaster;
+private readonly DdsWriter<ClusterOpRequest> _sysOpWriter;
 private readonly Action _requestPause; // NEW
 
 private float _seekDebounceTimer = 0f; // NEW
@@ -1047,7 +1047,7 @@ private bool _seekPending = false;     // NEW
 private float _replayDuration = 3600f; // NEW
 
 // Update Constructor
-public OrchestratorScenarioPanel(DrillMaster drillMaster, DdsWriter<SysOpRequest> sysOpWriter, Action requestPause)
+public OrchestratorScenarioPanel(ClusterMaster drillMaster, DdsWriter<ClusterOpRequest> sysOpWriter, Action requestPause)
 {
     _drillMaster = drillMaster ?? throw new ArgumentNullException(nameof(drillMaster));
     _sysOpWriter = sysOpWriter ?? throw new ArgumentNullException(nameof(sysOpWriter));
@@ -1066,10 +1066,10 @@ public void Update(float dt)
         {
             _seekPending = false;
             long wallTicks = (long)(_seekSliderValue * 10_000_000L);
-            _sysOpWriter.Write(new SysOpRequest
+            _sysOpWriter.Write(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
-                OperationType = SysOpType.ReplaySeek,
+                OperationType = ClusterOpType.ReplaySeek,
                 PayloadJson   = $"{{\"TargetWallTicks\":{wallTicks}}}",
             });
             
@@ -1121,7 +1121,7 @@ private float GetReplayDuration(string drillId)
 }
 
 // Update RenderReplaySection
-private void RenderReplaySection(DSMState currentState, bool disableAll, float currentDrillTime)
+private void RenderReplaySection(ClusterState currentState, bool disableAll, float currentDrillTime)
 {
     if (!ImGui.CollapsingHeader("Replay")) return;
 
@@ -1129,27 +1129,27 @@ private void RenderReplaySection(DSMState currentState, bool disableAll, float c
     {
         if (disableAll) ImGui.BeginDisabled();
     
-        ImGui.Combo("Select Drill##OrcReplayId", ref _selectedDrillIdx, _availableDrills, _availableDrills.Length);
+        ImGui.Combo("Select Drill##OrcReplayId", ref _selectedExerciseIdx, _availableDrills, _availableDrills.Length);
         ImGui.SameLine();
         if (ImGui.Button("⟳##RefDrill")) RefreshLocalAssets();
     
-        if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedDrillIdx >= 0)
+        if (ImGui.Button("Load Replay##OrcReplayBtn") && _selectedExerciseIdx >= 0)
         {
-            string drillId = _availableDrills[_selectedDrillIdx];
+            string drillId = _availableDrills[_selectedExerciseIdx];
             _replayDuration = GetReplayDuration(drillId); // Dynamic cap based on metadata
             _seekSliderValue = 0f;
     
-            _sysOpWriter.Write(new SysOpRequest
+            _sysOpWriter.Write(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
-                OperationType = SysOpType.TransitionState,
-                PayloadJson   = $"{{\"TargetState\":{(int)DSMState.RunningReplay}," +
-                                $"\"DrillId\":\"{drillId}\"}}",
+                OperationType = ClusterOpType.TransitionState,
+                PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.RunningReplay}," +
+                                $"\"ExerciseId\":\"{drillId}\"}}",
             });
         }
     
         // Seek slider
-        if (currentState == DSMState.RunningReplay)
+        if (currentState == ClusterState.RunningReplay)
         {
             ImGui.Spacing();
             ImGui.Text("Seek (s):");
@@ -1177,15 +1177,15 @@ private void RenderReplaySection(DSMState currentState, bool disableAll, float c
 
 How does the scenario/drill/story file archiving and restoration from archive works? When/where from/how the arching/restoration is triggered?
 
-The archiving and restoration of scenario, drill, and story files are structurally defined as orchestration commands driven by the system's **DrillMaster** and executed by the **StorageGatewayModule**.
+The archiving and restoration of scenario, drill, and story files are structurally defined as orchestration commands driven by the system's **ClusterMaster** and executed by the **StorageGatewayModule**.
 
-**When and How it is Triggered:** Archiving and restoration are triggered by sending a `SysOpRequest` over the DDS network. The system's `SysOpType` enumeration explicitly defines two operations for this: **ExportArchive** and **ImportArchive**.
+**When and How it is Triggered:** Archiving and restoration are triggered by sending a `ClusterOpRequest` over the DDS network. The system's `ClusterOpType` enumeration explicitly defines two operations for this: **ExportArchive** and **ImportArchive**.
 
 **Where and How it Works:**
 
--   **Storage Gateway:** All bulk file movements across the cluster—which explicitly includes Archive Export and Import—are owned by the `StorageGatewayModule` co-located with the Orchestrator's `DrillMaster`.-   **SMB Pull Gateway Pattern:** To execute these file transfers without saturating network interfaces or hitting Windows inbound connection limits, the gateway uses the "SMB Pull Gateway Pattern." Instead of all simulation nodes pushing data simultaneously, the Orchestrator opens outbound SMB connections to a central NAS and pulls or pushes the archive files to and from the leaf nodes in parallel.-   **Base Path Configuration:** The system's global context, which is published over DDS via the `OrchestratorContextTopic`, includes an `ArchiveBasePath` property that dictates where these archives are stored or retrieved from.
+-   **Storage Gateway:** All bulk file movements across the cluster—which explicitly includes Archive Export and Import—are owned by the `StorageGatewayModule` co-located with the Orchestrator's `ClusterMaster`.-   **SMB Pull Gateway Pattern:** To execute these file transfers without saturating network interfaces or hitting Windows inbound connection limits, the gateway uses the "SMB Pull Gateway Pattern." Instead of all simulation nodes pushing data simultaneously, the Orchestrator opens outbound SMB connections to a central NAS and pulls or pushes the archive files to and from the leaf nodes in parallel.-   **Base Path Configuration:** The system's global context, which is published over DDS via the `OrchestratorContextTopic`, includes an `ArchiveBasePath` property that dictates where these archives are stored or retrieved from.
 
-_Note: While the provided sources detail the architectural design, the network message types (__ExportArchive_ _/_ _ImportArchive__), and the gateway pattern used for archiving, they do not contain the specific concrete implementation code detailing how the_ _DrillMaster_ _processes these exact two requests or how the files are internally zipped/packaged._
+_Note: While the provided sources detail the architectural design, the network message types (__ExportArchive_ _/_ _ImportArchive__), and the gateway pattern used for archiving, they do not contain the specific concrete implementation code detailing how the_ _ClusterMaster_ _processes these exact two requests or how the files are internally zipped/packaged._
 
 ok maybe we are talking about the storage gateway. the storage is just a network shared folder, isn;t it? I guess it should have subfolders for different categories of stuff. like
 
@@ -1218,19 +1218,19 @@ So, while the central NAS does organize files by Drill IDs and Scenario IDs, the
 
 good. where from/when/how the copying to/from the storage is triggered?
 
-The file copying to and from the central storage is explicitly orchestrated within the **DrillMaster** class in response to specific `SysOpRequest` commands received over the network.
+The file copying to and from the central storage is explicitly orchestrated within the **ClusterMaster** class in response to specific `ClusterOpRequest` commands received over the network.
 
 Here is exactly where, when, and how the two main storage gateway processes are triggered:
 
 **1\. Saving/Exporting Scenarios (Pulling files from Nodes to the NAS)**
 
--   **When:** The process is initiated when the `DrillMaster` receives a **SysOpType.SaveScenario** request.-   **How & Where:**
-    -   First, in `ProcessSingleSysOpRequest`, the `DrillMaster` calls the `FanOutSerializeLocal` method. This broadcasts a command to all active nodes, instructing them to serialize their current state and save it to their local SSDs (`C:\FDP_Temp`).-   As the individual nodes finish saving, they send back `NodeOpStatus(Success)` ACKs containing a JSON list of `FileManifestEntry` records (which dictate the exact paths of the files they just created).-   The `DrillMaster` processes these ACKs inside the **ConsumeNodeOpStatuses** method. It decrements a `RemainingAcks` counter. Once the counter hits zero (meaning all nodes have successfully written their local files), it triggers **\_gateway.PullToNasAsync**. This gateway method performs the actual parallel network pull from the nodes to the central NAS.
+-   **When:** The process is initiated when the `ClusterMaster` receives a **ClusterOpType.SaveScenario** request.-   **How & Where:**
+    -   First, in `ProcessSingleClusterOpRequest`, the `ClusterMaster` calls the `FanOutSerializeLocal` method. This broadcasts a command to all active nodes, instructing them to serialize their current state and save it to their local SSDs (`C:\FDP_Temp`).-   As the individual nodes finish saving, they send back `NodeOpStatus(Success)` ACKs containing a JSON list of `FileManifestEntry` records (which dictate the exact paths of the files they just created).-   The `ClusterMaster` processes these ACKs inside the **ConsumeNodeOpStatuses** method. It decrements a `RemainingAcks` counter. Once the counter hits zero (meaning all nodes have successfully written their local files), it triggers **\_gateway.PullToNasAsync**. This gateway method performs the actual parallel network pull from the nodes to the central NAS.
 
 **2\. Loading/Prefetching Scenarios (Pushing files from the NAS to Nodes)**
 
--   **When:** The process is initiated when the `DrillMaster` receives a **SysOpType.TransitionState** (loading a scenario) or **SysOpType.ManageStory** (Start mode) request that contains a `ScenarioId` in its payload.-   **How & Where:**
-    -   The `DrillMasterPlanner` automatically prepends an internal `SysOpType.PrefetchScenario` step to the state machine trajectory.-   Back in `ProcessSingleSysOpRequest`, the `DrillMaster` detects this step and calls the **ExecutePrefetchScenario** method, which immediately invokes **\_gateway.PrefetchScenarioAsync**. This begins the parallel background transfer of files from the NAS to the local staging directories of every active node.-   Because this is an asynchronous copy, the `DrillMaster` calls the **DrainPendingPrefetch** method during every single simulation `Tick()`.-   Once `DrainPendingPrefetch` observes that the gateway task is fully completed, it finally fans out the `NodeOpType.PrefetchFiles` command to the cluster nodes. This strict ordering ensures the nodes are never told to transition into a loading state before their required asset files are physically present on their local disks.
+-   **When:** The process is initiated when the `ClusterMaster` receives a **ClusterOpType.TransitionState** (loading a scenario) or **ClusterOpType.ManageEpisode** (Start mode) request that contains a `ScenarioId` in its payload.-   **How & Where:**
+    -   The `ClusterMasterPlanner` automatically prepends an internal `ClusterOpType.PrefetchScenario` step to the state machine trajectory.-   Back in `ProcessSingleClusterOpRequest`, the `ClusterMaster` detects this step and calls the **ExecutePrefetchScenario** method, which immediately invokes **\_gateway.PrefetchScenarioAsync**. This begins the parallel background transfer of files from the NAS to the local staging directories of every active node.-   Because this is an asynchronous copy, the `ClusterMaster` calls the **DrainPendingPrefetch** method during every single simulation `Tick()`.-   Once `DrainPendingPrefetch` observes that the gateway task is fully completed, it finally fans out the `NodeOpType.PrefetchFiles` command to the cluster nodes. This strict ordering ensures the nodes are never told to transition into a loading state before their required asset files are physically present on their local disks.
 
 if the files are not present on the local SSD before scenario is loaded, how can the Orchestrator's ImGui show the list of available scenario? It would need to ask the storage gateway, not its own local filesystem, correct?
 
@@ -1238,7 +1238,7 @@ You are absolutely right. Your observation highlights a crucial distinction betw
 
 If the UI simply scans the local `C:\FDP_Temp` directory, it will only ever see scenarios that the Orchestrator node itself has previously saved or pre-fetched. It would completely miss scenarios that were added to the central NAS by other means or during previous sessions.
 
-The system's architecture actually anticipates exactly what you are suggesting. The `DrillMaster` class exposes its `StorageGateway` property specifically so the UI panel can query the central storage rather than its own local disk. The design documentation in the source code explicitly notes that this property is:
+The system's architecture actually anticipates exactly what you are suggesting. The `ClusterMaster` class exposes its `StorageGateway` property specifically so the UI panel can query the central storage rather than its own local disk. The design documentation in the source code explicitly notes that this property is:
 
 _"Exposed so OrchestratorScenarioPanel can call ListScenariosAsync() (CGF1-S0106)."_
 
@@ -1262,13 +1262,13 @@ Recording is automatically started and stopped when the cluster transitions in a
 
 Replay sessions use their own dedicated DSM states that disable live physics and AI so the recorded frames can drive the world.
 
--   **State Transition:** `Standby` → `LoadingReplay` → `RunningReplay`.-   **How it works:** The Orchestrator fans out a `PrepareReplay` command containing the target `DrillId`. The `ReferenceReplayLoadHandler` receives this and calls `PrepareReplayAsync()`, installing the `ReplayModule`.-   **During Commit:** The handler actively disables the `SimulationSystemGroup` (physics, AI, kinematics) and the `NetworkLifecycleSystemGroup` (ghost creation) so that the live simulation logic does not interfere with the recorded data.-   **Teardown:** Transitioning to `UnloadingReplay` triggers `FinalizeReplay`, which tears down the replay module and re-enables the simulation systems.
+-   **State Transition:** `Standby` → `LoadingReplay` → `RunningReplay`.-   **How it works:** The Orchestrator fans out a `PrepareReplay` command containing the target `ExerciseId`. The `ReferenceReplayLoadHandler` receives this and calls `PrepareReplayAsync()`, installing the `ReplayModule`.-   **During Commit:** The handler actively disables the `SimulationSystemGroup` (physics, AI, kinematics) and the `NetworkLifecycleSystemGroup` (ghost creation) so that the live simulation logic does not interfere with the recorded data.-   **Teardown:** Transitioning to `UnloadingReplay` triggers `FinalizeReplay`, which tears down the replay module and re-enables the simulation systems.
 
 3\. Live-from-Replay Branching (`RunningReplay` → `LoadingLive`)
 
 The DSM supports seamlessly taking control of a paused replay to branch it into a new live drill.
 
--   **How it works:** If the cluster is in `RunningReplay` and the Orchestrator receives a transition request to `LoadingLive`, the transition planner intercepts this and triggers a special interlock protocol.-   **State Transition:** Time is hard-frozen by the Orchestrator, and a `PrepareLive` command is sent with a brand new, branched `DrillId`.-   **Node Execution:** The `ReferenceReplayLoadHandler` intercepts this specific `PrepareLive` command, immediately tears down the `ReplayModule` (leaving the entity repository frozen at the exact historical frame), and starts a brand new `RecordingModule` using the new `DrillId`. Once all nodes acknowledge, time is unfrozen and the branched timeline goes live.
+-   **How it works:** If the cluster is in `RunningReplay` and the Orchestrator receives a transition request to `LoadingLive`, the transition planner intercepts this and triggers a special interlock protocol.-   **State Transition:** Time is hard-frozen by the Orchestrator, and a `PrepareLive` command is sent with a brand new, branched `ExerciseId`.-   **Node Execution:** The `ReferenceReplayLoadHandler` intercepts this specific `PrepareLive` command, immediately tears down the `ReplayModule` (leaving the entity repository frozen at the exact historical frame), and starts a brand new `RecordingModule` using the new `ExerciseId`. Once all nodes acknowledge, time is unfrozen and the branched timeline goes live.
 
 ok so for the drill recodings, the configured storage directory must be a local file system path for each node. Is it now? We can not write from too many nodes to a shared NAS as this will deplete the connection limit.
 
@@ -1290,9 +1290,9 @@ you said "When a recording needs to be archived, the Orchestrator's central Stor
 
 You are correct to question this—based on the source code, the archiving feature for drill recordings is **not currently implemented**, and the recordings do indeed stay only on the local SSDs.
 
-While the architectural intention and the network message types (`SysOpType.ExportArchive`, `SysOpType.ImportArchive`, and `NodeOpType.UploadChunk`) are fully defined in the system's schema, the actual wiring to execute these operations is missing:
+While the architectural intention and the network message types (`ClusterOpType.ExportArchive`, `ClusterOpType.ImportArchive`, and `NodeOpType.UploadChunk`) are fully defined in the system's schema, the actual wiring to execute these operations is missing:
 
--   **No Orchestrator Logic:** The `DrillMaster`'s main request loop (`ProcessSingleSysOpRequest`) only contains concrete implementation branches for `TransitionState`, `SaveScenario`, and `ManageStory`. It currently lacks the logic to handle `ExportArchive` requests or to instruct the `StorageGatewayModule` to pull `.fdp` recording files.-   **No Node-Side Handlers:** The `NodeBootstrapper` registers handlers for scenarios, checkpoints, stories, and live/replay lifecycles, but there is no handler registered to process archive upload or download commands on the individual simulation nodes.-   **No UI Controls:** The `OrchestratorScenarioPanel` contains sections for Scenarios, Replay, Checkpoints, and Stories, but it does not have any buttons or inputs to trigger an archive export or import.
+-   **No Orchestrator Logic:** The `ClusterMaster`'s main request loop (`ProcessSingleClusterOpRequest`) only contains concrete implementation branches for `TransitionState`, `SaveScenario`, and `ManageEpisode`. It currently lacks the logic to handle `ExportArchive` requests or to instruct the `StorageGatewayModule` to pull `.fdp` recording files.-   **No Node-Side Handlers:** The `NodeBootstrapper` registers handlers for scenarios, checkpoints, stories, and live/replay lifecycles, but there is no handler registered to process archive upload or download commands on the individual simulation nodes.-   **No UI Controls:** The `OrchestratorScenarioPanel` contains sections for Scenarios, Replay, Checkpoints, and Stories, but it does not have any buttons or inputs to trigger an archive export or import.
 
 Currently, the `StorageGatewayModule`'s "SMB Pull Gateway" functionality is only actively wired up and used for **Scenarios** (pulling scenario files to the NAS during a `SaveScenario` operation and pushing them back to nodes via `PrefetchScenario`).
 
@@ -1300,13 +1300,13 @@ Therefore, at the moment, any drill recordings captured by the `EcsRecordReplayC
 
 Ok, let's then sketch an implementation for archiving import/export for drill recordings and checkpoints. Using similar mechanism as storage gateway is using now for scenario files.
 
-To implement the archive import/export feature using the existing "SMB Pull Gateway Pattern", we can mirror the mechanism currently used for scenarios. The network operation types `SysOpType.ExportArchive` and `SysOpType.ImportArchive` are already defined in the orchestration schema.
+To implement the archive import/export feature using the existing "SMB Pull Gateway Pattern", we can mirror the mechanism currently used for scenarios. The network operation types `ClusterOpType.ExportArchive` and `ClusterOpType.ImportArchive` are already defined in the orchestration schema.
 
 Here is a sketch of the implementation across the cluster.
 
 1\. Node-Side: Generating the Archive Manifest
 
-First, we need the simulation nodes to locate their local `.fdp` recording files and report them back to the orchestrator. We can create a new handler (e.g., `ReferenceArchiveHandler`) that listens for `NodeOpType.SerializeLocal`, but checks the payload for a `DrillId` instead of a `ScenarioId`.
+First, we need the simulation nodes to locate their local `.fdp` recording files and report them back to the orchestrator. We can create a new handler (e.g., `ReferenceArchiveHandler`) that listens for `NodeOpType.SerializeLocal`, but checks the payload for a `ExerciseId` instead of a `ScenarioId`.
 
 ```
 public sealed class ReferenceArchiveHandler : IDsmHandler
@@ -1329,8 +1329,8 @@ public sealed class ReferenceArchiveHandler : IDsmHandler
     
     public void Commit(OrchestrationCommand cmd, EntityRepository? repo)
     {
-        // Parse DrillId from payload to differentiate from SaveScenario
-        var drillId = ParseDrillId(cmd.PayloadJson);
+        // Parse ExerciseId from payload to differentiate from SaveScenario
+        var drillId = ParseExerciseId(cmd.PayloadJson);
         if (drillId == null) return; 
     
         var fileUnc = Path.Combine(_localTempRoot, drillId, $"node_{_nodeId}.fdp");
@@ -1356,24 +1356,24 @@ public sealed class ReferenceArchiveHandler : IDsmHandler
 
 2\. Orchestrator-Side: ExportArchive (Pull to NAS)
 
-In `DrillMaster.cs`, we intercept the `SysOpType.ExportArchive` request from the UI, fan out the `SerializeLocal` command to the active nodes, and then reuse the existing manifest collection logic to pull the files to the NAS.
+In `ClusterMaster.cs`, we intercept the `ClusterOpType.ExportArchive` request from the UI, fan out the `SerializeLocal` command to the active nodes, and then reuse the existing manifest collection logic to pull the files to the NAS.
 
-**In** **DrillMaster.ProcessSingleSysOpRequest****:**
+**In** **ClusterMaster.ProcessSingleClusterOpRequest****:**
 
 ```
-if (req.OperationType == SysOpType.ExportArchive)
+if (req.OperationType == ClusterOpType.ExportArchive)
 {
     var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
     var txId = Guid.NewGuid();
     
-    // Fan out SerializeLocal; payload contains {"DrillId": "..."}
+    // Fan out SerializeLocal; payload contains {"ExerciseId": "..."}
     FanOutSerializeLocal(txId, nodeIds, req.PayloadJson); [2, 3]
     
-    FdpLog<DrillMaster>.Info("ExportArchive requested. Fanning out to {0} nodes.", nodeIds.Count);
+    FdpLog<ClusterMaster>.Info("ExportArchive requested. Fanning out to {0} nodes.", nodeIds.Count);
 }
 ```
 
-_Note: Because_ _DrillMaster.ConsumeNodeOpStatuses_ _already aggregates_ _FileManifestEntry_ _lists and automatically calls_ _\_gateway.PullToNasAsync_ _when all ACKs arrive, the actual network pull to the NAS will work out-of-the-box without further modification!_
+_Note: Because_ _ClusterMaster.ConsumeNodeOpStatuses_ _already aggregates_ _FileManifestEntry_ _lists and automatically calls_ _\_gateway.PullToNasAsync_ _when all ACKs arrive, the actual network pull to the NAS will work out-of-the-box without further modification!_
 
 3\. Orchestrator-Side: ImportArchive (Push to Nodes)
 
@@ -1417,12 +1417,12 @@ public async Task<GatewayResult> PrefetchArchiveAsync(
 }
 ```
 
-**In** **DrillMaster.ProcessSingleSysOpRequest****:**
+**In** **ClusterMaster.ProcessSingleClusterOpRequest****:**
 
 ```
-if (req.OperationType == SysOpType.ImportArchive)
+if (req.OperationType == ClusterOpType.ImportArchive)
 {
-    var drillId = ParseDrillId(req.PayloadJson);
+    var drillId = ParseExerciseId(req.PayloadJson);
     var targets = BuildNodeDistributionTargets(drillId); // Helper that builds paths like C:\FDP_Temp\<drillId>\ [9, 10]
 
     // Run the gateway copy asynchronously
@@ -1431,7 +1431,7 @@ if (req.OperationType == SysOpType.ImportArchive)
         int status = t.Result.IsFullSuccess ? OrchestrationStatusCode.Success : OrchestrationStatusCode.Timeout;
         
         // Notify the UI panel that the import is complete
-        _sysOpStatusWriter.Write(new SysOpStatus
+        _sysOpStatusWriter.Write(new ClusterOpStatus
         {
             RequestId = req.RequestId,
             StatusCode = status,
@@ -1451,16 +1451,16 @@ Because Replay already relies strictly on the `_availableDrills` array (which on
 
 Here are the changes required:
 
-1\. Update `Bagira.Orchestrator/DrillMaster.cs`
+1\. Update `Hrot.Orchestrator/ClusterMaster.cs`
 
 To allow the UI to scan the NAS, expose the `_nasBasePath` field as a public property:
 
 ```
-// Add this property to DrillMaster
+// Add this property to ClusterMaster
 public string NasBasePath => _nasBasePath;
 ```
 
-2\. Update `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`
+2\. Update `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`
 
 Add the new state fields for the Archive section, update the file scanner to cross-reference the NAS, and implement the new UI section.
 
@@ -1470,7 +1470,7 @@ Add the new state fields for the Archive section, update the file scanner to cro
     // ── Replay section state ──────────────────────────────────────────────
     private float _seekSliderValue = 0f;
     private string[] _availableDrills = Array.Empty<string>();
-    private int _selectedDrillIdx = -1;
+    private int _selectedExerciseIdx = -1;
     
     // ── Archive section state (NEW) ───────────────────────────────────────
     private string[] _archivedDrills = Array.Empty<string>();
@@ -1526,7 +1526,7 @@ Add the new state fields for the Archive section, update the file scanner to cro
             // Clamp indices
             if (_selectedLoadScenarioIdx >= _availableScenarios.Length) _selectedLoadScenarioIdx = -1;
             if (_selectedStoryIdx >= _availableStories.Length) _selectedStoryIdx = -1;
-            if (_selectedDrillIdx >= _availableDrills.Length) _selectedDrillIdx = -1;
+            if (_selectedExerciseIdx >= _availableDrills.Length) _selectedExerciseIdx = -1;
             if (_selectedArchiveIdx >= _archivedDrills.Length) _selectedArchiveIdx = -1;
             if (_selectedUnarchivedIdx >= _unarchivedLocalDrills.Length) _selectedUnarchivedIdx = -1;
         }
@@ -1540,7 +1540,7 @@ Add the new state fields for the Archive section, update the file scanner to cro
 **Add** **RenderArchiveSection()****:**
 
 ```
-    private void RenderArchiveSection(DSMState currentState, bool disableAll)
+    private void RenderArchiveSection(ClusterState currentState, bool disableAll)
     {
         if (!ImGui.CollapsingHeader("Archive Management")) return;
     
@@ -1555,11 +1555,11 @@ Add the new state fields for the Archive section, update the file scanner to cro
             if (ImGui.Button("Export to NAS##OrcExportBtn") && _selectedUnarchivedIdx >= 0)
             {
                 string drillId = _unarchivedLocalDrills[_selectedUnarchivedIdx];
-                _sysOpWriter.Write(new SysOpRequest
+                _sysOpWriter.Write(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.ExportArchive,
-                    PayloadJson   = $"{{\"DrillId\":\"{drillId}\"}}"
+                    OperationType = ClusterOpType.ExportArchive,
+                    PayloadJson   = $"{{\"ExerciseId\":\"{drillId}\"}}"
                 });
             }
     
@@ -1574,11 +1574,11 @@ Add the new state fields for the Archive section, update the file scanner to cro
             if (ImGui.Button("Import from NAS##OrcImportBtn") && _selectedArchiveIdx >= 0)
             {
                 string drillId = _archivedDrills[_selectedArchiveIdx];
-                _sysOpWriter.Write(new SysOpRequest
+                _sysOpWriter.Write(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.ImportArchive,
-                    PayloadJson   = $"{{\"DrillId\":\"{drillId}\"}}"
+                    OperationType = ClusterOpType.ImportArchive,
+                    PayloadJson   = $"{{\"ExerciseId\":\"{drillId}\"}}"
                 });
             }
     
@@ -1609,9 +1609,9 @@ No, the system **does not support explicit, user-initiated cancellation requests
 
 Here is how the system handles in-flight operations across its different layers:
 
--   **UI Level:** The Orchestrator's control panel deliberately disables all interactive buttons while there is an active, in-flight distributed transaction, preventing the user from issuing new commands or cancellations.-   **SysOp Level:** The `SysOpType` enumeration does not contain any "Cancel" or "Abort" network command that an operator could send.-   **NodeOp Level (Internal Aborts):** The system _does_ have an internal `NodeOpType.AbortTransaction` command, and every `IDsmHandler` implements an `Abort` method designed to roll back prepared resources. However, this mechanism is strictly used for **automatic failure recovery**, not user cancellation.
+-   **UI Level:** The Orchestrator's control panel deliberately disables all interactive buttons while there is an active, in-flight distributed transaction, preventing the user from issuing new commands or cancellations.-   **SysOp Level:** The `ClusterOpType` enumeration does not contain any "Cancel" or "Abort" network command that an operator could send.-   **NodeOp Level (Internal Aborts):** The system _does_ have an internal `NodeOpType.AbortTransaction` command, and every `IDsmHandler` implements an `Abort` method designed to roll back prepared resources. However, this mechanism is strictly used for **automatic failure recovery**, not user cancellation.
 
-For example, if a mandatory simulation node times out and is ejected from the cluster while a transition is running, the `DrillMaster` automatically marks the active transaction as aborted and broadcasts the `AbortTransaction` command to all surviving nodes to clean up.
+For example, if a mandatory simulation node times out and is ejected from the cluster while a transition is running, the `ClusterMaster` automatically marks the active transaction as aborted and broadcasts the `AbortTransaction` command to all surviving nodes to clean up.
 
 Explicit cancelling is usefull. Can we define a clean way of aborting a still running not yet finished request? with a clean of way of how to handle the abort on the nodes?
 
@@ -1623,16 +1623,16 @@ As a software architect, I completely agree. Relying strictly on timeouts or for
 
 To implement a clean cancellation pipeline, we need to span four architectural layers:
 
--   **Network Contract:** A new explicit `SysOpRequest` to signal the cancellation intent over DDS.-   **Orchestrator Execution:** Linking the cancellation intent to standard .NET `CancellationTokenSource` (CTS) for local gateway tasks, and fanning out `NodeOpType.AbortTransaction` to the nodes.-   **Storage Gateway (Data Plane):** Honoring the `CancellationToken`, breaking the parallel loops, and executing a `catch (OperationCanceledException)` block to scrub partial files.-   **ImGui UI Layer:** Rendering the progress bar and exposing the "Cancel" button while locking out concurrent operations.
+-   **Network Contract:** A new explicit `ClusterOpRequest` to signal the cancellation intent over DDS.-   **Orchestrator Execution:** Linking the cancellation intent to standard .NET `CancellationTokenSource` (CTS) for local gateway tasks, and fanning out `NodeOpType.AbortTransaction` to the nodes.-   **Storage Gateway (Data Plane):** Honoring the `CancellationToken`, breaking the parallel loops, and executing a `catch (OperationCanceledException)` block to scrub partial files.-   **ImGui UI Layer:** Rendering the progress bar and exposing the "Cancel" button while locking out concurrent operations.
 
-Here is how we can sketch this clean architecture into the Bagira codebase.
+Here is how we can sketch this clean architecture into the Hrot codebase.
 
 1\. Update the Network Contract (`OrchestrationMessages.cs`)
 
 Add a specific operation type for cancellation:
 
 ```
-public enum SysOpType : int
+public enum ClusterOpType : int
 {
     // ... existing ...
     PrefetchScenario = 12,
@@ -1687,16 +1687,16 @@ public async Task<GatewayResult> PullToNasAsync(
 }
 ```
 
-3\. Update the Orchestrator (`DrillMaster.cs`)
+3\. Update the Orchestrator (`ClusterMaster.cs`)
 
-The `DrillMaster` needs a registry of `CancellationTokenSource` objects tied to active operation GUIDs. When `CancelOperation` is received, it triggers the local CTS (killing the Storage Gateway task) and broadcasts `AbortTransaction` to the nodes.
+The `ClusterMaster` needs a registry of `CancellationTokenSource` objects tied to active operation GUIDs. When `CancelOperation` is received, it triggers the local CTS (killing the Storage Gateway task) and broadcasts `AbortTransaction` to the nodes.
 
 ```
 // Add state to track cancellable operations
 private readonly Dictionary<Guid, CancellationTokenSource> _activeCancellations = new();
 
-// In ProcessSingleSysOpRequest:
-if (req.OperationType == SysOpType.CancelOperation)
+// In ProcessSingleClusterOpRequest:
+if (req.OperationType == ClusterOpType.CancelOperation)
 {
     // Parse the target operation ID to cancel
     if (Guid.TryParse(req.PayloadJson, out Guid targetOpId))
@@ -1716,7 +1716,7 @@ if (req.OperationType == SysOpType.CancelOperation)
             PayloadJson   = string.Empty
         }, _roster.ActiveNodes.Keys);
     
-        FdpLog<DrillMaster>.Info("Operation {0} force-cancelled by operator.", targetOpId);
+        FdpLog<ClusterMaster>.Info("Operation {0} force-cancelled by operator.", targetOpId);
     }
     return;
 }
@@ -1735,7 +1735,7 @@ The UI must block standard controls during archiving, display the progress, and 
 private Guid _activeArchiveOpId = Guid.Empty;
 private float _archiveProgress = 0f; // Tracked via GatewayResult or activeTx.CompletedSteps
 
-private void RenderArchiveSection(DSMState currentState, bool disableAll)
+private void RenderArchiveSection(ClusterState currentState, bool disableAll)
 {
     if (!ImGui.CollapsingHeader("Archive Management")) return;
 
@@ -1752,7 +1752,7 @@ private void RenderArchiveSection(DSMState currentState, bool disableAll)
         {
             _activeArchiveOpId = Guid.NewGuid();
             _archiveProgress = 0f;
-            _sysOpWriter.Write(new SysOpRequest { OperationType = SysOpType.ImportArchive, RequestId = _activeArchiveOpId, /*...*/ });
+            _sysOpWriter.Write(new ClusterOpRequest { OperationType = ClusterOpType.ImportArchive, RequestId = _activeArchiveOpId, /*...*/ });
         }
         
         if (disableAll || isArchiving) ImGui.EndDisabled();
@@ -1771,10 +1771,10 @@ private void RenderArchiveSection(DSMState currentState, bool disableAll)
             ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.8f, 0.2f, 0.2f, 1f));
             if (ImGui.Button("CANCEL OPERATION", new Vector2(-1, 32)))
             {
-                _sysOpWriter.Write(new SysOpRequest
+                _sysOpWriter.Write(new ClusterOpRequest
                 {
                     RequestId     = Guid.NewGuid(),
-                    OperationType = SysOpType.CancelOperation,
+                    OperationType = ClusterOpType.CancelOperation,
                     PayloadJson   = _activeArchiveOpId.ToString()
                 });
                 
@@ -1792,16 +1792,16 @@ By bridging the `SysOp` intent down into the .NET `CancellationToken` and across
 
 What in the orchestrator's "Drill Control" I now click on the button for switching the state, nothing happend. Not even one single node shown in the "Node Health" moves from its Standby state. where is the issue?
 
-The issue lies in **Bagira.Orchestrator/DrillMaster.cs**. While we successfully wired the UI to send real `SysOpRequest` messages over the network, and the `DrillMaster` receives them and successfully plans the state transition trajectory, it completely lacks the logic to actually broadcast the resulting `TransitionStep` commands to the cluster.
+The issue lies in **Hrot.Orchestrator/ClusterMaster.cs**. While we successfully wired the UI to send real `ClusterOpRequest` messages over the network, and the `ClusterMaster` receives them and successfully plans the state transition trajectory, it completely lacks the logic to actually broadcast the resulting `TransitionStep` commands to the cluster.
 
-As noted in the source documentation, the `DistributedTransaction` handling is currently a "skeleton" where the actual 2PC execution was left for later phases. Because the `DrillMaster` only updates its own optimistic internal state (`_currentDsmState`) and never fans out the `PrepareState` or `CommitState` messages to the leaf nodes, the nodes never execute the transitions and remain in `Standby` forever.
+As noted in the source documentation, the `DistributedTransaction` handling is currently a "skeleton" where the actual 2PC execution was left for later phases. Because the `ClusterMaster` only updates its own optimistic internal state (`_currentClusterState`) and never fans out the `PrepareState` or `CommitState` messages to the leaf nodes, the nodes never execute the transitions and remain in `Standby` forever.
 
 To fix this, we need to iterate through the planned `trajectory` and explicitly fan out the corresponding `Prepare` and `Commit` network commands to all active nodes.
 
-Update **DrillMaster.cs** inside the `ProcessSingleSysOpRequest` method. Scroll down to the end of the `if (req.OperationType == SysOpType.TransitionState)` block, right after the Live-from-Replay branch logic, and insert the network fan-out loop:
+Update **ClusterMaster.cs** inside the `ProcessSingleClusterOpRequest` method. Scroll down to the end of the `if (req.OperationType == ClusterOpType.TransitionState)` block, right after the Live-from-Replay branch logic, and insert the network fan-out loop:
 
 ```
-                if (passesLoadingLive && stateBeforeAdvance == DSMState.RunningReplay)
+                if (passesLoadingLive && stateBeforeAdvance == ClusterState.RunningReplay)
                 {
                     // ... existing Live-from-Replay freeze time logic ...
                 }
@@ -1811,8 +1811,8 @@ Update **DrillMaster.cs** inside the `ProcessSingleSysOpRequest` method. Scroll 
                 // ... existing catch block ...
             }
         }
-        else if (req.OperationType == SysOpType.SaveScenario)
-        // ... existing SaveScenario and ManageStory blocks ...
+        else if (req.OperationType == ClusterOpType.SaveScenario)
+        // ... existing SaveScenario and ManageEpisode blocks ...
     
         // ──────────────────────────────────────────────────────────────────────────
         // NEW: Fan out the actual state transitions to the cluster nodes!
@@ -1820,7 +1820,7 @@ Update **DrillMaster.cs** inside the `ProcessSingleSysOpRequest` method. Scroll 
         var txId = Guid.NewGuid();
         var activeNodeIds = new List<int>(_roster.ActiveNodes.Keys);
     
-        if (req.OperationType == SysOpType.TransitionState && activeNodeIds.Count > 0)
+        if (req.OperationType == ClusterOpType.TransitionState && activeNodeIds.Count > 0)
         {
             foreach (var step in trajectory)
             {
@@ -1828,12 +1828,12 @@ Update **DrillMaster.cs** inside the `ProcessSingleSysOpRequest` method. Scroll 
                 {
                     // Map the TargetState to the correct lifecycle Prepare operation
                     NodeOpType prepareOp = NodeOpType.PrepareState;
-                    if (tStep.TargetState == DSMState.LoadingLive) prepareOp = NodeOpType.PrepareLive;
-                    else if (tStep.TargetState == DSMState.UnloadingLive) prepareOp = NodeOpType.FinalizeLive;
-                    else if (tStep.TargetState == DSMState.LoadingReplay) prepareOp = NodeOpType.PrepareReplay;
-                    else if (tStep.TargetState == DSMState.UnloadingReplay) prepareOp = NodeOpType.FinalizeReplay;
+                    if (tStep.TargetState == ClusterState.LoadingLive) prepareOp = NodeOpType.PrepareLive;
+                    else if (tStep.TargetState == ClusterState.UnloadingLive) prepareOp = NodeOpType.FinalizeLive;
+                    else if (tStep.TargetState == ClusterState.LoadingReplay) prepareOp = NodeOpType.PrepareReplay;
+                    else if (tStep.TargetState == ClusterState.UnloadingReplay) prepareOp = NodeOpType.FinalizeReplay;
     
-                    // 1. Fan out Prepare (Distributes DrillId / ScenarioId to node handlers)
+                    // 1. Fan out Prepare (Distributes ExerciseId / ScenarioId to node handlers)
                     FanOutNodeOp(new NodeOpCommand
                     {
                         TransactionId = txId,
@@ -1841,7 +1841,7 @@ Update **DrillMaster.cs** inside the `ProcessSingleSysOpRequest` method. Scroll 
                         PayloadJson   = req.PayloadJson ?? string.Empty
                     }, activeNodeIds);
     
-                    // 2. Fan out Commit (Forces DrillSlave to update its _localStateId)
+                    // 2. Fan out Commit (Forces ClusterSlave to update its _localStateId)
                     FanOutNodeOp(new NodeOpCommand
                     {
                         TransactionId = txId,
@@ -1849,7 +1849,7 @@ Update **DrillMaster.cs** inside the `ProcessSingleSysOpRequest` method. Scroll 
                         PayloadJson   = ((int)tStep.TargetState).ToString()
                     }, activeNodeIds);
                 }
-                else if (step is OperationStep opStep && opStep.Operation == SysOpType.ReplaySeek)
+                else if (step is OperationStep opStep && opStep.Operation == ClusterOpType.ReplaySeek)
                 {
                     FanOutNodeOp(new NodeOpCommand
                     {
@@ -1868,7 +1868,7 @@ Update **DrillMaster.cs** inside the `ProcessSingleSysOpRequest` method. Scroll 
         {
             TransactionId    = txId, // Replaced Guid.NewGuid() with txId
             OriginRequestId  = req.RequestId,
-            TargetDsmState   = resolvedTarget,
+            TargetClusterState   = resolvedTarget,
             TotalSteps       = totalSteps,
             CompletedSteps   = totalSteps, // Still completing instantly as a skeleton 2PC
             IsAborted        = false
@@ -1880,13 +1880,13 @@ Update **DrillMaster.cs** inside the `ProcessSingleSysOpRequest` method. Scroll 
 
 Why this works:
 
--   **Prepare Phase Routing:** By mapping specific targets like `LoadingLive` to `NodeOpType.PrepareLive`, the system correctly routes the command to specific lifecycle handlers on the nodes (like `ReferenceLiveLoadHandler` or `ReferenceReplayLoadHandler`), and forwards the original `PayloadJson` so the nodes can extract the `DrillId` and `ScenarioId`.-   **Commit Phase Execution:** When the nodes receive `NodeOpType.CommitState`, the local `DrillSlave` explicitly intercepts it, parses the payload as the target integer state, and overrides its `_localStateId`.-   **UI Updates:** Because the nodes have transitioned states, their next 1Hz `NodeHeartbeat` publish will broadcast the new state, and the Orchestrator's Node Health ImGui table will dynamically update to reflect the entire cluster stepping through the sequence.
+-   **Prepare Phase Routing:** By mapping specific targets like `LoadingLive` to `NodeOpType.PrepareLive`, the system correctly routes the command to specific lifecycle handlers on the nodes (like `ReferenceLiveLoadHandler` or `ReferenceReplayLoadHandler`), and forwards the original `PayloadJson` so the nodes can extract the `ExerciseId` and `ScenarioId`.-   **Commit Phase Execution:** When the nodes receive `NodeOpType.CommitState`, the local `ClusterSlave` explicitly intercepts it, parses the payload as the target integer state, and overrides its `_localStateId`.-   **UI Updates:** Because the nodes have transitioned states, their next 1Hz `NodeHeartbeat` publish will broadcast the new state, and the Orchestrator's Node Health ImGui table will dynamically update to reflect the entire cluster stepping through the sequence.
 
 While the orchestrator has direct access to the nas, i want other nodes like the IOS to present simular file / archive management UI. That means the orchestrator (or rather the storage gateway which is now embedded to it) to provide the scenario/drill recording/checkpoint enumaration remotely, using dds network messages holding the list of resources. The dds messages belong to app layer while the generic implemenation if the storage gateway should stay generic so some translation is necessary. The remote availability ofvthe api should apply to state machine control as well. Simply lts imagine all the orchestrator ui now should be implementable by IOS not having direct access to nas nor having direct acceess to drull state machine controller.
 
 To achieve a clean, decoupled architecture in a distributed simulation, UI components should never reach directly into the file system or bypass the network to access local service instances. Instead, the UI must act as a pure projection of the network state, reacting to published data and issuing commands via our CQRS-style DDS orchestration topics.
 
-By pushing the file enumeration into a dedicated DDS topic and relying entirely on `SysOpRequest` for commands, we can easily share the exact same Scenario/Archive Management panel across the Orchestrator, IOS, or any other remote instructor node.
+By pushing the file enumeration into a dedicated DDS topic and relying entirely on `ClusterOpRequest` for commands, we can easily share the exact same Scenario/Archive Management panel across the Orchestrator, IOS, or any other remote instructor node.
 
 Here is the architectural blueprint and implementation guide to decouple this cleanly.
 
@@ -1894,7 +1894,7 @@ Here is the architectural blueprint and implementation guide to decouple this cl
 
 First, we extend the application data model to broadcast the available assets. A request/response pattern for UI populating is often clunky; instead, the Orchestrator should publish an `AssetInventoryTopic` with `TransientLocal` QoS. This ensures any late-joining node (like the IOS) instantly receives the latest directory cache upon subscribing, resulting in zero-latency UI population.
 
-Add this to `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs`:
+Add this to `Hrot.NED/Orchestration/OrchestrationMessages.cs`:
 
 ```
 [DdsTopic("AssetInventory")]
@@ -1913,9 +1913,9 @@ public partial struct AssetInventoryTopic
 
 2\. The Orchestrator (Data Plane): Scanning and Publishing
 
-We keep the `StorageGatewayModule` generic. The `DrillMaster` (which bridges the generic toolkit layer and the Bagira app layer) becomes responsible for periodically scanning the storage layers and publishing the `AssetInventoryTopic`.
+We keep the `StorageGatewayModule` generic. The `ClusterMaster` (which bridges the generic toolkit layer and the Hrot app layer) becomes responsible for periodically scanning the storage layers and publishing the `AssetInventoryTopic`.
 
-In `DrillMaster.cs`, add a new writer and a background refresh loop:
+In `ClusterMaster.cs`, add a new writer and a background refresh loop:
 
 ```
 private readonly DdsWriter<AssetInventoryTopic> _inventoryWriter;
@@ -1958,9 +1958,9 @@ private void PublishAssetInventory()
 
 You noted that the remote availability should apply to the state machine control as well. The great news is that the foundational network contract is already perfectly set up for this CQRS approach.
 
-The IOS does not need direct access to `DrillMaster`. It simply needs to:
+The IOS does not need direct access to `ClusterMaster`. It simply needs to:
 
--   **Read State:** Subscribe to `SystemStateTopic` to know the `CurrentState` and active `DrillId`. Subscribe to `OrchestratorContextTopic` to read the active `ScenarioId` and injected stories.-   **Plan Transitions locally:** The IOS can locally instantiate the static `BagiraStateGraph.Build()` and pass it to a `DrillMasterPlanner`. This allows the IOS to compute `GetReachableTargets(currentState)` purely client-side, populating its "Next State" buttons without a network round-trip.-   **Dispatch Commands:** When the operator clicks "Load into Live" or "Export Archive", the IOS UI simply writes a `SysOpRequest` via its `DdsWriter<SysOpRequest>`. The Orchestrator receives it, plans the 2PC round, and executes it.
+-   **Read State:** Subscribe to `SystemStateTopic` to know the `CurrentState` and active `ExerciseId`. Subscribe to `OrchestratorContextTopic` to read the active `ScenarioId` and injected stories.-   **Plan Transitions locally:** The IOS can locally instantiate the static `HrotStateGraph.Build()` and pass it to a `ClusterMasterPlanner`. This allows the IOS to compute `GetReachableTargets(currentState)` purely client-side, populating its "Next State" buttons without a network round-trip.-   **Dispatch Commands:** When the operator clicks "Load into Live" or "Export Archive", the IOS UI simply writes a `ClusterOpRequest` via its `DdsWriter<ClusterOpRequest>`. The Orchestrator receives it, plans the 2PC round, and executes it.
 
 4\. The Shared UI Component: `ClusterScenarioPanel`
 
@@ -1971,21 +1971,21 @@ We strip out the direct `_drillMaster` dependency and replace it with DDS reader
 ```
 public sealed class ClusterScenarioPanel
 {
-    private readonly DdsWriter<SysOpRequest> _sysOpWriter;
+    private readonly DdsWriter<ClusterOpRequest> _sysOpWriter;
     private readonly DdsReader<AssetInventoryTopic> _inventoryReader;
-    private readonly DrillMasterPlanner _localPlanner;
+    private readonly ClusterMasterPlanner _localPlanner;
     
     // UI State
     private string[] _archivedDrills = Array.Empty<string>();
     // ... other arrays ...
     
     public ClusterScenarioPanel(
-        DdsWriter<SysOpRequest> sysOpWriter, 
+        DdsWriter<ClusterOpRequest> sysOpWriter, 
         DdsReader<AssetInventoryTopic> inventoryReader)
     {
         _sysOpWriter = sysOpWriter;
         _inventoryReader = inventoryReader;
-        _localPlanner = new DrillMasterPlanner(BagiraStateGraph.Build());
+        _localPlanner = new ClusterMasterPlanner(HrotStateGraph.Build());
     }
     
     public void Update()
@@ -2015,13 +2015,13 @@ public sealed class ClusterScenarioPanel
 }
 ```
 
-By unifying the control plane around the `SysOpRequest` / `AssetInventoryTopic` boundaries, any node on the DDS domain can govern the simulation lifecycle. The IOS becomes functionally equal to the Orchestrator's local UI, enforcing a strict separation between the data plane (NAS/Gateway) and the presentation layer.
+By unifying the control plane around the `ClusterOpRequest` / `AssetInventoryTopic` boundaries, any node on the DDS domain can govern the simulation lifecycle. The IOS becomes functionally equal to the Orchestrator's local UI, enforcing a strict separation between the data plane (NAS/Gateway) and the presentation layer.
 
 Ok lets plan for verifying it by implementing the control panel as the orchesyrator has ui on the ios subsystem imgui. The control should include also the time! The ios must be able to request a pause/step/speed of the master time, without itself being the time master.
 
 To implement a remote, fully decoupled Time Control panel on the IOS, we must adhere strictly to the CQRS (Command Query Responsibility Segregation) pattern that governs the cluster.
 
-The IOS should act purely as an observer and intent-dispatcher. It will **Query** the current time state by subscribing to the existing `TimePulse` and `SwitchTimeModeEvent` DDS topics. It will issue **Commands** by dispatching `SysOpRequest` messages back to the Orchestrator, which holds the authoritative `DistributedTimeCoordinator`.
+The IOS should act purely as an observer and intent-dispatcher. It will **Query** the current time state by subscribing to the existing `TimePulse` and `SwitchTimeModeEvent` DDS topics. It will issue **Commands** by dispatching `ClusterOpRequest` messages back to the Orchestrator, which holds the authoritative `DistributedTimeCoordinator`.
 
 Here is the clean-architecture blueprint to implement this across the data model, orchestrator, and IOS layers.
 
@@ -2030,7 +2030,7 @@ Here is the clean-architecture blueprint to implement this across the data model
 We must add explicit explicit operational intents for stepping and scaling time to our system operation schema.
 
 ```
-public enum SysOpType : int
+public enum ClusterOpType : int
 {
     // ... existing ...
     PauseTime = 10, 
@@ -2044,19 +2044,19 @@ public enum SysOpType : int
 }
 ```
 
-2\. Orchestrator Data Plane (`DrillMaster.cs` & `OrchestratorSubsystem.cs`)
+2\. Orchestrator Data Plane (`ClusterMaster.cs` & `OrchestratorSubsystem.cs`)
 
-The `DrillMaster` receives `SysOpRequests` from the network bus. Because time manipulation does not require a Two-Phase Commit (2PC) round across the simulation nodes, the `DrillMaster` should intercept these requests and fire a local C# event. The `OrchestratorSubsystem` (which owns the time kernel) will listen and apply them.
+The `ClusterMaster` receives `ClusterOpRequests` from the network bus. Because time manipulation does not require a Two-Phase Commit (2PC) round across the simulation nodes, the `ClusterMaster` should intercept these requests and fire a local C# event. The `OrchestratorSubsystem` (which owns the time kernel) will listen and apply them.
 
-**In** **DrillMaster.cs****:**
+**In** **ClusterMaster.cs****:**
 
 ```
 // Add the event for the hosting subsystem to consume
-public event Action<SysOpType, string>? TimeControlRequested;
+public event Action<ClusterOpType, string>? TimeControlRequested;
 
-// Inside ProcessSingleSysOpRequest(SysOpRequest req):
-if (req.OperationType is SysOpType.PauseTime or SysOpType.ResumeTime or 
-    SysOpType.StepTime or SysOpType.SetTimeScale)
+// Inside ProcessSingleClusterOpRequest(ClusterOpRequest req):
+if (req.OperationType is ClusterOpType.PauseTime or ClusterOpType.ResumeTime or 
+    ClusterOpType.StepTime or ClusterOpType.SetTimeScale)
 {
     // Fire event and return early; no distributed 2PC required for master time operations
     TimeControlRequested?.Invoke(req.OperationType, req.PayloadJson ?? string.Empty);
@@ -2069,20 +2069,20 @@ if (req.OperationType is SysOpType.PauseTime or SysOpType.ResumeTime or
 ```
 _drillMaster.TimeControlRequested += (op, payload) =>
 {
-    if (op == SysOpType.PauseTime)
+    if (op == ClusterOpType.PauseTime)
     {
         var slaveIds = new HashSet<int>(_drillMaster.NodeRoster.ActiveNodes.Keys);
         _timeCoordinator?.SwitchToDeterministic(slaveIds);
     }
-    else if (op == SysOpType.ResumeTime)
+    else if (op == ClusterOpType.ResumeTime)
     {
         _timeCoordinator?.SwitchToContinuous();
     }
-    else if (op == SysOpType.StepTime)
+    else if (op == ClusterOpType.StepTime)
     {
         _timeKernel?.StepFrame(1f / 60f); // Make a short 60Hz deterministic step
     }
-    else if (op == SysOpType.SetTimeScale && float.TryParse(payload, out float scale))
+    else if (op == ClusterOpType.SetTimeScale && float.TryParse(payload, out float scale))
     {
         _timeKernel?.GetTimeController()?.SetTimeScale(scale);
     }
@@ -2163,10 +2163,10 @@ public float MasterTimeScale { get; private set; } = 1.0f;
 public bool IsPaused { get; private set; }
 
 // Dispatch commands via the existing SysOp writer
-public void RequestPause()  => _sysOpWriter.Write(new SysOpRequest { RequestId = Guid.NewGuid(), OperationType = SysOpType.PauseTime });
-public void RequestResume() => _sysOpWriter.Write(new SysOpRequest { RequestId = Guid.NewGuid(), OperationType = SysOpType.ResumeTime });
-public void RequestStep()   => _sysOpWriter.Write(new SysOpRequest { RequestId = Guid.NewGuid(), OperationType = SysOpType.StepTime });
-public void SetTimeScale(float scale) => _sysOpWriter.Write(new SysOpRequest { RequestId = Guid.NewGuid(), OperationType = SysOpType.SetTimeScale, PayloadJson = scale.ToString() });
+public void RequestPause()  => _sysOpWriter.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.PauseTime });
+public void RequestResume() => _sysOpWriter.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.ResumeTime });
+public void RequestStep()   => _sysOpWriter.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.StepTime });
+public void SetTimeScale(float scale) => _sysOpWriter.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), OperationType = ClusterOpType.SetTimeScale, PayloadJson = scale.ToString() });
 ```
 
 _Don't forget to wire the new ingress handlers inside_ _IosSubsystem.cs_ _passing_ _pulse => logic.MasterSimTime = pulse.SimTimeSnapshot;_ _(etc.) into the callbacks._
@@ -2226,22 +2226,22 @@ The orchestrator ui must be using these remote networked request, never taking s
 
 To achieve strict CQRS separation and ensure the UI never takes shortcuts to local memory, we must treat the Orchestrator's ImGui panel exactly like the IOS panel: as a pure network client.
 
-By sniffing the DDS bus, the UI can rebuild the cluster's entire state (Node Health, 2PC History, Time, and Asset Inventory) without ever holding a reference to the `DrillMaster`.
+By sniffing the DDS bus, the UI can rebuild the cluster's entire state (Node Health, 2PC History, Time, and Asset Inventory) without ever holding a reference to the `ClusterMaster`.
 
 Here is the architectural refactoring to completely decouple the Orchestrator's UI into a pure network-driven projection.
 
 1\. Create a Pure Network Projection (`ClusterUiCache.cs`)
 
-Create a new class that polls DDS readers each frame to project the cluster's state. It sniffs `SysOpStatus` to track in-flight locks, and sniffs `NodeOpCommand`/`NodeOpStatus` to rebuild the 2PC history table purely from network traffic.
+Create a new class that polls DDS readers each frame to project the cluster's state. It sniffs `ClusterOpStatus` to track in-flight locks, and sniffs `NodeOpCommand`/`NodeOpStatus` to rebuild the 2PC history table purely from network traffic.
 
 ```
 using System;
 using System.Collections.Generic;
-using Bagira.BDC.SSTD.Orchestration;
+using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Time.Messages;
 
-namespace Bagira.Runner.Services;
+namespace Hrot.ClusterRunner.Services;
 
 public sealed class ClusterUiCache : IDisposable
 {
@@ -2250,13 +2250,13 @@ public sealed class ClusterUiCache : IDisposable
     private readonly DdsReader<OrchestratorContextTopic> _contextReader;
     private readonly DdsReader<AssetInventoryTopic> _inventoryReader;
     private readonly DdsReader<NodeHeartbeat> _heartbeatReader;
-    private readonly DdsReader<SysOpStatus> _sysOpStatusReader;
+    private readonly DdsReader<ClusterOpStatus> _sysOpStatusReader;
     private readonly DdsReader<NodeOpCommand> _nodeOpCmdReader;
     private readonly DdsReader<NodeOpStatus> _nodeOpStatusReader;
     private readonly DdsReader<TimePulseDescriptor> _timePulseReader;
 
     // ── Projected UI State ─────────────────────────────────────────────────
-    public DSMState CurrentState { get; private set; } = DSMState.Standby;
+    public ClusterState CurrentState { get; private set; } = ClusterState.Standby;
     public bool HasInFlightTransaction { get; private set; }
     public bool IsBootstrapped { get; private set; }
     
@@ -2280,7 +2280,7 @@ public sealed class ClusterUiCache : IDisposable
         _contextReader = new DdsReader<OrchestratorContextTopic>(participant);
         _inventoryReader = new DdsReader<AssetInventoryTopic>(participant);
         _heartbeatReader = new DdsReader<NodeHeartbeat>(participant);
-        _sysOpStatusReader = new DdsReader<SysOpStatus>(participant);
+        _sysOpStatusReader = new DdsReader<ClusterOpStatus>(participant);
         _nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
         _nodeOpStatusReader = new DdsReader<NodeOpStatus>(participant);
         _timePulseReader = new DdsReader<TimePulseDescriptor>(participant, "TimePulse");
@@ -2332,7 +2332,7 @@ public sealed class ClusterUiCache : IDisposable
             MasterWallTicks = sample.Data.MasterWallTicks;
         }
     
-        // 6. Network-Sniffed 2PC History (No direct access to DrillMaster needed!)
+        // 6. Network-Sniffed 2PC History (No direct access to ClusterMaster needed!)
         Process2PcNetworkTraffic(); 
     }
     
@@ -2380,7 +2380,7 @@ public sealed class ClusterUiCache : IDisposable
 
 2\. Isolate the Subsystem (`OrchestratorSubsystem.cs`)
 
-Now we sever the UI's direct access to `_drillMaster`. The subsystem's only job is to host the headless `DrillMaster` backend and pass the UI projections to the ImGui panels.
+Now we sever the UI's direct access to `_drillMaster`. The subsystem's only job is to host the headless `ClusterMaster` backend and pass the UI projections to the ImGui panels.
 
 ```
 public sealed class OrchestratorSubsystem : ISubsystem
@@ -2388,27 +2388,27 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private DdsParticipant? _participant;
     
     // ── Data Plane (Headless Services) ──────────────────────────────────
-    private DrillMaster? _drillMaster;
+    private ClusterMaster? _drillMaster;
     private ModuleHostKernel? _timeKernel;
     private DistributedTimeCoordinator? _timeCoordinator;
     
     // ── Control Plane (UI Clients) ──────────────────────────────────────
-    private DdsWriter<SysOpRequest>? _sysOpWriter;
+    private DdsWriter<ClusterOpRequest>? _sysOpWriter;
     private ClusterUiCache? _uiCache;
     private ClusterScenarioPanel? _scenarioPanel;
     
     public void Initialize(SubsystemConfig config)
     {
         _config = ClusterConfiguration.LoadFrom("orchestrator-config.json");
-        _participant = BagiraEnvironment.CreateParticipant(config.DomainId);
+        _participant = HrotEnvironment.CreateParticipant(config.DomainId);
         
         // 1. Boot the headless data plane
-        _drillMaster = new DrillMaster(_participant, _config);
+        _drillMaster = new ClusterMaster(_participant, _config);
         
         // (Time coordinator initialization omitted for brevity, keep your existing logic)
     
         // 2. Boot the decoupled control plane (UI)
-        _sysOpWriter = new DdsWriter<SysOpRequest>(_participant);
+        _sysOpWriter = new DdsWriter<ClusterOpRequest>(_participant);
         _uiCache = new ClusterUiCache(_participant);
         
         // Pass ONLY the network projection and the command writer to the UI
@@ -2462,20 +2462,20 @@ public sealed class OrchestratorSubsystem : ISubsystem
 
 3\. Dispatch Time Controls over DDS
 
-Because time manipulation is now driven by `SysOpRequest` commands, the UI no longer triggers `_timeKernel.StepFrame()` directly. It dispatches a network command to the Orchestrator, which acts on it.
+Because time manipulation is now driven by `ClusterOpRequest` commands, the UI no longer triggers `_timeKernel.StepFrame()` directly. It dispatches a network command to the Orchestrator, which acts on it.
 
 In `ClusterScenarioPanel.RenderTimeControl`, map the buttons to the `_sysOpWriter`:
 
 ```
     if (ImGui.Button("Step"))
     {
-        _sysOpWriter.Write(new SysOpRequest 
+        _sysOpWriter.Write(new ClusterOpRequest 
         { 
             RequestId = Guid.NewGuid(), 
-            OperationType = SysOpType.StepTime 
+            OperationType = ClusterOpType.StepTime 
         });
     }
 ```
 
-By decoupling the UI into `ClusterUiCache`, the Orchestrator's ImGui panel and the IOS ImGui panel share the exact same network-transparent data model. They observe the world purely by reading `SystemStateTopic` and `NodeHeartbeat`, and mutate it purely by dispatching `SysOpRequest` messages.
+By decoupling the UI into `ClusterUiCache`, the Orchestrator's ImGui panel and the IOS ImGui panel share the exact same network-transparent data model. They observe the world purely by reading `SystemStateTopic` and `NodeHeartbeat`, and mutate it purely by dispatching `ClusterOpRequest` messages.
 

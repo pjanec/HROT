@@ -12,9 +12,9 @@
 ### IOS.10.1 — InspectorPanel ✅
 
 **Files:**
-- `Bagira.IOS/Panels/InspectorPanel.cs` (new)
-- `Bagira.IOS.Tests/InspectorPanelTests.cs` (new, 13 tests)
-- `Bagira.IOS/Panels/PanelConstants.cs` — added `InspectorNoSelection`, `InspectorMaxTotalLines`
+- `Hrot.ExCon/Panels/InspectorPanel.cs` (new)
+- `Hrot.ExCon.Tests/InspectorPanelTests.cs` (new, 13 tests)
+- `Hrot.ExCon/Panels/PanelConstants.cs` — added `InspectorNoSelection`, `InspectorMaxTotalLines`
 
 **Implementation notes:**
 - `InspectorLine(Category, Field, Value)` record is the unit of display.
@@ -29,10 +29,10 @@
 ### IOS.10.2 — DiagnosticsPanel ✅
 
 **Files:**
-- `Bagira.IOS/Panels/DiagnosticsPanel.cs` (new)
-- `Bagira.IOS.Tests/DiagnosticsPanelTests.cs` (new, 14 tests)
-- `Bagira.IOS/Panels/PanelConstants.cs` — added `DiagnosticsEventRateSampleWindowS`
-- `Bagira.IOS/IIosLogic.cs` — added `IRequestTransactionManager TransactionManager { get; }`
+- `Hrot.ExCon/Panels/DiagnosticsPanel.cs` (new)
+- `Hrot.ExCon.Tests/DiagnosticsPanelTests.cs` (new, 14 tests)
+- `Hrot.ExCon/Panels/PanelConstants.cs` — added `DiagnosticsEventRateSampleWindowS`
+- `Hrot.ExCon/IIosLogic.cs` — added `IRequestTransactionManager TransactionManager { get; }`
 
 **Implementation notes:**
 - `GetEntityCount(IDerRepo)` and `GetPendingRequestSnapshot(IRequestTransactionManager)` are public static helpers exercisable without ImGui.
@@ -44,11 +44,11 @@
 ### IOS.10.3 — Conflict Detection UI ✅
 
 **Files:**
-- `Bagira.IOS/Panels/MissionPanel.cs` — added `HandleConflictResult`, `DismissConflict`, `HasConflictAlert`, `ConflictMessage`
-- `Bagira.IOS/Services/IMissionEditorService.cs` — added `ErrorCode` to `MissionCommitResult`
-- `Bagira.IOS/Services/MissionEditorService.cs` — propagate `ack.ErrorCode` into `MissionCommitResult`
-- `Bagira.IOS/Panels/PanelConstants.cs` — added `VersionConflictErrorCode = 7`, `VersionConflictErrorMessage = "ERR_VERSION_CONFLICT"`
-- `Bagira.IOS.Tests/MissionPanelTests.cs` — added 9 conflict-detection tests
+- `Hrot.ExCon/Panels/MissionPanel.cs` — added `HandleConflictResult`, `DismissConflict`, `HasConflictAlert`, `ConflictMessage`
+- `Hrot.ExCon/Services/IMissionEditorService.cs` — added `ErrorCode` to `MissionCommitResult`
+- `Hrot.ExCon/Services/MissionEditorService.cs` — propagate `ack.ErrorCode` into `MissionCommitResult`
+- `Hrot.ExCon/Panels/PanelConstants.cs` — added `VersionConflictErrorCode = 7`, `VersionConflictErrorMessage = "ERR_VERSION_CONFLICT"`
+- `Hrot.ExCon.Tests/MissionPanelTests.cs` — added 9 conflict-detection tests
 
 **Implementation notes:**
 - `MissionCommitResult` previously had no `ErrorCode` field; the panel instruction said "intercept `ErrorCode=7`", so `ErrorCode` was added and propagated from `OnAckReceived`.  This is a backward-compatible addition — all existing code that built `MissionCommitResult` via object initialiser still compiles with default `ErrorCode = 0`.
@@ -61,7 +61,7 @@
 ### IOS.10.4 — Multi-IOS Synchronisation Tests ✅
 
 **Files:**
-- `Bagira.IOS.Tests/MultiIosIntegrationTests.cs` (new, 8 tests)
+- `Hrot.ExCon.Tests/MultiIosIntegrationTests.cs` (new, 8 tests)
 
 **Test scenarios:**
 | Test | Scenario |

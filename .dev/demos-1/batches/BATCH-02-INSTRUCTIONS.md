@@ -167,7 +167,7 @@ This batch is DONE when:
 
 ## ⚠️ Common Pitfalls to Avoid
 - Neglecting to apply `[UnmanagedComponent]` exactly where documented.
-- Getting side tracked and trying to establish heavy `bagira` dependencies out of our DDS schema layer — keep `Fdp.Examples.DDS` dependency-free or linked only to Cyclone bindings.
+- Getting side tracked and trying to establish heavy `hrot` dependencies out of our DDS schema layer — keep `Fdp.Examples.DDS` dependency-free or linked only to Cyclone bindings.
 
 ---
 

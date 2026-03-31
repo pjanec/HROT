@@ -12,10 +12,10 @@
 
 Both deliverables are complete and the solution builds cleanly (0 errors):
 
-- **Part B** (landed first per sequencing note): Fixed `ResolveNodeId` collision in `SubsystemOrchestrator` and the IG `DrillSlave` fallback nodeId in `IgApplication`. Unit tests added/updated. No regression for single-subsystem modes.
+- **Part B** (landed first per sequencing note): Fixed `ResolveNodeId` collision in `SubsystemOrchestrator` and the IG `ClusterSlave` fallback nodeId in `IgApplication`. Unit tests added/updated. No regression for single-subsystem modes.
 - **Part A** (CGF1-S0310): Delivered the full scripted E2E DSM validation suite — `OrchestratorActionHandlers` (all handler classes), `MovingEntitySystem`, 4 JSON test scripts, `DsmE2eScriptTests` (4 xUnit facts), and supporting infrastructure (`AfterInitialize` hook on `HeadlessTestExecutor`, `TestHook_AddSystem` on `SimHostApp`/`SimHostSubsystem`).
 
-One **pre-existing** unit test failure (`ParseMode_ComboAllThree_EqualsAllFlag` in `Bagira.Runner.Tests`) was present before this batch and is unrelated to the changes here — it tests `RunMode.All` parsing and the expectation no longer matches after a prior batch changed the `All` flag composition.
+One **pre-existing** unit test failure (`ParseMode_ComboAllThree_EqualsAllFlag` in `Hrot.ClusterRunner.Tests`) was present before this batch and is unrelated to the changes here — it tests `RunMode.All` parsing and the expectation no longer matches after a prior batch changed the `All` flag composition.
 
 ---
 
@@ -23,7 +23,7 @@ One **pre-existing** unit test failure (`ParseMode_ComboAllThree_EqualsAllFlag` 
 
 ### Problem recap
 
-`Bagira.Runner -m all` hosted multiple subsystems in one process. When `--node-id N` was specified, `SubsystemOrchestrator.ResolveNodeId` fell through to a single catch-all (`_ => 300`), meaning **Orchestrator** and **CGF** both received `N+300` — a silent roster collision. For the default `--node-id 0` path, **SimHost** and **IG** both used `LocalNodeId = 1` for their `DrillSlave`, causing a second collision.
+`Hrot.ClusterRunner -m all` hosted multiple subsystems in one process. When `--node-id N` was specified, `SubsystemOrchestrator.ResolveNodeId` fell through to a single catch-all (`_ => 300`), meaning **Orchestrator** and **CGF** both received `N+300` — a silent roster collision. For the default `--node-id 0` path, **SimHost** and **IG** both used `LocalNodeId = 1` for their `ClusterSlave`, causing a second collision.
 
 ### Fixes
 
@@ -43,9 +43,9 @@ Added explicit cases for every Runner-hosted subsystem with pairwise-unique offs
 
 Catch-all was `_ => 300` previously (collided with Orchestrator) — now `+600`.
 
-#### 2. `Bagira.IG/IgApplication.cs` — `DrillSlave` nodeId fallback
+#### 2. `Hrot.IG/IgApplication.cs` — `ClusterSlave` nodeId fallback
 
-Changed the zero-override fallback from `IgNetworkConstants.LocalNodeId` (= 1, same as SimHost's `SimHostNetworkConstants.LocalNodeId`) to `_effectiveInstanceId` (= `IgNetworkConstants.InstanceId` = 300). This makes IG's DrillSlave unique in `-m all` default mode.
+Changed the zero-override fallback from `IgNetworkConstants.LocalNodeId` (= 1, same as SimHost's `SimHostNetworkConstants.LocalNodeId`) to `_effectiveInstanceId` (= `IgNetworkConstants.InstanceId` = 300). This makes IG's ClusterSlave unique in `-m all` default mode.
 
 ### § Node ID map
 
@@ -54,11 +54,11 @@ Changed the zero-override fallback from `IgNetworkConstants.LocalNodeId` (= 1, s
 | Default (`0`) | 0 | 1 (LocalNodeId) | 300 (_effectiveInstanceId) | 500 (IosNetworkConstants) | N/A | N/A |
 | Explicit (`N`) | N | N+0 | N+100 | N+200 | N+300 | N+400 |
 
-`CI` would be `N+500`; any unrecognised subsystem `N+600`. `OrchestratorSubsystem` does not participate in `ResolveNodeId` in `--node-id 0` mode (returns 0, DrillMaster uses its own identity).
+`CI` would be `N+500`; any unrecognised subsystem `N+600`. `OrchestratorSubsystem` does not participate in `ResolveNodeId` in `--node-id 0` mode (returns 0, ClusterMaster uses its own identity).
 
 ### Tests
 
-`Bagira.Runner.Tests/SubsystemOrchestratorTests.cs` — 12 tests all passing:
+`Hrot.ClusterRunner.Tests/SubsystemOrchestratorTests.cs` — 12 tests all passing:
 - Fixed `Initialize_NodeId3_UnknownSubsystemReceivesThreeHundredThree` → renamed to `...SixHundredThree` (catch-all offset change)
 - Added 5 new tests: `Initialize_NodeId10_OrchestratorReceivesThreeHundredTen`, `...CgfReceivesFourHundredTen`, `...CiReceivesFiveHundredTen`, `Initialize_AllModeSubsystems_DistinctNodeIds_WithBase1`, `Initialize_OrchestratorAndCgf_DistinctNodeIds_WithBase1`
 
@@ -72,41 +72,41 @@ Changed the zero-override fallback from `IgNetworkConstants.LocalNodeId` (= 1, s
 |---|---|
 | `FDP/Framework/FDP.Framework.Runner/Testing/TestScript.cs` | Added `SaveResult` to `TestStep`; added `ApproxEquals` + `Tolerance` to `AssertionRule` |
 | `FDP/Framework/FDP.Framework.Runner/Testing/HeadlessTestExecutor.cs` | Added `SavedResults` dict; `entity_ref` resolution in `ResolveEntityRefs`; `ApproxEquals`/`Tolerance` validation; `AfterInitialize` callback (invoked after `_orchestrator.Initialize()`, before run loop) |
-| `Bagira.Orchestrator/DrillMaster.cs` | Added `HandleSysOpRequestAsync(SysOpRequest)` — thin async wrapper for `HandleSysOpRequest` |
-| `Bagira.Runner/Services/OrchestratorSubsystem.cs` | Added `TestHook_DrillMaster` — exposes `_drillMaster` for E2E fixture access |
-| `Bagira.Runner/Testing/OrchestratorActionHandlers.cs` | **NEW** — `MovingTestTag` (ComponentId 219), `SysopActionHandler`, `AssertEntityCountActionHandler`, `AddMovingTagActionHandler` |
-| `Bagira.SimHost/SimHostApp.cs` | Added `TestHook_AddSystem(ComponentSystem)` — appends a system to `_kernelGroup` after initialization |
-| `Bagira.Runner/Services/SimHostSubsystem.cs` | Added `TestHook_AddSystem` forwarding to `SimHostApp.TestHook_AddSystem` |
-| `Bagira.Runner.Integration.Tests/Systems/MovingEntitySystem.cs` | **NEW** — `ComponentSystem` subclass advancing `SimTransform.Position.X += VelocityX * DeltaTime` per tick |
-| `Bagira.Runner.Integration.Tests/TestScripts/e2e_record_and_replay_seek.json` | **NEW** |
-| `Bagira.Runner.Integration.Tests/TestScripts/e2e_dryrun_state_restore.json` | **NEW** |
-| `Bagira.Runner.Integration.Tests/TestScripts/e2e_live_from_replay_branch.json` | **NEW** |
-| `Bagira.Runner.Integration.Tests/TestScripts/e2e_overlapping_checkpoints.json` | **NEW** |
-| `Bagira.Runner.Integration.Tests/DsmE2eScriptTests.cs` | **NEW** — 4 xUnit `[Fact(Timeout=60000)]` tests |
-| `Bagira.Runner.Integration.Tests/Bagira.Runner.Integration.Tests.csproj` | Added `TestScripts/*.json` as `Content` with `CopyToOutputDirectory=PreserveNewest` |
+| `Hrot.Orchestrator/ClusterMaster.cs` | Added `HandleClusterOpRequestAsync(ClusterOpRequest)` — thin async wrapper for `HandleClusterOpRequest` |
+| `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` | Added `TestHook_ClusterMaster` — exposes `_drillMaster` for E2E fixture access |
+| `Hrot.ClusterRunner/Testing/OrchestratorActionHandlers.cs` | **NEW** — `MovingTestTag` (ComponentId 219), `SysopActionHandler`, `AssertEntityCountActionHandler`, `AddMovingTagActionHandler` |
+| `Hrot.SimHost/SimHostApp.cs` | Added `TestHook_AddSystem(ComponentSystem)` — appends a system to `_kernelGroup` after initialization |
+| `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` | Added `TestHook_AddSystem` forwarding to `SimHostApp.TestHook_AddSystem` |
+| `Hrot.ClusterRunner.Integration.Tests/Systems/MovingEntitySystem.cs` | **NEW** — `ComponentSystem` subclass advancing `SimTransform.Position.X += VelocityX * DeltaTime` per tick |
+| `Hrot.ClusterRunner.Integration.Tests/TestScripts/e2e_record_and_replay_seek.json` | **NEW** |
+| `Hrot.ClusterRunner.Integration.Tests/TestScripts/e2e_dryrun_state_restore.json` | **NEW** |
+| `Hrot.ClusterRunner.Integration.Tests/TestScripts/e2e_live_from_replay_branch.json` | **NEW** |
+| `Hrot.ClusterRunner.Integration.Tests/TestScripts/e2e_overlapping_checkpoints.json` | **NEW** |
+| `Hrot.ClusterRunner.Integration.Tests/DsmE2eScriptTests.cs` | **NEW** — 4 xUnit `[Fact(Timeout=60000)]` tests |
+| `Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj` | Added `TestScripts/*.json` as `Content` with `CopyToOutputDirectory=PreserveNewest` |
 
 ### Key design decisions
 
 1. **`AfterInitialize` callback**: `HeadlessTestExecutor.RunAsync()` calls `_orchestrator.Initialize()` internally. The `AfterInitialize` hook allows test fixtures to register components and add systems between `Initialize()` and `Run()` without requiring the caller to manage the orchestrator lifecycle manually.
 
-2. **`MovingTestTag` placement**: Declared in `Bagira.Runner/Testing/OrchestratorActionHandlers.cs` (not in the integration test) so `AddMovingTagActionHandler` can reference it while remaining in the same compilation unit. The integration test project references `Bagira.Runner` transitively, so `MovingEntitySystem` can use it.
+2. **`MovingTestTag` placement**: Declared in `Hrot.ClusterRunner/Testing/OrchestratorActionHandlers.cs` (not in the integration test) so `AddMovingTagActionHandler` can reference it while remaining in the same compilation unit. The integration test project references `Hrot.ClusterRunner` transitively, so `MovingEntitySystem` can use it.
 
 3. **`MovingEntitySystem` as `ComponentSystem`**: The SimHost `_kernelGroup` (`SystemGroup`) requires `ComponentSystem` (from `Fdp.Kernel`) not `IEcsModuleSystem` (from `ModuleHost.Core.Abstractions`). `MovingEntitySystem` extends `ComponentSystem` and accesses `World`/`DeltaTime` via the base class properties.
 
 4. **`SysopActionHandler` polling**: DDS `DdsLoan` is a `ref struct` and cannot be held across `await` in C# 12. Poll loop extracted to synchronous `PollStatusOnce()` helper.
 
-5. **`DdsParticipant` for status reader**: Created before `RunAsync()` so the DDS subscription is established before the first `SysOpStatus` publication (first sysop action fires at T≈0.5 s wall-clock; DDS loopback discovery completes in ~200 ms).
+5. **`DdsParticipant` for status reader**: Created before `RunAsync()` so the DDS subscription is established before the first `ClusterOpStatus` publication (first sysop action fires at T≈0.5 s wall-clock; DDS loopback discovery completes in ~200 ms).
 
 ### Pre-existing failure note
 
-`Bagira.Runner.Tests/RunnerConfigurationTests.ParseMode_ComboAllThree_EqualsAllFlag` fails (expected `RunMode.All`, got `RunMode.SimHost | RunMode.IG | RunMode.IOS`). This was failing before BATCH-24 — the `All` flag composition changed in a prior batch but the test expectation was not updated. Flagged for the next maintenance batch.
+`Hrot.ClusterRunner.Tests/RunnerConfigurationTests.ParseMode_ComboAllThree_EqualsAllFlag` fails (expected `RunMode.All`, got `RunMode.SimHost | RunMode.IG | RunMode.IOS`). This was failing before BATCH-24 — the `All` flag composition changed in a prior batch but the test expectation was not updated. Flagged for the next maintenance batch.
 
 ---
 
 ## Acceptance criteria check
 
 ### Part B
-- [x] `Bagira.Runner -m all` with default CLI: no two subsystems share the same orchestration node ID (verified via unit tests + node ID map above)
+- [x] `Hrot.ClusterRunner -m all` with default CLI: no two subsystems share the same orchestration node ID (verified via unit tests + node ID map above)
 - [x] Explicit `--node-id N`: all subsystems in every supported combined mode remain distinct (including `orchestrator,cgf`)
 - [x] No regression for single-subsystem standalone modes (all 12 nodeId unit tests pass)
 

@@ -22,7 +22,7 @@ Welcome to the fourth batch. In the previous batch, we defined the core presenta
 5. **Code Standards:** `.dev-workstream/guides/CODE-STANDARDS.md` - Remember zero allocation hot paths!
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`
+- **Primary Work Area:** `Hrot.IG/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -70,7 +70,7 @@ We are completing the Basic Rendering phase. Entities can be placed into the dom
 
 ### Task 1: IG.2.3 Create SstVisualizerAdapter
 
-**File:** `Bagira.IG/Adapters/SstVisualizerAdapter.cs`  
+**File:** `Hrot.IG/Adapters/SstVisualizerAdapter.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.2.3)
 
 **Description:** Render entity visualization frames using `ResolvedStyle` inputs.
@@ -87,7 +87,7 @@ We are completing the Basic Rendering phase. Entities can be placed into the dom
 
 ### Task 2: IG.2.4 Add MapCullingSystem
 
-**File:** `Bagira.IG/Systems/MapCullingSystem.cs`  
+**File:** `Hrot.IG/Systems/MapCullingSystem.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.2.4)
 
 **Description:** Prevent rendering computations on off-screen entities.
@@ -105,7 +105,7 @@ We are completing the Basic Rendering phase. Entities can be placed into the dom
 
 ### Task 3: IG.2.5 Integration Test: Render 100 Entities
 
-**File:** `Bagira.IG.Tests/LayerRenderingIntegrationTests.cs`  
+**File:** `Hrot.IG.Tests/LayerRenderingIntegrationTests.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.2.5)
 
 **Description:** End-to-end mapping simulation limits check.

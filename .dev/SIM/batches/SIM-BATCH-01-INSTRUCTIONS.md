@@ -12,7 +12,7 @@
 ## 📋 Onboarding & Workflow
 
 ### Developer Instructions
-Welcome to SimHost development! In this batch, you will integrate the Geographic module into the SimHost console application, enabling position translation from local Euclidean simulation space (`SimTransform` / `SimVelocity`) to geodetic network space (`GeoSpatial` DDS topic).
+Welcome to SimHost development! In this batch, you will integrate the Geographic module into the SimHost console application, enabling position translation from local Euclidean simulation space (`SimTransform` / `SimVelocity`) to geodetic network space (`WorldPos` DDS topic).
 
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md` - How to work with batches
@@ -23,9 +23,9 @@ Welcome to SimHost development! In this batch, you will integrate the Geographic
 6. **Debt Tracker:** `.dev-workstream/DEBT-TRACKER.md` - Review any ongoing open P2/P3 items.
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`
+- **Primary Work Area:** `Hrot.SimHost/`
 - **Geographic Toolkit:** `FDP/Toolkits/Fdp.Toolkit.Geographic/`
-- **Test Project:** `Bagira.SimHost.Tests/`
+- **Test Project:** `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -53,14 +53,14 @@ Welcome to SimHost development! In this batch, you will integrate the Geographic
 
 Phase S2 established the core DDS ingress for entity creation (`CreateEntityRequest`). The created entities are loaded into the ECS. However, their local simulation representations (`SimTransform`, `SimVelocity`) currently do not get egressed correctly back over DDS as geodetic positions. 
 
-We need to wire the `GeographicModule` which registers `SimTransformBridgeSystem`. This system safely updates the outbound geodetic components, which are then published by the already present `GeoSpatialEgressTranslator`.
+We need to wire the `GeographicModule` which registers `SimTransformBridgeSystem`. This system safely updates the outbound geodetic components, which are then published by the already present `WorldPosEgressTranslator`.
 
 *Note: With recent `CarKinem` refactoring, `VehicleState` is strictly reserved for wheeled kinematics parameters (speed, steering). `SimTransform` is the authoritative source for ALL entity rendering, positioning, and orientation.*
 
 ---
 
 ## 🎯 Batch Objectives
-- Connect `GeographicModule` from the FDP core toolkit to the running `Bagira.SimHost` kernel.
+- Connect `GeographicModule` from the FDP core toolkit to the running `Hrot.SimHost` kernel.
 - Ensure egress DDS translators publish accurate positional data.
 - Validate via smoke test that entities spawned via DDS accurately egress their positions back.
 
@@ -71,9 +71,9 @@ We need to wire the `GeographicModule` which registers `SimTransformBridgeSystem
 ### Task 1: Register GeographicModule and Verify Egress (TASK-S3.1)
 
 **Files:**
-- Update `Bagira.SimHost/Program.cs`
-- Check `Bagira.SimHost/Modules/SimHostModule.cs`
-- Check `Bagira.SimHost/Translators/GeoSpatialEgressTranslator.cs`
+- Update `Hrot.SimHost/Program.cs`
+- Check `Hrot.SimHost/Modules/SimHostModule.cs`
+- Check `Hrot.SimHost/Translators/WorldPosEgressTranslator.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#phase-s3-geographic-module-integration-2-days)
 
@@ -91,7 +91,7 @@ Wire the Geographic toolkit into the SimHost node.
 
 **Tests Required:**
 - ✅ Integration smoke test simulating `Program.cs` startup.
-- ✅ Validation that `GeoSpatialEgressTranslator` correctly converts and publishes `GeoSpatial` from `SimTransform` correctly.
+- ✅ Validation that `WorldPosEgressTranslator` correctly converts and publishes `WorldPos` from `SimTransform` correctly.
 - ✅ *Warning*: Do not test `VehicleState` for positional asserts! Test `SimTransform`.
 
 ---
@@ -119,7 +119,7 @@ Wire the Geographic toolkit into the SimHost node.
 This batch is DONE when:
 - [ ] TASK-S3.1 is completed.
 - [ ] `Program.cs` successfully runs up a dummy kernel with `GeographicModule` and DCS Egress attached.
-- [ ] `GeoSpatialEgressTranslator` properly triggers changes without regressions.
+- [ ] `WorldPosEgressTranslator` properly triggers changes without regressions.
 - [ ] All tests pass (with detailed verifications!).
 - [ ] Report submitted.
 

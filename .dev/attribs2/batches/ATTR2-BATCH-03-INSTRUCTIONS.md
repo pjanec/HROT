@@ -23,12 +23,12 @@ First, you must resolve an architectural violation regarding JSON serialization 
 
 ### Source Code Location
 - **Primary Work Areas:**
-  - `Bagira.DDS.DataModel/GenericMessages.cs`
-  - `Bagira.DDS.DataModel.Tests/AttributeRecordTests.cs`
-  - `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`
-  - `Bagira.Map.Common/Replication/Systems/UpdateEntityAttributeRequestSystem.cs`
-  - `Bagira.IG/CreationTool.cs` (or equivalent client system path as specified)
-- **Test Projects:** `Bagira.DDS.DataModel.Tests`, `Bagira.SimHost.Tests` 
+  - `Hrot.NED/GenericMessages.cs`
+  - `Hrot.NED.Tests/AttributeRecordTests.cs`
+  - `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`
+  - `Hrot.Map.Common/Replication/Systems/UpdateEntityAttributeRequestSystem.cs`
+  - `Hrot.IG/CreationTool.cs` (or equivalent client system path as specified)
+- **Test Projects:** `Hrot.NED.Tests`, `Hrot.SimHost.Tests` 
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -56,20 +56,20 @@ First, you must resolve an architectural violation regarding JSON serialization 
 
 ### Task 0: Remove `[JsonInclude]` Pollution (CORRECTIVE-0)
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs` / `Bagira.DDS.DataModel.Tests/AttributeRecordTests.cs` (REFACTOR)  
+**File:** `Hrot.NED/GenericMessages.cs` / `Hrot.NED.Tests/AttributeRecordTests.cs` (REFACTOR)  
 
 **Description:** To serialize public fields for testing, the previous developer added `[JsonInclude]` to all DDS struct fields. This violates separation of concerns.
 **Requirements:**
 - Remove **all** `[JsonInclude]` attributes from `GenericMessages.cs`.
 - Remove `using System.Text.Json.Serialization;` from that file.
-- Update `Bagira.DDS.DataModel.Tests/AttributeRecordTests.cs` to supply a `JsonSerializerOptions` instance with `IncludeFields = true` when calling `JsonSerializer.Serialize` and `Deserialize` to fix the previously failing assertions.
+- Update `Hrot.NED.Tests/AttributeRecordTests.cs` to supply a `JsonSerializerOptions` instance with `IncludeFields = true` when calling `JsonSerializer.Serialize` and `Deserialize` to fix the previously failing assertions.
 - Ensure all 16 tests in DataModel still pass.
 
 ---
 
 ### Task 1: `CreateEntityRequestSystem` Binary Branch (ATTR2-P5T1)
 
-**File:** `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` (UPDATE)  
+**File:** `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` (UPDATE)  
 **Task Definition:** See [ATTR2-TASK-DETAIL.md](../../docs/attribs2/ATTR2-TASK-DETAIL.md#attr2-p5t1--createentityrequestsystem-binary-branch)
 
 **Description:** Inject the Binary Interpreter into initial entity creation.
@@ -86,7 +86,7 @@ First, you must resolve an architectural violation regarding JSON serialization 
 
 ### Task 2: `UpdateEntityAttributeRequestSystem` Binary Branch (ATTR2-P5T2)
 
-**File:** `Bagira.Map.Common/Replication/Systems/UpdateEntityAttributeRequestSystem.cs` (UPDATE)  
+**File:** `Hrot.Map.Common/Replication/Systems/UpdateEntityAttributeRequestSystem.cs` (UPDATE)  
 **Task Definition:** See [ATTR2-TASK-DETAIL.md](../../docs/attribs2/ATTR2-TASK-DETAIL.md#attr2-p5t2--updateentityattributerequestsystem-binary-branch)
 
 **Description:** Inject the pipeline into runtime entity networking.
@@ -102,7 +102,7 @@ First, you must resolve an architectural violation regarding JSON serialization 
 
 ### Task 3: `CreationTool` EdgeCompiler Injection (ATTR2-P6T1)
 
-**File:** `Bagira.IG/CreationTool.cs` (UPDATE)  
+**File:** `Hrot.IG/CreationTool.cs` (UPDATE)  
 **Task Definition:** See [ATTR2-TASK-DETAIL.md](../../docs/attribs2/ATTR2-TASK-DETAIL.md#attr2-p6t1--creationtool-edgecompiler-injection)
 
 **Description:** Make the client emit binary streams natively on entity spawn.

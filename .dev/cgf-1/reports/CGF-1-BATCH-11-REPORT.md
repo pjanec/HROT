@@ -19,7 +19,7 @@ tests pass (+2 new from Part A.1) and 10 / 10 new scenario-serializer tests pass
 
 ### A.1 — `StorageGatewayModule.PushToNodesAsync` unit tests (Issue 1, P3)
 
-**File:** `Bagira.Orchestrator.Tests/StorageGatewayTests.cs`
+**File:** `Hrot.Orchestrator.Tests/StorageGatewayTests.cs`
 
 Added two tests alongside the existing `Pull`-path parity tests:
 
@@ -35,9 +35,9 @@ temp-directory helpers for symmetry with the pull tests.
 
 ---
 
-### A.2 — `DrillMaster` XML hygiene (Issue 2, P3)
+### A.2 — `ClusterMaster` XML hygiene (Issue 2, P3)
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`
 
 Replaced invalid `<see cref="_remainingAcks"/>` (which referenced a non-existent private
 member) with plain prose `SerializeLocalTask.RemainingAcks` in the XML summary of
@@ -208,8 +208,8 @@ invocation.
 
 | File | Change |
 |------|--------|
-| `Bagira.Orchestrator.Tests/StorageGatewayTests.cs` | +2 `PushToNodes` tests (A.1) |
-| `Bagira.Orchestrator/DrillMaster.cs` | XML hygiene fix (A.2) |
+| `Hrot.Orchestrator.Tests/StorageGatewayTests.cs` | +2 `PushToNodes` tests (A.1) |
+| `Hrot.Orchestrator/ClusterMaster.cs` | XML hygiene fix (A.2) |
 | `IOS-IG-SimHost.sln` | Added 2 new projects |
 
 ### New files (`FDP.Toolkit.Scenario`)
@@ -241,7 +241,7 @@ invocation.
 ## Test Results
 
 ```
-Bagira.Orchestrator.Tests:  Passed: 22 / 22  (+2 new: PushToNodes tests)
+Hrot.Orchestrator.Tests:  Passed: 22 / 22  (+2 new: PushToNodes tests)
 FDP.Toolkit.Scenario.Tests: Passed: 10 / 10  (all new)
 ```
 

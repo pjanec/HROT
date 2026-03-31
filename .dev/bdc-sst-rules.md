@@ -1,4 +1,4 @@
-﻿# Entities made of descriptors
+# Entities made of descriptors
 
 An entity is composed of individual descriptors and nothing else but the descriptors.
 
@@ -93,7 +93,7 @@ The type can serve for
 There are multiple flavors of entity type present in the EntityMaster descriptor; neither of them is mandatory in general (again, that's just an agreement between apps).
   - StaticType .... something like the CGFX entity type [TODO: remove]
   - TkbType ....... unique id in a TKB database; currently CGFX TKB id; will be changed to Unified TKB id
-  - DisType ....... compatible with DIS entity type id (SISO-REF-010-2015 extended by Bagira entity types)
+  - DisType ....... compatible with DIS entity type id (SISO-REF-010-2015 extended by Hrot entity types)
 
  In current implementation the **TkbType is mandatory** while the DisType is just informative. StaticType is not used at all.
 

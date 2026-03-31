@@ -77,7 +77,7 @@ var request = new UpdateEntityDescriptorRequest
         {
             IsPartialUpdate = true,
             ChangedIndices = new List<int> { draggedVertexIndex },
-            Points = new List<GeoPosition> { newGeoPosition }
+            Points = new List<GeoPoint> { newGeoPoint }
         }
     }
 };
@@ -88,7 +88,7 @@ _commandGateway.SendUpdateDescriptor(request);
 
 The SimHost acts as the Scenario Authority. It holds the source of truth for persistent map overlays.
 
--   **Handling the Request:** We extend the existing `UpdateEntityDescriptorRequestSystem.ProcessRequest()` method, which currently only handles `dtGeoSpatial`, to also handle `dtMapVisualOverlay`.-   **Authority Check:** The system must first verify it owns the descriptor via `view.HasAuthority(entity, DescriptorOrdinal)` to prevent unauthorized clients from mutating the scenario.-   **Applying Changes:**
+-   **Handling the Request:** We extend the existing `UpdateEntityDescriptorRequestSystem.ProcessRequest()` method, which currently only handles `dtWorldPos`, to also handle `dtMapVisualOverlay`.-   **Authority Check:** The system must first verify it owns the descriptor via `view.HasAuthority(entity, DescriptorOrdinal)` to prevent unauthorized clients from mutating the scenario.-   **Applying Changes:**
     -   If `req.Payload.MapVisualOverlay.IsPartialUpdate` is true, the SimHost iterates through `ChangedIndices`, applies `IGeographicTransform.ToCartesian` to the incoming coordinates, and patches only the specific vertices in the entity's `MapOverlayGeometry` component.-   If it's a full update (e.g., a vertex was added or removed), it rebuilds the entire Cartesian vertex list.-   **Triggering Egress:** Finally, the system calls `SmartEgressUtil.MarkDirty(World, entity, OverlayOrdinal)`. On the very next frame, the `MapVisualOverlayEgressTranslator` we specified earlier will detect the dirty flag, serialize the updated geometry into a DDS message, and broadcast it.-   **Acknowledge:** The SimHost immediately replies with an `UpdateEntityDescriptorAck(ErrorCode = 0)` so the IG knows the transaction succeeded.
 
 When the IG receives the updated `MapVisualOverlay` from the backbone, it transparently updates its own ECS, ensuring the operator's view perfectly matches the authoritative scenario.

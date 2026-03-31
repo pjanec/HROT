@@ -24,13 +24,13 @@
 
 | Project | Tests |
 |---------|-------|
-| Bagira.DDS.DataModel.Tests | 23 |
-| Bagira.IG.Tests | 308 |
-| Bagira.SimHost.Tests | 220 |
-| Bagira.Map.Common.Tests | 59 |
-| Bagira.SimHost.Integration.Tests | 28 |
-| Bagira.Runner.Tests | 99 |
-| Bagira.IOS.Tests | 270 |
+| Hrot.NED.Tests | 23 |
+| Hrot.IG.Tests | 308 |
+| Hrot.SimHost.Tests | 220 |
+| Hrot.Map.Common.Tests | 59 |
+| Hrot.SimHost.Integration.Tests | 28 |
+| Hrot.ClusterRunner.Tests | 99 |
+| Hrot.ExCon.Tests | 270 |
 | **Total** | **1007** |
 
 **Key Test Scenarios Verified:**

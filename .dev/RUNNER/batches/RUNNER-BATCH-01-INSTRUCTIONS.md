@@ -18,19 +18,19 @@
 Welcome to the Runner implementation! Before we can build the aggregated application that combines SimHost, IG, and IOS into one process, we must first solve a critical Flight Recorder safety issue.
 
 **The Problem:** `ComponentTypeRegistry` assigns component IDs using `_nextId++`, which depends on static constructor execution order. When three standalone binaries (SimHost.exe, IG.exe, IOS.exe) each load different assemblies, the same component struct (e.g., `SimTransform`) gets assigned different IDs in each binary. When we merge all three into one `Runner.exe` process, this causes:
-1. **Flight Recorder corruption** — recordings are binary dumps indexed by component ID. Wrong IDs = wrong memory offsets = silent data corruption.
-2. **Cross-subsystem memory safety violations** — component tables accessed with wrong type IDs.
+1. **Flight Recorder corruption** ï¿½ recordings are binary dumps indexed by component ID. Wrong IDs = wrong memory offsets = silent data corruption.
+2. **Cross-subsystem memory safety violations** ï¿½ component tables accessed with wrong type IDs.
 
 **The Solution (Phase R0):** Make component IDs **deterministic** by introducing explicit `[ComponentId(byte)]` attributes (mirroring the existing `[EventId(int)]` pattern) and a central `GlobalComponentIds` constant catalog. Additionally, save a schema manifest in Flight Recorder `.meta.json` files to detect struct layout drift across versions.
 
 This batch operates entirely on `Fdp.Kernel` and toolkit libraries. It has no dependency on SimHost/IG/IOS application code and can be completed independently.
 
 ### Required Reading (IN ORDER)
-1. **Workflow Guide:** `.dev-workstream\README.md` — How to work with batches
-2. **Design Document:** `docs\design\DESIGN-RUNNER.md` — Read **Section 11: ECS Component ID Safety** carefully
-3. **Task Details:** `docs\design\TASK-DETAILS-RUNNER.md` — Read **Phase R0** section
-4. **Task Tracker:** `docs\design\TASK-TRACKER.md` — See RUNNER Phase R0 tasks
-5. **Code Standards:** `.dev-workstream\guides\CODE-STANDARDS.md` — §0 (Test Quality), §1 (No Magic Numbers)
+1. **Workflow Guide:** `.dev-workstream\README.md` ï¿½ How to work with batches
+2. **Design Document:** `docs\design\DESIGN-RUNNER.md` ï¿½ Read **Section 11: ECS Component ID Safety** carefully
+3. **Task Details:** `docs\design\TASK-DETAILS-RUNNER.md` ï¿½ Read **Phase R0** section
+4. **Task Tracker:** `docs\design\TASK-TRACKER.md` ï¿½ See RUNNER Phase R0 tasks
+5. **Code Standards:** `.dev-workstream\guides\CODE-STANDARDS.md` ï¿½ ï¿½0 (Test Quality), ï¿½1 (No Magic Numbers)
 
 ### Architect Context
 - **Architect Decision Q10 (2026-03-05):** Component IDs MUST be deterministic before merging binaries
@@ -41,7 +41,7 @@ This batch operates entirely on `Fdp.Kernel` and toolkit libraries. It has no de
 - **Secondary Areas:** 
   - `FDP\Toolkits\FDP.Toolkit.Replication\` (component attributes)
   - `FDP\Toolkits\FDP.Toolkit.Vis2D\` (component attributes)
-  - `Bagira.IG\` (component attributes)
+  - `Hrot.IG\` (component attributes)
 - **Test Project:** `FDP\Kernel\Fdp.Kernel.Tests\` (new test file required)
 
 ### Report Submission
@@ -58,8 +58,8 @@ This batch operates entirely on `Fdp.Kernel` and toolkit libraries. It has no de
 Phase R0 is a **blocking prerequisite** for all other Runner phases. It was identified during the Design Talk (2026-03-05) after discovering that `ComponentTypeRegistry` in `Fdp.Kernel` uses non-deterministic ID assignment (`_nextId++` based on static constructor order).
 
 This batch implements two solutions:
-1. **Explicit Component IDs** (R0.1) — `[ComponentId(byte)]` attribute + `GlobalComponentIds` catalog
-2. **Flight Recorder Schema Safety** (R0.2) — Schema manifest + validator
+1. **Explicit Component IDs** (R0.1) ï¿½ `[ComponentId(byte)]` attribute + `GlobalComponentIds` catalog
+2. **Flight Recorder Schema Safety** (R0.2) ï¿½ Schema manifest + validator
 
 **Related Tasks:**
 - [R0.1](../../docs/design/TASK-DETAILS-RUNNER.md#r01-make-component-ids-deterministic) - Make Component IDs Deterministic
@@ -117,14 +117,14 @@ public sealed class ComponentIdAttribute : Attribute
 **Requirements:**
 - `public static class GlobalComponentIds`
 - Block-allocated ID ranges (see DESIGN-RUNNER.md Section 11.3 for full table)
-- All known component IDs from Fdp.Kernel, toolkits, and Bagira projects
+- All known component IDs from Fdp.Kernel, toolkits, and Hrot projects
 - Comments clearly mark each block's reserved range
 
 **Code Structure:**
 ```csharp
 public static class GlobalComponentIds
 {
-    // Fdp.Kernel (0–19)
+    // Fdp.Kernel (0ï¿½19)
     public const byte SimTransform        = 0;
     public const byte SimVelocity         = 1;
     public const byte HealthData          = 2;
@@ -134,7 +134,7 @@ public static class GlobalComponentIds
     public const byte HierarchyNode       = 6;
     public const byte PartDescriptor      = 7;
 
-    // FDP.Toolkit.Replication (50–79)
+    // FDP.Toolkit.Replication (50ï¿½79)
     public const byte NetworkIdentity     = 50;
     public const byte NetworkAuthority    = 51;
     public const byte NetworkPosition     = 52;
@@ -142,20 +142,20 @@ public static class GlobalComponentIds
     public const byte NetworkSpawnRequest = 54;
     public const byte PartMetadata        = 55;
 
-    // FDP.Toolkit.Vis2D (80–109)
+    // FDP.Toolkit.Vis2D (80ï¿½109)
     public const byte MapDisplayComponent = 80;
     public const byte VisHierarchyNode    = 81;
     public const byte AggregateState      = 82;
     public const byte AggregateRoot       = 83;
 
-    // Bagira.IG (110–139)
+    // Hrot.IG (110ï¿½139)
     public const byte ResolvedStyle       = 110;
     public const byte CullingState        = 111;
     public const byte SelectionState      = 112;
     public const byte VisualEffectState   = 113;
     public const byte TracerTarget        = 114;
     
-    // Reserved (200–255) — Future use
+    // Reserved (200ï¿½255) ï¿½ Future use
 }
 ```
 
@@ -165,7 +165,7 @@ public static class GlobalComponentIds
 - `FDP\Kernel\Fdp.Kernel\` 
 - `FDP\Toolkits\FDP.Toolkit.Replication\`
 - `FDP\Toolkits\FDP.Toolkit.Vis2D\`
-- `Bagira.IG\`
+- `Hrot.IG\`
 - Any other toolkit/project with ECS components
 
 #### Subtask 1.3: Update `ComponentTypeRegistry`
@@ -253,7 +253,7 @@ public static class FdpConfig
 
 #### Subtask 1.5: Apply Attributes to All Component Structs
 
-**Files:** Multiple files across `Fdp.Kernel`, toolkits, and `Bagira.IG` (UPDATE)
+**Files:** Multiple files across `Fdp.Kernel`, toolkits, and `Hrot.IG` (UPDATE)
 
 **Requirements:**
 - Add `[ComponentId(GlobalComponentIds.X)]` attribute to every component struct
@@ -261,7 +261,7 @@ public static class FdpConfig
   - **Fdp.Kernel:** `SimTransform`, `SimVelocity`, `HealthData`, `GlobalTime`, `IsActiveTag`, `LifecycleDescriptor`, `HierarchyNode`, `PartDescriptor`
   - **FDP.Toolkit.Replication:** `NetworkIdentity`, `NetworkAuthority`, `NetworkPosition`, `NetworkVelocity`, `NetworkSpawnRequest`, `PartMetadata`
   - **FDP.Toolkit.Vis2D:** `MapDisplayComponent`, `VisHierarchyNode`, `AggregateState`, `AggregateRoot`
-  - **Bagira.IG:** `ResolvedStyle`, `CullingState`, `SelectionState`, `VisualEffectState`, `TracerTarget`
+  - **Hrot.IG:** `ResolvedStyle`, `CullingState`, `SelectionState`, `VisualEffectState`, `TracerTarget`
 
 **Code Pattern:**
 ```csharp
@@ -758,7 +758,7 @@ This batch is DONE when:
 ## ?? Quality Standards
 
 **? CODE QUALITY EXPECTATIONS**
-- Follow CODE-STANDARDS.md §1 (No Magic Numbers): Use named constants for hash prime/offset, max component ID, etc.
+- Follow CODE-STANDARDS.md ï¿½1 (No Magic Numbers): Use named constants for hash prime/offset, max component ID, etc.
 - All new public APIs have XML doc comments
 - Exception messages are descriptive and actionable
 - Hash algorithm is deterministic (no `GetHashCode()`)
@@ -767,7 +767,7 @@ This batch is DONE when:
 - **NOT ACCEPTABLE:** Tests that only verify "can I create this object"
 - **REQUIRED:** Tests that verify actual collisions throw, enforcement works, hash changes on struct modification
 - **REQUIRED:** Tests verify exception messages contain expected keywords (case-insensitive)
-- See CODE-STANDARDS.md §0 for full test quality checklist
+- See CODE-STANDARDS.md ï¿½0 for full test quality checklist
 
 **? REPORT QUALITY EXPECTATIONS**
 - **REQUIRED:** Document ALL component structs found (count per project/toolkit)
@@ -796,10 +796,10 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 
-- **Design:** `docs\design\DESIGN-RUNNER.md` — Section 11 (ECS Component ID Safety)
-- **Task Details:** `docs\design\TASK-DETAILS-RUNNER.md` — Phase R0
-- **Task Tracker:** `docs\design\TASK-TRACKER.md` — RUNNER Phase R0
-- **Code Standards:** `.dev-workstream\guides\CODE-STANDARDS.md` — §0 (Test Quality), §1 (No Magic Numbers)
+- **Design:** `docs\design\DESIGN-RUNNER.md` ï¿½ Section 11 (ECS Component ID Safety)
+- **Task Details:** `docs\design\TASK-DETAILS-RUNNER.md` ï¿½ Phase R0
+- **Task Tracker:** `docs\design\TASK-TRACKER.md` ï¿½ RUNNER Phase R0
+- **Code Standards:** `.dev-workstream\guides\CODE-STANDARDS.md` ï¿½ ï¿½0 (Test Quality), ï¿½1 (No Magic Numbers)
 - **Existing Attribute Pattern:** `FDP\Kernel\Fdp.Kernel\EventIdAttribute.cs` (mirror this for ComponentIdAttribute)
 - **Existing Metadata Model:** `FDP\Kernel\Fdp.Kernel\FlightRecorder\RecordingMetadata.cs` (extend with SchemaManifest)
 
@@ -817,4 +817,4 @@ This batch is DONE when:
 
 **Questions?** Create `.dev-workstream\questions\RUNNER-BATCH-01-QUESTIONS.md`
 
-Good luck! This is critical infrastructure work — take your time and be thorough. ??
+Good luck! This is critical infrastructure work ï¿½ take your time and be thorough. ??

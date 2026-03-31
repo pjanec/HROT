@@ -88,7 +88,7 @@
 
 - **Latch 5 (MissionResumed) is symbolic**: APC stays in Disabled state after insurgent death since there is no HSM recovery transition. A future batch could add `RecoveryComplete` event + Disabled→Cruising on repair, and add a real `APC resumes FollowRoute` check.
 - **TrafficBrainSystem absent**: Civilian entities are stationary. A follow-up batch could add a self-contained `SimpleCivilianBrainSystem` or accept TrafficBrainSystem as a legitimate dependency from the legacy project.  
-- **Phase 0 debt row (TryTakeCreateAck)**: `Bagira.Runner.Integration.Tests` could not be test-run in this session due to VS file locks on Bagira.Runner output DLLs. The Phase 0 code changes are verified correct by inspection; the BATCH-14 review showed all 60 tests passing before these changes were added.
+- **Phase 0 debt row (TryTakeCreateAck)**: `Hrot.ClusterRunner.Integration.Tests` could not be test-run in this session due to VS file locks on Hrot.ClusterRunner output DLLs. The Phase 0 code changes are verified correct by inspection; the BATCH-14 review showed all 60 tests passing before these changes were added.
 - **DEBT-TRACKER**: The `TryTakeCreateAck` debt item should be marked closed in the tracker. This was left for the Development Lead review.
 
 ---
@@ -97,14 +97,14 @@
 
 ### New files
 - `FDP/Examples/Fdp.Examples.Scenarios/Integrated/UrbanCombatNewScenario.cs` — main scenario (14 entities, all toolkits, 5 latches, self-contained)
-- `Bagira.Runner.Integration.Tests/RunnerTestHelpers.cs` — shared `TryTakeCreateAck` helper (Phase 0)
+- `Hrot.ClusterRunner.Integration.Tests/RunnerTestHelpers.cs` — shared `TryTakeCreateAck` helper (Phase 0)
 
 ### Modified files
 - `FDP/Examples/Fdp.Examples.Scenarios/Fdp.Examples.Scenarios.csproj` — added `Fhsm.Compiler` + `Fhsm.SourceGen` references
 - `FDP/Examples/Fdp.Examples.Runner/ScenarioRegistry.cs` — added `ScenarioNames.UrbanCombat => new UrbanCombatNewScenario()` + `using Fdp.Examples.Scenarios.Integrated`
 - `FDP/Examples/Fdp.Examples.Scenarios.Tests/ScenarioTests.cs` — added `UrbanCombatNewScenarioTests` class (5 tests) + `using Fdp.Examples.Scenarios.Integrated`
 - `docs/demos-1/DEM1-TASK-TRACKER.md` — marked DEM1-D010 complete
-- `Bagira.Runner.Integration.Tests/MapPlacementIntegrationTests.cs` — removed private `TryTakeCreateAck`, 2 call sites updated (Phase 0)
-- `Bagira.Runner.Integration.Tests/AreaAuthoringIntegrationTests.cs` — removed private `TryTakeCreateAck`, 1 call site updated (Phase 0)
-- `Bagira.Runner.Integration.Tests/MiniIosIntegrationTests.cs` — removed private `TryTakeCreateAck`, 4 call sites updated (Phase 0)
-- `Bagira.Runner.Integration.Tests/SpawnMovingVehicleWithGatewayIntegrationTests.cs` — removed private `TryTakeCreateAck`, 1 call site updated (Phase 0)
+- `Hrot.ClusterRunner.Integration.Tests/MapPlacementIntegrationTests.cs` — removed private `TryTakeCreateAck`, 2 call sites updated (Phase 0)
+- `Hrot.ClusterRunner.Integration.Tests/AreaAuthoringIntegrationTests.cs` — removed private `TryTakeCreateAck`, 1 call site updated (Phase 0)
+- `Hrot.ClusterRunner.Integration.Tests/MiniIosIntegrationTests.cs` — removed private `TryTakeCreateAck`, 4 call sites updated (Phase 0)
+- `Hrot.ClusterRunner.Integration.Tests/SpawnMovingVehicleWithGatewayIntegrationTests.cs` — removed private `TryTakeCreateAck`, 1 call site updated (Phase 0)

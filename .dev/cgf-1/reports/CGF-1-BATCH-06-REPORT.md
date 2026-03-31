@@ -15,28 +15,28 @@ Part A (correctness debt + BATCH-05 follow-ups) and Part B (CGF1-S0203 time stra
 
 ## Part A — Tech debt & BATCH-05 follow-ups
 
-### A.1 — `DrillSlave` heartbeat must reflect local DSM state (P2 — BATCH-05 Issue 1)
+### A.1 — `ClusterSlave` heartbeat must reflect local DSM state (P2 — BATCH-05 Issue 1)
 
 **Files modified:**
-- `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`
-- `Bagira.SimHost.Tests/DrillSlaveHandlerTests.cs`
+- `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs`
+- `Hrot.SimHost.Tests/ClusterSlaveHandlerTests.cs`
 
-**Change:** `PublishHeartbeat()` previously hardcoded `LocalDsmState = DSMState.Standby`. Now uses `_localDsmState` which is updated on every successful `CommitState` dispatch.
+**Change:** `PublishHeartbeat()` previously hardcoded `LocalClusterState = ClusterState.Standby`. Now uses `_localClusterState` which is updated on every successful `CommitState` dispatch.
 
-An `internal DSMState LocalDsmStateForTest => _localDsmState` test-seam property was added (consistent with the `EnqueueCommandForTest` pattern already present) to allow the new unit test to assert the committed value without DDS.
+An `internal ClusterState LocalClusterStateForTest => _localClusterState` test-seam property was added (consistent with the `EnqueueCommandForTest` pattern already present) to allow the new unit test to assert the committed value without DDS.
 
-**New test:** `DrillSlaveHandlerTests.LocalDsmState_ReflectsCommittedState_AfterCommitState`
-- Constructs a DDS-less `DrillSlave` via the internal constructor.
+**New test:** `ClusterSlaveHandlerTests.LocalClusterState_ReflectsCommittedState_AfterCommitState`
+- Constructs a DDS-less `ClusterSlave` via the internal constructor.
 - Asserts initial state is `Standby`.
 - Enqueues `CommitState(LoadingLive)` and calls `Tick()`.
-- Asserts `LocalDsmStateForTest == DSMState.LoadingLive` — confirming the next heartbeat would carry the updated value.
+- Asserts `LocalClusterStateForTest == ClusterState.LoadingLive` — confirming the next heartbeat would carry the updated value.
 
 ### A.2 — DEBT-TRACKER hygiene
 
 **File modified:** `.dev/DEBT-TRACKER.md`
 
 Changes:
-1. **`LocalDsmState` heartbeat row** (Source: CGF-1-BATCH-05 review) — marked ✅ with `CGF-1-BATCH-06` fix note.
+1. **`LocalClusterState` heartbeat row** (Source: CGF-1-BATCH-05 review) — marked ✅ with `CGF-1-BATCH-06` fix note.
 2. **`CommitState_RaisesEsmStateChangedEvent` typo row** (Source: CGF-1-BATCH-05 review) — marked ✅ after rename in A.3.
 3. **PrepareAsync/Commit fire-and-forget row** (Source: CGF-1-BATCH-02 review) — description refreshed to say "CGF1-S0202 delivered event/handler wiring only; the fire-and-forget stub is the current intended behaviour"; target remains `CGF1-S0304`.
 
@@ -44,10 +44,10 @@ No CGF rows with `CGF-1-BATCH-05` as an open target were found (all had been res
 
 ### A.3 — Optional quick wins (both done)
 
-**A.3a — Rename test** (`Bagira.SimHost.Tests/DrillSlaveHandlerTests.cs`)  
-`CommitState_RaisesEsmStateChangedEvent` → `CommitState_RaisesDsmStateChangedEvent`.
+**A.3a — Rename test** (`Hrot.SimHost.Tests/ClusterSlaveHandlerTests.cs`)  
+`CommitState_RaisesEsmStateChangedEvent` → `CommitState_RaisesClusterStateChangedEvent`.
 
-**A.3b — Add whitespace payload test** (`Bagira.Orchestrator.Tests/TransitionPlannerTests.cs`)  
+**A.3b — Add whitespace payload test** (`Hrot.Orchestrator.Tests/TransitionPlannerTests.cs`)  
 New test `PlanTrajectory_WhitespaceOnlyPayload_Throws` — verifies `IsNullOrWhiteSpace` guard throws `InvalidOperationException` for `PayloadJson = "   "`.
 
 ---
@@ -88,8 +88,8 @@ A new file `SwitchableTimeControllerTests.cs` was created for the two `Switchabl
 
 | Assembly | Passed | Failed | Notes |
 |---|---|---|---|
-| `Bagira.SimHost.Tests` | 364 | 0 | +1 new heartbeat test, +1 rename |
-| `Bagira.Orchestrator.Tests` | 18 | 0 | +1 whitespace payload test |
+| `Hrot.SimHost.Tests` | 364 | 0 | +1 new heartbeat test, +1 rename |
+| `Hrot.Orchestrator.Tests` | 18 | 0 | +1 whitespace payload test |
 | `FDP.Toolkit.Time.Tests` | 57 | 0 (+1 skip) | +5 S0203 tests; skip is pre-existing |
 | Full solution (serial) | all individual assemblies pass | — | 2 flakes under parallel run are pre-existing DDS domain contention (tracked) |
 
@@ -97,8 +97,8 @@ A new file `SwitchableTimeControllerTests.cs` was created for the two `Switchabl
 
 ## Success criteria
 
-- [x] `LocalDsmState` on SimHost heartbeats matches `_localDsmState` after commits.
-- [x] Test added verifying heartbeat state seam (`LocalDsmState_ReflectsCommittedState_AfterCommitState`).
+- [x] `LocalClusterState` on SimHost heartbeats matches `_localClusterState` after commits.
+- [x] Test added verifying heartbeat state seam (`LocalClusterState_ReflectsCommittedState_AfterCommitState`).
 - [x] DEBT rows updated: heartbeat ✅, typo ✅, PrepareAsync description refreshed.
 - [x] CGF1-S0203 success conditions met: all 5 named tests pass.
 - [x] Solution builds clean (0 errors, existing warning count unchanged).

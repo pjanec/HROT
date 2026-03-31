@@ -31,29 +31,29 @@
 
 ### A.1 — **Prefetch barrier and transition gating** (P2)
 
-**Files:** `Bagira.Orchestrator/DrillMaster.cs` (and any small helper), possibly `ProcessSysOpRequests` / transaction state.
+**Files:** `Hrot.Orchestrator/ClusterMaster.cs` (and any small helper), possibly `ProcessClusterOpRequests` / transaction state.
 
-**Problem:** `ExecutePrefetchScenario` starts `PrefetchScenarioAsync` fire-and-forget and immediately fans `PrefetchFiles` while `TransitionState` has already advanced `_currentDsmState` optimistically — **race** with SMB copy and with subsequent `LoadingEdit` / `LoadingLive` handlers.
+**Problem:** `ExecutePrefetchScenario` starts `PrefetchScenarioAsync` fire-and-forget and immediately fans `PrefetchFiles` while `TransitionState` has already advanced `_currentClusterState` optimistically — **race** with SMB copy and with subsequent `LoadingEdit` / `LoadingLive` handlers.
 
 **Required direction (pick a coherent design, document in report):**
 
 - Either **await** prefetch completion on a path that can block without deadlocking the DDS tick (e.g. dedicated async pipeline, or defer optimistic DSM advance until prefetch success), **or**  
 - Track a **prefetch latch** / pending op so **no** `TransitionStep` DDS fan-out runs until **`GatewayResult`** indicates success policy (e.g. `FailureCount == 0` and `SuccessCount > 0` when files existed on NAS), **and** fan **`PrefetchFiles` only after** push completes (or merge responsibilities so node ACK reflects real files).
 
-- On **`PrefetchScenarioAsync` fault** or **policy violation**, surface **failure** to the client (`SysOpStatus.Failure` / reject request) and **do not** leave the cluster in a state that assumes files are present.
+- On **`PrefetchScenarioAsync` fault** or **policy violation**, surface **failure** to the client (`ClusterOpStatus.Failure` / reject request) and **do not** leave the cluster in a state that assumes files are present.
 
 Add or extend **unit tests** (or integration harness) that would fail under the current fire-and-forget ordering.
 
 ### A.2 — **`StorageGatewayModule.PrefetchScenarioAsync` fail-loud** (P2)
 
-**File:** `Bagira.Orchestrator/StorageGatewayModule.cs`
+**File:** `Hrot.Orchestrator/StorageGatewayModule.cs`
 
-- Missing NAS **`sourceDir`** must **not** return silent `{0,0}` success semantics; **throw** or return a result that **`DrillMaster`** treats as hard failure.  
+- Missing NAS **`sourceDir`** must **not** return silent `{0,0}` success semantics; **throw** or return a result that **`ClusterMaster`** treats as hard failure.  
 - Revisit **“silently skipped”** missing local targets: either **fail the operation**, **increment `FailureCount`** with clear logging, or document **strict** vs **lenient** mode with production default **strict**.
 
 ### A.3 — **`EditLoadDsmHandler` null repository** (P3)
 
-**File:** `Bagira.SimHost/Modules/Orchestration/Handlers/EditLoadDsmHandler.cs`
+**File:** `Hrot.SimHost/Modules/Orchestration/Handlers/EditLoadDsmHandler.cs`
 
 When `_pendingDom != null` (load required) and both `repo` and `_world` are null → **`InvalidOperationException`** instead of Warn + no-op.
 
@@ -76,8 +76,8 @@ Close **Part A** rows when merged; add new rows only for **new** gaps discovered
 Implement per task detail:
 
 1. **`CheckpointIOWorker`** in `Fdp.Kernel` (dedicated thread, LZ4, `{storageDir}/{requestId}_node_{nodeId}.fdp`, `CompletionResults`, `Enqueue` / `DrainAsync`).  
-2. **`CheckpointDsmHandler`** in `Bagira.SimHost` (`TakeSnapshot`, `InProgress` ACK, `snap.SyncFrom`, deferred Success/Failure).  
-3. **`DrillSlave.Tick()`** monitor for completion → DDS ACK.  
+2. **`CheckpointDsmHandler`** in `Hrot.SimHost` (`TakeSnapshot`, `InProgress` ACK, `snap.SyncFrom`, deferred Success/Failure).  
+3. **`ClusterSlave.Tick()`** monitor for completion → DDS ACK.  
 4. **`LiveLoadDsmHandler.PrepareAsync`**: `await CheckpointIOWorker.DrainAsync()` before `FinalizeRecordingAsync()` where specified.
 
 **Success conditions:** all tests listed in §CGF1-S0303 (checkpoint handler overlap, snapshot diff, drain, live unload wait, etc.).

@@ -17,7 +17,7 @@ on **what to change** and **how to verify** it.
 **Design ref:** [§1.1](./BUG2-DESIGN.md#11-fix-duplicate-updateentitydescriptorrequestsystem-registration)
 
 **Files to change:**  
-- `Bagira.SimHost/SimHostApp.cs`
+- `Hrot.SimHost/SimHostApp.cs`
 
 #### What to do
 
@@ -48,14 +48,14 @@ _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, e
 **Design ref:** [§1.2](./BUG2-DESIGN.md#12-add-enablesendertracking-to-all-dds-participant-initializations)
 
 **Files to change:**  
-- `Bagira.SimHost/SimHostApp.cs`  
-- `Bagira.IG/IgApplication.cs`  
-- `Bagira.Runner/Services/IosSubsystem.cs`  
+- `Hrot.SimHost/SimHostApp.cs`  
+- `Hrot.IG/IgApplication.cs`  
+- `Hrot.ClusterRunner/Services/IosSubsystem.cs`  
 - `FDP/Examples/Fdp.Examples.NetworkDemo/NetworkDemoApp.cs`
 
 #### What to do
 
-In each file, find the call to `BagiraEnvironment.CreateParticipant(...)` or
+In each file, find the call to `HrotEnvironment.CreateParticipant(...)` or
 `new DdsParticipant(...)`. Immediately **after** that call and **before** any `DdsWriter` or
 `DdsReader` construction, insert:
 
@@ -80,30 +80,30 @@ Use the values documented in the design (see §1.2 table).
 
 ---
 
-### BUG2-N003 Fix GeoSpatialDR Descriptor Disposal Leak
+### BUG2-N003 Fix WorldPos Descriptor Disposal Leak
 
 **Design ref:** [§1.3](./BUG2-DESIGN.md#13-fix-geospatialdr-descriptor-disposal-leak)
 
 **Files to change:**  
-- `Bagira.Map.Common/Replication/Egress/GeoSpatialEgressTranslator.cs`
+- `Hrot.Map.Common/Replication/Egress/WorldPosEgressTranslator.cs`
 
 #### What to do
 
-Add the following override to `GeoSpatialEgressTranslator`:
+Add the following override to `WorldPosEgressTranslator`:
 
 ```csharp
 public override void Dispose(long networkEntityId)
 {
-    base.Dispose(networkEntityId);         // tombstones primary GeoSpatial topic
-    _drWriter.DisposeInstance(new GeoSpatialDR { EntityId = (int)networkEntityId });
+    base.Dispose(networkEntityId);         // tombstones primary WorldPos topic
+    _drWriter.DisposeInstance(new WorldPos { EntityId = (int)networkEntityId });
 }
 ```
 
 #### Success conditions
 
-- `GeoSpatialEgressTranslatorTests.Dispose_CallsDisposeOnDrWriter` (new): mock `_drWriter`;
+- `WorldPosEgressTranslatorTests.Dispose_CallsDisposeOnDrWriter` (new): mock `_drWriter`;
   call `Dispose(42L)`; verify the mock received `DisposeInstance` with `EntityId == 42`.
-- `GeoSpatialEgressTranslatorTests.Dispose_AlsoCallsBaseDispose` (new): verify the base
+- `WorldPosEgressTranslatorTests.Dispose_AlsoCallsBaseDispose` (new): verify the base
   translator's `DisposeInstance` is also invoked.
 
 ---
@@ -117,8 +117,8 @@ public override void Dispose(long networkEntityId)
 **Design ref:** [§2.1](./BUG2-DESIGN.md#21-fix-missing-resolvetrigger-cases)
 
 **Files to change:**  
-- `Bagira.SimHost/Systems/MissionControlRequestSystem.cs`  
-- `Bagira.Map.Common/Translators/EntityMissionIngressTranslator.cs`
+- `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`  
+- `Hrot.Map.Common/Translators/EntityMissionIngressTranslator.cs`
 
 #### What to do
 
@@ -150,7 +150,7 @@ fall back to `TimerElapsed(0f)` as a safe observable failure mode.
 **Design ref:** [§2.2](./BUG2-DESIGN.md#22-add-trigger-selection-ui-to-missionpanel)
 
 **Files to change:**  
-- `Bagira.IOS/Panels/MissionPanel.cs`
+- `Hrot.ExCon/Panels/MissionPanel.cs`
 
 #### What to do
 
@@ -208,8 +208,8 @@ fall back to `TimerElapsed(0f)` as a safe observable failure mode.
        if (!TryGetDraftTasks(out var tasks)) return;
        if (taskIndex < 0 || taskIndex >= tasks.Count) return;
        var task = tasks[taskIndex];
-       task.Triggers ??= new List<Bagira.BDC.SSTD.MissionTrigger>();
-       task.Triggers.Add(new Bagira.BDC.SSTD.MissionTrigger
+       task.Triggers ??= new List<Hrot.NED.Descriptors.MissionTrigger>();
+       task.Triggers.Add(new Hrot.NED.Descriptors.MissionTrigger
        {
            Type   = type,
            Params = GetDefaultTriggerParams(type)
@@ -276,7 +276,7 @@ fall back to `TimerElapsed(0f)` as a safe observable failure mode.
 **Design ref:** [§2.3](./BUG2-DESIGN.md#23-fix-unreadable-mission-task-action-buttons)
 
 **Files to change:**  
-- `Bagira.IOS/Panels/MissionPanel.cs`
+- `Hrot.ExCon/Panels/MissionPanel.cs`
 
 #### What to do
 
@@ -303,7 +303,7 @@ $"✕##{i}"    →    $"Delete##{i}"
 **Design ref:** [§2.4](./BUG2-DESIGN.md#24-add-inline-version-conflict-resolution-to-missionpanel)
 
 **Files to change:**  
-- `Bagira.IOS/Panels/MissionPanel.cs`
+- `Hrot.ExCon/Panels/MissionPanel.cs`
 
 #### What to do
 
@@ -379,7 +379,7 @@ $"✕##{i}"    →    $"Delete##{i}"
 **Design ref:** [§3.1](./BUG2-DESIGN.md#31-remove-legacy-tool-combo-from-configpanel)
 
 **Files to change:**  
-- `Bagira.IOS/Panels/ConfigPanel.cs`
+- `Hrot.ExCon/Panels/ConfigPanel.cs`
 
 #### What to do
 
@@ -410,7 +410,7 @@ After removal, `BuildPatch()` should produce a JSON object with only the `view` 
 **Design ref:** [§3.2](./BUG2-DESIGN.md#32-fix-orbat-tree-indentation)
 
 **Files to change:**  
-- `Bagira.IOS/Panels/OrbatPanel.cs`
+- `Hrot.ExCon/Panels/OrbatPanel.cs`
 
 #### What to do
 
@@ -462,7 +462,7 @@ Do not change `GetVisibleNodes` — it already produces correct `Depth` values.
 **Design ref:** [§4.1](./BUG2-DESIGN.md#41-add-shift-key-immediate-drag-mode)
 
 **Files to change:**  
-- `Bagira.IG/IgApplication.cs`
+- `Hrot.IG/IgApplication.cs`
 
 #### What to do
 
@@ -481,13 +481,13 @@ Do not change `GetVisibleNodes` — it already produces correct `Depth` values.
            _continuousDragTimer += _frameDt;
            if (_continuousDragTimer >= ContinuousDragIntervalSec)
            {
-               SendGeoSpatialUpdate(entity, worldPos);
+               SendWorldPosUpdate(entity, worldPos);
                _continuousDragTimer = 0f;
            }
        }
        else if (isShiftHeld && _lastDragWorldPos != worldPos)
        {
-           SendGeoSpatialUpdate(entity, worldPos);
+           SendWorldPosUpdate(entity, worldPos);
        }
 
        _lastDragWorldPos = worldPos;
@@ -502,8 +502,8 @@ Do not change `GetVisibleNodes` — it already produces correct `Depth` values.
 #### Success conditions
 
 - `ContinuousDragTests.OnEntityMoved_ShiftHeld_PositionChanged_SendsUpdate` (new): mock
-  `SendGeoSpatialUpdate`; simulate `isShiftHeld = true`, distinct start/end positions; assert
-  `SendGeoSpatialUpdate` is called once.
+  `SendWorldPosUpdate`; simulate `isShiftHeld = true`, distinct start/end positions; assert
+  `SendWorldPosUpdate` is called once.
 - `ContinuousDragTests.OnEntityMoved_ShiftHeld_SamePosition_DoesNotSend` (new): same position
   repeated; assert no call.
 - `ContinuousDragTests.OnEntityMoved_ShiftNotHeld_ContinuousDragDisabled_DoesNotSend` (new).
@@ -521,9 +521,9 @@ Do not change `GetVisibleNodes` — it already produces correct `Depth` values.
 
 **Files to change:**  
 - `FDP/Toolkits/FDP.Toolkit.Vis2D/Tools/BoxSelectionTool.cs`  
-- `Bagira.IG/Systems/SelectionRenderSystem.cs`  
+- `Hrot.IG/Systems/SelectionRenderSystem.cs`  
 - `FDP/Toolkits/FDP.Toolkit.Vis2D/Layers/EntityRenderLayer.cs`  
-- `Bagira.IG/IgApplication.cs`
+- `Hrot.IG/IgApplication.cs`
 
 #### What to do
 
@@ -608,7 +608,7 @@ var layer = new EntityRenderLayer("Entities", layerBitIndex: -1, ...) { Canvas =
 **Design ref:** [§6.1](./BUG2-DESIGN.md#61-add-crosshair-cursor-to-measuretool)
 
 **Files to change:**  
-- `Bagira.IG/Tools/MeasureTool.cs`
+- `Hrot.IG/Tools/MeasureTool.cs`
 
 #### What to do
 
@@ -695,8 +695,8 @@ public void Draw(RenderContext ctx)
 **Design ref:** [§7.1](./BUG2-DESIGN.md#71-add-delete-to-inspector-context-menus)
 
 **Files to change:**  
-- `Bagira.SimHost/SimHostVisualization.cs`  
-- `Bagira.IG/IgApplication.cs`
+- `Hrot.SimHost/SimHostVisualization.cs`  
+- `Hrot.IG/IgApplication.cs`
 
 #### What to do
 
@@ -752,8 +752,8 @@ call site.
 **Design ref:** [§7.2](./BUG2-DESIGN.md#72-wire-ios-delete-context-action-to-ig-side-elm-deletion)
 
 **Files to change:**  
-- `Bagira.IG/Translators/ContextActionsUpdateTranslator.cs`  
-- `Bagira.IG/IgApplication.cs`
+- `Hrot.IG/Translators/ContextActionsUpdateTranslator.cs`  
+- `Hrot.IG/IgApplication.cs`
 
 #### What to do
 
@@ -813,8 +813,8 @@ case "IG_DeleteEntity":
 **Design ref:** [§8.1](./BUG2-DESIGN.md#81-fix-simhost-road-graph-rendering)
 
 **Files to change:**  
-- `Bagira.SimHost/Modules/SimulationLogicModule.cs`  
-- `Bagira.SimHost/SimHostApp.cs`
+- `Hrot.SimHost/Modules/SimulationLogicModule.cs`  
+- `Hrot.SimHost/SimHostApp.cs`
 
 #### What to do
 

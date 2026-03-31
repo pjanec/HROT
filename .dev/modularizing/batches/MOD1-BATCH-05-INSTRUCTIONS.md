@@ -16,7 +16,7 @@ Welcome to MOD1 Phase 5.
 
 **🚨 CRITICAL INSTRUCTIONS REGARDING PREVIOUS BATCHES 🚨**
 
-1. **Your DI fix for ActionDispatch was a band-aid.** Leaving `AimAndFireExecutor` and `JoinFormationExecutor` in the `Bagira` domain is unacceptable. If it handles generic combat or formation behavior, it belongs in FDP. **You are explicitly authorized to create new toolkit assemblies (e.g., `FDP.Toolkit.Combat`)** to physically house these executors generically.
+1. **Your DI fix for ActionDispatch was a band-aid.** Leaving `AimAndFireExecutor` and `JoinFormationExecutor` in the `Hrot` domain is unacceptable. If it handles generic combat or formation behavior, it belongs in FDP. **You are explicitly authorized to create new toolkit assemblies (e.g., `FDP.Toolkit.Combat`)** to physically house these executors generically.
 
 You must solve this corrective item before proceeding with the formal Phase 5 (Component ID splint) and the beginning of Phase 6 (Perception ECS structs).
 
@@ -27,13 +27,13 @@ You must solve this corrective item before proceeding with the formal Phase 5 (C
 
 ### Source Code Location
 - **Primary Work Areas:**
-  - `Bagira.Runner/`
+  - `Hrot.ClusterRunner/`
   - `FDP.Toolkit.Combat/` (New Assembly to create)
   - `FDP.Kernel/`
-  - `Bagira.Map.Definitions/`
+  - `Hrot.Map.Definitions/`
   - `FDP.Toolkit.Perception/`
 - **Test Projects:**
-  - `Bagira.SimHost.Integration.Tests/` (Critical for Right-Click UI testing validation)
+  - `Hrot.SimHost.Integration.Tests/` (Critical for Right-Click UI testing validation)
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -58,7 +58,7 @@ You must solve this corrective item before proceeding with the formal Phase 5 (C
 
 ### Corrective Task DB-MOD1-11: Wire TogglePerspectiveEvent in UI
 
-**Files:** `Bagira.SimHost` UI layer / Output panels.
+**Files:** `Hrot.SimHost` UI layer / Output panels.
 
 **Description:**
 The `PerspectiveCoordinatorSystem` and `ActivePerspective` were created in BATCH-04 but lack physical UI integration.
@@ -73,22 +73,22 @@ The `PerspectiveCoordinatorSystem` and `ActivePerspective` were created in BATCH
 **Files:** `AimAndFireExecutor.cs`, `JoinFormationExecutor.cs`, Solution files.
 
 **Description:**
-Leaving generic kinetic behaviors in `Bagira.SimHost` negates the modularization effort. 
+Leaving generic kinetic behaviors in `Hrot.SimHost` negates the modularization effort. 
 - Create a new assembly: `FDP.Toolkit.Combat`.
 - Move `AimAndFireExecutor` and all associated core weapon dispatch logic into this new assembly.
 - Relocate `JoinFormationExecutor` into `FDP.Toolkit.Behavior` or a suitable generic toolkit.
-- Adjust project references. `Bagira.SimHost` should consume these toolkits, not house their guts.
+- Adjust project references. `Hrot.SimHost` should consume these toolkits, not house their guts.
 
 ---
 
 ### Task 1: MOD1-P5T1
 
-**Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P5T1](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p5t1--create-bagiracomponentids-in-bagiramapdefinitions)
+**Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P5T1](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p5t1--create-hrotcomponentids-in-hrotmapdefinitions)
 
-**Description:** Create `BagiraComponentIds` in `Bagira.Map.Definitions` and strip all Bagira application constants out of `GlobalComponentIds`.
+**Description:** Create `HrotComponentIds` in `Hrot.Map.Definitions` and strip all Hrot application constants out of `GlobalComponentIds`.
 
 **Tests Required:**
-- ✅ Ensure zero `Bagira.*` structs rely on `GlobalComponentIds` constants internally.
+- ✅ Ensure zero `Hrot.*` structs rely on `GlobalComponentIds` constants internally.
 
 ---
 
@@ -131,7 +131,7 @@ Please submit `.dev-workstream/reports/MOD1-BATCH-05-REPORT.md` completing the f
 
 **Developer Insights**
 
-**Q1:** For CT-MOD1-I, did creating `FDP.Toolkit.Combat` expose any other tightly coupled Bagira classes? How did you resolve the transitive dependencies?
+**Q1:** For CT-MOD1-I, did creating `FDP.Toolkit.Combat` expose any other tightly coupled Hrot classes? How did you resolve the transitive dependencies?
 
 **Q2:** Did any component ID collisions occur after splitting `GlobalComponentIds` in P5T1? 
 
@@ -143,6 +143,6 @@ Please submit `.dev-workstream/reports/MOD1-BATCH-05-REPORT.md` completing the f
 
 This batch is DONE when:
 - [ ] Perspective UI Toggle works physically from the Runner frontend.
-- [ ] `AimAndFireExecutor` and `JoinFormationExecutor` live in fully generalized FDP toolkits (`FDP.Toolkit.Combat`, etc.), completely removing them from Bagira domains.
-- [ ] `BagiraComponentIds` encapsulates all Bagira-specific IDs, leaving `GlobalComponentIds` strictly for engine primitives.
+- [ ] `AimAndFireExecutor` and `JoinFormationExecutor` live in fully generalized FDP toolkits (`FDP.Toolkit.Combat`, etc.), completely removing them from Hrot domains.
+- [ ] `HrotComponentIds` encapsulates all Hrot-specific IDs, leaving `GlobalComponentIds` strictly for engine primitives.
 - [ ] Perception modality pipelines successfully compile.

@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-13  
 **Tasks:** INTS-P2-006, INTS-P2-007, INTS-P2-008, INTS-P2-009, INTS-P2-010  
 **Phase:** Integration Troubleshooting P2  
-**Estimated Effort:** 16–20 hours  
+**Estimated Effort:** 16ï¿½20 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-12 approved
 
@@ -12,7 +12,7 @@
 ## ?? Onboarding & Workflow
 
 ### Developer Instructions
-This batch consolidates shared initialization and headless behavior across SimHost, IG, and IOS using `BagiraEnvironment`, and fixes headless orchestration when IG is present.
+This batch consolidates shared initialization and headless behavior across SimHost, IG, and IOS using `HrotEnvironment`, and fixes headless orchestration when IG is present.
 
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
@@ -21,8 +21,8 @@ This batch consolidates shared initialization and headless behavior across SimHo
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-12-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.Map.Common/`, `Bagira.Runner/`, `Bagira.IG/`, `Bagira.SimHost/`
-- **Test Projects:** `Bagira.Map.Common.Tests/`, `Bagira.IG.Tests/`, `Bagira.SimHost.Tests/`, `Bagira.Runner.Tests/`
+- **Primary Work Area:** `Hrot.Map.Common/`, `Hrot.ClusterRunner/`, `Hrot.IG/`, `Hrot.SimHost/`
+- **Test Projects:** `Hrot.Map.Common.Tests/`, `Hrot.IG.Tests/`, `Hrot.SimHost.Tests/`, `Hrot.ClusterRunner.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -41,43 +41,43 @@ This batch consolidates shared initialization and headless behavior across SimHo
 
 ## ? Tasks
 
-### Task 1: INTS-P2-006 — Implement `BagiraEnvironment` bootstrapper
-**File:** `Bagira.Map.Common/BagiraEnvironment.cs` (UPDATE)  
-**Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-006--implement-bagiraenvironment-bootstrapper`
+### Task 1: INTS-P2-006 ï¿½ Implement `HrotEnvironment` bootstrapper
+**File:** `Hrot.Map.Common/HrotEnvironment.cs` (UPDATE)  
+**Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-006--implement-hrotenvironment-bootstrapper`
 
 ---
 
-### Task 2: INTS-P2-007 — Fix SubsystemOrchestrator headless logic
-**File:** `Bagira.Runner/Services/SubsystemOrchestrator.cs` (UPDATE)  
+### Task 2: INTS-P2-007 ï¿½ Fix SubsystemOrchestrator headless logic
+**File:** `Hrot.ClusterRunner/Services/SubsystemOrchestrator.cs` (UPDATE)  
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-007--fix-subsystemorchestrator-headless-logic`
 
 ---
 
-### Task 3: INTS-P2-008 — Refactor `IgApplication` to use `BagiraEnvironment`
-**File:** `Bagira.IG/IgApplication.cs` (UPDATE)  
-**Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-008--refactor-igapplication-to-use-bagiraenvironment`
+### Task 3: INTS-P2-008 ï¿½ Refactor `IgApplication` to use `HrotEnvironment`
+**File:** `Hrot.IG/IgApplication.cs` (UPDATE)  
+**Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-008--refactor-igapplication-to-use-hrotenvironment`
 
 ---
 
-### Task 4: INTS-P2-009 — Refactor `SimHostApp` to use `BagiraEnvironment`
-**File:** `Bagira.SimHost/SimHostApp.cs` (UPDATE)  
-**Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-009--refactor-simhostapp-to-use-bagiraenvironment`
+### Task 4: INTS-P2-009 ï¿½ Refactor `SimHostApp` to use `HrotEnvironment`
+**File:** `Hrot.SimHost/SimHostApp.cs` (UPDATE)  
+**Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-009--refactor-simhostapp-to-use-hrotenvironment`
 
 ---
 
-### Task 5: INTS-P2-010 — Refactor `IosSubsystem` to use `BagiraEnvironment`
-**File:** `Bagira.Runner/Services/IosSubsystem.cs` (UPDATE)  
-**Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-010--refactor-iossubsystem-to-use-bagiraenvironment`
+### Task 5: INTS-P2-010 ï¿½ Refactor `IosSubsystem` to use `HrotEnvironment`
+**File:** `Hrot.ClusterRunner/Services/IosSubsystem.cs` (UPDATE)  
+**Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-010--refactor-iossubsystem-to-use-hrotenvironment`
 
 ---
 
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.Map.Common.Tests/Bagira.Map.Common.Tests.csproj`
-  - `dotnet test Bagira.IG.Tests/Bagira.IG.Tests.csproj`
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
-  - `dotnet test Bagira.Runner.Tests/Bagira.Runner.Tests.csproj`
+  - `dotnet test Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj`
+  - `dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj`
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
+  - `dotnet test Hrot.ClusterRunner.Tests/Hrot.ClusterRunner.Tests.csproj`
 
 ---
 
@@ -97,7 +97,7 @@ This batch consolidates shared initialization and headless behavior across SimHo
 
 ## Developer Insights
 
-**Q1:** What issues did you encounter while consolidating initialization via `BagiraEnvironment`? How did you resolve them?
+**Q1:** What issues did you encounter while consolidating initialization via `HrotEnvironment`? How did you resolve them?
 
 **Q2:** Did you spot any weak points in headless orchestration? What would you improve?
 
@@ -112,7 +112,7 @@ This batch consolidates shared initialization and headless behavior across SimHo
 ## ?? Success Criteria
 
 This batch is DONE when:
-- [ ] INTS-P2-006–P2-010 complete with xUnit tests
+- [ ] INTS-P2-006ï¿½P2-010 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-13-REPORT.md`
 
@@ -120,7 +120,7 @@ This batch is DONE when:
 
 ## ?? Common Pitfalls to Avoid
 - Do not instantiate multiple DDS participants inside the same app initialization path.
-- Ensure `BagiraEnvironment.CreateTkb()` registers `BdcTkbCatalog` before returning.
+- Ensure `HrotEnvironment.CreateTkb()` registers `BdcTkbCatalog` before returning.
 - When IG is present, SimHost must be forced headless in the orchestrator to avoid input conflicts.
 
 ---

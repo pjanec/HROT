@@ -11,14 +11,14 @@
 
 | Task ID | Status | Notes |
 |---------|--------|-------|
-| R2.1 — Extract `SimHostSubsystem` | ✅ Complete | `Bagira.Runner/Services/SimHostSubsystem.cs` — full kernel + DDS wiring |
-| R2.2 — SimHost standalone build | ✅ Complete | `Bagira.SimHost.Standalone/` project added to solution |
+| R2.1 — Extract `SimHostSubsystem` | ✅ Complete | `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` — full kernel + DDS wiring |
+| R2.2 — SimHost standalone build | ✅ Complete | `Hrot.SimHost.Standalone/` project added to solution |
 | R2.3 — SimHost integration tests | ✅ Complete | 13 tests in `SimHostSubsystemTests.cs`, all pass |
 | R2.4 — Refactor `IgApplication` for embedding | ✅ Complete | `InitializeEmbedded`, `Update`, `DrawWorld`, `DrawUI`, `Shutdown(ownsWindow)` |
-| R2.5 — Extract `IgSubsystem` | ✅ Complete | `Bagira.Runner/Services/IgSubsystem.cs` delegates to `IgApplication` |
-| R2.6 — IG standalone build | ✅ Complete | `Bagira.IG.Standalone/` project added to solution |
-| R2.7 — Extract `IosSubsystem` | ✅ Complete | `Bagira.Runner/Services/IosSubsystem.cs` uses `IosMock` + `NullDdsWriter<T>` |
-| R2.8 — IOS standalone build | ✅ Complete | `Bagira.IOS.Standalone/` project added to solution |
+| R2.5 — Extract `IgSubsystem` | ✅ Complete | `Hrot.ClusterRunner/Services/IgSubsystem.cs` delegates to `IgApplication` |
+| R2.6 — IG standalone build | ✅ Complete | `Hrot.IG.Standalone/` project added to solution |
+| R2.7 — Extract `IosSubsystem` | ✅ Complete | `Hrot.ClusterRunner/Services/IosSubsystem.cs` uses `IosMock` + `NullDdsWriter<T>` |
+| R2.8 — IOS standalone build | ✅ Complete | `Hrot.ExCon.Standalone/` project added to solution |
 | R2.9 — IOS integration tests | ✅ Complete | 10 tests in `IosSubsystemTests.cs`, all pass |
 | IG integration tests | ✅ Complete | 9 tests in `IgSubsystemTests.cs`, all pass |
 
@@ -26,9 +26,9 @@
 
 ## 🧪 Testing Results
 
-**Unit Tests Passed:** 72 / 72 (Bagira.Runner.Tests)  
-**Pre-existing IG Tests:** 229 / 229 (Bagira.IG.Tests — unchanged)  
-**Pre-existing IOS Tests:** 252 / 252 (Bagira.IOS.Tests — unchanged)
+**Unit Tests Passed:** 72 / 72 (Hrot.ClusterRunner.Tests)  
+**Pre-existing IG Tests:** 229 / 229 (Hrot.IG.Tests — unchanged)  
+**Pre-existing IOS Tests:** 252 / 252 (Hrot.ExCon.Tests — unchanged)
 
 **New Tests Written:**
 - `SimHostSubsystemTests.cs` — 13 tests covering Name, Initialize, Update, Shutdown, FullLifecycle, Start/Stop background thread
@@ -86,7 +86,7 @@ any auto-assigned IG types or class/interface types can claim those low-numbered
 
 `AutoCycloneTranslator<T>` requires `T` to have a `long EntityId` field (`UnsafeLayout<T>.IsValid`
 check). `EntityMaster` is a DDS-generated struct that does not satisfy this constraint. The
-constructor immediately throws `InvalidOperationException`. The original `Bagira.SimHost/Program.cs`
+constructor immediately throws `InvalidOperationException`. The original `Hrot.SimHost/Program.cs`
 carries the same bug (comment `TASK-IF003`).
 
 **Fix:** Removed the `AutoCycloneTranslator<EntityMaster>` translator from the `customTranslators`
@@ -107,7 +107,7 @@ that handles the EntityMaster DDS topic.
    an auto-assigned type before `InitializeEcs()` runs would break again.
 
 2. **`AutoCycloneTranslator<EntityMaster>` in Program.cs:** The TASK-IF003 comment in
-   `Bagira.SimHost/Program.cs` marks a known bug that was never fixed. The same broken line
+   `Hrot.SimHost/Program.cs` marks a known bug that was never fixed. The same broken line
    would crash SimHost on startup. The `AutoCycloneTranslator` throws at construction time,
    not at network connect time, so there is no DDS-network dependency; it fails regardless of
    DDS availability. Recommend removing the line from Program.cs as well.
@@ -122,10 +122,10 @@ that handles the EntityMaster DDS topic.
 
 **Q3: What design decisions did you make beyond the instructions? What alternatives did you consider?**
 
-1. **Subsystem implementations live in `Bagira.Runner/Services`** (not in the subsystem projects
+1. **Subsystem implementations live in `Hrot.ClusterRunner/Services`** (not in the subsystem projects
    themselves). This avoids circular project references: IG/IOS/SimHost are `OutputType=Exe`
-   projects and cannot reference `Bagira.Runner`. Placing subsystem wrappers in
-   `Bagira.Runner/Services` means Runner references each subsystem as a library.
+   projects and cannot reference `Hrot.ClusterRunner`. Placing subsystem wrappers in
+   `Hrot.ClusterRunner/Services` means Runner references each subsystem as a library.
 
 2. **`IgApplication.InitializeEmbedded(bool headless)` added as the embedded entry point.**
    The existing `Initialize()` method was preserved and refactored to delegate to
@@ -134,12 +134,12 @@ that handles the EntityMaster DDS topic.
    standalone `Run()` loop and the orchestrator-driven embedded mode share the same logic.
 
 3. **`IosSubsystem` uses a private `NullDdsWriter<T>`** to implement `IDdsWriter<T>` with a
-   no-op `Write()`. This matches the pattern already used in `Bagira.IOS/Program.cs` (which
+   no-op `Write()`. This matches the pattern already used in `Hrot.ExCon/Program.cs` (which
    uses `NullDdsWriter`) and makes IOS tests DDS-environment-independent. An alternative was
    to use a mock framework, but the `NullDdsWriter` approach is simpler and matches codebase
    conventions.
 
-4. **Standalone projects reference `Bagira.Runner`** and use `SubsystemOrchestrator` (for IG and
+4. **Standalone projects reference `Hrot.ClusterRunner`** and use `SubsystemOrchestrator` (for IG and
    IOS) or call the subsystem directly (for SimHost stand-alone). This keeps the standalone apps
    as thin wrappers (< 30 lines each) and reuses all orchestrator lifecycle logic. An alternative
    was to duplicate the lifecycle in each standalone; this was rejected to avoid divergence.
@@ -161,8 +161,8 @@ that handles the EntityMaster DDS topic.
    `CycloneDDS.Runtime` participates in DDS discovery but tests pass without any external
    process, because the simulation loop is short (no wait for remote data).
 
-4. **`Bagira.SimHost.Standalone` and similar projects reference an `OutputType=Exe` library
-   (`Bagira.Runner`).** MSBuild requires `<StartupObject>` to disambiguate multiple `Main`
+4. **`Hrot.SimHost.Standalone` and similar projects reference an `OutputType=Exe` library
+   (`Hrot.ClusterRunner`).** MSBuild requires `<StartupObject>` to disambiguate multiple `Main`
    methods when the referenced project is also an Exe. This was addressed via the
    `<StartupObject>` property in each standalone's `.csproj`.
 
@@ -191,7 +191,7 @@ that handles the EntityMaster DDS topic.
   `GlobalComponentIds` slots in the auto-assignment loop. The pre-anchor workaround in
   `InitializeEcs()` is sufficient for IG but does not protect SimHost or IOS worlds.
 
-- [ ] **Fix `AutoCycloneTranslator<EntityMaster>` in `Bagira.SimHost/Program.cs`** — The same
+- [ ] **Fix `AutoCycloneTranslator<EntityMaster>` in `Hrot.SimHost/Program.cs`** — The same
   bug removed from `SimHostSubsystem` still exists in the standalone entry point and would
   crash SimHost on startup.
 

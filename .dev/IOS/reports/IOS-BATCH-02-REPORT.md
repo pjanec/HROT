@@ -12,14 +12,14 @@
 
 | Task | File | Status |
 |---|---|---|
-| IOS.7.1 – Config Panel    | `Bagira.IOS/Panels/ConfigPanel.cs`      | ✅ |
-| IOS.7.2 – ORBAT Panel     | `Bagira.IOS/Panels/OrbatPanel.cs`       | ✅ |
-| IOS.7.3 – Mission Panel   | `Bagira.IOS/Panels/MissionPanel.cs`     | ✅ |
-| IOS.7.4 – Interaction Log | `Bagira.IOS/Panels/InteractionPanel.cs` | ✅ |
-| IOS.7.5 – Spawner Panel   | `Bagira.IOS/Panels/SpawnerPanel.cs`     | ✅ |
-| Supporting types          | `Bagira.IOS/Panels/PanelConstants.cs`   | ✅ |
-| Logic interface           | `Bagira.IOS/IIosLogic.cs`               | ✅ |
-| Panel tests               | `Bagira.IOS.Tests/*PanelTests.cs` (×5)  | ✅ |
+| IOS.7.1 – Config Panel    | `Hrot.ExCon/Panels/ConfigPanel.cs`      | ✅ |
+| IOS.7.2 – ORBAT Panel     | `Hrot.ExCon/Panels/OrbatPanel.cs`       | ✅ |
+| IOS.7.3 – Mission Panel   | `Hrot.ExCon/Panels/MissionPanel.cs`     | ✅ |
+| IOS.7.4 – Interaction Log | `Hrot.ExCon/Panels/InteractionPanel.cs` | ✅ |
+| IOS.7.5 – Spawner Panel   | `Hrot.ExCon/Panels/SpawnerPanel.cs`     | ✅ |
+| Supporting types          | `Hrot.ExCon/Panels/PanelConstants.cs`   | ✅ |
+| Logic interface           | `Hrot.ExCon/IIosLogic.cs`               | ✅ |
+| Panel tests               | `Hrot.ExCon.Tests/*PanelTests.cs` (×5)  | ✅ |
 
 ---
 

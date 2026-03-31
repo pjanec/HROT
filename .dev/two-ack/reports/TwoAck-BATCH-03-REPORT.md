@@ -39,17 +39,17 @@
 
 | File | Change |
 |------|--------|
-| `Bagira.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs` | Added `SstRequestFinalizationSystem` field; wired into constructor and `Tick()` after `ActivateConstructingEntities()`; `CreateEntity()` uses `TryGetTerminalAck`; added `TryGetTerminalAck` to `StubAckSink` |
-| `Bagira.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs` | `WaitForAckAsync` now calls `TryGetTerminalAck` in both poll and final-check paths |
-| `Bagira.Runner.Integration.Tests/MiniIosIntegrationTests.cs` | `TryTakeCreateAck` skips `InProgress` (returns `false` to let `PumpUntil` retry) |
-| `Bagira.Runner.Integration.Tests/MapPlacementIntegrationTests.cs` | Same `TryTakeCreateAck` fix |
-| `Bagira.Runner.Integration.Tests/AreaAuthoringIntegrationTests.cs` | Same `TryTakeCreateAck` fix |
-| `Bagira.IOS/IosLogic.cs` | `createEntityAckQueue` made mandatory (no `= null` default); field changed to non-nullable; null guard removed from `ProcessEntityCreationAcks`; XML doc updated |
-| `Bagira.IOS.Tests/IosLogicTests.cs` | Both `CreateSut` and `CreateSutWithCommandWriter` pass `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
-| `Bagira.IOS.Tests/IosMockTests.cs` | `CreateSut` passes `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
-| `Bagira.IOS.Tests/WorkflowTests.cs` | `WorkflowFixture` passes `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
-| `Bagira.IOS.Tests/MultiIosIntegrationTests.cs` | `MultiIosFactory.CreateClients` passes `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
-| `Bagira.IOS.Tests/IntegrationTests.cs` | `IntegrationFactory.Create` passes `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
+| `Hrot.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs` | Added `SstRequestFinalizationSystem` field; wired into constructor and `Tick()` after `ActivateConstructingEntities()`; `CreateEntity()` uses `TryGetTerminalAck`; added `TryGetTerminalAck` to `StubAckSink` |
+| `Hrot.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs` | `WaitForAckAsync` now calls `TryGetTerminalAck` in both poll and final-check paths |
+| `Hrot.ClusterRunner.Integration.Tests/MiniIosIntegrationTests.cs` | `TryTakeCreateAck` skips `InProgress` (returns `false` to let `PumpUntil` retry) |
+| `Hrot.ClusterRunner.Integration.Tests/MapPlacementIntegrationTests.cs` | Same `TryTakeCreateAck` fix |
+| `Hrot.ClusterRunner.Integration.Tests/AreaAuthoringIntegrationTests.cs` | Same `TryTakeCreateAck` fix |
+| `Hrot.ExCon/IosLogic.cs` | `createEntityAckQueue` made mandatory (no `= null` default); field changed to non-nullable; null guard removed from `ProcessEntityCreationAcks`; XML doc updated |
+| `Hrot.ExCon.Tests/IosLogicTests.cs` | Both `CreateSut` and `CreateSutWithCommandWriter` pass `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
+| `Hrot.ExCon.Tests/IosMockTests.cs` | `CreateSut` passes `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
+| `Hrot.ExCon.Tests/WorkflowTests.cs` | `WorkflowFixture` passes `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
+| `Hrot.ExCon.Tests/MultiIosIntegrationTests.cs` | `MultiIosFactory.CreateClients` passes `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
+| `Hrot.ExCon.Tests/IntegrationTests.cs` | `IntegrationFactory.Create` passes `new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>()` |
 
 ---
 

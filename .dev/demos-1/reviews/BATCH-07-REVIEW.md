@@ -39,15 +39,15 @@ Task 1 (egress + test harness trigger mapping), Task 2 (DEM1-D007 bootstrap docs
 
 ### Issue 4: `MissionTriggerHelper` still references obsolete enum
 
-**File:** `Bagira.Map.Common/Helpers/MissionTriggerHelper.cs`
+**File:** `Hrot.Map.Common/Helpers/MissionTriggerHelper.cs`
 
-**Problem:** `dotnet build Bagira.Map.Common` still reports **CS0618** on `MissionTrigger.ReachedDestination`. BATCH-07 fixed egress + `SimHostInstance` string map; the **string → ECS enum** helper remains on the legacy path.
+**Problem:** `dotnet build Hrot.Map.Common` still reports **CS0618** on `MissionTrigger.ReachedDestination`. BATCH-07 fixed egress + `SimHostInstance` string map; the **string → ECS enum** helper remains on the legacy path.
 
 **Fix:** BATCH-08 — align with BS1-T022 string mapping policy (see new DEBT row).
 
 ### Issue 5: `EntityMissionEgressTranslator` — legacy `EcsMissionTrigger.ReachedDestination` in stored queues
 
-**File:** `Bagira.Map.Common/Replication/Egress/EntityMissionEgressTranslator.cs`
+**File:** `Hrot.Map.Common/Replication/Egress/EntityMissionEgressTranslator.cs`
 
 **Note:** The `switch` no longer maps `EcsMissionTrigger.ReachedDestination`; it falls through to `"TimerElapsed"`. If any **in-memory** `MissionPlanQueue` still carries the obsolete enum value (not the `DoctrineFinished` path), DDS egress would be wrong. Acceptable if all live data paths are migrated; if not, add explicit compat arm mapping legacy enum to `"DoctrineFinished"` for wire compatibility.
 

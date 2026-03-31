@@ -21,7 +21,7 @@ Welcome to BUG1-BATCH-01. This batch focuses on foundational infrastructure fixe
 4. [No previous reviews yet, this is the first batch in the BUG1 stream]
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.Runner/`, `FDP/Framework/FDP.Framework.Runner/`, `Bagira.Map.Common/`, `FDP/ModuleHost/ModuleHost.Network.Cyclone/`
+- **Primary Work Area:** `Hrot.ClusterRunner/`, `FDP/Framework/FDP.Framework.Runner/`, `Hrot.Map.Common/`, `FDP/ModuleHost/ModuleHost.Network.Cyclone/`
 - **Batch Scripts:** `run_all_standalone.bat`, `run_SimHost.bat`, `run_IG.bat`, `run_IOS.bat`
 - **Test Project:** Respective `.Tests` packages in these subsystems
 
@@ -73,7 +73,7 @@ Ensure reliable multi-node and multi-domain launch capabilities, and ensure netw
 
 ### Task 1: Fix SimHost DDS Domain Zero Guard (BUG1-F001)
 
-**File:** `Bagira.Runner/Services/SimHostSubsystem.cs` (UPDATE)  
+**File:** `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md §BUG1-F001](docs/bugs-1/TASK-DETAIL.md#bug1-f001-fix-simhost-dds-domain-zero-guard)
 
 **Description:**
@@ -89,7 +89,7 @@ Replace the `> 0` guard in `SimHostSubsystem.Initialize()` with a direct pass-th
 **Tests Required:**
 - ✅ Verify happy path (domain 0 accepted).
 - ✅ Verify non-zero domain preserved.
-- ✅ Ensure regressions in `Bagira.SimHost.Tests` do not occur.
+- ✅ Ensure regressions in `Hrot.SimHost.Tests` do not occur.
 
 ---
 
@@ -139,7 +139,7 @@ Fix working directory issues to allow assets to be found regardless of where the
 
 ### Task 4: Enforce Silent Bystander Rule (BUG1-N001)
 
-**File:** `Bagira.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` (UPDATE)  
+**File:** `Hrot.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md §BUG1-N001](docs/bugs-1/TASK-DETAIL.md#bug1-n001-enforce-silent-bystander-rule-in-updateentitydescriptorrequestsystem)
 
 **Description:**

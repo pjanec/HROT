@@ -13,59 +13,59 @@
 
 New files:
 
-- **`Bagira.IG/Tools/StandardInteractionToolConstants.cs`** — Single named constant: `ToolName = "StandardInteraction"` (§CODE-STANDARDS §1).
+- **`Hrot.IG/Tools/StandardInteractionToolConstants.cs`** — Single named constant: `ToolName = "StandardInteraction"` (§CODE-STANDARDS §1).
 
-- **`Bagira.IG/Tools/StandardInteractionTool.cs`** — IG-specific wrapper around `FDP.Toolkit.Vis2D.Tools.StandardInteractionTool` (aliased as `FdpStandardInteractionTool`). All `IMapTool` methods delegate to the inner FDP tool. Subscribes to `_inner.OnEntitySelectRequest` and `_inner.OnRegionSelected` to synchronise both the `DefaultSelectionState` (consumed by `EntityRenderLayer`) and the ECS `SelectionState` component (consumed by `SelectionRenderSystem`). `ClearAllSelections()` iterates `_selection.SelectedEntities` (snapshot), clears the `DefaultSelectionState`, and resets each entity's `SelectionState { IsSelected=false, IsPrimarySelection=false }` via `ISimulationView.HasComponent<SelectionState>` (cast required — `EntityRepository.HasUnmanagedComponent` is non-public). An `internal TestHook_SelectEntity(Entity, bool)` method drives the selection handler directly for headless unit tests (accessible via `InternalsVisibleTo`).
+- **`Hrot.IG/Tools/StandardInteractionTool.cs`** — IG-specific wrapper around `FDP.Toolkit.Vis2D.Tools.StandardInteractionTool` (aliased as `FdpStandardInteractionTool`). All `IMapTool` methods delegate to the inner FDP tool. Subscribes to `_inner.OnEntitySelectRequest` and `_inner.OnRegionSelected` to synchronise both the `DefaultSelectionState` (consumed by `EntityRenderLayer`) and the ECS `SelectionState` component (consumed by `SelectionRenderSystem`). `ClearAllSelections()` iterates `_selection.SelectedEntities` (snapshot), clears the `DefaultSelectionState`, and resets each entity's `SelectionState { IsSelected=false, IsPrimarySelection=false }` via `ISimulationView.HasComponent<SelectionState>` (cast required — `EntityRepository.HasUnmanagedComponent` is non-public). An `internal TestHook_SelectEntity(Entity, bool)` method drives the selection handler directly for headless unit tests (accessible via `InternalsVisibleTo`).
 
-- **`Bagira.IG/Components/SelectionState.cs`** — `[StructLayout(Sequential, Pack=1)]` two-bool unmanaged struct: `IsSelected` and `IsPrimarySelection`.
+- **`Hrot.IG/Components/SelectionState.cs`** — `[StructLayout(Sequential, Pack=1)]` two-bool unmanaged struct: `IsSelected` and `IsPrimarySelection`.
 
 ### Task IG.3.2 — Selection Highlighting (SelectionRenderSystem)
 
 New files:
 
-- **`Bagira.IG/Systems/SelectionRenderConstants.cs`** — Named constants: `LayerName = "SelectionRings"`, `AlwaysVisibleLayerBitIndex = -1`, `PrimaryFillAlpha = 50`, `PrimaryRingColor/SecondaryRingColor` as static readonly `Color` values.
+- **`Hrot.IG/Systems/SelectionRenderConstants.cs`** — Named constants: `LayerName = "SelectionRings"`, `AlwaysVisibleLayerBitIndex = -1`, `PrimaryFillAlpha = 50`, `PrimaryRingColor/SecondaryRingColor` as static readonly `Color` values.
 
-- **`Bagira.IG/Systems/SelectionRenderSystem.cs`** — `IMapLayer` with `LayerBitIndex = -1` (always drawn, not culled). `Draw(RenderContext)` iterates a `With<SelectionState>().With<SimTransform>()` query. For each entity with `IsSelected=true`, draws a filled semi-transparent green disc (primary) or a yellow outline ring (secondary), centred on the entity's world-space XY. Zero allocations on the hot path.
+- **`Hrot.IG/Systems/SelectionRenderSystem.cs`** — `IMapLayer` with `LayerBitIndex = -1` (always drawn, not culled). `Draw(RenderContext)` iterates a `With<SelectionState>().With<SimTransform>()` query. For each entity with `IsSelected=true`, draws a filled semi-transparent green disc (primary) or a yellow outline ring (secondary), centred on the entity's world-space XY. Zero allocations on the hot path.
 
 Modified:
 
-- **`Bagira.IG/Adapters/SstVisualizerAdapter.cs`** — Extended `Render` to differentiate primary vs secondary selection tint: `bool isPrimary = view.HasComponent<SelectionState> && .IsPrimarySelection`. Primary → green tint; secondary → yellow tint; hovered → orange tint; none → base tint. Ring colour follows the same primacy distinction.
+- **`Hrot.IG/Adapters/SstVisualizerAdapter.cs`** — Extended `Render` to differentiate primary vs secondary selection tint: `bool isPrimary = view.HasComponent<SelectionState> && .IsPrimarySelection`. Primary → green tint; secondary → yellow tint; hovered → orange tint; none → base tint. Ring colour follows the same primacy distinction.
 
-- **`Bagira.IG/IgApplication.cs`** — Added `using Bagira.IG.Tools;`; registered `SelectionState` component; added `SelectionRenderSystem` layer to the canvas; wired `StandardInteractionTool` as the default canvas tool (via `_canvas.SwitchTool`).
+- **`Hrot.IG/IgApplication.cs`** — Added `using Hrot.IG.Tools;`; registered `SelectionState` component; added `SelectionRenderSystem` layer to the canvas; wired `StandardInteractionTool` as the default canvas tool (via `_canvas.SwitchTool`).
 
 Test file:
 
-- **`Bagira.IG.Tests/StandardInteractionToolTests.cs`** — 5 tests: click at entity centre returns entity, click at boundary edge (within `HitRadiusWorldUnits`) returns entity, click outside radius returns null, two overlapping entities returns closest, invisible entity (`IsVisible=false`) not returned. Tests construct `EntityRenderLayer` directly with a headless `EntityRepository` (no Raylib window required).
+- **`Hrot.IG.Tests/StandardInteractionToolTests.cs`** — 5 tests: click at entity centre returns entity, click at boundary edge (within `HitRadiusWorldUnits`) returns entity, click outside radius returns null, two overlapping entities returns closest, invisible entity (`IsVisible=false`) not returned. Tests construct `EntityRenderLayer` directly with a headless `EntityRepository` (no Raylib window required).
 
 ### Task IG.3.3 — CreationTool
 
 New files:
 
-- **`Bagira.IG/Tools/CreationToolConstants.cs`** — Named constants: `ToolName = "Creation"`, `DefaultTkbType = 101L`, `GhostAlpha = 128`, `GhostRadiusPx = 15`, `GhostLabelFontSize = 10`, `GhostLabelOffsetY = 20`.
+- **`Hrot.IG/Tools/CreationToolConstants.cs`** — Named constants: `ToolName = "Creation"`, `DefaultTkbType = 101L`, `GhostAlpha = 128`, `GhostRadiusPx = 15`, `GhostLabelFontSize = 10`, `GhostLabelOffsetY = 20`.
 
-- **`Bagira.IG/Tools/CreationTool.cs`** — Left-click publishes a `SpawnEntityCommand` to `FdpEventBus.PublishManaged`. `SpawnEntityCommand.NetworkId = 0` (SimHost allocates the real ID); `OwnerNodeId = IgNetworkConstants.LocalNodeId`; `InitType = ReliableInitType.None`; `InitialComponents = [new SimTransform { Position = (x, y, 0), Rotation = SimMath.FacingEast }]`; `RequestId = Guid.NewGuid()`. Right-click cancels and pops the tool without spawning. Ghost preview circle drawn at cursor in `Draw()`. `event Action<SpawnEntityCommand>? OnCommandPublished` raised after publish for test observation without bus subscription. Zero allocations on the hover/draw hot path — the `List<object>` is only allocated on left-click.
+- **`Hrot.IG/Tools/CreationTool.cs`** — Left-click publishes a `SpawnEntityCommand` to `FdpEventBus.PublishManaged`. `SpawnEntityCommand.NetworkId = 0` (SimHost allocates the real ID); `OwnerNodeId = IgNetworkConstants.LocalNodeId`; `InitType = ReliableInitType.None`; `InitialComponents = [new SimTransform { Position = (x, y, 0), Rotation = SimMath.FacingEast }]`; `RequestId = Guid.NewGuid()`. Right-click cancels and pops the tool without spawning. Ghost preview circle drawn at cursor in `Draw()`. `event Action<SpawnEntityCommand>? OnCommandPublished` raised after publish for test observation without bus subscription. Zero allocations on the hover/draw hot path — the `List<object>` is only allocated on left-click.
 
 Test file:
 
-- **`Bagira.IG.Tests/CreationToolTests.cs`** — 9 tests: command published on left-click, `TkbType` matches constructor arg, `OwnerNodeId = IgNetworkConstants.LocalNodeId`, `NetworkId = 0`, `RequestId` non-empty, `InitialComponents` contains exactly one `SimTransform`, `SimTransform.Position.X/Y` matches click coordinates, right-click does not publish, default TkbType fallback when 0 is passed.
+- **`Hrot.IG.Tests/CreationToolTests.cs`** — 9 tests: command published on left-click, `TkbType` matches constructor arg, `OwnerNodeId = IgNetworkConstants.LocalNodeId`, `NetworkId = 0`, `RequestId` non-empty, `InitialComponents` contains exactly one `SimTransform`, `SimTransform.Position.X/Y` matches click coordinates, right-click does not publish, default TkbType fallback when 0 is passed.
 
 ### Task IG.3.4 — MeasureTool
 
 New files:
 
-- **`Bagira.IG/Tools/MeasureToolConstants.cs`** — Named constants: `ToolName = "Measure"`, `LineThickness = 2.0f`, `LabelFontSize = 14`, `LabelOffsetY = 4`, `public static readonly Color LineColor = new Color(0, 255, 255, 255)` (cyan — `Color.Cyan` does not exist in Raylib-cs; stored here to avoid repeating the literal).
+- **`Hrot.IG/Tools/MeasureToolConstants.cs`** — Named constants: `ToolName = "Measure"`, `LineThickness = 2.0f`, `LabelFontSize = 14`, `LabelOffsetY = 4`, `public static readonly Color LineColor = new Color(0, 255, 255, 255)` (cyan — `Color.Cyan` does not exist in Raylib-cs; stored here to avoid repeating the literal).
 
-- **`Bagira.IG/Tools/MeasureTool.cs`** — Two-click distance measurement. State: `_startPoint: Vector2?`. First click sets `_startPoint`, returns `true` (consumed). Second click computes `LastMeasuredDistanceMeters = Vector2.Distance(_startPoint, worldPos)`, resets `_startPoint` to null, returns `true`. Right-click clears `_startPoint` (cancel). `IsMeasuring` property exposes whether a start point is held (for tests). `Draw` renders a line from start to cursor during first-click-held state, plus a distance label. `MeasureToolConstants.LineColor` used throughout; no `Color.Cyan` reference.
+- **`Hrot.IG/Tools/MeasureTool.cs`** — Two-click distance measurement. State: `_startPoint: Vector2?`. First click sets `_startPoint`, returns `true` (consumed). Second click computes `LastMeasuredDistanceMeters = Vector2.Distance(_startPoint, worldPos)`, resets `_startPoint` to null, returns `true`. Right-click clears `_startPoint` (cancel). `IsMeasuring` property exposes whether a start point is held (for tests). `Draw` renders a line from start to cursor during first-click-held state, plus a distance label. `MeasureToolConstants.LineColor` used throughout; no `Color.Cyan` reference.
 
 Test file:
 
-- **`Bagira.IG.Tests/MeasureToolTests.cs`** — 12 tests: initial `IsMeasuring=false`, first click sets `IsMeasuring=true`, second click resets `IsMeasuring=false`, horizontal distance, vertical distance, diagonal distance (Pythagoras verified), coincident clicks produce 0 distance, large-scale distance (10 000 m), right-click cancel clears state, left-click is consumed (returns true), second click consumed, no-click `HandleHover` is not consumed.
+- **`Hrot.IG.Tests/MeasureToolTests.cs`** — 12 tests: initial `IsMeasuring=false`, first click sets `IsMeasuring=true`, second click resets `IsMeasuring=false`, horizontal distance, vertical distance, diagonal distance (Pythagoras verified), coincident clicks produce 0 distance, large-scale distance (10 000 m), right-click cancel clears state, left-click is consumed (returns true), second click consumed, no-click `HandleHover` is not consumed.
 
 ### Task IG.3.5 — Integration Test
 
 New file:
 
-- **`Bagira.IG.Tests/ToolInteractionIntegrationTests.cs`** — 4 integration tests wiring `CreationTool → NetworkSpawningSystem → EntityRenderLayer → StandardInteractionTool`:
+- **`Hrot.IG.Tests/ToolInteractionIntegrationTests.cs`** — 4 integration tests wiring `CreationTool → NetworkSpawningSystem → EntityRenderLayer → StandardInteractionTool`:
 
   1. **`CreationTool_LeftClick_EntityAppearsInEcsAfterSpawn`** — `CreationTool.HandleClick` publishes a `SpawnEntityCommand`; `RunSpawn` ticks the `NetworkSpawningSystem` and replays the command buffer; asserts at least one `SimTransform` entity exists.
 

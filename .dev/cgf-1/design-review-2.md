@@ -1,7 +1,7 @@
-﻿
+
 Now the drill state machine and the whole orchestration is outside of fdp, in app specific layer on top of fdp, to keep the fdp engine agnostic to concrete system state machine and concrete network messages. I want to discuss how to make some parts of the orchestration more generic, movable to a fdp toolkit and reusable by myltiple different apps. If feasible without becoming a too generic hell, it would be greay if the state machine is upgradable on top ofv same basics, overridable - different applications of the fdp might need some extra states and transitions. Same with the scenario, concrete file name and exact storage format should still be overridablr, but the basic management i want to be generalized. The goal is to share as much as possible.
 
-Moving the orchestration and Drill State Machine (DSM) into an FDP toolkit (e.g., `FDP.Toolkit.Orchestration`) is a very natural evolution for this architecture. The current implementation in `Bagira.Common.Orchestration` and `Bagira.Orchestrator` is structurally sound but tightly coupled to Bagira's specific DDS topics, file paths, and domain states.
+Moving the orchestration and Drill State Machine (DSM) into an FDP toolkit (e.g., `FDP.Toolkit.Orchestration`) is a very natural evolution for this architecture. The current implementation in `Hrot.Common.Orchestration` and `Hrot.Orchestrator` is structurally sound but tightly coupled to Hrot's specific DDS topics, file paths, and domain states.
 
 To achieve your goal of a highly reusable, overridable toolkit without falling into "generic hell", you can use the same registry and facade patterns you've successfully used for Doctrines and ECS Components.
 
@@ -9,17 +9,17 @@ Here is a blueprint for generalizing the orchestration layer into an FDP Toolkit
 
 1\. Extensible State Machine & Transition Planner
 
-Currently, the state machine relies on a hardcoded `DSMState` enum (Standby, LoadingLive, etc.) and a static `TransitionPlanner` with a fixed adjacency dictionary.
+Currently, the state machine relies on a hardcoded `ClusterState` enum (Standby, LoadingLive, etc.) and a static `TransitionPlanner` with a fixed adjacency dictionary.
 
 **Generalization Strategy:**
 
--   **State IDs:** Replace the fixed `DSMState` enum with integer IDs or String tags in the core engine, much like you use integer hashes for `DoctrineIds` or `ComponentId`.-   **Graph Builder:** Create a `TransitionGraphBuilder` that allows the application to define states and valid transitions at startup. The core FDP toolkit can define base states (e.g., `0 = Standby`, `1 = Fault`), and the application appends its own.-   **Agnostic Planner:** The BFS algorithm in `TransitionPlanner.CalculateShortestPath` is perfectly generic. It just needs to run against an injected `ITransitionGraph` rather than a static dictionary.
+-   **State IDs:** Replace the fixed `ClusterState` enum with integer IDs or String tags in the core engine, much like you use integer hashes for `DoctrineIds` or `ComponentId`.-   **Graph Builder:** Create a `TransitionGraphBuilder` that allows the application to define states and valid transitions at startup. The core FDP toolkit can define base states (e.g., `0 = Standby`, `1 = Fault`), and the application appends its own.-   **Agnostic Planner:** The BFS algorithm in `TransitionPlanner.CalculateShortestPath` is perfectly generic. It just needs to run against an injected `ITransitionGraph` rather than a static dictionary.
 
 ```
 // App-specific setup
 var graph = new TransitionGraphBuilder()
-    .AddTransition(BaseStates.Standby, BagiraStates.LoadingEdit)
-    .AddTransition(BagiraStates.LoadingEdit, BagiraStates.RunningEdit)
+    .AddTransition(BaseStates.Standby, HrotStates.LoadingEdit)
+    .AddTransition(HrotStates.LoadingEdit, HrotStates.RunningEdit)
     // ...
     .Build();
 
@@ -32,15 +32,15 @@ The Two-Phase Commit (2PC) pattern defined by `IDsmHandler` (`CanHandle`, `Prepa
 
 **Generalization Strategy:**
 
--   Move `IDsmHandler` into the FDP toolkit.-   Change `NodeOpType` from an enum to an integer ID or a generic struct. This allows different apps to define extra commands (like `Bagira`'s specific `PrepareBattlespace` or `ReplaySeek`) without altering the core toolkit.-   The generalized `DrillSlave` simply loops over registered `IDsmHandler`s and routes the integer operation ID.
+-   Move `IDsmHandler` into the FDP toolkit.-   Change `NodeOpType` from an enum to an integer ID or a generic struct. This allows different apps to define extra commands (like `Hrot`'s specific `PrepareZone` or `ReplaySeek`) without altering the core toolkit.-   The generalized `ClusterSlave` simply loops over registered `IDsmHandler`s and routes the integer operation ID.
 
 3\. Decoupling the Network Transport
 
-Right now, `DrillSlave` and `DrillMaster` directly instantiate `DdsWriter` and `DdsReader` to communicate.
+Right now, `ClusterSlave` and `ClusterMaster` directly instantiate `DdsWriter` and `DdsReader` to communicate.
 
 **Generalization Strategy:**
 
--   Define an `IOrchestrationTransport` interface in the FDP Toolkit.-   This interface should expose events/methods for the orchestration domain (e.g., `OnCommandReceived`, `PublishStatus`, `PublishHeartbeat`).-   In your app layer (e.g., `Bagira.Orchestrator`), you implement a `DdsOrchestrationTransport` that bridges CycloneDDS to these interfaces. The generic `DrillSlave` only knows about the transport interface, remaining 100% agnostic to DDS, ROS, or local-loopback implementations.
+-   Define an `IOrchestrationTransport` interface in the FDP Toolkit.-   This interface should expose events/methods for the orchestration domain (e.g., `OnCommandReceived`, `PublishStatus`, `PublishHeartbeat`).-   In your app layer (e.g., `Hrot.Orchestrator`), you implement a `DdsOrchestrationTransport` that bridges CycloneDDS to these interfaces. The generic `ClusterSlave` only knows about the transport interface, remaining 100% agnostic to DDS, ROS, or local-loopback implementations.
 
 4\. Overridable Scenario Management
 
@@ -54,9 +54,9 @@ Summary of the resulting Architecture
 
 If you implement these abstractions, your `FDP.Toolkit.Orchestration` will provide:
 
--   **DrillSlave** **/** **DrillMaster** **core logic**: Managing heartbeat timers, timeouts, and transaction histories.-   **IDsmHandler** **definitions**: The standard 2PC interface.-   **TransitionPlanner**: The BFS routing logic for getting from State A to State B.-   **Base Handlers**: Abstract implementations of standard handlers (like `ScenarioLoadDsmHandlerBase`) that rely on `IScenarioStorageProvider`.
+-   **ClusterSlave** **/** **ClusterMaster** **core logic**: Managing heartbeat timers, timeouts, and transaction histories.-   **IDsmHandler** **definitions**: The standard 2PC interface.-   **TransitionPlanner**: The BFS routing logic for getting from State A to State B.-   **Base Handlers**: Abstract implementations of standard handlers (like `ScenarioLoadDsmHandlerBase`) that rely on `IScenarioStorageProvider`.
 
-Your **App Layer (Bagira)** will then provide:
+Your **App Layer (Hrot)** will then provide:
 
 -   **The State Graph**: The concrete definitions of `RunningLive`, `LoadingEdit`, etc.-   **The DDS Transport**: Implementing `IOrchestrationTransport` using `SystemStateTopic`, `NodeOpCommand`, etc..-   **The Storage Provider**: Telling the generic scenario loaders to look for JSON files in `C:\FDP_Temp`.
 
@@ -66,7 +66,7 @@ The state machine handler would need to remain in app layer, correct? What if i 
 
 Yes, you can absolutely provide reference implementations in an FDP toolkit. In fact, much of the underlying heavy lifting for scenarios, replays, and stories has already been moved into FDP toolkits; you just need to move the orchestration handlers down to join them.
 
-Currently, the `IDsmHandler` interface and its implementations (like `ScenarioLoadDsmHandler`, `LiveLoadDsmHandler`, and `PrefetchFilesDsmHandler`) live strictly in the Bagira application layer, with explicit code rules stating that no `FDP.*` project may reference them.
+Currently, the `IDsmHandler` interface and its implementations (like `ScenarioLoadDsmHandler`, `LiveLoadDsmHandler`, and `PrefetchFilesDsmHandler`) live strictly in the Hrot application layer, with explicit code rules stating that no `FDP.*` project may reference them.
 
 To provide reusable handlers, you would first move `IDsmHandler` into the FDP framework (e.g., `FDP.Interfaces` or `FDP.Toolkit.Orchestration`). Once pushed down, you can provide customizable reference implementations using constructor injection:
 

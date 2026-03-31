@@ -17,12 +17,12 @@ You are a developer implementing the modularization of the IOS-IG-SimHost applic
 ### Non-Negotiable Rules
 1. **Application must keep working.** All integration tests must pass after every task.
 2. **Tests must check real behaviour** — verify observable outcomes, not call counts.
-3. **`FDP.*` assemblies may never reference `Bagira.*` assemblies.**
+3. **`FDP.*` assemblies may never reference `Hrot.*` assemblies.**
 4. **Do not modify third-party submodules** under `FDP\ExtDeps\`.
 5. **The two failing integration tests from BATCH-11 are P1. They must be the first thing fixed. No code review will pass with failing tests.**
 
 ### Deferred Items (DO NOT TOUCH)
-- **DB-MOD1-19** (`DrillSlave` 2PC): blocked — drill state machine design not ready.
+- **DB-MOD1-19** (`ClusterSlave` 2PC): blocked — drill state machine design not ready.
 
 ### Required Reading (IN ORDER)
 1. `.dev-workstream/README.md`
@@ -34,20 +34,20 @@ You are a developer implementing the modularization of the IOS-IG-SimHost applic
 
 ---
 
-## 🚨 TASK 1 (P1 — MANDATORY FIRST): DB-MOD1-26 — Diagnose and Fix Failing Drag/GeoSpatial Tests
+## 🚨 TASK 1 (P1 — MANDATORY FIRST): DB-MOD1-26 — Diagnose and Fix Failing Drag/WorldPos Tests
 
-### How GeoSpatial Dirty Detection Works
-`GeoSpatialEgressTranslator.ScanAndPublish` does **not** use `SmartEgressUtil`. It compares `SimTransform.Position` against `NetworkTransform.LastPosition` (a shadow `Vector3` stored on the ECS entity, line 98 of `GeoSpatialEgressTranslator.cs`). If the position has moved more than 1 cm², it publishes immediately on the next frame. No `MarkDirty` call is needed.
+### How WorldPos Dirty Detection Works
+`WorldPosEgressTranslator.ScanAndPublish` does **not** use `SmartEgressUtil`. It compares `SimTransform.Position` against `NetworkTransform.LastPosition` (a shadow `Vector3` stored on the ECS entity, line 98 of `WorldPosEgressTranslator.cs`). If the position has moved more than 1 cm², it publishes immediately on the next frame. No `MarkDirty` call is needed.
 
 This means the fix is NOT about adding a `MarkDirty` call. The tests are failing because either:
 - Spawned entities are **missing the `NetworkTransform` shadow component** — excluded from the translator's query entirely.
-- **`DescriptorOwnership` for `dtGeoSpatial`** is not set for locally-owned entities — the `HasAuthority(entity, GeoSpatialOrdinal)` guard at line 91 skips them.
+- **`DescriptorOwnership` for `dtWorldPos`** is not set for locally-owned entities — the `HasAuthority(entity, WorldPosOrdinal)` guard at line 91 skips them.
 - For `DragDropIntegrationTests` (full round-trip path): `UpdateEntityDescriptorRequestSystem` is not applying the position change or the response is not published within the timeout window.
 
 ### What to do
-1. Run both failing tests with `dotnet test --logger "console;verbosity=detailed"` to capture output. The `DragDropIntegrationTests` already log `[D2c]` (NetworkAuthority) and `[D2d]` (HasAuthority for GeoSpatial) diagnostics — read those lines first.
+1. Run both failing tests with `dotnet test --logger "console;verbosity=detailed"` to capture output. The `DragDropIntegrationTests` already log `[D2c]` (NetworkAuthority) and `[D2d]` (HasAuthority for WorldPos) diagnostics — read those lines first.
 2. Identify the exact failure point from the logs.
-3. Fix the root cause. Do NOT add a `SmartEgressUtil.MarkDirty` call — that is the wrong mechanism for GeoSpatial.
+3. Fix the root cause. Do NOT add a `SmartEgressUtil.MarkDirty` call — that is the wrong mechanism for WorldPos.
 4. Both `SimHostDrag_IgReceivesPositionUpdateWithinFewFrames` and all `DragDropIntegrationTests` must pass.
 
 ---
@@ -58,7 +58,7 @@ The 20–49 toolkit ID block is full. There is currently no compile-time check p
 
 **What to do:**
 - In `Fdp.Kernel.Tests`, add a unit test `ComponentIdAttributeTests.GlobalComponentIds_NoToolkitBlockDuplicates` that uses reflection to enumerate all `const byte` fields on `GlobalComponentIds` and asserts each value appears exactly once.
-- Also add an equivalent test for `BagiraComponentIds`.
+- Also add an equivalent test for `HrotComponentIds`.
 - If any duplicate IDs are discovered during this exercise, flag them in the report (Q1) — do not silently fix them.
 
 ---
@@ -140,7 +140,7 @@ Two config types serve overlapping roles. **What to do:**
 
 **Step 1 — Create the new project `FDP.Toolkit.Navigation.Contracts`** under `FDP/Toolkits/FDP.Toolkit.Navigation.Contracts/`.
 - This assembly must reference **only** `Fdp.Kernel` (for `[ComponentId]` and `GlobalComponentIds`).
-- It must have **no** references to `FDP.Toolkit.Navigation`, `FDP.Toolkit.CarKinem`, `Bagira.*`, or any other toolkit.
+- It must have **no** references to `FDP.Toolkit.Navigation`, `FDP.Toolkit.CarKinem`, `Hrot.*`, or any other toolkit.
 
 **Step 2 — Move the two types** from `Fdp.Kernel/CoreComponents/NavigationComponents.cs` into `FDP.Toolkit.Navigation.Contracts`:
 - `NavigationIntent` struct
@@ -153,7 +153,7 @@ Two config types serve overlapping roles. **What to do:**
 - `FDP.Toolkit.Navigation.csproj` → add reference to `FDP.Toolkit.Navigation.Contracts`.
 - `FDP.Toolkit.CarKinem.csproj` → add reference to `FDP.Toolkit.Navigation.Contracts`.
 - Remove references to `NavigationIntent`/`NavigationStatus` from `Fdp.Kernel.csproj` (the types are gone).
-- Any `Bagira.*` projects or tests that reference `NavigationIntent`/`NavigationStatus` from `Fdp.Kernel` must now reference `FDP.Toolkit.Navigation.Contracts`.
+- Any `Hrot.*` projects or tests that reference `NavigationIntent`/`NavigationStatus` from `Fdp.Kernel` must now reference `FDP.Toolkit.Navigation.Contracts`.
 
 **Step 4 — Run `dotnet build` on the full solution.** Fix all compilation errors.
 
@@ -165,7 +165,7 @@ Two config types serve overlapping roles. **What to do:**
 
 ## 🔄 MANDATORY WORKFLOW
 
-1. **DB-MOD1-26:** Fix failing tests → `Bagira.Runner.Integration.Tests` 31/31 ✅
+1. **DB-MOD1-26:** Fix failing tests → `Hrot.ClusterRunner.Integration.Tests` 31/31 ✅
 2. **DB-MOD1-02:** Add uniqueness guard tests → know which IDs are free ✅
 3. **DB-MOD1-23:** Create `FDP.Toolkit.Navigation.Contracts`; move `NavigationIntent`/`NavigationStatus` out of `Fdp.Kernel` → **full solution builds** ✅
 4. **DB-MOD1-04:** Fix vacuous avoidance test ✅
@@ -187,7 +187,7 @@ Two config types serve overlapping roles. **What to do:**
 
 **Q1:** For DB-MOD1-26 — what was the actual root cause? Which diagnostic log line (`[D2c]`/`[D2d]`) revealed it? What was missing: `NetworkTransform`, `DescriptorOwnership`, or something else?
 
-**Q2:** For DB-MOD1-02 — did the uniqueness test find any actual duplicate IDs in `GlobalComponentIds` or `BagiraComponentIds`?
+**Q2:** For DB-MOD1-02 — did the uniqueness test find any actual duplicate IDs in `GlobalComponentIds` or `HrotComponentIds`?
 
 **Q3:** For DB-MOD1-09 — which config type was chosen as the survivor, and how many files changed?
 
@@ -200,7 +200,7 @@ Two config types serve overlapping roles. **What to do:**
 This batch is DONE when:
 - [ ] `SimHostDrag_IgReceivesPositionUpdateWithinFewFrames` passes unconditionally.
 - [ ] All `DragDropIntegrationTests` pass unconditionally.
-- [ ] `GlobalComponentIds_NoToolkitBlockDuplicates` and `BagiraComponentIds_NoDuplicates` tests exist and pass.
+- [ ] `GlobalComponentIds_NoToolkitBlockDuplicates` and `HrotComponentIds_NoDuplicates` tests exist and pass.
 - [ ] `System_AvoidanceMovesVehicle` asserts non-trivial displacement and fails without authority.
 - [ ] `BrainHsm64` early-exits when the entity query is empty.
 - [ ] `GroundKinematicsModule` does not allocate pools for roles that don't need them.
@@ -210,5 +210,5 @@ This batch is DONE when:
 - [ ] `DamageSystem` only writes `HealthData` when `health.Current` actually changes.
 - [ ] `FDP.Toolkit.Navigation.Contracts` assembly exists; `NavigationIntent` and `NavigationStatus` are in it with IDs in the 20–49 toolkit block; `Fdp.Kernel` no longer contains these types.
 - [ ] Full solution builds with no compiler errors after the assembly restructure.
-- [ ] `Bagira.Runner -x all` integration tests pass with 0 failures.
+- [ ] `Hrot.ClusterRunner -x all` integration tests pass with 0 failures.
 - [ ] All unit and integration test suites pass with 0 failures.

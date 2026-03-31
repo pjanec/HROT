@@ -25,8 +25,8 @@
 **Integration Tests Passed:** 7 / 7
 
 **Commands:**
-- `dotnet test Bagira.Runner.Integration.Tests/Bagira.Runner.Integration.Tests.csproj`
-- `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+- `dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj`
+- `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
 
 **Key Test Scenarios Verified:**
 - [x] DDS selection event updates IG context menu actions.

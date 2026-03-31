@@ -12,7 +12,7 @@
 ## 📋 Onboarding & Workflow
 
 ### Developer Instructions
-Welcome to MOD1 Phase 2. This batch shifts focus to modularizing the monolithic `SimulationLogicModule` into five discrete implementations. This isolates cognitive responsibilities (`FDP.Toolkit.Behavior`), kinematic updates (`FDP.Toolkit.CarKinem`), and combat logic (`Bagira.SimHost.Modules`). Additionally, two critical corrective tasks arising from the BATCH-01 review are prioritized at the very beginning of this batch.
+Welcome to MOD1 Phase 2. This batch shifts focus to modularizing the monolithic `SimulationLogicModule` into five discrete implementations. This isolates cognitive responsibilities (`FDP.Toolkit.Behavior`), kinematic updates (`FDP.Toolkit.CarKinem`), and combat logic (`Hrot.SimHost.Modules`). Additionally, two critical corrective tasks arising from the BATCH-01 review are prioritized at the very beginning of this batch.
 
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md` - How to work with batches
@@ -24,11 +24,11 @@ Welcome to MOD1 Phase 2. This batch shifts focus to modularizing the monolithic 
 - **Primary Work Areas:**
   - `FDP/Toolkits/FDP.Toolkit.Behavior/`
   - `FDP/Toolkits/FDP.Toolkit.CarKinem/`
-  - `Bagira.SimHost/Modules/`
+  - `Hrot.SimHost/Modules/`
 - **Test Projects:**
   - `FDP.Toolkit.Behavior.Tests/`
   - `FDP.Toolkit.CarKinem.Tests/`
-  - `Bagira.SimHost.Tests/`
+  - `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -45,7 +45,7 @@ Welcome to MOD1 Phase 2. This batch shifts focus to modularizing the monolithic 
 
 1. **Task CT-A:** Implement → Write tests → **ALL tests pass** ✅
 2. **Task CT-B:** Implement → Write tests → **ALL tests pass** ✅
-3. **Task CT-C:** Implement → Fix `Bagira.Runner` integration tests → **ALL tests pass** ✅
+3. **Task CT-C:** Implement → Fix `Hrot.ClusterRunner` integration tests → **ALL tests pass** ✅
 4. **Task 1:** Implement → Write integration & unit tests → **ALL tests pass** ✅
 5. **Task 2:** Implement → Write integration & unit tests → **ALL tests pass** ✅  
 6. **Task 3:** Implement → Write integration & unit tests → **ALL tests pass** ✅
@@ -76,7 +76,7 @@ First, however, you will execute two immediate corrective items discovered durin
 ## 🎯 Batch Objectives
 - Close the `_frustrationTicks` dictionary memory leak.
 - Eradicate the `NavigationMode` enum collision.
-- Fix broken `Bagira.Runner` spawn entity functionality and restore integration test health.
+- Fix broken `Hrot.ClusterRunner` spawn entity functionality and restore integration test health.
 - Organize cognitive logic into `MissionControlModule`, `CognitiveRuntimeModule`, and `ActionDispatchModule`.
 - Extract muscle loop systems directly into `GroundKinematicsModule`.
 - Wire backward-compatibility inside `SimulationLogicModule`.
@@ -112,10 +112,10 @@ The `Dictionary<int, int> _frustrationTicks` leaks memory over time as entities 
 
 ### Corrective Task 0.C (CT-MOD1-C)
 
-**Files:** `Bagira.Runner` entity creation system or blueprint mapping logic, integration tests.
+**Files:** `Hrot.ClusterRunner` entity creation system or blueprint mapping logic, integration tests.
 
 **Description:**
-The CQRS refactor from BATCH-01 broke the "Spawn moving entity" button in `Bagira.Runner`. It throws:
+The CQRS refactor from BATCH-01 broke the "Spawn moving entity" button in `Hrot.ClusterRunner`. It throws:
 ```
 System.InvalidOperationException: Entity Entity(0, v1) missing NavigationIntent
    at FDP.Toolkit.Navigation.Executors.MoveToExecutor.OnEnter(Entity entity, LocomotionChannel& channel, EntityRepository world)
@@ -125,7 +125,7 @@ Entities spawned via the runner are currently missing the new `NavigationIntent`
 Fix the entity spawn flow to correctly attach these baseline components.
 
 **Tests Required:**
-- ✅ Make sure ALL `Bagira.Runner` integration tests pass.
+- ✅ Make sure ALL `Hrot.ClusterRunner` integration tests pass.
 - ✅ **CRITICAL:** Add integration tests for ANY further task in this batch and ensure they pass. Relying purely on unit tests is insufficient.
 
 ---
@@ -186,7 +186,7 @@ Fix the entity spawn flow to correctly attach these baseline components.
 
 ### Task 5: MOD1-P2T5
 
-**File:** `Bagira.SimHost/Modules/SimulationLogicModule.cs`
+**File:** `Hrot.SimHost/Modules/SimulationLogicModule.cs`
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P2T5](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p2t5--refactor-simulationlogicmodule-as-delegation-facade)
 
@@ -232,7 +232,7 @@ This batch is DONE when:
 - [ ] Memory leak in `_frustrationTicks` eliminated via standard ECS components.
 - [ ] Enum clashing fully eradicated by `KinematicsMode` migration.
 - [ ] Over 5 independent `IModule` implementations successfully encapsulate `SimulationLogicModule` sub-capabilities.
-- [ ] Existing `Bagira.SimHost.Tests` integration dependencies successfully resolve against the refactored facade.
+- [ ] Existing `Hrot.SimHost.Tests` integration dependencies successfully resolve against the refactored facade.
 - [ ] Report submitted answering exact Developer Insight queries.
 
 ---

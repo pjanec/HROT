@@ -12,7 +12,7 @@
 ## 📋 Onboarding & Workflow
 
 ### Developer Instructions
-Welcome back to the Replication Fixes workstream. BATCH-01 introduced critical `IModuleSystem` and ECS-as-Staging updates, but it failed architectural rules (Zero-Allocation on the Hot Path) and broke the overall solution build due to signature alterations. Additionally, an architectural pivot was introduced to unify all Translators into the shared `Bagira.Map.Common` directory. 
+Welcome back to the Replication Fixes workstream. BATCH-01 introduced critical `IModuleSystem` and ECS-as-Staging updates, but it failed architectural rules (Zero-Allocation on the Hot Path) and broke the overall solution build due to signature alterations. Additionally, an architectural pivot was introduced to unify all Translators into the shared `Hrot.Map.Common` directory. 
 
 **This batch comes with EXPLICIT autonomy instructions:**
 You are to work autonomously until **ALL DONE**. The entire solution MUST compile cleanly. You shall **NOT** ask for obvious things. Do not ask me for permission to start a build or run tests—you are an intelligent developer. Use your intelligence to decide your steps autonomously, fix the root causes of errors, execute `dotnet build`, verify your logic, and *only* submit a report once everything is successful.
@@ -25,7 +25,7 @@ You are to work autonomously until **ALL DONE**. The entire solution MUST compil
 5. **Task Details:** `docs/replication-fixes/REPL-TASK-DETAIL.md` - Specific implementation steps
 
 ### Source Code Location
-- **Primary Work Area:** `FDP/Toolkits/FDP.Toolkit.Replication/Systems/`, `Bagira.IG/`, `Bagira.Runner/Services/`, `Bagira.Map.Common/`
+- **Primary Work Area:** `FDP/Toolkits/FDP.Toolkit.Replication/Systems/`, `Hrot.IG/`, `Hrot.ClusterRunner/Services/`, `Hrot.Map.Common/`
 
 ### Report Submission
 **When done, submit your report to:**
@@ -52,7 +52,7 @@ You are to work autonomously until **ALL DONE**. The entire solution MUST compil
 - **Fix (C01):** Resolve hot-path dynamic allocations by building `EntityQuery` objects once and caching them (fixing BATCH-01 violations).
 - **Fix (C02):** Fix global build by resolving mismatched constructor errors in `Fdp.Examples.NetworkDemo.csproj`.
 - **Phase 3:** Complete app module wiring in `IgApplication.cs`, `SimHostSubsystem.cs`, and `NetworkDemoApp.cs`.
-- **Phase 5 Part A:** Move all `Bagira.IG` ingress translators into the shared `Bagira.Map.Common.Replication.Ingress` library space, including appropriate namespace renaming.
+- **Phase 5 Part A:** Move all `Hrot.IG` ingress translators into the shared `Hrot.Map.Common.Replication.Ingress` library space, including appropriate namespace renaming.
 
 ---
 
@@ -70,17 +70,17 @@ You are to work autonomously until **ALL DONE**. The entire solution MUST compil
 
 ### Phase 3: Module Wiring
 **Tasks:** REPL-P3-T1, REPL-P3-T2, REPL-P3-T3
-**Files:** `Bagira.IG/IgApplication.cs`, `Bagira.Runner/Services/SimHostSubsystem.cs`, `FDP/Examples/Fdp.Examples.NetworkDemo/NetworkDemoApp.cs`
+**Files:** `Hrot.IG/IgApplication.cs`, `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`, `FDP/Examples/Fdp.Examples.NetworkDemo/NetworkDemoApp.cs`
 **Reference:** `docs/replication-fixes/REPL-TASK-DETAIL.md#repl-p3-t1-update-igapplication--pass-entitymap--wire-ghostcreationsystem`
 **Action:** Refactor Replication module integrations to decouple from ISerializationRegistry logic.
 
 ### Phase 5: Setup Common Sub-Project (REPL-P5-T1)
-**File:** `Bagira.Map.Common/Bagira.Map.Common.csproj`
-**Action:** Update references to include `FDP.Toolkit.Replication` and `ModuleHost.Network.Cyclone` so it can handle the translation logic from IG and SimHost globally. Run `dotnet restore` securely. Follow `REPL-TASK-DETAIL.md#repl-p5-t1-update-bagiramapcommon-project-references`.
+**File:** `Hrot.Map.Common/Hrot.Map.Common.csproj`
+**Action:** Update references to include `FDP.Toolkit.Replication` and `ModuleHost.Network.Cyclone` so it can handle the translation logic from IG and SimHost globally. Run `dotnet restore` securely. Follow `REPL-TASK-DETAIL.md#repl-p5-t1-update-hrotmapcommon-project-references`.
 
 ### Phase 5: Migrate IG Ingress Translators (REPL-P5-T2)
-**Files:** `Bagira.IG/Translators/*.cs`
-**Action:** Relocate exactly 6 mapped Translator files to `Bagira.Map.Common/Replication/Ingress/`. Rename files, classes, and namespaces to explicitly contain the `IngressTranslator` postfix according strictly to `REPL-TASK-DETAIL.md#repl-p5-t2-migrate-ig-ingress-translators`. Make sure they still utilize the ECS-as-Staging properties built during Phase 2. Ensure IG continues to access these correctly in `IgApplication` by matching imports.
+**Files:** `Hrot.IG/Translators/*.cs`
+**Action:** Relocate exactly 6 mapped Translator files to `Hrot.Map.Common/Replication/Ingress/`. Rename files, classes, and namespaces to explicitly contain the `IngressTranslator` postfix according strictly to `REPL-TASK-DETAIL.md#repl-p5-t2-migrate-ig-ingress-translators`. Make sure they still utilize the ECS-as-Staging properties built during Phase 2. Ensure IG continues to access these correctly in `IgApplication` by matching imports.
 
 ---
 

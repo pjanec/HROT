@@ -18,10 +18,10 @@
 
 ## 🧪 Testing Results
 
-**Bagira.Map.Common.Tests:** 60 / 60 ✅ (was 59 before — 1 new test added)  
-**Bagira.IG.Tests:** 310 / 310 ✅ (was 308 before — 2 new tests added)  
-**Bagira.SimHost.Tests:** 220 / 220 ✅ (no regressions)  
-**Bagira.Runner.Tests:** 99 / 99 ✅ (no regressions)
+**Hrot.Map.Common.Tests:** 60 / 60 ✅ (was 59 before — 1 new test added)  
+**Hrot.IG.Tests:** 310 / 310 ✅ (was 308 before — 2 new tests added)  
+**Hrot.SimHost.Tests:** 220 / 220 ✅ (no regressions)  
+**Hrot.ClusterRunner.Tests:** 99 / 99 ✅ (no regressions)
 
 **Key Test Scenarios Verified:**
 
@@ -45,8 +45,8 @@
 
 **Files changed:**
 - `FDP/Toolkits/FDP.Toolkit.Replication/Patching/EcsPatchContext.cs` — added `s_emptyRoutes` field and `Create(EntityRepository, Entity)` factory.
-- `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` — binary path now uses `EcsPatchContext.Create`; `_jsonCompiler` null-guard removed from that branch.
-- `Bagira.Map.Common.Tests/UpdateEntityAttributeRequestSystemTests.cs` — new test `UpdateEntityAttributeRequestSystem_BinaryPath_WorksWithNullJsonCompiler`.
+- `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` — binary path now uses `EcsPatchContext.Create`; `_jsonCompiler` null-guard removed from that branch.
+- `Hrot.Map.Common.Tests/UpdateEntityAttributeRequestSystemTests.cs` — new test `UpdateEntityAttributeRequestSystem_BinaryPath_WorksWithNullJsonCompiler`.
 
 ---
 
@@ -56,15 +56,15 @@
 
 **Solution:**
 - Added `using FDP.Toolkit.Replication.Patching;` and `_edgeCompiler` private field to `IgApplication`.
-- Built the compiler in `InitializeEcs()` using `JsonToRecordCompilerBuilder` with the same five paths registered by `AttributeCompilerFactory.BuildEdgeCompiler()` in `Bagira.SimHost` (Name, Affiliation, GeoLat, GeoLon, GeoAlt). Building it in `InitializeEcs` (rather than `InitializeNetwork`) makes it available regardless of DDS state and avoids re-creation on reconnect.
+- Built the compiler in `InitializeEcs()` using `JsonToRecordCompilerBuilder` with the same five paths registered by `AttributeCompilerFactory.BuildEdgeCompiler()` in `Hrot.SimHost` (Name, Affiliation, GeoLat, GeoLon, GeoAlt). Building it in `InitializeEcs` (rather than `InitializeNetwork`) makes it available regardless of DDS state and avoids re-creation on reconnect.
 - Added `JsonToRecordCompiler? _edgeCompiler` field and optional constructor parameter to `MapCommandController`. Existing tests (which pass only 3 args) continue to work because the parameter defaults to `null`.
 - `ActivatePlacementCommand` now passes `edgeCompiler: _edgeCompiler` to the `CreationTool` constructor.
 - Passed `_edgeCompiler` as the 4th argument when constructing `MapCommandController` in `InitializeNetwork`.
 
 **Files changed:**
-- `Bagira.IG/IgApplication.cs` — added using, field, compiler initialization, passed to `MapCommandController`.
-- `Bagira.IG/Systems/MapCommandController.cs` — added `using`, `_edgeCompiler` field, optional constructor parameter, passed to `CreationTool`.
-- `Bagira.IG.Tests/MapCommandControllerTests.cs` — two new tests: `ActivatePlacementCommand_WithEdgeCompiler_CreationToolEmitsBinaryRecords` and `ActivatePlacementCommand_WithoutEdgeCompiler_CreationToolUsesJsonPath`.
+- `Hrot.IG/IgApplication.cs` — added using, field, compiler initialization, passed to `MapCommandController`.
+- `Hrot.IG/Systems/MapCommandController.cs` — added `using`, `_edgeCompiler` field, optional constructor parameter, passed to `CreationTool`.
+- `Hrot.IG.Tests/MapCommandControllerTests.cs` — two new tests: `ActivatePlacementCommand_WithEdgeCompiler_CreationToolEmitsBinaryRecords` and `ActivatePlacementCommand_WithoutEdgeCompiler_CreationToolUsesJsonPath`.
 
 ---
 

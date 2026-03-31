@@ -264,7 +264,7 @@ else
 
 ### BD1-P1T3: MissionControlRequestSystem — CMD_ABORT_ALL Doctrine Clear
 
-**File:** `Bagira.SimHost/Systems/MissionControlRequestSystem.cs`
+**File:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`
 
 **Design Reference:** [§1.3 MissionControlRequestSystem — CMD_ABORT_ALL Doctrine Clear](./BD1-DESIGN.md#13-missioncontrolrequestsystem--cmd_abort_all-doctrine-clear)
 
@@ -301,7 +301,7 @@ This is a top-down **imperative** use of `ClearDoctrineEvent` — the operator i
 
 ### BD1-P2T1: SimHostVisualization — Brain-Aware Right-Click Handler
 
-**File:** `Bagira.SimHost/SimHostVisualization.cs`
+**File:** `Hrot.SimHost/SimHostVisualization.cs`
 
 **Design Reference:** [§2.1 SimHostVisualization — Brain-Aware Right-Click Handler](./BD1-DESIGN.md#21-simhostvisualization--brain-aware-right-click-handler)
 
@@ -350,7 +350,7 @@ Rewrite the handler with two distinct code paths, selected by checking `Doctrine
 
 ### BD1-P3T1: BdcTkbBuilder — Add PhysicsCollider to WithPhysics
 
-**File:** `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs`
+**File:** `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs`
 
 **Design Reference:** [§3.1 BdcTkbBuilder — Add PhysicsCollider to WithPhysics](./BD1-DESIGN.md#31-bdctkbbuilder--add-physicscollider-to-withphysics)
 
@@ -381,7 +381,7 @@ Add a `PhysicsCollider` at the end of `WithPhysics` using `Math.Max(physicsDef.L
 
 ### BD1-P3T2: SimHostScenarioManager — Add PhysicsCollider to SpawnEntityLocal
 
-**File:** `Bagira.SimHost/UI/SimHostScenarioManager.cs`
+**File:** `Hrot.SimHost/UI/SimHostScenarioManager.cs`
 
 **Design Reference:** [§3.2 SimHostScenarioManager — Add PhysicsCollider to SpawnEntityLocal](./BD1-DESIGN.md#32-simhostscenariomanager--add-physicscollider-to-spawnentitylocal)
 
@@ -407,7 +407,7 @@ Add `PhysicsCollider` at the tail of `SpawnEntityLocal` using the same radius fo
 
 ### BD1-P4T1: SimHostVisualization — Set Camera Offset on Initialize
 
-**File:** `Bagira.SimHost/SimHostVisualization.cs`
+**File:** `Hrot.SimHost/SimHostVisualization.cs`
 
 **Design Reference:** [§4.1 SimHostVisualization.Initialize — Set Camera Offset](./BD1-DESIGN.md#41-simhostvisualizationinitialize--set-camera-offset)
 
@@ -436,8 +436,8 @@ _map.Camera.Offset = new Vector2(1280 / 2f, 720 / 2f);
 ### BD1-P5T1: EntityMaster — Replace Plain long DisType with DisTypeStruct
 
 **Files:**
-- `Bagira.DDS.DataModel/GenericDescriptors.cs`
-- `Bagira.Map.Common/Replication/Egress/EntityMasterEgressTranslator.cs`
+- `Hrot.NED/GenericDescriptors.cs`
+- `Hrot.Map.Common/Replication/Egress/EntityMasterEgressTranslator.cs`
 - Ingress translator(s) where `EntityMaster.DisType` is read (e.g. `EntityMasterIngressTranslator.cs` / `DescriptorMapper.cs`)
 
 **Design Reference:** [§5.1 DDS Data Model — DisTypeStruct](./BD1-DESIGN.md#51-dds-data-model--distypestruct)
@@ -547,7 +547,7 @@ private readonly Dictionary<Type, byte[]> _unmanagedCache = new();
 
 ### BD1-P7T1: CreateEntityRequestSystem — Cache ProcessRequest Delegate
 
-**File:** `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`
+**File:** `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`
 
 **Design Reference:** [§7.1 CreateEntityRequestSystem — Cache ProcessRequest Delegate](./BD1-DESIGN.md#71-createentityrequestsystem--cache-processrequest-delegate)
 

@@ -5,7 +5,7 @@
 **Last Updated:** 2026-03-05  
 **Status:** Ready for Implementation — Architect-Reviewed
 
-> **Architecture Review (2026-02-26):** Several sections have been corrected to align with the current Bagira codebase. Key changes: `ISubsystem` now has split `DrawWorld()`/`DrawUI()` phases; `SubsystemOrchestrator` owns the Raylib render loop; obsolete FDP kernel references (`FdpWorld`, `CarKinemModule`) are replaced with `EntityRepository`/`ModuleHostKernel`; `DerRepo` constructor signature corrected; `ICameraService` removed (not needed); DDS QoS attributes corrected to use `[DdsQos(...)]`.
+> **Architecture Review (2026-02-26):** Several sections have been corrected to align with the current Hrot codebase. Key changes: `ISubsystem` now has split `DrawWorld()`/`DrawUI()` phases; `SubsystemOrchestrator` owns the Raylib render loop; obsolete FDP kernel references (`FdpWorld`, `CarKinemModule`) are replaced with `EntityRepository`/`ModuleHostKernel`; `DerRepo` constructor signature corrected; `ICameraService` removed (not needed); DDS QoS attributes corrected to use `[DdsQos(...)]`.
 
 > **Design Talk (2026-03-05):** A new blocking prerequisite was identified. Merging three binaries into one process exposes non-deterministic ECS component ID assignment in `ComponentTypeRegistry`. This breaks the Flight Recorder and causes silent memory corruption in a combined binary. **Phase R0** must be completed before any Runner work begins. See [Section 11](#11-ecs-component-id-safety-phase-r0-pre-requisite) for the full design.
 
@@ -71,7 +71,7 @@ The **Aggregated Mock Runner** is a unified application shell that can instantia
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        Bagira.Runner.exe                             │
+│                        Hrot.ClusterRunner.exe                             │
 │                                                                       │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │                    Main Orchestrator                         │   │
@@ -103,26 +103,26 @@ The **Aggregated Mock Runner** is a unified application shell that can instantia
 ### 2.2 Project Structure
 
 ```
-Bagira.Runner/
+Hrot.ClusterRunner/
 ├── Program.cs                      # Entry point, CLI parsing
 ├── RunnerConfiguration.cs          # Parsed config model
 ├── SubsystemOrchestrator.cs        # Lifecycle manager
 ├── WaitingRoomCoordinator.cs       # Startup synchronization
 └── HeadlessTestExecutor.cs         # Automated test runner
 
-Bagira.SimHost/
+Hrot.SimHost/
 ├── SimHostSubsystem.cs             # Entry point for embedding
 ├── SimHostConfiguration.cs         # Config model
 ├── Systems/                         # All ECS systems
 └── ... (existing SimHost design)
 
-Bagira.IG/
+Hrot.IG/
 ├── IgSubsystem.cs                  # Entry point for embedding
 ├── IgConfiguration.cs              # Config model
 ├── Systems/                         # All ECS systems
 └── ... (existing IG design)
 
-Bagira.IOS/
+Hrot.ExCon/
 ├── IosSubsystem.cs                 # Entry point for embedding
 ├── IosConfiguration.cs             # Config model
 ├── Services/                        # DER, Commands
@@ -190,7 +190,7 @@ public enum SubsystemStatus
 
 **Command:**
 ```bash
-Bagira.Runner.exe --mode all --domain 0
+Hrot.ClusterRunner.exe --mode all --domain 0
 ```
 
 **Behavior:**
@@ -202,7 +202,7 @@ Bagira.Runner.exe --mode all --domain 0
 **Window Layout:**
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│  Bagira Mock Runner - All Subsystems                          [x]  │
+│  Hrot Mock Runner - All Subsystems                          [x]  │
 ├────────────────────────────────────────────────────────────────────┤
 │  ┌──────────────────┐  ┌──────────────────┐  ┌─────────────────┐ │
 │  │  SimHost Panel   │  │    IG Map View   │  │   IOS Panel     │ │
@@ -231,13 +231,13 @@ Bagira.Runner.exe --mode all --domain 0
 **Commands:**
 ```bash
 # Terminal 1
-Bagira.Runner.exe --mode simhost --domain 0 --node-id 1
+Hrot.ClusterRunner.exe --mode simhost --domain 0 --node-id 1
 
 # Terminal 2
-Bagira.Runner.exe --mode ig --domain 0 --node-id 2 --wait-for simhost
+Hrot.ClusterRunner.exe --mode ig --domain 0 --node-id 2 --wait-for simhost
 
 # Terminal 3
-Bagira.Runner.exe --mode ios --domain 0 --node-id 3 --wait-for simhost,ig
+Hrot.ClusterRunner.exe --mode ios --domain 0 --node-id 3 --wait-for simhost,ig
 ```
 
 **Behavior:**
@@ -271,13 +271,13 @@ Bagira.Runner.exe --mode ios --domain 0 --node-id 3 --wait-for simhost,ig
 **Examples:**
 ```bash
 # SimHost + IG only (no IOS)
-Bagira.Runner.exe --mode simhost,ig --domain 0
+Hrot.ClusterRunner.exe --mode simhost,ig --domain 0
 
 # IOS + IG only (external SimHost)
-Bagira.Runner.exe --mode ios,ig --domain 0 --external simhost
+Hrot.ClusterRunner.exe --mode ios,ig --domain 0 --external simhost
 
 # Just SimHost (headless server)
-Bagira.Runner.exe --mode simhost --domain 0 --headless
+Hrot.ClusterRunner.exe --mode simhost --domain 0 --headless
 ```
 
 ---
@@ -288,7 +288,7 @@ Bagira.Runner.exe --mode simhost --domain 0 --headless
 
 **Command:**
 ```bash
-Bagira.Runner.exe --mode all --domain 0 --headless --script tests/latency_test.json
+Hrot.ClusterRunner.exe --mode all --domain 0 --headless --script tests/latency_test.json
 ```
 
 **Behavior:**
@@ -346,7 +346,7 @@ Bagira.Runner.exe --mode all --domain 0 --headless --script tests/latency_test.j
 ### 4.1 Core Arguments
 
 ```
-Bagira.Runner.exe [OPTIONS]
+Hrot.ClusterRunner.exe [OPTIONS]
 
 CORE OPTIONS:
   --mode <mode>               Subsystems to run (all|simhost|ig|ios|<combo>)
@@ -627,11 +627,11 @@ Each subsystem (SimHost, IG, IOS) should be usable as:
 
 #### 7.2.1 SimHost Embeddability
 
-> **Architect Note (2026-02-26):** The older snippets referenced `FdpWorld`, `CarKinemModule`, and `MissionExecutionModule` which are all obsolete. The current SimHost uses `EntityRepository`, `EventAccumulator`, `ModuleHostKernel`, and `TkbDatabase`. The embeddable version below reflects the actual `Bagira.SimHost/Program.cs` architecture.
+> **Architect Note (2026-02-26):** The older snippets referenced `FdpWorld`, `CarKinemModule`, and `MissionExecutionModule` which are all obsolete. The current SimHost uses `EntityRepository`, `EventAccumulator`, `ModuleHostKernel`, and `TkbDatabase`. The embeddable version below reflects the actual `Hrot.SimHost/Program.cs` architecture.
 
 **Embeddable SimHostSubsystem:**
 ```csharp
-// Bagira.SimHost/SimHostSubsystem.cs
+// Hrot.SimHost/SimHostSubsystem.cs
 public class SimHostSubsystem : SubsystemBase
 {
     private EntityRepository? _world;
@@ -646,7 +646,7 @@ public class SimHostSubsystem : SubsystemBase
         _eventAccumulator = new EventAccumulator();
         _kernel = new ModuleHostKernel(_world, _eventAccumulator);
         
-        // Register TKB catalog (matches Bagira.SimHost/Program.cs logic)
+        // Register TKB catalog (matches Hrot.SimHost/Program.cs logic)
         var tkbDb = new TkbDatabase();
         BdcTkbCatalog.RegisterAll(tkbDb);
         _world.SetSingletonManaged<ITkbDatabase>(tkbDb);
@@ -672,7 +672,7 @@ public class SimHostSubsystem : SubsystemBase
     public override void DrawUI() { }
 }
 
-// Bagira.SimHost/Program.cs (standalone thin shell — unchanged)
+// Hrot.SimHost/Program.cs (standalone thin shell — unchanged)
 // SimHost continues to run its own loop when deployed standalone.
 ```
 
@@ -685,7 +685,7 @@ public class SimHostSubsystem : SubsystemBase
 > **Architect Note (2026-02-26):** The old design had IG's `Update()` calling `Raylib.BeginDrawing()` and `rlImGui.Begin()` internally. This crashes when IOS or SimHost panels also need to draw ImGui in the same frame. The orchestrator now drives all phases.
 
 ```csharp
-// Bagira.IG/IgSubsystem.cs
+// Hrot.IG/IgSubsystem.cs
 public class IgSubsystem : SubsystemBase
 {
     private IgApplication? _app;
@@ -740,7 +740,7 @@ public class IgSubsystem : SubsystemBase
 > **Architect Note (2026-02-26):** `DerRepo` takes no network arguments — it is a pure storage class. Network wiring happens in `ConnectToDomain()`. The old snippet with `new DerRepo(config.DomainId, config.NodeId)` was incorrect.
 
 ```csharp
-// Bagira.IOS/IosSubsystem.cs
+// Hrot.ExCon/IosSubsystem.cs
 public class IosSubsystem : SubsystemBase
 {
     private DerRepo? _repo;
@@ -796,7 +796,7 @@ public class IosSubsystem : SubsystemBase
 ### 8.1 Runner Implementation
 
 ```csharp
-// Bagira.Runner/Program.cs
+// Hrot.ClusterRunner/Program.cs
 class Program
 {
     static async Task<int> Main(string[] args)
@@ -826,7 +826,7 @@ class Program
     }
 }
 
-// Bagira.Runner/SubsystemOrchestrator.cs
+// Hrot.ClusterRunner/SubsystemOrchestrator.cs
 public class SubsystemOrchestrator
 {
     private readonly RunnerConfiguration _config;
@@ -939,7 +939,7 @@ public class SubsystemOrchestrator
 ### 8.2 Subsystem Configuration Models
 
 ```csharp
-// Bagira.Runner/RunnerConfiguration.cs
+// Hrot.ClusterRunner/RunnerConfiguration.cs
 public class RunnerConfiguration
 {
     public RunMode Mode { get; set; }
@@ -991,7 +991,7 @@ public class IgConfiguration
     public int WindowHeight { get; set; } = 1080;
     public bool Fullscreen { get; set; }
     public bool VSync { get; set; } = true;
-    public GeoPosition MapOrigin { get; set; }
+    public GeoPoint MapOrigin { get; set; }
 }
 
 public class IosConfiguration
@@ -1013,10 +1013,10 @@ public class IosConfiguration
 **Setup**:
 ```bash
 # Terminal 1
-Bagira.Runner.exe --mode simhost --domain 0
+Hrot.ClusterRunner.exe --mode simhost --domain 0
 
 # Terminal 2
-Bagira.Runner.exe --mode ig,ios --domain 0 --script latency_test.json
+Hrot.ClusterRunner.exe --mode ig,ios --domain 0 --script latency_test.json
 ```
 
 **Test Script**:
@@ -1039,7 +1039,7 @@ Bagira.Runner.exe --mode ig,ios --domain 0 --script latency_test.json
 
 **Setup**:
 ```bash
-Bagira.Runner.exe --mode all --domain 0 --headless --script stress_test.json
+Hrot.ClusterRunner.exe --mode all --domain 0 --headless --script stress_test.json
 ```
 
 **Test Script**:
@@ -1063,9 +1063,9 @@ Bagira.Runner.exe --mode all --domain 0 --headless --script stress_test.json
 **Setup**:
 ```bash
 # Start in wrong order (IG before SimHost)
-Bagira.Runner.exe --mode ig --domain 0 --wait-for simhost &
+Hrot.ClusterRunner.exe --mode ig --domain 0 --wait-for simhost &
 sleep 5
-Bagira.Runner.exe --mode simhost --domain 0
+Hrot.ClusterRunner.exe --mode simhost --domain 0
 ```
 
 **Expected**: IG waits 5 seconds, then proceeds when SimHost appears
@@ -1090,7 +1090,7 @@ Bagira.Runner.exe --mode simhost --domain 0
 
 | ID | Task | Estimated |
 |----|------|-----------|
-| **R1.1** | Create Bagira.Runner project | 0.25d |
+| **R1.1** | Create Hrot.ClusterRunner project | 0.25d |
 | **R1.2** | Implement RunnerConfiguration with CLI parsing | 0.5d |
 | **R1.3** | Implement SubsystemOrchestrator | 1.0d |
 | **R1.4** | Implement ISubsystem interface | 0.25d |
@@ -1215,9 +1215,9 @@ A single `public static class GlobalComponentIds` in `Fdp.Kernel` owns all ID co
 | SimHost simulation | 20–49 | SimHost team |
 | FDP.Toolkit.Replication | 50–79 | Networking team |
 | FDP.Toolkit.Vis2D | 80–109 | Vis2D team |
-| Bagira.IG | 110–139 | IG team |
-| Bagira.SimHost app | 140–169 | SimHost app team |
-| Bagira.IOS / shared UI | 170–199 | IOS team |
+| Hrot.IG | 110–139 | IG team |
+| Hrot.SimHost app | 140–169 | SimHost app team |
+| Hrot.ExCon / shared UI | 170–199 | IOS team |
 | Reserved | 200–255 | Future use |
 
 **Initial allocation (all known components at time of writing):**
@@ -1249,7 +1249,7 @@ public static class GlobalComponentIds
     public const byte AggregateState      = 82;
     public const byte AggregateRoot       = 83;
 
-    // Bagira.IG (110–139)
+    // Hrot.IG (110–139)
     public const byte ResolvedStyle       = 110;
     public const byte CullingState        = 111;
     public const byte SelectionState      = 112;
@@ -1317,7 +1317,7 @@ public Dictionary<int, ComponentSchemaInfo>? SchemaManifest { get; set; }
 
 SCENARIO 1: Single Process (Development)
 ┌─────────────────────────────────────────────┐
-│  Bagira.Runner.exe --mode all               │
+│  Hrot.ClusterRunner.exe --mode all               │
 │  ┌───────────┬───────────┬──────────────┐  │
 │  │ SimHost   │    IG     │     IOS      │  │
 │  │ Thread    │  (Main)   │   Thread     │  │
@@ -1342,7 +1342,7 @@ SCENARIO 2: Separate Processes (Testing)
 
 SCENARIO 3: Headless CI/CD
 ┌─────────────────────────────────────────────┐
-│  Bagira.Runner.exe --mode all --headless    │
+│  Hrot.ClusterRunner.exe --mode all --headless    │
 │  --script latency_test.json                 │
 │  ┌───────────┬───────────┬──────────────┐  │
 │  │ SimHost   │    IG     │     IOS      │  │
@@ -1362,24 +1362,24 @@ SCENARIO 3: Headless CI/CD
 
 ```bash
 # Development: All in one, with UI
-Bagira.Runner.exe --mode all --domain 0
+Hrot.ClusterRunner.exe --mode all --domain 0
 
 # Distributed latency test
-Bagira.Runner.exe --mode simhost --domain 0 --node-id 1 &
-Bagira.Runner.exe --mode ig --domain 0 --node-id 2 --wait-for simhost &
-Bagira.Runner.exe --mode ios --domain 0 --node-id 3 --wait-for simhost,ig
+Hrot.ClusterRunner.exe --mode simhost --domain 0 --node-id 1 &
+Hrot.ClusterRunner.exe --mode ig --domain 0 --node-id 2 --wait-for simhost &
+Hrot.ClusterRunner.exe --mode ios --domain 0 --node-id 3 --wait-for simhost,ig
 
 # Headless CI/CD
-Bagira.Runner.exe --mode all --domain 0 --headless --script tests/smoke_test.json --exit-after 60
+Hrot.ClusterRunner.exe --mode all --domain 0 --headless --script tests/smoke_test.json --exit-after 60
 
 # Custom combination: SimHost + IG only (for IG development)
-Bagira.Runner.exe --mode simhost,ig --domain 0
+Hrot.ClusterRunner.exe --mode simhost,ig --domain 0
 
 # Load from config file
-Bagira.Runner.exe --config configs/dev_env.json
+Hrot.ClusterRunner.exe --config configs/dev_env.json
 
 # Performance profiling
-Bagira.Runner.exe --mode all --domain 0 --headless --performance-log --exit-after 120
+Hrot.ClusterRunner.exe --mode all --domain 0 --headless --performance-log --exit-after 120
 ```
 
 ---
@@ -1440,7 +1440,7 @@ private bool HasCycle(Dictionary<string, List<string>> graph)
 **Recommended Default Configuration:**
 ```bash
 # Correct: No cycles
-Bagira.Runner.exe --mode all --wait-for "" --domain 0
+Hrot.ClusterRunner.exe --mode all --wait-for "" --domain 0
 # SimHost doesn't wait
 # IG automatically waits for "simhost"
 # IOS automatically waits for "ig,simhost"

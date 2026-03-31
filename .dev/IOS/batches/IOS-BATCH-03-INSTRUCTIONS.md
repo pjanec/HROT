@@ -22,7 +22,7 @@ Great progress so far! BATCH-02 successfully yielded our abstract Operator panel
 5. **Debt Tracker:** `.dev-workstream/IOS-DEBT-TRACKER.md` - Please account for IOS-DEBT-034 in your implementation.
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IOS/`
+- **Primary Work Area:** `Hrot.ExCon/`
 - **Solution File:** `IOS-IG-SimHost.sln`
 
 ### Report Submission
@@ -71,7 +71,7 @@ This batch wires the abstract UI panels to the live `IDerRepo` and encapsulates 
 **Description:** From BATCH-02 review, `InteractionPanel.AddLog` is not thread-safe and could be invoked heavily from asynchronous DDS operations. Address this by front-loading a `ConcurrentQueue` strategy either directly within `InteractionPanel` OR inside `IosLogic` that subsequently drains onto the main thread prior to drawing UI panels natively. 
 
 ### Task 1: IOS Main Logic (IOS.8.1)
-**Files:** `Bagira.IOS/IosLogic.cs`, `Bagira.IOS/IIosLogic.cs` (Expand if necessary)
+**Files:** `Hrot.ExCon/IosLogic.cs`, `Hrot.ExCon/IIosLogic.cs` (Expand if necessary)
 **Task Definition:** See [TASK-DETAILS-IOS.md P9.1](docs/design/TASK-DETAILS-IOS.md#p91-ios-main-logic-1-day)
 
 **Description:** Implement `IosLogic` conforming to `IIosLogic`.
@@ -82,7 +82,7 @@ This batch wires the abstract UI panels to the live `IDerRepo` and encapsulates 
 - ✅ Assert that `StartPlacementMode` emits the appropriately formatted patch mapped to the ID parameter.
 
 ### Task 2: IOS Program & CLI (IOS.8.2)
-**Files:** `Bagira.IOS/Program.cs`, `Bagira.IOS/IosMock.cs`
+**Files:** `Hrot.ExCon/Program.cs`, `Hrot.ExCon/IosMock.cs`
 **Task Definition:** See [TASK-DETAILS-IOS.md P9.2](docs/design/TASK-DETAILS-IOS.md#p92-ios-program--cli-1-day)
 
 **Description:** Setup standard execution and argument parsing. 

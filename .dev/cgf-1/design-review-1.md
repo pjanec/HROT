@@ -1,4 +1,4 @@
-﻿# Wall clock is not synced via NTP
+# Wall clock is not synced via NTP
 There is already existing time synchronization mechanism. The existing one needs to be used
 and incorporated into each subsystem who participates in scenario saving/loading.
 
@@ -35,11 +35,11 @@ and incorporated into each subsystem who participates in scenario saving/loading
 
  - Concepts
     - Terrain specificaton is an entity with engine-specific components
-       - BagiraIgTerrain components containing Terrain specification for BagiraIG (terrain name)
+       - HrotIgTerrain components containing Terrain specification for HrotIG (terrain name)
        - Different sim engine subsystems migh instantiate their own terrain definition entity (one per each subsystem)
     - Scenario time is defined by en entity with GlobalTime component
        - This entity must be handled by one single subsystem (the orchestrator)
-    - Battlespace definition is an entity with special Battlespace component (contains vertices of the area)
+    - Zone definition is an entity with special Zone component (contains vertices of the area)
     - Global weather is an entity with WeatherArea component having zero area
        - This entity must be handled by one single subsystem (the orchestrator)
     - Local weather is an entity with WeatheArea component having non-zero area
@@ -75,7 +75,7 @@ On one single computer there can be many subsystems running in parallel.
 In 2pc the NodeId is a unique identification of each instance of a subsystem across the whole multi-computer system.
 
 # Orchestrator independence
-DrillMaster lives in Bagira.orchestrator subsystem and has nothing to do with ECS.
+ClusterMaster lives in Hrot.orchestrator subsystem and has nothing to do with ECS.
 It must be running independently even although it might be part of the same process where
 many other subsystems are instantiated.
 
@@ -136,7 +136,7 @@ The orchestrattor subsystem needs its own UI for control and debuging
 
 The new source material you provided outlines a highly modular, decoupled approach to scenario and story management, emphasizing portability, subsystem-specific data, and strict boundaries for the Orchestrator.
 
-While the high-level concepts align well with the `DESIGN.md` architecture, evaluating them against the actual FDP/Bagira implementation details reveals several significant technical gaps and contradictions that we need to specify before we can build the CGF scenario loader.
+While the high-level concepts align well with the `DESIGN.md` architecture, evaluating them against the actual FDP/Hrot implementation details reveals several significant technical gaps and contradictions that we need to specify before we can build the CGF scenario loader.
 
 Here is an evaluation of the missing implementation details and the gaps we must address:
 
@@ -160,7 +160,7 @@ Here is an evaluation of the missing implementation details and the gaps we must
 
 5\. Node vs. Subsystem Identity in the 2PC DSM
 
-**The Concept:** "NodeId is a unique identification of each instance of a subsystem across the whole multi-computer system". **The Gap:** Currently, `Bagira.Runner` can host multiple subsystems in the same physical process (e.g., `AllInOne` mode hosts SimHost, IG, and potentially CGF). If `NodeId` maps to the _subsystem instance_ rather than the physical machine, the `DrillSlave` implementation needs to be scoped per-subsystem. **How to resolve it:** We must ensure that inside `Bagira.Runner`, each subsystem instantiates its own independent `DrillSlave` module and registers its own distinct `NodeId` with the Orchestrator's `DrillMaster`. When the Orchestrator initiates the 12-step transition, the CGF subsystem and the SimHost subsystem must acknowledge the 2PC steps independently, even if they share the same CPU and memory space.
+**The Concept:** "NodeId is a unique identification of each instance of a subsystem across the whole multi-computer system". **The Gap:** Currently, `Hrot.ClusterRunner` can host multiple subsystems in the same physical process (e.g., `AllInOne` mode hosts SimHost, IG, and potentially CGF). If `NodeId` maps to the _subsystem instance_ rather than the physical machine, the `ClusterSlave` implementation needs to be scoped per-subsystem. **How to resolve it:** We must ensure that inside `Hrot.ClusterRunner`, each subsystem instantiates its own independent `ClusterSlave` module and registers its own distinct `NodeId` with the Orchestrator's `ClusterMaster`. When the Orchestrator initiates the 12-step transition, the CGF subsystem and the SimHost subsystem must acknowledge the 2PC steps independently, even if they share the same CPU and memory space.
 
 Strategy for our Minimalist CGF Implementation
 
@@ -174,7 +174,7 @@ This is an excellent deduction and it provides a perfect, elegant solution to th
 
 You are absolutely right. The JSON structure described—Entities containing Components, which in turn contain key-value properties—is just a generic data schema . It does not inherently require a heavy, memory-aligned ECS like `Fdp.Kernel.EntityRepository` to parse it.
 
-By implementing a "Simple ECS" (Plain Old C# Objects/DTOs) in the Orchestrator, you bridge the gap perfectly while strictly adhering to the architectural rule that the `Bagira.Orchestrator` process remains independent of the simulation physics ECS .
+By implementing a "Simple ECS" (Plain Old C# Objects/DTOs) in the Orchestrator, you bridge the gap perfectly while strictly adhering to the architectural rule that the `Hrot.Orchestrator` process remains independent of the simulation physics ECS .
 
 Here is how this approach beautifully streamlines your implementation:
 
@@ -212,7 +212,7 @@ Here is how the design preserves the exact flexibility you are asking for:
 
 **3\. Format Headers** For the subsystems that _do_ opt into the JSON format, the schema mandates a Header object containing a string identifying **"What subsystem type the scenario is for"**. This ensures that even if files are split up in the future, each subsystem knows exactly which files it owns.
 
-**The Pragmatic Strategy for CGF:** Because the Orchestrator, SimHost, and CGF all share the C# Bagira data models, we can leverage the "Selectively Blind" single JSON file approach as a massive development shortcut for our current implementation.
+**The Pragmatic Strategy for CGF:** Because the Orchestrator, SimHost, and CGF all share the C# Hrot data models, we can leverage the "Selectively Blind" single JSON file approach as a massive development shortcut for our current implementation.
 
 However, because the `StorageGatewayModule` only moves bytes based on manifests, we are not painting the architecture into a corner. If a legacy C++ physics engine or a third-party IG joins the cluster later and needs its own bizarre scenario file format, the gateway infrastructure will seamlessly push and pull those files without requiring any changes to the Orchestrator's core logic.
 
@@ -290,13 +290,13 @@ You can mirror this exact pattern for your JSON Saver/Loader: build one robust, 
 
 ok new pls let's take a look on the "orchestrator details" source - anch check what is mising to specify, how well the idea will work with the rest of the system, if there any issues etc.
 
-The architectural concepts outlined for the Orchestrator are solid and enforce a strict, clean separation of concerns. Treating the Orchestrator purely as a state and time authority with no ECS dependency is exactly how we keep the control plane robust. The requirement that `NodeId` identifies a _subsystem instance_ rather than a physical machine is also perfectly aligned with the `Bagira.Runner`, which already uses an offset mechanism (e.g., SimHost = Base+0, IG = Base+100) to assign unique `NodeId`s to colocated subsystems.
+The architectural concepts outlined for the Orchestrator are solid and enforce a strict, clean separation of concerns. Treating the Orchestrator purely as a state and time authority with no ECS dependency is exactly how we keep the control plane robust. The requirement that `NodeId` identifies a _subsystem instance_ rather than a physical machine is also perfectly aligned with the `Hrot.ClusterRunner`, which already uses an offset mechanism (e.g., SimHost = Base+0, IG = Base+100) to assign unique `NodeId`s to colocated subsystems.
 
 However, when mapping these operational requirements to a distributed Two-Phase Commit (2PC) environment, there are several critical specifications missing that we must address to prevent cluster deadlocks.
 
 Gap 1: The "Dead Node" 2PC Deadlock (Collapse Recovery)
 
-**The Idea:** If a mandatory node stops responding, the system must enter a degraded state, unload all current stuff, and return to standby. **The Gap:** A strict 2PC architecture requires `NodeOpStatus(Success)` ACKs from _all_ nodes in the roster to advance the state machine. If a node has crashed, it will never ACK the `Unload` or `Standby` commands, causing the Orchestrator's `TransitionPlanner` to hang indefinitely waiting for a ghost response. **The Fix:** We must implement an **Emergency Eviction Path** in the `DrillMaster`. When the heartbeat monitor detects a mandatory node timeout, it must:
+**The Idea:** If a mandatory node stops responding, the system must enter a degraded state, unload all current stuff, and return to standby. **The Gap:** A strict 2PC architecture requires `NodeOpStatus(Success)` ACKs from _all_ nodes in the roster to advance the state machine. If a node has crashed, it will never ACK the `Unload` or `Standby` commands, causing the Orchestrator's `TransitionPlanner` to hang indefinitely waiting for a ghost response. **The Fix:** We must implement an **Emergency Eviction Path** in the `ClusterMaster`. When the heartbeat monitor detects a mandatory node timeout, it must:
 
 -   Immediately sever the active `DistributedTransaction`.-   Evict the dead `NodeId` from the active `NodeRoster`.-   Unilaterally force the `SystemStateTopic` to `Degraded`.-   Command the _surviving_ nodes to transition to `Standby`, evaluating 2PC ACKs only against the newly reduced roster.
 
@@ -306,15 +306,15 @@ Gap 2: Defining "Mandatory" vs. "Optional" Nodes
 
 Gap 3: Bootstrap Synchronization Overlap
 
-**The Idea:** The system needs a bootstrap/system check phase on startup, waiting for mandatory nodes to become responsive in `Standby` before allowing the operator to use the UI. **The Gap:** The `Bagira.Runner` currently utilizes a `WaitingRoomCoordinator` which physically blocks the process startup thread until peer subsystems are discovered over DDS. If the Orchestrator uses this, its UI will not render at all until the cluster is healthy, defeating the purpose of having a "System health status" UI. **The Fix:** The Orchestrator subsystem must bypass the `WaitingRoomCoordinator` (using the `--no-wait` flag logic) so its process and ImGui panels boot instantly. The UI will render immediately, but all simulation controls (Initialize, Pause, Jump in time) will be grayed out. The UI will only unlock when the `DrillMaster`'s internal heartbeat aggregator confirms the mandatory roster is fulfilled and resting in `Standby`.
+**The Idea:** The system needs a bootstrap/system check phase on startup, waiting for mandatory nodes to become responsive in `Standby` before allowing the operator to use the UI. **The Gap:** The `Hrot.ClusterRunner` currently utilizes a `WaitingRoomCoordinator` which physically blocks the process startup thread until peer subsystems are discovered over DDS. If the Orchestrator uses this, its UI will not render at all until the cluster is healthy, defeating the purpose of having a "System health status" UI. **The Fix:** The Orchestrator subsystem must bypass the `WaitingRoomCoordinator` (using the `--no-wait` flag logic) so its process and ImGui panels boot instantly. The UI will render immediately, but all simulation controls (Initialize, Pause, Jump in time) will be grayed out. The UI will only unlock when the `ClusterMaster`'s internal heartbeat aggregator confirms the mandatory roster is fulfilled and resting in `Standby`.
 
 Gap 4: Introspecting 2PC History in the UI
 
-**The Idea:** The Orchestrator UI must monitor the status of 2PC communication, including opened requests and gathered responses per node. **The Gap:** Currently, the 2PC execution loop is a transient operation inside the `DrillMaster` that simply advances a queue. There is no historical trace of who ACKed what and how long it took, which is vital for diagnosing network lag. **The Fix:** The `DrillMaster` must maintain a rolling ring-buffer of `DistributedTransaction` records. Because the Orchestrator UI lives in the same memory space as the `DrillMaster` (no ECS constraints), the ImGui layer can simply read these C# transaction objects directly. We will render a table showing each `NodeId`, its current `SysOpStatus` phase (Prepare, Commit, Success, Failed), and the exact latency in milliseconds it took to respond.
+**The Idea:** The Orchestrator UI must monitor the status of 2PC communication, including opened requests and gathered responses per node. **The Gap:** Currently, the 2PC execution loop is a transient operation inside the `ClusterMaster` that simply advances a queue. There is no historical trace of who ACKed what and how long it took, which is vital for diagnosing network lag. **The Fix:** The `ClusterMaster` must maintain a rolling ring-buffer of `DistributedTransaction` records. Because the Orchestrator UI lives in the same memory space as the `ClusterMaster` (no ECS constraints), the ImGui layer can simply read these C# transaction objects directly. We will render a table showing each `NodeId`, its current `ClusterOpStatus` phase (Prepare, Commit, Success, Failed), and the exact latency in milliseconds it took to respond.
 
 Architectural Assessment
 
-Overall, this design fits beautifully into the system. By offloading cluster management to an independent `Bagira.Orchestrator` process, the CGF and SimHost subsystems are freed from writing complex consensus logic. They simply act as `DrillSlave` instances executing discrete commands. If we patch the 2PC eviction logic for crashed nodes and properly map subsystem roles via `SubsystemStatusAnnounce`, this architecture will be robust, highly testable, and strictly decoupled.
+Overall, this design fits beautifully into the system. By offloading cluster management to an independent `Hrot.Orchestrator` process, the CGF and SimHost subsystems are freed from writing complex consensus logic. They simply act as `ClusterSlave` instances executing discrete commands. If we patch the 2PC eviction logic for crashed nodes and properly map subsystem roles via `SubsystemStatusAnnounce`, this architecture will be robust, highly testable, and strictly decoupled.
 
 what about the following:
 
@@ -332,7 +332,7 @@ Here is exactly how the FDP time architecture works and how you must use it for 
 
 1\. The Distributed Time Authority
 
-In FDP, the `DrillMaster` (living inside the `Bagira.Orchestrator`) acts as the absolute Time Authority for the cluster. Time control is strictly decoupled behind an `ITimeController` interface, allowing the cluster to hot-swap between real-time and deterministic modes without the simulation systems even knowing.
+In FDP, the `ClusterMaster` (living inside the `Hrot.Orchestrator`) acts as the absolute Time Authority for the cluster. Time control is strictly decoupled behind an `ITimeController` interface, allowing the cluster to hot-swap between real-time and deterministic modes without the simulation systems even knowing.
 
 2\. The Phase-Locked Loop (PLL) Sync
 
@@ -350,11 +350,11 @@ When you implement the CGF scenario saver/loader, you must adhere to the Single 
 
 Every frame, the active time controller computes a stable, frame-locked wall-clock value (`TotalWallTicks`) and pushes it into the ECS as a `GlobalTime` singleton. When your background scenario saver or flight recorder captures a snapshot, it must read `GlobalTime.TotalWallTicks` from the `EntityRepository`. This guarantees that no matter how much local disk I/O latency occurs, or what timezone the machine is in, every node in the cluster stamps the saved scenario files with the exact same coordinated timestamp.
 
-While the time master lives in drill master as a single instance, the time slaves should live one per process (i.e. in Bagira.Runner) and shared across subsystem that are part of this process to avoid unnecessary duplication, correct?
+While the time master lives in drill master as a single instance, the time slaves should live one per process (i.e. in Hrot.ClusterRunner) and shared across subsystem that are part of this process to avoid unnecessary duplication, correct?
 
 Actually, no. While sharing a single time slave per process might seem like a pragmatic optimization, it fundamentally violates the clean isolation and encapsulation principles of the platform's architecture.
 
-In the FDP ecosystem, each subsystem (such as SimHost, IG, or the new CGF) is designed to be completely self-contained. Even when multiple subsystems are hosted together inside a single `Bagira.Runner` process (such as in the `AllInOne` mode), each subsystem instantiates its own isolated `EntityRepository` (the ECS world), its own `FdpEventBus`, and its own `ModuleHostKernel`.
+In the FDP ecosystem, each subsystem (such as SimHost, IG, or the new CGF) is designed to be completely self-contained. Even when multiple subsystems are hosted together inside a single `Hrot.ClusterRunner` process (such as in the `AllInOne` mode), each subsystem instantiates its own isolated `EntityRepository` (the ECS world), its own `FdpEventBus`, and its own `ModuleHostKernel`.
 
 The time management components are intimately bound to these isolated kernels. The `SlaveTimeController` does not merely calculate a global time value; it utilizes an internal Phase-Locked Loop (PLL) driven by `TimePulseDescriptor` events consumed directly from its subsystem's specific `FdpEventBus`. Furthermore, when `ModuleHostKernel.Update()` executes, it requests the time from its assigned controller and directly pushes the resulting `GlobalTime` struct into its encapsulated `EntityRepository` as an unmanaged singleton.
 
@@ -362,7 +362,7 @@ If you were to share a single `SlaveTimeController` and `SlaveTimeModeListener` 
 
 To adhere to the Single Responsibility Principle and maintain true modularity, every subsystem instance must instantiate its own `SlaveTimeController` and inject it into its own `ModuleHostKernel`. This guarantees that the subsystem remains completely agnostic to its deployment topology, ensuring the exact same deterministic execution whether it is running standalone on its own machine or colocated with other subsystems in the runner process.
 
-How shall we handle the 'degraded' system state? The orchestrator does not know what all nodes will be participating nor it can affect how they are started or restarted after crash. It might just publish the system health status to the network for the external monitoring tools. Do we need a concept of subsystem controller? Being one instance per all subsystem instances of same subsystem type, responsible for ensuring the subsystems are running etc. Bagira.Runner can host different subsystems so partially Bagira.Runner could take that responsibility, not sure.
+How shall we handle the 'degraded' system state? The orchestrator does not know what all nodes will be participating nor it can affect how they are started or restarted after crash. It might just publish the system health status to the network for the external monitoring tools. Do we need a concept of subsystem controller? Being one instance per all subsystem instances of same subsystem type, responsible for ensuring the subsystems are running etc. Hrot.ClusterRunner can host different subsystems so partially Hrot.ClusterRunner could take that responsibility, not sure.
 
 The architectural boundary you are wrestling with touches directly on the Single Responsibility Principle. We must strictly separate **Distributed State Orchestration** from **OS Process Management**.
 
@@ -372,27 +372,27 @@ Here is how we handle the degraded state elegantly without bloating the system w
 
 The Orchestrator is strictly a state and time authority, utterly independent of how processes are launched. You are correct that it does not start or restart nodes. Instead, it relies on a `ClusterConfiguration` to know which nodes are deemed "Mandatory".
 
-When the Orchestrator's `DrillMaster` detects that a mandatory node's `NodeHeartbeat` has timed out, it executes **Collapse Recovery**:
+When the Orchestrator's `ClusterMaster` detects that a mandatory node's `NodeHeartbeat` has timed out, it executes **Collapse Recovery**:
 
 -   It unilaterally publishes a `Degraded` state to the `SystemStateTopic` so external monitoring tools (and the IOS) are instantly notified.-   It commands all surviving nodes to unload the current scenario and fall back to the safe `Standby` state.-   It mechanically locks the Drill State Machine (DSM). The operator cannot initialize a new live drill from `Standby` until all mandatory nodes reappear on the network and report they are ready.
 
-2\. The Role of `Bagira.Runner`
+2\. The Role of `Hrot.ClusterRunner`
 
-You are spot-on that `Bagira.Runner` naturally absorbs part of the "local controller" responsibility. Because the Runner acts as the generic shell hosting one or more `ISubsystem` instances (like SimHost, IG, or CGF), it already manages their immediate lifecycle (`Initialize`, `Update`, `Shutdown`).
+You are spot-on that `Hrot.ClusterRunner` naturally absorbs part of the "local controller" responsibility. Because the Runner acts as the generic shell hosting one or more `ISubsystem` instances (like SimHost, IG, or CGF), it already manages their immediate lifecycle (`Initialize`, `Update`, `Shutdown`).
 
-Furthermore, `Bagira.Runner` utilizes the `WaitingRoomCoordinator` during startup to block subsystem initialization until required peers announce themselves via the `SubsystemStatusAnnounce` topic. Therefore, the Runner acts perfectly as the boundary controller for its specific process space. We do not need to invent a new "Subsystem Controller" abstraction inside the Bagira/FDP code.
+Furthermore, `Hrot.ClusterRunner` utilizes the `WaitingRoomCoordinator` during startup to block subsystem initialization until required peers announce themselves via the `SubsystemStatusAnnounce` topic. Therefore, the Runner acts perfectly as the boundary controller for its specific process space. We do not need to invent a new "Subsystem Controller" abstraction inside the Hrot/FDP code.
 
 3\. Handling Restarts via External Tooling (Clean Architecture)
 
 For actual process restarts after a crash, best practices dictate that we push this responsibility entirely out of the FDP ecosystem to a dedicated process manager.
 
-Your repository already contains references to **Dirigent** (a local agent/process manager). We should leverage tools exactly like Dirigent, systemd, or Kubernetes to watch the `Bagira.Runner.exe` processes.
+Your repository already contains references to **Dirigent** (a local agent/process manager). We should leverage tools exactly like Dirigent, systemd, or Kubernetes to watch the `Hrot.ClusterRunner.exe` processes.
 
 **The clean recovery loop works like this:**
 
--   A mandatory CGF `Bagira.Runner` process crashes.-   The Orchestrator detects the heartbeat loss, halts the global simulation, and forces surviving nodes (like the IG and SimHost) into `Standby`.-   The external process manager (e.g., Dirigent) detects the crash and restarts the CGF `Bagira.Runner.exe`.-   The CGF Runner boots, its subsystems initialize, and it broadcasts its presence to the network.-   The Orchestrator receives the new heartbeats, verifies the mandatory node roster is fulfilled, and unlocks the system.-   The operator (via the Orchestrator UI) can now safely command the cluster to load a scenario and transition back into `RunningLive`.
+-   A mandatory CGF `Hrot.ClusterRunner` process crashes.-   The Orchestrator detects the heartbeat loss, halts the global simulation, and forces surviving nodes (like the IG and SimHost) into `Standby`.-   The external process manager (e.g., Dirigent) detects the crash and restarts the CGF `Hrot.ClusterRunner.exe`.-   The CGF Runner boots, its subsystems initialize, and it broadcasts its presence to the network.-   The Orchestrator receives the new heartbeats, verifies the mandatory node roster is fulfilled, and unlocks the system.-   The operator (via the Orchestrator UI) can now safely command the cluster to load a scenario and transition back into `RunningLive`.
 
-By keeping FDP/Bagira completely ignorant of OS-level process execution, we maintain a highly portable, container-friendly, and resilient architecture.
+By keeping FDP/Hrot completely ignorant of OS-level process execution, we maintain a highly portable, container-friendly, and resilient architecture.
 
 the ITimeController suggested in the DESIGN source, isn't it duplicating something that already exists in the FDP/toolkits?
 
@@ -404,7 +404,7 @@ Crucially, the `SwitchableTimeController` proxy, which the design explicitly man
 
 From a clean architecture perspective, this is excellent news. It means the core Time Plane is already strictly decoupled using textbook Strategy and Proxy patterns, isolating the time math from the domain logic.
 
-The `DESIGN.md` is simply defining how the new `Bagira.Orchestrator` and Drill State Machine (DSM) will orchestrate these _existing_ components to achieve distributed, frame-perfect determinism across the cluster.
+The `DESIGN.md` is simply defining how the new `Hrot.Orchestrator` and Drill State Machine (DSM) will orchestrate these _existing_ components to achieve distributed, frame-perfect determinism across the cluster.
 
 Instead of writing new time logic for the CGF or Orchestrator, we will directly reuse this toolkit:
 
@@ -424,7 +424,7 @@ Here is how this architecture should be structured, where it lives, who calls it
 
 -   The JIT-compiled Expression Tree engine that avoids reflection on the hot path.-   The custom attributes (e.g., `[ScenarioProperty]`, `[ScenarioIgnore]`) and the `[DataPolicy(DataPolicy.NoSave)]` evaluations.-   The `IScenarioSerializable` interface used by components to "simplify" their state for persistence.-   The Two-Pass GUID-to-Entity resolution mechanism.
 
-**The Application Level (****Bagira.SimHost** **and** **Bagira.CGF****):** This layer manages the concrete file formats and the business logic of saving. It houses:
+**The Application Level (****Hrot.SimHost** **and** **Hrot.CGF****):** This layer manages the concrete file formats and the business logic of saving. It houses:
 
 -   The application-specific JSON schema logic (e.g., handling the scenario Header and mapping the DOM to the specific JSON structure).-   The `IDsmHandler` implementations (e.g., `LiveLoadDsmHandler`, `EditLoadDsmHandler`) that interact with the local disk.
 
@@ -432,7 +432,7 @@ Here is how this architecture should be structured, where it lives, who calls it
 
 The persistence process is orchestrated entirely by the Drill State Machine (DSM) via the **Two-Phase Commit (2PC)** pattern.
 
--   **Saving:** The Orchestrator's `DrillMaster` broadcasts a `NodeOpCommand(SerializeLocal)` over DDS. The `DrillSlave` on the local node (e.g., inside SimHost or CGF) receives this command and dispatches it to a registered DSM handler. This handler calls the Application-Level saver.-   **Loading:** When loading a scenario or story, the Orchestrator's `TransitionPlanner` triggers the `StorageGatewayModule` to pre-fetch the necessary files from the central NAS to the local node's temporary drive. Once the pre-fetch barrier is cleared, the Master broadcasts `NodeOpCommand(PrepareState, LoadingEdit)`. The local `EditLoadDsmHandler` then invokes the Application-Level loader to parse the local files without blocking the main ECS loop.
+-   **Saving:** The Orchestrator's `ClusterMaster` broadcasts a `NodeOpCommand(SerializeLocal)` over DDS. The `ClusterSlave` on the local node (e.g., inside SimHost or CGF) receives this command and dispatches it to a registered DSM handler. This handler calls the Application-Level saver.-   **Loading:** When loading a scenario or story, the Orchestrator's `TransitionPlanner` triggers the `StorageGatewayModule` to pre-fetch the necessary files from the central NAS to the local node's temporary drive. Once the pre-fetch barrier is cleared, the Master broadcasts `NodeOpCommand(PrepareState, LoadingEdit)`. The local `EditLoadDsmHandler` then invokes the Application-Level loader to parse the local files without blocking the main ECS loop.
 
 3\. How It Should Operate (The Execution Flow)
 
@@ -454,17 +454,17 @@ Here is the architectural breakdown of how the Orchestrator handles this:
 
 **1\. The Orchestrator is the Single Authority for Global State** The architectural specifications explicitly dictate that global parameters—such as the scenario's `GlobalTime` and global `WeatherArea`—must be defined and handled by one single subsystem: the Orchestrator. This ensures there is a single source of truth for the entire cluster.
 
-**2\. The Orchestrator Needs its Own Drill Slave** To participate in the distributed scenario saving and loading process, the Orchestrator subsystem must indeed instantiate its own `DrillSlave` module.
+**2\. The Orchestrator Needs its Own Drill Slave** To participate in the distributed scenario saving and loading process, the Orchestrator subsystem must indeed instantiate its own `ClusterSlave` module.
 
 Here is why this is the best practice:
 
--   **Decoupled 2PC Participation:** The system's save/load mechanics rely on a strict Two-Phase Commit (2PC) orchestration pattern. During a save, the `DrillMaster` broadcasts a `NodeOpCommand(SerializeLocal)` to instruct nodes to scatter their data to local SSDs. The component responsible for listening to these commands and managing idempotency is the `DrillSlave`.-   **Symmetry:** By giving the Orchestrator its own `DrillSlave`, it becomes just another node in the roster. When the Master says "Save", the Orchestrator's slave receives the command, serializes the global time and weather into its own JSON file, and returns a manifest back to the `StorageGatewayModule` exactly like `SimHost` and `CGF` do.
+-   **Decoupled 2PC Participation:** The system's save/load mechanics rely on a strict Two-Phase Commit (2PC) orchestration pattern. During a save, the `ClusterMaster` broadcasts a `NodeOpCommand(SerializeLocal)` to instruct nodes to scatter their data to local SSDs. The component responsible for listening to these commands and managing idempotency is the `ClusterSlave`.-   **Symmetry:** By giving the Orchestrator its own `ClusterSlave`, it becomes just another node in the roster. When the Master says "Save", the Orchestrator's slave receives the command, serializes the global time and weather into its own JSON file, and returns a manifest back to the `StorageGatewayModule` exactly like `SimHost` and `CGF` do.
 
-**3\. Implementing the Lightweight Handler** Because the Orchestrator operates without a heavy physics ECS, you will utilize the lightweight `DrillSlave` variant.
+**3\. Implementing the Lightweight Handler** Because the Orchestrator operates without a heavy physics ECS, you will utilize the lightweight `ClusterSlave` variant.
 
 You will implement a custom `IDsmHandler` (e.g., `GlobalContextDsmHandler`) and register it with the Orchestrator's slave. When this handler receives a save command, it will skip ECS memory extraction and simply serialize your "Simple ECS" C# DTOs (containing the `GlobalTime` and `WeatherArea`) into the JSON format. When it receives a load command, it will parse the JSON, instantiate the DTOs, and immediately begin publishing the clock and weather state to the rest of the cluster via the respective DDS topics.
 
-This approach beautifully adheres to the Single Responsibility Principle: the `DrillMaster` solely orchestrates the state machine transitions, while the Orchestrator's `DrillSlave` independently handles the local data I/O for global context parameters.
+This approach beautifully adheres to the Single Responsibility Principle: the `ClusterMaster` solely orchestrates the state machine transitions, while the Orchestrator's `ClusterSlave` independently handles the local data I/O for global context parameters.
 
 The nodes in non-deterministict mode might run asynchronously at different rate so they are not maintaining exactly the same frame number on all nodes - frame number can not be global unless in deterministic stepping mode. The furute barrier must be based on wall clock time (which is global and synchronizaed across nodes), correct?
 
@@ -541,9 +541,9 @@ You are absolutely correct on all counts. Leveraging the 2PC JSON payload for th
 Here is how these mechanisms cleanly fit together within the distributed design:
 
 ### 1. Scenario Loading/Saving via 2PC Payload
-The `SysOpRequest` (from the IOS/UI) and the resulting `NodeOpCommand` (distributed by the Master) both feature a `PayloadJson` string field specifically designed for context passing. 
+The `ClusterOpRequest` (from the IOS/UI) and the resulting `NodeOpCommand` (distributed by the Master) both feature a `PayloadJson` string field specifically designed for context passing. 
 
-The Orchestrator's `DrillMaster` routes this payload mostly opaquely, meaning it doesn't need to understand your domain logic. The `TransitionPlanner` only peeks at the JSON to see if a `ScenarioId` is present to trigger the Storage Gateway pre-fetch barrier. Once the 2PC command reaches the leaf nodes, your specific `EditLoadDsmHandler` parses the JSON to extract the `ScenarioId`, `IsNewScenario` flags, and any domain-specific `Overrides` to execute the actual load. 
+The Orchestrator's `ClusterMaster` routes this payload mostly opaquely, meaning it doesn't need to understand your domain logic. The `TransitionPlanner` only peeks at the JSON to see if a `ScenarioId` is present to trigger the Storage Gateway pre-fetch barrier. Once the 2PC command reaches the leaf nodes, your specific `EditLoadDsmHandler` parses the JSON to extract the `ScenarioId`, `IsNewScenario` flags, and any domain-specific `Overrides` to execute the actual load. 
 
 ### 2. Story Injection & Reuse
 You are spot-on regarding reuse. Architecturally, a Story is just a highly isolated "micro-scenario", so it must aggressively reuse the exact same storage format and loader concepts as a global scenario. 
@@ -551,7 +551,7 @@ You are spot-on regarding reuse. Architecturally, a Story is just a highly isola
 **Where it should live:**
 Following the Single Responsibility Principle, the implementation must be split:
 *   **The Serialization/Deserialization Engine (Infrastructure):** The heavy lifting—parsing the JSON DOM, generating persistable GUIDs, and executing the zero-allocation `IEntityRefPatchable` memory patching—belongs in a generic toolkit like `FDP.Toolkit.Scenario`. It must remain completely agnostic to what a "Story" or "Scenario" means to the business logic.
-*   **The Command Handlers (Application Layer):** The actual `StoryLoadDsmHandler` lives in the application layer (`Bagira.SimHost` and `Bagira.CGF`). It receives the 2PC command, opens the file, invokes the toolkit's DOM loader, and applies the `StoryTag` to isolate the injected entities from the global simulation.
+*   **The Command Handlers (Application Layer):** The actual `StoryLoadDsmHandler` lives in the application layer (`Hrot.SimHost` and `Hrot.CGF`). It receives the 2PC command, opens the file, invokes the toolkit's DOM loader, and applies the `StoryTag` to isolate the injected entities from the global simulation.
 
 **Story 2PC Execution:**
 Stories execute concurrently while the global cluster remains locked in the `RunningLive` state. Because injecting a story doesn't change the macro DSM state, the `TransitionPlanner` models this as an `OperationStep` rather than a `TransitionStep`. The 2PC execution loop dispatches the command and waits for all nodes to ACK exactly as it does for a state transition, ensuring the story entities materialise on all nodes at the exact same tick.
@@ -605,9 +605,9 @@ You are touching on a fundamental principle of clean distributed system design: 
 
 The architecture enforces a strict decoupling by using a "broadcast and filter" pattern:
 
-1. **Opaque Broadcast:** When a story injection is triggered, the Orchestrator's `DrillMaster` simply broadcasts a `NodeOpCommand` to all nodes in the cluster. It treats the 2PC `PayloadJson` entirely opaquely, threading it into the command without ever inspecting its contents.
+1. **Opaque Broadcast:** When a story injection is triggered, the Orchestrator's `ClusterMaster` simply broadcasts a `NodeOpCommand` to all nodes in the cluster. It treats the 2PC `PayloadJson` entirely opaquely, threading it into the command without ever inspecting its contents.
 2. **Self-Identification via Headers:** Because a story is just a micro-scenario, it reuses the exact same JSON schema and storage concepts. This JSON schema explicitly requires a Header object that defines "What subsystem type the scenario is for" (e.g., specifying the string type name of the subsystem). 
-3. **Edge Filtering:** Every `DrillSlave` in the cluster receives the 2PC command. The local application-level DSM handler peeks at the JSON header. If the header targets the `CGF` subsystem, the CGF node parses the DOM and injects the entities. If the `SimHost` or `IG` node reads that same header, they recognize it is not for their simulation engine, cleanly ignore the payload, and immediately return a `NodeOpStatus(Success)` ACK to satisfy the Two-Phase Commit.
+3. **Edge Filtering:** Every `ClusterSlave` in the cluster receives the 2PC command. The local application-level DSM handler peeks at the JSON header. If the header targets the `CGF` subsystem, the CGF node parses the DOM and injects the entities. If the `SimHost` or `IG` node reads that same header, they recognize it is not for their simulation engine, cleanly ignore the payload, and immediately return a `NodeOpStatus(Success)` ACK to satisfy the Two-Phase Commit.
 
 By pushing the responsibility of evaluating the target payload to the edge (the leaf nodes) and relying on the JSON header to declare the target subsystem, we preserve the Single Responsibility Principle. The Orchestrator remains a pure state and time authority, blissfully ignorant of specific simulation engines, ensuring our control plane remains highly cohesive and incredibly robust.
 
@@ -641,7 +641,7 @@ When loading the scenario, the inverse happens. The loader parses the simplified
 ### Summary of the Architecture
 By building the saver/loader as an independent engine driven by injected strategy delegates:
 *   **FDP Core remains pure:** Toolkit components have zero JSON dependencies.
-*   **Application-Specific Formats:** `Bagira.SimHost` can register a serializer that writes a tank's state as flat parameters, while a future CGF node could combine that exact same data into a nested AI-friendly JSON hierarchy.
+*   **Application-Specific Formats:** `Hrot.SimHost` can register a serializer that writes a tank's state as flat parameters, while a future CGF node could combine that exact same data into a nested AI-friendly JSON hierarchy.
 *   **Zero-Allocation Path:** The builder can still use Expression Trees to JIT-compile these external formatters into allocation-free delegates, mimicking the platform's `FdpAutoSerializer`.
 
 This separation of concerns ensures that the scenario format is driven entirely by the needs of the subsystem, rather than being rigidly bound to the memory layout of the simulation.
@@ -999,7 +999,7 @@ Dnes • 22:06
 -----------------------
 
 
-In the orchestrator detail source there is a specification what the bagira.irchestrator imgui based ui should implement. Is this covered in the design and the task-detail source?
+In the orchestrator detail source there is a specification what the hrot.irchestrator imgui based ui should implement. Is this covered in the design and the task-detail source?
 
 The informal requirements specify a comprehensive Orchestrator UI that must handle system health monitoring, 2PC transaction history, simulation time control, and extensive scenario/story management. When cross-referencing this against the formal `CGF-1-TASK-DETAIL.md` and `DESIGN.md` specifications, the architectural coverage is split: the core diagnostic UI is explicitly tasked, but the rich scenario management UI is entirely missing from the frontend task list, despite the backend being fully specified.
 
@@ -1009,7 +1009,7 @@ Here is the architectural breakdown of what is covered and where we have a speci
 
 The foundational ImGui panel for the Orchestrator is well-defined under task **CGF1-S0105 (Orchestrator Health Monitoring & Bootstrap Recovery)**. This task explicitly satisfies the monitoring requirements by mandating:
 
--   A "system-health table" displaying NodeId, SubsystemName, heartbeat latency, LocalDsmState, CPU%, and RAM.-   A "2PC history table" listing the last N transactions along with per-node ACK latency, directly satisfying the requirement to monitor the Drill Master and 2PC communication status.-   A bootstrap banner that disables "simulation control buttons" while waiting for mandatory nodes to join, which implies that basic simulation controls (Play/Pause) are part of this UI.
+-   A "system-health table" displaying NodeId, SubsystemName, heartbeat latency, LocalClusterState, CPU%, and RAM.-   A "2PC history table" listing the last N transactions along with per-node ACK latency, directly satisfying the requirement to monitor the Drill Master and 2PC communication status.-   A bootstrap banner that disables "simulation control buttons" while waiting for mandatory nodes to join, which implies that basic simulation controls (Play/Pause) are part of this UI.
 
 2\. What is MISSING (Scenario & Story Management UI)
 
@@ -1017,13 +1017,13 @@ The informal notes demand UI controls to initialize live drills, save snapshots,
 
 From a clean architecture perspective, the **control-plane backend** for all of these features is perfectly detailed in the task source:
 
--   The `TransitionPlanner` is tasked to resolve `SysOpRequest` commands for complex state transitions (like `RunningLive` to `RunningReplay`).-   Task **CGF1-S0308 (Runtime Story Injection & Deletion)** defines the exact backend logic for the Orchestrator to track active stories and route `ManageStory` operations.-   The 2PC payloads for scenario and story injection are fully modeled.
+-   The `TransitionPlanner` is tasked to resolve `ClusterOpRequest` commands for complex state transitions (like `RunningLive` to `RunningReplay`).-   Task **CGF1-S0308 (Runtime Story Injection & Deletion)** defines the exact backend logic for the Orchestrator to track active stories and route `ManageEpisode` operations.-   The 2PC payloads for scenario and story injection are fully modeled.
 
-**The Gap:** There are absolutely no tasks in `CGF-1-TASK-DETAIL.md` instructing the developer to actually build the ImGui buttons, modals, or lists to expose these scenario and story capabilities in the `Bagira.Orchestrator` UI. The backend `DrillMaster` is ready to receive a `SysOpRequest(ManageStory)`, but the frontend orchestrator panel has no task assigned to emit it.
+**The Gap:** There are absolutely no tasks in `CGF-1-TASK-DETAIL.md` instructing the developer to actually build the ImGui buttons, modals, or lists to expose these scenario and story capabilities in the `Hrot.Orchestrator` UI. The backend `ClusterMaster` is ready to receive a `ClusterOpRequest(ManageEpisode)`, but the frontend orchestrator panel has no task assigned to emit it.
 
 Architectural Recommendation
 
-To maintain best practices and ensure the UI doesn't fall behind the backend capabilities, we must amend the task details. We should add a new frontend-specific task (e.g., `CGF1-S0106 — Orchestrator ImGui Scenario & Story Controls`) that instructs the developer to wire up the ImGui presentation layer. This panel will simply construct the appropriate `SysOpRequest` DTOs and dispatch them to the `DrillMaster`, keeping the UI perfectly decoupled from the actual transition logic while satisfying all requirements outlined in the design notes.
+To maintain best practices and ensure the UI doesn't fall behind the backend capabilities, we must amend the task details. We should add a new frontend-specific task (e.g., `CGF1-S0106 — Orchestrator ImGui Scenario & Story Controls`) that instructs the developer to wire up the ImGui presentation layer. This panel will simply construct the appropriate `ClusterOpRequest` DTOs and dispatch them to the `ClusterMaster`, keeping the UI perfectly decoupled from the actual transition logic while satisfying all requirements outlined in the design notes.
 
 Does the dedign or tasks include some way of e2e automated test that could if the whole orchestration and drill state machine and scenario persistence and checkpointing and recording/replay etc work properly? Something that follows/stimulates the sample drill sm transitions with a simple scenario like a user would do and checking it on an all-in-one runner configuration (all subsystems in a single process), verifying if everything works as expected?
 
@@ -1033,7 +1033,7 @@ Here is how the platform achieves this E2E validation:
 
 **1\. The Headless Test Executor** To simulate user interactions without the overhead of a graphical interface, the platform provides a `HeadlessTestExecutor`. This engine drives the `SubsystemOrchestrator` in a purely headless mode, executing a time-sequenced JSON `TestScript`. It initializes the subsystems, dispatches scripted actions at exact simulation timestamps, and evaluates strict assertion rules on the resulting state. When the script completes, it generates a comprehensive metrics report and returns an exit code of 0 (pass) or 1 (fail).
 
-**2\. Deterministic CI Hookup** Automated testing relies heavily on the "Deterministic CI Hookup" (Task CGF1-S0205). By utilizing the `SteppedMasterController` and `SteppedSlaveController`, the system halts the real-time wall clock and advances simulation time purely logically. This ensures bit-exact, reproducible runs across different hardware. Scenarios executed via the command line (e.g., `dotnet run --project Bagira.Runner -- --mode ci --scenario MinimalCI_01`) automatically boot the required configuration, run the simulation for a predefined number of ticks, and exit with code 0 upon success.
+**2\. Deterministic CI Hookup** Automated testing relies heavily on the "Deterministic CI Hookup" (Task CGF1-S0205). By utilizing the `SteppedMasterController` and `SteppedSlaveController`, the system halts the real-time wall clock and advances simulation time purely logically. This ensures bit-exact, reproducible runs across different hardware. Scenarios executed via the command line (e.g., `dotnet run --project Hrot.ClusterRunner -- --mode ci --scenario MinimalCI_01`) automatically boot the required configuration, run the simulation for a predefined number of ticks, and exit with code 0 upon success.
 
 **3\. Built-in E2E Integration Scenarios** The architecture includes highly specific E2E integration tests designed to validate the exact DSM transitions and storage mechanisms you mentioned:
 
@@ -1073,7 +1073,7 @@ pls give an example how to write the "test script" to exercise various "paths" a
 
 Using data-driven JSON test scripts for end-to-end (E2E) validation is a textbook example of clean architecture, as it perfectly decouples the test orchestration from the core ECS domain. The `HeadlessTestExecutor` consumes a `TestScript` containing a `Duration` and a time-sequenced list of `TestStep` actions, allowing us to stimulate the simulation exactly as an operator would.
 
-To fully exercise the Drill State Machine (DSM) and the features described in the design, we simply need to assume the registration of a custom `sysop` action handler alongside the platform's existing `spawn`, `move`, and `assert_position` handlers. This `sysop` handler will construct a `SysOpRequest` and dispatch it to the `DrillMaster`, relying on the `TransitionPlanner` to automatically resolve complex multi-step trajectories (like `RunningLive` to `RunningReplay`).
+To fully exercise the Drill State Machine (DSM) and the features described in the design, we simply need to assume the registration of a custom `sysop` action handler alongside the platform's existing `spawn`, `move`, and `assert_position` handlers. This `sysop` handler will construct a `ClusterOpRequest` and dispatch it to the `ClusterMaster`, relying on the `TransitionPlanner` to automatically resolve complex multi-step trajectories (like `RunningLive` to `RunningReplay`).
 
 Here is a set of focused, E2E test scripts demonstrating how to validate these specific architectural mechanisms.
 
@@ -1089,7 +1089,7 @@ Here is a set of focused, E2E test scripts demonstrating how to validate these s
     {
       "Time": 1.0,
       "Action": "sysop",
-      "Args": { "TargetState": "RunningLive", "DrillId": "test-drill-01" }
+      "Args": { "TargetState": "RunningLive", "ExerciseId": "test-drill-01" }
     },
     {
       "Time": 2.0,
@@ -1104,7 +1104,7 @@ Here is a set of focused, E2E test scripts demonstrating how to validate these s
     {
       "Time": 6.0,
       "Action": "sysop",
-      "Args": { "TargetState": "RunningReplay", "DrillId": "test-drill-01" }
+      "Args": { "TargetState": "RunningReplay", "ExerciseId": "test-drill-01" }
     },
     {
       "Time": 8.0,
@@ -1171,7 +1171,7 @@ Here is a set of focused, E2E test scripts demonstrating how to validate these s
 
 3\. The Live-From-Replay Temporal Interlock Script
 
-**Focus:** Validates the highly complex branch transition where an operator takes control of a replaying simulation, ensuring time is hard-frozen during the pipeline swap and that the `EntityRepository` is preserved in place without a memory copy. **Success Conditions:** The transition to `RunningLive` is accepted by the DSM while currently in `RunningReplay`, the system branches the `DrillId`, and a new entity can be spawned successfully without throwing ID allocator collisions (proving the `MaxNetworkId` high-water mark reset succeeded during the transition).
+**Focus:** Validates the highly complex branch transition where an operator takes control of a replaying simulation, ensuring time is hard-frozen during the pipeline swap and that the `EntityRepository` is preserved in place without a memory copy. **Success Conditions:** The transition to `RunningLive` is accepted by the DSM while currently in `RunningReplay`, the system branches the `ExerciseId`, and a new entity can be spawned successfully without throwing ID allocator collisions (proving the `MaxNetworkId` high-water mark reset succeeded during the transition).
 
 ```
 {
@@ -1181,12 +1181,12 @@ Here is a set of focused, E2E test scripts demonstrating how to validate these s
     {
       "Time": 1.0,
       "Action": "sysop",
-      "Args": { "TargetState": "RunningReplay", "DrillId": "historical-drill-01" }
+      "Args": { "TargetState": "RunningReplay", "ExerciseId": "historical-drill-01" }
     },
     {
       "Time": 4.0,
       "Action": "sysop",
-      "Args": { "TargetState": "RunningLive", "DrillId": "branched-drill-02" }
+      "Args": { "TargetState": "RunningLive", "ExerciseId": "branched-drill-02" }
     },
     {
       "Time": 8.0,

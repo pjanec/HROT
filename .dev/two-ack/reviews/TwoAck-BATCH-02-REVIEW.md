@@ -9,21 +9,21 @@
 
 ## Summary
 
-The developer accurately corrected the issues pointed out in Batch 01: The missing `ImGui.BeginDisabled()` assertion was rewritten properly, an integration test for `IosMock.DrawUI` was added, and the enum mismatch crashing `Bagira.SimHost.Tests` was corrected. The UX copy was successfully replaced. Furthermore, Developer Insights were provided showing good analysis of edge-cases and existing architecture.
+The developer accurately corrected the issues pointed out in Batch 01: The missing `ImGui.BeginDisabled()` assertion was rewritten properly, an integration test for `IosMock.DrawUI` was added, and the enum mismatch crashing `Hrot.SimHost.Tests` was corrected. The UX copy was successfully replaced. Furthermore, Developer Insights were provided showing good analysis of edge-cases and existing architecture.
 
-**HOWEVER, test integration regressions were completely ignored.** While `Bagira.SimHost.Tests` and `Bagira.IOS.Tests` now pass nicely, exactly **17 Integration Tests** are failing in `Bagira.SimHost.Integration.Tests` alongside another failure in `Bagira.Runner.Integration.Tests`. 
+**HOWEVER, test integration regressions were completely ignored.** While `Hrot.SimHost.Tests` and `Hrot.ExCon.Tests` now pass nicely, exactly **17 Integration Tests** are failing in `Hrot.SimHost.Integration.Tests` alongside another failure in `Hrot.ClusterRunner.Integration.Tests`. 
 
 ---
 
 ## Issues Found
 
 ### Issue 1: MockIOSClient Breaks Under Two-ACK Architecture
-**File:** `Bagira.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs`
+**File:** `Hrot.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs`
 **Problem:** `TryGetAck(requestId)` just returns the *first* matching ACK blindly. Because we changed creation sequences in Batch 01 to emit `InProgress=1` followed by `Success=0`, `WaitForAckAsync()` now yields `StatusCode=1`. The downstream test assertions are written expecting `0` precisely, leading to sweeping failures across `EntityCreationFlowTests.cs` and `NavComponentsPresenceTests.cs`.
 **Fix:** Refactor `WaitForAckAsync` or the `TryGetAck` query loop to skip non-terminal ACKs (like `InProgress=1`) and return only the terminal `Success` or `Error` states, or modify the test suite to await the specific phase code explicitly.
 
 ### Issue 2: Runner Integration Validation
-**File:** `Bagira.Runner.Integration.Tests/MiniIosIntegrationTests.cs`
+**File:** `Hrot.ClusterRunner.Integration.Tests/MiniIosIntegrationTests.cs`
 **Problem:** `FirstSpawn_DoesNotExhaustIdPool` fails, asserting `StatusCode` equality expecting `0` but obtaining `1` (InProgress).
 **Fix:** Apply the same phase-awareness patching for Mock consumers receiving Two-ACK sequences.
 

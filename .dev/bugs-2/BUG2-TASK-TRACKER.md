@@ -8,11 +8,11 @@
 ## Phase 1 — Network Correctness
 
 **Goal:** Stop duplicate ACKs on descriptor update requests, ensure DDS sender identity is
-broadcast by all participant types, and tombstone the GeoSpatialDR descriptor on entity deletion.
+broadcast by all participant types, and tombstone the WorldPos descriptor on entity deletion.
 
 - [x] **BUG2-N001** Fix Duplicate UpdateEntityDescriptorRequestSystem Registration [details](./BUG2-TASK-DETAIL.md#bug2-n001-fix-duplicate-updateentitydescriptorrequestsystem-registration)
 - [x] **BUG2-N002** Add EnableSenderTracking to All DDS Participant Initializations [details](./BUG2-TASK-DETAIL.md#bug2-n002-add-enablesendertracking-to-all-dds-participant-initializations)
-- [x] **BUG2-N003** Fix GeoSpatialDR Descriptor Disposal Leak [details](./BUG2-TASK-DETAIL.md#bug2-n003-fix-geospatialdr-descriptor-disposal-leak)
+- [x] **BUG2-N003** Fix WorldPos Descriptor Disposal Leak [details](./BUG2-TASK-DETAIL.md#bug2-n003-fix-geospatialdr-descriptor-disposal-leak)
 
 ---
 

@@ -15,13 +15,13 @@
 You are a developer implementing the modularization of the IOS-IG-SimHost application. This is an ongoing, multi-batch effort. **Read this section entirely before touching any code.**
 
 ### Project Goal
-Refactoring towards better modularization and generalization. **What should be generic must come under FDP, not be left in the Bagira domain.** This batch's focus is the Runner layer — the application orchestration infrastructure (`SubsystemOrchestrator`, `HeadlessTestExecutor`, `WaitingRoomCoordinator`) that is currently hard-wired to Bagira-specific concrete types. Your job is to cut those concrete references out and move the generic orchestration into a new `FDP.Framework.Runner` toolkit.
+Refactoring towards better modularization and generalization. **What should be generic must come under FDP, not be left in the Hrot domain.** This batch's focus is the Runner layer — the application orchestration infrastructure (`SubsystemOrchestrator`, `HeadlessTestExecutor`, `WaitingRoomCoordinator`) that is currently hard-wired to Hrot-specific concrete types. Your job is to cut those concrete references out and move the generic orchestration into a new `FDP.Framework.Runner` toolkit.
 
 ### Non-Negotiable Rules
-1. **The application must keep working.** `Bagira.Runner -x all` integration tests must pass after every task. The app must still launch in both windowed and headless mode.
+1. **The application must keep working.** `Hrot.ClusterRunner -x all` integration tests must pass after every task. The app must still launch in both windowed and headless mode.
 2. **Tests must check real behaviour.** Don't just assert method call counts — verify observable outcomes.
 3. **Component IDs belong in toolkit-local registries** — never add to `GlobalComponentIds` directly.
-4. **`FDP.*` assemblies may never reference `Bagira.*` assemblies.** The dependency flows in one direction only: Bagira → FDP.
+4. **`FDP.*` assemblies may never reference `Hrot.*` assemblies.** The dependency flows in one direction only: Hrot → FDP.
 5. **Do not modify third-party submodules** under `FDP\ExtDeps\`.
 
 ### Required Reading (IN ORDER)
@@ -33,8 +33,8 @@ Refactoring towards better modularization and generalization. **What should be g
 
 ### Source Code Location
 - **New project to create:** `FDP/Framework/FDP.Framework.Runner/`
-- **Source of truth for types to move:** `Bagira.Runner/` — subsystems, orchestrator, test executor
-- **Debt targets:** `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`, `Bagira.SimHost/SimulationLogicModule.cs`
+- **Source of truth for types to move:** `Hrot.ClusterRunner/` — subsystems, orchestrator, test executor
+- **Debt targets:** `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs`, `Hrot.SimHost/SimulationLogicModule.cs`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -65,7 +65,7 @@ Currently `SimulationLogicModule` creates all sub-modules unconditionally in its
 3. **MOD1-P9T2:** Refactor `SubsystemOrchestrator` into `FDP.Framework.Runner` → **ALL tests pass + app launches** ✅
 4. **MOD1-P9T3:** Extract `WaitingRoomCoordinator` and `RunnerConfiguration` → **ALL tests pass** ✅
 5. **MOD1-P9T4:** Extract `HeadlessTestExecutor` and generic handlers → **ALL tests pass** ✅
-6. **MOD1-P9T5:** Refactor `Bagira.Runner` as pure composition root → **`-x all` integration tests pass + app launches** ✅
+6. **MOD1-P9T5:** Refactor `Hrot.ClusterRunner` as pure composition root → **`-x all` integration tests pass + app launches** ✅
 
 ---
 
@@ -80,7 +80,7 @@ See description in debt section above.
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P9T1](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p9t1--create-fdpframeworkrunner-project--extract-isubsystem--imapcameraprovider)
 
-**Key constraint:** `FDP.Framework.Runner.csproj` must reference `Raylib-cs`, `ImGui.NET`, and `ModuleHost.Core`. It must have **zero** references to any `Bagira.*` assembly. Each concrete subsystem in `Bagira.Runner` adds its own `TitleBarColor` implementation.
+**Key constraint:** `FDP.Framework.Runner.csproj` must reference `Raylib-cs`, `ImGui.NET`, and `ModuleHost.Core`. It must have **zero** references to any `Hrot.*` assembly. Each concrete subsystem in `Hrot.ClusterRunner` adds its own `TitleBarColor` implementation.
 
 ---
 
@@ -88,7 +88,7 @@ See description in debt section above.
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P9T2](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p9t2--refactor-subsystemorchestrator-into-fdpframeworkrunner)
 
-**Key constraint:** Remove `BuildSubsystems` factory method completely. Remove the hardcoded `PushSubsystemColors` switch. Replace with loops over `subsystem.TitleBarColor` and `subsystems.OfType<IMapCameraProvider>()`. `Bagira.Runner.Program` becomes the composition root that creates and injects concrete subsystems.
+**Key constraint:** Remove `BuildSubsystems` factory method completely. Remove the hardcoded `PushSubsystemColors` switch. Replace with loops over `subsystem.TitleBarColor` and `subsystems.OfType<IMapCameraProvider>()`. `Hrot.ClusterRunner.Program` becomes the composition root that creates and injects concrete subsystems.
 
 ---
 
@@ -96,7 +96,7 @@ See description in debt section above.
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P9T3](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p9t3--extract-waitingroomcoordinator-and-runnerconfiguration-into-fdpframeworkrunner)
 
-**Key constraint:** `WaitingRoomCoordinator` moves as-is (it's already generic — no Bagira references). `RunnerConfiguration` carries only generic flags (`--headless`, `--domain`, `--no-wait`). `BagiraRunnerConfiguration : RunnerConfiguration` in `Bagira.Runner` adds `--mode` and `--role`.
+**Key constraint:** `WaitingRoomCoordinator` moves as-is (it's already generic — no Hrot references). `RunnerConfiguration` carries only generic flags (`--headless`, `--domain`, `--no-wait`). `HrotRunnerConfiguration : RunnerConfiguration` in `Hrot.ClusterRunner` adds `--mode` and `--role`.
 
 ---
 
@@ -104,13 +104,13 @@ See description in debt section above.
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P9T4](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p9t4--extract-headlesstestexecutor-core--generic-action-handlers-into-fdpframeworkrunner)
 
-**Key constraint:** `SpawnActionHandler`, `MoveActionHandler`, `AssertPositionActionHandler` stay in `Bagira.Runner` (they reference Bagira ECS types). Only the domain-agnostic handlers (`WaitActionHandler`, `TickActionHandler`, `AssertAllActionHandler`) and the executor framework itself move to `FDP.Framework.Runner.Testing`.
+**Key constraint:** `SpawnActionHandler`, `MoveActionHandler`, `AssertPositionActionHandler` stay in `Hrot.ClusterRunner` (they reference Hrot ECS types). Only the domain-agnostic handlers (`WaitActionHandler`, `TickActionHandler`, `AssertAllActionHandler`) and the executor framework itself move to `FDP.Framework.Runner.Testing`.
 
 ---
 
-### Task 5: MOD1-P9T5 — Refactor `Bagira.Runner` as Pure Composition Root
+### Task 5: MOD1-P9T5 — Refactor `Hrot.ClusterRunner` as Pure Composition Root
 
-**Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P9T5](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p9t5--refactor-bagirarunner-as-pure-composition-root)
+**Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P9T5](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p9t5--refactor-hrotrunner-as-pure-composition-root)
 
 **Key constraint:** `Program.cs` must not import `Raylib.*` or `ImGui.*` directly — those belong inside `SubsystemOrchestrator`. Program parses args, constructs subsystems, constructs the orchestrator, and either runs headless or windowed. That's it.
 
@@ -124,7 +124,7 @@ Submit `.dev-workstream/reports/MOD1-BATCH-09-REPORT.md` with:
 
 **Q1:** For DB-MOD1-08 — what role combinations are meaningful? Which modules are skipped for which roles (provide a table)?
 
-**Q2:** For P9T2 — how many lines of Bagira-specific code were removed from `SubsystemOrchestrator`? Was any orchestration logic harder to generalize than expected?
+**Q2:** For P9T2 — how many lines of Hrot-specific code were removed from `SubsystemOrchestrator`? Was any orchestration logic harder to generalize than expected?
 
 **Q3:** For P9T5 — does `Program.cs` still have any direct references to Raylib or ImGui? List them if any.
 
@@ -136,8 +136,8 @@ Submit `.dev-workstream/reports/MOD1-BATCH-09-REPORT.md` with:
 
 This batch is DONE when:
 - [ ] `SimulationLogicModule` skips sub-modules that are irrelevant for the current `NodeRole`.
-- [ ] `FDP.Framework.Runner` compiles with zero `Bagira.*` references.
+- [ ] `FDP.Framework.Runner` compiles with zero `Hrot.*` references.
 - [ ] `SubsystemOrchestrator` is in `FDP.Framework.Runner` with no hardcoded concrete type references.
-- [ ] `Bagira.Runner.Program` is a pure composition root: parse args → construct subsystems → inject → run.
-- [ ] `Bagira.Runner -x all` integration tests pass unconditionally.
+- [ ] `Hrot.ClusterRunner.Program` is a pure composition root: parse args → construct subsystems → inject → run.
+- [ ] `Hrot.ClusterRunner -x all` integration tests pass unconditionally.
 - [ ] All unit and integration test suites pass with 0 failures.

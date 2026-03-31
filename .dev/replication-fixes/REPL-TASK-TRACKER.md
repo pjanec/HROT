@@ -67,24 +67,24 @@ Fixes three interrelated issues in `FDP.Toolkit.Replication` and connected appli
 
 ## Phase 4 — Integration Test Coverage
 
-**Goal:** Add autonomous integration tests in `Bagira.Runner.Integration.Tests` that verify all three fixes end-to-end.
+**Goal:** Add autonomous integration tests in `Hrot.ClusterRunner.Integration.Tests` that verify all three fixes end-to-end.
 
 - [x] **REPL-P4-T1** `ReplicationPhaseExecutionTests` — `DisposalMonitoringSystem` prunes map within 60 frames [details](./REPL-TASK-DETAIL.md#repl-p4-t1-replicationphaseexecutiontests--systems-execute-each-frame)
 - [x] **REPL-P4-T2** `ZombieEntityMapTests` — destroyed entity removed from `NetworkEntityMap` on both SimHost and IG [details](./REPL-TASK-DETAIL.md#repl-p4-t2-zombieentitymaptests--map-is-pruned-after-entity-destroy-full-lifecycle)
 - [x] **REPL-P4-T3** `SubEntityCascadeDestroyTests` — child entities destroyed when parent is destroyed [details](./REPL-TASK-DETAIL.md#repl-p4-t3-subentitycascadedestroyests--child-entities-are-destroyed-with-parent)
-- [x] **REPL-P4-T4** `GhostPromotionTests` — out-of-order GeoSpatial-before-EntityMaster results in promoted entity with preserved `NetworkPosition` [details](./REPL-TASK-DETAIL.md#repl-p4-t4-ghostpromotiontests--out-of-order-descriptor-promotion)
+- [x] **REPL-P4-T4** `GhostPromotionTests` — out-of-order WorldPos-before-EntityMaster results in promoted entity with preserved `NetworkPosition` [details](./REPL-TASK-DETAIL.md#repl-p4-t4-ghostpromotiontests--out-of-order-descriptor-promotion)
 
 ---
 
 ## Phase 5 — Translator Unification
 
-**Goal:** Migrate and unify descriptor translators from `Bagira.IG` and `Bagira.SimHost` into a shared `Bagira.Map.Common` library. Apply ECS-as-Staging pattern consistently and organize them into Ingress and Egress folders.
+**Goal:** Migrate and unify descriptor translators from `Hrot.IG` and `Hrot.SimHost` into a shared `Hrot.Map.Common` library. Apply ECS-as-Staging pattern consistently and organize them into Ingress and Egress folders.
 
-- [x] **REPL-P5-T1** Update `Bagira.Map.Common` project references [details](./REPL-TASK-DETAIL.md#repl-p5-t1-update-bagiramapcommon-project-references)
-- [x] **REPL-P5-T2** Migrate IG Ingress Translators to `Bagira.Map.Common.Replication.Ingress` [details](./REPL-TASK-DETAIL.md#repl-p5-t2-migrate-ig-ingress-translators)
-- [x] **REPL-P5-T3** Migrate SimHost Egress Translators to `Bagira.Map.Common.Replication.Egress` [details](./REPL-TASK-DETAIL.md#repl-p5-t3-migrate-simhost-egress-translators)
+- [x] **REPL-P5-T1** Update `Hrot.Map.Common` project references [details](./REPL-TASK-DETAIL.md#repl-p5-t1-update-hrotmapcommon-project-references)
+- [x] **REPL-P5-T2** Migrate IG Ingress Translators to `Hrot.Map.Common.Replication.Ingress` [details](./REPL-TASK-DETAIL.md#repl-p5-t2-migrate-ig-ingress-translators)
+- [x] **REPL-P5-T3** Migrate SimHost Egress Translators to `Hrot.Map.Common.Replication.Egress` [details](./REPL-TASK-DETAIL.md#repl-p5-t3-migrate-simhost-egress-translators)
 - [x] **REPL-P5-T4** Migrate EntityMission Translators [details](./REPL-TASK-DETAIL.md#repl-p5-t4-migrate-entitymission-translators)
-- [x] **REPL-P5-T5** Migrate `DescriptorMapper` to `Bagira.Map.Common.Replication.Utils` [details](./REPL-TASK-DETAIL.md#repl-p5-t5-migrate-descriptormapper)
+- [x] **REPL-P5-T5** Migrate `DescriptorMapper` to `Hrot.Map.Common.Replication.Utils` [details](./REPL-TASK-DETAIL.md#repl-p5-t5-migrate-descriptormapper)
 - [x] **REPL-P5-T6** Update composition roots in IG and SimHost to use new shared translators [details](./REPL-TASK-DETAIL.md#repl-p5-t6-update-composition-roots)
 
 ---
@@ -102,18 +102,18 @@ Fixes three interrelated issues in `FDP.Toolkit.Replication` and connected appli
 | `FDP/Toolkits/FDP.Toolkit.Replication/Systems/OwnershipEgressSystem.cs` | MODIFY |
 | `FDP/Toolkits/FDP.Toolkit.Replication/Systems/SmartEgressSystem.cs` | MODIFY |
 | `FDP/Toolkits/FDP.Toolkit.Replication/ReplicationLogicModule.cs` | MODIFY (2-param constructor, no ISerializationRegistry) |
-| `Bagira.IG/Translators/EntityMasterTranslator.cs` | MODIFY (replace SpawnEntityCommand with Ghost pipeline) |
-| `Bagira.IG/Translators/GeoSpatialTranslator.cs` | MODIFY (ghost fallback) |
-| `Bagira.IG/Translators/GeoSpatialDRTranslator.cs` | MODIFY (ghost fallback) |
-| `Bagira.IG/Translators/EntityInfoTranslator.cs` | MODIFY (ghost fallback) |
-| `Bagira.IG/Translators/EntityDamageTranslator.cs` | MODIFY (ghost fallback) |
-| `Bagira.IG/Translators/MapEntitySymbolTranslator.cs` | MODIFY (ghost fallback) |
-| `Bagira.IG/Translators/ContextActionsUpdateTranslator.cs` | MODIFY (ghost fallback) |
+| `Hrot.IG/Translators/EntityMasterTranslator.cs` | MODIFY (replace SpawnEntityCommand with Ghost pipeline) |
+| `Hrot.IG/Translators/WorldPosTranslator.cs` | MODIFY (ghost fallback) |
+| `Hrot.IG/Translators/WorldPosTranslator.cs` | MODIFY (ghost fallback) |
+| `Hrot.IG/Translators/EntityInfoTranslator.cs` | MODIFY (ghost fallback) |
+| `Hrot.IG/Translators/EntityDamageTranslator.cs` | MODIFY (ghost fallback) |
+| `Hrot.IG/Translators/MapEntitySymbolTranslator.cs` | MODIFY (ghost fallback) |
+| `Hrot.IG/Translators/ContextActionsUpdateTranslator.cs` | MODIFY (ghost fallback) |
 | `FDP/ModuleHost/ModuleHost.Network.Cyclone/Translators/EntityMasterTranslator.cs` | MODIFY (set Ghost lifecycle on new proxy entities) |
-| `Bagira.IG/IgApplication.cs` | MODIFY (2-param ReplicationLogicModule, wire GhostCreationSystem) |
-| `Bagira.Runner/Services/SimHostSubsystem.cs` | MODIFY (register ReplicationLogicModule) |
+| `Hrot.IG/IgApplication.cs` | MODIFY (2-param ReplicationLogicModule, wire GhostCreationSystem) |
+| `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` | MODIFY (register ReplicationLogicModule) |
 | `FDP/Examples/Fdp.Examples.NetworkDemo/NetworkDemoApp.cs` | MODIFY (2-param ReplicationLogicModule) |
-| `Bagira.Runner.Integration.Tests/ReplicationPhaseExecutionTests.cs` | NEW |
-| `Bagira.Runner.Integration.Tests/ZombieEntityMapTests.cs` | NEW |
-| `Bagira.Runner.Integration.Tests/SubEntityCascadeDestroyTests.cs` | NEW |
-| `Bagira.Runner.Integration.Tests/GhostPromotionTests.cs` | NEW |
+| `Hrot.ClusterRunner.Integration.Tests/ReplicationPhaseExecutionTests.cs` | NEW |
+| `Hrot.ClusterRunner.Integration.Tests/ZombieEntityMapTests.cs` | NEW |
+| `Hrot.ClusterRunner.Integration.Tests/SubEntityCascadeDestroyTests.cs` | NEW |
+| `Hrot.ClusterRunner.Integration.Tests/GhostPromotionTests.cs` | NEW |

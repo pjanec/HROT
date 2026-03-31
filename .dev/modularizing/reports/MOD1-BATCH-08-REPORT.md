@@ -17,9 +17,9 @@
 Created `FDP/Toolkits/Fdp.Toolkit.Geographic/GeographicComponentIds.cs` with numeric constants 77/78/79. Updated `[ComponentId]` attributes on the three ground-clamping structs to reference `GeographicComponentIds.*`. Removed the three constants from `GlobalComponentIds` with a comment pointing to the new home.
 
 ### MOD1-P8T1 — RecordingConfiguration + EcsRecordReplayController
-- `RecordingConfiguration` (in `FDP.Toolkit.Replay`): `required string FilePath`, `Predicate<Entity>? EntityFilter`, `required Guid DrillId`. Used `Predicate<Entity>` not `Predicate<int>` per spec correction.
-- `IDsmHandler` interface created in `Bagira.SimHost.Modules.Orchestration` (skeleton; full 2PC deferred).
-- `EcsRecordReplayController`: pure factory/orchestrator. Methods: `PrepareRecordingAsync`, `FinalizeRecordingAsync`, `StartStoryRecordingAsync`, `StopStoryRecordingAsync`, `PrepareReplayAsync`, `TeardownReplayAsync`. Ensures output directories exist before passing paths to `AsyncRecorder`.
+- `RecordingConfiguration` (in `FDP.Toolkit.Replay`): `required string FilePath`, `Predicate<Entity>? EntityFilter`, `required Guid ExerciseId`. Used `Predicate<Entity>` not `Predicate<int>` per spec correction.
+- `IDsmHandler` interface created in `Hrot.SimHost.Modules.Orchestration` (skeleton; full 2PC deferred).
+- `EcsRecordReplayController`: pure factory/orchestrator. Methods: `PrepareRecordingAsync`, `FinalizeRecordingAsync`, `StartEpisodeRecordingAsync`, `StopEpisodeRecordingAsync`, `PrepareReplayAsync`, `TeardownReplayAsync`. Ensures output directories exist before passing paths to `AsyncRecorder`.
 
 ### MOD1-P8T2 — RecordingModule + RecorderSystem.EntityFilter
 - `RecorderSystem.EntityFilter` (`Predicate<Entity>?`) added. Applied in `FillLiveness`: entities that don't pass the filter are treated as not-alive, so their component data is zeroed in the scratch buffer — no extra allocation on the filter path.
@@ -36,10 +36,10 @@ Created `FDP/Toolkits/Fdp.Toolkit.Geographic/GeographicComponentIds.cs` with num
 - `PlaybackTickSystem` implements frame-based dual strategy: Strategy A (gap ≤ 3): iterative `StepForward`; Strategy B (gap > 3): direct `SeekToFrame`. Wall-clock-based seeking was omitted per spec correction — only frame-based seeking is supported until wider time infrastructure is in place.
 - `ReplayModule`: validates schema in `RegisterSystems` ctor (throws `InvalidDataException` on bad magic), `SeekToFrameAsync` wraps `PlaybackController.SeekToFrame` in `Task.Run` for off-main-thread execution.
 
-### MOD1-P8T5 — NodeBootstrapper Integration + DrillSlave
-- `DrillSlave`: skeleton with `RegisterHandler(IDsmHandler)`, `IsHandlerRegistered<T>()`, `IReadOnlyList<IDsmHandler> RegisteredHandlers`.
-- `NodeBootstrapper.BuildOrchestration(role, kernel, world, nodeId)`: creates `DrillSlave`, registers `EcsRecordReplayController` for `Brain` and `AllInOne` roles.
-- `Bagira.SimHost.csproj`: added `FDP.Toolkit.Replay` reference.
+### MOD1-P8T5 — NodeBootstrapper Integration + ClusterSlave
+- `ClusterSlave`: skeleton with `RegisterHandler(IDsmHandler)`, `IsHandlerRegistered<T>()`, `IReadOnlyList<IDsmHandler> RegisteredHandlers`.
+- `NodeBootstrapper.BuildOrchestration(role, kernel, world, nodeId)`: creates `ClusterSlave`, registers `EcsRecordReplayController` for `Brain` and `AllInOne` roles.
+- `Hrot.SimHost.csproj`: added `FDP.Toolkit.Replay` reference.
 
 ### New Projects
 - `FDP.Toolkit.Replay` — library with RecordingConfiguration, ReplayComponentIds, StoryTag, StoryReplayTag, RecorderTickSystem, RecordingModule, StoryRecorderModule, PlaybackTickSystem, ReplayModule.
@@ -66,11 +66,11 @@ When no recording is active, there is no `RecordingModule` installed in the `Mod
 
 The design is "pay for what you use" at the scheduler topology level. Installing `RecordingModule` injects one `RecorderTickSystem` into `PostSimulation`; uninstalling it atomically removes it via the kernel's RCU topology swap. No flag guards are needed.
 
-### Q3 — DrillSlave integration and Bagira.Runner timing
+### Q3 — ClusterSlave integration and Hrot.ClusterRunner timing
 
-The `DrillSlave` skeleton is wired only through `NodeBootstrapper.BuildOrchestration()`, which is a new method separate from the existing `BuildSimulationLogic()`. `Bagira.Runner -x all` integration tests invoke `BuildSimulationLogic()` for full-stack testing but do not call `BuildOrchestration()`. No timing or registration-order issues were encountered.
+The `ClusterSlave` skeleton is wired only through `NodeBootstrapper.BuildOrchestration()`, which is a new method separate from the existing `BuildSimulationLogic()`. `Hrot.ClusterRunner -x all` integration tests invoke `BuildSimulationLogic()` for full-stack testing but do not call `BuildOrchestration()`. No timing or registration-order issues were encountered.
 
-`Bagira.Runner.Integration.Tests` passed unconditionally (31/31). The one integration-test flake observed during sln-wide parallel runs (`DomainIsolation_Domain0Spawn_DoesNotAffectDomain10`) reproduced reliably as 0/0 when run in isolation — it is a pre-existing parallelism sensitivity unrelated to this batch.
+`Hrot.ClusterRunner.Integration.Tests` passed unconditionally (31/31). The one integration-test flake observed during sln-wide parallel runs (`DomainIsolation_Domain0Spawn_DoesNotAffectDomain10`) reproduced reliably as 0/0 when run in isolation — it is a pre-existing parallelism sensitivity unrelated to this batch.
 
 ### Q4 — Circular dependency check
 
@@ -78,14 +78,14 @@ The `DrillSlave` skeleton is wired only through `NodeBootstrapper.BuildOrchestra
 - `Fdp.Kernel` (for `AsyncRecorder`, `PlaybackController`, `EntityRepository`, `Entity`)
 - `ModuleHost.Core` (for `IModule`, `ISystemRegistry`, `ExecutionPolicy`, `IModuleSystem`)
 
-`Bagira.SimHost` (which hosts `EcsRecordReplayController`) references `FDP.Toolkit.Replay`. The dependency graph is strictly acyclic:
+`Hrot.SimHost` (which hosts `EcsRecordReplayController`) references `FDP.Toolkit.Replay`. The dependency graph is strictly acyclic:
 
 ```
-Bagira.SimHost → FDP.Toolkit.Replay → Fdp.Kernel
+Hrot.SimHost → FDP.Toolkit.Replay → Fdp.Kernel
                                      → ModuleHost.Core
 ```
 
-No circular dependencies. The architecture correctly uses the principle that Bagira-domain code references generic FDP infrastructure, never the reverse.
+No circular dependencies. The architecture correctly uses the principle that Hrot-domain code references generic FDP infrastructure, never the reverse.
 
 ---
 
@@ -95,10 +95,10 @@ No circular dependencies. The architecture correctly uses the principle that Bag
 |---|---|---|
 | `FDP.Toolkit.Replay.Tests` | 13/13 | ✅ |
 | `FDP.Toolkit.Perception.Tests` | 25/25 | ✅ |
-| `Bagira.SimHost.Tests` | 167/167 | ✅ |
-| `Bagira.SimHost.Integration.Tests` | 28/28 | ✅ |
-| `Bagira.Runner.Integration.Tests` | 31/31 | ✅ |
-| `Bagira.IG.Tests` | 304/304 | ✅ |
+| `Hrot.SimHost.Tests` | 167/167 | ✅ |
+| `Hrot.SimHost.Integration.Tests` | 28/28 | ✅ |
+| `Hrot.ClusterRunner.Integration.Tests` | 31/31 | ✅ |
+| `Hrot.IG.Tests` | 304/304 | ✅ |
 
 All pre-existing test suites continued to pass. Pre-existing flaky tests (timing-sensitive network and parallelism tests) were not affected by this batch's changes.
 
@@ -122,13 +122,13 @@ All pre-existing test suites continued to pass. Pre-existing flaky tests (timing
 - `FDP/Toolkits/FDP.Toolkit.Replay.Tests/StoryRecorderModuleTests.cs`
 - `FDP/Toolkits/FDP.Toolkit.Replay.Tests/ReplayModuleTests.cs`
 - `FDP/Toolkits/Fdp.Toolkit.Geographic/GeographicComponentIds.cs`
-- `Bagira.SimHost/Modules/Orchestration/IDsmHandler.cs`
-- `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
-- `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`
-- `Bagira.SimHost.Tests/EcsRecordReplayControllerTests.cs`
-- `Bagira.SimHost.Tests/ModuleHostKernelTestExtensions.cs`
-- `Bagira.SimHost.Integration.Tests/RecordReplayIntegrationTests.cs`
-- `Bagira.SimHost.Integration.Tests/ModuleHostKernelTestExtensions.cs`
+- `Hrot.SimHost/Modules/Orchestration/IDsmHandler.cs`
+- `Hrot.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
+- `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs`
+- `Hrot.SimHost.Tests/EcsRecordReplayControllerTests.cs`
+- `Hrot.SimHost.Tests/ModuleHostKernelTestExtensions.cs`
+- `Hrot.SimHost.Integration.Tests/RecordReplayIntegrationTests.cs`
+- `Hrot.SimHost.Integration.Tests/ModuleHostKernelTestExtensions.cs`
 
 ### Modified Files
 - `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` — removed IDs 77–79 (replaced with comment)
@@ -137,11 +137,11 @@ All pre-existing test suites continued to pass. Pre-existing flaky tests (timing
 - `FDP/Toolkits/Fdp.Toolkit.Geographic/Components/GroundClampingConfig.cs` — updated `[ComponentId]`
 - `FDP/Toolkits/Fdp.Toolkit.Geographic/Components/GroundClampingState.cs` — updated `[ComponentId]`
 - `FDP/Toolkits/Fdp.Toolkit.Geographic/Components/TerrainQueryBatchData.cs` — updated `[ComponentId]`
-- `Bagira.SimHost/Modules/CombatModule.cs` — removed `LosRequestBatchingSystem` from simGroup
-- `Bagira.SimHost/NodeBootstrapper.cs` — added `BuildOrchestration` method
-- `Bagira.SimHost/Bagira.SimHost.csproj` — added `FDP.Toolkit.Replay` reference
-- `Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj` — added `ModuleHost.Core`, `FDP.Toolkit.Replay`, `FDP.Toolkit.Time` references
-- `Bagira.SimHost.Tests/SimulationLogicModuleTests.cs` — updated system count 20→19
-- `Bagira.SimHost.Integration.Tests/Bagira.SimHost.Integration.Tests.csproj` — added `FDP.Toolkit.Replay` reference
-- `Bagira.IG.Tests/IgGroundClampingModuleTests.cs` — updated `CapturingRegistry` to generic `RegisterSystem<T>`
+- `Hrot.SimHost/Modules/CombatModule.cs` — removed `LosRequestBatchingSystem` from simGroup
+- `Hrot.SimHost/NodeBootstrapper.cs` — added `BuildOrchestration` method
+- `Hrot.SimHost/Hrot.SimHost.csproj` — added `FDP.Toolkit.Replay` reference
+- `Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj` — added `ModuleHost.Core`, `FDP.Toolkit.Replay`, `FDP.Toolkit.Time` references
+- `Hrot.SimHost.Tests/SimulationLogicModuleTests.cs` — updated system count 20→19
+- `Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj` — added `FDP.Toolkit.Replay` reference
+- `Hrot.IG.Tests/IgGroundClampingModuleTests.cs` — updated `CapturingRegistry` to generic `RegisterSystem<T>`
 - `IOS-IG-SimHost.sln` — added `FDP.Toolkit.Replay` and `FDP.Toolkit.Replay.Tests` projects

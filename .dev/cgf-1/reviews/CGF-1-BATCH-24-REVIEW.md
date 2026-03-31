@@ -14,10 +14,10 @@
 
 | Area | Verdict |
 |------|---------|
-| **Part B — `ResolveNodeId` + IG DrillSlave id** | **Met in source** — offsets for `Orchestrator` / `CGF` / `CI` / unknown are pairwise distinct; IG uses `_effectiveInstanceId` for orchestration when override is 0; `SubsystemOrchestratorTests` cover the regression. |
+| **Part B — `ResolveNodeId` + IG ClusterSlave id** | **Met in source** — offsets for `Orchestrator` / `CGF` / `CI` / unknown are pairwise distinct; IG uses `_effectiveInstanceId` for orchestration when override is 0; `SubsystemOrchestratorTests` cover the regression. |
 | **Part A — S0310** | **Partially met** — handlers, JSON scripts, executor hooks, and integration-test facts exist and align **mostly** with [CGF-1-TASK-DETAIL.md](../CGF-1-TASK-DETAIL.md) §S0310; several **spec / CI / fail-loud** gaps remain (below). |
-| **CI / tests** | **`Bagira.Runner.Tests` is not green** — `ParseMode_ComboAllThree_EqualsAllFlag` fails against current `RunMode.All` (`Orchestrator \| SimHost \| IG \| IOS`). This is a **real regression** for default `dotnet test` on that project, not an acceptable “pre-existing” excuse while `All` is documented to include Orchestrator. |
-| **CLI vs code — CGF** | **Critical discovery:** [`BagiraRunnerConfiguration.ParseModeString`](../../../Bagira.Runner/Configuration/BagiraRunnerConfiguration.cs) has **no** `cgf` token (neither standalone nor comma-separated). [`Program.cs`](../../../Bagira.Runner/Program.cs) can add `CgfSubsystem` when `RunMode.CGF` is set, but **the Runner CLI cannot select CGF today**. Part B tests that use mock subsystems named `"CGF"` are valid; **claims about `orchestrator,cgf` from the CLI are not backed by configuration parsing**. |
+| **CI / tests** | **`Hrot.ClusterRunner.Tests` is not green** — `ParseMode_ComboAllThree_EqualsAllFlag` fails against current `RunMode.All` (`Orchestrator \| SimHost \| IG \| IOS`). This is a **real regression** for default `dotnet test` on that project, not an acceptable “pre-existing” excuse while `All` is documented to include Orchestrator. |
+| **CLI vs code — CGF** | **Critical discovery:** [`HrotRunnerConfiguration.ParseModeString`](../../../Hrot.ClusterRunner/Configuration/HrotRunnerConfiguration.cs) has **no** `cgf` token (neither standalone nor comma-separated). [`Program.cs`](../../../Hrot.ClusterRunner/Program.cs) can add `CgfSubsystem` when `RunMode.CGF` is set, but **the Runner CLI cannot select CGF today**. Part B tests that use mock subsystems named `"CGF"` are valid; **claims about `orchestrator,cgf` from the CLI are not backed by configuration parsing**. |
 
 ---
 
@@ -25,11 +25,11 @@
 
 **`SubsystemOrchestrator.ResolveNodeId`** — Matches report: explicit offsets `0,100,200,300,400,500`, unknown `+600`; base `0` preserves legacy per-subsystem fallbacks.
 
-**`IgApplication` DrillSlave node** — Uses `_effectiveInstanceId` (300 when override is 0), eliminating SimHost/IG both registering as `1` in `-m all`. Comment in source documents intent.
+**`IgApplication` ClusterSlave node** — Uses `_effectiveInstanceId` (300 when override is 0), eliminating SimHost/IG both registering as `1` in `-m all`. Comment in source documents intent.
 
 **Gaps / risks**
 
-1. **CGF not launchable via CLI** (see above) — node-id offset for `"CGF"` is **unreachable** through `BagiraRunnerConfiguration` until `cgf` is added to mode parsing.  
+1. **CGF not launchable via CLI** (see above) — node-id offset for `"CGF"` is **unreachable** through `HrotRunnerConfiguration` until `cgf` is added to mode parsing.  
 2. **Orchestrator + default `NodeId`** — Still `0` in config; orchestrator path does not use the same `SubsystemConfig.NodeId` story as slaves (acceptable if documented; report already notes N/A for orchestrator in default path).
 
 ---
@@ -38,13 +38,13 @@
 
 **Aligned**
 
-- `SysopActionHandler` + `AssertEntityCountActionHandler` + `AddMovingTagActionHandler`; `MovingEntitySystem` as `ComponentSystem`; four JSON scripts under `TestScripts/`; `DsmE2eScriptTests` with separate DDS domain IDs; `AfterInitialize` on `HeadlessTestExecutor`; `HandleSysOpRequest` / async enqueue pattern documented honestly on `DrillMaster` (poll `SysOpStatus` separately — correct).
+- `SysopActionHandler` + `AssertEntityCountActionHandler` + `AddMovingTagActionHandler`; `MovingEntitySystem` as `ComponentSystem`; four JSON scripts under `TestScripts/`; `DsmE2eScriptTests` with separate DDS domain IDs; `AfterInitialize` on `HeadlessTestExecutor`; `HandleClusterOpRequest` / async enqueue pattern documented honestly on `ClusterMaster` (poll `ClusterOpStatus` separately — correct).
 
 **Deviations / omissions**
 
-1. **`MovingTestTag` placement** — TASK-DETAIL asks for the tag in the **same file** as `MovingEntitySystem`; implementation places it in [`OrchestratorActionHandlers.cs`](../../../Bagira.Runner/Testing/OrchestratorActionHandlers.cs). Pragmatic for compilation, but **normative doc and code diverge** — fix TASK-DETAIL or move the struct per lead policy.  
+1. **`MovingTestTag` placement** — TASK-DETAIL asks for the tag in the **same file** as `MovingEntitySystem`; implementation places it in [`OrchestratorActionHandlers.cs`](../../../Hrot.ClusterRunner/Testing/OrchestratorActionHandlers.cs). Pragmatic for compilation, but **normative doc and code diverge** — fix TASK-DETAIL or move the struct per lead policy.  
 2. **`SysopActionHandler` exceptions** — TASK-DETAIL mentions `TestAssertionException`; code uses `InvalidOperationException` / `TimeoutException`. Acceptable if documented; optional alignment.  
-3. **`TakeCheckpoint` vs TASK text “TakeSnapshot”** — Code uses `SysOpType.TakeCheckpoint` (value 4), consistent with [`OrchestrationMessages.cs`](../../../Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs). TASK wording is stale; not a code bug.
+3. **`TakeCheckpoint` vs TASK text “TakeSnapshot”** — Code uses `ClusterOpType.TakeCheckpoint` (value 4), consistent with [`OrchestrationMessages.cs`](../../../Hrot.NED/Orchestration/OrchestrationMessages.cs). TASK wording is stale; not a code bug.
 
 ---
 
@@ -59,7 +59,7 @@
 **Good**
 
 - `SysopActionHandler` throws on parse errors, missing `TargetWallTicks` for replay seek, DDS failure status, and timeout.  
-- `DrillMaster.HandleSysOpRequestAsync` XML **explicitly** states completion is post-enqueue only — no false promise.
+- `ClusterMaster.HandleClusterOpRequestAsync` XML **explicitly** states completion is post-enqueue only — no false promise.
 
 ---
 
@@ -92,18 +92,18 @@
 Use if this batch is squashed as one commit:
 
 **Subject:**  
-`CGF-1-BATCH-24: S0310 E2E scripts + Runner nodeId offsets + IG DrillSlave identity`
+`CGF-1-BATCH-24: S0310 E2E scripts + Runner nodeId offsets + IG ClusterSlave identity`
 
 **Body:**
 ```
 Part B: SubsystemOrchestrator assigns unique offsets per ISubsystem.Name
 (SimHost..CI, unknown +600); IgApplication uses _effectiveInstanceId for
-DrillSlave when node override is 0. SubsystemOrchestratorTests extended.
+ClusterSlave when node override is 0. SubsystemOrchestratorTests extended.
 
 Part A (CGF1-S0310): OrchestratorActionHandlers (sysop, assert_entity_count,
 add_moving_tag), MovingEntitySystem, JSON scripts, HeadlessTestExecutor
-AfterInitialize/SavedResults/ApproxEquals, DrillMaster.HandleSysOpRequestAsync,
-OrchestratorSubsystem.TestHook_DrillMaster, DsmE2eScriptTests.
+AfterInitialize/SavedResults/ApproxEquals, ClusterMaster.HandleClusterOpRequestAsync,
+OrchestratorSubsystem.TestHook_ClusterMaster, DsmE2eScriptTests.
 
 Known follow-ups: RunnerConfigurationTests vs RunMode.All; CGF mode parsing;
 fail-loud behaviour in test handlers when world is null; integration CI for
@@ -114,6 +114,6 @@ DsmE2eScriptTests — see CGF-1-BATCH-25.
 
 ## Sign-off
 
-Batch **approved** for **merge with debt** tracked under **CGF-1-BATCH-25** (P1: green `Bagira.Runner.Tests`; CGF CLI parsing; handler fail-loud; E2E CI or explicit waiver). **Phase 3 / S0310** marked complete in tracker **with** those operational caveats documented in DEBT-TRACKER.
+Batch **approved** for **merge with debt** tracked under **CGF-1-BATCH-25** (P1: green `Hrot.ClusterRunner.Tests`; CGF CLI parsing; handler fail-loud; E2E CI or explicit waiver). **Phase 3 / S0310** marked complete in tracker **with** those operational caveats documented in DEBT-TRACKER.
 
 **Next batch:** [CGF-1-BATCH-25-INSTRUCTIONS.md](../batches/CGF-1-BATCH-25-INSTRUCTIONS.md)

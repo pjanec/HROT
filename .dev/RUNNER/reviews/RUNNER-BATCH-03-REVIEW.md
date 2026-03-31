@@ -33,10 +33,10 @@ Instead of doing the hard work to enforce explicit IDs, the developer injected w
 ### 2. Deletion of the `EntityMaster` Translator
 The developer removed `AutoCycloneTranslator<EntityMaster>` because it threw an exception. They claimed `MissionEgressTranslator` handles `EntityMaster`. This is a complete fabrication; it handles `EntityMission`. 
 
-**Architectural Reality:** The user correctly identified that `Bagira.BDC.SSTD.EntityMaster` defines `int EntityId`. Meanwhile, FDP's high-performance `AutoCycloneTranslator<T>` relies on `UnsafeLayout<T>`, which strictly asserts that `EntityId` must be a `long` or `ulong` (8 bytes) for raw memory blitting. Because of this byte-width mismatch (4 vs 8 bytes), the translator crashed upon initialization. 
+**Architectural Reality:** The user correctly identified that `Hrot.NED.Descriptors.EntityMaster` defines `int EntityId`. Meanwhile, FDP's high-performance `AutoCycloneTranslator<T>` relies on `UnsafeLayout<T>`, which strictly asserts that `EntityId` must be a `long` or `ulong` (8 bytes) for raw memory blitting. Because of this byte-width mismatch (4 vs 8 bytes), the translator crashed upon initialization. 
 The line was indeed originally added in a previous fixes batch (TASK-IF003) but was clearly never executed. 
 
-**Required Fix:** You cannot simply delete `EntityMaster` translation, or SimHost becomes blind to networked entities! We must create a dedicated `EntityMasterTranslator.cs` (or use `ManagedAutoCycloneTranslator<EntityMaster>`, which uses reflection instead of unsafe pointers) and register it in both `SimHostSubsystem.cs` and `Bagira.SimHost/Program.cs`. 
+**Required Fix:** You cannot simply delete `EntityMaster` translation, or SimHost becomes blind to networked entities! We must create a dedicated `EntityMasterTranslator.cs` (or use `ManagedAutoCycloneTranslator<EntityMaster>`, which uses reflection instead of unsafe pointers) and register it in both `SimHostSubsystem.cs` and `Hrot.SimHost/Program.cs`. 
 
 ---
 

@@ -10,7 +10,7 @@ and phase goals.
 
 ### ATTR-S1T1 — Replace `InitialAttributes` with `InitialAttributesJson` in `CreateEntityRequest`
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs`
+**File:** `Hrot.NED/GenericMessages.cs`
 
 **Context:** See [ATTR-DESIGN.md §3.1](./ATTR-DESIGN.md#31-new-wire-field-initialattributesjson) and
 [Phase 1](./ATTR-DESIGN.md#phase-1-dds-api-migration).
@@ -34,10 +34,10 @@ public string? InitialAttributesJson;
 
 **Success Conditions:**
 
-1. **Compilation gate:** `Bagira.DDS.DataModel` builds without warnings. All downstream projects
-   (`Bagira.SimHost`, `Bagira.Map.Common`, `Bagira.IG`) compile after adapting call sites.
+1. **Compilation gate:** `Hrot.NED` builds without warnings. All downstream projects
+   (`Hrot.SimHost`, `Hrot.Map.Common`, `Hrot.IG`) compile after adapting call sites.
 
-2. **Unit test — field shape** (`Bagira.DDS.DataModel.Tests/DdsIntegrationTests.cs` or new test):  
+2. **Unit test — field shape** (`Hrot.NED.Tests/DdsIntegrationTests.cs` or new test):  
    `CreateEntityRequest_HasInitialAttributesJsonField`:  
    Assert `typeof(CreateEntityRequest).GetField("InitialAttributesJson")` is not null and is of
    type `string`.
@@ -46,15 +46,15 @@ public string? InitialAttributesJson;
    `CreateEntityRequest_HasNoInitialAttributesField`:  
    Assert `typeof(CreateEntityRequest).GetField("InitialAttributes")` is null.
 
-4. **Existing tests:** All tests in `Bagira.SimHost.Tests/CreateEntityRequestSystemTests.cs` and
-   `Bagira.Map.Common.Tests/EntityAttributeCompilerTests.cs` continue to compile and pass after
+4. **Existing tests:** All tests in `Hrot.SimHost.Tests/CreateEntityRequestSystemTests.cs` and
+   `Hrot.Map.Common.Tests/EntityAttributeCompilerTests.cs` continue to compile and pass after
    adapting any constructor calls that previously set `InitialAttributes`.
 
 ---
 
 ### ATTR-S1T2 — Replace `AttributeId`+`Payload` in `UpdateEntityAttributeRequest` with `AttributePatchJson`
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs`
+**File:** `Hrot.NED/GenericMessages.cs`
 
 **Context:** See [ATTR-DESIGN.md §3.8](./ATTR-DESIGN.md#38-updateentityattributerequest--wire-format-change) and
 [Phase 1](./ATTR-DESIGN.md#phase-1-dds-api-migration).
@@ -94,9 +94,9 @@ from `GenericMessages.cs` entirely (no other message references them after this 
 
 4. **Unit test — enum/union removed:**  
    `GenericMessages_EntityAttribute_EnumDoesNotExist`:  
-   Assert `Type.GetType("Bagira.BDC.SSTM.EntityAttribute, Bagira.DDS.DataModel")` is null.
+   Assert `Type.GetType("Hrot.NED.Messages.EntityAttribute, Hrot.NED")` is null.
 
-5. **Existing tests:** Tests in `Bagira.Map.Common.Tests` related to attribute request handling
+5. **Existing tests:** Tests in `Hrot.Map.Common.Tests` related to attribute request handling
    compile and pass after adapting constructors.
 
 ---
@@ -105,7 +105,7 @@ from `GenericMessages.cs` entirely (no other message references them after this 
 
 ### ATTR-S2T1 — `CreationTool`: forward JSON verbatim, remove `dtEntityInfo` descriptor
 
-**File:** `Bagira.IG/Tools/CreationTool.cs`
+**File:** `Hrot.IG/Tools/CreationTool.cs`
 
 **Context:** See [ATTR-DESIGN.md §3.2](./ATTR-DESIGN.md#32-ig-creationtool--dumb-pipe) and
 [Phase 2](./ATTR-DESIGN.md#phase-2-ig-pipe-simplification).
@@ -114,7 +114,7 @@ from `GenericMessages.cs` entirely (no other message references them after this 
 
 1. In `BuildAndPublishCreateRequest`, remove the third `EntityDescriptorUnion` entry from
    `InitialDescriptors` — the one with `_d = EDescriptorType.dtEntityInfo`. The list must contain
-   only `dtEntityMaster` and `dtGeoSpatial`.
+   only `dtEntityMaster` and `dtWorldPos`.
 
 2. Remove the local variable `string entityName = _nameResolver?.Invoke() ?? ParseNameFromJson(...)`.
    The name is no longer set on the IG side for the spawning path.
@@ -139,7 +139,7 @@ from `GenericMessages.cs` entirely (no other message references them after this 
 
 **Success Conditions:**
 
-1. **Unit test** `CreationTool_EmitsOnly_EntityMaster_And_GeoSpatial_Descriptors`:  
+1. **Unit test** `CreationTool_EmitsOnly_EntityMaster_And_WorldPos_Descriptors`:  
    Construct a `CreationTool` with `initialPropertiesJson = "{\"Name\":\"Bravo-1\"}"`.  
    Simulate a left-click. Capture the `CreateEntityRequest`.  
    Assert `request.InitialDescriptors.Count == 2`.  
@@ -157,7 +157,7 @@ from `GenericMessages.cs` entirely (no other message references them after this 
    Construct with `initialPropertiesJson = "{\"Affiliation\":\"FORCE_FRIENDLY\"}"`.  
    Assert `_affiliationForDisplay == ForceId.Friend` via reflection or a test-accessible property.
 
-5. **Existing passing tests** in `Bagira.IG.Tests/CreationToolTests.cs` must be updated to match
+5. **Existing passing tests** in `Hrot.IG.Tests/CreationToolTests.cs` must be updated to match
    the new `InitialDescriptors.Count == 2` expectation. Any assertion that currently checks for a
    `dtEntityInfo` entry must be removed or replaced.
 
@@ -167,7 +167,7 @@ from `GenericMessages.cs` entirely (no other message references them after this 
 
 ### ATTR-S3T1 — Create `JsonAttributeCompiler` with `Utf8JsonReader` streaming
 
-**File:** `Bagira.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` *(new file)*
+**File:** `Hrot.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` *(new file)*
 
 **Context:** See [ATTR-DESIGN.md §3.3](./ATTR-DESIGN.md#33-zero-allocation-json-attribute-compiler) and
 [Phase 3](./ATTR-DESIGN.md#phase-3-zero-allocation-compiler-core).
@@ -244,8 +244,8 @@ private static ReadOnlySpan<byte> WildcardBytes => "*"u8;
    Assert the delegate was invoked and `IgEntityData.Name == "Alpha-1"` in the context.
 
 4. **Unit test** `JsonAttributeCompiler_NestedProperty_InvokesCorrectDelegate`:  
-   Register paths for `"GeoPosition"` nested object (or a flat path for the Latitude leaf).  
-   Call `Compile("{\"GeoPosition\":{\"Latitude\":32.5,\"Longitude\":34.8,\"Altitude\":0}}", context)`.  
+   Register paths for `"GeoPoint"` nested object (or a flat path for the Latitude leaf).  
+   Call `Compile("{\"GeoPoint\":{\"Latitude\":32.5,\"Longitude\":34.8,\"Altitude\":0}}", context)`.  
    Assert the registered delegate was invoked with correct reader state.
 
 5. **Unit test** `JsonAttributeCompiler_UnknownProperty_IsIgnored`:  
@@ -260,7 +260,7 @@ private static ReadOnlySpan<byte> WildcardBytes => "*"u8;
 
 ### ATTR-S3T2 — FNV-1a Incremental Path Hashing
 
-**File:** `Bagira.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` *(within same class)*
+**File:** `Hrot.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` *(within same class)*
 
 **Context:** See [ATTR-DESIGN.md §3.3.3](./ATTR-DESIGN.md#333-incremental-fnv-1a-path-hashing).
 
@@ -300,12 +300,12 @@ This task covers the internal hashing logic inside `JsonAttributeCompiler`:
 
 ### ATTR-S4T1 — Define Delegate Types and `IEntityPatchContext`
 
-**File:** `Bagira.Map.Common/Replication/Utils/IEntityPatchContext.cs` *(new file)*
+**File:** `Hrot.Map.Common/Replication/Utils/IEntityPatchContext.cs` *(new file)*
 
 **Context:** See [ATTR-DESIGN.md §3.4](./ATTR-DESIGN.md#34-dual-mode-pre-compiled-delegates) and
 [§3.6](./ATTR-DESIGN.md#36-ientitypatchcontext-and-ecspatchcontext).
 
-**Change:** Create the following in the `Bagira.Map.Common.Replication.Utils` namespace:
+**Change:** Create the following in the `Hrot.Map.Common.Replication.Utils` namespace:
 
 ```csharp
 /// <summary>Delegate for mutating an unmanaged struct ECS component via ref.</summary>
@@ -346,7 +346,7 @@ stored in each `RoutingEntry` (registered in ATTR-S4T2).
 
 **Success Conditions:**
 
-1. **Compilation gate:** `Bagira.Map.Common` compiles with the new types. `JsonAttributeCompiler`
+1. **Compilation gate:** `Hrot.Map.Common` compiles with the new types. `JsonAttributeCompiler`
    (Phase 3) references `IEntityPatchContext` without circular dependency.
 
 2. **Unit test** `IEntityPatchContext_ValueAttributeSetter_AcceptsRef`:  
@@ -357,7 +357,7 @@ stored in each `RoutingEntry` (registered in ATTR-S4T2).
 
 ### ATTR-S4T2 — Create `AttributeCompilerBuilder`
 
-**File:** `Bagira.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs` *(new file)*
+**File:** `Hrot.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs` *(new file)*
 
 **Context:** See [ATTR-DESIGN.md §3.5](./ATTR-DESIGN.md#35-attributecompilerbuilder-api).
 
@@ -404,7 +404,7 @@ public sealed class AttributeCompilerBuilder
 **Success Conditions:**
 
 1. **Unit test** `AttributeCompilerBuilder_RegisterValuePath_CanBuildAndCompile`:  
-   Register a `ValueAttributeSetter<SimTransform>` for `"GeoPosition"`. Call `Build()`.  
+   Register a `ValueAttributeSetter<SimTransform>` for `"GeoPoint"`. Call `Build()`.  
    Assert result is not null and `typeof(JsonAttributeCompiler)`.
 
 2. **Unit test** `AttributeCompilerBuilder_DuplicatePath_Throws`:  
@@ -423,8 +423,8 @@ public sealed class AttributeCompilerBuilder
 ### ATTR-S4T3 — Create `ListPatchContext` and `EcsPatchContext`
 
 **Files:**  
-- `Bagira.Map.Common/Replication/Utils/ListPatchContext.cs` *(new file)*  
-- `Bagira.Map.Common/Replication/Utils/EcsPatchContext.cs` *(new file)*
+- `Hrot.Map.Common/Replication/Utils/ListPatchContext.cs` *(new file)*  
+- `Hrot.Map.Common/Replication/Utils/EcsPatchContext.cs` *(new file)*
 
 **Context:** See [ATTR-DESIGN.md §3.6](./ATTR-DESIGN.md#36-ientitypatchcontext-and-ecspatchcontext).
 
@@ -521,7 +521,7 @@ public sealed class EcsPatchContext : IEntityPatchContext
 
 ### ATTR-S5T1 — Register Component Paths in SimHost Startup
 
-**File:** `Bagira.SimHost/SimHostApp.cs` *(or a dedicated `AttributeCompilerFactory.cs`)*
+**File:** `Hrot.SimHost/SimHostApp.cs` *(or a dedicated `AttributeCompilerFactory.cs`)*
 
 **Context:** See [ATTR-DESIGN.md Phase 5](./ATTR-DESIGN.md#phase-5-registration-and-integration) and the
 [property path table](./ATTR-DESIGN.md#phase-5-registration-and-integration).
@@ -543,10 +543,10 @@ var compiler = new AttributeCompilerBuilder()
             c.ForceId = MapAffiliationString(r.GetString()))
 
     // SimTransform — struct (value setter via ref)
-    // GeoPosition is a nested object; register individual leaf paths:
-    //   "GeoPosition.Latitude", "GeoPosition.Longitude", "GeoPosition.Altitude"
+    // GeoPoint is a nested object; register individual leaf paths:
+    //   "GeoPoint.Latitude", "GeoPoint.Longitude", "GeoPoint.Altitude"
     // These accumulate into a pending Lat/Lon/Alt triple; the actual ToCartesian
-    // call fires when all three are present or when the GeoPosition object closes.
+    // call fires when all three are present or when the GeoPoint object closes.
     // See implementation note: use a helper struct to accumulate the triple.
 
     .Build();
@@ -555,10 +555,10 @@ var compiler = new AttributeCompilerBuilder()
 Inject the `compiler` into `CreateEntityRequestSystem` and `UpdateEntityAttributeRequestSystem`
 constructors.
 
-**Note on GeoPosition:** Since `ToCartesian` requires all three coordinates simultaneously,
-the `GeoPosition` registration may use a dedicated nested-object setter that handles the
-`StartObject`/`EndObject` events around the `GeoPosition` key. An alternative is to register
-`"GeoPosition"` as a whole-object path whose setter receives the `Utf8JsonReader` positioned at
+**Note on GeoPoint:** Since `ToCartesian` requires all three coordinates simultaneously,
+the `GeoPoint` registration may use a dedicated nested-object setter that handles the
+`StartObject`/`EndObject` events around the `GeoPoint` key. An alternative is to register
+`"GeoPoint"` as a whole-object path whose setter receives the `Utf8JsonReader` positioned at
 `StartObject` and reads the three sub-fields itself. Chose the approach that aligns with the
 existing `DescriptorMapper` coordinate conversion logic.
 
@@ -583,7 +583,7 @@ existing `DescriptorMapper` coordinate conversion logic.
 
 ### ATTR-S5T2 — Update `CreateEntityRequestSystem` to Use `JsonAttributeCompiler`
 
-**File:** `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`
+**File:** `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`
 
 **Context:** See [ATTR-DESIGN.md §3.7](./ATTR-DESIGN.md#37-creation-path-integration-simhost).
 
@@ -637,7 +637,7 @@ existing `DescriptorMapper` coordinate conversion logic.
 
 ### ATTR-S5T3 — `UpdateEntityAttributeRequestSystem`: Full JSON Pipeline Integration
 
-**File:** `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
+**File:** `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
 
 **Context:** See [ATTR-DESIGN.md §3.9](./ATTR-DESIGN.md#39-live-update-path-integration) and
 [§3.10](./ATTR-DESIGN.md#310-chunk-tick-egress-correction). Depends on ATTR-S1T2 (new wire field)
@@ -706,7 +706,7 @@ and ATTR-S4T3 (`EcsPatchContext.FlushDirtyMarks`).
 
 ### ATTR-S5T4 — Register Descriptor Ordinals in SimHost Compiler Startup
 
-**File:** `Bagira.SimHost/SimHostApp.cs` *(or `AttributeCompilerFactory.cs`)*
+**File:** `Hrot.SimHost/SimHostApp.cs` *(or `AttributeCompilerFactory.cs`)*
 
 **Context:** See [ATTR-DESIGN.md Phase 5](./ATTR-DESIGN.md#phase-5-registration-and-integration)
 and [§3.10](./ATTR-DESIGN.md#310-chunk-tick-egress-correction). Depends on ATTR-S4T2 (ordinal
@@ -718,7 +718,7 @@ correct `descriptorOrdinal` argument on every `Register*Path` call:
 
 ```csharp
 const long EntityInfoOrdinal = (long)EDescriptorType.dtEntityInfo;
-const long GeoSpatialOrdinal = (long)EDescriptorType.dtGeoSpatial;
+const long WorldPosOrdinal = (long)EDescriptorType.dtWorldPos;
 
 var compiler = new AttributeCompilerBuilder()
     .RegisterReferencePath<IgEntityData>("Name",
@@ -731,9 +731,9 @@ var compiler = new AttributeCompilerBuilder()
             c.ForceId = MapAffiliationString(r.GetString()),
         descriptorOrdinal: EntityInfoOrdinal)
 
-    .RegisterValuePath<SimTransform>(/* GeoPosition leaf paths */,
+    .RegisterValuePath<SimTransform>(/* GeoPoint leaf paths */,
         /* setter */,
-        descriptorOrdinal: GeoSpatialOrdinal)
+        descriptorOrdinal: WorldPosOrdinal)
 
     .Build();
 ```
@@ -750,9 +750,9 @@ Expose `JsonAttributeCompiler.Routes` (the internal routing table read-only dict
    Call `context.FlushDirtyMarks()`.  
    Assert `SmartEgressUtil.MarkDirty` was called with `(long)EDescriptorType.dtEntityInfo`.
 
-2. **Integration test** `AttributeCompiler_GeoPatch_TriggersGeoSpatialDirty`:  
-   Same setup with a GeoPosition JSON string.  
-   Assert `SmartEgressUtil.MarkDirty` was called with `(long)EDescriptorType.dtGeoSpatial`.
+2. **Integration test** `AttributeCompiler_GeoPatch_TriggersWorldPosDirty`:  
+   Same setup with a GeoPoint JSON string.  
+   Assert `SmartEgressUtil.MarkDirty` was called with `(long)EDescriptorType.dtWorldPos`.
 
 3. **Unit test** `ListPatchContext_FlushDirtyMarks_IsNoOp`:  
    Call `FlushDirtyMarks()` on a `ListPatchContext` after mutations.  
@@ -765,7 +765,7 @@ Expose `JsonAttributeCompiler.Routes` (the internal routing table read-only dict
 
 ### ATTR-S6T1 — `DescriptorMapper` `dtEntityInfo` Uses Routing Delegates
 
-**File:** `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs`
+**File:** `Hrot.Map.Common/Replication/Utils/DescriptorMapper.cs`
 
 **Context:** See [ATTR-DESIGN.md Phase 6](./ATTR-DESIGN.md#phase-6-unified-descriptor-routing-advanced).
 
@@ -804,25 +804,25 @@ the existing overload without the compiler retains its current behaviour for bac
 
 ---
 
-### ATTR-S6T2 — `DescriptorMapper` `dtGeoSpatial` Uses Routing Delegates
+### ATTR-S6T2 — `DescriptorMapper` `dtWorldPos` Uses Routing Delegates
 
-**File:** `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs`
+**File:** `Hrot.Map.Common/Replication/Utils/DescriptorMapper.cs`
 
 **Context:** See [ATTR-DESIGN.md Phase 6](./ATTR-DESIGN.md#phase-6-unified-descriptor-routing-advanced).
 
 **Change:**  
-The `dtGeoSpatial` case currently manually calls `geoTransform.ToCartesian` and constructs a
-`SimTransform` inline. Under unified routing, a shared GeoPosition delegate handles this conversion.
+The `dtWorldPos` case currently manually calls `geoTransform.ToCartesian` and constructs a
+`SimTransform` inline. Under unified routing, a shared GeoPoint delegate handles this conversion.
 
-Introduce a method `DescriptorMapper.ApplyGeoSpatialDescriptor(ListPatchContext ctx, GeoSpatial geo,
+Introduce a method `DescriptorMapper.ApplyWorldPosDescriptor(ListPatchContext ctx, WorldPos geo,
 IGeographicTransform geoTransform)` that applies the coordinate conversion via the same logic
-used by the `"GeoPosition"` JSON path setter. Wire the `dtGeoSpatial` case to call this method.
+used by the `"GeoPoint"` JSON path setter. Wire the `dtWorldPos` case to call this method.
 
 **Success Conditions:**
 
-1. **Existing unit tests** for the `dtGeoSpatial` case in `DescriptorMapperTests` pass unchanged.
+1. **Existing unit tests** for the `dtWorldPos` case in `DescriptorMapperTests` pass unchanged.
 
-2. **Unit test** `DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath`:  
-   Process the same `GeoSpatial` data via `DescriptorMapper` (descriptor path) and via
-   `JsonAttributeCompiler.Compile("{\"GeoPosition\":{\"Latitude\":32.1,...}}", ...)` (JSON path).  
+2. **Unit test** `DescriptorMapper_WorldPos_SharedDelegate_ProducesSameResultAsDirectPath`:  
+   Process the same `WorldPos` data via `DescriptorMapper` (descriptor path) and via
+   `JsonAttributeCompiler.Compile("{\"GeoPoint\":{\"Latitude\":32.1,...}}", ...)` (JSON path).  
    Assert both produce a `SimTransform` with the same `Position` and `Rotation` values.

@@ -1,4 +1,4 @@
-﻿# RUNNER-BATCH-02: Runner Core Infrastructure (Phase R1)
+# RUNNER-BATCH-02: Runner Core Infrastructure (Phase R1)
 
 **Batch Number:** RUNNER-BATCH-02  
 **Tasks:** R1.1, R1.2, R1.3, R1.4, R1.5, R1.6  
@@ -38,11 +38,11 @@ This batch builds the **orchestration layer** that manages subsystem lifecycle, 
 - **Design Correction:** No `ICameraService` for headless mode — use `HeadlessInputProvider` only.
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.Runner\` (new project)
-- **Secondary Areas:** `Bagira.DDS.DataModel\Runner\` (DDS topics)
+- **Primary Work Area:** `Hrot.ClusterRunner\` (new project)
+- **Secondary Areas:** `Hrot.NED\Runner\` (DDS topics)
 - **Reference Implementations:**
-  - `Bagira.IG\IgApplication.cs` (Raylib + ImGui setup)
-  - `Bagira.IOS\Program.cs` (CommandLineParser usage)
+  - `Hrot.IG\IgApplication.cs` (Raylib + ImGui setup)
+  - `Hrot.ExCon\Program.cs` (CommandLineParser usage)
   - `Fdp.Examples.NetworkDemo\` (DDS participant setup)
 
 ### Report Submission
@@ -64,7 +64,7 @@ Phase R1 builds the Runner application shell — the "aggregator" that can host 
 3. **Waiting Room:** Distributed startup synchronization via DDS `SubsystemStatusAnnounce` topic (transient-local QoS).
 
 **Related Tasks:**
-- [R1.1](../../docs/design/TASK-DETAILS-RUNNER.md#r11-create-bagirarunner-project) - Create Bagira.Runner Project
+- [R1.1](../../docs/design/TASK-DETAILS-RUNNER.md#r11-create-hrotrunner-project) - Create Hrot.ClusterRunner Project
 - [R1.2](../../docs/design/TASK-DETAILS-RUNNER.md#r12-implement-runnerconfiguration-with-cli-parsing) - Implement RunnerConfiguration with CLI Parsing
 - [R1.3](../../docs/design/TASK-DETAILS-RUNNER.md#r13-implement-subsystemorchestrator) - Implement SubsystemOrchestrator
 - [R1.4](../../docs/design/TASK-DETAILS-RUNNER.md#r14-implement-isubsystem-interface) - Implement ISubsystem Interface
@@ -90,20 +90,20 @@ Phase R1 builds the Runner application shell — the "aggregator" that can host 
 
 ## ? Tasks
 
-### Task 1: Create Bagira.Runner Project (R1.1)
+### Task 1: Create Hrot.ClusterRunner Project (R1.1)
 
-**Task Definition:** See [TASK-DETAILS-RUNNER.md R1.1](../../docs/design/TASK-DETAILS-RUNNER.md#r11-create-bagirarunner-project)
+**Task Definition:** See [TASK-DETAILS-RUNNER.md R1.1](../../docs/design/TASK-DETAILS-RUNNER.md#r11-create-hrotrunner-project)
 
 **Estimated:** 2 hours
 
 #### Subtask 1.1: Create Console Application
 
 **Steps:**
-1. `dotnet new console -n Bagira.Runner -f net8.0`
-2. `dotnet sln IOS-IG-SimHost.sln add Bagira.Runner/Bagira.Runner.csproj`
+1. `dotnet new console -n Hrot.ClusterRunner -f net8.0`
+2. `dotnet sln IOS-IG-SimHost.sln add Hrot.ClusterRunner/Hrot.ClusterRunner.csproj`
 3. Create folder structure:
    ```
-   Bagira.Runner/
+   Hrot.ClusterRunner/
      Program.cs
      Configuration/
      Services/
@@ -114,7 +114,7 @@ Phase R1 builds the Runner application shell — the "aggregator" that can host 
 #### Subtask 1.2: Add Project References
 
 **Project References:**
-- `Bagira.DDS.DataModel`
+- `Hrot.NED`
 
 **NuGet Packages:**
 - `CommandLineParser` (version 2.9.1 or later)
@@ -140,7 +140,7 @@ Phase R1 builds the Runner application shell — the "aggregator" that can host 
 
 **Code:**
 ```csharp
-namespace Bagira.Runner.Configuration
+namespace Hrot.ClusterRunner.Configuration
 {
     [Flags]
     public enum RunMode
@@ -168,7 +168,7 @@ namespace Bagira.Runner.Configuration
 using CommandLine;
 using Newtonsoft.Json;
 
-namespace Bagira.Runner.Configuration
+namespace Hrot.ClusterRunner.Configuration
 {
     public class RunnerConfiguration
     {
@@ -260,7 +260,7 @@ namespace Bagira.Runner.Configuration
 
 #### Subtask 2.3: Write Unit Tests
 
-**File:** `Bagira.Runner.Tests/RunnerConfigurationTests.cs` (NEW FILE)
+**File:** `Hrot.ClusterRunner.Tests/RunnerConfigurationTests.cs` (NEW FILE)
 
 **Requirements:** Minimum 12 tests covering:
 - Mode parsing: "all", "simhost,ig", invalid values
@@ -313,7 +313,7 @@ public void Validate_ThrowsOnInvalidMode()
 **File:** `Models/SubsystemConfig.cs` (NEW FILE)
 
 ```csharp
-namespace Bagira.Runner.Models
+namespace Hrot.ClusterRunner.Models
 {
     public class SubsystemConfig
     {
@@ -339,10 +339,10 @@ namespace Bagira.Runner.Models
 ```csharp
 using Raylib_cs;
 using rlImgui_cs;
-using Bagira.Runner.Abstractions;
-using Bagira.Runner.Models;
+using Hrot.ClusterRunner.Abstractions;
+using Hrot.ClusterRunner.Models;
 
-namespace Bagira.Runner.Services
+namespace Hrot.ClusterRunner.Services
 {
     public class SubsystemOrchestrator
     {
@@ -372,7 +372,7 @@ namespace Bagira.Runner.Services
             // Init Raylib window if NOT headless
             if (!_headless)
             {
-                Raylib.InitWindow(_windowWidth, _windowHeight, "Bagira Runner");
+                Raylib.InitWindow(_windowWidth, _windowHeight, "Hrot Runner");
                 Raylib.SetTargetFPS(60);
                 rlImGui.Setup(true);
             }
@@ -449,7 +449,7 @@ namespace Bagira.Runner.Services
 
 #### Subtask 3.3: Write Unit Tests
 
-**File:** `Bagira.Runner.Tests/SubsystemOrchestratorTests.cs` (NEW FILE)
+**File:** `Hrot.ClusterRunner.Tests/SubsystemOrchestratorTests.cs` (NEW FILE)
 
 **Requirements:** Minimum 6 tests covering:
 - Initialization order (subsystems init before first Update)
@@ -493,9 +493,9 @@ public void Orchestrator_HeadlessMode_SkipsRender()
 **File:** `Abstractions/ISubsystem.cs` (NEW FILE)
 
 ```csharp
-using Bagira.Runner.Models;
+using Hrot.ClusterRunner.Models;
 
-namespace Bagira.Runner.Abstractions
+namespace Hrot.ClusterRunner.Abstractions
 {
     /// <summary>
     /// Interface for Runner subsystems (SimHost, IG, IOS).
@@ -518,13 +518,13 @@ namespace Bagira.Runner.Abstractions
 
 #### Subtask 4.2: Create Mock Subsystem for Tests
 
-**File:** `Bagira.Runner.Tests/Mocks/MockSubsystem.cs` (NEW FILE)
+**File:** `Hrot.ClusterRunner.Tests/Mocks/MockSubsystem.cs` (NEW FILE)
 
 ```csharp
-using Bagira.Runner.Abstractions;
-using Bagira.Runner.Models;
+using Hrot.ClusterRunner.Abstractions;
+using Hrot.ClusterRunner.Models;
 
-namespace Bagira.Runner.Tests.Mocks
+namespace Hrot.ClusterRunner.Tests.Mocks
 {
     public class MockSubsystem : ISubsystem
     {
@@ -558,12 +558,12 @@ namespace Bagira.Runner.Tests.Mocks
 
 #### Subtask 5.1: Create SubsystemStatusAnnounce Struct
 
-**File:** `Bagira.DDS.DataModel/Runner/SubsystemStatusAnnounce.cs` (NEW FILE)
+**File:** `Hrot.NED/Runner/SubsystemStatusAnnounce.cs` (NEW FILE)
 
 ```csharp
 using CycloneDDS.Schema;
 
-namespace Bagira.DDS.DataModel.Runner
+namespace Hrot.NED.Runner
 {
     [DdsTopic("SubsystemStatusAnnounce")]
     [DdsIdlFile("runner-msgs")]
@@ -589,7 +589,7 @@ namespace Bagira.DDS.DataModel.Runner
 
 #### Subtask 5.2: Write DDS Pub/Sub Test
 
-**File:** `Bagira.DDS.DataModel.Tests/SubsystemStatusAnnounceTests.cs` (NEW FILE)
+**File:** `Hrot.NED.Tests/SubsystemStatusAnnounceTests.cs` (NEW FILE)
 
 **Requirements:**
 - Test DDS pub/sub round-trip
@@ -641,7 +641,7 @@ public async Task SubsystemStatusAnnounce_PubSub_RoundTrip()
 **File:** `Models/SubsystemPeerInfo.cs` (NEW FILE)
 
 ```csharp
-namespace Bagira.Runner.Models
+namespace Hrot.ClusterRunner.Models
 {
     public class SubsystemPeerInfo
     {
@@ -665,10 +665,10 @@ namespace Bagira.Runner.Models
 **Code Pattern:**
 ```csharp
 using CycloneDDS.Runtime;
-using Bagira.DDS.DataModel.Runner;
-using Bagira.Runner.Models;
+using Hrot.NED.Runner;
+using Hrot.ClusterRunner.Models;
 
-namespace Bagira.Runner.Services
+namespace Hrot.ClusterRunner.Services
 {
     public class WaitingRoomCoordinator
     {
@@ -751,7 +751,7 @@ namespace Bagira.Runner.Services
 
 #### Subtask 6.3: Write Unit Tests
 
-**File:** `Bagira.Runner.Tests/WaitingRoomCoordinatorTests.cs` (NEW FILE)
+**File:** `Hrot.ClusterRunner.Tests/WaitingRoomCoordinatorTests.cs` (NEW FILE)
 
 **Requirements:** Minimum 6 tests covering:
 - Peer discovery (all peers announce ? WaitForPeers returns)
@@ -884,8 +884,8 @@ This batch is DONE when:
 - **Task Details:** `docs\design\TASK-DETAILS-RUNNER.md` — Phase R1
 - **Task Tracker:** `docs\design\TASK-TRACKER.md` — RUNNER Phase R1
 - **Code Standards:** `.dev-workstream\guides\CODE-STANDARDS.md` — §0 (Test Quality), §1 (No Magic Numbers)
-- **Reference Implementation:** `Bagira.IG\IgApplication.cs` (Raylib + ImGui setup)
-- **Reference Implementation:** `Bagira.IOS\Program.cs` (CommandLineParser usage)
+- **Reference Implementation:** `Hrot.IG\IgApplication.cs` (Raylib + ImGui setup)
+- **Reference Implementation:** `Hrot.ExCon\Program.cs` (CommandLineParser usage)
 - **Reference Implementation:** `Fdp.Examples.NetworkDemo\` (DDS participant setup)
 
 ---

@@ -17,15 +17,15 @@ SimHost.Tests 367/367 (+3 new), Orchestrator.Integration.Tests 3/3. Full solutio
 
 ## Part A — Tech Debt
 
-### A.1 — Execute `PrefetchScenario` in `DrillMaster`
+### A.1 — Execute `PrefetchScenario` in `ClusterMaster`
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`
 
 Added `ExecutePrefetchScenario(string scenarioId)` called from inside the existing
-`ProcessSysOpRequests` `try` block whenever the planned trajectory contains an
-`OperationStep(SysOpType.PrefetchScenario, …)`.
+`ProcessClusterOpRequests` `try` block whenever the planned trajectory contains an
+`OperationStep(ClusterOpType.PrefetchScenario, …)`.
 
-- Throws `InvalidOperationException` (caught → `SysOpStatus.Failure`) when no
+- Throws `InvalidOperationException` (caught → `ClusterOpStatus.Failure`) when no
   `StorageGatewayModule` or NAS path is configured.
 - Calls `_gateway.PrefetchScenarioAsync(scenarioId, targets, _nasBasePath)` fire-and-forget
   (logs success/failure on completion).
@@ -38,9 +38,9 @@ Added `ExecutePrefetchScenario(string scenarioId)` called from inside the existi
 
 ### A.2 — `NodeOpType.PrefetchFiles` on nodes
 
-**New file:** `Bagira.SimHost/Modules/Orchestration/Handlers/PrefetchFilesDsmHandler.cs`  
-**Modified file:** `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`  
-**Modified file:** `Bagira.SimHost/NodeBootstrapper.cs`
+**New file:** `Hrot.SimHost/Modules/Orchestration/Handlers/PrefetchFilesDsmHandler.cs`  
+**Modified file:** `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs`  
+**Modified file:** `Hrot.SimHost/NodeBootstrapper.cs`
 
 `PrefetchFilesDsmHandler`:
 - `CanHandle(PrefetchFiles)` = `true`
@@ -48,7 +48,7 @@ Added `ExecutePrefetchScenario(string scenarioId)` called from inside the existi
   on `localTempRoot\scenarioId\`
 - `Commit`: writes `NodeOpStatus.Success` ACK via injected `DdsWriter<NodeOpStatus>?`
 
-`DrillSlave` production constructor now creates `_nodeOpStatusWriter = new DdsWriter<NodeOpStatus>(participant)`
+`ClusterSlave` production constructor now creates `_nodeOpStatusWriter = new DdsWriter<NodeOpStatus>(participant)`
 and disposes it in `Dispose()`. `NodeOpStatusWriter` internal property exposes it.
 
 `NodeBootstrapper.BuildOrchestration` now registers `PrefetchFilesDsmHandler` for all roles
@@ -56,7 +56,7 @@ that have a DDS participant (passes `drillSlave.NodeOpStatusWriter`).
 
 ### A.3 — `GlobalContextDsmHandler` contract
 
-**File:** `Bagira.Orchestrator/GlobalContextDsmHandler.cs`
+**File:** `Hrot.Orchestrator/GlobalContextDsmHandler.cs`
 
 1. **XML fixed:** Class summary no longer promises `MasterTimeController.SeedState` is called
    directly. Instead it documents that `LoadedStartWallTicks` is exposed and the hosting
@@ -72,17 +72,17 @@ that have a DDS participant (passes `drillSlave.NodeOpStatusWriter`).
 
 ### A.4 — `SimHostApp` serializer wiring
 
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.SimHost/NodeBootstrapper.cs`,
-`Bagira.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.SimHost/NodeBootstrapper.cs`,
+`Hrot.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
 
 In `SimHostApp.OnLoad`, after `RegisterSimComponents(_world)`:
 ```csharp
-var scenarioSerializer = new ScenarioSerializerBuilder("Bagira.SimHost").Build();
+var scenarioSerializer = new ScenarioSerializerBuilder("Hrot.SimHost").Build();
 ```
 Passed into `bootstrapper.BuildOrchestration(…, scenarioSerializer: scenarioSerializer)`.
 
 `ScenarioLoadDsmHandler` updated: constructor now accepts `EntityRepository? world = null`.
-In `Commit`: uses `repo ?? _world` so entity injection works through the `DrillSlave`
+In `Commit`: uses `repo ?? _world` so entity injection works through the `ClusterSlave`
 dispatch path (`repo: null`). Existing tests that pass `repo` directly are unaffected.
 
 `NodeBootstrapper.BuildOrchestration` now passes `world` to both `ScenarioLoadDsmHandler`
@@ -90,8 +90,8 @@ and (new) `EditLoadDsmHandler`.
 
 ### A.5 — Fail-loud polish
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs` — `ConsumeNodeOpStatuses`  
-**File:** `Bagira.Orchestrator/TransitionPlanner.cs` — `PlanTrajectory`
+**File:** `Hrot.Orchestrator/ClusterMaster.cs` — `ConsumeNodeOpStatuses`  
+**File:** `Hrot.Orchestrator/TransitionPlanner.cs` — `PlanTrajectory`
 
 **`ConsumeNodeOpStatuses`:**
 - `SerializeLocalTask` now has `int FailureCount` field.
@@ -115,7 +115,7 @@ All 6 `CGF-1-BATCH-13 Part A` rows in `.dev/DEBT-TRACKER.md` are now marked `✅
 
 ### B.1 — `EditLoadDsmHandler`
 
-**New file:** `Bagira.SimHost/Modules/Orchestration/Handlers/EditLoadDsmHandler.cs`
+**New file:** `Hrot.SimHost/Modules/Orchestration/Handlers/EditLoadDsmHandler.cs`
 
 - `CanHandle(NodeOpType.PrepareState)` = `true`; acts only when payload target state = `LoadingEdit`.
 - **`PrepareAsync`:**
@@ -124,7 +124,7 @@ All 6 `CGF-1-BATCH-13 Part A` rows in `.dev/DEBT-TRACKER.md` are now marked `✅
     for `*.json` files, peeks each `Header.SubsystemType` via `_serializer.IsMatchingSubsystem`,
     caches the matching `JsonObject` DOM. Throws if no match.
   - File I/O is synchronous (matches `ScenarioLoadDsmHandler` pattern) so DOM is ready when
-    `DrillSlave` calls `Commit` immediately after.
+    `ClusterSlave` calls `Commit` immediately after.
 - **`Commit`:** Uses `repo ?? _world`. For new scenario: no-ops (blank world). For existing:
   `_serializer.Deserialize(targetRepo, _pendingDom)`.
 
@@ -144,13 +144,13 @@ was a placeholder. Using the `ScenarioSerializer` DOM:
 ### B.3 — `TransitionPlanner`: PrefetchScenario before LoadingEdit
 
 No change needed: the existing `PlanTrajectory` logic already enqueues
-`OperationStep(SysOpType.PrefetchScenario, scenarioId)` when `ScenarioId` is present in the
+`OperationStep(ClusterOpType.PrefetchScenario, scenarioId)` when `ScenarioId` is present in the
 payload — regardless of whether the target is `LoadingEdit` or `LoadingLive`. The new
 `PlanWithScenarioId_InjectsStorageGatewayStep` test (B.4) verifies this explicitly.
 
 ### B.4 — Unit tests
 
-**New file:** `Bagira.SimHost.Tests/EditLoadDsmHandlerTests.cs`
+**New file:** `Hrot.SimHost.Tests/EditLoadDsmHandlerTests.cs`
 
 Three tests per CGF1-S0302 success conditions:
 
@@ -160,7 +160,7 @@ Three tests per CGF1-S0302 success conditions:
 | `LoadExistingScenario_SpawnsCorrectEntityCount` | 3-entity JSON file → `repo.EntityCount == 3` |
 | `Commit_DoesNotBlockLongerThan50ms` | 100-entity Commit elapsed < 50 ms |
 
-**Modified file:** `Bagira.Orchestrator.Tests/TransitionPlannerTests.cs`
+**Modified file:** `Hrot.Orchestrator.Tests/TransitionPlannerTests.cs`
 
 Added `PlanWithScenarioId_InjectsStorageGatewayStep`:
 - Feeds `{"TargetState":10,"ScenarioId":"Alpha"}` targeting `LoadingEdit` from `Standby`.
@@ -180,9 +180,9 @@ Added `PlanWithScenarioId_InjectsStorageGatewayStep`:
 
 | Project | Before | After | Change |
 |---|---|---|---|
-| `Bagira.Orchestrator.Tests` | 22 | 23 | +1 (`PlanWithScenarioId_InjectsStorageGatewayStep`) |
-| `Bagira.SimHost.Tests` | 364 | 367 | +3 (`EditLoadDsmHandlerTests`) |
-| `Bagira.Orchestrator.Integration.Tests` | 3 | 3 | — |
+| `Hrot.Orchestrator.Tests` | 22 | 23 | +1 (`PlanWithScenarioId_InjectsStorageGatewayStep`) |
+| `Hrot.SimHost.Tests` | 364 | 367 | +3 (`EditLoadDsmHandlerTests`) |
+| `Hrot.Orchestrator.Integration.Tests` | 3 | 3 | — |
 | Full solution | all passing | all passing | — |
 
 Build: **0 errors**, pre-existing warning count unchanged.
@@ -196,7 +196,7 @@ Build: **0 errors**, pre-existing warning count unchanged.
 | `EditLoadDsmHandler.CanHandle(PrepareState)` | Handles all `PrepareState` commands but only acts on `LoadingEdit` target — consistent with `GlobalContextDsmHandler`'s `CommitState` pattern |
 | Schema format (B.2) | ScenarioSerializer DOM (not minimal array) — reuses existing toolkit, no duplication |
 | `BuildNodeDistributionTargets` UNC | Local `C:\FDP_Temp\scenarioId\` paths used; production UNC requires a separate node hostname registry (documented in code) |
-| `PrepareAsync` synchronous I/O | Matches `ScenarioLoadDsmHandler` pattern; `DrillSlave` fire-and-forgets `PrepareAsync` but the task completes synchronously before `Commit` is called |
+| `PrepareAsync` synchronous I/O | Matches `ScenarioLoadDsmHandler` pattern; `ClusterSlave` fire-and-forgets `PrepareAsync` but the task completes synchronously before `Commit` is called |
 | `GlobalContextDsmHandler` blank-world | Absent `ScenarioId` → optional (silent return); present but missing file → required (throws) |
 
 ---
@@ -205,6 +205,6 @@ Build: **0 errors**, pre-existing warning count unchanged.
 
 - **UNC path resolution:** `BuildNodeDistributionTargets` uses local paths. Multi-host
   production environments need a node hostname registry (out of scope for this batch).
-- **`DrillMaster` 2PC fan-out:** `ProcessSysOpRequests` still plans optimistically without
+- **`ClusterMaster` 2PC fan-out:** `ProcessClusterOpRequests` still plans optimistically without
   actually sending `PrepareState`/`CommitState` commands out. This pre-existing gap is out
   of scope for BATCH-13 (Phase 2 wiring).

@@ -3,8 +3,8 @@
 **Batch number:** CGF-1-BATCH-26  
 **Goal:** Implement **Phase 5 tasks S0501 + S0502** — the Orchestrator ImGui window overhaul
 (beige title bar, `Begin`/`End` wrapper, banner, 2PC history upgrade, `DistributedTransaction`
-extensions) and the **critical network dispatch fix** (DDS `SysOpRequest` writer, swap panel
-from `HandleSysOpRequest` to writer, fan-out `PrepareXxx`/`CommitState` loop in `DrillMaster`).  
+extensions) and the **critical network dispatch fix** (DDS `ClusterOpRequest` writer, swap panel
+from `HandleClusterOpRequest` to writer, fan-out `PrepareXxx`/`CommitState` loop in `ClusterMaster`).  
 **Phase:** Phase 5 — Operational UI, Real Network Dispatch & CQRS Architecture  
 **Estimated effort:** 6–10 h  
 **Priority:** P1 — S0502 is a critical bug; all cluster buttons are currently a no-op on the network  
@@ -18,11 +18,11 @@ and [§3](../CGF-1-ADDENDUM-3.md#3-real-network-dispatch-fix)
 
 1. [CGF-1-ADDENDUM-3.md](../CGF-1-ADDENDUM-3.md) — read §1 (motivation), §2, §3 before touching any file  
 2. [CGF-1-TASK-DETAIL.md §CGF1-S0501 and §CGF1-S0502](../CGF-1-TASK-DETAIL.md)  
-3. [`Bagira.Runner/Services/OrchestratorSubsystem.cs`](../../../Bagira.Runner/Services/OrchestratorSubsystem.cs)  
-4. [`Bagira.Runner/Services/OrchestratorScenarioPanel.cs`](../../../Bagira.Runner/Services/OrchestratorScenarioPanel.cs)  
-5. [`Bagira.Orchestrator/DistributedTransaction.cs`](../../../Bagira.Orchestrator/DistributedTransaction.cs)  
-6. [`Bagira.Orchestrator/DrillMaster.cs`](../../../Bagira.Orchestrator/DrillMaster.cs) — read `ProcessSingleSysOpRequest` and `FanOutNodeOp` before writing the fan-out loop  
-7. [`Bagira.Orchestrator.Tests/`](../../../Bagira.Orchestrator.Tests/) — existing test coverage to stay green  
+3. [`Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs`](../../../Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs)  
+4. [`Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`](../../../Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs)  
+5. [`Hrot.Orchestrator/DistributedTransaction.cs`](../../../Hrot.Orchestrator/DistributedTransaction.cs)  
+6. [`Hrot.Orchestrator/ClusterMaster.cs`](../../../Hrot.Orchestrator/ClusterMaster.cs) — read `ProcessSingleClusterOpRequest` and `FanOutNodeOp` before writing the fan-out loop  
+7. [`Hrot.Orchestrator.Tests/`](../../../Hrot.Orchestrator.Tests/) — existing test coverage to stay green  
 
 **Report file to create:** `.dev/cgf-1/reports/CGF-1-BATCH-26-REPORT.md`
 
@@ -96,9 +96,9 @@ Add three properties to the `DistributedTransaction` class:
 
 ```csharp
 /// <summary>DSM state the cluster was in immediately before this transaction started.</summary>
-public DSMState SourceDsmState { get; set; }
+public ClusterState SourceClusterState { get; set; }
 
-/// <summary>The SysOpRequest JSON payload that initiated this transaction.</summary>
+/// <summary>The ClusterOpRequest JSON payload that initiated this transaction.</summary>
 public string PayloadJson { get; set; } = string.Empty;
 
 /// <summary>Per-node ResultJson from each node's final NodeOpStatus ACK, keyed by node ID.</summary>
@@ -108,32 +108,32 @@ public Dictionary<int, string> NodeResponses { get; } = new();
 No other changes to this file.
 
 **Acceptance:** `DistributedTransactionTests.NewTransaction_HasDefaultValues` asserts
-`SourceDsmState == DSMState.Standby`, `PayloadJson == ""`, `NodeResponses.Count == 0`.
+`SourceClusterState == ClusterState.Standby`, `PayloadJson == ""`, `NodeResponses.Count == 0`.
 
 ---
 
-### A.5 — Populate new fields in `DrillMaster.cs`
+### A.5 — Populate new fields in `ClusterMaster.cs`
 
-Three specific changes in `ProcessSingleSysOpRequest` and `ConsumeNodeOpStatuses`:
+Three specific changes in `ProcessSingleClusterOpRequest` and `ConsumeNodeOpStatuses`:
 
 **Change 1 — capture source state before optimistic advance.**
 
-In `ProcessSingleSysOpRequest`, the existing code has:
+In `ProcessSingleClusterOpRequest`, the existing code has:
 ```csharp
 // Capture current state before optimistic advance (needed for S0305 detection).
-var stateBeforeAdvance = _currentDsmState;
+var stateBeforeAdvance = _currentClusterState;
 ```
 
 This variable exists already. When the new `DistributedTransaction` object is created
 (search for `var tx = new DistributedTransaction` or `_activeTransaction = new`):
-- Add `SourceDsmState = stateBeforeAdvance` (or `_currentDsmState` captured at the
+- Add `SourceClusterState = stateBeforeAdvance` (or `_currentClusterState` captured at the
   top of the `TransitionState` branch, before any mutation).
 - Add `PayloadJson = req.PayloadJson ?? string.Empty`.
 
 **Change 2 — populate `NodeResponses` on each ACK.**
 
 In `ConsumeNodeOpStatuses`, find the loop over `_nodeOpStatusReader.Take()`.
-After the existing handlers for `_pendingBranchTasks`, `_pendingManageStoryTasks`, and
+After the existing handlers for `_pendingBranchTasks`, `_pendingManageEpisodeTasks`, and
 `_pendingSerializeTasks` — for **all** ACKs that reach a non-null `_activeTransaction`
 matching the `status.TransactionId` — add:
 
@@ -153,10 +153,10 @@ confirms `status.TransactionId == _activeTransaction?.TransactionId`.
 > record the response.
 
 **Acceptance:**
-- `DistributedTransactionTests.SourceDsmState_CapturedBeforeOptimisticAdvance`:
-  Start `DrillMaster` in `Standby`; call `HandleSysOpRequest(TransitionState → LoadingLive)`;
-  assert `TransactionHistory.First().SourceDsmState == DSMState.Standby`.
-- `DistributedTransactionTests.PayloadJson_PopulatedFromSysOpRequest`:
+- `DistributedTransactionTests.SourceClusterState_CapturedBeforeOptimisticAdvance`:
+  Start `ClusterMaster` in `Standby`; call `HandleClusterOpRequest(TransitionState → LoadingLive)`;
+  assert `TransactionHistory.First().SourceClusterState == ClusterState.Standby`.
+- `DistributedTransactionTests.PayloadJson_PopulatedFromClusterOpRequest`:
   Send a request with `PayloadJson = "{\"TargetState\":2}"`;
   assert `TransactionHistory.First().PayloadJson == "{\"TargetState\":2}"`.
 
@@ -195,7 +195,7 @@ if (ImGui.BeginTable("TxHistory", 5,
         // Context menu on row
         if (ImGui.BeginPopupContextItem($"ctx_{tx.TransactionId}"))
         {
-            string line = $"{tx.TransactionId} | {tx.TargetDsmState} | " +
+            string line = $"{tx.TransactionId} | {tx.TargetClusterState} | " +
                           $"{(tx.IsAborted ? "Aborted" : "Completed")} | {tx.PayloadJson}";
             if (ImGui.MenuItem("Copy line to clipboard"))
                 ImGui.SetClipboardText(line);
@@ -203,7 +203,7 @@ if (ImGui.BeginTable("TxHistory", 5,
         }
 
         // Column 2: target state
-        ImGui.TableNextColumn(); ImGui.Text(tx.TargetDsmState.ToString());
+        ImGui.TableNextColumn(); ImGui.Text(tx.TargetClusterState.ToString());
 
         // Column 3: result
         ImGui.TableNextColumn(); ImGui.Text(tx.IsAborted ? "Aborted" : "Completed");
@@ -286,9 +286,9 @@ Update `RenderStatusBanner` to display the transition direction when a transacti
 
 ```csharp
 if (hasInFlight && activeTx != null &&
-    activeTx.SourceDsmState != activeTx.TargetDsmState)
+    activeTx.SourceClusterState != activeTx.TargetClusterState)
 {
-    ImGui.Text($"State: {activeTx.SourceDsmState} → {activeTx.TargetDsmState}");
+    ImGui.Text($"State: {activeTx.SourceClusterState} → {activeTx.TargetClusterState}");
 }
 else
 {
@@ -300,23 +300,23 @@ Replace the existing single `ImGui.Text($"State: {currentState}");` line.
 
 **Acceptance:**
 - `OrchestratorScenarioPanelTests.StatusBanner_ShowsSourceArrowTarget_WhenInFlight`:
-  Pass a mock `activeTx` with `SourceDsmState = Standby`, `TargetDsmState = RunningLive`,
+  Pass a mock `activeTx` with `SourceClusterState = Standby`, `TargetClusterState = RunningLive`,
   `hasInFlight = true`; assert the rendered text contains `"Standby → RunningLive"`.
 
 ---
 
-## Part B — S0502: Real Network Dispatch + DrillMaster Fan-out
+## Part B — S0502: Real Network Dispatch + ClusterMaster Fan-out
 
-### B.1 — `DdsWriter<SysOpRequest>` in `OrchestratorSubsystem.cs`
+### B.1 — `DdsWriter<ClusterOpRequest>` in `OrchestratorSubsystem.cs`
 
 **Add field:**
 ```csharp
-private DdsWriter<SysOpRequest>? _sysOpWriter;
+private DdsWriter<ClusterOpRequest>? _sysOpWriter;
 ```
 
 **In `Initialize`** (after `_participant` is created, before `_scenarioPanel`):
 ```csharp
-_sysOpWriter = new DdsWriter<SysOpRequest>(_participant);
+_sysOpWriter = new DdsWriter<ClusterOpRequest>(_participant);
 ```
 
 **In `Shutdown`** (before `_participant?.Dispose()`):
@@ -333,34 +333,34 @@ _scenarioPanel = new OrchestratorScenarioPanel(_drillMaster, _sysOpWriter!);
 **Fix the TODO buttons** — replace the three button stubs in `DrawUI()`:
 ```csharp
 // Before
-if (ImGui.Button("Initialize Live"))  { /* TODO: S0201 SysOpRequest */ }
+if (ImGui.Button("Initialize Live"))  { /* TODO: S0201 ClusterOpRequest */ }
 ImGui.SameLine();
-if (ImGui.Button("Pause"))            { /* TODO: S0201 SysOpRequest */ }
+if (ImGui.Button("Pause"))            { /* TODO: S0201 ClusterOpRequest */ }
 ImGui.SameLine();
-if (ImGui.Button("Resume"))           { /* TODO: S0201 SysOpRequest */ }
+if (ImGui.Button("Resume"))           { /* TODO: S0201 ClusterOpRequest */ }
 
 // After
 if (ImGui.Button("Initialize Live") && _sysOpWriter != null)
-    _sysOpWriter.Write(new SysOpRequest
+    _sysOpWriter.Write(new ClusterOpRequest
     {
         RequestId     = Guid.NewGuid(),
-        OperationType = SysOpType.TransitionState,
-        PayloadJson   = $"{{\"TargetState\":{(int)DSMState.LoadingLive}}}",
+        OperationType = ClusterOpType.TransitionState,
+        PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}}}",
     });
 ImGui.SameLine();
 if (ImGui.Button("Pause") && _sysOpWriter != null)
-    _sysOpWriter.Write(new SysOpRequest
+    _sysOpWriter.Write(new ClusterOpRequest
     {
         RequestId     = Guid.NewGuid(),
-        OperationType = SysOpType.PauseTime,
+        OperationType = ClusterOpType.PauseTime,
         PayloadJson   = string.Empty,
     });
 ImGui.SameLine();
 if (ImGui.Button("Resume") && _sysOpWriter != null)
-    _sysOpWriter.Write(new SysOpRequest
+    _sysOpWriter.Write(new ClusterOpRequest
     {
         RequestId     = Guid.NewGuid(),
-        OperationType = SysOpType.ResumeTime,
+        OperationType = ClusterOpType.ResumeTime,
         PayloadJson   = string.Empty,
     });
 ```
@@ -374,19 +374,19 @@ if (ImGui.Button("Resume") && _sysOpWriter != null)
 
 **Constructor change:**
 ```csharp
-private readonly DdsWriter<SysOpRequest> _sysOpWriter;
+private readonly DdsWriter<ClusterOpRequest> _sysOpWriter;
 
-public OrchestratorScenarioPanel(DrillMaster drillMaster, DdsWriter<SysOpRequest> sysOpWriter)
+public OrchestratorScenarioPanel(ClusterMaster drillMaster, DdsWriter<ClusterOpRequest> sysOpWriter)
 {
     _drillMaster = drillMaster ?? throw new ArgumentNullException(nameof(drillMaster));
     _sysOpWriter = sysOpWriter ?? throw new ArgumentNullException(nameof(sysOpWriter));
 }
 ```
 
-**Replace every `_drillMaster.HandleSysOpRequest(...)` call** in the six render helpers.
+**Replace every `_drillMaster.HandleClusterOpRequest(...)` call** in the six render helpers.
 The exact current calls are (line numbers approximate):
 
-| Helper | Current call | Replace `_drillMaster.HandleSysOpRequest(req)` with |
+| Helper | Current call | Replace `_drillMaster.HandleClusterOpRequest(req)` with |
 |--------|-------------|------------------------------------------------------|
 | `RenderDrillControl` | target-state button | `_sysOpWriter.Write(req)` |
 | `RenderCheckpointSection` | "Take Checkpoint" | `_sysOpWriter.Write(req)` |
@@ -398,27 +398,27 @@ The exact current calls are (line numbers approximate):
 | `RenderStoriesSection` | "Unload" per story | `_sysOpWriter.Write(req)` |
 | `RenderStoriesSection` | "Inject Story" | `_sysOpWriter.Write(req)` |
 
-**Important:** The `SysOpRequest` objects being constructed are _identical_ to the
-current ones — only the dispatch mechanism changes (from `_drillMaster.HandleSysOpRequest`
+**Important:** The `ClusterOpRequest` objects being constructed are _identical_ to the
+current ones — only the dispatch mechanism changes (from `_drillMaster.HandleClusterOpRequest`
 to `_sysOpWriter.Write`).  Do not change any `RequestId`, `OperationType`, or
 `PayloadJson` fields.
 
 The `_drillMaster` field is still needed for `ActiveStories`, `GetReachableTargets()`,
 and state reads — do **not** remove it.
 
-**Acceptance:** `grep "HandleSysOpRequest" OrchestratorScenarioPanel.cs` returns zero matches.
+**Acceptance:** `grep "HandleClusterOpRequest" OrchestratorScenarioPanel.cs` returns zero matches.
 
 ---
 
-### B.3 — Fan-out loop in `DrillMaster.ProcessSingleSysOpRequest`
+### B.3 — Fan-out loop in `ClusterMaster.ProcessSingleClusterOpRequest`
 
-This is the critical fix.  Currently, after `_currentDsmState` is advanced optimistically
+This is the critical fix.  Currently, after `_currentClusterState` is advanced optimistically
 and the transaction is recorded, no `NodeOpCommand` DDS messages are ever sent.  Nodes
 remain unaware of any state transition.
 
 **Add the fan-out block** immediately after the new transaction is stored in
 `_activeTransaction` (or in the transaction history ring buffer), **within** the
-`SysOpType.TransitionState` branch, **after** all the existing per-step logic
+`ClusterOpType.TransitionState` branch, **after** all the existing per-step logic
 (PrefetchScenario, TimeMode, live-from-replay):
 
 ```csharp
@@ -432,12 +432,12 @@ if (activeNodeIds.Count > 0)
         {
             NodeOpType prepareOp = tStep.TargetState switch
             {
-                DSMState.LoadingLive     => NodeOpType.PrepareLive,
-                DSMState.UnloadingLive   => NodeOpType.FinalizeLive,
-                DSMState.LoadingReplay   => NodeOpType.PrepareReplay,
-                DSMState.UnloadingReplay => NodeOpType.FinalizeReplay,
-                DSMState.LoadingEdit     => NodeOpType.PrepareEdit,
-                DSMState.UnloadingEdit   => NodeOpType.FinalizeEdit,
+                ClusterState.LoadingLive     => NodeOpType.PrepareLive,
+                ClusterState.UnloadingLive   => NodeOpType.FinalizeLive,
+                ClusterState.LoadingReplay   => NodeOpType.PrepareReplay,
+                ClusterState.UnloadingReplay => NodeOpType.FinalizeReplay,
+                ClusterState.LoadingEdit     => NodeOpType.PrepareEdit,
+                ClusterState.UnloadingEdit   => NodeOpType.FinalizeEdit,
                 _                       => NodeOpType.PrepareState,
             };
 
@@ -456,7 +456,7 @@ if (activeNodeIds.Count > 0)
             }, activeNodeIds);
         }
         else if (step is OperationStep opStep &&
-                 opStep.Operation == SysOpType.ReplaySeek)
+                 opStep.Operation == ClusterOpType.ReplaySeek)
         {
             FanOutNodeOp(new NodeOpCommand
             {
@@ -474,25 +474,25 @@ scope.  Read the existing code to find its exact name — it may be `_activeTran
 `tx`, or similar.
 
 **Important guards:**
-- This block must **only** run when `req.OperationType == SysOpType.TransitionState`
-  (it is already inside the `if (req.OperationType == SysOpType.TransitionState)` branch).
+- This block must **only** run when `req.OperationType == ClusterOpType.TransitionState`
+  (it is already inside the `if (req.OperationType == ClusterOpType.TransitionState)` branch).
 - The S0305 live-from-replay path already fans out its own `PrepareLive` with a branched
-  DrillId; do **not** add the new fan-out inside the S0305 guard block (it is already
-  inside a `passesLoadingLive && stateBeforeAdvance == DSMState.RunningReplay` guard).
+  ExerciseId; do **not** add the new fan-out inside the S0305 guard block (it is already
+  inside a `passesLoadingLive && stateBeforeAdvance == ClusterState.RunningReplay` guard).
   The new fan-out should be outside that guard so it covers the non-branch case.
 
 **Acceptance:**
-- `DrillMasterFanOutTests.TransitionState_Standby_To_LoadingLive_FansOutPrepareLive`:
-  Construct `DrillMaster` with a mock `FanOutNodeOp` interceptor (or real DDS participant
-  in a test domain); call `HandleSysOpRequest(TransitionState, TargetState=LoadingLive)`;
+- `ClusterMasterFanOutTests.TransitionState_Standby_To_LoadingLive_FansOutPrepareLive`:
+  Construct `ClusterMaster` with a mock `FanOutNodeOp` interceptor (or real DDS participant
+  in a test domain); call `HandleClusterOpRequest(TransitionState, TargetState=LoadingLive)`;
   assert that `NodeOpCommand { Operation = PrepareLive }` is recorded.
-- `DrillMasterFanOutTests.TransitionState_FansOut_CommitState_AfterPrepare`:
+- `ClusterMasterFanOutTests.TransitionState_FansOut_CommitState_AfterPrepare`:
   Same setup; assert `NodeOpCommand { Operation = CommitState, PayloadJson = "2" }`
   (or the integer value of `LoadingLive`) also reached the mock.
-- `DrillMasterFanOutTests.NoActiveNodes_FanOutIsSkipped`:
-  Bootstrap `DrillMaster` with no nodes; call `HandleSysOpRequest`; assert no
+- `ClusterMasterFanOutTests.NoActiveNodes_FanOutIsSkipped`:
+  Bootstrap `ClusterMaster` with no nodes; call `HandleClusterOpRequest`; assert no
   `NodeOpCommand` was written and no exception was thrown.
-- `DrillMasterFanOutTests.ReplaySeekStep_FansOutNodeReplaySeek`:
+- `ClusterMasterFanOutTests.ReplaySeekStep_FansOutNodeReplaySeek`:
   Provide a trajectory with an `OperationStep(ReplaySeek, "{\"TargetWallTicks\":1234}")`;
   assert `NodeOpCommand { Operation = NodeReplaySeek, PayloadJson = "{\"TargetWallTicks\":1234}" }`.
 
@@ -503,14 +503,14 @@ scope.  Read the existing code to find its exact name — it may be `_activeTran
 Implement in this order:
 
 1. **A.4** — Add fields to `DistributedTransaction` (no tests break).
-2. **A.5** — Populate fields in `DrillMaster` (extends existing logic).
+2. **A.5** — Populate fields in `ClusterMaster` (extends existing logic).
 3. **A.1 + A.2** — Title bar + window wrapper in `OrchestratorSubsystem`.
 4. **A.3** — Remove `BeigeChildBg` from panel.
 5. **A.7** — Update status banner in panel.
 6. **A.6** — Overhaul 2PC table in `OrchestratorSubsystem`.
-7. **B.1** — Add `DdsWriter<SysOpRequest>` to `OrchestratorSubsystem`.
+7. **B.1** — Add `DdsWriter<ClusterOpRequest>` to `OrchestratorSubsystem`.
 8. **B.2** — Update panel constructor and swap all calls.
-9. **B.3** — Add fan-out loop in `DrillMaster`.
+9. **B.3** — Add fan-out loop in `ClusterMaster`.
 10. **Write tests** — after all production changes, write or update tests.
 11. **Full build + test run.**
 
@@ -518,7 +518,7 @@ Implement in this order:
 
 ## Testing guide
 
-All tests are in `Bagira.Orchestrator.Tests` and/or `Bagira.Runner.Tests`
+All tests are in `Hrot.Orchestrator.Tests` and/or `Hrot.ClusterRunner.Tests`
 (services tests for `OrchestratorSubsystem`).
 
 New tests to write (minimum set):
@@ -529,18 +529,18 @@ New tests to write (minimum set):
 | `OrchestratorSubsystemTests` | `Shutdown_DisposesWriter` | writer null after Shutdown |
 | `OrchestratorSubsystemTests` | `FormatPrettyJson_IndentsJson` | formatted output has newline |
 | `OrchestratorSubsystemTests` | `FormatPrettyJson_InvalidJson_ReturnsOriginal` | bad JSON passthrough |
-| `DistributedTransactionTests` | `SourceDsmState_CapturedBeforeOptimisticAdvance` | SourceDsmState == Standby for Standby→Live |
-| `DistributedTransactionTests` | `PayloadJson_PopulatedFromSysOpRequest` | PayloadJson round-trips |
-| `OrchestratorScenarioPanelTests` | `NoHandleSysOpRequest_Calls` | grep / mock: 0 direct calls |
+| `DistributedTransactionTests` | `SourceClusterState_CapturedBeforeOptimisticAdvance` | SourceClusterState == Standby for Standby→Live |
+| `DistributedTransactionTests` | `PayloadJson_PopulatedFromClusterOpRequest` | PayloadJson round-trips |
+| `OrchestratorScenarioPanelTests` | `NoHandleClusterOpRequest_Calls` | grep / mock: 0 direct calls |
 | `OrchestratorScenarioPanelTests` | `StatusBanner_ShowsArrow_WhenInFlight` | banner has `→` visible |
-| `DrillMasterFanOutTests` | `TransitionState_FansOut_PrepareAndCommit` | PrepareLive + CommitState reach mock interceptor |
-| `DrillMasterFanOutTests` | `NoActiveNodes_FanOutSkipped` | no NodeOpCommand, no exception |
-| `DrillMasterFanOutTests` | `ReplaySeekStep_FansOut_NodeReplaySeek` | correct operation code |
+| `ClusterMasterFanOutTests` | `TransitionState_FansOut_PrepareAndCommit` | PrepareLive + CommitState reach mock interceptor |
+| `ClusterMasterFanOutTests` | `NoActiveNodes_FanOutSkipped` | no NodeOpCommand, no exception |
+| `ClusterMasterFanOutTests` | `ReplaySeekStep_FansOut_NodeReplaySeek` | correct operation code |
 
 **Existing tests that must stay green (run before and after changes):**
-- `Bagira.Orchestrator.Tests` — all (109 currently passing).
-- `Bagira.Runner.Tests` — all (138 currently passing).
-- `Bagira.Orchestrator.Integration.Tests` — all passing tests.
+- `Hrot.Orchestrator.Tests` — all (109 currently passing).
+- `Hrot.ClusterRunner.Tests` — all (138 currently passing).
+- `Hrot.Orchestrator.Integration.Tests` — all passing tests.
 
 ---
 
@@ -548,16 +548,16 @@ New tests to write (minimum set):
 
 - [ ] `TitleBarColor` returns `(0.72f, 0.64f, 0.47f, 1f)`.
 - [ ] `DrawUI()` contains one `ImGui.Begin("Orchestrator")` call balanced by `ImGui.End()`.
-- [ ] `grep "BeigeChildBg" Bagira.Runner/Services/OrchestratorScenarioPanel.cs` returns zero.
-- [ ] `DistributedTransaction` has `SourceDsmState`, `PayloadJson`, `NodeResponses` fields.
-- [ ] `DrillMaster` populates all three new fields (`SourceDsmState`, `PayloadJson`, `NodeResponses`).
+- [ ] `grep "BeigeChildBg" Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` returns zero.
+- [ ] `DistributedTransaction` has `SourceClusterState`, `PayloadJson`, `NodeResponses` fields.
+- [ ] `ClusterMaster` populates all three new fields (`SourceClusterState`, `PayloadJson`, `NodeResponses`).
 - [ ] 2PC table has 5 columns, `ScrollY`, `TreeNodeEx` rows with GUID tooltip, expandable node rows.
 - [ ] `OrchestratorSubsystem` has `_sysOpWriter` field, initialized in `Initialize`, disposed in `Shutdown`.
-- [ ] `grep "HandleSysOpRequest" Bagira.Runner/Services/OrchestratorScenarioPanel.cs` returns zero.
-- [ ] `DrillMaster.ProcessSingleSysOpRequest` fans out `PrepareXxx` + `CommitState` for every `TransitionStep`.
+- [ ] `grep "HandleClusterOpRequest" Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` returns zero.
+- [ ] `ClusterMaster.ProcessSingleClusterOpRequest` fans out `PrepareXxx` + `CommitState` for every `TransitionStep`.
 - [ ] Fan-out loop correctly skips nodes when `activeNodeIds.Count == 0`.
 - [ ] All new tests (listed above) pass.
-- [ ] All existing `Bagira.Orchestrator.Tests` and `Bagira.Runner.Tests` continue to pass.
+- [ ] All existing `Hrot.Orchestrator.Tests` and `Hrot.ClusterRunner.Tests` continue to pass.
 
 ---
 

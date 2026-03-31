@@ -22,7 +22,7 @@ We've completed the rendering pipelines and interaction tools. Now, you need to 
 4. **Previous Review:** `.dev-workstream/reviews/IG-BATCH-06-REVIEW.md` 
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/` (Specifically targeting ImGui panels and System monitoring)
+- **Primary Work Area:** `Hrot.IG/` (Specifically targeting ImGui panels and System monitoring)
 
 ### Report Submission
 **When done, submit your report to:**  

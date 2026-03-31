@@ -14,7 +14,7 @@
 **Out:** Do not touch any other component assignments, TKB template logic, or vehicle-specific paths.
 
 ### Location
-`Bagira.SimHost/Util/DescriptorMapper.cs` — `MapToComponents` method
+`Hrot.SimHost/Util/DescriptorMapper.cs` — `MapToComponents` method
 
 ### Constraints
 - `VehicleState` must only be added by the TKB template, not by `DescriptorMapper`
@@ -24,7 +24,7 @@
 ### Success Conditions
 
 **SC1 — Non-vehicle entity has no VehicleState**  
-*Setup:* Call `DescriptorMapper.MapToComponents` with a descriptor that has a `GeoSpatial` but no `TkbType` indicating a wheeled vehicle.  
+*Setup:* Call `DescriptorMapper.MapToComponents` with a descriptor that has a `WorldPos` but no `TkbType` indicating a wheeled vehicle.  
 *Assert:* The returned component list does NOT contain an element of type `VehicleState`.
 
 **SC2 — Vehicle entity still receives VehicleState via TKB template**  
@@ -44,7 +44,7 @@
 **Out:** No changes to hash comparison logic, channel arbitration, or any other system.
 
 ### Location
-`Bagira.SimHost/Systems/MissionAdapterSystem.cs` — inside the `if (doctrine.ActiveDoctrineHash != doctrineId)` branch
+`Hrot.SimHost/Systems/MissionAdapterSystem.cs` — inside the `if (doctrine.ActiveDoctrineHash != doctrineId)` branch
 
 ### Constraints
 - The increment MUST use `unchecked` to allow natural byte/ushort wrap-around without overflow exceptions
@@ -76,7 +76,7 @@
 **Out:** No changes to existing translators, module registration, or DataModel.
 
 ### Location
-`Bagira.SimHost/Program.cs` — in the translator registration section, before `new CycloneNetworkModule(translators, ...)`
+`Hrot.SimHost/Program.cs` — in the translator registration section, before `new CycloneNetworkModule(translators, ...)`
 
 ### Constraints
 - Use `AutoCycloneTranslator<EntityMaster>` (not a hand-written translator) to remain consistent with the NetworkDemo pattern
@@ -105,7 +105,7 @@
 **Out:** No other changes to the translator or the network constants.
 
 ### Location
-`Bagira.IG/Translators/EntityMasterTranslator.cs` — entity creation block, `OwnerNodeId` field assignment
+`Hrot.IG/Translators/EntityMasterTranslator.cs` — entity creation block, `OwnerNodeId` field assignment
 
 ### Constraints
 - Value `0` is the FDP convention for "remote / no local authority"
@@ -135,7 +135,7 @@
 **Out:** No other system registrations changed; no changes to `TransformSyncSystem` itself.
 
 ### Location
-`Bagira.IG/IgApplication.cs` — inside `InitializeEcs()`, after existing system registrations and before `_kernel.Initialize()`
+`Hrot.IG/IgApplication.cs` — inside `InitializeEcs()`, after existing system registrations and before `_kernel.Initialize()`
 
 ### Constraints
 - `driveFromNetwork: true` is mandatory — IG is driven entirely by the network, not by local physics
@@ -163,12 +163,12 @@
 **Out:** All other tool logic (selection, TKB type tracking) stays unchanged. Do not modify `FdpEventBus` or any other tool.
 
 ### Location
-`Bagira.IG/Tools/CreationTool.cs`
+`Hrot.IG/Tools/CreationTool.cs`
 
 ### Constraints
 - `CreationTool` must NOT hold a reference to `FdpEventBus` after this fix (for entity spawning purposes)
-- The DDS `CreateEntityRequest` MUST include at minimum: `RequestId` (new `Guid`), `Owner` (zeroed `NodeId`), `InitialDescriptors` containing one `dtEntityMaster` union and one `dtGeoSpatial` union
-- Coordinate mapping: screen → world position → `GeoPosition { Latitude = worldPos.Y, Longitude = worldPos.X }` (matching existing coordinate convention)
+- The DDS `CreateEntityRequest` MUST include at minimum: `RequestId` (new `Guid`), `Owner` (zeroed `NodeId`), `InitialDescriptors` containing one `dtEntityMaster` union and one `dtWorldPos` union
+- Coordinate mapping: screen → world position → `GeoPoint { Latitude = worldPos.Y, Longitude = worldPos.X }` (matching existing coordinate convention)
 - Use constructor/property injection for `IDdsWriter<CreateEntityRequest>` — do not use a service locator
 
 ### Success Conditions
@@ -178,7 +178,7 @@
 *Assert:* `IDdsWriter.Write` is called exactly once. `FdpEventBus.Publish<SpawnEntityCommand>` is NOT called.
 
 **SC2 — Written request has correct structure**  
-*Assert:* The `CreateEntityRequest` passed to `Write` has a non-empty `RequestId`, a zeroed `Owner`, contains a `dtEntityMaster` descriptor with the correct `TkbType`, and a `dtGeoSpatial` descriptor with non-zero coordinates matching the click position.
+*Assert:* The `CreateEntityRequest` passed to `Write` has a non-empty `RequestId`, a zeroed `Owner`, contains a `dtEntityMaster` descriptor with the correct `TkbType`, and a `dtWorldPos` descriptor with non-zero coordinates matching the click position.
 
 **SC3 — SimHost receives and processes the request (integration)**  
 *Setup:* Start SimHost + IG. Click on the IG map.  
@@ -191,20 +191,20 @@
 **Design Reference:** [DESIGN.md § 3.1](./DESIGN.md#31-uncomment-ios-draw-methods)
 
 ### Scope
-**In:** Remove `//` comment markers from ImGui rendering code in `IosMock.DrawUI()` and all seven `Draw(IIosLogic)` methods in `Bagira.IOS/Panels/`. Add `using ImGuiNET;` where missing.  
+**In:** Remove `//` comment markers from ImGui rendering code in `IosMock.DrawUI()` and all seven `Draw(IIosLogic)` methods in `Hrot.ExCon/Panels/`. Add `using ImGuiNET;` where missing.  
 **Out:** No logic changes — only uncomment. Do not alter method signatures, panel data bindings, or test stubs.
 
 ### Files
 | File | Change |
 |---|---|
-| `Bagira.IOS/IosMock.cs` | Uncomment full `DrawUI` body; add `using ImGuiNET;` |
-| `Bagira.IOS/Panels/ConfigPanel.cs` | Uncomment `Draw` ImGui body |
-| `Bagira.IOS/Panels/DiagnosticsPanel.cs` | Uncomment `Draw` ImGui body |
-| `Bagira.IOS/Panels/InspectorPanel.cs` | Uncomment `Draw` ImGui body |
-| `Bagira.IOS/Panels/InteractionPanel.cs` | Uncomment `Draw` ImGui body |
-| `Bagira.IOS/Panels/MissionPanel.cs` | Uncomment `Draw` ImGui body |
-| `Bagira.IOS/Panels/OrbatPanel.cs` | Uncomment `Draw` ImGui body |
-| `Bagira.IOS/Panels/SpawnerPanel.cs` | Uncomment `Draw` ImGui body |
+| `Hrot.ExCon/IosMock.cs` | Uncomment full `DrawUI` body; add `using ImGuiNET;` |
+| `Hrot.ExCon/Panels/ConfigPanel.cs` | Uncomment `Draw` ImGui body |
+| `Hrot.ExCon/Panels/DiagnosticsPanel.cs` | Uncomment `Draw` ImGui body |
+| `Hrot.ExCon/Panels/InspectorPanel.cs` | Uncomment `Draw` ImGui body |
+| `Hrot.ExCon/Panels/InteractionPanel.cs` | Uncomment `Draw` ImGui body |
+| `Hrot.ExCon/Panels/MissionPanel.cs` | Uncomment `Draw` ImGui body |
+| `Hrot.ExCon/Panels/OrbatPanel.cs` | Uncomment `Draw` ImGui body |
+| `Hrot.ExCon/Panels/SpawnerPanel.cs` | Uncomment `Draw` ImGui body |
 
 ### Constraints
 - Do not restructure or rewrite ImGui calls — only uncomment
@@ -232,10 +232,10 @@
 **Out:** No changes to the panel classes themselves. No changes to the ECS systems.
 
 ### Location
-`Bagira.IG/IgApplication.cs`
+`Hrot.IG/IgApplication.cs`
 
 ### Constraints
-- Add `using ImGuiNET;` and `using Bagira.IG.UI;` at the top
+- Add `using ImGuiNET;` and `using Hrot.IG.UI;` at the top
 - Mouse input to the map MUST be gated: `HandleCameraInput` and canvas `Update` only called when `!ImGui.GetIO().WantCaptureMouse`
 - Panel `Draw()` calls MUST occur between `rlImGui.Begin()` and `rlImGui.End()`
 - `PerformanceMetrics.Snapshot()` and `EntityInspectorState.Refresh()` MUST be called each frame before rendering

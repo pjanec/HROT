@@ -32,19 +32,19 @@ Ensure the entire `IOS-IG-SimHost-FDP-2` solution runs clean on the CI via `dotn
 ## ✅ Tasks
 
 ### Task 0: Restore SimHost Integration Tests (CORRECTIVE-002) P1
-**File:** `Bagira.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs`
+**File:** `Hrot.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs`
 **Action Required:**
 - Change `WaitForAckAsync` logic in the Mock Client. Currently, it retrieves the very first ACK published. Under Two-ACK, this is `InProgress=1`. 
 - Modify the method to evaluate and loop past `InProgress`, only returning when hitting terminal states (e.g., `StatusCode != (int)SstStatusCode.InProgress`), OR augment `TryGetAck` behavior to match against expected variables securely.
-- Ensure the 17 execution failures in `Bagira.SimHost.Integration.Tests.dll` are fully restored.
+- Ensure the 17 execution failures in `Hrot.SimHost.Integration.Tests.dll` are fully restored.
 
 ### Task 1: Runner Integration Adjustments (CORRECTIVE-003) P1
-**Files:** `Bagira.Runner.Integration.Tests/MiniIosIntegrationTests.cs` (or equivalent test structures failing).
+**Files:** `Hrot.ClusterRunner.Integration.Tests/MiniIosIntegrationTests.cs` (or equivalent test structures failing).
 **Action Required:**
-- `FirstSpawn_DoesNotExhaustIdPool` fails on the same phase logic. Trace its consumption chain and instruct its mock-layer to expect Two-ACKs properly (`InProgress` then `Success`). Ensure `Bagira.Runner.Integration.Tests.dll` runs completely green.
+- `FirstSpawn_DoesNotExhaustIdPool` fails on the same phase logic. Trace its consumption chain and instruct its mock-layer to expect Two-ACKs properly (`InProgress` then `Success`). Ensure `Hrot.ClusterRunner.Integration.Tests.dll` runs completely green.
 
 ### Task 2: Mandatory Ack Queue Constructor Injection (DEBT-ARCH-001) P3
-**Files:** `Bagira.IOS/IosLogic.cs` and all Factory references.
+**Files:** `Hrot.ExCon/IosLogic.cs` and all Factory references.
 **Action Required:**
 - The report from BATCH-02 wisely noted that `_createEntityAckQueue` was optional for backward compatibility, presenting a silent failure surface if phase-processing goes ignored by legacy callers. 
 - Refactor `IosLogic` to require the parameter mandatorily.

@@ -58,12 +58,12 @@ Build succeeded.    Warnings: 0    Errors: 0
 
 | File | Description |
 |------|-------------|
-| `Bagira.SimHost/Systems/SstRequestFinalizationSystem.cs` | PostSimulation system dispatching Phase-2 ACKs |
-| `Bagira.SimHost/Systems/IDeleteEntityRequestSource.cs` | Interface for delete request source (mirrors `ICreateEntityRequestSource`) |
-| `Bagira.SimHost/Systems/DeleteEntityRequestSystem.cs` | Input-phase system handling `DeleteEntityRequest` DDS messages |
-| `Bagira.SimHost.Tests/SstRequestFinalizationSystemTests.cs` | 6 unit tests for finalization system |
-| `Bagira.SimHost.Tests/DeleteEntityRequestSystemTests.cs` | 2 unit tests for delete request system |
-| `Bagira.IOS.Tests/TwoAckIosTests.cs` | 13 unit tests for IOS Two-ACK logic (IosLogic, ContextMenuLogic, MissionPanel) |
+| `Hrot.SimHost/Systems/SstRequestFinalizationSystem.cs` | PostSimulation system dispatching Phase-2 ACKs |
+| `Hrot.SimHost/Systems/IDeleteEntityRequestSource.cs` | Interface for delete request source (mirrors `ICreateEntityRequestSource`) |
+| `Hrot.SimHost/Systems/DeleteEntityRequestSystem.cs` | Input-phase system handling `DeleteEntityRequest` DDS messages |
+| `Hrot.SimHost.Tests/SstRequestFinalizationSystemTests.cs` | 6 unit tests for finalization system |
+| `Hrot.SimHost.Tests/DeleteEntityRequestSystemTests.cs` | 2 unit tests for delete request system |
+| `Hrot.ExCon.Tests/TwoAckIosTests.cs` | 13 unit tests for IOS Two-ACK logic (IosLogic, ContextMenuLogic, MissionPanel) |
 
 ---
 
@@ -72,66 +72,66 @@ Build succeeded.    Warnings: 0    Errors: 0
 ### DataModel
 | File | Change |
 |------|--------|
-| `Bagira.DDS.DataModel/GenericMessages.cs` | `SstErrorCode` → `SstStatusCode` with `InProgress = 1`; added `DeleteEntityRequest`; expanded `CreateUpdateDeleteEntityAck` with `EntityId` + renamed `ErrorCode` → `StatusCode`; removed `CreateEntityAck` |
+| `Hrot.NED/GenericMessages.cs` | `SstErrorCode` → `SstStatusCode` with `InProgress = 1`; added `DeleteEntityRequest`; expanded `CreateUpdateDeleteEntityAck` with `EntityId` + renamed `ErrorCode` → `StatusCode`; removed `CreateEntityAck` |
 
 ### Rename SstErrorCode → SstStatusCode consumers
 | File | Change |
 |------|--------|
-| `Bagira.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `SstErrorCode` → `SstStatusCode`; `ErrorCode` → `StatusCode` in DDS writes |
-| `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` | Same renames |
-| `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` | Same renames |
-| `Bagira.SimHost.Tests/UpdateEntityDescriptorRequestSystemTests.cs` | Same renames in assertions |
+| `Hrot.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `SstErrorCode` → `SstStatusCode`; `ErrorCode` → `StatusCode` in DDS writes |
+| `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` | Same renames |
+| `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` | Same renames |
+| `Hrot.SimHost.Tests/UpdateEntityDescriptorRequestSystemTests.cs` | Same renames in assertions |
 
 ### SimHost — new ack type
 | File | Change |
 |------|--------|
-| `Bagira.SimHost/Systems/ICreateEntityAckSink.cs` | Renamed interface to `ICreateUpdateDeleteEntityAckSink` |
-| `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` | Phase-1 InProgress ACK; calls `_finalizationSystem?.Track(...)` |
-| `Bagira.SimHost/Modules/SimHostModule.cs` | Wires `SstRequestFinalizationSystem`, `DdsDeleteEntityRequestSource`, `DeleteEntityRequestSystem` |
+| `Hrot.SimHost/Systems/ICreateEntityAckSink.cs` | Renamed interface to `ICreateUpdateDeleteEntityAckSink` |
+| `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` | Phase-1 InProgress ACK; calls `_finalizationSystem?.Track(...)` |
+| `Hrot.SimHost/Modules/SimHostModule.cs` | Wires `SstRequestFinalizationSystem`, `DdsDeleteEntityRequestSource`, `DeleteEntityRequestSystem` |
 
 ### IOS / Runner
 | File | Change |
 |------|--------|
-| `Bagira.IOS/IIosLogic.cs` | Added `IsEntityPending`, `GlobalAlert`, `DismissAlert` |
-| `Bagira.IOS/IosLogic.cs` | `_pendingEntities`, `_globalAlert`; rewrote `ProcessEntityCreationAcks` |
-| `Bagira.IOS/Services/DdsEventIngressHandlers.cs` | `CreateUpdateDeleteEntityAckIngressHandler` |
-| `Bagira.Runner/Services/IosSubsystem.cs` | `ConcurrentEventQueue<CreateUpdateDeleteEntityAck>` |
-| `Bagira.IOS/Logic/IContextMenuLogic.cs` | Optional `isEntityPending` param on `OnSelectionChanged` |
-| `Bagira.IOS/Logic/ContextMenuLogic.cs` | Guard: return empty menu for pending entities |
-| `Bagira.IOS/Panels/MissionPanel.cs` | `BeginDisabled` pending guard; `IsPendingGuardActive` helper |
-| `Bagira.IOS/IosMock.cs` | `GlobalAlert` modal popup |
+| `Hrot.ExCon/IIosLogic.cs` | Added `IsEntityPending`, `GlobalAlert`, `DismissAlert` |
+| `Hrot.ExCon/IosLogic.cs` | `_pendingEntities`, `_globalAlert`; rewrote `ProcessEntityCreationAcks` |
+| `Hrot.ExCon/Services/DdsEventIngressHandlers.cs` | `CreateUpdateDeleteEntityAckIngressHandler` |
+| `Hrot.ClusterRunner/Services/IosSubsystem.cs` | `ConcurrentEventQueue<CreateUpdateDeleteEntityAck>` |
+| `Hrot.ExCon/Logic/IContextMenuLogic.cs` | Optional `isEntityPending` param on `OnSelectionChanged` |
+| `Hrot.ExCon/Logic/ContextMenuLogic.cs` | Guard: return empty menu for pending entities |
+| `Hrot.ExCon/Panels/MissionPanel.cs` | `BeginDisabled` pending guard; `IsPendingGuardActive` helper |
+| `Hrot.ExCon/IosMock.cs` | `GlobalAlert` modal popup |
 
 ### IG
 | File | Change |
 |------|--------|
-| `Bagira.IG/IgApplication.cs` | `DdsReader<CreateUpdateDeleteEntityAck>` |
-| `Bagira.IG/Systems/MapCommandController.cs` | `OnCreateEntityAck` accepts new type |
-| `Bagira.Map.Common/Commands/BdcCommandGateway.cs` | Command client uses new ack type |
-| `Bagira.IG/UI/MiniIosPanelState.cs` | New ack type; `StatusCode` check; `EntityId` field |
+| `Hrot.IG/IgApplication.cs` | `DdsReader<CreateUpdateDeleteEntityAck>` |
+| `Hrot.IG/Systems/MapCommandController.cs` | `OnCreateEntityAck` accepts new type |
+| `Hrot.Map.Common/Commands/BdcCommandGateway.cs` | Command client uses new ack type |
+| `Hrot.IG/UI/MiniIosPanelState.cs` | New ack type; `StatusCode` check; `EntityId` field |
 
 ### Updated Tests
 | File | Change |
 |------|--------|
-| `Bagira.SimHost.Tests/CreateEntityRequestSystemTests.cs` | `StubAckSink` updated; `StatusCode`/`InProgress` assertions |
-| `Bagira.SimHost.Tests/AttributeCompilerFactoryTests.cs` | `ErrorCode` → `StatusCode` |
-| `Bagira.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs` | `StubAckSink` and `CreateEntity()` return type updated |
-| `Bagira.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs` | `WaitForAckAsync` returns `CreateUpdateDeleteEntityAck?` |
-| `Bagira.SimHost.Integration.Tests/EntityCreationFlowTests.cs` | `StatusCode`/`EntityId` field names |
-| `Bagira.SimHost.Integration.Tests/NavComponentsPresenceTests.cs` | Same |
-| `Bagira.SimHost.Integration.Tests/MissionExecutionFlowTests.cs` | Same |
-| `Bagira.SimHost.Integration.Tests/PerformanceTests.cs` | Same |
-| `Bagira.Runner.Integration.Tests/SpawnMovingVehicleWithGatewayIntegrationTests.cs` | New DDS topic + field names |
-| `Bagira.Runner.Integration.Tests/MiniIosIntegrationTests.cs` | New DDS topic + field names in all three test methods |
-| `Bagira.Runner.Integration.Tests/AreaAuthoringIntegrationTests.cs` | New DDS topic + field names |
-| `Bagira.Runner.Integration.Tests/MapPlacementIntegrationTests.cs` | New DDS topic + field names |
-| `Bagira.DDS.DataModel.Tests/GenericMessageFieldTests.cs` | Added 9 Two-ACK data model tests |
-| `Bagira.IG.Tests/MapCommandControllerTests.cs` | `CreateUpdateDeleteEntityAck` with `EntityId`/`StatusCode` |
+| `Hrot.SimHost.Tests/CreateEntityRequestSystemTests.cs` | `StubAckSink` updated; `StatusCode`/`InProgress` assertions |
+| `Hrot.SimHost.Tests/AttributeCompilerFactoryTests.cs` | `ErrorCode` → `StatusCode` |
+| `Hrot.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs` | `StubAckSink` and `CreateEntity()` return type updated |
+| `Hrot.SimHost.Integration.Tests/Infrastructure/MockIOSClient.cs` | `WaitForAckAsync` returns `CreateUpdateDeleteEntityAck?` |
+| `Hrot.SimHost.Integration.Tests/EntityCreationFlowTests.cs` | `StatusCode`/`EntityId` field names |
+| `Hrot.SimHost.Integration.Tests/NavComponentsPresenceTests.cs` | Same |
+| `Hrot.SimHost.Integration.Tests/MissionExecutionFlowTests.cs` | Same |
+| `Hrot.SimHost.Integration.Tests/PerformanceTests.cs` | Same |
+| `Hrot.ClusterRunner.Integration.Tests/SpawnMovingVehicleWithGatewayIntegrationTests.cs` | New DDS topic + field names |
+| `Hrot.ClusterRunner.Integration.Tests/MiniIosIntegrationTests.cs` | New DDS topic + field names in all three test methods |
+| `Hrot.ClusterRunner.Integration.Tests/AreaAuthoringIntegrationTests.cs` | New DDS topic + field names |
+| `Hrot.ClusterRunner.Integration.Tests/MapPlacementIntegrationTests.cs` | New DDS topic + field names |
+| `Hrot.NED.Tests/GenericMessageFieldTests.cs` | Added 9 Two-ACK data model tests |
+| `Hrot.IG.Tests/MapCommandControllerTests.cs` | `CreateUpdateDeleteEntityAck` with `EntityId`/`StatusCode` |
 
 ---
 
 ## New Tests Added
 
-### `Bagira.SimHost.Tests/SstRequestFinalizationSystemTests.cs` (6 tests)
+### `Hrot.SimHost.Tests/SstRequestFinalizationSystemTests.cs` (6 tests)
 - `TrackCreate_EntityStillConstructing_DoesNotDispatchAck` — no Phase-2 if entity not yet Active
 - `TrackCreate_EntityBecomesActive_DispatchesSuccessAck` — Phase-2 Success once Active
 - `TrackCreate_AfterSuccess_NoRedispatch` — idempotent; no duplicate ACK on second Execute
@@ -139,11 +139,11 @@ Build succeeded.    Warnings: 0    Errors: 0
 - `TrackDelete_EntityGone_DispatchesSuccessAck` — Phase-2 Success once entity removed
 - `TrackDelete_EntityNeverInMap_DispatchesEntityNotFoundAck` — handles entity that was never registered
 
-### `Bagira.SimHost.Tests/DeleteEntityRequestSystemTests.cs` (2 tests)
+### `Hrot.SimHost.Tests/DeleteEntityRequestSystemTests.cs` (2 tests)
 - `ProcessRequest_UnknownEntity_SendsEntityNotFoundAck` — Phase-1 error for unknown entity ID
 - `ProcessRequest_KnownEntity_SendsInProgressAckAndPublishesCommand` — Phase-1 InProgress + `DestroyEntityCommand`
 
-### `Bagira.IOS.Tests/TwoAckIosTests.cs` (13 tests)
+### `Hrot.ExCon.Tests/TwoAckIosTests.cs` (13 tests)
 
 **`TwoAckIosTests` class (IosLogic state machine):**
 - `InProgressAck_AddsEntityToPendingSet`
@@ -161,7 +161,7 @@ Build succeeded.    Warnings: 0    Errors: 0
 - `IsPendingGuardActive_EntityNotPending_ReturnsFalse`
 - `IsPendingGuardActive_EntityIsPending_ReturnsTrue`
 
-### `Bagira.DDS.DataModel.Tests/GenericMessageFieldTests.cs` (9 new tests added)
+### `Hrot.NED.Tests/GenericMessageFieldTests.cs` (9 new tests added)
 - `DeleteEntityRequest_HasRequestIdField`
 - `DeleteEntityRequest_HasEntityIdField`
 - `SstStatusCode_HasInProgress_Value1`

@@ -13,17 +13,17 @@
 
 New files:
 
-- **`Bagira.IG/Adapters/SstVisualizerAdapterConstants.cs`** — Single source of truth for every magic number the adapter uses: asset base path (`assets/symbols/`), fallback circle radius (`10 px`), label offset/size, selection radius, damage bar dimensions, LOD scale multipliers, and the `HitRadiusWorldUnits` constant (`FallbackCircleRadiusPx / IgCameraConstants.InitialZoom = 20f`).
+- **`Hrot.IG/Adapters/SstVisualizerAdapterConstants.cs`** — Single source of truth for every magic number the adapter uses: asset base path (`assets/symbols/`), fallback circle radius (`10 px`), label offset/size, selection radius, damage bar dimensions, LOD scale multipliers, and the `HitRadiusWorldUnits` constant (`FallbackCircleRadiusPx / IgCameraConstants.InitialZoom = 20f`).
 
-- **`Bagira.IG/Adapters/SstVisualizerAdapter.cs`** — `IVisualizerAdapter` implementation. `GetPosition` reads `SimTransform` and `CullingState`; returns `null` (skip draw) when either component is absent or `IsVisible == false`. `Render` resolves the full `ResolvedStyle` pipeline: affiliation → tint, texture name → lazy Raylib `Texture2D` load (cached in `Dictionary<string, Texture2D>`), fallback to a tinted circle when the texture file is absent. LOD is read from `CullingState.LodLevel`: `LodIconOnly` halves the draw scale. Damage bar overlaid as a coloured `DrawRectangle` strip below the entity icon when `DamageLevel > 0`. `GetHoverLabel` returns `ResolvedStyle.GetLabelText()` or `null` when the label is empty.
+- **`Hrot.IG/Adapters/SstVisualizerAdapter.cs`** — `IVisualizerAdapter` implementation. `GetPosition` reads `SimTransform` and `CullingState`; returns `null` (skip draw) when either component is absent or `IsVisible == false`. `Render` resolves the full `ResolvedStyle` pipeline: affiliation → tint, texture name → lazy Raylib `Texture2D` load (cached in `Dictionary<string, Texture2D>`), fallback to a tinted circle when the texture file is absent. LOD is read from `CullingState.LodLevel`: `LodIconOnly` halves the draw scale. Damage bar overlaid as a coloured `DrawRectangle` strip below the entity icon when `DamageLevel > 0`. `GetHoverLabel` returns `ResolvedStyle.GetLabelText()` or `null` when the label is empty.
 
 Modified:
 
-- **`Bagira.IG/IgApplication.cs`** — Swapped `StubVisualizerAdapter` → `SstVisualizerAdapter`. Added `_userConfig` and `_cameraViewport` fields; `InitializeEcs` registers `ResolvedStyle` and `CullingState` component tables; `InitializeNetwork` registers `StyleResolutionModule` and `MapCullingModule`; the `Run()` loop updates `_cameraViewport` bounds each frame by projecting the four screen corners through `_camera.ScreenToWorld`.
+- **`Hrot.IG/IgApplication.cs`** — Swapped `StubVisualizerAdapter` → `SstVisualizerAdapter`. Added `_userConfig` and `_cameraViewport` fields; `InitializeEcs` registers `ResolvedStyle` and `CullingState` component tables; `InitializeNetwork` registers `StyleResolutionModule` and `MapCullingModule`; the `Run()` loop updates `_cameraViewport` bounds each frame by projecting the four screen corners through `_camera.ScreenToWorld`.
 
 Test file:
 
-- **`Bagira.IG.Tests/SstVisualizerAdapterTests.cs`** — 13 tests covering: no-`SimTransform` → null, no-`CullingState` → null, `IsVisible=false` → null, `IsVisible=true` → correct XY coords, Z component not included, LOD-simplified path still returns position, `GetHitRadius` returns the expected world-unit constant, `GetHoverLabel` returns null when no `ResolvedStyle`, null when label is empty string, correct label text when set, and two entities returning distinct hover labels independently.
+- **`Hrot.IG.Tests/SstVisualizerAdapterTests.cs`** — 13 tests covering: no-`SimTransform` → null, no-`CullingState` → null, `IsVisible=false` → null, `IsVisible=true` → correct XY coords, Z component not included, LOD-simplified path still returns position, `GetHitRadius` returns the expected world-unit constant, `GetHoverLabel` returns null when no `ResolvedStyle`, null when label is empty string, correct label text when set, and two entities returning distinct hover labels independently.
 
 ---
 
@@ -31,21 +31,21 @@ Test file:
 
 New files:
 
-- **`Bagira.IG/Components/CullingState.cs`** — `[StructLayout(Sequential, Pack=1)]` unmanaged struct with two fields: `bool IsVisible` (1 byte) and `byte LodLevel` (1 byte). Total 2 bytes. Zero allocation; written into the unmanaged component table.
+- **`Hrot.IG/Components/CullingState.cs`** — `[StructLayout(Sequential, Pack=1)]` unmanaged struct with two fields: `bool IsVisible` (1 byte) and `byte LodLevel` (1 byte). Total 2 bytes. Zero allocation; written into the unmanaged component table.
 
-- **`Bagira.IG/Components/CullingStateConstants.cs`** — Named LOD level constants (`LodFull=0`, `LodSimplified=1`, `LodIconOnly=2`) and zoom thresholds (`LodIconOnlyZoomThreshold=0.1f`, `LodSimplifiedZoomThreshold=0.5f`).
+- **`Hrot.IG/Components/CullingStateConstants.cs`** — Named LOD level constants (`LodFull=0`, `LodSimplified=1`, `LodIconOnly=2`) and zoom thresholds (`LodIconOnlyZoomThreshold=0.1f`, `LodSimplifiedZoomThreshold=0.5f`).
 
-- **`Bagira.IG/Systems/MapCameraViewport.cs`** — Application-owned plain C# class (not an ECS component) that holds the current camera's world-space bounding box (`WorldMinX/MaxX/MinY/MaxY`) and `Zoom` level. Exposes `Contains(float x, float y) → bool` for the hot-path AABB test. Defaults `Zoom` to `IgCameraConstants.InitialZoom`.
+- **`Hrot.IG/Systems/MapCameraViewport.cs`** — Application-owned plain C# class (not an ECS component) that holds the current camera's world-space bounding box (`WorldMinX/MaxX/MinY/MaxY`) and `Zoom` level. Exposes `Contains(float x, float y) → bool` for the hot-path AABB test. Defaults `Zoom` to `IgCameraConstants.InitialZoom`.
 
-- **`Bagira.IG/Systems/MapCullingSystem.cs`** — `[UpdateInPhase(SystemPhase.PostSimulation)]`, implements `IModuleSystem`. Constructor receives `MapCameraViewport`. Each `Execute` call: (1) copies five viewport scalars into locals (`minX/maxX/minY/maxY/zoom`) to avoid repeated property fetches inside the loop; (2) derives `byte lod` once per frame from the zoom level; (3) iterates `With<SimTransform>` query; (4) calls `cmd.AddComponent` (upsert path) with a new `CullingState` built from `x >= minX && x <= maxX && y >= minY && y <= maxY`. No heap allocations anywhere in the hot path.
+- **`Hrot.IG/Systems/MapCullingSystem.cs`** — `[UpdateInPhase(SystemPhase.PostSimulation)]`, implements `IModuleSystem`. Constructor receives `MapCameraViewport`. Each `Execute` call: (1) copies five viewport scalars into locals (`minX/maxX/minY/maxY/zoom`) to avoid repeated property fetches inside the loop; (2) derives `byte lod` once per frame from the zoom level; (3) iterates `With<SimTransform>` query; (4) calls `cmd.AddComponent` (upsert path) with a new `CullingState` built from `x >= minX && x <= maxX && y >= minY && y <= maxY`. No heap allocations anywhere in the hot path.
 
-- **`Bagira.IG/Modules/StyleResolutionModule.cs`** — `IModule` wrapper for `StyleResolutionSystem`. Name = `"StyleResolution"`, policy = `ExecutionPolicy.Synchronous()`.
+- **`Hrot.IG/Modules/StyleResolutionModule.cs`** — `IModule` wrapper for `StyleResolutionSystem`. Name = `"StyleResolution"`, policy = `ExecutionPolicy.Synchronous()`.
 
-- **`Bagira.IG/Modules/MapCullingModule.cs`** — `IModule` wrapper for `MapCullingSystem`. Name = `"MapCulling"`, policy = `ExecutionPolicy.Synchronous()`.
+- **`Hrot.IG/Modules/MapCullingModule.cs`** — `IModule` wrapper for `MapCullingSystem`. Name = `"MapCulling"`, policy = `ExecutionPolicy.Synchronous()`.
 
 Test file:
 
-- **`Bagira.IG.Tests/MapCullingSystemTests.cs`** — 14 tests: entity inside bounds → visible, entity left/right/above/below → not visible, entity exactly on each boundary edge → visible, entity 1 unit outside right boundary → not visible, `LodIconOnly`/`LodSimplified`/`LodFull`/exact-threshold zoom → correct LOD assigned, entity leaving viewport on second tick → `IsVisible` updated to false, entity entering on second tick → `IsVisible` updated to true, multiple entities tagged independently, entity with no prior `CullingState` → component added correctly.
+- **`Hrot.IG.Tests/MapCullingSystemTests.cs`** — 14 tests: entity inside bounds → visible, entity left/right/above/below → not visible, entity exactly on each boundary edge → visible, entity 1 unit outside right boundary → not visible, `LodIconOnly`/`LodSimplified`/`LodFull`/exact-threshold zoom → correct LOD assigned, entity leaving viewport on second tick → `IsVisible` updated to false, entity entering on second tick → `IsVisible` updated to true, multiple entities tagged independently, entity with no prior `CullingState` → component added correctly.
 
 ---
 
@@ -53,7 +53,7 @@ Test file:
 
 New file:
 
-- **`Bagira.IG.Tests/LayerRenderingIntegrationTests.cs`** — 4 integration tests wiring `StyleResolutionSystem` → `MapCullingSystem` end-to-end:
+- **`Hrot.IG.Tests/LayerRenderingIntegrationTests.cs`** — 4 integration tests wiring `StyleResolutionSystem` → `MapCullingSystem` end-to-end:
   1. **`PipelineTick_100Entities_Exactly50MarkedVisible`** — 100 entities spaced 100 world units apart along X; viewport covers X ∈ [0, 5000], so exactly 50 entities (indices 0–49) fall inside. Asserts `visible == 50`.
   2. **`StyleResolutionSystem_100Entities_AllReceiveResolvedStyle`** — 100 entities all receive `IgSymbolOverride`. After one `StyleResolutionSystem` tick all 100 have a `ResolvedStyle` component.
   3. **`PipelineTick_AffiliationTintsResolvedCorrectly`** — One Friend entity and one Hostile entity run through the full two-system pipeline. Asserts correct per-channel RGBA values and `ForceId` enum values for each; asserts both are `IsVisible=true` (both in-viewport).

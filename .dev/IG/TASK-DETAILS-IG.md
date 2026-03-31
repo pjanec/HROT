@@ -16,17 +16,17 @@ This document provides **detailed task breakdown** for implementing IG Mock comp
 
 ## Phase 1: Core Infrastructure (2 days)
 
-### Task IG.1.1: Create Bagira.IG Project
+### Task IG.1.1: Create Hrot.IG Project
 
 **Goal:** Setup IG project structure with dependencies
 
 **Steps:**
 1. Create new project:
    ```bash
-   dotnet new console -n Bagira.IG -f net8.0
+   dotnet new console -n Hrot.IG -f net8.0
    ```
 2. Add to solution `IOS-IG-SimHost.sln`.
-3. Location: `Bagira.IG/`
+3. Location: `Hrot.IG/`
 
 4. Add project references:
    - `FDP.Kernel` (ECS)
@@ -39,9 +39,9 @@ This document provides **detailed task breakdown** for implementing IG Mock comp
    - `FDP.Toolkit.Time` (SlaveTimeController)
    - `Fdp.Toolkit.Geographic` (WGS84 transform)
    - `FDP.Toolkit.Tkb` (TKB database)
-   - `Bagira.DDS.DataModel` (DDS types)
-   - `Bagira.Map.Definitions` (TKB descriptors)
-   - `Bagira.Map.Common` (Constants)
+   - `Hrot.NED` (DDS types)
+   - `Hrot.Map.Definitions` (TKB descriptors)
+   - `Hrot.Map.Common` (Constants)
    
 5. Add NuGet packages:
    - `Raylib-cs`
@@ -51,7 +51,7 @@ This document provides **detailed task breakdown** for implementing IG Mock comp
 
 **Folder Structure:**
 ```
-Bagira.IG/
+Hrot.IG/
   Components/       (ECS components)
   Systems/          (ECS systems)
   Tools/            (MapTool implementations)
@@ -182,7 +182,7 @@ public class IgApplication
    - `SlaveTimeController` setup via `kernel.SetTimeController(...)`
 2. Build the **translator list** for `CycloneNetworkModule`:
    - `EntityMasterTranslator` (DDS `EntityMaster` → ECS, triggers ELM construction)
-   - `GeoSpatialTranslator` (DDS `GeoSpatial` → `NetworkReceivedState` for dead reckoning)
+   - `WorldPosTranslator` (DDS `WorldPos` → `NetworkReceivedState` for dead reckoning)
    - `EntityInfoTranslator` (DDS `EntityInfo` → ECS component)
    - **`AutoCycloneTranslator<TimePulseDescriptor>`** → bridges DDS time pulses to `FdpEventBus` for `SlaveTimeController` (**critical**)
    - Auto-translators via `ReplicationBootstrap.CreateAutoTranslators`
@@ -207,14 +207,14 @@ kernel.RegisterModule(new ReplicationLogicModule());
 // Build translator list — all network <-> ECS bridging goes here
 var translators = new List<ITranslator>();
 translators.Add(new EntityMasterTranslator(participant, entityMap, elm)); // triggers BeginConstruction
-translators.Add(new GeoSpatialTranslator(participant, entityMap, geoTransform));
+translators.Add(new WorldPosTranslator(participant, entityMap, geoTransform));
 translators.Add(new EntityInfoTranslator(participant, entityMap));
 
 // CRITICAL: Time Pulse translator — bridges DDS TimePulse → FdpEventBus
 // Without this, SlaveTimeController never receives updates.
 translators.Add(new AutoCycloneTranslator<TimePulseDescriptor>(participant, eventBus));
 
-// Auto-translators for all [FdpDescriptor]-tagged types in Bagira.DDS.DataModel
+// Auto-translators for all [FdpDescriptor]-tagged types in Hrot.NED
 var (autoTranslators, _) = ReplicationBootstrap.CreateAutoTranslators(
     participant, typeof(IgProgram).Assembly, entityMap);
 translators.AddRange(autoTranslators);
@@ -294,9 +294,9 @@ public class EntityMasterTranslator : ITranslator
 **Goal:** Register `FDP.Toolkit.NetworkSpawning.NetworkSpawningSystem` (via a `SpawningModule` wrapper) so that `SpawnEntityCommand` and `DestroyEntityCommand` events published by `EntityMasterTranslator` are processed each ECS tick.
 
 **Steps:**
-1. Create `Bagira.IG.Modules.SpawningModule` wrapping `NetworkSpawningSystem` (same pattern as NetworkDemo):
+1. Create `Hrot.IG.Modules.SpawningModule` wrapping `NetworkSpawningSystem` (same pattern as NetworkDemo):
 ```csharp
-namespace Bagira.IG.Modules
+namespace Hrot.IG.Modules
 {
     public class SpawningModule : IModule
     {
@@ -315,9 +315,9 @@ namespace Bagira.IG.Modules
 
             _system = new NetworkSpawningSystem(
                 tkbDb, elm, entityMap, idAlloc, eventBus, igNodeId,
-                // DisTypeExtractor delegate: decouples Toolkit from Bagira.DDS.DataModel
+                // DisTypeExtractor delegate: decouples Toolkit from Hrot.NED
                 (object c, out ulong dis) => {
-                    if (c is Bagira.BDC.SSTD.EntityMaster m) { dis = m.DisType; return true; }
+                    if (c is Hrot.NED.Descriptors.EntityMaster m) { dis = m.DisType; return true; }
                     dis = 0; return false;
                 });
             kernel.RegisterSystem(_system);
@@ -357,7 +357,7 @@ kernel.RegisterModule(new SpawningModule());
 3. Create query: `With<EntityMaster, SimTransform>`
 4. Test with SimHost spawning 10 entities
 
-> ⚠️ **Ensure `EntityMaster` is imported from `Bagira.DDS.DataModel` and `SimTransform` from `Fdp.Kernel`. Do NOT create local wrappers.** All ECS queries, field accesses (`transform.Position`, `transform.Rotation`), and spawn calls are already correct as written.
+> ⚠️ **Ensure `EntityMaster` is imported from `Hrot.NED` and `SimTransform` from `Fdp.Kernel`. Do NOT create local wrappers.** All ECS queries, field accesses (`transform.Position`, `transform.Rotation`), and spawn calls are already correct as written.
 
 **Implementation:**
 ```csharp
@@ -405,18 +405,18 @@ public class StubVisualizerAdapter : IVisualizerAdapter
 
 ---
 
-### Task IG.1.5: Create Bagira.IG.Tests Project
+### Task IG.1.5: Create Hrot.IG.Tests Project
 
 **Goal:** Setup unit test project.
 
 **Steps:**
 1. Create project:
    ```bash
-   dotnet new mstest -n Bagira.IG.Tests -f net8.0
+   dotnet new mstest -n Hrot.IG.Tests -f net8.0
    ```
-2. Location: `Bagira.IG.Tests/`
+2. Location: `Hrot.IG.Tests/`
 3. Add to solution `IOS-IG-SimHost.sln`.
-4. Add reference to `Bagira.IG` project.
+4. Add reference to `Hrot.IG` project.
 
 **Acceptance Criteria:**
 - ✅ Test project created.
@@ -436,7 +436,7 @@ public class StubVisualizerAdapter : IVisualizerAdapter
 **Goal:** Define ECS component for computed visual properties
 
 **Steps:**
-1. Create `Bagira.IG.Components.ResolvedStyle`:
+1. Create `Hrot.IG.Components.ResolvedStyle`:
    ```csharp
    public struct ResolvedStyle
    {
@@ -453,7 +453,7 @@ public class StubVisualizerAdapter : IVisualizerAdapter
 3. Add unit test verifying struct size < 64 bytes (cache-friendly)
 
 **Acceptance Criteria:**
-- ✅ Component defined in `Bagira.IG.Components`
+- ✅ Component defined in `Hrot.IG.Components`
 - ✅ Struct size verified < 64 bytes
 - ✅ Default values set correctly
 
@@ -573,7 +573,7 @@ public class StyleResolutionSystem : ComponentSystem
 
 **Estimated Effort:** 1.0 day
 
-**Dependencies:** IG.2.1, Shared TKB extensions (Bagira.Map.Definitions)
+**Dependencies:** IG.2.1, Shared TKB extensions (Hrot.Map.Definitions)
 
 ---
 
@@ -794,7 +794,7 @@ public class MapCullingSystem : ComponentSystem
 **Setup:**
 1. Run SimHost Mock
 2. SimHost spawns 100 entities at random positions (5km x 5km area)
-3. SimHost publishes EntityMaster, GeoSpatial, EntityInfo
+3. SimHost publishes EntityMaster, WorldPos, EntityInfo
 
 **Test Procedure:**
 1. Launch IG Mock
@@ -1993,6 +1993,6 @@ public void DrawPerformanceOverlay()
 - Phase 5 is polish and can be deferred if schedule slips
 
 **Next Steps:**
-1. Complete Shared components (Bagira.DDS.DataModel, FDP.Toolkit.Commands)
+1. Complete Shared components (Hrot.NED, FDP.Toolkit.Commands)
 2. Start Phase 1 implementation
 3. Run integration tests after each phase

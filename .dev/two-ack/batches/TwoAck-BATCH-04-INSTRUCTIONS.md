@@ -28,13 +28,13 @@ Improve the throughput logic structure in the test assemblies: Extract replicate
 ## ✅ Tasks
 
 ### Task 1: Deduplicate Runner Integration Helpers (DEBT-ARCH-002) P3
-**Files:** `Bagira.Runner.Integration.Tests/*.cs`
+**Files:** `Hrot.ClusterRunner.Integration.Tests/*.cs`
 **Action Required:**
 - During BATCH-03 `TryTakeCreateAck` (which handles Two-ACK Phase matching) was discovered copy-pasted across `MiniIosIntegrationTests`, `MapPlacementIntegrationTests`, and `AreaAuthoringIntegrationTests`. 
 - Extract identically purposed logic blocks into a unified `RunnerTestHelpers` static utility, or a Base Test Class Fixture implementation, unifying future state evaluation checks against a single source of truth.
 
 ### Task 2: Implement Shared ImGui Test Fixture (DEBT-TEST-003) P3
-**Files:** `Bagira.IOS.Tests`
+**Files:** `Hrot.ExCon.Tests`
 **Action Required:**
 - BATCH-02 successfully introduced headless `ImGui.CreateContext` tests via `[Collection("ImGui Sequential")]`, however font-atlas builds are executing redundantly per test frame costing roughly 50ms overhead per test iteration. 
 - Refactor the tests generating native contexts to utilize an `IClassFixture<ImGuiTestFixture>` caching pattern mapping over the tests (mirroring `DerEntityInspectorPanelTests` methodology).

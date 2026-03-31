@@ -26,11 +26,11 @@
 ## Verification
 
 ```
-dotnet test Bagira.Runner.Tests --nologo --no-build
+dotnet test Hrot.ClusterRunner.Tests --nologo --no-build
   Passed! — Failed: 0, Passed: 138, Skipped: 0
 ```
 
-Full solution: all previously-passing suites still pass. Pre-existing failures in `Bagira.Runner.Integration.Tests` (DsmE2e + MiniIos) and `Fdp.Examples.NetworkDemo.Tests` are unchanged.
+Full solution: all previously-passing suites still pass. Pre-existing failures in `Hrot.ClusterRunner.Integration.Tests` (DsmE2e + MiniIos) and `Fdp.Examples.NetworkDemo.Tests` are unchanged.
 
 ---
 
@@ -41,7 +41,7 @@ Full solution: all previously-passing suites still pass. Pre-existing failures i
 - `ParseMode_AllMode_HasAllFourFlags` asserts `HasFlag(RunMode.Orchestrator)` and `!HasFlag(RunMode.CGF)`.
 - Three new `cgf` tests present and correct.
 
-**`BagiraRunnerConfiguration.cs`** — `case "cgf": result |= RunMode.CGF; break;` confirmed in combat path; single-token path also handles `cgf`.
+**`HrotRunnerConfiguration.cs`** — `case "cgf": result |= RunMode.CGF; break;` confirmed in combat path; single-token path also handles `cgf`.
 
 ---
 
@@ -53,7 +53,7 @@ Full solution: all previously-passing suites still pass. Pre-existing failures i
 
 **`HeadlessTestExecutor.cs`** — All references to `rule.Exactly` confirmed; format string updated.
 
-**JSON scripts and test inline strings** — grep for `"Equals":` in `Bagira.Runner.Integration.Tests/**` returns zero matches. Good catch from the developer that `RunnerIntegrationTests.cs` had inline JSON strings that also needed updating.
+**JSON scripts and test inline strings** — grep for `"Equals":` in `Hrot.ClusterRunner.Integration.Tests/**` returns zero matches. Good catch from the developer that `RunnerIntegrationTests.cs` had inline JSON strings that also needed updating.
 
 ---
 
@@ -62,7 +62,7 @@ Full solution: all previously-passing suites still pass. Pre-existing failures i
 The developer's choice is accepted:
 - `DsmE2eScriptTests` require a live DDS + multi-subsystem stack — not suitable for default PR `dotnet test`.
 - Adding `[Trait("Category", "DsmE2e")]` is tracked as a P3 item below.
-- Policy: default CI excludes `DsmE2eScriptTests`; nightly/integration pipeline runs `Bagira.Runner.Integration.Tests` with domain isolation.
+- Policy: default CI excludes `DsmE2eScriptTests`; nightly/integration pipeline runs `Hrot.ClusterRunner.Integration.Tests` with domain isolation.
 
 ---
 

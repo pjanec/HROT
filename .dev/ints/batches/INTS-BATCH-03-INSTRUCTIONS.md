@@ -29,11 +29,11 @@ In this batch and all future batches, you MUST reconsider the assembly dependenc
 
 ### Source Code Location
 - **Primary Work Areas:** 
-  - `Bagira.Map.Common`
-  - `Bagira.SimHost`
-  - `Bagira.IG`
-  - `Bagira.Runner`
-  - `Bagira.Integration.Tests` (New or existing)
+  - `Hrot.Map.Common`
+  - `Hrot.SimHost`
+  - `Hrot.IG`
+  - `Hrot.ClusterRunner`
+  - `Hrot.Integration.Tests` (New or existing)
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -64,7 +64,7 @@ In this batch and all future batches, you MUST reconsider the assembly dependenc
 Phase 3 implements trace logging directly at system edges where messages traverse bounded contexts (such as DDS ingestion and egress, and IO mapping layers). Afterwards, you will write a complete multi-process integration test spanning the full pipeline.
 
 **Related Tasks:**
-- **CORRECTIVE-0** - Remove Reflection Hack in BagiraEnvironment
+- **CORRECTIVE-0** - Remove Reflection Hack in HrotEnvironment
 - [INTS-P3-011](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-011--trace-logging-simhost-entity-spawn-flow-1) - Trace SimHost Entity Spawn
 - [INTS-P3-012](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-012--trace-logging-ig-entity-ingress--render-flow-2) - Trace IG Ingress & Render
 - [INTS-P3-013](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-013--trace-logging-ig-map-drawings--ios-interactions-flows-36) - Trace Map Drawings & IOS Interactions
@@ -73,14 +73,14 @@ Phase 3 implements trace logging directly at system edges where messages travers
 ---
 
 ## 🎯 Batch Objectives
-Ensure full logging visibility of network transactions between internal Bagira subsystems, construct a clean multi-app Integration validation, and resolve the architectural reflection debt from Phase 2.
+Ensure full logging visibility of network transactions between internal Hrot subsystems, construct a clean multi-app Integration validation, and resolve the architectural reflection debt from Phase 2.
 
 ---
 
 ## ✅ Tasks
 
-### Task 0: Corrective Action - Remove Reflection Hack in BagiraEnvironment (CORRECTIVE-0)
-**Files:** `Bagira.Map.Common/BagiraEnvironment.cs`, `Bagira.Map.Definitions/Tkb/BdcTkbCatalog.cs`, etc.
+### Task 0: Corrective Action - Remove Reflection Hack in HrotEnvironment (CORRECTIVE-0)
+**Files:** `Hrot.Map.Common/HrotEnvironment.cs`, `Hrot.Map.Definitions/Tkb/BdcTkbCatalog.cs`, etc.
 **Description:** 
 The previous batch utilized `System.Reflection` in `CreateTkb()` to register the `BdcTkbCatalog` dynamically and dodge a circular dependency. 
 - Eliminate the reflection code.
@@ -100,7 +100,7 @@ The previous batch utilized `System.Reflection` in `CreateTkb()` to register the
 **Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-013--trace-logging-ig-map-drawings--ios-interactions-flows-36)
 
 ### Task 4: Integration Test: End-to-End Entity Lifecycle (INTS-P3-014)
-**Files:** `Bagira.SimHost.Integration.Tests` / `Bagira.Integration.Tests`
+**Files:** `Hrot.SimHost.Integration.Tests` / `Hrot.Integration.Tests`
 **Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-014--integration-test-end-to-end-entity-lifecycle)
 
 ---

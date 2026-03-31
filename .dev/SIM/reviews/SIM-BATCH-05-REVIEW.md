@@ -9,7 +9,7 @@
 
 ## Summary
 
-Implemented the main application shell for `Bagira.SimHost` encompassing configuration, custom logging, graceful shutdown, and full ECS wiring via `SimulationLogicModule`. Phase S5 is complete.
+Implemented the main application shell for `Hrot.SimHost` encompassing configuration, custom logging, graceful shutdown, and full ECS wiring via `SimulationLogicModule`. Phase S5 is complete.
 
 ---
 

@@ -22,13 +22,13 @@
 **FDP.Toolkit.Navigation.Tests:** 26 / 26 passed  
 **Fdp.Toolkit.Geographic.Tests:** 23 / 23 passed  
 **FDP.Toolkit.CarKinem.Tests:** 117 / 117 passed  
-**Bagira.DDS.DataModel.Tests:** 9 / 9 passed  
-**Bagira.SimHost.Tests:** 98 / 99 passed (1 pre-existing failure — see Outstanding Issues)
+**Hrot.NED.Tests:** 9 / 9 passed  
+**Hrot.SimHost.Tests:** 98 / 99 passed (1 pre-existing failure — see Outstanding Issues)
 
 **Key Test Scenarios Verified:**
 - ✅ `NavigationIntent.Mode` zero-inits to `NavigationMode.None`
 - ✅ `NavigationStatus.Result` zero-inits to `NavigationResult.InProgress`
-- ✅ `FDP.Toolkit.Navigation` assembly contains zero references to `Bagira.*`
+- ✅ `FDP.Toolkit.Navigation` assembly contains zero references to `Hrot.*`
 - ✅ `MoveToExecutor_OnEnter_WritesNavigationIntentWithIncrementedId`
 - ✅ `MoveToExecutor_Execute_ReturnsSuccessWhenStatusArrived`
 - ✅ `MoveToExecutor_Execute_IgnoresStaleStatus`
@@ -115,7 +115,7 @@ The batch spec references IDs in the 20–49 range, but that range is entirely a
 
 - **`_frustrationTicks` entity index collision risk.** Should be replaced by a `FrustrationTicks` ECS component on the entity (see Q5). Suggested follow-on DEBT item.
 - **`CarKinem.Core.NavigationMode` rename.** The ambiguity with `FDP.Toolkit.Navigation.NavigationMode` should be resolved before T2-style executors exist alongside T3/T4-style (CQRS) executors in the same namespace tree.
-- **`Bagira.SimHost.Tests` — 1 pre-existing failure.** `EntityMasterEgressTranslatorTests.ScanAndPublish_RemotelyOwnedEntity_DoesNotPublish` fails with `CycloneDDS.Runtime.DdsException: Failed to create participant (ReturnCode: Error)`. This test requires a running CycloneDDS daemon and has been failing in this environment prior to and independent of this batch. No changes were made to `EntityMasterEgressTranslator` or any related DDS infrastructure in this batch.
+- **`Hrot.SimHost.Tests` — 1 pre-existing failure.** `EntityMasterEgressTranslatorTests.ScanAndPublish_RemotelyOwnedEntity_DoesNotPublish` fails with `CycloneDDS.Runtime.DdsException: Failed to create participant (ReturnCode: Error)`. This test requires a running CycloneDDS daemon and has been failing in this environment prior to and independent of this batch. No changes were made to `EntityMasterEgressTranslator` or any related DDS infrastructure in this batch.
 - **`FollowRouteExecutor`, `FleeExecutor`, `FollowRoadGraphExecutor` still use `NavState`.** These are not yet migrated to the new CQRS contract. They are outside this batch's scope but should be tracked as MOD1 Phase 2 work.
 
 ---
@@ -126,7 +126,7 @@ The batch spec references IDs in the 20–49 range, but that range is entirely a
 |------|--------|
 | `FDP/Kernel/Fdp.Kernel/CoreComponents/NavigationComponents.cs` | **NEW** — NavigationMode, NavigationResult, NavigationIntent, NavigationStatus in namespace `FDP.Toolkit.Navigation` |
 | `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` | **MODIFIED** — Added NavigationIntent=67, NavigationStatus=68 |
-| `Bagira.DDS.DataModel/SimDescriptors.cs` | **MODIFIED** — Added ENavigationMode, ENavigationResult, NavigationIntent DDS struct, NavigationStatus DDS struct |
+| `Hrot.NED/SimDescriptors.cs` | **MODIFIED** — Added ENavigationMode, ENavigationResult, NavigationIntent DDS struct, NavigationStatus DDS struct |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/MoveToExecutor.cs` | **REWRITTEN** — Pure CQRS: writes NavigationIntent on enter, reads NavigationStatus on execute |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/FollowRouteExecutor.cs` | **MODIFIED** — Added `CarKinemNavMode` alias to resolve NavigationMode ambiguity |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/FleeExecutor.cs` | **MODIFIED** — Added `CarKinemNavMode` alias |
@@ -134,7 +134,7 @@ The batch spec references IDs in the 20–49 range, but that range is entirely a
 | `FDP/Toolkits/Fdp.Toolkit.Geographic/Systems/CoordinateTransformSystem.cs` | **REWRITTEN** — Replaced NetworkOwnership manual check with `.WithOwned<Position>()` |
 | `FDP/Toolkits/Fdp.Toolkit.Geographic/Systems/GeodeticSmoothingSystem.cs` | **REWRITTEN** — Replaced NetworkOwnership manual skip with `.WithoutOwned<Position>()` |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/NavigationExecutionSystem.cs` | **NEW** — Arrival + frustration logic; writes NavigationStatus; runs after CarKinematicsSystem |
-| `FDP.Toolkit.Navigation.Tests/NavigationContractsTests.cs` | **NEW** — Zero-init defaults, enum values, zero Bagira.* references |
+| `FDP.Toolkit.Navigation.Tests/NavigationContractsTests.cs` | **NEW** — Zero-init defaults, enum values, zero Hrot.* references |
 | `FDP.Toolkit.Navigation.Tests/ExecutorTests/MoveToExecutorTests.cs` | **REWRITTEN** — 6 CQRS-based tests |
 | `FDP.Toolkit.Navigation.Tests/NavigationTestWorldFactory.cs` | **MODIFIED** — RegisterComponent for NavigationIntent and NavigationStatus |
 | `FDP.Toolkit.Navigation.Tests/ExecutorTests/FollowRoadGraphExecutorTests.cs` | **MODIFIED** — Added CarKinemNavMode alias |

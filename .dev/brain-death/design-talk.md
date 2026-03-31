@@ -1,4 +1,4 @@
-﻿
+
 
 now i see that "Center on entity" menu item teleports the map center far from the entity (seems like in the opposite direction, maybe)
 
@@ -33,7 +33,7 @@ This abruptly shifts the map up and to the left to pin the entity to the top-lef
 
 The Fix
 
-To fix this, simply apply the same center offset to the SimHost's camera right after creating the canvas in `Bagira.SimHost.SimHostVisualization.Initialize`:
+To fix this, simply apply the same center offset to the SimHost's camera right after creating the canvas in `Hrot.SimHost.SimHostVisualization.Initialize`:
 
 ```
 _map = new MapCanvas();
@@ -103,7 +103,7 @@ if (channel.ActiveAction != 0 && channel.DoctrineInstanceId != doctrine.Instance
 }
 ```
 
-**2\. Fix the Right-Click Mission Plan in** **SimHostVisualization** Open `Bagira.SimHost/SimHostVisualization.cs`. In the `OnWorldClick` handler where the right-click mission is generated, you need to add the `ReachedDestination` trigger and append an `Idle` task so the doctrine cleanly resets.
+**2\. Fix the Right-Click Mission Plan in** **SimHostVisualization** Open `Hrot.SimHost/SimHostVisualization.cs`. In the `OnWorldClick` handler where the right-click mission is generated, you need to add the `ReachedDestination` trigger and append an `Idle` task so the doctrine cleanly resets.
 
 Replace the task generation block with this:
 
@@ -117,10 +117,10 @@ var task = new MissionTask
     ExecutingEngine = "CGFX",
     BehaviorId      = "MoveToLocation",
     BehaviorParams  = paramsJson,
-    Triggers        = new List<Bagira.BDC.SSTD.MissionTrigger>
+    Triggers        = new List<Hrot.NED.Descriptors.MissionTrigger>
     {
         // Tell the mission director to advance when we arrive
-        new Bagira.BDC.SSTD.MissionTrigger { Type = "ReachedDestination", Params = "" }
+        new Hrot.NED.Descriptors.MissionTrigger { Type = "ReachedDestination", Params = "" }
     },
     State           = eTaskState.TASK_PLANNED,
 };
@@ -132,7 +132,7 @@ var idleTask = new MissionTask
     ExecutingEngine = "CGFX",
     BehaviorId      = "Idle",
     BehaviorParams  = "{}",
-    Triggers        = new List<Bagira.BDC.SSTD.MissionTrigger>(),
+    Triggers        = new List<Hrot.NED.Descriptors.MissionTrigger>(),
     State           = eTaskState.TASK_PLANNED,
 };
 
@@ -186,7 +186,7 @@ if (triggered)
 
 When you need to manually clear the doctrine (e.g., clicking "ABORT" from the IOS), the system sends a `CMD_ABORT_ALL` command. Currently, `MissionControlRequestSystem` wipes the `MissionPlanQueue` to 0, but it completely forgets to wipe the `DoctrineState`.
 
-Open `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` and add the doctrine wipe to the `CMD_ABORT_ALL` block:
+Open `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` and add the doctrine wipe to the `CMD_ABORT_ALL` block:
 
 ```
 case eMissionCommandType.CMD_ABORT_ALL:
@@ -198,7 +198,7 @@ case eMissionCommandType.CMD_ABORT_ALL:
         PhaseElapsedSeconds = 0f
     };
     repo.SetComponent(entity, abortQueue);
-    repo.RemoveComponent<Bagira.SimHost.Components.EntityMissionHolder>(entity);
+    repo.RemoveComponent<Hrot.SimHost.Components.EntityMissionHolder>(entity);
 
     // FIX: Explicitly wipe the doctrine state so the entity goes "brain dead"
     if (repo.HasComponent<DoctrineState>(entity))
@@ -242,7 +242,7 @@ How to Fix It
 
 To restore RVO avoidance, you must ensure that all spawned vehicles are stamped with a `PhysicsCollider`.
 
-**Fix 1: Update the TKB Builder (For networked/standard vehicles)** Open `Bagira.Map.Definitions.Tkb.BdcTkbBuilder.cs` and update the `WithPhysics` method to automatically attach the collider based on the vehicle's dimensions:
+**Fix 1: Update the TKB Builder (For networked/standard vehicles)** Open `Hrot.Map.Definitions.Tkb.BdcTkbBuilder.cs` and update the `WithPhysics` method to automatically attach the collider based on the vehicle's dimensions:
 
 ```
 public BdcTkbBuilder WithPhysics(long tkbId, Action<SimVehicleDef> configure)
@@ -315,7 +315,7 @@ The Fix: Append to the Mission Plan
 
 To properly queue waypoints for an AI-driven entity in the new architecture, Shift+Right-click must not bypass the Brain. Instead, it should extract the current mission plan, append a new `MoveToLocation` task to the end of it, and send a `CMD_REPLACE_MISSION` update.
 
-Open `Bagira.SimHost/SimHostVisualization.cs` and replace the `_interactionTool.OnWorldClick` lambda block with the following:
+Open `Hrot.SimHost/SimHostVisualization.cs` and replace the `_interactionTool.OnWorldClick` lambda block with the following:
 
 ```
 _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
@@ -348,9 +348,9 @@ _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
             BehaviorId      = "MoveToLocation",
             BehaviorParams  = paramsJson,
             // Trigger is required so the BTree knows when to advance to the next queued waypoint
-            Triggers        = new List<Bagira.BDC.SSTD.MissionTrigger>
+            Triggers        = new List<Hrot.NED.Descriptors.MissionTrigger>
             {
-                new Bagira.BDC.SSTD.MissionTrigger { Type = "ReachedDestination", Params = "" }
+                new Hrot.NED.Descriptors.MissionTrigger { Type = "ReachedDestination", Params = "" }
             },
             State           = eTaskState.TASK_PLANNED,
         };
@@ -374,9 +374,9 @@ _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
                 var lastTask = plan.Tasks[^1];
                 if (lastTask.Triggers == null || lastTask.Triggers.Count == 0)
                 {
-                    lastTask.Triggers = new List<Bagira.BDC.SSTD.MissionTrigger>
+                    lastTask.Triggers = new List<Hrot.NED.Descriptors.MissionTrigger>
                     {
-                        new Bagira.BDC.SSTD.MissionTrigger { Type = "ReachedDestination", Params = "" }
+                        new Hrot.NED.Descriptors.MissionTrigger { Type = "ReachedDestination", Params = "" }
                     };
                     plan.Tasks[^1] = lastTask;
                 }
@@ -418,7 +418,7 @@ Under "brain death" conditions (where the entity has no active doctrine), there 
 
 You can easily restore the old functionality by adding a simple branching check in your `SimHostVisualization` right-click handler. If the entity has no active doctrine, you bypass the mission system and talk directly to the muscle.
 
-Here is how you can update the `_interactionTool.OnWorldClick` handler in `Bagira.SimHost/SimHostVisualization.cs` to achieve exactly this:
+Here is how you can update the `_interactionTool.OnWorldClick` handler in `Hrot.SimHost/SimHostVisualization.cs` to achieve exactly this:
 
 ```
 _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
@@ -475,7 +475,7 @@ _interactionTool.OnWorldClick += (pos, btn, shift, ctrl, hitEntity) =>
                 ExecutingEngine = "CGFX",
                 BehaviorId      = "MoveToLocation",
                 BehaviorParams  = paramsJson,
-                Triggers        = new List<Bagira.BDC.SSTD.MissionTrigger>(),
+                Triggers        = new List<Hrot.NED.Descriptors.MissionTrigger>(),
                 State           = eTaskState.TASK_PLANNED,
             };
 
@@ -589,7 +589,7 @@ Now you can revert the explicit `DoctrineState` manipulation I suggested earlier
     }
 ```
 
-**For** **MissionControlRequestSystem** **(When an abort is explicitly commanded):** Open `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` and update the `CMD_ABORT_ALL` case:
+**For** **MissionControlRequestSystem** **(When an abort is explicitly commanded):** Open `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` and update the `CMD_ABORT_ALL` case:
 
 ```
 case eMissionCommandType.CMD_ABORT_ALL:
@@ -601,7 +601,7 @@ case eMissionCommandType.CMD_ABORT_ALL:
         PhaseElapsedSeconds = 0f
     };
     repo.SetComponent(entity, abortQueue);
-    repo.RemoveComponent<Bagira.SimHost.Components.EntityMissionHolder>(entity);
+    repo.RemoveComponent<Hrot.SimHost.Components.EntityMissionHolder>(entity);
 
     // Properly instruct the cognitive layer to clear the doctrine
     repo.Bus.PublishManaged(new FDP.Toolkit.Behavior.Events.ClearDoctrineEvent { Entity = entity });
@@ -624,16 +624,16 @@ The engine side of your architecture actually already implements the exact fixed
 
 In **Fdp.Kernel**, the `DISEntityType` is defined using `[StructLayout(LayoutKind.Explicit, Size = 8)]`. This explicitly overlays the 8 individual DIS fields (Kind, Domain, Country, Category, Subcategory, Specific, Extra) directly on top of a single 64-bit `ulong Value` field at `[FieldOffset(0)]`. This memory layout allows the `EntityQuery` enumerator to perform lightning-fast filtering by applying a single CPU instruction: `(header.DisType.Value & _disFilterMask) != _disFilterValue`.
 
-However, to fix the DDS side so that monitoring tools can easily read the struct, you need to update your **Bagira.DDS.DataModel** and the boundary translators to use a dedicated `@final` DDS struct instead of a plain `ulong`.
+However, to fix the DDS side so that monitoring tools can easily read the struct, you need to update your **Hrot.NED** and the boundary translators to use a dedicated `@final` DDS struct instead of a plain `ulong`.
 
 1\. Update the DDS Data Model
 
-In `Bagira.DDS.DataModel/GenericDescriptors.cs`, define the new struct and update the `EntityMaster` topic. CycloneDDS will automatically treat simple structs as `@final` (non-extensible) if you don't add extensibility annotations.
+In `Hrot.NED/GenericDescriptors.cs`, define the new struct and update the `EntityMaster` topic. CycloneDDS will automatically treat simple structs as `@final` (non-extensible) if you don't add extensibility annotations.
 
 ```
 using CycloneDDS.Schema;
 
-namespace Bagira.BDC.SSTD
+namespace Hrot.NED.Descriptors
 {
     // New @final struct for the DDS wire
     [DdsStruct]
@@ -669,7 +669,7 @@ namespace Bagira.BDC.SSTD
 
 2\. Update the Egress Translator
 
-In `Bagira.Map.Common/Replication/Egress/EntityMasterEgressTranslator.cs`, map the FDP engine's `DISEntityType` to your new DDS struct before publishing.
+In `Hrot.Map.Common/Replication/Egress/EntityMasterEgressTranslator.cs`, map the FDP engine's `DISEntityType` to your new DDS struct before publishing.
 
 ```
 // Read the full struct from the engine header instead of just the Value
@@ -716,7 +716,7 @@ var engineDisType = new DISEntityType
 repo.SetDisType(entity, engineDisType); 
 ``` 
 
-_(Note: You will also need to apply the exact same field mapping to_ _ModuleHost.Network.Cyclone.Topics.EntityMasterTopic_ _and its corresponding translators in the_ _FDP/ModuleHost_ _namespace to keep the core networking layer aligned with your_ _Bagira_ _app layer)_.
+_(Note: You will also need to apply the exact same field mapping to_ _ModuleHost.Network.Cyclone.Topics.EntityMasterTopic_ _and its corresponding translators in the_ _FDP/ModuleHost_ _namespace to keep the core networking layer aligned with your_ _Hrot_ _app layer)_.
 
 \[IMPROVEMENT\] Entity inspector component change indication If the component content has changed since previous frame, the component's imgui representation should indicate it somehow (maybe changing the text color of the component's expander line for that frame when change was detected) For unmanaged component simple caching and memcmp might be ok; for managed ones it might be easier to ignore the change detection whatsoever as as managed ones can be very large and on each change we would need to clone a copy.
 
@@ -950,7 +950,7 @@ do we have many occurences in the codebase? How to convert it to zero-allocation
 
 Yes, this exact pattern is ubiquitous in your codebase. You will find `using var loan = _reader.Take();` (or `Take(maxSamples)`) in nearly every ingress translator and polling loop, including:
 
--   `AutoCycloneTranslator<T>.PollIngress`-   `EntityMasterIngressTranslator.PollIngress`-   `GeoSpatialIngressTranslator.PollIngress`-   `MissionControlRequestSystem.OnUpdate`-   `DdsIdAllocatorServer.ProcessRequests`
+-   `AutoCycloneTranslator<T>.PollIngress`-   `EntityMasterIngressTranslator.PollIngress`-   `WorldPosIngressTranslator.PollIngress`-   `MissionControlRequestSystem.OnUpdate`-   `DdsIdAllocatorServer.ProcessRequests`
 
 How to convert it to zero-allocation
 
@@ -964,13 +964,13 @@ The Catch: Payload Allocations
 
 While the `loan` object and the loop are 100% allocation-free, the **payload data** (`sample.Data`) might allocate depending on the DDS topic schema.
 
--   **Zero-Allocation Topics:** For strictly unmanaged topics (like `FireInteractionEvent` or `GeoSpatial`), the entire process from the network wire into your ECS is genuinely zero bytes allocated. Your `CycloneNativeEventTranslator` explicitly highlights this fast, zero-alloc path.-   **Managed Topics:** In your specific snippet, the topic is `CreateEntityRequest`. If you look at its schema, it contains `[DdsManaged]` fields like `List<EntityDescriptorUnion>` and `string?`. When CycloneDDS deserialises this specific message, it _must_ allocate heap memory for the list and the string.
+-   **Zero-Allocation Topics:** For strictly unmanaged topics (like `FireInteractionEvent` or `WorldPos`), the entire process from the network wire into your ECS is genuinely zero bytes allocated. Your `CycloneNativeEventTranslator` explicitly highlights this fast, zero-alloc path.-   **Managed Topics:** In your specific snippet, the topic is `CreateEntityRequest`. If you look at its schema, it contains `[DdsManaged]` fields like `List<EntityDescriptorUnion>` and `string?`. When CycloneDDS deserialises this specific message, it _must_ allocate heap memory for the list and the string.
 
 **Conclusion:** The allocation you might be seeing in a profiler is caused by CycloneDDS materialising the `List<>` and `string` fields inside `CreateEntityRequest`, not by the `loan` or the `Take()` method. The `using var loan = _reader.Take();` pattern is already perfectly optimized for the hot path and should be left exactly as it is.
 
 \[BUG\] allocation on hot path
 
-Bagira.SimHost\\Systems\\CreateEntityRequestSystem.cs creates lambda every tick
+Hrot.SimHost\\Systems\\CreateEntityRequestSystem.cs creates lambda every tick
 
 ```
     public void Execute(ISimulationView view, float deltaTime)
@@ -992,7 +992,7 @@ Because it captures `this`, the C# compiler cannot cache the delegate statically
 
 To completely eliminate this hot-path allocation, you should extract the lambda into a private method and manually cache the delegate in a `readonly` field during the system's construction.
 
-Here is the zero-allocation fix for **Bagira.SimHost\\Systems\\CreateEntityRequestSystem.cs**:
+Here is the zero-allocation fix for **Hrot.SimHost\\Systems\\CreateEntityRequestSystem.cs**:
 
 1\. Add a cached delegate field
 

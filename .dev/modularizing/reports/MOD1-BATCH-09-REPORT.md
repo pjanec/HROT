@@ -10,10 +10,10 @@
 ## Completion Checklist
 
 - [x] `SimulationLogicModule` skips sub-modules that are irrelevant for the current `NodeRole`.
-- [x] `FDP.Framework.Runner` compiles with zero `Bagira.*` references.
+- [x] `FDP.Framework.Runner` compiles with zero `Hrot.*` references.
 - [x] `SubsystemOrchestrator` is in `FDP.Framework.Runner` with no hardcoded concrete type references.
-- [x] `Bagira.Runner.Program` is a pure composition root: parse args → construct subsystems → inject → run.
-- [x] `Bagira.Runner -x all` integration tests pass unconditionally.
+- [x] `Hrot.ClusterRunner.Program` is a pure composition root: parse args → construct subsystems → inject → run.
+- [x] `Hrot.ClusterRunner -x all` integration tests pass unconditionally.
 - [x] All unit and integration test suites pass with 0 failures.
 
 ---
@@ -24,14 +24,14 @@ Full solution run: `dotnet test IOS-IG-SimHost.sln`
 
 | Assembly | Failed | Passed | Skipped |
 |---|---|---|---|
-| Bagira.DDS.DataModel.Tests | 0 | 16 | 0 |
-| Bagira.IG.Tests | 0 | 304 | 0 |
-| Bagira.IOS.Tests | 0 | 270 | 0 |
-| Bagira.Runner.Tests | 0 | 99 | 0 |
-| Bagira.Runner.Integration.Tests | 0 | 31 | 0 |
-| Bagira.SimHost.Tests | 0 | 170 | 0 |
-| Bagira.SimHost.Integration.Tests | 0 | 28 | 0 |
-| Bagira.Map.Common.Tests | 0 | 28 | 0 |
+| Hrot.NED.Tests | 0 | 16 | 0 |
+| Hrot.IG.Tests | 0 | 304 | 0 |
+| Hrot.ExCon.Tests | 0 | 270 | 0 |
+| Hrot.ClusterRunner.Tests | 0 | 99 | 0 |
+| Hrot.ClusterRunner.Integration.Tests | 0 | 31 | 0 |
+| Hrot.SimHost.Tests | 0 | 170 | 0 |
+| Hrot.SimHost.Integration.Tests | 0 | 28 | 0 |
+| Hrot.Map.Common.Tests | 0 | 28 | 0 |
 | Fdp.Tests | 0 | 691 | 2 |
 | FDP.Framework.Raylib.Tests | 0 | 2 | 0 |
 | FDP.Toolkit.*.Tests (all) | 0 | 238 | 1 |
@@ -42,7 +42,7 @@ Full solution run: `dotnet test IOS-IG-SimHost.sln`
 
 > *`FDPLT_016_Partial_Ownership_BiDirectional_Updates` failed once when the full suite ran in parallel (DDS domain interference) but passes consistently in isolation (11 s). This is a pre-existing flaky test unrelated to this batch. All batches tests pass individually.
 
-**Other note:** `Bagira.IOS.Tests` initially failed (5 tests). Root cause: `SpawnerPanel.HandleActivatePlacementTool` and `OrbatPanel.HandleNewUnitClick` were calling `IIosLogic.StartPlacementMode(long, EntityPropertyPatch)` instead of `IIosLogic.StartPlacementMode(long, string?)`. Fixed by serializing the `EntityPropertyPatch` to JSON with `StringEnumConverter` (so affiliation names appear as human-readable strings like `"FORCE_FRIENDLY"`) and calling the string overload directly. This matches the intent expressed in the test assertions and the doc comment on `HandleActivatePlacementTool`.
+**Other note:** `Hrot.ExCon.Tests` initially failed (5 tests). Root cause: `SpawnerPanel.HandleActivatePlacementTool` and `OrbatPanel.HandleNewUnitClick` were calling `IIosLogic.StartPlacementMode(long, EntityPropertyPatch)` instead of `IIosLogic.StartPlacementMode(long, string?)`. Fixed by serializing the `EntityPropertyPatch` to JSON with `StringEnumConverter` (so affiliation names appear as human-readable strings like `"FORCE_FRIENDLY"`) and calling the string overload directly. This matches the intent expressed in the test assertions and the doc comment on `HandleActivatePlacementTool`.
 
 ---
 
@@ -70,11 +70,11 @@ The five sub-modules and their role assignments:
 
 ---
 
-### Q2: P9T2 — Bagira-Specific Lines Removed from `SubsystemOrchestrator`
+### Q2: P9T2 — Hrot-Specific Lines Removed from `SubsystemOrchestrator`
 
-The original `Bagira.Runner.Services.SubsystemOrchestrator.cs` was ~350 lines. The FDP replacement (`FDP.Framework.Runner.SubsystemOrchestrator.cs`) is 209 lines. The Bagira stub is now 7 lines (a `// forward-compat redirect` comment only).
+The original `Hrot.ClusterRunner.Services.SubsystemOrchestrator.cs` was ~350 lines. The FDP replacement (`FDP.Framework.Runner.SubsystemOrchestrator.cs`) is 209 lines. The Hrot stub is now 7 lines (a `// forward-compat redirect` comment only).
 
-**Bagira-specific code removed (~140 lines):**
+**Hrot-specific code removed (~140 lines):**
 
 1. **`BuildSubsystems` factory method** (~60 lines): created `SimHostSubsystem`, `IgSubsystem`, `IosSubsystem` by direct instantiation with all their constructor parameters (Raylib windows, DDS domain config, WorldBuilder, etc.). This was replaced by constructor injection — the caller (now `Program.cs`) constructs subsystems and passes them in as `IEnumerable<ISubsystem>`.
 
@@ -82,7 +82,7 @@ The original `Bagira.Runner.Services.SubsystemOrchestrator.cs` was ~350 lines. T
 
 3. **`FindMapCameraProvider()` with hardcoded cast** (~15 lines): cast to `IgSubsystem` to get the camera provider. Replaced with `subsystems.OfType<IMapCameraProvider>().FirstOrDefault()`.
 
-4. **Mode-string parsing and config loading** (~40 lines): `BagiraRunnerConfiguration.ParseModeString()` logic, JSON config merging. Now lives in `BagiraRunnerConfiguration` in `Bagira.Runner`, not in the orchestrator.
+4. **Mode-string parsing and config loading** (~40 lines): `HrotRunnerConfiguration.ParseModeString()` logic, JSON config merging. Now lives in `HrotRunnerConfiguration` in `Hrot.ClusterRunner`, not in the orchestrator.
 
 **Nothing was harder to generalize than expected.** The `TitleBarColor` + `IMapCameraProvider` pattern cleanly replaced both hardcoded concerns. The most mechanical part was untangling the DDS `SubsystemStatusAnnounce` type (see Q4).
 
@@ -93,16 +93,16 @@ The original `Bagira.Runner.Services.SubsystemOrchestrator.cs` was ~350 lines. T
 Zero. Running:
 
 ```
-Select-String -Path "Bagira.Runner\Program.cs" -Pattern "Raylib|ImGui|ImGuiNET"
+Select-String -Path "Hrot.ClusterRunner\Program.cs" -Pattern "Raylib|ImGui|ImGuiNET"
 ```
 
 returns no matches.
 
 All Raylib and ImGui calls are encapsulated inside `FDP.Framework.Runner.SubsystemOrchestrator`. `Program.cs` imports only:
 - `CommandLine` (argument parsing)
-- `Bagira.Map.Common` (MapConfig)
-- `Bagira.Runner.Configuration` (BagiraRunnerConfiguration)
-- `Bagira.Runner.Services` (concrete subsystem constructors)
+- `Hrot.Map.Common` (MapConfig)
+- `Hrot.ClusterRunner.Configuration` (HrotRunnerConfiguration)
+- `Hrot.ClusterRunner.Services` (concrete subsystem constructors)
 - `CycloneDDS.Runtime` (DdsApplication)
 - `NLog` (logging setup)
 
@@ -110,9 +110,9 @@ All Raylib and ImGui calls are encapsulated inside `FDP.Framework.Runner.Subsyst
 
 ### Q4: Circular Dependency Issues
 
-**One issue discovered:** `WaitingRoomCoordinator` in the original `Bagira.Runner` referenced `SubsystemStatusAnnounce` from `Bagira.DDS.DataModel.Runner`. Moving `WaitingRoomCoordinator` to `FDP.Framework.Runner` while keeping the DDS message type in `Bagira.DDS.DataModel` would create a `FDP → Bagira` reference (forbidden).
+**One issue discovered:** `WaitingRoomCoordinator` in the original `Hrot.ClusterRunner` referenced `SubsystemStatusAnnounce` from `Hrot.NED.Runner`. Moving `WaitingRoomCoordinator` to `FDP.Framework.Runner` while keeping the DDS message type in `Hrot.NED` would create a `FDP → Hrot` reference (forbidden).
 
-**Solution:** Created a duplicate `FDP.Framework.Runner.SubsystemStatusAnnounce` struct with the **same DDS topic name** (`"SubsystemStatusAnnounce"`) and identical field layout. This preserves wire compatibility — WaitingRoomCoordinator instances in `FDP` processes and `Bagira` processes exchange the same DDS samples over the same topic. The Bagira `SubsystemStatusAnnounce` is retained for backward compat with any remaining Bagira consumers.
+**Solution:** Created a duplicate `FDP.Framework.Runner.SubsystemStatusAnnounce` struct with the **same DDS topic name** (`"SubsystemStatusAnnounce"`) and identical field layout. This preserves wire compatibility — WaitingRoomCoordinator instances in `FDP` processes and `Hrot` processes exchange the same DDS samples over the same topic. The Hrot `SubsystemStatusAnnounce` is retained for backward compat with any remaining Hrot consumers.
 
 **No other circular dependencies were found.** The FDP types (`ISubsystem`, `SubsystemOrchestrator`, `RunnerConfiguration`, `HeadlessTestExecutor`, etc.) depend only on `Fdp.Kernel`, `ModuleHost.Core`, `FDP.Toolkit.Vis2D`, CycloneDDS, Raylib, and standard .NET — all permitted dependencies.
 

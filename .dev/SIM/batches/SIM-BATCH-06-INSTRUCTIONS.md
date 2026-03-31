@@ -19,7 +19,7 @@ Welcome back! With the main simulation application up and running locally, Phase
 2. **Task Definitions:** `docs/design/TASK-DETAILS-SIMHOST.md#phase-s6-integration-testing-3-days`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost.Integration.Tests/` (Create this project if it doesn't exist yet, or run integration tests inside `Bagira.SimHost.Tests/Integration/`)
+- **Primary Work Area:** `Hrot.SimHost.Integration.Tests/` (Create this project if it doesn't exist yet, or run integration tests inside `Hrot.SimHost.Tests/Integration/`)
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -46,7 +46,7 @@ Welcome back! With the main simulation application up and running locally, Phase
 
 ## Context
 
-Inside `Bagira.SimHost.Integration.Tests/`, we need test classes that spin up the *entire* backend locally with `DomainParticipant` objects mirroring real networking IO, communicating via `.SendCreateRequest(..)` simulating our IOS/IG clients.
+Inside `Hrot.SimHost.Integration.Tests/`, we need test classes that spin up the *entire* backend locally with `DomainParticipant` objects mirroring real networking IO, communicating via `.SendCreateRequest(..)` simulating our IOS/IG clients.
 
 ---
 
@@ -62,7 +62,7 @@ Inside `Bagira.SimHost.Integration.Tests/`, we need test classes that spin up th
 
 ### Task 1: Test Entity Creation Flow (TASK-S6.1)
 
-**File:** `Bagira.SimHost.Integration.Tests/EntityCreationFlowTests.cs`
+**File:** `Hrot.SimHost.Integration.Tests/EntityCreationFlowTests.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s61-test-entity-creation-flow)
 
@@ -75,7 +75,7 @@ Inside `Bagira.SimHost.Integration.Tests/`, we need test classes that spin up th
 
 ### Task 2: Test Mission Execution (TASK-S6.2)
 
-**File:** `Bagira.SimHost.Integration.Tests/MissionExecutionFlowTests.cs`
+**File:** `Hrot.SimHost.Integration.Tests/MissionExecutionFlowTests.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s62-test-mission-execution)
 
@@ -83,13 +83,13 @@ Inside `Bagira.SimHost.Integration.Tests/`, we need test classes that spin up th
 1. Wait for `EntityCreationFlow` ACK inside your test runtime.
 2. Publish `EntityMission` pointing the network entity to `MoveToLocation`.
 3. Start the node loop for 10 seconds locally.
-4. Capture `GeoSpatial` read points verifying the vehicle was translated accurately over frame ticks.
+4. Capture `WorldPos` read points verifying the vehicle was translated accurately over frame ticks.
 
 ---
 
 ### Task 3: Performance Testing (TASK-S6.3)
 
-**File:** `Bagira.SimHost.Integration.Tests/PerformanceTests.cs`
+**File:** `Hrot.SimHost.Integration.Tests/PerformanceTests.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s63-performance-testing)
 

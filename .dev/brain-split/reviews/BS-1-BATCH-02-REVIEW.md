@@ -17,7 +17,7 @@ Implemented the first end-to-end Weapon Fire CQRS transport cut: added `WeaponFi
 
 ### Issue 1: “Skip silently” requirement vs debug logging
 
-**File:** `Bagira.SimHost/Network/Ingress/WeaponFireRequestIngressTranslator.cs`  
+**File:** `Hrot.SimHost/Network/Ingress/WeaponFireRequestIngressTranslator.cs`  
 **Problem:** When entities are missing, `ProcessSample` logs `FdpLog<WeaponFireRequestIngressTranslator>.Debug(...)`. The task spec for BS1-T006 says to “skip silently (no exception)” when either entity is not found. Logging at debug level may still violate the spec intent (high-frequency noise).
 **Fix:** Remove the log lines or gate them behind a build-time / config flag that defaults off.
 
@@ -33,7 +33,7 @@ Implemented the first end-to-end Weapon Fire CQRS transport cut: added `WeaponFi
 
 ### Issue 3: Design risk (not in this batch’s scope)
 
-**File:** `Bagira.SimHost/Modules/CombatModule.cs`, `Bagira.SimHost/NodeBootstrapper.cs` (context)  
+**File:** `Hrot.SimHost/Modules/CombatModule.cs`, `Hrot.SimHost/NodeBootstrapper.cs` (context)  
 **Problem:** `FireProcessingSystem` spawns bullets without an authority gate. This is acceptable as a POC as long as role assignment (BS1-T016) is handled next; otherwise Brain-tier execution could spawn bullets in a distributed topology.
 **Fix:** Address in Phase 4 via BS1-T016 role reconfiguration + any needed authority gating.
 

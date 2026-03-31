@@ -24,7 +24,7 @@ CGF-1-BATCH-16 delivered two workstreams:
   and 6 success-condition tests.
 
 Build: clean (zero new errors, pre-existing warnings only).  
-Tests: 380/380 in `Bagira.SimHost.Tests`; 16/16 in `FDP.Toolkit.Replay.Tests`; 3/3 new
+Tests: 380/380 in `Hrot.SimHost.Tests`; 16/16 in `FDP.Toolkit.Replay.Tests`; 3/3 new
 `NetworkLifecycleSystemGroupTests`; 1/1 new `SeekToWallClockTicks_UsesBinarySearch`.
 Full test suites pass.
 
@@ -38,8 +38,8 @@ Full test suites pass.
 
 **Changes:**
 - Updated §CGF1-S0309 "Work to do" item 1: file path changed from
-  `Bagira.SimHost/Modules/Orchestration/Handlers/DryRunDsmHandler.cs` to
-  `Bagira.Common/Orchestration/Handlers/DryRunDsmHandler.cs` (correct project).
+  `Hrot.SimHost/Modules/Orchestration/Handlers/DryRunDsmHandler.cs` to
+  `Hrot.Common/Orchestration/Handlers/DryRunDsmHandler.cs` (correct project).
 - Replaced `SimPosition` / rigid entity-count prose with normative language referencing
   `DryRunTestPos (ComponentId 210)`.
 - Updated registration note to reference `NodeBootstrapper.BuildOrchestration`.
@@ -50,7 +50,7 @@ Full test suites pass.
 
 ### A.2 — Strengthen `UnloadingDryRun_RewindsLiveRepo`
 
-**File:** `Bagira.SimHost.Tests/DryRunDsmHandlerTests.cs`
+**File:** `Hrot.SimHost.Tests/DryRunDsmHandlerTests.cs`
 
 **Changes:** Rewrote test to the pattern mandated by the updated task detail:
 1. Create 4 entities with `DryRunTestPos` values `(i*10, i*20, i*30)`.
@@ -71,7 +71,7 @@ This proves `SyncFrom` removes entities created during the dry run, not only rev
 
 ### A.3 — Checkpoint storage path configurability
 
-**Files:** `Bagira.SimHost/NodeConfiguration.cs`, `Bagira.SimHost/SimHostApp.cs`
+**Files:** `Hrot.SimHost/NodeConfiguration.cs`, `Hrot.SimHost/SimHostApp.cs`
 
 **Changes:**
 - Added `LocalTempRoot` property to `NodeConfiguration` (default `@"C:\FDP_Temp"`); fully
@@ -108,7 +108,7 @@ Three rows targeting CGF-1-BATCH-16 in `.dev/DEBT-TRACKER.md` closed with ✅
 
 **New file:** `FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs`
 
-Pure FDP interface with no Bagira references:
+Pure FDP interface with no Hrot references:
 ```csharp
 Task PrepareRecordingAsync(Guid drillId, string storageDirectory);
 Task FinalizeRecordingAsync();
@@ -158,7 +158,7 @@ Gates three network lifecycle systems (`LifecycleSystem`, `GhostPromotionSystem`
 
 ### B.5 — `EcsRecordReplayController.FinalizeRecordingAsync`
 
-**File:** `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
+**File:** `Hrot.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
 
 Updated signature to `FinalizeRecordingAsync(long maxNetworkId = 0)` — sets
 `MaxNetworkId` on the `RecordingModule` before uninstalling so the value is
@@ -168,7 +168,7 @@ flushed to `.meta.json` by `RecordingModule.Dispose()`.
 
 ### B.6 — `LiveLoadDsmHandler` full implementation
 
-**File:** `Bagira.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs`
+**File:** `Hrot.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs`
 
 Replaced the Phase 2.0 stub with the full S0304 implementation:
 - Constructor gains `EcsRecordReplayController? controller` and `string storageDirectory`
@@ -176,13 +176,13 @@ Replaced the Phase 2.0 stub with the full S0304 implementation:
 - `PrepareAsync(PrepareLive)`: calls `controller.PrepareRecordingAsync(drillId, storageDir)`.
 - `PrepareAsync(FinalizeLive)`: awaits checkpoint drain (CDG1-S0303); calls
   `controller.FinalizeRecordingAsync()`.
-- `DrillId` parsed from `cmd.PayloadJson["DrillId"]` (falls back to `Guid.NewGuid()`).
+- `ExerciseId` parsed from `cmd.PayloadJson["ExerciseId"]` (falls back to `Guid.NewGuid()`).
 
 ---
 
 ### B.7 — `ReplayLoadDsmHandler`
 
-**New file:** `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
+**New file:** `Hrot.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
 
 Handles `NodeOpType.PrepareReplay` and `NodeOpType.FinalizeReplay`:
 
@@ -196,7 +196,7 @@ Handles `NodeOpType.PrepareReplay` and `NodeOpType.FinalizeReplay`:
 
 ### B.8 — `NodeBootstrapper` registration
 
-**File:** `Bagira.SimHost/NodeBootstrapper.cs`
+**File:** `Hrot.SimHost/NodeBootstrapper.cs`
 
 `BuildOrchestration` gains three optional parameters:
 ```csharp
@@ -206,7 +206,7 @@ GhostCreationSystem?              ghostCreationSystem = null
 ```
 
 When all three are provided and the role is Brain/AllInOne, a `ReplayLoadDsmHandler` is
-registered with the `DrillSlave`. `LiveLoadDsmHandler` now receives the `EcsRecordReplayController`
+registered with the `ClusterSlave`. `LiveLoadDsmHandler` now receives the `EcsRecordReplayController`
 instance and `localTempRoot` for recording start/stop.
 
 ---
@@ -217,10 +217,10 @@ instance and `localTempRoot` for recording start/stop.
 |------|----------|--------|
 | `RecordingModuleTests.AfterInstall_RecorderTickSystemIsRegistered` | `FDP.Toolkit.Replay.Tests` | ✅ Pass |
 | `RecordingModuleTests.AfterUninstall_RecorderTickSystemIsAbsent` | `FDP.Toolkit.Replay.Tests` | ✅ Pass |
-| `EcsRecordReplayControllerTests.FinalizeRecording_WritesMetaJson` | `Bagira.SimHost.Tests` | ✅ Pass |
+| `EcsRecordReplayControllerTests.FinalizeRecording_WritesMetaJson` | `Hrot.SimHost.Tests` | ✅ Pass |
 | `PlaybackControllerTests.SeekToWallClockTicks_UsesBinarySearch` | `Fdp.Kernel.Tests` | ✅ Pass |
 | `NetworkLifecycleSystemGroupTests.Enabled_False_SkipsAllInnerSystems` | `ModuleHost.Core.Tests` | ✅ Pass |
-| `ReplayLoadDsmHandlerTests.FullReplayTransition_DisablesSimGroups` | `Bagira.SimHost.Tests` | ✅ Pass |
+| `ReplayLoadDsmHandlerTests.FullReplayTransition_DisablesSimGroups` | `Hrot.SimHost.Tests` | ✅ Pass |
 
 Additional coverage tests added:
 - `NetworkLifecycleSystemGroupTests.Enabled_True_ExecutesAllInnerSystems`
@@ -233,7 +233,7 @@ Additional coverage tests added:
 
 | Assembly | Passed | Failed | Total |
 |----------|--------|--------|-------|
-| `Bagira.SimHost.Tests` | 380 | 0 | 380 |
+| `Hrot.SimHost.Tests` | 380 | 0 | 380 |
 | `FDP.Toolkit.Replay.Tests` | 16 | 0 | 16 |
 | `ModuleHost.Core.Tests` | +3 new | 0 | — |
 | `Fdp.Kernel.Tests (Fdp.Tests)` | +1 new | 0 | 720 |
@@ -247,8 +247,8 @@ Pre-existing intermittent flaky tests in `Fdp.Kernel.Tests/CheckpointIOWorkerTes
 
 ```
 Build succeeded.
-0 Error(s) — Bagira.SimHost
-0 Error(s) — Bagira.SimHost.Tests
+0 Error(s) — Hrot.SimHost
+0 Error(s) — Hrot.SimHost.Tests
 0 Error(s) — FDP.Toolkit.Replay.Tests
 0 Error(s) — ModuleHost.Core.Tests
 0 Error(s) — Fdp.Kernel.Tests
@@ -261,20 +261,20 @@ Build succeeded.
 **New files:**
 - `FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs`
 - `FDP/ModuleHost/ModuleHost.Core/Scheduling/NetworkLifecycleSystemGroup.cs`
-- `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
+- `Hrot.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
 - `FDP/ModuleHost/ModuleHost.Core.Tests/NetworkLifecycleSystemGroupTests.cs`
-- `Bagira.SimHost.Tests/ReplayLoadDsmHandlerTests.cs`
+- `Hrot.SimHost.Tests/ReplayLoadDsmHandlerTests.cs`
 
 **Modified files:**
 - `.dev/cgf-1/CGF-1-TASK-DETAIL.md` (§S0309 path + DryRunTestPos; §S0303 wording)
 - `.dev/cgf-1/CGF-1-TASK-TRACKER.md` (CGF1-S0304 marked `[x]`)
 - `.dev/DEBT-TRACKER.md` (3 rows closed)
-- `Bagira.SimHost.Tests/DryRunDsmHandlerTests.cs` (test strengthened)
-- `Bagira.SimHost/NodeConfiguration.cs` (`LocalTempRoot` property)
-- `Bagira.SimHost/SimHostApp.cs` (checkpoint path derivation)
-- `Bagira.SimHost/NodeBootstrapper.cs` (replay handler registration; new params)
-- `Bagira.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs` (full impl)
-- `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` (`FinalizeRecordingAsync(maxNetworkId)`)
+- `Hrot.SimHost.Tests/DryRunDsmHandlerTests.cs` (test strengthened)
+- `Hrot.SimHost/NodeConfiguration.cs` (`LocalTempRoot` property)
+- `Hrot.SimHost/SimHostApp.cs` (checkpoint path derivation)
+- `Hrot.SimHost/NodeBootstrapper.cs` (replay handler registration; new params)
+- `Hrot.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs` (full impl)
+- `Hrot.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` (`FinalizeRecordingAsync(maxNetworkId)`)
 - `FDP/Kernel/Fdp.Kernel/FlightRecorder/Metadata/RecordingMetadata.cs` (`MaxNetworkId`)
 - `FDP/Kernel/Fdp.Kernel/FlightRecorder/AsyncRecorder.cs` (`MaxNetworkId` + Dispose)
 - `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackController.cs` (`Metadata` property)
@@ -282,5 +282,5 @@ Build succeeded.
 - `FDP/Toolkits/FDP.Toolkit.Replay/ReplayModule.cs` (`MaxNetworkId` property)
 - `FDP/Toolkits/FDP.Toolkit.Replication/Systems/GhostCreationSystem.cs` (`BypassLifecycle`)
 - `FDP/Toolkits/FDP.Toolkit.Replay.Tests/RecordingModuleTests.cs` (2 new tests)
-- `Bagira.SimHost.Tests/EcsRecordReplayControllerTests.cs` (`FinalizeRecording_WritesMetaJson`)
+- `Hrot.SimHost.Tests/EcsRecordReplayControllerTests.cs` (`FinalizeRecording_WritesMetaJson`)
 - `FDP/Kernel/Fdp.Kernel.Tests/PlaybackControllerTests.cs` (`SeekToWallClockTicks_UsesBinarySearch`)

@@ -14,10 +14,10 @@
 | Item | Verdict |
 |------|---------|
 | **A.1 CGF record/replay / live** | **Met per report** — `CgfRecordReplayController`, handler chain, stub removal; `CgfHandlerRegistrationTests` called out. |
-| **A.2 IG DSM participation** | **Met per report** — `ListenerRecordReplayController`, `IgBattlespaceDummyHandler`, prefetch/replay/live/dry-run chain; `TestHook_DrillSlave` noted. |
-| **A.3 IOS stubs** | **Met per report** — thin `Reference*` handlers on IOS `DrillSlave`; `IosHandlerRegistrationTests`. **Report nit:** wiring lives in **`IosSubsystem.Initialize`**, not a separate `InitializeDrillSlave` method name (cosmetic). |
+| **A.2 IG DSM participation** | **Met per report** — `ListenerRecordReplayController`, `IgZoneDummyHandler`, prefetch/replay/live/dry-run chain; `TestHook_ClusterSlave` noted. |
+| **A.3 IOS stubs** | **Met per report** — thin `Reference*` handlers on IOS `ClusterSlave`; `IosHandlerRegistrationTests`. **Report nit:** wiring lives in **`IosSubsystem.Initialize`**, not a separate `InitializeClusterSlave` method name (cosmetic). |
 | **A.4 Orchestrator globals** | **Met per report** — `ScenarioTimeSeconds`, `ScenarioId` on `GlobalContextDto` / publish path; ECS-free constraint respected. |
-| **A.5 DrillMaster / planner API** | **Accepted** — justified by S0106 panel; ensure **XML / visibility** stays intentional (public surface for UI + tests). |
+| **A.5 ClusterMaster / planner API** | **Accepted** — justified by S0106 panel; ensure **XML / visibility** stays intentional (public surface for UI + tests). |
 | **A.6 Wiring matrix** | **Useful** — treat as **normative for audits** until TASK-DETAIL/DESIGN absorb it. |
 
 ---
@@ -26,7 +26,7 @@
 
 | Item | Verdict |
 |------|---------|
-| **OrchestratorScenarioPanel** | **Met per report** — six sections, beige `ChildBg`, `DrillMaster` ctor guard, tests listed. |
+| **OrchestratorScenarioPanel** | **Met per report** — six sections, beige `ChildBg`, `ClusterMaster` ctor guard, tests listed. |
 | **Deferral of S0310** | **Correct** — aligns with batch instructions (S0106 prioritized over S0310). **Carry S0310 to [CGF-1-BATCH-24](../batches/CGF-1-BATCH-24-INSTRUCTIONS.md). |
 
 ---
@@ -43,7 +43,7 @@
 
 ## Follow-ups (not regressions)
 
-1. **`Bagira.Runner -m all` orchestration identity** — multiple subsystems in one process must use **pairwise-distinct** `nodeId` values for `DrillSlave` / roster semantics. See **CGF-1-BATCH-24** §Part B (or §A.7 depending on batch structure).
+1. **`Hrot.ClusterRunner -m all` orchestration identity** — multiple subsystems in one process must use **pairwise-distinct** `nodeId` values for `ClusterSlave` / roster semantics. See **CGF-1-BATCH-24** §Part B (or §A.7 depending on batch structure).
 2. **S0310** — E2E DSM script suite per TASK-DETAIL.
 
 ---

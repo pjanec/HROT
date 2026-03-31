@@ -22,9 +22,9 @@ Welcome back! In BATCH-01, the core IOS services (Transaction Manager, Mission E
 5. **Debt Tracker:** `.dev-workstream/IOS-DEBT-TRACKER.md` - Track deferred structural items! Note that we use a project-specific debt tracker named `IOS-DEBT-TRACKER.md`.
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IOS/Panels/`
+- **Primary Work Area:** `Hrot.ExCon/Panels/`
 - **Solution File:** `IOS-IG-SimHost.sln`
-- **Tests Location:** `Bagira.IOS.Tests/`
+- **Tests Location:** `Hrot.ExCon.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -73,23 +73,23 @@ This batch constructs the visual operator interfaces (`rlImGui`) mapping to the 
 ## ✅ Tasks
 
 ### Task 1: Configuration Panel (IOS.7.1)
-**Files:** `Bagira.IOS/Panels/ConfigPanel.cs`
+**Files:** `Hrot.ExCon/Panels/ConfigPanel.cs`
 **Requirements:** Implementation from snippet provided in TASK-DETAILS-IOS. Ensure patch formats generate proper JSON structures correlating to interaction types.
 
 ### Task 2: ORBAT Hierarchy Panel (IOS.7.2)
-**Files:** `Bagira.IOS/Panels/OrbatPanel.cs`
+**Files:** `Hrot.ExCon/Panels/OrbatPanel.cs`
 **Requirements:** Render an explicit command structure hierarchy based on `info.CommanderId`. Ensure recursive node generation handles depth gracefully and doesn't stack overflow on malformed cycles (guard for this!).
 
 ### Task 3: Mission Panel (IOS.7.3)
-**Files:** `Bagira.IOS/Panels/MissionPanel.cs`
+**Files:** `Hrot.ExCon/Panels/MissionPanel.cs`
 **Requirements:** Interface directly with `MissionEditorService` built in BATCH-01. Display `MissionTask` array elements visually and provide buttons corresponding to sending jump/abort network commands.
 
 ### Task 4: Interaction Panel / Event Log (IOS.7.4)
-**Files:** `Bagira.IOS/Panels/InteractionPanel.cs`
+**Files:** `Hrot.ExCon/Panels/InteractionPanel.cs`
 **Requirements:** Visual diagnostic panel rendering up to a maximum number of history logs. Avoid allocations strictly in UI render logic—maintain an internal ring-buffer or tightly controlled list capacity.
 
 ### Task 5: Spawner Panel (IOS.7.5)
-**Files:** `Bagira.IOS/Panels/SpawnerPanel.cs`
+**Files:** `Hrot.ExCon/Panels/SpawnerPanel.cs`
 **Requirements:** Must interrogate real/mock TKB catalogs. Make sure that filtering logic is case-insensitive. Provide controls defining the `eAffiliation` state correctly when `IosLogic.StartPlacementMode` is invoked.
 
 ---

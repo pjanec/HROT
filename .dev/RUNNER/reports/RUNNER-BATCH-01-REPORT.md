@@ -91,14 +91,14 @@ The most significant issue: existing tests auto-assign IDs starting from 0. When
 | `Fdp.Kernel` | 8 | `SimTransform`, `SimVelocity`, `HealthData`, `GlobalTime`, `IsActiveTag`, `LifecycleDescriptor`, `HierarchyNode`, `PartDescriptor` |
 | `FDP.Toolkit.Replication` | 6 | `NetworkIdentity`, `NetworkAuthority`, `NetworkPosition`, `NetworkVelocity`, `NetworkSpawnRequest`, `PartMetadata` |
 | `FDP.Toolkit.Vis2D` | 4 | `MapDisplayComponent`, `VisHierarchyNode`, `AggregateState`, `AggregateRoot` |
-| `Bagira.IG` | 5 | `ResolvedStyle`, `CullingState`, `SelectionState`, `VisualEffectState`, `TracerTarget` |
+| `Hrot.IG` | 5 | `ResolvedStyle`, `CullingState`, `SelectionState`, `VisualEffectState`, `TracerTarget` |
 | **Total** | **23** | |
 
 Structs skipped (not ECS components):
 - `RenderContext` (Vis2D abstractions — rendering context, not an ECS component)
 - `SortedHierarchyData` (Vis2D internal system data, not registered in EntityRepository)
 - `OwnershipUpdate`, `DescriptorAuthorityChanged` (Replication *event* structs, not component structs)
-- `FireInteractionEvent` (Bagira.IG event, not component)
+- `FireInteractionEvent` (Hrot.IG event, not component)
 - All test structs (`Position`, `Velocity`, `Health`, etc.)
 
 ---

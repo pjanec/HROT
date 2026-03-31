@@ -22,7 +22,7 @@ Welcome back! BATCH-04 finalized the core integration testing and proved the ove
 5. **Debt Tracker:** `.dev-workstream/IOS-DEBT-TRACKER.md` - If you touch `IDerEntity.GetDescriptor<T>`, please attempt to address IOS-DEBT-029.
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IOS/Panels/`, `Bagira.IOS.Tests/`
+- **Primary Work Area:** `Hrot.ExCon/Panels/`, `Hrot.ExCon.Tests/`
 - **Solution File:** `IOS-IG-SimHost.sln`
 
 ### Report Submission
@@ -66,22 +66,22 @@ Phase P10 pushes the minimal viable product of the IOS Mock into a robust diagno
 ## ✅ Tasks
 
 ### Task 1: Inspector Panel (IOS.10.1)
-**Files:** `Bagira.IOS/Panels/InspectorPanel.cs`
+**Files:** `Hrot.ExCon/Panels/InspectorPanel.cs`
 **Description:** Implement `InspectorPanel` which subscribes to the `IosLogic`'s currently selected entity.
 **Requirements:** When an entity is selected, query the `IDerRepo` for all active descriptors. Map their field properties out through ImGui dynamically (using reflection or explicit mapping per descriptor). Expose raw data for diagnostic validation.
 
 ### Task 2: Diagnostics Panel (IOS.10.2)
-**Files:** `Bagira.IOS/Panels/DiagnosticsPanel.cs`
+**Files:** `Hrot.ExCon/Panels/DiagnosticsPanel.cs`
 **Description:** A dashboard panel providing runtime diagnostics.
 **Requirements:** Interface with `TransactionManager.GetPendingRequests()` to display a live queue of currently pending DDS interactions. Show the entity count from the Repo. Calculate metrics (e.g. DDS events per second if trackable). 
 
 ### Task 3: Conflict Detection UI (IOS.10.3)
-**Files:** `Bagira.IOS/Panels/MissionPanel.cs` (or create a dedicated alert overlay)
+**Files:** `Hrot.ExCon/Panels/MissionPanel.cs` (or create a dedicated alert overlay)
 **Description:** Display a user-facing visual prompt when a mission commit is rejected due to version conflicts.
 **Requirements:** Intercept the `Success=false` / `ErrorCode=7` trace from `MissionEditorService`. Halt the user with an ImGui Modal window showing the conflict message retrieved.
 
 ### Task 4: Multi-IOS Synchronization Tests (IOS.10.4)
-**Files:** `Bagira.IOS.Tests/MultiIosIntegrationTests.cs`
+**Files:** `Hrot.ExCon.Tests/MultiIosIntegrationTests.cs`
 **Description:** Write integration tests simulating two `IosLogic` environments editing the same entity concurrently.
 **Requirements:** Boot two distinct IOS instances hitting the same mocked `IDerRepo` network events. Issue competing `CommitMissionAsync` changes and verify that the optimistic locking appropriately cascades the failure back to the second client.
 

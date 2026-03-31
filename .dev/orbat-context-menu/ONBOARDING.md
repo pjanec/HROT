@@ -37,24 +37,24 @@ This workstream spans four projects: **DataModel** (new command type), **SimHost
 ## Relevant Code Locations
 
 ### Shared Contracts — Data Model
-- `Bagira.DDS.DataModel/MapMessages.cs` — `CommandType` enum and `MapCommandRequest`.  Add `CMD_DRAW_PERSONAL_ROUTE` here (OC1-C001).
+- `Hrot.NED/MapMessages.cs` — `CommandType` enum and `MapCommandRequest`.  Add `CMD_DRAW_PERSONAL_ROUTE` here (OC1-C001).
 
 ### SimHost
-- `Bagira.SimHost/Brains/SimHostNodes.cs` — `FollowRouteParams` struct, `ParseFollowRouteParams`, `Action_WriteFollowRouteChannel`.  The route-assignment fix (OC1-S001) lives here.
+- `Hrot.SimHost/Brains/SimHostNodes.cs` — `FollowRouteParams` struct, `ParseFollowRouteParams`, `Action_WriteFollowRouteChannel`.  The route-assignment fix (OC1-S001) lives here.
 
 ### IG
-- `Bagira.IG/IgApplication.cs` — The main per-frame `Update()` method with the `MapCommandRequest` dispatch switch.  Add handling for `CMD_SET_SELECTION` (OC1-G001), `CMD_SET_VIEW` (OC1-G002), and `CMD_DRAW_PERSONAL_ROUTE` (OC1-G003) here.
-- `Bagira.Map.Common/Commands/BdcCommandGateway.cs` — The async gateway the IG uses for two-step operations (`CreateEntityAsync`, `SendMissionControlRequestAsync`).  Used by OC1-G003.
+- `Hrot.IG/IgApplication.cs` — The main per-frame `Update()` method with the `MapCommandRequest` dispatch switch.  Add handling for `CMD_SET_SELECTION` (OC1-G001), `CMD_SET_VIEW` (OC1-G002), and `CMD_DRAW_PERSONAL_ROUTE` (OC1-G003) here.
+- `Hrot.Map.Common/Commands/BdcCommandGateway.cs` — The async gateway the IG uses for two-step operations (`CreateEntityAsync`, `SendMissionControlRequestAsync`).  Used by OC1-G003.
 
 ### IOS
-- `Bagira.IOS/Panels/OrbatPanel.cs` — The ORBAT tree panel.  The context menu popup, entity-type gate, and all action wiring go here (OC1-I001 through OC1-I006).
-- `Bagira.IOS/IosLogic.cs` — Core IOS logic.  New intent-dispatch methods (`SendSetSelection`, `CenterOnEntity`, `DeleteEntity`, `StartPersonalRouteAuthoring`) go here, along with `_pendingDeleteEntityIds` tracking.
-- `Bagira.IOS/Abstractions/IIosLogic.cs` — Interface to extend with the new methods.
+- `Hrot.ExCon/Panels/OrbatPanel.cs` — The ORBAT tree panel.  The context menu popup, entity-type gate, and all action wiring go here (OC1-I001 through OC1-I006).
+- `Hrot.ExCon/IosLogic.cs` — Core IOS logic.  New intent-dispatch methods (`SendSetSelection`, `CenterOnEntity`, `DeleteEntity`, `StartPersonalRouteAuthoring`) go here, along with `_pendingDeleteEntityIds` tracking.
+- `Hrot.ExCon/Abstractions/IIosLogic.cs` — Interface to extend with the new methods.
 
 ### Tests
-- `Bagira.SimHost.Tests/` — New test class for OC1-S001.
-- `Bagira.IG.Tests/` — New test classes for OC1-G001, OC1-G002, OC1-G003.
-- `Bagira.IOS.Tests/` — New test class(es) for OC1-I001 through OC1-I006.
+- `Hrot.SimHost.Tests/` — New test class for OC1-S001.
+- `Hrot.IG.Tests/` — New test classes for OC1-G001, OC1-G002, OC1-G003.
+- `Hrot.ExCon.Tests/` — New test class(es) for OC1-I001 through OC1-I006.
 
 ---
 
@@ -65,10 +65,10 @@ This workstream spans four projects: **DataModel** (new command type), **SimHost
 dotnet build IOS-IG-SimHost.sln --no-restore
 
 # Run all tests
-dotnet test Bagira.DDS.DataModel.Tests
-dotnet test Bagira.SimHost.Tests
-dotnet test Bagira.IG.Tests
-dotnet test Bagira.IOS.Tests
+dotnet test Hrot.NED.Tests
+dotnet test Hrot.SimHost.Tests
+dotnet test Hrot.IG.Tests
+dotnet test Hrot.ExCon.Tests
 ```
 
 ---

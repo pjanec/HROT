@@ -14,10 +14,10 @@
 | CT-0 | ✅ Complete | `MapRouteIngressTranslator` refactored to use `NetworkEntityMap.EntityRegistered` callback; retry queue is O(k) instead of O(n). |
 | CT-1 | ✅ Complete | `ActivateRouteAuthoringTool` now returns early with `FdpLog.Error` when `_geoTransform` is null; bad XY-as-geodetic offsets eliminated. |
 | CT-2 | ✅ Complete | `_selectionStateQuery` cached as field in `IgApplication`, initialized once during canvas setup, zero per-click allocations. |
-| ROUTES1-T010 | ✅ Complete | `RouteRenderLayer` added to `Bagira.IG/Systems/`; draws route polylines + vertex circles on road_graphs layer (bit 4); registered with inspector context for selection highlight. |
+| ROUTES1-T010 | ✅ Complete | `RouteRenderLayer` added to `Hrot.IG/Systems/`; draws route polylines + vertex circles on road_graphs layer (bit 4); registered with inspector context for selection highlight. |
 | ROUTES1-T011 | ✅ Complete | `SimHostTrajectoryLayer` extended with personal-route (orange) and shared-route (translucent yellow) rendering paths. Test hooks added. |
-| ROUTES1-T012 | ✅ Complete | `RouteEditTool` and `RouteEditToolConstants` created in `Bagira.IG/Tools/`; vertex select, segment insert, delete (Delete key), drag, right-click commit, Escape cancel all implemented. |
-| ROUTES1-T013 | ✅ Complete | `WaypointEditorPanel` created in `Bagira.IG/UI/`; ImGui panel shows Position (read-only), TargetSpeed (InputFloat), ExtensionJson (InputTextMultiline 2 KB) for the selected ghost waypoint. |
+| ROUTES1-T012 | ✅ Complete | `RouteEditTool` and `RouteEditToolConstants` created in `Hrot.IG/Tools/`; vertex select, segment insert, delete (Delete key), drag, right-click commit, Escape cancel all implemented. |
+| ROUTES1-T013 | ✅ Complete | `WaypointEditorPanel` created in `Hrot.IG/UI/`; ImGui panel shows Position (read-only), TargetSpeed (InputFloat), ExtensionJson (InputTextMultiline 2 KB) for the selected ghost waypoint. |
 | ROUTES1-T014 | ✅ Complete | `RouteContextSystem` and `BlackboardOffsets` added; throttled at 0.5 s; reads `dangerLevel` from `ExtensionJson` and writes to `BrainBlackboard.Memory[120]`. |
 | ROUTES1-T015 | ✅ Complete | `SimHostScenarioManager.AddWaypoint` removed; `SimHostVisualization` lambda now publishes `CmdAppendPersonalWaypoint` to ECS bus. |
 
@@ -29,17 +29,17 @@
 
 | Project | Before Batch | After Batch | Delta |
 |---------|-------------|-------------|-------|
-| Bagira.IG.Tests | 351 | 372 | +21 |
-| Bagira.SimHost.Tests | 298 | 309 | +11 |
-| Bagira.Map.Common.Tests | 84 | 86 | +2 (CT-0 tests) |
-| Bagira.Runner.Tests | 112 | 112 | 0 |
+| Hrot.IG.Tests | 351 | 372 | +21 |
+| Hrot.SimHost.Tests | 298 | 309 | +11 |
+| Hrot.Map.Common.Tests | 84 | 86 | +2 (CT-0 tests) |
+| Hrot.ClusterRunner.Tests | 112 | 112 | 0 |
 
 **New test files added:**
-- `Bagira.IG.Tests/RouteRenderLayerTests.cs` — 7 tests (T010)
-- `Bagira.IG.Tests/RouteEditToolTests.cs` — 14 tests (T012 + T013 integration)
-- `Bagira.SimHost.Tests/SimHostTrajectoryLayerTests.cs` — 5 tests (T011)
-- `Bagira.SimHost.Tests/RouteContextSystemTests.cs` — 6 tests (T014)
-- `Bagira.Map.Common.Tests/MapRouteTranslatorTests.cs` — 2 additional tests (CT-0)
+- `Hrot.IG.Tests/RouteRenderLayerTests.cs` — 7 tests (T010)
+- `Hrot.IG.Tests/RouteEditToolTests.cs` — 14 tests (T012 + T013 integration)
+- `Hrot.SimHost.Tests/SimHostTrajectoryLayerTests.cs` — 5 tests (T011)
+- `Hrot.SimHost.Tests/RouteContextSystemTests.cs` — 6 tests (T014)
+- `Hrot.Map.Common.Tests/MapRouteTranslatorTests.cs` — 2 additional tests (CT-0)
 
 **Key Test Scenarios Verified:**
 - ✅ CT-0: Only the entity whose registration fires the callback has its pending route applied; unregistered pending entities are skipped on PollIngress

@@ -58,29 +58,29 @@ The [ROUTES1-DESIGN.md](./ROUTES1-DESIGN.md) is structured as follows:
 
 | Name | Planned Location |
 |---|---|
-| `RoutePlan` managed component | `Bagira.Map.Common/Components/RoutePlan.cs` |
+| `RoutePlan` managed component | `Hrot.Map.Common/Components/RoutePlan.cs` |
 | `RouteWaypoint` struct | same file as `RoutePlan` |
-| `PersonalRouteRef` struct | `Bagira.Map.Common/Components/PersonalRouteRef.cs` |
-| `RouteTrajectoryCache` struct | `Bagira.Map.Common/Components/RouteTrajectoryCache.cs` |
+| `PersonalRouteRef` struct | `Hrot.Map.Common/Components/PersonalRouteRef.cs` |
+| `RouteTrajectoryCache` struct | `Hrot.Map.Common/Components/RouteTrajectoryCache.cs` |
 | `CmdAppendPersonalWaypoint` event | shared event/command layer |
-| `MapRouteEgressTranslator` | `Bagira.Map.Common/Replication/Egress/` |
-| `MapRouteIngressTranslator` | `Bagira.Map.Common/Replication/Ingress/` |
-| `RouteTrajectorySyncSystem` | `Bagira.SimHost/Systems/` |
-| `PersonalRouteAuthoringSystem` | `Bagira.SimHost/Systems/` |
-| `RouteContextSystem` | `Bagira.SimHost/Systems/` |
-| `RouteRenderLayer` | `Bagira.IG/Visualization/` |
-| `RouteEditTool` | `Bagira.IG/Tools/` |
-| `WaypointEditorPanel` | `Bagira.IG/UI/` |
+| `MapRouteEgressTranslator` | `Hrot.Map.Common/Replication/Egress/` |
+| `MapRouteIngressTranslator` | `Hrot.Map.Common/Replication/Ingress/` |
+| `RouteTrajectorySyncSystem` | `Hrot.SimHost/Systems/` |
+| `PersonalRouteAuthoringSystem` | `Hrot.SimHost/Systems/` |
+| `RouteContextSystem` | `Hrot.SimHost/Systems/` |
+| `RouteRenderLayer` | `Hrot.IG/Visualization/` |
+| `RouteEditTool` | `Hrot.IG/Tools/` |
+| `WaypointEditorPanel` | `Hrot.IG/UI/` |
 
 ### Components You Are Modifying
 
 | What | Where | Why |
 |---|---|---|
 | `GlobalComponentIds` | `FDP/Toolkits/FDP.Toolkit.Replication/` | Add IDs for new components |
-| TKB blueprint DB | `Bagira.Map.Definitions/` | Add `TacGraphic_Route` blueprint |
-| `SimHostScenarioManager` | `Bagira.SimHost/UI/` | Remove `_waypointQueues` (Phase 9) |
-| `IgApplication` | `Bagira.IG/IgApplication.cs` | Wire shift+right-click → CmdAppendPersonalWaypoint (Phase 5) |
-| `SimHostTrajectoryLayer` | `Bagira.SimHost/Visualization/` | Extend to show route entities (Phase 6) |
+| TKB blueprint DB | `Hrot.Map.Definitions/` | Add `TacGraphic_Route` blueprint |
+| `SimHostScenarioManager` | `Hrot.SimHost/UI/` | Remove `_waypointQueues` (Phase 9) |
+| `IgApplication` | `Hrot.IG/IgApplication.cs` | Wire shift+right-click → CmdAppendPersonalWaypoint (Phase 5) |
+| `SimHostTrajectoryLayer` | `Hrot.SimHost/Visualization/` | Extend to show route entities (Phase 6) |
 
 ### Key Existing Systems to Understand
 
@@ -89,14 +89,14 @@ The [ROUTES1-DESIGN.md](./ROUTES1-DESIGN.md) is structured as follows:
 | `TrajectoryPoolManager` | `FDP/Toolkits/FDP.Toolkit.CarKinem/Trajectory/` | Physics trajectory cache (pool of compiled splines) |
 | `CarKinematicsSystem` | `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/` | Vehicle physics — reads `TrajectoryId` from `NavState` |
 | `NavState` struct | `FDP/Toolkits/FDP.Toolkit.CarKinem/Core/NavState.cs` | Per-vehicle kinematic state; holds `TrajectoryId`, `ProgressS` |
-| `EditablePolyline` | `Bagira.Map.Common/Components/EditablePolyline.cs` | Parallel for area overlay drawings (pattern to follow) |
-| `MapVisualOverlayEgressTranslator` | `Bagira.Map.Common/Replication/Egress/` | Pattern to follow for egress translator |
-| `MapVisualOverlayIngressTranslator` | `Bagira.Map.Common/Replication/Ingress/` | Pattern to follow for ingress translator |
-| `EditTool` | `Bagira.IG/Tools/EditTool.cs` | Pattern to follow for `RouteEditTool` |
+| `EditablePolyline` | `Hrot.Map.Common/Components/EditablePolyline.cs` | Parallel for area overlay drawings (pattern to follow) |
+| `MapVisualOverlayEgressTranslator` | `Hrot.Map.Common/Replication/Egress/` | Pattern to follow for egress translator |
+| `MapVisualOverlayIngressTranslator` | `Hrot.Map.Common/Replication/Ingress/` | Pattern to follow for ingress translator |
+| `EditTool` | `Hrot.IG/Tools/EditTool.cs` | Pattern to follow for `RouteEditTool` |
 | `PointSequenceTool` | `FDP/Toolkits/FDP.Toolkit.Vis2D/Tools/` | Used for route authoring; already implemented |
 | `SubEntityCleanupSystem` | `FDP/Toolkits/FDP.Toolkit.Replication/Systems/` | Destroys child entities when parent is destroyed (`PartMetadata`) |
 | `PartMetadata` | `FDP/Toolkits/FDP.Toolkit.Replication/Components/` | Parent-child entity lifecycle |
-| `TkbEntityTypes` | `Bagira.Map.Definitions/TkbEntityTypes.cs` | `TacGraphic_Route = 8802` already defined |
+| `TkbEntityTypes` | `Hrot.Map.Definitions/TkbEntityTypes.cs` | `TacGraphic_Route = 8802` already defined |
 | `WGS84Transform` / `IGeographicTransform` | `FDP/Toolkits/Fdp.Toolkit.Geographic/` | Cartesian ↔ Geodetic conversion used at DDS boundary |
 | `BrainBlackboard` | `FDP/Toolkits/FDP.Toolkit.Behavior/Components/` | Per-vehicle byte buffer for AI state |
 
@@ -112,9 +112,9 @@ dotnet build IOS-IG-SimHost.sln
 To run only the relevant test suites:
 
 ```powershell
-dotnet test Bagira.Map.Common.Tests
-dotnet test Bagira.SimHost.Tests
-dotnet test Bagira.IG.Tests
+dotnet test Hrot.Map.Common.Tests
+dotnet test Hrot.SimHost.Tests
+dotnet test Hrot.IG.Tests
 ```
 
 To run all tests:

@@ -25,11 +25,11 @@
 
 **Goal:** Eliminate initialisation duplication across SimHost, IG, and IOS; prevent future configuration drift; resolve input/display collision in the Runner.
 
-- [x] **INTS-P2-006** Implement BagiraEnvironment Bootstrapper [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-006--implement-bagiraenvironment-bootstrapper)
+- [x] **INTS-P2-006** Implement HrotEnvironment Bootstrapper [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-006--implement-hrotenvironment-bootstrapper)
 - [x] **INTS-P2-007** Fix SubsystemOrchestrator Headless Logic [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-007--fix-subsystemorchestrator-headless-logic)
-- [x] **INTS-P2-008** Refactor IgApplication to Use BagiraEnvironment [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-008--refactor-igapplication-to-use-bagiraenvironment)
-- [x] **INTS-P2-009** Refactor SimHostApp to Use BagiraEnvironment [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-009--refactor-simhostapp-to-use-bagiraenvironment)
-- [x] **INTS-P2-010** Refactor IosSubsystem to Use BagiraEnvironment [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-010--refactor-iossubsystem-to-use-bagiraenvironment)
+- [x] **INTS-P2-008** Refactor IgApplication to Use HrotEnvironment [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-008--refactor-igapplication-to-use-hrotenvironment)
+- [x] **INTS-P2-009** Refactor SimHostApp to Use HrotEnvironment [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-009--refactor-simhostapp-to-use-hrotenvironment)
+- [x] **INTS-P2-010** Refactor IosSubsystem to Use HrotEnvironment [details](./TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-010--refactor-iossubsystem-to-use-hrotenvironment)
 
 ---
 

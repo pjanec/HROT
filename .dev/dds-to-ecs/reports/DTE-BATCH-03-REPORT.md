@@ -33,8 +33,8 @@
 - [x] IG style/culling pipelines and inspector flow without DDS DTO ECS components
 
 **Test Commands:**
-- `dotnet test .\Bagira.IG.Tests\Bagira.IG.Tests.csproj`
-- `dotnet test .\Bagira.SimHost.Tests\Bagira.SimHost.Tests.csproj`
+- `dotnet test .\Hrot.IG.Tests\Hrot.IG.Tests.csproj`
+- `dotnet test .\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj`
 
 ---
 

@@ -73,11 +73,11 @@ Sequence: Task 1 → green tests; Task 2 → green tests; Task 3 → green tests
 
 **Debt:** New BATCH-07 review row (Target BATCH-08)
 
-**File:** `Bagira.Map.Common/Helpers/MissionTriggerHelper.cs`
+**File:** `Hrot.Map.Common/Helpers/MissionTriggerHelper.cs`
 
 Eliminate **CS0618** on the `"ReachedDestination"` → enum path while preserving wire backward compatibility (coordinate with `EntityMissionIngressTranslator` / `MissionDirectorSystem` BS1-T022 semantics).
 
-**Tests:** `Fdp.Examples.Scenarios.Tests` + `Bagira.Map.Common.Tests` (or full solution subset for Map.Common).
+**Tests:** `Fdp.Examples.Scenarios.Tests` + `Hrot.Map.Common.Tests` (or full solution subset for Map.Common).
 
 ---
 

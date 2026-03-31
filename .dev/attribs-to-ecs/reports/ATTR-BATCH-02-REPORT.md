@@ -10,7 +10,7 @@
 ## Summary
 
 All five tasks (ATTR-S4T1, ATTR-S4T2, ATTR-S4T3, ATTR-S3T1, ATTR-S3T2) are implemented and passing.  
-31 new unit tests written; 31/31 pass. No regressions in `Bagira.SimHost.Tests` (88/88), `Bagira.Map.Common.Tests` (31/31), or `Bagira.DDS.DataModel.Tests` (9/9). Pre-existing `EditToolTests` failures in `Bagira.IG.Tests` (4 failing) are unrelated — my changes touch no `Bagira.IG` source code.
+31 new unit tests written; 31/31 pass. No regressions in `Hrot.SimHost.Tests` (88/88), `Hrot.Map.Common.Tests` (31/31), or `Hrot.NED.Tests` (9/9). Pre-existing `EditToolTests` failures in `Hrot.IG.Tests` (4 failing) are unrelated — my changes touch no `Hrot.IG` source code.
 
 ---
 
@@ -18,13 +18,13 @@ All five tasks (ATTR-S4T1, ATTR-S4T2, ATTR-S4T3, ATTR-S3T1, ATTR-S3T2) are imple
 
 | File | Status |
 |------|--------|
-| `Bagira.Map.Common/Replication/Utils/IEntityPatchContext.cs` | **NEW** |
-| `Bagira.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` | **NEW** |
-| `Bagira.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs` | **NEW** |
-| `Bagira.Map.Common/Replication/Utils/ListPatchContext.cs` | **NEW** |
-| `Bagira.Map.Common/Replication/Utils/EcsPatchContext.cs` | **NEW** |
-| `Bagira.Map.Common.Tests/JsonAttributeCompilerTests.cs` | **NEW** |
-| `Bagira.Map.Common/Bagira.Map.Common.csproj` | Modified — added `InternalsVisibleTo` for `Bagira.Map.Common.Tests` |
+| `Hrot.Map.Common/Replication/Utils/IEntityPatchContext.cs` | **NEW** |
+| `Hrot.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` | **NEW** |
+| `Hrot.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs` | **NEW** |
+| `Hrot.Map.Common/Replication/Utils/ListPatchContext.cs` | **NEW** |
+| `Hrot.Map.Common/Replication/Utils/EcsPatchContext.cs` | **NEW** |
+| `Hrot.Map.Common.Tests/JsonAttributeCompilerTests.cs` | **NEW** |
+| `Hrot.Map.Common/Hrot.Map.Common.csproj` | Modified — added `InternalsVisibleTo` for `Hrot.Map.Common.Tests` |
 
 ---
 
@@ -147,9 +147,9 @@ No classic overwrite flaw was found, but the `ComponentSlot<T>` boxing in `Flush
 | **Total** | **31** | **31** | **0** |
 
 **Regression check:**
-- `Bagira.SimHost.Tests`: 88/88 ✅  
-- `Bagira.DDS.DataModel.Tests`: 9/9 ✅  
-- `Bagira.IG.Tests` (EditToolTests): 4 failures — **pre-existing**, not caused by this batch (zero `Bagira.IG` source files modified)
+- `Hrot.SimHost.Tests`: 88/88 ✅  
+- `Hrot.NED.Tests`: 9/9 ✅  
+- `Hrot.IG.Tests` (EditToolTests): 4 failures — **pre-existing**, not caused by this batch (zero `Hrot.IG` source files modified)
 
 ---
 

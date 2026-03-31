@@ -15,9 +15,9 @@
 Welcome to MOD1 Phase 4.
 
 **🚨 STOP RIGHT HERE: CRITICAL FUNCTIONALITY & ARCHITECTURE REPAIRS 🚨**
-The application is still broken. In Batch 03, the exception during "Spawn moving entity" was removed, but the entity **does not move** when issued a `MoveToLocation` command via the UI. You must debug the `Bagira.Runner -x all` composition pipeline and restore true navigation capability to the application immediately. The application is a simulation—vehicles must move. 
+The application is still broken. In Batch 03, the exception during "Spawn moving entity" was removed, but the entity **does not move** when issued a `MoveToLocation` command via the UI. You must debug the `Hrot.ClusterRunner -x all` composition pipeline and restore true navigation capability to the application immediately. The application is a simulation—vehicles must move. 
 
-Furthermore, you are directed to urgently fix the architectural compromises made in Batch 02: `ActionDispatchModule` and `LinearKinematicsSystem` were left in the `Bagira.SimHost` domain due to circular dependencies. **This violates the core principle of our modularisation.** You must generalize these toolkits, breaking cycles through new assembly definitions (`FDP.Toolkit.Combat`, `FDP.Toolkit.Kinematics.Core`, etc.) or Dependency Inversion.
+Furthermore, you are directed to urgently fix the architectural compromises made in Batch 02: `ActionDispatchModule` and `LinearKinematicsSystem` were left in the `Hrot.SimHost` domain due to circular dependencies. **This violates the core principle of our modularisation.** You must generalize these toolkits, breaking cycles through new assembly definitions (`FDP.Toolkit.Combat`, `FDP.Toolkit.Kinematics.Core`, etc.) or Dependency Inversion.
 
 After solving these three corrective items natively, you can advance to Phase 4: creating formal `IModule` definitions for our Presentations (`IgPresentationModule`, `SimPresentationModule`) and implementing the `ActivePerspective` singleton for dynamic viewpoint swapping.
 
@@ -29,9 +29,9 @@ After solving these three corrective items natively, you can advance to Phase 4:
 ### Source Code Location
 - **Primary Work Areas:**
   - `FDP/Toolkits/`
-  - `Bagira.SimHost/`
+  - `Hrot.SimHost/`
 - **Test Projects:**
-  - `Bagira.SimHost.Integration.Tests/` (Must be significantly bolstered)
+  - `Hrot.SimHost.Integration.Tests/` (Must be significantly bolstered)
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -62,7 +62,7 @@ After solving these three corrective items natively, you can advance to Phase 4:
 
 **Description:**
 Commanding a spawned vehicle to `MoveToLocation` does nothing. 
-- You must identify why execution fails natively when running via `Bagira.Runner` config. 
+- You must identify why execution fails natively when running via `Hrot.ClusterRunner` config. 
 - Ensure `NavigationExecutionSystem`, `MoveToExecutor`, `NavigationIntentBridgeSystem`, and `CarKinematicsSystem` are properly interacting on the correct entity footprints, and all relevant systems are actually registered under `-x all`.
 - **Testing Requirement:** You MUST create an integration test that creates a vehicle, issues a move intent, advances the simulation frames, and explicitly **`Assert.NotEqual()` against the original position coordinates.** Passing unit tests without system momentum verification is insufficient.
 
@@ -75,7 +75,7 @@ Commanding a spawned vehicle to `MoveToLocation` does nothing.
 **Description:**
 Move `ActionDispatchModule` into `FDP.Toolkit.Behavior`. 
 - Extract weapon routines to `FDP.Toolkit.Combat` if necessary. 
-- For the `JoinFormationExecutor` circular dependency (which relies on `Bagira.SimHost.Systems`), abstract it using Dependency Inversion. Create an interface (e.g. `IFormationExecutor`) inside FDP, and pass the specific implementation at composition-root level. 
+- For the `JoinFormationExecutor` circular dependency (which relies on `Hrot.SimHost.Systems`), abstract it using Dependency Inversion. Create an interface (e.g. `IFormationExecutor`) inside FDP, and pass the specific implementation at composition-root level. 
 - Make the underlying engine strictly generic.
 
 ---
@@ -87,7 +87,7 @@ Move `ActionDispatchModule` into `FDP.Toolkit.Behavior`.
 **Description:**
 Break the dependency cycle between Physics and CarKinematics so that `LinearKinematicsSystem` can be safely hosted within `GroundKinematicsModule` or its own generic `PhysicsModule`. 
 - If they require shared ECS components like `SimTransform`, extract those structures to `FDP.Toolkit.Kinematics.Core` or `FDP.Kernel`. 
-- The solution must compile without leaving core kinematic systems stranded in `Bagira.SimHost`.
+- The solution must compile without leaving core kinematic systems stranded in `Hrot.SimHost`.
 
 ---
 
@@ -134,7 +134,7 @@ Please submit `.dev-workstream/reports/MOD1-BATCH-04-REPORT.md` completing the f
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] Vehicles accurately traverse geographical footprints when subjected to `MoveToLocation` intents through `Bagira.Runner`.
+- [ ] Vehicles accurately traverse geographical footprints when subjected to `MoveToLocation` intents through `Hrot.ClusterRunner`.
 - [ ] A dedicated integration test proves positional updates over elapsed ticks.
-- [ ] `ActionDispatchModule` and `LinearKinematicsSystem` have been completely stripped from the `Bagira.SimHost` aggregation space and live in generalized toolkits natively.
+- [ ] `ActionDispatchModule` and `LinearKinematicsSystem` have been completely stripped from the `Hrot.SimHost` aggregation space and live in generalized toolkits natively.
 - [ ] Phase 4 modules (IG and Sim Map presentation wrappers) compile effectively.

@@ -12,7 +12,7 @@
 ## 📋 Onboarding & Workflow
 
 ### Developer Instructions
-This batch consolidates the architecture across the whole Bagira ecosystem by creating a single shared bootstrapper (`BagiraEnvironment`). It will eliminate duplicate initialization code and resolve headless simulation logic on combined startup.
+This batch consolidates the architecture across the whole Hrot ecosystem by creating a single shared bootstrapper (`HrotEnvironment`). It will eliminate duplicate initialization code and resolve headless simulation logic on combined startup.
 
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md` - How to work with batches
@@ -23,10 +23,10 @@ This batch consolidates the architecture across the whole Bagira ecosystem by cr
 
 ### Source Code Location
 - **Primary Work Areas:** 
-  - `Bagira.Map.Common`
-  - `Bagira.Runner`
-  - `Bagira.IG`
-  - `Bagira.SimHost`
+  - `Hrot.Map.Common`
+  - `Hrot.ClusterRunner`
+  - `Hrot.IG`
+  - `Hrot.SimHost`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -57,40 +57,40 @@ This batch consolidates the architecture across the whole Bagira ecosystem by cr
 With communication channels verified during Phase 1, Phase 2 focuses on code consistency. We will provide a shared Bootstopper so that all platforms use identical TKB databases, WGS84 coordinates, and generic DDS environments without duplicating boilerplate code. Finally, because `Raylib` restricts graphic access context ownership, we must restrict SimHost to headless operation when IG is active.
 
 **Related Tasks:**
-- [INTS-P2-006](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-006--implement-bagiraenvironment-bootstrapper) - Common Bootstrapper
+- [INTS-P2-006](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-006--implement-hrotenvironment-bootstrapper) - Common Bootstrapper
 - [INTS-P2-007](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-007--fix-subsystemorchestrator-headless-logic) - SubsystemOrchestrator headless mode fix
-- [INTS-P2-008](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-008--refactor-igapplication-to-use-bagiraenvironment) - Update IgApplication 
-- [INTS-P2-009](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-009--refactor-simhostapp-to-use-bagiraenvironment) - Update SimHostApp
-- [INTS-P2-010](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-010--refactor-iossubsystem-to-use-bagiraenvironment) - Update IosSubsystem
+- [INTS-P2-008](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-008--refactor-igapplication-to-use-hrotenvironment) - Update IgApplication 
+- [INTS-P2-009](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-009--refactor-simhostapp-to-use-hrotenvironment) - Update SimHostApp
+- [INTS-P2-010](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-010--refactor-iossubsystem-to-use-hrotenvironment) - Update IosSubsystem
 
 ---
 
 ## 🎯 Batch Objectives
-Ensure the Simulation, IG, and IOS components all leverage the `BagiraEnvironment` bootstrapper. Fix combined execution restrictions to prevent ImGui and viewports from failing gracefully. Keep application configurations and setups unified.
+Ensure the Simulation, IG, and IOS components all leverage the `HrotEnvironment` bootstrapper. Fix combined execution restrictions to prevent ImGui and viewports from failing gracefully. Keep application configurations and setups unified.
 
 ---
 
 ## ✅ Tasks
 
-### Task 1: Implement BagiraEnvironment Bootstrapper (INTS-P2-006)
-**Files:** `Bagira.Map.Common/BagiraEnvironment.cs` (New)
-**Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-006--implement-bagiraenvironment-bootstrapper)
+### Task 1: Implement HrotEnvironment Bootstrapper (INTS-P2-006)
+**Files:** `Hrot.Map.Common/HrotEnvironment.cs` (New)
+**Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-006--implement-hrotenvironment-bootstrapper)
 
 ### Task 2: Fix SubsystemOrchestrator Headless Logic (INTS-P2-007)
-**Files:** `Bagira.Runner/Services/SubsystemOrchestrator.cs`
+**Files:** `Hrot.ClusterRunner/Services/SubsystemOrchestrator.cs`
 **Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-007--fix-subsystemorchestrator-headless-logic)
 
-### Task 3: Refactor IgApplication to Use BagiraEnvironment (INTS-P2-008)
-**Files:** `Bagira.IG/IgApplication.cs`
-**Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-008--refactor-igapplication-to-use-bagiraenvironment)
+### Task 3: Refactor IgApplication to Use HrotEnvironment (INTS-P2-008)
+**Files:** `Hrot.IG/IgApplication.cs`
+**Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-008--refactor-igapplication-to-use-hrotenvironment)
 
-### Task 4: Refactor SimHostApp to Use BagiraEnvironment (INTS-P2-009)
-**Files:** `Bagira.SimHost/SimHostApp.cs`
-**Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-009--refactor-simhostapp-to-use-bagiraenvironment)
+### Task 4: Refactor SimHostApp to Use HrotEnvironment (INTS-P2-009)
+**Files:** `Hrot.SimHost/SimHostApp.cs`
+**Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-009--refactor-simhostapp-to-use-hrotenvironment)
 
-### Task 5: Refactor IosSubsystem to Use BagiraEnvironment (INTS-P2-010)
-**Files:** `Bagira.Runner/Services/IosSubsystem.cs`
-**Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-010--refactor-iossubsystem-to-use-bagiraenvironment)
+### Task 5: Refactor IosSubsystem to Use HrotEnvironment (INTS-P2-010)
+**Files:** `Hrot.ClusterRunner/Services/IosSubsystem.cs`
+**Task Definition:** See [TASK-DETAILS-Integration-Troubleshooting.md](../../docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p2-010--refactor-iossubsystem-to-use-hrotenvironment)
 
 ---
 
@@ -124,7 +124,7 @@ Provide a copy of this layout in your `.dev-workstream/reports/INTS-BATCH-02-REP
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] BagiraEnvironment successfully builds identical environments and participant bindings
+- [ ] HrotEnvironment successfully builds identical environments and participant bindings
 - [ ] SubsystemOrchestrator enables automated headless mode gracefully when IG acts as Map owner
 - [ ] Test scenarios defined within INTS-P2-006..INTS-P2-010 are actively verified passing
 - [ ] No regression failures occur across SimHost, IOS, IG, and Runner suites

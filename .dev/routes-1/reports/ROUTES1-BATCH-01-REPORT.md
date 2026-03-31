@@ -25,14 +25,14 @@
 **Integration Tests Passed:** N/A (no integration harness changes required)
 
 **Test files added:**
-- `Bagira.Map.Common.Tests/RoutePlanTests.cs` — 12 tests (T001 + T002)
-- `Bagira.SimHost.Tests/TacGraphicRouteBlueprintTests.cs` — 8 tests (T003)
-- `Bagira.Map.Common.Tests/MapRouteTranslatorTests.cs` — 11 tests (T004 + T005)
+- `Hrot.Map.Common.Tests/RoutePlanTests.cs` — 12 tests (T001 + T002)
+- `Hrot.SimHost.Tests/TacGraphicRouteBlueprintTests.cs` — 8 tests (T003)
+- `Hrot.Map.Common.Tests/MapRouteTranslatorTests.cs` — 11 tests (T004 + T005)
 
 **Total solution tests after batch:**  
-`Bagira.Map.Common.Tests`: 83 Passed, 0 Failed  
-`Bagira.SimHost.Tests`: 282 Passed, 0 Failed (1 pre-existing flaky test in `JsonToRecordCompilerTests` unrelated to ROUTES1)  
-`Bagira.IOS.Tests`: 283 Passed, 0 Failed
+`Hrot.Map.Common.Tests`: 83 Passed, 0 Failed  
+`Hrot.SimHost.Tests`: 282 Passed, 0 Failed (1 pre-existing flaky test in `JsonToRecordCompilerTests` unrelated to ROUTES1)  
+`Hrot.ExCon.Tests`: 283 Passed, 0 Failed
 
 **Key Test Scenarios Verified:**
 - [x] `RoutePlan` ECS round-trip preserves all waypoint fields (position, speed, extension JSON)
@@ -43,10 +43,10 @@
 - [x] `road_graphs` layer predicate accepts `TkbType == TkbEntityTypes.TacGraphic_Route` (8802)
 - [x] Egress: 3-waypoint entity publishes exactly once with correct `Points.Count`
 - [x] Egress: `IsLoop`, `TargetSpeed`, `ExtensionJson` faithfully propagated
-- [x] Egress: `GeoPosition` round-trip error ≤ 1 mm (WGS84 at 48.8566°N, 2.3522°E)
+- [x] Egress: `GeoPoint` round-trip error ≤ 1 mm (WGS84 at 48.8566°N, 2.3522°E)
 - [x] Egress: dirty flag suppresses re-publish when `RoutePlan.Version` unchanged
 - [x] Ingress: 5-waypoint `MapRoute` sample produces correct waypoint count
-- [x] Ingress: `GeoPosition` round-trip error ≤ 1 mm
+- [x] Ingress: `GeoPoint` round-trip error ≤ 1 mm
 - [x] Ingress: `IsLoop`, `TargetSpeed`, `ExtensionJson` faithfully propagated
 - [x] Ingress: `Version` increments on each processed sample
 - [x] Ingress: unknown entity ID deferred to `_pendingRoutes`, resolved on next `PollIngress`
@@ -75,7 +75,7 @@ Two compiler issues surfaced during implementation:
 
 - **Version-delta dirty tracking instead of `SmartEgressUtil`:** The egress translator tracks a `Dictionary<Entity, int> _publishedVersions` keyed on entity rather than using the shared `SmartEgressUtil` flag infrastructure. This is deliberate because `SmartEgressUtil` operates at a single-flag granularity per descriptor type, while the route may be updated by many systems at different frequencies. The per-entity version integer provides natural idempotency: if a system stamps `RoutePlan.Version` before publish, no extra publish occurs on the next frame.
 
-- **Circular-dependency break via `RouteTkbExtensions`:** `Bagira.Map.Definitions` does not reference `Bagira.Map.Common` (doing so would create a circular reference because `Bagira.Map.Common` depends on `Bagira.Map.Definitions` for `TkbEntityTypes`). To attach `RoutePlan` to the `TacGraphic_Route` blueprint, a `RouteTkbExtensions.ApplyRoutePlanToBlueprint(TkbDatabase)` static method was added in `Bagira.Map.Common` and called post-hoc from `BagiraEnvironment.CreateTkb()`. This keeps all TKB registration in `BdcTkbCatalog` while the component wiring lives where the component is defined.
+- **Circular-dependency break via `RouteTkbExtensions`:** `Hrot.Map.Definitions` does not reference `Hrot.Map.Common` (doing so would create a circular reference because `Hrot.Map.Common` depends on `Hrot.Map.Definitions` for `TkbEntityTypes`). To attach `RoutePlan` to the `TacGraphic_Route` blueprint, a `RouteTkbExtensions.ApplyRoutePlanToBlueprint(TkbDatabase)` static method was added in `Hrot.Map.Common` and called post-hoc from `HrotEnvironment.CreateTkb()`. This keeps all TKB registration in `BdcTkbCatalog` while the component wiring lives where the component is defined.
 
 - **`double` → `float` precision choice for `TargetSpeed` and `ExtensionJson`:** DDS `Waypoint.SpeedMetersPerSec` is `double`; the ECS `RouteWaypoint.TargetSpeed` is `float` (4 bytes). The truncation is intentional: ECS physics operates in single-precision. The loss for speed (max ~1.5 × 10³ m/s) at `float` resolution is sub-millimetre/second and acceptable.
 

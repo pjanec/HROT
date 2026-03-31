@@ -358,7 +358,7 @@ namespace FDP.Toolkit.Replication
 Since we added a constructor parameter to `ReplicationLogicModule`, we just need to pass the existing `_entityMap` into it where it's registered in the 3 apps.
 
 ```xml
-<source_file>Bagira.IG/IgApplication.cs</source_file>
+<source_file>Hrot.IG/IgApplication.cs</source_file>
 <update>
     <search><![CDATA[        // A. EntityLifecycleModule — IG is a ghost node; no peers need to ACK
         var elm = new EntityLifecycleModule(tkb, Array.Empty<int>());
@@ -374,7 +374,7 @@ Since we added a constructor parameter to `ReplicationLogicModule`, we just need
 ```
 
 ```xml
-<source_file>Bagira.SimHost/SimHostApp.cs</source_file>
+<source_file>Hrot.SimHost/SimHostApp.cs</source_file>
 <update>
     <search><![CDATA[            // ── 9. Toolkit modules ────────────────────────────────────────────
             var geoModule = new GeographicModule(wgs84);
@@ -397,7 +397,7 @@ Since we added a constructor parameter to `ReplicationLogicModule`, we just need
 ```
 
 ```xml
-<source_file>Bagira.Runner/Services/SimHostSubsystem.cs</source_file>
+<source_file>Hrot.ClusterRunner/Services/SimHostSubsystem.cs</source_file>
 <update>
     <search><![CDATA[            // ── 6. Toolkit modules ────────────────────────────────────────────
             var geoModule = new GeographicModule(_geoTransform);
@@ -462,12 +462,12 @@ Let's break down exactly why you are right, what those systems actually do, and 
 **Your observation is 100% correct: The Ghost systems are NOT dead legacy code. They are a strict requirement of the protocol.**
 
 **The Problem:**
-Currently, `AutoCycloneTranslator` and `EntityMasterTranslator` assume that the `EntityMaster` descriptor arrives *first*. If a `GeoSpatial` descriptor arrives for a `NetID` that doesn't exist yet, `_entityMap.TryGetEntity` returns false, and the translator simply **drops the data**. 
+Currently, `AutoCycloneTranslator` and `EntityMasterTranslator` assume that the `EntityMaster` descriptor arrives *first*. If a `WorldPos` descriptor arrives for a `NetID` that doesn't exist yet, `_entityMap.TryGetEntity` returns false, and the translator simply **drops the data**. 
 
-In an ideal LAN environment with DDS `TransientLocal` QoS, you usually get the Master first. But over WANs, UDP packet reordering, or late-joining nodes, a `WeaponState` or `GeoSpatial` packet might arrive before the `EntityMaster`.
+In an ideal LAN environment with DDS `TransientLocal` QoS, you usually get the Master first. But over WANs, UDP packet reordering, or late-joining nodes, a `WeaponState` or `WorldPos` packet might arrive before the `EntityMaster`.
 
 **How it is supposed to work (The Ghost Pattern):**
-1. **Any Translator** (e.g., `GeoSpatialTranslator`) receives an unknown `NetID`. Instead of dropping it, it asks the `GhostCreationSystem` to instantiate a "Ghost Shell" (an entity with a `NetworkIdentity` and a `BinaryGhostStore` component).
+1. **Any Translator** (e.g., `WorldPosTranslator`) receives an unknown `NetID`. Instead of dropping it, it asks the `GhostCreationSystem` to instantiate a "Ghost Shell" (an entity with a `NetworkIdentity` and a `BinaryGhostStore` component).
 2. The translator writes the raw binary data into the `BinaryGhostStore` under its specific `DescriptorOrdinal`.
 3. When the `EntityMasterTranslator` finally receives the `EntityMaster` descriptor, it extracts the `TkbType` and adds a `NetworkSpawnRequest` to the ghost.
 4. **`GhostPromotionSystem`** monitors ghosts. Once a ghost has a `TkbType` AND all the mandatory descriptors defined in the TKB Template are present in the `BinaryGhostStore`, it "Promotes" the entity: applying the TKB template, injecting the stashed binary data, and moving it to the `Constructing` lifecycle state.
@@ -511,9 +511,9 @@ The FDP Engine's `ModuleHostKernel` execution loop is designed to separate the *
 **Who uses `SystemPhase.Simulation`?**
 Modules use it internally! If you want to use the elegant "System-Based Pattern" during the Simulation phase, you don't register those systems with the Kernel's global scheduler. Instead, the Module instantiates its own local `SystemGroup`, adds its systems to it, and calls it from within the `IModule.Tick()` method.
 
-For example, look at how `Bagira.SimHost` handles this in `SimulationLogicModule.cs`:
+For example, look at how `Hrot.SimHost` handles this in `SimulationLogicModule.cs`:
 ```csharp
-// Bagira.SimHost explicitly creates its own group:
+// Hrot.SimHost explicitly creates its own group:
 _simulationGroup = new SystemGroup();
 _simulationGroup.AddSystem(new CarKinematicsSystem());
 // ... and ticks it manually on its own thread:
@@ -581,7 +581,7 @@ The current "Binary Ghost Store" approach is over-engineered. It serializes data
 Instead of stashing raw bytes in a dictionary (`BinaryGhostStore`), we will simply **apply the component to the Ghost Entity**.
 
 1.  **Ghost State**: A "Ghost" is just an Entity with `NetworkIdentity` and `LifecycleState = Ghost` (new enum value). It has **no** logic components (no Physics/AI).
-2.  **Ingress**: When a `GeoSpatial` packet arrives for an unknown ID:
+2.  **Ingress**: When a `WorldPos` packet arrives for an unknown ID:
     *   We create an entity immediately.
     *   We set `NetworkIdentity`.
     *   We set `LifecycleState = Ghost`.
@@ -604,7 +604,7 @@ We abandon `AutoCycloneTranslator`. Every Descriptor gets a dedicated C# class. 
 Every translator will follow this pattern:
 
 ```csharp
-public class GeoSpatialTranslator : IDescriptorTranslator
+public class WorldPosTranslator : IDescriptorTranslator
 {
     // ... DdsReader setup ...
 
@@ -725,7 +725,7 @@ cmd.AddComponent(entity, new NetworkSpawnRequest
 ```
 
 ### Step E: Apply to Apps
-1.  **Bagira.SimHost**: Ensure `SimHostModule` registers `ReplicationLogicModule` with the fixes. Ensure your manual translators (like `GeoSpatialTranslator`) use the `TryGetEntity -> CreateGhost` pattern if they receive data for unknown IDs.
+1.  **Hrot.SimHost**: Ensure `SimHostModule` registers `ReplicationLogicModule` with the fixes. Ensure your manual translators (like `WorldPosTranslator`) use the `TryGetEntity -> CreateGhost` pattern if they receive data for unknown IDs.
 2.  **NetworkDemo**: Remove `SerializationRegistry` setup (no longer needed). Remove `BinaryGhostStore` from component registration. Update `TankTemplate` to not require binary descriptors.
 
 ### Summary of Benefits

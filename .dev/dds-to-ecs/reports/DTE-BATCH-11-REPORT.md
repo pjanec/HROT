@@ -25,8 +25,8 @@
 **Integration Tests Passed:** 0 / 0
 
 **Commands:**
-- `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
-- `dotnet test Bagira.Map.Common.Tests/Bagira.Map.Common.Tests.csproj`
+- `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
+- `dotnet test Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj`
 
 **Key Test Scenarios Verified:**
 - SimHost component registration includes combat/perception components and physics batch singleton.

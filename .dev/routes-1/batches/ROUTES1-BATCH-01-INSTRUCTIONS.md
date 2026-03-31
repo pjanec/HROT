@@ -21,10 +21,10 @@ Welcome to ROUTES1-BATCH-01. This batch lays the foundation for the new Route ca
 4. **Design Document:** `docs/routes-1/ROUTES1-DESIGN.md` - Technical design context (Chapters 4, 6, 14, etc.)
 
 ### Source Code Location
-- **Bagira.Map.Common:** Contains components, structs, translators (`src/` or repository root directories as applicable)
-- **Bagira.Map.Definitions:** For TKB wiring (T003)
-- **Bagira.SimHost & Bagira.IG:** For ECS registrations and bootstraps
-- **Test Projects:** `Bagira.Map.Common.Tests/`, `Bagira.SimHost.Tests/`
+- **Hrot.Map.Common:** Contains components, structs, translators (`src/` or repository root directories as applicable)
+- **Hrot.Map.Definitions:** For TKB wiring (T003)
+- **Hrot.SimHost & Hrot.IG:** For ECS registrations and bootstraps
+- **Test Projects:** `Hrot.Map.Common.Tests/`, `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -72,7 +72,7 @@ This batch implements Phase 1 and Phase 2 from the ROUTES1 design. It introduces
 
 ### Task 1: RoutePlan Managed Component (ROUTES1-T001)
 
-**Files:** `Bagira.Map.Common/RoutePlan.cs` (or suitable file), Component Registrations in `Bagira.SimHost` and `Bagira.IG`
+**Files:** `Hrot.Map.Common/RoutePlan.cs` (or suitable file), Component Registrations in `Hrot.SimHost` and `Hrot.IG`
 **Task Definition:** See [ROUTES1-TASK-DETAIL.md](../../docs/routes-1/ROUTES1-TASK-DETAIL.md#routes1-t001--routeplan-managed-component)
 
 **Description:** Implement the `RoutePlan` managed component and `RouteWaypoint` struct. Please refer directly to the task detail document for the exact structural requirements rather than duplicating them here.
@@ -86,7 +86,7 @@ This batch implements Phase 1 and Phase 2 from the ROUTES1 design. It introduces
 
 ### Task 2: Supporting Components and Events (ROUTES1-T002)
 
-**Files:** `Bagira.Map.Common/PersonalRouteRef.cs`, `Bagira.Map.Common/RouteTrajectoryCache.cs`, event layer struct definitions.
+**Files:** `Hrot.Map.Common/PersonalRouteRef.cs`, `Hrot.Map.Common/RouteTrajectoryCache.cs`, event layer struct definitions.
 **Task Definition:** See [ROUTES1-TASK-DETAIL.md](../../docs/routes-1/ROUTES1-TASK-DETAIL.md#routes1-t002--supporting-components-and-events)
 
 **Description:** Add blittable structs to handle references, caching and events. Ensure they are correctly attributed with `[ComponentId]`.
@@ -97,7 +97,7 @@ This batch implements Phase 1 and Phase 2 from the ROUTES1 design. It introduces
 
 ### Task 3: TKB Blueprint for TacGraphic_Route (ROUTES1-T003)
 
-**Files:** `Bagira.Map.Definitions/TkbEntityTypes.cs` and Entity Bootstrappers.
+**Files:** `Hrot.Map.Definitions/TkbEntityTypes.cs` and Entity Bootstrappers.
 **Task Definition:** See [ROUTES1-TASK-DETAIL.md](../../docs/routes-1/ROUTES1-TASK-DETAIL.md#routes1-t003--tkb-blueprint-for-tacgraphic_route)
 
 **Description:** Expand the TKB definition data wiring to ensure route entities are crafted natively without unused kinematic states.
@@ -108,19 +108,19 @@ This batch implements Phase 1 and Phase 2 from the ROUTES1 design. It introduces
 
 ### Task 4: MapRouteEgressTranslator (ROUTES1-T004)
 
-**Files:** `Bagira.Map.Common/MapRouteEgressTranslator.cs`
+**Files:** `Hrot.Map.Common/MapRouteEgressTranslator.cs`
 **Task Definition:** See [ROUTES1-TASK-DETAIL.md](../../docs/routes-1/ROUTES1-TASK-DETAIL.md#routes1-t004--maprouteegresstranslator)
 
 **Description:** Publish mutable ECS state (waypoints, loop status) effectively onto the DDS network tracking mutations correctly using `SmartEgressUtil`.
 
 **Tests Required:**
 - MapRoute translation count assertions based on waypoint data.
-- GeoPosition precision assertions round trip checking 1 mm tolerance.
+- GeoPoint precision assertions round trip checking 1 mm tolerance.
 - Dirty flag functionality.
 
 ### Task 5: MapRouteIngressTranslator (ROUTES1-T005)
 
-**Files:** `Bagira.Map.Common/MapRouteIngressTranslator.cs`
+**Files:** `Hrot.Map.Common/MapRouteIngressTranslator.cs`
 **Task Definition:** See [ROUTES1-TASK-DETAIL.md](../../docs/routes-1/ROUTES1-TASK-DETAIL.md#routes1-t005--maprouteingresstranslator)
 
 **Description:** Accept external DDS route messages to apply against internal ECS component. Handle deferred/queued entities natively using retry mechanisms.

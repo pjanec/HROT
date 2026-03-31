@@ -12,7 +12,7 @@ This document covers a second batch of bug fixes and small features discovered d
 testing of the IOS / IG / SimHost federated simulation stack. The issues span eight concern areas:
 
 1. **Network Correctness** — duplicate system registration causing double ACKs; missing DDS sender
-   identity tracking; orphaned GeoSpatialDR descriptor after entity deletion
+   identity tracking; orphaned WorldPos descriptor after entity deletion
 2. **Mission System** — missing `DoctrineFinished` / `UnderAttack` trigger cases in message-to-ECS
    translation; no trigger selection UI in the task editor; unreadable task action buttons; missing
    version-conflict resolution UI in the mission panel
@@ -36,12 +36,12 @@ testing of the IOS / IG / SimHost federated simulation stack. The issues span ei
 
 ### 1.1 Fix Duplicate UpdateEntityDescriptorRequestSystem Registration
 
-**Files:** `Bagira.SimHost/SimHostApp.cs`
+**Files:** `Hrot.SimHost/SimHostApp.cs`
 
 `SimHostApp._kernelGroup.AddSystem` calls are made once for every system that should run each
 tick. A copy-paste error causes `UpdateEntityDescriptorRequestSystem` to be added **twice**. This
 creates two DDS reader instances that both subscribe to the same topic and both pass the
-`HasAuthority` check when the SimHost owns a descriptor (e.g. `dtGeoSpatial`). The result is two
+`HasAuthority` check when the SimHost owns a descriptor (e.g. `dtWorldPos`). The result is two
 identical ACK samples on the network per incoming request.
 
 **Fix:** Remove the duplicate `AddSystem` line so the system is registered exactly once.
@@ -51,9 +51,9 @@ identical ACK samples on the network per incoming request.
 ### 1.2 Add EnableSenderTracking to All DDS Participant Initializations
 
 **Files:**  
-- `Bagira.SimHost/SimHostApp.cs`  
-- `Bagira.IG/IgApplication.cs`  
-- `Bagira.Runner/Services/IosSubsystem.cs`  
+- `Hrot.SimHost/SimHostApp.cs`  
+- `Hrot.IG/IgApplication.cs`  
+- `Hrot.ClusterRunner/Services/IosSubsystem.cs`  
 - `FDP/Examples/Fdp.Examples.NetworkDemo/NetworkDemoApp.cs`
 
 Every DDS participant must call `participant.EnableSenderTracking(new SenderIdentityConfig { ... })`
@@ -76,24 +76,24 @@ The configuration values come from already-available variables at each call site
 
 ---
 
-### 1.3 Fix GeoSpatialDR Descriptor Disposal Leak
+### 1.3 Fix WorldPos Descriptor Disposal Leak
 
-**Files:** `Bagira.Map.Common/Replication/Egress/GeoSpatialEgressTranslator.cs`
+**Files:** `Hrot.Map.Common/Replication/Egress/WorldPosEgressTranslator.cs`
 
-`GeoSpatialEgressTranslator` inherits from `CycloneTranslator<GeoSpatial, GeoSpatial>`, which
+`WorldPosEgressTranslator` inherits from `CycloneTranslator<WorldPos, WorldPos>`, which
 provides a virtual `Dispose(long networkEntityId)` that disposes only the primary generic topic
-instance. The translator also owns a secondary private `_drWriter` for the `GeoSpatialDR` topic.
+instance. The translator also owns a secondary private `_drWriter` for the `WorldPos` topic.
 Because `Dispose` is never overridden, `_drWriter` is never tombstoned when an entity is deleted —
-the `GeoSpatialDR` sample remains alive on the DDS network indefinitely.
+the `WorldPos` sample remains alive on the DDS network indefinitely.
 
 **Verification:** A review of the other egress translators confirms this pattern is unique to
-`GeoSpatialEgressTranslator`. All others either implement their own full `Dispose` or document that
+`WorldPosEgressTranslator`. All others either implement their own full `Dispose` or document that
 no disposal is necessary (`NavigationIntentEgressTranslator`, `NavigationStatusEgressTranslator`).
 
-**Fix:** Override `Dispose(long networkEntityId)` in `GeoSpatialEgressTranslator`:
-1. Call `base.Dispose(networkEntityId)` to tombstone the primary `GeoSpatial` sample.
-2. Call `_drWriter.DisposeInstance(new GeoSpatialDR { EntityId = (int)networkEntityId })` to
-   tombstone the secondary `GeoSpatialDR` sample.
+**Fix:** Override `Dispose(long networkEntityId)` in `WorldPosEgressTranslator`:
+1. Call `base.Dispose(networkEntityId)` to tombstone the primary `WorldPos` sample.
+2. Call `_drWriter.DisposeInstance(new WorldPos { EntityId = (int)networkEntityId })` to
+   tombstone the secondary `WorldPos` sample.
 
 ---
 
@@ -102,8 +102,8 @@ no disposal is necessary (`NavigationIntentEgressTranslator`, `NavigationStatusE
 ### 2.1 Fix Missing ResolveTrigger Cases
 
 **Files:**  
-- `Bagira.SimHost/Systems/MissionControlRequestSystem.cs`  
-- `Bagira.Map.Common/Translators/EntityMissionIngressTranslator.cs`
+- `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`  
+- `Hrot.Map.Common/Translators/EntityMissionIngressTranslator.cs`
 
 Both files contain a `ResolveTrigger` helper with a `switch` statement that only handles three of
 the five documented trigger types:
@@ -131,7 +131,7 @@ methods.
 
 ### 2.2 Add Trigger Selection UI to MissionPanel
 
-**Files:** `Bagira.IOS/Panels/MissionPanel.cs`
+**Files:** `Hrot.ExCon/Panels/MissionPanel.cs`
 
 The `MissionPanel` task-rendering loop displays the task type and behavior parameters but
 completely skips the trigger definition. Operators can only see and edit trigger data indirectly.
@@ -168,7 +168,7 @@ editing raw JSON externally.
 
 ### 2.3 Fix Unreadable Mission Task Action Buttons
 
-**Files:** `Bagira.IOS/Panels/MissionPanel.cs`
+**Files:** `Hrot.ExCon/Panels/MissionPanel.cs`
 
 The per-task Up/Down/Delete buttons use Unicode arrow and cross characters (`↑`, `↓`, `✕`). The
 ImGui font atlas loaded by `rlImGui.Setup(darkTheme: true)` only includes the basic (ASCII)
@@ -185,7 +185,7 @@ invisible-ID suffixes to maintain unique widget IDs:
 
 ### 2.4 Add Inline Version-Conflict Resolution to MissionPanel
 
-**Files:** `Bagira.IOS/Panels/MissionPanel.cs`
+**Files:** `Hrot.ExCon/Panels/MissionPanel.cs`
 
 The Optimistic Concurrency Control (OCC) mechanism in `MissionControlRequestSystem` detects version
 conflicts and sets `HasConflictAlert` / `ConflictMessage` on the panel, but the panel never renders
@@ -214,7 +214,7 @@ must be **inline** within the Mission Control panel.
 
 ### 3.1 Remove Legacy Tool Combo from ConfigPanel
 
-**Files:** `Bagira.IOS/Panels/ConfigPanel.cs`
+**Files:** `Hrot.ExCon/Panels/ConfigPanel.cs`
 
 Map tools are now launched via explicit commands (`CMD_PLACE_ENTITY`, `CMD_START_AUTHORING`). The
 `ConfigPanel` still carries dead-weight from the era when the active tool was set via the map
@@ -228,7 +228,7 @@ block (icon scale + layer visibility flags).
 
 ### 3.2 Fix ORBAT Tree Indentation
 
-**Files:** `Bagira.IOS/Panels/OrbatPanel.cs`
+**Files:** `Hrot.ExCon/Panels/OrbatPanel.cs`
 
 `GetVisibleNodes` correctly computes a pre-flattened depth-first list where each `OrbatNode` carries
 a `Depth` property. The rendering loop calls `ImGui.TreeNodeEx` + immediately `ImGui.TreePop()` for
@@ -249,7 +249,7 @@ Using `ImGui.GetStyle().IndentSpacing` respects any global UI scaling applied to
 
 ### 4.1 Add Shift-Key Immediate Drag Mode
 
-**Files:** `Bagira.IG/IgApplication.cs`
+**Files:** `Hrot.IG/IgApplication.cs`
 
 The `EntityDragTool` fires `OnEntityMoved` every frame the mouse is held and moving. The original
 throttle implementation (`_continuousDragTimer`, `ContinuousDragIntervalSec = 0.1f`) sends at most
@@ -263,7 +263,7 @@ changing existing behavior.
 **Fix:** Rewrite the `OnEntityMoved` lambda body:
 1. Detect SHIFT via `Raylib.IsKeyDown(KeyboardKey.LeftShift) || Raylib.IsKeyDown(KeyboardKey.RightShift)`.
 2. If `_userConfig.ContinuousDragUpdates`: apply the existing throttle+timer logic (keep unchanged).
-3. If SHIFT is held (and ContinuousDragUpdates is false): call `SendGeoSpatialUpdate(entity, worldPos)`
+3. If SHIFT is held (and ContinuousDragUpdates is false): call `SendWorldPosUpdate(entity, worldPos)`
    directly whenever `_lastDragWorldPos != worldPos` — no timer involved.
 4. Update `_lastDragWorldPos = worldPos` unconditionally at the end.
 5. Remove `_continuousDragTimer`, `_frameDt`, and `ContinuousDragIntervalSec` from the class — they
@@ -277,9 +277,9 @@ changing existing behavior.
 
 **Files:**  
 - `FDP/Toolkits/FDP.Toolkit.Vis2D/Tools/BoxSelectionTool.cs`  
-- `Bagira.IG/Systems/SelectionRenderSystem.cs`  
+- `Hrot.IG/Systems/SelectionRenderSystem.cs`  
 - `FDP/Toolkits/FDP.Toolkit.Vis2D/Layers/EntityRenderLayer.cs`  
-- `Bagira.IG/IgApplication.cs`
+- `Hrot.IG/IgApplication.cs`
 
 When the operator turns off a map layer (e.g. Ground Units) three distinct subsystems fail to
 respect the layer mask:
@@ -324,7 +324,7 @@ global canvas layer mask.
 
 ### 6.1 Add Crosshair Cursor to MeasureTool
 
-**Files:** `Bagira.IG/Tools/MeasureTool.cs`
+**Files:** `Hrot.IG/Tools/MeasureTool.cs`
 
 `MeasureTool.Draw` returns immediately when `!_startPoint.HasValue`. The operator has no visual
 cue that the tool is active and waiting for a click. `HandleHover` already tracks `_currentPoint`,
@@ -356,8 +356,8 @@ geometry as the entity picker crosshair documented in `MapCommandRequest`. The c
 ### 7.1 Add Delete to Inspector Context Menus
 
 **Files:**  
-- `Bagira.SimHost/SimHostVisualization.cs`  
-- `Bagira.IG/IgApplication.cs`
+- `Hrot.SimHost/SimHostVisualization.cs`  
+- `Hrot.IG/IgApplication.cs`
 
 Both the SimHost and IG inspector panels render a context menu via
 `LambdaEntityContextMenuHandler`. Neither currently exposes a Delete action. The deletion must go
@@ -376,8 +376,8 @@ DISPOSE to all peers, rather than locally calling `DestroyEntity()` directly.
 ### 7.2 Wire IOS DELETE Context Action to IG-Side ELM Deletion
 
 **Files:**  
-- `Bagira.IG/Translators/ContextActionsUpdateTranslator.cs`  
-- `Bagira.IG/IgApplication.cs`
+- `Hrot.IG/Translators/ContextActionsUpdateTranslator.cs`  
+- `Hrot.IG/IgApplication.cs`
 
 The IOS registers a DELETE item in its context menu extension using numeric action ID `10`
 (`ContextMenuActions.Delete`). The IG's `ContextActionsUpdateTranslator.ParseActions` converts
@@ -399,8 +399,8 @@ The IOS continues to act as a pure **menu provider** without any execution respo
 ### 8.1 Fix SimHost Road Graph Rendering
 
 **Files:**  
-- `Bagira.SimHost/Modules/SimulationLogicModule.cs`  
-- `Bagira.SimHost/SimHostApp.cs`
+- `Hrot.SimHost/Modules/SimulationLogicModule.cs`  
+- `Hrot.SimHost/SimHostApp.cs`
 
 Two independent bugs prevent the road graph from rendering on the SimHost:
 
@@ -423,7 +423,7 @@ public SimulationLogicModule(..., RoadNetworkBlob roadNetwork = default, ...)
 
 **b. Hardcoded relative file path in SimHostApp**  
 `SimHostApp` loads the road network from the hardcoded string `"Assets/sample_road.json"` which
-resolves relative to the process working directory. When launched from the Bagira.Runner project
+resolves relative to the process working directory. When launched from the Hrot.ClusterRunner project
 folder the file is not found and the silent `catch` swallows the error.
 
 **Fix:** Use `nodeConfig.RoadNetworkBlobPath` (already present in the node configuration) instead

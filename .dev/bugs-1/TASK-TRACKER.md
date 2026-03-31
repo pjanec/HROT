@@ -30,7 +30,7 @@ instances are disposed when an entity is deleted.
 
 ## Phase 3 — IG Continuous Drag Mode
 
-**Goal:** Add a debug-panel toggle that sends throttled GeoSpatial updates during entity drag so
+**Goal:** Add a debug-panel toggle that sends throttled WorldPos updates during entity drag so
 developers can observe network latency in real time.
 
 - [x] **BUG1-I001** Add Continuous Drag Update Toggle to IG [details](./TASK-DETAIL.md#bug1-i001-add-continuous-drag-update-toggle-to-ig)

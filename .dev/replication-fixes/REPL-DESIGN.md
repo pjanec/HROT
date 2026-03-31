@@ -76,7 +76,7 @@ private static readonly HashSet<SystemPhase> _validGlobalPhases = new()
 
 ### 2.2 Why the Apps Currently Work
 
-The IG `EntityMasterTranslator` (in `Bagira.IG`) bypasses the ghost pipeline entirely — it fires `SpawnEntityCommand` directly, which `NetworkSpawningSystem` handles. This workaround makes the demo work but is protocol-non-compliant (see §4.1). The FDP-internal `ModuleHost.Network.Cyclone.Translators.EntityMasterTranslator` creates "proxy entities" directly in the `Decode()` method, also bypassing the ghost pipeline.
+The IG `EntityMasterTranslator` (in `Hrot.IG`) bypasses the ghost pipeline entirely — it fires `SpawnEntityCommand` directly, which `NetworkSpawningSystem` handles. This workaround makes the demo work but is protocol-non-compliant (see §4.1). The FDP-internal `ModuleHost.Network.Cyclone.Translators.EntityMasterTranslator` creates "proxy entities" directly in the `Decode()` method, also bypassing the ghost pipeline.
 
 **The replication systems are not dead legacy code.** They implement critical BDC-SST protocol requirements that the current shortcut cannot satisfy in all real-world scenarios.
 
@@ -141,9 +141,9 @@ Before proceeding with the fix, it is critical to understand why these systems a
 
 ### 4.1 Ghost Creation & Promotion — BDC-SST Protocol Requirement
 
-**BDC-SST does not guarantee `EntityMaster` arrives first.** On WANs, with UDP packet reordering, or for late-joining nodes, a `GeoSpatial` or `WeaponState` packet may arrive before the `EntityMaster` for that NetID.
+**BDC-SST does not guarantee `EntityMaster` arrives first.** On WANs, with UDP packet reordering, or for late-joining nodes, a `WorldPos` or `WeaponState` packet may arrive before the `EntityMaster` for that NetID.
 
-**Current gap:** All IG ingress translators (e.g., `GeoSpatialTranslator.Decode`) call `EntityMap.TryGetEntity(netId, out entity)` and **silently return (drop data)** if the entity is unknown. This is protocol non-compliant — descriptors arriving before `EntityMaster` are irretrievably lost.
+**Current gap:** All IG ingress translators (e.g., `WorldPosTranslator.Decode`) call `EntityMap.TryGetEntity(netId, out entity)` and **silently return (drop data)** if the entity is unknown. This is protocol non-compliant — descriptors arriving before `EntityMaster` are irretrievably lost.
 
 **The Ghost Pattern with ECS-as-Staging:**  
 1. Any translator receives an unknown `NetID` → calls `GhostCreationSystem.CreateGhost(repo, netId)` to create a lightweight "ghost shell" entity with `EntityLifecycle.Ghost`. The calling ingress system (Input phase) passes its live `EntityRepository` directly; `GhostCreationSystem.Execute` is a no-op and holds no world reference, avoiding the Frame-0 race condition where translators run before `BeforeSync`.
@@ -205,7 +205,7 @@ Each system is replication *infrastructure*, not simulation *logic*. It must run
 
 ### 5.4 Translator Updates Required
 
-**A. Non-master ingress translators** (`GeoSpatialTranslator`, `GeoSpatialDRTranslator`, `EntityInfoTranslator`, `EntityDamageTranslator`, `MapEntitySymbolTranslator`, `ContextActionsUpdateTranslator`):  
+**A. Non-master ingress translators** (`WorldPosTranslator`, `WorldPosTranslator`, `EntityInfoTranslator`, `EntityDamageTranslator`, `MapEntitySymbolTranslator`, `ContextActionsUpdateTranslator`):  
 Change `return;` on unknown NetID to: `CreateGhost` + `SetComponent`.
 
 **B. IG `EntityMasterTranslator`**:  
@@ -342,7 +342,7 @@ if (!EntityMap.TryGetEntity(netId, out var entity))
 cmd.SetComponent(entity, new NetworkPosition { Value = position });
 ```
 
-Affected translators: `GeoSpatialTranslator`, `GeoSpatialDRTranslator`, `EntityInfoTranslator`, `EntityDamageTranslator`, `MapEntitySymbolTranslator`, `ContextActionsUpdateTranslator`.
+Affected translators: `WorldPosTranslator`, `WorldPosTranslator`, `EntityInfoTranslator`, `EntityDamageTranslator`, `MapEntitySymbolTranslator`, `ContextActionsUpdateTranslator`.
 
 See [Task REPL-P2-T4](./REPL-TASK-DETAIL.md#repl-p2-t4-update-ig-ingress-translators--ghost-fallback-part-d).
 
@@ -370,8 +370,8 @@ See [Task REPL-P2-T5](./REPL-TASK-DETAIL.md#repl-p2-t5-update-fdp-internal-cyclo
 
 | Task ID | File | Change |
 |---------|------|--------|
-| REPL-P3-T1 | `Bagira.IG/IgApplication.cs` | Pass `(_entityMap, tkb)` to `ReplicationLogicModule`; wire `GhostCreationSystem` instance into IG translators |
-| REPL-P3-T2 | `Bagira.Runner/Services/SimHostSubsystem.cs` | Register `new ReplicationLogicModule(entityMap, tkbDb)` |
+| REPL-P3-T1 | `Hrot.IG/IgApplication.cs` | Pass `(_entityMap, tkb)` to `ReplicationLogicModule`; wire `GhostCreationSystem` instance into IG translators |
+| REPL-P3-T2 | `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` | Register `new ReplicationLogicModule(entityMap, tkbDb)` |
 | REPL-P3-T3 | `FDP/Examples/Fdp.Examples.NetworkDemo/NetworkDemoApp.cs` | Pass `(EntityMap, tkb)` |
 
 ### 9.2 GhostCreationSystem Wiring in IG
@@ -382,14 +382,14 @@ In `IgApplication.InitializeNetwork()`, the same `GhostCreationSystem` instance 
 
 ## 10. Phase 4 — Integration Test Coverage
 
-**Goal:** Autonomous integration tests in `Bagira.Runner.Integration.Tests`. All use `BagiraRunnerHarness` + `PumpUntil`.
+**Goal:** Autonomous integration tests in `Hrot.ClusterRunner.Integration.Tests`. All use `HrotRunnerHarness` + `PumpUntil`.
 
 | Task ID | Test | What It Verifies |
 |---------|------|-----------------|
 | REPL-P4-T1 | `ReplicationPhaseExecutionTests` | `DisposalMonitoringSystem` prunes map each frame (systems now run) |
 | REPL-P4-T2 | `ZombieEntityMapTests` | `NetworkEntityMap` pruned after full lifecycle destroy on both SimHost and IG |
 | REPL-P4-T3 | `SubEntityCascadeDestroyTests` | Child entities destroyed when parent is destroyed |
-| REPL-P4-T4 | `GhostPromotionTests` | Out-of-order descriptors (GeoSpatial before EntityMaster) result in a fully promoted entity with preserved component data |
+| REPL-P4-T4 | `GhostPromotionTests` | Out-of-order descriptors (WorldPos before EntityMaster) result in a fully promoted entity with preserved component data |
 
 ---
 
@@ -409,10 +409,10 @@ In `IgApplication.InitializeNetwork()`, the same `GhostCreationSystem` instance 
 | `GhostPromotionSystem` | ✅ EXISTS — **MODIFY** | `...Replication/Systems/GhostPromotionSystem.cs` | Remove `ISerializationRegistry`; `preserveExisting: true`; query by Ghost lifecycle |
 | `OwnershipEgressSystem` | ✅ EXISTS — **MODIFY** | `...Replication/Systems/OwnershipEgressSystem.cs` | `IModuleSystem`, `Export` |
 | `SmartEgressSystem` | ✅ EXISTS — **MODIFY** | `...Replication/Systems/SmartEgressSystem.cs` | `IModuleSystem`, `Export` |
-| IG `EntityMasterTranslator` | ✅ EXISTS — **MODIFY** | `Bagira.IG/Translators/EntityMasterTranslator.cs` | Replace `SpawnEntityCommand` with Ghost+`NetworkSpawnRequest` |
-| IG ingress translators (6) | ✅ EXIST — **MODIFY** | `Bagira.IG/Translators/*.cs` | Ghost fallback instead of `return` on unknown NetID |
+| IG `EntityMasterTranslator` | ✅ EXISTS — **MODIFY** | `Hrot.IG/Translators/EntityMasterTranslator.cs` | Replace `SpawnEntityCommand` with Ghost+`NetworkSpawnRequest` |
+| IG ingress translators (6) | ✅ EXIST — **MODIFY** | `Hrot.IG/Translators/*.cs` | Ghost fallback instead of `return` on unknown NetID |
 | Cyclone `EntityMasterTranslator` | ✅ EXISTS — **MODIFY** | `ModuleHost.Network.Cyclone/Translators/EntityMasterTranslator.cs` | Set `EntityLifecycle.Ghost` on new proxy entities |
-| `IgApplication.cs` | ✅ EXISTS — **MODIFY** | `Bagira.IG/IgApplication.cs` | Pass `(_entityMap, tkb)` to `ReplicationLogicModule`; wire `GhostCreationSystem` into translators |
-| `SimHostSubsystem.cs` | ✅ EXISTS — **MODIFY** | `Bagira.Runner/Services/SimHostSubsystem.cs` | Register `ReplicationLogicModule(entityMap, tkbDb)` |
+| `IgApplication.cs` | ✅ EXISTS — **MODIFY** | `Hrot.IG/IgApplication.cs` | Pass `(_entityMap, tkb)` to `ReplicationLogicModule`; wire `GhostCreationSystem` into translators |
+| `SimHostSubsystem.cs` | ✅ EXISTS — **MODIFY** | `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` | Register `ReplicationLogicModule(entityMap, tkbDb)` |
 | `NetworkDemoApp.cs` | ✅ EXISTS — **MODIFY** | `FDP/Examples/.../NetworkDemoApp.cs` | Pass `(EntityMap, tkb)` |
-| New integration tests | ❌ NEW | `Bagira.Runner.Integration.Tests/` | REPL-P4-T1 through T4 |
+| New integration tests | ❌ NEW | `Hrot.ClusterRunner.Integration.Tests/` | REPL-P4-T1 through T4 |

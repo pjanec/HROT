@@ -35,7 +35,7 @@ The remaining tasks in Phase R3 are to:
 ```text
 feat(runner): Complete Phase R0.2 component attribution and R3 headless handlers
 
-- Attributed all remaining components across FDP.Toolkit.*, Bagira.*, and Examples with `[ComponentId]`.
+- Attributed all remaining components across FDP.Toolkit.*, Hrot.*, and Examples with `[ComponentId]`.
 - Fixed missing `using Fdp.Kernel;` in NetworkDemo components.
 - Mapped test components to the >200 ID range.
 - Implemented `HeadlessTestExecutor` action handlers (spawn, move, tick, assert_position).

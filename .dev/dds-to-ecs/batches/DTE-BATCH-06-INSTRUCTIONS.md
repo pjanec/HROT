@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-06  
 **Tasks:** DDS2ECS-S10T1, DDS2ECS-S10T2, DDS2ECS-S10T3, DDS2ECS-S10T4, DDS2ECS-S11T1, DDS2ECS-S11T2, DDS2ECS-S11T3  
 **Phase:** Phase 10 + Phase 11  
-**Estimated Effort:** 14–18 hours  
+**Estimated Effort:** 14ï¿½18 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-05 approved
 
@@ -17,12 +17,12 @@ This batch implements IG dead-reckoning and time synchronization so ghost entiti
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
 2. **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md` (DDS2ECS-S10T1 ? DDS2ECS-S11T3)
-3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (§6.3, §6.4)
+3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (ï¿½6.3, ï¿½6.4)
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-05-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`, `Bagira.SimHost/`, `Bagira.Runner/`
-- **Test Projects:** `Bagira.IG.Tests/`, `Bagira.SimHost.Tests/`
+- **Primary Work Area:** `Hrot.IG/`, `Hrot.SimHost/`, `Hrot.ClusterRunner/`
+- **Test Projects:** `Hrot.IG.Tests/`, `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -41,44 +41,44 @@ This batch implements IG dead-reckoning and time synchronization so ghost entiti
 
 ## ? Tasks
 
-### Task 1: DDS2ECS-S10T1 — Fix `GeoSpatialTranslator.Decode`
-**File:** `Bagira.IG/Translators/GeoSpatialTranslator.cs` (UPDATE)  
+### Task 1: DDS2ECS-S10T1 ï¿½ Fix `WorldPosTranslator.Decode`
+**File:** `Hrot.IG/Translators/WorldPosTranslator.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s10t1--fix-geospatialtranslatordecode-ig-write-networkposition`
 
 ---
 
-### Task 2: DDS2ECS-S10T2 — Create `GeoSpatialDRTranslator`
-**File:** `Bagira.IG/Translators/GeoSpatialDRTranslator.cs` (NEW)  
+### Task 2: DDS2ECS-S10T2 ï¿½ Create `WorldPosTranslator`
+**File:** `Hrot.IG/Translators/WorldPosTranslator.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s10t2--create-geospatialdrtranlator-ig`
 
 ---
 
-### Task 3: DDS2ECS-S10T3 — Create `DeadReckoningSyncSystem`
-**File:** `Bagira.IG/Systems/DeadReckoningSyncSystem.cs` (NEW)  
+### Task 3: DDS2ECS-S10T3 ï¿½ Create `DeadReckoningSyncSystem`
+**File:** `Hrot.IG/Systems/DeadReckoningSyncSystem.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s10t3--create-deadreckoningsyncsystem-ig`
 
 ---
 
-### Task 4: DDS2ECS-S10T4 — Register DR translator + system
-**File:** `Bagira.IG/IgApplication.cs` (UPDATE)  
+### Task 4: DDS2ECS-S10T4 ï¿½ Register DR translator + system
+**File:** `Hrot.IG/IgApplication.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s10t4--igapplication-register-new-dr-translator-and-system`
 
 ---
 
-### Task 5: DDS2ECS-S11T1 — Verify `TimePulseDescriptor` DDS topic registration
+### Task 5: DDS2ECS-S11T1 ï¿½ Verify `TimePulseDescriptor` DDS topic registration
 **File:** FDP toolkit file that defines `TimePulseDescriptor` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s11t1--verify-timepulsedescriptor-dds-topic-registration`
 
 ---
 
-### Task 6: DDS2ECS-S11T2 — `IgApplication`: enable `TimePulseTranslator`
-**File:** `Bagira.IG/IgApplication.cs` (UPDATE)  
+### Task 6: DDS2ECS-S11T2 ï¿½ `IgApplication`: enable `TimePulseTranslator`
+**File:** `Hrot.IG/IgApplication.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s11t2--igapplication-enable-timepulsetranslator`
 
 ---
 
-### Task 7: DDS2ECS-S11T3 — SimHost time-pulse egress
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.Runner/Services/SimHostSubsystem.cs` (UPDATE)  
+### Task 7: DDS2ECS-S11T3 ï¿½ SimHost time-pulse egress
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s11t3--simhostapp--simhostsubsystem-register-time-pulse-egress`
 
 ---
@@ -86,8 +86,8 @@ This batch implements IG dead-reckoning and time synchronization so ghost entiti
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.IG.Tests/Bagira.IG.Tests.csproj`
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+  - `dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj`
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
 
 ---
 
@@ -122,8 +122,8 @@ This batch implements IG dead-reckoning and time synchronization so ghost entiti
 ## ?? Success Criteria
 
 This batch is DONE when:
-- [ ] DDS2ECS-S10T1–S10T4 complete with xUnit tests
-- [ ] DDS2ECS-S11T1–S11T3 complete with xUnit tests
+- [ ] DDS2ECS-S10T1ï¿½S10T4 complete with xUnit tests
+- [ ] DDS2ECS-S11T1ï¿½S11T3 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-06-REPORT.md`
 
@@ -138,4 +138,4 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 - **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md`
-- **Design:** `docs/dds-to-ecs/DESIGN.md` (§6.3, §6.4)
+- **Design:** `docs/dds-to-ecs/DESIGN.md` (ï¿½6.3, ï¿½6.4)

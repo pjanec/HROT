@@ -25,9 +25,9 @@
 **Integration Tests Passed:** N/A (no new integration tests; existing suite unaffected)
 
 **Test assemblies:**
-- `Bagira.SimHost.Tests`: 13 passed (5 TkbRegistration + 6 SpawnEntityCommand + 2 pre-existing)
-- `Bagira.IG.Tests`: 5 passed (4 MapEventTranslator + 1 pre-existing)
-- `Bagira.IOS.Tests`: 4 passed (3 DdsWriterAdapter + 1 pre-existing)
+- `Hrot.SimHost.Tests`: 13 passed (5 TkbRegistration + 6 SpawnEntityCommand + 2 pre-existing)
+- `Hrot.IG.Tests`: 5 passed (4 MapEventTranslator + 1 pre-existing)
+- `Hrot.ExCon.Tests`: 4 passed (3 DdsWriterAdapter + 1 pre-existing)
 
 **Key Test Scenarios Verified:**
 - [x] `BdcTkbCatalog.RegisterAll` populates Tank, IFV, Truck, Infantry types in a fresh `TkbDatabase`
@@ -64,7 +64,7 @@ Three non-trivial issues arose:
 
 **Q3: What design decisions did you make beyond the instructions? How did you resolve them?**
 
-- **`DdsWriterAdapter<T>` placed in `Bagira.IOS/Services/`** (same assembly as `IDdsWriter<T>`). An alternative was `Bagira.Map.Common`, but that would introduce a CycloneDDS.Runtime dependency in a module that currently has none. Keeping it in `Bagira.IOS` avoids a circular reference and the extra dependency.
+- **`DdsWriterAdapter<T>` placed in `Hrot.ExCon/Services/`** (same assembly as `IDdsWriter<T>`). An alternative was `Hrot.Map.Common`, but that would introduce a CycloneDDS.Runtime dependency in a module that currently has none. Keeping it in `Hrot.ExCon` avoids a circular reference and the extra dependency.
 - **`SubmitViaGateway` added as a second `Submit` overload** rather than replacing the existing `Submit(FdpEventBus)`. This preserves backward compatibility with the local-bus path used by existing tests and demo code.
 - **`SpawnEntityLocal` private helper** extracted inside `SimHostScenarioManager` to keep demo-only entity wiring out of the networked path, making the distinction between local-only and networked spawn explicit.
 - **`SimHostNetworkConstants.LocalNodeId`** extracted as a constant (value `1`) to eliminate the magic number that appeared in both `SimHostApp.cs` and the spawning code. The instructions called out the magic number as a smell; a static constants class was the most lightweight fix consistent with project patterns.

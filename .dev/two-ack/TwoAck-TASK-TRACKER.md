@@ -7,7 +7,7 @@
 
 ## Phase 1: Data Model Unification
 
-**Goal:** Establish the unified DDS message contract in `Bagira.DDS.DataModel` — prerequisite for all other phases.
+**Goal:** Establish the unified DDS message contract in `Hrot.NED` — prerequisite for all other phases.
 
 - [x] **TWOACK-DM001** Add `DeleteEntityRequest` struct [details](./TWOACK-TASK-DETAIL.md#twoack-dm001--add-deleteentityrequest-to-datamodel)
 - [x] **TWOACK-DM002** Rename `SstErrorCode` → `SstStatusCode` [details](./TWOACK-TASK-DETAIL.md#twoack-dm002--rename-ssterrorcode-to-sststatuscode)
@@ -17,7 +17,7 @@
 
 ## Phase 2: SimHost Two-ACK Pipeline
 
-**Goal:** Add the two-phase ACK state machine in `Bagira.SimHost` without touching FDP.
+**Goal:** Add the two-phase ACK state machine in `Hrot.SimHost` without touching FDP.
 
 - [x] **TWOACK-SH001** Create `SstRequestFinalizationSystem` [details](./TWOACK-TASK-DETAIL.md#twoack-sh001--create-sstrequestfinalizationsystem)
 - [x] **TWOACK-SH002** Update `CreateEntityRequestSystem` for two-ACK [details](./TWOACK-TASK-DETAIL.md#twoack-sh002--update-createentityrequestsystem-for-two-ack)

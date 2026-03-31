@@ -50,7 +50,7 @@ Here is how the implementation looks within the IG's current architectural bound
 using Fdp.Kernel;
 using Raylib_cs;
 
-namespace Bagira.IG.Components
+namespace Hrot.IG.Components
 {
     // Registered as a managed component due to potential complex style needs
     [ComponentId(GlobalComponentIds.MapOverlayStyle)] // Assumes ID assigned in registry
@@ -68,12 +68,12 @@ namespace Bagira.IG.Components
 
 ```
 using System.Numerics;
-using Bagira.IG.Components;
+using Hrot.IG.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
-namespace Bagira.IG.Layers
+namespace Hrot.IG.Layers
 {
     /// <summary>
     /// Renders tactical areas and multi-vertex polylines on the 2D map.

@@ -10,13 +10,13 @@
 ## ✅ Task Completion Summary
 
 ### Task 1 — `AttributeValueUnion` and `AttributeRecord` DDS Types (ATTR2-P1T1)
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs`
+**File:** `Hrot.NED/GenericMessages.cs`
 
 - Added `AttributeValueType` enum with 9 discriminator values (`KindInt32` through `KindVec4f`).
 - Added `Vec3f`, `Vec3d`, `Vec4f` value structs — annotated with `[DdsStruct]`, `[DdsIdlFile("bdc-sst-generic-msgs")]`, and `partial` to satisfy the CycloneDDS codegen.
 - Added `AttributeValueUnion` struct with scalar branches (`IntValue`, `LongValue`, `FloatValue`, `DoubleValue`, `BoolValue`, `StringValue`) and three zero-allocation vector branches (`Vec3fValue`, `Vec3dValue`, `Vec4fValue`).
 - Added `AttributeRecord` struct with `AttributeId`, `SubIndex1`, `SubIndex2`, `Value`.
-- All tests in `Bagira.DDS.DataModel.Tests/AttributeRecordTests.cs` pass.
+- All tests in `Hrot.NED.Tests/AttributeRecordTests.cs` pass.
 
 ### Task 2 — `AttributeId` Schema Constants (ATTR2-P1T2)
 **File:** `FDP/Toolkits/FDP.Toolkit.Replication/Patching/AttributeIds.cs`
@@ -27,7 +27,7 @@
 - Project builds with 0 errors.
 
 ### Task 3 — Wire Message Extensions (ATTR2-P1T3)
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs`
+**File:** `Hrot.NED/GenericMessages.cs`
 
 - Added `List<AttributeRecord>? InitialAttributeRecords` to `CreateEntityRequest`.
 - Added `List<AttributeRecord>? AttributeRecords` to `UpdateEntityAttributeRequest`.
@@ -41,7 +41,7 @@
 
 | Suite | Passed | Failed | Notes |
 |---|---|---|---|
-| `Bagira.DDS.DataModel.Tests` | 8 | 1 | Pre-existing: `CanPublishAndSubscribeEntityMaster` requires a live DDS runtime; fails in isolation on baseline too |
+| `Hrot.NED.Tests` | 8 | 1 | Pre-existing: `CanPublishAndSubscribeEntityMaster` requires a live DDS runtime; fails in isolation on baseline too |
 
 All 8 unit and contract tests pass. Zero regressions introduced.
 
@@ -73,6 +73,6 @@ The biggest win over the previous `List<float>?` design is removing three potent
 
 | File | Change |
 |---|---|
-| `Bagira.DDS.DataModel/GenericMessages.cs` | Added `AttributeValueType`, `Vec3f`, `Vec3d`, `Vec4f`, `AttributeValueUnion`, `AttributeRecord`; extended `CreateEntityRequest` and `UpdateEntityAttributeRequest` |
+| `Hrot.NED/GenericMessages.cs` | Added `AttributeValueType`, `Vec3f`, `Vec3d`, `Vec4f`, `AttributeValueUnion`, `AttributeRecord`; extended `CreateEntityRequest` and `UpdateEntityAttributeRequest` |
 | `FDP/Toolkits/FDP.Toolkit.Replication/Patching/AttributeIds.cs` | New file — schema constants |
-| `Bagira.DDS.DataModel.Tests/AttributeRecordTests.cs` | New file — 8 unit tests covering P1T1 and P1T3 |
+| `Hrot.NED.Tests/AttributeRecordTests.cs` | New file — 8 unit tests covering P1T1 and P1T3 |

@@ -48,32 +48,32 @@ Complete **Part A** in order; all tests green; then **Part B** (S0105) with test
 
 ### A.1 — Remove standalone projects (DEBT: Product / P2)
 
-- Remove **`Bagira.Orchestrator.Standalone`** and **`Bagira.CGF.Standalone`** from **`IOS-IG-SimHost.sln`** and delete the project directories (or leave a one-line README pointing to Runner if deletion is blocked — **prefer deletion**).  
-- No other Bagira subsystem ships a separate `.Standalone` exe; **orchestrator and CGF run only through `Bagira.Runner`** (`--mode orchestrator`, `--mode cgf`, combined flags as today).  
+- Remove **`Hrot.Orchestrator.Standalone`** and **`Hrot.CGF.Standalone`** from **`IOS-IG-SimHost.sln`** and delete the project directories (or leave a one-line README pointing to Runner if deletion is blocked — **prefer deletion**).  
+- No other Hrot subsystem ships a separate `.Standalone` exe; **orchestrator and CGF run only through `Hrot.ClusterRunner`** (`--mode orchestrator`, `--mode cgf`, combined flags as today).  
 - Keep **`CgfApplication`** for integration tests and **`CgfSubsystem`** for Runner.  
 - Update [.dev/cgf-1/CGF-1-ONBOARDING.md](../CGF-1-ONBOARDING.md) and any README references that mention `dotnet run --project …Standalone`.
 
 ### A.2 — DDS fail-fast: IG (DEBT: P1 Safety)
 
-**File:** `Bagira.IG/IgApplication.cs` — `InitializeNetwork`.
+**File:** `Hrot.IG/IgApplication.cs` — `InitializeNetwork`.
 
 - When **`enableNetwork == true`**, **do not** use a broad `catch` that sets `_networkEnabled = false` and “runs offline.”  
 - On DDS / translator / participant failure: **propagate** the exception (after disposing partially constructed DDS objects if needed) so the process fails visibly, **or** call a single documented fatal path that terminates the app with a clear message.  
-- **DrillSlave** must be created only on the success path; there is no supported IG mode with “network enabled but DDS dead.”
+- **ClusterSlave** must be created only on the success path; there is no supported IG mode with “network enabled but DDS dead.”
 
-**Audit:** `Bagira.SimHost`, `Bagira.IOS`, `Bagira.Runner` subsystems — **no silent swallow** of DDS initialization when DDS is required for that mode. If a code path is intentionally headless-without-DDS, it must be **explicit** (`enableNetwork: false` or dedicated test entry) and documented, not a catch-all fallback.
+**Audit:** `Hrot.SimHost`, `Hrot.ExCon`, `Hrot.ClusterRunner` subsystems — **no silent swallow** of DDS initialization when DDS is required for that mode. If a code path is intentionally headless-without-DDS, it must be **explicit** (`enableNetwork: false` or dedicated test entry) and documented, not a catch-all fallback.
 
 ### A.3 — Remove centralized ID allocator fallback (DEBT: P1 Architecture)
 
 - Delete **`LocalIdAllocatorFallbackHost`** and all call sites.  
 - Remove **`NodeConfiguration.IdAllocatorLocalFallbackEnabled`** and **`IdAllocatorLocalFallbackDelaySeconds`** (and JSON/config samples).  
 - **`EnsureIdAllocatorRouting`** (or its replacement): after a **short, bounded** wait for `DdsIdAllocator` publication match, if still unmatched → **`throw`** (type and message documented) — SimHost **must not** continue as if healthy.  
-- Update **`DdsIdAllocatorMigrationTests`**, **`DrillSlaveHeartbeatTests`**, **`EntityLifecycleIntegrationTests`**, and any test that relied on fallback — each must start **`DrillMaster`** (or host `DdsIdAllocatorServer` in-test **only** if you introduce a dedicated test double that is **not** a production fallback path).
+- Update **`DdsIdAllocatorMigrationTests`**, **`ClusterSlaveHeartbeatTests`**, **`EntityLifecycleIntegrationTests`**, and any test that relied on fallback — each must start **`ClusterMaster`** (or host `DdsIdAllocatorServer` in-test **only** if you introduce a dedicated test double that is **not** a production fallback path).
 
-### A.4 — SimHost `DrillSlave` “DDS-less” constructor (DEBT: policy)
+### A.4 — SimHost `ClusterSlave` “DDS-less” constructor (DEBT: policy)
 
-- Remove **`public DrillSlave()`** **or** make it **`internal`** with `InternalsVisibleTo` limited to specific test assemblies — production **`BuildOrchestration`** must **`throw`** if `participant` is null when the role requires orchestration.  
-- Fix **`RecordReplayIntegrationTests`** (and any other) to use **`DrillSlave(DdsParticipant, …)`** with a test participant or shared test fixture.
+- Remove **`public ClusterSlave()`** **or** make it **`internal`** with `InternalsVisibleTo` limited to specific test assemblies — production **`BuildOrchestration`** must **`throw`** if `participant` is null when the role requires orchestration.  
+- Fix **`RecordReplayIntegrationTests`** (and any other) to use **`ClusterSlave(DdsParticipant, …)`** with a test participant or shared test fixture.
 
 ### A.5 — `OrchestrationSchemaTests` filter (DEBT: P3)
 
@@ -100,12 +100,12 @@ Mark rows **✅** when fixed:
 **Scope summary:**
 
 1. **`ClusterConfiguration`** + `orchestrator-config.json` load.  
-2. **`DrillMaster`:** `_bootstrapLatch`, mandatory roster gating, **`SysOpRequest` / `SysOpStatus`** handling (read/write as per design), reject until mandatory nodes in Standby.  
+2. **`ClusterMaster`:** `_bootstrapLatch`, mandatory roster gating, **`ClusterOpRequest` / `ClusterOpStatus`** handling (read/write as per design), reject until mandatory nodes in Standby.  
 3. Heartbeat timeout → **`EjectNode(int nodeId)`**, degraded state, **`NodeOpCommand`** broadcasts per task detail.  
 4. **`DistributedTransaction` history** ring buffer.  
 5. **ImGui** orchestrator panel: remove **`WaitingRoomCoordinator`** gate, banner while waiting for mandatory nodes, disable controls until latched, health table + 2PC history table.
 
-**Tests (extend `Bagira.Orchestrator.Tests`):** all four scenarios in task detail — assert **observable DDS outcomes** and roster/command delivery, not log substrings.
+**Tests (extend `Hrot.Orchestrator.Tests`):** all four scenarios in task detail — assert **observable DDS outcomes** and roster/command delivery, not log substrings.
 
 **Doc debt (same PR if small):**
 
@@ -117,7 +117,7 @@ Mark rows **✅** when fixed:
 ## Testing requirements
 
 - Part A: regression-free SimHost/IG/IOS/Runner integration; **no** test depends on local allocator fallback.  
-- Part B: new `DrillMasterBootstrapTests` cases per task detail; domain isolation pattern consistent with BATCH-02.  
+- Part B: new `ClusterMasterBootstrapTests` cases per task detail; domain isolation pattern consistent with BATCH-02.  
 - **Test quality:** assertions on state machines, topic samples, and command receipt — not shallow presence checks.
 
 ---
@@ -133,7 +133,7 @@ Document Part A checklist (with files removed/changed), S0105 milestones, full `
 - [ ] Standalone orchestrator/CGF projects removed; Runner-only documented.  
 - [ ] No silent IG “offline” on DDS failure when network enabled.  
 - [ ] No `LocalIdAllocatorFallbackHost`; SimHost fails if orchestrator allocator unavailable.  
-- [ ] `DrillSlave()` / null participant policy resolved per A.4.  
+- [ ] `ClusterSlave()` / null participant policy resolved per A.4.  
 - [ ] CGF1-S0105 success conditions + design §3.5 met.  
 - [ ] DEBT-TRACKER updated (✅ for resolved CGF-1-BATCH-03 targets).  
 - [ ] Report filed.  

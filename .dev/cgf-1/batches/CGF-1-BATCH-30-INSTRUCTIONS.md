@@ -6,7 +6,7 @@ Implement **CGF1-S0507** (IOS Remote Cluster Control Panel) and close two P3 tec
 
 **Definition of Done:**
 
-- `Bagira.IOS` exposes `TimePulseIngressHandler`, `TimeModeIngressHandler`, and time-state API on `IIosLogic`/`IosLogic`.
+- `Hrot.ExCon` exposes `TimePulseIngressHandler`, `TimeModeIngressHandler`, and time-state API on `IIosLogic`/`IosLogic`.
 - `IosSubsystem` wires `ClusterUiCache` + `ClusterScenarioPanel` and renders a "Cluster Control" ImGui window from the IOS process.
 - Dead `OrchestratorScenarioPanel` + its tests removed; dead `_drillTime` field in `OrchestratorSubsystem` removed.
 - All existing tests still pass; new tests added as specified below.
@@ -20,25 +20,25 @@ Implement **CGF1-S0507** (IOS Remote Cluster Control Panel) and close two P3 tec
 
 | Project | Tests |
 |---------|-------|
-| `Bagira.DDS.DataModel.Tests` | 47 |
-| `Bagira.Orchestrator.Tests` | 60 |
-| `Bagira.Runner.Tests` | 177 |
-| `Bagira.IOS.Tests` | 340 |
+| `Hrot.NED.Tests` | 47 |
+| `Hrot.Orchestrator.Tests` | 60 |
+| `Hrot.ClusterRunner.Tests` | 177 |
+| `Hrot.ExCon.Tests` | 340 |
 | **Total** | **624** |
 
 ### Key architecture facts
 
-- `IIngressHandler` (in `Bagira.IOS`) has a single `void Poll()` method; disposable handlers implement `IDisposable`.
+- `IIngressHandler` (in `Hrot.ExCon`) has a single `void Poll()` method; disposable handlers implement `IDisposable`.
 - `DdsReader<T>.Take()` returns a loan; pattern: `using var l = _reader.Take(); foreach (var s in l) { if (!s.IsValid) continue; ... }`.
 - `DdsWriter<T>` (no explicit topic string needed) is the live type; tests use `Mock<IDdsWriter<T>>`.
-- `ClusterUiCache(DdsParticipant)` — already implemented in `Bagira.Runner/Services/ClusterUiCache.cs`.
-- `ClusterScenarioPanel(DdsWriter<SysOpRequest>, ClusterUiCache, Action? requestPause = null)` — already implemented in `Bagira.Runner/Services/ClusterScenarioPanel.cs`.
+- `ClusterUiCache(DdsParticipant)` — already implemented in `Hrot.ClusterRunner/Services/ClusterUiCache.cs`.
+- `ClusterScenarioPanel(DdsWriter<ClusterOpRequest>, ClusterUiCache, Action? requestPause = null)` — already implemented in `Hrot.ClusterRunner/Services/ClusterScenarioPanel.cs`.
 - `IosLogic` does **not** yet have a `_sysOpWriter` field — it must be added.
-- `SysOpType` values for time commands: `PauseTime = 9`, `ResumeTime = 10`, `StepTime = 14`, `SetTimeScale = 15`.
+- `ClusterOpType` values for time commands: `PauseTime = 9`, `ResumeTime = 10`, `StepTime = 14`, `SetTimeScale = 15`.
 - `TimePulseDescriptor` field names: `.MasterWallTicks` (long), `.SimTimeSnapshot` (double — this is MasterSimTime), `.TimeScale` (float).
 - `SwitchTimeModeWireDto` field name: `.TargetModeInt` (cast to `TimeMode` enum, **not** `.Mode`).
-- `SysOpRequest` struct fields: `int OperationType`, `string PayloadJson`.
-- `new DdsWriter<SysOpRequest>(_participant)` — no topic string needed.
+- `ClusterOpRequest` struct fields: `int OperationType`, `string PayloadJson`.
+- `new DdsWriter<ClusterOpRequest>(_participant)` — no topic string needed.
 
 ---
 
@@ -46,19 +46,19 @@ Implement **CGF1-S0507** (IOS Remote Cluster Control Panel) and close two P3 tec
 
 ### Task P3-A — Delete `OrchestratorScenarioPanel.cs`
 
-File: `D:\Work\IOS-IG-SimHost-FDP-2\Bagira.Runner\Services\OrchestratorScenarioPanel.cs`
+File: `D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner\Services\OrchestratorScenarioPanel.cs`
 
 This class is no longer instantiated anywhere (superseded by `ClusterScenarioPanel`). Delete the file.
 
 ### Task P3-B — Delete `OrchestratorScenarioPanelTests.cs`
 
-File: `D:\Work\IOS-IG-SimHost-FDP-2\Bagira.Runner.Tests\OrchestratorScenarioPanelTests.cs`
+File: `D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Tests\OrchestratorScenarioPanelTests.cs`
 
 This test file only covers the deleted `OrchestratorScenarioPanel`. Any tests that exercise general orchestrator behaviour (scenarios, drills, checkpoints) should be verified to already have equivalents in `ClusterScenarioPanelTests.cs`. Delete the file.
 
 ### Task P3-C — Remove dead `_drillTime` field from `OrchestratorSubsystem`
 
-File: `D:\Work\IOS-IG-SimHost-FDP-2\Bagira.Runner\Services\OrchestratorSubsystem.cs`
+File: `D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner\Services\OrchestratorSubsystem.cs`
 
 The `_drillTime` field is computed inside `DrawUI()` but never used. Search for it and remove the line (typically something like `var _drillTime = ...` or a field declaration + assignment with no reads).
 
@@ -68,7 +68,7 @@ The `_drillTime` field is computed inside `DrawUI()` but never used. Search for 
 
 ### Step 1 — Add Time Ingress Handlers
 
-Add two handler classes to `Bagira.IOS/Services/DdsEventIngressHandlers.cs` (append to the existing file):
+Add two handler classes to `Hrot.ExCon/Services/DdsEventIngressHandlers.cs` (append to the existing file):
 
 ```csharp
 /// <summary>
@@ -129,16 +129,16 @@ public sealed class TimeModeIngressHandler : IIngressHandler, IDisposable
 You need the following additional `using` directives at the top of `DdsEventIngressHandlers.cs` if not already present:
 
 ```csharp
-using Bagira.DDS.DM;        // TimePulseDescriptor, SwitchTimeModeWireDto
+using Hrot.NED.Common;        // TimePulseDescriptor, SwitchTimeModeWireDto
 ```
 
-(Check existing using directives; `Bagira.DDS.DM` may already be imported.)
+(Check existing using directives; `Hrot.NED.Common` may already be imported.)
 
 ---
 
 ### Step 2 — Extend `IIosLogic` with Time API
 
-File: `D:\Work\IOS-IG-SimHost-FDP-2\Bagira.IOS\IIosLogic.cs`
+File: `D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ExCon\IIosLogic.cs`
 
 Append a new region after the last existing member (before the closing `}`):
 
@@ -159,16 +159,16 @@ Append a new region after the last existing member (before the closing `}`):
 
     // ── Time commands (dispatched to Orchestrator over DDS) ──────────────────
 
-    /// <summary>Sends a PauseTime SysOpRequest to the Orchestrator.</summary>
+    /// <summary>Sends a PauseTime ClusterOpRequest to the Orchestrator.</summary>
     void RequestPause();
 
-    /// <summary>Sends a ResumeTime SysOpRequest to the Orchestrator.</summary>
+    /// <summary>Sends a ResumeTime ClusterOpRequest to the Orchestrator.</summary>
     void RequestResume();
 
-    /// <summary>Sends a StepTime SysOpRequest to the Orchestrator.</summary>
+    /// <summary>Sends a StepTime ClusterOpRequest to the Orchestrator.</summary>
     void RequestStep();
 
-    /// <summary>Sends a SetTimeScale SysOpRequest with the given scale to the Orchestrator.</summary>
+    /// <summary>Sends a SetTimeScale ClusterOpRequest with the given scale to the Orchestrator.</summary>
     void SetTimeScale(float scale);
 ```
 
@@ -176,12 +176,12 @@ Append a new region after the last existing member (before the closing `}`):
 
 ### Step 3 — Implement Time API in `IosLogic`
 
-File: `D:\Work\IOS-IG-SimHost-FDP-2\Bagira.IOS\IosLogic.cs`
+File: `D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ExCon\IosLogic.cs`
 
 #### 3a. Add `_sysOpWriter` field (with other readonly fields):
 
 ```csharp
-private readonly IDdsWriter<SysOpRequest>? _sysOpWriter;
+private readonly IDdsWriter<ClusterOpRequest>? _sysOpWriter;
 ```
 
 #### 3b. Add time-state mutable fields (with other mutable state fields):
@@ -199,7 +199,7 @@ public bool   IsPaused        { get; private set; }
 Add optional parameter at the end of the `IosLogic` constructor:
 
 ```csharp
-IDdsWriter<SysOpRequest>? sysOpWriter = null)
+IDdsWriter<ClusterOpRequest>? sysOpWriter = null)
 ```
 
 And assign it in the body:
@@ -212,8 +212,8 @@ The full updated parameter list tail becomes:
         IDdsWriter<MapCommandRequest>?      commandWriter   = null,
         int                                 targetMapId     = IosLogicConstants.DefaultTargetMapId,
         IEventQueue<MapCommandAck>?         mapCommandAckQueue = null,
-        IDdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest>? deleteEntityWriter = null,
-        IDdsWriter<SysOpRequest>?           sysOpWriter     = null)
+        IDdsWriter<Hrot.NED.Messages.DeleteEntityRequest>? deleteEntityWriter = null,
+        IDdsWriter<ClusterOpRequest>?           sysOpWriter     = null)
 ```
 
 #### 3d. Add time-state update methods (internal callbacks from ingress handlers):
@@ -236,29 +236,29 @@ internal void OnTimeMode(SwitchTimeModeWireDto dto)
 }
 ```
 
-Note: `TimeMode` enum is defined in `Bagira.DDS.DM` or similar. Check the existing imports in `ClusterUiCache.cs` for the correct namespace.
+Note: `TimeMode` enum is defined in `Hrot.NED.Common` or similar. Check the existing imports in `ClusterUiCache.cs` for the correct namespace.
 
 #### 3e. Implement time command methods in `IosLogic`:
 
 ```csharp
-public void RequestPause()   => _sysOpWriter?.Write(new SysOpRequest { OperationType = (int)SysOpType.PauseTime,  PayloadJson = "{}" });
-public void RequestResume()  => _sysOpWriter?.Write(new SysOpRequest { OperationType = (int)SysOpType.ResumeTime, PayloadJson = "{}" });
-public void RequestStep()    => _sysOpWriter?.Write(new SysOpRequest { OperationType = (int)SysOpType.StepTime,   PayloadJson = "{}" });
-public void SetTimeScale(float scale) => _sysOpWriter?.Write(new SysOpRequest { OperationType = (int)SysOpType.SetTimeScale, PayloadJson = $"{{\"scale\":{scale}}}" });
+public void RequestPause()   => _sysOpWriter?.Write(new ClusterOpRequest { OperationType = (int)ClusterOpType.PauseTime,  PayloadJson = "{}" });
+public void RequestResume()  => _sysOpWriter?.Write(new ClusterOpRequest { OperationType = (int)ClusterOpType.ResumeTime, PayloadJson = "{}" });
+public void RequestStep()    => _sysOpWriter?.Write(new ClusterOpRequest { OperationType = (int)ClusterOpType.StepTime,   PayloadJson = "{}" });
+public void SetTimeScale(float scale) => _sysOpWriter?.Write(new ClusterOpRequest { OperationType = (int)ClusterOpType.SetTimeScale, PayloadJson = $"{{\"scale\":{scale}}}" });
 ```
 
-The `using` for `SysOpType` / `SysOpRequest` / `SysOpType` — check where they are imported in existing Runner code. They live in `Bagira.Common.Orchestration` or `Bagira.DDS.DM`. Check `OrchestratorSubsystem.cs` for the exact `using` statement.
+The `using` for `ClusterOpType` / `ClusterOpRequest` / `ClusterOpType` — check where they are imported in existing Runner code. They live in `Hrot.Common.Orchestration` or `Hrot.NED.Common`. Check `OrchestratorSubsystem.cs` for the exact `using` statement.
 
 ---
 
 ### Step 4 — Wire IosSubsystem
 
-File: `D:\Work\IOS-IG-SimHost-FDP-2\Bagira.Runner\Services\IosSubsystem.cs`
+File: `D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner\Services\IosSubsystem.cs`
 
 #### 4a. Add new fields (with existing private fields at top of class):
 
 ```csharp
-private DdsWriter<SysOpRequest>?   _sysOpWriter;
+private DdsWriter<ClusterOpRequest>?   _sysOpWriter;
 private ClusterUiCache?            _uiCache;
 private ClusterScenarioPanel?      _clusterPanel;
 ```
@@ -266,16 +266,16 @@ private ClusterScenarioPanel?      _clusterPanel;
 #### 4b. Add new `using` directives at top of `IosSubsystem.cs` if not already present:
 
 ```csharp
-using Bagira.DDS.DM;            // SysOpRequest (check existing usings first)
+using Hrot.NED.Common;            // ClusterOpRequest (check existing usings first)
 ```
 
-(Most DDS types are already imported via `Bagira.BDC.SSTD`, `Bagira.BDC.SSTM`, etc. — only add what is missing.)
+(Most DDS types are already imported via `Hrot.NED.Descriptors`, `Hrot.NED.Messages`, etc. — only add what is missing.)
 
 #### 4c. In `Initialize()`, after `_participant` is created and before `IosMock` is constructed:
 
 ```csharp
 // ── Cluster control wiring (S0507) ─────────────────────────────────────────
-_sysOpWriter  = new DdsWriter<SysOpRequest>(_participant);
+_sysOpWriter  = new DdsWriter<ClusterOpRequest>(_participant);
 _uiCache      = new ClusterUiCache(_participant);
 _clusterPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
 ```
@@ -387,27 +387,27 @@ _sysOpWriter = null;
 
 ### Step 5 — Tests
 
-#### 5a. New file: `Bagira.IOS.Tests/IosLogicTimeTests.cs`
+#### 5a. New file: `Hrot.ExCon.Tests/IosLogicTimeTests.cs`
 
 Test the time-state API and command dispatch:
 
 ```csharp
-using Bagira.BDC.SSTD;
-using Bagira.BDC.SSTM;
-using Bagira.DDS.DM;
-using Bagira.IOS.Logic;
-using Bagira.IOS.Panels;
-using Bagira.IOS.Services;
-using Bagira.Map.Common.Dds;
+using Hrot.NED.Descriptors;
+using Hrot.NED.Messages;
+using Hrot.NED.Common;
+using Hrot.ExCon.Logic;
+using Hrot.ExCon.Panels;
+using Hrot.ExCon.Services;
+using Hrot.Map.Common.Dds;
 using FDP.Toolkit.DER;
 using Moq;
 using Xunit;
 
-namespace Bagira.IOS.Tests;
+namespace Hrot.ExCon.Tests;
 
 public class IosLogicTimeTests
 {
-    private static IosLogic MakeLogic(Mock<IDdsWriter<SysOpRequest>>? sysOpWriterMock = null)
+    private static IosLogic MakeLogic(Mock<IDdsWriter<ClusterOpRequest>>? sysOpWriterMock = null)
     {
         return new IosLogic(
             repo:                   new DerRepo(),
@@ -465,51 +465,51 @@ public class IosLogicTimeTests
     }
 
     [Fact]
-    public void RequestPause_WritesSysOpRequest()
+    public void RequestPause_WritesClusterOpRequest()
     {
-        var writerMock = new Mock<IDdsWriter<SysOpRequest>>();
+        var writerMock = new Mock<IDdsWriter<ClusterOpRequest>>();
         var logic = MakeLogic(writerMock);
 
         logic.RequestPause();
 
-        writerMock.Verify(w => w.Write(It.Is<SysOpRequest>(r =>
-            r.OperationType == (int)SysOpType.PauseTime)), Times.Once);
+        writerMock.Verify(w => w.Write(It.Is<ClusterOpRequest>(r =>
+            r.OperationType == (int)ClusterOpType.PauseTime)), Times.Once);
     }
 
     [Fact]
-    public void RequestResume_WritesSysOpRequest()
+    public void RequestResume_WritesClusterOpRequest()
     {
-        var writerMock = new Mock<IDdsWriter<SysOpRequest>>();
+        var writerMock = new Mock<IDdsWriter<ClusterOpRequest>>();
         var logic = MakeLogic(writerMock);
 
         logic.RequestResume();
 
-        writerMock.Verify(w => w.Write(It.Is<SysOpRequest>(r =>
-            r.OperationType == (int)SysOpType.ResumeTime)), Times.Once);
+        writerMock.Verify(w => w.Write(It.Is<ClusterOpRequest>(r =>
+            r.OperationType == (int)ClusterOpType.ResumeTime)), Times.Once);
     }
 
     [Fact]
-    public void RequestStep_WritesSysOpRequest()
+    public void RequestStep_WritesClusterOpRequest()
     {
-        var writerMock = new Mock<IDdsWriter<SysOpRequest>>();
+        var writerMock = new Mock<IDdsWriter<ClusterOpRequest>>();
         var logic = MakeLogic(writerMock);
 
         logic.RequestStep();
 
-        writerMock.Verify(w => w.Write(It.Is<SysOpRequest>(r =>
-            r.OperationType == (int)SysOpType.StepTime)), Times.Once);
+        writerMock.Verify(w => w.Write(It.Is<ClusterOpRequest>(r =>
+            r.OperationType == (int)ClusterOpType.StepTime)), Times.Once);
     }
 
     [Fact]
-    public void SetTimeScale_WritesSysOpRequestWithPayload()
+    public void SetTimeScale_WritesClusterOpRequestWithPayload()
     {
-        var writerMock = new Mock<IDdsWriter<SysOpRequest>>();
+        var writerMock = new Mock<IDdsWriter<ClusterOpRequest>>();
         var logic = MakeLogic(writerMock);
 
         logic.SetTimeScale(0.5f);
 
-        writerMock.Verify(w => w.Write(It.Is<SysOpRequest>(r =>
-            r.OperationType == (int)SysOpType.SetTimeScale &&
+        writerMock.Verify(w => w.Write(It.Is<ClusterOpRequest>(r =>
+            r.OperationType == (int)ClusterOpType.SetTimeScale &&
             r.PayloadJson.Contains("0.5"))), Times.Once);
     }
 
@@ -534,23 +534,23 @@ public class IosLogicTimeTests
 // Key: pass sysOpWriter as the new optional parameter.
 ```
 
-#### 5b. New test in `Bagira.Runner.Tests/ClusterScenarioPanelTests.cs` (append)
+#### 5b. New test in `Hrot.ClusterRunner.Tests/ClusterScenarioPanelTests.cs` (append)
 
-Or create a new file `Bagira.Runner.Tests/IosSubsystemClusterTests.cs`:
+Or create a new file `Hrot.ClusterRunner.Tests/IosSubsystemClusterTests.cs`:
 
 ```csharp
 [Fact]
-public void IosSubsystem_HasNoDirectDrillMasterReference()
+public void IosSubsystem_HasNoDirectClusterMasterReference()
 {
-    // Static analysis guard: IosSubsystem must not import Bagira.Orchestrator namespace.
+    // Static analysis guard: IosSubsystem must not import Hrot.Orchestrator namespace.
     var source = File.ReadAllText(
         Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory,
             "..", "..", "..", "..", "..",
-            "Bagira.Runner", "Services", "IosSubsystem.cs"));
+            "Hrot.ClusterRunner", "Services", "IosSubsystem.cs"));
 
-    Assert.DoesNotContain("Bagira.Orchestrator", source);
-    Assert.DoesNotContain("DrillMaster",         source);
+    Assert.DoesNotContain("Hrot.Orchestrator", source);
+    Assert.DoesNotContain("ClusterMaster",         source);
 }
 ```
 
@@ -567,10 +567,10 @@ Run these to validate (in order):
 dotnet build "D:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln" -c Debug
 
 # 2. Run IOS unit tests (baseline: 340; target: ~347+)
-dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\Bagira.IOS.Tests\Bagira.IOS.Tests.csproj" -c Debug --no-build --verbosity quiet
+dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ExCon.Tests\Hrot.ExCon.Tests.csproj" -c Debug --no-build --verbosity quiet
 
 # 3. Run Runner unit tests (baseline: 177; may change due to P3 cleanup)
-dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\Bagira.Runner.Tests\Bagira.Runner.Tests.csproj" -c Debug --no-build --verbosity quiet
+dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\Hrot.ClusterRunner.Tests\Hrot.ClusterRunner.Tests.csproj" -c Debug --no-build --verbosity quiet
 
 # 4. Run full suite
 dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln" -c Debug --no-build --verbosity quiet
@@ -580,12 +580,12 @@ dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln" -c Debug --no-buil
 
 ## Acceptance Criteria
 
-1. `Bagira.IOS/Services/DdsEventIngressHandlers.cs` contains `TimePulseIngressHandler` and `TimeModeIngressHandler`.
+1. `Hrot.ExCon/Services/DdsEventIngressHandlers.cs` contains `TimePulseIngressHandler` and `TimeModeIngressHandler`.
 2. `IIosLogic` declares: `MasterSimTime`, `MasterWallTicks`, `MasterTimeScale`, `IsPaused`, `RequestPause()`, `RequestResume()`, `RequestStep()`, `SetTimeScale(float)`.
 3. `IosLogic` implements all new interface members; `_sysOpWriter` is injected via optional constructor parameter.
 4. `IosSubsystem` has fields `_sysOpWriter`, `_uiCache`, `_clusterPanel`; all three initialized in `Initialize()` and disposed in `Shutdown()`.
 5. `IosSubsystem.DrawUI()` renders an ImGui "Cluster Control" window via `_clusterPanel.Render(...)`.
-6. `grep -r "Bagira.Orchestrator" Bagira.Runner/Services/IosSubsystem.cs` returns **no matches**.
+6. `grep -r "Hrot.Orchestrator" Hrot.ClusterRunner/Services/IosSubsystem.cs` returns **no matches**.
 7. `OrchestratorScenarioPanel.cs` and `OrchestratorScenarioPanelTests.cs` are **deleted**.
 8. Dead `_drillTime` field removed from `OrchestratorSubsystem.cs`.
 9. All tests pass; new IosLogicTimeTests (≥7 tests) pass; total test count ≥ 631.
@@ -596,28 +596,28 @@ dotnet test "D:\Work\IOS-IG-SimHost-FDP-2\IOS-IG-SimHost.sln" -c Debug --no-buil
 
 | Action | File |
 |--------|------|
-| Modify | `Bagira.IOS/Services/DdsEventIngressHandlers.cs` — append two new ingress handler classes |
-| Modify | `Bagira.IOS/IIosLogic.cs` — add time state + command interface members |
-| Modify | `Bagira.IOS/IosLogic.cs` — implement time state, commands, OnTimePulse/OnTimeMode, sysOpWriter ctor param |
-| Modify | `Bagira.Runner/Services/IosSubsystem.cs` — wire ClusterUiCache, ClusterScenarioPanel, time handlers, DrawUI window |
-| Modify | `Bagira.Runner/Services/OrchestratorSubsystem.cs` — remove dead `_drillTime` field |
-| **Create** | `Bagira.IOS.Tests/IosLogicTimeTests.cs` — new time API tests |
-| **Delete** | `Bagira.Runner/Services/OrchestratorScenarioPanel.cs` |
-| **Delete** | `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs` |
+| Modify | `Hrot.ExCon/Services/DdsEventIngressHandlers.cs` — append two new ingress handler classes |
+| Modify | `Hrot.ExCon/IIosLogic.cs` — add time state + command interface members |
+| Modify | `Hrot.ExCon/IosLogic.cs` — implement time state, commands, OnTimePulse/OnTimeMode, sysOpWriter ctor param |
+| Modify | `Hrot.ClusterRunner/Services/IosSubsystem.cs` — wire ClusterUiCache, ClusterScenarioPanel, time handlers, DrawUI window |
+| Modify | `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` — remove dead `_drillTime` field |
+| **Create** | `Hrot.ExCon.Tests/IosLogicTimeTests.cs` — new time API tests |
+| **Delete** | `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` |
+| **Delete** | `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs` |
 
 ---
 
 ## Notes and Gotchas
 
-1. **`TimeMode` enum namespace**: The `TimeMode` enum is used in `ClusterUiCache.cs`. Check its `using` directives for the exact namespace — likely `Bagira.DDS.DM` or a nested namespace within it.
+1. **`TimeMode` enum namespace**: The `TimeMode` enum is used in `ClusterUiCache.cs`. Check its `using` directives for the exact namespace — likely `Hrot.NED.Common` or a nested namespace within it.
 
-2. **`SysOpRequest`/`SysOpType` namespaces**: These are used in `OrchestratorSubsystem.cs`. Check its `using` directives for the correct namespace — likely `Bagira.Common.Orchestration` or `Bagira.DDS.DM`.
+2. **`ClusterOpRequest`/`ClusterOpType` namespaces**: These are used in `OrchestratorSubsystem.cs`. Check its `using` directives for the correct namespace — likely `Hrot.Common.Orchestration` or `Hrot.NED.Common`.
 
 3. **IosMock interface**: `IosMock` wraps `IIosLogic`. If `IosMock` holds a concrete `IosLogic` reference internally (not `IIosLogic`), it already exposes the new methods without changes. If `IosMock` delegates through `IIosLogic`, ensure `IosMock` forwards all new interface members.
 
-4. **IosLogic `OnTimePulse`/`OnTimeMode` visibility**: These are `internal` callbacks. Since `IosSubsystem` is in `Bagira.Runner` and `IosLogic` is in `Bagira.IOS`, these methods need to be `public` (not `internal`) so `IosSubsystem` can reference them. Unless there's an `InternalsVisibleTo` attribute — check `Bagira.IOS.csproj` for any such assembly attribute before deciding. If in doubt, make them `public`.
+4. **IosLogic `OnTimePulse`/`OnTimeMode` visibility**: These are `internal` callbacks. Since `IosSubsystem` is in `Hrot.ClusterRunner` and `IosLogic` is in `Hrot.ExCon`, these methods need to be `public` (not `internal`) so `IosSubsystem` can reference them. Unless there's an `InternalsVisibleTo` attribute — check `Hrot.ExCon.csproj` for any such assembly attribute before deciding. If in doubt, make them `public`.
 
-5. **`TimePulseDescriptor.SimTimeSnapshot` vs. other field names**: Verified in BATCH-29 analysis. `SimTimeSnapshot` is the simulation time field, `MasterWallTicks` is the wall-clock field, `TimeScale` is the time scale. Double-check field names in `Bagira.DDS.DataModel` `TimePulseDescriptor` definition before implementing.
+5. **`TimePulseDescriptor.SimTimeSnapshot` vs. other field names**: Verified in BATCH-29 analysis. `SimTimeSnapshot` is the simulation time field, `MasterWallTicks` is the wall-clock field, `TimeScale` is the time scale. Double-check field names in `Hrot.NED` `TimePulseDescriptor` definition before implementing.
 
 6. **`_ingressDisposables` construction order**: Inspect the exact existing code in `IosSubsystem.Initialize()`:
    - If `_ingressDisposables` is built with `new List<IDisposable>(ingressHandlers.OfType<IDisposable>())` style — add time handlers to `ingressHandlers` BEFORE that line.

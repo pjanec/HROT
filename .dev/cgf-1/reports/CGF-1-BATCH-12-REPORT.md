@@ -41,7 +41,7 @@ Added detailed XML doc to `FdpAutoSerializer.Build()` explaining why the static 
 
 ### A.5 — FanOutSerializeLocal call site (P2)
 
-`DrillMaster.ProcessSysOpRequests` now handles `SysOpType.SaveScenario`:
+`ClusterMaster.ProcessClusterOpRequests` now handles `ClusterOpType.SaveScenario`:
 - Fans out `NodeOpType.SerializeLocal` to all active nodes via `FanOutSerializeLocal`.
 - Invokes `GlobalContextDsmHandler.PrepareAsync + Commit` locally for the Orchestrator's own context.
 - `ConsumeNodeOpStatuses` triggers `StorageGatewayModule.WriteScenarioManifestAsync` after all ACKs are collected and `PullToNasAsync` completes.
@@ -66,29 +66,29 @@ Debt row in `DEBT-TRACKER.md` closed.
 
 ## Part B — CGF1-S0307: Application-Layer Scenario Save/Load Wiring
 
-### B.1 — GlobalContextDsmHandler (Bagira.Orchestrator)
+### B.1 — GlobalContextDsmHandler (Hrot.Orchestrator)
 
-New file: `Bagira.Orchestrator/GlobalContextDsmHandler.cs`
+New file: `Hrot.Orchestrator/GlobalContextDsmHandler.cs`
 
-- **Save** (`NodeOpType.SerializeLocal`): writes `GlobalContextDto` (`StartWallTicks`, `SceneId`, `SchemaVersion`) as JSON to `{LocalTempRoot}/{DrillId:N}/Orchestrator.json`; exposes path as `CommitManifestEntry`.
+- **Save** (`NodeOpType.SerializeLocal`): writes `GlobalContextDto` (`StartWallTicks`, `SceneId`, `SchemaVersion`) as JSON to `{LocalTempRoot}/{ExerciseId:N}/Orchestrator.json`; exposes path as `CommitManifestEntry`.
 - **Load** (`NodeOpType.CommitState(LoadingLive|LoadingEdit)`): parses `Orchestrator.json`, sets `LoadedStartWallTicks`/`LoadedSceneId`, publishes `OrchestratorContextTopic` over DDS.
 - `LocalTempRoot` is publicly writable (test injection point; production default `C:\FDP_Temp`).
 - Test-internal constructor accepts pre-built `DdsWriter<OrchestratorContextTopic>`.
 
 ### B.2 — Orchestrator project setup
 
-- Added `Bagira.Common` project reference to `Bagira.Orchestrator.csproj` (for `IDsmHandler`).
-- `DrillMaster.SetGlobalContextHandler(GlobalContextDsmHandler)` registers the handler.
+- Added `Hrot.Common` project reference to `Hrot.Orchestrator.csproj` (for `IDsmHandler`).
+- `ClusterMaster.SetGlobalContextHandler(GlobalContextDsmHandler)` registers the handler.
 
 ### B.3 — ScenarioLoadDsmHandler (SimHost and CGF)
 
-**SimHost** (`Bagira.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`):
+**SimHost** (`Hrot.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`):
 - `CanHandle(NodeOpType.PrepareLive)` → `true`.
 - `PrepareAsync`: finds the scenario directory at `{localTempRoot}/{ScenarioId}`, iterates JSON files, peeks `Header.SubsystemType` via `ScenarioSerializer.IsMatchingSubsystem()`; caches the DOM for Commit if matched.
 - `Commit`: calls `ScenarioSerializer.Deserialize(repo, dom)` on the cached DOM.
 - SubsystemType mismatch → silent success (no-op).
 
-**CGF** (`Bagira.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`):
+**CGF** (`Hrot.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`):
 - Same pattern but `Commit` is a no-op (CGF has no `EntityRepository`).
 
 ### B.4 — ScenarioSerializer.IsMatchingSubsystem()
@@ -97,7 +97,7 @@ New public method on `ScenarioSerializer` to let application-layer handlers peek
 
 ### B.5 — TransitionPlanner — PrefetchScenario step
 
-`PlanTrajectory()` now parses `ScenarioId` from the request payload JSON. When present, an `OperationStep(SysOpType.PrefetchScenario, scenarioId)` is prepended before the first `TransitionStep` in the computed trajectory.
+`PlanTrajectory()` now parses `ScenarioId` from the request payload JSON. When present, an `OperationStep(ClusterOpType.PrefetchScenario, scenarioId)` is prepended before the first `TransitionStep` in the computed trajectory.
 
 ### B.6 — StorageGatewayModule — PrefetchScenarioAsync
 
@@ -111,12 +111,12 @@ New method `PrefetchScenarioAsync(string scenarioId, IReadOnlyList<NodeDistribut
 New method `WriteScenarioManifestAsync(IReadOnlyList<FileManifestEntry> manifests, string nasBasePath)`:
 - Writes `scenario_manifest.json` to `{nasBasePath}/scenario_manifest.json`.
 - Lists all `RelativeDest` file names from the collected manifests.
-- Called by `DrillMaster.ConsumeNodeOpStatuses` after `PullToNasAsync` succeeds.
+- Called by `ClusterMaster.ConsumeNodeOpStatuses` after `PullToNasAsync` succeeds.
 
 ### B.8 — DDS data model extensions
 
 Added to `OrchestrationMessages.cs`:
-- `SysOpType.PrefetchScenario = 12`
+- `ClusterOpType.PrefetchScenario = 12`
 - `NodeOpType.PrefetchFiles = 25`
 
 ### B.9 — Wiring in NodeBootstrapper and CgfApplication
@@ -126,7 +126,7 @@ Added to `OrchestrationMessages.cs`:
 
 ---
 
-## Integration Tests (Bagira.Orchestrator.Integration.Tests)
+## Integration Tests (Hrot.Orchestrator.Integration.Tests)
 
 New project added to solution (`{41C65952-6A34-47D7-85CA-94DC3CDD1314}`).
 
@@ -134,7 +134,7 @@ New project added to solution (`{41C65952-6A34-47D7-85CA-94DC3CDD1314}`).
 |------|-------------|--------|
 | `RoundTrip_SimHost_EntitiesMatchAfterLoad` | Spawn 3 entities → serialize to file → clear ECS → load via `ScenarioLoadDsmHandler` → assert 3 entities restored | ✅ |
 | `OrchestratorContextRestored_AfterLoad` | Save `GlobalContextDto` (SceneId = "test_scene_99") → load back → assert `LoadedSceneId` and `LoadedStartWallTicks` restored correctly | ✅ |
-| `SubsystemTypeFilter_CGFFileNotLoadedBySimHost` | Create "Bagira.CGF" scenario file → run SimHost handler → assert `EntityCount == 0` | ✅ |
+| `SubsystemTypeFilter_CGFFileNotLoadedBySimHost` | Create "Hrot.CGF" scenario file → run SimHost handler → assert `EntityCount == 0` | ✅ |
 
 ---
 
@@ -144,8 +144,8 @@ New project added to solution (`{41C65952-6A34-47D7-85CA-94DC3CDD1314}`).
 |---------|-------|------|------|
 | `FDP.Toolkit.Scenario.Tests` | 15 | 15 | 0 |
 | `FDP.Toolkit.Replay.Tests` | 14 | 14 | 0 |
-| `Bagira.Orchestrator.Tests` | 22 | 22 | 0 |
-| `Bagira.Orchestrator.Integration.Tests` | 3 | 3 | 0 |
+| `Hrot.Orchestrator.Tests` | 22 | 22 | 0 |
+| `Hrot.Orchestrator.Integration.Tests` | 3 | 3 | 0 |
 | **Total** | **54** | **54** | **0** |
 
 ---
@@ -155,23 +155,23 @@ New project added to solution (`{41C65952-6A34-47D7-85CA-94DC3CDD1314}`).
 ### New Files
 - `Fdp.Kernel/StoryTag.cs`
 - `FDP/Toolkits/FDP.Toolkit.Scenario.Tests/ReflectionCallCounter.cs`
-- `Bagira.Orchestrator/GlobalContextDsmHandler.cs`
-- `Bagira.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
-- `Bagira.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
-- `Bagira.Orchestrator.Integration.Tests/Bagira.Orchestrator.Integration.Tests.csproj`
-- `Bagira.Orchestrator.Integration.Tests/ScenarioSaveLoadTests.cs`
-- `Bagira.Orchestrator.Integration.Tests/xunit.runner.json`
+- `Hrot.Orchestrator/GlobalContextDsmHandler.cs`
+- `Hrot.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
+- `Hrot.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
+- `Hrot.Orchestrator.Integration.Tests/Hrot.Orchestrator.Integration.Tests.csproj`
+- `Hrot.Orchestrator.Integration.Tests/ScenarioSaveLoadTests.cs`
+- `Hrot.Orchestrator.Integration.Tests/xunit.runner.json`
 
 ### Modified Files
-- `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs` — `SysOpType.PrefetchScenario`, `NodeOpType.PrefetchFiles`
-- `Bagira.Orchestrator/Bagira.Orchestrator.csproj` — added `Bagira.Common` reference
-- `Bagira.Orchestrator/DrillMaster.cs` — `_globalContextHandler` field, `SetGlobalContextHandler()`, `SaveScenario` handling, manifest-write trigger
-- `Bagira.Orchestrator/TransitionPlanner.cs` — `PrefetchScenario` step in `PlanTrajectory()`
-- `Bagira.Orchestrator/StorageGatewayModule.cs` — `PrefetchScenarioAsync`, `WriteScenarioManifestAsync`
-- `Bagira.SimHost/Bagira.SimHost.csproj` — `FDP.Toolkit.Scenario` reference
-- `Bagira.SimHost/NodeBootstrapper.cs` — optional `scenarioSerializer` / `localTempRoot` params
-- `Bagira.CGF/Bagira.CGF.csproj` — `FDP.Toolkit.Scenario` reference
-- `Bagira.CGF/CgfApplication.cs` — optional `scenarioSerializer` / `localTempRoot` params
+- `Hrot.NED/Orchestration/OrchestrationMessages.cs` — `ClusterOpType.PrefetchScenario`, `NodeOpType.PrefetchFiles`
+- `Hrot.Orchestrator/Hrot.Orchestrator.csproj` — added `Hrot.Common` reference
+- `Hrot.Orchestrator/ClusterMaster.cs` — `_globalContextHandler` field, `SetGlobalContextHandler()`, `SaveScenario` handling, manifest-write trigger
+- `Hrot.Orchestrator/TransitionPlanner.cs` — `PrefetchScenario` step in `PlanTrajectory()`
+- `Hrot.Orchestrator/StorageGatewayModule.cs` — `PrefetchScenarioAsync`, `WriteScenarioManifestAsync`
+- `Hrot.SimHost/Hrot.SimHost.csproj` — `FDP.Toolkit.Scenario` reference
+- `Hrot.SimHost/NodeBootstrapper.cs` — optional `scenarioSerializer` / `localTempRoot` params
+- `Hrot.CGF/Hrot.CGF.csproj` — `FDP.Toolkit.Scenario` reference
+- `Hrot.CGF/CgfApplication.cs` — optional `scenarioSerializer` / `localTempRoot` params
 - `FDP/Toolkits/FDP.Toolkit.Scenario/ScenarioSerializer.cs` — fail-fast, `IsMatchingSubsystem()`, `Guid? storyId`, `Fdp.Kernel.StoryTag`
 - `FDP/Toolkits/FDP.Toolkit.Scenario/IEntityScenarioTranslator.cs` — `GetOutputDomKeys()` default method
 - `FDP/Toolkits/FDP.Toolkit.Scenario/FdpAutoSerializer.cs` — XML doc on `Build()`
@@ -180,7 +180,7 @@ New project added to solution (`{41C65952-6A34-47D7-85CA-94DC3CDD1314}`).
 - `FDP/Toolkits/FDP.Toolkit.Scenario/StoryTag.cs` — cleared (redirect comment)
 - `FDP/Toolkits/FDP.Toolkit.Scenario.Tests/ScenarioSerializerTests.cs` — updated + 5 new fail-fast tests
 - `FDP/Toolkits/FDP.Toolkit.Scenario.Tests/TestComponents.cs` — `GetOutputDomKeys()` on `MissileOrdnanceTranslator`
-- `IOS-IG-SimHost.sln` — added `Bagira.Orchestrator.Integration.Tests`
+- `IOS-IG-SimHost.sln` — added `Hrot.Orchestrator.Integration.Tests`
 - `.dev/DEBT-TRACKER.md` — rows A.1–A.5, A.7 closed
 - `.dev/cgf-1/CGF-1-TASK-TRACKER.md` — S0307 marked `[x]`; Phase 3 progress updated to 3/8
 
@@ -189,6 +189,6 @@ New project added to solution (`{41C65952-6A34-47D7-85CA-94DC3CDD1314}`).
 ## Notes / Deferred Items
 
 - `GlobalContextDsmHandler` exposes `LoadedStartWallTicks` as an output property; wiring to `MasterTimeController.SeedState` is deferred to the phase when `MasterTimeController` is wired in `OrchestratorSubsystem` (Phase 3+).
-- `NodeOpType.PrefetchFiles` is defined in the DDS schema but not yet implemented in node-side handlers (each node's `DrillSlave` does not yet handle it); full NAS→node push via DDS command is deferred to the phase when remote node staging is required.
-- `SysOpType.PrefetchScenario` `OperationStep` is inserted by `TransitionPlanner` but `DrillMaster` does not yet execute it (no `StorageGatewayModule.PrefetchScenarioAsync` call site in `ProcessSysOpRequests`); production execution path will land when remote NAS infrastructure is available.
+- `NodeOpType.PrefetchFiles` is defined in the DDS schema but not yet implemented in node-side handlers (each node's `ClusterSlave` does not yet handle it); full NAS→node push via DDS command is deferred to the phase when remote node staging is required.
+- `ClusterOpType.PrefetchScenario` `OperationStep` is inserted by `TransitionPlanner` but `ClusterMaster` does not yet execute it (no `StorageGatewayModule.PrefetchScenarioAsync` call site in `ProcessClusterOpRequests`); production execution path will land when remote NAS infrastructure is available.
 - **CGF1-S0302** (Portable Scenario Loading) remains next, as planned.

@@ -1,4 +1,4 @@
-﻿[BUG\] Vehicle given MoveToLocation mission task does not start moving. Probably missing DoctrineFinished trigger case?
+[BUG\] Vehicle given MoveToLocation mission task does not start moving. Probably missing DoctrineFinished trigger case?
 
 You are exactly right on your suspicion. The vehicle fails to start moving because the `DoctrineFinished` trigger case is missing, but the bug specifically resides in the parsing layer that translates incoming messages into ECS components, rather than the execution system itself.
 
@@ -26,17 +26,17 @@ _Note: This bug is highly visible because the_ _MissionPanel_ _UI explicitly def
 
 The underlying behavior tree for `MoveToLocation` uses an action node (`Action_WriteMoveToChannel`) that continuously returns `NodeStatus.Running`. Because it always returns `Running`, the BTree root will never naturally reach a terminal state to fire a `DoctrineFinishedEvent`. Instead, programmatic move commands (like right-clicking the map) explicitly assign the `"ReachedDestination"` trigger, which allows the `MissionDirectorSystem` to read the `NavState.HasArrived` flag managed by the physical kinematics layer.
 
-\[BUG\] still getting 2 identical acks for update entity descriptor request dtGeoSpatial (running each IOS, IG, SimHost standalone); only the descriptor owner should send one
+\[BUG\] still getting 2 identical acks for update entity descriptor request dtWorldPos (running each IOS, IG, SimHost standalone); only the descriptor owner should send one
 
 The bug is caused by a copy-paste error in the **SimHostApp.cs** initialization sequence, which registers the `UpdateEntityDescriptorRequestSystem` twice.
 
 Because the system is instantiated twice, the SimHost creates two separate `DdsReader` instances that both subscribe to the `UpdateEntityDescriptorRequest` topic. When a request arrives, here is exactly what happens:
 
--   Both `DdsReader` instances in the SimHost receive the same DDS request.-   Because the SimHost is the rightful owner of the `dtGeoSpatial` descriptor, **both** system instances successfully pass the `view.HasAuthority(entity, GeoSpatialOrdinal)` check.-   Both system instances process the exact same payload, update the `SimTransform` component, and call `WriteAck()`.
+-   Both `DdsReader` instances in the SimHost receive the same DDS request.-   Because the SimHost is the rightful owner of the `dtWorldPos` descriptor, **both** system instances successfully pass the `view.HasAuthority(entity, WorldPosOrdinal)` check.-   Both system instances process the exact same payload, update the `SimTransform` component, and call `WriteAck()`.
 
 The IG node is correctly obeying the "only the descriptor owner should send one" rule—it drops the request early because it lacks authority. The two identical ACKs are entirely coming from the SimHost running the same logic twice.
 
-**The Fix:** Open `Bagira.SimHost/SimHostApp.cs` and remove the duplicate `_kernelGroup.AddSystem` call.
+**The Fix:** Open `Hrot.SimHost/SimHostApp.cs` and remove the duplicate `_kernelGroup.AddSystem` call.
 
 ```
 _kernelGroup.AddSystem(new MissionAdapterSystem(doctrineRegistry, entityMap));
@@ -77,10 +77,10 @@ Because the `EntityMaster` descriptor explicitly relies on this exact metadata (
 
 To fix this globally, you need to apply the `SenderIdentityConfig` directly after the participant is instantiated, and **before** any `DdsWriter` instances are created, across your main application roots:
 
-**1\. SimHost (****Bagira.SimHost/SimHostApp.cs****)** Right after creating the participant, you have the `domainId` and `localNodeId` ready to map to the tracking config:
+**1\. SimHost (****Hrot.SimHost/SimHostApp.cs****)** Right after creating the participant, you have the `domainId` and `localNodeId` ready to map to the tracking config:
 
 ```
-var ddsParticipant = BagiraEnvironment.CreateParticipant(domainId);
+var ddsParticipant = HrotEnvironment.CreateParticipant(domainId);
 
 // Add sender tracking initialization:
 ddsParticipant.EnableSenderTracking(new SenderIdentityConfig 
@@ -89,14 +89,14 @@ ddsParticipant.EnableSenderTracking(new SenderIdentityConfig
     AppInstanceId = localNodeId 
 });
 
-var tkbDb          = BagiraEnvironment.CreateTkb();
+var tkbDb          = HrotEnvironment.CreateTkb();
 // ... writers are created later in the module registrations
 ```
 
-**2\. IG (****Bagira.IG/IgApplication.cs****)** Inside `InitializeNetwork`, using the `_effectiveInstanceId`:
+**2\. IG (****Hrot.IG/IgApplication.cs****)** Inside `InitializeNetwork`, using the `_effectiveInstanceId`:
 
 ```
-participant = BagiraEnvironment.CreateParticipant(domainId);
+participant = HrotEnvironment.CreateParticipant(domainId);
 
 // Add sender tracking initialization:
 participant.EnableSenderTracking(new SenderIdentityConfig 
@@ -109,10 +109,10 @@ _commandGateway = new BdcCommandGateway(participant);
 // ...
 ```
 
-**3\. IOS (****Bagira.Runner/Services/IosSubsystem.cs****)** Inside the `Initialize` method:
+**3\. IOS (****Hrot.ClusterRunner/Services/IosSubsystem.cs****)** Inside the `Initialize` method:
 
 ```
-_participant = BagiraEnvironment.CreateParticipant(config.DomainId);
+_participant = HrotEnvironment.CreateParticipant(config.DomainId);
 
 // Add sender tracking initialization:
 _participant.EnableSenderTracking(new SenderIdentityConfig 
@@ -141,7 +141,7 @@ By inserting this configuration at these exact points, the CycloneDDS C# binding
 
 You are completely correct. The Map Configuration panel still retains the legacy `Tools` array and its associated ImGui combo box, even though map tools are now correctly launched via explicit commands (such as `CMD_PLACE_ENTITY` and `CMD_START_AUTHORING`) driven by the specific tool panels.
 
-To fix this bug and remove the obsolete combo box, you need to clean up **Bagira.IOS/Panels/ConfigPanel.cs**.
+To fix this bug and remove the obsolete combo box, you need to clean up **Hrot.ExCon/Panels/ConfigPanel.cs**.
 
 Here are the specific removals and updates you need to make:
 
@@ -224,7 +224,7 @@ To enable immediate continuous dragging when the SHIFT key is pressed, you need 
 
 Currently, the framework already fully supports continuous drag network updates (throttled to 10Hz), but it is exclusively gated behind the `_userConfig.ContinuousDragUpdates` property. As you correctly noted, this property was never exposed to the `IgDebugPanel` UI.
 
-You can easily bypass the UI limitation and map this directly to the SHIFT key by modifying the **Bagira.IG/IgApplication.cs** file.
+You can easily bypass the UI limitation and map this directly to the SHIFT key by modifying the **Hrot.IG/IgApplication.cs** file.
 
 Locate the `interactionTool.OnEntityMoved` subscription inside the `InitializeNetwork` method and update it to check for the SHIFT key state via Raylib:
 
@@ -243,7 +243,7 @@ interactionTool.OnEntityMoved += (entity, worldPos) =>
         _continuousDragTimer += _frameDt;
         if (_continuousDragTimer >= ContinuousDragIntervalSec)
         {
-            SendGeoSpatialUpdate(entity, worldPos);
+            SendWorldPosUpdate(entity, worldPos);
             _continuousDragTimer = 0f;
         }
     }
@@ -252,11 +252,11 @@ interactionTool.OnEntityMoved += (entity, worldPos) =>
 
 **Why this works:**
 
--   `OnEntityMoved` is fired by the `EntityDragTool` every frame while the mouse is dragged.-   By adding `isShiftHeld` to the evaluation condition, the system will immediately start accumulating the `_continuousDragTimer`.-   Every 0.1 seconds (`ContinuousDragIntervalSec`), it will fire `SendGeoSpatialUpdate(entity, worldPos)`, which sends a `TransientLocal` DDS update to the SimHost so the backend immediately reflects the dragged position.-   When the operator finally drops the entity, `OnEntityDragEnded` will still fire to ensure the final resting position is perfectly synchronized and the timer is reset.
+-   `OnEntityMoved` is fired by the `EntityDragTool` every frame while the mouse is dragged.-   By adding `isShiftHeld` to the evaluation condition, the system will immediately start accumulating the `_continuousDragTimer`.-   Every 0.1 seconds (`ContinuousDragIntervalSec`), it will fire `SendWorldPosUpdate(entity, worldPos)`, which sends a `TransientLocal` DDS update to the SimHost so the backend immediately reflects the dragged position.-   When the operator finally drops the entity, `OnEntityDragEnded` will still fire to ensure the final resting position is perfectly synchronized and the timer is reset.
 
 I do not want to throttle it to 10Hz, i want the update to be sent every frame is the drag position changed. This is for testing purposes only, not for production, no worries about network performance
 
-To remove the 10Hz throttle and send an update every single frame the drag position changes, you can completely rip out the `_continuousDragTimer` logic from the `OnEntityMoved` handler in **Bagira.IG/IgApplication.cs**.
+To remove the 10Hz throttle and send an update every single frame the drag position changes, you can completely rip out the `_continuousDragTimer` logic from the `OnEntityMoved` handler in **Hrot.IG/IgApplication.cs**.
 
 Update the `interactionTool.OnEntityMoved` subscription inside the `InitializeNetwork` method to look like this:
 
@@ -273,7 +273,7 @@ interactionTool.OnEntityMoved += (entity, worldPos) =>
         // Only send the DDS update if the position actually changed this frame
         if (_lastDragWorldPos != worldPos)
         {
-            SendGeoSpatialUpdate(entity, worldPos);
+            SendWorldPosUpdate(entity, worldPos);
         }
     }
     
@@ -290,11 +290,11 @@ private float _frameDt;
 private const float ContinuousDragIntervalSec = 0.1f;
 ```
 
-**Why this works perfectly for your test:** The `EntityDragTool` fires `OnEntityMoved` every frame the mouse is held down and moving. By comparing `worldPos` directly against `_lastDragWorldPos` before calling `SendGeoSpatialUpdate`, you guarantee that a new `UpdateEntityDescriptorRequest` is blasted over the DDS network exactly once per frame, but _only_ if the entity's coordinates actually changed, completely eliminating the 0.1s delay.
+**Why this works perfectly for your test:** The `EntityDragTool` fires `OnEntityMoved` every frame the mouse is held down and moving. By comparing `worldPos` directly against `_lastDragWorldPos` before calling `SendWorldPosUpdate`, you guarantee that a new `UpdateEntityDescriptorRequest` is blasted over the DDS network exactly once per frame, but _only_ if the entity's coordinates actually changed, completely eliminating the 0.1s delay.
 
 \[BUG\] Selection & Mission editor does not show any trigger selection UI - there should be a combo for trigger selection and textbox for trigger parameters, with button for insering some valid default trigger-type-specific parameter json so that the user can easily change it without the need to remember all the trigger properties. DoctrineFinished should remain the default trigger for new tasks.
 
-To fix this and expose the trigger selection UI to the operator, you need to update the **Bagira.IOS/Panels/MissionPanel.cs** file.
+To fix this and expose the trigger selection UI to the operator, you need to update the **Hrot.ExCon/Panels/MissionPanel.cs** file.
 
 The underlying `MissionPlan` data structures and ingress translators already fully support these triggers (`TimerElapsed`, `ReachedDestination`, `HealthCritical`, `UnderAttack`, `DoctrineFinished`), but the `MissionPanel` was simply skipping them during the ImGui rendering loop.
 
@@ -363,8 +363,8 @@ public void HandleAddTrigger(int taskIndex, string type)
     if (taskIndex < 0 || taskIndex >= tasks.Count) return;
 
     var task = tasks[taskIndex];
-    task.Triggers ??= new List<Bagira.BDC.SSTD.MissionTrigger>();
-    task.Triggers.Add(new Bagira.BDC.SSTD.MissionTrigger 
+    task.Triggers ??= new List<Hrot.NED.Descriptors.MissionTrigger>();
+    task.Triggers.Add(new Hrot.NED.Descriptors.MissionTrigger 
     { 
         Type = type, 
         Params = GetDefaultTriggerParams(type) 
@@ -435,7 +435,7 @@ Inside the `Draw(IIosLogic logic)` method, locate the `for (int i = 0; i < planT
 
 You are completely right. The bug occurs because the ImGui font atlas being used doesn't support the specific Unicode characters (`↑`, `↓`, and `✕`) hardcoded for those buttons, causing them to render as unreadable missing-glyph boxes.
 
-To fix this, you need to update the task rendering loop in **Bagira.IOS/Panels/MissionPanel.cs** to use standard text while preserving the `##{i}` invisible ImGui ID tags so that each button remains uniquely identifiable to the UI framework.
+To fix this, you need to update the task rendering loop in **Hrot.ExCon/Panels/MissionPanel.cs** to use standard text while preserving the `##{i}` invisible ImGui ID tags so that each button remains uniquely identifiable to the UI framework.
 
 Locate the end of the `for` loop inside the `Draw` method and replace the symbol buttons with standard text like "Up", "Down", and "Delete":
 
@@ -540,7 +540,7 @@ private void FinishSelection()
 
 Prevent the 2D selection indicators from rendering if the entity's map layer is turned off.
 
-**File:** `Bagira.IG/Systems/SelectionRenderSystem.cs`
+**File:** `Hrot.IG/Systems/SelectionRenderSystem.cs`
 
 ```
 public void Draw(RenderContext ctx)
@@ -613,7 +613,7 @@ _(You will need to make the exact same masking condition update inside the_ _Pic
 
 Configure the `EntityRenderLayer` to act as a monolithic catch-all layer (by setting `layerBitIndex: -1`) and bind the new `Canvas` property.
 
-**File:** `Bagira.IG/IgApplication.cs` Inside the `InitializeEcs` method:
+**File:** `Hrot.IG/IgApplication.cs` Inside the `InitializeEcs` method:
 
 ```
 // Replace these lines:
@@ -627,7 +627,7 @@ var layer     = new EntityRenderLayer(
     _world, query, adapter, selection) { Canvas = _canvas };
 ```
 
-\[BUG\] I still can not see any road graph rendered on simhost, even if standalone ig app started from proper Bagira.runner project folder - maybe the roadmap file not found or failed to load or something \[BUG\] This might also prevent the road picking when mission task FollowRoute is selected in IOS mission task editor, preventing to use this kind of task. The road picker should show specific cursor/indicator.
+\[BUG\] I still can not see any road graph rendered on simhost, even if standalone ig app started from proper Hrot.runner project folder - maybe the roadmap file not found or failed to load or something \[BUG\] This might also prevent the road picking when mission task FollowRoute is selected in IOS mission task editor, preventing to use this kind of task. The road picker should show specific cursor/indicator.
 
 You have uncovered two separate bugs that interact to create this confusing behavior.
 
@@ -637,9 +637,9 @@ Here is the comprehensive breakdown and the fixes for both.
 
 1\. Fix the SimHost Road Graph Rendering
 
-The road graph fails to render because the loaded `RoadNetworkBlob` is accidentally discarded before it reaches the visualization layer, and the file loading logic relies on a hardcoded relative path that breaks depending on the working directory (like when running from `Bagira.Runner`).
+The road graph fails to render because the loaded `RoadNetworkBlob` is accidentally discarded before it reaches the visualization layer, and the file loading logic relies on a hardcoded relative path that breaks depending on the working directory (like when running from `Hrot.ClusterRunner`).
 
-**Fix** **Bagira.SimHost/Modules/SimulationLogicModule.cs** The module hardcodes the public property to return `default`, effectively passing an empty/uninitialized struct to the rendering layer.
+**Fix** **Hrot.SimHost/Modules/SimulationLogicModule.cs** The module hardcodes the public property to return `default`, effectively passing an empty/uninitialized struct to the rendering layer.
 
 ```
 // Change this line:
@@ -663,7 +663,7 @@ public SimulationLogicModule(
     // ...
 ```
 
-**Fix** **Bagira.SimHost/SimHostApp.cs** Remove the hardcoded `"Assets/sample_road.json"` path and the silent `catch` block. Use the actual `RoadNetworkBlobPath` from the `nodeConfig` so it respects the Runner's configuration setup:
+**Fix** **Hrot.SimHost/SimHostApp.cs** Remove the hardcoded `"Assets/sample_road.json"` path and the silent `catch` block. Use the actual `RoadNetworkBlobPath` from the `nodeConfig` so it respects the Runner's configuration setup:
 
 ```
 // ── 7. Road network ───────────────────────────────────────────────
@@ -710,7 +710,7 @@ public void Draw(RenderContext ctx)
 
 Even after you fix the cursor and pick a route, your vehicle still won't move. You are experiencing a major architectural mismatch between the IOS and the SimHost regarding this specific task.
 
--   **The Layer Disconnect:** The `FollowRoute` filter specifically searches for `road_graphs`, which the IG maps to `TacGraphic_Route` ECS entities (drawn by the area authoring tool). It **cannot** pick the static JSON road graph lines, as those are not ECS entities.-   **The JSON Mismatch:** Look at `Bagira.IOS/Panels/MissionPanel.cs`. When you pick an entity, it generates the parameters: `{"routeEntityId": 123}` However, look at `Bagira.SimHost/Brains/SimHostNodes.cs`. The backend expects: `{"TrajectoryId": 123, "Loop": false}`
+-   **The Layer Disconnect:** The `FollowRoute` filter specifically searches for `road_graphs`, which the IG maps to `TacGraphic_Route` ECS entities (drawn by the area authoring tool). It **cannot** pick the static JSON road graph lines, as those are not ECS entities.-   **The JSON Mismatch:** Look at `Hrot.ExCon/Panels/MissionPanel.cs`. When you pick an entity, it generates the parameters: `{"routeEntityId": 123}` However, look at `Hrot.SimHost/Brains/SimHostNodes.cs`. The backend expects: `{"TrajectoryId": 123, "Loop": false}`
 
 Because the property names do not match, the SimHost deserializes the target as `TrajectoryId = 0` and silently fails. To make `FollowRoute` work, you will need to update `FollowRouteParams` in `SimHostNodes.cs` to accept `RouteEntityId`, and then update `Action_WriteFollowRouteChannel` to look up the `EditablePolyline` component of that entity and register it dynamically with the `TrajectoryPoolManager`.
 
@@ -720,7 +720,7 @@ You are completely right. The issue is that the `MeasureTool.Draw` method curren
 
 Because `HandleHover` is already successfully tracking the mouse coordinates into `_currentPoint`, we can easily fix this by drawing a crosshair cursor specifically when `_startPoint` is null.
 
-To fix this, open **Bagira.IG/Tools/MeasureTool.cs** and update the `Draw` method to include a crosshair indicator before the early return:
+To fix this, open **Hrot.IG/Tools/MeasureTool.cs** and update the `Draw` method to include a crosshair indicator before the early return:
 
 ```
 public void Draw(RenderContext ctx)
@@ -777,7 +777,7 @@ You will need to update the context menu registrations in both the **SimHost** a
 
 1\. Update SimHost Entity Inspector
 
-Open **Bagira.SimHost/SimHostVisualization.cs** and add the "Delete entity" option to the `_fdpEntityInspector` handler inside the constructor:
+Open **Hrot.SimHost/SimHostVisualization.cs** and add the "Delete entity" option to the `_fdpEntityInspector` handler inside the constructor:
 
 ```
 _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
@@ -825,7 +825,7 @@ _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandle
 
 2\. Update IG Entity Inspector
 
-Open **Bagira.IG/IgApplication.cs** and add the exact same networked deletion logic to the `_fdpEntityInspector` handler inside the `DrawUI` method (or where `_fdpContextMenusWired` is initialized):
+Open **Hrot.IG/IgApplication.cs** and add the exact same networked deletion logic to the `_fdpEntityInspector` handler inside the `DrawUI` method (or where `_fdpContextMenusWired` is initialized):
 
 ```
 _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandler((entity, builder) =>
@@ -872,30 +872,30 @@ _fdpEntityInspector.RegisterContextMenuHandler(new LambdaEntityContextMenuHandle
 
 By publishing the `DestroyEntityCommand`, you successfully bypass any local-only "shortcuts" (like `DestroyEntity(entity)`) for networked objects, guaranteeing that the ELM tracks the teardown and the IG cleans up its ghosts correctly.
 
-\[BUG\] GeoSpatialDR descriptor not disposed when entity deleted. Maybe this issue is there for other entity descriptors as well?
+\[BUG\] WorldPos descriptor not disposed when entity deleted. Maybe this issue is there for other entity descriptors as well?
 
-You are completely correct. The **GeoSpatialDR** descriptor is failing to be disposed due to an architectural oversight in its egress translator, creating a unique "sidecar" leak.
+You are completely correct. The **WorldPos** descriptor is failing to be disposed due to an architectural oversight in its egress translator, creating a unique "sidecar" leak.
 
-**The Root Cause for** **GeoSpatialDR** The `GeoSpatialEgressTranslator` inherits from the generic `CycloneTranslator<GeoSpatial, GeoSpatial>` base class. This generic base class provides a virtual `Dispose` method that automatically cleans up the primary generic topic (which in this case is `GeoSpatial`).
+**The Root Cause for** **WorldPos** The `WorldPosEgressTranslator` inherits from the generic `CycloneTranslator<WorldPos, WorldPos>` base class. This generic base class provides a virtual `Dispose` method that automatically cleans up the primary generic topic (which in this case is `WorldPos`).
 
-However, the `GeoSpatialEgressTranslator` internally instantiates a secondary writer (`_drWriter`) specifically to handle the `GeoSpatialDR` topic. Because the translator never overrides the base `Dispose` method, the `CycloneNetworkCleanupSystem` only triggers the base disposal logic. It successfully disposes the primary `GeoSpatial` topic, but completely forgets about the `_drWriter`, leaving the `GeoSpatialDR` instance orphaned on the DDS network when the entity is deleted.
+However, the `WorldPosEgressTranslator` internally instantiates a secondary writer (`_drWriter`) specifically to handle the `WorldPos` topic. Because the translator never overrides the base `Dispose` method, the `CycloneNetworkCleanupSystem` only triggers the base disposal logic. It successfully disposes the primary `WorldPos` topic, but completely forgets about the `_drWriter`, leaving the `WorldPos` instance orphaned on the DDS network when the entity is deleted.
 
-**Are other descriptors affected?** Fortunately, this bug is isolated to `GeoSpatialDR` because it is the only descriptor "piggybacking" inside another translator. A review of the other egress translators shows they are safe:
+**Are other descriptors affected?** Fortunately, this bug is isolated to `WorldPos` because it is the only descriptor "piggybacking" inside another translator. A review of the other egress translators shows they are safe:
 
 -   **Correctly Disposed:** `EntityInfoEgressTranslator`, `MapVisualOverlayEgressTranslator`, `EntityMasterEgressTranslator`, and `EntityMissionEgressTranslator` all correctly implement their own explicit `Dispose` methods to clean up their respective topics.-   **Intentionally Ignored:** `NavigationIntentEgressTranslator` and `NavigationStatusEgressTranslator` have explicitly empty `Dispose` methods, with source comments confirming that `"No DDS dispose needed"` is intentional for those specific topics.
 
-**The Fix** To resolve the leak, you need to override the `Dispose` method in **Bagira.Map.Common/Replication/Egress/GeoSpatialEgressTranslator.cs** so that it cleans up both the primary and secondary topics.
+**The Fix** To resolve the leak, you need to override the `Dispose` method in **Hrot.Map.Common/Replication/Egress/WorldPosEgressTranslator.cs** so that it cleans up both the primary and secondary topics.
 
-Add the following method to the `GeoSpatialEgressTranslator` class:
+Add the following method to the `WorldPosEgressTranslator` class:
 
 ```
 public override void Dispose(long networkEntityId)
 {
-    // 1. Dispose the primary GeoSpatial topic via the base generic class
+    // 1. Dispose the primary WorldPos topic via the base generic class
     base.Dispose(networkEntityId);
 
-    // 2. Dispose the secondary GeoSpatialDR topic
-    _drWriter.DisposeInstance(new GeoSpatialDR 
+    // 2. Dispose the secondary WorldPos topic
+    _drWriter.DisposeInstance(new WorldPos 
     { 
         EntityId = (int)networkEntityId 
     });
@@ -916,7 +916,7 @@ To fix this, you should keep the flat-loop architecture (which is highly perform
 
 The Fix
 
-Open **Bagira.IOS/Panels/OrbatPanel.cs** and update the rendering loop inside the `Draw(IIosLogic logic)` method:
+Open **Hrot.ExCon/Panels/OrbatPanel.cs** and update the rendering loop inside the `Draw(IIosLogic logic)` method:
 
 ```
 var nodes = GetVisibleNodes(logic.Repo);
@@ -974,7 +974,7 @@ Here is why:
 
 While the `MissionPanel` currently detects conflicts and sets the `HasConflictAlert` and `ConflictMessage` properties, it never actually draws anything on the screen to warn the user. Furthermore, the `SyncDraftFromSnapshot` method locks onto the draft and refuses to fetch the latest network state until the draft is explicitly cleared.
 
-To fix this, open **Bagira.IOS/Panels/MissionPanel.cs** and make two additions to the `Draw(IIosLogic logic)` method:
+To fix this, open **Hrot.ExCon/Panels/MissionPanel.cs** and make two additions to the `Draw(IIosLogic logic)` method:
 
 **A. Add the Conflict Modal** Right after calling `PollPickCompletion();` at the top of the `Draw` method, insert the ImGui modal rendering logic:
 
@@ -1052,7 +1052,7 @@ You are absolutely right. Using a modal blocks the entire application flow, whic
 
 Furthermore, your idea to "force the draft" is perfectly supported by the underlying architecture! In **MissionControlRequestSystem**, the optimistic locking check is explicitly bypassed if the request's `BaseVersion` is `0`: `if (request.BaseVersion > 0 && request.BaseVersion != currentVersion) { WriteAck(..., VersionConflict); return; }`
 
-Here is how you can implement this inline, non-blocking UI in **Bagira.IOS/Panels/MissionPanel.cs**:
+Here is how you can implement this inline, non-blocking UI in **Hrot.ExCon/Panels/MissionPanel.cs**:
 
 1\. Add a `HandleForceCommit` method
 
@@ -1194,7 +1194,7 @@ Here is exactly how to wire that up:
 
 1\. Map the Action ID in the IG Ingress Translator
 
-Open **Bagira.IG/Translators/ContextActionsUpdateTranslator.cs** and locate the `ParseActions` method. Update the `id` parsing logic to convert the IOS numeric ID `10` (which maps to `ContextMenuActions.Delete`) into a local `"IG_DeleteEntity"` action name:
+Open **Hrot.IG/Translators/ContextActionsUpdateTranslator.cs** and locate the `ParseActions` method. Update the `id` parsing logic to convert the IOS numeric ID `10` (which maps to `ContextMenuActions.Delete`) into a local `"IG_DeleteEntity"` action name:
 
 ```
 if (idProp.ValueKind == JsonValueKind.Number && idProp.TryGetInt32(out int id))
@@ -1212,7 +1212,7 @@ if (idProp.ValueKind == JsonValueKind.Number && idProp.TryGetInt32(out int id))
 
 2\. Execute the ELM Teardown in IG
 
-Open **Bagira.IG/IgApplication.cs** and locate the `ExecuteLocalContextAction` method. Because we prefixed the action with `"IG_"`, the `HandleContextMenuAction` router will automatically send it here.
+Open **Hrot.IG/IgApplication.cs** and locate the `ExecuteLocalContextAction` method. Because we prefixed the action with `"IG_"`, the `HandleContextMenuAction` router will automatically send it here.
 
 Add the `IG_DeleteEntity` case to fire off the `DestroyEntityCommand`, natively invoking the Entity Lifecycle Module:
 

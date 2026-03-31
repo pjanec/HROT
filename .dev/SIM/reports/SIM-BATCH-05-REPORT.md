@@ -11,7 +11,7 @@
 
 ### TASK-S5.1: Implement Program.cs Entry Point
 
-**File modified:** `Bagira.SimHost/Program.cs`
+**File modified:** `Hrot.SimHost/Program.cs`
 
 **Changes:**
 - Created a `DoctrineRegistry` and registered all four SimHost doctrines using stable integer IDs from `SimHostDoctrineIds`:
@@ -33,9 +33,9 @@
 ### TASK-S5.2: Create Configuration System
 
 **File created/modified:**
-- `Bagira.SimHost/Configuration/SimHostConfig.cs` — replaced the old static-constants class with a JSON-backed instance class.
-- `Bagira.SimHost/config.json` — default configuration file checked into source.
-- `Bagira.SimHost/Bagira.SimHost.csproj` — added `<Content CopyToOutputDirectory="PreserveNewest">` for `config.json`.
+- `Hrot.SimHost/Configuration/SimHostConfig.cs` — replaced the old static-constants class with a JSON-backed instance class.
+- `Hrot.SimHost/config.json` — default configuration file checked into source.
+- `Hrot.SimHost/Hrot.SimHost.csproj` — added `<Content CopyToOutputDirectory="PreserveNewest">` for `config.json`.
 
 **Design:**
 - `SimHostConfig` has three properties: `DomainId` (int, default 0), `SimulationRateHz` (int, default 60), `GeodeticOrigin` (`GeodeticOriginConfig`, defaults to Tel Aviv coordinates matching the previous constants).
@@ -43,7 +43,7 @@
 - `Load()` writes defaults and returns them if the file is missing; catches parse errors and falls back to defaults.
 - `Program.cs` calls `SimHostConfig.Load("config.json")` at startup before any other initialization.
 
-**Tests added:** `Bagira.SimHost.Tests/SimHostConfigTests.cs` (3 tests):
+**Tests added:** `Hrot.SimHost.Tests/SimHostConfigTests.cs` (3 tests):
 - `SimHostConfig_Load_ValidJson_ReturnsCorrectValues` ✅
 - `SimHostConfig_Load_MissingFile_WritesDefaultsToDisk` ✅
 - `SimHostConfig_Save_RoundTrip_PreservesAllValues` ✅
@@ -52,7 +52,7 @@
 
 ### TASK-S5.3: Add Logging and Diagnostics
 
-**File created:** `Bagira.SimHost/Utilities/Logger.cs`
+**File created:** `Hrot.SimHost/Utilities/Logger.cs`
 
 **Design:**
 - `LogLevel` enum: `Debug (0)`, `Info (1)`, `Warning (2)`, `Error (3)`.
@@ -61,7 +61,7 @@
 - `Error`-level messages go to `Console.Error`; all others go to `Console.Out`.
 - All `Console.WriteLine` calls in `Program.cs` replaced with `Logger.Info` / `Logger.Warning` / `Logger.Error`.
 
-**Tests added:** `Bagira.SimHost.Tests/LoggerTests.cs` (6 tests):
+**Tests added:** `Hrot.SimHost.Tests/LoggerTests.cs` (6 tests):
 - `Logger_MinimumLevel_FiltersLowerPriorityMessages` ✅
 - `Logger_MinimumLevelDebug_AllMessagesAppear` ✅
 - `Logger_Info_OutputContainsTimestampAndLevelAndMessage` ✅
@@ -73,7 +73,7 @@
 
 ### TASK-S5.4: Add Graceful Shutdown
 
-**File modified:** `Bagira.SimHost/Program.cs`
+**File modified:** `Hrot.SimHost/Program.cs`
 
 **Changes:**
 - `CancellationTokenSource cts` created at program start.
@@ -110,13 +110,13 @@ Yes. The current order in `Program.cs` is well-structured:
 
 | File | Action |
 |------|--------|
-| `Bagira.SimHost/Program.cs` | Modified — S5.1 + S5.3 + S5.4 |
-| `Bagira.SimHost/Configuration/SimHostConfig.cs` | Modified — S5.2 |
-| `Bagira.SimHost/config.json` | Created — S5.2 |
-| `Bagira.SimHost/Utilities/Logger.cs` | Created — S5.3 |
-| `Bagira.SimHost/Bagira.SimHost.csproj` | Modified — config.json content item |
-| `Bagira.SimHost.Tests/SimHostConfigTests.cs` | Created — S5.2 tests |
-| `Bagira.SimHost.Tests/LoggerTests.cs` | Created — S5.3 tests |
+| `Hrot.SimHost/Program.cs` | Modified — S5.1 + S5.3 + S5.4 |
+| `Hrot.SimHost/Configuration/SimHostConfig.cs` | Modified — S5.2 |
+| `Hrot.SimHost/config.json` | Created — S5.2 |
+| `Hrot.SimHost/Utilities/Logger.cs` | Created — S5.3 |
+| `Hrot.SimHost/Hrot.SimHost.csproj` | Modified — config.json content item |
+| `Hrot.SimHost.Tests/SimHostConfigTests.cs` | Created — S5.2 tests |
+| `Hrot.SimHost.Tests/LoggerTests.cs` | Created — S5.3 tests |
 
 ---
 

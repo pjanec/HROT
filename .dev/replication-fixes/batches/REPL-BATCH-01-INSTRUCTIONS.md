@@ -24,8 +24,8 @@ You are expected to finish the batch without stopping and asking if it is ok to 
 5. **Design Document:** `docs/replication-fixes/REPL-DESIGN.md` - Technical specifications
 
 ### Source Code Location
-- **Primary Work Area:** `FDP/Toolkits/FDP.Toolkit.Replication/`, `Bagira.IG/`, `FDP/ModuleHost/ModuleHost.Network.Cyclone/`
-- **Test Project:** `Bagira.Runner.Integration.Tests/` (To be updated in Phase 4)
+- **Primary Work Area:** `FDP/Toolkits/FDP.Toolkit.Replication/`, `Hrot.IG/`, `FDP/ModuleHost/ModuleHost.Network.Cyclone/`
+- **Test Project:** `Hrot.ClusterRunner.Integration.Tests/` (To be updated in Phase 4)
 
 ### Report Submission
 **When done, submit your report to:**
@@ -89,8 +89,8 @@ Refer to `docs/replication-fixes/REPL-TASK-DETAIL.md` for full implementation lo
 ### Phase 2: ECS-as-Staging Architecture
 **Tasks:** REPL-P2-T1 to REPL-P2-T5
 **Files:**
-- `Bagira.IG/Translators/EntityMasterTranslator.cs`
-- `Bagira.IG/Translators/*.cs` (GeoSpatial, Info, Damage, etc.)
+- `Hrot.IG/Translators/EntityMasterTranslator.cs`
+- `Hrot.IG/Translators/*.cs` (WorldPos, Info, Damage, etc.)
 - `FDP/ModuleHost/ModuleHost.Network.Cyclone/Translators/EntityMasterTranslator.cs`
 **Reference:** `docs/replication-fixes/REPL-TASK-DETAIL.md#repl-p2-t1-update-ghostcreationsystem--ecs-as-staging-part-a` (and T2-T5)
 **Action:** Follow the task details to switch translators from skipping missing entities to creating Ghosts immediately.

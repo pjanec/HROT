@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-14  
 **Tasks:** INTS-P3-011, INTS-P3-012, INTS-P3-013, INTS-P3-014  
 **Phase:** Integration Troubleshooting P3  
-**Estimated Effort:** 18–22 hours  
+**Estimated Effort:** 18ï¿½22 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-13 approved
 
@@ -21,8 +21,8 @@ This batch adds trace logging and an end-to-end DDS lifecycle integration test t
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-13-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`, `Bagira.IG/`, `Bagira.IOS/`, `Bagira.Runner/`
-- **Test Projects:** `Bagira.SimHost.Integration.Tests/`, `Bagira.IG.Tests/`, `Bagira.IOS.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/`, `Hrot.IG/`, `Hrot.ExCon/`, `Hrot.ClusterRunner/`
+- **Test Projects:** `Hrot.SimHost.Integration.Tests/`, `Hrot.IG.Tests/`, `Hrot.ExCon.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -41,26 +41,26 @@ This batch adds trace logging and an end-to-end DDS lifecycle integration test t
 
 ## ? Tasks
 
-### Task 1: INTS-P3-011 — Trace logging for SimHost entity spawn
-**Files:** `Bagira.SimHost/UI/SimHostScenarioManager.cs`, `FDP.Toolkit.NetworkSpawning/Systems/NetworkSpawningSystem.cs`, `FDP.Toolkit.Lifecycle/*`, `Bagira.SimHost/Translators/*` (UPDATE)  
+### Task 1: INTS-P3-011 ï¿½ Trace logging for SimHost entity spawn
+**Files:** `Hrot.SimHost/UI/SimHostScenarioManager.cs`, `FDP.Toolkit.NetworkSpawning/Systems/NetworkSpawningSystem.cs`, `FDP.Toolkit.Lifecycle/*`, `Hrot.SimHost/Translators/*` (UPDATE)  
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-011--trace-logging-simhost-entity-spawn-flow-1`
 
 ---
 
-### Task 2: INTS-P3-012 — Trace logging for IG ingress & render
-**Files:** `Bagira.IG/Translators/EntityMasterTranslator.cs`, `Bagira.IG/Translators/GeoSpatialTranslator.cs`, `Bagira.IG/Systems/StyleResolutionSystem.cs`, `Bagira.IG/Adapters/SstVisualizerAdapter.cs` (UPDATE)  
+### Task 2: INTS-P3-012 ï¿½ Trace logging for IG ingress & render
+**Files:** `Hrot.IG/Translators/EntityMasterTranslator.cs`, `Hrot.IG/Translators/WorldPosTranslator.cs`, `Hrot.IG/Systems/StyleResolutionSystem.cs`, `Hrot.IG/Adapters/SstVisualizerAdapter.cs` (UPDATE)  
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-012--trace-logging-ig-entity-ingress--render-flow-2`
 
 ---
 
-### Task 3: INTS-P3-013 — Trace logging for IOS/IG interactions
-**Files:** `Bagira.Map.Common/Commands/BdcCommandGateway.cs`, `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`, `Bagira.IOS/IosLogic.cs`, `Bagira.IOS/Services/RequestTransactionManager.cs`, `Bagira.IG/*` (UPDATE)  
+### Task 3: INTS-P3-013 ï¿½ Trace logging for IOS/IG interactions
+**Files:** `Hrot.Map.Common/Commands/BdcCommandGateway.cs`, `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`, `Hrot.ExCon/IosLogic.cs`, `Hrot.ExCon/Services/RequestTransactionManager.cs`, `Hrot.IG/*` (UPDATE)  
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-013--trace-logging-ig-map-drawings--ios-interactions-flows-36`
 
 ---
 
-### Task 4: INTS-P3-014 — End-to-End entity lifecycle integration test
-**File:** `Bagira.SimHost.Integration.Tests/*` (ADD/UPDATE)  
+### Task 4: INTS-P3-014 ï¿½ End-to-End entity lifecycle integration test
+**File:** `Hrot.SimHost.Integration.Tests/*` (ADD/UPDATE)  
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p3-014--integration-test-end-to-end-entity-lifecycle`
 
 ---
@@ -68,9 +68,9 @@ This batch adds trace logging and an end-to-end DDS lifecycle integration test t
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.SimHost.Integration.Tests/Bagira.SimHost.Integration.Tests.csproj`
-  - `dotnet test Bagira.IG.Tests/Bagira.IG.Tests.csproj`
-  - `dotnet test Bagira.IOS.Tests/Bagira.IOS.Tests.csproj`
+  - `dotnet test Hrot.SimHost.Integration.Tests/Hrot.SimHost.Integration.Tests.csproj`
+  - `dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj`
+  - `dotnet test Hrot.ExCon.Tests/Hrot.ExCon.Tests.csproj`
 
 ---
 
@@ -105,7 +105,7 @@ This batch adds trace logging and an end-to-end DDS lifecycle integration test t
 ## ?? Success Criteria
 
 This batch is DONE when:
-- [ ] INTS-P3-011–P3-014 complete with xUnit tests
+- [ ] INTS-P3-011ï¿½P3-014 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-14-REPORT.md`
 

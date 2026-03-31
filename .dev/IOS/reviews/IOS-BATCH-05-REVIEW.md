@@ -9,7 +9,7 @@
 
 ## Summary
 
-The developer successfully implemented the final Phase 10 advanced features: the Inspector panel, Diagnostics panel, Conflict UI, and Multi-IOS testing. The reflection map caching for the Inspector is appropriately optimized to prevent UI stutters. Conflict resolution is safely integrated and defensively backward-compatible. This effectively brings the Bagira.IOS mock module to 100% completion!
+The developer successfully implemented the final Phase 10 advanced features: the Inspector panel, Diagnostics panel, Conflict UI, and Multi-IOS testing. The reflection map caching for the Inspector is appropriately optimized to prevent UI stutters. Conflict resolution is safely integrated and defensively backward-compatible. This effectively brings the Hrot.ExCon mock module to 100% completion!
 
 ---
 
@@ -47,4 +47,4 @@ Related: docs/design/TASK-TRACKER.md, docs/design/TASK-DETAILS-IOS.md
 
 ---
 
-**Next Steps**: Transitioning to Bagira.Runner integration.
+**Next Steps**: Transitioning to Hrot.ClusterRunner integration.

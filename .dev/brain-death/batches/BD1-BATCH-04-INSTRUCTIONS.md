@@ -23,7 +23,7 @@ This final batch acts as a dedicated tech-debt burndown block. You will be addre
 - **Primary Work Areas:**
   - `FDP/Toolkits/FDP.Toolkit.Behavior/`
   - `FDP/Toolkits/FDP.Toolkit.ImGui/`
-  - `Bagira.SimHost.Integration.Tests/`
+  - `Hrot.SimHost.Integration.Tests/`
   - `FDP/Toolkits/FDP.Toolkit.ImGui.Tests/`
 
 ### Report Submission
@@ -43,7 +43,7 @@ This final batch acts as a dedicated tech-debt burndown block. You will be addre
 ## ✅ Tasks
 
 ### Task 1: Fix EntityMission_MovesEntity Integration Test (DEBT-1)
-**File:** `Bagira.SimHost.Integration.Tests/EntityMission_MovesEntity.cs` (or equivalent target)
+**File:** `Hrot.SimHost.Integration.Tests/EntityMission_MovesEntity.cs` (or equivalent target)
 **Description:** The integration harness (likely `SimHostInstance`) lacks the proper pipeline mapping (e.g., `NavigationIntent` → `CarKinematicsSystem`) for missions to actually move the entity. Wire the necessary module updates in the test context.
 
 ### Task 2: ComponentReflector Native Allocations (DEBT-2)

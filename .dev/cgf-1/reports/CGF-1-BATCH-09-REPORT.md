@@ -15,13 +15,13 @@ All Part A (S0205 normative closure + hygiene) and Part B (keyed `NodeOpCommand`
 - `OrchestratorSubsystem` now wires `DistributedTimeCoordinator` and calls `SwitchToDeterministic` when `PendingTimeMode == "Deterministic"` (A.1).
 - `CgfApplication` now wires `SwitchTimeModeDescriptorTranslator` (A.2).
 - `DeterministicRun_IsReproducible` promotes from exit-code-only to entity `Index`/`Generation` equality across two independent runs (A.3).
-- `TimeNetworkModule.RegisterTranslators` marked `[Obsolete]`; `TestDomainAllocator` counter bumped to 15; `xunit.runner.json` serialises `Bagira.Orchestrator.Tests` (A.4).
+- `TimeNetworkModule.RegisterTranslators` marked `[Obsolete]`; `TestDomainAllocator` counter bumped to 15; `xunit.runner.json` serialises `Hrot.Orchestrator.Tests` (A.4).
 - DEBT-TRACKER: all 5 CGF-1-BATCH-09 rows closed ✅ (A.5).
 
 **Part B:**
-- `[DdsKey] TargetNodeId` added to `NodeOpCommand`; `DrillMaster` uses a per-node `DdsWriter` cache (`FanOutNodeOp`); all three `DrillSlave` implementations (`CGF`, `IOS`, `SimHost`) filter by `TargetNodeId`; `SurvivingNodes_CommandedToStandby_AfterEjection` uses two independent DDS participants with per-node `SetFilter` and asserts that the surviving node receives the expected commands while the ejected-node participant receives nothing.
+- `[DdsKey] TargetNodeId` added to `NodeOpCommand`; `ClusterMaster` uses a per-node `DdsWriter` cache (`FanOutNodeOp`); all three `ClusterSlave` implementations (`CGF`, `IOS`, `SimHost`) filter by `TargetNodeId`; `SurvivingNodes_CommandedToStandby_AfterEjection` uses two independent DDS participants with per-node `SetFilter` and asserts that the surviving node receives the expected commands while the ejected-node participant receives nothing.
 
-Solution build: **0 errors**. `Bagira.Orchestrator.Tests`: **18/18 passed**. `Bagira.Runner.Tests`: **117/117 passed**. `Bagira.DDS.DataModel.Tests`: **43/43 passed**.
+Solution build: **0 errors**. `Hrot.Orchestrator.Tests`: **18/18 passed**. `Hrot.ClusterRunner.Tests`: **117/117 passed**. `Hrot.NED.Tests`: **43/43 passed**.
 
 ---
 
@@ -29,10 +29,10 @@ Solution build: **0 errors**. `Bagira.Orchestrator.Tests`: **18/18 passed**. `Ba
 
 ### A.1 — Consume `PendingTimeMode` and drive `DistributedTimeCoordinator`
 
-**Problem:** `DrillMaster.PendingTimeMode` was populated by the `SysOpRequest` JSON path but was never read by any higher-level host. `DistributedTimeCoordinator` existed in `FDP.Toolkit.Time.Controllers` but had no wiring in the Runner.
+**Problem:** `ClusterMaster.PendingTimeMode` was populated by the `ClusterOpRequest` JSON path but was never read by any higher-level host. `DistributedTimeCoordinator` existed in `FDP.Toolkit.Time.Controllers` but had no wiring in the Runner.
 
 **Solution:**  
-`OrchestratorSubsystem` (`Bagira.Runner/Services/OrchestratorSubsystem.cs`) was extended with a full coordinator lifecycle:
+`OrchestratorSubsystem` (`Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs`) was extended with a full coordinator lifecycle:
 
 | New field | Purpose |
 |-----------|---------|
@@ -48,23 +48,23 @@ Solution build: **0 errors**. `Bagira.Orchestrator.Tests`: **18/18 passed**. `Ba
 `Update()` ticks the kernel, swaps event bus buffers, reads `PendingTimeMode`, and on first detection of `"Deterministic"` calls `_timeCoordinator.SwitchToDeterministic(slaveIds)`.  
 `Shutdown()` disposes the kernel and nulls all coordinator fields.
 
-**New tests — `Bagira.Runner.Tests/OrchestratorTimeModeTests.cs`:**
+**New tests — `Hrot.ClusterRunner.Tests/OrchestratorTimeModeTests.cs`:**
 
 | Test | What it asserts |
 |------|----------------|
-| `PendingTimeMode_Deterministic_PublishesSwitchTimeModeEvent` | Sends `SysOpRequest` with `{"TargetState":30,"TimeMode":"Deterministic"}`, ticks the subsystem; asserts `SwitchTimeModeEvent` with `TargetMode == Deterministic` and `BarrierWallTicks > 0` is on `TimeBusForTest` |
+| `PendingTimeMode_Deterministic_PublishesSwitchTimeModeEvent` | Sends `ClusterOpRequest` with `{"TargetState":30,"TimeMode":"Deterministic"}`, ticks the subsystem; asserts `SwitchTimeModeEvent` with `TargetMode == Deterministic` and `BarrierWallTicks > 0` is on `TimeBusForTest` |
 | `PendingTimeMode_Absent_DoesNotPublishSwitchTimeModeEvent` | Sends a plain-int payload; asserts no `Deterministic` event is raised |
 
 Both tests use `[Collection("OrchestratorTimeModeTests")]` with `DisableParallelization = true` on domain 15 to avoid DDS contention.
 
 ### A.2 — `SwitchTimeModeDescriptorTranslator` on CGF node
 
-**Problem:** `Bagira.CGF` (`CgfApplication.cs`) had no time-mode DDS translator — `SwitchTimeModeEvent` could not exit or enter the CGF process via DDS.
+**Problem:** `Hrot.CGF` (`CgfApplication.cs`) had no time-mode DDS translator — `SwitchTimeModeEvent` could not exit or enter the CGF process via DDS.
 
 **Solution:**  
 `CgfApplication.cs` now creates `FdpEventBus _eventBus` and `IDescriptorTranslator _timeModeTranslator` (via `TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus)`) in its constructor. `Tick()` calls `ScanAndPublish`, `PollIngress`, and `_eventBus.SwapBuffers()` each frame — the same pattern used by `SimHostApp` and `IgApplication`.
 
-`Bagira.CGF.csproj` gained a `<ProjectReference>` to `FDP.Toolkit.Time`.
+`Hrot.CGF.csproj` gained a `<ProjectReference>` to `FDP.Toolkit.Time`.
 
 **NetworkDemo exclusion** remains as documented in BATCH-08 — `NetworkDemoApp` manages time sync via its own `TimeSyncSystem` / `TimeModeComponent` ECS path and must not receive the second DDS translator.
 
@@ -86,7 +86,7 @@ Assert.Equal(snapshotA.E2.Index, snapshotB.E2.Index);
 Assert.Equal(snapshotA.E2.Generation, snapshotB.E2.Generation);
 ```
 
-**Subprocess `dotnet run` test:** The subprocess invocation (`dotnet run --project Bagira.Runner -- --mode ci --scenario minimalci_01`) was not added as an automated in-repo test — spawning a child process in `dotnet test` introduces environmental dependencies (PATH, rebuild latency, DDS port conflicts on CI agents) that outweigh the coverage benefit for this in-process scenario. The deterministic bit-identity check above satisfies the normative intent. Risk noted in DEBT-TRACKER row (closed as scoped).
+**Subprocess `dotnet run` test:** The subprocess invocation (`dotnet run --project Hrot.ClusterRunner -- --mode ci --scenario minimalci_01`) was not added as an automated in-repo test — spawning a child process in `dotnet test` introduces environmental dependencies (PATH, rebuild latency, DDS port conflicts on CI agents) that outweigh the coverage benefit for this in-process scenario. The deterministic bit-identity check above satisfies the normative intent. Risk noted in DEBT-TRACKER row (closed as scoped).
 
 ### A.4 — Hygiene & Infra
 
@@ -99,7 +99,7 @@ Assert.Equal(snapshotA.E2.Generation, snapshotB.E2.Generation);
 ```
 
 **Parallel test domain fix:**  
-`TestDomainAllocator._counter` changed from `9` to `15`. `Next()` now returns 16, 17, … — clear of the fixed domain 15 reserved by `Bagira.Orchestrator.Tests`. An `xunit.runner.json` with `parallelizeAssembly: false` and `maxParallelThreads: 1` was added to `Bagira.Orchestrator.Tests` so orchestrator DDS tests are serialised within that assembly, preventing domain ID reuse races in full-solution `dotnet test` runs.
+`TestDomainAllocator._counter` changed from `9` to `15`. `Next()` now returns 16, 17, … — clear of the fixed domain 15 reserved by `Hrot.Orchestrator.Tests`. An `xunit.runner.json` with `parallelizeAssembly: false` and `maxParallelThreads: 1` was added to `Hrot.Orchestrator.Tests` so orchestrator DDS tests are serialised within that assembly, preventing domain ID reuse races in full-solution `dotnet test` runs.
 
 ### A.5 — DEBT-TRACKER
 
@@ -119,7 +119,7 @@ All five open rows targeting CGF-1-BATCH-09 were closed:
 
 ### B.1 — `[DdsKey] TargetNodeId` on `NodeOpCommand`
 
-`Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs`:
+`Hrot.NED/Orchestration/OrchestrationMessages.cs`:
 ```csharp
 /// <summary>
 /// DDS key field — each node reads only the instance keyed to its own node ID.
@@ -129,9 +129,9 @@ public int TargetNodeId;
 ```
 This is a **breaking wire schema change** — any existing DDS domain carrying a live `NodeOpCommand` instance history requires a domain restart when rolling this version.
 
-### B.2 — `DrillMaster` fan-out writer cache
+### B.2 — `ClusterMaster` fan-out writer cache
 
-`Bagira.Orchestrator/DrillMaster.cs` replaced the single broadcast `DdsWriter<NodeOpCommand>` with:
+`Hrot.Orchestrator/ClusterMaster.cs` replaced the single broadcast `DdsWriter<NodeOpCommand>` with:
 
 ```csharp
 private Dictionary<int, DdsWriter<NodeOpCommand>> _nodeOpWriterCache = new();
@@ -152,9 +152,9 @@ New method `FanOutNodeOp(NodeOpCommand template, IEnumerable<int> targetNodeIds)
 
 `Dispose()` disposes all cached writers.
 
-### B.3 — `SetFilter` in `DrillSlave` implementations
+### B.3 — `SetFilter` in `ClusterSlave` implementations
 
-All three `DrillSlave` classes received the same one-line addition immediately after `_commandReader` construction:
+All three `ClusterSlave` classes received the same one-line addition immediately after `_commandReader` construction:
 
 ```csharp
 _commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId);
@@ -162,9 +162,9 @@ _commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId);
 
 | File |
 |------|
-| `Bagira.CGF/Modules/Orchestration/DrillSlave.cs` |
-| `Bagira.IOS/Orchestration/DrillSlave.cs` |
-| `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs` |
+| `Hrot.CGF/Modules/Orchestration/ClusterSlave.cs` |
+| `Hrot.ExCon/Orchestration/ClusterSlave.cs` |
+| `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs` |
 
 `_nodeId` is the existing `int` field already set from the node's cluster configuration in all three implementations.
 
@@ -174,11 +174,11 @@ The test now uses **three DDS participants** on the same isolated domain:
 
 | Participant | Role |
 |-------------|------|
-| `orchParticipant` | `DrillMaster` writer (via `DrillMaster`) |
+| `orchParticipant` | `ClusterMaster` writer (via `ClusterMaster`) |
 | `cgfParticipant` | Simulates CGF slave reader; `SetFilter(cmd => cmd.TargetNodeId == 400)` |
 | `simHostParticipant` | Simulates SimHost slave reader; `SetFilter(cmd => cmd.TargetNodeId == 1)` |
 
-After `EjectNode(nodeId: 400)` (ejecting CGF), `DrillMaster` fans out `AbortTransaction` + `PrepareState` only to SimHost (nodeId 1). The test asserts:
+After `EjectNode(nodeId: 400)` (ejecting CGF), `ClusterMaster` fans out `AbortTransaction` + `PrepareState` only to SimHost (nodeId 1). The test asserts:
 - `cgfCmds` contains `AbortTransaction` and `PrepareState` (CGF was surviving when those commands were sent to all nodes before ejection context) — **correction:** the test structure sends `PrepareCluster` first (to both), then ejects CGF, then the follow-up transition goes only to the survivor SimHost. The concrete assertion is:
   - `cgf` reader: receives exactly `AbortTransaction` and `PrepareState` (sent before ejection).
   - `simHost` reader: `Assert.Empty(simHostCmds)` — SimHost-targeted commands are routed exclusively by key; the commands sent before ejection targeted CGF only in the post-B topology.
@@ -203,13 +203,13 @@ The test docstring no longer contains "Phase 1 broadcast limitation" notes.
 dotnet build IOS-IG-SimHost.sln --nologo
 → 0 Error(s)   251 Warning(s)   (all pre-existing)
 
-dotnet test Bagira.Orchestrator.Tests
+dotnet test Hrot.Orchestrator.Tests
 → Passed!  Failed: 0, Passed: 18, Skipped: 0
 
-dotnet test Bagira.Runner.Tests
+dotnet test Hrot.ClusterRunner.Tests
 → Passed!  Failed: 0, Passed: 117, Skipped: 0
 
-dotnet test Bagira.DDS.DataModel.Tests
+dotnet test Hrot.NED.Tests
 → Passed!  Failed: 0, Passed: 43, Skipped: 0
 ```
 
@@ -219,21 +219,21 @@ dotnet test Bagira.DDS.DataModel.Tests
 
 | File | Change |
 |------|--------|
-| `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs` | `[DdsKey] TargetNodeId` added to `NodeOpCommand` |
-| `Bagira.Orchestrator/DrillMaster.cs` | Single writer → `Dictionary<int, DdsWriter>` cache; `FanOutNodeOp`; ejection writer disposal |
-| `Bagira.CGF/Modules/Orchestration/DrillSlave.cs` | `SetFilter(cmd => cmd.TargetNodeId == _nodeId)` |
-| `Bagira.IOS/Orchestration/DrillSlave.cs` | `SetFilter(cmd => cmd.TargetNodeId == _nodeId)` |
-| `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs` | `SetFilter(cmd => cmd.TargetNodeId == _nodeId)` |
-| `Bagira.Orchestrator.Tests/DrillMasterBootstrapTests.cs` | `SurvivingNodes` test rewritten with two participant readers + isolation asserts |
-| `Bagira.Orchestrator.Tests/xunit.runner.json` | **New** — serialises test assembly; `maxParallelThreads: 1` |
-| `Bagira.Orchestrator.Tests/Bagira.Orchestrator.Tests.csproj` | Includes `xunit.runner.json` as `None / CopyToOutputDirectory: PreserveNewest` |
-| `Bagira.Runner/Services/OrchestratorSubsystem.cs` | Full coordinator lifecycle; `TimeBusForTest` seam |
-| `Bagira.Runner.Tests/OrchestratorTimeModeTests.cs` | **New** — two tests covering coordinator wiring via `PendingTimeMode` |
-| `Bagira.Runner.Tests/Bagira.Runner.Tests.csproj` | Added refs to `FDP.Toolkit.Time` and `Bagira.DDS.DataModel` |
-| `Bagira.Runner/Scenarios/MinimalCIScenario.cs` | `FinalEntitySnapshot` property; set on scenario completion |
-| `Bagira.Runner.Tests/MinimalCIScenarioTests.cs` | `DeterministicRun_IsReproducible` now asserts entity `Index`/`Generation` equality |
-| `Bagira.CGF/CgfApplication.cs` | `FdpEventBus` + `SwitchTimeModeDescriptorTranslator` wired; `Tick()` drives translator |
-| `Bagira.CGF/Bagira.CGF.csproj` | `ProjectReference` to `FDP.Toolkit.Time` |
+| `Hrot.NED/Orchestration/OrchestrationMessages.cs` | `[DdsKey] TargetNodeId` added to `NodeOpCommand` |
+| `Hrot.Orchestrator/ClusterMaster.cs` | Single writer → `Dictionary<int, DdsWriter>` cache; `FanOutNodeOp`; ejection writer disposal |
+| `Hrot.CGF/Modules/Orchestration/ClusterSlave.cs` | `SetFilter(cmd => cmd.TargetNodeId == _nodeId)` |
+| `Hrot.ExCon/Orchestration/ClusterSlave.cs` | `SetFilter(cmd => cmd.TargetNodeId == _nodeId)` |
+| `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs` | `SetFilter(cmd => cmd.TargetNodeId == _nodeId)` |
+| `Hrot.Orchestrator.Tests/ClusterMasterBootstrapTests.cs` | `SurvivingNodes` test rewritten with two participant readers + isolation asserts |
+| `Hrot.Orchestrator.Tests/xunit.runner.json` | **New** — serialises test assembly; `maxParallelThreads: 1` |
+| `Hrot.Orchestrator.Tests/Hrot.Orchestrator.Tests.csproj` | Includes `xunit.runner.json` as `None / CopyToOutputDirectory: PreserveNewest` |
+| `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` | Full coordinator lifecycle; `TimeBusForTest` seam |
+| `Hrot.ClusterRunner.Tests/OrchestratorTimeModeTests.cs` | **New** — two tests covering coordinator wiring via `PendingTimeMode` |
+| `Hrot.ClusterRunner.Tests/Hrot.ClusterRunner.Tests.csproj` | Added refs to `FDP.Toolkit.Time` and `Hrot.NED` |
+| `Hrot.ClusterRunner/Scenarios/MinimalCIScenario.cs` | `FinalEntitySnapshot` property; set on scenario completion |
+| `Hrot.ClusterRunner.Tests/MinimalCIScenarioTests.cs` | `DeterministicRun_IsReproducible` now asserts entity `Index`/`Generation` equality |
+| `Hrot.CGF/CgfApplication.cs` | `FdpEventBus` + `SwitchTimeModeDescriptorTranslator` wired; `Tick()` drives translator |
+| `Hrot.CGF/Hrot.CGF.csproj` | `ProjectReference` to `FDP.Toolkit.Time` |
 | `FDP/Toolkits/FDP.Toolkit.Time/TimeNetworkModule.cs` | `[Obsolete]` on `RegisterTranslators` |
 | `FDP/Examples/Fdp.Examples.NetworkDemo.Tests/Infrastructure/TestDomainAllocator.cs` | `_counter = 15` (next domain = 16+) |
 | `.dev/DEBT-TRACKER.md` | 5 rows closed ✅ |

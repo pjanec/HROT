@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Hrot.IG</RootNamespace>
+    <AssemblyName>Hrot.IG</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Expose internals to the test project so ProcessSample can be exercised directly -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Hrot.IG.Tests" />
+    <InternalsVisibleTo Include="Hrot.ClusterRunner.Integration.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hrot-specific project references -->
+    <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
+    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+    <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
+
+    <!-- FDP Kernel and Toolkits -->
+    <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
+    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Core\ModuleHost.Core.csproj" />
+    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Replication\FDP.Toolkit.Replication.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.NetworkSpawning\FDP.Toolkit.NetworkSpawning.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\Fdp.Toolkit.Geographic\Fdp.Toolkit.Geographic.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Tkb\FDP.Toolkit.Tkb.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- NuGet packages -->
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImgui-cs" Version="3.2.0" />
+    <PackageReference Include="NLog" Version="5.2.8" />
+  </ItemGroup>
+
+</Project>

@@ -20,7 +20,7 @@ Since `auto-assignment` is now disabled, any component missing its ID crashes th
 3. Open each component file and decorate it with `[ComponentId(GlobalComponentIds.YourConstant)]`.
 
 ### Task 2: Survey and Attribute Application Layers
-1. Search the `Bagira.*` folders (`Bagira.IG`, `Bagira.SimHost`, `Bagira.Runner`).
+1. Search the `Hrot.*` folders (`Hrot.IG`, `Hrot.SimHost`, `Hrot.ClusterRunner`).
 2. Map their components (e.g., `SimHostSubsystem` internal components, `IgSubsystem` components, UI-related components) to the constants defined in `GlobalComponentIds.cs`.
 3. Add the `[ComponentId]` attributes correctly.
 
@@ -37,7 +37,7 @@ Since `auto-assignment` is now disabled, any component missing its ID crashes th
 **Objective:** With the `TestScript` parser from Batch 04 functioning, we must now implement the command handlers that execute script test steps and evaluate assertions.
 
 ### Task 4: Implement Test Action Handlers
-1. In `Bagira.Runner/Services`, create an interface `ITestActionHandler` (or use a registry) that can process a `TestStep` dynamically.
+1. In `Hrot.ClusterRunner/Services`, create an interface `ITestActionHandler` (or use a registry) that can process a `TestStep` dynamically.
 2. Implement specific handlers for common test actions:
    - `spawn`: Uses the orchestrator or `EventBus` to publish a `SpawnEntityCommand`.
    - `move`: Updates a target's position or triggers a `MoveTo` behavior.

@@ -3,7 +3,7 @@
 **Batch:** BD1-BATCH-01 — Core Brain-Death Lifecycle  
 **Tasks:** BD1-P1T0a, BD1-P1T0b, BD1-P1T1, BD1-P1T2, BD1-P1T3  
 **Date:** 2026-03-19  
-**Final Test Results:** FDP.Toolkit.Behavior.Tests — 71 passed, 0 failed | Bagira.SimHost.Tests — 225 passed, 0 failed
+**Final Test Results:** FDP.Toolkit.Behavior.Tests — 71 passed, 0 failed | Hrot.SimHost.Tests — 225 passed, 0 failed
 
 ---
 
@@ -31,14 +31,14 @@
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/ChannelArbitrationSystem.cs` — replaced `channel = default` with `channel.ActiveAction = 0; unchecked { channel.ActionInstanceId++; }` for all three channel types.
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Components/MissionComponents.cs` — added `DoctrineFinished = 4` to `MissionTrigger` enum.
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` — added `case MissionTrigger.DoctrineFinished:` that reads from a per-frame `HashSet<int>` built at the top of `OnUpdate`; added `else` branch on plan exhaustion to publish `ClearDoctrineEvent`.
-- `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` — added `ClearDoctrineEvent` publish in `CMD_ABORT_ALL` case; added `using FDP.Toolkit.Behavior.Events`.
+- `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` — added `ClearDoctrineEvent` publish in `CMD_ABORT_ALL` case; added `using FDP.Toolkit.Behavior.Events`.
 
 **Modified test code:**
 - `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/BTreeTickSystemTests.cs` — added 5 new `DoctrineFinishedEvent` tests; added `using FDP.Toolkit.Behavior.Events`.
 - `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/DoctrineIngressSystemTests.cs` — fixed broken `DoctrineInstanceId == 0u` assertion in `DoctrineIngress_StaleSetsNewInstanceId_ArbitrationClearsOldAction`; added 4 new `ClearDoctrineEvent` tests.
 - `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/ChannelArbitrationTests.cs` — fixed `Arbitration_ClearsStaleChannel` assertions (`Status` and `DoctrineInstanceId` are no longer reset by selective-clear); added 4 new `ChannelClear_ShouldNotZeroActionInstanceId`, `NoPreemption_WhenDoctrineMatches`, `WeaponChannel_ReceivesOnExitSignal`, `InteractionChannel_ReceivesOnExitSignal` tests.
 - `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/MissionDirectorSystemTests.cs` — added `using Fbt`, `using FDP.Toolkit.Behavior.Events`; registered `BrainBTreeState` in fixture; added 5 new `DoctrineFinishedTrigger` / `MissionComplete` tests.
-- `Bagira.SimHost.Tests/MissionControlRequestSystemTests.cs` — registered `DoctrineState` and `BrainBTreeState` in `CreateWorld()`; added `using FDP.Toolkit.Behavior.Events`; added 3 new `AbortAll_*` tests.
+- `Hrot.SimHost.Tests/MissionControlRequestSystemTests.cs` — registered `DoctrineState` and `BrainBTreeState` in `CreateWorld()`; added `using FDP.Toolkit.Behavior.Events`; added 3 new `AbortAll_*` tests.
 
 ---
 

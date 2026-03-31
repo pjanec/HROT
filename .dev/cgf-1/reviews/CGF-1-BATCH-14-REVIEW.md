@@ -11,11 +11,11 @@
 
 ## Summary
 
-**Part A** matches the report: `_pendingPrefetch` + `DrainPendingPrefetch()` at the start of `Tick()` defers `PrefetchFiles` until `PrefetchScenarioAsync` completes; faults and `FailureCount > 0` publish `SysOpStatus.Failure` with the originating `RequestId`; missing NAS `sourceDir` throws `DirectoryNotFoundException`; `EditLoadDsmHandler` throws when a pending DOM requires a repo but both parameters are null; `EditLoadDsmHandlerTests` assert position round-trip; §CGF1-S0302 task text updated toward the ScenarioSerializer DOM.
+**Part A** matches the report: `_pendingPrefetch` + `DrainPendingPrefetch()` at the start of `Tick()` defers `PrefetchFiles` until `PrefetchScenarioAsync` completes; faults and `FailureCount > 0` publish `ClusterOpStatus.Failure` with the originating `RequestId`; missing NAS `sourceDir` throws `DirectoryNotFoundException`; `EditLoadDsmHandler` throws when a pending DOM requires a repo but both parameters are null; `EditLoadDsmHandlerTests` assert position round-trip; §CGF1-S0302 task text updated toward the ScenarioSerializer DOM.
 
-**Part B** delivers `CheckpointIOWorker` (dedicated thread, LZ4 via `RecorderSystem.RecordKeyframe`, `TakeCompletedResults`), `ITickableDsmHandler`, `CheckpointDsmHandler` (InProgress → enqueue → deferred Success/Failure), `DrillSlave.Tick()` polling, and `LiveLoadDsmHandler` optional `DrainAsync` on `FinalizeLive`. Unit tests cover drain, overlap, live unload barrier, and null repo.
+**Part B** delivers `CheckpointIOWorker` (dedicated thread, LZ4 via `RecorderSystem.RecordKeyframe`, `TakeCompletedResults`), `ITickableDsmHandler`, `CheckpointDsmHandler` (InProgress → enqueue → deferred Success/Failure), `ClusterSlave.Tick()` polling, and `LiveLoadDsmHandler` optional `DrainAsync` on `FinalizeLive`. Unit tests cover drain, overlap, live unload barrier, and null repo.
 
-**Tests run (review):** `Bagira.Orchestrator.Tests` — **25 / 25** passed; `Bagira.SimHost.Tests` — **371 / 371** passed.
+**Tests run (review):** `Hrot.Orchestrator.Tests` — **25 / 25** passed; `Hrot.SimHost.Tests` — **371 / 371** passed.
 
 ---
 
@@ -34,7 +34,7 @@
 
 ## Critical gap: checkpoint path not registered in production SimHost
 
-[`NodeBootstrapper.BuildOrchestration`](../../../Bagira.SimHost/NodeBootstrapper.cs) does **not** create a `CheckpointIOWorker`, does **not** register `CheckpointDsmHandler`, and constructs [`LiveLoadDsmHandler(drillSlave, eventBus)`](../../../Bagira.SimHost/NodeBootstrapper.cs) **without** the optional `CheckpointIOWorker` ([`SimHostApp.OnLoad`](../../../Bagira.SimHost/SimHostApp.cs) uses the same call pattern).
+[`NodeBootstrapper.BuildOrchestration`](../../../Hrot.SimHost/NodeBootstrapper.cs) does **not** create a `CheckpointIOWorker`, does **not** register `CheckpointDsmHandler`, and constructs [`LiveLoadDsmHandler(drillSlave, eventBus)`](../../../Hrot.SimHost/NodeBootstrapper.cs) **without** the optional `CheckpointIOWorker` ([`SimHostApp.OnLoad`](../../../Hrot.SimHost/SimHostApp.cs) uses the same call pattern).
 
 Effects:
 
@@ -49,7 +49,7 @@ This mirrors the historical **ScenarioLoad** wiring gap: **tests prove component
 
 ## Additional notes (P3 / polish)
 
-- **Optimistic `_currentDsmState`:** Still advanced in `ProcessSysOpRequests` **before** prefetch completes on a later tick. **PrefetchFiles** ordering is fixed; **orchestrator-local DSM cursor** can still read “ahead” of staging — document or tighten if clients rely on it for sequencing.
+- **Optimistic `_currentClusterState`:** Still advanced in `ProcessClusterOpRequests` **before** prefetch completes on a later tick. **PrefetchFiles** ordering is fixed; **orchestrator-local DSM cursor** can still read “ahead” of staging — document or tighten if clients rely on it for sequencing.
 - **Empty NAS scenario directory:** `PrefetchScenarioAsync` returns `SuccessCount = 0`, `FailureCount = 0`; `DrainPendingPrefetch` treats that as **success** and fans `PrefetchFiles` — **no files copied**. Consider failing or requiring `SuccessCount > 0` when a load transition implied non-empty scenario (policy choice).
 - **§CGF1-S0303 success text** cites `OnItemWritten`; implementation uses **`TakeCompletedResults`** — tests still validate deferred behaviour; **align task-detail wording** opportunistically.
 - **`SecondSnapshotCaptures_DifferentState_thanFirst`:** Uses **file size** proxy rather than deserializing both checkpoints to assert component values — weaker than the task-detail narrative but acceptable as a smoke test.
@@ -61,11 +61,11 @@ This mirrors the historical **ScenarioLoad** wiring gap: **tests prove component
 ```
 fix(cgf-1): prefetch latch, gateway fail-loud, checkpoint worker, and edit-load hardening
 
-- DrillMaster: pending prefetch op; drain before SysOp processing; Failure on gateway fault
+- ClusterMaster: pending prefetch op; drain before SysOp processing; Failure on gateway fault
 - StorageGateway: DirectoryNotFoundException when NAS scenario dir missing
 - EditLoadDsmHandler: throw when deserialize required but repo/world null
 - CheckpointIOWorker + CheckpointDsmHandler + ITickableDsmHandler; LiveLoad DrainAsync hook
-- Tests: DrillMaster prefetch ordering, checkpoint overlap/drain, edit-load positions
+- Tests: ClusterMaster prefetch ordering, checkpoint overlap/drain, edit-load positions
 - TASK-DETAIL §CGF1-S0302: canonical ScenarioSerializer DOM
 
 Follow-up: wire CheckpointIOWorker + CheckpointDsmHandler + LiveLoad(worker) in

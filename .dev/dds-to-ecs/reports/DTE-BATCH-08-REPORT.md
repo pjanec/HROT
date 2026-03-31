@@ -15,15 +15,15 @@
 | DDS2ECS-S14T2 | [x] | BehaviorId dropdown + params editor wired to draft edits and tested. |
 | DDS2ECS-S14T3 | [x] | Commit button calls `CommitMissionAsync`, disabled during in-flight commit and tested. |
 | DDS2ECS-S15T1 | [x] | Internal hooks (`App`, `World`, `Kernel`, `Logic`, map click) exposed with `InternalsVisibleTo`. |
-| DDS2ECS-S15T2 | [x] | `BagiraRunnerHarness` created with domain isolation, frame pumping, and tests. |
+| DDS2ECS-S15T2 | [x] | `HrotRunnerHarness` created with domain isolation, frame pumping, and tests. |
 | DDS2ECS-S15T3 | [x] | Map placement integration test validates DDS flow, SimHost spawn TKB, IG ghost, IOS DER update. |
 
 ---
 
 ## 🧪 Testing Results
 
-**Unit Tests Passed:** 263 / 263 (`Bagira.IOS.Tests`)  
-**Integration Tests Passed:** 4 / 4 (`Bagira.Runner.Integration.Tests`)
+**Unit Tests Passed:** 263 / 263 (`Hrot.ExCon.Tests`)  
+**Integration Tests Passed:** 4 / 4 (`Hrot.ClusterRunner.Integration.Tests`)
 
 **Key Test Scenarios Verified:**
 - [x] MissionPanel draft editing, behavior edits, and commit gating.
@@ -32,13 +32,13 @@
 
 **Test Output:**
 ```text
-dotnet test .\Bagira.IOS.Tests\Bagira.IOS.Tests.csproj
+dotnet test .\Hrot.ExCon.Tests\Hrot.ExCon.Tests.csproj
 Test summary: total: 263; failed: 0; succeeded: 263; skipped: 0; duration: 2.3s
 Build succeeded with 2 warning(s)
 - CycloneDDS.Runtime DdsReader.cs(303,35): warning CS8601
-- Bagira.IOS.Tests MultiIosIntegrationTests.cs(173,49): warning CS8123
+- Hrot.ExCon.Tests MultiIosIntegrationTests.cs(173,49): warning CS8123
 
-dotnet test .\Bagira.Runner.Integration.Tests\Bagira.Runner.Integration.Tests.csproj
+dotnet test .\Hrot.ClusterRunner.Integration.Tests\Hrot.ClusterRunner.Integration.Tests.csproj
 Test summary: total: 4; failed: 0; succeeded: 4; skipped: 0; duration: 6.2s
 Build succeeded with 1 warning(s)
 - CycloneDDS.Runtime DdsReader.cs(303,35): warning CS8601

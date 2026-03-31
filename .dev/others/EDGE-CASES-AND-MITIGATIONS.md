@@ -29,11 +29,11 @@ This document consolidates all critical edge cases identified during design revi
 
 **Fix Implemented:**
 - **Design Doc**: [DESIGN-SIMHOST.md Section 6.1](./DESIGN-SIMHOST.md#61-terrain-height-preservation)
-- **Code Pattern**: `GeoSpatialBridgeSystem` preserves existing altitude when updating XY position
+- **Code Pattern**: `WorldPosBridgeSystem` preserves existing altitude when updating XY position
 - **Task Added**: SIMHOST-S3.X (See below)
 
 ```csharp
-var existingGeo = world.TryGetComponent<GeoSpatialComponent>(entity);
+var existingGeo = world.TryGetComponent<WorldPosComponent>(entity);
 float altitude = existingGeo?.Pos.Altitude ?? 0.0f;
 var cartesian = new CartesianCoordinate { X = pos.X, Y = pos.Y, Z = altitude };
 ```
@@ -64,7 +64,7 @@ var cartesian = new CartesianCoordinate { X = pos.X, Y = pos.Y, Z = altitude };
 }
 ```
 
-**Verification**: Check `Bagira.DDS.DataModel` implementation during Phase P2
+**Verification**: Check `Hrot.NED` implementation during Phase P2
 
 ---
 
@@ -409,7 +409,7 @@ while (actionQueue.Count > 0 && actionQueue.Peek().Time <= currentTime)
 **Description**: Implement terrain height preservation and physics initialization guards
 
 **Success Criteria**:
-1. `GeoSpatialBridgeSystem` preserves altitude from existing `GeoSpatialComponent`
+1. `WorldPosBridgeSystem` preserves altitude from existing `WorldPosComponent`
 2. `EntityFactorySystem` initializes `VehicleState` with `Speed=0`, `Accel=0`
 3. `CarKinematicsSystem` skips physics if `dt <= 0` or `dt > 0.1`
 4. Add `FirstFrameFlag` component to defer physics for 1 frame
@@ -420,7 +420,7 @@ while (actionQueue.Count > 0 && actionQueue.Peek().Time <= currentTime)
 // Test 1: Altitude preservation
 var entity = CreateEntityAt(lat: 50.0, lon: 14.0, alt: 500.0);
 SimulatePhysics(entity, frames: 100);
-Assert.Equal(500.0, entity.Get<GeoSpatialComponent>().Pos.Altitude, tolerance: 0.1);
+Assert.Equal(500.0, entity.Get<WorldPosComponent>().Pos.Altitude, tolerance: 0.1);
 
 // Test 2: No first-frame jitter
 var entity = CreateEntity();
@@ -598,7 +598,7 @@ Assert.NoThrow(() => ig.Update(0.016f));  // Should not crash
 Use this checklist during implementation to ensure all mitigations are in place:
 
 ### SimHost
-- [ ] `GeoSpatialBridgeSystem` reads existing altitude before overwriting
+- [ ] `WorldPosBridgeSystem` reads existing altitude before overwriting
 - [ ] `VehicleState` initialized with zero velocity
 - [ ] `CarKinematicsSystem` guards against dt<=0
 - [ ] `FirstFrameFlag` component implemented

@@ -16,17 +16,17 @@ This document breaks down the implementation of the IOS Mock into specific, acti
 
 ## Phase P5: Project Setup (0.5 days)
 
-### P5.1: Create Bagira.IOS Project
+### P5.1: Create Hrot.ExCon Project
 
 **Description**: Create IOS Mock console application.
 
 **Steps**:
 1. Create project:
    ```bash
-   dotnet new console -n Bagira.IOS -f net8.0
+   dotnet new console -n Hrot.ExCon -f net8.0
    ```
 2. Add to solution `IOS-IG-SimHost.sln`.
-3. Location: `Bagira.IOS/`
+3. Location: `Hrot.ExCon/`
 
 **Dependencies**: None
 
@@ -36,9 +36,9 @@ This document breaks down the implementation of the IOS Mock into specific, acti
 
 **Steps**:
 1. Add references:
-   - `Bagira.DDS.DataModel`
-   - `Bagira.Map.Common`
-   - `Bagira.Map.Definitions`
+   - `Hrot.NED`
+   - `Hrot.Map.Common`
+   - `Hrot.Map.Definitions`
    - `FDP.Toolkit.DER`
    - `FDP.Toolkit.Commands`
    - `CycloneDDS.NET`
@@ -60,8 +60,8 @@ This document breaks down the implementation of the IOS Mock into specific, acti
 **Description**: Track request/response correlation for monitoring
 
 **Files to Create:**
-- `Bagira.IOS/Services/IRequestTransactionManager.cs`
-- `Bagira.IOS/Services/RequestTransactionManager.cs`
+- `Hrot.ExCon/Services/IRequestTransactionManager.cs`
+- `Hrot.ExCon/Services/RequestTransactionManager.cs`
 
 **Implementation:**
 
@@ -117,8 +117,8 @@ public class RequestTransactionManager : IRequestTransactionManager
 **Description**: Implements optimistic locking for mission editing
 
 **Files to Create:**
-- `Bagira.IOS/Services/IMissionEditorService.cs`
-- `Bagira.IOS/Services/MissionEditorService.cs`
+- `Hrot.ExCon/Services/IMissionEditorService.cs`
+- `Hrot.ExCon/Services/MissionEditorService.cs`
 
 **Implementation:**
 
@@ -199,8 +199,8 @@ public class MissionEditorService : IMissionEditorService
 **Description**: Strategy-based context menu generation
 
 **Files to Create:**
-- `Bagira.IOS/Logic/IContextMenuLogic.cs`
-- `Bagira.IOS/Logic/ContextMenuLogic.cs`
+- `Hrot.ExCon/Logic/IContextMenuLogic.cs`
+- `Hrot.ExCon/Logic/ContextMenuLogic.cs`
 
 **Implementation:**
 
@@ -278,7 +278,7 @@ public class ContextMenuLogic : IContextMenuLogic
 **Description**: Control IG configuration via JSON patches
 
 **Files to Create:**
-- `Bagira.IOS/Panels/ConfigPanel.cs`
+- `Hrot.ExCon/Panels/ConfigPanel.cs`
 
 **UI Layout:**
 
@@ -365,7 +365,7 @@ public class ConfigPanel
 **Description**: Tree view of command structure
 
 **Files to Create:**
-- `Bagira.IOS/Panels/OrbatPanel.cs`
+- `Hrot.ExCon/Panels/OrbatPanel.cs`
 
 **UI Layout:**
 
@@ -473,7 +473,7 @@ public class OrbatPanel
 **Description**: Display and edit mission plans
 
 **Files to Create:**
-- `Bagira.IOS/Panels/MissionPanel.cs`
+- `Hrot.ExCon/Panels/MissionPanel.cs`
 
 **UI Layout:**
 
@@ -574,7 +574,7 @@ public class MissionPanel
 **Description**: Displays network event log for debugging
 
 **Files to Create:**
-- `Bagira.IOS/Panels/InteractionPanel.cs`
+- `Hrot.ExCon/Panels/InteractionPanel.cs`
 
 **UI Layout:**
 
@@ -650,7 +650,7 @@ public class InteractionPanel
 **Description**: Entity type browser and placement tool
 
 **Files to Create:**
-- `Bagira.IOS/Panels/SpawnerPanel.cs`
+- `Hrot.ExCon/Panels/SpawnerPanel.cs`
 
 **UI Layout:**
 
@@ -734,7 +734,7 @@ public class SpawnerPanel
 **Description**: Core application state and command handlers
 
 **Files to Create:**
-- `Bagira.IOS/IosLogic.cs`
+- `Hrot.ExCon/IosLogic.cs`
 
 **Implementation:**
 
@@ -762,7 +762,7 @@ public class IosLogic : IDisposable
         // Register topics
         Repo.RegisterTopic<EntityInfo>();
         Repo.RegisterTopic<EntityMission>();
-        Repo.RegisterTopic<GeoSpatial>();
+        Repo.RegisterTopic<WorldPos>();
         // ... etc
         
         // Create services
@@ -852,8 +852,8 @@ public class IosLogic : IDisposable
 **Description**: Main entry point, CLI parsing, ImGui setup
 
 **Files to Create:**
-- `Bagira.IOS/Program.cs`
-- `Bagira.IOS/IosMock.cs`
+- `Hrot.ExCon/Program.cs`
+- `Hrot.ExCon/IosMock.cs`
 
 **Implementation:**
 
@@ -1001,8 +1001,8 @@ public class IosMock : IMockSubsystem
    - Second commit fails with version conflict
 
 **Test Files:**
-- `Bagira.IOS.Tests/IntegrationTests.cs`
-- `Bagira.IOS.Tests/WorkflowTests.cs`
+- `Hrot.ExCon.Tests/IntegrationTests.cs`
+- `Hrot.ExCon.Tests/WorkflowTests.cs`
 
 ---
 

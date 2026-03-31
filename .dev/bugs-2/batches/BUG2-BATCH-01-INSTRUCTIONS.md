@@ -22,8 +22,8 @@ Welcome to the BUG2 workstream! This first batch focuses on addressing critical 
 5. **Design Document:** `docs/bugs-2/BUG2-DESIGN.md` - Architectural context and reasoning
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`, `Bagira.IG/`, `Bagira.IOS/`, `Bagira.Map.Common/`, `FDP/Examples/Fdp.Examples.NetworkDemo/`
-- **Test Projects:** `Bagira.SimHost.Tests/`, `Bagira.Map.Common.Tests/`, `Bagira.IOS.Tests/`, `Bagira.IG.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/`, `Hrot.IG/`, `Hrot.ExCon/`, `Hrot.Map.Common/`, `FDP/Examples/Fdp.Examples.NetworkDemo/`
+- **Test Projects:** `Hrot.SimHost.Tests/`, `Hrot.Map.Common.Tests/`, `Hrot.ExCon.Tests/`, `Hrot.IG.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -58,7 +58,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 **Related Tasks:**
 - [BUG2-N001](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-n001-fix-duplicate-updateentitydescriptorrequestsystem-registration) - Duplicate System Registration
 - [BUG2-N002](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-n002-add-enablesendertracking-to-all-dds-participant-initializations) - Add EnableSenderTracking
-- [BUG2-N003](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-n003-fix-geospatialdr-descriptor-disposal-leak) - Fix GeoSpatialDR Leak
+- [BUG2-N003](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-n003-fix-geospatialdr-descriptor-disposal-leak) - Fix WorldPos Leak
 - [BUG2-M001](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-m001-fix-missing-resolvetrigger-cases) - Fix Missing ResolveTrigger Cases
 - [BUG2-M002](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-m002-add-trigger-selection-ui-to-missionpanel) - Add Trigger Selection UI
 - [BUG2-M003](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-m003-fix-unreadable-mission-task-action-buttons) - Fix Unreadable Mission Task Buttons
@@ -79,7 +79,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 
 ### Task 1: Fix Duplicate UpdateEntityDescriptorRequestSystem Registration (BUG2-N001)
 
-**File:** `Bagira.SimHost/SimHostApp.cs`  
+**File:** `Hrot.SimHost/SimHostApp.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-n001-fix-duplicate-updateentitydescriptorrequestsystem-registration)
 
 **Description:** Remove the duplicate registration of `UpdateEntityDescriptorRequestSystem` to prevent double ACKs.
@@ -91,7 +91,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 
 ### Task 2: Add EnableSenderTracking to All DDS Participant Initializations (BUG2-N002)
 
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.IG/IgApplication.cs`, `Bagira.Runner/Services/IosSubsystem.cs`, `FDP/Examples/Fdp.Examples.NetworkDemo/NetworkDemoApp.cs`  
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.IG/IgApplication.cs`, `Hrot.ClusterRunner/Services/IosSubsystem.cs`, `FDP/Examples/Fdp.Examples.NetworkDemo/NetworkDemoApp.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-n002-add-enablesendertracking-to-all-dds-participant-initializations)
 
 **Description:** Add `EnableSenderTracking` to the participant at initialization.
@@ -100,20 +100,20 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 **Tests Required:**
 - ✅ `EntityMasterIngressTranslatorTests.ProcessSample_WithSenderTracking_SetsOwnerId` (new or updated)
 
-### Task 3: Fix GeoSpatialDR Descriptor Disposal Leak (BUG2-N003)
+### Task 3: Fix WorldPos Descriptor Disposal Leak (BUG2-N003)
 
-**File:** `Bagira.Map.Common/Replication/Egress/GeoSpatialEgressTranslator.cs`  
+**File:** `Hrot.Map.Common/Replication/Egress/WorldPosEgressTranslator.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-n003-fix-geospatialdr-descriptor-disposal-leak)
 
 **Description:** Override `Dispose(long networkEntityId)` to tombstone both the primary sample and `_drWriter`.
 
 **Tests Required:**
-- ✅ `GeoSpatialEgressTranslatorTests.Dispose_CallsDisposeOnDrWriter` (new)
-- ✅ `GeoSpatialEgressTranslatorTests.Dispose_AlsoCallsBaseDispose` (new)
+- ✅ `WorldPosEgressTranslatorTests.Dispose_CallsDisposeOnDrWriter` (new)
+- ✅ `WorldPosEgressTranslatorTests.Dispose_AlsoCallsBaseDispose` (new)
 
 ### Task 4: Fix Missing ResolveTrigger Cases (BUG2-M001)
 
-**Files:** `Bagira.SimHost/Systems/MissionControlRequestSystem.cs`, `Bagira.Map.Common/Translators/EntityMissionIngressTranslator.cs`  
+**Files:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`, `Hrot.Map.Common/Translators/EntityMissionIngressTranslator.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-m001-fix-missing-resolvetrigger-cases)
 
 **Description:** Add `"DoctrineFinished"` and `"UnderAttack"` cases to the switch in `ResolveTrigger`.
@@ -126,7 +126,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 
 ### Task 5: Add Trigger Selection UI to MissionPanel (BUG2-M002)
 
-**File:** `Bagira.IOS/Panels/MissionPanel.cs`  
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-m002-add-trigger-selection-ui-to-missionpanel)
 
 **Description:** Add comprehensive task trigger selection options directly in the Mission task list UI loop.
@@ -139,7 +139,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 
 ### Task 6: Fix Unreadable Mission Task Action Buttons (BUG2-M003)
 
-**File:** `Bagira.IOS/Panels/MissionPanel.cs`  
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-m003-fix-unreadable-mission-task-action-buttons)
 
 **Description:** Replace Unicode text on buttons with the ASCII equivalents: `Up`, `Down`, `Delete`.
@@ -149,7 +149,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 
 ### Task 7: Add Inline Version-Conflict Resolution to MissionPanel (BUG2-M004)
 
-**File:** `Bagira.IOS/Panels/MissionPanel.cs`  
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-m004-add-inline-version-conflict-resolution-to-missionpanel)
 
 **Description:** Add Force Commit handling to bypass OCC checks and conditionally show conflict buttons.
@@ -161,7 +161,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 
 ### Task 8: Remove Legacy Tool Combo from ConfigPanel (BUG2-U001)
 
-**File:** `Bagira.IOS/Panels/ConfigPanel.cs`  
+**File:** `Hrot.ExCon/Panels/ConfigPanel.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-u001-remove-legacy-tool-combo-from-configpanel)
 
 **Description:** Clean up `ConfigPanel` by deleting legacy tool items and ensuring clean patch outputs.
@@ -172,7 +172,7 @@ This batch bundles 9 tasks from phases 1, 2, and 3 of the BUG2 work tracking. Th
 
 ### Task 9: Fix ORBAT Tree Indentation (BUG2-U002)
 
-**File:** `Bagira.IOS/Panels/OrbatPanel.cs`  
+**File:** `Hrot.ExCon/Panels/OrbatPanel.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-u002-fix-orbat-tree-indentation)
 
 **Description:** Inject programmatic `Indent` and `Unindent` blocks inside the node-rendering process.

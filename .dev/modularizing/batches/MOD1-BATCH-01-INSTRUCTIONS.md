@@ -24,7 +24,7 @@ Welcome to MOD1 Phase 1. This batch introduces the engine-agnostic `NavigationIn
 - **Primary Work Areas:**
   - `FDP/Toolkits/FDP.Toolkit.Navigation/`
   - `FDP/Kernel/Fdp.Kernel/`
-  - `Bagira.DDS.DataModel/`
+  - `Hrot.NED/`
   - `FDP/Toolkits/Fdp.Toolkit.Geographic/`
   - `FDP/Toolkits/FDP.Toolkit.CarKinem/`
 - **Test Projects:**
@@ -87,16 +87,16 @@ This batch focuses on establishing the core data flow for distributed navigation
 - **NEW:** `FDP/Toolkits/FDP.Toolkit.Navigation/NavigationMode.cs`
 - **NEW:** `FDP/Toolkits/FDP.Toolkit.Navigation/NavigationResult.cs`
 - **UPDATE:** `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs`
-- **UPDATE:** `Bagira.DDS.DataModel/SimDescriptors.cs`
+- **UPDATE:** `Hrot.NED/SimDescriptors.cs`
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P1T1](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p1t1--define-navigationintent-and-navigationstatus-ecs-components--dds-descriptors)
 
 **Description:**
-Implement engine-side enums, struct definitions for `NavigationIntent` and `NavigationStatus` components assigned to the exact toolkit block component ID. Update `SimDescriptors.cs` for the DDS dual representations of these structures and enums. Do NOT introduce any dependency from `FDP.Toolkit.Navigation` to `Bagira.*`.
+Implement engine-side enums, struct definitions for `NavigationIntent` and `NavigationStatus` components assigned to the exact toolkit block component ID. Update `SimDescriptors.cs` for the DDS dual representations of these structures and enums. Do NOT introduce any dependency from `FDP.Toolkit.Navigation` to `Hrot.*`.
 
 **Tests Required:**
 - ✅ Verify `NavigationIntent.Mode` defaults to `NavigationMode.None` for zero-initialized struct.
-- ✅ Assert `FDP.Toolkit.Navigation` contains zero references to `Bagira.*` dependencies.
+- ✅ Assert `FDP.Toolkit.Navigation` contains zero references to `Hrot.*` dependencies.
 
 ---
 
@@ -182,7 +182,7 @@ Please submit `.dev-workstream/reports/MOD1-BATCH-01-REPORT.md` completing the f
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] MOD1-P1T1 completed cleanly without violating `Bagira.*` boundaries inside `FDP.Toolkit`.
+- [ ] MOD1-P1T1 completed cleanly without violating `Hrot.*` boundaries inside `FDP.Toolkit`.
 - [ ] MOD1-P1T2 completed with raw Cartesian copy of `MoveToParams` with zero geo dependencies.
 - [ ] MOD1-P1T3 completed with `WithOwned<Position>()` filter implementations fully functioning.
 - [ ] MOD1-P1T4 completed, writing deterministic execution status to `NavigationStatus`.

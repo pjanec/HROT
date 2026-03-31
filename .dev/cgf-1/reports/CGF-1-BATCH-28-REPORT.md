@@ -11,7 +11,7 @@
 - [x] P3 debt: `_replayDuration` wire-up  
 - [x] A: StorageGatewayModule CT threading + scan helpers + `PrefetchArchiveAsync`  
 - [x] B: ReferenceArchiveHandler (FDP.Toolkit.Orchestration)  
-- [x] C: DrillMaster `_activeCancellations` + ExportArchive / ImportArchive / CancelOperation  
+- [x] C: ClusterMaster `_activeCancellations` + ExportArchive / ImportArchive / CancelOperation  
 - [x] D: NodeBootstrapper wires ReferenceArchiveHandler  
 - [x] E: OrchestratorScenarioPanel Archive Management section  
 - [x] Tests: all 5 success conditions covered  
@@ -22,9 +22,9 @@
 
 | Project | Before | After | Delta |
 |---------|--------|-------|-------|
-| `Bagira.DDS.DataModel.Tests` | 45 | 45 | 0 |
-| `Bagira.Orchestrator.Tests`  | 49 | 60 | +11 |
-| `Bagira.Runner.Tests`        | 159 | 161 | +2 |
+| `Hrot.NED.Tests` | 45 | 45 | 0 |
+| `Hrot.Orchestrator.Tests`  | 49 | 60 | +11 |
+| `Hrot.ClusterRunner.Tests`        | 159 | 161 | +2 |
 | **Total (3 core projects)**  | **253** | **266** | **+13** |
 
 All pre-existing integration/example test failures (NetworkDemo, Runner.Integration, SimHost.Integration, Scenarios) were confirmed pre-existing via `git stash` comparison and are unrelated to this batch.
@@ -39,7 +39,7 @@ All pre-existing integration/example test failures (NetworkDemo, Runner.Integrat
 
 2. **`FdpLog` requires a generic type argument** — `FDP.Kernel.Logging.FdpLog` is a generic class `FdpLog<T>`. The instruction showed `FdpLog.Warn(...)` without a type, which fails to compile. Fixed to `FdpLog<ReferenceArchiveHandler>.Warn(...)`.
 
-3. **Circular dependency for `FileManifestEntry` in FDP.Toolkit.Orchestration** — `Bagira.Orchestrator` references `FDP.Toolkit.Orchestration`; thus `FDP.Toolkit.Orchestration` CANNOT reference `Bagira.Orchestrator`. The `ReferenceArchiveHandler` must serialize the manifest using C# anonymous types (`new { SourceUnc = ..., RelativeDest = ... }`) instead of `FileManifestEntry`. Since `DrillMaster.ConsumeNodeOpStatuses` deserializes with `PropertyNameCaseInsensitive = true`, the shape is compatible.
+3. **Circular dependency for `FileManifestEntry` in FDP.Toolkit.Orchestration** — `Hrot.Orchestrator` references `FDP.Toolkit.Orchestration`; thus `FDP.Toolkit.Orchestration` CANNOT reference `Hrot.Orchestrator`. The `ReferenceArchiveHandler` must serialize the manifest using C# anonymous types (`new { SourceUnc = ..., RelativeDest = ... }`) instead of `FileManifestEntry`. Since `ClusterMaster.ConsumeNodeOpStatuses` deserializes with `PropertyNameCaseInsensitive = true`, the shape is compatible.
 
 4. **CancelOperation test — CTS immediately removed for 0-node case** — When ExportArchive is processed with no registered nodes, `FanOutSerializeLocal` returns early (no-op), no entry is added to `_pendingSerializeTasks`, and the no-node completion path runs synchronously, removing the CTS from `_activeCancellations`. The test assertion `_activeCancellations.TryGetValue(reqId, out var cts)` failed. Fixed by registering a fake node (via heartbeat + Tick) before the ExportArchive request so `FanOutSerializeLocal` queues an ACK-in-flight and the CTS stays in the dict.
 
@@ -49,7 +49,7 @@ All pre-existing integration/example test failures (NetworkDemo, Runner.Integrat
 
 ### Weak Points Spotted
 
-1. **`ConsumeNodeOpStatuses` growing complexity** — The method now handles 5 distinct operation types (BranchTask, ManageStoryTask, TransitionTx, SerializeLocalTask normal, SerializeLocalTask archive). If more operation types are added, this method will become difficult to reason about. A structured dispatch table or separate handler classes would help.
+1. **`ConsumeNodeOpStatuses` growing complexity** — The method now handles 5 distinct operation types (BranchTask, ManageEpisodeTask, TransitionTx, SerializeLocalTask normal, SerializeLocalTask archive). If more operation types are added, this method will become difficult to reason about. A structured dispatch table or separate handler classes would help.
 
 2. **`_activeCancellations` is never cleaned up if `FanOutSerializeLocal` returns early for zero-node ExportArchive** — The code adds the CTS to `_activeCancellations`, then immediately removes it in the no-node synchronous completion path. This is correct but the two-step add+remove feels fragile. If the early-return logic changes, the CTS could leak.
 
@@ -63,7 +63,7 @@ All pre-existing integration/example test failures (NetworkDemo, Runner.Integrat
 
 1. **`SerializeLocalTask` extended vs. new task type** — Added `ArchiveRequestId` and `ArchiveCts` fields directly to `SerializeLocalTask` (null/Empty signals "not an archive"). This is simpler than a parallel `_pendingArchiveExportTasks` dictionary and avoids the need to search two maps in `ConsumeNodeOpStatuses`. Tradeoff: the `SerializeLocalTask` has dual-purpose semantics.
 
-2. **`ParsePayloadString` extracted as a static helper** — Both ExportArchive and ImportArchive needed to parse "DrillId" from the payload JSON. Extracted as a reusable private static method to avoid duplication. This is consistent with the existing GUID-parsing patterns scattered in `ProcessSingleSysOpRequest`.
+2. **`ParsePayloadString` extracted as a static helper** — Both ExportArchive and ImportArchive needed to parse "ExerciseId" from the payload JSON. Extracted as a reusable private static method to avoid duplication. This is consistent with the existing GUID-parsing patterns scattered in `ProcessSingleClusterOpRequest`.
 
 3. **`BuildNodeDistributionTargetsForDrill` returns per-node `.fdp` file paths** — For archive import, each node receives a specific `node_<id>.fdp` file (not a directory). This is slightly different from `BuildNodeDistributionTargets` (which uses directory paths). A separate method avoids confusion at the call site.
 
@@ -86,7 +86,7 @@ _transport?.PublishStatus(new OrchestrationStatus(
     ResultJson:      resultJson));
 ```
 
-The `ResultJson` field of `OrchestrationStatus` is what the `DrillMaster.ConsumeNodeOpStatuses` reads from `NodeOpStatus.ResultJson` (after the DDS transport maps `OrchestrationStatus` → `NodeOpStatus`). The `FileManifestEntry` deserialization with `PropertyNameCaseInsensitive = true` is compatible with the anonymous-object JSON produced by `ReferenceArchiveHandler`.
+The `ResultJson` field of `OrchestrationStatus` is what the `ClusterMaster.ConsumeNodeOpStatuses` reads from `NodeOpStatus.ResultJson` (after the DDS transport maps `OrchestrationStatus` → `NodeOpStatus`). The `FileManifestEntry` deserialization with `PropertyNameCaseInsensitive = true` is compatible with the anonymous-object JSON produced by `ReferenceArchiveHandler`.
 
 ### Cancellation Test Notes
 
@@ -98,15 +98,15 @@ The cancellation cleanup tests (`PullToNasAsync_CancelsAndCleansPartialFiles`, `
 
 | File | Change |
 |------|--------|
-| `Bagira.Orchestrator/StorageGatewayModule.cs` | Added `CancellationToken ct = default` to `PullToNasAsync` + `PushToNodesAsync`; added `PrefetchArchiveAsync`; added `ScanLocalScenarios`, `ScanLocalDrills`, `ScanNasDrills` |
+| `Hrot.Orchestrator/StorageGatewayModule.cs` | Added `CancellationToken ct = default` to `PullToNasAsync` + `PushToNodesAsync`; added `PrefetchArchiveAsync`; added `ScanLocalScenarios`, `ScanLocalDrills`, `ScanNasDrills` |
 | `FDP/Toolkits/FDP.Toolkit.Orchestration/Handlers/ReferenceArchiveHandler.cs` | **New** — `IDsmHandler` for `SerializeLocal` (15) that publishes manifest JSON via transport |
-| `Bagira.Orchestrator/DrillMaster.cs` | Added `_activeCancellations`; extended `SerializeLocalTask` with archive fields; added `ExportArchive`, `ImportArchive`, `CancelOperation` branches; added `BuildNodeDistributionTargetsForDrill`, `ParsePayloadString` helpers; updated `ConsumeNodeOpStatuses` for archive path; updated `Dispose` |
-| `Bagira.SimHost/NodeBootstrapper.cs` | Registered `ReferenceArchiveHandler` in `BuildOrchestration` |
-| `Bagira.Runner/Services/OrchestratorScenarioPanel.cs` | Added `_replayDuration` wire-up on Load Replay; added archive state fields; extended `RefreshLocalAssets`; added `RenderArchiveSection`; called from `Render()` |
-| `Bagira.Orchestrator.Tests/StorageGatewayTests.cs` | Added `PullToNasAsync_CancelsAndCleansPartialFiles`, `PushToNodesAsync_CancelsAndCleansPartialFiles` |
-| `Bagira.Orchestrator.Tests/ReferenceArchiveHandlerTests.cs` | **New** — 5 tests for `ReferenceArchiveHandler` |
-| `Bagira.Orchestrator.Tests/DrillMasterArchiveTests.cs` | **New** — 4 tests for archive operations in `DrillMaster` |
-| `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs` | Added `Archive_ProgressSection_DoesNotThrow_WhenOpInFlight`, `RefreshLocalAssets_WithNoGateway_PopulatesEmptyArchiveLists` |
+| `Hrot.Orchestrator/ClusterMaster.cs` | Added `_activeCancellations`; extended `SerializeLocalTask` with archive fields; added `ExportArchive`, `ImportArchive`, `CancelOperation` branches; added `BuildNodeDistributionTargetsForDrill`, `ParsePayloadString` helpers; updated `ConsumeNodeOpStatuses` for archive path; updated `Dispose` |
+| `Hrot.SimHost/NodeBootstrapper.cs` | Registered `ReferenceArchiveHandler` in `BuildOrchestration` |
+| `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` | Added `_replayDuration` wire-up on Load Replay; added archive state fields; extended `RefreshLocalAssets`; added `RenderArchiveSection`; called from `Render()` |
+| `Hrot.Orchestrator.Tests/StorageGatewayTests.cs` | Added `PullToNasAsync_CancelsAndCleansPartialFiles`, `PushToNodesAsync_CancelsAndCleansPartialFiles` |
+| `Hrot.Orchestrator.Tests/ReferenceArchiveHandlerTests.cs` | **New** — 5 tests for `ReferenceArchiveHandler` |
+| `Hrot.Orchestrator.Tests/ClusterMasterArchiveTests.cs` | **New** — 4 tests for archive operations in `ClusterMaster` |
+| `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs` | Added `Archive_ProgressSection_DoesNotThrow_WhenOpInFlight`, `RefreshLocalAssets_WithNoGateway_PopulatesEmptyArchiveLists` |
 
 ---
 
@@ -114,5 +114,5 @@ The cancellation cleanup tests (`PullToNasAsync_CancelsAndCleansPartialFiles`, `
 
 - **`ScanNasDrills` NAS root is hardcoded as `C:\FDP_Temp\nas`** — The panel uses this convention; not configurable until a future batch.
 - **ExportArchive → `FanOutSerializeLocal` with 0 nodes completes synchronously** — This is correct but bypasses the normal async-tracking path. If the cluster has no nodes, the export trivially "succeeds". This should be fine as a no-op.
-- **CancellationToken cleanup in `_activeCancellations`** — Entries that are cancelled but whose `PullToNasAsync` has not yet been called (because SerializeLocal ACKs haven't arrived yet) will remain in the dict until the ContinueWith cleanup runs or the DrillMaster is disposed. This is correct behavior but worth noting.
+- **CancellationToken cleanup in `_activeCancellations`** — Entries that are cancelled but whose `PullToNasAsync` has not yet been called (because SerializeLocal ACKs haven't arrived yet) will remain in the dict until the ContinueWith cleanup runs or the ClusterMaster is disposed. This is correct behavior but worth noting.
 - **`ImGuiDisabledScope`** — Not used; the panel uses `BeginDisabled()`/`EndDisabled()` directly to avoid nesting issues. If a future batch introduces `ImGuiDisabledScope`, the archive section can be updated.

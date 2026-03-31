@@ -17,7 +17,7 @@ All six tasks have been implemented and all relevant tests pass. The solution bu
 
 ### DB-MOD1-11: Wire TogglePerspectiveEvent to UI ✅
 
-**Files modified:** `Bagira.SimHost/SimHostVisualization.cs`
+**Files modified:** `Hrot.SimHost/SimHostVisualization.cs`
 
 Added a compact perspective toggle toolbar directly in `SimHostVisualization.DrawUI()`. The implementation:
 - Reads `ActivePerspective.Current` each frame and shows a dynamic label: `"View: IG (click → Sim)"` or `"View: Sim (click → IG)"`.
@@ -28,39 +28,39 @@ Added a compact perspective toggle toolbar directly in `SimHostVisualization.Dra
 
 ### CT-MOD1-I: Extract JoinFormationExecutor to FDP Toolkit ✅
 
-**Root cause:** `JoinFormationExecutor` and `InFormationTag` lived in `Bagira.SimHost.Systems`, coupling the Bagira domain to generic formation behavior.
+**Root cause:** `JoinFormationExecutor` and `InFormationTag` lived in `Hrot.SimHost.Systems`, coupling the Hrot domain to generic formation behavior.
 
 **Changes:**
 - **Created** `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/JoinFormationExecutor.cs`  
   Namespace: `FDP.Toolkit.Navigation.Executors`. Contains `JoinFormationParams`, `InFormationTag`, and `JoinFormationExecutor`. Alongside `MoveToExecutor` and `FollowRouteExecutor` — all locomotion executors now co-reside.
 - **Added** `FDP.Toolkit.Replication` project reference to `FDP.Toolkit.Navigation.csproj` (required for `NetworkEntityMap`).
-- **Updated** `GlobalComponentIds.cs`: `InFormationTag` reassigned from **163** (Bagira application block) to **70** (FDP toolkit expansion block 70–79), correctly reflecting its FDP-domain ownership.
-- **Deleted** `Bagira.SimHost/Systems/JoinFormationExecutor.cs`.
-- **Removed** unused `using Bagira.SimHost.Systems;` from `NodeBootstrapper.cs` (already had `using FDP.Toolkit.Navigation.Executors;`).
-- **Updated** `Bagira.SimHost.Tests/JoinFormationExecutorTests.cs`: changed `using Bagira.SimHost.Systems;` → `using FDP.Toolkit.Navigation.Executors;`.
+- **Updated** `GlobalComponentIds.cs`: `InFormationTag` reassigned from **163** (Hrot application block) to **70** (FDP toolkit expansion block 70–79), correctly reflecting its FDP-domain ownership.
+- **Deleted** `Hrot.SimHost/Systems/JoinFormationExecutor.cs`.
+- **Removed** unused `using Hrot.SimHost.Systems;` from `NodeBootstrapper.cs` (already had `using FDP.Toolkit.Navigation.Executors;`).
+- **Updated** `Hrot.SimHost.Tests/JoinFormationExecutorTests.cs`: changed `using Hrot.SimHost.Systems;` → `using FDP.Toolkit.Navigation.Executors;`.
 
 **Note on dead code removal:** The original `JoinFormationExecutor.OnEnter` contained an unused `ft` variable from a `CarKinem.Formation.FormationType` cast that was never passed anywhere (`VehicleAPI.JoinFormation(entity, leaderEntity)` takes only 2 Entity params). This dead code was already in the original and was removed during migration to avoid a compiler ambiguity error in the FDP.Toolkit.Navigation namespace.
 
 ---
 
-### MOD1-P5T1: Create BagiraComponentIds ✅
+### MOD1-P5T1: Create HrotComponentIds ✅
 
 **Files created/modified:**
 
 | File | Change |
 |---|---|
-| `Bagira.Map.Definitions/BagiraComponentIds.cs` | **Created** — registry for application-level component IDs 160–199 |
+| `Hrot.Map.Definitions/HrotComponentIds.cs` | **Created** — registry for application-level component IDs 160–199 |
 | `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` | Removed `EntityMissionHolder` (162), `InFormationTag` (163), `IgEntityData` (164), `IgHealthState` (165), `ActivePerspective` (166) from app block; replaced section with redirect comment |
-| `Bagira.SimHost/Components/EntityMissionHolder.cs` | `[ComponentId(BagiraComponentIds.EntityMissionHolder)]` |
-| `Bagira.Map.Common/Components/IgEntityData.cs` | `[ComponentId(BagiraComponentIds.IgEntityData)]` |
-| `Bagira.Map.Common/Components/IgHealthState.cs` | `[ComponentId(BagiraComponentIds.IgHealthState)]` |
-| `Bagira.SimHost/Components/ActivePerspective.cs` | `[ComponentId(BagiraComponentIds.ActivePerspective)]` |
+| `Hrot.SimHost/Components/EntityMissionHolder.cs` | `[ComponentId(HrotComponentIds.EntityMissionHolder)]` |
+| `Hrot.Map.Common/Components/IgEntityData.cs` | `[ComponentId(HrotComponentIds.IgEntityData)]` |
+| `Hrot.Map.Common/Components/IgHealthState.cs` | `[ComponentId(HrotComponentIds.IgHealthState)]` |
+| `Hrot.SimHost/Components/ActivePerspective.cs` | `[ComponentId(HrotComponentIds.ActivePerspective)]` |
 
 **Note:** The committed HEAD (`cb9c2bf`) had already partially removed `IgEntityData` and `IgHealthState` from `GlobalComponentIds` without updating the component files — causing a pre-existing build failure. This batch fixes that breakage as part of P5T1.
 
-`BagiraComponentIds` also includes `EntityDamage = 161` for completeness (consistent with the 160–199 block ownership), even though the spec's explicit migration list didn't call it out.
+`HrotComponentIds` also includes `EntityDamage = 161` for completeness (consistent with the 160–199 block ownership), even though the spec's explicit migration list didn't call it out.
 
-**Tests:** `BagiraComponentIds_NoDuplicates` and `BagiraComponentIds_AllInApplicationRange` added in `Bagira.SimHost.Tests/BagiraComponentIdsTests.cs`. Both pass.
+**Tests:** `HrotComponentIds_NoDuplicates` and `HrotComponentIds_AllInApplicationRange` added in `Hrot.SimHost.Tests/HrotComponentIdsTests.cs`. Both pass.
 
 ---
 
@@ -89,9 +89,9 @@ Added a compact perspective toggle toolbar directly in `SimHostVisualization.Dra
 
 ### MOD1-P6T2: Add DDS Descriptors for Perception & Pathfinding ✅
 
-**File modified:** `Bagira.DDS.DataModel/SimDescriptors.cs`
+**File modified:** `Hrot.NED/SimDescriptors.cs`
 
-New types added in namespace `Bagira.BDC.SSTD`:
+New types added in namespace `Hrot.NED.Descriptors`:
 
 **Shared helper:** `RelativeVector3` (`East`, `North`, `Up` float fields)
 
@@ -101,7 +101,7 @@ New types added in namespace `Bagira.BDC.SSTD`:
 
 **Pathfinding pipeline:** `DdsPathRequest`, `PathRequestBatch`, `DdsPathResult`, `PathResponseBatch`
 
-**Tests:** `PerceptionPathfindingDescriptorTests` added in `Bagira.DDS.DataModel.Tests/`. All 16 DDS tests pass.
+**Tests:** `PerceptionPathfindingDescriptorTests` added in `Hrot.NED.Tests/`. All 16 DDS tests pass.
 
 ---
 
@@ -115,7 +115,7 @@ New types added in namespace `Bagira.BDC.SSTD`:
 | `GlobalComponentIds.cs` | `PathfindingBatchData = 76` in 70–79 block |
 | `SimHostComponentRegistry.cs` | `world.SetSingleton(new PathfindingBatchData { Requests = NativeArray..., Results = NativeArray... })` |
 
-**Tests:** `PathfindingBatchData_Allocation_CapacityMatchesDefault`, `PathfindingBatchData_DefaultCapacity_Is64`, and `PathfindingBatchData_Singleton_CanBeRetrievedFromWorld` added in `Bagira.SimHost.Tests/`. All pass.
+**Tests:** `PathfindingBatchData_Allocation_CapacityMatchesDefault`, `PathfindingBatchData_DefaultCapacity_Is64`, and `PathfindingBatchData_Singleton_CanBeRetrievedFromWorld` added in `Hrot.SimHost.Tests/`. All pass.
 
 ---
 
@@ -123,12 +123,12 @@ New types added in namespace `Bagira.BDC.SSTD`:
 
 | Project | Before | After | Notes |
 |---|---|---|---|
-| `Bagira.SimHost.Tests` | 158 pass | **163 pass** | +5 new tests |
+| `Hrot.SimHost.Tests` | 158 pass | **163 pass** | +5 new tests |
 | `FDP.Toolkit.Perception.Tests` | 22 pass | **24 pass** | +2 modality tests |
-| `Bagira.DDS.DataModel.Tests` | 8 pass | **16 pass** | +8 new descriptor tests |
-| `Bagira.IG.Tests` | ❌ DID NOT BUILD (pre-existing IgEntityData/IgHealthState error) | 296 pass, 4 fail (pre-existing EditTool failures) | Build now fixed; 4 failures are **pre-existing** from BATCH-04 |
+| `Hrot.NED.Tests` | 8 pass | **16 pass** | +8 new descriptor tests |
+| `Hrot.IG.Tests` | ❌ DID NOT BUILD (pre-existing IgEntityData/IgHealthState error) | 296 pass, 4 fail (pre-existing EditTool failures) | Build now fixed; 4 failures are **pre-existing** from BATCH-04 |
 
-**Pre-existing failures in Bagira.IG.Tests (not introduced by this batch):**
+**Pre-existing failures in Hrot.IG.Tests (not introduced by this batch):**
 - `EditToolTests.HandleDrag_WithSelectedVertex_ReturnsTrue`
 - `EditToolTests.HandleDrag_WithSelectedVertex_MovesGhostPoint`
 - `EditToolTests.HandleDrag_NoExplicitSelection_AutoSelectsNearestAndReturnsTrue`
@@ -140,7 +140,7 @@ These failure modes are unrelated to any changes made in this batch. The root ca
 
 ## Developer Insights
 
-### Q1: For CT-MOD1-I, did creating `FDP.Toolkit.Combat` expose any tightly coupled Bagira classes?
+### Q1: For CT-MOD1-I, did creating `FDP.Toolkit.Combat` expose any tightly coupled Hrot classes?
 
 `FDP.Toolkit.Combat` already existed from earlier batches and `AimAndFireExecutor` was already there. The main extraction work in CT-MOD1-I was for `JoinFormationExecutor`. 
 
@@ -151,11 +151,11 @@ One dead-code remnant was discovered: a `FormationType` cast that was never used
 ### Q2: Did any component ID collisions occur after splitting `GlobalComponentIds` in P5T1?
 
 No collisions. The key discipline:
-- All IDs in `BagiraComponentIds` kept their **exact same values** (162, 164, 165, 166) so no existing ECS registrations change at runtime.
+- All IDs in `HrotComponentIds` kept their **exact same values** (162, 164, 165, 166) so no existing ECS registrations change at runtime.
 - `InFormationTag` changed from 163 → 70, but this affects only in-memory ECS state (no serialized form), so it's safe.
 - The new 70–79 toolkit block was validated by building and running all tests — `ComponentTypeRegistry` would throw on ID collision at startup.
 
-The `BagiraComponentIds_NoDuplicates` test uses reflection to enumerate all constants and asserts uniqueness.
+The `HrotComponentIds_NoDuplicates` test uses reflection to enumerate all constants and asserts uniqueness.
 
 ### Q3: Are there any performance concerns with bitmask evaluations inside `TargetMemory` introduced during P6T1?
 
@@ -165,4 +165,4 @@ No performance concerns. The `Modalities` array is `fixed byte[MaxTrackedTargets
 
 ## Successor Tasks
 
-The 4 pre-existing `Bagira.IG.Tests` failures in `EditToolTests` and `AdvancedFeaturesIntegrationTests.Phase4` should be investigated in a follow-up batch. They appear to be interaction-state-machine issues in the IG edit tool, unrelated to the modularization work.
+The 4 pre-existing `Hrot.IG.Tests` failures in `EditToolTests` and `AdvancedFeaturesIntegrationTests.Phase4` should be investigated in a follow-up batch. They appear to be interaction-state-machine issues in the IG edit tool, unrelated to the modularization work.

@@ -25,13 +25,13 @@ This first batch tackles the foundational data model changes (Phase 1) and the I
 
 ### Source Code Location
 - **Primary Work Area:**
-  - `Bagira.DDS.DataModel/GenericMessages.cs`
-  - `Bagira.IG/Tools/CreationTool.cs`
+  - `Hrot.NED/GenericMessages.cs`
+  - `Hrot.IG/Tools/CreationTool.cs`
 - **Test Projects:**
-  - `Bagira.DDS.DataModel.Tests/Bagira.DDS.DataModel.Tests.csproj`
-  - `Bagira.IG.Tests/Bagira.IG.Tests.csproj`
-  - `Bagira.Map.Common.Tests/Bagira.Map.Common.Tests.csproj`
-  - `Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+  - `Hrot.NED.Tests/Hrot.NED.Tests.csproj`
+  - `Hrot.IG.Tests/Hrot.IG.Tests.csproj`
+  - `Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj`
+  - `Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -82,7 +82,7 @@ The IG `CreationTool` will no longer parse JSON to build a `dtEntityInfo` descri
 
 ### Task 1: ATTR-S1T1 (Migrate CreateEntityRequest)
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs`  
+**File:** `Hrot.NED/GenericMessages.cs`  
 **Task Definition:** See [ATTR-TASK-DETAIL.md](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s1t1--replace-initialattributes-with-initialattributesjson-in-createentityrequest)
 
 **Description:** Replace `InitialAttributes` list with `InitialAttributesJson` string in the DDS message `CreateEntityRequest`.
@@ -91,18 +91,18 @@ The IG `CreationTool` will no longer parse JSON to build a `dtEntityInfo` descri
 - Remove `public List<EntityAttributePayload>? InitialAttributes;`
 - Add `public string? InitialAttributesJson;`
 - Wait to remove `EntityAttributePayload` and `EntityAttribute` until ATTR-S1T2.
-- Update downstream code in `Bagira.SimHost` and `Bagira.IG` that constructs `CreateEntityRequest` to fix compilation.
+- Update downstream code in `Hrot.SimHost` and `Hrot.IG` that constructs `CreateEntityRequest` to fix compilation.
 
 **Tests Required:**
 - ✅ `CreateEntityRequest_HasInitialAttributesJsonField` (assert field exists and is string)
 - ✅ `CreateEntityRequest_HasNoInitialAttributesField` (assert legacy field removed)
-- ✅ Existing downstream tests in `Bagira.SimHost.Tests` and `Bagira.Map.Common.Tests` must continue to compile and pass after adapting constructor calls.
+- ✅ Existing downstream tests in `Hrot.SimHost.Tests` and `Hrot.Map.Common.Tests` must continue to compile and pass after adapting constructor calls.
 
 ---
 
 ### Task 2: ATTR-S1T2 (Migrate UpdateEntityAttributeRequest)
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs`  
+**File:** `Hrot.NED/GenericMessages.cs`  
 **Task Definition:** See [ATTR-TASK-DETAIL.md](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s1t2--replace-attributeidpayload-in-updateentityattributerequest-with-attributepatchjson)
 
 **Description:** Replace `AttributeId` + `Payload` with `AttributePatchJson` string in the DDS message `UpdateEntityAttributeRequest`.
@@ -111,7 +111,7 @@ The IG `CreationTool` will no longer parse JSON to build a `dtEntityInfo` descri
 - Remove `public EntityAttribute AttributeId;` and `public EntityAttributePayload Payload;`
 - Add `public string AttributePatchJson;`
 - Fully remove `EntityAttribute` enum and `EntityAttributePayload` struct/union as they are no longer used anywhere.
-- Update downstream code in `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` and all related tests to fix compilation.
+- Update downstream code in `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs` and all related tests to fix compilation.
 
 **Tests Required:**
 - ✅ `UpdateEntityAttributeRequest_HasAttributePatchJsonField`
@@ -123,13 +123,13 @@ The IG `CreationTool` will no longer parse JSON to build a `dtEntityInfo` descri
 
 ### Task 3: ATTR-S2T1 (Simplify CreationTool)
 
-**File:** `Bagira.IG/Tools/CreationTool.cs`  
+**File:** `Hrot.IG/Tools/CreationTool.cs`  
 **Task Definition:** See [ATTR-TASK-DETAIL.md](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s2t1--creationtool-forward-json-verbatim-remove-dtentityinfo-descriptor)
 
 **Description:** `CreationTool` drops parsing `initialPropertiesJson` into `dtEntityInfo` and forwards it as raw JSON.
 
 **Requirements:**
-- In `BuildAndPublishCreateRequest`, remove the `dtEntityInfo` entry from the published `InitialDescriptors` list. It should now only contain `dtEntityMaster` and `dtGeoSpatial`.
+- In `BuildAndPublishCreateRequest`, remove the `dtEntityInfo` entry from the published `InitialDescriptors` list. It should now only contain `dtEntityMaster` and `dtWorldPos`.
 - Remove `entityName` local variable resolving from the spawning path.
 - Remove `aff` local variable from the spawning path.
 - Assign `InitialAttributesJson = _initialPropertiesJson` directly.
@@ -138,11 +138,11 @@ The IG `CreationTool` will no longer parse JSON to build a `dtEntityInfo` descri
 - **DO NOT REMOVE**: `_nameResolver` field and constructor parameter.
 
 **Tests Required:**
-- ✅ `CreationTool_EmitsOnly_EntityMaster_And_GeoSpatial_Descriptors` (assert only 2 descriptors, no dtEntityInfo)
+- ✅ `CreationTool_EmitsOnly_EntityMaster_And_WorldPos_Descriptors` (assert only 2 descriptors, no dtEntityInfo)
 - ✅ `CreationTool_SetsInitialAttributesJson_FromInitialPropertiesJson` (assert exact JSON string forwarded)
 - ✅ `CreationTool_InitialAttributesJson_IsNull_WhenNoPropertiesJson`
 - ✅ `CreationTool_GhostColor_StillReflectsAffiliation`
-- ✅ Update existing passing tests in `Bagira.IG.Tests/CreationToolTests.cs` to expect `InitialDescriptors.Count == 2`.
+- ✅ Update existing passing tests in `Hrot.IG.Tests/CreationToolTests.cs` to expect `InitialDescriptors.Count == 2`.
 
 ---
 

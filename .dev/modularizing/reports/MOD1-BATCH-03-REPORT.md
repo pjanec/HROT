@@ -11,18 +11,18 @@
 | Task ID | Status | Notes |
 |---------|--------|-------|
 | CT-MOD1-C2 | ✅ Complete | Root cause: `BdcTkbBuilder.WithBehavior()` never added `NavigationIntent`/`NavigationStatus`/`FrustrationTicks` to entity templates. Fixed + 9 integration tests added. |
-| MOD1-P3T1 | ✅ Complete | `SharedTranslatorPack`, `KinematicTranslatorPack`, `CognitiveTranslatorPack` created in `Bagira.SimHost/Network/`. |
+| MOD1-P3T1 | ✅ Complete | `SharedTranslatorPack`, `KinematicTranslatorPack`, `CognitiveTranslatorPack` created in `Hrot.SimHost/Network/`. |
 | MOD1-P3T2 | ✅ Complete | `CognitiveComponentRegistry`, `KinematicComponentRegistry`, `CombatComponentRegistry` created; `SimHostComponentRegistry` now delegates to all three. |
 | MOD1-P3T3 | ✅ Complete | `NodeRole` enum + `NodeBootstrapper` created; `SimHostApp.OnLoad` refactored to use bootstrapper; `CombatModule` created as part of this task. |
 | MOD1-P3T4 | ✅ Complete | All four navigation translator classes fully implemented and unit-tested. |
-| MOD1-P3T5 | ✅ Complete | `NodeConfiguration` record + `ApplyEnvironment()`, `ParseRole`/`ParseNodeConfig` helpers in `SimHostApp`, config XML and JSON files in `Bagira.SimHost.Standalone/Config/`. |
+| MOD1-P3T5 | ✅ Complete | `NodeConfiguration` record + `ApplyEnvironment()`, `ParseRole`/`ParseNodeConfig` helpers in `SimHostApp`, config XML and JSON files in `Hrot.SimHost.Standalone/Config/`. |
 
 ---
 
 ## 🧪 Testing Results
 
-**Bagira.SimHost.Tests:** 147 / 147 passed (↑ from 100 before this batch)  
-**Bagira.SimHost.Integration.Tests:** 24 / 24 passed
+**Hrot.SimHost.Tests:** 147 / 147 passed (↑ from 100 before this batch)  
+**Hrot.SimHost.Integration.Tests:** 24 / 24 passed
 
 **New tests introduced (47 tests):**
 - `NavComponentsPresenceTests` (9) — CT-MOD1-C2 validation: NavigationIntent/Status/FrustrationTicks present on spawned entities
@@ -48,7 +48,7 @@ Diagnosis revealed two independent failures both needed to fix entity movement:
 `TraceLoggingTests` used domain 10, which overlapped with state left by `EntityLifecycleIntegrationTests`. Fixed by moving to domain 11. Translator order in the log also needed to be aligned with the actual registration order in `SimHostApp.OnLoad`.
 
 **Issue 3 — Ambiguous type names in unit tests.**  
-`NavigationIntent` and `NavigationStatus` exist in both `FDP.Toolkit.Navigation` (ECS structs) and `Bagira.BDC.SSTD` (DDS wire structs). All test files required explicit using-aliases (`EcsNavigationIntent`, `DdsNavigationIntent`, etc.) to resolve the ambiguity — following the dual-enum pattern already used in the translator implementations.
+`NavigationIntent` and `NavigationStatus` exist in both `FDP.Toolkit.Navigation` (ECS structs) and `Hrot.NED.Descriptors` (DDS wire structs). All test files required explicit using-aliases (`EcsNavigationIntent`, `DdsNavigationIntent`, etc.) to resolve the ambiguity — following the dual-enum pattern already used in the translator implementations.
 
 **Issue 4 — `BrainHsm128` / `BrainHsm64` were missing from `SimHostComponentRegistry`.**  
 The original registry omitted both HSM brain components. Added them to `CognitiveComponentRegistry.RegisterAll` as part of the P3T2 refactor. This was a pre-existing gap not mentioned in the spec.
@@ -67,7 +67,7 @@ The original registry omitted both HSM brain components. Added them to `Cognitiv
 
 **Q3: What design decisions did you make beyond the instructions? What alternatives did you consider?**
 
-1. **`CombatModule` creation (P3T3).** The batch instructions require `NodeBootstrapper_AllInOne_RegistersAllModuleClasses` to assert `CombatModule` is present, but no `CombatModule` existed. Created `Bagira.SimHost/Modules/CombatModule.cs` mirroring the "pending CombatModule extraction" comment in `SimulationLogicModule`. This is a structural prerequisite for the test assertions; without it, the bootstrapper test would fail. Alternative considered: stub it as an empty marker class — rejected because the module needs to register real systems to be useful in integration.
+1. **`CombatModule` creation (P3T3).** The batch instructions require `NodeBootstrapper_AllInOne_RegistersAllModuleClasses` to assert `CombatModule` is present, but no `CombatModule` existed. Created `Hrot.SimHost/Modules/CombatModule.cs` mirroring the "pending CombatModule extraction" comment in `SimulationLogicModule`. This is a structural prerequisite for the test assertions; without it, the bootstrapper test would fail. Alternative considered: stub it as an empty marker class — rejected because the module needs to register real systems to be useful in integration.
 
 2. **`NodeBootstrapper.RegisteredModules` tracks module instances, not types.** The spec is silent on how `RegisteredModules` should be exposed. Using instances (rather than `Type` objects) allows test assertions like `Assert.Contains(modules, m => m is MissionControlModule)` which is more expressive and is the same pattern used in existing module tests. Alternative: `IReadOnlyList<Type>` — rejected because instances are richer (can inspect state) and allow `is`, `as`, and direct property access in tests.
 
@@ -99,7 +99,7 @@ The original registry omitted both HSM brain components. Added them to `Cognitiv
 
 ## ✅ Success Criteria Check
 
-- [x] `Bagira.Runner -x all` spawned entities contain NavigationIntent/Status/FrustrationTicks (verified by `NavComponentsPresenceTests`).
+- [x] `Hrot.ClusterRunner -x all` spawned entities contain NavigationIntent/Status/FrustrationTicks (verified by `NavComponentsPresenceTests`).
 - [x] `NodeRole` definitions configure modules independently across Brain/MuscleGround/AllInOne boundaries.
 - [x] Translators implement precise ECS↔DDS mappings without cross-boundary bleed (dual-enum pattern, geo-conversion in correct translators).
 - [x] All 171 tests pass (147 unit + 24 integration).

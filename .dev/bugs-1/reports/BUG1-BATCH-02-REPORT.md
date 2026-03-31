@@ -15,7 +15,7 @@
 | BUG1-T002 | ✅ Complete | `egressTranslators` list separated in `SimHostApp.OnLoad()`; only egress passed to `CycloneNetworkCleanupSystem` |
 | BUG1-T003 | ✅ Complete | `_nodeIdOverride` field added to `IosSubsystem`; stored from `config.NodeId` in `Initialize()`; `TestHook_NodeIdOverride` exposed |
 | BUG1-T004 | ✅ Complete | Two distinct root causes fixed — see Q5 below |
-| BUG1-I001 | ✅ Complete | `ContinuousDragUpdates` flag + `_continuousDragTimer` throttle + `IBdcCommandGateway` interface + `SendGeoSpatialUpdate` refactor |
+| BUG1-I001 | ✅ Complete | `ContinuousDragUpdates` flag + `_continuousDragTimer` throttle + `IBdcCommandGateway` interface + `SendWorldPosUpdate` refactor |
 | BUG1-M001 | ✅ Complete | `HandleAddTask()` now seeds `Triggers = [{ Type = "DoctrineFinished" }]` on every new task |
 | BUG1-M002 | ✅ Complete | `SendControlCommandAsync` added to `IMissionEditorService`/`MissionEditorService`; `HandleJump`/`HandleAbort` now use the async path and set `_commitInFlight = true` |
 
@@ -30,11 +30,11 @@
 
 | Project | Before | After | Delta |
 |---|---|---|---|
-| `Bagira.IOS.Tests` | 263 | 274 | +11 (3 CtxMenu fixed, 4 MissionPanel updated, 4 new) |
-| `Bagira.IG.Tests` | 311 | 315 | +4 new `ContinuousDragTests` |
-| `Bagira.Runner.Tests` | 111 | 112 | +1 new `IosSubsystem.Initialize_StoresNodeIdFromConfig` |
-| `Bagira.SimHost.Tests` | 261 | 263 | +2 new `InjectedAckWriter_*` tests |
-| `Bagira.Map.Common.Tests` | 51 | 51 | unchanged |
+| `Hrot.ExCon.Tests` | 263 | 274 | +11 (3 CtxMenu fixed, 4 MissionPanel updated, 4 new) |
+| `Hrot.IG.Tests` | 311 | 315 | +4 new `ContinuousDragTests` |
+| `Hrot.ClusterRunner.Tests` | 111 | 112 | +1 new `IosSubsystem.Initialize_StoresNodeIdFromConfig` |
+| `Hrot.SimHost.Tests` | 261 | 263 | +2 new `InjectedAckWriter_*` tests |
+| `Hrot.Map.Common.Tests` | 51 | 51 | unchanged |
 
 **Key Test Scenarios Verified:**
 - ✅ `InjectedAckWriter_NotAuthoritative_WriterNotCalled` — non-auth entity triggers zero writes on injected stub
@@ -48,7 +48,7 @@
 - ✅ `AddTask_MultipleTasksEach_HaveDoctrineFinishedTrigger` — all new tasks have the trigger
 - ✅ `HandleJump_WithSelection_SetsCommitInFlight` — Jump sets `CommitInFlight = true`
 - ✅ `HandleAbort_WithSelection_SetsCommitInFlight` — Abort sets `CommitInFlight = true`
-- ✅ All 6 previously-failing `Bagira.IG.Tests` now pass (311 → 315)
+- ✅ All 6 previously-failing `Hrot.IG.Tests` now pass (311 → 315)
 - ✅ 3 pre-existing `ContextMenuLogicTests` failures fixed (Delete moved to Standard in BATCH-01; tests updated to match)
 - ✅ 4 `MissionPanelTests` updated: sync `SendControlCommand` → async `SendControlCommandAsync` assertions
 
@@ -60,7 +60,7 @@
 
 1. **`_ownedAckWriter` ownership pattern (T001):** The constructor originally called `_ackWriter.Dispose()` in `OnDestroy`. With injection, the stub must not be disposed by the system (caller owns it). Solution: added `_ownedAckWriter` field — only populated when the system creates its own writer — and redirected `OnDestroy` to `_ownedAckWriter?.Dispose()`.
 
-2. **`_geoTransform` creation timing in IgApplication (I001):** `SendGeoSpatialUpdate` needs `_geoTransform`, but it was previously created inside the DDS try-catch block. This meant it could be null when the command gateway is injected via `TestHook_SetCommandGateway` in a headless test where DDS fails. Fixed by hoisting `_geoTransform = new WGS84Transform()` to before the try block.
+2. **`_geoTransform` creation timing in IgApplication (I001):** `SendWorldPosUpdate` needs `_geoTransform`, but it was previously created inside the DDS try-catch block. This meant it could be null when the command gateway is injected via `TestHook_SetCommandGateway` in a headless test where DDS fails. Fixed by hoisting `_geoTransform = new WGS84Transform()` to before the try block.
 
 3. **Floating-point precision in `ContinuousDragOn_CallsFiredAtThreshold` (I001 test):** Initially used `Dt = 1f / 30f`. Due to float rounding, `3 × (1f/30f) = 0.100000005f`, which crossed the 0.1 s threshold on the 3rd call instead of the 4th. Fixed by using `const float Dt = 0.033f` to make the arithmetic analytically exact.
 
@@ -76,11 +76,11 @@
 
 **Q3: What design decisions did you make beyond the instructions? What alternatives did you consider?**
 
-1. **`IBdcCommandGateway` interface (I001):** The spec said "inject a testable interface" without specifying what to name it. Chose `IBdcCommandGateway` and placed it in `Bagira.Map.Common.Commands` alongside `BdcCommandGateway` to keep the interface/implementation co-located and match the existing naming convention. An alternative was `ISendUpdateDescriptor` (single-method interface per ISP), which would have been marginally lighter, but the existing `BdcCommandGateway` already had multiple methods, so grouping them under one interface was more pragmatic.
+1. **`IBdcCommandGateway` interface (I001):** The spec said "inject a testable interface" without specifying what to name it. Chose `IBdcCommandGateway` and placed it in `Hrot.Map.Common.Commands` alongside `BdcCommandGateway` to keep the interface/implementation co-located and match the existing naming convention. An alternative was `ISendUpdateDescriptor` (single-method interface per ISP), which would have been marginally lighter, but the existing `BdcCommandGateway` already had multiple methods, so grouping them under one interface was more pragmatic.
 
 2. **`_commandGatewayInterface` field + `TestHook_SetCommandGateway`:** Rather than replacing `_commandGateway` directly (which carries ownership of DDS resources), added a parallel `_commandGatewayInterface` field that is set to `_commandGateway` in production but can be overridden in tests. This separates testability concern from the ownership/lifecycle concern.
 
-3. **`SendGeoSpatialUpdate` extracted as a shared helper (I001):** Both `OnEntityDragEnded` and the continuous-drag throttle path need to write a GeoSpatial update. Without extraction, this would be duplicated code. The alternative (inline at both call sites) would have violated DRY but been slightly simpler to trace. Extraction wins for maintainability.
+3. **`SendWorldPosUpdate` extracted as a shared helper (I001):** Both `OnEntityDragEnded` and the continuous-drag throttle path need to write a WorldPos update. Without extraction, this would be duplicated code. The alternative (inline at both call sites) would have violated DRY but been slightly simpler to trace. Extraction wins for maintainability.
 
 **Q4: What edge cases did you discover that weren't mentioned in the spec?**
 
@@ -93,7 +93,7 @@
 **Q5: What were the exact root causes of the 6 failing IG tests?**
 
 **Root cause 1 — `EditToolTests` (×4) and `AdvancedFeaturesIntegrationTests` (×1):**  
-File: `Bagira.IG/Tools/EditTool.cs`, method `HandleDrag`.  
+File: `Hrot.IG/Tools/EditTool.cs`, method `HandleDrag`.  
 The null-check guard was written as:
 ```csharp
 if (_canvas?.Input.IsMouseButtonDown(MouseButton.Left) != true) return false;
@@ -108,10 +108,10 @@ if (_canvas != null && !_canvas.Input.IsMouseButtonDown(MouseButton.Left))
 Semantics: when `_canvas` is null (headless), skip the mouse-button guard entirely.
 
 **Root cause 2 — `TraceLoggingTests.IngressAndRender_EmitsTraceLines` (×1):**  
-File: `Bagira.Map.Common/Replication/Ingress/GeoSpatialIngressTranslator.cs`, `OnSample` method.  
-The `[TRACE-IG] Ingress: GeoSpatial Entity=` log line was commented out with `//`. The test waited for that log line to appear (using NLog memory target) and timed out because it was never emitted.  
+File: `Hrot.Map.Common/Replication/Ingress/WorldPosIngressTranslator.cs`, `OnSample` method.  
+The `[TRACE-IG] Ingress: WorldPos Entity=` log line was commented out with `//`. The test waited for that log line to appear (using NLog memory target) and timed out because it was never emitted.  
 
-**Fix:** Uncommented the `FdpLog<GeoSpatialIngressTranslator>.Debug(...)` call.
+**Fix:** Uncommented the `FdpLog<WorldPosIngressTranslator>.Debug(...)` call.
 
 ---
 

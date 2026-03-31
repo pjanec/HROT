@@ -8,14 +8,14 @@
 ---
 
 ## Summary
-Integration troubleshooting wiring is mostly in place: IOS now uses `DdsWriterAdapter`, IG wires map-click egress, and SimHost/IG load the TKB catalog through `BagiraEnvironment`. However, several required success-condition tests from `TASK-DETAILS-Integration-Troubleshooting.md` are missing, so the batch cannot be approved yet.
+Integration troubleshooting wiring is mostly in place: IOS now uses `DdsWriterAdapter`, IG wires map-click egress, and SimHost/IG load the TKB catalog through `HrotEnvironment`. However, several required success-condition tests from `TASK-DETAILS-Integration-Troubleshooting.md` are missing, so the batch cannot be approved yet.
 
 ---
 
 ## Code Quality & Design Adherence
-- `Bagira.Map.Common.Dds` provides a shared `IDdsWriter` abstraction and `DdsWriterAdapter`, used consistently by IOS and Runner.
+- `Hrot.Map.Common.Dds` provides a shared `IDdsWriter` abstraction and `DdsWriterAdapter`, used consistently by IOS and Runner.
 - `IgApplication` creates the command gateway and publishes `MapClickEvent` using the shared DDS participant.
-- `SimHostApp` and `IgApplication` instantiate TKB via `BagiraEnvironment.CreateTkb(BdcTkbCatalog.RegisterAll)` as required.
+- `SimHostApp` and `IgApplication` instantiate TKB via `HrotEnvironment.CreateTkb(BdcTkbCatalog.RegisterAll)` as required.
 
 ---
 

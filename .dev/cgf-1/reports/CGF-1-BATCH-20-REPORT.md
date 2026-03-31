@@ -13,8 +13,8 @@ CGF-1-BATCH-20 closed the §CGF1-S0308 TASK-DETAIL residual items from the BATCH
 CONDITIONALLY APPROVED review:
 
 **Part A — Tech debt (all P2 rows):**
-- A.1: `StoryLoadDsmHandler` implemented on `Bagira.CGF` (header-peek, ECS-less, `IsParticipating` ACK via new `NodeOpStatusWriter`).
-- A.2: `NodeOpStatus.IsParticipating` ACK wired from both SimHost and CGF handlers; `DrillMaster` ACK gating documented as intentional MVP delta.
+- A.1: `StoryLoadDsmHandler` implemented on `Hrot.CGF` (header-peek, ECS-less, `IsParticipating` ACK via new `NodeOpStatusWriter`).
+- A.2: `NodeOpStatus.IsParticipating` ACK wired from both SimHost and CGF handlers; `ClusterMaster` ACK gating documented as intentional MVP delta.
 - A.3: `RecordReplayIntegrationTests.NodeBootstrapper_BrainRole_RegistersEcsRecordReplayController` — assertion fixed; **38/38 pass** (was 37/38).
 - A.4: DEBT-TRACKER rows closed ✅.
 
@@ -22,23 +22,23 @@ CONDITIONALLY APPROVED review:
 
 Build: clean — 0 `error CS*`; pre-existing `MSB3021`/`MSB3027` Fhsm.SourceGen
 file-lock from SharpLens MCP is unrelated to this batch (acknowledged in BATCH-19 report).  
-Tests: `Bagira.SimHost.Integration.Tests` 38/38 ✅; `Bagira.SimHost.Tests` 387/387 ✅;
-`Bagira.Orchestrator.Tests` 28/28 ✅; `Bagira.DDS.DataModel.Tests` 43/43 ✅.
+Tests: `Hrot.SimHost.Integration.Tests` 38/38 ✅; `Hrot.SimHost.Tests` 387/387 ✅;
+`Hrot.Orchestrator.Tests` 28/28 ✅; `Hrot.NED.Tests` 43/43 ✅.
 
 ---
 
 ## Part A — Tech Debt
 
-### A.1 — `StoryLoadDsmHandler` on `Bagira.CGF` (P2)
+### A.1 — `StoryLoadDsmHandler` on `Hrot.CGF` (P2)
 
-**Implements:** `Bagira.CGF.Modules.Orchestration.Handlers.StoryLoadDsmHandler`
+**Implements:** `Hrot.CGF.Modules.Orchestration.Handlers.StoryLoadDsmHandler`
 
 The CGF subsystem does not own an `EntityRepository`. The handler:
-- `CanHandle`: `StartStory`, `StopStory`.
-- `PrepareAsync(StartStory)`: peeks `Header.SubsystemType` across all JSON files in
+- `CanHandle`: `StartEpisode`, `StopEpisode`.
+- `PrepareAsync(StartEpisode)`: peeks `Header.SubsystemType` across all JSON files in
   `C:\FDP_Temp\<scenarioId>\`. Sets `_pendingIsParticipating = true` if the serializer
   subsystem type matches; `false` otherwise (no matching file or mismatch).
-- `PrepareAsync(StopStory)`: always `IsParticipating = true` (no-op stop).
+- `PrepareAsync(StopEpisode)`: always `IsParticipating = true` (no-op stop).
 - `Commit(*)`: publishes `NodeOpStatus(Success, IsParticipating)` via the new
   `NodeOpStatusWriter` injected from `CgfApplication`. No entity work (CGF has no ECS).
 - `Abort(*)`: clears pending state.
@@ -48,26 +48,26 @@ The CGF subsystem does not own an `EntityRepository`. The handler:
 `if (scenarioSerializer != null)` block).
 
 **Files changed:**
-- `Bagira.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` — new file
-- `Bagira.CGF/CgfApplication.cs` — register CGF `StoryLoadDsmHandler`
+- `Hrot.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` — new file
+- `Hrot.CGF/CgfApplication.cs` — register CGF `StoryLoadDsmHandler`
 
 ---
 
-### A.2 — `NodeOpStatus.IsParticipating` + `DrillMaster` ACK gating (P2)
+### A.2 — `NodeOpStatus.IsParticipating` + `ClusterMaster` ACK gating (P2)
 
 #### Node-side ACK wiring (completed)
 
-`DdsWriter<NodeOpStatus>` added to **CGF's `DrillSlave`** (new field `_nodeOpStatusWriter`,
+`DdsWriter<NodeOpStatus>` added to **CGF's `ClusterSlave`** (new field `_nodeOpStatusWriter`,
 initialized in production constructor, exposed as `internal NodeOpStatusWriter`, disposed in
 `Dispose()`).
 
 SimHost's **`StoryLoadDsmHandler`** updated:
 - Added `DdsWriter<NodeOpStatus>? statusWriter` and `int nodeId` constructor parameters
   (both optional for test backwards-compatibility).
-- `CommitStartStory`: calls `PublishAck(transactionId, isParticipating: false)` for the
+- `CommitStartEpisode`: calls `PublishAck(transactionId, isParticipating: false)` for the
   non-matching case; `PublishAck(transactionId, isParticipating: true)` after successful
   `Deserialize`.
-- `CommitStopStory`: calls `PublishAck(transactionId, isParticipating: true)` after
+- `CommitStopEpisode`: calls `PublishAck(transactionId, isParticipating: true)` after
   entity destruction.
 - Added private `PublishAck(Guid, bool)` helper that no-ops when `_statusWriter == null`.
 
@@ -75,14 +75,14 @@ SimHost's **`StoryLoadDsmHandler`** updated:
 and `nodeId` to `StoryLoadDsmHandler`.
 
 **Files changed:**
-- `Bagira.CGF/Modules/Orchestration/DrillSlave.cs` — `_nodeOpStatusWriter` field, property, ctor init, Dispose
-- `Bagira.SimHost/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` — `statusWriter`/`nodeId` params, `PublishAck`
-- `Bagira.SimHost/NodeBootstrapper.cs` — pass writer + nodeId
+- `Hrot.CGF/Modules/Orchestration/ClusterSlave.cs` — `_nodeOpStatusWriter` field, property, ctor init, Dispose
+- `Hrot.SimHost/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` — `statusWriter`/`nodeId` params, `PublishAck`
+- `Hrot.SimHost/NodeBootstrapper.cs` — pass writer + nodeId
 
-#### DrillMaster ACK gating (intentional MVP delta)
+#### ClusterMaster ACK gating (intentional MVP delta)
 
-`DrillMaster.ManageStory` currently fans out `StartStory`/`StopStory` and immediately
-resolves `SysOpStatus.InProgress` with `CompletedSteps == totalSteps`, without waiting
+`ClusterMaster.ManageEpisode` currently fans out `StartEpisode`/`StopEpisode` and immediately
+resolves `ClusterOpStatus.InProgress` with `CompletedSteps == totalSteps`, without waiting
 for `NodeOpStatus` round-trips. Implementing full 2PC for story operations (orchestrator-side
 `NodeOpStatus` subscription, per-transaction participation map, timeout logic) is a
 non-trivial addition that goes beyond the BATCH-20 scope.
@@ -99,20 +99,20 @@ requirement.
 
 **Root cause:** `EcsRecordReplayController.CanHandle` always returns `false` — the class is
 a factory used by `LiveLoadDsmHandler` and `ReplayLoadDsmHandler`, not an `IDsmHandler`
-registered directly with `DrillSlave`. The old assertion
+registered directly with `ClusterSlave`. The old assertion
 `IsHandlerRegistered<EcsRecordReplayController>()` was therefore always `false`.
 
 **Fix:**  
-1. Added `using Bagira.SimHost.Modules.Orchestration.Handlers;` import.
+1. Added `using Hrot.SimHost.Modules.Orchestration.Handlers;` import.
 2. Provided `eventBus: new FdpEventBus()` to `BuildOrchestration` so
    `LiveLoadDsmHandler` is registered for the Brain role.
 3. Changed assertion to `IsHandlerRegistered<LiveLoadDsmHandler>()` with an updated
    comment explaining the factory-only pattern.
 
-**Result:** Test passes; 38/38 in `Bagira.SimHost.Integration.Tests` (up from 37/38).
+**Result:** Test passes; 38/38 in `Hrot.SimHost.Integration.Tests` (up from 37/38).
 
 **Files changed:**
-- `Bagira.SimHost.Integration.Tests/RecordReplayIntegrationTests.cs` — `using` + test body
+- `Hrot.SimHost.Integration.Tests/RecordReplayIntegrationTests.cs` — `using` + test body
 
 ---
 
@@ -123,7 +123,7 @@ Both BATCH-20 target rows closed ✅:
 | Row | Description |
 |-----|-------------|
 | CGF-1-BATCH-19 Testing P2 | `RecordReplayIntegrationTests` assertion — ✅ fixed (A.3) |
-| CGF-1-BATCH-19 Architecture P2 | §CGF1-S0308 CGF handler + `NodeOpStatus` + DrillMaster ACK — ✅ CGF handler + ACK wired; ACK gating documented as MVP delta |
+| CGF-1-BATCH-19 Architecture P2 | §CGF1-S0308 CGF handler + `NodeOpStatus` + ClusterMaster ACK — ✅ CGF handler + ACK wired; ACK gating documented as MVP delta |
 
 ---
 
@@ -156,10 +156,10 @@ test harness first, then S0106 UI in BATCH-21"), S0106 is also deferred to **BAT
 
 | Project | Passed | Failed | Notes |
 |---------|--------|--------|-------|
-| `Bagira.SimHost.Integration.Tests` | 38 | 0 | Was 37/38 (A.3 fix) |
-| `Bagira.SimHost.Tests` | 387 | 0 | Regression check |
-| `Bagira.Orchestrator.Tests` | 28 | 0 | Regression check |
-| `Bagira.DDS.DataModel.Tests` | 43 | 0 | Regression check |
+| `Hrot.SimHost.Integration.Tests` | 38 | 0 | Was 37/38 (A.3 fix) |
+| `Hrot.SimHost.Tests` | 387 | 0 | Regression check |
+| `Hrot.Orchestrator.Tests` | 28 | 0 | Regression check |
+| `Hrot.NED.Tests` | 43 | 0 | Regression check |
 
 Build: 0 `error CS*` across all changed projects.  
 Note: `MSB3021`/`MSB3027` Fhsm.SourceGen file-lock (SharpLens MCP) persists; pre-existing
@@ -171,14 +171,14 @@ and unrelated to this batch.
 
 | File | Change |
 |------|--------|
-| `Bagira.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | **New** — CGF story handler (header-peek, IsParticipating ACK) |
-| `Bagira.CGF/Modules/Orchestration/DrillSlave.cs` | Add `_nodeOpStatusWriter` + `NodeOpStatusWriter` + Dispose |
-| `Bagira.CGF/CgfApplication.cs` | Register CGF `StoryLoadDsmHandler` |
-| `Bagira.SimHost/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | Add `statusWriter`/`nodeId` params + `PublishAck` helper |
-| `Bagira.SimHost/NodeBootstrapper.cs` | Pass `NodeOpStatusWriter` + `nodeId` to `StoryLoadDsmHandler` |
-| `Bagira.SimHost.Integration.Tests/RecordReplayIntegrationTests.cs` | Fix `NodeBootstrapper_BrainRole` assertion → `LiveLoadDsmHandler` |
+| `Hrot.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | **New** — CGF story handler (header-peek, IsParticipating ACK) |
+| `Hrot.CGF/Modules/Orchestration/ClusterSlave.cs` | Add `_nodeOpStatusWriter` + `NodeOpStatusWriter` + Dispose |
+| `Hrot.CGF/CgfApplication.cs` | Register CGF `StoryLoadDsmHandler` |
+| `Hrot.SimHost/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | Add `statusWriter`/`nodeId` params + `PublishAck` helper |
+| `Hrot.SimHost/NodeBootstrapper.cs` | Pass `NodeOpStatusWriter` + `nodeId` to `StoryLoadDsmHandler` |
+| `Hrot.SimHost.Integration.Tests/RecordReplayIntegrationTests.cs` | Fix `NodeBootstrapper_BrainRole` assertion → `LiveLoadDsmHandler` |
 | `.dev/DEBT-TRACKER.md` | Close 2 BATCH-20 rows ✅ |
-| `.dev/cgf-1/CGF-1-TASK-DETAIL.md` | §CGF1-S0308 MVP delta note (DrillMaster ACK gating) |
+| `.dev/cgf-1/CGF-1-TASK-DETAIL.md` | §CGF1-S0308 MVP delta note (ClusterMaster ACK gating) |
 | `.dev/cgf-1/CGF-1-TASK-TRACKER.md` | S0308 residual closed; progress note + active batch updated |
 
 **Review:** [CGF-1-BATCH-20-REVIEW.md](../reviews/CGF-1-BATCH-20-REVIEW.md)

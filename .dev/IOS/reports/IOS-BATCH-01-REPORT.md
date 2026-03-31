@@ -12,7 +12,7 @@
 | Task | Status | Notes |
 |---|---|---|
 | Corrective Task 0 (DEBT-028) | ✅ | `TASK-TRACKER.md` now includes Phase IOS-P5; `DEBT-TRACKER.md` resolved row added |
-| Task 1 – P5.1/P5.2: Project Setup | ✅ | `Bagira.IOS.csproj` + `Bagira.IOS.Tests.csproj` added to `IOS-IG-SimHost.sln` |
+| Task 1 – P5.1/P5.2: Project Setup | ✅ | `Hrot.ExCon.csproj` + `Hrot.ExCon.Tests.csproj` added to `IOS-IG-SimHost.sln` |
 | Task 2 – IOS.6.1: Request Transaction Manager | ✅ | `IRequestTransactionManager` + `RequestTransactionManager` |
 | Task 3 – IOS.6.2: Mission Editor Service | ✅ | `IMissionEditorService` + `MissionEditorService` |
 | Task 4 – IOS.6.3: Context Menu Logic | ✅ | `IContextMenuLogic` + `ContextMenuLogic` + `ContextMenuActions` constants |
@@ -26,27 +26,27 @@
 ## Files Created / Modified
 
 ### New files
-- `Bagira.IOS/Bagira.IOS.csproj`
-- `Bagira.IOS/Program.cs`
-- `Bagira.IOS/Services/ITimeProvider.cs`
-- `Bagira.IOS/Services/PendingRequest.cs`
-- `Bagira.IOS/Services/IRequestTransactionManager.cs`
-- `Bagira.IOS/Services/RequestTransactionManager.cs`
-- `Bagira.IOS/Services/IDdsWriter.cs`
-- `Bagira.IOS/Services/IMissionEditorService.cs`
-- `Bagira.IOS/Services/MissionEditorService.cs`
-- `Bagira.IOS/Logic/ContextMenuItem.cs`
-- `Bagira.IOS/Logic/ContextMenuActions.cs`
-- `Bagira.IOS/Logic/IContextMenuLogic.cs`
-- `Bagira.IOS/Logic/ContextMenuLogic.cs`
-- `Bagira.IOS.Tests/Bagira.IOS.Tests.csproj`
-- `Bagira.IOS.Tests/RequestTransactionManagerTests.cs`
-- `Bagira.IOS.Tests/MissionEditorServiceTests.cs`
-- `Bagira.IOS.Tests/ContextMenuLogicTests.cs`
+- `Hrot.ExCon/Hrot.ExCon.csproj`
+- `Hrot.ExCon/Program.cs`
+- `Hrot.ExCon/Services/ITimeProvider.cs`
+- `Hrot.ExCon/Services/PendingRequest.cs`
+- `Hrot.ExCon/Services/IRequestTransactionManager.cs`
+- `Hrot.ExCon/Services/RequestTransactionManager.cs`
+- `Hrot.ExCon/Services/IDdsWriter.cs`
+- `Hrot.ExCon/Services/IMissionEditorService.cs`
+- `Hrot.ExCon/Services/MissionEditorService.cs`
+- `Hrot.ExCon/Logic/ContextMenuItem.cs`
+- `Hrot.ExCon/Logic/ContextMenuActions.cs`
+- `Hrot.ExCon/Logic/IContextMenuLogic.cs`
+- `Hrot.ExCon/Logic/ContextMenuLogic.cs`
+- `Hrot.ExCon.Tests/Hrot.ExCon.Tests.csproj`
+- `Hrot.ExCon.Tests/RequestTransactionManagerTests.cs`
+- `Hrot.ExCon.Tests/MissionEditorServiceTests.cs`
+- `Hrot.ExCon.Tests/ContextMenuLogicTests.cs`
 
 ### Modified files
-- `Bagira.DDS.DataModel/MissionMessages.cs` – added `BaseVersion` to `MissionControlRequest`; added `MissionControlAck` topic
-- `IOS-IG-SimHost.sln` – added `Bagira.IOS` and `Bagira.IOS.Tests` project entries + build configurations
+- `Hrot.NED/MissionMessages.cs` – added `BaseVersion` to `MissionControlRequest`; added `MissionControlAck` topic
+- `IOS-IG-SimHost.sln` – added `Hrot.ExCon` and `Hrot.ExCon.Tests` project entries + build configurations
 - `docs/design/TASK-TRACKER.md` – added IOS Phase P5 section; marked IOS.6.1–6.3 complete; updated progress
 - `.dev-workstream/DEBT-TRACKER.md` – marked DEBT-028 as resolved
 
@@ -110,7 +110,7 @@ A second issue: after a timeout, a late-arriving ACK for the same `RequestId` mu
 | `MissionEditorServiceTests` | 10 | ~120 ms (two async timeout tests) |
 | `ContextMenuLogicTests` | 16 | ~50 ms |
 | **Total new** | **40** | |
-| Pre-existing `Bagira.SimHost.Tests` | 19 | 71 ms |
+| Pre-existing `Hrot.SimHost.Tests` | 19 | 71 ms |
 
 > Note: 41 tests reported by the runner (one test helper class contributes a 1-method test in the `RequestTransactionManagerTests` count).
 

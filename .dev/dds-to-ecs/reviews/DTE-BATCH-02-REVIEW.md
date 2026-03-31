@@ -16,15 +16,15 @@ Phase 2/3 features are mostly implemented with adequate tests, but there are des
 
 ### Issue 1: EntityMasterEgressTranslator ownership check uses local parameter instead of component
 
-**File:** `Bagira.SimHost/Translators/EntityMasterEgressTranslator.cs`  
+**File:** `Hrot.SimHost/Translators/EntityMasterEgressTranslator.cs`  
 **Problem:** Ownership is filtered with `ownership.PrimaryOwnerId != _localNodeId`. The design requires comparing against `ownership.LocalNodeId` (`PrimaryOwnerId == LocalNodeId`) so the translator follows component state instead of the constructor parameter.  
 **Fix:** Replace the ownership check with `if (ownership.PrimaryOwnerId != ownership.LocalNodeId) continue;`.
 
 ### Issue 2: SimHostSubsystem still registers DDS DTO `EntityMaster`
 
-**File:** `Bagira.Runner/Services/SimHostSubsystem.cs`  
+**File:** `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`  
 **Problem:** `RegisterSimComponents` still registers `EntityMaster`, violating the DDS DTO separation rules. This keeps the runner path out of compliance even though `SimHostApp` was fixed.  
-**Fix:** Remove `world.RegisterComponent<EntityMaster>();` from the subsystem’s component registration.
+**Fix:** Remove `world.RegisterComponent<EntityMaster>();` from the subsystemï¿½s component registration.
 
 ---
 

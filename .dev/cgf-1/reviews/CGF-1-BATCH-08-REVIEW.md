@@ -23,10 +23,10 @@
 |-----------|-----|
 | **`RunMode.CI`**, **`--scenario`**, **`CiSubsystem`**, **`Program`** CI branch (deterministic **60 Hz**). | No use of **`DistributedTimeCoordinator`** / **`SlaveTimeModeListener`** / **`SteppedSlaveController`** in **Runner** or **OrchestratorSubsystem**. |
 | **`MinimalCIScenario`**: two entities, 600 ticks, **`ScenarioFailureException`** on death. | Task asks entities **in CGF subsystem**; implementation uses **bare** **`EntityRepository`** in **`ScenarioSubsystem`** only. |
-| **`DrillMaster.PendingTimeMode`** from JSON object payload when trajectory includes **LoadingLive**; **`JsonValueKind.Object`** guard fixes legacy integer payload vs **`TryGetProperty`** throw (important fix). | **`PendingTimeMode` is never read** anywhere else in the solution — no **`SwitchToDeterministic`** call tied to orchestrator. |
+| **`ClusterMaster.PendingTimeMode`** from JSON object payload when trajectory includes **LoadingLive**; **`JsonValueKind.Object`** guard fixes legacy integer payload vs **`TryGetProperty`** throw (important fix). | **`PendingTimeMode` is never read** anywhere else in the solution — no **`SwitchToDeterministic`** call tied to orchestrator. |
 | Three **xUnit** tests via **`ScenarioSubsystem`** harness. | Task success conditions: **`dotnet run … --mode ci --scenario MinimalCI_01`** exit **0** within **30 s** — **not** exercised as a **subprocess** test. **`DeterministicRun_IsReproducible`** should assert **bit-identical state** at tick 600; tests only assert **equal exit codes**. |
 
-**Tests run (review):** **`Bagira.Runner.Tests`** — **115** passed.
+**Tests run (review):** **`Hrot.ClusterRunner.Tests`** — **115** passed.
 
 ---
 
@@ -44,7 +44,7 @@
 ## Design alignment
 
 - **§4.4 / §4.5:** Wall-tick barrier and **`SwitchTimeModeEvent`** semantics remain consistent; **wire DTO** is a reasonable interop pattern.
-- **Production completeness:** Until **`PendingTimeMode`** drives a coordinator and **CGF** participates on DDS, the **“DrillMaster instructs coordinator before RunningLive”** story is **documentation-only**.
+- **Production completeness:** Until **`PendingTimeMode`** drives a coordinator and **CGF** participates on DDS, the **“ClusterMaster instructs coordinator before RunningLive”** story is **documentation-only**.
 
 ---
 
@@ -54,7 +54,7 @@
 |------|---------|
 | **SwitchTimeMode translator** | **Strong** for bus semantics; no **real participant** round-trip in tests (acceptable if heavy). |
 | **Minimal CI** | **Good** for smoke (exit 0 / 1); **reproducibility** test is **weaker than spec**. |
-| **DrillMaster JSON guard** | **Critical** fix — prevents silent **`AppendToHistory`** skip on integer payloads. |
+| **ClusterMaster JSON guard** | **Critical** fix — prevents silent **`AppendToHistory`** skip on integer payloads. |
 
 ---
 
@@ -71,7 +71,7 @@ feat(cgf-1): BATCH-08 SwitchTimeMode DDS wire DTO, CI mode, PendingTimeMode
 
 - SwitchTimeModeWireDto + SwitchTimeModeDescriptorTranslator; SimHost + IG wiring.
 - RunMode.CI, --scenario, CiSubsystem, MinimalCIScenario; Runner Program CI branch.
-- DrillMaster: PendingTimeMode from JSON when trajectory includes LoadingLive; object guard.
+- ClusterMaster: PendingTimeMode from JSON when trajectory includes LoadingLive; object guard.
 - CGF1-S0105 ADR: keyed NodeOpCommand → BATCH-09; SwitchTimeModeTranslatorTests.
 - NetworkDemo: omit translator (TimeSync path); NetworkDemo.Tests xunit serial.
 

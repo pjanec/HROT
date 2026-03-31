@@ -20,17 +20,17 @@ Wired `FDP.Toolkit.Behavior` and `FDP.Toolkit.Navigation` systems into a new `Si
 
 | File | Description |
 |------|-------------|
-| `Bagira.SimHost/Modules/SimulationLogicModule.cs` | Core module; constructor accepts `DoctrineRegistry` + `NetworkEntityMap`; `RegisterSystems(SystemGroup)` registers all 9 systems in strict spec order |
-| `Bagira.SimHost/Systems/MissionAdapterSystem.cs` | Empty `ComponentSystem` stub — full implementation deferred to TASK-S4.3 |
-| `Bagira.SimHost/Systems/JoinFormationExecutor.cs` | `IActionExecutor<LocomotionChannel>` stub — full implementation deferred to TASK-S4.4 |
-| `Bagira.SimHost.Tests/SimulationLogicModuleTests.cs` | 2 xUnit tests verifying empty-world topology and `LinearKinematicsSystem` presence |
+| `Hrot.SimHost/Modules/SimulationLogicModule.cs` | Core module; constructor accepts `DoctrineRegistry` + `NetworkEntityMap`; `RegisterSystems(SystemGroup)` registers all 9 systems in strict spec order |
+| `Hrot.SimHost/Systems/MissionAdapterSystem.cs` | Empty `ComponentSystem` stub — full implementation deferred to TASK-S4.3 |
+| `Hrot.SimHost/Systems/JoinFormationExecutor.cs` | `IActionExecutor<LocomotionChannel>` stub — full implementation deferred to TASK-S4.4 |
+| `Hrot.SimHost.Tests/SimulationLogicModuleTests.cs` | 2 xUnit tests verifying empty-world topology and `LinearKinematicsSystem` presence |
 
 ### Modified Files
 
 | File | Change |
 |------|--------|
-| `Bagira.SimHost/Bagira.SimHost.csproj` | Added `FDP.Toolkit.Behavior`, `FDP.Toolkit.Navigation`, `FDP.Toolkit.Physics` project references |
-| `Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj` | Added `FDP.Toolkit.Behavior`, `FDP.Toolkit.Physics` project references |
+| `Hrot.SimHost/Hrot.SimHost.csproj` | Added `FDP.Toolkit.Behavior`, `FDP.Toolkit.Navigation`, `FDP.Toolkit.Physics` project references |
+| `Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj` | Added `FDP.Toolkit.Behavior`, `FDP.Toolkit.Physics` project references |
 
 ---
 

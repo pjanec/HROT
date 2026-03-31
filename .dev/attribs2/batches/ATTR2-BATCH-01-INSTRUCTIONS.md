@@ -21,8 +21,8 @@ Welcome to the ATTR2 workstream. This first batch establishes the core binary DD
 4. **Task Definitions:** `docs/attribs2/ATTR2-TASK-DETAIL.md` - See Phase 1 tasks details
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.DDS.DataModel` and `FDP/Toolkits/FDP.Toolkit.Replication`
-- **Test Project:** `Bagira.DDS.DataModel.Tests`
+- **Primary Work Area:** `Hrot.NED` and `FDP/Toolkits/FDP.Toolkit.Replication`
+- **Test Project:** `Hrot.NED.Tests`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -68,7 +68,7 @@ Establish the new DDS wire types and extend existing messages with binary attrib
 
 ### Task 1: `AttributeValueUnion` and `AttributeRecord` DDS Types (ATTR2-P1T1)
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs` (UPDATE)  
+**File:** `Hrot.NED/GenericMessages.cs` (UPDATE)  
 **Task Definition:** See [ATTR2-TASK-DETAIL.md](../../docs/attribs2/ATTR2-TASK-DETAIL.md#attr2-p1t1--attributevalueunion-and-attributerecord-dds-types)
 
 **Description:** Add two new C# structs for holding binary attribute values over DDS wire.
@@ -79,7 +79,7 @@ Establish the new DDS wire types and extend existing messages with binary attrib
 - Fixed-size arrays must be represented as C# arrays.
 - Do NOT modify any existing types in the file.
 
-**Tests Required (in `Bagira.DDS.DataModel.Tests`):**
+**Tests Required (in `Hrot.NED.Tests`):**
 - ✅ Round-trip serializing an `AttributeRecord` (with type Float64) to JSON via `JsonSerializer` without data loss.
 - ✅ Test `String` branch correctly populates and other branches stay default/zero.
 - ✅ Test `Vec3d` branch correctly stores values `[1.0, 2.0, 3.0]`.
@@ -105,7 +105,7 @@ Establish the new DDS wire types and extend existing messages with binary attrib
 
 ### Task 3: Update Wire Messages (ATTR2-P1T3)
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs` (UPDATE)  
+**File:** `Hrot.NED/GenericMessages.cs` (UPDATE)  
 **Task Definition:** See [ATTR2-TASK-DETAIL.md](../../docs/attribs2/ATTR2-TASK-DETAIL.md#attr2-p1t3--update-wire-messages-createentityrequest-updateentityattributerequest)
 
 **Description:** Add binary attributes fields to existing entity request messages.
@@ -115,17 +115,17 @@ Establish the new DDS wire types and extend existing messages with binary attrib
 - Include XML doc comments referencing `ATTR2-DESIGN.md §3.1`.
 - Keep the existing `InitialAttributesJson` and `AttributePatchJson` fields untouched.
 
-**Tests Required (in `Bagira.DDS.DataModel.Tests`):**
+**Tests Required (in `Hrot.NED.Tests`):**
 - ✅ Verify `CreateEntityRequest` construction with `InitialAttributeRecords = null`.
 - ✅ Verify `CreateEntityRequest` construction with a non-null list of 2 records.
 - ✅ Verify `UpdateEntityAttributeRequest` construction defaults `AttributeRecords` to null.
-- ✅ Run all existing tests in `Bagira.DDS.DataModel.Tests` and ensure they pass (zero regressions).
+- ✅ Run all existing tests in `Hrot.NED.Tests` and ensure they pass (zero regressions).
 
 ---
 
 ## 🧪 Testing Requirements
-- Code must pass all existing `Bagira.DDS.DataModel.Tests` without failures.
-- Implement the unit tests under `Bagira.DDS.DataModel.Tests` for Task 1 and 3 as specified.
+- Code must pass all existing `Hrot.NED.Tests` without failures.
+- Implement the unit tests under `Hrot.NED.Tests` for Task 1 and 3 as specified.
 - Tests must verify actual behavior — storing and retrieving data correctly, defaults correctly — avoiding superficial string-presence assertions.
 
 ---

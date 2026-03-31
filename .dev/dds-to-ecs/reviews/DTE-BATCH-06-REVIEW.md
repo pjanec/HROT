@@ -13,8 +13,8 @@ Dead-reckoning and time-sync integration landed in IG and SimHost with focused t
 ---
 
 ## Code Quality & Design Adherence
-- `GeoSpatialTranslator` writes `NetworkPosition` and only seeds `SimTransform` when missing, aligning with the dead-reckoning design.
-- `GeoSpatialDRTranslator` uses DAL3 azimuth/elevation conversion to populate `NetworkVelocity` without introducing ECS coupling.
+- `WorldPosTranslator` writes `NetworkPosition` and only seeds `SimTransform` when missing, aligning with the dead-reckoning design.
+- `WorldPosTranslator` uses AngularVector azimuth/elevation conversion to populate `NetworkVelocity` without introducing ECS coupling.
 - `DeadReckoningSyncSystem` only updates ghost entities (`NetworkAuthority.HasAuthority == false`) and blends toward projected positions as specified.
 - `TimePulseDescriptor` is now a DDS topic and both IG + SimHost wire time-pulse translators correctly.
 

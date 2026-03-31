@@ -25,7 +25,7 @@ Gating `EntityMasterEgressTranslatorTests` with `[Trait("Category","Integration"
 9 tests in `EntityMissionTranslatorTests.cs` wrapped with `using var` — proper fix, prevents domain collision under parallel execution.
 
 ### DB-MOD1-21 — `TestMetricsCollector` Audit
-Confirmed zero `Bagira.*` references, documented in design doc. Clean.
+Confirmed zero `Hrot.*` references, documented in design doc. Clean.
 
 ### MOD1-P6T8 — Four Translator Packs
 The tests are correctly scoped: they verify that `BuildTranslators(NodeRole.X)` produces the right pack types, and explicitly verify that `AllInOne` includes all four packs while `Brain` excludes sim-side packs. The `AllInOne` one-frame DDS lag analysis (Q3) is architecturally sound.
@@ -41,9 +41,9 @@ The user's independent code analysis identified 4 structural gaps not addressed 
 
 ### Issue 1: `IgSymbolOverride` Component ID in `GlobalComponentIds` (Confirmed — DB-MOD1-22)
 
-`GlobalComponentIds.IgSymbolOverride = 119` exists in `Fdp.Kernel/GlobalComponentIds.cs`. The component class is in `Bagira.Map.Common` and is exclusively used by `Bagira.IG`, `Bagira.Map.Common`, and `Bagira.IG.Tests`. An IG-specific visual override component ID has no business in the FDP kernel registry.
+`GlobalComponentIds.IgSymbolOverride = 119` exists in `Fdp.Kernel/GlobalComponentIds.cs`. The component class is in `Hrot.Map.Common` and is exclusively used by `Hrot.IG`, `Hrot.Map.Common`, and `Hrot.IG.Tests`. An IG-specific visual override component ID has no business in the FDP kernel registry.
 
-**Required fix:** Move ID 119 into `BagiraComponentIds` (the registry established in Phase 5 for exactly this purpose) and update the `[ComponentId]` attribute on `IgSymbolOverride`.
+**Required fix:** Move ID 119 into `HrotComponentIds` (the registry established in Phase 5 for exactly this purpose) and update the `[ComponentId]` attribute on `IgSymbolOverride`.
 
 ### Issue 2: `NavigationIntent` + `NavigationStatus` Forced Into `Fdp.Kernel` (Confirmed — DB-MOD1-23)
 
@@ -55,7 +55,7 @@ The user's independent code analysis identified 4 structural gaps not addressed 
 
 `grep` confirms: `KinematicTranslatorPack` and `CognitiveTranslatorPack` do not exist anywhere in the solution. `SimHostApp.OnLoad` still manually instantiates individual translators. Phase 3 of the design called for these factory classes to replace the manual `translators.Add(...)` pattern. `SharedTranslatorPack` exists; the other two do not.
 
-**Required fix:** Create `KinematicTranslatorPack` and `CognitiveTranslatorPack` in `Bagira.SimHost.Network`, following the same static factory pattern as `SharedTranslatorPack`, and refactor `SimHostApp.OnLoad`.
+**Required fix:** Create `KinematicTranslatorPack` and `CognitiveTranslatorPack` in `Hrot.SimHost.Network`, following the same static factory pattern as `SharedTranslatorPack`, and refactor `SimHostApp.OnLoad`.
 
 ### Issue 4: `HealthData` Mirror in `Fdp.Kernel` — Accepted with Caveat (DB-MOD1-25)
 

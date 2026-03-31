@@ -22,7 +22,7 @@
 
 ## 1. Context & Problem Statement
 
-The Bagira simulation stack is composed of three collaborating processes:
+The Hrot simulation stack is composed of three collaborating processes:
 
 | App | Role |
 |-----|------|
@@ -54,19 +54,19 @@ Five independent root causes were identified. **All five must be fixed together*
 
 ### RC-2: SimHost Spawns "Local-Only" Invisible Cars
 
-`SimHostScenarioManager.SpawnVehicle` calls `_repo.CreateEntity()` and manually attaches `SimTransform` + `VehicleState`, but **omits** `NetworkIdentity`, `NetworkOwnership`, and `EntityMaster`. Because these network components are absent, `GeoSpatialEgressTranslator` never selects the entity for publication and the car stays invisible to the network.
+`SimHostScenarioManager.SpawnVehicle` calls `_repo.CreateEntity()` and manually attaches `SimTransform` + `VehicleState`, but **omits** `NetworkIdentity`, `NetworkOwnership`, and `EntityMaster`. Because these network components are absent, `WorldPosEgressTranslator` never selects the entity for publication and the car stays invisible to the network.
 
 **Required fix:** Replace the manual entity construction with a `SpawnEntityCommand` event so that `NetworkSpawningSystem` builds the entity with the full component set including network identity.
 
 ### RC-3: IOS Uses Null Stub Writers
 
-`Bagira.IOS/Program.cs` and `Bagira.Runner/Services/IosSubsystem.cs` wire `NullDdsWriter<T>` for every outbound topic (`MapInteractionConfig`, `CreateEntityRequest`, `MissionControlRequest`, `ContextActionsUpdate`). All UI actions publish into a black hole.
+`Hrot.ExCon/Program.cs` and `Hrot.ClusterRunner/Services/IosSubsystem.cs` wire `NullDdsWriter<T>` for every outbound topic (`MapInteractionConfig`, `CreateEntityRequest`, `MissionControlRequest`, `ContextActionsUpdate`). All UI actions publish into a black hole.
 
 **Required fix:** Introduce `DdsWriterAdapter<T>` (a thin wrapper around `CycloneDDS.Runtime.DdsWriter<T>`) and substitute it for all `NullDdsWriter` usages.
 
 ### RC-4: ImGui DockSpace Blocks Map Input
 
-`Bagira.IOS/IosMock.cs` calls `ImGui.DockSpaceOverViewport(0)` without flags. This creates a full-screen invisible ImGui window that captures all mouse events, preventing Raylib and `MapCanvas` from ever receiving clicks or scroll events.
+`Hrot.ExCon/IosMock.cs` calls `ImGui.DockSpaceOverViewport(0)` without flags. This creates a full-screen invisible ImGui window that captures all mouse events, preventing Raylib and `MapCanvas` from ever receiving clicks or scroll events.
 
 **Required fix:** Add `ImGuiDockNodeFlags.PassthruCentralNode` so that mouse events over empty dockspace areas fall through to the Raylib layer.
 
@@ -91,14 +91,14 @@ Raylib's input and render APIs are global state machines. Two subsystems cannot 
 2. `WantCaptureMouse == false` → `IgApplication.MapCanvas` owns the click.
 3. SimHost is headless — it never participates in input routing.
 
-### Decision 2: `BagiraEnvironment` Shared Bootstrapper
+### Decision 2: `HrotEnvironment` Shared Bootstrapper
 
-All three apps need the same coordinate origin, TKB catalog, and DDS domain. Duplicating this in three places caused RC-1, and will cause future drift. A static `BagiraEnvironment` utility in `Bagira.Map.Common` centralises these concerns.
+All three apps need the same coordinate origin, TKB catalog, and DDS domain. Duplicating this in three places caused RC-1, and will cause future drift. A static `HrotEnvironment` utility in `Hrot.Map.Common` centralises these concerns.
 
 **Interface:**
 ```csharp
-// Bagira.Map.Common/BagiraEnvironment.cs
-public static class BagiraEnvironment
+// Hrot.Map.Common/HrotEnvironment.cs
+public static class HrotEnvironment
 {
     public static TkbDatabase     CreateTkb();               // registers BdcTkbCatalog
     public static WGS84Transform  CreateGeoTransform();      // Berlin origin by default
@@ -106,7 +106,7 @@ public static class BagiraEnvironment
 }
 ```
 
-**Constraint:** All three apps and the Runner's subsystems must call only `BagiraEnvironment.*` methods; direct construction of `TkbDatabase`, `WGS84Transform`, and `DdsParticipant` is prohibited outside of `BagiraEnvironment`.
+**Constraint:** All three apps and the Runner's subsystems must call only `HrotEnvironment.*` methods; direct construction of `TkbDatabase`, `WGS84Transform`, and `DdsParticipant` is prohibited outside of `HrotEnvironment`.
 
 ### Decision 3: `DdsWriterAdapter<T>` Pattern for IOS Writers
 
@@ -120,7 +120,7 @@ These five tasks directly address the five root causes. They are the minimum set
 
 ### Task INTS-P1-001 — Register TKB Catalog in SimHost and IG
 
-Call `BagiraEnvironment.CreateTkb()` (or equivalent) in both `SimHostApp.OnLoad` and `IgApplication.InitializeNetwork` so that `NetworkSpawningSystem` can resolve TKB templates.
+Call `HrotEnvironment.CreateTkb()` (or equivalent) in both `SimHostApp.OnLoad` and `IgApplication.InitializeNetwork` so that `NetworkSpawningSystem` can resolve TKB templates.
 
 *See TASK-DETAILS for success conditions.*
 
@@ -132,7 +132,7 @@ Refactor `SimHostScenarioManager.SpawnVehicle` to publish a `SpawnEntityCommand`
 
 ### Task INTS-P1-003 — Replace NullDdsWriter with DdsWriterAdapter in IOS
 
-1. Implement `DdsWriterAdapter<T> : IDdsWriter<T>` in `Bagira.Map.Common` (or `Bagira.IOS`).
+1. Implement `DdsWriterAdapter<T> : IDdsWriter<T>` in `Hrot.Map.Common` (or `Hrot.ExCon`).
 2. Replace all four `NullDdsWriter` usages in `Program.cs` and `IosSubsystem.cs`.
 
 *See TASK-DETAILS for exact constructor signatures.*
@@ -155,27 +155,27 @@ Wire `BdcCommandGateway` into `IgApplication` so the `MiniIosPanelState` issues 
 
 These tasks are not required for basic operation but prevent future regression and reduce maintenance cost.
 
-### Task INTS-P2-006 — Implement BagiraEnvironment Bootstrapper
+### Task INTS-P2-006 — Implement HrotEnvironment Bootstrapper
 
-Create `Bagira.Map.Common/BagiraEnvironment.cs` with `CreateTkb()`, `CreateGeoTransform()`, and `CreateParticipant(int domainId)`.
+Create `Hrot.Map.Common/HrotEnvironment.cs` with `CreateTkb()`, `CreateGeoTransform()`, and `CreateParticipant(int domainId)`.
 
 ### Task INTS-P2-007 — Fix SubsystemOrchestrator Headless Logic
 
-In `Bagira.Runner/Services/SubsystemOrchestrator.cs` → `Initialize()`:
+In `Hrot.ClusterRunner/Services/SubsystemOrchestrator.cs` → `Initialize()`:
 - After collecting subsystems, check `bool hasIG = _subsystems.Any(s => s.Name == "IG")`.
 - Pass `Headless = _headless || (hasIG && subsystem.Name == "SimHost")` to each subsystem's `SubsystemConfig`.
 
-### Task INTS-P2-008 — Refactor IgApplication to Use BagiraEnvironment
+### Task INTS-P2-008 — Refactor IgApplication to Use HrotEnvironment
 
-Remove inline `TkbDatabase`/`WGS84Transform`/`DdsParticipant` construction from `IgApplication.InitializeNetwork`; replace with `BagiraEnvironment.*` calls.
+Remove inline `TkbDatabase`/`WGS84Transform`/`DdsParticipant` construction from `IgApplication.InitializeNetwork`; replace with `HrotEnvironment.*` calls.
 
-### Task INTS-P2-009 — Refactor SimHostApp to Use BagiraEnvironment
+### Task INTS-P2-009 — Refactor SimHostApp to Use HrotEnvironment
 
-Remove inline construction from `SimHostApp.OnLoad`; replace with `BagiraEnvironment.*` calls.
+Remove inline construction from `SimHostApp.OnLoad`; replace with `HrotEnvironment.*` calls.
 
-### Task INTS-P2-010 — Refactor IosSubsystem to Use BagiraEnvironment
+### Task INTS-P2-010 — Refactor IosSubsystem to Use HrotEnvironment
 
-Remove inline construction from `IosSubsystem.Initialize`; replace with `BagiraEnvironment.*` calls and `DdsWriterAdapter<T>` wiring.
+Remove inline construction from `IosSubsystem.Initialize`; replace with `HrotEnvironment.*` calls and `DdsWriterAdapter<T>` wiring.
 
 ---
 
@@ -190,13 +190,13 @@ Add `Console.WriteLine` / `ILogger` calls at key boundaries in:
 - `NetworkSpawningSystem.ProcessSpawn`
 - `EntityLifecycleModule` ACK promotion
 - `EntityMasterTranslator.ScanAndPublish`
-- `GeoSpatialEgressTranslator.ScanAndPublish`
+- `WorldPosEgressTranslator.ScanAndPublish`
 
 ### Task INTS-P3-012 — Trace Logging: IG Entity Ingress & Render (Flow 2)
 
 Add trace at:
 - `EntityMasterTranslator.ProcessSample` (IG ingress)
-- `GeoSpatialTranslator.Decode`
+- `WorldPosTranslator.Decode`
 - `StyleResolutionSystem.Execute`
 - `SstVisualizerAdapter.Render` (guarded by entity ID filter to avoid spam)
 
@@ -211,11 +211,11 @@ Add trace at:
 
 ### Task INTS-P3-014 — Integration Test: End-to-End Entity Lifecycle
 
-Write a `[TestMethod]` in `Bagira.SimHost.Integration.Tests` (or a new `Bagira.Integration.Tests` project) that:
+Write a `[TestMethod]` in `Hrot.SimHost.Integration.Tests` (or a new `Hrot.Integration.Tests` project) that:
 1. Starts SimHost + IG in-process with real DDS (Domain 10 test domain).
 2. Sends a `SpawnEntityCommand` to SimHost.
 3. Polls IG's entity registry for up to 3 seconds.
-4. Asserts the entity appears in IG with correct `TkbType`, non-zero `GeoSpatial` position, and a resolved `StyleComponent`.
+4. Asserts the entity appears in IG with correct `TkbType`, non-zero `WorldPos` position, and a resolved `StyleComponent`.
 
 ---
 
@@ -240,7 +240,7 @@ sequenceDiagram
     ELM->>ECS: Set State = Active
     ECS->>Egress: ScanAndPublish()
     Egress->>DDS: Write(EntityMaster)
-    Egress->>DDS: Write(GeoSpatial)
+    Egress->>DDS: Write(WorldPos)
 ```
 
 ### Flow 2: IG Receives and Renders Entities from SimHost
@@ -256,8 +256,8 @@ sequenceDiagram
     DDS->>Ingress: Receive EntityMaster
     Ingress->>ECS: PublishManaged(SpawnEntityCommand / InitType=None)
     ECS->>ECS: Create Ghost Entity
-    DDS->>Ingress: Receive GeoSpatial
-    Ingress->>ECS: SetComponent(GeoSpatial)
+    DDS->>Ingress: Receive WorldPos
+    Ingress->>ECS: SetComponent(WorldPos)
     ECS->>Style: Evaluate visual style (TKB + Overrides)
     Style->>ECS: SetComponent(ResolvedStyle)
     ECS->>Render: SstVisualizerAdapter.Render()
@@ -277,7 +277,7 @@ sequenceDiagram
     GW->>DDS: Write(CreateEntityRequest)
     DDS->>SH: Receive Request
     SH->>SH_ECS: PublishManaged(SpawnEntityCommand)
-    SH_ECS->>DDS: Write(EntityMaster + GeoSpatial)
+    SH_ECS->>DDS: Write(EntityMaster + WorldPos)
     SH->>DDS: Write(CreateEntityAck)
     DDS->>GW: TaskCompletionSource.SetResult(Ack)
 ```

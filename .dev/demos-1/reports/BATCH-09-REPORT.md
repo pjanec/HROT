@@ -98,7 +98,7 @@ The current isolation contract is correct. The scoped bus is a private pipeline 
 var config = new RecordingConfiguration
 {
     FilePath  = "my.fdp",
-    DrillId   = Guid.NewGuid(),
+    ExerciseId   = Guid.NewGuid(),
     Blocking  = true,   // prevents delta drops in tight synchronous loops
 };
 kernel.RegisterModule(new RecordingModule(config));

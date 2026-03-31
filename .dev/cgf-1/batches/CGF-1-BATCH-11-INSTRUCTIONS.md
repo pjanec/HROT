@@ -38,15 +38,15 @@ Complete **Part A** before **S0306** so gateway test coverage and doc hygiene do
 
 ### A.1 — `PushToNodesAsync` unit tests (P3)
 
-**File:** `Bagira.Orchestrator.Tests/StorageGatewayTests.cs` (extend)
+**File:** `Hrot.Orchestrator.Tests/StorageGatewayTests.cs` (extend)
 
 - Add tests analogous to Pull: e.g. one NAS source file copied to **multiple** local temp destinations; assert counts and files on disk.  
 - Add **partial failure** case (one bad target path or missing source).  
 - Close the matching **DEBT-TRACKER** row when merged.
 
-### A.2 — `DrillMaster` XML hygiene (P3)
+### A.2 — `ClusterMaster` XML hygiene (P3)
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`
 
 - Fix invalid `<see cref="_remainingAcks"/>` on the `SerializeLocalTask` / pending-task summary — replace with correct member reference or plain prose.
 
@@ -66,7 +66,7 @@ Normative behaviour is **§CGF1-S0306**; use §5.6 for narrative (N:M translator
 
 ### Deliverables (check against task detail — do not substitute the old generic-translator design)
 
-1. **Project** **`FDP/Toolkits/FDP.Toolkit.Scenario`** — references **`Fdp.Kernel`** + **`System.Text.Json`** only (**no** `Bagira.*`).
+1. **Project** **`FDP/Toolkits/FDP.Toolkit.Scenario`** — references **`Fdp.Kernel`** + **`System.Text.Json`** only (**no** `Hrot.*`).
 
 2. **`IEntityScenarioTranslator`** (**non-generic**, N:M):
    - `BitMask256 GetConsumedComponentsMask()`
@@ -117,7 +117,7 @@ Add new projects to the solution and document paths + any test-only component ty
 
 ## Success criteria
 
-- [x] Part A: `PushToNodesAsync` tests; `DrillMaster` XML fixed; DEBT rows closed. — [review §Summary](../reviews/CGF-1-BATCH-11-REVIEW.md#summary)  
+- [x] Part A: `PushToNodesAsync` tests; `ClusterMaster` XML fixed; DEBT rows closed. — [review §Summary](../reviews/CGF-1-BATCH-11-REVIEW.md#summary)  
 - [x] Part B: CGF1-S0306 success conditions — all listed **`FDP.Toolkit.Scenario.Tests`** green.  
 - [x] Solution build clean; relevant test projects green.  
 - [x] **DEBT-TRACKER** updated; **CGF-1-TASK-TRACKER** marks **S0306** `[x]` (**S0307** → BATCH-12).  

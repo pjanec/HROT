@@ -21,7 +21,7 @@ Ensure strict adherence to testing for all paths implemented.
 3. **Previous Review:** `.dev-workstream/reviews/BUG1-BATCH-02-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`, `Bagira.IOS/`
+- **Primary Work Area:** `Hrot.SimHost/`, `Hrot.ExCon/`
 - **Test Project:** Respective `.Tests` packages
 
 ### Report Submission
@@ -37,7 +37,7 @@ Ensure strict adherence to testing for all paths implemented.
 
 ### Task 1: Fix DoctrineFinished String Parsing Bug (BUG1-M001-A)  [P1 Critical]
 
-**File:** `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` (UPDATE)  
+**File:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` (UPDATE)  
 
 **Description:**
 User feedback indicates that vehicles don't move when assigned a task. The root cause is `MissionControlRequestSystem.ResolveTrigger()` does not contain a handler for the `"DoctrineFinished"` string pattern coming from the `MissionTrigger.Type` field over DDS. It falls through to the default of `(TimerElapsed, 0f)` which instantly completes the movement phase!
@@ -53,7 +53,7 @@ User feedback indicates that vehicles don't move when assigned a task. The root 
 
 ### Task 2: Translator Separation Test Coverage (BUG1-T005)
 
-**File:** `Bagira.SimHost.Tests` (CREATE/UPDATE)  
+**File:** `Hrot.SimHost.Tests` (CREATE/UPDATE)  
 
 **Description:**
 We separated egress translators in BATCH-02's `SimHostApp.OnLoad()`, but there's no automated test preventing regression on this specific behavior.
@@ -68,7 +68,7 @@ We separated egress translators in BATCH-02's `SimHostApp.OnLoad()`, but there's
 
 ### Task 3: Plumb NodeId into IosMock (BUG1-T006)
 
-**File:** `Bagira.Runner/Services/IosSubsystem.cs`, `Bagira.IOS/IosApplication.cs` (UPDATE)  
+**File:** `Hrot.ClusterRunner/Services/IosSubsystem.cs`, `Hrot.ExCon/IosApplication.cs` (UPDATE)  
 
 **Description:**
 The sub-system class saves the `_nodeIdOverride`, but it hasn't actually been passed down into `IosMock.InitializeEmbedded` yet.
@@ -84,7 +84,7 @@ The sub-system class saves the `_nodeIdOverride`, but it hasn't actually been pa
 
 ### Task 4: Command Async Round-trip Test (BUG1-T007)
 
-**File:** `Bagira.IOS.Tests` (UPDATE)  
+**File:** `Hrot.ExCon.Tests` (UPDATE)  
 
 **Description:**
 During BATCH-02, `HandleAbort` to `SendControlCommandAsync` updating `CommitInFlight` worked nicely, but there's no integration test validating the full TCS completion callback sets `CommitInFlight = false` and processes the version upcast correctly.

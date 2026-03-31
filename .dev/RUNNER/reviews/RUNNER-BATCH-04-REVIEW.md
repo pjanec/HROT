@@ -8,7 +8,7 @@
 ## 📌 Executive Summary
 The developer successfully executed several high-value, highly critical tasks including the 32-bit `EntityId` fixes to FDP's unsafe native code layer and the removal of `auto-assignment` from `ComponentTypeRegistry`.
 
-However, the batch **FAILED** on Task R0.2 (`Explicitly Attribute All Components`), crashing almost the entire test suite and all applications outside of the core `Fdp.Kernel`. The developer seemingly believed the solution was constrained to only one assembly, ignoring hundreds of components across `FDP.Toolkit.*`, `Bagira.IG`, `ModuleHost.Core`, and the application layer.
+However, the batch **FAILED** on Task R0.2 (`Explicitly Attribute All Components`), crashing almost the entire test suite and all applications outside of the core `Fdp.Kernel`. The developer seemingly believed the solution was constrained to only one assembly, ignoring hundreds of components across `FDP.Toolkit.*`, `Hrot.IG`, `ModuleHost.Core`, and the application layer.
 
 ## 📊 Task Review Details
 
@@ -17,7 +17,7 @@ However, the batch **FAILED** on Task R0.2 (`Explicitly Attribute All Components
 
 ### ❌ Task R0.2 — Explicitly Attribute All Components
 **Status: Fail.** The developer claimed to have attributed "All 164 production + ~92 test components". However, the developer seemingly restricted their search exclusively to `Fdp.Kernel` and `Fdp.Kernel.Tests`. 
-All components within `FDP.Toolkit.*`, `Bagira.IG`, `ModuleHost.Core`, and `Bagira.SimHost` were ignored. 
+All components within `FDP.Toolkit.*`, `Hrot.IG`, `ModuleHost.Core`, and `Hrot.SimHost` were ignored. 
 
 As a result, `dotnet test IOS-IG-SimHost.sln` violently crashed on hundreds of tests with `Component type 'XYZ' is missing a [ComponentId] attribute`. 
 
@@ -28,8 +28,8 @@ As a result, `dotnet test IOS-IG-SimHost.sln` violently crashed on hundreds of t
 **Status: Pass.** The developer completed the JSON models (`TestScript`, `TestStep`, `AssertionRule`) and parsing logic. The `HeadlessTestExecutor` correctly manages an initial stubbed headless update loop.
 
 ## ⚠️ Key Feedback for Developer
-1. **Solution-Wide Awareness:** FDP is a modular architecture containing numerous `Toolkit` directories and `Application` directories (`Bagira.*`). `Fdp.Kernel` is only the lowest tier. You must search the ENTIRE repository for things like `public struct` or `RegisterComponent<` when making sweeping ECS changes.
-2. **GlobalComponentIds Scope:** The `GlobalComponentIds.cs` file literally had dedicated documented ranges for `FDP.Toolkit` (20-49, 50-79, 80-109) and `Bagira.IG` (110-139). This alone should have indicated that they needed to be updated.
+1. **Solution-Wide Awareness:** FDP is a modular architecture containing numerous `Toolkit` directories and `Application` directories (`Hrot.*`). `Fdp.Kernel` is only the lowest tier. You must search the ENTIRE repository for things like `public struct` or `RegisterComponent<` when making sweeping ECS changes.
+2. **GlobalComponentIds Scope:** The `GlobalComponentIds.cs` file literally had dedicated documented ranges for `FDP.Toolkit` (20-49, 50-79, 80-109) and `Hrot.IG` (110-139). This alone should have indicated that they needed to be updated.
 
 ## ⏭️ Next Steps
 The next batch (`RUNNER-BATCH-05`) will be exclusively dedicated to fully completing Task R0.2 across the remainder of the FDP ecosystem, followed by the remaining Headless Test Framework tasks from Phase R3.

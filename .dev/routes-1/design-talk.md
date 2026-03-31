@@ -1,4 +1,4 @@
-﻿How do we now store and use predefined vehicle trajectories?
+How do we now store and use predefined vehicle trajectories?
 
 Predefined vehicle trajectories are now centrally stored and managed using a global **TrajectoryPoolManager** singleton rather than keeping path data directly on individual entities.
 
@@ -202,7 +202,7 @@ Here is the corrected architectural approach to handle high-precision global rou
 
 1\. `RoutePlan` Must Use Geodetic Doubles
 
-Unlike `EditablePolyline` which uses relative `Vector2` floats for fast canvas rendering, your new `RoutePlan` component must store double-precision geodetic coordinates. This aligns perfectly with the DDS `MapRoute` and `Waypoint` descriptors, which already use the double-precision `GeoPosition` struct.
+Unlike `EditablePolyline` which uses relative `Vector2` floats for fast canvas rendering, your new `RoutePlan` component must store double-precision geodetic coordinates. This aligns perfectly with the DDS `MapRoute` and `Waypoint` descriptors, which already use the double-precision `GeoPoint` struct.
 
 ```
 public struct RouteWaypoint
@@ -299,7 +299,7 @@ Here is the exact data-driven workflow for authoring, editing, and deleting rout
 The creation of a new route is driven by the IOS but executed interactively on the IG map canvas, culminating in an authoritative entity spawn on the SimHost.
 
 -   **IOS Intent:** The operator selects "Draw Route" on the IOS. The IOS publishes a `MapCommandRequest` over DDS with `Type = CommandType.CMD_START_AUTHORING`, supplying a specific `ContextId`.-   **IG Tool Activation:** The IG's `IgApplication` receives the command and routes it to the `MapCommandController`. This controller pushes the `PointSequenceTool` onto the `MapCanvas`.-   **Operator Input:** The operator left-clicks to drop waypoints (drawn as an elastic line) and right-clicks to commit the sequence.-   **Translation & Request:** The IG translates the drawn screen points into high-precision absolute geodetic coordinates (Latitude, Longitude, Altitude) to avoid floating-point loss over large distances. It then publishes a `CreateEntityRequest` to the SimHost containing:
-    -   `dtEntityMaster` (TKB type for a route)-   `dtGeoSpatial` (The centroid/reference point of the route)-   `dtMapRoute` (The sequence of high-precision geodetic waypoints).-   **SimHost Authority:** The SimHost's `CreateEntityRequestSystem` receives the request, allocates a network ID, and dispatches a `SpawnEntityCommand`. The `NetworkSpawningSystem` creates the authoritative ECS entity, attaches the `RoutePlan` component, and publishes the `EntityMaster`, `GeoSpatial`, and route descriptors back over DDS.-   **Pool Registration:** A reactive system on the SimHost (and IG) detects the new `RoutePlan` component, compiles the cubic spline math, and registers it into the `TrajectoryPoolManager` for kinematic sampling.
+    -   `dtEntityMaster` (TKB type for a route)-   `dtWorldPos` (The centroid/reference point of the route)-   `dtMapRoute` (The sequence of high-precision geodetic waypoints).-   **SimHost Authority:** The SimHost's `CreateEntityRequestSystem` receives the request, allocates a network ID, and dispatches a `SpawnEntityCommand`. The `NetworkSpawningSystem` creates the authoritative ECS entity, attaches the `RoutePlan` component, and publishes the `EntityMaster`, `WorldPos`, and route descriptors back over DDS.-   **Pool Registration:** A reactive system on the SimHost (and IG) detects the new `RoutePlan` component, compiles the cubic spline math, and registers it into the `TrajectoryPoolManager` for kinematic sampling.
 
 2\. Editing Flow (Mutation)
 
@@ -317,19 +317,19 @@ This flow guarantees that the IOS and IG handle only UI intent and descriptor fo
 
 Centroid does not make sense for map route as all waypoints are already absolute world coordinates.
 
-You are completely right. Applying the tactical graphic centroid logic to strategic routes is an architectural mismatch. Because the `MapRoute` DDS descriptor and our new `RoutePlan` ECS component store waypoints as absolute double-precision `GeoPosition`s, computing a centroid or treating `GeoSpatial` as a mathematical origin is totally redundant.
+You are completely right. Applying the tactical graphic centroid logic to strategic routes is an architectural mismatch. Because the `MapRoute` DDS descriptor and our new `RoutePlan` ECS component store waypoints as absolute double-precision `GeoPoint`s, computing a centroid or treating `WorldPos` as a mathematical origin is totally redundant.
 
 Here is how we adapt the architecture to cleanly support absolute world coordinates for routes, while keeping the rest of the ECS machinery happy:
 
 **1\. Skip the Centroid Math** When the operator finishes drawing a route using the `PointSequenceTool`, we do not calculate an arithmetic mean or subtract offsets. We simply take the absolute geodetic coordinates (Latitude, Longitude, Altitude) of every clicked point and pack them directly into the `dtMapRoute` descriptor.
 
-**2\. Use the First Waypoint as an "Anchor"** While the route's geometry does not need a `dtGeoSpatial` descriptor, our ECS framework expects physical entities to have a `SimTransform` for general spatial tooling. For example, the `MapCullingSystem`, the "Center on Entity" context menu action, and basic mouse picking all rely on an entity having a spatial position.
+**2\. Use the First Waypoint as an "Anchor"** While the route's geometry does not need a `dtWorldPos` descriptor, our ECS framework expects physical entities to have a `SimTransform` for general spatial tooling. For example, the `MapCullingSystem`, the "Center on Entity" context menu action, and basic mouse picking all rely on an entity having a spatial position.
 
-Instead of a centroid, we simply copy the **first waypoint** of the route into the `dtGeoSpatial` descriptor. This acts purely as a spatial anchor so the camera knows where to jump when an operator double-clicks the route in the ORBAT.
+Instead of a centroid, we simply copy the **first waypoint** of the route into the `dtWorldPos` descriptor. This acts purely as a spatial anchor so the camera knows where to jump when an operator double-clicks the route in the ORBAT.
 
 **3\. Ignore the Anchor for Execution** When your JIT compilation system feeds the route into the `TrajectoryPoolManager`, or when the IG renders the route line on the map, it strictly ignores the entity's `SimTransform`. It reads the absolute `RouteWaypoint`s from the `RoutePlan` component, converts them to local Cartesian space via `IGeographicTransform.ToCartesian`, and builds the spline.
 
-**4\. Editing an Absolute Route** Because we are dropping relative coordinates for routes, the `EditTool` implementation for routes will be slightly different than it is for `EditablePolyline`. When an operator moves a vertex, the tool translates the new screen position directly to an absolute `GeoPosition`. When the edit is committed, we send an `UpdateEntityDescriptorRequest` containing the fully updated `dtMapRoute` array, and if the first waypoint was moved, we also send a `dtGeoSpatial` update to keep the camera anchor in sync.
+**4\. Editing an Absolute Route** Because we are dropping relative coordinates for routes, the `EditTool` implementation for routes will be slightly different than it is for `EditablePolyline`. When an operator moves a vertex, the tool translates the new screen position directly to an absolute `GeoPoint`. When the edit is committed, we send an `UpdateEntityDescriptorRequest` containing the fully updated `dtMapRoute` array, and if the first waypoint was moved, we also send a `dtWorldPos` update to keep the camera anchor in sync.
 
 This keeps the route definition perfectly precise over global distances while satisfying the engine's baseline requirement that every physical entity has a transform.
 
@@ -426,7 +426,7 @@ public class RoutePlan
 
 To maintain global interoperability, the DDS wire protocol will remain strictly geodetic (Latitude, Longitude, Altitude) via the `MapRoute` and `Waypoint` descriptors. We isolate the coordinate projection entirely at the network edge using standard translators.
 
--   **Ingress (****MapRouteIngressTranslator****):** When a `MapRoute` message arrives from the network, the translator iterates over the `GeoPosition` waypoints. It passes them through `IGeographicTransform.ToCartesian` and writes the absolute `Vector3` coordinates into the `RoutePlan` component.-   **Egress (****MapRouteEgressTranslator****):** When an operator or AI modifies a `RoutePlan`, the egress system detects the mutation (e.g. via `SmartEgressUtil`). It iterates over the Cartesian waypoints, converts them back to global coordinates using `IGeographicTransform.ToGeodetic`, and broadcasts the `MapRoute` DDS topic.
+-   **Ingress (****MapRouteIngressTranslator****):** When a `MapRoute` message arrives from the network, the translator iterates over the `GeoPoint` waypoints. It passes them through `IGeographicTransform.ToCartesian` and writes the absolute `Vector3` coordinates into the `RoutePlan` component.-   **Egress (****MapRouteEgressTranslator****):** When an operator or AI modifies a `RoutePlan`, the egress system detects the mutation (e.g. via `SmartEgressUtil`). It iterates over the Cartesian waypoints, converts them back to global coordinates using `IGeographicTransform.ToGeodetic`, and broadcasts the `MapRoute` DDS topic.
 
 3\. The Performance Win: Zero-Cost Trajectory Compilation
 

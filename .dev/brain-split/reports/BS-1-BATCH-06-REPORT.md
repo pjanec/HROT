@@ -47,7 +47,7 @@ Added a round-trip latency note in both sites:
 
 ### BS1-T021 — Remove NavState poll from Action_Wander
 
-**File:** `Bagira.SimHost/Brains/SimHostNodes.cs`
+**File:** `Hrot.SimHost/Brains/SimHostNodes.cs`
 
 Removed the secondary `NavState.HasArrived` block from `Action_Wander`. The primary arrival detection via `channel.Status == NodeStatus.Success` is sufficient — it is set by `MoveToExecutor` which already reads from `NavigationStatus` (Brain-tier CQRS-compliant). Polling `NavState` (Muscle-tier physics input) directly was the precise violation this task targeted.
 
@@ -62,7 +62,7 @@ if (!needsNewTarget && ctx.World.HasComponent<NavState>(ctx.Self))
 }
 ```
 
-**Tests added:** `Bagira.SimHost.Tests/SimHostNodesWanderTests.cs` (new file, 3 tests):
+**Tests added:** `Hrot.SimHost.Tests/SimHostNodesWanderTests.cs` (new file, 3 tests):
 
 | Test | What it covers |
 |---|---|
@@ -80,7 +80,7 @@ if (!needsNewTarget && ctx.World.HasComponent<NavState>(ctx.Self))
 2. `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs`  
    — Replaced the `ReachedDestination` switch case (which read `NavState.HasArrived`) with the `DoctrineFinished` logic (checks `_doctrineFinishedThisFrame`). The `CarKinem.Core` import was removed (no longer needed). The class XML doc was updated to reflect the new behaviour.
 
-3. `Bagira.SimHost/SimHostVisualization.cs`  
+3. `Hrot.SimHost/SimHostVisualization.cs`  
    — Changed the DDS trigger string emitted by `HandleRightClickForEntity` from `"ReachedDestination"` to `"DoctrineFinished"`. Updated the method's XML doc comment accordingly.
 
 **Tests added/updated:**
@@ -90,7 +90,7 @@ if (!needsNewTarget && ctx.World.HasComponent<NavState>(ctx.Self))
   - New: `ReachedDestination_AdvancesPhase_ViaDoctrineFinishedEvent` (SC1)
   - New: `ReachedDestination_DoesNotAdvance_WhenOnlyNavStateHasArrived` (SC2 negative)
 
-- `Bagira.SimHost.Tests/SimHostVisualizationTests.cs`:
+- `Hrot.SimHost.Tests/SimHostVisualizationTests.cs`:
   - Updated `RightClick_BrainActive_WritesMissionWithTrigger` assertion from `"ReachedDestination"` to `"DoctrineFinished"` (SC3).
   - Updated class and method XML docs.
 
@@ -128,5 +128,5 @@ None. All changes are within the spec constraints. `ReachedDestination` enum val
 | Project | Tests | Status |
 |---|---|---|
 | `FDP.Toolkit.Behavior.Tests` | 75 | ✅ All passed |
-| `Bagira.SimHost.Tests` (non-integration) | 346 | ✅ All passed |
+| `Hrot.SimHost.Tests` (non-integration) | 346 | ✅ All passed |
 | Full solution build | — | ✅ No errors, no new warnings beyond expected CS0618 obsolete-use sites |

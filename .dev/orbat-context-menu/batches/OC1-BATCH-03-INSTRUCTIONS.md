@@ -20,7 +20,7 @@ We identified three additional bugs that survived BATCH-02. The previous batch c
 
 3. **Bug 3: IG Router Deletion uses Local `DestroyEntityCommand`**
    - **Context:** The "Delete entity" context menu item in `IgApplication.cs` publishes a `DestroyEntityCommand`, which only deletes the entity from the IG simulator world. To actually delete the entity correctly and synchronize it, the IG must request deletion from the SimHost (the owner) using `DeleteEntityRequest` over DDS.
-   - **Fix:** In `IgApplication.InitializeNetwork`, initialize a `private DdsWriter<Bagira.BDC.SSTM.DeleteEntityRequest> _deleteEntityDdsWriter`. When "Delete entity" is clicked in the IG context menu handler, if `_networkEnabled` is true, write a `DeleteEntityRequest { RequestId = Guid.NewGuid(), EntityId = (int)netId.Value }`. Only fall back to `DestroyEntityCommand` if `_networkEnabled` is false.
+   - **Fix:** In `IgApplication.InitializeNetwork`, initialize a `private DdsWriter<Hrot.NED.Messages.DeleteEntityRequest> _deleteEntityDdsWriter`. When "Delete entity" is clicked in the IG context menu handler, if `_networkEnabled` is true, write a `DeleteEntityRequest { RequestId = Guid.NewGuid(), EntityId = (int)netId.Value }`. Only fall back to `DestroyEntityCommand` if `_networkEnabled` is false.
 
 ## Feature Tasks
 

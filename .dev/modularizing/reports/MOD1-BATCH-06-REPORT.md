@@ -27,21 +27,21 @@
 
 | Suite | Passed | Total |
 |-------|--------|-------|
-| `Bagira.IG.Tests` | 300 | 300 |
-| `Bagira.SimHost.Tests` | 163 | 163 |
-| `Bagira.SimHost.Integration.Tests` | 24 | 24 |
+| `Hrot.IG.Tests` | 300 | 300 |
+| `Hrot.SimHost.Tests` | 163 | 163 |
+| `Hrot.SimHost.Integration.Tests` | 24 | 24 |
 | `FDP.Toolkit.Navigation.Tests` | 32 | 32 |
 | `FDP.Toolkit.Physics.Tests` | 21 | 21 |
 | `FDP.Toolkit.Perception.Tests` | 25 | 25 |
 
 **Key Test Scenarios Verified:**
-- [x] All 300 `Bagira.IG.Tests` pass including previously failing `EditToolTests.HandleDrag_*` and `AdvancedFeaturesIntegrationTests.Phase4`
+- [x] All 300 `Hrot.IG.Tests` pass including previously failing `EditToolTests.HandleDrag_*` and `AdvancedFeaturesIntegrationTests.Phase4`
 - [x] `PhysicsQueryModule_RegistersRaycastAndHitSystems` — 2 systems added to `SystemGroup`
 - [x] `AutonomousPerceptionModule_RegistersAllPerceptionSystems` — 3 `IModuleSystem` registrations via mocked `ISystemRegistry`
 - [x] `PathfindingSolverSystem_WritesRouteHandle` — Dijkstra finds 2-node path, writes non-negative `RouteHandle`
 - [x] `PathfindingSolverSystem_WritesUnreachable_WhenNoPath` — Default empty `RoadNetworkBlob` returns `IsReachable = false`
 - [x] `NavigationSolverModule_RegistersPathfindingSystem` — `ISystemRegistry.RegisterSystem` called exactly once
-- [x] `Bagira.SimHost` clean build after translator stubs added
+- [x] `Hrot.SimHost` clean build after translator stubs added
 
 ---
 
@@ -91,7 +91,7 @@ Yes. All four packs compile and integrate cleanly:
 
 One integration issue discovered during compilation: `IDescriptorTranslator` (in `FDP.Interfaces`) declares two members beyond `PollIngress`/`ScanAndPublish` — `ApplyToEntity(Entity, object, EntityRepository)` and `Dispose(long networkEntityId)`. All 12 initial translator stubs were missing these, causing `CS0535` errors. Added no-op implementations to all stubs.
 
-`NodeRole.Perception` and `NodeRole.NavigationSolver` were also added as new enum values to `Bagira.SimHost/NodeRole.cs`, and `NodeBootstrapper.BuildSimulationLogic` short-circuits for both roles with their dedicated modules instead of falling through to `SimulationLogicModule`. The `CognitivePack` (Brain-side AI translator set) is correctly skipped for Perception and NavigationSolver roles.
+`NodeRole.Perception` and `NodeRole.NavigationSolver` were also added as new enum values to `Hrot.SimHost/NodeRole.cs`, and `NodeBootstrapper.BuildSimulationLogic` short-circuits for both roles with their dedicated modules instead of falling through to `SimulationLogicModule`. The `CognitivePack` (Brain-side AI translator set) is correctly skipped for Perception and NavigationSolver roles.
 
 ---
 

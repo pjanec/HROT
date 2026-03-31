@@ -14,7 +14,7 @@ This document provides **detailed task breakdown** for implementing the `FDP.Too
 
 **Toolkit Location:** `FDP/Toolkits/FDP.Toolkit.NetworkSpawning/`
 
-**Key Insight:** All existing node-specific spawn helpers (`SpawnLocalEntities`, manual `CreateEntityRequestSystem`, manual `EntityMasterTranslator` construction) are replaced or simplified by this toolkit. The Toolkit has **zero dependency on `Bagira.DDS.DataModel`** — it is generic.
+**Key Insight:** All existing node-specific spawn helpers (`SpawnLocalEntities`, manual `CreateEntityRequestSystem`, manual `EntityMasterTranslator` construction) are replaced or simplified by this toolkit. The Toolkit has **zero dependency on `Hrot.NED`** — it is generic.
 
 ---
 
@@ -133,7 +133,7 @@ namespace FDP.Toolkit.NetworkSpawning.Events
 
         /// <summary>
         /// Optional component overrides applied on top of TKB template defaults.
-        /// Each item is an ECS component struct (e.g. EntityMaster, GeoSpatial, VehicleState).
+        /// Each item is an ECS component struct (e.g. EntityMaster, WorldPos, VehicleState).
         /// The runtime type of each item is used to call world.SetComponent dynamically.
         /// </summary>
         public List<object> InitialComponents;
@@ -525,7 +525,7 @@ namespace FDP.Toolkit.NetworkSpawning.Systems
 
         private ulong ExtractDisType(List<object> components)
         {
-            // Delegate-based extraction: keeps the Toolkit free of Bagira.DDS.DataModel.
+            // Delegate-based extraction: keeps the Toolkit free of Hrot.NED.
             // The DisTypeExtractor delegate is injected by the calling application.
             if (components == null || _disTypeExtractor == null) return 0;
             foreach (var comp in components)

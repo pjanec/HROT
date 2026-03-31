@@ -29,11 +29,11 @@ Complete **Part A** (small, correctness-first) **before** deep **S0203** work. F
 
 ## Part A — Tech debt & BATCH-05 follow-ups (first)
 
-### A.1 — **`DrillSlave` heartbeat must reflect local DSM** (P2 — BATCH-05 review)
+### A.1 — **`ClusterSlave` heartbeat must reflect local DSM** (P2 — BATCH-05 review)
 
-**File:** `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`  
+**File:** `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs`  
 
-- **`PublishHeartbeat()`** must set **`NodeHeartbeat.LocalDsmState`** from **`_localDsmState`** (after **`CommitState`** updates), not a hardcoded **`Standby`**.  
+- **`PublishHeartbeat()`** must set **`NodeHeartbeat.LocalClusterState`** from **`_localClusterState`** (after **`CommitState`** updates), not a hardcoded **`Standby`**.  
 - Add or extend a **unit test** (no DDS) that: enqueue **`CommitState`** with a non-Standby payload → **`Tick()`** → next heartbeat payload would carry the updated state **or** expose a test seam to assert the value written (prefer asserting observable behavior via a test double writer if the project already has one; otherwise minimal internal test hook consistent with **`EnqueueCommandForTest`**).  
 
 ### A.2 — **DEBT-TRACKER hygiene**
@@ -43,7 +43,7 @@ Complete **Part A** (small, correctness-first) **before** deep **S0203** work. F
 
 ### A.3 — **Optional quick wins** (if time remains before S0203)
 
-- Rename **`CommitState_RaisesEsmStateChangedEvent`** → **`CommitState_RaisesDsmStateChangedEvent`** in **`DrillSlaveHandlerTests`**.  
+- Rename **`CommitState_RaisesEsmStateChangedEvent`** → **`CommitState_RaisesClusterStateChangedEvent`** in **`ClusterSlaveHandlerTests`**.  
 - Add **`PlanTrajectory_WhitespaceOnlyPayload_Throws`** if you want explicit coverage (behavior may already be covered by **`IsNullOrWhiteSpace`**).
 
 ---
@@ -59,7 +59,7 @@ Verify and extend **`FDP.Toolkit.Time`** per task detail: **`ITimeController`**,
 
 ## Success criteria
 
-- [ ] Part A: **`LocalDsmState`** on SimHost heartbeats matches **`_localDsmState`**; test added; DEBT rows updated.  
+- [ ] Part A: **`LocalClusterState`** on SimHost heartbeats matches **`_localClusterState`**; test added; DEBT rows updated.  
 - [ ] Part B: CGF1-S0203 success conditions met.  
 - [ ] Solution build clean; tests green.  
 - [ ] DEBT-TRACKER updated.  

@@ -1,9 +1,9 @@
-﻿
+
 drag & drop of entities is now using ghost target position and the geospatil descriptor update request is sent only after a drop the ghost. How to add an option to send update during the dragging to test various latencies? sometime this hapend unintentionally - instead of dragging a ghost the whole entity gets dragged immediately.
 
 The reason you sometimes see the whole entity dragged immediately instead of a ghost is due to a difference between how the IG (Image Generator) and the SimHost handle interactions.
 
-If you accidentally perform the drag-and-drop inside the **SimHost** debug window, the `SimHostVisualization` directly mutates the authoritative `SimTransform` component every single frame during the drag. Because SimHost is the authority, its `GeoSpatialEgressTranslator` instantly detects this mutation and broadcasts the new position over DDS. This forces all connected IGs to update in real-time, completely bypassing the ghost-preview mechanism.
+If you accidentally perform the drag-and-drop inside the **SimHost** debug window, the `SimHostVisualization` directly mutates the authoritative `SimTransform` component every single frame during the drag. Because SimHost is the authority, its `WorldPosEgressTranslator` instantly detects this mutation and broadcasts the new position over DDS. This forces all connected IGs to update in real-time, completely bypassing the ghost-preview mechanism.
 
 To intentionally enable this "Continuous Backbone" drag mode on the IG to test latencies, you need to bridge the `OnEntityMoved` event to your DDS gateway, but you must be careful.
 
@@ -14,7 +14,7 @@ Here is the pragmatic way to implement this toggle without breaking the architec
 First, add a toggle to `MapUserConfig` so you can switch this behavior on and off via the Debug Panel.
 
 ```
-// In Bagira.IG.Components.MapUserConfig
+// In Hrot.IG.Components.MapUserConfig
 public bool ContinuousDragUpdates { get; set; }
 ```
 
@@ -24,7 +24,7 @@ Currently, `IgApplication.cs` bakes the DDS request creation directly into `OnEn
 
 ```
 // In IgApplication.cs
-private void SendGeoSpatialUpdate(Entity entity, Vector2 worldPos)
+private void SendWorldPosUpdate(Entity entity, Vector2 worldPos)
 {
     if (!_networkEnabled || _commandGateway == null || _geoTransform == null) return;
     
@@ -38,16 +38,16 @@ private void SendGeoSpatialUpdate(Entity entity, Vector2 worldPos)
     {
         RequestId      = Guid.NewGuid(),
         EntityId       = (int)netId,
-        DescriptorType = EDescriptorType.dtGeoSpatial,
+        DescriptorType = EDescriptorType.dtWorldPos,
         Payload        = new EntityDescriptorUnion
         {
-            _d         = EDescriptorType.dtGeoSpatial,
-            GeoSpatial = new GeoSpatial
+            _d         = EDescriptorType.dtWorldPos,
+            WorldPos = new WorldPos
             {
                 EntityId = (int)netId,
                 Time     = DateTime.UtcNow,
-                Pos      = new GeoPosition { Latitude = lat, Longitude = lon, Altitude = alt },
-                Rot      = new OrientationHPR() // Assuming orientation remains unchanged
+                Pos      = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },
+                Rot      = new EulerOri() // Assuming orientation remains unchanged
             }
         }
     };
@@ -76,7 +76,7 @@ interactionTool.OnEntityMoved += (entity, worldPos) =>
         _continuousDragTimer += Raylib.GetFrameTime();
         if (_continuousDragTimer > 0.1f) // Throttle to 10 Hz
         {
-            SendGeoSpatialUpdate(entity, worldPos);
+            SendWorldPosUpdate(entity, worldPos);
             _continuousDragTimer = 0f;
         }
     }
@@ -87,18 +87,18 @@ private void OnEntityDragEnded(Entity entity)
 {
     if (_lastDragWorldPos != default)
     {
-        SendGeoSpatialUpdate(entity, _lastDragWorldPos);
+        SendWorldPosUpdate(entity, _lastDragWorldPos);
         _lastDragWorldPos = default;
         _continuousDragTimer = 0f;
     }
 }
 ```
 
-This properly establishes the "Continuous Backbone" mode documented in your architecture. When enabled, the IG will send throttled descriptor updates during the drag, allowing you to observe network latency as the SimHost processes the request, mutates the authoritative ECS state, and egresses the `GeoSpatial` confirmation back to the IGs.
+This properly establishes the "Continuous Backbone" mode documented in your architecture. When enabled, the IG will send throttled descriptor updates during the drag, allowing you to observe network latency as the SimHost processes the request, mutates the authoritative ECS state, and egresses the `WorldPos` confirmation back to the IGs.
 
 the IOS should generate the entity delete item to the context menu item for any clicked entity - how?
 
-To expose the "Delete" action in the context menu for any clicked entity, you must modify the menu generation pipeline in `Bagira.IOS/Logic/ContextMenuLogic.cs`.
+To expose the "Delete" action in the context menu for any clicked entity, you must modify the menu generation pipeline in `Hrot.ExCon/Logic/ContextMenuLogic.cs`.
 
 Currently, the IOS architecture uses a `MenuStrategy` pattern to populate context menus, and the delete action (`ContextMenuActions.Delete`, mapping to ID `10`) is strictly isolated to the `MenuStrategy.Admin` role.
 
@@ -191,18 +191,18 @@ private void ProcessMapVisualOverlayUpdate(UpdateEntityDescriptorRequest req, En
 }
 ```
 
-3\. Fix `ProcessGeoSpatialUpdate`
+3\. Fix `ProcessWorldPosUpdate`
 
 Apply the exact same silent bypass for positional updates.
 
 ```
-private void ProcessGeoSpatialUpdate(UpdateEntityDescriptorRequest req, Entity entity)
+private void ProcessWorldPosUpdate(UpdateEntityDescriptorRequest req, Entity entity)
 {
     var view = (ISimulationView)World;
-    if (!view.HasAuthority(entity, GeoSpatialOrdinal))
+    if (!view.HasAuthority(entity, WorldPosOrdinal))
     {
         FdpLog<UpdateEntityDescriptorRequestSystem>.Debug(
-            "[UpdDescReq] Not authoritative for GeoSpatial on Entity {0}. Ignoring.",
+            "[UpdDescReq] Not authoritative for WorldPos on Entity {0}. Ignoring.",
             req.EntityId);
             
         // SILENT BYSTANDER: Drop quietly.
@@ -218,11 +218,11 @@ private void ProcessGeoSpatialUpdate(UpdateEntityDescriptorRequest req, Entity e
 
 By removing these anti-pattern ACKs, the system correctly delegates authority. Only the true owner of the descriptor will emit the confirmation, and the IOS `RequestTransactionManager` will receive exactly one correlation reply.
 
-i need to be able in bagira.runner to specify the node id for each subsystem - how? some command option?
+i need to be able in hrot.runner to specify the node id for each subsystem - how? some command option?
 
 Currently, the architecture hardcodes the node identifiers using static constants like `SimHostNetworkConstants.LocalNodeId = 1` and `IgNetworkConstants.InstanceId = 300`. This is an anti-pattern for a truly scalable federated simulation where you might want to run multiple instances of the same subsystem type.
 
-To pragmatically expose this as a command-line option in `Bagira.Runner`, you must thread a new `--node-id` argument through the FDP Runner framework down to the subsystem initialization. Because `Bagira.Runner` can host multiple subsystems in a single process (`-m all`), you should treat the CLI argument as a "base" ID and apply deterministic offsets per subsystem type to prevent DDS participant/instance collisions.
+To pragmatically expose this as a command-line option in `Hrot.ClusterRunner`, you must thread a new `--node-id` argument through the FDP Runner framework down to the subsystem initialization. Because `Hrot.ClusterRunner` can host multiple subsystems in a single process (`-m all`), you should treat the CLI argument as a "base" ID and apply deterministic offsets per subsystem type to prevent DDS participant/instance collisions.
 
 Here is the architectural path to implement this:
 
@@ -243,7 +243,7 @@ In **FDP.Framework.Runner/RunnerOptions.cs**:
 public int NodeId { get; set; }
 ```
 
-In **Bagira.Runner/Program.cs**: When building the `RunnerOptions`, pass the parsed value:
+In **Hrot.ClusterRunner/Program.cs**: When building the `RunnerOptions`, pass the parsed value:
 
 ```
 var runnerOptions = new RunnerOptions
@@ -339,7 +339,7 @@ Here is the objective breakdown of how the architecture currently handles this:
 
 1\. Single-Process Limitation
 
-You cannot start multiple IGs or IOSes within the _same_ `Bagira.Runner` process (e.g., `-m ig,ig`). The engine's `RunMode` is strictly implemented as a `[Flags]` enum, and the CLI parsing logic uses a bitwise-OR operation to resolve the string.
+You cannot start multiple IGs or IOSes within the _same_ `Hrot.ClusterRunner` process (e.g., `-m ig,ig`). The engine's `RunMode` is strictly implemented as a `[Flags]` enum, and the CLI parsing logic uses a bitwise-OR operation to resolve the string.
 
 If you pass `-m ig,ig`, it mathematically evaluates to a single `RunMode.IG` flag. Consequently, the runner will only instantiate one `IgSubsystem` and one `MapCanvas` for that process.
 
@@ -349,7 +349,7 @@ To run multiple IGs or IOSes, you must launch multiple instances of the runner e
 
 For example, to spin up two Image Generators, you execute:
 
--   `Bagira.Runner.exe -m ig --node-id 300`-   `Bagira.Runner.exe -m ig --node-id 301`
+-   `Hrot.ClusterRunner.exe -m ig --node-id 300`-   `Hrot.ClusterRunner.exe -m ig --node-id 301`
 
 Because of the CLI pass-through we established, the `SubsystemOrchestrator` will take that base ID and apply its deterministic offset (e.g., `+100` for IG). The first IG instance resolves to an internal Node ID of `400`, and the second resolves to `401`.
 
@@ -359,7 +359,7 @@ whan i run the 3 separate apps using bat script
 
 set DOMAIN=0
 
-## SET RUNNER=Bagira.Runner\\bin\\Debug\\net8.0\\Bagira.Runner.exe -d %DOMAIN%
+## SET RUNNER=Hrot.ClusterRunner\\bin\\Debug\\net8.0\\Hrot.ClusterRunner.exe -d %DOMAIN%
 
 start "SimHost" %RUNNER% -m simhost --no-wait start "IG" %RUNNER% -m ig --no-wait start "IOS" %RUNNER% -m ios --no-wait
 
@@ -371,7 +371,7 @@ all runs but the SimHost NEVER receives dds messages.
 
 set DOMAIN=0
 
-SET RUNNER=Bagira.Runner\\bin\\Debug\\net8.0\\Bagira.Runner.exe -d %DOMAIN%
+SET RUNNER=Hrot.ClusterRunner\\bin\\Debug\\net8.0\\Hrot.ClusterRunner.exe -d %DOMAIN%
 
 ## start "SimHost" %RUNNER% -m simhost --no-wait
 
@@ -398,7 +398,7 @@ Here is the objective breakdown of the failure chain:
 
 1\. The Domain Override Bug
 
-In `Bagira.Runner/Services/SimHostSubsystem.cs`, you are extracting the CLI domain argument with this logic:
+In `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`, you are extracting the CLI domain argument with this logic:
 
 ```
 int? domainOverride = config.DomainId > 0 ? config.DomainId : (int?)null;
@@ -410,7 +410,7 @@ Because your batch script explicitly sets `DOMAIN=0`, the expression `0 > 0` eva
 
 When `SimHostApp` attempts to load `config.json`, it looks in the Current Working Directory (CWD).
 
--   **When running via Visual Studio (****commandName: Project****):** The CWD is automatically set to the project output directory (`Bagira.Runner/bin/Debug/net8.0`). It finds `config.json`, reads `"DdsDomainId": 0`, and successfully joins Domain 0.-   **When running via the batch script:** The CWD is your solution root. It fails to find `config.json` there and falls back to the hardcoded defaults in `NodeConfiguration.cs`, where `DdsDomainId` defaults to `42`.
+-   **When running via Visual Studio (****commandName: Project****):** The CWD is automatically set to the project output directory (`Hrot.ClusterRunner/bin/Debug/net8.0`). It finds `config.json`, reads `"DdsDomainId": 0`, and successfully joins Domain 0.-   **When running via the batch script:** The CWD is your solution root. It fails to find `config.json` there and falls back to the hardcoded defaults in `NodeConfiguration.cs`, where `DdsDomainId` defaults to `42`.
 
 Meanwhile, `IG` and `IOS` do not have this `> 0` guard logic. They accept `DomainId = 0` directly from the runner config and join Domain 0.
 
@@ -438,8 +438,8 @@ public void Initialize(SubsystemConfig config)
 set DOMAIN=0
 
 :: Change working directory to the compiled output folder
-cd /d "%~dp0Bagira.Runner\bin\Debug\net8.0"
-SET RUNNER=Bagira.Runner.exe
+cd /d "%~dp0Hrot.ClusterRunner\bin\Debug\net8.0"
+SET RUNNER=Hrot.ClusterRunner.exe
 
 start "SimHost" %RUNNER% -d %DOMAIN% -m simhost --no-wait
 start "IG"      %RUNNER% -d %DOMAIN% -m ig --no-wait
@@ -474,11 +474,11 @@ foreach (var translator in _allEgressTranslators)
 }
 ```
 
-Since all high-performance translators in the engine (such as `GeoSpatialEgressTranslator`, `AutoCycloneTranslator`, and `MultiInstanceCycloneTranslator`) already implement `Dispose(long networkEntityId)` to correctly patch the key and call `Writer.DisposeInstance`, iterating through them in your cleanup system will successfully broadcast the DDS disposal for every active topic.
+Since all high-performance translators in the engine (such as `WorldPosEgressTranslator`, `AutoCycloneTranslator`, and `MultiInstanceCycloneTranslator`) already implement `Dispose(long networkEntityId)` to correctly patch the key and call `Writer.DisposeInstance`, iterating through them in your cleanup system will successfully broadcast the DDS disposal for every active topic.
 
 I know that BDC does not need that, but i want to delete them to avoid sending thousands of samples of INVALID entities to late joiners who would treat those as ghost descriptors and will wait for a while for the master descriptor.
 
-Your reasoning is completely justified. While the theoretical BDC architecture dictates that existence is tied strictly to `EntityMaster`, the reality of DDS middleware is that `TransientLocal` durability queues will aggressively cache those orphaned descriptor samples. If you do not actively dispose of them, a late-joining IG will download thousands of stale `GeoSpatial` or `EntityInfo` samples, reconstruct partial ghosts, and needlessly burn CPU/memory waiting for a master descriptor that will never arrive.
+Your reasoning is completely justified. While the theoretical BDC architecture dictates that existence is tied strictly to `EntityMaster`, the reality of DDS middleware is that `TransientLocal` durability queues will aggressively cache those orphaned descriptor samples. If you do not actively dispose of them, a late-joining IG will download thousands of stale `WorldPos` or `EntityInfo` samples, reconstruct partial ghosts, and needlessly burn CPU/memory waiting for a master descriptor that will never arrive.
 
 To purge the DDS middleware caches pragmatically, you must refactor `CycloneNetworkCleanupSystem` to fan out the disposal command to every registered egress translator.
 
@@ -633,7 +633,7 @@ The Pragmatic Fix
 
 Since the IOS does not yet have a dedicated trigger-authoring UI, the pragmatic solution is to automatically assign a sensible default trigger when the operator selects a behavior.
 
-Update the `HandleEditBehaviorId` method in `Bagira.IOS/Panels/MissionPanel.cs` to automatically inject the `ReachedDestination` trigger for spatial behaviors:
+Update the `HandleEditBehaviorId` method in `Hrot.ExCon/Panels/MissionPanel.cs` to automatically inject the `ReachedDestination` trigger for spatial behaviors:
 
 ```
 public void HandleEditBehaviorId(int index, string behaviorId)
@@ -677,7 +677,7 @@ Here is how the backend pipeline already supports it:
 
 To implement this pragmatically, you just need to update the IOS UI to use `"DoctrineFinished"` as the default trigger when building the DDS payload.
 
-First, if you implemented the previous workaround in `HandleEditBehaviorId`, remove it so it stops overwriting triggers. Then, update the `HandleAddTask` method in `Bagira.IOS/Panels/MissionPanel.cs` to inject the trigger at the moment of task creation:
+First, if you implemented the previous workaround in `HandleEditBehaviorId`, remove it so it stops overwriting triggers. Then, update the `HandleAddTask` method in `Hrot.ExCon/Panels/MissionPanel.cs` to inject the trigger at the moment of task creation:
 
 ```
 public void HandleAddTask()
@@ -719,7 +719,7 @@ To fix this properly, you must upgrade `SendControlCommand` to an asynchronous, 
 
 1\. Update the Service Contract
 
-In `Bagira.IOS/Services/IMissionEditorService.cs`, change the signature to return a `Task<MissionCommitResult>`:
+In `Hrot.ExCon/Services/IMissionEditorService.cs`, change the signature to return a `Task<MissionCommitResult>`:
 
 ```
 /// <summary>
@@ -732,7 +732,7 @@ Task<MissionCommitResult> SendControlCommandAsync(
 
 2\. Implement the Tracked Command
 
-In `Bagira.IOS/Services/MissionEditorService.cs`, replace the existing `SendControlCommand` with the async version. This mirrors your `CommitMissionAsync` implementation, guaranteeing the ACK is captured:
+In `Hrot.ExCon/Services/MissionEditorService.cs`, replace the existing `SendControlCommand` with the async version. This mirrors your `CommitMissionAsync` implementation, guaranteeing the ACK is captured:
 
 ```
 public async Task<MissionCommitResult> SendControlCommandAsync(long entityId, eMissionCommandType type, Guid taskId)
@@ -777,7 +777,7 @@ public async Task<MissionCommitResult> SendControlCommandAsync(long entityId, eM
 
 3\. Route Through the UI State Machine
 
-In `Bagira.IOS/Panels/MissionPanel.cs`, update your button handlers to assign the returned Task to `_pendingCommit`.
+In `Hrot.ExCon/Panels/MissionPanel.cs`, update your button handlers to assign the returned Task to `_pendingCommit`.
 
 Because you already have `PollCommitCompletion()` written to automatically extract `result.NewVersion` and assign it to `_draftBaseVersion`, routing the control commands through this same pipeline fixes the desync entirely.
 
@@ -819,5 +819,5 @@ Consequently, when the `SimHostRoadLayer` attempts to render the graph during th
 
 This is a direct symptom of the working directory mismatch we discussed earlier. If you launch the executables from a batch script located at the solution root, the relative path `Assets/sample_road.json` does not exist in that context. The `RoadNetworkLoader` throws a `FileNotFoundException`, the catch block hides it, and the application continues without roads.
 
-To fix this, you must ensure your batch script changes the current working directory to the compiled output folder (e.g., `cd /d "%~dp0Bagira.Runner\bin\Debug\net8.0"`) before starting the processes. This will allow the engine to resolve the relative `Assets/` path correctly and populate the spatial grid for rendering.
+To fix this, you must ensure your batch script changes the current working directory to the compiled output folder (e.g., `cd /d "%~dp0Hrot.ClusterRunner\bin\Debug\net8.0"`) before starting the processes. This will allow the engine to resolve the relative `Assets/` path correctly and populate the spatial grid for rendering.
 

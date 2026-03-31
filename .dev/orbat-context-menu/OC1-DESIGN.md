@@ -50,7 +50,7 @@ When the operator clicks "Draw Route" in the IOS SpawnerPanel, the `PointSequenc
 
 **Hypothesis A (layer visibility):** The route entity IS successfully created and written to the DerRepo, but it falls under the `road_graphs` layer (see OC1-B002) which may be disabled by default, making it invisible on the map.  The ORBAT tree should still show it regardless of layer state.
 
-**Hypothesis B (creation pipeline failure):** The IG's `ActivateRouteAuthoringTool` emits `CreateEntityRequest` via `_mapCommandController.OnAreaEntityCreated()` or the fallback `_createEntityDdsWriter`.  In full runner mode (`Bagira.Runner -m all`) there may be a path where this request is not reaching the SimHost — either a DDS topic connectivity issue, a writer not being initialised in the `MapCommandController`, or a missing subscription on the SimHost side.
+**Hypothesis B (creation pipeline failure):** The IG's `ActivateRouteAuthoringTool` emits `CreateEntityRequest` via `_mapCommandController.OnAreaEntityCreated()` or the fallback `_createEntityDdsWriter`.  In full runner mode (`Hrot.ClusterRunner -m all`) there may be a path where this request is not reaching the SimHost — either a DDS topic connectivity issue, a writer not being initialised in the `MapCommandController`, or a missing subscription on the SimHost side.
 
 The investigation must determine which hypothesis is correct (or if both apply) and fix accordingly.
 
@@ -68,10 +68,10 @@ Investigate whether any currently-spawned entities use the `road_graphs` layer f
 
 When the operator uses the area-authoring tool (tactical shapes), the shape displayed after confirmation appears at a **different position** than the polygon that was drawn.
 
-In `IgApplication.ActivateAreaAuthoringTool`, the `GeoSpatial.Pos` anchor is computed as the **arithmetic mean of all vertex positions** (centroid), and the polygon outline vertices may be stored as either absolute coordinates or offsets relative to this centroid.  Two known failure modes:
+In `IgApplication.ActivateAreaAuthoringTool`, the `WorldPos.Pos` anchor is computed as the **arithmetic mean of all vertex positions** (centroid), and the polygon outline vertices may be stored as either absolute coordinates or offsets relative to this centroid.  Two known failure modes:
 
-- **Offset interpretation mismatch:** If vertices are stored as absolute geodetic coordinates but the renderer interprets them as offsets added to `GeoSpatial.Pos`, the displayed shape is translated by the centroid amount.
-- **Timing / component race:** If the `MapOverlayOutline` component arrives on the IOS before the `GeoSpatial` component is processed, the shape may be rendered at a default or zero position on the first frame and snap later, giving the appearance of being placed at the wrong location.
+- **Offset interpretation mismatch:** If vertices are stored as absolute geodetic coordinates but the renderer interprets them as offsets added to `WorldPos.Pos`, the displayed shape is translated by the centroid amount.
+- **Timing / component race:** If the `MapOverlayOutline` component arrives on the IOS before the `WorldPos` component is processed, the shape may be rendered at a default or zero position on the first frame and snap later, giving the appearance of being placed at the wrong location.
 
 Investigate the full chain: canvas screen-coords → `_geoTransform.ToGeodetic` → centroid calculation → descriptor serialisation → IOS-side rendering.  Verify the absolute-vs-relative coordinate contract between `ActivateAreaAuthoringTool` and the shape renderer, and fix whichever side violates the contract.
 
@@ -89,7 +89,7 @@ When an entity is deleted using the **IG entity inspector context menu** ("Delet
 
 ### 1.1 New Command Type — `CMD_DRAW_PERSONAL_ROUTE`  *(OC1-C001)*
 
-The `CommandType` enum in `Bagira.DDS.DataModel/MapMessages.cs` needs one new entry:
+The `CommandType` enum in `Hrot.NED/MapMessages.cs` needs one new entry:
 
 ```csharp
 /// <summary>
@@ -117,7 +117,7 @@ The codebase contains two deliberately distinct structs with the same conceptual
 | Struct | Namespace | Role |
 |--------|-----------|------|
 | `FDP.Toolkit.Navigation.FollowRouteParams` | FDP engine | Written directly into `LocomotionChannel.Params`; consumed by the locomotion engine. Uses local `int TrajectoryId`. |
-| `Bagira.SimHost.Brains.SimHostNodes.FollowRouteParams` | Application-layer BTree | Written via `Unsafe.Write` into `BrainBlackboard.Memory`; read by `Action_WriteFollowRouteChannel`. Also uses local `int TrajectoryId`. |
+| `Hrot.SimHost.Brains.SimHostNodes.FollowRouteParams` | Application-layer BTree | Written via `Unsafe.Write` into `BrainBlackboard.Memory`; read by `Action_WriteFollowRouteChannel`. Also uses local `int TrajectoryId`. |
 
 Both structs intentionally use a local `int TrajectoryId` — an ephemeral `TrajectoryPoolManager` memory index that is **never replicated over the network**.  The FDP engine (`FDP.Toolkit.*`) is strictly decoupled from network and replication layers and must remain so.  **Neither struct is changed by this task.**
 
@@ -178,7 +178,7 @@ case CommandType.CMD_SET_VIEW:
 
 `ParseCommandAndSetView` parses `entityId` from the JSON args, resolves the entity via `_entityMap.TryGetEntity`, and calls the existing `CenterCameraOn(entity)` method.
 
-**Why IG resolves the position (not IOS):**  If the IOS were to read `GeoSpatial` coordinates from its local `DerRepo` and send explicit lat/lon, those coordinates would be several frames stale by the time the IG receives the command (the entity may have moved).  The IG queries `SimTransform` at the exact frame the camera moves, guaranteeing stutter-free centering with no race condition.
+**Why IG resolves the position (not IOS):**  If the IOS were to read `WorldPos` coordinates from its local `DerRepo` and send explicit lat/lon, those coordinates would be several frames stale by the time the IG receives the command (the entity may have moved).  The IG queries `SimTransform` at the exact frame the camera moves, guaranteeing stutter-free centering with no race condition.
 
 ### 3.3 Handle `CMD_DRAW_PERSONAL_ROUTE` — IG Orchestration  *(OC1-G003)*
 
@@ -290,12 +290,12 @@ IOS (local)                 IOS → DDS                   IG
 
 | File | Change |
 |------|--------|
-| `Bagira.DDS.DataModel/MapMessages.cs` | Add `CMD_DRAW_PERSONAL_ROUTE` to `CommandType` enum |
-| `Bagira.SimHost/Brains/SimHostNodes.cs` | Replace `TrajectoryId` with `RouteNetworkId`; update parser and action delegate |
-| `Bagira.IG/IgApplication.cs` | Handle `CMD_SET_SELECTION`, `CMD_SET_VIEW`, `CMD_DRAW_PERSONAL_ROUTE` in command loop; add orchestration method |
-| `Bagira.IOS/Panels/OrbatPanel.cs` | Add right-click context menu; add `IsSimulatedEntity` helper |
-| `Bagira.IOS/IosLogic.cs` | Add `SendSetSelection`, `CenterOnEntity`, `DeleteEntity`, `StartPersonalRouteAuthoring`; track `_pendingDeleteEntityIds` |
-| `Bagira.IOS/Abstractions/IIosLogic.cs` | Extend interface with the new methods above |
-| `Bagira.SimHost.Tests/Brains/SimHostNodesTests.cs` | New test class for OC1-S001 |
-| `Bagira.IG.Tests/` | New test class(es) for OC1-G001, OC1-G002, OC1-G003 |
-| `Bagira.IOS.Tests/` | New test class for OC1-I001 through OC1-I006 |
+| `Hrot.NED/MapMessages.cs` | Add `CMD_DRAW_PERSONAL_ROUTE` to `CommandType` enum |
+| `Hrot.SimHost/Brains/SimHostNodes.cs` | Replace `TrajectoryId` with `RouteNetworkId`; update parser and action delegate |
+| `Hrot.IG/IgApplication.cs` | Handle `CMD_SET_SELECTION`, `CMD_SET_VIEW`, `CMD_DRAW_PERSONAL_ROUTE` in command loop; add orchestration method |
+| `Hrot.ExCon/Panels/OrbatPanel.cs` | Add right-click context menu; add `IsSimulatedEntity` helper |
+| `Hrot.ExCon/IosLogic.cs` | Add `SendSetSelection`, `CenterOnEntity`, `DeleteEntity`, `StartPersonalRouteAuthoring`; track `_pendingDeleteEntityIds` |
+| `Hrot.ExCon/Abstractions/IIosLogic.cs` | Extend interface with the new methods above |
+| `Hrot.SimHost.Tests/Brains/SimHostNodesTests.cs` | New test class for OC1-S001 |
+| `Hrot.IG.Tests/` | New test class(es) for OC1-G001, OC1-G002, OC1-G003 |
+| `Hrot.ExCon.Tests/` | New test class for OC1-I001 through OC1-I006 |

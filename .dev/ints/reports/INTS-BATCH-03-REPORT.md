@@ -11,31 +11,31 @@
 
 | Task ID | Status | Notes |
 |---------|--------|-------|
-| CORRECTIVE-0 | ✅ Complete | Removed reflection from `BagiraEnvironment.CreateTkb`; replaced with explicit registrar delegate (`Action<TkbDatabase>`) and composition-root registration (`BdcTkbCatalog.RegisterAll`) |
-| INTS-P3-011 | ✅ Complete | Added `FdpLog` trace points in SimHost spawn flow (`SimHostScenarioManager`, `NetworkSpawningSystem`, `EntityLifecycleModule`, `GeoSpatialEgressTranslator`, request ingress/ack path) |
-| INTS-P3-012 | ✅ Complete | Added IG ingress/render traces in `EntityMasterTranslator.ProcessSample`, `GeoSpatialTranslator.Decode`, `StyleResolutionSystem.Execute`, and first-render-only trace in `SstVisualizerAdapter.Render` |
+| CORRECTIVE-0 | ✅ Complete | Removed reflection from `HrotEnvironment.CreateTkb`; replaced with explicit registrar delegate (`Action<TkbDatabase>`) and composition-root registration (`BdcTkbCatalog.RegisterAll`) |
+| INTS-P3-011 | ✅ Complete | Added `FdpLog` trace points in SimHost spawn flow (`SimHostScenarioManager`, `NetworkSpawningSystem`, `EntityLifecycleModule`, `WorldPosEgressTranslator`, request ingress/ack path) |
+| INTS-P3-012 | ✅ Complete | Added IG ingress/render traces in `EntityMasterTranslator.ProcessSample`, `WorldPosTranslator.Decode`, `StyleResolutionSystem.Execute`, and first-render-only trace in `SstVisualizerAdapter.Render` |
 | INTS-P3-013 | ✅ Complete | Added Flow 3–6 traces for gateway/request/IOS transaction handling and IG `MapInteractionConfig` ingress (`BdcCommandGateway`, `CreateEntityRequestSystem`, `IosLogic`, `RequestTransactionManager`, `IgApplication`) |
-| INTS-P3-014 | ✅ Complete | Added headless lifecycle integration test in `Bagira.SimHost.Integration.Tests/EntityLifecycleIntegrationTests.cs` validating spawn → geospatial → style resolution chain |
+| INTS-P3-014 | ✅ Complete | Added headless lifecycle integration test in `Hrot.SimHost.Integration.Tests/EntityLifecycleIntegrationTests.cs` validating spawn → geospatial → style resolution chain |
 
 ---
 
 ## 🧪 Testing Results
 
 **Executed test commands:**
-- `dotnet test .\Bagira.Map.Common.Tests\Bagira.Map.Common.Tests.csproj`
-- `dotnet test .\Bagira.IOS.Tests\Bagira.IOS.Tests.csproj`
-- `dotnet test .\Bagira.IG.Tests\Bagira.IG.Tests.csproj`
-- `dotnet test .\Bagira.SimHost.Tests\Bagira.SimHost.Tests.csproj`
-- `dotnet test .\Bagira.SimHost.Integration.Tests\Bagira.SimHost.Integration.Tests.csproj`
-- `dotnet test .\Bagira.Runner.Tests\Bagira.Runner.Tests.csproj`
+- `dotnet test .\Hrot.Map.Common.Tests\Hrot.Map.Common.Tests.csproj`
+- `dotnet test .\Hrot.ExCon.Tests\Hrot.ExCon.Tests.csproj`
+- `dotnet test .\Hrot.IG.Tests\Hrot.IG.Tests.csproj`
+- `dotnet test .\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj`
+- `dotnet test .\Hrot.SimHost.Integration.Tests\Hrot.SimHost.Integration.Tests.csproj`
+- `dotnet test .\Hrot.ClusterRunner.Tests\Hrot.ClusterRunner.Tests.csproj`
 
 **Result summary:**
-- `Bagira.Map.Common.Tests`: 6/6 passed
-- `Bagira.IOS.Tests`: 256/256 passed
-- `Bagira.IG.Tests`: 233/233 passed
-- `Bagira.SimHost.Tests`: 67/67 passed
-- `Bagira.SimHost.Integration.Tests`: 8/8 passed
-- `Bagira.Runner.Tests`: 92/92 passed
+- `Hrot.Map.Common.Tests`: 6/6 passed
+- `Hrot.ExCon.Tests`: 256/256 passed
+- `Hrot.IG.Tests`: 233/233 passed
+- `Hrot.SimHost.Tests`: 67/67 passed
+- `Hrot.SimHost.Integration.Tests`: 8/8 passed
+- `Hrot.ClusterRunner.Tests`: 92/92 passed
 
 **Total validated tests:** 662/662 passed
 
@@ -46,20 +46,20 @@
 **Q1: What architectural adjustments did you make to resolve the Reflection hack from the previous batch? Why was your new approach functionally superior?**
 
 I replaced reflection-based catalog discovery with explicit dependency inversion at bootstrap time:
-- `BagiraEnvironment.CreateTkb()` now accepts an optional registrar delegate (`Action<TkbDatabase>? registerCatalogs`), and no longer references `System.Reflection`.
+- `HrotEnvironment.CreateTkb()` now accepts an optional registrar delegate (`Action<TkbDatabase>? registerCatalogs`), and no longer references `System.Reflection`.
 - Composition roots (`IgApplication`, `SimHostApp`) pass `BdcTkbCatalog.RegisterAll` explicitly.
 
 This is functionally superior because registration is now compile-time safe, refactor-safe, and transparent at call sites. It removes brittle runtime type-name/method lookup failures and preserves clean assembly boundaries (no circular project references).
 
 **Q2: What issues did you encounter during implementation? How did you resolve them?**
 
-The first attempt to make `Bagira.Map.Common` reference `Bagira.Map.Definitions` caused a cycle because `Bagira.Map.Definitions` depends on `Bagira.Map.Common` (`TkbEntityTypes`). I resolved it by reverting that direction and implementing the delegate-based registration model instead.
+The first attempt to make `Hrot.Map.Common` reference `Hrot.Map.Definitions` caused a cycle because `Hrot.Map.Definitions` depends on `Hrot.Map.Common` (`TkbEntityTypes`). I resolved it by reverting that direction and implementing the delegate-based registration model instead.
 
 A second issue was test harness assumptions in the new integration test (`Truck_HMMWV` not present in harness TKB setup + expecting non-empty texture name). I switched to `Tank_M1Abrams` and validated style existence via non-zero resolved tint instead of texture-name non-emptiness.
 
 **Q3: Did you spot any weak points in the existing codebase? What would you improve?**
 
-There is still duplicated app-bootstrap composition across IG/SimHost/Runner paths. A next step would be a small shared composition helper in app-layer code (not in `Bagira.Map.Common`) to reduce duplicated wiring while keeping project dependencies acyclic.
+There is still duplicated app-bootstrap composition across IG/SimHost/Runner paths. A next step would be a small shared composition helper in app-layer code (not in `Hrot.Map.Common`) to reduce duplicated wiring while keeping project dependencies acyclic.
 
 **Q4: What design decisions did you make beyond the instructions? What alternatives did you consider?**
 

@@ -50,37 +50,37 @@ BTreeTickSystem                                                 LinearKinemat...
 
 ---
 
-## 2.5 FDP vs Bagira — Namespace Assignment Principles
+## 2.5 FDP vs Hrot — Namespace Assignment Principles
 
-A key architectural goal of this workstream is to **lift generic, domain-agnostic logic into the `FDP.*` namespace** as reusable toolkit libraries, while keeping Bagira-specific data contracts and orchestration in `Bagira.*`. This boundary is enforced by the following rule:
+A key architectural goal of this workstream is to **lift generic, domain-agnostic logic into the `FDP.*` namespace** as reusable toolkit libraries, while keeping Hrot-specific data contracts and orchestration in `Hrot.*`. This boundary is enforced by the following rule:
 
-> **FDP toolkit code is ignorant of what entities _are_.** It knows only how to move generic component data (e.g. `SimTransform`, byte arrays, native arrays). If a module or system needs to know that an entity is "a tank" or refers to a Bagira-specific DDS topic, it belongs in Bagira.
+> **FDP toolkit code is ignorant of what entities _are_.** It knows only how to move generic component data (e.g. `SimTransform`, byte arrays, native arrays). If a module or system needs to know that an entity is "a tank" or refers to a Hrot-specific DDS topic, it belongs in Hrot.
 
 ### Assignment Table
 
-| Area | FDP Toolkit Home | What Stays in Bagira |
+| Area | FDP Toolkit Home | What Stays in Hrot |
 |---|---|---|
-| **AI / Behavior** | `FDP.Toolkit.Behavior` — `MissionControlModule`, `CognitiveRuntimeModule`, `ActionDispatchModule` | `CombatModule` (Bagira weapon domain) |
-| **Navigation Contract (ECS)** | `FDP.Toolkit.Navigation` — `NavigationIntent` component, `NavigationStatus` component, engine-side `NavigationMode` + `NavigationResult` enums | `ENavigationMode` / `ENavigationResult` (DDS wire enums in `Bagira.BDC.SSTD`); `NavigationIntent` / `NavigationStatus` DDS descriptors |
+| **AI / Behavior** | `FDP.Toolkit.Behavior` — `MissionControlModule`, `CognitiveRuntimeModule`, `ActionDispatchModule` | `CombatModule` (Hrot weapon domain) |
+| **Navigation Contract (ECS)** | `FDP.Toolkit.Navigation` — `NavigationIntent` component, `NavigationStatus` component, engine-side `NavigationMode` + `NavigationResult` enums | `ENavigationMode` / `ENavigationResult` (DDS wire enums in `Hrot.NED.Descriptors`); `NavigationIntent` / `NavigationStatus` DDS descriptors |
 | **Ground Kinematics** | `FDP.Toolkit.CarKinem` — `GroundKinematicsModule` | Project-specific road-network and trajectory pool injection |
 | **Terrain Query / Ground Clamping** | `FDP.Toolkit.Geographic` — terrain batch types, clamping systems, `GroundClampingModule` base, `EClampingMode` (engine-side enum, separate from DDS wire enum) | `IgGroundClampingModule` (IG-specific terrain provider wiring); `GroundClampingOverride` DDS descriptor and its translator |
-| **Perception & Sensors** | `FDP.Toolkit.Perception` — `AutonomousPerceptionModule`, `PhysicsQueryModule`, sensor batch singletons | `BrainPerceptionTranslatorPack`, `SimPerceptionTranslatorPack` (Bagira DDS schema) |
+| **Perception & Sensors** | `FDP.Toolkit.Perception` — `AutonomousPerceptionModule`, `PhysicsQueryModule`, sensor batch singletons | `BrainPerceptionTranslatorPack`, `SimPerceptionTranslatorPack` (Hrot DDS schema) |
 | **Pathfinding** | `FDP.Toolkit.Navigation` — `PathfindingBatchData`, `NavigationSolverModule` | `BrainPathfindingTranslatorPack`, `SimPathfindingTranslatorPack` |
-| **Recording / Replay** | `FDP.Toolkit.Replay` — `RecordingModule`, `ReplayModule`, `StoryRecorderModule`, `RecordingConfiguration`, `StoryTag`, `StoryReplayTag` | `EcsRecordReplayController` (binds recording lifecycle to Bagira DDS/DSM commands) |
+| **Recording / Replay** | `FDP.Toolkit.Replay` — `RecordingModule`, `ReplayModule`, `StoryRecorderModule`, `RecordingConfiguration`, `StoryTag`, `StoryReplayTag` | `EcsRecordReplayController` (binds recording lifecycle to Hrot DDS/DSM commands) |
 | **Presentation** | `FDP.Toolkit.Vis2D` — `IEntityFilterFactory`, `LayerMaskFilter`, shared `EntityRenderLayer` infrastructure | `IgPresentationModule`, `SimPresentationModule`, `SstVisualizerAdapter` |
 | **Time Synchronization** | `FDP.Toolkit.Time` — `MasterTimeController`, `SlaveTimeController`, `TimePulseDescriptor`, `TimePulseIngressTranslator`, `TimePulseEgressTranslator` | (nothing — time sync is fully generic) |
-| **Entity Lifecycle** | `FDP.Toolkit.Lifecycle` — `EntityLifecycleModule`, `ConstructionOrder`, `DestructionOrder` state machine | `EntityMasterEgressTranslator`, `EntityMasterIngressTranslator` (Bagira-specific DDS payloads) |
+| **Entity Lifecycle** | `FDP.Toolkit.Lifecycle` — `EntityLifecycleModule`, `ConstructionOrder`, `DestructionOrder` state machine | `EntityMasterEgressTranslator`, `EntityMasterIngressTranslator` (Hrot-specific DDS payloads) |
 | **Network Identity** | `FDP.Toolkit.Replication.Services` — `INetworkIdAllocator`, `BlockIdManager`, `DdsIdAllocatorServer` | (nothing — ID allocation is fully generic) |
-| **Networking Plumbing** | `ModuleHost.Network.Cyclone` — `ITranslatorPack` interface, `CycloneNetworkModule` | `CoreNetworkTranslatorPack` is **NOT** the right abstraction — `EntityMaster`/`OwnershipUpdate` are Bagira-specific; the framework only provides `ITranslatorPack`. Time-pulse translators go via `FDP.Toolkit.Time` |
-| **Component IDs** | `Fdp.Kernel` — `GlobalComponentIds` (0–159) | `Bagira.Map.Definitions` — `BagiraComponentIds` (160–255) |
-| **Application Lifecycle / Runner** | `FDP.Framework.Runner` — `ISubsystem`, `SubsystemOrchestrator`, `WaitingRoomCoordinator`, `HeadlessTestExecutor`, test models, generic action handlers | `Bagira.Runner` — `SimHostSubsystem`, `IgSubsystem`, `IosSubsystem`, `Program.cs`, Bagira-specific test handlers |
+| **Networking Plumbing** | `ModuleHost.Network.Cyclone` — `ITranslatorPack` interface, `CycloneNetworkModule` | `CoreNetworkTranslatorPack` is **NOT** the right abstraction — `EntityMaster`/`OwnershipUpdate` are Hrot-specific; the framework only provides `ITranslatorPack`. Time-pulse translators go via `FDP.Toolkit.Time` |
+| **Component IDs** | `Fdp.Kernel` — `GlobalComponentIds` (0–159) | `Hrot.Map.Definitions` — `HrotComponentIds` (160–255) |
+| **Application Lifecycle / Runner** | `FDP.Framework.Runner` — `ISubsystem`, `SubsystemOrchestrator`, `WaitingRoomCoordinator`, `HeadlessTestExecutor`, test models, generic action handlers | `Hrot.ClusterRunner` — `SimHostSubsystem`, `IgSubsystem`, `IosSubsystem`, `Program.cs`, Hrot-specific test handlers |
 
 ### Practical Impact on This Workstream
 
 Each design phase below records its **target assembly** for each new artefact. When an artefact's target is an FDP toolkit, the implementation task must:
 1. Create or extend the toolkit project (`FDP.Toolkit.<Area>`).
-2. Add a project reference from `Bagira.SimHost` (or `Bagira.IG`) to the toolkit.
-3. Ensure the toolkit has **zero** direct references to `Bagira.*` assemblies.
+2. Add a project reference from `Hrot.SimHost` (or `Hrot.IG`) to the toolkit.
+3. Ensure the toolkit has **zero** direct references to `Hrot.*` assemblies.
 
 ---
 
@@ -92,7 +92,7 @@ Each design phase below records its **target assembly** for each new artefact. W
 
 #### 3.1.1  New ECS Components — `NavigationIntent` and `NavigationStatus`
 
-**Target assembly: `FDP.Toolkit.Navigation`** (see §2.5 — generic contract; zero Bagira knowledge)
+**Target assembly: `FDP.Toolkit.Navigation`** (see §2.5 — generic contract; zero Hrot knowledge)
 
 Replace the implicit Brain↔Muscle handshake through `CarKinem.Core.NavState` with two typed, one-way ownership components:
 
@@ -105,7 +105,7 @@ Replace the implicit Brain↔Muscle handshake through `CarKinem.Core.NavState` w
 public struct NavigationIntent
 {
     public NavigationMode Mode;       // engine-side enum in FDP.Toolkit.Navigation (see §3.1.1a)
-    public Vector2        FinalDestination;  // FDP internal Cartesian (m). Conversion to GeoPosition
+    public Vector2        FinalDestination;  // FDP internal Cartesian (m). Conversion to GeoPoint
                                             // is the translator’s responsibility (never in FDP code)
     public float          TargetSpeed;       // m/s
     public float          ArrivalRadius;     // metres
@@ -134,16 +134,16 @@ Following the same pattern established for `EClampingMode` in Phase 7, navigatio
 |---|---|---|
 | `NavigationMode` | `FDP.Toolkit.Navigation` | ECS `NavigationIntent` component, `MoveToExecutor` |
 | `NavigationResult` | `FDP.Toolkit.Navigation` | ECS `NavigationStatus` component, `MoveToExecutor` |
-| `ENavigationMode` | `Bagira.BDC.SSTD` | DDS `NavigationIntent` descriptor |
-| `ENavigationResult` | `Bagira.BDC.SSTD` | DDS `NavigationStatus` descriptor |
+| `ENavigationMode` | `Hrot.NED.Descriptors` | DDS `NavigationIntent` descriptor |
+| `ENavigationResult` | `Hrot.NED.Descriptors` | DDS `NavigationStatus` descriptor |
 
-The `NavigationIntentEgressTranslator` (Bagira) maps the engine-side `NavigationMode` to the wire `ENavigationMode` when publishing. The `NavigationIntentIngressTranslator` maps `ENavigationMode` back when receiving.
+The `NavigationIntentEgressTranslator` (Hrot) maps the engine-side `NavigationMode` to the wire `ENavigationMode` when publishing. The `NavigationIntentIngressTranslator` maps `ENavigationMode` back when receiving.
 
 Both enums use `byte` backing and are engine-agnostic; they map cleanly to C++, Unreal, and Unity.
 
 #### 3.1.2  New DDS Descriptors — `NavigationIntent` and `NavigationStatus`
 
-Engine-agnostic DDS descriptors defined in `Bagira.BDC.SSTD` (the neutral data-model project):
+Engine-agnostic DDS descriptors defined in `Hrot.NED.Descriptors` (the neutral data-model project):
 
 ```csharp
 [DdsTopic("NavigationIntent")]
@@ -153,7 +153,7 @@ public partial struct NavigationIntent
     [DdsKey] public int     EntityId;
     public uint             IntentId;
     public ENavigationMode  Mode;
-    public GeoPosition      FinalDestination;   // Lat/Lon/Alt — WGS-84
+    public GeoPoint      FinalDestination;   // Lat/Lon/Alt — WGS-84
     public float            TargetSpeed;
     public float            ArrivalRadius;
 }
@@ -170,7 +170,7 @@ public partial struct NavigationStatus
 
 `TransientLocal` ensures a newly reconnected Muscle node immediately receives the current movement orders without requiring a re-issue from the Brain.
 
-The DDS descriptor uses `GeoPosition` (Lat/Lon/Alt in WGS-84) for the destination—never FDP's flat-earth Cartesian `Vector2`. Converting from the ECS `NavigationIntent.FinalDestination` (`Vector2` Cartesian) to `GeoPosition` is entirely the responsibility of `NavigationIntentEgressTranslator` (in `Bagira.SimHost.Network`), mirroring the pattern of `GeoSpatialEgressTranslator`.
+The DDS descriptor uses `GeoPoint` (Lat/Lon/Alt in WGS-84) for the destination—never FDP's flat-earth Cartesian `Vector2`. Converting from the ECS `NavigationIntent.FinalDestination` (`Vector2` Cartesian) to `GeoPoint` is entirely the responsibility of `NavigationIntentEgressTranslator` (in `Hrot.SimHost.Network`), mirroring the pattern of `WorldPosEgressTranslator`.
 
 #### 3.1.3  Refactor `MoveToExecutor` — Pure Brain Observer
 
@@ -214,7 +214,7 @@ These are in `FDP\Toolkits\Fdp.Toolkit.Geographic\Systems\`.
 **Target namespaces (see §2.5):**
 - `MissionControlModule`, `CognitiveRuntimeModule`, `ActionDispatchModule` → **`FDP.Toolkit.Behavior`** (generic AI; zero knowledge of entity domain)
 - `GroundKinematicsModule` → **`FDP.Toolkit.CarKinem`** (generic ground-vehicle physics)
-- `CombatModule` → **`Bagira.SimHost.Modules`** (Bagira weapon-domain logic)
+- `CombatModule` → **`Hrot.SimHost.Modules`** (Hrot weapon-domain logic)
 
 #### 3.2.1  Current State
 
@@ -284,12 +284,12 @@ Until all call-sites are migrated, `SimulationLogicModule` is refactored to **de
 Replace the long `translators.Add(...)` list in `SimHostApp.OnLoad` with sealed static factory classes:
 
 **`KinematicTranslatorPack`** (Muscle egress/ingress):
-- Egress: `GeoSpatialEgressTranslator`, `NavigationStatusEgressTranslator`
+- Egress: `WorldPosEgressTranslator`, `NavigationStatusEgressTranslator`
 - Ingress: `NavigationIntentIngressTranslator`
 
 **`CognitiveTranslatorPack`** (Brain egress/ingress):
 - Egress: `NavigationIntentEgressTranslator`, `EntityMissionEgressTranslator`
-- Ingress: `GeoSpatialIngressTranslator`, `NavigationStatusIngressTranslator`
+- Ingress: `WorldPosIngressTranslator`, `NavigationStatusIngressTranslator`
 
 **`SharedTranslatorPack`** (always required):
 - `EntityMasterEgressTranslator`, `EntityMasterIngressTranslator`, `EntityInfoEgressTranslator`
@@ -298,10 +298,10 @@ Each pack's `Create(DdsParticipant, NetworkEntityMap, ...)` factory method retur
 
 #### 3.3.2  Domain-Specific Component Registries
 
-Complement the existing `BagiraSharedComponentRegistry` with domain-scoped registries. Because `RegisterComponent<T>()` is **idempotent** in the FDP kernel, domains may redundantly register shared primitives without risk; however, by convention each domain only registers its own types.
+Complement the existing `HrotSharedComponentRegistry` with domain-scoped registries. Because `RegisterComponent<T>()` is **idempotent** in the FDP kernel, domains may redundantly register shared primitives without risk; however, by convention each domain only registers its own types.
 
 ```
-BagiraSharedComponentRegistry   — SimTransform, SimVelocity, network identity, lifecycle
+HrotSharedComponentRegistry   — SimTransform, SimVelocity, network identity, lifecycle
 CognitiveComponentRegistry       — DoctrineState, BrainBlackboard, BrainBTreeState, BrainHsm128/64, LocomotionChannel, WeaponChannel, MissionPlanQueue, NavigationIntent
 KinematicComponentRegistry       — VehicleState, VehicleParams, NavState, FormationMember, FormationRoster, FormationTarget, NavigationStatus
 CombatComponentRegistry          — Faction, PerceptionReceptor, TargetMemory, WeaponState, Health, HealthData, BallisticProjectile, PhysicsCollider
@@ -317,7 +317,7 @@ public class NodeBootstrapper
     public void Bootstrap(NodeRole role, EntityRepository world,
                           ModuleHostKernel kernel, DdsParticipant dds, ...)
     {
-        BagiraSharedComponentRegistry.RegisterAll(world);
+        HrotSharedComponentRegistry.RegisterAll(world);
         var translators = SharedTranslatorPack.Create(dds, entityMap).ToList();
 
         if (role is NodeRole.MuscleGround or NodeRole.AllInOne)
@@ -358,7 +358,7 @@ public class NodeBootstrapper
 
 #### 3.3.4  Concrete `IDescriptorTranslator` Implementations for Navigation
 
-The translator packs introduced in §3.3.1 must contain **fully working** egress/ingress implementations — not stubs. These are the objects that physically move `NavigationIntent` and `NavigationStatus` across a DDS domain boundary. The pattern mirrors the existing `GeoSpatialEgressTranslator` in the codebase.
+The translator packs introduced in §3.3.1 must contain **fully working** egress/ingress implementations — not stubs. These are the objects that physically move `NavigationIntent` and `NavigationStatus` across a DDS domain boundary. The pattern mirrors the existing `WorldPosEgressTranslator` in the codebase.
 
 **`NavigationIntentEgressTranslator`** (Brain → wire):
 
@@ -434,7 +434,7 @@ All Phase 6 perception and pathfinding translators follow this same structure (r
 
 #### 3.3.5  CycloneDDS Discovery Configuration
 
-Distributed operation requires each process to join a shared DDS domain and auto-discover peers. Two canonical CycloneDDS XML configuration files are added to `Bagira.SimHost.Standalone/Config/`:
+Distributed operation requires each process to join a shared DDS domain and auto-discover peers. Two canonical CycloneDDS XML configuration files are added to `Hrot.SimHost.Standalone/Config/`:
 
 **`dds-allinone.xml`** — single-process, loopback only, no real network traffic:
 
@@ -459,14 +459,14 @@ Distributed operation requires each process to join a shared DDS domain and auto
 </CycloneDDS>
 ```
 
-**Domain ID 42** is the canonical Bagira simulation domain. All node roles (Brain, Muscle, Perception, NavigationSolver, IG) that share this domain ID on the same IP subnet auto-discover each other via CycloneDDS multicast.
+**Domain ID 42** is the canonical Hrot simulation domain. All node roles (Brain, Muscle, Perception, NavigationSolver, IG) that share this domain ID on the same IP subnet auto-discover each other via CycloneDDS multicast.
 
 For unicast environments (VPN / cross-subnet) the config can add explicit `<Peers>` addresses in place of multicast; everything else is identical.
 
 The `CYCLONEDDS_URI` environment variable selects the active config file. Example startup:
 
 ```bat
-set CYCLONEDDS_URI=file://C:\bagira\config\dds-node.xml
+set CYCLONEDDS_URI=file://C:\hrot\config\dds-node.xml
 SimHostApp.exe --role Brain --config brain.json
 ```
 
@@ -501,7 +501,7 @@ public record NodeConfiguration
 }
 ```
 
-`Bagira.SimHost.Standalone` and `Bagira.IOS.Standalone` both delegate role selection to this mechanism. The same binary serves as Brain, Muscle, AllInOne, Perception, or NavigationSolver by changing only the `--role` argument and pointing to the corresponding JSON config file.
+`Hrot.SimHost.Standalone` and `Hrot.ExCon.Standalone` both delegate role selection to this mechanism. The same binary serves as Brain, Muscle, AllInOne, Perception, or NavigationSolver by changing only the `--role` argument and pointing to the corresponding JSON config file.
 
 ---
 
@@ -510,12 +510,12 @@ public record NodeConfiguration
 When Brain and Muscle run in separate processes, each replica node needs to create local ghost entities and associate them with incoming DDS descriptors. This is handled entirely by the **existing** FDP replication infrastructure — no new lifecycle coordination code is needed.
 
 **Owner node (e.g., Brain / AllInOne):**
-- `EntityMasterEgressTranslator` (in `Bagira.Map.Common`) already polls all entities with `NetworkIdentity` + `TkbIdentity` components and publishes to the Bagira BDC SST **`EntityMaster`** DDS topic.
+- `EntityMasterEgressTranslator` (in `Hrot.Map.Common`) already polls all entities with `NetworkIdentity` + `TkbIdentity` components and publishes to the Hrot BDC SST **`EntityMaster`** DDS topic.
 - It uses `SmartEgressUtil.ShouldPublish` (dirty-state tracking) so it emits once on initial creation and again only if the master data changes — not every frame.
 - It also queries `EntityLifecycle.All` so the announcement fires during the `Constructing` state, giving replica nodes time to initialise before the entity becomes Active.
 
 **Replica nodes (Muscle, Perception, NavigationSolver):**
-- `EntityMasterIngressTranslator` (in `Bagira.Map.Common`) subscribes to the `EntityMaster` DDS topic. On each new sample it calls `GhostCreationSystem` to materialise a local ghost entity and registers the `NetworkId ↔ Entity` mapping in `NetworkEntityMap`.
+- `EntityMasterIngressTranslator` (in `Hrot.Map.Common`) subscribes to the `EntityMaster` DDS topic. On each new sample it calls `GhostCreationSystem` to materialise a local ghost entity and registers the `NetworkId ↔ Entity` mapping in `NetworkEntityMap`.
 - `ReplicationLogicModule` (already exists in `FDP.Toolkit.Replication`) wraps the full replication pipeline: `OwnershipIngressSystem`, `GhostCreationSystem`, `GhostPromotionSystem`, `SubEntityCleanupSystem`, `DisposalMonitoringSystem`, `OwnershipEgressSystem`, and `SmartEgressSystem`.
 - The `GhostPromotionSystem` watches `TkbIdentity` to look up the blueprint and attach the role-appropriate components, using the `ITkbDatabase` — this is the component-attachment mechanism for replica nodes, not a custom configurer.
 - When a DDS instance is disposed (entity destroyed on the owner), `EntityMasterIngressTranslator` publishes `DestroyEntityCommand` to trigger clean teardown through the existing ELM pipeline.
@@ -525,7 +525,7 @@ When Brain and Muscle run in separate processes, each replica node needs to crea
 - All roles install `ReplicationLogicModule` to get ghost creation and cleanup for free.
 - No custom IShadowEntityConfigurer needed; blueprint-driven component attachment is handled by `GhostPromotionSystem` + `ITkbDatabase` templates.
 
-> **Note:** `EntityMaster` is the Bagira BDC SST project-specific DDS descriptor — it is **not** a generic FDP kernel concept. Nothing in the FDP kernel or toolkits knows about `EntityMaster`; it belongs entirely in `Bagira.Map.Common` and its consumers.
+> **Note:** `EntityMaster` is the Hrot BDC SST project-specific DDS descriptor — it is **not** a generic FDP kernel concept. Nothing in the FDP kernel or toolkits knows about `EntityMaster`; it belongs entirely in `Hrot.Map.Common` and its consumers.
 
 ---
 
@@ -578,34 +578,34 @@ Both perspectives consume `Vis2D` generic tools identically:
 
 ### Phase 5 — Component ID Registry Split
 
-**Goal:** Remove Bagira-specific component ID constants from the FDP engine source (`GlobalComponentIds.cs` in `Fdp.Kernel`) into a single project-local registry, so that adding a new Bagira component never requires touching FDP engine files.
+**Goal:** Remove Hrot-specific component ID constants from the FDP engine source (`GlobalComponentIds.cs` in `Fdp.Kernel`) into a single project-local registry, so that adding a new Hrot component never requires touching FDP engine files.
 
 #### 3.5.1  Current State
 
-`Fdp.Kernel.GlobalComponentIds` documents block allocations (0–19 kernel, 20–49 toolkits, 50–79 replication, 80–109 Vis2D, 110–139 Bagira.IG, 140–159 ModuleHost, 160–199 application descriptors) but **all constants reside in a single FDP-owned file**. Adding a new Bagira-specific component requires editing the FDP engine source.
+`Fdp.Kernel.GlobalComponentIds` documents block allocations (0–19 kernel, 20–49 toolkits, 50–79 replication, 80–109 Vis2D, 110–139 Hrot.IG, 140–159 ModuleHost, 160–199 application descriptors) but **all constants reside in a single FDP-owned file**. Adding a new Hrot-specific component requires editing the FDP engine source.
 
 #### 3.5.2  Target State — Two Registries Only
 
 | Registry | Location | ID Range | Ownership |
 |---|---|---|---|
 | `GlobalComponentIds` | `Fdp.Kernel` (existing file, stays) | 0–159 | FDP engine team |
-| `BagiraComponentIds` | `Bagira.Map.Definitions` (new file) | 160–255 | Bagira project |
+| `HrotComponentIds` | `Hrot.Map.Definitions` (new file) | 160–255 | Hrot project |
 
-`Bagira.Map.Definitions` is already referenced by both `Bagira.IG` and `Bagira.SimHost`, making it the natural shared home for all project-specific IDs. All blocks from 160 upward — SimHost application components, IG-specific components added by Bagira (e.g., `GroundClampingConfig`), future integrator components — live here.
+`Hrot.Map.Definitions` is already referenced by both `Hrot.IG` and `Hrot.SimHost`, making it the natural shared home for all project-specific IDs. All blocks from 160 upward — SimHost application components, IG-specific components added by Hrot (e.g., `GroundClampingConfig`), future integrator components — live here.
 
-IDs 110–139 ("Bagira.IG components") and 140–159 ("ModuleHost.Core") are currently listed in `GlobalComponentIds` for documentation purposes. **Only constants actually defined in Bagira source (i.e., no matching constant exists in the FDP codebase) are moved**; any that already live in FDP-owned assemblies stay in `GlobalComponentIds`.
+IDs 110–139 ("Hrot.IG components") and 140–159 ("ModuleHost.Core") are currently listed in `GlobalComponentIds` for documentation purposes. **Only constants actually defined in Hrot source (i.e., no matching constant exists in the FDP codebase) are moved**; any that already live in FDP-owned assemblies stay in `GlobalComponentIds`.
 
 ```csharp
-// Bagira.Map.Definitions/BagiraComponentIds.cs
-namespace Bagira.Map.Definitions
+// Hrot.Map.Definitions/HrotComponentIds.cs
+namespace Hrot.Map.Definitions
 {
     /// <summary>
-    /// Project-wide ECS component ID registry for all Bagira-specific components.
-    /// Block 160–255 — never edit GlobalComponentIds in Fdp.Kernel for Bagira components.
+    /// Project-wide ECS component ID registry for all Hrot-specific components.
+    /// Block 160–255 — never edit GlobalComponentIds in Fdp.Kernel for Hrot components.
     /// </summary>
-    public static class BagiraComponentIds
+    public static class HrotComponentIds
     {
-        // ── Bagira.SimHost application components (160–189) ──────────────────
+        // ── Hrot.SimHost application components (160–189) ──────────────────
         // NOTE: NavigationIntent and NavigationStatus are NOT here — they live in
         // FDP.Toolkit.Navigation and use GlobalComponentIds (20–49 toolkit block).
         public const byte ActivePerspective   = 160;
@@ -621,20 +621,20 @@ The FDP kernel's `ComponentTypeRegistry` performs runtime collision detection (d
 
 #### 3.5.3  Migration Strategy
 
-1. Create `Bagira.Map.Definitions/BagiraComponentIds.cs` with the initial constant set (all IDs currently in `GlobalComponentIds` that reference Bagira-owned component structs).
-2. Replace every `[ComponentId(GlobalComponentIds.X)]` for a Bagira-owned struct with `[ComponentId(BagiraComponentIds.X)]`.
-3. Remove the migrated constants from `GlobalComponentIds`; leave a comment block documenting the 160–255 range as "Bagira.Map.Definitions / BagiraComponentIds".
+1. Create `Hrot.Map.Definitions/HrotComponentIds.cs` with the initial constant set (all IDs currently in `GlobalComponentIds` that reference Hrot-owned component structs).
+2. Replace every `[ComponentId(GlobalComponentIds.X)]` for a Hrot-owned struct with `[ComponentId(HrotComponentIds.X)]`.
+3. Remove the migrated constants from `GlobalComponentIds`; leave a comment block documenting the 160–255 range as "Hrot.Map.Definitions / HrotComponentIds".
 
-**Explicit migration list** — the following application-specific components currently use `[ComponentId(GlobalComponentIds.X)]` but belong in the Bagira block and must be updated (along with their constants in `GlobalComponentIds`):
+**Explicit migration list** — the following application-specific components currently use `[ComponentId(GlobalComponentIds.X)]` but belong in the Hrot block and must be updated (along with their constants in `GlobalComponentIds`):
 
-| Component | Source file | Current `GlobalComponentIds` constant | New `BagiraComponentIds` constant |
+| Component | Source file | Current `GlobalComponentIds` constant | New `HrotComponentIds` constant |
 |---|---|---|---|
-| `EntityMissionHolder` | `Bagira.SimHost/Components/EntityMissionHolder.cs` | `EntityMissionHolder = 162` | `EntityMissionHolder = 162` |
-| `InFormationTag` | `Bagira.SimHost/Components/InFormationTag.cs` | `InFormationTag = 163` | `InFormationTag = 163` |
-| `IgEntityData` | `Bagira.IG/Components/IgEntityData.cs` | `IgEntityData = 164` | `IgEntityData = 164` |
-| `IgHealthState` | `Bagira.IG/Components/IgHealthState.cs` | `IgHealthState = 165` | `IgHealthState = 165` |
+| `EntityMissionHolder` | `Hrot.SimHost/Components/EntityMissionHolder.cs` | `EntityMissionHolder = 162` | `EntityMissionHolder = 162` |
+| `InFormationTag` | `Hrot.SimHost/Components/InFormationTag.cs` | `InFormationTag = 163` | `InFormationTag = 163` |
+| `IgEntityData` | `Hrot.IG/Components/IgEntityData.cs` | `IgEntityData = 164` | `IgEntityData = 164` |
+| `IgHealthState` | `Hrot.IG/Components/IgHealthState.cs` | `IgHealthState = 165` | `IgHealthState = 165` |
 
-After migrating these, remove the corresponding constants from `GlobalComponentIds`. The FDP kernel is then completely free of Bagira application knowledge.
+After migrating these, remove the corresponding constants from `GlobalComponentIds`. The FDP kernel is then completely free of Hrot application knowledge.
 
 ---
 
@@ -646,67 +646,67 @@ After migrating these, remove the corresponding constants from `GlobalComponentI
 | `NavigationStatus` (ECS component) | `struct` in **`FDP.Toolkit.Navigation`** (toolkit ID 20–49 block) | P1 |
 | `NavigationMode` enum (engine-side) | `enum byte` in **`FDP.Toolkit.Navigation`** | P1 |
 | `NavigationResult` enum (engine-side) | `enum byte` in **`FDP.Toolkit.Navigation`** | P1 |
-| `ENavigationMode` enum (DDS wire) | `enum byte` in `Bagira.BDC.SSTD` | P1 |
-| `ENavigationResult` enum (DDS wire) | `enum byte` in `Bagira.BDC.SSTD` | P1 |
-| `NavigationIntent` DDS descriptor | `partial struct` in `Bagira.BDC.SSTD` | P1 |
-| `NavigationStatus` DDS descriptor | `partial struct` in `Bagira.BDC.SSTD` | P1 |
+| `ENavigationMode` enum (DDS wire) | `enum byte` in `Hrot.NED.Descriptors` | P1 |
+| `ENavigationResult` enum (DDS wire) | `enum byte` in `Hrot.NED.Descriptors` | P1 |
+| `NavigationIntent` DDS descriptor | `partial struct` in `Hrot.NED.Descriptors` | P1 |
+| `NavigationStatus` DDS descriptor | `partial struct` in `Hrot.NED.Descriptors` | P1 |
 | `MissionControlModule` | `IModule` in **`FDP.Toolkit.Behavior`** | P2 |
 | `CognitiveRuntimeModule` | `IModule` in **`FDP.Toolkit.Behavior`** | P2 |
 | `ActionDispatchModule` | `IModule` in **`FDP.Toolkit.Behavior`** | P2 |
 | `GroundKinematicsModule` | `IModule` in **`FDP.Toolkit.CarKinem`** | P2 |
-| `CombatModule` | `IModule` in `Bagira.SimHost.Modules` | P2 |
-| `KinematicTranslatorPack` | `static` class in `Bagira.SimHost.Network` | P3 |
-| `CognitiveTranslatorPack` | `static` class in `Bagira.SimHost.Network` | P3 |
-| `SharedTranslatorPack` | `static` class in `Bagira.SimHost.Network` | P3 |
-| `CognitiveComponentRegistry` | `static` class in `Bagira.SimHost` | P3 |
-| `KinematicComponentRegistry` | `static` class in `Bagira.SimHost` | P3 |
-| `CombatComponentRegistry` | `static` class in `Bagira.SimHost` | P3 |
-| `NodeRole` enum | `Bagira.SimHost` | P3 |
-| `NodeBootstrapper` | class in `Bagira.SimHost` | P3 |
-| `NavigationIntentEgressTranslator` | `IDescriptorEgressTranslator` in `Bagira.SimHost.Network` | P3 |
-| `NavigationIntentIngressTranslator` | `IDescriptorIngressTranslator` in `Bagira.SimHost.Network` | P3 |
-| `NavigationStatusEgressTranslator` | `IDescriptorEgressTranslator` in `Bagira.SimHost.Network` | P3 |
-| `NavigationStatusIngressTranslator` | `IDescriptorIngressTranslator` in `Bagira.SimHost.Network` | P3 |
-| `NodeConfiguration` | record class in `Bagira.SimHost` | P3 |
-| `dds-allinone.xml`, `dds-node.xml` | CycloneDDS XML configs in `Bagira.SimHost.Standalone/Config/` | P3 |
-| `IgPresentationModule` | `IModule` in `Bagira.SimHost.Modules` | P4 |
-| `SimPresentationModule` | `IModule` in `Bagira.SimHost.Modules` | P4 |
-| `ActivePerspective` (singleton component) | `struct` in `Bagira.SimHost.Components` | P4 |
-| `PerspectiveCoordinatorSystem` | `IModuleSystem` in `Bagira.SimHost.Systems` | P4 |
-| `BagiraComponentIds` | `static` class in `Bagira.Map.Definitions` | P5 |
+| `CombatModule` | `IModule` in `Hrot.SimHost.Modules` | P2 |
+| `KinematicTranslatorPack` | `static` class in `Hrot.SimHost.Network` | P3 |
+| `CognitiveTranslatorPack` | `static` class in `Hrot.SimHost.Network` | P3 |
+| `SharedTranslatorPack` | `static` class in `Hrot.SimHost.Network` | P3 |
+| `CognitiveComponentRegistry` | `static` class in `Hrot.SimHost` | P3 |
+| `KinematicComponentRegistry` | `static` class in `Hrot.SimHost` | P3 |
+| `CombatComponentRegistry` | `static` class in `Hrot.SimHost` | P3 |
+| `NodeRole` enum | `Hrot.SimHost` | P3 |
+| `NodeBootstrapper` | class in `Hrot.SimHost` | P3 |
+| `NavigationIntentEgressTranslator` | `IDescriptorEgressTranslator` in `Hrot.SimHost.Network` | P3 |
+| `NavigationIntentIngressTranslator` | `IDescriptorIngressTranslator` in `Hrot.SimHost.Network` | P3 |
+| `NavigationStatusEgressTranslator` | `IDescriptorEgressTranslator` in `Hrot.SimHost.Network` | P3 |
+| `NavigationStatusIngressTranslator` | `IDescriptorIngressTranslator` in `Hrot.SimHost.Network` | P3 |
+| `NodeConfiguration` | record class in `Hrot.SimHost` | P3 |
+| `dds-allinone.xml`, `dds-node.xml` | CycloneDDS XML configs in `Hrot.SimHost.Standalone/Config/` | P3 |
+| `IgPresentationModule` | `IModule` in `Hrot.SimHost.Modules` | P4 |
+| `SimPresentationModule` | `IModule` in `Hrot.SimHost.Modules` | P4 |
+| `ActivePerspective` (singleton component) | `struct` in `Hrot.SimHost.Components` | P4 |
+| `PerspectiveCoordinatorSystem` | `IModuleSystem` in `Hrot.SimHost.Systems` | P4 |
+| `HrotComponentIds` | `static` class in `Hrot.Map.Definitions` | P5 |
 | `EClampingMode` enum | `enum byte` in **`FDP.Toolkit.Geographic`** (engine-side; separate from DDS wire enum) | P7 |
-| `GroundClampingOverride` DDS descriptor | `partial struct` in `Bagira.BDC.SSTD` | P7 |
+| `GroundClampingOverride` DDS descriptor | `partial struct` in `Hrot.NED.Descriptors` | P7 |
 | `GroundClampingConfig` ECS component | `struct` in **`FDP.Toolkit.Geographic`** | P7 |
 | `GroundClampingState` ECS component | `struct` in **`FDP.Toolkit.Geographic`** | P7 |
 | `TerrainQueryBatchData` ECS singleton | `struct` in **`FDP.Toolkit.Geographic`** | P7 |
 | `ITerrainProvider` interface | **`FDP.Toolkit.Geographic`** | P7 |
-| `IgGroundClampingModule` | `IModule` in `Bagira.IG.Modules` (IG-specific wiring) | P7 |
+| `IgGroundClampingModule` | `IModule` in `Hrot.IG.Modules` (IG-specific wiring) | P7 |
 | `TerrainQueryInitializationSystem` | `IModuleSystem` in **`FDP.Toolkit.Geographic`** | P7 |
 | `TerrainQuerySubmitSystem` | `IModuleSystem` in **`FDP.Toolkit.Geographic`** | P7 |
 | `TerrainQuerySolverSystem` | `IModuleSystem` in **`FDP.Toolkit.Geographic`** | P7 |
 | `TerrainQueryResolutionSystem` | `IModuleSystem` in **`FDP.Toolkit.Geographic`** | P7 |
-| `GroundClampingOverrideTranslator` | `IDescriptorTranslator` in `Bagira.IG.Network` | P7 |
+| `GroundClampingOverrideTranslator` | `IDescriptorTranslator` in `Hrot.IG.Network` | P7 |
 | `SensorModality` flags enum | `enum byte` in **`FDP.Toolkit.Perception`** | P6 |
 | `VisualReceptor` ECS component | `struct` in **`FDP.Toolkit.Perception`** | P6 |
 | `RadarReceptor` ECS component | `struct` in **`FDP.Toolkit.Perception`** | P6 |
 | `PathfindingBatchData` ECS singleton | `struct` in **`FDP.Toolkit.Navigation`** | P6 |
 | `PhysicsQueryActionNode` | Abstract BTree action base class in **`FDP.Toolkit.Physics`** — provides `RequestRaycast` / `GetRaycastResult` that go directly to `RaycastBatchData`; replaces removed `BTreeContext` stubs (see §3.6.6) | P6 |
 | `PathfindingActionNode` | Abstract BTree action base class in **`FDP.Toolkit.Navigation`** — provides `RequestPath` / `GetPathResult` that go directly to `PathfindingBatchData`; replaces removed `BTreeContext` stubs (see §3.6.6) | P6 |
-| `RelativeVector3` DDS struct | `partial struct` in `Bagira.BDC.SSTD` | P6 |
-| `RaycastRequestBatch` DDS descriptor | `partial struct` in `Bagira.BDC.SSTD` | P6 |
-| `RaycastResponseBatch` DDS descriptor | `partial struct` in `Bagira.BDC.SSTD` | P6 |
-| `SensorConfig` DDS descriptor | `partial struct` in `Bagira.BDC.SSTD` | P6 |
-| `SensorTargets` DDS descriptor | `partial struct` in `Bagira.BDC.SSTD` | P6 |
-| `PathRequestBatch` DDS descriptor | `partial struct` in `Bagira.BDC.SSTD` | P6 |
-| `PathResponseBatch` DDS descriptor | `partial struct` in `Bagira.BDC.SSTD` | P6 |
+| `RelativeVector3` DDS struct | `partial struct` in `Hrot.NED.Descriptors` | P6 |
+| `RaycastRequestBatch` DDS descriptor | `partial struct` in `Hrot.NED.Descriptors` | P6 |
+| `RaycastResponseBatch` DDS descriptor | `partial struct` in `Hrot.NED.Descriptors` | P6 |
+| `SensorConfig` DDS descriptor | `partial struct` in `Hrot.NED.Descriptors` | P6 |
+| `SensorTargets` DDS descriptor | `partial struct` in `Hrot.NED.Descriptors` | P6 |
+| `PathRequestBatch` DDS descriptor | `partial struct` in `Hrot.NED.Descriptors` | P6 |
+| `PathResponseBatch` DDS descriptor | `partial struct` in `Hrot.NED.Descriptors` | P6 |
 | `AutonomousPerceptionModule` | `IModule` in **`FDP.Toolkit.Perception`** | P6 |
 | `PhysicsQueryModule` | `IModule` in **`FDP.Toolkit.Physics`** (wraps existing raycast/hit systems) | P6 |
 | `NavigationSolverModule` | `IModule` in **`FDP.Toolkit.Navigation`** | P6 |
-| `BrainPerceptionTranslatorPack` | `static` class in `Bagira.SimHost.Network` | P6 |
-| `SimPerceptionTranslatorPack` | `static` class in `Bagira.SimHost.Network` | P6 |
-| `BrainPathfindingTranslatorPack` | `static` class in `Bagira.SimHost.Network` | P6 |
-| `SimPathfindingTranslatorPack` | `static` class in `Bagira.SimHost.Network` | P6 |
-| `EcsRecordReplayController` | `IDsmHandler` + factory in `Bagira.SimHost/Modules/Orchestration/` | P8 |
+| `BrainPerceptionTranslatorPack` | `static` class in `Hrot.SimHost.Network` | P6 |
+| `SimPerceptionTranslatorPack` | `static` class in `Hrot.SimHost.Network` | P6 |
+| `BrainPathfindingTranslatorPack` | `static` class in `Hrot.SimHost.Network` | P6 |
+| `SimPathfindingTranslatorPack` | `static` class in `Hrot.SimHost.Network` | P6 |
+| `EcsRecordReplayController` | `IDsmHandler` + factory in `Hrot.SimHost/Modules/Orchestration/` | P8 |
 | `RecordingModule` | `IModule` + `IDisposable` in **`FDP.Toolkit.Replay`** | P8 |
 | `StoryRecorderModule` | `IModule` + `IDisposable` in **`FDP.Toolkit.Replay`** | P8 |
 | `ReplayModule` | `IModule` + `IDisposable` in **`FDP.Toolkit.Replay`** | P8 |
@@ -716,15 +716,15 @@ After migrating these, remove the corresponding constants from `GlobalComponentI
 | `RecorderSystem.EntityFilter` | Additive extension to `FDP/Kernel/Fdp.Kernel/FlightRecorder/RecorderSystem.cs` | P8 |
 | `ISubsystem` interface + `SubsystemConfig` | Contract in **`FDP.Framework.Runner`** | P9 |
 | `IMapCameraProvider` interface | **`FDP.Framework.Runner`** | P9 |
-| `SubsystemOrchestrator` (refactored) | Class in **`FDP.Framework.Runner`** (no Bagira coupling) | P9 |
+| `SubsystemOrchestrator` (refactored) | Class in **`FDP.Framework.Runner`** (no Hrot coupling) | P9 |
 | `WaitingRoomCoordinator` | Class in **`FDP.Framework.Runner`** | P9 |
 | `RunnerConfiguration` (base) | Class in **`FDP.Framework.Runner`** | P9 |
 | `HeadlessTestExecutor` | Class in **`FDP.Framework.Runner`** | P9 |
 | `TestScript`, `TestStep`, `TestReport` | Models in **`FDP.Framework.Runner`** | P9 |
 | `ITestActionHandler` | Interface in **`FDP.Framework.Runner`** | P9 |
 | `WaitActionHandler`, `TickActionHandler`, `AssertAllActionHandler` | Generic handlers in **`FDP.Framework.Runner`** | P9 |
-| `SimHostSubsystem`, `IgSubsystem`, `IosSubsystem` | Concrete subsystems in `Bagira.Runner` (unchanged) | P9 |
-| `SpawnActionHandler`, `MoveActionHandler`, `AssertPositionActionHandler` | Domain handlers in `Bagira.Runner` | P9 |
+| `SimHostSubsystem`, `IgSubsystem`, `IosSubsystem` | Concrete subsystems in `Hrot.ClusterRunner` (unchanged) | P9 |
+| `SpawnActionHandler`, `MoveActionHandler`, `AssertPositionActionHandler` | Domain handlers in `Hrot.ClusterRunner` | P9 |
 
 ---
 
@@ -738,7 +738,7 @@ After migrating these, remove the corresponding constants from `GlobalComponentI
 - `AutonomousPerceptionModule`, per-modality receptor components, `SensorModality` → **`FDP.Toolkit.Perception`**
 - `PhysicsQueryModule` (wraps `RaycastSolverSystem`, `HitResolutionSystem`) → **`FDP.Toolkit.Physics`**
 - `NavigationSolverModule`, `PathfindingBatchData` (Cartesian `Vector3` coords) → **`FDP.Toolkit.Navigation`**
-- Translator packs (`BrainPerceptionTranslatorPack`, `SimPerceptionTranslatorPack`, `BrainPathfindingTranslatorPack`, `SimPathfindingTranslatorPack`) → **`Bagira.SimHost.Network`** (Bagira DDS schema; converters do geo transforms)
+- Translator packs (`BrainPerceptionTranslatorPack`, `SimPerceptionTranslatorPack`, `BrainPathfindingTranslatorPack`, `SimPathfindingTranslatorPack`) → **`Hrot.SimHost.Network`** (Hrot DDS schema; converters do geo transforms)
 
 ---
 
@@ -754,9 +754,9 @@ Phase 6 inserts the **DDS network split** into the middle of these existing pipe
 
 ---
 
-#### 3.6.1a  Prerequisite: Fix Hardcoded Bagira IDs on Perception Components
+#### 3.6.1a  Prerequisite: Fix Hardcoded Hrot IDs on Perception Components
 
-> ⚠️ **ID leak:** Two components destined for `FDP.Toolkit.Perception` currently carry `[ComponentId]` values from the Bagira project block (160–255): `Faction` uses `[ComponentId(250)]` and `PerceptionReceptor` uses `[ComponentId(251)]`. IDs 160–255 are strictly reserved for the Bagira application (see §3.5). FDP toolkit components must never use IDs from that block, as it couples the generic engine layer to the application layer.
+> ⚠️ **ID leak:** Two components destined for `FDP.Toolkit.Perception` currently carry `[ComponentId]` values from the Hrot project block (160–255): `Faction` uses `[ComponentId(250)]` and `PerceptionReceptor` uses `[ComponentId(251)]`. IDs 160–255 are strictly reserved for the Hrot application (see §3.5). FDP toolkit components must never use IDs from that block, as it couples the generic engine layer to the application layer.
 
 **Fix:** Before any other Phase 6 work, change both structs to use the FDP toolkit block (20–49) and register the new constants in `GlobalComponentIds`:
 
@@ -774,7 +774,7 @@ public struct Faction { ... }
 public struct PerceptionReceptor { ... }
 ```
 
-This step is incorporated into **MOD1-P6T1** (see task detail). After the change, IDs 250 and 251 become available in the Bagira block for future application use.
+This step is incorporated into **MOD1-P6T1** (see task detail). After the change, IDs 250 and 251 become available in the Hrot block for future application use.
 
 ---
 
@@ -840,7 +840,7 @@ The `SensorConfig` DDS topic carries dynamic sensor parameter updates (Brain →
 
 #### 3.6.5  DDS Descriptors for Perception (Engine-Agnostic)
 
-All coordinates use the **Local Tangent Plane (ENU)** compression strategy: one double-precision `GeoPosition BatchOrigin` anchor per batch, with all per-ray offsets as `float`-precision `RelativeVector3{East, North, Up}`. This halves payload size vs. sending absolute WGS-84 doubles per ray and eliminates engine-specific coordinate-axis differences from the wire.
+All coordinates use the **Local Tangent Plane (ENU)** compression strategy: one double-precision `GeoPoint BatchOrigin` anchor per batch, with all per-ray offsets as `float`-precision `RelativeVector3{East, North, Up}`. This halves payload size vs. sending absolute WGS-84 doubles per ray and eliminates engine-specific coordinate-axis differences from the wire.
 
 **Shared struct:**
 ```csharp
@@ -852,7 +852,7 @@ public partial struct RelativeVector3 { public float East, North, Up; }
 
 ```
 RaycastRequestBatch  (Brain → Solver, DdsQos: Reliable/Volatile)
-  [DdsKey] int SourceNodeId  |  uint BatchCorrelationId  |  GeoPosition BatchOrigin
+  [DdsKey] int SourceNodeId  |  uint BatchCorrelationId  |  GeoPoint BatchOrigin
   List<DdsRaycastRequest>  { long RayId, RelativeVector3 Start/End, int LayerMask, long IgnoreEntityId }
 
 RaycastResponseBatch  (Solver → Brain, DdsQos: Reliable/Volatile)
@@ -953,7 +953,7 @@ A major architectural concern: the Brain node must be able to request a path and
 public struct PathfindingBatchData
 {
     public int Count;
-    public NativeArray<PathRequest> Requests;   // { long RequestId, Vector3/GeoPosition Start/End, byte MobilityProfile }
+    public NativeArray<PathRequest> Requests;   // { long RequestId, Vector3/GeoPoint Start/End, byte MobilityProfile }
     public NativeArray<PathResult> Results;     // { long RequestId, bool IsReachable, float TotalDistanceMeters, int RouteHandle }
 }
 ```
@@ -963,11 +963,11 @@ This mirrors the existing `RaycastBatchData` pattern and lives in the same pre-a
 **Action node pattern (replacing removed BTreeContext stubs):**
 BTree leaf nodes that need pathfinding subclass `PathfindingActionNode` (in `FDP.Toolkit.Navigation`) — see §3.6.6. The concrete `Action_PlanRoute` node calls `RequestPath(world, from, to)` / `GetPathResult(world, requestId)` from that base class. No routing through `BTreeContext` is required.
 
-**DDS descriptors (in `Bagira.BDC.SSTD`):**
+**DDS descriptors (in `Hrot.NED.Descriptors`):**
 
 ```
 PathRequestBatch  (Brain → Solver, Reliable/Volatile)
-  [DdsKey] int SourceNodeId  |  GeoPosition BatchOrigin
+  [DdsKey] int SourceNodeId  |  GeoPoint BatchOrigin
   List<DdsPathRequest>  { long RequestId, RelativeVector3 Start/End, byte MobilityProfile }
 
 PathResponseBatch  (Solver → Brain, Reliable/Volatile)
@@ -1051,7 +1051,7 @@ set CYCLONEDDS_URI=file://config/dds-node.xml
 SimHostApp.exe --role Perception --config perception.json
 ```
 
-- Registers: `BagiraSharedComponentRegistry`, `CombatComponentRegistry`
+- Registers: `HrotSharedComponentRegistry`, `CombatComponentRegistry`
 - Modules: `AutonomousPerceptionModule`, `PhysicsQueryModule`
 - Translators: `SharedTranslatorPack` + `SimPerceptionTranslatorPack`
   - Subscribes to `SensorConfig` (Brain → Solver) and `RaycastRequestBatch` (Brain → Solver).
@@ -1065,7 +1065,7 @@ set CYCLONEDDS_URI=file://config/dds-node.xml
 SimHostApp.exe --role NavigationSolver --config navsolver.json
 ```
 
-- Registers: `BagiraSharedComponentRegistry`, `KinematicComponentRegistry`
+- Registers: `HrotSharedComponentRegistry`, `KinematicComponentRegistry`
 - Modules: `NavigationSolverModule` (requires `RoadNetworkBlobPath` from `NodeConfiguration`)
 - Translators: `SharedTranslatorPack` + `SimPathfindingTranslatorPack`
   - Subscribes to `PathRequestBatch` (Brain → Solver).
@@ -1084,8 +1084,8 @@ This phase is **IG-only** — `SimHost` and `Brain` nodes are not affected.
 
 **Target namespaces (see §2.5):**
 - `TerrainQueryBatchData`, `TerrainQueryRequest`, `TerrainQueryResult`, all four execution systems (`TerrainQueryInitializationSystem`, `TerrainQuerySubmitSystem`, `TerrainQuerySolverSystem`, `TerrainQueryResolutionSystem`), `ITerrainProvider`, `EClampingMode` (engine-side enum), `GroundClampingConfig`, `GroundClampingState`, `GroundClampingModule` (base) → **`FDP.Toolkit.Geographic`**
-- `IgGroundClampingModule` (wires IG-specific `ITerrainProvider`, conditionally installed by `NodeBootstrapper`) → **`Bagira.IG.Modules`**
-- `GroundClampingOverride` DDS descriptor + `GroundClampingOverrideTranslator` → **`Bagira.BDC.SSTD`** / **`Bagira.IG.Network`**
+- `IgGroundClampingModule` (wires IG-specific `ITerrainProvider`, conditionally installed by `NodeBootstrapper`) → **`Hrot.IG.Modules`**
+- `GroundClampingOverride` DDS descriptor + `GroundClampingOverrideTranslator` → **`Hrot.NED.Descriptors`** / **`Hrot.IG.Network`**
 
 ---
 
@@ -1103,7 +1103,7 @@ This phase is **IG-only** — `SimHost` and `Brain` nodes are not affected.
 Dynamic per-entity clamping control is published by the Sim module (for aircraft take-off/landing) and by the IOS editor (for drag-and-drop). Using a ternary mode allows entities to rely on TKB defaults while giving operators override power.
 
 ```csharp
-// Bagira.BDC.SSTD
+// Hrot.NED.Descriptors
 public enum EClampingMode : byte
 {
     CLAMP_DEFAULT   = 0,   // Engine decides (grounded vehicle = ON, airborne = OFF)
@@ -1129,7 +1129,7 @@ public partial struct GroundClampingOverride
 **`GroundClampingConfig`** — written by the ingress translator; read by `TerrainQuerySubmitSystem`:
 
 ```csharp
-[ComponentId(BagiraComponentIds.GroundClampingConfig)]
+[ComponentId(HrotComponentIds.GroundClampingConfig)]
 public struct GroundClampingConfig
 {
     public EClampingMode Mode;
@@ -1144,7 +1144,7 @@ public struct GroundClampingConfig
 **`GroundClampingState`** — mutable interpolation state, modified by `TerrainQueryResolutionSystem`:
 
 ```csharp
-[ComponentId(BagiraComponentIds.GroundClampingState)]
+[ComponentId(HrotComponentIds.GroundClampingState)]
 public struct GroundClampingState
 {
     public float TargetZOffset;        // Desired visual correction (sim Z → IG Z)
@@ -1156,7 +1156,7 @@ public struct GroundClampingState
 **`TerrainQueryBatchData`** — pre-allocated unmanaged singleton; zero GC, same pattern as `RaycastBatchData`:
 
 ```csharp
-[ComponentId(BagiraComponentIds.TerrainQueryBatchData)]
+[ComponentId(HrotComponentIds.TerrainQueryBatchData)]
 public struct TerrainQueryBatchData
 {
     public int Count;
@@ -1291,9 +1291,9 @@ Both flows are driven purely by the DDS topic; no coupling between `SimHost` nod
 **Goal:** Move `AsyncRecorder` (and its playback counterpart `PlaybackController`) ownership out of a monolithic orchestrator into dynamically installable `IModule` objects managed by `ModuleHostKernel`. Split the recording concern into a **Control Plane** (`EcsRecordReplayController` as factory/orchestrator) and a **Data Plane** (`RecordingModule` / `StoryRecorderModule` / `ReplayModule` as hot-path owners). Achieve zero-cost "not recording" behavior, concurrent per-story recording with isolated I/O pipelines, and ACID-safe lifecycle semantics inside the existing 2PC barrier.
 
 **Target namespaces (see §2.5):**
-- `RecordingModule`, `ReplayModule`, `StoryRecorderModule`, `RecordingConfiguration`, `StoryTag`, `StoryReplayTag` → **`FDP.Toolkit.Replay`** (generic; operate purely on ECS chunk memory, no Bagira domain knowledge)
+- `RecordingModule`, `ReplayModule`, `StoryRecorderModule`, `RecordingConfiguration`, `StoryTag`, `StoryReplayTag` → **`FDP.Toolkit.Replay`** (generic; operate purely on ECS chunk memory, no Hrot domain knowledge)
 - `RecorderSystem.EntityFilter` extension → **`Fdp.Kernel.FlightRecorder`** (additive, non-breaking)
-- `EcsRecordReplayController` → **`Bagira.SimHost.Modules.Orchestration`** (binds generic recording mechanics to Bagira `IDsmHandler` / DSM commands)
+- `EcsRecordReplayController` → **`Hrot.SimHost.Modules.Orchestration`** (binds generic recording mechanics to Hrot `IDsmHandler` / DSM commands)
 
 ---
 
@@ -1313,10 +1313,10 @@ Both flows are driven purely by the DDS topic; no coupling between `SimHost` nod
 
 #### 3.8.2 Control Plane — `EcsRecordReplayController`
 
-`EcsRecordReplayController` implements `IDsmHandler` and is registered with `DrillSlave`. It acts exclusively as a **factory**: it constructs modules with the correct `RecordingConfiguration` context and delegates their lifecycle to `ModuleHostKernel`:
+`EcsRecordReplayController` implements `IDsmHandler` and is registered with `ClusterSlave`. It acts exclusively as a **factory**: it constructs modules with the correct `RecordingConfiguration` context and delegates their lifecycle to `ModuleHostKernel`:
 
 ```csharp
-// Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs
+// Hrot.SimHost/Modules/Orchestration/EcsRecordReplayController.cs
 public class EcsRecordReplayController : IDsmHandler
 {
     private readonly ModuleHostKernel _kernel;
@@ -1333,7 +1333,7 @@ public class EcsRecordReplayController : IDsmHandler
         {
             FilePath     = $"{storageDirectory}/{drillId}/node_{_nodeId}.fdp",
             EntityFilter = null,          // record all above MinRecordableId
-            DrillId      = drillId,
+            ExerciseId      = drillId,
         };
         _activeRecordingModule = new RecordingModule(config);
         await _kernel.InstallModuleAsync(_activeRecordingModule);
@@ -1351,20 +1351,20 @@ public class EcsRecordReplayController : IDsmHandler
 
     // --- Story recording ---
 
-    public async Task StartStoryRecordingAsync(Guid storyId, string storageDir)
+    public async Task StartEpisodeRecordingAsync(Guid storyId, string storageDir)
     {
         var config = new RecordingConfiguration
         {
             FilePath     = $"{storageDir}/stories/{storyId}_node{_nodeId}.fdp",
             EntityFilter = Query().With<StoryTag>().Build(),
-            DrillId      = storyId,
+            ExerciseId      = storyId,
         };
         var module = new StoryRecorderModule(config);
         _storyModules[storyId] = module;
         await _kernel.InstallModuleAsync(module);
     }
 
-    public async Task StopStoryRecordingAsync(Guid storyId)
+    public async Task StopEpisodeRecordingAsync(Guid storyId)
     {
         if (_storyModules.Remove(storyId, out var module))
             await _kernel.UninstallModuleAsync(module);
@@ -1396,7 +1396,7 @@ public class EcsRecordReplayController : IDsmHandler
 `RecordingModule` is `IModule` + `IDisposable`. It strictly owns one `AsyncRecorder` and the `RecorderTickSystem` that runs it at 60 Hz:
 
 ```csharp
-// Bagira.SimHost/Modules/Orchestration/RecordingModule.cs
+// Hrot.SimHost/Modules/Orchestration/RecordingModule.cs
 public class RecordingModule : IModule, IDisposable
 {
     private readonly RecordingConfiguration _config;
@@ -1452,7 +1452,7 @@ When `ModuleHostKernel.UninstallModuleAsync(module)` completes:
 - Each instance owns a **distinct** `AsyncRecorder` → distinct LZ4 background worker → distinct `.fdp` file stream. No shared I/O bottleneck, no mutex.
 - `AsyncRecorder.CaptureFrame()` performs a raw `memcpy` read of `NativeChunkTable`. Concurrent read-only access by multiple recorder instances creates no race conditions.
 - The `EntityFilter` predicate (e.g. `Query().With<StoryTag>().Build()`) is passed to `RecorderSystem` during `Initialize()`; entity IDs that do not satisfy it are skipped in the delta-frame loop.
-- Uninstalling a specific `StoryRecorderModule` at `StopStory` flushes that story's buffers and closes its file handles without affecting any other running module.
+- Uninstalling a specific `StoryRecorderModule` at `StopEpisode` flushes that story's buffers and closes its file handles without affecting any other running module.
 
 ---
 
@@ -1461,7 +1461,7 @@ When `ModuleHostKernel.UninstallModuleAsync(module)` completes:
 `ReplayModule` is the symmetric counterpart for playback. It strictly owns one `PlaybackController` and registers a `PlaybackTickSystem`:
 
 ```csharp
-// Bagira.SimHost/Modules/Orchestration/ReplayModule.cs
+// Hrot.SimHost/Modules/Orchestration/ReplayModule.cs
 public class ReplayModule : IModule, IDisposable
 {
     private PlaybackController? _playback;
@@ -1492,7 +1492,7 @@ public class ReplayModule : IModule, IDisposable
 #### 3.8.6 `RecordingConfiguration` — Initialization Contract
 
 ```csharp
-// Bagira.SimHost/Modules/Orchestration/RecordingConfiguration.cs
+// Hrot.SimHost/Modules/Orchestration/RecordingConfiguration.cs
 public sealed class RecordingConfiguration
 {
     /// Absolute path for the .fdp output file.
@@ -1503,7 +1503,7 @@ public sealed class RecordingConfiguration
     public EntityQuery? EntityFilter { get; init; }
 
     /// Drill or Story identifier embedded in the recording header.
-    public required Guid DrillId { get; init; }
+    public required Guid ExerciseId { get; init; }
 }
 ```
 
@@ -1542,7 +1542,7 @@ Entities spawned for a story receive `StoryTag`. The story recorder's filter que
 
 #### 3.8.9 NodeBootstrapper Integration
 
-`EcsRecordReplayController` is instantiated during node startup and registered with `DrillSlave`:
+`EcsRecordReplayController` is instantiated during node startup and registered with `ClusterSlave`:
 
 ```csharp
 // Inside NodeBootstrapper (Brain / AllInOne roles):
@@ -1558,11 +1558,11 @@ drillSlave.RegisterHandler(recordReplayController);
 
 ### Phase 9 — `FDP.Framework.Runner` — Generic Application Lifecycle Toolkit
 
-**Goal:** Extract the application orchestration infrastructure from `Bagira.Runner` into a standalone, project-agnostic toolkit (`FDP.Framework.Runner`). `Bagira.Runner` becomes a pure **composition root** that wires Bagira domain subsystems into the generic framework lifecycle.
+**Goal:** Extract the application orchestration infrastructure from `Hrot.ClusterRunner` into a standalone, project-agnostic toolkit (`FDP.Framework.Runner`). `Hrot.ClusterRunner` becomes a pure **composition root** that wires Hrot domain subsystems into the generic framework lifecycle.
 
 **Target namespaces (see §2.5):**
 - Generic lifecycle contracts and orchestration → **`FDP.Framework.Runner`**
-- Concrete Bagira subsystems and entry point → **`Bagira.Runner`** (unchanged assembly)
+- Concrete Hrot subsystems and entry point → **`Hrot.ClusterRunner`** (unchanged assembly)
 
 #### 3.9.1  Candidates for `FDP.Framework.Runner`
 
@@ -1577,22 +1577,22 @@ drillSlave.RegisterHandler(recordReplayController);
 | `TestScript`, `TestStep`, `TestReport`, `ITestActionHandler` | Core test model types |
 | `WaitActionHandler`, `TickActionHandler`, `AssertAllActionHandler` | Universal test actions (no domain knowledge) |
 
-#### 3.9.2  What Stays in `Bagira.Runner`
+#### 3.9.2  What Stays in `Hrot.ClusterRunner`
 
 | Class | Why it stays |
 |---|---|
-| `SimHostSubsystem`, `IgSubsystem`, `IosSubsystem` | Concrete adapters that bootstrap Bagira ECS worlds and UI panels |
+| `SimHostSubsystem`, `IgSubsystem`, `IosSubsystem` | Concrete adapters that bootstrap Hrot ECS worlds and UI panels |
 | `Program.cs` entry point | Maps `--mode` CLI arg to concrete `ISubsystem` instances; injects them into `SubsystemOrchestrator` |
 | `NodeBootstrapper` / `NodeRole` | Assemble the *internal* ECS module graph for a specific subsystem |
-| `SpawnActionHandler`, `MoveActionHandler`, `AssertPositionActionHandler` | Domain-specific test actions that reference Bagira entity types |
-| Bagira-specific runner CLI flags (`--mode`, `--role`, etc.) | Extend `RunnerConfiguration` base in project-local class |
+| `SpawnActionHandler`, `MoveActionHandler`, `AssertPositionActionHandler` | Domain-specific test actions that reference Hrot entity types |
+| Hrot-specific runner CLI flags (`--mode`, `--role`, etc.) | Extend `RunnerConfiguration` base in project-local class |
 
 #### 3.9.3  Refactoring `SubsystemOrchestrator` for FDP
 
-Three areas of Bagira coupling must be removed:
+Three areas of Hrot coupling must be removed:
 
 **A. Hardcoded subsystem construction (`BuildSubsystems`):**
-Remove the `BuildSubsystems` / `RunMode` pattern entirely from `SubsystemOrchestrator`. The orchestrator must receive `IEnumerable<ISubsystem>` via its constructor. `Bagira.Runner.Program` parses the CLI and injects the concrete list.
+Remove the `BuildSubsystems` / `RunMode` pattern entirely from `SubsystemOrchestrator`. The orchestrator must receive `IEnumerable<ISubsystem>` via its constructor. `Hrot.ClusterRunner.Program` parses the CLI and injects the concrete list.
 
 **B. Hardcoded UI theme colours (`PushSubsystemColors`):**
 Add a `Vector4 TitleBarColor { get; }` property to `ISubsystem`. The orchestrator queries this before drawing instead of switching on hardcoded name strings (`"IG"`, `"SimHost"`, `"IOS"`).
@@ -1604,10 +1604,10 @@ Add a `Vector4 TitleBarColor { get; }` property to `ISubsystem`. The orchestrato
 
 1. Move `TestScript`, `TestStep`, `TestReport`, `ITestActionHandler` models to `FDP.Framework.Runner`.
 2. Move `WaitActionHandler`, `TickActionHandler`, `AssertAllActionHandler` to `FDP.Framework.Runner` (no domain knowledge).
-3. Keep `SpawnActionHandler`, `MoveActionHandler`, `AssertPositionActionHandler` in `Bagira.Runner`.
-4. `HeadlessTestExecutor` already exposes `RegisterHandler(ITestActionHandler)`. During test startup `Bagira.Runner` calls this to inject Bagira-specific handlers.
+3. Keep `SpawnActionHandler`, `MoveActionHandler`, `AssertPositionActionHandler` in `Hrot.ClusterRunner`.
+4. `HeadlessTestExecutor` already exposes `RegisterHandler(ITestActionHandler)`. During test startup `Hrot.ClusterRunner` calls this to inject Hrot-specific handlers.
 
-**`TestMetricsCollector`** (`FDP.Framework.Runner.Testing`) — thread-safe collector for numeric metrics sampled during a headless test run. Introduced alongside `HeadlessTestExecutor` to allow test scripts to assert on aggregate performance data (min/max/avg/P95) after a run completes. Contains no `Bagira.*` references and is fully generic. Usage pattern:
+**`TestMetricsCollector`** (`FDP.Framework.Runner.Testing`) — thread-safe collector for numeric metrics sampled during a headless test run. Introduced alongside `HeadlessTestExecutor` to allow test scripts to assert on aggregate performance data (min/max/avg/P95) after a run completes. Contains no `Hrot.*` references and is fully generic. Usage pattern:
 
 ```csharp
 var metrics = new TestMetricsCollector();
@@ -1618,10 +1618,10 @@ metrics.RecordMetric("entity_count_peak", world.EntityCount);
 Assert.True(metrics.GetSummary("frame_duration_ms").P95 < 20.0, "P95 frame time must be under 20ms");
 ```
 
-#### 3.9.5  How `Bagira.Runner` Uses the Toolkit
+#### 3.9.5  How `Hrot.ClusterRunner` Uses the Toolkit
 
 ```csharp
-// Bagira.Runner/Program.cs (sketch)
+// Hrot.ClusterRunner/Program.cs (sketch)
 var subsystems = ParseMode(args) switch
 {
     "simhost" => new ISubsystem[] { new SimHostSubsystem(config) },
@@ -1635,9 +1635,9 @@ orchestrator.Initialize();
 if (config.Headless)
 {
     var executor = new HeadlessTestExecutor(orchestrator);   // FDP.Framework.Runner
-    executor.RegisterHandler("spawn",   new SpawnActionHandler(_world));   // Bagira
-    executor.RegisterHandler("moveto",  new MoveActionHandler(_world));    // Bagira
-    executor.RegisterHandler("assertpos", new AssertPositionActionHandler(_world)); // Bagira
+    executor.RegisterHandler("spawn",   new SpawnActionHandler(_world));   // Hrot
+    executor.RegisterHandler("moveto",  new MoveActionHandler(_world));    // Hrot
+    executor.RegisterHandler("assertpos", new AssertPositionActionHandler(_world)); // Hrot
     executor.Run(TestScript.LoadFrom(config.TestScriptPath));
 }
 else

@@ -19,7 +19,7 @@ Fixed the architectural violation in `DescriptorMapper.MapToComponents` by remov
 ---
 
 ## Test Results
-- `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj` ? **Passed** (77 tests)
+- `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj` ? **Passed** (77 tests)
 
 ---
 

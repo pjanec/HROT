@@ -38,16 +38,16 @@
 
 | Project | Passed | Notes |
 |---------|--------|-------|
-| `Bagira.SimHost.Integration.Tests` | 28 / 28 | Was 27/28 before batch; `EntityMission_MovesEntity` now passes |
-| `Bagira.SimHost.Tests` | 275 / 275 | |
-| `Bagira.IG.Tests` | 333 / 333 | |
-| `Bagira.IOS.Tests` | 283 / 283 | |
+| `Hrot.SimHost.Integration.Tests` | 28 / 28 | Was 27/28 before batch; `EntityMission_MovesEntity` now passes |
+| `Hrot.SimHost.Tests` | 275 / 275 | |
+| `Hrot.IG.Tests` | 333 / 333 | |
+| `Hrot.ExCon.Tests` | 283 / 283 | |
 | `FDP.Toolkit.Behavior.Tests` | 73 / 73 | |
 | `FDP.Toolkit.Combat.Tests` | 29 / 29 | |
 | `FDP.Toolkit.Vis2D.Tests` | 27 / 27 | New suite; all 27 tests passing including 4 new ones this batch |
-| `Bagira.Map.Common.Tests` | All pass | ResolveTrigger tests migrated |
-| `Bagira.Runner.Tests` | All pass | |
-| `Bagira.DDS.DataModel.Tests` | All pass | |
+| `Hrot.Map.Common.Tests` | All pass | ResolveTrigger tests migrated |
+| `Hrot.ClusterRunner.Tests` | All pass | |
+| `Hrot.NED.Tests` | All pass | |
 
 **Pre-existing failures (not regressions):**
 
@@ -100,7 +100,7 @@ Fix: `MissionAdapterSystem` now directly mutates `DoctrineState.ActiveDoctrineHa
 
 **`AssignDoctrineEvent` still published alongside direct state update (A001 / EntityMission fix):** Considered removing the event publish and relying solely on the direct update. Rejected because production `SimHostApp.OnUpdate()` only calls `SwapBuffers()` once, so events _do_ survive in production, and `DoctrineIngressSystem` may provide additional setup steps beyond what `MissionAdapterSystem` directly applies. Keeping both paths ensures neither production nor test behaviour regresses.
 
-**`MissionTriggerHelper` placement (DEBT-01):** Placed in `Bagira.Map.Common/Helpers/` because both `MissionControlRequestSystem` (SimHost) and `EntityMissionIngressTranslator` (Map.Common) reference map-level mission concepts. `Bagira.Map.Common` is on the dependency boundary that both already reference, making it the natural shared location without creating a new cross-project dependency.
+**`MissionTriggerHelper` placement (DEBT-01):** Placed in `Hrot.Map.Common/Helpers/` because both `MissionControlRequestSystem` (SimHost) and `EntityMissionIngressTranslator` (Map.Common) reference map-level mission concepts. `Hrot.Map.Common` is on the dependency boundary that both already reference, making it the natural shared location without creating a new cross-project dependency.
 
 **`Health` in `FDP.Toolkit.Combat.Contracts` not in `Fdp.Kernel` (A001):** The instructions were explicit. The alternative — keeping `Health` in `Fdp.Kernel` — would have maintained the tight coupling between the ECS kernel and combat-domain logic that the task was designed to break. `GlobalComponentIds.HealthData = 2` was preserved (not reused, not deleted) in `Fdp.Kernel` solely for binary serialization compatibility of any persisted world snapshots.
 

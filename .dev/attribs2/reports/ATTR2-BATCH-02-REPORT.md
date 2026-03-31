@@ -20,8 +20,8 @@
 | Tests             | All new test files written         | ✅ Done |
 
 **Test results:**
-- `Bagira.SimHost.Tests`: **Passed 132 / 132**
-- `Bagira.DDS.DataModel.Tests`: **Passed 16 / 16**
+- `Hrot.SimHost.Tests`: **Passed 132 / 132**
+- `Hrot.NED.Tests`: **Passed 16 / 16**
 
 ---
 
@@ -33,7 +33,7 @@
 
 2. **`System.Text.Json` does NOT serialize public fields by default.** The pre-existing test `AttributeRecord_Float64_RoundTripsViaJsonSerializer` was failing silently (round-tripping to `{}`). The fix was to add `[JsonInclude]` to every public field of `AttributeRecord`, `AttributeValueUnion`, `Vec3f`, `Vec3d`, and `Vec4f`, along with `using System.Text.Json.Serialization`. This was discovered by running the DataModel tests and observing all 16 now pass.
 
-**Confirmation of CycloneDDS acceptance:** The CycloneDDS schema annotations (`[DdsUnion]`, `[DdsDiscriminator]`, `[DdsCase]`) are validated at build time by `CycloneDDS.CodeGen`. A clean `dotnet build` of `Bagira.DDS.DataModel` with 0 errors, combined with all 16 existing DataModel unit tests passing, confirmed acceptance.
+**Confirmation of CycloneDDS acceptance:** The CycloneDDS schema annotations (`[DdsUnion]`, `[DdsDiscriminator]`, `[DdsCase]`) are validated at build time by `CycloneDDS.CodeGen`. A clean `dotnet build` of `Hrot.NED` with 0 errors, combined with all 16 existing DataModel unit tests passing, confirmed acceptance.
 
 ---
 

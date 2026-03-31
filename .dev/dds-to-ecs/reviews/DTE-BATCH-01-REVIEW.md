@@ -16,7 +16,7 @@ Phase 1 changes are implemented and tests converted to xUnit, but unrelated file
 
 ### Issue 1: Unrelated files added
 
-**Files:** `Bagira.IOS/Services/DdsEventIngressHandlers.cs`, `config.json`  
+**Files:** `Hrot.ExCon/Services/DdsEventIngressHandlers.cs`, `config.json`  
 **Problem:** These files are unrelated to DDS DTO cleanup and are outside the batch scope.  
 **Fix:** Remove these files from the batch (delete or exclude from commit) and keep only Phase 1 changes.
 
@@ -27,7 +27,7 @@ Phase 1 changes are implemented and tests converted to xUnit, but unrelated file
 **Status:** NEEDS FIXES
 
 **Required Actions:**
-1. Remove unrelated files from the batch (`Bagira.IOS/Services/DdsEventIngressHandlers.cs`, `config.json`).
+1. Remove unrelated files from the batch (`Hrot.ExCon/Services/DdsEventIngressHandlers.cs`, `config.json`).
 2. Ensure only Phase 1 changes are included in the commit.
 
 ---

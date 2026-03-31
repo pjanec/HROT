@@ -158,7 +158,7 @@ namespace FDP.Toolkit.NetworkSpawning.Events
         /// Optional list of ECS component instances to apply on top of TKB template defaults.
         /// Each item is an object whose runtime type is used by EntityComponentReflector
         /// to call world.SetComponent(entity, type, value).
-        /// Typical contents: EntityMaster, GeoSpatial, EntityInfo, VehicleState, etc.
+        /// Typical contents: EntityMaster, WorldPos, EntityInfo, VehicleState, etc.
         /// </summary>
         public List<object> InitialComponents;
 
@@ -236,16 +236,16 @@ public struct DestroyEntityCommand
 // In any IModule's RegisterSystems():
 registry.RegisterSystem(new NetworkSpawningSystem(
     tkbDatabase, elm, entityMap, idAllocator, localNodeId,
-    // Optional: inject DisType extraction logic — keeps Toolkit free of Bagira.DDS.DataModel
+    // Optional: inject DisType extraction logic — keeps Toolkit free of Hrot.NED
     (object c, out ulong dis) => {
-        if (c is Bagira.BDC.SSTD.EntityMaster m) { dis = m.DisType; return true; }
+        if (c is Hrot.NED.Descriptors.EntityMaster m) { dis = m.DisType; return true; }
         dis = 0; return false;
     }));
 ```
 
 > **Decoupling note:** The `DisTypeExtractor` delegate is optional (`null` is valid).
 > Passing `null` causes `ExtractDisType` to return 0 (no DIS type). The Toolkit itself
-> has **zero dependency** on `Bagira.DDS.DataModel`; only the calling application supplies
+> has **zero dependency** on `Hrot.NED`; only the calling application supplies
 > the concrete extraction logic.
 
 ### 5.3 Implementation Sketch
@@ -443,7 +443,7 @@ namespace FDP.Toolkit.NetworkSpawning
 **SimHost DescriptorMapper pattern:**
 
 ```csharp
-// Bagira.SimHost.Util.DescriptorMapper  (SimHost project, not in Toolkit)
+// Hrot.SimHost.Util.DescriptorMapper  (SimHost project, not in Toolkit)
 public static class DescriptorMapper
 {
     public static List<object> MapToComponents(
@@ -456,7 +456,7 @@ public static class DescriptorMapper
             switch (desc._d)
             {
                 case EDescriptorType.dtEntityMaster:
-                    // Use Bagira.DDS.DataModel.EntityMaster directly (no wrapper)
+                    // Use Hrot.NED.EntityMaster directly (no wrapper)
                     components.Add(desc.EntityMaster);
                     break;
 
@@ -464,15 +464,15 @@ public static class DescriptorMapper
                     components.Add(desc.EntityInfo);
                     break;
 
-                case EDescriptorType.dtGeoSpatial:
+                case EDescriptorType.dtWorldPos:
                     // Store raw descriptor for DDS replication
-                    components.Add(desc.GeoSpatial);
+                    components.Add(desc.WorldPos);
                     // Convert to local Cartesian for CarKinem VehicleState
-                    var cart = geoTransform.ToCartesian(desc.GeoSpatial.Pos);
+                    var cart = geoTransform.ToCartesian(desc.WorldPos.Pos);
                     components.Add(new VehicleState
                     {
                         Position   = new Vector2((float)cart.X, (float)cart.Y),
-                        Forward    = HeadingToVector(desc.GeoSpatial.Rot.Heading),
+                        Forward    = HeadingToVector(desc.WorldPos.Rot.Heading),
                         Speed      = 0, SteerAngle = 0
                     });
                     break;
@@ -490,7 +490,7 @@ public static class DescriptorMapper
 **IG EntityMasterTranslator pattern (ingress → SpawnEntityCommand):**
 
 ```csharp
-// In Bagira.IG.Translators.EntityMasterTranslator
+// In Hrot.IG.Translators.EntityMasterTranslator
 public void OnReceived(EntityMaster sample, SampleInfo info, EntityRepository world)
 {
     if (info.InstanceState == InstanceState.Disposed)
@@ -573,14 +573,14 @@ _eventBus.Publish(new SpawnEntityCommand
 
 ## 9. Custom EntityMaster Support
 
-The design supports domain-specific `EntityMaster` structs (e.g. `Bagira.BDC.SSTD.EntityMaster` with custom `Flags` field) without modification to the Toolkit:
+The design supports domain-specific `EntityMaster` structs (e.g. `Hrot.NED.Descriptors.EntityMaster` with custom `Flags` field) without modification to the Toolkit:
 
-1. Define your `EntityMaster` in your DataModel project (already done in `Bagira.DDS.DataModel`).
+1. Define your `EntityMaster` in your DataModel project (already done in `Hrot.NED`).
 2. TKB template provides default `EntityMaster` values via `template.ApplyTo(...)`.
 3. When creating via `SpawnEntityCommand`, include a new `EntityMaster` instance with custom fields in `InitialComponents`.
 4. `EntityComponentReflector.SetComponent(world, entity, master)` overwrites the TKB default.
 
-**Result:** The Toolkit is fully generic. Any struct type can be passed in `InitialComponents` and will be applied over the template default. The Toolkit has zero knowledge of `Bagira.DDS.DataModel` types.
+**Result:** The Toolkit is fully generic. Any struct type can be passed in `InitialComponents` and will be applied over the template default. The Toolkit has zero knowledge of `Hrot.NED` types.
 
 ---
 

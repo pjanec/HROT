@@ -36,18 +36,18 @@ Completes TASK-IF001, TASK-IF002, TASK-IF003, TASK-IF004, TASK-IF005, TASK-IF006
 
 Corrects SimHost validation errors by stripping VehicleState descriptors from the mapping phase, increments doctrine ID per change, and publishes EntityMaster on the DDS interface. Adjusts ghost node tagging logic within IG so that remote entity dead reckoning correctly takes over. Finally, completes UI panel lifecycle wiring across the IG and IOS applications.
 
-Bagira.SimHost:
+Hrot.SimHost:
 - Eliminated implicit VehicleState inclusion on entities
 - Fixes MissionAdapterSystem doctrine caching
 - Adds direct AutoCycloneTranslator to publish EntityMaster DDS topic
 
-Bagira.IG:
+Hrot.IG:
 - Overwrites EntityMasterTranslator ownership tag logic to ghost 0 
 - Introduces TransformSyncSystem interpolation registration
 - Migrates the CreationTool to DDS instead of the local FdpEventBus
 - Hooks ImGui panels to the application loop, gating Input actions behind want capture requests
 
-Bagira.IOS:
+Hrot.ExCon:
 - Activates code for all panel render methods and resolves IosMock ImGui instantiation quirks
 - Restores cosmetics for `LocalNodeId` relying on DER library extensions
 

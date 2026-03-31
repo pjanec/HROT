@@ -22,7 +22,7 @@ This batch covers all critical architectural deviations and UI wiring issues in 
 5. **Architectural Principles:** Ensure you review `docs/design/ios-ig-simhost-initial-fixes.md` for broader context.
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost`, `Bagira.IG`, `Bagira.IOS`
+- **Primary Work Area:** `Hrot.SimHost`, `Hrot.IG`, `Hrot.ExCon`
 - **Test Project:** Existing test projects corresponding to the modified components. Check `tests/` directories.
 
 ### Report Submission
@@ -74,10 +74,10 @@ Make SimHost an authoritative node and IG a compliant ghost node by addressing m
 
 ### Task 1: Remove VehicleState Contamination (TASK-IF001)
 
-**File:** `Bagira.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
+**File:** `Hrot.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md - TASK-IF001](../../docs/initial-fixes/TASK-DETAIL.md#task-if001-remove-vehiclestate-contamination)
 
-**Description:** Delete the unconditional addition of `VehicleState` to all entities with a `GeoSpatial` descriptor.
+**Description:** Delete the unconditional addition of `VehicleState` to all entities with a `WorldPos` descriptor.
 **Requirements:**
 - Do not introduce conditionals.
 - Ensure only the TKB template dictates `VehicleState` addition.
@@ -90,7 +90,7 @@ Make SimHost an authoritative node and IG a compliant ghost node by addressing m
 
 ### Task 2: Fix Doctrine Preemption (TASK-IF002)
 
-**File:** `Bagira.SimHost/Systems/MissionAdapterSystem.cs` (UPDATE)  
+**File:** `Hrot.SimHost/Systems/MissionAdapterSystem.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md - TASK-IF002](../../docs/initial-fixes/TASK-DETAIL.md#task-if002-fix-doctrine-preemption)
 
 **Description:** Add an `unchecked` `InstanceId` increment when doctrine changes to trigger channel preemption.
@@ -105,7 +105,7 @@ Make SimHost an authoritative node and IG a compliant ghost node by addressing m
 
 ### Task 3: Publish EntityMaster DDS Topic (TASK-IF003)
 
-**File:** `Bagira.SimHost/Program.cs` (UPDATE)  
+**File:** `Hrot.SimHost/Program.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md - TASK-IF003](../../docs/initial-fixes/TASK-DETAIL.md#task-if003-publish-entitymaster-dds-topic)
 
 **Description:** Manually construct and register an `AutoCycloneTranslator<EntityMaster>` in SimHost.
@@ -120,7 +120,7 @@ Make SimHost an authoritative node and IG a compliant ghost node by addressing m
 
 ### Task 4: Fix Ghost Ownership in EntityMasterTranslator (TASK-IF004)
 
-**File:** `Bagira.IG/Translators/EntityMasterTranslator.cs` (UPDATE)  
+**File:** `Hrot.IG/Translators/EntityMasterTranslator.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md - TASK-IF004](../../docs/initial-fixes/TASK-DETAIL.md#task-if004-fix-ghost-ownership-in-entitymastertranslator)
 
 **Description:** Set the `OwnerNodeId` to `0` instead of a local node ID to prevent ghost node ownership theft.
@@ -134,7 +134,7 @@ Make SimHost an authoritative node and IG a compliant ghost node by addressing m
 
 ### Task 5: Register TransformSyncSystem (TASK-IF005)
 
-**File:** `Bagira.IG/IgApplication.cs` (UPDATE)  
+**File:** `Hrot.IG/IgApplication.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md - TASK-IF005](../../docs/initial-fixes/TASK-DETAIL.md#task-if005-register-transformsyncsystem)
 
 **Description:** Register `TransformSyncSystem` driven by the network as a global system.
@@ -148,13 +148,13 @@ Make SimHost an authoritative node and IG a compliant ghost node by addressing m
 
 ### Task 6: Fix Rogue Local Spawning in CreationTool (TASK-IF006)
 
-**File:** `Bagira.IG/Tools/CreationTool.cs` (UPDATE)  
+**File:** `Hrot.IG/Tools/CreationTool.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md - TASK-IF006](../../docs/initial-fixes/TASK-DETAIL.md#task-if006-fix-rogue-local-spawning-in-creationtool)
 
 **Description:** Use DDS routing (`IDdsWriter<CreateEntityRequest>`) rather than local bus injection for newly spawned entities.
 **Requirements:**
-- Payload must be fully constructed including `dtEntityMaster` and `dtGeoSpatial` structures. 
-- Map clicking calculates `GeoPosition` fields matching the FDP coordinates.
+- Payload must be fully constructed including `dtEntityMaster` and `dtWorldPos` structures. 
+- Map clicking calculates `GeoPoint` fields matching the FDP coordinates.
 
 **Design Reference:** [DESIGN.md § 2.3](../../docs/initial-fixes/DESIGN.md#23-fix-rogue-local-spawning)
 
@@ -164,7 +164,7 @@ Make SimHost an authoritative node and IG a compliant ghost node by addressing m
 
 ### Task 7: Uncomment IOS Draw Methods (TASK-IF007)
 
-**Files:** `Bagira.IOS/IosMock.cs` and all Panels in `Bagira.IOS/Panels/` (UPDATE)  
+**Files:** `Hrot.ExCon/IosMock.cs` and all Panels in `Hrot.ExCon/Panels/` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md - TASK-IF007](../../docs/initial-fixes/TASK-DETAIL.md#task-if007-uncomment-ios-draw-methods)
 
 **Description:** Uncomment ImGui panel implementations and wire `using ImGuiNET;` where necessary.
@@ -178,7 +178,7 @@ Make SimHost an authoritative node and IG a compliant ghost node by addressing m
 
 ### Task 8: Connect IG UI Panels to App Loop (TASK-IF008)
 
-**File:** `Bagira.IG/IgApplication.cs` (UPDATE)  
+**File:** `Hrot.IG/IgApplication.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md - TASK-IF008](../../docs/initial-fixes/TASK-DETAIL.md#task-if008-connect-ig-ui-panels-to-app-loop)
 
 **Description:** Connect panels (`IgDebugPanel`, `EntityInspectorPanel`, `MiniIosPanel`, `PerformanceOverlay`) inside the standard render loop.

@@ -17,9 +17,9 @@ The binary attribute contract types and DDS message extensions were implemented 
 
 ### Issue 1: Incorrect CycloneDDS Union Pattern
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs`  
+**File:** `Hrot.NED/GenericMessages.cs`  
 **Problem:** `AttributeValueUnion` was defined as a flat struct with multiple fields and a manual discriminator enum. This violates how CycloneDDS expects unions to be defined in C# DSL (which causes serialization inconsistencies). The developer missed `[DdsUnion]`, `[DdsDiscriminator]`, and `[DdsCase(..)]` attributes.  
-**Fix:** Rewrite `AttributeValueUnion` to use the correct `[DdsUnion]` attributes. Reference `Bagira.DDS.DataModel/AllDescriptors.cs` for the correct pattern. This will be added as Corrective Task 0 in BATCH-02.
+**Fix:** Rewrite `AttributeValueUnion` to use the correct `[DdsUnion]` attributes. Reference `Hrot.NED/AllDescriptors.cs` for the correct pattern. This will be added as Corrective Task 0 in BATCH-02.
 
 ---
 

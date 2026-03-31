@@ -16,7 +16,7 @@ The developer correctly implemented the requested action for the E2E Integration
 ## Fixes / Quality Assessment
 
 ### Task CORRECTIVE-0
-The in-memory ECS component copy test from INTS-BATCH-03 was deleted. It was replaced with `Bagira.SimHost.Integration.Tests/EntityLifecycleIntegrationTests.cs`, which correctly spins up headless `SimHostApp` and `IgApplication` instances connected via Domain 10. The test verifies that DDS routing and ingestion across the components produces the expected `ResolvedStyle` locally within IG's repository. This fully satisfies the true intent of Phase 3 integration testing.
+The in-memory ECS component copy test from INTS-BATCH-03 was deleted. It was replaced with `Hrot.SimHost.Integration.Tests/EntityLifecycleIntegrationTests.cs`, which correctly spins up headless `SimHostApp` and `IgApplication` instances connected via Domain 10. The test verifies that DDS routing and ingestion across the components produces the expected `ResolvedStyle` locally within IG's repository. This fully satisfies the true intent of Phase 3 integration testing.
 
 ### Structural Questions Raised
 1. **ComponentId on structs missing from ECS:** The developer proved through `NetworkDemo` golden samples and ECS managed-registry logic that `[ComponentId]` is strictly required on data definition objects that traverse the registry boundary. We will not change this structure.

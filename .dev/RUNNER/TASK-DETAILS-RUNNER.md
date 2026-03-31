@@ -44,7 +44,7 @@ This task introduces an explicit `[ComponentId(byte)]` attribute (mirroring the 
   - `Fdp.Kernel`: `SimTransform`, `SimVelocity`, `HealthData`, `GlobalTime`, `IsActiveTag`, `LifecycleDescriptor`, `HierarchyNode`, `PartDescriptor`
   - `FDP.Toolkit.Replication`: `NetworkIdentity`, `NetworkAuthority`, `NetworkPosition`, `NetworkVelocity`, `NetworkSpawnRequest`, `PartMetadata`
   - `FDP.Toolkit.Vis2D`: `MapDisplayComponent`, `VisHierarchyNode`, `AggregateState`, `AggregateRoot`
-  - `Bagira.IG`: `ResolvedStyle`, `CullingState`, `SelectionState`, `VisualEffectState`, `TracerTarget`
+  - `Hrot.IG`: `ResolvedStyle`, `CullingState`, `SelectionState`, `VisualEffectState`, `TracerTarget`
 - **SC-6**: Unit tests added covering:
   - ID collision between two structs declaring `[ComponentId(42)]` — must throw.
   - Struct without `[ComponentId]` with `EnforceExplicitComponentIds = true` — must throw on first `ComponentType<T>.Id` access.
@@ -83,7 +83,7 @@ This task saves a `SchemaManifest` in every `.meta.json` recording sidecar (via 
 
 # Phase R1: Runner Core
 
-## R1.1: Create Bagira.Runner Project
+## R1.1: Create Hrot.ClusterRunner Project
 
 **Estimated**: 0.25 days  
 **Dependencies**: None
@@ -94,20 +94,20 @@ Create the main runner application project that will orchestrate all subsystems.
 ### Success Criteria
 
 **SC-1**: Project Structure Created
-- Create project: `dotnet new console -n Bagira.Runner -f net8.0`
-- Folder: `Bagira.Runner/` (at solution root)
+- Create project: `dotnet new console -n Hrot.ClusterRunner -f net8.0`
+- Folder: `Hrot.ClusterRunner/` (at solution root)
 - Add to solution `IOS-IG-SimHost.sln`
 - Project compiles successfully
 
 **SC-2**: Dependencies Added
-- Reference `Bagira.DDS.DataModel` project
+- Reference `Hrot.NED` project
 - Add `CommandLineParser` NuGet package (for CLI argument parsing)
 - Add `Microsoft.Extensions.Logging` NuGet package
 - Add `Newtonsoft.Json` NuGet package
 
 **SC-3**: Folder Structure Created
 ```
-Bagira.Runner/
+Hrot.ClusterRunner/
 ├── Program.cs
 ├── Models/
 │   └── (empty, for next task)
@@ -121,7 +121,7 @@ Bagira.Runner/
 
 Build the empty project:
 ```bash
-cd Bagira.Runner
+cd Hrot.ClusterRunner
 dotnet build
 ```
 
@@ -218,10 +218,10 @@ Implement `LoadFromJson(string path)` method:
 - Validate merged configuration
 
 **SC-4**: Unit Tests
-- Create test project: `dotnet new mstest -n Bagira.Runner.Tests -f net8.0`
-- Folder: `Bagira.Runner.Tests/`
+- Create test project: `dotnet new mstest -n Hrot.ClusterRunner.Tests -f net8.0`
+- Folder: `Hrot.ClusterRunner.Tests/`
 - Add to solution `IOS-IG-SimHost.sln`
-- Add reference to `Bagira.Runner`
+- Add reference to `Hrot.ClusterRunner`
 - Implement tests:
 - `Test_ParseMode_All`: Verify "all" → `RunMode.All`
 - `Test_ParseMode_Combo`: Verify "simhost,ig" → `RunMode.SimHost | RunMode.IG`
@@ -233,7 +233,7 @@ Implement `LoadFromJson(string path)` method:
 
 Run unit tests:
 ```bash
-cd Bagira.Runner.Tests
+cd Hrot.ClusterRunner.Tests
 dotnet test
 ```
 
@@ -586,11 +586,11 @@ Define and implement the DDS topic for subsystem status announcements (waiting r
 
 ### Success Criteria
 
-**SC-1**: Data Model Added to Bagira.DDS.DataModel
+**SC-1**: Data Model Added to Hrot.NED
 
 > **Architect Note (2026-02-26):** FDP uses a **single `[DdsQos]` attribute** for all QoS policies. Separate `[DdsReliability]` / `[DdsDurability]` attributes do not exist in FDP and will not compile. Use the pattern below. Also note: the struct must be a `partial struct` (FDP source-generator requirement).
 
-Add to `Bagira.DDS.DataModel/SimDescriptors.cs`:
+Add to `Hrot.NED/SimDescriptors.cs`:
 ```csharp
 [DdsTopic("SubsystemStatusAnnounce")]
 [DdsQos(
@@ -822,7 +822,7 @@ Refactor existing SimHost code to implement `ISubsystem` interface for embeddabi
 
 > **Architect Note (2026-02-26):** The old snippet referenced `FdpWorld`, `CarKinemModule`, and `MissionExecutionModule` — all obsolete. Use the current kernel API: `EntityRepository`, `EventAccumulator`, and `ModuleHostKernel`. Also: SimHost has no 2D/3D world visuals, so `DrawWorld()` is a no-op. ImGui control panels go in `DrawUI()` so they render inside the orchestrator's `rlImGui.Begin()`/`rlImGui.End()` frame.
 
-Create `Bagira.SimHost/SimHostSubsystem.cs`:
+Create `Hrot.SimHost/SimHostSubsystem.cs`:
 ```csharp
 public class SimHostSubsystem : SubsystemBase
 {
@@ -843,7 +843,7 @@ public class SimHostSubsystem : SubsystemBase
         Status = SubsystemStatus.Initializing;
         _config = (SimHostConfiguration)config;
         
-        // Create kernel (matches Bagira.SimHost/Program.cs architecture)
+        // Create kernel (matches Hrot.SimHost/Program.cs architecture)
         _world = new EntityRepository();
         _eventAccumulator = new EventAccumulator();
         _kernel = new ModuleHostKernel(_world, _eventAccumulator);
@@ -919,7 +919,7 @@ public class SimHostSubsystem : SubsystemBase
 
 **SC-2**: Extract Configuration Model
 
-Create `Bagira.SimHost/SimHostConfiguration.cs`:
+Create `Hrot.SimHost/SimHostConfiguration.cs`:
 ```csharp
 public class SimHostConfiguration
 {
@@ -988,9 +988,9 @@ Create standalone executable that uses SimHostSubsystem library.
 
 ### Success Criteria
 
-**SC-1**: Create Bagira.SimHost.Standalone Project
+**SC-1**: Create Hrot.SimHost.Standalone Project
 
-Create console application project that references `Bagira.SimHost` and `Bagira.Runner`
+Create console application project that references `Hrot.SimHost` and `Hrot.ClusterRunner`
 
 **SC-2**: Implement Thin Program.cs
 
@@ -1073,7 +1073,7 @@ class SimHostCli
 
 Build and run:
 ```bash
-cd Bagira.SimHost.Standalone
+cd Hrot.SimHost.Standalone
 dotnet run -- --domain 0 --headless
 ```
 
@@ -1095,7 +1095,7 @@ Verify SimHost can be used both standalone and embedded in Runner.
 
 Run SimHost as standalone executable:
 ```bash
-Bagira.SimHost.Standalone.exe --domain 0
+Hrot.SimHost.Standalone.exe --domain 0
 ```
 
 Verify:
@@ -1109,7 +1109,7 @@ Verify:
 
 Run SimHost via Runner:
 ```bash
-Bagira.Runner.exe --mode simhost --domain 0
+Hrot.ClusterRunner.exe --mode simhost --domain 0
 ```
 
 Verify same functionality as standalone
@@ -1122,7 +1122,7 @@ Create integration test:
 public async Task Test_SimHost_RunsInBothModes()
 {
     // Test 1: Standalone
-    using var standaloneProcess = Process.Start("Bagira.SimHost.Standalone.exe", "--domain 99 --headless");
+    using var standaloneProcess = Process.Start("Hrot.SimHost.Standalone.exe", "--domain 99 --headless");
     await Task.Delay(2000);
     Assert.False(standaloneProcess.HasExited);
     standaloneProcess.Kill();
@@ -1315,7 +1315,7 @@ Create test script file `test_basic.json`:
 
 Run:
 ```bash
-Bagira.Runner.exe --mode all --domain 0 --headless --script test_basic.json
+Hrot.ClusterRunner.exe --mode all --domain 0 --headless --script test_basic.json
 ```
 
 Expected: Exit code 0, report generated

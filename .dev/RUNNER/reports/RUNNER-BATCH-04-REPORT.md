@@ -22,8 +22,8 @@
 ## 🧪 Testing Results
 
 **Fdp.Kernel.Tests:** 691 passed / 693 total (2 intentionally skipped)  
-**Bagira.IG.Tests:** 229 passed / 229 total  
-**Bagira.SimHost.Tests:** 55 passed / 55 total  
+**Hrot.IG.Tests:** 229 passed / 229 total  
+**Hrot.SimHost.Tests:** 55 passed / 55 total  
 
 **Key Test Scenarios Verified:**
 - [x] All previously auto-assigned components now throw `InvalidOperationException` without `[ComponentId]`
@@ -159,8 +159,8 @@ public long ReadEntityId(ref T instance)
 ### Translator Restoration
 
 `AutoCycloneTranslator<EntityMaster>` was restored in both:
-- `Bagira.Runner/Services/SimHostSubsystem.cs`
-- `Bagira.SimHost/Program.cs`
+- `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`
+- `Hrot.SimHost/Program.cs`
 
 `SimHost` can now observe all networked entities via DDS again.
 

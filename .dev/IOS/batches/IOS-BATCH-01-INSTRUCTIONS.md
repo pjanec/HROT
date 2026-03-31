@@ -22,9 +22,9 @@ Welcome to the IOS Mock development! This is the first batch for the IOS applica
 5. **Debt Tracker:** `.dev-workstream/DEBT-TRACKER.md` - Check for any relevant technical debt!
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IOS/`
+- **Primary Work Area:** `Hrot.ExCon/`
 - **Solution File:** `IOS-IG-SimHost.sln`
-- **Dependencies from:** `Bagira.DDS.DataModel/`, `Bagira.Map.Common/`, `Bagira.Map.Definitions/`, `FDP/FDP.Toolkit.DER/`, `FDP/FDP.Toolkit.Commands/`
+- **Dependencies from:** `Hrot.NED/`, `Hrot.Map.Common/`, `Hrot.Map.Definitions/`, `FDP/FDP.Toolkit.DER/`, `FDP/FDP.Toolkit.Commands/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -40,7 +40,7 @@ Welcome to the IOS Mock development! This is the first batch for the IOS applica
 This batch initializes the standalone IOS Mock application and builds the data management services required before UI development. 
 
 **Related Tasks:**
-- Task P5.1 & P5.2: [Project Setup](docs/design/TASK-DETAILS-IOS.md#phase-p5-project-setup-05-days) - Creates `Bagira.IOS`
+- Task P5.1 & P5.2: [Project Setup](docs/design/TASK-DETAILS-IOS.md#phase-p5-project-setup-05-days) - Creates `Hrot.ExCon`
 - Task IOS.6.1: [Request Transaction Manager](docs/design/TASK-DETAILS-IOS.md#p61-request-transaction-manager-05-days) - Correlates request/response IDs
 - Task IOS.6.2: [Mission Editor Service](docs/design/TASK-DETAILS-IOS.md#p62-mission-editor-service-1-day) - Handles mission patching and optimism
 - Task IOS.6.3: [Context Menu Logic](docs/design/TASK-DETAILS-IOS.md#p73-context-menu-logic-05-days) - Strategy pattern for dynamic map interactions
@@ -48,7 +48,7 @@ This batch initializes the standalone IOS Mock application and builds the data m
 ---
 
 ## 🎯 Batch Objectives
-- Create the `Bagira.IOS` console application.
+- Create the `Hrot.ExCon` console application.
 - Build the core services for tracking backend DDS requests, optimistic mission locking, and contextual interactions.
 - Ensure thorough test coverage verifying actual logic and error conditions.
 
@@ -76,15 +76,15 @@ This batch initializes the standalone IOS Mock application and builds the data m
 
 ### Task 1: Project Setup (P5.1, P5.2)
 
-**File:** `Bagira.IOS/Bagira.IOS.csproj`, `IOS-IG-SimHost.sln`
+**File:** `Hrot.ExCon/Hrot.ExCon.csproj`, `IOS-IG-SimHost.sln`
 **Task Definition:** See [TASK-DETAILS-IOS.md Phase P5](docs/design/TASK-DETAILS-IOS.md#phase-p5-project-setup-05-days)
 
 **Description:** Initialize the C# console app and add referenced libraries.
-**Requirements:** Use specific `.NET` versions and paths. Follow the exact dependencies listed in the design document. No code apart from project scaffolds needed. Use precise project paths for existing dependencies (e.g. `Bagira.DDS.DataModel/Bagira.DDS.DataModel.csproj`).
+**Requirements:** Use specific `.NET` versions and paths. Follow the exact dependencies listed in the design document. No code apart from project scaffolds needed. Use precise project paths for existing dependencies (e.g. `Hrot.NED/Hrot.NED.csproj`).
 
 ### Task 2: Request Transaction Manager (IOS.6.1)
 
-**Files:** `Bagira.IOS/Services/IRequestTransactionManager.cs`, `Bagira.IOS/Services/RequestTransactionManager.cs`
+**Files:** `Hrot.ExCon/Services/IRequestTransactionManager.cs`, `Hrot.ExCon/Services/RequestTransactionManager.cs`
 **Task Definition:** See [TASK-DETAILS-IOS.md P6.1](docs/design/TASK-DETAILS-IOS.md#p61-request-transaction-manager-05-days)
 
 **Description:** Implement robust tracking of async requests with timeout capabilities.
@@ -97,7 +97,7 @@ This batch initializes the standalone IOS Mock application and builds the data m
 
 ### Task 3: Mission Editor Service (IOS.6.2)
 
-**Files:** `Bagira.IOS/Services/IMissionEditorService.cs`, `Bagira.IOS/Services/MissionEditorService.cs`
+**Files:** `Hrot.ExCon/Services/IMissionEditorService.cs`, `Hrot.ExCon/Services/MissionEditorService.cs`
 **Task Definition:** See [TASK-DETAILS-IOS.md P6.2](docs/design/TASK-DETAILS-IOS.md#p62-mission-editor-service-1-day)
 
 **Description:** Service for reading current mission data, modifying it, and committing it using pessimistic/optimistic concurrency patterns using DDS commands.
@@ -110,7 +110,7 @@ This batch initializes the standalone IOS Mock application and builds the data m
 
 ### Task 4: Context Menu Logic (IOS.6.3)
 
-**Files:** `Bagira.IOS/Logic/IContextMenuLogic.cs`, `Bagira.IOS/Logic/ContextMenuLogic.cs`
+**Files:** `Hrot.ExCon/Logic/IContextMenuLogic.cs`, `Hrot.ExCon/Logic/ContextMenuLogic.cs`
 **Task Definition:** See [TASK-DETAILS-IOS.md P7.3](docs/design/TASK-DETAILS-IOS.md#p73-context-menu-logic-05-days) - Note the numbering typo in the design doc!
 
 **Description:** Emits `ContextActionsUpdate` to dynamically control IG menus when entity selection changes.
@@ -136,7 +136,7 @@ Upon completion, generate `.dev-workstream/reports/IOS-BATCH-01-REPORT.md` answe
 
 **Developer Insights**
 **Q1:** What issues did you encounter during implementation of asynchronous `TaskCompletionSource` with DDS acknowledgments?
-**Q2:** Did you spot any weak points or awkward areas in the provided `Bagira.IOS` project layout or its references? What structure would you improve?
+**Q2:** Did you spot any weak points or awkward areas in the provided `Hrot.ExCon` project layout or its references? What structure would you improve?
 **Q3:** What design decisions did you make beyond the instructions? (e.g., regarding dependency injection or internal data structures handling threads)?
 **Q4:** What edge cases did you discover around timeout handling that weren't thoroughly covered in the specification?
 **Q5:** Are there any performance concerns or optimization opportunities you noticed in the `ContextMenuLogic` strategy implementation?
@@ -146,7 +146,7 @@ Upon completion, generate `.dev-workstream/reports/IOS-BATCH-01-REPORT.md` answe
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] Task 1: `Bagira.IOS` console application created and builds cleanly with all dependencies.
+- [ ] Task 1: `Hrot.ExCon` console application created and builds cleanly with all dependencies.
 - [ ] Task 2: IOS.6.1 Transaction manager implements full interface with passing timeout tests.
 - [ ] Task 3: IOS.6.2 Mission editor gracefully handles request timeouts and proper `ACK` resolutions.
 - [ ] Task 4: IOS.6.3 Context menu logic successfully pushes correct tool items depending on arbitrary states.

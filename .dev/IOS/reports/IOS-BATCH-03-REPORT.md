@@ -12,15 +12,15 @@
 
 | Task | File(s) | Status |
 |---|---|---|
-| Corrective: IOS-DEBT-034 | `Bagira.IOS/Panels/InteractionPanel.cs` | ✅ |
-| IOS.8.1 – IOS Main Logic | `Bagira.IOS/IosLogic.cs`, `Bagira.IOS/IosLogicConstants.cs` | ✅ |
-| IOS.8.1 – Event queue abstraction | `Bagira.IOS/Services/IEventQueue.cs`, `ConcurrentEventQueue.cs` | ✅ |
-| IOS.8.2 – IosMock orchestrator | `Bagira.IOS/IosMock.cs` | ✅ |
-| IOS.8.2 – Program & CLI | `Bagira.IOS/Program.cs` | ✅ |
-| Raylib package refs | `Bagira.IOS/Bagira.IOS.csproj` | ✅ |
-| InteractionPanel tests update | `Bagira.IOS.Tests/InteractionPanelTests.cs` | ✅ |
-| IosLogic tests | `Bagira.IOS.Tests/IosLogicTests.cs` | ✅ |
-| IosMock tests | `Bagira.IOS.Tests/IosMockTests.cs` | ✅ |
+| Corrective: IOS-DEBT-034 | `Hrot.ExCon/Panels/InteractionPanel.cs` | ✅ |
+| IOS.8.1 – IOS Main Logic | `Hrot.ExCon/IosLogic.cs`, `Hrot.ExCon/IosLogicConstants.cs` | ✅ |
+| IOS.8.1 – Event queue abstraction | `Hrot.ExCon/Services/IEventQueue.cs`, `ConcurrentEventQueue.cs` | ✅ |
+| IOS.8.2 – IosMock orchestrator | `Hrot.ExCon/IosMock.cs` | ✅ |
+| IOS.8.2 – Program & CLI | `Hrot.ExCon/Program.cs` | ✅ |
+| Raylib package refs | `Hrot.ExCon/Hrot.ExCon.csproj` | ✅ |
+| InteractionPanel tests update | `Hrot.ExCon.Tests/InteractionPanelTests.cs` | ✅ |
+| IosLogic tests | `Hrot.ExCon.Tests/IosLogicTests.cs` | ✅ |
+| IosMock tests | `Hrot.ExCon.Tests/IosMockTests.cs` | ✅ |
 | Debt tracker update | `.dev-workstream/IOS-DEBT-TRACKER.md` | ✅ |
 
 ---
@@ -102,11 +102,11 @@ This separation means panels can be constructed with zero dependencies and immed
 
 Yes, two significant disparities were observed:
 
-**1. `MapClickEvent` carries a `GeoPosition` but `CreateEntityRequest` requires a full `EntityDescriptorUnion` list.**
+**1. `MapClickEvent` carries a `GeoPoint` but `CreateEntityRequest` requires a full `EntityDescriptorUnion` list.**
 
-`MapClickEvent.Position` is a raw `GeoPosition { Latitude, Longitude, Altitude }`. The `CreateEntityRequest.InitialDescriptors` list expects an `EntityDescriptorUnion[]` containing at minimum:
+`MapClickEvent.Position` is a raw `GeoPoint { Latitude, Longitude, Altitude }`. The `CreateEntityRequest.InitialDescriptors` list expects an `EntityDescriptorUnion[]` containing at minimum:
 - `EntityMaster` descriptor (`TkbType`, `NodeId`, `ForceIdentifier`)
-- `GeoSpatial` descriptor (wrapping the same lat/lon/alt)
+- `WorldPos` descriptor (wrapping the same lat/lon/alt)
 
 `IosLogic.BuildInitialDescriptors(MapClickEvent, long tkbType, eForceIdentifier)` bridges this gap by constructing both descriptors from the click's position and the placement-mode state (`PlacementType`, current `eForceIdentifier`). The `NodeId` is sourced from `_mapGroupId` (default 0, overridable via constructor).
 

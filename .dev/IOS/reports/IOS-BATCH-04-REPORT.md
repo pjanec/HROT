@@ -152,6 +152,6 @@ No unexpected complexities arose. The key design decisions were:
 ## Test Count Verification
 
 ```
-dotnet test Bagira.IOS.Tests → Passed: 205, Failed: 0, Skipped: 0
-dotnet test Bagira.SimHost.Tests → Passed: 19, Failed: 0, Skipped: 0
+dotnet test Hrot.ExCon.Tests → Passed: 205, Failed: 0, Skipped: 0
+dotnet test Hrot.SimHost.Tests → Passed: 19, Failed: 0, Skipped: 0
 ```

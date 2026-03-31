@@ -3,7 +3,7 @@
 **Design Reference:** [TWOACK-DESIGN.md](./TWOACK-DESIGN.md)  
 **Tracker:** [TWOACK-TASK-TRACKER.md](./TWOACK-TASK-TRACKER.md)
 
-All tasks are scoped to the `Bagira.DDS.DataModel`, `Bagira.SimHost`, `Bagira.IOS`, and `Bagira.Runner` projects.  
+All tasks are scoped to the `Hrot.NED`, `Hrot.SimHost`, `Hrot.ExCon`, and `Hrot.ClusterRunner` projects.  
 FDP projects are **read-only** — they are never modified.
 
 ---
@@ -18,7 +18,7 @@ FDP projects are **read-only** — they are never modified.
 
 **Design ref:** [§3.1](./TWOACK-DESIGN.md#31-new-deleteentityrequest-struct)
 
-**Scope:** `Bagira.DDS.DataModel/GenericMessages.cs`
+**Scope:** `Hrot.NED/GenericMessages.cs`
 
 **Description:**  
 Add the `DeleteEntityRequest` partial struct to `GenericMessages.cs`, following the same structural pattern as `UpdateEntityDescriptorRequest`. Place it immediately after the `CreateEntityRequest` struct definition.
@@ -36,8 +36,8 @@ public partial struct DeleteEntityRequest
 
 **Success conditions:**
 - The struct exists in `GenericMessages.cs` with the exact `DdsTopic("DeleteEntityRequest")` attribute and `DdsQos` matching the volatile/reliable/keep-all pattern used on other request messages.
-- `Bagira.DDS.DataModel.Tests` project compiles without error.
-- A unit test `DeleteEntityRequest_HasRequiredFields` exists in `Bagira.DDS.DataModel.Tests` asserting that `typeof(DeleteEntityRequest)` has public fields `RequestId` (type `Guid`) and `EntityId` (type `int`), and carries `[DdsTopic("DeleteEntityRequest")]`.
+- `Hrot.NED.Tests` project compiles without error.
+- A unit test `DeleteEntityRequest_HasRequiredFields` exists in `Hrot.NED.Tests` asserting that `typeof(DeleteEntityRequest)` has public fields `RequestId` (type `Guid`) and `EntityId` (type `int`), and carries `[DdsTopic("DeleteEntityRequest")]`.
 
 ---
 
@@ -45,7 +45,7 @@ public partial struct DeleteEntityRequest
 
 **Design ref:** [§3.2](./TWOACK-DESIGN.md#32-new-sststatuscode-enum-replaces-ssterrorcode)
 
-**Scope:** `Bagira.DDS.DataModel/GenericMessages.cs`, all call sites in `Bagira.SimHost`, `Bagira.IOS`, `Bagira.Runner`, `Bagira.DDS.DataModel.Tests`
+**Scope:** `Hrot.NED/GenericMessages.cs`, all call sites in `Hrot.SimHost`, `Hrot.ExCon`, `Hrot.ClusterRunner`, `Hrot.NED.Tests`
 
 **Description:**  
 1. In `GenericMessages.cs`, rename `SstErrorCode` to `SstStatusCode`.
@@ -57,7 +57,7 @@ public partial struct DeleteEntityRequest
 **Success conditions:**
 - Solution compiles with zero errors.
 - `SstErrorCode` does not appear anywhere in the solution.
-- `SstStatusCode.Success == 0`, `SstStatusCode.InProgress == 1`, `SstStatusCode.VersionConflict == 8` (verified by a unit test `SstStatusCode_ValuesAreCorrect` in `Bagira.DDS.DataModel.Tests`).
+- `SstStatusCode.Success == 0`, `SstStatusCode.InProgress == 1`, `SstStatusCode.VersionConflict == 8` (verified by a unit test `SstStatusCode_ValuesAreCorrect` in `Hrot.NED.Tests`).
 - All pre-existing tests that referenced `SstErrorCode` pass after updating their enum references.
 
 ---
@@ -66,7 +66,7 @@ public partial struct DeleteEntityRequest
 
 **Design ref:** [§3.3](./TWOACK-DESIGN.md#33-expanded-createupdatedeleteentityack-replaces-createentityack)
 
-**Scope:** `Bagira.DDS.DataModel/GenericMessages.cs`, plus all consumers listed below
+**Scope:** `Hrot.NED/GenericMessages.cs`, plus all consumers listed below
 
 **Description:**  
 1. In `GenericMessages.cs`:
@@ -74,9 +74,9 @@ public partial struct DeleteEntityRequest
    - Rename field `ErrorCode` to `StatusCode` in `CreateUpdateDeleteEntityAck`.
    - Remove (or mark `[Obsolete]` and then remove in the same PR) the `CreateEntityAck` struct.
 2. Update all consumers that constructed or read `CreateEntityAck` to use `CreateUpdateDeleteEntityAck` instead:
-   - `Bagira.SimHost` — `CreateEntityRequestSystem`: replace `ICreateEntityAckSink` usage.
-   - `Bagira.Runner` — `IosSubsystem.cs`: replace `CreateEntityAckIngressHandler` and `ConcurrentEventQueue<CreateEntityAck>`.
-   - `Bagira.IOS` — `DdsEventIngressHandlers.cs`: update handler class if it explicitly references `CreateEntityAck`.
+   - `Hrot.SimHost` — `CreateEntityRequestSystem`: replace `ICreateEntityAckSink` usage.
+   - `Hrot.ClusterRunner` — `IosSubsystem.cs`: replace `CreateEntityAckIngressHandler` and `ConcurrentEventQueue<CreateEntityAck>`.
+   - `Hrot.ExCon` — `DdsEventIngressHandlers.cs`: update handler class if it explicitly references `CreateEntityAck`.
    - Any test that constructs a `CreateEntityAck` must be updated.
 3. Ensure `RespondingNode` and `OpaqueData` fields remain present in `CreateUpdateDeleteEntityAck`.
 
@@ -98,7 +98,7 @@ public partial struct DeleteEntityRequest
 
 **Design ref:** [§4.1](./TWOACK-DESIGN.md#41-sstrequestfinalizationsystem-new)
 
-**Scope:** New file `Bagira.SimHost/Systems/SstRequestFinalizationSystem.cs`
+**Scope:** New file `Hrot.SimHost/Systems/SstRequestFinalizationSystem.cs`
 
 **Description:**  
 Create a new `IEcsModuleSystem` that:
@@ -114,7 +114,7 @@ Create a new `IEcsModuleSystem` that:
 
 **Success conditions:**
 - `SstRequestFinalizationSystem` compiles and its `Track(...)` method is callable.
-- A unit test `SstRequestFinalizationSystem_SendsSuccessAck_WhenEntityBecomesActive` exists in `Bagira.SimHost.Tests`:
+- A unit test `SstRequestFinalizationSystem_SendsSuccessAck_WhenEntityBecomesActive` exists in `Hrot.SimHost.Tests`:
   - Creates a fake/mock ECS view where an entity starts in `Constructing` and transitions to `Active` on the second call.
   - Verifies that no ACK is sent on the first `Execute()`, and the success ACK (`StatusCode=0`) is sent on the second `Execute()`.
 - A unit test `SstRequestFinalizationSystem_SendsFailureAck_WhenEntityDies` verifies the failure path (entity dies before becoming `Active`).
@@ -126,7 +126,7 @@ Create a new `IEcsModuleSystem` that:
 
 **Design ref:** [§4.2](./TWOACK-DESIGN.md#42-updated-createentityrequestsystem)
 
-**Scope:** `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`
+**Scope:** `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`
 
 **Description:**  
 1. Replace the injected `ICreateEntityAckSink` with `ICreateUpdateDeleteEntityAckSink` (or the appropriate DDS writer type).
@@ -137,7 +137,7 @@ Create a new `IEcsModuleSystem` that:
 4. Inject `SstRequestFinalizationSystem` via constructor parameter.
 
 **Success conditions:**
-- Unit test `CreateEntityRequestSystem_SendsInProgressAck_OnValidRequest` in `Bagira.SimHost.Tests`:
+- Unit test `CreateEntityRequestSystem_SendsInProgressAck_OnValidRequest` in `Hrot.SimHost.Tests`:
   - Submits a valid `CreateEntityRequest`.
   - Asserts the mock ACK sink received exactly one `CreateUpdateDeleteEntityAck` with `StatusCode == 1` and a non-zero `EntityId`.
   - Asserts the finalization system received a `Track(...)` call with `RequestKind.Create`.
@@ -150,7 +150,7 @@ Create a new `IEcsModuleSystem` that:
 
 **Design ref:** [§4.3](./TWOACK-DESIGN.md#43-new-deleteentityrequestsystem)
 
-**Scope:** New file `Bagira.SimHost/Systems/DeleteEntityRequestSystem.cs`
+**Scope:** New file `Hrot.SimHost/Systems/DeleteEntityRequestSystem.cs`
 
 **Description:**  
 Create a new `IEcsModuleSystem` that:
@@ -181,9 +181,9 @@ Create a new `IEcsModuleSystem` that:
 
 ### TWOACK-IOS001 — Update IOS Ingress Pipeline
 
-**Design ref:** [§5.1](./TWOACK-DESIGN.md#51-updated-ingress-pipeline-bagirarunnservicessiossubsystemcs)
+**Design ref:** [§5.1](./TWOACK-DESIGN.md#51-updated-ingress-pipeline-hrotrunnservicessiossubsystemcs)
 
-**Scope:** `Bagira.Runner/Services/IosSubsystem.cs`, `Bagira.IOS/Services/DdsEventIngressHandlers.cs`
+**Scope:** `Hrot.ClusterRunner/Services/IosSubsystem.cs`, `Hrot.ExCon/Services/DdsEventIngressHandlers.cs`
 
 **Description:**  
 1. In `IosSubsystem.Initialize()`:
@@ -194,7 +194,7 @@ Create a new `IEcsModuleSystem` that:
 
 **Success conditions:**
 - `IosSubsystem` compiles with no reference to `CreateEntityAck`.
-- Integration test `IosSubsystem_ReceivesCreateUpdateDeleteEntityAck_AndForwardsToLogic` (or equivalent in `Bagira.IG.Tests`/`Bagira.Runner.Integration.Tests`) verifies that a published `CreateUpdateDeleteEntityAck` DDS sample reaches `IosLogic`.
+- Integration test `IosSubsystem_ReceivesCreateUpdateDeleteEntityAck_AndForwardsToLogic` (or equivalent in `Hrot.IG.Tests`/`Hrot.ClusterRunner.Integration.Tests`) verifies that a published `CreateUpdateDeleteEntityAck` DDS sample reaches `IosLogic`.
 - All pre-existing `IosSubsystem` tests pass after mock type updates.
 
 ---
@@ -203,7 +203,7 @@ Create a new `IEcsModuleSystem` that:
 
 **Design ref:** [§5.2](./TWOACK-DESIGN.md#52-two-ack-state-machine-in-ioslogic)
 
-**Scope:** `Bagira.IOS/IosLogic.cs`, `Bagira.IOS/Abstractions/IIosLogic.cs`
+**Scope:** `Hrot.ExCon/IosLogic.cs`, `Hrot.ExCon/Abstractions/IIosLogic.cs`
 
 **Description:**  
 1. Add `private readonly HashSet<int> _pendingEntities = new()` to `IosLogic`.
@@ -235,7 +235,7 @@ Create a new `IEcsModuleSystem` that:
 
 **Design ref:** [§5.3](./TWOACK-DESIGN.md#53-ui-locking-for-pending-entities)
 
-**Scope:** `Bagira.IOS/Panels/MissionPanel.cs`, `Bagira.IOS/Logic/ContextMenuLogic.cs`
+**Scope:** `Hrot.ExCon/Panels/MissionPanel.cs`, `Hrot.ExCon/Logic/ContextMenuLogic.cs`
 
 **Description:**  
 **MissionPanel:**  
@@ -271,7 +271,7 @@ In the method that builds or returns the context menu items for the selected ent
 
 **Design ref:** [§5.4](./TWOACK-DESIGN.md#54-explicit-error-surface)
 
-**Scope:** `Bagira.IOS/IosLogic.cs`, `Bagira.IOS/UI/IosMock.cs` (or equivalent drawing class)
+**Scope:** `Hrot.ExCon/IosLogic.cs`, `Hrot.ExCon/UI/IosMock.cs` (or equivalent drawing class)
 
 **Description:**  
 1. Add `string? _globalAlert` field to `IosLogic` and a corresponding `string? GlobalAlert { get; }` property on `IIosLogic`.

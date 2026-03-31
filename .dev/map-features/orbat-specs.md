@@ -1,4 +1,4 @@
-﻿See [Changes to be integrated](#changes-to-be-integrated) at the end of the document.
+See [Changes to be integrated](#changes-to-be-integrated) at the end of the document.
 
 
 # Design Document: BDC SST ORBAT & Mission Control System
@@ -36,8 +36,8 @@ In BDC SST, an "Entity" is not a monolithic object. It is a composition of loose
 - **EntityMaster:** Controls the lifecycle. If this descriptor is disposed, the entity ceases to exist.
 - **Partial Ownership:** A Simulation Node (e.g., CGF) may own the `EntityMission` descriptor, while a different node (e.g., GUI or Umpire) might request changes to `EntityInfo`.
 
-See [BDC SST rules](/Products-and-components/Bagira.Infra/BDC/BDC-SST-Principles)
-See [BDC SST Data Model Basics](/Products-and-components/Bagira.Infra/BDC/BDC-SST-Data-Model-Basics)
+See [BDC SST rules](/Products-and-components/Hrot.Infra/BDC/BDC-SST-Principles)
+See [BDC SST Data Model Basics](/Products-and-components/Hrot.Infra/BDC/BDC-SST-Data-Model-Basics)
 
 ## 3. Data Model: ORBAT (Order of Battle)
 

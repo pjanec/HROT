@@ -22,7 +22,7 @@
 **Integration Tests Passed:** 0 / 0
 
 **Command:**
-- `dotnet test .\Bagira.DDS.DataModel.Tests\Bagira.DDS.DataModel.Tests.csproj`
+- `dotnet test .\Hrot.NED.Tests\Hrot.NED.Tests.csproj`
 
 **Key Test Scenarios Verified:**
 - [x] `EntityMaster` has no `ComponentIdAttribute` (reflection guard)

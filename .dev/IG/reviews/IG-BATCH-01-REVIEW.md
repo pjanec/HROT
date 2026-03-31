@@ -36,7 +36,7 @@ feat: core IG infrastructure and map canvas (IG-BATCH-01)
 
 Completes IG.1.1, IG.1.2, IG.1.5
 
-Creates Bagira.IG and Bagira.IG.Tests projects, wrapping a Raylib map rendering canvas.
+Creates Hrot.IG and Hrot.IG.Tests projects, wrapping a Raylib map rendering canvas.
 
 IgApplication setup:
 - Raylib window initialization and configuration

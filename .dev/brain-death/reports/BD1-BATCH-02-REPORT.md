@@ -21,7 +21,7 @@
 ## 🧪 Testing Results
 
 **FDP.Toolkit.Behavior.Tests:** 72 / 72 passed  
-**Bagira.SimHost.Tests:** 229 / 229 passed
+**Hrot.SimHost.Tests:** 229 / 229 passed
 
 **Key Test Scenarios Verified:**
 

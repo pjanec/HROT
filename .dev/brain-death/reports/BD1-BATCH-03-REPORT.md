@@ -22,14 +22,14 @@
 
 ## 🧪 Testing Results
 
-**Bagira.Map.Common.Tests:** 64 / 64 passed  
-**Bagira.SimHost.Tests:** 235 / 235 passed  
-**Bagira.IG.Tests:** 311 / 311 passed  
-**Bagira.DDS.DataModel.Tests:** 23 / 23 passed  
+**Hrot.Map.Common.Tests:** 64 / 64 passed  
+**Hrot.SimHost.Tests:** 235 / 235 passed  
+**Hrot.IG.Tests:** 311 / 311 passed  
+**Hrot.NED.Tests:** 23 / 23 passed  
 **FDP.Toolkit.ImGui.Tests:** 42 / 42 passed  
-**Bagira.SimHost.Integration.Tests:** 27 / 28 — 1 pre-existing failure (`EntityMission_MovesEntity`, confirmed broken at HEAD before this batch)  
-**Bagira.Runner.Integration.Tests:** 31 / 31 passed  
-**Bagira.Runner.Tests:** 99 / 99 passed
+**Hrot.SimHost.Integration.Tests:** 27 / 28 — 1 pre-existing failure (`EntityMission_MovesEntity`, confirmed broken at HEAD before this batch)  
+**Hrot.ClusterRunner.Integration.Tests:** 31 / 31 passed  
+**Hrot.ClusterRunner.Tests:** 99 / 99 passed
 
 **New tests added in this batch: 16**
 
@@ -97,5 +97,5 @@ One alternative — marking the handler `static` and passing `this` explicitly �
 
 ## ⚠️ Outstanding Issues / Next Steps
 
-- `EntityMission_MovesEntity` (Bagira.SimHost.Integration.Tests) is a **pre-existing failure** confirmed to fail at HEAD commit `309be3a` before any BD1-BATCH-03 changes. The mission pipeline (MissionAdapterSystem → BTreeTickSystem → MoveToExecutor) is not wired up to drive `NavState` through `NavigationIntent`→`NavigationStatus`→`CarKinematicsSystem` in the integration test harness. This should be filed as a separate investigation item.
+- `EntityMission_MovesEntity` (Hrot.SimHost.Integration.Tests) is a **pre-existing failure** confirmed to fail at HEAD commit `309be3a` before any BD1-BATCH-03 changes. The mission pipeline (MissionAdapterSystem → BTreeTickSystem → MoveToExecutor) is not wired up to drive `NavState` through `NavigationIntent`→`NavigationStatus`→`CarKinematicsSystem` in the integration test harness. This should be filed as a separate investigation item.
 - `FDP.Toolkit.ImGui.Tests` crashes when run in parallel with other assemblies in the solution-wide `dotnet test` invocation (native ImGui library loading conflict). All 42 tests pass when the project is run in isolation. This is a pre-existing infra limitation.

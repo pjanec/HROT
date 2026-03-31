@@ -46,7 +46,7 @@ Completes IG.5.1, IG.5.2, IG.5.3, IG.5.4 (Phase IG5 UI & Polish)
 
 Testing:
 - Appended 50 isolation tests passing State logic independently from graphical wrappers.
-- The entire Bagira.IG.Tests suite of 220 tests passes cleanly without Graphics dependencies.
+- The entire Hrot.IG.Tests suite of 220 tests passes cleanly without Graphics dependencies.
 
 Related: TASK-DETAILS-IG.md
 ```

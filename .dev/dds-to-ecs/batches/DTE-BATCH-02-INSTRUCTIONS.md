@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-02  
 **Tasks:** DDS2ECS-S2T1, DDS2ECS-S2T2, DDS2ECS-S2T3, DDS2ECS-S2T4, DDS2ECS-S3T1, DDS2ECS-S3T2, DDS2ECS-S3T3, DDS2ECS-S3T4  
 **Phase:** Phase 2 + Phase 3  
-**Estimated Effort:** 10–12 hours  
+**Estimated Effort:** 10ï¿½12 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-01 approved
 
@@ -17,12 +17,12 @@ This batch fixes SimHost descriptor mapping and replaces the `EntityMaster` auto
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
 2. **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md` (DDS2ECS-S2T1 ? DDS2ECS-S3T4)
-3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (§3.2, §3.3)
+3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (ï¿½3.2, ï¿½3.3)
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-01-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`
-- **Test Project:** `Bagira.SimHost.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/`
+- **Test Project:** `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -57,8 +57,8 @@ This batch fixes SimHost descriptor mapping and replaces the `EntityMaster` auto
 Phase 2 removes raw DDS DTOs from `DescriptorMapper.MapToComponents`. Phase 3 removes the `AutoCycloneTranslator<EntityMaster>` anti-pattern and replaces it with an explicit egress translator.
 
 **Related Tasks:**
-- Phase 2: [DDS2ECS-S2T1–S2T4](../docs/dds-to-ecs/TASK-DETAIL.md#phase-2-simhost--fix-descriptormapper)
-- Phase 3: [DDS2ECS-S3T1–S3T4](../docs/dds-to-ecs/TASK-DETAIL.md#phase-3-simhost--replace-autocyclonetranslatorentitymaster)
+- Phase 2: [DDS2ECS-S2T1ï¿½S2T4](../docs/dds-to-ecs/TASK-DETAIL.md#phase-2-simhost--fix-descriptormapper)
+- Phase 3: [DDS2ECS-S3T1ï¿½S3T4](../docs/dds-to-ecs/TASK-DETAIL.md#phase-3-simhost--replace-autocyclonetranslatorentitymaster)
 
 ---
 
@@ -70,64 +70,64 @@ Phase 2 removes raw DDS DTOs from `DescriptorMapper.MapToComponents`. Phase 3 re
 
 ## ? Tasks
 
-### Task 1: DDS2ECS-S2T1 — `dtEntityMaster` produces nothing
-**File:** `Bagira.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
+### Task 1: DDS2ECS-S2T1 ï¿½ `dtEntityMaster` produces nothing
+**File:** `Hrot.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s2t1--dtentitymaster-case-produces-nothing`
 
-**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Bagira.SimHost.Tests/` per the success conditions.
+**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Hrot.SimHost.Tests/` per the success conditions.
 
 ---
 
-### Task 2: DDS2ECS-S2T2 — `dtEntityInfo` produces nothing
-**File:** `Bagira.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
+### Task 2: DDS2ECS-S2T2 ï¿½ `dtEntityInfo` produces nothing
+**File:** `Hrot.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s2t2--dtentityinfo-case-produces-nothing`
 
-**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Bagira.SimHost.Tests/` per the success conditions.
+**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Hrot.SimHost.Tests/` per the success conditions.
 
 ---
 
-### Task 3: DDS2ECS-S2T3 — `dtGeoSpatial` adds `GeoTransform`, no raw DTO
-**File:** `Bagira.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
+### Task 3: DDS2ECS-S2T3 ï¿½ `dtWorldPos` adds `GeoTransform`, no raw DTO
+**File:** `Hrot.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s2t3--dtgeospatial-case-remove-raw-dto-add-geotransform`
 
-**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Bagira.SimHost.Tests/` per the success conditions.
+**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Hrot.SimHost.Tests/` per the success conditions.
 
 ---
 
-### Task 4: DDS2ECS-S2T4 — `dtGeoSpatialDR` ? `GeoVelocity`
-**File:** `Bagira.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
+### Task 4: DDS2ECS-S2T4 ï¿½ `dtWorldPos` ? `GeoVelocity`
+**File:** `Hrot.SimHost/Util/DescriptorMapper.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s2t4--dtgeospatialdr-case-translate-to-geovelosity`
 
-**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Bagira.SimHost.Tests/` per the success conditions.
+**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Hrot.SimHost.Tests/` per the success conditions.
 
 ---
 
-### Task 5: DDS2ECS-S3T1 — Create `EntityMasterEgressTranslator`
-**File:** `Bagira.SimHost/Translators/EntityMasterEgressTranslator.cs` (NEW)  
+### Task 5: DDS2ECS-S3T1 ï¿½ Create `EntityMasterEgressTranslator`
+**File:** `Hrot.SimHost/Translators/EntityMasterEgressTranslator.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s3t1--create-entitymastereresstranslator`
 
-**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Bagira.SimHost.Tests/` per the success conditions.
+**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Hrot.SimHost.Tests/` per the success conditions.
 
 ---
 
-### Task 6: DDS2ECS-S3T2 — SimHostApp replaces `AutoCycloneTranslator<EntityMaster>`
-**File:** `Bagira.SimHost/SimHostApp.cs` (UPDATE)  
+### Task 6: DDS2ECS-S3T2 ï¿½ SimHostApp replaces `AutoCycloneTranslator<EntityMaster>`
+**File:** `Hrot.SimHost/SimHostApp.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s3t2--simhostapp-replace-autocyclonetranslatorentitymaster`
 
 **Requirements:** Implement exactly as specified in the task detail. Update tests as required by the success conditions.
 
 ---
 
-### Task 7: DDS2ECS-S3T3 — Remove `RegisterComponent<EntityMaster>`
-**File:** `Bagira.SimHost/SimHostApp.cs` (UPDATE)  
+### Task 7: DDS2ECS-S3T3 ï¿½ Remove `RegisterComponent<EntityMaster>`
+**File:** `Hrot.SimHost/SimHostApp.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s3t3--simhostapp-remove-registercomponententitymaster`
 
-**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Bagira.SimHost.Tests/` per the success conditions.
+**Requirements:** Implement exactly as specified in the task detail. Add xUnit tests in `Hrot.SimHost.Tests/` per the success conditions.
 
 ---
 
-### Task 8: DDS2ECS-S3T4 — Fix `onEntitySpawned` callback
-**File:** `Bagira.SimHost/SimHostApp.cs` (UPDATE)  
+### Task 8: DDS2ECS-S3T4 ï¿½ Fix `onEntitySpawned` callback
+**File:** `Hrot.SimHost/SimHostApp.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s3t4--simhostapp-fix-onentityspawned-callback`
 
 **Requirements:** Implement exactly as specified in the task detail. Update tests as required by the success conditions.
@@ -136,7 +136,7 @@ Phase 2 removes raw DDS DTOs from `DescriptorMapper.MapToComponents`. Phase 3 re
 
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
-- Run: `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+- Run: `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
 - All tests must pass before reporting completion.
 
 ---
@@ -172,8 +172,8 @@ Phase 2 removes raw DDS DTOs from `DescriptorMapper.MapToComponents`. Phase 3 re
 ## ?? Success Criteria
 
 This batch is DONE when:
-- [ ] DDS2ECS-S2T1–S2T4 complete with xUnit tests
-- [ ] DDS2ECS-S3T1–S3T4 complete with xUnit tests
+- [ ] DDS2ECS-S2T1ï¿½S2T4 complete with xUnit tests
+- [ ] DDS2ECS-S3T1ï¿½S3T4 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-02-REPORT.md`
 
@@ -188,4 +188,4 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 - **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md`
-- **Design:** `docs/dds-to-ecs/DESIGN.md` (§3.2, §3.3)
+- **Design:** `docs/dds-to-ecs/DESIGN.md` (ï¿½3.2, ï¿½3.3)

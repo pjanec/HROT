@@ -24,7 +24,7 @@
 **SimHost Tests:** 261 / 261 passed  
 **Map.Common Tests:** 51 / 51 passed
 
-Pre-existing IG test failures (6 tests in `Bagira.IG.Tests`) were present **before** this batch and are unrelated to any of the five tasks implemented here (confirmed via `git stash` baseline).
+Pre-existing IG test failures (6 tests in `Hrot.IG.Tests`) were present **before** this batch and are unrelated to any of the five tasks implemented here (confirmed via `git stash` baseline).
 
 **Key Test Scenarios Verified:**
 
@@ -34,10 +34,10 @@ Pre-existing IG test failures (6 tests in `Bagira.IG.Tests`) were present **befo
 - ✅ Orchestrator applies `+0` (SimHost), `+100` (IG), `+200` (IOS), `+300` (Other) offsets when `NodeId != 0`
 - ✅ `NodeId = 0` → `SubsystemConfig.NodeId = 0`; SimHostApp uses `SimHostNetworkConstants.LocalNodeId`
 - ✅ `NodeId = 10` → `SimHostApp.TestHook_ResolvedLocalNodeId == 10`
-- ✅ Non-authoritative GeoSpatial update → no `UpdateEntityDescriptorAck` written
+- ✅ Non-authoritative WorldPos update → no `UpdateEntityDescriptorAck` written
 - ✅ Entity-not-found → no ACK (DDS reader reads empty after system tick)
 - ✅ Unsupported descriptor type (`dtEntityMaster`) → no ACK
-- ✅ Authoritative GeoSpatial update → exactly one `Success` ACK
+- ✅ Authoritative WorldPos update → exactly one `Success` ACK
 - ✅ All 3 mock translators receive `Dispose` when entity dies (fan-out test)
 - ✅ One throwing translator doesn't block remaining translators
 - ✅ Non-authoritative entities are not tracked and never disposed
@@ -50,7 +50,7 @@ Pre-existing IG test failures (6 tests in `Bagira.IG.Tests`) were present **befo
 **Q1: What issues did you encounter during implementation? How did you resolve them?**
 
 - **DDS union serialization failure in test**: `MakeUnsupportedTypeRequest` initially used `(EDescriptorType)99999` as the discriminant, which caused `DdsWriter.Write` to throw `BadParameter` because the union discriminant is unknown to the CycloneDDS schema. Fixed by using `EDescriptorType.dtEntityMaster` (a valid DDS case that hits the `default` branch of the switch).
-- **`TestHook_ResolvedLocalNodeId` visibility**: The property is `internal` in `Bagira.SimHost`, but tests in `Bagira.Runner.Tests` don't have `InternalsVisibleTo` access to it. Resolved by moving the NodeId value-assertion tests to `Bagira.SimHost.Tests` (which does have `InternalsVisibleTo` access), and keeping the Runner tests as no-throw behavioral checks.
+- **`TestHook_ResolvedLocalNodeId` visibility**: The property is `internal` in `Hrot.SimHost`, but tests in `Hrot.ClusterRunner.Tests` don't have `InternalsVisibleTo` access to it. Resolved by moving the NodeId value-assertion tests to `Hrot.SimHost.Tests` (which does have `InternalsVisibleTo` access), and keeping the Runner tests as no-throw behavioral checks.
 - **Ambiguous `IDescriptorTranslator`**: Two assemblies (`Fdp.Interfaces` and `ModuleHost.Core.Network`) define this interface. In `CycloneNetworkCleanupSystemTests.cs`, qualified the usage as `Fdp.Interfaces.IDescriptorTranslator` to match what `CycloneNetworkCleanupSystem` uses.
 
 **Q2: Did you spot any weak points in the existing codebase? What would you improve?**
@@ -61,7 +61,7 @@ Pre-existing IG test failures (6 tests in `Bagira.IG.Tests`) were present **befo
 
 **Q3: What design decisions did you make beyond the instructions? What alternatives did you consider?**
 
-- **Orchestrator offset via `subsystem.Name`**: The spec says the orchestrator should resolve per-subsystem node IDs. Since `SubsystemOrchestrator` lives in the framework layer (`FDP.Framework.Runner`) and has no knowledge of Bagira-specific constants, I used `ISubsystem.Name` string matching (`"SimHost"`, `"IG"`, `"IOS"`) as the dispatch key. The alternative (an `INodeIdOffsetProvider` interface on `ISubsystem`) would have been more extensible but heavier—unnecessary for the current three-subsystem topology.
+- **Orchestrator offset via `subsystem.Name`**: The spec says the orchestrator should resolve per-subsystem node IDs. Since `SubsystemOrchestrator` lives in the framework layer (`FDP.Framework.Runner`) and has no knowledge of Hrot-specific constants, I used `ISubsystem.Name` string matching (`"SimHost"`, `"IG"`, `"IOS"`) as the dispatch key. The alternative (an `INodeIdOffsetProvider` interface on `ISubsystem`) would have been more extensible but heavier—unnecessary for the current three-subsystem topology.
 - **`_effectiveInstanceId` field in `IgApplication`**: Rather than re-computing `_nodeIdOverride != 0 ? _nodeIdOverride : IgNetworkConstants.InstanceId` at every call site, I precomputed it once in `InitializeEmbedded` into a field. This covers both initialization-time calls (NodeIdMapper, DdsIdAllocator) and runtime calls (MapClickEvent, command filter).
 - **`localNodeIdForMapper` alias in `SimHostApp.OnLoad`**: After introducing the top-level `localNodeId` resolved variable, the old `var localNodeId = SimHostNetworkConstants.LocalNodeId;` line near the `NodeIdMapper` construction was replaced with a `var localNodeIdForMapper = localNodeId;` alias. This preserves the surrounding code structure and keeps the diff small, though the alias adds no semantic value—it could be inlined.
 
@@ -79,6 +79,6 @@ Pre-existing IG test failures (6 tests in `Bagira.IG.Tests`) were present **befo
 
 ## ⚠️ Outstanding Issues / Next Steps
 
-- Pre-existing IG test failures (6 tests in `Bagira.IG.Tests.EditToolTests` and `TraceLoggingTests`) must be investigated separately — they are not related to this batch.
+- Pre-existing IG test failures (6 tests in `Hrot.IG.Tests.EditToolTests` and `TraceLoggingTests`) must be investigated separately — they are not related to this batch.
 - The `--node-id` flag currently only supports a single base ID per process. Running two IGs requires two separate runner processes, each with a distinct `--node-id` (confirmed by design; documented in DESIGN.md §1.2).
 - IOS subsystem does not have its own `IosSubsystem` changes for Task 2 node-id pass-through — the IOS app likely doesn't use a static `LocalNodeId` constant in the same way. If it does, a follow-up fix is needed.

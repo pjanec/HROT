@@ -20,8 +20,8 @@ Welcome to OC1-BATCH-01. This batch focuses on resolving blocking bugs in the ro
 3. **Design Document:** `docs/orbat-context-menu/OC1-DESIGN.md` - Sections 0.1 to 1.1
 
 ### Source Code Location
-- **Primary Work Areas:** `Bagira.IG`, `Bagira.IOS`, `Bagira.SimHost`, `Bagira.DDS.DataModel`
-- **Test Projects:** `Bagira.IG.Tests`, `Bagira.IOS.Tests`, `Bagira.SimHost.Tests`
+- **Primary Work Areas:** `Hrot.IG`, `Hrot.ExCon`, `Hrot.SimHost`, `Hrot.NED`
+- **Test Projects:** `Hrot.IG.Tests`, `Hrot.ExCon.Tests`, `Hrot.SimHost.Tests`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -70,7 +70,7 @@ Fix critical bugs blocking the ORBAT context menu feature, and establish the new
 
 ### Task 1: Fix Route Creation Pipeline (OC1-B001)
 
-**Files:** Varies (likely `Bagira.IG/Controllers/MapCommandController.cs` or runner wireup)
+**Files:** Varies (likely `Hrot.IG/Controllers/MapCommandController.cs` or runner wireup)
 **Task Definition:** [OC1-B001](../../docs/orbat-context-menu/OC1-TASK-DETAIL.md#oc1-b001--ios-draw-route-no-entity-created)
 
 **Description:**
@@ -78,7 +78,7 @@ Investigate and fix why drawing a route in IOS does not result in a created enti
 
 **Requirements:**
 - See task definition for detailed investigation steps (Hypothesis A vs B).
-- Ensure the fix works in full multi-process mode (`Bagira.Runner -m all`).
+- Ensure the fix works in full multi-process mode (`Hrot.ClusterRunner -m all`).
 
 **Tests Required:**
 - You may need to write or update unit/integration tests confirming the pipeline flow (e.g., Ack received).
@@ -86,7 +86,7 @@ Investigate and fix why drawing a route in IOS does not result in a created enti
 
 ### Task 2: Fix Map Layer for Routes in IOS (OC1-B002)
 
-**Files:** `Bagira.Map/Definitions/MapLayerRegistry.cs`, `Bagira.IOS/Panels/ConfigPanel.cs` (or similar)
+**Files:** `Hrot.Map/Definitions/MapLayerRegistry.cs`, `Hrot.ExCon/Panels/ConfigPanel.cs` (or similar)
 **Task Definition:** [OC1-B002](../../docs/orbat-context-menu/OC1-TASK-DETAIL.md#oc1-b002--no-map-layer-for-routes-in-ios)
 
 **Description:**
@@ -101,7 +101,7 @@ Fix the invisibility of route entities in IOS by either clarifying the existing 
 
 ### Task 3: Fix Tactical Shape Position (OC1-B003)
 
-**Files:** `Bagira.IG/Controllers/MapCommandController.cs`, `Bagira.IOS/Renderers/...` (Renderer for tactical shapes)
+**Files:** `Hrot.IG/Controllers/MapCommandController.cs`, `Hrot.ExCon/Renderers/...` (Renderer for tactical shapes)
 **Task Definition:** [OC1-B003](../../docs/orbat-context-menu/OC1-TASK-DETAIL.md#oc1-b003--tactical-shape-authoring-shape-position-wrong)
 
 **Description:**
@@ -116,7 +116,7 @@ Fix the position offset of drawn area shapes.
 
 ### Task 4: Fix Entity Deletion Not Reflected in IOS Inspector (OC1-B004)
 
-**Files:** `Bagira.IOS/IosLogic.cs` (or `EntityInspectorState.cs`)
+**Files:** `Hrot.ExCon/IosLogic.cs` (or `EntityInspectorState.cs`)
 **Task Definition:** [OC1-B004](../../docs/orbat-context-menu/OC1-TASK-DETAIL.md#oc1-b004--entity-deletion-not-reflected-in-ios-inspector)
 
 **Description:**
@@ -127,13 +127,13 @@ Ensure the IOS entity inspector correctly clears out stale state when an entity 
 - Handle edge case of an empty selection gracefully.
 
 **Tests Required:**
-- ✅ Inspector clears on selected entity deletion. `Bagira.IOS.Tests/EntityInspectorStateTests.cs` (or similar)
+- ✅ Inspector clears on selected entity deletion. `Hrot.ExCon.Tests/EntityInspectorStateTests.cs` (or similar)
 - ✅ Inspector unaffected for other entity.
 - ✅ No crash on empty selection.
 
 ### Task 5: Add CMD_DRAW_PERSONAL_ROUTE to CommandType (OC1-C001)
 
-**File:** `Bagira.DDS.DataModel/MapMessages.cs`
+**File:** `Hrot.NED/MapMessages.cs`
 **Task Definition:** [OC1-C001](../../docs/orbat-context-menu/OC1-TASK-DETAIL.md#oc1-c001--add-cmd_draw_personal_route-to-commandtype)
 
 **Description:**

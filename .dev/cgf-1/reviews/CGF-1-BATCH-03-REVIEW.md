@@ -9,7 +9,7 @@
 
 ## Summary
 
-Part A matches policy: **Standalone** projects removed from the solution and tree; **IG** no longer catches DDS init into “offline”; **SimHost** throws from **`EnsureIdAllocatorRouting`** when no allocator match; **`LocalIdAllocatorFallbackHost`** and fallback config removed; **`DrillSlave()`** internal + **`BuildOrchestration`** throws for Brain/AllInOne without participant; **`OrchestrationSchemaTests`** no longer uses `Contains('_')`. **CGF1-S0105** is implemented in **`DrillMaster`** (bootstrap latch, ejection, **`SysOpRequest`/`SysOpStatus`**, history ring, **`EjectNode(int)`**), **`ClusterConfiguration`**, **`OrchestratorSubsystem` ImGui**, and **four** new tests. **CycloneDDS.CodeGen** `@value` emission and **`NodeOpCommand` KeepAll** are real fixes aligned with runtime behavior.
+Part A matches policy: **Standalone** projects removed from the solution and tree; **IG** no longer catches DDS init into “offline”; **SimHost** throws from **`EnsureIdAllocatorRouting`** when no allocator match; **`LocalIdAllocatorFallbackHost`** and fallback config removed; **`ClusterSlave()`** internal + **`BuildOrchestration`** throws for Brain/AllInOne without participant; **`OrchestrationSchemaTests`** no longer uses `Contains('_')`. **CGF1-S0105** is implemented in **`ClusterMaster`** (bootstrap latch, ejection, **`ClusterOpRequest`/`ClusterOpStatus`**, history ring, **`EjectNode(int)`**), **`ClusterConfiguration`**, **`OrchestratorSubsystem` ImGui**, and **four** new tests. **CycloneDDS.CodeGen** `@value` emission and **`NodeOpCommand` KeepAll** are real fixes aligned with runtime behavior.
 
 ---
 
@@ -17,14 +17,14 @@ Part A matches policy: **Standalone** projects removed from the solution and tre
 
 ### Issue 1: `ClusterConfiguration.LoadFrom` swallows errors (silent config failure)
 
-**File:** `Bagira.Orchestrator/ClusterConfiguration.cs`  
+**File:** `Hrot.Orchestrator/ClusterConfiguration.cs`  
 **Problem:** `LoadFrom` catches all exceptions and returns **`Default`**; corrupt JSON or IO failure yields **no** loud failure — contradicts fail-fast posture for orchestrator config.  
 **Target:** **CGF-1-BATCH-04** — throw or log fatal when `orchestrator-config.json` is present but invalid; only default when file is **missing** (if that remains desired).
 
 ### Issue 2: S0105 tests vs task detail (operation type)
 
-**File:** `Bagira.Orchestrator.Tests/DrillMasterBootstrapTests.cs`  
-**Problem:** Success conditions in **CGF-1-TASK-DETAIL** name **`SysOpRequest(TransitionState, LoadingLive)`**; tests use **`SysOpType.PauseTime`**. Behavior under test (reject / accept / history) is still exercised, but **normative alignment** with the task doc is missing.  
+**File:** `Hrot.Orchestrator.Tests/ClusterMasterBootstrapTests.cs`  
+**Problem:** Success conditions in **CGF-1-TASK-DETAIL** name **`ClusterOpRequest(TransitionState, LoadingLive)`**; tests use **`ClusterOpType.PauseTime`**. Behavior under test (reject / accept / history) is still exercised, but **normative alignment** with the task doc is missing.  
 **Target:** **CGF-1-BATCH-04** — switch requests to **`TransitionState`** with payload consistent with planner expectations (or update task detail if PauseTime is intentionally interim).
 
 ### Issue 3: `SurvivingNodes_CommandedToStandby_AfterEjection` — per-node delivery
@@ -34,7 +34,7 @@ Part A matches policy: **Standalone** projects removed from the solution and tre
 
 ### Issue 4: ImGui health / history vs design §3.5
 
-**File:** `Bagira.Runner/Services/OrchestratorSubsystem.cs`  
+**File:** `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs`  
 **Problem:** Design calls for **CPU%** and **RAM** in the health table and **per-node ACK latency** in the 2PC history UI. Current tables show **NodeId, Subsystem, ms ago, DSM** and **Tx id / target / aborted** — **CPU/RAM and ACK latency columns are missing**. **`NodeAckLatencyMs`** on **`DistributedTransaction`** is never populated.
 
 ### Issue 5: Stale docs — Standalone projects
@@ -42,9 +42,9 @@ Part A matches policy: **Standalone** projects removed from the solution and tre
 **Files:** `.dev/cgf-1/CGF-1-DESIGN.md` (file map), **CGF-1-TASK-DETAIL** (S0102/S0104 still mention `.Standalone` deliverables).  
 **Target:** **CGF-1-BATCH-04** — align docs with Runner-only reality.
 
-### Issue 6: `ProcessSysOpRequests` / transaction semantics (expected stub)
+### Issue 6: `ProcessClusterOpRequests` / transaction semantics (expected stub)
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`  
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`  
 **Note:** Accepted requests append history and reply **`InProgress`**; no full 2PC or **`Success`** yet — acceptable **Phase 1.5** stub until **S0201/S0202**. **`BroadcastNodeOp`** documents single-writer broadcast — OK for current DDS model.
 
 ---
@@ -91,11 +91,11 @@ Completes CGF1-S0105 and Part A policy work from BATCH-02 review.
 - Remove Orchestrator/CGF Standalone projects; Runner-only orchestrator/CGF.
 - IgApplication: fail-fast on DDS init when network enabled (no offline catch).
 - SimHost: EnsureIdAllocatorRouting throws without allocator match; delete local fallback.
-- DrillMaster: ClusterConfiguration, bootstrap latch, SysOpRequest/Status, EjectNode(int),
+- ClusterMaster: ClusterConfiguration, bootstrap latch, ClusterOpRequest/Status, EjectNode(int),
   degraded path, transaction history, NodeOpCommand KeepAll QoS.
 - OrchestratorSubsystem: orchestrator-config.json, ImGui banner / health / history tables.
-- CycloneDDS.CodeGen: @value for non-sequential enum values (DSMState wire fix).
-- Tests: four S0105 scenarios + DrillMaster fixtures in SimHost/Runner tests; IG domain IDs.
+- CycloneDDS.CodeGen: @value for non-sequential enum values (ClusterState wire fix).
+- Tests: four S0105 scenarios + ClusterMaster fixtures in SimHost/Runner tests; IG domain IDs.
 
 Test infra: Fdp.Tests + ModuleHost.Core.Tests xunit.runner.json (non-parallel assembly).
 

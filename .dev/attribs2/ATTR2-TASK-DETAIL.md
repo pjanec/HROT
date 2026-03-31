@@ -12,7 +12,7 @@
 **Design Reference:** [ATTR2-DESIGN.md §3.1](./ATTR2-DESIGN.md#31-binary-wire-contract-attributerecord)
 
 **Scope:**  
-Add two new C# structs to `Bagira.DDS.DataModel/GenericMessages.cs`:
+Add two new C# structs to `Hrot.NED/GenericMessages.cs`:
 
 1. `AttributeValueUnion` — a tagged-union value container holding one of:   `Int32`, `Int64`, `Float32`, `Float64`, `Bool`, `String`, `Vec3f`, `Vec3d`, `Vec4f`.
 2. `AttributeRecord` — the wire atom: `ushort AttributeId`, `short SubIndex1`, `short SubIndex2`, `AttributeValueUnion Value`.
@@ -34,7 +34,7 @@ is marked `[DdsManaged]` because the `String` branch references a managed type.
 
 **Success Conditions:**
 
-*Test (unit, Bagira.DDS.DataModel.Tests):*  
+*Test (unit, Hrot.NED.Tests):*  
 1. Construct `AttributeRecord { AttributeId = 10, SubIndex1 = 0, Value = { Type = Float64, DoubleValue = 32.085 } }` and verify each field round-trips to JSON via `JsonSerializer` without data loss.  
 2. Construct an `AttributeRecord` carrying a `String` value `"Alpha"` and verify the `String` branch is set and all other branches are in default/zero state.  
 3. Construct an `AttributeRecord` carrying a `Vec3d` value `[1.0, 2.0, 3.0]` and verify the three doubles are accessible and correct.  
@@ -84,7 +84,7 @@ Phase 6).
 **Design Reference:** [ATTR2-DESIGN.md §3.1](./ATTR2-DESIGN.md#31-binary-wire-contract-attributerecord)
 
 **Scope:**  
-In `Bagira.DDS.DataModel/GenericMessages.cs`:
+In `Hrot.NED/GenericMessages.cs`:
 
 1. Add `[DdsManaged] public List<AttributeRecord>? InitialAttributeRecords;` to `CreateEntityRequest`.  
 2. Add `[DdsManaged] public List<AttributeRecord>? AttributeRecords;` to `UpdateEntityAttributeRequest`.  
@@ -101,7 +101,7 @@ Phase 5.
 
 **Success Conditions:**
 
-*Test (unit, Bagira.DDS.DataModel.Tests):*  
+*Test (unit, Hrot.NED.Tests):*  
 1. `CreateEntityRequest` can be constructed with `InitialAttributeRecords = null` — the existing
    JSON-only creation path is unaffected.  
 2. `CreateEntityRequest` can be constructed with a non-null `List<AttributeRecord>` containing 2
@@ -128,8 +128,8 @@ Create two new files in `FDP/Toolkits/FDP.Toolkit.Replication/Patching/`:
    - Public API: `int Compile(ReadOnlySpan<byte> utf8Json, Span<AttributeRecord> output)`.
    - Returns the number of `AttributeRecord`s written to `output`.
    - Uses `Utf8JsonReader` with a `stackalloc PathSegment[16]` depth stack.
-   - Handles **flat keys** (`"GeoPosition.Latitude": 32.0`) and **nested objects**
-     (`"GeoPosition": { "Latitude": 32.0 }`), including **integer-keyed children** for array
+   - Handles **flat keys** (`"GeoPoint.Latitude": 32.0`) and **nested objects**
+     (`"GeoPoint": { "Latitude": 32.0 }`), including **integer-keyed children** for array
      indexing (`"Weapon": { "2": { "Ammo": 5 } }`).
    - When a numeric string key is encountered as an object-key token, it captures the value as
      `SubIndex1` (first numeric key in current branch) or `SubIndex2` (second).
@@ -148,13 +148,13 @@ Create two new files in `FDP/Toolkits/FDP.Toolkit.Replication/Patching/`:
 
 **Success Conditions:**
 
-*Tests (unit, FDP.Toolkit.Replication project or new Bagira.SimHost.Tests class):*  
+*Tests (unit, FDP.Toolkit.Replication project or new Hrot.SimHost.Tests class):*  
 
 1. **Flat single field:** `Compile("{\"Name\":\"Alpha\"}", buffer)` writes exactly 1 record with
    `AttributeId = AttributeId.Name`, `SubIndex1 = 0`, `Value.StringValue = "Alpha"`.  
-2. **Flat dotted path:** `Compile("{\"GeoPosition.Latitude\":32.085}", buffer)` writes 1 record
+2. **Flat dotted path:** `Compile("{\"GeoPoint.Latitude\":32.085}", buffer)` writes 1 record
    with `AttributeId = AttributeId.GeoLat`, `Value.DoubleValue = 32.085`.  
-3. **Nested object:** `Compile("{\"GeoPosition\":{\"Latitude\":32.085,\"Longitude\":34.78}}", buffer)`
+3. **Nested object:** `Compile("{\"GeoPoint\":{\"Latitude\":32.085,\"Longitude\":34.78}}", buffer)`
    writes 2 records with correct IDs and values (in order encountered).  
 4. **Array indexing via integer key:**
    `Compile("{\"Weapon\":{\"2\":{\"Ammo\":10}}}", buffer)` writes 1 record with the correct weapon
@@ -176,14 +176,14 @@ Create two new files in `FDP/Toolkits/FDP.Toolkit.Replication/Patching/`:
 **Design Reference:** [ATTR2-DESIGN.md §3.2](./ATTR2-DESIGN.md#32-edge-compiler-jsontorecordcompiler), §6
 
 **Scope:**  
-Add a static `EdgeCompilerFactory` (or extend `AttributeCompilerFactory`) in `Bagira.SimHost`
+Add a static `EdgeCompilerFactory` (or extend `AttributeCompilerFactory`) in `Hrot.SimHost`
 that registers the SimHost-specific schema with `JsonToRecordCompilerBuilder`:
 
 - `"Name"` → `AttributeId.Name`, `String`
 - `"Affiliation"` → `AttributeId.Affiliation`, `String`
-- `"GeoPosition.Latitude"` → `AttributeId.GeoLat`, `Float64`
-- `"GeoPosition.Longitude"` → `AttributeId.GeoLon`, `Float64`
-- `"GeoPosition.Altitude"` → `AttributeId.GeoAlt`, `Float64`
+- `"GeoPoint.Latitude"` → `AttributeId.GeoLat`, `Float64`
+- `"GeoPoint.Longitude"` → `AttributeId.GeoLon`, `Float64`
+- `"GeoPoint.Altitude"` → `AttributeId.GeoAlt`, `Float64`
 
 Returns a `JsonToRecordCompiler` instance ready for injection.
 
@@ -291,7 +291,7 @@ Runtime interpreter:
 **Design Reference:** [ATTR2-DESIGN.md §3.3](./ATTR2-DESIGN.md#33-binary-interpreter-binaryinterpreter), §6
 
 **Scope:**  
-Create `Bagira.SimHost/Installers/EntityDataAttributeInstaller.cs`.
+Create `Hrot.SimHost/Installers/EntityDataAttributeInstaller.cs`.
 
 Implements `IBinaryAttributeInstaller`.  In `Install`:
 
@@ -330,7 +330,7 @@ No scratchpad needed (no grouped math).  Both handlers call
 **Design Reference:** [ATTR2-DESIGN.md §3.3](./ATTR2-DESIGN.md#33-binary-interpreter-binaryinterpreter), §4
 
 **Scope:**  
-Create `Bagira.SimHost/Installers/SimTransformAttributeInstaller.cs`.
+Create `Hrot.SimHost/Installers/SimTransformAttributeInstaller.cs`.
 
 Implements `IBinaryAttributeInstaller`.  In `Install`:
 
@@ -349,7 +349,7 @@ Implements `IBinaryAttributeInstaller`.  In `Install`:
 3. **Register subsystem flusher**:
    - Read scratchpad, call `_geoTransform.ToCartesian(lat, lon, alt)`.
    - Write result to `ctx.PatchContext.GetUnmanagedComponent<SimTransform>().Position`.
-   - Call `ctx.MarkDescriptorDirty((long)EDescriptorType.dtGeoSpatial)`.
+   - Call `ctx.MarkDescriptorDirty((long)EDescriptorType.dtWorldPos)`.
 
 **Constraints:**
 - `IGeographicTransform` is injected via the installer constructor.
@@ -363,7 +363,7 @@ Implements `IBinaryAttributeInstaller`.  In `Install`:
 **Success Conditions:**
 
 1. **Full update:** `Apply` with `[GeoLat, GeoLon, GeoAlt]` → `SimTransform.Position` updated to
-   the correct Cartesian vector; flusher invoked once; `dtGeoSpatial` bit set in
+   the correct Cartesian vector; flusher invoked once; `dtWorldPos` bit set in
    `DirtyDescriptorMask`.  
 2. **Partial update — Lat only:** seed entity at known position (50°N, 30°E, 0m);
    `Apply` with `[{GeoLat=32.0}]` → position is recalculated with new Lat but original Lon and
@@ -383,7 +383,7 @@ Implements `IBinaryAttributeInstaller`.  In `Install`:
 **Design Reference:** [ATTR2-DESIGN.md §6](./ATTR2-DESIGN.md#6-files--modules-affected)
 
 **Scope:**  
-Extend `Bagira.SimHost/AttributeCompilerFactory.cs` with a static
+Extend `Hrot.SimHost/AttributeCompilerFactory.cs` with a static
 `BuildBinaryInterpreter(IGeographicTransform? geoTransform)` method that:
 
 1. Creates a `BinaryInterpreterBuilder`.
@@ -408,7 +408,7 @@ Extend `Bagira.SimHost/AttributeCompilerFactory.cs` with a static
 **Design Reference:** [ATTR2-DESIGN.md §3.5](./ATTR2-DESIGN.md#35-createentityrequestsystem-changes)
 
 **Scope:**  
-Modify `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`:
+Modify `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`:
 
 1. Add optional constructor parameter `BinaryInterpreter? binaryInterpreter = null`.
 2. In `ProcessRequest` (or the equivalent pending-queue drain):
@@ -444,7 +444,7 @@ Modify `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`:
 **Design Reference:** [ATTR2-DESIGN.md §3.6](./ATTR2-DESIGN.md#36-updateentityattributerequestsystem-changes)
 
 **Scope:**  
-Modify `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`:
+Modify `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`:
 
 1. Add optional constructor parameter `BinaryInterpreter? binaryInterpreter = null`.
 2. In `ProcessRequest`:
@@ -484,7 +484,7 @@ Modify `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`:
 **Design Reference:** [ATTR2-DESIGN.md §3.7](./ATTR2-DESIGN.md#37-creationtool-ig-side-changes)
 
 **Scope:**  
-Modify `Bagira.IG/Tools/CreationTool.cs`:
+Modify `Hrot.IG/Tools/CreationTool.cs`:
 
 1. Add optional constructor parameter `JsonToRecordCompiler? edgeCompiler = null`.
 2. Before building `CreateEntityRequest`:

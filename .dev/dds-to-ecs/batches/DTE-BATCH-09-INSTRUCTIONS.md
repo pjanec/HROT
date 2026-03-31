@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-09  
 **Tasks:** DDS2ECS-S15T4, DDS2ECS-S15T5, DDS2ECS-S15T6, DDS2ECS-S16T1, DDS2ECS-S16T2  
 **Phase:** Phase 15 + Phase 16  
-**Estimated Effort:** 16–20 hours  
+**Estimated Effort:** 16ï¿½20 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-08 approved
 
@@ -17,12 +17,12 @@ Complete the remaining Runner integration tests and begin the SimHost mission pi
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
 2. **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md` (DDS2ECS-S15T4 ? DDS2ECS-S16T2)
-3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (§9, §10)
+3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (ï¿½9, ï¿½10)
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-08-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.Runner.Integration.Tests/`, `Bagira.SimHost/`, `Bagira.SimHost.Tests/`
-- **Related IG/IOS:** `Bagira.IG/`, `Bagira.IOS/`
+- **Primary Work Area:** `Hrot.ClusterRunner.Integration.Tests/`, `Hrot.SimHost/`, `Hrot.SimHost.Tests/`
+- **Related IG/IOS:** `Hrot.IG/`, `Hrot.ExCon/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -41,38 +41,38 @@ Complete the remaining Runner integration tests and begin the SimHost mission pi
 
 ## ? Tasks
 
-### Task 1: DDS2ECS-S15T4 — Context Menu Push integration test
-**File:** `Bagira.Runner.Integration.Tests/ContextMenuIntegrationTests.cs` (NEW)  
+### Task 1: DDS2ECS-S15T4 ï¿½ Context Menu Push integration test
+**File:** `Hrot.ClusterRunner.Integration.Tests/ContextMenuIntegrationTests.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s15t4--context-menu-push-integration-test`
 
 ---
 
-### Task 2: DDS2ECS-S15T5 — Entity Destroy integration test
-**File:** `Bagira.Runner.Integration.Tests/EntityDestroyIntegrationTests.cs` (NEW)  
+### Task 2: DDS2ECS-S15T5 ï¿½ Entity Destroy integration test
+**File:** `Hrot.ClusterRunner.Integration.Tests/EntityDestroyIntegrationTests.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s15t5--entity-destroy-integration-test`
 
 ---
 
-### Task 3: DDS2ECS-S15T6 — Mission Control integration test
-**File:** `Bagira.Runner.Integration.Tests/MissionControlIntegrationTests.cs` (NEW)  
+### Task 3: DDS2ECS-S15T6 ï¿½ Mission Control integration test
+**File:** `Hrot.ClusterRunner.Integration.Tests/MissionControlIntegrationTests.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s15t6--mission-control-integration-test`
 
 ---
 
-### Task 4: DDS2ECS-S16T1 — Delete `EntityMissionHolder`, register `MissionPlanQueue`
+### Task 4: DDS2ECS-S16T1 ï¿½ Delete `EntityMissionHolder`, register `MissionPlanQueue`
 **Files:**
-- `Bagira.SimHost/Components/EntityMissionHolder.cs` (DELETE)
-- `Bagira.SimHost/SimHostApp.cs` (UPDATE)
-- `Bagira.SimHost.Tests/EntityMissionTranslatorTests.cs` (UPDATE)
+- `Hrot.SimHost/Components/EntityMissionHolder.cs` (DELETE)
+- `Hrot.SimHost/SimHostApp.cs` (UPDATE)
+- `Hrot.SimHost.Tests/EntityMissionTranslatorTests.cs` (UPDATE)
 
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s16t1--delete-entitymissionholder`
 
 ---
 
-### Task 5: DDS2ECS-S16T2 — Rewrite `EntityMissionTranslator` to `MissionPlanQueue`
+### Task 5: DDS2ECS-S16T2 ï¿½ Rewrite `EntityMissionTranslator` to `MissionPlanQueue`
 **Files:**
-- `Bagira.SimHost/Translators/EntityMissionTranslator.cs` (UPDATE)
-- `Bagira.SimHost.Tests/EntityMissionTranslatorTests.cs` (UPDATE)
+- `Hrot.SimHost/Translators/EntityMissionTranslator.cs` (UPDATE)
+- `Hrot.SimHost.Tests/EntityMissionTranslatorTests.cs` (UPDATE)
 
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s16t2--rewrite-entitymissiontranslator-to-write-missionplanqueue`
 
@@ -81,8 +81,8 @@ Complete the remaining Runner integration tests and begin the SimHost mission pi
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.Runner.Integration.Tests/Bagira.Runner.Integration.Tests.csproj`
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+  - `dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj`
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
 
 ---
 
@@ -117,8 +117,8 @@ Complete the remaining Runner integration tests and begin the SimHost mission pi
 ## ?? Success Criteria
 
 This batch is DONE when:
-- [ ] DDS2ECS-S15T4–S15T6 complete with xUnit tests
-- [ ] DDS2ECS-S16T1–S16T2 complete with xUnit tests
+- [ ] DDS2ECS-S15T4ï¿½S15T6 complete with xUnit tests
+- [ ] DDS2ECS-S16T1ï¿½S16T2 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-09-REPORT.md`
 
@@ -133,4 +133,4 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 - **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md`
-- **Design:** `docs/dds-to-ecs/DESIGN.md` (§9, §10)
+- **Design:** `docs/dds-to-ecs/DESIGN.md` (ï¿½9, ï¿½10)

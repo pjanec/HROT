@@ -17,7 +17,7 @@
 
 ## Onboarding
 
-1. [.dev/cgf-1/reviews/CGF-1-BATCH-17-REVIEW.md](../reviews/CGF-1-BATCH-17-REVIEW.md) — critical gap + CGF + `DrillSlave` sections
+1. [.dev/cgf-1/reviews/CGF-1-BATCH-17-REVIEW.md](../reviews/CGF-1-BATCH-17-REVIEW.md) — critical gap + CGF + `ClusterSlave` sections
 2. [.dev/cgf-1/CGF-1-TASK-DETAIL.md](../CGF-1-TASK-DETAIL.md) §CGF1-S0305 (`FullBranchPipelineTests` success condition)
 3. [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md) — rows **Target Fix = CGF-1-BATCH-18** (CGF-1 section)
 
@@ -29,7 +29,7 @@
 
 ### A.1 — **SimHost: `PrepareLive` must reach the S0305 branch handler** (P1)
 
-**Problem:** `[DrillSlave](../../../Bagira.SimHost/Modules/Orchestration/DrillSlave.cs)` dispatches the **first** handler with `**CanHandle(PrepareLive)`**. `[NodeBootstrapper](../../../Bagira.SimHost/NodeBootstrapper.cs)` registers `[LiveLoadDsmHandler](../../../Bagira.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs)` **before** `[ReplayLoadDsmHandler](../../../Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs)`, so `**ReplayLoadDsmHandler`’s Live-from-Replay path never runs** on the real app.
+**Problem:** `[ClusterSlave](../../../Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs)` dispatches the **first** handler with `**CanHandle(PrepareLive)`**. `[NodeBootstrapper](../../../Hrot.SimHost/NodeBootstrapper.cs)` registers `[LiveLoadDsmHandler](../../../Hrot.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs)` **before** `[ReplayLoadDsmHandler](../../../Hrot.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs)`, so `**ReplayLoadDsmHandler`’s Live-from-Replay path never runs** on the real app.
 
 **Fix (pick one, document in XML):**
 
@@ -37,17 +37,17 @@
 - Fold branch logic into `**LiveLoadDsmHandler`** (detect active replay → teardown + record) and remove duplicate `**PrepareLive**` from `**ReplayLoadDsmHandler.CanHandle**`; **or**
 - Equivalent design with **no** double-claim on `**PrepareLive`**.
 
-**Tests:** Add a test that uses **real `[BuildOrchestration](../../../Bagira.SimHost/NodeBootstrapper.cs)` + `[DrillSlave](../../../Bagira.SimHost/Modules/Orchestration/DrillSlave.cs)` dispatch** (or shared helper), **not** a hand-built `**ReplayLoadDsmHandler`** only — assert the **branch** runs when replay is active.
+**Tests:** Add a test that uses **real `[BuildOrchestration](../../../Hrot.SimHost/NodeBootstrapper.cs)` + `[ClusterSlave](../../../Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs)` dispatch** (or shared helper), **not** a hand-built `**ReplayLoadDsmHandler`** only — assert the **branch** runs when replay is active.
 
 ### A.2 — **CGF: branch `PrepareLive` must not be swallowed by `ScenarioLoadDsmHandler`** (P2)
 
-**Problem:** On `[CgfApplication](../../../Bagira.CGF/CgfApplication.cs)`, `**ScenarioLoadDsmHandler`** is registered first and `**CanHandle(PrepareLive)**` is always true. Branch payloads carry `**DrillId**` without `**ScenarioId**` → handler returns success immediately → `**FailLoudRecordReplayStub**` never runs.
+**Problem:** On `[CgfApplication](../../../Hrot.CGF/CgfApplication.cs)`, `**ScenarioLoadDsmHandler`** is registered first and `**CanHandle(PrepareLive)**` is always true. Branch payloads carry `**ExerciseId**` without `**ScenarioId**` → handler returns success immediately → `**FailLoudRecordReplayStub**` never runs.
 
-**Fix:** `**ScenarioLoadDsmHandler`** should `**CanHandle` false** (or delegate) when payload is **branch-style** (e.g. `**DrillId` present, `ScenarioId` absent**), **or** run stub **before** scenario load for `**PrepareLive`**, **or** explicit `**PrepareLive` disambiguation** in one handler. **Goal:** branch `**PrepareLive`** on CGF is **visible** (stub **Error** or real brain replay) per architecture note.
+**Fix:** `**ScenarioLoadDsmHandler`** should `**CanHandle` false** (or delegate) when payload is **branch-style** (e.g. `**ExerciseId` present, `ScenarioId` absent**), **or** run stub **before** scenario load for `**PrepareLive`**, **or** explicit `**PrepareLive` disambiguation** in one handler. **Goal:** branch `**PrepareLive`** on CGF is **visible** (stub **Error** or real brain replay) per architecture note.
 
-### A.3 — `**DrillSlave`: `PrepareAsync` completion before `Commit`** (P2)
+### A.3 — `**ClusterSlave`: `PrepareAsync` completion before `Commit`** (P2)
 
-**Problem:** `[DrillSlave.DispatchCommand](../../../Bagira.SimHost/Modules/Orchestration/DrillSlave.cs)` does not **await** `**PrepareAsync`** before `**Commit**`.
+**Problem:** `[ClusterSlave.DispatchCommand](../../../Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs)` does not **await** `**PrepareAsync`** before `**Commit**`.
 
 **Fix:** Propagate `**async`** dispatch on the appropriate thread (main/ECS), **or** split handlers into sync prepare + deferred ACK via `**ITickableDsmHandler`**, **or** document and enforce **synchronous** prepare for paths that mutate group flags — **must** be correct for `**InstallModuleAsync`/`UninstallModuleAsync`** replay/recording flows.
 
@@ -72,7 +72,7 @@ Implement `**FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAs
 - [x] Solution build clean.  
 - [x] **CGF-1-TASK-TRACKER** clears **S0305** residual note when Part B done.  
 - [x] Report filed.  
-- **Lead follow-up:** [CGF-1-BATCH-18-REVIEW.md](../reviews/CGF-1-BATCH-18-REVIEW.md) — CGF **`PrepareLive`/scenario** regression + CGF **`DrillSlave`** parity → [CGF-1-BATCH-19](CGF-1-BATCH-19-INSTRUCTIONS.md).
+- **Lead follow-up:** [CGF-1-BATCH-18-REVIEW.md](../reviews/CGF-1-BATCH-18-REVIEW.md) — CGF **`PrepareLive`/scenario** regression + CGF **`ClusterSlave`** parity → [CGF-1-BATCH-19](CGF-1-BATCH-19-INSTRUCTIONS.md).
 
 ---
 

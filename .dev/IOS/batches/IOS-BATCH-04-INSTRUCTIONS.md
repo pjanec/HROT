@@ -22,7 +22,7 @@ Welcome back! BATCH-03 successfully implemented our primary `IosLogic` shell and
 5. **Debt Tracker:** `.dev-workstream/IOS-DEBT-TRACKER.md` - You are responsible for clearing items IOS-DEBT-031, IOS-DEBT-032, and IOS-DEBT-033!
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IOS.Tests/IntegrationTests.cs`, `Bagira.IOS.Tests/WorkflowTests.cs`
+- **Primary Work Area:** `Hrot.ExCon.Tests/IntegrationTests.cs`, `Hrot.ExCon.Tests/WorkflowTests.cs`
 - **Solution File:** `IOS-IG-SimHost.sln`
 
 ### Report Submission
@@ -43,7 +43,7 @@ Integration tests construct realistic subsystem interactions (like the IG and Si
 ## 🎯 Batch Objectives
 - Address three Phase 9 deferred technical debts.
 - Provide end-to-end integration and workflow sanity checks testing multiple node contexts.
-- Achieve full feature closure for the Bagira.IOS component!
+- Achieve full feature closure for the Hrot.ExCon component!
 
 ---
 
@@ -74,15 +74,15 @@ Integration tests construct realistic subsystem interactions (like the IG and Si
 **Description:** `OrbatPanel.FindChildren` scans all entities per node—O(n²) time complexity. Refactor this to pre-cache a Dictionary lookup `CommanderId -> List<enfants>` upon `GetVisibleNodes` evaluation.
 
 ### Task 1: Integration Fixtures (IOS.9.1)
-**Files:** `Bagira.IOS.Tests/IntegrationTests.cs`
+**Files:** `Hrot.ExCon.Tests/IntegrationTests.cs`
 **Task Definition:** Implement Scenario 1: Standalone IOS validation. Simulate booting `IosMock` and `IosLogic`, ensuring panel views render normally without a network and gracefully block interactions without throwing null references. 
 
 ### Task 2: Subsystem Integrations (IOS.9.2 & IOS.9.3)
-**Files:** `Bagira.IOS.Tests/IntegrationTests.cs`
+**Files:** `Hrot.ExCon.Tests/IntegrationTests.cs`
 **Task Definition:** Implement IOS+IG and IOS+SimHost interaction pathways natively. You will need to build lightweight stub logic that acts as the IG (e.g. emitting `MapClickEvent`) and SimHost (e.g. emitting `CreateEntityAck`). Validate that the IOS detects the updates and processes responses accordingly.
 
 ### Task 3: Workflow Sanity Checks (IOS.9.4)
-**Files:** `Bagira.IOS.Tests/WorkflowTests.cs`
+**Files:** `Hrot.ExCon.Tests/WorkflowTests.cs`
 **Task Definition:** Implement Scenario 4 (Full Stack) and Scenario 5 (Conflict Detection). The full stack test will simulate a multi-step placement + mission modification trace. The conflict detection mode will assert that two instances patching the same mission will throw the predicted Optimistic Lock trace errors expected from `MissionEditorService`.
 
 ---

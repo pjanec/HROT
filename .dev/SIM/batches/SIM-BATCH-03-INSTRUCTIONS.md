@@ -20,9 +20,9 @@ Welcome back! With the ECS kernel topological structure complete under `Simulati
 3. **Edge Cases:** `docs/design/EDGE-CASES-AND-MITIGATIONS.md` - Please make sure you are aware of how DDS state tracking interacts with ECS lifecycles.
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/Translators/`
-- **Application Bootstrapper:** `Bagira.SimHost/Program.cs`
-- **Test Project:** `Bagira.SimHost.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/Translators/`
+- **Application Bootstrapper:** `Hrot.SimHost/Program.cs`
+- **Test Project:** `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -48,7 +48,7 @@ Welcome back! With the ECS kernel topological structure complete under `Simulati
 
 ## Context
 
-DDS applications communicate intention via `EntityMission` topics. We need SimHost to monitor the `EntityMission` DDS topic, setting or removing the internal `Bagira.DDS.DataModel.EntityMission` component on the correct entity via the `IManagedTranslator` interface on the ingress.
+DDS applications communicate intention via `EntityMission` topics. We need SimHost to monitor the `EntityMission` DDS topic, setting or removing the internal `Hrot.NED.EntityMission` component on the correct entity via the `IManagedTranslator` interface on the ingress.
 Conversely, when `MissionAdapterSystem` acts on the ECS state setting the mission active or failing it, we want an egress translator `IEgressTranslator` to fire and broadcast those changes locally owned entities back to DDS using dirty flag queries.
 
 ---
@@ -65,9 +65,9 @@ Conversely, when `MissionAdapterSystem` acts on the ECS state setting the missio
 
 ### Task 1: Implement EntityMission Translators (TASK-S4.2)
 
-**File 1:** `Bagira.SimHost/Translators/EntityMissionTranslator.cs` (Ingress)
-**File 2:** `Bagira.SimHost/Translators/EntityMissionEgressTranslator.cs` (Egress)
-**File 3:** `Bagira.SimHost/Program.cs` 
+**File 1:** `Hrot.SimHost/Translators/EntityMissionTranslator.cs` (Ingress)
+**File 2:** `Hrot.SimHost/Translators/EntityMissionEgressTranslator.cs` (Egress)
+**File 3:** `Hrot.SimHost/Program.cs` 
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s42-implement-entitymissiontranslator-and-entitymissionegresstranslator)
 
@@ -116,7 +116,7 @@ This batch is DONE when:
 
 ## ⚠️ Common Pitfalls to Avoid
 - Failing to restrict Egress queries with `With<NetworkAuthority>()`. SimHost should only update its own tasks. If omitted, we will enter an infinite broadcast loop with the network.
-- Redefining the ECS `EntityMission` wrapper class instead of utilizing the `Bagira.DDS.DataModel.EntityMission` type.
+- Redefining the ECS `EntityMission` wrapper class instead of utilizing the `Hrot.NED.EntityMission` type.
 
 ---
 

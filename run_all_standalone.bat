@@ -2,8 +2,8 @@
 setlocal
 
 set DOMAIN=0
-set FOLDER=%~dp0Bagira.Runner\bin\Debug\net8.0
-set RUNNER=Bagira.Runner.exe
+set FOLDER=%~dp0Hrot.ClusterRunner\bin\Debug\net8.0
+set RUNNER=Hrot.ClusterRunner.exe
                 
 start "SimHost" /d %FOLDER% %RUNNER% -d %DOMAIN% -m simhost --no-wait
 start "IG"      /d %FOLDER% %RUNNER% -d %DOMAIN% -m ig      --no-wait

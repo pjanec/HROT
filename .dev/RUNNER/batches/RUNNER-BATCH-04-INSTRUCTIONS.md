@@ -30,7 +30,7 @@ You deleted `AutoCycloneTranslator<EntityMaster>` from `SimHostSubsystem.cs` bec
 2. Open `FDP/Kernel/Fdp.Kernel/ComponentType.cs`.
 3. **DELETE** all logic related to `_nextId`, fallback registration loops, and `RelocateAutoAssigned()`.
 4. If a component (struct, class, or interface) is registered and does not have a `[ComponentId]` attribute, **THROW an `InvalidOperationException` unconditionally.** 
-5. In `Bagira.IG/IgApplication.cs`, **DELETE** the `_ = ComponentType<...>.ID;` hack block.
+5. In `Hrot.IG/IgApplication.cs`, **DELETE** the `_ = ComponentType<...>.ID;` hack block.
 
 ### Task 2: Explicitly Attribute All Components (R0.2)
 **Objective:** Since auto-assignment is dead, every component needs a declared real ID.
@@ -45,7 +45,7 @@ You deleted `AutoCycloneTranslator<EntityMaster>` from `SimHostSubsystem.cs` bec
 2. Add a `public static readonly bool IsEntityId32Bit;` field to both.
 3. In the static constructors, update the type checking to accept `typeof(int)` and `typeof(uint)`, setting `IsEntityId32Bit = true`.
 4. Update `ReadEntityId` and `WriteEntityId` (or `ReadId`/`WriteId`) to branch on the new 32-bit flag (e.g., if true, read/write as `int` and cast to/from `long`).
-5. Restore the `translators.Add(new AutoCycloneTranslator<EntityMaster>(...))` line in both `Bagira.Runner/Services/SimHostSubsystem.cs` and `Bagira.SimHost/Program.cs`.
+5. Restore the `translators.Add(new AutoCycloneTranslator<EntityMaster>(...))` line in both `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` and `Hrot.SimHost/Program.cs`.
 
 *DO NOT PROCEED TO PART 2 UNTIL ALL TESTS PASS WITH THESE FIXES IN PLACE.*
 
@@ -70,7 +70,7 @@ Once Part 1 is complete and pushed, begin implementing the infrastructure for th
 ---
 
 ## 🧪 Testing Requirements
-- **Crucial:** You must ensure `Bagira.IG.Tests` and `Bagira.SimHost.Tests` pass seamlessly unconditionally throwing on unattributed components.
+- **Crucial:** You must ensure `Hrot.IG.Tests` and `Hrot.SimHost.Tests` pass seamlessly unconditionally throwing on unattributed components.
 - Supply full Unit Tests for `TestScript` json parsing.
 
 ## 📊 Report Requirements

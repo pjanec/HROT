@@ -18,7 +18,7 @@
 
 **Design ref:** [§4 Core Data Model](./ROUTES1-DESIGN.md#4-core-data-model--routeplan-ecs-component)
 
-**Scope:** `Bagira.Map.Common` project (to avoid circular dependencies, parallel to `EditablePolyline.cs`).
+**Scope:** `Hrot.Map.Common` project (to avoid circular dependencies, parallel to `EditablePolyline.cs`).
 
 **What to implement:**
 
@@ -36,10 +36,10 @@
 3. Reserve a new entry in `GlobalComponentIds` (e.g. `RoutePlan = 220` — choose next available id after inspecting the file).
 
 4. Register `RoutePlan` as a managed component inside both:
-   - `Bagira.SimHost` component registration bootstrap
-   - `Bagira.IG` component registration bootstrap
+   - `Hrot.SimHost` component registration bootstrap
+   - `Hrot.IG` component registration bootstrap
 
-**Success conditions / tests (`Bagira.Map.Common.Tests` or `Bagira.SimHost.Tests`):**
+**Success conditions / tests (`Hrot.Map.Common.Tests` or `Hrot.SimHost.Tests`):**
 
 - `RoutePlan` can be created with `new RoutePlan()` — `Waypoints` is not null, `IsLoop` defaults to `false`, `Version` defaults to `0`.
 - Adding a waypoint and incrementing `Version` produces observable mutation without exceptions.
@@ -52,7 +52,7 @@
 
 **Design ref:** [§4.3 PersonalRouteRef](./ROUTES1-DESIGN.md#43-personalrouteref-component), [§4.4 CmdAppendPersonalWaypoint](./ROUTES1-DESIGN.md#44-cmdappendpersonalwaypoint-event), [§7.2 RouteTrajectoryCache](./ROUTES1-DESIGN.md#72-routetrajectorycache-component)
 
-**Scope:** `Bagira.Map.Common` (components) / appropriate shared assembly (events).
+**Scope:** `Hrot.Map.Common` (components) / appropriate shared assembly (events).
 
 **What to implement:**
 
@@ -84,11 +84,11 @@
 
 **Design ref:** [§14 TKB Blueprint for TacGraphic_Route](./ROUTES1-DESIGN.md#14-tkb-blueprint-for-tacgraphic_route)
 
-**Scope:** TKB definition database wiring in `Bagira.Map.Definitions` and the SimHost / IG entity factory bootstraps.
+**Scope:** TKB definition database wiring in `Hrot.Map.Definitions` and the SimHost / IG entity factory bootstraps.
 
 **What to implement:**
 
-1. Locate `TkbEntityTypes.TacGraphic_Route = 8802` (already defined in `Bagira.Map.Definitions/TkbEntityTypes.cs`).
+1. Locate `TkbEntityTypes.TacGraphic_Route = 8802` (already defined in `Hrot.Map.Definitions/TkbEntityTypes.cs`).
 2. Create (or extend) a TKB blueprint entry for type `8802` that attaches:
    - `TkbIdentity { TkbType = TacGraphic_Route }`
    - `SimTransform` (default identity)
@@ -99,7 +99,7 @@
 
 3. Verify the `road_graphs` map layer predicate in `MapLayerRegistry` already matches this TKB type (it should — the predicate `TkbType == 8802` already exists). No code change needed there.
 
-**Success conditions / tests (`Bagira.SimHost.Tests` or integration):**
+**Success conditions / tests (`Hrot.SimHost.Tests` or integration):**
 
 - A `SpawnEntityCommand` with `TkbType = TacGraphic_Route` results in an ECS entity that has `RoutePlan`, `TkbIdentity`, `SimTransform`, `NetworkIdentity`, and `NetworkAuthority`.
 - The spawned entity does **not** have `EditablePolyline` or `NavState`.
@@ -116,7 +116,7 @@
 
 **Design ref:** [§6.1 MapRouteEgressTranslator](./ROUTES1-DESIGN.md#61-maprouteegresstranslator-simhost--ig)
 
-**Scope:** `Bagira.Map.Common` (parallel to `MapVisualOverlayEgressTranslator.cs`).
+**Scope:** `Hrot.Map.Common` (parallel to `MapVisualOverlayEgressTranslator.cs`).
 
 **What to implement:**
 
@@ -126,16 +126,16 @@ Create `MapRouteEgressTranslator` class. It runs in `SystemPhase.Egress`:
 2. Uses `SmartEgressUtil.IsDirty(entity, routePlan.Version)` to skip unchanged entities.
 3. For each dirty entity:
    a. Iterate `RoutePlan.Waypoints`.
-   b. Convert each `RouteWaypoint.Position` (Cartesian `Vector3`) → `GeoPosition` via `IGeographicTransform.ToGeodetic`.
-   c. Build `MapRoute { EntityId = netId, Points = [Waypoint(GeoPosition, Name="", SpeedMetersPerSec, ExtensionJson)], IsLoop }`.
+   b. Convert each `RouteWaypoint.Position` (Cartesian `Vector3`) → `GeoPoint` via `IGeographicTransform.ToGeodetic`.
+   c. Build `MapRoute { EntityId = netId, Points = [Waypoint(GeoPoint, Name="", SpeedMetersPerSec, ExtensionJson)], IsLoop }`.
    d. Publish via DDS writer.
-   e. If `waypoints[0]` position changed, also publish a `GeoSpatial` update (first waypoint = spatial anchor).
+   e. If `waypoints[0]` position changed, also publish a `WorldPos` update (first waypoint = spatial anchor).
 4. Mark entity as clean via `SmartEgressUtil.MarkClean`.
 
-**Success conditions / tests (`Bagira.Map.Common.Tests`):**
+**Success conditions / tests (`Hrot.Map.Common.Tests`):**
 
 - Given an entity with a `RoutePlan` containing 3 waypoints, the translator emits exactly one `MapRoute` publish call with `Points.Count == 3`.
-- `GeoPosition` values round-trip through `ToGeodetic` within acceptable floating-point tolerance (≤ 1 mm error for positions within 100 km of origin).
+- `GeoPoint` values round-trip through `ToGeodetic` within acceptable floating-point tolerance (≤ 1 mm error for positions within 100 km of origin).
 - `IsLoop`, `SpeedMetersPerSec`, and `ExtensionJson` are faithfully propagated.
 - If `RoutePlan.Version` has not changed since last emit, no publish is made (dirty-flag test).
 - An entity without `RoutePlan` is not processed.
@@ -146,7 +146,7 @@ Create `MapRouteEgressTranslator` class. It runs in `SystemPhase.Egress`:
 
 **Design ref:** [§6.2 MapRouteIngressTranslator](./ROUTES1-DESIGN.md#62-maprouteingresstranslator-simhost--ig)
 
-**Scope:** `Bagira.Map.Common` (parallel to `MapVisualOverlayIngressTranslator.cs`).
+**Scope:** `Hrot.Map.Common` (parallel to `MapVisualOverlayIngressTranslator.cs`).
 
 **What to implement:**
 
@@ -157,12 +157,12 @@ Create `MapRouteIngressTranslator` class. It runs in `SystemPhase.Ingress`:
 3. If entity not yet found (not yet spawned), defers the sample to a retry queue (same pattern as `MapVisualOverlayIngressTranslator`).
 4. Gets the `RoutePlan` managed component from the entity.
 5. Clears `RoutePlan.Waypoints`, then for each incoming `Waypoint`:
-   a. Converts `GeoPosition` → Cartesian `Vector3` via `IGeographicTransform.ToCartesian`.
+   a. Converts `GeoPoint` → Cartesian `Vector3` via `IGeographicTransform.ToCartesian`.
    b. Appends `RouteWaypoint { Position, TargetSpeed = (float)SpeedMetersPerSec, ExtensionJson }`.
 6. Sets `RoutePlan.IsLoop` from the descriptor.
 7. Increments `RoutePlan.Version`.
 
-**Success conditions / tests (`Bagira.Map.Common.Tests`):**
+**Success conditions / tests (`Hrot.Map.Common.Tests`):**
 
 - A `MapRoute` sample with 5 waypoints results in a `RoutePlan` with exactly 5 `RouteWaypoint` entries.
 - `ToCartesian` values are within 1 mm of the original positions used to create the message via `ToGeodetic` (round-trip precision test using `IGeographicTransform` with a fixed origin).
@@ -180,7 +180,7 @@ Create `MapRouteIngressTranslator` class. It runs in `SystemPhase.Ingress`:
 
 **Design ref:** [§7.1 RouteTrajectorySyncSystem](./ROUTES1-DESIGN.md#71-routetrajectorysyncystem), [§7.2 RouteTrajectoryCache](./ROUTES1-DESIGN.md#72-routetrajectorycache-component)
 
-**Scope:** `Bagira.SimHost` (and optionally `Bagira.IG` if local trajectory sampling is needed there too).
+**Scope:** `Hrot.SimHost` (and optionally `Hrot.IG` if local trajectory sampling is needed there too).
 
 **What to implement:**
 
@@ -199,7 +199,7 @@ Create `MapRouteIngressTranslator` class. It runs in `SystemPhase.Ingress`:
 
 4. Register lifecycle cleanup: when a route entity is destroyed, call `TrajectoryPoolManager.RemoveTrajectory(cache.TrajectoryId)` to free the native array. Implement via an `IEntityLifecycleListener` or a `PostSimulation` cleanup query that scans recently-destroyed caches.
 
-**Success conditions / tests (`Bagira.SimHost.Tests`):**
+**Success conditions / tests (`Hrot.SimHost.Tests`):**
 
 - Given a route entity with a `RoutePlan` of 4 waypoints (version=1), the system registers a trajectory and populates `RouteTrajectoryCache.TrajectoryId` with a positive integer.
 - `RouteTrajectoryCache.CompiledVersion` equals `RoutePlan.Version` after sync.
@@ -217,7 +217,7 @@ Create `MapRouteIngressTranslator` class. It runs in `SystemPhase.Ingress`:
 
 **Design ref:** [§9 Authoring Flow — Shared Routes](./ROUTES1-DESIGN.md#9-authoring-flow--shared-routes)
 
-**Scope:** `Bagira.IG` — `MapCommandController`, `IgApplication` route context, `PointSequenceTool` configuration.
+**Scope:** `Hrot.IG` — `MapCommandController`, `IgApplication` route context, `PointSequenceTool` configuration.
 
 **What to implement:**
 
@@ -225,10 +225,10 @@ Create `MapRouteIngressTranslator` class. It runs in `SystemPhase.Ingress`:
 
 2. Push a `PointSequenceTool` configured for route authoring:
    - `_onFinish` callback receives the array of world-space `Vector2` points.
-   - Convert each point to an absolute geodetic `GeoPosition` via `IGeographicTransform.ToGeodetic(new Vector3(pt.x, 0, pt.y))`.
+   - Convert each point to an absolute geodetic `GeoPoint` via `IGeographicTransform.ToGeodetic(new Vector3(pt.x, 0, pt.y))`.
    - Build a `CreateEntityRequest`:
      - `dtEntityMaster { TkbType = TkbEntityTypes.TacGraphic_Route }`
-     - `dtGeoSpatial { GeoPosition = points[0] }` (first waypoint as spatial anchor)
+     - `dtWorldPos { GeoPoint = points[0] }` (first waypoint as spatial anchor)
      - `dtMapRoute { Points = [all waypoints], IsLoop = false }`
    - Publish the request via the DDS command channel.
 
@@ -236,13 +236,13 @@ Create `MapRouteIngressTranslator` class. It runs in `SystemPhase.Ingress`:
 
 4. Ensure the `CMD_START_EDITING` path for route entities pushes the `RouteEditTool` (see T012) instead of the generic `EditTool`.
 
-**Success conditions / tests (`Bagira.IG.Tests`):**
+**Success conditions / tests (`Hrot.IG.Tests`):**
 
 - Invoking the `CMD_START_AUTHORING` handler with route args pushes a `PointSequenceTool` onto the map canvas.
-- Simulating the finish callback with 3 points results in a `CreateEntityRequest` being emitted that contains all three descriptors (`dtEntityMaster`, `dtGeoSpatial`, `dtMapRoute`).
+- Simulating the finish callback with 3 points results in a `CreateEntityRequest` being emitted that contains all three descriptors (`dtEntityMaster`, `dtWorldPos`, `dtMapRoute`).
 - `dtEntityMaster.TkbType == TkbEntityTypes.TacGraphic_Route`.
 - `dtMapRoute.Points.Count == 3`.
-- `dtGeoSpatial` position matches the geodetic conversion of `points[0]`.
+- `dtWorldPos` position matches the geodetic conversion of `points[0]`.
 - After the finish callback, the active tool reverts to `StandardInteractionTool`.
 
 ---
@@ -255,7 +255,7 @@ Create `MapRouteIngressTranslator` class. It runs in `SystemPhase.Ingress`:
 
 **Design ref:** [§10 Authoring Flow — Personal Routes](./ROUTES1-DESIGN.md#10-authoring-flow--personal-vehicle-owned-routes)
 
-**Scope:** `Bagira.SimHost` (ECS system, `SystemPhase.Input`).
+**Scope:** `Hrot.SimHost` (ECS system, `SystemPhase.Input`).
 
 **What to implement:**
 
@@ -286,7 +286,7 @@ Create `PersonalRouteAuthoringSystem`:
 
 > **Note:** `CmdFollowTrajectory` must be issued in the next frame after trajectory compilation, or the system must ensure `RouteTrajectorySyncSystem` runs first in the same frame. Design the ordering accordingly.
 
-**Success conditions / tests (`Bagira.SimHost.Tests`):**
+**Success conditions / tests (`Hrot.SimHost.Tests`):**
 
 - Dispatching `CmdAppendPersonalWaypoint` for a vehicle with no existing personal route spawns exactly one new child entity with `RoutePlan` (2 waypoints: vehicle pos + clicked pos) and `PartMetadata.ParentEntity == vehicleEntity`.
 - `PersonalRouteRef` is attached to the vehicle after the first command.
@@ -301,7 +301,7 @@ Create `PersonalRouteAuthoringSystem`:
 
 **Design ref:** [§10](./ROUTES1-DESIGN.md#10-authoring-flow--personal-vehicle-owned-routes)
 
-**Scope:** `Bagira.IG` — `IgApplication` `OnWorldClick` handler (or `StandardInteractionTool` wrapper).
+**Scope:** `Hrot.IG` — `IgApplication` `OnWorldClick` handler (or `StandardInteractionTool` wrapper).
 
 **What to implement:**
 
@@ -314,7 +314,7 @@ Create `PersonalRouteAuthoringSystem`:
 
 2. Remove (or guard) the old `ScenarioManager.AddWaypoint` call from this path.
 
-**Success conditions / tests (`Bagira.IG.Tests`):**
+**Success conditions / tests (`Hrot.IG.Tests`):**
 
 - A simulated Shift+Right-Click with one vehicle entity selected emits exactly one `CmdAppendPersonalWaypoint` with the correct `VehicleEntity` and `WorldPosition`.
 - Two selected vehicle entities produce two `CmdAppendPersonalWaypoint` events.
@@ -331,7 +331,7 @@ Create `PersonalRouteAuthoringSystem`:
 
 **Design ref:** [§8.1 RouteRenderLayer](./ROUTES1-DESIGN.md#81-routerenderlayer-ig)
 
-**Scope:** `Bagira.IG` — new `IMapLayer` registered in `MapLayerRegistry`.
+**Scope:** `Hrot.IG` — new `IMapLayer` registered in `MapLayerRegistry`.
 
 **What to implement:**
 
@@ -349,7 +349,7 @@ Create `RouteRenderLayer : IMapLayer`:
    - **IsLoop:** if `RoutePlan.IsLoop == true`, draw an additional closing segment from last waypoint back to first.
 3. Register the layer in `MapLayerRegistry` at the appropriate position (after road graph layer).
 
-**Success conditions / tests (`Bagira.IG.Tests`):**
+**Success conditions / tests (`Hrot.IG.Tests`):**
 
 - Given a route entity with 4 waypoints and the `road_graphs` layer enabled, `Draw` invokes at least 3 `AddLine` calls (n-1 segments) and 4 circle draw calls.
 - For a looping route, exactly 4 `AddLine` calls are made (n segments including wrap-around).
@@ -363,7 +363,7 @@ Create `RouteRenderLayer : IMapLayer`:
 
 **Design ref:** [§8.2 SimHostTrajectoryLayer Extension](./ROUTES1-DESIGN.md#82-simhosttrajectorylay-extension)
 
-**Scope:** `Bagira.SimHost` — `SimHostTrajectoryLayer.cs`.
+**Scope:** `Hrot.SimHost` — `SimHostTrajectoryLayer.cs`.
 
 **What to implement:**
 
@@ -376,7 +376,7 @@ Extend `SimHostTrajectoryLayer.Draw`:
 
 3. New path: if selected entity's `NavState.TrajectoryId` matches `RouteTrajectoryCache.TrajectoryId` on any known route entity, draw the shared route entity's `RoutePlan` waypoints in a highlight colour.
 
-**Success conditions / tests (`Bagira.SimHost.Tests`):**
+**Success conditions / tests (`Hrot.SimHost.Tests`):**
 
 - A vehicle with `NavState.Mode == CustomTrajectory` and a corresponding personal child route causes the trajectory layer to make draw calls for the route waypoints.
 - A vehicle following a shared route causes draw calls for the shared route's waypoints.
@@ -393,7 +393,7 @@ Extend `SimHostTrajectoryLayer.Draw`:
 
 **Design ref:** [§11.1 RouteEditTool](./ROUTES1-DESIGN.md#111-routeediittool-ig)
 
-**Scope:** `Bagira.IG/Tools/RouteEditTool.cs` — new `IMapTool` implementation.
+**Scope:** `Hrot.IG/Tools/RouteEditTool.cs` — new `IMapTool` implementation.
 
 **What to implement:**
 
@@ -410,7 +410,7 @@ Extend `SimHostTrajectoryLayer.Draw`:
 7. `GetSelectedWaypointRef() ref RouteWaypoint`: returns a `ref` to `_ghost[_selectedVertexIndex]` for use by `WaypointEditorPanel`.
 8. `Draw(MapCanvas)`: render ghost waypoints + line segments + vertex handles; highlight selected vertex.
 
-**Success conditions / tests (`Bagira.IG.Tests`):**
+**Success conditions / tests (`Hrot.IG.Tests`):**
 
 - `OnEnter` with a 3-waypoint route results in `_ghost.Count == 3`.
 - Left-clicking near waypoint index 1 (within 14 world units) sets `SelectedVertexIndex == 1`.
@@ -426,7 +426,7 @@ Extend `SimHostTrajectoryLayer.Draw`:
 
 **Design ref:** [§11.2 WaypointEditorPanel](./ROUTES1-DESIGN.md#112-waypointeditorpanel-ig-imgui)
 
-**Scope:** `Bagira.IG` — new ImGui panel class referenced by the IG main UI draw loop.
+**Scope:** `Hrot.IG` — new ImGui panel class referenced by the IG main UI draw loop.
 
 **What to implement:**
 
@@ -440,7 +440,7 @@ Extend `SimHostTrajectoryLayer.Draw`:
    - If no vertex selected: render grayed-out placeholder text "Select a waypoint to edit its properties."
 3. Register panel in IG's UI render loop, analogous to existing panels.
 
-**Success conditions / tests (`Bagira.IG.Tests`):**
+**Success conditions / tests (`Hrot.IG.Tests`):**
 
 - When `RouteEditTool.SelectedVertexIndex == -1`, the panel renders the placeholder text (no crash).
 - When `SelectedVertexIndex == 0`, the panel renders input controls; mutating the speed field updates `routeTool.GetSelectedWaypointRef().TargetSpeed` immediately (same reference).
@@ -456,7 +456,7 @@ Extend `SimHostTrajectoryLayer.Draw`:
 
 **Design ref:** [§13 AI Soft Advice Pipeline](./ROUTES1-DESIGN.md#13-ai-soft-advice-pipeline)
 
-**Scope:** `Bagira.SimHost` — new ECS system, `SystemPhase.Simulation` (low-frequency, e.g. every 0.5 s).
+**Scope:** `Hrot.SimHost` — new ECS system, `SystemPhase.Simulation` (low-frequency, e.g. every 0.5 s).
 
 **What to implement:**
 
@@ -475,7 +475,7 @@ Extend `SimHostTrajectoryLayer.Draw`:
 
 4. Define a `BlackboardOffsets` static class (in the appropriate behavior constants file) that lists the byte offset constants.
 
-**Success conditions / tests (`Bagira.SimHost.Tests`):**
+**Success conditions / tests (`Hrot.SimHost.Tests`):**
 
 - Given a vehicle with `NavState.ProgressS` placing it at segment index 1 of a 3-waypoint route where waypoint[1].`ExtensionJson = '{"dangerLevel":2}'`, the system writes `(byte)2` to `blackboard.Memory[BlackboardOffsets.ExpectedThreatLevel]`.
 - A vehicle not on a route (or with an empty `ExtensionJson`) leaves the blackboard unchanged.
@@ -492,7 +492,7 @@ Extend `SimHostTrajectoryLayer.Draw`:
 
 **Design ref:** [§15 Deprecation of Legacy Waypoint Queue](./ROUTES1-DESIGN.md#15-deprecation-of-legacy-waypoint-queue)
 
-**Scope:** `Bagira.SimHost/UI/SimHostScenarioManager.cs` and `Bagira.IG`'s `IgApplication` shift-right-click handler.
+**Scope:** `Hrot.SimHost/UI/SimHostScenarioManager.cs` and `Hrot.IG`'s `IgApplication` shift-right-click handler.
 
 **Prerequisite:** Tasks T008 and T009 must be complete and verified. The personal route authoring flow must be fully operational end-to-end.
 
@@ -507,11 +507,11 @@ Extend `SimHostTrajectoryLayer.Draw`:
 
 3. If `SetDestination` still uses `_waypointQueues` incidentally, refactor that path to be clean.
 
-4. Ensure that all existing `Bagira.SimHost.Tests`, `Bagira.IG.Tests`, and integration tests still compile and pass — no test should rely on `_waypointQueues` as a test double.
+4. Ensure that all existing `Hrot.SimHost.Tests`, `Hrot.IG.Tests`, and integration tests still compile and pass — no test should rely on `_waypointQueues` as a test double.
 
 **Success conditions / tests:**
 
 - `SimHostScenarioManager._waypointQueues` field does not exist in the final codebase.
 - `SimHostScenarioManager.AddWaypoint` either no longer exists or is empty / redirects to the new system.
-- All existing tests in `Bagira.SimHost.Tests` and `Bagira.IG.Tests` pass without modification.
+- All existing tests in `Hrot.SimHost.Tests` and `Hrot.IG.Tests` pass without modification.
 - A Shift+Right-Click end-to-end integration test (added in T009) still passes, now exercising only the new `PersonalRouteAuthoringSystem` path, confirming the deprecation is complete.

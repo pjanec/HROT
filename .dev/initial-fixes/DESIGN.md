@@ -19,11 +19,11 @@ The IOS implementation was rated architecturally excellent; the bugs are concent
 
 ### 1.1 Remove VehicleState Contamination
 
-`DescriptorMapper.MapToComponents` unconditionally adds a `VehicleState` component to every entity that has a `GeoSpatial` descriptor. `VehicleState` is only valid for wheeled entities. Its presence on infantry or aircraft breaks `LinearKinematicsSystem` (which filters *out* entities bearing `VehicleState`) and causes stuck or crashing non-vehicle entities.
+`DescriptorMapper.MapToComponents` unconditionally adds a `VehicleState` component to every entity that has a `WorldPos` descriptor. `VehicleState` is only valid for wheeled entities. Its presence on infantry or aircraft breaks `LinearKinematicsSystem` (which filters *out* entities bearing `VehicleState`) and causes stuck or crashing non-vehicle entities.
 
 The TKB template already adds `VehicleState` only when appropriate; the extra line in `DescriptorMapper` must be deleted.
 
-**Files:** `Bagira.SimHost/Util/DescriptorMapper.cs`
+**Files:** `Hrot.SimHost/Util/DescriptorMapper.cs`
 
 ### 1.2 Fix Doctrine Preemption
 
@@ -31,15 +31,15 @@ The TKB template already adds `VehicleState` only when appropriate; the extra li
 
 Pattern from `UrbanCombat`'s `DoctrineIngressSystem`: always `unchecked { doctrine.InstanceId++; }` alongside a hash change.
 
-**Files:** `Bagira.SimHost/Systems/MissionAdapterSystem.cs`
+**Files:** `Hrot.SimHost/Systems/MissionAdapterSystem.cs`
 
 ### 1.3 Publish EntityMaster DDS Topic
 
 SimHost is the owning authority for all entities, but it never publishes the `EntityMaster` DDS topic. IG and IOS subscribe to this topic to learn which entities exist. Without it, neither node will ever receive entity creation events and the battlefield remains empty.
 
-`Bagira.BDC.SSTD.EntityMaster` lacks the `[FdpDescriptor]` attribute, so `ReplicationBootstrap` does not auto-generate a translator. An `AutoCycloneTranslator<EntityMaster>` must be created manually and inserted into the `translators` list before `CycloneNetworkModule` is built.
+`Hrot.NED.Descriptors.EntityMaster` lacks the `[FdpDescriptor]` attribute, so `ReplicationBootstrap` does not auto-generate a translator. An `AutoCycloneTranslator<EntityMaster>` must be created manually and inserted into the `translators` list before `CycloneNetworkModule` is built.
 
-**Files:** `Bagira.SimHost/Program.cs`
+**Files:** `Hrot.SimHost/Program.cs`
 
 ---
 
@@ -53,15 +53,15 @@ SimHost is the owning authority for all entities, but it never publishes the `En
 
 Fix: use owner ID `0` to force remote ownership on all replicated entities.
 
-**Files:** `Bagira.IG/Translators/EntityMasterTranslator.cs`
+**Files:** `Hrot.IG/Translators/EntityMasterTranslator.cs`
 
 ### 2.2 Register TransformSyncSystem
 
-`TransformSyncSystem` is absent from `IgApplication`. `GeoSpatialTranslator` writes incoming network coordinates to `NetworkPosition`, but without the sync system those positions are never interpolated into the visual `SimTransform`. All entities appear frozen at their spawn coordinates.
+`TransformSyncSystem` is absent from `IgApplication`. `WorldPosTranslator` writes incoming network coordinates to `NetworkPosition`, but without the sync system those positions are never interpolated into the visual `SimTransform`. All entities appear frozen at their spawn coordinates.
 
 Fix: call `_kernel.RegisterGlobalSystem(new TransformSyncSystem(driveFromNetwork: true))` in `IgApplication` before `_kernel.Initialize()`.
 
-**Files:** `Bagira.IG/IgApplication.cs`
+**Files:** `Hrot.IG/IgApplication.cs`
 
 ### 2.3 Fix Rogue Local Spawning
 
@@ -69,7 +69,7 @@ Fix: call `_kernel.RegisterGlobalSystem(new TransformSyncSystem(driveFromNetwork
 
 Fix: inject `IDdsWriter<CreateEntityRequest>` (or `BdcCommandGateway`) into `CreationTool` and write to DDS instead.
 
-**Files:** `Bagira.IG/Tools/CreationTool.cs`
+**Files:** `Hrot.IG/Tools/CreationTool.cs`
 
 ---
 
@@ -82,18 +82,18 @@ Fix: inject `IDdsWriter<CreateEntityRequest>` (or `BdcCommandGateway`) into `Cre
 The IOS `Draw()` implementations were left commented out as part of Phase P9 stubbing. The panels are otherwise complete. Fixes required:
 
 - `IosMock.DrawUI()` — uncomment the full ImGui docking layout and all panel `Draw()` calls; add `using ImGuiNET;`
-- All seven panel files in `Bagira.IOS/Panels/` — uncomment the ImGui body of each `Draw(IIosLogic logic)` method; add `using ImGuiNET;` where missing
+- All seven panel files in `Hrot.ExCon/Panels/` — uncomment the ImGui body of each `Draw(IIosLogic logic)` method; add `using ImGuiNET;` where missing
 
-**Files:** `Bagira.IOS/IosMock.cs`, `Bagira.IOS/Panels/ConfigPanel.cs`, `DiagnosticsPanel.cs`, `InspectorPanel.cs`, `InteractionPanel.cs`, `MissionPanel.cs`, `OrbatPanel.cs`, `SpawnerPanel.cs`
+**Files:** `Hrot.ExCon/IosMock.cs`, `Hrot.ExCon/Panels/ConfigPanel.cs`, `DiagnosticsPanel.cs`, `InspectorPanel.cs`, `InteractionPanel.cs`, `MissionPanel.cs`, `OrbatPanel.cs`, `SpawnerPanel.cs`
 
 ### 3.2 Connect IG UI Panels to App Loop
 
-The IG panel classes (`IgDebugPanel`, `EntityInspectorPanel`, `MiniIosPanel`, `PerformanceOverlay`) exist in `Bagira.IG/UI/` but are never instantiated or called. Required changes to `IgApplication.cs`:
+The IG panel classes (`IgDebugPanel`, `EntityInspectorPanel`, `MiniIosPanel`, `PerformanceOverlay`) exist in `Hrot.IG/UI/` but are never instantiated or called. Required changes to `IgApplication.cs`:
 
-1. Add `using ImGuiNET;` and `using Bagira.IG.UI;`
+1. Add `using ImGuiNET;` and `using Hrot.IG.UI;`
 2. Add private fields for all four panel states and panels
 3. Initialize them at the bottom of `InitializeEcs()`
 4. In `Run()`: gate `HandleCameraInput` and canvas updates behind `!ImGui.GetIO().WantCaptureMouse`, update UI states each frame, and call `Draw()` on each panel between `rlImGui.Begin()` / `rlImGui.End()`
 5. Add a `GetSelectedEntity()` helper used by `EntityInspectorState.Refresh()`
 
-**Files:** `Bagira.IG/IgApplication.cs`
+**Files:** `Hrot.IG/IgApplication.cs`

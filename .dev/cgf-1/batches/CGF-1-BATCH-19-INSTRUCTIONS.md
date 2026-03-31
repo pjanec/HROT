@@ -11,7 +11,7 @@
 
 ## Sequencing note
 
-**Part A** unblocks correct **CGF** participation in **`LoadingLive`** / scenario **`PrepareLive`** and aligns **`Bagira.CGF/DrillSlave`** with **SimHost** prepare/commit semantics before expanding story/runtime features.
+**Part A** unblocks correct **CGF** participation in **`LoadingLive`** / scenario **`PrepareLive`** and aligns **`Hrot.CGF/ClusterSlave`** with **SimHost** prepare/commit semantics before expanding story/runtime features.
 
 ---
 
@@ -29,18 +29,18 @@
 
 ### A.1 — **CGF: restore `ScenarioLoadDsmHandler` for normal `PrepareLive`** (P1)
 
-**Problem:** [`FailLoudRecordReplayStub`](../../../Bagira.CGF/Modules/Orchestration/Handlers/FailLoudRecordReplayStub.cs) is registered **first** and **`CanHandle(PrepareLive)`** is **always** true. **[`Bagira.CGF/DrillSlave`](../../../Bagira.CGF/Modules/Orchestration/DrillSlave.cs)** invokes **only one** handler — [`ScenarioLoadDsmHandler`](../../../Bagira.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs) **never runs** for **`PrepareLive`**.
+**Problem:** [`FailLoudRecordReplayStub`](../../../Hrot.CGF/Modules/Orchestration/Handlers/FailLoudRecordReplayStub.cs) is registered **first** and **`CanHandle(PrepareLive)`** is **always** true. **[`Hrot.CGF/ClusterSlave`](../../../Hrot.CGF/Modules/Orchestration/ClusterSlave.cs)** invokes **only one** handler — [`ScenarioLoadDsmHandler`](../../../Hrot.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs) **never runs** for **`PrepareLive`**.
 
 **Fix (pick one, document in XML):**
 
-- Narrow **`FailLoudRecordReplayStub.CanHandle(PrepareLive)`** to **branch-style** payloads only (e.g. JSON has **`DrillId`** and **no** **`ScenarioId`**), **or**  
+- Narrow **`FailLoudRecordReplayStub.CanHandle(PrepareLive)`** to **branch-style** payloads only (e.g. JSON has **`ExerciseId`** and **no** **`ScenarioId`**), **or**  
 - Register **`ScenarioLoadDsmHandler`** **before** the stub **and** narrow **`ScenarioLoadDsmHandler.CanHandle(PrepareLive)`** to **non-branch** payloads (e.g. **`ScenarioId`** present), with stub catching branch-only ops.
 
 **Tests:** At least one test that **`EnqueueCommand`s** (or equivalent) a **`PrepareLive`** with **`ScenarioId`** and asserts **`ScenarioLoadDsmHandler`** path (log, file peek, or test seam) — **not** only stub **`Error`**.
 
-### A.2 — **CGF `DrillSlave`: `PrepareAsync` before `Commit`** (P2)
+### A.2 — **CGF `ClusterSlave`: `PrepareAsync` before `Commit`** (P2)
 
-Port the **SimHost** [`DrillSlave`](../../../Bagira.SimHost/Modules/Orchestration/DrillSlave.cs) **`_pendingPrepare`** pattern (or shared helper) to [`Bagira.CGF/DrillSlave`](../../../Bagira.CGF/Modules/Orchestration/DrillSlave.cs) so **`Commit`** does not race **`PrepareAsync`** when handlers become async.
+Port the **SimHost** [`ClusterSlave`](../../../Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs) **`_pendingPrepare`** pattern (or shared helper) to [`Hrot.CGF/ClusterSlave`](../../../Hrot.CGF/Modules/Orchestration/ClusterSlave.cs) so **`Commit`** does not race **`PrepareAsync`** when handlers become async.
 
 ### A.3 — **DEBT-TRACKER**
 
@@ -52,13 +52,13 @@ Close **Part A** rows when merged (Status ✅).
 
 **Default:** Implement **CGF1-S0308** per [CGF-1-TASK-DETAIL.md §CGF1-S0308](../CGF-1-TASK-DETAIL.md#cgf1-s0308--runtime-story-injection--deletion).
 
-**Alternative (if Part A or CI stability dominates the sprint):** Add optional **`FullBranchPipelineTests`** step that drives the Live-from-Replay branch through **`SimHost.DrillSlave`** multi-**`Tick`** (see DEBT-TRACKER Opportunistic row); still file a short report explaining Part B deferral.
+**Alternative (if Part A or CI stability dominates the sprint):** Add optional **`FullBranchPipelineTests`** step that drives the Live-from-Replay branch through **`SimHost.ClusterSlave`** multi-**`Tick`** (see DEBT-TRACKER Opportunistic row); still file a short report explaining Part B deferral.
 
 ---
 
 ## Success criteria
 
-- [x] Part A: CGF **`PrepareLive`** disambiguation fixed; CGF **`DrillSlave`** ordering aligned; DEBT rows closed; tests prove scenario path.  
+- [x] Part A: CGF **`PrepareLive`** disambiguation fixed; CGF **`ClusterSlave`** ordering aligned; DEBT rows closed; tests prove scenario path.  
 - [x] Part B: §S0308 artefacts + tests **or** explicit defer note + tracker.  
 - [x] Solution build clean.  
 - [x] **CGF-1-TASK-TRACKER** updated.  

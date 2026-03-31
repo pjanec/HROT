@@ -20,8 +20,8 @@ Welcome back! In SIM-BATCH-02 you stubbed out the `MissionAdapterSystem`. Now th
 3. **Design Document:** `docs/design/DESIGN-SIMHOST.md#44-missionadaptersystem` (CRITICAL for task logic flow)
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/Systems/MissionAdapterSystem.cs`, `Bagira.SimHost/Systems/JoinFormationExecutor.cs`
-- **Test Project:** `Bagira.SimHost.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/Systems/MissionAdapterSystem.cs`, `Hrot.SimHost/Systems/JoinFormationExecutor.cs`
+- **Test Project:** `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -69,7 +69,7 @@ Furthermore, for the `JoinFormation` behavior specifically, the `JoinFormationEx
 
 ### Task 1: Implement MissionAdapterSystem (TASK-S4.3)
 
-**File:** `Bagira.SimHost/Systems/MissionAdapterSystem.cs`
+**File:** `Hrot.SimHost/Systems/MissionAdapterSystem.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s43-implement-missionadaptersystem)
 
@@ -101,7 +101,7 @@ Implementation must follow these exact steps (from design spec):
 
 ### Task 2: Implement JoinFormationExecutor (TASK-S4.4)
 
-**File:** `Bagira.SimHost/Systems/JoinFormationExecutor.cs`
+**File:** `Hrot.SimHost/Systems/JoinFormationExecutor.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s44-implement-joinformationexecutor)
 

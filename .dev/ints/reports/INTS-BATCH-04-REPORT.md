@@ -25,7 +25,7 @@
 - `StyleResolutionSystem` moved to `PostSimulation` and writes directly to the repository when available so it runs after network ingress.
 
 ### Build fix during this run
-- Fixed nullable `domainIdOverride` initialization in `Bagira.Runner.Services.IgSubsystem` so the solution builds again.
+- Fixed nullable `domainIdOverride` initialization in `Hrot.ClusterRunner.Services.IgSubsystem` so the solution builds again.
 
 ---
 
@@ -38,7 +38,7 @@
 
 ---
 
-## ComponentId Review (Bagira.Map.Definitions.Tkb)
+## ComponentId Review (Hrot.Map.Definitions.Tkb)
 
 - `SimVehicleDef`, `SimCombatDef`, and `TkbCompositionDef` are applied to spawned entities via `TkbTemplate.AddManagedComponent`.
 - The ECS registry enforces `[ComponentId]` for all managed component types, so these classes must keep explicit IDs if they remain ECS-managed components.
@@ -60,7 +60,7 @@
 ### Targeted E2E (DDS) Integration Test
 Command:
 ```
-dotnet test .\Bagira.SimHost.Integration.Tests\Bagira.SimHost.Integration.Tests.csproj --filter "FullyQualifiedName~EntityLifecycleIntegrationTests"
+dotnet test .\Hrot.SimHost.Integration.Tests\Hrot.SimHost.Integration.Tests.csproj --filter "FullyQualifiedName~EntityLifecycleIntegrationTests"
 ```
 Result: PASS
 

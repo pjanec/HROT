@@ -1,7 +1,7 @@
 # CGF-1 Onboarding Guide
 
 Welcome to the **CGF-1 workstream** — the foundational infrastructure for the
-Distributed Drill Management System and the new `Bagira.CGF` subsystem.
+Distributed Drill Management System and the new `Hrot.CGF` subsystem.
 
 Read this document first; then consult the developer workflow guide and the design docs.
 
@@ -10,16 +10,16 @@ Read this document first; then consult the developer workflow guide and the desi
 ## What We Are Building
 
 The CGF-1 workstream (Phases 1–3) delivers the **control-plane infrastructure** that
-will underpin all future simulation exercises on the Bagira/FDP platform:
+will underpin all future simulation exercises on the Hrot/FDP platform:
 
 | What | Description |
 |------|-------------|
-| **Bagira.Orchestrator** | New subsystem acting as the supreme state and time authority for the entire distributed cluster. Hosts the Drill State Machine (DSM), BFS Transition Planner, and Storage Gateway. |
+| **Hrot.Orchestrator** | New subsystem acting as the supreme state and time authority for the entire distributed cluster. Hosts the Drill State Machine (DSM), BFS Transition Planner, and Storage Gateway. |
 | **Drill State Machine (DSM)** | 13-state directed graph (`Standby` → `RunningLive` → `UnloadingLive` → …) governing the lifecycle of every simulation node. Transitions are coordinated via Two-Phase Commit (2PC). |
-| **DrillSlave** | A new component in every subsystem (SimHost, IG, IOS, CGF) that listens to `NodeOpCommand` messages from the Orchestrator and drives local state machine transitions. |
+| **ClusterSlave** | A new component in every subsystem (SimHost, IG, IOS, CGF) that listens to `NodeOpCommand` messages from the Orchestrator and drives local state machine transitions. |
 | **Distributed time control** | Seamless switching between real-time and deterministic lockstep modes using a "Future Barrier" mechanism — both nodes swap time strategies on the exact same ECS frame without blocking. |
 | **Recording, replay & checkpointing** | LZ4-compressed binary recording of ECS state; instant replay seek via binary-search frame index; non-blocking 3-step checkpointing; portable JSON scenario save/load via SMB Pull Gateway. |
-| **Bagira.CGF (skeleton)** | New "Brain" subsystem that will host entity AI (Phase 4). In Phases 1–3 it acts only as a `DrillSlave` and runs a trivial scenario for CI/determinism validation. |
+| **Hrot.CGF (skeleton)** | New "Brain" subsystem that will host entity AI (Phase 4). In Phases 1–3 it acts only as a `ClusterSlave` and runs a trivial scenario for CI/determinism validation. |
 
 > **Phase 4 (Urban Combat AI — `ConvoyEscort_HSM`, `Ambush_BT`, damage assessment)
 > is OUT of scope for CGF-1.** It will begin only after all Phase 3 tasks are
@@ -54,21 +54,21 @@ IOS-IG-SimHost-FDP-2/
 │       │   └── Controllers/           ← SwitchableTimeController, DistributedTimeCoordinator, …
 │       └── FDP.Toolkit.Replication/   ← GhostCreationSystem (BypassLifecycle flag)
 │
-├── Bagira.DDS.DataModel/              ← All DDS message schemas (Bagira layer)
+├── Hrot.NED/              ← All DDS message schemas (Hrot layer)
 │   └── Orchestration/                 ← NEW: OrchestrationMessages.cs (Stage 1.1)
 │
-├── Bagira.Orchestrator/               ← NEW project (Stage 1.2)
-│   ├── DrillMaster.cs
+├── Hrot.Orchestrator/               ← NEW project (Stage 1.2)
+│   ├── ClusterMaster.cs
 │   ├── TransitionPlanner.cs
 │   ├── StorageGatewayModule.cs
 │   └── ReplayMasterModule.cs
 │
-├── Bagira.CGF/                        ← NEW project (Stage 1.4)
-│   └── Modules/Orchestration/DrillSlave.cs
+├── Hrot.CGF/                        ← NEW project (Stage 1.4)
+│   └── Modules/Orchestration/ClusterSlave.cs
 │
-├── Bagira.SimHost/
-│   └── Modules/Orchestration/         ← NEW: DrillSlave, EcsRecordReplayController,
-│       ├── DrillSlave.cs              │         RecordingModule, ReplayModule, handlers
+├── Hrot.SimHost/
+│   └── Modules/Orchestration/         ← NEW: ClusterSlave, EcsRecordReplayController,
+│       ├── ClusterSlave.cs              │         RecordingModule, ReplayModule, handlers
 │       ├── EcsRecordReplayController.cs
 │       ├── RecordingModule.cs
 │       ├── ReplayModule.cs
@@ -78,13 +78,13 @@ IOS-IG-SimHost-FDP-2/
 │           ├── EditLoadDsmHandler.cs
 │           └── CheckpointDsmHandler.cs
 │
-├── Bagira.IG/
-│   └── Modules/Orchestration/DrillSlave.cs    ← NEW (Stage 1.4)
+├── Hrot.IG/
+│   └── Modules/Orchestration/ClusterSlave.cs    ← NEW (Stage 1.4)
 │
-├── Bagira.IOS/
-│   └── Orchestration/DrillSlave.cs            ← NEW no-ECS variant (Stage 1.4)
+├── Hrot.ExCon/
+│   └── Orchestration/ClusterSlave.cs            ← NEW no-ECS variant (Stage 1.4)
 │
-└── Bagira.Runner/
+└── Hrot.ClusterRunner/
     └── Services/                      ← Existing subsystem wiring; gets Orchestrator support
 ```
 
@@ -93,21 +93,21 @@ IOS-IG-SimHost-FDP-2/
 ## Critical Architectural Constraint
 
 > **FDP infrastructure (`Fdp.Kernel` and all `FDP.Toolkit.*` projects) must NEVER
-> reference any `Bagira.*` assembly.**
+> reference any `Hrot.*` assembly.**
 
 This boundary is hard and enforced at the csproj level. If you add a using directive
-for any `Bagira.*` namespace inside a file that lives under `FDP/`, your build will
+for any `Hrot.*` namespace inside a file that lives under `FDP/`, your build will
 fail CI.
 
 Practical consequences:
-- `DSMState`, `SysOpType`, `NodeOpType` — declared in `Bagira.DDS.DataModel`.
-- `IDsmHandler`, `DsmStateChangedEvent`, `DrillSlave`, `DrillMaster` — declared in Bagira layer.
+- `ClusterState`, `ClusterOpType`, `NodeOpType` — declared in `Hrot.NED`.
+- `IDsmHandler`, `ClusterStateChangedEvent`, `ClusterSlave`, `ClusterMaster` — declared in Hrot layer.
 - `ITimeController`, `IRecordReplayController`, `RecordingConfiguration`,
   `CheckpointIOWorker`, `NetworkLifecycleSystemGroup` — declared in FDP layer (generic,
   no DSM awareness).
 
 If you are unsure which layer a file belongs to, check: does it need to know about
-`DSMState` or `DrillId`? If yes → Bagira layer. If it only uses `GlobalTime`, `Guid`,
+`ClusterState` or `ExerciseId`? If yes → Hrot layer. If it only uses `GlobalTime`, `Guid`,
 `EntityRepository` → FDP layer is fine.
 
 ---
@@ -122,19 +122,19 @@ dotnet build IOS-IG-SimHost.sln
 dotnet test IOS-IG-SimHost.sln
 
 # Run Orchestrator via Runner
-dotnet run --project Bagira.Runner -- --mode orchestrator
+dotnet run --project Hrot.ClusterRunner -- --mode orchestrator
 
 # Run SimHost via Runner (connects to Orchestrator automatically)
-dotnet run --project Bagira.Runner -- --mode simhost
+dotnet run --project Hrot.ClusterRunner -- --mode simhost
 
 # Run CGF via Runner
-dotnet run --project Bagira.Runner -- --mode cgf
+dotnet run --project Hrot.ClusterRunner -- --mode cgf
 
 # Run all-in-one (all subsystems in one process)
 run_all_together.bat
 
 # Headless deterministic CI scenario
-dotnet run --project Bagira.Runner -- --mode ci --scenario MinimalCI_01
+dotnet run --project Hrot.ClusterRunner -- --mode ci --scenario MinimalCI_01
 ```
 
 The `build_all_standalone.bat` script in the repository root builds all subsystem
@@ -148,12 +148,12 @@ For a developer picking this up for the first time, the recommended reading orde
 
 1. **This document** — you are here.
 2. [CGF-1-DESIGN.md §1 and §2](./CGF-1-DESIGN.md#1-system-overview) — system overview
-   and the FDP/Bagira architectural boundary.
+   and the FDP/Hrot architectural boundary.
 3. [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-foundation) —
    Phase 1 design (first batch of work).
 4. [CGF-1-TASK-DETAIL.md, tasks CGF1-S0101 through CGF1-S0104](./CGF-1-TASK-DETAIL.md#cgf1-s0101--orchestration-dds-schema-definition) —
    the exact work and tests for Phase 1.
-5. [mgmt-DESIGN.md §2–§6](./mgmt-DESIGN.md) — full DDS schema and DrillMaster
+5. [mgmt-DESIGN.md §2–§6](./mgmt-DESIGN.md) — full DDS schema and ClusterMaster
    internals for deeper reference.
 
 ---
@@ -183,9 +183,9 @@ other and cause intermittent failures (e.g. `DomainIsolation_*`, migration tests
 
 | Where | Mitigation |
 |-------|-----------|
-| `Bagira.Orchestrator.Tests` | Uses **domain 15** exclusively; all tests grouped in `[Collection("OrchestratorTests")]` with `DisableParallelization = true`. |
-| `Bagira.SimHost.Integration.Tests` | Existing `[Collection("LogCapture")]` with `DisableParallelization = true` — applies to migration and lifecycle tests. |
-| `Bagira.SimHost.Integration.Tests` | New CGF-related tests (`DrillSlaveHeartbeatTests`) use **domain 16**. |
+| `Hrot.Orchestrator.Tests` | Uses **domain 15** exclusively; all tests grouped in `[Collection("OrchestratorTests")]` with `DisableParallelization = true`. |
+| `Hrot.SimHost.Integration.Tests` | Existing `[Collection("LogCapture")]` with `DisableParallelization = true` — applies to migration and lifecycle tests. |
+| `Hrot.SimHost.Integration.Tests` | New CGF-related tests (`ClusterSlaveHeartbeatTests`) use **domain 16**. |
 
 **Until a broader multi-assembly domain-isolation strategy is adopted**, CI pipelines that still
 see flakes should run integration tests serially:
@@ -197,7 +197,7 @@ dotnet test IOS-IG-SimHost.sln --maxcpucount:1 -- dotnet test
 or target individual integration-test assemblies in isolation:
 
 ```powershell
-dotnet test Bagira.SimHost.Integration.Tests
-dotnet test Bagira.Orchestrator.Tests
+dotnet test Hrot.SimHost.Integration.Tests
+dotnet test Hrot.Orchestrator.Tests
 ```
 

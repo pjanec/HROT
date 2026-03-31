@@ -9,7 +9,7 @@
 
 ## Summary
 
-Phase IG5 (UI & Polish) is fully implemented. Four ImGui-driven overlay panels have been added to `Bagira.IG/UI/`:
+Phase IG5 (UI & Polish) is fully implemented. Four ImGui-driven overlay panels have been added to `Hrot.IG/UI/`:
 
 | Task | File(s) | Description |
 |------|---------|-------------|
@@ -24,7 +24,7 @@ All four panels follow the **state/shell split pattern**: pure-logic state class
 
 ## Files Created
 
-### Bagira.IG/UI/ (production)
+### Hrot.IG/UI/ (production)
 
 | File | Purpose |
 |------|---------|
@@ -38,7 +38,7 @@ All four panels follow the **state/shell split pattern**: pure-logic state class
 | `PerformanceMetrics.cs` | `Snapshot(ISimulationView, fps, frameTimeMs)` counts `SimTransform` entities (total) and `CullingState.IsVisible=true` (visible); zero allocations |
 | `PerformanceOverlay.cs` | ImGui "Performance" no-decoration overlay pinned to top-right; F3 key toggles visibility |
 
-### Bagira.IG.Tests/ (tests)
+### Hrot.IG.Tests/ (tests)
 
 | File | Tests | Coverage |
 |------|-------|----------|

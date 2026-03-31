@@ -1,6 +1,6 @@
 # IOS-IG-SimHost
 
-Combined repository for the Bagira Image Generator (IG) mock and SimHost node.
+Combined repository for the Hrot Image Generator (IG) mock and SimHost node.
 
 ---
 
@@ -43,23 +43,23 @@ dotnet build IOS-IG-SimHost.sln
 
 | Project | Description |
 |---|---|
-| `Bagira.IG` | IG Mock — Raylib-based Image Generator viewer node (DDS instance 300) |
-| `Bagira.SimHost` | SimHost — simulation authority node |
-| `Bagira.DDS.DataModel` | Shared DDS descriptor types (Bagira BDC SST) |
-| `Bagira.Map.Common` | Shared map constants and gateway commands |
-| `Bagira.Map.Definitions` | TKB entity type descriptors |
+| `Hrot.IG` | IG Mock — Raylib-based Image Generator viewer node (DDS instance 300) |
+| `Hrot.SimHost` | SimHost — simulation authority node |
+| `Hrot.NED` | Shared DDS descriptor types (Hrot BDC SST) |
+| `Hrot.Map.Common` | Shared map constants and gateway commands |
+| `Hrot.Map.Definitions` | TKB entity type descriptors |
 
 ---
 
 ## Running
 
-Start SimHost first (publishes `EntityMaster`, `GeoSpatial`, etc.), then start `Bagira.IG`.
+Start SimHost first (publishes `EntityMaster`, `WorldPos`, etc.), then start `Hrot.IG`.
 Both processes communicate via CycloneDDS on domain 0.
 
 ```powershell
 # Terminal 1 — SimHost
-dotnet run --project Bagira.SimHost
+dotnet run --project Hrot.SimHost
 
 # Terminal 2 — IG
-dotnet run --project Bagira.IG
+dotnet run --project Hrot.IG
 ```

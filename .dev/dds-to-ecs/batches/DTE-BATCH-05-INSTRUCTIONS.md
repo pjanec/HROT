@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-05  
 **Tasks:** DDS2ECS-S9T1, DDS2ECS-S9T2  
 **Phase:** Phase 9  
-**Estimated Effort:** 4–6 hours  
+**Estimated Effort:** 4ï¿½6 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-04 approved
 
@@ -17,12 +17,12 @@ This batch eliminates zombie entities by registering `CycloneNetworkCleanupSyste
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
 2. **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md` (DDS2ECS-S9T1 ? DDS2ECS-S9T2)
-3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (§6.1)
+3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (ï¿½6.1)
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-04-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`, `Bagira.Runner/`
-- **Test Projects:** `Bagira.SimHost.Tests/`, `Bagira.Runner.Tests/` (or a new test project if required)
+- **Primary Work Area:** `Hrot.SimHost/`, `Hrot.ClusterRunner/`
+- **Test Projects:** `Hrot.SimHost.Tests/`, `Hrot.ClusterRunner.Tests/` (or a new test project if required)
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -41,8 +41,8 @@ This batch eliminates zombie entities by registering `CycloneNetworkCleanupSyste
 
 ## ? Tasks
 
-### Task 1: DDS2ECS-S9T1 — `SimHostApp`: register `CycloneNetworkCleanupSystem`
-**File:** `Bagira.SimHost/SimHostApp.cs` (UPDATE)  
+### Task 1: DDS2ECS-S9T1 ï¿½ `SimHostApp`: register `CycloneNetworkCleanupSystem`
+**File:** `Hrot.SimHost/SimHostApp.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s9t1--simhostapp-register-cyclonenetworkcleanupsystem`
 
 **Requirements:**
@@ -51,8 +51,8 @@ This batch eliminates zombie entities by registering `CycloneNetworkCleanupSyste
 
 ---
 
-### Task 2: DDS2ECS-S9T2 — `SimHostSubsystem`: same registration
-**File:** `Bagira.Runner/Services/SimHostSubsystem.cs` (UPDATE)  
+### Task 2: DDS2ECS-S9T2 ï¿½ `SimHostSubsystem`: same registration
+**File:** `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s9t2--simhostsubsystem-same-registration`
 
 **Requirements:**
@@ -64,8 +64,8 @@ This batch eliminates zombie entities by registering `CycloneNetworkCleanupSyste
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
-  - `dotnet test Bagira.Runner.Tests/Bagira.Runner.Tests.csproj` (if tests added there)
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
+  - `dotnet test Hrot.ClusterRunner.Tests/Hrot.ClusterRunner.Tests.csproj` (if tests added there)
 
 ---
 
@@ -115,4 +115,4 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 - **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md`
-- **Design:** `docs/dds-to-ecs/DESIGN.md` (§6.1)
+- **Design:** `docs/dds-to-ecs/DESIGN.md` (ï¿½6.1)

@@ -21,18 +21,18 @@ deferred at lead priority — see §Part B below.
   `ReferenceLiveLoadHandler` — full record/replay participation; `FailLoudRecordReplayStub`
   removed.
 - A.2: IG wired with `ListenerRecordReplayController` + replay/live/prefetch/dry-run
-  Reference* handlers + `IgBattlespaceDummyHandler` for zone-load ops.
+  Reference* handlers + `IgZoneDummyHandler` for zone-load ops.
 - A.3: IOS gains thin-stub `ReferenceReplayLoadHandler` / `ReferenceLiveLoadHandler` /
   `ReferenceDryRunHandler` — ACK non-participating so cluster never stalls.
 - A.4: `GlobalContextDto` / `GlobalContextDsmHandler` extended with `ScenarioTimeSeconds`
   and `ScenarioId` (ECS-independent DTOs only).
-- DrillMaster refactored: `ProcessSingleSysOpRequest` extracted; `HandleSysOpRequest` +
+- ClusterMaster refactored: `ProcessSingleClusterOpRequest` extracted; `HandleClusterOpRequest` +
   `DrainInjectedRequests` injection path; `GetReachableTargets()` public delegate;
   `CurrentSystemState`, `HasInFlightTransaction`, `ActiveTransaction`, `StorageGateway`
-  properties added; `DrillMasterPlanner.GetReachableTargets(DSMState)` added.
+  properties added; `ClusterMasterPlanner.GetReachableTargets(ClusterState)` added.
 
 **Part B — CGF1-S0106 (complete):**
-- `OrchestratorScenarioPanel` created in `Bagira.Runner/Services/` with 6 beige-tinted
+- `OrchestratorScenarioPanel` created in `Hrot.ClusterRunner/Services/` with 6 beige-tinted
   child panels; wired into `OrchestratorSubsystem.DrawUI()`.
 
 **Phase 1 status:** 6 / 6 tasks done — **COMPLETE**.  
@@ -50,7 +50,7 @@ handler — no `ReferenceLiveLoadHandler`, `ReferenceReplayLoadHandler`, or
 `PrepareLive` / `PrepareReplay` orchestrator fan-out.
 
 **Solution:**
-- Created `Bagira.CGF/Modules/Orchestration/CgfRecordReplayController.cs` — a minimal
+- Created `Hrot.CGF/Modules/Orchestration/CgfRecordReplayController.cs` — a minimal
   `IRecordReplayController` adapter for the ECS-less CGF node.  Implements
   `PrepareRecordingAsync`, `FinalizeRecordingAsync`, `PrepareReplayAsync`,
   `FinalizeReplayAsync` as logged no-ops (brain does not write `.fdp` files; documented
@@ -64,15 +64,15 @@ handler — no `ReferenceLiveLoadHandler`, `ReferenceReplayLoadHandler`, or
   5. `ReferencePrefetchHandler`
   6. `ReferenceDryRunHandler`
 
-**Tests:** `CgfHandlerRegistrationTests.cs` — 4 tests verifying `DrillSlave` of a
+**Tests:** `CgfHandlerRegistrationTests.cs` — 4 tests verifying `ClusterSlave` of a
 headless `CgfSubsystem` registers all four key handlers
 (`ReferenceReplayLoadHandler`, `ReferenceLiveLoadHandler`, `ReferencePrefetchHandler`,
 `ReferenceDryRunHandler`).
 
 **Files changed:**
-- `Bagira.CGF/Modules/Orchestration/CgfRecordReplayController.cs` — NEW
-- `Bagira.CGF/CgfApplication.cs` — replaced stub; new handler chain
-- `Bagira.Runner.Tests/CgfHandlerRegistrationTests.cs` — NEW (4 tests)
+- `Hrot.CGF/Modules/Orchestration/CgfRecordReplayController.cs` — NEW
+- `Hrot.CGF/CgfApplication.cs` — replaced stub; new handler chain
+- `Hrot.ClusterRunner.Tests/CgfHandlerRegistrationTests.cs` — NEW (4 tests)
 
 ---
 
@@ -83,27 +83,27 @@ headless `CgfSubsystem` registers all four key handlers
 node, potentially stalling transactions.
 
 **Solution:**
-- Created `Bagira.IG/Modules/Orchestration/ListenerRecordReplayController.cs` — an
+- Created `Hrot.IG/Modules/Orchestration/ListenerRecordReplayController.cs` — an
   `IRecordReplayController` for a network-listener node: participates in the lifecycle
   callbacks but makes no `.fdp` file; logs transitions.
-- Created `Bagira.IG/Modules/Orchestration/IgBattlespaceDummyHandler.cs` — dummy handler
-  for zone / battlespace-load `NodeOpType`s (e.g. `PrepareBattlespace`, `LoadZone`);
+- Created `Hrot.IG/Modules/Orchestration/IgZoneDummyHandler.cs` — dummy handler
+  for zone / zone-load `NodeOpType`s (e.g. `PrepareZone`, `LoadZone`);
   always ACKs `IsParticipating = false`; documents terrain DB load as future work.
-- Updated `IgApplication.RegisterDrillSlaveHandlers` with handler chain:
+- Updated `IgApplication.RegisterClusterSlaveHandlers` with handler chain:
   1. `ReferenceReplayLoadHandler`
   2. `ReferenceLiveLoadHandler`
-  3. `IgBattlespaceDummyHandler`
+  3. `IgZoneDummyHandler`
   4. `ReferencePrefetchHandler`
   5. `ReferenceDryRunHandler`
-- Added `internal ... TestHook_DrillSlave` property exposing `_drillSlave` for tests.
+- Added `internal ... TestHook_ClusterSlave` property exposing `_drillSlave` for tests.
 
 **Tests:** `IosHandlerRegistrationTests.cs` — 3 handler-registration integration tests
 (same pattern; IG equivalent deferred — see §Known Gaps).
 
 **Files changed:**
-- `Bagira.IG/Modules/Orchestration/ListenerRecordReplayController.cs` — NEW
-- `Bagira.IG/Modules/Orchestration/IgBattlespaceDummyHandler.cs` — NEW
-- `Bagira.IG/IgApplication.cs` — handler chain + `TestHook_DrillSlave`
+- `Hrot.IG/Modules/Orchestration/ListenerRecordReplayController.cs` — NEW
+- `Hrot.IG/Modules/Orchestration/IgZoneDummyHandler.cs` — NEW
+- `Hrot.IG/IgApplication.cs` — handler chain + `TestHook_ClusterSlave`
 
 ---
 
@@ -115,11 +115,11 @@ wired: it **instructs** the orchestrator, receives `NodeOpCommand` as a roster n
 must **not** implement persistence.
 
 **Solution:**
-- Registered thin-stub handlers in `IosSubsystem.InitializeDrillSlave`:
+- Registered thin-stub handlers in `IosSubsystem.InitializeClusterSlave`:
   - `ReferenceReplayLoadHandler` — `IsParticipating = false`, ACK immediately
   - `ReferenceLiveLoadHandler` — `IsParticipating = false`, ACK immediately
   - `ReferenceDryRunHandler` — `IsParticipating = false`, ACK immediately
-- Added `internal ... TestHook_DrillSlave` property for test access.
+- Added `internal ... TestHook_ClusterSlave` property for test access.
 
 **Tests:** `IosHandlerRegistrationTests.cs` — 3 tests:
 `AfterInit_RegistersReferenceReplayLoadHandler`,
@@ -127,8 +127,8 @@ must **not** implement persistence.
 `AfterInit_RegistersReferenceDryRunHandler`.
 
 **Files changed:**
-- `Bagira.Runner/Services/IosSubsystem.cs` — handler registration + `TestHook_DrillSlave`
-- `Bagira.Runner.Tests/IosHandlerRegistrationTests.cs` — NEW (3 tests)
+- `Hrot.ClusterRunner/Services/IosSubsystem.cs` — handler registration + `TestHook_ClusterSlave`
+- `Hrot.ClusterRunner.Tests/IosHandlerRegistrationTests.cs` — NEW (3 tests)
 
 ---
 
@@ -145,30 +145,30 @@ broadcast which scenario is loaded or the elapsed scenario clock.
 - Retained ECS-free DTO pattern — no `EntityRepository` or FDP kernel dependency.
 
 **Files changed:**
-- `Bagira.Orchestrator/GlobalContextDsmHandler.cs` — `ScenarioTimeSeconds`, `ScenarioId` in DTO + publish path
+- `Hrot.Orchestrator/GlobalContextDsmHandler.cs` — `ScenarioTimeSeconds`, `ScenarioId` in DTO + publish path
 
 ---
 
-### DrillMaster API extensions
+### ClusterMaster API extensions
 
 Additional public surface exposed to support the `OrchestratorScenarioPanel` (CGF1-S0106)
 and future integration tests:
 
 | Member | Purpose |
 |--------|---------|
-| `CurrentSystemState` | Read `_currentDsmState` without reflection |
+| `CurrentSystemState` | Read `_currentClusterState` without reflection |
 | `HasInFlightTransaction` | Guard for UI disable-when-busy |
 | `ActiveTransaction` | Nullable ref for 2PC history display |
 | `StorageGateway` | Nullable ref for panel scenario-save path |
 | `GetReachableTargets()` | Dynamic transition button list |
-| `HandleSysOpRequest(SysOpRequest)` | UI injection queue (thread-safe) |
+| `HandleClusterOpRequest(ClusterOpRequest)` | UI injection queue (thread-safe) |
 | `DrainInjectedRequests()` | Called in `Tick()` before DDS drain |
 
-`ProcessSingleSysOpRequest(SysOpRequest req)` extracted from `ProcessSysOpRequests()`;
+`ProcessSingleClusterOpRequest(ClusterOpRequest req)` extracted from `ProcessClusterOpRequests()`;
 `continue` → `return`; both DDS and UI injection paths converge here.
 
-`DrillMasterPlanner.GetReachableTargets(DSMState)` added:
-uses the stored `ITransitionGraph` to return BFS neighbours cast to `DSMState`.
+`ClusterMasterPlanner.GetReachableTargets(ClusterState)` added:
+uses the stored `ITransitionGraph` to return BFS neighbours cast to `ClusterState`.
 
 ---
 
@@ -185,8 +185,8 @@ uses the stored `ITransitionGraph` to return BFS neighbours cast to `DSMState`.
 | PrepareEdit / FinalizeEdit | ✅ EditLoadDsmHandler | — | — | — |
 | PrepareCheckpoint | ✅ CheckpointDsmHandler | — | — | — |
 | PrepareDryRun | ✅ DryRunDsmHandler | ✅ ReferenceDryRunHandler | ✅ ReferenceDryRunHandler | ✅ ReferenceDryRunHandler |
-| StartStory / StopStory | ✅ StoryLoadDsmHandler | ✅ ReferenceStoryLoadHandler | — | — |
-| Zone / Battlespace load | — | — | ✅ IgBattlespaceDummyHandler (ACK non-participating) | — |
+| StartEpisode / StopEpisode | ✅ StoryLoadDsmHandler | ✅ ReferenceStoryLoadHandler | — | — |
+| Zone / Zone load | — | — | ✅ IgZoneDummyHandler (ACK non-participating) | — |
 
 ---
 
@@ -194,8 +194,8 @@ uses the stored `ITransitionGraph` to return BFS neighbours cast to `DSMState`.
 
 ### Design
 
-`OrchestratorScenarioPanel` lives in `Bagira.Runner/Services/` (only project with ImGui
-dependency).  Constructor takes `DrillMaster` — throws `ArgumentNullException` on null.
+`OrchestratorScenarioPanel` lives in `Hrot.ClusterRunner/Services/` (only project with ImGui
+dependency).  Constructor takes `ClusterMaster` — throws `ArgumentNullException` on null.
 All child windows use `ImGuiCol.ChildBg = (0.72f, 0.64f, 0.47f, 1f)` (beige) to visually
 distinguish the Orchestrator node from SimHost (dark red), IOS (dark purple), IG (dark
 green), and CGF (dark navy).
@@ -205,7 +205,7 @@ green), and CGF (dark navy).
 | Section | Panel | Key behaviour |
 |---------|-------|---------------|
 | **Status Banner** | `RenderStatusBanner` | Shows `CurrentSystemState`, transaction hash (short), bootstrapped / idle / in-flight badge |
-| **Drill Control** | `RenderDrillControl` | Dynamic buttons from `GetReachableTargets()` — each emits `SysOpType.TransitionState`; disabled when `!bootstrapped \|\| hasInFlight` |
+| **Drill Control** | `RenderDrillControl` | Dynamic buttons from `GetReachableTargets()` — each emits `ClusterOpType.TransitionState`; disabled when `!bootstrapped \|\| hasInFlight` |
 | **Checkpoint** | `RenderCheckpointSection` | `TakeCheckpoint` button; disabled unless `CurrentState == RunningLive` |
 | **Scenario** | `RenderScenarioSection` | Save Scenario (ID input); Load into Edit / Load into Live buttons |
 | **Replay** | `RenderReplaySection` | Drill ID input + Load Replay button; seek slider visible when `RunningReplay` |
@@ -213,25 +213,25 @@ green), and CGF (dark navy).
 
 ### OrchestratorSubsystem wiring
 
-- `_scenarioPanel` field; created after `DrillMaster` in `Initialize()`; `Render()` called
+- `_scenarioPanel` field; created after `ClusterMaster` in `Initialize()`; `Render()` called
   after the 2PC history table in `DrawUI()`; nulled in `Shutdown()`.
 
 ### Tests
 
 `OrchestratorScenarioPanelTests.cs` (domain 25, `[Collection("OrchestratorScenarioPanelTests")]`):
 - `Constructor_DoesNotThrow` ✅
-- `Constructor_NullDrillMaster_Throws` ✅
+- `Constructor_NullClusterMaster_Throws` ✅
 - `GetReachableTargets_FromInitialState_ReturnsStandbyNeighbours` ✅
 - `Render_BeforeBootstrap_DoesNotThrow` ✅ (uses non-empty `Mandatory` config to keep
   bootstrap latch unset)
 - `Render_MultipleFrames_DoesNotThrow` ✅
-- `HandleSysOpRequest_BeforeBootstrap_AcceptsEnqueue` ✅
+- `HandleClusterOpRequest_BeforeBootstrap_AcceptsEnqueue` ✅
 
 ### Files changed / created
 
-- `Bagira.Runner/Services/OrchestratorScenarioPanel.cs` — NEW
-- `Bagira.Runner/Services/OrchestratorSubsystem.cs` — `_scenarioPanel` wiring
-- `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs` — NEW (6 tests)
+- `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` — NEW
+- `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` — `_scenarioPanel` wiring
+- `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs` — NEW (6 tests)
 
 ---
 
@@ -247,9 +247,9 @@ in `CGF-1-TASK-TRACKER.md` and will target the next batch.
 
 | Item | Status | Resolution |
 |------|--------|-----------|
-| IG handler registration integration tests | Not created | `IgApplication.TestHook_DrillSlave` is `null` in headless mode because `InitializeNetwork` (which creates `_drillSlave`) requires a running DDS stack not available in unit tests. Deferred; requires a testable `DrillSlave` factory or IG-specific test harness. |
+| IG handler registration integration tests | Not created | `IgApplication.TestHook_ClusterSlave` is `null` in headless mode because `InitializeNetwork` (which creates `_drillSlave`) requires a running DDS stack not available in unit tests. Deferred; requires a testable `ClusterSlave` factory or IG-specific test harness. |
 | `CgfRecordReplayController` — `.fdp` write | Logged no-op | Documented in class XML; full brain recording deferred to Phase 3+ once scope is defined. |
-| `IgBattlespaceDummyHandler` — terrain preload | Non-participating stub | Full terrain DB preload from scenario entity deferred; documented in class XML. |
+| `IgZoneDummyHandler` — terrain preload | Non-participating stub | Full terrain DB preload from scenario entity deferred; documented in class XML. |
 | BATCH-22 residual: `FailLoudRecordReplayStub` NAK on `NodeOpStatus` | Resolved (stub removed) | Covered by A.1. |
 
 ---
@@ -258,11 +258,11 @@ in `CGF-1-TASK-TRACKER.md` and will target the next batch.
 
 | Project | Result |
 |---------|--------|
-| `Bagira.Orchestrator.Tests` | ✅ 37 / 37 passed |
-| `Bagira.Runner.Tests` | ✅ 130 / 130 passed |
-| `Bagira.Runner.Integration.Tests` | Not re-run (no changes to integration surface) |
-| `Bagira.SimHost.Tests` | Not re-run (no SimHost changes) |
-| `Bagira.SimHost.Integration.Tests` | Not re-run |
+| `Hrot.Orchestrator.Tests` | ✅ 37 / 37 passed |
+| `Hrot.ClusterRunner.Tests` | ✅ 130 / 130 passed |
+| `Hrot.ClusterRunner.Integration.Tests` | Not re-run (no changes to integration surface) |
+| `Hrot.SimHost.Tests` | Not re-run (no SimHost changes) |
+| `Hrot.SimHost.Integration.Tests` | Not re-run |
 
 ---
 
@@ -280,22 +280,22 @@ in `CGF-1-TASK-TRACKER.md` and will target the next batch.
 ## Files changed (full list)
 
 ### New files
-- `Bagira.CGF/Modules/Orchestration/CgfRecordReplayController.cs`
-- `Bagira.IG/Modules/Orchestration/ListenerRecordReplayController.cs`
-- `Bagira.IG/Modules/Orchestration/IgBattlespaceDummyHandler.cs`
-- `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`
-- `Bagira.Runner.Tests/CgfHandlerRegistrationTests.cs`
-- `Bagira.Runner.Tests/IosHandlerRegistrationTests.cs`
-- `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`
+- `Hrot.CGF/Modules/Orchestration/CgfRecordReplayController.cs`
+- `Hrot.IG/Modules/Orchestration/ListenerRecordReplayController.cs`
+- `Hrot.IG/Modules/Orchestration/IgZoneDummyHandler.cs`
+- `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`
+- `Hrot.ClusterRunner.Tests/CgfHandlerRegistrationTests.cs`
+- `Hrot.ClusterRunner.Tests/IosHandlerRegistrationTests.cs`
+- `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs`
 
 ### Modified files
-- `Bagira.CGF/CgfApplication.cs` — handler chain (`FailLoudStub` removed)
-- `Bagira.IG/IgApplication.cs` — handler chain + `TestHook_DrillSlave`
-- `Bagira.Runner/Services/IosSubsystem.cs` — handler registration + `TestHook_DrillSlave`
-- `Bagira.Runner/Services/OrchestratorSubsystem.cs` — `_scenarioPanel` wiring
-- `Bagira.Orchestrator/DrillMaster.cs` — API extensions + `ProcessSingleSysOpRequest` extraction
-- `Bagira.Orchestrator/TransitionPlanner.cs` — `_graph` field + `GetReachableTargets(DSMState)`
-- `Bagira.Orchestrator/GlobalContextDsmHandler.cs` — `ScenarioTimeSeconds` + `ScenarioId`
-- `Bagira.Orchestrator.Tests/TransitionPlannerTests.cs` — 3 `GetReachableTargets` tests
+- `Hrot.CGF/CgfApplication.cs` — handler chain (`FailLoudStub` removed)
+- `Hrot.IG/IgApplication.cs` — handler chain + `TestHook_ClusterSlave`
+- `Hrot.ClusterRunner/Services/IosSubsystem.cs` — handler registration + `TestHook_ClusterSlave`
+- `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` — `_scenarioPanel` wiring
+- `Hrot.Orchestrator/ClusterMaster.cs` — API extensions + `ProcessSingleClusterOpRequest` extraction
+- `Hrot.Orchestrator/TransitionPlanner.cs` — `_graph` field + `GetReachableTargets(ClusterState)`
+- `Hrot.Orchestrator/GlobalContextDsmHandler.cs` — `ScenarioTimeSeconds` + `ScenarioId`
+- `Hrot.Orchestrator.Tests/TransitionPlannerTests.cs` — 3 `GetReachableTargets` tests
 - `.dev/cgf-1/CGF-1-TASK-TRACKER.md` — S0106 ✅; Phase 1 complete; active batch updated
 - `.dev/DEBT-TRACKER.md` — 4 rows ✅

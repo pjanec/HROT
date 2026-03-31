@@ -16,7 +16,7 @@ The Two-ACK feature implementation accurately separates Phase 1 and Phase 2 resp
 ## Issues Found
 
 ### Issue 1: Broken Build - Hardcoded Value Regression
-**File:** `Bagira.SimHost.Tests/MissionControlRequestSystemTests.cs` (Line 259)
+**File:** `Hrot.SimHost.Tests/MissionControlRequestSystemTests.cs` (Line 259)
 **Problem:** A failing test. The `SstStatusCode.EntityNotFound` enum value shifted from 2 to 3, but this test still asserts `errorCode: 2`. The build is broken and cannot pass CI.
 **Fix:** Update the integer assertion to check for `3` or use `(int)SstStatusCode.EntityNotFound`.
 
@@ -26,7 +26,7 @@ The Two-ACK feature implementation accurately separates Phase 1 and Phase 2 resp
 **Fix:** In future batches, strictly answer Q1-Q5 explicitly in the report files.
 
 ### Issue 3: UI Spec Text Inaccuracy
-**File:** `Bagira.IOS/Panels/MissionPanel.cs`
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs`
 **Problem:** Uses inaccurate pending text `(awaiting entity confirmation...)` instead of `[Constructing across network...]` specified in the design doc.
 **Fix:** Update text match the spec.
 

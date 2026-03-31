@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-11  
 **Tasks:** DDS2ECS-S17T1, DDS2ECS-S17T2, DDS2ECS-S17T3, DDS2ECS-S17T4, DDS2ECS-S17T5  
 **Phase:** Phase 17  
-**Estimated Effort:** 18–22 hours  
+**Estimated Effort:** 18ï¿½22 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-10 approved
 
@@ -17,12 +17,12 @@ This batch upgrades SimHost for combat readiness by wiring perception/combat too
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
 2. **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md` (DDS2ECS-S17T1 ? DDS2ECS-S17T5)
-3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (§11)
+3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (ï¿½11)
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-10-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`, `Bagira.Map.Definitions/`
-- **Test Projects:** `Bagira.SimHost.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/`, `Hrot.Map.Definitions/`
+- **Test Projects:** `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -41,32 +41,32 @@ This batch upgrades SimHost for combat readiness by wiring perception/combat too
 
 ## ? Tasks
 
-### Task 1: DDS2ECS-S17T1 — Add Perception + Combat project references
-**File:** `Bagira.SimHost/Bagira.SimHost.csproj` (UPDATE)  
+### Task 1: DDS2ECS-S17T1 ï¿½ Add Perception + Combat project references
+**File:** `Hrot.SimHost/Hrot.SimHost.csproj` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s17t1--add-perception-and-combat-project-references`
 
 ---
 
-### Task 2: DDS2ECS-S17T2 — Register Perception/Combat/Physics/HSM components
-**File:** `Bagira.SimHost/SimHostApp.cs` (UPDATE)  
+### Task 2: DDS2ECS-S17T2 ï¿½ Register Perception/Combat/Physics/HSM components
+**File:** `Hrot.SimHost/SimHostApp.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s17t2--register-perception-combat-physics-and-hsm-components`
 
 ---
 
-### Task 3: DDS2ECS-S17T3 — Initialize `PhysicsToolkitModule`
-**File:** `Bagira.SimHost/SimHostApp.cs` (UPDATE)  
+### Task 3: DDS2ECS-S17T3 ï¿½ Initialize `PhysicsToolkitModule`
+**File:** `Hrot.SimHost/SimHostApp.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s17t3--initialize-physicstoolkitmodule-in-simhostapponload`
 
 ---
 
-### Task 4: DDS2ECS-S17T4 — Expand `SimulationLogicModule` with combat systems
-**File:** `Bagira.SimHost/Modules/SimulationLogicModule.cs` (UPDATE)  
+### Task 4: DDS2ECS-S17T4 ï¿½ Expand `SimulationLogicModule` with combat systems
+**File:** `Hrot.SimHost/Modules/SimulationLogicModule.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s17t4--expand-simulationlogicmodule-with-combat-systems`
 
 ---
 
-### Task 5: DDS2ECS-S17T5 — Rewrite `BdcTkbBuilder.WithCombat()` to real ECS components
-**File:** `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs` (UPDATE)  
+### Task 5: DDS2ECS-S17T5 ï¿½ Rewrite `BdcTkbBuilder.WithCombat()` to real ECS components
+**File:** `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s17t5--rewrite-bdctkbbuilderwithcombat-to-attach-real-ecs-components`
 
 ---
@@ -74,7 +74,7 @@ This batch upgrades SimHost for combat readiness by wiring perception/combat too
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
 
 ---
 
@@ -109,7 +109,7 @@ This batch upgrades SimHost for combat readiness by wiring perception/combat too
 ## ?? Success Criteria
 
 This batch is DONE when:
-- [ ] DDS2ECS-S17T1–S17T5 complete with xUnit tests
+- [ ] DDS2ECS-S17T1ï¿½S17T5 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-11-REPORT.md`
 
@@ -124,4 +124,4 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 - **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md`
-- **Design:** `docs/dds-to-ecs/DESIGN.md` (§11)
+- **Design:** `docs/dds-to-ecs/DESIGN.md` (ï¿½11)

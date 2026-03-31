@@ -20,7 +20,7 @@ This batch addresses critical failures generated during TwoAck-BATCH-01, focusin
 3. **Debt Tracker:** `.dev-workstream/DEBT-TRACKER.md` - See `TwoAck-BATCH-01` rows.
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost.Tests`, `Bagira.IOS.Tests`
+- **Primary Work Area:** `Hrot.SimHost.Tests`, `Hrot.ExCon.Tests`
 - **FDP is READ-ONLY:** Do not modify the `EntityLifecycleModule`.
 
 ### Report Submission
@@ -34,7 +34,7 @@ This batch addresses critical failures generated during TwoAck-BATCH-01, focusin
 
 ## Context
 
-The system must run successfully on CI. Due to `SstStatusCode.EntityNotFound` shifting from `2` to `3`, `Bagira.SimHost.Tests` broke. Furthermore, shallow tests were checked in for `MissionPanel` covering only a private state wrapper, circumventing the actual visual behavioral state. We need these rectified immediately.
+The system must run successfully on CI. Due to `SstStatusCode.EntityNotFound` shifting from `2` to `3`, `Hrot.SimHost.Tests` broke. Furthermore, shallow tests were checked in for `MissionPanel` covering only a private state wrapper, circumventing the actual visual behavioral state. We need these rectified immediately.
 
 ---
 
@@ -46,27 +46,27 @@ Restore the CI test suite to 100% passing state by fixing `MissionControlRequest
 ## ✅ Tasks
 
 ### Task 0: CI Regression Fix (CORRECTIVE-001) P1
-**File:** `Bagira.SimHost.Tests/MissionControlRequestSystemTests.cs` (Line 259)
+**File:** `Hrot.SimHost.Tests/MissionControlRequestSystemTests.cs` (Line 259)
 **Action Required:**
 - `ProcessRequest_UnknownEntity_WritesNackAfterRetrying` currently asserts `errorCode: 2`. 
-- Since `SstStatusCode.EntityNotFound` was shifted, update this literal value to properly index the `EntityNotFound` code (3). Ensure `dotnet test Bagira.SimHost.Tests` complies successfully.
+- Since `SstStatusCode.EntityNotFound` was shifted, update this literal value to properly index the `EntityNotFound` code (3). Ensure `dotnet test Hrot.SimHost.Tests` complies successfully.
 
 ### Task 1: Re-Implement ImGui MissionPanel Tests (DEBT-TEST-001) P2
-**File:** `Bagira.IOS.Tests/TwoAckIosTests.cs`
+**File:** `Hrot.ExCon.Tests/TwoAckIosTests.cs`
 **Action Required:**
 - Remove the shallow tests covering just `IsPendingGuardActive`.
 - Write a genuine visual test for `MissionPanel.Draw(IIosLogic logic)`.
 - **Expected Assertion:** Setup a mock environment, pass an entity matching the `logic.IsEntityPending == true` condition, and assert `ImGui.BeginDisabled()` was executed sequentially through ImGui Mock validation outputs rendering processes.
 
 ### Task 2: Implement IosMock Global Alert UI test (DEBT-TEST-002) P2
-**File:** `Bagira.IOS.Tests/IosMockTests.cs` (New or Extrapolated File)
+**File:** `Hrot.ExCon.Tests/IosMockTests.cs` (New or Extrapolated File)
 **Action Required:**
 - Setup an isolated test invoking `IosMock.DrawUI()`.
 - Simulate `Logic.GlobalAlert` being non-null.
 - **Expected Assertion:** Verify that `ImGui.OpenPopup("Entity Error")` executes.
 
 ### Task 3: UX Corrections (DEBT-UX-001) P3
-**File:** `Bagira.IOS/Panels/MissionPanel.cs`
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs`
 **Action Required:**
 - Replace the pending visual text string `(awaiting entity confirmation...)` with the originally stated format: `[Constructing across network...]`. 
 

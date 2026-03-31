@@ -30,7 +30,7 @@ Ship **Part A** first so **TASK-DETAIL**, **tests**, and **checkpoint path** do 
 
 ### A.1 — **§CGF1-S0309 TASK-DETAIL alignment** (P3)
 
-- Update [CGF-1-TASK-DETAIL.md](../CGF-1-TASK-DETAIL.md) §CGF1-S0309: **file path** → `Bagira.Common/Orchestration/Handlers/DryRunDsmHandler.cs` (or equivalent).  
+- Update [CGF-1-TASK-DETAIL.md](../CGF-1-TASK-DETAIL.md) §CGF1-S0309: **file path** → `Hrot.Common/Orchestration/Handlers/DryRunDsmHandler.cs` (or equivalent).  
 - Replace **`SimPosition`** / rigid entity-count prose with **normative** behaviour + reference to **`DryRunTestPos`** (or whichever production component is used in tests).  
 - Keep success-condition **intent** (snapshot, rewind, abort, no-op, null snap).
 
@@ -45,7 +45,7 @@ Implement the **missing** task-detail clause: after `LoadingDryRun`, **spawn an 
 
 ### A.4 — **§CGF1-S0303 success-condition wording** (P3, opportunistic)
 
-Replace **`OnItemWritten`** reference with **`TakeCompletedResults`** / deferred DDS ACK wording to match [CheckpointIOWorker](../../../FDP/Kernel/Fdp.Kernel/Orchestration/CheckpointIOWorker.cs) + [CheckpointDsmHandler](../../../Bagira.SimHost/Modules/Orchestration/Handlers/CheckpointDsmHandler.cs).
+Replace **`OnItemWritten`** reference with **`TakeCompletedResults`** / deferred DDS ACK wording to match [CheckpointIOWorker](../../../FDP/Kernel/Fdp.Kernel/Orchestration/CheckpointIOWorker.cs) + [CheckpointDsmHandler](../../../Hrot.SimHost/Modules/Orchestration/Handlers/CheckpointDsmHandler.cs).
 
 ### A.5 — **DEBT-TRACKER**
 

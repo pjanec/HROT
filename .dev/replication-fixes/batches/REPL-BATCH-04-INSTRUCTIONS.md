@@ -23,7 +23,7 @@ You are to work autonomously until **ALL DONE**. The entire solution MUST compil
 1. **Previous Review:** `.dev-workstream/reviews/REPL-BATCH-03-REVIEW.md` - Learn from your rejection!
 
 ### Source Code Location
-- **Primary Work Area:** `FDP.Toolkit.Replication/Systems/GhostPromotionSystem.cs`, `Bagira.IG/IgApplication.cs`, `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs`.
+- **Primary Work Area:** `FDP.Toolkit.Replication/Systems/GhostPromotionSystem.cs`, `Hrot.IG/IgApplication.cs`, `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs`.
 
 ### Report Submission
 **When done, submit your report to:**
@@ -44,7 +44,7 @@ You are to work autonomously until **ALL DONE**. The entire solution MUST compil
 ## ✅ Tasks
 
 ### Task 1: Fix `GhostPromotionSystem` TkbType 0 Crash
-**Problem:** `GhostPromotionSystem` currently calls `_tkbDatabase.GetTemplate(spawnReq.TkbType)` which throws a `KeyNotFoundException` if a Ghost enters the queue with a default `TkbType = 0` (e.g., when a Ghost receives a `GeoSpatial` packet first and is waiting for `EntityMaster`). This crashes the entire kernel schedule!
+**Problem:** `GhostPromotionSystem` currently calls `_tkbDatabase.GetTemplate(spawnReq.TkbType)` which throws a `KeyNotFoundException` if a Ghost enters the queue with a default `TkbType = 0` (e.g., when a Ghost receives a `WorldPos` packet first and is waiting for `EntityMaster`). This crashes the entire kernel schedule!
 **Action:** Update `PromoteGhost` to safely process templates. Use `_tkbDatabase.TryGetByType(...)` and simply `return;` (leaving it as a Ghost) if the TKB hasn't resolved yet. 
 
 ### Task 2: Fix zero-participant stalling in EntityLifecycleModule
@@ -53,14 +53,14 @@ You are to work autonomously until **ALL DONE**. The entire solution MUST compil
 Fix `FDP/Toolkits/FDP.Toolkit.Lifecycle/EntityLifecycleModule.cs`: inside `BeginConstruction` and `BeginDestruction`, explicitly verify if `participants.Count == 0`. If so, bypass the pending queue and IMMEDIATELY promote the entity to `EntityLifecycle.Active` (or call `DestroyEntity` for destruction), ensuring no entity gets stuck indefinitely just because the environment lacks modules that care to acknowledge them.
 
 ### Task 3: Remove "Ghost-Only" Assumptions from Ingress Translators (REPL-C04)
-**Files:** `Bagira.Map.Common/Replication/Ingress/*.cs` (Migrated in BATCH-02)
+**Files:** `Hrot.Map.Common/Replication/Ingress/*.cs` (Migrated in BATCH-02)
 **Action:** The developer previously added comments and logic assuming "IG is a ghost-only node". Purge all comments stating "IG is a ghost-only node" and ensure no runtime logic makes this specific assumption simply because these are Ingress translators.
 
 ### Task 4: Data-Oriented Component Initialization (REPL-C05)
 **Problem:** In `BdcTkbBuilder.cs`, prototype definitions like `SimVehicleDef` and `IgVisualDef` are lazily added as managed components (`AddManagedComponent`) instead of being eagerly mapped to pure runtime structs as strict ECS design requires. 
 **Action:** 
-1. Convert `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs` methods to map `SimVehicleDef` and `IgVisualDef` to unmanaged FDP structs (`VehicleParams` from `CarKinem`, and a new `VisualData` struct). Add these runtime structs into the TKB instead, then discard the `Def` objects!
-2. Create the `VisualData` unmanaged struct (with `ComponentId`) to hold `FixedString` paths for `ModelPath` and `SymbolCode`. Update `Bagira.IG/Systems/StyleResolutionSystem.cs` to query this unmanaged `VisualData` rather than `IgVisualDef`.
+1. Convert `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs` methods to map `SimVehicleDef` and `IgVisualDef` to unmanaged FDP structs (`VehicleParams` from `CarKinem`, and a new `VisualData` struct). Add these runtime structs into the TKB instead, then discard the `Def` objects!
+2. Create the `VisualData` unmanaged struct (with `ComponentId`) to hold `FixedString` paths for `ModelPath` and `SymbolCode`. Update `Hrot.IG/Systems/StyleResolutionSystem.cs` to query this unmanaged `VisualData` rather than `IgVisualDef`.
 3. Remove the `[ComponentId(...)]` attribute entirely from the POCO definitions (`SimVehicleDef`, `IgVisualDef`), ensuring they are never placed directly into the ECS.
 4. Clean up `GlobalComponentIds.cs` to free the old IDs (you may re-use one for `VisualData`).
 

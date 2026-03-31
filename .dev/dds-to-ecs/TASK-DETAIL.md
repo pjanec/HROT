@@ -10,9 +10,9 @@ and target state for each phase.
 
 ### DDS2ECS-S1T1 — Remove `[ComponentId]` from `EntityMaster`
 
-**File:** `Bagira.DDS.DataModel/GenericDescriptors.cs`
+**File:** `Hrot.NED/GenericDescriptors.cs`
 
-**Context:** See [DESIGN.md §2.1](./DESIGN.md#21-violations-in-bagiraddsdatamodel) and
+**Context:** See [DESIGN.md §2.1](./DESIGN.md#21-violations-in-hrotddsdatamodel) and
 [DESIGN.md §3.1](./DESIGN.md#31-dds-data-model--no-ecs-attributes).
 
 **Change:**  
@@ -21,12 +21,12 @@ declaration. Retain all DDS attributes (`[DdsTopic]`, `[DdsIdlFile]`, `[DdsQos]`
 
 **Success Conditions:**
 
-1. **Unit test — reflection guard** (`Bagira.DDS.DataModel.Tests` or `Bagira.SimHost.Tests`):  
+1. **Unit test — reflection guard** (`Hrot.NED.Tests` or `Hrot.SimHost.Tests`):  
    `EntityMaster_HasNo_ComponentIdAttribute` — assert that
    `typeof(EntityMaster).GetCustomAttributes(typeof(ComponentIdAttribute), false)` is empty.
 
 2. **Compilation gate:** After this change, `AutoCycloneTranslator<EntityMaster>` in
-   `Bagira.SimHost/SimHostApp.cs` will fail to compile (the auto-translator requires a
+   `Hrot.SimHost/SimHostApp.cs` will fail to compile (the auto-translator requires a
    `[ComponentId]` on the type). This is expected; Phase 3 will fix SimHost. Both projects must
    compile cleanly after all phases are applied.
 
@@ -34,9 +34,9 @@ declaration. Retain all DDS attributes (`[DdsTopic]`, `[DdsIdlFile]`, `[DdsQos]`
 
 ### DDS2ECS-S1T2 — Remove `[ComponentId]` from `EntityDamage`
 
-**File:** `Bagira.DDS.DataModel/SimDescriptors.cs`
+**File:** `Hrot.NED/SimDescriptors.cs`
 
-**Context:** See [DESIGN.md §2.1](./DESIGN.md#21-violations-in-bagiraddsdatamodel).
+**Context:** See [DESIGN.md §2.1](./DESIGN.md#21-violations-in-hrotddsdatamodel).
 
 **Change:**  
 Delete the line `[ComponentId(GlobalComponentIds.EntityDamage)]` from the `EntityDamage` struct
@@ -48,7 +48,7 @@ declaration.
    `EntityDamage_HasNo_ComponentIdAttribute` — assert
    `typeof(EntityDamage).GetCustomAttributes(typeof(ComponentIdAttribute), false)` is empty.
 
-2. **No other code in `Bagira.*` (non-FDP) may reference `GlobalComponentIds.EntityDamage`**
+2. **No other code in `Hrot.*` (non-FDP) may reference `GlobalComponentIds.EntityDamage`**
    after this change. Verify with a solution-wide search.
 
 ---
@@ -57,7 +57,7 @@ declaration.
 
 ### DDS2ECS-S2T1 — `dtEntityMaster` case produces nothing
 
-**File:** `Bagira.SimHost/Util/DescriptorMapper.cs`
+**File:** `Hrot.SimHost/Util/DescriptorMapper.cs`
 
 **Context:** See [DESIGN.md §3.2](./DESIGN.md#32-simhost--descriptormapper).
 
@@ -83,7 +83,7 @@ needed.
 
 ### DDS2ECS-S2T2 — `dtEntityInfo` case produces nothing
 
-**File:** `Bagira.SimHost/Util/DescriptorMapper.cs`
+**File:** `Hrot.SimHost/Util/DescriptorMapper.cs`
 
 **Context:** See [DESIGN.md §3.2](./DESIGN.md#32-simhost--descriptormapper). SimHost does not
 need `EntityInfo` at spawn time; the SimHost authority placed the name/affiliation itself.
@@ -102,26 +102,26 @@ Replace the `dtEntityInfo` case body with a `break`. No item added to `result`.
 
 ---
 
-### DDS2ECS-S2T3 — `dtGeoSpatial` case: remove raw DTO, add `GeoTransform`
+### DDS2ECS-S2T3 — `dtWorldPos` case: remove raw DTO, add `GeoTransform`
 
-**File:** `Bagira.SimHost/Util/DescriptorMapper.cs`
+**File:** `Hrot.SimHost/Util/DescriptorMapper.cs`
 
 **Context:** See [DESIGN.md §3.2](./DESIGN.md#32-simhost--descriptormapper).
 
 **Change:**  
-In the `dtGeoSpatial` case:
-- **Remove** `result.Add(d.GeoSpatial)`.
+In the `dtWorldPos` case:
+- **Remove** `result.Add(d.WorldPos)`.
 - **Keep** the existing `SimTransform` generation (WGS84 → Cartesian conversion).
 - **Add** a `GeoTransform` to `result` containing the raw geodetic coordinates:
   ```csharp
   result.Add(new GeoTransform
   {
-      Latitude    = (float)d.GeoSpatial.Pos.Latitude,
-      Longitude   = (float)d.GeoSpatial.Pos.Longitude,
-      Altitude    = (float)d.GeoSpatial.Pos.Altitude,
-      HeadingDeg  = d.GeoSpatial.Rot.Heading,
-      PitchDeg    = d.GeoSpatial.Rot.Pitch,
-      RollDeg     = d.GeoSpatial.Rot.Roll
+      Latitude    = (float)d.WorldPos.Pos.Latitude,
+      Longitude   = (float)d.WorldPos.Pos.Longitude,
+      Altitude    = (float)d.WorldPos.Pos.Altitude,
+      HeadingDeg  = d.WorldPos.Rot.Heading,
+      PitchDeg    = d.WorldPos.Rot.Pitch,
+      RollDeg     = d.WorldPos.Rot.Roll
   });
   ```
   *(Adjust field names to match the actual `GeoTransform` struct. If `GeoTransform` already covers
@@ -129,39 +129,39 @@ In the `dtGeoSpatial` case:
 
 **Success Conditions:**
 
-1. **Unit test** `DescriptorMapperTests.MapToComponents_GeoSpatialDescriptor_ContainsSimTransform`:  
-   Provide a `dtGeoSpatial` descriptor with known lat/lon/alt.  
+1. **Unit test** `DescriptorMapperTests.MapToComponents_WorldPosDescriptor_ContainsSimTransform`:  
+   Provide a `dtWorldPos` descriptor with known lat/lon/alt.  
    Assert result contains exactly one `SimTransform`.  
    Assert its `Position` matches the expected Cartesian output from the mock geo transform.
 
-2. **Unit test** `DescriptorMapperTests.MapToComponents_GeoSpatialDescriptor_ContainsGeoTransform`:  
+2. **Unit test** `DescriptorMapperTests.MapToComponents_WorldPosDescriptor_ContainsGeoTransform`:  
    Same setup. Assert result contains exactly one `GeoTransform`.  
    Assert `GeoTransform.Latitude` equals the input latitude (round-trip fidelity).
 
-3. **Unit test** `DescriptorMapperTests.MapToComponents_GeoSpatialDescriptor_NoRawGeoSpatialType`:  
-   Assert result contains no instance of type `GeoSpatial`.
+3. **Unit test** `DescriptorMapperTests.MapToComponents_WorldPosDescriptor_NoRawWorldPosType`:  
+   Assert result contains no instance of type `WorldPos`.
 
 4. **Existing test** `DescriptorMapperTests` (all passing before) still pass.
 
 ---
 
-### DDS2ECS-S2T4 — `dtGeoSpatialDR` case: translate to `GeoVelocity`
+### DDS2ECS-S2T4 — `dtWorldPos` case: translate to `GeoVelocity`
 
-**File:** `Bagira.SimHost/Util/DescriptorMapper.cs`
+**File:** `Hrot.SimHost/Util/DescriptorMapper.cs`
 
 **Context:** See [DESIGN.md §3.2](./DESIGN.md#32-simhost--descriptormapper). The DR descriptor
 carries velocity (polar vector: azimuth=heading, elevation=pitch, length=speed) and angular
 velocity. The `GeoVelocity` ECS component holds this in the engine's internal representation.
 
 **Change:**  
-Replace `result.Add(d.GeoSpatialDR)` with a translation to `GeoVelocity`:
+Replace `result.Add(d.WorldPos)` with a translation to `GeoVelocity`:
 ```csharp
 result.Add(new GeoVelocity
 {
-    SpeedMs      = (float)d.GeoSpatialDR.Vel.Length,
-    HeadingDeg   = d.GeoSpatialDR.Vel.Azim,
-    PitchDeg     = d.GeoSpatialDR.Vel.Elev,
-    HeadingRateDeg = d.GeoSpatialDR.RotVel.Heading
+    SpeedMs      = (float)d.WorldPos.Vel.Length,
+    HeadingDeg   = d.WorldPos.Vel.Azim,
+    PitchDeg     = d.WorldPos.Vel.Elev,
+    HeadingRateDeg = d.WorldPos.RotVel.Heading
     // Populate remaining fields per GeoVelocity struct definition
 });
 ```
@@ -169,13 +169,13 @@ result.Add(new GeoVelocity
 
 **Success Conditions:**
 
-1. **Unit test** `DescriptorMapperTests.MapToComponents_GeoSpatialDRDescriptor_ContainsGeoVelocity`:  
-   Provide a `dtGeoSpatialDR` descriptor with speed=15, heading=90.  
+1. **Unit test** `DescriptorMapperTests.MapToComponents_WorldPosDescriptor_ContainsGeoVelocity`:  
+   Provide a `dtWorldPos` descriptor with speed=15, heading=90.  
    Assert result contains exactly one `GeoVelocity`.  
    Assert `GeoVelocity.SpeedMs ≈ 15` and `GeoVelocity.HeadingDeg ≈ 90`.
 
-2. **Unit test** `DescriptorMapperTests.MapToComponents_GeoSpatialDRDescriptor_NoRawGeoSpatialDRType`:  
-   Assert result contains no instance of type `GeoSpatialDR`.
+2. **Unit test** `DescriptorMapperTests.MapToComponents_WorldPosDescriptor_NoRawWorldPosType`:  
+   Assert result contains no instance of type `WorldPos`.
 
 ---
 
@@ -183,7 +183,7 @@ result.Add(new GeoVelocity
 
 ### DDS2ECS-S3T1 — Create `EntityMasterEgressTranslator`
 
-**File (new):** `Bagira.SimHost/Translators/EntityMasterEgressTranslator.cs`
+**File (new):** `Hrot.SimHost/Translators/EntityMasterEgressTranslator.cs`
 
 **Context:** See [DESIGN.md §3.3](./DESIGN.md#33-simhost--entitymaster-egress).
 
@@ -217,7 +217,7 @@ result.Add(new GeoVelocity
 
 ### DDS2ECS-S3T2 — SimHostApp: replace `AutoCycloneTranslator<EntityMaster>`
 
-**File:** `Bagira.SimHost/SimHostApp.cs`
+**File:** `Hrot.SimHost/SimHostApp.cs`
 
 **Context:** See [DESIGN.md §3.3](./DESIGN.md#33-simhost--entitymaster-egress).
 
@@ -236,9 +236,9 @@ In `OnLoad`, in the `translators` list setup:
 
 ### DDS2ECS-S3T3 — SimHostApp: remove `RegisterComponent<EntityMaster>`
 
-**File:** `Bagira.SimHost/SimHostApp.cs`
+**File:** `Hrot.SimHost/SimHostApp.cs`
 
-**Context:** See [DESIGN.md §2.2](./DESIGN.md#22-violations-in-bagirasimhost).
+**Context:** See [DESIGN.md §2.2](./DESIGN.md#22-violations-in-hrotsimhost).
 
 **Change:**  
 In `RegisterSimComponents`, remove the line `world.RegisterComponent<EntityMaster>()`.
@@ -249,13 +249,13 @@ In `RegisterSimComponents`, remove the line `world.RegisterComponent<EntityMaste
    Call `RegisterSimComponents` on a fresh `EntityRepository`.  
    Assert that `world.IsRegistered<EntityMaster>()` (or equivalent API) returns `false`.
 
-2. All existing `Bagira.SimHost.Tests` pass without modifications.
+2. All existing `Hrot.SimHost.Tests` pass without modifications.
 
 ---
 
 ### DDS2ECS-S3T4 — SimHostApp: fix `onEntitySpawned` callback
 
-**File:** `Bagira.SimHost/SimHostApp.cs`
+**File:** `Hrot.SimHost/SimHostApp.cs`
 
 **Context:** The existing callback reads:
 ```csharp
@@ -286,7 +286,7 @@ for a component that no longer exists in the ECS.
 
 ### DDS2ECS-S4T1 — Spawn path: empty `InitialComponents`
 
-**File:** `Bagira.IG/Translators/EntityMasterTranslator.cs`
+**File:** `Hrot.IG/Translators/EntityMasterTranslator.cs`
 
 **Context:** See [DESIGN.md §3.4](./DESIGN.md#34-ig--entitymastertranslator).
 
@@ -314,7 +314,7 @@ InitialComponents = new List<object>()
 
 ### DDS2ECS-S4T2 — Update path: remove `cmd.SetComponent(existing, master)`
 
-**File:** `Bagira.IG/Translators/EntityMasterTranslator.cs`
+**File:** `Hrot.IG/Translators/EntityMasterTranslator.cs`
 
 **Context:** See [DESIGN.md §3.4](./DESIGN.md#34-ig--entitymastertranslator). The update path
 must become a no-op for the ECS. There is no `EntityMaster` ECS component to update; the entity
@@ -338,7 +338,7 @@ level that an update was received for a known entity).
 
 ### DDS2ECS-S4T3 — `ApplyToEntity`: become a no-op
 
-**File:** `Bagira.IG/Translators/EntityMasterTranslator.cs`
+**File:** `Hrot.IG/Translators/EntityMasterTranslator.cs`
 
 **Context:** `ApplyToEntity` is called during ghost promotion (late-join). Since `EntityMaster` is
 no longer an ECS component, there is nothing to apply.
@@ -361,7 +361,7 @@ public void ApplyToEntity(Entity entity, object data, EntityRepository repo) { }
 
 ### DDS2ECS-S5T1 — Create `IgEntityData` component
 
-**File (new):** `Bagira.IG/Components/IgEntityData.cs`
+**File (new):** `Hrot.IG/Components/IgEntityData.cs`
 
 **Context:** See [DESIGN.md §3.5](./DESIGN.md#35-ig--igentitydata-new-internal-component).
 
@@ -376,7 +376,7 @@ public class IgEntityData
 }
 ```
 
-> **Note on ComponentId:** Allocate an ID in the `Bagira.*` reserved range in
+> **Note on ComponentId:** Allocate an ID in the `Hrot.*` reserved range in
 > `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs`. The nearest free byte above the `EntityDamage
 > = 161` entry is the appropriate location. Coordinate with the lead to assign the value.
 
@@ -391,7 +391,7 @@ public class IgEntityData
 
 ### DDS2ECS-S5T2 — `EntityInfoTranslator`: translate to `IgEntityData`
 
-**File:** `Bagira.IG/Translators/EntityInfoTranslator.cs`
+**File:** `Hrot.IG/Translators/EntityInfoTranslator.cs`
 
 **Context:** See [DESIGN.md §3.5](./DESIGN.md#35-ig--igentitydata-new-internal-component).
 
@@ -428,7 +428,7 @@ _eventBus.PublishManaged(new UpdateEntityCommand
 
 ### DDS2ECS-S5T3 — `EntityInfoTranslator.ApplyToEntity`: use `IgEntityData`
 
-**File:** `Bagira.IG/Translators/EntityInfoTranslator.cs`
+**File:** `Hrot.IG/Translators/EntityInfoTranslator.cs`
 
 **Change:**  
 Replace the `ApplyToEntity` body:
@@ -458,7 +458,7 @@ public void ApplyToEntity(Entity entity, object data, EntityRepository repo)
 
 ### DDS2ECS-S5T4 — `IgApplication`: register `IgEntityData`
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Change:**  
 In `InitializeEcs`, add:
@@ -478,7 +478,7 @@ _world.RegisterManagedComponent<IgEntityData>();
 
 ### DDS2ECS-S6T1 — Create `IgHealthState` component
 
-**File (new):** `Bagira.IG/Components/IgHealthState.cs`
+**File (new):** `Hrot.IG/Components/IgHealthState.cs`
 
 **Context:** See [DESIGN.md §3.6](./DESIGN.md#36-ig--ighealthstate-new-internal-component).
 
@@ -501,7 +501,7 @@ public struct IgHealthState
 
 ### DDS2ECS-S6T2 — Create `EntityDamageTranslator`
 
-**File (new):** `Bagira.IG/Translators/EntityDamageTranslator.cs`
+**File (new):** `Hrot.IG/Translators/EntityDamageTranslator.cs`
 
 **Context:** See [DESIGN.md §3.6](./DESIGN.md#36-ig--ighealthstate-new-internal-component).
 
@@ -537,7 +537,7 @@ public override void ScanAndPublish(ISimulationView view) { }  // IG is ghost-on
 
 ### DDS2ECS-S6T3 — `IgApplication`: register `EntityDamageTranslator`
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Change:**  
 In `InitializeNetwork`, in the `customTranslators` list:
@@ -554,7 +554,7 @@ new EntityDamageTranslator(participant, _entityMap),
 
 ### DDS2ECS-S6T4 — `IgApplication`: register `IgHealthState`
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Change:**  
 In `InitializeEcs`:
@@ -573,10 +573,10 @@ _world.RegisterComponent<IgHealthState>();
 
 ### DDS2ECS-S7T1 — Create `MapEntitySymbolTranslator`
 
-**File (new):** `Bagira.IG/Translators/MapEntitySymbolTranslator.cs`
+**File (new):** `Hrot.IG/Translators/MapEntitySymbolTranslator.cs`
 
 **Context:** See [DESIGN.md §3.7](./DESIGN.md#37-ig--mapentitysymboltranslator). The
-`IgSymbolOverride` component already exists in `Bagira.IG/Components/IgSymbolOverride.cs`.
+`IgSymbolOverride` component already exists in `Hrot.IG/Components/IgSymbolOverride.cs`.
 
 **Specification:**  
 Extend `CycloneTranslator<MapEntitySymbol, MapEntitySymbol>`.
@@ -630,7 +630,7 @@ public override void ScanAndPublish(ISimulationView view) { }  // IG is ghost-on
 
 ### DDS2ECS-S7T2 — `IgApplication`: register `MapEntitySymbolTranslator`
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Change:**  
 In `InitializeNetwork`, in the `customTranslators` list:
@@ -650,9 +650,9 @@ new MapEntitySymbolTranslator(participant, _entityMap, IgNetworkConstants.MapGro
 
 ### DDS2ECS-S8T1 — Remove `RegisterComponent<EntityMaster>()` from `InitializeEcs`
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
-**Context:** See [DESIGN.md §2.3](./DESIGN.md#23-violations-in-bagiraig).
+**Context:** See [DESIGN.md §2.3](./DESIGN.md#23-violations-in-hrotig).
 
 **Change:**  
 Remove the line `_world.RegisterComponent<EntityMaster>();` from `InitializeEcs`.
@@ -663,13 +663,13 @@ Remove the line `_world.RegisterComponent<EntityMaster>();` from `InitializeEcs`
    After `InitializeEmbedded(headless: true)`, assert `_world.IsRegistered<EntityMaster>()`
    returns `false`.
 
-2. All existing `Bagira.IG.Tests` pass.
+2. All existing `Hrot.IG.Tests` pass.
 
 ---
 
 ### DDS2ECS-S8T2 — Render query: replace `.With<EntityMaster>()` with `.With<NetworkIdentity>()`
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Context:** See [DESIGN.md §3.8](./DESIGN.md#38-ig--igapplication-queries).
 
@@ -701,7 +701,7 @@ var query = _world.Query()
 
 ### DDS2ECS-S8T3 — `DisTypeExtractor`: use `NetworkSpawnRequest` instead of `EntityMaster`
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Context:** See [DESIGN.md §3.8](./DESIGN.md#38-ig--igapplication-queries).
 
@@ -743,7 +743,7 @@ See [DESIGN.md §6.1](./DESIGN.md#61-deviation-1--no-network-cleanup-zombie-enti
 
 ### DDS2ECS-S9T1 — `SimHostApp`: register `CycloneNetworkCleanupSystem`
 
-**File:** `Bagira.SimHost/SimHostApp.cs`
+**File:** `Hrot.SimHost/SimHostApp.cs`
 
 **Context:** Without this system, destroyed entities never send a DDS dispose sample, so IG
 ghosts freeze as zombies.
@@ -769,7 +769,7 @@ _kernel.RegisterGlobalSystem(new CycloneNetworkCleanupSystem(entityMasterEgressT
 
 ### DDS2ECS-S9T2 — `SimHostSubsystem`: same registration
 
-**File:** `Bagira.Runner/Services/SimHostSubsystem.cs`
+**File:** `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`
 
 **Change:**  
 Mirror the `CycloneNetworkCleanupSystem` registration from S9T1 in `SimHostSubsystem.Initialize`
@@ -788,9 +788,9 @@ so the Runner path behaves identically to the standalone app.
 See [DESIGN.md §6.3](./DESIGN.md#63-deviation-3--hard-snapping-vs-dead-reckoning-stuttering-movement)
 and [DESIGN.md §7](./DESIGN.md#7-geotransform-vs-networkposition--egressingress-architecture).
 
-### DDS2ECS-S10T1 — Fix `GeoSpatialTranslator.Decode` (IG): write `NetworkPosition`
+### DDS2ECS-S10T1 — Fix `WorldPosTranslator.Decode` (IG): write `NetworkPosition`
 
-**File:** `Bagira.IG/Translators/GeoSpatialTranslator.cs`
+**File:** `Hrot.IG/Translators/WorldPosTranslator.cs`
 
 **Change:**  
 Replace the `cmd.SetComponent(entity, new SimTransform { ... })` call with:
@@ -807,33 +807,33 @@ consistent.
 
 **Success Conditions:**
 
-1. **Unit test (new)** `GeoSpatialTranslatorTests.Decode_KnownEntity_SetsNetworkPosition`:  
-   Provide `GeoSpatial { Pos.Latitude=51, Pos.Longitude=0, Pos.Altitude=0 }`.  
+1. **Unit test (new)** `WorldPosTranslatorTests.Decode_KnownEntity_SetsNetworkPosition`:  
+   Provide `WorldPos { Pos.Latitude=51, Pos.Longitude=0, Pos.Altitude=0 }`.  
    Assert `cmd.SetComponent` was called with a `NetworkPosition` whose `Value` is the expected
    Cartesian vector.
 
-2. **Unit test (new)** `GeoSpatialTranslatorTests.Decode_KnownEntity_DoesNotSetSimTransformDirectly`:  
+2. **Unit test (new)** `WorldPosTranslatorTests.Decode_KnownEntity_DoesNotSetSimTransformDirectly`:  
    Assert `cmd.SetComponent` was NOT called with a `SimTransform`.
 
 ---
 
-### DDS2ECS-S10T2 — Create `GeoSpatialDRTranslator` (IG)
+### DDS2ECS-S10T2 — Create `WorldPosTranslator` (IG)
 
-**File (new):** `Bagira.IG/Translators/GeoSpatialDRTranslator.cs`
+**File (new):** `Hrot.IG/Translators/WorldPosTranslator.cs`
 
-**Context:** The `GeoSpatialDR` topic carries velocity in polar form (`DAL3`: azimuth, elevation,
+**Context:** The `WorldPos` topic carries velocity in polar form (`AngularVector`: azimuth, elevation,
 length). Convert to a Cartesian `Vector3` for `NetworkVelocity`.
 
 **Specification:**  
-Extend `CycloneTranslator<GeoSpatialDR, GeoSpatialDR>`.
+Extend `CycloneTranslator<WorldPos, WorldPos>`.
 
 ```csharp
-protected override void Decode(in GeoSpatialDR data, IEntityCommandBuffer cmd, ISimulationView view)
+protected override void Decode(in WorldPos data, IEntityCommandBuffer cmd, ISimulationView view)
 {
     long netId = data.EntityId;
     if (!EntityMap.TryGetEntity(netId, out var entity)) return;
 
-    // Convert DAL3 polar velocity to Cartesian
+    // Convert AngularVector polar velocity to Cartesian
     float speedMs = (float)data.Vel.Length;
     float azimRad = (float)data.Vel.Azim * (MathF.PI / 180f);
     float elevRad  = (float)data.Vel.Elev * (MathF.PI / 180f);
@@ -851,17 +851,17 @@ public override void ScanAndPublish(ISimulationView view) { }  // IG is ghost-on
 
 **Success Conditions:**
 
-1. **Unit test** `GeoSpatialDRTranslatorTests.Decode_KnownEntity_SetsNetworkVelocity`:  
-   Provide `GeoSpatialDR { EntityId=1, Vel = { Azim=0, Elev=0, Length=10 } }` (moving North at 10 m/s).  
+1. **Unit test** `WorldPosTranslatorTests.Decode_KnownEntity_SetsNetworkVelocity`:  
+   Provide `WorldPos { EntityId=1, Vel = { Azim=0, Elev=0, Length=10 } }` (moving North at 10 m/s).  
    Assert `NetworkVelocity.Value ≈ Vector3(0, 10, 0)`.
 
-2. **Unit test** `GeoSpatialDRTranslatorTests.Decode_UnknownEntity_IsSkipped`.
+2. **Unit test** `WorldPosTranslatorTests.Decode_UnknownEntity_IsSkipped`.
 
 ---
 
 ### DDS2ECS-S10T3 — Create `DeadReckoningSyncSystem` (IG)
 
-**File (new):** `Bagira.IG/Systems/DeadReckoningSyncSystem.cs`
+**File (new):** `Hrot.IG/Systems/DeadReckoningSyncSystem.cs`
 
 **Context:** See [DESIGN.md §6.3](./DESIGN.md#63-deviation-3--hard-snapping-vs-dead-reckoning-stuttering-movement).
 Uses a **"Project and Blend"** algorithm.
@@ -898,10 +898,10 @@ Phase annotation: `[UpdateInPhase(SystemPhase.PostSimulation)]`.
 
 ### DDS2ECS-S10T4 — `IgApplication`: register new DR translator and system
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Changes:**  
-1. In `InitializeNetwork`, add `new GeoSpatialDRTranslator(participant, _entityMap, _geoTransform)` to `customTranslators`.
+1. In `InitializeNetwork`, add `new WorldPosTranslator(participant, _entityMap, _geoTransform)` to `customTranslators`.
 2. Register `DeadReckoningSyncSystem` as a global system:
    ```csharp
    _kernel.RegisterGlobalSystem(new DeadReckoningSyncSystem());
@@ -914,10 +914,10 @@ Phase annotation: `[UpdateInPhase(SystemPhase.PostSimulation)]`.
 **Success Conditions:**
 
 1. **Integration test** `AdvancedFeaturesIntegrationTests.GhostEntity_MovesSmoothlybetweenPackets`
-   (or a new equivalent): spawn a ghost entity, inject two `GeoSpatialDR` updates 10 frames apart,
+   (or a new equivalent): spawn a ghost entity, inject two `WorldPos` updates 10 frames apart,
    assert that during the gap the entity continues moving (does not freeze or snap).
 
-2. **Existing test** `Bagira.IG.Tests` (all) still pass.
+2. **Existing test** `Hrot.IG.Tests` (all) still pass.
 
 ---
 
@@ -943,7 +943,7 @@ CycloneDDS will create a topic for it. If the attribute is absent, add it.
 
 ### DDS2ECS-S11T2 — `IgApplication`: enable `TimePulseTranslator`
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Change:**  
 Uncomment the `new TimePulseTranslator(participant, _eventBus)` line in the `customTranslators`
@@ -962,7 +962,7 @@ list inside `InitializeNetwork`.
 
 ### DDS2ECS-S11T3 — `SimHostApp` / `SimHostSubsystem`: register time-pulse egress
 
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.Runner/Services/SimHostSubsystem.cs`
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`
 
 **Change:**  
 Register an egress `TimePulseTranslator` (or equivalent) that broadcasts `TimePulseDescriptor`
@@ -988,8 +988,8 @@ See [DESIGN.md §6.2](./DESIGN.md#62-deviation-2--missing-transient-event-transl
 
 ### DDS2ECS-S12T1 — Create `FireInteractionEventTranslator`
 
-**File (new):** `Bagira.IG/Translators/FireInteractionEventTranslator.cs` (Ingress side)  
-**File (new or in SimHost):** `Bagira.SimHost/Translators/FireInteractionEventTranslator.cs` (Egress side)
+**File (new):** `Hrot.IG/Translators/FireInteractionEventTranslator.cs` (Ingress side)  
+**File (new or in SimHost):** `Hrot.SimHost/Translators/FireInteractionEventTranslator.cs` (Egress side)
 
 *(Both can be the same class if placed in a shared assembly, or separate if they have app-specific
 logic. The key distinction is which methods are active: SimHost uses `ScanAndPublish`; IG uses
@@ -1017,7 +1017,7 @@ Inherit `CycloneNativeEventTranslator<FireInteractionEvent>` (or equivalent FDP 
 
 ### DDS2ECS-S12T2 — `SimHostApp` / `SimHostSubsystem`: register egress translator
 
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.Runner/Services/SimHostSubsystem.cs`
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`
 
 **Success Conditions:**
 
@@ -1028,7 +1028,7 @@ Inherit `CycloneNativeEventTranslator<FireInteractionEvent>` (or equivalent FDP 
 
 ### DDS2ECS-S12T3 — `IgApplication`: register ingress translator
 
-**File:** `Bagira.IG/IgApplication.cs`
+**File:** `Hrot.IG/IgApplication.cs`
 
 **Success Conditions:**
 
@@ -1043,7 +1043,7 @@ See [DESIGN.md §8.4](./DESIGN.md#84-mission-plans).
 
 ### DDS2ECS-S13T1 — Create `MissionControlRequestSystem`
 
-**File (new):** `Bagira.SimHost/Systems/MissionControlRequestSystem.cs`
+**File (new):** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`
 
 **Behaviour:**  
 On each tick, drain the DDS `MissionControlRequest` topic. For each request:
@@ -1075,7 +1075,7 @@ On each tick, drain the DDS `MissionControlRequest` topic. For each request:
 
 ### DDS2ECS-S13T2 — Register `MissionControlRequestSystem`
 
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.Runner/Services/SimHostSubsystem.cs`
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`
 
 **Success Conditions:**
 
@@ -1092,7 +1092,7 @@ See [DESIGN.md §8.5](./DESIGN.md#85-ios-mission-editor-ui--incomplete).
 
 ### DDS2ECS-S14T1 — Task-list editing: Add / Insert / Delete
 
-**File:** `Bagira.IOS/Panels/MissionPanel.cs`
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs`
 
 **Change:**  
 After the existing task list loop, add ImGui buttons:
@@ -1118,7 +1118,7 @@ the network until the user clicks "Commit" (S14T3).
 
 ### DDS2ECS-S14T2 — `BehaviorId` dropdown and `BehaviorParams` JSON editor
 
-**File:** `Bagira.IOS/Panels/MissionPanel.cs`
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs`
 
 **Change:**  
 For each task in the draft list, display:
@@ -1137,7 +1137,7 @@ For each task in the draft list, display:
 
 ### DDS2ECS-S14T3 — "Commit" button wired to `CommitMissionAsync`
 
-**File:** `Bagira.IOS/Panels/MissionPanel.cs`
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs`
 
 **Change:**  
 Add an `ImGui.Button("Commit")` that calls:
@@ -1163,10 +1163,10 @@ See [DESIGN.md §9, Phase 15](./DESIGN.md#phase-15--integration-test-harness).
 ### DDS2ECS-S15T1 — Add `internal` test-hook properties/methods
 
 **Files:**  
-- `Bagira.Runner/Services/IgSubsystem.cs`
-- `Bagira.Runner/Services/SimHostSubsystem.cs`
-- `Bagira.Runner/Services/IosSubsystem.cs`
-- `Bagira.IG/IgApplication.cs`
+- `Hrot.ClusterRunner/Services/IgSubsystem.cs`
+- `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`
+- `Hrot.ClusterRunner/Services/IosSubsystem.cs`
+- `Hrot.IG/IgApplication.cs`
 
 **Changes:**
 
@@ -1189,14 +1189,14 @@ internal void TestHook_SimulateMapClick(System.Numerics.Vector2 worldPos) =>
 **Success Conditions:**
 
 1. All four `internal` members compile and are accessible from
-   `Bagira.Runner.Integration.Tests` (same assembly visibility via `[InternalsVisibleTo]` in the
+   `Hrot.ClusterRunner.Integration.Tests` (same assembly visibility via `[InternalsVisibleTo]` in the
    respective project files, or `InternalsVisibleTo` attribute in `AssemblyInfo`).
 
 ---
 
-### DDS2ECS-S15T2 — Create `BagiraRunnerHarness`
+### DDS2ECS-S15T2 — Create `HrotRunnerHarness`
 
-**File (new):** `Bagira.Runner.Integration.Tests/BagiraRunnerHarness.cs`
+**File (new):** `Hrot.ClusterRunner.Integration.Tests/HrotRunnerHarness.cs`
 
 **Specification:**
 - Static `Interlocked.Increment` counter assigns unique `DomainId` per instance (start at 100).
@@ -1210,20 +1210,20 @@ internal void TestHook_SimulateMapClick(System.Numerics.Vector2 worldPos) =>
 
 **Success Conditions:**
 
-1. **Unit test** `BagiraRunnerHarnessTests.Constructor_InitializesWithoutException`:  
-   `new BagiraRunnerHarness()` completes without throwing.
+1. **Unit test** `HrotRunnerHarnessTests.Constructor_InitializesWithoutException`:  
+   `new HrotRunnerHarness()` completes without throwing.
 
-2. **Unit test** `BagiraRunnerHarnessTests.PumpUntil_ConditionMet_ReturnsTrue`:  
+2. **Unit test** `HrotRunnerHarnessTests.PumpUntil_ConditionMet_ReturnsTrue`:  
    Condition always true → returns `true` immediately.
 
-3. **Unit test** `BagiraRunnerHarnessTests.PumpUntil_ConditionNeverMet_ReturnsFalse`:  
+3. **Unit test** `HrotRunnerHarnessTests.PumpUntil_ConditionNeverMet_ReturnsFalse`:  
    Condition always false → returns `false` after `timeoutFrames`.
 
 ---
 
 ### DDS2ECS-S15T3 — Map Placement Integration Test
 
-**File (new):** `Bagira.Runner.Integration.Tests/MapPlacementIntegrationTests.cs`
+**File (new):** `Hrot.ClusterRunner.Integration.Tests/MapPlacementIntegrationTests.cs`
 
 **Test:** `EndToEnd_PlacementFlow_SpawnsAndDistributesEntity`
 
@@ -1246,7 +1246,7 @@ Flow:
 
 ### DDS2ECS-S15T4 — Context Menu Push Integration Test
 
-**File (new):** `Bagira.Runner.Integration.Tests/ContextMenuIntegrationTests.cs`
+**File (new):** `Hrot.ClusterRunner.Integration.Tests/ContextMenuIntegrationTests.cs`
 
 **Test:** `ContextMenu_SelectionEvent_PushesMenuToIG`
 
@@ -1264,7 +1264,7 @@ Flow:
 
 ### DDS2ECS-S15T5 — Entity Destroy Integration Test
 
-**File (new):** `Bagira.Runner.Integration.Tests/EntityDestroyIntegrationTests.cs`
+**File (new):** `Hrot.ClusterRunner.Integration.Tests/EntityDestroyIntegrationTests.cs`
 
 **Test:** `SimHost_DestroyEntity_IgGhostIsRemoved`
 
@@ -1283,7 +1283,7 @@ Flow:
 
 ### DDS2ECS-S15T6 — Mission Control Integration Test
 
-**File (new):** `Bagira.Runner.Integration.Tests/MissionControlIntegrationTests.cs`
+**File (new):** `Hrot.ClusterRunner.Integration.Tests/MissionControlIntegrationTests.cs`
 
 **Test:** `IOS_SendsJumpCommand_SimHostAppliesIt`
 
@@ -1312,33 +1312,33 @@ Flow:
 ### DDS2ECS-S16T1 — Delete EntityMissionHolder
 
 **Files:**
-- Delete: `Bagira.SimHost/Components/EntityMissionHolder.cs`
-- Edit: `Bagira.SimHost/SimHostApp.cs`
+- Delete: `Hrot.SimHost/Components/EntityMissionHolder.cs`
+- Edit: `Hrot.SimHost/SimHostApp.cs`
 
 **Changes:**
 1. Delete `EntityMissionHolder.cs` entirely.
 2. In `SimHostApp.cs`, find `world.RegisterManagedComponent<EntityMissionHolder>()` and replace
    with `world.RegisterComponent<MissionPlanQueue>()`.
 3. Add using: `using FDP.Toolkit.Behavior.Components;` if not already present.
-4. In `Bagira.SimHost.Tests/EntityMissionTranslatorTests.cs`, replace
+4. In `Hrot.SimHost.Tests/EntityMissionTranslatorTests.cs`, replace
    `world.RegisterManagedComponent<EntityMissionHolder>()` with
    `world.RegisterComponent<MissionPlanQueue>()`.
 
 **Note:** `GlobalComponentIds.EntityMissionHolder = 162` is defined in
-`FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` (Bagira-reserved range). Do **not** delete that
+`FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` (Hrot-reserved range). Do **not** delete that
 entry; simply stop using it. Add an `[Obsolete]` comment on that line.
 
 **Success Conditions:**
-1. `dotnet build Bagira.SimHost/Bagira.SimHost.csproj` GREEN.
-2. No remaining references to `EntityMissionHolder` in `Bagira.SimHost/`.
+1. `dotnet build Hrot.SimHost/Hrot.SimHost.csproj` GREEN.
+2. No remaining references to `EntityMissionHolder` in `Hrot.SimHost/`.
 3. `world.HasComponent<MissionPlanQueue>` compiles without error.
 
 ---
 
 ### DDS2ECS-S16T2 — Rewrite EntityMissionTranslator to Write MissionPlanQueue
 
-**File:** `Bagira.SimHost/Translators/EntityMissionTranslator.cs`
-**Tests:** `Bagira.SimHost.Tests/EntityMissionTranslatorTests.cs`
+**File:** `Hrot.SimHost/Translators/EntityMissionTranslator.cs`
+**Tests:** `Hrot.SimHost.Tests/EntityMissionTranslatorTests.cs`
 
 **Constructor change:** add `DoctrineRegistry _doctrineRegistry` parameter (matching the pattern
 used by `MissionAdapterSystem`; the registry is already available in `SimHostApp`).
@@ -1378,8 +1378,8 @@ used by `MissionAdapterSystem`; the registry is already available in `SimHostApp
 ### DDS2ECS-S16T3 — Delete MissionAdapterSystem, Register MissionDirectorSystem
 
 **Files:**
-- Delete: `Bagira.SimHost/Systems/MissionAdapterSystem.cs`
-- Edit: `Bagira.SimHost/Modules/SimulationLogicModule.cs`
+- Delete: `Hrot.SimHost/Systems/MissionAdapterSystem.cs`
+- Edit: `Hrot.SimHost/Modules/SimulationLogicModule.cs`
 
 **Changes in `SimulationLogicModule.RegisterSystems()`:**
 
@@ -1405,7 +1405,7 @@ constructor parameter list and all associated plumbing.
 
 **Success Conditions:**
 1. `MissionAdapterSystem.cs` does not exist.
-2. `dotnet build Bagira.SimHost/Bagira.SimHost.csproj` GREEN.
+2. `dotnet build Hrot.SimHost/Hrot.SimHost.csproj` GREEN.
 3. `SpawningModuleIntegrationTests` still pass (they use `SimulationLogicModule`).
 
 ---
@@ -1413,8 +1413,8 @@ constructor parameter list and all associated plumbing.
 ### DDS2ECS-S16T4 — Compile Real BTree Interpreters for All Doctrines
 
 **Files:**
-- Edit: `Bagira.SimHost/SimHostApp.cs` (in `RegisterDoctrines()`)
-- Create: `Bagira.SimHost/Brains/SimHostNodes.cs`
+- Edit: `Hrot.SimHost/SimHostApp.cs` (in `RegisterDoctrines()`)
+- Create: `Hrot.SimHost/Brains/SimHostNodes.cs`
 
 **Pattern** — mirror `UrbanCombat/HeadlessDemoApp.cs RegisterDoctrines()`:
 ```csharp
@@ -1441,7 +1441,7 @@ doctrineRegistry.Register(SimHostDoctrineIds.MoveTo_BT, "MoveToLocation",
 Repeat for `FollowRoute_BT` (`Action_WriteFollowRouteChannel`) and `JoinFormation_BT`
 (`Action_WriteJoinFormationChannel`).
 
-**`Bagira.SimHost/Brains/SimHostNodes.cs`** — create following the pattern of
+**`Hrot.SimHost/Brains/SimHostNodes.cs`** — create following the pattern of
 `UrbanCombat/Brains/InsurgentNodes.cs`; each action method reads params from
 `BrainBlackboard.Memory` and writes the appropriate locomotion channel.
 
@@ -1463,8 +1463,8 @@ using FDP.Toolkit.Behavior.Executors;
 ### DDS2ECS-S16T5 — Wire ParseParams Delegates for Param-Carrying Doctrines
 
 **Files:**
-- Edit: `Bagira.SimHost/SimHostApp.cs` (add `ParseParams` to each `DoctrineDefinition` that carries params)
-- Edit: `Bagira.SimHost/Brains/SimHostNodes.cs` (add param struct definitions)
+- Edit: `Hrot.SimHost/SimHostApp.cs` (add `ParseParams` to each `DoctrineDefinition` that carries params)
+- Edit: `Hrot.SimHost/Brains/SimHostNodes.cs` (add param struct definitions)
 
 **Goal:** When `EntityMissionTranslator` or `MissionDirectorSystem` activates a phase, the
 `DoctrineDefinition.ParseParams` delegate is called with `(task.BehaviorParams, ptr)` to write
@@ -1506,7 +1506,7 @@ Wire into the `MoveTo_BT` and `FollowRoute_BT` `DoctrineDefinition` objects crea
    `DoctrineDefinition` for `MoveTo_BT`, call `def.ParseParams(json, ptr)`, read
    `MoveToLocationParams` back and assert `X`, `Y`, `Speed`, `ArrivalRadius` match.
 2. No managed heap allocations inside the `ParseParams` delegate (use `Unsafe.Write`).
-3. `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj` GREEN.
+3. `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj` GREEN.
 
 ---
 
@@ -1523,7 +1523,7 @@ applying a subset leaves the combat pipeline in an inconsistent state.*
 
 ### DDS2ECS-S17T1 — Add Perception and Combat Project References
 
-**File:** `Bagira.SimHost/Bagira.SimHost.csproj`
+**File:** `Hrot.SimHost/Hrot.SimHost.csproj`
 
 Add three `<ProjectReference>` entries inside the existing `<ItemGroup>` that already contains
 `FDP.Toolkit.Physics` (line 39):
@@ -1535,7 +1535,7 @@ Add three `<ProjectReference>` entries inside the existing `<ItemGroup>` that al
 ```
 
 **Success Conditions:**
-1. `dotnet build Bagira.SimHost/Bagira.SimHost.csproj` GREEN with the new references present.
+1. `dotnet build Hrot.SimHost/Hrot.SimHost.csproj` GREEN with the new references present.
 2. `using FDP.Toolkit.Perception.Components;` and `using FDP.Toolkit.Combat.Components;` resolve
    in `SimHostApp.cs` without error.
 
@@ -1543,7 +1543,7 @@ Add three `<ProjectReference>` entries inside the existing `<ItemGroup>` that al
 
 ### DDS2ECS-S17T2 — Register Perception, Combat, Physics, and HSM Components
 
-**File:** `Bagira.SimHost/SimHostApp.cs` (inside `RegisterSimComponents()`)
+**File:** `Hrot.SimHost/SimHostApp.cs` (inside `RegisterSimComponents()`)
 
 After the existing `world.RegisterComponent<BrainBlackboard>();` line, add:
 
@@ -1578,7 +1578,7 @@ world.RegisterComponent<Fdp.Kernel.HealthData>();
 
 ### DDS2ECS-S17T3 — Initialize PhysicsToolkitModule in SimHostApp.OnLoad()
 
-**File:** `Bagira.SimHost/SimHostApp.cs` (inside `OnLoad()`)
+**File:** `Hrot.SimHost/SimHostApp.cs` (inside `OnLoad()`)
 
 Add before `_kernel.Initialize()` (line 213):
 
@@ -1609,7 +1609,7 @@ if (_world.HasSingleton<FDP.Toolkit.Physics.Components.RaycastBatchData>())
 
 ### DDS2ECS-S17T4 — Expand SimulationLogicModule with Combat Systems
 
-**File:** `Bagira.SimHost/Modules/SimulationLogicModule.cs`
+**File:** `Hrot.SimHost/Modules/SimulationLogicModule.cs`
 
 Split `RegisterSystems(SystemGroup group)` into three group parameters (or create
 `InputSystemGroup`, `SimulationSystemGroup`, `PostSimulationSystemGroup` internally, mirroring
@@ -1651,7 +1651,7 @@ using FDP.Toolkit.Physics.Systems;
 ```
 
 **Success Conditions:**
-1. `dotnet build Bagira.SimHost/Bagira.SimHost.csproj` GREEN.
+1. `dotnet build Hrot.SimHost/Hrot.SimHost.csproj` GREEN.
 2. `SpawningModuleIntegrationTests` still pass.
 3. 10-frame pump with a `PerceptionReceptor` + `WeaponState` entity produces no exception.
 
@@ -1659,7 +1659,7 @@ using FDP.Toolkit.Physics.Systems;
 
 ### DDS2ECS-S17T5 — Rewrite BdcTkbBuilder.WithCombat() to Attach Real ECS Components
 
-**File:** `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs`
+**File:** `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs`
 
 Rewrite `WithCombat()` to call `template.AddComponent()` for each real FDP ECS struct derived
 from the `SimCombatDef` fields — while retaining the managed component for IG display:
@@ -1735,4 +1735,4 @@ using Fdp.Kernel;
    `world.HasComponent<PerceptionReceptor>(entity)` and `VisionRange == 8000f`.
 3. `BdcTkbBuilder_WithCombat_AttachesHealth`: assert `world.HasComponent<Health>(entity)`.
 4. `SimCombatDef` managed component still accessible on the template (IG display not broken).
-5. `dotnet test Bagira.SimHost.Tests/ Bagira.Map.Common.Tests/` GREEN.
+5. `dotnet test Hrot.SimHost.Tests/ Hrot.Map.Common.Tests/` GREEN.

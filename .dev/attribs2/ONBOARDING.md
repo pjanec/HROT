@@ -39,7 +39,7 @@ The new pipeline:
    marks — all without a single JSON character on the SimHost side.
 
 4. **Domain Installers** — `EntityDataAttributeInstaller` and `SimTransformAttributeInstaller`
-   (in `Bagira.SimHost`) wire the SimHost-specific ECS components into the generic interpreter
+   (in `Hrot.SimHost`) wire the SimHost-specific ECS components into the generic interpreter
    via `IBinaryAttributeInstaller`.
 
 The existing JSON pipeline **is retained unchanged** for backward compatibility.  New code uses
@@ -82,14 +82,14 @@ FDP/Toolkits/FDP.Toolkit.Replication/Patching/
 ### DDS wire types
 
 ```
-Bagira.DDS.DataModel/
+Hrot.NED/
     GenericMessages.cs      ← add AttributeValueUnion, AttributeRecord, new list fields (P1T1, P1T3)
 ```
 
 ### SimHost domain code
 
 ```
-Bagira.SimHost/
+Hrot.SimHost/
     AttributeCompilerFactory.cs          ← extend with BuildEdgeCompiler / BuildBinaryInterpreter (P2T2, P4T3)
     Installers/
         EntityDataAttributeInstaller.cs  ← NEW (P4T1)
@@ -101,7 +101,7 @@ Bagira.SimHost/
 ### Map / Shared systems
 
 ```
-Bagira.Map.Common/
+Hrot.Map.Common/
     Systems/
         UpdateEntityAttributeRequestSystem.cs ← binary branch (P5T2)
 ```
@@ -109,7 +109,7 @@ Bagira.Map.Common/
 ### IG client
 
 ```
-Bagira.IG/
+Hrot.IG/
     Tools/
         CreationTool.cs                  ← inject EdgeCompiler (P6T1)
 ```
@@ -117,9 +117,9 @@ Bagira.IG/
 ### Tests
 
 ```
-Bagira.SimHost.Tests/            ← system-level integration tests
-Bagira.Map.Common.Tests/         ← UpdateEntityAttributeRequest tests
-Bagira.IG.Tests/                 ← CreationTool tests
+Hrot.SimHost.Tests/            ← system-level integration tests
+Hrot.Map.Common.Tests/         ← UpdateEntityAttributeRequest tests
+Hrot.IG.Tests/                 ← CreationTool tests
 FDP.Toolkit.Replication          ← (optionally) unit tests for compilers/interpreter
 ```
 
@@ -137,22 +137,22 @@ dotnet build IOS-IG-SimHost.sln
 
 ```powershell
 # Unit tests for the data model
-dotnet test "Bagira.DDS.DataModel.Tests/Bagira.DDS.DataModel.Tests.csproj" --no-build --nologo
+dotnet test "Hrot.NED.Tests/Hrot.NED.Tests.csproj" --no-build --nologo
 
 # SimHost system tests (CreateEntityRequestSystem, AttributeCompilerFactory)
-dotnet test "Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj" --no-build --nologo
+dotnet test "Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj" --no-build --nologo
 
 # Map common tests (UpdateEntityAttributeRequestSystem)
-dotnet test "Bagira.Map.Common.Tests/Bagira.Map.Common.Tests.csproj" --no-build --nologo
+dotnet test "Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj" --no-build --nologo
 
 # IG tests (CreationTool)
-dotnet test "Bagira.IG.Tests/Bagira.IG.Tests.csproj" --no-build --nologo
+dotnet test "Hrot.IG.Tests/Hrot.IG.Tests.csproj" --no-build --nologo
 ```
 
 ### Run a specific test class
 
 ```powershell
-dotnet test "Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj" \
+dotnet test "Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj" \
     --no-build --nologo \
     --filter "FullyQualifiedName~BinaryInterpreterTests"
 ```
@@ -174,5 +174,5 @@ Key points:
   [ATTR2-TASK-DETAIL.md](./ATTR2-TASK-DETAIL.md).
 - Do not modify existing passing tests unless the task explicitly requires it.
 - Zero-allocation constraints are verified in tests (allocation-counting helpers are already
-  present in the existing test projects — see `Bagira.SimHost.Tests/AttributeCompilerFactoryTests.cs`
+  present in the existing test projects — see `Hrot.SimHost.Tests/AttributeCompilerFactoryTests.cs`
   for examples).

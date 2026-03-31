@@ -37,8 +37,8 @@ ParallelStories (DEM1-D008):
 ### Task 1 — Eliminate CS0618 `MissionTrigger.ReachedDestination` Sites
 
 **Files changed:**
-- `Bagira.Map.Common/Replication/Egress/EntityMissionEgressTranslator.cs`
-- `Bagira.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs`
+- `Hrot.Map.Common/Replication/Egress/EntityMissionEgressTranslator.cs`
+- `Hrot.SimHost.Integration.Tests/Infrastructure/SimHostInstance.cs`
 
 **Problem:** Two code sites used `MissionTrigger.ReachedDestination` (value=1, `[Obsolete]`), generating CS0618. The correct runtime trigger for "doctrine completed" is `DoctrineFinished` (value=4). The egress translator's old `switch` case was mapping `EcsMissionTrigger.ReachedDestination` (internal-enum value=1, which is the same integer as the old code) to the string `"ReachedDestination"`, while `EcsMissionTrigger.DoctrineFinished` (value=4) was silently falling through to `"TimerElapsed"` — a correctness bug, not just a warning.
 

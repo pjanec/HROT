@@ -22,7 +22,7 @@ Welcome to the fifth batch. You will now give the operator the ability to intera
 5. **Code Standards:** `.dev-workstream/guides/CODE-STANDARDS.md` - Pay close attention to mathematical constraints and ECS logic vs Input events.
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`
+- **Primary Work Area:** `Hrot.IG/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -71,7 +71,7 @@ Operators need multiple specific modes (Tools) to operate the canvas. We will im
 
 ### Task 1: IG.3.1 & IG.3.2 Standard Interaction & Selection
 
-**File:** `Bagira.IG/Tools/StandardInteractionTool.cs`  
+**File:** `Hrot.IG/Tools/StandardInteractionTool.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.3.1, IG.3.2)
 
 **Description:** Provide hover states and active selection logic.
@@ -89,7 +89,7 @@ Operators need multiple specific modes (Tools) to operate the canvas. We will im
 
 ### Task 2: IG.3.3 Implement CreationTool
 
-**File:** `Bagira.IG/Tools/CreationTool.cs`  
+**File:** `Hrot.IG/Tools/CreationTool.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.3.3)
 
 **Description:** Push map clicks into network entity creation requests.
@@ -106,7 +106,7 @@ Operators need multiple specific modes (Tools) to operate the canvas. We will im
 
 ### Task 3: IG.3.4 Implement MeasureTool
 
-**File:** `Bagira.IG/Tools/MeasureTool.cs`  
+**File:** `Hrot.IG/Tools/MeasureTool.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.3.4)
 
 **Description:** Compute distance lines between two operators.
@@ -122,7 +122,7 @@ Operators need multiple specific modes (Tools) to operate the canvas. We will im
 
 ### Task 4: IG.3.5 Integration Test: Create Entity
 
-**File:** `Bagira.IG.Tests/ToolInteractionIntegrationTests.cs`  
+**File:** `Hrot.IG.Tests/ToolInteractionIntegrationTests.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.3.5)
 
 **Description:** Integration flow for canvas interaction.

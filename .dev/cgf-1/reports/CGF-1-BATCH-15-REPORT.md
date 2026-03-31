@@ -14,11 +14,11 @@ CGF-1-BATCH-15 delivered two workstreams:
 - **Part A** — Production wiring of `CheckpointIOWorker` / `CheckpointDsmHandler` /
   `LiveLoadDsmHandler(checkpointWorker)` in `SimHostApp` + `NodeBootstrapper`; fail-loud
   policy for empty NAS scenario directories; two DEBT-TRACKER rows closed.
-- **Part B** — CGF1-S0309 `DryRunDsmHandler` implemented in `Bagira.Common`, registered in
+- **Part B** — CGF1-S0309 `DryRunDsmHandler` implemented in `Hrot.Common`, registered in
   all four subsystems (SimHost, CGF, IG, IOS), and covered by 6 unit tests.
 
 Build: clean (zero new errors, 269 pre-existing warnings).  
-Tests: `Bagira.SimHost.Tests` 6/6 new `DryRunDsmHandler*` tests; `Bagira.Orchestrator.Tests`
+Tests: `Hrot.SimHost.Tests` 6/6 new `DryRunDsmHandler*` tests; `Hrot.Orchestrator.Tests`
 6/6 StorageGateway tests (+1 new empty-dir test). Full solution pass.
 
 ---
@@ -31,8 +31,8 @@ Tests: `Bagira.SimHost.Tests` 6/6 new `DryRunDsmHandler*` tests; `Bagira.Orchest
 
 | File | Change |
 |------|--------|
-| `Bagira.SimHost/SimHostApp.cs` | Added `private CheckpointIOWorker? _checkpointWorker;` field; created in `OnLoad` (`C:\FDP_Temp\checkpoints`, `localNodeId`); passed to `BuildOrchestration`; disposed in `Shutdown`. |
-| `Bagira.SimHost/NodeBootstrapper.cs` | Added `CheckpointIOWorker? checkpointWorker = null` parameter; wired `LiveLoadDsmHandler(drillSlave, eventBus, checkpointWorker)`; registered `CheckpointDsmHandler` when `checkpointWorker != null`; registered `DryRunDsmHandler(world)` unconditionally. |
+| `Hrot.SimHost/SimHostApp.cs` | Added `private CheckpointIOWorker? _checkpointWorker;` field; created in `OnLoad` (`C:\FDP_Temp\checkpoints`, `localNodeId`); passed to `BuildOrchestration`; disposed in `Shutdown`. |
+| `Hrot.SimHost/NodeBootstrapper.cs` | Added `CheckpointIOWorker? checkpointWorker = null` parameter; wired `LiveLoadDsmHandler(drillSlave, eventBus, checkpointWorker)`; registered `CheckpointDsmHandler` when `checkpointWorker != null`; registered `DryRunDsmHandler(world)` unconditionally. |
 
 **Before:** `NodeBootstrapper.BuildOrchestration` created `LiveLoadDsmHandler(drillSlave, eventBus)`
 with a null worker, and never registered `CheckpointDsmHandler`.  Production SimHost could not handle
@@ -40,7 +40,7 @@ with a null worker, and never registered `CheckpointDsmHandler`.  Production Sim
 
 **After:** `SimHostApp.OnLoad` creates `CheckpointIOWorker(@"C:\FDP_Temp\checkpoints", localNodeId)`,
 passes it through to `BuildOrchestration`, which registers both `CheckpointDsmHandler` and the
-updated `LiveLoadDsmHandler`. `Shutdown` disposes the worker after `DrillSlave` disposes (ensuring
+updated `LiveLoadDsmHandler`. `Shutdown` disposes the worker after `ClusterSlave` disposes (ensuring
 the background I/O thread has finished any in-flight writes).
 
 **DEBT-TRACKER row:** `CheckpointIOWorker / CheckpointDsmHandler / LiveLoadDsmHandler wiring` →
@@ -48,7 +48,7 @@ closed `✅ CGF-1-BATCH-15`.
 
 ### A.2 — Fail-loud on empty NAS scenario directory
 
-**File changed:** `Bagira.Orchestrator/StorageGatewayModule.cs` — `PrefetchScenarioAsync`
+**File changed:** `Hrot.Orchestrator/StorageGatewayModule.cs` — `PrefetchScenarioAsync`
 
 **Problem:** When the NAS source directory existed but contained no files, `files.Length == 0` caused
 `PrefetchScenarioAsync` to return `GatewayResult{SuccessCount=0, FailureCount=0}`.
@@ -62,9 +62,9 @@ if (files.Length == 0)
         $"[Gateway] PrefetchScenario: NAS source directory '{sourceDir}' is empty ...");
 ```
 The thrown exception faults the gateway task; `DrainPendingPrefetch` detects `IsFaulted = true` and
-publishes `SysOpStatus.Failure` without fanning out `PrefetchFiles`.
+publishes `ClusterOpStatus.Failure` without fanning out `PrefetchFiles`.
 
-**Test added:** `Bagira.Orchestrator.Tests/StorageGatewayTests.cs`
+**Test added:** `Hrot.Orchestrator.Tests/StorageGatewayTests.cs`
 - `PrefetchScenarioAsync_EmptyDirectory_ThrowsInvalidOperation` — creates an empty temp directory
   and asserts `InvalidOperationException` containing `"empty"` and the scenario ID.
 
@@ -77,7 +77,7 @@ publishes `SysOpStatus.Failure` without fanning out `PrefetchFiles`.
 
 ### B.1 — Implementation
 
-**New file:** `Bagira.Common/Orchestration/Handlers/DryRunDsmHandler.cs`
+**New file:** `Hrot.Common/Orchestration/Handlers/DryRunDsmHandler.cs`
 
 **Design:**
 - Constructor: `DryRunDsmHandler(EntityRepository? liveRepo)` — subsystems with no ECS state
@@ -94,21 +94,21 @@ publishes `SysOpStatus.Failure` without fanning out `PrefetchFiles`.
 - `TestHook_Snap` (`internal`): exposes `_snap` for unit tests.
 - `ParseTargetState`: static helper copied verbatim from `EditLoadDsmHandler` pattern.
 
-**`Bagira.Common.csproj` change:** Added `InternalsVisibleTo("Bagira.SimHost.Tests")` so the
+**`Hrot.Common.csproj` change:** Added `InternalsVisibleTo("Hrot.SimHost.Tests")` so the
 `TestHook_Snap` internal accessor is visible from the test project.
 
 ### B.2 — Registrations
 
 | Subsystem | File | Registration |
 |-----------|------|-------------|
-| **SimHost** | `Bagira.SimHost/NodeBootstrapper.cs` | `drillSlave.RegisterHandler(new DryRunDsmHandler(world))` — in `BuildOrchestration`, always (world = live EntityRepository). |
-| **CGF** | `Bagira.CGF/CgfApplication.cs` | `_drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null))` — in constructor after `ScenarioLoadDsmHandler`; `using Bagira.Common.Orchestration.Handlers;` added. |
-| **IG** | `Bagira.IG/IgApplication.cs` | `_drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null))` — in `InitializeNetwork()` after DrillSlave creation; `using Bagira.Common.Orchestration.Handlers;` added. |
-| **IOS** | `Bagira.Runner/Services/IosSubsystem.cs` | `_drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null))` — in `Initialize()` after DrillSlave creation; `using Bagira.Common.Orchestration.Handlers;` added. |
+| **SimHost** | `Hrot.SimHost/NodeBootstrapper.cs` | `drillSlave.RegisterHandler(new DryRunDsmHandler(world))` — in `BuildOrchestration`, always (world = live EntityRepository). |
+| **CGF** | `Hrot.CGF/CgfApplication.cs` | `_drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null))` — in constructor after `ScenarioLoadDsmHandler`; `using Hrot.Common.Orchestration.Handlers;` added. |
+| **IG** | `Hrot.IG/IgApplication.cs` | `_drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null))` — in `InitializeNetwork()` after ClusterSlave creation; `using Hrot.Common.Orchestration.Handlers;` added. |
+| **IOS** | `Hrot.ClusterRunner/Services/IosSubsystem.cs` | `_drillSlave.RegisterHandler(new DryRunDsmHandler(liveRepo: null))` — in `Initialize()` after ClusterSlave creation; `using Hrot.Common.Orchestration.Handlers;` added. |
 
 ### B.3 — Tests
 
-**New file:** `Bagira.SimHost.Tests/DryRunDsmHandlerTests.cs`
+**New file:** `Hrot.SimHost.Tests/DryRunDsmHandlerTests.cs`
 
 Test component: `[ComponentId(210)] internal struct DryRunTestPos { float X, Y, Z; }` (distinct from
 `CkptPos` at ID 206 used by `CheckpointDsmHandlerTests`).
@@ -119,7 +119,7 @@ Test component: `[ComponentId(210)] internal struct DryRunTestPos { float X, Y, 
 | `UnloadingDryRun_RewindsLiveRepo` | Live repo component values are restored to pre-dry-run state after unload commit. `_liveRepo.Tick()` called between snapshot and mutation to ensure `SyncDirtyChunks` version mismatch triggers the copy. |
 | `UnloadingDryRun_DisposesSnapshot` | `TestHook_Snap == null` after unload commit. |
 | `Abort_DuringLoadingDryRun_DiscardsSnap` | `TestHook_Snap == null` after abort. |
-| `OtherPrepareStateTargets_AreNoOps` | Six non-dry-run `DSMState` targets leave snap null and live unchanged. |
+| `OtherPrepareStateTargets_AreNoOps` | Six non-dry-run `ClusterState` targets leave snap null and live unchanged. |
 | `UnloadingDryRun_WithNullSnap_LogsWarningAndReturns` | No exception when no snapshot exists; live repo unchanged. |
 
 ---
@@ -128,16 +128,16 @@ Test component: `[ComponentId(210)] internal struct DryRunTestPos { float X, Y, 
 
 | File | Type | Change |
 |------|------|--------|
-| `Bagira.SimHost/SimHostApp.cs` | Modified | `_checkpointWorker` field + `OnLoad` creation + `Shutdown` disposal |
-| `Bagira.SimHost/NodeBootstrapper.cs` | Modified | `checkpointWorker` param, `CheckpointDsmHandler` + `DryRunDsmHandler` registrations |
-| `Bagira.Orchestrator/StorageGatewayModule.cs` | Modified | Throw on empty NAS source directory |
-| `Bagira.Orchestrator.Tests/StorageGatewayTests.cs` | Modified | +1 empty-dir test |
-| `Bagira.Common/Orchestration/Handlers/DryRunDsmHandler.cs` | **New** | Full implementation |
-| `Bagira.Common/Bagira.Common.csproj` | Modified | `InternalsVisibleTo("Bagira.SimHost.Tests")` |
-| `Bagira.CGF/CgfApplication.cs` | Modified | `DryRunDsmHandler(null)` registration |
-| `Bagira.IG/IgApplication.cs` | Modified | `DryRunDsmHandler(null)` registration |
-| `Bagira.Runner/Services/IosSubsystem.cs` | Modified | `DryRunDsmHandler(null)` registration |
-| `Bagira.SimHost.Tests/DryRunDsmHandlerTests.cs` | **New** | 6 unit tests for CGF1-S0309 |
+| `Hrot.SimHost/SimHostApp.cs` | Modified | `_checkpointWorker` field + `OnLoad` creation + `Shutdown` disposal |
+| `Hrot.SimHost/NodeBootstrapper.cs` | Modified | `checkpointWorker` param, `CheckpointDsmHandler` + `DryRunDsmHandler` registrations |
+| `Hrot.Orchestrator/StorageGatewayModule.cs` | Modified | Throw on empty NAS source directory |
+| `Hrot.Orchestrator.Tests/StorageGatewayTests.cs` | Modified | +1 empty-dir test |
+| `Hrot.Common/Orchestration/Handlers/DryRunDsmHandler.cs` | **New** | Full implementation |
+| `Hrot.Common/Hrot.Common.csproj` | Modified | `InternalsVisibleTo("Hrot.SimHost.Tests")` |
+| `Hrot.CGF/CgfApplication.cs` | Modified | `DryRunDsmHandler(null)` registration |
+| `Hrot.IG/IgApplication.cs` | Modified | `DryRunDsmHandler(null)` registration |
+| `Hrot.ClusterRunner/Services/IosSubsystem.cs` | Modified | `DryRunDsmHandler(null)` registration |
+| `Hrot.SimHost.Tests/DryRunDsmHandlerTests.cs` | **New** | 6 unit tests for CGF1-S0309 |
 | `.dev/DEBT-TRACKER.md` | Modified | 2 rows closed (`✅ CGF-1-BATCH-15`) |
 | `.dev/cgf-1/CGF-1-TASK-TRACKER.md` | Modified | S0309 `[x]`, progress line updated to 6/9 |
 
@@ -146,7 +146,7 @@ Test component: `[ComponentId(210)] internal struct DryRunTestPos { float X, Y, 
 ## Test Results
 
 ```
-Bagira.SimHost.Tests       Passed:  6  Failed: 0  (DryRunDsmHandlerTests — all new)
-Bagira.Orchestrator.Tests  Passed:  6  Failed: 0  (StorageGatewayTests — 5 existing + 1 new)
+Hrot.SimHost.Tests       Passed:  6  Failed: 0  (DryRunDsmHandlerTests — all new)
+Hrot.Orchestrator.Tests  Passed:  6  Failed: 0  (StorageGatewayTests — 5 existing + 1 new)
 Full solution build        0 errors, 269 warnings (all pre-existing)
 ```

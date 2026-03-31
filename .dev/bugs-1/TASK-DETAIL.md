@@ -22,7 +22,7 @@
 
 | File | Change |
 |---|---|
-| `Bagira.Runner/Services/SimHostSubsystem.cs` | Line ~119: replace `config.DomainId > 0 ? config.DomainId : (int?)null` with `config.DomainId` (or nullable cast if `SimHostApp` constructor requires nullable) |
+| `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` | Line ~119: replace `config.DomainId > 0 ? config.DomainId : (int?)null` with `config.DomainId` (or nullable cast if `SimHostApp` constructor requires nullable) |
 
 **Constraints**
 
@@ -43,7 +43,7 @@
    *Assert:* `SimHostApp` receives `domainOverride = 5`.
 
 3. **Regression — existing test suite still passes:**  
-   All tests in `Bagira.SimHost.Tests` continue to pass without modification.
+   All tests in `Hrot.SimHost.Tests` continue to pass without modification.
 
 ---
 
@@ -67,9 +67,9 @@
 | `FDP/Framework/FDP.Framework.Runner/RunnerOptions.cs` | Add `public int NodeId { get; set; }` |
 | `FDP/Framework/FDP.Framework.Runner/SubsystemConfig.cs` | Add `public int NodeId { get; set; }` |
 | `FDP/Framework/FDP.Framework.Runner/SubsystemOrchestrator.cs` | Store `_nodeId` from options; resolve per-subsystem ID in `Initialize()` with legacy fallback |
-| `Bagira.Runner/Program.cs` | Map `config.NodeId` into `RunnerOptions.NodeId` |
-| `Bagira.Runner/Services/SimHostSubsystem.cs` | Pass `config.NodeId` into `SimHostApp` instead of static constant |
-| `Bagira.Runner/Services/IgSubsystem.cs` | Pass `config.NodeId` into `IgApplication` instead of static constant |
+| `Hrot.ClusterRunner/Program.cs` | Map `config.NodeId` into `RunnerOptions.NodeId` |
+| `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` | Pass `config.NodeId` into `SimHostApp` instead of static constant |
+| `Hrot.ClusterRunner/Services/IgSubsystem.cs` | Pass `config.NodeId` into `IgApplication` instead of static constant |
 
 **Deterministic offset table (when base `--node-id` != 0):**
 
@@ -163,10 +163,10 @@ compatibility.
 
 | File | Location | Change |
 |---|---|---|
-| `Bagira.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `ProcessRequest` — entity not found | Remove `WriteAck(EntityNotFound)`, add debug log, return |
-| `Bagira.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `ProcessRequest` — unsupported type | Remove `WriteAck(NotSupported)`, add debug log, return |
-| `Bagira.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `ProcessGeoSpatialUpdate` — not authoritative | Remove `WriteAck(NotOwner)`, add debug log, return |
-| `Bagira.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `ProcessMapVisualOverlayUpdate` — not authoritative | Remove `WriteAck(NotOwner)`, add debug log, return |
+| `Hrot.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `ProcessRequest` — entity not found | Remove `WriteAck(EntityNotFound)`, add debug log, return |
+| `Hrot.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `ProcessRequest` — unsupported type | Remove `WriteAck(NotSupported)`, add debug log, return |
+| `Hrot.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `ProcessWorldPosUpdate` — not authoritative | Remove `WriteAck(NotOwner)`, add debug log, return |
+| `Hrot.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | `ProcessMapVisualOverlayUpdate` — not authoritative | Remove `WriteAck(NotOwner)`, add debug log, return |
 
 **Constraints**
 
@@ -178,7 +178,7 @@ compatibility.
 1. **Non-authoritative node emits no ACK:**  
    *Setup:* Create a fake `ISimulationView` where `HasAuthority` returns `false` for any entity.
    Inject it into `UpdateEntityDescriptorRequestSystem`. Publish a `UpdateEntityDescriptorRequest`
-   for a GeoSpatial update with a valid EntityId.  
+   for a WorldPos update with a valid EntityId.  
    *Assert:* No `UpdateEntityDescriptorAck` is written to the DDS writer mock.
 
 2. **Entity not found — silent discard:**  
@@ -190,11 +190,11 @@ compatibility.
    *Assert:* No ACK written. Debug log emitted.
 
 4. **Authoritative node emits Success ACK:**  
-   *Setup:* `HasAuthority` returns `true`. Valid GeoSpatial update request.  
+   *Setup:* `HasAuthority` returns `true`. Valid WorldPos update request.  
    *Assert:* Exactly one `UpdateEntityDescriptorAck` with `ErrorCode = Success` is written.
 
 5. **Existing tests pass:**  
-   All tests in `Bagira.Map.Common.Tests` (if present) and `Bagira.IG.Tests` continue to pass.
+   All tests in `Hrot.Map.Common.Tests` (if present) and `Hrot.IG.Tests` continue to pass.
 
 ---
 
@@ -243,7 +243,7 @@ compatibility.
    *Assert:* No translator's `Dispose` is called.
 
 4. **Existing SimHost integration tests pass:**  
-   `Bagira.SimHost.Integration.Tests` suite passes without modification.
+   `Hrot.SimHost.Integration.Tests` suite passes without modification.
 
 ---
 
@@ -259,7 +259,7 @@ compatibility.
 
 - **In:**  
   - `MapUserConfig.ContinuousDragUpdates` bool property.  
-  - `IgApplication.SendGeoSpatialUpdate(Entity entity, Vector2 worldPos)` private helper method.  
+  - `IgApplication.SendWorldPosUpdate(Entity entity, Vector2 worldPos)` private helper method.  
   - `IgApplication._continuousDragTimer` float field.  
   - Updated `OnEntityMoved` subscription (entity param used, throttle logic).  
   - Simplified `OnEntityDragEnded` delegating to helper.  
@@ -270,12 +270,12 @@ compatibility.
 
 | File | Change |
 |---|---|
-| `Bagira.IG/Systems/MapUserConfig.cs` | Add `public bool ContinuousDragUpdates { get; set; }` |
-| `Bagira.IG/IgApplication.cs` | Add field `_continuousDragTimer`; add `SendGeoSpatialUpdate` helper; update `OnEntityMoved`/`OnEntityDragEnded` subscriptions |
+| `Hrot.IG/Systems/MapUserConfig.cs` | Add `public bool ContinuousDragUpdates { get; set; }` |
+| `Hrot.IG/IgApplication.cs` | Add field `_continuousDragTimer`; add `SendWorldPosUpdate` helper; update `OnEntityMoved`/`OnEntityDragEnded` subscriptions |
 
 **Constraints**
 
-- The `SendGeoSpatialUpdate` helper must guard for `!_networkEnabled || _commandGateway == null ||
+- The `SendWorldPosUpdate` helper must guard for `!_networkEnabled || _commandGateway == null ||
   _geoTransform == null` and bail silently — identical to the existing guards in `OnEntityDragEnded`.
 - The throttle interval is **0.1 s** (10 Hz). This value may be a private constant rather than
   configurable.
@@ -284,7 +284,7 @@ compatibility.
 - `_continuousDragTimer` must be reset in `OnEntityDragEnded` regardless of whether continuous mode
   is enabled, to prevent a stale timer from firing at the start of the next drag.
 - The existing test hook methods (`SimulateDropAt`, `SimulateDragAndDrop`) must not require
-  modification — they go through `OnEntityDragEnded` which continues to call `SendGeoSpatialUpdate`.
+  modification — they go through `OnEntityDragEnded` which continues to call `SendWorldPosUpdate`.
 
 **Success Conditions**
 
@@ -308,7 +308,7 @@ compatibility.
    *Assert:* After `OnEntityDragEnded`, `_continuousDragTimer == 0f`.
 
 5. **Existing drag-related IG tests pass:**  
-   Tests in `Bagira.IG.Tests` that exercise `SimulateDropAt` or `SimulateDragAndDrop` pass without
+   Tests in `Hrot.IG.Tests` that exercise `SimulateDropAt` or `SimulateDragAndDrop` pass without
    modification.
 
 ---
@@ -332,7 +332,7 @@ compatibility.
 
 | File | Change |
 |---|---|
-| `Bagira.IOS/Panels/MissionPanel.cs` | `HandleAddTask()`: `Triggers = new List<MissionTrigger>()` → `Triggers = new List<MissionTrigger> { new MissionTrigger { Type = "DoctrineFinished" } }` |
+| `Hrot.ExCon/Panels/MissionPanel.cs` | `HandleAddTask()`: `Triggers = new List<MissionTrigger>()` → `Triggers = new List<MissionTrigger> { new MissionTrigger { Type = "DoctrineFinished" } }` |
 
 **Constraints**
 
@@ -352,7 +352,7 @@ compatibility.
    *Assert:* Both tasks have `Triggers.Count == 1` and `Triggers[0].Type == "DoctrineFinished"`.
 
 3. **Existing MissionPanel unit tests pass:**  
-   All tests in `Bagira.IOS.Tests` that exercise `MissionPanel` pass without modification (update
+   All tests in `Hrot.ExCon.Tests` that exercise `MissionPanel` pass without modification (update
    those that assert `Triggers` is empty — they should now assert `DoctrineFinished`).
 
 ---
@@ -377,9 +377,9 @@ compatibility.
 
 | File | Change |
 |---|---|
-| `Bagira.IOS/Services/IMissionEditorService.cs` | Add `Task<MissionCommitResult> SendControlCommandAsync(...)` |
-| `Bagira.IOS/Services/MissionEditorService.cs` | Implement `SendControlCommandAsync` mirroring `CommitMissionAsync` (TCS in `_pendingCommits`, `BaseVersion = 0`) |
-| `Bagira.IOS/Panels/MissionPanel.cs` | `HandleAbort`: replace fire-and-forget with `_pendingCommit = ... .SendControlCommandAsync(...)` + `_commitInFlight = true`. Same for `HandleJump`. |
+| `Hrot.ExCon/Services/IMissionEditorService.cs` | Add `Task<MissionCommitResult> SendControlCommandAsync(...)` |
+| `Hrot.ExCon/Services/MissionEditorService.cs` | Implement `SendControlCommandAsync` mirroring `CommitMissionAsync` (TCS in `_pendingCommits`, `BaseVersion = 0`) |
+| `Hrot.ExCon/Panels/MissionPanel.cs` | `HandleAbort`: replace fire-and-forget with `_pendingCommit = ... .SendControlCommandAsync(...)` + `_commitInFlight = true`. Same for `HandleJump`. |
 
 **Constraints**
 
@@ -418,5 +418,5 @@ compatibility.
    *Assert:* `MissionControlAck.ErrorCode == 0` (Success). No `ERR_VERSION_CONFLICT`.
 
 5. **Existing IOS tests pass:**  
-   All tests in `Bagira.IOS.Tests` that exercise `HandleAbort`, `HandleJump`, or
+   All tests in `Hrot.ExCon.Tests` that exercise `HandleAbort`, `HandleJump`, or
    `SendControlCommand` pass or are updated to use the async signature.

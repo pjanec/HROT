@@ -3,9 +3,9 @@
     <!-- Plans -->
     <Plan Name="RunAll">
     	<App
-    	    AppIdTuple = "m1.IOS"
+    	    AppIdTuple = "m1.ExCon"
     		Template = "apps.FDP.Runner"
-    		CmdLineArgs = "-m ios --no-wait"
+    		CmdLineArgs = "-m excon --no-wait"
     	>
     		<WindowPos titleregexp="FDP\sRunner" rect="0,0,400,900" screen="0" keep="0" />
     	</App>

@@ -11,7 +11,7 @@
 
 Verified against source (not only `.dev-workstream/reports/BATCH-08-REPORT.md`). **Tasks 1–3 match the batch instructions and design intent.** **`MissionTriggerHelper`** maps legacy `"ReachedDestination"` to **`DoctrineFinished`** without touching the obsolete enum; **`ParallelStoriesScenario`** topology is asserted via **`ModuleHostKernel.GetRegisteredModuleTypeNames()`**; **DEM1-TASK-DETAIL** § D008 and scenario XML describe **`LiveKinematicsModule`** + blocking **`AsyncRecorder`**. **Task 4 (DEM1-D009)** was correctly scoped out of this batch.
 
-**Tests run locally:** `Fdp.Examples.Scenarios.Tests` **51/51** passed; `FDP.Toolkit.ImGui.Tests` **43/43** passed (report listed 42 — count drift, harmless); `Bagira.Map.Common.Tests` **94/94** passed.
+**Tests run locally:** `Fdp.Examples.Scenarios.Tests` **51/51** passed; `FDP.Toolkit.ImGui.Tests` **43/43** passed (report listed 42 — count drift, harmless); `Hrot.Map.Common.Tests` **94/94** passed.
 
 ---
 
@@ -37,7 +37,7 @@ Verified against source (not only `.dev-workstream/reports/BATCH-08-REPORT.md`).
 
 **Expected:** Map wire `"ReachedDestination"` to **`DoctrineFinished`** at ingress; tests updated.
 
-**Found:** Switch arm and XML in `Bagira.Map.Common/Helpers/MissionTriggerHelper.cs`; `EntityMissionIngressTranslatorTests.ResolveTrigger_ReachedDestination_MapsToDoctrineFinished` asserts **`DoctrineFinished`**.
+**Found:** Switch arm and XML in `Hrot.Map.Common/Helpers/MissionTriggerHelper.cs`; `EntityMissionIngressTranslatorTests.ResolveTrigger_ReachedDestination_MapsToDoctrineFinished` asserts **`DoctrineFinished`**.
 
 ### Task 3a — ParallelStories kernel proof
 

@@ -30,7 +30,7 @@
 |---------|--------|--------|
 | `FDP.Toolkit.Replication.Tests` | 38 | 0 |
 | `FDP.Toolkit.Combat.Tests` | 38 | 0 |
-| `Bagira.SimHost.Tests` | 340 | 0 |
+| `Hrot.SimHost.Tests` | 340 | 0 |
 | `Fdp.Examples.UrbanCombat.Tests` | 29 | 0 |
 
 **Key Test Scenarios Verified:**
@@ -54,11 +54,11 @@
 
 **Q1: What issues did you encounter during implementation? How did you resolve them?**
 
-**Issue 1 — `IDescriptorTranslator` namespace ambiguity in `Bagira.SimHost`.**  
+**Issue 1 — `IDescriptorTranslator` namespace ambiguity in `Hrot.SimHost`.**  
 The interface lives in `Fdp.Interfaces` (not `ModuleHost.Core.Abstractions`). The wrong using was initially added because `ModuleHost.Core.Abstractions` is the home of the *old* version of the interface (with `IDataReader`/`IDataWriter` parameters). The fix was to add `using Fdp.Interfaces;` plus keep `using ModuleHost.Core.Abstractions;` for `IEntityCommandBuffer`.
 
-**Issue 2 — `IDdsWriter<T>` ambiguity in `Bagira.SimHost`.**  
-Both `Bagira.IG.Abstractions.IDdsWriter<T>` and `Bagira.Map.Common.Dds.IDdsWriter<T>` exist and differ: the Map-Common version adds `DisposeInstance(T key)`. `DdsWriterAdapter<T>` implements the Map-Common interface. Following the pattern from `Bagira.IG` (which uses the IG-Abstractions version) pulled in both namespaces and caused the ambiguity. Resolution: dropped `using Bagira.IG.Abstractions;` from the production translator; updated `CapturingWriter<T>` in tests to implement `DisposeInstance` as a no-op; used `Bagira.Map.Common.Dds.IDdsWriter<T>` exclusively in `Bagira.SimHost`.
+**Issue 2 — `IDdsWriter<T>` ambiguity in `Hrot.SimHost`.**  
+Both `Hrot.IG.Abstractions.IDdsWriter<T>` and `Hrot.Map.Common.Dds.IDdsWriter<T>` exist and differ: the Map-Common version adds `DisposeInstance(T key)`. `DdsWriterAdapter<T>` implements the Map-Common interface. Following the pattern from `Hrot.IG` (which uses the IG-Abstractions version) pulled in both namespaces and caused the ambiguity. Resolution: dropped `using Hrot.IG.Abstractions;` from the production translator; updated `CapturingWriter<T>` in tests to implement `DisposeInstance` as a no-op; used `Hrot.Map.Common.Dds.IDdsWriter<T>` exclusively in `Hrot.SimHost`.
 
 **Issue 3 — `in sample.Data` is not addressable (CS8156).**  
 `DdsReader<T>` loan enumerator exposes `Data` as a property, making the expression a non-addressable temporary. Fixed by assigning to a local before passing `in`.
@@ -73,7 +73,7 @@ Both `Bagira.IG.Abstractions.IDdsWriter<T>` and `Bagira.Map.Common.Dds.IDdsWrite
 
 **Q2: Did you spot any weak points in the existing codebase? What would you improve?**
 
-- **Two `IDdsWriter<T>` interfaces** in the same solution (`Bagira.IG.Abstractions` vs `Bagira.Map.Common.Dds`) are structurally identical except for `DisposeInstance`. Adding both to projects that reference `Bagira.IG` and `Bagira.Map.Common` will always produce this ambiguity. A future consolidation to a single shared interface (or an explicit using alias convention) would remove the fragility.
+- **Two `IDdsWriter<T>` interfaces** in the same solution (`Hrot.IG.Abstractions` vs `Hrot.Map.Common.Dds`) are structurally identical except for `DisposeInstance`. Adding both to projects that reference `Hrot.IG` and `Hrot.Map.Common` will always produce this ambiguity. A future consolidation to a single shared interface (or an explicit using alias convention) would remove the fragility.
 - **`AuthorityExtensions.HasAuthority` returning `false` when no `NetworkAuthority` is present** was a latent bug masked by the fact that most unit tests bypassed authority checks altogether. The contract was documented as "assume local authority" but the implementation disagreed. The fix is low-risk but the discrepancy existed undetected through Batch 01.
 - **`FireProcessingSystem` now requires `NetworkEntityMap` at construction** but callers like standalone example scenarios have to create an artificial map just to compile. A factory helper or a "local-only" mode flag would reduce boilerplate for non-network scenarios.
 

@@ -41,15 +41,15 @@
 | **Recording/Replay** | ✅ EXISTS | `Fdp.Kernel.FlightRecorder.*` | Record/playback ECS state |
 | **Command Gateway** | ✅ EXISTS (Shared) | `FDP.Toolkit.Commands.BdcCommandGateway` | Async RPC over DDS (CreateEntity, UpdateDescriptor) |
 | **Network Spawning** | ❌ NEW (shared) | `FDP.Toolkit.NetworkSpawning.NetworkSpawningSystem` | Unified entity spawn/update/destroy via `SpawnEntityCommand` events |
-| **Creation Tool** | ❌ NEW | `Bagira.IG.Tools.CreationTool` | Place entities/graphics on map |
-| **Measure Tool** | ❌ NEW | `Bagira.IG.Tools.MeasureTool` | Distance/line-of-sight measurement |
-| **Edit Tool** | ❌ NEW | `Bagira.IG.Tools.EditTool` | Vertex editing for overlays |
-| **Style Resolution** | ❌ NEW | `Bagira.IG.Systems.StyleResolutionSystem` | TKB + network + user overrides → visual |
-| **History Recording** | ❌ NEW | `Bagira.IG.Systems.HistoryRecordingSystem` | Record entity trails |
-| **Visual Effects** | ❌ NEW | `Bagira.IG.Systems.EventToEffectSystem` | Spawn explosions/tracers from events |
-| **Map Culling** | ❌ NEW | `Bagira.IG.Systems.MapCullingSystem` | Frustum culling + LOD |
-| **Context Menu** | ❌ NEW | `Bagira.IG.UI.ContextMenuSystem` | Right-click menus from IOS |
-| **IG Application** | ❌ NEW | `Bagira.IG.Program` | Main app shell, ImGui panels |
+| **Creation Tool** | ❌ NEW | `Hrot.IG.Tools.CreationTool` | Place entities/graphics on map |
+| **Measure Tool** | ❌ NEW | `Hrot.IG.Tools.MeasureTool` | Distance/line-of-sight measurement |
+| **Edit Tool** | ❌ NEW | `Hrot.IG.Tools.EditTool` | Vertex editing for overlays |
+| **Style Resolution** | ❌ NEW | `Hrot.IG.Systems.StyleResolutionSystem` | TKB + network + user overrides → visual |
+| **History Recording** | ❌ NEW | `Hrot.IG.Systems.HistoryRecordingSystem` | Record entity trails |
+| **Visual Effects** | ❌ NEW | `Hrot.IG.Systems.EventToEffectSystem` | Spawn explosions/tracers from events |
+| **Map Culling** | ❌ NEW | `Hrot.IG.Systems.MapCullingSystem` | Frustum culling + LOD |
+| **Context Menu** | ❌ NEW | `Hrot.IG.UI.ContextMenuSystem` | Right-click menus from IOS |
+| **IG Application** | ❌ NEW | `Hrot.IG.Program` | Main app shell, ImGui panels |
 
 **Key Insight**: Map rendering, tools, and network infrastructure **FULLY EXISTS**. Focus on IG-specific systems (styling, history, effects, culling) and application shell.
 
@@ -86,9 +86,9 @@ IG Mock is the **"Map Viewer & Editor"** for the simulation. It:
 ### 2.4 Dependencies
 
 **Critical Shared Components** (must be completed first):
-- ✅ `Bagira.DDS.DataModel` - DDS types (Phase P2)
+- ✅ `Hrot.NED` - DDS types (Phase P2)
 - ✅ `FDP.Toolkit.Commands` - RPC framework (Phase P4)
-- ✅ `Bagira.Map.Definitions` - TKB descriptors (Phase P5)
+- ✅ `Hrot.Map.Definitions` - TKB descriptors (Phase P5)
 
 ---
 
@@ -293,7 +293,7 @@ kernel.RegisterModule(networkModule);
 
 ```csharp
 // Dead Reckoning: TransformSyncSystem from NetworkDemo
-// IG's GeoSpatialTranslator converts WGS84 to Cartesian and writes it to NetworkPosition.
+// IG's WorldPosTranslator converts WGS84 to Cartesian and writes it to NetworkPosition.
 // TransformSyncSystem automatically lerps the visual SimTransform towards NetworkPosition.
 registry.RegisterSystem(new TransformSyncSystem(driveFromNetwork: true));
 ```
@@ -308,7 +308,7 @@ registry.RegisterSystem(new TransformSyncSystem(driveFromNetwork: true));
 
 ```csharp
 // In EntityMasterTranslator:
-public void OnReceived(Bagira.DDS.EntityMaster sample, SampleInfo info, EntityRepository world)
+public void OnReceived(Hrot.DDS.EntityMaster sample, SampleInfo info, EntityRepository world)
 {
     if (info.InstanceState == InstanceState.Disposed)
     {
@@ -843,14 +843,14 @@ public class EntityMasterTranslator : ITranslator
 }
 ```
 
-**GeoSpatialTranslator** (DDS → ECS):
+**WorldPosTranslator** (DDS → ECS):
 ```csharp
-public class GeoSpatialTranslator : ITranslator
+public class WorldPosTranslator : ITranslator
 {
     private readonly IGeographicTransform _geo;
     private readonly NetworkEntityMap _entityMap;
     
-    public void OnReceived(Bagira.DDS.GeoSpatial sample, SampleInfo info, EntityRepository world)
+    public void OnReceived(Hrot.DDS.WorldPos sample, SampleInfo info, EntityRepository world)
     {
         if (!_entityMap.TryGetEntity(sample.EntityId, out var entity)) return;
         
@@ -1459,7 +1459,7 @@ else
 ## 10. Implementation Plan
 
 ### Phase 1: Core Infrastructure (2 days)
-- **IG.1.1**: Create Bagira.IG project
+- **IG.1.1**: Create Hrot.IG project
 - **IG.1.2**: Setup MapCanvas with camera controls
 - **IG.1.3**: Integrate NetworkDemo network module
 - **IG.1.4**: Add EntityRenderLayer with stub visualizer
@@ -1510,8 +1510,8 @@ else
 ### 10.1 Overview
 
 IG is designed to run in **two deployment modes**:
-1. **Standalone Application** - Independent executable (`Bagira.IG.Standalone.exe`)
-2. **Embedded Subsystem** - Library embedded in aggregated runner (`Bagira.Runner.exe`)
+1. **Standalone Application** - Independent executable (`Hrot.IG.Standalone.exe`)
+2. **Embedded Subsystem** - Library embedded in aggregated runner (`Hrot.ClusterRunner.exe`)
 
 This dual-mode design enables:
 - Independent map viewer development
@@ -1523,7 +1523,7 @@ This dual-mode design enables:
 
 ### 10.2 ISubsystem Interface Implementation
 
-**Interface:** `ISubsystem` (defined in `Bagira.Runner.Models.ISubsystem.cs`)
+**Interface:** `ISubsystem` (defined in `Hrot.ClusterRunner.Models.ISubsystem.cs`)
 
 IG implements the standard subsystem interface:
 
@@ -1581,7 +1581,7 @@ public class IgSubsystem : SubsystemBase
         var translators = new List<IDescriptorTranslator>
         {
             new EntityMasterTranslator(_participant, _entityMap, _eventBus),
-            new GeoSpatialTranslator(_participant, _entityMap, _geoTransform),
+            new WorldPosTranslator(_participant, _entityMap, _geoTransform),
             // CRITICAL: Bridge DDS TimePulse to the EventBus for SlaveTimeController
             new AutoCycloneTranslator<TimePulseDescriptor>(_participant, "TimePulse", 100, _entityMap)
         };
@@ -1695,7 +1695,7 @@ public override void Update(float deltaTime)
 
 **Current Structure:**
 ```
-Bagira.IG/
+Hrot.IG/
 ├── Program.cs
 ├── Tools/
 │   ├── CreationTool.cs
@@ -1706,7 +1706,7 @@ Bagira.IG/
 
 **Refactored Structure:**
 ```
-Bagira.IG/ (Library)
+Hrot.IG/ (Library)
 ├── IgSubsystem.cs               ← NEW: ISubsystem implementation
 ├── IgConfiguration.cs            ← NEW: Configuration model
 ├── Tools/                        ← UNCHANGED
@@ -1715,7 +1715,7 @@ Bagira.IG/ (Library)
 └── Systems/                      ← UNCHANGED
     └── ...
 
-Bagira.IG.Standalone/ (Executable)
+Hrot.IG.Standalone/ (Executable)
 └── Program.cs                    ← NEW: Thin wrapper
 ```
 
@@ -1780,18 +1780,18 @@ public override async Task WaitForReady()
 
 **Mode 1: Standalone IG**
 ```bash
-Bagira.IG.Standalone.exe --domain 0 --node-id 2
+Hrot.IG.Standalone.exe --domain 0 --node-id 2
 ```
 
 **Mode 2: Embedded in Runner (Combined View)**
 ```bash
-Bagira.Runner.exe --mode all --domain 0
+Hrot.ClusterRunner.exe --mode all --domain 0
 # IG window shows map + IOS panels in ImGui docking layout
 ```
 
 **Mode 3: Embedded in Runner (Headless Testing)**
 ```bash
-Bagira.Runner.exe --mode ig --domain 0 --headless --script test.json
+Hrot.ClusterRunner.exe --mode ig --domain 0 --headless --script test.json
 # IG runs network logic without Raylib window
 ```
 

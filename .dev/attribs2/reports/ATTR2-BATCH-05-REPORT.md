@@ -24,14 +24,14 @@
 **Integration Tests Passed:** 59 / 59 (28 SimHost + 31 Runner)
 
 Projects verified:
-- `Bagira.DDS.DataModel.Tests` — 23/23
-- `Bagira.IG.Tests` — 310/310
-- `Bagira.SimHost.Tests` — 222/222
-- `Bagira.Map.Common.Tests` — 60/60
-- `Bagira.SimHost.Integration.Tests` — 28/28
-- `Bagira.Runner.Tests` — 99/99
-- `Bagira.IOS.Tests` — 270/270
-- `Bagira.Runner.Integration.Tests` — 31/31
+- `Hrot.NED.Tests` — 23/23
+- `Hrot.IG.Tests` — 310/310
+- `Hrot.SimHost.Tests` — 222/222
+- `Hrot.Map.Common.Tests` — 60/60
+- `Hrot.SimHost.Integration.Tests` — 28/28
+- `Hrot.ClusterRunner.Tests` — 99/99
+- `Hrot.ExCon.Tests` — 270/270
+- `Hrot.ClusterRunner.Integration.Tests` — 31/31
 
 **New Tests Added:**
 - `JsonToRecordCompilerTests.Compile_StringValue_SameReferencedReturnedOnRepeat` — verifies string intern pool returns same object reference for duplicate payloads (Task 3)
@@ -43,7 +43,7 @@ Projects verified:
 
 **Q1: What changes were enforced on the test suite when converting `Vec` structs to their own `GenericPrimitives.cs` file? Were any namespace considerations necessary?**
 
-No test changes were required. All three types — `Vec3f`, `Vec3d`, `Vec4f` — are declared in the same `Bagira.BDC.SSTM` namespace in the new file, which is the only namespace these types ever appeared in. Since C# partial struct declarations are not used here (they are standalone, not partial), moving to a new file is purely a source organisation change that is transparent to all consumers. The DDS code generator (`CycloneDDS.CodeGen`) already had separate `.g.cs` files for each vector type (`Bagira.BDC.SSTM.Vec3f.g.cs` etc.) and those remain unchanged. Tests that reference `Vec3f`, `Vec3d`, `Vec4f` in `AttributeRecordTests.cs` and `BinaryInstallersTests.cs` compiled without any modification.
+No test changes were required. All three types — `Vec3f`, `Vec3d`, `Vec4f` — are declared in the same `Hrot.NED.Messages` namespace in the new file, which is the only namespace these types ever appeared in. Since C# partial struct declarations are not used here (they are standalone, not partial), moving to a new file is purely a source organisation change that is transparent to all consumers. The DDS code generator (`CycloneDDS.CodeGen`) already had separate `.g.cs` files for each vector type (`Hrot.NED.Messages.Vec3f.g.cs` etc.) and those remain unchanged. Tests that reference `Vec3f`, `Vec3d`, `Vec4f` in `AttributeRecordTests.cs` and `BinaryInstallersTests.cs` compiled without any modification.
 
 **Q2: Regarding String interning, did you favor an internal `Dictionary` cache or a generic memory cache for strings? How did performance scale?**
 

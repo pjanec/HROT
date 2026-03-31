@@ -35,7 +35,7 @@ Complete **Part A.1** (DDS path for **`SwitchTimeModeEvent`**) **before** **S020
 
 **Work:**
 
-- Identify every node host that runs **`ModuleHostKernel`** + Cyclone (**`Bagira.Runner`**, **`SimHostApp`**, **`IgApplication`**, CGF subsystem, etc.) and **must** participate in distributed time mode.  
+- Identify every node host that runs **`ModuleHostKernel`** + Cyclone (**`Hrot.ClusterRunner`**, **`SimHostApp`**, **`IgApplication`**, CGF subsystem, etc.) and **must** participate in distributed time mode.  
 - For each: create **`TimeNetworkModule.RegisterTranslators(participant)`**, retain the translator for the app lifetime, and invoke **`ScanAndPublish`** / **`PollIngress`** (or the project’s equivalent egress/ingress hooks) **every frame** alongside existing Cyclone translators — mirror **`NetworkDemoApp`** patterns.  
 - Add a **minimal regression test** where possible (e.g. in-process participant + translator round-trip, or integration test already using DDS isolation), or document **manual verification** steps in the report if test cost is prohibitive.
 
@@ -43,7 +43,7 @@ Complete **Part A.1** (DDS path for **`SwitchTimeModeEvent`**) **before** **S020
 
 **Minimum (pick one, document in report):**
 
-- **ADR or design subsection** in **CGF-1-TASK-DETAIL** / **CGF-1-DESIGN**: keyed topic naming, writer fan-out, orchestrator **`DrillMaster`** changes, and test strategy for “ejected node receives no command”; **or**  
+- **ADR or design subsection** in **CGF-1-TASK-DETAIL** / **CGF-1-DESIGN**: keyed topic naming, writer fan-out, orchestrator **`ClusterMaster`** changes, and test strategy for “ejected node receives no command”; **or**  
 - **Incremental implementation** with tests if a low-risk slice is identified; **or**  
 - **Justified deferral** to **CGF-1-BATCH-09** only if **A.1 + S0205** exhaust capacity — **update DEBT-TRACKER** with reason (same rule as BATCH-07).
 
@@ -62,7 +62,7 @@ Close **A.1** when wired; update **SurvivingNodes** row per A.2.
 **Task definition:** [CGF-1-TASK-DETAIL.md §CGF1-S0205](../CGF-1-TASK-DETAIL.md#cgf1-s0205--deterministic-ci-hookup)  
 **Design:** [CGF-1-DESIGN.md §4.5](../CGF-1-DESIGN.md#45-stage-25--deterministic-ci-hookup)
 
-Implement **`MinimalCIScenario`**, **`DrillMaster`** payload hint for deterministic **`LoadingLive`**, coordinator / barrier integration with **`DistributedTimeCoordinator`**, slave **`SteppedSlaveController`** path, Runner **`--mode ci`**, and **all** success-condition tests listed in the task detail.
+Implement **`MinimalCIScenario`**, **`ClusterMaster`** payload hint for deterministic **`LoadingLive`**, coordinator / barrier integration with **`DistributedTimeCoordinator`**, slave **`SteppedSlaveController`** path, Runner **`--mode ci`**, and **all** success-condition tests listed in the task detail.
 
 ---
 

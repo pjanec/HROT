@@ -1,0 +1,25 @@
+{
+  "TestName": "E2E_Live_From_Replay_Branch",
+  "TimeMode": "Deterministic",
+  "FixedDeltaSeconds": 0.1,
+  "Duration": 25.0,
+  "Steps": [
+    { "Time": 0.5,  "Action": "sysop",
+      "Args": { "TargetState": "RunningLive", "ExerciseId": "e2e-branch-src" } },
+    { "Time": 1.0,  "Action": "spawn",
+      "Args": { "x": 0.0, "y": 0.0, "z": 0.0 },
+      "SaveResult": "entity_c" },
+    { "Time": 1.1,  "Action": "add_moving_tag",
+      "Args": { "entity_ref": "entity_c", "velocity_x": 5.0 } },
+    { "Time": 8.0,  "Action": "sysop",
+      "Args": { "TargetState": "RunningReplay", "ExerciseId": "e2e-branch-src" } },
+    { "Time": 12.0, "Action": "sysop",
+      "Args": { "TargetState": "RunningLive", "ExerciseId": "e2e-branch-dst" } },
+    { "Time": 14.0, "Action": "spawn",
+      "Args": { "x": 50.0, "y": 50.0, "z": 0.0 },
+      "SaveResult": "entity_d" },
+    { "Time": 15.0, "Action": "assert_position",
+      "Args": { "entity_ref": "entity_d" },
+      "Assert": { "x": { "Exactly": 50.0 } } }
+  ]
+}

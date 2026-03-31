@@ -15,9 +15,9 @@
 Welcome to MOD1 Phase 3. 
 
 **🚨 STOP RIGHT HERE: CRITICAL BLOCKER 🚨**
-The previous batch (BATCH-02) attempted to fix a `Bagira.Runner` crash where dragging/spawning an entity resulted in `System.InvalidOperationException: Entity missing NavigationIntent` at `MoveToExecutor.OnEnter`. The attempted fix merely added the component to the `SimHostComponentRegistry`; **this DID NOT FIX the issue.** A registry tells the engine a component exists; it does *not* automatically ensure the data struct actually gets attached to the entity's runtime template when spawned via UI.
+The previous batch (BATCH-02) attempted to fix a `Hrot.ClusterRunner` crash where dragging/spawning an entity resulted in `System.InvalidOperationException: Entity missing NavigationIntent` at `MoveToExecutor.OnEnter`. The attempted fix merely added the component to the `SimHostComponentRegistry`; **this DID NOT FIX the issue.** A registry tells the engine a component exists; it does *not* automatically ensure the data struct actually gets attached to the entity's runtime template when spawned via UI.
 
-When running `Bagira.Runner -x all`, the application completely crashes when "Spawn moving entity" is initiated. **You must fix this before undertaking ANY other task.** It is paramount to run and verify the runner using `-x all` arguments in integration testing.
+When running `Hrot.ClusterRunner -x all`, the application completely crashes when "Spawn moving entity" is initiated. **You must fix this before undertaking ANY other task.** It is paramount to run and verify the runner using `-x all` arguments in integration testing.
 
 After CT-MOD1-C2 is resolved, you will process Phase 3: tearing down the `SimHostApp.OnLoad` God-Class in favor of declarative `NodeRole`-based bootstrapper composition, and implementing fully concrete DDD translator mappings for our Navigation intents.
 
@@ -29,12 +29,12 @@ After CT-MOD1-C2 is resolved, you will process Phase 3: tearing down the `SimHos
 
 ### Source Code Location
 - **Primary Work Areas:**
-  - `Bagira.SimHost/Network/`
-  - `Bagira.SimHost/`
-  - `Bagira.SimHost.Standalone/Config/`
+  - `Hrot.SimHost/Network/`
+  - `Hrot.SimHost/`
+  - `Hrot.SimHost.Standalone/Config/`
 - **Test Projects:**
-  - `Bagira.SimHost.Tests/`
-  - `Bagira.SimHost.Integration.Tests/`
+  - `Hrot.SimHost.Tests/`
+  - `Hrot.SimHost.Integration.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -49,7 +49,7 @@ After CT-MOD1-C2 is resolved, you will process Phase 3: tearing down the `SimHos
 
 **CRITICAL: You MUST complete tasks in sequence with passing tests:**
 
-1. **Task CT-MOD1-C2:** Implement → Fix `Bagira.Runner` → **ALL tests AND `-x all` process works** ✅
+1. **Task CT-MOD1-C2:** Implement → Fix `Hrot.ClusterRunner` → **ALL tests AND `-x all` process works** ✅
 2. **Task 1:** Implement → Write tests → **ALL tests pass** ✅
 3. **Task 2:** Implement → Write tests → **ALL tests pass** ✅  
 4. **Task 3:** Implement → Write tests → **ALL tests pass** ✅
@@ -74,7 +74,7 @@ Phase 3 transitions the architecture from a monolithic initialization path into 
 ---
 
 ## 🎯 Batch Objectives
-- **Solve the `Bagira.Runner` entity generation crash explicitly under `-x all`.**
+- **Solve the `Hrot.ClusterRunner` entity generation crash explicitly under `-x all`.**
 - Deliver NodeRole composition separating `Brain`, `MuscleGround`, `ImageGenerator`, and `AllInOne`.
 - Encapsulate ECS translation layers in `KinematicTranslatorPack`, `CognitiveTranslatorPack`, and `SharedTranslatorPack`.
 - Expose the DDS-to-ECS mapping for CQRS navigation intent logic securely.
@@ -91,14 +91,14 @@ Phase 3 transitions the architecture from a monolithic initialization path into 
 Fix the `InvalidOperationException: Entity missing NavigationIntent`. When an entity is created dynamically by the user or runner process, `NavigationIntent` and `NavigationStatus` components are missing from the instantiated template. You must trace the runtime spawn pipeline (likely involving `TargetType`/`EntityMaster` mapping or the TKB mapping) and ensure the ECS structures physically latch to the newly spawned entities. 
 
 **Tests Required:**
-- ✅ Ensure you can launch the application (or integration test equivalent) representing `Bagira.Runner -x all` and successfully create a moving entity without exceptions.
+- ✅ Ensure you can launch the application (or integration test equivalent) representing `Hrot.ClusterRunner -x all` and successfully create a moving entity without exceptions.
 - ✅ Assert `NavigationIntent` is truly coupled to the instantiated entities.
 
 ---
 
 ### Task 1: MOD1-P3T1
 
-**Files:** `Bagira.SimHost/Network/SharedTranslatorPack.cs`, `KinematicTranslatorPack.cs`, `CognitiveTranslatorPack.cs`
+**Files:** `Hrot.SimHost/Network/SharedTranslatorPack.cs`, `KinematicTranslatorPack.cs`, `CognitiveTranslatorPack.cs`
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P3T1](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p3t1--create-domain-specific-translator-packs)
 
@@ -115,7 +115,7 @@ Fix the `InvalidOperationException: Entity missing NavigationIntent`. When an en
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P3T2](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p3t2--create-domain-specific-component-registries)
 
-**Description:** Create explicit registries supplementing `BagiraSharedComponentRegistry`, delegating cleanly inside standard execution flow.
+**Description:** Create explicit registries supplementing `HrotSharedComponentRegistry`, delegating cleanly inside standard execution flow.
 
 **Tests Required:**
 - ✅ Check `SimHostComponentRegistry.RegisterAll` continues to provide idempotency.
@@ -124,7 +124,7 @@ Fix the `InvalidOperationException: Entity missing NavigationIntent`. When an en
 
 ### Task 3: MOD1-P3T3
 
-**Files:** `Bagira.SimHost/NodeRole.cs`, `Bagira.SimHost/NodeBootstrapper.cs`
+**Files:** `Hrot.SimHost/NodeRole.cs`, `Hrot.SimHost/NodeBootstrapper.cs`
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P3T3](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p3t3--create-noderole-and-nodebootstrapper)
 
@@ -139,7 +139,7 @@ Fix the `InvalidOperationException: Entity missing NavigationIntent`. When an en
 
 ### Task 4: MOD1-P3T4
 
-**Files:** Egress/Ingress mapping logic inside `Bagira.SimHost/Network/Navigation*Translator.cs`
+**Files:** Egress/Ingress mapping logic inside `Hrot.SimHost/Network/Navigation*Translator.cs`
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P3T4](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p3t4--implement-concrete-navigation-translator-classes)
 
@@ -169,7 +169,7 @@ Fix the `InvalidOperationException: Entity missing NavigationIntent`. When an en
 
 **❗ TEST QUALITY EXPECTATIONS**
 - **NOT ACCEPTABLE:** Checking "did the mock receive a string argument?".
-- **REQUIRED:** CT-MOD1-C2 MUST HAVE Integration tests validating `Bagira.Runner -x all` operations explicitly executing component addition safely on instantiation. 
+- **REQUIRED:** CT-MOD1-C2 MUST HAVE Integration tests validating `Hrot.ClusterRunner -x all` operations explicitly executing component addition safely on instantiation. 
 
 ---
 
@@ -196,8 +196,8 @@ Please submit `.dev-workstream/reports/MOD1-BATCH-03-REPORT.md` completing the f
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] Bagira.Runner spawned entities contain the correct baseline structs.
-- [ ] `Bagira.Runner -x all` test execution passes flawlessly without throwing `Missing NavigationIntent` errors on spawn operations.
+- [ ] Hrot.ClusterRunner spawned entities contain the correct baseline structs.
+- [ ] `Hrot.ClusterRunner -x all` test execution passes flawlessly without throwing `Missing NavigationIntent` errors on spawn operations.
 - [ ] `NodeRole` definitions seamlessly configure modules independently across boundaries.
 - [ ] Translators implement precise ECS-to-DDS mappings without bleeding references across boundaries. 
 - [ ] All specified unit/integration testing bars are achieved.
@@ -205,6 +205,6 @@ This batch is DONE when:
 ---
 
 ## ⚠️ Common Pitfalls to Avoid
-- Neglecting to actually instantiate the new entities within Bagira templates properly, defaulting back to just registry declarations.
+- Neglecting to actually instantiate the new entities within Hrot templates properly, defaulting back to just registry declarations.
 - Permitting non-owned entities to map Egress data (make sure ownership constraints hold).
 - Duplicating Component IDs inside the domain registries.

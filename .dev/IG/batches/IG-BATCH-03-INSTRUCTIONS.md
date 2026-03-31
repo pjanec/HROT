@@ -22,7 +22,7 @@ Welcome to the third batch. We are building the foundational visual components f
 5. **Code Standards:** `.dev-workstream/guides/CODE-STANDARDS.md` - MANDATORY READING (Cache safety, ECS mutations).
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`
+- **Primary Work Area:** `Hrot.IG/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -67,12 +67,12 @@ Our network environment natively pulls DDS structures successfully (batch 2). We
 
 ### Task 1: IG.2.1 Implement ResolvedStyle Component
 
-**File:** `Bagira.IG/Components/ResolvedStyle.cs`  
+**File:** `Hrot.IG/Components/ResolvedStyle.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.2.1)
 
 **Description:** Establish the runtime visual state cached per entity.
 **Requirements:**
-- Implement the unmanaged `ResolvedStyle` component inside `Bagira.IG.Components` capturing string references, Tint mapping (RGBA), Display Name labels, and specific flags outlined.
+- Implement the unmanaged `ResolvedStyle` component inside `Hrot.IG.Components` capturing string references, Tint mapping (RGBA), Display Name labels, and specific flags outlined.
 - **Standards Note:** Make sure your component adheres natively to strict unmanaged structs rules utilizing ECS configurations (i.e. avoid unbounded reference types. use flat layouts / fixed buffers if needed for string labels/names).
 
 **Tests Required:**
@@ -83,7 +83,7 @@ Our network environment natively pulls DDS structures successfully (batch 2). We
 
 ### Task 2: IG.2.2 Implement StyleResolutionSystem
 
-**File:** `Bagira.IG/Systems/StyleResolutionSystem.cs`  
+**File:** `Hrot.IG/Systems/StyleResolutionSystem.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.2.2)
 
 **Description:** Execute an ECS evaluation tier updating `ResolvedStyle`.
@@ -117,7 +117,7 @@ Please capture your valuable insights in your report:
 
 ## Developer Insights
 
-**Q1:** What issues did you face resolving structs around `Bagira.IG.Components.ResolvedStyle` adhering cleanly to the < 64 byte constraint specified organically?
+**Q1:** What issues did you face resolving structs around `Hrot.IG.Components.ResolvedStyle` adhering cleanly to the < 64 byte constraint specified organically?
 
 **Q2:** Did you locate any performance constraints blending overlapping entity symbols resolving strings or IDs dynamically inside the Simulation loop context? 
 

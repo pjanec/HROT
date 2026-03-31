@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Hrot.ExCon</RootNamespace>
+    <AssemblyName>Hrot.ExCon</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Hrot data model and map types -->
+    <ProjectReference Include="..\Hrot.Common\Hrot.Common.csproj" />
+    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
+    <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+    <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
+
+    <!-- FDP Toolkits -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.DER\FDP.Toolkit.DER.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Commands\FDP.Toolkit.Commands.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.ImGui\FDP.Toolkit.ImGui.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Hrot.ExCon.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- JSON serialisation -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- Raylib window + ImGui rendering (application shell) -->
+    <PackageReference Include="Raylib-cs" Version="7.0.2" />
+    <PackageReference Include="rlImGui-cs" Version="3.2.0" />
+  </ItemGroup>
+
+</Project>

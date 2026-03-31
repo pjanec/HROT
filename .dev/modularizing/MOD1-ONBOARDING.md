@@ -45,7 +45,7 @@ The key ideas are:
 ### Simulation Kernel (the current monolith)
 
 ```
-Bagira.SimHost/
+Hrot.SimHost/
 ├── SimHostApp.cs                          ← God-Class entry point; target of NodeBootstrapper refactor (P3T3)
 ├── SimHostComponentRegistry.cs            ← Component registration; gains domain sub-registries (P3T2)
 ├── Modules/
@@ -72,11 +72,11 @@ FDP/Toolkits/FDP.Toolkit.Navigation/
 │   └── MoveToExecutor.cs              ← Refactored to CQRS in P1T2; writes Cartesian Vector2 directly
 └── ...
 
-Bagira.DDS.DataModel/
+Hrot.NED/
 └── SimDescriptors.cs              ← DDS wire enums ENavigationMode/ENavigationResult + DDS descriptors (P1T1)
 
 # KEY RULE: ECS components use engine-side enums (FDP.Toolkit.Navigation).
-# Translators in Bagira.SimHost.Network convert engine enums ↔ wire enums and Cartesian ↔ GeoPosition.
+# Translators in Hrot.SimHost.Network convert engine enums ↔ wire enums and Cartesian ↔ GeoPoint.
 
 FDP/Toolkits/FDP.Toolkit.CarKinem/
 ├── Systems/NavigationExecutionSystem.cs  ← Writes NavigationStatus; pure Cartesian arrival check (P1T4)
@@ -94,16 +94,16 @@ FDP/Toolkits/Fdp.Toolkit.Geographic/Systems/
 ### DDS Data Model
 
 ```
-Bagira.DDS.DataModel/
+Hrot.NED/
 └── SimDescriptors.cs                      ← Add NavigationIntent/NavigationStatus descriptors in P1T1
 ```
 
 ### Presentation & Visualization
 
 ```
-Bagira.SimHost/
+Hrot.SimHost/
 ├── SimHostVisualization.cs                ← Current visualization; wrapped by SimPresentationModule (P4T1)
-Bagira.IG/
+Hrot.IG/
 ├── IgApplication.cs                       ← IG entry point; IgPresentationModule mirrors its map setup (P4T1)
 FDP/Toolkits/FDP.Toolkit.Vis2D/            ← Shared map canvas, layers, tools infrastructure
 ```
@@ -121,8 +121,8 @@ FDP/Toolkits/FDP.Toolkit.CarKinem/
 └── Modules/GroundKinematicsModule.cs      ← Created P2T4 (FDP.Toolkit.CarKinem)
    CarKinematicsSystem.cs                 ← P1T4 adds NavigationStatus fulfillment logic
 
-Bagira.SimHost/Modules/
-├── CombatModule.cs                        ← Created P2T5 (stays Bagira — weapon domain)
+Hrot.SimHost/Modules/
+├── CombatModule.cs                        ← Created P2T5 (stays Hrot — weapon domain)
 └── SimulationLogicModule.cs               ← Refactored to delegation facade (P2T5)
 ```
 
@@ -140,14 +140,14 @@ FDP/Toolkits/FDP.Toolkit.Geographic/
 ├── Systems/TerrainQuerySolverSystem.cs          ← calls ITerrainProvider (P7T4)
 └── Systems/TerrainQueryResolutionSystem.cs      ← applies Z offset (P7T4)
 
-Bagira.IG/Modules/
+Hrot.IG/Modules/
 └── IgGroundClampingModule.cs              ← IG-specific wiring, conditionally installed (P7T5)
 
-Bagira.BDC.SSTD/
+Hrot.NED.Descriptors/
 ├── GroundClampingOverride.cs              ← DDS wire descriptor (P7T1)
 └── EClampingMode.cs                       ← DDS wire enum (P7T1; separate from engine-side)
 
-Bagira.IG/Network/
+Hrot.IG/Network/
 └── GroundClampingOverrideTranslator.cs    ← ingress-only translator (P7T3)
 ```
 
@@ -173,13 +173,13 @@ FDP/Toolkits/FDP.Toolkit.Physics/
 ├── Components/RaycastBatchData.cs         ← Existing singleton (already in codebase)
 └── Systems/RaycastSolverSystem.cs         ← Wrapped by PhysicsQueryModule
 
-Bagira.SimHost/Network/
+Hrot.SimHost/Network/
 ├── BrainPerceptionTranslatorPack.cs       ← Created in P6T8
 ├── SimPerceptionTranslatorPack.cs         ← Created in P6T8
 ├── BrainPathfindingTranslatorPack.cs      ← Created in P6T8
 └── SimPathfindingTranslatorPack.cs        ← Created in P6T8
 
-Bagira.DDS.DataModel/
+Hrot.NED/
 └── SimDescriptors.cs                      ← Navigation descriptors (P1T1) + Perception/Path descriptors (P6T2)
 ```
 
@@ -190,7 +190,7 @@ FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs      ← FDP + toolkit IDs (0–159)
                                                     NavigationIntent/NavigationStatus (20–49 toolkit block),
                                                     GroundClampingConfig/State/TerrainQueryBatchData (20–49),
                                                     StoryTag/StoryReplayTag (20–49)
-Bagira.Map.Definitions/BagiraComponentIds.cs      ← Created in P5T1; Bagira-specific IDs (160–255)
+Hrot.Map.Definitions/HrotComponentIds.cs      ← Created in P5T1; Hrot-specific IDs (160–255)
                                                     e.g. ActivePerspective=160
 ```
 
@@ -203,13 +203,13 @@ FDP/Kernel/Fdp.Kernel/FlightRecorder/RecorderSystem.cs      ← 60 Hz memcpy tic
 FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackController.cs  ← dual-strategy seek; owned by ReplayModule
 
 # New artefacts created in Phase 8
-FDP/Toolkits/FDP.Toolkit.Replay/RecordingConfiguration.cs   ← injection contract (FilePath, EntityFilter, DrillId)
+FDP/Toolkits/FDP.Toolkit.Replay/RecordingConfiguration.cs   ← injection contract (FilePath, EntityFilter, ExerciseId)
 FDP/Toolkits/FDP.Toolkit.Replay/RecordingModule.cs          ← IModule + IDisposable; owns AsyncRecorder
 FDP/Toolkits/FDP.Toolkit.Replay/StoryRecorderModule.cs      ← filtered recorder; multiple run concurrently
 FDP/Toolkits/FDP.Toolkit.Replay/ReplayModule.cs             ← IModule + IDisposable; owns PlaybackController
 FDP/Toolkits/FDP.Toolkit.Replay/StoryTag.cs                 ← IModule-agnostic story entity marker
 FDP/Toolkits/FDP.Toolkit.Replay/StoryReplayTag.cs           ← marks hologram ghost entities during story replay
-Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs ← IDsmHandler + factory (Control Plane; Bagira-specific)
+Hrot.SimHost/Modules/Orchestration/EcsRecordReplayController.cs ← IDsmHandler + factory (Control Plane; Hrot-specific)
 ```
 
 ---
@@ -221,7 +221,7 @@ FDP/Framework/FDP.Framework.Runner/
 ├── ISubsystem.cs                          ← Core contract: Initialize/Update/DrawWorld/DrawUI/Shutdown + TitleBarColor (P9T1)
 ├── SubsystemConfig.cs                     ← Headless, OwnWindow flags (P9T1)
 ├── IMapCameraProvider.cs                  ← Camera-snap interface (P9T1)
-├── SubsystemOrchestrator.cs               ← 60 Hz loop, Raylib, ImGui; no Bagira coupling (P9T2)
+├── SubsystemOrchestrator.cs               ← 60 Hz loop, Raylib, ImGui; no Hrot coupling (P9T2)
 ├── WaitingRoomCoordinator.cs              ← DDS peer-startup sync; fully generic (P9T3)
 ├── RunnerConfiguration.cs                 ← Base CLI flags: --headless, --domain, --no-wait (P9T3)
 └── Testing/
@@ -232,17 +232,17 @@ FDP/Framework/FDP.Framework.Runner/
     ├── TickActionHandler.cs                 ← Generic: advance one tick (P9T4)
     └── AssertAllActionHandler.cs             ← Generic: assert condition (P9T4)
 
-Bagira.Runner/
+Hrot.ClusterRunner/
 ├── Program.cs                             ← Composition root: parse --mode, inject subsystems (P9T5)
-├── BagiraRunnerConfiguration.cs           ← Extends RunnerConfiguration: --mode, --role flags (P9T3)
+├── HrotRunnerConfiguration.cs           ← Extends RunnerConfiguration: --mode, --role flags (P9T3)
 ├── Subsystems/
-│   ├── SimHostSubsystem.cs                 ← Bagira ECS world + SimHost modules (stays here)
-│   ├── IgSubsystem.cs                      ← Bagira IG bootstrap (stays here)
-│   └── IosSubsystem.cs                     ← Bagira IOS bootstrap (stays here)
+│   ├── SimHostSubsystem.cs                 ← Hrot ECS world + SimHost modules (stays here)
+│   ├── IgSubsystem.cs                      ← Hrot IG bootstrap (stays here)
+│   └── IosSubsystem.cs                     ← Hrot IOS bootstrap (stays here)
 └── Testing/
-    ├── SpawnActionHandler.cs               ← Bagira domain: spawns entities by type (stays here)
-    ├── MoveActionHandler.cs                ← Bagira domain: issues movement commands (stays here)
-    └── AssertPositionActionHandler.cs      ← Bagira domain: checks entity Cartesian position (stays here)
+    ├── SpawnActionHandler.cs               ← Hrot domain: spawns entities by type (stays here)
+    ├── MoveActionHandler.cs                ← Hrot domain: issues movement commands (stays here)
+    └── AssertPositionActionHandler.cs      ← Hrot domain: checks entity Cartesian position (stays here)
 ```
 
 ---
@@ -291,15 +291,15 @@ Key invariants:
 - Multiple `StoryRecorderModule` instances may coexist with the global `RecordingModule`; each owns its own `AsyncRecorder` and LZ4 worker — no shared lock.
 - `Dispose()` is **always blocking** — `NodeOpStatus(Success)` is never sent before `.meta.json` is written to disk.
 
-### FDP vs Bagira Boundary — The Fundamental Rule
+### FDP vs Hrot Boundary — The Fundamental Rule
 
-See [MOD1-DESIGN.md §2.5](./MOD1-DESIGN.md#25-fdp-vs-bagira--namespace-assignment-principles) for the full assignment table. The one-sentence rule:
+See [MOD1-DESIGN.md §2.5](./MOD1-DESIGN.md#25-fdp-vs-hrot--namespace-assignment-principles) for the full assignment table. The one-sentence rule:
 
-> **Code belongs in `FDP.*` if it is ignorant of what entities _are_.** The moment a module or system needs to know the entity is "a tank", references a Bagira DDS topic, or uses a Bagira component registry, it belongs in `Bagira.*`.
+> **Code belongs in `FDP.*` if it is ignorant of what entities _are_.** The moment a module or system needs to know the entity is "a tank", references a Hrot DDS topic, or uses a Hrot component registry, it belongs in `Hrot.*`.
 
 Practical checklist before placing a new artefact:
-1. Does it reference `Bagira.*` directly? → `Bagira.*` assembly.
-2. Does it need a specific DDS topic struct (e.g. `EntityMaster`, `NavigationIntentTopic`)? → `Bagira.*` assembly.
+1. Does it reference `Hrot.*` directly? → `Hrot.*` assembly.
+2. Does it need a specific DDS topic struct (e.g. `EntityMaster`, `NavigationIntentTopic`)? → `Hrot.*` assembly.
 3. Otherwise → the appropriate `FDP.Toolkit.*` library.
 
 ---
@@ -311,16 +311,16 @@ Practical checklist before placing a new artefact:
 dotnet build IOS-IG-SimHost.sln
 
 # Build just SimHost
-dotnet build Bagira.SimHost\Bagira.SimHost.csproj
+dotnet build Hrot.SimHost\Hrot.SimHost.csproj
 
 # Run SimHost unit tests
-dotnet test Bagira.SimHost.Tests\Bagira.SimHost.Tests.csproj
+dotnet test Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj
 
 # Run SimHost integration tests
-dotnet test Bagira.SimHost.Integration.Tests\Bagira.SimHost.Integration.Tests.csproj
+dotnet test Hrot.SimHost.Integration.Tests\Hrot.SimHost.Integration.Tests.csproj
 ```
 
-All PRs must pass `dotnet build` and `dotnet test` on the `Bagira.SimHost.Tests` and `Bagira.SimHost.Integration.Tests` projects before merging.
+All PRs must pass `dotnet build` and `dotnet test` on the `Hrot.SimHost.Tests` and `Hrot.SimHost.Integration.Tests` projects before merging.
 
 ---
 
@@ -365,7 +365,7 @@ Phase 7 (P7T1–P7T5)  — IG Ground Clamping; independent of P5/P6; can start a
 Phase 8 (P8T1–P8T5)  — Recording/Replay Module Architecture
                        P8T1 (EcsRecordReplayController skeleton) can start after P2 (needs ModuleHostKernel)
                        P8T2 (RecordingModule) requires P8T1
-                       P8T3 (StoryRecorderModule + StoryTag) requires P8T2 + P5T1 (BagiraComponentIds)
+                       P8T3 (StoryRecorderModule + StoryTag) requires P8T2 + P5T1 (HrotComponentIds)
                        P8T4 (ReplayModule) requires P8T1; can be done in parallel with P8T2/P8T3
                        P8T5 (NodeBootstrapper wiring) requires P8T1–P8T4 + P3 NodeBootstrapper
         ↓

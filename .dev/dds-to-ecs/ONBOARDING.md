@@ -7,8 +7,8 @@ everything lives, and how to get started.
 
 ## 1. What We Are Fixing
 
-The Bagira IG and SimHost applications were drafted with a critical architectural shortcut: DDS
-network descriptor types (`EntityMaster`, `GeoSpatial`, `EntityInfo`, `EntityDamage`) were stored
+The Hrot IG and SimHost applications were drafted with a critical architectural shortcut: DDS
+network descriptor types (`EntityMaster`, `WorldPos`, `EntityInfo`, `EntityDamage`) were stored
 **directly** in the ECS instead of being translated into proper internal ECS components. This
 violates the core FDP separation principle and causes serialization bugs, unclear data ownership,
 and systems querying raw network DTOs as if they were simulation state.
@@ -32,12 +32,12 @@ and Translators bridge strictly between them.
 Additionally, a design review against the `UrbanCombat` golden standard (`FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs`) revealed that SimHost's mission pipeline has three compounding deviations that prevent vehicles from ever moving when given a mission: a managed-DTO data model, null BTree interpreters, and a hand-rolled mission adapter that bypasses the toolkit's `MissionDirectorSystem`. These are addressed in Phase 16.
 
 **This refactor cleans up 17 phases of violations and gaps across:**
-- `Bagira.DDS.DataModel` (Phases 1–2: strip `[ComponentId]` from DDS types)
-- `Bagira.SimHost` (Phases 2–3, 9, 12–13, 16–17: DescriptorMapper, EntityMasterEgressTranslator, network cleanup, events, mission control, mission pipeline, combat readiness)
-- `Bagira.IG` (Phases 4–8, 10–12: translator fixes, new components, dead reckoning, time sync, combat events)
-- `Bagira.IOS` (Phase 14: mission editor UI)
-- `Bagira.Map.Definitions` (Phase 17: TKB template ECS component attachment)
-- `Bagira.Runner.Integration.Tests` (Phase 15: end-to-end xUnit test harness)
+- `Hrot.NED` (Phases 1–2: strip `[ComponentId]` from DDS types)
+- `Hrot.SimHost` (Phases 2–3, 9, 12–13, 16–17: DescriptorMapper, EntityMasterEgressTranslator, network cleanup, events, mission control, mission pipeline, combat readiness)
+- `Hrot.IG` (Phases 4–8, 10–12: translator fixes, new components, dead reckoning, time sync, combat events)
+- `Hrot.ExCon` (Phase 14: mission editor UI)
+- `Hrot.Map.Definitions` (Phase 17: TKB template ECS component attachment)
+- `Hrot.ClusterRunner.Integration.Tests` (Phase 15: end-to-end xUnit test harness)
 
 ---
 
@@ -59,22 +59,22 @@ Additionally, a design review against the `UrbanCombat` golden standard (`FDP/Ex
 
 | Component | Location |
 |-----------|----------|
-| DDS descriptor types | `Bagira.DDS.DataModel/GenericDescriptors.cs`, `SimDescriptors.cs` |
-| SimHost spawn pipeline | `Bagira.SimHost/Util/DescriptorMapper.cs` |
-| SimHost application shell | `Bagira.SimHost/SimHostApp.cs` |
-| SimHost egress translators | `Bagira.SimHost/Translators/` |
-| SimHost systems (to add) | `Bagira.SimHost/Systems/` (MissionControlRequestSystem, MissionDirectorSystem registration) |
-| SimHost mission pipeline | `Bagira.SimHost/SimHostApp.cs` doctrine registration, `Bagira.SimHost/Brains/SimHostNodes.cs` (Phase 16) |
-| SimHost combat pipeline | `Bagira.SimHost/Modules/SimulationLogicModule.cs` (Phase 17), `Bagira.SimHost/Bagira.SimHost.csproj` (Phase 17) |
-| TKB template definitions | `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs`, `BdcTkbCatalog.cs` (Phase 17) |
+| DDS descriptor types | `Hrot.NED/GenericDescriptors.cs`, `SimDescriptors.cs` |
+| SimHost spawn pipeline | `Hrot.SimHost/Util/DescriptorMapper.cs` |
+| SimHost application shell | `Hrot.SimHost/SimHostApp.cs` |
+| SimHost egress translators | `Hrot.SimHost/Translators/` |
+| SimHost systems (to add) | `Hrot.SimHost/Systems/` (MissionControlRequestSystem, MissionDirectorSystem registration) |
+| SimHost mission pipeline | `Hrot.SimHost/SimHostApp.cs` doctrine registration, `Hrot.SimHost/Brains/SimHostNodes.cs` (Phase 16) |
+| SimHost combat pipeline | `Hrot.SimHost/Modules/SimulationLogicModule.cs` (Phase 17), `Hrot.SimHost/Hrot.SimHost.csproj` (Phase 17) |
+| TKB template definitions | `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs`, `BdcTkbCatalog.cs` (Phase 17) |
 | UrbanCombat golden standard | `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs`, `Setup/DemoTkbSetup.cs` |
-| Runner SimHost subsystem | `Bagira.Runner/Services/SimHostSubsystem.cs` |
-| IG application shell | `Bagira.IG/IgApplication.cs` |
-| IG translators | `Bagira.IG/Translators/` |
-| IG systems (to add) | `Bagira.IG/Systems/` (DeadReckoningSyncSystem) |
-| IG internal ECS components | `Bagira.IG/Components/` |
-| IOS mission panel | `Bagira.IOS/Panels/MissionPanel.cs` |
-| Integration test project | `Bagira.Runner.Integration.Tests/` |
+| Runner SimHost subsystem | `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` |
+| IG application shell | `Hrot.IG/IgApplication.cs` |
+| IG translators | `Hrot.IG/Translators/` |
+| IG systems (to add) | `Hrot.IG/Systems/` (DeadReckoningSyncSystem) |
+| IG internal ECS components | `Hrot.IG/Components/` |
+| IOS mission panel | `Hrot.ExCon/Panels/MissionPanel.cs` |
+| Integration test project | `Hrot.ClusterRunner.Integration.Tests/` |
 
 ### Where to Look for the Gold Standard
 
@@ -85,15 +85,15 @@ Additionally, a design review against the `UrbanCombat` golden standard (`FDP/Ex
 | `NetworkIdentity`, `NetworkOwnership`, `NetworkSpawnRequest` | `FDP/Toolkits/FDP.Toolkit.Replication/Components/` |
 | `GeoTransform`, `GeoVelocity`, `SimTransform` | `FDP/Toolkits/Fdp.Toolkit.Geographic/Components/` |
 | `GlobalComponentIds` (allocate new IDs here) | `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` |
-| `IgSymbolOverride` (already-correct ECS component) | `Bagira.IG/Components/IgSymbolOverride.cs` |
+| `IgSymbolOverride` (already-correct ECS component) | `Hrot.IG/Components/IgSymbolOverride.cs` |
 
 ### Test Projects
 
 | Project | Tests for |
 |---------|-----------|
-| `Bagira.SimHost.Tests` | `DescriptorMapper`, SimHost translators |
-| `Bagira.IG.Tests` | IG translators, `IgApplication` panels |
-| `Bagira.DDS.DataModel.Tests` | DDS model reflection guards |
+| `Hrot.SimHost.Tests` | `DescriptorMapper`, SimHost translators |
+| `Hrot.IG.Tests` | IG translators, `IgApplication` panels |
+| `Hrot.NED.Tests` | DDS model reflection guards |
 
 ---
 
@@ -122,9 +122,9 @@ dotnet build IOS-IG-SimHost.sln
 dotnet test IOS-IG-SimHost.sln
 
 # Run tests for a specific project
-dotnet test .\Bagira.SimHost.Tests\Bagira.SimHost.Tests.csproj
-dotnet test .\Bagira.IG.Tests\Bagira.IG.Tests.csproj
-dotnet test .\Bagira.DDS.DataModel.Tests\Bagira.DDS.DataModel.Tests.csproj
+dotnet test .\Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj
+dotnet test .\Hrot.IG.Tests\Hrot.IG.Tests.csproj
+dotnet test .\Hrot.NED.Tests\Hrot.NED.Tests.csproj
 ```
 
 ---
@@ -150,7 +150,7 @@ that all code in this repo must follow.
 - **Allocate new `GlobalComponentIds`** in `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` for
   `IgEntityData` and `IgHealthState`. Coordinate with the lead to avoid ID collisions.
 - **`CycloneTranslator<T, T>`** is the base class pattern used by all IG translators. See
-  `GeoSpatialTranslator.cs` for a working example (it is already correct).
+  `WorldPosTranslator.cs` for a working example (it is already correct).
 - **`NetworkSpawnRequest.DisType`** — verify this field exists before implementing DDS2ECS-S8T3.
   If it does not, consult the lead; the fallback is a `TkbDatabase.LookupDisType(tkbType)` call.
 - **Dead reckoning (Phase 10):** `NetworkPosition` is the ingress anchor in Cartesian space.
@@ -160,7 +160,7 @@ that all code in this repo must follow.
   the registration was commented out. Fix the `[DdsTopic]` attribute first (S11T1), then
   uncomment (S11T2), then add SimHost egress (S11T3).
 - **Integration tests (Phase 15):** Use unique DDS domain IDs per test class to prevent
-  cross-talk. `BagiraRunnerHarness` handles this automatically. Add `[Collection("Sequential")]`
+  cross-talk. `HrotRunnerHarness` handles this automatically. Add `[Collection("Sequential")]`
   if running on a machine with strict port limits.
 - **Mission pipeline (Phase 16) — golden standard is `UrbanCombat`:** Before touching any
   SimHost mission code, read `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` in full.

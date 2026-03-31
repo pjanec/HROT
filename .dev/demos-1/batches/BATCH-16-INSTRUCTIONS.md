@@ -54,7 +54,7 @@ If a row is **blocked**, document owner and **retarget** in **`DEBT-TRACKER`**.
 
 ```powershell
 dotnet test "FDP\Examples\Fdp.Examples.Scenarios.Tests\Fdp.Examples.Scenarios.Tests.csproj"
-dotnet test "Bagira.Runner.Integration.Tests\Bagira.Runner.Integration.Tests.csproj"
+dotnet test "Hrot.ClusterRunner.Integration.Tests\Hrot.ClusterRunner.Integration.Tests.csproj"
 ```
 
 (Add other projects if Phase 0 touches them.)

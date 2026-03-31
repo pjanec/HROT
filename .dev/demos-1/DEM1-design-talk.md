@@ -1,14 +1,14 @@
-﻿Note: This document is referencing and supersedes the original "FDP-demos-all.md" documents which is stored next to this document. 
+Note: This document is referencing and supersedes the original "FDP-demos-all.md" documents which is stored next to this document. 
 
 * * *
 
 in the recent refactoring we created lots of new modules and moved lots of stuff to generic toolkits. now we need to show how to use these toolkits via a set of demo applications or subsystems of bagora runner. These should be all purely headless to enable smooth autonomous development and testing.
 
-I basically want to mimic the stuff demonstrated by current apps/subsystem from Bagira.\* domain as well as examples like the network demo and carkinem demo and urban combat, just re-organized to allow for both showcasing some feature/toolkit as well as providing environment for autonomous testing. The goal of these new style demos is to show and prove that the toolkits/fetures work well together.
+I basically want to mimic the stuff demonstrated by current apps/subsystem from Hrot.\* domain as well as examples like the network demo and carkinem demo and urban combat, just re-organized to allow for both showcasing some feature/toolkit as well as providing environment for autonomous testing. The goal of these new style demos is to show and prove that the toolkits/fetures work well together.
 
-The new demos should be strictyl using just the stuff located inside the FDP domain, nothing from top level apps like "Bagira.\*". Top level apps might be taken for inspiration but if needed, their stuff nedds to be duplicated to inside FDP and put in Fdp.Examples namespace in FDP/Examples folder.
+The new demos should be strictyl using just the stuff located inside the FDP domain, nothing from top level apps like "Hrot.\*". Top level apps might be taken for inspiration but if needed, their stuff nedds to be duplicated to inside FDP and put in Fdp.Examples namespace in FDP/Examples folder.
 
-The examples will need their own network definitions and corresponding ingress/egress translators. The DDS messages should not resemble the Bagira ones too much. They should not use the concept of entity master. No need for using geographical coordinates, no geo-cartesian conversions needed.
+The examples will need their own network definitions and corresponding ingress/egress translators. The DDS messages should not resemble the Hrot ones too much. They should not use the concept of entity master. No need for using geographical coordinates, no geo-cartesian conversions needed.
 
 The stuff shared by different demo apps/subytems (like components, dds topics, constants...) must be centralized in "Fdp.Examples.Common" project. DDS topic definitions required to be added to "Fdp.Examples.DDS" namespace.
 
@@ -22,7 +22,7 @@ I am not sure if one single big all-in one demo showing every feature/toolkit is
 
 * * *
 
-This revised vision significantly clarifies the goal. By completely decoupling from the `Bagira.*` domain, dropping heavy concepts like the Entity Master, and ignoring Geodetic/WGS84 conversions in favor of pure Cartesian math, we can create a much leaner, more focused set of CI-friendly testbeds.
+This revised vision significantly clarifies the goal. By completely decoupling from the `Hrot.*` domain, dropping heavy concepts like the Entity Master, and ignoring Geodetic/WGS84 conversions in favor of pure Cartesian math, we can create a much leaner, more focused set of CI-friendly testbeds.
 
 Your suggestion to use a **hybrid approach**—creating several small, isolated "Partial Demos" to prove specific toolkits, culminating in a single "Grand Integration Demo" that reuses those components—is the absolute best path forward. It provides both granular CI unit testing and macro-level system validation.
 
@@ -61,7 +61,7 @@ The Grand Demo: Urban Autonomous Patrol (All Nodes)
 -   **Goal:** The ultimate "Host of Hosts" CI test proving all toolkits integrate.-   **Setup:** Brain, Sim, and IG nodes running concurrently.-   **Scenario:**
     -   Brain commands a patrol along a road network (Brain -> Sim).-   Sim executes the pathfinding and moves the vehicle (Sim -> Network).-   IG node observes the movement, runs LOS checks against an enemy, and publishes a sensor contact (IG -> Brain).-   Brain's HSM/BTree evaluates the contact, interrupts the patrol, and commands an engagement (Brain -> Sim).-   Sim resolves the ballistics, registers a hit, and destroys the enemy entity.-   **Validation:** By mathematically asserting the final ECS state (Enemy is dead, vehicle resumed patrol), you prove the entire engine pipeline is stable, thread-safe, and properly replicated without requiring visual observation.
 
-By stripping out the Bagira-specific networking overhead (like geodetic translators and the heavy Entity Master), these headless tests will be incredibly fast to run and will serve as perfect autonomous regression tests for the generic FDP toolkits.
+By stripping out the Hrot-specific networking overhead (like geodetic translators and the heavy Entity Master), these headless tests will be incredibly fast to run and will serve as perfect autonomous regression tests for the generic FDP toolkits.
 
 i need the demo runner as described in the demo document, allowing to run in headless mode or for AI development and testing, optionally with 2d map for human observation.
 
@@ -250,7 +250,7 @@ namespace Fdp.Examples.Common
 
 **Why this architecture succeeds:**
 
--   **Zero Thread Blocking/Sleeps:** The scenario operates purely on `World.GlobalVersion` evaluations inside `EvaluateTick`, adhering to the engine's strict phase-based iteration.-   **True Headless Performance:** When `--attach-vis2d` is omitted, `SubsystemConfig.Headless` is true. The orchestrator loop (`while (_running)`) skips `Render()` entirely, meaning the kernel processes ticks as fast as the CPU allows without waiting for VSync or GPU buffers.-   **Pristine Domain Isolation:** Because the runner wraps `IScenario`, tests can compose their nodes using exactly the toolkits they want to evaluate (e.g., `Kernel.RegisterModule(new ActionDispatchModule(...))`), without dragging in Bagira-specific or rendering dependencies unless explicitly told to.
+-   **Zero Thread Blocking/Sleeps:** The scenario operates purely on `World.GlobalVersion` evaluations inside `EvaluateTick`, adhering to the engine's strict phase-based iteration.-   **True Headless Performance:** When `--attach-vis2d` is omitted, `SubsystemConfig.Headless` is true. The orchestrator loop (`while (_running)`) skips `Render()` entirely, meaning the kernel processes ticks as fast as the CPU allows without waiting for VSync or GPU buffers.-   **Pristine Domain Isolation:** Because the runner wraps `IScenario`, tests can compose their nodes using exactly the toolkits they want to evaluate (e.g., `Kernel.RegisterModule(new ActionDispatchModule(...))`), without dragging in Hrot-specific or rendering dependencies unless explicitly told to.
 
 ok, in the light of these extended perspective, lets start again with re-specifying the demos. Each demo needs to be started using the runner and be autonomously testable by AI coding agents while staying optionally runnable manually with the 2d map for human manual tests.
 
@@ -2056,7 +2056,7 @@ namespace Fdp.Examples.Common.Scenarios
             // 2. Setup Recording
             if (File.Exists(RecFile)) File.Delete(RecFile);
             var recorder = new AsyncRecorder(RecFile);
-            liveKernel.RegisterModule(new RecordingModule(new RecordingConfiguration { FilePath = RecFile, DrillId = Guid.NewGuid() }));
+            liveKernel.RegisterModule(new RecordingModule(new RecordingConfiguration { FilePath = RecFile, ExerciseId = Guid.NewGuid() }));
             
             liveKernel.Initialize();
 
@@ -2629,7 +2629,7 @@ The original FDP Demos specification requested several mock components that are 
 
 2\. New DDS Messages (`Fdp.Examples.DDS`)
 
-To support the `DistributedTank` demo and "Host of Hosts" topology without dragging in the heavy Geodetic/WGS84 logic of Bagira or the legacy EntityMaster, we need to define ultra-fast, Cartesian-only IDL structs for local loopback testing.
+To support the `DistributedTank` demo and "Host of Hosts" topology without dragging in the heavy Geodetic/WGS84 logic of Hrot or the legacy EntityMaster, we need to define ultra-fast, Cartesian-only IDL structs for local loopback testing.
 
 -   **DemoSpawnMsg** _(Replaces_ _SimObjectLifecycleMsg_ _/_ _EntityMasterTopic__)_
     -   **Purpose:** Commands headless nodes to spawn an entity without waiting for the full ELM handshake if running in fast-mock mode.-   **Fields:** `NetworkId` (long), `TkbType` (long), `OwnerNodeId` (int), `IsDestroyed` (bool).-   **DemoTransformMsg** _(Replaces_ _Transform3DMsg_ _/_ _GeoStateDescriptor__)_
@@ -2731,7 +2731,7 @@ Examples/
 
 **Fdp.Examples.DDS**
 
--   **Rule:** Must contain _only_ DDS struct definitions (`[DdsTopic]`).-   **Restriction:** Cannot reference `Fdp.Kernel` or any toolkits. It must remain pure, serializable data representing flat, Cartesian-only messaging (ignoring Bagira WGS84 logic).
+-   **Rule:** Must contain _only_ DDS struct definitions (`[DdsTopic]`).-   **Restriction:** Cannot reference `Fdp.Kernel` or any toolkits. It must remain pure, serializable data representing flat, Cartesian-only messaging (ignoring Hrot WGS84 logic).
 
 **Fdp.Examples.Common**
 

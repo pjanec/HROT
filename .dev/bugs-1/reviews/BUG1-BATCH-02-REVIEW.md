@@ -39,7 +39,7 @@ feat: Continuous Drag, Mission State Fixes, and Debt Burndown (BUG1-BATCH-02)
 Completes BUG1-T001, BUG1-T002, BUG1-T003, BUG1-T004, BUG1-I001, BUG1-M001, BUG1-M002
 
 Integrates extensive tech debt fixes resolving DDS test stubs for Request Systems, fixing IOS NodeId plumbing, grouping egress translators properly, and correcting invalid trace logging logic that broke historic IG tests.
-Adds a togglable Continuous Drag Mode updating GeoSpatial position at 10Hz during Map moves. Corrects optimistic concurrency sync failures after mission abort executions and successfully defaults DoctrineFinished trigger to all generic Mission tasks.
+Adds a togglable Continuous Drag Mode updating WorldPos position at 10Hz during Map moves. Corrects optimistic concurrency sync failures after mission abort executions and successfully defaults DoctrineFinished trigger to all generic Mission tasks.
 
 Tests: Run 1015 Unit Tests including fixing 6 historic IG failures. Add tracking bounds around continuous timer mechanisms.
 ```

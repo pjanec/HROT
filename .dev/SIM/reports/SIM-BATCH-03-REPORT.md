@@ -11,18 +11,18 @@
 
 | File | Status | Description |
 |------|--------|-------------|
-| `Bagira.SimHost/Components/EntityMissionHolder.cs` | ✅ Created | Tier 2 managed ECS wrapper for `EntityMission` struct |
-| `Bagira.SimHost/Translators/EntityMissionTranslator.cs` | ✅ Created | DDS ingress translator — polls `EntityMission` topic |
-| `Bagira.SimHost/Translators/EntityMissionEgressTranslator.cs` | ✅ Created | DDS egress translator — scans dirty, authority-owned entities |
-| `Bagira.SimHost/Modules/SimHostModule.cs` | ✅ Updated | Exposes `MissionIngressTranslator` and `MissionEgressTranslator` properties |
-| `Bagira.SimHost/Program.cs` | ✅ Updated | Both translators registered in the `translators` list passed to `CycloneNetworkModule` |
-| `Bagira.SimHost.Tests/EntityMissionTranslatorTests.cs` | ✅ Created | 8 new tests covering all acceptance criteria |
+| `Hrot.SimHost/Components/EntityMissionHolder.cs` | ✅ Created | Tier 2 managed ECS wrapper for `EntityMission` struct |
+| `Hrot.SimHost/Translators/EntityMissionTranslator.cs` | ✅ Created | DDS ingress translator — polls `EntityMission` topic |
+| `Hrot.SimHost/Translators/EntityMissionEgressTranslator.cs` | ✅ Created | DDS egress translator — scans dirty, authority-owned entities |
+| `Hrot.SimHost/Modules/SimHostModule.cs` | ✅ Updated | Exposes `MissionIngressTranslator` and `MissionEgressTranslator` properties |
+| `Hrot.SimHost/Program.cs` | ✅ Updated | Both translators registered in the `translators` list passed to `CycloneNetworkModule` |
+| `Hrot.SimHost.Tests/EntityMissionTranslatorTests.cs` | ✅ Created | 8 new tests covering all acceptance criteria |
 
 ---
 
 ## Architecture Decision: `EntityMissionHolder` Wrapper
 
-`Bagira.BDC.SSTD.EntityMission` cannot be stored as a Tier 1 (unmanaged) ECS component because `MissionPlan.Tasks` is `List<MissionTask>` — a managed heap reference.  
+`Hrot.NED.Descriptors.EntityMission` cannot be stored as a Tier 1 (unmanaged) ECS component because `MissionPlan.Tasks` is `List<MissionTask>` — a managed heap reference.  
 **Solution:** A thin `sealed class EntityMissionHolder { public EntityMission Mission; }` provides the Tier 2 (managed) ECS slot.  
 ECS queries use `.WithManaged<EntityMissionHolder>()`.
 

@@ -13,7 +13,7 @@ We are creating a **self-contained, headless, CI-friendly demo suite** that live
 - Supports optional **2D map rendering** (`--attach-vis2d`) for human debugging.
 - Uses **deterministic fixed-step time** (1/60 s per tick) so results are identical across all CI hardware.
 - Writes a **structured NLog trace log** every run so AI coding agents can diagnose failures without interactive debugging.
-- Has **zero dependency on `Bagira.*`** — pure Cartesian math, no geodetic coordinates, no Entity Master.
+- Has **zero dependency on `Hrot.*`** — pure Cartesian math, no geodetic coordinates, no Entity Master.
 
 ---
 
@@ -176,9 +176,9 @@ Never use `Thread.Sleep`, `DateTime.Now`, `Stopwatch`, or `Raylib.GetFrameTime()
 
 When running via xUnit, `ScenarioSubsystem` uses an injected `Action<int>` instead of `Environment.Exit`. The `ScenarioTestHarness.Run()` static helper handles this correctly — always use it in tests.
 
-### No Bagira / No Entity Master / No Geodetic Math
+### No Hrot / No Entity Master / No Geodetic Math
 
-The new demos must never reference `Bagira.*` namespaces. Use the `Fdp.Examples.Common` DDS schemas (`DemoSpawnMsg`, `DemoTransformMsg`, etc.) for networking. No WGS84/geodetic conversions — pure Cartesian coordinates only.
+The new demos must never reference `Hrot.*` namespaces. Use the `Fdp.Examples.Common` DDS schemas (`DemoSpawnMsg`, `DemoTransformMsg`, etc.) for networking. No WGS84/geodetic conversions — pure Cartesian coordinates only.
 
 ---
 

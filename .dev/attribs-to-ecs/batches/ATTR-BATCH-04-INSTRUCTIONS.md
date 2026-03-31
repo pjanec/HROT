@@ -16,11 +16,11 @@ Welcome to ATTR-BATCH-04. This batch focuses entirely on addressing the develope
 Specifically, you will optimize the live-update hot path to be perfectly zero-allocation by pooling the `EcsPatchContext`, harden its memory-flushing semantics using `IDisposable` and ReSharper compiler annotations, and definitively eliminate any risk of coordinate mapping drift in `DescriptorMapper`.
 
 ### Source Code Location
-- `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
-- `Bagira.Map.Common/Replication/Utils/JsonAttributeCompiler.cs`
-- `Bagira.Map.Common/Replication/Utils/EcsPatchContext.cs`
-- `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs`
-- `Bagira.Map.Common.Tests/Bagira.Map.Common.Tests.csproj`
+- `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
+- `Hrot.Map.Common/Replication/Utils/JsonAttributeCompiler.cs`
+- `Hrot.Map.Common/Replication/Utils/EcsPatchContext.cs`
+- `Hrot.Map.Common/Replication/Utils/DescriptorMapper.cs`
+- `Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -74,21 +74,21 @@ Specifically, you will optimize the live-update hot path to be perfectly zero-al
 
 ---
 
-### Task 3: Eliminate `ApplyGeoSpatialDescriptor` Drift Risk
+### Task 3: Eliminate `ApplyWorldPosDescriptor` Drift Risk
 
 **File:** `DescriptorMapper.cs`
 
-**Description:** The previous batch noted that if a new `"Heading"` JSON delegate is added, `ApplyGeoSpatialDescriptor` would silently fail to apply it. We will solve this by eliminating the duplicate conversion logic entirely.
+**Description:** The previous batch noted that if a new `"Heading"` JSON delegate is added, `ApplyWorldPosDescriptor` would silently fail to apply it. We will solve this by eliminating the duplicate conversion logic entirely.
 
 **Requirements:**
-- Modify the `dtGeoSpatial` switch case handling (Phase 6 compiler overload) inside `DescriptorMapper.MapToComponents`.
-- Delete `ApplyGeoSpatialDescriptor` in its entirety.
-- Replicate the success of `dtEntityInfo`'s Json generation: dynamically construct a minimal JSON string for the GeoSpatial coordinates:
-  `{"GeoPosition":{"Latitude":..., "Longitude":..., "Altitude":...}}`
+- Modify the `dtWorldPos` switch case handling (Phase 6 compiler overload) inside `DescriptorMapper.MapToComponents`.
+- Delete `ApplyWorldPosDescriptor` in its entirety.
+- Replicate the success of `dtEntityInfo`'s Json generation: dynamically construct a minimal JSON string for the WorldPos coordinates:
+  `{"GeoPoint":{"Latitude":..., "Longitude":..., "Altitude":...}}`
 - Apply that JSON payload onto the `ListPatchContext` via `compiler.Compile()`. This guarantees the descriptor path utilizes the exact same conversion route as pure JSON attribute patches.
 
 **Tests Required:**
-- ✅ `DescriptorMapper_GeoSpatial_JsonRoute_MatchesLegacyOutput` (ensure precision isn't lost during fast JSON printing of doubles)
+- ✅ `DescriptorMapper_WorldPos_JsonRoute_MatchesLegacyOutput` (ensure precision isn't lost during fast JSON printing of doubles)
 
 ---
 
@@ -96,10 +96,10 @@ Specifically, you will optimize the live-update hot path to be perfectly zero-al
 
 **File:** `AttributeCompilerFactory.cs`
 
-**Description:** Currently, `GeoCoordAccumulator` restricts `GeoPosition` updates by requiring Latitude, Longitude, and Altitude to be updated simultaneously before translating to Cartesian space. To support partial patches (e.g., updating only `Altitude`), we must extract the missing geodetic coordinates using an inverse calculation (`geoTransform.ToGeodetic`). 
+**Description:** Currently, `GeoCoordAccumulator` restricts `GeoPoint` updates by requiring Latitude, Longitude, and Altitude to be updated simultaneously before translating to Cartesian space. To support partial patches (e.g., updating only `Altitude`), we must extract the missing geodetic coordinates using an inverse calculation (`geoTransform.ToGeodetic`). 
 
 **Requirements:**
-- Refactor the geographic property delegates (`GeoPosition.Latitude`, `GeoPosition.Longitude`, `GeoPosition.Altitude`) in `AttributeCompilerFactory` to safely handle partial updates.
+- Refactor the geographic property delegates (`GeoPoint.Latitude`, `GeoPoint.Longitude`, `GeoPoint.Altitude`) in `AttributeCompilerFactory` to safely handle partial updates.
 - If a coordinate is received but we do not receive all three, read the current Cartesian `SimTransform.Position` and pass it through `geoTransform.ToGeodetic(...)` to extract the current (latitude, longitude, altitude).
 - Replace the appropriate coordinate in that extracted triplet with the newly received JSON value.
 - Convert back to Cartesian via `geoTransform.ToCartesian(...)` and apply back to the `SimTransform`.
@@ -117,7 +117,7 @@ When completing the batch, submit `.dev-workstream/reports/ATTR-BATCH-04-REPORT.
 **Developer Insights**  
 **Q1:** What mechanism did you use to pool the patch contexts (e.g. `ConcurrentBag` vs ThreadLocal), and why?  
 **Q2:** You implemented inverse geodetic calculations in Task 4 to support partial altitude updates. What are the performance implications of this if a stream of partial positional patches is received, and how might you optimize this in the future?
-**Q3:** When constructing the JSON string inside `DescriptorMapper` for `dtGeoSpatial`, did you encounter any locale-specific string parsing bugs (e.g. `,` vs `.` for decimal places) with double formatting? How did you ensure Culture Invariant string generation for the compiler?
+**Q3:** When constructing the JSON string inside `DescriptorMapper` for `dtWorldPos`, did you encounter any locale-specific string parsing bugs (e.g. `,` vs `.` for decimal places) with double formatting? How did you ensure Culture Invariant string generation for the compiler?
 
 ---
 
@@ -125,5 +125,5 @@ When completing the batch, submit `.dev-workstream/reports/ATTR-BATCH-04-REPORT.
 - [ ] Heap allocations per `UpdateEntityAttributeRequest` have dropped back to zero.
 - [ ] The `using var context...` guarantees egress marks are flushed properly.
 - [ ] `DescriptorMapper` delegates correctly route 100% of spatial descriptors through JSON bounds safely.
-- [ ] Partial `GeoPosition` patches (e.g. Altitude only) correctly move the entity along its local vector.
+- [ ] Partial `GeoPoint` patches (e.g. Altitude only) correctly move the entity along its local vector.
 - [ ] Tests and Report are completed.

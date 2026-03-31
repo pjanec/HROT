@@ -21,10 +21,10 @@ This batch introduces the comprehensive Two-ACK pattern requested in the Two-ACK
 4. **Task Definitions:** `docs/two-ack/TWOACK-TASK-DETAIL.md` - Detailed specifications containing conditions of success for each individual task you will execute.
 
 ### Source Code Location
-- **Primary Work Area (DataModel):** `Bagira.DDS.DataModel`
-- **Primary Work Area (SimHost):** `Bagira.SimHost`
-- **Primary Work Area (IOS):** `Bagira.Runner` and `Bagira.IOS`
-- **Test Projects:** `Bagira.DDS.DataModel.Tests`, `Bagira.SimHost.Tests`, `Bagira.IG.Tests`
+- **Primary Work Area (DataModel):** `Hrot.NED`
+- **Primary Work Area (SimHost):** `Hrot.SimHost`
+- **Primary Work Area (IOS):** `Hrot.ClusterRunner` and `Hrot.ExCon`
+- **Test Projects:** `Hrot.NED.Tests`, `Hrot.SimHost.Tests`, `Hrot.IG.Tests`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -54,7 +54,7 @@ This batch introduces the comprehensive Two-ACK pattern requested in the Two-ACK
 
 ## Context
 
-The batch encapsulates the complete end-to-end delivery of the Two-ACK synchronization flow pattern. The fundamental driver here is maintaining strict single-responsibility boundaries. We will define a `DeleteEntityRequest` and expand `CreateUpdateDeleteEntityAck` so that `Bagira.IOS` correctly halts UI modifications using `ImGui` locks while intermediate transactions are executing.
+The batch encapsulates the complete end-to-end delivery of the Two-ACK synchronization flow pattern. The fundamental driver here is maintaining strict single-responsibility boundaries. We will define a `DeleteEntityRequest` and expand `CreateUpdateDeleteEntityAck` so that `Hrot.ExCon` correctly halts UI modifications using `ImGui` locks while intermediate transactions are executing.
 
 FDP components are left entirely unaffected by any of this and must remain untouched. 
 
@@ -68,7 +68,7 @@ Implement the complete Two-ACK entity logic spanning the Data Model, SimHost Sta
 ## ✅ Tasks
 
 ### Task Group 1: Data Model Unification
-**Target Files:** `Bagira.DDS.DataModel/GenericMessages.cs`
+**Target Files:** `Hrot.NED/GenericMessages.cs`
 **Scope:** Set up the DDS Contracts for `DeleteEntityRequest` & `CreateUpdateDeleteEntityAck` along with the Enum refactor.
 
 - **[TWOACK-DM001] Add `DeleteEntityRequest` struct**
@@ -79,7 +79,7 @@ Implement the complete Two-ACK entity logic spanning the Data Model, SimHost Sta
   - **Details:** See [TWOACK-DM003 Definition](docs/two-ack/TWOACK-TASK-DETAIL.md#twoack-dm003--expand-createupdatedeleteentityack-and-retire-createentityack)
 
 ### Task Group 2: SimHost Two-ACK Pipeline
-**Target Files:** `Bagira.SimHost/Systems/SstRequestFinalizationSystem.cs`, `CreateEntityRequestSystem.cs`, `DeleteEntityRequestSystem.cs`
+**Target Files:** `Hrot.SimHost/Systems/SstRequestFinalizationSystem.cs`, `CreateEntityRequestSystem.cs`, `DeleteEntityRequestSystem.cs`
 **Scope:** Build the state tracking components that hook into FDP transitions locally and correctly map `IsAlive` changes into the expanded acknowledgement payloads.
 
 - **[TWOACK-SH001] Create `SstRequestFinalizationSystem`**
@@ -90,7 +90,7 @@ Implement the complete Two-ACK entity logic spanning the Data Model, SimHost Sta
   - **Details:** See [TWOACK-SH003 Definition](docs/two-ack/TWOACK-TASK-DETAIL.md#twoack-sh003--create-deleteentityrequestsystem)
 
 ### Task Group 3: IOS Client Adaptation
-**Target Files:** `Bagira.Runner/Services/IosSubsystem.cs`, `Bagira.IOS/Services/DdsEventIngressHandlers.cs`, `IosLogic.cs`, `MissionPanel.cs`, `ContextMenuLogic.cs`
+**Target Files:** `Hrot.ClusterRunner/Services/IosSubsystem.cs`, `Hrot.ExCon/Services/DdsEventIngressHandlers.cs`, `IosLogic.cs`, `MissionPanel.cs`, `ContextMenuLogic.cs`
 **Scope:** Update the operator view to cleanly interpret and manage Two-ACK signals globally inside the ImGui framework. Establish explicit success mapping, or failure dismissible alerts.
 
 - **[TWOACK-IOS001] Update IOS Ingress Pipeline**

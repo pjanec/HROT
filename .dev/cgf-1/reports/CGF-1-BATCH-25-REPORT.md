@@ -13,7 +13,7 @@ All P1 and P2 items from the CGF-1-BATCH-24 review have been resolved:
 
 | Item | Status |
 |------|--------|
-| A.1 — `Bagira.Runner.Tests` green (mode combo test) | ✅ Done |
+| A.1 — `Hrot.ClusterRunner.Tests` green (mode combo test) | ✅ Done |
 | A.2 — `cgf` mode token parseable from CLI | ✅ Done |
 | B.1 — Fail-loud in `AssertEntityCountActionHandler` / `AddMovingTagActionHandler` | ✅ Done |
 | B.2 — `AssertionRule.Equals` → `Exactly` (CS0108 hygiene) | ✅ Done |
@@ -31,7 +31,7 @@ dotnet build IOS-IG-SimHost.sln --nologo
 
 ### Runner unit tests
 ```
-dotnet test Bagira.Runner.Tests --nologo --no-build
+dotnet test Hrot.ClusterRunner.Tests --nologo --no-build
   → Passed!  - Failed: 0, Passed: 138, Skipped: 0, Total: 138, Duration: 8 s
 ```
 (Up from 137 passing before this batch — the P1 failure `ParseMode_ComboAllThree_EqualsAllFlag` is now fixed, and 4 new `cgf`-mode tests were added.)
@@ -47,24 +47,24 @@ All passing suites (no regressions introduced):
 |-------|--------|
 | `FDP.Toolkit.Combat.Tests` | Passed: 49 |
 | `Fdp.Examples.UrbanCombat.Tests` | Passed: 29 |
-| `Bagira.Orchestrator.Integration.Tests` | Passed: 3 |
+| `Hrot.Orchestrator.Integration.Tests` | Passed: 3 |
 | `FDP.Toolkit.Scenario.Tests` | Passed: 15 |
 | `FDP.Toolkit.Orchestration.Tests` | Passed: 11 |
-| `Bagira.IG.Tests` | Passed: 429 |
+| `Hrot.IG.Tests` | Passed: 429 |
 | `Fdp.Examples.Scenarios.Tests` | Passed: 65 |
-| **`Bagira.Runner.Tests`** | **Passed: 138** ✅ |
+| **`Hrot.ClusterRunner.Tests`** | **Passed: 138** ✅ |
 | `ModuleHost.Core.Tests` | Passed: 194 |
-| `Bagira.SimHost.Integration.Tests` | Passed: 38 |
-| `Bagira.Orchestrator.Tests` | Passed: 37 |
+| `Hrot.SimHost.Integration.Tests` | Passed: 38 |
+| `Hrot.Orchestrator.Tests` | Passed: 37 |
 
 Pre-existing failures (unaffected by this batch):
 
 | Suite | Failure | Root Cause |
 |-------|---------|------------|
-| `Bagira.SimHost.Tests` | 1 failure | Passes in isolation; parallel DDS domain collision in solution-wide run |
+| `Hrot.SimHost.Tests` | 1 failure | Passes in isolation; parallel DDS domain collision in solution-wide run |
 | `Fdp.Tests` | 1 failure (`EntityLifecycle_CreationDeletionRecreation_VerifiesSchemaAndState`) | Pre-existing FDP kernel test; unrelated to this batch |
 | `Fdp.Examples.NetworkDemo.Tests` | 1 failure | Pre-existing network demo; unrelated |
-| `Bagira.Runner.Integration.Tests` | 4–5 failures | DsmE2e tests require live DDS+Orchestrator+SimHost stack (not available in unit-test CI); pre-existing from BATCH-24 |
+| `Hrot.ClusterRunner.Integration.Tests` | 4–5 failures | DsmE2e tests require live DDS+Orchestrator+SimHost stack (not available in unit-test CI); pre-existing from BATCH-24 |
 
 ---
 
@@ -72,27 +72,27 @@ Pre-existing failures (unaffected by this batch):
 
 ### A.1 — Fix `RunnerConfigurationTests` vs `RunMode.All`
 
-**File:** `Bagira.Runner.Tests/RunnerConfigurationTests.cs`
+**File:** `Hrot.ClusterRunner.Tests/RunnerConfigurationTests.cs`
 
 - Renamed `ParseMode_ComboAllThree_EqualsAllFlag` → `ParseMode_ComboAllFour_EqualsAllFlag`; changed mode string from `"simhost,ig,ios"` to `"simhost,ig,ios,orchestrator"` so the combo actually equals `RunMode.All` (which is `Orchestrator | SimHost | IG | IOS`).
 - Renamed `ParseMode_AllMode_HasAllThreeFlags` → `ParseMode_AllMode_HasAllFourFlags`; added `Assert.True(...HasFlag(RunMode.Orchestrator))` and `Assert.False(...HasFlag(RunMode.CGF))` to fully document that `All` includes Orchestrator but not CGF.
 
 ### A.2 — `cgf` token in `ParseModeString`
 
-**File:** `Bagira.Runner/Configuration/BagiraRunnerConfiguration.cs`
+**File:** `Hrot.ClusterRunner/Configuration/HrotRunnerConfiguration.cs`
 
 - Added `if (lower == "cgf") return RunMode.CGF;` to the single-token path.
 - Added `case "cgf": result |= RunMode.CGF; break;` to the comma-separated combo path.
 - Updated `[Option]` `HelpText` to list `cgf` and `orchestrator,cgf` as valid examples.
 
-**File:** `Bagira.Runner.Tests/RunnerConfigurationTests.cs` — added three new tests:
+**File:** `Hrot.ClusterRunner.Tests/RunnerConfigurationTests.cs` — added three new tests:
 - `ParseMode_Cgf_ReturnsCgfFlag` — standalone `"cgf"` token
 - `ParseMode_ComboCgfOrchestrator_ReturnsBothFlags` — combo `"orchestrator,cgf"`
 - `ParseMode_CgfNotInAll_ConfirmedByDirectCheck` — documents that `CGF ∉ RunMode.All`
 
 ### B.1 — Fail-loud in S0310 handlers
 
-**File:** `Bagira.Runner/Testing/OrchestratorActionHandlers.cs`
+**File:** `Hrot.ClusterRunner/Testing/OrchestratorActionHandlers.cs`
 
 - `AssertEntityCountActionHandler.ExecuteAsync`: when `_world == null`, replaced `LogWarning + return success with entity_count=0` with `throw new InvalidOperationException(...)`.
 - `AddMovingTagActionHandler.ExecuteAsync`:
@@ -108,13 +108,13 @@ Pre-existing failures (unaffected by this batch):
 - Updated all references from `rule.Equals` → `rule.Exactly` and the error message format string accordingly.
 
 **JSON scripts** (updated `"Equals"` key → `"Exactly"` in all three files):
-- `Bagira.Runner.Integration.Tests/TestScripts/e2e_dryrun_state_restore.json`
-- `Bagira.Runner.Integration.Tests/TestScripts/e2e_overlapping_checkpoints.json`
-- `Bagira.Runner.Integration.Tests/TestScripts/e2e_live_from_replay_branch.json`
+- `Hrot.ClusterRunner.Integration.Tests/TestScripts/e2e_dryrun_state_restore.json`
+- `Hrot.ClusterRunner.Integration.Tests/TestScripts/e2e_overlapping_checkpoints.json`
+- `Hrot.ClusterRunner.Integration.Tests/TestScripts/e2e_live_from_replay_branch.json`
 
 **Test files** (property references updated):
-- `Bagira.Runner.Tests/TestScriptParserTests.cs` — `assertions["fps"].Equals` → `assertions["fps"].Exactly`
-- `Bagira.Runner.Tests/RunnerIntegrationTests.cs` — all three inline JSON fragments using `"Equals"` updated to `"Exactly"`
+- `Hrot.ClusterRunner.Tests/TestScriptParserTests.cs` — `assertions["fps"].Equals` → `assertions["fps"].Exactly`
+- `Hrot.ClusterRunner.Tests/RunnerIntegrationTests.cs` — all three inline JSON fragments using `"Equals"` updated to `"Exactly"`
 
 ### B.3 — `MovingTestTag` placement (documentation update)
 
@@ -127,7 +127,7 @@ Per the BATCH-25 instructions, the struct is already in `OrchestratorActionHandl
 **Chosen policy:**
 - Add `[Trait("Category", "DsmE2e")]` to the test class in a future batch as a signal to CI filtering.
 - Until then: `DsmE2eScriptTests` failures in `dotnet test IOS-IG-SimHost.sln` are **expected** and are documented as requiring a dedicated integration stage (or manual trigger).
-- The existing `Bagira.Runner.Integration.Tests` project already has DDS domain isolation settings; integrating it into a separate CI stage (e.g., `--filter "Category!=DsmE2e"`) for PR builds is the recommended next step.
+- The existing `Hrot.ClusterRunner.Integration.Tests` project already has DDS domain isolation settings; integrating it into a separate CI stage (e.g., `--filter "Category!=DsmE2e"`) for PR builds is the recommended next step.
 
 This constitutes lead-level sign-off on "S0310 verified in CI = requires dedicated integration run; PR builds exclude `DsmE2e` category."
 
@@ -142,7 +142,7 @@ After renaming the property and updating the main executor, three inline JSON fr
 **Resolution:** Searched all `.cs` files for `"Equals":\s*\d` with regex, found and updated all 3 remaining occurrences in `RunnerIntegrationTests.cs`.
 
 **Issue 2 — File-lock errors during full-solution build.**  
-A prior `Bagira.Runner` process (PID 7668) was holding output DLLs locked. A second instance arose from a running `testhost` process (PID 43612).  
+A prior `Hrot.ClusterRunner` process (PID 7668) was holding output DLLs locked. A second instance arose from a running `testhost` process (PID 43612).  
 **Resolution:** `Stop-Process -Force` on both locking PIDs before retrying the build.
 
 ### 2. Did you spot any weak points in the existing codebase? What would you improve?
@@ -186,7 +186,7 @@ combo string to "simhost,ig,ios,orchestrator" to actually equal RunMode.All.
 Extend ParseMode_AllMode_HasAllThreeFlags → HasAllFourFlags to also assert
 Orchestrator and confirm CGF is not in All.
 
-A.2: Add "cgf" token to BagiraRunnerConfiguration.ParseModeString (single
+A.2: Add "cgf" token to HrotRunnerConfiguration.ParseModeString (single
 and comma-separated paths). Update HelpText. Add three tests: standalone
 cgf, orchestrator,cgf combo, and direct confirmation CGF ∉ RunMode.All.
 
@@ -201,5 +201,5 @@ inline JSON strings in RunnerIntegrationTests.cs and TestScriptParserTests.cs.
 C: Document DsmE2e CI policy: tests require live DDS stack; PR builds should
 exclude via Category=DsmE2e trait (to be added in follow-up batch).
 
-Bagira.Runner.Tests: 138/138 passed (was 137/138; +4 new cgf tests).
+Hrot.ClusterRunner.Tests: 138/138 passed (was 137/138; +4 new cgf tests).
 ```

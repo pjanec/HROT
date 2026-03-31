@@ -1,4 +1,4 @@
-﻿# 1. Current state of legacy system - features of current IOS map based on maplink
+# 1. Current state of legacy system - features of current IOS map based on maplink
 
 ### **1. Navigation & View Control**
 
@@ -370,7 +370,7 @@ sequenceDiagram
 ## 1. What Is This All About? (Big Picture)
 
 
-This document explains **how the Instructor Operating Station (IOS)** and the **Image Generator (IG)** cooperate to provide an **interactive 2D tactical map** in Bagira systems.
+This document explains **how the Instructor Operating Station (IOS)** and the **Image Generator (IG)** cooperate to provide an **interactive 2D tactical map** in Hrot systems.
 In simple terms:
 *   **IG** draws the map, symbols, and graphics, and captures mouse/keyboard input.
     
@@ -716,7 +716,7 @@ Once these click, the rest of the document becomes much easier to follow.
 
 
 ---
-Note: most of the data communication is based on [BCD SST principles](/Products-and-components/Bagira.Infra/BDC/BDC-SST-Principles). READ IT FIRST!
+Note: most of the data communication is based on [BCD SST principles](/Products-and-components/Hrot.Infra/BDC/BDC-SST-Principles). READ IT FIRST!
 
 Status: **Rougly designed.**
  - Needs a review to check if fulfills the needs for map usage
@@ -1063,7 +1063,7 @@ Switching modes supported: "Commit local overlay to backbone" operation
     struct Waypoint 
     {
         // 3D Position.
-        GeoPosition Position;
+        GeoPoint Position;
 
         // Optional label (e.g., "Checkpoint Alpha").
         string Name; 
@@ -1719,7 +1719,7 @@ User Right-Clicks Unselected Entity:
 ```
 
 ### 5.7 Data Backbone Topics
-see [BDC SST Data Model Basics](/Products-and-components/Bagira.Infra/BDC/BDC-SST-Data-Model-Basics)
+see [BDC SST Data Model Basics](/Products-and-components/Hrot.Infra/BDC/BDC-SST-Data-Model-Basics)
 
 
 ## 6. Interaction Workflows
@@ -2937,7 +2937,7 @@ see BDC SST  Data Model Basics page for the `DescriptorOptimisticLock` descripto
 
 **Snapshot Pattern**: Sending full state instead of deltas
 
-**SST**: Shared Simulation State - the existing ECS backbone architecture, part of BDC (Bagira Data Cloud) family
+**SST**: Shared Simulation State - the existing ECS backbone architecture, part of BDC (Hrot Data Cloud) family
 
 **TKB**: Technical Knowledge Base - static entity type definitions
 
@@ -3127,7 +3127,7 @@ We use the **isPartialUpdate** feature in the descriptor.
         // ...  
         boolean isPartialUpdate;       // TRUE  
         sequence<long> changedIndices; // [3] (Only vertex #3 moved)  
-        sequence<GeoPosition> points; // [New_Pos_Of_Vertex_3]  
+        sequence<GeoPoint> points; // [New_Pos_Of_Vertex_3]  
     };
 
 

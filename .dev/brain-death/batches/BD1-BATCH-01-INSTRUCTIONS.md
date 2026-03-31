@@ -23,10 +23,10 @@ This batch addresses the core ECS lifecycle for doctrine and channel cleanup. Wh
 ### Source Code Location
 - **Primary Work Areas:**
   - `FDP/Toolkits/FDP.Toolkit.Behavior/`
-  - `Bagira.SimHost/`
+  - `Hrot.SimHost/`
 - **Test Projects:**
   - `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/` (or equivalent test project for Behavior Toolkit)
-  - `Bagira.SimHost.Tests/` (or equivalent test project for SimHost)
+  - `Hrot.SimHost.Tests/` (or equivalent test project for SimHost)
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -142,7 +142,7 @@ Add `DoctrineFinished` trigger logic to consume `DoctrineFinishedEvent`. When th
 
 ### Task 5: MissionControlRequestSystem — CMD_ABORT_ALL Doctrine Clear (BD1-P1T3)
 
-**File:** `Bagira.SimHost/Systems/MissionControlRequestSystem.cs`  
+**File:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`  
 **Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p1t3-missioncontrolrequestsystem--cmd_abort_all-doctrine-clear)
 **Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#13-missioncontrolrequestsystem--cmd_abort_all-doctrine-clear)
 
@@ -197,7 +197,7 @@ This batch is DONE when:
 - [ ] Task BD1-P1T1 completed (Tests passed)
 - [ ] Task BD1-P1T2 completed (Tests passed)
 - [ ] Task BD1-P1T3 completed (Tests passed)
-- [ ] ALL tests in `FDP.Toolkit.Behavior.Tests` and `Bagira.SimHost.Tests` passing.
+- [ ] ALL tests in `FDP.Toolkit.Behavior.Tests` and `Hrot.SimHost.Tests` passing.
 - [ ] Insights Report submitted to `.dev-workstream/reports/BD1-BATCH-01-REPORT.md`
 
 ---

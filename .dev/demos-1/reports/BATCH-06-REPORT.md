@@ -252,7 +252,7 @@ This is a documentation-worthy pattern: any future scenario in `Fdp.Examples.Sce
 
 ### 2. Fdp.Examples.NetworkDemo project type (OutputType=Exe)
 
-`TransformSyncSystem` lives in `Fdp.Examples.NetworkDemo`, which is declared `<OutputType>Exe</OutputType>`. Referencing an Exe-type project from a library is unusual but legal in dotnet; the precedent of `Bagira.IG.Tests` already doing this was confirmed before adding the reference to `Fdp.Examples.Scenarios.csproj`.
+`TransformSyncSystem` lives in `Fdp.Examples.NetworkDemo`, which is declared `<OutputType>Exe</OutputType>`. Referencing an Exe-type project from a library is unusual but legal in dotnet; the precedent of `Hrot.IG.Tests` already doing this was confirmed before adding the reference to `Fdp.Examples.Scenarios.csproj`.
 
 ### 3. TransformSyncSystem position fighting
 

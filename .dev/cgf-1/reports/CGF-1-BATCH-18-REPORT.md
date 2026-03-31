@@ -4,9 +4,9 @@
 **Developer:** GitHub Copilot  
 **Date:** 2026-03-29  
 **Status:** Complete — Part A (A.1–A.3 tech debt, A.4 DEBT-TRACKER closure) and Part B
-(`FullBranchPipelineTests`) fully implemented; build clean; all 387 `Bagira.SimHost.Tests` pass.
+(`FullBranchPipelineTests`) fully implemented; build clean; all 387 `Hrot.SimHost.Tests` pass.
 
-**Lead review:** [CGF-1-BATCH-18-REVIEW.md](../reviews/CGF-1-BATCH-18-REVIEW.md) — **CONDITIONALLY APPROVED** (CGF **`PrepareLive`** blocks **`ScenarioLoadDsmHandler`**; CGF **`DrillSlave`** still fire-and-forget **`PrepareAsync`** → [CGF-1-BATCH-19](../batches/CGF-1-BATCH-19-INSTRUCTIONS.md)).
+**Lead review:** [CGF-1-BATCH-18-REVIEW.md](../reviews/CGF-1-BATCH-18-REVIEW.md) — **CONDITIONALLY APPROVED** (CGF **`PrepareLive`** blocks **`ScenarioLoadDsmHandler`**; CGF **`ClusterSlave`** still fire-and-forget **`PrepareAsync`** → [CGF-1-BATCH-19](../batches/CGF-1-BATCH-19-INSTRUCTIONS.md)).
 
 ---
 
@@ -17,7 +17,7 @@ CGF-1-BATCH-18 resolved the three BATCH-17 review P1/P2 critical gaps and implem
 **Part A:** Fixed SimHost `PrepareLive` dispatch routing (`ReplayLoadDsmHandler` now receives
 Live-from-Replay commands when replay is active), CGF branch `PrepareLive` visibility
 (`FailLoudRecordReplayStub` now runs before `ScenarioLoadDsmHandler` in `CgfApplication`), and
-`DrillSlave.DispatchCommand` `PrepareAsync`/`Commit` ordering (deferred `Commit` until the
+`ClusterSlave.DispatchCommand` `PrepareAsync`/`Commit` ordering (deferred `Commit` until the
 async prepare task completes).
 
 **Part B:** `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`
@@ -26,7 +26,7 @@ branch, records 50 branched ticks, and asserts the branched `.fdp` keyframe at f
 the historical entity snapshot.
 
 Build: clean (zero new CS errors; pre-existing third-party CS1591 warnings only).  
-Tests: 387/387 `Bagira.SimHost.Tests` (was 385; +2 new tests).
+Tests: 387/387 `Hrot.SimHost.Tests` (was 385; +2 new tests).
 
 ---
 
@@ -35,7 +35,7 @@ Tests: 387/387 `Bagira.SimHost.Tests` (was 385; +2 new tests).
 ### A.1 — `PrepareLive` must reach `ReplayLoadDsmHandler` on SimHost (P1)
 
 **Root cause:** `NodeBootstrapper.BuildOrchestration` registered `LiveLoadDsmHandler` before
-`ReplayLoadDsmHandler`. Since `DrillSlave.DispatchCommand` dispatches to the first matching
+`ReplayLoadDsmHandler`. Since `ClusterSlave.DispatchCommand` dispatches to the first matching
 handler, `ReplayLoadDsmHandler.CanHandle(PrepareLive)` was vacuously true but never reached.
 
 **Fix (both guards applied):**
@@ -47,13 +47,13 @@ handler, `ReplayLoadDsmHandler.CanHandle(PrepareLive)` was vacuously true but ne
    priority intent).
 
 **Files changed:**
-- `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs` — `CanHandle` narrowed
-- `Bagira.SimHost/NodeBootstrapper.cs` — handler registration order swapped + comment updated
+- `Hrot.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs` — `CanHandle` narrowed
+- `Hrot.SimHost/NodeBootstrapper.cs` — handler registration order swapped + comment updated
 
-**Test added** (`Bagira.SimHost.Tests/NodeBootstrapperReplayTests.cs`):
-- `DrillSlaveDispatch_PrepareLiveWithActiveReplay_RoutesToReplayBranch` — uses real
+**Test added** (`Hrot.SimHost.Tests/NodeBootstrapperReplayTests.cs`):
+- `ClusterSlaveDispatch_PrepareLiveWithActiveReplay_RoutesToReplayBranch` — uses real
   `EcsRecordReplayController` (creates recording, opens replay so `ActiveReplayModule != null`),
-  registers both handlers on a `DrillSlave` in the fixed order, dispatches `PrepareLive` via
+  registers both handlers on a `ClusterSlave` in the fixed order, dispatches `PrepareLive` via
   `EnqueueCommandForTest` + multi-tick loop, asserts `ActiveReplayModule == null` and
   `ActiveRecordingModule != null` (proving `ReplayLoadDsmHandler` handled the command, not
   `LiveLoadDsmHandler`).
@@ -62,23 +62,23 @@ handler, `ReplayLoadDsmHandler.CanHandle(PrepareLive)` was vacuously true but ne
 
 **Root cause:** In `CgfApplication`, `ScenarioLoadDsmHandler` was registered before
 `FailLoudRecordReplayStub`. `ScenarioLoadDsmHandler.CanHandle(PrepareLive)` is always true, so
-branch payloads (DrillId only, no ScenarioId) were silently acknowledged; the stub never ran.
+branch payloads (ExerciseId only, no ScenarioId) were silently acknowledged; the stub never ran.
 
 **Fix (registration order + guard log):**
 1. **`CgfApplication`** now registers `FailLoudRecordReplayStub` **before**
    `ScenarioLoadDsmHandler`. Branch `PrepareLive` reaches the stub first and logs `Error`.
 2. **`ScenarioLoadDsmHandler.PrepareAsync`** (CGF variant) adds an early guard: if
-   `scenarioId` is empty AND `DrillId` is present in the payload, it logs `Error` as a
+   `scenarioId` is empty AND `ExerciseId` is present in the payload, it logs `Error` as a
    belt-and-suspenders diagnostic that surfaces if handler registration order is changed.
 
 **Files changed:**
-- `Bagira.CGF/CgfApplication.cs` — registration order: stub first, scenario handler second
-- `Bagira.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` — branch guard +
-  `HasDrillId` helper
+- `Hrot.CGF/CgfApplication.cs` — registration order: stub first, scenario handler second
+- `Hrot.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` — branch guard +
+  `HasExerciseId` helper
 
-### A.3 — `DrillSlave.DispatchCommand` `PrepareAsync`/`Commit` ordering (P2)
+### A.3 — `ClusterSlave.DispatchCommand` `PrepareAsync`/`Commit` ordering (P2)
 
-**Root cause:** `DrillSlave.DispatchCommand` used `_ = handler.PrepareAsync(cmd, default)` then
+**Root cause:** `ClusterSlave.DispatchCommand` used `_ = handler.PrepareAsync(cmd, default)` then
 immediately called `handler.Commit(cmd, repo: null)`. Handlers with truly async `PrepareAsync`
 (e.g. `ReplayLoadDsmHandler` calling `TeardownReplayAsync` → `UninstallModuleAsync`) could see
 `Commit` run before the async teardown/install completed.
@@ -94,7 +94,7 @@ Added a `_pendingPrepare: (Task<string?>, NodeOpCommand, IDsmHandler)?` field.
 - Faulted `PrepareAsync` tasks log `Error` and skip `Commit`.
 
 **Files changed:**
-- `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs` — `_pendingPrepare` field, `Tick`
+- `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs` — `_pendingPrepare` field, `Tick`
   drain logic, `DispatchCommand` conditional `Commit`
 
 ### A.4 — DEBT-TRACKER closure
@@ -106,22 +106,22 @@ FullBranchPipelineTests) as ✅ in `.dev/DEBT-TRACKER.md`.
 
 ## Part B — `FullBranchPipelineTests` (§CGF1-S0305)
 
-**File created:** `Bagira.SimHost.Tests/FullBranchPipelineTests.cs`
+**File created:** `Hrot.SimHost.Tests/FullBranchPipelineTests.cs`
 
 **Test:** `BranchedRecording_CapturesHistoricalStateAsKeyframe`
 
 **Flow:**
 1. Creates 5 entities with predictable `SimTransform` positions.
-2. Starts a background kernel loop; prepares recording for `originalDrillId`; drives ~100
+2. Starts a background kernel loop; prepares recording for `originalExerciseId`; drives ~100
    kernel ticks via `Task.Delay(20)` × 100 (accumulates ~125 kernel frames).
 3. Finalizes original recording; opens replay; seeks to frame 50 (blasts historical ECS state
    into `_world`).
 4. Calls `ReadSimTransformPositions(_world)` (sync helper, avoids `ref readonly` in async
    method, C# 12 constraint) to snapshot entity positions at frame 50.
-5. Constructs `ReplayLoadDsmHandler` and dispatches `PrepareAsync(PrepareLive, branchedDrillId)`
+5. Constructs `ReplayLoadDsmHandler` and dispatches `PrepareAsync(PrepareLive, branchedExerciseId)`
    + `Commit` directly — mirrors the fixed production dispatch (BATCH-18 A.1/A.3).
 6. Runs 50 more branched recording ticks; finalizes branched recording.
-7. Opens `{tempDir}/{branchedDrillId}/node_1.fdp` with `RecordingReader`; reads frame 0 into a
+7. Opens `{tempDir}/{branchedExerciseId}/node_1.fdp` with `RecordingReader`; reads frame 0 into a
    fresh `EntityRepository`.
 8. Asserts entity count and `SimTransform` positions match the frame-50 snapshot.
 
@@ -147,10 +147,10 @@ FullBranchPipelineTests) as ✅ in `.dev/DEBT-TRACKER.md`.
 
 | Suite | Passed | Failed |
 |---|---|---|
-| `Bagira.SimHost.Tests` | **387** | 0 |
+| `Hrot.SimHost.Tests` | **387** | 0 |
 
 New tests (2 net additions):
-- `NodeBootstrapperReplayTests.DrillSlaveDispatch_PrepareLiveWithActiveReplay_RoutesToReplayBranch`
+- `NodeBootstrapperReplayTests.ClusterSlaveDispatch_PrepareLiveWithActiveReplay_RoutesToReplayBranch`
 - `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`
 
 ---

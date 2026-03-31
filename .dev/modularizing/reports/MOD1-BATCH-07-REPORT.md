@@ -14,7 +14,7 @@
 | CT-MOD1-M | ✅ Complete | Reverted FastBTree submodule: deleted `BTreeActionNode.cs`, restored `IAIContext.cs` stubs |
 | CT-MOD1-K | ✅ Complete | Replaced abstract base classes with static helpers; added no-op IAIContext stubs to `BTreeContext` |
 | CT-MOD1-L | ✅ Complete | `LosRequestBatchingSystem` now implements both `ComponentSystem` and `IModuleSystem`; all 4 systems registered via `ISystemRegistry` |
-| MOD1-P7T1 | ✅ Complete | `EClampingMode` wire enum + `GroundClampingOverride` DDS struct in `Bagira.BDC.SSTD`; engine-side `EClampingMode` in `Fdp.Modules.Geographic` |
+| MOD1-P7T1 | ✅ Complete | `EClampingMode` wire enum + `GroundClampingOverride` DDS struct in `Hrot.NED.Descriptors`; engine-side `EClampingMode` in `Fdp.Modules.Geographic` |
 | MOD1-P7T2 | ✅ Complete | `GroundClampingConfig`, `GroundClampingState`, `TerrainQueryBatchData` + supporting request/result structs; IDs 77–79 allocated in `GlobalComponentIds` |
 | MOD1-P7T3 | ✅ Complete | `ITerrainProvider` interface created; `GroundClampingOverrideTranslator` ingress-only translator (ordinal 66) registered in `IgApplication` |
 | MOD1-P7T4 | ✅ Complete | All 4 execution systems created: `TerrainQueryInitializationSystem`, `TerrainQuerySubmitSystem`, `TerrainQuerySolverSystem`, `TerrainQueryResolutionSystem` |
@@ -29,7 +29,7 @@
 | Suite | Passed | Total | New Tests |
 |-------|--------|-------|-----------|
 | `Fdp.Toolkit.Geographic.Tests` | 23 | 23 | +19 (from 4 baseline to 23) |
-| `Bagira.IG.Tests` | 300 | 300 | +4 (TransformSync Z-offset, IgGroundClampingModule) |
+| `Hrot.IG.Tests` | 300 | 300 | +4 (TransformSync Z-offset, IgGroundClampingModule) |
 | `FDP.Toolkit.Behavior.Tests` | 53 | 53 | — |
 | `FDP.Toolkit.Physics.Tests` | 21 | 21 | — |
 | `FDP.Toolkit.Navigation.Tests` | 32 | 32 | — |
@@ -92,7 +92,7 @@ Yes. `TerrainQueryPipelineIntegrationTests.Pipeline_TargetOffsetConverges_After3
 
 **Q5: Did bridging the `GroundClampingOverrideTranslator` (P7T3) expose any deserialization complexities mapping the DDS enum to the engine-side enum?**
 
-No deserialization complexity. Both the wire enum (`Bagira.BDC.SSTD.EClampingMode`) and the engine enum (`Fdp.Modules.Geographic.EClampingMode`) are `byte`-backed and share identical ordinal values (0 = Default/CLAMP_DEFAULT, 1 = ForceOn/CLAMP_FORCE_ON, 2 = ForceOff/CLAMP_FORCE_OFF). The mapping is a direct cast: `(IgEClampingMode)(int)sample.Data.Mode`. No lookup table or switch statement is required.
+No deserialization complexity. Both the wire enum (`Hrot.NED.Descriptors.EClampingMode`) and the engine enum (`Fdp.Modules.Geographic.EClampingMode`) are `byte`-backed and share identical ordinal values (0 = Default/CLAMP_DEFAULT, 1 = ForceOn/CLAMP_FORCE_ON, 2 = ForceOff/CLAMP_FORCE_OFF). The mapping is a direct cast: `(IgEClampingMode)(int)sample.Data.Mode`. No lookup table or switch statement is required.
 
 The dual-enum pattern (separate wire and engine enums) is valuable here even though the values happen to match: it decouples the DDS IDL schema from the IG engine's internal naming convention, so a future IDL change (e.g. adding `CLAMP_TERRAIN_ADAPTIVE = 3`) does not automatically leak into engine code paths and can be handled at the translator boundary.
 
@@ -103,7 +103,7 @@ The dual-enum pattern (separate wire and engine enums) is valuable here even tho
 ### Ground Clamping Module Structure
 
 ```
-DDS wire (Bagira.BDC.SSTD)
+DDS wire (Hrot.NED.Descriptors)
   └─ GroundClampingOverride { EntityId, EClampingMode }
        │
        ▼ GroundClampingOverrideTranslator (ordinal 66)
@@ -128,7 +128,7 @@ TransformSyncSystem (Fdp.Examples.NetworkDemo.Systems):
 
 | File | Change |
 |------|--------|
-| `Bagira.DDS.DataModel/SimDescriptors.cs` | `EClampingMode` enum + `GroundClampingOverride` struct added |
+| `Hrot.NED/SimDescriptors.cs` | `EClampingMode` enum + `GroundClampingOverride` struct added |
 | `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` | IDs 77–79 allocated (GroundClampingConfig, GroundClampingState, TerrainQueryBatchData) |
 | `FDP/Toolkits/Fdp.Toolkit.Geographic/EClampingMode.cs` | NEW — engine-side enum |
 | `FDP/Toolkits/Fdp.Toolkit.Geographic/ITerrainProvider.cs` | NEW — terrain query abstraction |
@@ -148,14 +148,14 @@ TransformSyncSystem (Fdp.Examples.NetworkDemo.Systems):
 | `FDP/Toolkits/FDP.Toolkit.Perception/Modules/AutonomousPerceptionModule.cs` | Removed public field; all 4 systems registered via registry |
 | `FDP/Toolkits/FDP.Toolkit.Perception.Tests/AutonomousPerceptionModuleTests.cs` | Updated assertions |
 | `FDP/Examples/Fdp.Examples.NetworkDemo/Systems/TransformSyncSystem.cs` | Z-offset block added to `SyncRemoteEntities` |
-| `Bagira.IG/Translators/GroundClampingOverrideTranslator.cs` | NEW |
-| `Bagira.IG/Modules/IgGroundClampingModule.cs` | NEW |
-| `Bagira.IG/IgApplication.cs` | Component registrations + `InstallGroundClamping` method + translator registration |
+| `Hrot.IG/Translators/GroundClampingOverrideTranslator.cs` | NEW |
+| `Hrot.IG/Modules/IgGroundClampingModule.cs` | NEW |
+| `Hrot.IG/IgApplication.cs` | Component registrations + `InstallGroundClamping` method + translator registration |
 | `FDP/Toolkits/Fdp.Toolkit.Geographic.Tests/Fdp.Toolkit.Geographic.Tests.csproj` | +AllowUnsafeBlocks, +Fdp.Kernel reference |
 | `FDP/Toolkits/Fdp.Toolkit.Geographic.Tests/GroundClampingConfigTests.cs` | NEW |
 | `FDP/Toolkits/Fdp.Toolkit.Geographic.Tests/TerrainQueryBatchDataTests.cs` | NEW |
 | `FDP/Toolkits/Fdp.Toolkit.Geographic.Tests/Systems/TerrainQuerySubmitSystemTests.cs` | NEW |
 | `FDP/Toolkits/Fdp.Toolkit.Geographic.Tests/Systems/TerrainQueryResolutionSystemTests.cs` | NEW |
 | `FDP/Toolkits/Fdp.Toolkit.Geographic.Tests/Systems/TerrainQueryPipelineIntegrationTests.cs` | NEW |
-| `Bagira.IG.Tests/IgGroundClampingModuleTests.cs` | NEW |
-| `Bagira.IG.Tests/TransformSyncSystemGroundClampingTests.cs` | NEW |
+| `Hrot.IG.Tests/IgGroundClampingModuleTests.cs` | NEW |
+| `Hrot.IG.Tests/TransformSyncSystemGroundClampingTests.cs` | NEW |

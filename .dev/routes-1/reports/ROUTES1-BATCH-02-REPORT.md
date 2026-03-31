@@ -24,15 +24,15 @@
 
 **New tests added this batch:** 25  
 **Total solution tests after batch:**  
-- `Bagira.Map.Common.Tests`: 84 Passed  
-- `Bagira.SimHost.Tests`: 298 Passed  
-- `Bagira.IG.Tests`: 351 Passed  
+- `Hrot.Map.Common.Tests`: 84 Passed  
+- `Hrot.SimHost.Tests`: 298 Passed  
+- `Hrot.IG.Tests`: 351 Passed  
 
 **Test files added:**
-- `Bagira.SimHost.Tests/RouteTrajectorySyncSystemTests.cs` — 7 tests (T006)
-- `Bagira.SimHost.Tests/PersonalRouteAuthoringSystemTests.cs` — 8 tests (T008)
-- `Bagira.IG.Tests/RouteAuthoringTests.cs` — 8 tests (T007)
-- `Bagira.IG.Tests/ShiftRightClickTests.cs` — 8 tests (T009)
+- `Hrot.SimHost.Tests/RouteTrajectorySyncSystemTests.cs` — 7 tests (T006)
+- `Hrot.SimHost.Tests/PersonalRouteAuthoringSystemTests.cs` — 8 tests (T008)
+- `Hrot.IG.Tests/RouteAuthoringTests.cs` — 8 tests (T007)
+- `Hrot.IG.Tests/ShiftRightClickTests.cs` — 8 tests (T009)
 
 **Key test scenarios verified:**
 - [x] CT-1: `RoutePlan.Mutate()` increments `Version`; direct `Waypoints` assignment no longer compiles
@@ -42,7 +42,7 @@
 - [x] T006: 0- and 1-waypoint routes do not throw and produce `TrajectoryId == 0`
 - [x] T007: `ParseCommand` with `tkbType == 8802` pushes `PointSequenceTool`
 - [x] T007: Finishing the tool with 3 points emits exactly one `CreateEntityRequest`
-- [x] T007: Emitted request has 3 descriptors: `dtEntityMaster`, `dtGeoSpatial`, `dtMapRoute`
+- [x] T007: Emitted request has 3 descriptors: `dtEntityMaster`, `dtWorldPos`, `dtMapRoute`
 - [x] T007: `EntityMaster.TkbType == TkbEntityTypes.TacGraphic_Route`
 - [x] T007: `MapRoute.Points.Count` matches input point count; tool pops after finish
 - [x] T008: First personal waypoint spawns child route entity with `PartMetadata`, `TkbIdentity`, `SimTransform`

@@ -10,7 +10,7 @@
 ## Summary
 
 All six success conditions met. `AssetInventoryTopic` DDS struct added to DataModel with
-correct QoS. `DrillMaster` publishes inventory every 5 s. `ClusterUiCache` built with 8
+correct QoS. `ClusterMaster` publishes inventory every 5 s. `ClusterUiCache` built with 8
 readers. `OrchestratorScenarioPanel` replaced by `ClusterScenarioPanel` with zero
 `_drillMaster` dependency. `OrchestratorSubsystem.DrawUI()` is a clean 8-line wrapper.
 Net new tests: +18 across two assemblies. All 284 tests green.
@@ -23,7 +23,7 @@ Net new tests: +18 across two assemblies. All 284 tests green.
 |------|-----------|
 | `AssetInventoryTopic` struct with TransientLocal/KeepLast(1) QoS | ✅ |
 | Schema pin tests (DataModel.Tests: 45 → 47) | ✅ |
-| `DrillMaster.NasBasePath`, `_inventoryWriter`, 5s throttle, `PublishAssetInventory()` | ✅ |
+| `ClusterMaster.NasBasePath`, `_inventoryWriter`, 5s throttle, `PublishAssetInventory()` | ✅ |
 | `ClusterUiCache` (8 readers, `Update()`, `Dispose()`) | ✅ |
 | `ClusterScenarioPanel` replaces `OrchestratorScenarioPanel` (zero `_drillMaster` field) | ✅ |
 | `OrchestratorSubsystem.DrawUI()` — zero `_drillMaster.*` reads | ✅ |
@@ -51,8 +51,8 @@ opportunistic cleanup.
 
 ### Issue 1 (P3 / Hygiene): `OrchestratorScenarioPanel.cs` and `OrchestratorScenarioPanelTests.cs` not deleted
 
-**Files:** `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`,
-`Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`  
+**Files:** `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`,
+`Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs`  
 **Problem:** Both old files still exist and compile. `OrchestratorScenarioPanel` is now
 dead code — no production code instantiates it. `OrchestratorScenarioPanelTests` tests
 the dead class.  
@@ -60,12 +60,12 @@ the dead class.
 for future developers.  
 **Fix:** P3 debt. Delete `OrchestratorScenarioPanel.cs`; migrate orchestrator behavior
 tests from `OrchestratorScenarioPanelTests` to `ClusterScenarioPanelTests` or
-`Bagira.Orchestrator.Tests`, then delete the old test file. Schedule for BATCH-30 or
+`Hrot.Orchestrator.Tests`, then delete the old test file. Schedule for BATCH-30 or
 opportunistic.
 
 ### Issue 2 (P3 / Architecture): `_drillTime` field is dead code in `OrchestratorSubsystem`
 
-**File:** `Bagira.Runner/Services/OrchestratorSubsystem.cs` line 152  
+**File:** `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` line 152  
 **Problem:** `_drillTime = (float)(_timeKernel?.CurrentTime.TotalTime ?? 0.0)` is still
 computed but never passed to the panel (the panel now reads `cache.MasterSimTime`
 directly). The field computes a value that is never read.  
@@ -73,11 +73,11 @@ directly). The field computes a value that is never read.
 
 ### Issue 3 (P3 / Architecture): Transaction ID correlation gap in `ClusterUiCache`
 
-**File:** `Bagira.Runner/Services/ClusterUiCache.cs`  
-**Problem:** `DrainSysOpStatus()` uses a fallback that clears all in-flight transactions
+**File:** `Hrot.ClusterRunner/Services/ClusterUiCache.cs`  
+**Problem:** `DrainClusterOpStatus()` uses a fallback that clears all in-flight transactions
 when an exact `RequestId`→`TransactionId` match fails. This is pragmatic for a UI cache
 but architecturally fragile.  
-**Fix:** P3. Add `TransactionId` to `SysOpStatus` wire format in a future DataModel
+**Fix:** P3. Add `TransactionId` to `ClusterOpStatus` wire format in a future DataModel
 revision to enable unambiguous correlation.
 
 ### Issue 4 (Validated, no fix needed): API mismatches corrected by developer
@@ -93,7 +93,7 @@ by the developer by reading existing production code. Good autonomous debugging.
   chain. Assertions are behavioral (not string-existence). `Sniffs2PcTraffic` verifies
   `HasInFlightTransaction` and `TxHistory.Count`. Strong.
 - **`ClusterScenarioPanelTests`**: Tests update constructor calls to the new
-  `(DdsWriter<SysOpRequest>, ClusterUiCache)` signature. DDS round-trip tests exercise the
+  `(DdsWriter<ClusterOpRequest>, ClusterUiCache)` signature. DDS round-trip tests exercise the
   full sysop write path.
 - **`OrchestratorScenarioPanelTests`**: Still passes (old class still compiles). P3 to
   clean up (Issue 1).
@@ -103,9 +103,9 @@ by the developer by reading existing production code. Good autonomous debugging.
 No shallow assertions. Accepted.
 
 Final test counts:
-- `Bagira.DDS.DataModel.Tests`: 47 (was 45; +2 schema pin)
-- `Bagira.Orchestrator.Tests`: 60 (unchanged)
-- `Bagira.Runner.Tests`: 177 (was 161; +16: 5 cache + 11 panel)
+- `Hrot.NED.Tests`: 47 (was 45; +2 schema pin)
+- `Hrot.Orchestrator.Tests`: 60 (unchanged)
+- `Hrot.ClusterRunner.Tests`: 177 (was 161; +16: 5 cache + 11 panel)
 
 ---
 
@@ -117,10 +117,10 @@ Key findings worth recording in DEBT-TRACKER:
    target DSM state; cache must parse `PayloadJson`. A wire field would make CQRS sniffers
    cleaner. Record as P3 protocol note.
 
-2. **`SysOpStatus.RequestId` ≠ 2PC `TransactionId`** — the cache uses a fallback to handle
+2. **`ClusterOpStatus.RequestId` ≠ 2PC `TransactionId`** — the cache uses a fallback to handle
    this mismatch. Record as P3 architectural debt.
 
-3. **Active Stories sniffer** — `Process2PcNetworkTraffic()` sniffs `StartStory`/`StopStory`
+3. **Active Stories sniffer** — `Process2PcNetworkTraffic()` sniffs `StartEpisode`/`StopEpisode`
    NodeOpCommands to maintain `_activeStories` in the cache. Optimistic, one-cycle lag.
    Acceptable for UI use.
 
@@ -134,16 +134,16 @@ feat(orchestrator): S0506 CQRS Decoupling — AssetInventoryTopic + ClusterUiCac
 Completes CGF1-S0506.
 
 AssetInventoryTopic: new DDS struct (TransientLocal/KeepLast/1) added to
-OrchestrationMessages.cs; DrillMaster publishes inventory every 5 s via
+OrchestrationMessages.cs; ClusterMaster publishes inventory every 5 s via
 ScanLocal*/ScanNas* helpers.
 
 ClusterUiCache: 8-reader CQRS projection (SystemState, AssetInventory,
-NodeHeartbeat, SysOpStatus, NodeOpCommand, NodeOpStatus, TimePulse,
+NodeHeartbeat, ClusterOpStatus, NodeOpCommand, NodeOpStatus, TimePulse,
 SwitchTimeModeWireDto); Update(); Dispose(); ActiveStories sniffer;
-ReachableTargets from BagiraStateGraph.
+ReachableTargets from HrotStateGraph.
 
 ClusterScenarioPanel (renamed from OrchestratorScenarioPanel): constructor
-takes (DdsWriter<SysOpRequest>, ClusterUiCache); zero _drillMaster field;
+takes (DdsWriter<ClusterOpRequest>, ClusterUiCache); zero _drillMaster field;
 Render(ClusterUiCache, bool) reads all data from cache.
 
 OrchestratorSubsystem: DrawUI() is now a thin 8-line wrapper with zero

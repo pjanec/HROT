@@ -39,12 +39,12 @@ Complete **Part A** first so **`TakeSnapshot`** and **`FinalizeLive` drain** wor
 - **Own** `CheckpointIOWorker` lifetime in **`SimHostApp`** (or bootstrap): create, pass into `BuildOrchestration`, **`Dispose`** on application shutdown.  
 - Register **`CheckpointDsmHandler`** for orchestration-capable roles (mirror **`PrefetchFiles`** / scenario handler rules).  
 - Pass the **same worker instance** into **`LiveLoadDsmHandler(..., checkpointWorker)`** so **`FinalizeLive`** awaits **`DrainAsync()`**.  
-- Ensure **`DrillSlave.Tick()`** runs (already polls **`ITickableDsmHandler`**) so deferred checkpoint ACKs publish.  
+- Ensure **`ClusterSlave.Tick()`** runs (already polls **`ITickableDsmHandler`**) so deferred checkpoint ACKs publish.  
 - Add a **narrow test** if feasible: e.g. bootstrap/build helper asserts **`CheckpointDsmHandler`** is registered when participant + world exist — or document **manual** Runner verification.
 
 ### A.2 — **Prefetch empty NAS scenario directory** (P3, optional if time-boxed)
 
-When NAS `sourceDir` exists but contains **no files**, **`SuccessCount == 0`** and **`FailureCount == 0`** — **`DrainPendingPrefetch`** currently treats as success. Decide: **fail** the transition (`SysOpStatus.Failure`) vs **allow** (empty scenario). Implement + test.
+When NAS `sourceDir` exists but contains **no files**, **`SuccessCount == 0`** and **`FailureCount == 0`** — **`DrainPendingPrefetch`** currently treats as success. Decide: **fail** the transition (`ClusterOpStatus.Failure`) vs **allow** (empty scenario). Implement + test.
 
 ### A.3 — **DEBT-TRACKER**
 
@@ -60,13 +60,13 @@ Close **Part A** rows when merged.
 **Implementation notes:**
 
 1. **`DryRunDsmHandler`** behaviour and success-condition tests per task detail (`LoadingDryRun` / `UnloadingDryRun`, `Abort`, no-op for other `PrepareState` targets, no `ITickableDsmHandler`, no checkpoint worker).  
-2. **Layering:** Task text names `Bagira.SimHost/.../DryRunDsmHandler.cs`. **`Bagira.IG`** does **not** reference **`Bagira.SimHost`**. **Preferred:** implement the handler in **`Bagira.Common`** (Fdp.Kernel + orchestration types already referenced) under e.g. `Orchestration/Handlers/DryRunDsmHandler.cs`, register from SimHost / IG / IOS / CGF — and **update TASK-DETAIL path** in the report if moved. **Avoid** duplicating 100+ lines across assemblies.  
+2. **Layering:** Task text names `Hrot.SimHost/.../DryRunDsmHandler.cs`. **`Hrot.IG`** does **not** reference **`Hrot.SimHost`**. **Preferred:** implement the handler in **`Hrot.Common`** (Fdp.Kernel + orchestration types already referenced) under e.g. `Orchestration/Handlers/DryRunDsmHandler.cs`, register from SimHost / IG / IOS / CGF — and **update TASK-DETAIL path** in the report if moved. **Avoid** duplicating 100+ lines across assemblies.  
 3. **Component for tests:** Task mentions **`SimPosition`**; if no such type exists, use a **minimal test-only struct** with `[ComponentId]` (same pattern as `CheckpointDsmHandlerTests` / `EditLoadDsmHandlerTests`) and state that in the report.  
 4. **Registrations:**  
    - **SimHost:** `NodeBootstrapper` and/or `SimHostApp` — pass **live `EntityRepository`**.  
    - **`CgfApplication`:** register with **`liveRepo: null`** (no ECS world in shell).  
    - **IG / IOS:** register with **`liveRepo: null`** for 2PC participation.  
-5. **IG / IOS `DrillSlave`:** if **`Tick()`** does not yet poll **`ITickableDsmHandler`**, dry run does not need it; only ensure **handler dispatch** matches SimHost ordering conventions.
+5. **IG / IOS `ClusterSlave`:** if **`Tick()`** does not yet poll **`ITickableDsmHandler`**, dry run does not need it; only ensure **handler dispatch** matches SimHost ordering conventions.
 
 **Success conditions:** all tests listed in §CGF1-S0309.
 

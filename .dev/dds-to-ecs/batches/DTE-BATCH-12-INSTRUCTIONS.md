@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-12  
 **Tasks:** INTS-P1-001, INTS-P1-002, INTS-P1-003, INTS-P1-004, INTS-P1-005  
 **Phase:** Integration Troubleshooting P1  
-**Estimated Effort:** 18–22 hours  
+**Estimated Effort:** 18ï¿½22 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-11 approved
 
@@ -21,8 +21,8 @@ This batch addresses the Phase 1 integration fixes from `TASK-DETAILS-Integratio
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-11-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`, `Bagira.IG/`, `Bagira.IOS/`, `Bagira.Runner/`, `Bagira.Map.Common/`
-- **Test Projects:** `Bagira.SimHost.Tests/`, `Bagira.IG.Tests/`, `Bagira.IOS.Tests/`, `Bagira.Runner.Integration.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/`, `Hrot.IG/`, `Hrot.ExCon/`, `Hrot.ClusterRunner/`, `Hrot.Map.Common/`
+- **Test Projects:** `Hrot.SimHost.Tests/`, `Hrot.IG.Tests/`, `Hrot.ExCon.Tests/`, `Hrot.ClusterRunner.Integration.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -41,36 +41,36 @@ This batch addresses the Phase 1 integration fixes from `TASK-DETAILS-Integratio
 
 ## ? Tasks
 
-### Task 1: INTS-P1-001 — Register TKB Catalog in SimHost and IG
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.IG/IgApplication.cs` (UPDATE)  
+### Task 1: INTS-P1-001 ï¿½ Register TKB Catalog in SimHost and IG
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.IG/IgApplication.cs` (UPDATE)  
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-001--register-tkb-catalog-in-simhost-and-ig`
 
 ---
 
-### Task 2: INTS-P1-002 — Fix SimHost Vehicle Spawning to Use `SpawnEntityCommand`
-**File:** `Bagira.SimHost/UI/SimHostScenarioManager.cs` (UPDATE)  
+### Task 2: INTS-P1-002 ï¿½ Fix SimHost Vehicle Spawning to Use `SpawnEntityCommand`
+**File:** `Hrot.SimHost/UI/SimHostScenarioManager.cs` (UPDATE)  
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-002--fix-simhost-vehicle-spawning-to-use-spawnentitycommand`
 
 ---
 
-### Task 3: INTS-P1-003 — Replace `NullDdsWriter` with `DdsWriterAdapter`
+### Task 3: INTS-P1-003 ï¿½ Replace `NullDdsWriter` with `DdsWriterAdapter`
 **Files:**
-- `Bagira.Map.Common/Dds/DdsWriterAdapter.cs` (NEW)
-- `Bagira.IOS/Program.cs` (UPDATE)
-- `Bagira.Runner/Services/IosSubsystem.cs` (UPDATE)
+- `Hrot.Map.Common/Dds/DdsWriterAdapter.cs` (NEW)
+- `Hrot.ExCon/Program.cs` (UPDATE)
+- `Hrot.ClusterRunner/Services/IosSubsystem.cs` (UPDATE)
 
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-003--replace-nullddswriter-with-ddswriteradapter-in-ios`
 
 ---
 
-### Task 4: INTS-P1-004 — ImGui DockSpace passthrough
-**File:** `Bagira.IOS/IosMock.cs` (UPDATE)  
+### Task 4: INTS-P1-004 ï¿½ ImGui DockSpace passthrough
+**File:** `Hrot.ExCon/IosMock.cs` (UPDATE)  
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-004--add-passthrucentralnode-to-imgui-dockspace`
 
 ---
 
-### Task 5: INTS-P1-005 — Wire IG-to-IOS map event translators
-**File:** `Bagira.IG/IgApplication.cs`, `Bagira.Map.Common/Commands/BdcCommandGateway.cs`, `Bagira.IG/UI/MiniIosPanelState.cs` (UPDATE)  
+### Task 5: INTS-P1-005 ï¿½ Wire IG-to-IOS map event translators
+**File:** `Hrot.IG/IgApplication.cs`, `Hrot.Map.Common/Commands/BdcCommandGateway.cs`, `Hrot.IG/UI/MiniIosPanelState.cs` (UPDATE)  
 **Task Definition:** `docs/design/TASK-DETAILS-Integration-Troubleshooting.md#ints-p1-005--wire-ig-to-ios-map-event-translators`
 
 ---
@@ -78,10 +78,10 @@ This batch addresses the Phase 1 integration fixes from `TASK-DETAILS-Integratio
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
-  - `dotnet test Bagira.IG.Tests/Bagira.IG.Tests.csproj`
-  - `dotnet test Bagira.IOS.Tests/Bagira.IOS.Tests.csproj`
-  - `dotnet test Bagira.Runner.Integration.Tests/Bagira.Runner.Integration.Tests.csproj`
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
+  - `dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj`
+  - `dotnet test Hrot.ExCon.Tests/Hrot.ExCon.Tests.csproj`
+  - `dotnet test Hrot.ClusterRunner.Integration.Tests/Hrot.ClusterRunner.Integration.Tests.csproj`
 
 ---
 
@@ -116,7 +116,7 @@ This batch addresses the Phase 1 integration fixes from `TASK-DETAILS-Integratio
 ## ?? Success Criteria
 
 This batch is DONE when:
-- [ ] INTS-P1-001–P1-005 complete with xUnit tests
+- [ ] INTS-P1-001ï¿½P1-005 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-12-REPORT.md`
 

@@ -7,7 +7,7 @@
 core) fully implemented; `FullBranchPipelineTests` deferred to BATCH-18 (see §Deferral); build
 clean; all new and existing tests passing.
 
-**Lead review:** [CGF-1-BATCH-17-REVIEW.md](../reviews/CGF-1-BATCH-17-REVIEW.md) — **CONDITIONALLY APPROVED** (`PrepareLive` **handler-order** gap on SimHost, CGF **ScenarioLoad** swallowing branch **`PrepareLive`**, **`DrillSlave` `PrepareAsync` not awaited** → [CGF-1-BATCH-18](../batches/CGF-1-BATCH-18-INSTRUCTIONS.md)).
+**Lead review:** [CGF-1-BATCH-17-REVIEW.md](../reviews/CGF-1-BATCH-17-REVIEW.md) — **CONDITIONALLY APPROVED** (`PrepareLive` **handler-order** gap on SimHost, CGF **ScenarioLoad** swallowing branch **`PrepareLive`**, **`ClusterSlave` `PrepareAsync` not awaited** → [CGF-1-BATCH-18](../batches/CGF-1-BATCH-18-INSTRUCTIONS.md)).
 
 ---
 
@@ -17,16 +17,16 @@ CGF-1-BATCH-17 delivered two workstreams:
 
 - **Part A** — Six targeted tech debt items from the BATCH-16 CONDITIONALLY APPROVED review:
   two-phase SimHost bootstrap (A.1), `IRecordReplayController` unification (A.2), fail-loud
-  `ParseDrillId` (A.3), `FinalizeRecordingAsync` null-module warn policy (A.4), dry-run
+  `ParseExerciseId` (A.3), `FinalizeRecordingAsync` null-module warn policy (A.4), dry-run
   snapshot test alignment (A.5), `EcsRecordReplayController` XML hygiene (A.6),
   plus a CGF parity gap closure (explicit `FailLoudRecordReplayStub` on CGF node).
 
 - **Part B** — CGF1-S0305 Live-from-Replay temporal interlock: `ReplayMasterModule` on the
-  orchestrator, `SetReplayMasterModule`/freeze/restore in `DrillMaster`, `PrepareLive` branch
+  orchestrator, `SetReplayMasterModule`/freeze/restore in `ClusterMaster`, `PrepareLive` branch
   handling in `ReplayLoadDsmHandler`, and all success-condition unit tests.
 
 Build: clean (zero new errors, pre-existing warnings only).  
-Tests: 385/385 `Bagira.SimHost.Tests`; 28/28 `Bagira.Orchestrator.Tests`.
+Tests: 385/385 `Hrot.SimHost.Tests`; 28/28 `Hrot.Orchestrator.Tests`.
 
 ---
 
@@ -34,7 +34,7 @@ Tests: 385/385 `Bagira.SimHost.Tests`; 28/28 `Bagira.Orchestrator.Tests`.
 
 ### A.1 — Register `ReplayLoadDsmHandler` from production SimHost
 
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.SimHost.Tests/NodeBootstrapperReplayTests.cs`
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.SimHost.Tests/NodeBootstrapperReplayTests.cs`
 
 **Problem:** `SimHostApp.OnLoad` called `NodeBootstrapper.BuildOrchestration` before
 `GhostCreationSystem`, `SimulationSystemGroup`, and `NetworkLifecycleSystemGroup` had been
@@ -60,7 +60,7 @@ objects before calling `BuildOrchestration`, then pass them as arguments. The sa
 
 **Files:** `FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs`,
 `FDP/Toolkits/FDP.Toolkit.Replay/ReplayModule.cs`,
-`Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
+`Hrot.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
 
 **Changes:**
 - Added optional `long maxNetworkId = 0` parameter to
@@ -77,23 +77,23 @@ objects before calling `BuildOrchestration`, then pass them as arguments. The sa
 
 ---
 
-### A.3 — Fail-loud `ParseDrillId` in `LiveLoadDsmHandler` and `ReplayLoadDsmHandler`
+### A.3 — Fail-loud `ParseExerciseId` in `LiveLoadDsmHandler` and `ReplayLoadDsmHandler`
 
-**Files:** `Bagira.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs`,
-`Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
+**Files:** `Hrot.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs`,
+`Hrot.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
 
 **Changes:** Replaced `catch { return Guid.NewGuid(); }` with `throw new
 InvalidOperationException(...)` carrying payload context. Both handlers now fail loudly on
-missing or unparseable `DrillId` JSON rather than silently starting a recording or replay under
+missing or unparseable `ExerciseId` JSON rather than silently starting a recording or replay under
 a random, unintended ID.
 
-**DEBT-TRACKER row:** "`ParseDrillId` catch → `Guid.NewGuid()`" → ✅
+**DEBT-TRACKER row:** "`ParseExerciseId` catch → `Guid.NewGuid()`" → ✅
 
 ---
 
 ### A.4 — `FinalizeRecordingAsync` null-module warn policy
 
-**File:** `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
+**File:** `Hrot.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
 
 **Changes:** When `_activeRecordingModule == null`, instead of silently returning,
 `FinalizeRecordingAsync` now emits `FdpLog<EcsRecordReplayController>.Warn(...)` explaining
@@ -107,7 +107,7 @@ legitimately occurs.
 
 ### A.5 — Dry-run snapshot test alignment with §S0309
 
-**File:** `Bagira.SimHost.Tests/DryRunDsmHandlerTests.cs`
+**File:** `Hrot.SimHost.Tests/DryRunDsmHandlerTests.cs`
 
 **Changes:** `LoadingDryRun_SnapshotCapturesLiveState` now creates **4 entities** (not 1)
 and asserts `snap.EntityCount == 4` with spot-checking of `entities[0]` position values,
@@ -119,7 +119,7 @@ matching the `TASK-DETAIL §CGF1-S0309` success condition text.
 
 ### A.6 — `EcsRecordReplayController` XML documentation hygiene
 
-**File:** `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
+**File:** `Hrot.SimHost/Modules/Orchestration/EcsRecordReplayController.cs`
 
 **Changes:**
 - Class XML: removed stale "S0202 stub-era" language; updated to describe factory +
@@ -146,8 +146,8 @@ review; confirmed closed in this batch).
 
 ### CGF Parity — `FailLoudRecordReplayStub` on CGF node
 
-**Files:** `Bagira.CGF/Modules/Orchestration/Handlers/FailLoudRecordReplayStub.cs` (new),
-`Bagira.CGF/CgfApplication.cs`
+**Files:** `Hrot.CGF/Modules/Orchestration/Handlers/FailLoudRecordReplayStub.cs` (new),
+`Hrot.CGF/CgfApplication.cs`
 
 **Problem (Architecture note):** CGF participates in the same DSM `NodeOpCommand` sequences
 as SimHost. Before this batch, `CgfApplication` only registered `ScenarioLoadDsmHandler`
@@ -158,7 +158,7 @@ persistence failures.
 **Fix:** Created `FailLoudRecordReplayStub` that:
 - Handles `PrepareLive`, `FinalizeLive`, `PrepareReplay`, `FinalizeReplay`.
 - Logs `FdpLog<FailLoudRecordReplayStub>.Error` with full context when any of these ops arrive.
-- Does not publish a NAK (no `NodeOpStatus` writer on the CGF DrillSlave yet) — op is logged
+- Does not publish a NAK (no `NodeOpStatus` writer on the CGF ClusterSlave yet) — op is logged
   and silently acknowledged to avoid blocking the orchestrator. This is explicitly documented
   in the class XML as a temporary policy until CGF kernel recording/replay is available.
 
@@ -175,7 +175,7 @@ Which ops are **explicitly unsupported** on CGF and how ACK/NAK behaves:
 - **`PrepareReplay`, `FinalizeReplay`, `PrepareLive` (branch), `FinalizeLive`**: handled by
   `FailLoudRecordReplayStub.PrepareAsync` which logs `Error` and returns. `Commit` is a no-op.
   No `NodeOpStatus` is published — CGF does not yet have a `_nodeOpStatusWriter` in its
-  `DrillSlave` (orchestrator is not waiting for CGF ACKs in the current optimistic model).
+  `ClusterSlave` (orchestrator is not waiting for CGF ACKs in the current optimistic model).
   This will be resolved when CGF gains a recordable kernel and the orchestrator switches to
   proper two-phase ACK tracking.
 
@@ -185,11 +185,11 @@ Which ops are **explicitly unsupported** on CGF and how ACK/NAK behaves:
 
 ### B.1 — `ReplayMasterModule` (orchestrator-side time control)
 
-**File:** `Bagira.Orchestrator/ReplayMasterModule.cs` (new)
+**File:** `Hrot.Orchestrator/ReplayMasterModule.cs` (new)
 
 Wraps `Action<float>` / `Func<float>` callbacks to the hosting application's time controller
 (e.g. `MasterTimeController`). The action-callback pattern avoids introducing a `ModuleHost.Core`
-reference in the `Bagira.Orchestrator` project.
+reference in the `Hrot.Orchestrator` project.
 
 API:
 - `FreezeTime()` — saves current scale via `_getTimeScale()`, calls `_setTimeScale(0.0f)`.
@@ -198,9 +198,9 @@ API:
 
 ---
 
-### B.2 — `DrillMaster.SetReplayMasterModule` + freeze/restore logic
+### B.2 — `ClusterMaster.SetReplayMasterModule` + freeze/restore logic
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`
 
 **Changes:**
 - Added `private ReplayMasterModule? _replayMasterModule` field.
@@ -208,12 +208,12 @@ API:
   in-flight branch transitions keyed by the `NodeOpCommand.TransactionId` broadcast to nodes.
 - Added `SetReplayMasterModule(ReplayMasterModule module)` public method (call-once at startup).
 
-**Freeze logic in `ProcessSysOpRequests`:**
-- Captures `stateBeforeAdvance = _currentDsmState` **before** the optimistic advance.
+**Freeze logic in `ProcessClusterOpRequests`:**
+- Captures `stateBeforeAdvance = _currentClusterState` **before** the optimistic advance.
 - After the trajectory is analysed and `passesLoadingLive` is computed, checks
-  `passesLoadingLive && stateBeforeAdvance == DSMState.RunningReplay`.
-- If true: calls `_replayMasterModule.FreezeTime()`, generates a new `branchedDrillId`,
-  and fans out `NodeOpCommand(PrepareLive, {DrillId: branchedDrillId})` to all active nodes.
+  `passesLoadingLive && stateBeforeAdvance == ClusterState.RunningReplay`.
+- If true: calls `_replayMasterModule.FreezeTime()`, generates a new `branchedExerciseId`,
+  and fans out `NodeOpCommand(PrepareLive, {ExerciseId: branchedExerciseId})` to all active nodes.
   Registers a `BranchTransitionTask` keyed by the broadcast `TransactionId`.
 - If zero nodes are active: restores time immediately (no ACKs to wait for), with a `Warn` log.
 
@@ -226,17 +226,17 @@ API:
 
 ### B.3 — `ReplayLoadDsmHandler.PrepareLive` branch handling
 
-**File:** `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
+**File:** `Hrot.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
 
 **Changes:**
 - `CanHandle`: added `|| op == NodeOpType.PrepareLive`.
 - `PrepareAsync` new case for `PrepareLive`:
-  1. Parses `branchedDrillId` from `PayloadJson`.
+  1. Parses `branchedExerciseId` from `PayloadJson`.
   2. Calls `TeardownReplayAsync()` — uninstalls `ReplayModule`, closes file handles.
      `EntityRepository` is left at the historical (post-seek) state. **Zero entity mutation.**
-  3. Calls `PrepareRecordingAsync(branchedDrillId, _storageDirectory)` — installs
+  3. Calls `PrepareRecordingAsync(branchedExerciseId, _storageDirectory)` — installs
      `RecordingModule` capturing the historical ECS state as the first keyframe.
-  4. Publishes `NodeOpStatus(Success)` so `DrillMaster.ConsumeNodeOpStatuses` can restore time.
+  4. Publishes `NodeOpStatus(Success)` so `ClusterMaster.ConsumeNodeOpStatuses` can restore time.
 - `Commit` new case for `PrepareLive`:
   - Re-enables `SimulationSystemGroup.Enabled = true`.
   - Re-enables `NetworkLifecycleSystemGroup.Enabled = true`.
@@ -251,11 +251,11 @@ FinalizeReplay, and the Live-from-Replay PrepareLive branch).
 
 | File | Kind | Reason |
 |---|---|---|
-| `Bagira.SimHost.Tests/NodeBootstrapperReplayTests.cs` (new) | Unit | A.1 — focused test for handler registration (domain 16 DDS) |
-| `Bagira.SimHost.Tests/DryRunDsmHandlerTests.cs` | Modified | A.5 — 4 entities + `EntityCount == 4` assertion |
-| `Bagira.SimHost.Tests/LiveFromReplayTests.cs` (new) | Integration | S0305 — 3 success conditions |
-| `Bagira.Orchestrator.Tests/DrillMasterReplayTests.cs` (new) | Integration | S0305 — 2 time-freeze/restore assertions |
-| `Bagira.CGF/Modules/Orchestration/Handlers/FailLoudRecordReplayStub.cs` (new) | Production | CGF parity — explicit fail-loud for 4 unsupported ops |
+| `Hrot.SimHost.Tests/NodeBootstrapperReplayTests.cs` (new) | Unit | A.1 — focused test for handler registration (domain 16 DDS) |
+| `Hrot.SimHost.Tests/DryRunDsmHandlerTests.cs` | Modified | A.5 — 4 entities + `EntityCount == 4` assertion |
+| `Hrot.SimHost.Tests/LiveFromReplayTests.cs` (new) | Integration | S0305 — 3 success conditions |
+| `Hrot.Orchestrator.Tests/ClusterMasterReplayTests.cs` (new) | Integration | S0305 — 2 time-freeze/restore assertions |
+| `Hrot.CGF/Modules/Orchestration/Handlers/FailLoudRecordReplayStub.cs` (new) | Production | CGF parity — explicit fail-loud for 4 unsupported ops |
 
 ### `LiveFromReplayTests` (S0305 success conditions)
 
@@ -267,7 +267,7 @@ FinalizeReplay, and the Live-from-Replay PrepareLive branch).
   `PrepareLive.Commit` runs, asserts `SimulationSystemGroup.Enabled == true` and
   `GhostCreationSystem.BypassLifecycle == false`.
 
-### `DrillMasterReplayTests` (orchestrator S0305 success conditions)
+### `ClusterMasterReplayTests` (orchestrator S0305 success conditions)
 
 - **`TimeFrozenDuringBranchTransition`**: registers one mandatory SimHost node; drives to
   `RunningReplay`; issues `RunningLive` request; asserts `currentScale == 0.0f` (frozen)
@@ -298,9 +298,9 @@ already-validated S0305 unit tests in this batch.
 | Suite | Before | After |
 |---|---|---|
 | Solution build | 0 errors | **0 errors** |
-| `Bagira.SimHost.Tests` | 383 pass / 2 fail (A.1 gap) | **385 / 0 fail** |
-| `Bagira.Orchestrator.Tests` | 26 pass | **28 / 0 fail** |
-| `Bagira.CGF` | clean build | clean build |
+| `Hrot.SimHost.Tests` | 383 pass / 2 fail (A.1 gap) | **385 / 0 fail** |
+| `Hrot.Orchestrator.Tests` | 26 pass | **28 / 0 fail** |
+| `Hrot.CGF` | clean build | clean build |
 
 ---
 

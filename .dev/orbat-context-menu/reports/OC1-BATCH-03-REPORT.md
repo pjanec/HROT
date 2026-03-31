@@ -52,11 +52,11 @@ The single SimHost failure (`JsonToRecordCompilerTests.Compile_NonStringPath_Zer
 - [x] `IosLogicContextCommandTests.StartPersonalRouteAuthoring_UpdatesActiveContextId`
 
 **New test files:**
-- `Bagira.IOS.Tests/OrbatPanelContextMenuTests.cs` — OC1-I001 `IsSimulatedEntity` + entity click
-- `Bagira.IOS.Tests/IosLogicContextCommandTests.cs` — OC1-I002 through OC1-I005 IosLogic methods
+- `Hrot.ExCon.Tests/OrbatPanelContextMenuTests.cs` — OC1-I001 `IsSimulatedEntity` + entity click
+- `Hrot.ExCon.Tests/IosLogicContextCommandTests.cs` — OC1-I002 through OC1-I005 IosLogic methods
 
 **Extended test file:**
-- `Bagira.IG.Tests/RouteRenderLayerTests.cs` — 4 new `PickEntity` tests appended
+- `Hrot.IG.Tests/RouteRenderLayerTests.cs` — 4 new `PickEntity` tests appended
 
 ---
 
@@ -66,7 +66,7 @@ The single SimHost failure (`JsonToRecordCompilerTests.Compile_NonStringPath_Zer
 
 - **Nullable reference warning in `RouteRenderLayer.PickEntity`**: The `plan.Waypoints?.Count ?? 0 == 0` guard left `plan.Waypoints` still nullable on the compiler's flow analysis. Fixed by capturing `var waypoints = plan.Waypoints;` and doing an explicit `waypoints == null` guard before use.
 - **`SstStatusCode.OK` does not exist**: The enum uses `SstStatusCode.Success` (value 0). Caught at compile time and corrected in the test.
-- **`TkbEntityTypes` unavailable in `Bagira.IOS.Tests`**: The test project references `Bagira.IOS` but not `Bagira.Map.Definitions`, so `TkbEntityTypes.TacGraphic_Route` is unavailable. Replaced with the literal `8802` in the test.
+- **`TkbEntityTypes` unavailable in `Hrot.ExCon.Tests`**: The test project references `Hrot.ExCon` but not `Hrot.Map.Definitions`, so `TkbEntityTypes.TacGraphic_Route` is unavailable. Replaced with the literal `8802` in the test.
 - **`IDerEntity.TkbType` vs. `EntityMaster` descriptor**: Initially planned to read `EntityMaster.TkbType` from the descriptor in `IsSimulatedEntity`. Discovered that `IDerEntity` exposes `TkbType` directly (set at entity creation), avoiding a descriptor read entirely. Simpler and more reliable.
 
 **Q2: Did you spot any weak points in the existing codebase? What would you improve?**
@@ -95,5 +95,5 @@ The single SimHost failure (`JsonToRecordCompilerTests.Compile_NonStringPath_Zer
 
 ## ⚠️ Outstanding Issues / Next Steps
 
-- The pre-existing `JsonToRecordCompilerTests.Compile_NonStringPath_ZeroAllocation` intermittent failure in `Bagira.SimHost.Tests` is not caused by this batch and should be tracked separately.
+- The pre-existing `JsonToRecordCompilerTests.Compile_NonStringPath_ZeroAllocation` intermittent failure in `Hrot.SimHost.Tests` is not caused by this batch and should be tracked separately.
 - OC1-I006 ("Abort Mission") is wired in the panel but has no dedicated per-method unit test since `SendControlCommandAsync` is already covered by the existing `MissionPanelTests` suite.  A future test could verify the call from the ORBAT panel path specifically.

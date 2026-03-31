@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-07  
 **Tasks:** DDS2ECS-S12T1, DDS2ECS-S12T2, DDS2ECS-S12T3, DDS2ECS-S13T1, DDS2ECS-S13T2  
 **Phase:** Phase 12 + Phase 13  
-**Estimated Effort:** 14–18 hours  
+**Estimated Effort:** 14ï¿½18 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-06 approved
 
@@ -17,12 +17,12 @@ This batch completes transient combat event replication and adds mission-control
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
 2. **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md` (DDS2ECS-S12T1 ? DDS2ECS-S13T2)
-3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (§6.2, §8.4)
+3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (ï¿½6.2, ï¿½8.4)
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-06-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`, `Bagira.SimHost/`
-- **Test Projects:** `Bagira.IG.Tests/`, `Bagira.SimHost.Tests/`
+- **Primary Work Area:** `Hrot.IG/`, `Hrot.SimHost/`
+- **Test Projects:** `Hrot.IG.Tests/`, `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -41,35 +41,35 @@ This batch completes transient combat event replication and adds mission-control
 
 ## ? Tasks
 
-### Task 1: DDS2ECS-S12T1 — Create `FireInteractionEventTranslator`
+### Task 1: DDS2ECS-S12T1 ï¿½ Create `FireInteractionEventTranslator`
 **Files:**
-- `Bagira.IG/Translators/FireInteractionEventTranslator.cs` (NEW, ingress)
-- `Bagira.SimHost/Translators/FireInteractionEventTranslator.cs` (NEW, egress)
+- `Hrot.IG/Translators/FireInteractionEventTranslator.cs` (NEW, ingress)
+- `Hrot.SimHost/Translators/FireInteractionEventTranslator.cs` (NEW, egress)
 
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s12t1--create-fireinteractioneventtranslator`
 
 ---
 
-### Task 2: DDS2ECS-S12T2 — Register SimHost egress translator
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.Runner/Services/SimHostSubsystem.cs` (UPDATE)  
+### Task 2: DDS2ECS-S12T2 ï¿½ Register SimHost egress translator
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s12t2--simhostapp--simhostsubsystem-register-egress-translator`
 
 ---
 
-### Task 3: DDS2ECS-S12T3 — Register IG ingress translator
-**File:** `Bagira.IG/IgApplication.cs` (UPDATE)  
+### Task 3: DDS2ECS-S12T3 ï¿½ Register IG ingress translator
+**File:** `Hrot.IG/IgApplication.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s12t3--igapplication-register-ingress-translator`
 
 ---
 
-### Task 4: DDS2ECS-S13T1 — Create `MissionControlRequestSystem`
-**File:** `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` (NEW)  
+### Task 4: DDS2ECS-S13T1 ï¿½ Create `MissionControlRequestSystem`
+**File:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s13t1--create-missioncontrolrequestsystem`
 
 ---
 
-### Task 5: DDS2ECS-S13T2 — Register mission control system
-**Files:** `Bagira.SimHost/SimHostApp.cs`, `Bagira.Runner/Services/SimHostSubsystem.cs` (UPDATE)  
+### Task 5: DDS2ECS-S13T2 ï¿½ Register mission control system
+**Files:** `Hrot.SimHost/SimHostApp.cs`, `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s13t2--register-missioncontrolrequestsystem`
 
 ---
@@ -77,8 +77,8 @@ This batch completes transient combat event replication and adds mission-control
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.IG.Tests/Bagira.IG.Tests.csproj`
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+  - `dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj`
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
 
 ---
 
@@ -113,8 +113,8 @@ This batch completes transient combat event replication and adds mission-control
 ## ?? Success Criteria
 
 This batch is DONE when:
-- [ ] DDS2ECS-S12T1–S12T3 complete with xUnit tests
-- [ ] DDS2ECS-S13T1–S13T2 complete with xUnit tests
+- [ ] DDS2ECS-S12T1ï¿½S12T3 complete with xUnit tests
+- [ ] DDS2ECS-S13T1ï¿½S13T2 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-07-REPORT.md`
 
@@ -129,4 +129,4 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 - **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md`
-- **Design:** `docs/dds-to-ecs/DESIGN.md` (§6.2, §8.4)
+- **Design:** `docs/dds-to-ecs/DESIGN.md` (ï¿½6.2, ï¿½8.4)

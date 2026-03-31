@@ -11,7 +11,7 @@
 
 ## Sequencing note
 
-**Part A** closes honest gaps vs [CGF-1-TASK-DETAIL.md](../CGF-1-TASK-DETAIL.md) §**CGF1-S0308** and restores **green** `Bagira.SimHost.Integration.Tests` for the **`EcsRecordReplayController`** registration assertion.
+**Part A** closes honest gaps vs [CGF-1-TASK-DETAIL.md](../CGF-1-TASK-DETAIL.md) §**CGF1-S0308** and restores **green** `Hrot.SimHost.Integration.Tests` for the **`EcsRecordReplayController`** registration assertion.
 
 ---
 
@@ -29,13 +29,13 @@
 
 ## Part A — Tech debt (BATCH-19 review + DEBT-TRACKER)
 
-### A.1 — **§S0308: `StoryLoadDsmHandler` on `Bagira.CGF`** (P2)
+### A.1 — **§S0308: `StoryLoadDsmHandler` on `Hrot.CGF`** (P2)
 
-Per TASK-DETAIL: CGF nodes that carry story files for the brain subsystem must participate in **`StartStory`/`StopStory`** (or explicitly document why SimHost-only is normative and update TASK-DETAIL).
+Per TASK-DETAIL: CGF nodes that carry story files for the brain subsystem must participate in **`StartEpisode`/`StopEpisode`** (or explicitly document why SimHost-only is normative and update TASK-DETAIL).
 
-### A.2 — **`NodeOpStatus.IsParticipating` + `DrillMaster` ACK gating** (P2)
+### A.2 — **`NodeOpStatus.IsParticipating` + `ClusterMaster` ACK gating** (P2)
 
-Wire **`StoryLoadDsmHandler`** to publish **`NodeOpStatus`** (where writer exists) with **`IsParticipating`**; extend **`DrillMaster`** story path to **wait only for participating nodes** (TASK-DETAIL item 4). If full 2PC is too large, document the **intentional MVP** delta in TASK-DETAIL **and** DESIGN in the same PR.
+Wire **`StoryLoadDsmHandler`** to publish **`NodeOpStatus`** (where writer exists) with **`IsParticipating`**; extend **`ClusterMaster`** story path to **wait only for participating nodes** (TASK-DETAIL item 4). If full 2PC is too large, document the **intentional MVP** delta in TASK-DETAIL **and** DESIGN in the same PR.
 
 ### A.3 — **`RecordReplayIntegrationTests.NodeBootstrapper_BrainRole_RegistersEcsRecordReplayController`** (P2)
 

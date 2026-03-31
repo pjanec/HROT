@@ -34,7 +34,7 @@
 2. [.dev/cgf-1/CGF-1-GENERALIZATION.md](../CGF-1-GENERALIZATION.md)  
 3. [.dev/cgf-1/CGF-1-TASK-DETAIL.md](../CGF-1-TASK-DETAIL.md) §**CGF1-S0310**, §**CGF1-S0106**  
 4. [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md)  
-5. [`NodeBootstrapper.cs`](../../../Bagira.SimHost/NodeBootstrapper.cs), [`CgfApplication.cs`](../../../Bagira.CGF/CgfApplication.cs), [`IgApplication.cs`](../../../Bagira.IG/IgApplication.cs) — handler diff
+5. [`NodeBootstrapper.cs`](../../../Hrot.SimHost/NodeBootstrapper.cs), [`CgfApplication.cs`](../../../Hrot.CGF/CgfApplication.cs), [`IgApplication.cs`](../../../Hrot.IG/IgApplication.cs) — handler diff
 
 **Report:** `.dev/cgf-1/reports/CGF-1-BATCH-23-REPORT.md` (when complete)
 
@@ -53,7 +53,7 @@ Unchanged intent: **`CgfApplication`** gains **`ReferenceLiveLoadHandler`**, **`
 **Requirement (lead):** IG **listens to network state and renders** but **must** handle:
 
 1. **Recording / replay** DSM participation — wire **`ReferenceLiveLoadHandler`** / **`ReferenceReplayLoadHandler`** (and related **`IRecordReplayController`** or **IG-specific no-op/listen-only adapter**) so **PrepareLive / FinalizeLive / PrepareReplay / FinalizeReplay** do not **NAK** or stall the cluster. Behaviour may be **minimal** (e.g. participate with **`IsParticipating`** as appropriate, no local `.fdp` until product needs it).  
-2. **Zone loading** — at least one **dummy** handler (or **`Reference\*`** wrapper) for the **zone / area load** **`NodeOpType`**(s) the **TransitionPlanner** / **DrillMaster** may issue to IG; **ACK** or explicit non-participation per policy.  
+2. **Zone loading** — at least one **dummy** handler (or **`Reference\*`** wrapper) for the **zone / area load** **`NodeOpType`**(s) the **TransitionPlanner** / **ClusterMaster** may issue to IG; **ACK** or explicit non-participation per policy.  
 3. **Scenario loading** — at least **dummy header-peek / prefetch** path (**`ReferencePrefetchHandler`** and/or **`ReferenceScenarioLoadHandler`** with **`world: null`** and terrain preload **TODO**), so sync with **PrepareLive** / **PrefetchScenario** does not leave orphan transactions. Document: *full terrain DB preload from scenario entities is **future work***.
 
 **Tests:** One integration or unit test per category (replay participation, zone dummy, scenario dummy) as feasible.
@@ -70,7 +70,7 @@ Extend **`GlobalContextDto`** + **`GlobalContextDsmHandler`** (and wire topics i
 
 ### A.5 — Optional test hardening (P3)
 
-- **`DrillMasterStoryTests`:** Multi-node **ManageStory** mixed ACK (optional).
+- **`ClusterMasterStoryTests`:** Multi-node **ManageEpisode** mixed ACK (optional).
 
 ### A.6 — DEBT-TRACKER
 
@@ -103,4 +103,4 @@ Update **CGF-1-TASK-TRACKER.md** when done.
 - [CGF-1-BATCH-22 review](../reviews/CGF-1-BATCH-22-REVIEW.md)  
 - [CGF-1-BATCH-23 review](../reviews/CGF-1-BATCH-23-REVIEW.md) (lead sign-off)  
 - **Deferred S0310 + Runner `nodeId` work:** [CGF-1-BATCH-24](./CGF-1-BATCH-24-INSTRUCTIONS.md)  
-- [`GlobalContextDsmHandler.cs`](../../../Bagira.Orchestrator/GlobalContextDsmHandler.cs)
+- [`GlobalContextDsmHandler.cs`](../../../Hrot.Orchestrator/GlobalContextDsmHandler.cs)

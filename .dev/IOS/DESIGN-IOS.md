@@ -25,15 +25,15 @@
 | Component | Status | Location | Purpose |
 |-----------|--------|----------|---------|
 | **CycloneDDS C# API** | ✅ EXISTS | `ModuleHost.Network.Cyclone` | Raw DDS readers/writers, QoS management |
-| **Data Model** | ✅ EXISTS | `Bagira.DDS.DataModel` | All DDS structs from IDL (EntityMaster, GeoSpatial, etc.) |
+| **Data Model** | ✅ EXISTS | `Hrot.NED` | All DDS structs from IDL (EntityMaster, WorldPos, etc.) |
 | **TKB Service** | ✅ EXISTS | `FDP.Toolkit.Tkb.TkbDatabase` | Entity type definitions |
 | **Commands Toolkit** | ✅ EXISTS (Shared) | `FDP.Toolkit.Commands.*` | RPC-over-DDS with correlation IDs |
 | **DER (Dynamic Entity Repository)** | ✅ EXISTS (Shared P3) | `FDP.Toolkit.DER.*` | Non-ECS entity access (dictionary-based) |
-| **Mission Editor Service** | ❌ NEW | `Bagira.IOS.Services.MissionEditorService` | Optimistic locking for mission editing |
-| **Context Menu Logic** | ❌ NEW | `Bagira.IOS.Logic.ContextMenuLogic` | Push-based menu generation |
-| **Transaction Manager** | ❌ NEW | `Bagira.IOS.Services.RequestTransactionManager` | Track request/ack correlation |
-| **IOS UI Panels** | ❌ NEW | `Bagira.IOS.Panels.*` | ImGui panels for all IOS functions |
-| **IOS Application** | ❌ NEW | `Bagira.IOS.Program` | Main app shell, configuration |
+| **Mission Editor Service** | ❌ NEW | `Hrot.ExCon.Services.MissionEditorService` | Optimistic locking for mission editing |
+| **Context Menu Logic** | ❌ NEW | `Hrot.ExCon.Logic.ContextMenuLogic` | Push-based menu generation |
+| **Transaction Manager** | ❌ NEW | `Hrot.ExCon.Services.RequestTransactionManager` | Track request/ack correlation |
+| **IOS UI Panels** | ❌ NEW | `Hrot.ExCon.Panels.*` | ImGui panels for all IOS functions |
+| **IOS Application** | ❌ NEW | `Hrot.ExCon.Program` | Main app shell, configuration |
 
 **Key Insight**: Raw DDS API, data model, and DER toolkit **FULLY EXIST** (see SHARED components). IOS is pure DDS client (no ECS). Focus on IOS services, UI panels, and DDS integration.
 
@@ -71,9 +71,9 @@ IOS Mock is the **"Command & Control Dashboard"** for the simulation. It:
 ### 2.3 Dependencies
 
 **Critical Shared Components** (must be completed first):
-- ✅ `Bagira.DDS.DataModel` - DDS types (SHARED Phase P2)
+- ✅ `Hrot.NED` - DDS types (SHARED Phase P2)
 - ✅ `FDP.Toolkit.Commands` - RPC framework (SHARED Phase P4)
-- ✅ `Bagira.Map.Definitions` - TKB descriptors (SHARED Phase P5)
+- ✅ `Hrot.Map.Definitions` - TKB descriptors (SHARED Phase P5)
 - ✅ `FDP.Toolkit.DER` - Non-ECS entity repository (SHARED Phase P3)
 
 ---
@@ -134,7 +134,7 @@ configWriter.Write(new MapInteractionConfig { ... });
 
 **✅ VERIFIED EXISTS** - Complete IDL → C# structs
 
-**Location:** `Bagira.DDS.DataModel`
+**Location:** `Hrot.NED`
 
 **Key Topics for IOS:**
 
@@ -147,7 +147,7 @@ configWriter.Write(new MapInteractionConfig { ... });
 - `EntityMaster` - Entity lifecycle
 - `EntityInfo` - Entity metadata, ORBAT hierarchy
 - `EntityMission` - Mission plans and execution state
-- `GeoSpatial` / `GeoSpatialDR` - Entity position/orientation
+- `WorldPos` / `WorldPos` - Entity position/orientation
 - `MapVisualOverlay` - Tactical graphics/overlays
 - `MapEntitySymbol` - Visual overrides
 - `CreateEntityAck` - Response to entity creation
@@ -215,7 +215,7 @@ var entity = repo.GetEntity(entityId);
 var allEntities = repo.GetAllEntities();
 
 // Work with descriptors
-var geoDesc = entity.GetDescriptor<GeoSpatialDescriptor>();
+var geoDesc = entity.GetDescriptor<WorldPosDescriptor>();
 if (geoDesc != null)
 {
     Console.WriteLine($"Position: {geoDesc.Position}");
@@ -228,7 +228,7 @@ if (geoDesc != null)
 var response = await commandGateway.CreateEntityAsync(new CreateEntityRequest
 {
     TkbType = 100,
-    Position = new GeoPosition { Latitude = 45.0, Longitude = 14.0 },
+    Position = new GeoPoint { Latitude = 45.0, Longitude = 14.0 },
     Owner = simHostNodeId
 });
 
@@ -271,7 +271,7 @@ if (response.ErrorCode == 0)
 │        ┌─────────────────┴─────────────────┐            │
 │        │   DDS Translators (IOS-specific)   │            │
 │        │  - EntityMasterTranslator          │            │
-│        │  - GeoSpatialTranslator            │            │
+│        │  - WorldPosTranslator            │            │
 │        │  - EntityInfoTranslator            │            │
 │        │  - EntityMissionTranslator         │            │
 │        └─────────────────┬─────────────────┘            │
@@ -290,7 +290,7 @@ if (response.ErrorCode == 0)
 
 ```csharp
 // IOS defines custom descriptors for DDS types
-namespace Bagira.IOS.Descriptors
+namespace Hrot.ExCon.Descriptors
 {
     /// <summary>
     /// Main repository for entity access
@@ -378,11 +378,11 @@ public class EntityInfoTranslator
     }
 }
 
-// GeoSpatial DDS → DER Translator  
-public class GeoSpatialTranslator
+// WorldPos DDS → DER Translator  
+public class WorldPosTranslator
 {
     private readonly IDerRepo _repo;
-    private readonly DdsReader<GeoSpatial> _reader;
+    private readonly DdsReader<WorldPos> _reader;
     
     public void Poll()
     {
@@ -394,7 +394,7 @@ public class GeoSpatialTranslator
             var entity = _repo.GetEntity(sample.Data.EntityId);
             if (entity == null) continue;
             
-            entity.SetDescriptor(new GeoSpatialDescriptor
+            entity.SetDescriptor(new WorldPosDescriptor
             {
                 EntityId = sample.Data.EntityId,
                 Position = sample.Data.Pos,
@@ -467,7 +467,7 @@ public static class JsonMergePatch
 **Interface:**
 
 ```csharp
-namespace Bagira.IOS.Services
+namespace Hrot.ExCon.Services
 {
     public interface IMissionEditorService
     {
@@ -584,7 +584,7 @@ public class MissionEditorService : IMissionEditorService
 **Interface:**
 
 ```csharp
-namespace Bagira.IOS.Logic
+namespace Hrot.ExCon.Logic
 {
     public interface IContextMenuLogic
     {
@@ -729,7 +729,7 @@ public class ContextMenuLogic : IContextMenuLogic
 **Interface:**
 
 ```csharp
-namespace Bagira.IOS.Services
+namespace Hrot.ExCon.Services
 {
     public interface IRequestTransactionManager
     {
@@ -817,7 +817,7 @@ public class RequestTransactionManager : IRequestTransactionManager
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ Bagira.IOS.Program (Console App)                             │
+│ Hrot.ExCon.Program (Console App)                             │
 │ ┌─────────────────────────────────────────────────────────┐  │
 │ │ IosMock (IMockSubsystem)                                 │  │
 │ │  ┌───────────────────────────────────────────────────┐  │  │
@@ -1261,7 +1261,7 @@ private async Task<bool> CommitMissionAsync(int entityId, MissionPlan plan)
 4. Write service tests
 
 **Deliverables:**
-- `Bagira.IOS.Services.dll`
+- `Hrot.ExCon.Services.dll`
 - Service tests passing
 
 ### 7.2 Phase P7: IOS UI Panels (4 days)
@@ -1278,7 +1278,7 @@ private async Task<bool> CommitMissionAsync(int entityId, MissionPlan plan)
 6. Test all panels with mock data
 
 **Deliverables:**
-- `Bagira.IOS.Panels.dll`
+- `Hrot.ExCon.Panels.dll`
 - All panels functional
 
 ### 7.3 Phase P8: IOS Application Shell (2 days)
@@ -1296,8 +1296,8 @@ private async Task<bool> CommitMissionAsync(int entityId, MissionPlan plan)
 7. Test IOS + SimHost integration
 
 **Deliverables:**
-- `Bagira.IOS.exe`
-- DDS Translators (EntityMaster, EntityInfo, GeoSpatial, etc.)
+- `Hrot.ExCon.exe`
+- DDS Translators (EntityMaster, EntityInfo, WorldPos, etc.)
 - Standalone IOS functional
 - Integration tests passing
 
@@ -1435,14 +1435,14 @@ IOS: Receives Ack
   <ItemGroup>
     <!-- DDS & Data Model -->
     <ProjectReference Include="..\ModuleHost.Network.Cyclone\ModuleHost.Network.Cyclone.csproj" />
-    <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
+    <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
     
     <!-- Shared Toolkits -->
     <ProjectReference Include="..\FDP.Toolkit.DER\FDP.Toolkit.DER.csproj" />
     <ProjectReference Include="..\FDP.Toolkit.Commands\FDP.Toolkit.Commands.csproj" />
     
     <!-- Shared Definitions -->
-    <ProjectReference Include="..\Bagira.Map.Definitions\Bagira.Map.Definitions.csproj" />
+    <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
     
     <!-- UI -->
     <PackageReference Include="ImGui.NET" Version="1.89.9" />
@@ -1492,8 +1492,8 @@ IOS: Receives Ack
 ### 8.1 Overview
 
 IOS is designed to run in **two deployment modes**:
-1. **Standalone Application** - Independent executable (`Bagira.IOS.Standalone.exe`)
-2. **Embedded Subsystem** - Library embedded in aggregated runner (`Bagira.Runner.exe`)
+1. **Standalone Application** - Independent executable (`Hrot.ExCon.Standalone.exe`)
+2. **Embedded Subsystem** - Library embedded in aggregated runner (`Hrot.ClusterRunner.exe`)
 
 This dual-mode design enables:
 - Independent C&C dashboard development
@@ -1505,7 +1505,7 @@ This dual-mode design enables:
 
 ### 8.2 ISubsystem Interface Implementation
 
-**Interface:** `ISubsystem` (defined in `Bagira.Runner.Models.ISubsystem.cs`)
+**Interface:** `ISubsystem` (defined in `Hrot.ClusterRunner.Models.ISubsystem.cs`)
 
 IOS implements the standard subsystem interface:
 
@@ -1653,7 +1653,7 @@ if (!_config.Standalone)
 
 **Current Structure:**
 ```
-Bagira.IOS/
+Hrot.ExCon/
 ├── Program.cs
 ├── Services/
 │   ├── MissionEditorService.cs
@@ -1664,7 +1664,7 @@ Bagira.IOS/
 
 **Refactored Structure:**
 ```
-Bagira.IOS/ (Library)
+Hrot.ExCon/ (Library)
 ├── IosSubsystem.cs               ← NEW: ISubsystem implementation
 ├── IosConfiguration.cs            ← NEW: Configuration model
 ├── Services/                      ← UNCHANGED
@@ -1673,7 +1673,7 @@ Bagira.IOS/ (Library)
 └── Panels/                        ← UNCHANGED
     └── ...
 
-Bagira.IOS.Standalone/ (Executable)
+Hrot.ExCon.Standalone/ (Executable)
 └── Program.cs                     ← NEW: Thin wrapper
 ```
 
@@ -1797,19 +1797,19 @@ rlImGui.End();
 
 **Mode 1: Standalone IOS**
 ```bash
-Bagira.IOS.Standalone.exe --domain 0 --node-id 3
+Hrot.ExCon.Standalone.exe --domain 0 --node-id 3
 # Own window, separate from IG
 ```
 
 **Mode 2: Embedded in Runner (Combined View)**
 ```bash
-Bagira.Runner.exe --mode all --domain 0
+Hrot.ClusterRunner.exe --mode all --domain 0
 # IOS panels dock within IG's window
 ```
 
 **Mode 3: Embedded in Runner (Headless Testing)**
 ```bash
-Bagira.Runner.exe --mode ios --domain 0 --headless --script test.json
+Hrot.ClusterRunner.exe --mode ios --domain 0 --headless --script test.json
 # IOS runs commands without UI, measures latency
 ```
 

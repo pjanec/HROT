@@ -22,27 +22,27 @@
 
 ## Mandatory workflow
 
-Tackle **Part A** items **before** large **DrillMaster** fan-out refactors so CI and coordinator behavior stay green. Prefer **isolated domain IDs** or **xUnit collections** when touching DDS tests (see BATCH-08 report on parallel contention).
+Tackle **Part A** items **before** large **ClusterMaster** fan-out refactors so CI and coordinator behavior stay green. Prefer **isolated domain IDs** or **xUnit collections** when touching DDS tests (see BATCH-08 report on parallel contention).
 
 ---
 
 ## Part A — Tech debt & S0205 closure (first)
 
-### A.1 — **Consume `DrillMaster.PendingTimeMode` and drive `DistributedTimeCoordinator`**
+### A.1 — **Consume `ClusterMaster.PendingTimeMode` and drive `DistributedTimeCoordinator`**
 
-- Identify the host that owns both **`DrillMaster`** (or DDS visibility of orchestrator state) and **`ModuleHostKernel`** + time coordinator (**`OrchestratorSubsystem`** or future combined process).  
+- Identify the host that owns both **`ClusterMaster`** (or DDS visibility of orchestrator state) and **`ModuleHostKernel`** + time coordinator (**`OrchestratorSubsystem`** or future combined process).  
 - When **`PendingTimeMode`** indicates deterministic **`LoadingLive`**, call **`SwitchToDeterministic`** (or equivalent) **before** the cluster is expected to enter **`RunningLive`**, per **CGF-1-TASK-DETAIL §S0205**.  
 - Add **unit or integration** coverage that **`PendingTimeMode`** transitions trigger coordinator code (mock kernel acceptable).
 
 ### A.2 — **`SwitchTimeModeDescriptorTranslator` on CGF node**
 
-- Wire **`TimeNetworkModule.CreateDescriptorTranslator`** wherever **`CgfSubsystem` / `Bagira.CGF`** builds **`CycloneNetworkModule`** (same pattern as SimHost/IG).  
+- Wire **`TimeNetworkModule.CreateDescriptorTranslator`** wherever **`CgfSubsystem` / `Hrot.CGF`** builds **`CycloneNetworkModule`** (same pattern as SimHost/IG).  
 - Document **NetworkDemo** exclusion (BATCH-08) in **CGF-1-DESIGN** or task detail if not already obvious.
 
 ### A.3 — **Stricter CI tests (task-detail alignment)**
 
 - **`DeterministicRun_IsReproducible`:** capture **entity ids or component payload** at tick 600 in two runs; assert **bit-identical** or **structural equality** per **CGF-1-TASK-DETAIL** (not only exit codes).  
-- Add **`MinimalCIScenarioTests`** (or integration test) that spawns **`dotnet run --project Bagira.Runner -- --mode ci --scenario minimalci_01`** (or the exact key) with **timeout**, asserting **exit code 0** — or document **CI pipeline** substitution if subprocess tests are forbidden in-repo.
+- Add **`MinimalCIScenarioTests`** (or integration test) that spawns **`dotnet run --project Hrot.ClusterRunner -- --mode ci --scenario minimalci_01`** (or the exact key) with **timeout**, asserting **exit code 0** — or document **CI pipeline** substitution if subprocess tests are forbidden in-repo.
 
 ### A.4 — **Hygiene & infra**
 
@@ -57,7 +57,7 @@ Close rows satisfied by A.1–A.4; roll **SurvivingNodes** only if **Part B** sl
 
 ## Part B — Keyed **`NodeOpCommand`** (CGF-1-TASK-DETAIL ADR)
 
-Implement the **§CGF1-S0105** ADR: **`[DdsKey]`** (or approved wire shape), **`DrillMaster`** fan-out / writer cache, ejection disposal, and **updated** **`SurvivingNodes`** test with **two participants** asserting **isolation**.
+Implement the **§CGF1-S0105** ADR: **`[DdsKey]`** (or approved wire shape), **`ClusterMaster`** fan-out / writer cache, ejection disposal, and **updated** **`SurvivingNodes`** test with **two participants** asserting **isolation**.
 
 ---
 

@@ -30,13 +30,13 @@
 
 ### A.1 — `ClusterConfiguration.LoadFrom` fail-fast (P2)
 
-**File:** `Bagira.Orchestrator/ClusterConfiguration.cs`  
+**File:** `Hrot.Orchestrator/ClusterConfiguration.cs`  
 **Requirement:** If **`orchestrator-config.json` exists** but JSON is invalid or unreadable → **throw** a clear exception (or fail startup in `OrchestratorSubsystem`) — **do not** silently fall back to **`Default`**. Missing file may still load **`Default`** if product wants zero-config dev; state the rule in XML and onboarding.
 
 ### A.2 — Align S0105 tests with task detail (P3)
 
-**File:** `Bagira.Orchestrator.Tests/DrillMasterBootstrapTests.cs`  
-Use **`SysOpType.TransitionState`** and a **`LoadingLive`** payload where the task detail specifies it (`RejectsCommands_*`, `TransactionHistory_*`), unless the task detail is explicitly revised in the same PR.
+**File:** `Hrot.Orchestrator.Tests/ClusterMasterBootstrapTests.cs`  
+Use **`ClusterOpType.TransitionState`** and a **`LoadingLive`** payload where the task detail specifies it (`RejectsCommands_*`, `TransactionHistory_*`), unless the task detail is explicitly revised in the same PR.
 
 ### A.3 — `SurvivingNodes_*` per-node assertion (P3)
 
@@ -58,9 +58,9 @@ Update **CGF-1-DESIGN.md** file map and **CGF-1-TASK-DETAIL** §S0102/§S0104 to
 **Task definition:** [CGF-1-TASK-DETAIL.md §CGF1-S0201](../CGF-1-TASK-DETAIL.md#cgf1-s0201--bfs-transition-planner)  
 **Design:** [CGF-1-DESIGN.md §4.1](../CGF-1-DESIGN.md#41-stage-21--bfs-transition-planner)
 
-Implement **`TransitionPlanner`** in `Bagira.Orchestrator`, adjacency per design, **`CalculateShortestPath`**, **`PlanTrajectory`**, invalid path → **`InvalidOperationException`** before DDS, wire **`DrillMaster`** to call planner when processing **`SysOpRequest`** (replace placeholder **`TargetDsmState`** logic as specified).
+Implement **`TransitionPlanner`** in `Hrot.Orchestrator`, adjacency per design, **`CalculateShortestPath`**, **`PlanTrajectory`**, invalid path → **`InvalidOperationException`** before DDS, wire **`ClusterMaster`** to call planner when processing **`ClusterOpRequest`** (replace placeholder **`TargetClusterState`** logic as specified).
 
-**Tests:** `TransitionPlannerTests` in **`Bagira.Orchestrator.Tests`** — all scenarios in the task detail (exact step sequences, seek step, impossible path, same-state empty queue).
+**Tests:** `TransitionPlannerTests` in **`Hrot.Orchestrator.Tests`** — all scenarios in the task detail (exact step sequences, seek step, impossible path, same-state empty queue).
 
 ---
 

@@ -1,3 +1,15 @@
+ReferenceEpisodeLoadHandler uses StartEpisodeOperationId = 20; as number which must match NodeOpType.StartEpisode
+
+
+
+[BUG] The IDL codegen has a bug with non-sequential enums — value gap at 3 (where dtGeoSpatialDR was) causes the enum entries after to use `@value()` annotations which confuses the idlc union case generator.
+The IDL generator is using the field's position in the struct (0, 1, 2, 3, 4) instead of the actual discriminant values (0, 1, 2, 4, 5). So when it encounters `MapVisualOverlay` at index 3, it's grabbing the wrong discriminant value, and when it gets to `MapRoute` at index 4, it's using the numeric value 5 as a fallback. The gap from removing `dtGeoSpatialDR` is causing the indices and values to misalign.
+
+
+AttributeRecord in FDP\Toolkits\FDP.Toolkit.Replication\Patching\BinaryInterpreter.cs is from application layer dds struct.
+Toolkit must stay generic!
+
+
 
 [BUG] When i delete the entity using its context menu on IG, it gets deleted just from IG but not from SimHost - DeleteEntityRequest is necessary!
 
@@ -96,7 +108,7 @@ why? can't we unify them?
 
 ------------------
 
-I am running "Bagira.Runner -m all"
+I am running "Hrot.ClusterRunner -m all"
 
 Orchestrator's ImGui panel should have beige color (now that color is used INSIDE the panel, but it should be used JUST for the TITLE of the panel) Now there is an ImGui window missing and all the stuff are stacked into DrawUI(). Pls add it into a single ImGui window with beige title bar (similarly to what other panels are made).
 
@@ -108,7 +120,7 @@ The 2PC History should show full GUID and should show also the Json payload in t
 
 The 2PC History table should NOT grow indefinitely; it should show max 10 lines and support scrolling. Each transaction line should be expandable showing the responses from the nodes.
 
-The "Drill Control" panel should not take shortcut directly to the handler, it should send the SysOpRequest messages!
+The "Drill Control" panel should not take shortcut directly to the handler, it should send the ClusterOpRequest messages!
 
 Some buttons in the Orchestrator ImGui are no-op just with TODO comments, needs to be fully implemented.
 

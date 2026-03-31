@@ -13,7 +13,7 @@ This batch represents the final stretch of the Runner Application track. We will
 **Objective:** Combine the results from the executed test script and the sampled metrics into a structured JSON report format upon completion.
 
 ### Task 1: Integrate Test Report Generation
-1. In `Bagira.Runner/Services/HeadlessTestExecutor.cs`, locate the `SaveReport()` stub or functionality (which currently may just write `TestRunSummary.json`).
+1. In `Hrot.ClusterRunner/Services/HeadlessTestExecutor.cs`, locate the `SaveReport()` stub or functionality (which currently may just write `TestRunSummary.json`).
 2. Implement the structured `TestReport` model defined in `TASK-DETAILS-RUNNER.md` (Section R3.5).
    - This includes mapping the overall `TestName`, `Status`, `DurationSeconds`, `Metrics` aggregations (Min/Max/Avg/P95), and `AssertionResults` (Total, Passed, Failed).
 3. Ensure the executor saves this file locally as `test_report_{timestamp}.json` upon test completion or failure.
@@ -25,7 +25,7 @@ This batch represents the final stretch of the Runner Application track. We will
 **Objective:** Prove that the aggregation of `IgSubsystem`, `IosSubsystem`, and `SimHostSubsystem` into a single process operates correctly alongside the traditional distributed multi-process mode.
 
 ### Task 2: Implement Runner Mode Integration Tests
-1. Create a suite of tests in `Bagira.Runner.Tests` (or an appropriate integration test project) that validate the core value proposition of the `Bagira.Runner`: **Multi-Subsystem Embeddability**.
+1. Create a suite of tests in `Hrot.ClusterRunner.Tests` (or an appropriate integration test project) that validate the core value proposition of the `Hrot.ClusterRunner`: **Multi-Subsystem Embeddability**.
 2. **Aggregated Mode Test:** 
    - Boot `SubsystemOrchestrator` internally with `RunMode.All`.
    - Verify that all three subsystems (`SimHost`, `IG`, `IOS`) initialize successfully inside the single process.

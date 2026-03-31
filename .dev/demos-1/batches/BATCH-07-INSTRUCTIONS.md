@@ -25,7 +25,7 @@ Complete **corrective / documentation work first**, then **DEM1-D008**. All task
 
 ### Source Code Location
 
-- **Mission / replication debt:** `Bagira.Map.Common/Replication/Egress/EntityMissionEgressTranslator.cs`, `SimHostInstance` (search repo for `MissionTrigger.ReachedDestination`)
+- **Mission / replication debt:** `Hrot.Map.Common/Replication/Egress/EntityMissionEgressTranslator.cs`, `SimHostInstance` (search repo for `MissionTrigger.ReachedDestination`)
 - **Replay scenario (new):** `FDP/Examples/Fdp.Examples.Scenarios/Replay/ParallelStoriesScenario.cs`
 - **Tests:** `FDP/Examples/Fdp.Examples.Scenarios.Tests/ScenarioTests.cs`
 - **Runner registration:** `FDP/Examples/Fdp.Examples.Runner/ScenarioRegistry.cs` — add `ScenarioNames.ParallelStories` when scenario exists
@@ -54,7 +54,7 @@ Complete **corrective / documentation work first**, then **DEM1-D008**. All task
 
 **Files:** At minimum `EntityMissionEgressTranslator.cs` and `SimHostInstance` usages reported in the tracker; **`grep` the repo** for `ReachedDestination` and fix every **mission-plan / egress** site that still maps obsolete triggers, per `MissionDirectorSystem` / BS1-T022 comments.
 
-**Tests:** Run affected solution tests (e.g. `Bagira.Map` / SimHost test projects if present). Ensure **zero new `CS0618`** from these call sites in the touched projects.
+**Tests:** Run affected solution tests (e.g. `Hrot.Map` / SimHost test projects if present). Ensure **zero new `CS0618`** from these call sites in the touched projects.
 
 ---
 

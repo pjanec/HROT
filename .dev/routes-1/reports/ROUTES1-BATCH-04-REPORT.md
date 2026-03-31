@@ -19,11 +19,11 @@
 
 ## 🧪 Testing Results
 
-**Unit Tests Passed (Bagira.IG.Tests):** 378 / 378  
-**Unit Tests Passed (Bagira.SimHost.Tests):** 313 / 313  
-**Unit Tests Passed (Bagira.Runner.Tests):** 112 / 112  
-**Unit Tests Passed (Bagira.Map.Common.Tests):** 86 / 86  
-**Unit Tests Passed (Bagira.DDS.DataModel.Tests):** 23 / 23
+**Unit Tests Passed (Hrot.IG.Tests):** 378 / 378  
+**Unit Tests Passed (Hrot.SimHost.Tests):** 313 / 313  
+**Unit Tests Passed (Hrot.ClusterRunner.Tests):** 112 / 112  
+**Unit Tests Passed (Hrot.Map.Common.Tests):** 86 / 86  
+**Unit Tests Passed (Hrot.NED.Tests):** 23 / 23
 
 **New tests added: 9**
 

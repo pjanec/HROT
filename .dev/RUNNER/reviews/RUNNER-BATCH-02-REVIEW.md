@@ -37,13 +37,13 @@ Completes R1.1, R1.2, R1.3, R1.4, R1.5, R1.6
 Builds the Runner application shell to host and orchestrate
 subsystems in aggregated, separate, or headless modes.
 
-Bagira.Runner (R1.1, R1.2, R1.3, R1.4, R1.6):
+Hrot.ClusterRunner (R1.1, R1.2, R1.3, R1.4, R1.6):
 - `RunnerConfiguration` with robust CLI and JSON parsing.
 - `SubsystemOrchestrator` managing the Raylib loop and `ISubsystem` lifecycle.
 - Headless processing loops skip all render phases.
 - `WaitingRoomCoordinator` built using DDS for startup synchronization.
 
-Bagira.DDS.DataModel (R1.5):
+Hrot.NED (R1.5):
 - Added `SubsystemStatusAnnounce` topic (TransientLocal QoS).
 - Fixed schema parsing requiring `[DdsManaged]` in string partial structs.
 

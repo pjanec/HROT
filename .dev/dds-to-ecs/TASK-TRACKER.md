@@ -23,8 +23,8 @@ structs appear in `SpawnEntityCommand.InitialComponents`.
 
 - [x] **DDS2ECS-S2T1** `dtEntityMaster` case produces nothing — [details](./TASK-DETAIL.md#dds2ecs-s2t1--dtentitymaster-case-produces-nothing)
 - [x] **DDS2ECS-S2T2** `dtEntityInfo` case produces nothing — [details](./TASK-DETAIL.md#dds2ecs-s2t2--dtentityinfo-case-produces-nothing)
-- [x] **DDS2ECS-S2T3** `dtGeoSpatial` adds `GeoTransform`, removes raw DTO — [details](./TASK-DETAIL.md#dds2ecs-s2t3--dtgeospatial-case-remove-raw-dto-add-geotransform)
-- [x] **DDS2ECS-S2T4** `dtGeoSpatialDR` translates to `GeoVelocity` — [details](./TASK-DETAIL.md#dds2ecs-s2t4--dtgeospatialdr-case-translate-to-geovelosity)
+- [x] **DDS2ECS-S2T3** `dtWorldPos` adds `GeoTransform`, removes raw DTO — [details](./TASK-DETAIL.md#dds2ecs-s2t3--dtgeospatial-case-remove-raw-dto-add-geotransform)
+- [x] **DDS2ECS-S2T4** `dtWorldPos` translates to `GeoVelocity` — [details](./TASK-DETAIL.md#dds2ecs-s2t4--dtgeospatialdr-case-translate-to-geovelosity)
 
 ---
 
@@ -109,10 +109,10 @@ shell (registrations, queries, extractors).
 ## Phase 10: Dead Reckoning
 
 **Goal:** IG ghost movement is smooth and predictive; no hard-snapping on packet arrival;
-`GeoSpatialDR` is fully utilised.
+`WorldPos` is fully utilised.
 
-- [x] **DDS2ECS-S10T1** Fix `GeoSpatialTranslator.Decode`: write `NetworkPosition` — [details](./TASK-DETAIL.md#dds2ecs-s10t1--fix-geospatialtranslatordecode-ig-write-networkposition)
-- [x] **DDS2ECS-S10T2** Create `GeoSpatialDRTranslator` (IG) — [details](./TASK-DETAIL.md#dds2ecs-s10t2--create-geospatialdrtranlator-ig)
+- [x] **DDS2ECS-S10T1** Fix `WorldPosTranslator.Decode`: write `NetworkPosition` — [details](./TASK-DETAIL.md#dds2ecs-s10t1--fix-geospatialtranslatordecode-ig-write-networkposition)
+- [x] **DDS2ECS-S10T2** Create `WorldPosTranslator` (IG) — [details](./TASK-DETAIL.md#dds2ecs-s10t2--create-geospatialdrtranlator-ig)
 - [x] **DDS2ECS-S10T3** Create `DeadReckoningSyncSystem` (IG) — [details](./TASK-DETAIL.md#dds2ecs-s10t3--create-deadreckoningsyncsystem-ig)
 - [x] **DDS2ECS-S10T4** `IgApplication`: register DR translator and system — [details](./TASK-DETAIL.md#dds2ecs-s10t4--igapplication-register-new-dr-translator-and-system)
 
@@ -167,7 +167,7 @@ shell (registrations, queries, extractors).
 **Goal:** Automated xUnit end-to-end tests for IOS↔IG↔SimHost flows using the real DDS stack.
 
 - [x] **DDS2ECS-S15T1** Add `internal` test-hook properties/methods to subsystems — [details](./TASK-DETAIL.md#dds2ecs-s15t1--add-internal-test-hook-propertiesmethods)
-- [x] **DDS2ECS-S15T2** Create `BagiraRunnerHarness` — [details](./TASK-DETAIL.md#dds2ecs-s15t2--create-bagirarunnerharness)
+- [x] **DDS2ECS-S15T2** Create `HrotRunnerHarness` — [details](./TASK-DETAIL.md#dds2ecs-s15t2--create-hrotrunnerharness)
 - [x] **DDS2ECS-S15T3** Map Placement integration test — [details](./TASK-DETAIL.md#dds2ecs-s15t3--map-placement-integration-test)
 - [x] **DDS2ECS-S15T4** Context Menu Push integration test — [details](./TASK-DETAIL.md#dds2ecs-s15t4--context-menu-push-integration-test)
 - [x] **DDS2ECS-S15T5** Entity Destroy integration test — [details](./TASK-DETAIL.md#dds2ecs-s15t5--entity-destroy-integration-test)
@@ -194,7 +194,7 @@ with `MissionPlanQueue`, compile real BTree interpreters, replace `MissionAdapte
 **Goal:** Elevate SimHost from a driving-only shell to a full FDP simulation node capable of
 perception, combat, and damage. Sources: `HeadlessDemoApp.cs`, `DemoTkbSetup.cs`. See DESIGN.md §11.
 
-- [x] **DDS2ECS-S17T1** Add `Perception` and `Combat` project references to `Bagira.SimHost.csproj` — [details](./TASK-DETAIL.md#dds2ecs-s17t1--add-perception-and-combat-project-references)
+- [x] **DDS2ECS-S17T1** Add `Perception` and `Combat` project references to `Hrot.SimHost.csproj` — [details](./TASK-DETAIL.md#dds2ecs-s17t1--add-perception-and-combat-project-references)
 - [x] **DDS2ECS-S17T2** Register Perception, Combat, Physics, and HSM components in `SimHostApp.RegisterSimComponents()` — [details](./TASK-DETAIL.md#dds2ecs-s17t2--register-perception-combat-physics-and-hsm-components)
 - [x] **DDS2ECS-S17T3** Initialize `PhysicsToolkitModule` in `SimHostApp.OnLoad()` — [details](./TASK-DETAIL.md#dds2ecs-s17t3--initialize-physicstoolkitmodule-in-simhostapponload)
 - [x] **DDS2ECS-S17T4** Expand `SimulationLogicModule` with Input/Sim/PostSim combat systems — [details](./TASK-DETAIL.md#dds2ecs-s17t4--expand-simulationlogicmodule-with-combat-systems)

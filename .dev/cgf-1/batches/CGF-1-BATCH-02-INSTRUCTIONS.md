@@ -1,4 +1,4 @@
-# CGF-1-BATCH-02: BATCH-01 debt + DrillSlave foundation (CGF1-S0104)
+# CGF-1-BATCH-02: BATCH-01 debt + ClusterSlave foundation (CGF1-S0104)
 
 **Batch number:** CGF-1-BATCH-02  
 **Tasks:** *Corrective / debt (BATCH-01)* → **CGF1-S0104**  
@@ -28,12 +28,12 @@ Complete **all corrective items in part A first** (so P2/P3 from BATCH-01 does n
 
 | Item | Path |
 |------|------|
-| DrillMaster, NodeRoster | `Bagira.Orchestrator/` |
-| SimHost app | `Bagira.SimHost/SimHostApp.cs`, `Bagira.SimHost/Network/LocalIdAllocatorFallbackHost.cs` |
-| Schema tests | `Bagira.DDS.DataModel.Tests/OrchestrationSchemaTests.cs` |
-| Orchestrator bootstrap test | `Bagira.Orchestrator.Tests/DrillMasterBootstrapTests.cs` |
-| DDS integration | `Bagira.SimHost.Integration.Tests/` (migration + lifecycle / domain isolation) |
-| Runner orchestrator | `Bagira.Runner/Services/OrchestratorSubsystem.cs` |
+| ClusterMaster, NodeRoster | `Hrot.Orchestrator/` |
+| SimHost app | `Hrot.SimHost/SimHostApp.cs`, `Hrot.SimHost/Network/LocalIdAllocatorFallbackHost.cs` |
+| Schema tests | `Hrot.NED.Tests/OrchestrationSchemaTests.cs` |
+| Orchestrator bootstrap test | `Hrot.Orchestrator.Tests/ClusterMasterBootstrapTests.cs` |
+| DDS integration | `Hrot.SimHost.Integration.Tests/` (migration + lifecycle / domain isolation) |
+| Runner orchestrator | `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` |
 | Solution | `IOS-IG-SimHost.sln` |
 
 ### Build and test
@@ -43,7 +43,7 @@ dotnet build IOS-IG-SimHost.sln
 dotnet test IOS-IG-SimHost.sln
 ```
 
-If parallel full-suite runs remain flaky after part A.2, document residual risk in the report and prefer a **repeatable** local command (e.g. run `Bagira.SimHost.Integration.Tests` alone) for gatekeeping until CI policy is updated.
+If parallel full-suite runs remain flaky after part A.2, document residual risk in the report and prefer a **repeatable** local command (e.g. run `Hrot.SimHost.Integration.Tests` alone) for gatekeeping until CI policy is updated.
 
 ### Report / questions / review
 
@@ -60,7 +60,7 @@ When you resolve a DEBT-TRACKER row, mark it **✅** and set **Target Fix** to `
 ## Mandatory workflow: test-driven progression
 
 1. **Part A (debt):** each bullet → tests green → next bullet  
-2. **Part B (S0104):** follow task detail order; **all** pre-existing tests plus new `DrillSlaveHeartbeatTests` green before report  
+2. **Part B (S0104):** follow task detail order; **all** pre-existing tests plus new `ClusterSlaveHeartbeatTests` green before report  
 
 Do not start part B until part A P2 items are done (P3 may be combined with B if time-critical, but **P2 first**).
 
@@ -68,7 +68,7 @@ Do not start part B until part A P2 items are done (P3 may be combined with B if
 
 ## Context
 
-[BATCH-01 review](../reviews/CGF-1-BATCH-01-REVIEW.md) approved the schema/orchestrator/allocator work with follow-ups in [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md). This batch clears **Target Fix = CGF-1-BATCH-02** rows, then delivers **DrillSlave** on every node so the orchestrator can observe **NodeHeartbeat** from SimHost and CGF (and later IG/IOS). **CGF1-S0105** is **out of scope** here — planned for **CGF-1-BATCH-03**.
+[BATCH-01 review](../reviews/CGF-1-BATCH-01-REVIEW.md) approved the schema/orchestrator/allocator work with follow-ups in [.dev/DEBT-TRACKER.md](../../DEBT-TRACKER.md). This batch clears **Target Fix = CGF-1-BATCH-02** rows, then delivers **ClusterSlave** on every node so the orchestrator can observe **NodeHeartbeat** from SimHost and CGF (and later IG/IOS). **CGF1-S0105** is **out of scope** here — planned for **CGF-1-BATCH-03**.
 
 ---
 
@@ -76,11 +76,11 @@ Do not start part B until part A P2 items are done (P3 may be combined with B if
 
 Resolve these DEBT-TRACKER items (and any you mark ✅ in the same pass):
 
-### A.1 — P2: Single `ProcessRequests` path in `DrillMaster` (DEBT-TRACKER: Performance / CGF-1-BATCH-01)
+### A.1 — P2: Single `ProcessRequests` path in `ClusterMaster` (DEBT-TRACKER: Performance / CGF-1-BATCH-01)
 
-**Problem:** `DdsIdAllocatorServer.ProcessRequests()` runs on the dedicated background thread **and** in `DrillMaster.Tick()`.
+**Problem:** `DdsIdAllocatorServer.ProcessRequests()` runs on the dedicated background thread **and** in `ClusterMaster.Tick()`.
 
-**Requirement:** One clear ownership model — e.g. **only** the background loop **or** **only** `Tick()` (if Runner/orchestrator always ticks). Remove redundant calls; keep allocator responsive under load. Verify `Bagira.Orchestrator.Tests` and `DdsIdAllocatorMigrationTests` still pass.
+**Requirement:** One clear ownership model — e.g. **only** the background loop **or** **only** `Tick()` (if Runner/orchestrator always ticks). Remove redundant calls; keep allocator responsive under load. Verify `Hrot.Orchestrator.Tests` and `DdsIdAllocatorMigrationTests` still pass.
 
 ### A.2 — P2: DDS parallel test isolation (DEBT-TRACKER: Testing/Infra / CGF-1-BATCH-01)
 
@@ -88,7 +88,7 @@ Resolve these DEBT-TRACKER items (and any you mark ✅ in the same pass):
 
 **Requirement:** Implement a **minimal, documented** mitigation, for example:
 
-- xUnit **`[Collection("…")]`** grouping for CGF-related integration tests and/or `Bagira.Orchestrator.Tests` so they do not run concurrently with other domain-0 DDS tests in the same process; **and/or**  
+- xUnit **`[Collection("…")]`** grouping for CGF-related integration tests and/or `Hrot.Orchestrator.Tests` so they do not run concurrently with other domain-0 DDS tests in the same process; **and/or**  
 - configurable **non-zero default test domain** for new CGF harnesses; **and/or**  
 - a short **contributor note** in `.dev/cgf-1/CGF-1-ONBOARDING.md` or `README.md` if CI must use `--maxcpucount:1` until a broader fix lands.
 
@@ -96,7 +96,7 @@ Choose what actually eliminates or greatly reduces flakes **in this repo**; veri
 
 ### A.3 — P3: `OrchestrationSchemaTests` namespace scan (DEBT-TRACKER: Testing / CGF-1-BATCH-01)
 
-**Requirement:** Match [CGF-1-TASK-DETAIL.md §CGF1-S0101](../CGF-1-TASK-DETAIL.md#cgf1-s0101--orchestration-dds-schema-definition): reflect over **all** `partial struct` types in `Bagira.BDC.SSTD.Orchestration` and assert `[DdsTopic]` + `[DdsIdlFile("bdc-sst-orchestration")]` on each. Keep (or merge with) existing enum/QoS/key tests.
+**Requirement:** Match [CGF-1-TASK-DETAIL.md §CGF1-S0101](../CGF-1-TASK-DETAIL.md#cgf1-s0101--orchestration-dds-schema-definition): reflect over **all** `partial struct` types in `Hrot.NED.Descriptors.Orchestration` and assert `[DdsTopic]` + `[DdsIdlFile("bdc-sst-orchestration")]` on each. Keep (or merge with) existing enum/QoS/key tests.
 
 ### A.4 — P3: `OrchestratorPublishesStandbyOnStartup` — exactly one sample (DEBT-TRACKER)
 
@@ -110,36 +110,36 @@ Choose what actually eliminates or greatly reduces flakes **in this repo**; veri
 
 **Requirement:** Remove per-tick `new List<int>()` (reuse buffer, stack, or in-place removal).
 
-### A.7 — P3: `DrillMaster._profiles` (DEBT-TRACKER)
+### A.7 — P3: `ClusterMaster._profiles` (DEBT-TRACKER)
 
 **Requirement:** Remove dead `_profiles` dictionary **or** replace `NodeRoster` duplication with a single authoritative structure — no redundant unused state.
 
 ---
 
-## Part B — CGF1-S0104: DrillSlave foundation
+## Part B — CGF1-S0104: ClusterSlave foundation
 
-**Task definition:** [CGF-1-TASK-DETAIL.md §CGF1-S0104](../CGF-1-TASK-DETAIL.md#cgf1-s0104--drillslave-foundation)  
-**Design:** [CGF-1-DESIGN.md §3.4](../CGF-1-DESIGN.md#34-stage-14--drillslave-foundation)
+**Task definition:** [CGF-1-TASK-DETAIL.md §CGF1-S0104](../CGF-1-TASK-DETAIL.md#cgf1-s0104--clustslave-foundation)  
+**Design:** [CGF-1-DESIGN.md §3.4](../CGF-1-DESIGN.md#34-stage-14--clustslave-foundation)
 
 ### B.1 — Projects
 
-- Add **`Bagira.CGF`** (`net8.0` library) and **`Bagira.CGF.Standalone`** (executable), registered in `IOS-IG-SimHost.sln`.  
-- References per design / task (DataModel, Map.Common, Fdp.Kernel, network stack as needed — **no FDP project may reference `Bagira.*` for `IDsmHandler`**).
+- Add **`Hrot.CGF`** (`net8.0` library) and **`Hrot.CGF.Standalone`** (executable), registered in `IOS-IG-SimHost.sln`.  
+- References per design / task (DataModel, Map.Common, Fdp.Kernel, network stack as needed — **no FDP project may reference `Hrot.*` for `IDsmHandler`**).
 
 ### B.2 — `IDsmHandler`
 
-- There is no **`Bagira.Common`** assembly today; **create `Bagira.Common`** (minimal `net8.0` library) **or** use another **Bagira-layer** shared project that **IG, IOS, SimHost, CGF, and Orchestrator** can reference **without** pulling inappropriate dependencies. **Do not** place `IDsmHandler` under `FDP/`.  
+- There is no **`Hrot.Common`** assembly today; **create `Hrot.Common`** (minimal `net8.0` library) **or** use another **Hrot-layer** shared project that **IG, IOS, SimHost, CGF, and Orchestrator** can reference **without** pulling inappropriate dependencies. **Do not** place `IDsmHandler` under `FDP/`.  
 - Declare **`IDsmHandler`** (and any shared **`PendingMainThreadAction`** / delegate types) per task detail.  
 - **Audit:** no `FDP.*` project may reference `IDsmHandler`’s assembly; grep/`dotnet` build confirms.
 
-### B.3 — `DrillSlave` implementations
+### B.3 — `ClusterSlave` implementations
 
 Implement in:
 
-- `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`  
-- `Bagira.IG/Modules/Orchestration/DrillSlave.cs`  
-- `Bagira.IOS/Orchestration/DrillSlave.cs` (no-ECS; skip handlers requiring `EntityRepository`)  
-- `Bagira.CGF/Modules/Orchestration/DrillSlave.cs`  
+- `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs`  
+- `Hrot.IG/Modules/Orchestration/ClusterSlave.cs`  
+- `Hrot.ExCon/Orchestration/ClusterSlave.cs` (no-ECS; skip handlers requiring `EntityRepository`)  
+- `Hrot.CGF/Modules/Orchestration/ClusterSlave.cs`  
 
 **Behavior (normative detail in task + design):**
 
@@ -148,16 +148,16 @@ Implement in:
 
 ### B.4 — Registration
 
-- Register **SimHost** and **CGF** `DrillSlave` instances in the respective application **`OnLoad` / initialization** paths (exact files per your codebase — mirror existing subsystem registration style).  
+- Register **SimHost** and **CGF** `ClusterSlave` instances in the respective application **`OnLoad` / initialization** paths (exact files per your codebase — mirror existing subsystem registration style).  
 - **IG** and **IOS:** wire where those apps join the DDS loop (task requires all four implementations).
 
 ### B.5 — Tests
 
-**Success conditions** from task detail — implement **`DrillSlaveHeartbeatTests.OrchestratorReceivesHeartbeatsFromBothNodes`**:
+**Success conditions** from task detail — implement **`ClusterSlaveHeartbeatTests.OrchestratorReceivesHeartbeatsFromBothNodes`**:
 
 - Orchestrator + SimHost + CGF (in-process harness acceptable).  
-- Within **2 s** wall-clock, **`DrillMaster.NodeRoster`** contains **both** node IDs (SimHost and CGF).  
-- **`LocalDsmState == DSMState.Standby`** on both heartbeats.
+- Within **2 s** wall-clock, **`ClusterMaster.NodeRoster`** contains **both** node IDs (SimHost and CGF).  
+- **`LocalClusterState == ClusterState.Standby`** on both heartbeats.
 
 Tests must assert **real roster / state values**, not log strings or null checks only.
 

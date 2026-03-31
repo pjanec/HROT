@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -97,9 +97,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.Lifecycle.Tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ModuleHost.Benchmarks", "FDP\ModuleHost\ModuleHost.Benchmarks\ModuleHost.Benchmarks.csproj", "{1A1284BB-48A6-F8FB-92C2-C93EB8EBF99E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.DDS.DataModel", "Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj", "{1C71C7A0-923C-48E6-94ED-06D7F846F580}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.NED", "Hrot.NED\Hrot.NED.csproj", "{1C71C7A0-923C-48E6-94ED-06D7F846F580}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.DDS.DataModel.Tests", "Bagira.DDS.DataModel.Tests\Bagira.DDS.DataModel.Tests.csproj", "{35D1D5F9-D9E2-43B5-9B4D-435AA1358F4E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.NED.Tests", "Hrot.NED.Tests\Hrot.NED.Tests.csproj", "{35D1D5F9-D9E2-43B5-9B4D-435AA1358F4E}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "FDP", "FDP", "{60B53FEB-034D-423B-96EA-6FDEC9216F2F}"
 EndProject
@@ -111,7 +111,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DataModel", "DataModel", "{
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.DER.Examples", "FDP\Toolkits\FDP.Toolkit.DER.Examples\FDP.Toolkit.DER.Examples.csproj", "{C2EFC735-15DE-AFFD-06FB-85B2CB6537E8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Map.Definitions", "Bagira.Map.Definitions\Bagira.Map.Definitions.csproj", "{0C2FDFC8-8CFF-CB2A-BABC-0C48A49E60A9}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Map.Definitions", "Hrot.Map.Definitions\Hrot.Map.Definitions.csproj", "{0C2FDFC8-8CFF-CB2A-BABC-0C48A49E60A9}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CycloneDDS.IdlImporter", "FDP\ExtDeps\FastCycloneDds\tools\CycloneDDS.IdlImporter\CycloneDDS.IdlImporter.csproj", "{E92035E4-A4AB-4961-550E-F33BC715CF02}"
 EndProject
@@ -119,9 +119,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Common", "Common", "{68E621
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Interfaces", "FDP\Common\FDP.Interfaces\FDP.Interfaces.csproj", "{CBB74ACA-FD26-06AB-06EB-7DFBBE3CF279}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Map.Common", "Bagira.Map.Common\Bagira.Map.Common.csproj", "{904A2344-1BE1-4FC2-BD48-1A6FF1EE8A8D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Map.Common", "Hrot.Map.Common\Hrot.Map.Common.csproj", "{904A2344-1BE1-4FC2-BD48-1A6FF1EE8A8D}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Map.Common.Tests", "Bagira.Map.Common.Tests\Bagira.Map.Common.Tests.csproj", "{27A83877-1D4D-48D7-942A-9B1C4E4848D0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Map.Common.Tests", "Hrot.Map.Common.Tests\Hrot.Map.Common.Tests.csproj", "{27A83877-1D4D-48D7-942A-9B1C4E4848D0}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.NetworkSpawning", "FDP\Toolkits\FDP.Toolkit.NetworkSpawning\FDP.Toolkit.NetworkSpawning.csproj", "{9B1EECE3-AEC1-4F45-AE17-3D3B70CD4C89}"
 EndProject
@@ -131,19 +131,19 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.Replay", "FDP\T
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.Replay.Tests", "FDP\Toolkits\FDP.Toolkit.Replay.Tests\FDP.Toolkit.Replay.Tests.csproj", "{3B8E4C2D-5F0A-4A9B-C4D3-7F2E6B1A0C8F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.SimHost", "Bagira.SimHost\Bagira.SimHost.csproj", "{AE9DDDC9-9E51-444C-9D4B-C71ED6C55B1F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.SimHost", "Hrot.SimHost\Hrot.SimHost.csproj", "{AE9DDDC9-9E51-444C-9D4B-C71ED6C55B1F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.SimHost.Tests", "Bagira.SimHost.Tests\Bagira.SimHost.Tests.csproj", "{081B3FA9-4D8E-4665-80DF-3C8037EF4E1A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.SimHost.Tests", "Hrot.SimHost.Tests\Hrot.SimHost.Tests.csproj", "{081B3FA9-4D8E-4665-80DF-3C8037EF4E1A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.SimHost.Integration.Tests", "Bagira.SimHost.Integration.Tests\Bagira.SimHost.Integration.Tests.csproj", "{B6C21D3A-5F8E-4B2A-9D7F-1E4A8C2F6B03}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.SimHost.Integration.Tests", "Hrot.SimHost.Integration.Tests\Hrot.SimHost.Integration.Tests.csproj", "{B6C21D3A-5F8E-4B2A-9D7F-1E4A8C2F6B03}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.IG", "Bagira.IG\Bagira.IG.csproj", "{02413C46-A6BA-4F95-BED9-36B8EAD07494}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.IG", "Hrot.IG\Hrot.IG.csproj", "{02413C46-A6BA-4F95-BED9-36B8EAD07494}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.IG.Tests", "Bagira.IG.Tests\Bagira.IG.Tests.csproj", "{5E2F42F0-AB9D-4204-9F2B-4B2EC264BBFE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.IG.Tests", "Hrot.IG.Tests\Hrot.IG.Tests.csproj", "{5E2F42F0-AB9D-4204-9F2B-4B2EC264BBFE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.IOS", "Bagira.IOS\Bagira.IOS.csproj", "{D1A20F3C-5E84-4B2A-9C6D-8E3F7A1B0C4E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.ExCon", "Hrot.ExCon\Hrot.ExCon.csproj", "{D1A20F3C-5E84-4B2A-9C6D-8E3F7A1B0C4E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.IOS.Tests", "Bagira.IOS.Tests\Bagira.IOS.Tests.csproj", "{929D1E75-5052-4025-B3FB-20D71257624A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.ExCon.Tests", "Hrot.ExCon.Tests\Hrot.ExCon.Tests.csproj", "{929D1E75-5052-4025-B3FB-20D71257624A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.Behavior", "FDP\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj", "{64879755-2A90-FDDB-852E-AC407DE436DA}"
 EndProject
@@ -171,11 +171,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fdp.Examples.UrbanCombat", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fdp.Examples.UrbanCombat.Tests", "FDP\Examples\Fdp.Examples.UrbanCombat.Tests\Fdp.Examples.UrbanCombat.Tests.csproj", "{E280215C-7D18-6434-E9B1-88AAEEE0AB86}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Runner", "Bagira.Runner\Bagira.Runner.csproj", "{7FA52D87-6E79-4E09-B4CE-0127C8A4B33E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.ClusterRunner", "Hrot.ClusterRunner\Hrot.ClusterRunner.csproj", "{7FA52D87-6E79-4E09-B4CE-0127C8A4B33E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Runner.Tests", "Bagira.Runner.Tests\Bagira.Runner.Tests.csproj", "{DBF77385-07D9-44F8-8CD9-DB446859CF4E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.ClusterRunner.Tests", "Hrot.ClusterRunner.Tests\Hrot.ClusterRunner.Tests.csproj", "{DBF77385-07D9-44F8-8CD9-DB446859CF4E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Runner.Integration.Tests", "Bagira.Runner.Integration.Tests\Bagira.Runner.Integration.Tests.csproj", "{17D617B3-A296-FF2D-CACF-5E9F2C2C9F40}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.ClusterRunner.Integration.Tests", "Hrot.ClusterRunner.Integration.Tests\Hrot.ClusterRunner.Integration.Tests.csproj", "{17D617B3-A296-FF2D-CACF-5E9F2C2C9F40}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Framework.Runner", "FDP\Framework\FDP.Framework.Runner\FDP.Framework.Runner.csproj", "{751EF4E7-D044-4B37-BFB4-44F148BD77E6}"
 EndProject
@@ -189,15 +189,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fdp.Examples.Scenarios.Test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fdp.Examples.DDS", "FDP\Examples\Fdp.Examples.DDS\Fdp.Examples.DDS.csproj", "{3457B557-7F50-4993-9170-632B48D56794}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Orchestrator", "Bagira.Orchestrator\Bagira.Orchestrator.csproj", "{C46D7559-672B-437A-9123-D473676A5473}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Orchestrator", "Hrot.Orchestrator\Hrot.Orchestrator.csproj", "{C46D7559-672B-437A-9123-D473676A5473}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Orchestrator.Tests", "Bagira.Orchestrator.Tests\Bagira.Orchestrator.Tests.csproj", "{CA9C5928-0A21-4343-B486-DDE6CBDB1DC8}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Orchestrator.Tests", "Hrot.Orchestrator.Tests\Hrot.Orchestrator.Tests.csproj", "{CA9C5928-0A21-4343-B486-DDE6CBDB1DC8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Orchestrator.Integration.Tests", "Bagira.Orchestrator.Integration.Tests\Bagira.Orchestrator.Integration.Tests.csproj", "{41C65952-6A34-47D7-85CA-94DC3CDD1314}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Orchestrator.Integration.Tests", "Hrot.Orchestrator.Integration.Tests\Hrot.Orchestrator.Integration.Tests.csproj", "{41C65952-6A34-47D7-85CA-94DC3CDD1314}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.Common", "Bagira.Common\Bagira.Common.csproj", "{0EB3F087-3342-4436-82D5-7115A8E60F50}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Common", "Hrot.Common\Hrot.Common.csproj", "{0EB3F087-3342-4436-82D5-7115A8E60F50}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bagira.CGF", "Bagira.CGF\Bagira.CGF.csproj", "{A0AE1288-C153-41B3-AFCB-DCFC29D72299}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.CGF", "Hrot.CGF\Hrot.CGF.csproj", "{A0AE1288-C153-41B3-AFCB-DCFC29D72299}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FDP.Toolkit.Scenario", "FDP\Toolkits\FDP.Toolkit.Scenario\FDP.Toolkit.Scenario.csproj", "{90BD5B79-642D-4EF1-B0DA-E6E40DAEC010}"
 EndProject

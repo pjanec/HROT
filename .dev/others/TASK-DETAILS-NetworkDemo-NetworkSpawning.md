@@ -72,7 +72,7 @@ var spawningSystem = new NetworkSpawningSystem(
     localInternalId,
     // DisTypeExtractor: extracts DIS type from EntityMaster without coupling Toolkit to BDC
     (object c, out ulong dis) => {
-        if (c is Bagira.BDC.SSTD.EntityMaster m) { dis = m.DisType; return true; }
+        if (c is Hrot.NED.Descriptors.EntityMaster m) { dis = m.DisType; return true; }
         dis = 0; return false;
     }
 );

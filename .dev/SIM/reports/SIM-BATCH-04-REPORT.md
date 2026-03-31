@@ -12,13 +12,13 @@
 | File | Status | Description |
 |------|--------|-------------|
 | `FDP/Toolkits/FDP.Toolkit.Navigation/NavigationConstants.cs` | ✅ Updated | Added `ActionIdJoinFormation = 5` constant |
-| `Bagira.SimHost/DoctrineIds.cs` | ✅ Created | Stable doctrine ID constants for SimHost (`MoveTo_BT=3001`, `FollowRoute_BT=3002`, `JoinFormation_BT=3003`, `Idle_HSM=3010`) |
-| `Bagira.SimHost/Systems/MissionAdapterSystem.cs` | ✅ Implemented | Full replacement of stub — BehaviorId → DoctrineId translation, ParseParams, task advancement |
-| `Bagira.SimHost/Systems/JoinFormationExecutor.cs` | ✅ Implemented | Full replacement of stub — `JoinFormationParams`, `InFormationTag`, `IActionExecutor<LocomotionChannel>` |
-| `Bagira.SimHost/Modules/SimulationLogicModule.cs` | ✅ Updated | Uncommented `JoinFormationExecutor` registration with `ActionIdJoinFormation` |
-| `Bagira.SimHost/Bagira.SimHost.csproj` | ✅ Updated | Added `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` (required for `BrainBlackboard.Memory` pointer access) |
-| `Bagira.SimHost.Tests/MissionAdapterSystemTests.cs` | ✅ Created | 5 tests covering all TASK-S4.3 acceptance criteria |
-| `Bagira.SimHost.Tests/JoinFormationExecutorTests.cs` | ✅ Created | 4 tests covering all TASK-S4.4 acceptance criteria |
+| `Hrot.SimHost/DoctrineIds.cs` | ✅ Created | Stable doctrine ID constants for SimHost (`MoveTo_BT=3001`, `FollowRoute_BT=3002`, `JoinFormation_BT=3003`, `Idle_HSM=3010`) |
+| `Hrot.SimHost/Systems/MissionAdapterSystem.cs` | ✅ Implemented | Full replacement of stub — BehaviorId → DoctrineId translation, ParseParams, task advancement |
+| `Hrot.SimHost/Systems/JoinFormationExecutor.cs` | ✅ Implemented | Full replacement of stub — `JoinFormationParams`, `InFormationTag`, `IActionExecutor<LocomotionChannel>` |
+| `Hrot.SimHost/Modules/SimulationLogicModule.cs` | ✅ Updated | Uncommented `JoinFormationExecutor` registration with `ActionIdJoinFormation` |
+| `Hrot.SimHost/Hrot.SimHost.csproj` | ✅ Updated | Added `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` (required for `BrainBlackboard.Memory` pointer access) |
+| `Hrot.SimHost.Tests/MissionAdapterSystemTests.cs` | ✅ Created | 5 tests covering all TASK-S4.3 acceptance criteria |
+| `Hrot.SimHost.Tests/JoinFormationExecutorTests.cs` | ✅ Created | 4 tests covering all TASK-S4.4 acceptance criteria |
 
 ---
 
@@ -66,7 +66,7 @@ if (_doctrineRegistry.TryGetDefinition(doctrineId, out var def)
 }
 ```
 
-`unsafe` blocks are required for the `fixed (byte* ptr = ...)` pointer. Added `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` to both `Bagira.SimHost.csproj` and `Bagira.SimHost.Tests.csproj`.
+`unsafe` blocks are required for the `fixed (byte* ptr = ...)` pointer. Added `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` to both `Hrot.SimHost.csproj` and `Hrot.SimHost.Tests.csproj`.
 
 ---
 
@@ -132,7 +132,7 @@ The initial design considered `string FormationType` in the params struct, but `
 
 ### `MissionTrigger` Namespace Collision
 
-`MissionTrigger` exists in both `Bagira.BDC.SSTD` (the DDS data model) and `FDP.Toolkit.Behavior.Components` (the behavior toolkit). All test helper methods that construct `MissionTask` values now use the fully qualified `Bagira.BDC.SSTD.MissionTrigger` to avoid the `CS0104` ambiguous reference compile error.
+`MissionTrigger` exists in both `Hrot.NED.Descriptors` (the DDS data model) and `FDP.Toolkit.Behavior.Components` (the behavior toolkit). All test helper methods that construct `MissionTask` values now use the fully qualified `Hrot.NED.Descriptors.MissionTrigger` to avoid the `CS0104` ambiguous reference compile error.
 
 ---
 

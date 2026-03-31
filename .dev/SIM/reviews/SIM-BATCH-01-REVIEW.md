@@ -9,7 +9,7 @@
 
 ## Summary
 
-Wired GeographicModule into SimHost and verified GeoSpatial egress translator execution. Also corrected a critical layout mismatch (columns vs rows) in `WGS84Transform.cs` Matrix4x4 local ECEF rotation logic.
+Wired GeographicModule into SimHost and verified WorldPos egress translator execution. Also corrected a critical layout mismatch (columns vs rows) in `WGS84Transform.cs` Matrix4x4 local ECEF rotation logic.
 
 ---
 

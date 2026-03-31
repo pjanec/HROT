@@ -29,17 +29,17 @@
 
 | Project | Before | After | New |
 |---------|--------|-------|-----|
-| Bagira.SimHost.Tests | 326 | 332 | +6 |
-| Bagira.IG.Tests | 387 | 399 | +12 |
-| Bagira.DDS.DataModel.Tests | 33 | 33 | 0 |
-| Bagira.Map.Common.Tests | 94 | 94 | 0 |
-| Bagira.Runner.Tests | 112 | 112 | 0 |
+| Hrot.SimHost.Tests | 326 | 332 | +6 |
+| Hrot.IG.Tests | 387 | 399 | +12 |
+| Hrot.NED.Tests | 33 | 33 | 0 |
+| Hrot.Map.Common.Tests | 94 | 94 | 0 |
+| Hrot.ClusterRunner.Tests | 112 | 112 | 0 |
 
 **New Test Files Created:**
-- `Bagira.SimHost.Tests/Systems/MissionControlRequestSystemFollowRouteTests.cs` (6 tests) — OC1-S001
-- `Bagira.IG.Tests/CommandHandling/SetSelectionCommandTests.cs` (4 tests) — OC1-G001
-- `Bagira.IG.Tests/CommandHandling/SetViewCommandTests.cs` (3 tests) — OC1-G002
-- `Bagira.IG.Tests/CommandHandling/DrawPersonalRouteCommandTests.cs` (5 tests) — OC1-G003
+- `Hrot.SimHost.Tests/Systems/MissionControlRequestSystemFollowRouteTests.cs` (6 tests) — OC1-S001
+- `Hrot.IG.Tests/CommandHandling/SetSelectionCommandTests.cs` (4 tests) — OC1-G001
+- `Hrot.IG.Tests/CommandHandling/SetViewCommandTests.cs` (3 tests) — OC1-G002
+- `Hrot.IG.Tests/CommandHandling/DrawPersonalRouteCommandTests.cs` (5 tests) — OC1-G003
 
 **Key Test Scenarios Verified:**
 - ✅ OC1-S001 Sc1: FollowRoute with compiled trajectory → BehaviorParams rewritten from networkId to trajectoryId
@@ -75,9 +75,9 @@
 
 6. **Ghost entity lifecycle in `SelectEntityOnMap`**: When testing G001 deselection, `SelectEntityOnMap`'s clearing query used the default lifecycle filter (Active only), so ghost/spawning entities were invisible to it. Fixed by adding `.WithLifecycle(EntityLifecycle.All)` to the deselection query — correct for production too, since CMD_SET_SELECTION may target pre-promoted entities.
 
-7. **`_ghostCreationSystem` null when DDS fails**: `InitializeEmbedded` calls `InitializeNetwork(enableNetwork: true)`, but if `BagiraEnvironment.CreateParticipant()` throws (normal in CI/test environments without a DDS daemon), the catch block leaves `_ghostCreationSystem = null`. Fixed by hoisting the assignment to just after `ReplicationLogicModule` is created, before the `try` — safe because `GhostCreationSystem` is a pure ECS object that doesn't depend on DDS.
+7. **`_ghostCreationSystem` null when DDS fails**: `InitializeEmbedded` calls `InitializeNetwork(enableNetwork: true)`, but if `HrotEnvironment.CreateParticipant()` throws (normal in CI/test environments without a DDS daemon), the catch block leaves `_ghostCreationSystem = null`. Fixed by hoisting the assignment to just after `ReplicationLogicModule` is created, before the `try` — safe because `GhostCreationSystem` is a pure ECS object that doesn't depend on DDS.
 
-8. **`TestHook_InjectGeoSpatialDescriptor` requires DDS**: The GeoSpatial ingress translator is wired only when DDS initializes. In `SetViewCommandTests`, removed the GeoSpatial inject step and used `TestHook_SetEntitySimTransform` directly to set world position — functionally equivalent for the camera test.
+8. **`TestHook_InjectWorldPosDescriptor` requires DDS**: The WorldPos ingress translator is wired only when DDS initializes. In `SetViewCommandTests`, removed the WorldPos inject step and used `TestHook_SetEntitySimTransform` directly to set world position — functionally equivalent for the camera test.
 
 **Q2: Did you spot any weak points in the existing codebase? What would you improve?**
 

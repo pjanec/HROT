@@ -17,14 +17,14 @@ and all failure messages. A human-readable console summary is also printed.
 
 ### Changes Made
 
-#### `Bagira.Runner/Models/TestReport.cs` *(new file)*
+#### `Hrot.ClusterRunner/Models/TestReport.cs` *(new file)*
 
 Created the public model classes `TestReport` and `AssertionResults` as specified in
 R3.5 SC-1. `TestReport.Metrics` reuses the existing `MetricSummary` class from
-`Bagira.Runner.Services` (a superset of the spec's Min/Max/Avg/P95 fields), avoiding
+`Hrot.ClusterRunner.Services` (a superset of the spec's Min/Max/Avg/P95 fields), avoiding
 duplication.
 
-#### `Bagira.Runner/Services/HeadlessTestExecutor.cs`
+#### `Hrot.ClusterRunner/Services/HeadlessTestExecutor.cs`
 
 - **Added `_runStopwatch` field** (`Stopwatch`): started via `Restart()` at the very
   beginning of `RunAsync()` so duration includes orchestrator init time.
@@ -55,10 +55,10 @@ duplication.
 ### Summary
 
 Two new test classes (`RunnerAggregatedModeTests`, `HeadlessExecutorIntegrationTests`)
-in `Bagira.Runner.Tests` provide systematic coverage of the Runner's core value
+in `Hrot.ClusterRunner.Tests` provide systematic coverage of the Runner's core value
 proposition: multi-subsystem embeddability and end-to-end headless test execution.
 
-### New File: `Bagira.Runner.Tests/RunnerIntegrationTests.cs`
+### New File: `Hrot.ClusterRunner.Tests/RunnerIntegrationTests.cs`
 
 #### `RunnerAggregatedModeTests` (5 tests)
 
@@ -106,7 +106,7 @@ environment resource constraints — not algorithmic regressions.
 Added `[Trait("Category", "Performance")]` to all three tests:
 - `FDP/Kernel/Fdp.Kernel.Tests/ComponentDirtyTrackingTests.cs`
 - `FDP/Kernel/Fdp.Kernel.Tests/EntityComplexityPerformanceTests.cs`
-- `Bagira.SimHost.Integration.Tests/PerformanceTests.cs`
+- `Hrot.SimHost.Integration.Tests/PerformanceTests.cs`
 
 CI pipelines can now exclude these with `--filter "Category!=Performance"`.
 See `PERFORMANCE-TRIAGE.md` for the full analysis and the recommended scheduled-run
@@ -117,16 +117,16 @@ strategy on a dedicated performance agent.
 ## Test Results
 
 ```
-dotnet test Bagira.Runner.Tests/Bagira.Runner.Tests.csproj --no-build -c Debug
+dotnet test Hrot.ClusterRunner.Tests/Hrot.ClusterRunner.Tests.csproj --no-build -c Debug
 ```
 
 | Assembly | Passed | Failed | Notes |
 |----------|--------|--------|-------|
-| Bagira.Runner.Tests | **90** | 0 | +8 new integration tests vs. Batch 05 |
+| Hrot.ClusterRunner.Tests | **90** | 0 | +8 new integration tests vs. Batch 05 |
 
 All pre-existing test assemblies build clean. The `[Trait("Category","Performance")]`
 annotations compile without error in both `Fdp.Tests` and
-`Bagira.SimHost.Integration.Tests`.
+`Hrot.SimHost.Integration.Tests`.
 
 ---
 
@@ -138,5 +138,5 @@ annotations compile without error in both `Fdp.Tests` and
 - ✅ `HeadlessExecutorIntegrationTests` — 3 tests covering pass, entity-spawn, and deliberate-fail paths
 - ✅ `PERFORMANCE-TRIAGE.md` — documented root cause and CI filter recommendation for all three flaky tests
 - ✅ `[Trait("Category","Performance")]` applied to all three flaky tests
-- ✅ 90/90 tests passing in `Bagira.Runner.Tests`
+- ✅ 90/90 tests passing in `Hrot.ClusterRunner.Tests`
 - ✅ Zero new compiler warnings introduced

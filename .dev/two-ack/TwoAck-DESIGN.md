@@ -70,13 +70,13 @@ IOS                          SimHost                        FDP ELM
 
 ---
 
-## 3. Phase 1: Data Model Unification (`Bagira.DDS.DataModel`)
+## 3. Phase 1: Data Model Unification (`Hrot.NED`)
 
 This phase establishes the shared network contract that all other phases depend on.
 
 ### 3.1 New `DeleteEntityRequest` Struct
 
-Add to `Bagira.DDS.DataModel/GenericMessages.cs`. Mirrors the pattern of `UpdateEntityDescriptorRequest`.
+Add to `Hrot.NED/GenericMessages.cs`. Mirrors the pattern of `UpdateEntityDescriptorRequest`.
 
 ```csharp
 [DdsTopic("DeleteEntityRequest")]
@@ -144,9 +144,9 @@ The old topic `CreateEntityAck` is retired. The old `ErrorCode` field is removed
 
 ---
 
-## 4. Phase 2: SimHost Two-ACK Pipeline (`Bagira.SimHost`)
+## 4. Phase 2: SimHost Two-ACK Pipeline (`Hrot.SimHost`)
 
-The SimHost implementation avoids any changes to FDP. All two-ACK state machine logic lives in the `Bagira.SimHost` application layer, which simply observes FDP's `EntityLifecycle` state transitions.
+The SimHost implementation avoids any changes to FDP. All two-ACK state machine logic lives in the `Hrot.SimHost` application layer, which simply observes FDP's `EntityLifecycle` state transitions.
 
 ### 4.1 `SstRequestFinalizationSystem` (new)
 
@@ -182,9 +182,9 @@ A new `IEcsModuleSystem` that consumes `DeleteEntityRequest` messages from DDS. 
 
 ---
 
-## 5. Phase 3: IOS Client Adaptation (`Bagira.IOS` + `Bagira.Runner`)
+## 5. Phase 3: IOS Client Adaptation (`Hrot.ExCon` + `Hrot.ClusterRunner`)
 
-### 5.1 Updated Ingress Pipeline (`Bagira.Runner/Services/IosSubsystem.cs`)
+### 5.1 Updated Ingress Pipeline (`Hrot.ClusterRunner/Services/IosSubsystem.cs`)
 
 Replace `CreateEntityAckIngressHandler` and its `ConcurrentEventQueue<CreateEntityAck>` with a `ConcurrentEventQueue<CreateUpdateDeleteEntityAck>`. Pass the unified queue into `IosLogic`'s constructor. The `CreateEntityAckIngressHandler` class itself is updated (or replaced) to read from the new DDS topic `CreateUpdateDeleteEntityAck`.
 
@@ -214,7 +214,7 @@ When a failure ACK arrives (§5.2), the entity will have already been destroyed 
 
 ## 6. Architectural Invariants
 
-- **FDP is not modified.** The ELM and `NetworkSpawningSystem` remain pure, generic ECS systems. All SST contract logic is in `Bagira.SimHost` and `Bagira.IOS`.
+- **FDP is not modified.** The ELM and `NetworkSpawningSystem` remain pure, generic ECS systems. All SST contract logic is in `Hrot.SimHost` and `Hrot.ExCon`.
 - **The `DeleteEntityRequest` DDS topic is reliable + volatile + keep-all**, consistent with all other SST request messages.
 - **`SstStatusCode` is the single source of truth** for all `CreateUpdateDeleteEntityAck.StatusCode` values. No magic integers in application code.
 - **`CreateEntityAck` topic is retired.** All consumers must migrate to `CreateUpdateDeleteEntityAck`.
@@ -225,13 +225,13 @@ When a failure ACK arrives (§5.2), the entity will have already been destroyed 
 
 | File | Relevance |
 |------|-----------|
-| `Bagira.DDS.DataModel/GenericMessages.cs` | `DeleteEntityRequest`, `CreateUpdateDeleteEntityAck`, `SstStatusCode` |
-| `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` | Phase 1 ACK + hand-off |
-| `Bagira.SimHost/Systems/SstRequestFinalizationSystem.cs` | **New** — Phase 2 watcher |
-| `Bagira.SimHost/Systems/DeleteEntityRequestSystem.cs` | **New** — deletion entry point |
-| `Bagira.Runner/Services/IosSubsystem.cs` | Ingress handler wiring |
-| `Bagira.IOS/IosLogic.cs` | Two-ACK state machine, `_pendingEntities` |
-| `Bagira.IOS/Panels/MissionPanel.cs` | UI locking |
-| `Bagira.IOS/Logic/ContextMenuLogic.cs` | Context menu locking |
+| `Hrot.NED/GenericMessages.cs` | `DeleteEntityRequest`, `CreateUpdateDeleteEntityAck`, `SstStatusCode` |
+| `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` | Phase 1 ACK + hand-off |
+| `Hrot.SimHost/Systems/SstRequestFinalizationSystem.cs` | **New** — Phase 2 watcher |
+| `Hrot.SimHost/Systems/DeleteEntityRequestSystem.cs` | **New** — deletion entry point |
+| `Hrot.ClusterRunner/Services/IosSubsystem.cs` | Ingress handler wiring |
+| `Hrot.ExCon/IosLogic.cs` | Two-ACK state machine, `_pendingEntities` |
+| `Hrot.ExCon/Panels/MissionPanel.cs` | UI locking |
+| `Hrot.ExCon/Logic/ContextMenuLogic.cs` | Context menu locking |
 | `FDP/Toolkits/FDP.Toolkit.Lifecycle/EntityLifecycleModule.cs` | Read-only reference — not modified |
 | `FDP/Kernel/Fdp.Kernel/EntityLifecycleState.cs` | `EntityLifecycle` enum — read-only reference |

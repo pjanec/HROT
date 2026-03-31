@@ -22,7 +22,7 @@ Welcome to the sixth batch! We are entering Phase IG4. With rendering and intera
 5. **Code Standards:** `.dev-workstream/guides/CODE-STANDARDS.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`
+- **Primary Work Area:** `Hrot.IG/`
 
 ### Report Submission
 **When done, submit your report to:**  

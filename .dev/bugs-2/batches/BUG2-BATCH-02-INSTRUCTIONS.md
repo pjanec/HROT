@@ -22,8 +22,8 @@ Welcome to the second batch of the BUG2 workstream! This batch contains the rema
 5. **Design Document:** `docs/bugs-2/BUG2-DESIGN.md` - Architectural context and reasoning
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`, `FDP/Toolkits/FDP.Toolkit.Vis2D/`, `Bagira.SimHost/`, `Bagira.Map.Common/`, `Fdp.Kernel/`, `FDP/Toolkits/FDP.Toolkit.Combat/`, `FDP/Toolkits/FDP.Toolkit.Combat.Contracts/`, `FDP/Toolkits/FDP.Toolkit.Behavior/`
-- **Test Projects:** `Bagira.IG.Tests/`, `FDP.Toolkit.Vis2D.Tests/`, `Bagira.SimHost.Tests/`, `Bagira.Map.Common.Tests/`
+- **Primary Work Area:** `Hrot.IG/`, `FDP/Toolkits/FDP.Toolkit.Vis2D/`, `Hrot.SimHost/`, `Hrot.Map.Common/`, `Fdp.Kernel/`, `FDP/Toolkits/FDP.Toolkit.Combat/`, `FDP/Toolkits/FDP.Toolkit.Combat.Contracts/`, `FDP/Toolkits/FDP.Toolkit.Behavior/`
+- **Test Projects:** `Hrot.IG.Tests/`, `FDP.Toolkit.Vis2D.Tests/`, `Hrot.SimHost.Tests/`, `Hrot.Map.Common.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -81,17 +81,17 @@ This batch completes the BUG2 work tracking and includes an immediate technical 
 
 ### Task 0: Consolidate ResolveTrigger helper (BUG2-DEBT-01)
 
-**Files:** `Bagira.SimHost/Systems/MissionControlRequestSystem.cs`, `Bagira.Map.Common/Translators/EntityMissionIngressTranslator.cs`, `Bagira.Map.Common/Helpers/MissionTriggerHelper.cs` (new)
+**Files:** `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`, `Hrot.Map.Common/Translators/EntityMissionIngressTranslator.cs`, `Hrot.Map.Common/Helpers/MissionTriggerHelper.cs` (new)
 **Task Definition:** Tech Debt from BUG2-BATCH-01.
 
-**Description:** The duplicate-copy of `ResolveTrigger` logic between `MissionControlRequestSystem` and `EntityMissionIngressTranslator` is a tech-debt item. Consolidate into a shared static helper (`MissionTriggerHelper`) within `Bagira.Map.Common`.
+**Description:** The duplicate-copy of `ResolveTrigger` logic between `MissionControlRequestSystem` and `EntityMissionIngressTranslator` is a tech-debt item. Consolidate into a shared static helper (`MissionTriggerHelper`) within `Hrot.Map.Common`.
 
 **Tests Required:**
-- ✅ Verify existing tests for `ResolveTrigger` in both `Bagira.SimHost.Tests` and `Bagira.Map.Common.Tests` continue to pass correctly by migrating them to test the new utility class.
+- ✅ Verify existing tests for `ResolveTrigger` in both `Hrot.SimHost.Tests` and `Hrot.Map.Common.Tests` continue to pass correctly by migrating them to test the new utility class.
 
 ### Task 1: Add Shift-Key Immediate Drag Mode (BUG2-I001)
 
-**File:** `Bagira.IG/IgApplication.cs`  
+**File:** `Hrot.IG/IgApplication.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-i001-add-shift-key-immediate-drag-mode)
 
 **Description:** Unthrottle location updates in the map canvas when the Shift key is held down.
@@ -103,7 +103,7 @@ This batch completes the BUG2 work tracking and includes an immediate technical 
 
 ### Task 2: Enforce Layer Visibility in Selection and Rendering (BUG2-V001)
 
-**Files:** `FDP/Toolkits/FDP.Toolkit.Vis2D/Tools/BoxSelectionTool.cs`, `Bagira.IG/Systems/SelectionRenderSystem.cs`, `FDP/Toolkits/FDP.Toolkit.Vis2D/Layers/EntityRenderLayer.cs`, `Bagira.IG/IgApplication.cs`  
+**Files:** `FDP/Toolkits/FDP.Toolkit.Vis2D/Tools/BoxSelectionTool.cs`, `Hrot.IG/Systems/SelectionRenderSystem.cs`, `FDP/Toolkits/FDP.Toolkit.Vis2D/Layers/EntityRenderLayer.cs`, `Hrot.IG/IgApplication.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-v001-enforce-layer-visibility-in-selection-and-rendering)
 
 **Description:** Enforce proper masking logic so hidden layers aren't interactable or rendering selection rings.
@@ -116,7 +116,7 @@ This batch completes the BUG2 work tracking and includes an immediate technical 
 
 ### Task 3: Add Crosshair Cursor to MeasureTool (BUG2-T001)
 
-**File:** `Bagira.IG/Tools/MeasureTool.cs`  
+**File:** `Hrot.IG/Tools/MeasureTool.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-t001-add-crosshair-cursor-to-measuretool)
 
 **Description:** Provide visual feedback when the operator equips the measure tool prior to clicking on a start point.
@@ -138,7 +138,7 @@ This batch completes the BUG2 work tracking and includes an immediate technical 
 
 ### Task 5: Add Delete to Inspector Context Menus (BUG2-E001)
 
-**Files:** `Bagira.SimHost/SimHostVisualization.cs`, `Bagira.IG/IgApplication.cs`  
+**Files:** `Hrot.SimHost/SimHostVisualization.cs`, `Hrot.IG/IgApplication.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-e001-add-delete-to-inspector-context-menus)
 
 **Description:** Properly network UI deletion calls across SimHost and IG inspectors via ELM messaging (`DestroyEntityCommand`), or manually clear if local-only.
@@ -150,7 +150,7 @@ This batch completes the BUG2 work tracking and includes an immediate technical 
 
 ### Task 6: Wire IOS DELETE Context Action to IG-Side ELM Deletion (BUG2-E002)
 
-**Files:** `Bagira.IG/Translators/ContextActionsUpdateTranslator.cs`, `Bagira.IG/IgApplication.cs`  
+**Files:** `Hrot.IG/Translators/ContextActionsUpdateTranslator.cs`, `Hrot.IG/IgApplication.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-e002-wire-ios-delete-context-action-to-ig-side-elm-deletion)
 
 **Description:** Map numeric IOS action ID `10` -> `IG_DeleteEntity` and invoke the appropriate networked destruct system locally.
@@ -161,7 +161,7 @@ This batch completes the BUG2 work tracking and includes an immediate technical 
 
 ### Task 7: Fix SimHost Road Graph Rendering (BUG2-R001)
 
-**Files:** `Bagira.SimHost/Modules/SimulationLogicModule.cs`, `Bagira.SimHost/SimHostApp.cs`  
+**Files:** `Hrot.SimHost/Modules/SimulationLogicModule.cs`, `Hrot.SimHost/SimHostApp.cs`  
 **Task Definition:** See [BUG2-TASK-DETAIL.md](../../docs/bugs-2/BUG2-TASK-DETAIL.md#bug2-r001-fix-simhost-road-graph-rendering)
 
 **Description:** Correctly implement node-configurable file path references and fix auto-property errors with `RoadNetworkBlob`.

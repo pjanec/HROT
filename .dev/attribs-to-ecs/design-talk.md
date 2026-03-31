@@ -1,9 +1,9 @@
-﻿
+
 i want to discuss a major change in DDS message. What does your CreateEntityrequest now looks like?
 
 In the current codebase, the **CreateEntityRequest** DDS message relies entirely on a list of monolithic descriptors to define a new entity's starting properties. According to `GenericMessages.cs`, the struct currently looks like this:
 
--   `Guid RequestId`: A unique identifier for the request.-   `NodeId Owner`: The node that should own the created entity.-   `long Flags`: Extra configuration flags for creation.-   **List<EntityDescriptorUnion> InitialDescriptors**: A sequence of full descriptors (like `EntityMaster`, `GeoSpatial`, and `EntityInfo`) that populate the new entity.
+-   `Guid RequestId`: A unique identifier for the request.-   `NodeId Owner`: The node that should own the created entity.-   `long Flags`: Extra configuration flags for creation.-   **List<EntityDescriptorUnion> InitialDescriptors**: A sequence of full descriptors (like `EntityMaster`, `WorldPos`, and `EntityInfo`) that populate the new entity.
 
 **The Major Architectural Flaw & Change** The discussion highlights a critical flaw in relying purely on `InitialDescriptors`: **descriptors are monolithic structs**.
 
@@ -27,7 +27,7 @@ I would rathed send them as json object with inner hierarchy
 
 This would work perfectly when the map placement tool which is using a big JSOn with properties.
 
-You are absolutely right. Relying on a fixed numerical enum (`EntityAttribute` like `eaName`, `eaGeoPosition`) breaks down completely when you need to reach into deep, dynamic hierarchies like `Weapons.Ammo.Count`.
+You are absolutely right. Relying on a fixed numerical enum (`EntityAttribute` like `eaName`, `eaGeoPoint`) breaks down completely when you need to reach into deep, dynamic hierarchies like `Weapons.Ammo.Count`.
 
 Sending a hierarchical JSON object is a far more intuitive and flexible approach, and it perfectly aligns with your existing IOS architecture, which already uses `initialPropertiesJson` to configure entity overrides in the map placement tool.
 
@@ -417,7 +417,7 @@ public class EcsPatchContext : IEntityPatchContext
 
 This split beautifully handles your network egress (publishing changes back to the clients).
 
--   When your `ValueAttributeSetter` modifies an unmanaged struct like `SimTransform` (accessed via `GetComponentRW`), the ECS natively stamps the `LastChangeTick`. Your high-frequency `GeoSpatialEgressTranslator` naturally picks this up without any managed dictionary lookups.-   When your `ReferenceAttributeSetter` modifies a managed class like `IgEntityData`, the context's `MarkManagedDirty` can safely call `SmartEgressUtil.MarkDirty(repo, entity, ordinal)`. This flags the low-frequency reliable data (like `EntityInfo`) for network broadcast without bogging down the fast unmanaged path.
+-   When your `ValueAttributeSetter` modifies an unmanaged struct like `SimTransform` (accessed via `GetComponentRW`), the ECS natively stamps the `LastChangeTick`. Your high-frequency `WorldPosEgressTranslator` naturally picks this up without any managed dictionary lookups.-   When your `ReferenceAttributeSetter` modifies a managed class like `IgEntityData`, the context's `MarkManagedDirty` can safely call `SmartEgressUtil.MarkDirty(repo, entity, ordinal)`. This flags the low-frequency reliable data (like `EntityInfo`) for network broadcast without bogging down the fast unmanaged path.
 
 Summary
 
@@ -437,11 +437,11 @@ Here are the specific gaps and flaws between the "attribute-as-json" design and 
 
 1\. Gap: Enum/List Payloads Instead of JSON Strings
 
--   **The Design:** Proposed replacing the list of binary attribute payloads with a single `InitialAttributesJson` string field in the DDS message to allow infinite flexibility and avoid modifying IDLs for new fields.-   **The Reality:** The codebase still uses a `List<EntityAttributePayload> InitialAttributes` collection. It continues to rely on a fixed, hardcoded enum discriminator (`EntityAttribute`) limited strictly to `eaName` and `eaGeoPosition`.
+-   **The Design:** Proposed replacing the list of binary attribute payloads with a single `InitialAttributesJson` string field in the DDS message to allow infinite flexibility and avoid modifying IDLs for new fields.-   **The Reality:** The codebase still uses a `List<EntityAttributePayload> InitialAttributes` collection. It continues to rely on a fixed, hardcoded enum discriminator (`EntityAttribute`) limited strictly to `eaName` and `eaGeoPoint`.
 
 2\. Gap: No Support for Deep Hierarchical Paths
 
--   **The Design:** Detailed an "Incremental Path Hashing" system to traverse deep, dynamic property paths like `"Weapons.0.Ammo.Count"` using `stackalloc` arrays and wildcard wildcard tokens.-   **The Reality:** The current `EntityAttributeCompiler` has no pathing logic, no hash tracking, and no unmanaged state machine. It only handles flat, root-level overrides by manually hardcoding `if (attr._d == EntityAttribute.eaName)` and `EntityAttribute.eaGeoPosition`.
+-   **The Design:** Detailed an "Incremental Path Hashing" system to traverse deep, dynamic property paths like `"Weapons.0.Ammo.Count"` using `stackalloc` arrays and wildcard wildcard tokens.-   **The Reality:** The current `EntityAttributeCompiler` has no pathing logic, no hash tracking, and no unmanaged state machine. It only handles flat, root-level overrides by manually hardcoding `if (attr._d == EntityAttribute.eaName)` and `EntityAttribute.eaGeoPoint`.
 
 3\. Critical Flaw: Zero-Allocation Mandate is Violated
 
@@ -505,7 +505,7 @@ Yes, you can absolutely unify this by using the same pre-compiled `System.Linq.E
 
 1\. The Unified Property Routing Table
 
-Currently, ingress translators like `GeoSpatialIngressTranslator` manually unpack DDS struct fields and map them to ECS components like `SimTransform`. Meanwhile, the proposed JSON compiler uses a "Path-to-Component Routing Table" to map incremental path hashes to pre-compiled delegates.
+Currently, ingress translators like `WorldPosIngressTranslator` manually unpack DDS struct fields and map them to ECS components like `SimTransform`. Meanwhile, the proposed JSON compiler uses a "Path-to-Component Routing Table" to map incremental path hashes to pre-compiled delegates.
 
 To unify this, you elevate the Routing Table to be the global, authoritative mapping registry for the entire simulation engine. At application startup, you register mappings that link a semantic path to a specific ECS component field. This generates the highly optimized dual-mode delegates (`ValueAttributeSetter<T>` for unmanaged structs and `ReferenceAttributeSetter<T>` for managed classes).
 
@@ -535,11 +535,11 @@ Summary
 
 This architecture provides a flawless separation of concerns. The DDS layer handles transport, the JSON layer handles dynamic tool overrides, and the unified delegate registry handles the actual ECS component mutation. It gives you infinite flexibility to patch any deep field while strictly adhering to the project's zero heap allocation requirement on the hot path.
 
-can you pls present what the translation delegate converting GeoSpatial.Pos and GeoSpatial.Rot into SimTransform would look like? This needs to use the geoTranslator to convert the coordinates.
+can you pls present what the translation delegate converting WorldPos.Pos and WorldPos.Rot into SimTransform would look like? This needs to use the geoTranslator to convert the coordinates.
 
 To unify the mapping of DDS descriptors and JSON attribute patches into ECS components, we need a delegate that directly mutates the unmanaged `SimTransform` struct without boxing it.
 
-Based on the existing coordinate logic in your `GeoSpatialIngressTranslator` and the `EntityAttributeCompiler`, here is what that unified translation delegate would look like.
+Based on the existing coordinate logic in your `WorldPosIngressTranslator` and the `EntityAttributeCompiler`, here is what that unified translation delegate would look like.
 
 The Delegate Implementation
 
@@ -547,17 +547,17 @@ To maintain our strict zero-allocation (DOD) constraints, the delegate takes the
 
 ```
 // 1. The delegate signature targeting an unmanaged ECS struct
-public delegate void GeoSpatialMapperDelegate(
+public delegate void WorldPosMapperDelegate(
     ref SimTransform simTransform, 
-    in GeoPosition pos, 
-    in OrientationHPR rot, 
+    in GeoPoint pos, 
+    in EulerOri rot, 
     IGeographicTransform geoTranslator);
 
 // 2. The unified translation logic
-GeoSpatialMapperDelegate MapGeoSpatialToSimTransform = (
+WorldPosMapperDelegate MapWorldPosToSimTransform = (
     ref SimTransform simTransform, 
-    in GeoPosition pos, 
-    in OrientationHPR rot, 
+    in GeoPoint pos, 
+    in EulerOri rot, 
     IGeographicTransform geoTranslator) =>
 {
     // A. Convert Geodetic Position to Local Cartesian [1]
@@ -573,7 +573,7 @@ GeoSpatialMapperDelegate MapGeoSpatialToSimTransform = (
         (float)cartesian.Z
     );
 
-    // B. Convert OrientationHPR to Quaternion [1, 2]
+    // B. Convert EulerOri to Quaternion [1, 2]
     // The engine's existing bridge system correctly handles the X-forward (East) convention.
     simTransform.Rotation = SimTransformBridgeSystem.HeadingDegToRotation(rot.Heading);
 };
@@ -581,7 +581,7 @@ GeoSpatialMapperDelegate MapGeoSpatialToSimTransform = (
 
 Architectural Best Practices Applied
 
--   **Zero-Allocation (****ref SimTransform****)**: By using the `ref` keyword, the delegate mutates the contiguous ECS chunk memory (or the local scratchpad copy during entity spawning) directly. No `SimTransform` boxing occurs on the managed heap.-   **Single Source of Truth**: Currently, your `DescriptorMapper` and your `GeoSpatialIngressTranslator` both implement variations of this math independently. By wrapping this in a unified delegate, both the monolithic DDS ingress and the granular JSON map-click tools will route through the exact same coordinate math.-   **Dependency Injection in Expression Trees**: If you use `System.Linq.Expressions` to pre-compile this routing table at application startup, you should pass the `IGeographicTransform` into the compilation context so it gets baked into the compiled closure. This avoids having to pass heavy service dependencies through the generic routing API at runtime.
+-   **Zero-Allocation (****ref SimTransform****)**: By using the `ref` keyword, the delegate mutates the contiguous ECS chunk memory (or the local scratchpad copy during entity spawning) directly. No `SimTransform` boxing occurs on the managed heap.-   **Single Source of Truth**: Currently, your `DescriptorMapper` and your `WorldPosIngressTranslator` both implement variations of this math independently. By wrapping this in a unified delegate, both the monolithic DDS ingress and the granular JSON map-click tools will route through the exact same coordinate math.-   **Dependency Injection in Expression Trees**: If you use `System.Linq.Expressions` to pre-compile this routing table at application startup, you should pass the `IGeographicTransform` into the compilation context so it gets baked into the compiled closure. This avoids having to pass heavy service dependencies through the generic routing API at runtime.
 
 -----------------
 
@@ -650,7 +650,7 @@ If we rely purely on the ECS chunk's `LastChangeTick` (or `chunkVersion`) to dri
 Because of this exact limitation, your codebase correctly abandons chunk-level ticks for precise data tracking, using a split two-tiered strategy:
 
 ### 1. The Shadow State Pattern (For High-Frequency Data)
-For fast unmanaged data like positions, the `GeoSpatialEgressTranslator` completely bypasses chunk-level dirty flags. Instead, it uses a **Shadow Component** (`NetworkTransform`). Every frame, it manually checks the actual data difference: `Vector3.DistanceSquared(simTf.Position, netTf.LastPosition) > PositionThresholdSq`. This guarantees O(1) unmanaged memory access while achieving perfect per-entity granularity.
+For fast unmanaged data like positions, the `WorldPosEgressTranslator` completely bypasses chunk-level dirty flags. Instead, it uses a **Shadow Component** (`NetworkTransform`). Every frame, it manually checks the actual data difference: `Vector3.DistanceSquared(simTf.Position, netTf.LastPosition) > PositionThresholdSq`. This guarantees O(1) unmanaged memory access while achieving perfect per-entity granularity.
 
 ### 2. Explicit Dirty Flags (For Low-Frequency/Targeted Data)
 For complex or reliable data, the architecture uses `SmartEgressUtil`. Rather than checking the chunk, it maintains a per-entity managed component (`EgressPublicationState`) with an explicit `HashSet<long> DirtyDescriptors`. When an update occurs, the system explicitly calls `SmartEgressUtil.MarkDirty()`, which adds the specific descriptor ordinal to that single entity's hash set. 
@@ -688,7 +688,7 @@ If you look at the `UpdateEntityAttributeRequestSystem.ProcessRequest` method, t
 3. Overwrites the local ECS state via `EntityComponentReflector.SetComponent`.
 4. Calls `SmartEgressUtil.MarkDirty` to broadcast the change back to the network.
 
-By comparison, the well-established `UpdateEntityDescriptorRequestSystem` correctly protects its mutations by explicitly checking `view.HasAuthority(entity, GeoSpatialOrdinal)` and rejecting the request with `SstErrorCode.NotOwner` if the node is not authoritative. 
+By comparison, the well-established `UpdateEntityDescriptorRequestSystem` correctly protects its mutations by explicitly checking `view.HasAuthority(entity, WorldPosOrdinal)` and rejecting the request with `SstErrorCode.NotOwner` if the node is not authoritative. 
 
 ### The Consequence
 Because DDS topics are generally broadcast to all nodes, **every node** that receives the `UpdateEntityAttributeRequest` will apply the patch to its local ECS and subsequently attempt to broadcast the updated descriptor. This completely breaks the strict BDC SST ownership rules, causing non-authoritative shadow nodes to overwrite the actual owner's data, resulting in network-wide race conditions and a split-brain state.
@@ -711,7 +711,7 @@ private void ProcessRequest(UpdateEntityAttributeRequest req)
     long targetOrdinal = req.AttributeId switch
     {
         EntityAttribute.eaName => EntityInfoOrdinal,
-        EntityAttribute.eaGeoPosition => GeoSpatialOrdinal,
+        EntityAttribute.eaGeoPoint => WorldPosOrdinal,
         _ => -1 
     };
 
@@ -739,7 +739,7 @@ You are absolutely right, and this is a critical architectural distinction. I wa
 
 In `Fdp.Kernel`, authority is tracked natively at the granular component level using the integer Component ID, as evidenced by how `OwnershipIngressSystem` unpacks the network key and calls `repo.SetAuthority(entity, (int)typeId, isAuth)`. 
 
-If we take a descriptor ordinal (like `dtGeoSpatial` = 10) and pass it into a kernel-level authority check for an ECS component, we are introducing a severe type mismatch and breaking the boundary between the network transport and the simulation kernel. 
+If we take a descriptor ordinal (like `dtWorldPos` = 10) and pass it into a kernel-level authority check for an ECS component, we are introducing a severe type mismatch and breaking the boundary between the network transport and the simulation kernel. 
 
 Because the "attribute-as-json" compiler natively targets **ECS Components** (e.g., routing `Weapons.0.Ammo.Count` directly to `WeaponState`), the authority guard must operate strictly on the compiled component types, completely ignoring descriptor ordinals.
 
@@ -846,7 +846,7 @@ private void ProcessRequest(UpdateEntityAttributeRequest req)
         Type compType = comp.GetType();
         
         // Map the ECS component type back to its Network Descriptor Ordinal
-        // e.g., IgEntityData -> dtEntityInfo (21), SimTransform -> dtGeoSpatial (10)
+        // e.g., IgEntityData -> dtEntityInfo (21), SimTransform -> dtWorldPos (10)
         long targetOrdinal = MapComponentToDescriptorOrdinal(compType); 
 
         // 3. Granular Authority Check
@@ -880,7 +880,7 @@ private void ProcessRequest(UpdateEntityAttributeRequest req)
 
 ### Why this is the optimal architecture:
 
-1. **Broadcast-Friendly:** The frontend map tool doesn't need to know that `Node A` runs kinematics and `Node B` runs the mission logic. It just broadcasts `{"Name": "Tank-1", "GeoPosition": {...}}`. `Node A` applies the position and ignores the name; `Node B` applies the name and ignores the position. 
+1. **Broadcast-Friendly:** The frontend map tool doesn't need to know that `Node A` runs kinematics and `Node B` runs the mission logic. It just broadcasts `{"Name": "Tank-1", "GeoPoint": {...}}`. `Node A` applies the position and ignores the name; `Node B` applies the name and ignores the position. 
 2. **Zero Split-Brain Risk:** Because the `EntityAttributeCompiler` fetches the live component baseline locally *before* applying the JSON, the unowned data on `Node A` is never touched, and the overwrite flaw is completely bypassed.
 3. **Graceful ACK Handling:** By tracking `appliedAny`, the system returns `Success` if it did its job for the cluster, but properly returns `NotOwner` if a node receives a payload where it literally owns nothing, preventing false-positive success logs on shadow nodes.
 ---
@@ -1010,7 +1010,7 @@ By implementing this:
 ---
 The dds command for updatong attribs is not FDP specific , different recipients might be based on different engine. So the byte array must be generic, long at least 32 bytes, and just fdp nodes will use it as component bitmask. Just it cannot be called applied component mask
 ---
-You are absolutely correct. This is a classic interoperability trap. By naming the field `AppliedComponentMask`, we were leaking an internal implementation detail of the FDP ECS kernel (the 256-component limit and bitmask architecture) into the public Bagira Distributed Co-simulation (BDC) DDS transport layer. 
+You are absolutely correct. This is a classic interoperability trap. By naming the field `AppliedComponentMask`, we were leaking an internal implementation detail of the FDP ECS kernel (the 256-component limit and bitmask architecture) into the public Hrot Distributed Co-simulation (BDC) DDS transport layer. 
 
 Since the BDC SST protocol is engine-agnostic, other nodes (which might be built on Unreal, Unity, or a legacy C++ engine) will have no concept of "ECS Components". 
 
@@ -1101,7 +1101,7 @@ else
 ```
 
 ### Why this is the right design:
-*   **Encapsulation:** The DDS layer (`Bagira.BDC.SSTM`) remains completely ignorant of what an "ECS Component" is.
+*   **Encapsulation:** The DDS layer (`Hrot.NED.Messages`) remains completely ignorant of what an "ECS Component" is.
 *   **Extensibility:** If an Unreal Engine node processes the request, it could use those same 32 bytes to return an Unreal-specific `UObject` state hash.
 *   **Zero-Overhead:** It costs exactly the same amount of memory and CPU cycles as the previous design, while maintaining strict domain boundaries.
 ---

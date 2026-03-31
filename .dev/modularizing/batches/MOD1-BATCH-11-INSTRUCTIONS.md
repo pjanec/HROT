@@ -15,13 +15,13 @@
 You are a developer implementing the modularization of the IOS-IG-SimHost application. Read this section entirely before touching code.
 
 ### Project Goal
-Refactoring towards better modularization and generalization. **What should be generic must come under FDP, not be left in the Bagira domain.** This batch closes two long-standing Phase 3 gaps (missing translator pack factories) and fixes a component ID boundary violation that was introduced early in the project and never corrected.
+Refactoring towards better modularization and generalization. **What should be generic must come under FDP, not be left in the Hrot domain.** This batch closes two long-standing Phase 3 gaps (missing translator pack factories) and fixes a component ID boundary violation that was introduced early in the project and never corrected.
 
 ### Non-Negotiable Rules
-1. **Application must keep working.** `Bagira.Runner -x all` integration tests must pass after every task.
+1. **Application must keep working.** `Hrot.ClusterRunner -x all` integration tests must pass after every task.
 2. **Tests must check real behaviour** — verify observable outcomes, not call counts.
-3. **`FDP.*` assemblies may never reference `Bagira.*` assemblies.**
-4. **Component IDs belonging to Bagira-domain components go in `BagiraComponentIds`, never in `GlobalComponentIds`.**
+3. **`FDP.*` assemblies may never reference `Hrot.*` assemblies.**
+4. **Component IDs belonging to Hrot-domain components go in `HrotComponentIds`, never in `GlobalComponentIds`.**
 5. **Do not modify third-party submodules** under `FDP\ExtDeps\`.
 
 ### Required Reading (IN ORDER)
@@ -31,9 +31,9 @@ Refactoring towards better modularization and generalization. **What should be g
 4. `docs/modularizing/MOD1-DEBT-TRACKER.md`
 
 ### Source Code Locations
-- **Component ID fix:** `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs`, `Bagira.Map.Common/Components/IgSymbolOverride.cs`, `Bagira.Map.Common/Replication/` (translator referencing it), `Bagira.IG/` (systems referencing it)
-- **Translator packs:** `Bagira.SimHost/Network/` — follow the existing `SharedTranslatorPack` as the template
-- **God-class to refactor:** `Bagira.SimHost/SimHostApp.cs` (or wherever `OnLoad` lives)
+- **Component ID fix:** `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs`, `Hrot.Map.Common/Components/IgSymbolOverride.cs`, `Hrot.Map.Common/Replication/` (translator referencing it), `Hrot.IG/` (systems referencing it)
+- **Translator packs:** `Hrot.SimHost/Network/` — follow the existing `SharedTranslatorPack` as the template
+- **God-class to refactor:** `Hrot.SimHost/SimHostApp.cs` (or wherever `OnLoad` lives)
 
 ### Report Submission
 `.dev-workstream/reports/MOD1-BATCH-11-REPORT.md`
@@ -44,11 +44,11 @@ Refactoring towards better modularization and generalization. **What should be g
 
 ### DB-MOD1-22: Move `IgSymbolOverride` Component ID Out of `GlobalComponentIds`
 
-**Why this matters:** `GlobalComponentIds` is in `Fdp.Kernel` — the lowest layer of the entire dependency graph. Putting an IG-specific visual override ID there means every project that references `Fdp.Kernel` is contaminated with application-specific knowledge. Phase 5 established `BagiraComponentIds` precisely to hold IDs like this.
+**Why this matters:** `GlobalComponentIds` is in `Fdp.Kernel` — the lowest layer of the entire dependency graph. Putting an IG-specific visual override ID there means every project that references `Fdp.Kernel` is contaminated with application-specific knowledge. Phase 5 established `HrotComponentIds` precisely to hold IDs like this.
 
 **What to do:**
-1. Add a new entry in `BagiraComponentIds` (in `Bagira.Map.Definitions` or `Bagira.Map.Common`) for `IgSymbolOverride`. Assign it the next available ID in the Bagira-owned block (160–255).
-2. Update `[ComponentId(GlobalComponentIds.IgSymbolOverride)]` → `[ComponentId(BagiraComponentIds.IgSymbolOverride)]` in `Bagira.Map.Common/Components/IgSymbolOverride.cs`.
+1. Add a new entry in `HrotComponentIds` (in `Hrot.Map.Definitions` or `Hrot.Map.Common`) for `IgSymbolOverride`. Assign it the next available ID in the Hrot-owned block (160–255).
+2. Update `[ComponentId(GlobalComponentIds.IgSymbolOverride)]` → `[ComponentId(HrotComponentIds.IgSymbolOverride)]` in `Hrot.Map.Common/Components/IgSymbolOverride.cs`.
 3. Remove the `IgSymbolOverride` entry from `GlobalComponentIds.cs`. Also remove the `// IDs 67–68 are used for Navigation toolkit components` comment if it has drifted.
 4. Run `dotnet build` — fix any compilation errors from other files referencing `GlobalComponentIds.IgSymbolOverride`.
 5. **Do NOT change the numeric ID value if this component's state is persisted to disk** (e.g. in replay `.fdp` files). If it is persisted, add a note to the report.
@@ -69,9 +69,9 @@ Refactoring towards better modularization and generalization. **What should be g
 - **Shared:** already in `SharedTranslatorPack` — leave untouched.
 - **Other:** translators that don't fit the above three — document in the report and leave in `OnLoad` for now.
 
-**Step 2 — Create the two factory classes** in `Bagira.SimHost.Network`, following the exact same pattern as `SharedTranslatorPack`:
+**Step 2 — Create the two factory classes** in `Hrot.SimHost.Network`, following the exact same pattern as `SharedTranslatorPack`:
 ```csharp
-// Bagira.SimHost.Network/KinematicTranslatorPack.cs
+// Hrot.SimHost.Network/KinematicTranslatorPack.cs
 public static class KinematicTranslatorPack
 {
     public static IReadOnlyList<IDescriptorTranslator> Create(DdsParticipant participant, EntityRepository world)
@@ -100,12 +100,12 @@ translators.AddRange(CognitiveTranslatorPack.Create(participant, world));
 
 ## 🔄 MANDATORY WORKFLOW: Test-Driven Task Progression
 
-1. **DB-MOD1-22:** Move `IgSymbolOverride` ID to `BagiraComponentIds` → **`dotnet build` clean, ALL tests pass** ✅
+1. **DB-MOD1-22:** Move `IgSymbolOverride` ID to `HrotComponentIds` → **`dotnet build` clean, ALL tests pass** ✅
 2. **DB-MOD1-24 Step 1:** Audit `SimHostApp.OnLoad`, categorise all translators → document in report ✅
 3. **DB-MOD1-24 Step 2:** Create `KinematicTranslatorPack` + `CognitiveTranslatorPack` → **ALL tests pass** ✅
 4. **DB-MOD1-24 Step 3:** Replace manual `translators.Add` in `SimHostApp.OnLoad` → **ALL tests pass** ✅
 5. **DB-MOD1-24 Step 4:** Write pack tests → **ALL tests pass** ✅
-6. **Final:** `Bagira.Runner -x all` integration tests pass unconditionally ✅
+6. **Final:** `Hrot.ClusterRunner -x all` integration tests pass unconditionally ✅
 
 ---
 
@@ -127,9 +127,9 @@ translators.AddRange(CognitiveTranslatorPack.Create(participant, world));
 
 This batch is DONE when:
 - [ ] `grep -r "GlobalComponentIds.IgSymbolOverride" --include="*.cs"` returns zero matches.
-- [ ] `IgSymbolOverride` uses `BagiraComponentIds.IgSymbolOverride` for its component ID.
-- [ ] `KinematicTranslatorPack` and `CognitiveTranslatorPack` exist in `Bagira.SimHost.Network`.
+- [ ] `IgSymbolOverride` uses `HrotComponentIds.IgSymbolOverride` for its component ID.
+- [ ] `KinematicTranslatorPack` and `CognitiveTranslatorPack` exist in `Hrot.SimHost.Network`.
 - [ ] `SimHostApp.OnLoad` uses `AddRange` calls to the three packs instead of individual `translators.Add(new ...)` for kinematic and cognitive translators.
 - [ ] Pack creation is covered by at least 2 new unit tests (one per pack).
-- [ ] `Bagira.Runner -x all` integration tests pass unconditionally.
+- [ ] `Hrot.ClusterRunner -x all` integration tests pass unconditionally.
 - [ ] All unit and integration test suites pass with 0 failures.

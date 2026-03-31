@@ -70,7 +70,7 @@ Strengthen the test toward the **task-detail** wording: e.g. a **test-only** del
 
 If low-churn: align **`FdpAutoSerializer.Build()`** signature with **`Build(ComponentTypeRegistry registry)`** from §CGF1-S0306 **or** document in XML why the static registry is the single source of truth.
 
-### A.5 — **`DrillMaster.FanOutSerializeLocal` call site** (P2 — from BATCH-10 debt)
+### A.5 — **`ClusterMaster.FanOutSerializeLocal` call site** (P2 — from BATCH-10 debt)
 
 When implementing **S0307** save path, **must** invoke **`FanOutSerializeLocal`** (or equivalent) from orchestrator **SaveScenario / SerializeLocal** handling so the storage-gateway integration is **end-to-end**. Close the **DEBT-TRACKER** row that tracks “no call site” when done.
 
@@ -100,9 +100,9 @@ Close **Part A** rows when merged; add new rows only if scope is intentionally d
 
 Implement **all** work items (1–7) in the task detail, including:
 
-1. **`GlobalContextDsmHandler`** (`Bagira.Orchestrator`) — save/load **`Orchestrator.json`**, **`MasterTimeController.SeedState`**, **`OrchestratorContextTopic`**.  
-2. Register on the **Orchestrator’s** **`DrillSlave`** at startup.  
-3. **`ScenarioLoadDsmHandler`** in **`Bagira.SimHost`** and **`Bagira.CGF`** — header peek, **`ScenarioSerializer.Deserialize`**, mismatch → success no-op.  
+1. **`GlobalContextDsmHandler`** (`Hrot.Orchestrator`) — save/load **`Orchestrator.json`**, **`MasterTimeController.SeedState`**, **`OrchestratorContextTopic`**.  
+2. Register on the **Orchestrator’s** **`ClusterSlave`** at startup.  
+3. **`ScenarioLoadDsmHandler`** in **`Hrot.SimHost`** and **`Hrot.CGF`** — header peek, **`ScenarioSerializer.Deserialize`**, mismatch → success no-op.  
 4. Wire **`SimHostApp` / CGF composition** (`OnLoad` or current equivalent).  
 5. **`TransitionPlanner`**: **`ScenarioId`** → **`OperationStep(PrefetchScenario, scenarioId)`** before first **`TransitionStep`**.  
 6. **`StorageGatewayModule`**: **`PrefetchScenarioAsync`**, NAS layout, **`NodeOpCommand(PrefetchFiles, …)`** per spec.  
@@ -112,7 +112,7 @@ Implement **all** work items (1–7) in the task detail, including:
 
 ### Integration tests
 
-Task detail names **`Bagira.Orchestrator.Integration.Tests`**. **If that project does not exist**, create it, reference orchestrator + SimHost (and DDS deps as needed), add to **`IOS-IG-SimHost.sln`**, and implement:
+Task detail names **`Hrot.Orchestrator.Integration.Tests`**. **If that project does not exist**, create it, reference orchestrator + SimHost (and DDS deps as needed), add to **`IOS-IG-SimHost.sln`**, and implement:
 
 - **`ScenarioSaveLoadTests.RoundTrip_SimHost_EntitiesMatchAfterLoad`**  
 - **`ScenarioSaveLoadTests.OrchestratorContextRestored_AfterLoad`**  

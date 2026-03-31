@@ -10,8 +10,8 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| IG.1.1 Create Bagira.IG Project | ✅ Done | Compiles, all refs included |
-| IG.1.5 Create Bagira.IG.Tests | ✅ Done | xunit 2.5.3, refs Bagira.IG |
+| IG.1.1 Create Hrot.IG Project | ✅ Done | Compiles, all refs included |
+| IG.1.5 Create Hrot.IG.Tests | ✅ Done | xunit 2.5.3, refs Hrot.IG |
 | IG.1.2 Setup MapCanvas / Camera | ✅ Done | IgApplication: window, pan, zoom, overlay |
 | Tests | ✅ 15/15 passing | MapCameraZoomTests + MapCameraPanTests |
 
@@ -22,7 +22,7 @@
 ### Q1 — Issues During Project Structuring and Raylib Initialization
 
 **CycloneDDS native build prerequisite was undocumented.**  
-`Bagira.IG.csproj` includes `ModuleHost.Network.Cyclone`, which transitively depends on `CycloneDDS.Runtime`. That project runs a code-generation step at build time that requires `idlc.exe` — the native CycloneDDS IDL compiler. On a fresh clone of the repo, `artifacts/native/win-x64/` does not exist and the build fails immediately with `idlc.exe not found`.
+`Hrot.IG.csproj` includes `ModuleHost.Network.Cyclone`, which transitively depends on `CycloneDDS.Runtime`. That project runs a code-generation step at build time that requires `idlc.exe` — the native CycloneDDS IDL compiler. On a fresh clone of the repo, `artifacts/native/win-x64/` does not exist and the build fails immediately with `idlc.exe not found`.
 
 The fix is documented in [FDP/ExtDeps/FastCycloneDds/IDL-IMPORT.md](../../FDP/ExtDeps/FastCycloneDds/IDL-IMPORT.md) and [FDP/build.bat](../../FDP/build.bat): run `ExtDeps\FastCycloneDds\build\native-win.ps1` first to compile the CycloneDDS C source and populate `artifacts/native/win-x64/` (idlc.exe + ddsc.dll + plugin DLLs). This step is a one-time per-machine prerequisite that should be noted in a workspace README or setup guide — it is not obvious from the solution alone.
 
@@ -74,12 +74,12 @@ Points to watch in later batches when rendering entities:
 
 | File | Change |
 |------|--------|
-| `Bagira.IG/Bagira.IG.csproj` | Created — net8.0 console app with all project refs and NuGet packages |
-| `Bagira.IG/IgCameraConstants.cs` | Created — named constants for all camera/window config values |
-| `Bagira.IG/IgApplication.cs` | Created — main app class (window, MapCanvas, pan/zoom, debug overlay) |
-| `Bagira.IG/Program.cs` | Created — minimal entry point |
-| `Bagira.IG/Components/.gitkeep` … `Adapters/.gitkeep` | Created — folder structure markers |
-| `Bagira.IG.Tests/Bagira.IG.Tests.csproj` | Created — xunit 2.5.3 test project |
-| `Bagira.IG.Tests/MapCameraTests.cs` | Created — 15 behavioral tests (zoom clamping, pan, input-capture suppression) |
+| `Hrot.IG/Hrot.IG.csproj` | Created — net8.0 console app with all project refs and NuGet packages |
+| `Hrot.IG/IgCameraConstants.cs` | Created — named constants for all camera/window config values |
+| `Hrot.IG/IgApplication.cs` | Created — main app class (window, MapCanvas, pan/zoom, debug overlay) |
+| `Hrot.IG/Program.cs` | Created — minimal entry point |
+| `Hrot.IG/Components/.gitkeep` … `Adapters/.gitkeep` | Created — folder structure markers |
+| `Hrot.IG.Tests/Hrot.IG.Tests.csproj` | Created — xunit 2.5.3 test project |
+| `Hrot.IG.Tests/MapCameraTests.cs` | Created — 15 behavioral tests (zoom clamping, pan, input-capture suppression) |
 | `IOS-IG-SimHost.sln` | Modified — added both new projects + 24 build config entries |
 | `FDP/ExtDeps/FastCycloneDds/artifacts/native/win-x64/` | Created — native CycloneDDS artifacts (populated by running `build/native-win.ps1`) |

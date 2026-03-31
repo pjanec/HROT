@@ -74,7 +74,7 @@ public KinematicsMode Mode;  // CustomTrajectory, RoadGraph, Formation, Direct, 
 
 ### 2.5 SimHostTrajectoryLayer
 
-`SimHostTrajectoryLayer` (`Bagira.SimHost/Visualization/SimHostTrajectoryLayer.cs`) is an always-visible overlay that reads the selected vehicle's `NavState`, fetches its `CustomTrajectory` from the pool, and draws the path as grey line segments with an orange circle at the current `ProgressS`. This layer will need to be extended to also handle route entities.
+`SimHostTrajectoryLayer` (`Hrot.SimHost/Visualization/SimHostTrajectoryLayer.cs`) is an always-visible overlay that reads the selected vehicle's `NavState`, fetches its `CustomTrajectory` from the pool, and draws the path as grey line segments with an orange circle at the current `ProgressS`. This layer will need to be extended to also handle route entities.
 
 ### 2.6 Existing Map Layer — road_graphs
 
@@ -180,7 +180,7 @@ public struct CmdAppendPersonalWaypoint
 | Lifecycle | Exists until operator deletes it | Automatically destroyed by `SubEntityCleanupSystem` when the vehicle entity is destroyed |
 | Authoring | CMD_START_AUTHORING → PointSequenceTool on IG canvas → CreateEntityRequest | Shift+Right-Click → `CmdAppendPersonalWaypoint` → `PersonalRouteAuthoringSystem` creates/mutates child entity |
 | Sharing | Multiple vehicles can point `NavState.TrajectoryId` to the same compiled entry | One vehicle only (`PersonalRouteRef` on the vehicle) |
-| DDS replication | Full — entity announced via `EntityMaster` + `dtGeoSpatial` + `dtMapRoute` | Full — same sequence; the child entity is announced as a separate network entity with its parent's NetworkId encoded in descriptors |
+| DDS replication | Full — entity announced via `EntityMaster` + `dtWorldPos` + `dtMapRoute` | Full — same sequence; the child entity is announced as a separate network entity with its parent's NetworkId encoded in descriptors |
 | Editing | RouteEditTool accessible via context menu | RouteEditTool accessible via context menu on the child entity |
 | Component | `RoutePlan` only | `RoutePlan` + `PartMetadata` |
 
@@ -204,15 +204,15 @@ The DDS wire format remains geodetic (the pre-existing `MapRoute` IDL descriptor
 
 - Queries entities with `NetworkIdentity` + `SimTransform` + `RoutePlan` (and `NetworkAuthority` on SimHost).
 - On dirty flag (`SmartEgressUtil.IsDirty`), iterates `RoutePlan.Waypoints`.
-- Converts each `RouteWaypoint.Position` (`Vector3` Cartesian) → `GeoPosition` (lat/lon/alt) via `IGeographicTransform.ToGeodetic`.
-- Emits `MapRoute { EntityId, Points: [Waypoint(GeoPosition, SpeedMetersPerSec, ExtensionJson)], IsLoop }`.
-- Also emits `GeoSpatial` update if waypoint[0] changed (spatial anchor for "center on entity").
+- Converts each `RouteWaypoint.Position` (`Vector3` Cartesian) → `GeoPoint` (lat/lon/alt) via `IGeographicTransform.ToGeodetic`.
+- Emits `MapRoute { EntityId, Points: [Waypoint(GeoPoint, SpeedMetersPerSec, ExtensionJson)], IsLoop }`.
+- Also emits `WorldPos` update if waypoint[0] changed (spatial anchor for "center on entity").
 
 ### 6.2 MapRouteIngressTranslator (SimHost + IG)
 
 - Subscribes to the `dtMapRoute` DDS topic.
 - On receipt, looks up the route entity by `EntityId` in `NetworkEntityMap`.
-- Converts each `Waypoint.Position` (`GeoPosition`) → absolute Cartesian `Vector3` via `IGeographicTransform.ToCartesian`.
+- Converts each `Waypoint.Position` (`GeoPoint`) → absolute Cartesian `Vector3` via `IGeographicTransform.ToCartesian`.
 - Writes updated `RoutePlan.Waypoints` and increments `RoutePlan.Version`.
 - Defers if the entity's `SimTransform` is not yet available (same pattern as `MapVisualOverlayIngressTranslator`).
 
@@ -223,7 +223,7 @@ When a new route is being created, the IG issues a `CreateEntityRequest` contain
 | Descriptor | Content |
 |---|---|
 | `dtEntityMaster` | `TkbType = TkbEntityTypes.TacGraphic_Route` |
-| `dtGeoSpatial` | First waypoint converted to geodetic — used as spatial anchor |
+| `dtWorldPos` | First waypoint converted to geodetic — used as spatial anchor |
 | `dtMapRoute` | All waypoints in geodetic doubles |
 
 The SimHost `CreateEntityRequestSystem` allocates a network ID and dispatches `SpawnEntityCommand`. `NetworkSpawningSystem` creates the entity, applies the `TacGraphic_Route` TKB blueprint, and the `MapRouteIngressTranslator` populates the `RoutePlan` component from the initial `dtMapRoute` descriptor.
@@ -265,7 +265,7 @@ Not replicated over DDS — purely local performance state.
 
 ### 8.1 RouteRenderLayer (IG)
 
-A new `IMapLayer` implementation in `Bagira.IG` — analogous to `MapOverlayRenderLayer` which renders `EditablePolyline` entities.
+A new `IMapLayer` implementation in `Hrot.IG` — analogous to `MapOverlayRenderLayer` which renders `EditablePolyline` entities.
 
 - **Layer bit:** Reuses `RoadGraphsBit` (bit 4, "road_graphs") so the existing IOS layer toggle controls route visibility.
 - **Query:** Iterates all entities whose `TkbIdentity.TkbType == TkbEntityTypes.TacGraphic_Route` AND the `road_graphs` layer bit is set.
@@ -300,13 +300,13 @@ IOS                     IG                          SimHost
  │                       │                              │
  │                       │─ CreateEntityRequest ───────►│
  │                       │  dtEntityMaster(Route)       │
- │                       │  dtGeoSpatial(wp[0])         │
+ │                       │  dtWorldPos(wp[0])         │
  │                       │  dtMapRoute(all waypoints)   │
  │                       │                              │
  │                       │◄────── CreateEntityAck ──────│
  │                       │                              │
  │                       │◄── EntityMaster (broadcast)  │
- │                       │◄── GeoSpatial (broadcast)    │
+ │                       │◄── WorldPos (broadcast)    │
  │                       │◄── MapRoute (broadcast) ─────│
  │                       │                              │
  │                       │  [MapRouteIngressTranslator  │
@@ -417,7 +417,7 @@ Deletion follows the established ECS lifecycle pipeline:
 2. IOS/IG issues a `DestroyEntityCommand` for the route entity.
 3. `NetworkSpawningSystem` sets `EntityLifecycle.TearDown` on the entity.
 4. `EntityLifecycleModule` broadcasts a `DestructionOrder`.
-5. `CycloneNetworkCleanupSystem` disposes the DDS writers (`DisposeInstance` on `MapRoute`, `EntityMaster`, `GeoSpatial` topics).
+5. `CycloneNetworkCleanupSystem` disposes the DDS writers (`DisposeInstance` on `MapRoute`, `EntityMaster`, `WorldPos` topics).
 6. Remote nodes receive `DdsInstanceState.NotAliveDisposed` and destroy their ghost entities.
 7. An `IEntityLifecycleListener` on `RouteTrajectorySyncSystem` (or a dedicated cleanup system) calls `TrajectoryPoolManager.RemoveTrajectory` for the compiled entry.
 
@@ -453,7 +453,7 @@ A new TKB blueprint entry is required for `TkbEntityTypes.TacGraphic_Route (8802
 - Register `NetworkIdentity` and `NetworkAuthority` (for DDS replication).
 - **Not** register `EditablePolyline`, `NavState`, or any movement component (routes are not moving entities).
 
-The TKB entry is located in the TKB definition database (see `Bagira.Map.Definitions`). The blueprint ensures that both `NetworkSpawningSystem` and `IG`'s entity factory system attach the correct components when a route is spawned via `CreateEntityRequest`.
+The TKB entry is located in the TKB definition database (see `Hrot.Map.Definitions`). The blueprint ensures that both `NetworkSpawningSystem` and `IG`'s entity factory system attach the correct components when a route is spawned via `CreateEntityRequest`.
 
 ---
 

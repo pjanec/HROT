@@ -39,7 +39,7 @@ Completes IG.1.3, IG.1.3b, IG.1.4
 Establishes network translation between DDS boundaries and local entity representations while mapping base visual logic.
 
 Cyclone Network mapping:
-- Translators implemented for EntityMaster, GeoSpatial, EntityInfo
+- Translators implemented for EntityMaster, WorldPos, EntityInfo
 - TimePulse translated from DDS topic onto local FdpEventBus mapping directly to SlaveTimeController
 - NetworkSpawning wrapper safely bound on node 300 via SpawningModule
 

@@ -11,19 +11,19 @@
 
 | Task ID | Status | Notes |
 |---------|--------|-------|
-| ATTR-S5T1 | ✅ Done | `AttributeCompilerFactory.Build(geoTransform?)` in `Bagira.SimHost/AttributeCompilerFactory.cs` |
+| ATTR-S5T1 | ✅ Done | `AttributeCompilerFactory.Build(geoTransform?)` in `Hrot.SimHost/AttributeCompilerFactory.cs` |
 | ATTR-S5T2 | ✅ Done | `CreateEntityRequestSystem` accepts `JsonAttributeCompiler?`; applies `ListPatchContext` in `ProcessPendingRequest` |
 | ATTR-S5T3 | ✅ Done | `UpdateEntityAttributeRequestSystem` fully refactored with injectable interfaces + `EcsPatchContext` + `FlushDirtyMarks` |
-| ATTR-S5T4 | ✅ Done | Ordinals `dtEntityInfo` and `dtGeoSpatial` passed as `descriptorOrdinal` in `AttributeCompilerFactory` |
+| ATTR-S5T4 | ✅ Done | Ordinals `dtEntityInfo` and `dtWorldPos` passed as `descriptorOrdinal` in `AttributeCompilerFactory` |
 | ATTR-S6T1 | ✅ Done | `DescriptorMapper.MapToComponents(descriptors, geo, compiler)` overload routes `dtEntityInfo` through compiler |
-| ATTR-S6T2 | ✅ Done | `ApplyGeoSpatialDescriptor(ctx, geoSpatial, geoTransform)` public static — sets Position only, no rotation |
+| ATTR-S6T2 | ✅ Done | `ApplyWorldPosDescriptor(ctx, geoSpatial, geoTransform)` public static — sets Position only, no rotation |
 
 ---
 
 ## 🧪 Testing Results
 
-**Unit Tests Passed: 37 / 37 — `Bagira.Map.Common.Tests`**  
-**Unit Tests Passed: 99 / 99 — `Bagira.SimHost.Tests`**
+**Unit Tests Passed: 37 / 37 — `Hrot.Map.Common.Tests`**  
+**Unit Tests Passed: 99 / 99 — `Hrot.SimHost.Tests`**
 
 **New tests added this batch (17 total):**
 
@@ -39,31 +39,31 @@
 | `SimHostAttributeCompiler_Affiliation_Registered` | `AttributeCompilerFactoryTests.cs` | ATTR-S5T1/T4 |
 | `SimHostAttributeCompiler_Affiliation_PreservesExistingName` | `AttributeCompilerFactoryTests.cs` | ATTR-S5T1/T4 |
 | `AttributeCompiler_NamePatch_TriggersEntityInfoDirtyOnEcsPatchContext` | `AttributeCompilerFactoryTests.cs` | ATTR-S5T1/T4 |
-| `AttributeCompiler_GeoPatch_TriggersGeoSpatialDirty` | `AttributeCompilerFactoryTests.cs` | ATTR-S5T1/T4 |
+| `AttributeCompiler_GeoPatch_TriggersWorldPosDirty` | `AttributeCompilerFactoryTests.cs` | ATTR-S5T1/T4 |
 | `CreateEntityRequestSystem_InitialAttributesJson_PatchesName` | `AttributeCompilerFactoryTests.cs` | ATTR-S5T2 |
 | `CreateEntityRequestSystem_InitialAttributesJson_DoesNotOverwriteAffiliation` | `AttributeCompilerFactoryTests.cs` | ATTR-S5T2 |
 | `CreateEntityRequestSystem_NullJson_NoPatch` | `AttributeCompilerFactoryTests.cs` | ATTR-S5T2 |
 | `DescriptorMapper_WithCompiler_DtEntityInfoProducesIgEntityData` | `AttributeCompilerFactoryTests.cs` | ATTR-S6T1/T2 |
 | `DescriptorMapper_WithCompiler_NoDuplicateIgEntityData` | `AttributeCompilerFactoryTests.cs` | ATTR-S6T1/T2 |
-| `DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath` | `AttributeCompilerFactoryTests.cs` | ATTR-S6T1/T2 |
+| `DescriptorMapper_WorldPos_SharedDelegate_ProducesSameResultAsDirectPath` | `AttributeCompilerFactoryTests.cs` | ATTR-S6T1/T2 |
 
 ---
 
 ## 📝 Developer Insights
 
-**Q1: What difficulties did you encounter when wiring up the multi-coordinate `GeoPosition` struct logic for `SimTransform` conversions?**
+**Q1: What difficulties did you encounter when wiring up the multi-coordinate `GeoPoint` struct logic for `SimTransform` conversions?**
 
 The core difficulty is that `IGeographicTransform.ToCartesian(lat, lon, alt)` requires all three coordinates simultaneously, but `Utf8JsonReader` delivers them one token at a time. Each registered delegate fires in isolation — the `"Latitude"` delegate has no access to whatever the `"Longitude"` delegate will later see.
 
 The solution was a stateful `GeoCoordAccumulator` inner class with three nullable fields (`Lat?`, `Lon?`, `Alt?`). Each delegate stores its coordinate then calls `TryApply(ref SimTransform)`, which only fires `ToCartesian` when all three are non-null. After a successful conversion the accumulator resets all three to null, preventing partial coordinates from contaminating a subsequent patch that provides only one or two fields.
 
-One subtlety: within a single well-formed JSON object `{"GeoPosition":{"Latitude":…,"Longitude":…,"Altitude":…}}` the delegates fire sequentially, so the third delegate always triggers the conversion. The nullable guard makes the accumulator robust when a caller patches only latitude — in that case `TryApply` silently no-ops and the position is left unchanged, which is the correct semantics for a partial patch.
+One subtlety: within a single well-formed JSON object `{"GeoPoint":{"Latitude":…,"Longitude":…,"Altitude":…}}` the delegates fire sequentially, so the third delegate always triggers the conversion. The nullable guard makes the accumulator robust when a caller patches only latitude — in that case `TryApply` silently no-ops and the position is left unchanged, which is the correct semantics for a partial patch.
 
 **Q2: Does the `DescriptorMapper` Phase 6 structure feel sustainable going forward?**
 
 Yes, with one caveat. The new compiler overload eliminates the hardcoded string-literal assignments for `Name` and `Affiliation`, replacing them with the same delegate table used at runtime. Adding a new field (e.g. `Health`) now only requires one `RegisterReferencePath` call in `AttributeCompilerFactory.Build()` — `DescriptorMapper` picks it up automatically.
 
-The duplication risk vector lies in `ApplyGeoSpatialDescriptor`: it sets `Position` only, matching the JSON path delegates which also do not touch `Rotation`. If someone later adds a `"Heading"` JSON path to the compiler, they must also update `ApplyGeoSpatialDescriptor` to remain consistent, otherwise the two creation paths — JSON-string route vs descriptor-union route — diverge. The `DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath` test explicitly asserts this invariant, which provides a regression safety net but not compile-time enforcement.
+The duplication risk vector lies in `ApplyWorldPosDescriptor`: it sets `Position` only, matching the JSON path delegates which also do not touch `Rotation`. If someone later adds a `"Heading"` JSON path to the compiler, they must also update `ApplyWorldPosDescriptor` to remain consistent, otherwise the two creation paths — JSON-string route vs descriptor-union route — diverge. The `DescriptorMapper_WorldPos_SharedDelegate_ProducesSameResultAsDirectPath` test explicitly asserts this invariant, which provides a regression safety net but not compile-time enforcement.
 
 **Q3: Were you able to verify any lingering allocations in the `UpdateEntityAttributeRequestSystem` hot path?**
 
@@ -87,4 +87,4 @@ Neither context type enforces the flush via a disposable/`using` pattern. A `[Mu
 - No open blocking issues.
 - Consider pooling `EcsPatchContext` + inner `HashSet<long>` if attribute update frequency ever increases significantly.
 - Consider `IDisposable`-based guarantee for `EcsPatchContext.FlushDirtyMarks()` to prevent silent missing-egress bugs in future extensions.
-- The `ApplyGeoSpatialDescriptor` / JSON-path convergence invariant is currently enforced only by the `DescriptorMapper_GeoSpatial_SharedDelegate_ProducesSameResultAsDirectPath` test; a comment co-locating the two code paths would aid future maintainers.
+- The `ApplyWorldPosDescriptor` / JSON-path convergence invariant is currently enforced only by the `DescriptorMapper_WorldPos_SharedDelegate_ProducesSameResultAsDirectPath` test; a comment co-locating the two code paths would aid future maintainers.

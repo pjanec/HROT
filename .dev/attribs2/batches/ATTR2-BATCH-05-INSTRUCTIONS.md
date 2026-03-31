@@ -21,12 +21,12 @@ Welcome to the final optimization pass of the ATTR2 Binary Pipeline saga. We hav
 
 ### Source Code Location
 - **Primary Work Areas:**
-  - `Bagira.DDS.DataModel/GenericMessages.cs` and potentially `GenericPrimitives.cs`
+  - `Hrot.NED/GenericMessages.cs` and potentially `GenericPrimitives.cs`
   - `FDP/Toolkits/FDP.Toolkit.Replication/Patching/JsonToRecordCompiler.cs`
   - `FDP/Toolkits/FDP.Toolkit.Replication/Patching/BinaryPatchContext.cs`
-  - `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
-  - `Bagira.SimHost/Installers/SimTransformAttributeInstaller.cs`
-- **Test Projects:** `Bagira.DDS.DataModel.Tests`, `FDP.Toolkit.Replication.Tests`, `Bagira.SimHost.Tests`, `Bagira.Map.Common.Tests`
+  - `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
+  - `Hrot.SimHost/Installers/SimTransformAttributeInstaller.cs`
+- **Test Projects:** `Hrot.NED.Tests`, `FDP.Toolkit.Replication.Tests`, `Hrot.SimHost.Tests`, `Hrot.Map.Common.Tests`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -54,7 +54,7 @@ Welcome to the final optimization pass of the ATTR2 Binary Pipeline saga. We hav
 
 ### Task 1: OpaqueData Allocation Concern (ATTR2-DEBT-01)
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs` / `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
+**File:** `Hrot.NED/GenericMessages.cs` / `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
 
 **Description:** `CreateUpdateDeleteEntityAck.OpaqueData` using `List<byte>?` creates heap trash per-message allocation for ACK bitmasks. 
 **Requirements:**
@@ -65,11 +65,11 @@ Welcome to the final optimization pass of the ATTR2 Binary Pipeline saga. We hav
 
 ### Task 2: Primitive IDL Extraction (ATTR2-DEBT-02)
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs` → `Bagira.DDS.DataModel/GenericPrimitives.cs`
+**File:** `Hrot.NED/GenericMessages.cs` → `Hrot.NED/GenericPrimitives.cs`
 
 **Description:** Generic primitives (`Vec3f`, `Vec3d`, `Vec4f`) currently reside in `GenericMessages.cs` alongside the `AttributeRecord` definitions which is a code smell.
 **Requirements:**
-- Extract `Vec3f`, `Vec3d`, and `Vec4f` into a newly created `Bagira.DDS.DataModel/GenericPrimitives.cs`.
+- Extract `Vec3f`, `Vec3d`, and `Vec4f` into a newly created `Hrot.NED/GenericPrimitives.cs`.
 - Ensure all DDS annotations (`[DdsStruct]`, `[DdsIdlFile("bdc-sst-generic-msgs")]`) remain correctly preserved so CycloneDDS IDL compilation does not complain.
 - Ensure all referencing projects and tests compile cleanly.
 

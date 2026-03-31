@@ -21,7 +21,7 @@ Welcome to the second batch. We are integrating the FDP Cyclone network logic an
 4. **Code Standards:** `.dev-workstream/guides/CODE-STANDARDS.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`
+- **Primary Work Area:** `Hrot.IG/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -60,7 +60,7 @@ With the window and camera running, IG needs data. You will configure the Cyclon
 ---
 
 ## 🎯 Batch Objectives
-- Connect Bagira.IG to the DDS environment on instance 300.
+- Connect Hrot.IG to the DDS environment on instance 300.
 - Handle networking synchronization through robust ECS system translations.
 - Render those new entity coordinates into `MapCanvas` space dynamically.
 
@@ -80,13 +80,13 @@ With the window and camera running, IG needs data. You will configure the Cyclon
 
 ### Task 1: IG.1.3 Integrate NetworkDemo Network Module
 
-**File:** `Bagira.IG/Program.cs` / `Translators/EntityMasterTranslator.cs`  
+**File:** `Hrot.IG/Program.cs` / `Translators/EntityMasterTranslator.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.1.3)
 
 **Description:** Set up DDS integration using `CycloneNetworkModule` ensuring `SlaveTimeController` and proper bridge translators are populated.
 **Requirements:**
 - Implement `EntityMasterTranslator`, mapping updates appropriately using the snippet from the design document.
-- Register `GeoSpatialTranslator`, `EntityInfoTranslator`, and crucially `AutoCycloneTranslator<TimePulseDescriptor>`.
+- Register `WorldPosTranslator`, `EntityInfoTranslator`, and crucially `AutoCycloneTranslator<TimePulseDescriptor>`.
 - Instantiate the `CycloneNetworkModule` and inject translators.
 - *CRITICAL ARCHITECTURE REMINDER:* Do NOT create custom network modules. Register translators to the explicit component wrapper.
 
@@ -98,7 +98,7 @@ With the window and camera running, IG needs data. You will configure the Cyclon
 
 ### Task 2: IG.1.3b Register NetworkSpawningSystem via SpawningModule
 
-**File:** `Bagira.IG/Modules/SpawningModule.cs`  
+**File:** `Hrot.IG/Modules/SpawningModule.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.1.3b)
 
 **Description:** Register `NetworkSpawningSystem` inside IG.
@@ -113,7 +113,7 @@ With the window and camera running, IG needs data. You will configure the Cyclon
 
 ### Task 3: IG.1.4 Add EntityRenderLayer with Stub Visualizer
 
-**File:** `Bagira.IG/Adapters/StubVisualizerAdapter.cs`  
+**File:** `Hrot.IG/Adapters/StubVisualizerAdapter.cs`  
 **Task Definition:** See `docs/design/TASK-DETAILS-IG.md` (Task IG.1.4)
 
 **Description:** Translate ECS coordinates into Raylib visual elements.

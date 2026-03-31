@@ -32,7 +32,7 @@ Below is the relevant existing code that the new system will build upon.
 | `RecorderSystem` | `FDP/Kernel/Fdp.Kernel/FlightRecorder/RecorderSystem.cs` | ✅ Exists | Writes delta frames keyed by `repo.GlobalVersion`; single filter: `MinRecordableId`. |
 | `PlaybackController` | `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackController.cs` | ✅ Exists | Binary-search frame index (`FrameMetadata[]`). Has `SeekToFrame(idx)` + `SeekToTick(tick)`. |
 | `PlaybackSystem` | `FDP/Kernel/Fdp.Kernel/FlightRecorder/PlaybackSystem.cs` | ✅ Exists | Applies decompressed frames to `EntityRepository`. |
-| `RecordingModule` (NetworkDemo) | `FDP/Examples/Fdp.Examples.NetworkDemo/Modules/RecordingModule.cs` | ✅ Exists (Demo) | Thin wrapper; no DrillId, no multi-recorder support. |
+| `RecordingModule` (NetworkDemo) | `FDP/Examples/Fdp.Examples.NetworkDemo/Modules/RecordingModule.cs` | ✅ Exists (Demo) | Thin wrapper; no ExerciseId, no multi-recorder support. |
 | `FlightRecorderExample` | `FDP/Kernel/Fdp.Kernel/FlightRecorder/FlightRecorderExample.cs` | ✅ Exists (Example only) | — |
 
 ### 1.2 ECS Core
@@ -73,19 +73,19 @@ Below is the relevant existing code that the new system will build upon.
 
 | Asset | Location | State | Notes |
 |-------|----------|-------|-------|
-| `SubsystemStatusAnnounce` | `Bagira.DDS.DataModel/Runner/SubsystemStatusAnnounce.cs` | ✅ Exists | Startup-only waiting-room protocol. `NodeId`, `SubsystemName`, `Ready`. |
-| `WaitingRoomCoordinator` | `Bagira.Runner/Services/WaitingRoomCoordinator.cs` | ✅ Exists | Polls peers until all discovered. Timeout = 30s. |
-| Simulation descriptors | `Bagira.DDS.DataModel/SimDescriptors.cs` | ✅ Exists | `GeoSpatial`, `GeoSpatialDR`, `EntityDamage`. |
-| Entity CRUD messages | `Bagira.DDS.DataModel/GenericMessages.cs` | ✅ Exists | `CreateEntityRequest`, `UpdateEntityDescriptorRequest`, etc. |
-| Mission control | `Bagira.DDS.DataModel/MissionMessages.cs` | ✅ Exists | `MissionControlRequest/Ack`. |
+| `SubsystemStatusAnnounce` | `Hrot.NED/Runner/SubsystemStatusAnnounce.cs` | ✅ Exists | Startup-only waiting-room protocol. `NodeId`, `SubsystemName`, `Ready`. |
+| `WaitingRoomCoordinator` | `Hrot.ClusterRunner/Services/WaitingRoomCoordinator.cs` | ✅ Exists | Polls peers until all discovered. Timeout = 30s. |
+| Simulation descriptors | `Hrot.NED/SimDescriptors.cs` | ✅ Exists | `WorldPos`, `WorldPos`, `EntityDamage`. |
+| Entity CRUD messages | `Hrot.NED/GenericMessages.cs` | ✅ Exists | `CreateEntityRequest`, `UpdateEntityDescriptorRequest`, etc. |
+| Mission control | `Hrot.NED/MissionMessages.cs` | ✅ Exists | `MissionControlRequest/Ack`. |
 
 ### 1.6 Application Layer
 
 | Asset | Location | State | Notes |
 |-------|----------|-------|-------|
-| `SimHostApp.cs` | `Bagira.SimHost/SimHostApp.cs` | ✅ Exists | ModuleHost kernel setup for SimHost. |
-| `IgApplication.cs` | `Bagira.IG/IgApplication.cs` | ✅ Exists | ModuleHost kernel setup for IG. |
-| `IosLogic.cs` / `IosMock.cs` | `Bagira.IOS/` | ✅ Exists | IOS business logic; no DSM UI or SysOp awareness. |
+| `SimHostApp.cs` | `Hrot.SimHost/SimHostApp.cs` | ✅ Exists | ModuleHost kernel setup for SimHost. |
+| `IgApplication.cs` | `Hrot.IG/IgApplication.cs` | ✅ Exists | ModuleHost kernel setup for IG. |
+| `IosLogic.cs` / `IosMock.cs` | `Hrot.ExCon/` | ✅ Exists | IOS business logic; no DSM UI or SysOp awareness. |
 
 ---
 
@@ -159,8 +159,8 @@ Checkpoint handler calls `destRepo.SyncFrom(liveRepo)` on the main thread at `Be
 
 **Severity: HIGH — the entire feature set depends on this**
 
-There is NO `DSMState`, `SystemStateTopic`, `SysOpRequest`, `SysOpStatus`,
-`NodeOpCommand`, `NodeOpStatus`, `DrillMaster`, or `DrillSlave`
+There is NO `ClusterState`, `SystemStateTopic`, `ClusterOpRequest`, `ClusterOpStatus`,
+`NodeOpCommand`, `NodeOpStatus`, `ClusterMaster`, or `ClusterSlave`
 anywhere in the codebase.
 
 `SubsystemStatusAnnounce` + `WaitingRoomCoordinator` serve a related but different
@@ -198,16 +198,16 @@ does NOT need to be decoupled from the `ModuleHostKernel.RunOnce()` call.
 > **DESIGN DECISION MADE:** No `IModule` interface changes. DSM state change
 > notifications use the internal `FdpEventBus`.
 
-**Resolution:** When `DrillSlave` commits a new DSM state, it publishes:
+**Resolution:** When `ClusterSlave` commits a new DSM state, it publishes:
 
 ```csharp
-_eventBus.Publish(new DsmStateChangedEvent { Previous = prev, Next = next });
+_eventBus.Publish(new ClusterStateChangedEvent { Previous = prev, Next = next });
 ```
 
 Any module needing to react (e.g. disable physics during `RunningReplay`) subscribes:
 
 ```csharp
-_eventBus.Subscribe<DsmStateChangedEvent>(OnDsmStateChanged);
+_eventBus.Subscribe<ClusterStateChangedEvent>(OnClusterStateChanged);
 ```
 
 This is the least invasive approach and requires no changes to the existing `IModule`
@@ -243,28 +243,28 @@ will need new ID allocations for `StoryTag` and `StoryReplayTag`.
 
 ---
 
-### GAP-9: Battlespace Concept Does Not Exist
+### GAP-9: Zone Concept Does Not Exist
 
 **Severity: MEDIUM (future feature)**
 
-There is no `BattlespaceSpec`, no staged asset loading pattern, no `CmdSwapBattlespace`
+There is no `ZoneSpec`, no staged asset loading pattern, no `CmdSwapZone`
 ECS event, and no related DDS messages. The concept of "high-resolution terrain areas"
-is entirely missing. The 2PC battlespace swap pattern must be built from scratch.
+is entirely missing. The 2PC zone swap pattern must be built from scratch.
 
 ---
 
-### GAP-10: DrillId Concept Does Not Exist
+### GAP-10: ExerciseId Concept Does Not Exist
 
 **Severity: MEDIUM**
 
 `AsyncRecorder` takes a `filePath` string and includes a `Timestamp` in
-`RecordingMetadata`, but there is no `DrillId` (GUID) that semantically links
+`RecordingMetadata`, but there is no `ExerciseId` (GUID) that semantically links
 all recordings from the same drill run, checkpoints taken during that run,
 and the `SystemStateTopic`.
 
-`RecordingMetadata` needs a `Guid DrillId` field.
-The `AsyncRecorder` constructor (or its factory) must receive the `DrillId` from
-the `DrillSlave` (which gets it from `NodeOpCommand.PayloadJson`).
+`RecordingMetadata` needs a `Guid ExerciseId` field.
+The `AsyncRecorder` constructor (or its factory) must receive the `ExerciseId` from
+the `ClusterSlave` (which gets it from `NodeOpCommand.PayloadJson`).
 
 ---
 
@@ -272,7 +272,7 @@ the `DrillSlave` (which gets it from `NodeOpCommand.PayloadJson`).
 
 **Severity: LOW (UI layer, can be stubbed initially)**
 
-`IosLogic.cs` / `IosMock.cs` have no knowledge of `DSMState`, `SysOpRequest`, or
+`IosLogic.cs` / `IosMock.cs` have no knowledge of `ClusterState`, `ClusterOpRequest`, or
 the drill lifecycle. A minimal IOS integration (even a command-line mock) is
 needed for end-to-end integration testing of the DSM.
 
@@ -314,7 +314,7 @@ not exist.
 then exits. After its use, systems start ticking with no shared DSM context.
 
 The natural integration point is: after `WaitingRoomCoordinator` completes and
-`DrillMaster` has built its initial `ActiveNodes` roster, the Master publishes
+`ClusterMaster` has built its initial `ActiveNodes` roster, the Master publishes
 `SystemStateTopic(Standby)` to signal that the system is now ready for IOS commands.
 
 ---
@@ -384,8 +384,8 @@ gracefully (log and continue) rather than failing the entire export.
 
 ### ISSUE-5: Split-Brain After Master Crash Between Prepare and Commit
 
-If the Master sends `NodeOpCommand(PrepareBattlespace)` to all nodes and 4/5 succeed,
-but the Master crashes before sending `CommitBattlespace`:
+If the Master sends `NodeOpCommand(PrepareZone)` to all nodes and 4/5 succeed,
+but the Master crashes before sending `CommitZone`:
 
 - The 4 prepared nodes have staged (but uncommitted) terrain data in RAM.
 - The new Master (after failover) publishes the last known `SystemStateTopic`
@@ -393,7 +393,7 @@ but the Master crashes before sending `CommitBattlespace`:
 - The prepared nodes detect a stale epoch and free their staged payloads.
 - System returns to the pre-transition state cleanly.
 
-However: **there is currently only ONE designated master** (the `Bagira.Orchestrator`
+However: **there is currently only ONE designated master** (the `Hrot.Orchestrator`
 process). There is no Master failover mechanism. If the Orchestrator crashes,
 the system has no way to elect a new one.
 
@@ -424,7 +424,7 @@ The design talk specifies that pausing a single story must NOT pause the global 
 clock. Instead, it freezes story entities by removing `CanMove` / `CanShoot`
 capability flags.
 
-This means the `PauseTime` `SysOpRequest` is a **global** operation across all nodes,
+This means the `PauseTime` `ClusterOpRequest` is a **global** operation across all nodes,
 while story-level "pause" is a **targeted entity-component mutation**. These must NEVER
 be confused in the IOS UI or in the command handlers.
 
@@ -453,17 +453,17 @@ This must be measured.
 
 ---
 
-### Q-2: Which node runs DrillMaster — SimHost or a dedicated BBroker?
+### Q-2: Which node runs ClusterMaster — SimHost or a dedicated BBroker?
 
-> **RESOLVED:** Dedicated `Bagira.Orchestrator` project. `Bagira.Runner` is just a
-> shell; `Bagira.Orchestrator` is a subsystem registered with the Runner and runs as a
+> **RESOLVED:** Dedicated `Hrot.Orchestrator` project. `Hrot.ClusterRunner` is just a
+> shell; `Hrot.Orchestrator` is a subsystem registered with the Runner and runs as a
 > **separate process**. Neither SimHost nor IG are the master.
 
 ---
 
-### Q-3: How does the IOS join the DSM? Does it have a DrillSlave?
+### Q-3: How does the IOS join the DSM? Does it have a ClusterSlave?
 
-> **RESOLVED:** IOS has a **lightweight slave** (`IosDrillSlaveModule`) with no ECS.
+> **RESOLVED:** IOS has a **lightweight slave** (`IosClusterSlaveModule`) with no ECS.
 > It participates like any other node (heartbeat, `NodeOpStatus` replies, reacts to
 > DSM state changes) but skips any `IDsmHandler` that touches `EntityRepository`.
 
@@ -487,10 +487,10 @@ This must be measured.
 ### Q-6: How are the story `.fdp` files differentiated from global recordings?
 
 > **RESOLVED:**
-> - Path: `/archives/{DrillId}/stories/{StoryId}_node{N}.fdp`
-> - `ForgetStory` → **immediate file delete** on each node.
+> - Path: `/archives/{ExerciseId}/stories/{StoryId}_node{N}.fdp`
+> - `ForgetEpisode` → **immediate file delete** on each node.
 > - If the drill ends (`UnloadingLive`) while a story recording is still active
->   (IOS never called `StopStory`), the **partial recording is auto-deleted** by each
+>   (IOS never called `StopEpisode`), the **partial recording is auto-deleted** by each
 >   node during its `FinalizeLive` handler. Story cleanup is the node's responsibility,
 >   not the Orchestrator's.
 
@@ -516,7 +516,7 @@ This must be measured.
 ### Q-9: What scenario format do the different nodes use for `SaveScenario`?
 
 > **RESOLVED:** Scenario saving is **deferred / not implemented** in the initial
-> delivery. The `SysOpRequest(SaveScenario)` handler will be a no-op stub.
+> delivery. The `ClusterOpRequest(SaveScenario)` handler will be a no-op stub.
 
 ---
 
@@ -524,7 +524,7 @@ This must be measured.
 
 > **RESOLVED:** The Orchestrator publishes `OrchestratorContextTopic` (TransientLocal,
 -> HistoryDepth=1) whenever the drill context changes. A late-joining node reads this
--> topic immediately on connect, learns the current DSM state, DrillId, scenario, and
+-> topic immediately on connect, learns the current DSM state, ExerciseId, scenario, and
 > required node list, then executes its internal join procedure (load assets, sync, etc.).
 > Late joining IS supported — it is not prohibited.
 

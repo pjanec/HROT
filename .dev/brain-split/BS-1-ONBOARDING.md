@@ -46,8 +46,8 @@ Read **DESIGN.md first**, then open the specific task detail before starting any
 
 | Path | Why it matters |
 |---|---|
-| `Bagira.SimHost/NodeBootstrapper.cs` | Module-to-role assignments — changes in Phase 4 |
-| `Bagira.SimHost/SimHostApp.cs` | Egress translator registration — changes in Phase 4 |
+| `Hrot.SimHost/NodeBootstrapper.cs` | Module-to-role assignments — changes in Phase 4 |
+| `Hrot.SimHost/SimHostApp.cs` | Egress translator registration — changes in Phase 4 |
 | `FDP/Toolkits/FDP.Toolkit.Combat/Systems/DamageSystem.cs` | Add `HasAuthority` guard (Phase 1) |
 | `FDP/Toolkits/FDP.Toolkit.Combat/Systems/FireProcessingSystem.cs` | Consumes new events (Phase 2) |
 | `FDP/Toolkits/FDP.Toolkit.Combat/Systems/HitResolutionSystem.cs` | Emits `DetonationNotification` (Phase 3) |
@@ -55,7 +55,7 @@ Read **DESIGN.md first**, then open the specific task detail before starting any
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/FleeExecutor.cs` | Replace NavState → NavigationIntent (Phase 5) |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/FollowRoadGraphExecutor.cs` | Replace NavState → NavigationIntent (Phase 5) |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/FollowRouteExecutor.cs` | Replace NavState → NavigationIntent (Phase 5) |
-| `Bagira.SimHost/Brains/SimHostNodes.cs` | Remove NavState poll in `Action_Wander` (Phase 5) |
+| `Hrot.SimHost/Brains/SimHostNodes.cs` | Remove NavState poll in `Action_Wander` (Phase 5) |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` | Fix `ReachedDestination` trigger (Phase 5) |
 
 ### New files to create
@@ -67,25 +67,25 @@ Read **DESIGN.md first**, then open the specific task detail before starting any
 | `FDP/Toolkits/FDP.Toolkit.Combat/Systems/DamageCalculationSystem.cs` | BS1-T012 |
 | `FDP/Toolkits/FDP.Toolkit.Combat/Systems/HealthApplicationSystem.cs` | BS1-T014 |
 | `FDP/Toolkits/FDP.Toolkit.Combat/Modules/DamageAssessmentModule.cs` | BS1-T012 |
-| `Bagira.DDS.DataModel/FireInteractionMessages.cs` (extend) | BS1-T001, BS1-T002 |
-| `Bagira.SimHost/Network/Egress/WeaponFireIntentEgressTranslator.cs` | BS1-T005 |
-| `Bagira.SimHost/Network/Egress/WeaponFireNotificationEgressTranslator.cs` | BS1-T008 |
-| `Bagira.SimHost/Network/Egress/MunitionDetonationEgressTranslator.cs` | BS1-T011 |
-| `Bagira.SimHost/Network/Egress/DamageAssessedEgressTranslator.cs` | BS1-T013 |
-| `Bagira.Map.Common/Replication/Egress/EntityDamageEgressTranslator.cs` | BS1-T015 |
-| `Bagira.SimHost/Network/Ingress/WeaponFireRequestIngressTranslator.cs` | BS1-T006 |
-| `Bagira.SimHost/Network/Ingress/MunitionDetonationIngressTranslator.cs` | BS1-T012 |
-| `Bagira.SimHost/Network/Ingress/EntityHitDamageIngressTranslator.cs` | BS1-T014 |
-| `Bagira.IG/Translators/WeaponFireIngressTranslator.cs` | BS1-T009 |
+| `Hrot.NED/FireInteractionMessages.cs` (extend) | BS1-T001, BS1-T002 |
+| `Hrot.SimHost/Network/Egress/WeaponFireIntentEgressTranslator.cs` | BS1-T005 |
+| `Hrot.SimHost/Network/Egress/WeaponFireNotificationEgressTranslator.cs` | BS1-T008 |
+| `Hrot.SimHost/Network/Egress/MunitionDetonationEgressTranslator.cs` | BS1-T011 |
+| `Hrot.SimHost/Network/Egress/DamageAssessedEgressTranslator.cs` | BS1-T013 |
+| `Hrot.Map.Common/Replication/Egress/EntityDamageEgressTranslator.cs` | BS1-T015 |
+| `Hrot.SimHost/Network/Ingress/WeaponFireRequestIngressTranslator.cs` | BS1-T006 |
+| `Hrot.SimHost/Network/Ingress/MunitionDetonationIngressTranslator.cs` | BS1-T012 |
+| `Hrot.SimHost/Network/Ingress/EntityHitDamageIngressTranslator.cs` | BS1-T014 |
+| `Hrot.IG/Translators/WeaponFireIngressTranslator.cs` | BS1-T009 |
 
 ### Key existing infrastructure (read before writing new translators)
 
 | Path | What to learn |
 |---|---|
-| `Bagira.Map.Common/Replication/Egress/EntityInfoEgressTranslator.cs` | Pattern for component-change-tracking egress |
-| `Bagira.Map.Common/Replication/Ingress/EntityDamageIngressTranslator.cs` | Pattern for ingress translator |
+| `Hrot.Map.Common/Replication/Egress/EntityInfoEgressTranslator.cs` | Pattern for component-change-tracking egress |
+| `Hrot.Map.Common/Replication/Ingress/EntityDamageIngressTranslator.cs` | Pattern for ingress translator |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/MoveToExecutor.cs` | Gold-standard CQRS executor (NavigationIntent → NavigationStatus) |
-| `Bagira.Map.Common/Replication/FireInteractionEventTranslator.cs` | Event-egress pattern |
+| `Hrot.Map.Common/Replication/FireInteractionEventTranslator.cs` | Event-egress pattern |
 
 ---
 

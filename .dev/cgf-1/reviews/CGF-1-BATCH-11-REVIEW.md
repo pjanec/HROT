@@ -13,12 +13,12 @@
 
 **Part A** matches the report and instructions:
 
-- **`PushToNodes_CopiesFileToAllTargets`** and **`PushToNodes_BadTarget_ReturnsPartialFailure`** are present in [`StorageGatewayTests.cs`](../../../Bagira.Orchestrator.Tests/StorageGatewayTests.cs) with real filesystem coverage.
-- **`DrillMaster`** XML uses plain prose for **`SerializeLocalTask.RemainingAcks`** ([`DrillMaster.cs`](../../../Bagira.Orchestrator/DrillMaster.cs) lines 45–48).
+- **`PushToNodes_CopiesFileToAllTargets`** and **`PushToNodes_BadTarget_ReturnsPartialFailure`** are present in [`StorageGatewayTests.cs`](../../../Hrot.Orchestrator.Tests/StorageGatewayTests.cs) with real filesystem coverage.
+- **`ClusterMaster`** XML uses plain prose for **`SerializeLocalTask.RemainingAcks`** ([`ClusterMaster.cs`](../../../Hrot.Orchestrator/ClusterMaster.cs) lines 45–48).
 
 **Part B (CGF1-S0306)** is **substantively delivered**:
 
-- Projects **`FDP.Toolkit.Scenario`** and **`FDP.Toolkit.Scenario.Tests`** exist, reference **`Fdp.Kernel`** only (no Bagira), and are in **`IOS-IG-SimHost.sln`**.
+- Projects **`FDP.Toolkit.Scenario`** and **`FDP.Toolkit.Scenario.Tests`** exist, reference **`Fdp.Kernel`** only (no Hrot), and are in **`IOS-IG-SimHost.sln`**.
 - **Non-generic** **`IEntityScenarioTranslator`** with **`BitMask256`**, **`Dictionary<string, object>`**, **`IGuidResolver`** — matches task detail.
 - **`ScenarioSerializer`**: two-pass save/load, **`GetSaveableMask`** ∩ entity mask, translators then **`FdpAutoSerializer`**, subsystem header peek, **`ScenarioIgnoreTag`** skip, **`StoryTag`** on story load.
 - **`FdpAutoSerializer`**: **`Expression.Field`**-based extract/inject, **`GetSaveableTypeIds()`** at build time.
@@ -26,7 +26,7 @@
 
 **Tests run (review):**
 
-- `dotnet test Bagira.Orchestrator.Tests` — **22** passed.  
+- `dotnet test Hrot.Orchestrator.Tests` — **22** passed.  
 - `dotnet test FDP.Toolkit.Scenario.Tests` — **10** passed.
 
 ---
@@ -73,7 +73,7 @@ feat(cgf-1): BATCH-11 scenario toolkit + gateway push tests
 - FDP.Toolkit.Scenario: non-generic translators, IGuidResolver, FdpAutoSerializer,
   ScenarioSerializerBuilder/Serializer, StoryTag/ScenarioIgnoreTag
 - Tests: 10 ScenarioSerializer scenarios; StorageGateway PushToNodes parity
-- DrillMaster: fix SerializeLocalTask RemainingAcks XML
+- ClusterMaster: fix SerializeLocalTask RemainingAcks XML
 
 Refs: CGF-1-BATCH-11, CGF1-S0306
 ```

@@ -26,7 +26,7 @@ In this batch, you will throw away the component-copying mock test and write a r
 
 ### Source Code Location
 - **Primary Work Areas:** 
-  - `Bagira.SimHost.Integration.Tests` / `Bagira.Integration.Tests`
+  - `Hrot.SimHost.Integration.Tests` / `Hrot.Integration.Tests`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -43,7 +43,7 @@ In this batch, you will throw away the component-copying mock test and write a r
 ## ✅ Tasks
 
 ### Task 0: Corrective Action - Real E2E DDS Integration Test (CORRECTIVE-0)
-**Files:** `Bagira.SimHost.Integration.Tests/EntityLifecycleIntegrationTests.cs`
+**Files:** `Hrot.SimHost.Integration.Tests/EntityLifecycleIntegrationTests.cs`
 **Description:** 
 Rewrite `INTS-P3-014`. The integration test must:
 1. Initialize a `SimHostApp` instance (headless) configured to use DDS domain 10.

@@ -26,8 +26,8 @@ This batch also starts clearing newly discovered tech debt that blocks meaningfu
 6. **Previous Review:** `.dev-workstream/reviews/BS-1-BATCH-01-REVIEW.md`
 
 ### Source Code Location
-- `Bagira.SimHost/Network/Egress/` (WeaponFire intent egress translator)
-- `Bagira.SimHost/Network/Ingress/` (WeaponFire request ingress translator)
+- `Hrot.SimHost/Network/Egress/` (WeaponFire intent egress translator)
+- `Hrot.SimHost/Network/Ingress/` (WeaponFire request ingress translator)
 - `FDP/Toolkits/FDP.Toolkit.Combat/Systems/FireProcessingSystem.cs` (consume intent, emit notification)
 - `FDP/Examples/Fdp.Examples.UrbanCombat/HeadlessDemoApp.cs` (tech debt)
 - `FDP/Examples/Fdp.Examples.UrbanCombat.Tests/UrbanAmbushIntegrationTests.cs` (tech debt: restore milestones)
@@ -100,7 +100,7 @@ After Batch 1, Brain emits `WeaponFireIntent` internally. This batch wires Brain
 
 ### Task 1: WeaponFireIntentEgressTranslator (BS1-T005)
 
-**File:** `Bagira.SimHost/Network/Egress/WeaponFireIntentEgressTranslator.cs` (NEW)
+**File:** `Hrot.SimHost/Network/Egress/WeaponFireIntentEgressTranslator.cs` (NEW)
 **Task Definition:** See `docs/brain-split/BS-1-TASK-DETAIL.md#bs1-t005--create-weaponfireintentegress-translator`
 **Description:** Create translator that reads `WeaponFireIntent` from the local event bus and publishes DDS `WeaponFireRequest`.
 **Requirements (must follow task detail):**
@@ -113,7 +113,7 @@ After Batch 1, Brain emits `WeaponFireIntent` internally. This batch wires Brain
 
 ### Task 2: WeaponFireRequestIngressTranslator (BS1-T006)
 
-**File:** `Bagira.SimHost/Network/Ingress/WeaponFireRequestIngressTranslator.cs` (NEW)
+**File:** `Hrot.SimHost/Network/Ingress/WeaponFireRequestIngressTranslator.cs` (NEW)
 **Task Definition:** See `docs/brain-split/BS-1-TASK-DETAIL.md#bs1-t006--create-weaponfirerequest-ingress-translator`
 **Description:** Muscle-side translator that polls DDS `WeaponFireRequest` and republishes local `WeaponFireIntent`.
 **Requirements:**
@@ -144,7 +144,7 @@ After Batch 1, Brain emits `WeaponFireIntent` internally. This batch wires Brain
 - Required minimum: all existing tests pass plus the new/updated unit tests for BS1-T005..T007.
 - Specifically run:
   - `dotnet test FDP/Toolkits/FDP.Toolkit.Combat.Tests/FDP.Toolkit.Combat.Tests.csproj`
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj` (or the closest relevant host tests that exercise translators)
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj` (or the closest relevant host tests that exercise translators)
   - `dotnet test IOS-IG-SimHost.sln` before submission if runtime allows.
 
 ---

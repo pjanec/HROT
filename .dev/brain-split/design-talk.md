@@ -1,4 +1,4 @@
-﻿How does the mission mechanism work? from dds network down to doctrine assignment and cancelling? what is the role of MissionAdapterSystem?
+How does the mission mechanism work? from dds network down to doctrine assignment and cancelling? what is the role of MissionAdapterSystem?
 
 The mission mechanism is designed around a clean separation between network ingress, unmanaged execution, and cognitive state assignment, ensuring high-frequency ticks remain allocation-free while supporting complex JSON-parameterised behaviours.
 
@@ -262,7 +262,7 @@ Here is exactly how this architectural flaw manifests in the current codebase:
 
 **2\. Events are replicated instead of State** Rather than replicating the health state, SimHost uses `FireInteractionEventTranslator` to bidirectionally replicate transient fire events (`FireInteractionEvent`) across the DDS network. Because the event is broadcasted, all nodes run their own local ballistics and hit resolution, leading to parallel damage calculations.
 
-**3\. The** **EntityDamage** **Egress is Missing** The infrastructure to publish health updates over the network is half-finished. The `EntityDamage` DDS topic is defined, and the Image Generator (IG) actively runs an `EntityDamageIngressTranslator` to receive it and update the visual `IgHealthState`. However, **SimHost never publishes it**. Looking at the egress pipeline setup in `SimHostApp.cs`, `EntityMaster`, `EntityInfo`, `GeoSpatial`, and `EntityMission` are all registered for egress, but `EntityDamage` is completely absent.
+**3\. The** **EntityDamage** **Egress is Missing** The infrastructure to publish health updates over the network is half-finished. The `EntityDamage` DDS topic is defined, and the Image Generator (IG) actively runs an `EntityDamageIngressTranslator` to receive it and update the visual `IgHealthState`. However, **SimHost never publishes it**. Looking at the egress pipeline setup in `SimHostApp.cs`, `EntityMaster`, `EntityInfo`, `WorldPos`, and `EntityMission` are all registered for egress, but `EntityDamage` is completely absent.
 
 **A Note on Regression:** Interestingly, older test code in the `NetworkDemo` handled this correctly. The `CombatFeedbackSystem` explicitly checked `if (own.PrimaryOwnerId == _localNodeId)` before applying damage to a tank. This critical ownership check was lost when the damage logic was extracted into the generalized `FDP.Toolkit.Combat.Systems.DamageSystem`.
 
@@ -286,7 +286,7 @@ Here is how your logic correctly applies to the combat pipeline:
 
 **One Minor Optimization Note:** While you are entirely correct that DDS publishes to whoever is listening, you _can_ prevent SimNodes from receiving the event at the network layer if you choose to. In this engine, a node only receives a DDS topic if you register an ingress translator for it in the `NodeBootstrapper` or `SimHostApp`.
 
--   If a fire event is **purely visual** (like `Bagira.BDC.SSTM.FireInteractionEvent` which just contains X/Y coordinates for drawing tracers), you can optimize by only adding the ingress translator to the Image Generator (IG) nodes.-   If the event contains **logical hit data** that the simulation needs to process, then your approach is the exact intended architecture: let the SimNodes receive it, but enforce `HasAuthority` in the system before applying damage.
+-   If a fire event is **purely visual** (like `Hrot.NED.Messages.FireInteractionEvent` which just contains X/Y coordinates for drawing tracers), you can optimize by only adding the ingress translator to the Image Generator (IG) nodes.-   If the event contains **logical hit data** that the simulation needs to process, then your approach is the exact intended architecture: let the SimNodes receive it, but enforce `HasAuthority` in the system before applying damage.
 
 Are there any other similar violations of Brain/Muscle topologies like with the navstate?
 

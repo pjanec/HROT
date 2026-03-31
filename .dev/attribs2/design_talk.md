@@ -1,4 +1,4 @@
-﻿How does the json-attribute-to-ecs-component mechanism work?
+How does the json-attribute-to-ecs-component mechanism work?
 ------
 Based on the codebase dump provided, the JSON-attribute-to-ECS-component mechanism is a highly optimized, zero-allocation pipeline designed to apply fine-grained JSON property updates directly to live ECS (Entity Component System) components.
 
@@ -19,7 +19,7 @@ Here is a breakdown of how the mechanism works:
 
 At system startup (e.g., in `AttributeCompilerFactory`), the application maps specific JSON paths to typed C# setter delegates using a fluent builder.
 
-* It supports both unmanaged struct paths (e.g., `"GeoPosition.Latitude"` mapping to `SimTransform`) and managed class paths (e.g., `"Name"` mapping to `IgEntityData`).
+* It supports both unmanaged struct paths (e.g., `"GeoPoint.Latitude"` mapping to `SimTransform`) and managed class paths (e.g., `"Name"` mapping to `IgEntityData`).
 
 
 * **Hashing**: To ensure extremely fast lookups during gameplay, the builder pre-computes an **FNV-1a hash** for each registered JSON path. This means string keys are never allocated or compared during parsing.
@@ -97,7 +97,7 @@ With a binary union, the value is already in its native memory representation. Y
 
 #### 2. Massive Bandwidth Reduction
 
-JSON is extremely verbose. A payload like `{"GeoPosition.Latitude": 32.0853}` takes ~30 bytes.
+JSON is extremely verbose. A payload like `{"GeoPoint.Latitude": 32.0853}` takes ~30 bytes.
 In your proposed binary record:
 
 * Attribute ID: 2 bytes (ushort)
@@ -313,7 +313,7 @@ Delegates are designed for **fine-grained, field-level patching** (e.g., changin
 
 This is the cleanest, most data-oriented way to fix the JSON hack in `DescriptorMapper`.
 
-The Ingress Translators (like `EntityInfoIngressTranslator` and `GeoSpatialIngressTranslator`) already contain the exact C# logic needed to convert a DDS network struct into an ECS component. You can easily share this logic between live network updates (the translators) and initial entity creation (`DescriptorMapper`).
+The Ingress Translators (like `EntityInfoIngressTranslator` and `WorldPosIngressTranslator`) already contain the exact C# logic needed to convert a DDS network struct into an ECS component. You can easily share this logic between live network updates (the translators) and initial entity creation (`DescriptorMapper`).
 
 #### Step 1: Extract Pure Mapping Functions
 
@@ -364,10 +364,10 @@ public static List<object> MapToComponents(List<EntityDescriptorUnion>? descript
                 result.Add(EntityInfoIngressTranslator.MapToComponent(d.EntityInfo));
                 break;
 
-            case EDescriptorType.dtGeoSpatial:
+            case EDescriptorType.dtWorldPos:
                 if (geoTransform != null)
                 {
-                    result.Add(GeoSpatialIngressTranslator.MapToComponent(d.GeoSpatial, geoTransform));
+                    result.Add(WorldPosIngressTranslator.MapToComponent(d.WorldPos, geoTransform));
                 }
                 break;
                 
@@ -419,7 +419,7 @@ In a Data-Oriented Design (DOD) system, you want the "hot path" (your ECS system
 **How it works:**
 
 1. **The Edge Translator (JSON -> Binary Payload)**
-When the IOS sends `initialPropertiesJson`, it hits an ingestion layer. This layer has a simple dictionary mapping string paths to your new Numeric IDs (e.g., `"GeoPosition.Latitude"` -> `ID 14`).
+When the IOS sends `initialPropertiesJson`, it hits an ingestion layer. This layer has a simple dictionary mapping string paths to your new Numeric IDs (e.g., `"GeoPoint.Latitude"` -> `ID 14`).
 The parser reads the JSON, looks up the ID, and populates your `AttributeValueUnion`. It outputs a continuous array/list of binary patch records.
 2. **The Core Compiler (Binary Payload -> ECS Component)**
 Your ECS systems (like `CreateEntityRequestSystem` or the live update system) *never see the JSON*. They only receive the structured binary records. They use the O(1) array dispatch table (as discussed previously) to instantly blast those values into the ECS memory chunks using the delegates.
@@ -464,7 +464,7 @@ This is one of the most fundamental architectural trade-offs in networked Data-O
 
 In this approach, you break complex structures down to their absolute leaf nodes. Your DDS IDL union only knows about core computing types: `int`, `double`, `float`, `bool`, `string`, and maybe arrays of those.
 
-For example, instead of sending a `GeoPosition` struct, you send three distinct records: `ID 41 (Lat, double)`, `ID 42 (Lon, double)`, and `ID 43 (Alt, double)`.
+For example, instead of sending a `GeoPoint` struct, you send three distinct records: `ID 41 (Lat, double)`, `ID 42 (Lon, double)`, and `ID 43 (Alt, double)`.
 
 **Pros:**
 
@@ -481,12 +481,12 @@ For example, instead of sending a `GeoPosition` struct, you send three distinct 
 
 ### Approach B: Complex Structures in the Union (Monolithic)
 
-In this approach, your DDS IDL union contains primitives *and* application-specific structures. Your IDL explicitly defines `struct GeoPosition`, `struct WeaponStatus`, etc., and the union has a branch for them.
+In this approach, your DDS IDL union contains primitives *and* application-specific structures. Your IDL explicitly defines `struct GeoPoint`, `struct WeaponStatus`, etc., and the union has a branch for them.
 
 **Pros:**
 
 1. **Guaranteed Structural Atomicity:** You can update an entire spatial transform or sensor suite in one monolithic chunk. There is zero risk of data tearing.
-2. **Zero-Overhead Memory Copy:** From an ECS perspective, this is the fastest possible execution. The delegate simply takes the pointer to the `GeoPosition` struct in the network buffer and `memcpy`s it directly over the `GeoPosition` struct in the ECS chunk memory.
+2. **Zero-Overhead Memory Copy:** From an ECS perspective, this is the fastest possible execution. The delegate simply takes the pointer to the `GeoPoint` struct in the network buffer and `memcpy`s it directly over the `GeoPoint` struct in the ECS chunk memory.
 3. **Lower Record Overhead:** You only pay the header cost (Attribute ID) once for the entire struct, rather than per-field.
 
 **Cons:**
@@ -511,7 +511,7 @@ Your binary union should look something like this:
 **How this solves your problems:**
 
 1. **Keeps the IDL Clean:** `Vector3` and `Quaternion` are universal. They will never change, meaning your DDS contract remains completely stable.
-2. **Solves Atomicity:** Spatial coordinates (like `GeoPosition`) can just be mapped to a `Vector3` in the network layer. This guarantees X, Y, and Z update simultaneously without tearing.
+2. **Solves Atomicity:** Spatial coordinates (like `GeoPoint`) can just be mapped to a `Vector3` in the network layer. This guarantees X, Y, and Z update simultaneously without tearing.
 3. **Maximizes Partial Update Flexibility:** For game-specific complex structs (like your `Weapon` or `DamageProfile`), you **flatten them into primitives**. If a weapon has `Ammo (int)` and `Temperature (float)`, you give them separate Attribute IDs.
 
 By grouping universally inseparable data (like coordinates) into extended mathematical primitives within your union, and flattening everything else (health, ammo, names, logic states) into individual IDs, you maintain a beautiful, highly granular, partial-update-friendly network contract without risking broken physics from data tearing.
@@ -542,7 +542,7 @@ First, we define the strict network contract. By using an `AttributeId` enum (or
 
 
 ```idl
-//  to be translated to c# dsl in Bagira.DDS.DataModel\GenericMessages.cs 
+//  to be translated to c# dsl in Hrot.NED\GenericMessages.cs 
 
 // 1. The Extended Primitive Union
 enum ValueTypeCode {
@@ -625,9 +625,9 @@ public static class JsonToBinaryCompiler
     {
         { "Name", 1 },
         { "ForceIdentifier", 2 },
-        { "GeoPosition.Latitude", 10 },
-        { "GeoPosition.Longitude", 11 },
-        { "GeoPosition.Altitude", 12 },
+        { "GeoPoint.Latitude", 10 },
+        { "GeoPoint.Longitude", 11 },
+        { "GeoPoint.Altitude", 12 },
         { "Weapons.Ammo", 50 } // Requires sub_index
     };
 
@@ -1086,13 +1086,13 @@ Here is the step-by-step flow:
 #### Step A: Authoring (IOS Tooling)
 
 The user clicks on the map to place a tank. The UI property grid, or the scenario file on disk, defines the initial state as JSON:
-`{"GeoPosition.Latitude": 32.1, "GeoPosition.Longitude": 34.8, "Name": "Alpha"}`
+`{"GeoPoint.Latitude": 32.1, "GeoPoint.Longitude": 34.8, "Name": "Alpha"}`
 
 #### Step B: The Edge Compiler (IOS Map Placement Tool)
 
 Before the placement tool publishes the `CreateEntityRequest` to DDS, it passes the JSON into the injected `EdgeCompiler`.
 
-* The `EdgeCompiler` looks up `"Name"` -> `ID 1` and `"GeoPosition.Latitude"` -> `ID 10`.
+* The `EdgeCompiler` looks up `"Name"` -> `ID 1` and `"GeoPoint.Latitude"` -> `ID 10`.
 * It populates a rented buffer or list of `AttributeRecord` structs.
 
 #### Step C: Network Transmission
@@ -1269,7 +1269,7 @@ public ref struct LiveBinaryPatchContext
     public void SetLatitude(double lat) { _latScratch = lat; _transformScratchpadDirty = true; }
     public void SetLongitude(double lon) { _lonScratch = lon; _transformScratchpadDirty = true; }
     public void MarkEntityDataDirty() { DirtyDescriptorMask |= (1UL << (int)EDescriptorOrdinal.EntityInfo); }
-    public void MarkTransformDirty() { DirtyDescriptorMask |= (1UL << (int)EDescriptorOrdinal.GeoSpatial); }
+    public void MarkTransformDirty() { DirtyDescriptorMask |= (1UL << (int)EDescriptorOrdinal.WorldPos); }
 
     public void Flush()
     {
@@ -1386,8 +1386,8 @@ Let's trace what happens if the network sends an update containing `[Latitude, L
 * It sees `_transformScratchpadDirty` is true.
 * It calculates `GeodeticToCartesian` exactly once using the new Lat, new Lon, and the *old* Alt (from the pre-load).
 * It writes the final `Vector3` back into the ECS `Transform` chunk memory.
-* It flips the `GeoSpatial` bit in the egress mask.
-* It calls `SmartEgressUtil.MarkDirty` for `[EntityInfo, GeoSpatial]`.
+* It flips the `WorldPos` bit in the egress mask.
+* It calls `SmartEgressUtil.MarkDirty` for `[EntityInfo, WorldPos]`.
 
 
 
@@ -1653,7 +1653,7 @@ public static unsafe class TransformAttributeInstaller
         liveTransform.Cartesian = GeoMath.GeodeticToCartesian(scratch.Lat, scratch.Lon, scratch.Alt);
         
         // Trigger Network Egress
-        ctx.DirtyDescriptorMask |= (1UL << (int)EDescriptorOrdinal.GeoSpatial);
+        ctx.DirtyDescriptorMask |= (1UL << (int)EDescriptorOrdinal.WorldPos);
     }
 }
 
@@ -1710,9 +1710,9 @@ when we have a table of all properties like
     {
         { "Name", 1 },
         { "ForceIdentifier", 2 },
-        { "GeoPosition.Latitude", 10 },
-        { "GeoPosition.Longitude", 11 },
-        { "GeoPosition.Altitude", 12 },
+        { "GeoPoint.Latitude", 10 },
+        { "GeoPoint.Longitude", 11 },
+        { "GeoPoint.Altitude", 12 },
         { "Weapons.Ammo", 50 } // Requires sub_index
     };
 ----------

@@ -39,7 +39,7 @@
 
 ### Issue 1: **`TimeNetworkModule` not wired in production apps** (P2)
 
-**Finding:** **`TimeNetworkModule.RegisterTranslators`** is **not** referenced from **`Bagira.Runner`**, **`SimHostApp`**, or other hosts (search shows **no** call sites outside **`FDP.Toolkit.Time`**). Task detail allows an “equivalent composition root,” but **no root currently registers** the DDS path — distributed mode switches still rely on **local `FdpEventBus` only** until **`ScanAndPublish` / `PollIngress`** are hooked into the network loop. **Target:** **CGF-1-BATCH-08** (ahead of **S0205** CI that assumes cross-node events).
+**Finding:** **`TimeNetworkModule.RegisterTranslators`** is **not** referenced from **`Hrot.ClusterRunner`**, **`SimHostApp`**, or other hosts (search shows **no** call sites outside **`FDP.Toolkit.Time`**). Task detail allows an “equivalent composition root,” but **no root currently registers** the DDS path — distributed mode switches still rely on **local `FdpEventBus` only** until **`ScanAndPublish` / `PollIngress`** are hooked into the network loop. **Target:** **CGF-1-BATCH-08** (ahead of **S0205** CI that assumes cross-node events).
 
 ### Issue 2: **DDS schema / IDL for `SwitchTimeModeEvent`** (P3)
 

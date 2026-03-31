@@ -19,9 +19,9 @@ Welcome back! With Phase S4 fully complete and all our underlying behavior / nav
 2. **Task Definitions:** `docs/design/TASK-DETAILS-SIMHOST.md#task-s51-implement-programcs-entry-point`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/Program.cs`, `Bagira.SimHost/Configuration/SimHostConfig.cs`, `Bagira.SimHost/Utilities/Logger.cs`
-- **Secondary Work Area:** `Bagira.SimHost/Bagira.SimHost.csproj`
-- **Test Project:** `Bagira.SimHost.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/Program.cs`, `Hrot.SimHost/Configuration/SimHostConfig.cs`, `Hrot.SimHost/Utilities/Logger.cs`
+- **Secondary Work Area:** `Hrot.SimHost/Hrot.SimHost.csproj`
+- **Test Project:** `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -50,7 +50,7 @@ Welcome back! With Phase S4 fully complete and all our underlying behavior / nav
 
 ## Context
 
-Inside `Bagira.SimHost/Program.cs`, the core simulation currently spins up with only a `SimHostModule`. We have since created the `SimulationLogicModule` which initializes the behavior nodes, but it isn't wired into the primary execution loop yet!
+Inside `Hrot.SimHost/Program.cs`, the core simulation currently spins up with only a `SimHostModule`. We have since created the `SimulationLogicModule` which initializes the behavior nodes, but it isn't wired into the primary execution loop yet!
 
 Additionally, `Fdp.Examples.UrbanCombat` demonstrates how to host multiple models cleanly. This batch focuses cleanly registering everything required to tie the whole loop together.
 
@@ -70,7 +70,7 @@ Additionally, `Fdp.Examples.UrbanCombat` demonstrates how to host multiple model
 
 ### Task 1: Implement Program.cs Entry Point (TASK-S5.1)
 
-**File:** `Bagira.SimHost/Program.cs`
+**File:** `Hrot.SimHost/Program.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s51-implement-programcs-entry-point)
 
@@ -83,13 +83,13 @@ Update the main entry point to include the new logic topologies.
 3. Ensure the project still compiles perfectly. 
 
 **Tests Required:**
-- ✅ Note: S5.1 is an integration-level change mostly inside `Program.cs`. Standard component tests are less helpful here. Please ensure `dotnet build` succeeds, and run the main application executable `dotnet run --project Bagira.SimHost` manually; it should not throw startup exceptions, and output the log `[SimHost] Running. Press Ctrl+C to exit.`.
+- ✅ Note: S5.1 is an integration-level change mostly inside `Program.cs`. Standard component tests are less helpful here. Please ensure `dotnet build` succeeds, and run the main application executable `dotnet run --project Hrot.SimHost` manually; it should not throw startup exceptions, and output the log `[SimHost] Running. Press Ctrl+C to exit.`.
 
 ---
 
 ### Task 2: Create Configuration System (TASK-S5.2)
 
-**File:** `Bagira.SimHost/Configuration/SimHostConfig.cs`
+**File:** `Hrot.SimHost/Configuration/SimHostConfig.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s52-create-configuration-system)
 
@@ -110,7 +110,7 @@ Create a JSON-backed configuration system to replace hardcoded values in `Progra
 
 ### Task 3: Add Logging and Diagnostics (TASK-S5.3)
 
-**File:** `Bagira.SimHost/Utilities/Logger.cs`
+**File:** `Hrot.SimHost/Utilities/Logger.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s53-add-logging-and-diagnostics)
 
@@ -130,7 +130,7 @@ Implement a standard custom Logger utility and deploy it across `Program.cs` rep
 
 ### Task 4: Add Graceful Shutdown (TASK-S5.4)
 
-**File:** `Bagira.SimHost/Program.cs`
+**File:** `Hrot.SimHost/Program.cs`
 
 **Task Definition:** See [TASK-DETAILS-SIMHOST.md](../../docs/design/TASK-DETAILS-SIMHOST.md#task-s54-add-graceful-shutdown)
 

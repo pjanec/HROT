@@ -53,8 +53,8 @@ All tech debt items (TD-6, TD-7, TD-8) and core tasks (BS1-T011 through BS1-T015
 Translates `DetonationNotification` ECS events (from `HitResolutionSystem`) to `MunitionDetonation` DDS messages. Follows the same pattern as `WeaponFireNotificationEgressTranslator` (no authority check, ordinal 82).
 
 **Files created:**
-- `Bagira.SimHost/Network/Egress/MunitionDetonationEgressTranslator.cs`
-- `Bagira.SimHost.Tests/MunitionDetonationEgressTranslatorTests.cs` — 3 tests (single event, multiple detonations, empty bus)
+- `Hrot.SimHost/Network/Egress/MunitionDetonationEgressTranslator.cs`
+- `Hrot.SimHost.Tests/MunitionDetonationEgressTranslatorTests.cs` — 3 tests (single event, multiple detonations, empty bus)
 
 ---
 
@@ -71,9 +71,9 @@ Three new files:
 **Files created:**
 - `FDP/Toolkits/FDP.Toolkit.Combat/Systems/DamageCalculationSystem.cs`
 - `FDP/Toolkits/FDP.Toolkit.Combat/Modules/DamageAssessmentModule.cs`
-- `Bagira.SimHost/Network/Ingress/MunitionDetonationIngressTranslator.cs`
+- `Hrot.SimHost/Network/Ingress/MunitionDetonationIngressTranslator.cs`
 - `FDP/Toolkits/FDP.Toolkit.Combat.Tests/DamageCalculationSystemTests.cs` — 4 tests
-- `Bagira.SimHost.Tests/MunitionDetonationIngressTranslatorTests.cs` — 2 tests
+- `Hrot.SimHost.Tests/MunitionDetonationIngressTranslatorTests.cs` — 2 tests
 
 ---
 
@@ -82,8 +82,8 @@ Three new files:
 Translates `DamageAssessedEvent` ECS events to `EntityHitDamage` DDS messages (ordinal 83).
 
 **Files created:**
-- `Bagira.SimHost/Network/Egress/DamageAssessedEgressTranslator.cs`
-- `Bagira.SimHost.Tests/DamageAssessedEgressTranslatorTests.cs` — 2 tests
+- `Hrot.SimHost/Network/Egress/DamageAssessedEgressTranslator.cs`
+- `Hrot.SimHost.Tests/DamageAssessedEgressTranslatorTests.cs` — 2 tests
 
 ---
 
@@ -94,10 +94,10 @@ Translates `DamageAssessedEvent` ECS events to `EntityHitDamage` DDS messages (o
 2. **`HealthApplicationSystem`** — consumes `DamageAssessedEvent`, checks authority, decrements `Health.Current` (floored at 0), and strips `ActorCapabilities.CanMove | CanShoot` when HP reaches zero. Entity destruction is deferred.
 
 **Files created:**
-- `Bagira.SimHost/Network/Ingress/EntityHitDamageIngressTranslator.cs`
+- `Hrot.SimHost/Network/Ingress/EntityHitDamageIngressTranslator.cs`
 - `FDP/Toolkits/FDP.Toolkit.Combat/Systems/HealthApplicationSystem.cs`
 - `FDP/Toolkits/FDP.Toolkit.Combat.Tests/HealthApplicationSystemTests.cs` — 4 tests
-- `Bagira.SimHost.Tests/EntityHitDamageIngressTranslatorTests.cs` — 2 tests
+- `Hrot.SimHost.Tests/EntityHitDamageIngressTranslatorTests.cs` — 2 tests
 
 ---
 
@@ -106,12 +106,12 @@ Translates `DamageAssessedEvent` ECS events to `EntityHitDamage` DDS messages (o
 Tracks dirty `Health` components and publishes `EntityDamage` DDS messages. Change detection uses a `Dictionary<long, float>` cache of last-published `Health.Current` per network entity ID. Derives the DDS `Damage` field (0–100 scale) from `(1 - Current/Max) × 100`. Registered in `SimHostApp.cs`.
 
 **Files created:**
-- `Bagira.Map.Common/Replication/Egress/EntityDamageEgressTranslator.cs`
-- `Bagira.SimHost.Tests/EntityDamageEgressTranslatorTests.cs` — 3 integration tests
+- `Hrot.Map.Common/Replication/Egress/EntityDamageEgressTranslator.cs`
+- `Hrot.SimHost.Tests/EntityDamageEgressTranslatorTests.cs` — 3 integration tests
 
 **Files modified:**
-- `Bagira.Map.Common/Bagira.Map.Common.csproj` — added `FDP.Toolkit.Combat.Contracts` project reference (needed for `Health` component)
-- `Bagira.SimHost/SimHostApp.cs` — registered `EntityDamageEgressTranslator` in egress list
+- `Hrot.Map.Common/Hrot.Map.Common.csproj` — added `FDP.Toolkit.Combat.Contracts` project reference (needed for `Health` component)
+- `Hrot.SimHost/SimHostApp.cs` — registered `EntityDamageEgressTranslator` in egress list
 
 ---
 
@@ -121,7 +121,7 @@ Tracks dirty `Health` components and publishes `EntityDamage` DDS messages. Chan
 |---|---|---|---|
 | FDP.Toolkit.Combat.Tests | 49 | 49 | 0 |
 | FDP.Toolkit.Physics.Tests | 25 | 25 | 0 |
-| Bagira.SimHost.Tests (non-integration) | 341 | 341 | 0 |
+| Hrot.SimHost.Tests (non-integration) | 341 | 341 | 0 |
 
 ---
 
@@ -131,10 +131,10 @@ Tracks dirty `Health` components and publishes `EntityDamage` DDS messages. Chan
 The spec says to "update the `HealthData` mirror" in `HealthApplicationSystem`. However, `HealthData` was eradicated in the BUG2 workstream (`BUG2-BATCH-02`) as architectural debt. The system only updates `Health.Current` directly (matching what the post-BUG2 `DamageSystem` does). No deviation from functional intent.
 
 ### DamageAssessmentModule location
-Spec suggested `FDP/Toolkits/FDP.Toolkit.Combat/Modules/` or `Bagira.SimHost/Modules/`. The module was placed in `FDP.Toolkit.Combat/Modules/` because `DamageCalculationSystem` resides there. The `MunitionDetonationIngressTranslator` (which depends on DDS infrastructure) lives in `Bagira.SimHost/Network/Ingress/` as specified.
+Spec suggested `FDP/Toolkits/FDP.Toolkit.Combat/Modules/` or `Hrot.SimHost/Modules/`. The module was placed in `FDP.Toolkit.Combat/Modules/` because `DamageCalculationSystem` resides there. The `MunitionDetonationIngressTranslator` (which depends on DDS infrastructure) lives in `Hrot.SimHost/Network/Ingress/` as specified.
 
 ### EntityDamageEgressTranslator change detection
-`SmartEgressUtil` (used by other egress translators) tracks "published once per ordinal" — it has no mechanism to detect component value changes. A `Dictionary<long, float>` cache was used instead to compare `Health.Current` against the last-published value. This is the same pattern that `GeoSpatialEgressTranslator` uses with its `NetworkTransform` shadow component, adapted to avoid adding a new ECS component.
+`SmartEgressUtil` (used by other egress translators) tracks "published once per ordinal" — it has no mechanism to detect component value changes. A `Dictionary<long, float>` cache was used instead to compare `Health.Current` against the last-published value. This is the same pattern that `WorldPosEgressTranslator` uses with its `NetworkTransform` shadow component, adapted to avoid adding a new ECS component.
 
 ### Ordinal assignments
 - Ordinal 82 used for both `MunitionDetonationEgressTranslator` and `MunitionDetonationIngressTranslator` (both address the same topic). This follows the existing convention where egress and ingress translators for the same topic share an ordinal (e.g., ordinal 80 for `WeaponFireRequest`).

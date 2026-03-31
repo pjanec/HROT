@@ -49,7 +49,7 @@
 **Not in scope:** Changes to any route authoring UI or workflow logic; changes unrelated to the creation-pipeline failure.
 
 ### Constraints
-- Fix must be verified with `Bagira.Runner -m all` (full multi-process mode), not just unit tests, since Hypothesis B is a runtime wiring issue.
+- Fix must be verified with `Hrot.ClusterRunner -m all` (full multi-process mode), not just unit tests, since Hypothesis B is a runtime wiring issue.
 - If the only issue is layer visibility (Hypothesis A confirmed, B ruled out), this task is resolved by OC1-B002; mark as a duplicate and close.
 
 ### Success Conditions
@@ -92,9 +92,9 @@
 
 ### Scope
 1. Trace the complete coordinate chain for area-shape authoring: canvas world-space coordinates → `_geoTransform.ToGeodetic` → centroid computation → `MapOverlayOutline` vertex storage → DDS descriptor serialisation → IOS ingress deserialization → IOS renderer positioning.
-2. Identify whether vertices in `MapOverlayOutline` are stored as **absolute geodetic positions** or as **offsets relative to `GeoSpatial.Pos`** (the centroid), and confirm that both the writer side (IG `ActivateAreaAuthoringTool`) and the reader side (IOS renderer) agree on this contract.
+2. Identify whether vertices in `MapOverlayOutline` are stored as **absolute geodetic positions** or as **offsets relative to `WorldPos.Pos`** (the centroid), and confirm that both the writer side (IG `ActivateAreaAuthoringTool`) and the reader side (IOS renderer) agree on this contract.
 3. Fix whichever side violates the agreed contract, or fix the contract choice itself if it is fundamentally ambiguous.
-4. If a component-arrival timing issue is discovered (GeoSpatial arriving after the outline), address it with an appropriate guard in the renderer (do not render until both components are present).
+4. If a component-arrival timing issue is discovered (WorldPos arriving after the outline), address it with an appropriate guard in the renderer (do not render until both components are present).
 
 **Not in scope:** Changes to the route authoring path (routes use vertex[0] as anchor, not centroid, and are unaffected).  Changes to `PointSequenceTool` point collection logic.
 
@@ -128,7 +128,7 @@
 
 ### Success Conditions
 
-**Test class:** `Bagira.IOS.Tests/EntityInspectorStateTests.cs` (extend existing) or `Bagira.IOS.Tests/IosLogicEntityDeletionTests.cs`
+**Test class:** `Hrot.ExCon.Tests/EntityInspectorStateTests.cs` (extend existing) or `Hrot.ExCon.Tests/IosLogicEntityDeletionTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|
@@ -143,7 +143,7 @@
 **Design Reference:** [Phase 1.1 — New Command Type](./OC1-DESIGN.md#11-new-command-type--cmd_draw_personal_route--oc1-c001)
 
 ### Scope
-Add one enum entry `CMD_DRAW_PERSONAL_ROUTE` to the `CommandType` enum in `Bagira.DDS.DataModel/MapMessages.cs`.  
+Add one enum entry `CMD_DRAW_PERSONAL_ROUTE` to the `CommandType` enum in `Hrot.NED/MapMessages.cs`.  
 Add a doc-comment that documents the expected `CommandArgsJson` shape: `{ "contextId": "<guid>", "entityId": 12345 }`.
 
 **Not in scope:** Any implementation on the IG or IOS side (covered by later tasks).
@@ -154,8 +154,8 @@ Add a doc-comment that documents the expected `CommandArgsJson` shape: `{ "conte
 
 ### Success Conditions
 This task is compile-only.  Success is verified by:
-- `Bagira.DDS.DataModel` project builds without warnings.
-- `Bagira.DDS.DataModel.Tests` all pass (no regression).
+- `Hrot.NED` project builds without warnings.
+- `Hrot.NED.Tests` all pass (no regression).
 
 ---
 
@@ -164,7 +164,7 @@ This task is compile-only.  Success is verified by:
 **Design Reference:** [Phase 2.1 — FollowRoute Mission: Translate Network ID at Ingress Boundary](./OC1-DESIGN.md#21-followroute-mission-translate-network-id-at-ingress-boundary--oc1-s001)
 
 ### Scope
-Modify `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` in `BuildQueue()` (or the closest equivalent method that processes individual `MissionTask` entries before writing to `MissionPlanQueue`):
+Modify `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` in `BuildQueue()` (or the closest equivalent method that processes individual `MissionTask` entries before writing to `MissionPlanQueue`):
 
 1. For each task where `BehaviorId == "FollowRoute"`:
    a. Parse `routeEntityId` (long) from `BehaviorParams` JSON.
@@ -183,7 +183,7 @@ Modify `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` in `BuildQueue()`
 
 ### Success Conditions
 
-**Test class:** `Bagira.SimHost.Tests/Systems/MissionControlRequestSystemFollowRouteTests.cs`
+**Test class:** `Hrot.SimHost.Tests/Systems/MissionControlRequestSystemFollowRouteTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|
@@ -201,7 +201,7 @@ Modify `Bagira.SimHost/Systems/MissionControlRequestSystem.cs` in `BuildQueue()`
 **Design Reference:** [Phase 3.1 — Handle CMD\_SET\_SELECTION](./OC1-DESIGN.md#31-handle-cmd_set_selection--oc1-g001)
 
 ### Scope
-In `Bagira.IG/IgApplication.cs`:
+In `Hrot.IG/IgApplication.cs`:
 1. Add `case CommandType.CMD_SET_SELECTION:` to the `MapCommandRequest` dispatch switch in `Update()`.
 2. Add `ParseCommandAndSetSelection(string argsJson)`:
    - Parse `entityId` (long) from JSON.
@@ -217,7 +217,7 @@ In `Bagira.IG/IgApplication.cs`:
 
 ### Success Conditions
 
-**Test class:** `Bagira.IG.Tests/CommandHandling/SetSelectionCommandTests.cs`
+**Test class:** `Hrot.IG.Tests/CommandHandling/SetSelectionCommandTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|
@@ -233,7 +233,7 @@ In `Bagira.IG/IgApplication.cs`:
 **Design Reference:** [Phase 3.2 — Handle CMD\_SET\_VIEW (Entity-Centric)](./OC1-DESIGN.md#32-handle-cmd_set_view-entity-centric--oc1-g002)
 
 ### Scope
-In `Bagira.IG/IgApplication.cs`:
+In `Hrot.IG/IgApplication.cs`:
 1. Add `case CommandType.CMD_SET_VIEW:` to the dispatch switch.
 2. Add `ParseCommandAndSetView(string argsJson)`:
    - Parse `entityId` (long) from JSON.
@@ -249,7 +249,7 @@ In `Bagira.IG/IgApplication.cs`:
 
 ### Success Conditions
 
-**Test class:** `Bagira.IG.Tests/CommandHandling/SetViewCommandTests.cs`
+**Test class:** `Hrot.IG.Tests/CommandHandling/SetViewCommandTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|
@@ -264,7 +264,7 @@ In `Bagira.IG/IgApplication.cs`:
 **Design Reference:** [Phase 3.3 — Handle CMD\_DRAW\_PERSONAL\_ROUTE — IG Orchestration](./OC1-DESIGN.md#33-handle-cmd_draw_personal_route--ig-orchestration--oc1-g003)
 
 ### Scope
-In `Bagira.IG/IgApplication.cs`:
+In `Hrot.IG/IgApplication.cs`:
 1. Add `case CommandType.CMD_DRAW_PERSONAL_ROUTE:` to the dispatch switch, calling `ParseCommandAndActivatePersonalRoute(cmd.RequestId, cmd.CommandArgsJson)`.
 2. Add `ParseCommandAndActivatePersonalRoute(Guid requestId, string argsJson)`:
    - Parse `entityId` (int/long) from JSON.
@@ -289,7 +289,7 @@ In `Bagira.IG/IgApplication.cs`:
 
 ### Success Conditions
 
-**Test class:** `Bagira.IG.Tests/CommandHandling/DrawPersonalRouteCommandTests.cs`
+**Test class:** `Hrot.IG.Tests/CommandHandling/DrawPersonalRouteCommandTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|
@@ -306,7 +306,7 @@ In `Bagira.IG/IgApplication.cs`:
 **Design Reference:** [Phase 4.1 — OrbatPanel Context Menu Infrastructure](./OC1-DESIGN.md#41-orbatpanel-context-menu-infrastructure--oc1-i001)
 
 ### Scope
-In `Bagira.IOS/Panels/OrbatPanel.cs`:
+In `Hrot.ExCon/Panels/OrbatPanel.cs`:
 1. After each entity `ImGui.Selectable` row, detect `ImGui.IsItemClicked(ImGuiMouseButton.Right)` and open a `BeginPopupContextItem` popup.
 2. Inside the popup:
    - Always show: "Select entity", "Center on entity", "Delete".
@@ -320,11 +320,11 @@ In `Bagira.IOS/Panels/OrbatPanel.cs`:
 
 ### Constraints
 - The context menu popup must be opened with a per-node unique ID (e.g., `$"##ctx_{node.EntityId}"`) to avoid ImGui ID collisions when multiple rows are visible.
-- The `IsSimulatedEntity` threshold `< 8000` is a **placeholder** — if a dedicated `TkbCategory` flag or `IsMapGraphic()` helper already exists in `Bagira.Map.Common` or `Bagira.Map.Definitions`, use that instead.
+- The `IsSimulatedEntity` threshold `< 8000` is a **placeholder** — if a dedicated `TkbCategory` flag or `IsMapGraphic()` helper already exists in `Hrot.Map.Common` or `Hrot.Map.Definitions`, use that instead.
 
 ### Success Conditions
 
-**Test class:** `Bagira.IOS.Tests/Panels/OrbatPanelContextMenuTests.cs`  
+**Test class:** `Hrot.ExCon.Tests/Panels/OrbatPanelContextMenuTests.cs`  
 Tests use `ImGuiTestEngine` or a stub render harness consistent with other panel tests in the project.
 
 | # | Scenario | Setup | Action | Assertion |
@@ -343,10 +343,10 @@ Tests use `ImGuiTestEngine` or a stub render harness consistent with other panel
 **Design Reference:** [Phase 4.2 — Select Entity](./OC1-DESIGN.md#42-select-entity--oc1-i002)
 
 ### Scope
-1. In `Bagira.IOS/IosLogic.cs`: Add `SendSetSelection(int entityId)` method:
+1. In `Hrot.ExCon/IosLogic.cs`: Add `SendSetSelection(int entityId)` method:
    - Calls `SelectEntity(entityId)` locally (optimistic UI).
    - Publishes `MapCommandRequest(CMD_SET_SELECTION, {"entityId": id})` via `_commandWriter`.
-2. Expose `SendSetSelection` on `IIosLogic` interface in `Bagira.IOS/Abstractions/IIosLogic.cs`.
+2. Expose `SendSetSelection` on `IIosLogic` interface in `Hrot.ExCon/Abstractions/IIosLogic.cs`.
 3. Wire the "Select entity" menu item in `OrbatPanel.Draw()` to call `logic.SendSetSelection(node.EntityId)`.
 
 **Not in scope:** Changes to `SelectEntity` itself; changes to how `SelectionChangedEvent` is processed.
@@ -357,7 +357,7 @@ Tests use `ImGuiTestEngine` or a stub render harness consistent with other panel
 
 ### Success Conditions
 
-**Test class:** `Bagira.IOS.Tests/Panels/OrbatPanelContextMenuTests.cs` (extend) or `Bagira.IOS.Tests/IosLogicSelectTests.cs`
+**Test class:** `Hrot.ExCon.Tests/Panels/OrbatPanelContextMenuTests.cs` (extend) or `Hrot.ExCon.Tests/IosLogicSelectTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|
@@ -385,7 +385,7 @@ Tests use `ImGuiTestEngine` or a stub render harness consistent with other panel
 
 ### Success Conditions
 
-**Test class:** `Bagira.IOS.Tests/Panels/OrbatPanelContextMenuTests.cs`
+**Test class:** `Hrot.ExCon.Tests/Panels/OrbatPanelContextMenuTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|
@@ -416,7 +416,7 @@ Tests use `ImGuiTestEngine` or a stub render harness consistent with other panel
 
 ### Success Conditions
 
-**Test class:** `Bagira.IOS.Tests/IosLogicDeleteTests.cs`
+**Test class:** `Hrot.ExCon.Tests/IosLogicDeleteTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|
@@ -448,7 +448,7 @@ Tests use `ImGuiTestEngine` or a stub render harness consistent with other panel
 
 ### Success Conditions
 
-**Test class:** `Bagira.IOS.Tests/Panels/OrbatPanelContextMenuTests.cs`
+**Test class:** `Hrot.ExCon.Tests/Panels/OrbatPanelContextMenuTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|
@@ -477,7 +477,7 @@ Tests use `ImGuiTestEngine` or a stub render harness consistent with other panel
 
 ### Success Conditions
 
-**Test class:** `Bagira.IOS.Tests/Panels/OrbatPanelContextMenuTests.cs`
+**Test class:** `Hrot.ExCon.Tests/Panels/OrbatPanelContextMenuTests.cs`
 
 | # | Scenario | Setup | Action | Assertion |
 |---|----------|-------|--------|-----------|

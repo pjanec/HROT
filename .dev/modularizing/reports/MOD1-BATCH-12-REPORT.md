@@ -28,7 +28,7 @@
 
 ### DB-MOD1-09 Config File Regression — Entity Spawning Broken in `-m all` Mode
 
-**Symptom:** After the batch was implemented, `bagira.runner.exe -m all` stopped spawning entities. The `CreateEntityRequest` was published (log: `[TRACE-GW] Sending CreateEntityRequest`) but SimHost never processed it.
+**Symptom:** After the batch was implemented, `hrot.runner.exe -m all` stopped spawning entities. The `CreateEntityRequest` was published (log: `[TRACE-GW] Sending CreateEntityRequest`) but SimHost never processed it.
 
 **Root cause (two-part):**
 
@@ -60,7 +60,7 @@ if (_nodeConfig == null) nodeConfig.ApplyEnvironment();
 { "DdsDomainId": 0, ... }
 ```
 
-**Verification:** 183/183 `Bagira.SimHost.Tests` pass; 31/31 integration tests pass.
+**Verification:** 183/183 `Hrot.SimHost.Tests` pass; 31/31 integration tests pass.
 
 ---
 
@@ -68,8 +68,8 @@ if (_nodeConfig == null) nodeConfig.ApplyEnvironment();
 
 | Test Suite | Result | Count |
 |---|---|---|
-| `Bagira.Runner.Integration.Tests` | ✅ Passed | 31 / 31 |
-| `Bagira.SimHost.Tests` | ✅ Passed | 183 / 183 |
+| `Hrot.ClusterRunner.Integration.Tests` | ✅ Passed | 31 / 31 |
+| `Hrot.SimHost.Tests` | ✅ Passed | 183 / 183 |
 | `FDP.Toolkit.Combat.Tests` | ✅ Passed | 28 / 28 |
 | `FDP.Toolkit.CarKinem.Tests` | ✅ Passed | 126 / 126 |
 | Solution build (Release) | ✅ Clean | 0 errors |
@@ -77,7 +77,7 @@ if (_nodeConfig == null) nodeConfig.ApplyEnvironment();
 **Key test scenarios verified:**
 - [x] `SimHostDrag_IgReceivesPositionUpdateWithinFewFrames` — passes unconditionally (31/31 runner tests)
 - [x] `GlobalComponentIds_NoToolkitBlockDuplicates` — no duplicates found
-- [x] `BagiraComponentIds_NoDuplicates` — no duplicates found
+- [x] `HrotComponentIds_NoDuplicates` — no duplicates found
 - [x] `System_AvoidanceMovesVehicle` — non-vacuous; fails without `SetAuthority`
 - [x] `HealthData_DirtyGuard_OnlyWritesWhenCurrentChanges` — sentinel Max=999 preserved on skipped write; overwritten on actual write
 - [x] `ReplayModule_SeekToFrameAsync_IsOffMainThread` — `task.IsCompleted == false` before await
@@ -93,11 +93,11 @@ if (_nodeConfig == null) nodeConfig.ApplyEnvironment();
 
 The root cause was **stale compiled binaries**. Neither `[D2c]` nor `[D2d]` diagnostic log lines were added, and neither were necessary to diagnose the issue. A full incremental-disabled rebuild (`dotnet build --no-incremental`) resolved both failing tests immediately. The diagnosis was: old DLL files in the output directory did not reflect recent source changes, causing the tests to execute outdated code. Neither `NetworkTransform` registration nor `DescriptorOwnership` was actually missing from the production code — the system was correct, just not rebuilt. After the clean rebuild, 31/31 integration tests passed without any source changes.
 
-**Q2 — DB-MOD1-02: Did the uniqueness test find any actual duplicate IDs in `GlobalComponentIds` or `BagiraComponentIds`?**
+**Q2 — DB-MOD1-02: Did the uniqueness test find any actual duplicate IDs in `GlobalComponentIds` or `HrotComponentIds`?**
 
 No duplicates were found in either class. Both reflection-based tests pass cleanly:
 - `GlobalComponentIds_NoToolkitBlockDuplicates` — enumerates all `const byte` fields on `GlobalComponentIds` via reflection; asserts each value appears exactly once.
-- `BagiraComponentIds_NoDuplicates` — equivalent for `BagiraComponentIds` in `Bagira.Map.Common`.
+- `HrotComponentIds_NoDuplicates` — equivalent for `HrotComponentIds` in `Hrot.Map.Common`.
 
 The 20–49 toolkit block in `GlobalComponentIds` is fully occupied, which informed the decision in DB-MOD1-23 (see Q4).
 
@@ -112,10 +112,10 @@ Fields absorbed from `SimHostConfig`:
 **Files changed: 4**
 | File | Change |
 |------|--------|
-| `Bagira.SimHost/NodeConfiguration.cs` | Added `SimulationRateHz`, `GeodeticOriginConfig` type, and `GeodeticOrigin` property |
-| `Bagira.SimHost/SimHostApp.cs` | Replaced `SimHostConfig.Load("config.json")` with `_nodeConfig ?? NodeConfiguration.LoadFrom("config.json")`; replaced `config.DomainId` with `(int)nodeConfig.DdsDomainId`; replaced `config.SimulationRateHz` |
-| `Bagira.SimHost.Tests/SimHostConfigTests.cs` | Completely rewritten to test `NodeConfiguration`'s new absorbed fields |
-| `Bagira.SimHost/Configuration/SimHostConfig.cs` | **Deleted** |
+| `Hrot.SimHost/NodeConfiguration.cs` | Added `SimulationRateHz`, `GeodeticOriginConfig` type, and `GeodeticOrigin` property |
+| `Hrot.SimHost/SimHostApp.cs` | Replaced `SimHostConfig.Load("config.json")` with `_nodeConfig ?? NodeConfiguration.LoadFrom("config.json")`; replaced `config.DomainId` with `(int)nodeConfig.DdsDomainId`; replaced `config.SimulationRateHz` |
+| `Hrot.SimHost.Tests/SimHostConfigTests.cs` | Completely rewritten to test `NodeConfiguration`'s new absorbed fields |
+| `Hrot.SimHost/Configuration/SimHostConfig.cs` | **Deleted** |
 
 A post-batch regression was also discovered and fixed: the original `_nodeConfig ?? new NodeConfiguration()` in `OnLoad()` (a simplification error from the initial implementation) and the `"DomainId"` vs `"DdsDomainId"` key mismatch in `config.json` together caused SimHost to use DDS domain 42 instead of 0 in Runner mode. Fixed immediately upon discovery.
 
@@ -147,12 +147,12 @@ The batch instructions specified "reassign from the 20–49 toolkit block". Howe
 
 | File | Change |
 |------|--------|
-| `Bagira.SimHost/SimHostApp.cs` | Restored `LoadFrom("config.json")` in `OnLoad`; `IgPresentationModule` wiring |
-| `Bagira.SimHost/NodeConfiguration.cs` | Added `SimulationRateHz`, `GeodeticOriginConfig`, `GeodeticOrigin` |
-| `Bagira.SimHost/config.json` | `"DomainId"` → `"DdsDomainId"` (key name fix for deserialization) |
-| `Bagira.SimHost/Configuration/SimHostConfig.cs` | **Deleted** |
-| `Bagira.SimHost.Tests/SimHostConfigTests.cs` | Rewritten to cover absorbed fields |
-| `Bagira.SimHost.Tests/PresentationModuleTests.cs` | Added `IgPresentationModule_ProductionCanvas_IsSameAsProvided` |
+| `Hrot.SimHost/SimHostApp.cs` | Restored `LoadFrom("config.json")` in `OnLoad`; `IgPresentationModule` wiring |
+| `Hrot.SimHost/NodeConfiguration.cs` | Added `SimulationRateHz`, `GeodeticOriginConfig`, `GeodeticOrigin` |
+| `Hrot.SimHost/config.json` | `"DomainId"` → `"DdsDomainId"` (key name fix for deserialization) |
+| `Hrot.SimHost/Configuration/SimHostConfig.cs` | **Deleted** |
+| `Hrot.SimHost.Tests/SimHostConfigTests.cs` | Rewritten to cover absorbed fields |
+| `Hrot.SimHost.Tests/PresentationModuleTests.cs` | Added `IgPresentationModule_ProductionCanvas_IsSameAsProvided` |
 | `FDP/Kernel/Fdp.Kernel/EntityQuery.cs` | Added `IsEmpty` property |
 | `FDP/Kernel/Fdp.Kernel/GlobalComponentIds.cs` | Tombstone comments for IDs 67–68 |
 | `FDP/Kernel/Fdp.Kernel/CoreComponents/NavigationComponents.cs` | **Deleted** (moved to contracts assembly) |
@@ -166,5 +166,5 @@ The batch instructions specified "reassign from the 20–49 toolkit block". Howe
 | `FDP/Toolkits/FDP.Toolkit.Combat/Systems/DamageSystem.cs` | Dirty-flag guard before `HealthData` sync |
 | `FDP/Toolkits/FDP.Toolkit.Combat.Tests/DamageSystemTests.cs` | Added `HealthData_DirtyGuard_OnlyWritesWhenCurrentChanges` |
 | `FDP/Toolkits/FDP.Toolkit.Replay.Tests/ReplayModuleTests.cs` | `Assert.False(seekTask.IsCompleted)` before await |
-| `Bagira.Map.Common.Tests/ComponentIdTests.cs` | **New file**: `BagiraComponentIds_NoDuplicates` |
+| `Hrot.Map.Common.Tests/ComponentIdTests.cs` | **New file**: `HrotComponentIds_NoDuplicates` |
 | `IOS-IG-SimHost.sln` | Added `FDP.Toolkit.Navigation.Contracts` project and build configs |

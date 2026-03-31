@@ -45,7 +45,7 @@ Land **Part A** first: without **`ReplayLoadDsmHandler`** registered from **`Sim
 
 ### A.1 — **Register `ReplayLoadDsmHandler` from production SimHost** (P2)
 
-**Problem:** [`SimHostApp.OnLoad`](../../../Bagira.SimHost/SimHostApp.cs) calls [`NodeBootstrapper.BuildOrchestration`](../../../Bagira.SimHost/NodeBootstrapper.cs) **before** `SimHostModule` / `GhostCreationSystem` / group handles exist, and does **not** pass `simulationSystemGroup`, `networkLifecycleSystemGroup`, `ghostCreationSystem`. [`BuildOrchestration`](../../../Bagira.SimHost/NodeBootstrapper.cs) only registers [`ReplayLoadDsmHandler`](../../../Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs) when all three are non-null.
+**Problem:** [`SimHostApp.OnLoad`](../../../Hrot.SimHost/SimHostApp.cs) calls [`NodeBootstrapper.BuildOrchestration`](../../../Hrot.SimHost/NodeBootstrapper.cs) **before** `SimHostModule` / `GhostCreationSystem` / group handles exist, and does **not** pass `simulationSystemGroup`, `networkLifecycleSystemGroup`, `ghostCreationSystem`. [`BuildOrchestration`](../../../Hrot.SimHost/NodeBootstrapper.cs) only registers [`ReplayLoadDsmHandler`](../../../Hrot.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs) when all three are non-null.
 
 **Acceptable approaches (pick one, document in XML):**
 
@@ -55,14 +55,14 @@ Land **Part A** first: without **`ReplayLoadDsmHandler`** registered from **`Sim
 **Requirements:**
 
 - Production **`SimHostApp`** path must handle **`PrepareReplay` / `FinalizeReplay`** (and any **`PrepareLive`** from replay per S0305 prep) the same way tests do — **no test-only wiring**.
-- Add a **focused test** that builds the **minimal real `SimHostApp` / bootstrap slice** (or extracts a testable helper) and asserts **`ReplayLoadDsmHandler`** is registered when replay is enabled — **not** only manual handler construction in [`ReplayLoadDsmHandlerTests`](../../../Bagira.SimHost.Tests/ReplayLoadDsmHandlerTests.cs).
+- Add a **focused test** that builds the **minimal real `SimHostApp` / bootstrap slice** (or extracts a testable helper) and asserts **`ReplayLoadDsmHandler`** is registered when replay is enabled — **not** only manual handler construction in [`ReplayLoadDsmHandlerTests`](../../../Hrot.SimHost.Tests/ReplayLoadDsmHandlerTests.cs).
 
 ### A.2 — **Unify `IRecordReplayController` and `EcsRecordReplayController`** (P2)
 
 - Either **`EcsRecordReplayController : IRecordReplayController`** with **one** `FinalizeRecordingAsync` contract (add optional `maxNetworkId` to the **interface** with default, or split methods — but **no** orphaned interface), **or** remove the unused interface if product standard is concrete type only (justify in TASK-DETAIL).
-- Update call sites and XML so **DrillSlave** / handlers do not rely on divergent signatures.
+- Update call sites and XML so **ClusterSlave** / handlers do not rely on divergent signatures.
 
-### A.3 — **Fail-loud `ParseDrillId` in `LiveLoadDsmHandler`** (P3)
+### A.3 — **Fail-loud `ParseExerciseId` in `LiveLoadDsmHandler`** (P3)
 
 Replace **`catch` → `Guid.NewGuid()`** with **`throw`** (e.g. `InvalidOperationException` with payload context) or explicit error path that **does not** start recording under a random id. Align with project fail-fast policy ([DEBT-TRACKER](../../DEBT-TRACKER.md) row).
 
@@ -72,7 +72,7 @@ When **`_activeRecordingModule == null`**, either **log `Warn`** with clear reas
 
 ### A.5 — **Dry-run snapshot test vs §S0309 TASK-DETAIL** (P3)
 
-[`LoadingDryRun_SnapshotCapturesLiveState`](../../../Bagira.SimHost.Tests/DryRunDsmHandlerTests.cs): either extend to **four** entities + **`EntityCount == 4`** as in **TASK-DETAIL**, or **narrow TASK-DETAIL** success text to match the intentional minimal test — **spec and test must match**.
+[`LoadingDryRun_SnapshotCapturesLiveState`](../../../Hrot.SimHost.Tests/DryRunDsmHandlerTests.cs): either extend to **four** entities + **`EntityCount == 4`** as in **TASK-DETAIL**, or **narrow TASK-DETAIL** success text to match the intentional minimal test — **spec and test must match**.
 
 ### A.6 — **Documentation hygiene** (P3)
 
@@ -96,7 +96,7 @@ Close **Part A** rows when merged (Status ✅).
 
 Implement per task detail:
 
-- **`DrillMaster`**: freeze time scale **0.0** before **`PrepareLive`** from **`RunningReplay`**; branched **`DrillId`**; restore scale after ACK.
+- **`ClusterMaster`**: freeze time scale **0.0** before **`PrepareLive`** from **`RunningReplay`**; branched **`ExerciseId`**; restore scale after ACK.
 - **`ReplayLoadDsmHandler`**: **`TeardownReplayAsync`**, uninstall replay without mutating **`EntityRepository`**, **`PrepareRecordingAsync`**, re-enable groups, clear **`BypassLifecycle`**.
 - **`ReplayMasterModule`** on orchestrator wrapping **`MasterTimeController`**.
 - All **success-condition tests** listed in §CGF1-S0305 (unit + integration as specified).

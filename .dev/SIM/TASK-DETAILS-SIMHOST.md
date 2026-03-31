@@ -25,15 +25,15 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
 **Steps:**
 1. Create new project:
    ```
-   dotnet new console -n Bagira.SimHost -f net8.0
+   dotnet new console -n Hrot.SimHost -f net8.0
    ```
 2. Add to IOS-IG-SimHost.sln solution:
    ```
-   Location: Bagira.SimHost/
+   Location: Hrot.SimHost/
    ```
 3. Create folder structure:
    ```
-   Bagira.SimHost/
+   Hrot.SimHost/
      Program.cs
      DoctrineIds.cs
      Components/
@@ -69,9 +69,9 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
 **Steps:**
 1. Add FDP project references:
    ```xml
-   <ProjectReference Include="..\Bagira.DDS.DataModel\Bagira.DDS.DataModel.csproj" />
-   <ProjectReference Include="..\Bagira.Map.Common\Bagira.Map.Common.csproj" />
-   <ProjectReference Include="..\Bagira.Map.Definitions\Bagira.Map.Definitions.csproj" />
+   <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
+   <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
+   <ProjectReference Include="..\Hrot.Map.Definitions\Hrot.Map.Definitions.csproj" />
    <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Lifecycle\FDP.Toolkit.Lifecycle.csproj" />
@@ -108,21 +108,21 @@ This document provides **detailed task breakdown** for implementing SimHost Mock
 **Goal:** Create component definitions for SimHost.
 
 > âš ď¸Ź **Architecture note â€” avoid duplicate type definitions:**
-> FDP uses the **Shared Data Model** types from `Bagira.DDS.DataModel` directly as ECS components. Types such as `EntityMaster`, `GeoSpatial`, `GeoSpatialDR`, `EntityInfo`, and `EntityMission` are already defined there and are decorated with `[FdpDescriptor]`, which allows the `AutoCycloneTranslator` to replicate them automatically over DDS.
+> FDP uses the **Shared Data Model** types from `Hrot.NED` directly as ECS components. Types such as `EntityMaster`, `WorldPos`, `WorldPos`, `EntityInfo`, and `EntityMission` are already defined there and are decorated with `[FdpDescriptor]`, which allows the `AutoCycloneTranslator` to replicate them automatically over DDS.
 >
-> **Do NOT redefine local copies** (`EntityMasterComponent`, `GeoSpatialComponent`, etc.) that duplicate the fields of these DDS types. This creates:
+> **Do NOT redefine local copies** (`EntityMasterComponent`, `WorldPosComponent`, etc.) that duplicate the fields of these DDS types. This creates:
 > - Schema drift (local copy diverges from the wire format)
 > - Broken auto-replication (the `AutoCycloneTranslator` cannot find its type)
 > - Redundant conversion code in handlers
 >
-> The only components that should be **newly** defined in `Bagira.SimHost.Components` are ones that have **no corresponding DDS topic**: runtime/local state such as `NetworkIdComponent`.
+> The only components that should be **newly** defined in `Hrot.SimHost.Components` are ones that have **no corresponding DDS topic**: runtime/local state such as `NetworkIdComponent`.
 > If a wrapper is truly necessary (e.g. to carry extra simulation-only state alongside the replicated data), mark it with `[FdpDescriptor]` so `AutoCycloneTranslator` picks it up.
 
 **Implementation:**
 
 Only create `Components/NetworkIdComponent.cs` (a genuinely local, non-replicated component):
 ```csharp
-namespace Bagira.SimHost.Components
+namespace Hrot.SimHost.Components
 {
     /// <summary>
     /// Maps an ECS entity to its allocated network entity ID.
@@ -138,9 +138,9 @@ namespace Bagira.SimHost.Components
 
 **For replicated data, use the DDS model types directly:**
 ```csharp
-// DO NOT create EntityMasterComponent, GeoSpatialComponent, etc.
-// Use Bagira.DDS.DataModel types as ECS components directly:
-using Bagira.DDS.DataModel;
+// DO NOT create EntityMasterComponent, WorldPosComponent, etc.
+// Use Hrot.NED types as ECS components directly:
+using Hrot.NED;
 
 // Set EntityMaster data on entity (type is already [FdpDescriptor]-tagged in DataModel)
 world.AddComponent(entity, new EntityMaster
@@ -157,20 +157,20 @@ world.AddComponent(entity, new EntityMaster
 
 **Folder structure update for S1.1** â€” remove the duplicate component files:
 ```
-Bagira.SimHost/
+Hrot.SimHost/
   Components/
     NetworkIdComponent.cs     âś… Keep (local, non-replicated)
-    EntityMasterComponent.cs  âťŚ Delete â€” use Bagira.DDS.DataModel.EntityMaster
-    EntityInfoComponent.cs    âťŚ Delete â€” use Bagira.DDS.DataModel.EntityInfo
-    GeoSpatialComponent.cs    âťŚ Delete â€” use Bagira.DDS.DataModel.GeoSpatial
-    GeoSpatialDRComponent.cs  âťŚ Delete â€” use Bagira.DDS.DataModel.GeoSpatialDR
-    EntityMissionComponent.cs âťŚ Delete â€” use Bagira.DDS.DataModel.EntityMission
+    EntityMasterComponent.cs  âťŚ Delete â€” use Hrot.NED.EntityMaster
+    EntityInfoComponent.cs    âťŚ Delete â€” use Hrot.NED.EntityInfo
+    WorldPosComponent.cs    âťŚ Delete â€” use Hrot.NED.WorldPos
+    WorldPosComponent.cs  âťŚ Delete â€” use Hrot.NED.WorldPos
+    EntityMissionComponent.cs âťŚ Delete â€” use Hrot.NED.EntityMission
 ```
 
 **Acceptance Criteria:**
 - âś… `NetworkIdComponent` created
-- âś… No local duplicates of `Bagira.DDS.DataModel` types
-- âś… ECS systems use `EntityMaster`, `GeoSpatial`, etc. from the shared data model
+- âś… No local duplicates of `Hrot.NED` types
+- âś… ECS systems use `EntityMaster`, `WorldPos`, etc. from the shared data model
 - âś… XML documentation complete
 
 **Estimated Effort:** 0.25 days (reduced â€” less boilerplate to write)
@@ -180,18 +180,18 @@ Bagira.SimHost/
 
 ---
 
-### Task S1.4: Create Bagira.SimHost.Tests Project
+### Task S1.4: Create Hrot.SimHost.Tests Project
 
 **Goal:** Setup unit test project.
 
 **Steps:**
 1. Create project:
    ```bash
-   dotnet new mstest -n Bagira.SimHost.Tests -f net8.0
+   dotnet new mstest -n Hrot.SimHost.Tests -f net8.0
    ```
-2. Location: `Bagira.SimHost.Tests/`
+2. Location: `Hrot.SimHost.Tests/`
 3. Add to solution `IOS-IG-SimHost.sln`.
-4. Add reference to `Bagira.SimHost` project.
+4. Add reference to `Hrot.SimHost` project.
 
 **Acceptance Criteria:**
 - âś… Test project created
@@ -208,7 +208,7 @@ Bagira.SimHost/
 **Goal:** Confirm every physical entity template in `BdcTkbBuilder` includes `SimTransform` and `SimVelocity`, and that `VehicleState` is added **only** to wheeled/tracked ground platforms.
 
 **Steps:**
-1. Open `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs` and enumerate all `RegisterTemplate` calls.
+1. Open `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs` and enumerate all `RegisterTemplate` calls.
 2. Verify each template's component list contains `SimTransform` and `SimVelocity`.
 3. Verify `VehicleState` is present **only** on templates whose `TkbEntityType` corresponds to wheeled/tracked ground vehicles (tanks, APCs, cars, trucks). Infantry, aircraft, naval, and pure-ghost entities must **not** receive `VehicleState`.
 4. Add missing `SimTransform`/`SimVelocity` entries where absent. Remove `VehicleState` from non-wheeled templates.
@@ -242,14 +242,14 @@ Create `Systems/CreateEntityRequestHandler.cs`:
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Bagira.DDS.DataModel;
-using Bagira.SimHost.Components;
+using Hrot.NED;
+using Hrot.SimHost.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Tkb;
 using Fdp.Kernel;
 using ModuleHost.Network.Cyclone;
 
-namespace Bagira.SimHost.Systems
+namespace Hrot.SimHost.Systems
 {
     /// <summary>
     /// Handles CreateEntityRequest from IOS/IG.
@@ -493,21 +493,21 @@ _eventBus.Publish(new CreateEntityAckEvent
 
 ### Task S2.5: Implement DescriptorMapper
 
-**Goal:** Create `Bagira.SimHost.Util.DescriptorMapper` â€” the application-side adapter that converts a `List<EntityDescriptorUnion>` from a `CreateEntityRequest` into a `List<object>` suitable for `SpawnEntityCommand.InitialComponents`.
+**Goal:** Create `Hrot.SimHost.Util.DescriptorMapper` â€” the application-side adapter that converts a `List<EntityDescriptorUnion>` from a `CreateEntityRequest` into a `List<object>` suitable for `SpawnEntityCommand.InitialComponents`.
 
 > âš ď¸Ź **Architecture note â€” DescriptorMapper lives in SimHost, not the toolkit:**
-> `FDP.Toolkit.NetworkSpawning` is deliberately generic and has no dependency on `Bagira.DDS.DataModel`. The application (SimHost) is responsible for bridging DDS-specific types to generic `object` components via `DescriptorMapper`, keeping the toolkit clean.
+> `FDP.Toolkit.NetworkSpawning` is deliberately generic and has no dependency on `Hrot.NED`. The application (SimHost) is responsible for bridging DDS-specific types to generic `object` components via `DescriptorMapper`, keeping the toolkit clean.
 >
 > `EntityComponentReflector` (inside the toolkit) will call `world.SetComponent(entity, componentType, componentInstance)` for each object in `InitialComponents`, so the objects must be valid ECS component types already registered in the world.
 
 **Implementation:**
 
-Create `Bagira.SimHost/Util/DescriptorMapper.cs`:
+Create `Hrot.SimHost/Util/DescriptorMapper.cs`:
 
 ```csharp
-namespace Bagira.SimHost.Util
+namespace Hrot.SimHost.Util
 {
-    using Bagira.BDC.SSTD;
+    using Hrot.NED.Descriptors;
     using Fdp.Toolkit.Geographic;
     using FDP.Kernel;
 
@@ -537,13 +537,13 @@ namespace Bagira.SimHost.Util
                         result.Add(d.EntityInfo);
                         break;
 
-                    case EDescriptorType.dtGeoSpatial:
+                    case EDescriptorType.dtWorldPos:
                         // Raw DDS component replicated via AutoCycloneTranslator
-                        result.Add(d.GeoSpatial);
+                        result.Add(d.WorldPos);
                         // Set SimTransform (world position + orientation) â€” used by ALL systems.
                         // This is the ONLY authoritative position source; never use VehicleState for position.
-                        var cart = geo.ToCartesian(d.GeoSpatial.Pos);
-                        float headingRad = d.GeoSpatial.Rot.Heading * (MathF.PI / 180f);
+                        var cart = geo.ToCartesian(d.WorldPos.Pos);
+                        float headingRad = d.WorldPos.Rot.Heading * (MathF.PI / 180f);
                         result.Add(new SimTransform
                         {
                             Position = new Vector3((float)cart.X, (float)cart.Y, (float)cart.Z),
@@ -575,7 +575,7 @@ namespace Bagira.SimHost.Util
 **Acceptance Criteria:**
 - âś… `ExtractTkbType` returns `EntityMaster.TkbType` or 0 if not present
 - âś… `MapToComponents` returns `EntityMaster`, `EntityInfo` using DDS types directly (no wrappers)
-- âś… `GeoSpatial` produces both `GeoSpatial` component and `VehicleState` for CarKinem
+- âś… `WorldPos` produces both `WorldPos` component and `VehicleState` for CarKinem
 - âś… `HeadingToVector` converts degrees to unit-direction Vector2 correctly
 - âś… Unknown descriptor types produce a warning log (not an exception)
 - âś… Unit tests: all 3 descriptor types â†’ expected component list
@@ -625,17 +625,17 @@ Console.WriteLine($"[SimHost] Sent ACK: Entity {newEntityId} created successfull
 
 **Test Implementation:**
 
-Create `Bagira.SimHost.Tests/CreateEntityRequestHandlerTests.cs`:
+Create `Hrot.SimHost.Tests/CreateEntityRequestHandlerTests.cs`:
 
 ```csharp
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Bagira.SimHost.Systems;
-using Bagira.SimHost.Components;
-using Bagira.DDS.DataModel;
+using Hrot.SimHost.Systems;
+using Hrot.SimHost.Components;
+using Hrot.NED;
 using FDP.Toolkit.Tkb;
 using FDP.Toolkit.Replication.Services;
 
-namespace Bagira.SimHost.Tests
+namespace Hrot.SimHost.Tests
 {
     [TestClass]
     public class CreateEntityRequestHandlerTests
@@ -743,21 +743,21 @@ namespace Bagira.SimHost.Tests
 
 ### Task S3.1: Register GeographicModule and Verify Egress
 
-**Goal:** Register `GeographicModule` from `Fdp.Toolkit.Geographic` at kernel startup, confirming that `SimTransformBridgeSystem` converts `SimTransform`/`SimVelocity` â†’ `GeoTransform`/`GeoVelocity` for locally-owned entities, and that `GeoSpatialEgressTranslator` publishes correct DDS topics.
+**Goal:** Register `GeographicModule` from `Fdp.Toolkit.Geographic` at kernel startup, confirming that `SimTransformBridgeSystem` converts `SimTransform`/`SimVelocity` â†’ `GeoTransform`/`GeoVelocity` for locally-owned entities, and that `WorldPosEgressTranslator` publishes correct DDS topics.
 
-> `GeoSpatialBridgeModule` and `GeoSpatialBridgeSystem` are **not created**. The toolkit provides all bridge functionality.
+> `WorldPosBridgeModule` and `WorldPosBridgeSystem` are **not created**. The toolkit provides all bridge functionality.
 
 **Steps:**
 1. In `Program.cs` startup, register `GeographicModule` with the configured `WGS84Transform` (follow `NetworkDemoApp.cs` pattern). The module registers `SimTransformBridgeSystem` which runs post-physics.
-2. Confirm the egress translator list passed to `CycloneNetworkModule` includes the already-implemented `GeoSpatialEgressTranslator`.
+2. Confirm the egress translator list passed to `CycloneNetworkModule` includes the already-implemented `WorldPosEgressTranslator`.
 3. Run SimHost, spawn one entity via a `CreateEntityRequest`, let it sit for one second.
-4. Assert that the DDS `GeoSpatial` topic receives a sample with `Pos.Latitude` and `Pos.Longitude` within 1Â° of the configured `GeodeticOrigin`.
+4. Assert that the DDS `WorldPos` topic receives a sample with `Pos.Latitude` and `Pos.Longitude` within 1Â° of the configured `GeodeticOrigin`.
 
 **Acceptance Criteria:**
 - âś… `GeographicModule` registered at kernel startup with correct `WGS84Transform`
 - âś… `SimTransformBridgeSystem` runs post-physics (check system order in debug log)
-- âś… `GeoSpatialEgressTranslator` publishes `GeoSpatial` DDS sample with plausible coordinates
-- âś… No custom bridge code written in `Bagira.SimHost`
+- âś… `WorldPosEgressTranslator` publishes `WorldPos` DDS sample with plausible coordinates
+- âś… No custom bridge code written in `Hrot.SimHost`
 
 **Estimated Effort:** 2 days *(includes smoke-test integration run)*
 
@@ -805,7 +805,7 @@ namespace Bagira.SimHost.Tests
 Create `Translators/EntityMissionTranslator.cs` (DDS ingress â€” Managed Cyclone pattern):
 
 ```csharp
-namespace Bagira.SimHost.Translators
+namespace Hrot.SimHost.Translators
 {
     /// <summary>
     /// Ingress: subscribes to DDS EntityMission topic.
@@ -844,7 +844,7 @@ namespace Bagira.SimHost.Translators
 Create `Translators/EntityMissionEgressTranslator.cs` (DDS egress):
 
 ```csharp
-namespace Bagira.SimHost.Translators
+namespace Hrot.SimHost.Translators
 {
     /// <summary>
     /// Egress: publishes EntityMission DDS topic whenever MissionAdapterSystem
@@ -934,7 +934,7 @@ Key logic summary:
 Create `Systems/JoinFormationExecutor.cs`:
 
 ```csharp
-namespace Bagira.SimHost.Systems
+namespace Hrot.SimHost.Systems
 {
     using FDP.Toolkit.Behavior;
     using FDP.Toolkit.CarKinem;
@@ -1036,10 +1036,10 @@ Update `Program.cs`:
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Bagira.SimHost.Systems;
-using Bagira.SimHost.Configuration;
-using Bagira.Map.Definitions.Tkb;
-using Bagira.DDS.DataModel;
+using Hrot.SimHost.Systems;
+using Hrot.SimHost.Configuration;
+using Hrot.Map.Definitions.Tkb;
+using Hrot.NED;
 using FDP.Kernel;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Lifecycle;
@@ -1055,14 +1055,14 @@ using ModuleHost.Core;
 using ModuleHost.Network.Cyclone;
 using ModuleHost.Network.Cyclone.Services;
 
-namespace Bagira.SimHost
+namespace Hrot.SimHost
 {
     class Program
     {
         static async Task Main(string[] args)
         {
             Console.WriteLine("===========================================");
-            Console.WriteLine("  Bagira SimHost Mock (BDC SST)");
+            Console.WriteLine("  Hrot SimHost Mock (BDC SST)");
             Console.WriteLine("  Version 1.0");
             Console.WriteLine("===========================================");
             Console.WriteLine();
@@ -1132,9 +1132,9 @@ namespace Bagira.SimHost
                 eventBus, config.InstanceId, idAllocator, geoTransform));
             world.AddSystem(new NetworkSpawningSystem(
                 tkbDatabase, elm, networkEntityMap, idAllocator, eventBus, config.InstanceId,
-                // DisTypeExtractor delegate: decouples Toolkit from Bagira.DDS.DataModel
+                // DisTypeExtractor delegate: decouples Toolkit from Hrot.NED
                 (object c, out ulong dis) => {
-                    if (c is Bagira.BDC.SSTD.EntityMaster m) { dis = m.DisType; return true; }
+                    if (c is Hrot.NED.Descriptors.EntityMaster m) { dis = m.DisType; return true; }
                     dis = 0; return false;
                 }));
             // SimulationLogicModule: registers DoctrineRegistry + Behavior toolkit + CarKinem + LinearKinematicsSystem (see Task S4.1)
@@ -1163,9 +1163,9 @@ namespace Bagira.SimHost
             translators.Add(new CreateEntityRequestTranslator(participant, eventBus));
             translators.Add(new CreateEntityAckTranslator(participant, eventBus));
             translators.Add(new EntityMasterTranslator(participant, networkEntityMap));
-            translators.Add(new GeoSpatialTranslator(participant, networkEntityMap));
+            translators.Add(new WorldPosTranslator(participant, networkEntityMap));
             
-            // Auto-translators for types tagged [FdpDescriptor] in Bagira.DDS.DataModel
+            // Auto-translators for types tagged [FdpDescriptor] in Hrot.NED
             var (autoTranslators, _) = ReplicationBootstrap.CreateAutoTranslators(
                 participant, typeof(Program).Assembly, networkEntityMap);
             translators.AddRange(autoTranslators);
@@ -1258,15 +1258,15 @@ Create `Configuration/SimHostConfig.cs`:
 using System;
 using System.IO;
 using System.Text.Json;
-using Bagira.DDS.DataModel;
+using Hrot.NED;
 
-namespace Bagira.SimHost.Configuration
+namespace Hrot.SimHost.Configuration
 {
     public class SimHostConfig
     {
         public int DomainId { get; set; } = 0;
         public int SimulationRateHz { get; set; } = 60;
-        public GeoPosition GeodeticOrigin { get; set; } = new()
+        public GeoPoint GeodeticOrigin { get; set; } = new()
         {
             Latitude = 50.0755,
             Longitude = 14.4378,
@@ -1335,7 +1335,7 @@ Create `Utilities/Logger.cs`:
 ```csharp
 using System;
 
-namespace Bagira.SimHost.Utilities
+namespace Hrot.SimHost.Utilities
 {
     public enum LogLevel
     {
@@ -1478,7 +1478,7 @@ static async Task RunSimulationLoop(FdpWorld world, int targetRateHz, Cancellati
 
 **Implementation:**
 
-Create `Bagira.SimHost.Integration.Tests/EntityCreationFlowTests.cs`:
+Create `Hrot.SimHost.Integration.Tests/EntityCreationFlowTests.cs`:
 
 ```csharp
 [TestClass]
@@ -1556,12 +1556,12 @@ public class EntityCreationFlowTests
 2. Set EntityMission with MoveToLocation task
 3. Run simulation for 10 seconds
 4. Verify vehicle position changed
-5. Verify GeoSpatial updates published
+5. Verify WorldPos updates published
 6. Verify task state transitions
 
 **Implementation:**
 
-Create `Bagira.SimHost.Integration.Tests/MissionExecutionFlowTests.cs`:
+Create `Hrot.SimHost.Integration.Tests/MissionExecutionFlowTests.cs`:
 
 ```csharp
 [TestMethod]
@@ -1601,12 +1601,12 @@ public async Task MoveToLocation_VehicleNavigates()
     await simHost.RunForSeconds(10);
     
     // Assert
-    var finalGeoSpatial = simHost.ReadGeoSpatial(createAck.NewEntityId);
-    Assert.IsNotNull(finalGeoSpatial);
+    var finalWorldPos = simHost.ReadWorldPos(createAck.NewEntityId);
+    Assert.IsNotNull(finalWorldPos);
     
     // Verify vehicle moved (position should have changed)
-    // Convert GeoPosition back to Vector2
-    var finalPos = simHost.GeoToCartesian(finalGeoSpatial.Pos);
+    // Convert GeoPoint back to Vector2
+    var finalPos = simHost.GeoToCartesian(finalWorldPos.Pos);
     float distance = Vector2.Distance(Vector2.Zero, finalPos);
     
     Assert.IsTrue(distance > 50, "Vehicle should have moved significantly");
@@ -1618,7 +1618,7 @@ public async Task MoveToLocation_VehicleNavigates()
 
 **Acceptance Criteria:**
 - âś… Vehicle position changes
-- âś… GeoSpatial updates published
+- âś… WorldPos updates published
 - âś… Task state becomes DONE
 - âś… Vehicle navigates toward target
 
@@ -1641,7 +1641,7 @@ public async Task MoveToLocation_VehicleNavigates()
 
 **Implementation:**
 
-Create `Bagira.SimHost.Integration.Tests/PerformanceTests.cs`:
+Create `Hrot.SimHost.Integration.Tests/PerformanceTests.cs`:
 
 ```csharp
 [TestMethod]
@@ -1724,7 +1724,7 @@ SimHost is the "truth" authority for the BDC SST simulation. It runs vehicle phy
 ## Building
 
 ```
-cd Bagira.SimHost
+cd Hrot.SimHost
 dotnet build
 ```
 
@@ -1765,7 +1765,7 @@ Entities are created via CreateEntityRequest DDS topic:
 2. SimHost allocates ID
 3. SimHost creates entity from TKB template
 4. SimHost publishes CreateEntityAck
-5. SimHost publishes EntityMaster, GeoSpatial
+5. SimHost publishes EntityMaster, WorldPos
 
 ## Missions
 
@@ -1857,7 +1857,7 @@ Recommended values:
 
 ### GeodeticOrigin
 
-**Type:** `GeoPosition`
+**Type:** `GeoPoint`
 
 Simulation origin point in WGS84 coordinates.
 

@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-04  
 **Tasks:** Corrective-0 (DTE-BATCH-03 fixes), DDS2ECS-S6T1, DDS2ECS-S6T2, DDS2ECS-S6T3, DDS2ECS-S6T4, DDS2ECS-S7T1, DDS2ECS-S7T2  
 **Phase:** Phase 6 + Phase 7  
-**Estimated Effort:** 8–10 hours  
+**Estimated Effort:** 8ï¿½10 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-03 fixes applied
 
@@ -17,12 +17,12 @@ This batch finishes the IG damage pipeline and map symbol overrides, and closes 
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
 2. **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md` (DDS2ECS-S6T1 ? DDS2ECS-S7T2)
-3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (§3.6, §3.7, §3.8)
+3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (ï¿½3.6, ï¿½3.7, ï¿½3.8)
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-03-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.IG/`
-- **Test Project:** `Bagira.IG.Tests/`
+- **Primary Work Area:** `Hrot.IG/`
+- **Test Project:** `Hrot.IG.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -56,9 +56,9 @@ This batch finishes the IG damage pipeline and map symbol overrides, and closes 
 Phase 6 introduces `IgHealthState` and `EntityDamageTranslator`. Phase 7 adds `MapEntitySymbolTranslator`. Corrective Task 0 closes the missing tests from DTE-BATCH-03 and locks in Phase 8 behavior with tests.
 
 **Related Tasks:**
-- Phase 6: [DDS2ECS-S6T1–S6T4](../docs/dds-to-ecs/TASK-DETAIL.md#phase-6-ig--create-ighealthstate-and-entitydamagetranslator)
-- Phase 7: [DDS2ECS-S7T1–S7T2](../docs/dds-to-ecs/TASK-DETAIL.md#phase-7-ig--create-mapentitysymboltranslator)
-- Phase 8 tests: [DDS2ECS-S8T1–S8T3](../docs/dds-to-ecs/TASK-DETAIL.md#phase-8-ig--fix-igapplication-registrations-and-queries)
+- Phase 6: [DDS2ECS-S6T1ï¿½S6T4](../docs/dds-to-ecs/TASK-DETAIL.md#phase-6-ig--create-ighealthstate-and-entitydamagetranslator)
+- Phase 7: [DDS2ECS-S7T1ï¿½S7T2](../docs/dds-to-ecs/TASK-DETAIL.md#phase-7-ig--create-mapentitysymboltranslator)
+- Phase 8 tests: [DDS2ECS-S8T1ï¿½S8T3](../docs/dds-to-ecs/TASK-DETAIL.md#phase-8-ig--fix-igapplication-registrations-and-queries)
 
 ---
 
@@ -74,7 +74,7 @@ Phase 6 introduces `IgHealthState` and `EntityDamageTranslator`. Phase 7 adds `M
 ### Corrective Task 0: DTE-BATCH-03 test gaps
 
 **Files:**  
-- `Bagira.IG.Tests/` (UPDATE)
+- `Hrot.IG.Tests/` (UPDATE)
 
 **Requirements:**
 - Add the S5T4 test verifying `IgApplication.InitializeEmbedded(headless: true)` registers `IgEntityData`.
@@ -85,38 +85,38 @@ Phase 6 introduces `IgHealthState` and `EntityDamageTranslator`. Phase 7 adds `M
 
 ---
 
-### Task 1: DDS2ECS-S6T1 — Create `IgHealthState`
-**File:** `Bagira.IG/Components/IgHealthState.cs` (NEW)  
+### Task 1: DDS2ECS-S6T1 ï¿½ Create `IgHealthState`
+**File:** `Hrot.IG/Components/IgHealthState.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s6t1--create-ighealthstate-component`
 
 ---
 
-### Task 2: DDS2ECS-S6T2 — Create `EntityDamageTranslator`
-**File:** `Bagira.IG/Translators/EntityDamageTranslator.cs` (NEW)  
+### Task 2: DDS2ECS-S6T2 ï¿½ Create `EntityDamageTranslator`
+**File:** `Hrot.IG/Translators/EntityDamageTranslator.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s6t2--create-entitydamagetranslator`
 
 ---
 
-### Task 3: DDS2ECS-S6T3 — `IgApplication` registers `EntityDamageTranslator`
-**File:** `Bagira.IG/IgApplication.cs` (UPDATE)  
+### Task 3: DDS2ECS-S6T3 ï¿½ `IgApplication` registers `EntityDamageTranslator`
+**File:** `Hrot.IG/IgApplication.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s6t3--igapplication-register-entitydamagetranslator`
 
 ---
 
-### Task 4: DDS2ECS-S6T4 — `IgApplication` registers `IgHealthState`
-**File:** `Bagira.IG/IgApplication.cs` (UPDATE)  
+### Task 4: DDS2ECS-S6T4 ï¿½ `IgApplication` registers `IgHealthState`
+**File:** `Hrot.IG/IgApplication.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s6t4--igapplication-register-ighealthstate`
 
 ---
 
-### Task 5: DDS2ECS-S7T1 — Create `MapEntitySymbolTranslator`
-**File:** `Bagira.IG/Translators/MapEntitySymbolTranslator.cs` (NEW)  
+### Task 5: DDS2ECS-S7T1 ï¿½ Create `MapEntitySymbolTranslator`
+**File:** `Hrot.IG/Translators/MapEntitySymbolTranslator.cs` (NEW)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s7t1--create-mapentitysymboltranslator`
 
 ---
 
-### Task 6: DDS2ECS-S7T2 — `IgApplication` registers `MapEntitySymbolTranslator`
-**File:** `Bagira.IG/IgApplication.cs` (UPDATE)  
+### Task 6: DDS2ECS-S7T2 ï¿½ `IgApplication` registers `MapEntitySymbolTranslator`
+**File:** `Hrot.IG/IgApplication.cs` (UPDATE)  
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s7t2--igapplication-register-mapentitysymboltranslator`
 
 ---
@@ -124,7 +124,7 @@ Phase 6 introduces `IgHealthState` and `EntityDamageTranslator`. Phase 7 adds `M
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.IG.Tests/Bagira.IG.Tests.csproj`
+  - `dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj`
 
 ---
 
@@ -160,8 +160,8 @@ Phase 6 introduces `IgHealthState` and `EntityDamageTranslator`. Phase 7 adds `M
 
 This batch is DONE when:
 - [ ] Corrective-0 tests added
-- [ ] DDS2ECS-S6T1–S6T4 complete with xUnit tests
-- [ ] DDS2ECS-S7T1–S7T2 complete with xUnit tests
+- [ ] DDS2ECS-S6T1ï¿½S6T4 complete with xUnit tests
+- [ ] DDS2ECS-S7T1ï¿½S7T2 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-04-REPORT.md`
 
@@ -175,4 +175,4 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 - **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md`
-- **Design:** `docs/dds-to-ecs/DESIGN.md` (§3.6, §3.7, §3.8)
+- **Design:** `docs/dds-to-ecs/DESIGN.md` (ï¿½3.6, ï¿½3.7, ï¿½3.8)

@@ -23,7 +23,7 @@ Both `CreateEntityRequest` and `UpdateEntityAttributeRequest` rely on the same f
 `EntityAttribute` enum and `EntityAttributePayload` discriminated union:
 
 ```csharp
-public enum EntityAttribute { eaName, eaGeoPosition }
+public enum EntityAttribute { eaName, eaGeoPoint }
 ```
 
 Adding a new settable property requires modifying the IDL enum, regenerating DDS serialisation
@@ -52,7 +52,7 @@ allocation of the result list and the individual component `new` calls violate t
 ### 1.4 Duplicate Mapping Logic
 
 `DescriptorMapper.MapToComponents` and `EntityAttributeCompiler` independently implement
-overlapping field-mapping logic (e.g. both handle the `GeoPosition`→`SimTransform` conversion).
+overlapping field-mapping logic (e.g. both handle the `GeoPoint`→`SimTransform` conversion).
 Any change to coordinate math or component field layout must be applied in both places.
 
 ---
@@ -62,7 +62,7 @@ Any change to coordinate math or component field layout must be applied in both 
 ### 2.1 DDS Wire Format
 
 ```csharp
-// Bagira.DDS.DataModel/GenericMessages.cs
+// Hrot.NED/GenericMessages.cs
 public partial struct CreateEntityRequest
 {
     public Guid RequestId;
@@ -72,40 +72,40 @@ public partial struct CreateEntityRequest
     [DdsManaged] public List<EntityAttributePayload>? InitialAttributes;  // ← to replace
 }
 
-public enum EntityAttribute { eaName, eaGeoPosition }   // ← fixed, flat enum
+public enum EntityAttribute { eaName, eaGeoPoint }   // ← fixed, flat enum
 
 [DdsUnion] [DdsManaged]
 public partial struct EntityAttributePayload
 {
     [DdsDiscriminator] public EntityAttribute _d;
     [DdsCase(EntityAttribute.eaName)] public string Name;
-    [DdsCase(EntityAttribute.eaGeoPosition)] public GeoPosition GeoPosition;
+    [DdsCase(EntityAttribute.eaGeoPoint)] public GeoPoint GeoPoint;
 }
 ```
 
 ### 2.2 IG CreationTool (Emitting Side)
 
-`Bagira.IG/Tools/CreationTool.cs` — `BuildAndPublishCreateRequest`:
+`Hrot.IG/Tools/CreationTool.cs` — `BuildAndPublishCreateRequest`:
 
 - Parses `_initialPropertiesJson` to extract `name` and `affiliation`.
 - Builds a full `dtEntityInfo` descriptor from those values.
-- Builds a `dtGeoSpatial` descriptor from the map click.
+- Builds a `dtWorldPos` descriptor from the map click.
 - Populates `request.InitialDescriptors` with all three descriptors.
 - `request.InitialAttributes` is **never populated** — the list mechanism is bypassed entirely.
 
 ### 2.3 EntityAttributeCompiler (SimHost / SimHost-adjacent)
 
-`Bagira.Map.Common/Replication/Utils/EntityAttributeCompiler.cs`:
+`Hrot.Map.Common/Replication/Utils/EntityAttributeCompiler.cs`:
 
 - `CompileOverrides(List<EntityAttributePayload>, List<object>, IGeographicTransform)` —  
-  hardcoded `if (attr._d == EntityAttribute.eaName)` / `if (attr._d == EntityAttribute.eaGeoPosition)`.
+  hardcoded `if (attr._d == EntityAttribute.eaName)` / `if (attr._d == EntityAttribute.eaGeoPoint)`.
 - `CompileFromWorld(...)` — reads live ECS state for `IgEntityData` and `SimTransform` only.
 - ✅ **Already correct:** Per-component compilation (the "overwrite flaw" is solved here).
 - ❌ **Allocates:** Both a new `List<object>` and individual `new IgEntityData()` / `new SimTransform()`.
 
 ### 2.4 SimHost CreateEntityRequestSystem
 
-`Bagira.SimHost/Systems/CreateEntityRequestSystem.cs` — `ProcessPendingRequest`:
+`Hrot.SimHost/Systems/CreateEntityRequestSystem.cs` — `ProcessPendingRequest`:
 
 ```
 1. DescriptorMapper.MapToComponents(InitialDescriptors)  →  base component list
@@ -117,12 +117,12 @@ public partial struct EntityAttributePayload
 ### 2.5 EntityPropertyPatch DTO
 
 ```csharp
-// Bagira.DDS.DataModel/EntityPropertyPatch.cs
+// Hrot.NED/EntityPropertyPatch.cs
 public class EntityPropertyPatch
 {
     public string? Name { get; set; }
     public eForceIdentifier? Affiliation { get; set; }
-    public GeoPosition? GeoPosition { get; set; }
+    public GeoPoint? GeoPoint { get; set; }
     public bool? AutogenerateName { get; set; }
     public string? NamePrefix { get; set; }
 }
@@ -135,7 +135,7 @@ the IG when activating the `CreationTool`.
 ### 2.6 UpdateEntityAttributeRequest — Current State
 
 ```csharp
-// Bagira.DDS.DataModel/GenericMessages.cs
+// Hrot.NED/GenericMessages.cs
 public partial struct UpdateEntityAttributeRequest
 {
     public Guid RequestId;
@@ -178,7 +178,7 @@ The JSON schema mirrors the existing `EntityPropertyPatch` POCO:
 {
   "Name": "Bravo-1",
   "Affiliation": "FORCE_FRIENDLY",
-  "GeoPosition": { "Latitude": 32.1, "Longitude": 34.8, "Altitude": 0 }
+  "GeoPoint": { "Latitude": 32.1, "Longitude": 34.8, "Altitude": 0 }
 }
 ```
 
@@ -194,7 +194,7 @@ It emits only the two structurally mandatory descriptors and forwards the JSON v
 ```
 InitialDescriptors:
   [0] dtEntityMaster (TkbType)
-  [1] dtGeoSpatial   (click position)
+  [1] dtWorldPos   (click position)
 InitialAttributesJson = _initialPropertiesJson   ← raw forward, no parsing
 ```
 
@@ -208,7 +208,7 @@ from the same `ParseAffiliationFromJson` helper moved or kept inline for the UI 
 
 ### 3.3 Zero-Allocation JSON Attribute Compiler
 
-A new `JsonAttributeCompiler` class in `Bagira.Map.Common/Replication/Utils/` replaces the
+A new `JsonAttributeCompiler` class in `Hrot.Map.Common/Replication/Utils/` replaces the
 existing `EntityAttributeCompiler`. It processes the `InitialAttributesJson` string without any
 managed heap allocations on the hot path.
 
@@ -286,7 +286,7 @@ var compiler = new AttributeCompilerBuilder()
             c.ForceId = MapAffiliation(r.GetString()))
 
     // SimTransform is a struct component → value setter (ref T)
-    .RegisterValuePath<SimTransform>("GeoPosition",
+    .RegisterValuePath<SimTransform>("GeoPoint",
         (ref SimTransform c, ReadOnlySpan<int> _, ref Utf8JsonReader r) =>
             c = ApplyGeoJson(ref c, ref r, _geoTransform))
 
@@ -393,7 +393,7 @@ The codebase already handles this correctly for existing translators using two s
 
 | Strategy | Used for | Mechanism |
 |----------|----------|-----------|
-| Shadow comparison | High-frequency unmanaged data (`SimTransform`) | `GeoSpatialEgressTranslator` compares actual position delta per entity each frame |
+| Shadow comparison | High-frequency unmanaged data (`SimTransform`) | `WorldPosEgressTranslator` compares actual position delta per entity each frame |
 | Explicit dirty flag | Low-frequency reliable data (`IgEntityData`) | `SmartEgressUtil.MarkDirty(repo, entity, ordinal)` writes to `EgressPublicationState.DirtyDescriptors` |
 
 **Corrected `EcsPatchContext` contract:** After applying mutations via registered delegates,
@@ -434,7 +434,7 @@ reused by `DescriptorMapper` so the field-mapping logic is defined once:
 |-----------------|--------------------|---------| 
 | `"Name"` | `IgEntityData.Name` setter | JsonCompiler + DescriptorMapper `dtEntityInfo` |
 | `"Affiliation"` | `IgEntityData.ForceId` setter | JsonCompiler + DescriptorMapper `dtEntityInfo` |
-| `"GeoPosition"` | `SimTransform` + WGS84 conversion | JsonCompiler + DescriptorMapper `dtGeoSpatial` |
+| `"GeoPoint"` | `SimTransform` + WGS84 conversion | JsonCompiler + DescriptorMapper `dtWorldPos` |
 
 `DescriptorMapper.dtEntityInfo` case becomes:
 
@@ -483,7 +483,7 @@ case EDescriptorType.dtEntityInfo:
 as JSON strings instead of discriminated-union payloads.
 
 **Files:**
-- `Bagira.DDS.DataModel/GenericMessages.cs`
+- `Hrot.NED/GenericMessages.cs`
 
 **Changes:**
 1. In `CreateEntityRequest`: replace `[DdsManaged] public List<EntityAttributePayload>? InitialAttributes;`
@@ -501,7 +501,7 @@ as JSON strings instead of discriminated-union payloads.
 and instead forwards the raw JSON into `InitialAttributesJson`.
 
 **Files:**
-- `Bagira.IG/Tools/CreationTool.cs`
+- `Hrot.IG/Tools/CreationTool.cs`
 
 **Changes:**
 1. Remove the `dtEntityInfo` `EntityDescriptorUnion` from the `InitialDescriptors` list built in
@@ -518,7 +518,7 @@ and instead forwards the raw JSON into `InitialAttributesJson`.
 
 **Goal:** Implement the low-level `Utf8JsonReader` streaming + `stackalloc` state machine.
 
-**New file:** `Bagira.Map.Common/Replication/Utils/JsonAttributeCompiler.cs`
+**New file:** `Hrot.Map.Common/Replication/Utils/JsonAttributeCompiler.cs`
 
 **Responsibilities:**
 - Accept a `string? json` and an `IEntityPatchContext context` parameter.
@@ -544,10 +544,10 @@ private static readonly byte[] Wildcard = Encoding.UTF8.GetBytes("*");
 **Goal:** Define the delegate types, `AttributeCompilerBuilder`, and `IEntityPatchContext`.
 
 **New files:**
-- `Bagira.Map.Common/Replication/Utils/IEntityPatchContext.cs`
-- `Bagira.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs`
-- `Bagira.Map.Common/Replication/Utils/ListPatchContext.cs`
-- `Bagira.Map.Common/Replication/Utils/EcsPatchContext.cs`
+- `Hrot.Map.Common/Replication/Utils/IEntityPatchContext.cs`
+- `Hrot.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs`
+- `Hrot.Map.Common/Replication/Utils/ListPatchContext.cs`
+- `Hrot.Map.Common/Replication/Utils/EcsPatchContext.cs`
 
 **Key types:**
 
@@ -580,10 +580,10 @@ entries in an internal `Dictionary<ulong, RoutingEntry>`.
 new `JsonAttributeCompiler` into both SimHost request-handling systems.
 
 **Files:**
-- `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`
-- `Bagira.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
-- `Bagira.SimHost/SimHostApp.cs` (compiler construction, ordinal mapping, dependency injection)
-- `Bagira.Map.Common/Replication/Utils/EntityAttributeCompiler.cs` (keep existing as wrapper
+- `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`
+- `Hrot.Map.Common/Systems/UpdateEntityAttributeRequestSystem.cs`
+- `Hrot.SimHost/SimHostApp.cs` (compiler construction, ordinal mapping, dependency injection)
+- `Hrot.Map.Common/Replication/Utils/EntityAttributeCompiler.cs` (keep existing as wrapper
   or deprecate once compiler is fully wired)
 
 **Property paths to register initially (with descriptor ordinals):**
@@ -592,7 +592,7 @@ new `JsonAttributeCompiler` into both SimHost request-handling systems.
 |-----------|-----------|-----------|------------|-------------------|
 | `"Name"` | `IgEntityData` (class) | `.Name` | `ReferenceAttributeSetter<IgEntityData>` | `(long)EDescriptorType.dtEntityInfo` |
 | `"Affiliation"` | `IgEntityData` (class) | `.ForceId` | `ReferenceAttributeSetter<IgEntityData>` | `(long)EDescriptorType.dtEntityInfo` |
-| `"GeoPosition.Latitude"` + `"GeoPosition.Longitude"` + `"GeoPosition.Altitude"` | `SimTransform` (struct) | `.Position` via `IGeographicTransform` | `ValueAttributeSetter<SimTransform>` | `(long)EDescriptorType.dtGeoSpatial` |
+| `"GeoPoint.Latitude"` + `"GeoPoint.Longitude"` + `"GeoPoint.Altitude"` | `SimTransform` (struct) | `.Position` via `IGeographicTransform` | `ValueAttributeSetter<SimTransform>` | `(long)EDescriptorType.dtWorldPos` |
 
 `EcsPatchContext.FlushDirtyMarks()` deduplicates ordinals so `dtEntityInfo` is only passed to
 `SmartEgressUtil.MarkDirty` once even when both `Name` and `Affiliation` are patched in the
@@ -606,9 +606,9 @@ same JSON string.
 in one place.
 
 **Files:**
-- `Bagira.Map.Common/Replication/Utils/DescriptorMapper.cs`
+- `Hrot.Map.Common/Replication/Utils/DescriptorMapper.cs`
 
-**Change:** `dtEntityInfo` and `dtGeoSpatial` cases delegate to the routing table instead of
+**Change:** `dtEntityInfo` and `dtWorldPos` cases delegate to the routing table instead of
 hand-coding field assignments. This is optional for the initial delivery and can follow as a
 clean-up task.
 
@@ -627,7 +627,7 @@ IOS (Operator)
        │  forwarded by IG unchanged
        ▼
   CreateEntityRequest
-    ├─ InitialDescriptors: [dtEntityMaster, dtGeoSpatial]  ← mandatory
+    ├─ InitialDescriptors: [dtEntityMaster, dtWorldPos]  ← mandatory
     └─ InitialAttributesJson: "{\"Name\":\"Bravo-1\",\"Affiliation\":\"FORCE_FRIENDLY\"}"
        │
        ▼  SimHost: CreateEntityRequestSystem.ProcessPendingRequest
@@ -667,6 +667,6 @@ IOS / IG (Operator)
        → SmartEgressUtil.MarkDirty(repo, entity, dtEntityInfo ordinal)
          [chunks NOT used — per-entity precision guaranteed]
        ▼
-  GeoSpatialEgressTranslator or EntityInfoEgressTranslator
+  WorldPosEgressTranslator or EntityInfoEgressTranslator
   picks up dirty flag on next tick → broadcasts EntityInfo over DDS
 ```

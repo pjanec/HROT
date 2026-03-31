@@ -15,14 +15,14 @@ dotnet build IOS-IG-SimHost.sln --nologo
 # → Build succeeded. 0 Error(s).
 
 # Test — targeted projects (all run with --no-build after build)
-dotnet test Bagira.DDS.DataModel.Tests     --nologo --no-build
-dotnet test Bagira.Map.Common.Tests        --nologo --no-build
-dotnet test Bagira.Orchestrator.Tests      --nologo --no-build
-dotnet test Bagira.IG.Tests                --nologo --no-build
-dotnet test Bagira.IOS.Tests               --nologo --no-build
-dotnet test Bagira.Runner.Tests            --nologo --no-build
-dotnet test Bagira.SimHost.Tests           --nologo --no-build
-dotnet test Bagira.SimHost.Integration.Tests --nologo --no-build
+dotnet test Hrot.NED.Tests     --nologo --no-build
+dotnet test Hrot.Map.Common.Tests        --nologo --no-build
+dotnet test Hrot.Orchestrator.Tests      --nologo --no-build
+dotnet test Hrot.IG.Tests                --nologo --no-build
+dotnet test Hrot.ExCon.Tests               --nologo --no-build
+dotnet test Hrot.ClusterRunner.Tests            --nologo --no-build
+dotnet test Hrot.SimHost.Tests           --nologo --no-build
+dotnet test Hrot.SimHost.Integration.Tests --nologo --no-build
 ```
 
 ---
@@ -31,14 +31,14 @@ dotnet test Bagira.SimHost.Integration.Tests --nologo --no-build
 
 | Project | Passed | Failed | Notes |
 |---------|--------|--------|-------|
-| `Bagira.DDS.DataModel.Tests` | 43 | 0 | |
-| `Bagira.Map.Common.Tests` | 94 | 0 | |
-| `Bagira.Orchestrator.Tests` | 5 | 0 | 4 new S0105 tests + 1 pre-existing |
-| `Bagira.IG.Tests` | 429 | 0 | Domain IDs 240/241/242 fixed → 205/206/207 |
-| `Bagira.IOS.Tests` | 340 | 0 | |
-| `Bagira.Runner.Tests` | 112 | 0 | `SimHostSubsystemTests` now has DrillMaster fixture (domains 0 + 98) |
-| `Bagira.SimHost.Tests` | 360 | 0 | `SimHostComponentRegistrationTests` + `SimHostTimeSyncTests` now have DrillMaster fixtures |
-| `Bagira.SimHost.Integration.Tests` | 30 | 0 | |
+| `Hrot.NED.Tests` | 43 | 0 | |
+| `Hrot.Map.Common.Tests` | 94 | 0 | |
+| `Hrot.Orchestrator.Tests` | 5 | 0 | 4 new S0105 tests + 1 pre-existing |
+| `Hrot.IG.Tests` | 429 | 0 | Domain IDs 240/241/242 fixed → 205/206/207 |
+| `Hrot.ExCon.Tests` | 340 | 0 | |
+| `Hrot.ClusterRunner.Tests` | 112 | 0 | `SimHostSubsystemTests` now has ClusterMaster fixture (domains 0 + 98) |
+| `Hrot.SimHost.Tests` | 360 | 0 | `SimHostComponentRegistrationTests` + `SimHostTimeSyncTests` now have ClusterMaster fixtures |
+| `Hrot.SimHost.Integration.Tests` | 30 | 0 | |
 
 **Full-solution parallel run note:** `dotnet test IOS-IG-SimHost.sln` may produce 1–3 intermittent failures in `Fdp.Tests` and `ModuleHost.Core.Tests` due to pre-existing DDS domain-0 contention in high-parallelism runs. These failures are absent when each project runs in isolation and are not introduced by this batch. The same caveat was noted in the BATCH-02 report. Recommended CI workaround: run integration-test assemblies individually, or use `--maxcpucount:1`.
 
@@ -48,10 +48,10 @@ dotnet test Bagira.SimHost.Integration.Tests --nologo --no-build
 
 ### A.1 — Remove standalone exe projects
 
-- Removed `Bagira.Orchestrator.Standalone` project entry and 12 config lines from `IOS-IG-SimHost.sln`.  
-- Removed `Bagira.CGF.Standalone` project entry and 12 config lines from `IOS-IG-SimHost.sln`.  
-- Deleted `Bagira.Orchestrator.Standalone/` and `Bagira.CGF.Standalone/` directories.  
-- Updated `CGF-1-ONBOARDING.md` directory tree and launch instructions (Runner-only: `dotnet run --project Bagira.Runner -- --mode orchestrator/simhost/cgf`).  
+- Removed `Hrot.Orchestrator.Standalone` project entry and 12 config lines from `IOS-IG-SimHost.sln`.  
+- Removed `Hrot.CGF.Standalone` project entry and 12 config lines from `IOS-IG-SimHost.sln`.  
+- Deleted `Hrot.Orchestrator.Standalone/` and `Hrot.CGF.Standalone/` directories.  
+- Updated `CGF-1-ONBOARDING.md` directory tree and launch instructions (Runner-only: `dotnet run --project Hrot.ClusterRunner -- --mode orchestrator/simhost/cgf`).  
 
 ### A.2 — IG DDS fail-fast
 
@@ -61,21 +61,21 @@ dotnet test Bagira.SimHost.Integration.Tests --nologo --no-build
 
 ### A.3 — Remove local ID allocator fallback
 
-- Deleted `Bagira.SimHost/Network/LocalIdAllocatorFallbackHost.cs`.  
+- Deleted `Hrot.SimHost/Network/LocalIdAllocatorFallbackHost.cs`.  
 - Removed `IdAllocatorLocalFallbackEnabled` and `IdAllocatorLocalFallbackDelaySeconds` from `NodeConfiguration.cs`.  
 - Rewrote `SimHostApp.EnsureIdAllocatorRouting`: waits up to 30 s for `_idAllocator.HasPublicationMatch`, logs a warning at 5 s, throws `InvalidOperationException` after 30 s.  
 - Removed the `_localIdAllocatorFallback` field and its `Dispose()` call from `SimHostApp.Shutdown()`.  
-- Updated `DrillSlaveHeartbeatTests`, `DdsIdAllocatorMigrationTests`, `EntityLifecycleIntegrationTests` to remove the now-deleted config fields.  
-- Side effect: tests that called `SimHostApp.InitializeHeadless` without an external allocator server now timeout then fail. Fixed by adding `DrillMaster` fixtures (which include `DdsIdAllocatorServer`) to:  
-  - `Bagira.Runner.Tests/SimHostSubsystemTests` (domains 0 + 98)  
-  - `Bagira.SimHost.Tests/SimHostComponentRegistrationTests` (domains 0, 96, 97, 98, 99)  
-  - `Bagira.SimHost.Tests/SimHostTimeSyncTests` (domain 210)  
-  - Added `Bagira.Orchestrator` project reference to `Bagira.SimHost.Tests.csproj` for `DrillMaster` access.  
+- Updated `ClusterSlaveHeartbeatTests`, `DdsIdAllocatorMigrationTests`, `EntityLifecycleIntegrationTests` to remove the now-deleted config fields.  
+- Side effect: tests that called `SimHostApp.InitializeHeadless` without an external allocator server now timeout then fail. Fixed by adding `ClusterMaster` fixtures (which include `DdsIdAllocatorServer`) to:  
+  - `Hrot.ClusterRunner.Tests/SimHostSubsystemTests` (domains 0 + 98)  
+  - `Hrot.SimHost.Tests/SimHostComponentRegistrationTests` (domains 0, 96, 97, 98, 99)  
+  - `Hrot.SimHost.Tests/SimHostTimeSyncTests` (domain 210)  
+  - Added `Hrot.Orchestrator` project reference to `Hrot.SimHost.Tests.csproj` for `ClusterMaster` access.  
 
-### A.4 — DrillSlave() internal + BuildOrchestration guard
+### A.4 — ClusterSlave() internal + BuildOrchestration guard
 
-- Changed `DrillSlave()` constructor from `public` to `internal`.  
-- Added `InternalsVisibleTo("Bagira.SimHost.Integration.Tests")` to `Bagira.SimHost.csproj`.  
+- Changed `ClusterSlave()` constructor from `public` to `internal`.  
+- Added `InternalsVisibleTo("Hrot.SimHost.Integration.Tests")` to `Hrot.SimHost.csproj`.  
 - Added null-participant guard in `NodeBootstrapper.BuildOrchestration`: throws `ArgumentNullException` when `participant == null` for `NodeRole.Brain` or `NodeRole.AllInOne`.  
 - Updated `RecordReplayIntegrationTests` to create `DdsParticipant(18)` for the Brain role test.  
 
@@ -91,7 +91,7 @@ dotnet test Bagira.SimHost.Integration.Tests --nologo --no-build
 |-----|---------|
 | P1 Safety — IG DDS catch | Removed silent offline fallback in `IgApplication.InitializeNetwork` |
 | P1 Architecture — allocator fallback | Removed `LocalIdAllocatorFallbackHost` and `IdAllocatorLocalFallback*` config |
-| P2 Product — Standalone removal | Removed `Bagira.Orchestrator.Standalone` and `Bagira.CGF.Standalone` |
+| P2 Product — Standalone removal | Removed `Hrot.Orchestrator.Standalone` and `Hrot.CGF.Standalone` |
 | P3 Testing — `IsCodeGenType` filter | Narrowed to suffix-only rules (removed `Contains('_')`) |
 | P3 Documentation — CGF1-S0103 wording | Corrected task detail wording |
 | P3 Documentation — NodeOpType/NodeReplaySeek | Added footnote in CGF-1-DESIGN.md §3.5 |
@@ -105,16 +105,16 @@ dotnet test Bagira.SimHost.Integration.Tests --nologo --no-build
 
 | File | Purpose |
 |------|---------|
-| `Bagira.Orchestrator/ClusterConfiguration.cs` | Config record: `Mandatory[]`, `Optional[]`, `HeartbeatTimeoutSeconds`, `TransactionHistoryCapacity`, `LoadFrom(path)` |
+| `Hrot.Orchestrator/ClusterConfiguration.cs` | Config record: `Mandatory[]`, `Optional[]`, `HeartbeatTimeoutSeconds`, `TransactionHistoryCapacity`, `LoadFrom(path)` |
 
 ### Modified files
 
 | File | Changes |
 |------|---------|
-| `Bagira.Orchestrator/DistributedTransaction.cs` | Added `IsAborted` + `NodeAckLatencyMs` |
-| `Bagira.Orchestrator/DrillMaster.cs` | Full rewrite: bootstrap latch, `EjectNode(int)`, `DetectAndEjectTimedOutNodes`, SysOpRequest handling, transaction history ring buffer, `BootstrapComplete`/`TransactionHistory` properties |
-| `Bagira.Runner/Services/OrchestratorSubsystem.cs` | Loads `orchestrator-config.json`; `DrawUI()` renders bootstrap banner + Node Health table + 2PC History table |
-| `Bagira.Orchestrator.Tests/DrillMasterBootstrapTests.cs` | 4 new S0105 success-condition tests |
+| `Hrot.Orchestrator/DistributedTransaction.cs` | Added `IsAborted` + `NodeAckLatencyMs` |
+| `Hrot.Orchestrator/ClusterMaster.cs` | Full rewrite: bootstrap latch, `EjectNode(int)`, `DetectAndEjectTimedOutNodes`, ClusterOpRequest handling, transaction history ring buffer, `BootstrapComplete`/`TransactionHistory` properties |
+| `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` | Loads `orchestrator-config.json`; `DrawUI()` renders bootstrap banner + Node Health table + 2PC History table |
+| `Hrot.Orchestrator.Tests/ClusterMasterBootstrapTests.cs` | 4 new S0105 success-condition tests |
 | `.dev/cgf-1/CGF-1-TASK-DETAIL.md` | Step 4 corrected: `EjectNode(int nodeId)` *(normative correction: wire type is int)* |
 | `.dev/cgf-1/CGF-1-DESIGN.md` | Added `NodeReplaySeek` footnote in enum table |
 
@@ -133,7 +133,7 @@ dotnet test Bagira.SimHost.Integration.Tests --nologo --no-build
 
 ### BUG-B03-01: IDL enum `@value` annotations missing (CycloneDDS `BadParameter` on write)
 
-**Root cause:** `CycloneDDS.CodeGen.IdlEmitter.EmitEnum` emitted enum members as sequential IDL ordinals (0, 1, 2, …), ignoring the C# enum integer values. CycloneDDS validates the wire value against IDL-defined ordinals; `DSMState.Degraded = 99` exceeded the ordinal range (0–13) → `ReturnCode: BadParameter`.
+**Root cause:** `CycloneDDS.CodeGen.IdlEmitter.EmitEnum` emitted enum members as sequential IDL ordinals (0, 1, 2, …), ignoring the C# enum integer values. CycloneDDS validates the wire value against IDL-defined ordinals; `ClusterState.Degraded = 99` exceeded the ordinal range (0–13) → `ReturnCode: BadParameter`.
 
 **Fix (3 files in `FDP/ExtDeps/FastCycloneDds/tools/CycloneDDS.CodeGen/`):**
 
@@ -143,7 +143,7 @@ dotnet test Bagira.SimHost.Integration.Tests --nologo --no-build
 
 **Effect:** All enum types now have correct `@value` annotations in generated IDL. Example:
 ```idl
-enum DSMState {
+enum ClusterState {
     Standby,               // 0 — no annotation needed
     @value(10) LoadingEdit,
     ...
@@ -167,7 +167,7 @@ enum DSMState {
 
 **Root cause:** `SimHostApp.EnsureIdAllocatorRouting` now throws after 30 s if no `DdsIdAllocatorServer` is present (local fallback was removed in A.3). Tests that called `InitializeHeadless` without providing a server timed out.
 
-**Fix:** Added `DrillMaster` (which hosts `DdsIdAllocatorServer`) to three test class fixtures across `Bagira.Runner.Tests` and `Bagira.SimHost.Tests`, covering all domains used by impacted tests.
+**Fix:** Added `ClusterMaster` (which hosts `DdsIdAllocatorServer`) to three test class fixtures across `Hrot.ClusterRunner.Tests` and `Hrot.SimHost.Tests`, covering all domains used by impacted tests.
 
 ---
 
@@ -179,7 +179,7 @@ When a mandatory node is ejected (bootstrap latch re-engages), processing stops 
 
 ### `DdsIdAllocatorServer` fixture pattern
 
-Rather than using `DdsIdAllocatorServer` directly (which would require adding `ModuleHost.Network.Cyclone` references to multiple test projects), we use `DrillMaster` from `Bagira.Orchestrator`. `DrillMaster` already includes the `DdsIdAllocatorServer` as an internal detail. This keeps the test fixture minimal and matches production usage.
+Rather than using `DdsIdAllocatorServer` directly (which would require adding `ModuleHost.Network.Cyclone` references to multiple test projects), we use `ClusterMaster` from `Hrot.Orchestrator`. `ClusterMaster` already includes the `DdsIdAllocatorServer` as an internal detail. This keeps the test fixture minimal and matches production usage.
 
 ---
 
@@ -189,7 +189,7 @@ Rather than using `DdsIdAllocatorServer` directly (which would require adding `M
 feat(cgf-1): fail-fast DDS policy + allocator fallback removal + CGF1-S0105 (CGF-1-BATCH-03)
 
 Part A — correctives:
-- Remove Bagira.Orchestrator.Standalone and Bagira.CGF.Standalone (Runner-only launch).
+- Remove Hrot.Orchestrator.Standalone and Hrot.CGF.Standalone (Runner-only launch).
 - IgApplication: propagate DDS init failures (no silent offline mode).
 - SimHostApp: remove LocalIdAllocatorFallbackHost; EnsureIdAllocatorRouting throws after 30s wait.
 - NodeBootstrapper: throw when Brain/AllInOne role lacks DDS participant.
@@ -198,19 +198,19 @@ Part A — correctives:
 
 Part B — CGF1-S0105:
 - ClusterConfiguration: mandatory/optional node lists, heartbeat timeout, tx history capacity.
-- DrillMaster: bootstrap latch, SysOpRequest reject/accept, EjectNode(int), Degraded publish,
+- ClusterMaster: bootstrap latch, ClusterOpRequest reject/accept, EjectNode(int), Degraded publish,
   NodeOpCommand broadcast, DistributedTransaction history ring buffer.
 - OrchestratorSubsystem: load orchestrator-config.json, ImGui health/history panels.
 - CGF-1-TASK-DETAIL: correct EjectNode wire type to int.
 - CGF-1-DESIGN: NodeReplaySeek/ReplaySeek naming footnote.
-- Tests: DrillMasterBootstrapTests — 4 new S0105 success conditions.
+- Tests: ClusterMasterBootstrapTests — 4 new S0105 success conditions.
 
 Bug fixes:
 - CycloneDDS.CodeGen: emit @value(N) annotations for non-sequential C# enum values
-  (fixes BadParameter on DSMState.Degraded=99 and all other sparse-value enums).
+  (fixes BadParameter on ClusterState.Degraded=99 and all other sparse-value enums).
 - NodeOpCommand: change to KeepAll history so rapid back-to-back writes are not dropped.
 - IG test domain IDs 240/241/242 fixed to 205/206/207 (above CycloneDDS max 232).
-- SimHost/Runner test fixtures: add DrillMaster allocator server for test domains.
+- SimHost/Runner test fixtures: add ClusterMaster allocator server for test domains.
 
 Related: CGF-1-DESIGN §3.5, CGF-1-TASK-DETAIL §CGF1-S0105, DEBT-TRACKER (BATCH-03 ✅).
 ```

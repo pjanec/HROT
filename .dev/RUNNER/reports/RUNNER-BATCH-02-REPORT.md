@@ -10,28 +10,28 @@
 
 | Task ID | Status | Notes |
 |---------|--------|-------|
-| R1.1 | ✅ Complete | `Bagira.Runner` console project + `Bagira.Runner.Tests` xUnit project created, added to solution |
+| R1.1 | ✅ Complete | `Hrot.ClusterRunner` console project + `Hrot.ClusterRunner.Tests` xUnit project created, added to solution |
 | R1.2 | ✅ Complete | `RunnerConfiguration` + `RunMode` [Flags] enum with CLI parsing + JSON config merge |
 | R1.3 | ✅ Complete | `SubsystemOrchestrator` with Raylib window ownership, frame loop, subsystem lifecycle |
 | R1.4 | ✅ Complete | `ISubsystem` interface with `DrawWorld()`/`DrawUI()` phases + 3 stub subsystems |
-| R1.5 | ✅ Complete | `SubsystemStatusAnnounce` DDS topic in `Bagira.DDS.DataModel/Runner/` |
+| R1.5 | ✅ Complete | `SubsystemStatusAnnounce` DDS topic in `Hrot.NED/Runner/` |
 | R1.6 | ✅ Complete | `WaitingRoomCoordinator` DDS-based startup synchronisation with timeout |
 
 ---
 
 ## 🧪 Testing Results
 
-**Unit Tests Passed:** 39 / 39 (`Bagira.Runner.Tests`)  
-**Integration Tests Passed:** 4 / 4 (`Bagira.DDS.DataModel.Tests` — 2 new + 2 existing)
+**Unit Tests Passed:** 39 / 39 (`Hrot.ClusterRunner.Tests`)  
+**Integration Tests Passed:** 4 / 4 (`Hrot.NED.Tests` — 2 new + 2 existing)
 
 **Regression check — zero failures:**
 | Project | Result |
 |---------|--------|
-| `Bagira.IG.Tests` | 229 / 229 ✅ |
-| `Bagira.IOS.Tests` | 252 / 252 ✅ |
-| `Bagira.SimHost.Tests` | 55 / 55 ✅ |
-| `Bagira.DDS.DataModel.Tests` | 4 / 4 ✅ |
-| `Bagira.Runner.Tests` | 39 / 39 ✅ |
+| `Hrot.IG.Tests` | 229 / 229 ✅ |
+| `Hrot.ExCon.Tests` | 252 / 252 ✅ |
+| `Hrot.SimHost.Tests` | 55 / 55 ✅ |
+| `Hrot.NED.Tests` | 4 / 4 ✅ |
+| `Hrot.ClusterRunner.Tests` | 39 / 39 ✅ |
 
 **Key Test Scenarios Verified:**
 - [x] All 4 named modes (`all`, `simhost`, `ig`, `ios`) and comma-separated combos parse correctly

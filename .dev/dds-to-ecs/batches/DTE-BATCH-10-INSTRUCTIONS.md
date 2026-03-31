@@ -3,7 +3,7 @@
 **Batch Number:** DTE-BATCH-10  
 **Tasks:** DDS2ECS-S16T3, DDS2ECS-S16T4, DDS2ECS-S16T5  
 **Phase:** Phase 16  
-**Estimated Effort:** 14–18 hours  
+**Estimated Effort:** 14ï¿½18 hours  
 **Priority:** HIGH  
 **Dependencies:** DTE-BATCH-09 approved
 
@@ -17,12 +17,12 @@ This batch completes the UrbanCombat-aligned mission pipeline by removing the le
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/README.md`
 2. **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md` (DDS2ECS-S16T3 ? DDS2ECS-S16T5)
-3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (§10)
+3. **Design Document:** `docs/dds-to-ecs/DESIGN.md` (ï¿½10)
 4. **Previous Review:** `.dev-workstream/reviews/DTE-BATCH-09-REVIEW.md`
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.SimHost/`, `FDP.Toolkit.Behavior/`
-- **Test Projects:** `Bagira.SimHost.Tests/`
+- **Primary Work Area:** `Hrot.SimHost/`, `FDP.Toolkit.Behavior/`
+- **Test Projects:** `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -41,29 +41,29 @@ This batch completes the UrbanCombat-aligned mission pipeline by removing the le
 
 ## ? Tasks
 
-### Task 1: DDS2ECS-S16T3 — Delete `MissionAdapterSystem`, register `MissionDirectorSystem`
+### Task 1: DDS2ECS-S16T3 ï¿½ Delete `MissionAdapterSystem`, register `MissionDirectorSystem`
 **Files:**
-- `Bagira.SimHost/Systems/MissionAdapterSystem.cs` (DELETE or retire)
-- `Bagira.SimHost/Modules/SimulationLogicModule.cs` (UPDATE)
-- `Bagira.SimHost.Tests/MissionAdapterSystemTests.cs` (UPDATE or replace)
+- `Hrot.SimHost/Systems/MissionAdapterSystem.cs` (DELETE or retire)
+- `Hrot.SimHost/Modules/SimulationLogicModule.cs` (UPDATE)
+- `Hrot.SimHost.Tests/MissionAdapterSystemTests.cs` (UPDATE or replace)
 
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s16t3--delete-missionadaptersystem-register-missiondirectorsystem`
 
 ---
 
-### Task 2: DDS2ECS-S16T4 — Compile real BTree interpreters for all doctrines
+### Task 2: DDS2ECS-S16T4 ï¿½ Compile real BTree interpreters for all doctrines
 **Files:**
-- `Bagira.SimHost/DoctrineIds.cs` and doctrine registry setup
+- `Hrot.SimHost/DoctrineIds.cs` and doctrine registry setup
 - Any required FDP behavior toolkit classes
 
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s16t4--compile-real-btree-interpreters-for-all-doctrines`
 
 ---
 
-### Task 3: DDS2ECS-S16T5 — Wire `ParseParams` delegates
+### Task 3: DDS2ECS-S16T5 ï¿½ Wire `ParseParams` delegates
 **Files:**
-- `Bagira.SimHost/DoctrineIds.cs` or doctrine registry setup
-- `Bagira.SimHost.Tests/*` for coverage
+- `Hrot.SimHost/DoctrineIds.cs` or doctrine registry setup
+- `Hrot.SimHost.Tests/*` for coverage
 
 **Task Definition:** `docs/dds-to-ecs/TASK-DETAIL.md#dds2ecs-s16t5--wire-parseparams-delegates-for-param-carrying-doctrines`
 
@@ -72,7 +72,7 @@ This batch completes the UrbanCombat-aligned mission pipeline by removing the le
 ## ?? Testing Requirements
 - **Framework:** xUnit only. Do not add MSTest or NUnit tests.
 - Run:
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
 
 ---
 
@@ -107,7 +107,7 @@ This batch completes the UrbanCombat-aligned mission pipeline by removing the le
 ## ?? Success Criteria
 
 This batch is DONE when:
-- [ ] DDS2ECS-S16T3–S16T5 complete with xUnit tests
+- [ ] DDS2ECS-S16T3ï¿½S16T5 complete with xUnit tests
 - [ ] All tests pass
 - [ ] Report submitted to `.dev-workstream/reports/DTE-BATCH-10-REPORT.md`
 
@@ -122,4 +122,4 @@ This batch is DONE when:
 
 ## ?? Reference Materials
 - **Task Details:** `docs/dds-to-ecs/TASK-DETAIL.md`
-- **Design:** `docs/dds-to-ecs/DESIGN.md` (§10)
+- **Design:** `docs/dds-to-ecs/DESIGN.md` (ï¿½10)

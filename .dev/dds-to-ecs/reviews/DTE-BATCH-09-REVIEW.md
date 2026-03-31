@@ -24,7 +24,7 @@ Runner integration tests now cover context-menu push, entity destroy, and missio
 ## Test Quality Assessment
 - Integration tests verify real DDS round-trips and ECS state transitions (context menu actions, ghost removal, mission jump).
 - Mission queue assertions validate the actual `MissionPlanQueue` state rather than string output.
-- Tests rely on `BagiraRunnerHarness.PumpUntil` timeouts, avoiding hard sleeps.
+- Tests rely on `HrotRunnerHarness.PumpUntil` timeouts, avoiding hard sleeps.
 
 ---
 

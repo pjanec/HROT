@@ -439,7 +439,7 @@ Test: ScenarioTestHarness_WithTimingOutScenario_ReturnsTwo
 
 **What to implement:**
 
-Create the project with DDS struct definitions. These are used only by `DistributedTank` and `UrbanCombat (new)` to exercise the DDS layer without Bagira dependencies.
+Create the project with DDS struct definitions. These are used only by `DistributedTank` and `UrbanCombat (new)` to exercise the DDS layer without Hrot dependencies.
 
 Files:
 - `DemoSpawnMsg.cs`

@@ -16,7 +16,7 @@ Welcome to BATCH-06.
 
 **🚨 CRITICAL INSTRUCTION REGARDING TEST FAILURES 🚨**
 
-In your last report, you noted that after fixing the build path for `Bagira.IG.Tests`, you found 4 failing tests (`EditToolTests` & `AdvancedFeaturesIntegrationTests.Phase4`). You marked them as "pre-existing" and ignored them. 
+In your last report, you noted that after fixing the build path for `Hrot.IG.Tests`, you found 4 failing tests (`EditToolTests` & `AdvancedFeaturesIntegrationTests.Phase4`). You marked them as "pre-existing" and ignored them. 
 **This is unacceptable.** During a massive architecture refactor, tests suddenly failing (or being exposed as failing) often indicates subtle decoupling damage, race conditions, or incorrect topological system ordering. You must trace these 4 tests and fix the application logic so they pass. **A green pipeline means NO failing tests, period.**
 
 You must solve this corrective item before proceeding with the remaining Phase 6 tasks. Phase 6 focuses on removing the `BTreeContext` raycast/pathfinding stubs in favor of generic Physics/Navigation node definitions, and wiring the perception modules.
@@ -28,12 +28,12 @@ You must solve this corrective item before proceeding with the remaining Phase 6
 
 ### Source Code Location
 - **Primary Work Areas:**
-  - `Bagira.IG.Tests/` (Critical test coverage)
+  - `Hrot.IG.Tests/` (Critical test coverage)
   - `FDP.Toolkit.Behavior/`
   - `FDP.Toolkit.Physics/`
   - `FDP.Toolkit.Navigation/`
   - `FDP.Toolkit.Perception/`
-  - `Bagira.SimHost/Network/`
+  - `Hrot.SimHost/Network/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -54,12 +54,12 @@ You must solve this corrective item before proceeding with the remaining Phase 6
 
 ## ✅ Tasks
 
-### Corrective Task CT-MOD1-J: Fix `Bagira.IG.Tests`
+### Corrective Task CT-MOD1-J: Fix `Hrot.IG.Tests`
 
-**Files:** `Bagira.IG.Tests` test suite and corresponding source logic.
+**Files:** `Hrot.IG.Tests` test suite and corresponding source logic.
 
 **Description:**
-4 tests are failing in `Bagira.IG.Tests` (`EditToolTests.HandleDrag_*` and `AdvancedFeaturesIntegrationTests.Phase4_AllSubsystems_WorkTogetherInSharedRepo`).
+4 tests are failing in `Hrot.IG.Tests` (`EditToolTests.HandleDrag_*` and `AdvancedFeaturesIntegrationTests.Phase4_AllSubsystems_WorkTogetherInSharedRepo`).
 - Investigate the state mismatch or exception causing these tests to fail.
 - It is highly likely they are affected by the component ID shuffles, authority checks, or module extraction from earlier batches.
 - Fix the logic or the test constraints natively. Do not merely bypass the assertions. 
@@ -125,7 +125,7 @@ Please submit `.dev-workstream/reports/MOD1-BATCH-06-REPORT.md` completing the f
 ## 🎯 Success Criteria
 
 This batch is DONE when:
-- [ ] ALL 300 tests in `Bagira.IG.Tests` pass unconditionally.
+- [ ] ALL 300 tests in `Hrot.IG.Tests` pass unconditionally.
 - [ ] `BTreeContext` and `IAIContext` have completely dropped the Raycast and Pathfinding stubs, breaking the topological coupling into independent node bases.
 - [ ] Perception and Physics wrappers are fully extracted into `IModule` definitions.
 - [ ] Network translator packs for nodes properly route DDS messages for perception/pathfinding.

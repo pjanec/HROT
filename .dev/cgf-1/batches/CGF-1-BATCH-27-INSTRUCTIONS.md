@@ -29,24 +29,24 @@ closes a P3 test gap carried over from BATCH-26.
 
 | Area | Path |
 |---|---|
-| DDS schema (SysOpType) | `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs` |
-| DrillMaster | `Bagira.Orchestrator/DrillMaster.cs` |
-| OrchestratorSubsystem | `Bagira.Runner/Services/OrchestratorSubsystem.cs` |
-| OrchestratorScenarioPanel | `Bagira.Runner/Services/OrchestratorScenarioPanel.cs` |
-| Orchestrator unit tests | `Bagira.Orchestrator.Tests/` |
-| Runner unit tests | `Bagira.Runner.Tests/` |
+| DDS schema (ClusterOpType) | `Hrot.NED/Orchestration/OrchestrationMessages.cs` |
+| ClusterMaster | `Hrot.Orchestrator/ClusterMaster.cs` |
+| OrchestratorSubsystem | `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` |
+| OrchestratorScenarioPanel | `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` |
+| Orchestrator unit tests | `Hrot.Orchestrator.Tests/` |
+| Runner unit tests | `Hrot.ClusterRunner.Tests/` |
 
 ### Test Commands
 
 ```powershell
-dotnet test Bagira.Orchestrator.Tests/Bagira.Orchestrator.Tests.csproj -c Debug --logger "console;verbosity=quiet"
-dotnet test Bagira.Runner.Tests/Bagira.Runner.Tests.csproj -c Debug --logger "console;verbosity=quiet"
-dotnet test Bagira.DDS.DataModel.Tests/Bagira.DDS.DataModel.Tests.csproj -c Debug --logger "console;verbosity=quiet"
+dotnet test Hrot.Orchestrator.Tests/Hrot.Orchestrator.Tests.csproj -c Debug --logger "console;verbosity=quiet"
+dotnet test Hrot.ClusterRunner.Tests/Hrot.ClusterRunner.Tests.csproj -c Debug --logger "console;verbosity=quiet"
+dotnet test Hrot.NED.Tests/Hrot.NED.Tests.csproj -c Debug --logger "console;verbosity=quiet"
 ```
 
 **Baseline (must still pass after your changes):**
-- `Bagira.Orchestrator.Tests` → 46 passing
-- `Bagira.Runner.Tests` → 148 passing
+- `Hrot.Orchestrator.Tests` → 46 passing
+- `Hrot.ClusterRunner.Tests` → 148 passing
 
 ### Report Submission
 
@@ -79,7 +79,7 @@ dotnet test Bagira.DDS.DataModel.Tests/Bagira.DDS.DataModel.Tests.csproj -c Debu
 
 BATCH-26 completed S0501 (ImGui overhaul) and S0502 (real DDS fan-out).  The Orchestrator
 panel now shows a beige window wrapper, 2PC history, status banner, and all buttons publish
-live `SysOpRequest` messages on the network.
+live `ClusterOpRequest` messages on the network.
 
 Two gaps remain in Phase 5:
 - **S0503** — The "Time Control" sub-panel and `TimeControlRequested` event are not
@@ -99,39 +99,39 @@ dedicated test covering `NodeReplaySeek` fan-out.
 
 ### Task 0 (P3 Debt): `ReplaySeekStep_FansOutNodeReplaySeek`
 
-**File:** `Bagira.Orchestrator.Tests/DrillMasterFanOutTests.cs` (UPDATE)  
+**File:** `Hrot.Orchestrator.Tests/ClusterMasterFanOutTests.cs` (UPDATE)  
 **Debt ref:** DEBT-TRACKER.md row — CGF-1-BATCH-26 review
 
 **Description:** Add a single `[Fact]` named `ReplaySeekStep_FansOutNodeReplaySeek` that
-verifies the `OperationStep(ReplaySeek)` branch in `DrillMaster.ProcessSingleSysOpRequest`
+verifies the `OperationStep(ReplaySeek)` branch in `ClusterMaster.ProcessSingleClusterOpRequest`
 fans out a `NodeOpType.NodeReplaySeek` command to all active nodes.
 
-**Pattern to follow:** Study the existing fan-out facts in `DrillMasterFanOutTests.cs`.
+**Pattern to follow:** Study the existing fan-out facts in `ClusterMasterFanOutTests.cs`.
 The test should:
 1. Register one node with a Standby heartbeat (call `RegisterNode`).
 2. Ensure `_bootstrapLatch` is set (use `BootstrapForTests` or the existing `NoMandatoryConfig`
    pattern so `BootstrapComplete == true`).
 3. First transition the cluster to `RunningReplay` (required for a `ReplaySeek`
-   `OperationStep` to appear in the trajectory — use a `SysOpType.TransitionState` request
-   targeting `DSMState.RunningReplay`).
-4. After that, write a `SysOpRequest { OperationType = SysOpType.ReplaySeek,
+   `OperationStep` to appear in the trajectory — use a `ClusterOpType.TransitionState` request
+   targeting `ClusterState.RunningReplay`).
+4. After that, write a `ClusterOpRequest { OperationType = ClusterOpType.ReplaySeek,
    PayloadJson = "{\"TargetWallTicks\":1000}" }` and call `drill.Tick()`.
 5. Assert a `NodeOpCommand` with `Operation == NodeOpType.NodeReplaySeek` was received
    by the test DDS reader within 1 s.
 
-**Important:** `ReplaySeek` is a standalone `SysOpType` that maps directly to a
+**Important:** `ReplaySeek` is a standalone `ClusterOpType` that maps directly to a
 `NodeReplaySeek` fan-out — it does not go through the `TransitionState` call stack.
-Look at `DrillMaster.ProcessSingleSysOpRequest` to find the handler for
-`SysOpType.ReplaySeek` and write a test that exercises it.
+Look at `ClusterMaster.ProcessSingleClusterOpRequest` to find the handler for
+`ClusterOpType.ReplaySeek` and write a test that exercises it.
 
 **Tests required:**
-- `ReplaySeekStep_FansOutNodeReplaySeek` — 1 new fact in `DrillMasterFanOutTests`
+- `ReplaySeekStep_FansOutNodeReplaySeek` — 1 new fact in `ClusterMasterFanOutTests`
 
 ---
 
-### Task 1 (S0503-A): Extend `SysOpType` enum
+### Task 1 (S0503-A): Extend `ClusterOpType` enum
 
-**File:** `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs` (UPDATE)  
+**File:** `Hrot.NED/Orchestration/OrchestrationMessages.cs` (UPDATE)  
 **Task Definition:** [CGF1-S0503](../CGF-1-TASK-DETAIL.md#cgf1-s0503--time-control-section--remote-time-commands), item 1
 
 **Description:** Add three new values after `PrefetchScenario = 12`:
@@ -144,22 +144,22 @@ SetTimeScale    = 15,
 
 > **Wire-value note:** `NodeOpType.NodeReplaySeek = 13` is on a separate enum; the
 > overlap is intentional and defined in the IDL. `CancelOperation = 13` sits on
-> `SysOpType` — no conflict.
+> `ClusterOpType` — no conflict.
 
 **Tests required:**
-- Add two `[Fact]` items to `Bagira.DDS.DataModel.Tests/OrchestrationSchemaTests.cs`:
-  - `SysOpType_StepTime_Is14` — `Assert.Equal(14, (int)SysOpType.StepTime)`
-  - `SysOpType_SetTimeScale_Is15` — `Assert.Equal(15, (int)SysOpType.SetTimeScale)`
+- Add two `[Fact]` items to `Hrot.NED.Tests/OrchestrationSchemaTests.cs`:
+  - `ClusterOpType_StepTime_Is14` — `Assert.Equal(14, (int)ClusterOpType.StepTime)`
+  - `ClusterOpType_SetTimeScale_Is15` — `Assert.Equal(15, (int)ClusterOpType.SetTimeScale)`
 
 ---
 
-### Task 2 (S0503-B): `TimeControlRequested` event in `DrillMaster`
+### Task 2 (S0503-B): `TimeControlRequested` event in `ClusterMaster`
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs` (UPDATE)  
+**File:** `Hrot.Orchestrator/ClusterMaster.cs` (UPDATE)  
 **Task Definition:** [CGF1-S0503](../CGF-1-TASK-DETAIL.md#cgf1-s0503--time-control-section--remote-time-commands), item 2  
-**Design ref:** [§4.2](../CGF-1-ADDENDUM-3.md#42-drillmastertimecontrolrequested-event)
+**Design ref:** [§4.2](../CGF-1-ADDENDUM-3.md#42-clustmastertimecontrolrequested-event)
 
-**Description:** Add the event and intercept in `ProcessSingleSysOpRequest`:
+**Description:** Add the event and intercept in `ProcessSingleClusterOpRequest`:
 
 ```csharp
 /// <summary>
@@ -167,14 +167,14 @@ SetTimeScale    = 15,
 /// not require 2PC across simulation nodes.  <see cref="OrchestratorSubsystem"/>
 /// subscribes to route these to <see cref="DistributedTimeCoordinator"/>.
 /// </summary>
-public event Action<SysOpType, string>? TimeControlRequested;
+public event Action<ClusterOpType, string>? TimeControlRequested;
 ```
 
-At the **very start** of `ProcessSingleSysOpRequest`, before the main dispatch switch:
+At the **very start** of `ProcessSingleClusterOpRequest`, before the main dispatch switch:
 
 ```csharp
-if (req.OperationType is SysOpType.PauseTime or SysOpType.ResumeTime
-                      or SysOpType.StepTime  or SysOpType.SetTimeScale)
+if (req.OperationType is ClusterOpType.PauseTime or ClusterOpType.ResumeTime
+                      or ClusterOpType.StepTime  or ClusterOpType.SetTimeScale)
 {
     TimeControlRequested?.Invoke(req.OperationType, req.PayloadJson ?? string.Empty);
     return;
@@ -182,12 +182,12 @@ if (req.OperationType is SysOpType.PauseTime or SysOpType.ResumeTime
 ```
 
 **Tests required:**  
-Add two `[Fact]` items to `Bagira.Orchestrator.Tests/` (new file
-`DrillMasterTimeControlTests.cs` or appended to an appropriate existing test file):
+Add two `[Fact]` items to `Hrot.Orchestrator.Tests/` (new file
+`ClusterMasterTimeControlTests.cs` or appended to an appropriate existing test file):
 
-- `TimeControlRequested_FiresOnPauseTime` — call `HandleSysOpRequest` with
-  `OperationType = SysOpType.PauseTime`; assert the event was raised exactly once
-  with `SysOpType.PauseTime`.
+- `TimeControlRequested_FiresOnPauseTime` — call `HandleClusterOpRequest` with
+  `OperationType = ClusterOpType.PauseTime`; assert the event was raised exactly once
+  with `ClusterOpType.PauseTime`.
 - `TimeControlRequested_BypassesTransactionHistory` — same call; assert
   `_drillMaster.TransactionHistory` is empty (no 2PC transaction was created).
 
@@ -195,9 +195,9 @@ Add two `[Fact]` items to `Bagira.Orchestrator.Tests/` (new file
 
 ### Task 3 (S0503-C): Time Control UI section in `OrchestratorSubsystem`
 
-**File:** `Bagira.Runner/Services/OrchestratorSubsystem.cs` (UPDATE)  
+**File:** `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` (UPDATE)  
 **Task Definition:** [CGF1-S0503](../CGF-1-TASK-DETAIL.md#cgf1-s0503--time-control-section--remote-time-commands), items 3–4, 7  
-**Design ref:** [§4.2–§4.3](../CGF-1-ADDENDUM-3.md#42-drillmastertimecontrolrequested-event)
+**Design ref:** [§4.2–§4.3](../CGF-1-ADDENDUM-3.md#42-clustmastertimecontrolrequested-event)
 
 **Description (5 sub-changes):**
 
@@ -214,19 +214,19 @@ _drillMaster.TimeControlRequested += (op, payload) =>
 {
     switch (op)
     {
-        case SysOpType.PauseTime:
+        case ClusterOpType.PauseTime:
             var ids = new HashSet<int>(_drillMaster.NodeRoster.ActiveNodes.Keys);
             _timeCoordinator?.SwitchToDeterministic(ids);
             _isPaused = true;
             break;
-        case SysOpType.ResumeTime:
+        case ClusterOpType.ResumeTime:
             _timeCoordinator?.SwitchToContinuous();
             _isPaused = false;
             break;
-        case SysOpType.StepTime:
+        case ClusterOpType.StepTime:
             _timeKernel?.StepFrame(1f / 60f);
             break;
-        case SysOpType.SetTimeScale:
+        case ClusterOpType.SetTimeScale:
             if (float.TryParse(payload,
                     System.Globalization.NumberStyles.Float,
                     System.Globalization.CultureInfo.InvariantCulture,
@@ -272,20 +272,20 @@ if (ImGui.CollapsingHeader("Time Control", ImGuiTreeNodeFlags.DefaultOpen))
 
     float timeScale = 1.0f;  // future: read from _uiCache when S0506 lands
     if (ImGui.Button(_isPaused ? "Resume##OrcResume" : "Pause##OrcPause") && _sysOpWriter != null)
-        _sysOpWriter.Write(new SysOpRequest
+        _sysOpWriter.Write(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
-            OperationType = _isPaused ? SysOpType.ResumeTime : SysOpType.PauseTime,
+            OperationType = _isPaused ? ClusterOpType.ResumeTime : ClusterOpType.PauseTime,
             PayloadJson   = string.Empty,
         });
 
     ImGui.SameLine();
     if (!_isPaused) ImGui.BeginDisabled();
     if (ImGui.Button("Step##OrcStep") && _sysOpWriter != null)
-        _sysOpWriter.Write(new SysOpRequest
+        _sysOpWriter.Write(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
-            OperationType = SysOpType.StepTime,
+            OperationType = ClusterOpType.StepTime,
             PayloadJson   = string.Empty,
         });
     if (!_isPaused) ImGui.EndDisabled();
@@ -293,10 +293,10 @@ if (ImGui.CollapsingHeader("Time Control", ImGuiTreeNodeFlags.DefaultOpen))
     ImGui.SameLine();
     ImGui.SetNextItemWidth(150f);
     if (ImGui.SliderFloat("Speed##OrcSpeed", ref timeScale, 0.1f, 10.0f, "%.1fx") && _sysOpWriter != null)
-        _sysOpWriter.Write(new SysOpRequest
+        _sysOpWriter.Write(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
-            OperationType = SysOpType.SetTimeScale,
+            OperationType = ClusterOpType.SetTimeScale,
             PayloadJson   = timeScale.ToString("F2",
                 System.Globalization.CultureInfo.InvariantCulture),
         });
@@ -306,29 +306,29 @@ if (ImGui.CollapsingHeader("Time Control", ImGuiTreeNodeFlags.DefaultOpen))
 ```
 
 **Tests required:**  
-Add to `Bagira.Runner.Tests/OrchestratorSubsystemTests.cs`:
+Add to `Hrot.ClusterRunner.Tests/OrchestratorSubsystemTests.cs`:
 
 - `PauseButton_WhenNotPaused_DispatchesPauseTime` — render one frame; assert button
   labelled "Pause" exists (check ImGui state).  Programmatically click it; assert a
-  `SysOpRequest` with `PauseTime` was written.  (Use the test-writer pattern already
+  `ClusterOpRequest` with `PauseTime` was written.  (Use the test-writer pattern already
   in use in `OrchestratorSubsystemTests`.)
 - `StepButton_DisabledWhenNotPaused` — render one frame with `_isPaused == false`;
   assert `BeginDisabled` wraps the Step button (observe that clicking does not
   produce a request).
 - `TimeControlRequested_PauseTime_SetsIsPaused` — after `Initialize`, call
-  `TestHook_DrillMaster.HandleSysOpRequest(PauseTime)`; assert `_isPaused == true`
+  `TestHook_ClusterMaster.HandleClusterOpRequest(PauseTime)`; assert `_isPaused == true`
   via a `internal bool IsPausedForTest => _isPaused` hook.
 
 > **Note on `_timeKernel.GetTimeController().SetTimeScale`:** Check whether this
 > API exists in `ModuleHostKernel`.  If not, document the deviation and skip the
-> call — the test only needs to verify the `SysOpRequest` payload, not the kernel
+> call — the test only needs to verify the `ClusterOpRequest` payload, not the kernel
 > side-effect.
 
 ---
 
 ### Task 4 (S0503-D): Replay seek debounce in `OrchestratorScenarioPanel`
 
-**File:** `Bagira.Runner/Services/OrchestratorScenarioPanel.cs` (UPDATE)  
+**File:** `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` (UPDATE)  
 **Task Definition:** [CGF1-S0503](../CGF-1-TASK-DETAIL.md#cgf1-s0503--time-control-section--remote-time-commands), items 5–7  
 **Design ref:** [§4.3](../CGF-1-ADDENDUM-3.md#43-replay-seek-debounce)
 
@@ -356,10 +356,10 @@ public void Update(float dt)
 
     _seekPending = false;
     long wallTicks = (long)(_seekSliderValue * 10_000_000L);
-    _sysOpWriter.Write(new SysOpRequest
+    _sysOpWriter.Write(new ClusterOpRequest
     {
         RequestId     = Guid.NewGuid(),
-        OperationType = SysOpType.ReplaySeek,
+        OperationType = ClusterOpType.ReplaySeek,
         PayloadJson   = $"{{\"TargetWallTicks\":{wallTicks}}}",
     });
 }
@@ -393,7 +393,7 @@ public void Render(bool isPaused = false, float drillTime = 0f)
 
 Pass both through to `RenderReplaySection`.
 
-**4e. Update `RenderReplaySection`** to accept `(DSMState, bool disableAll, bool isPaused, float currentDrillTime)`:
+**4e. Update `RenderReplaySection`** to accept `(ClusterState, bool disableAll, bool isPaused, float currentDrillTime)`:
 
 - When **not** `_seekPending`: `_seekSliderValue = currentDrillTime;`  (passive track)
 - When slider is dragged: `_seekPending = true; _seekDebounceTimer = 0.5f;`  
@@ -403,20 +403,20 @@ Pass both through to `RenderReplaySection`.
   can't be read, `_replayDuration` remains at the 3600 fallback.
 
 **Tests required:**  
-Add to `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`:
+Add to `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs`:
 
 - `GetReplayDuration_TotalFrames3600_Returns60s` — `Assert.Equal(60f, OrchestratorScenarioPanel.GetReplayDuration("{\"TotalFrames\":3600}"))`
 - `GetReplayDuration_MalformedJson_ReturnsFallback` — assert returns `3600f`
 - `SeekDebounce_DoesNotWriteWithin400ms` — call `Update(0.1f)` × 4 immediately after
-  arming `_seekPending`; assert no `SysOpRequest` written.
+  arming `_seekPending`; assert no `ClusterOpRequest` written.
 - `SeekDebounce_WritesAfter500ms` — arm `_seekPending`; call `Update(0.5f)`; assert
-  exactly 1 `SysOpRequest` with `OperationType == SysOpType.ReplaySeek`.
+  exactly 1 `ClusterOpRequest` with `OperationType == ClusterOpType.ReplaySeek`.
 
 ---
 
 ### Task 5 (S0504): Asset Combo Selection
 
-**File:** `Bagira.Runner/Services/OrchestratorScenarioPanel.cs` (UPDATE)  
+**File:** `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` (UPDATE)  
 **Task Definition:** [CGF1-S0504](../CGF-1-TASK-DETAIL.md#cgf1-s0504--asset-combo-selection-local-filesystem-scan)  
 **Design ref:** [§5](../CGF-1-ADDENDUM-3.md#5-asset-combo-selection-local-scan)
 
@@ -425,7 +425,7 @@ Add to `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`:
 Remove fields:
 ```csharp
 private string _loadScenarioId  = string.Empty;
-private string _replayDrillId   = string.Empty;
+private string _replayExerciseId   = string.Empty;
 private string _injectScenarioId = string.Empty;
 private string _injectStoryId    = string.Empty;
 ```
@@ -437,7 +437,7 @@ private string[] _availableScenarios     = Array.Empty<string>();
 private string[] _availableStories       = Array.Empty<string>();
 private string[] _availableDrills        = Array.Empty<string>();
 private int      _selectedLoadScenarioIdx = -1;
-private int      _selectedDrillIdx        = -1;
+private int      _selectedExerciseIdx        = -1;
 private int      _selectedStoryIdx        = -1;
 ```
 
@@ -476,7 +476,7 @@ internal void RefreshLocalAssets(string? root = null)
 
     if (_selectedLoadScenarioIdx >= _availableScenarios.Length) _selectedLoadScenarioIdx = -1;
     if (_selectedStoryIdx        >= _availableStories.Length)   _selectedStoryIdx        = -1;
-    if (_selectedDrillIdx        >= _availableDrills.Length)    _selectedDrillIdx        = -1;
+    if (_selectedExerciseIdx        >= _availableDrills.Length)    _selectedExerciseIdx        = -1;
 }
 ```
 
@@ -513,16 +513,16 @@ check.  The Save section's `_saveScenarioId` text input is **unchanged**.
 
 **5d. Update `RenderReplaySection`:**
 
-Replace the `_replayDrillId` `InputText` with:
+Replace the `_replayExerciseId` `InputText` with:
 ```csharp
-ImGui.Combo("Select Drill##OrcReplayId", ref _selectedDrillIdx,
+ImGui.Combo("Select Drill##OrcReplayId", ref _selectedExerciseIdx,
     _availableDrills, _availableDrills.Length);
 ImGui.SameLine();
 if (ImGui.Button("⟳##RefDrill")) RefreshLocalAssets();
 ```
 
-Guard the "Load Replay" button with `_selectedDrillIdx >= 0` and use
-`_availableDrills[_selectedDrillIdx]` as `drillId`.
+Guard the "Load Replay" button with `_selectedExerciseIdx >= 0` and use
+`_availableDrills[_selectedExerciseIdx]` as `drillId`.
 
 **5e. Update `RenderStoriesSection`:**
 
@@ -541,10 +541,10 @@ if (_selectedStoryIdx >= 0)
 {
     string scenId    = _availableStories[_selectedStoryIdx];
     string newStoryId = Guid.NewGuid().ToString();
-    _sysOpWriter.Write(new SysOpRequest
+    _sysOpWriter.Write(new ClusterOpRequest
     {
         RequestId     = Guid.NewGuid(),
-        OperationType = SysOpType.ManageStory,
+        OperationType = ClusterOpType.ManageEpisode,
         PayloadJson   = $"{{\"Mode\":\"Start\"," +
                         $"\"StoryId\":\"{newStoryId}\"," +
                         $"\"ScenarioId\":\"{scenId}\"}}",
@@ -553,22 +553,22 @@ if (_selectedStoryIdx >= 0)
 ```
 
 **Tests required:**  
-Add to `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`:
+Add to `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs`:
 
 - `RefreshLocalAssets_PopulatesFromTempDirectory` — create a temp directory with one
   subdirectory containing `entities.json` (scenario) and one subdirectory containing
   `node_1.fdp` (drill); call `panel.RefreshLocalAssets(tmpRoot)`; assert
   `_availableScenarios.Length == 1` and `_availableDrills.Length == 1`.  
   Access the private arrays via `internal` exposure (add
-  `[assembly: InternalsVisibleTo("Bagira.Runner.Tests")]` if not already present, or
+  `[assembly: InternalsVisibleTo("Hrot.ClusterRunner.Tests")]` if not already present, or
   use reflection).
-- `RefreshLocalAssets_ClampsStaleSelectionIndex` — set `_selectedDrillIdx = 5`;
-  call `RefreshLocalAssets` with empty root; assert `_selectedDrillIdx == -1`.
+- `RefreshLocalAssets_ClampsStaleSelectionIndex` — set `_selectedExerciseIdx = 5`;
+  call `RefreshLocalAssets` with empty root; assert `_selectedExerciseIdx == -1`.
 - `InjectStory_AutoGeneratesStoryId` — trigger two successive "Inject Story" presses
-  (via the writer spy); assert the two `ManageStory` `PayloadJson` values contain
+  (via the writer spy); assert the two `ManageEpisode` `PayloadJson` values contain
   different `StoryId` GUIDs.
 - `LoadScenario_WithNoSelection_DisabledGuard` — with `_selectedLoadScenarioIdx = -1`,
-  simulate a "Load into Live" press; assert no `SysOpRequest` was written.
+  simulate a "Load into Live" press; assert no `ClusterOpRequest` was written.
 
 ---
 
@@ -576,9 +576,9 @@ Add to `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`:
 
 | Test project | Baseline | Minimum after batch |
 |---|---|---|
-| `Bagira.DDS.DataModel.Tests` | passes | +2 |
-| `Bagira.Orchestrator.Tests` | 46 | ≥ 49 (+1 fan-out debt, +2 TimeControl) |
-| `Bagira.Runner.Tests` | 148 | ≥ 159 (+3 subsystem + 4 debounce/duration + 4 panel combo) |
+| `Hrot.NED.Tests` | passes | +2 |
+| `Hrot.Orchestrator.Tests` | 46 | ≥ 49 (+1 fan-out debt, +2 TimeControl) |
+| `Hrot.ClusterRunner.Tests` | 148 | ≥ 159 (+3 subsystem + 4 debounce/duration + 4 panel combo) |
 
 **All existing tests must still pass.**
 
@@ -586,10 +586,10 @@ Add to `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`:
 
 - **Tests must verify behavior**, not just property assignment.  
   ❌ `Assert.NotNull(panel)` — useless.  
-  ✅ `Assert.Equal(SysOpType.PauseTime, capturedOp)` — verifies dispatch behavior.
-- **Writer-spy pattern:** inject a `DdsWriter<SysOpRequest>` backed by a real DDS
+  ✅ `Assert.Equal(ClusterOpType.PauseTime, capturedOp)` — verifies dispatch behavior.
+- **Writer-spy pattern:** inject a `DdsWriter<ClusterOpRequest>` backed by a real DDS
   participant and poll the matching `DdsReader` in the test process to intercept writes.  
-  This is the established pattern in `DrillMasterFanOutTests` and
+  This is the established pattern in `ClusterMasterFanOutTests` and
   `OrchestratorScenarioPanelTests`.
 - **No mock frameworks.** Use real DDS participants on domain ≥ 20 (reserved test range).
 - **Headless ImGui pattern** for rendering-dependent tests follows the pattern in
@@ -603,8 +603,8 @@ Add to `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`:
 suite with `dotnet test --no-build` and confirm all 194 tests that were green after
 BATCH-26 still pass.
 
-**❗ `InternalsVisibleTo`:** `Bagira.Runner` must expose internals to
-`Bagira.Runner.Tests`.  Check `Directory.Build.props` or existing assembly attributes
+**❗ `InternalsVisibleTo`:** `Hrot.ClusterRunner` must expose internals to
+`Hrot.ClusterRunner.Tests`.  Check `Directory.Build.props` or existing assembly attributes
 before adding a new `[assembly: InternalsVisibleTo(...)]`.
 
 **❗ `StepFrame`:** If `ModuleHostKernel` does not have a `StepFrame(float)` method,

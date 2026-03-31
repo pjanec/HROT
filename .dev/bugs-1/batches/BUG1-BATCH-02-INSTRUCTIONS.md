@@ -21,7 +21,7 @@ Welcome to BUG1-BATCH-02. This batch tackles the accumulated technical debt from
 4. **Previous Review:** `.dev-workstream/reviews/BUG1-BATCH-01-REVIEW.md` - See previous batch results
 
 ### Source Code Location
-- **Primary Work Area:** `Bagira.Map.Common/`, `Bagira.SimHost/`, `Bagira.IG/`, `Bagira.IOS/`
+- **Primary Work Area:** `Hrot.Map.Common/`, `Hrot.SimHost/`, `Hrot.IG/`, `Hrot.ExCon/`
 - **Test Project:** Respective `.Tests` packages
 
 ### Report Submission
@@ -67,7 +67,7 @@ We discovered testability and architectural paper-cuts during BATCH-01, plus pre
 
 ### Task 1: Refactor ACK Writer Injection (BUG1-T001)
 
-**File:** `Bagira.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` (UPDATE)  
+**File:** `Hrot.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` (UPDATE)  
 
 **Description:**
 The system is `sealed` and creates DDS objects in its constructor, slowing down unit tests. 
@@ -84,7 +84,7 @@ The system is `sealed` and creates DDS objects in its constructor, slowing down 
 
 ### Task 2: Separate Egress Translators (BUG1-T002)
 
-**File:** `Bagira.SimHost/SimHostApp.cs` (UPDATE)  
+**File:** `Hrot.SimHost/SimHostApp.cs` (UPDATE)  
 
 **Description:**
 `SimHostApp.OnLoad()` passes an all-encompassing `translators` list to `CycloneNetworkCleanupSystem`, combining both egress and ingress translators.
@@ -101,7 +101,7 @@ The system is `sealed` and creates DDS objects in its constructor, slowing down 
 
 ### Task 3: Node-ID Pass-through to IOS (BUG1-T003)
 
-**File:** `Bagira.Runner/Services/IosSubsystem.cs` (UPDATE)  
+**File:** `Hrot.ClusterRunner/Services/IosSubsystem.cs` (UPDATE)  
 
 **Description:**
 BUG1-F002 passed the offset-resolved `NodeId` into `IgSubsystem` and `SimHostSubsystem`, but `IosSubsystem` may have been missed.
@@ -117,7 +117,7 @@ BUG1-F002 passed the offset-resolved `NodeId` into `IgSubsystem` and `SimHostSub
 
 ### Task 4: Fix IG Tests (BUG1-T004)
 
-**File:** `Bagira.IG.Tests` (UPDATE)  
+**File:** `Hrot.IG.Tests` (UPDATE)  
 
 **Description:**
 There are ~6 pre-existing failures under `EditToolTests` and `TraceLoggingTests`.
@@ -127,13 +127,13 @@ There are ~6 pre-existing failures under `EditToolTests` and `TraceLoggingTests`
 - No hacky `[Skip]` attributes allowed; genuinely fix them.
 
 **Tests Required:**
-- ✅ All `Bagira.IG.Tests` must yield 100% green.
+- ✅ All `Hrot.IG.Tests` must yield 100% green.
 
 ---
 
 ### Task 5: Continuous Drag Toggle (BUG1-I001)
 
-**File:** `Bagira.IG/IgApplication.cs`, `Bagira.IG/Systems/MapUserConfig.cs` (UPDATE)  
+**File:** `Hrot.IG/IgApplication.cs`, `Hrot.IG/Systems/MapUserConfig.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md §BUG1-I001](docs/bugs-1/TASK-DETAIL.md#bug1-i001-add-continuous-drag-update-toggle-to-ig)
 
 **Requirements:**
@@ -150,7 +150,7 @@ There are ~6 pre-existing failures under `EditToolTests` and `TraceLoggingTests`
 
 ### Task 6: Default DoctrineFinished Trigger (BUG1-M001)
 
-**File:** `Bagira.IOS/Panels/MissionPanel.cs` (UPDATE)  
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs` (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md §BUG1-M001](docs/bugs-1/TASK-DETAIL.md#bug1-m001-default-doctrinefinished-trigger-on-task-creation)
 
 **Requirements:**
@@ -163,7 +163,7 @@ There are ~6 pre-existing failures under `EditToolTests` and `TraceLoggingTests`
 
 ### Task 7: Track Control Commands for OCC Version (BUG1-M002)
 
-**File:** `Bagira.IOS/Services/MissionEditorService.cs` (and Interface/Caller) (UPDATE)  
+**File:** `Hrot.ExCon/Services/MissionEditorService.cs` (and Interface/Caller) (UPDATE)  
 **Task Definition:** See [TASK-DETAIL.md §BUG1-M002](docs/bugs-1/TASK-DETAIL.md#bug1-m002-track-control-commands-for-occ-version-sync)
 
 **Requirements:**

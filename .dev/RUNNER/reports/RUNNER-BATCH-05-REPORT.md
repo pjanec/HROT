@@ -60,10 +60,10 @@ The `HeadlessTestExecutor` now supports four action types that can be expressed 
 
 ### Changes Made
 
-#### `Bagira.Runner/Services/SimHostSubsystem.cs`
+#### `Hrot.ClusterRunner/Services/SimHostSubsystem.cs`
 - Added `public EntityRepository? World => _world;` property to expose the live ECS world to the test executor.
 
-#### `Bagira.Runner/Services/HeadlessTestExecutor.cs`
+#### `Hrot.ClusterRunner/Services/HeadlessTestExecutor.cs`
 
 - Added `using System.Numerics;` and `using Fdp.Kernel;`.
 - Added `_world` field (`EntityRepository?`), populated from the new optional constructor parameter `EntityRepository? world = null`.
@@ -74,7 +74,7 @@ The `HeadlessTestExecutor` now supports four action types that can be expressed 
   - `AssertPositionActionHandler` — retrieves and reads `SimTransform`, returns `{ "x", "y", "z" }` for caller-side assertion.
 - `SaveReport()` now writes **both** `test-report-{name}.json` and `TestRunSummary.json` to the output directory.
 
-#### `Bagira.Runner/Services/TestMetricsCollector.cs`
+#### `Hrot.ClusterRunner/Services/TestMetricsCollector.cs`
 
 - Added `using Fdp.Kernel;`.
 - Added `SampleWorld(EntityRepository? world, double frameMs)` method that records `entity_count` and `frame_duration_ms` metrics.
@@ -93,7 +93,7 @@ dotnet test IOS-IG-SimHost.sln --no-build -c Debug
 
 | Assembly | Passed | Failed | Notes |
 |----------|--------|--------|-------|
-| Bagira.Runner.Tests | 82 | 0 | |
+| Hrot.ClusterRunner.Tests | 82 | 0 | |
 | Fdp.Examples.NetworkDemo.Tests | 27 | 0 | |
 | ModuleHost.Core.Tests | 22 | 0 | |
 | FDP.Toolkit.ImGui.Tests | 13 | 0 | |
@@ -101,14 +101,14 @@ dotnet test IOS-IG-SimHost.sln --no-build -c Debug
 | FDP.Framework.Raylib.Tests | 2 | 0 | |
 | Fdp.Tests | 689 | 2 | Pre-existing (see below) |
 | Fdp.Examples.UrbanCombat.Tests | 28 | 1 | Pre-existing (see below) |
-| Bagira.SimHost.Integration.Tests | 6 | 1 | Pre-existing (see below) |
+| Hrot.SimHost.Integration.Tests | 6 | 1 | Pre-existing (see below) |
 
 **Pre-existing failures (unrelated to this batch):**
 
 - `Fdp.Tests.EntityComplexityPerformanceTests.Lightweight_PlainUnmanaged_BestPerformance` — timing-sensitive performance test; passes in isolation.
 - `Fdp.Tests.ComponentDirtyTrackingTests.ComponentDirtyTracking_PerformanceScan` — same class of performance test.
 - `Fdp.Examples.UrbanCombat.Tests.BlueprintTests.APC_Template_HasHsmBrainTier` — `System.InvalidOperationException: Operations that change non-concurrent collections must have exclusive access` thrown in static `HsmActionRegistrar.RegisterAll()` when multiple test classes initialize concurrently.
-- `Bagira.SimHost.Integration.Tests.PerformanceTests.Performance_100Entities_Maintains60Hz` — load-dependent; passes in isolation.
+- `Hrot.SimHost.Integration.Tests.PerformanceTests.Performance_100Entities_Maintains60Hz` — load-dependent; passes in isolation.
 
 All failures were present before this batch and are not caused by any changes introduced here.
 

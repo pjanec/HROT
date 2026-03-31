@@ -23,10 +23,10 @@ This batch starts by fixing a critical allocation issue raised during the BATCH-
 ### Source Code Location
 - **Primary Work Areas:**
   - `FDP/Toolkits/FDP.Toolkit.Behavior/`
-  - `Bagira.SimHost/`
+  - `Hrot.SimHost/`
 - **Test Projects:**
   - `FDP/Toolkits/FDP.Toolkit.Behavior.Tests/`
-  - `Bagira.SimHost.Tests/`
+  - `Hrot.SimHost.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -73,7 +73,7 @@ During BATCH-01, `ClearDoctrineEvent` and `DoctrineFinishedEvent` were implement
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs`
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/DoctrineIngressSystem.cs`
 - `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs`
-- `Bagira.SimHost/Systems/MissionControlRequestSystem.cs`
+- `Hrot.SimHost/Systems/MissionControlRequestSystem.cs`
 - The associated Test files.
 
 **Description:**
@@ -101,7 +101,7 @@ For triggers other than `DoctrineFinished`, Phase transitions currently mutate `
 - ✅ Existing tests must pass, proving phase transitions behave correctly but correctly delegate state mutation.
 
 ### Task 4: Brain-Aware Right-Click Handler (BD1-P2T1)
-**File:** `Bagira.SimHost/SimHostVisualization.cs`
+**File:** `Hrot.SimHost/SimHostVisualization.cs`
 **Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p2t1-simhostvisualization--brain-aware-right-click-handler)
 **Design Reference:** [BD1-DESIGN.md](docs/brain-death/BD1-DESIGN.md#21-simhostvisualization--brain-aware-right-click-handler)
 

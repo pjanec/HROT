@@ -22,7 +22,7 @@ supporting ECS contracts and DDS model were updated accordingly.
 
 ```
 FDP.Toolkit.Navigation.Tests   — Passed: 37  Failed: 0
-Bagira.SimHost.Tests           — Passed: 357  Failed: 0
+Hrot.SimHost.Tests           — Passed: 357  Failed: 0
 ```
 
 | Task | Scope | Tests | Status |
@@ -40,15 +40,15 @@ Bagira.SimHost.Tests           — Passed: 357  Failed: 0
 
 | File | Task | Change |
 |------|------|--------|
-| `Bagira.Map.Common/Replication/Egress/EntityDamageEgressTranslator.cs` | TD-9 | Added `FdpLog.Warn` in `Dispose(long)` + XML risk doc on `_lastPublished` |
-| `Bagira.SimHost/NodeBootstrapper.cs` | BS1-T016 | Excluded Brain from CombatModule; added DamageAssessmentModule for Muscle/AllInOne |
-| `Bagira.SimHost/Modules/SimulationLogicModule.cs` | BS1-T016 | Added `_damageAssessmentModule` field and conditional registration |
-| `Bagira.SimHost.Tests/NodeBootstrapperTests.cs` | BS1-T016 | Updated count 5→6; added Brain/MuscleGround role tests |
-| `Bagira.SimHost.Tests/SimulationLogicModuleTests.cs` | BS1-T016 | Updated simGroup.SystemCount 21→22 |
-| `Bagira.SimHost/SimHostApp.cs` | BS1-T017 | Added Brain/Muscle/AllInOne-conditional translator registrations |
+| `Hrot.Map.Common/Replication/Egress/EntityDamageEgressTranslator.cs` | TD-9 | Added `FdpLog.Warn` in `Dispose(long)` + XML risk doc on `_lastPublished` |
+| `Hrot.SimHost/NodeBootstrapper.cs` | BS1-T016 | Excluded Brain from CombatModule; added DamageAssessmentModule for Muscle/AllInOne |
+| `Hrot.SimHost/Modules/SimulationLogicModule.cs` | BS1-T016 | Added `_damageAssessmentModule` field and conditional registration |
+| `Hrot.SimHost.Tests/NodeBootstrapperTests.cs` | BS1-T016 | Updated count 5→6; added Brain/MuscleGround role tests |
+| `Hrot.SimHost.Tests/SimulationLogicModuleTests.cs` | BS1-T016 | Updated simGroup.SystemCount 21→22 |
+| `Hrot.SimHost/SimHostApp.cs` | BS1-T017 | Added Brain/Muscle/AllInOne-conditional translator registrations |
 | `FDP/Toolkits/FDP.Toolkit.Navigation.Contracts/NavigationComponents.cs` | BS1-T018/T019/T020 | Added `NavigationMode.RoadGraph=4`; added `TargetNodeId` and `TrajectoryId` to `NavigationIntent` |
-| `Bagira.DDS.DataModel/SimDescriptors.cs` | BS1-T019 | Added `ENavigationMode.NAV_ROAD_GRAPH=4` |
-| `Bagira.SimHost/Network/NavigationIntentEgressTranslator.cs` | BS1-T019 | Added `RoadGraph` mapping in `MapMode` |
+| `Hrot.NED/SimDescriptors.cs` | BS1-T019 | Added `ENavigationMode.NAV_ROAD_GRAPH=4` |
+| `Hrot.SimHost/Network/NavigationIntentEgressTranslator.cs` | BS1-T019 | Added `RoadGraph` mapping in `MapMode` |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Systems/NavigationIntentBridgeSystem.cs` | BS1-T018/T019/T020 | Full rewrite: handles DirectPoint, RoadGraph, FollowRoute modes |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/NavigationExecutionSystem.cs` | BS1-T019/T020 | Added `NavState.HasArrived` path for RoadGraph/FollowRoute modes |
 | `FDP/Toolkits/FDP.Toolkit.Navigation/Executors/FleeExecutor.cs` | BS1-T018 | Removed NavState writes; now writes NavigationIntent |

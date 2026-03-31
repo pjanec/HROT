@@ -30,9 +30,9 @@ Once these corrections are made and tested, proceed to Phase 7: solving the Hete
 ### Source Code Location
 - **Primary Work Areas:**
   - `FDP.Toolkit.Behavior/`, `FDP.Toolkit.Physics/`, `FDP.Toolkit.Navigation/` (for Corrections)
-  - `Bagira.BDC.SSTD/`
+  - `Hrot.NED.Descriptors/`
   - `FDP.Toolkit.Geographic/`
-  - `Bagira.IG/`
+  - `Hrot.IG/`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -91,7 +91,7 @@ Once these corrections are made and tested, proceed to Phase 7: solving the Hete
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md section MOD1-P7T1](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p7t1--groundclampingoverride-dds-descriptor--eclampingmode-enum)
 
-**Description:** Define the `GroundClampingOverride` DDS struct and the `EClampingMode` wire enumeration in `Bagira.BDC.SSTD`, setting up the network contract. Maintain the engine-side enum separately in `FDP.Toolkit.Geographic`.
+**Description:** Define the `GroundClampingOverride` DDS struct and the `EClampingMode` wire enumeration in `Hrot.NED.Descriptors`, setting up the network contract. Maintain the engine-side enum separately in `FDP.Toolkit.Geographic`.
 
 ---
 

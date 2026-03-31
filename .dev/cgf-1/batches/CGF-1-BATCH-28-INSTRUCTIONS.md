@@ -12,10 +12,10 @@
 ## 1. Onboarding
 
 ### 1.1 Project Context
-You are working on **Bagira** — a distributed simulation system for military exercises.
-The system runs across four node types: **Orchestrator** (DrillMaster), **SimHost**
+You are working on **Hrot** — a distributed simulation system for military exercises.
+The system runs across four node types: **Orchestrator** (ClusterMaster), **SimHost**
 (muscle), **CGF** (brain), and **IOS** (commander UI). Nodes communicate via CycloneDDS
-topics defined in `Bagira.DDS.DataModel`.
+topics defined in `Hrot.NED`.
 
 ### 1.2 Relevant Design Documents
 - **[CGF-1-ADDENDUM-3.md](../CGF-1-ADDENDUM-3.md) §6** — Archive Export/Import Pipeline (primary authority)
@@ -27,21 +27,21 @@ topics defined in `Bagira.DDS.DataModel`.
 
 | File | Purpose |
 |------|---------|
-| `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs` | Confirm `SysOpType.CancelOperation = 13` already present (it is) |
-| `Bagira.Orchestrator/StorageGatewayModule.cs` | Add CT threading, scan helpers, `PrefetchArchiveAsync` |
+| `Hrot.NED/Orchestration/OrchestrationMessages.cs` | Confirm `ClusterOpType.CancelOperation = 13` already present (it is) |
+| `Hrot.Orchestrator/StorageGatewayModule.cs` | Add CT threading, scan helpers, `PrefetchArchiveAsync` |
 | `FDP/Toolkits/FDP.Toolkit.Orchestration/Handlers/ReferenceArchiveHandler.cs` | **New file** |
-| `Bagira.Orchestrator/DrillMaster.cs` | Add `_activeCancellations`, ExportArchive/ImportArchive/CancelOperation branches |
-| `Bagira.Orchestrator/NodeBootstrapper.cs` | Register `ReferenceArchiveHandler` |
-| `Bagira.Runner/Services/OrchestratorScenarioPanel.cs` | Archive Management section; wire `_replayDuration` on Load Replay |
-| `Bagira.Orchestrator.Tests/StorageGatewayTests.cs` | Cancellation tests |
-| `Bagira.Orchestrator.Tests/ReferenceArchiveHandlerTests.cs` | **New file** — handler unit tests |
-| `Bagira.Orchestrator.Tests/DrillMasterArchiveTests.cs` | **New file** — CancelOperation integration test |
-| `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs` | Archive UI progress test |
+| `Hrot.Orchestrator/ClusterMaster.cs` | Add `_activeCancellations`, ExportArchive/ImportArchive/CancelOperation branches |
+| `Hrot.Orchestrator/NodeBootstrapper.cs` | Register `ReferenceArchiveHandler` |
+| `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs` | Archive Management section; wire `_replayDuration` on Load Replay |
+| `Hrot.Orchestrator.Tests/StorageGatewayTests.cs` | Cancellation tests |
+| `Hrot.Orchestrator.Tests/ReferenceArchiveHandlerTests.cs` | **New file** — handler unit tests |
+| `Hrot.Orchestrator.Tests/ClusterMasterArchiveTests.cs` | **New file** — CancelOperation integration test |
+| `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs` | Archive UI progress test |
 
 ### 1.4 Current Test Baseline
-- `Bagira.DDS.DataModel.Tests`: 45
-- `Bagira.Orchestrator.Tests`: 49
-- `Bagira.Runner.Tests`: 159
+- `Hrot.NED.Tests`: 45
+- `Hrot.Orchestrator.Tests`: 49
+- `Hrot.ClusterRunner.Tests`: 159
 
 All 253 tests were passing after BATCH-27. Run `dotnet build IOS-IG-SimHost.sln -c Debug`
 and confirm green before starting.
@@ -51,19 +51,19 @@ and confirm green before starting.
 ## 2. P3 Debt to Close First — `_replayDuration` Wire-up
 
 **Source:** BATCH-27 review Issue 2 / DEBT-TRACKER.md line ~222  
-**File:** `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`
+**File:** `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`
 
 `GetReplayDuration(string metaJsonContent)` is already implemented and unit-tested.
 It is never called on drill selection, so `_replayDuration` stays 3600 s.
 
-**Fix:** After the user clicks "Load Replay" and `_selectedDrillIdx >= 0`, read the
+**Fix:** After the user clicks "Load Replay" and `_selectedExerciseIdx >= 0`, read the
 `.meta.json` file from the selected drill directory and call `GetReplayDuration`:
 
 ```csharp
 // When "Load Replay" button is clicked:
-if (_selectedDrillIdx >= 0 && _selectedDrillIdx < _availableDrills.Length)
+if (_selectedExerciseIdx >= 0 && _selectedExerciseIdx < _availableDrills.Length)
 {
-    string drillName  = _availableDrills[_selectedDrillIdx];
+    string drillName  = _availableDrills[_selectedExerciseIdx];
     string metaPath   = Path.Combine(@"C:\FDP_Temp", drillName, "recording.meta.json");
     if (File.Exists(metaPath))
         _replayDuration = GetReplayDuration(File.ReadAllText(metaPath));
@@ -72,13 +72,13 @@ if (_selectedDrillIdx >= 0 && _selectedDrillIdx < _availableDrills.Length)
 
 No new test required for this P3 fix (existing `GetReplayDuration_ParsesMeta` covers the
 helper; the wiring is trivial UI glue). However, do verify the call is reached in the
-existing `LoadReplay_WritesCorrectSysOpRequest` test path if one exists.
+existing `LoadReplay_WritesCorrectClusterOpRequest` test path if one exists.
 
 ---
 
 ## 3. Task A — StorageGatewayModule Cancellation & Scan Helpers
 
-**File:** `Bagira.Orchestrator/StorageGatewayModule.cs`
+**File:** `Hrot.Orchestrator/StorageGatewayModule.cs`
 
 ### A.1 — Thread `CancellationToken` through `PullToNasAsync`
 
@@ -184,7 +184,7 @@ using System.IO;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Bagira.Orchestrator;
+using Hrot.Orchestrator;
 using Fdp.Kernel;
 using Fdp.Kernel.Orchestration;
 using FDP.Kernel.Logging;
@@ -194,7 +194,7 @@ namespace FDP.Toolkit.Orchestration.Handlers;
 /// <summary>
 /// Node-side archive handler (CGF1-S0505).
 /// Responds to <see cref="NodeOpType.SerializeLocal"/> commands whose
-/// <c>PayloadJson</c> contains a <c>"DrillId"</c> key.
+/// <c>PayloadJson</c> contains a <c>"ExerciseId"</c> key.
 /// </summary>
 public sealed class ReferenceArchiveHandler : IDsmHandler
 {
@@ -215,7 +215,7 @@ public sealed class ReferenceArchiveHandler : IDsmHandler
 
     public void Commit(OrchestrationCommand cmd, EntityRepository? repo)
     {
-        string? drillId = ParseDrillId(cmd.PayloadJson);
+        string? drillId = ParseExerciseId(cmd.PayloadJson);
         if (drillId is null) return;  // payload is not an archive request; skip
 
         var file = Path.Combine(_localTempRoot, drillId, $"node_{_nodeId}.fdp");
@@ -233,13 +233,13 @@ public sealed class ReferenceArchiveHandler : IDsmHandler
                 RelativeDest = Path.Combine(drillId, $"node_{_nodeId}.fdp"),
             }
         };
-        // ResultJson serialised as JSON array for DrillMaster.ConsumeNodeOpStatuses to pull
+        // ResultJson serialised as JSON array for ClusterMaster.ConsumeNodeOpStatuses to pull
         cmd.SetResultJson(JsonSerializer.Serialize(manifest));
     }
 
     public void Abort(OrchestrationCommand cmd, EntityRepository? repo)
     {
-        string? drillId = ParseDrillId(cmd.PayloadJson);
+        string? drillId = ParseExerciseId(cmd.PayloadJson);
         if (drillId is null) return;
         var file = Path.Combine(_localTempRoot, drillId, $"node_{_nodeId}.fdp");
         try { if (File.Exists(file)) File.Delete(file); }
@@ -249,13 +249,13 @@ public sealed class ReferenceArchiveHandler : IDsmHandler
         }
     }
 
-    private static string? ParseDrillId(string? json)
+    private static string? ParseExerciseId(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;
         try
         {
             using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("DrillId", out var prop))
+            if (doc.RootElement.TryGetProperty("ExerciseId", out var prop))
                 return prop.GetString();
         }
         catch (JsonException) { /* not a JSON object; not our payload */ }
@@ -271,9 +271,9 @@ doesn't exist, use whatever the correct API is (transport `PublishStatus(cmd.Tra
 
 ---
 
-## 5. Task C — DrillMaster Archive Branches
+## 5. Task C — ClusterMaster Archive Branches
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`
 
 ### C.1 — `_activeCancellations` Registry
 
@@ -290,25 +290,25 @@ _activeCancellations.Clear();
 
 ### C.2 — ExportArchive Branch
 
-In `ProcessSingleSysOpRequest` (or equivalent switch), add case for `SysOpType.ExportArchive`:
+In `ProcessSingleClusterOpRequest` (or equivalent switch), add case for `ClusterOpType.ExportArchive`:
 
-1. Parse `DrillId` from `req.PayloadJson` (look for `"DrillId"` key).
-2. If missing → write `SysOpStatus.Rejected` + return early (fail loud).
+1. Parse `ExerciseId` from `req.PayloadJson` (look for `"ExerciseId"` key).
+2. If missing → write `ClusterOpStatus.Rejected` + return early (fail loud).
 3. Create `CancellationTokenSource`, store in `_activeCancellations[req.RequestId]`.
 4. Call `FanOutSerializeLocal(txId, activeNodeIds, req.PayloadJson)`.
 5. In `ConsumeNodeOpStatuses`, when the associated transaction's ACK set is complete,
    collect `FileManifestEntry` arrays from each node's `ResultJson`, then call
    `_gateway.PullToNasAsync(allManifests, _nasBasePath, cts.Token)`.
-   - On success: publish `SysOpStatus.Completed`.
-   - On `OperationCanceledException`: publish `SysOpStatus.Rejected` ("cancelled").
-   - On other exception: publish `SysOpStatus.Rejected` ("gateway error").
+   - On success: publish `ClusterOpStatus.Completed`.
+   - On `OperationCanceledException`: publish `ClusterOpStatus.Rejected` ("cancelled").
+   - On other exception: publish `ClusterOpStatus.Rejected` ("gateway error").
    - Always: `_activeCancellations.Remove(req.RequestId)`, dispose CTS.
 
 ### C.3 — ImportArchive Branch
 
-Case `SysOpType.ImportArchive`:
+Case `ClusterOpType.ImportArchive`:
 
-1. Parse `DrillId` from payload; fail loud if missing.
+1. Parse `ExerciseId` from payload; fail loud if missing.
 2. Create CTS, store in `_activeCancellations[req.RequestId]`.
 3. Build `NodeDistributionTarget` list from active node roster.
 4. Fire-and-continue:
@@ -318,17 +318,17 @@ Case `SysOpType.ImportArchive`:
        {
            _activeCancellations.Remove(req.RequestId);
            if (t.IsCanceled)
-               PublishSysOpStatus(req.RequestId, SysOpStatus.Rejected, "cancelled");
+               PublishClusterOpStatus(req.RequestId, ClusterOpStatus.Rejected, "cancelled");
            else if (t.IsFaulted)
-               PublishSysOpStatus(req.RequestId, SysOpStatus.Rejected, "gateway error");
+               PublishClusterOpStatus(req.RequestId, ClusterOpStatus.Rejected, "gateway error");
            else
-               PublishSysOpStatus(req.RequestId, SysOpStatus.Completed, null);
+               PublishClusterOpStatus(req.RequestId, ClusterOpStatus.Completed, null);
        });
    ```
 
 ### C.4 — CancelOperation Branch
 
-Case `SysOpType.CancelOperation`:
+Case `ClusterOpType.CancelOperation`:
 
 1. Parse target operation `Guid` from `req.PayloadJson` (the payload is the raw GUID string
    or a JSON object with `"TargetOperationId"` key — check addendum §6.1 for the exact wire format).
@@ -336,13 +336,13 @@ Case `SysOpType.CancelOperation`:
    Parse as either `Guid.TryParse(req.PayloadJson, out var targetId)` or JSON.
 2. If found in `_activeCancellations`: cancel & remove.
 3. Fan out `NodeOpType.AbortTransaction` to all active nodes with `targetId` as payload.
-4. No `SysOpStatus` reply needed for this operation itself.
+4. No `ClusterOpStatus` reply needed for this operation itself.
 
 ---
 
 ## 6. Task D — NodeBootstrapper Wires ReferenceArchiveHandler
 
-**File:** `Bagira.Orchestrator/NodeBootstrapper.cs` (or wherever `BuildOrchestration` lives)
+**File:** `Hrot.Orchestrator/NodeBootstrapper.cs` (or wherever `BuildOrchestration` lives)
 
 After the existing handler registrations, add:
 ```csharp
@@ -356,7 +356,7 @@ is added to know the exact calling convention.
 
 ## 7. Task E — OrchestratorScenarioPanel Archive Management Section
 
-**File:** `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`
+**File:** `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`
 
 ### E.1 — New State Fields
 
@@ -388,7 +388,7 @@ if (_selectedUnarchivedIdx >= _unarchivedLocalDrills.Length) _selectedUnarchived
 ```
 
 If no gateway is available, skip gracefully with empty arrays. The `OrchestratorScenarioPanel`
-constructor receives `DrillMaster drillMaster` — use `drillMaster`'s gateway reference if
+constructor receives `ClusterMaster drillMaster` — use `drillMaster`'s gateway reference if
 accessible as a property, or pass `StorageGatewayModule` directly if refactoring is needed.
 Check the existing constructor signature and field layout before deciding.
 
@@ -398,7 +398,7 @@ Add a new `CollapsingHeader("Archive Management")` section to the `Render(...)` 
 (after Stories section, before the end of the panel):
 
 ```csharp
-private void RenderArchiveSection(DSMState state, bool disableAll)
+private void RenderArchiveSection(ClusterState state, bool disableAll)
 {
     if (!ImGui.CollapsingHeader("Archive Management##OrcArchive")) return;
 
@@ -420,11 +420,11 @@ private void RenderArchiveSection(DSMState state, bool disableAll)
             var drillName  = _unarchivedLocalDrills[_selectedUnarchivedIdx];
             var requestId  = Guid.NewGuid();
             _activeArchiveOpId = requestId;
-            _sysOpWriter.Write(new SysOpRequest
+            _sysOpWriter.Write(new ClusterOpRequest
             {
                 RequestId     = requestId,
-                OperationType = SysOpType.ExportArchive,
-                PayloadJson   = $"{{\"DrillId\":\"{drillName}\"}}",
+                OperationType = ClusterOpType.ExportArchive,
+                PayloadJson   = $"{{\"ExerciseId\":\"{drillName}\"}}",
             });
         }
     }
@@ -447,11 +447,11 @@ private void RenderArchiveSection(DSMState state, bool disableAll)
             var drillName  = _archivedDrills[_selectedArchiveIdx];
             var requestId  = Guid.NewGuid();
             _activeArchiveOpId = requestId;
-            _sysOpWriter.Write(new SysOpRequest
+            _sysOpWriter.Write(new ClusterOpRequest
             {
                 RequestId     = requestId,
-                OperationType = SysOpType.ImportArchive,
-                PayloadJson   = $"{{\"DrillId\":\"{drillName}\"}}",
+                OperationType = ClusterOpType.ImportArchive,
+                PayloadJson   = $"{{\"ExerciseId\":\"{drillName}\"}}",
             });
         }
     }
@@ -467,10 +467,10 @@ private void RenderArchiveSection(DSMState state, bool disableAll)
         // Cancel button is always active regardless of disableAll
         if (ImGui.Button("CANCEL OPERATION##OrcCancelArchive"))
         {
-            _sysOpWriter.Write(new SysOpRequest
+            _sysOpWriter.Write(new ClusterOpRequest
             {
                 RequestId     = Guid.NewGuid(),
-                OperationType = SysOpType.CancelOperation,
+                OperationType = ClusterOpType.CancelOperation,
                 PayloadJson   = _activeArchiveOpId.ToString(),
             });
             _activeArchiveOpId = Guid.Empty;  // optimistic clear
@@ -479,7 +479,7 @@ private void RenderArchiveSection(DSMState state, bool disableAll)
 }
 ```
 
-Also clear `_activeArchiveOpId` when a `SysOpStatus` sample arrives for that request ID
+Also clear `_activeArchiveOpId` when a `ClusterOpStatus` sample arrives for that request ID
 if the panel is monitoring status. For now, the optimistic clear when CANCEL is clicked
 is sufficient; P3 if needed.
 
@@ -491,7 +491,7 @@ is sufficient; P3 if needed.
 
 ### 8.1 — StorageGateway Cancellation Tests
 
-**File:** `Bagira.Orchestrator.Tests/StorageGatewayTests.cs` (existing)
+**File:** `Hrot.Orchestrator.Tests/StorageGatewayTests.cs` (existing)
 
 Add two tests:
 
@@ -511,7 +511,7 @@ public async Task PullToNasAsync_CancelsAndCleansPartialFiles()
 
 ### 8.2 — ReferenceArchiveHandler Tests
 
-**File:** `Bagira.Orchestrator.Tests/ReferenceArchiveHandlerTests.cs` (new)
+**File:** `Hrot.Orchestrator.Tests/ReferenceArchiveHandlerTests.cs` (new)
 
 Three facts per success conditions:
 
@@ -526,18 +526,18 @@ Three facts per success conditions:
 - Call `Abort(cmd, null)`.
 - Assert file no longer exists on disk.
 
-**`Fact: ReferenceArchiveHandler_Commit_SkipsWhenNoDrillId`**
-- Call `Commit` with a payload that has no `"DrillId"` key.
+**`Fact: ReferenceArchiveHandler_Commit_SkipsWhenNoExerciseId`**
+- Call `Commit` with a payload that has no `"ExerciseId"` key.
 - Assert no exception; `ResultJson` remains null/empty.
 
 ### 8.3 — CancelOperation Integration Test
 
-**File:** `Bagira.Orchestrator.Tests/DrillMasterArchiveTests.cs` (new)
+**File:** `Hrot.Orchestrator.Tests/ClusterMasterArchiveTests.cs` (new)
 
 **`Fact: CancelOperation_CancelsActiveCts`**
 
-Use `DrillMasterTestHarness` (or equivalent test scaffolding from existing
-`DrillMasterFanOutTests`) to post an `ExportArchive` request and then immediately post
+Use `ClusterMasterTestHarness` (or equivalent test scaffolding from existing
+`ClusterMasterFanOutTests`) to post an `ExportArchive` request and then immediately post
 a `CancelOperation` referencing the same `RequestId`. Assert the `CancellationTokenSource`
 was cancelled (check `_activeCancellations.TryGetValue` returning a cancelled CTS before
 removal, or capture via an event/hook). This is an internal-state test and may require
@@ -545,12 +545,12 @@ removal, or capture via an event/hook). This is an internal-state test and may r
 
 ### 8.4 — Archive UI Progress Test
 
-**File:** `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs` (existing)
+**File:** `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs` (existing)
 
 **`Fact: Archive_ProgressVisible_WhenOpInFlight`**
 - Set `_activeArchiveOpId` (via reflection or internal setter) to a non-empty Guid.
 - Render one headless ImGui frame.
-- Assert `ProgressBar` call happens (check `SysOpRequest` on CANCEL click or use existing
+- Assert `ProgressBar` call happens (check `ClusterOpRequest` on CANCEL click or use existing
   headless render pattern from other tests).
 
 ---
@@ -592,15 +592,15 @@ Write your completion report to `.dev/cgf-1/reports/CGF-1-BATCH-28-REPORT.md` wi
 - [ ] P3 debt: _replayDuration wire-up
 - [ ] A: StorageGatewayModule CT threading + scan helpers + PrefetchArchiveAsync
 - [ ] B: ReferenceArchiveHandler (FDP.Toolkit.Orchestration)
-- [ ] C: DrillMaster _activeCancellations + ExportArchive / ImportArchive / CancelOperation
+- [ ] C: ClusterMaster _activeCancellations + ExportArchive / ImportArchive / CancelOperation
 - [ ] D: NodeBootstrapper wires ReferenceArchiveHandler
 - [ ] E: OrchestratorScenarioPanel Archive Management section
 - [ ] Tests: all 5 success conditions covered
 
 ## Test Counts (before → after)
-- Bagira.DDS.DataModel.Tests: 45 →
-- Bagira.Orchestrator.Tests:  49 →
-- Bagira.Runner.Tests:        159 →
+- Hrot.NED.Tests: 45 →
+- Hrot.Orchestrator.Tests:  49 →
+- Hrot.ClusterRunner.Tests:        159 →
 
 ## Developer Insights
 ### Issues Encountered

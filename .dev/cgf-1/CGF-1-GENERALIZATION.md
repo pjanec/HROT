@@ -15,15 +15,15 @@
 4. [New Project: FDP.Toolkit.Orchestration](#4-new-project-fdptoolkitorchestration)
    - [4.1 Core Interfaces](#41-core-interfaces)
    - [4.2 OrchestrationCommand and OrchestrationStatus](#42-orchestrationcommand-and-orchestrationstatus)
-   - [4.3 Generic DrillSlave](#43-generic-drillslave)
+   - [4.3 Generic ClusterSlave](#43-generic-clustslave)
    - [4.4 ITransitionGraph and TransitionGraphBuilder](#44-itransitiongraph-and-transitiongraphbuilder)
    - [4.5 IScenarioStorageProvider](#45-iscenariосtorageprovider)
    - [4.6 IOrchestrationTransport](#46-iorchestrationtransport)
    - [4.7 Reference Handler Catalogue](#47-reference-handler-catalogue)
-5. [Bagira App Layer After Migration](#5-bagira-app-layer-after-migration)
+5. [Hrot App Layer After Migration](#5-hrot-app-layer-after-migration)
    - [5.1 DdsOrchestrationTransport](#51-ddsorchestrationtransport)
    - [5.2 LocalDiskStorageProvider](#52-localdiskstorageprovider)
-   - [5.3 BagiraStateGraph](#53-bagirastrategraph)
+   - [5.3 HrotStateGraph](#53-hrotstrategraph)
    - [5.4 NodeBootstrapper After Migration](#54-nodebootstrapper-after-migration)
 6. [Project Dependency Graph](#6-project-dependency-graph)
 7. [Migration Playbook](#7-migration-playbook)
@@ -34,21 +34,21 @@
 ## 1. Motivation
 
 Phases 1–3 of CGF-1 established a complete, working Drill State Machine (DSM) for the
-Bagira platform — but the orchestration engine ended up scattered across three layers:
+Hrot platform — but the orchestration engine ended up scattered across three layers:
 
 | Layer | What lives there today |
 |-------|----------------------|
-| `Bagira.DDS.DataModel` | `DSMState` enum, `NodeOpType` enum, DDS message structs |
-| `Bagira.Common.Orchestration` | `IDsmHandler`, `ITickableDsmHandler`, `DsmStateChangedEvent`, `DryRunDsmHandler` |
-| `Bagira.SimHost` / `Bagira.CGF` / `Bagira.IG` / `Bagira.IOS` | `DrillSlave` (4 near-identical copies), handler implementations duplicated across subsystems |
-| `Bagira.Orchestrator` | `TransitionPlanner` with hardcoded `DSMState` adjacency dict, `DrillMaster`, `NodeRoster`, etc. |
+| `Hrot.NED` | `ClusterState` enum, `NodeOpType` enum, DDS message structs |
+| `Hrot.Common.Orchestration` | `IDsmHandler`, `ITickableDsmHandler`, `ClusterStateChangedEvent`, `DryRunDsmHandler` |
+| `Hrot.SimHost` / `Hrot.CGF` / `Hrot.IG` / `Hrot.ExCon` | `ClusterSlave` (4 near-identical copies), handler implementations duplicated across subsystems |
+| `Hrot.Orchestrator` | `TransitionPlanner` with hardcoded `ClusterState` adjacency dict, `ClusterMaster`, `NodeRoster`, etc. |
 
 The result: any new FDP application that wants to participate in a 2PC state machine
-must copy-paste the DrillSlave, rediscover all the async-prepare ordering subtleties,
+must copy-paste the ClusterSlave, rediscover all the async-prepare ordering subtleties,
 and re-implement scenario load/prefetch handlers from scratch.
 
 **Goal:** extract the reusable orchestration engine into `FDP.Toolkit.Orchestration`.
-The Bagira app layer shrinks to:  
+The Hrot app layer shrinks to:  
 1. Define its state graph via `TransitionGraphBuilder`.  
 2. Build `ScenarioSerializer` instances with app-specific translators.  
 3. Wire the toolkit's reference handlers with constructor-injected paths, serializers, and transport.  
@@ -62,7 +62,7 @@ the BFS path planner, the 2PC handler protocol — lives in the toolkit and is s
 ## 2. Architectural Boundary Recap
 
 > _FDP infrastructure (`Fdp.Kernel` and all `FDP.Toolkit.*` projects) must **never**
-> reference any `Bagira.*` assembly._ This hard constraint is unchanged.
+> reference any `Hrot.*` assembly._ This hard constraint is unchanged.
 
 The new `FDP.Toolkit.Orchestration` project sits inside `FDP/Toolkits/` and may only
 reference:
@@ -71,8 +71,8 @@ reference:
 - `FDP.Toolkit.Replay`
 - `ModuleHost.Core`
 
-It must not reference `CycloneDDS.Runtime`, `Bagira.DDS.DataModel`, or any other
-`Bagira.*` project.
+It must not reference `CycloneDDS.Runtime`, `Hrot.NED`, or any other
+`Hrot.*` project.
 
 ---
 
@@ -81,36 +81,36 @@ It must not reference `CycloneDDS.Runtime`, `Bagira.DDS.DataModel`, or any other
 ```
 BEFORE (Phases 1–3)                          AFTER (Phase 4)
 ─────────────────────────────────────────    ────────────────────────────────────────────
-Bagira.Common
+Hrot.Common
   IDsmHandler            ← interface         FDP.Toolkit.Orchestration
   ITickableDsmHandler    ← interface           IDsmHandler               ← moved here
-  DsmStateChangedEvent                         ITickableDsmHandler       ← moved here
+  ClusterStateChangedEvent                         ITickableDsmHandler       ← moved here
   DryRunDsmHandler       ← handler             IOrchestrationTransport   ← new
                                                ITransitionGraph          ← new
-Bagira.Orchestrator                            IScenarioStorageProvider  ← new
+Hrot.Orchestrator                            IScenarioStorageProvider  ← new
   TransitionPlanner      ← hardcoded adj.      OrchestrationCommand      ← new
-  DrillMaster                                  OrchestrationStatus       ← new
-                                               DrillSlave (generic)      ← one copy
-Bagira.SimHost                                 TransitionPlanner (BFS)   ← moved here
-  DrillSlave (copy 1)    ← 285 lines           TransitionGraphBuilder    ← new
+  ClusterMaster                                  OrchestrationStatus       ← new
+                                               ClusterSlave (generic)      ← one copy
+Hrot.SimHost                                 TransitionPlanner (BFS)   ← moved here
+  ClusterSlave (copy 1)    ← 285 lines           TransitionGraphBuilder    ← new
   Handlers/*.cs          ← 7 handlers          Handlers/
                                                  ReferencePrefetchHandler
-Bagira.CGF                                       ReferenceScenarioLoadHandler
-  DrillSlave (copy 2)    ← 220 lines            ReferenceEditLoadHandler
+Hrot.CGF                                       ReferenceScenarioLoadHandler
+  ClusterSlave (copy 2)    ← 220 lines            ReferenceEditLoadHandler
   Handlers/*.cs          ← 4 handlers           ReferenceStoryLoadHandler
                                                  ReferenceDryRunHandler
-Bagira.IG                                        ReferenceCheckpointHandler
-  DrillSlave (copy 3)    ← 115 lines            ReferenceLiveLoadHandler
+Hrot.IG                                        ReferenceCheckpointHandler
+  ClusterSlave (copy 3)    ← 115 lines            ReferenceLiveLoadHandler
                                                  ReferenceReplayLoadHandler
-Bagira.IOS
-  DrillSlave (copy 4)    ← 115 lines        Bagira.Common (retained, now thinner)
-                                               DsmStateChangedEvent      ← kept (uses DSMState)
+Hrot.ExCon
+  ClusterSlave (copy 4)    ← 115 lines        Hrot.Common (retained, now thinner)
+                                               ClusterStateChangedEvent      ← kept (uses ClusterState)
                                                LocalDiskStorageProvider  ← new
                                                DdsOrchestrationTransport ← new
 
-                                            Bagira.Orchestrator (retained, now thinner)
-                                               BagiraStateGraph          ← new
-                                               DrillMaster               ← kept
+                                            Hrot.Orchestrator (retained, now thinner)
+                                               HrotStateGraph          ← new
+                                               ClusterMaster               ← kept
                                                TransitionPlanner         ← removed (now FDP)
 ```
 
@@ -123,7 +123,7 @@ Bagira.IOS
 ### 4.1 Core Interfaces
 
 #### `IDsmHandler`
-Moved verbatim from `Bagira.Common.Orchestration.IDsmHandler`:
+Moved verbatim from `Hrot.Common.Orchestration.IDsmHandler`:
 
 ```csharp
 // FDP.Toolkit.Orchestration
@@ -136,13 +136,13 @@ public interface IDsmHandler
 }
 ```
 
-> **Layering note:** The `operationId` parameter replaces `NodeOpType op`. Bagira
+> **Layering note:** The `operationId` parameter replaces `NodeOpType op`. Hrot
 > handlers cast `cmd.OperationId` back to `NodeOpType` for their internal switch
 > statements (the integer values are identical and stable). This is a pure namespace
 > change at the interface boundary — no semantic change.
 
 #### `ITickableDsmHandler`
-Moved verbatim from `Bagira.Common.Orchestration.ITickableDsmHandler`:
+Moved verbatim from `Hrot.Common.Orchestration.ITickableDsmHandler`:
 
 ```csharp
 // FDP.Toolkit.Orchestration
@@ -155,7 +155,7 @@ public interface ITickableDsmHandler : IDsmHandler
 ### 4.2 OrchestrationCommand and OrchestrationStatus
 
 Toolkit-owned plain structs that serve as the currency exchanged between a transport
-implementation and the toolkit DrillSlave — no DDS types at the boundary.
+implementation and the toolkit ClusterSlave — no DDS types at the boundary.
 
 ```csharp
 // FDP.Toolkit.Orchestration
@@ -173,12 +173,12 @@ public readonly record struct OrchestrationStatus(
     string ResultJson);
 ```
 
-These types live in the FDP toolkit. `DdsOrchestrationTransport` (Bagira layer) maps
+These types live in the FDP toolkit. `DdsOrchestrationTransport` (Hrot layer) maps
 to/from `NodeOpCommand`/`NodeOpStatus` DDS structs.
 
 #### 4.2.1 Unified Status Code Scheme
 
-The current Bagira DDS contract splits outcome information across two fields:
+The current Hrot DDS contract splits outcome information across two fields:
 `OpStatus Status` (enum: `Pending`, `InProgress`, `Success`, `Failure`) and
 `int ErrorCode` (arbitrary per-handler integer). Consumers must check both in concert:
 `if (status == Failure && errorCode == 1001)` — which scatters error-handling logic.
@@ -235,7 +235,7 @@ public static class OrchestrationStatusCode
 ```
 
 **DDS message model update:** To take full advantage of the unified scheme, the
-`Bagira.DDS.DataModel` `NodeOpStatus` and `SysOpStatus` IDL structs are simplified
+`Hrot.NED` `NodeOpStatus` and `ClusterOpStatus` IDL structs are simplified
 as part of CGF1-G0401:
 - Remove the `OpStatus Status` enum field and the `int ErrorCode` field from both structs.
 - Replace with a single `int StatusCode` field.
@@ -243,21 +243,21 @@ as part of CGF1-G0401:
 - `DdsOrchestrationTransport.PublishStatus` passes `status.StatusCode` directly;
   no combination or casting required.
 
-### 4.3 Generic DrillSlave
+### 4.3 Generic ClusterSlave
 
-`FDP.Toolkit.Orchestration.DrillSlave` is the single canonical implementation of the
-dispatch engine, replacing the four Bagira-layer copies.
+`FDP.Toolkit.Orchestration.ClusterSlave` is the single canonical implementation of the
+dispatch engine, replacing the four Hrot-layer copies.
 
 ```csharp
 // FDP.Toolkit.Orchestration
-public sealed class DrillSlave : IDisposable
+public sealed class ClusterSlave : IDisposable
 {
     // ── Construction ──────────────────────────────────────────────────────────
 
     /// <summary>
     /// Production constructor. Transport drives DDS heartbeat/command I/O.
     /// </summary>
-    public DrillSlave(
+    public ClusterSlave(
         IOrchestrationTransport transport,
         int nodeId,
         string subsystemName,
@@ -266,7 +266,7 @@ public sealed class DrillSlave : IDisposable
     /// <summary>
     /// Test constructor. No transport; use EnqueueCommandForTest.
     /// </summary>
-    internal DrillSlave(FdpEventBus? eventBus = null);
+    internal ClusterSlave(FdpEventBus? eventBus = null);
 
     // ── Handler registration ──────────────────────────────────────────────────
     public void RegisterHandler(IDsmHandler handler);
@@ -282,7 +282,7 @@ public sealed class DrillSlave : IDisposable
 }
 ```
 
-**Behaviour contract (unchanged from SimHost.DrillSlave BATCH-18):**
+**Behaviour contract (unchanged from SimHost.ClusterSlave BATCH-18):**
 - `Tick()` polls `IOrchestrationTransport.DequeueCommand()` and drains the queue.
 - When `PrepareAsync` returns an incomplete `Task`, the result is stored in
   `_pendingPrepare`; no further commands are dequeued until the task completes.
@@ -290,43 +290,43 @@ public sealed class DrillSlave : IDisposable
   new commands.
 - Duplicate `TransactionId` values are silently discarded.
 - On `CommitState` commands the `_localStateId` is updated and `eventBus` receives a
-  `TkDsmStateChangedEvent { int PreviousStateId, int NextStateId }`.
+  `TkClusterStateChangedEvent { int PreviousStateId, int NextStateId }`.
 
-**`TkDsmStateChangedEvent`** — a new toolkit-level event:
+**`TkClusterStateChangedEvent`** — a new toolkit-level event:
 
 ```csharp
 // FDP.Toolkit.Orchestration
 [EventId(7002)]
-public struct TkDsmStateChangedEvent
+public struct TkClusterStateChangedEvent
 {
     public int PreviousStateId;
     public int NextStateId;
 }
 ```
 
-Bagira's `DsmStateChangedEvent` (which uses `DSMState` enum) is published by a
-forwarding subscription registered at the Bagira wiring layer:
+Hrot's `ClusterStateChangedEvent` (which uses `ClusterState` enum) is published by a
+forwarding subscription registered at the Hrot wiring layer:
 
 ```csharp
-// Bagira.Common — wiring helper
-eventBus.Register<TkDsmStateChangedEvent>();
-eventBus.SubscribeForward<TkDsmStateChangedEvent>(e =>
-    new DsmStateChangedEvent
+// Hrot.Common — wiring helper
+eventBus.Register<TkClusterStateChangedEvent>();
+eventBus.SubscribeForward<TkClusterStateChangedEvent>(e =>
+    new ClusterStateChangedEvent
     {
-        Previous = (DSMState)e.PreviousStateId,
-        Next     = (DSMState)e.NextStateId,
+        Previous = (ClusterState)e.PreviousStateId,
+        Next     = (ClusterState)e.NextStateId,
     });
 ```
 
-This keeps `DsmStateChangedEvent` and the `DSMState` enum in the Bagira layer
-(they reference the Bagira DDS contract) while giving toolkit consumers a generic
+This keeps `ClusterStateChangedEvent` and the `ClusterState` enum in the Hrot layer
+(they reference the Hrot DDS contract) while giving toolkit consumers a generic
 alternative.
 
 ### 4.4 ITransitionGraph and TransitionGraphBuilder
 
 The BFS engine in `TransitionPlanner` is completely generic — it just needs an
 adjacency source. Currently the adjacency set is hardcoded in a private `static readonly
-Dictionary` inside `Bagira.Orchestrator.TransitionPlanner`. Extracting it yields:
+Dictionary` inside `Hrot.Orchestrator.TransitionPlanner`. Extracting it yields:
 
 ```csharp
 // FDP.Toolkit.Orchestration
@@ -358,18 +358,18 @@ public sealed class TransitionPlanner
 }
 ```
 
-`Bagira.Orchestrator` constructs the graph from `DSMState` at startup:
+`Hrot.Orchestrator` constructs the graph from `ClusterState` at startup:
 
 ```csharp
-// Bagira.Orchestrator — BagiraStateGraph.cs
-public static class BagiraStateGraph
+// Hrot.Orchestrator — HrotStateGraph.cs
+public static class HrotStateGraph
 {
     public static ITransitionGraph Build()
     {
         return new TransitionGraphBuilder()
-            .AddTransition((int)DSMState.Standby,          (int)DSMState.LoadingEdit)
-            .AddTransition((int)DSMState.LoadingEdit,      (int)DSMState.RunningEdit)
-            .AddTransition((int)DSMState.RunningEdit,      (int)DSMState.LoadingLive)
+            .AddTransition((int)ClusterState.Standby,          (int)ClusterState.LoadingEdit)
+            .AddTransition((int)ClusterState.LoadingEdit,      (int)ClusterState.RunningEdit)
+            .AddTransition((int)ClusterState.RunningEdit,      (int)ClusterState.LoadingLive)
             // … all edges …
             .Build();
     }
@@ -406,10 +406,10 @@ public interface IScenarioStorageProvider
 }
 ```
 
-**Reference implementation — `LocalDiskStorageProvider`** lives in `Bagira.Common`:
+**Reference implementation — `LocalDiskStorageProvider`** lives in `Hrot.Common`:
 
 ```csharp
-// Bagira.Common.Orchestration — LocalDiskStorageProvider.cs
+// Hrot.Common.Orchestration — LocalDiskStorageProvider.cs
 public sealed class LocalDiskStorageProvider : IScenarioStorageProvider
 {
     private readonly string _localTempRoot;
@@ -444,8 +444,8 @@ public sealed class LocalDiskStorageProvider : IScenarioStorageProvider
 
 ### 4.6 IOrchestrationTransport
 
-Abstracts the DDS writers/readers embedded in each copy of DrillSlave today, keeping
-the generic DrillSlave 100% agnostic to the underlying wire protocol.
+Abstracts the DDS writers/readers embedded in each copy of ClusterSlave today, keeping
+the generic ClusterSlave 100% agnostic to the underlying wire protocol.
 
 ```csharp
 // FDP.Toolkit.Orchestration
@@ -453,7 +453,7 @@ public interface IOrchestrationTransport : IDisposable
 {
     /// <summary>
     /// Publishes a liveness heartbeat for this node.
-    /// Called approximately once per second by DrillSlave.Tick().
+    /// Called approximately once per second by ClusterSlave.Tick().
     /// </summary>
     void PublishHeartbeat(int nodeId, string subsystemName, int localStateId, long wallTicksUtc);
 
@@ -466,17 +466,17 @@ public interface IOrchestrationTransport : IDisposable
     /// <summary>
     /// Attempts to dequeue one pending command from the inbound queue.
     /// Returns false when the queue is empty.
-    /// Called by DrillSlave.Tick() from the main thread.
+    /// Called by ClusterSlave.Tick() from the main thread.
     /// </summary>
     bool TryDequeueCommand(out OrchestrationCommand cmd);
 }
 ```
 
-**`DdsOrchestrationTransport`** lives in `Bagira.Common` (or `Bagira.DDS.DataModel`)
+**`DdsOrchestrationTransport`** lives in `Hrot.Common` (or `Hrot.NED`)
 and bridges CycloneDDS to these three operations:
 
 ```csharp
-// Bagira.Common.Orchestration — DdsOrchestrationTransport.cs
+// Hrot.Common.Orchestration — DdsOrchestrationTransport.cs
 public sealed class DdsOrchestrationTransport : IOrchestrationTransport
 {
     private readonly DdsWriter<NodeHeartbeat>  _heartbeatWriter;
@@ -494,7 +494,7 @@ public sealed class DdsOrchestrationTransport : IOrchestrationTransport
         _commandReader.SetFilter(cmd => cmd.TargetNodeId == nodeId);
 
         _listenerThread = new Thread(() => RunListener(_cts.Token))
-        { IsBackground = true, Name = $"Node{nodeId}-DrillSlave-Transport" };
+        { IsBackground = true, Name = $"Node{nodeId}-ClusterSlave-Transport" };
         _listenerThread.Start();
     }
 
@@ -504,7 +504,7 @@ public sealed class DdsOrchestrationTransport : IOrchestrationTransport
         {
             NodeId        = nodeId,
             SubsystemName = subsystemName,
-            LocalDsmState = (DSMState)localStateId,
+            LocalClusterState = (ClusterState)localStateId,
             WallTicksUtc  = wallTicksUtc,
             // … other fields …
         });
@@ -525,7 +525,7 @@ public sealed class DdsOrchestrationTransport : IOrchestrationTransport
     public bool TryDequeueCommand(out OrchestrationCommand cmd) =>
         _inboundQueue.TryDequeue(out cmd);
 
-    private void RunListener(CancellationToken ct) { /* identical to DrillSlave.RunCommandListener */ }
+    private void RunListener(CancellationToken ct) { /* identical to ClusterSlave.RunCommandListener */ }
 
     public void Dispose() { _cts.Cancel(); _listenerThread.Join(TimeSpan.FromSeconds(2)); }
 }
@@ -538,57 +538,57 @@ Handlers that currently accept `DdsWriter<NodeOpStatus>?` are updated to accept
 
 All reference handlers live under `FDP.Toolkit.Orchestration.Handlers`. They depend
 only on FDP interfaces and take app-specific config via constructor injection.
-No Bagira-layer type may appear in their signatures.
+No Hrot-layer type may appear in their signatures.
 
 | Reference Handler | Moved From | `CanHandle` condition | Key constructor deps |
 |---|---|---|---|
-| `ReferencePrefetchHandler` | `Bagira.SimHost/…/PrefetchFilesDsmHandler` | `PrefetchFiles (op=25)` | `IOrchestrationTransport?`, `int nodeId`, `IScenarioStorageProvider` |
-| `ReferenceScenarioLoadHandler` | `Bagira.SimHost/…/ScenarioLoadDsmHandler` | `PrepareLive (op=9)` | `ScenarioSerializer`, `IScenarioStorageProvider`, `EntityRepository?` |
-| `ReferenceEditLoadHandler` | `Bagira.SimHost/…/EditLoadDsmHandler` | `PrepareState (op=1)` targeting LoadingEdit | `ScenarioSerializer`, `IScenarioStorageProvider`, `EntityRepository?` |
-| `ReferenceStoryLoadHandler` | `Bagira.SimHost/…/StoryLoadDsmHandler` | `StartStory (op=20)`, `StopStory (op=21)` | `ScenarioSerializer`, `IScenarioStorageProvider`, `EntityRepository?`, `IOrchestrationTransport?`, `int nodeId` |
-| `ReferenceDryRunHandler` | `Bagira.Common/…/DryRunDsmHandler` | `PrepareState (op=1)` targeting DryRun states | `EntityRepository?` |
-| `ReferenceCheckpointHandler` | `Bagira.SimHost/…/CheckpointDsmHandler` | `TakeSnapshot (op=4)` | `CheckpointIOWorker`, `EntityRepository?`, `IOrchestrationTransport?`, `int nodeId` |
-| `ReferenceLiveLoadHandler` | `Bagira.SimHost/…/LiveLoadDsmHandler` | `PrepareLive (op=9)`, `FinalizeLive (op=10)` | `DrillSlave`, `FdpEventBus`, `CheckpointIOWorker?`, `EcsRecordReplayController?`, `string storageDir` |
-| `ReferenceReplayLoadHandler` | `Bagira.SimHost/…/ReplayLoadDsmHandler` | `PrepareReplay (op=11)`, `FinalizeReplay (op=12)`, `PrepareLive (op=9)` when replay active | `EcsRecordReplayController`, `SimulationSystemGroup`, `NetworkLifecycleSystemGroup`, `GhostCreationSystem`, `IOrchestrationTransport?`, `int nodeId`, `string storageDir` |
+| `ReferencePrefetchHandler` | `Hrot.SimHost/…/PrefetchFilesDsmHandler` | `PrefetchFiles (op=25)` | `IOrchestrationTransport?`, `int nodeId`, `IScenarioStorageProvider` |
+| `ReferenceScenarioLoadHandler` | `Hrot.SimHost/…/ScenarioLoadDsmHandler` | `PrepareLive (op=9)` | `ScenarioSerializer`, `IScenarioStorageProvider`, `EntityRepository?` |
+| `ReferenceEditLoadHandler` | `Hrot.SimHost/…/EditLoadDsmHandler` | `PrepareState (op=1)` targeting LoadingEdit | `ScenarioSerializer`, `IScenarioStorageProvider`, `EntityRepository?` |
+| `ReferenceStoryLoadHandler` | `Hrot.SimHost/…/StoryLoadDsmHandler` | `StartEpisode (op=20)`, `StopEpisode (op=21)` | `ScenarioSerializer`, `IScenarioStorageProvider`, `EntityRepository?`, `IOrchestrationTransport?`, `int nodeId` |
+| `ReferenceDryRunHandler` | `Hrot.Common/…/DryRunDsmHandler` | `PrepareState (op=1)` targeting DryRun states | `EntityRepository?` |
+| `ReferenceCheckpointHandler` | `Hrot.SimHost/…/CheckpointDsmHandler` | `TakeSnapshot (op=4)` | `CheckpointIOWorker`, `EntityRepository?`, `IOrchestrationTransport?`, `int nodeId` |
+| `ReferenceLiveLoadHandler` | `Hrot.SimHost/…/LiveLoadDsmHandler` | `PrepareLive (op=9)`, `FinalizeLive (op=10)` | `ClusterSlave`, `FdpEventBus`, `CheckpointIOWorker?`, `EcsRecordReplayController?`, `string storageDir` |
+| `ReferenceReplayLoadHandler` | `Hrot.SimHost/…/ReplayLoadDsmHandler` | `PrepareReplay (op=11)`, `FinalizeReplay (op=12)`, `PrepareLive (op=9)` when replay active | `EcsRecordReplayController`, `SimulationSystemGroup`, `NetworkLifecycleSystemGroup`, `GhostCreationSystem`, `IOrchestrationTransport?`, `int nodeId`, `string storageDir` |
 
 > **Note on `ReferenceLiveLoadHandler` and `ReferenceReplayLoadHandler`:** These two
 > depend on `EcsRecordReplayController`, `SimulationSystemGroup`, and
 > `NetworkLifecycleSystemGroup` — all FDP toolkit types — so they can safely live in
-> `FDP.Toolkit.Orchestration`.  The `DrillSlave` parameter in `ReferenceLiveLoadHandler`
-> is the toolkit `DrillSlave`, which is also an FDP type.
+> `FDP.Toolkit.Orchestration`.  The `ClusterSlave` parameter in `ReferenceLiveLoadHandler`
+> is the toolkit `ClusterSlave`, which is also an FDP type.
 
 > **Note on `CheckpointIOWorker`:** `CheckpointIOWorker` is currently defined in
-> `Bagira.SimHost`. As part of G0405 it is relocated to `FDP.Toolkit.Orchestration`
-> (it has no Bagira-specific dependencies), making `ReferenceCheckpointHandler` fully
+> `Hrot.SimHost`. As part of G0405 it is relocated to `FDP.Toolkit.Orchestration`
+> (it has no Hrot-specific dependencies), making `ReferenceCheckpointHandler` fully
 > self-contained within the toolkit.
 
 ---
 
-## 5. Bagira App Layer After Migration
+## 5. Hrot App Layer After Migration
 
-The Bagira layer retains only what is truly app-specific: the DDS transport bridge, the
-concrete state graph definition, and the `DsmStateChangedEvent` → DSMState forwarding.
+The Hrot layer retains only what is truly app-specific: the DDS transport bridge, the
+concrete state graph definition, and the `ClusterStateChangedEvent` → ClusterState forwarding.
 
 ### 5.1 DdsOrchestrationTransport
 
-**File:** `Bagira.Common/Orchestration/DdsOrchestrationTransport.cs`  
+**File:** `Hrot.Common/Orchestration/DdsOrchestrationTransport.cs`  
 **Implements:** `IOrchestrationTransport`  
 Handles CycloneDDS reader/writer lifecycle and bridges between toolkit plain types and
-Bagira DDS message types (see §4.6 above for the full implementation sketch).
+Hrot DDS message types (see §4.6 above for the full implementation sketch).
 
 ### 5.2 LocalDiskStorageProvider
 
-**File:** `Bagira.Common/Orchestration/LocalDiskStorageProvider.cs`  
+**File:** `Hrot.Common/Orchestration/LocalDiskStorageProvider.cs`  
 **Implements:** `IScenarioStorageProvider`  
 Wraps `C:\FDP_Temp\<scenarioId>\` as the staging root (see §4.5 above).
 Accepts a configurable `localTempRoot` constructor parameter — apps that mount their
 staging area elsewhere just pass a different path.
 
-### 5.3 BagiraStateGraph
+### 5.3 HrotStateGraph
 
-**File:** `Bagira.Orchestrator/BagiraStateGraph.cs`  
-Calls `TransitionGraphBuilder` with all valid `DSMState` edges (the complete set
-currently hardcoded in `Bagira.Orchestrator.TransitionPlanner`'s private `_adjacency`
+**File:** `Hrot.Orchestrator/HrotStateGraph.cs`  
+Calls `TransitionGraphBuilder` with all valid `ClusterState` edges (the complete set
+currently hardcoded in `Hrot.Orchestrator.TransitionPlanner`'s private `_adjacency`
 dictionary). Returns an `ITransitionGraph` consumed by the generic `TransitionPlanner`.
 
 ### 5.4 NodeBootstrapper After Migration
@@ -597,8 +597,8 @@ The `NodeBootstrapper.BuildOrchestration` signature becomes dramatically sparser
 all handler construction moves to toolkit one-liners:
 
 ```csharp
-// Bagira.SimHost.NodeBootstrapper — after Phase 4
-public DrillSlave BuildOrchestration(
+// Hrot.SimHost.NodeBootstrapper — after Phase 4
+public ClusterSlave BuildOrchestration(
     NodeRole role,
     ModuleHostKernel kernel,
     EntityRepository world,
@@ -618,8 +618,8 @@ public DrillSlave BuildOrchestration(
         : null;
 
     var drillSlave = transport != null
-        ? new DrillSlave(transport, nodeId, subsystemName, eventBus)
-        : new DrillSlave(eventBus);  // test path
+        ? new ClusterSlave(transport, nodeId, subsystemName, eventBus)
+        : new ClusterSlave(eventBus);  // test path
 
     var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
@@ -669,12 +669,12 @@ public DrillSlave BuildOrchestration(
                       │  IOrchestrationTransport          │
                       │  ITransitionGraph                 │
                       │  IScenarioStorageProvider         │
-                      │  DrillSlave (generic)             │
+                      │  ClusterSlave (generic)             │
                       │  TransitionPlanner (BFS)          │
                       │  TransitionGraphBuilder           │
                       │  OrchestrationCommand             │
                       │  OrchestrationStatus              │
-                      │  TkDsmStateChangedEvent           │
+                      │  TkClusterStateChangedEvent           │
                       │  Reference Handlers               │
                       └──────────────┬───────────────────┘
                              depends on
@@ -686,30 +686,30 @@ public DrillSlave BuildOrchestration(
                       (already exist; no change)
 
   ┌─────────────────────────────────────────────────────────────┐
-  │  Bagira.Common (retains DsmStateChangedEvent, adds transport)│
+  │  Hrot.Common (retains ClusterStateChangedEvent, adds transport)│
   │                                                             │
   │  DdsOrchestrationTransport    ← new, implements IOrch.Trans.│
   │  LocalDiskStorageProvider     ← new, implements IStorage    │
-  │  DsmStateChangedEvent         ← kept (refs DSMState)        │
+  │  ClusterStateChangedEvent         ← kept (refs ClusterState)        │
   │                                                             │
-  │  depends on: FDP.Toolkit.Orchestration, Bagira.DDS.DataModel│
+  │  depends on: FDP.Toolkit.Orchestration, Hrot.NED│
   └─────────────────────────────────────────────────────────────┘
 
   ┌──────────────────────────────────────────────────────────────┐
-  │  Bagira.Orchestrator                                          │
+  │  Hrot.Orchestrator                                          │
   │                                                              │
-  │  BagiraStateGraph             ← new, builds ITransitionGraph │
-  │  DrillMaster                  ← kept, modified               │
+  │  HrotStateGraph             ← new, builds ITransitionGraph │
+  │  ClusterMaster                  ← kept, modified               │
   │  NodeRoster, DistributedTx…   ← kept                         │
   │  TransitionPlanner            ← REMOVED (now in FDP toolkit) │
   │                                                              │
-  │  depends on: FDP.Toolkit.Orchestration, Bagira.DDS.DataModel │
+  │  depends on: FDP.Toolkit.Orchestration, Hrot.NED │
   └──────────────────────────────────────────────────────────────┘
 
-  Bagira.SimHost / Bagira.CGF / Bagira.IG / Bagira.IOS
-    ← all DrillSlave copies REMOVED
+  Hrot.SimHost / Hrot.CGF / Hrot.IG / Hrot.ExCon
+    ← all ClusterSlave copies REMOVED
     ← all handler .cs files REMOVED (replaced by reference handlers)
-    ← depends on FDP.Toolkit.Orchestration, Bagira.Common
+    ← depends on FDP.Toolkit.Orchestration, Hrot.Common
 ```
 
 ---
@@ -720,12 +720,12 @@ The six tasks in Phase 4 execute the migration in dependency order:
 
 | Task | Description | Pre-requisite |
 |------|-------------|---------------|
-| **CGF1-G0401** | Create `FDP.Toolkit.Orchestration.csproj`; move `IDsmHandler`, `ITickableDsmHandler`; define `IOrchestrationTransport`, `ITransitionGraph`, `IScenarioStorageProvider`, `OrchestrationCommand`, `OrchestrationStatus` (unified `StatusCode`), `OrchestrationStatusCode`, `TkDsmStateChangedEvent`; remove `OpStatus` enum; update `NodeOpStatus`/`SysOpStatus` DDS structs to single `int StatusCode`. Update all Bagira using-directives. | Phases 1–3 complete |
-| **CGF1-G0402** | Implement generic `DrillSlave` in FDP toolkit (with `IOrchestrationTransport` + async-prepare + dedup). Implement `DdsOrchestrationTransport` in `Bagira.Common`. Remove the 4 Bagira DrillSlave copies and replace their wiring sites with the toolkit version. | G0401 |
-| **CGF1-G0403** | Move `TransitionPlanner` (BFS) to FDP toolkit; implement `TransitionGraphBuilder`; add `BagiraStateGraph` in `Bagira.Orchestrator`; inject graph into `DrillMaster`. | G0401 |
-| **CGF1-G0404** | Add `LocalDiskStorageProvider` in `Bagira.Common`; move scenario/story/prefetch handlers to toolkit as reference implementations. Update `NodeBootstrapper`, `CgfApplication` wiring. Delete superseded Bagira handler files. | G0401, G0402 |
+| **CGF1-G0401** | Create `FDP.Toolkit.Orchestration.csproj`; move `IDsmHandler`, `ITickableDsmHandler`; define `IOrchestrationTransport`, `ITransitionGraph`, `IScenarioStorageProvider`, `OrchestrationCommand`, `OrchestrationStatus` (unified `StatusCode`), `OrchestrationStatusCode`, `TkClusterStateChangedEvent`; remove `OpStatus` enum; update `NodeOpStatus`/`ClusterOpStatus` DDS structs to single `int StatusCode`. Update all Hrot using-directives. | Phases 1–3 complete |
+| **CGF1-G0402** | Implement generic `ClusterSlave` in FDP toolkit (with `IOrchestrationTransport` + async-prepare + dedup). Implement `DdsOrchestrationTransport` in `Hrot.Common`. Remove the 4 Hrot ClusterSlave copies and replace their wiring sites with the toolkit version. | G0401 |
+| **CGF1-G0403** | Move `TransitionPlanner` (BFS) to FDP toolkit; implement `TransitionGraphBuilder`; add `HrotStateGraph` in `Hrot.Orchestrator`; inject graph into `ClusterMaster`. | G0401 |
+| **CGF1-G0404** | Add `LocalDiskStorageProvider` in `Hrot.Common`; move scenario/story/prefetch handlers to toolkit as reference implementations. Update `NodeBootstrapper`, `CgfApplication` wiring. Delete superseded Hrot handler files. | G0401, G0402 |
 | **CGF1-G0405** | Relocate `CheckpointIOWorker` to FDP toolkit; move `DryRunDsmHandler`, `CheckpointDsmHandler`, `LiveLoadDsmHandler`, `ReplayLoadDsmHandler` to toolkit as reference implementations. Update wiring. | G0401, G0402, G0404 |
-| **CGF1-G0406** | Final cleanup: update `.csproj` project references; delete now-empty Bagira handler directories; run full CI; verify no `Bagira.*` → `FDP.*` downward leaks. | G0401–G0405 |
+| **CGF1-G0406** | Final cleanup: update `.csproj` project references; delete now-empty Hrot handler directories; run full CI; verify no `Hrot.*` → `FDP.*` downward leaks. | G0401–G0405 |
 
 ---
 
@@ -735,36 +735,36 @@ The six tasks in Phase 4 execute the migration in dependency order:
 
 | Deleted file | Replaced by |
 |---|---|
-| `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs` | `FDP.Toolkit.Orchestration.DrillSlave` |
-| `Bagira.CGF/Modules/Orchestration/DrillSlave.cs` | same |
-| `Bagira.IG/Modules/Orchestration/DrillSlave.cs` | same |
-| `Bagira.IOS/Orchestration/DrillSlave.cs` | same |
-| `Bagira.Common/Orchestration/IDsmHandler.cs` | `FDP.Toolkit.Orchestration.IDsmHandler` |
-| `Bagira.Common/Orchestration/ITickableDsmHandler.cs` | `FDP.Toolkit.Orchestration.ITickableDsmHandler` |
-| `Bagira.Common/Orchestration/Handlers/DryRunDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceDryRunHandler` |
-| `Bagira.SimHost/Modules/Orchestration/Handlers/PrefetchFilesDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler` |
-| `Bagira.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceScenarioLoadHandler` |
-| `Bagira.SimHost/Modules/Orchestration/Handlers/EditLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceEditLoadHandler` |
-| `Bagira.SimHost/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceStoryLoadHandler` |
-| `Bagira.SimHost/Modules/Orchestration/Handlers/CheckpointDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler` |
-| `Bagira.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler` |
-| `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler` |
-| `Bagira.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` | `ReferenceScenarioLoadHandler` (same instance via CGF bootstrap) |
-| `Bagira.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | `ReferenceStoryLoadHandler` (same instance) |
-| `Bagira.Orchestrator/TransitionPlanner.cs` | `FDP.Toolkit.Orchestration.TransitionPlanner` |
-| `Bagira.SimHost/Modules/Orchestration/IDsmHandler.cs` | (stub comment file — already mostly empty) |
+| `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs` | `FDP.Toolkit.Orchestration.ClusterSlave` |
+| `Hrot.CGF/Modules/Orchestration/ClusterSlave.cs` | same |
+| `Hrot.IG/Modules/Orchestration/ClusterSlave.cs` | same |
+| `Hrot.ExCon/Orchestration/ClusterSlave.cs` | same |
+| `Hrot.Common/Orchestration/IDsmHandler.cs` | `FDP.Toolkit.Orchestration.IDsmHandler` |
+| `Hrot.Common/Orchestration/ITickableDsmHandler.cs` | `FDP.Toolkit.Orchestration.ITickableDsmHandler` |
+| `Hrot.Common/Orchestration/Handlers/DryRunDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceDryRunHandler` |
+| `Hrot.SimHost/Modules/Orchestration/Handlers/PrefetchFilesDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler` |
+| `Hrot.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceScenarioLoadHandler` |
+| `Hrot.SimHost/Modules/Orchestration/Handlers/EditLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceEditLoadHandler` |
+| `Hrot.SimHost/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceStoryLoadHandler` |
+| `Hrot.SimHost/Modules/Orchestration/Handlers/CheckpointDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceCheckpointHandler` |
+| `Hrot.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler` |
+| `Hrot.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs` | `FDP.Toolkit.Orchestration.Handlers.ReferenceReplayLoadHandler` |
+| `Hrot.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs` | `ReferenceScenarioLoadHandler` (same instance via CGF bootstrap) |
+| `Hrot.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs` | `ReferenceStoryLoadHandler` (same instance) |
+| `Hrot.Orchestrator/TransitionPlanner.cs` | `FDP.Toolkit.Orchestration.TransitionPlanner` |
+| `Hrot.SimHost/Modules/Orchestration/IDsmHandler.cs` | (stub comment file — already mostly empty) |
 
 ### Retained
 
 | Retained file | Notes |
 |---|---|
-| `Bagira.Common/Orchestration/DsmStateChangedEvent.cs` | References `DSMState` — stays in Bagira layer |
-| `Bagira.CGF/Modules/Orchestration/Handlers/FailLoudRecordReplayStub.cs` | Bagira-specific diagnostic stub; kept until CGF acquires a real kernel |
-| `Bagira.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` | Wraps `ModuleHostKernel`; may be promoted to toolkit in a later pass if fully decoupled |
-| `Bagira.SimHost/Modules/Orchestration/CheckpointIOWorker.cs` | **Relocated** to `FDP.Toolkit.Orchestration` in G0405 |
-| `Bagira.Orchestrator/DrillMaster.cs` | Kept — app-specific orchestration master |
-| `Bagira.Orchestrator/NodeRoster.cs` | Kept |
-| `Bagira.Orchestrator/StorageGatewayModule.cs` | Kept |
-| `Bagira.Orchestrator/ReplayMasterModule.cs` | Kept |
-| `Bagira.Orchestrator/GlobalContextDsmHandler.cs` | Kept (Bagira-specific save/load context) |
-| `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs` | `DSMState`, `NodeOpType`, DDS structs — kept as Bagira foundation |
+| `Hrot.Common/Orchestration/ClusterStateChangedEvent.cs` | References `ClusterState` — stays in Hrot layer |
+| `Hrot.CGF/Modules/Orchestration/Handlers/FailLoudRecordReplayStub.cs` | Hrot-specific diagnostic stub; kept until CGF acquires a real kernel |
+| `Hrot.SimHost/Modules/Orchestration/EcsRecordReplayController.cs` | Wraps `ModuleHostKernel`; may be promoted to toolkit in a later pass if fully decoupled |
+| `Hrot.SimHost/Modules/Orchestration/CheckpointIOWorker.cs` | **Relocated** to `FDP.Toolkit.Orchestration` in G0405 |
+| `Hrot.Orchestrator/ClusterMaster.cs` | Kept — app-specific orchestration master |
+| `Hrot.Orchestrator/NodeRoster.cs` | Kept |
+| `Hrot.Orchestrator/StorageGatewayModule.cs` | Kept |
+| `Hrot.Orchestrator/ReplayMasterModule.cs` | Kept |
+| `Hrot.Orchestrator/GlobalContextDsmHandler.cs` | Kept (Hrot-specific save/load context) |
+| `Hrot.NED/Orchestration/OrchestrationMessages.cs` | `ClusterState`, `NodeOpType`, DDS structs — kept as Hrot foundation |

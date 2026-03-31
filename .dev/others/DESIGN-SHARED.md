@@ -14,8 +14,8 @@
 2. [Overview](#2-overview)
 3. [Existing FDP Infrastructure (Reuse)](#3-existing-fdp-infrastructure-reuse)
 4. [New Components (Implement)](#4-new-components-implement)
-5. [Bagira.DDS.DataModel](#5-bagiraddsdata model)
-6. [Bagira.Map.Common](#6-bagiramap common)
+5. [Hrot.NED](#5-hrotddsdata model)
+6. [Hrot.Map.Common](#6-hrotmap common)
 7. [Implementation Plan](#7-implementation-plan)
 
 ---
@@ -33,7 +33,7 @@
 | **DDS Egress** | ✅ EXISTS | `ModuleHost.Network.Cyclone.CycloneEgressSystem` | Direct CycloneDDS publisher |
 | **DER (IOS)** | ❌ NEW | `FDP.Toolkit.DER.*` | Non-ECS entity access for IOS |
 | **Commands Toolkit** | ❌ NEW | `FDP.Toolkit.Commands.*` | RPC-over-DDS with correlation |
-| **TKB Extensions (BDC)** | ❌ NEW | `Bagira.Map.Definitions.*` | Domain-specific descriptors |
+| **TKB Extensions (BDC)** | ❌ NEW | `Hrot.Map.Definitions.*` | Domain-specific descriptors |
 
 **Key Insight**: Most infrastructure EXISTS. Focus implementation on DER, Commands, and domain TKB extensions.
 
@@ -51,7 +51,7 @@ This document describes the **shared infrastructure** for IOS-IG-SimHost mocks. 
 
 1. **FDP.Toolkit.DER**: Dynamic Entity Repository for IOS (non-ECS entity access)
 2. **FDP.Toolkit.Commands**: RPC-over-DDS toolkit (request/ack correlation)
-3. **Bagira.Map.Definitions**: Domain-specific TKB descriptors (visual, physics, combat)
+3. **Hrot.Map.Definitions**: Domain-specific TKB descriptors (visual, physics, combat)
 
 ### 2.2 Design Principles
 
@@ -65,7 +65,7 @@ This document describes the **shared infrastructure** for IOS-IG-SimHost mocks. 
 ### 2.3 Critical Dependencies
 
 **Build Order:**
-1. Data Model (Bagira.DDS.DataModel) - FIRST
+1. Data Model (Hrot.NED) - FIRST
 2. Existing Infrastructure Validation - SECOND
 3. New Components (DER, Commands, TKB Extensions) - THIRD
 4. Subsystem Mocks (IOS, IG, SimHost) - FOURTH
@@ -139,14 +139,14 @@ var entity = world.NewEntity(template);
 ```csharp
 using Fdp.Toolkit.Geographic;
 
-var origin = new GeoPosition { Latitude = 50.0755, Longitude = 14.4378, Altitude = 200.0 };
+var origin = new GeoPoint { Latitude = 50.0755, Longitude = 14.4378, Altitude = 200.0 };
 var transform = new WGS84Transform(origin);
 
-// DDS GeoPosition → ECS Cartesian
-var geo = new GeoPosition { Latitude = 50.08, Longitude = 14.45, Altitude = 250 };
+// DDS GeoPoint → ECS Cartesian
+var geo = new GeoPoint { Latitude = 50.08, Longitude = 14.45, Altitude = 250 };
 var cart = transform.ToCartesian(geo);
 
-// ECS Cartesian → DDS GeoPosition
+// ECS Cartesian → DDS GeoPoint
 var geoOut = transform.ToGeodetic(cart);
 ```
 
@@ -475,7 +475,7 @@ namespace FDP.Toolkit.Commands
 **BDC-Specific Gateway:**
 
 ```csharp
-namespace Bagira.Map.Common.Commands
+namespace Hrot.Map.Common.Commands
 {
     /// <summary>
     /// Convenience gateway for BDC SST commands.
@@ -543,13 +543,13 @@ catch (TaskCanceledException)
 ```
 
 **Assembly Output:**
-- **Namespace**: `FDP.Toolkit.Commands`, `Bagira.Map.Common.Commands`
-- **Assembly**: `FDP.Toolkit.Commands.dll`, `Bagira.Map.Common.dll`
-- **Dependencies**: `CycloneDDS`, `Bagira.DDS.DataModel`
+- **Namespace**: `FDP.Toolkit.Commands`, `Hrot.Map.Common.Commands`
+- **Assembly**: `FDP.Toolkit.Commands.dll`, `Hrot.Map.Common.dll`
+- **Dependencies**: `CycloneDDS`, `Hrot.NED`
 
 ---
 
-### 4.3 Bagira.Map.Definitions (TKB Extensions)
+### 4.3 Hrot.Map.Definitions (TKB Extensions)
 
 **Purpose:** Domain-specific TKB descriptor classes for BDC SST.
 
@@ -558,7 +558,7 @@ catch (TaskCanceledException)
 **Architecture:**
 
 ```csharp
-namespace Bagira.Map.Definitions.Tkb
+namespace Hrot.Map.Definitions.Tkb
 {
     /// <summary>
     /// IG visual properties (color, symbol, 3D model).
@@ -632,7 +632,7 @@ namespace Bagira.Map.Definitions.Tkb
 **TKB Builder Fluent API:**
 
 ```csharp
-namespace Bagira.Map.Definitions.Tkb
+namespace Hrot.Map.Definitions.Tkb
 {
     public class BdcTkbBuilder
     {
@@ -653,7 +653,7 @@ namespace Bagira.Map.Definitions.Tkb
                 {
                     typeof(EntityMasterComponent),
                     typeof(EntityInfoComponent),
-                    typeof(GeoSpatialComponent)
+                    typeof(WorldPosComponent)
                 }
             };
             
@@ -734,13 +734,13 @@ builder
 ```
 
 **Assembly Output:**
-- **Namespace**: `Bagira.Map.Definitions.Tkb`
-- **Assembly**: `Bagira.Map.Definitions.dll`
+- **Namespace**: `Hrot.Map.Definitions.Tkb`
+- **Assembly**: `Hrot.Map.Definitions.dll`
 - **Dependencies**: `FDP.Interfaces`, `FDP.Toolkit.Tkb`
 
 ---
 
-## 5. Bagira.DDS.DataModel
+## 5. Hrot.NED
 
 ### 2.1 Purpose
 
@@ -773,8 +773,8 @@ The data model is derived from:
 #### Core Entity Descriptors (from GenericDescriptors.cs)
 
 ```csharp
-using Bagira.DDS.DM;  // Common types
-using Bagira.BDC.SSTD; // Descriptors
+using Hrot.NED.Common;  // Common types
+using Hrot.NED.Descriptors; // Descriptors
 
 // Core identity - determines entity existence
 [DdsTopic("EntityMaster")]
@@ -802,24 +802,24 @@ public partial struct EntityInfo
 
 ```csharp
 // Position/Orientation WITHOUT dead reckoning
-[DdsTopic("GeoSpatial")]  // NOT "NetworkPosition"!
-public partial struct GeoSpatial
+[DdsTopic("WorldPos")]  // NOT "NetworkPosition"!
+public partial struct WorldPos
 {
     [DdsKey] public int EntityId;
     public DateTime Time;           // Exercise timestamp
-    public GeoPosition Pos;         // Lat/Lon/Alt (see Common.cs)
-    public OrientationHPR Rot;      // Heading/Pitch/Roll in degrees
+    public GeoPoint Pos;         // Lat/Lon/Alt (see Common.cs)
+    public EulerOri Rot;      // Heading/Pitch/Roll in degrees
 }
 
 // Velocity/Acceleration WITH dead reckoning
-[DdsTopic("GeoSpatialDR")]  // NOT "NetworkVelocity"!
-public partial struct GeoSpatialDR
+[DdsTopic("WorldPos")]  // NOT "NetworkVelocity"!
+public partial struct WorldPos
 {
     [DdsKey] public int EntityId;
     public DateTime Time;
-    public DAL3 Vel;                // Direction-Angle-Length velocity
-    public DAL3 Acc;                // Acceleration
-    public OrientationHPR RotVel;   // Angular velocity
+    public AngularVector Vel;                // Direction-Angle-Length velocity
+    public AngularVector Acc;                // Acceleration
+    public EulerOri RotVel;   // Angular velocity
 }
 ```
 
@@ -878,7 +878,7 @@ public partial struct MapVisualOverlay
     public float AutoDeleteTimeoutSeconds;   // NOT "LifetimeMs"!
     public string StylePresetName;
     public string StyleOverrideJson;         // NOT "StyleJsonOverride"!
-    public List<GeoPosition> Points;         // NOT "MapGeometry"!
+    public List<GeoPoint> Points;         // NOT "MapGeometry"!
     public List<int> ChangedIndices;
     public bool IsEditable;
     public bool IsClickable;
@@ -896,7 +896,7 @@ public partial struct MapRoute
 
 public partial struct Waypoint
 {
-    public GeoPosition Position;
+    public GeoPoint Position;
     public string Name;
     public double SpeedMetersPerSec;
     public string ExtensionJson;
@@ -940,14 +940,14 @@ public partial struct MapConfigStatus
 #### Interaction Events (from MapMessages.cs)
 
 ```csharp
-using Bagira.BDC.SSTM;  // Messages namespace
+using Hrot.NED.Messages;  // Messages namespace
 
 // User clicks map
 [DdsTopic("MapClickEvent")]
 public partial struct MapClickEvent
 {
     public int MapId;
-    public GeoPosition Position;           // NOT GeodeticCoordinate!
+    public GeoPoint Position;           // NOT GeodeticCoordinate!
     public List<MapObjectRef> HitStack;    // NOT long[]!
     public Guid InteractionContextId;      // NOT "ContextId"!
 }
@@ -959,7 +959,7 @@ public partial struct DragEvent
     public int MapId;
     public DragState State;               // START/UPDATE/END/CANCEL
     public int EntityId;
-    public GeoPosition CurrentPosition;
+    public GeoPoint CurrentPosition;
     public Guid InteractionContextId;
 }
 
@@ -1021,7 +1021,7 @@ public partial struct UpdateEntityAttributeRequest
 {
     public Guid RequestId;
     public int EntityId;
-    public EntityAttribute AttributeId;           // eaName, eaGeoPosition
+    public EntityAttribute AttributeId;           // eaName, eaGeoPoint
     public EntityAttributePayload Payload;        // Union
 }
 ```
@@ -1059,10 +1059,10 @@ public partial struct MissionCommandUnion         // DDS Union type
 #### Common Types (from Common.cs)
 
 ```csharp
-namespace Bagira.DDS.DM  // Common namespace
+namespace Hrot.NED.Common  // Common namespace
 {
     // Geodetic position (NOT "GeodeticCoordinate")
-    public partial struct GeoPosition
+    public partial struct GeoPoint
     {
         public double Latitude;   // degrees
         public double Longitude;  // degrees
@@ -1070,7 +1070,7 @@ namespace Bagira.DDS.DM  // Common namespace
     }
 
     // Orientation (Heading/Pitch/Roll)
-    public partial struct OrientationHPR
+    public partial struct EulerOri
     {
         public float Heading;    // degrees
         public float Pitch;      // degrees
@@ -1078,7 +1078,7 @@ namespace Bagira.DDS.DM  // Common namespace
     }
 
     // Direction-Angle-Length vector
-    public partial struct DAL3
+    public partial struct AngularVector
     {
         float Azimuth;           // degrees
         float Elevation;         // degrees
@@ -1096,13 +1096,13 @@ namespace Bagira.DDS.DM  // Common namespace
 
 ### 2.5 Assembly Output
 
-- **Namespace**: `Bagira.DDS.DataModel`
-- **Assembly**: `Bagira.DDS.DataModel.dll`
+- **Namespace**: `Hrot.NED`
+- **Assembly**: `Hrot.NED.dll`
 - **Dependencies**: `CycloneDDS.dll`, `System.Numerics`
 
 ---
 
-## 3. Bagira.Map.Common
+## 3. Hrot.Map.Common
 
 ### 3.1 Purpose
 
@@ -1115,7 +1115,7 @@ Since the full TKB infrastructure is unavailable, we implement a **minimal TKB s
 #### 3.2.1 Entity Type Registry
 
 ```csharp
-namespace Bagira.Map.Common.Tkb
+namespace Hrot.Map.Common.Tkb
 {
     /// <summary>
     /// Simple TKB entity type catalog for mock purposes.
@@ -1207,7 +1207,7 @@ namespace Bagira.Map.Common.Tkb
 #### 3.2.2 Style System
 
 ```csharp
-namespace Bagira.Map.Common.Tkb
+namespace Hrot.Map.Common.Tkb
 {
     public enum LineStyle
     {
@@ -1248,13 +1248,13 @@ namespace Bagira.Map.Common.Tkb
 **Purpose:** Convert between WGS84 geodetic coordinates (used by DDS) and flat Cartesian coordinates (used internally in ECS).
 
 ```csharp
-namespace Bagira.Map.Common.Geo
+namespace Hrot.Map.Common.Geo
 {
-    using Bagira.DDS.DM;  // Import GeoPosition
+    using Hrot.NED.Common;  // Import GeoPoint
 
     /// <summary>
     /// Flat Cartesian coordinate (simulation space).
-    /// NOTE: GeoPosition from Bagira.DDS.DM is used for WGS84 coordinates.
+    /// NOTE: GeoPoint from Hrot.NED.Common is used for WGS84 coordinates.
     /// </summary>
     public struct CartesianCoordinate
     {
@@ -1269,7 +1269,7 @@ namespace Bagira.Map.Common.Geo
     public static class GeodeticOrigin
     {
         // Example: Prague (can be configurable)
-        public static GeoPosition Origin = new()  // NOT GeodeticCoordinate!
+        public static GeoPoint Origin = new()  // NOT GeodeticCoordinate!
         {
             Latitude = 50.0755,
             Longitude = 14.4378,
@@ -1286,9 +1286,9 @@ namespace Bagira.Map.Common.Geo
         private const double EarthRadiusMeters = 6371000.0;
 
         /// <summary>
-        /// Convert GeoPosition (WGS84) to flat Cartesian coordinates.
+        /// Convert GeoPoint (WGS84) to flat Cartesian coordinates.
         /// </summary>
-        public static CartesianCoordinate ToCartesian(GeoPosition geo)
+        public static CartesianCoordinate ToCartesian(GeoPoint geo)
         {
             var origin = GeodeticOrigin.Origin;
             double dLat = (geo.Latitude - origin.Latitude) * (Math.PI / 180.0);
@@ -1303,15 +1303,15 @@ namespace Bagira.Map.Common.Geo
         }
 
         /// <summary>
-        /// Convert flat Cartesian coordinates to GeoPosition (WGS84).
+        /// Convert flat Cartesian coordinates to GeoPoint (WGS84).
         /// </summary>
-        public static GeoPosition ToGeodetic(CartesianCoordinate cart)
+        public static GeoPoint ToGeodetic(CartesianCoordinate cart)
         {
             var origin = GeodeticOrigin.Origin;
             double dLat = cart.Y / EarthRadiusMeters;
             double dLon = cart.X / (EarthRadiusMeters * Math.Cos(origin.Latitude * Math.PI / 180.0));
 
-            return new GeoPosition
+            return new GeoPoint
             {
                 Latitude = origin.Latitude + dLat * (180.0 / Math.PI),
                 Longitude = origin.Longitude + dLon * (180.0 / Math.PI),
@@ -1325,7 +1325,7 @@ namespace Bagira.Map.Common.Geo
 ### 3.4 Map Constants
 
 ```csharp
-namespace Bagira.Map.Common
+namespace Hrot.Map.Common
 {
     public static class MapLayers
     {
@@ -1349,13 +1349,13 @@ namespace Bagira.Map.Common
 
 ### 3.5 Assembly Output
 
-- **Namespace**: `Bagira.Map.Common`
-- **Assembly**: `Bagira.Map.Common.dll`
-- **Dependencies**: `Bagira.DDS.DataModel`, `System.Numerics`
+- **Namespace**: `Hrot.Map.Common`
+- **Assembly**: `Hrot.Map.Common.dll`
+- **Dependencies**: `Hrot.NED`, `System.Numerics`
 
 ---
 
-## 4. Bagira.Map.Toolkit
+## 4. Hrot.Map.Toolkit
 
 ### 4.1 Purpose
 
@@ -1366,7 +1366,7 @@ Provides reusable, higher-level map logic **independent of specific mocks**. Thi
 #### 4.2.1 Style Resolution System
 
 ```csharp
-namespace Bagira.Map.Toolkit
+namespace Hrot.Map.Toolkit
 {
     /// <summary>
     /// Resolves final style from 3 layers: JSON override → Preset → TKB default.
@@ -1401,7 +1401,7 @@ namespace Bagira.Map.Toolkit
 #### 4.2.2 ORBAT Tree Reconstructor
 
 ```csharp
-namespace Bagira.Map.Toolkit.Orbat
+namespace Hrot.Map.Toolkit.Orbat
 {
     /// <summary>
     /// Reconstructs hierarchical tree from flat EntityInfo list (CommanderId pointers).
@@ -1446,13 +1446,13 @@ namespace Bagira.Map.Toolkit.Orbat
 
 ### 4.3 Assembly Output
 
-- **Namespace**: `Bagira.Map.Toolkit`
-- **Assembly**: `Bagira.Map.Toolkit.dll`
-- **Dependencies**: `Bagira.Map.Common`
+- **Namespace**: `Hrot.Map.Toolkit`
+- **Assembly**: `Hrot.Map.Toolkit.dll`
+- **Dependencies**: `Hrot.Map.Common`
 
 ---
 
-## 5. Bagira.DDS.DataModel
+## 5. Hrot.NED
 
 ### 5.1 Purpose
 
@@ -1463,9 +1463,9 @@ Provides compiled C# types for all BDC SST descriptors and messages.
 **AUTHORITATIVE SOURCE:** `docs/FcdCsharp/*.cs`
 
 These files are already generated and corrected. Reference them directly:
-- `Common.cs` - Core types (GeoPosition, OrientationHPR, DAL3, NodeId)
+- `Common.cs` - Core types (GeoPoint, EulerOri, AngularVector, NodeId)
 - `GenericDescriptors.cs` - EntityMaster, EntityInfo
-- `SimDescriptors.cs` - GeoSpatial, GeoSpatialDR
+- `SimDescriptors.cs` - WorldPos, WorldPos
 - `MapDescriptors.cs` - MapEntitySymbol, MapVisualOverlay, MapRoute, MapInteractionConfig
 - `MissionDescriptors.cs` - EntityMission, MissionPlan, MissionTask
 - `GenericMessages.cs` - CreateEntityRequest/Ack, UpdateEntityDescriptorRequest/Ack
@@ -1485,18 +1485,18 @@ public partial struct EntityMaster
     public ulong Flags;
 }
 
-// GeoSpatial - Position/Orientation (from SimDescriptors.cs)
-[DdsTopic("GeoSpatial")]
-public partial struct GeoSpatial
+// WorldPos - Position/Orientation (from SimDescriptors.cs)
+[DdsTopic("WorldPos")]
+public partial struct WorldPos
 {
     [DdsKey] public int EntityId;
     public DateTime Time;
-    public GeoPosition Pos; // Lat/Lon/Alt
-    public OrientationHPR Rot; // Heading/Pitch/Roll
+    public GeoPoint Pos; // Lat/Lon/Alt
+    public EulerOri Rot; // Heading/Pitch/Roll
 }
 
-// GeoPosition - Common type (from Common.cs)
-public partial struct GeoPosition
+// GeoPoint - Common type (from Common.cs)
+public partial struct GeoPoint
 {
     public double Latitude; // degrees
     public double Longitude; // degrees
@@ -1506,15 +1506,15 @@ public partial struct GeoPosition
 
 ### 5.4 Assembly Output
 
-- **Namespace**: `Bagira.DDS.DataModel` (or reuse `Bagira.DDS.DM`, `Bagira.BDC.SSTD`, `Bagira.BDC.SSTM`)
-- **Assembly**: `Bagira.DDS.DataModel.dll`
+- **Namespace**: `Hrot.NED` (or reuse `Hrot.NED.Common`, `Hrot.NED.Descriptors`, `Hrot.NED.Messages`)
+- **Assembly**: `Hrot.NED.dll`
 - **Dependencies**: `CycloneDDS.dll`
 
 **See:** [DATA-MODEL-REFERENCE.md](./DATA-MODEL-REFERENCE.md) for complete type catalog.
 
 ---
 
-## 6. Bagira.Map.Common
+## 6. Hrot.Map.Common
 
 ### 6.1 Purpose
 
@@ -1525,7 +1525,7 @@ Provides shared constants, TKB entity registry, and command gateway.
 #### 6.2.1 TKB Entity Types Registry
 
 ```csharp
-namespace Bagira.Map.Common
+namespace Hrot.Map.Common
 {
     public static class TkbEntityTypes
     {
@@ -1556,7 +1556,7 @@ Instantiate `BdcCommandGateway` (see Section 4.2) for all request/ack operations
 #### 6.2.3 Constants
 
 ```csharp
-namespace Bagira.Map.Common
+namespace Hrot.Map.Common
 {
     public static class MapConfig
     {
@@ -1575,9 +1575,9 @@ namespace Bagira.Map.Common
 
 ### 6.3 Assembly Output
 
-- **Namespace**: `Bagira.Map.Common`
-- **Assembly**: `Bagira.Map.Common.dll`
-- **Dependencies**: `Bagira.DDS.DataModel`, `FDP.Toolkit.Commands`
+- **Namespace**: `Hrot.Map.Common`
+- **Assembly**: `Hrot.Map.Common.dll`
+- **Dependencies**: `Hrot.NED`, `FDP.Toolkit.Commands`
 
 ---
 
@@ -1607,10 +1607,10 @@ namespace Bagira.Map.Common
 
 ### Phase 2: Data Model Assembly (3 days)
 
-**Goal:** Create usable `Bagira.DDS.DataModel.dll` from FcdCsharp files.
+**Goal:** Create usable `Hrot.NED.dll` from FcdCsharp files.
 
 **Tasks:**
-1. Create `Bagira.DDS.DataModel` C# project (.NET 8)
+1. Create `Hrot.NED` C# project (.NET 8)
 2. Copy/reference `docs/FcdCsharp/*.cs` files
 3. Add CycloneDDS NuGet package
 4. Compile and resolve any type errors
@@ -1660,7 +1660,7 @@ namespace Bagira.Map.Common
 2. Implement `DdsCommandClient<TReq, TAck>` with TaskCompletionSource
 3. Implement correlation ID extraction via reflection
 4. Add timeout handling with CancellationTokenSource
-5. Create `BdcCommandGateway` in `Bagira.Map.Common`
+5. Create `BdcCommandGateway` in `Hrot.Map.Common`
 6. Write unit tests:
    - Successful request/ack roundtrip
    - Timeout handling
@@ -1677,12 +1677,12 @@ namespace Bagira.Map.Common
 
 ---
 
-### Phase 5: Bagira.Map.Definitions (TKB Extensions) (6 days)
+### Phase 5: Hrot.Map.Definitions (TKB Extensions) (6 days)
 
 **Goal:** Domain-specific TKB descriptors for visual, physics, combat.
 
 **Tasks:**
-1. Create `Bagira.Map.Definitions` project
+1. Create `Hrot.Map.Definitions` project
 2. Implement descriptor classes:
    - `IgVisualDef` (symbol, model, color)
    - `SimVehicleDef` (mass, dimensions, mobility)
@@ -1709,12 +1709,12 @@ namespace Bagira.Map.Common
 
 ---
 
-### Phase 6: Bagira.Map.Common Assembly (2 days)
+### Phase 6: Hrot.Map.Common Assembly (2 days)
 
 **Goal:** Consolidate shared constants and utilities.
 
 **Tasks:**
-1. Create `Bagira.Map.Common` project
+1. Create `Hrot.Map.Common` project
 2. Add TkbEntityTypes constants
 3. Add MapConfig and ContextKeys constants
 4. Reference BdcCommandGateway (from Phase 4)
@@ -1734,7 +1734,7 @@ namespace Bagira.Map.Common
 **Goal:** Verify all shared components work together.
 
 **Tasks:**
-1. Create `Bagira.Map.Integration.Tests` project
+1. Create `Hrot.Map.Integration.Tests` project
 2. Write end-to-end test scenarios:
    - IOS creates entity via BdcCommandGateway
    - SimHost receives CreateEntityRequest, allocates ID
@@ -1775,11 +1775,11 @@ Phase 1 (2d) → Phase 2 (3d) → Phase 3 (5d) → Phase 4 (4d) → Phase 5 (6d)
 - Week 5: Phases 6+7
 
 **Deliverables:**
-- `Bagira.DDS.DataModel.dll` (types)
+- `Hrot.NED.dll` (types)
 - `FDP.Toolkit.DER.dll` (non-ECS entity storage)
 - `FDP.Toolkit.Commands.dll` (RPC framework)
-- `Bagira.Map.Definitions.dll` (TKB descriptors)
-- `Bagira.Map.Common.dll` (constants, gateway)
+- `Hrot.Map.Definitions.dll` (TKB descriptors)
+- `Hrot.Map.Common.dll` (constants, gateway)
 - Integration test suite
 - API documentation
 

@@ -23,9 +23,9 @@
 
 **FDP.Toolkit.Combat.Tests:** 39 / 39 ✅  
 **FDP.Toolkit.Physics.Tests:** 24 / 24 ✅  
-**Bagira.SimHost.Tests:** 343 / 343 ✅  
-**Bagira.IG.Tests:** 429 / 429 ✅  
-**Full solution:** All project-specific suites pass. Two pre-existing flaky tests in `Bagira.SimHost.Integration.Tests` and `Fdp.Tests` occasionally fail when run in parallel with the full suite (DDS participant timing issues); both pass deterministically when run in isolation.
+**Hrot.SimHost.Tests:** 343 / 343 ✅  
+**Hrot.IG.Tests:** 429 / 429 ✅  
+**Full solution:** All project-specific suites pass. Two pre-existing flaky tests in `Hrot.SimHost.Integration.Tests` and `Fdp.Tests` occasionally fail when run in parallel with the full suite (DDS participant timing issues); both pass deterministically when run in isolation.
 
 **Key Test Scenarios Verified:**
 - [x] `WeaponFireNotification` → `WeaponFire` DDS write (1 and N events)  
@@ -77,6 +77,6 @@ Resolution: Moved `DetonationNotification` to `FDP.Toolkit.Combat.Contracts` —
 
 ## ⚠️ Outstanding Issues / Next Steps
 
-- Pre-existing flaky DDS tests in `Bagira.SimHost.Integration.Tests` and `Fdp.Tests` are timing-dependent and unrelated to this batch.
+- Pre-existing flaky DDS tests in `Hrot.SimHost.Integration.Tests` and `Fdp.Tests` are timing-dependent and unrelated to this batch.
 - `MunitionDetonationEgressTranslator` (BS1-T011) is intentionally out of scope for this batch; `DetonationNotification` events are now emitted and ready for it in the next batch.
 - The `WeaponFireIngressTranslator` in IG currently does not resolve entity handles (`Entity` from `NetworkEntityMap`) into `IgWeaponFireEvent` — it only carries raw network IDs. Visual layer consumers must look up entities themselves. This is by design per spec; if the IG muzzle-flash system needs local handles, they can be added to `IgWeaponFireEvent` in a follow-up batch.

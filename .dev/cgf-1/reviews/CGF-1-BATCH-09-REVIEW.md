@@ -13,32 +13,32 @@
 
 **Part A** is **largely delivered** as described:
 
-- **`OrchestratorSubsystem`** owns a minimal **`ModuleHostKernel`**, **`DistributedTimeCoordinator`**, and **`SwitchTimeModeDescriptorTranslator`**; **`Update`** advances the time kernel, swaps the bus, reads **`DrillMaster.PendingTimeMode`**, and on edge-detect of **`"Deterministic"`** calls **`SwitchToDeterministic`** with **current roster keys** (the report’s “empty `HashSet`” risk is **outdated** — the constructor’s empty set is superseded by **`slaveIds` from `NodeRoster`** at runtime).
+- **`OrchestratorSubsystem`** owns a minimal **`ModuleHostKernel`**, **`DistributedTimeCoordinator`**, and **`SwitchTimeModeDescriptorTranslator`**; **`Update`** advances the time kernel, swaps the bus, reads **`ClusterMaster.PendingTimeMode`**, and on edge-detect of **`"Deterministic"`** calls **`SwitchToDeterministic`** with **current roster keys** (the report’s “empty `HashSet`” risk is **outdated** — the constructor’s empty set is superseded by **`slaveIds` from `NodeRoster`** at runtime).
 - **`OrchestratorTimeModeTests`** (2) exercise **`SwitchTimeModeEvent`** on **`TimeBusForTest`** with JSON vs integer payloads; domain **15** + collection isolation matches the stated intent.
 - **`TimeNetworkModule.RegisterTranslators`** is **`[Obsolete]`** with a clear message.
-- **`TestDomainAllocator`** starts at **15** so **`Next()` → 16+**, avoiding clash with orchestrator domain **15**; **`Bagira.Orchestrator.Tests/xunit.runner.json`** serialises the assembly.
+- **`TestDomainAllocator`** starts at **15** so **`Next()` → 16+**, avoiding clash with orchestrator domain **15**; **`Hrot.Orchestrator.Tests/xunit.runner.json`** serialises the assembly.
 - **`MinimalCIScenario.FinalEntitySnapshot`** + **`DeterministicRun_IsReproducible`** assert **`Index`/`Generation`** across two runs — stronger than exit-code-only; **subprocess `dotnet run`** remains **deferred** (allowed by BATCH-09 instructions with documentation).
 
 **Part B (keyed `NodeOpCommand`)** is **substantively delivered**:
 
 - **`[DdsKey] TargetNodeId`** on **`NodeOpCommand`** with XML rationale.
-- **`DrillMaster`**: **`FanOutNodeOp`**, per-node writer cache, **`EjectNode`** disposes the ejected writer, **`Dispose`** clears writers.
+- **`ClusterMaster`**: **`FanOutNodeOp`**, per-node writer cache, **`EjectNode`** disposes the ejected writer, **`Dispose`** clears writers.
 - **`SurvivingNodes_CommandedToStandby_AfterEjection`**: three participants, filters for **400** vs **1**, eject **SimHost (1)**, assert **CGF** receives **Abort** + **PrepareState**, **SimHost** reader **empty** — matches keyed-delivery intent (report §B.4 prose was garbled; **code + test are coherent**).
 
-**Tests run (review):** **`Bagira.Orchestrator.Tests`** — **18** passed.
+**Tests run (review):** **`Hrot.Orchestrator.Tests`** — **18** passed.
 
 ---
 
 ## Gaps (schedule BATCH-10)
 
-### Issue 1: **`Bagira.IG` `DrillSlave` has no `SetFilter`** (P2)
+### Issue 1: **`Hrot.IG` `ClusterSlave` has no `SetFilter`** (P2)
 
-**`Bagira.SimHost`**, **`Bagira.IOS`**, and **`Bagira.CGF`** **`DrillSlave`** call **`_commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId)`**.  
-**`Bagira.IG.Modules.Orchestration.DrillSlave`** does **not** — it only constructs **`DdsReader<NodeOpCommand>`** without a filter. With per-key writes, IG can still **receive** samples for other instances depending on DDS behaviour; at minimum it **violates parity** with other nodes and the BATCH-09 “all slaves filter” story.
+**`Hrot.SimHost`**, **`Hrot.ExCon`**, and **`Hrot.CGF`** **`ClusterSlave`** call **`_commandReader.SetFilter(cmd => cmd.TargetNodeId == _nodeId)`**.  
+**`Hrot.IG.Modules.Orchestration.ClusterSlave`** does **not** — it only constructs **`DdsReader<NodeOpCommand>`** without a filter. With per-key writes, IG can still **receive** samples for other instances depending on DDS behaviour; at minimum it **violates parity** with other nodes and the BATCH-09 “all slaves filter” story.
 
 ### Issue 2: **`CgfApplication` bus split** (P2)
 
-**`CgfApplication`** creates **`_eventBus`** + **`SwitchTimeModeDescriptorTranslator`**, but **`DrillSlave`** is constructed **without** that bus (`new DrillSlave(_participant, nodeId, name)` only). Ingressed **`SwitchTimeModeEvent`** lands on a bus that **no `SlaveTimeModeListener`** consumes — acceptable for a **minimal CGF shell**, but it is **not** end-to-end **S0205** “slave switches to **`SteppedSlaveController`**”. Document or unify when CGF gets a **kernel**.
+**`CgfApplication`** creates **`_eventBus`** + **`SwitchTimeModeDescriptorTranslator`**, but **`ClusterSlave`** is constructed **without** that bus (`new ClusterSlave(_participant, nodeId, name)` only). Ingressed **`SwitchTimeModeEvent`** lands on a bus that **no `SlaveTimeModeListener`** consumes — acceptable for a **minimal CGF shell**, but it is **not** end-to-end **S0205** “slave switches to **`SteppedSlaveController`**”. Document or unify when CGF gets a **kernel**.
 
 ### Issue 3: **S0205 / task-detail wording**
 
@@ -85,8 +85,8 @@ The **type-level** summary still describes **`BlitEventTranslator<SwitchTimeMode
 ```
 feat(cgf-1): BATCH-09 keyed NodeOpCommand, coordinator + CI closure
 
-- NodeOpCommand: [DdsKey] TargetNodeId; DrillMaster FanOutNodeOp + writer cache.
-- DrillSlave (SimHost/IOS/CGF): SetFilter by TargetNodeId; ejection disposes writer.
+- NodeOpCommand: [DdsKey] TargetNodeId; ClusterMaster FanOutNodeOp + writer cache.
+- ClusterSlave (SimHost/IOS/CGF): SetFilter by TargetNodeId; ejection disposes writer.
 - OrchestratorSubsystem: time kernel + DistributedTimeCoordinator + PendingTimeMode edge.
 - CgfApplication: SwitchTimeModeDescriptorTranslator in Tick; FDP.Toolkit.Time ref.
 - SurvivingNodes test: multi-participant isolation; TestDomainAllocator + xunit serial.

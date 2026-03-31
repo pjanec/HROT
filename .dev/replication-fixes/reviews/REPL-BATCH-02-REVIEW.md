@@ -18,7 +18,7 @@ The developer successfully implemented all required tasks (REPL-C01, REPL-C02, R
 - **Compiler Checks**: `dotnet build` passed cleanly across the entire `FDP` structure, including `NetworkDemoApp` and `IgApplication`.
 - **Architectural Rules (C01)**: The developer correctly moved explicit `EntityQuery` caching to `.EnsureQueriesInitialized()`. This safely prevents `With<T>().Build()` from being invoked dynamically every frame inside the executing method loop. Excellent fix.
 - **Phase 3 Wiring**: All modules correctly stripped usages of `ISerializationRegistry` in favor of a 2-parameter initialization utilizing `_entityMap` and `_tkb`. Dependencies are resolved properly via Composition Roots.
-- **Phase 5 Part A**: Migration of `Bagira.IG/Translators` to `Bagira.Map.Common/Replication/Ingress` was performed exactly to spec. Ghost fallback patterns were successfully preserved during the translation.
+- **Phase 5 Part A**: Migration of `Hrot.IG/Translators` to `Hrot.Map.Common/Replication/Ingress` was performed exactly to spec. Ghost fallback patterns were successfully preserved during the translation.
 - **Test Integrity**: Validated the updated code by personally testing `TraceLoggingTests.cs` (an existing suite validating Ingress) against the newly relocated codebase. **100% Passing**. A minor tweak had to be authored to account for default FDP query lifecycles, but the application code is flawless.
 
 ---
@@ -50,7 +50,7 @@ Wiring:
 - ReplicationLogicModule initialized with dual constructors universally.
 
 Unification (Phase 5 Part A):
-- Migrated 6 IngressTranslators from Bagira.IG to Bagira.Map.Common/Replication/Ingress.
+- Migrated 6 IngressTranslators from Hrot.IG to Hrot.Map.Common/Replication/Ingress.
 - Project refs updated to support ECS-as-Staging properties in common libraries.
 
 Tests: Validation shifted to BATCH-03 tests.

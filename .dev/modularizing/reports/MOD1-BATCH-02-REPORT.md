@@ -15,7 +15,7 @@
 | CT-MOD1-C | ✅ Complete | `SimHostComponentRegistry` updated with all missing component registrations |
 | MOD1-P2T1 | ✅ Complete | `MissionControlModule` created in `FDP.Toolkit.Behavior/Modules/` |
 | MOD1-P2T2 | ✅ Complete | `CognitiveRuntimeModule` created in `FDP.Toolkit.Behavior/Modules/` |
-| MOD1-P2T3 | ✅ Complete | `ActionDispatchModule` created in `Bagira.SimHost/Modules/` (deviation documented below) |
+| MOD1-P2T3 | ✅ Complete | `ActionDispatchModule` created in `Hrot.SimHost/Modules/` (deviation documented below) |
 | MOD1-P2T4 | ✅ Complete | `GroundKinematicsModule` created in `FDP.Toolkit.CarKinem/Modules/`; `.WithOwned<SimTransform>()` enforced |
 | MOD1-P2T5 | ✅ Complete | `SimulationLogicModule` refactored as delegation facade |
 
@@ -26,7 +26,7 @@
 **FDP.Toolkit.Behavior.Tests:** 53 / 53 passed  
 **FDP.Toolkit.CarKinem.Tests:** 121 / 121 passed  
 **FDP.Toolkit.Navigation.Tests:** 26 / 26 passed  
-**Bagira.SimHost.Tests:** 99 / 100 passed (1 pre-existing DDS infrastructure failure — see Outstanding Issues)
+**Hrot.SimHost.Tests:** 99 / 100 passed (1 pre-existing DDS infrastructure failure — see Outstanding Issues)
 
 **Key Test Scenarios Verified:**
 - ✅ `MissionControlModule_RegistersSystems_DoctrineIngressAndMissionDirector`
@@ -53,12 +53,12 @@ The batch spec instructs modules to implement `IModule` and use `ISystemRegistry
 **Resolution:** Implemented modules as plain C# classes with a `RegisterSystems(SystemGroup group)` method instead of `IModule`/`ISystemRegistry`. The correct API for `ComponentSystem`-based systems is `SystemGroup.AddSystem(ComponentSystem)`, which is what all modules use. Module tests verify the correct system types are registered by calling `SystemGroup.GetSystems()`, which returns `IReadOnlyList<ComponentSystem>`.
 
 **Issue 2 — Circular dependency prevents `ActionDispatchModule` from living in `FDP.Toolkit.Behavior`.**  
-`FDP.Toolkit.Navigation` already depends on `FDP.Toolkit.Behavior` (via executor base classes). Placing `ActionDispatchModule` in `FDP.Toolkit.Behavior` would require referencing executors (`MoveToExecutor`, `FollowRouteExecutor`) from `FDP.Toolkit.Navigation`, and `JoinFormationExecutor` from `Bagira.SimHost.Systems` — both of which are downstream dependencies.  
-**Resolution:** `ActionDispatchModule` is placed in `Bagira.SimHost/Modules/`, which has visibility to all downstream executors. This is consistent with the established `Bagira.SimHost` aggregation pattern.
+`FDP.Toolkit.Navigation` already depends on `FDP.Toolkit.Behavior` (via executor base classes). Placing `ActionDispatchModule` in `FDP.Toolkit.Behavior` would require referencing executors (`MoveToExecutor`, `FollowRouteExecutor`) from `FDP.Toolkit.Navigation`, and `JoinFormationExecutor` from `Hrot.SimHost.Systems` — both of which are downstream dependencies.  
+**Resolution:** `ActionDispatchModule` is placed in `Hrot.SimHost/Modules/`, which has visibility to all downstream executors. This is consistent with the established `Hrot.SimHost` aggregation pattern.
 
 **Issue 3 — Circular dependency prevents `LinearKinematicsSystem` from being in `GroundKinematicsModule`.**  
 `FDP.Toolkit.Physics` (where `LinearKinematicsSystem` originates) depends on `FDP.Toolkit.CarKinem`, not the other way around. Adding a reference from `FDP.Toolkit.CarKinem` to `FDP.Toolkit.Physics` would create a cycle.  
-**Resolution:** `LinearKinematicsSystem` is registered directly in the `SimulationLogicModule` facade (the Bagira.SimHost aggregation layer), which has visibility to both toolkits. This is documented as a known limitation: `GroundKinematicsModule` covers only the 5 systems that live within `FDP.Toolkit.CarKinem` itself.
+**Resolution:** `LinearKinematicsSystem` is registered directly in the `SimulationLogicModule` facade (the Hrot.SimHost aggregation layer), which has visibility to both toolkits. This is documented as a known limitation: `GroundKinematicsModule` covers only the 5 systems that live within `FDP.Toolkit.CarKinem` itself.
 
 **Issue 4 — `MissionDirectorSystem` had a phase-advancement bug that caused 2 tests to fail.**  
 `MissionDirector_AdvancesPhase_WhenReachedDestination` and `MissionDirector_AdvancesPhase_WhenHealthCritical` both expected `doctrine.ActiveDoctrineHash == 400` (the next phase's doctrine) but received `300` (the current phase's doctrine). Root cause: in the `if (triggered)` block, `queue.CurrentPhase++` advanced the index but then `doctrine.ActiveDoctrineHash = phase.DoctrineId` assigned from the stale local variable `phase` — which was captured before the increment and still pointed to the old phase slot.  
@@ -118,10 +118,10 @@ Every system migrated to `WithOwned<T>()` effectively requires a new convention 
 
 ## ⚠️ Outstanding Issues / Next Steps
 
-- **`ActionDispatchModule` lives in `Bagira.SimHost` (not `FDP.Toolkit.Behavior`)** due to `JoinFormationExecutor` circular dependency. If `JoinFormationExecutor` is ever decoupled from `Bagira.SimHost.Systems`, `ActionDispatchModule` can migrate to `FDP.Toolkit.Behavior`.
+- **`ActionDispatchModule` lives in `Hrot.SimHost` (not `FDP.Toolkit.Behavior`)** due to `JoinFormationExecutor` circular dependency. If `JoinFormationExecutor` is ever decoupled from `Hrot.SimHost.Systems`, `ActionDispatchModule` can migrate to `FDP.Toolkit.Behavior`.
 - **`LinearKinematicsSystem` is not in `GroundKinematicsModule`** due to the `FDP.Toolkit.Physics → FDP.Toolkit.CarKinem` dependency direction. Tracked as a structural smell; no follow-up DEBT item created here as the resolution requires restructuring `FDP.Toolkit.Physics`.
 - **`System_AvoidanceMovesVehicle` passes vacuously.** The test's assertion that the vehicle deviated from expected straight-line movement passes even when the entity is not processed by `CarKinematicsSystem` (because the unprocessed zero-movement position is further from the expected moved position than the 0.001 threshold). This test should be updated to add `repo.SetAuthority<SimTransform>(entA, true)` and tighten the assertion to verify actual avoidance behaviour rather than any deviation.
-- **`Bagira.SimHost.Tests` — 1 pre-existing DDS failure.** `EntityMasterEgressTranslatorTests.ScanAndPublish_RemotelyOwnedEntity_DoesNotPublish` fails with `CycloneDDS.Runtime.DdsException: Failed to create participant (ReturnCode: Error)`. This test requires a running CycloneDDS daemon and was failing in this environment prior to and independent of this batch. No changes were made to `EntityMasterEgressTranslator` in this batch.
+- **`Hrot.SimHost.Tests` — 1 pre-existing DDS failure.** `EntityMasterEgressTranslatorTests.ScanAndPublish_RemotelyOwnedEntity_DoesNotPublish` fails with `CycloneDDS.Runtime.DdsException: Failed to create participant (ReturnCode: Error)`. This test requires a running CycloneDDS daemon and was failing in this environment prior to and independent of this batch. No changes were made to `EntityMasterEgressTranslator` in this batch.
 - **Planned `CombatModule` (out of scope).** Combat/ballistics/perception systems are still registered inline in `SimulationLogicModule`. A `CombatModule` grouping `BallisticsSystem`, `PerceptionSystem`, and related systems is the natural next Phase 2 sub-module.
 
 ---
@@ -132,9 +132,9 @@ Every system migrated to `WithOwned<T>()` effectively requires a new convention 
 |------|--------|
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Modules/MissionControlModule.cs` | **NEW** — Registers `DoctrineIngressSystem` + `MissionDirectorSystem` |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Modules/CognitiveRuntimeModule.cs` | **NEW** — Registers `ChannelArbitrationSystem`, `BTreeTickSystem`, `HsmTickSystem<BrainHsm128>`, `HsmTickSystem<BrainHsm64>` |
-| `Bagira.SimHost/Modules/ActionDispatchModule.cs` | **NEW** — Registers `LocomotionDispatcherSystem` (with 3 executors) + `WeaponDispatcherSystem` (with `AimAndFireExecutor`) |
+| `Hrot.SimHost/Modules/ActionDispatchModule.cs` | **NEW** — Registers `LocomotionDispatcherSystem` (with 3 executors) + `WeaponDispatcherSystem` (with `AimAndFireExecutor`) |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem/Modules/GroundKinematicsModule.cs` | **NEW** — Registers `SpatialHashSystem`, `FormationTargetSystem`, `VehicleCommandSystem`, `CarKinematicsSystem`, `NavigationExecutionSystem` |
-| `Bagira.SimHost/Modules/SimulationLogicModule.cs` | **REWRITTEN** — Delegation facade; delegates to 4 sub-modules; system count 17→19 |
+| `Hrot.SimHost/Modules/SimulationLogicModule.cs` | **REWRITTEN** — Delegation facade; delegates to 4 sub-modules; system count 17→19 |
 | `FDP/Toolkits/FDP.Toolkit.CarKinem/Systems/CarKinematicsSystem.cs` | **MODIFIED** — Added `.WithOwned<SimTransform>()` to entity query |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` | **FIXED** — Phase advancement bug: `phase.DoctrineId` → `phases[queue.CurrentPhase].DoctrineId` after increment |
 | `FDP/Toolkits/FDP.Toolkit.Behavior/FDP.Toolkit.Behavior.csproj` | **MODIFIED** — Added `ModuleHost.Core` reference |
@@ -142,8 +142,8 @@ Every system migrated to `WithOwned<T>()` effectively requires a new convention 
 | `FDP.Toolkit.Behavior.Tests/Modules/MissionControlModuleTests.cs` | **NEW** — 2 unit tests verifying system registration |
 | `FDP.Toolkit.Behavior.Tests/Modules/CognitiveRuntimeModuleTests.cs` | **NEW** — 2 unit tests verifying system registration |
 | `FDP.Toolkit.CarKinem.Tests/Modules/GroundKinematicsModuleTests.cs` | **NEW** — 2 unit tests verifying system registration |
-| `Bagira.SimHost.Tests/ActionDispatchModuleTests.cs` | **NEW** — 2 unit tests verifying system registration |
-| `Bagira.SimHost.Tests/SimulationLogicModuleTests.cs` | **MODIFIED** — System count 17→19; added `NavigationIntent`, `NavigationStatus`, `FrustrationTicks` component registrations |
+| `Hrot.SimHost.Tests/ActionDispatchModuleTests.cs` | **NEW** — 2 unit tests verifying system registration |
+| `Hrot.SimHost.Tests/SimulationLogicModuleTests.cs` | **MODIFIED** — System count 17→19; added `NavigationIntent`, `NavigationStatus`, `FrustrationTicks` component registrations |
 | `FDP.Toolkit.CarKinem.Tests/Systems/CarKinematicsSystemTests.cs` | **MODIFIED** — Added `SetAuthority<SimTransform>` to `System_UpdatesVehiclePosition` and `System_FollowsTrajectory` entities |
 | `FDP.Toolkit.CarKinem.Tests/VehicleStateRefactorTests.cs` | **MODIFIED** — Added `SetAuthority<SimTransform>` to `CarKinematicsSystem_WritesSimTransform_AfterUpdate` entity |
 | `FDP.Toolkit.CarKinem.Tests/Systems/ParallelCorrectnessTests.cs` | **MODIFIED** — Added `SetAuthority<SimTransform>` to all 100 loop entities in `ParallelExecution_ProducesSameResultsAsSerial` |

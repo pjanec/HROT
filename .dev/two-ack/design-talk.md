@@ -1,4 +1,4 @@
-﻿The two-ack pattern is a distributed networking strategy designed to solve the UX challenge of "half-baked" or silently disappearing entities. It provides immediate network responsiveness while safely locking user interactions until complex multi-node operations are fully confirmed. 
+The two-ack pattern is a distributed networking strategy designed to solve the UX challenge of "half-baked" or silently disappearing entities. It provides immediate network responsiveness while safely locking user interactions until complex multi-node operations are fully confirmed. 
 
 This pattern is modeled after the existing logic used for map authoring tools (which use `MapCommandAck` to signal intermediate vs. finished states), and it relies on a unified **`CreateUpdateDeleteEntityAck`** message that carries an explicit status code.
 
@@ -24,7 +24,7 @@ By splitting the acknowledgment into two phases, the architecture perfectly bala
 Here is the proposed design to implement the `DeleteEntityRequest` and the two-phase acknowledgment pattern, unifying the network message contracts.
 
 ### 1. New `DeleteEntityRequest` Struct
-To allow non-owning nodes to request entity deletion safely, add this struct to **`Bagira.DDS.DataModel/GenericMessages.cs`**. It mirrors the existing request structures like `UpdateEntityDescriptorRequest`:
+To allow non-owning nodes to request entity deletion safely, add this struct to **`Hrot.NED/GenericMessages.cs`**. It mirrors the existing request structures like `UpdateEntityDescriptorRequest`:
 
 ```csharp
 /// <summary>
@@ -199,7 +199,7 @@ You are absolutely correct. Your intuition is spot-on: **the FDP engine itself d
 
 The FDP `EntityLifecycleModule` (ELM) and `NetworkSpawningSystem` are pure, generic ECS systems. They manage the internal distributed handshakes (`Constructing` → `Active`, or `TearDown` → Destroyed) but they know nothing about the application-layer SST REST-like network contracts. 
 
-You can implement the entire two-ACK pattern purely within the `Bagira.SimHost` application layer by creating a system that simply "watches" the FDP lifecycle states.
+You can implement the entire two-ACK pattern purely within the `Hrot.SimHost` application layer by creating a system that simply "watches" the FDP lifecycle states.
 
 Here is how you adapt the SimHost without touching FDP:
 
@@ -231,5 +231,5 @@ The `SstRequestFinalizationSystem` checks its tracked requests every frame. Beca
 *   The exact frame `IsAlive` evaluates to **false**, you know FDP has fully completed the distributed deletion. Send the final ACK with **`StatusCode = 0` (Success)** and remove it from tracking.
 
 ### Summary
-By keeping the request/ACK state machine entirely within `Bagira.SimHost` and just observing the native FDP `EntityLifecycle` transitions, you maintain perfect separation of concerns. FDP remains a clean, generic physics and replication engine, while the BDC SST API contracts are handled strictly at the application boundary.
+By keeping the request/ACK state machine entirely within `Hrot.SimHost` and just observing the native FDP `EntityLifecycle` transitions, you maintain perfect separation of concerns. FDP remains a clean, generic physics and replication engine, while the BDC SST API contracts are handled strictly at the application boundary.
 

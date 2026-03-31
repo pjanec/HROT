@@ -25,13 +25,13 @@ You will implement the streaming parser and the surrounding interface abstractio
 
 ### Source Code Location
 - **Primary Work Area:**
-  - `Bagira.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` (NEW)
-  - `Bagira.Map.Common/Replication/Utils/IEntityPatchContext.cs` (NEW)
-  - `Bagira.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs` (NEW)
-  - `Bagira.Map.Common/Replication/Utils/ListPatchContext.cs` (NEW)
-  - `Bagira.Map.Common/Replication/Utils/EcsPatchContext.cs` (NEW)
+  - `Hrot.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` (NEW)
+  - `Hrot.Map.Common/Replication/Utils/IEntityPatchContext.cs` (NEW)
+  - `Hrot.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs` (NEW)
+  - `Hrot.Map.Common/Replication/Utils/ListPatchContext.cs` (NEW)
+  - `Hrot.Map.Common/Replication/Utils/EcsPatchContext.cs` (NEW)
 - **Test Project:**
-  - `Bagira.Map.Common.Tests/Bagira.Map.Common.Tests.csproj`
+  - `Hrot.Map.Common.Tests/Hrot.Map.Common.Tests.csproj`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -87,7 +87,7 @@ Normally, deserializing JSON involves dynamic memory allocation. You will avoid 
 
 ### Task 1: ATTR-S4T1 (Define Context and Delegates)
 
-**File:** `Bagira.Map.Common/Replication/Utils/IEntityPatchContext.cs` (NEW)  
+**File:** `Hrot.Map.Common/Replication/Utils/IEntityPatchContext.cs` (NEW)  
 **Task Definition:** See [ATTR-TASK-DETAIL.md](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s4t1--define-delegate-types-and-ientitypatchcontext)
 
 **Description:** Define the dual-mode delegate types and the interface that wraps live/spawn component retrieval.
@@ -104,7 +104,7 @@ Normally, deserializing JSON involves dynamic memory allocation. You will avoid 
 
 ### Task 2: ATTR-S4T2 (Create Builder)
 
-**File:** `Bagira.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs` (NEW)  
+**File:** `Hrot.Map.Common/Replication/Utils/AttributeCompilerBuilder.cs` (NEW)  
 **Task Definition:** See [ATTR-TASK-DETAIL.md](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s4t2--create-attributecompilerbuilder)
 
 **Description:** Provide a registration builder for `ValueAttributeSetter` and `ReferenceAttributeSetter` paths over string keys.
@@ -124,7 +124,7 @@ Normally, deserializing JSON involves dynamic memory allocation. You will avoid 
 
 ### Task 3: ATTR-S4T3 (Create Implementations of the Context)
 
-**Files:** `Bagira.Map.Common/Replication/Utils/ListPatchContext.cs`, `EcsPatchContext.cs` (NEW)  
+**Files:** `Hrot.Map.Common/Replication/Utils/ListPatchContext.cs`, `EcsPatchContext.cs` (NEW)  
 **Task Definition:** See [ATTR-TASK-DETAIL.md](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s4t3--create-listpatchcontext-and-ecspatchcontext)
 
 **Description:** Implement the actual contexts wrapping list-based parsing (CreateEntity path) and live-ECS patching (UpdateAttribute path).
@@ -147,7 +147,7 @@ Normally, deserializing JSON involves dynamic memory allocation. You will avoid 
 
 ### Task 4 & 5: ATTR-S3T1 & ATTR-S3T2 (Create Streaming Zero-Alloc Compiler Core)
 
-**File:** `Bagira.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` (NEW)  
+**File:** `Hrot.Map.Common/Replication/Utils/JsonAttributeCompiler.cs` (NEW)  
 **Task Definition:** See [ATTR-TASK-DETAIL.md](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s3t1--create-jsonattributecompiler-with-utf8jsonreader-streaming) and [ATTR-TASK-DETAIL.md](docs/attribs-to-ecs/ATTR-TASK-DETAIL.md#attr-s3t2--fnv-1a-incremental-path-hashing)
 
 **Description:** Build the `Utf8JsonReader` state machine and `ulong` hashing stack based against constants.

@@ -121,7 +121,7 @@ for (int t = 1; t <= LiveRunTicks; t++) {
 // Before liveKernel.Initialize()
 using var recordingModule = new RecordingModule(new RecordingConfiguration {
     FilePath = recFilePath,
-    DrillId  = Guid.NewGuid(),
+    ExerciseId  = Guid.NewGuid(),
     Blocking = true
 });
 // ...

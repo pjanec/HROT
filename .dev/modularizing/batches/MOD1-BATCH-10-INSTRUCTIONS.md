@@ -15,12 +15,12 @@
 You are a developer implementing the modularization of the IOS-IG-SimHost application. Read this section entirely before touching code.
 
 ### Project Goal
-Refactoring towards better modularization and generalization. **What should be generic must come under FDP, not be left in the Bagira domain.** Phase 6 was partially delivered — the modules exist but the translator packs and the BTreeContext stub migrations were skipped. This batch completes Phase 6 and clears several high-priority debt items.
+Refactoring towards better modularization and generalization. **What should be generic must come under FDP, not be left in the Hrot domain.** Phase 6 was partially delivered — the modules exist but the translator packs and the BTreeContext stub migrations were skipped. This batch completes Phase 6 and clears several high-priority debt items.
 
 ### Non-Negotiable Rules
-1. **Application must keep working.** `Bagira.Runner -x all` integration tests must pass after every task.
+1. **Application must keep working.** `Hrot.ClusterRunner -x all` integration tests must pass after every task.
 2. **Tests must check real behaviour** — verify observable outcomes, not call counts.
-3. **`FDP.*` assemblies may never reference `Bagira.*` assemblies.**
+3. **`FDP.*` assemblies may never reference `Hrot.*` assemblies.**
 4. **Component IDs belong in toolkit-local registries** — never add IDs to `GlobalComponentIds` directly; use the appropriate `*ComponentIds` class.
 5. **Do not modify third-party submodules** under `FDP\ExtDeps\`.
 
@@ -33,8 +33,8 @@ Refactoring towards better modularization and generalization. **What should be g
 
 ### Source Code Locations
 - **Phase 6 work:** `FDP/Toolkits/FDP.Toolkit.Behavior/`, `FDP/Toolkits/FDP.Toolkit.Physics/`, `FDP/Toolkits/FDP.Toolkit.Navigation/`
-- **Translator packs:** `Bagira.SimHost/Network/`
-- **Debt targets:** `Bagira.SimHost.Tests/`, `Bagira.DDS.DataModel/`
+- **Translator packs:** `Hrot.SimHost/Network/`
+- **Debt targets:** `Hrot.SimHost.Tests/`, `Hrot.NED/`
 
 ### Report Submission
 `.dev-workstream/reports/MOD1-BATCH-10-REPORT.md`
@@ -73,15 +73,15 @@ Component registry tests that create real `DdsParticipant` instances without dis
 - Alternatively, introduce a `using var participant = ...` scope per test method.
 - After the fix, run the full suite 3× in parallel to confirm the flakiness is gone.
 
-### DB-MOD1-21: Verify `TestMetricsCollector` Has No Bagira References
+### DB-MOD1-21: Verify `TestMetricsCollector` Has No Hrot References
 
 `TestMetricsCollector.cs` appeared in `FDP.Framework.Runner.Testing` without being in the design spec.
 
 **What to do:**
 - Open `FDP/Framework/FDP.Framework.Runner/Testing/TestMetricsCollector.cs`.
-- Confirm zero `Bagira.*` using statements or references.
+- Confirm zero `Hrot.*` using statements or references.
 - Add a brief description of its purpose and usage to `docs/modularizing/MOD1-DESIGN.md` §3.9.4.
-- If it has any `Bagira.*` references, move those parts to `Bagira.Runner`.
+- If it has any `Hrot.*` references, move those parts to `Hrot.ClusterRunner`.
 
 ---
 
@@ -90,7 +90,7 @@ Component registry tests that create real `DdsParticipant` instances without dis
 1. **DB-MOD1-03:** Audit and replace `PrimaryOwnerId` usages → **ALL tests pass** ✅
 2. **DB-MOD1-07:** Fix CycloneDDS daemon test → **ALL tests pass** ✅
 3. **DB-MOD1-10:** Fix DDS participant cleanup in component registry tests → **no parallel flakiness** ✅
-4. **DB-MOD1-21:** Verify `TestMetricsCollector` → no Bagira references ✅
+4. **DB-MOD1-21:** Verify `TestMetricsCollector` → no Hrot references ✅
 5. **MOD1-P6T4:** Delete `BTreeContext.RequestRaycast`/`GetRaycastResult` stubs → **ALL tests pass** ✅
 6. **MOD1-P6T5:** Delete `BTreeContext.RequestPath`/`GetPathResult` stubs → **ALL tests pass** ✅
 7. **MOD1-P6T6:** `AutonomousPerceptionModule` + `PhysicsQueryModule` → **ALL tests pass** ✅
@@ -141,7 +141,7 @@ Same rule as P6T4: **DELETION** not wiring. `BTreeContext` must not reference `P
 
 **Task Definition:** See [MOD1-TASK-DETAIL.md §MOD1-P6T8](docs/modularizing/MOD1-TASK-DETAIL.md#mod1-p6t8--create-perception--pathfinding-translator-packs)
 
-**The four packs (all in `Bagira.SimHost.Network`):**
+**The four packs (all in `Hrot.SimHost.Network`):**
 
 | Pack | Role | Direction |
 |---|---|---|
@@ -181,10 +181,10 @@ This batch is DONE when:
 - [ ] `EntityMasterEgressTranslatorTests` passes without a live CycloneDDS daemon.
 - [ ] All `PrimaryOwnerId` direct reads replaced with `WithOwned<T>()` queries; no regressions.
 - [ ] Component registry tests dispose their `DdsParticipant` instances; parallel runs are stable.
-- [ ] `TestMetricsCollector` has zero `Bagira.*` references; its purpose is documented in the design doc.
+- [ ] `TestMetricsCollector` has zero `Hrot.*` references; its purpose is documented in the design doc.
 - [ ] `BTreeContext` has no `RequestRaycast`, `GetRaycastResult`, `RequestPath`, or `GetPathResult` methods.
 - [ ] `AutonomousPerceptionModule` and `PhysicsQueryModule` meet all P6T6 success conditions.
 - [ ] `NavigationSolverModule` is in `FDP.Toolkit.Navigation` and registered for `NavigationSolver`/`AllInOne` roles.
 - [ ] All four translator packs compile and are registered in `NodeBootstrapper` for their respective roles.
-- [ ] `Bagira.Runner -x all` integration tests pass unconditionally.
+- [ ] `Hrot.ClusterRunner -x all` integration tests pass unconditionally.
 - [ ] All unit and integration test suites pass with 0 failures.

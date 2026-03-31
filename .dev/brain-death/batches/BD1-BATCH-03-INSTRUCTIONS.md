@@ -22,10 +22,10 @@ This batch cleans up a set of targeted bug fixes and developer-experience upgrad
 
 ### Source Code Location
 - **Primary Work Areas:**
-  - `Bagira.Map.Definitions/`
-  - `Bagira.SimHost/`
-  - `Bagira.Map.Common/`
-  - `Bagira.DDS.DataModel/`
+  - `Hrot.Map.Definitions/`
+  - `Hrot.SimHost/`
+  - `Hrot.Map.Common/`
+  - `Hrot.NED/`
   - `FDP/Toolkits/FDP.Toolkit.ImGui/`
 - **Test Projects:** Respective `.Tests` packages matching paths.
 
@@ -68,25 +68,25 @@ This batch cleans up a set of targeted bug fixes and developer-experience upgrad
 ## ✅ Tasks
 
 ### Task 1: BdcTkbBuilder — Add PhysicsCollider to WithPhysics (BD1-P3T1)
-**File:** `Bagira.Map.Definitions/Tkb/BdcTkbBuilder.cs`
+**File:** `Hrot.Map.Definitions/Tkb/BdcTkbBuilder.cs`
 **Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p3t1-bdctkbbuilder--add-physicscollider-to-withphysics)
 **Description:** Add `PhysicsCollider` at the end of `WithPhysics` using `Math.Max(Length, Width)/2f`.
 **Tests Required:** See Task Definitions.
 
 ### Task 2: SimHostScenarioManager — Add PhysicsCollider to SpawnEntityLocal (BD1-P3T2)
-**File:** `Bagira.SimHost/UI/SimHostScenarioManager.cs`
+**File:** `Hrot.SimHost/UI/SimHostScenarioManager.cs`
 **Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p3t2-simhostscenariomanager--add-physicscollider-to-spawnentitylocal)
 **Description:** Add `PhysicsCollider` at the end of `SpawnEntityLocal` similarly to Task 1.
 **Tests Required:** See Task Definitions.
 
 ### Task 3: SimHostVisualization — Set Camera Offset on Initialize (BD1-P4T1)
-**File:** `Bagira.SimHost/SimHostVisualization.cs`
+**File:** `Hrot.SimHost/SimHostVisualization.cs`
 **Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p4t1-simhostvisualization--set-camera-offset-on-initialize)
 **Description:** Adjust `_map.Camera.Offset`.
 **Tests Required:** See Task Definitions.
 
 ### Task 4: EntityMaster — Replace Plain long DisType with DisTypeStruct (BD1-P5T1)
-**Files:** `Bagira.DDS.DataModel/GenericDescriptors.cs` and Egress/Ingress Translators
+**Files:** `Hrot.NED/GenericDescriptors.cs` and Egress/Ingress Translators
 **Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p5t1-entitymaster--replace-plain-long-distype-with-distypestruct)
 **Description:** Overhaul wire structs for DIS decomposition.
 **Tests Required:** See Task Definitions.
@@ -98,7 +98,7 @@ This batch cleans up a set of targeted bug fixes and developer-experience upgrad
 **Tests Required:** See Task Definitions.
 
 ### Task 6: CreateEntityRequestSystem — Cache ProcessRequest Delegate (BD1-P7T1)
-**File:** `Bagira.SimHost/Systems/CreateEntityRequestSystem.cs`
+**File:** `Hrot.SimHost/Systems/CreateEntityRequestSystem.cs`
 **Task Definition:** See [BD1-TASK-DETAIL.md](docs/brain-death/BD1-TASK-DETAIL.md#bd1-p7t1-createentityrequestsystem--cache-processrequest-delegate)
 **Description:** Resolve lambda allocation leak.
 **Tests Required:** See Task Definitions.

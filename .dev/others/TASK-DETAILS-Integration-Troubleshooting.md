@@ -17,11 +17,11 @@
 - [INTS-P1-005 — Wire IG-to-IOS Map Event Translators](#ints-p1-005--wire-ig-to-ios-map-event-translators)
 
 ### Phase 2 — Architecture Consolidation
-- [INTS-P2-006 — Implement BagiraEnvironment Bootstrapper](#ints-p2-006--implement-bagiraenvironment-bootstrapper)
+- [INTS-P2-006 — Implement HrotEnvironment Bootstrapper](#ints-p2-006--implement-hrotenvironment-bootstrapper)
 - [INTS-P2-007 — Fix SubsystemOrchestrator Headless Logic](#ints-p2-007--fix-subsystemorchestrator-headless-logic)
-- [INTS-P2-008 — Refactor IgApplication to Use BagiraEnvironment](#ints-p2-008--refactor-igapplication-to-use-bagiraenvironment)
-- [INTS-P2-009 — Refactor SimHostApp to Use BagiraEnvironment](#ints-p2-009--refactor-simhostapp-to-use-bagiraenvironment)
-- [INTS-P2-010 — Refactor IosSubsystem to Use BagiraEnvironment](#ints-p2-010--refactor-iossubsystem-to-use-bagiraenvironment)
+- [INTS-P2-008 — Refactor IgApplication to Use HrotEnvironment](#ints-p2-008--refactor-igapplication-to-use-hrotenvironment)
+- [INTS-P2-009 — Refactor SimHostApp to Use HrotEnvironment](#ints-p2-009--refactor-simhostapp-to-use-hrotenvironment)
+- [INTS-P2-010 — Refactor IosSubsystem to Use HrotEnvironment](#ints-p2-010--refactor-iossubsystem-to-use-hrotenvironment)
 
 ### Phase 3 — Debug Instrumentation & End-to-End Validation
 - [INTS-P3-011 — Trace Logging: SimHost Entity Spawn (Flow 1)](#ints-p3-011--trace-logging-simhost-entity-spawn-flow-1)
@@ -37,22 +37,22 @@
 
 ### Scope
 **Included:**
-- Modify `Bagira.SimHost` — add `BdcTkbCatalog.RegisterAll(tkbDb)` call in `SimHostApp.OnLoad` (or equivalent initialisation path) immediately after `TkbDatabase` is instantiated.
-- Modify `Bagira.IG` — add the same call in `IgApplication.InitializeNetwork` after `TkbDatabase` is instantiated.
+- Modify `Hrot.SimHost` — add `BdcTkbCatalog.RegisterAll(tkbDb)` call in `SimHostApp.OnLoad` (or equivalent initialisation path) immediately after `TkbDatabase` is instantiated.
+- Modify `Hrot.IG` — add the same call in `IgApplication.InitializeNetwork` after `TkbDatabase` is instantiated.
 
 **Excluded:**
-- Do not yet refactor construction to use `BagiraEnvironment` (that is INTS-P2-008/009).
+- Do not yet refactor construction to use `HrotEnvironment` (that is INTS-P2-008/009).
 - Do not change the TKB catalog content.
 
 ### Constraints
 - The registration call must occur **before** the first `WorldUpdate()` / `SystemPhase.Simulation` tick, otherwise the first `SpawnEntityCommand` frame runs with an empty database.
-- `Bagira.Map.Definitions` must be referenced by both projects; verify their `.csproj` files already contain this reference.
+- `Hrot.Map.Definitions` must be referenced by both projects; verify their `.csproj` files already contain this reference.
 
 ### Success Conditions
 
 **Test 1 — SimHost TKB resolves on first spawn attempt**
 - Setup: Instantiate `SimHostApp` in test isolation with a real `TkbDatabase`.
-- Action: Publish a `SpawnEntityCommand` with `TkbType = Bagira.Map.Common.TkbEntityTypes.Truck_HMMWV`.
+- Action: Publish a `SpawnEntityCommand` with `TkbType = Hrot.Map.Common.TkbEntityTypes.Truck_HMMWV`.
 - Assert: `NetworkSpawningSystem` does **not** log `"[NS] Unknown TkbType"`. The entity is created and has `EntityMaster` set.
 
 **Test 2 — IG TKB resolves on first ghost spawn attempt**
@@ -68,7 +68,7 @@
 
 ### Scope
 **Included:**
-- Refactor `Bagira.SimHost/UI/SimHostScenarioManager.cs` → `SpawnVehicle()`.
+- Refactor `Hrot.SimHost/UI/SimHostScenarioManager.cs` → `SpawnVehicle()`.
 - Replace the direct `_repo.CreateEntity()` + manual component attachment with a `SpawnEntityCommand` published to the ECS event bus.
 - Map the existing `VehicleClass` enum to canonical `TkbEntityTypes` constants.
 
@@ -102,10 +102,10 @@
 - Action: Advance one world tick past `EntityLifecycleModule`.
 - Assert: The resulting entity has `NetworkIdentity`, `NetworkOwnership`, and `EntityMaster` components attached (verified via `_repo.Query<NetworkIdentity>()`).
 
-**Test 3 — GeoSpatialEgressTranslator publishes the entity**
+**Test 3 — WorldPosEgressTranslator publishes the entity**
 - Setup: Same as Test 2 but with a mock DDS writer capturing published samples.
 - Action: Advance enough ticks for the ELM to promote the entity to Active.
-- Assert: At least one `GeoSpatial` sample is written to the mock writer with the expected `Lat`/`Lon` coordinates derived from the spawn position.
+- Assert: At least one `WorldPos` sample is written to the mock writer with the expected `Lat`/`Lon` coordinates derived from the spawn position.
 
 ---
 
@@ -116,9 +116,9 @@
 ### Scope
 **Included:**
 - Implement `DdsWriterAdapter<T> : IDdsWriter<T>` class.  
-  Suggested location: `Bagira.Map.Common/Dds/DdsWriterAdapter.cs`.
-- Replace `NullDdsWriter` usage in `Bagira.IOS/Program.cs`.
-- Replace `NullDdsWriter` usage in `Bagira.Runner/Services/IosSubsystem.cs`.
+  Suggested location: `Hrot.Map.Common/Dds/DdsWriterAdapter.cs`.
+- Replace `NullDdsWriter` usage in `Hrot.ExCon/Program.cs`.
+- Replace `NullDdsWriter` usage in `Hrot.ClusterRunner/Services/IosSubsystem.cs`.
 
 **Excluded:**
 - `NullDdsWriter` itself is **not** deleted; it remains available for unit test isolation.
@@ -138,7 +138,7 @@
 - Assert: The mock writer records exactly one written sample with the expected field values.
 
 **Test 2 — IOS Program.cs uses DdsWriterAdapter at runtime**
-- Setup: Run `Bagira.IOS` standalone with a test DDS participant (domain 10).
+- Setup: Run `Hrot.ExCon` standalone with a test DDS participant (domain 10).
 - Action: Activate "New unit…" and confirm.
 - Assert: A `CreateEntityRequest` sample is emitted on DDS domain 10 (captured by a test subscriber). Previously this step produced zero DDS traffic.
 
@@ -154,7 +154,7 @@
 
 ### Scope
 **Included:**
-- Modify `Bagira.IOS/IosMock.cs` → `DrawUI()`: change the `ImGui.DockSpaceOverViewport(0)` call.
+- Modify `Hrot.ExCon/IosMock.cs` → `DrawUI()`: change the `ImGui.DockSpaceOverViewport(0)` call.
 
 **Excluded:**
 - No other ImGui layout changes.
@@ -219,17 +219,17 @@
 
 ---
 
-## INTS-P2-006 — Implement BagiraEnvironment Bootstrapper
+## INTS-P2-006 — Implement HrotEnvironment Bootstrapper
 
-**Design Reference:** [Decision 2 — BagiraEnvironment](./DESIGN-Integration-Troubleshooting.md#decision-2-bagiraenvironment-shared-bootstrapper)
+**Design Reference:** [Decision 2 — HrotEnvironment](./DESIGN-Integration-Troubleshooting.md#decision-2-hrotenvironment-shared-bootstrapper)
 
 ### Scope
 **Included:**
-- Create `Bagira.Map.Common/BagiraEnvironment.cs` with three static factory methods: `CreateTkb()`, `CreateGeoTransform()`, `CreateParticipant(int domainId)`.
+- Create `Hrot.Map.Common/HrotEnvironment.cs` with three static factory methods: `CreateTkb()`, `CreateGeoTransform()`, `CreateParticipant(int domainId)`.
 
 **Excluded:**
 - Callers are updated in INTS-P2-008/009/010; do not modify callers in this task.
-- Do not add any state to `BagiraEnvironment` (must remain purely static / stateless factories).
+- Do not add any state to `HrotEnvironment` (must remain purely static / stateless factories).
 
 ### Constraints
 - `CreateTkb()` must call `BdcTkbCatalog.RegisterAll(tkb)` before returning.
@@ -239,16 +239,16 @@
 ### Success Conditions
 
 **Test 1 — CreateTkb returns a populated database**
-- Setup/Action: `var tkb = BagiraEnvironment.CreateTkb();`
+- Setup/Action: `var tkb = HrotEnvironment.CreateTkb();`
 - Assert: `tkb.TryGetTemplate(TkbEntityTypes.Tank_M1Abrams, out _) == true`.
 - Assert: `tkb.TryGetTemplate(TkbEntityTypes.Infantry_Rifleman, out _) == true`.
 
 **Test 2 — CreateGeoTransform returns Berlin origin**
-- Setup/Action: `var t = BagiraEnvironment.CreateGeoTransform();`
+- Setup/Action: `var t = HrotEnvironment.CreateGeoTransform();`
 - Assert: Converting `(0, 0, 0)` → WGS84 yields latitude ≈ 52.52, longitude ≈ 13.405 (±0.001 degrees).
 
 **Test 3 — CreateParticipant accepts valid domain IDs**
-- Setup/Action: `var p = BagiraEnvironment.CreateParticipant(10);`
+- Setup/Action: `var p = HrotEnvironment.CreateParticipant(10);`
 - Assert: `p.DomainId == 10`. Object is non-null.
 
 ---
@@ -259,7 +259,7 @@
 
 ### Scope
 **Included:**
-- Modify `Bagira.Runner/Services/SubsystemOrchestrator.cs` → `Initialize()`.
+- Modify `Hrot.ClusterRunner/Services/SubsystemOrchestrator.cs` → `Initialize()`.
 - Add detection of IG subsystem presence.
 - Force SimHost's `SubsystemConfig.Headless = true` when IG is present.
 
@@ -285,13 +285,13 @@
 
 ---
 
-## INTS-P2-008 — Refactor IgApplication to Use BagiraEnvironment
+## INTS-P2-008 — Refactor IgApplication to Use HrotEnvironment
 
-**Design Reference:** [Phase 2 Task INTS-P2-008](./DESIGN-Integration-Troubleshooting.md#task-ints-p2-008--refactor-igapplication-to-use-bagiraenvironment)
+**Design Reference:** [Phase 2 Task INTS-P2-008](./DESIGN-Integration-Troubleshooting.md#task-ints-p2-008--refactor-igapplication-to-use-hrotenvironment)
 
 ### Scope
 **Included:**
-- In `Bagira.IG/IgApplication.cs` → `InitializeNetwork()`: replace inline `new TkbDatabase()` + manual registration, `new WGS84Transform()` + origin set, and `new DdsParticipant(...)` with the corresponding `BagiraEnvironment.*` calls.
+- In `Hrot.IG/IgApplication.cs` → `InitializeNetwork()`: replace inline `new TkbDatabase()` + manual registration, `new WGS84Transform()` + origin set, and `new DdsParticipant(...)` with the corresponding `HrotEnvironment.*` calls.
 
 **Excluded:**
 - Do not change any system/module registration logic.
@@ -304,20 +304,20 @@
 ### Success Conditions
 
 **Test 1 — Regression**
-- Assert: All existing `Bagira.IG.Tests` pass without modification after this refactor.
+- Assert: All existing `Hrot.IG.Tests` pass without modification after this refactor.
 
 **Test 2 — TKB is populated at first tick**
 - Assert: `world.GetSingleton<ITkbDatabase>().TryGetTemplate(TkbEntityTypes.Tank_M1Abrams, out _) == true` after `IgApplication` initialisation.
 
 ---
 
-## INTS-P2-009 — Refactor SimHostApp to Use BagiraEnvironment
+## INTS-P2-009 — Refactor SimHostApp to Use HrotEnvironment
 
-**Design Reference:** [Phase 2 Task INTS-P2-009](./DESIGN-Integration-Troubleshooting.md#task-ints-p2-009--refactor-simhostapp-to-use-bagiraenvironment)
+**Design Reference:** [Phase 2 Task INTS-P2-009](./DESIGN-Integration-Troubleshooting.md#task-ints-p2-009--refactor-simhostapp-to-use-hrotenvironment)
 
 ### Scope
 **Included:**
-- In `Bagira.SimHost`: replace inline construction of `TkbDatabase`, `WGS84Transform`, and `DdsParticipant` in `SimHostApp.OnLoad` with `BagiraEnvironment.*` calls.
+- In `Hrot.SimHost`: replace inline construction of `TkbDatabase`, `WGS84Transform`, and `DdsParticipant` in `SimHostApp.OnLoad` with `HrotEnvironment.*` calls.
 
 **Excluded:**
 - Do not change the SimHost-specific network constants or module registrations.
@@ -328,23 +328,23 @@
 ### Success Conditions
 
 **Test 1 — Regression**
-- Assert: All existing `Bagira.SimHost.Tests` pass without modification.
+- Assert: All existing `Hrot.SimHost.Tests` pass without modification.
 
 ---
 
-## INTS-P2-010 — Refactor IosSubsystem to Use BagiraEnvironment
+## INTS-P2-010 — Refactor IosSubsystem to Use HrotEnvironment
 
-**Design Reference:** [Phase 2 Task INTS-P2-010](./DESIGN-Integration-Troubleshooting.md#task-ints-p2-010--refactor-iossubsystem-to-use-bagiraenvironment)
+**Design Reference:** [Phase 2 Task INTS-P2-010](./DESIGN-Integration-Troubleshooting.md#task-ints-p2-010--refactor-iossubsystem-to-use-hrotenvironment)
 
 ### Scope
 **Included:**
-- In `Bagira.Runner/Services/IosSubsystem.cs` → `Initialize()`: replace inline construction with `BagiraEnvironment.*` and wire `DdsWriterAdapter<T>` (INTS-P1-003 must be completed first).
+- In `Hrot.ClusterRunner/Services/IosSubsystem.cs` → `Initialize()`: replace inline construction with `HrotEnvironment.*` and wire `DdsWriterAdapter<T>` (INTS-P1-003 must be completed first).
 
 **Excluded:**
-- Do not change `Bagira.IOS/Program.cs` here (handled in INTS-P1-003).
+- Do not change `Hrot.ExCon/Program.cs` here (handled in INTS-P1-003).
 
 ### Constraints
-- Depends on: INTS-P1-003 (DdsWriterAdapter available), INTS-P2-006 (BagiraEnvironment available).
+- Depends on: INTS-P1-003 (DdsWriterAdapter available), INTS-P2-006 (HrotEnvironment available).
 
 ### Success Conditions
 
@@ -353,7 +353,7 @@
 - Assert: No exception; subsystem enters `Ready` state.
 
 **Test 2 — Regression**
-- Assert: All existing `Bagira.IOS.Tests` pass.
+- Assert: All existing `Hrot.ExCon.Tests` pass.
 
 ---
 
@@ -377,7 +377,7 @@
 | `NetworkSpawningSystem.ProcessSpawn()` | `"[TRACE-SH] ProcessSpawn: NetworkId={networkId} TkbType={cmd.TkbType}"` |
 | `EntityLifecycleModule` — ACK promotion | `"[TRACE-SH] ELM: Entity {entity.Index} promoted to Active"` |
 | `EntityMasterTranslator.ScanAndPublish()` | `"[TRACE-SH] Egress: Writing EntityMaster for NetID={netId}"` |
-| `GeoSpatialEgressTranslator.ScanAndPublish()` | `"[TRACE-SH] Egress: Writing GeoSpatial for NetID={netId} pos=({lat},{lon})"` |
+| `WorldPosEgressTranslator.ScanAndPublish()` | `"[TRACE-SH] Egress: Writing WorldPos for NetID={netId} pos=({lat},{lon})"` |
 
 ### Success Conditions
 
@@ -402,15 +402,15 @@
 | Location | Message Template |
 |---|---|
 | `EntityMasterTranslator.ProcessSample()` (IG) | `"[TRACE-IG] Ingress: EntityMaster NetID={master.EntityId} → Ghost spawn"` |
-| `GeoSpatialTranslator.Decode()` (IG) | `"[TRACE-IG] Ingress: GeoSpatial Entity={entity.Index} Lat={lat} Lon={lon}"` |
+| `WorldPosTranslator.Decode()` (IG) | `"[TRACE-IG] Ingress: WorldPos Entity={entity.Index} Lat={lat} Lon={lon}"` |
 | `StyleResolutionSystem.Execute()` | `"[TRACE-IG] Style: Resolved Entity={entity.Index} Texture={style.TextureName}"` |
 | `SstVisualizerAdapter.Render()` | `"[TRACE-IG] Render: Drawing Entity={entity.Index} at ({x},{y})"` *(first render only, or filtered by debug EntityId)* |
 
 ### Success Conditions
 
-**Test 1 — All four trace lines appear after receiving EntityMaster + GeoSpatial**
+**Test 1 — All four trace lines appear after receiving EntityMaster + WorldPos**
 - Setup: Run `IgApplication` with a test DDS writer; capture log output.
-- Action: Write an `EntityMaster` followed by a `GeoSpatial` sample for the same `NetID`.
+- Action: Write an `EntityMaster` followed by a `WorldPos` sample for the same `NetID`.
 - Assert: The log contains all four `[TRACE-IG]` messages within 3 seconds.
 
 ---
@@ -454,7 +454,7 @@
 
 ### Scope
 **Included:**
-- A single `[TestMethod]` (MSTest) in `Bagira.SimHost.Integration.Tests` (or new `Bagira.Integration.Tests` project).
+- A single `[TestMethod]` (MSTest) in `Hrot.SimHost.Integration.Tests` (or new `Hrot.Integration.Tests` project).
 - Test uses real DDS on domain 10 and real in-process ECS worlds for `SimHostApp` and `IgApplication`.
 - Test verifies: spawn in SimHost → publish on DDS → ghost spawned in IG → style resolved → entity visible.
 
@@ -473,12 +473,12 @@
 - Setup:
   1. Start SimHost headless on domain 10.
   2. Start IG headless on domain 10. 
-  3. Both use `BagiraEnvironment.CreateTkb()`.
+  3. Both use `HrotEnvironment.CreateTkb()`.
 - Action: Publish `SpawnEntityCommand` (`TkbType = TkbEntityTypes.Truck_HMMWV`, position `(1000, 2000)`) to SimHost.
 - Assert (within 5 s):
-  - SimHost entity has `NetworkIdentity`, `EntityMaster`, `GeoSpatial` components.
+  - SimHost entity has `NetworkIdentity`, `EntityMaster`, `WorldPos` components.
   - IG ghost entity exists with matching `NetworkId`.
-  - IG ghost has `GeoSpatial` component with `Latitude` and `Longitude` non-zero.
+  - IG ghost has `WorldPos` component with `Latitude` and `Longitude` non-zero.
   - IG ghost has a resolved `StyleComponent` (not null / default-empty).
 
 **Test 2 — DDS domain isolation**

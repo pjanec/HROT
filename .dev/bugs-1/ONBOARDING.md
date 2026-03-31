@@ -40,10 +40,10 @@ before touching any code.
 
 | Path | Relevance |
 |---|---|
-| `Bagira.Runner/Services/SimHostSubsystem.cs` | DDS domain zero guard fix (BUG1-F001) |
-| `Bagira.Runner/Services/IgSubsystem.cs` | Node-ID injection for IG (BUG1-F002) |
-| `Bagira.Runner/Program.cs` | CLI parsing, maps config → `RunnerOptions` |
-| `Bagira.Runner/Configuration/BagiraRunnerConfiguration.cs` | Project-specific CLI options |
+| `Hrot.ClusterRunner/Services/SimHostSubsystem.cs` | DDS domain zero guard fix (BUG1-F001) |
+| `Hrot.ClusterRunner/Services/IgSubsystem.cs` | Node-ID injection for IG (BUG1-F002) |
+| `Hrot.ClusterRunner/Program.cs` | CLI parsing, maps config → `RunnerOptions` |
+| `Hrot.ClusterRunner/Configuration/HrotRunnerConfiguration.cs` | Project-specific CLI options |
 | `FDP/Framework/FDP.Framework.Runner/RunnerConfiguration.cs` | Base CLI options (add `--node-id` here) |
 | `FDP/Framework/FDP.Framework.Runner/RunnerOptions.cs` | Runtime options struct (add `NodeId`) |
 | `FDP/Framework/FDP.Framework.Runner/SubsystemConfig.cs` | Per-subsystem config (add `NodeId`) |
@@ -54,26 +54,26 @@ before touching any code.
 
 | Path | Relevance |
 |---|---|
-| `Bagira.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | Silent bystander fix (BUG1-N001) |
+| `Hrot.Map.Common/Systems/UpdateEntityDescriptorRequestSystem.cs` | Silent bystander fix (BUG1-N001) |
 | `FDP/ModuleHost/ModuleHost.Network.Cyclone/Systems/CycloneNetworkCleanupSystem.cs` | Fan-out disposal (BUG1-N002) |
 
 ### IG — Image Generator
 
 | Path | Relevance |
 |---|---|
-| `Bagira.IG/IgApplication.cs` | Main application — drag event subscriptions, `SendGeoSpatialUpdate` helper to add |
-| `Bagira.IG/Systems/MapUserConfig.cs` | User config struct — add `ContinuousDragUpdates` bool |
-| `Bagira.IG.Tests/` | Unit tests for IG |
+| `Hrot.IG/IgApplication.cs` | Main application — drag event subscriptions, `SendWorldPosUpdate` helper to add |
+| `Hrot.IG/Systems/MapUserConfig.cs` | User config struct — add `ContinuousDragUpdates` bool |
+| `Hrot.IG.Tests/` | Unit tests for IG |
 
 ### IOS — Operator System
 
 | Path | Relevance |
 |---|---|
-| `Bagira.IOS/Panels/MissionPanel.cs` | `HandleAddTask` (inject `DoctrineFinished`), `HandleAbort`/`HandleJump` (async fix) |
-| `Bagira.IOS/Services/MissionEditorService.cs` | Add `SendControlCommandAsync` |
-| `Bagira.IOS/Services/IMissionEditorService.cs` | Add method to interface |
-| `Bagira.IOS/Logic/ContextMenuLogic.cs` | Context menu strategies (Delete already in Standard — no change) |
-| `Bagira.IOS.Tests/` | Unit tests for IOS |
+| `Hrot.ExCon/Panels/MissionPanel.cs` | `HandleAddTask` (inject `DoctrineFinished`), `HandleAbort`/`HandleJump` (async fix) |
+| `Hrot.ExCon/Services/MissionEditorService.cs` | Add `SendControlCommandAsync` |
+| `Hrot.ExCon/Services/IMissionEditorService.cs` | Add method to interface |
+| `Hrot.ExCon/Logic/ContextMenuLogic.cs` | Context menu strategies (Delete already in Standard — no change) |
+| `Hrot.ExCon.Tests/` | Unit tests for IOS |
 
 ---
 
@@ -96,9 +96,9 @@ dotnet test IOS-IG-SimHost.sln --no-restore -v q
 Run tests for a specific project:
 
 ```powershell
-dotnet test Bagira.IG.Tests/Bagira.IG.Tests.csproj          --no-restore -v q
-dotnet test Bagira.IOS.Tests/Bagira.IOS.Tests.csproj         --no-restore -v q
-dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj --no-restore -v q
+dotnet test Hrot.IG.Tests/Hrot.IG.Tests.csproj          --no-restore -v q
+dotnet test Hrot.ExCon.Tests/Hrot.ExCon.Tests.csproj         --no-restore -v q
+dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj --no-restore -v q
 ```
 
 Launch all three subsystems in separate windows (after applying BUG1-F003):

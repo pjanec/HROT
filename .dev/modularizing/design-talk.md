@@ -25,7 +25,7 @@ Here is exactly how to architect the split:
 
 You will configure the system so that authority over the entity is split at the descriptor level:
 
--   **The Brain Node (Authority over Intellect):** Executes `MissionDirectorSystem`, `BTreeTickSystem`, and `LocomotionDispatcherSystem`. It maintains authority over the cognitive descriptors (e.g., `EntityMission`).-   **The Sim Node (Authority over Physics):** Executes the heavy `SpatialHashSystem`, local collision avoidance, and `CarKinematicsSystem`,. It maintains authority over the physical descriptors (e.g., `dtGeoSpatial`).
+-   **The Brain Node (Authority over Intellect):** Executes `MissionDirectorSystem`, `BTreeTickSystem`, and `LocomotionDispatcherSystem`. It maintains authority over the cognitive descriptors (e.g., `EntityMission`).-   **The Sim Node (Authority over Physics):** Executes the heavy `SpatialHashSystem`, local collision avoidance, and `CarKinematicsSystem`,. It maintains authority over the physical descriptors (e.g., `dtWorldPos`).
 
 2\. Syncing the Intention
 
@@ -45,7 +45,7 @@ In a clean, decoupled ECS architecture, you do not use RPC-style callbacks to si
 
 Here is the feedback loop:
 
--   As the Sim node executes the kinematics, its `GeoSpatialEgressTranslator` continually compares the live `SimTransform` against a shadow state. When the entity moves, it publishes `GeoSpatial` and `GeoSpatialDR` updates back to the network,.-   The Brain node's `GeoSpatialIngressTranslator` receives these updates and overwrites the local ghost entity's `SimTransform`,.-   The Brain node's `MoveToExecutor` (which is still ticking the `LocomotionChannel` locally) simply observes the replicated `SimTransform` and `SimVelocity` each frame. It calculates `Vector2.Distance(pos, destination)` to detect if the physical entity has successfully arrived.-   If the entity's replicated velocity drops below a threshold and it hasn't reached the target, the Brain's frustration guard detects that the "muscles" are stuck and transitions the node to `Failure`, prompting the BTree to replan.
+-   As the Sim node executes the kinematics, its `WorldPosEgressTranslator` continually compares the live `SimTransform` against a shadow state. When the entity moves, it publishes `WorldPos` and `WorldPos` updates back to the network,.-   The Brain node's `WorldPosIngressTranslator` receives these updates and overwrites the local ghost entity's `SimTransform`,.-   The Brain node's `MoveToExecutor` (which is still ticking the `LocomotionChannel` locally) simply observes the replicated `SimTransform` and `SimVelocity` each frame. It calculates `Vector2.Distance(pos, destination)` to detect if the physical entity has successfully arrived.-   If the entity's replicated velocity drops below a threshold and it hasn't reached the target, the Brain's frustration guard detects that the "muscles" are stuck and transitions the node to `Failure`, prompting the BTree to replan.
 
 By syncing the **Intention** (`NavState`) in one direction and replicating the **Reality** (`SimTransform`/`SimVelocity`) in the other, both nodes remain fully decoupled, perfectly adhering to the single-responsibility principle.
 
@@ -230,7 +230,7 @@ var query = World.Query()
 
 3\. The Authority Guard (Distributed Execution)
 
-When you deploy these modules across different physical nodes, **all nodes will receive all entities** via CycloneDDS replication (because they all subscribe to the `EntityMaster` and `GeoSpatial` topics).
+When you deploy these modules across different physical nodes, **all nodes will receive all entities** via CycloneDDS replication (because they all subscribe to the `EntityMaster` and `WorldPos` topics).
 
 To prevent a scenario where multiple nodes try to integrate physics for the same entity, you must rely on the network authority guard inside every kinematic system. As seen in the existing `PhysicsSystem` and `RefactoredPlayerInputSystem`, you must check the `NetworkOwnership` or `NetworkAuthority` component:
 
@@ -389,9 +389,9 @@ To achieve a truly engine-agnostic distributed architecture where a "Brain" node
 
 In clean distributed systems design, this means our DDS descriptors must act as a **strictly defined domain language**. We cannot transmit FDP's internal Cartesian `Vector2`/`Vector3` coordinates (which are flat-earth, X-East/Y-North), because Unreal uses Z-up/Y-Right centimeters, and Unity uses Y-up/Z-Forward meters.
 
-Instead, we must rely exclusively on universal WGS-84 geodetic coordinates, exactly as the existing `GeoSpatial` descriptor does using the `GeoPosition` struct.
+Instead, we must rely exclusively on universal WGS-84 geodetic coordinates, exactly as the existing `WorldPos` descriptor does using the `GeoPoint` struct.
 
-Here is the clean, engine-agnostic DDS descriptor design that aligns perfectly with the `Bagira.BDC.SSTD` data model and guarantees cross-engine interoperability:
+Here is the clean, engine-agnostic DDS descriptor design that aligns perfectly with the `Hrot.NED.Descriptors` data model and guarantees cross-engine interoperability:
 
 1\. The Intent Descriptor (Brain → Sim)
 
@@ -399,9 +399,9 @@ This descriptor represents the cognitive node's authoritative command. It is def
 
 ```
 using CycloneDDS.Schema;
-using Bagira.DDS.DM;
+using Hrot.NED.Common;
 
-namespace Bagira.BDC.SSTD
+namespace Hrot.NED.Descriptors
 {
     public enum ENavigationMode : byte
     {
@@ -430,7 +430,7 @@ namespace Bagira.BDC.SSTD
         // 4. Engine-Agnostic Spatial Data
         // Uses Lat/Lon/Alt. The Sim node (Unreal/Unity) is responsible for 
         // converting this into its local Cartesian space for pathfinding.
-        public GeoPosition FinalDestination;
+        public GeoPoint FinalDestination;
     
         public float TargetSpeed;   // m/s
         public float ArrivalRadius; // meters
@@ -443,7 +443,7 @@ namespace Bagira.BDC.SSTD
 This descriptor provides the feedback loop. The Sim node is the absolute authority over the physical reality of the world. It publishes this state back to the network.
 
 ```
-namespace Bagira.BDC.SSTD
+namespace Hrot.NED.Descriptors
 {
     public enum ENavigationResult : byte
     {
@@ -478,7 +478,7 @@ Architectural Translation Flow
 
 By structuring the data model this way, you establish a perfectly decoupled **Command / Query Responsibility Segregation (CQRS)** pipeline across heterogeneous engines:
 
--   **Egress Translation (FDP Brain Node):** The FDP `MoveToExecutor` writes to the local, unmanaged `NavState` component. An egress translator reads this Cartesian state, converts it to WGS-84 using the `IGeographicTransform`, and publishes the `NavigationIntent` over DDS.-   **Ingress Translation (Unreal Sim Node):** The Unreal engine receives the `NavigationIntent`. Its ingress layer unpacks the WGS-84 `GeoPosition`, converts it to Unreal's local coordinate system, and hands it off to Unreal's internal NavMesh and AI Controller.-   **Execution & Feedback (Unreal Sim Node):** Unreal's AI Controller handles the actual obstacle avoidance and pathfinding. Once the Unreal Pawn reaches the target (or fails to find a path), Unreal publishes the `NavigationStatus` over DDS.-   **Ingress Translation (FDP Brain Node):** The FDP Brain's ingress translator maps the DDS `NavigationStatus` back into the local ECS. The `MoveToExecutor` reads the status, sees `RES_ARRIVED`, and advances the Behavior Tree.
+-   **Egress Translation (FDP Brain Node):** The FDP `MoveToExecutor` writes to the local, unmanaged `NavState` component. An egress translator reads this Cartesian state, converts it to WGS-84 using the `IGeographicTransform`, and publishes the `NavigationIntent` over DDS.-   **Ingress Translation (Unreal Sim Node):** The Unreal engine receives the `NavigationIntent`. Its ingress layer unpacks the WGS-84 `GeoPoint`, converts it to Unreal's local coordinate system, and hands it off to Unreal's internal NavMesh and AI Controller.-   **Execution & Feedback (Unreal Sim Node):** Unreal's AI Controller handles the actual obstacle avoidance and pathfinding. Once the Unreal Pawn reaches the target (or fails to find a path), Unreal publishes the `NavigationStatus` over DDS.-   **Ingress Translation (FDP Brain Node):** The FDP Brain's ingress translator maps the DDS `NavigationStatus` back into the local ECS. The `MoveToExecutor` reads the status, sees `RES_ARRIVED`, and advances the Behavior Tree.
 
 This design strictly isolates coordinate math and physics logic inside the respective engines. The DDS bus acts only as the universal, strongly-typed state synchronizer, adhering flawlessly to clean distributed systems architecture.
 
@@ -544,7 +544,7 @@ By breaking it into these three modules, you achieve perfect composability. If y
 
 I need to achieve high flexibility by being able to build a node by putting together relevant modules, instantiating just those necessary for node's role. Like the 'Brain', 'Sim', 'IG' etc. And also an all-in-one node combining everything in a single app.
 
-This should include module(s) also for IG 2d map (end user oriented, polished) and Sim's debug 2d map (developer oriented, with many more debug features) and be able to use them both (switching the 'perspective' - IG or Sim - similarly like now in the Bagira.Runner if run with multiple subsystems).
+This should include module(s) also for IG 2d map (end user oriented, polished) and Sim's debug 2d map (developer oriented, with many more debug features) and be able to use them both (switching the 'perspective' - IG or Sim - similarly like now in the Hrot.ClusterRunner if run with multiple subsystems).
 
 how to properly modularize the 2d map related presentation and logic and how to separate (or configure) this for different perspective and how to allow switching the perspectived dynamically in one single application?
 
@@ -649,9 +649,9 @@ Map tools also live in `Vis2D` and rely on interfaces to stay generic.
 
 Take the `EntityPickerTool` as an example. It needs to filter clicks (e.g., "only let the user click road graphs"). Instead of hardcoding IG layer logic into the tool, the tool requires an `IEntityFilterFactory`.
 
--   In the IG node, you inject `BagiraEntityFilterFactory`, which translates strings like `"road_graphs"` into a bitmask check against the `MapDisplayComponent`.-   If the SimHost needs an entity picker, it can inject a completely different factory (e.g., one that filters by AI state) without changing a single line of the tool's code.
+-   In the IG node, you inject `HrotEntityFilterFactory`, which translates strings like `"road_graphs"` into a bitmask check against the `MapDisplayComponent`.-   If the SimHost needs an entity picker, it can inject a completely different factory (e.g., one that filters by AI state) without changing a single line of the tool's code.
 
-For interactions, the IG wraps the generic `FDP.Toolkit.Vis2D.Tools.StandardInteractionTool` inside its own `Bagira.IG.Tools.StandardInteractionTool`. This allows the IG to reuse 100% of the drag/drop/box-select math, while simply subscribing to the tool's C# events to route network DDS messages (like `MapClickEvent` or `DragEvent`) back to the IOS.
+For interactions, the IG wraps the generic `FDP.Toolkit.Vis2D.Tools.StandardInteractionTool` inside its own `Hrot.IG.Tools.StandardInteractionTool`. This allows the IG to reuse 100% of the drag/drop/box-select math, while simply subscribing to the tool's C# events to route network DDS messages (like `MapClickEvent` or `DragEvent`) back to the IOS.
 
 4\. Dynamic Switching in an "All-In-One" Node
 
@@ -681,7 +681,7 @@ Here is the clean architecture approach to highly shareable, role-based registra
 
 Currently, `SimHostComponentRegistry` registers everything: AI brains, CarKinem physics, combat, and perception. We need to split this into strict domain boundaries.
 
-We already have `BagiraSharedComponentRegistry` for the baseline network and lifecycle components. We will build upon this by creating domain-specific static registries.
+We already have `HrotSharedComponentRegistry` for the baseline network and lifecycle components. We will build upon this by creating domain-specific static registries.
 
 ```
 // The Muscle components
@@ -725,7 +725,7 @@ public static class KinematicTranslatorPack
         IGeographicTransform geoTransform)
     {
         // Muscles output reality
-        yield return new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
+        yield return new WorldPosEgressTranslator(participant, entityMap, geoTransform);
         yield return new NavigationStatusEgressTranslator(participant, entityMap);
         
         // Muscles receive intent
@@ -744,7 +744,7 @@ public static class CognitiveTranslatorPack
         yield return new EntityMissionEgressTranslator(participant, entityMap);
 
         // Brains receive reality
-        yield return new GeoSpatialIngressTranslator(participant, entityMap);
+        yield return new WorldPosIngressTranslator(participant, entityMap);
         yield return new NavigationStatusIngressTranslator(participant, entityMap);
     }
 }
@@ -770,7 +770,7 @@ public class NodeBootstrapper
         var translators = new List<IDescriptorTranslator>();
 
         // 1. Shared Foundation (Always required)
-        BagiraSharedComponentRegistry.RegisterAll(world);
+        HrotSharedComponentRegistry.RegisterAll(world);
         translators.Add(new EntityMasterEgressTranslator(dds, ...));
         translators.Add(new EntityMasterIngressTranslator(dds, ...));
     
@@ -812,7 +812,7 @@ Architectural Wins
 
 By adopting this pattern:
 
--   **DRY Principle:** You never write `world.RegisterComponent<SimTransform>()` or `new GeoSpatialEgressTranslator(...)` more than once in the codebase.-   **Open/Closed Principle:** If you add an "Aircraft Muscle" node later, you simply create an `AirKinematicTranslatorPack` and add one `if` statement to the bootstrapper. You don't have to touch the Brain, the IG, or the core network module.-   **Deployment Agility:** You can compile a single executable and deploy it across a cluster. Server 1 runs with `--role brain`, Server 2 with `--role muscleground`. Their memory footprints and CPU cache utilization will be perfectly optimized for their specific tasks, carrying zero dead weight from the other domains.
+-   **DRY Principle:** You never write `world.RegisterComponent<SimTransform>()` or `new WorldPosEgressTranslator(...)` more than once in the codebase.-   **Open/Closed Principle:** If you add an "Aircraft Muscle" node later, you simply create an `AirKinematicTranslatorPack` and add one `if` statement to the bootstrapper. You don't have to touch the Brain, the IG, or the core network module.-   **Deployment Agility:** You can compile a single executable and deploy it across a cluster. Server 1 runs with `--role brain`, Server 2 with `--role muscleground`. Their memory footprints and CPU cache utilization will be perfectly optimized for their specific tasks, carrying zero dead weight from the other domains.
 
 There are for sure some low level components that need to be registered (almost) always as they are used by (almost) any role. Like SimTransform and similar. They can hardly be treated as belonging strictrly to the same group as vehicle kinematics as there mught me bany more entities having nothing to do with kinematics (like static waypoint or whatever).
 
@@ -828,7 +828,7 @@ You are completely correct. In the FDP kernel, component registration is strictl
 
 Because of this, you _could_ technically have every single domain pack redundantly register `SimTransform`. However, to keep the architecture clean and DRY, the codebase already implements a "Foundation Pack" pattern specifically for these ubiquitous low-level primitives.
 
-**The** **BagiraSharedComponentRegistry** **Foundation:** The architecture provides `BagiraSharedComponentRegistry.RegisterAll(world)` as the single source of truth for base-level ECS primitives. It registers the foundational layer that _every_ networked role requires, regardless of whether it is a Brain, a Muscle, or an IG. This includes:
+**The** **HrotSharedComponentRegistry** **Foundation:** The architecture provides `HrotSharedComponentRegistry.RegisterAll(world)` as the single source of truth for base-level ECS primitives. It registers the foundational layer that _every_ networked role requires, regardless of whether it is a Brain, a Muscle, or an IG. This includes:
 
 -   **Geographic / Spatial:** `SimTransform`, `SimVelocity`.-   **Network Identity:** `NetworkIdentity`, `NetworkOwnership`, `NetworkAuthority`.-   **Lifecycle:** `ConstructionOrder`, `DestructionAck`, etc..
 
@@ -864,7 +864,7 @@ The Solution: Distributed Registries with Managed Ranges
 
 Instead of one monolithic file, we should distribute the ID constants into domain-specific static classes within their respective projects, adhering to a documented block-allocation strategy.
 
-Currently, `GlobalComponentIds` already documents a block allocation strategy (e.g., `0-19` for Kernel, `110-139` for Bagira.IG, `200-255` for Custom/Examples). We simply need to extract these blocks into their own bounded contexts.
+Currently, `GlobalComponentIds` already documents a block allocation strategy (e.g., `0-19` for Kernel, `110-139` for Hrot.IG, `200-255` for Custom/Examples). We simply need to extract these blocks into their own bounded contexts.
 
 **1\. The Framework Registry (Inside FDP Core)** Leave only the engine and toolkit primitives in the FDP core layer.
 
@@ -883,14 +883,14 @@ namespace Fdp.Kernel
 }
 ```
 
-**2\. The Project Registry (Inside Bagira.IG)** The IG project defines its own registry, strictly staying within its allocated `110-139` block.
+**2\. The Project Registry (Inside Hrot.IG)** The IG project defines its own registry, strictly staying within its allocated `110-139` block.
 
 ```
-namespace Bagira.IG.Components
+namespace Hrot.IG.Components
 {
     public static class IgComponentIds
     {
-        // 110-139: Bagira.IG block
+        // 110-139: Hrot.IG block
         public const byte ResolvedStyle = 110;
         public const byte CullingState = 111;
         public const byte SelectionState = 112;
@@ -924,7 +924,7 @@ You might worry that distributing the constants removes the safety of having the
 
 However, the architecture already has an automated safeguard against this. The `ComponentTypeRegistry` actively tracks explicitly assigned IDs. If two different projects accidentally claim the same byte ID, the system's runtime collision detection will instantly fail fast during startup, throwing an `InvalidOperationException` that clearly states which two components caused the collision.
 
-By moving to this distributed constant pattern, you achieve perfect strict modularity: FDP engineers maintain the `0-109` blocks, Bagira developers maintain the `110-199` blocks, and downstream integrators can safely build entirely new components in the `200-255` range without ever touching the FDP repository.
+By moving to this distributed constant pattern, you achieve perfect strict modularity: FDP engineers maintain the `0-109` blocks, Hrot developers maintain the `110-199` blocks, and downstream integrators can safely build entirely new components in the `200-255` range without ever touching the FDP repository.
 
 Dnes • 9:54
 
@@ -978,7 +978,7 @@ If the Brain node generates 10,000 raycast requests and sends them over DDS to a
 
 **The Clean Architecture Solution:** Instead of sending the _queries_ over the network, you replicate the _spatial reality_.
 
--   The Physics node streams `GeoSpatial` updates (the `SimTransform` of all entities) over DDS.-   The Brain node receives these positions.-   The Brain node runs its own local `SpatialHashSystem` to rebuild the spatial grid in memory.-   The Brain node submits its 10,000 raycasts to its _local_ `RaycastBatchData` singleton and solves them locally via its own `RaycastSolverSystem`.
+-   The Physics node streams `WorldPos` updates (the `SimTransform` of all entities) over DDS.-   The Brain node receives these positions.-   The Brain node runs its own local `SpatialHashSystem` to rebuild the spatial grid in memory.-   The Brain node submits its 10,000 raycasts to its _local_ `RaycastBatchData` singleton and solves them locally via its own `RaycastSolverSystem`.
 
 By doing this, the Brain achieves zero-latency sensory queries against a perfectly synchronized spatial shadow of the world, keeping network traffic strictly limited to entity state changes rather than raw computational RPCs.
 
@@ -1153,7 +1153,7 @@ For "dumb" queries, we rely on the CQRS pattern. The Brain node asks a remote Si
 **The DDS Descriptors (Engine Agnostic):**
 
 ```
-namespace Bagira.BDC.SSTD
+namespace Hrot.NED.Descriptors
 {
     // The lightweight ENU float vector (Engine Agnostic: East, North, Up)
     [DdsStruct]
@@ -1182,7 +1182,7 @@ namespace Bagira.BDC.SSTD
         public uint BatchCorrelationId;
         
         // The single absolute double-precision anchor for the whole batch
-        public GeoPosition BatchOrigin; 
+        public GeoPoint BatchOrigin; 
         
         [DdsManaged]
         public List<DdsRaycastRequest> Requests;
@@ -1219,7 +1219,7 @@ Smart sensors run autonomously on the remote Physics/Vision node. The Brain node
 **The DDS Descriptors:**
 
 ```
-namespace Bagira.BDC.SSTD
+namespace Hrot.NED.Descriptors
 {
     // Brain -> Sim (Configuration)
     [DdsTopic("SensorConfig")]
@@ -1437,7 +1437,7 @@ Here is how we architect this cleanly, leveraging the engine's existing `Traject
 We define a request/response batching protocol exactly like we did for raycasts, using the WGS-84 WGS-84 WGS-84 origin + ENU relative floats compression to save bandwidth.
 
 ```
-namespace Bagira.BDC.SSTD
+namespace Hrot.NED.Descriptors
 {
     [DdsStruct]
     public partial struct DdsPathRequest
@@ -1453,7 +1453,7 @@ namespace Bagira.BDC.SSTD
     public partial struct PathRequestBatch
     {
         [DdsKey] public int SourceNodeId; 
-        public GeoPosition BatchOrigin; 
+        public GeoPoint BatchOrigin; 
         
         [DdsManaged] public List<DdsPathRequest> Requests;
     }
@@ -1548,7 +1548,7 @@ By adopting this **Token-Based Pathfinding (Route Handle)** approach:
 
 
 
-There is one more feature i want to address. IG node often shows the world/terrain using different level of details (LOD) based on distance from camera, requirements for high fidelity etc. Different LOD often results in slightly different height of the terrain at the same geo coordinates. When Sim calculates the ground vehicle altitude, it uses its own high fidelity perception provider, which produces different altitude than where the altitude of the terrain surface is displayed by the IG. Without correction this would result in cars displayed by the IG a burried under ground or flying in the air. IG therefore needs to apply so called ground clamping for all incoming ghost entities. Meaning that for each entity which requires ground clamping (the default can be usually forced on/off in some entity descriptor) the IG queries its internal terrain representation for terrain surface altitude - multiple queries per vehicle (one for vehicle contact point - wheels or tracks etc.) This forms a big batch which needs to be processed on the background and be available the next frame so the IG can render the vehicles at proper altitude on the terrain. The queries contain the original requested altitude from the inbound GeoPosition of the entity. And usually looks for terrain surface just in close vicinity of the original altitude. This allows for placing the entity to correct floor in a multi-store building or in bridge/tunnel situations. Sometimes this also includes some heuristics utilizing the previously calculated ground-clamped IG altitude to prevent suddens altitude jumps when vehicle just gets under the bridge. The whole ground clamping also means the incoming entity position is not applied immediately, but needs to wait for ground clamping correction, basically either introducing a one frame delay (if we need a pixel perfect results) or that it is aplied the next frame when the entity position of a moving vehicle is already elsewhere. PLs suggest how to approach all this.
+There is one more feature i want to address. IG node often shows the world/terrain using different level of details (LOD) based on distance from camera, requirements for high fidelity etc. Different LOD often results in slightly different height of the terrain at the same geo coordinates. When Sim calculates the ground vehicle altitude, it uses its own high fidelity perception provider, which produces different altitude than where the altitude of the terrain surface is displayed by the IG. Without correction this would result in cars displayed by the IG a burried under ground or flying in the air. IG therefore needs to apply so called ground clamping for all incoming ghost entities. Meaning that for each entity which requires ground clamping (the default can be usually forced on/off in some entity descriptor) the IG queries its internal terrain representation for terrain surface altitude - multiple queries per vehicle (one for vehicle contact point - wheels or tracks etc.) This forms a big batch which needs to be processed on the background and be available the next frame so the IG can render the vehicles at proper altitude on the terrain. The queries contain the original requested altitude from the inbound GeoPoint of the entity. And usually looks for terrain surface just in close vicinity of the original altitude. This allows for placing the entity to correct floor in a multi-store building or in bridge/tunnel situations. Sometimes this also includes some heuristics utilizing the previously calculated ground-clamped IG altitude to prevent suddens altitude jumps when vehicle just gets under the bridge. The whole ground clamping also means the incoming entity position is not applied immediately, but needs to wait for ground clamping correction, basically either introducing a one frame delay (if we need a pixel perfect results) or that it is aplied the next frame when the entity position of a moving vehicle is already elsewhere. PLs suggest how to approach all this.
 
 This is the classic "Heterogeneous Terrain Correlation" problem in distributed simulations, and as an architect, I love this challenge. If handled poorly, you end up with stuttering vehicles, decoupled shadows, or blocking network pipelines.
 
@@ -1748,7 +1748,7 @@ Here is the clean, Data-Oriented Design (DOD) approach to building this modular 
 We introduce a new transient-local descriptor to explicitly control clamping state over the network. By using a ternary mode, we allow entities to rely on their default engine heuristics (like aircraft automatically clamping when gear is down) while giving operators the power to force the state.
 
 ```
-namespace Bagira.BDC.SSTD
+namespace Hrot.NED.Descriptors
 {
     public enum EClampingMode : byte
     {

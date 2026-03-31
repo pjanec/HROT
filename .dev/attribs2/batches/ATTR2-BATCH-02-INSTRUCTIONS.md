@@ -12,7 +12,7 @@
 ## 📋 Onboarding & Workflow
 
 ### Developer Instructions
-Welcome back to Phase 2, 3 & 4 of the ATTR2 system. We are scaling up the batch size. In this batch, we will correct an architectural violation from the previous batch, and then implement the Edge Compiler (`JsonToRecordCompiler`), the Core Binary Interpreter dispatch loop, and wire up the SimHost implementations for handling attributes. Note there are complex task items spanning across toolkits and the Bagira.SimHost project. Pay close attention to zero-allocation hot paths and correct testing abstractions.
+Welcome back to Phase 2, 3 & 4 of the ATTR2 system. We are scaling up the batch size. In this batch, we will correct an architectural violation from the previous batch, and then implement the Edge Compiler (`JsonToRecordCompiler`), the Core Binary Interpreter dispatch loop, and wire up the SimHost implementations for handling attributes. Note there are complex task items spanning across toolkits and the Hrot.SimHost project. Pay close attention to zero-allocation hot paths and correct testing abstractions.
 
 ### Required Reading (IN ORDER)
 1. **Workflow Guide:** `.dev-workstream/guides/DEV-GUIDE.md`
@@ -22,10 +22,10 @@ Welcome back to Phase 2, 3 & 4 of the ATTR2 system. We are scaling up the batch 
 
 ### Source Code Location
 - **Primary Work Areas:**
-  - `Bagira.DDS.DataModel/`
+  - `Hrot.NED/`
   - `FDP/Toolkits/FDP.Toolkit.Replication/` 
-  - `Bagira.SimHost/`
-- **Test Projects:** `Bagira.DDS.DataModel.Tests`, `FDP.Toolkit.Replication` unit tests, `Bagira.SimHost.Tests`
+  - `Hrot.SimHost/`
+- **Test Projects:** `Hrot.NED.Tests`, `FDP.Toolkit.Replication` unit tests, `Hrot.SimHost.Tests`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -67,14 +67,14 @@ We need to fix the union generation first. Then we build the JSON-to-Binary Edge
 
 ### Task 0: Implement Correct DDS Union Pattern (CORRECTIVE-0)
 
-**File:** `Bagira.DDS.DataModel/GenericMessages.cs` (REFACTOR)  
+**File:** `Hrot.NED/GenericMessages.cs` (REFACTOR)  
 
 **Description:** An architectural pattern for CycloneDDS unions was missed in BATCH-01, resulting in a flat struct struct mapping that CycloneDDS does not generate consistent IDL metadata for. 
 **Requirements:**
 - Refactor `AttributeValueUnion` to use `[DdsUnion]`, `[DdsDiscriminator]`, and `[DdsCase(..)]` correctly.
 - Discard the flat struct multiple-field approach with a single discriminator enum field without attributes. You MUST annotate it properly.
-- Look exactly at `Bagira.DDS.DataModel/AllDescriptors.cs` (e.g. `EntityDescriptorUnion`) to understand how CycloneDDS requires the union schema attributes to be formatted.
-- Ensure all 8 unit tests in `Bagira.DDS.DataModel.Tests/AttributeRecordTests.cs` (from BATCH-01) still pass. Adjust the struct logic if anything breaks.
+- Look exactly at `Hrot.NED/AllDescriptors.cs` (e.g. `EntityDescriptorUnion`) to understand how CycloneDDS requires the union schema attributes to be formatted.
+- Ensure all 8 unit tests in `Hrot.NED.Tests/AttributeRecordTests.cs` (from BATCH-01) still pass. Adjust the struct logic if anything breaks.
 
 ---
 
@@ -90,7 +90,7 @@ We need to fix the union generation first. Then we build the JSON-to-Binary Edge
 - IMPORTANT: No dictionary lookups on the compiler hot path during `.Compile()` outside of examining the readonly `_routes` routing dictionary. Stack size should be strictly bounded.
 - Use the existing `JsonAttributeCompiler.HashPath` (FNV-1a) function instead of duplicating it. 
 
-**Tests Required (in `FDP.Toolkit.Replication` or `Bagira.SimHost.Tests`):**
+**Tests Required (in `FDP.Toolkit.Replication` or `Hrot.SimHost.Tests`):**
 - ✅ Test all 9 scenarios described in the Task Description doc (e.g. flat field, dotted path, nested object, integer keys).
 - ✅ Implement zero allocation test (using `GC.GetTotalAllocatedBytes`) to prove `.Compile()` allocates 0 bytes.
 
@@ -98,12 +98,12 @@ We need to fix the union generation first. Then we build the JSON-to-Binary Edge
 
 ### Task 2: `EdgeCompilerFactory` Registration (ATTR2-P2T2)
 
-**File:** `Bagira.SimHost/AttributeCompilerFactory.cs` (UPDATE)  
+**File:** `Hrot.SimHost/AttributeCompilerFactory.cs` (UPDATE)  
 **Task Definition:** See [ATTR2-TASK-DETAIL.md](../../docs/attribs2/ATTR2-TASK-DETAIL.md#attr2-p2t2--edgecompilerfactory-domain-schema-registration)
 
 **Description:** Add static registry for domain schemas matching the old compiler.
 **Requirements:**
-- Register paths: `Name` (Id 1), `Affiliation` (Id 2), `GeoPosition.Latitude` (Id 10), `GeoPosition.Longitude` (Id 11), `GeoPosition.Altitude` (Id 12).
+- Register paths: `Name` (Id 1), `Affiliation` (Id 2), `GeoPoint.Latitude` (Id 10), `GeoPoint.Longitude` (Id 11), `GeoPoint.Altitude` (Id 12).
 - Must mirror `AttributeCompilerFactory`. Return the immutable `JsonToRecordCompiler` built by the builder.
 
 **Tests Required:**
@@ -129,7 +129,7 @@ We need to fix the union generation first. Then we build the JSON-to-Binary Edge
 
 ### Task 4: Entity Data Installer (ATTR2-P4T1)
 
-**File:** `Bagira.SimHost/Installers/EntityDataAttributeInstaller.cs` (NEW FILE)  
+**File:** `Hrot.SimHost/Installers/EntityDataAttributeInstaller.cs` (NEW FILE)  
 **Task Definition:** See [ATTR2-TASK-DETAIL.md](../../docs/attribs2/ATTR2-TASK-DETAIL.md#attr2-p4t1--entitydataattributeinstaller)
 
 **Description:** Hook `Name` and `Affiliation` writes for ECS via `dtEntityInfo`.
@@ -145,7 +145,7 @@ We need to fix the union generation first. Then we build the JSON-to-Binary Edge
 
 ### Task 5: Sim Transform Installer (ATTR2-P4T2)
 
-**File:** `Bagira.SimHost/Installers/SimTransformAttributeInstaller.cs` (NEW FILE)  
+**File:** `Hrot.SimHost/Installers/SimTransformAttributeInstaller.cs` (NEW FILE)  
 **Task Definition:** See [ATTR2-TASK-DETAIL.md](../../docs/attribs2/ATTR2-TASK-DETAIL.md#attr2-p4t2--simtransformattributeinstaller)
 
 **Description:** Hook `GeoLat`, `GeoLon`, `GeoAlt` writes for ECS.
@@ -160,10 +160,10 @@ We need to fix the union generation first. Then we build the JSON-to-Binary Edge
 
 ### Task 6: Binary Interpreter Factory Integration (ATTR2-P4T3)
 
-**File:** `Bagira.SimHost/AttributeCompilerFactory.cs` (UPDATE)  
+**File:** `Hrot.SimHost/AttributeCompilerFactory.cs` (UPDATE)  
 **Task Definition:** See [ATTR2-TASK-DETAIL.md](../../docs/attribs2/ATTR2-TASK-DETAIL.md#attr2-p4t3--binaryinterpreterfactory-simhost-wiring)
 
-**Description:** Wire it all up inside `Bagira.SimHost`.
+**Description:** Wire it all up inside `Hrot.SimHost`.
 **Requirements:**
 - Make a `BuildBinaryInterpreter(IGeographicTransform? geoTransform)` adding both Phase 4 Installers.
 - Conditionally add `SimTransformAttributeInstaller` if transform non-null. 

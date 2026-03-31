@@ -46,8 +46,8 @@ Integration (ATTR-S5):
 - CreateEntityRequestSystem folds patch JSON strings natively onto List<object> pre-spawning components prior to sending SpawnEntityCommands.
 
 Unified Routing (ATTR-S6):
-- DescriptorMapper dtEntityInfo and dtGeoSpatial mapping funneled into the identical patch-delegates preventing struct initialization logic drift.
-- Wrapped GeoPosition multi-coordinate tokens across Utf8JsonReader boundaries via lat/lon/alt accumulator logic before executing ToCartesian transforms.
+- DescriptorMapper dtEntityInfo and dtWorldPos mapping funneled into the identical patch-delegates preventing struct initialization logic drift.
+- Wrapped GeoPoint multi-coordinate tokens across Utf8JsonReader boundaries via lat/lon/alt accumulator logic before executing ToCartesian transforms.
 
 Testing:
 - Checked in 17 new tests targeting system bounds and Egress validations resulting in 136 completely passing solution tests.

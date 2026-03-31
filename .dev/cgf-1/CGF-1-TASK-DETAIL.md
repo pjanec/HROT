@@ -9,8 +9,8 @@
 >
 > **Architectural constraint (repeated for emphasis):**  
 > FDP infrastructure (`Fdp.Kernel` and all `FDP.Toolkit.*`) must never reference any
-> `Bagira.*` assembly. The Drill State Machine (`DSMState`, handler interfaces,
-> `DsmStateChangedEvent`) lives entirely in the Bagira application layer.
+> `Hrot.*` assembly. The Drill State Machine (`ClusterState`, handler interfaces,
+> `ClusterStateChangedEvent`) lives entirely in the Hrot application layer.
 
 ---
 
@@ -25,57 +25,57 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
 **Design ref:** [§3.1](./CGF-1-DESIGN.md#31-stage-11--orchestration-dds-schema)
 
 **Work to do:**
-1. Create `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs`.
-2. Declare `DSMState`, `SysOpType`, `NodeOpType`, `OpStatus` enumerations.
-3. Declare all DDS topic structs: `SystemStateTopic`, `SysOpRequest`, `SysOpStatus`,
+1. Create `Hrot.NED/Orchestration/OrchestrationMessages.cs`.
+2. Declare `ClusterState`, `ClusterOpType`, `NodeOpType`, `OpStatus` enumerations.
+3. Declare all DDS topic structs: `SystemStateTopic`, `ClusterOpRequest`, `ClusterOpStatus`,
    `NodeOpCommand`, `NodeOpStatus`, `NodeHeartbeat`, `OrchestratorContextTopic`.
 4. Apply correct `[DdsTopic]`, `[DdsIdlFile("bdc-sst-orchestration")]`, and
    `[DdsQos]` attributes per the design spec.
-5. Ensure all structs are in namespace `Bagira.BDC.SSTD.Orchestration`.
+5. Ensure all structs are in namespace `Hrot.NED.Descriptors.Orchestration`.
 
 **Success conditions:**
-- `Bagira.DDS.DataModel.Tests` contains a new test class
+- `Hrot.NED.Tests` contains a new test class
   `OrchestrationSchemaTests` with the following tests:
   - `AllTopicStructsHaveDdsTopicAttribute` — reflection scan of all types in the
-    `Bagira.BDC.SSTD.Orchestration` namespace; assert every `partial struct` has
+    `Hrot.NED.Descriptors.Orchestration` namespace; assert every `partial struct` has
     `[DdsTopic]` and `[DdsIdlFile("bdc-sst-orchestration")]`.
-  - `DsmStateEnumHasExpectedValues` — assert `DSMState.Standby == 0`,
-    `DSMState.RunningLive == 31`, `DSMState.Degraded == 99`.
+  - `ClusterStateEnumHasExpectedValues` — assert `ClusterState.Standby == 0`,
+    `ClusterState.RunningLive == 31`, `ClusterState.Degraded == 99`.
   - `NodeHeartbeatHasDdsKeyOnNodeId` — assert the `NodeId` field of `NodeHeartbeat`
     bears `[DdsKey]`.
   - `SystemStateTopicQosIsDurableTransientLocal` — assert the `DdsQos` attribute on
     `SystemStateTopic` specifies `Durability = TransientLocal` and `HistoryDepth = 1`.
-- All existing `Bagira.DDS.DataModel` tests continue to pass.
+- All existing `Hrot.NED` tests continue to pass.
 - Project builds with zero warnings on new code.
 
 ---
 
-### CGF1-S0102 — Bagira.Orchestrator Bootstrapping
+### CGF1-S0102 — Hrot.Orchestrator Bootstrapping
 
-**Design ref:** [§3.2](./CGF-1-DESIGN.md#32-stage-12--bagiraorchestrator-bootstrapping)
+**Design ref:** [§3.2](./CGF-1-DESIGN.md#32-stage-12--hrotorchestrator-bootstrapping)
 
 **Work to do:**
-1. Create the `Bagira.Orchestrator` C# project (net8.0; references
-   `Bagira.DDS.DataModel`, `Fdp.Kernel`, FDP toolkit projects as needed).
-2. Implement `DrillMaster` class:
+1. Create the `Hrot.Orchestrator` C# project (net8.0; references
+   `Hrot.NED`, `Fdp.Kernel`, FDP toolkit projects as needed).
+2. Implement `ClusterMaster` class:
    - Subscribes to `NodeHeartbeat`; maintains `Dictionary<int, NodeHealthProfile>`.
-   - Publishes `SystemStateTopic { CurrentState = DSMState.Standby }` on startup.
+   - Publishes `SystemStateTopic { CurrentState = ClusterState.Standby }` on startup.
    - Exposes a `Tick()` method called by the application loop (BeforeSync phase).
 3. Implement skeleton `DistributedTransaction` data class (no 2PC execution yet —
    that comes in Stage 2.1).
 4. Implement skeleton `NodeRoster` (heartbeat pruning at > 5 s silence).
-5. Add `Bagira.Orchestrator` as a subsystem in `Bagira.Runner` (activated by
+5. Add `Hrot.Orchestrator` as a subsystem in `Hrot.ClusterRunner` (activated by
    `--mode orchestrator` command-line flag or configuration).
 
-> **Runner-only launch:** `Bagira.Orchestrator.Standalone` is removed; the Orchestrator
-> is exclusively launched via `Bagira.Runner --mode orchestrator`.
+> **Runner-only launch:** `Hrot.Orchestrator.Standalone` is removed; the Orchestrator
+> is exclusively launched via `Hrot.ClusterRunner --mode orchestrator`.
 
 **Success conditions:**
-- New integration test `DrillMasterBootstrapTests.OrchestratorPublishesStandbyOnStartup`:
-  - Spawn the Bagira.Orchestrator process (or run in-process via test harness).
+- New integration test `ClusterMasterBootstrapTests.OrchestratorPublishesStandbyOnStartup`:
+  - Spawn the Hrot.Orchestrator process (or run in-process via test harness).
   - An out-of-process DDS reader subscribes to `SystemStateTopic`.
   - Within 3 s wall-clock, assert exactly one sample is received with
-    `CurrentState == DSMState.Standby` and `TransactionEpoch == 0`.
+    `CurrentState == ClusterState.Standby` and `TransactionEpoch == 0`.
 - All pre-existing tests continue to pass.
 
 ---
@@ -85,10 +85,10 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
 **Design ref:** [§3.3](./CGF-1-DESIGN.md#33-stage-13--centralized-identity-migration)
 
 **Work to do:**
-1. Remove `DdsIdAllocatorServer` registration from `Bagira.SimHost/SimHostApp.cs`.
-2. Add `DdsIdAllocatorServer` registration inside `DrillMaster` (in-process, running
-   inside `Bagira.Orchestrator`).
-3. Verify `Bagira.SimHost` no longer holds a server instance — it only holds a
+1. Remove `DdsIdAllocatorServer` registration from `Hrot.SimHost/SimHostApp.cs`.
+2. Add `DdsIdAllocatorServer` registration inside `ClusterMaster` (in-process, running
+   inside `Hrot.Orchestrator`).
+3. Verify `Hrot.SimHost` no longer holds a server instance — it only holds a
    `DdsIdAllocator` client.
 4. Add a config flag to support running without an Orchestrator (for existing SimHost
    standalone mode during the transition period — falls back to hosting the server
@@ -96,44 +96,44 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
 
 **Success conditions:**
 - New integration test `DdsIdAllocatorMigrationTests.SimHostReceivesIdFromOrchestratorServer`:
-  - Launch Bagira.Orchestrator (hosts the server).
+  - Launch Hrot.Orchestrator (hosts the server).
   - Launch a SimHost instance (holds only the client).
   - Assert SimHost's `DdsIdAllocator` receives an ID batch and that the first
     allocated ID is `> 0`.
   - Assert `SimHostApp` contains no reference to `DdsIdAllocatorServer`.
-- Existing `Bagira.SimHost.Integration.Tests` suite passes unmodified.
+- Existing `Hrot.SimHost.Integration.Tests` suite passes unmodified.
 
 ---
 
-### CGF1-S0104 — DrillSlave Foundation
+### CGF1-S0104 — ClusterSlave Foundation
 
-**Design ref:** [§3.4](./CGF-1-DESIGN.md#34-stage-14--drillslave-foundation)
+**Design ref:** [§3.4](./CGF-1-DESIGN.md#34-stage-14--clustslave-foundation)
 
 **Work to do:**
-1. Create `Bagira.CGF` project.
-2. Implement `DrillSlave` in each subsystem:
-   - `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`
-   - `Bagira.IG/Modules/Orchestration/DrillSlave.cs`
-   - `Bagira.IOS/Orchestration/DrillSlave.cs` (no-ECS variant — skips any
+1. Create `Hrot.CGF` project.
+2. Implement `ClusterSlave` in each subsystem:
+   - `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs`
+   - `Hrot.IG/Modules/Orchestration/ClusterSlave.cs`
+   - `Hrot.ExCon/Orchestration/ClusterSlave.cs` (no-ECS variant — skips any
      `IDsmHandler` that requires `EntityRepository`)
-   - `Bagira.CGF/Modules/Orchestration/DrillSlave.cs`
-3. Each `DrillSlave`:
+   - `Hrot.CGF/Modules/Orchestration/ClusterSlave.cs`
+3. Each `ClusterSlave`:
    - Publishes `NodeHeartbeat` at 1 Hz (wall-clock `Stopwatch`).
    - Receives `NodeOpCommand` on DDS network thread; enqueues to
      `ConcurrentQueue<PendingMainThreadAction>`.
    - Dequeues and dispatches during `Tick()` (BeforeSync phase).
-4. Declare `IDsmHandler` interface in `Bagira.Runner` (or a shared `Bagira.Common`
+4. Declare `IDsmHandler` interface in `Hrot.ClusterRunner` (or a shared `Hrot.Common`
    project — **NOT in any FDP project**).
-5. Register both CGF and SimHost `DrillSlave` instances in their respective
+5. Register both CGF and SimHost `ClusterSlave` instances in their respective
    `Application.OnLoad()` methods.
 
 **Success conditions:**
-- New integration test `DrillSlaveHeartbeatTests.OrchestratorReceivesHeartbeatsFromBothNodes`:
+- New integration test `ClusterSlaveHeartbeatTests.OrchestratorReceivesHeartbeatsFromBothNodes`:
   - Launch Orchestrator, SimHost, CGF (in-process via test harness or headless).
-  - Within 2 s wall-clock, assert `DrillMaster.NodeRoster` contains both node IDs
+  - Within 2 s wall-clock, assert `ClusterMaster.NodeRoster` contains both node IDs
     (SimHost and CGF).
-  - Assert heartbeat `LocalDsmState == DSMState.Standby` for both.
-- `IDsmHandler` interface is declared in a Bagira layer project. Verify no FDP project
+  - Assert heartbeat `LocalClusterState == ClusterState.Standby` for both.
+- `IDsmHandler` interface is declared in a Hrot layer project. Verify no FDP project
   uses `typeof(IDsmHandler)` or references its namespace (csproj reference audit).
 - All pre-existing tests pass.
 
@@ -144,7 +144,7 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
 **Design ref:** [§3.5](./CGF-1-DESIGN.md#35-stage-15--orchestrator-health-monitoring--bootstrap-recovery)
 
 **Work to do:**
-1. Create `Bagira.Orchestrator/ClusterConfiguration.cs`:
+1. Create `Hrot.Orchestrator/ClusterConfiguration.cs`:
    ```csharp
    public class ClusterConfiguration
    {
@@ -155,12 +155,12 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
    }
    ```
    Loaded at startup from `orchestrator-config.json` via `System.Text.Json`.
-2. Add `_bootstrapLatch: bool` to `DrillMaster` (initially `false`):
+2. Add `_bootstrapLatch: bool` to `ClusterMaster` (initially `false`):
    - Set to `true` once every subsystem name in `Mandatory` has appeared in the roster
-     with `LocalDsmState == Standby`.
-   - While `false`, return `OpStatus.Rejected` for all incoming `SysOpRequest` messages.
+     with `LocalClusterState == Standby`.
+   - While `false`, return `OpStatus.Rejected` for all incoming `ClusterOpRequest` messages.
    - On becoming `true`, publish `SystemStateTopic { CurrentState = Standby }`.
-3. Implement heartbeat timeout detection in `DrillMaster.Tick()`:
+3. Implement heartbeat timeout detection in `ClusterMaster.Tick()`:
    - For each node in `NodeRoster.ActiveNodes`, if
      `secondsSinceLastHeartbeat > HeartbeatTimeoutSeconds`, call `EjectNode(nodeId)`.
 4. Implement `EjectNode(int nodeId)`:  *(normative correction: wire type is `int`, matching `NodeHeartbeat.NodeId`)*
@@ -178,21 +178,21 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
    - Remove `WaitingRoomCoordinator` gate (Orchestrator boots unconditionally).
    - Render a "Waiting for mandatory nodes: X, Y" banner while `!_bootstrapLatch`.
    - Disable simulation control buttons while `!_bootstrapLatch`.
-   - Add system-health table: `NodeId | SubsystemName | ms ago | LocalDsmState | CPU% | RAM`.
+   - Add system-health table: `NodeId | SubsystemName | ms ago | LocalClusterState | CPU% | RAM`.
    - Add 2PC history table listing last N transactions with per-node ACK latency (ms).
 
-**Success conditions (unit/integration tests in `Bagira.Orchestrator.Tests`):**
-- `DrillMasterBootstrapTests.RejectsCommands_UntilMandatoryNodesReady`:
+**Success conditions (unit/integration tests in `Hrot.Orchestrator.Tests`):**
+- `ClusterMasterBootstrapTests.RejectsCommands_UntilMandatoryNodesReady`:
   - Configure `mandatory: ["SimHost"]`.
-  - Send `SysOpRequest(TransitionState, LoadingLive)` before a SimHost heartbeat arrives.
+  - Send `ClusterOpRequest(TransitionState, LoadingLive)` before a SimHost heartbeat arrives.
   - Assert response is `OpStatus.Rejected`.
-  - Deliver SimHost `NodeHeartbeat { LocalDsmState = Standby }`.
-  - Assert the next `SysOpRequest(TransitionState, LoadingLive)` is accepted (not rejected).
-- `DrillMasterBootstrapTests.EjectsMandatoryNode_EntersDegraded`:
+  - Deliver SimHost `NodeHeartbeat { LocalClusterState = Standby }`.
+  - Assert the next `ClusterOpRequest(TransitionState, LoadingLive)` is accepted (not rejected).
+- `ClusterMasterBootstrapTests.EjectsMandatoryNode_EntersDegraded`:
   - Bootstrap with SimHost present.
   - Advance the heartbeat timer past `HeartbeatTimeoutSeconds`.
   - Assert `SystemStateTopic.CurrentState == Degraded` is published.
-- `DrillMasterBootstrapTests.SurvivingNodes_CommandedToStandby_AfterEjection`:
+- `ClusterMasterBootstrapTests.SurvivingNodes_CommandedToStandby_AfterEjection`:
   - Configure `mandatory: ["SimHost"]`; add CGF as `optional`.
   - Both nodes bootstrap; eject SimHost by timeout.
   - Assert CGF receives `NodeOpCommand(PrepareState, Standby)`.
@@ -204,9 +204,9 @@ See [CGF-1-DESIGN.md §3](./CGF-1-DESIGN.md#3-phase-1--skeleton-control-plane-fo
     requires keyed per-node topics (Phase 2+).  The current test asserts roster eviction
     and command correctness; per-node delivery isolation is deferred to when per-node
     topic keys exist.
-- `DrillMasterBootstrapTests.TransactionHistory_RecordsCompletedTransaction`:
-  - Execute a successful `SysOpRequest(TransitionState, LoadingLive)` end-to-end.
-  - Assert `DrillMaster.TransactionHistory` contains one entry with `IsAborted == false`.
+- `ClusterMasterBootstrapTests.TransactionHistory_RecordsCompletedTransaction`:
+  - Execute a successful `ClusterOpRequest(TransitionState, LoadingLive)` end-to-end.
+  - Assert `ClusterMaster.TransactionHistory` contains one entry with `IsAborted == false`.
 
 #### ADR: Per-Node Keyed `NodeOpCommand` Topics (deferred to CGF-1-BATCH-09)
 
@@ -228,7 +228,7 @@ Capacity was consumed by A.1 (DDS time-mode wiring) and S0205 (deterministic CI 
    entry, keyed by `TargetNodeId`. Leaf nodes create `DdsReader<NodeOpCommand>` with a
    content-or-instance filter matching their own `nodeId`.
 
-2. **`DrillMaster` fan-out:** Replace `BroadcastNodeOp(NodeOpCommand)` with
+2. **`ClusterMaster` fan-out:** Replace `BroadcastNodeOp(NodeOpCommand)` with
    `FanOutNodeOp(NodeOpCommand template, IReadOnlyCollection<int> targetNodeIds)`.
    Arguments: a populated `NodeOpCommand` prototype and the roster subset to address.
    `FanOutNodeOp` iterates the targets, sets `template.TargetNodeId = nodeId`, and writes
@@ -268,78 +268,78 @@ Scenario / Init Replay / Story list + inject/unload_" have no corresponding
 implementation task. This task fills that gap.
 
 **Work to do:**
-1. Create `Bagira.Orchestrator/UI/OrchestratorScenarioPanel.cs`:
-   - Constructor receives `DrillMaster drillMaster`, `NodeRoster roster`, and
+1. Create `Hrot.Orchestrator/UI/OrchestratorScenarioPanel.cs`:
+   - Constructor receives `ClusterMaster drillMaster`, `NodeRoster roster`, and
      `ILogger logger`.
    - `Render()` method (called from `OrchestratorSubsystem.DrawUI()`) draws **six
      ImGui child windows** (Status Banner, Drill Control, Checkpoint, Scenario, Replay,
      Stories). All controls use `ImGui.BeginDisabled` when `!drillMaster.BootstrapComplete`
      or `drillMaster.HasInFlightTransaction`.
    - **Status Banner** (always enabled): `ImGui.Text` showing `CurrentState`,
-     short `DrillId` (first 8 hex chars), and elapsed ms of in-flight transaction
+     short `ExerciseId` (first 8 hex chars), and elapsed ms of in-flight transaction
      (or "idle"). Read directly from `drillMaster.CurrentSystemState` and
      `drillMaster.ActiveTransaction`.
    - **Drill Control** section: one `ImGui.Button` per reachable DSM target from the
      current state. Buttons are generated dynamically from
      `TransitionPlanner.GetReachableTargets(currentState)`. Clicking emits:
-     `drillMaster.HandleSysOpRequestAsync(new SysOpRequest { OperationType =
-     SysOpType.TransitionState, PayloadJson = ... })`.
+     `drillMaster.HandleClusterOpRequestAsync(new ClusterOpRequest { OperationType =
+     ClusterOpType.TransitionState, PayloadJson = ... })`.
    - **Checkpoint** section: single [Take Checkpoint] button; button is additionally
      disabled when `CurrentState != RunningLive`.
    - **Scenario** section:
      - `_saveScenarioId` string input field + [Save Scenario] button →
-       `SysOpType.SaveScenario` with `_saveScenarioId` in payload.
+       `ClusterOpType.SaveScenario` with `_saveScenarioId` in payload.
      - `_loadScenarioId` string input field (or dropdown populated via
        `drillMaster.StorageGateway?.ListScenariosAsync()`) + two buttons
-       [Load into Edit] / [Load into Live] → `SysOpType.TransitionState` with
+       [Load into Edit] / [Load into Live] → `ClusterOpType.TransitionState` with
        `TargetState = LoadingEdit|LoadingLive` and `ScenarioId` in payload.
    - **Replay** section:
-     - `_replayDrillId` string input (dropdown when NAS available) + [Load Replay] →
-       `SysOpType.TransitionState, TargetState = RunningReplay` with DrillId.
+     - `_replayExerciseId` string input (dropdown when NAS available) + [Load Replay] →
+       `ClusterOpType.TransitionState, TargetState = RunningReplay` with ExerciseId.
      - Seek slider (float, 0 … replay length in seconds) shown only when
-       `CurrentState == RunningReplay`; dragging emits `SysOpType.ReplaySeek` with
+       `CurrentState == RunningReplay`; dragging emits `ClusterOpType.ReplaySeek` with
        `TargetWallTicks` converted from seconds.
    - **Stories** section:
      - Scrollable list read from `drillMaster.ActiveStories` (list of `Guid`). Per row:
-       short GUID string label + [Unload] button → `SysOpType.ManageStory,
+       short GUID string label + [Unload] button → `ClusterOpType.ManageEpisode,
        Mode:Stop, StoryId`.
      - `_injectScenarioId` + `_injectStoryId` text inputs + [Inject Story] button →
-       `SysOpType.ManageStory, Mode:Start, ScenarioId, StoryId`.
+       `ClusterOpType.ManageEpisode, Mode:Start, ScenarioId, StoryId`.
 2. Wire `OrchestratorScenarioPanel` into `OrchestratorSubsystem.DrawUI()` after the
    existing health table and 2PC history table calls.
 3. Expose `bool BootstrapComplete`, `bool HasInFlightTransaction`,
-   `DSMState CurrentSystemState`, `DistributedTransaction? ActiveTransaction`, and
-   `IReadOnlyList<Guid> ActiveStories` as read-only properties on `DrillMaster`
-   (or via a thin read-only `DrillMasterState` snapshot record if `DrillMaster` is
+   `ClusterState CurrentSystemState`, `DistributedTransaction? ActiveTransaction`, and
+   `IReadOnlyList<Guid> ActiveStories` as read-only properties on `ClusterMaster`
+   (or via a thin read-only `ClusterMasterState` snapshot record if `ClusterMaster` is
    not currently accessible from the `OrchestratorSubsystem`).
 
 **Success conditions:**
 
 - `OrchestratorScenarioPanelTests.AllButtons_DisabledBeforeBootstrap`:
-  - Instantiate `OrchestratorScenarioPanel` with a mock `DrillMaster` where
+  - Instantiate `OrchestratorScenarioPanel` with a mock `ClusterMaster` where
     `BootstrapComplete = false`.
   - Call `Render()` against a headless ImGui context.
-  - Assert `DrillMaster.HandleSysOpRequestAsync` was never called.
+  - Assert `ClusterMaster.HandleClusterOpRequestAsync` was never called.
 
-- `OrchestratorScenarioPanelTests.DrillControlButtons_EmitCorrectSysOpRequests`:
-  - Mock `DrillMaster` with `BootstrapComplete = true`, `CurrentSystemState = Standby`.
+- `OrchestratorScenarioPanelTests.DrillControlButtons_EmitCorrectClusterOpRequests`:
+  - Mock `ClusterMaster` with `BootstrapComplete = true`, `CurrentSystemState = Standby`.
   - Simulate click on the button that corresponds to `LoadingLive`.
-  - Assert `HandleSysOpRequestAsync` was called with
-    `OperationType == SysOpType.TransitionState` and payload containing
+  - Assert `HandleClusterOpRequestAsync` was called with
+    `OperationType == ClusterOpType.TransitionState` and payload containing
     `"TargetState": "RunningLive"` (or the equivalent integer).
 
 - `OrchestratorScenarioPanelTests.TakeCheckpoint_Button_DisabledOutsideRunningLive`:
   - Set `CurrentSystemState = RunningEdit`.
   - Assert the [Take Checkpoint] button is disabled (no call to
-    `HandleSysOpRequestAsync` on simulated click).
+    `HandleClusterOpRequestAsync` on simulated click).
 
 - `OrchestratorScenarioPanelTests.SaveScenario_EmitsCorrectPayload`:
   - Set `_saveScenarioId = "Alpha"`.
   - Simulate click on [Save Scenario].
   - Assert payload JSON contains `"ScenarioId": "Alpha"` and
-    `OperationType == SysOpType.SaveScenario`.
+    `OperationType == ClusterOpType.SaveScenario`.
 
-- `OrchestratorScenarioPanelTests.UnloadStory_EmitsManageStoryStop`:
+- `OrchestratorScenarioPanelTests.UnloadStory_EmitsManageEpisodeStop`:
   - Mock `ActiveStories` with one Guid `s1`.
   - Simulate click on [Unload] for `s1`.
   - Assert payload JSON contains `"Mode": "Stop"` and `"StoryId": "<s1 guid>"`.
@@ -357,21 +357,21 @@ See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synch
 **Design ref:** [§4.1](./CGF-1-DESIGN.md#41-stage-21--bfs-transition-planner)
 
 **Work to do:**
-1. Implement `TransitionPlanner` class in `Bagira.Orchestrator/TransitionPlanner.cs`.
+1. Implement `TransitionPlanner` class in `Hrot.Orchestrator/TransitionPlanner.cs`.
 2. Define the complete directed adjacency list for all valid DSM edges (13 states,
    as listed in the design doc §4.1).
-3. Implement `CalculateShortestPath(DSMState current, DSMState target)` via BFS.
-4. Implement `PlanTrajectory(DSMState current, SysOpRequest request)` that:
+3. Implement `CalculateShortestPath(ClusterState current, ClusterState target)` via BFS.
+4. Implement `PlanTrajectory(ClusterState current, ClusterOpRequest request)` that:
    - Runs BFS and wraps each state in a `TransitionStep`.
    - Appends `OperationStep(ReplaySeek, TargetWallTicks)` when `target == RunningReplay`
      and `PayloadJson` contains a `TargetWallTicks` hint.
 5. If BFS exhausts the frontier, throw `InvalidOperationException` with a descriptive
    message — **before** any DDS command is issued.
-6. Wire `DrillMaster.Tick()` to call `TransitionPlanner.PlanTrajectory()` when a
-   `SysOpRequest` arrives and the result feeds the active `DistributedTransaction`.
+6. Wire `ClusterMaster.Tick()` to call `TransitionPlanner.PlanTrajectory()` when a
+   `ClusterOpRequest` arrives and the result feeds the active `DistributedTransaction`.
 
 **Success conditions (pure unit tests — no DDS, no ECS):**
-- `TransitionPlannerTests` in `Bagira.Orchestrator.Tests`:
+- `TransitionPlannerTests` in `Hrot.Orchestrator.Tests`:
   - `StandbyToLoadingEdit_Produces_SingleStep`: feed `Standby → LoadingEdit`; assert
     the queue has exactly 1 `TransitionStep(LoadingEdit)`.
   - `RunningLiveToRunningReplay_Produces_FourSteps`: assert queue is
@@ -382,7 +382,7 @@ See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synch
     `[UnloadingEdit, Standby, LoadingLive, RunningLive]`.
   - `ImpossibleRequest_ThrowsInvalidOperationException`: feed `Degraded → RunningLive`;
     assert `InvalidOperationException` is thrown with message containing both state names.
-    **Note:** `DSMState.Degraded` is the canonical impossible source — it has no outgoing
+    **Note:** `ClusterState.Degraded` is the canonical impossible source — it has no outgoing
     planning edges.  The previous entry (`RunningDryRun → RunningReplay`) was incorrect:
     BFS proves that path is reachable in 6 steps via
     `UnloadingDryRun → RunningEdit → UnloadingEdit → Standby → LoadingReplay → RunningReplay`.
@@ -396,31 +396,31 @@ See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synch
 **Design ref:** [§4.2](./CGF-1-DESIGN.md#42-stage-22--dsm-handler-wiring)
 
 **Work to do:**
-1. Declare `DsmStateChangedEvent { DSMState Previous; DSMState Next; }` in the Bagira
-   application layer (e.g. `Bagira.Runner/Events/DsmStateChangedEvent.cs` or
-   `Bagira.Common`).
-2. Extend `DrillSlave.Tick()` to, after a `CommitState` command is processed, publish
-   `DsmStateChangedEvent` to the local `FdpEventBus`.
+1. Declare `ClusterStateChangedEvent { ClusterState Previous; ClusterState Next; }` in the Hrot
+   application layer (e.g. `Hrot.ClusterRunner/Events/ClusterStateChangedEvent.cs` or
+   `Hrot.Common`).
+2. Extend `ClusterSlave.Tick()` to, after a `CommitState` command is processed, publish
+   `ClusterStateChangedEvent` to the local `FdpEventBus`.
 3. Implement a **stub** `LiveLoadDsmHandler` that:
    - `CanHandle()` returns `true` for `NodeOpType.PrepareLive` and `NodeOpType.FinalizeLive`.
    - `PrepareAsync()` returns `null` (success) immediately — full implementation in Stage 3.4.
-   - `Commit()` publishes `DsmStateChangedEvent` via event bus if not already done by slave.
-4. Register `LiveLoadDsmHandler` with `DrillSlave` in `SimHostApp.OnLoad()`.
-5. Implement idempotency: `DrillSlave` must silently drop duplicate
+   - `Commit()` publishes `ClusterStateChangedEvent` via event bus if not already done by slave.
+4. Register `LiveLoadDsmHandler` with `ClusterSlave` in `SimHostApp.OnLoad()`.
+5. Implement idempotency: `ClusterSlave` must silently drop duplicate
    `TransactionId` commands (e.g. re-delivered DDS reliable messages).
 
 **Success conditions:**
-- `DrillSlaveHandlerTests.CommitState_RaisesEsmStateChangedEvent`:
-  - Construct `DrillSlave` with a mock `FdpEventBus` and the stub handler.
+- `ClusterSlaveHandlerTests.CommitState_RaisesEsmStateChangedEvent`:
+  - Construct `ClusterSlave` with a mock `FdpEventBus` and the stub handler.
   - Inject `NodeOpCommand { Operation = CommitState, PayloadJson = "LoadingLive" }`.
   - Call `Tick()`.
-  - Assert `FdpEventBus.GetPendingEvents<DsmStateChangedEvent>()` contains exactly one
-    event with `Next == DSMState.LoadingLive`.
-- `DrillSlaveHandlerTests.DuplicateTransactionId_IsDropped`:
+  - Assert `FdpEventBus.GetPendingEvents<ClusterStateChangedEvent>()` contains exactly one
+    event with `Next == ClusterState.LoadingLive`.
+- `ClusterSlaveHandlerTests.DuplicateTransactionId_IsDropped`:
   - Inject the same `NodeOpCommand` twice (same `TransactionId`).
-  - Assert the event bus receives only one `DsmStateChangedEvent` (not two).
-- `DsmStateChangedEvent` is **not** defined in any `FDP/` project — verified by
-  csproj reference audit or `grep -r "DsmStateChangedEvent" FDP/`.
+  - Assert the event bus receives only one `ClusterStateChangedEvent` (not two).
+- `ClusterStateChangedEvent` is **not** defined in any `FDP/` project — verified by
+  csproj reference audit or `grep -r "ClusterStateChangedEvent" FDP/`.
 
 ---
 
@@ -546,19 +546,19 @@ See [CGF-1-DESIGN.md §4](./CGF-1-DESIGN.md#4-phase-2--state--time-dsm-and-synch
    - Spawns 2 dummy entities in the CGF subsystem.
    - Advances 600 deterministic ticks (10 s at 60 Hz).
    - Asserts both entities remain alive.
-2. Wire `DrillMaster` to parse `"TimeMode": "Deterministic"` from
-   `SysOpRequest.PayloadJson` on `LoadingLive`.
-3. When `TimeMode == Deterministic`, `DrillMaster` instructs
+2. Wire `ClusterMaster` to parse `"TimeMode": "Deterministic"` from
+   `ClusterOpRequest.PayloadJson` on `LoadingLive`.
+3. When `TimeMode == Deterministic`, `ClusterMaster` instructs
    `DistributedTimeCoordinator` to switch to `SteppedMasterController` before the
    cluster enters `RunningLive`.
 4. Slaves receive the `SwitchTimeModeEvent` via Future Barrier and switch to
    `SteppedSlaveController`.
-5. Add CI entry point: `dotnet run --project Bagira.Runner -- --mode ci --scenario MinimalCI_01`
+5. Add CI entry point: `dotnet run --project Hrot.ClusterRunner -- --mode ci --scenario MinimalCI_01`
    passes the scenario name to the `ScenarioSubsystem` which drives the deterministic loop.
 
 **Success conditions:**
 - `MinimalCIScenarioTests.DeterministicRun_ExitsWithCode0`:
-  - The command `dotnet run --project Bagira.Runner -- --mode ci --scenario MinimalCI_01`
+  - The command `dotnet run --project Hrot.ClusterRunner -- --mode ci --scenario MinimalCI_01`
     exits with code `0` within 30 s wall-clock.
 - `MinimalCIScenarioTests.DeterministicRun_IsReproducible`:
   - Run the scenario twice with the same seed; assert the entity positions at
@@ -579,17 +579,17 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
 **Design ref:** [§5.1](./CGF-1-DESIGN.md#51-stage-31--storage-gateway)
 
 **Work to do:**
-1. Implement `Bagira.Orchestrator/StorageGatewayModule.cs`:
+1. Implement `Hrot.Orchestrator/StorageGatewayModule.cs`:
    - `PullToNasAsync(IReadOnlyList<FileManifestEntry> manifests, string nasBasePath)`:
      opens one outbound SMB connection to `nasBasePath`, then performs
      `Parallel.ForEach(manifests, MaxDegreeOfParallelism=8, entry => CopyFile(...))`.
    - `PushToNodesAsync(string nasSourcePath, IReadOnlyList<NodeDistributionTarget> targets)`:
      reads from NAS, writes to each node's `C:\FDP_Temp\` via parallel outbound SMB.
    - Both methods return a `Task<GatewayResult>` reporting success/failure counts.
-2. Integrate with `DrillMaster`: after all node ACKs for `SerializeLocal`, collect
+2. Integrate with `ClusterMaster`: after all node ACKs for `SerializeLocal`, collect
    manifests from `NodeOpStatus.ResultJson` and invoke `PullToNasAsync`.
 3. Define `FileManifestEntry { string SourceUnc; string RelativeDest; }` in
-   `Bagira.Orchestrator`.
+   `Hrot.Orchestrator`.
 
 **Success conditions:**
 - `StorageGatewayTests.PullToNas_CopiesAllFiles`:
@@ -609,7 +609,7 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
 **Design ref:** [§5.2](./CGF-1-DESIGN.md#52-stage-32--portable-scenario-loading)
 
 **Work to do:**
-1. Implement `EditLoadDsmHandler` in `Bagira.SimHost`:
+1. Implement `EditLoadDsmHandler` in `Hrot.SimHost`:
    - `PrepareAsync()`: if `IsNewScenario = true`, skips file I/O and returns success.
      If `ScenarioId != null`, verifies the pre-fetched JSON exists in `C:\FDP_Temp\`.
    - `Commit()`: leaves world blank for new scenarios OR deserializes the cached
@@ -637,7 +637,7 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
   - Measure wall-clock time of `Commit()` with a 100-entity JSON.
   - Assert elapsed < 50 ms.
 - `TransitionPlannerTests.PlanWithScenarioId_InjectsStorageGatewayStep`:
-  - Feed `SysOpRequest{TargetState=LoadingEdit, PayloadJson={ScenarioId="Alpha"}}`.
+  - Feed `ClusterOpRequest{TargetState=LoadingEdit, PayloadJson={ScenarioId="Alpha"}}`.
   - Assert the planned queue begins with a storage gateway pre-fetch step before
     the `TransitionStep(LoadingEdit)`.
 
@@ -656,11 +656,11 @@ See [CGF-1-DESIGN.md §5](./CGF-1-DESIGN.md#5-phase-3--persistence-scenarios-che
    - Exposes `Enqueue(EntityRepository, Guid)` and `Task DrainAsync()`.
    - `DrainAsync()` returns only when the queue is empty **and** the background thread
      is idle.
-2. Implement `CheckpointDsmHandler` in `Bagira.SimHost`:
+2. Implement `CheckpointDsmHandler` in `Hrot.SimHost`:
    - On `TakeSnapshot` command: immediately publish `NodeOpStatus(InProgress)`;
      on main thread at BeforeSync, call `snap.SyncFrom(liveRepo)` (~2 ms);
      enqueue `(snap, requestId)` to `CheckpointIOWorker`.
-   - `DrillSlave.Tick()` monitor: check `CompletionResults` each frame; when a matching
+   - `ClusterSlave.Tick()` monitor: check `CompletionResults` each frame; when a matching
      `requestId` is found, publish `NodeOpStatus(Success/Failure)` to DDS (deferred ACK).
 3. `LiveLoadDsmHandler.PrepareAsync()` must call `await CheckpointIOWorker.DrainAsync()`
    before triggering `FinalizeRecordingAsync()`.
@@ -709,7 +709,7 @@ By keeping the low-level chunk manipulation, sanitization, and policy masking co
 
 **Work to do:**
 1. Create `FDP/Kernel/Fdp.Kernel/Orchestration/IRecordReplayController.cs`
-   (pure FDP interface — no Bagira references).
+   (pure FDP interface — no Hrot references).
 2. Create `FDP/Kernel/Fdp.Kernel/Orchestration/RecordingConfiguration.cs`.
 3. Add `long TotalWallTicks` to `GlobalTime` if not yet done (§2.3 dependency).
 4. Add `WallClockTicks` field to `FrameMetadata`/`FrameOuterHeader` in
@@ -721,13 +721,13 @@ By keeping the low-level chunk manipulation, sanitization, and policy masking co
    - Add `SeekToWallClockTicks(EntityRepository repo, long wallTicks)` using binary
      search over `_frameIndex` (replace or supplement the existing linear scan in
      `SeekToTick`).
-7. Implement `RecordingModule : IModule, IDisposable` in `Bagira.SimHost`:
+7. Implement `RecordingModule : IModule, IDisposable` in `Hrot.SimHost`:
    - `Initialize()` constructs `AsyncRecorder`, registers `RecorderTickSystem` with
      `ModuleHostKernel`.
    - `Dispose()` calls `AsyncRecorder.Dispose()` (blocking: flush LZ4 + write
      `.meta.json`).
-8. Implement `ReplayModule : IModule, IDisposable` in `Bagira.SimHost`.
-9. Implement `EcsRecordReplayController : IDsmHandler` in `Bagira.SimHost`:
+8. Implement `ReplayModule : IModule, IDisposable` in `Hrot.SimHost`.
+9. Implement `EcsRecordReplayController : IDsmHandler` in `Hrot.SimHost`:
    - `PrepareRecordingAsync`: factory-constructs `RecordingModule`, calls
      `kernel.InstallModuleAsync()`.
    - `FinalizeRecordingAsync`: calls `kernel.UninstallModuleAsync()` → triggers
@@ -781,20 +781,20 @@ By keeping the low-level chunk manipulation, sanitization, and policy masking co
 **Work to do:**
 1. Handle `PrepareLive` command when current DSM state is `RunningReplay` (the
    Live-from-Replay path):
-   - **Before** issuing the `NodeOpCommand`, `DrillMaster` calls
+   - **Before** issuing the `NodeOpCommand`, `ClusterMaster` calls
      `replayMasterModule.SetTimeScale(0.0)` (hard freeze).
-   - Generate new branched `DrillId`.
-   - Issue `NodeOpCommand(PrepareState, LoadingLive, newDrillId)`.
+   - Generate new branched `ExerciseId`.
+   - Issue `NodeOpCommand(PrepareState, LoadingLive, newExerciseId)`.
 2. In `ReplayLoadDsmHandler.PrepareAsync()` for the `PrepareLive` command:
    - Call `EcsRecordReplayController.TeardownReplayAsync()`.
    - **Do not** mutate `EntityRepository` — merely uninstall `ReplayModule` (disposes
      `PlaybackController`, closes read handles).
-   - Call `EcsRecordReplayController.PrepareRecordingAsync(newDrillId)`.
+   - Call `EcsRecordReplayController.PrepareRecordingAsync(newExerciseId)`.
    - Re-enable `SimulationSystemGroup`, `NetworkLifecycleSystemGroup`.
    - Set `GhostCreationSystem.BypassLifecycle = false`.
-3. After all nodes report `NodeOpStatus(Success)`, `DrillMaster` commits
-   `SystemStateTopic(RunningLive, newDrillId)` then calls `SetTimeScale(savedScale)`.
-4. Add `ReplayMasterModule` to `Bagira.Orchestrator` that wraps `MasterTimeController`
+3. After all nodes report `NodeOpStatus(Success)`, `ClusterMaster` commits
+   `SystemStateTopic(RunningLive, newExerciseId)` then calls `SetTimeScale(savedScale)`.
+4. Add `ReplayMasterModule` to `Hrot.Orchestrator` that wraps `MasterTimeController`
    for replay playhead control.
 
 **Success conditions:**
@@ -803,18 +803,18 @@ By keeping the low-level chunk manipulation, sanitization, and policy masking co
   - Call `EcsRecordReplayController.TeardownReplayAsync()`.
   - Assert `repo.EntityCount == 5` (historical state preserved in-place, zero memcpy).
 - `LiveFromReplayTests.AfterBranch_RecordingModuleIsInstalled`:
-  - After the full `PrepareRecordingAsync(branchedDrillId)` call, assert
+  - After the full `PrepareRecordingAsync(branchedExerciseId)` call, assert
     `"RecorderTickSystem"` is present in the kernel's scheduler.
 - `LiveFromReplayTests.AfterBranch_SimGroupsReEnabled`:
   - Assert `SimulationSystemGroup.Enabled == true`.
   - Assert `GhostCreationSystem.BypassLifecycle == false`.
 - `LiveFromReplayTests.TimeFrozenDuringBranchTransition`:
-  - Assert that from the moment `DrillMaster` issues the `PrepareLive` command until
+  - Assert that from the moment `ClusterMaster` issues the `PrepareLive` command until
     all nodes ACK success, `MasterTimeController.GetTimeScale() == 0.0`.
 - Integration test `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`:
   - Run 100 ticks of live simulation; seek in replay to tick 50; execute the
     Live-from-Replay branch; run 50 more ticks of branched live simulation.
-  - Assert the `.fdp` file for the branched DrillId contains a keyframe at frame 0
+  - Assert the `.fdp` file for the branched ExerciseId contains a keyframe at frame 0
     that matches the ECS snapshot at tick 50 of the original recording.
 
 ---
@@ -823,7 +823,7 @@ By keeping the low-level chunk manipulation, sanitization, and policy masking co
 
 **Design ref:** [§5.6](./CGF-1-DESIGN.md#56-stage-36--scenariostory-serialization-toolkit)
 
-**New project:** `FDP/Toolkits/FDP.Toolkit.Scenario` — no Bagira references.
+**New project:** `FDP/Toolkits/FDP.Toolkit.Scenario` — no Hrot references.
 
 **Work to do:**
 1. Create project `FDP.Toolkit.Scenario.csproj` referencing only `Fdp.Kernel` and
@@ -940,8 +940,8 @@ Do not reinvent it — just call `GetSaveableMask()` as the starting point.
   - Deserialize with `asStory: true` and a non-empty **`Guid`** (e.g. a fixed test `Guid`).
   - Assert every created entity has **`FDP.Toolkit.Replay.StoryTag`** with matching **`StoryId`**.
 - `ScenarioSerializerTests.SubsystemType_MismatchSkipsDeserialize`:
-  - Deserialize a DOM with `SubsystemType = "Bagira.SimHost"` using a serializer
-    configured for `"Bagira.CGF"`.
+  - Deserialize a DOM with `SubsystemType = "Hrot.SimHost"` using a serializer
+    configured for `"Hrot.CGF"`.
   - Assert `EntityRepository.EntityCount` does not increase.
 - `ScenarioSerializerTests.FdpAutoSerializer_NoReflectionOnHotPath`:
   - After `Build()`, invoke `Serialize`; assert no `PropertyInfo.GetValue` calls
@@ -954,20 +954,20 @@ Do not reinvent it — just call `GetSaveableMask()` as the starting point.
 **Design ref:** [§5.7](./CGF-1-DESIGN.md#57-stage-37--application-layer-scenario-saveload-wiring)
 
 **Work to do:**
-1. Create `Bagira.Orchestrator/GlobalContextDsmHandler.cs`:
+1. Create `Hrot.Orchestrator/GlobalContextDsmHandler.cs`:
    - **Save:** on `SerializeLocal` command, build a `GlobalContextDto` (start wall
      ticks, weather descriptor, scene identifier) and serialize to
-     `C:\FDP_Temp\<DrillId>\Orchestrator.json`. Return UNC path in `NodeOpStatus.ResultJson`.
+     `C:\FDP_Temp\<ExerciseId>\Orchestrator.json`. Return UNC path in `NodeOpStatus.ResultJson`.
    - **Load:** on `CommitState(LoadingLive|LoadingEdit)`, parse `Orchestrator.json`,
      call `MasterTimeController.SeedState(new GlobalTime { TotalWallTicks = dto.StartWallTicks })`,
      then publish `OrchestratorContextMessage` to the DDS `OrchestratorContextTopic`.
-2. Register `GlobalContextDsmHandler` in the Orchestrator's own `DrillSlave` at startup.
-3. In `Bagira.SimHost` (and `Bagira.CGF`), create `ScenarioLoadDsmHandler`:
+2. Register `GlobalContextDsmHandler` in the Orchestrator's own `ClusterSlave` at startup.
+3. In `Hrot.SimHost` (and `Hrot.CGF`), create `ScenarioLoadDsmHandler`:
    - `PrepareAsync`: peek at `Header.SubsystemType`; if mismatch, return `Success` immediately.
    - If match: parse full DOM, call `ScenarioSerializer.Deserialize()`, return `Success`.
 4. Wire `ScenarioLoadDsmHandler` registration in `SimHostApp.OnLoad()` and `CgfApp.OnLoad()`.
 5. Extend `TransitionPlanner.PlanTrajectory()`:
-   - When `SysOpRequest` contains `ScenarioId`, insert a
+   - When `ClusterOpRequest` contains `ScenarioId`, insert a
      `OperationStep(PrefetchScenario, scenarioId)` before the first `TransitionStep`.
 6. Extend `StorageGatewayModule`:
    - `PrefetchScenarioAsync(string scenarioId)`: copies all files from
@@ -978,18 +978,18 @@ Do not reinvent it — just call `GetSaveableMask()` as the starting point.
      `\\NAS\Scenarios\<scenarioId>\`.
    - Write `scenario_manifest.json` listing all participating file names.
 
-**Success conditions (integration tests in `Bagira.Orchestrator.Integration.Tests`):**
+**Success conditions (integration tests in `Hrot.Orchestrator.Integration.Tests`):**
 - `ScenarioSaveLoadTests.RoundTrip_SimHost_EntitiesMatchAfterLoad`:
   - Run live simulation with 3 entities in SimHost.
-  - Trigger `SysOpRequest(SaveScenario, "test_01")`.
+  - Trigger `ClusterOpRequest(SaveScenario, "test_01")`.
   - Verify `scenario_manifest.json` is written to NAS.
-  - Clear ECS; trigger `SysOpRequest(LoadScenario, "test_01")`.
+  - Clear ECS; trigger `ClusterOpRequest(LoadScenario, "test_01")`.
   - Assert 3 entities present in SimHost `EntityRepository` with matching component data.
 - `ScenarioSaveLoadTests.OrchestratorContextRestored_AfterLoad`:
   - Save scenario; clear Orchestrator context; load scenario.
   - Assert `OrchestratorContextTopic.SceneId` matches the saved value.
 - `ScenarioSaveLoadTests.SubsystemTypeFilter_CGFFileNotLoadedBySimHost`:
-  - Create a scenario file with `SubsystemType = "Bagira.CGF"`.
+  - Create a scenario file with `SubsystemType = "Hrot.CGF"`.
   - Let SimHost's `ScenarioLoadDsmHandler` process it.
   - Assert `EntityRepository.EntityCount` in SimHost does not increase.
 
@@ -1001,56 +1001,56 @@ Do not reinvent it — just call `GetSaveableMask()` as the starting point.
 
 > **Implementation status (BATCH-20):**
 > Items 1–3 and `NodeOpStatus.IsParticipating` wire-field (item 4) are complete.
-> The `DrillMaster` **ACK gating** (item 4 — "waits only for participating nodes")
-> is an **intentional MVP delta**: `ManageStory` currently fans out and immediately
-> resolves `SysOpStatus.InProgress` with `CompletedSteps == totalSteps` without a
+> The `ClusterMaster` **ACK gating** (item 4 — "waits only for participating nodes")
+> is an **intentional MVP delta**: `ManageEpisode` currently fans out and immediately
+> resolves `ClusterOpStatus.InProgress` with `CompletedSteps == totalSteps` without a
 > `NodeOpStatus` round-trip.  Full 2PC for story ops (subscribe on orchestrator side,
 > per-transaction participation tracking, timeout) is deferred to a future batch when
 > multi-node story coordination becomes a hard product requirement.  The CGF
-> `DrillSlave` now has a `NodeOpStatusWriter` so nodes *can* publish the ACK; the
+> `ClusterSlave` now has a `NodeOpStatusWriter` so nodes *can* publish the ACK; the
 > orchestrator-side consumption is the missing piece.
 
 **Work to do:**
-1. Add `ManageStory` operation to `TransitionPlanner`:
+1. Add `ManageEpisode` operation to `TransitionPlanner`:
    - Validate `CurrentState == RunningLive`; if not, return `OpStatus.InvalidState`.
    - For `Mode:Start`: append `OperationStep(PrefetchStory, storyId)` then
-     `OperationStep(StartStory, { StoryId, ScenarioId })`.
-   - For `Mode:Stop`: append `OperationStep(StopStory, { StoryId })`.
-2. Implement `StoryLoadDsmHandler` in `Bagira.SimHost` (and `Bagira.CGF`):
-   - On `StartStory(storyId, scenarioId)` (**`storyId`: `Guid`** — parse from payload JSON if the wire format uses strings):
+     `OperationStep(StartEpisode, { StoryId, ScenarioId })`.
+   - For `Mode:Stop`: append `OperationStep(StopEpisode, { StoryId })`.
+2. Implement `StoryLoadDsmHandler` in `Hrot.SimHost` (and `Hrot.CGF`):
+   - On `StartEpisode(storyId, scenarioId)` (**`storyId`: `Guid`** — parse from payload JSON if the wire format uses strings):
      - Load DOM from `C:\FDP_Temp\<scenarioId>\{SubsystemType}.json`.
      - Peek `Header.SubsystemType`; if mismatch, reply
        `NodeOpStatus(Success, IsParticipating: false)`.
      - If match, call `ScenarioSerializer.Deserialize(repo, dom, asStory: true, storyId)`.
      - Reply `NodeOpStatus(Success, IsParticipating: true)`.
-   - On `StopStory(storyId)` (**`Guid`**):
+   - On `StopEpisode(storyId)` (**`Guid`**):
      - Query all entities with **`FDP.Toolkit.Replay.StoryTag`** where **`StoryId == storyId`**.
      - Destroy each entity.
      - Reply `NodeOpStatus(Success)`.
-3. Extend `DrillMaster` to track active stories in `OrchestratorContextTopic.ActiveStories`
+3. Extend `ClusterMaster` to track active stories in `OrchestratorContextTopic.ActiveStories`
    (**`List<Guid>`** of active story IDs, or a wire-serializable equivalent; published after each Start/Stop operation).
 4. Extend `NodeOpStatus` with `bool IsParticipating` field (default `true`).  
-   `DrillMaster` waits only for ACKs from nodes that replied `IsParticipating: true`
+   `ClusterMaster` waits only for ACKs from nodes that replied `IsParticipating: true`
    during the `PrepareStory` phase.
    > **MVP delta (BATCH-20):** The `IsParticipating` field exists in the DDS schema and
-   > nodes publish it.  `DrillMaster`-side ACK gating (subscribe + per-transaction
+   > nodes publish it.  `ClusterMaster`-side ACK gating (subscribe + per-transaction
    > participation filter + timeout) is deferred — see implementation status note above.
 
-**Success conditions (integration tests in `Bagira.SimHost.Integration.Tests`):**
-- `StoryInjectionTests.StartStory_EntitiesSpawnedWithStoryTag`:
-  - System is in `RunningLive`. Inject a story with a known **`Guid`** `storyId` targeting `Bagira.SimHost`.
+**Success conditions (integration tests in `Hrot.SimHost.Integration.Tests`):**
+- `StoryInjectionTests.StartEpisode_EntitiesSpawnedWithStoryTag`:
+  - System is in `RunningLive`. Inject a story with a known **`Guid`** `storyId` targeting `Hrot.SimHost`.
   - Assert 3 new entities appear in `EntityRepository`.
   - Assert each has **`FDP.Toolkit.Replay.StoryTag`** with **`StoryId == storyId`**.
-- `StoryInjectionTests.StopStory_EntitiesDestroyedByStoryTag`:
+- `StoryInjectionTests.StopEpisode_EntitiesDestroyedByStoryTag`:
   - Inject `storyId` (3 entities). Stop the same **`Guid`**.
   - Assert those 3 entities are no longer in `EntityRepository`.
-- `StoryInjectionTests.StartStory_NonMatchingSubsystem_ReturnsIsParticipatingFalse`:
-  - Create a story file with `SubsystemType = "Bagira.CGF"`.
+- `StoryInjectionTests.StartEpisode_NonMatchingSubsystem_ReturnsIsParticipatingFalse`:
+  - Create a story file with `SubsystemType = "Hrot.CGF"`.
   - Process it through `SimHost.StoryLoadDsmHandler`.
   - Assert `NodeOpStatus.IsParticipating == false` and `EntityRepository.EntityCount`
     unchanged.
-- `StoryInjectionTests.ManageStory_RejectedWhen_NotInRunningLive`:
-  - Issue `SysOpRequest(ManageStory, { Mode:Start })` while cluster is in `Standby`.
+- `StoryInjectionTests.ManageEpisode_RejectedWhen_NotInRunningLive`:
+  - Issue `ClusterOpRequest(ManageEpisode, { Mode:Start })` while cluster is in `Standby`.
   - Assert response is `OpStatus.InvalidState`.
 - `StoryInjectionTests.MultipleStoriesCoexist_IndependentDeletion`:
   - Inject two distinct story **`Guid`**s `s1` / `s2` (3 and 2 entities).
@@ -1070,9 +1070,9 @@ primitive into the DSM lifecycle to power the edit-preview-rewind loop.
 **Work to do:**
 
 1. Implement `DryRunDsmHandler` in
-   `Bagira.Common/Orchestration/Handlers/DryRunDsmHandler.cs`:
+   `Hrot.Common/Orchestration/Handlers/DryRunDsmHandler.cs`:
    - Constructor accepts `EntityRepository? liveRepo` (nullable for subsystems
-     without ECS, e.g. `Bagira.IOS`).
+     without ECS, e.g. `Hrot.ExCon`).
    - `CanHandle(NodeOpType op)` returns `true` for `NodeOpType.PrepareState`.
    - `PrepareAsync` returns `Task.FromResult<string?>(null)` — no async work needed
      for either act.
@@ -1093,10 +1093,10 @@ primitive into the DSM lifecycle to power the edit-preview-rewind loop.
    - **Do not** touch `CheckpointIOWorker` — this is a RAM-only path.
 
 2. Register `DryRunDsmHandler` in `NodeBootstrapper.BuildOrchestration` (already done via
-   `Bagira.Common`), and in `CgfApplication` alongside the existing DSM handlers.
+   `Hrot.Common`), and in `CgfApplication` alongside the existing DSM handlers.
    Pass the live `EntityRepository` reference (or `null` for ECS-less subsystems).
 
-3. `Bagira.IOS` and `Bagira.IG` register the handler with `liveRepo = null` so they
+3. `Hrot.ExCon` and `Hrot.IG` register the handler with `liveRepo = null` so they
    participate in the 2PC round-trip without error.
 
 **Success conditions:**
@@ -1147,37 +1147,37 @@ primitive into the DSM lifecycle to power the edit-preview-rewind loop.
 **Design ref:** [§5.10](./CGF-1-DESIGN.md#510-stage-310--e2e-dsm-test-script-suite)
 
 **Depends on:** CGF1-S0303, CGF1-S0304, CGF1-S0305, CGF1-S0309, and the existing
-`HeadlessTestExecutor` + `BagiraActionHandlers` infrastructure.
+`HeadlessTestExecutor` + `HrotActionHandlers` infrastructure.
 
 **Context:** The platform has `HeadlessTestExecutor` (in `FDP.Framework.Runner`), and
 three generic action handlers (`spawn`, `move`, `assert_position`) in
-`Bagira.Runner/Testing/BagiraActionHandlers.cs`. There is no DSM-aware action handler
+`Hrot.ClusterRunner/Testing/HrotActionHandlers.cs`. There is no DSM-aware action handler
 and no concrete E2E scripts that exercise the distributed orchestration paths. This task
 adds both.
 
 **Work to do:**
 
-1. Create `Bagira.Runner/Testing/OrchestratorActionHandlers.cs` with two handler classes:
+1. Create `Hrot.ClusterRunner/Testing/OrchestratorActionHandlers.cs` with two handler classes:
    a. **`SysopActionHandler`** (action name `"sysop"`):
-      - Constructor: `SysopActionHandler(DrillMaster drillMaster, DdsReader<SysOpStatus>
+      - Constructor: `SysopActionHandler(ClusterMaster drillMaster, DdsReader<ClusterOpStatus>
         statusReader, double timeoutSeconds = 10.0)`.
       - `ExecuteAsync(args)`: reads `args["TargetState"]` (string or integer).
-        - If value is a `DSMState` name → calls
-          `drillMaster.HandleSysOpRequestAsync(new SysOpRequest { OperationType =
-          SysOpType.TransitionState, PayloadJson = ... })` including optional
-          `DrillId`, `ScenarioId`, `TargetWallTicks` from `args`.
-        - `"TakeCheckpoint"` special value → `SysOpType.TakeSnapshot`.
+        - If value is a `ClusterState` name → calls
+          `drillMaster.HandleClusterOpRequestAsync(new ClusterOpRequest { OperationType =
+          ClusterOpType.TransitionState, PayloadJson = ... })` including optional
+          `ExerciseId`, `ScenarioId`, `TargetWallTicks` from `args`.
+        - `"TakeCheckpoint"` special value → `ClusterOpType.TakeSnapshot`.
         - `"ReplaySeek"` special value + mandatory `args["TargetWallTicks"]` →
-          `SysOpType.ReplaySeek`.
-      - Polls `statusReader` (up to `timeoutSeconds`) for a `SysOpStatus` whose
+          `ClusterOpType.ReplaySeek`.
+      - Polls `statusReader` (up to `timeoutSeconds`) for a `ClusterOpStatus` whose
         `RequestId` matches. Returns `{"status": "success"}` or throws
         `TestAssertionException` with the failure message on timeout or
-        `SysOpStatus.Failure`.
+        `ClusterOpStatus.Failure`.
    b. **`AssertEntityCountActionHandler`** (action name `"assert_entity_count"`):
       - `ExecuteAsync(args)`: reads `args["expected"]` (int); asserts
         `_world.EntityCount == expected`; throws `TestAssertionException` on mismatch.
 
-2. Create `Bagira.Runner.Integration.Tests/Systems/MovingEntitySystem.cs`:
+2. Create `Hrot.ClusterRunner.Integration.Tests/Systems/MovingEntitySystem.cs`:
    - Registered only by the E2E test fixture (not in production boots).
    - Each tick: for every entity with `MovingTestTag`, advances
      `SimTransform.Position.X += MovingTestTag.VelocityX * GlobalTime.DeltaTime`.
@@ -1185,7 +1185,7 @@ adds both.
      the same file.
 
 3. Create four JSON test scripts in
-   `Bagira.Runner.Integration.Tests/TestScripts/`:
+   `Hrot.ClusterRunner.Integration.Tests/TestScripts/`:
 
    **`e2e_record_and_replay_seek.json`**
    ```json
@@ -1196,14 +1196,14 @@ adds both.
      "Duration": 20.0,
      "Steps": [
        { "Time": 0.5,  "Action": "sysop",
-         "Args": { "TargetState": "RunningLive", "DrillId": "e2e-rec-01" } },
+         "Args": { "TargetState": "RunningLive", "ExerciseId": "e2e-rec-01" } },
        { "Time": 1.0,  "Action": "spawn",
          "Args": { "x": 0.0, "y": 0.0, "z": 0.0 },
          "SaveResult": "entity_a" },
        { "Time": 1.1,  "Action": "add_moving_tag",
          "Args": { "entity_ref": "entity_a", "velocity_x": 10.0 } },
        { "Time": 7.0,  "Action": "sysop",
-         "Args": { "TargetState": "RunningReplay", "DrillId": "e2e-rec-01" } },
+         "Args": { "TargetState": "RunningReplay", "ExerciseId": "e2e-rec-01" } },
        { "Time": 9.0,  "Action": "sysop",
          "Args": { "TargetState": "ReplaySeek",
                    "TargetWallTicks": 30000000 } },
@@ -1257,16 +1257,16 @@ adds both.
      "Duration": 25.0,
      "Steps": [
        { "Time": 0.5,  "Action": "sysop",
-         "Args": { "TargetState": "RunningLive", "DrillId": "e2e-branch-src" } },
+         "Args": { "TargetState": "RunningLive", "ExerciseId": "e2e-branch-src" } },
        { "Time": 1.0,  "Action": "spawn",
          "Args": { "x": 0.0, "y": 0.0, "z": 0.0 },
          "SaveResult": "entity_c" },
        { "Time": 1.1,  "Action": "add_moving_tag",
          "Args": { "entity_ref": "entity_c", "velocity_x": 5.0 } },
        { "Time": 8.0,  "Action": "sysop",
-         "Args": { "TargetState": "RunningReplay", "DrillId": "e2e-branch-src" } },
+         "Args": { "TargetState": "RunningReplay", "ExerciseId": "e2e-branch-src" } },
        { "Time": 12.0, "Action": "sysop",
-         "Args": { "TargetState": "RunningLive", "DrillId": "e2e-branch-dst" } },
+         "Args": { "TargetState": "RunningLive", "ExerciseId": "e2e-branch-dst" } },
        { "Time": 14.0, "Action": "spawn",
          "Args": { "x": 50.0, "y": 50.0, "z": 0.0 },
          "SaveResult": "entity_d" },
@@ -1303,9 +1303,9 @@ adds both.
      ]
    }
    ```
-   **Success condition:** Both checkpoints succeed (both deferred `SysOpStatus(Success)` ACKs arrive within timeout); simulation continues and entity position is intact.
+   **Success condition:** Both checkpoints succeed (both deferred `ClusterOpStatus(Success)` ACKs arrive within timeout); simulation continues and entity position is intact.
 
-4. Create `Bagira.Runner.Integration.Tests/DsmE2eScriptTests.cs` with four xUnit
+4. Create `Hrot.ClusterRunner.Integration.Tests/DsmE2eScriptTests.cs` with four xUnit
    `[Fact]` methods, one per script:
    - Each fact boots an in-process all-in-one stack:
      ```
@@ -1349,10 +1349,10 @@ adds both.
 
 ## Phase 4 — Generalization: FDP Toolkit Orchestration
 
-**Goal:** Lift the reusable orchestration engine — `IDsmHandler`, the `DrillSlave`
+**Goal:** Lift the reusable orchestration engine — `IDsmHandler`, the `ClusterSlave`
 dispatch loop, the BFS `TransitionPlanner`, and all reference handler implementations
-— out of the Bagira application layer into `FDP.Toolkit.Orchestration`, so any FDP
-application can participate in a 2PC state machine without copying Bagira infrastructure.
+— out of the Hrot application layer into `FDP.Toolkit.Orchestration`, so any FDP
+application can participate in a 2PC state machine without copying Hrot infrastructure.
 
 **Design authority:** [CGF-1-GENERALIZATION.md](./CGF-1-GENERALIZATION.md)
 
@@ -1363,20 +1363,20 @@ application can participate in a 2PC state machine without copying Bagira infras
 **Design ref:** [§4 — New Project: FDP.Toolkit.Orchestration](./CGF-1-GENERALIZATION.md#4-new-project-fdptoolkitorchestration)
 
 **Context:** `IDsmHandler` and `ITickableDsmHandler` currently live in
-`Bagira.Common.Orchestration`, which violates the architectural goal of a reusable
+`Hrot.Common.Orchestration`, which violates the architectural goal of a reusable
 FDP toolkit. This task creates the new project, moves the core interfaces, and adds
 the new abstraction contracts (`IOrchestrationTransport`, `ITransitionGraph`,
 `IScenarioStorageProvider`) alongside the toolkit-level plain value types
-(`OrchestrationCommand`, `OrchestrationStatus`, `TkDsmStateChangedEvent`).
+(`OrchestrationCommand`, `OrchestrationStatus`, `TkClusterStateChangedEvent`).
 
 **Work to do:**
 
 1. Create `FDP/Toolkits/FDP.Toolkit.Orchestration/FDP.Toolkit.Orchestration.csproj`
    referencing `Fdp.Kernel`, `FDP.Toolkit.Scenario`, `FDP.Toolkit.Replay`, and
-   `ModuleHost.Core`. No `Bagira.*` or `CycloneDDS.*` references are permitted.
+   `ModuleHost.Core`. No `Hrot.*` or `CycloneDDS.*` references are permitted.
 
 2. Move `IDsmHandler` (verbatim) from
-   `Bagira.Common/Orchestration/IDsmHandler.cs` → new project under
+   `Hrot.Common/Orchestration/IDsmHandler.cs` → new project under
    `FDP/Toolkits/FDP.Toolkit.Orchestration/IDsmHandler.cs`, changing the namespace to
    `FDP.Toolkit.Orchestration`. Rename the `CanHandle` parameter from `NodeOpType op`
    to `int operationId`. Update the XML doc to note that callers may cast `operationId`
@@ -1396,10 +1396,10 @@ the new abstraction contracts (`IOrchestrationTransport`, `ITransitionGraph`,
      `OutOfMemory=1000`, `AssetNotFound=1001`; helper `static bool IsError(int)`.
      **Rationale:** `0` is the C# default for uninitialized `int` fields, so a
      zero-initialised wire struct naturally means «OK» — consistent with
-     `SstStatusCode` already in use across Bagira DDS messages.
-   - Update `Bagira.DDS.DataModel/Orchestration/OrchestrationMessages.cs`:
+     `SstStatusCode` already in use across Hrot DDS messages.
+   - Update `Hrot.NED/Orchestration/OrchestrationMessages.cs`:
      remove `OpStatus` enum, replace `OpStatus Status` + `int ErrorCode` fields in
-     `NodeOpStatus` and `SysOpStatus` with a single `int StatusCode`.
+     `NodeOpStatus` and `ClusterOpStatus` with a single `int StatusCode`.
    - `IOrchestrationTransport` — interface with `PublishHeartbeat(int, string, int,
      long)`, `PublishStatus(OrchestrationStatus)`, `bool TryDequeueCommand(out
      OrchestrationCommand)`, inherits `IDisposable`.
@@ -1410,26 +1410,26 @@ the new abstraction contracts (`IOrchestrationTransport`, `ITransitionGraph`,
    - `IScenarioStorageProvider` — interface with `Stream? OpenScenarioFile(string,
      string)`, `string EnsureStagingDirectory(string)`,
      `IEnumerable<string> EnumerateScenarioFiles(string)`.
-   - `TkDsmStateChangedEvent` — unmanaged `[EventId(7002)] struct` with
+   - `TkClusterStateChangedEvent` — unmanaged `[EventId(7002)] struct` with
      `int PreviousStateId`, `int NextStateId`.
 
-5. Update all Bagira `using` directives: replace
-   `using Bagira.Common.Orchestration;` with
+5. Update all Hrot `using` directives: replace
+   `using Hrot.Common.Orchestration;` with
    `using FDP.Toolkit.Orchestration;` in every file that references `IDsmHandler`
-   or `ITickableDsmHandler`. Leave `Bagira.Common.Orchestration` namespace intact
+   or `ITickableDsmHandler`. Leave `Hrot.Common.Orchestration` namespace intact
    (do not rename the `.cs` files) — only the `IDsmHandler.cs` stub, which already
    contains only a comment, is left in place.
 
-6. Leave `Bagira.Common.Orchestration.DsmStateChangedEvent` unchanged; add a
-   comment referencing the toolkit's `TkDsmStateChangedEvent` as the preferred
+6. Leave `Hrot.Common.Orchestration.ClusterStateChangedEvent` unchanged; add a
+   comment referencing the toolkit's `TkClusterStateChangedEvent` as the preferred
    new type.
 
 **Success conditions:**
 
 - `Fact: FDP.Toolkit.Orchestration project builds` — solution builds with zero
-  errors after the move; no `Bagira.*` type appears in the new project's source.
+  errors after the move; no `Hrot.*` type appears in the new project's source.
 
-- `Fact: All Bagira handler files still compile` — every existing `IDsmHandler`
+- `Fact: All Hrot handler files still compile` — every existing `IDsmHandler`
   implementation compiles after the using-directive update with no changes to
   logic.
 
@@ -1453,153 +1453,153 @@ the new abstraction contracts (`IOrchestrationTransport`, `ITransitionGraph`,
 
 ---
 
-### CGF1-G0402 — Generic DrillSlave + DdsOrchestrationTransport
+### CGF1-G0402 — Generic ClusterSlave + DdsOrchestrationTransport
 
-**Design ref:** [§4.3](./CGF-1-GENERALIZATION.md#43-generic-drillslave) and
+**Design ref:** [§4.3](./CGF-1-GENERALIZATION.md#43-generic-clustslave) and
 [§5.1](./CGF-1-GENERALIZATION.md#51-ddsorchestrationtransport)
 
 **Depends on:** CGF1-G0401
 
-**Context:** There are four near-identical `DrillSlave` classes across
-`Bagira.SimHost`, `Bagira.CGF`, `Bagira.IG`, and `Bagira.IOS`. The SimHost version
+**Context:** There are four near-identical `ClusterSlave` classes across
+`Hrot.SimHost`, `Hrot.CGF`, `Hrot.IG`, and `Hrot.ExCon`. The SimHost version
 is the most complete (async-prepare deferral, `ITickableDsmHandler` poll, EventBus,
 deduplication). This task consolidates them into a single generic implementation in
 `FDP.Toolkit.Orchestration`, implements `DdsOrchestrationTransport` in
-`Bagira.Common`, and replaces all four application-layer copies.
+`Hrot.Common`, and replaces all four application-layer copies.
 
 **Work to do:**
 
-1. Implement `FDP.Toolkit.Orchestration.DrillSlave` following the contract in
+1. Implement `FDP.Toolkit.Orchestration.ClusterSlave` following the contract in
    §4.3 of the generalization addendum:
    - Two constructors: production (takes `IOrchestrationTransport`, `int nodeId`,
-     `string subsystemName`, `FdpEventBus?`) and test-only `internal DrillSlave(FdpEventBus?)`.
+     `string subsystemName`, `FdpEventBus?`) and test-only `internal ClusterSlave(FdpEventBus?)`.
    - `RegisterHandler(IDsmHandler)`, `IsHandlerRegistered<T>()`,
      `IReadOnlyList<IDsmHandler> RegisteredHandlers`.
    - `Tick()`: publishes heartbeat via transport every 1 s; polls
      `ITickableDsmHandler.DrainDeferredAcks()`; processes `_pendingPrepare` if
      active; dequeues and dispatches via `TryDequeueCommand`.
    - `DispatchCommand()`: on `CommitState` updates `_localStateId` and publishes
-     `TkDsmStateChangedEvent` via eventBus; on other ops delegates
+     `TkClusterStateChangedEvent` via eventBus; on other ops delegates
      async-prepare + commit/defer using the BATCH-18 pattern.
    - Duplicate `TransactionId` deduplication (same `HashSet<Guid>` pattern).
    - `internal void EnqueueCommandForTest(OrchestrationCommand cmd)` for unit tests.
    - `internal int LocalStateIdForTest { get; }`.
 
-2. Implement `Bagira.Common.Orchestration.DdsOrchestrationTransport : IOrchestrationTransport`
+2. Implement `Hrot.Common.Orchestration.DdsOrchestrationTransport : IOrchestrationTransport`
    following §5.1 of the addendum:
    - Constructor `(DdsParticipant participant, int nodeId)`.
    - `PublishHeartbeat` → writes `NodeHeartbeat`.
    - `PublishStatus` → writes `NodeOpStatus` (cast `OrchestrationStatus` fields to
-     Bagira DDS types).
+     Hrot DDS types).
    - `TryDequeueCommand` → dequeues from an internal `ConcurrentQueue<OrchestrationCommand>`.
    - Background `Thread` listener reads `NodeOpCommand`, maps to
      `OrchestrationCommand`, enqueues.
    - `Dispose` cancels listener and joins thread.
 
-3. Add wiring helper in `Bagira.Common` (or in each subsystem app):
-   Register a forwarder so that `TkDsmStateChangedEvent` published by the toolkit
-   DrillSlave gets picked up and re-published as `DsmStateChangedEvent { DSMState }`:
+3. Add wiring helper in `Hrot.Common` (or in each subsystem app):
+   Register a forwarder so that `TkClusterStateChangedEvent` published by the toolkit
+   ClusterSlave gets picked up and re-published as `ClusterStateChangedEvent { ClusterState }`:
    ```csharp
-   eventBus.Register<TkDsmStateChangedEvent>();
+   eventBus.Register<TkClusterStateChangedEvent>();
    // Forwarder registered on the event bus subscription path
    ```
    The exact subscription API is at the implementer's discretion; the invariant is
-   that `DsmStateChangedEvent` consumers in Bagira still work without change.
+   that `ClusterStateChangedEvent` consumers in Hrot still work without change.
 
-4. Replace the four application-layer DrillSlave copies with wiring to the toolkit:
-   - `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs` → delete (replace with a
+4. Replace the four application-layer ClusterSlave copies with wiring to the toolkit:
+   - `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs` → delete (replace with a
      `using alias` or remove class entirely; `NodeBootstrapper` now uses toolkit type).
-   - `Bagira.CGF/Modules/Orchestration/DrillSlave.cs` → delete; `CgfApplication`
-     switches to toolkit `DrillSlave`.
-   - `Bagira.IG/Modules/Orchestration/DrillSlave.cs` → delete; `IgApplication`
+   - `Hrot.CGF/Modules/Orchestration/ClusterSlave.cs` → delete; `CgfApplication`
+     switches to toolkit `ClusterSlave`.
+   - `Hrot.IG/Modules/Orchestration/ClusterSlave.cs` → delete; `IgApplication`
      switches to toolkit.
-   - `Bagira.IOS/Orchestration/DrillSlave.cs` → delete; `IosSubsystem` switches to
+   - `Hrot.ExCon/Orchestration/ClusterSlave.cs` → delete; `IosSubsystem` switches to
      toolkit.
    - All existing unit and integration tests that use
-     `new DrillSlave()` (test constructor) must be updated to use
-     `new FDP.Toolkit.Orchestration.DrillSlave()`.
+     `new ClusterSlave()` (test constructor) must be updated to use
+     `new FDP.Toolkit.Orchestration.ClusterSlave()`.
 
 **Success conditions:**
 
-- `Fact: Toolkit DrillSlave dispatches PrepareAsync + Commit` — unit test with a stub
+- `Fact: Toolkit ClusterSlave dispatches PrepareAsync + Commit` — unit test with a stub
   `IDsmHandler` verifies `Commit` is called after `PrepareAsync` completes; a second
   test confirms Commit is deferred one tick when `PrepareAsync` returns an incomplete
   task.
 
-- `Fact: Toolkit DrillSlave deduplicates transactions` — two commands with the same
+- `Fact: Toolkit ClusterSlave deduplicates transactions` — two commands with the same
   `TransactionId` are enqueued; handler's `PrepareAsync` call count is 1 (second
   dropped).
 
-- `Fact: TkDsmStateChangedEvent published on CommitState` — inject event bus; send
-  CommitState(nextState=5); assert `TkDsmStateChangedEvent { PreviousStateId=0,
+- `Fact: TkClusterStateChangedEvent published on CommitState` — inject event bus; send
+  CommitState(nextState=5); assert `TkClusterStateChangedEvent { PreviousStateId=0,
   NextStateId=5 }` was published.
 
-- `Fact: DdsOrchestrationTransport delivers commands to DrillSlave` — integration
+- `Fact: DdsOrchestrationTransport delivers commands to ClusterSlave` — integration
   test sends a `NodeOpCommand` DDS sample addressed to nodeId; asserts the toolkit
-  DrillSlave receives it within 2 s (`Timeout=5000`).
+  ClusterSlave receives it within 2 s (`Timeout=5000`).
 
-- `Fact: All existing DrillSlave-based integration tests still pass` — run the full
-  `Bagira.SimHost.Integration.Tests` suite and confirm no regressions.
+- `Fact: All existing ClusterSlave-based integration tests still pass` — run the full
+  `Hrot.SimHost.Integration.Tests` suite and confirm no regressions.
 
 ---
 
 ### CGF1-G0403 — Generalize TransitionPlanner with ITransitionGraph
 
 **Design ref:** [§4.4](./CGF-1-GENERALIZATION.md#44-itransitiongraph-and-transitiongraphbuilder)
-and [§5.3](./CGF-1-GENERALIZATION.md#53-bagirastrategraph)
+and [§5.3](./CGF-1-GENERALIZATION.md#53-hrotstrategraph)
 
 **Depends on:** CGF1-G0401
 
-**Context:** `TransitionPlanner` in `Bagira.Orchestrator` contains a hardcoded
-`static readonly Dictionary<DSMState, DSMState[]>` adjacency dictionary. The BFS
-algorithm itself has no Bagira dependencies — it operates purely on integers. This task
+**Context:** `TransitionPlanner` in `Hrot.Orchestrator` contains a hardcoded
+`static readonly Dictionary<ClusterState, ClusterState[]>` adjacency dictionary. The BFS
+algorithm itself has no Hrot dependencies — it operates purely on integers. This task
 extracts the planner into the FDP toolkit, adds `TransitionGraphBuilder`, and introduces
-`BagiraStateGraph` as the Bagira-specific state graph definition.
+`HrotStateGraph` as the Hrot-specific state graph definition.
 
 **Work to do:**
 
-1. Move `TransitionPlanner` from `Bagira.Orchestrator/TransitionPlanner.cs` to
+1. Move `TransitionPlanner` from `Hrot.Orchestrator/TransitionPlanner.cs` to
    `FDP/Toolkits/FDP.Toolkit.Orchestration/TransitionPlanner.cs`:
    - Change constructor to `TransitionPlanner(ITransitionGraph graph)`.
-   - Change `CalculateShortestPath(DSMState from, DSMState to)` to
+   - Change `CalculateShortestPath(ClusterState from, ClusterState to)` to
      `CalculateShortestPath(int fromStateId, int toStateId)` returning
      `IReadOnlyList<int>`.
    - The BFS algorithm itself needs no changes; only the type signatures and the
      adjacency source change.
    - Remove the hardcoded `_adjacency` dictionary entirely.
 
-2. Create `Bagira.Orchestrator/BagiraStateGraph.cs`:
-   - Static class `BagiraStateGraph` with `static ITransitionGraph Build()`.
-   - Calls `TransitionGraphBuilder` with all valid `DSMState` edges that were
+2. Create `Hrot.Orchestrator/HrotStateGraph.cs`:
+   - Static class `HrotStateGraph` with `static ITransitionGraph Build()`.
+   - Calls `TransitionGraphBuilder` with all valid `ClusterState` edges that were
      previously hardcoded in `TransitionPlanner._adjacency`.
 
-3. Update `Bagira.Orchestrator/DrillMaster.cs`:
+3. Update `Hrot.Orchestrator/ClusterMaster.cs`:
    - Replace the direct `new TransitionPlanner()` call with
-     `new TransitionPlanner(BagiraStateGraph.Build())`.
-   - Update call sites that passed `DSMState` enum values to cast to `int`;
-     update call sites that received `IReadOnlyList<DSMState>` paths to
+     `new TransitionPlanner(HrotStateGraph.Build())`.
+   - Update call sites that passed `ClusterState` enum values to cast to `int`;
+     update call sites that received `IReadOnlyList<ClusterState>` paths to
      `IReadOnlyList<int>`.
 
-4. Add `FDP.Toolkit.Orchestration` project reference to `Bagira.Orchestrator.csproj`.
+4. Add `FDP.Toolkit.Orchestration` project reference to `Hrot.Orchestrator.csproj`.
 
 **Success conditions:**
 
 - `Fact: TransitionPlanner lives only in FDP toolkit` — `grep` / Roslyn analysis
   shows `TransitionPlanner` in `FDP.Toolkit.Orchestration` namespace only; no copy
-  in `Bagira.Orchestrator`.
+  in `Hrot.Orchestrator`.
 
-- `Fact: BFS path preserved` — unit test constructs a `BagiraStateGraph.Build()`
-  derived graph and calls `CalculateShortestPath((int)DSMState.Standby,
-  (int)DSMState.RunningLive)`, asserts the returned path passes through the same
+- `Fact: BFS path preserved` — unit test constructs a `HrotStateGraph.Build()`
+  derived graph and calls `CalculateShortestPath((int)ClusterState.Standby,
+  (int)ClusterState.RunningLive)`, asserts the returned path passes through the same
   intermediate states as the prior `TransitionPlannerTests` verified.
 
 - `Fact: All existing TransitionPlanner unit tests pass` — migrate
-  `Bagira.Orchestrator.Tests/TransitionPlannerTests.cs` to use the toolkit type;
+  `Hrot.Orchestrator.Tests/TransitionPlannerTests.cs` to use the toolkit type;
   all previously-passing tests remain green.
 
-- `Fact: DrillMaster uses BagiraStateGraph` — `DrillMaster` constructs
-  `TransitionPlanner` from `BagiraStateGraph.Build()`; no direct reference to
-  `DSMState` inside `TransitionPlanner.cs`.
+- `Fact: ClusterMaster uses HrotStateGraph` — `ClusterMaster` constructs
+  `TransitionPlanner` from `HrotStateGraph.Build()`; no direct reference to
+  `ClusterState` inside `TransitionPlanner.cs`.
 
 ---
 
@@ -1612,14 +1612,14 @@ extracts the planner into the FDP toolkit, adds `TransitionGraphBuilder`, and in
 **Depends on:** CGF1-G0401, CGF1-G0402
 
 **Context:** `PrefetchFilesDsmHandler`, `ScenarioLoadDsmHandler`, `EditLoadDsmHandler`,
-and `StoryLoadDsmHandler` exist in `Bagira.SimHost` (complete) and a subset in
-`Bagira.CGF` (header-peek-only variants). The duplicated CGF variants show the
+and `StoryLoadDsmHandler` exist in `Hrot.SimHost` (complete) and a subset in
+`Hrot.CGF` (header-peek-only variants). The duplicated CGF variants show the
 maintenance burden. Introducing `IScenarioStorageProvider` lets the handlers become
 FDP types, covering both subsystem variants with a single parameterized implementation.
 
 **Work to do:**
 
-1. Add `Bagira.Common/Orchestration/LocalDiskStorageProvider.cs` implementing
+1. Add `Hrot.Common/Orchestration/LocalDiskStorageProvider.cs` implementing
    `IScenarioStorageProvider` as described in §4.5 of the addendum. The
    `localTempRoot` defaults to `@"C:\FDP_Temp"`.
 
@@ -1651,16 +1651,16 @@ FDP types, covering both subsystem variants with a single parameterized implemen
    - When `EntityRepository? world == null`, the handler behaves as the CGF
      header-peek-only path (no entity operations, participates based on type match).
 
-6. Update `Bagira.SimHost/NodeBootstrapper.BuildOrchestration`: replace all four
+6. Update `Hrot.SimHost/NodeBootstrapper.BuildOrchestration`: replace all four
    handler instantiations with their `Reference*` equivalents; inject
    `new LocalDiskStorageProvider(localTempRoot)` and `transport`.
 
-7. Update `Bagira.CGF/CgfApplication`: inject `LocalDiskStorageProvider` and
+7. Update `Hrot.CGF/CgfApplication`: inject `LocalDiskStorageProvider` and
    `transport` into the relevant handlers; delete the duplicate CGF-specific
    `ScenarioLoadDsmHandler` and `StoryLoadDsmHandler` files.
 
-8. Add `FDP.Toolkit.Orchestration` project reference to `Bagira.SimHost.csproj`,
-   `Bagira.CGF.csproj`, `Bagira.IOS.csproj`.
+8. Add `FDP.Toolkit.Orchestration` project reference to `Hrot.SimHost.csproj`,
+   `Hrot.CGF.csproj`, `Hrot.ExCon.csproj`.
 
 **Success conditions:**
 
@@ -1678,11 +1678,11 @@ FDP types, covering both subsystem variants with a single parameterized implemen
   no entities spawned.
 
 - `Fact: ReferenceStoryLoadHandler ECS-less path participates but spawns nothing` —
-  pass `world = null`; call Prepare(`StartStory`); assert
+  pass `world = null`; call Prepare(`StartEpisode`); assert
   `IsParticipatingForTest == true` when type matches, `false` otherwise.
 
 - `Fact: All existing scenario handler unit tests pass` — migrate all test files in
-  `Bagira.SimHost.Tests` that reference `ScenarioLoadDsmHandler`,
+  `Hrot.SimHost.Tests` that reference `ScenarioLoadDsmHandler`,
   `EditLoadDsmHandler`, `StoryLoadDsmHandler`, `PrefetchFilesDsmHandler` to use
   the new `Reference*` names; all tests remain green.
 
@@ -1694,23 +1694,23 @@ FDP types, covering both subsystem variants with a single parameterized implemen
 
 **Depends on:** CGF1-G0401, CGF1-G0402, CGF1-G0404
 
-**Context:** `DryRunDsmHandler` is already in `Bagira.Common` — one step from
+**Context:** `DryRunDsmHandler` is already in `Hrot.Common` — one step from
 FDP. `CheckpointDsmHandler`, `LiveLoadDsmHandler`, and `ReplayLoadDsmHandler` are
 SimHost-specific but all depend only on FDP toolkit types (`EntityRepository`,
 `FDP.Toolkit.Replay.*`, `ModuleHost.Core.*`). This task moves them to the toolkit
-and relocates `CheckpointIOWorker` (which has no Bagira dependencies) to join them.
+and relocates `CheckpointIOWorker` (which has no Hrot dependencies) to join them.
 
 **Work to do:**
 
-1. Relocate `Bagira.SimHost/Modules/Orchestration/CheckpointIOWorker.cs` →
+1. Relocate `Hrot.SimHost/Modules/Orchestration/CheckpointIOWorker.cs` →
    `FDP/Toolkits/FDP.Toolkit.Orchestration/CheckpointIOWorker.cs`. Update
-   namespace to `FDP.Toolkit.Orchestration`. Update the `using` in `Bagira.SimHost`
+   namespace to `FDP.Toolkit.Orchestration`. Update the `using` in `Hrot.SimHost`
    sources that reference it.
 
-2. Migrate `DryRunDsmHandler` from `Bagira.Common/Orchestration/Handlers/` →
+2. Migrate `DryRunDsmHandler` from `Hrot.Common/Orchestration/Handlers/` →
    `FDP.Toolkit.Orchestration.Handlers.ReferenceDryRunHandler`:
    - Rename class; update namespace. No logic changes needed.
-   - Leave `Bagira.Common/Orchestration/Handlers/DryRunDsmHandler.cs` as a one-line
+   - Leave `Hrot.Common/Orchestration/Handlers/DryRunDsmHandler.cs` as a one-line
      empty stub with a migration comment (preserves git history).
 
 3. Migrate `CheckpointDsmHandler` →
@@ -1721,12 +1721,12 @@ and relocates `CheckpointIOWorker` (which has no Bagira dependencies) to join th
 
 4. Migrate `LiveLoadDsmHandler` →
    `FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler`:
-   - Replace `DrillSlave slave` (the Bagira type) with the toolkit `DrillSlave`.
-   - The existing call `_slave.PublishDsmStateChanged(...)` becomes a no-op since
-     the toolkit DrillSlave publishes `TkDsmStateChangedEvent` automatically on
+   - Replace `ClusterSlave slave` (the Hrot type) with the toolkit `ClusterSlave`.
+   - The existing call `_slave.PublishClusterStateChanged(...)` becomes a no-op since
+     the toolkit ClusterSlave publishes `TkClusterStateChangedEvent` automatically on
      `CommitState`. Remove that guard call; the `_eventBus.Publish` guard in
      `Commit` can also be removed as the state-change event is already published.
-     If an explicit redundant guard is desired, publish `TkDsmStateChangedEvent`
+     If an explicit redundant guard is desired, publish `TkClusterStateChangedEvent`
      directly on the bus.
 
 5. Migrate `ReplayLoadDsmHandler` →
@@ -1734,11 +1734,11 @@ and relocates `CheckpointIOWorker` (which has no Bagira dependencies) to join th
    - Replace `DdsWriter<NodeOpStatus>?` with `IOrchestrationTransport?`.
    - Call `transport?.PublishStatus(...)` instead of `_statusWriter?.Write(...)`.
 
-6. Update `Bagira.SimHost/NodeBootstrapper.BuildOrchestration` to use all five
+6. Update `Hrot.SimHost/NodeBootstrapper.BuildOrchestration` to use all five
    renamed `Reference*` handlers from the toolkit.
 
 7. Register `FDP.Toolkit.Orchestration` as a project reference in
-   `Bagira.SimHost.csproj` (if not already added in G0404).
+   `Hrot.SimHost.csproj` (if not already added in G0404).
 
 **Success conditions:**
 
@@ -1762,7 +1762,7 @@ and relocates `CheckpointIOWorker` (which has no Bagira dependencies) to join th
   `ResultJson` containing `"MaxNetworkId":42`.
 
 - `Fact: All existing SimHost handler integration tests pass` — the full
-  `Bagira.SimHost.Integration.Tests` suite stays green after the renames.
+  `Hrot.SimHost.Integration.Tests` suite stays green after the renames.
 
 ---
 
@@ -1779,27 +1779,27 @@ ensures no test regression has been introduced across the full solution.
 
 **Work to do:**
 
-1. Delete all Bagira application-layer source files whose functionality has been
+1. Delete all Hrot application-layer source files whose functionality has been
    superseded by FDP toolkit reference implementations (see §8 of the addendum).
    Specifically:
-   - `Bagira.SimHost/Modules/Orchestration/DrillSlave.cs`
-   - `Bagira.CGF/Modules/Orchestration/DrillSlave.cs`
-   - `Bagira.IG/Modules/Orchestration/DrillSlave.cs`
-   - `Bagira.IOS/Orchestration/DrillSlave.cs`
-   - `Bagira.SimHost/Modules/Orchestration/IDsmHandler.cs` (was already a stub)
-   - `Bagira.SimHost/Modules/Orchestration/Handlers/PrefetchFilesDsmHandler.cs`
-   - `Bagira.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
-   - `Bagira.SimHost/Modules/Orchestration/Handlers/EditLoadDsmHandler.cs`
-   - `Bagira.SimHost/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs`
-   - `Bagira.SimHost/Modules/Orchestration/Handlers/CheckpointDsmHandler.cs`
-   - `Bagira.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs`
-   - `Bagira.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
-   - `Bagira.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
-   - `Bagira.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs`
-   - `Bagira.Orchestrator/TransitionPlanner.cs`
+   - `Hrot.SimHost/Modules/Orchestration/ClusterSlave.cs`
+   - `Hrot.CGF/Modules/Orchestration/ClusterSlave.cs`
+   - `Hrot.IG/Modules/Orchestration/ClusterSlave.cs`
+   - `Hrot.ExCon/Orchestration/ClusterSlave.cs`
+   - `Hrot.SimHost/Modules/Orchestration/IDsmHandler.cs` (was already a stub)
+   - `Hrot.SimHost/Modules/Orchestration/Handlers/PrefetchFilesDsmHandler.cs`
+   - `Hrot.SimHost/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
+   - `Hrot.SimHost/Modules/Orchestration/Handlers/EditLoadDsmHandler.cs`
+   - `Hrot.SimHost/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs`
+   - `Hrot.SimHost/Modules/Orchestration/Handlers/CheckpointDsmHandler.cs`
+   - `Hrot.SimHost/Modules/Orchestration/LiveLoadDsmHandler.cs`
+   - `Hrot.SimHost/Modules/Orchestration/Handlers/ReplayLoadDsmHandler.cs`
+   - `Hrot.CGF/Modules/Orchestration/Handlers/ScenarioLoadDsmHandler.cs`
+   - `Hrot.CGF/Modules/Orchestration/Handlers/StoryLoadDsmHandler.cs`
+   - `Hrot.Orchestrator/TransitionPlanner.cs`
 
-2. Verify no `FDP.Toolkit.*` project contains a `using Bagira.*` directive:
-   - Run `rg "using Bagira\." FDP/` in the terminal; assert zero matches.
+2. Verify no `FDP.Toolkit.*` project contains a `using Hrot.*` directive:
+   - Run `rg "using Hrot\." FDP/` in the terminal; assert zero matches.
 
 3. Update `IOS-IG-SimHost.sln` to include the new
    `FDP.Toolkit.Orchestration.csproj`.
@@ -1816,9 +1816,9 @@ ensures no test regression has been introduced across the full solution.
 
 **Success conditions:**
 
-- `Fact: No Bagira.* references in FDP.Toolkit.Orchestration` — `dotnet build`
+- `Fact: No Hrot.* references in FDP.Toolkit.Orchestration` — `dotnet build`
   produces zero dependency-layer-violation warnings; a Roslyn analysis
-  (`FDP.*` projects have no `<ProjectReference>` to `Bagira.*`) confirms clean
+  (`FDP.*` projects have no `<ProjectReference>` to `Hrot.*`) confirms clean
   separation.
 
 - `Fact: Solution builds with zero new warnings` — `dotnet build --no-incremental
@@ -1828,8 +1828,8 @@ ensures no test regression has been introduced across the full solution.
   tests that existed before Phase 4 still pass; new tests added in G0401–G0405
   also pass.
 
-- `Fact: DrillSlave class count = 1` — a grep of the solution source for
-  `public sealed class DrillSlave` returns exactly one match in
+- `Fact: ClusterSlave class count = 1` — a grep of the solution source for
+  `public sealed class ClusterSlave` returns exactly one match in
   `FDP.Toolkit.Orchestration`.
 ---
 
@@ -1869,12 +1869,12 @@ follow directly (fan-out fix needs S0501's DistributedTransaction extensions).
    ```csharp
    public string PayloadJson { get; set; } = string.Empty;
    public Dictionary<int, string> NodeResponses { get; } = new();
-   public DSMState SourceDsmState { get; set; }
+   public ClusterState SourceClusterState { get; set; }
    ```
 
-5. **`DrillMaster.cs` — populate new fields:**  
-   - Capture `DSMState sourceState = _currentDsmState;` before any optimistic advance
-     in `ProcessSingleSysOpRequest`. Assign `SourceDsmState = sourceState` in the new
+5. **`ClusterMaster.cs` — populate new fields:**  
+   - Capture `ClusterState sourceState = _currentClusterState;` before any optimistic advance
+     in `ProcessSingleClusterOpRequest`. Assign `SourceClusterState = sourceState` in the new
      transaction.  
    - Assign `tx.PayloadJson = req.PayloadJson ?? string.Empty` when creating the
      transaction object.  
@@ -1898,7 +1898,7 @@ follow directly (fan-out fix needs S0501's DistributedTransaction extensions).
    §2.3 for implementation).
 
 8. **`OrchestratorScenarioPanel.cs` — Source→Target banner:**  
-   Update `RenderStatusBanner` to show `{activeTx.SourceDsmState} → {activeTx.TargetDsmState}`
+   Update `RenderStatusBanner` to show `{activeTx.SourceClusterState} → {activeTx.TargetClusterState}`
    when an in-flight transaction with differing source/target is active.
 
 **Success conditions:**
@@ -1921,16 +1921,16 @@ follow directly (fan-out fix needs S0501's DistributedTransaction extensions).
 - `Fact: Clipboard context menu` — right-clicking a row shows "Copy line to clipboard"
   menu item; clicking it calls `ImGui.SetClipboardText` with a non-empty string.
 
-- `Fact: Source→Target banner` — when `SourceDsmState != TargetDsmState` and
+- `Fact: Source→Target banner` — when `SourceClusterState != TargetClusterState` and
   `HasInFlightTransaction`, status banner text is `"State: Standby → LoadingLive"`.
 
-- `Fact: SourceDsmState populated` — unit test: call `HandleSysOpRequest` for
+- `Fact: SourceClusterState populated` — unit test: call `HandleClusterOpRequest` for
   transition from `Standby` to `LoadingLive`; assert resulting transaction's
-  `SourceDsmState == DSMState.Standby`.
+  `SourceClusterState == ClusterState.Standby`.
 
 ---
 
-### CGF1-S0502 — Real Network Dispatch + DrillMaster Fan-out
+### CGF1-S0502 — Real Network Dispatch + ClusterMaster Fan-out
 
 **Design ref:** [§3](./CGF-1-ADDENDUM-3.md#3-real-network-dispatch-fix)
 
@@ -1938,17 +1938,17 @@ follow directly (fan-out fix needs S0501's DistributedTransaction extensions).
 assigns `txId`).
 
 **Context:** Pressing any state-transition button in the Orchestrator UI currently
-does nothing to the cluster because `DrillMaster.ProcessSingleSysOpRequest` plans
+does nothing to the cluster because `ClusterMaster.ProcessSingleClusterOpRequest` plans
 the trajectory and optimistically advances its local state but never sends any
 `NodeOpCommand` DDS messages. All nodes remain in Standby.
 
 **Work to do:**
 
-1. **`OrchestratorSubsystem.cs` — add `DdsWriter<SysOpRequest>`:**  
+1. **`OrchestratorSubsystem.cs` — add `DdsWriter<ClusterOpRequest>`:**  
    ```csharp
-   private DdsWriter<SysOpRequest>? _sysOpWriter;
+   private DdsWriter<ClusterOpRequest>? _sysOpWriter;
    ```
-   In `Initialize`: `_sysOpWriter = new DdsWriter<SysOpRequest>(_participant);`  
+   In `Initialize`: `_sysOpWriter = new DdsWriter<ClusterOpRequest>(_participant);`  
    In `Shutdown`: `_sysOpWriter?.Dispose(); _sysOpWriter = null;`
 
 2. **`OrchestratorSubsystem.cs` — pass writer to panel:**  
@@ -1956,32 +1956,32 @@ the trajectory and optimistically advances its local state but never sends any
 
 3. **`OrchestratorScenarioPanel.cs` — update constructor:**  
    ```csharp
-   private readonly DdsWriter<SysOpRequest> _sysOpWriter;
-   public OrchestratorScenarioPanel(DrillMaster drillMaster,
-                                    DdsWriter<SysOpRequest> sysOpWriter) { ... }
+   private readonly DdsWriter<ClusterOpRequest> _sysOpWriter;
+   public OrchestratorScenarioPanel(ClusterMaster drillMaster,
+                                    DdsWriter<ClusterOpRequest> sysOpWriter) { ... }
    ```
 
-4. **`OrchestratorScenarioPanel.cs` — replace all direct DrillMaster calls:**  
-   Every `_drillMaster.HandleSysOpRequest(new SysOpRequest { ... })` call in
+4. **`OrchestratorScenarioPanel.cs` — replace all direct ClusterMaster calls:**  
+   Every `_drillMaster.HandleClusterOpRequest(new ClusterOpRequest { ... })` call in
    `RenderDrillControl`, `RenderCheckpointSection`, `RenderScenarioSection`,
    `RenderReplaySection`, and `RenderStoriesSection` is replaced with
-   `_sysOpWriter.Write(new SysOpRequest { RequestId = Guid.NewGuid(), ... })`.
+   `_sysOpWriter.Write(new ClusterOpRequest { RequestId = Guid.NewGuid(), ... })`.
    Refer to addendum §3.2 for the exact payload mapping per operation type.
 
 5. **`OrchestratorSubsystem.cs` — implement TODO simulation buttons:**  
    Replace the empty TODO Pause/Resume/Initialize Live placeholders in `DrawUI()`
-   with `_sysOpWriter.Write(new SysOpRequest { OperationType = SysOpType.xxx, ... })`.
+   with `_sysOpWriter.Write(new ClusterOpRequest { OperationType = ClusterOpType.xxx, ... })`.
 
-6. **`DrillMaster.cs` — add fan-out loop:**  
-   After the `DistributedTransaction tx` is created in `ProcessSingleSysOpRequest`,
+6. **`ClusterMaster.cs` — add fan-out loop:**  
+   After the `DistributedTransaction tx` is created in `ProcessSingleClusterOpRequest`,
    iterate the planned `trajectory` and for each `TransitionStep`, call
    `FanOutNodeOp` twice:
    - A `PrepareXxx` command (`NodeOpType.PrepareLive` for `LoadingLive`,
      `NodeOpType.PrepareReplay` for `LoadingReplay`, etc.) carrying the original
-     `req.PayloadJson` so handlers can extract `ScenarioId` / `DrillId`.
+     `req.PayloadJson` so handlers can extract `ScenarioId` / `ExerciseId`.
    - A `NodeOpType.CommitState` command carrying `((int)tStep.TargetState).ToString()`
      as the payload.  
-   For each `OperationStep` with `SysOpType.ReplaySeek`, fan out
+   For each `OperationStep` with `ClusterOpType.ReplaySeek`, fan out
    `NodeOpType.NodeReplaySeek` with `opStep.PayloadJson`.
    See addendum §3.3 for the complete switch expression mapping target state →
    `NodeOpType`.
@@ -1991,22 +1991,22 @@ the trajectory and optimistically advances its local state but never sends any
 - `Fact: DdsWriter created and disposed` — `OrchestratorSubsystem.Shutdown` calls
   `_sysOpWriter.Dispose()`; no leak in test teardown.
 
-- `Fact: Panel uses writer, not direct DrillMaster` — grep for `HandleSysOpRequest`
+- `Fact: Panel uses writer, not direct ClusterMaster` — grep for `HandleClusterOpRequest`
   in `OrchestratorScenarioPanel.cs` returns zero matches after this task.
 
-- `Fact: Button click publishes SysOpRequest` — integration test simulates clicking
-  the "Standby → LoadingLive" button; asserts a `SysOpRequest` with
-  `OperationType == SysOpType.TransitionState` and payload containing `LoadingLive`
+- `Fact: Button click publishes ClusterOpRequest` — integration test simulates clicking
+  the "Standby → LoadingLive" button; asserts a `ClusterOpRequest` with
+  `OperationType == ClusterOpType.TransitionState` and payload containing `LoadingLive`
   was written to the DDS topic within 200 ms.
 
 - `Fact: Node receives PrepareXxx after button click` — in a headless integration
   test with one live `SimHostSubsystem`, clicking "LoadingLive" results in the
-  `DrillSlave` on that node receiving `NodeOpType.PrepareLive` within 3 s
+  `ClusterSlave` on that node receiving `NodeOpType.PrepareLive` within 3 s
   (`Timeout = 10000`).
 
 - `Fact: Fan-out sends CommitState` — after `PrepareLive` ACK arrives, the same
   `SimHostSubsystem` node receives `NodeOpType.CommitState` with the target state
-  integer; `LocalDsmState` in the next heartbeat transitions to `LoadingLive`.
+  integer; `LocalClusterState` in the next heartbeat transitions to `LoadingLive`.
 
 ---
 
@@ -2019,7 +2019,7 @@ must be operational).
 
 **Work to do:**
 
-1. **`OrchestrationMessages.cs` — extend `SysOpType`:**  
+1. **`OrchestrationMessages.cs` — extend `ClusterOpType`:**  
    Add:
    ```csharp
    CancelOperation = 13,
@@ -2027,14 +2027,14 @@ must be operational).
    SetTimeScale    = 15,
    ```
 
-2. **`DrillMaster.cs` — `TimeControlRequested` event + early return:**  
+2. **`ClusterMaster.cs` — `TimeControlRequested` event + early return:**  
    ```csharp
-   public event Action<SysOpType, string>? TimeControlRequested;
+   public event Action<ClusterOpType, string>? TimeControlRequested;
    ```
-   At the start of `ProcessSingleSysOpRequest`, before the main dispatch:
+   At the start of `ProcessSingleClusterOpRequest`, before the main dispatch:
    ```csharp
-   if (req.OperationType is SysOpType.PauseTime or SysOpType.ResumeTime
-                         or SysOpType.StepTime  or SysOpType.SetTimeScale)
+   if (req.OperationType is ClusterOpType.PauseTime or ClusterOpType.ResumeTime
+                         or ClusterOpType.StepTime  or ClusterOpType.SetTimeScale)
    {
        TimeControlRequested?.Invoke(req.OperationType, req.PayloadJson ?? string.Empty);
        return;
@@ -2061,11 +2061,11 @@ must be operational).
    - Add `private readonly Action? _requestPause;` and accept it in constructor.
    - Add `_seekDebounceTimer`, `_seekPending` fields.
    - `Update(float dt)`: decrements debounce timer; when expired, writes
-     `SysOpType.ReplaySeek` request and invokes `_requestPause?.Invoke()`.
+     `ClusterOpType.ReplaySeek` request and invokes `_requestPause?.Invoke()`.
    - `OrchestratorSubsystem.Update` calls `_scenarioPanel?.Update(deltaTime)`.
 
 6. **`OrchestratorScenarioPanel.cs` — replay seek with debounce and dynamic cap:**  
-   - `RenderReplaySection(DSMState, bool, float currentDrillTime)` signature.
+   - `RenderReplaySection(ClusterState, bool, float currentDrillTime)` signature.
    - When slider moves: `_seekPending = true; _seekDebounceTimer = 0.5f;`  
      When not pending: `_seekSliderValue = currentDrillTime;` (passive tracking).
    - `_replayDuration` loaded from the selected drill's `*.meta.json` when "Load
@@ -2078,24 +2078,24 @@ must be operational).
 
 **Success conditions:**
 
-- `Fact: SysOpType values correct` — unit test asserts
-  `(int)SysOpType.StepTime == 14` and `(int)SysOpType.SetTimeScale == 15`.
+- `Fact: ClusterOpType values correct` — unit test asserts
+  `(int)ClusterOpType.StepTime == 14` and `(int)ClusterOpType.SetTimeScale == 15`.
 
 - `Fact: TimeControlRequested fires on PauseTime` — unit test: call
-  `HandleSysOpRequest(new SysOpRequest { OperationType = SysOpType.PauseTime })`;
-  assert `TimeControlRequested` was invoked once with `SysOpType.PauseTime`.
+  `HandleClusterOpRequest(new ClusterOpRequest { OperationType = ClusterOpType.PauseTime })`;
+  assert `TimeControlRequested` was invoked once with `ClusterOpType.PauseTime`.
 
 - `Fact: TimeControlRequested bypasses 2PC` — same call as above; assert no
   `DistributedTransaction` was appended to `TransactionHistory`.
 
 - `Fact: Pause/Resume toggle` — Time Control section shows "Pause" when
   `IsPaused == false` and "Resume" when `IsPaused == true`; clicking either
-  dispatches the corresponding `SysOpRequest`.
+  dispatches the corresponding `ClusterOpRequest`.
 
 - `Fact: Step disabled when running` — when `IsPaused == false`, the Step button
   is in `BeginDisabled` state; clicking it does not dispatch any request.
 
-- `Fact: Seek debounce delays write` — drag slider; assert no `SysOpRequest` is
+- `Fact: Seek debounce delays write` — drag slider; assert no `ClusterOpRequest` is
   written within 400 ms; after 600 ms assert exactly 1 `ReplaySeek` request written.
 
 - `Fact: Replay duration capped` — `GetReplayDuration` for a fake `.meta.json`
@@ -2112,7 +2112,7 @@ must be operational).
 **Work to do:**
 
 1. **`OrchestratorScenarioPanel.cs` — replace text input fields:**  
-   Remove `_loadScenarioId`, `_replayDrillId`, `_injectScenarioId`, `_injectStoryId`
+   Remove `_loadScenarioId`, `_replayExerciseId`, `_injectScenarioId`, `_injectStoryId`
    string fields.  
    Add:
    ```csharp
@@ -2120,7 +2120,7 @@ must be operational).
    private string[] _availableStories      = Array.Empty<string>();
    private string[] _availableDrills       = Array.Empty<string>();
    private int      _selectedLoadScenarioIdx = -1;
-   private int      _selectedDrillIdx        = -1;
+   private int      _selectedExerciseIdx        = -1;
    private int      _selectedStoryIdx        = -1;
    ```
 
@@ -2141,10 +2141,10 @@ must be operational).
    scenario names still requires free text).
 
 4. **`OrchestratorScenarioPanel.cs` — update `RenderReplaySection`:**  
-   Replace `_replayDrillId` `InputText` with
-   `ImGui.Combo("Select Drill##OrcReplayId", ref _selectedDrillIdx, _availableDrills,
+   Replace `_replayExerciseId` `InputText` with
+   `ImGui.Combo("Select Drill##OrcReplayId", ref _selectedExerciseIdx, _availableDrills,
    _availableDrills.Length)` + `"⟳##RefDrill"` button.  
-   Use `_availableDrills[_selectedDrillIdx]` as `drillId`; guard as above.
+   Use `_availableDrills[_selectedExerciseIdx]` as `drillId`; guard as above.
 
 5. **`OrchestratorScenarioPanel.cs` — update `RenderStoriesSection`:**  
    Remove `_injectScenarioId` and `_injectStoryId` text inputs.  
@@ -2164,10 +2164,10 @@ must be operational).
   construction; click refresh; assert `_availableScenarios.Length` increased.
 
 - `Fact: Story StoryId auto-generated` — two successive "Inject Story" clicks
-  produce two `SysOpRequest` payloads with different `StoryId` values.
+  produce two `ClusterOpRequest` payloads with different `StoryId` values.
 
 - `Fact: Empty selection disables Load buttons` — with `_selectedLoadScenarioIdx = -1`,
-  clicking "Load into Live" results in no `SysOpRequest` being written.
+  clicking "Load into Live" results in no `ClusterOpRequest` being written.
 
 ---
 
@@ -2180,7 +2180,7 @@ must be operational).
 
 **Work to do:**
 
-1. **`OrchestrationMessages.cs` — `SysOpType.CancelOperation = 13`** (if not already
+1. **`OrchestrationMessages.cs` — `ClusterOpType.CancelOperation = 13`** (if not already
    added in S0503; ensure it is present regardless of ordering).
 
 2. **`StorageGatewayModule.cs` — thread `CancellationToken` through bulk methods:**  
@@ -2195,30 +2195,30 @@ must be operational).
 
 3. **Add `ScanLocalDrills(string root)`, `ScanNasDrills(string nasRoot)`,
    `ScanLocalScenarios(string root)` helper methods to `StorageGatewayModule`**
-   (pure filesystem scan, no DDS). Used by both `DrillMaster.PublishAssetInventory`
+   (pure filesystem scan, no DDS). Used by both `ClusterMaster.PublishAssetInventory`
    and the fallback `RefreshLocalAssets`.
 
 4. **`FDP.Toolkit.Orchestration` — add `ReferenceArchiveHandler.cs`:**  
    Implement `IDsmHandler`:
    - `CanHandle`: returns `true` for `NodeOpType.SerializeLocal` when payload
-     contains `"DrillId"` key.
+     contains `"ExerciseId"` key.
    - `PrepareAsync`: returns `null` immediately.
    - `Commit`: locates local `.fdp` file, builds `FileManifestEntry`, serialises it
      as `ResultJson` in the transport `PublishStatus` call.
-   - `Abort`: deletes any partial `.fdp` file for the given `DrillId`.
+   - `Abort`: deletes any partial `.fdp` file for the given `ExerciseId`.
 
-5. **`DrillMaster.cs` — `_activeCancellations` registry:**  
+5. **`ClusterMaster.cs` — `_activeCancellations` registry:**  
    ```csharp
    private readonly Dictionary<Guid, CancellationTokenSource> _activeCancellations = new();
    ```
 
-6. **`DrillMaster.cs` — handle `ExportArchive`, `ImportArchive`, `CancelOperation`**
-   in `ProcessSingleSysOpRequest`:
+6. **`ClusterMaster.cs` — handle `ExportArchive`, `ImportArchive`, `CancelOperation`**
+   in `ProcessSingleClusterOpRequest`:
    - `ExportArchive`: create `CancellationTokenSource`; store; call
      `FanOutSerializeLocal(txId, activeNodeIds, req.PayloadJson)`.
      In `ConsumeNodeOpStatuses`, pass the CTS token to `_gateway.PullToNasAsync`.
    - `ImportArchive`: create CTS; call `_gateway.PrefetchArchiveAsync` with CT;
-     on completion publish `SysOpStatus` with `Success` or `Timeout` code.
+     on completion publish `ClusterOpStatus` with `Success` or `Timeout` code.
    - `CancelOperation`: parse target Guid from payload; cancel CTS if present;
      fan out `NodeOpType.AbortTransaction`.
 
@@ -2231,7 +2231,7 @@ must be operational).
      `_archiveProgress`.
    - `RefreshLocalAssets` extended: also reads NAS drill list via
      `_gateway.ScanNasDrills` (or deferred to `ClusterUiCache` in S0506).
-   - `RenderArchiveSection(DSMState, bool)` (see addendum §6.5 for layout).
+   - `RenderArchiveSection(ClusterState, bool)` (see addendum §6.5 for layout).
    - Archives section added to `Render()` call sequence.
 
 **Success conditions:**
@@ -2271,7 +2271,7 @@ must be operational).
    `UnarchivedLocalDrillsJson`. `TransientLocal` QoS, `KeepLast` history depth 1.
    See addendum §7.1 for full struct definition and attributes.
 
-2. **`DrillMaster.cs` — `_inventoryWriter` + `PublishAssetInventory()`:**  
+2. **`ClusterMaster.cs` — `_inventoryWriter` + `PublishAssetInventory()`:**  
    - Add `DdsWriter<AssetInventoryTopic>? _inventoryWriter`. Initialise/dispose.  
    - Add `public string NasBasePath => _nasBasePath;` property.  
    - In `Tick()`, throttle to every 5 s (compare `DateTime.UtcNow` to
@@ -2279,15 +2279,15 @@ must be operational).
    - `PublishAssetInventory` calls the three `ScanXxx` methods from
      `StorageGatewayModule` (added in S0505) and writes `AssetInventoryTopic`.
 
-3. **`Bagira.Runner.Services` — create `ClusterUiCache.cs`:**  
+3. **`Hrot.ClusterRunner.Services` — create `ClusterUiCache.cs`:**  
    Construct all 8 required `DdsReader`s (see addendum §7.3 for the full list).
    Implement `Update()` that drains readers, updates all public properties, and
    calls `Process2PcNetworkTraffic()`. Cap `TxHistory` at 10 entries.
    Implement `Dispose()`.
 
 4. **`OrchestratorScenarioPanel.cs` → rename to `ClusterScenarioPanel.cs`:**  
-   - Remove `private readonly DrillMaster _drillMaster` field entirely.  
-   - Replace constructor with `(DdsWriter<SysOpRequest>, ClusterUiCache,
+   - Remove `private readonly ClusterMaster _drillMaster` field entirely.  
+   - Replace constructor with `(DdsWriter<ClusterOpRequest>, ClusterUiCache,
      Action? requestPause = null)`.  
    - All reads from `_drillMaster.*` properties replaced by the equivalent
      `_uiCache.*` property.  
@@ -2304,11 +2304,11 @@ must be operational).
      `_uiCache.MasterSimTime`, `_uiCache.IsPaused` — **no direct `_drillMaster`
      property access inside `DrawUI`**.  
    - `Update()` calls `_uiCache?.Update()`.
-   - Keep `internal DrillMaster? TestHook_DrillMaster` for E2E tests.
+   - Keep `internal ClusterMaster? TestHook_ClusterMaster` for E2E tests.
 
 **Success conditions:**
 
-- `Fact: AssetInventoryTopic published by DrillMaster` — unit test: tick DrillMaster
+- `Fact: AssetInventoryTopic published by ClusterMaster` — unit test: tick ClusterMaster
   6 seconds; assert `_inventoryWriter` made at least one `Write` call.
 
 - `Fact: ClusterUiCache reflects SystemStateTopic` — write a `SystemStateTopic`
@@ -2320,7 +2320,7 @@ must be operational).
 
 - `Fact: OrchestratorSubsystem.DrawUI has no _drillMaster reads` — static analysis
   (or grep): `DrawUI()` method body contains no direct access to `_drillMaster`
-  fields or methods except `TestHook_DrillMaster`.
+  fields or methods except `TestHook_ClusterMaster`.
 
 - `Fact: ClusterScenarioPanel compiles with ClusterUiCache` — solution builds with
   zero errors after the rename/refactoring.
@@ -2337,39 +2337,39 @@ must be operational).
 
 **Work to do:**
 
-1. **`Bagira.IOS` — add `TimePulseIngressHandler.cs`:**  
+1. **`Hrot.ExCon` — add `TimePulseIngressHandler.cs`:**  
    `IIngressHandler, IDisposable`; polls `DdsReader<TimePulseDescriptor>`;
    invokes `Action<TimePulseDescriptor>` callback.
 
-2. **`Bagira.IOS` — add `TimeModeIngressHandler.cs`:**  
+2. **`Hrot.ExCon` — add `TimeModeIngressHandler.cs`:**  
    Same pattern; polls `DdsReader<SwitchTimeModeWireDto>`;
    invokes `Action<SwitchTimeModeWireDto>` callback.
 
-3. **`Bagira.IOS/Abstractions/IIosLogic.cs` — extend interface:**  
+3. **`Hrot.ExCon/Abstractions/IIosLogic.cs` — extend interface:**  
    Add `double MasterSimTime`, `long MasterWallTicks`, `float MasterTimeScale`,
    `bool IsPaused` read-only properties and `RequestPause()`, `RequestResume()`,
    `RequestStep()`, `SetTimeScale(float)` methods.
 
-4. **`Bagira.IOS/IosLogic.cs` — implement new members:**  
+4. **`Hrot.ExCon/IosLogic.cs` — implement new members:**  
    - Back the four properties with private setters populated by the ingress handler
      callbacks.  
-   - Implement the four command methods by writing a `SysOpRequest` via
+   - Implement the four command methods by writing a `ClusterOpRequest` via
      `_sysOpWriter`:
-     - `RequestPause()` → `SysOpType.PauseTime`
-     - `RequestResume()` → `SysOpType.ResumeTime`
-     - `RequestStep()` → `SysOpType.StepTime`
-     - `SetTimeScale(float s)` → `SysOpType.SetTimeScale`, payload `s.ToString()`
+     - `RequestPause()` → `ClusterOpType.PauseTime`
+     - `RequestResume()` → `ClusterOpType.ResumeTime`
+     - `RequestStep()` → `ClusterOpType.StepTime`
+     - `SetTimeScale(float s)` → `ClusterOpType.SetTimeScale`, payload `s.ToString()`
 
-5. **`Bagira.IOS/IosSubsystem.cs` — wire new components in `Initialize`:**  
+5. **`Hrot.ExCon/IosSubsystem.cs` — wire new components in `Initialize`:**  
    - Construct `ClusterUiCache(_participant)` and store as `_uiCache`.
-   - Construct `_sysOpWriter = new DdsWriter<SysOpRequest>(_participant)`.
+   - Construct `_sysOpWriter = new DdsWriter<ClusterOpRequest>(_participant)`.
    - Construct `ClusterScenarioPanel(_sysOpWriter, _uiCache)` and store.
    - Register `TimePulseIngressHandler` and `TimeModeIngressHandler` in the IOS
      ingress handler list.
    - Wire handler callbacks to update `IosLogic.MasterSimTime` etc.
    - Dispose all in `Shutdown`.
 
-6. **`Bagira.IOS/IosSubsystem.cs` — `DrawUI()` renders cluster panel:**  
+6. **`Hrot.ExCon/IosSubsystem.cs` — `DrawUI()` renders cluster panel:**  
    ```csharp
    if (ImGui.Begin("Cluster Control", ImGuiWindowFlags.None))
    {
@@ -2384,8 +2384,8 @@ must be operational).
   `SimTimeSnapshot = 42.5` to the DDS bus; poll `TimePulseIngressHandler`; assert
   `iosLogic.MasterSimTime == 42.5`.
 
-- `Fact: IOS RequestPause dispatches SysOpRequest` — call `iosLogic.RequestPause()`;
-  assert `SysOpRequest { OperationType = SysOpType.PauseTime }` was written.
+- `Fact: IOS RequestPause dispatches ClusterOpRequest` — call `iosLogic.RequestPause()`;
+  assert `ClusterOpRequest { OperationType = ClusterOpType.PauseTime }` was written.
 
 - `Fact: IOS renders cluster panel` — `IosSubsystem.DrawUI()` does not throw;
   the "Cluster Control" window contains State Banner, Drill Control, and Time Control
@@ -2394,7 +2394,7 @@ must be operational).
 - `Fact: IOS Drill Control targets match Orchestrator` — both `IosSubsystem` and
   `OrchestratorSubsystem` render reachable targets from the same `ClusterUiCache.CurrentState`;
   assert that `GetReachableTargets(currentState)` called with the cached state
-  produces the same list from `BagiraStateGraph`.
+  produces the same list from `HrotStateGraph`.
 
-- `Fact: No direct DrillMaster reference in IosSubsystem` — grep: `IosSubsystem.cs`
-  does not import or reference the `Bagira.Orchestrator` namespace.
+- `Fact: No direct ClusterMaster reference in IosSubsystem` — grep: `IosSubsystem.cs`
+  does not import or reference the `Hrot.Orchestrator` namespace.

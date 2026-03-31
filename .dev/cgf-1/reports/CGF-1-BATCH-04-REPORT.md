@@ -21,11 +21,11 @@ All Part A debt items from BATCH-03 review resolved. CGF1-S0201 (BFS Transition 
 - `FDP/Kernel/Fdp.Kernel.Tests/xunit.runner.json` — `parallelizeAssembly: false`, `maxParallelThreads: 1`
 - `FDP/ModuleHost/ModuleHost.Core.Tests/xunit.runner.json` — same
 
-Ran `dotnet test IOS-IG-SimHost.sln --nologo` during session. Runner, SimHost, and IG test suites pass (112, 360, 429 tests respectively). DDS flake from those assemblies eliminated. Note: new DDS tests in `Bagira.Orchestrator.Tests` use domain 15 (non-conflicting); the policy of unique domains remains the required approach for any new DDS tests.
+Ran `dotnet test IOS-IG-SimHost.sln --nologo` during session. Runner, SimHost, and IG test suites pass (112, 360, 429 tests respectively). DDS flake from those assemblies eliminated. Note: new DDS tests in `Hrot.Orchestrator.Tests` use domain 15 (non-conflicting); the policy of unique domains remains the required approach for any new DDS tests.
 
 ### A.1 — `ClusterConfiguration.LoadFrom` fail-fast (P2)
 
-**File:** `Bagira.Orchestrator/ClusterConfiguration.cs`
+**File:** `Hrot.Orchestrator/ClusterConfiguration.cs`
 
 **Change:** Removed the blanket `catch { return Default; }`. Now:
 - **File absent** → returns `Default` (zero-config dev mode preserved).
@@ -37,9 +37,9 @@ XML doc updated to explain the rule.
 
 ### A.2 — Align S0105 tests with task detail (P3)
 
-**File:** `Bagira.Orchestrator.Tests/DrillMasterBootstrapTests.cs`
+**File:** `Hrot.Orchestrator.Tests/ClusterMasterBootstrapTests.cs`
 
-**Change:** Both `RejectsCommands_UntilMandatoryNodesReady` and `TransactionHistory_RecordsCompletedTransaction` now use `SysOpType.TransitionState` with `PayloadJson = ((int)DSMState.LoadingLive).ToString()`. This is normatively consistent with when the planner wiring is exercised.
+**Change:** Both `RejectsCommands_UntilMandatoryNodesReady` and `TransactionHistory_RecordsCompletedTransaction` now use `ClusterOpType.TransitionState` with `PayloadJson = ((int)ClusterState.LoadingLive).ToString()`. This is normatively consistent with when the planner wiring is exercised.
 
 ### A.3 — `SurvivingNodes_*` per-node assertion (P3)
 
@@ -54,9 +54,9 @@ The test currently validates:
 ### A.4 — ImGui §3.5 completeness (P3)
 
 **Files modified:**
-- `Bagira.Orchestrator/NodeHealthProfile.cs` — added `CpuUsagePercent: float` and `RamUsedBytes: long` properties.
-- `Bagira.Orchestrator/DrillMaster.cs` (`IngestHeartbeats`) — copies `hb.CpuUsagePercent` and `hb.RamUsedBytes` into the profile.
-- `Bagira.Runner/Services/OrchestratorSubsystem.cs` (`DrawUI`):
+- `Hrot.Orchestrator/NodeHealthProfile.cs` — added `CpuUsagePercent: float` and `RamUsedBytes: long` properties.
+- `Hrot.Orchestrator/ClusterMaster.cs` (`IngestHeartbeats`) — copies `hb.CpuUsagePercent` and `hb.RamUsedBytes` into the profile.
+- `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` (`DrawUI`):
   - Health table: 4 → 6 columns, added **CPU %** and **RAM (MB)**.
   - 2PC history table: 3 → 4 columns, added **ACK Latency (ms)** column rendered as `"0"` when `NodeAckLatencyMs` is empty, otherwise `"nodeId:Xms, ..."` per-node summary.
 
@@ -66,16 +66,16 @@ The test currently validates:
 
 **Files modified:**
 - `CGF-1-DESIGN.md §6 (New Projects & File Map)`:
-  - Removed `Bagira.Orchestrator.Standalone` and `Bagira.CGF.Standalone` rows.
-  - Updated `Bagira.Orchestrator` description to say "hosted in Runner".
-  - Fixed stale §3.2 sentence "as a separate process via `Bagira.Orchestrator.Standalone`" → "as a subsystem hosted inside `Bagira.Runner`".
+  - Removed `Hrot.Orchestrator.Standalone` and `Hrot.CGF.Standalone` rows.
+  - Updated `Hrot.Orchestrator` description to say "hosted in Runner".
+  - Fixed stale §3.2 sentence "as a separate process via `Hrot.Orchestrator.Standalone`" → "as a subsystem hosted inside `Hrot.ClusterRunner`".
 - `CGF-1-TASK-DETAIL.md §CGF1-S0102`:
   - Removed step 2 (create Standalone project).
   - Renumbered remaining steps.
   - Added "Runner-only launch" callout box.
   - Removed "Standalone binary runs without exception" success condition.
 - `CGF-1-TASK-DETAIL.md §CGF1-S0104`:
-  - Removed "and `Bagira.CGF.Standalone` process project" from step 1.
+  - Removed "and `Hrot.CGF.Standalone` process project" from step 1.
 
 ---
 
@@ -83,12 +83,12 @@ The test currently validates:
 
 ### Implementation
 
-**File:** `Bagira.Orchestrator/TransitionPlanner.cs` (new)
+**File:** `Hrot.Orchestrator/TransitionPlanner.cs` (new)
 
 **Classes added:**
 - `ISysOpStep` — abstract base for step types.
-- `TransitionStep(DSMState)` — instructs cluster to transition to a target state.
-- `OperationStep(SysOpType, string)` — out-of-band operation appended after the final transition (e.g. ReplaySeek).
+- `TransitionStep(ClusterState)` — instructs cluster to transition to a target state.
+- `OperationStep(ClusterOpType, string)` — out-of-band operation appended after the final transition (e.g. ReplaySeek).
 - `TransitionPlanner` — BFS planner with full adjacency and `CalculateShortestPath`/`PlanTrajectory` APIs.
 
 **Adjacency note (design errata):** `CGF-1-DESIGN.md §4.1` lists `RunningEdit → LoadingLive` in the adjacency, but the normative trajectory examples (`RunningEdit → RunningLive` = 4 steps) require this edge to be *absent* (BFS would find the 2-step path via `RunningEdit → LoadingLive → RunningLive` otherwise). Removed from planner adjacency. DEBT row added for design §4.1 correction in BATCH-05.
@@ -99,19 +99,19 @@ The test currently validates:
 
 When target is `RunningReplay` and `TargetWallTicks` is present, an `OperationStep(ReplaySeek)` is appended.
 
-**Impossible path:** `DSMState.Degraded` has no outgoing planning edges; any request from or to `Degraded` throws `InvalidOperationException` with both state names. The original task-detail entry cited `RunningDryRun → RunningReplay` as the impossible case — BFS proves that path is actually reachable in 6 steps. Task detail updated.
+**Impossible path:** `ClusterState.Degraded` has no outgoing planning edges; any request from or to `Degraded` throws `InvalidOperationException` with both state names. The original task-detail entry cited `RunningDryRun → RunningReplay` as the impossible case — BFS proves that path is actually reachable in 6 steps. Task detail updated.
 
-### DrillMaster wiring
+### ClusterMaster wiring
 
-**File:** `Bagira.Orchestrator/DrillMaster.cs`
+**File:** `Hrot.Orchestrator/ClusterMaster.cs`
 
 - Added `_planner: TransitionPlanner` field.
-- Added `_currentDsmState: DSMState` field (tracks current published state; initialized to `Standby`).
-- `ProcessSysOpRequests`: for `SysOpType.TransitionState` requests, calls `_planner.PlanTrajectory(...)`. On `InvalidOperationException` (unreachable path) responds with `OpStatus.Failure` and continues. On success, populates `TargetDsmState` and `TotalSteps` from the planned trajectory.
+- Added `_currentClusterState: ClusterState` field (tracks current published state; initialized to `Standby`).
+- `ProcessClusterOpRequests`: for `ClusterOpType.TransitionState` requests, calls `_planner.PlanTrajectory(...)`. On `InvalidOperationException` (unreachable path) responds with `OpStatus.Failure` and continues. On success, populates `TargetClusterState` and `TotalSteps` from the planned trajectory.
 
 ### Tests
 
-**File:** `Bagira.Orchestrator.Tests/TransitionPlannerTests.cs` (new)
+**File:** `Hrot.Orchestrator.Tests/TransitionPlannerTests.cs` (new)
 
 8 tests, all pure unit (no DDS, no ECS), part of the non-parallel `OrchestratorTests` collection:
 
@@ -132,10 +132,10 @@ When target is `RunningReplay` and `TargetWallTicks` is present, an `OperationSt
 
 | Suite | Before | After |
 |-------|--------|-------|
-| `Bagira.Orchestrator.Tests` | 5 pass (BATCH-03) | **13 pass** |
-| `Bagira.Runner.Tests` | 112 pass | 112 pass |
-| `Bagira.SimHost.Tests` | 360 pass | 360 pass |
-| `Bagira.IG.Tests` | 429 pass | 429 pass |
+| `Hrot.Orchestrator.Tests` | 5 pass (BATCH-03) | **13 pass** |
+| `Hrot.ClusterRunner.Tests` | 112 pass | 112 pass |
+| `Hrot.SimHost.Tests` | 360 pass | 360 pass |
+| `Hrot.IG.Tests` | 429 pass | 429 pass |
 
 Solution build: **0 errors, 0 new warnings**.
 
@@ -162,13 +162,13 @@ Solution build: **0 errors, 0 new warnings**.
 
 | File | Change |
 |------|--------|
-| `Bagira.Orchestrator/ClusterConfiguration.cs` | A.1: fail-fast on invalid config file |
-| `Bagira.Orchestrator/NodeHealthProfile.cs` | A.4: add CpuUsagePercent, RamUsedBytes |
-| `Bagira.Orchestrator/DrillMaster.cs` | A.4: propagate CPU/RAM from heartbeat; B: add planner field + wiring |
-| `Bagira.Orchestrator/TransitionPlanner.cs` | **NEW** — BFS planner + step types |
-| `Bagira.Orchestrator.Tests/DrillMasterBootstrapTests.cs` | A.2: TransitionState payload; A.3: broadcast-limitation doc-comment |
-| `Bagira.Orchestrator.Tests/TransitionPlannerTests.cs` | **NEW** — 8 planner tests |
-| `Bagira.Runner/Services/OrchestratorSubsystem.cs` | A.4: CPU%/RAM + ACK latency columns |
+| `Hrot.Orchestrator/ClusterConfiguration.cs` | A.1: fail-fast on invalid config file |
+| `Hrot.Orchestrator/NodeHealthProfile.cs` | A.4: add CpuUsagePercent, RamUsedBytes |
+| `Hrot.Orchestrator/ClusterMaster.cs` | A.4: propagate CPU/RAM from heartbeat; B: add planner field + wiring |
+| `Hrot.Orchestrator/TransitionPlanner.cs` | **NEW** — BFS planner + step types |
+| `Hrot.Orchestrator.Tests/ClusterMasterBootstrapTests.cs` | A.2: TransitionState payload; A.3: broadcast-limitation doc-comment |
+| `Hrot.Orchestrator.Tests/TransitionPlannerTests.cs` | **NEW** — 8 planner tests |
+| `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs` | A.4: CPU%/RAM + ACK latency columns |
 | `.dev/cgf-1/CGF-1-DESIGN.md` | A.5: remove Standalone rows; fix §3.2 sentence |
 | `.dev/cgf-1/CGF-1-TASK-DETAIL.md` | A.3: broadcast note; A.5: remove Standalone; B: fix S0201 impossible test case + payload encoding |
 | `.dev/DEBT-TRACKER.md` | Close BATCH-03 items; add 3 new BATCH-04 debt rows |

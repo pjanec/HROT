@@ -15,10 +15,10 @@
 | ATTR-S2T1 | `CreationTool` dumb-pipe simplification | ✅ Done | 4 + 3 updated |
 
 **Final test counts (all green):**
-- `Bagira.DDS.DataModel.Tests` — 9/9 ✅ (was 3; +6 field tests)
-- `Bagira.IG.Tests / CreationTool filter` — 21/21 ✅ (was 17; +4 new, 3 updated)
-- `Bagira.SimHost.Tests` — 88/88 ✅
-- `Bagira.Map.Common.Tests` — 10/10 ✅
+- `Hrot.NED.Tests` — 9/9 ✅ (was 3; +6 field tests)
+- `Hrot.IG.Tests / CreationTool filter` — 21/21 ✅ (was 17; +4 new, 3 updated)
+- `Hrot.SimHost.Tests` — 88/88 ✅
+- `Hrot.Map.Common.Tests` — 10/10 ✅
 
 ---
 

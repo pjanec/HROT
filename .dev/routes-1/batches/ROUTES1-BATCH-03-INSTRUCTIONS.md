@@ -24,10 +24,10 @@ You must address the P2 and P3 technical debts identified in previous batches *f
 5. **Previous Review:** `.dev-workstream/reviews/ROUTES1-BATCH-02-REVIEW.md`
 
 ### Source Code Location
-- **Bagira.IG:** For Rendering Layers, `RouteEditTool`, and `WaypointEditorPanel`.
-- **Bagira.SimHost:** For AI Blackboard routing rules and legacy script purges.
-- **Bagira.Map.Common:** For ingestion/egress allocations refactors.
-- **Test Projects:** `Bagira.IG.Tests/`, `Bagira.SimHost.Tests/`, `Bagira.Map.Common.Tests/`
+- **Hrot.IG:** For Rendering Layers, `RouteEditTool`, and `WaypointEditorPanel`.
+- **Hrot.SimHost:** For AI Blackboard routing rules and legacy script purges.
+- **Hrot.Map.Common:** For ingestion/egress allocations refactors.
+- **Test Projects:** `Hrot.IG.Tests/`, `Hrot.SimHost.Tests/`, `Hrot.Map.Common.Tests/`
 
 ### Report Submission
 **When done, submit your report to:**  

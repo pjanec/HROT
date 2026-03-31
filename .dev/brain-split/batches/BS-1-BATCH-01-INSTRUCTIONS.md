@@ -26,7 +26,7 @@ This batch establishes the **POC data contracts** (ECS event structs + simplifie
   - `FDP/Toolkits/FDP.Toolkit.Combat/Events/`
   - `FDP/Toolkits/FDP.Toolkit.Combat/Executors/`
   - `FDP/Toolkits/FDP.Toolkit.Combat/Systems/`
-  - `Bagira.DDS.DataModel/`
+  - `Hrot.NED/`
 - **Test project (use this unless you have a strong reason not to):**
   - `FDP/Toolkits/FDP.Toolkit.Combat.Tests/`
 
@@ -89,7 +89,7 @@ This workstream enforces strict Brain/Muscle separation via a CQRS chain for com
 
 **Files**
 - **NEW:** `FDP/Toolkits/FDP.Toolkit.Combat/Events/WeaponFireEvents.cs`
-- **UPDATE:** `Bagira.DDS.DataModel/FireInteractionMessages.cs`
+- **UPDATE:** `Hrot.NED/FireInteractionMessages.cs`
 
 **Requirements**
 - Follow the struct field minimums and topic names exactly (POC simplified).
@@ -108,7 +108,7 @@ This workstream enforces strict Brain/Muscle separation via a CQRS chain for com
 
 **Files**
 - **NEW:** `FDP/Toolkits/FDP.Toolkit.Combat/Events/DetonationEvents.cs`
-- **UPDATE:** `Bagira.DDS.DataModel/FireInteractionMessages.cs`
+- **UPDATE:** `Hrot.NED/FireInteractionMessages.cs`
 
 **Requirements**
 - Topic names must match exactly: `MunitionDetonation`, `EntityHitDamage`.

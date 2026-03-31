@@ -18,9 +18,9 @@ implemented. Net new tests: +16 across four test assemblies. All 253 tests green
 
 ### Issue 1 (P3 / deferred): `InjectStory_AutoGeneratesStoryId` does not exercise panel button path
 
-**File:** `Bagira.Runner.Tests/OrchestratorScenarioPanelTests.cs`  
+**File:** `Hrot.ClusterRunner.Tests/OrchestratorScenarioPanelTests.cs`  
 **Problem:** The test simulates auto-generation by writing two manually crafted
-`ManageStory` requests with distinct hardcoded GUIDs, then asserting they differ.
+`ManageEpisode` requests with distinct hardcoded GUIDs, then asserting they differ.
 This verifies the DDS round-trip and JSON parsing but does not exercise the
 `Guid.NewGuid()` call inside the panel's "Inject Story" button handler.  
 **Impact:** Low — `Guid.NewGuid()` is a stdlib guarantee; behavioral correctness
@@ -31,21 +31,21 @@ is introduced and the panel's ImGui click simulation can be reused.
 
 ### Issue 2 (P3 / deferred): `_replayDuration` not loaded from meta.json on drill selection
 
-**File:** `Bagira.Runner/Services/OrchestratorScenarioPanel.cs`  
+**File:** `Hrot.ClusterRunner/Services/OrchestratorScenarioPanel.cs`  
 **Problem:** `GetReplayDuration` exists and is tested but is never called on drill
 selection — `_replayDuration` stays at the 3600-second fallback indefinitely.
 The seek slider maximum is therefore always 1 hour regardless of actual drill length.  
 **Impact:** Minor UX gap; incorrect slider cap does not affect correctness.  
-**Fix:** P3 debt. Wire `GetReplayDuration` call in `_selectedDrillIdx` change handler
+**Fix:** P3 debt. Wire `GetReplayDuration` call in `_selectedExerciseIdx` change handler
 or on "Load Replay" button click in a future BATCH.
 
 ### Issue 3 (P3 / noted by developer): `StepTime` is functionally a no-op
 
-**File:** `Bagira.Runner/Services/OrchestratorSubsystem.cs`  
+**File:** `Hrot.ClusterRunner/Services/OrchestratorSubsystem.cs`  
 **Problem:** `_timeKernel.StepFrame(1f/60f)` throws `InvalidOperationException`
 because `MasterTimeController` does not implement `ISteppableTimeController`. The
 try-catch swallows the error silently.  
-**Impact:** Step button dispatches the `SysOpRequest` correctly (network path works)
+**Impact:** Step button dispatches the `ClusterOpRequest` correctly (network path works)
 but the Orchestrator kernel does not actually advance one frame. Full fix requires
 swapping to `SteppingTimeController` at pause time.  
 **Fix:** P3 debt. Defer to S0506 refactor when `OrchestratorSubsystem` is wired
@@ -53,7 +53,7 @@ through `ClusterUiCache` time state.
 
 ### Issue 4 (Fixed during review): `StepButton_DisabledWhenNotPaused` verifies logical correctness, not UI disability
 
-**File:** `Bagira.Runner.Tests/OrchestratorSubsystemTests.cs`  
+**File:** `Hrot.ClusterRunner.Tests/OrchestratorSubsystemTests.cs`  
 **Assessment:** The test verifies that `StepTime` does not flip `_isPaused`, which
 is the correct logical constraint. Visual `BeginDisabled` / `EndDisabled` guarding
 cannot be asserted from outside ImGui without headless rendering. Accepted —
@@ -68,15 +68,15 @@ All new tests verify actual API behavior, state transitions, or DDS-level dispat
 - Debounce tests arm private fields via reflection (acceptable — no public arming API
   exists) and verify both the non-write and write paths.
 - Subsystem tests go through the full DDS round-trip for `PauseTime`.
-- `LoadScenario_WithNoSelection_DisabledGuard` verifies no `SysOpRequest` is written
+- `LoadScenario_WithNoSelection_DisabledGuard` verifies no `ClusterOpRequest` is written
   by rendering a real headless ImGui frame.
 
 No shallow assertions (string existence, not-null only). Accepted.
 
 Final test counts:
-- `Bagira.DDS.DataModel.Tests`: 45 (was 43; +2 schema pin tests)
-- `Bagira.Orchestrator.Tests`: 49 (was 46; +3: fan-out debt + 2 TimeControl)
-- `Bagira.Runner.Tests`: 159 (was 148; +11: 3 subsystem + 4 debounce/duration + 4 panel combo)
+- `Hrot.NED.Tests`: 45 (was 43; +2 schema pin tests)
+- `Hrot.Orchestrator.Tests`: 49 (was 46; +3: fan-out debt + 2 TimeControl)
+- `Hrot.ClusterRunner.Tests`: 159 (was 148; +11: 3 subsystem + 4 debounce/duration + 4 panel combo)
 
 ---
 
@@ -89,7 +89,7 @@ Key findings worth recording:
    Developer added the handler. This was a code bug, not just a test gap. The debt
    row was correctly labelled "test gap" but the root cause was a missing code path.
 
-2. **DDS volatile KeepLast(1) race in ManageStory test** — writing two messages in
+2. **DDS volatile KeepLast(1) race in ManageEpisode test** — writing two messages in
    rapid succession on a KeepLast(1) topic loses the first. Developer fixed with
    sequential reads + 150ms delay. Documents a known DDS KeepLast gotcha for future
    test authors.
@@ -117,10 +117,10 @@ feat(orchestrator): S0503+S0504 Time Control UI & asset combo selection (BATCH-2
 Completes CGF1-S0503 and CGF1-S0504. Closes P3 debt from BATCH-26 (standalone
 ReplaySeek fan-out handler + test).
 
-SysOpType: CancelOperation=13, StepTime=14, SetTimeScale=15.
+ClusterOpType: CancelOperation=13, StepTime=14, SetTimeScale=15.
 
-DrillMaster: TimeControlRequested event; PauseTime/ResumeTime/StepTime/SetTimeScale
-intercepted before 2PC; standalone SysOpType.ReplaySeek → NodeReplaySeek fan-out
+ClusterMaster: TimeControlRequested event; PauseTime/ResumeTime/StepTime/SetTimeScale
+intercepted before 2PC; standalone ClusterOpType.ReplaySeek → NodeReplaySeek fan-out
 handler added (was missing).
 
 OrchestratorSubsystem: _isPaused field + IsPausedForTest hook; TimeControlRequested

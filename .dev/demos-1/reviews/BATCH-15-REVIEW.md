@@ -11,7 +11,7 @@
 
 Validated **`.dev-workstream/reports/BATCH-15-REPORT.md`** against **source**. **`Fdp.Examples.Scenarios.Tests`**: **65 / 65** passed (including five **`UrbanCombatNewScenario`** tests). **`UrbanCombatNewScenario`** is self-contained in **`Fdp.Examples.Scenarios`** (no **`Fdp.Examples.UrbanCombat`** project reference); **`ScenarioRegistry`** registers **`urbancombat`**; **`DemoRoadGraphFactory.CreateCityIntersection()`** is used; **14 entities** and **five** internal sequential latches + **600-tick** **`ScenarioFailureException`** match the batch brief.
 
-**Phase 0:** **`RunnerTestHelpers.TryTakeCreateAck`** exists; call sites in **four** **`Bagira.Runner.Integration.Tests`** files use it. Extraction matches the debt item intent. **Runner integration tests** were not re-run in this review session (report cites file locks); treat as **low risk** given localized refactor.
+**Phase 0:** **`RunnerTestHelpers.TryTakeCreateAck`** exists; call sites in **four** **`Hrot.ClusterRunner.Integration.Tests`** files use it. Extraction matches the debt item intent. **Runner integration tests** were not re-run in this review session (report cites file locks); treat as **low risk** given localized refactor.
 
 **Report metadata:** Date **2025-07-18** is inconsistent with project timeline — treat as typo when archiving.
 
@@ -21,7 +21,7 @@ Validated **`.dev-workstream/reports/BATCH-15-REPORT.md`** against **source**. *
 
 ### Phase 0 — `TryTakeCreateAck`
 
-- **`Bagira.Runner.Integration.Tests/RunnerTestHelpers.cs`**: shared helper with correct **InProgress** skip semantics.  
+- **`Hrot.ClusterRunner.Integration.Tests/RunnerTestHelpers.cs`**: shared helper with correct **InProgress** skip semantics.  
 - **Callers:** **`MiniIosIntegrationTests`**, **`MapPlacementIntegrationTests`**, **`AreaAuthoringIntegrationTests`**, **`SpawnMovingVehicleWithGatewayIntegrationTests`** — all reference **`RunnerTestHelpers.TryTakeCreateAck`**.
 
 ### Tasks 4a–4f — DEM1-D010
@@ -69,7 +69,7 @@ feat(dem1): D010 UrbanCombatNewScenario + RunnerTestHelpers TryTakeCreateAck
 
 - Add self-contained grand-integration scenario (14 entities, HSM, BTrees,
   road graph, sequential latches, ScenarioRegistry urbancombat)
-- Extract TryTakeCreateAck to Bagira.Runner.Integration.Tests RunnerTestHelpers
+- Extract TryTakeCreateAck to Hrot.ClusterRunner.Integration.Tests RunnerTestHelpers
 - Add UrbanCombatNewScenarioTests; extend Fdp.Examples.Scenarios deps (Fhsm)
 ```
 

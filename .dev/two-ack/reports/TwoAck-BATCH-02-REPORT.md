@@ -17,12 +17,12 @@ behavioral tests, and fixes the pending-entity UI copy.
 ## Test Results
 
 ```
-Bagira.SimHost.Tests   — Passed: 326   Failed: 0
-Bagira.IOS.Tests       — Passed: 310   Failed: 0
-Bagira.IG.Tests        — Passed: 378   Failed: 0
-Bagira.DDS.DataModel.Tests — Passed: 33   Failed: 0
-Bagira.Map.Common.Tests    — Passed: 88   Failed: 0
-Bagira.Runner.Tests        — Passed: 112  Failed: 0
+Hrot.SimHost.Tests   — Passed: 326   Failed: 0
+Hrot.ExCon.Tests       — Passed: 310   Failed: 0
+Hrot.IG.Tests        — Passed: 378   Failed: 0
+Hrot.NED.Tests — Passed: 33   Failed: 0
+Hrot.Map.Common.Tests    — Passed: 88   Failed: 0
+Hrot.ClusterRunner.Tests        — Passed: 112  Failed: 0
 ```
 
 ---
@@ -41,7 +41,7 @@ Bagira.Runner.Tests        — Passed: 112  Failed: 0
 ## Task Details
 
 ### CORRECTIVE-001 — CI Regression Fix
-**File:** `Bagira.SimHost.Tests/MissionControlRequestSystemTests.cs`
+**File:** `Hrot.SimHost.Tests/MissionControlRequestSystemTests.cs`
 
 Changed the hardcoded literal `errorCode: 2` to `errorCode: (int)SstStatusCode.EntityNotFound`
 on the `LoanHasAck` assertion call in `ProcessRequest_UnknownEntity_WritesNackAfterRetrying`.
@@ -58,7 +58,7 @@ were updated to `(int)SstStatusCode.InProgress`.
 ---
 
 ### DEBT-TEST-001 — Re-Implement ImGui MissionPanel Tests
-**File:** `Bagira.IOS.Tests/TwoAckIosTests.cs`
+**File:** `Hrot.ExCon.Tests/TwoAckIosTests.cs`
 
 **Removed** the `MissionPanelPendingTests` class containing three tests that only
 validated the `IsPendingGuardActive()` public helper in isolation — a method that
@@ -87,7 +87,7 @@ ImGui context (`ImGui.CreateContext` + `NewFrame` + `Render`):
 ---
 
 ### DEBT-TEST-002 — IosMock GlobalAlert UI test
-**File:** `Bagira.IOS.Tests/IosMockTests.cs`
+**File:** `Hrot.ExCon.Tests/IosMockTests.cs`
 
 Added `IosMockUITests` (`[Collection("ImGui Sequential")]`) with two tests:
 
@@ -106,7 +106,7 @@ Added `IosMockUITests` (`[Collection("ImGui Sequential")]`) with two tests:
 ---
 
 ### DEBT-UX-001 — UX Copy Fix
-**File:** `Bagira.IOS/Panels/MissionPanel.cs`
+**File:** `Hrot.ExCon/Panels/MissionPanel.cs`
 
 Changed the pending-entity status text from:
 ```

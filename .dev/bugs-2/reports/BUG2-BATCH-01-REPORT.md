@@ -13,7 +13,7 @@
 |-----------|--------|-------|
 | BUG2-N001 | ✅ Done | Removed duplicate `UpdateEntityDescriptorRequestSystem` from `SimHostApp.cs`; added `RegisteredSystemTypes_ContainsNoDuplicates` test |
 | BUG2-N002 | ✅ Done | Added `EnableSenderTracking` to all 4 DDS participants (SimHost, IG, IosSubsystem, NetworkDemo); added `ProcessSample_WithSenderTracking_SetsOwnerId` integration test |
-| BUG2-N003 | ✅ Done | Added `Dispose(long)` override to `GeoSpatialEgressTranslator` that tombstones the DR sample; added DDS integration tests `Dispose_CallsDisposeOnDrWriter` and `Dispose_AlsoCallsBaseDispose` |
+| BUG2-N003 | ✅ Done | Added `Dispose(long)` override to `WorldPosEgressTranslator` that tombstones the DR sample; added DDS integration tests `Dispose_CallsDisposeOnDrWriter` and `Dispose_AlsoCallsBaseDispose` |
 | BUG2-M001 | ✅ Done | Added `DoctrineFinished` and `UnderAttack` cases to `ResolveTrigger` in both `MissionControlRequestSystem` and `EntityMissionIngressTranslator`; made method `internal`; tests in both test projects |
 | BUG2-M002 | ✅ Done | Added `_triggerTypes`, `GetDefaultTriggerParams`, `HandleEditTriggerType`, `HandleEditTriggerParams`, `HandleAddTrigger` to `MissionPanel`; trigger UI block in `Draw`; 4 tests added |
 | BUG2-M003 | ✅ Done | Replaced `↑`, `↓`, `✕` button labels with `Up`, `Down`, `Delete` across all task rows |
@@ -29,10 +29,10 @@
 
 | Project | Before | After | New Tests |
 |---------|--------|-------|-----------|
-| Bagira.IOS.Tests | ~262 | 283 | +21 (M002×4, M003 N/A, M004×3, U001×2, U002×1; previously added tests not counted here) |
-| Bagira.IG.Tests | ~300 | 316 | +16 (N002×1 + previously added) |
-| Bagira.SimHost.Tests | 268 | 268 | N001, N003 tests already indexed |
-| Bagira.Map.Common.Tests | 57 | 57 | M001 tests stable |
+| Hrot.ExCon.Tests | ~262 | 283 | +21 (M002×4, M003 N/A, M004×3, U001×2, U002×1; previously added tests not counted here) |
+| Hrot.IG.Tests | ~300 | 316 | +16 (N002×1 + previously added) |
+| Hrot.SimHost.Tests | 268 | 268 | N001, N003 tests already indexed |
+| Hrot.Map.Common.Tests | 57 | 57 | M001 tests stable |
 
 **Pre-existing failures (not introduced by this batch):**
 - `FDP.Toolkit.Tkb.Tests`: 2 failures (pre-existing)
@@ -42,7 +42,7 @@
 **Key Test Scenarios Verified:**
 - ✅ No duplicate system types registered in `SimHostApp`
 - ✅ `SenderIdentityConfig.AppInstanceId` flows through to `EntityMaster.OwnerId` over DDS
-- ✅ `GeoSpatialDR` sample is tombstoned (not just abandoned) when entity is disposed
+- ✅ `WorldPos` sample is tombstoned (not just abandoned) when entity is disposed
 - ✅ `ResolveTrigger` returns correct enum for all 5 trigger strings including new DoctrineFinished/UnderAttack
 - ✅ Trigger type change resets params to type-appropriate defaults
 - ✅ Force commit is sent with `baseVersion == 0` bypassing OCC check
@@ -61,7 +61,7 @@
 
 2. **`DdsLoan<T>` indexer vs enumerator**: `loan[i]` returns the raw `T` (no `Info`), but `foreach (var sample in loan)` yields `DdsSample<T>` which exposes `.Info.InstanceState`. Fixed by switching to `foreach` with manual index tracking for `GetSender(idx)`.
 
-3. **`InternalsVisibleTo` missing for `Bagira.IOS.Tests`**: The `TestHook_ClearDraftAndDismissConflict` method is `internal` but the `Bagira.IOS.csproj` had no `InternalsVisibleTo` attribute (unlike `Bagira.SimHost.csproj` and others). Added the attribute via `AssemblyAttribute` item in the csproj.
+3. **`InternalsVisibleTo` missing for `Hrot.ExCon.Tests`**: The `TestHook_ClearDraftAndDismissConflict` method is `internal` but the `Hrot.ExCon.csproj` had no `InternalsVisibleTo` attribute (unlike `Hrot.SimHost.csproj` and others). Added the attribute via `AssemblyAttribute` item in the csproj.
 
 4. **csproj XML corruption**: An automated replacement inserted a new `<ItemGroup>` inside an unclosed `<ItemGroup>` block. Resolved by rewriting the csproj cleanly via PowerShell.
 
@@ -87,5 +87,5 @@
 
 ## ⚠️ Outstanding Issues / Next Steps
 
-- The duplicate-copy of `ResolveTrigger` logic between `MissionControlRequestSystem` and `EntityMissionIngressTranslator` is a minor tech-debt item; suggest consolidating into a shared static helper in `Bagira.Map.Common`.
+- The duplicate-copy of `ResolveTrigger` logic between `MissionControlRequestSystem` and `EntityMissionIngressTranslator` is a minor tech-debt item; suggest consolidating into a shared static helper in `Hrot.Map.Common`.
 - The 2 pre-existing `FDP.Toolkit.Replay.Tests` failures and the CLR crash (0x80131506) are unrelated to this batch and should be tracked separately.

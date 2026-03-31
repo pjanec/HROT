@@ -28,13 +28,13 @@ It also addresses two tech-debt items discovered during Batch 02:
 
 ### Source Code Location
 - Translators (SimHost egress/ingress + IG):
-  - `Bagira.SimHost/Network/Egress/`
-  - `Bagira.SimHost/Network/Ingress/`
-  - `Bagira.IG/Translators/`
+  - `Hrot.SimHost/Network/Egress/`
+  - `Hrot.SimHost/Network/Ingress/`
+  - `Hrot.IG/Translators/`
 - Fire / hit resolution systems:
   - `FDP/Toolkits/FDP.Toolkit.Combat/Systems/`
 - IG event definitions:
-  - `Bagira.IG/IgEvents.cs`
+  - `Hrot.IG/IgEvents.cs`
 
 ### Report Submission
 **When done, submit your report to:**  
@@ -98,7 +98,7 @@ This batch:
 ## ✅ Tasks
 
 ### Task 1: WeaponFireNotificationEgressTranslator (BS1-T008)
-**File:** `Bagira.SimHost/Network/Egress/WeaponFireNotificationEgressTranslator.cs` (NEW)  
+**File:** `Hrot.SimHost/Network/Egress/WeaponFireNotificationEgressTranslator.cs` (NEW)  
 **Task Definition:** `docs/brain-split/BS-1-TASK-DETAIL.md#bs1-t008--create-weaponfirenotificationegress-translator`
 
 **Description:** Consume `WeaponFireNotification` ECS events and publish DDS `WeaponFire` messages for IG.
@@ -115,8 +115,8 @@ This batch:
 
 ### Task 2: WeaponFireIngressTranslator for IG (BS1-T009)
 **Files:**
-- `Bagira.IG/Translators/WeaponFireIngressTranslator.cs` (NEW)
-- `Bagira.IG/IgEvents.cs` (UPDATE / add `IgWeaponFireEvent`)
+- `Hrot.IG/Translators/WeaponFireIngressTranslator.cs` (NEW)
+- `Hrot.IG/IgEvents.cs` (UPDATE / add `IgWeaponFireEvent`)
 **Task Definition:** `docs/brain-split/BS-1-TASK-DETAIL.md#bs1-t009--create-weaponfire-ingress-translator-for-ig`
 
 **Description:** Poll DDS `WeaponFire` on the IG and publish `IgWeaponFireEvent` to IG local bus.
@@ -152,7 +152,7 @@ This batch:
 - Minimum bar: all tests pass after each task.
 - Recommended run:
   - `dotnet test FDP/Toolkits/FDP.Toolkit.Combat.Tests/FDP.Toolkit.Combat.Tests.csproj`
-  - `dotnet test Bagira.SimHost.Tests/Bagira.SimHost.Tests.csproj`
+  - `dotnet test Hrot.SimHost.Tests/Hrot.SimHost.Tests.csproj`
   - `dotnet test IOS-IG-SimHost.sln`
 
 ---
