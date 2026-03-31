@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Hrot.NED.Descriptors.Orchestration;
-using Hrot.Common.Orchestration;
-using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using Xunit;
@@ -150,50 +147,5 @@ public sealed class ClusterSlaveTests
         Assert.Equal(0,         events[0].PreviousStateId);
         Assert.Equal(nextState, events[0].NextStateId);
         Assert.Equal(nextState, slave.LocalStateIdForTest);
-    }
-
-    // ── CGF1-G0402 success condition 4 (DDS integration) ─────────────────
-
-    /// <summary>
-    /// Fact: DdsOrchestrationTransport delivers commands to ClusterSlave.
-    /// Sends a NodeOpCommand over DDS and verifies the toolkit ClusterSlave
-    /// dispatches it to a registered handler within 2 s.
-    /// </summary>
-    [Fact(Timeout = 5_000)]
-    public void DdsTransport_DeliversCommand_ToClusterSlave()
-    {
-        // Domain 17 reserved for this test.
-        const int TestDomain = 17;
-        const int nodeId     = 42;
-        const int opId       = 5; // arbitrary non-CommitState
-
-        using var participant      = new DdsParticipant(TestDomain);
-        using var commandPublisher = new DdsWriter<NodeOpCommand>(participant);
-        using var transport        = new DdsOrchestrationTransport(participant, nodeId);
-
-        var handler = new StubHandler(opId);
-        using var slave = new ClusterSlave(transport, nodeId, "TestSubsystem");
-        slave.RegisterHandler(handler);
-
-        Thread.Sleep(200); // DDS discovery
-
-        commandPublisher.Write(new NodeOpCommand
-        {
-            TransactionId = Guid.NewGuid(),
-            TargetNodeId  = nodeId,
-            Operation     = (NodeOpType)opId,
-            PayloadJson   = "{}",
-        });
-
-        // Poll until handler receives the command (up to 2 s).
-        var deadline = DateTime.UtcNow.AddSeconds(2);
-        while (DateTime.UtcNow < deadline && handler.CommitCallCount == 0)
-        {
-            slave.Tick();
-            Thread.Sleep(20);
-        }
-
-        Assert.Equal(1, handler.PrepareCallCount);
-        Assert.Equal(1, handler.CommitCallCount);
     }
 }

@@ -107,7 +107,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// subsystem type matched (this node is a participant for the episode).
         /// Exposed for integration-test assertions.
         /// </summary>
-        internal bool IsParticipatingForTest => _pendingIsParticipating;
+        public bool IsParticipatingForTest => _pendingIsParticipating;
 
         /// <inheritdoc />
         public Task<string?> PrepareAsync(OrchestrationCommand cmd, CancellationToken ct)

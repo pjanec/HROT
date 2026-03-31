@@ -74,7 +74,7 @@ namespace FDP.Toolkit.Orchestration
         /// Creates a ClusterSlave without a transport.  Heartbeat publishing is disabled.
         /// Use <see cref="EnqueueCommandForTest"/> to inject commands without DDS.
         /// </summary>
-        internal ClusterSlave(FdpEventBus? eventBus = null)
+        public ClusterSlave(FdpEventBus? eventBus = null)
         {
             _transport     = null;
             _nodeId        = 0;
@@ -162,7 +162,7 @@ namespace FDP.Toolkit.Orchestration
         /// <summary>
         /// Enqueues a command directly — bypasses transport.  For unit tests only.
         /// </summary>
-        internal void EnqueueCommandForTest(OrchestrationCommand cmd)
+        public void EnqueueCommandForTest(OrchestrationCommand cmd)
         {
             DispatchCommand(cmd);
         }
@@ -171,7 +171,7 @@ namespace FDP.Toolkit.Orchestration
         /// Current local state id as it would be written into the next heartbeat.
         /// For unit-test assertions only.
         /// </summary>
-        internal int LocalStateIdForTest => _localStateId;
+        public int LocalStateIdForTest => _localStateId;
 
         // ── Private helpers ───────────────────────────────────────────────────
 

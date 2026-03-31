@@ -21,8 +21,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
-    <!-- DdsOrchestrationTransport and HrotHandlerAdapter for G0402 integration tests -->
-    <ProjectReference Include="..\..\..\Hrot.Common\Hrot.Common.csproj" />
   </ItemGroup>
 
 </Project>

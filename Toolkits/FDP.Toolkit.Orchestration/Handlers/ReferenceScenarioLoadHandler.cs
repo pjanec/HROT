@@ -42,7 +42,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// Number of times <see cref="PrepareAsync"/> has been invoked.
         /// For integration-test assertions only.
         /// </summary>
-        internal int PrepareCallCountForTest => _prepareCallCount;
+        public int PrepareCallCountForTest => _prepareCallCount;
 
         /// <param name="serializer">
         /// Pre-built <see cref="ScenarioSerializer"/> configured with the owning subsystem's
