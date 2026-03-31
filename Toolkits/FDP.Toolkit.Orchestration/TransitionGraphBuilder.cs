@@ -55,7 +55,7 @@ namespace FDP.Toolkit.Orchestration
             private readonly Dictionary<int, IReadOnlyList<int>> _edges;
             private readonly IReadOnlyList<int> _allStates;
 
-            internal BuiltGraph(Dictionary<int, IReadOnlyList<int>> edges)
+            public BuiltGraph(Dictionary<int, IReadOnlyList<int>> edges)
             {
                 _edges     = edges;
                 _allStates = edges.Keys.ToArray();

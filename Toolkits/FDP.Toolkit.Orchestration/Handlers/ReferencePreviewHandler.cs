@@ -104,7 +104,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// Returns the current in-memory snapshot repository, or <see langword="null"/>
         /// when no dry-run is active.  Exposed for unit tests only.
         /// </summary>
-        internal EntityRepository? TestHook_Snap => _snap;
+        public EntityRepository? TestHook_Snap => _snap;
 
         // ── Private helpers ────────────────────────────────────────────────────
 
