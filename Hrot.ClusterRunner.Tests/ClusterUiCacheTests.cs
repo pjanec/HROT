@@ -172,6 +172,31 @@ public sealed class ClusterUiCacheTests : IDisposable
         Assert.True(_uiCache.TxHistory[0].Completed,
             "tx.Completed must be true after Success status code.");
     }
+
+    /// <summary>
+    /// Writing a TimePulseDescriptor sample must update <c>MasterSimTime</c>,
+    /// <c>MasterWallTicks</c>, and <c>MasterTimeScale</c> after <c>Update()</c>.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterUiCache_UpdatesTimeScaleFromTimePulse()
+    {
+        using var writer = new DdsWriter<TimePulseDescriptor>(_participant);
+        writer.Write(new TimePulseDescriptor
+        {
+            MasterWallTicks  = 123456789L,
+            SimTimeSnapshot  = 42.5,
+            TimeScale        = 2.0f,
+            SequenceId       = 1L,
+        });
+
+        Thread.Sleep(150); // DDS propagation
+
+        _uiCache.Update();
+
+        Assert.Equal(42.5,  _uiCache.MasterSimTime,  precision: 3);
+        Assert.Equal(2.0f,  _uiCache.MasterTimeScale);
+        Assert.Equal(123456789L, _uiCache.MasterWallTicks);
+    }
 }
 
 [CollectionDefinition("ClusterUiCacheTests", DisableParallelization = true)]

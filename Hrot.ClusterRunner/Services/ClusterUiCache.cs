@@ -33,6 +33,7 @@ public sealed class ClusterUiCache : IDisposable
 
     public double      MasterSimTime          { get; private set; }
     public long        MasterWallTicks        { get; private set; }
+    public float       MasterTimeScale        { get; private set; } = 1f;
     public bool        IsPaused               { get; private set; }
 
     public IReadOnlyDictionary<int, NodeHeartbeat> ActiveNodes => _activeNodes;
@@ -163,6 +164,7 @@ public sealed class ClusterUiCache : IDisposable
             if (!s.IsValid) continue;
             MasterSimTime   = s.Data.SimTimeSnapshot;
             MasterWallTicks = s.Data.MasterWallTicks;
+            MasterTimeScale = s.Data.TimeScale;
         }
     }
 

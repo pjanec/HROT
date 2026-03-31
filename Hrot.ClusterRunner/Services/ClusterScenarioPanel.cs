@@ -189,9 +189,14 @@ public sealed class ClusterScenarioPanel
         string wallTimeStr = new DateTime(wallTicks, DateTimeKind.Utc).ToString("HH:mm:ss.fff");
         ImGui.Text($"Wall Time: {wallTimeStr}");
 
+        var   simSpan  = TimeSpan.FromSeconds(cache.MasterSimTime);
+        string simStr  = $"{(int)simSpan.TotalHours:D2}:{simSpan.Minutes:D2}:{simSpan.Seconds:D2}.{simSpan.Milliseconds:D3}";
+        string status  = cache.IsPaused ? "PAUSED" : "RUNNING";
+        ImGui.Text($"Sim Time: {simStr} [{status}]");
+
         if (disableAll) ImGui.BeginDisabled();
 
-        float timeScale = 1.0f;
+        float timeScale = cache.MasterTimeScale;
         if (ImGui.Button(cache.IsPaused ? "Resume##OrcResume" : "Pause##OrcPause"))
             _sysOpWriter.Write(new ClusterOpRequest
             {
