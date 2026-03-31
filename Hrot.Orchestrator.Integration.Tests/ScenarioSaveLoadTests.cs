@@ -169,6 +169,104 @@ public sealed class ScenarioSaveLoadTests : IDisposable
         }
     }
 
+    // ── Test 4 ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="GlobalContextClusterOpHandler.OnContextLoaded"/> must fire with the saved
+    /// <c>LoadedStartWallTicks</c> and <c>LoadedScenarioTimeSeconds</c> exactly once after
+    /// <see cref="NodeOpType.CommitState"/> for <see cref="ClusterState.LoadingLive"/>.
+    /// </summary>
+    [Fact]
+    public void OnContextLoaded_FiresWithCorrectValues_AfterCommitLoad()
+    {
+        const string expectedSceneId = "scene_event_42";
+        const double expectedSimTime = 77.25;
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), "fdp_ctx_event_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            // ── Save ─────────────────────────────────────────────────────────────
+            var saveHandler = new GlobalContextClusterOpHandler(_participant, expectedSceneId);
+            saveHandler.LocalTempRoot       = tempRoot;
+            saveHandler.ScenarioTimeSeconds = expectedSimTime;
+
+            var exerciseId = Guid.NewGuid();
+            var saveCmd = new NodeOpCommand
+            {
+                TransactionId = exerciseId,
+                Operation     = NodeOpType.SerializeLocal,
+                PayloadJson   = $"{{\"ExerciseId\":\"{exerciseId:N}\"}}",
+            };
+            saveHandler.PrepareAsync(saveCmd, CancellationToken.None).Wait();
+            saveHandler.Commit(saveCmd, null);
+
+            Assert.NotNull(saveHandler.CommitManifestEntry);
+
+            // ── Load — subscribe BEFORE Commit ────────────────────────────────────
+            var loadHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
+            loadHandler.LocalTempRoot = tempRoot;
+
+            long  capturedTicks   = 0;
+            double capturedTime   = 0;
+            int   eventFireCount  = 0;
+            loadHandler.OnContextLoaded += (ticks, time) =>
+            {
+                capturedTicks  = ticks;
+                capturedTime   = time;
+                eventFireCount++;
+            };
+
+            var loadCmd = new NodeOpCommand
+            {
+                TransactionId = Guid.NewGuid(),
+                Operation     = NodeOpType.CommitState,
+                PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}," +
+                                $"\"ScenarioId\":\"{exerciseId:N}\"}}",
+            };
+            loadHandler.Commit(loadCmd, null);
+
+            Assert.True(eventFireCount == 1,
+                "OnContextLoaded must fire exactly once per successful CommitLoad.");
+            Assert.True(capturedTicks != 0L,
+                "Captured StartWallTicks must be non-zero.");
+            Assert.Equal(expectedSimTime, capturedTime, precision: 5);
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, recursive: true);
+        }
+    }
+
+    // ── Test 5 ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// <see cref="GlobalContextClusterOpHandler.OnContextLoaded"/> must NOT fire when no
+    /// <c>ScenarioId</c> is present in the <see cref="NodeOpType.CommitState"/> payload
+    /// (blank-world load path).
+    /// </summary>
+    [Fact]
+    public void OnContextLoaded_DoesNotFire_WhenNoScenarioId()
+    {
+        var loadHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
+
+        bool eventFired = false;
+        loadHandler.OnContextLoaded += (_, _) => eventFired = true;
+
+        var loadCmd = new NodeOpCommand
+        {
+            TransactionId = Guid.NewGuid(),
+            Operation     = NodeOpType.CommitState,
+            // No ScenarioId — blank-world path; CommitLoad exits early.
+            PayloadJson   = ((int)ClusterState.LoadingLive).ToString(),
+        };
+        loadHandler.Commit(loadCmd, null);
+
+        Assert.False(eventFired,
+            "OnContextLoaded must not fire when CommitLoad is skipped due to missing ScenarioId.");
+    }
+
     // ── Test 3 ────────────────────────────────────────────────────────────────
 
     /// <summary>

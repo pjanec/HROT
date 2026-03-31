@@ -73,6 +73,15 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
     public string? LoadedScenarioId { get; private set; }
 
     /// <summary>
+    /// Raised at the end of a successful <see cref="CommitLoad"/> invocation.
+    /// Arguments are <c>(startWallTicks, scenarioTimeSeconds)</c> from the loaded
+    /// <c>Orchestrator.json</c>.  The hosting application (e.g.
+    /// <c>OrchestratorSubsystem</c>) subscribes here to seed
+    /// <c>MasterTimeController.SeedState</c> with the restored scenario timeline.
+    /// </summary>
+    public event Action<long, double>? OnContextLoaded;
+
+    /// <summary>
     /// Elapsed simulation time in seconds at the point of the pending save.
     /// Set by callers (e.g. <c>OrchestratorSubsystem</c>) before
     /// <see cref="NodeOpType.SerializeLocal"/> is dispatched.
@@ -260,6 +269,9 @@ public sealed class GlobalContextClusterOpHandler : IClusterOpHandler
             {
                 ScenarioId = dto.SceneId,
             });
+
+            // Notify the hosting application so it can seed the time controller.
+            OnContextLoaded?.Invoke(LoadedStartWallTicks, LoadedScenarioTimeSeconds);
 
             FdpLog<GlobalContextClusterOpHandler>.Info(
                 "[Orchestrator] GlobalContext loaded: SceneId={0}, ScenarioId={1}, "

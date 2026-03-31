@@ -1091,6 +1091,29 @@ public sealed class ClusterMaster : IDisposable
                                 Operation     = NodeOpType.CommitState,
                                 PayloadJson   = ((int)tStep.TargetState).ToString(),
                             }, activeNodeIds);
+
+                            // Invoke the local context handler for load transitions so that
+                            // the Orchestrator node's own Orchestrator.json is parsed and
+                            // OnContextLoaded fires (CGF1-S0307 / design-talk fix).
+                            if (_globalContextHandler != null &&
+                                (tStep.TargetState == ClusterState.LoadingLive ||
+                                 tStep.TargetState == ClusterState.LoadingEdit))
+                            {
+                                // Build a payload that carries both TargetState (for routing
+                                // inside GlobalContextClusterOpHandler.Commit) and ScenarioId
+                                // (for file-path resolution inside CommitLoad).
+                                string? scenId = ParsePayloadString(req.PayloadJson, "ScenarioId");
+                                string localPayload = !string.IsNullOrEmpty(scenId)
+                                    ? $"{{\"TargetState\":{(int)tStep.TargetState},\"ScenarioId\":\"{scenId}\"}}"
+                                    : ((int)tStep.TargetState).ToString();
+
+                                _globalContextHandler.Commit(new NodeOpCommand
+                                {
+                                    TransactionId = tx.TransactionId,
+                                    Operation     = NodeOpType.CommitState,
+                                    PayloadJson   = localPayload,
+                                }, null);
+                            }
                         }
                         else if (step is OperationStep opStep &&
                                  opStep.Operation == ClusterOpType.ReplaySeek)
@@ -1535,6 +1558,7 @@ public sealed class ClusterMaster : IDisposable
         try
         {
             using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
             if (doc.RootElement.TryGetProperty(propertyName, out var el))
                 return el.GetString();
         }

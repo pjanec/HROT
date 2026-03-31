@@ -448,7 +448,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingEdit}," +
+                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.OperatingEdit}," +
                                     $"\"ScenarioId\":\"{scenId}\"}}",
                 });
             }
@@ -460,7 +460,7 @@ public sealed class ClusterScenarioPanel
                 {
                     RequestId     = Guid.NewGuid(),
                     OperationType = ClusterOpType.TransitionState,
-                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}," +
+                    PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.OperatingLive}," +
                                     $"\"ScenarioId\":\"{scenId}\"}}",
                 });
             }

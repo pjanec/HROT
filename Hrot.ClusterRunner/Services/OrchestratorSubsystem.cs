@@ -9,6 +9,7 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Framework.Runner;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
 using ImGuiNET;
@@ -115,6 +116,29 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _timeCoordinator   = new DistributedTimeCoordinator(_eventBus, _timeKernel, coordConfig,
             new HashSet<int>());
         _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
+
+        // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
+        // MasterTimeController is seeded with the scenario's saved timeline on every load, and
+        // register it with ClusterMaster so CommitState fan-outs trigger the local load path.
+        var contextHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
+        contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
+        {
+            if (_timeKernel != null)
+            {
+                var timeCtrl = _timeKernel.GetTimeController();
+                timeCtrl.SeedState(new GlobalTime
+                {
+                    TotalWallTicks    = startTicks,
+                    TotalTime         = simTimeSeconds,
+                    UnscaledTotalTime = simTimeSeconds,
+                    TimeScale         = timeCtrl.GetTimeScale(),
+                });
+                FdpLog<OrchestratorSubsystem>.Info(
+                    "[Orchestrator] Seeded MasterTimeController: WallTicks={0}, SimTime={1:F1}s",
+                    startTicks, simTimeSeconds);
+            }
+        };
+        _clusterMaster.SetGlobalContextHandler(contextHandler);
     }
 
     public void Update(float deltaTime)
