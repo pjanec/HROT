@@ -285,7 +285,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
         io.MousePos     = new Vector2(-1f, -1f);  // off-screen
         ImGui.SetNextWindowPos(System.Numerics.Vector2.Zero);
         ImGui.Begin("##LILTestWin");
-        _panel.Render(_uiCache, disableAll: false);
+        _panel.Render();
         ImGui.End();
         ImGui.Render();
 
@@ -336,7 +336,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
         io.MouseDown[0] = true;
         ImGui.SetNextWindowPos(Vector2.Zero);
         ImGui.Begin("##LILTestClick");
-        _panel.Render(_uiCache, disableAll: false);
+        _panel.Render();
         ImGui.End();
         ImGui.Render();
 
@@ -345,7 +345,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
         io.MouseDown[0] = false;
         ImGui.SetNextWindowPos(Vector2.Zero);
         ImGui.Begin("##LILTestRelease");
-        _panel.Render(_uiCache, disableAll: false);
+        _panel.Render();
         ImGui.End();
         ImGui.Render();
 
