@@ -42,14 +42,15 @@ namespace FDP.Toolkit.Time.Tests
             Assert.Equal(0.016f, slave1Time.DeltaTime, precision: 3);
             
             // --- FRAME 1 ---
-            
-            // Slaves send ACKs for Frame 0
+
+            // Slaves send ACKs for Frame 0 (publishes FrameAckDescriptor into the bus)
             slave1.Update();
             slave2.Update();
-            
+
             eventBus.SwapBuffers();
-            
-            // Master receives ACKs, starts Frame 1, publishes Order 1
+
+            // Master processes incoming ACKs (sets _waitingForAcks = false), then Steps.
+            master.Update();
             masterTime = master.Step(0.016f);
             Assert.Equal(2, masterTime.FrameNumber);
             Assert.Equal(0.016f, masterTime.DeltaTime, precision: 3);

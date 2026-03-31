@@ -162,11 +162,12 @@ namespace FDP.Toolkit.Time.Tests
             var bus = new FdpEventBus();
             var controller = new SteppedMasterController(
                 bus,
-                new HashSet<int>(),     // no slaves → advances immediately
+                new HashSet<int>(),     // no slaves → no ACK waiting
                 new TimeConfig { FixedDeltaSeconds = 0.016f });
 
-            // Act: Update() will call Step() since no slaves are waiting
-            var result = controller.Update();
+            // Act: Step() advances TotalWallTicks by a deterministic amount.
+            // (Update() no longer auto-steps — stepping requires explicit Step() call.)
+            var result = controller.Step(0.016f);
 
             Assert.True(result.TotalWallTicks > 0,
                 $"TotalWallTicks must be > 0 after first step, got {result.TotalWallTicks}");

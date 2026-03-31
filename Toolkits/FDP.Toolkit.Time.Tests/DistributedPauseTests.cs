@@ -185,40 +185,43 @@ namespace FDP.Toolkit.Time.Tests
         [Fact]
         public void PausedStepping_AdvancesFrameByFrame()
         {
-            // Arrange: Kernel in Deterministic mode
+            // Arrange: Kernel in Deterministic mode with NO slave nodes.
+            // With zero slaves, Step() never blocks on ACKs, so consecutive StepFrame()
+            // calls advance freely — modelling a single-process / offline scenario.
             var repo = new EntityRepository();
             var eventBus = new FdpEventBus(); // Local bus for testing
             var kernel = new ModuleHostKernel(repo, new EventAccumulator());
-            
+
             repo.RegisterComponent<GlobalTime>();
             repo.SetSingletonUnmanaged(new GlobalTime());
-            
-            // Start directly in Deterministic Master mode for simplicity
-            var config = new TimeControllerConfig 
-            { 
+
+            // Start directly in Deterministic Master mode for simplicity.
+            // Empty slave set — no ACK waiting, pure manual stepping.
+            var config = new TimeControllerConfig
+            {
                 Role = TimeRole.Master,
                 Mode = TimeMode.Deterministic,
-                AllNodeIds = new HashSet<int> { 1 } // Required for Master
+                AllNodeIds = new HashSet<int>() // no slaves
             };
-            
+
             // Use SteppedMaster directly
             var steppedCtrl = new SteppedMasterController(repo.Bus, config.AllNodeIds, config.SyncConfig);
             kernel.SetTimeController(steppedCtrl);
             kernel.Initialize();
-            
+
             // Act: Step 3 times
             // 1/60 = 0.016666...
-            // kernel.StepFrame calls steppedCtrl.Step() internally because ISteppableTimeController is implemented
+            // kernel.StepFrame calls steppedCtrl.Step() because ISteppableTimeController is implemented
             kernel.StepFrame(1.0f / 60.0f);
             kernel.StepFrame(1.0f / 60.0f);
             kernel.StepFrame(1.0f / 60.0f);
-            
+
             var time = kernel.CurrentTime;
-            
+
             // Assert: Time advanced by exactly 3 * (1/60)s
             Assert.Equal(3.0 / 60.0, time.TotalTime, precision: 4);
             Assert.Equal(3, time.FrameNumber);
-            
+
             kernel.Dispose();
         }
 

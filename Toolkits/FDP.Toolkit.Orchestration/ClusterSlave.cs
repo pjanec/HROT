@@ -35,7 +35,9 @@ namespace FDP.Toolkit.Orchestration
         private readonly Stopwatch _heartbeatTimer = Stopwatch.StartNew();
 
         // ── Deduplication (CGF1-S0202) ────────────────────────────────────────
-        private readonly System.Collections.Generic.HashSet<Guid> _seenTransactionIds = new();
+        // Compound key (TransactionId, OperationId) so that PrepareXxx and CommitState
+        // belonging to the same 2PC transaction are each accepted exactly once.
+        private readonly System.Collections.Generic.HashSet<(Guid, int)> _seenTransactionIds = new();
 
         // ── Pending async prepare (BATCH-18 pattern) ─────────────────────────
         private (System.Threading.Tasks.Task<string?> PrepareTask, OrchestrationCommand Cmd, IClusterStateHandler Handler)? _pendingPrepare;
@@ -180,11 +182,13 @@ namespace FDP.Toolkit.Orchestration
 
         private void DispatchCommand(OrchestrationCommand cmd)
         {
-            // Idempotency: silently drop re-delivered commands.
-            if (!_seenTransactionIds.Add(cmd.TransactionId))
+            // Idempotency: drop re-delivered commands, keyed on (TransactionId, OperationId)
+            // so that Prepare and Commit for the same transaction are both accepted once.
+            var dedupKey = (cmd.TransactionId, cmd.OperationId);
+            if (!_seenTransactionIds.Add(dedupKey))
             {
                 FdpLog<ClusterSlave>.Debug(
-                    "[ClusterSlave] Duplicate TransactionId {0} dropped.", cmd.TransactionId);
+                    "[ClusterSlave] Duplicate Command {0}-{1} dropped.", cmd.TransactionId, cmd.OperationId);
                 return;
             }
 

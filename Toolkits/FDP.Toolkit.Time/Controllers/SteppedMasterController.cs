@@ -63,29 +63,29 @@ namespace FDP.Toolkit.Time.Controllers
 
         public GlobalTime Update()
         {
-            // Debug file output removed
-
-            // Process any incoming ACKs
+            // Process any incoming ACKs but do NOT auto-step.
+            // Stepping only happens when Step() is called explicitly (e.g. via OrchestratorSubsystem
+            // on receipt of a ClusterOpType.StepTime command from the UI).
             var acks = _eventBus.Consume<FrameAckDescriptor>();
             foreach(var ack in acks) OnAckReceived(ack);
-            
-            // In lockstep master, we automatically advance if all ACKs are received
-            if (!_waitingForAcks)
-            {
-                var t = Step(_config.FixedDeltaSeconds);
-                // Console.Out.Flush(); // Ensure logs are flushed
-                return t;
-            }
-            // else Console.WriteLine($"[SteppedMaster] Waiting... Need: {string.Join(",", _pendingAcks)} for Frame {_lastFrameSequence}");
-            
+
             return GetCurrentTime();
         }
         
         /// <summary>
-        /// Manually advance one frame.
+        /// Manually advance one frame by <paramref name="fixedDeltaTime"/> seconds.
+        /// Returns the current (un-advanced) time and is a no-op if the previous frame's
+        /// ACKs have not yet all arrived — this protects lockstep integrity when the user
+        /// presses the Step button faster than the network round-trip.
         /// </summary>
         public GlobalTime Step(float fixedDeltaTime)
         {
+            if (_waitingForAcks)
+            {
+                // Previous frame not yet acknowledged by all slaves — ignore this step request.
+                return GetCurrentTime();
+            }
+
             float scaledDelta = fixedDeltaTime * _timeScale;
 
             // Update time
