@@ -132,7 +132,9 @@ namespace Hrot.ClusterRunner.Services
             _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
                 checkpointWorker: null,
                 controller:       iosRrController,
-                storageDirectory: @"C:\FDP_Temp"));
+                storageDirectory: @"C:\FDP_Temp",
+                transport:        iosTransport,
+                nodeId:           iosNodeId));
 
             // CGF1-S0309: wire dry-run snapshot/rewind handler (ExCon carries no ECS state).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));

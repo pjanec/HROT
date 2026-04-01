@@ -10,26 +10,15 @@ using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using FDP.Toolkit.Time;
+using FDP.Toolkit.Time.Controllers;
+using ModuleHost.Core;
+using ModuleHost.Core.Time;
 
 namespace Hrot.CGF
 {
     /// <summary>
-    /// Minimal CGF application shell.  Owns the DDS participant and <see cref="ClusterSlave"/>
-    /// lifecycle.  In Phase 1 the CGF subsystem acts only as a heartbeating ClusterSlave;
-    /// AI and entity logic are added in Phase 4.
-    ///
-    /// <para><b>Time bus (CGF1-A.2 — Option B — Phase 3 note):</b>
-    /// A <see cref="FDP.Toolkit.Time.TimeNetworkModule"/>.<c>CreateDescriptorTranslator</c>
-    /// instance is wired to the private <c>_eventBus</c> so that
-    /// <c>SwitchTimeModeWireDto</c> samples are bridged on/off DDS each frame via
-    /// <see cref="Tick"/>.  This proves the wire path is functional.
-    /// However <see cref="ClusterSlave"/> is constructed <em>without</em> that bus and
-    /// no <c>SlaveTimeModeListener</c> is registered, so ingressed
-    /// <c>SwitchTimeModeEvent</c> messages are not acted on by this shell.
-    /// Full time-mode switching (CGF1-S0205 end-to-end: <c>SteppedSlaveController</c>
-    /// via Future Barrier) requires wiring a <c>ModuleHostKernel</c> and
-    /// <c>SlaveTimeModeListener</c>, which land in Phase 3+ when the CGF subsystem
-    /// acquires simulation entity management.</para>
+    /// CGF simulation node.  Owns the DDS participant, <see cref="ClusterSlave"/> lifecycle,
+    /// and a minimal time kernel so the node participates in distributed lockstep stepping.
     /// </summary>
     public sealed class CgfApplication : IDisposable
     {
@@ -40,6 +29,11 @@ namespace Hrot.CGF
         private readonly FDP.Toolkit.Orchestration.ClusterSlave _clusterSlave;
         private readonly FdpEventBus _eventBus;
         private readonly IDescriptorTranslator _timeModeTranslator;
+        private readonly IDescriptorTranslator _lockstepTranslator;
+        // Minimal time kernel so CGF participates in distributed lockstep stepping.
+        private readonly EntityRepository _timeWorld;
+        private readonly ModuleHostKernel _timeKernel;
+        private readonly SlaveTimeModeListener _slaveTimeModeListener;
         private bool _disposed;
 
         /// <summary>Exposes the <see cref="FDP.Toolkit.Orchestration.ClusterSlave"/> for test assertions.</summary>
@@ -64,9 +58,24 @@ namespace Hrot.CGF
             ScenarioSerializer? scenarioSerializer = null, string localTempRoot = @"C:\FDP_Temp")
         {
             _participant = new DdsParticipant((uint)domainId);
-            // CGF1-A.2 (BATCH-09): wire SwitchTimeModeEvent bridge.
+            // CGF1-A.2 (BATCH-09 / Phase 3): wire time event bridge and minimal time kernel.
             _eventBus = new FdpEventBus();
             _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
+            _lockstepTranslator = TimeNetworkModule.CreateLockstepTranslator(_participant, _eventBus);
+
+            // Minimal time kernel: provides a monotonic wall-clock reference and hosts the
+            // SlaveTimeController / SteppedSlaveController that the SlaveTimeModeListener swaps.
+            _timeWorld  = new EntityRepository();
+            _timeKernel = new ModuleHostKernel(_timeWorld, new EventAccumulator());
+            var slaveTimeCfg = new TimeControllerConfig
+            {
+                Role        = TimeRole.Slave,
+                LocalNodeId = nodeId,
+                SyncConfig  = TimeConfig.Default,
+            };
+            _timeKernel.SetTimeController(new SlaveTimeController(_eventBus, slaveTimeCfg.SyncConfig));
+            _timeKernel.Initialize();
+            _slaveTimeModeListener = new SlaveTimeModeListener(_eventBus, _timeKernel, slaveTimeCfg);
 
             var transport = new DdsOrchestrationTransport(_participant, nodeId);
             _clusterSlave   = new FDP.Toolkit.Orchestration.ClusterSlave(transport, nodeId, SubsystemName);
@@ -112,7 +121,9 @@ namespace Hrot.CGF
             _clusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
                 checkpointWorker: null,
                 controller:       rrController,
-                storageDirectory: localTempRoot));
+                storageDirectory: localTempRoot,
+                transport:        transport,
+                nodeId:           nodeId));
 
             // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
             _clusterSlave.RegisterHandler(new ReferencePrefetchHandler(transport, nodeId, storageProvider));
@@ -133,6 +144,13 @@ namespace Hrot.CGF
             // Bridge SwitchTimeModeEvent: egress coordinator events to DDS, ingress DDS events to bus.
             _timeModeTranslator.ScanAndPublish(null!);
             _timeModeTranslator.PollIngress(null!, null!);
+            // Bridge FrameOrder/FrameAck for distributed lockstep stepping.
+            _lockstepTranslator.ScanAndPublish(null!);
+            _lockstepTranslator.PollIngress(null!, null!);
+            // Swap to SteppedSlaveController when barrier wall-tick is reached.
+            _slaveTimeModeListener.Update();
+            // Advance time kernel (drives wall-clock and processes FrameOrder when stepped).
+            _timeKernel.Update();
             _eventBus.SwapBuffers();
         }
 
@@ -142,6 +160,7 @@ namespace Hrot.CGF
             if (_disposed) return;
             _disposed = true;
             _clusterSlave.Dispose();
+            _timeKernel.Dispose();
             _participant.Dispose();
             FdpLog<CgfApplication>.Info("[CGF] Disposed.");
         }

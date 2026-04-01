@@ -96,8 +96,8 @@ public sealed class ClusterUiCache : IDisposable
         DrainSystemState();
         DrainInventory();
         DrainHeartbeats();
-        DrainTimePulse();
         DrainTimeMode();
+        DrainTimePulse();
         Process2PcNetworkTraffic();
         DrainSysOpStatus();
     }
@@ -167,9 +167,10 @@ public sealed class ClusterUiCache : IDisposable
         foreach (var s in l)
         {
             if (!s.IsValid) continue;
-            MasterSimTime   = s.Data.SimTimeSnapshot;
             MasterWallTicks = s.Data.MasterWallTicks;
             MasterTimeScale = s.Data.TimeScale;
+            if (!IsPaused)
+                MasterSimTime = s.Data.SimTimeSnapshot;
         }
     }
 

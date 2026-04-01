@@ -1078,20 +1078,21 @@ public sealed class ClusterMaster : IDisposable
                                 _                        => NodeOpType.PrepareState,
                             };
 
-                            // S0502 fix: each FanOutNodeOp gets its own unique TransactionId.
-                            // Using tx.TransactionId for BOTH PrepareXxx and CommitState caused
-                            // ClusterSlave._seenTransactionIds to drop CommitState as a duplicate,
-                            // preventing slaves from ever advancing their local state.
+                            // Use tx.TransactionId for both PrepareXxx and CommitState so that
+                            // ConsumeNodeOpStatuses can correlate ACKs back to the in-flight
+                            // transaction and populate NodeResponses for the 2PC History UI.
+                            // Deduplication on the slave now uses a compound (TransactionId,
+                            // OperationId) key, so both commands are accepted without dropping.
                             FanOutNodeOp(new NodeOpCommand
                             {
-                                TransactionId = Guid.NewGuid(),
+                                TransactionId = tx.TransactionId,
                                 Operation     = prepareOp,
                                 PayloadJson   = req.PayloadJson ?? string.Empty,
                             }, activeNodeIds);
 
                             FanOutNodeOp(new NodeOpCommand
                             {
-                                TransactionId = Guid.NewGuid(),
+                                TransactionId = tx.TransactionId,
                                 Operation     = NodeOpType.CommitState,
                                 PayloadJson   = ((int)tStep.TargetState).ToString(),
                             }, activeNodeIds);

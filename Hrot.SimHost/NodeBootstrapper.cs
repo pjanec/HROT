@@ -339,7 +339,7 @@ namespace Hrot.SimHost
 
             // Wire ReferenceLiveLoadHandler for cold PrepareLive / FinalizeLive.
             clusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
-                checkpointWorker, controller, localTempRoot));
+                checkpointWorker, controller, localTempRoot, transport, nodeId));
 
             // Wire ReferenceCheckpointHandler when a checkpoint worker is provided (CGF1-S0303).
             if (checkpointWorker != null)

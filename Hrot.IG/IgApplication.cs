@@ -215,6 +215,9 @@ public class IgApplication : IDisposable
     // -- ClusterSlave (CGF1-S0104) — wired in InitializeNetwork ----------------
     private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
 
+    // -- SlaveTimeModeListener: swaps to SteppedSlaveController when Orchestrator pauses.
+    private FDP.Toolkit.Time.Controllers.SlaveTimeModeListener? _slaveTimeModeListener;
+
 
 
     // -- Headless flag ÔÇö set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
@@ -835,6 +838,9 @@ public class IgApplication : IDisposable
                 // node ever acts as master).
                 customTranslators.Add(
                     FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, _world.Bus));
+                // Bridge FrameOrder/FrameAck for distributed lockstep stepping.
+                customTranslators.Add(
+                    FDP.Toolkit.Time.TimeNetworkModule.CreateLockstepTranslator(participant, _world.Bus));
 
                 if (mapRouteIngressTranslator != null)
                     customTranslators.Add(mapRouteIngressTranslator);
@@ -894,7 +900,9 @@ public class IgApplication : IDisposable
                 _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
                     checkpointWorker: null,
                     controller:       igRrController,
-                    storageDirectory: @"C:\FDP_Temp"));
+                    storageDirectory: @"C:\FDP_Temp",
+                    transport:        igTransport,
+                    nodeId:           igNodeId));
 
                 // CGF1-BATCH-23 A.2: dummy zone handler — IG acknowledges
                 // PrepareZone / CommitZone without terrain DB load.
@@ -1133,6 +1141,17 @@ public class IgApplication : IDisposable
 
         _kernel.SetTimeController(timeController);
 
+        // Wire SlaveTimeModeListener so this node swaps to SteppedSlaveController when
+        // the Orchestrator broadcasts SwitchTimeModeEvent(Deterministic) over DDS.
+        var slaveTimeCfg = new FDP.Toolkit.Time.Controllers.TimeControllerConfig
+        {
+            Role        = FDP.Toolkit.Time.Controllers.TimeRole.Slave,
+            LocalNodeId = _effectiveInstanceId,
+            SyncConfig  = FDP.Toolkit.Time.Controllers.TimeConfig.Default,
+        };
+        _slaveTimeModeListener = new FDP.Toolkit.Time.Controllers.SlaveTimeModeListener(
+            _world.Bus, _kernel, slaveTimeCfg);
+
 
 
         _kernel.RegisterGlobalSystem(new DeadReckoningSyncSystem());
@@ -1210,8 +1229,10 @@ public class IgApplication : IDisposable
 
 
 
-        // Always tick ECS/network ÔÇö even in headless mode DDS messages must be processed.
+        // Always tick ECS/network — even in headless mode DDS messages must be processed.
 
+        // Poll SwitchTimeModeEvent and swap to SteppedSlaveController when barrier reached.
+        _slaveTimeModeListener?.Update();
         _kernel.Update();
 
         _fdpFrameCount++;

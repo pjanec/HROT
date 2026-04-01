@@ -68,6 +68,41 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// When <c>PrepareXxx</c> (OperationId != 2) and <c>CommitState</c> (OperationId == 2)
+        /// share the same <c>TransactionId</c>, both must be dispatched — deduplication uses a
+        /// compound <c>(TransactionId, OperationId)</c> key, so different operations in the same
+        /// 2PC transaction are each accepted once.
+        /// </summary>
+        [Fact]
+        public void PrepareAndCommit_SameTransactionId_BothDispatched()
+        {
+            var eventBus = new FdpEventBus();
+            using var slave = new ClusterSlave(eventBus);
+
+            var txId = Guid.NewGuid();
+            const int prepareLiveOpId   = (int)NodeOpType.PrepareLive;   // != 2
+            const int commitStateOpId   = 2;                              // CommitState
+
+            // Prepare: no handler registered → does nothing but is accepted past the dedup guard.
+            slave.EnqueueCommandForTest(new OrchestrationCommand(
+                txId, 0, prepareLiveOpId,
+                string.Empty));
+
+            // Commit (same TransactionId, different OperationId) must NOT be dropped.
+            slave.EnqueueCommandForTest(new OrchestrationCommand(
+                txId, 0, commitStateOpId,
+                ((int)ClusterState.LoadingLive).ToString()));
+
+            slave.Tick();
+            eventBus.SwapBuffers();
+
+            // CommitState must have fired → exactly one TkClusterStateChangedEvent.
+            var events = eventBus.Consume<TkClusterStateChangedEvent>().ToArray();
+            Assert.Single(events);
+            Assert.Equal((int)ClusterState.LoadingLive, events[0].NextStateId);
+        }
+
+        /// <summary>
         /// <see cref="TkClusterStateChangedEvent"/> is published by the toolkit
         /// <see cref="ClusterSlave"/> on <c>CommitState</c>.  This test serves as a
         /// compile-time guard confirming the event is in an FDP namespace.

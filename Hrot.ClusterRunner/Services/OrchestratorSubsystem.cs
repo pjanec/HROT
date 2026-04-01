@@ -40,7 +40,15 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private ModuleHostKernel? _timeKernel;
     private DistributedTimeCoordinator? _timeCoordinator;
     private IDescriptorTranslator? _timeModeTranslator;
-    private string? _lastProcessedTimeMode;
+    private IDescriptorTranslator? _lockstepTranslator;
+    // Pending step: queued by TimeControlRequested(StepTime) and executed AFTER
+    // _timeCoordinator.Update() so that the barrier crossing (installing SteppedMasterController)
+    // always precedes the StepFrame call in the same update tick.
+    private float _pendingStepDelta = 0f;
+
+    // Kernel-owning subsystem names that participate in lockstep stepping.
+    private static readonly HashSet<string> _kernelSubsystems =
+        new(StringComparer.OrdinalIgnoreCase) { "SimHost", "IG", "CGF" };
 
     /// <summary>Internal event bus exposed for test assertions on SwitchTimeModeEvent.</summary>
     internal FdpEventBus? TimeBusForTest => _eventBus;
@@ -74,7 +82,12 @@ public sealed class OrchestratorSubsystem : ISubsystem
             switch (op)
             {
                 case ClusterOpType.PauseTime:
-                    var ids = new HashSet<int>(_clusterMaster.NodeRoster.ActiveNodes.Keys);
+                    // Only simulation-kernel nodes (SimHost, IG, CGF) participate in lockstep ACK.
+                    // ExCon has no kernel — including it would stall SteppedMasterController forever.
+                    var ids = _clusterMaster.NodeRoster.ActiveNodes
+                        .Where(n => _kernelSubsystems.Contains(n.Value.SubsystemName))
+                        .Select(n => n.Key)
+                        .ToHashSet();
                     _timeCoordinator?.SwitchToDeterministic(ids);
                     _isPaused = true;
                     break;
@@ -84,8 +97,10 @@ public sealed class OrchestratorSubsystem : ISubsystem
                     break;
                 case ClusterOpType.StepTime:
                     float stepDelta = ParseStepDelta(payload, 1f / 60f);
-                    try { _timeKernel?.StepFrame(stepDelta); }
-                    catch (InvalidOperationException) { /* not in stepped mode; step ignored */ }
+                    // Queue the step to be executed AFTER _timeCoordinator.Update() in the same
+                    // Update() tick.  This ensures that if the barrier was just crossed (installing
+                    // SteppedMasterController) the step call finds the correct controller in place.
+                    _pendingStepDelta = stepDelta;
                     break;
                 case ClusterOpType.SetTimeScale:
                     if (float.TryParse(payload,
@@ -114,7 +129,8 @@ public sealed class OrchestratorSubsystem : ISubsystem
             SyncConfig = TimeConfig.Default };
         _timeCoordinator   = new DistributedTimeCoordinator(_eventBus, _timeKernel, coordConfig,
             new HashSet<int>());
-        _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
+        _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
+        _lockstepTranslator  = TimeNetworkModule.CreateLockstepTranslator(_participant, _eventBus);
 
         // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
         // MasterTimeController is seeded with the scenario's saved timeline on every load, and
@@ -152,23 +168,24 @@ public sealed class OrchestratorSubsystem : ISubsystem
         // CGF1-S0506: Update cache after ClusterMaster tick so it reflects latest DDS state.
         _uiCache?.Update();
 
-        // CGF1-A.1: Consume PendingTimeMode and drive DistributedTimeCoordinator.
-        var pendingMode = _clusterMaster?.PendingTimeMode;
-        if (pendingMode != _lastProcessedTimeMode)
-        {
-            if (pendingMode == "Deterministic" && _timeCoordinator != null && _clusterMaster != null)
-            {
-                // Collect current roster IDs as slave targets for the barrier broadcast.
-                var slaveIds = new HashSet<int>(_clusterMaster.NodeRoster.ActiveNodes.Keys);
-                _timeCoordinator.SwitchToDeterministic(slaveIds);
-            }
-            _lastProcessedTimeMode = pendingMode;
-        }
-
         // Poll coordinator barrier and egress/ingress translate SwitchTimeModeEvent to DDS.
         _timeCoordinator?.Update();
+
+        // Execute any pending StepTime request AFTER the coordinator update so that if the
+        // barrier was crossed in this very tick (installing SteppedMasterController), the step
+        // call below finds the correct controller rather than throwing InvalidOperationException.
+        if (_pendingStepDelta > 0f)
+        {
+            try { _timeKernel?.StepFrame(_pendingStepDelta); }
+            catch (InvalidOperationException) { /* not yet in stepped mode — ignore */ }
+            _pendingStepDelta = 0f;
+        }
+
         _timeModeTranslator?.ScanAndPublish(null!);
         _timeModeTranslator?.PollIngress(null!, null!);
+        // Bridge FrameOrder / FrameAck between FdpEventBus and DDS for distributed lockstep.
+        _lockstepTranslator?.ScanAndPublish(null!);
+        _lockstepTranslator?.PollIngress(null!, null!);
 
         // S0503: Advance seek debounce.
         _scenarioPanel?.Update(deltaTime);
@@ -198,7 +215,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _timeWorld = null;
         _eventBus = null;
         _timeCoordinator = null;
-        _lastProcessedTimeMode = null;
+        _lockstepTranslator = null;
         _participant?.Dispose();
         _participant = null;
     }

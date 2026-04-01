@@ -16,13 +16,13 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// <summary>
 /// Regression tests for CGF1-S0502: duplicate TransactionId fan-out.
 ///
-/// When <c>ClusterMaster.ProcessSingleClusterOpRequest</c> fans out <c>PrepareXxx</c>
-/// and <c>CommitState</c> with the <b>same</b> <c>TransactionId</c>, the
-/// <c>ClusterSlave._seenTransactionIds</c> deduplication guard drops <c>CommitState</c>
-/// (and any subsequent commands in the same trajectory step that share the ID).
-/// As a result, slave nodes never advance their local state and the transition hangs
-/// indefinitely — observed as repeated "Duplicate TransactionId dropped" debug lines
-/// followed by heartbeat timeouts.
+/// <b>Regression guard for CGF1-S0502 / 2PC History fix:</b>
+/// <c>ClusterMaster</c> fans out <c>PrepareXxx</c> and <c>CommitState</c> using the
+/// same <c>tx.TransactionId</c> so that <see cref="ClusterMaster.ConsumeNodeOpStatuses"/>
+/// can correlate ACKs and populate <c>NodeResponses</c> for the Orchestrator 2PC History UI.
+/// Deduplication in <c>ClusterSlave</c> now uses a compound <c>(TransactionId, OperationId)</c>
+/// key so both commands are accepted exactly once (the previous <c>HashSet&lt;Guid&gt;</c>
+/// dropped <c>CommitState</c> as a duplicate, preventing slaves from advancing their state).
 ///
 /// <para>These tests boot all four subsystems (Orchestrator, SimHost, IG, ExCon) in a
 /// single headless in-process stack via <see cref="HeadlessTestExecutor"/> and assert
@@ -202,13 +202,13 @@ public sealed class AllSubsystemsClusterTransitionTests
 
             // Poll ClusterSlave.LocalStateIdForTest until it reaches the expected value.
             //
-            // With the CGF1-S0502 bug present:
-            //   PrepareXxx(TxID=X) is dispatched → X added to _seenTransactionIds.
-            //   CommitState(TxID=X) arrives → Add(X) returns false → dropped
-            //   → _localStateId never advances → timeout.
-            //
-            // After fix (unique TransactionId per FanOutNodeOp):
-            //   CommitState(TxID=Y, Y≠X) passes the guard → _localStateId = target.
+            // Historical note (CGF1-S0502 / 2PC History fix):
+            //   Previously, PrepareXxx and CommitState were sent with the same tx.TransactionId.
+            //   ClusterSlave._seenTransactionIds (HashSet<Guid>) dropped CommitState as a dup,
+            //   so _localStateId never advanced.  The workaround was Guid.NewGuid() per op,
+            //   which broke NodeResponses correlation in ConsumeNodeOpStatuses.
+            //   Fix: _seenTransactionIds now uses a compound (TransactionId, OperationId) key,
+            //   accepting each operation once, and tx.TransactionId is used for both commands.
             var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
             while (DateTime.UtcNow < deadline)
             {
@@ -223,9 +223,8 @@ public sealed class AllSubsystemsClusterTransitionTests
                 $"{_exConSlave.LocalStateIdForTest} (expected {(int)targetState} = {targetState}) " +
                 $"after {timeoutSeconds}s. " +
                 $"Active roster nodes at timeout: {_master.NodeRoster.ActiveNodes.Count}. " +
-                "Likely cause: CommitState commands dropped as duplicate TransactionIds " +
-                "(CGF1-S0502) — PrepareXxx and CommitState in the fan-out loop share the same " +
-                "tx.TransactionId; ClusterSlave._seenTransactionIds drops the second command.");
+                "Likely cause: compound-key deduplication in ClusterSlave not working, " +
+                "or CommitState commands not being dispatched.");
         }
     }
 }

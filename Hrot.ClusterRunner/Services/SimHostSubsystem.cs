@@ -75,6 +75,16 @@ namespace Hrot.ClusterRunner.Services
         internal long TestHook_SpawnEntity(long tkbType, GeoPoint position)
             => App.TestHook_SpawnEntity(tkbType, position);
 
+        /// <summary>TestHook: current kernel simulation time in seconds.</summary>
+        internal double TestHook_CurrentSimTime => App.TestHook_CurrentSimTime;
+
+        /// <summary>
+        /// TestHook: runtime type of the currently active time controller in the SimHost kernel.
+        /// Used to assert that Resume restores <c>MasterTimeController</c>, not
+        /// <c>SlaveTimeController</c>.
+        /// </summary>
+        internal Type? TestHook_TimeControllerType => App.TestHook_TimeControllerType;
+
         /// <summary>TestHook: teleports entity to <paramref name="worldPos"/> (simulates IG drag).</summary>
         internal void TestHook_SimulateDrag(long networkId, System.Numerics.Vector2 worldPos)
             => App.TestHook_SimulateDrag(networkId, worldPos);

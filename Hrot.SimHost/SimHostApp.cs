@@ -94,8 +94,8 @@ namespace Hrot.SimHost
         private ModuleHostKernel?    _kernel;
         private SystemGroup?         _kernelGroup;
         private DdsIdAllocator?      _idAllocator;
-        private FdpEventBus?         _eventBus;
-
+        private FdpEventBus?         _eventBus;        // Swaps kernel to SteppedSlaveController when a SwitchTimeModeEvent(Deterministic) arrives.
+        private FDP.Toolkit.Time.Controllers.SlaveTimeModeListener? _slaveTimeModeListener;
         // ── Data services ─────────────────────────────────────────────────────
         private NetworkEntityMap?       _entityMap;
         private IGeographicTransform?   _geoTransform;
@@ -245,7 +245,24 @@ namespace Hrot.SimHost
             timeCtrl.SetTimeScale(1.0f);
             _kernel.SetTimeController(timeCtrl);
             _eventBus.SwapBuffers();
-
+            // Wire SlaveTimeModeListener so this node swaps to SteppedSlaveController when
+            // the Orchestrator broadcasts a SwitchTimeModeEvent(Deterministic) over DDS.
+            var slaveTimeCfg = new FDP.Toolkit.Time.Controllers.TimeControllerConfig
+            {
+                Role        = FDP.Toolkit.Time.Controllers.TimeRole.Slave,
+                LocalNodeId = localNodeId,
+                SyncConfig  = FDP.Toolkit.Time.Controllers.TimeConfig.Default,
+            };
+            // SimHost owns the authoritative simulation clock: it starts with MasterTimeController
+            // and must RESTORE MasterTimeController (not SlaveTimeController) on every Resume so
+            // that TimePulseDescriptor publication resumes and slave nodes (IG, CGF) can re-sync.
+            // Capture the config so the factory closure captures exactly one TimeConfig instance.
+            var masterSyncConfig = FDP.Toolkit.Time.Controllers.TimeConfig.Default;
+            var capturedEventBus = _eventBus;
+            _slaveTimeModeListener = new FDP.Toolkit.Time.Controllers.SlaveTimeModeListener(
+                _eventBus, _kernel, slaveTimeCfg,
+                continuousControllerFactory: () =>
+                    new FDP.Toolkit.Time.Controllers.MasterTimeController(capturedEventBus, masterSyncConfig));
             // ── 4. Data services ──────────────────────────────────────────────
             var ddsParticipant = HrotEnvironment.CreateParticipant(domainId);
             ddsParticipant.EnableSenderTracking(new SenderIdentityConfig
@@ -432,6 +449,8 @@ namespace Hrot.SimHost
             // CGF1-A.1: Bridge SwitchTimeModeEvent between FdpEventBus and DDS for distributed
             // time-mode switching (DistributedTimeCoordinator egress / SlaveTimeModeListener ingress).
             egressTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(ddsParticipant, _eventBus));
+            // Bridge FrameOrder/FrameAck for distributed lockstep stepping.
+            egressTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateLockstepTranslator(ddsParticipant, _eventBus));
             // BS1-T015: Publish Health changes to the IG/ExCon so health bars update.
             egressTranslators.Add(new EntityDamageEgressTranslator(ddsParticipant, entityMap));
 
@@ -521,6 +540,9 @@ namespace Hrot.SimHost
             _clusterSlave?.Tick();
             _vis?.Update(dt);
             _kernelGroup?.Run();   // process incoming requests first (sets dirty flags)
+            // Poll SwitchTimeModeEvent from the bus and swap to SteppedSlaveController
+            // when the barrier wall-tick is reached.
+            _slaveTimeModeListener?.Update();
             _kernel?.Update();     // then run egress scan (picks up dirty → publishes immediately)
             _eventBus?.SwapBuffers();
         }
@@ -621,6 +643,16 @@ namespace Hrot.SimHost
         /// <summary>TestHook: exposes the <see cref="NetworkEntityMap"/> after initialization.</summary>
         public NetworkEntityMap TestHook_EntityMap => _entityMap
             ?? throw new InvalidOperationException("SimHostApp is not initialized.");
+
+        /// <summary>TestHook: current kernel simulation time in seconds. Updates every frame.</summary>
+        public double TestHook_CurrentSimTime => _kernel?.CurrentTime.TotalTime ?? 0.0;
+        /// <summary>
+        /// Internal test hook: returns the runtime type of the currently active time controller
+        /// in the SimHost kernel.  Tests use this to verify that Resume restores
+        /// <see cref="FDP.Toolkit.Time.Controllers.MasterTimeController"/> rather than
+        /// accidentally installing <see cref="FDP.Toolkit.Time.Controllers.SlaveTimeController"/>.
+        /// </summary>
+        public Type? TestHook_TimeControllerType => _kernel?.GetTimeController().GetType();
 
         /// <summary>
         /// TestHook: spawns an entity via the network spawning pipeline and returns its network ID.
