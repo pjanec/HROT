@@ -19,6 +19,7 @@
 | DT-003 | P2 | BATCH-02 | `MasterSyncController.SwitchToDeterministic(slaveNodeIds)` silently ignores its parameter; effective slave set is fixed at construction. If Orchestrator passes a different set after node join/leave, ACK tracking will be wrong. Must be documented at call site in Phase 5 wiring. | BATCH-05 | Open |
 | DT-004 | P2 | BATCH-02 | `UpdateStepping()` processes FrameStepCompletedEvent ACKs by NodeID only, without FrameID filter. Late DDS retransmit could incorrectly clear a pending ACK slot. Should filter: `ack.FrameID == _lastStepFrameID`. | BATCH-04 or corrective | Open |
 | DT-005 | P3 | BATCH-03 | Rapid BarrierPending→Continuous resume (SwitchTimeModeEvent(Continuous) while still BarrierPending) is not unit tested in SlaveSyncController. Code path correct but untested. | BATCH-05 (TCU-T006 integration test) | Open |
+| DT-006 | P3 | BATCH-04 | `FrameOrderDescriptor.SequenceID` not mapped in MasterLockstepTranslator (defaults to 0). Old SteppedMasterController populated it; purpose (ordering/dedup) unclear. Monitor during Phase 5 integration. | BATCH-05 | Open |
 
 ---
 
