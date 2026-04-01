@@ -25,7 +25,7 @@
 
 **Goal:** Replace SlaveTimeController + SteppedSlaveController + SlaveTimeModeListener with a single SlaveSyncController; remove continuousControllerFactory workaround.
 
-- [ ] **TCU-SC001** SlaveSyncController [details](./TASK-DETAIL.md#tcu-sc001--slavesynccontroller)
+- [x] **TCU-SC001** SlaveSyncController [details](./TASK-DETAIL.md#tcu-sc001--slavesynccontroller)
 
 ---
 
@@ -57,7 +57,7 @@
 **Goal:** Full unit and integration test suite for the unified design.
 
 - [x] **TCU-T001** Unit Tests: MasterSyncController [details](./TASK-DETAIL.md#tcu-t001--unit-tests-mastersynccotroller)
-- [ ] **TCU-T002** Unit Tests: SlaveSyncController [details](./TASK-DETAIL.md#tcu-t002--unit-tests-slavesynccontroller)
+- [x] **TCU-T002** Unit Tests: SlaveSyncController [details](./TASK-DETAIL.md#tcu-t002--unit-tests-slavesynccontroller)
 - [ ] **TCU-T003** Unit Tests: Lockstep Translators [details](./TASK-DETAIL.md#tcu-t003--unit-tests-lockstep-translators)
 - [ ] **TCU-T004** Unit Tests: TimeControllerFactory (updated) [details](./TASK-DETAIL.md#tcu-t004--unit-tests-timecontrollerfactory-updated)
 - [x] **TCU-T005** Unit Tests: DTO Round-Trip and Domain Events [details](./TASK-DETAIL.md#tcu-t005--unit-tests-dto-round-trip-and-domain-events)

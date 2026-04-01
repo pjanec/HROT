@@ -18,6 +18,7 @@
 | DT-002 | P3 | BATCH-01 | TASK-DETAIL.md spec table for `FrameOrderDescriptor` states `TargetSimTime` at `[Key(3)]` but `TimeScale` already occupies that ordinal. Stale spec table — no code impact, ordinal correctly assigned at `[Key(4)]`. | Maintenance batch | Open |
 | DT-003 | P2 | BATCH-02 | `MasterSyncController.SwitchToDeterministic(slaveNodeIds)` silently ignores its parameter; effective slave set is fixed at construction. If Orchestrator passes a different set after node join/leave, ACK tracking will be wrong. Must be documented at call site in Phase 5 wiring. | BATCH-05 | Open |
 | DT-004 | P2 | BATCH-02 | `UpdateStepping()` processes FrameStepCompletedEvent ACKs by NodeID only, without FrameID filter. Late DDS retransmit could incorrectly clear a pending ACK slot. Should filter: `ack.FrameID == _lastStepFrameID`. | BATCH-04 or corrective | Open |
+| DT-005 | P3 | BATCH-03 | Rapid BarrierPending→Continuous resume (SwitchTimeModeEvent(Continuous) while still BarrierPending) is not unit tested in SlaveSyncController. Code path correct but untested. | BATCH-05 (TCU-T006 integration test) | Open |
 
 ---
 
