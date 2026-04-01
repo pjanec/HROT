@@ -25,14 +25,14 @@ namespace FDP.Toolkit.Time.Tests
 
         /// <summary>
         /// CGF1-S0203: <see cref="GlobalTime.TotalWallTicks"/> must be &gt; 0 after a
-        /// <see cref="MasterTimeController.Update"/> so that the Future Barrier can use
+        /// <see cref="MasterSyncController.Update"/> so that the Future Barrier can use
         /// it as the authoritative distributed wall-clock reference.
         /// </summary>
         [Fact]
         public void TotalWallTicks_IsPopulatedByMasterController()
         {
             var bus = new FdpEventBus();
-            var controller = new MasterTimeController(bus, TimeConfig.Default);
+            var controller = new MasterSyncController(bus, config: TimeConfig.Default);
 
             Thread.Sleep(2); // Allow the stopwatch to advance past 0
             var state = controller.Update();

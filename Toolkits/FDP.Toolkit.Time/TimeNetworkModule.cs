@@ -4,6 +4,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using ModuleHost.Network.Cyclone.Translators;
 using FDP.Toolkit.Time.Messages;
+using FDP.Toolkit.Time.Translators;
 
 namespace FDP.Toolkit.Time
 {
@@ -81,65 +82,103 @@ namespace FDP.Toolkit.Time
         }
 
         /// <summary>
-        /// Creates an <see cref="IDescriptorTranslator"/> that bridges
-        /// <see cref="Messages.FrameOrderDescriptor"/> and <see cref="Messages.FrameAckDescriptor"/>
-        /// between the local <see cref="FdpEventBus"/> and the CycloneDDS wire, enabling
-        /// distributed lockstep time-stepping.
-        ///
-        /// <para>
-        /// <b>Add to every simulation-kernel node</b> (Master and all Slaves):
-        /// the master egresses <c>FrameOrder</c> to DDS and ingresses <c>FrameAck</c> from DDS;
-        /// each slave egresses <c>FrameAck</c> and ingresses <c>FrameOrder</c>.  Running both
-        /// directions symmetrically on every node is harmless — each controller only reacts to
-        /// the message type it cares about.
-        /// </para>
+        /// Creates a <see cref="MasterLockstepTranslator"/> that bridges
+        /// <see cref="Domain.AdvanceFrameIntent"/> → <c>FrameOrder</c> DDS (egress) and
+        /// <c>FrameAck</c> DDS → <see cref="Domain.FrameStepCompletedEvent"/> (ingress).
+        /// Use on the master node only.
         /// </summary>
         /// <param name="participant">
         /// DDS domain participant.  Pass <see langword="null"/> for test-only hosts — both
         /// directions become safe no-ops.
         /// </param>
         /// <param name="eventBus">
-        /// The event bus shared with <see cref="Controllers.SteppedMasterController"/> and/or
-        /// <see cref="Controllers.SteppedSlaveController"/> on this node.
+        /// The event bus shared with <see cref="Controllers.MasterSyncController"/>.
         /// </param>
-        public static IDescriptorTranslator CreateLockstepTranslator(
-            DdsParticipant? participant, FdpEventBus eventBus, int localNodeId = 0)
-        {
-            if (eventBus == null) throw new ArgumentNullException(nameof(eventBus));
-            return new FrameLockstepDescriptorTranslator(participant, eventBus, localNodeId);
-        }
-
-        /// <summary>
-        /// Creates an egress translator that reads <see cref="Messages.TimePulseDescriptor"/>
-        /// events from <paramref name="eventBus"/> and publishes them to the
-        /// <c>"TimePulse"</c> DDS topic.
-        /// <para>
-        /// Wire this on every node that <em>owns</em> the authoritative simulation clock
-        /// (master node / Orchestrator) so slave nodes and UI caches can receive pulses.
-        /// </para>
-        /// </summary>
-        public static IDescriptorTranslator CreateTimePulseEgressTranslator(
-            DdsParticipant participant, FdpEventBus eventBus)
-        {
-            if (participant == null) throw new ArgumentNullException(nameof(participant));
-            if (eventBus    == null) throw new ArgumentNullException(nameof(eventBus));
-            return new TimePulseEgressTranslator(participant, eventBus);
-        }
-
-        /// <summary>
-        /// Creates an ingress translator that reads the <c>"TimePulse"</c> DDS topic and
-        /// publishes <see cref="Messages.TimePulseDescriptor"/> events into
-        /// <paramref name="eventBus"/> for the local <c>SlaveTimeController</c> PLL.
-        /// <para>
-        /// Wire this on every node that <em>follows</em> the master clock (IG, CGF, and
-        /// any other slave-only kernel nodes).
-        /// </para>
-        /// </summary>
-        public static IDescriptorTranslator CreateTimePulseIngressTranslator(
+        public static MasterLockstepTranslator CreateMasterLockstepTranslator(
             DdsParticipant? participant, FdpEventBus eventBus)
         {
             if (eventBus == null) throw new ArgumentNullException(nameof(eventBus));
-            return new TimePulseIngressTranslator(participant, eventBus);
+            return new MasterLockstepTranslator(participant, eventBus);
+        }
+
+        /// <summary>
+        /// Creates a <see cref="SlaveLockstepTranslator"/> that bridges
+        /// <c>FrameOrder</c> DDS → <see cref="Domain.AdvanceFrameIntent"/> (ingress) and
+        /// <see cref="Domain.FrameStepCompletedEvent"/> → <c>FrameAck</c> DDS (egress).
+        /// Use on slave nodes only.
+        /// </summary>
+        /// <param name="participant">
+        /// DDS domain participant.  Pass <see langword="null"/> for test-only hosts — both
+        /// directions become safe no-ops.
+        /// </param>
+        /// <param name="eventBus">
+        /// The event bus shared with <see cref="Controllers.SlaveSyncController"/>.
+        /// </param>
+        /// <param name="localNodeId">
+        /// This node's ID, embedded in ACK messages so the master can attribute them.
+        /// </param>
+        public static SlaveLockstepTranslator CreateSlaveLockstepTranslator(
+            DdsParticipant? participant, FdpEventBus eventBus, int localNodeId = 0)
+        {
+            if (eventBus == null) throw new ArgumentNullException(nameof(eventBus));
+            return new SlaveLockstepTranslator(participant, eventBus, localNodeId);
+        }
+
+        /// <summary>
+        /// Creates a <see cref="Translators.MasterTimeSyncTranslator"/> that handles the
+        /// NTP-style two-way clock sync handshake for the master/orchestrator node.
+        /// <para>
+        /// Add the returned translator to the <c>customTranslators</c> list of the master
+        /// node's <c>CycloneNetworkModule</c> during application startup.
+        /// </para>
+        /// </summary>
+        /// <param name="participant">
+        /// DDS domain participant.  Pass <see langword="null"/> for test-only hosts —
+        /// all DDS operations become safe no-ops.
+        /// </param>
+        /// <param name="tickSource">
+        /// Optional tick source override (<c>Stopwatch.GetTimestamp</c> by default).
+        /// Inject a controlled counter in unit tests.
+        /// </param>
+        public static IDescriptorTranslator CreateMasterTimeSyncTranslator(
+            DdsParticipant? participant,
+            Func<long>?     tickSource = null)
+        {
+            return new Translators.MasterTimeSyncTranslator(participant, tickSource);
+        }
+
+        /// <summary>
+        /// Creates a <see cref="Translators.SlaveTimeSyncTranslator"/> for slave nodes
+        /// (IG, ExCon, SimHost-slave).
+        /// <para>
+        /// Add the returned translator to the <c>customTranslators</c> list of the slave
+        /// node's <c>CycloneNetworkModule</c> during application startup.
+        /// </para>
+        /// </summary>
+        /// <param name="participant">
+        /// DDS domain participant.  Pass <see langword="null"/> for test-only hosts —
+        /// all DDS operations become safe no-ops.
+        /// </param>
+        /// <param name="eventBus">
+        /// The event bus shared with the local <see cref="Controllers.SlaveSyncController"/>.
+        /// Must not be null.
+        /// </param>
+        /// <param name="localNodeId">
+        /// This node's ID — used to filter incoming <see cref="Messages.TimeSyncResponse"/>
+        /// samples to those addressed to this specific slave.
+        /// </param>
+        /// <param name="tickSource">
+        /// Optional tick source override (<c>Stopwatch.GetTimestamp</c> by default).
+        /// Inject a controlled counter in unit tests.
+        /// </param>
+        public static IDescriptorTranslator CreateSlaveTimeSyncTranslator(
+            DdsParticipant? participant,
+            FdpEventBus     eventBus,
+            int             localNodeId,
+            Func<long>?     tickSource = null)
+        {
+            if (eventBus == null) throw new ArgumentNullException(nameof(eventBus));
+            return new Translators.SlaveTimeSyncTranslator(participant, eventBus, localNodeId, tickSource);
         }
     }
 }

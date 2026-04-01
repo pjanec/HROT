@@ -33,12 +33,11 @@ namespace FDP.Toolkit.Time.Controllers
         
         private static ITimeController CreateStandalone(TimeControllerConfig config)
         {
-            // Standalone uses local wall clock (no network sync, no custom tick provider)
-            var controller = new MasterTimeController(
-                eventBus: new FdpEventBus(),  // Dummy bus (no publishing)
-                config: config.SyncConfig
+            // Standalone uses MasterSyncController with a private bus (no DDS publishing).
+            var controller = new MasterSyncController(
+                eventBus: new FdpEventBus(),
+                config:   config.SyncConfig
             );
-            
             controller.SetTimeScale(config.InitialTimeScale);
             return controller;
         }
@@ -73,7 +72,7 @@ namespace FDP.Toolkit.Time.Controllers
             FdpEventBus eventBus,
             TimeControllerConfig config)
         {
-            var controller = new MasterTimeController(eventBus, config.SyncConfig);
+            var controller = new MasterSyncController(eventBus, config: config.SyncConfig);
             controller.SetTimeScale(config.InitialTimeScale);
             return controller;
         }
@@ -82,7 +81,7 @@ namespace FDP.Toolkit.Time.Controllers
             FdpEventBus eventBus,
             TimeControllerConfig config)
         {
-            return new SlaveTimeController(eventBus, config.SyncConfig, config.TickProvider);
+            return new SlaveSyncController(eventBus, config.LocalNodeId, config.SyncConfig);
         }
         
         // Deterministic Mode
@@ -91,28 +90,21 @@ namespace FDP.Toolkit.Time.Controllers
             FdpEventBus eventBus,
             TimeControllerConfig config)
         {
-            if (config.AllNodeIds == null || config.AllNodeIds.Count == 0)
-            {
-                throw new ArgumentException(
-                    "Deterministic Master requires AllNodeIds (set of peer IDs)");
-            }
-            
-            return new SteppedMasterController(
+            // MasterSyncController unifies Continuous + Deterministic (SteppedMasterController removed).
+            var controller = new MasterSyncController(
                 eventBus,
                 config.AllNodeIds,
                 config.SyncConfig
             );
+            controller.SetTimeScale(config.InitialTimeScale);
+            return controller;
         }
         
         private static ITimeController CreateDeterministicSlave(
             FdpEventBus eventBus,
             TimeControllerConfig config)
         {
-            return new SteppedSlaveController(
-                eventBus,
-                config.LocalNodeId,
-                config.SyncConfig.FixedDeltaSeconds
-            );
+            return new SlaveSyncController(eventBus, config.LocalNodeId, config.SyncConfig);
         }
     }
 }

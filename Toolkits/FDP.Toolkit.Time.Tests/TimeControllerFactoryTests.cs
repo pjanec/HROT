@@ -22,7 +22,7 @@ namespace FDP.Toolkit.Time.Tests
 
             var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
 
-            Assert.IsType<MasterTimeController>(controller);
+            Assert.IsType<MasterSyncController>(controller);
             Assert.Equal(TimeMode.Continuous, controller.GetMode());
         }
 
@@ -37,7 +37,7 @@ namespace FDP.Toolkit.Time.Tests
 
             var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
 
-            Assert.IsType<MasterTimeController>(controller);
+            Assert.IsType<MasterSyncController>(controller);
         }
 
         [Fact]
@@ -51,25 +51,11 @@ namespace FDP.Toolkit.Time.Tests
 
             var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
 
-            Assert.IsType<SlaveTimeController>(controller);
+            Assert.IsType<SlaveSyncController>(controller);
         }
 
         [Fact]
-        public void Create_DeterministicMaster_RequiresNodeIds()
-        {
-            var config = new TimeControllerConfig
-            {
-                Role = TimeRole.Master,
-                Mode = TimeMode.Deterministic,
-                AllNodeIds = null // Should fail
-            };
-
-            Assert.Throws<ArgumentException>(() =>
-                TimeControllerFactory.Create(new FdpEventBus(), config));
-        }
-
-        [Fact]
-        public void Create_DeterministicMaster_ReturnsSteppedMaster()
+        public void Create_DeterministicMaster_ReturnsMasterSyncController()
         {
             var config = new TimeControllerConfig
             {
@@ -80,7 +66,7 @@ namespace FDP.Toolkit.Time.Tests
 
             var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
 
-            Assert.IsType<SteppedMasterController>(controller);
+            Assert.IsType<MasterSyncController>(controller);
         }
 
         [Fact]
@@ -95,7 +81,67 @@ namespace FDP.Toolkit.Time.Tests
 
             var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
 
-            Assert.IsType<SteppedSlaveController>(controller);
+            Assert.IsType<SlaveSyncController>(controller);
+        }
+
+        // ── TCU-T004: Factory tests for updated role/mode routes ─────────────
+
+        [Fact]
+        public void TimeControllerFactory_Master_Continuous_ReturnsMasterSyncController()
+        {
+            var config = new TimeControllerConfig
+            {
+                Role = TimeRole.Master,
+                Mode = TimeMode.Continuous,
+            };
+
+            var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
+
+            Assert.IsType<MasterSyncController>(controller);
+        }
+
+        [Fact]
+        public void TimeControllerFactory_Slave_Continuous_ReturnsSlaveSyncController()
+        {
+            var config = new TimeControllerConfig
+            {
+                Role = TimeRole.Slave,
+                Mode = TimeMode.Continuous,
+                LocalNodeId = 5,
+            };
+
+            var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
+
+            Assert.IsType<SlaveSyncController>(controller);
+        }
+
+        [Fact]
+        public void TimeControllerFactory_Slave_Deterministic_ReturnsSlaveSyncController()
+        {
+            var config = new TimeControllerConfig
+            {
+                Role = TimeRole.Slave,
+                Mode = TimeMode.Deterministic,
+                LocalNodeId = 5,
+            };
+
+            var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
+
+            Assert.IsType<SlaveSyncController>(controller);
+        }
+
+        [Fact]
+        public void TimeControllerFactory_Standalone_ReturnsUnchangedType()
+        {
+            var config = new TimeControllerConfig
+            {
+                Role = TimeRole.Standalone,
+                Mode = TimeMode.Continuous,
+            };
+
+            var controller = TimeControllerFactory.Create(new FdpEventBus(), config);
+
+            Assert.IsType<MasterSyncController>(controller);
         }
     }
 }

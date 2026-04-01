@@ -69,8 +69,7 @@ namespace Fdp.Examples.NetworkDemo
         private int localInternalId;
         private NodeIdMapper nodeMapper = default!;
         private TkbDatabase tkb = default!;
-        private FDP.Toolkit.Time.Controllers.DistributedTimeCoordinator? _timeCoordinator;
-        private FDP.Toolkit.Time.Controllers.SlaveTimeModeListener? _slaveListener;
+        private FDP.Toolkit.Time.Controllers.MasterSyncController? _masterSyncController;
         private bool _testMode;
 
         /// <summary>
@@ -217,6 +216,16 @@ namespace Fdp.Examples.NetworkDemo
                 );
                 allTranslators.AddRange(autoTranslators);
 
+                // Time sync translators: master answers TimeSyncRequest over DDS;
+                // slave delivers TimeSyncResponse into the local eventBus.
+                if (!isReplay)
+                {
+                    if (instanceId == 100)
+                        allTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateMasterTimeSyncTranslator(participant));
+                    else
+                        allTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(participant, eventBus, localInternalId));
+                }
+
                 var networkModule = new CycloneNetworkModule(
                     participant, nodeMapper, idAllocator, topology, elm,
                     customTranslators: allTranslators,
@@ -290,7 +299,7 @@ namespace Fdp.Examples.NetworkDemo
 
             Kernel.RegisterModule(new BridgeModule(eventBus, replaySystem, localInternalId, instanceId == 100));
 
-            // Time Controller setup
+            // Time Controller setup — unified MasterSyncController / SlaveSyncController
             ModuleHost.Core.Time.ITimeController timeController;
             if (isReplay)
             {
@@ -298,20 +307,20 @@ namespace Fdp.Examples.NetworkDemo
             }
             else
             {
-                timeController = new MasterTimeController(eventBus, null);
-
                 var timeConfig = new FDP.Toolkit.Time.Controllers.TimeControllerConfig { LocalNodeId = localInternalId };
                 timeConfig.SyncConfig.LookaheadWallTicks = (long)(0.2 * System.Diagnostics.Stopwatch.Frequency);
 
                 if (instanceId == 100)
                 {
                      var slaveSet = new System.Collections.Generic.HashSet<int>(peerInternalIds);
-                     _timeCoordinator = new FDP.Toolkit.Time.Controllers.DistributedTimeCoordinator(
-                        eventBus, Kernel, timeConfig, slaveSet);
+                     _masterSyncController = new FDP.Toolkit.Time.Controllers.MasterSyncController(
+                        eventBus, slaveSet, timeConfig.SyncConfig);
+                     timeController = _masterSyncController;
                 }
                 else
                 {
-                     _slaveListener = new FDP.Toolkit.Time.Controllers.SlaveTimeModeListener(eventBus, Kernel, timeConfig);
+                     timeController = new FDP.Toolkit.Time.Controllers.SlaveSyncController(
+                        eventBus, localInternalId, timeConfig.SyncConfig);
                 }
             }
             Kernel.SetTimeController(timeController);
@@ -390,9 +399,7 @@ namespace Fdp.Examples.NetworkDemo
 
         public void Update(float dt)
         {
-            // Time Coordination Update
-            _timeCoordinator?.Update();
-            _slaveListener?.Update();
+            // Time Coordination Update — MasterSyncController handles its own state machine via Kernel.Update().
 
             // Process queued actions on the simulation thread
             while (_actionQueue.TryDequeue(out var action))
@@ -413,8 +420,7 @@ namespace Fdp.Examples.NetworkDemo
             {
                 World.Tick(); // CRITICAL: Advance global version in Replay
             }
-            _timeCoordinator?.Update();
-            _slaveListener?.Update();
+            // MasterSyncController handles its own state via Kernel.Update().
             // Use Kernel.Update() to let the TimeController (Master/Stepped/Slave) drive the simulation time.
             // Using Kernel.Update(dt) bypasses the controller logic (breaking Stepped mode).
             Kernel.Update(); 

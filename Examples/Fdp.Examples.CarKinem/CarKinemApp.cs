@@ -40,7 +40,7 @@ public class CarKinemApp : FdpApplication
     private StandardInteractionTool _interactionTool = null!;
     
     // Time & Recording (Restored)
-    private SwitchableTimeController _timeController = null!;
+    private ITimeController _activeTimeController = null!;
     private ITimeController _continuousTime = null!;
     private SteppingTimeController _steppingTime = null!;
     private AsyncRecorder? _recorder;
@@ -127,8 +127,8 @@ public class CarKinemApp : FdpApplication
         _steppingTime = new SteppingTimeController(new GlobalTime());
 
         // Use Switchable Proxy to avoid ModuleHostKernel exception on swapping
-        _timeController = new SwitchableTimeController(_continuousTime);
-        _kernel.SetTimeController(_timeController); 
+        _activeTimeController = _continuousTime;
+        _kernel.SetTimeController(_activeTimeController); 
         _kernel.Initialize();
         
         // Create Systems in Repo
@@ -325,20 +325,22 @@ public class CarKinemApp : FdpApplication
         // Pause/Play Logic (Time Mode Switching)
         bool isPaused = _legacyUI.IsPaused;
         // Use proxy to get active
-        var currentController = _timeController.ActiveController;
+        var currentController = _activeTimeController;
         
         if (isPaused && currentController != _steppingTime)
         {
             // Switch to Deterministic (Stepping)
             _steppingTime.SeedState(currentController.GetCurrentState());
-            _timeController.SwitchTo(_steppingTime);
+            _activeTimeController = _steppingTime;
+            _kernel.SetTimeController(_steppingTime);
             Console.WriteLine("Switched to Deterministic Time (Paused)");
         }
         else if (!isPaused && currentController != _continuousTime)
         {
             // Switch to Continuous
             _continuousTime.SeedState(currentController.GetCurrentState());
-            _timeController.SwitchTo(_continuousTime);
+            _activeTimeController = _continuousTime;
+            _kernel.SetTimeController(_continuousTime);
             Console.WriteLine("Switched to Continuous Time (Playing)");
         }
         

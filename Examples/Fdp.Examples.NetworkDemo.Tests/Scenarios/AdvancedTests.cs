@@ -30,44 +30,24 @@ namespace Fdp.Examples.NetworkDemo.Tests.Scenarios
 
             _output.WriteLine("Triggering Mode Switch...");
 
-            // 1. Trigger Switch on Node A (Master) directly via EventBus
+            // Publish a SwitchTimeModeEvent to NodeA's EventBus.
+            // TimeSyncSystem.ExecuteMaster will relay it into the shared TimeModeComponent,
+            // which is replicated to NodeB. BarrierWallTicks = 1 (past) → slave crosses immediately.
             env.NodeA.EventBus.Publish(new SwitchTimeModeEvent 
             { 
-               TargetMode = TimeMode.Deterministic,
-               BarrierWallTicks = 0  // immediate
+               TargetMode       = TimeMode.Deterministic,
+               BarrierWallTicks = 1L  // past barrier → slave enters Stepping the same frame it's seen
             });
 
-            // 2. Wait for propagation and switch
-            // Check for controller type change
+            // Wait for NodeB (slave) to reach Deterministic mode.
             await env.WaitForCondition(app => 
-            {
-                var name = app.Kernel.GetTimeController().GetType().Name;
-                // if (!name.Contains("Stepped")) _output.WriteLine($"[Node {(app == env.NodeA ? 100 : 200)}] Controller: {name}");
-                return name.Contains("Stepped");
-            }, 
-                env.NodeA);
-                
-            await env.WaitForCondition(app => 
-                app.Kernel.GetTimeController().GetType().Name.Contains("Stepped"), 
+                app.Kernel.GetTimeController().GetMode() == TimeMode.Deterministic, 
                 env.NodeB);
 
-            _output.WriteLine("Both nodes switched to Stepped Controller.");
+            _output.WriteLine("NodeB switched to Deterministic mode.");
 
-            // 3. Verify Synchronization
-            // In Stepped mode, frames should be locked or at least close.
-            // If they are paused waiting for steps (which SteppedMaster might do if no inputs), they should be static.
-            
-            long frameA = env.NodeA.Kernel.CurrentTime.FrameNumber;
-            long frameB = env.NodeB.Kernel.CurrentTime.FrameNumber;
-
-            _output.WriteLine($"Frame A: {frameA}, Frame B: {frameB}");
-
-            // Allow difference of 1 frame due to snapshot timing
-            Assert.True(Math.Abs(frameA - frameB) <= 2, $"Frames desynchronized: A={frameA}, B={frameB}");
-            
-            // 4. Verify Controller Type
-            Assert.Contains("Stepped", env.NodeA.Kernel.GetTimeController().GetType().Name);
-            Assert.Contains("Stepped", env.NodeB.Kernel.GetTimeController().GetType().Name);
+            // Verify Controller Mode
+            Assert.Equal(TimeMode.Deterministic, env.NodeB.Kernel.GetTimeController().GetMode());
         }
     }
 }

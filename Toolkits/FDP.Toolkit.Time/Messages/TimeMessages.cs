@@ -13,15 +13,15 @@ namespace FDP.Toolkit.Time.Messages
     {
         [Key(0)]
         [DdsId(0)]
-        public long FrameID { get; set; }
+        public long FrameID;
         
         [Key(1)]
         [DdsId(1)]
-        public float FixedDelta { get; set; }
+        public float FixedDelta;
         
         [Key(2)]
         [DdsId(2)]
-        public long SequenceID { get; set; }
+        public long SequenceID;
 
         /// <summary>
         /// Time scale to apply when advancing sim-time by <see cref="FixedDelta"/>.
@@ -31,7 +31,7 @@ namespace FDP.Toolkit.Time.Messages
         /// </summary>
         [Key(3)]
         [DdsId(3)]
-        public float TimeScale { get; set; }
+        public float TimeScale;
 
         /// <summary>
         /// Master's authoritative <see cref="Fdp.Kernel.GlobalTime.TotalTime"/> (seconds)
@@ -48,7 +48,7 @@ namespace FDP.Toolkit.Time.Messages
         /// </summary>
         [Key(4)]
         [DdsId(4)]
-        public double TargetSimTime { get; set; }
+        public double TargetSimTime;
     }
 
     /// <summary>
@@ -63,29 +63,7 @@ namespace FDP.Toolkit.Time.Messages
     {
         [Key(0)]
         [DdsId(0)]
-        public float TimeScale { get; set; }
-    }
-    
-    [MessagePackObject]
-    [DdsTopic("TimePulse")]
-    [EventId(100)]
-    public partial struct TimePulseDescriptor
-    {
-        [Key(0)]
-        [DdsId(0)]
-        public long MasterWallTicks { get; set; }
-        
-        [Key(1)]
-        [DdsId(1)]
-        public double SimTimeSnapshot { get; set; }
-        
-        [Key(2)]
-        [DdsId(2)]
-        public float TimeScale { get; set; }
-        
-        [Key(3)]
-        [DdsId(3)]
-        public long SequenceId { get; set; }
+        public float TimeScale;
     }
     
     [MessagePackObject]
@@ -96,15 +74,15 @@ namespace FDP.Toolkit.Time.Messages
     {
         [Key(0)]
         [DdsId(0)]
-        public long FrameID { get; set; }
+        public long FrameID;
         
         [Key(1)]
         [DdsId(1)]
-        public int NodeID { get; set; }
+        public int NodeID;
         
         [Key(2)]
         [DdsId(2)]
-        public int Checksum { get; set; } // Optional state hash for sync verification
+        public int Checksum; // Optional state hash for sync verification
     }
 
     /// <summary>
@@ -132,20 +110,20 @@ namespace FDP.Toolkit.Time.Messages
     {
         /// <summary>Target time mode: <see cref="TimeMode.Continuous"/> or <see cref="TimeMode.Deterministic"/>.</summary>
         [Key(0)]
-        public TimeMode TargetMode { get; set; }
+        public TimeMode TargetMode;
 
         /// <summary>
         /// Absolute <see cref="Fdp.Kernel.GlobalTime.TotalWallTicks"/> at which every node
         /// must perform the mode swap. Derived from the master's virtual wall clock at the
         /// moment of publishing, plus a configurable lookahead
-        /// (≈ 200 ms by default, expressed as Stopwatch ticks).
+        /// (≈ 200 ms by default, expressed as Stopwatch ticks).
         /// </summary>
         [Key(1)]
-        public long BarrierWallTicks { get; set; }
+        public long BarrierWallTicks;
 
         /// <summary>Fixed delta time (seconds) for Deterministic mode. Ignored for Continuous.</summary>
         [Key(2)]
-        public float FixedDelta { get; set; }
+        public float FixedDelta;
 
         /// <summary>
         /// The master node's authoritative simulation time (seconds) at the moment the mode
@@ -155,7 +133,7 @@ namespace FDP.Toolkit.Time.Messages
         /// UI time jump-back visible after Pause → Step → Resume.
         /// </summary>
         [Key(3)]
-        public double SimTimeSnapshot { get; set; }
+        public double SimTimeSnapshot;
 
         /// <summary>
         /// Time scale to apply when the controller is installed on a slave or master.
@@ -164,7 +142,7 @@ namespace FDP.Toolkit.Time.Messages
         /// (so the user-requested speed is applied atomically with the resume swap).
         /// </summary>
         [Key(4)]
-        public float TimeScale { get; set; }
+        public float TimeScale;
     }
     /// <summary>
     /// Blittable wire DTO for <see cref="SwitchTimeModeEvent"/> over CycloneDDS.
@@ -180,6 +158,7 @@ namespace FDP.Toolkit.Time.Messages
     /// </para>
     /// </summary>
     [DdsTopic("SwitchTimeModeEvent")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
     public partial struct SwitchTimeModeWireDto
     {
         /// <summary>
@@ -187,23 +166,23 @@ namespace FDP.Toolkit.Time.Messages
         /// 0 = <see cref="TimeMode.Continuous"/>, 1 = <see cref="TimeMode.Deterministic"/>.
         /// </summary>
         [DdsId(0)]
-        public int TargetModeInt { get; set; }
+        public int TargetModeInt;
 
         /// <summary><see cref="SwitchTimeModeEvent.BarrierWallTicks"/>.</summary>
         [DdsId(1)]
-        public long BarrierWallTicks { get; set; }
+        public long BarrierWallTicks;
 
         /// <summary><see cref="SwitchTimeModeEvent.FixedDelta"/>.</summary>
         [DdsId(2)]
-        public float FixedDelta { get; set; }
+        public float FixedDelta;
 
         /// <summary><see cref="SwitchTimeModeEvent.SimTimeSnapshot"/>.</summary>
         [DdsId(3)]
-        public double SimTimeSnapshot { get; set; }
+        public double SimTimeSnapshot;
 
         /// <summary><see cref="SwitchTimeModeEvent.TimeScale"/>.</summary>
         [DdsId(4)]
-        public float TimeScale { get; set; }
+        public float TimeScale;
 
         /// <summary>Converts a <see cref="SwitchTimeModeEvent"/> to its wire representation.</summary>
         public static SwitchTimeModeWireDto ToWire(SwitchTimeModeEvent evt) =>
@@ -226,4 +205,64 @@ namespace FDP.Toolkit.Time.Messages
                 SimTimeSnapshot  = SimTimeSnapshot,
                 TimeScale        = TimeScale,
             };
-    }}
+    }
+
+    /// <summary>
+    /// Local-bus-only event published by <see cref="FDP.Toolkit.Time.Translators.SlaveTimeSyncTranslator"/>
+    /// after computing the NTP offset at the network boundary (precise <c>t4</c> capture).
+    /// Consumed by <see cref="FDP.Toolkit.Time.Controllers.SlaveSyncController"/> to update
+    /// <c>_masterWallClockOffset</c>.  Never sent over DDS.
+    /// </summary>
+    [EventId(110)]
+    public struct TimeSyncOffsetCalculatedEvent
+    {
+        /// <summary>Round-trip time in Stopwatch ticks. Controller checks against MaxRttTicks.</summary>
+        public long Rtt;
+        /// <summary>NTP-computed master-minus-slave clock offset in Stopwatch ticks.</summary>
+        public long NewOffset;
+    }
+
+    /// <summary>
+    /// Sent by a slave node to initiate the NTP-style two-way time handshake.
+    /// The master echoes it back inside a <see cref="TimeSyncResponse"/>.
+    /// </summary>
+    [MessagePackObject]
+    [DdsTopic("TimeSyncRequest")]
+    [EventId(108)]
+    public partial struct TimeSyncRequest
+    {
+        /// <summary>Node ID of the slave initiating the handshake.</summary>
+        [Key(0)] [DdsId(0), DdsKey]
+        public int ClientNodeId;
+
+        /// <summary>Raw OS tick (<c>Stopwatch.GetTimestamp()</c>) recorded just before publish.</summary>
+        [Key(1)] [DdsId(1)]
+        public long ClientSendTicks;
+    }
+
+    /// <summary>
+    /// Published by the master node in reply to a <see cref="TimeSyncRequest"/>.
+    /// Contains all four timestamps needed to compute clock offset via the NTP formula.
+    /// </summary>
+    [MessagePackObject]
+    [DdsTopic("TimeSyncResponse")]
+    [EventId(109)]
+    public partial struct TimeSyncResponse
+    {
+        /// <summary>Echoed back from the request — identifies the slave this reply is addressed to.</summary>
+        [Key(0)] [DdsId(0), DdsKey]
+        public int ClientNodeId;
+
+        /// <summary>Echoed back from the request.</summary>
+        [Key(1)] [DdsId(1)]
+        public long ClientSendTicks;
+
+        /// <summary>Master OS tick recorded immediately upon receiving the request.</summary>
+        [Key(2)] [DdsId(2)]
+        public long MasterReceiveTicks;
+
+        /// <summary>Master OS tick recorded immediately before writing the response to DDS.</summary>
+        [Key(3)] [DdsId(3)]
+        public long MasterTransmitTicks;
+    }
+}

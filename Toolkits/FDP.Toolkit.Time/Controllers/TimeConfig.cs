@@ -63,5 +63,25 @@ namespace FDP.Toolkit.Time.Controllers
         /// Set to a smaller value (e.g. 10–50 ms) in unit tests that use wall-clock sleeps.
         /// </summary>
         public long LookaheadWallTicks { get; set; } = (long)(0.2 * Stopwatch.Frequency);
+
+        /// <summary>
+        /// Maximum acceptable Round-Trip Time for a <see cref="Messages.TimeSyncResponse"/>.
+        /// Responses whose RTT exceeds this value are discarded (spike rejection).
+        /// Default: 200 ms expressed as Stopwatch ticks.
+        /// </summary>
+        public long MaxRttTicks { get; set; } = (long)(0.2 * Stopwatch.Frequency);
+
+        /// <summary>
+        /// How often (in Stopwatch ticks) the slave re-sends a <see cref="Messages.TimeSyncRequest"/>
+        /// to correct hardware clock skew across long simulation sessions.
+        /// Default: 1 second.
+        /// </summary>
+        public long SyncRefreshIntervalTicks { get; set; } = Stopwatch.Frequency;
+
+        /// <summary>
+        /// Weight applied to incremental sync offset updates (range 0.0–1.0).
+        /// 1.0 = hard-snap every response; 0.1 (default) = gentle steering.
+        /// </summary>
+        public double SyncCorrectionWeight { get; set; } = 0.1;
     }
 }

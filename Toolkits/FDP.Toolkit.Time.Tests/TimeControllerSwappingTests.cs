@@ -80,7 +80,7 @@ namespace FDP.Toolkit.Time.Tests
             Thread.Sleep(500);
             
             // UNPAUSE: Swap back to continuous
-            var continuousController = new MasterTimeController(
+            var continuousController = new MasterSyncController(
                 eventBus: new FdpEventBus(),
                 config: TimeConfig.Default
             );

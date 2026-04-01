@@ -31,7 +31,7 @@ namespace Fdp.Examples.CarKinem.Tests
         {
             var stepping = _app.SteppingTime;
             stepping.SeedState(_app.TimeController.GetCurrentState());
-            _app.TimeController.SwitchTo(stepping);
+            _app.Kernel.SetTimeController(stepping);  // was: _app.TimeController.SwitchTo(stepping)
             
             // Replicate App behavior: App calls Step() then runs systems, but DOES NOT CALL Kernel.Update().
             float dt = 1.0f / 60.0f;

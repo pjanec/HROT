@@ -26,7 +26,7 @@ namespace Fdp.Examples.CarKinem.Headless
         public ModuleHostKernel Kernel { get; private set; } = null!;
         
         // Time Control
-        public SwitchableTimeController TimeController { get; private set; } = null!;
+        public ITimeController TimeController { get; private set; } = null!;
         public SteppingTimeController SteppingTime { get; private set; } = null!;
         public ITimeController ContinuousTime { get; private set; } = null!;
         
@@ -81,8 +81,8 @@ namespace Fdp.Examples.CarKinem.Headless
             ContinuousTime = TimeControllerFactory.Create(Repository.Bus, timeConfig);
             SteppingTime = new SteppingTimeController(new GlobalTime());
             
-            // Switchable Controller
-            TimeController = new SwitchableTimeController(ContinuousTime); 
+            // Use ContinuousTime directly (SwitchableTimeController removed).
+            TimeController = ContinuousTime; 
             
             Kernel.SetTimeController(TimeController);
             Kernel.Initialize();
