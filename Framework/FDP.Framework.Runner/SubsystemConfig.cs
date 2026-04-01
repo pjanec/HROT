@@ -33,5 +33,12 @@ namespace FDP.Framework.Runner
         /// <summary>Fixed step in seconds. Used only when <see cref="Deterministic"/> is
         /// <c>true</c>. Default = 1/60 s.</summary>
         public float FixedDeltaSeconds { get; set; } = 1.0f / 60.0f;
+
+        /// <summary>
+        /// When non-null, subsystems can register windows and menu items during
+        /// <c>Initialize</c>.  Null in headless mode or when the Window Manager is
+        /// not configured.
+        /// </summary>
+        public FDP.Toolkit.ImGui.WindowManager.WindowManager? WindowManager { get; set; }
     }
 }

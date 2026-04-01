@@ -3,6 +3,8 @@ using Raylib_cs;
 using rlImGui_cs;
 using System.Numerics;
 using FDP.Toolkit.Vis2D.Components;
+using FDP.Toolkit.ImGui.Icons;
+using WM = FDP.Toolkit.ImGui.WindowManager.WindowManager;
 
 namespace FDP.Framework.Runner
 {
@@ -49,6 +51,22 @@ namespace FDP.Framework.Runner
         /// </summary>
         private ISubsystem? _activeMapOwner;
 
+        /// <summary>
+        /// The Window Manager that owns the menu bar and all registered panels.
+        /// <c>null</c> in headless mode.
+        /// </summary>
+        private WM? _windowManager;
+
+        /// <summary>Dummy icon atlas held alongside <see cref="_windowManager"/>; disposed on Shutdown.</summary>
+        private IconAtlas? _iconAtlas;
+
+        /// <summary>
+        /// The active Window Manager, or <c>null</c> when running headless.
+        /// Subsystems that registered windows during <c>Initialize</c> can access this
+        /// to manipulate panels programmatically after startup.
+        /// </summary>
+        public WM? WindowManager => _windowManager;
+
         // ── Construction ──────────────────────────────────────────────────────
 
         /// <summary>
@@ -84,6 +102,14 @@ namespace FDP.Framework.Runner
                 Raylib.InitWindow(_windowWidth, _windowHeight, WindowTitle);
                 Raylib.SetTargetFPS(_targetFps);
                 rlImGui.Setup(true);
+
+                // WM-S402: Enable ImGui docking.
+                ImGui.GetIO().ConfigFlags |= ImGuiConfigFlags.DockingEnable;
+
+                // WM-S501: Create the WindowManager with a dummy atlas (no GPU texture;
+                // icons render as blank squares — acceptable until production atlas is wired in).
+                _iconAtlas    = new IconAtlas(IntPtr.Zero, 256f, 256f, 16f);
+                _windowManager = new WM(_iconAtlas);
             }
 
             // Default map owner: first subsystem that provides a map camera.
@@ -99,7 +125,10 @@ namespace FDP.Framework.Runner
                     SubsystemName     = subsystem.Name,
                     Deterministic     = _deterministic,
                     FixedDeltaSeconds = _fixedDeltaSeconds,
-                    NodeId            = _nodeIdResolver != null ? _nodeIdResolver(subsystem.Name, _nodeId) : _nodeId
+                    NodeId            = _nodeIdResolver != null ? _nodeIdResolver(subsystem.Name, _nodeId) : _nodeId,
+                    // WM-S501: Pass the window manager so subsystems can register panels.
+                    // Null in headless mode — subsystems must guard with a null check.
+                    WindowManager     = _windowManager,
                 };
                 subsystem.Initialize(cfg);
             }
@@ -145,6 +174,7 @@ namespace FDP.Framework.Runner
             if (!_headless)
             {
                 rlImGui.Shutdown();
+                _iconAtlas?.Dispose();
                 Raylib.CloseWindow();
             }
         }
@@ -195,7 +225,38 @@ namespace FDP.Framework.Runner
             }
 
             rlImGui.Begin();
-            DrawMainMenuBar();
+
+            // WM-S402: Create a fullscreen transparent dockspace that passes mouse
+            // events to the underlying Raylib map render.  Must appear before any
+            // managed window or subsystem UI to avoid Z-order issues.
+            var viewport = ImGui.GetMainViewport();
+            ImGui.SetNextWindowPos(viewport.WorkPos);
+            ImGui.SetNextWindowSize(viewport.WorkSize);
+            ImGui.SetNextWindowViewport(viewport.ID);
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding,  0f);
+            ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
+            ImGui.PushStyleColor(ImGuiCol.WindowBg, Vector4.Zero);
+            var dockspaceFlags = ImGuiWindowFlags.NoDocking
+                | ImGuiWindowFlags.NoTitleBar  | ImGuiWindowFlags.NoCollapse
+                | ImGuiWindowFlags.NoResize    | ImGuiWindowFlags.NoMove
+                | ImGuiWindowFlags.NoBringToFrontOnFocus | ImGuiWindowFlags.NoNavFocus
+                | ImGuiWindowFlags.NoBackground;
+            ImGui.Begin("##DockSpace", dockspaceFlags);
+            ImGui.PopStyleColor();
+            ImGui.PopStyleVar(2);
+
+            // WM-S503: Reduce dockspace height to leave room for the status bar.
+            // StatusBar.Height is computed each frame during WindowManager.Render().
+            float statusBarHeight = _windowManager?.StatusBar.Height ?? 0f;
+            var dockspaceSize = statusBarHeight > 0f
+                ? new Vector2(viewport.WorkSize.X, viewport.WorkSize.Y - statusBarHeight)
+                : Vector2.Zero;
+            ImGui.DockSpace(ImGui.GetID("MainDockSpace"), dockspaceSize, ImGuiDockNodeFlags.PassthruCentralNode);
+            ImGui.End();
+
+            // WM-S501: Window Manager renders the global menu bar and all registered
+            // managed windows.  Replaces the old DrawMainMenuBar() private method.
+            _windowManager?.Render();
 
             for (int i = 0; i < _subsystems.Count; i++)
             {
@@ -226,32 +287,5 @@ namespace FDP.Framework.Runner
         private bool IsMapOwner(ISubsystem subsystem)
             => !(subsystem is IMapCameraProvider)   // non-map always draws
                || subsystem == _activeMapOwner;
-
-        private void DrawMainMenuBar()
-        {
-            if (!ImGui.BeginMainMenuBar()) return;
-
-            // Generate a toggle button for every subsystem that exposes a map view.
-            var mapProviders = _subsystems.Where(s => s is IMapCameraProvider).ToList();
-            if (mapProviders.Count > 0)
-            {
-                ImGui.Text("Map:");
-                foreach (var sub in mapProviders)
-                {
-                    ImGui.SameLine();
-                    bool isActive = sub == _activeMapOwner;
-                    if (isActive)
-                        ImGui.PushStyleColor(ImGuiCol.Button, sub.TitleBarColor);
-
-                    if (ImGui.Button(sub.Name))
-                        SwitchMapOwner(sub.Name);
-
-                    if (isActive)
-                        ImGui.PopStyleColor();
-                }
-            }
-
-            ImGui.EndMainMenuBar();
-        }
     }
 }
