@@ -17,7 +17,7 @@
 
 **Goal:** Replace MasterTimeController + SteppedMasterController + DistributedTimeCoordinator with a single self-contained MasterSyncController.
 
-- [ ] **TCU-MC001** MasterSyncController [details](./TASK-DETAIL.md#tcu-mc001--mastersynccotroller)
+- [x] **TCU-MC001** MasterSyncController [details](./TASK-DETAIL.md#tcu-mc001--mastersynccotroller)
 
 ---
 
@@ -56,7 +56,7 @@
 
 **Goal:** Full unit and integration test suite for the unified design.
 
-- [ ] **TCU-T001** Unit Tests: MasterSyncController [details](./TASK-DETAIL.md#tcu-t001--unit-tests-mastersynccotroller)
+- [x] **TCU-T001** Unit Tests: MasterSyncController [details](./TASK-DETAIL.md#tcu-t001--unit-tests-mastersynccotroller)
 - [ ] **TCU-T002** Unit Tests: SlaveSyncController [details](./TASK-DETAIL.md#tcu-t002--unit-tests-slavesynccontroller)
 - [ ] **TCU-T003** Unit Tests: Lockstep Translators [details](./TASK-DETAIL.md#tcu-t003--unit-tests-lockstep-translators)
 - [ ] **TCU-T004** Unit Tests: TimeControllerFactory (updated) [details](./TASK-DETAIL.md#tcu-t004--unit-tests-timecontrollerfactory-updated)
