@@ -23,7 +23,23 @@ namespace FDP.Toolkit.Time.Controllers
         private long _frameNumber;
         private float _timeScale = 1.0f;
         private double _unscaledTotalTime;
+        /// <summary>
+        /// Wall-clock tick accumulator — seeded from <see cref="SeedState"/> and advanced on
+        /// each processed <see cref="FrameOrderDescriptor"/> by the deterministic tick-equivalent
+        /// of the fixed delta.  Ensures <see cref="GlobalTime.TotalWallTicks"/> is continuous
+        /// when the kernel transitions back to <see cref="SlaveTimeController"/> or
+        /// <see cref="MasterTimeController"/> on Resume.
+        /// </summary>
+        private long _totalWallTicks;
         
+        // Tracks the last FrameID received from the master via a FrameOrderDescriptor.
+        // Initialized to -1 meaning "no order received yet". This is intentionally separate
+        // from _frameNumber (which is seeded from the slave's own local frame counter via
+        // SeedState). The master's frame counter and each slave's local counter naturally
+        // diverge during continuous mode, so using _frameNumber+1 to validate the first
+        // FrameOrder from the master produces a spurious "out of order" warning.
+        private long _lastReceivedOrderFrameId = -1;
+
         // Frame Queue
         private readonly Queue<FrameOrderDescriptor> _pendingOrders = new();
         
@@ -38,16 +54,17 @@ namespace FDP.Toolkit.Time.Controllers
         
         public GlobalTime Update()
         {
-            // 1. Refill buffer from network
+            // 1. Refill buffer from network.
+            // Accept any FrameID that is strictly greater than the last one we processed
+            // from the master.  Before the first order arrives (_lastReceivedOrderFrameId=-1)
+            // we fall back to comparing against _frameNumber (the slave's seeded local counter)
+            // so that stale re-deliveries from before the mode switch are discarded.
+            long acceptAfter = _lastReceivedOrderFrameId >= 0 ? _lastReceivedOrderFrameId : _frameNumber;
             var orders = _eventBus.Consume<FrameOrderDescriptor>();
             foreach (var order in orders)
             {
-                // Only accept future frames? Or strict sequence check?
-                // For robustness, ignore old frames.
-                if (order.FrameID > _frameNumber)
-                {
+                if (order.FrameID > acceptAfter)
                     _pendingOrders.Enqueue(order);
-                }
             }
             
             // 2. Process one frame if available
@@ -68,33 +85,38 @@ namespace FDP.Toolkit.Time.Controllers
                 
                 var order = _pendingOrders.Dequeue();
                 
-                // Validate Sequence (Strict Lockstep)
-                if (order.FrameID != _frameNumber + 1)
+                // Validate sequence against the MASTER's last sent frame ID.
+                // Only warn after we've received at least one order — the first order
+                // from the master may have a higher FrameID than _lastReceivedOrderFrameId+1
+                // because the master's frame counter advanced more frames during the
+                // barrier-wait than the slave's local counter did.
+                if (_lastReceivedOrderFrameId >= 0 && order.FrameID != _lastReceivedOrderFrameId + 1)
                 {
-                    // If we missed a frame or out of order
-                    // Log warning?
-                     FdpLog<SteppedSlaveController>.Warn(
-                         "[SteppedSlave] Warning: Out of order frame. Expected {0}, got {1}",
-                         _frameNumber + 1,
-                         order.FrameID);
-                     // If future, maybe we should stash it and wait for missing?
-                     // For MVP, proceed if future.
+                    FdpLog<SteppedSlaveController>.Warn(
+                        "[SteppedSlave] Warning: Out of order frame. Expected {0}, got {1}",
+                        _lastReceivedOrderFrameId + 1,
+                        order.FrameID);
                 }
-                
-                // Execute Step
-                float dt = order.FixedDelta; 
+
+                // Execute Step — apply master's time scale if provided (≠0), else keep local
+                float dt = order.FixedDelta;
                 if (dt <= 0) dt = _configuredDelta;
-                
+                if (order.TimeScale > 0f) _timeScale = order.TimeScale;
+
+                _lastReceivedOrderFrameId = order.FrameID;
                 _frameNumber = order.FrameID;
-                _totalTime += dt * _timeScale; // Assuming Scale 1.0 logic for steps usually, but respect Order if needed?
-                // Order doesn't have Scale. Master used Scale to compute totalTime.
-                // We should use Master's notion?
-                // SteppedMaster: _totalTime += fixedDelta * _timeScale.
-                // But FrameOrder only has FixedDelta.
-                // The Slave needs to know Scale?
-                // Assume Scale is stateful.
-                
-                _unscaledTotalTime += dt;
+                _unscaledTotalTime += dt;   // always accumulate unscaled
+
+                // Use master's authoritative post-step TotalTime when provided (non-zero).
+                // This is the real fix for the "stale slave time" bug: each slave was seeded
+                // from its own local pause moment (arrived ~200 ms before the barrier), so
+                // computing seed + delta independently gave a different TotalTime than the
+                // master.  With TargetSimTime the slave snaps to the master's exact value.
+                if (order.TargetSimTime > 0.0)
+                    _totalTime = order.TargetSimTime;
+                else
+                    _totalTime += dt * _timeScale;
+                _totalWallTicks += (long)(dt * System.Diagnostics.Stopwatch.Frequency);
                 
                 // Send Ack
                 SendAck(order.FrameID);
@@ -126,7 +148,8 @@ namespace FDP.Toolkit.Time.Controllers
                 TimeScale = _timeScale,
                 UnscaledDeltaTime = unscaledDelta,
                 UnscaledTotalTime = _unscaledTotalTime,
-                StartWallTicks = 0
+                StartWallTicks = 0,
+                TotalWallTicks = _totalWallTicks
             };
         }
 
@@ -138,7 +161,11 @@ namespace FDP.Toolkit.Time.Controllers
             _totalTime = state.TotalTime;
             _unscaledTotalTime = state.UnscaledTotalTime;
             _timeScale = state.TimeScale;
-            
+            _totalWallTicks = state.TotalWallTicks;
+            // Reset master-frame tracking so the first FrameOrder from the master is
+            // accepted unconditionally regardless of the master's frame counter vs our
+            // seeded local frame number (the two can diverge during continuous mode).
+            _lastReceivedOrderFrameId = -1;
             _pendingOrders.Clear();
         }
 

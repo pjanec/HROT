@@ -92,7 +92,9 @@ namespace FDP.Toolkit.Time
                 if (_lastIngressed.HasValue &&
                     _lastIngressed.Value.BarrierWallTicks == evt.BarrierWallTicks &&
                     _lastIngressed.Value.TargetModeInt    == (int)evt.TargetMode &&
-                    _lastIngressed.Value.FixedDelta       == evt.FixedDelta)
+                    _lastIngressed.Value.FixedDelta       == evt.FixedDelta        &&
+                    _lastIngressed.Value.SimTimeSnapshot  == evt.SimTimeSnapshot   &&
+                    _lastIngressed.Value.TimeScale        == evt.TimeScale)
                 {
                     continue;
                 }

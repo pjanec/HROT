@@ -59,13 +59,19 @@ namespace FDP.Toolkit.Time.Tests
         }
 
         // ──────────────────────────────────────────────────────────────────
-        //  Test 1 — Slave does NOT fire before BarrierWallTicks
+        //  Test 1 — Slave fires immediately when event is received
         // ──────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// CGF1-S0204: <see cref="SlaveTimeModeListener"/> must NOT call
-        /// <see cref="ModuleHostKernel.SwapTimeController"/> before the slave's
-        /// <c>TotalWallTicks</c> reaches <c>BarrierWallTicks</c>.
+        /// CGF1-S0204 (updated behaviour): <see cref="SlaveTimeModeListener"/> performs the
+        /// controller swap on the <em>first</em> <see cref="SlaveTimeModeListener.Update"/> call
+        /// after the event is delivered — without waiting for a <c>TotalWallTicks</c> barrier.
+        ///
+        /// The old barrier-wait semantics broke cross-node (DDS) scenarios because each node's
+        /// <see cref="GlobalTime.TotalWallTicks"/> counter starts from a different absolute origin
+        /// (its own kernel construction time), making the master-computed barrier meaningless on
+        /// the slave.  The DDS round-trip already provides sufficient temporal decoupling; the
+        /// slave now swaps immediately and relies on an idempotent guard to avoid double-swaps.
         /// </summary>
         [Fact]
         public void SwitchToIsNotCalledBeforeBarrierWallTicks()
@@ -89,23 +95,24 @@ namespace FDP.Toolkit.Time.Tests
             });
             bus.SwapBuffers();
 
-            // Advance to BarrierWallTicks - 1 and call Update
+            // With immediate-swap semantics the controller is swapped on the FIRST Update()
+            // after event delivery — regardless of TotalWallTicks.
             AdvanceKernelTo(kernel, stub, barrierWallTicks - 1);
             listener.Update();
 
-            // Controller must NOT have been swapped yet
-            Assert.IsType<StubTimeController>(kernel.GetTimeController());
+            // Controller MUST have been swapped immediately
+            Assert.IsType<SteppedSlaveController>(kernel.GetTimeController());
         }
 
         // ──────────────────────────────────────────────────────────────────
-        //  Test 2 — Slave fires exactly at BarrierWallTicks
+        //  Test 2 — Slave fires immediately and is idempotent
         // ──────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// CGF1-S0204: <see cref="SlaveTimeModeListener"/> must call
-        /// <see cref="ModuleHostKernel.SwapTimeController"/> with a
-        /// <see cref="SteppedSlaveController"/> exactly once when the slave's
-        /// <c>TotalWallTicks</c> first reaches <c>BarrierWallTicks</c>.
+        /// CGF1-S0204 (updated behaviour): <see cref="SlaveTimeModeListener"/> swaps to
+        /// <see cref="SteppedSlaveController"/> on the first <see cref="SlaveTimeModeListener.Update"/>
+        /// call after the event is delivered, and the swap is idempotent — a second Update does not
+        /// create a new controller.
         /// </summary>
         [Fact]
         public void SlaveCallsSwitchToAfterBarrierWallTicks()
@@ -129,19 +136,17 @@ namespace FDP.Toolkit.Time.Tests
             });
             bus.SwapBuffers();
 
-            // Before barrier: stub not swapped
+            // Immediate swap: fires on first Update() after event delivery
             AdvanceKernelTo(kernel, stub, barrierWallTicks - 1);
             listener.Update();
-            Assert.IsType<StubTimeController>(kernel.GetTimeController());
+            Assert.IsType<SteppedSlaveController>(kernel.GetTimeController());
 
-            // AT barrier: swap must fire
+            // Idempotent: a second Update must NOT re-swap (guard prevents double-install)
+            var firstController = kernel.GetTimeController();
             AdvanceKernelTo(kernel, stub, barrierWallTicks);
             listener.Update();
             Assert.IsType<SteppedSlaveController>(kernel.GetTimeController());
-
-            // A second Update at the same ticks must NOT fire again (already swapped; _pendingBarrier reset)
-            listener.Update();
-            Assert.IsType<SteppedSlaveController>(kernel.GetTimeController());
+            Assert.Same(firstController, kernel.GetTimeController());
         }
 
         // ──────────────────────────────────────────────────────────────────

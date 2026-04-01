@@ -18,6 +18,7 @@ namespace FDP.Toolkit.Time.Controllers
         private readonly Stopwatch _wallClock;
         private readonly Func<long>? _tickSource; // For testing
         private readonly TimeConfig _config;
+        private readonly string _instanceName;
         
         // Virtual clock (PLL-adjusted)
         private long _virtualWallTicks = 0;
@@ -35,16 +36,17 @@ namespace FDP.Toolkit.Time.Controllers
         
         private readonly FdpEventBus _eventBus;
 
-        public SlaveTimeController(FdpEventBus eventBus, TimeConfig? config = null) : this(eventBus, config, null)
+        public SlaveTimeController(FdpEventBus eventBus, TimeConfig? config = null, string instanceName = "") : this(eventBus, config, null, instanceName)
         {
         }
 
-        internal SlaveTimeController(FdpEventBus eventBus, TimeConfig? config, Func<long>? tickSource)
+        internal SlaveTimeController(FdpEventBus eventBus, TimeConfig? config, Func<long>? tickSource, string instanceName = "")
         {
             _wallClock = Stopwatch.StartNew();
             _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
             _tickSource = tickSource;
             _config = config ?? TimeConfig.Default;
+            _instanceName = instanceName;
             _errorFilter = new JitterFilter(_config.JitterWindowSize);
             
             if (_tickSource != null)
@@ -54,7 +56,9 @@ namespace FDP.Toolkit.Time.Controllers
             }
             else
             {
-                _lastUpdateTicks = _wallClock.ElapsedTicks;
+                // Use an absolute system timestamp so comparisons with MasterWallTicks
+                // (also from Stopwatch.GetTimestamp()) are in the same clock domain.
+                _lastUpdateTicks = Stopwatch.GetTimestamp();
             }
             
             // Register as consumer
@@ -63,37 +67,34 @@ namespace FDP.Toolkit.Time.Controllers
         
         public void OnTimePulseReceived(TimePulseDescriptor pulse)
         {
-            // Calculate target virtual ticks
-            // The pulse says "At MasterTicks X, Time was Y". 
-            // We expect to be at "MasterTicks + Latency"
-            
-            long currentWallTicks = _tickSource != null ? _tickSource() : _wallClock.ElapsedTicks;
-            
-            // Note: This matches the provided logic in instructions, simplifying relative tick comparison
-            long timeSincePulse = currentWallTicks - pulse.MasterWallTicks;
-            long targetWallTicks = pulse.MasterWallTicks + _config.AverageLatencyTicks + timeSincePulse;
-            
-            long errorTicks = targetWallTicks - _virtualWallTicks;
-            
+            // Both currentAbsTicks and pulse.MasterWallTicks use the same clock domain
+            // (Stopwatch.GetTimestamp() = absolute system ticks).  Their difference gives
+            // the real time elapsed since the master sent this pulse (network latency + jitter).
+            long currentAbsTicks = _tickSource != null ? _tickSource() : Stopwatch.GetTimestamp();
+            long timeSincePulseTicks = currentAbsTicks - pulse.MasterWallTicks;
+            double timeSincePulseSec  = timeSincePulseTicks / (double)Stopwatch.Frequency;
+
+            // Expected sim time: master's snapshot + time elapsed since pulse * current scale.
+            double expectedSimTime = pulse.SimTimeSnapshot + timeSincePulseSec * pulse.TimeScale;
+
+            // PLL error expressed in "sim-time ticks" so the jitter filter stays consistent
+            // with the existing infrastructure (errorFilter works in Stopwatch-frequency units).
+            double simTimeError = expectedSimTime - _totalTime;
+            long errorTicks = (long)(simTimeError * Stopwatch.Frequency);
             _errorFilter.AddSample(errorTicks);
-            
+
             // Update scale
             _timeScale = pulse.TimeScale;
-            
-            // Hard Snap Check
-            double errorMs = errorTicks / (double)Stopwatch.Frequency * 1000.0;
-            if (Math.Abs(errorMs) > _config.SnapThresholdMs)
+
+            // Hard Snap: if sim time is far off, snap directly to the correct value and reset
+            // the delta baseline.  _virtualWallTicks is NOT snapped here — it accumulates
+            // locally and stays in whichever clock domain the node started in, keeping
+            // TotalWallTicks monotonically increasing regardless of the pulse domain.
+            double errorMs = Math.Abs(simTimeError) * 1000.0;
+            if (errorMs > _config.SnapThresholdMs)
             {
-                // Forced sync
-                _virtualWallTicks = targetWallTicks;
-                
-                // Snap sim time, accounting for time elapsed since pulse using new scale
-                double timeSincePulseSec = timeSincePulse / (double)Stopwatch.Frequency;
-                _totalTime = pulse.SimTimeSnapshot + (timeSincePulseSec * _timeScale); 
-                
-                // Reset delta tracking to prevent double-counting the gap
-                _lastUpdateTicks = currentWallTicks;
-                
+                _totalTime = expectedSimTime;
+                _lastUpdateTicks = currentAbsTicks;
                 _errorFilter.Reset();
                 _currentError = 0.0;
             }
@@ -125,8 +126,10 @@ namespace FDP.Toolkit.Time.Controllers
             }
             else
             {
-                rawDelta = _wallClock.ElapsedTicks;
-                _wallClock.Restart();
+                // Production path: absolute system timestamps, consistent with OnTimePulseReceived.
+                long now = Stopwatch.GetTimestamp();
+                rawDelta = now - _lastUpdateTicks;
+                _lastUpdateTicks = now;
             }
             
             // Apply PLL
@@ -159,11 +162,8 @@ namespace FDP.Toolkit.Time.Controllers
         
         public void SetTimeScale(float scale)
         {
-            // Warning only - Slave scale is driven by network, but Kernel initialization calls this
-            // throw new InvalidOperationException("Slave cannot set time scale. Scale comes from Master via TimePulse.");
-            FdpLog<SlaveTimeController>.Warn(
-                "[SlaveTimeController] Warning: SetTimeScale({0}) called locally. Ignored (Scale is driven by Master).",
-                scale);
+            // Intentionally ignored: slave time scale is driven by master TimePulse.
+            // Called by ModuleHostKernel.SwapTimeController — not a caller error.
         }
 
         public GlobalTime GetCurrentState()
@@ -191,7 +191,13 @@ namespace FDP.Toolkit.Time.Controllers
             // state so that the very next Update() reflects the seeded position without slew.
             _virtualWallTicks = state.TotalWallTicks;
             
-            _wallClock.Restart();
+            // Reset the delta baseline to NOW so the next Update() measures only the real
+            // elapsed time since the seed, not a stale gap from before it.
+            if (_tickSource != null)
+                _lastUpdateTicks = _tickSource();
+            else
+                _lastUpdateTicks = Stopwatch.GetTimestamp();
+            
             _errorFilter.Reset();
         }
         

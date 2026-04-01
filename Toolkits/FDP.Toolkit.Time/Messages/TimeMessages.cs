@@ -7,17 +7,63 @@ using ModuleHost.Core.Time;
 namespace FDP.Toolkit.Time.Messages
 {
     [MessagePackObject]
+    [DdsTopic("FrameOrder")]
     [EventId(101)]
-    public struct FrameOrderDescriptor
+    public partial struct FrameOrderDescriptor
     {
         [Key(0)]
+        [DdsId(0)]
         public long FrameID { get; set; }
         
         [Key(1)]
+        [DdsId(1)]
         public float FixedDelta { get; set; }
         
         [Key(2)]
+        [DdsId(2)]
         public long SequenceID { get; set; }
+
+        /// <summary>
+        /// Time scale to apply when advancing sim-time by <see cref="FixedDelta"/>.
+        /// Zero means "unchanged — keep the scale already in effect on the slave".
+        /// Populated by <see cref="FDP.Toolkit.Time.Controllers.SteppedMasterController.Step"/>
+        /// so all slaves stay in lock-step with the master's effective scale.
+        /// </summary>
+        [Key(3)]
+        [DdsId(3)]
+        public float TimeScale { get; set; }
+
+        /// <summary>
+        /// Master's authoritative <see cref="Fdp.Kernel.GlobalTime.TotalTime"/> (seconds)
+        /// AFTER advancing by this step.  When non-zero, slaves must set their own
+        /// <c>TotalTime</c> to this value rather than computing <c>TotalTime += delta</c>
+        /// from their locally-seeded state.
+        ///
+        /// <para>Without this field every slave arrives at a different <c>TotalTime</c>
+        /// because each slave seeds its <see cref="FDP.Toolkit.Time.Controllers.SteppedSlaveController"/>
+        /// at its own local wall-clock moment (before the barrier is crossed), while the master
+        /// seeds <see cref="FDP.Toolkit.Time.Controllers.SteppedMasterController"/> at the barrier
+        /// time.  The two seeds differ by up to the barrier look-ahead (~200 ms of sim-time),
+        /// so after one step the slave's <c>TotalTime</c> is ~200 ms behind the master.</para>
+        /// </summary>
+        [Key(4)]
+        [DdsId(4)]
+        public double TargetSimTime { get; set; }
+    }
+
+    /// <summary>
+    /// Received by SimHost's <see cref="FDP.Toolkit.Time.Controllers.MasterTimeController"/>
+    /// so the new scale is embedded in subsequent <see cref="TimePulseDescriptor"/> messages,
+    /// and slave PLL nodes (IG, CGF) converge to the updated speed automatically.
+    /// </summary>
+    [MessagePackObject]
+    [DdsTopic("SetTimeScale")]
+    [EventId(107)]
+    public partial struct SetTimeScaleDescriptor
+    {
+        [Key(0)]
+        [DdsId(0)]
+        public float TimeScale { get; set; }
     }
     
     [MessagePackObject]
@@ -43,16 +89,21 @@ namespace FDP.Toolkit.Time.Messages
     }
     
     [MessagePackObject]
+    [DdsTopic("FrameAck")]
+    [DdsQos(HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 16)]
     [EventId(102)]
-    public struct FrameAckDescriptor
+    public partial struct FrameAckDescriptor
     {
         [Key(0)]
+        [DdsId(0)]
         public long FrameID { get; set; }
         
         [Key(1)]
+        [DdsId(1)]
         public int NodeID { get; set; }
         
         [Key(2)]
+        [DdsId(2)]
         public int Checksum { get; set; } // Optional state hash for sync verification
     }
 
@@ -95,6 +146,25 @@ namespace FDP.Toolkit.Time.Messages
         /// <summary>Fixed delta time (seconds) for Deterministic mode. Ignored for Continuous.</summary>
         [Key(2)]
         public float FixedDelta { get; set; }
+
+        /// <summary>
+        /// The master node's authoritative simulation time (seconds) at the moment the mode
+        /// switch is broadcast.  Non-zero only in <see cref="TimeMode.Continuous"/> events
+        /// (Resume).  Slaves use this to seed their new controller at the master's post-step
+        /// time rather than their own locally-accumulated slave time, preventing the
+        /// UI time jump-back visible after Pause → Step → Resume.
+        /// </summary>
+        [Key(3)]
+        public double SimTimeSnapshot { get; set; }
+
+        /// <summary>
+        /// Time scale to apply when the controller is installed on a slave or master.
+        /// Zero means "unchanged — keep the current scale".
+        /// Carried in both Pause (so slaves know the active speed) and Resume
+        /// (so the user-requested speed is applied atomically with the resume swap).
+        /// </summary>
+        [Key(4)]
+        public float TimeScale { get; set; }
     }
     /// <summary>
     /// Blittable wire DTO for <see cref="SwitchTimeModeEvent"/> over CycloneDDS.
@@ -127,13 +197,23 @@ namespace FDP.Toolkit.Time.Messages
         [DdsId(2)]
         public float FixedDelta { get; set; }
 
+        /// <summary><see cref="SwitchTimeModeEvent.SimTimeSnapshot"/>.</summary>
+        [DdsId(3)]
+        public double SimTimeSnapshot { get; set; }
+
+        /// <summary><see cref="SwitchTimeModeEvent.TimeScale"/>.</summary>
+        [DdsId(4)]
+        public float TimeScale { get; set; }
+
         /// <summary>Converts a <see cref="SwitchTimeModeEvent"/> to its wire representation.</summary>
         public static SwitchTimeModeWireDto ToWire(SwitchTimeModeEvent evt) =>
             new SwitchTimeModeWireDto
             {
                 TargetModeInt    = (int)evt.TargetMode,
                 BarrierWallTicks = evt.BarrierWallTicks,
-                FixedDelta       = evt.FixedDelta
+                FixedDelta       = evt.FixedDelta,
+                SimTimeSnapshot  = evt.SimTimeSnapshot,
+                TimeScale        = evt.TimeScale,
             };
 
         /// <summary>Converts a wire DTO back to a <see cref="SwitchTimeModeEvent"/>.</summary>
@@ -142,6 +222,8 @@ namespace FDP.Toolkit.Time.Messages
             {
                 TargetMode       = (TimeMode)TargetModeInt,
                 BarrierWallTicks = BarrierWallTicks,
-                FixedDelta       = FixedDelta
+                FixedDelta       = FixedDelta,
+                SimTimeSnapshot  = SimTimeSnapshot,
+                TimeScale        = TimeScale,
             };
     }}

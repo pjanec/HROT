@@ -49,9 +49,10 @@ namespace FDP.Toolkit.Time.Controllers
 
             // Must NOT wait initially, otherwise we never start the first step
             _waitingForAcks = false;
-            
+
             // Register messaging
             _eventBus.Register<FrameOrderDescriptor>();
+            _eventBus.Register<TimePulseDescriptor>();
         }
         
         // Ctor overload to match Task 6 signature: (bus, ids, TimeControllerConfig) 
@@ -93,22 +94,41 @@ namespace FDP.Toolkit.Time.Controllers
             _totalTime += scaledDelta;
             _unscaledTotalTime += fixedDeltaTime;
             _totalWallTicks += (long)(fixedDeltaTime * Stopwatch.Frequency);
-            
-            // Send Order for current frame
-            var order = new FrameOrderDescriptor 
-            { 
-               FrameID = _frameNumber,
-               FixedDelta = fixedDeltaTime,
-               SequenceID = _frameNumber 
+
+            // Publish a TimePulse so the UI cache (ClusterUiCache) and slave PLL nodes see
+            // the new sim time immediately.  MasterTimeController emits this at 1 Hz during
+            // continuous mode; SteppedMasterController must emit one on every explicit Step so
+            // the Orchestrator panel's sim-time display updates rather than freezing at the
+            // value it held when Pause was pressed.
+            _eventBus.Publish(new TimePulseDescriptor
+            {
+                MasterWallTicks = _totalWallTicks,
+                SimTimeSnapshot = _totalTime,
+                TimeScale       = _timeScale,
+                SequenceId      = _frameNumber,
+            });
+
+            // Send Order for current frame (carries TimeScale so all slaves apply the same scale)
+            var order = new FrameOrderDescriptor
+            {
+               FrameID         = _frameNumber,
+               FixedDelta      = fixedDeltaTime,
+               SequenceID      = _frameNumber,
+               TimeScale       = _timeScale,
+               // Carry the master's post-step TotalTime so every slave can snap to the
+               // exact same sim-time rather than computing seed + delta independently
+               // (which diverges due to each slave's local seed differing from the master's).
+               TargetSimTime   = _totalTime,
             };
             _eventBus.Publish(order);
-            
+
             var slaveList = string.Join(",", _slaveNodeIds);
-            // File output removed
+            var simSpan   = System.TimeSpan.FromSeconds(_totalTime);
+            string simStr = string.Format("{0:D2}:{1:D2}:{2:D2}.{3:D3}",
+                (int)simSpan.TotalHours, simSpan.Minutes, simSpan.Seconds, simSpan.Milliseconds);
             FdpLog<SteppedMasterController>.Info(
-                "[DEBUG-MASTER] Frame {0}. Sent Order. Waiting for: {1}",
-                _frameNumber,
-                slaveList);
+                "[Master] Step frame {0}: delta={1:F4}s  simTime={2}  waiting for: [{3}]",
+                _frameNumber, fixedDeltaTime, simStr, slaveList);
             
             _lastFrameSequence = _frameNumber;
             _pendingAcks.UnionWith(_slaveNodeIds);
@@ -121,15 +141,6 @@ namespace FDP.Toolkit.Time.Controllers
         
         private void OnAckReceived(FrameAckDescriptor ack)
         {
-            var pendingList = string.Join(",", _pendingAcks);
-            // File output removed
-            FdpLog<SteppedMasterController>.Info(
-                "[DEBUG-MASTER] Ack {0} from {1}. Need {2}. Pending: {3}",
-                ack.FrameID,
-                ack.NodeID,
-                _lastFrameSequence,
-                pendingList);
-            
             if (ack.FrameID == _lastFrameSequence)
             {
                 if (_pendingAcks.Remove(ack.NodeID))
@@ -137,9 +148,17 @@ namespace FDP.Toolkit.Time.Controllers
                     if (_pendingAcks.Count == 0)
                     {
                         FdpLog<SteppedMasterController>.Info(
-                            "[DEBUG-MASTER] Frame {0} CONFIRMED. Advancing.",
+                            "[Master] Frame {0} CONFIRMED by all slaves. Step complete.",
                             _lastFrameSequence);
                         _waitingForAcks = false;
+                    }
+                    else
+                    {
+                        FdpLog<SteppedMasterController>.Info(
+                            "[Master] Ack frame {0} from node {1}. Still waiting for: [{2}]",
+                            ack.FrameID,
+                            ack.NodeID,
+                            string.Join(",", _pendingAcks));
                     }
                 }
             }

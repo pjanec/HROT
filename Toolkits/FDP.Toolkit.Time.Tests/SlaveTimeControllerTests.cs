@@ -77,7 +77,15 @@ namespace FDP.Toolkit.Time.Tests
             double total = controller.Update().TotalTime;
             Assert.Equal(0.1, total, precision: 2);
             
-            bus.Publish(new TimePulseDescriptor { TimeScale = 2.0f });
+            // Pulse must carry the master's current wall-tick position and sim-time snapshot
+            // so the PLL sees zero error.  Sending zeroes (old test) created a 0.3 s phantom
+            // error that inflated the PLL correction and distorted the assertion.
+            bus.Publish(new TimePulseDescriptor
+            {
+                MasterWallTicks = _currentTicks,   // absolute same-domain reference
+                SimTimeSnapshot = total,            // slave is already in sync (0.1 s)
+                TimeScale = 2.0f
+            });
             bus.SwapBuffers();
             
             AdvanceTime(0.1);
@@ -171,6 +179,51 @@ namespace FDP.Toolkit.Time.Tests
             Assert.True(
                 afterUpdate.TotalWallTicks < seedWallTicks + maxExpectedDelta,
                 $"TotalWallTicks drifted too far from seed ({seedWallTicks}); got {afterUpdate.TotalWallTicks}");
+        }
+
+        /// <summary>
+        /// Regression test for the clock-domain mismatch bug.
+        ///
+        /// <para>Before the fix, <see cref="SlaveTimeController.OnTimePulseReceived"/> used
+        /// <c>_wallClock.ElapsedTicks</c> (relative, tiny) when comparing against
+        /// <c>pulse.MasterWallTicks</c> which is stamped with <c>Stopwatch.GetTimestamp()</c>
+        /// (absolute, huge).  The resulting <c>timeSincePulse</c> was a massive negative number
+        /// that exceeded <c>SnapThresholdMs</c>, forcing a hard snap that corrupted
+        /// <c>_totalTime</c> to values like <c>-505941 s</c>.</para>
+        ///
+        /// <para>After the fix both sides use <c>Stopwatch.GetTimestamp()</c> so the delta is
+        /// small and no corruption occurs.</para>
+        /// </summary>
+        [Fact]
+        public void OnTimePulse_ProductionClockDomain_NoCrashOrNegativeTime()
+        {
+            // No injected tick source — exercises the production code path that calls
+            // Stopwatch.GetTimestamp() rather than a test-controlled counter.
+            var bus = new FdpEventBus();
+            var controller = new SlaveTimeController(bus, new TimeConfig { SnapThresholdMs = 200 });
+
+            // Publish a pulse exactly as MasterTimeController does: using the absolute
+            // Stopwatch.GetTimestamp() for MasterWallTicks.
+            long masterNow = Stopwatch.GetTimestamp();
+            bus.Publish(new TimePulseDescriptor
+            {
+                MasterWallTicks = masterNow,
+                SimTimeSnapshot = 50.0,
+                TimeScale       = 1.0f,
+            });
+            bus.SwapBuffers();
+
+            var state = controller.Update();
+
+            // Before fix: TotalTime ≈ -505941 s (relative ElapsedTicks vs absolute GetTimestamp).
+            // After fix: TotalTime ≈ SimTimeSnapshot (50 s) because timeSincePulse is tiny.
+            Assert.True(state.TotalTime > -1.0,
+                $"TotalTime must not be a huge negative value " +
+                $"(got {state.TotalTime:F1} s). " +
+                "This indicates a clock-domain mismatch: slave used ElapsedTicks (relative) " +
+                "instead of GetTimestamp() (absolute) when comparing against MasterWallTicks.");
+            Assert.True(state.TotalTime < 200.0,
+                $"TotalTime jumped suspiciously far from SimTimeSnapshot=50 (got {state.TotalTime:F1} s).");
         }
     }
 }

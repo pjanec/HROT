@@ -29,10 +29,11 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// </para>
     ///
     /// <para>
-    /// <b>Commit path:</b> No-op.  The toolkit <c>ClusterSlave</c> publishes
-    /// <c>TkClusterStateChangedEvent</c> automatically on <c>CommitState</c>, so the
-    /// guard call previously present in the Hrot <c>LiveLoadClusterStateHandler</c> is
-    /// no longer required.
+    /// <b>Commit path:</b> Publishes a <c>NodeOpStatus(Success)</c> ACK via the optional
+    /// <see cref="IOrchestrationTransport"/> so that
+    /// <c>ClusterMaster.ConsumeNodeOpStatuses</c> can populate
+    /// <c>DistributedTransaction.NodeResponses</c> for the 2PC History UI (CGF1-S0501).
+    /// When no transport is provided (e.g. local-only nodes) the commit is a no-op.
     /// </para>
     /// </summary>
     public sealed class ReferenceLiveLoadHandler : IClusterStateHandler
@@ -45,6 +46,8 @@ namespace FDP.Toolkit.Orchestration.Handlers
         private readonly CheckpointIOWorker?      _checkpointWorker;
         private readonly IRecordReplayController? _controller;
         private readonly string                   _storageDirectory;
+        private readonly IOrchestrationTransport? _transport;
+        private readonly int                      _nodeId;
 
         /// <param name="checkpointWorker">
         /// Optional <see cref="CheckpointIOWorker"/>; when provided,
@@ -63,14 +66,27 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// <see cref="IRecordReplayController.PrepareRecordingAsync"/>.
         /// Defaults to <c>C:\FDP_Temp</c>.
         /// </param>
+        /// <param name="transport">
+        /// Optional transport for publishing <c>NodeOpStatus</c> ACKs back to the
+        /// orchestrator on <see cref="Commit"/>.  Pass <see langword="null"/> for nodes
+        /// that do not need to ACK (no-op).
+        /// </param>
+        /// <param name="nodeId">
+        /// Node ID stamped into the <c>NodeOpStatus</c> ACK.  Ignored when
+        /// <paramref name="transport"/> is <see langword="null"/>.
+        /// </param>
         public ReferenceLiveLoadHandler(
             CheckpointIOWorker?       checkpointWorker = null,
             IRecordReplayController?  controller       = null,
-            string                    storageDirectory = @"C:\FDP_Temp")
+            string                    storageDirectory = @"C:\FDP_Temp",
+            IOrchestrationTransport?  transport        = null,
+            int                       nodeId           = 0)
         {
             _checkpointWorker = checkpointWorker;
             _controller       = controller;
             _storageDirectory = storageDirectory ?? @"C:\FDP_Temp";
+            _transport        = transport;
+            _nodeId           = nodeId;
         }
 
         /// <inheritdoc />
@@ -104,11 +120,19 @@ namespace FDP.Toolkit.Orchestration.Handlers
 
         /// <inheritdoc />
         /// <remarks>
-        /// No-op.  The toolkit <c>ClusterSlave</c> automatically publishes
-        /// <c>TkClusterStateChangedEvent</c> on <c>CommitState</c>, so no guard is
-        /// needed here.
+        /// Publishes a <c>NodeOpStatus(Success)</c> ACK so that
+        /// <c>ClusterMaster.ConsumeNodeOpStatuses</c> populates
+        /// <c>DistributedTransaction.NodeResponses</c> for the 2PC History UI.
         /// </remarks>
-        public void Commit(OrchestrationCommand cmd, EntityRepository? repo) { }
+        public void Commit(OrchestrationCommand cmd, EntityRepository? repo)
+        {
+            _transport?.PublishStatus(new OrchestrationStatus(
+                TransactionId:   cmd.TransactionId,
+                NodeId:          _nodeId,
+                StatusCode:      OrchestrationStatusCode.Success,
+                IsParticipating: true,
+                ResultJson:      string.Empty));
+        }
 
         /// <inheritdoc />
         public void Abort(OrchestrationCommand cmd, EntityRepository? repo) { }
