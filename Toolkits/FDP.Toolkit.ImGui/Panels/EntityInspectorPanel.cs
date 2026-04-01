@@ -71,12 +71,17 @@ public class EntityInspectorPanel
     /// <param name="title">Optional window title override. Default: "Entity Inspector".</param>
     public void Draw(IInspectableSession session, IInspectorContext context, string title = "Entity Inspector")
     {
-        if (!ImGuiApi.Begin(title))
-        {
-            ImGuiApi.End();
-            return;
-        }
+        if (!ImGuiApi.Begin(title)) { ImGuiApi.End(); return; }
+        DrawContent(session, context);
+        ImGuiApi.End();
+    }
 
+    /// <summary>
+    /// Renders the inspector content without the outer <c>ImGui.Begin/End</c> wrapper.
+    /// Call this from a <see cref="ManagedWindow.DrawClientArea"/> override.
+    /// </summary>
+    public void DrawContent(IInspectableSession session, IInspectorContext context)
+    {
         // 1. Top Bar: Statistics & Filter
         ImGuiApi.TextDisabled($"Total Entities: {session.EntityCount}");
         ImGuiApi.SameLine();
@@ -116,8 +121,6 @@ public class EntityInspectorPanel
 
             ImGuiApi.EndTable();
         }
-
-        ImGuiApi.End();
     }
 
     

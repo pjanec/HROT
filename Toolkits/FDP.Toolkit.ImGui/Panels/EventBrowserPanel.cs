@@ -88,29 +88,35 @@ public class EventBrowserPanel
     public void Draw(string title = "Event Browser")
     {
         ImGuiApi.SetNextWindowSize(new Vector2(800, 500), ImGuiCond.FirstUseEver);
-
-        if (ImGuiApi.Begin(title, ImGuiWindowFlags.None))
-        {
-            DrawToolbar();
-            ImGuiApi.Separator();
-
-            if (ImGuiApi.BeginTable("EventBrowserLayout", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.BordersInner))
-            {
-                ImGuiApi.TableSetupColumn("Event List", ImGuiTableColumnFlags.WidthFixed, 400);
-                ImGuiApi.TableSetupColumn("Details", ImGuiTableColumnFlags.WidthStretch);
-                
-                ImGuiApi.TableNextRow();
-                
-                ImGuiApi.TableSetColumnIndex(0);
-                DrawEventList();
-
-                ImGuiApi.TableSetColumnIndex(1);
-                DrawEventDetails();
-
-                ImGuiApi.EndTable();
-            }
-        }
+        if (!ImGuiApi.Begin(title, ImGuiWindowFlags.None)) { ImGuiApi.End(); return; }
+        DrawContent();
         ImGuiApi.End();
+    }
+
+    /// <summary>
+    /// Renders the browser content without the outer <c>ImGui.Begin/End</c> wrapper.
+    /// Call this from a <see cref="ManagedWindow.DrawClientArea"/> override.
+    /// </summary>
+    public void DrawContent()
+    {
+        DrawToolbar();
+        ImGuiApi.Separator();
+
+        if (ImGuiApi.BeginTable("EventBrowserLayout", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.BordersInner))
+        {
+            ImGuiApi.TableSetupColumn("Event List", ImGuiTableColumnFlags.WidthFixed, 400);
+            ImGuiApi.TableSetupColumn("Details", ImGuiTableColumnFlags.WidthStretch);
+            
+            ImGuiApi.TableNextRow();
+            
+            ImGuiApi.TableSetColumnIndex(0);
+            DrawEventList();
+
+            ImGuiApi.TableSetColumnIndex(1);
+            DrawEventDetails();
+
+            ImGuiApi.EndTable();
+        }
     }
 
     private void DrawToolbar()

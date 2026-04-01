@@ -126,11 +126,13 @@ namespace FDP.Framework.Runner
                     Deterministic     = _deterministic,
                     FixedDeltaSeconds = _fixedDeltaSeconds,
                     NodeId            = _nodeIdResolver != null ? _nodeIdResolver(subsystem.Name, _nodeId) : _nodeId,
-                    // WM-S501: Pass the window manager so subsystems can register panels.
-                    // Null in headless mode — subsystems must guard with a null check.
-                    WindowManager     = _windowManager,
                 };
                 subsystem.Initialize(cfg);
+
+                // IWindowRegistrar: subsystems that need to register panels call this
+                // after Initialize so they can use any state set up during Initialize.
+                if (_windowManager != null && subsystem is IWindowRegistrar registrar)
+                    registrar.RegisterWindows(_windowManager);
             }
         }
 
