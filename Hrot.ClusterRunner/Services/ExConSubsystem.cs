@@ -289,6 +289,18 @@ namespace Hrot.ClusterRunner.Services
         public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
         {
             windowManager.RegisterWindow(new ClusterControlWindow(_clusterPanel, _uiCache));
+
+            if (_mock != null)
+            {
+                var logic = _mock.Logic;
+                windowManager.RegisterWindow(new ExConOrbatWindow(_mock.GetOrbatPanel(), logic));
+                windowManager.RegisterWindow(new ExConMissionWindow(_mock.GetMissionPanel(), logic));
+                windowManager.RegisterWindow(new ExConDataMonitorWindow(_mock.GetInteractionPanel(), logic));
+                windowManager.RegisterWindow(new ExConSpawnerWindow(_mock.GetSpawnerPanel(), logic));
+                windowManager.RegisterWindow(new ExConConfigWindow(_mock.GetConfigPanel(), logic));
+                windowManager.RegisterWindow(new ExConDiagnosticsWindow(_mock.GetDiagnosticsPanel(), logic));
+                _mock.SetPanelsWindowManaged();
+            }
         }
 
         /// <inheritdoc/>

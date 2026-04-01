@@ -108,6 +108,18 @@ public sealed class DiagnosticsPanel
         ImGui.Begin("Diagnostics");
         ExConPanelColors.Pop();
 
+        DrawContent(logic);
+
+        ImGui.End();
+    }
+
+    /// <summary>
+    /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
+    /// Called by the Window Manager when this panel is hosted as a
+    /// <see cref="ManagedWindow"/>; also called by <see cref="Draw"/> in standalone mode.
+    /// </summary>
+    public void DrawContent(IExConLogic logic)
+    {
         int entityCount = GetEntityCount(logic.Repo);
         ImGui.Text($"Entities in Repo: {entityCount}");
 
@@ -127,7 +139,5 @@ public sealed class DiagnosticsPanel
 
         ImGui.Separator();
         ImGui.Text($"DDS Events/s: {_committedRate:F1}");
-
-        ImGui.End();
     }
 }

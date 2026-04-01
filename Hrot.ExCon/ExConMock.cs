@@ -44,6 +44,15 @@ public sealed class ExConMock : IDisposable
     /// <summary>Exposes the underlying logic for testing and diagnostics.</summary>
     public ExConLogic Logic => _logic;
 
+    // ── Panel accessors (used by RegisterWindows when running under Window Manager) ──
+
+    public ConfigPanel       GetConfigPanel()      => _configPanel;
+    public OrbatPanel        GetOrbatPanel()       => _orbatPanel;
+    public MissionPanel      GetMissionPanel()     => _missionPanel;
+    public InteractionPanel  GetInteractionPanel() => _interactionPanel;
+    public SpawnerPanel      GetSpawnerPanel()     => _spawnerPanel;
+    public DiagnosticsPanel  GetDiagnosticsPanel() => _diagnosticsPanel;
+
     // ── Constructor ───────────────────────────────────────────────────────────
 
     /// <summary>
@@ -126,6 +135,16 @@ public sealed class ExConMock : IDisposable
 
     // ── Per-frame render ──────────────────────────────────────────────────────
 
+    private bool _panelsWindowManaged;
+
+    /// <summary>
+    /// Signals that all ExCon panels are hosted by the FDP Window Manager.
+    /// After this call <see cref="DrawUI"/> skips panel draws and the standalone
+    /// main menu bar so only the global alert modal remains (it cannot be a
+    /// managed window because it is a modal popup, not a regular window).
+    /// </summary>
+    public void SetPanelsWindowManaged() => _panelsWindowManaged = true;
+
     /// <summary>
     /// Renders all ExCon UI panels via ImGui.  Must be called inside an
     /// <c>rlImGui.Begin / rlImGui.End</c> block on the main thread.
@@ -142,23 +161,26 @@ public sealed class ExConMock : IDisposable
         // Guard against headless/test environments where no ImGui context is active.
         if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
 
-        if (ImGui.BeginMainMenuBar())
+        if (!_panelsWindowManaged)
         {
-            ImGui.Text($"ExCon Mock (Node {_logic.Repo?.LocalNodeId ?? 0})");
-            if (ImGui.Button("EXIT")) Environment.Exit(0);
-            ImGui.EndMainMenuBar();
+            if (ImGui.BeginMainMenuBar())
+            {
+                ImGui.Text($"ExCon Mock (Node {_logic.Repo?.LocalNodeId ?? 0})");
+                if (ImGui.Button("EXIT")) Environment.Exit(0);
+                ImGui.EndMainMenuBar();
+            }
+
+            if (_useDockSpace)
+                ImGui.DockSpaceOverViewport(0, ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
+
+            _configPanel.Draw(_logic);
+            _orbatPanel.Draw(_logic);
+            _missionPanel.Draw(_logic);
+            _interactionPanel.Draw(_logic);
+            _spawnerPanel.Draw(_logic);
+            _diagnosticsPanel.Draw(_logic);
+            _derEntityInspectorPanel.Draw(_logic.Repo, "ExCon Entity Inspector");
         }
-
-        if (_useDockSpace)
-            ImGui.DockSpaceOverViewport(0, ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
-
-        _configPanel.Draw(_logic);
-        _orbatPanel.Draw(_logic);
-        _missionPanel.Draw(_logic);
-        _interactionPanel.Draw(_logic);
-        _spawnerPanel.Draw(_logic);
-        _diagnosticsPanel.Draw(_logic);
-        _derEntityInspectorPanel.Draw(_logic.Repo, "ExCon Entity Inspector");
 
         // Two-ACK global alert modal: surface Phase-2 error ACKs to the operator.
         if (_logic.GlobalAlert != null)

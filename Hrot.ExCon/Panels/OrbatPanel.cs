@@ -248,6 +248,18 @@ public sealed class OrbatPanel
         ImGui.Begin("ORBAT Tree");
         ExConPanelColors.Pop();
 
+        DrawContent(logic);
+
+        ImGui.End();
+    }
+
+    /// <summary>
+    /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
+    /// Called by the Window Manager when this panel is hosted as a
+    /// <see cref="ManagedWindow"/>; also called by <see cref="Draw"/> in standalone mode.
+    /// </summary>
+    public void DrawContent(IExConLogic logic)
+    {
         string filterBuf = _filterText;
         if (ImGui.InputText("Filter", ref filterBuf, PanelConstants.FilterTextMaxLength))
             FilterText = filterBuf;
@@ -336,7 +348,6 @@ public sealed class OrbatPanel
         }
 
         if (ImGui.Button("New Unit...")) HandleNewUnitClick(logic);
-        ImGui.End();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

@@ -485,20 +485,32 @@ public sealed class MissionPanel
         ImGui.Begin("Selection & Mission");
         ExConPanelColors.Pop();
 
+        DrawContent(logic);
+
+        ImGui.End();
+    }
+
+    /// <summary>
+    /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
+    /// Called by the Window Manager when this panel is hosted as a
+    /// <see cref="ManagedWindow"/>; also called by <see cref="Draw"/> in standalone mode.
+    /// </summary>
+    public void DrawContent(IExConLogic logic)
+    {
         PollCommitCompletion();
         PollPickCompletion();
 
         if (_selectedEntityId == 0)
         {
             ImGui.Text("No selection");
-            ImGui.End(); return;
+            return;
         }
 
         var entity = logic.Repo.GetEntity(_selectedEntityId);
         if (entity == null)
         {
             ImGui.Text("Entity not found");
-            ImGui.End(); return;
+            return;
         }
 
         SyncDraftFromSnapshot(logic);
@@ -665,7 +677,6 @@ public sealed class MissionPanel
         }
 
         if (isPending) ImGui.EndDisabled();
-        ImGui.End();
     }
 
     /// <summary>

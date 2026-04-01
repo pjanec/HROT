@@ -90,10 +90,12 @@ namespace Hrot.ClusterRunner.Services
                 "ig_fdp_inspector", "IG Entity Inspector", "IG",
                 _app.FdpEntityInspector,
                 () => _app.GetFdpRepoAdapter(),
-                () => _app.FdpInspectorState));
+                () => _app.FdpInspectorState,
+                IgWindowColor.TitleBar));
             windowManager.RegisterWindow(new FdpEventBrowserWindow(
                 "ig_fdp_events", "IG Event Browser", "IG",
-                _app.FdpEventBrowser));
+                _app.FdpEventBrowser,
+                IgWindowColor.TitleBar));
             // Signal IgApplication that these panels must not be double-rendered.
             _app.SetPanelsWindowManaged();
         }

@@ -189,6 +189,18 @@ public sealed class SpawnerPanel
         ImGui.Begin("Entity Spawner");
         ExConPanelColors.Pop();
 
+        DrawContent(logic);
+
+        ImGui.End();
+    }
+
+    /// <summary>
+    /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
+    /// Called by the Window Manager when this panel is hosted as a
+    /// <see cref="ManagedWindow"/>; also called by <see cref="Draw"/> in standalone mode.
+    /// </summary>
+    public void DrawContent(IExConLogic logic)
+    {
         string filterBuf = _searchFilter;
         if (ImGui.InputText("Search", ref filterBuf, PanelConstants.FilterTextMaxLength))
             SearchFilter = filterBuf;
@@ -233,8 +245,6 @@ public sealed class SpawnerPanel
 
         if (ImGui.Button("DRAW ROUTE"))
             HandleStartRouteAuthoring(logic);
-
-        ImGui.End();
     }
 
     // ── Private filter rebuild ────────────────────────────────────────────────

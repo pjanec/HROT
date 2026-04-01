@@ -1,7 +1,14 @@
+using System.Numerics;
 using FDP.Toolkit.ImGui.WindowManager;
 using Hrot.IG.UI;
 
 namespace Hrot.ClusterRunner.Windows;
+
+/// <summary>IG subsystem title-bar colour (dark green).</summary>
+internal static class IgWindowColor
+{
+    internal static readonly Vector4 TitleBar = new(0.07f, 0.30f, 0.07f, 1f);
+}
 
 /// <summary>IG Debug Panel as a perspective-bound managed window.</summary>
 internal sealed class IgDebugWindow : ManagedWindow
@@ -13,6 +20,7 @@ internal sealed class IgDebugWindow : ManagedWindow
     {
         _panel = panel;
         IsOpen = true;
+        TitleBarColor = IgWindowColor.TitleBar;
     }
 
     protected override void DrawClientArea() => _panel.DrawContent();
@@ -28,6 +36,7 @@ internal sealed class IgEntityPropertiesWindow : ManagedWindow
     {
         _panel = panel;
         IsOpen = true;
+        TitleBarColor = IgWindowColor.TitleBar;
     }
 
     protected override void DrawClientArea() => _panel.DrawContent();
@@ -43,6 +52,7 @@ internal sealed class IgWaypointEditorWindow : ManagedWindow
     {
         _panel = panel;
         IsOpen = true;
+        TitleBarColor = IgWindowColor.TitleBar;
     }
 
     protected override void DrawClientArea() => _panel.DrawContent();
@@ -58,6 +68,7 @@ internal sealed class IgMiniExConWindow : ManagedWindow
     {
         _panel = panel;
         IsOpen = true;
+        TitleBarColor = IgWindowColor.TitleBar;
     }
 
     protected override void DrawClientArea() => _panel.DrawContent();
@@ -73,6 +84,7 @@ internal sealed class IgPerformanceWindow : ManagedWindow
     {
         _panel = panel;
         IsOpen = false; // off by default — operator enables when needed
+        TitleBarColor = IgWindowColor.TitleBar;
     }
 
     protected override void DrawClientArea() => _panel.DrawContent();

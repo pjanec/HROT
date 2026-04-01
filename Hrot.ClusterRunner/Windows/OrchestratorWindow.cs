@@ -1,3 +1,4 @@
+using System.Numerics;
 using FDP.Toolkit.ImGui.WindowManager;
 using Hrot.ClusterRunner.Services;
 
@@ -16,6 +17,7 @@ internal sealed class OrchestratorWindow : ManagedWindow
     {
         _panel = panel;
         IsOpen = true;
+        TitleBarColor = new Vector4(0.30f, 0.16f, 0.04f, 1f);  // Orchestrator brown
     }
 
     protected override void DrawClientArea() => _panel.Render();

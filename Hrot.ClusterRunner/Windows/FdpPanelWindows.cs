@@ -1,3 +1,4 @@
+using System.Numerics;
 using FDP.Toolkit.ImGui.Abstractions;
 using FDP.Toolkit.ImGui.Adapters;
 using FDP.Toolkit.ImGui.Panels;
@@ -20,13 +21,15 @@ internal sealed class FdpEntityInspectorWindow : ManagedWindow
         string owningPerspective,
         EntityInspectorPanel panel,
         Func<RepositoryAdapter?> adapterGetter,
-        Func<InspectorState> stateGetter)
+        Func<InspectorState> stateGetter,
+        Vector4? titleBarColor = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _panel         = panel;
         _adapterGetter = adapterGetter;
         _stateGetter   = stateGetter;
         IsOpen         = true;
+        TitleBarColor  = titleBarColor;
     }
 
     protected override void DrawClientArea()
@@ -48,11 +51,13 @@ internal sealed class FdpEventBrowserWindow : ManagedWindow
         string id,
         string title,
         string owningPerspective,
-        EventBrowserPanel panel)
+        EventBrowserPanel panel,
+        Vector4? titleBarColor = null)
         : base(id, title, owningPerspective, WindowScope.PerspectiveBound)
     {
         _panel = panel;
         IsOpen = true;
+        TitleBarColor = titleBarColor;
     }
 
     protected override void DrawClientArea() => _panel.DrawContent();

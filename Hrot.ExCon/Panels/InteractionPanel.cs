@@ -142,6 +142,18 @@ public sealed class InteractionPanel
         ImGui.Begin("Data Monitor");
         ExConPanelColors.Pop();
 
+        DrawContent(logic);
+
+        ImGui.End();
+    }
+
+    /// <summary>
+    /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
+    /// Called by the Window Manager when this panel is hosted as a
+    /// <see cref="ManagedWindow"/>; also called by <see cref="Draw"/> in standalone mode.
+    /// </summary>
+    public void DrawContent(IExConLogic logic)
+    {
         // ── Outer two-column layout: list | detail ─────────────────────────
         float totalWidth = ImGui.GetContentRegionAvail().X;
 
@@ -162,8 +174,6 @@ public sealed class InteractionPanel
 
             ImGui.EndTable();
         }
-
-        ImGui.End();
     }
 
     private void DrawLogList()

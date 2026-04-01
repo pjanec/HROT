@@ -96,17 +96,12 @@ public sealed class ConfigPanel
     // ── Draw stub (Phase P9) ──────────────────────────────────────────────────
 
     /// <summary>
-    /// Renders the panel using ImGui. Called once per frame from the
-    /// application shell (Phase P9 wires this up with rlImGui).
-    /// All decision-making is delegated to the <c>Handle*</c> methods above.
+    /// Renders only the panel body content (no <c>ImGui.Begin</c>/<c>End</c>).
+    /// Called by the Window Manager when this panel is hosted as a
+    /// <see cref="ManagedWindow"/>; also called by <see cref="Draw"/> in standalone mode.
     /// </summary>
-    public void Draw(IExConLogic logic)
+    public void DrawContent(IExConLogic logic)
     {
-        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
-        ExConPanelColors.Push();
-        ImGui.Begin("Map Configuration");
-        ExConPanelColors.Pop();
-
         ImGui.Checkbox("Satellite Layer",    ref _satelliteLayer);
         ImGui.Checkbox("Ground Units",       ref _groundUnits);
         ImGui.Checkbox("Air Units",          ref _airUnits);
@@ -121,6 +116,21 @@ public sealed class ConfigPanel
 
         if (ImGui.Button("SEND CONFIG PATCH"))
             HandleSendConfigPatch(logic);
+    }
+
+    /// <summary>
+    /// Renders the panel using ImGui. Called once per frame from the
+    /// application shell (Phase P9 wires this up with rlImGui).
+    /// All decision-making is delegated to the <c>Handle*</c> methods above.
+    /// </summary>
+    public void Draw(IExConLogic logic)
+    {
+        if (ImGui.GetCurrentContext() == IntPtr.Zero) return;
+        ExConPanelColors.Push();
+        ImGui.Begin("Map Configuration");
+        ExConPanelColors.Pop();
+
+        DrawContent(logic);
 
         ImGui.End();
     }

@@ -179,11 +179,13 @@ namespace Hrot.ClusterRunner.Services
                 "simhost_fdp_inspector", "SimHost Entity Inspector", "SimHost",
                 vis.FdpEntityInspector,
                 () => vis.GetFdpRepoAdapter(),
-                () => vis.FdpInspectorState));
+                () => vis.FdpInspectorState,
+                SimHostWindowColor.TitleBar));
 
             windowManager.RegisterWindow(new FdpEventBrowserWindow(
                 "simhost_fdp_events", "SimHost Event Browser", "SimHost",
-                vis.FdpEventBrowser));
+                vis.FdpEventBrowser,
+                SimHostWindowColor.TitleBar));
 
             vis.SetPanelsWindowManaged();
         }

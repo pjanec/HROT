@@ -1,3 +1,4 @@
+using System.Numerics;
 using FDP.Toolkit.ImGui.WindowManager;
 using Hrot.ClusterRunner.Services;
 
@@ -18,6 +19,7 @@ internal sealed class ClusterControlWindow : ManagedWindow
         _panel = panel;
         _cache = cache;
         IsOpen = true;
+        TitleBarColor = new Vector4(0.32f, 0.08f, 0.48f, 1f);  // ExCon violet
     }
 
     protected override void DrawClientArea()

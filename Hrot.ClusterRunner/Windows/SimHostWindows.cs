@@ -1,3 +1,4 @@
+using System.Numerics;
 using FDP.Toolkit.ImGui.WindowManager;
 using Hrot.SimHost;
 using Hrot.SimHost.UI;
@@ -5,6 +6,12 @@ using Fdp.Kernel;
 using ModuleHost.Core;
 
 namespace Hrot.ClusterRunner.Windows;
+
+/// <summary>SimHost subsystem title-bar colour (dark red).</summary>
+internal static class SimHostWindowColor
+{
+    internal static readonly Vector4 TitleBar = new(0.50f, 0.10f, 0.10f, 1f);
+}
 
 /// <summary>
 /// SimHost Controls (simulation and spawning) managed window.
@@ -30,6 +37,7 @@ internal sealed class SimHostControlsWindow : ManagedWindow
         _kernelGetter   = kernelGetter;
         _scenarioGetter = scenarioGetter;
         IsOpen          = true;
+        TitleBarColor   = new Vector4(0.50f, 0.10f, 0.10f, 1f);  // SimHost red
     }
 
     protected override void DrawClientArea()
