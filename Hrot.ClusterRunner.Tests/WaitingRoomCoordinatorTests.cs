@@ -69,7 +69,7 @@ namespace Hrot.ClusterRunner.Tests
             Thread.Sleep(200);
 
             writerIg.Write(new SubsystemStatusAnnounce { NodeId = 200, SubsystemName = "IG",  DomainId = (int)TestDomain, Ready = false, Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
-            writerIos.Write(new SubsystemStatusAnnounce { NodeId = 300, SubsystemName = "ExCon", DomainId = (int)TestDomain, Ready = false, Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+            writerIos.Write(new SubsystemStatusAnnounce { NodeId = 300, SubsystemName = "IOS", DomainId = (int)TestDomain, Ready = false, Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
 
             coordinator.WaitForPeers();
         }

@@ -215,9 +215,6 @@ public class IgApplication : IDisposable
     // -- ClusterSlave (CGF1-S0104) — wired in InitializeNetwork ----------------
     private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
 
-    // -- SlaveTimeModeListener: swaps to SteppedSlaveController when Orchestrator pauses.
-    private FDP.Toolkit.Time.Controllers.SlaveTimeModeListener? _slaveTimeModeListener;
-
 
 
     // -- Headless flag ÔÇö set by InitializeEmbedded(); skips all Raylib/ImGui calls in Update/Draw
@@ -417,6 +414,46 @@ public class IgApplication : IDisposable
     private bool                    _fdpContextMenusWired;
 
     private uint                    _fdpFrameCount;
+
+    /// <summary>
+    /// When <c>true</c>, the IG panels are registered as ManagedWindows with the
+    /// application Window Manager and <see cref="DrawUI"/> skips calling their
+    /// individual <c>Draw()</c> methods to avoid duplicate rendering.
+    /// Set this via <see cref="SetPanelsWindowManaged"/> from
+    /// <c>IgSubsystem.RegisterWindows</c>.
+    /// </summary>
+    private bool _panelsWindowManaged;
+
+    /// <summary>
+    /// Signals that the IG panels have been registered with a Window Manager.
+    /// After this call <see cref="DrawUI"/> only processes popups (context menus,
+    /// vertex menus) so that the Window Manager can render the panels without
+    /// duplicates.
+    /// </summary>
+    public void SetPanelsWindowManaged() => _panelsWindowManaged = true;
+
+    // ── Public panel accessors for window-manager registration ────────────────
+    // Exposed so IgSubsystem can create ManagedWindow wrappers without needing
+    // access to IgApplication's private fields.
+
+    /// <summary>The IG debug panel (FPS counters, render overrides).</summary>
+    public IgDebugPanel          DebugPanel          => _debugPanel;
+    /// <summary>The IG entity properties panel.</summary>
+    public EntityInspectorPanel  EntityPropertiesPanel => _inspectorPanel;
+    /// <summary>The IG waypoint editor panel.</summary>
+    public WaypointEditorPanel   WaypointEditorPanel  => _waypointEditorPanel;
+    /// <summary>The IG Mini ExCon spawner panel.</summary>
+    public MiniExConPanel        MiniExConPanel       => _miniIosPanel;
+    /// <summary>The IG performance overlay panel.</summary>
+    public PerformanceOverlay    PerformanceOverlay   => _performanceOverlay;
+    /// <summary>The FDP entity inspector panel.</summary>
+    public FdpEntityInspectorPanel FdpEntityInspector => _fdpEntityInspector;
+    /// <summary>The FDP event browser panel.</summary>
+    public FdpEventBrowserPanel  FdpEventBrowser      => _fdpEventBrowser;
+    /// <summary>Getter for the FDP repository adapter (available after first DrawUI call).</summary>
+    public FdpRepositoryAdapter? GetFdpRepoAdapter() => _fdpRepoAdapter;
+    /// <summary>The FDP inspector state (selection tracking).</summary>
+    public FdpInspectorState     FdpInspectorState    => _fdpInspectorState;
 
 
 
@@ -838,9 +875,6 @@ public class IgApplication : IDisposable
                 // node ever acts as master).
                 customTranslators.Add(
                     FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, _world.Bus));
-                // Bridge FrameOrder/FrameAck for distributed lockstep stepping.
-                customTranslators.Add(
-                    FDP.Toolkit.Time.TimeNetworkModule.CreateLockstepTranslator(participant, _world.Bus, _effectiveInstanceId));
 
                 if (mapRouteIngressTranslator != null)
                     customTranslators.Add(mapRouteIngressTranslator);
@@ -900,9 +934,7 @@ public class IgApplication : IDisposable
                 _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
                     checkpointWorker: null,
                     controller:       igRrController,
-                    storageDirectory: @"C:\FDP_Temp",
-                    transport:        igTransport,
-                    nodeId:           igNodeId));
+                    storageDirectory: @"C:\FDP_Temp"));
 
                 // CGF1-BATCH-23 A.2: dummy zone handler — IG acknowledges
                 // PrepareZone / CommitZone without terrain DB load.
@@ -1137,20 +1169,9 @@ public class IgApplication : IDisposable
 
         // E. SlaveTimeController ÔÇö driven by TimePulse events on the event bus
 
-        var timeController = new SlaveTimeController(_world.Bus, instanceName: $"IG-{_effectiveInstanceId}");
+        var timeController = new SlaveTimeController(_world.Bus);
 
         _kernel.SetTimeController(timeController);
-
-        // Wire SlaveTimeModeListener so this node swaps to SteppedSlaveController when
-        // the Orchestrator broadcasts SwitchTimeModeEvent(Deterministic) over DDS.
-        var slaveTimeCfg = new FDP.Toolkit.Time.Controllers.TimeControllerConfig
-        {
-            Role        = FDP.Toolkit.Time.Controllers.TimeRole.Slave,
-            LocalNodeId = _effectiveInstanceId,
-            SyncConfig  = FDP.Toolkit.Time.Controllers.TimeConfig.Default,
-        };
-        _slaveTimeModeListener = new FDP.Toolkit.Time.Controllers.SlaveTimeModeListener(
-            _world.Bus, _kernel, slaveTimeCfg);
 
 
 
@@ -1229,10 +1250,8 @@ public class IgApplication : IDisposable
 
 
 
-        // Always tick ECS/network — even in headless mode DDS messages must be processed.
+        // Always tick ECS/network ÔÇö even in headless mode DDS messages must be processed.
 
-        // Poll SwitchTimeModeEvent and swap to SteppedSlaveController when barrier reached.
-        _slaveTimeModeListener?.Update();
         _kernel.Update();
 
         _fdpFrameCount++;
@@ -1498,11 +1517,14 @@ public class IgApplication : IDisposable
             }));
         }
 
-        _debugPanel.Draw();
-
-        _inspectorPanel.Draw();
-
-        _waypointEditorPanel.Draw();
+        // When panels are registered as ManagedWindows, the Window Manager renders
+        // them — only call Draw() here in standalone mode.
+        if (!_panelsWindowManaged)
+        {
+            _debugPanel.Draw();
+            _inspectorPanel.Draw();
+            _waypointEditorPanel.Draw();
+        }
 
         // ── Vertex context menu for RouteEditTool ─────────────────────────────
         if (_canvas.ActiveTool is RouteEditTool routeTool && routeTool.PendingVertexContextMenu)
@@ -1538,23 +1560,24 @@ public class IgApplication : IDisposable
             ImGui.EndPopup();
         }
 
-        _miniIosPanel.Draw();
-
-        _performanceOverlay.Draw();
+        if (!_panelsWindowManaged)
+        {
+            _miniIosPanel.Draw();
+            _performanceOverlay.Draw();
+        }
 
         _contextMenuPanel.Draw();
 
-        IgPanelColors.Push();
+        if (!_panelsWindowManaged)
+        {
+            IgPanelColors.Push();
+            _fdpEntityInspector.Draw(_fdpRepoAdapter, _fdpInspectorState, "IG Entity Inspector");
+            IgPanelColors.Pop();
 
-        _fdpEntityInspector.Draw(_fdpRepoAdapter, _fdpInspectorState, "IG Entity Inspector");
-
-        IgPanelColors.Pop();
-
-        IgPanelColors.Push();
-
-        _fdpEventBrowser.Draw("IG Event Browser");
-
-        IgPanelColors.Pop();
+            IgPanelColors.Push();
+            _fdpEventBrowser.Draw("IG Event Browser");
+            IgPanelColors.Pop();
+        }
 
     }
 

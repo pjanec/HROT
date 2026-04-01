@@ -13,7 +13,7 @@ using Hrot.Map.Common.Dds;
 using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using FDP.Toolkit.DER;
-using ImGuiNET;
+using Hrot.ClusterRunner.Windows;
 
 namespace Hrot.ClusterRunner.Services
 {
@@ -33,7 +33,7 @@ namespace Hrot.ClusterRunner.Services
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class ExConSubsystem : ISubsystem
+    public sealed class ExConSubsystem : ISubsystem, IWindowRegistrar
     {
         /// <inheritdoc/>
         public string Name => "ExCon";
@@ -281,14 +281,14 @@ namespace Hrot.ClusterRunner.Services
         public void DrawUI()
         {
             if (_headless) return;
-
+            // ExCon mock panels still rendered via DrawUI (not yet window-managed).
             _mock?.DrawUI();
+        }
 
-            if (ImGui.Begin("Cluster Control"))
-            {
-                _clusterPanel?.Render();
-            }
-            ImGui.End();
+        /// <inheritdoc/>
+        public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        {
+            windowManager.RegisterWindow(new ClusterControlWindow(_clusterPanel, _uiCache));
         }
 
         /// <inheritdoc/>

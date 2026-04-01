@@ -78,18 +78,21 @@ public class PerformanceOverlay
         IgPanelColors.Push();
         bool panelVisible = ImGui.Begin("Performance", flags);
         IgPanelColors.Pop();
-        if (!panelVisible)
-        {
-            ImGui.End();
-            return;
-        }
+        if (!panelVisible) { ImGui.End(); return; }
+        DrawContent();
+        ImGui.End();
+    }
 
+    /// <summary>
+    /// Renders the overlay content without the outer <c>ImGui.Begin/End</c> wrapper.
+    /// Call this from a <see cref="ManagedWindow.DrawClientArea"/> override.
+    /// </summary>
+    public void DrawContent()
+    {
         ImGui.Text($"FPS        : {_metrics.Fps}");
         ImGui.Text($"Frame Time : {_metrics.FrameTimeMs:F2} ms");
         ImGui.Separator();
         ImGui.Text($"Entities   : {_metrics.TotalEntityCount}");
         ImGui.Text($"Visible    : {_metrics.VisibleEntityCount}");
-
-        ImGui.End();
     }
 }

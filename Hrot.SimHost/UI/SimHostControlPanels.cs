@@ -151,18 +151,26 @@ namespace Hrot.SimHost.UI
             SimHostPanelColors.Push();
             bool ctrlOpen = ImGui.Begin("SimHost Controls");
             SimHostPanelColors.Pop();
-            if (ctrlOpen)
-            {
-                if (ImGui.CollapsingHeader("Simulation", ImGuiTreeNodeFlags.DefaultOpen))
-                    _simCtrl.Render(repo, kernel);
-
-                ImGui.Separator();
-
-                if (ImGui.CollapsingHeader("Spawning", ImGuiTreeNodeFlags.DefaultOpen))
-                    _spawnPanel.Render(scenario, UIState);
-            }
+            if (ctrlOpen) DrawContent(repo, kernel, scenario);
             ImGui.End();
+        }
 
+        /// <summary>
+        /// Renders the SimHost controls content without the outer <c>ImGui.Begin/End</c> wrapper.
+        /// Call this from a <see cref="ManagedWindow.DrawClientArea"/> override.
+        /// </summary>
+        public void DrawContent(
+            EntityRepository       repo,
+            ModuleHostKernel       kernel,
+            SimHostScenarioManager scenario)
+        {
+            if (ImGui.CollapsingHeader("Simulation", ImGuiTreeNodeFlags.DefaultOpen))
+                _simCtrl.Render(repo, kernel);
+
+            ImGui.Separator();
+
+            if (ImGui.CollapsingHeader("Spawning", ImGuiTreeNodeFlags.DefaultOpen))
+                _spawnPanel.Render(scenario, UIState);
         }
     }
 }

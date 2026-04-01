@@ -42,16 +42,20 @@ public class EntityInspectorPanel
         IgPanelColors.Push();
         bool panelVisible = ImGui.Begin("Entity Properties");
         IgPanelColors.Pop();
-        if (!panelVisible)
-        {
-            ImGui.End();
-            return;
-        }
+        if (!panelVisible) { ImGui.End(); return; }
+        DrawContent();
+        ImGui.End();
+    }
 
+    /// <summary>
+    /// Renders the panel content without the outer <c>ImGui.Begin/End</c> wrapper.
+    /// Call this from a <see cref="ManagedWindow.DrawClientArea"/> override.
+    /// </summary>
+    public void DrawContent()
+    {
         if (!_state.HasSelection)
         {
-            ImGui.Text("No entity selected");   
-            ImGui.End();
+            ImGui.Text("No entity selected");
             return;
         }
 
@@ -70,7 +74,5 @@ public class EntityInspectorPanel
         // ── Resolved style ────────────────────────────────────────────────────
         ImGui.Text($"Affiliation : {_state.Affiliation}");
         ImGui.Text($"Damage      : {_state.DamageLevel:F1} %%");
-
-        ImGui.End();
     }
 }

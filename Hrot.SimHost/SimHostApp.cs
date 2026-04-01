@@ -104,6 +104,12 @@ namespace Hrot.SimHost
         private SimHostVisualization? _vis;
         private IgPresentationModule? _igPresentationModule;
 
+        /// <summary>
+        /// The visualization layer. Valid after <see cref="InitializeEmbedded"/> in non-headless mode.
+        /// Exposed for window-manager panel registration in <c>SimHostSubsystem.RegisterWindows</c>.
+        /// </summary>
+        public SimHostVisualization? Visualization => _vis;
+
         // ── SimLogic ─────────────────────────────────────────────────────────
         private SimulationLogicModule? _simLogicModule;
 

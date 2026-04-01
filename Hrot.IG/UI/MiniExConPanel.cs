@@ -50,12 +50,17 @@ public class MiniExConPanel
     /// </summary>
     public void Draw()
     {
-        if (!ImGui.Begin("Mini ExCon"))
-        {
-            ImGui.End();
-            return;
-        }
+        if (!ImGui.Begin("Mini ExCon")) { ImGui.End(); return; }
+        DrawContent();
+        ImGui.End();
+    }
 
+    /// <summary>
+    /// Renders the panel content without the outer <c>ImGui.Begin/End</c> wrapper.
+    /// Call this from a <see cref="ManagedWindow.DrawClientArea"/> override.
+    /// </summary>
+    public void DrawContent()
+    {
         ImGui.Text("Entity Spawner");
         ImGui.Separator();
 
@@ -104,7 +109,5 @@ public class MiniExConPanel
 
         if (ImGui.Button("Spawn Moving Vehicle"))
             _ = _state.SubmitWithWanderMissionViaGateway(_gateway);
-
-        ImGui.End();
     }
 }

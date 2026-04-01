@@ -97,13 +97,17 @@ public class WaypointEditorPanel
         IgPanelColors.Push();
         bool visible = ImGui.Begin("Waypoint Editor");
         IgPanelColors.Pop();
+        if (!visible) { ImGui.End(); return; }
+        DrawContent();
+        ImGui.End();
+    }
 
-        if (!visible)
-        {
-            ImGui.End();
-            return;
-        }
-
+    /// <summary>
+    /// Renders the panel content without the outer <c>ImGui.Begin/End</c> wrapper.
+    /// Call this from a <see cref="ManagedWindow.DrawClientArea"/> override.
+    /// </summary>
+    public void DrawContent()
+    {
         var  routeTool    = _canvas.ActiveTool as RouteEditTool;
         bool hasSelection = routeTool?.SelectedVertexIndex >= 0;
 
@@ -118,7 +122,6 @@ public class WaypointEditorPanel
         if (!hasSelection)
         {
             ImGui.TextDisabled("Select a waypoint to edit its properties.");
-            ImGui.End();
             return;
         }
 
@@ -143,7 +146,5 @@ public class WaypointEditorPanel
         {
             wp.ExtensionJson = string.IsNullOrWhiteSpace(_jsonBuffer) ? null : _jsonBuffer;
         }
-
-        ImGui.End();
     }
 }

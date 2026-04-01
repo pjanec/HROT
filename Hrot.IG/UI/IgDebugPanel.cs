@@ -39,12 +39,17 @@ public class IgDebugPanel
         IgPanelColors.Push();
         bool panelVisible = ImGui.Begin("Debug Panel");
         IgPanelColors.Pop();
-        if (!panelVisible)
-        {
-            ImGui.End();
-            return;
-        }
+        if (!panelVisible) { ImGui.End(); return; }
+        DrawContent();
+        ImGui.End();
+    }
 
+    /// <summary>
+    /// Renders the panel content without the outer <c>ImGui.Begin/End</c> wrapper.
+    /// Call this from a <see cref="ManagedWindow.DrawClientArea"/> override.
+    /// </summary>
+    public void DrawContent()
+    {
         // ── Live stats ────────────────────────────────────────────────────────
         ImGui.Text($"FPS: {Raylib.GetFPS()}");
         ImGui.Separator();
@@ -59,7 +64,5 @@ public class IgDebugPanel
         bool hideLabels = _state.HideLabels;
         if (ImGui.Checkbox("Hide Labels", ref hideLabels))
             _state.HideLabels = hideLabels;
-
-        ImGui.End();
     }
 }

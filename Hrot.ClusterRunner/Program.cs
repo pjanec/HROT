@@ -188,6 +188,15 @@ class Program
                 {
                     ImGuiNET.ImGui.Text("System OK");
                 });
+
+                // Set the initial perspective to "SimHost" to match the default map owner
+                // (first IMapCameraProvider in the subsystem list).
+                // SwitchPerspective is a no-op if "SimHost" is not in the registered perspectives,
+                // which is safe during the brief window before subsystems finish registering.
+                if (config.ParsedMode.HasFlag(RunMode.SimHost))
+                    windowManager.SwitchPerspective("SimHost");
+                else if (config.ParsedMode.HasFlag(RunMode.IG))
+                    windowManager.SwitchPerspective("IG");
             }
 
             orchestrator.Run();

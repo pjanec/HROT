@@ -57,10 +57,10 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_ComboAllFour_EqualsAllFlag()
+        public void ParseMode_ComboAllFive_EqualsAllFlag()
         {
-            // RunMode.All = Orchestrator | SimHost | IG | ExCon; all four tokens are required.
-            var config = new RunnerConfiguration { ModeString = "simhost,ig,ios,orchestrator", NoWait = true };
+            // RunMode.All = Orchestrator | SimHost | IG | ExCon | CGF; all five tokens are required.
+            var config = new RunnerConfiguration { ModeString = "simhost,ig,ios,orchestrator,cgf", NoWait = true };
             config.Validate();
             Assert.Equal(RunMode.All, config.ParsedMode);
         }
@@ -83,10 +83,10 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_CgfNotInAll_ConfirmedByDirectCheck()
+        public void ParseMode_CgfInAll_ConfirmedByDirectCheck()
         {
-            // CGF is a standalone mode; it is NOT included in RunMode.All by design.
-            Assert.False(RunMode.All.HasFlag(RunMode.CGF));
+            // CGF is included in RunMode.All so the cluster can be started with a single token.
+            Assert.True(RunMode.All.HasFlag(RunMode.CGF));
         }
 
         [Fact]
@@ -251,16 +251,17 @@ namespace Hrot.ClusterRunner.Tests
         }
 
         [Fact]
-        public void ParseMode_AllMode_HasAllFourFlags()
+        public void ParseMode_AllMode_HasAllFiveFlags()
         {
-            // RunMode.All includes Orchestrator; CGF is excluded from All by design.
+            // RunMode.All includes all five subsystems:
+            // Orchestrator, SimHost, IG, ExCon, and CGF.
             var config = new RunnerConfiguration { ModeString = "all", NoWait = true };
             config.Validate();
             Assert.True(config.ParsedMode.HasFlag(RunMode.SimHost));
             Assert.True(config.ParsedMode.HasFlag(RunMode.IG));
             Assert.True(config.ParsedMode.HasFlag(RunMode.ExCon));
             Assert.True(config.ParsedMode.HasFlag(RunMode.Orchestrator));
-            Assert.False(config.ParsedMode.HasFlag(RunMode.CGF));
+            Assert.True(config.ParsedMode.HasFlag(RunMode.CGF));
         }
 
         [Fact]

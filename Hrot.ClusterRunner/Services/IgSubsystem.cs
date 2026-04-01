@@ -1,5 +1,7 @@
 using Hrot.IG;
+using FDP.Framework.Runner;
 using FDP.Toolkit.Vis2D.Components;
+using Hrot.ClusterRunner.Windows;
 
 namespace Hrot.ClusterRunner.Services
 {
@@ -20,7 +22,7 @@ namespace Hrot.ClusterRunner.Services
     /// </list>
     /// </para>
     /// </summary>
-    public sealed class IgSubsystem : ISubsystem, IMapCameraProvider
+    public sealed class IgSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar
     {
         /// <inheritdoc/>
         public string Name => "IG";
@@ -71,9 +73,36 @@ namespace Hrot.ClusterRunner.Services
 
         /// <inheritdoc/>
         /// <remarks>
-        /// Renders ImGui debug, inspector, mini-ExCon, and performance panels.
-        /// Called inside <c>rlImGui.Begin()</c> by the orchestrator.
-        /// No-op in headless mode.
+        /// Registers IG ImGui panels as <c>ManagedWindow</c> instances with the
+        /// application Window Manager.  After this call the panels are owned by
+        /// the Window Manager and <see cref="DrawUI"/> only handles popup windows
+        /// that cannot be wrapped as managed windows (context menus, vertex menus).
+        /// </remarks>
+        public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        {
+            if (_app == null) return;
+            windowManager.RegisterWindow(new IgDebugWindow(_app.DebugPanel));
+            windowManager.RegisterWindow(new IgEntityPropertiesWindow(_app.EntityPropertiesPanel));
+            windowManager.RegisterWindow(new IgWaypointEditorWindow(_app.WaypointEditorPanel));
+            windowManager.RegisterWindow(new IgMiniExConWindow(_app.MiniExConPanel));
+            windowManager.RegisterWindow(new IgPerformanceWindow(_app.PerformanceOverlay));
+            windowManager.RegisterWindow(new FdpEntityInspectorWindow(
+                "ig_fdp_inspector", "IG Entity Inspector", "IG",
+                _app.FdpEntityInspector,
+                () => _app.GetFdpRepoAdapter(),
+                () => _app.FdpInspectorState));
+            windowManager.RegisterWindow(new FdpEventBrowserWindow(
+                "ig_fdp_events", "IG Event Browser", "IG",
+                _app.FdpEventBrowser));
+            // Signal IgApplication that these panels must not be double-rendered.
+            _app.SetPanelsWindowManaged();
+        }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// After <see cref="RegisterWindows"/>, the main IG panels are rendered by
+        /// the Window Manager. This method only handles ImGui popups that cannot be
+        /// wrapped as managed windows (context menus, vertex context menus).
         /// </remarks>
         public void DrawUI()
         {

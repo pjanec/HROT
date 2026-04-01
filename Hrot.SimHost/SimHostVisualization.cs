@@ -69,6 +69,9 @@ namespace Hrot.SimHost
         private FdpInspectorState       _fdpInspectorState  = new();
         private uint                    _fdpFrameCount;
 
+        /// <summary>When set, the Window Manager renders these panels; DrawUI skips them.</summary>
+        private bool _panelsWindowManaged;
+
         // ── Mission control (right-click navigate via doctrine) ───────────────
         private DdsWriter<MissionControlRequest>? _missionWriter;
 
@@ -77,12 +80,32 @@ namespace Hrot.SimHost
         // ── Public access (tests / other subsystems) ──────────────────────────
         public SimHostSelectionManager? Selection => _selection;
 
-        /// <summary>
-        /// Returns the map camera for this visualization, or <see langword="null"/> when
-        /// not yet initialised.  Used by the Runner orchestrator to synchronise camera
-        /// state when switching between IG and SimHost map perspectives.
-        /// </summary>
+        /// <summary>Returns the map camera or <see langword="null"/> when not initialized.</summary>
         public MapCamera? GetMapCamera() => _map?.Camera;
+
+        // ── Window-manager panel accessors ────────────────────────────────────
+        /// <summary>The SimHost controls UI (simulation + spawn panels).</summary>
+        public SimHostMainUI?            UI                 => _ui;
+        /// <summary>Getter for the ECS repository (available after Initialize).</summary>
+        public EntityRepository?         GetRepo()          => _repo;
+        /// <summary>Getter for the module host kernel (available after Initialize).</summary>
+        public ModuleHostKernel?         GetKernel()        => _kernel;
+        /// <summary>Getter for the scenario manager (available after Initialize).</summary>
+        public SimHostScenarioManager?   GetScenario()      => _scenario;
+        /// <summary>The FDP entity inspector panel.</summary>
+        public FdpEntityInspectorPanel   FdpEntityInspector => _fdpEntityInspector;
+        /// <summary>The FDP event browser panel.</summary>
+        public FdpEventBrowserPanel      FdpEventBrowser    => _fdpEventBrowser;
+        /// <summary>Getter for the FDP repository adapter (available after first DrawUI call).</summary>
+        public FdpRepositoryAdapter?     GetFdpRepoAdapter() => _fdpRepoAdapter;
+        /// <summary>The FDP inspector state.</summary>
+        public FdpInspectorState         FdpInspectorState  => _fdpInspectorState;
+
+        /// <summary>
+        /// Signals that panels have been registered with a Window Manager.
+        /// After this call <see cref="DrawUI"/> only renders popups.
+        /// </summary>
+        public void SetPanelsWindowManaged() => _panelsWindowManaged = true;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -382,39 +405,27 @@ namespace Hrot.SimHost
         /// <summary>Renders ImGui panels.  Must be called inside rlImGui.Begin/End.</summary>
         public void DrawUI()
         {
-            if (!_initialized || _ui == null || _repo == null || _kernel == null) return;
-            _ui.Render(_repo, _kernel, _scenario!, _inspector!);
+            if (!_initialized || _repo == null || _kernel == null) return;
 
-            // ── Perspective toggle toolbar — DB-MOD1-11 ────────────────────────
-            if (_repo.HasSingleton<Components.ActivePerspective>())
+            // When panels are Window Manager managed, skip rendering them here.
+            if (!_panelsWindowManaged && _ui != null)
+                _ui.Render(_repo, _kernel, _scenario!, _inspector!);
+
+            // NOTE: The old SimHost-specific perspective toggle toolbar has been removed.
+            // Map perspective switching is now handled by the Window Manager's perspective
+            // switcher (radio buttons in the main menu bar), which fires OnPerspectiveChanged
+            // → PerspectiveCoordinatorSystem.SwitchMapOwner().
+
+            if (!_panelsWindowManaged)
             {
-                var perspective = _repo.GetSingletonUnmanaged<Components.ActivePerspective>();
-                string label = perspective.Current == Components.PerspectiveType.IG
-                    ? "View: IG  (click → Sim)"
-                    : "View: Sim (click → IG)";
+                SimHostPanelColors.Push();
+                _fdpEntityInspector.Draw(_fdpRepoAdapter!, _fdpInspectorState, "SimHost Entity Inspector");
+                SimHostPanelColors.Pop();
 
-                ImGui.SetNextWindowPos(new Vector2(10, 560), ImGuiCond.FirstUseEver);
-                ImGui.SetNextWindowSize(new Vector2(220, 48), ImGuiCond.FirstUseEver);
-                ImGui.Begin("##PerspectiveToggle",
-                    ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize |
-                    ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoScrollbar);
-
-                if (ImGui.Button(label))
-                {
-                    _repo.Bus.Publish(new Events.TogglePerspectiveEvent());
-                    _repo.Bus.SwapBuffers();
-                }
-
-                ImGui.End();
+                SimHostPanelColors.Push();
+                _fdpEventBrowser.Draw("SimHost Event Browser");
+                SimHostPanelColors.Pop();
             }
-
-            SimHostPanelColors.Push();
-            _fdpEntityInspector.Draw(_fdpRepoAdapter!, _fdpInspectorState, "SimHost Entity Inspector");
-            SimHostPanelColors.Pop();
-
-            SimHostPanelColors.Push();
-            _fdpEventBrowser.Draw("SimHost Event Browser");
-            SimHostPanelColors.Pop();
         }
 
         public void Dispose()

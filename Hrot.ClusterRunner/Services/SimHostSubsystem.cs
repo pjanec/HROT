@@ -10,6 +10,8 @@ using FDP.Toolkit.Vis2D.Components;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using FDP.Framework.Runner;
+using Hrot.ClusterRunner.Windows;
 
 using NetworkEntityMap = FDP.Toolkit.Replication.Services.NetworkEntityMap;
 
@@ -26,7 +28,7 @@ namespace Hrot.ClusterRunner.Services
     /// <para>This follows the same "thin adapter" pattern as <see cref="IgSubsystem"/>:
     /// the core application class is the single source of truth for its own wiring.</para>
     /// </summary>
-    public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider
+    public sealed class SimHostSubsystem : ISubsystem, IMapCameraProvider, IWindowRegistrar
     {
         // ── Subsystem identity ────────────────────────────────────────────────
 
@@ -156,6 +158,34 @@ namespace Hrot.ClusterRunner.Services
         public void DrawUI()
         {
             if (!_headless) _app?.DrawUI();
+        }
+
+        /// <inheritdoc/>
+        public void RegisterWindows(FDP.Toolkit.ImGui.WindowManager.WindowManager windowManager)
+        {
+            var vis = _app?.Visualization;
+            if (vis == null) return;
+
+            if (vis.UI != null)
+            {
+                windowManager.RegisterWindow(new SimHostControlsWindow(
+                    vis.UI,
+                    () => vis.GetRepo(),
+                    () => vis.GetKernel(),
+                    () => vis.GetScenario()));
+            }
+
+            windowManager.RegisterWindow(new FdpEntityInspectorWindow(
+                "simhost_fdp_inspector", "SimHost Entity Inspector", "SimHost",
+                vis.FdpEntityInspector,
+                () => vis.GetFdpRepoAdapter(),
+                () => vis.FdpInspectorState));
+
+            windowManager.RegisterWindow(new FdpEventBrowserWindow(
+                "simhost_fdp_events", "SimHost Event Browser", "SimHost",
+                vis.FdpEventBrowser));
+
+            vis.SetPanelsWindowManaged();
         }
 
         /// <summary>Disposes all kernel resources.</summary>
