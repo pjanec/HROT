@@ -1,3 +1,4 @@
+using System.Numerics;
 using FDP.Toolkit.ImGui.Icons;
 using ImGuiNET;
 
@@ -63,6 +64,18 @@ public abstract class ManagedWindow
         set => _isPinned = value;
     }
 
+    /// <summary>
+    /// Optional override for the title-bar background colour.
+    /// When <c>null</c> the default ImGui theme colours are used.
+    /// When set, three colour variants are derived automatically:
+    /// <list type="bullet">
+    ///   <item><see cref="ImGuiCol.TitleBg"/> — the value as supplied.</item>
+    ///   <item><see cref="ImGuiCol.TitleBgActive"/> — 35 % brighter (clamped to 1).</item>
+    ///   <item><see cref="ImGuiCol.TitleBgCollapsed"/> — 35 % darker.</item>
+    /// </list>
+    /// </summary>
+    public Vector4? TitleBarColor { get; set; }
+
     // ── Internal test-support properties ──────────────────────────────────────
 
     /// <summary>
@@ -113,7 +126,7 @@ public abstract class ManagedWindow
     /// returns without issuing any ImGui calls.
     /// </summary>
     /// <param name="currentPerspective">The active perspective name.</param>
-    /// <param name="atlas">Icon atlas used for title-bar controls.</param>
+    /// <param name="atlas">Icon atlas (reserved for subclass use; not consumed by base rendering).</param>
     public void Render(string currentPerspective, IconAtlas atlas)
     {
         // Step 1 — open gate.
@@ -137,26 +150,48 @@ public abstract class ManagedWindow
             _focusRequested = false;
         }
 
-        // Step 5 — begin the window. Pass ref _isOpen so ImGui's built-in close button
+        // Step 5 — optionally push custom title-bar colours before Begin.
+        int colorsPushed = 0;
+        if (TitleBarColor.HasValue)
+        {
+            var c = TitleBarColor.Value;
+            var cActive = new Vector4(
+                MathF.Min(c.X * 1.35f, 1f),
+                MathF.Min(c.Y * 1.35f, 1f),
+                MathF.Min(c.Z * 1.35f, 1f),
+                c.W);
+            var cCollapsed = new Vector4(c.X * 0.65f, c.Y * 0.65f, c.Z * 0.65f, c.W);
+            Gui.PushStyleColor(ImGuiCol.TitleBg,          c);
+            Gui.PushStyleColor(ImGuiCol.TitleBgActive,    cActive);
+            Gui.PushStyleColor(ImGuiCol.TitleBgCollapsed, cCollapsed);
+            colorsPushed = 3;
+        }
+
+        // Step 6 — begin the window. Pass ref _isOpen so ImGui's built-in close button
         //          writes back directly to the backing field.
         var flags = HasMenuBar ? ImGuiWindowFlags.MenuBar : ImGuiWindowFlags.None;
         Gui.Begin(windowInternalName, ref _isOpen, flags);
 
-        // Step 6 — title bar controls (pin + close). Always drawn regardless of collapse state
-        //          so that the pin/close buttons remain functional on collapsed windows.
-        DrawCustomTitleBarControls(currentPerspective, perspectiveActive, atlas);
+        // Pop title-bar colours immediately after Begin (title bar is already rendered).
+        if (colorsPushed > 0)
+            Gui.PopStyleColor(colorsPushed);
 
-        // Step 7 — optional local menu bar.
+        // Step 7 — pin button in the actual title bar (PerspectiveBound windows only).
+        //          Drawn using absolute screen coordinates so it occupies no client-area height.
+        if (Scope == WindowScope.PerspectiveBound)
+            DrawTitleBarPinButton(perspectiveActive);
+
+        // Step 8 — optional local menu bar.
         if (HasMenuBar && Gui.BeginMenuBar())
         {
             DrawLocalMenuBar();
             Gui.EndMenuBar();
         }
 
-        // Step 8 — client area content.
+        // Step 9 — client area content.
         DrawClientArea();
 
-        // Step 9 — end the window.
+        // Step 10 — end the window.
         Gui.End();
     }
 
@@ -171,38 +206,109 @@ public abstract class ManagedWindow
     // ── Private title-bar helpers ──────────────────────────────────────────────
 
     /// <summary>
-    /// Draws the custom pin and close icons in the right portion of the title bar.
-    /// Called unconditionally after <c>Gui.Begin()</c> (regardless of collapse state).
+    /// Renders a pin/unpin toggle button directly inside the title bar, just to the
+    /// left of ImGui's built-in [x] close button.  Uses absolute screen coordinates
+    /// and the foreground draw list so no client-area height is consumed.
+    ///
+    /// <para>The button area extends the current clip rect to the title bar region,
+    /// places an <c>InvisibleButton</c> for hit-testing, then restores the cursor
+    /// to the original content-area position.</para>
     /// </summary>
-    private void DrawCustomTitleBarControls(
-        string currentPerspective,
-        bool perspectiveActive,
-        IconAtlas atlas)
+    private void DrawTitleBarPinButton(bool perspectiveActive)
     {
-        // Spacing step = icon width + a small margin so the icons don't touch the edge
-        // or each other. Using 8 px margin gives comfortable hit targets.
-        var iconStep = atlas.IconSizeVec.X + 8f;
+        var windowPos   = Gui.GetWindowPos();
+        var windowWidth = Gui.GetWindowWidth();
+        float fh        = Gui.GetFrameHeight(); // approximate title-bar height
 
-        // ── Pin icon — PerspectiveBound windows only ───────────────────────────
-        if (Scope == WindowScope.PerspectiveBound)
+        // Place pin button one frame-height to the left of ImGui's [x] button.
+        float btnX = windowPos.X + windowWidth - 2f * fh;
+        float btnY = windowPos.Y;
+
+        // Save content-area cursor so we can restore it after the hit-test widget.
+        var savedPos = Gui.GetCursorScreenPos();
+
+        // Temporarily expand the clip rect to include the title bar so that
+        // InvisibleButton can receive hover/click events in that region.
+        Gui.PushClipRect(
+            new Vector2(windowPos.X, windowPos.Y),
+            new Vector2(windowPos.X + windowWidth, windowPos.Y + fh),
+            false); // absolute — do not intersect with the content-area clip
+
+        Gui.SetCursorScreenPos(new Vector2(btnX, btnY));
+        bool clicked = Gui.InvisibleButton("##wm_pin", new Vector2(fh, fh));
+        bool hovered = Gui.IsItemHovered();
+        bool active  = Gui.IsItemActive();
+
+        Gui.PopClipRect();
+
+        if (clicked)
         {
-            // Position the pin two icon-steps from the right (leaves room for close).
-            Gui.SameLine(Gui.GetWindowWidth() - 2f * iconStep);
-            bool pinChanged = IconWidgets.AlternatingFaceToggleIcon(
-                atlas, "##pin", "pin_on", "pin_off", ref _isPinned);
-
-            // Show a tooltip when the user just unpinned a window that will now be hidden
-            // because its perspective is not the current one.
-            if (pinChanged && !_isPinned && !perspectiveActive && Gui.IsItemHovered())
-                Gui.SetTooltip("Unpinning will hide this window in the current perspective.");
+            _isPinned = !_isPinned;
+            if (!_isPinned && !perspectiveActive)
+                Gui.SetTooltip("Window will be hidden when you switch perspective.");
         }
 
-        // ── Close icon — always present ────────────────────────────────────────
-        Gui.SameLine(Gui.GetWindowWidth() - iconStep);
-        if (IconWidgets.IconButton(atlas, "##close", "cross"))
+        // Draw the pin icon on the foreground draw list (renders over title bar decoration).
+        RenderPinSymbol(btnX, btnY, fh, _isPinned, hovered, active);
+
+        // Restore cursor to the content area so DrawClientArea() starts in the right place.
+        Gui.SetCursorScreenPos(savedPos);
+    }
+
+    /// <summary>
+    /// Line-draws a pushpin icon on the ImGui foreground draw list at absolute screen position
+    /// <paramref name="btnX"/>, <paramref name="btnY"/> within a square of size <paramref name="size"/>.
+    /// Filled when <paramref name="isPinned"/>; outline otherwise.
+    /// </summary>
+    private static void RenderPinSymbol(
+        float btnX, float btnY, float size,
+        bool isPinned, bool hovered, bool active)
+    {
+        var dl = Gui.GetForegroundDrawList();
+
+        // Hover / active background — mirrors ImGui close-button style.
+        if (hovered || active)
         {
-            _isOpen = false;
-            _isPinned = false;
+            uint bgCol = active
+                ? Gui.GetColorU32(new Vector4(0.40f, 0.40f, 0.40f, 0.60f))
+                : Gui.GetColorU32(new Vector4(0.50f, 0.50f, 0.50f, 0.30f));
+            dl.AddRectFilled(
+                new Vector2(btnX, btnY),
+                new Vector2(btnX + size, btnY + size),
+                bgCol, 3f);
+        }
+
+        // Symbol colour: full white when hovered, slightly translucent otherwise.
+        uint col = hovered
+            ? Gui.GetColorU32(new Vector4(1f, 1f, 1f, 1f))
+            : Gui.GetColorU32(new Vector4(0.85f, 0.85f, 0.85f, 0.80f));
+
+        // Geometry constants (all relative to btn square).
+        float pad    = size * 0.20f;
+        float cx     = btnX + size * 0.50f;
+        float headHW = size * 0.22f;          // head half-width
+        float headY0 = btnY + pad;
+        float headY1 = btnY + size * 0.50f;   // bottom of head rectangle
+        float shaftY1 = btnY + size - pad;    // tip of shaft
+        float lineW  = isPinned ? 1.5f : 1.0f;
+
+        if (isPinned)
+        {
+            // Filled head + shaft.
+            dl.AddRectFilled(
+                new Vector2(cx - headHW, headY0),
+                new Vector2(cx + headHW, headY1),
+                col, 1.5f);
+            dl.AddLine(new Vector2(cx, headY1), new Vector2(cx, shaftY1), col, lineW);
+        }
+        else
+        {
+            // Outlined head + shaft.
+            dl.AddRect(
+                new Vector2(cx - headHW, headY0),
+                new Vector2(cx + headHW, headY1),
+                col, 1.5f);
+            dl.AddLine(new Vector2(cx, headY1), new Vector2(cx, shaftY1), col, lineW);
         }
     }
 

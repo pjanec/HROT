@@ -267,7 +267,7 @@ public class WindowManager
             win.Render(CurrentPerspective, _atlas);
         }
 
-        _statusBar.Render();
+        _statusBar.Render(CurrentPerspective);
     }
 
     // ── Private render helpers ─────────────────────────────────────────────────

@@ -19,4 +19,12 @@
   <ItemGroup>
     <InternalsVisibleTo Include="FDP.Toolkit.ImGui.Tests" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- FamFamFam Silk 16×16 icon atlas embedded so integration layers
+         can load it via EmbeddedAtlasResources.GetSilkAtlasPngBytes(). -->
+    <EmbeddedResource Include="..\..\Data\Icons\famfamfam-silk.png">
+      <LogicalName>FDP.Toolkit.ImGui.Icons.famfamfam-silk.png</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>
