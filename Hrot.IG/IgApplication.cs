@@ -840,7 +840,7 @@ public class IgApplication : IDisposable
                     FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, _world.Bus));
                 // Bridge FrameOrder/FrameAck for distributed lockstep stepping.
                 customTranslators.Add(
-                    FDP.Toolkit.Time.TimeNetworkModule.CreateLockstepTranslator(participant, _world.Bus));
+                    FDP.Toolkit.Time.TimeNetworkModule.CreateLockstepTranslator(participant, _world.Bus, _effectiveInstanceId));
 
                 if (mapRouteIngressTranslator != null)
                     customTranslators.Add(mapRouteIngressTranslator);
@@ -1137,7 +1137,7 @@ public class IgApplication : IDisposable
 
         // E. SlaveTimeController ÔÇö driven by TimePulse events on the event bus
 
-        var timeController = new SlaveTimeController(_world.Bus);
+        var timeController = new SlaveTimeController(_world.Bus, instanceName: $"IG-{_effectiveInstanceId}");
 
         _kernel.SetTimeController(timeController);
 

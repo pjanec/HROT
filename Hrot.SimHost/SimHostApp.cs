@@ -450,7 +450,7 @@ namespace Hrot.SimHost
             // time-mode switching (DistributedTimeCoordinator egress / SlaveTimeModeListener ingress).
             egressTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(ddsParticipant, _eventBus));
             // Bridge FrameOrder/FrameAck for distributed lockstep stepping.
-            egressTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateLockstepTranslator(ddsParticipant, _eventBus));
+            egressTranslators.Add(FDP.Toolkit.Time.TimeNetworkModule.CreateLockstepTranslator(ddsParticipant, _eventBus, localNodeId));
             // BS1-T015: Publish Health changes to the IG/ExCon so health bars update.
             egressTranslators.Add(new EntityDamageEgressTranslator(ddsParticipant, entityMap));
 

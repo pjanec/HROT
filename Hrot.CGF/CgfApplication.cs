@@ -61,7 +61,7 @@ namespace Hrot.CGF
             // CGF1-A.2 (BATCH-09 / Phase 3): wire time event bridge and minimal time kernel.
             _eventBus = new FdpEventBus();
             _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
-            _lockstepTranslator = TimeNetworkModule.CreateLockstepTranslator(_participant, _eventBus);
+            _lockstepTranslator = TimeNetworkModule.CreateLockstepTranslator(_participant, _eventBus, nodeId);
 
             // Minimal time kernel: provides a monotonic wall-clock reference and hosts the
             // SlaveTimeController / SteppedSlaveController that the SlaveTimeModeListener swaps.
@@ -73,7 +73,7 @@ namespace Hrot.CGF
                 LocalNodeId = nodeId,
                 SyncConfig  = TimeConfig.Default,
             };
-            _timeKernel.SetTimeController(new SlaveTimeController(_eventBus, slaveTimeCfg.SyncConfig));
+            _timeKernel.SetTimeController(new SlaveTimeController(_eventBus, slaveTimeCfg.SyncConfig, $"CGF-{nodeId}"));
             _timeKernel.Initialize();
             _slaveTimeModeListener = new SlaveTimeModeListener(_eventBus, _timeKernel, slaveTimeCfg);
 

@@ -32,6 +32,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
     private ClusterScenarioPanel?  _scenarioPanel;
 
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
+    private int _localNodeId;  // Orchestrator's own node ID — excluded from lockstep ACK wait-list
 
     // ── Time coordinator (CGF1-A.1, BATCH-09) ─────────────────────────────
     // Minimal kernel + coordinator so PendingTimeMode drives SwitchToDeterministic.
@@ -69,6 +70,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
 
     public void Initialize(SubsystemConfig config)
     {
+        _localNodeId = config.NodeId;
         _config      = ClusterConfiguration.LoadFrom(
             System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
         _participant = HrotEnvironment.CreateParticipant(config.DomainId);
@@ -84,8 +86,11 @@ public sealed class OrchestratorSubsystem : ISubsystem
                 case ClusterOpType.PauseTime:
                     // Only simulation-kernel nodes (SimHost, IG, CGF) participate in lockstep ACK.
                     // ExCon has no kernel — including it would stall SteppedMasterController forever.
+                    // The Orchestrator's own node (master) never generates FrameAckDescriptors, so
+                    // excluding _localNodeId prevents SteppedMasterController from waiting forever.
                     var ids = _clusterMaster.NodeRoster.ActiveNodes
-                        .Where(n => _kernelSubsystems.Contains(n.Value.SubsystemName))
+                        .Where(n => _kernelSubsystems.Contains(n.Value.SubsystemName)
+                                 && n.Key != _localNodeId)
                         .Select(n => n.Key)
                         .ToHashSet();
                     _timeCoordinator?.SwitchToDeterministic(ids);
@@ -130,7 +135,7 @@ public sealed class OrchestratorSubsystem : ISubsystem
         _timeCoordinator   = new DistributedTimeCoordinator(_eventBus, _timeKernel, coordConfig,
             new HashSet<int>());
         _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
-        _lockstepTranslator  = TimeNetworkModule.CreateLockstepTranslator(_participant, _eventBus);
+        _lockstepTranslator  = TimeNetworkModule.CreateLockstepTranslator(_participant, _eventBus, _localNodeId);
 
         // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
         // MasterTimeController is seeded with the scenario's saved timeline on every load, and
