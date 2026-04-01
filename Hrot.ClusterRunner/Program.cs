@@ -1,7 +1,9 @@
 using CommandLine;
+using Hrot.Common;
 using Hrot.Map.Common;
 using Hrot.ClusterRunner.Configuration;
 using Hrot.ClusterRunner.Services;
+using Hrot.ClusterRunner.Systems;
 using CycloneDDS.Runtime;
 using NLog;
 using NLog.Config;
@@ -135,7 +137,11 @@ class Program
         }
 
         // ── Build subsystems from mode ────────────────────────────────────────
-        var subsystems = new List<ISubsystem>();
+        // WM-S703: PerspectiveUpdateSubsystem must be the first subsystem so that
+        // perspective transitions enqueued during Render are processed before any
+        // other subsystem's Update runs in the next frame.
+        var perspSubsystem = new PerspectiveUpdateSubsystem();
+        var subsystems = new List<ISubsystem> { perspSubsystem };
         if (config.ParsedMode.HasFlag(RunMode.Orchestrator)) subsystems.Add(new OrchestratorSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.SimHost)) subsystems.Add(new SimHostSubsystem());
         if (config.ParsedMode.HasFlag(RunMode.IG))      subsystems.Add(new IgSubsystem());
@@ -155,6 +161,35 @@ class Program
         try
         {
             orchestrator.Initialize();
+
+            // WM-S703: Wire up PerspectiveCoordinatorSystem now that the orchestrator exists.
+            // Maps perspective names to subsystem names used by SwitchMapOwner.
+            var perspectiveMap = new Dictionary<string, string>
+            {
+                ["IG"]      = "IG",
+                ["SimHost"] = "SimHost",
+                ["ExCon"]   = "ExCon",
+            };
+            var coordinator = new PerspectiveCoordinatorSystem(orchestrator, perspectiveMap);
+            perspSubsystem.Coordinator = coordinator;
+
+            // WM-S502 / WM-S703: Bridge WindowManager perspective changes to the coordinator.
+            var windowManager = orchestrator.WindowManager;
+            if (windowManager != null)
+            {
+                windowManager.OnPerspectiveChanged += (oldPersp, newPersp) =>
+                {
+                    coordinator.Enqueue(new TogglePerspectiveEvent(oldPersp, newPersp));
+                    Console.WriteLine($"[Runner] Perspective changed: {oldPersp} → {newPersp}");
+                };
+
+                // WM-S603: Reference status bar section — shows system state to operators.
+                windowManager.StatusBar.RegisterSection("system_health", sortOrder: 0, () =>
+                {
+                    ImGuiNET.ImGui.Text("System OK");
+                });
+            }
+
             orchestrator.Run();
         }
         finally
