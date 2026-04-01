@@ -33,7 +33,6 @@ namespace Hrot.CGF
         // Minimal time kernel so CGF participates in distributed lockstep stepping.
         private readonly EntityRepository _timeWorld;
         private readonly ModuleHostKernel _timeKernel;
-        private readonly SlaveTimeModeListener _slaveTimeModeListener;
         private bool _disposed;
 
         /// <summary>Exposes the <see cref="FDP.Toolkit.Orchestration.ClusterSlave"/> for test assertions.</summary>
@@ -61,21 +60,14 @@ namespace Hrot.CGF
             // CGF1-A.2 (BATCH-09 / Phase 3): wire time event bridge and minimal time kernel.
             _eventBus = new FdpEventBus();
             _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
-            _lockstepTranslator = TimeNetworkModule.CreateLockstepTranslator(_participant, _eventBus, nodeId);
+            _lockstepTranslator = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _eventBus, nodeId);
 
             // Minimal time kernel: provides a monotonic wall-clock reference and hosts the
             // SlaveTimeController / SteppedSlaveController that the SlaveTimeModeListener swaps.
             _timeWorld  = new EntityRepository();
             _timeKernel = new ModuleHostKernel(_timeWorld, new EventAccumulator());
-            var slaveTimeCfg = new TimeControllerConfig
-            {
-                Role        = TimeRole.Slave,
-                LocalNodeId = nodeId,
-                SyncConfig  = TimeConfig.Default,
-            };
-            _timeKernel.SetTimeController(new SlaveTimeController(_eventBus, slaveTimeCfg.SyncConfig, $"CGF-{nodeId}"));
+            _timeKernel.SetTimeController(new SlaveSyncController(_eventBus, nodeId));
             _timeKernel.Initialize();
-            _slaveTimeModeListener = new SlaveTimeModeListener(_eventBus, _timeKernel, slaveTimeCfg);
 
             var transport = new DdsOrchestrationTransport(_participant, nodeId);
             _clusterSlave   = new FDP.Toolkit.Orchestration.ClusterSlave(transport, nodeId, SubsystemName);
@@ -147,9 +139,7 @@ namespace Hrot.CGF
             // Bridge FrameOrder/FrameAck for distributed lockstep stepping.
             _lockstepTranslator.ScanAndPublish(null!);
             _lockstepTranslator.PollIngress(null!, null!);
-            // Swap to SteppedSlaveController when barrier wall-tick is reached.
-            _slaveTimeModeListener.Update();
-            // Advance time kernel (drives wall-clock and processes FrameOrder when stepped).
+            // Advance time kernel (drives SlaveSyncController and processes FrameOrder when stepped).
             _timeKernel.Update();
             _eventBus.SwapBuffers();
         }

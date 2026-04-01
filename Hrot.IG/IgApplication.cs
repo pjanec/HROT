@@ -1167,9 +1167,9 @@ public class IgApplication : IDisposable
 
 
 
-        // E. SlaveTimeController ÔÇö driven by TimePulse events on the event bus
+        // E. SlaveSyncController — unified slave that handles Continuous/Stepping transitions
 
-        var timeController = new SlaveTimeController(_world.Bus);
+        var timeController = new SlaveSyncController(_world.Bus, _effectiveInstanceId);
 
         _kernel.SetTimeController(timeController);
 

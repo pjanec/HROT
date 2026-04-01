@@ -35,13 +35,13 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
 
-    // ── Time coordinator (CGF1-A.1, BATCH-09) ─────────────────────────────
-    // Minimal kernel + coordinator so PendingTimeMode drives SwitchToDeterministic.
+    // ── Time controller (CGF1-A.1, BATCH-09) ─────────────────────────────
+    // MasterSyncController unifies wall-clock advancement, barrier protocol, and stepping.
     private FdpEventBus? _eventBus;
-    private EntityRepository? _timeWorld;
-    private ModuleHostKernel? _timeKernel;
-    private DistributedTimeCoordinator? _timeCoordinator;
+    private FDP.Toolkit.Time.Controllers.MasterSyncController? _masterSync;
     private IDescriptorTranslator? _timeModeTranslator;
+    private IDescriptorTranslator? _lockstepTranslator;
+    private IDescriptorTranslator? _timePulseTranslator;
     private string? _lastProcessedTimeMode;
 
     /// <summary>Internal event bus exposed for test assertions on SwitchTimeModeEvent.</summary>
@@ -78,45 +78,34 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             {
                 case ClusterOpType.PauseTime:
                     var ids = new HashSet<int>(_clusterMaster.NodeRoster.ActiveNodes.Keys);
-                    _timeCoordinator?.SwitchToDeterministic(ids);
+                    _masterSync?.SwitchToDeterministic(ids);
                     _isPaused = true;
                     break;
                 case ClusterOpType.ResumeTime:
-                    _timeCoordinator?.SwitchToContinuous();
+                    _masterSync?.SwitchToContinuous();
                     _isPaused = false;
                     break;
                 case ClusterOpType.StepTime:
-                    try { _timeKernel?.StepFrame(1f / 60f); }
-                    catch (InvalidOperationException) { /* MasterTimeController does not support stepping; step deferred */ }
+                    _masterSync?.Step(ParseStepDelta(payload, 1f / 60f));
                     break;
                 case ClusterOpType.SetTimeScale:
                     if (float.TryParse(payload,
                             System.Globalization.NumberStyles.Float,
                             System.Globalization.CultureInfo.InvariantCulture,
                             out float s))
-                        _timeKernel?.GetTimeController()?.SetTimeScale(s);
+                        _masterSync?.SetTimeScale(s);
                     break;
             }
         };
 
-        // ── Time coordinator setup (CGF1-A.1, BATCH-09) ──────────────────────
-        // A minimal ECS kernel gives the DistributedTimeCoordinator a wall-clock source
-        // (MasterTimeController.GetCurrentState().TotalWallTicks) without needing a full
-        // simulation world on the orchestrator process.
-        _eventBus  = new FdpEventBus();
-        _timeWorld = new EntityRepository();
-        var accumulator = new EventAccumulator();
-        _timeKernel = new ModuleHostKernel(_timeWorld, accumulator);
-        var timeConfig = new TimeControllerConfig { Mode = TimeMode.Continuous, Role = TimeRole.Master };
-        var timeCtrl   = TimeControllerFactory.Create(_eventBus, timeConfig);
-        _timeKernel.SetTimeController(timeCtrl);
-        _timeKernel.Initialize();
-
-        var coordConfig = new TimeControllerConfig { Mode = TimeMode.Continuous, Role = TimeRole.Master,
-            SyncConfig = TimeConfig.Default };
-        _timeCoordinator   = new DistributedTimeCoordinator(_eventBus, _timeKernel, coordConfig,
-            new HashSet<int>());
-        _timeModeTranslator = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
+        // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
+        // MasterSyncController replaces the minimal kernel + DistributedTimeCoordinator.
+        _eventBus          = new FdpEventBus();
+        _masterSync        = new FDP.Toolkit.Time.Controllers.MasterSyncController(
+            _eventBus, new HashSet<int>(), FDP.Toolkit.Time.Controllers.TimeConfig.Default);
+        _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
+        _lockstepTranslator  = TimeNetworkModule.CreateMasterLockstepTranslator(_participant, _eventBus);
+        _timePulseTranslator = TimeNetworkModule.CreateTimePulseEgressTranslator(_participant, _eventBus);
 
         // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
         // MasterTimeController is seeded with the scenario's saved timeline on every load, and
@@ -124,18 +113,17 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         var contextHandler = new GlobalContextClusterOpHandler(_participant, string.Empty);
         contextHandler.OnContextLoaded += (startTicks, simTimeSeconds) =>
         {
-            if (_timeKernel != null)
+            if (_masterSync != null)
             {
-                var timeCtrl = _timeKernel.GetTimeController();
-                timeCtrl.SeedState(new GlobalTime
+                _masterSync.SeedState(new GlobalTime
                 {
                     TotalWallTicks    = startTicks,
                     TotalTime         = simTimeSeconds,
                     UnscaledTotalTime = simTimeSeconds,
-                    TimeScale         = timeCtrl.GetTimeScale(),
+                    TimeScale         = _masterSync.GetTimeScale(),
                 });
                 FdpLog<OrchestratorSubsystem>.Info(
-                    "[Orchestrator] Seeded MasterTimeController: WallTicks={0}, SimTime={1:F1}s",
+                    "[Orchestrator] Seeded MasterSyncController: WallTicks={0}, SimTime={1:F1}s",
                     startTicks, simTimeSeconds);
             }
         };
@@ -144,9 +132,8 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 
     public void Update(float deltaTime)
     {
-        // Advance the orchestrator's wall clock so the coordinator has a monotonic
-        // TotalWallTicks reference for future-barrier calculations.
-        _timeKernel?.Update();
+        // Advance the master sync controller's wall clock and state machine.
+        _masterSync?.Update();
         _eventBus?.SwapBuffers();
 
         _clusterMaster?.Tick();
@@ -154,21 +141,24 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // CGF1-S0506: Update cache after ClusterMaster tick so it reflects latest DDS state.
         _uiCache?.Update();
 
-        // CGF1-A.1: Consume PendingTimeMode and drive DistributedTimeCoordinator.
+        // CGF1-A.1: Consume PendingTimeMode and drive MasterSyncController.
         var pendingMode = _clusterMaster?.PendingTimeMode;
         if (pendingMode != _lastProcessedTimeMode)
         {
-            if (pendingMode == "Deterministic" && _timeCoordinator != null && _clusterMaster != null)
+            if (pendingMode == "Deterministic" && _masterSync != null && _clusterMaster != null)
             {
-                // Collect current roster IDs as slave targets for the barrier broadcast.
+                // Note (DT-003): SwitchToDeterministic ignores slaveNodeIds at call time;
+                // the effective slave set is fixed at construction (empty – slaves join dynamically).
                 var slaveIds = new HashSet<int>(_clusterMaster.NodeRoster.ActiveNodes.Keys);
-                _timeCoordinator.SwitchToDeterministic(slaveIds);
+                _masterSync.SwitchToDeterministic(slaveIds);
             }
             _lastProcessedTimeMode = pendingMode;
         }
 
-        // Poll coordinator barrier and egress/ingress translate SwitchTimeModeEvent to DDS.
-        _timeCoordinator?.Update();
+        // Translate lockstep frames, time pulses, and mode switches to/from DDS.
+        _lockstepTranslator?.ScanAndPublish(null!);
+        _lockstepTranslator?.PollIngress(null!, null!);
+        _timePulseTranslator?.ScanAndPublish(null!);
         _timeModeTranslator?.ScanAndPublish(null!);
         _timeModeTranslator?.PollIngress(null!, null!);
 
@@ -196,11 +186,11 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _sysOpWriter = null;
         _clusterMaster?.Dispose();
         _clusterMaster = null;
-        _timeKernel?.Dispose();
-        _timeKernel = null;
-        _timeWorld = null;
+        _masterSync?.Dispose();
+        _masterSync = null;
+        _lockstepTranslator = null;
+        _timePulseTranslator = null;
         _eventBus = null;
-        _timeCoordinator = null;
         _lastProcessedTimeMode = null;
         _participant?.Dispose();
         _participant = null;

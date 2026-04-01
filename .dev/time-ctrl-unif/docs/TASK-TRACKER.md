@@ -43,12 +43,12 @@
 
 **Goal:** Wire new controllers and translators in all four application hosts; delete obsolete classes.
 
-- [ ] **TCU-W001** Wire MasterSyncController in Orchestrator [details](./TASK-DETAIL.md#tcu-w001--wire-mastersynccotroller-in-orchestrator)
-- [ ] **TCU-W002** Wire SlaveSyncController in SimHost [details](./TASK-DETAIL.md#tcu-w002--wire-slavesynccontroller-in-simhost)
-- [ ] **TCU-W003** Wire SlaveSyncController in CGF [details](./TASK-DETAIL.md#tcu-w003--wire-slavesynccontroller-in-cgf)
-- [ ] **TCU-W004** Wire SlaveSyncController in IG [details](./TASK-DETAIL.md#tcu-w004--wire-slavesynccontroller-in-ig)
+- [x] **TCU-W001** Wire MasterSyncController in Orchestrator [details](./TASK-DETAIL.md#tcu-w001--wire-mastersynccotroller-in-orchestrator)
+- [x] **TCU-W002** Wire SlaveSyncController in SimHost [details](./TASK-DETAIL.md#tcu-w002--wire-slavesynccontroller-in-simhost)
+- [x] **TCU-W003** Wire SlaveSyncController in CGF [details](./TASK-DETAIL.md#tcu-w003--wire-slavesynccontroller-in-cgf)
+- [x] **TCU-W004** Wire SlaveSyncController in IG [details](./TASK-DETAIL.md#tcu-w004--wire-slavesynccontroller-in-ig)
 - [x] **TCU-W005** Update TimeControllerFactory [details](./TASK-DETAIL.md#tcu-w005--update-timecontrollerfactory)
-- [ ] **TCU-W006** Delete Obsolete Classes [details](./TASK-DETAIL.md#tcu-w006--delete-obsolete-classes)
+- [x] **TCU-W006** Delete Obsolete Classes [details](./TASK-DETAIL.md#tcu-w006--delete-obsolete-classes)
 
 ---
 
@@ -61,4 +61,4 @@
 - [x] **TCU-T003** Unit Tests: Lockstep Translators [details](./TASK-DETAIL.md#tcu-t003--unit-tests-lockstep-translators)
 - [x] **TCU-T004** Unit Tests: TimeControllerFactory (updated) [details](./TASK-DETAIL.md#tcu-t004--unit-tests-timecontrollerfactory-updated)
 - [x] **TCU-T005** Unit Tests: DTO Round-Trip and Domain Events [details](./TASK-DETAIL.md#tcu-t005--unit-tests-dto-round-trip-and-domain-events)
-- [ ] **TCU-T006** Integration Test: Full Pause/Step/Resume Cycle [details](./TASK-DETAIL.md#tcu-t006--integration-test-full-pausestepresume-cycle-in-process)
+- [x] **TCU-T006** Integration Test: Full Pause/Step/Resume Cycle [details](./TASK-DETAIL.md#tcu-t006--integration-test-full-pausestepresume-cycle-in-process)

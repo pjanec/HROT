@@ -16,10 +16,10 @@
 |----|----------|-------------|-------------|--------------|--------|
 | DT-001 | P3 | BATCH-01 | `FdpEventBus.Publish<T>()` enforces `[EventId]` with no documented opt-out for in-process-only domain types. Domain types must silently use `PublishManaged/ConsumeManaged`. Distinction undocumented at call site. | Future docs/improvement batch | Open |
 | DT-002 | P3 | BATCH-01 | TASK-DETAIL.md spec table for `FrameOrderDescriptor` states `TargetSimTime` at `[Key(3)]` but `TimeScale` already occupies that ordinal. Stale spec table — no code impact, ordinal correctly assigned at `[Key(4)]`. | Maintenance batch | Open |
-| DT-003 | P2 | BATCH-02 | `MasterSyncController.SwitchToDeterministic(slaveNodeIds)` silently ignores its parameter; effective slave set is fixed at construction. If Orchestrator passes a different set after node join/leave, ACK tracking will be wrong. Must be documented at call site in Phase 5 wiring. | BATCH-05 | Open |
-| DT-004 | P2 | BATCH-02 | `UpdateStepping()` processes FrameStepCompletedEvent ACKs by NodeID only, without FrameID filter. Late DDS retransmit could incorrectly clear a pending ACK slot. Should filter: `ack.FrameID == _lastStepFrameID`. | BATCH-04 or corrective | Open |
-| DT-005 | P3 | BATCH-03 | Rapid BarrierPending→Continuous resume (SwitchTimeModeEvent(Continuous) while still BarrierPending) is not unit tested in SlaveSyncController. Code path correct but untested. | BATCH-05 (TCU-T006 integration test) | Open |
-| DT-006 | P3 | BATCH-04 | `FrameOrderDescriptor.SequenceID` not mapped in MasterLockstepTranslator (defaults to 0). Old SteppedMasterController populated it; purpose (ordering/dedup) unclear. Monitor during Phase 5 integration. | BATCH-05 | Open |
+| DT-003 | P2 | BATCH-02 | `MasterSyncController.SwitchToDeterministic(slaveNodeIds)` silently ignores its parameter. Documented at call site in OrchestratorSubsystem; empty slave set acceptable for initial wiring. | BATCH-05 | ✅ Resolved |
+| DT-004 | P2 | BATCH-02 | `UpdateStepping()` ACK processing without FrameID filter. The actual bug was stale `_lastUpdateRawTicks` (fixed in BATCH-05). FrameID filter for stale DDS retransmit remains a future improvement. | Future | Open |
+| DT-005 | P3 | BATCH-03 | Rapid BarrierPending→Continuous resume is not unit tested. TCU-T006 E2E test covers this as a behavioral check. | BATCH-05 | ✅ Resolved |
+| DT-006 | P3 | BATCH-04 | `FrameOrderDescriptor.SequenceID` not mapped in MasterLockstepTranslator. Confirmed not used by new controllers; field exists for backwards compat only. | BATCH-05 | ✅ Resolved |
 
 ---
 

@@ -82,10 +82,15 @@ namespace Hrot.ClusterRunner.Services
 
         /// <summary>
         /// TestHook: runtime type of the currently active time controller in the SimHost kernel.
-        /// Used to assert that Resume restores <c>MasterTimeController</c>, not
-        /// <c>SlaveTimeController</c>.
+        /// Used by integration tests to verify that controller type is SlaveSyncController.
         /// </summary>
         internal Type? TestHook_TimeControllerType => App.TestHook_TimeControllerType;
+
+        /// <summary>
+        /// TestHook: current <see cref="ModuleHost.Core.Time.TimeMode"/> of the SimHost
+        /// kernel's time controller. Used to verify Pause → Deterministic → Resume → Continuous transitions.
+        /// </summary>
+        internal ModuleHost.Core.Time.TimeMode? TestHook_TimeControllerMode => App.TestHook_TimeControllerMode;
 
         /// <summary>TestHook: teleports entity to <paramref name="worldPos"/> (simulates IG drag).</summary>
         internal void TestHook_SimulateDrag(long networkId, System.Numerics.Vector2 worldPos)
