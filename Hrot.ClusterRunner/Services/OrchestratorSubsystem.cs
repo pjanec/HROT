@@ -68,7 +68,18 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _participant = HrotEnvironment.CreateParticipant(config.DomainId);
         _clusterMaster = new ClusterMaster(_participant, _config);
         _sysOpWriter   = new DdsWriter<ClusterOpRequest>(_participant);    // S0502
-        _uiCache       = new ClusterUiCache(_participant);
+
+        // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
+        // MasterSyncController replaces the minimal kernel + DistributedTimeCoordinator.
+        // Must be created before _uiCache so it can be injected for smooth sim-time display.
+        _eventBus          = new FdpEventBus();
+        _masterSync        = new FDP.Toolkit.Time.Controllers.MasterSyncController(
+            _eventBus, new HashSet<int>(), FDP.Toolkit.Time.Controllers.TimeConfig.Default);
+        _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
+        _lockstepTranslator  = TimeNetworkModule.CreateMasterLockstepTranslator(_participant, _eventBus);
+        _timePulseTranslator = TimeNetworkModule.CreateTimePulseEgressTranslator(_participant, _eventBus);
+
+        _uiCache       = new ClusterUiCache(_participant, _masterSync);
         _scenarioPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
 
         // S0503: Subscribe to time-control events from ClusterMaster.
@@ -97,15 +108,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
                     break;
             }
         };
-
-        // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
-        // MasterSyncController replaces the minimal kernel + DistributedTimeCoordinator.
-        _eventBus          = new FdpEventBus();
-        _masterSync        = new FDP.Toolkit.Time.Controllers.MasterSyncController(
-            _eventBus, new HashSet<int>(), FDP.Toolkit.Time.Controllers.TimeConfig.Default);
-        _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
-        _lockstepTranslator  = TimeNetworkModule.CreateMasterLockstepTranslator(_participant, _eventBus);
-        _timePulseTranslator = TimeNetworkModule.CreateTimePulseEgressTranslator(_participant, _eventBus);
 
         // CGF1-S0307: Create the global-context handler, subscribe to OnContextLoaded so the
         // MasterTimeController is seeded with the scenario's saved timeline on every load, and
@@ -147,8 +149,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         {
             if (pendingMode == "Deterministic" && _masterSync != null && _clusterMaster != null)
             {
-                // Note (DT-003): SwitchToDeterministic ignores slaveNodeIds at call time;
-                // the effective slave set is fixed at construction (empty – slaves join dynamically).
                 var slaveIds = new HashSet<int>(_clusterMaster.NodeRoster.ActiveNodes.Keys);
                 _masterSync.SwitchToDeterministic(slaveIds);
             }

@@ -4,6 +4,7 @@ using System.Threading;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.ClusterRunner.Services;
 using CycloneDDS.Runtime;
+using Fdp.Kernel;
 using FDP.Toolkit.Time.Messages;
 using ModuleHost.Core.Time;
 using Xunit;
@@ -196,6 +197,81 @@ public sealed class ClusterUiCacheTests : IDisposable
         Assert.Equal(42.5,  _uiCache.MasterSimTime,  precision: 3);
         Assert.Equal(2.0f,  _uiCache.MasterTimeScale);
         Assert.Equal(123456789L, _uiCache.MasterWallTicks);
+    }
+
+    // ── TC2-P2-T1: ITimeController injection tests ────────────────────────
+
+    /// <summary>
+    /// TC2-P2-T1-SC1: When a local ITimeController is injected, MasterSimTime reads
+    /// from it immediately — no Update() or DDS messages required.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterUiCache_MasterSimTime_ReadsFromLocalController_WhenInjected()
+    {
+        var fakeCtrl = new FakeTimeController { TotalTime = 77.5 };
+        using var cache = new ClusterUiCache(_participant, fakeCtrl);
+
+        Assert.Equal(77.5, cache.MasterSimTime, precision: 3);
+    }
+
+    /// <summary>
+    /// TC2-P2-T1-SC2: Without a controller, MasterSimTime falls back to the network
+    /// value from a TimePulseDescriptor.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterUiCache_MasterSimTime_FallsBackToNetwork_WhenNoController()
+    {
+        using var cacheNoCtrl = new ClusterUiCache(_participant);
+        using var writer = new DdsWriter<TimePulseDescriptor>(_participant);
+        writer.Write(new TimePulseDescriptor
+        {
+            SimTimeSnapshot = 33.0,
+            TimeScale       = 1.0f,
+            SequenceId      = 1L,
+        });
+
+        Thread.Sleep(150);
+        cacheNoCtrl.Update();
+
+        Assert.Equal(33.0, cacheNoCtrl.MasterSimTime, precision: 3);
+    }
+
+    /// <summary>
+    /// TC2-P2-T1-SC3: When a controller is injected, a network pulse with a different
+    /// value must not change MasterSimTime — the controller takes priority.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterUiCache_MasterSimTime_IgnoresNetworkPulse_WhenControllerInjected()
+    {
+        var fakeCtrl = new FakeTimeController { TotalTime = 50.0 };
+        using var cacheWithCtrl = new ClusterUiCache(_participant, fakeCtrl);
+        using var writer = new DdsWriter<TimePulseDescriptor>(_participant);
+        writer.Write(new TimePulseDescriptor
+        {
+            SimTimeSnapshot = 99.0,
+            TimeScale       = 1.0f,
+            SequenceId      = 2L,
+        });
+
+        Thread.Sleep(150);
+        cacheWithCtrl.Update();
+
+        // Network pulse must not override the controller value
+        Assert.Equal(50.0, cacheWithCtrl.MasterSimTime, precision: 3);
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private sealed class FakeTimeController : ITimeController
+    {
+        public double TotalTime { get; set; }
+        public GlobalTime Update()           => GetCurrentState();
+        public void SetTimeScale(float s)    { }
+        public float GetTimeScale()          => 1f;
+        public TimeMode GetMode()            => TimeMode.Continuous;
+        public GlobalTime GetCurrentState()  => new GlobalTime { TotalTime = TotalTime };
+        public void SeedState(GlobalTime s)  => TotalTime = s.TotalTime;
+        public void Dispose()                { }
     }
 }
 

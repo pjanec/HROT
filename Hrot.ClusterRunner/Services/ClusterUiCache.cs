@@ -31,7 +31,10 @@ public sealed class ClusterUiCache : IDisposable
     public string[]    ArchivedExercises         { get; private set; } = Array.Empty<string>();
     public string[]    UnarchivedLocalExercises  { get; private set; } = Array.Empty<string>();
 
-    public double      MasterSimTime          { get; private set; }
+    public double      MasterSimTime          =>
+        _localTimeController != null
+            ? _localTimeController.GetCurrentState().TotalTime
+            : _networkSimTime;
     public long        MasterWallTicks        { get; private set; }
     public float       MasterTimeScale        { get; private set; } = 1f;
     public bool        IsPaused               { get; private set; }
@@ -72,9 +75,12 @@ public sealed class ClusterUiCache : IDisposable
     private readonly Dictionary<Guid, DistributedTransaction> _inFlight     = new();
     private readonly HashSet<Guid>                            _activeEpisodes = new();
     private readonly ClusterMasterPlanner                       _planner = new ClusterMasterPlanner(HrotStateGraph.Build());
+    private readonly ITimeController?                         _localTimeController;
+    private double                                            _networkSimTime;
 
-    public ClusterUiCache(DdsParticipant participant)
+    public ClusterUiCache(DdsParticipant participant, ITimeController? localTimeController = null)
     {
+        _localTimeController = localTimeController;
         _stateReader        = new DdsReader<SystemStateTopic>(participant);
         _inventoryReader    = new DdsReader<AssetInventoryTopic>(participant);
         _heartbeatReader    = new DdsReader<NodeHeartbeat>(participant);
@@ -170,7 +176,7 @@ public sealed class ClusterUiCache : IDisposable
             MasterWallTicks = s.Data.MasterWallTicks;
             MasterTimeScale = s.Data.TimeScale;
             if (!IsPaused)
-                MasterSimTime = s.Data.SimTimeSnapshot;
+                _networkSimTime = s.Data.SimTimeSnapshot;
         }
     }
 
