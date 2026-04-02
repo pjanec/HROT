@@ -11,22 +11,21 @@ namespace FDP.Toolkit.Orchestration
     /// <summary>
     /// Generic cluster state machine slave.
     ///
-    /// <para>Publishes a node heartbeat at 1 Hz via <see cref="IOrchestrationTransport"/>
-    /// and dispatches inbound <see cref="OrchestrationCommand"/> messages to registered
-    /// <see cref="IClusterStateHandler"/> instances.  All DDS I/O is delegated to the transport,
-    /// keeping this class free of any Hrot or CycloneDDS references.</para>
+    /// <para>Publishes a node heartbeat at 1 Hz via <see cref="FdpEventBus"/>
+    /// and dispatches inbound <see cref="ExecuteNodeOpIntent"/> messages to registered
+    /// <see cref="IClusterStateHandler"/> instances.  All network I/O is routed through
+    /// the event bus, keeping this class free of any Hrot or CycloneDDS references.</para>
     ///
     /// <para><b>Prepare/Commit ordering:</b> when a handler's
     /// <see cref="IClusterStateHandler.PrepareAsync"/> returns an incomplete <see cref="System.Threading.Tasks.Task"/>,
     /// the result is stored in <c>_pendingPrepare</c> and <see cref="IClusterStateHandler.Commit"/> is
     /// deferred to the next <see cref="Tick"/> that sees the task complete.</para>
     ///
-    /// <para><b>Deduplication:</b> commands with a <see cref="OrchestrationCommand.TransactionId"/>
-    /// already seen are silently dropped.</para>
+    /// <para><b>Deduplication:</b> intents with a <see cref="ExecuteNodeOpIntent.TransactionId"/>
+    /// already seen for the same operation are silently dropped.</para>
     /// </summary>
     public sealed class ClusterSlave : IDisposable
     {
-        private readonly IOrchestrationTransport? _transport;
         private readonly int    _nodeId;
         private readonly string _subsystemName;
         private readonly FdpEventBus? _eventBus;
@@ -35,12 +34,19 @@ namespace FDP.Toolkit.Orchestration
         private readonly Stopwatch _heartbeatTimer = Stopwatch.StartNew();
 
         // ── Deduplication (CGF1-S0202) ────────────────────────────────────────
-        // Compound key (TransactionId, OperationId) so that PrepareXxx and CommitState
-        // belonging to the same 2PC transaction are each accepted exactly once.
-        private readonly System.Collections.Generic.HashSet<(Guid, int)> _seenTransactionIds = new();
+        // 3-tuple key (TransactionId, Operation, stateDiscriminant) so that PrepareXxx
+        // and CommitState belonging to the same 2PC transaction are each accepted once,
+        // and multiple CommitState intents for different target states in the same
+        // multi-step trajectory are NOT collapsed into one (DEBT-007 fix).
+        private readonly System.Collections.Generic.HashSet<(Guid, NodeOpType, int)> _seenTransactionIds = new();
+
+        // ── Deferred intents (DEBT-007 fix) ──────────────────────────────────
+        // When an async prepare is running, any new intents from the bus are buffered
+        // here so they survive the next SwapBuffers() call instead of being silently lost.
+        private readonly System.Collections.Generic.Queue<ExecuteNodeOpIntent> _pendingIntents = new();
 
         // ── Pending async prepare (BATCH-18 pattern) ─────────────────────────
-        private (System.Threading.Tasks.Task<string?> PrepareTask, OrchestrationCommand Cmd, IClusterStateHandler Handler)? _pendingPrepare;
+        private (System.Threading.Tasks.Task<object?> PrepareTask, ExecuteNodeOpIntent Intent, IClusterStateHandler Handler)? _pendingPrepare;
 
         // ── Local state id ────────────────────────────────────────────────────
         private int _localStateId;
@@ -50,21 +56,16 @@ namespace FDP.Toolkit.Orchestration
         // ── Production constructor ────────────────────────────────────────────
 
         /// <summary>
-        /// Creates a ClusterSlave backed by <paramref name="transport"/> for all DDS I/O.
-        /// When <paramref name="transport"/> is <c>null</c>, heartbeat publishing and
-        /// command polling are disabled (standalone / test mode without DDS).
+        /// Creates a ClusterSlave backed by the <paramref name="eventBus"/> for all I/O.
         /// </summary>
-        /// <param name="transport">DDS (or other) transport; owned by the caller.  May be <c>null</c>.</param>
         /// <param name="nodeId">Node identifier published in heartbeats.</param>
         /// <param name="subsystemName">Subsystem name published in heartbeats.</param>
-        /// <param name="eventBus">Optional event bus for <see cref="TkClusterStateChangedEvent"/> publication.</param>
+        /// <param name="eventBus">Optional event bus for heartbeat and operation event publication.</param>
         public ClusterSlave(
-            IOrchestrationTransport? transport,
             int    nodeId,
             string subsystemName,
             FdpEventBus? eventBus = null)
         {
-            _transport     = transport;
             _nodeId        = nodeId;
             _subsystemName = subsystemName ?? throw new ArgumentNullException(nameof(subsystemName));
             _eventBus      = eventBus;
@@ -73,14 +74,13 @@ namespace FDP.Toolkit.Orchestration
         // ── Test-only constructor ─────────────────────────────────────────────
 
         /// <summary>
-        /// Creates a ClusterSlave without a transport.  Heartbeat publishing is disabled.
-        /// Use <see cref="EnqueueCommandForTest"/> to inject commands without DDS.
+        /// Creates a ClusterSlave for tests.
+        /// Use <see cref="EnqueueIntentForTest"/> to inject intents directly.
         /// </summary>
-        public ClusterSlave(FdpEventBus? eventBus = null)
+        public ClusterSlave(FdpEventBus? eventBus = null, int nodeId = 0, string subsystemName = "TestNode")
         {
-            _transport     = null;
-            _nodeId        = 0;
-            _subsystemName = string.Empty;
+            _nodeId        = nodeId;
+            _subsystemName = subsystemName;
             _eventBus      = eventBus;
         }
 
@@ -108,17 +108,22 @@ namespace FDP.Toolkit.Orchestration
 
         /// <summary>
         /// Publishes a heartbeat (if 1 s has elapsed), drains tickable handlers, resolves
-        /// any pending prepare task, and dispatches new commands from the transport.
+        /// any pending prepare task, and dispatches new commands from the event bus.
         /// Call once per application frame from the main thread.
         /// </summary>
         public void Tick()
         {
-            // Heartbeat at 1 Hz.
-            if (_transport != null && _heartbeatTimer.Elapsed.TotalSeconds >= 1.0)
+            // Heartbeat at 1 Hz via FdpEventBus.
+            if (_heartbeatTimer.Elapsed.TotalSeconds >= 1.0)
             {
                 _heartbeatTimer.Restart();
-                _transport.PublishHeartbeat(_nodeId, _subsystemName, _localStateId,
-                    DateTimeOffset.UtcNow.Ticks);
+                _eventBus?.PublishManaged(new NodeHeartbeatEvent
+                {
+                    NodeId        = _nodeId,
+                    LocalStateId  = _localStateId,
+                    WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
+                    SubsystemName = _subsystemName,
+                });
             }
 
             // Poll tickable handlers for deferred ACKs.
@@ -139,34 +144,70 @@ namespace FDP.Toolkit.Orchestration
                 if (pending.PrepareTask.IsFaulted)
                 {
                     FdpLog<ClusterSlave>.Error(
-                        "[ClusterSlave] PrepareAsync faulted for operationId {0} " +
+                        "[ClusterSlave] PrepareAsync faulted for operation {0} " +
                         "(transactionId={1}): {2}. Commit skipped.",
-                        pending.Cmd.OperationId,
-                        pending.Cmd.TransactionId,
+                        pending.Intent.Operation,
+                        pending.Intent.TransactionId,
                         pending.PrepareTask.Exception?.GetBaseException().Message ?? "unknown");
+                    _eventBus?.PublishManaged(new NodeOpCompletedEvent
+                    {
+                        TransactionId   = pending.Intent.TransactionId,
+                        NodeId          = _nodeId,
+                        StatusCode      = OrchestrationStatusCode.Failure,
+                        IsParticipating = true,
+                        ResultPayload   = null,
+                    });
+                    _pendingIntents.Clear();  // Discard deferred intents for the failed transaction
                     return;
                 }
 
-                pending.Handler.Commit(pending.Cmd, repo: null);
+                var pendingResult = pending.PrepareTask.Result;
+                pending.Handler.Commit(pending.Intent, repo: null);
+                _eventBus?.PublishManaged(new NodeOpCompletedEvent
+                {
+                    TransactionId   = pending.Intent.TransactionId,
+                    NodeId          = _nodeId,
+                    StatusCode      = OrchestrationStatusCode.Success,
+                    IsParticipating = true,
+                    ResultPayload   = pendingResult,
+                });
             }
 
-            if (_transport == null) return;
-
-            while (_transport.TryDequeueCommand(out var cmd))
+            // Drain deferred intents queued in a previous tick (when async prepare was active).
+            while (_pendingIntents.Count > 0 && !_pendingPrepare.HasValue)
             {
-                DispatchCommand(cmd);
-                if (_pendingPrepare.HasValue) break;
+                DispatchIntent(_pendingIntents.Dequeue());
+            }
+
+            // Read new intents from bus.  When async prepare is running, unseen intents
+            // are queued internally so they survive the next SwapBuffers().
+            if (_eventBus != null)
+            {
+                foreach (var intent in _eventBus.ConsumeManaged<ExecuteNodeOpIntent>())
+                {
+                    if (_pendingPrepare.HasValue)
+                    {
+                        // Async prepare in progress — buffer unseen intents for next tick.
+                        int sd = intent.Operation == NodeOpType.CommitState && intent.DomainPayload is int v ? v : -1;
+                        if (!_seenTransactionIds.Contains((intent.TransactionId, intent.Operation, sd)))
+                            _pendingIntents.Enqueue(intent);
+                    }
+                    else
+                    {
+                        DispatchIntent(intent);
+                    }
+                }
             }
         }
 
         // ── Test helpers ──────────────────────────────────────────────────────
 
         /// <summary>
-        /// Enqueues a command directly — bypasses transport.  For unit tests only.
+        /// Enqueues an intent directly — bypasses transport.  For unit tests only.
         /// </summary>
-        public void EnqueueCommandForTest(OrchestrationCommand cmd)
+        public void EnqueueIntentForTest(ExecuteNodeOpIntent intent)
         {
-            DispatchCommand(cmd);
+            DispatchIntent(intent);
         }
 
         /// <summary>
@@ -177,70 +218,83 @@ namespace FDP.Toolkit.Orchestration
 
         // ── Private helpers ───────────────────────────────────────────────────
 
-        // CommitState integer value = NodeOpType.CommitState = 2 (stable, must not change).
-        private const int CommitStateOperationId = 2;
-
-        private void DispatchCommand(OrchestrationCommand cmd)
+        private void DispatchIntent(ExecuteNodeOpIntent intent)
         {
-            // Idempotency: drop re-delivered commands, keyed on (TransactionId, OperationId)
-            // so that Prepare and Commit for the same transaction are both accepted once.
-            var dedupKey = (cmd.TransactionId, cmd.OperationId);
+            // Idempotency: drop re-delivered intents.
+            // CommitState intents for different target states within the same transaction
+            // must each be accepted — use DomainPayload (target state int) as a discriminant.
+            // All other intents use discriminant -1.
+            int stateDiscriminant = intent.Operation == NodeOpType.CommitState && intent.DomainPayload is int sd
+                ? sd : -1;
+            var dedupKey = (intent.TransactionId, intent.Operation, stateDiscriminant);
             if (!_seenTransactionIds.Add(dedupKey))
             {
                 FdpLog<ClusterSlave>.Debug(
-                    "[ClusterSlave] Duplicate Command {0}-{1} dropped.", cmd.TransactionId, cmd.OperationId);
+                    "[ClusterSlave] Duplicate intent {0}-{1} dropped.", intent.TransactionId, intent.Operation);
                 return;
             }
 
             // CommitState: update local state and raise TkClusterStateChangedEvent.
-            if (cmd.OperationId == CommitStateOperationId)
+            if (intent.Operation == NodeOpType.CommitState)
             {
-                if (int.TryParse(cmd.PayloadJson, out var nextStateId))
+                int nextStateId = intent.DomainPayload is int stateId ? stateId : _localStateId;
+                var previousStateId = _localStateId;
+                _localStateId = nextStateId;
+                _eventBus?.Publish(new TkClusterStateChangedEvent
                 {
-                    var previousStateId = _localStateId;
-                    _localStateId = nextStateId;
-
-                    _eventBus?.Publish(new TkClusterStateChangedEvent
-                    {
-                        PreviousStateId = previousStateId,
-                        NextStateId     = nextStateId,
-                    });
-                }
-                else
-                {
-                    FdpLog<ClusterSlave>.Warn(
-                        "[ClusterSlave] CommitState payload '{0}' could not be parsed as int.",
-                        cmd.PayloadJson);
-                }
+                    PreviousStateId = previousStateId,
+                    NextStateId     = nextStateId,
+                });
                 return;
             }
 
             // Handler dispatch with async-prepare deferral.
             foreach (var handler in _handlers)
             {
-                if (!handler.CanHandle(cmd.OperationId)) continue;
+                if (!handler.CanHandle(intent.Operation)) continue;
 
-                var prepareTask = handler.PrepareAsync(cmd, default);
+                var prepareTask = handler.PrepareAsync(intent, default);
                 if (prepareTask.IsCompleted)
                 {
                     if (prepareTask.IsFaulted)
+                    {
                         FdpLog<ClusterSlave>.Error(
-                            "[ClusterSlave] PrepareAsync faulted for operationId {0} " +
+                            "[ClusterSlave] PrepareAsync faulted for operation {0} " +
                             "(transactionId={1}): {2}. Commit skipped.",
-                            cmd.OperationId, cmd.TransactionId,
+                            intent.Operation, intent.TransactionId,
                             prepareTask.Exception?.GetBaseException().Message ?? "unknown");
+                        _eventBus?.PublishManaged(new NodeOpCompletedEvent
+                        {
+                            TransactionId   = intent.TransactionId,
+                            NodeId          = _nodeId,
+                            StatusCode      = OrchestrationStatusCode.Failure,
+                            IsParticipating = true,
+                            ResultPayload   = null,
+                        });
+                    }
                     else
-                        handler.Commit(cmd, repo: null);
+                    {
+                        var result = prepareTask.Result;
+                        handler.Commit(intent, repo: null);
+                        _eventBus?.PublishManaged(new NodeOpCompletedEvent
+                        {
+                            TransactionId   = intent.TransactionId,
+                            NodeId          = _nodeId,
+                            StatusCode      = OrchestrationStatusCode.Success,
+                            IsParticipating = true,
+                            ResultPayload   = result,
+                        });
+                    }
                 }
                 else
                 {
-                    _pendingPrepare = (prepareTask, cmd, handler);
+                    _pendingPrepare = (prepareTask, intent, handler);
                 }
                 return;
             }
 
             FdpLog<ClusterSlave>.Debug(
-                "[ClusterSlave] No handler for operationId {0}.", cmd.OperationId);
+                "[ClusterSlave] No handler for operation {0}.", intent.Operation);
         }
 
         // ── IDisposable ───────────────────────────────────────────────────────
@@ -250,7 +304,6 @@ namespace FDP.Toolkit.Orchestration
         {
             if (_disposed) return;
             _disposed = true;
-            _transport?.Dispose();
         }
     }
 }

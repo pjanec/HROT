@@ -12,44 +12,34 @@ namespace FDP.Toolkit.Orchestration
     /// The <c>ClusterSlave</c> calls handlers in sequence during the prepare /
     /// commit / abort phases of a distributed transaction.
     /// </para>
-    ///
-    /// <para>
-    /// <b>Parameter naming:</b> <paramref name="operationId"/> carries the raw
-    /// integer value of the operation type.  Hrot handlers may cast it back to
-    /// <c>NodeOpType</c>; the integer values are identical and stable.  This
-    /// interface uses <c>int</c> so FDP toolkit code stays free of Hrot-layer
-    /// DDS enums.
-    /// </para>
     /// </summary>
     public interface IClusterStateHandler
     {
         /// <summary>
         /// Returns <c>true</c> when this handler is responsible for the given
-        /// <paramref name="operationId"/>.
-        /// Callers may cast <paramref name="operationId"/> back to their specific
-        /// enum type (e.g. <c>NodeOpType</c>) for internal switch statements.
+        /// <paramref name="operation"/>.
         /// </summary>
-        bool CanHandle(int operationId);
+        bool CanHandle(NodeOpType operation);
 
         /// <summary>
-        /// Performs any async preparation work required before committing
-        /// <paramref name="cmd"/>.  Return <c>null</c> on success or an error
-        /// string on failure.  Must not mutate ECS state.
+        /// Performs any async preparation work required before committing the
+        /// <paramref name="intent"/>.  Returns a typed result object on success
+        /// (or <c>null</c>).  Must not mutate ECS state.
         /// </summary>
-        Task<string?> PrepareAsync(OrchestrationCommand cmd, CancellationToken ct);
+        Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct);
 
         /// <summary>
-        /// Commits the previously prepared command.  Called from the main thread
+        /// Commits the previously prepared intent.  Called from the main thread
         /// (inside <c>Tick()</c>).  May mutate ECS state via <paramref name="repo"/>.
         /// <paramref name="repo"/> is <c>null</c> for no-ECS subsystems (ExCon, CGF skeleton).
         /// </summary>
-        void Commit(OrchestrationCommand cmd, EntityRepository? repo);
+        void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo);
 
         /// <summary>
-        /// Aborts the previously prepared command — rolls back any resources
+        /// Aborts the previously prepared intent — rolls back any resources
         /// allocated during <see cref="PrepareAsync"/>.
         /// <paramref name="repo"/> is <c>null</c> for no-ECS subsystems (ExCon, CGF skeleton).
         /// </summary>
-        void Abort(OrchestrationCommand cmd, EntityRepository? repo);
+        void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo);
     }
 }

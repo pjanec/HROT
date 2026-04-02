@@ -1,7 +1,7 @@
 namespace FDP.Toolkit.Orchestration
 {
     /// <summary>
-    /// Named constants for the unified <see cref="OrchestrationStatus.StatusCode"/>
+    /// Named constants for the unified <see cref="NodeOpCompletedEvent"/> status code
     /// scheme used across all FDP orchestration messages.
     ///
     /// <para>
@@ -31,6 +31,7 @@ namespace FDP.Toolkit.Orchestration
         public const int Rejected  = 10;
         public const int Timeout   = 11;
         public const int Cancelled = 12;
+        public const int Failure   = 13;
 
         // ── Federation errors (100–999) ────────────────────────────────────────
         public const int InvalidZone      = 101;

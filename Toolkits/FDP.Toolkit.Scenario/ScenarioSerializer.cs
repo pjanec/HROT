@@ -63,6 +63,45 @@ namespace FDP.Toolkit.Scenario
         public bool IsMatchingSubsystem(string? subsystemType)
             => string.Equals(subsystemType, _subsystemType, StringComparison.Ordinal);
 
+        /// <summary>
+        /// Parses the <c>Header.SubsystemType</c> value from raw JSON text without a
+        /// full DOM parse.  Returns <see langword="null"/> on parse failure or if the
+        /// header node is absent.
+        /// </summary>
+        public string? PeekSubsystemType(string jsonText)
+        {
+            try
+            {
+                var node = JsonNode.Parse(jsonText);
+                return node?["Header"]?["SubsystemType"]?.GetValue<string>();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Parses <paramref name="jsonText"/> and deserializes entities into <paramref name="repo"/>.
+        /// Convenience overload that avoids exposing <see cref="JsonObject"/> to callers that
+        /// do not otherwise depend on <c>System.Text.Json</c>.
+        /// </summary>
+        public void Deserialize(
+            EntityRepository repo,
+            string jsonText,
+            bool asEpisode  = false,
+            Guid? episodeId = null)
+        {
+            if (repo     == null) throw new ArgumentNullException(nameof(repo));
+            if (jsonText == null) throw new ArgumentNullException(nameof(jsonText));
+
+            var dom = JsonNode.Parse(jsonText)?.AsObject();
+            if (dom == null)
+                throw new InvalidOperationException(
+                    "[ScenarioSerializer] Deserialize(string): failed to parse JSON text.");
+            Deserialize(repo, dom, asEpisode, episodeId);
+        }
+
         // ── Serialize ────────────────────────────────────────────────────────────
 
         /// <summary>

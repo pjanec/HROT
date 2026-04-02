@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using FDP.Toolkit.Orchestration;
 
 namespace FDP.Toolkit.Orchestration.Tests;
@@ -9,29 +8,28 @@ namespace FDP.Toolkit.Orchestration.Tests;
 /// </summary>
 public sealed class OrchestrationContractTests
 {
-    // ── OrchestrationCommand JSON round-trip ──────────────────────────────
+    // ── ExecuteNodeOpIntent construction ──────────────────────────────────
 
     /// <summary>
-    /// <c>OrchestrationCommand</c> must survive a JSON serialise → deserialise cycle
-    /// with all fields intact.
+    /// <c>ExecuteNodeOpIntent</c> must be constructable with all fields set.
+    /// Verifies the new CQRS intent type replaces OrchestrationCommand.
     /// </summary>
     [Fact]
-    public void OrchestrationCommand_RoundTripsJson()
+    public void ExecuteNodeOpIntent_CanBeConstructed()
     {
-        var txId    = Guid.NewGuid();
-        var original = new OrchestrationCommand(
-            TransactionId: txId,
-            TargetNodeId:  42,
-            OperationId:   9,
-            PayloadJson:   "{\"State\":30}");
+        var txId   = Guid.NewGuid();
+        var intent = new ExecuteNodeOpIntent
+        {
+            TransactionId = txId,
+            TargetNodeId  = 42,
+            Operation     = NodeOpType.PrepareLive,
+            DomainPayload = "test-scenario",
+        };
 
-        var json         = JsonSerializer.Serialize(original);
-        var deserialized = JsonSerializer.Deserialize<OrchestrationCommand>(json);
-
-        Assert.Equal(original.TransactionId, deserialized.TransactionId);
-        Assert.Equal(original.TargetNodeId,  deserialized.TargetNodeId);
-        Assert.Equal(original.OperationId,   deserialized.OperationId);
-        Assert.Equal(original.PayloadJson,   deserialized.PayloadJson);
+        Assert.Equal(txId,                    intent.TransactionId);
+        Assert.Equal(42,                      intent.TargetNodeId);
+        Assert.Equal(NodeOpType.PrepareLive,  intent.Operation);
+        Assert.Equal("test-scenario",         intent.DomainPayload);
     }
 
     // ── TransitionGraphBuilder ────────────────────────────────────────────

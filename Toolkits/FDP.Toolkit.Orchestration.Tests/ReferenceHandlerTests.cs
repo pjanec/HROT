@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using Xunit;
@@ -14,18 +15,6 @@ namespace FDP.Toolkit.Orchestration.Tests;
 /// </summary>
 public sealed class ReferenceHandlerTests
 {
-    // ── Stubs ─────────────────────────────────────────────────────────────────
-
-    private sealed class CapturingTransport : IOrchestrationTransport
-    {
-        public readonly List<OrchestrationStatus> PublishedStatuses = new();
-
-        public void PublishHeartbeat(int nodeId, string subsystemName, int localStateId, long wallTicksUtc) { }
-        public void PublishStatus(OrchestrationStatus status) => PublishedStatuses.Add(status);
-        public bool TryDequeueCommand(out OrchestrationCommand cmd) { cmd = default; return false; }
-        public void Dispose() { }
-    }
-
     // ── LocalDiskStorageProvider ──────────────────────────────────────────────
 
     /// <summary>
@@ -52,35 +41,45 @@ public sealed class ReferenceHandlerTests
     // ── ReferencePrefetchHandler — G0404 success condition ────────────────────
 
     /// <summary>
-    /// Fact: ReferencePrefetchHandler ACKs via transport.
-    /// PrepareAsync + Commit causes PublishStatus to be called with
-    /// StatusCode = OrchestrationStatusCode.Success.
+    /// Fact: ReferencePrefetchHandler dispatched via ClusterSlave publishes
+    /// NodeOpCompletedEvent with Success on the event bus.
     /// </summary>
     [Fact]
-    public async Task ReferencePrefetchHandler_AcksViaTransport_OnCommit()
+    public async Task ReferencePrefetchHandler_PublishesNodeOpCompletedEvent_OnCommit()
     {
         var root = Path.Combine(Path.GetTempPath(), $"TkOrcTests_{Guid.NewGuid():N}");
         try
         {
-            var transport    = new CapturingTransport();
             var provider     = new LocalDiskStorageProvider(root);
             const int nodeId = 7;
-            var handler      = new ReferencePrefetchHandler(transport, nodeId, provider);
+            var handler      = new ReferencePrefetchHandler(provider);
+            var eventBus     = new FdpEventBus();
 
             var txId = Guid.NewGuid();
-            var cmd  = new OrchestrationCommand(
-                txId, TargetNodeId: nodeId,
-                OperationId: ReferencePrefetchHandler.PrefetchFilesOperationId,
-                PayloadJson: "{\"ScenarioId\":\"test-scenario\"}");
+            var intent = new ExecuteNodeOpIntent
+            {
+                TransactionId = txId,
+                TargetNodeId  = nodeId,
+                Operation     = NodeOpType.PrefetchFiles,
+                DomainPayload = new PrefetchHandlerPayload("test-scenario"),
+            };
 
-            await handler.PrepareAsync(cmd, CancellationToken.None);
-            handler.Commit(cmd, repo: null);
+            using var slave = new ClusterSlave(nodeId, "Test", eventBus);
+            slave.RegisterHandler(handler);
+            eventBus.PublishManaged(intent);
+            eventBus.SwapBuffers();
+            slave.Tick();
+            eventBus.SwapBuffers();
 
-            Assert.Single(transport.PublishedStatuses);
-            var status = transport.PublishedStatuses[0];
-            Assert.Equal(txId,                             status.TransactionId);
-            Assert.Equal(nodeId,                           status.NodeId);
-            Assert.Equal(OrchestrationStatusCode.Success,  status.StatusCode);
+            var completed = new List<NodeOpCompletedEvent>();
+            foreach (var e in eventBus.ConsumeManaged<NodeOpCompletedEvent>())
+                completed.Add(e);
+
+            Assert.Single(completed);
+            var status = completed[0];
+            Assert.Equal(txId,                            status.TransactionId);
+            Assert.Equal(nodeId,                          status.NodeId);
+            Assert.Equal(OrchestrationStatusCode.Success, status.StatusCode);
             Assert.True(status.IsParticipating);
         }
         finally
@@ -90,23 +89,26 @@ public sealed class ReferenceHandlerTests
     }
 
     /// <summary>
-    /// Handler does not ACK when transport is null (test-only wiring without DDS).
+    /// Handler with no bus does not throw — PrepareAsync + Commit is safe with null bus.
     /// </summary>
     [Fact]
-    public async Task ReferencePrefetchHandler_NullTransport_NoException()
+    public async Task ReferencePrefetchHandler_NullBus_NoException()
     {
         var root = Path.Combine(Path.GetTempPath(), $"TkOrcTests_{Guid.NewGuid():N}");
         try
         {
             var provider = new LocalDiskStorageProvider(root);
-            var handler  = new ReferencePrefetchHandler(transport: null, nodeId: 1, provider);
-            var cmd      = new OrchestrationCommand(
-                Guid.NewGuid(), 1,
-                ReferencePrefetchHandler.PrefetchFilesOperationId,
-                "{\"ScenarioId\":\"s1\"}");
+            var handler  = new ReferencePrefetchHandler(provider);
+            var intent   = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 1,
+                Operation     = NodeOpType.PrefetchFiles,
+                DomainPayload = new PrefetchHandlerPayload("s1"),
+            };
 
-            await handler.PrepareAsync(cmd, CancellationToken.None);
-            handler.Commit(cmd, repo: null); // must not throw
+            await handler.PrepareAsync(intent, CancellationToken.None);
+            handler.Commit(intent, repo: null); // must not throw
         }
         finally
         {

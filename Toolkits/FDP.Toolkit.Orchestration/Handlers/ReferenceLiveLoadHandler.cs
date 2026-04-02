@@ -1,5 +1,4 @@
-using System;
-using System.Text.Json;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
@@ -29,11 +28,9 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// </para>
     ///
     /// <para>
-    /// <b>Commit path:</b> Publishes a <c>NodeOpStatus(Success)</c> ACK via the optional
-    /// <see cref="IOrchestrationTransport"/> so that
-    /// <c>ClusterMaster.ConsumeNodeOpStatuses</c> can populate
+    /// <b>Commit path:</b> Status is now published by <c>ClusterSlave.DispatchIntent</c> via the
+    /// event bus so that <c>ClusterMaster.ConsumeNodeOpStatuses</c> can populate
     /// <c>DistributedTransaction.NodeResponses</c> for the 2PC History UI (CGF1-S0501).
-    /// When no transport is provided (e.g. local-only nodes) the commit is a no-op.
     /// </para>
     /// </summary>
     public sealed class ReferenceLiveLoadHandler : IClusterStateHandler
@@ -46,8 +43,6 @@ namespace FDP.Toolkit.Orchestration.Handlers
         private readonly CheckpointIOWorker?      _checkpointWorker;
         private readonly IRecordReplayController? _controller;
         private readonly string                   _storageDirectory;
-        private readonly IOrchestrationTransport? _transport;
-        private readonly int                      _nodeId;
 
         /// <param name="checkpointWorker">
         /// Optional <see cref="CheckpointIOWorker"/>; when provided,
@@ -66,47 +61,34 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// <see cref="IRecordReplayController.PrepareRecordingAsync"/>.
         /// Defaults to <c>C:\FDP_Temp</c>.
         /// </param>
-        /// <param name="transport">
-        /// Optional transport for publishing <c>NodeOpStatus</c> ACKs back to the
-        /// orchestrator on <see cref="Commit"/>.  Pass <see langword="null"/> for nodes
-        /// that do not need to ACK (no-op).
-        /// </param>
-        /// <param name="nodeId">
-        /// Node ID stamped into the <c>NodeOpStatus</c> ACK.  Ignored when
-        /// <paramref name="transport"/> is <see langword="null"/>.
-        /// </param>
         public ReferenceLiveLoadHandler(
             CheckpointIOWorker?       checkpointWorker = null,
             IRecordReplayController?  controller       = null,
-            string                    storageDirectory = @"C:\FDP_Temp",
-            IOrchestrationTransport?  transport        = null,
-            int                       nodeId           = 0)
+            string                    storageDirectory = @"C:\FDP_Temp")
         {
             _checkpointWorker = checkpointWorker;
             _controller       = controller;
             _storageDirectory = storageDirectory ?? @"C:\FDP_Temp";
-            _transport        = transport;
-            _nodeId           = nodeId;
         }
 
         /// <inheritdoc />
-        public bool CanHandle(int operationId) =>
-            operationId == PrepareLiveOperationId ||
-            operationId == FinalizeLiveOperationId;
+        public bool CanHandle(NodeOpType operation) =>
+            operation == NodeOpType.PrepareLive ||
+            operation == NodeOpType.FinalizeLive;
 
         /// <inheritdoc />
-        public async Task<string?> PrepareAsync(OrchestrationCommand cmd, CancellationToken ct)
+        public async Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
-            if (cmd.OperationId == PrepareLiveOperationId)
+            if (intent.Operation == NodeOpType.PrepareLive)
             {
                 if (_controller != null)
                 {
-                    var exerciseId = ParseExerciseId(cmd.PayloadJson);
+                    var exerciseId = intent.DomainPayload is Guid g ? g : Guid.Empty;
                     await _controller.PrepareRecordingAsync(exerciseId, _storageDirectory)
                         .ConfigureAwait(false);
                 }
             }
-            else if (cmd.OperationId == FinalizeLiveOperationId)
+            else if (intent.Operation == NodeOpType.FinalizeLive)
             {
                 if (_checkpointWorker != null)
                     await _checkpointWorker.DrainAsync().ConfigureAwait(false);
@@ -120,42 +102,13 @@ namespace FDP.Toolkit.Orchestration.Handlers
 
         /// <inheritdoc />
         /// <remarks>
-        /// Publishes a <c>NodeOpStatus(Success)</c> ACK so that
-        /// <c>ClusterMaster.ConsumeNodeOpStatuses</c> populates
-        /// <c>DistributedTransaction.NodeResponses</c> for the 2PC History UI.
+        /// Status is now published by <c>ClusterSlave.DispatchIntent</c> via the event bus.
         /// </remarks>
-        public void Commit(OrchestrationCommand cmd, EntityRepository? repo)
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo)
         {
-            _transport?.PublishStatus(new OrchestrationStatus(
-                TransactionId:   cmd.TransactionId,
-                NodeId:          _nodeId,
-                StatusCode:      OrchestrationStatusCode.Success,
-                IsParticipating: true,
-                ResultJson:      string.Empty));
         }
 
         /// <inheritdoc />
-        public void Abort(OrchestrationCommand cmd, EntityRepository? repo) { }
-
-        // ── Helpers ───────────────────────────────────────────────────────────────
-
-        private static Guid ParseExerciseId(string? payloadJson)
-        {
-            if (!string.IsNullOrWhiteSpace(payloadJson))
-            {
-                using var doc = JsonDocument.Parse(payloadJson);
-                if (doc.RootElement.TryGetProperty("ExerciseId", out var prop))
-                {
-                    var raw = prop.GetString();
-                    if (Guid.TryParse(raw, out var g)) return g;
-                    throw new InvalidOperationException(
-                        $"[ReferenceLiveLoadHandler] 'ExerciseId' value '{raw}' is not a valid GUID. " +
-                        "Refusing to start recording under an unintended exercise id.");
-                }
-            }
-            throw new InvalidOperationException(
-                "[ReferenceLiveLoadHandler] PayloadJson is missing or does not contain a 'ExerciseId' " +
-                $"property. Payload: '{payloadJson}'. Refusing to start recording under an unknown exercise id.");
-        }
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
     }
 }

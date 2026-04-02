@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
@@ -64,20 +63,16 @@ namespace FDP.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        public bool CanHandle(int operationId) => operationId == PrepareStateOperationId;
+        public bool CanHandle(NodeOpType operation) => operation == NodeOpType.PrepareState;
 
         /// <inheritdoc />
-        public Task<string?> PrepareAsync(OrchestrationCommand cmd, CancellationToken ct)
-            => Task.FromResult<string?>(null);
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
+            => Task.FromResult<object?>(null);
 
         /// <inheritdoc />
-        /// <remarks>
-        /// Acts on <c>LoadingPreview</c> and <c>UnloadingPreview</c>; all other
-        /// targets are no-ops.
-        /// </remarks>
-        public void Commit(OrchestrationCommand cmd, EntityRepository? repo)
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo)
         {
-            var target = ParseTargetState(cmd.PayloadJson);
+            var target = intent.DomainPayload is int t ? t : 0;
 
             switch (target)
             {
@@ -92,7 +87,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        public void Abort(OrchestrationCommand cmd, EntityRepository? repo)
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
         {
             _snap?.Dispose();
             _snap = null;
@@ -152,20 +147,6 @@ namespace FDP.Toolkit.Orchestration.Handlers
 
             FdpLog<ReferencePreviewHandler>.Info(
                 "[ReferencePreviewHandler] UnloadingPreview: live repo rewound to snapshot.");
-        }
-
-        private static int ParseTargetState(string? payloadJson)
-        {
-            if (string.IsNullOrWhiteSpace(payloadJson)) return 0;
-            if (int.TryParse(payloadJson, out var n)) return n;
-            try
-            {
-                using var doc = JsonDocument.Parse(payloadJson);
-                if (doc.RootElement.TryGetProperty("TargetState", out var prop))
-                    return prop.GetInt32();
-            }
-            catch { /* malformed payload — treat as Standby */ }
-            return 0;
         }
     }
 }

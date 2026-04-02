@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
@@ -34,8 +33,8 @@ namespace FDP.Toolkit.Orchestration.Handlers
         private readonly IScenarioStorageProvider _storageProvider;
         private readonly EntityRepository?   _world;
 
-        private JsonObject? _pendingDom;
-        private Guid?       _pendingTransactionId;
+        private string? _pendingJson;
+        private Guid?  _pendingTransactionId;
         private int         _prepareCallCount;
 
         /// <summary>
@@ -68,23 +67,22 @@ namespace FDP.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        public bool CanHandle(int operationId) => operationId == PrepareLiveOperationId;
+        public bool CanHandle(NodeOpType operation) => operation == NodeOpType.PrepareLive;
 
         /// <inheritdoc />
         /// <remarks>
         /// Locates and parses the scenario file via the storage provider; caches the DOM
-        /// if the subsystem type matches.  Returns <see langword="null"/> (success) on
-        /// a SubsystemType mismatch — the subsystem has no file to load for this scenario.
+        /// if the subsystem type matches.
         /// </remarks>
-        public Task<string?> PrepareAsync(OrchestrationCommand cmd, CancellationToken ct)
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
             _prepareCallCount++;
-            _pendingDom           = null;
+            _pendingJson          = null;
             _pendingTransactionId = null;
 
-            var scenarioId = ParseScenarioId(cmd.PayloadJson);
+            var scenarioId = intent.DomainPayload is string s ? s : null;
             if (string.IsNullOrWhiteSpace(scenarioId))
-                return Task.FromResult<string?>(null);
+                return Task.FromResult<object?>(null);
 
             foreach (var fileName in _storageProvider.EnumerateScenarioFiles(scenarioId))
             {
@@ -94,16 +92,12 @@ namespace FDP.Toolkit.Orchestration.Handlers
                     if (stream == null) continue;
 
                     using var reader = new StreamReader(stream);
-                    var text = reader.ReadToEnd();
-                    var dom  = System.Text.Json.Nodes.JsonNode.Parse(text)?.AsObject();
-                    if (dom == null) continue;
-
-                    var headerNode = dom["Header"]?.AsObject();
-                    var subsysType = headerNode?["SubsystemType"]?.GetValue<string>();
+                    var text       = reader.ReadToEnd();
+                    var subsysType = _serializer.PeekSubsystemType(text);
                     if (!_serializer.IsMatchingSubsystem(subsysType)) continue;
 
-                    _pendingDom           = dom;
-                    _pendingTransactionId = cmd.TransactionId;
+                    _pendingJson          = text;
+                    _pendingTransactionId = intent.TransactionId;
                     FdpLog<ReferenceScenarioLoadHandler>.Info(
                         "[ReferenceScenarioLoadHandler] PrepareAsync: queued '{0}' for load.",
                         fileName);
@@ -117,7 +111,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
                 }
             }
 
-            return Task.FromResult<string?>(null);
+            return Task.FromResult<object?>(null);
         }
 
         /// <inheritdoc />
@@ -126,9 +120,9 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// found.  No-ops on subsystem mismatch or when <c>world</c> is <c>null</c> (CGF
         /// header-peek path).
         /// </remarks>
-        public void Commit(OrchestrationCommand cmd, EntityRepository? repo)
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo)
         {
-            if (_pendingDom == null || _pendingTransactionId != cmd.TransactionId) return;
+            if (_pendingJson == null || _pendingTransactionId != intent.TransactionId) return;
 
             var targetRepo = repo ?? _world;
             if (targetRepo == null)
@@ -136,14 +130,14 @@ namespace FDP.Toolkit.Orchestration.Handlers
                 // CGF header-peek path: no entity repository — participate but skip injection.
                 FdpLog<ReferenceScenarioLoadHandler>.Info(
                     "[ReferenceScenarioLoadHandler] Commit: no EntityRepository — header-peek only.");
-                _pendingDom           = null;
+                _pendingJson          = null;
                 _pendingTransactionId = null;
                 return;
             }
 
             try
             {
-                _serializer.Deserialize(targetRepo, _pendingDom);
+                _serializer.Deserialize(targetRepo, _pendingJson);
                 FdpLog<ReferenceScenarioLoadHandler>.Info(
                     "[ReferenceScenarioLoadHandler] Commit: entities deserialized successfully.");
             }
@@ -155,30 +149,16 @@ namespace FDP.Toolkit.Orchestration.Handlers
             }
             finally
             {
-                _pendingDom           = null;
+                _pendingJson          = null;
                 _pendingTransactionId = null;
             }
         }
 
         /// <inheritdoc />
-        public void Abort(OrchestrationCommand cmd, EntityRepository? repo)
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
         {
-            _pendingDom           = null;
+            _pendingJson          = null;
             _pendingTransactionId = null;
-        }
-
-        private static string? ParseScenarioId(string? payloadJson)
-        {
-            if (string.IsNullOrWhiteSpace(payloadJson)) return null;
-            try
-            {
-                var node = System.Text.Json.Nodes.JsonNode.Parse(payloadJson);
-                return node?["ScenarioId"]?.GetValue<string>();
-            }
-            catch
-            {
-                return null;
-            }
         }
     }
 }

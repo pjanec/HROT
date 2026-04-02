@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
@@ -9,77 +8,80 @@ using FDP.Kernel.Logging;
 namespace FDP.Toolkit.Orchestration.Handlers;
 
 /// <summary>
+/// Payload for <see cref="ReferenceArchiveHandler"/> commands.
+/// </summary>
+public record struct ArchiveHandlerPayload(string? ExerciseId);
+
+/// <summary>
+/// Result published by <see cref="ReferenceArchiveHandler"/> after a successful archive.
+/// </summary>
+public record struct FileManifestResult(string SourceUnc, string RelativeDest);
+
+/// <summary>
 /// Node-side archive handler (CGF1-S0505).
-/// Responds to <see cref="SerializeLocalOperationId"/> commands whose
-/// <c>PayloadJson</c> contains a <c>"ExerciseId"</c> key.
-/// When committed, it reads the per-node <c>.fdp</c> file and publishes an
-/// <see cref="OrchestrationStatus"/> whose <c>ResultJson</c> contains a serialised
-/// manifest array so that <c>ClusterMaster.ConsumeNodeOpStatuses</c> can pull the
-/// file to the central NAS.
+/// Responds to <see cref="NodeOpType.SerializeLocal"/> intents whose
+/// <c>DomainPayload</c> is an <see cref="ArchiveHandlerPayload"/> with a non-null
+/// <c>ExerciseId</c>.
+/// When committed, it reads the per-node <c>.fdp</c> file and publishes a
+/// <see cref="NodeOpCompletedEvent"/> whose <c>ResultPayload</c> contains a
+/// <see cref="FileManifestResult"/> array so that <c>ClusterMaster.ConsumeNodeOpStatuses</c>
+/// can pull the file to the central NAS.
 /// </summary>
 public sealed class ReferenceArchiveHandler : IClusterStateHandler
 {
     /// <summary>Integer value of <c>NodeOpType.SerializeLocal</c>.</summary>
     public const int SerializeLocalOperationId = 15;
 
-    private readonly IOrchestrationTransport? _transport;
     private readonly string _localTempRoot;
     private readonly int    _nodeId;
 
     public ReferenceArchiveHandler(
-        IOrchestrationTransport? transport,
         string                   localTempRoot,
         int                      nodeId)
     {
-        _transport     = transport;
         _localTempRoot = localTempRoot ?? throw new ArgumentNullException(nameof(localTempRoot));
         _nodeId        = nodeId;
     }
 
     /// <inheritdoc />
-    public bool CanHandle(int operationId)
-        => operationId == SerializeLocalOperationId;
+    public bool CanHandle(NodeOpType operation)
+        => operation == NodeOpType.SerializeLocal;
 
     /// <inheritdoc />
-    public Task<string?> PrepareAsync(OrchestrationCommand cmd, CancellationToken ct)
-        => Task.FromResult<string?>(null);
-
-    /// <inheritdoc />
-    public void Commit(OrchestrationCommand cmd, EntityRepository? repo)
+    /// <remarks>
+    /// Locates the local .fdp file and returns a <see cref="FileManifestResult"/> array as the
+    /// task result so that <c>ClusterSlave.DispatchIntent</c> can include it in the
+    /// <see cref="NodeOpCompletedEvent.ResultPayload"/> published to the event bus.
+    /// </remarks>
+    public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
     {
-        string? exerciseId = ParseExerciseId(cmd.PayloadJson);
-        if (exerciseId is null) return;  // payload is not an archive request; skip
+        var exerciseId = intent.DomainPayload is ArchiveHandlerPayload p ? p.ExerciseId : null;
+        if (exerciseId is null) return Task.FromResult<object?>(null);
 
         var file = Path.Combine(_localTempRoot, exerciseId, $"node_{_nodeId}.fdp");
         if (!File.Exists(file))
         {
             FdpLog<ReferenceArchiveHandler>.Warn($"[ReferenceArchiveHandler] No local .fdp at {file}; cannot report manifest.");
-            return;
+            return Task.FromResult<object?>(null);
         }
 
-        // Serialise as a JSON array matching the FileManifestEntry wire shape so that
-        // ClusterMaster.ConsumeNodeOpStatuses can deserialise it back to FileManifestEntry[].
-        var resultJson = JsonSerializer.Serialize(new[]
+        var manifest = new[]
         {
-            new
-            {
-                SourceUnc    = file,
-                RelativeDest = Path.Combine(exerciseId, $"node_{_nodeId}.fdp"),
-            }
-        });
+            new FileManifestResult(
+                SourceUnc:    file,
+                RelativeDest: Path.Combine(exerciseId, $"node_{_nodeId}.fdp")),
+        };
 
-        _transport?.PublishStatus(new OrchestrationStatus(
-            TransactionId:   cmd.TransactionId,
-            NodeId:          _nodeId,
-            StatusCode:      OrchestrationStatusCode.Success,
-            IsParticipating: true,
-            ResultJson:      resultJson));
+        return Task.FromResult<object?>(manifest);
     }
 
     /// <inheritdoc />
-    public void Abort(OrchestrationCommand cmd, EntityRepository? repo)
+    public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+
+    /// <inheritdoc />
+    public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
     {
-        string? exerciseId = ParseExerciseId(cmd.PayloadJson);
+        var exerciseId = intent.DomainPayload is ArchiveHandlerPayload p ? p.ExerciseId : null;
         if (exerciseId is null) return;
         var file = Path.Combine(_localTempRoot, exerciseId, $"node_{_nodeId}.fdp");
         try { if (File.Exists(file)) File.Delete(file); }
@@ -87,18 +89,5 @@ public sealed class ReferenceArchiveHandler : IClusterStateHandler
         {
             FdpLog<ReferenceArchiveHandler>.Warn($"[ReferenceArchiveHandler] Abort cleanup failed for {file}: {ex.Message}");
         }
-    }
-
-    private static string? ParseExerciseId(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return null;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("ExerciseId", out var prop))
-                return prop.GetString();
-        }
-        catch (JsonException) { /* not a JSON object; not our payload */ }
-        return null;
     }
 }

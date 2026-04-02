@@ -1,7 +1,5 @@
 using System;
 using System.IO;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using Fdp.Kernel;
@@ -11,26 +9,15 @@ using FDP.Toolkit.Scenario;
 namespace FDP.Toolkit.Orchestration.Handlers
 {
     /// <summary>
+    /// Payload for <see cref="ReferenceEditLoadHandler"/> commands.
+    /// <c>TargetState</c> must equal <c>ClusterState.LoadingEdit (10)</c> for the
+    /// handler to perform any I/O; other target states are no-ops.
+    /// </summary>
+    public record struct EditLoadHandlerPayload(string? ScenarioId, bool IsNewScenario = false, int TargetState = 10);
+
+    /// <summary>
     /// Reference implementation of the edit-load Cluster handler (CGF1-G0404).
-    ///
-    /// <para>
-    /// Handles <c>PrepareState (operationId=1)</c> payloads that target
-    /// <c>ClusterState.LoadingEdit (state 10)</c>.  All other <c>PrepareState</c>
-    /// targets are passed through as no-ops.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>Prepare path</b>: parses <c>IsNewScenario</c> / <c>ScenarioId</c> from
-    /// the payload.  For new scenarios no file I/O is performed.  For existing
-    /// scenarios, locates and caches the matching pre-fetched JSON DOM via the
-    /// storage provider.  Throws <see cref="InvalidOperationException"/> when a
-    /// scenario file is required but absent.
-    /// </para>
-    ///
-    /// <para>
-    /// <b>Commit path</b>: deserializes entities from the cached DOM into the
-    /// repository.  For new scenarios the world is left blank.
-    /// </para>
+    /// Handles <c>PrepareState</c> intents targeting <c>ClusterState.LoadingEdit (state 10)</c>.
     /// </summary>
     public sealed class ReferenceEditLoadHandler : IClusterStateHandler
     {
@@ -40,27 +27,14 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// <summary>Integer value of <c>ClusterState.LoadingEdit</c>.</summary>
         private const int LoadingEditState = 10;
 
-        private readonly ScenarioSerializer   _serializer;
+        private readonly ScenarioSerializer       _serializer;
         private readonly IScenarioStorageProvider _storageProvider;
-        private readonly EntityRepository?    _world;
+        private readonly EntityRepository?        _world;
 
-        private JsonObject? _pendingDom;
-        private Guid?       _pendingTransactionId;
-        private bool        _pendingIsNew;
+        private string? _pendingJson;
+        private Guid?   _pendingTransactionId;
+        private bool    _pendingIsNew;
 
-        /// <param name="serializer">
-        /// Pre-built <see cref="ScenarioSerializer"/> configured with the owning
-        /// subsystem's component translators and subsystem type string.
-        /// </param>
-        /// <param name="storageProvider">
-        /// Storage provider for locating pre-fetched scenario files.
-        /// Use <c>LocalDiskStorageProvider</c> in production.
-        /// </param>
-        /// <param name="world">
-        /// Optional entity repository used as the deserialization target when the
-        /// dispatch loop passes <c>repo: null</c>.  Pass <c>null</c> in unit tests
-        /// that supply the repository directly via <see cref="Commit"/>.
-        /// </param>
         public ReferenceEditLoadHandler(
             ScenarioSerializer        serializer,
             IScenarioStorageProvider  storageProvider,
@@ -72,35 +46,34 @@ namespace FDP.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        /// <remarks>
-        /// Returns <see langword="true"/> for <c>PrepareState (1)</c>.  Only
-        /// <c>LoadingEdit</c> commands produce entity I/O; other states are ignored
-        /// inside <see cref="PrepareAsync"/>.
-        /// </remarks>
-        public bool CanHandle(int operationId) => operationId == PrepareStateOperationId;
+        public bool CanHandle(NodeOpType operation) => operation == NodeOpType.PrepareState;
 
         /// <inheritdoc />
-        public Task<string?> PrepareAsync(OrchestrationCommand cmd, CancellationToken ct)
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
-            _pendingDom           = null;
+            _pendingJson          = null;
             _pendingTransactionId = null;
             _pendingIsNew         = false;
 
+            // If no typed payload, skip (DDS bridge — Phase 5 will provide translation).
+            if (intent.DomainPayload is not EditLoadHandlerPayload payload)
+                return Task.FromResult<object?>(null);
+
             // Only act on PrepareState targeting LoadingEdit.
-            if (ParseTargetState(cmd.PayloadJson) != LoadingEditState)
-                return Task.FromResult<string?>(null);
+            if (payload.TargetState != LoadingEditState)
+                return Task.FromResult<object?>(null);
 
-            var isNew      = ParseIsNewScenario(cmd.PayloadJson);
-            var scenarioId = ParseScenarioId(cmd.PayloadJson);
+            var isNew      = payload.IsNewScenario;
+            var scenarioId = payload.ScenarioId;
 
-            _pendingTransactionId = cmd.TransactionId;
+            _pendingTransactionId = intent.TransactionId;
             _pendingIsNew         = isNew;
 
             if (isNew || string.IsNullOrWhiteSpace(scenarioId))
             {
                 FdpLog<ReferenceEditLoadHandler>.Info(
                     "[ReferenceEditLoadHandler] PrepareAsync: new scenario, blank world.");
-                return Task.FromResult<string?>(null);
+                return Task.FromResult<object?>(null);
             }
 
             // Existing scenario: locate and cache the pre-fetched file.
@@ -112,14 +85,11 @@ namespace FDP.Toolkit.Orchestration.Handlers
                     if (stream == null) continue;
 
                     using var reader = new StreamReader(stream);
-                    var text = reader.ReadToEnd();
-                    var dom  = JsonNode.Parse(text)?.AsObject();
-                    if (dom == null) continue;
-
-                    var subsysType = dom["Header"]?.AsObject()?["SubsystemType"]?.GetValue<string>();
+                    var text       = reader.ReadToEnd();
+                    var subsysType = _serializer.PeekSubsystemType(text);
                     if (!_serializer.IsMatchingSubsystem(subsysType)) continue;
 
-                    _pendingDom = dom;
+                    _pendingJson = text;
                     FdpLog<ReferenceEditLoadHandler>.Info(
                         "[ReferenceEditLoadHandler] PrepareAsync: queued '{0}' for edit-load.", fileName);
                     break;
@@ -132,24 +102,24 @@ namespace FDP.Toolkit.Orchestration.Handlers
                 }
             }
 
-            if (_pendingDom == null)
+            if (_pendingJson == null)
                 throw new InvalidOperationException(
                     $"[ReferenceEditLoadHandler] no matching scenario file found for ScenarioId='{scenarioId}'." +
                     " Ensure PrefetchFiles completed before LoadingEdit.");
 
-            return Task.FromResult<string?>(null);
+            return Task.FromResult<object?>(null);
         }
 
         /// <inheritdoc />
-        public void Commit(OrchestrationCommand cmd, EntityRepository? repo)
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo)
         {
-            if (_pendingTransactionId != cmd.TransactionId) return;
+            if (_pendingTransactionId != intent.TransactionId) return;
 
-            if (_pendingIsNew || _pendingDom == null)
+            if (_pendingIsNew || _pendingJson == null)
             {
                 FdpLog<ReferenceEditLoadHandler>.Info(
                     "[ReferenceEditLoadHandler] Commit: blank-world scenario committed.");
-                _pendingDom           = null;
+                _pendingJson          = null;
                 _pendingTransactionId = null;
                 return;
             }
@@ -157,7 +127,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
             var targetRepo = repo ?? _world;
             if (targetRepo == null)
             {
-                _pendingDom           = null;
+                _pendingJson          = null;
                 _pendingTransactionId = null;
                 throw new InvalidOperationException(
                     "[ReferenceEditLoadHandler] Commit: EntityRepository is null but scenario " +
@@ -166,7 +136,7 @@ namespace FDP.Toolkit.Orchestration.Handlers
 
             try
             {
-                _serializer.Deserialize(targetRepo, _pendingDom);
+                _serializer.Deserialize(targetRepo, _pendingJson);
                 FdpLog<ReferenceEditLoadHandler>.Info(
                     "[ReferenceEditLoadHandler] Commit: entities deserialized successfully.");
             }
@@ -178,57 +148,17 @@ namespace FDP.Toolkit.Orchestration.Handlers
             }
             finally
             {
-                _pendingDom           = null;
+                _pendingJson          = null;
                 _pendingTransactionId = null;
             }
         }
 
         /// <inheritdoc />
-        public void Abort(OrchestrationCommand cmd, EntityRepository? repo)
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
         {
-            _pendingDom           = null;
+            _pendingJson          = null;
             _pendingTransactionId = null;
             _pendingIsNew         = false;
-        }
-
-        private static int ParseTargetState(string? payloadJson)
-        {
-            if (string.IsNullOrWhiteSpace(payloadJson)) return 0;
-            if (int.TryParse(payloadJson, out var n)) return n;
-            try
-            {
-                using var doc = JsonDocument.Parse(payloadJson);
-                if (doc.RootElement.TryGetProperty("TargetState", out var prop))
-                    return prop.GetInt32();
-            }
-            catch { /* malformed payload */ }
-            return 0;
-        }
-
-        private static bool ParseIsNewScenario(string? payloadJson)
-        {
-            if (string.IsNullOrWhiteSpace(payloadJson)) return false;
-            try
-            {
-                using var doc = JsonDocument.Parse(payloadJson);
-                if (doc.RootElement.TryGetProperty("IsNewScenario", out var prop))
-                    return prop.GetBoolean();
-            }
-            catch { /* malformed payload */ }
-            return false;
-        }
-
-        private static string? ParseScenarioId(string? payloadJson)
-        {
-            if (string.IsNullOrWhiteSpace(payloadJson)) return null;
-            try
-            {
-                using var doc = JsonDocument.Parse(payloadJson);
-                if (doc.RootElement.TryGetProperty("ScenarioId", out var prop))
-                    return prop.GetString();
-            }
-            catch { /* malformed payload */ }
-            return null;
         }
     }
 }
