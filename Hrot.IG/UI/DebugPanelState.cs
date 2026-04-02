@@ -50,4 +50,12 @@ public class DebugPanelState
 
     /// <summary>Flips <see cref="MapUserConfig.HideLabels"/> between <c>true</c> and <c>false</c>.</summary>
     public void ToggleHideLabels() => _config.HideLabels = !_config.HideLabels;
+
+    // ── Time sync diagnostics ─────────────────────────────────────────────────
+
+    /// <summary>Current simulation time in seconds, sourced from the kernel's time controller.</summary>
+    public double CurrentSimTime { get; set; }
+
+    /// <summary>Current virtual wall-clock ticks, sourced from the kernel's time controller.</summary>
+    public long CurrentWallTicks { get; set; }
 }

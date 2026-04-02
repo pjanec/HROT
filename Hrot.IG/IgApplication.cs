@@ -876,6 +876,11 @@ public class IgApplication : IDisposable
                 customTranslators.Add(
                     FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, _world.Bus));
 
+                // Bridge FrameOrder/FrameAck for distributed lockstep stepping so IG sends
+                // its step ACK back to the Orchestrator on every Step() frame.
+                customTranslators.Add(
+                    FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveLockstepTranslator(participant, _world.Bus, _effectiveInstanceId));
+
                 if (mapRouteIngressTranslator != null)
                     customTranslators.Add(mapRouteIngressTranslator);
 
@@ -1393,6 +1398,9 @@ public class IgApplication : IDisposable
         {
 
             // Update UI panel states (TASK-IF008).
+
+            _debugPanelState.CurrentSimTime   = _kernel.CurrentTime.TotalTime;
+            _debugPanelState.CurrentWallTicks = _kernel.CurrentTime.TotalWallTicks;
 
             _performanceMetrics.Snapshot(_world, Raylib.GetFPS(), Raylib.GetFrameTime() * 1000f);
 

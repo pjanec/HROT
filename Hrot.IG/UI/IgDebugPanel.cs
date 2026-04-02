@@ -52,6 +52,10 @@ public class IgDebugPanel
     {
         // ── Live stats ────────────────────────────────────────────────────────
         ImGui.Text($"FPS: {Raylib.GetFPS()}");
+
+        // ── Time sync diagnostics ─────────────────────────────────────────────
+        ImGui.Text($"Sim Time:   {TimeSpan.FromSeconds(_state.CurrentSimTime):hh\\:mm\\:ss.fff}");
+        ImGui.Text($"Wall Ticks: {_state.CurrentWallTicks}");
         ImGui.Separator();
 
         // ── MapUserConfig toggles ─────────────────────────────────────────────
