@@ -14,6 +14,11 @@ using CycloneDDS.Runtime;
 using CycloneDDS.Runtime.Tracking;
 using FDP.Toolkit.DER;
 using Hrot.ClusterRunner.Windows;
+using Fdp.Interfaces;
+using Fdp.Kernel;
+using FDP.Toolkit.Time;
+using FDP.Toolkit.Time.Controllers;
+using ModuleHost.Core.Time;
 
 namespace Hrot.ClusterRunner.Services
 {
@@ -70,8 +75,13 @@ namespace Hrot.ClusterRunner.Services
         private DdsWriterAdapter<ClusterOpRequest>?   _iosLogicSysOpWriter;
         private ClusterUiCache?                   _uiCache;
         private ClusterScenarioPanel?             _clusterPanel;
-        private TimePulseIngressHandler?          _timePulseHandler;
-        private TimeModeIngressHandler?           _timeModeHandler;
+
+        // ── TC2-P3: Slave time sync ─────────────────────────────────────────────────
+        private FdpEventBus?           _timeEventBus;
+        private SlaveSyncController?   _slaveSyncController;
+        private IDescriptorTranslator? _timeModeTranslator;
+        private IDescriptorTranslator? _slaveLockstepTranslator;
+        private IDescriptorTranslator? _timePulseIngressTranslator;
 
         /// <summary>
         /// Internal test hook for integration tests.
@@ -89,6 +99,12 @@ namespace Hrot.ClusterRunner.Services
         /// for handler-registration assertions (CGF1-S0104 / A.3).
         /// </summary>
         internal FDP.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
+
+        /// <summary>
+        /// Internal test hook: exposes the <see cref="SlaveSyncController"/> created
+        /// during <see cref="Initialize"/> (TC2-P3-T1).
+        /// </summary>
+        internal SlaveSyncController? TestHook_SlaveSyncController => _slaveSyncController;
 
         /// <inheritdoc/>
         public void Initialize(SubsystemConfig config)
@@ -108,6 +124,13 @@ namespace Hrot.ClusterRunner.Services
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;
             var iosTransport = new DdsOrchestrationTransport(_participant, iosNodeId);
             _clusterSlave = new FDP.Toolkit.Orchestration.ClusterSlave(iosTransport, iosNodeId, "ExCon");
+
+            // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
+            _timeEventBus             = new FdpEventBus();
+            _slaveSyncController      = new SlaveSyncController(_timeEventBus, iosNodeId, TimeConfig.Default);
+            _timeModeTranslator       = TimeNetworkModule.CreateDescriptorTranslator(_participant, _timeEventBus);
+            _slaveLockstepTranslator  = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _timeEventBus, iosNodeId);
+            _timePulseIngressTranslator = TimeNetworkModule.CreateTimePulseIngressTranslator(_participant, _timeEventBus);
 
             // CGF1-BATCH-23 A.3: ExCon is an orchestrator instructor — it does NOT
             // save scenario fragments or exercise recordings.  If the orchestrator fans
@@ -204,7 +227,7 @@ namespace Hrot.ClusterRunner.Services
             // ── Cluster control wiring (S0507) ─────────────────────────────────────────
             _sysOpWriter         = new DdsWriter<ClusterOpRequest>(_participant);
             _iosLogicSysOpWriter = new DdsWriterAdapter<ClusterOpRequest>(_participant, "ClusterOpRequest");
-            _uiCache      = new ClusterUiCache(_participant);
+            _uiCache      = new ClusterUiCache(_participant, _slaveSyncController);
             _clusterPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
 
             var logic = new ExConLogic(
@@ -226,11 +249,10 @@ namespace Hrot.ClusterRunner.Services
                 deleteEntityWriter:   deleteEntityWriter,
                 sysOpWriter:          _iosLogicSysOpWriter);
 
-            // S0507: Time ingress — must be constructed after `logic` to capture the callback
-            _timePulseHandler = new TimePulseIngressHandler(_participant, pulse => logic.OnTimePulse(pulse));
-            _timeModeHandler  = new TimeModeIngressHandler(_participant, mode  => logic.OnTimeMode(mode));
-            _ingressDisposables!.Add(_timePulseHandler);
-            _ingressDisposables!.Add(_timeModeHandler);
+            // S0507: Time ingress handlers removed (TC2-P3-T4): OnTimePulse/OnTimeMode on
+            // ExConLogic are purely display properties that are never consumed by any panel
+            // or game-logic path. Time display is now handled by SlaveSyncController →
+            // ClusterUiCache (injected above).
 
             var tkbCatalog = new TkbCatalogEntry[]
             {
@@ -261,10 +283,16 @@ namespace Hrot.ClusterRunner.Services
         /// <inheritdoc/>
         public void Update(float deltaTime)
         {
+            // Time sync pipeline: ingest DDS → advance controller → egress ACKs → swap bus.
+            _timeModeTranslator?.PollIngress(null!, null!);
+            _slaveLockstepTranslator?.PollIngress(null!, null!);
+            _timePulseIngressTranslator?.PollIngress(null!, null!);
+            _slaveSyncController?.Update();
+            _slaveLockstepTranslator?.ScanAndPublish(null!);
+            _timeEventBus?.SwapBuffers();
+
             _clusterSlave?.Tick();
             _uiCache?.Update();
-            _timePulseHandler?.Poll();
-            _timeModeHandler?.Poll();
             _clusterPanel?.Update(deltaTime);
             _mock?.Update(deltaTime);
         }
@@ -317,6 +345,12 @@ namespace Hrot.ClusterRunner.Services
             _sysOpWriter = null;
             _mock?.Dispose();
             _mock = null;
+            _slaveSyncController?.Dispose();
+            _slaveSyncController = null;
+            _timeModeTranslator = null;
+            _slaveLockstepTranslator = null;
+            _timePulseIngressTranslator = null;
+            _timeEventBus = null;
             if (_ingressDisposables != null)
             {
                 for (int i = 0; i < _ingressDisposables.Count; i++)

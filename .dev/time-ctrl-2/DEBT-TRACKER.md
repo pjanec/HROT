@@ -23,5 +23,7 @@
 
 ## Items
 
-*No items yet. Populated after first batch review.*
+| ID | Priority | Status | Source Batch | Description | Target Batch |
+|----|----------|--------|--------------|-------------|---|
+| TD-001 | P3 | 🔴 Open | BATCH-01 | TC2-P2-T3: Wire slave time controllers into SimHost/IG `ClusterUiCache`. Requires verifying `ModuleHostKernel.GetTimeController()` availability at `_uiCache` construction point in each subsystem. | BATCH-02 or later |
 

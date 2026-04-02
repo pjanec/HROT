@@ -8,8 +8,8 @@
 
 **Goal:** Ensure `MasterSyncController` enforces ACK wait for the runtime slave roster rather than the empty construction-time set. Without this, lockstep has no actual synchronisation.
 
-- [ ] **TC2-P1-T1** Fix `MasterSyncController.SwitchToDeterministic` runtime slave capture [details](./TASK-DETAIL.md#tc2-p1-t1--fix-mastersynccollrollerswitchtodeterministic)
-- [ ] **TC2-P1-T2** Remove stale DT-003 comment from `OrchestratorSubsystem` [details](./TASK-DETAIL.md#tc2-p1-t2--update-orchestratorsubsystem-construction-and-comment)
+- [x] **TC2-P1-T1** Fix `MasterSyncController.SwitchToDeterministic` runtime slave capture [details](./TASK-DETAIL.md#tc2-p1-t1--fix-mastersynccollrollerswitchtodeterministic)
+- [x] **TC2-P1-T2** Remove stale DT-003 comment from `OrchestratorSubsystem` [details](./TASK-DETAIL.md#tc2-p1-t2--update-orchestratorsubsystem-construction-and-comment)
 
 ---
 
@@ -17,9 +17,9 @@
 
 **Goal:** Eliminate the 1 Hz visual stutter in the Time Control panel by reading sim time directly from the local `ITimeController` in `ClusterUiCache`.
 
-- [ ] **TC2-P2-T1** Add `ITimeController?` injection to `ClusterUiCache`; change `MasterSimTime` to direct read [details](./TASK-DETAIL.md#tc2-p2-t1--add-itimecontroller-injection-to-clusteruicache)
-- [ ] **TC2-P2-T2** Reorder `OrchestratorSubsystem.Initialize` and wire `_masterSync` into cache [details](./TASK-DETAIL.md#tc2-p2-t2--wire-mastersynccollroller-into-orchestratorsubsystems-ui-cache)
-- [ ] **TC2-P2-T3** Wire slave controllers into SimHost / IG UI caches *(stretch)* [details](./TASK-DETAIL.md#tc2-p2-t3--wire-slave-controllers-into-simhost-and-ig-ui-caches-stretch)
+- [x] **TC2-P2-T1** Add `ITimeController?` injection to `ClusterUiCache`; change `MasterSimTime` to direct read [details](./TASK-DETAIL.md#tc2-p2-t1--add-itimecontroller-injection-to-clusteruicache)
+- [x] **TC2-P2-T2** Reorder `OrchestratorSubsystem.Initialize` and wire `_masterSync` into cache [details](./TASK-DETAIL.md#tc2-p2-t2--wire-mastersynccollroller-into-orchestratorsubsystems-ui-cache)
+- [ ] **TC2-P2-T3** Wire slave controllers into SimHost / IG UI caches *(stretch)* [details](./TASK-DETAIL.md#tc2-p2-t3--wire-slave-controllers-into-simhost-and-ig-ui-caches-stretch) — **TD-001 (P3)**
 
 ---
 

@@ -1,6 +1,7 @@
 using System;
 using Xunit;
 using Hrot.ClusterRunner.Services;
+using FDP.Toolkit.Time.Controllers;
 
 namespace Hrot.ClusterRunner.Tests
 {
@@ -160,6 +161,57 @@ namespace Hrot.ClusterRunner.Tests
             subsystem.Initialize(config);
 
             Assert.Equal(7, subsystem.TestHook_NodeIdOverride);
+            subsystem.Shutdown();
+        }
+
+        // ── TC2-P3-T1: SlaveSyncController creation ──────────────────────────────
+
+        [Fact]
+        public void ExCon_Initialize_CreatesSlaveTimeController()
+        {
+            var subsystem = new ExConSubsystem();
+            subsystem.Initialize(HeadlessConfig());
+
+            var ctrl = subsystem.TestHook_SlaveSyncController;
+            Assert.NotNull(ctrl);
+            Assert.IsType<SlaveSyncController>(ctrl);
+
+            subsystem.Shutdown();
+        }
+
+        // ── TC2-P3-T2: Update does not throw with time pipeline ───────────────────
+
+        [Fact]
+        public void ExCon_Update_DoesNotThrow_WithTimePipeline()
+        {
+            var subsystem = new ExConSubsystem();
+            subsystem.Initialize(HeadlessConfig());
+
+            var ex = Record.Exception(() =>
+            {
+                for (int i = 0; i < 30; i++)
+                    subsystem.Update(0.016f);
+            });
+
+            Assert.Null(ex);
+            subsystem.Shutdown();
+        }
+
+        // ── TC2-P3-T3: SlaveSyncController advances sim time ──────────────────────
+
+        [Fact]
+        public void ExCon_UiCache_MasterSimTime_AdvancesWithController()
+        {
+            var subsystem = new ExConSubsystem();
+            subsystem.Initialize(HeadlessConfig());
+
+            for (int i = 0; i < 100; i++)
+                subsystem.Update(0.016f);
+
+            var ctrl = subsystem.TestHook_SlaveSyncController!;
+            Assert.True(ctrl.GetCurrentState().TotalTime > 0.0,
+                "SlaveSyncController TotalTime should be positive after 100 frames");
+
             subsystem.Shutdown();
         }
     }
