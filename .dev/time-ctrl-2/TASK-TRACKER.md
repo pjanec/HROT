@@ -27,7 +27,7 @@
 
 **Goal:** Give `ExConSubsystem` a `SlaveSyncController` so it participates in cluster lockstep (sends ACKs), and its UI shows smooth frame-rate sim time.
 
-- [ ] **TC2-P3-T1** Add `SlaveSyncController` + translators to `ExConSubsystem` [details](./TASK-DETAIL.md#tc2-p3-t1--add-slavesynccontroller-and-translators-to-exconsubsystem)
-- [ ] **TC2-P3-T2** Drive time pipeline in `ExConSubsystem.Update` [details](./TASK-DETAIL.md#tc2-p3-t2--drive-time-pipeline-in-exconsubsystemupdate)
-- [ ] **TC2-P3-T3** Wire `_slaveSyncController` into ExCon's `ClusterUiCache` [details](./TASK-DETAIL.md#tc2-p3-t3--wire-slavesynccontroller-into-excons-ui-cache)
-- [ ] **TC2-P3-T4** Remove redundant `TimePulseIngressHandler`/`TimeModeIngressHandler` from `ExConSubsystem` [details](./TASK-DETAIL.md#tc2-p3-t4--remove-redundant-time-ingress-handlers-from-exconsubsystem)
+- [x] **TC2-P3-T1** Add `SlaveSyncController` + translators to `ExConSubsystem` [details](./TASK-DETAIL.md#tc2-p3-t1--add-slavesynccontroller-and-translators-to-exconsubsystem)
+- [x] **TC2-P3-T2** Drive time pipeline in `ExConSubsystem.Update` [details](./TASK-DETAIL.md#tc2-p3-t2--drive-time-pipeline-in-exconsubsystemupdate)
+- [x] **TC2-P3-T3** Wire `_slaveSyncController` into ExCon's `ClusterUiCache` [details](./TASK-DETAIL.md#tc2-p3-t3--wire-slavesynccontroller-into-excons-ui-cache)
+- [x] **TC2-P3-T4** Remove redundant `TimePulseIngressHandler`/`TimeModeIngressHandler` from `ExConSubsystem` [details](./TASK-DETAIL.md#tc2-p3-t4--remove-redundant-time-ingress-handlers-from-exconsubsystem)
