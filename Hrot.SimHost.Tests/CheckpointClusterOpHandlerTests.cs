@@ -44,14 +44,16 @@ namespace Hrot.SimHost.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
-        private OrchestrationCommand MakeSnapshotCmd(Guid? txId = null) =>
-            new OrchestrationCommand(
-                txId ?? Guid.NewGuid(), 0,
-                ReferenceCheckpointHandler.TakeSnapshotOperationId,
-                string.Empty);
+        private ExecuteNodeOpIntent MakeSnapshotCmd(Guid? txId = null) =>
+            new ExecuteNodeOpIntent
+            {
+                TransactionId = txId ?? Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.TakeSnapshot,
+            };
 
         private ReferenceCheckpointHandler CreateHandler(CheckpointIOWorker worker) =>
-            new ReferenceCheckpointHandler(worker, _liveRepo, transport: null, _nodeId);
+            new ReferenceCheckpointHandler(worker, _liveRepo);
 
         // ── CGF1-S0303: TwoOverlappingCheckpoints_ACKsAreBothDeferred ─────────
 
@@ -147,7 +149,7 @@ namespace Hrot.SimHost.Tests
         {
             using var worker  = new CheckpointIOWorker(_storageDir, _nodeId);
             // Construct handler with null liveRepo so there is no fallback.
-            var handler = new ReferenceCheckpointHandler(worker, liveRepo: null, transport: null, _nodeId);
+            var handler = new ReferenceCheckpointHandler(worker, liveRepo: null);
 
             var id  = Guid.NewGuid();
             var cmd = MakeSnapshotCmd(id);
@@ -186,10 +188,12 @@ namespace Hrot.SimHost.Tests
 
             // FinalizeLive PrepareAsync must not return until write completes.
             await liveHandler.PrepareAsync(
-                new OrchestrationCommand(
-                    Guid.NewGuid(), 0,
-                    ReferenceLiveLoadHandler.FinalizeLiveOperationId,
-                    string.Empty),
+                new ExecuteNodeOpIntent
+                {
+                    TransactionId = Guid.NewGuid(),
+                    TargetNodeId  = 0,
+                    Operation     = FDP.Toolkit.Orchestration.NodeOpType.FinalizeLive,
+                },
                 default);
 
             var path = Path.Combine(_storageDir, $"{id}_node_{_nodeId}.fdp");

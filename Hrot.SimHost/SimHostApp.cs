@@ -113,8 +113,9 @@ namespace Hrot.SimHost
         // ── SimLogic ─────────────────────────────────────────────────────────
         private SimulationLogicModule? _simLogicModule;
 
-        // ── Orchestration (CGF1-S0104) ────────────────────────────────────────
+        // ── Orchestration (CGF1-S0104 / CMC-S016) ────────────────────────────
         private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
+        private Hrot.Common.Orchestration.NodeOpSlaveTranslator? _slaveTranslator;
         // CheckpointIOWorker owns the background I/O thread; created in OnLoad,
         // passed to BuildOrchestration, and disposed in Shutdown (CGF1-S0303 A.1).
         private CheckpointIOWorker? _checkpointWorker;
@@ -376,6 +377,8 @@ namespace Hrot.SimHost
                 simGroup: simulationSystemGroup,
                 lifecycleGroup: networkLifecycleGroup,
                 ghostCreationSystem: ghostCreationSystem);
+            // CMC-S016: wire NodeOpSlaveTranslator created by bootstrapper (DDS ↔ bus bridge).
+            _slaveTranslator = bootstrapper.SlaveTranslator;
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
@@ -532,6 +535,8 @@ namespace Hrot.SimHost
 
         protected override void OnUpdate(float dt)
         {
+            // CMC-S016: translator tick BEFORE clusterSlave so DDS→bus ingress is processed first.
+            _slaveTranslator?.Tick();
             _clusterSlave?.Tick();
             _vis?.Update(dt);
             _kernelGroup?.Run();   // process incoming requests first (sets dirty flags)

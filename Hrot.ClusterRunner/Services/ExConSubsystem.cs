@@ -51,6 +51,9 @@ namespace Hrot.ClusterRunner.Services
         // Map group 0 = broadcast to all IG instances (matches ExConLogicConstants.DefaultMapGroupId).
         private const int DefaultMapGroupId = 0;
 
+        // Subsystem name used for ClusterSlave registration (avoidance of magic strings).
+        private const string SubsystemName = "ExCon";
+
         // DDS topic names — must match ExConLogicConstants and IG/SimHost readers.
         private const string TopicMapConfig       = "MapInteractionConfig";
         private const string TopicCreateEntity    = "CreateEntityRequest";
@@ -69,6 +72,10 @@ namespace Hrot.ClusterRunner.Services
         private List<IDisposable>? _ingressDisposables;
         private int              _nodeIdOverride;
         private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
+
+        // ── CMC-S016: Orchestration bus + slave translator (BATCH-06) ──────────
+        private FdpEventBus?           _orchestrationBus;
+        private NodeOpSlaveTranslator? _nodeOpSlaveTranslator;
 
         // ── S0507: Cluster control ─────────────────────────────────────────────
         private DdsWriter<ClusterOpRequest>?          _sysOpWriter;
@@ -120,10 +127,21 @@ namespace Hrot.ClusterRunner.Services
                 AppInstanceId = config.NodeId
             });
 
-            // ── ClusterSlave (CGF1-S0104) ────────────────────────────────────────
+            // ── ClusterSlave (CGF1-S0104 / CMC-S016 BATCH-06) ────────────────────────
             var iosNodeId  = config.NodeId != 0 ? config.NodeId : 500;
-            var iosTransport = new DdsOrchestrationTransport(_participant, iosNodeId);
-            _clusterSlave = new FDP.Toolkit.Orchestration.ClusterSlave(iosTransport, iosNodeId, "ExCon");
+
+            // CMC-S016: each subsystem has its own orchestration bus + translator (Option C).
+            _orchestrationBus = new FdpEventBus();
+            var _orchCmdReader    = new DdsReader<NodeOpCommand>(_participant);
+            var _orchStatusWriter = new DdsWriter<NodeOpStatus>(_participant);
+            var _orchHbWriter     = new DdsWriter<NodeHeartbeat>(_participant);
+            _nodeOpSlaveTranslator = new NodeOpSlaveTranslator(
+                commandReader:   _orchCmdReader,
+                statusWriter:    _orchStatusWriter,
+                heartbeatWriter: _orchHbWriter,
+                bus:             _orchestrationBus,
+                nodeId:          iosNodeId);
+            _clusterSlave = new FDP.Toolkit.Orchestration.ClusterSlave(iosNodeId, SubsystemName, _orchestrationBus);
 
             // ── TC2-P3-T1: Slave time sync pipeline ──────────────────────────────
             _timeEventBus             = new FdpEventBus();
@@ -146,8 +164,6 @@ namespace Hrot.ClusterRunner.Services
                 simGroup:              null,
                 lifecycleGroup:        null,
                 bypassLifecycleToggle: null,
-                iosTransport,
-                iosNodeId,
                 storageDirectory:      @"C:\FDP_Temp"));
 
             // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive.
@@ -155,9 +171,7 @@ namespace Hrot.ClusterRunner.Services
             _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferenceLiveLoadHandler(
                 checkpointWorker: null,
                 controller:       iosRrController,
-                storageDirectory: @"C:\FDP_Temp",
-                transport:        iosTransport,
-                nodeId:           iosNodeId));
+                storageDirectory: @"C:\FDP_Temp"));
 
             // CGF1-S0309: wire dry-run snapshot/rewind handler (ExCon carries no ECS state).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
@@ -296,6 +310,12 @@ namespace Hrot.ClusterRunner.Services
             _slaveTimeSyncTranslator?.ScanAndPublish(null!);
             _timeEventBus?.SwapBuffers();
 
+            // CMC-S016: orchestration bus pipeline — swap before tick so translators
+            // read events published in the previous frame.
+            _orchestrationBus?.SwapBuffers();
+            _nodeOpSlaveTranslator?.Tick();  // DDS NodeOpCommand → bus ExecuteNodeOpIntent;
+                                             // bus NodeHeartbeatEvent → DDS NodeHeartbeat;
+                                             // bus NodeOpCompletedEvent → DDS NodeOpStatus
             _clusterSlave?.Tick();
             _uiCache?.Update();
             _clusterPanel?.Update(deltaTime);

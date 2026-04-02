@@ -2,6 +2,8 @@ using System;
 using System.Threading;
 using Hrot.CGF.Modules.Orchestration;
 using Hrot.Common.Orchestration;
+using Hrot.NED.Descriptors.Orchestration;
+using Hrot.NED.Messages;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -28,6 +30,8 @@ namespace Hrot.CGF
         private readonly DdsParticipant _participant;
         private readonly FDP.Toolkit.Orchestration.ClusterSlave _clusterSlave;
         private readonly FdpEventBus _eventBus;
+        private FdpEventBus _orchestrationBus => _eventBus;  // CMC-S016: alias, same bus
+        private readonly NodeOpSlaveTranslator _slaveTranslator;  // CMC-S016
         private readonly IDescriptorTranslator _timeModeTranslator;
         private readonly IDescriptorTranslator _lockstepTranslator;
         // Minimal time kernel so CGF participates in distributed lockstep stepping.
@@ -69,8 +73,17 @@ namespace Hrot.CGF
             _timeKernel.SetTimeController(new SlaveSyncController(_eventBus, nodeId));
             _timeKernel.Initialize();
 
-            var transport = new DdsOrchestrationTransport(_participant, nodeId);
-            _clusterSlave   = new FDP.Toolkit.Orchestration.ClusterSlave(transport, nodeId, SubsystemName);
+            _clusterSlave   = new FDP.Toolkit.Orchestration.ClusterSlave(nodeId, SubsystemName, _eventBus);
+
+            // CMC-S016: NodeOpSlaveTranslator bridges DDS NodeOpCommand ↔ _eventBus ExecuteNodeOpIntent
+            // and bus NodeHeartbeatEvent/NodeOpCompletedEvent ↔ DDS.
+            // Same bus as ClusterSlave so no extra swap is needed.
+            _slaveTranslator  = new NodeOpSlaveTranslator(
+                commandReader:   new DdsReader<NodeOpCommand>(_participant),
+                statusWriter:    new DdsWriter<NodeOpStatus>(_participant),
+                heartbeatWriter: new DdsWriter<NodeHeartbeat>(_participant),
+                bus:             _orchestrationBus,
+                nodeId:          nodeId);
 
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
@@ -88,8 +101,6 @@ namespace Hrot.CGF
                 simGroup:              null,
                 lifecycleGroup:        null,
                 bypassLifecycleToggle: null,
-                transport,
-                nodeId,
                 storageDirectory:      localTempRoot));
 
             // CGF1-S0307: wire scenario load handler when a serializer is provided.
@@ -104,7 +115,7 @@ namespace Hrot.CGF
                 // CGF1-S0308: wire episode handler; CGF is header-peek only (world=null).
                 _clusterSlave.RegisterHandler(
                     new ReferenceEpisodeLoadHandler(scenarioSerializer, storageProvider,
-                        world: null, transport, nodeId));
+                        world: null));
             }
 
             // Wire ReferenceLiveLoadHandler AFTER the scenario handler so it only
@@ -113,12 +124,10 @@ namespace Hrot.CGF
             _clusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
                 checkpointWorker: null,
                 controller:       rrController,
-                storageDirectory: localTempRoot,
-                transport:        transport,
-                nodeId:           nodeId));
+                storageDirectory: localTempRoot));
 
             // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
-            _clusterSlave.RegisterHandler(new ReferencePrefetchHandler(transport, nodeId, storageProvider));
+            _clusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
 
             // CGF1-S0309: wire dry-run handler (no ECS state on CGF skeleton).
             _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
@@ -132,6 +141,7 @@ namespace Hrot.CGF
         /// </summary>
         public void Tick()
         {
+            _slaveTranslator.Tick();
             _clusterSlave.Tick();
             // Bridge SwitchTimeModeEvent: egress coordinator events to DDS, ingress DDS events to bus.
             _timeModeTranslator.ScanAndPublish(null!);

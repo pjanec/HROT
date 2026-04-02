@@ -1,10 +1,11 @@
 using System;
 using System.Linq;
 using Hrot.NED.Descriptors.Orchestration;
-using Hrot.Common.Orchestration;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using Xunit;
+using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
 namespace Hrot.SimHost.Tests
 {
@@ -28,9 +29,13 @@ namespace Hrot.SimHost.Tests
             var eventBus = new FdpEventBus();
             using var slave = new ClusterSlave(eventBus);
 
-            slave.EnqueueCommandForTest(new OrchestrationCommand(
-                Guid.NewGuid(), 0, 2,
-                ((int)ClusterState.LoadingLive).ToString()));
+            slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
+                DomainPayload = (int)ClusterState.LoadingLive,
+            });
 
             slave.Tick();
             eventBus.SwapBuffers();
@@ -52,13 +57,17 @@ namespace Hrot.SimHost.Tests
             using var slave = new ClusterSlave(eventBus);
 
             var txId = Guid.NewGuid();
-            var cmd  = new OrchestrationCommand(
-                txId, 0, 2,
-                ((int)ClusterState.LoadingLive).ToString());
+            var intent  = new ExecuteNodeOpIntent
+            {
+                TransactionId = txId,
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
+                DomainPayload = (int)ClusterState.LoadingLive,
+            };
 
             // Enqueue the same command twice (simulates DDS re-delivery).
-            slave.EnqueueCommandForTest(cmd);
-            slave.EnqueueCommandForTest(cmd);
+            slave.EnqueueIntentForTest(intent);
+            slave.EnqueueIntentForTest(intent);
 
             slave.Tick();
             eventBus.SwapBuffers();
@@ -80,18 +89,24 @@ namespace Hrot.SimHost.Tests
             using var slave = new ClusterSlave(eventBus);
 
             var txId = Guid.NewGuid();
-            const int prepareLiveOpId   = (int)NodeOpType.PrepareLive;   // != 2
-            const int commitStateOpId   = 2;                              // CommitState
 
             // Prepare: no handler registered → does nothing but is accepted past the dedup guard.
-            slave.EnqueueCommandForTest(new OrchestrationCommand(
-                txId, 0, prepareLiveOpId,
-                string.Empty));
+            slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
+            {
+                TransactionId = txId,
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                DomainPayload = null,
+            });
 
             // Commit (same TransactionId, different OperationId) must NOT be dropped.
-            slave.EnqueueCommandForTest(new OrchestrationCommand(
-                txId, 0, commitStateOpId,
-                ((int)ClusterState.LoadingLive).ToString()));
+            slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
+            {
+                TransactionId = txId,
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
+                DomainPayload = (int)ClusterState.LoadingLive,
+            });
 
             slave.Tick();
             eventBus.SwapBuffers();
@@ -134,9 +149,13 @@ namespace Hrot.SimHost.Tests
             // Initial state must be Standby.
             Assert.Equal((int)ClusterState.Idle, slave.LocalStateIdForTest);
 
-            slave.EnqueueCommandForTest(new OrchestrationCommand(
-                Guid.NewGuid(), 0, 2,
-                ((int)ClusterState.LoadingLive).ToString()));
+            slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
+                DomainPayload = (int)ClusterState.LoadingLive,
+            });
 
             slave.Tick();
 

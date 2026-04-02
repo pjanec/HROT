@@ -3,6 +3,9 @@ using System.Threading;
 using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
+using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using Xunit;
 
 namespace Hrot.Orchestrator.Tests;
@@ -206,17 +209,17 @@ public sealed class ClusterMasterFanOutTests
         Assert.Equal(ClusterState.Idle, tx.SourceDsmState);
     }
 
-    // ── CGF1-S0501: PayloadJson capture ───────────────────────────────────────
+    // ── CMC-S010: DistributedTransaction state capture ─────────────────────────
 
     /// <summary>
-    /// <see cref="DistributedTransaction.PayloadJson"/> must equal the
-    /// <see cref="ClusterOpRequest.PayloadJson"/> verbatim so that the 2PC history
-    /// table can display it.
+    /// After CMC-S010, <see cref="DistributedTransaction.PayloadJson"/> is always empty
+    /// (JSON parsing moved to <see cref="ClusterOpRequestAdapter"/>).
+    /// The transaction still records <see cref="DistributedTransaction.TargetDsmState"/>
+    /// and <see cref="DistributedTransaction.SourceDsmState"/> for the 2PC history table.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void PayloadJson_PopulatedFromClusterOpRequest()
     {
-        const string payload = "{\"TargetState\":30}";
         using var participant = new DdsParticipant(TestDomain);
         using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
         Thread.Sleep(400);
@@ -225,12 +228,16 @@ public sealed class ClusterMasterFanOutTests
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = payload,
+            PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}}}",
         });
         exercise.Tick();   // drain injected request queue
 
         var tx = exercise.TransactionHistory[exercise.TransactionHistory.Count - 1];
-        Assert.Equal(payload, tx.PayloadJson);
+        // CMC-S010: raw JSON is no longer stored in the transaction; PayloadJson is empty.
+        Assert.Equal(string.Empty,         tx.PayloadJson);
+        // TargetDsmState and SourceDsmState are still captured.
+        Assert.Equal(ClusterState.LoadingLive, tx.TargetDsmState);
+        Assert.Equal(ClusterState.Idle,         tx.SourceDsmState);
     }
 
     // ── P3 Debt: standalone ReplaySeek fan-out ────────────────────────────────

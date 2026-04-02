@@ -10,6 +10,8 @@ using Hrot.ClusterRunner.Services;
 using FDP.Toolkit.Orchestration;
 using Hrot.Orchestrator;
 using Microsoft.Extensions.Logging.Abstractions;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 

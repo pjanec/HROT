@@ -1,0 +1,158 @@
+using System;
+using System.Collections.Generic;
+using System.Text.Json;
+using CycloneDDS.Runtime;
+using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
+using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Orchestrator.Translators.Payloads;
+using NedNodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
+
+namespace Hrot.Orchestrator.Translators;
+
+/// <summary>
+/// Anti-Corruption Layer translator for the ClusterMaster (orchestrator) side.
+/// <para>Egress: drains <see cref="ExecuteNodeOpIntent"/> from the bus, serialises
+/// <c>DomainPayload</c> to JSON, and writes <see cref="NodeOpCommand"/> to per-node
+/// DDS writers created via <paramref name="commandWriterFactory"/>.</para>
+/// <para>Ingress: reads <see cref="NodeOpStatus"/> from DDS and publishes
+/// <see cref="NodeOpCompletedEvent"/> on the bus.</para>
+/// </summary>
+public sealed class NodeOpMasterTranslator
+{
+    private readonly Func<int, DdsWriter<NodeOpCommand>> _commandWriterFactory;
+    private readonly DdsReader<NodeOpStatus>             _statusReader;
+    private readonly FdpEventBus                         _bus;
+    private readonly JsonSerializerOptions               _jsonOptions;
+
+    /// <summary>
+    /// Constructs a <see cref="NodeOpMasterTranslator"/> using a factory that returns a
+    /// per-node <see cref="DdsWriter{NodeOpCommand}"/>.
+    /// </summary>
+    public NodeOpMasterTranslator(
+        Func<int, DdsWriter<NodeOpCommand>> commandWriterFactory,
+        DdsReader<NodeOpStatus>             statusReader,
+        FdpEventBus                         bus,
+        JsonSerializerOptions?              jsonOptions = null)
+    {
+        _commandWriterFactory = commandWriterFactory ?? throw new ArgumentNullException(nameof(commandWriterFactory));
+        _statusReader         = statusReader         ?? throw new ArgumentNullException(nameof(statusReader));
+        _bus                  = bus                  ?? throw new ArgumentNullException(nameof(bus));
+        _jsonOptions          = jsonOptions ?? OrchestrationJsonOptions.Default;
+    }
+
+    /// <summary>
+    /// Convenience constructor that accepts a pre-built node-id→writer dictionary.
+    /// </summary>
+    public NodeOpMasterTranslator(
+        Dictionary<int, DdsWriter<NodeOpCommand>> commandWriters,
+        DdsReader<NodeOpStatus>                   statusReader,
+        FdpEventBus                               bus,
+        JsonSerializerOptions?                    jsonOptions = null)
+        : this(nodeId =>
+               {
+                   if (!commandWriters.TryGetValue(nodeId, out var w))
+                       throw new InvalidOperationException(
+                           $"[NodeOpMasterTranslator] No DDS writer registered for node {nodeId}.");
+                   return w;
+               },
+               statusReader, bus, jsonOptions)
+    { }
+
+    /// <summary>
+    /// Processes one frame: publishes queued node commands to DDS and ingests status replies.
+    /// </summary>
+    public void Tick()
+    {
+        // ── Egress: Bus ExecuteNodeOpIntent → DDS NodeOpCommand ──────────────
+        foreach (var intent in _bus.ConsumeManaged<ExecuteNodeOpIntent>())
+        {
+            var payloadJson = SerializeNodePayload(intent.Operation, intent.DomainPayload);
+            var writer      = _commandWriterFactory(intent.TargetNodeId);
+            writer.Write(new NodeOpCommand
+            {
+                TargetNodeId  = intent.TargetNodeId,
+                TransactionId = intent.TransactionId,
+                Operation     = (NedNodeOpType)(int)intent.Operation,
+                PayloadJson   = payloadJson,
+            });
+        }
+
+        // ── Ingress: DDS NodeOpStatus → Bus NodeOpCompletedEvent ─────────────
+        using var scope = _statusReader.Take();
+        foreach (var sample in scope)
+        {
+            if (!sample.IsValid) continue;
+            var status       = sample.Data;
+            var resultPayload = DeserializeResultPayload(status.ResultJson);
+            _bus.PublishManaged(new NodeOpCompletedEvent
+            {
+                TransactionId   = status.TransactionId,
+                NodeId          = status.NodeId,
+                StatusCode      = status.StatusCode,
+                IsParticipating = status.IsParticipating,
+                ResultPayload   = resultPayload,
+            });
+        }
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Serialises a typed <paramref name="domainPayload"/> to a JSON string suitable for
+    /// <see cref="NodeOpCommand.PayloadJson"/>.
+    /// <c>CommitState</c> payloads (boxed <c>int</c>) are written as a raw integer string.
+    /// </summary>
+    private string SerializeNodePayload(FdpNodeOpType operation, object? domainPayload)
+    {
+        if (domainPayload is null) return string.Empty;
+
+        // CommitState carries a raw int state-id, not a JSON object.
+        if (domainPayload is int stateId) return stateId.ToString();
+
+        return domainPayload switch
+        {
+            EditLoadHandlerPayload p => JsonSerializer.Serialize(
+                new NodeTransitionPayloadDto(
+                    TargetState: p.TargetState != 0
+                        ? ((Hrot.NED.Descriptors.Orchestration.ClusterState)p.TargetState).ToString()
+                        : null,
+                    ScenarioId:  p.ScenarioId,
+                    ExerciseId:  null),
+                _jsonOptions),
+
+            EpisodeHandlerPayload p => JsonSerializer.Serialize(
+                new NodeEpisodePayloadDto(
+                    IsStart:    p.IsStart,
+                    EpisodeId:  p.EpisodeId == Guid.Empty ? null : p.EpisodeId,
+                    ScenarioId: p.ScenarioId),
+                _jsonOptions),
+
+            PrefetchHandlerPayload p => JsonSerializer.Serialize(
+                new NodePrefetchPayloadDto(p.ScenarioId), _jsonOptions),
+
+            ArchiveHandlerPayload p => JsonSerializer.Serialize(
+                new NodeTransitionPayloadDto(
+                    TargetState: null,
+                    ScenarioId:  null,
+                    ExerciseId:  p.ExerciseId),
+                _jsonOptions),
+
+            _ => JsonSerializer.Serialize(domainPayload, domainPayload.GetType(), _jsonOptions),
+        };
+    }
+
+    /// <summary>
+    /// Deserialises the <c>ResultJson</c> from a <see cref="NodeOpStatus"/> into a domain
+    /// result object. Returns <c>null</c> when the JSON is empty.
+    /// </summary>
+    private static object? DeserializeResultPayload(string? resultJson)
+    {
+        if (string.IsNullOrWhiteSpace(resultJson)) return null;
+        // Phase 5: return the raw JSON string as the result payload.
+        // More specific parsing can be added in a later phase.
+        return resultJson;
+    }
+}

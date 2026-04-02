@@ -8,6 +8,8 @@ using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Time.Messages;
 using ModuleHost.Core.Time;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 
 namespace Hrot.ClusterRunner.Services;
 

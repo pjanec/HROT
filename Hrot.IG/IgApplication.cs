@@ -212,8 +212,11 @@ public class IgApplication : IDisposable
 
     private bool _networkEnabled;
 
-    // -- ClusterSlave (CGF1-S0104) — wired in InitializeNetwork ----------------
+    // -- ClusterSlave (CGF1-S0104 / CMC-S016) — wired in InitializeNetwork ------
     private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
+    // CMC-S016: orchestration bus + slave translator (Option C).
+    private Fdp.Kernel.FdpEventBus?                             _igOrchestrationBus;
+    private Hrot.Common.Orchestration.NodeOpSlaveTranslator?    _igSlaveTranslator;
 
 
 
@@ -914,9 +917,17 @@ public class IgApplication : IDisposable
                 // so the IG ClusterSlave always registers on a cluster-unique node ID.
                 // Using IgNetworkConstants.LocalNodeId (1) caused collision with SimHost when --node-id 0.
                 var igNodeId = _effectiveInstanceId;
-                var igTransport = new DdsOrchestrationTransport(participant, igNodeId);
+
+                // CMC-S016: each slave subsystem has its own orchestration bus + translator (Option C).
+                _igOrchestrationBus = new Fdp.Kernel.FdpEventBus();
+                _igSlaveTranslator  = new Hrot.Common.Orchestration.NodeOpSlaveTranslator(
+                    commandReader:   new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeOpCommand>(participant!),
+                    statusWriter:    new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeOpStatus>(participant!),
+                    heartbeatWriter: new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeHeartbeat>(participant!),
+                    bus:             _igOrchestrationBus,
+                    nodeId:          igNodeId);
                 _clusterSlave = new FDP.Toolkit.Orchestration.ClusterSlave(
-                    igTransport, igNodeId, "IG");
+                    igNodeId, "IG", _igOrchestrationBus);
 
                 // CGF1-BATCH-23 A.2: IG participates in recording/replay cluster operations as a
                 // listen-only node.  Shared controller tracks IsReplayActive so the
@@ -930,8 +941,6 @@ public class IgApplication : IDisposable
                     simGroup:              null,
                     lifecycleGroup:        null,
                     bypassLifecycleToggle: null,
-                    igTransport,
-                    igNodeId,
                     storageDirectory:      @"C:\FDP_Temp"));
 
                 // Wire ReferenceLiveLoadHandler: ACKs cold PrepareLive and FinalizeLive
@@ -949,7 +958,7 @@ public class IgApplication : IDisposable
                 // Wire ReferencePrefetchHandler so IG can stage scenario files and ACK.
                 var igStorageProvider = new FDP.Toolkit.Orchestration.LocalDiskStorageProvider(@"C:\FDP_Temp");
                 _clusterSlave.RegisterHandler(new FDP.Toolkit.Orchestration.Handlers.ReferencePrefetchHandler(
-                    igTransport, igNodeId, igStorageProvider));
+                    igStorageProvider));
 
                 // CGF1-S0309: wire dry-run snapshot/rewind handler (IG carries no ECS state in ClusterSlave).
                 _clusterSlave.RegisterHandler(new ReferencePreviewHandler(liveRepo: null));
@@ -1215,6 +1224,9 @@ public class IgApplication : IDisposable
     {
 
         _frameDt = dt;
+        // CMC-S016: swap orch bus then tick translator before clusterSlave.
+        _igOrchestrationBus?.SwapBuffers();
+        _igSlaveTranslator?.Tick();
         _clusterSlave?.Tick();
 
         if (!_headless)

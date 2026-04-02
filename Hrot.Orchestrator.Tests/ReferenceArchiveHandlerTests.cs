@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using Xunit;
@@ -16,30 +16,21 @@ namespace Hrot.Orchestrator.Tests;
 [Collection("OrchestratorTests")]
 public sealed class ReferenceArchiveHandlerTests
 {
-    // ── Stub transport ──────────────────────────────────────────────────────
-
-    private sealed class StubTransport : IOrchestrationTransport
-    {
-        public readonly List<OrchestrationStatus> Published = new();
-
-        public void PublishHeartbeat(int nodeId, string subsystemName, int localStateId, long wallTicksUtc) { }
-        public void PublishStatus(OrchestrationStatus status) => Published.Add(status);
-        public bool TryDequeueCommand(out OrchestrationCommand cmd) { cmd = default; return false; }
-        public void Dispose() { }
-    }
-
-    private static OrchestrationCommand MakeCmd(string payload, Guid? txId = null) =>
-        new(TransactionId: txId ?? Guid.NewGuid(),
-            TargetNodeId:  1,
-            OperationId:   ReferenceArchiveHandler.SerializeLocalOperationId,
-            PayloadJson:   payload);
+    private static ExecuteNodeOpIntent MakeCmd(string? exerciseId, Guid? txId = null) =>
+        new()
+        {
+            TransactionId = txId ?? Guid.NewGuid(),
+            TargetNodeId  = 1,
+            Operation     = NodeOpType.SerializeLocal,
+            DomainPayload = new ArchiveHandlerPayload(exerciseId),
+        };
 
     // ── CGF1-S0505 Success Condition 2 ────────────────────────────────────────
 
     /// <summary>
-    /// When the .fdp file exists, <see cref="ReferenceArchiveHandler.Commit"/> must
-    /// publish a status with a ResultJson that deserialises to a FileManifestEntry[]
-    /// containing the expected SourceUnc and RelativeDest.
+    /// When the .fdp file exists, <see cref="ReferenceArchiveHandler"/> dispatched through
+    /// ClusterSlave must publish a NodeOpCompletedEvent whose ResultPayload is a
+    /// FileManifestResult[] containing the expected SourceUnc and RelativeDest.
     /// </summary>
     [Fact]
     public void Commit_ProducesManifestJson_WhenFdpExists()
@@ -55,22 +46,30 @@ public sealed class ReferenceArchiveHandlerTests
 
         try
         {
-            var transport = new StubTransport();
-            var handler   = new ReferenceArchiveHandler(transport, tempRoot, nodeId);
-            var txId      = Guid.NewGuid();
-            var cmd       = MakeCmd($"{{\"ExerciseId\":\"{exerciseId}\"}}", txId);
+            var eventBus = new FdpEventBus();
+            var handler  = new ReferenceArchiveHandler(tempRoot, nodeId);
+            var txId     = Guid.NewGuid();
+            var cmd      = MakeCmd(exerciseId, txId);
 
-            handler.Commit(cmd, null);
+            using var slave = new ClusterSlave(nodeId, "Test", eventBus);
+            slave.RegisterHandler(handler);
+            eventBus.PublishManaged(cmd);
+            eventBus.SwapBuffers();
+            slave.Tick();
+            eventBus.SwapBuffers();
 
-            Assert.Single(transport.Published);
-            var status = transport.Published[0];
-            Assert.Equal(txId,                          status.TransactionId);
-            Assert.Equal(nodeId,                        status.NodeId);
+            var completed = new List<NodeOpCompletedEvent>();
+            foreach (var e in eventBus.ConsumeManaged<NodeOpCompletedEvent>())
+                completed.Add(e);
+
+            Assert.Single(completed);
+            var status = completed[0];
+            Assert.Equal(txId,                            status.TransactionId);
+            Assert.Equal(nodeId,                          status.NodeId);
             Assert.Equal(OrchestrationStatusCode.Success, status.StatusCode);
 
-            // Deserialise ResultJson back to manifest shape.
-            var entries = JsonSerializer.Deserialize<List<ManifestDto>>(status.ResultJson,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            // Check ResultPayload is a FileManifestResult array.
+            var entries = status.ResultPayload as FileManifestResult[];
             Assert.NotNull(entries);
             Assert.Single(entries!);
             var entry = entries![0];
@@ -105,8 +104,8 @@ public sealed class ReferenceArchiveHandlerTests
         {
             Assert.True(File.Exists(fdpFile), "Pre-condition: file must exist before Abort.");
 
-            var handler = new ReferenceArchiveHandler(transport: null, tempRoot, nodeId);
-            var cmd     = MakeCmd($"{{\"ExerciseId\":\"{exerciseId}\"}}");
+            var handler = new ReferenceArchiveHandler(tempRoot, nodeId);
+            var cmd     = MakeCmd(exerciseId);
 
             handler.Abort(cmd, null);
 
@@ -122,20 +121,17 @@ public sealed class ReferenceArchiveHandlerTests
     // ── Guard: no ExerciseId in payload ──────────────────────────────────────────
 
     /// <summary>
-    /// When the payload has no "ExerciseId" key, <see cref="ReferenceArchiveHandler.Commit"/>
-    /// must exit silently without publishing any status and without throwing.
+    /// When the payload has no ExerciseId, PrepareAsync returns null and no event is published.
     /// </summary>
     [Fact]
     public void Commit_SkipsGracefully_WhenNoExerciseId()
     {
-        var transport = new StubTransport();
-        var handler   = new ReferenceArchiveHandler(transport, @"C:\FDP_Temp", nodeId: 1);
-        var cmd       = MakeCmd("{\"SomeOtherKey\":\"value\"}");
+        var handler = new ReferenceArchiveHandler(@"C:\FDP_Temp", nodeId: 1);
+        var cmd     = MakeCmd(null); // null exerciseId → handler skips gracefully
 
-        var ex = Record.Exception(() => handler.Commit(cmd, null));
+        var ex = Record.Exception(() => handler.PrepareAsync(cmd, default).GetAwaiter().GetResult());
 
         Assert.Null(ex);
-        Assert.Empty(transport.Published);
     }
 
     // ── CanHandle ─────────────────────────────────────────────────────────────
@@ -143,24 +139,16 @@ public sealed class ReferenceArchiveHandlerTests
     [Fact]
     public void CanHandle_ReturnsTrue_ForSerializeLocalId()
     {
-        var handler = new ReferenceArchiveHandler(null, @"C:\FDP_Temp", 1);
-        Assert.True(handler.CanHandle(ReferenceArchiveHandler.SerializeLocalOperationId));
+        var handler = new ReferenceArchiveHandler(@"C:\FDP_Temp", 1);
+        Assert.True(handler.CanHandle(NodeOpType.SerializeLocal));
     }
 
     [Fact]
     public void CanHandle_ReturnsFalse_ForOtherIds()
     {
-        var handler = new ReferenceArchiveHandler(null, @"C:\FDP_Temp", 1);
-        Assert.False(handler.CanHandle(4));   // TakeSnapshot
-        Assert.False(handler.CanHandle(0));
+        var handler = new ReferenceArchiveHandler(@"C:\FDP_Temp", 1);
+        Assert.False(handler.CanHandle(NodeOpType.TakeSnapshot));   // TakeSnapshot
+        Assert.False(handler.CanHandle((NodeOpType)0));
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /// <summary>DTO mirroring the FileManifestEntry wire shape for JSON deserialisation.</summary>
-    private sealed class ManifestDto
-    {
-        public string SourceUnc    { get; set; } = string.Empty;
-        public string RelativeDest { get; set; } = string.Empty;
-    }
 }

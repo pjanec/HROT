@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Hrot.Common.Orchestration;
 using Hrot.SimHost.Modules.Orchestration;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
@@ -104,16 +103,17 @@ namespace Hrot.SimHost.Tests
                 simGroup,
                 lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
-                transport:        null,
-                nodeId:           1,
                 storageDirectory: _tempDir);
 
             // ── Step 3: dispatch PrepareReplay → Commit. ──
-            var payload = $"{{\"ExerciseId\":\"{exerciseId:D}\"}}";
-            var cmd = new OrchestrationCommand(
-                Guid.NewGuid(), 0,
-                ReferenceReplayLoadHandler.PrepareReplayOperationId,
-                payload);
+            var payload = exerciseId;  // Guid directly as DomainPayload
+            var cmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                DomainPayload = payload,
+            };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
             handler.Commit(cmd, repo: null);
@@ -159,12 +159,15 @@ namespace Hrot.SimHost.Tests
             var handler = new ReferenceReplayLoadHandler(
                 controller, simGroup, lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
-                transport: null, nodeId: 1, storageDirectory: _tempDir);
+                storageDirectory: _tempDir);
 
-            var prepareCmd = new OrchestrationCommand(
-                Guid.NewGuid(), 0,
-                ReferenceReplayLoadHandler.PrepareReplayOperationId,
-                $"{{\"ExerciseId\":\"{exerciseId:D}\"}}");
+            var prepareCmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                DomainPayload = exerciseId,
+            };
             await handler.PrepareAsync(prepareCmd, CancellationToken.None);
             handler.Commit(prepareCmd, repo: null);
 
@@ -172,10 +175,13 @@ namespace Hrot.SimHost.Tests
             Assert.False(simGroup.Enabled);
 
             // ── Step 3: dispatch FinalizeReplay → Commit. ──
-            var finalizeCmd = new OrchestrationCommand(
-                Guid.NewGuid(), 0,
-                ReferenceReplayLoadHandler.FinalizeReplayOperationId,
-                string.Empty);
+            var finalizeCmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.FinalizeReplay,
+                DomainPayload = null,
+            };
             await handler.PrepareAsync(finalizeCmd, CancellationToken.None);
             handler.Commit(finalizeCmd, repo: null);
 

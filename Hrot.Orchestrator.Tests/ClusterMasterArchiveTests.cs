@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
+using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using Xunit;
 
 namespace Hrot.Orchestrator.Tests;

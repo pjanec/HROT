@@ -8,6 +8,11 @@ using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
+using Fdp.Kernel;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
+using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using ModuleHost.Network.Cyclone.Services;
 
 namespace Hrot.Orchestrator;
@@ -20,7 +25,10 @@ public sealed class ClusterMaster : IDisposable
 {
     private readonly ClusterConfiguration _config;
 
-    // ── DDS infrastructure ────────────────────────────────────────────────
+    // ── FdpEventBus (bus-based constructor path) ─────────────────────────
+    private readonly FdpEventBus? _eventBus;
+
+    // ── DDS infrastructure (DDS-based constructor path) ──────────────────
     private readonly DdsWriter<SystemStateTopic>  _systemStateWriter;
     private readonly DdsReader<NodeHeartbeat>     _heartbeatReader;
     private readonly DdsReader<ClusterOpRequest>      _sysOpRequestReader;
@@ -159,6 +167,23 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private readonly Dictionary<Guid, ManageEpisodeTask> _pendingManageEpisodeTasks = new();
 
+    // ── Bus-mode 2PC ACK tracking (CMC-S016 / BATCH-06) ─────────────────────
+    /// <summary>
+    /// Tracks in-flight <see cref="ClusterOpType.TransitionState"/> 2PC rounds in bus mode.
+    /// Removed once all expected <see cref="NodeOpCompletedEvent"/> ACKs arrive and a
+    /// <see cref="ClusterOpCompletedEvent"/> is published.
+    /// </summary>
+    private sealed class BusTransitionAckTracker
+    {
+        public Guid RequestId;
+        public int  Expected;
+        public int  Received;
+        public bool HasFailure;
+        public int  FailureCode;
+    }
+
+    private readonly Dictionary<Guid, BusTransitionAckTracker> _pendingBusTransitionAcks = new();
+
     // ── Current Cluster state (tracked here so the planner can compute relative paths) ─
     /// <summary>
     /// Optimistic cluster Cluster state used as the <c>current</c> argument to
@@ -191,7 +216,7 @@ public sealed class ClusterMaster : IDisposable
     /// <summary>
     /// Set when a <see cref="ClusterOpType.TransitionState"/> request heading toward
     /// <see cref="ClusterState.LoadingLive"/> carries <c>"TimeMode": "Deterministic"</c>
-    /// in its <see cref="ClusterOpRequest.PayloadJson"/>.
+    /// in the transition intent's typed payload.
     ///
     /// <para>Consumers (e.g. <c>OrchestratorSubsystem</c>) should read this property
     /// after <see cref="Tick"/> and trigger <c>DistributedTimeCoordinator.SwitchToDeterministic</c>
@@ -333,6 +358,33 @@ public sealed class ClusterMaster : IDisposable
         _idServerThread.Start();
     }
 
+    /// <summary>
+    /// Bus-based constructor for AllInOne mode (no DDS).
+    /// <c>ClusterMaster</c> ingests heartbeats and publishes fan-out operations exclusively
+    /// via the <paramref name="eventBus"/>.
+    /// </summary>
+    public ClusterMaster(FdpEventBus eventBus, ClusterConfiguration? config = null)
+    {
+        _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+        _config   = config ?? ClusterConfiguration.Default;
+        _history  = new DistributedTransaction[Math.Max(1, _config.TransactionHistoryCapacity)];
+
+        // DDS fields are unused in bus mode — suppress nullable compiler warnings.
+        _heartbeatReader    = null!;
+        _systemStateWriter  = null!;
+        _sysOpRequestReader = null!;
+        _sysOpStatusWriter  = null!;
+        _nodeOpStatusReader = null!;
+        _nodeOpParticipant  = null!;
+        // NOTE: In bus-mode, DdsIdAllocatorServer is NOT created here. The hosting process
+        // (e.g. OrchestratorSubsystem) is responsible for creating and ticking the server.
+        _idAllocatorServer  = null!;
+        _idServerCts        = null!;
+        _idServerThread     = null!;
+
+        if (_config.Mandatory.Length == 0) { _bootstrapLatch = true; PublishStandby(); }
+    }
+
     // ── Per-frame tick ────────────────────────────────────────────────────
 
     public void Tick()
@@ -342,7 +394,21 @@ public sealed class ClusterMaster : IDisposable
         DetectAndEjectTimedOutNodes();
         DrainPendingPrefetch();
         DrainInjectedRequests();
-        ProcessClusterOpRequests();
+
+        if (_eventBus != null)
+        {
+            // Bus-based intent drain (CMC-S008).
+            ProcessTransitionStateIntents();
+            ProcessManageEpisodeIntents();
+            ProcessStorageOpIntents();
+            ProcessSeekReplayIntents();
+            ProcessCancelOperationIntents();
+        }
+        else
+        {
+            ProcessClusterOpRequests();
+        }
+
         ConsumeNodeOpStatuses();
 
         if ((DateTime.UtcNow - _lastInventoryScan).TotalSeconds >= 5.0)
@@ -417,6 +483,24 @@ public sealed class ClusterMaster : IDisposable
 
     private void IngestHeartbeats()
     {
+        if (_eventBus != null)
+        {
+            // Bus path (CMC-S008).
+            foreach (var hb in _eventBus.ConsumeManaged<NodeHeartbeatEvent>())
+            {
+                var profile = new NodeHealthProfile
+                {
+                    NodeId                  = hb.NodeId,
+                    SubsystemName           = hb.SubsystemName ?? string.Empty,
+                    LocalClusterState       = (ClusterState)(int)hb.LocalStateId,
+                    LastHeartbeatUtcSeconds = UtcNowSeconds(),
+                };
+                _roster.Upsert(profile);
+            }
+            return;
+        }
+
+        // DDS path (legacy — DDS constructor only).
         using var scope = _heartbeatReader.Take();
         foreach (var sample in scope)
         {
@@ -527,29 +611,13 @@ public sealed class ClusterMaster : IDisposable
         }
 
         // Publish Degraded system state.
-        _systemStateWriter.Write(new SystemStateTopic
-        {
-            CurrentState        = ClusterState.Degraded,
-            ExerciseId             = Guid.Empty,
-            StateStartWallTicks = DateTimeOffset.UtcNow.Ticks,
-            TransactionEpoch    = 0
-        });
+        PublishClusterState(ClusterState.Degraded);
         FdpLog<ClusterMaster>.Warn("[Orchestrator] System entered Degraded state (mandatory node {0} lost).", profile.SubsystemName);
 
         // Broadcast AbortTransaction + PrepareState(Standby) to surviving nodes only.
         var survivingIds = new List<int>(_roster.ActiveNodes.Keys);
-        FanOutNodeOp(new NodeOpCommand
-        {
-            TransactionId = Guid.NewGuid(),
-            Operation     = NodeOpType.AbortTransaction,
-            PayloadJson   = string.Empty
-        }, survivingIds);
-        FanOutNodeOp(new NodeOpCommand
-        {
-            TransactionId = Guid.NewGuid(),
-            Operation     = NodeOpType.PrepareState,
-            PayloadJson   = ((int)ClusterState.Idle).ToString()
-        }, survivingIds);
+        FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(), null, survivingIds);
+        FanOutNodeOp(NodeOpType.PrepareState,     Guid.NewGuid(), (int)ClusterState.Idle, survivingIds);
 
         // Re-engage bootstrap latch until the mandatory node returns.
         _bootstrapLatch = false;
@@ -557,8 +625,7 @@ public sealed class ClusterMaster : IDisposable
 
     /// <summary>
     /// Reads all pending <see cref="ClusterOpRequest"/> messages and replies with
-    /// <see cref="ClusterOpStatus"/>. While the bootstrap latch is inactive all requests
-    /// are rejected with <see cref="OpStatus.Rejected"/>.
+    /// <see cref="ClusterOpStatus"/>. Used only by the DDS-constructor path.
     /// </summary>
     private void ProcessClusterOpRequests()
     {
@@ -571,185 +638,343 @@ public sealed class ClusterMaster : IDisposable
     }
 
     /// <summary>
-    /// Processes a single <see cref="ClusterOpRequest"/> — called from both the DDS drain
-    /// path (<see cref="ProcessClusterOpRequests"/>) and the UI/test injection path
-    /// (<see cref="DrainInjectedRequests"/>).
+    /// Converts a legacy <see cref="ClusterOpRequest"/> to typed intents and delegates to
+    /// the same typed handlers used by the bus path.  All JSON parsing is isolated in
+    /// <see cref="ClusterOpRequestAdapter"/>.
     /// </summary>
     private void ProcessSingleClusterOpRequest(ClusterOpRequest req)
     {
-            if (!_bootstrapLatch)
-            {
-                _sysOpStatusWriter.Write(new ClusterOpStatus
-                {
-                    RequestId  = req.RequestId,
-                    StatusCode = OrchestrationStatusCode.Rejected,
-                    ResultJson = string.Empty
-                });
-                return;
-            }
+        if (!_bootstrapLatch)
+        {
+            PublishOpStatus(req.RequestId, OrchestrationStatusCode.Rejected);
+            return;
+        }
 
-            // S0503: Time-control operations bypass 2PC — route directly and return.
-            if (req.OperationType is ClusterOpType.PauseTime or ClusterOpType.ResumeTime
-                                  or ClusterOpType.StepTime  or ClusterOpType.SetTimeScale)
-            {
-                TimeControlRequested?.Invoke(req.OperationType, req.PayloadJson ?? string.Empty);
-                return;
-            }
+        // S0503: Time-control operations bypass 2PC — route directly and return.
+        if (req.OperationType is ClusterOpType.PauseTime or ClusterOpType.ResumeTime
+                              or ClusterOpType.StepTime  or ClusterOpType.SetTimeScale)
+        {
+            TimeControlRequested?.Invoke(req.OperationType, ClusterOpRequestAdapter.GetPayloadString(req));
+            return;
+        }
 
-            // Accept the request — resolve target via planner for TransitionState ops.
-            ClusterState resolvedTarget = _currentDsmState;
-            int totalSteps = 1;
-
-            // S0501: capture source state before any mutation so it can be stored in the transaction.
-            ClusterState capturedSourceState = _currentDsmState;
-            // S0502: capture trajectory and branch-flag for the fan-out loop below.
-            Queue<ISysOpStep>? capturedTrajectory = null;
-            bool isLiveFromReplayBranch = false;
-
-            if (req.OperationType == ClusterOpType.TransitionState)
-            {
+        switch (req.OperationType)
+        {
+            case ClusterOpType.TransitionState:
                 try
                 {
-                    // Capture current state before optimistic advance (needed for S0305 detection).
-                    var stateBeforeAdvance = _currentDsmState;
-
-                    var trajectory = _planner.PlanTrajectory(_currentDsmState, req);
-                    totalSteps         = trajectory.Count;
-                    capturedTrajectory = trajectory; // S0502: capture for fan-out loop
-                    // Extract the final TransitionStep target for history recording
-                    // and optimistic _currentDsmState advance.
-                    resolvedTarget = _currentDsmState;
-                    foreach (var step in trajectory)
-                    {
-                        if (step is TransitionStep ts)
-                            resolvedTarget = ts.TargetState;
-                    }
-                    // Advance optimistically so the next PlanTrajectory call starts from
-                    // the intended end-state (see _currentDsmState XML docs for caveats).
-                    _currentDsmState = resolvedTarget;
-
-                    // CGF1-S0302 / A.1: Execute any PrefetchScenario step immediately so
-                    // scenario files reach all nodes before the first TransitionStep runs.
-                    // The gateway copy runs async; PrefetchFiles fan-out is deferred until
-                    // DrainPendingPrefetch() confirms success (see Tick()).
-                    foreach (var step in trajectory)
-                    {
-                        if (step is OperationStep { Operation: ClusterOpType.PrefetchScenario } prefetchStep)
-                        {
-                            ExecutePrefetchScenario(prefetchStep.PayloadJson, req.RequestId);
-                            break;
-                        }
-                    }
-
-                    // CGF1-S0205: If the trajectory passes through LoadingLive, check
-                    // for "TimeMode": "Deterministic" in the payload and store it so
-                    // the hosting subsystem (OrchestratorSubsystem) can instruct the
-                    // DistributedTimeCoordinator to switch before RunningLive.
-                    bool passesLoadingLive = false;
-                    foreach (var step in trajectory)
-                    {
-                        if (step is TransitionStep ts && ts.TargetState == ClusterState.LoadingLive)
-                        {
-                            passesLoadingLive = true;
-                            break;
-                        }
-                    }
-                    if (passesLoadingLive && !string.IsNullOrWhiteSpace(req.PayloadJson))
-                    {
-                        try
-                        {
-                            using var doc = JsonDocument.Parse(req.PayloadJson);
-                            // Only attempt property lookup when the root is a JSON object.
-                            // Plain-integer payloads (e.g. legacy TransitionState) are
-                            // intentionally ignored.
-                            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
-                                doc.RootElement.TryGetProperty("TimeMode", out var timeModeEl))
-                            {
-                                PendingTimeMode = timeModeEl.GetString();
-                            }
-                        }
-                        catch (JsonException)
-                        {
-                            // Malformed JSON — leave PendingTimeMode unchanged.
-                        }
-                    }
-                    // Clear pending mode when transitioning back to Standby.
-                    if (resolvedTarget == ClusterState.Idle)
-                        PendingTimeMode = null;
-
-                    // CGF1-S0305: Live-from-Replay temporal interlock.
-                    // When the trajectory passes through LoadingLive from RunningReplay,
-                    // hard-freeze time and fan out PrepareLive with a new branched ExerciseId
-                    // before any node begins recording.  Time is restored once all nodes ACK.
-                    if (passesLoadingLive && stateBeforeAdvance == ClusterState.OperatingReplay)
-                    {
-                        isLiveFromReplayBranch = true; // S0502: suppress general fan-out for this path
-                        _replayMasterModule?.FreezeTime();
-
-                        var branchedExerciseId = Guid.NewGuid();
-                        var branchTxId      = Guid.NewGuid();
-                        var activeNodeIds   = new List<int>(_roster.ActiveNodes.Keys);
-
-                        if (activeNodeIds.Count > 0)
-                        {
-                            _pendingBranchTasks[branchTxId] = new BranchTransitionTask
-                            {
-                                RemainingAcks = activeNodeIds.Count
-                            };
-                            FanOutNodeOp(new NodeOpCommand
-                            {
-                                TransactionId = branchTxId,
-                                Operation     = NodeOpType.PrepareLive,
-                                PayloadJson   = $"{{\"ExerciseId\":\"{branchedExerciseId}\"}}"
-                            }, activeNodeIds);
-                            FdpLog<ClusterMaster>.Info(
-                                "[Orchestrator] S0305: Live-from-Replay branch — time frozen, " +
-                                "PrepareLive fan-out (branchedExerciseId={0}, nodes={1}).",
-                                branchedExerciseId, activeNodeIds.Count);
-                        }
-                        else
-                        {
-                            // No nodes to wait for; restore time immediately.
-                            _replayMasterModule?.RestoreTime();
-                            FdpLog<ClusterMaster>.Warn(
-                                "[Orchestrator] S0305: Live-from-Replay branch with zero active nodes — time restored immediately.");
-                        }
-                    }
+                    ProcessTransitionStateIntent(ClusterOpRequestAdapter.ToTransitionStateIntent(req));
                 }
                 catch (InvalidOperationException ex)
                 {
-                    FdpLog<ClusterMaster>.Warn(
-                        "[Orchestrator] TransitionState request {0} rejected by planner: {1}",
-                        req.RequestId, ex.Message);
-                    _sysOpStatusWriter.Write(new ClusterOpStatus
-                    {
-                        RequestId  = req.RequestId,
-                        StatusCode = OrchestrationStatusCode.Rejected + 1,  // Failure=11 (Timeout range)
-                        ResultJson = string.Empty
-                    });
-                    return;
+                    FdpLog<ClusterMaster>.Warn("[Orchestrator] TransitionState request {0} rejected: {1}", req.RequestId, ex.Message);
+                    PublishOpStatus(req.RequestId, OrchestrationStatusCode.Failure);
                 }
-            }
-            else if (req.OperationType == ClusterOpType.SaveScenario)
+                break;
+
+            case ClusterOpType.ManageEpisode:
+                try
+                {
+                    ProcessManageEpisodeIntent(ClusterOpRequestAdapter.ToManageEpisodeIntent(req));
+                }
+                catch (InvalidOperationException ex)
+                {
+                    FdpLog<ClusterMaster>.Warn("[Orchestrator] ManageEpisode request {0} rejected: {1}", req.RequestId, ex.Message);
+                    PublishOpStatus(req.RequestId, OrchestrationStatusCode.Rejected);
+                }
+                break;
+
+            case ClusterOpType.SaveScenario:
+            case ClusterOpType.ExportArchive:
+            case ClusterOpType.ImportArchive:
+                ProcessStorageOpIntent(ClusterOpRequestAdapter.ToExecuteStorageOpIntent(req));
+                break;
+
+            case ClusterOpType.ReplaySeek:
+                ProcessSeekReplayIntent(ClusterOpRequestAdapter.ToSeekReplayIntent(req));
+                break;
+
+            case ClusterOpType.CancelOperation:
+                ProcessCancelOperationIntent(ClusterOpRequestAdapter.ToCancelOperationIntent(req));
+                break;
+        }
+    }
+
+    // ── Bus-path intent drain methods (CMC-S008) ──────────────────────────
+
+    private void ProcessTransitionStateIntents()
+    {
+        foreach (var intent in _eventBus!.ConsumeManaged<TransitionStateIntent>())
+        {
+            if (!_bootstrapLatch) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected); continue; }
+            try   { ProcessTransitionStateIntent(intent); }
+            catch (InvalidOperationException ex)
             {
-                // A.5 / CGF1-S0307: Fan out SerializeLocal to all active nodes so each
-                // writes its own scenario file to local SSD.  ConsumeNodeOpStatuses then
-                // pulls the manifests to the NAS once all ACKs arrive.
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] TransitionStateIntent rejected: {0}", ex.Message);
+                PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Failure);
+            }
+        }
+    }
+
+    private void ProcessManageEpisodeIntents()
+    {
+        foreach (var intent in _eventBus!.ConsumeManaged<ManageEpisodeIntent>())
+        {
+            if (!_bootstrapLatch) { PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected); continue; }
+            try   { ProcessManageEpisodeIntent(intent); }
+            catch (InvalidOperationException ex)
+            {
+                FdpLog<ClusterMaster>.Warn("[Orchestrator] ManageEpisodeIntent rejected: {0}", ex.Message);
+                PublishOpStatus(intent.TransactionId, OrchestrationStatusCode.Rejected);
+            }
+        }
+    }
+
+    private void ProcessStorageOpIntents()
+    {
+        foreach (var intent in _eventBus!.ConsumeManaged<ExecuteStorageOpIntent>())
+            ProcessStorageOpIntent(intent);
+    }
+
+    private void ProcessSeekReplayIntents()
+    {
+        foreach (var intent in _eventBus!.ConsumeManaged<SeekReplayIntent>())
+            ProcessSeekReplayIntent(intent);
+    }
+
+    private void ProcessCancelOperationIntents()
+    {
+        foreach (var intent in _eventBus!.ConsumeManaged<CancelOperationIntent>())
+            ProcessCancelOperationIntent(intent);
+    }
+
+    // ── Typed intent handlers (shared by bus and legacy DDS paths) ────────
+
+    private void ProcessTransitionStateIntent(TransitionStateIntent intent)
+    {
+        var requestId          = intent.TransactionId;
+        var stateBeforeAdvance = _currentDsmState;
+
+        var trajectory = _planner.PlanTrajectory(_currentDsmState, intent);
+        int totalSteps = trajectory.Count;
+
+        // Extract the final TransitionStep target for history recording and optimistic advance.
+        var resolvedTarget = _currentDsmState;
+        foreach (var step in trajectory)
+        {
+            if (step is TransitionStep ts) resolvedTarget = ts.TargetState;
+        }
+        var capturedSourceState = _currentDsmState;
+        _currentDsmState = resolvedTarget;
+
+        // CGF1-S0302: Start async prefetch immediately; PrefetchFiles fan-out is deferred.
+        foreach (var step in trajectory)
+        {
+            if (step is OperationStep { Operation: ClusterOpType.PrefetchScenario } ps)
+            {
+                ExecutePrefetchScenario((string?)ps.DomainPayload ?? string.Empty, requestId);
+                break;
+            }
+        }
+
+        // CGF1-S0205: Capture TimeMode when trajectory passes through LoadingLive.
+        bool passesLoadingLive = trajectory.OfType<TransitionStep>()
+            .Any(ts => ts.TargetState == ClusterState.LoadingLive);
+
+        if (passesLoadingLive && !string.IsNullOrWhiteSpace(intent.TimeMode))
+            PendingTimeMode = intent.TimeMode;
+        if (resolvedTarget == ClusterState.Idle)
+            PendingTimeMode = null;
+
+        // CGF1-S0305: Live-from-Replay temporal interlock.
+        bool isLiveFromReplayBranch = false;
+        if (passesLoadingLive && stateBeforeAdvance == ClusterState.OperatingReplay)
+        {
+            isLiveFromReplayBranch = true;
+            _replayMasterModule?.FreezeTime();
+
+            var branchedExerciseId = !string.IsNullOrWhiteSpace(intent.ExerciseId)
+                ? Guid.Parse(intent.ExerciseId)
+                : Guid.NewGuid();
+            var branchTxId    = Guid.NewGuid();
+            var branchNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+
+            if (branchNodeIds.Count > 0)
+            {
+                _pendingBranchTasks[branchTxId] = new BranchTransitionTask { RemainingAcks = branchNodeIds.Count };
+                FanOutNodeOp(NodeOpType.PrepareLive, branchTxId, branchedExerciseId, branchNodeIds);
+                FdpLog<ClusterMaster>.Info(
+                    "[Orchestrator] S0305: Live-from-Replay branch — time frozen, " +
+                    "PrepareLive fan-out (branchedExerciseId={0}, nodes={1}).",
+                    branchedExerciseId, branchNodeIds.Count);
+            }
+            else
+            {
+                _replayMasterModule?.RestoreTime();
+                FdpLog<ClusterMaster>.Warn(
+                    "[Orchestrator] S0305: Live-from-Replay branch with zero active nodes — time restored immediately.");
+            }
+        }
+
+        var tx = new DistributedTransaction
+        {
+            TransactionId   = Guid.NewGuid(),
+            OriginRequestId = requestId,
+            TargetDsmState  = resolvedTarget,
+            TotalSteps      = totalSteps,
+            CompletedSteps  = totalSteps,
+            IsAborted       = false,
+            SourceDsmState  = capturedSourceState,
+        };
+        _activeTransaction    = tx;
+        _inflightTransitionTx = tx;
+        AppendToHistory(tx);
+
+        // S0502: Fan out PrepareXxx + CommitState to all active nodes.
+        var activeNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+        if (!isLiveFromReplayBranch)
+        {
+            if (activeNodeIds.Count > 0)
+            {
+                foreach (var step in trajectory)
+                {
+                    if (step is TransitionStep tStep)
+                    {
+                        NodeOpType prepareOp = tStep.TargetState switch
+                        {
+                            ClusterState.LoadingLive     => NodeOpType.PrepareLive,
+                            ClusterState.UnloadingLive   => NodeOpType.FinalizeLive,
+                            ClusterState.LoadingReplay   => NodeOpType.PrepareReplay,
+                            ClusterState.UnloadingReplay => NodeOpType.FinalizeReplay,
+                            ClusterState.LoadingEdit     => NodeOpType.PrepareEdit,
+                            ClusterState.UnloadingEdit   => NodeOpType.FinalizeEdit,
+                            _                            => NodeOpType.PrepareState,
+                        };
+
+                        // DomainPayload for prepare ops that carry context:
+                        object? preparePayload =
+                            tStep.TargetState == ClusterState.LoadingLive || tStep.TargetState == ClusterState.LoadingEdit
+                                ? new EditLoadHandlerPayload(intent.ScenarioId, false, (int)tStep.TargetState)
+                                : null;
+
+                        FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
+                        FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId, (int)tStep.TargetState,     activeNodeIds);
+
+                        // CGF1-S0307: Invoke local context handler for load transitions.
+                        if (_globalContextHandler != null &&
+                            (tStep.TargetState == ClusterState.LoadingLive ||
+                             tStep.TargetState == ClusterState.LoadingEdit))
+                        {
+                            var localPayload = !string.IsNullOrEmpty(intent.ScenarioId)
+                                ? $"{{\"TargetState\":{(int)tStep.TargetState},\"ScenarioId\":\"{intent.ScenarioId}\"}}"
+                                : ((int)tStep.TargetState).ToString();
+                            _globalContextHandler.Commit(
+                                ClusterNodeOpBuilder.LocalContextCmd(NodeOpType.CommitState, tx.TransactionId, localPayload), null);
+                        }
+                    }
+                    else if (step is OperationStep opStep && opStep.Operation == ClusterOpType.ReplaySeek)
+                    {
+                        FanOutNodeOp(NodeOpType.NodeReplaySeek, Guid.NewGuid(), opStep.DomainPayload, activeNodeIds);
+                    }
+                }
+
+                FdpLog<ClusterMaster>.Info(
+                    "[Orchestrator] S0502: TransitionState fan-out complete (transaction={0}, nodes={1}).",
+                    tx.TransactionId, activeNodeIds.Count);
+            }
+        }
+
+        // ── Bus-mode 2PC ACK tracking (CMC-S016 / BATCH-06) ─────────────────
+        if (_eventBus != null)
+        {
+            // Count expected ACKs: one per PrepareXxx TransitionStep per active node.
+            // CommitState is handled in-slave synchronously and does NOT publish ACK.
+            int prepSteps = trajectory.OfType<TransitionStep>().Count();
+            int expectedAcks = prepSteps * activeNodeIds.Count;
+            if (expectedAcks > 0)
+            {
+                _pendingBusTransitionAcks[tx.TransactionId] = new BusTransitionAckTracker
+                {
+                    RequestId = requestId,
+                    Expected  = expectedAcks,
+                };
+            }
+            else
+            {
+                // No nodes registered or no prepare steps — complete immediately.
+                PublishOpStatus(requestId, OrchestrationStatusCode.Success);
+            }
+        }
+        else
+        {
+            PublishOpStatus(requestId, OrchestrationStatusCode.InProgress);
+        }
+        _activeTransaction = null;  // ClusterMaster uses sync fan-out; clear immediately
+
+        FdpLog<ClusterMaster>.Info(
+            "[Orchestrator] TransitionStateIntent {0} accepted (transaction {1}).",
+            requestId, tx.TransactionId);
+    }
+
+    private void ProcessManageEpisodeIntent(ManageEpisodeIntent intent)
+    {
+        var requestId = intent.TransactionId;
+
+        var episodeSteps = _planner.PlanManageEpisode(_currentDsmState, intent);
+
+        foreach (var step in episodeSteps)
+        {
+            if (step is OperationStep { Operation: ClusterOpType.PrefetchScenario } prefetch)
+            {
+                if (_gateway != null)
+                    ExecutePrefetchScenario((string?)prefetch.DomainPayload ?? string.Empty, requestId);
+            }
+            else if (step is OperationStep { Operation: ClusterOpType.ManageEpisode })
+            {
+                var nodeOp  = intent.IsStart ? NodeOpType.StartEpisode : NodeOpType.StopEpisode;
+                var txId    = Guid.NewGuid();
+                var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
+
+                var episodePayload = new EpisodeHandlerPayload(intent.EpisodeId, intent.ScenarioId, intent.IsStart);
+                FanOutNodeOp(nodeOp, txId, episodePayload, nodeIds);
+
+                if (nodeIds.Count > 0)
+                {
+                    _pendingManageEpisodeTasks[txId] = new ManageEpisodeTask
+                    {
+                        RequestId        = requestId,
+                        IsStart          = intent.IsStart,
+                        EpisodeId        = intent.EpisodeId,
+                        RemainingNodeIds = new HashSet<int>(nodeIds),
+                    };
+                }
+                else
+                {
+                    if (intent.IsStart) _activeEpisodes.Add(intent.EpisodeId);
+                    else                _activeEpisodes.Remove(intent.EpisodeId);
+                }
+
+                FdpLog<ClusterMaster>.Info(
+                    "[Orchestrator] ManageEpisode {0}: episode {1} → {2} to {3} node(s).",
+                    intent.IsStart ? "Start" : "Stop", intent.EpisodeId, nodeOp, nodeIds.Count);
+            }
+        }
+    }
+
+    private void ProcessStorageOpIntent(ExecuteStorageOpIntent intent)
+    {
+        switch (intent.Operation)
+        {
+            case StorageOpType.SaveScenario:
+            {
                 var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
                 var txId    = Guid.NewGuid();
-                FanOutSerializeLocal(txId, nodeIds, req.PayloadJson);
+                FanOutSerializeLocal(txId, nodeIds, new ArchiveHandlerPayload(intent.ExerciseId));
 
-                // Orchestrator's own context — handled in-process (no DDS round-trip).
                 if (_globalContextHandler != null)
                 {
-                    var localCmd = new NodeOpCommand
-                    {
-                        TransactionId = txId,
-                        Operation     = NodeOpType.SerializeLocal,
-                        PayloadJson   = req.PayloadJson ?? string.Empty,
-                    };
-                    // PrepareAsync + Commit are lightweight / synchronous by convention;
-                    // fire-and-forget from the tick thread (errors are logged inside handler).
+                    var localExercisePayload = intent.ExerciseId != null ? $"{{\"ExerciseId\":\"{intent.ExerciseId}\"}}" : string.Empty;
+                    var localCmd = ClusterNodeOpBuilder.LocalContextCmd(NodeOpType.SerializeLocal, txId, localExercisePayload);
                     _ = _globalContextHandler.PrepareAsync(localCmd, System.Threading.CancellationToken.None)
                         .ContinueWith(t =>
                         {
@@ -758,428 +983,211 @@ public sealed class ClusterMaster : IDisposable
                         }, System.Threading.Tasks.TaskScheduler.Default);
                 }
 
-                FdpLog<ClusterMaster>.Info(
-                    "[Orchestrator] SaveScenario request {0} → SerializeLocal fan-out to {1} node(s).",
-                    req.RequestId, nodeIds.Count);
+                FdpLog<ClusterMaster>.Info("[Orchestrator] SaveScenario → SerializeLocal fan-out to {0} node(s).", nodeIds.Count);
+                break;
             }
-            else if (req.OperationType == ClusterOpType.ManageEpisode)
+
+            case StorageOpType.Export:
             {
-                // CGF1-S0308: validate state, plan episode steps, fan out to nodes.
-                try
+                if (string.IsNullOrWhiteSpace(intent.ExerciseId))
                 {
-                    var episodeSteps = _planner.PlanManageEpisode(_currentDsmState, req);
-                    totalSteps     = episodeSteps.Count;
-
-                    // Parse Mode and EpisodeId from the payload for episode set maintenance.
-                    string? episodeMode = null;
-                    Guid    episodeId   = Guid.Empty;
-                    if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-                    {
-                        try
-                        {
-                            using var sd = JsonDocument.Parse(req.PayloadJson);
-                            if (sd.RootElement.TryGetProperty("Mode",    out var mp)) episodeMode = mp.GetString();
-                            if (sd.RootElement.TryGetProperty("EpisodeId", out var sp)) Guid.TryParse(sp.GetString(), out episodeId);
-                        }
-                        catch (JsonException) { }
-                    }
-
-                    // BATCH-22 A.2: Fail loud on unparseable or incomplete ManageEpisode payload.
-                    // Reject the request rather than issuing a silent FanOutNodeOp with no
-                    // pending task tracking (orphan node ops).
-                    if (episodeId == Guid.Empty)
-                        throw new InvalidOperationException(
-                            $"[Orchestrator] ManageEpisode payload is missing or has an invalid 'EpisodeId' field. " +
-                            $"PayloadJson='{req.PayloadJson}'.");
-                    if (string.IsNullOrWhiteSpace(episodeMode))
-                        throw new InvalidOperationException(
-                            $"[Orchestrator] ManageEpisode payload is missing or has an invalid 'Mode' field. " +
-                            $"PayloadJson='{req.PayloadJson}'.");
-
-                    // Execute the planned episode steps.
-                    foreach (var step in episodeSteps)
-                    {
-                        if (step is OperationStep { Operation: ClusterOpType.PrefetchScenario } prefetch)
-                        {
-                            // Skip silently when no storage gateway is present (e.g. unit tests).
-                            if (_gateway != null)
-                                ExecutePrefetchScenario(prefetch.PayloadJson, req.RequestId);
-                        }
-                        else if (step is OperationStep { Operation: ClusterOpType.ManageEpisode } manageStep)
-                        {
-                            // Determine NodeOpType from mode.
-                            bool isStart = string.Equals(episodeMode, "Start", StringComparison.OrdinalIgnoreCase);
-                            var nodeOp   = isStart ? NodeOpType.StartEpisode : NodeOpType.StopEpisode;
-
-                            var txId    = Guid.NewGuid();
-                            var nodeIds = new List<int>(_roster.ActiveNodes.Keys);
-                            FanOutNodeOp(new NodeOpCommand
-                            {
-                                TransactionId = txId,
-                                Operation     = nodeOp,
-                                PayloadJson   = manageStep.PayloadJson,
-                            }, nodeIds);
-
-                            // 2PC (BATCH-21 Part A.1): defer _activeEpisodes update until all
-                            // targeted nodes have ack-ed.  When there are no nodes, update
-                            // immediately (no ACKs will arrive).
-                            if (episodeId != Guid.Empty)
-                            {
-                                if (nodeIds.Count > 0)
-                                {
-                                    _pendingManageEpisodeTasks[txId] = new ManageEpisodeTask
-                                    {
-                                        RequestId        = req.RequestId,
-                                        IsStart          = isStart,
-                                        EpisodeId          = episodeId,
-                                        RemainingNodeIds = new HashSet<int>(nodeIds),
-                                    };
-                                }
-                                else
-                                {
-                                    // No targeted nodes — update immediately.
-                                    if (isStart) _activeEpisodes.Add(episodeId);
-                                    else         _activeEpisodes.Remove(episodeId);
-                                }
-                            }
-
-                            FdpLog<ClusterMaster>.Info(
-                                "[Orchestrator] ManageEpisode {0}: episode {1} → {2} to {3} node(s).",
-                                episodeMode ?? "?", episodeId, nodeOp, nodeIds.Count);
-                        }
-                    }
-                }
-                catch (InvalidOperationException ex)
-                {
-                    FdpLog<ClusterMaster>.Warn(
-                        "[Orchestrator] ManageEpisode request {0} rejected: {1}",
-                        req.RequestId, ex.Message);
-                    _sysOpStatusWriter.Write(new ClusterOpStatus
-                    {
-                        RequestId  = req.RequestId,
-                        StatusCode = OrchestrationStatusCode.Rejected,
-                        ResultJson = string.Empty
-                    });
-                    return;
-                }
-            }
-            else if (req.OperationType == ClusterOpType.ExportArchive)
-            {
-                // CGF1-S0505: Fan out SerializeLocal to all nodes to write .fdp archives,
-                // then pull manifests to NAS when all ACKs arrive.
-                string? exportExerciseId = ParsePayloadString(req.PayloadJson, "ExerciseId");
-                if (exportExerciseId is null)
-                {
-                    FdpLog<ClusterMaster>.Warn("[Orchestrator] ExportArchive request {0} missing ExerciseId — rejected.", req.RequestId);
-                    _sysOpStatusWriter.Write(new ClusterOpStatus
-                    {
-                        RequestId  = req.RequestId,
-                        StatusCode = OrchestrationStatusCode.Rejected,
-                        ResultJson = string.Empty
-                    });
+                    FdpLog<ClusterMaster>.Warn("[Orchestrator] ExportArchive missing ExerciseId — rejected (requestId={0}).", intent.RequestId);
+                    PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
                     return;
                 }
 
-                var exportCts    = new CancellationTokenSource();
-                _activeCancellations[req.RequestId] = exportCts;
+                var exportCts = new CancellationTokenSource();
+                _activeCancellations[intent.RequestId] = exportCts;
 
                 var exportNodeIds = new List<int>(_roster.ActiveNodes.Keys);
                 var exportTxId    = Guid.NewGuid();
-                FanOutSerializeLocal(exportTxId, exportNodeIds, req.PayloadJson ?? string.Empty);
+                FanOutSerializeLocal(exportTxId, exportNodeIds, new ArchiveHandlerPayload(intent.ExerciseId));
 
-                // Mark the pending task as an archive export so ConsumeNodeOpStatuses
-                // applies the gateway pull with CT and publishes the final SysOpStatus.
                 if (_pendingSerializeTasks.TryGetValue(exportTxId, out var archTask))
                 {
-                    archTask.ArchiveRequestId = req.RequestId;
+                    archTask.ArchiveRequestId = intent.RequestId;
                     archTask.ArchiveCts       = exportCts;
                 }
                 else if (exportNodeIds.Count == 0)
                 {
-                    // No nodes — complete immediately.
-                    _activeCancellations.Remove(req.RequestId);
+                    _activeCancellations.Remove(intent.RequestId);
                     exportCts.Dispose();
-                    _sysOpStatusWriter.Write(new ClusterOpStatus
-                    {
-                        RequestId  = req.RequestId,
-                        StatusCode = OrchestrationStatusCode.Success,
-                        ResultJson = string.Empty
-                    });
+                    PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
                 }
 
-                _sysOpStatusWriter.Write(new ClusterOpStatus
-                {
-                    RequestId  = req.RequestId,
-                    StatusCode = OrchestrationStatusCode.InProgress,
-                    ResultJson = string.Empty
-                });
-                return;   // skip generic transaction creation below
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.InProgress);
+                break;
             }
-            else if (req.OperationType == ClusterOpType.ImportArchive)
+
+            case StorageOpType.Import:
             {
-                // CGF1-S0505: Fetch per-node .fdp archives from NAS and distribute to nodes.
-                string? importExerciseId = ParsePayloadString(req.PayloadJson, "ExerciseId");
-                if (importExerciseId is null)
+                if (string.IsNullOrWhiteSpace(intent.ExerciseId))
                 {
-                    FdpLog<ClusterMaster>.Warn("[Orchestrator] ImportArchive request {0} missing ExerciseId — rejected.", req.RequestId);
-                    _sysOpStatusWriter.Write(new ClusterOpStatus
-                    {
-                        RequestId  = req.RequestId,
-                        StatusCode = OrchestrationStatusCode.Rejected,
-                        ResultJson = string.Empty
-                    });
+                    FdpLog<ClusterMaster>.Warn("[Orchestrator] ImportArchive missing ExerciseId — rejected (requestId={0}).", intent.RequestId);
+                    PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Rejected);
                     return;
                 }
 
-                var importCts = new CancellationTokenSource();
-                _activeCancellations[req.RequestId] = importCts;
+                var importCts       = new CancellationTokenSource();
+                _activeCancellations[intent.RequestId] = importCts;
 
-                var importTargets   = BuildNodeDistributionTargetsForExercise(importExerciseId);
-                var importRequestId = req.RequestId;
+                var importTargets   = BuildNodeDistributionTargetsForExercise(intent.ExerciseId);
+                var importRequestId = intent.RequestId;
 
                 if (_gateway != null)
                 {
-                    _ = _gateway.PrefetchArchiveAsync(importExerciseId, importTargets, _nasBasePath, importCts.Token)
+                    _ = _gateway.PrefetchArchiveAsync(intent.ExerciseId, importTargets, _nasBasePath, importCts.Token)
                         .ContinueWith(t =>
                         {
                             _activeCancellations.Remove(importRequestId);
                             if (t.IsCanceled)
-                                _sysOpStatusWriter.Write(new ClusterOpStatus
-                                {
-                                    RequestId  = importRequestId,
-                                    StatusCode = OrchestrationStatusCode.Rejected,
-                                    ResultJson = string.Empty
-                                });
+                                PublishOpStatus(importRequestId, OrchestrationStatusCode.Rejected);
                             else if (t.IsFaulted)
                             {
                                 FdpLog<ClusterMaster>.Error("[Orchestrator] ImportArchive gateway error: {0}",
                                     t.Exception?.GetBaseException().Message);
-                                _sysOpStatusWriter.Write(new ClusterOpStatus
-                                {
-                                    RequestId  = importRequestId,
-                                    StatusCode = OrchestrationStatusCode.Rejected,
-                                    ResultJson = string.Empty
-                                });
+                                PublishOpStatus(importRequestId, OrchestrationStatusCode.Rejected);
                             }
                             else
-                                _sysOpStatusWriter.Write(new ClusterOpStatus
-                                {
-                                    RequestId  = importRequestId,
-                                    StatusCode = OrchestrationStatusCode.Success,
-                                    ResultJson = string.Empty
-                                });
+                                PublishOpStatus(importRequestId, OrchestrationStatusCode.Success);
                         }, System.Threading.Tasks.TaskScheduler.Default);
                 }
                 else
                 {
-                    _activeCancellations.Remove(req.RequestId);
+                    _activeCancellations.Remove(intent.RequestId);
                     importCts.Dispose();
-                    _sysOpStatusWriter.Write(new ClusterOpStatus
-                    {
-                        RequestId  = req.RequestId,
-                        StatusCode = OrchestrationStatusCode.Success,
-                        ResultJson = string.Empty
-                    });
+                    PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
                 }
 
-                _sysOpStatusWriter.Write(new ClusterOpStatus
-                {
-                    RequestId  = req.RequestId,
-                    StatusCode = OrchestrationStatusCode.InProgress,
-                    ResultJson = string.Empty
-                });
-                return;   // skip generic transaction creation below
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.InProgress);
+                break;
             }
-            else if (req.OperationType == ClusterOpType.CancelOperation)
-            {
-                // CGF1-S0505: Cancel an in-progress archive operation.
-                // Payload = raw GUID string of the target operation's RequestId.
-                Guid targetId = Guid.Empty;
-                if (!string.IsNullOrWhiteSpace(req.PayloadJson))
-                    Guid.TryParse(req.PayloadJson.Trim(), out targetId);
-
-                if (targetId != Guid.Empty && _activeCancellations.TryGetValue(targetId, out var cancelCts))
-                {
-                    cancelCts.Cancel();
-                    // Note: removal happens lazily in the ContinueWith callbacks or via Dispose().
-                    FdpLog<ClusterMaster>.Info("[Orchestrator] CancelOperation: cancelled operation {0}.", targetId);
-                }
-                else
-                {
-                    FdpLog<ClusterMaster>.Warn("[Orchestrator] CancelOperation: no active operation found for {0}.", targetId);
-                }
-
-                // Fan out AbortTransaction to all active nodes.
-                if (targetId != Guid.Empty)
-                {
-                    var cancelNodeIds = new List<int>(_roster.ActiveNodes.Keys);
-                    if (cancelNodeIds.Count > 0)
-                    {
-                        FanOutNodeOp(new NodeOpCommand
-                        {
-                            TransactionId = Guid.NewGuid(),
-                            Operation     = NodeOpType.AbortTransaction,
-                            PayloadJson   = targetId.ToString(),
-                        }, cancelNodeIds);
-                    }
-                }
-
-                return;   // No SysOpStatus reply for CancelOperation itself
-            }
-            else if (req.OperationType == ClusterOpType.ReplaySeek)
-            {
-                // Standalone ReplaySeek: fan out NodeReplaySeek to all active nodes immediately.
-                var seekNodeIds = new List<int>(_roster.ActiveNodes.Keys);
-                if (seekNodeIds.Count > 0)
-                {
-                    FanOutNodeOp(new NodeOpCommand
-                    {
-                        TransactionId = Guid.NewGuid(),
-                        Operation     = NodeOpType.NodeReplaySeek,
-                        PayloadJson   = req.PayloadJson ?? string.Empty,
-                    }, seekNodeIds);
-                }
-            }
-
-            var tx = new DistributedTransaction
-            {
-                TransactionId    = Guid.NewGuid(),
-                OriginRequestId  = req.RequestId,
-                TargetDsmState   = resolvedTarget,
-                TotalSteps       = totalSteps,
-                CompletedSteps   = totalSteps,
-                IsAborted        = false,
-                SourceDsmState   = capturedSourceState,       // S0501
-                PayloadJson      = req.PayloadJson ?? string.Empty, // S0501
-            };
-            _activeTransaction     = tx;        // S0501: expose as HasInFlightTransaction / ActiveTransaction
-            _inflightTransitionTx  = tx;        // S0501: used by ConsumeNodeOpStatuses for NodeResponses
-            AppendToHistory(tx);
-
-            // S0502: Fan out PrepareXxx + CommitState to all active nodes for TransitionState operations.
-            // The S0305 live-from-replay path handles its own fan-out above; skip the general loop there.
-            if (capturedTrajectory != null && !isLiveFromReplayBranch)
-            {
-                var activeNodeIds = new List<int>(_roster.ActiveNodes.Keys);
-                if (activeNodeIds.Count > 0)
-                {
-                    foreach (var step in capturedTrajectory)
-                    {
-                        if (step is TransitionStep tStep)
-                        {
-                            NodeOpType prepareOp = tStep.TargetState switch
-                            {
-                                ClusterState.LoadingLive     => NodeOpType.PrepareLive,
-                                ClusterState.UnloadingLive   => NodeOpType.FinalizeLive,
-                                ClusterState.LoadingReplay   => NodeOpType.PrepareReplay,
-                                ClusterState.UnloadingReplay => NodeOpType.FinalizeReplay,
-                                ClusterState.LoadingEdit     => NodeOpType.PrepareEdit,
-                                ClusterState.UnloadingEdit   => NodeOpType.FinalizeEdit,
-                                _                        => NodeOpType.PrepareState,
-                            };
-
-                            // Use tx.TransactionId for both PrepareXxx and CommitState so that
-                            // ConsumeNodeOpStatuses can correlate ACKs back to the in-flight
-                            // transaction and populate NodeResponses for the 2PC History UI.
-                            // Deduplication on the slave now uses a compound (TransactionId,
-                            // OperationId) key, so both commands are accepted without dropping.
-                            FanOutNodeOp(new NodeOpCommand
-                            {
-                                TransactionId = tx.TransactionId,
-                                Operation     = prepareOp,
-                                PayloadJson   = req.PayloadJson ?? string.Empty,
-                            }, activeNodeIds);
-
-                            FanOutNodeOp(new NodeOpCommand
-                            {
-                                TransactionId = tx.TransactionId,
-                                Operation     = NodeOpType.CommitState,
-                                PayloadJson   = ((int)tStep.TargetState).ToString(),
-                            }, activeNodeIds);
-
-                            // Invoke the local context handler for load transitions so that
-                            // the Orchestrator node's own Orchestrator.json is parsed and
-                            // OnContextLoaded fires (CGF1-S0307 / design-talk fix).
-                            if (_globalContextHandler != null &&
-                                (tStep.TargetState == ClusterState.LoadingLive ||
-                                 tStep.TargetState == ClusterState.LoadingEdit))
-                            {
-                                // Build a payload that carries both TargetState (for routing
-                                // inside GlobalContextClusterOpHandler.Commit) and ScenarioId
-                                // (for file-path resolution inside CommitLoad).
-                                string? scenId = ParsePayloadString(req.PayloadJson, "ScenarioId");
-                                string localPayload = !string.IsNullOrEmpty(scenId)
-                                    ? $"{{\"TargetState\":{(int)tStep.TargetState},\"ScenarioId\":\"{scenId}\"}}"
-                                    : ((int)tStep.TargetState).ToString();
-
-                                _globalContextHandler.Commit(new NodeOpCommand
-                                {
-                                    TransactionId = tx.TransactionId,
-                                    Operation     = NodeOpType.CommitState,
-                                    PayloadJson   = localPayload,
-                                }, null);
-                            }
-                        }
-                        else if (step is OperationStep opStep &&
-                                 opStep.Operation == ClusterOpType.ReplaySeek)
-                        {
-                            FanOutNodeOp(new NodeOpCommand
-                            {
-                                TransactionId = Guid.NewGuid(),
-                                Operation     = NodeOpType.NodeReplaySeek,
-                                PayloadJson   = opStep.PayloadJson,
-                            }, activeNodeIds);
-                        }
-                    }
-
-                    FdpLog<ClusterMaster>.Info(
-                        "[Orchestrator] S0502: TransitionState fan-out complete " +
-                        "(transaction={0}, nodes={1}).", tx.TransactionId, activeNodeIds.Count);
-                }
-            }
-
-            _sysOpStatusWriter.Write(new ClusterOpStatus
-            {
-                RequestId  = req.RequestId,
-                StatusCode = OrchestrationStatusCode.InProgress,
-                ResultJson = string.Empty
-            });
-
-            // For TransitionState, commands are fully fanned out synchronously — there are
-            // no ACKs tracked by ClusterMaster.  Clear _activeTransaction so that
-            // HasInFlightTransaction correctly returns false between back-to-back transitions.
-            if (req.OperationType == ClusterOpType.TransitionState)
-                _activeTransaction = null;
-
-            FdpLog<ClusterMaster>.Info(
-                "[Orchestrator] ClusterOpRequest {0} ({1}) accepted (transaction {2}).",
-                req.RequestId, req.OperationType, tx.TransactionId);
-    }
-
-    /// <summary>
-    /// Writes a <see cref="NodeOpCommand"/> to each specified target node using per-node
-    /// keyed writers.  Writers are created lazily and cached in
-    /// <see cref="_nodeOpWriterCache"/>; they are disposed in <see cref="EjectNode"/> when
-    /// a node leaves the roster, ensuring no further samples reach the evicted instance key.
-    /// </summary>
-    private void FanOutNodeOp(NodeOpCommand template, IEnumerable<int> targetNodeIds)
-    {
-        foreach (var nodeId in targetNodeIds)
-        {
-            if (!_nodeOpWriterCache.TryGetValue(nodeId, out var writer))
-            {
-                writer = new DdsWriter<NodeOpCommand>(_nodeOpParticipant);
-                _nodeOpWriterCache[nodeId] = writer;
-            }
-            var cmd = template;
-            cmd.TargetNodeId = nodeId;
-            writer.Write(cmd);
         }
     }
 
-    /// <summary>Broadcasts a <see cref="NodeOpCommand"/> to all currently active nodes.</summary>
-    private void BroadcastNodeOp(NodeOpCommand cmd)
-        => FanOutNodeOp(cmd, _roster.ActiveNodes.Keys);
+    private void ProcessSeekReplayIntent(SeekReplayIntent intent)
+    {
+        var seekNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+        if (seekNodeIds.Count > 0)
+            FanOutNodeOp(NodeOpType.NodeReplaySeek, Guid.NewGuid(), intent.TargetWallTicks, seekNodeIds);
+    }
+
+    private void ProcessCancelOperationIntent(CancelOperationIntent intent)
+    {
+        var targetId = intent.TargetRequestId;
+        if (targetId != Guid.Empty && _activeCancellations.TryGetValue(targetId, out var cancelCts))
+        {
+            cancelCts.Cancel();
+            FdpLog<ClusterMaster>.Info("[Orchestrator] CancelOperation: cancelled operation {0}.", targetId);
+        }
+        else
+        {
+            FdpLog<ClusterMaster>.Warn("[Orchestrator] CancelOperation: no active operation found for {0}.", targetId);
+        }
+
+        if (targetId != Guid.Empty)
+        {
+            var cancelNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+            if (cancelNodeIds.Count > 0)
+                FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(), targetId, cancelNodeIds);
+        }
+    }
+
+    // ── Egress helpers (CMC-S009) ─────────────────────────────────────────
+
+    /// <summary>Publishes an operation status to the bus (bus path) or DDS writer (DDS path).</summary>
+    private void PublishOpStatus(Guid requestId, int statusCode)
+    {
+        if (_eventBus != null)
+        {
+            _eventBus.PublishManaged(new ClusterOpCompletedEvent
+            {
+                RequestId     = requestId,
+                StatusCode    = statusCode,
+                ResultPayload = null,
+            });
+        }
+        else
+        {
+            _sysOpStatusWriter.Write(new ClusterOpStatus
+            {
+                RequestId  = requestId,
+                StatusCode = statusCode,
+                ResultJson = string.Empty,
+            });
+        }
+    }
+
+    /// <summary>Publishes a cluster state transition to the bus (bus path) or DDS writer (DDS path).</summary>
+    private void PublishClusterState(ClusterState state)
+    {
+        if (_eventBus != null)
+        {
+            _eventBus.PublishManaged(new ClusterStateTransitionedEvent
+            {
+                NewStateId    = (int)state,
+                SubsystemName = "Cluster",
+            });
+        }
+        else
+        {
+            _systemStateWriter?.Write(new SystemStateTopic
+            {
+                CurrentState        = state,
+                ExerciseId          = Guid.Empty,
+                StateStartWallTicks = DateTimeOffset.UtcNow.Ticks,
+                TransactionEpoch    = 0,
+            });
+        }
+    }
+
+    /// <summary>
+    /// Publishes a node-level operation to each target node via the event bus (bus path)
+    /// or per-node DDS writers (DDS path, legacy).
+    /// </summary>
+    private void FanOutNodeOp(NodeOpType operation, Guid transactionId, object? domainPayload, IEnumerable<int> targetNodeIds)
+    {
+        foreach (var nodeId in targetNodeIds)
+        {
+            if (_eventBus != null)
+            {
+                _eventBus.PublishManaged(new ExecuteNodeOpIntent
+                {
+                    TransactionId = transactionId,
+                    TargetNodeId  = nodeId,
+                    Operation     = (FDP.Toolkit.Orchestration.NodeOpType)(int)operation,
+                    DomainPayload = domainPayload,
+                });
+            }
+            else
+            {
+                // DDS legacy path — keep for compilation compatibility.
+                if (!_nodeOpWriterCache.TryGetValue(nodeId, out var writer))
+                {
+                    writer = new DdsWriter<NodeOpCommand>(_nodeOpParticipant);
+                    _nodeOpWriterCache[nodeId] = writer;
+                }
+                writer.Write(ClusterNodeOpBuilder.DdsNodeOp(operation, transactionId, nodeId, DomainPayloadToString(domainPayload)));
+            }
+        }
+    }
+
+    /// <summary>Broadcasts a node operation to all currently active nodes.</summary>
+    private void BroadcastNodeOp(NodeOpType operation, Guid transactionId, object? domainPayload)
+        => FanOutNodeOp(operation, transactionId, domainPayload, _roster.ActiveNodes.Keys);
+
+    /// <summary>Converts a typed domain payload to a JSON string for legacy DDS NodeOpCommand.</summary>
+    private static string DomainPayloadToString(object? domainPayload) => domainPayload switch
+    {
+        null                   => string.Empty,
+        int    i               => i.ToString(),
+        long   l               => l.ToString(),
+        Guid   g               => g.ToString(),
+        string s               => s,
+        ArchiveHandlerPayload  p => p.ExerciseId  != null ? $"{{\"ExerciseId\":\"{p.ExerciseId}\"}}"   : string.Empty,
+        PrefetchHandlerPayload p => p.ScenarioId != null  ? $"{{\"ScenarioId\":\"{p.ScenarioId}\"}}" : string.Empty,
+        _                      => string.Empty,
+    };
 
     // ── Storage gateway integration (CGF1-S0301) ─────────────────────────
 
@@ -1230,16 +1238,11 @@ public sealed class ClusterMaster : IDisposable
     /// in <see cref="ProcessClusterOpRequests"/>.  If no <see cref="StorageGatewayModule"/>
     /// has been registered the manifest pull step is skipped.</para>
     /// </summary>
-    internal void FanOutSerializeLocal(Guid requestId, IReadOnlyList<int> nodeIds, string payloadJson = "")
+    internal void FanOutSerializeLocal(Guid requestId, IReadOnlyList<int> nodeIds, object? domainPayload = null)
     {
         if (nodeIds.Count == 0) return;
         _pendingSerializeTasks[requestId] = new SerializeLocalTask { RemainingAcks = nodeIds.Count };
-        FanOutNodeOp(new NodeOpCommand
-        {
-            TransactionId = requestId,
-            Operation     = NodeOpType.SerializeLocal,
-            PayloadJson   = payloadJson ?? string.Empty
-        }, nodeIds);
+        FanOutNodeOp(NodeOpType.SerializeLocal, requestId, domainPayload, nodeIds);
     }
 
     /// <summary>
@@ -1252,6 +1255,31 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private void ConsumeNodeOpStatuses()
     {
+        // ── Bus-mode ACK processing (CMC-S016 / BATCH-06) ───────────────────
+        if (_eventBus != null)
+        {
+            foreach (var ev in _eventBus.ConsumeManaged<NodeOpCompletedEvent>())
+            {
+                if (!_pendingBusTransitionAcks.TryGetValue(ev.TransactionId, out var tracker))
+                    continue;
+
+                if (OrchestrationStatusCode.IsError(ev.StatusCode))
+                {
+                    tracker.HasFailure  = true;
+                    tracker.FailureCode = ev.StatusCode;
+                }
+                tracker.Received++;
+                if (tracker.Received >= tracker.Expected)
+                {
+                    _pendingBusTransitionAcks.Remove(ev.TransactionId);
+                    PublishOpStatus(tracker.RequestId,
+                        tracker.HasFailure ? tracker.FailureCode : OrchestrationStatusCode.Success);
+                }
+            }
+            return;
+        }
+
+
         using var scope = _nodeOpStatusReader.Take();
         foreach (var sample in scope)
         {
@@ -1469,12 +1497,7 @@ public sealed class ClusterMaster : IDisposable
         FdpLog<ClusterMaster>.Info(
             "[Orchestrator] PrefetchScenario for '{0}' succeeded ({1} file(s)) — fanning out PrefetchFiles to {2} node(s).",
             op.ScenarioId, op.GatewayTask.Result.SuccessCount, _roster.ActiveNodes.Count);
-        FanOutNodeOp(new NodeOpCommand
-        {
-            TransactionId = Guid.NewGuid(),
-            Operation     = NodeOpType.PrefetchFiles,
-            PayloadJson   = $"{{\"ScenarioId\":\"{op.ScenarioId}\"}}",
-        }, new List<int>(_roster.ActiveNodes.Keys));
+        FanOutNodeOp(NodeOpType.PrefetchFiles, Guid.NewGuid(), new PrefetchHandlerPayload(op.ScenarioId), new List<int>(_roster.ActiveNodes.Keys));
     }
 
     /// <summary>
@@ -1559,33 +1582,7 @@ public sealed class ClusterMaster : IDisposable
         return targets;
     }
 
-    /// <summary>
-    /// Extracts a string property value from a JSON payload; returns <c>null</c> if
-    /// the payload is absent, malformed, or the property is missing.
-    /// </summary>
-    private static string? ParsePayloadString(string? json, string propertyName)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return null;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
-            if (doc.RootElement.TryGetProperty(propertyName, out var el))
-                return el.GetString();
-        }
-        catch (JsonException) { }
-        return null;
-    }
-
-    private void PublishStandby()    {
-        _systemStateWriter.Write(new SystemStateTopic
-        {
-            CurrentState        = ClusterState.Idle,
-            ExerciseId             = Guid.Empty,
-            StateStartWallTicks = 0,
-            TransactionEpoch    = 0
-        });
-    }
+    private void PublishStandby() => PublishClusterState(ClusterState.Idle);
 
     private void AppendToHistory(DistributedTransaction tx)
     {
@@ -1617,11 +1614,11 @@ public sealed class ClusterMaster : IDisposable
         _idServerThread = null;
         _idAllocatorServer?.Dispose();
         _idAllocatorServer = null;
-        _systemStateWriter.Dispose();
-        _heartbeatReader.Dispose();
-        _sysOpRequestReader.Dispose();
-        _sysOpStatusWriter.Dispose();
-        _nodeOpStatusReader.Dispose();
+        _systemStateWriter?.Dispose();
+        _heartbeatReader?.Dispose();
+        _sysOpRequestReader?.Dispose();
+        _sysOpStatusWriter?.Dispose();
+        _nodeOpStatusReader?.Dispose();
         _inventoryWriter?.Dispose();
         _inventoryWriter = null;
         foreach (var w in _nodeOpWriterCache.Values)

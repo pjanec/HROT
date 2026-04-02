@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Hrot.Common.Orchestration;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Modules.Orchestration;
 using Hrot.SimHost.Network;
@@ -54,6 +53,14 @@ namespace Hrot.SimHost
     public sealed class NodeBootstrapper
     {
         private readonly List<object> _registeredModules = new();
+
+        /// <summary>
+        /// After <see cref="BuildOrchestration"/> is called with a non-null <paramref name="participant"/>
+        /// and <paramref name="eventBus"/>, this property holds the <see cref="NodeOpSlaveTranslator"/>
+        /// that bridges DDS ↔ the slave event bus (CMC-S016 / BATCH-06).
+        /// <c>null</c> when no DDS participant was supplied.
+        /// </summary>
+        public Hrot.Common.Orchestration.NodeOpSlaveTranslator? SlaveTranslator { get; private set; }
 
         /// <summary>
         /// The sub-module instances that were registered during the last
@@ -312,11 +319,17 @@ namespace Hrot.SimHost
                     $"[SimHost] A DDS participant is required for orchestration role '{role}'. " +
                     "ClusterSlave cannot run without DDS in production.");
 
-            IOrchestrationTransport? transport = participant != null
-                ? new DdsOrchestrationTransport(participant, nodeId)
-                : null;
-
-            var clusterSlave = new ClusterSlave(transport, nodeId, subsystemName, eventBus);
+            var clusterSlave = new ClusterSlave(nodeId, subsystemName, eventBus);
+            SlaveTranslator = null;
+            if (participant != null && eventBus != null)
+            {
+                SlaveTranslator = new Hrot.Common.Orchestration.NodeOpSlaveTranslator(
+                    commandReader:   new CycloneDDS.Runtime.DdsReader<Hrot.NED.Descriptors.Orchestration.NodeOpCommand>(participant),
+                    statusWriter:    new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeOpStatus>(participant),
+                    heartbeatWriter: new CycloneDDS.Runtime.DdsWriter<Hrot.NED.Descriptors.Orchestration.NodeHeartbeat>(participant),
+                    bus:             eventBus,
+                    nodeId:          nodeId);
+            }
             var storageProvider = new LocalDiskStorageProvider(localTempRoot);
 
             // Create EcsRecordReplayController for Brain/AllInOne.
@@ -334,26 +347,26 @@ namespace Hrot.SimHost
 
                 clusterSlave.RegisterHandler(new ReferenceReplayLoadHandler(
                     controller, simGroup, lifecycleGroup, bypassToggle,
-                    transport, nodeId, localTempRoot));
+                    localTempRoot));
             }
 
             // Wire ReferenceLiveLoadHandler for cold PrepareLive / FinalizeLive.
             clusterSlave.RegisterHandler(new ReferenceLiveLoadHandler(
-                checkpointWorker, controller, localTempRoot, transport, nodeId));
+                checkpointWorker, controller, localTempRoot));
 
             // Wire ReferenceCheckpointHandler when a checkpoint worker is provided (CGF1-S0303).
             if (checkpointWorker != null)
                 clusterSlave.RegisterHandler(new ReferenceCheckpointHandler(
-                    checkpointWorker, world, transport, nodeId));
+                    checkpointWorker, world));
 
             // Wire ReferencePreviewHandler for LoadingPreview / UnloadingPreview (CGF1-S0309).
             clusterSlave.RegisterHandler(new ReferencePreviewHandler(world));
 
             // Wire ReferencePrefetchHandler so this node can stage scenario files and ACK.
-            clusterSlave.RegisterHandler(new ReferencePrefetchHandler(transport, nodeId, storageProvider));
+            clusterSlave.RegisterHandler(new ReferencePrefetchHandler(storageProvider));
 
             // Wire ReferenceArchiveHandler so this node can report .fdp archives to ClusterMaster (CGF1-S0505).
-            clusterSlave.RegisterHandler(new ReferenceArchiveHandler(transport, localTempRoot, nodeId));
+            clusterSlave.RegisterHandler(new ReferenceArchiveHandler(localTempRoot, nodeId));
 
             // Wire scenario/episode handlers when a serializer is provided.
             if (scenarioSerializer != null)
@@ -365,8 +378,7 @@ namespace Hrot.SimHost
                     new ReferenceEditLoadHandler(scenarioSerializer, storageProvider, world));
 
                 clusterSlave.RegisterHandler(
-                    new ReferenceEpisodeLoadHandler(scenarioSerializer, storageProvider, world,
-                        transport, nodeId));
+                    new ReferenceEpisodeLoadHandler(scenarioSerializer, storageProvider, world));
             }
 
             return clusterSlave;

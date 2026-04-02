@@ -9,6 +9,7 @@ using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using Xunit;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
 namespace Hrot.SimHost.Tests
 {
@@ -53,11 +54,14 @@ namespace Hrot.SimHost.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
-        private OrchestrationCommand MakePrepareStateCmd(string payloadJson) =>
-            new OrchestrationCommand(
-                Guid.NewGuid(), 0,
-                ReferenceEditLoadHandler.PrepareStateOperationId,
-                payloadJson);
+        private ExecuteNodeOpIntent MakePrepareStateCmd(string? scenarioId, bool isNew = false) =>
+            new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = (FDP.Toolkit.Orchestration.NodeOpType)ReferenceEditLoadHandler.PrepareStateOperationId,
+                DomainPayload = new EditLoadHandlerPayload(scenarioId, IsNewScenario: isNew),
+            };
 
         private ReferenceEditLoadHandler CreateHandler() =>
             new ReferenceEditLoadHandler(_serializer, new LocalDiskStorageProvider(_tempDir));
@@ -85,8 +89,7 @@ namespace Hrot.SimHost.Tests
         public async Task NewScenario_SpawnsNoEntities()
         {
             var handler = CreateHandler();
-            var cmd = MakePrepareStateCmd(
-                $"{{\"TargetState\":{(int)ClusterState.LoadingEdit},\"IsNewScenario\":true}}");
+            var cmd = MakePrepareStateCmd(null, isNew: true);
 
             await handler.PrepareAsync(cmd, default);
             handler.Commit(cmd, _repo);
@@ -131,8 +134,7 @@ namespace Hrot.SimHost.Tests
 
             // Load via EditLoadClusterOpHandler.
             var handler = CreateHandler();
-            var cmd = MakePrepareStateCmd(
-                $"{{\"TargetState\":{(int)ClusterState.LoadingEdit},\"ScenarioId\":\"{scenarioId}\"}}");
+            var cmd = MakePrepareStateCmd(scenarioId);
 
             await handler.PrepareAsync(cmd, default);
             handler.Commit(cmd, _repo);
@@ -175,8 +177,7 @@ namespace Hrot.SimHost.Tests
             await File.WriteAllTextAsync(filePath, dom.ToJsonString());
 
             var handler = CreateHandler();
-            var cmd = MakePrepareStateCmd(
-                $"{{\"TargetState\":{(int)ClusterState.LoadingEdit},\"ScenarioId\":\"{scenarioId}\"}}");
+            var cmd = MakePrepareStateCmd(scenarioId);
 
             await handler.PrepareAsync(cmd, default);
 

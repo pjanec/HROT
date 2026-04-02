@@ -41,20 +41,24 @@ namespace Hrot.Common.Orchestration
         // ── FDP.Toolkit.Orchestration.IClusterStateHandler ────────────────────────────
 
         /// <inheritdoc />
-        public bool CanHandle(int operationId) =>
-            _inner.CanHandle((NodeOpType)operationId);
+        public bool CanHandle(FDP.Toolkit.Orchestration.NodeOpType operation) =>
+            _inner.CanHandle((Hrot.NED.Descriptors.Orchestration.NodeOpType)(int)operation);
 
         /// <inheritdoc />
-        public Task<string?> PrepareAsync(OrchestrationCommand cmd, CancellationToken ct) =>
-            _inner.PrepareAsync(ToNodeOpCommand(cmd), ct);
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
+        {
+            var cmd = ToNodeOpCommand(intent);
+            return _inner.PrepareAsync(cmd, ct)
+                         .ContinueWith(t => (object?)t.Result, TaskContinuationOptions.ExecuteSynchronously);
+        }
 
         /// <inheritdoc />
-        public void Commit(OrchestrationCommand cmd, EntityRepository? repo) =>
-            _inner.Commit(ToNodeOpCommand(cmd), repo ?? _repo);
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) =>
+            _inner.Commit(ToNodeOpCommand(intent), repo ?? _repo);
 
         /// <inheritdoc />
-        public void Abort(OrchestrationCommand cmd, EntityRepository? repo) =>
-            _inner.Abort(ToNodeOpCommand(cmd), repo ?? _repo);
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) =>
+            _inner.Abort(ToNodeOpCommand(intent), repo ?? _repo);
 
         // ── FDP.Toolkit.Orchestration.ITickableClusterStateHandler ────────────────────
 
@@ -70,13 +74,21 @@ namespace Hrot.Common.Orchestration
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
-        private static NodeOpCommand ToNodeOpCommand(OrchestrationCommand cmd) =>
-            new NodeOpCommand
+        private static NodeOpCommand ToNodeOpCommand(ExecuteNodeOpIntent intent)
+        {
+            string payloadJson = intent.DomainPayload switch
             {
-                TransactionId = cmd.TransactionId,
-                TargetNodeId  = cmd.TargetNodeId,
-                Operation     = (NodeOpType)cmd.OperationId,
-                PayloadJson   = cmd.PayloadJson ?? string.Empty,
+                null     => string.Empty,
+                string s => s,
+                _        => System.Text.Json.JsonSerializer.Serialize(intent.DomainPayload),
             };
+            return new NodeOpCommand
+            {
+                TransactionId = intent.TransactionId,
+                TargetNodeId  = intent.TargetNodeId,
+                Operation     = (Hrot.NED.Descriptors.Orchestration.NodeOpType)(int)intent.Operation,
+                PayloadJson   = payloadJson,
+            };
+        }
     }
 }

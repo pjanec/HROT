@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using Hrot.NED.Descriptors.Orchestration;
 using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 
 namespace Hrot.Orchestrator;
 
@@ -23,16 +25,20 @@ public sealed class TransitionStep : ISysOpStep
 
 /// <summary>
 /// An out-of-band operation appended after the final <see cref="TransitionStep"/>,
-/// for example a replay-seek to a specific wall-clock position.
+/// for example a replay-seek to a specific wall-clock position or an episode management step.
 /// </summary>
 public sealed class OperationStep : ISysOpStep
 {
-    public ClusterOpType Operation { get; }
-    public string    PayloadJson { get; }
-    public OperationStep(ClusterOpType operation, string payloadJson)
+    public ClusterOpType Operation    { get; }
+    /// <summary>
+    /// Strongly-typed payload (e.g. <c>string</c> scenarioId, <c>long</c> ticks,
+    /// <see cref="EpisodeHandlerPayload"/>, etc.). Null for operations that carry no domain data.
+    /// </summary>
+    public object?       DomainPayload { get; }
+    public OperationStep(ClusterOpType operation, object? domainPayload = null)
     {
-        Operation   = operation;
-        PayloadJson = payloadJson;
+        Operation    = operation;
+        DomainPayload = domainPayload;
     }
 }
 
@@ -117,105 +123,38 @@ public sealed class ClusterMasterPlanner
     }
 
     /// <summary>
-    /// Plans a full trajectory for a <see cref="ClusterOpRequest"/>, returning an ordered queue
+    /// Plans a full trajectory for a <see cref="TransitionStateIntent"/>, returning an ordered queue
     /// of steps to execute as part of the next distributed transaction.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Payload encoding (normative — prefer JSON object form in new code):</b>
-    /// <see cref="ClusterOpRequest.PayloadJson"/> must be one of:
-    /// <list type="bullet">
-    ///   <item>A plain integer string (e.g. <c>"30"</c>): target Cluster state numeric value.
-    ///         Supported for backward compatibility; new code should use the JSON object form.</item>
-    ///   <item>A JSON object with at least <c>TargetState</c> (int) and optionally
-    ///         <c>TargetWallTicks</c> (long) — the <b>preferred</b> encoding:
-    ///         <code>{ "TargetState": 30, "TargetWallTicks": 999000 }</code></item>
-    /// </list>
-    /// An empty, whitespace-only, non-parseable JSON string, or a JSON object that
-    /// lacks <c>TargetState</c> is a caller error and will cause an
-    /// <see cref="InvalidOperationException"/> to be thrown.
-    /// </para>
-    /// <para>
     /// When the resolved target is <see cref="ClusterState.OperatingReplay"/> AND
-    /// <c>TargetWallTicks</c> is present in the JSON payload, an
+    /// <c>TargetWallTicks</c> is non-zero, an
     /// <see cref="OperationStep"/>(<see cref="ClusterOpType.ReplaySeek"/>) is appended after
     /// the final <see cref="TransitionStep"/>.
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when <paramref name="request"/> has an empty, whitespace-only, non-parseable,
-    /// or structurally incomplete <see cref="ClusterOpRequest.PayloadJson"/> (missing
-    /// <c>TargetState</c>).  Also propagated from <see cref="CalculateShortestPath"/> when
-    /// the requested path is unreachable.  Always thrown before any DDS command is issued.
+    /// Propagated from <see cref="CalculateShortestPath"/> when the requested path is unreachable.
     /// </exception>
-    public Queue<ISysOpStep> PlanTrajectory(ClusterState current, ClusterOpRequest request)
+    public Queue<ISysOpStep> PlanTrajectory(ClusterState current, TransitionStateIntent intent)
     {
-        ClusterState targetState  = ClusterState.Idle;
-        string?  seekTicksRaw = null;
-
-        if (string.IsNullOrWhiteSpace(request.PayloadJson))
-        {
-            throw new InvalidOperationException(
-                "[TransitionPlanner] TransitionState payload is empty or whitespace — " +
-                "a valid target Cluster state is required (integer or JSON object with TargetState).");
-        }
-
-        if (int.TryParse(request.PayloadJson, out var rawInt))
-        {
-            targetState = (ClusterState)rawInt;
-        }
-        else
-        {
-            JsonDocument doc;
-            try
-            {
-                doc = JsonDocument.Parse(request.PayloadJson);
-            }
-            catch (JsonException ex)
-            {
-                throw new InvalidOperationException(
-                    $"[TransitionPlanner] TransitionState payload is not valid JSON: {ex.Message}", ex);
-            }
-
-            using (doc)
-            {
-                if (!doc.RootElement.TryGetProperty("TargetState", out var tsProp))
-                    throw new InvalidOperationException(
-                        "[TransitionPlanner] TransitionState JSON payload does not contain " +
-                        "required 'TargetState' property.");
-
-                targetState = (ClusterState)tsProp.GetInt32();
-
-                if (doc.RootElement.TryGetProperty("TargetWallTicks", out var seekProp))
-                    seekTicksRaw = seekProp.GetRawText();
-            }
-        }
-
+        var targetState = (ClusterState)(int)intent.TargetState;
         var path  = CalculateShortestPath(current, targetState);
         var queue = new Queue<ISysOpStep>();
 
-        // CGF1-S0307: If the payload carries a ScenarioId, prepend a PrefetchScenario
+        // CGF1-S0307: If the intent carries a ScenarioId, prepend a PrefetchScenario
         // step so the StorageGateway copies scenario files to all nodes before the first
         // cluster state machine transition executes.
-        string? scenarioId = null;
-        if (!string.IsNullOrWhiteSpace(request.PayloadJson) && !int.TryParse(request.PayloadJson, out _))
-        {
-            // The payload was already validated as JSON in the TargetState block above,
-            // so this parse cannot throw JsonException — no try/catch needed here.
-            using var scenarioDoc = JsonDocument.Parse(request.PayloadJson);
-            if (scenarioDoc.RootElement.TryGetProperty("ScenarioId", out var sidProp))
-                scenarioId = sidProp.GetString();
-        }
-
-        if (!string.IsNullOrWhiteSpace(scenarioId))
-            queue.Enqueue(new OperationStep(ClusterOpType.PrefetchScenario, scenarioId!));
+        if (!string.IsNullOrWhiteSpace(intent.ScenarioId))
+            queue.Enqueue(new OperationStep(ClusterOpType.PrefetchScenario, intent.ScenarioId));
 
         foreach (var state in path)
             queue.Enqueue(new TransitionStep(state));
 
-        // Append a ReplaySeek operation when targeting RunningReplay with a seek hint.
-        if (targetState == ClusterState.OperatingReplay && seekTicksRaw != null)
-            queue.Enqueue(new OperationStep(ClusterOpType.ReplaySeek, seekTicksRaw));
+        // Append a ReplaySeek operation when targeting OperatingReplay with a seek hint.
+        if (targetState == ClusterState.OperatingReplay && intent.TargetWallTicks != 0)
+            queue.Enqueue(new OperationStep(ClusterOpType.ReplaySeek, intent.TargetWallTicks));
 
         return queue;
     }
@@ -230,96 +169,53 @@ public sealed class ClusterMasterPlanner
     /// <see cref="InvalidOperationException"/> with <c>OpStatus.InvalidState</c> semantics.
     /// </para>
     /// <para>
-    /// <b>Payload JSON (required fields):</b>
-    /// <code>
-    /// {
-    ///   "Mode": "Start" | "Stop",
-    ///   "EpisodeId": "&lt;guid&gt;",
-    ///   "ScenarioId": "&lt;id&gt;"   // required for Mode:Start; ignored for Mode:Stop
-    /// }
-    /// </code>
-    /// </para>
-    /// <para>
     /// <b>Start trajectory:</b>
     /// <list type="bullet">
     ///   <item><see cref="OperationStep"/>(<see cref="ClusterOpType.PrefetchScenario"/>, scenarioId) —
     ///         ensures episode asset files are staged on all nodes.</item>
-    ///   <item><see cref="OperationStep"/>(<see cref="ClusterOpType.ManageEpisode"/>, fullPayload) —
+    ///   <item><see cref="OperationStep"/>(<see cref="ClusterOpType.ManageEpisode"/>, <see cref="EpisodeHandlerPayload"/>) —
     ///         signals <c>ClusterMaster</c> to fan out <c>StartEpisode</c> to nodes.</item>
     /// </list>
     /// </para>
     /// <para>
     /// <b>Stop trajectory:</b>
     /// <list type="bullet">
-    ///   <item><see cref="OperationStep"/>(<see cref="ClusterOpType.ManageEpisode"/>, fullPayload) —
+    ///   <item><see cref="OperationStep"/>(<see cref="ClusterOpType.ManageEpisode"/>, <see cref="EpisodeHandlerPayload"/>) —
     ///         signals <c>ClusterMaster</c> to fan out <c>StopEpisode</c> to nodes.</item>
     /// </list>
     /// </para>
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// Thrown when <paramref name="current"/> is not <see cref="ClusterState.OperatingLive"/>,
-    /// or when the payload is missing required fields (<c>Mode</c>, <c>EpisodeId</c>, or
+    /// or when the intent is missing required fields (<c>EpisodeId</c>, or
     /// <c>ScenarioId</c> for Start mode).
     /// </exception>
-    public Queue<ISysOpStep> PlanManageEpisode(ClusterState current, ClusterOpRequest request)
+    public Queue<ISysOpStep> PlanManageEpisode(ClusterState current, ManageEpisodeIntent intent)
     {
         if (current != ClusterState.OperatingLive)
             throw new InvalidOperationException(
-                $"[TransitionPlanner] ManageEpisode requires RunningLive; current state is {current}.");
+                $"[TransitionPlanner] ManageEpisode requires OperatingLive; current state is {current}.");
 
-        if (string.IsNullOrWhiteSpace(request.PayloadJson))
+        if (intent.EpisodeId == Guid.Empty)
             throw new InvalidOperationException(
-                "[TransitionPlanner] ManageEpisode payload is empty or whitespace.");
-
-        JsonDocument doc;
-        try
-        {
-            doc = JsonDocument.Parse(request.PayloadJson);
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidOperationException(
-                $"[TransitionPlanner] ManageEpisode payload is not valid JSON: {ex.Message}", ex);
-        }
-
-        string? mode;
-        string? episodeId;
-        string? scenarioId;
-        using (doc)
-        {
-            mode       = doc.RootElement.TryGetProperty("Mode",       out var m) ? m.GetString()      : null;
-            episodeId    = doc.RootElement.TryGetProperty("EpisodeId",    out var s) ? s.GetString()      : null;
-            scenarioId = doc.RootElement.TryGetProperty("ScenarioId", out var sc) ? sc.GetString()    : null;
-        }
-
-        if (string.IsNullOrWhiteSpace(mode))
-            throw new InvalidOperationException(
-                "[TransitionPlanner] ManageEpisode payload missing required 'Mode' field (Start|Stop).");
-        if (string.IsNullOrWhiteSpace(episodeId))
-            throw new InvalidOperationException(
-                "[TransitionPlanner] ManageEpisode payload missing required 'EpisodeId' field.");
+                "[TransitionPlanner] ManageEpisode intent missing required EpisodeId.");
 
         var queue = new Queue<ISysOpStep>();
 
-        if (string.Equals(mode, "Start", StringComparison.OrdinalIgnoreCase))
+        if (intent.IsStart)
         {
-            if (string.IsNullOrWhiteSpace(scenarioId))
+            if (string.IsNullOrWhiteSpace(intent.ScenarioId))
                 throw new InvalidOperationException(
-                    "[TransitionPlanner] ManageEpisode Mode:Start payload missing required 'ScenarioId' field.");
+                    "[TransitionPlanner] ManageEpisode IsStart=true missing required ScenarioId.");
 
             // Prefetch episode asset files to all nodes before injection.
-            queue.Enqueue(new OperationStep(ClusterOpType.PrefetchScenario, scenarioId!));
-            // Fan out StartEpisode to all nodes.
-            queue.Enqueue(new OperationStep(ClusterOpType.ManageEpisode, request.PayloadJson));
-        }
-        else if (string.Equals(mode, "Stop", StringComparison.OrdinalIgnoreCase))
-        {
-            queue.Enqueue(new OperationStep(ClusterOpType.ManageEpisode, request.PayloadJson));
+            queue.Enqueue(new OperationStep(ClusterOpType.PrefetchScenario, intent.ScenarioId));
+            // Fan out StartEpisode to all nodes; carry intent as payload for ClusterMaster.
+            queue.Enqueue(new OperationStep(ClusterOpType.ManageEpisode, intent));
         }
         else
         {
-            throw new InvalidOperationException(
-                $"[TransitionPlanner] ManageEpisode unknown Mode '{mode}'; expected 'Start' or 'Stop'.");
+            queue.Enqueue(new OperationStep(ClusterOpType.ManageEpisode, intent));
         }
 
         return queue;

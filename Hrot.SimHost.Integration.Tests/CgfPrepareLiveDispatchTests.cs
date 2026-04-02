@@ -62,9 +62,13 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         slave.RegisterHandler(handler);
 
         var scenarioId = "test_scenario_01";
-        slave.EnqueueCommandForTest(new OrchestrationCommand(
-            Guid.NewGuid(), 0, ReferenceScenarioLoadHandler.PrepareLiveOperationId,
-            $"{{\"ScenarioId\":\"{scenarioId}\"}}"));
+        slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 0,
+            Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+            DomainPayload = scenarioId,
+        });
 
         slave.Tick();
 
@@ -93,9 +97,13 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         slave.RegisterHandler(new HrotHandlerAdapter(stub));
         slave.RegisterHandler(handler);
 
-        slave.EnqueueCommandForTest(new OrchestrationCommand(
-            Guid.NewGuid(), 0, ReferenceScenarioLoadHandler.PrepareLiveOperationId,
-            $"{{\"ExerciseId\":\"{Guid.NewGuid():D}\"}}"));
+        slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 0,
+            Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+            DomainPayload = null,  // no scenario ID → handler skips gracefully
+        });
 
         slave.Tick();
 
@@ -124,9 +132,13 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         var serializer = new ScenarioSerializerBuilder("Hrot.CGF").Build();
         var handler    = new ReferenceScenarioLoadHandler(serializer, new LocalDiskStorageProvider(_tempRoot));
 
-        var cmd = new OrchestrationCommand(
-            Guid.NewGuid(), 0, ReferenceScenarioLoadHandler.PrepareLiveOperationId,
-            $"{{\"ScenarioId\":\"{scenarioId}\"}}");
+        var cmd = new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 0,
+            Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+            DomainPayload = scenarioId,
+        };
 
         // Call PrepareAsync directly — verify it completes without exception and returns null.
         var result = await handler.PrepareAsync(cmd, CancellationToken.None);

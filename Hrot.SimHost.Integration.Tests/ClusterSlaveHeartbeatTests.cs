@@ -2,97 +2,57 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Hrot.NED.Descriptors.Orchestration;
-using Hrot.CGF;
-using Hrot.Map.Common;
-using Hrot.Orchestrator;
-using Hrot.SimHost;
-using Hrot.SimHost.Configuration;
-using CycloneDDS.Runtime;
+using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
 using Xunit;
 
 namespace Hrot.SimHost.Integration.Tests
 {
     /// <summary>
-    /// CGF1-S0104 — verifies that both SimHost and CGF ClusterSlave instances
-    /// publish heartbeats that the ClusterMaster picks up within 2 s.
+    /// CMC-S006 — verifies that ClusterSlave instances publish NodeHeartbeatEvent
+    /// to the FdpEventBus after 1 s has elapsed.
+    ///
+    /// <para>DDS-based heartbeat delivery is temporarily disabled after BATCH-03.
+    /// Phase 5 translators (CMC-S012/S013) will restore the DDS path.</para>
     /// </summary>
     [Collection("LogCapture")]
     public sealed class ClusterSlaveHeartbeatTests
     {
-        /// <summary>
-        /// Dedicated DDS domain so this test does not contend with domain-0 tests.
-        /// Domain 16 is reserved for ClusterSlave integration tests.
-        /// </summary>
-        private const int TestDomain = 16;
-
         private const int SimHostNodeId = 1;
-        private const int CgfNodeId = 400;
+        private const int CgfNodeId     = 400;
 
         [Fact]
-        public async Task OrchestratorReceivesHeartbeatsFromBothNodes()
+        public async Task ClusterSlaves_PublishNodeHeartbeatEvents_ToBus()
         {
-            using var cancel = new CancellationTokenSource();
+            var simHostBus = new FdpEventBus();
+            var cgfBus     = new FdpEventBus();
 
-            // ── Orchestrator (ClusterMaster) ────────────────────────────────────
-            using var orchParticipant = HrotEnvironment.CreateParticipant(TestDomain);
-            using var exercise = new ClusterMaster(orchParticipant);
+            using var simHostSlave = new ClusterSlave(SimHostNodeId, "SimHost", simHostBus);
+            using var cgfSlave     = new ClusterSlave(CgfNodeId,     "CGF",     cgfBus);
 
-            // Pump the orchestrator on a background task
-            var orchestratorPump = Task.Run(() =>
-            {
-                while (!cancel.IsCancellationRequested)
-                {
-                    exercise.Tick();
-                    Thread.Sleep(4);
-                }
-            }, cancel.Token);
+            // Wait for the heartbeat timer to elapse (> 1 second).
+            await Task.Delay(1200);
 
-            // Short delay so DDS discovery completes before slaves start publishing
-            await Task.Delay(300);
+            simHostSlave.Tick();
+            cgfSlave.Tick();
+            simHostBus.SwapBuffers();
+            cgfBus.SwapBuffers();
 
-            // ── SimHost ClusterSlave ────────────────────────────────────────────
-            var simHostCfg = new NodeConfiguration
-            {
-                DdsDomainId = TestDomain,
-            };
-            var simHostApp = new SimHostApp(TestDomain, NodeRole.AllInOne, simHostCfg);
-            try
-            {
-                simHostApp.InitializeHeadless(TestDomain, SimHostNodeId);
+            var simHostHeartbeats = new List<NodeHeartbeatEvent>();
+            foreach (var e in simHostBus.ConsumeManaged<NodeHeartbeatEvent>())
+                simHostHeartbeats.Add(e);
 
-                // ── CGF ClusterSlave ─────────────────────────────────────────────
-                using var cgfApp = new CgfApplication(TestDomain, CgfNodeId);
+            var cgfHeartbeats = new List<NodeHeartbeatEvent>();
+            foreach (var e in cgfBus.ConsumeManaged<NodeHeartbeatEvent>())
+                cgfHeartbeats.Add(e);
 
-                // ── Tick loop ─────────────────────────────────────────────────
-                var deadline = DateTime.UtcNow.AddSeconds(2);
-                while (DateTime.UtcNow < deadline)
-                {
-                    simHostApp.Tick(1f / 60f);
-                    cgfApp.Tick();
-                    Thread.Sleep(16); // ~60 Hz
-                }
+            Assert.Single(simHostHeartbeats);
+            Assert.Equal(SimHostNodeId, simHostHeartbeats[0].NodeId);
+            Assert.Equal("SimHost",     simHostHeartbeats[0].SubsystemName);
 
-                // ── Assert ────────────────────────────────────────────────────
-                var roster = exercise.NodeRoster.ActiveNodes;
-
-                Assert.True(roster.ContainsKey(SimHostNodeId),
-                    $"ClusterMaster NodeRoster does not contain SimHost nodeId={SimHostNodeId}. " +
-                    $"Active nodes: [{string.Join(", ", roster.Keys)}]");
-
-                Assert.True(roster.ContainsKey(CgfNodeId),
-                    $"ClusterMaster NodeRoster does not contain CGF nodeId={CgfNodeId}. " +
-                    $"Active nodes: [{string.Join(", ", roster.Keys)}]");
-
-                Assert.Equal(ClusterState.Idle, roster[SimHostNodeId].LocalClusterState);
-                Assert.Equal(ClusterState.Idle, roster[CgfNodeId].LocalClusterState);
-            }
-            finally
-            {
-                cancel.Cancel();
-                await orchestratorPump.ContinueWith(_ => { });
-                simHostApp.Shutdown();
-            }
+            Assert.Single(cgfHeartbeats);
+            Assert.Equal(CgfNodeId, cgfHeartbeats[0].NodeId);
+            Assert.Equal("CGF",     cgfHeartbeats[0].SubsystemName);
         }
     }
 }

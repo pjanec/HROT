@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.NED.Messages;
 using Hrot.Map.Common;
 using Hrot.Orchestrator;
+using Hrot.Orchestrator.Translators;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -16,6 +18,7 @@ using ImGuiNET;
 using ModuleHost.Core;
 using ModuleHost.Core.Time;
 using Hrot.ClusterRunner.Windows;
+using ModuleHost.Network.Cyclone.Services;
 
 namespace Hrot.ClusterRunner.Services;
 
@@ -34,7 +37,18 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private DdsWriter<ClusterOpRequest>? _sysOpWriter;  // S0502
 
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
-
+    // ── Orchestration bus + translators (CMC-S016 / BATCH-06) ────────────────
+    private FdpEventBus?                             _orchestrationBus;
+    private Hrot.Orchestrator.Translators.ClusterOpMasterTranslator? _clusterOpTranslator;
+    private Hrot.Orchestrator.Translators.NodeOpMasterTranslator?    _nodeOpTranslator;
+    private DdsReader<ClusterOpRequest>?             _sysOpRequestReader;  // owned here in bus mode
+    private DdsWriter<ClusterOpStatus>?              _sysOpStatusWriter;   // owned here in bus mode
+    private DdsReader<NodeOpStatus>?                 _nodeOpStatusReader;
+    private DdsReader<NodeHeartbeat>?                _heartbeatReader;     // DDS→bus heartbeat bridge
+    // ── ID allocator server (bus-mode ClusterMaster doesn't create this) ──
+    private DdsIdAllocatorServer?      _idAllocatorServer;
+    private System.Threading.CancellationTokenSource? _idServerCts;
+    private System.Threading.Thread?   _idServerThread;
     // ── Time controller (CGF1-A.1, BATCH-09) ─────────────────────────────
     // MasterSyncController unifies wall-clock advancement, barrier protocol, and stepping.
     private FdpEventBus? _eventBus;
@@ -69,8 +83,33 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _config      = ClusterConfiguration.LoadFrom(
             System.IO.Path.Combine(Directory.GetCurrentDirectory(), "orchestrator-config.json"));
         _participant = HrotEnvironment.CreateParticipant(config.DomainId);
-        _clusterMaster = new ClusterMaster(_participant, _config);
-        _sysOpWriter   = new DdsWriter<ClusterOpRequest>(_participant);    // S0502
+
+        // ── Orchestration bus + translators (CMC-S016 / BATCH-06) ────────────────
+        _orchestrationBus    = new FdpEventBus();
+        _heartbeatReader     = new DdsReader<NodeHeartbeat>(_participant);
+        _sysOpRequestReader  = new DdsReader<ClusterOpRequest>(_participant);
+        _sysOpStatusWriter   = new DdsWriter<ClusterOpStatus>(_participant);
+        _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
+        _sysOpWriter         = new DdsWriter<ClusterOpRequest>(_participant);    // S0502 (UI injection)
+        _clusterMaster       = new ClusterMaster(_orchestrationBus, _config);
+        _clusterOpTranslator = new Hrot.Orchestrator.Translators.ClusterOpMasterTranslator(
+            _sysOpRequestReader, _sysOpStatusWriter, _orchestrationBus);
+        _nodeOpTranslator    = new Hrot.Orchestrator.Translators.NodeOpMasterTranslator(
+            nodeId => new DdsWriter<NodeOpCommand>(_participant), _nodeOpStatusReader, _orchestrationBus);
+
+        // DdsIdAllocatorServer: bus-mode ClusterMaster doesn't create this internally,
+        // so OrchestratorSubsystem owns it (SimHost needs it to allocate entity IDs).
+        _idAllocatorServer = new DdsIdAllocatorServer(_participant);
+        _idServerCts       = new System.Threading.CancellationTokenSource();
+        _idServerThread    = new System.Threading.Thread(() =>
+        {
+            while (!_idServerCts.IsCancellationRequested)
+            {
+                _idAllocatorServer?.ProcessRequests();
+                System.Threading.Thread.Sleep(1);
+            }
+        }) { IsBackground = true, Name = "Orchestrator-IdAllocServer" };
+        _idServerThread.Start();
 
         // ── Time controller setup (CGF1-A.1, BATCH-09) ─────────────────────
         // MasterSyncController replaces the minimal kernel + DistributedTimeCoordinator.
@@ -141,6 +180,33 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _masterSync?.Update();
         _eventBus?.SwapBuffers();
 
+        // ── Orchestration bus pipeline (CMC-S016 / BATCH-06) ──────────────────
+        // 1. Bridge DDS NodeHeartbeat → NodeHeartbeatEvent on orchestration bus so
+        //    ClusterMaster (bus mode) can update its roster.
+        if (_orchestrationBus != null && _heartbeatReader != null)
+        {
+            using var hbScope = _heartbeatReader.Take();
+            foreach (var sample in hbScope)
+            {
+                if (!sample.IsValid) continue;
+                _orchestrationBus.PublishManaged(new FDP.Toolkit.Orchestration.NodeHeartbeatEvent
+                {
+                    NodeId        = sample.Data.NodeId,
+                    LocalStateId  = (int)sample.Data.LocalClusterState,
+                    WallTicksUtc  = sample.Data.WallTicksUtc,
+                    SubsystemName = sample.Data.SubsystemName ?? string.Empty,
+                });
+            }
+        }
+
+        // 2. Swap orchestration bus: publish → read buffer for this frame's consumers.
+        _orchestrationBus?.SwapBuffers();
+
+        // 3. Translators tick BEFORE ClusterMaster so ingress (DDS→bus) is processed first.
+        _clusterOpTranslator?.Tick();  // DDS ClusterOpRequest → bus TransitionStateIntent etc.
+        _nodeOpTranslator?.Tick();     // bus ExecuteNodeOpIntent → DDS NodeOpCommand;
+                                       // DDS NodeOpStatus → bus NodeOpCompletedEvent
+
         _clusterMaster?.Tick();
 
         // CGF1-S0506: Update cache after ClusterMaster tick so it reflects latest DDS state.
@@ -185,8 +251,26 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _scenarioPanel = null;
         _uiCache?.Dispose();
         _uiCache = null;
-        _sysOpWriter?.Dispose();     // S0502
+        _sysOpWriter?.Dispose();     // S0502 (UI injection writer)
         _sysOpWriter = null;
+        _clusterOpTranslator = null;
+        _nodeOpTranslator = null;
+        _sysOpRequestReader?.Dispose();
+        _sysOpRequestReader = null;
+        _sysOpStatusWriter?.Dispose();
+        _sysOpStatusWriter = null;
+        _nodeOpStatusReader?.Dispose();
+        _nodeOpStatusReader = null;
+        _heartbeatReader?.Dispose();
+        _heartbeatReader = null;
+        _idServerCts?.Cancel();
+        _idServerThread?.Join(System.TimeSpan.FromSeconds(2));
+        _idServerCts?.Dispose();
+        _idServerCts = null;
+        _idServerThread = null;
+        _idAllocatorServer?.Dispose();
+        _idAllocatorServer = null;
+        _orchestrationBus = null;
         _clusterMaster?.Dispose();
         _clusterMaster = null;
         _masterSync?.Dispose();

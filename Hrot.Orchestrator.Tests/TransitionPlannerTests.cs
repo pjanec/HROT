@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using Hrot.NED.Descriptors.Orchestration;
 using FDP.Toolkit.Orchestration;
+using ClusterState    = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using ClusterOpType   = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
+using FdpClusterState = FDP.Toolkit.Orchestration.ClusterState;
 
 namespace Hrot.Orchestrator.Tests;
 
@@ -20,19 +23,18 @@ public sealed class TransitionPlannerTests
     // -- Helpers --
 
     private Queue<ISysOpStep> PlanInt(ClusterState from, ClusterState to) =>
-        _planner.PlanTrajectory(from, new ClusterOpRequest
+        _planner.PlanTrajectory(from, new TransitionStateIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = ((int)to).ToString(),
+            TransactionId = Guid.NewGuid(),
+            TargetState   = (FdpClusterState)(int)to,
         });
 
     private Queue<ISysOpStep> PlanWithSeek(ClusterState from, ClusterState to, long targetWallTicks) =>
-        _planner.PlanTrajectory(from, new ClusterOpRequest
+        _planner.PlanTrajectory(from, new TransitionStateIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":{(int)to},\"TargetWallTicks\":{targetWallTicks}}}",
+            TransactionId   = Guid.NewGuid(),
+            TargetState     = (FdpClusterState)(int)to,
+            TargetWallTicks = targetWallTicks,
         });
 
     private static IReadOnlyList<ClusterState> TransitionStates(Queue<ISysOpStep> queue) =>
@@ -90,7 +92,7 @@ public sealed class TransitionPlannerTests
         var seekStep = queue.OfType<OperationStep>().LastOrDefault();
         Assert.NotNull(seekStep);
         Assert.Equal(ClusterOpType.ReplaySeek, seekStep!.Operation);
-        Assert.Contains(seekTicks.ToString(), seekStep.PayloadJson);
+        Assert.Equal(seekTicks, (long)seekStep!.DomainPayload!);
     }
 
     /// <summary>
@@ -125,8 +127,8 @@ public sealed class TransitionPlannerTests
         var ex = Assert.Throws<InvalidOperationException>(
             () => PlanInt(ClusterState.Degraded, ClusterState.OperatingLive));
 
-        Assert.Contains("Degraded",    ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("RunningLive", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Degraded",      ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("OperatingLive", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -190,84 +192,40 @@ public sealed class TransitionPlannerTests
             () => _tkPlanner.CalculateShortestPath((int)ClusterState.Degraded, (int)ClusterState.OperatingLive));
     }
 
-    // -- A.2: Payload fail-fast tests (CGF-1-BATCH-05) --
+    // -- A.2: Typed-intent fail-fast tests (CMC-S010 successor to CGF-1-BATCH-05 JSON tests) --
 
     /// <summary>
-    /// A whitespace-only PayloadJson for a TransitionState request must throw rather than
-    /// silently default to Standby. Whitespace is caught by the same IsNullOrWhiteSpace
-    /// guard as the empty string case.
+    /// With typed intents, the planner processes TargetState directly without JSON parsing (CMC-S010).
+    /// Verifies a direct single-step transition works when TargetState is set on the intent.
     /// </summary>
     [Fact]
-    public void PlanTrajectory_WhitespaceOnlyPayload_Throws()
+    public void PlanTrajectory_WithIntent_DirectTargetState_Works()
     {
-        var request = new ClusterOpRequest
+        var intent = new TransitionStateIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = "   ",
+            TransactionId = Guid.NewGuid(),
+            TargetState   = (FdpClusterState)(int)ClusterState.LoadingEdit,
         };
+        var queue = _planner.PlanTrajectory(ClusterState.Idle, intent);
+        Assert.Single(queue);
+        var step = Assert.IsType<TransitionStep>(queue.Dequeue());
+        Assert.Equal(ClusterState.LoadingEdit, step.TargetState);
+    }
 
+    /// <summary>
+    /// A TransitionStateIntent targeting an unreachable state must throw
+    /// InvalidOperationException (same guarantee as the old JSON-path fail-fast tests).
+    /// </summary>
+    [Fact]
+    public void PlanTrajectory_WithIntent_UnreachableTarget_Throws()
+    {
+        var intent = new TransitionStateIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetState   = (FdpClusterState)(int)ClusterState.OperatingLive,  // unreachable from Degraded
+        };
         Assert.Throws<InvalidOperationException>(
-            () => _planner.PlanTrajectory(ClusterState.Idle, request));
-    }
-
-    /// <summary>
-    /// An empty PayloadJson for a TransitionState request must throw rather than silently
-    /// default to Standby.
-    /// </summary>
-    [Fact]
-    public void PlanTrajectory_EmptyPayload_ThrowsInvalidOperationException()
-    {
-        var request = new ClusterOpRequest
-        {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = string.Empty,
-        };
-
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => _planner.PlanTrajectory(ClusterState.Idle, request));
-
-        Assert.Contains("empty", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Garbage (non-parseable) JSON must throw rather than silently default to Standby.
-    /// </summary>
-    [Fact]
-    public void PlanTrajectory_GarbageJson_ThrowsInvalidOperationException()
-    {
-        var request = new ClusterOpRequest
-        {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = "not-valid-json!!!",
-        };
-
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => _planner.PlanTrajectory(ClusterState.Idle, request));
-
-        Assert.NotNull(ex.Message);
-    }
-
-    /// <summary>
-    /// A valid JSON object that lacks the TargetState property must throw rather than
-    /// silently default to Standby (which could produce a seemingly-valid plan).
-    /// </summary>
-    [Fact]
-    public void PlanTrajectory_JsonWithoutTargetState_ThrowsInvalidOperationException()
-    {
-        var request = new ClusterOpRequest
-        {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = "{}",
-        };
-
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => _planner.PlanTrajectory(ClusterState.Idle, request));
-
-        Assert.Contains("TargetState", ex.Message, StringComparison.OrdinalIgnoreCase);
+            () => _planner.PlanTrajectory(ClusterState.Degraded, intent));
     }
 
     // -- CGF1-S0302 success condition (B.4) --
@@ -282,14 +240,14 @@ public sealed class TransitionPlannerTests
     [Fact]
     public void PlanWithScenarioId_InjectsStorageGatewayStep()
     {
-        var request = new ClusterOpRequest
+        var intent = new TransitionStateIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.LoadingEdit},\"ScenarioId\":\"Alpha\"}}",
+            TransactionId = Guid.NewGuid(),
+            TargetState   = (FdpClusterState)(int)ClusterState.LoadingEdit,
+            ScenarioId    = "Alpha",
         };
 
-        var queue = _planner.PlanTrajectory(ClusterState.Idle, request);
+        var queue = _planner.PlanTrajectory(ClusterState.Idle, intent);
 
         // Must have at least the prefetch step + the LoadingEdit transition step.
         Assert.True(queue.Count >= 2);
@@ -297,7 +255,7 @@ public sealed class TransitionPlannerTests
         var first = queue.Dequeue();
         var prefetch = Assert.IsType<OperationStep>(first);
         Assert.Equal(ClusterOpType.PrefetchScenario, prefetch.Operation);
-        Assert.Equal("Alpha", prefetch.PayloadJson);
+        Assert.Equal("Alpha", (string?)prefetch.DomainPayload);
 
         var second = queue.Dequeue();
         var transition = Assert.IsType<TransitionStep>(second);

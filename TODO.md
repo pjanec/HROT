@@ -1,9 +1,29 @@
-ReferenceEpisodeLoadHandler uses StartEpisodeOperationId = 20; as number which must match NodeOpType.StartEpisode
+[BUG] 'clusterrunner -m all' shows 'not bootstrapped'. The subsystem state reporting is failing.
 
+[BUG] ScenarioSerializer inside FDP now "knows" the scenario file format (see PeekSubsystemType). This is leaking the application level knowledge
+dowen the FDP.
+
+[BUG] ClusterUiCache is tied to network messages. After the cluster management revam to CQRS, it should work purely with fdp events.
+Only the translator should work with network, everything inside the system must be communicated via FdpEvents.
+
+[BUG] ReferenceEpisodeLoadHandler uses StartEpisodeOperationId = 20; as number which must match NodeOpType.StartEpisode -fragile!
+We should use enums intead, no primitive types.
+
+[BUG] StatusCode in NodeOpCompletedEvent is int. Should be enum. OrchestrationStatusCode.cs should define enums, not pure int.
+
+[BUG] NodeOpCompletedEvent should contain operation id so that the translator know how to convert  the "object? ResultPayload;" to dds message.
+
+[BUG] ClusterStateTransitionedEvent now contain int state id NewStateId. Should be enum!
+
+[BUG] ClusterMaster ctor exists in 2 versions - with DDS and without it. The DDS one is undersired after we implemented the one with FdpEvents.
+No fallback and backward compatibility please!
 
 
 [BUG] The IDL codegen has a bug with non-sequential enums — value gap at 3 (where dtGeoSpatialDR was) causes the enum entries after to use `@value()` annotations which confuses the idlc union case generator.
 The IDL generator is using the field's position in the struct (0, 1, 2, 3, 4) instead of the actual discriminant values (0, 1, 2, 4, 5). So when it encounters `MapVisualOverlay` at index 3, it's grabbing the wrong discriminant value, and when it gets to `MapRoute` at index 4, it's using the numeric value 5 as a fallback. The gap from removing `dtGeoSpatialDR` is causing the indices and values to misalign.
+
+[IDEA] Should we move the TransitionPlanner to FDP toolkit? Move whole cluster state machine the toolkit? Is the state machine separable
+from the 
 
 
 AttributeRecord in FDP\Toolkits\FDP.Toolkit.Replication\Patching\BinaryInterpreter.cs is from application layer dds struct.

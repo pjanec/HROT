@@ -9,6 +9,8 @@ using Fdp.Kernel;
 using FDP.Framework.Runner.Testing;
 using FDP.Toolkit.Orchestration;
 using Microsoft.Extensions.Logging;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 
 namespace Hrot.ClusterRunner.Testing
 {

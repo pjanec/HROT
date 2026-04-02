@@ -10,6 +10,8 @@ using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
+using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
 namespace Hrot.Orchestrator.Integration.Tests;
 
@@ -93,9 +95,13 @@ public sealed class ScenarioSaveLoadTests : IDisposable
 
             // ── Load via handler ─────────────────────────────────────────────────
             var handler = new ReferenceScenarioLoadHandler(serializer, new LocalDiskStorageProvider(tempRoot));
-            var cmd     = new OrchestrationCommand(
-                Guid.NewGuid(), 0, ReferenceScenarioLoadHandler.PrepareLiveOperationId,
-                $"{{\"ScenarioId\":\"{scenarioId}\"}}");
+            var cmd     = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = (FDP.Toolkit.Orchestration.NodeOpType)ReferenceScenarioLoadHandler.PrepareLiveOperationId,
+                DomainPayload = scenarioId,
+            };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
             handler.Commit(cmd, freshRepo);
@@ -294,9 +300,13 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             var simHostRepo       = new EntityRepository();
 
             var handler = new ReferenceScenarioLoadHandler(simHostSerializer, new LocalDiskStorageProvider(tempRoot));
-            var cmd     = new OrchestrationCommand(
-                Guid.NewGuid(), 0, ReferenceScenarioLoadHandler.PrepareLiveOperationId,
-                $"{{\"ScenarioId\":\"{scenarioId}\"}}");
+            var cmd     = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = (FDP.Toolkit.Orchestration.NodeOpType)ReferenceScenarioLoadHandler.PrepareLiveOperationId,
+                DomainPayload = scenarioId,
+            };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
             handler.Commit(cmd, simHostRepo);

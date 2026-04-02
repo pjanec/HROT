@@ -3,7 +3,6 @@ using System.IO;
 using System.Numerics;
 using System.Threading;
 using System.Threading.Tasks;
-using Hrot.Common.Orchestration;
 using Hrot.SimHost.Modules.Orchestration;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
@@ -184,16 +183,19 @@ namespace Hrot.SimHost.Tests
             slave.RegisterHandler(new ReferenceReplayLoadHandler(
                 controller, simGroup, lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
-                transport: null, nodeId: 1, storageDirectory: _tempDir));
+                storageDirectory: _tempDir));
             slave.RegisterHandler(new ReferenceLiveLoadHandler(
                 checkpointWorker: null, controller, _tempDir));
 
             // ── Step 3: dispatch PrepareLive via ClusterSlave ───────────────────
             var branchedExerciseId = Guid.NewGuid();
-            slave.EnqueueCommandForTest(new OrchestrationCommand(
-                Guid.NewGuid(), 0,
-                ReferenceReplayLoadHandler.PrepareLiveOperationId,
-                $"{{\"ExerciseId\":\"{branchedExerciseId:D}\"}}"));
+            slave.EnqueueIntentForTest(new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                DomainPayload = branchedExerciseId,
+            });
 
             // Drive slave ticks until async prepare completes (kernel loop running in bg).
             var deadline = DateTime.UtcNow.AddSeconds(10);

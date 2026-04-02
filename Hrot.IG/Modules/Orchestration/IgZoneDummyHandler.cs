@@ -30,15 +30,15 @@ namespace Hrot.IG.Modules.Orchestration
     /// </summary>
     public sealed class IgZoneDummyHandler : IClusterStateHandler
     {
-        /// <summary>Integer value of <see cref="NodeOpType.PrepareZone"/> (stable).</summary>
-        public const int PrepareZoneOperationId = (int)NodeOpType.PrepareZone;
-        /// <summary>Integer value of <see cref="NodeOpType.CommitZone"/> (stable).</summary>
-        public const int CommitZoneOperationId = (int)NodeOpType.CommitZone;
+        /// <summary>Integer value of <see cref="FDP.Toolkit.Orchestration.NodeOpType.PrepareZone"/> (stable).</summary>
+        public const int PrepareZoneOperationId = (int)FDP.Toolkit.Orchestration.NodeOpType.PrepareZone;
+        /// <summary>Integer value of <see cref="FDP.Toolkit.Orchestration.NodeOpType.CommitZone"/> (stable).</summary>
+        public const int CommitZoneOperationId = (int)FDP.Toolkit.Orchestration.NodeOpType.CommitZone;
 
         /// <inheritdoc />
-        public bool CanHandle(int operationId)
-            => operationId == PrepareZoneOperationId
-            || operationId == CommitZoneOperationId;
+        public bool CanHandle(FDP.Toolkit.Orchestration.NodeOpType operation)
+            => operation == FDP.Toolkit.Orchestration.NodeOpType.PrepareZone
+            || operation == FDP.Toolkit.Orchestration.NodeOpType.CommitZone;
 
         /// <inheritdoc />
         /// <remarks>
@@ -46,18 +46,18 @@ namespace Hrot.IG.Modules.Orchestration
         /// the ClusterSlave can ACK the orchestrator without delay.
         /// Terrain-DB preload from scenario entities is future work.
         /// </remarks>
-        public Task<string?> PrepareAsync(OrchestrationCommand cmd, CancellationToken ct)
+        public Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, CancellationToken ct)
         {
             FdpLog<IgZoneDummyHandler>.Info(
                 "[IG] Zone op {0} — dummy ACK (terrain preload is future work).",
-                (NodeOpType)cmd.OperationId);
-            return Task.FromResult<string?>(null);
+                intent.Operation);
+            return Task.FromResult<object?>(null);
         }
 
         /// <inheritdoc />
-        public void Commit(OrchestrationCommand cmd, EntityRepository? repo) { }
+        public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
 
         /// <inheritdoc />
-        public void Abort(OrchestrationCommand cmd, EntityRepository? repo) { }
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
     }
 }

@@ -1,9 +1,7 @@
 using System;
 using System.IO;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using Hrot.Common.Orchestration;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
@@ -50,9 +48,13 @@ namespace Hrot.SimHost.Tests
         public async Task StartEpisode_MissingEpisodeId_SetsTransactionId_SoCommitFires()
         {
             var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot), _repo);
-            var cmd = new OrchestrationCommand(
-                Guid.NewGuid(), 0, ReferenceEpisodeLoadHandler.StartEpisodeOperationId,
-                "{\"ScenarioId\":\"s1\"}");   // no EpisodeId
+            var cmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StartEpisode,
+                DomainPayload = new EpisodeHandlerPayload(Guid.Empty, "s1", IsStart: true),  // EpisodeId is Guid.Empty → not valid
+            };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
 
@@ -61,7 +63,7 @@ namespace Hrot.SimHost.Tests
                 "Handler must mark itself non-participating when EpisodeId is missing.");
 
             // Commit must not throw — the non-participating ACK path requires no repo.
-            var ex = Record.Exception(() => handler.Commit(cmd, null));
+            var ex = await Record.ExceptionAsync(() => { handler.Commit(cmd, null); return Task.CompletedTask; });
             Assert.Null(ex);
         }
 
@@ -71,15 +73,18 @@ namespace Hrot.SimHost.Tests
         public async Task StartEpisode_MissingScenarioId_SetsTransactionId_SoCommitFires()
         {
             var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot), _repo);
-            var cmd = new OrchestrationCommand(
-                Guid.NewGuid(), 0, ReferenceEpisodeLoadHandler.StartEpisodeOperationId,
-                $"{{\"EpisodeId\":\"{Guid.NewGuid()}\"}}"  // no ScenarioId
-            );
+            var cmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StartEpisode,
+                DomainPayload = new EpisodeHandlerPayload(Guid.NewGuid(), ScenarioId: null, IsStart: true),  // no ScenarioId
+            };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
 
             Assert.False(handler.IsParticipatingForTest);
-            var ex = Record.Exception(() => handler.Commit(cmd, null));
+            var ex = await Record.ExceptionAsync(() => { handler.Commit(cmd, null); return Task.CompletedTask; });
             Assert.Null(ex);
         }
 
@@ -103,16 +108,20 @@ namespace Hrot.SimHost.Tests
             // Handler constructed without _world so repo must come from Commit param.
             var handlerNoWorld = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
             var episodeId = Guid.NewGuid();
-            var cmd = new OrchestrationCommand(
-                Guid.NewGuid(), 0, ReferenceEpisodeLoadHandler.StartEpisodeOperationId,
-                JsonSerializer.Serialize(new { EpisodeId = episodeId, ScenarioId = scenarioId }));
+            var cmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StartEpisode,
+                DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
+            };
 
             await handlerNoWorld.PrepareAsync(cmd, CancellationToken.None);
             Assert.True(handlerNoWorld.IsParticipatingForTest,
                 "Handler must be participating when a matching scenario file exists.");
 
             // Commit with repo=null must throw (fail loud, not silent no-op).
-            Assert.Throws<InvalidOperationException>(() => handlerNoWorld.Commit(cmd, repo: null));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => { handlerNoWorld.Commit(cmd, repo: null); return Task.CompletedTask; });
         }
 
         // ── A.2 fix 4: invalid EpisodeId in StopEpisode ──────────────────────────
@@ -121,15 +130,19 @@ namespace Hrot.SimHost.Tests
         public async Task StopEpisode_MissingEpisodeId_SetsTransactionId_SoCommitFires()
         {
             var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot), _repo);
-            var cmd = new OrchestrationCommand(
-                Guid.NewGuid(), 0, ReferenceEpisodeLoadHandler.StopEpisodeOperationId,
-                "{}");  // no EpisodeId
+            var cmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StopEpisode,
+                DomainPayload = new EpisodeHandlerPayload(Guid.Empty, ScenarioId: null, IsStart: false),  // empty EpisodeId
+            };
 
             await handler.PrepareAsync(cmd, CancellationToken.None);
 
             Assert.False(handler.IsParticipatingForTest);
             // Commit must not throw and must handle the non-participating path.
-            var ex = Record.Exception(() => handler.Commit(cmd, null));
+            var ex = await Record.ExceptionAsync(() => { handler.Commit(cmd, null); return Task.CompletedTask; });
             Assert.Null(ex);
         }
 
@@ -141,16 +154,20 @@ namespace Hrot.SimHost.Tests
             // Handler constructed without _world so repo must come from Commit param.
             var handlerNoWorld = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
             var episodeId = Guid.NewGuid();
-            var cmd = new OrchestrationCommand(
-                Guid.NewGuid(), 0, ReferenceEpisodeLoadHandler.StopEpisodeOperationId,
-                JsonSerializer.Serialize(new { EpisodeId = episodeId }));
+            var cmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.StopEpisode,
+                DomainPayload = new EpisodeHandlerPayload(episodeId, ScenarioId: null, IsStart: false),
+            };
 
             await handlerNoWorld.PrepareAsync(cmd, CancellationToken.None);
             Assert.True(handlerNoWorld.IsParticipatingForTest,
                 "Handler must be participating for a valid StopEpisode payload.");
 
             // Commit with repo=null must throw (fail loud).
-            Assert.Throws<InvalidOperationException>(() => handlerNoWorld.Commit(cmd, repo: null));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => { handlerNoWorld.Commit(cmd, repo: null); return Task.CompletedTask; });
         }
     }
 

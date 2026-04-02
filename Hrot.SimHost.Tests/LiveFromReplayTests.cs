@@ -3,7 +3,6 @@ using System.Numerics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Hrot.Common.Orchestration;
 using Hrot.SimHost.Modules.Orchestration;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
@@ -169,13 +168,16 @@ namespace Hrot.SimHost.Tests
             var handler      = new ReferenceReplayLoadHandler(
                 controller, simGroup, lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
-                transport: null, nodeId: 1, storageDirectory: _tempDir);
+                storageDirectory: _tempDir);
 
             var branchedExerciseId = Guid.NewGuid();
-            var branchCmd       = new OrchestrationCommand(
-                Guid.NewGuid(), 0,
-                ReferenceReplayLoadHandler.PrepareLiveOperationId,
-                $"{{\"ExerciseId\":\"{branchedExerciseId:D}\"}}");
+            var branchCmd       = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                DomainPayload = branchedExerciseId,
+            };
 
             await handler.PrepareAsync(branchCmd, CancellationToken.None);
 
@@ -232,22 +234,28 @@ namespace Hrot.SimHost.Tests
             var handler = new ReferenceReplayLoadHandler(
                 controller, simGroup, lifecycleGroup,
                 bypass => ghostSys.BypassLifecycle = bypass,
-                transport: null, nodeId: 1, storageDirectory: _tempDir);
+                storageDirectory: _tempDir);
 
             // Simulate PrepareReplay commit so groups start disabled.
-            var prepCmd = new OrchestrationCommand(
-                Guid.NewGuid(), 0,
-                ReferenceReplayLoadHandler.PrepareReplayOperationId,
-                $"{{\"ExerciseId\":\"{exerciseId:D}\"}}");
+            var prepCmd = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareReplay,
+                DomainPayload = exerciseId,
+            };
             handler.Commit(prepCmd, repo: null);
             Assert.False(simGroup.Enabled, "SimulationSystemGroup must be disabled during replay.");
 
-            // ── Step 3: issue PrepareLive (Live-from-Replay branch) ───────────
+            // ── Step 3: issue PrepareLive (Live-from-Replay branch) ──────────────────────────
             var branchedExerciseId = Guid.NewGuid();
-            var branchCmd       = new OrchestrationCommand(
-                Guid.NewGuid(), 0,
-                ReferenceReplayLoadHandler.PrepareLiveOperationId,
-                $"{{\"ExerciseId\":\"{branchedExerciseId:D}\"}}");
+            var branchCmd       = new ExecuteNodeOpIntent
+            {
+                TransactionId = Guid.NewGuid(),
+                TargetNodeId  = 0,
+                Operation     = FDP.Toolkit.Orchestration.NodeOpType.PrepareLive,
+                DomainPayload = branchedExerciseId,
+            };
             await handler.PrepareAsync(branchCmd, CancellationToken.None);
             handler.Commit(branchCmd, repo: null);
 

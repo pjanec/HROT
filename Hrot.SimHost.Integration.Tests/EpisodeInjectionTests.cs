@@ -11,6 +11,8 @@ using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using Xunit;
+using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
+using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
 namespace Hrot.SimHost.Integration.Tests;
 
@@ -177,25 +179,21 @@ public sealed class EpisodeInjectionTests : IDisposable
     public void ManageEpisode_RejectedWhen_NotInRunningLive()
     {
         var planner = new ClusterMasterPlanner(HrotStateGraph.Build());
-        var req     = new ClusterOpRequest
+        var intent  = new ManageEpisodeIntent
         {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.ManageEpisode,
-            PayloadJson   = JsonSerializer.Serialize(new
-            {
-                Mode       = "Start",
-                EpisodeId    = Guid.NewGuid().ToString("D"),
-                ScenarioId = "scenario_01",
-            }),
+            TransactionId = Guid.NewGuid(),
+            IsStart       = true,
+            EpisodeId     = Guid.NewGuid(),
+            ScenarioId    = "scenario_01",
         };
 
-        // Should reject for any state that is not RunningLive.
+        // Should reject for any state that is not OperatingLive.
         Assert.Throws<InvalidOperationException>(() =>
-            planner.PlanManageEpisode(ClusterState.Idle, req));
+            planner.PlanManageEpisode(ClusterState.Idle, intent));
         Assert.Throws<InvalidOperationException>(() =>
-            planner.PlanManageEpisode(ClusterState.OperatingEdit, req));
+            planner.PlanManageEpisode(ClusterState.OperatingEdit, intent));
         Assert.Throws<InvalidOperationException>(() =>
-            planner.PlanManageEpisode(ClusterState.OperatingReplay, req));
+            planner.PlanManageEpisode(ClusterState.OperatingReplay, intent));
     }
 
     // ── Test 5 ────────────────────────────────────────────────────────────────
@@ -243,24 +241,21 @@ public sealed class EpisodeInjectionTests : IDisposable
 
     // ── Factories ─────────────────────────────────────────────────────────────
 
-    private static OrchestrationCommand MakeCmd(int op, Guid episodeId, string scenarioId) =>
-        new OrchestrationCommand(
-            TransactionId: Guid.NewGuid(),
-            TargetNodeId:  0,
-            OperationId:   op,
-            PayloadJson:   JsonSerializer.Serialize(new
-            {
-                EpisodeId    = episodeId.ToString("D"),
-                ScenarioId = scenarioId,
-            }));
+    private static ExecuteNodeOpIntent MakeCmd(int op, Guid episodeId, string scenarioId) =>
+        new()
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 0,
+            Operation     = (FDP.Toolkit.Orchestration.NodeOpType)op,
+            DomainPayload = new EpisodeHandlerPayload(episodeId, scenarioId, IsStart: true),
+        };
 
-    private static OrchestrationCommand MakeStopCmd(Guid episodeId) =>
-        new OrchestrationCommand(
-            TransactionId: Guid.NewGuid(),
-            TargetNodeId:  0,
-            OperationId:   ReferenceEpisodeLoadHandler.StopEpisodeOperationId,
-            PayloadJson:   JsonSerializer.Serialize(new
-            {
-                EpisodeId = episodeId.ToString("D"),
-            }));
+    private static ExecuteNodeOpIntent MakeStopCmd(Guid episodeId) =>
+        new()
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 0,
+            Operation     = (FDP.Toolkit.Orchestration.NodeOpType)ReferenceEpisodeLoadHandler.StopEpisodeOperationId,
+            DomainPayload = new EpisodeHandlerPayload(episodeId, ScenarioId: null, IsStart: false),
+        };
 }
