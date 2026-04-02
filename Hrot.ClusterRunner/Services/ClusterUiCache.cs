@@ -65,7 +65,6 @@ public sealed class ClusterUiCache : IDisposable
     private readonly DdsReader<ClusterOpStatus>           _sysOpStatusReader;
     private readonly DdsReader<NodeOpCommand>         _nodeOpCmdReader;
     private readonly DdsReader<NodeOpStatus>          _nodeOpStatusReader;
-    private readonly DdsReader<TimePulseDescriptor>   _timePulseReader;
     private readonly DdsReader<SwitchTimeModeWireDto> _timeModeReader;
 
     // ── Internal state ─────────────────────────────────────────────────────────
@@ -87,7 +86,6 @@ public sealed class ClusterUiCache : IDisposable
         _sysOpStatusReader  = new DdsReader<ClusterOpStatus>(participant);
         _nodeOpCmdReader    = new DdsReader<NodeOpCommand>(participant);
         _nodeOpStatusReader = new DdsReader<NodeOpStatus>(participant);
-        _timePulseReader    = new DdsReader<TimePulseDescriptor>(participant);
         _timeModeReader     = new DdsReader<SwitchTimeModeWireDto>(participant);
 
         // even before the first network message arrives, the UI cache already knows what transitions
@@ -103,7 +101,6 @@ public sealed class ClusterUiCache : IDisposable
         DrainInventory();
         DrainHeartbeats();
         DrainTimeMode();
-        DrainTimePulse();
         Process2PcNetworkTraffic();
         DrainSysOpStatus();
     }
@@ -123,7 +120,6 @@ public sealed class ClusterUiCache : IDisposable
         _sysOpStatusReader.Dispose();
         _nodeOpCmdReader.Dispose();
         _nodeOpStatusReader.Dispose();
-        _timePulseReader.Dispose();
         _timeModeReader.Dispose();
     }
 
@@ -167,26 +163,20 @@ public sealed class ClusterUiCache : IDisposable
         }
     }
 
-    private void DrainTimePulse()
-    {
-        using var l = _timePulseReader.Take();
-        foreach (var s in l)
-        {
-            if (!s.IsValid) continue;
-            MasterWallTicks = s.Data.MasterWallTicks;
-            MasterTimeScale = s.Data.TimeScale;
-            if (!IsPaused)
-                _networkSimTime = s.Data.SimTimeSnapshot;
-        }
-    }
-
     private void DrainTimeMode()
     {
         using var l = _timeModeReader.Take();
         foreach (var s in l)
         {
             if (!s.IsValid) continue;
-            IsPaused = (TimeMode)s.Data.TargetModeInt == TimeMode.Deterministic;
+            var isDeterministic = (TimeMode)s.Data.TargetModeInt == TimeMode.Deterministic;
+            IsPaused = isDeterministic;
+            if (s.Data.TimeScale > 0f)
+                MasterTimeScale = s.Data.TimeScale;
+            if (s.Data.BarrierWallTicks > 0)
+                MasterWallTicks = s.Data.BarrierWallTicks;
+            if (!isDeterministic && s.Data.SimTimeSnapshot > 0.0)
+                _networkSimTime = s.Data.SimTimeSnapshot;
         }
     }
 

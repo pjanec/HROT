@@ -978,14 +978,6 @@ public sealed class ExConLogic : IExConLogic, IMapPickService, IDisposable
 
     // ── Time state ingress ────────────────────────────────────────────────────
 
-    /// <summary>Called by TimePulseIngressHandler each frame to update observed time state.</summary>
-    public void OnTimePulse(TimePulseDescriptor pulse)
-    {
-        MasterSimTime   = pulse.SimTimeSnapshot;
-        MasterWallTicks = pulse.MasterWallTicks;
-        MasterTimeScale = pulse.TimeScale;
-    }
-
     /// <summary>Called by TimeModeIngressHandler to update IsPaused state.</summary>
     public void OnTimeMode(SwitchTimeModeWireDto dto)
     {

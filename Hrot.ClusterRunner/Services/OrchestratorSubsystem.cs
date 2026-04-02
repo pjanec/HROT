@@ -41,7 +41,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private FDP.Toolkit.Time.Controllers.MasterSyncController? _masterSync;
     private IDescriptorTranslator? _timeModeTranslator;
     private IDescriptorTranslator? _lockstepTranslator;
-    private IDescriptorTranslator? _timePulseTranslator;
+    private IDescriptorTranslator? _masterTimeSyncTranslator;
     private string? _lastProcessedTimeMode;
 
     /// <summary>Internal event bus exposed for test assertions on SwitchTimeModeEvent.</summary>
@@ -56,6 +56,9 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
 
     /// <summary>Internal test hook: exposes current pause state for assertions.</summary>
     internal bool IsPausedForTest => _isPaused;
+
+    /// <summary>Internal test hook: current master sim time in seconds.</summary>
+    internal double TestHook_CurrentSimTime => _masterSync?.GetCurrentState().TotalTime ?? 0.0;
 
     public string Name => "Orchestrator";
 
@@ -77,7 +80,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             _eventBus, new HashSet<int>(), FDP.Toolkit.Time.Controllers.TimeConfig.Default);
         _timeModeTranslator  = TimeNetworkModule.CreateDescriptorTranslator(_participant, _eventBus);
         _lockstepTranslator  = TimeNetworkModule.CreateMasterLockstepTranslator(_participant, _eventBus);
-        _timePulseTranslator = TimeNetworkModule.CreateTimePulseEgressTranslator(_participant, _eventBus);
+        _masterTimeSyncTranslator = TimeNetworkModule.CreateMasterTimeSyncTranslator(_participant);
 
         _uiCache       = new ClusterUiCache(_participant, _masterSync);
         _scenarioPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
@@ -155,10 +158,10 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
             _lastProcessedTimeMode = pendingMode;
         }
 
-        // Translate lockstep frames, time pulses, and mode switches to/from DDS.
+        // Translate lockstep frames, time sync, and mode switches to/from DDS.
         _lockstepTranslator?.ScanAndPublish(null!);
         _lockstepTranslator?.PollIngress(null!, null!);
-        _timePulseTranslator?.ScanAndPublish(null!);
+        _masterTimeSyncTranslator?.PollIngress(null!, null!);
         _timeModeTranslator?.ScanAndPublish(null!);
         _timeModeTranslator?.PollIngress(null!, null!);
 
@@ -189,7 +192,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _masterSync?.Dispose();
         _masterSync = null;
         _lockstepTranslator = null;
-        _timePulseTranslator = null;
+        _masterTimeSyncTranslator = null;
         _eventBus = null;
         _lastProcessedTimeMode = null;
         _participant?.Dispose();

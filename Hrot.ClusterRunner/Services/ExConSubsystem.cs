@@ -81,7 +81,7 @@ namespace Hrot.ClusterRunner.Services
         private SlaveSyncController?   _slaveSyncController;
         private IDescriptorTranslator? _timeModeTranslator;
         private IDescriptorTranslator? _slaveLockstepTranslator;
-        private IDescriptorTranslator? _timePulseIngressTranslator;
+        private IDescriptorTranslator? _slaveTimeSyncTranslator;
 
         /// <summary>
         /// Internal test hook for integration tests.
@@ -130,7 +130,7 @@ namespace Hrot.ClusterRunner.Services
             _slaveSyncController      = new SlaveSyncController(_timeEventBus, iosNodeId, TimeConfig.Default);
             _timeModeTranslator       = TimeNetworkModule.CreateDescriptorTranslator(_participant, _timeEventBus);
             _slaveLockstepTranslator  = TimeNetworkModule.CreateSlaveLockstepTranslator(_participant, _timeEventBus, iosNodeId);
-            _timePulseIngressTranslator = TimeNetworkModule.CreateTimePulseIngressTranslator(_participant, _timeEventBus);
+            _slaveTimeSyncTranslator  = TimeNetworkModule.CreateSlaveTimeSyncTranslator(_participant, _timeEventBus, iosNodeId);
 
             // CGF1-BATCH-23 A.3: ExCon is an orchestrator instructor — it does NOT
             // save scenario fragments or exercise recordings.  If the orchestrator fans
@@ -283,12 +283,17 @@ namespace Hrot.ClusterRunner.Services
         /// <inheritdoc/>
         public void Update(float deltaTime)
         {
-            // Time sync pipeline: ingest DDS → advance controller → egress ACKs → swap bus.
+            // Time sync pipeline: ingest DDS → advance controller → egress ACKs + NTP requests → swap bus.
             _timeModeTranslator?.PollIngress(null!, null!);
             _slaveLockstepTranslator?.PollIngress(null!, null!);
-            _timePulseIngressTranslator?.PollIngress(null!, null!);
+            _slaveTimeSyncTranslator?.PollIngress(null!, null!);
             _slaveSyncController?.Update();
             _slaveLockstepTranslator?.ScanAndPublish(null!);
+            // Bug 8 fix: ScanAndPublish drains TimeSyncRequest events from the bus and sends
+            // them to DDS so the NTP handshake with the master can complete.
+            // Without this call the ExCon clock offset stays 0 forever (NTP requests silently
+            // discarded each SwapBuffers), making ExCon sim-time wrong in multi-process deployments.
+            _slaveTimeSyncTranslator?.ScanAndPublish(null!);
             _timeEventBus?.SwapBuffers();
 
             _clusterSlave?.Tick();
@@ -349,7 +354,7 @@ namespace Hrot.ClusterRunner.Services
             _slaveSyncController = null;
             _timeModeTranslator = null;
             _slaveLockstepTranslator = null;
-            _timePulseIngressTranslator = null;
+            _slaveTimeSyncTranslator = null;
             _timeEventBus = null;
             if (_ingressDisposables != null)
             {

@@ -33,24 +33,6 @@ public class ExConLogicTimeTests
     }
 
     [Fact]
-    public void OnTimePulse_UpdatesTimeProperties()
-    {
-        var logic = MakeLogic();
-        var pulse = new TimePulseDescriptor
-        {
-            SimTimeSnapshot = 42.5,
-            MasterWallTicks = 12345L,
-            TimeScale       = 2.0f
-        };
-
-        logic.OnTimePulse(pulse);
-
-        Assert.Equal(42.5,   logic.MasterSimTime,   precision: 5);
-        Assert.Equal(12345L, logic.MasterWallTicks);
-        Assert.Equal(2.0f,   logic.MasterTimeScale);
-    }
-
-    [Fact]
     public void OnTimeMode_Deterministic_SetsIsPausedTrue()
     {
         var logic = MakeLogic();

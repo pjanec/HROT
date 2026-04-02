@@ -166,33 +166,6 @@ public sealed class MapCommandAckIngressHandler : IIngressHandler, IDisposable
 }
 
 /// <summary>
-/// DDS ingress handler that forwards TimePulseDescriptor samples to ExConLogic.
-/// </summary>
-public sealed class TimePulseIngressHandler : IIngressHandler, IDisposable
-{
-    private readonly DdsReader<TimePulseDescriptor>  _reader;
-    private readonly Action<TimePulseDescriptor>     _onPulse;
-
-    public TimePulseIngressHandler(DdsParticipant participant, Action<TimePulseDescriptor> onPulse)
-    {
-        _reader  = new DdsReader<TimePulseDescriptor>(participant);
-        _onPulse = onPulse ?? throw new ArgumentNullException(nameof(onPulse));
-    }
-
-    public void Poll()
-    {
-        using var loan = _reader.Take();
-        foreach (var s in loan)
-        {
-            if (!s.IsValid) continue;
-            _onPulse(s.Data);
-        }
-    }
-
-    public void Dispose() => _reader.Dispose();
-}
-
-/// <summary>
 /// DDS ingress handler that forwards SwitchTimeModeWireDto samples to ExConLogic.
 /// </summary>
 public sealed class TimeModeIngressHandler : IIngressHandler, IDisposable

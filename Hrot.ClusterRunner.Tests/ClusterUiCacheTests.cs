@@ -175,19 +175,19 @@ public sealed class ClusterUiCacheTests : IDisposable
     }
 
     /// <summary>
-    /// Writing a TimePulseDescriptor sample must update <c>MasterSimTime</c>,
+    /// Writing a SwitchTimeModeWireDto (Continuous) must update <c>MasterSimTime</c>,
     /// <c>MasterWallTicks</c>, and <c>MasterTimeScale</c> after <c>Update()</c>.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_UpdatesTimeScaleFromTimePulse()
     {
-        using var writer = new DdsWriter<TimePulseDescriptor>(_participant);
-        writer.Write(new TimePulseDescriptor
+        using var writer = new DdsWriter<SwitchTimeModeWireDto>(_participant);
+        writer.Write(new SwitchTimeModeWireDto
         {
-            MasterWallTicks  = 123456789L,
+            BarrierWallTicks = 123456789L,
             SimTimeSnapshot  = 42.5,
             TimeScale        = 2.0f,
-            SequenceId       = 1L,
+            TargetModeInt    = (int)TimeMode.Continuous,
         });
 
         Thread.Sleep(150); // DDS propagation
@@ -216,18 +216,18 @@ public sealed class ClusterUiCacheTests : IDisposable
 
     /// <summary>
     /// TC2-P2-T1-SC2: Without a controller, MasterSimTime falls back to the network
-    /// value from a TimePulseDescriptor.
+    /// value from a SwitchTimeModeWireDto (Continuous mode).
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_MasterSimTime_FallsBackToNetwork_WhenNoController()
     {
         using var cacheNoCtrl = new ClusterUiCache(_participant);
-        using var writer = new DdsWriter<TimePulseDescriptor>(_participant);
-        writer.Write(new TimePulseDescriptor
+        using var writer = new DdsWriter<SwitchTimeModeWireDto>(_participant);
+        writer.Write(new SwitchTimeModeWireDto
         {
             SimTimeSnapshot = 33.0,
             TimeScale       = 1.0f,
-            SequenceId      = 1L,
+            TargetModeInt   = (int)TimeMode.Continuous,
         });
 
         Thread.Sleep(150);
@@ -237,26 +237,26 @@ public sealed class ClusterUiCacheTests : IDisposable
     }
 
     /// <summary>
-    /// TC2-P2-T1-SC3: When a controller is injected, a network pulse with a different
-    /// value must not change MasterSimTime — the controller takes priority.
+    /// TC2-P2-T1-SC3: When a controller is injected, a network SwitchTimeModeWireDto
+    /// with a different value must not change MasterSimTime — the controller takes priority.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_MasterSimTime_IgnoresNetworkPulse_WhenControllerInjected()
     {
         var fakeCtrl = new FakeTimeController { TotalTime = 50.0 };
         using var cacheWithCtrl = new ClusterUiCache(_participant, fakeCtrl);
-        using var writer = new DdsWriter<TimePulseDescriptor>(_participant);
-        writer.Write(new TimePulseDescriptor
+        using var writer = new DdsWriter<SwitchTimeModeWireDto>(_participant);
+        writer.Write(new SwitchTimeModeWireDto
         {
             SimTimeSnapshot = 99.0,
             TimeScale       = 1.0f,
-            SequenceId      = 2L,
+            TargetModeInt   = (int)TimeMode.Continuous,
         });
 
         Thread.Sleep(150);
         cacheWithCtrl.Update();
 
-        // Network pulse must not override the controller value
+        // Network event must not override the controller value
         Assert.Equal(50.0, cacheWithCtrl.MasterSimTime, precision: 3);
     }
 

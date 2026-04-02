@@ -866,15 +866,15 @@ public class IgApplication : IDisposable
 
                     contextActionsTranslator,
 
-                    new TimePulseIngressTranslator(participant, _world.Bus),
-
                 };
 
-                // CGF1-A.1: Bridge SwitchTimeModeEvent for distributed time-mode switching
-                // (SlaveTimeModeListener ingress + DistributedTimeCoordinator egress if this
-                // node ever acts as master).
+                // CGF1-A.1: Bridge SwitchTimeModeEvent for distributed time-mode switching.
                 customTranslators.Add(
                     FDP.Toolkit.Time.TimeNetworkModule.CreateDescriptorTranslator(participant, _world.Bus));
+
+                // NTP slave sync: receive TimeSyncRequest/Response from master, publish into bus.
+                customTranslators.Add(
+                    FDP.Toolkit.Time.TimeNetworkModule.CreateSlaveTimeSyncTranslator(participant, _world.Bus, _effectiveInstanceId));
 
                 // Bridge FrameOrder/FrameAck for distributed lockstep stepping so IG sends
                 // its step ACK back to the Orchestrator on every Step() frame.
@@ -1909,6 +1909,9 @@ public class IgApplication : IDisposable
     /// <see cref="InitializeNetwork"/> was not called (e.g. headless tests without DDS).
     /// </summary>
     internal FDP.Toolkit.Orchestration.ClusterSlave? TestHook_ClusterSlave => _clusterSlave;
+
+    /// <summary>Current kernel sim time in seconds — available in both headless and normal mode.</summary>
+    internal double TestHook_CurrentSimTime => _kernel.CurrentTime.TotalTime;
 
     /// <summary>
     /// Internal test hook to simulate a map click without Raylib input.
