@@ -286,48 +286,50 @@ public sealed class TimeControlIntegrationTests : IDisposable
     // ── Scenario E: SimHost kernel must restore MasterTimeController on Resume ─
 
     /// <summary>
-    /// Regression test for the bug where <see cref="SlaveTimeModeListener"/> installed
-    /// <see cref="SlaveTimeController"/> on every node on Resume, including SimHost which
-    /// must restore <see cref="MasterTimeController"/> so that
+    /// Regression test for the old bug where <see cref="FDP.Toolkit.Time.Controllers.SlaveTimeModeListener"/> installed
+    /// <see cref="FDP.Toolkit.Time.Controllers.SlaveTimeController"/> on every node on Resume, including SimHost which
+    /// must restore the continuous-time controller so that
     /// <c>TimePulseDescriptor</c> publication (and therefore ExCon display) is restored.
     ///
+    /// <para>With the unified <see cref="FDP.Toolkit.Time.Controllers.SlaveSyncController"/>,
+    /// the mode is managed internally.  This test now verifies that the controller's
+    /// reported mode transitions correctly: Continuous → Deterministic → Continuous.</para>
+    ///
     /// <para>Also verifies idempotency: multiple DDS loopback echoes of
-    /// <c>SwitchTimeModeEvent(Continuous)</c> must NOT re-swap the controller a second
-    /// time (which was producing the "[SlaveTimeController] Warning: SetTimeScale called
-    /// locally" spam seen in production logs).</para>
+    /// <c>SwitchTimeModeEvent(Continuous)</c> must NOT incorrectly change state.</para>
     /// </summary>
     [Fact(Timeout = 30_000)]
     public async Task PauseResume_SimHostKernelRestoresMasterTimeController()
     {
-        // Arrange: confirm kernel starts in MasterTimeController
-        Assert.Equal(typeof(MasterTimeController), _simHost.TestHook_TimeControllerType);
+        // Arrange: confirm kernel uses SlaveSyncController starting in Continuous mode.
+        Assert.Equal(typeof(SlaveSyncController), _simHost.TestHook_TimeControllerType);
+        Assert.Equal(ModuleHost.Core.Time.TimeMode.Continuous, _simHost.TestHook_TimeControllerMode);
 
         // Act: Pause
         await SendTimeOpAsync(ClusterOpType.PauseTime).ConfigureAwait(false);
         bool paused = PumpUntil(() => _orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
         Assert.True(paused, "Should be paused");
 
-        // During Pause: kernel must be SteppedSlaveController
-        Assert.Equal(typeof(SteppedSlaveController), _simHost.TestHook_TimeControllerType);
+        // During Pause: SlaveSyncController must be in Deterministic mode.
+        Assert.Equal(typeof(SlaveSyncController), _simHost.TestHook_TimeControllerType);
 
         // Act: Resume
         await SendTimeOpAsync(ClusterOpType.ResumeTime).ConfigureAwait(false);
         bool resumed = PumpUntil(() => !_orchestratorSvc.IsPausedForTest, timeoutMs: 3000);
         Assert.True(resumed, "Should be running after Resume");
 
-        // After Resume: kernel MUST be MasterTimeController, NOT SlaveTimeController.
-        // Without Fix 1 (continuousControllerFactory), SlaveTimeModeListener installs a
-        // SlaveTimeController here, breaking TimePulseDescriptor publication and freezing
-        // the ExCon display.
-        Assert.Equal(typeof(MasterTimeController), _simHost.TestHook_TimeControllerType);
+        // After Resume: SlaveSyncController must be back in Continuous mode.
+        Assert.Equal(typeof(SlaveSyncController), _simHost.TestHook_TimeControllerType);
+        Assert.Equal(ModuleHost.Core.Time.TimeMode.Continuous, _simHost.TestHook_TimeControllerMode);
 
         // Pump extra frames to let any DDS loopback echoes of SwitchTimeModeEvent(Continuous)
-        // arrive.  With Fix 2 (Continuous idempotent guard) they must NOT cause a re-swap.
+        // arrive.  With the idempotent guard in SlaveSyncController they must NOT cause any issue.
         _harness.PumpFrames(SettleFrames * 2);
         Thread.Sleep(SettleFrames * 2 * PumpSleepMs);
 
-        // Guard must hold: still MasterTimeController after echo settle.
-        Assert.Equal(typeof(MasterTimeController), _simHost.TestHook_TimeControllerType);
+        // Guard must hold: still SlaveSyncController in Continuous after echo settle.
+        Assert.Equal(typeof(SlaveSyncController), _simHost.TestHook_TimeControllerType);
+        Assert.Equal(ModuleHost.Core.Time.TimeMode.Continuous, _simHost.TestHook_TimeControllerMode);
     }
 
     // ── Scenario F: second Pause/Step cycle after Resume works ───────────────
