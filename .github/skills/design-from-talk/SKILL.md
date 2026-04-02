@@ -21,7 +21,7 @@ components being replaced, interfaces being extended) before writing any design 
 
 ## Step 1: DESIGN.md
 
-Create `docs/DESIGN.md` capturing all final ideas from the design talk.
+Create `DESIGN.md` capturing all final ideas from the design talk.
 
 - Break the design into numbered implementation phases (e.g., Phase 1: Foundation, Phase 2: Core)
 - Each phase contains named tasks
@@ -33,7 +33,7 @@ Create `docs/DESIGN.md` capturing all final ideas from the design talk.
 
 ## Step 2: TASK-DETAIL.md
 
-Create `docs/TASK-DETAIL.md` with a complete description of every task.
+Create `TASK-DETAIL.md` with a complete description of every task.
 
 **Required per task:**
 
@@ -57,7 +57,7 @@ additional context needed.
 
 ## Step 3: TASK-TRACKER.md
 
-Create `docs/TASK-TRACKER.md` as a brief hierarchical checklist.
+Create `TASK-TRACKER.md` as a brief hierarchical checklist.
 
 ```markdown
 # Task Tracker
