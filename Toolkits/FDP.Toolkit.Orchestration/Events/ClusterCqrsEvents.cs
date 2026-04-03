@@ -12,8 +12,7 @@ namespace FDP.Toolkit.Orchestration
     public struct ClusterOpCompletedEvent
     {
         public Guid RequestId;
-        /// <summary>Uses <c>OrchestrationStatusCode</c> constants.</summary>
-        public int StatusCode;
+        public OrchestrationStatusCode StatusCode;
         /// <summary>
         /// Pure domain result object (e.g. <c>MaxNetworkIdResult</c>).
         /// Translators serialize this to <c>ResultJson</c> for DDS.
@@ -52,9 +51,9 @@ namespace FDP.Toolkit.Orchestration
     public struct NodeOpCompletedEvent
     {
         public Guid TransactionId;
+        public NodeOpType Operation;
         public int NodeId;
-        /// <summary>Uses <c>OrchestrationStatusCode</c> constants.</summary>
-        public int StatusCode;
+        public OrchestrationStatusCode StatusCode;
         public bool IsParticipating;
         /// <summary>
         /// Operation-specific result data.  Known runtime types by operation:
@@ -89,8 +88,8 @@ namespace FDP.Toolkit.Orchestration
     [DataPolicy(DataPolicy.NoRecord)]
     public struct ClusterStateTransitionedEvent
     {
-        /// <summary>New cluster state numeric value (<c>ClusterState</c> enum).</summary>
-        public int    NewStateId;
+        /// <summary>New cluster state.</summary>
+        public ClusterState NewStateId;
         /// <summary>"Cluster" — identifies the global cluster state machine.</summary>
         public string SubsystemName;
     }

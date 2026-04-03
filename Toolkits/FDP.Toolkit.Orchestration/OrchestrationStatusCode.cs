@@ -1,8 +1,7 @@
 namespace FDP.Toolkit.Orchestration
 {
     /// <summary>
-    /// Named constants for the unified <see cref="NodeOpCompletedEvent"/> status code
-    /// scheme used across all FDP orchestration messages.
+    /// Strongly-typed status codes used across all FDP orchestration domain events.
     ///
     /// <para>
     /// <b>Range design:</b>
@@ -16,35 +15,47 @@ namespace FDP.Toolkit.Orchestration
     ///
     /// <para>
     /// <b>Default-value guarantee:</b> <c>0</c> is the C# default for uninitialized
-    /// <c>int</c> fields, so a zero-initialised wire struct naturally means "OK" —
-    /// consistent with <c>NedStatusCode</c> already used in Hrot DDS messages.
+    /// fields, so a zero-initialised event struct naturally means "OK" — consistent
+    /// with <c>NedStatusCode</c> already used in Hrot DDS messages.
     /// </para>
     /// </summary>
-    public static class OrchestrationStatusCode
+    public enum OrchestrationStatusCode : int
     {
         // ── Lifecycle (0–9) ────────────────────────────────────────────────────
-        public const int Success    = 0;
-        public const int InProgress = 1;
-        public const int Pending    = 2;
+        Success    = 0,
+        InProgress = 1,
+        Pending    = 2,
 
         // ── Generic errors (10–99) ─────────────────────────────────────────────
-        public const int Rejected  = 10;
-        public const int Timeout   = 11;
-        public const int Cancelled = 12;
-        public const int Failure   = 13;
+        Rejected  = 10,
+        Timeout   = 11,
+        Cancelled = 12,
+        Failure   = 13,
 
         // ── Federation errors (100–999) ────────────────────────────────────────
-        public const int InvalidZone      = 101;
-        public const int ExerciseMismatch = 102;
+        InvalidZone      = 101,
+        ExerciseMismatch = 102,
 
         // ── Node / slave errors (1000+) ────────────────────────────────────────
-        public const int OutOfMemory   = 1000;
-        public const int AssetNotFound = 1001;
+        OutOfMemory   = 1000,
+        AssetNotFound = 1001,
+    }
 
+    /// <summary>
+    /// Extension methods for <see cref="OrchestrationStatusCode"/> and raw <c>int</c> wire values.
+    /// </summary>
+    public static class OrchestrationStatusCodeExtensions
+    {
         /// <summary>
         /// Returns <c>true</c> when <paramref name="code"/> represents a terminal
         /// failure (i.e. any code ≥ 10).
         /// </summary>
-        public static bool IsError(int code) => code >= 10;
+        public static bool IsError(this OrchestrationStatusCode code) => (int)code >= 10;
+
+        /// <summary>
+        /// Returns <c>true</c> when <paramref name="code"/> represents a terminal
+        /// failure (i.e. any code ≥ 10). Overload for raw DDS wire-format integers.
+        /// </summary>
+        public static bool IsError(this int code) => code >= 10;
     }
 }

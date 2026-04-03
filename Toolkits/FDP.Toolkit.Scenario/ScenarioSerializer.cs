@@ -55,31 +55,11 @@ namespace FDP.Toolkit.Scenario
         }
 
         /// <summary>
-        /// Returns <c>true</c> when <paramref name="subsystemType"/> matches the type
-        /// string this serializer was built for (ordinal, case-sensitive).
-        /// Used by application-layer handlers to peek the file header and determine whether
-        /// a scenario file belongs to this subsystem before committing a full parse.
+        /// The subsystem type string this serializer was built for.
+        /// Used by application-layer handlers to determine if a scenario file belongs
+        /// to this subsystem via <c>Hrot.Common.Scenario.HrotScenarioEnvelope.IsMatchingSubsystem</c>.
         /// </summary>
-        public bool IsMatchingSubsystem(string? subsystemType)
-            => string.Equals(subsystemType, _subsystemType, StringComparison.Ordinal);
-
-        /// <summary>
-        /// Parses the <c>Header.SubsystemType</c> value from raw JSON text without a
-        /// full DOM parse.  Returns <see langword="null"/> on parse failure or if the
-        /// header node is absent.
-        /// </summary>
-        public string? PeekSubsystemType(string jsonText)
-        {
-            try
-            {
-                var node = JsonNode.Parse(jsonText);
-                return node?["Header"]?["SubsystemType"]?.GetValue<string>();
-            }
-            catch
-            {
-                return null;
-            }
-        }
+        public string SubsystemType => _subsystemType;
 
         /// <summary>
         /// Parses <paramref name="jsonText"/> and deserializes entities into <paramref name="repo"/>.

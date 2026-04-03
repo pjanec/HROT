@@ -63,13 +63,13 @@ public sealed class OrchestrationContractTests
     [Fact]
     public void OrchestrationStatusCode_IsError_CorrectlyCategorises()
     {
-        Assert.False(OrchestrationStatusCode.IsError(OrchestrationStatusCode.Success),
+        Assert.False(OrchestrationStatusCode.Success.IsError(),
             "Success (0) must not be an error.");
-        Assert.False(OrchestrationStatusCode.IsError(OrchestrationStatusCode.InProgress),
+        Assert.False(OrchestrationStatusCode.InProgress.IsError(),
             "InProgress (1) must not be an error.");
-        Assert.True(OrchestrationStatusCode.IsError(OrchestrationStatusCode.Rejected),
+        Assert.True(OrchestrationStatusCode.Rejected.IsError(),
             "Rejected (10) must be an error.");
-        Assert.True(OrchestrationStatusCode.IsError(1001),
+        Assert.True(((OrchestrationStatusCode)1001).IsError(),
             "AssetNotFound (1001) must be an error.");
     }
 }

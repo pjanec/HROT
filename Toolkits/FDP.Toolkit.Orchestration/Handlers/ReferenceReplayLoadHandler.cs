@@ -65,13 +65,6 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// </summary>
     public sealed class ReferenceReplayLoadHandler : IClusterStateHandler
     {
-        /// <summary>Integer value of <c>NodeOpType.PrepareReplay</c>.</summary>
-        public const int PrepareReplayOperationId  = 11;
-        /// <summary>Integer value of <c>NodeOpType.FinalizeReplay</c>.</summary>
-        public const int FinalizeReplayOperationId = 12;
-        /// <summary>Integer value of <c>NodeOpType.PrepareLive</c>.</summary>
-        public const int PrepareLiveOperationId    = 9;
-
         private readonly IRecordReplayController      _controller;
         private readonly SimulationSystemGroup?       _simGroup;
         private readonly NetworkLifecycleSystemGroup? _lifecycleGroup;

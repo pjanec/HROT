@@ -17,9 +17,6 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// </summary>
     public sealed class ReferencePrefetchHandler : IClusterStateHandler
     {
-        /// <summary>Integer value of <c>NodeOpType.PrefetchFiles</c> (stable constant).</summary>
-        public const int PrefetchFilesOperationId = 25;
-
         private readonly IScenarioStorageProvider _storageProvider;
 
         private string? _pendingScenarioId;

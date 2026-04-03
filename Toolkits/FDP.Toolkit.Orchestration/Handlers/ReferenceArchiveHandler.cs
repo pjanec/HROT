@@ -29,9 +29,6 @@ public record struct FileManifestResult(string SourceUnc, string RelativeDest);
 /// </summary>
 public sealed class ReferenceArchiveHandler : IClusterStateHandler
 {
-    /// <summary>Integer value of <c>NodeOpType.SerializeLocal</c>.</summary>
-    public const int SerializeLocalOperationId = 15;
-
     private readonly string _localTempRoot;
     private readonly int    _nodeId;
 

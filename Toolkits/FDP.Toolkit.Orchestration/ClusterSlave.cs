@@ -152,6 +152,7 @@ namespace FDP.Toolkit.Orchestration
                     _eventBus?.PublishManaged(new NodeOpCompletedEvent
                     {
                         TransactionId   = pending.Intent.TransactionId,
+                        Operation       = pending.Intent.Operation,
                         NodeId          = _nodeId,
                         StatusCode      = OrchestrationStatusCode.Failure,
                         IsParticipating = true,
@@ -166,6 +167,7 @@ namespace FDP.Toolkit.Orchestration
                 _eventBus?.PublishManaged(new NodeOpCompletedEvent
                 {
                     TransactionId   = pending.Intent.TransactionId,
+                    Operation       = pending.Intent.Operation,
                     NodeId          = _nodeId,
                     StatusCode      = OrchestrationStatusCode.Success,
                     IsParticipating = true,
@@ -188,7 +190,8 @@ namespace FDP.Toolkit.Orchestration
                     if (_pendingPrepare.HasValue)
                     {
                         // Async prepare in progress — buffer unseen intents for next tick.
-                        int sd = intent.Operation == NodeOpType.CommitState && intent.DomainPayload is int v ? v : -1;
+                        int sd = intent.Operation == NodeOpType.CommitState && intent.DomainPayload is CommitStatePayload csp2
+                            ? csp2.TargetStateId : -1;
                         if (!_seenTransactionIds.Contains((intent.TransactionId, intent.Operation, sd)))
                             _pendingIntents.Enqueue(intent);
                     }
@@ -224,8 +227,9 @@ namespace FDP.Toolkit.Orchestration
             // CommitState intents for different target states within the same transaction
             // must each be accepted — use DomainPayload (target state int) as a discriminant.
             // All other intents use discriminant -1.
-            int stateDiscriminant = intent.Operation == NodeOpType.CommitState && intent.DomainPayload is int sd
-                ? sd : -1;
+            int stateDiscriminant = intent.Operation == NodeOpType.CommitState &&
+                                    intent.DomainPayload is CommitStatePayload csp
+                ? csp.TargetStateId : -1;
             var dedupKey = (intent.TransactionId, intent.Operation, stateDiscriminant);
             if (!_seenTransactionIds.Add(dedupKey))
             {
@@ -237,7 +241,7 @@ namespace FDP.Toolkit.Orchestration
             // CommitState: update local state and raise TkClusterStateChangedEvent.
             if (intent.Operation == NodeOpType.CommitState)
             {
-                int nextStateId = intent.DomainPayload is int stateId ? stateId : _localStateId;
+                int nextStateId = intent.DomainPayload is CommitStatePayload cp ? cp.TargetStateId : _localStateId;
                 var previousStateId = _localStateId;
                 _localStateId = nextStateId;
                 _eventBus?.Publish(new TkClusterStateChangedEvent
@@ -266,6 +270,7 @@ namespace FDP.Toolkit.Orchestration
                         _eventBus?.PublishManaged(new NodeOpCompletedEvent
                         {
                             TransactionId   = intent.TransactionId,
+                            Operation       = intent.Operation,
                             NodeId          = _nodeId,
                             StatusCode      = OrchestrationStatusCode.Failure,
                             IsParticipating = true,
@@ -279,6 +284,7 @@ namespace FDP.Toolkit.Orchestration
                         _eventBus?.PublishManaged(new NodeOpCompletedEvent
                         {
                             TransactionId   = intent.TransactionId,
+                            Operation       = intent.Operation,
                             NodeId          = _nodeId,
                             StatusCode      = OrchestrationStatusCode.Success,
                             IsParticipating = true,

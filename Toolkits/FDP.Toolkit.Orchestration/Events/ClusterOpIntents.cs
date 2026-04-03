@@ -89,7 +89,7 @@ namespace FDP.Toolkit.Orchestration
     public struct StorageOpCompletedEvent
     {
         public Guid RequestId;
-        public int StatusCode;
+        public OrchestrationStatusCode StatusCode;
         public int SuccessCount;
         public int FailureCount;
     }

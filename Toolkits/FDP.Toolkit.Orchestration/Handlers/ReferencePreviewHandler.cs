@@ -39,9 +39,6 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// </summary>
     public sealed class ReferencePreviewHandler : IClusterStateHandler
     {
-        /// <summary>Integer value of <c>NodeOpType.PrepareState</c>.</summary>
-        public const int PrepareStateOperationId = 1;
-
         /// <summary>Integer value of <c>ClusterState.LoadingPreview</c>.</summary>
         private const int LoadingPreviewState   = 20;
         /// <summary>Integer value of <c>ClusterState.UnloadingPreview</c>.</summary>

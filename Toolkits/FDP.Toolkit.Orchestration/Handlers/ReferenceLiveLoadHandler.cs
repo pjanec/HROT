@@ -35,11 +35,6 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// </summary>
     public sealed class ReferenceLiveLoadHandler : IClusterStateHandler
     {
-        /// <summary>Integer value of <c>NodeOpType.PrepareLive</c>.</summary>
-        public const int PrepareLiveOperationId  = 9;
-        /// <summary>Integer value of <c>NodeOpType.FinalizeLive</c>.</summary>
-        public const int FinalizeLiveOperationId = 10;
-
         private readonly CheckpointIOWorker?      _checkpointWorker;
         private readonly IRecordReplayController? _controller;
         private readonly string                   _storageDirectory;

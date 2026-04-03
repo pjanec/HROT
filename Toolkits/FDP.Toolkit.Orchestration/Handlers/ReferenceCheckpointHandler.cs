@@ -14,9 +14,6 @@ namespace FDP.Toolkit.Orchestration.Handlers
     /// </summary>
     public sealed class ReferenceCheckpointHandler : ITickableClusterStateHandler
     {
-        /// <summary>Integer value of <c>NodeOpType.TakeSnapshot</c>.</summary>
-        public const int TakeSnapshotOperationId = 4;
-
         private readonly CheckpointIOWorker          _worker;
         private readonly EntityRepository?           _liveRepo;
 

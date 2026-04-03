@@ -253,4 +253,18 @@ public sealed class FdpOrchestrationCqrsStructTests
         // All unique
         Assert.Equal(ids.Count, ids.Distinct().Count());
     }
+
+    // ── TASK-D03: ClusterStateTransitionedEvent.NewStateId is ClusterState ─
+
+    [Fact]
+    public void ClusterStateTransitionedEvent_NewStateId_IsClusterStateEnum()
+    {
+        var ev = new ClusterStateTransitionedEvent { NewStateId = ClusterState.OperatingLive, SubsystemName = "Cluster" };
+        Assert.Equal(ClusterState.OperatingLive, ev.NewStateId);
+
+        var field = typeof(ClusterStateTransitionedEvent)
+            .GetField("NewStateId", BindingFlags.Public | BindingFlags.Instance);
+        Assert.NotNull(field);
+        Assert.Equal(typeof(ClusterState), field!.FieldType);
+    }
 }
