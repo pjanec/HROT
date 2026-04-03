@@ -69,7 +69,12 @@ namespace FDP.Toolkit.Orchestration.Handlers
         /// <inheritdoc />
         public void Commit(ExecuteNodeOpIntent intent, EntityRepository? repo)
         {
-            var target = intent.DomainPayload is int t ? t : 0;
+            var target = intent.DomainPayload switch
+            {
+                EditLoadHandlerPayload elp => elp.TargetState,
+                int i                      => i,
+                _                          => 0,
+            };
 
             switch (target)
             {

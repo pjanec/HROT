@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Orchestration.Handlers;
 
 namespace FDP.Toolkit.Orchestration
 {
@@ -190,8 +191,12 @@ namespace FDP.Toolkit.Orchestration
                     if (_pendingPrepare.HasValue)
                     {
                         // Async prepare in progress — buffer unseen intents for next tick.
-                        int sd = intent.Operation == NodeOpType.CommitState && intent.DomainPayload is CommitStatePayload csp2
-                            ? csp2.TargetStateId : -1;
+                        int sd = intent.DomainPayload switch
+                        {
+                            CommitStatePayload      csp2 => csp2.TargetStateId,
+                            EditLoadHandlerPayload  elp  => elp.TargetState,
+                            _                            => -1,
+                        };
                         if (!_seenTransactionIds.Contains((intent.TransactionId, intent.Operation, sd)))
                             _pendingIntents.Enqueue(intent);
                     }
@@ -224,12 +229,16 @@ namespace FDP.Toolkit.Orchestration
         private void DispatchIntent(ExecuteNodeOpIntent intent)
         {
             // Idempotency: drop re-delivered intents.
-            // CommitState intents for different target states within the same transaction
-            // must each be accepted — use DomainPayload (target state int) as a discriminant.
-            // All other intents use discriminant -1.
-            int stateDiscriminant = intent.Operation == NodeOpType.CommitState &&
-                                    intent.DomainPayload is CommitStatePayload csp
-                ? csp.TargetStateId : -1;
+            // CommitState and PrepareState (with EditLoadHandlerPayload) intents for different
+            // target states within the same transaction must each be accepted — use the payload
+            // target-state int as a discriminant so same-transaction PrepareState ops don't collide.
+            int stateDiscriminant = intent.DomainPayload switch
+            {
+                CommitStatePayload     csp => csp.TargetStateId,
+                EditLoadHandlerPayload elp => elp.TargetState,
+                _                         => -1,
+            };
+
             var dedupKey = (intent.TransactionId, intent.Operation, stateDiscriminant);
             if (!_seenTransactionIds.Add(dedupKey))
             {

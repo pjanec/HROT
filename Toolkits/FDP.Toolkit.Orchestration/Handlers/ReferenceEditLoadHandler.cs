@@ -35,7 +35,10 @@ namespace FDP.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        public bool CanHandle(NodeOpType operation) => operation == NodeOpType.PrepareState;
+        public bool CanHandle(NodeOpType operation) =>
+            operation == NodeOpType.PrepareState ||
+            operation == NodeOpType.PrepareEdit  ||
+            operation == NodeOpType.FinalizeEdit;
 
         /// <inheritdoc />
         public System.Threading.Tasks.Task<object?> PrepareAsync(ExecuteNodeOpIntent intent, System.Threading.CancellationToken ct)
