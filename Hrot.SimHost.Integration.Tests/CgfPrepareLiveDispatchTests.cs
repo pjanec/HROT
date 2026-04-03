@@ -5,7 +5,8 @@ using System.Threading.Tasks;
 using Hrot.CGF.Modules.Orchestration.Handlers;
 using Hrot.Common.Orchestration;
 using FDP.Toolkit.Orchestration;
-using Hrot.Common.Orchestration.Handlers;
+using FDP.Toolkit.Orchestration.Handlers;
+using Hrot.Common.Scenario;
 using FDP.Toolkit.Scenario;
 using Xunit;
 
@@ -54,7 +55,9 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
     public void PrepareLive_WithScenarioId_RoutesToScenarioLoadClusterStateHandler()
     {
         var serializer = new ScenarioSerializerBuilder("Hrot.CGF").Build();
-        var handler    = new ReferenceScenarioLoadHandler(serializer, new LocalDiskStorageProvider(_tempRoot));
+        var handler    = new ReferenceScenarioLoadHandler(
+            serializer,
+            new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), serializer.SubsystemType));
         var stub       = new FailLoudRecordReplayStub("CGF-test");
 
         using var slave = new ClusterSlave();
@@ -90,7 +93,9 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
     public void PrepareLive_WithExerciseIdOnly_RoutesToScenarioLoadClusterStateHandler()
     {
         var serializer = new ScenarioSerializerBuilder("Hrot.CGF").Build();
-        var handler    = new ReferenceScenarioLoadHandler(serializer, new LocalDiskStorageProvider(_tempRoot));
+        var handler    = new ReferenceScenarioLoadHandler(
+            serializer,
+            new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), serializer.SubsystemType));
         var stub       = new FailLoudRecordReplayStub("CGF-test");
 
         using var slave = new ClusterSlave();
@@ -130,7 +135,9 @@ public sealed class CgfPrepareLiveDispatchTests : IDisposable
         await File.WriteAllTextAsync(Path.Combine(scenarioDir, "Hrot.CGF.json"), json);
 
         var serializer = new ScenarioSerializerBuilder("Hrot.CGF").Build();
-        var handler    = new ReferenceScenarioLoadHandler(serializer, new LocalDiskStorageProvider(_tempRoot));
+        var handler    = new ReferenceScenarioLoadHandler(
+            serializer,
+            new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), serializer.SubsystemType));
 
         var cmd = new ExecuteNodeOpIntent
         {

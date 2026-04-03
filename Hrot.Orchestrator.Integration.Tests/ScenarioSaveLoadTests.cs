@@ -9,7 +9,7 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
-using Hrot.Common.Orchestration.Handlers;
+using Hrot.Common.Scenario;
 using FDP.Toolkit.Scenario;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
@@ -95,7 +95,9 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             freshRepo.RegisterComponent<TestScenarioPos>();
 
             // ── Load via handler ─────────────────────────────────────────────────
-            var handler = new ReferenceScenarioLoadHandler(serializer, new LocalDiskStorageProvider(tempRoot));
+            var handler = new ReferenceScenarioLoadHandler(
+                serializer,
+                new HrotScenarioLoader(new LocalDiskStorageProvider(tempRoot), serializer.SubsystemType));
             var cmd     = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
@@ -300,7 +302,9 @@ public sealed class ScenarioSaveLoadTests : IDisposable
             var simHostSerializer = new ScenarioSerializerBuilder("Hrot.SimHost").Build();
             var simHostRepo       = new EntityRepository();
 
-            var handler = new ReferenceScenarioLoadHandler(simHostSerializer, new LocalDiskStorageProvider(tempRoot));
+            var handler = new ReferenceScenarioLoadHandler(
+                simHostSerializer,
+                new HrotScenarioLoader(new LocalDiskStorageProvider(tempRoot), simHostSerializer.SubsystemType));
             var cmd     = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),

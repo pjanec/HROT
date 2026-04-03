@@ -26,6 +26,7 @@ using FDP.Toolkit.Navigation.Modules;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using Hrot.Common.Orchestration.Handlers;
+using Hrot.Common.Scenario;
 using FDP.Toolkit.Perception.Modules;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
@@ -372,14 +373,16 @@ namespace Hrot.SimHost
             // Wire scenario/episode handlers when a serializer is provided.
             if (scenarioSerializer != null)
             {
-                clusterSlave.RegisterHandler(
-                    new ReferenceScenarioLoadHandler(scenarioSerializer, storageProvider, world));
+                var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
 
                 clusterSlave.RegisterHandler(
-                    new ReferenceEditLoadHandler(scenarioSerializer, storageProvider, world));
+                    new ReferenceScenarioLoadHandler(scenarioSerializer, scenarioLoader, world));
 
                 clusterSlave.RegisterHandler(
-                    new ReferenceEpisodeLoadHandler(scenarioSerializer, storageProvider, world));
+                    new ReferenceEditLoadHandler(scenarioSerializer, scenarioLoader, world));
+
+                clusterSlave.RegisterHandler(
+                    new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader, world));
             }
 
             return clusterSlave;

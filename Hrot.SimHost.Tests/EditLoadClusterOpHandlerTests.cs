@@ -7,7 +7,7 @@ using Hrot.Common.Orchestration;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
-using Hrot.Common.Orchestration.Handlers;
+using Hrot.Common.Scenario;
 using FDP.Toolkit.Scenario;
 using Xunit;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
@@ -65,7 +65,9 @@ namespace Hrot.SimHost.Tests
             };
 
         private ReferenceEditLoadHandler CreateHandler() =>
-            new ReferenceEditLoadHandler(_serializer, new LocalDiskStorageProvider(_tempDir));
+            new ReferenceEditLoadHandler(
+                _serializer,
+                new HrotScenarioLoader(new LocalDiskStorageProvider(_tempDir), _serializer.SubsystemType));
 
         private System.Collections.Generic.HashSet<(float X, float Y, float Z)>
             CollectPositions(EntityRepository repo)

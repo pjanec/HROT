@@ -10,7 +10,7 @@ using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
-using Hrot.Common.Orchestration.Handlers;
+using Hrot.Common.Scenario;
 using FDP.Toolkit.Scenario;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
@@ -109,13 +109,15 @@ namespace Hrot.CGF
             // checked first; ReferenceScenarioLoadHandler claims cold PrepareLive.
             if (scenarioSerializer != null)
             {
+                var scenarioLoader = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
+
                 // CGF header-peek-only path: world=null because CGF has no ECS repo.
                 _clusterSlave.RegisterHandler(
-                    new ReferenceScenarioLoadHandler(scenarioSerializer, storageProvider, world: null));
+                    new ReferenceScenarioLoadHandler(scenarioSerializer, scenarioLoader, world: null));
 
                 // CGF1-S0308: wire episode handler; CGF is header-peek only (world=null).
                 _clusterSlave.RegisterHandler(
-                    new ReferenceEpisodeLoadHandler(scenarioSerializer, storageProvider,
+                    new ReferenceEpisodeLoadHandler(scenarioSerializer, scenarioLoader,
                         world: null));
             }
 

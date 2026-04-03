@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
-using Hrot.Common.Orchestration.Handlers;
+using Hrot.Common.Scenario;
 using FDP.Toolkit.Scenario;
 using Xunit;
 
@@ -48,7 +48,10 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public async Task StartEpisode_MissingEpisodeId_SetsTransactionId_SoCommitFires()
         {
-            var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot), _repo);
+            var handler = new ReferenceEpisodeLoadHandler(
+                _serializer,
+                new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), _serializer.SubsystemType),
+                _repo);
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
@@ -73,7 +76,10 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public async Task StartEpisode_MissingScenarioId_SetsTransactionId_SoCommitFires()
         {
-            var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot), _repo);
+            var handler = new ReferenceEpisodeLoadHandler(
+                _serializer,
+                new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), _serializer.SubsystemType),
+                _repo);
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
@@ -107,7 +113,9 @@ namespace Hrot.SimHost.Tests
             buildRepo.Dispose();
 
             // Handler constructed without _world so repo must come from Commit param.
-            var handlerNoWorld = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
+            var handlerNoWorld = new ReferenceEpisodeLoadHandler(
+                _serializer,
+                new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), _serializer.SubsystemType));
             var episodeId = Guid.NewGuid();
             var cmd = new ExecuteNodeOpIntent
             {
@@ -130,7 +138,10 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public async Task StopEpisode_MissingEpisodeId_SetsTransactionId_SoCommitFires()
         {
-            var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot), _repo);
+            var handler = new ReferenceEpisodeLoadHandler(
+                _serializer,
+                new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), _serializer.SubsystemType),
+                _repo);
             var cmd = new ExecuteNodeOpIntent
             {
                 TransactionId = Guid.NewGuid(),
@@ -153,7 +164,9 @@ namespace Hrot.SimHost.Tests
         public async Task StopEpisode_NullRepo_WhenParticipating_Throws()
         {
             // Handler constructed without _world so repo must come from Commit param.
-            var handlerNoWorld = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
+            var handlerNoWorld = new ReferenceEpisodeLoadHandler(
+                _serializer,
+                new HrotScenarioLoader(new LocalDiskStorageProvider(_tempRoot), _serializer.SubsystemType));
             var episodeId = Guid.NewGuid();
             var cmd = new ExecuteNodeOpIntent
             {
