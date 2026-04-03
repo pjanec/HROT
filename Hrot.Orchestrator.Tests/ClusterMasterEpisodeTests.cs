@@ -114,7 +114,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             TransactionId   = episodeTxId!.Value,
             NodeId          = 1,
-            StatusCode      = OrchestrationStatusCode.Success,
+            StatusCode      = (int)OrchestrationStatusCode.Success,
             IsParticipating = true,
             ResultJson      = string.Empty,
         });
@@ -200,7 +200,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             TransactionId   = episodeTxId!.Value,
             NodeId          = 2,
-            StatusCode      = OrchestrationStatusCode.Success,
+            StatusCode      = (int)OrchestrationStatusCode.Success,
             IsParticipating = false,   // ← non-participating
             ResultJson      = string.Empty,
         });
@@ -285,7 +285,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             TransactionId   = episodeTxId!.Value,
             NodeId          = 3,
-            StatusCode      = OrchestrationStatusCode.Timeout, // ← error
+            StatusCode      = (int)OrchestrationStatusCode.Timeout, // ← error
             IsParticipating = true,
             ResultJson      = string.Empty,
         });
@@ -305,7 +305,7 @@ public sealed class ClusterMasterEpisodeTests
             {
                 if (s.IsValid
                     && s.Data.RequestId == requestId
-                    && s.Data.StatusCode == OrchestrationStatusCode.Rejected)
+                    && s.Data.StatusCode == (int)OrchestrationStatusCode.Rejected)
                 {
                     receivedRejected = true;
                     break;
@@ -388,7 +388,7 @@ public sealed class ClusterMasterEpisodeTests
             {
                 if (s.IsValid
                     && s.Data.RequestId == requestId
-                    && s.Data.StatusCode == OrchestrationStatusCode.Rejected)
+                    && s.Data.StatusCode == (int)OrchestrationStatusCode.Rejected)
                 {
                     receivedRejected = true;
                     break;
@@ -476,7 +476,7 @@ public sealed class ClusterMasterEpisodeTests
         {
             TransactionId   = episodeTxId!.Value,
             NodeId          = 5,
-            StatusCode      = OrchestrationStatusCode.Success,
+            StatusCode      = (int)OrchestrationStatusCode.Success,
             IsParticipating = true,
             ResultJson      = string.Empty,
         });
@@ -496,7 +496,7 @@ public sealed class ClusterMasterEpisodeTests
             {
                 if (s.IsValid
                     && s.Data.RequestId == requestId
-                    && s.Data.StatusCode == OrchestrationStatusCode.Success)
+                    && s.Data.StatusCode == (int)OrchestrationStatusCode.Success)
                 {
                     receivedSuccess = true;
                     break;

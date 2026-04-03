@@ -13,6 +13,7 @@ using Fdp.Kernel;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
 using ModuleHost.Network.Cyclone.Services;
 
 namespace Hrot.Orchestrator;
@@ -179,7 +180,7 @@ public sealed class ClusterMaster : IDisposable
         public int  Expected;
         public int  Received;
         public bool HasFailure;
-        public int  FailureCode;
+        public OrchestrationStatusCode  FailureCode;
     }
 
     private readonly Dictionary<Guid, BusTransitionAckTracker> _pendingBusTransitionAcks = new();
@@ -533,7 +534,8 @@ public sealed class ClusterMaster : IDisposable
             bool found = false;
             foreach (var kv in _roster.ActiveNodes)
             {
-                if (kv.Value.SubsystemName == name && kv.Value.LocalClusterState == ClusterState.Idle)
+                if (string.Equals(kv.Value.SubsystemName, name, StringComparison.OrdinalIgnoreCase)
+                    && kv.Value.LocalClusterState == ClusterState.Idle)
                 {
                     found = true;
                     break;
@@ -858,7 +860,8 @@ public sealed class ClusterMaster : IDisposable
                                 : null;
 
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
-                        FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId, (int)tStep.TargetState,     activeNodeIds);
+                        FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
+                            new CommitStatePayload((int)tStep.TargetState), activeNodeIds);
 
                         // CGF1-S0307: Invoke local context handler for load transitions.
                         if (_globalContextHandler != null &&
@@ -1069,7 +1072,8 @@ public sealed class ClusterMaster : IDisposable
     {
         var seekNodeIds = new List<int>(_roster.ActiveNodes.Keys);
         if (seekNodeIds.Count > 0)
-            FanOutNodeOp(NodeOpType.NodeReplaySeek, Guid.NewGuid(), intent.TargetWallTicks, seekNodeIds);
+            FanOutNodeOp(NodeOpType.NodeReplaySeek, Guid.NewGuid(),
+            new ReplaySeekPayload(intent.TargetWallTicks), seekNodeIds);
     }
 
     private void ProcessCancelOperationIntent(CancelOperationIntent intent)
@@ -1089,14 +1093,15 @@ public sealed class ClusterMaster : IDisposable
         {
             var cancelNodeIds = new List<int>(_roster.ActiveNodes.Keys);
             if (cancelNodeIds.Count > 0)
-                FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(), targetId, cancelNodeIds);
+                FanOutNodeOp(NodeOpType.AbortTransaction, Guid.NewGuid(),
+                    new AbortTransactionPayload(targetId), cancelNodeIds);
         }
     }
 
     // ── Egress helpers (CMC-S009) ─────────────────────────────────────────
 
     /// <summary>Publishes an operation status to the bus (bus path) or DDS writer (DDS path).</summary>
-    private void PublishOpStatus(Guid requestId, int statusCode)
+    private void PublishOpStatus(Guid requestId, OrchestrationStatusCode statusCode)
     {
         if (_eventBus != null)
         {
@@ -1112,7 +1117,7 @@ public sealed class ClusterMaster : IDisposable
             _sysOpStatusWriter.Write(new ClusterOpStatus
             {
                 RequestId  = requestId,
-                StatusCode = statusCode,
+                StatusCode = (int)statusCode,
                 ResultJson = string.Empty,
             });
         }
@@ -1125,7 +1130,7 @@ public sealed class ClusterMaster : IDisposable
         {
             _eventBus.PublishManaged(new ClusterStateTransitionedEvent
             {
-                NewStateId    = (int)state,
+                NewStateId    = (FDP.Toolkit.Orchestration.ClusterState)(int)state,
                 SubsystemName = "Cluster",
             });
         }
@@ -1179,14 +1184,14 @@ public sealed class ClusterMaster : IDisposable
     /// <summary>Converts a typed domain payload to a JSON string for legacy DDS NodeOpCommand.</summary>
     private static string DomainPayloadToString(object? domainPayload) => domainPayload switch
     {
-        null                   => string.Empty,
-        int    i               => i.ToString(),
-        long   l               => l.ToString(),
-        Guid   g               => g.ToString(),
-        string s               => s,
-        ArchiveHandlerPayload  p => p.ExerciseId  != null ? $"{{\"ExerciseId\":\"{p.ExerciseId}\"}}"   : string.Empty,
-        PrefetchHandlerPayload p => p.ScenarioId != null  ? $"{{\"ScenarioId\":\"{p.ScenarioId}\"}}" : string.Empty,
-        _                      => string.Empty,
+        null                        => string.Empty,
+        CommitStatePayload    csp   => csp.TargetStateId.ToString(),
+        ReplaySeekPayload     rsp   => rsp.TargetWallTicks.ToString(),
+        AbortTransactionPayload atp => atp.TargetTransactionId.ToString(),
+        string s                    => s,
+        ArchiveHandlerPayload  p    => p.ExerciseId  != null ? $"{{\"ExerciseId\":\"{p.ExerciseId}\"}}"   : string.Empty,
+        PrefetchHandlerPayload p    => p.ScenarioId != null  ? $"{{\"ScenarioId\":\"{p.ScenarioId}\"}}" : string.Empty,
+        _                           => string.Empty,
     };
 
     // ── Storage gateway integration (CGF1-S0301) ─────────────────────────
@@ -1260,20 +1265,39 @@ public sealed class ClusterMaster : IDisposable
         {
             foreach (var ev in _eventBus.ConsumeManaged<NodeOpCompletedEvent>())
             {
-                if (!_pendingBusTransitionAcks.TryGetValue(ev.TransactionId, out var tracker))
-                    continue;
-
-                if (OrchestrationStatusCode.IsError(ev.StatusCode))
+                // Transition ACK handling (existing — no changes)
+                if (_pendingBusTransitionAcks.TryGetValue(ev.TransactionId, out var tracker))
                 {
-                    tracker.HasFailure  = true;
-                    tracker.FailureCode = ev.StatusCode;
+                    if (ev.StatusCode.IsError())
+                    {
+                        tracker.HasFailure  = true;
+                        tracker.FailureCode = ev.StatusCode;
+                    }
+                    tracker.Received++;
+                    if (tracker.Received >= tracker.Expected)
+                    {
+                        _pendingBusTransitionAcks.Remove(ev.TransactionId);
+                        PublishOpStatus(tracker.RequestId,
+                            tracker.HasFailure ? tracker.FailureCode : OrchestrationStatusCode.Success);
+                    }
+                    continue;  // avoid fall-through to SerializeLocal check
                 }
-                tracker.Received++;
-                if (tracker.Received >= tracker.Expected)
+
+                // SerializeLocal ACK handling for bus-mode
+                if (ev.Operation == FdpNodeOpType.SerializeLocal &&
+                    _pendingSerializeTasks.TryGetValue(ev.TransactionId, out var serTask))
                 {
-                    _pendingBusTransitionAcks.Remove(ev.TransactionId);
-                    PublishOpStatus(tracker.RequestId,
-                        tracker.HasFailure ? tracker.FailureCode : OrchestrationStatusCode.Success);
+                    if (!ev.StatusCode.IsError() && ev.ResultPayload is List<FileManifestEntry> entries)
+                        serTask.Manifests.AddRange(entries);
+                    else if (ev.StatusCode.IsError())
+                        serTask.FailureCount++;
+
+                    serTask.RemainingAcks--;
+                    if (serTask.RemainingAcks <= 0)
+                    {
+                        _pendingSerializeTasks.Remove(ev.TransactionId);
+                        HandleSerializeLocalCompletion(serTask);
+                    }
                 }
             }
             return;
@@ -1309,7 +1333,7 @@ public sealed class ClusterMaster : IDisposable
             // do NOT update _activeEpisodes and publish SysOpStatus.Rejected.
             if (_pendingManageEpisodeTasks.TryGetValue(status.TransactionId, out var episodeTask))
             {
-                if (OrchestrationStatusCode.IsError(status.StatusCode))
+                if (status.StatusCode.IsError())
                 {
                     _pendingManageEpisodeTasks.Remove(status.TransactionId);
                     FdpLog<ClusterMaster>.Warn(
@@ -1318,7 +1342,7 @@ public sealed class ClusterMaster : IDisposable
                     _sysOpStatusWriter.Write(new ClusterOpStatus
                     {
                         RequestId  = episodeTask.RequestId,
-                        StatusCode = OrchestrationStatusCode.Rejected,
+                        StatusCode = (int)OrchestrationStatusCode.Rejected,
                         ResultJson = string.Empty
                     });
                     continue;
@@ -1335,7 +1359,7 @@ public sealed class ClusterMaster : IDisposable
                     _sysOpStatusWriter.Write(new ClusterOpStatus
                     {
                         RequestId  = episodeTask.RequestId,
-                        StatusCode = OrchestrationStatusCode.Success,
+                        StatusCode = (int)OrchestrationStatusCode.Success,
                         ResultJson = string.Empty
                     });
                     FdpLog<ClusterMaster>.Info(
@@ -1356,7 +1380,7 @@ public sealed class ClusterMaster : IDisposable
             if (!_pendingSerializeTasks.TryGetValue(status.TransactionId, out var task))
                 continue;
 
-            if (!OrchestrationStatusCode.IsError(status.StatusCode) && !string.IsNullOrEmpty(status.ResultJson))
+            if (!status.StatusCode.IsError() && !string.IsNullOrEmpty(status.ResultJson))
             {
                 try
                 {
@@ -1380,79 +1404,89 @@ public sealed class ClusterMaster : IDisposable
             if (task.RemainingAcks <= 0)
             {
                 _pendingSerializeTasks.Remove(status.TransactionId);
+                HandleSerializeLocalCompletion(task);
+            }
+        }
+    }
 
-                if (task.FailureCount > 0)
-                    FdpLog<ClusterMaster>.Error(
-                        "[Orchestrator] SaveScenario completed with {0} node(s) reporting malformed ResultJson — NAS manifest may be incomplete.",
-                        task.FailureCount);
+    /// <summary>
+    /// Runs the post-completion logic for a <see cref="SerializeLocalTask"/> once all node ACKs
+    /// have arrived: logs failures, appends the orchestrator's own manifest entry, and either
+    /// triggers the archive export path or the legacy SaveScenario NAS-push path.
+    /// Called from both the bus-mode and DDS-mode paths of <see cref="ConsumeNodeOpStatuses"/>.
+    /// </summary>
+    private void HandleSerializeLocalCompletion(SerializeLocalTask task)
+    {
+        if (task.FailureCount > 0)
+            FdpLog<ClusterMaster>.Error(
+                "[Orchestrator] SaveScenario completed with {0} node(s) reporting malformed ResultJson — NAS manifest may be incomplete.",
+                task.FailureCount);
 
-                // Append the Orchestrator's own manifest entry if the local handler produced one.
-                if (_globalContextHandler?.CommitManifestEntry != null)
-                    task.Manifests.Add(_globalContextHandler.CommitManifestEntry);
+        // Append the Orchestrator's own manifest entry if the local handler produced one.
+        if (_globalContextHandler?.CommitManifestEntry != null)
+            task.Manifests.Add(_globalContextHandler.CommitManifestEntry);
 
-                if (task.ArchiveCts != null)
-                {
-                    // ─── Archive export path (CGF1-S0505) ─────────────────────────────
-                    var archRequestId = task.ArchiveRequestId;
-                    var archCts       = task.ArchiveCts;
-                    if (_gateway != null && task.Manifests.Count > 0)
-                    {
-                        _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath, archCts.Token)
-                            .ContinueWith(pullTask =>
-                            {
-                                _activeCancellations.Remove(archRequestId);
-                                if (pullTask.IsCanceled)
-                                    _sysOpStatusWriter.Write(new ClusterOpStatus
-                                    {
-                                        RequestId  = archRequestId,
-                                        StatusCode = OrchestrationStatusCode.Rejected,
-                                        ResultJson = string.Empty
-                                    });
-                                else if (pullTask.IsFaulted)
-                                {
-                                    FdpLog<ClusterMaster>.Error("[Orchestrator] ExportArchive gateway error: {0}",
-                                        pullTask.Exception?.GetBaseException().Message);
-                                    _sysOpStatusWriter.Write(new ClusterOpStatus
-                                    {
-                                        RequestId  = archRequestId,
-                                        StatusCode = OrchestrationStatusCode.Rejected,
-                                        ResultJson = string.Empty
-                                    });
-                                }
-                                else
-                                    _sysOpStatusWriter.Write(new ClusterOpStatus
-                                    {
-                                        RequestId  = archRequestId,
-                                        StatusCode = OrchestrationStatusCode.Success,
-                                        ResultJson = string.Empty
-                                    });
-                            }, System.Threading.Tasks.TaskScheduler.Default);
-                    }
-                    else
+        if (task.ArchiveCts != null)
+        {
+            // ─── Archive export path (CGF1-S0505) ─────────────────────────────
+            var archRequestId = task.ArchiveRequestId;
+            var archCts       = task.ArchiveCts;
+            if (_gateway != null && task.Manifests.Count > 0)
+            {
+                _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath, archCts.Token)
+                    .ContinueWith(pullTask =>
                     {
                         _activeCancellations.Remove(archRequestId);
-                        archCts.Dispose();
-                        _sysOpStatusWriter.Write(new ClusterOpStatus
+                        if (pullTask.IsCanceled)
+                            _sysOpStatusWriter.Write(new ClusterOpStatus
+                            {
+                                RequestId  = archRequestId,
+                                StatusCode = (int)OrchestrationStatusCode.Rejected,
+                                ResultJson = string.Empty
+                            });
+                        else if (pullTask.IsFaulted)
                         {
-                            RequestId  = archRequestId,
-                            StatusCode = OrchestrationStatusCode.Success,
-                            ResultJson = string.Empty
-                        });
-                    }
-                }
-                else if (_gateway != null && task.Manifests.Count > 0)
-                {
-                    // ─── Legacy SaveScenario path ──────────────────────────────────
-                    // Fire-and-forget: the pull is async; ClusterMaster continues ticking.
-                    // Phase 3+ will track completion and publish SysOpStatus(Success)/Failure.
-                    _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath)
-                        .ContinueWith(pullTask =>
-                        {
-                            if (pullTask.IsCompletedSuccessfully)
-                                _ = _gateway.WriteScenarioManifestAsync(task.Manifests, _nasBasePath);
-                        }, System.Threading.Tasks.TaskScheduler.Default);
-                }
+                            FdpLog<ClusterMaster>.Error("[Orchestrator] ExportArchive gateway error: {0}",
+                                pullTask.Exception?.GetBaseException().Message);
+                            _sysOpStatusWriter.Write(new ClusterOpStatus
+                            {
+                                RequestId  = archRequestId,
+                                StatusCode = (int)OrchestrationStatusCode.Rejected,
+                                ResultJson = string.Empty
+                            });
+                        }
+                        else
+                            _sysOpStatusWriter.Write(new ClusterOpStatus
+                            {
+                                RequestId  = archRequestId,
+                                StatusCode = (int)OrchestrationStatusCode.Success,
+                                ResultJson = string.Empty
+                            });
+                    }, System.Threading.Tasks.TaskScheduler.Default);
             }
+            else
+            {
+                _activeCancellations.Remove(archRequestId);
+                archCts.Dispose();
+                _sysOpStatusWriter.Write(new ClusterOpStatus
+                {
+                    RequestId  = archRequestId,
+                    StatusCode = (int)OrchestrationStatusCode.Success,
+                    ResultJson = string.Empty
+                });
+            }
+        }
+        else if (_gateway != null && task.Manifests.Count > 0)
+        {
+            // ─── Legacy SaveScenario path ──────────────────────────────────────
+            // Fire-and-forget: the pull is async; ClusterMaster continues ticking.
+            // Phase 3+ will track completion and publish SysOpStatus(Success)/Failure.
+            _ = _gateway.PullToNasAsync(task.Manifests, _nasBasePath)
+                .ContinueWith(pullTask =>
+                {
+                    if (pullTask.IsCompletedSuccessfully)
+                        _ = _gateway.WriteScenarioManifestAsync(task.Manifests, _nasBasePath);
+                }, System.Threading.Tasks.TaskScheduler.Default);
         }
     }
 
@@ -1487,7 +1521,7 @@ public sealed class ClusterMaster : IDisposable
             _sysOpStatusWriter.Write(new ClusterOpStatus
             {
                 RequestId  = op.RequestId,
-                StatusCode = OrchestrationStatusCode.Timeout,
+                StatusCode = (int)OrchestrationStatusCode.Timeout,
                 ResultJson = string.Empty
             });
             return;

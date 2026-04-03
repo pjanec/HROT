@@ -99,8 +99,9 @@ public sealed class NodeOpSlaveTranslator
             _statusWriter.Write(new NodeOpStatus
             {
                 TransactionId   = ev.TransactionId,
+                Operation       = (NedNodeOpType)(int)ev.Operation,
                 NodeId          = ev.NodeId,
-                StatusCode      = ev.StatusCode,
+                StatusCode      = (int)ev.StatusCode,
                 IsParticipating = ev.IsParticipating,
                 ResultJson      = SerializeResultPayload(ev.ResultPayload),
             });
@@ -172,7 +173,21 @@ public sealed class NodeOpSlaveTranslator
             {
                 // CommitState carries the new state ID as a raw int string.
                 if (hasPayload && int.TryParse(payloadJson!.Trim(), out var stateId))
-                    return stateId;
+                    return new CommitStatePayload(stateId);
+                return null;
+            }
+
+            case NedNodeOpType.NodeReplaySeek:
+            {
+                if (hasPayload && long.TryParse(payloadJson!.Trim(), out var ticks))
+                    return new ReplaySeekPayload(ticks);
+                return null;
+            }
+
+            case NedNodeOpType.AbortTransaction:
+            {
+                if (hasPayload && Guid.TryParse(payloadJson!.Trim(), out var txId))
+                    return new AbortTransactionPayload(txId);
                 return null;
             }
 

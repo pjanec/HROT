@@ -30,11 +30,6 @@ namespace Hrot.IG.Modules.Orchestration
     /// </summary>
     public sealed class IgZoneDummyHandler : IClusterStateHandler
     {
-        /// <summary>Integer value of <see cref="FDP.Toolkit.Orchestration.NodeOpType.PrepareZone"/> (stable).</summary>
-        public const int PrepareZoneOperationId = (int)FDP.Toolkit.Orchestration.NodeOpType.PrepareZone;
-        /// <summary>Integer value of <see cref="FDP.Toolkit.Orchestration.NodeOpType.CommitZone"/> (stable).</summary>
-        public const int CommitZoneOperationId = (int)FDP.Toolkit.Orchestration.NodeOpType.CommitZone;
-
         /// <inheritdoc />
         public bool CanHandle(FDP.Toolkit.Orchestration.NodeOpType operation)
             => operation == FDP.Toolkit.Orchestration.NodeOpType.PrepareZone

@@ -154,7 +154,8 @@ public sealed class ClusterMasterPlanner
 
         // Append a ReplaySeek operation when targeting OperatingReplay with a seek hint.
         if (targetState == ClusterState.OperatingReplay && intent.TargetWallTicks != 0)
-            queue.Enqueue(new OperationStep(ClusterOpType.ReplaySeek, intent.TargetWallTicks));
+            queue.Enqueue(new OperationStep(ClusterOpType.ReplaySeek,
+                new ReplaySeekPayload(intent.TargetWallTicks)));
 
         return queue;
     }

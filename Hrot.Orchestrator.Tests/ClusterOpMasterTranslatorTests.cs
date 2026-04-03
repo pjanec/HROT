@@ -124,7 +124,7 @@ public sealed class ClusterOpMasterTranslatorTests
         bus.PublishManaged(new ClusterOpCompletedEvent
         {
             RequestId     = reqId,
-            StatusCode    = 0,
+            StatusCode    = OrchestrationStatusCode.Success,
             ResultPayload = null,
         });
         bus.SwapBuffers();

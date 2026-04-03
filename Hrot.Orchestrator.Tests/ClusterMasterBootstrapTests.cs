@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
@@ -110,7 +112,7 @@ public sealed class ClusterMasterBootstrapTests
         }
 
         Assert.True(phase1Status.HasValue, "ClusterMaster did not respond to ClusterOpRequest before bootstrap.");
-        Assert.Equal(OrchestrationStatusCode.Rejected, phase1Status!.Value);
+        Assert.Equal((int)OrchestrationStatusCode.Rejected, phase1Status!.Value);
         Assert.False(exercise.BootstrapComplete, "Bootstrap latch must not be set before mandatory heartbeat.");
 
         // ── Phase 2: Deliver SimHost heartbeat (Standby) → latch clears ──────
@@ -160,7 +162,7 @@ public sealed class ClusterMasterBootstrapTests
         }
 
         Assert.True(phase3Status.HasValue, "ClusterMaster did not respond to accepted ClusterOpRequest.");
-        Assert.NotEqual(OrchestrationStatusCode.Rejected, phase3Status!.Value);
+        Assert.NotEqual((int)OrchestrationStatusCode.Rejected, phase3Status!.Value);
     }
 
     /// <summary>
@@ -445,7 +447,7 @@ public sealed class ClusterMasterBootstrapTests
             foreach (var s in scope)
             {
                 if (!s.IsValid || s.Data.RequestId != req1Id) continue;
-                req1Accepted = s.Data.StatusCode != OrchestrationStatusCode.Rejected;
+                req1Accepted = s.Data.StatusCode != (int)OrchestrationStatusCode.Rejected;
             }
             if (req1Accepted) break;
             Thread.Sleep(20);
@@ -474,7 +476,7 @@ public sealed class ClusterMasterBootstrapTests
             foreach (var s in scope)
             {
                 if (!s.IsValid || s.Data.RequestId != req2Id) continue;
-                req2Accepted = s.Data.StatusCode != OrchestrationStatusCode.Rejected;
+                req2Accepted = s.Data.StatusCode != (int)OrchestrationStatusCode.Rejected;
             }
             if (req2Accepted) break;
             Thread.Sleep(20);
@@ -488,6 +490,83 @@ public sealed class ClusterMasterBootstrapTests
         var tx2 = history[history.Count - 1];
         Assert.Equal(req2Id, tx2.OriginRequestId);
         Assert.Equal(1, tx2.TotalSteps);
+    }
+
+    // ── TASK-D06: Bootstrap latch case-insensitive fix ─────────────────────
+
+    /// <summary>
+    /// Verifies bootstrap latch releases when subsystem name differs only in casing.
+    /// Regression test for the case-sensitive comparison bug (TASK-D06).
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void BootstrapLatch_ReleasesWithCaseInsensitiveSubsystemName()
+    {
+        var config = new ClusterConfiguration
+        {
+            Mandatory                  = new[] { "simhost" },  // lowercase in config
+            HeartbeatTimeoutSeconds    = 60f,
+            TransactionHistoryCapacity = 10,
+        };
+
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, config);
+
+        // Feed a heartbeat with mixed-case name "SimHost" (not "simhost")
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId        = 1,
+            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
+            SubsystemName = "SimHost",  // different case from config
+        });
+        bus.SwapBuffers();
+        master.Tick();
+
+        // Bootstrap should now be complete.
+        Assert.True(master.BootstrapComplete,
+            "Bootstrap latch must release when subsystem name matches case-insensitively.");
+
+        // A ClusterStateTransitionedEvent for Idle (Standby) should have been published.
+        bus.SwapBuffers();
+        var events = bus.ConsumeManaged<ClusterStateTransitionedEvent>().ToList();
+        Assert.True(events.Any(e => e.NewStateId == FDP.Toolkit.Orchestration.ClusterState.Idle),
+            "Expected ClusterStateTransitionedEvent(Idle) when bootstrap latch releases.");
+    }
+
+    /// <summary>
+    /// Verifies the bootstrap latch does NOT release for a completely wrong subsystem name.
+    /// </summary>
+    [Fact(Timeout = 5_000)]
+    public void BootstrapLatch_DoesNotReleaseForWrongSubsystemName()
+    {
+        var config = new ClusterConfiguration
+        {
+            Mandatory                  = new[] { "simhost" },
+            HeartbeatTimeoutSeconds    = 60f,
+            TransactionHistoryCapacity = 10,
+        };
+
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, config);
+
+        // Feed a heartbeat with completely different name
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId        = 1,
+            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
+            SubsystemName = "IG",
+        });
+        bus.SwapBuffers();
+        master.Tick();
+
+        // Should not complete bootstrap — latch unreleased.
+        Assert.False(master.BootstrapComplete,
+            "Bootstrap latch must NOT release for a non-matching subsystem name.");
+
+        bus.SwapBuffers();
+        var events = bus.ConsumeManaged<ClusterStateTransitionedEvent>().ToList();
+        Assert.DoesNotContain(events, e => e.NewStateId == FDP.Toolkit.Orchestration.ClusterState.Idle);
     }
 }
 

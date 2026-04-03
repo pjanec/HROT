@@ -148,6 +148,6 @@ public sealed class TranslatorRoundTripTests : IDisposable
         }
 
         Assert.NotNull(result);
-        Assert.Equal(OrchestrationStatusCode.Success, result!.Value.StatusCode);
+        Assert.Equal((int)OrchestrationStatusCode.Success, result!.Value.StatusCode);
     }
 }

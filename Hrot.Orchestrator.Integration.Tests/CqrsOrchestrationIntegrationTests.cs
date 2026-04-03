@@ -341,7 +341,7 @@ public sealed class CqrsOrchestrationIntegrationTests
         var result = RunUntilCompleted(bus, master, slave);
 
         Assert.NotNull(result);
-        Assert.True(OrchestrationStatusCode.IsError(result!.Value.StatusCode),
+        Assert.True(result!.Value.StatusCode.IsError(),
             $"Expected error status after prepare failure, got {result.Value.StatusCode}");
     }
 

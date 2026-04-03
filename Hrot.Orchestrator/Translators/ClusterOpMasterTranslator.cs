@@ -56,7 +56,7 @@ public sealed class ClusterOpMasterTranslator
             _statusWriter.Write(new ClusterOpStatus
             {
                 RequestId  = ev.RequestId,
-                StatusCode = ev.StatusCode,
+                StatusCode = (int)ev.StatusCode,
                 ResultJson = ev.ResultPayload is string s ? s : string.Empty,
             });
         }
@@ -67,7 +67,7 @@ public sealed class ClusterOpMasterTranslator
             _statusWriter.Write(new ClusterOpStatus
             {
                 RequestId  = ev.RequestId,
-                StatusCode = ev.StatusCode,
+                StatusCode = (int)ev.StatusCode,
                 ResultJson = string.Empty,
             });
         }

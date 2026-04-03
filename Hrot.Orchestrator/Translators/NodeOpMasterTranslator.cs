@@ -6,6 +6,7 @@ using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
 using Hrot.NED.Descriptors.Orchestration;
+using Hrot.Orchestrator;
 using Hrot.Orchestrator.Translators.Payloads;
 using NedNodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
@@ -85,13 +86,15 @@ public sealed class NodeOpMasterTranslator
         foreach (var sample in scope)
         {
             if (!sample.IsValid) continue;
-            var status       = sample.Data;
-            var resultPayload = DeserializeResultPayload(status.ResultJson);
+            var status        = sample.Data;
+            var fdpOp         = (FdpNodeOpType)(int)status.Operation;
+            var resultPayload = DeserializeResultPayload(fdpOp, status.ResultJson);
             _bus.PublishManaged(new NodeOpCompletedEvent
             {
                 TransactionId   = status.TransactionId,
+                Operation       = fdpOp,
                 NodeId          = status.NodeId,
-                StatusCode      = status.StatusCode,
+                StatusCode      = (OrchestrationStatusCode)status.StatusCode,
                 IsParticipating = status.IsParticipating,
                 ResultPayload   = resultPayload,
             });
@@ -109,11 +112,12 @@ public sealed class NodeOpMasterTranslator
     {
         if (domainPayload is null) return string.Empty;
 
-        // CommitState carries a raw int state-id, not a JSON object.
-        if (domainPayload is int stateId) return stateId.ToString();
-
         return domainPayload switch
         {
+            CommitStatePayload      csp => csp.TargetStateId.ToString(),
+            ReplaySeekPayload       rsp => rsp.TargetWallTicks.ToString(),
+            AbortTransactionPayload atp => atp.TargetTransactionId.ToString(),
+
             EditLoadHandlerPayload p => JsonSerializer.Serialize(
                 new NodeTransitionPayloadDto(
                     TargetState: p.TargetState != 0
@@ -146,13 +150,32 @@ public sealed class NodeOpMasterTranslator
 
     /// <summary>
     /// Deserialises the <c>ResultJson</c> from a <see cref="NodeOpStatus"/> into a domain
-    /// result object. Returns <c>null</c> when the JSON is empty.
+    /// <summary>
+    /// Deserialises the <c>ResultJson</c> from a <see cref="NodeOpStatus"/> into a typed domain
+    /// result object based on the operation type.
     /// </summary>
-    private static object? DeserializeResultPayload(string? resultJson)
+    private static object? DeserializeResultPayload(FdpNodeOpType operation, string? resultJson)
     {
         if (string.IsNullOrWhiteSpace(resultJson)) return null;
-        // Phase 5: return the raw JSON string as the result payload.
-        // More specific parsing can be added in a later phase.
-        return resultJson;
+
+        switch (operation)
+        {
+            case FdpNodeOpType.SerializeLocal:
+            {
+                try
+                {
+                    var entries = System.Text.Json.JsonSerializer.Deserialize<List<FileManifestEntry>>(
+                        resultJson!,
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    return entries;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+            default:
+                return null;
+        }
     }
 }

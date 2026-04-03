@@ -246,9 +246,9 @@ public sealed class ClusterUiCache : IDisposable
         {
             if (!s.IsValid) continue;
             // Skip InProgress (non-terminal) status codes
-            if (s.Data.StatusCode == OrchestrationStatusCode.InProgress) continue;
+            if (s.Data.StatusCode == (int)OrchestrationStatusCode.InProgress) continue;
 
-            bool success = s.Data.StatusCode == OrchestrationStatusCode.Success;
+            bool success = s.Data.StatusCode == (int)OrchestrationStatusCode.Success;
 
             // Try an exact match (works when SysOpStatus.RequestId == NodeOpCommand.TransactionId,
             // e.g. in unit tests or future protocol alignment).

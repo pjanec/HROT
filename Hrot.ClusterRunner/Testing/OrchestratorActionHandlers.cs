@@ -176,9 +176,9 @@ namespace Hrot.ClusterRunner.Testing
                 if (!sample.IsValid) continue;
                 var data = sample.Data;
                 if (data.RequestId != requestId) continue;
-                if (data.StatusCode == OrchestrationStatusCode.InProgress) continue;
+                if (data.StatusCode == (int)OrchestrationStatusCode.InProgress) continue;
 
-                if (OrchestrationStatusCode.IsError(data.StatusCode))
+                if (data.StatusCode.IsError())
                 {
                     return (true, true, $"sysop: request {requestId} failed with StatusCode={data.StatusCode}, " +
                                         $"ResultJson={data.ResultJson}");

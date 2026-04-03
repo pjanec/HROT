@@ -9,6 +9,7 @@ using Hrot.Orchestrator;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
+using Hrot.Common.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using Xunit;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
@@ -99,7 +100,7 @@ public sealed class EpisodeInjectionTests : IDisposable
         var scenarioId = await WriteEpisodeScenario("episode_start_01", entityCount: 3);
 
         var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
-        var cmd     = MakeCmd(ReferenceEpisodeLoadHandler.StartEpisodeOperationId, episodeId, scenarioId);
+        var cmd     = MakeCmd((int)FDP.Toolkit.Orchestration.NodeOpType.StartEpisode, episodeId, scenarioId);
 
         await handler.PrepareAsync(cmd, CancellationToken.None);
         handler.Commit(cmd, _repo);
@@ -127,7 +128,7 @@ public sealed class EpisodeInjectionTests : IDisposable
         var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
 
         // Start
-        var startCmd = MakeCmd(ReferenceEpisodeLoadHandler.StartEpisodeOperationId, episodeId, scenarioId);
+        var startCmd = MakeCmd((int)FDP.Toolkit.Orchestration.NodeOpType.StartEpisode, episodeId, scenarioId);
         await handler.PrepareAsync(startCmd, CancellationToken.None);
         handler.Commit(startCmd, _repo);
         Assert.Equal(3, _repo.EntityCount);
@@ -160,7 +161,7 @@ public sealed class EpisodeInjectionTests : IDisposable
         await File.WriteAllTextAsync(Path.Combine(dir, "Hrot.CGF.json"), cgfJson);
 
         var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
-        var cmd     = MakeCmd(ReferenceEpisodeLoadHandler.StartEpisodeOperationId, episodeId, scenarioId);
+        var cmd     = MakeCmd((int)FDP.Toolkit.Orchestration.NodeOpType.StartEpisode, episodeId, scenarioId);
 
         await handler.PrepareAsync(cmd, CancellationToken.None);
         handler.Commit(cmd, _repo);
@@ -213,13 +214,13 @@ public sealed class EpisodeInjectionTests : IDisposable
         var handler = new ReferenceEpisodeLoadHandler(_serializer, new LocalDiskStorageProvider(_tempRoot));
 
         // Inject episode 1.
-        var start1 = MakeCmd(ReferenceEpisodeLoadHandler.StartEpisodeOperationId, s1Id, sc1);
+        var start1 = MakeCmd((int)FDP.Toolkit.Orchestration.NodeOpType.StartEpisode, s1Id, sc1);
         await handler.PrepareAsync(start1, CancellationToken.None);
         handler.Commit(start1, _repo);
         Assert.Equal(3, _repo.EntityCount);
 
         // Inject episode 2.
-        var start2 = MakeCmd(ReferenceEpisodeLoadHandler.StartEpisodeOperationId, s2Id, sc2);
+        var start2 = MakeCmd((int)FDP.Toolkit.Orchestration.NodeOpType.StartEpisode, s2Id, sc2);
         await handler.PrepareAsync(start2, CancellationToken.None);
         handler.Commit(start2, _repo);
         Assert.Equal(5, _repo.EntityCount);
@@ -255,7 +256,7 @@ public sealed class EpisodeInjectionTests : IDisposable
         {
             TransactionId = Guid.NewGuid(),
             TargetNodeId  = 0,
-            Operation     = (FDP.Toolkit.Orchestration.NodeOpType)ReferenceEpisodeLoadHandler.StopEpisodeOperationId,
+            Operation     = FDP.Toolkit.Orchestration.NodeOpType.StopEpisode,
             DomainPayload = new EpisodeHandlerPayload(episodeId, ScenarioId: null, IsStart: false),
         };
 }

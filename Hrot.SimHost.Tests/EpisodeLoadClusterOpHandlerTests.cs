@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
+using Hrot.Common.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using Xunit;
 

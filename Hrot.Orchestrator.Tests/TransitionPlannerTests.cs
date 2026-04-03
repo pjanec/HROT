@@ -92,7 +92,8 @@ public sealed class TransitionPlannerTests
         var seekStep = queue.OfType<OperationStep>().LastOrDefault();
         Assert.NotNull(seekStep);
         Assert.Equal(ClusterOpType.ReplaySeek, seekStep!.Operation);
-        Assert.Equal(seekTicks, (long)seekStep!.DomainPayload!);
+        var seekPayload = Assert.IsType<ReplaySeekPayload>(seekStep!.DomainPayload);
+        Assert.Equal(seekTicks, seekPayload.TargetWallTicks);
     }
 
     /// <summary>

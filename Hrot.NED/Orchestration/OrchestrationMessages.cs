@@ -152,6 +152,7 @@ namespace Hrot.NED.Descriptors.Orchestration
     public partial struct NodeOpStatus
     {
         public Guid TransactionId;
+        public NodeOpType Operation;
         public int NodeId;
         public int StatusCode;
         public bool IsParticipating;

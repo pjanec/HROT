@@ -157,7 +157,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
         int? observedStatus = null;
         bool     prefetchFilesReceived = false;
         var deadline = DateTime.UtcNow.AddSeconds(8);
-        while (DateTime.UtcNow < deadline && !OrchestrationStatusCode.IsError(observedStatus ?? 0))
+        while (DateTime.UtcNow < deadline && !(observedStatus ?? 0).IsError())
         {
             exercise.Tick();
             Thread.Sleep(15);
@@ -173,7 +173,7 @@ public sealed class ClusterMasterPrefetchTests : IDisposable
                     prefetchFilesReceived = true;
         }
 
-        Assert.True(OrchestrationStatusCode.IsError(observedStatus ?? 0),
+        Assert.True((observedStatus ?? 0).IsError(),
             $"Expected a failure status (>=10) but got: {observedStatus}");
         Assert.False(prefetchFilesReceived,
             "PrefetchFiles command must NOT be sent when the NAS source directory is missing.");

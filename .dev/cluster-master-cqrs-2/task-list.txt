@@ -1,0 +1,455 @@
+﻿
+i need the domain payload always be structures/classes with explicit field names to bring more clarity. pls suggest the struct definitions for all the payloads
+
+To bring full clarity to the `ExecuteNodeOpIntent.DomainPayload` and eliminate the boxing of primitive types (which contributed to the bug you encountered), you should standardize all node operations to use explicit payload structs.
+
+The codebase currently already defines explicit structs for several complex operations (like `EditLoadHandlerPayload`, `EpisodeHandlerPayload`, `PrefetchHandlerPayload`, and `ArchiveHandlerPayload`). However, some operations are still passing boxed primitives (such as `int`, `long`, or `Guid`) through the `DomainPayload` property.
+
+Here is the complete set of suggested struct definitions for **all** node operations, including the existing ones and new ones to replace the bare primitives:
+
+1\. New Explicit Payloads (Replacing Boxed Primitives)
+
+**CommitStatePayload** Currently, `CommitState` passes a boxed `int` representing the state ID.
+
+```
+public readonly record struct CommitStatePayload(int TargetStateId);
+```
+
+**ReplaySeekPayload** Currently, `NodeReplaySeek` passes a boxed `long` representing target wall ticks.
+
+```
+public readonly record struct ReplaySeekPayload(long TargetWallTicks);
+```
+
+**AbortTransactionPayload** Currently, `AbortTransaction` sometimes passes a boxed `Guid` representing the target transaction ID.
+
+```
+public readonly record struct AbortTransactionPayload(Guid TargetTransactionId);
+```
+
+2\. Existing Explicit Payloads (For Completeness)
+
+These are already defined in the codebase but should remain the standard for their respective operations:
+
+**EditLoadHandlerPayload** (Used for `PrepareState`, `PrepareLive`, `PrepareEdit`, `FinalizeEdit`)
+
+```
+public readonly record struct EditLoadHandlerPayload(
+    string? ScenarioId, 
+    bool IsNewScenario = false, 
+    int TargetState = 10
+);
+```
+
+**EpisodeHandlerPayload** (Used for `StartEpisode`, `StopEpisode`)
+
+```
+public readonly record struct EpisodeHandlerPayload(
+    Guid EpisodeId, 
+    string? ScenarioId, 
+    bool IsStart
+);
+```
+
+**PrefetchHandlerPayload** (Used for `PrefetchFiles`)
+
+```
+public readonly record struct PrefetchHandlerPayload(
+    string? ScenarioId
+);
+```
+
+**ArchiveHandlerPayload** (Used for `SerializeLocal`, `LoadZone`)
+
+```
+public readonly record struct ArchiveHandlerPayload(
+    string? ExerciseId
+);
+```
+
+How to apply this to the Translators & Handlers:
+
+Once you have these explicit payloads defined, you can update `NodeOpSlaveTranslator.DeserializeNodePayload()` to safely parse the JSON into these structs rather than raw primitives:
+
+```
+case NedNodeOpType.CommitState:
+{
+    if (hasPayload && int.TryParse(payloadJson!.Trim(), out var stateId))
+        return new CommitStatePayload(stateId);
+    return null;
+}
+case NedNodeOpType.NodeReplaySeek:
+{
+    if (hasPayload && long.TryParse(payloadJson!.Trim(), out var ticks))
+        return new ReplaySeekPayload(ticks);
+    return null;
+}
+```
+
+This ensures that back in `ClusterSlave.DispatchIntent()`, you never have to guess the boxed type or perform unsafe generic conversions. You can safely pattern-match the explicit structure:
+
+```
+if (intent.Operation == NodeOpType.CommitState) {
+    int nextStateId = _localStateId;
+    if (intent.DomainPayload is CommitStatePayload payload) {
+        nextStateId = payload.TargetStateId;
+    }
+    // ...
+}
+```
+
+NodeOpCompletedEvent is missing the operation id. Would it be beneficial to add it? To help the NodeOpSlaveTranslator to interpret the NodeOpStatus.ResultJson? not all network representations just blindly send jsons..
+
+This is a fantastic architectural catch. You have identified a classic leaky abstraction, and you are absolutely right about the implications for non-JSON network transports.
+
+Adding the `NodeOpType` operation ID to both `NodeOpCompletedEvent` and the network `NodeOpStatus` message would significantly improve the clean architecture of the orchestration layer.
+
+Here is why your proposed change is highly beneficial:
+
+1\. Plugging a Leaky Abstraction in the Anti-Corruption Layer
+
+Currently, `NodeOpCompletedEvent` and the DDS `NodeOpStatus` struct only correlate responses using the `TransactionId`. When the `NodeOpMasterTranslator` ingests a `NodeOpStatus` from the network, it lacks the context of _which_ operation just finished.
+
+We can actually see the architectural debt this causes in `NodeOpMasterTranslator.DeserializeResultPayload()`. Because it doesn't know the operation type, it just blindly returns the raw JSON string back to the event bus, with a comment noting: _"Phase 5: return the raw JSON string as the result payload. More specific parsing can be added in a later phase"_.
+
+Because the translator fails to translate the payload into a concrete domain object, wire-format concerns bleed directly into the core domain logic. We see this in `ClusterMaster.ConsumeNodeOpStatuses()`, where the master orchestrator is forced to invoke `JsonSerializer.Deserialize<List<FileManifestEntry>>` directly on the result string. This violates the Single Responsibility Principle; the domain orchestrator should not know about JSON deserialization.
+
+2\. Enabling Binary and Schema-Driven Transports
+
+As you rightly pointed out, blindly sending JSON is not a scalable pattern for all network representations. The FDP engine already uses MessagePack for binary network serialization in other areas (like time sync and frame ordering).
+
+If you were to transition `NodeOpStatus.ResultJson` to a binary `byte[]` payload, the `NodeOpMasterTranslator` would have absolutely no way to deserialize it without knowing the `NodeOpType`. It needs the operation ID to know whether to deserialize those bytes into a `FileManifestResult[]` (for `SerializeLocal` operations) or some other struct.
+
+Recommendation
+
+To clean this up and follow best practices:
+
+-   Add `NodeOpType Operation` to `NodeOpStatus` and `NodeOpCompletedEvent`.-   Update `NodeOpMasterTranslator.DeserializeResultPayload()` to use a `switch` statement on the `Operation` ID, allowing it to cleanly deserialize the payload into the correct C# domain struct (like `FileManifestResult[]`).-   Refactor `ClusterMaster.ConsumeNodeOpStatuses()` so it consumes the strongly-typed `ev.ResultPayload` directly from the bus, completely removing its dependency on `System.Text.Json`.
+
+This will firmly re-establish the `NodeOpMasterTranslator` as a true Anti-Corruption Layer and future-proof your payload serialization.
+
+we have recently refactored the cluster management to CQRS, to decouple it from the network representation. We duplicated the network endums to FDP enums. \[BUG\] ClusterStateTransitionedEvent now contain int state id NewStateId. Should be enum!
+
+You are absolutely right, and this is an excellent architectural catch. You have identified a classic case of "Primitive Obsession." When we refactored the cluster management to CQRS and created the pure domain `FDP.Toolkit.Orchestration.ClusterState` enum to decouple from the network layer, falling back to a raw `int` inside the event defeated the purpose of that type safety.
+
+Currently, in `FDP/Toolkits/FDP.Toolkit.Orchestration/Events/ClusterCqrsEvents.cs`, the event is defined as:
+
+````
+public struct ClusterStateTransitionedEvent
+{
+    /// <summary>New cluster state numeric value (<c>ClusterState</c> enum).</summary>
+    public int NewStateId;
+    /// <summary>"Cluster" — identifies the global cluster state machine.</summary>
+    public string SubsystemName;
+}
+``` [2]
+
+By passing around a raw integer, we are forcing consumers to blindly cast it back to the enum. This is brittle, obfuscates the domain model, and leaks underlying implementation details across the system. 
+
+To fix this and restore a proper clean architecture, you should make the following updates:
+
+**1. Update the Event Definition**
+Change the field in `ClusterStateTransitionedEvent` to use the strongly-typed domain enum:
+```csharp
+public struct ClusterStateTransitionedEvent
+{
+    public ClusterState NewStateId;
+    public string SubsystemName;
+}
+````
+
+**2\. Update the Publisher (****ClusterMaster.cs****)** Inside `ClusterMaster.PublishClusterState()`, remove the unnecessary integer cast when populating the event:
+
+```
+_eventBus.PublishManaged(new ClusterStateTransitionedEvent
+{
+    NewStateId    = state, // Cast removed
+    SubsystemName = "Cluster",
+});
+```
+
+This change ensures that your domain events remain fully expressive and self-documenting, enforcing strict type safety and maintaining the clean boundary between your CQRS application logic and the network/DDS translation layers.
+
+\[BUG\] ReferenceEpisodeLoadHandler uses StartEpisodeOperationId = 20; as number which must match NodeOpType.StartEpisode -fragile, breaks if i reorder operationd ids. We should use enums intead, no primitive types. Similarly for other handlers.
+
+This is an excellent architectural catch. Hardcoding primitive integer constants that manually mirror enum underlying values is a textbook case of "Primitive Obsession" and a direct violation of the Single Source of Truth (SSOT) principle.
+
+As you noted, if the `NodeOpType` enum is ever reordered or its explicit integer assignments are updated, these `const int` fields will silently drift out of sync, creating brittle contracts and obscure runtime routing bugs.
+
+The Scope of the Refactoring
+
+This anti-pattern is currently scattered across almost all `IClusterStateHandler` implementations in the `FDP.Toolkit.Orchestration` namespace. The interface `IClusterStateHandler.CanHandle` already natively accepts the strongly-typed `NodeOpType` enum, making these integer constants completely redundant.
+
+You should completely delete these `public const int` fields from the following handlers:
+
+-   `ReferenceEpisodeLoadHandler` (`StartEpisodeOperationId = 20`, `StopEpisodeOperationId = 21`)-   `ReferenceArchiveHandler` (`SerializeLocalOperationId = 15`)-   `ReferenceCheckpointHandler` (`TakeSnapshotOperationId = 4`)-   `ReferenceEditLoadHandler` (`PrepareStateOperationId = 1`)-   `ReferenceLiveLoadHandler` (`PrepareLiveOperationId = 9`, `FinalizeLiveOperationId = 10`),-   `ReferencePrefetchHandler` (`PrefetchFilesOperationId = 25`)-   `ReferencePreviewHandler` (`PrepareStateOperationId = 1`)-   `ReferenceReplayLoadHandler` (`PrepareReplayOperationId = 11`, `FinalizeReplayOperationId = 12`, `PrepareLiveOperationId = 9`)-   `ReferenceScenarioLoadHandler` (`PrepareLiveOperationId = 9`)-   `IgZoneDummyHandler` (`PrepareZoneOperationId`, `CommitZoneOperationId`),
+
+How to Refactor
+
+**1\. Clean up the Handlers** Simply delete the constants. The `CanHandle` methods are already correctly using the enum type, so no internal logic changes are required within the handlers.
+
+_Before (__ReferenceEpisodeLoadHandler.cs__):_
+
+```
+public sealed class ReferenceEpisodeLoadHandler : IClusterStateHandler
+{
+    public const int StartEpisodeOperationId = 20;
+    public const int StopEpisodeOperationId  = 21;
+
+    // ...
+    public bool CanHandle(NodeOpType operation) =>
+        operation == NodeOpType.StartEpisode ||
+        operation == NodeOpType.StopEpisode;
+```
+
+_After:_
+
+```
+public sealed class ReferenceEpisodeLoadHandler : IClusterStateHandler
+{
+    // Constants removed. Rely purely on NodeOpType enum.
+
+    // ...
+    public bool CanHandle(NodeOpType operation) =>
+        operation == NodeOpType.StartEpisode ||
+        operation == NodeOpType.StopEpisode;
+```
+
+**2\. Clean up consumers** If there are any unit tests, reflection utilities, or other consumers currently referencing `ReferenceEpisodeLoadHandler.StartEpisodeOperationId`, they should be updated to reference `NodeOpType.StartEpisode` directly.
+
+By relying exclusively on the `NodeOpType` enum, the compiler enforces type safety across the entire routing pipeline, ensuring that any future refactoring or reordering of operations is automatically handled without hidden fragility.
+
+\[BUG\] StatusCode in NodeOpCompletedEvent is int. Should be enum. OrchestrationStatusCode.cs should define enums, not pure int. I know that the primitive int allows for open-ended status codes. But i want you to convert the int constants in OrchestrationStatusCode.cs into enum (keep the numerical values and the comments about numeric ranges) and use that enum for the statuscode fields in the internal FDP events to improve the debugging experience.
+
+This is another excellent step toward a robust, strongly-typed domain model. Continuing to rely on raw integers for status codes is a classic case of "Primitive Obsession." It obscures intent, makes debugging difficult (inspectors just show a cryptic `0` or `10`), and sacrifices the compiler-enforced type safety that clean architecture strives for.
+
+Here is the refactoring to convert the constants into an explicit enum and update the associated events, eliminating the primitive types while preserving the numerical ranges and their semantic meaning.
+
+1\. Refactor `OrchestrationStatusCode.cs`
+
+Update the file to define an `enum` instead of a `static class`. We will also extract the existing `IsError` helper method into a clean extension method to preserve that functionality:
+
+```
+namespace FDP.Toolkit.Orchestration
+{
+    /// <summary>
+    /// Strongly-typed status codes used across all FDP orchestration messages.
+    ///
+    /// <b>Range design:</b>
+    /// - 0–9: Lifecycle (0 = Success, 1 = InProgress, 2 = Pending)
+    /// - 10–99: Generic errors (Rejected, Timeout, Cancelled)
+    /// - 100–999: Federation errors
+    /// - 1000+: Node / slave errors
+    /// </summary>
+    public enum OrchestrationStatusCode : int
+    {
+        // ── Lifecycle (0–9) ──
+        Success    = 0,
+        InProgress = 1,
+        Pending    = 2,
+
+        // ── Generic errors (10–99) ──
+        Rejected  = 10,
+        Timeout   = 11,
+        Cancelled = 12,
+        Failure   = 13,
+
+        // ── Federation errors (100–999) ──
+        InvalidZone      = 101,
+        ExerciseMismatch = 102,
+
+        // ── Node / slave errors (1000+) ──
+        OutOfMemory   = 1000,
+        AssetNotFound = 1001
+    }
+
+    public static class OrchestrationStatusCodeExtensions
+    {
+        /// <summary>
+        /// Returns <c>true</c> when the code represents a terminal failure (i.e. any code >= 10).
+        /// </summary>
+        public static bool IsError(this OrchestrationStatusCode code) => (int)code >= 10;
+    }
+}
+```
+
+2\. Update the FDP Domain Events
+
+Now, inject this strongly-typed enum into your core CQRS events so the compiler guarantees valid statuses are passed around the event bus.
+
+**In** **ClusterCqrsEvents.cs****:** Update `ClusterOpCompletedEvent`:
+
+```
+[EventId(9011)]
+[DataPolicy(DataPolicy.NoRecord)]
+public struct ClusterOpCompletedEvent
+{
+    public Guid RequestId;
+    public OrchestrationStatusCode StatusCode;
+    public object? ResultPayload;
+}
+```
+
+Update `NodeOpCompletedEvent`:
+
+```
+[EventId(9013)]
+[DataPolicy(DataPolicy.NoRecord)]
+public struct NodeOpCompletedEvent
+{
+    public Guid TransactionId;
+    public int NodeId;
+    public OrchestrationStatusCode StatusCode;
+    public bool IsParticipating;
+    public object? ResultPayload;
+}
+```
+
+**In** **ClusterOpIntents.cs****:** Update `StorageOpCompletedEvent`:
+
+```
+[EventId(9055)]
+[DataPolicy(DataPolicy.NoRecord)]
+public struct StorageOpCompletedEvent
+{
+    public Guid RequestId;
+    public OrchestrationStatusCode StatusCode;
+    public int SuccessCount;
+    public int FailureCount;
+}
+```
+
+By eliminating the raw `int` fields, any debugger or UI inspector reading from the `FdpEventBus` will instantly display self-documenting states (like `OrchestrationStatusCode.Success`) rather than requiring you to memorize integer mappings, drastically improving the debugging experience and architectural clarity.
+
+pls describe again the issue with the ,not bootstrapped, and how to fix it (using the new struct for payload objects)
+
+The root cause of the cluster getting permanently stuck in the "not bootstrapped" state is a brittle, case-sensitive string comparison within the master's synchronization barrier.
+
+In `ClusterMaster.CheckBootstrapLatch()`, the orchestrator verifies that all mandatory subsystems have announced themselves and reached an `Idle` state. However, it relies on a strict equality check (`kv.Value.SubsystemName == name`). If your configuration file declares a dependency on `"simhost"` but the subsystem announces its identity as `"SimHost"`, this check silently fails.
+
+Because this bootstrap latch never releases (`_bootstrapLatch` evaluates to `false`), the orchestrator aggressively rejects all incoming transition intents. Consequently, the orchestrator never reaches the logic to fan out `CommitState` commands to the cluster nodes, starving the slaves of state updates and leaving them stuck at `Idle` (0) indefinitely.
+
+To permanently resolve this while adhering to clean architecture principles and eliminating the "Primitive Obsession" anti-pattern we identified earlier, we must apply a two-part fix. First, we make the synchronization barrier case-insensitive. Second, we upgrade the orchestration layer to fan out `CommitState` operations using our strongly-typed explicit payload struct rather than a boxed primitive integer.
+
+1\. Fix the Bootstrap Latch Equality Check
+
+Update `Hrot.Orchestrator/ClusterMaster.cs` to use resilient string matching, applying Postel's Law to subsystem identification:
+
+```
+private void CheckBootstrapLatch()
+{
+    if (_bootstrapLatch) return;
+    if (_config.Mandatory.Length == 0) return;
+
+    foreach (var name in _config.Mandatory)
+    {
+        bool found = false;
+        foreach (var kv in _roster.ActiveNodes)
+        {
+            // FIX: Use case-insensitive comparison
+            if (string.Equals(kv.Value.SubsystemName, name, StringComparison.OrdinalIgnoreCase) && 
+                kv.Value.LocalClusterState == ClusterState.Idle)
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found) return;
+    }
+
+    _bootstrapLatch = true;
+    PublishStandby();
+    FdpLog<ClusterMaster>.Info("[Orchestrator] All mandatory nodes reached Standby — bootstrap complete.");
+}
+```
+
+2\. Implement the Strongly-Typed Domain Payload
+
+Define the explicit struct to carry the state commitment data, ensuring our domain model remains expressive and type-safe across the event bus boundaries:
+
+```
+public readonly record struct CommitStatePayload(int TargetStateId);
+```
+
+3\. Refactor the Fan-Out Dispatch
+
+In `ClusterMaster.ProcessTransitionStateIntent()`, locate the area where node operations are broadcast to the slaves. Replace the boxed primitive cast with our new domain payload:
+
+```
+// Before:
+// FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId, (int)tStep.TargetState, activeNodeIds);
+
+// After:
+FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId, new CommitStatePayload((int)tStep.TargetState), activeNodeIds);
+```
+
+4\. Refactor the Slave Ingestion
+
+Finally, on the receiving end in `ClusterSlave.DispatchIntent()`, pattern-match directly against the explicit `CommitStatePayload` instead of relying on fragile type-checking against primitive runtime types:
+
+```
+if (intent.Operation == NodeOpType.CommitState) 
+{
+    int nextStateId = _localStateId;
+    if (intent.DomainPayload is CommitStatePayload payload) 
+    {
+        nextStateId = payload.TargetStateId;
+    }
+    
+    var previousStateId = _localStateId;
+    _localStateId = nextStateId;
+    
+    _eventBus?.Publish(new TkClusterStateChangedEvent
+    {
+        PreviousStateId = previousStateId,
+        NextStateId     = nextStateId,
+    });
+    return;
+}
+```
+
+By applying these changes, your cluster will reliably bypass the synchronization barrier, and your dispatch pipeline will be entirely decoupled from brittle raw primitives, yielding a much cleaner, self-documenting orchestration architecture.
+
+\[BUG\] ScenarioSerializer inside FDP now "knows" the scenario file format (see PeekSubsystemType). This is leaking the application level knowledge dowen the FDP. I think this "knowledge" should remain outside of FDP, in Hrot application layer. The FDP should just know how to convert the json representation of ECS components, not what the overall scenario format is (what is the header etc.)
+
+You have identified a textbook example of a leaky abstraction and a violation of the Single Responsibility Principle. You are completely correct: the core engine toolkit (`FDP.Toolkit.Scenario`) is being polluted with application-level orchestration concerns (`Hrot`), specifically the file envelope schema (`Header`, `SubsystemType`, `SchemaVersion`).
+
+By forcing `ScenarioSerializer` to understand the outer file envelope and provide methods like `PeekSubsystemType` and `IsMatchingSubsystem`, we are tightly coupling the pure ECS serialization mechanism to the Hrot cluster deployment topology.
+
+To restore a clean architecture boundary where FDP strictly handles ECS domain mapping and Hrot handles application schemas, we need to refactor the serialization pipeline. Here is the recommended architectural fix:
+
+1\. Strip Application Knowledge from `FDP.Toolkit.Scenario`
+
+The FDP toolkit should only concern itself with the entity-component dictionary mapping.
+
+-   **Remove** **ScenarioHeader.cs****:** Delete this record from `FDP.Toolkit.Scenario` entirely.-   **Remove Hrot-specific methods:** Delete `PeekSubsystemType` and `IsMatchingSubsystem` from `ScenarioSerializer`.-   **Simplify** **Serialize** **and** **Deserialize****:** Change `ScenarioSerializer.Serialize()` so that it strictly returns the `Entities` `JsonObject` rather than assembling the `Header` and `Entities` root nodes. Modify `Deserialize()` so it accepts the raw `Entities` `JsonObject`, removing the `dom["Header"]` and `dom["Entities"]` parsing logic.
+
+2\. Introduce an Application-Layer Envelope Wrapper (`Hrot`)
+
+Move the knowledge of the scenario file format up to the application layer. Create a new class in `Hrot.Common` (e.g., `HrotScenarioFile` or `HrotScenarioEnvelope`) that manages the file structure.
+
+```
+public class HrotScenarioEnvelope
+{
+    public ScenarioHeader Header { get; set; }
+    public JsonObject Entities { get; set; }
+
+    public static string? PeekSubsystemType(string jsonText) 
+    {
+        // Hrot-specific envelope parsing logic here
+    }
+}
+```
+
+This cleanly separates the file format (Hrot) from the ECS data mapping (FDP). The Hrot wrapper will parse the file, validate the subsystem type, and then pass the `Entities` JSON node down to the pure `FDP.Toolkit.Scenario.ScenarioSerializer` for ECS hydration.
+
+3\. Refactor the Orchestration Handlers
+
+Currently, the handlers in `FDP.Toolkit.Orchestration.Handlers` (like `ReferenceScenarioLoadHandler`, `ReferenceEditLoadHandler`, and `ReferenceEpisodeLoadHandler`) are invoking `_serializer.PeekSubsystemType(text)`.
+
+Because these handlers are orchestrating Hrot-specific workflows (reading from specific temporary directories, parsing Hrot envelopes, and discarding files intended for other subsystem roles), **they actually belong in the Hrot application layer**, not the FDP toolkit.
+
+**Recommendation:** Migrate `ReferenceScenarioLoadHandler`, `ReferenceEditLoadHandler`, and `ReferenceEpisodeLoadHandler` out of `FDP.Toolkit.Orchestration.Handlers` and into `Hrot.Common.Orchestration.Handlers`. Once moved, update them to use the new `HrotScenarioEnvelope.PeekSubsystemType()` before delegating the inner `Entities` payload to the FDP `ScenarioSerializer`.
+
+By applying these changes, the FDP toolkit regains its domain purity, and all file-format and subsystem-targeting knowledge is rightfully encapsulated within the Hrot boundary.
+

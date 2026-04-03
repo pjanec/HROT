@@ -34,7 +34,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
                 Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
-                DomainPayload = (int)ClusterState.LoadingLive,
+                DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
             });
 
             slave.Tick();
@@ -62,7 +62,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = txId,
                 TargetNodeId  = 0,
                 Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
-                DomainPayload = (int)ClusterState.LoadingLive,
+                DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
             };
 
             // Enqueue the same command twice (simulates DDS re-delivery).
@@ -105,7 +105,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = txId,
                 TargetNodeId  = 0,
                 Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
-                DomainPayload = (int)ClusterState.LoadingLive,
+                DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
             });
 
             slave.Tick();
@@ -154,7 +154,7 @@ namespace Hrot.SimHost.Tests
                 TransactionId = Guid.NewGuid(),
                 TargetNodeId  = 0,
                 Operation     = FDP.Toolkit.Orchestration.NodeOpType.CommitState,
-                DomainPayload = (int)ClusterState.LoadingLive,
+                DomainPayload = new CommitStatePayload((int)ClusterState.LoadingLive),
             });
 
             slave.Tick();

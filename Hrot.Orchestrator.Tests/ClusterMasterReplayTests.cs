@@ -192,7 +192,7 @@ public sealed class ClusterMasterReplayTests
         {
             TransactionId   = branchTxId!.Value,
             NodeId          = 1,
-            StatusCode      = OrchestrationStatusCode.Success,
+            StatusCode      = (int)OrchestrationStatusCode.Success,
             IsParticipating = true,
             ResultJson      = string.Empty,
         });

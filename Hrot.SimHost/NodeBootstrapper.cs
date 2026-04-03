@@ -25,6 +25,7 @@ using FDP.Toolkit.Navigation.Executors;
 using FDP.Toolkit.Navigation.Modules;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
+using Hrot.Common.Orchestration.Handlers;
 using FDP.Toolkit.Perception.Modules;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;

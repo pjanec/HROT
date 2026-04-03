@@ -10,6 +10,7 @@ using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Orchestration.Handlers;
+using Hrot.Common.Orchestration.Handlers;
 using FDP.Toolkit.Scenario;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
