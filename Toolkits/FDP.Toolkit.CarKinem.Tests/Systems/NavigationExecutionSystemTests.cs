@@ -243,5 +243,117 @@ namespace CarKinem.Tests.Systems
 
             system.Dispose();
         }
+
+        // ── PACK-N002: ProgressS mirroring from NavState ──────────────────────
+
+        private static EntityRepository CreateWorldWithNavState()
+        {
+            var repo = new EntityRepository();
+            repo.RegisterComponent<NavigationIntent>();
+            repo.RegisterComponent<NavigationStatus>();
+            repo.RegisterComponent<FrustrationTicks>();
+            repo.RegisterComponent<SimTransform>();
+            repo.RegisterComponent<SimVelocity>();
+            repo.RegisterComponent<NavState>();
+            repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+            return repo;
+        }
+
+        private static Entity AddNavigatingEntityWithNavState(
+            EntityRepository repo,
+            float navStateProgressS,
+            float statusProgressS = 0f,
+            uint intentId = 1)
+        {
+            var entity = repo.CreateEntity();
+            repo.AddComponent(entity, new SimTransform { Position = new System.Numerics.Vector3(0f, 0f, 0f), Rotation = System.Numerics.Quaternion.Identity });
+            repo.AddComponent(entity, new SimVelocity { Linear = new System.Numerics.Vector3(5f, 0f, 0f) });
+            repo.AddComponent(entity, new NavigationIntent
+            {
+                Mode             = NavMode.FollowRoute,
+                FinalDestination = new Vector2(1000f, 0f),
+                ArrivalRadius    = 5f,
+                TargetSpeed      = 15f,
+                IntentId         = intentId,
+            });
+            repo.AddComponent(entity, new NavigationStatus
+            {
+                IntentId  = intentId,
+                Result    = NavResult.InProgress,
+                ProgressS = statusProgressS,
+            });
+            repo.AddComponent(entity, new FrustrationTicks { Ticks = 0 });
+            repo.AddComponent(entity, new NavState { ProgressS = navStateProgressS });
+            return entity;
+        }
+
+        /// <summary>
+        /// PACK-N002 SC-1: After a tick, <see cref="NavigationStatus.ProgressS"/> must equal
+        /// <see cref="NavState.ProgressS"/> on the same entity.
+        /// </summary>
+        [Fact]
+        public void NavigationExecution_MapsProgressS_FromNavState()
+        {
+            using var repo = CreateWorldWithNavState();
+            var system = new NavigationExecutionSystem();
+            system.Create(repo);
+
+            var entity = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0.73f, statusProgressS: 0f);
+
+            system.Run();
+
+            var status = repo.GetComponent<NavigationStatus>(entity);
+            Assert.Equal(0.73f, status.ProgressS, precision: 4);
+
+            system.Dispose();
+        }
+
+        /// <summary>
+        /// PACK-N002 SC-2: When <see cref="NavState.ProgressS"/> is 0, the output
+        /// <see cref="NavigationStatus.ProgressS"/> must also be 0 (not left at any prior value).
+        /// </summary>
+        [Fact]
+        public void NavigationExecution_ZeroProgressS_Passthrough()
+        {
+            using var repo = CreateWorldWithNavState();
+            var system = new NavigationExecutionSystem();
+            system.Create(repo);
+
+            // Pre-seed a non-zero ProgressS on status to verify it gets overwritten with 0.
+            var entity = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f, statusProgressS: 0.5f);
+
+            system.Run();
+
+            var status = repo.GetComponent<NavigationStatus>(entity);
+            Assert.Equal(0f, status.ProgressS, precision: 4);
+
+            system.Dispose();
+        }
+
+        /// <summary>
+        /// PACK-N002 SC-3: After the tick, existing <see cref="NavigationStatus.IntentId"/>
+        /// and <see cref="NavigationStatus.Result"/> must retain their pre-tick values
+        /// (mapping ProgressS must not accidentally zero other fields).
+        /// </summary>
+        [Fact]
+        public void NavigationExecution_PreservesExistingFields_WhenProgressSMapped()
+        {
+            using var repo = CreateWorldWithNavState();
+            var system = new NavigationExecutionSystem();
+            system.Create(repo);
+
+            const uint expectedIntentId = 7u;
+            var entity = AddNavigatingEntityWithNavState(
+                repo, navStateProgressS: 0.3f, intentId: expectedIntentId);
+
+            system.Run();
+
+            var status = repo.GetComponent<NavigationStatus>(entity);
+            Assert.Equal(expectedIntentId, status.IntentId);
+            Assert.Equal(NavResult.InProgress, status.Result);
+            Assert.Equal(0.3f, status.ProgressS, precision: 4);
+
+            system.Dispose();
+        }
     }
 }

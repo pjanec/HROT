@@ -117,15 +117,14 @@ namespace Fdp.Examples.Scenarios.Integrated
     ///
     /// <para><b>System pipeline order:</b> DoctrineIngress → FireProcessing → RaycastSolver →
     /// HitResolution → MissionDirector → ChannelArbitration → BTreeTick → HsmTick →
-    /// Damage → ApcMobilityTrigger → HsmDamageBridge → AudioPerception →
+    /// Damage → HsmDamageBridge → AudioPerception →
     /// WeaponDispatcher → InteractionDispatcher → LocomotionDispatcher →
     /// SpatialHash → CarKinematics → LinearKinematics → Ballistics</para>
     ///
-    /// <para><b>ApcMobilityTrigger</b> (inline scenario system, not a toolkit component):
-    /// strips CanMove from any HSM entity whose Health.Current has dropped below maximum.
-    /// This bridges the gap between DamageSystem (only strips capabilities on lethal hits) and
-    /// HsmDamageBridgeSystem (watches for CanMove → cleared transitions) so that
-    /// non-lethal RPG damage triggers MobilityLost on the APC.</para>
+    /// <para><b>Damage → MobilityLost chain (PACK-M001 / PACK-M002):</b>
+    /// <c>DamageSystem</c> reduces HP; <c>HealthApplicationSystem</c> strips <c>CanMove</c>
+    /// on any non-lethal hit; <c>HsmDamageBridgeSystem</c> (now in <c>CognitiveRuntimeModule</c>)
+    /// enqueues <c>MobilityLost</c> into the Brain HSM the same frame.</para>
     ///
     /// <para><b>HSM lifecycle:</b> The ConvoyEscort_HSM has two states: Cruising (initial) →
     /// Disabled (on MobilityLost).  OnEnter_Disabled stops the APC and ejects soldiers.
@@ -757,7 +756,6 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new BTreeTickSystem(_doctrineRegistry),
                 new HsmTickSystem<BrainHsm128>(_doctrineRegistry),
                 new DamageSystem(),
-                new ApcMobilityTriggerSystem(),   // DEM1-D010: strips CanMove on any damage (non-lethal RPG hit)
                 new HsmDamageBridgeSystem(),
                 new AudioPerceptionSystem(),
                 weaponSys,
@@ -943,46 +941,6 @@ namespace Fdp.Examples.Scenarios.Integrated
                 int paramIndex)
             {
                 return NodeStatus.Running;
-            }
-        }
-
-        // ── Inner: ApcMobilityTriggerSystem ──────────────────────────────────
-
-        /// <summary>
-        /// Scenario-local system that strips <see cref="ActorCapabilities.CanMove"/> from
-        /// any HSM entity (<see cref="BrainHsm128"/>) whose <see cref="FDP.Toolkit.Combat.Components.Health"/>
-        /// has dropped below its <c>Max</c> value.
-        ///
-        /// <para>This bridges the gap between <see cref="DamageSystem"/> (which only strips
-        /// capabilities on <em>lethal</em> hits, i.e. Health == 0) and
-        /// <see cref="HsmDamageBridgeSystem"/> (which watches for CanMove transitions to inject
-        /// MobilityLost).  A single RPG hit (25 out of 500 HP) is enough to disable the APC
-        /// and transition its HSM to the Disabled state.</para>
-        ///
-        /// <para>Intentionally not a general toolkit component — scoped to this scenario.</para>
-        /// </summary>
-        private sealed class ApcMobilityTriggerSystem : ComponentSystem
-        {
-            protected override void OnUpdate()
-            {
-                var q = World.Query()
-                    .With<FDP.Toolkit.Combat.Components.Health>()
-                    .With<ActorCapabilityState>()
-                    .With<BrainHsm128>()
-                    .Build();
-
-                foreach (var entity in q)
-                {
-                    var health = World.GetComponent<FDP.Toolkit.Combat.Components.Health>(entity);
-                    if (health.Current >= health.Max)
-                        continue;   // still at full health — no action
-
-                    ref var caps = ref World.GetComponentRW<ActorCapabilityState>(entity);
-                    if ((caps.Capabilities & ActorCapabilities.CanMove) == 0)
-                        continue;   // already stripped — no redundant write
-
-                    caps.Capabilities &= ~ActorCapabilities.CanMove;
-                }
             }
         }
 

@@ -57,5 +57,17 @@ namespace FDP.Toolkit.Navigation.Tests
             Assert.Equal(0u, intent.IntentId);
         }
 
+        // ── PACK-N001: NavigationStatus.ProgressS ────────────────────────────────
+
+        /// <summary>
+        /// PACK-N001 SC-1: <see cref="NavigationStatus.ProgressS"/> must round-trip via direct
+        /// field access (field present and non-optimised).
+        /// </summary>
+        [Fact]
+        public void NavigationStatus_ProgressS_RoundTrips()
+        {
+            var status = new NavigationStatus { ProgressS = 0.5f };
+            Assert.Equal(0.5f, status.ProgressS);
+        }
     }
 }

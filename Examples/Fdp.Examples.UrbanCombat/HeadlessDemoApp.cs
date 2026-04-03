@@ -332,7 +332,6 @@ namespace Fdp.Examples.UrbanCombat
             _simGroup.AddSystem(new BTreeTickSystem(_doctrineRegistry));
             _simGroup.AddSystem(new HsmTickSystem<BrainHsm128>(_doctrineRegistry));
             _simGroup.AddSystem(new DamageSystem());
-            _simGroup.AddSystem(new ApcMobilitySystem());
             _simGroup.AddSystem(new HsmDamageBridgeSystem());
             _simGroup.AddSystem(new AudioPerceptionSystem());
 

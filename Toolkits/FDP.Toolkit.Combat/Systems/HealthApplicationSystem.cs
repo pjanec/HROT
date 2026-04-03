@@ -82,6 +82,14 @@ namespace FDP.Toolkit.Combat.Systems
                     ref var caps = ref World.GetComponentRW<ActorCapabilityState>(targetEntity);
                     caps.Capabilities &= ~(ActorCapabilities.CanMove | ActorCapabilities.CanShoot);
                 }
+                // Non-lethal hit (HP below max but above 0): strip only CanMove (PACK-M002).
+                // This replaces the cross-domain ApcMobilityTriggerSystem so Brain-tier
+                // HsmDamageBridgeSystem can detect the capability change and inject MobilityLost.
+                else if (health.Current < health.Max && World.HasComponent<ActorCapabilityState>(targetEntity))
+                {
+                    ref var caps = ref World.GetComponentRW<ActorCapabilityState>(targetEntity);
+                    caps.Capabilities &= ~ActorCapabilities.CanMove;
+                }
             }
         }
     }

@@ -141,5 +141,95 @@ namespace FDP.Toolkit.Combat.Tests
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(100f, health.Current);
         }
+
+        // ── PACK-M002: Non-lethal hit strips CanMove only ─────────────────────
+
+        /// <summary>
+        /// PACK-M002 SC-1: A non-lethal <see cref="DamageAssessedEvent"/> must reduce HP
+        /// and strip <see cref="ActorCapabilities.CanMove"/> while preserving all other
+        /// capabilities (e.g. <see cref="ActorCapabilities.CanInteract"/>).
+        /// </summary>
+        [Fact]
+        public void HealthApplication_NonLethalHit_StripsCanMove_PreservesOtherCapabilities()
+        {
+            // Entity at max health with both CanMove and CanInteract.
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Health { Current = 500f, Max = 500f });
+            _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.AddComponent(entity, new ActorCapabilityState
+            {
+                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract,
+            });
+            _entityMap.Register(10L, entity);
+
+            // Non-lethal hit: 100 damage out of 500 max.
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntityId = 10L, TotalDamage = 100f });
+            _world.Bus.SwapBuffers();
+            _sys.Run();
+
+            var health = _world.GetComponent<Health>(entity);
+            Assert.Equal(400f, health.Current);  // HP reduced
+
+            var caps = _world.GetComponent<ActorCapabilityState>(entity);
+            Assert.False(caps.Capabilities.HasFlag(ActorCapabilities.CanMove),
+                "CanMove must be stripped on a non-lethal hit.");
+            Assert.True(caps.Capabilities.HasFlag(ActorCapabilities.CanInteract),
+                "CanInteract must NOT be stripped on a non-lethal hit.");
+        }
+
+        /// <summary>
+        /// PACK-M002 SC-2 (regression guard): A lethal hit (HP → 0) must not throw
+        /// and must also strip CanMove (both CanMove and CanShoot are cleared at zero HP —
+        /// the existing behaviour is preserved).
+        /// </summary>
+        [Fact]
+        public void HealthApplication_LethalHit_DoesNotThrow_CanMoveAlsoStripped()
+        {
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Health { Current = 500f, Max = 500f });
+            _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.AddComponent(entity, new ActorCapabilityState
+            {
+                Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
+            });
+            _entityMap.Register(11L, entity);
+
+            // Lethal hit: exactly 500 damage.
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntityId = 11L, TotalDamage = 500f });
+            _world.Bus.SwapBuffers();
+
+            var ex = Record.Exception(() => _sys.Run());
+            Assert.Null(ex);
+
+            var health = _world.GetComponent<Health>(entity);
+            Assert.Equal(0f, health.Current);
+
+            var caps = _world.GetComponent<ActorCapabilityState>(entity);
+            Assert.False(caps.Capabilities.HasFlag(ActorCapabilities.CanMove));
+        }
+
+        /// <summary>
+        /// PACK-M002 SC-1b: When the entity does NOT have an
+        /// <see cref="ActorCapabilityState"/> component, a non-lethal hit must still
+        /// reduce HP without throwing (skip-if-absent contract).
+        /// </summary>
+        [Fact]
+        public void HealthApplication_NonLethalHit_NoCapabilityState_SkipsSilently()
+        {
+            var entity = _world.CreateEntity();
+            _world.AddComponent(entity, new Health { Current = 200f, Max = 200f });
+            _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            // No ActorCapabilityState registered.
+            _entityMap.Register(12L, entity);
+
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntityId = 12L, TotalDamage = 50f });
+            _world.Bus.SwapBuffers();
+
+            var ex = Record.Exception(() => _sys.Run());
+            Assert.Null(ex);
+
+            var health = _world.GetComponent<Health>(entity);
+            Assert.Equal(150f, health.Current);
+        }
     }
 }

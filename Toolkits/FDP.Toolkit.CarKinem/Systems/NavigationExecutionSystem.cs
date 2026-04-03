@@ -87,6 +87,15 @@ namespace CarKinem.Systems
                 var tf          = World.GetComponent<SimTransform>(entity);
                 var vel         = World.GetComponent<SimVelocity>(entity);
 
+                // ── Mirror ProgressS from NavState (PACK-N002) ───────────────────────────────
+                // Cache NavState.ProgressS once per entity tick so Brain-only nodes can read
+                // route progress via the NavigationStatus CQRS feedback channel without querying
+                // NavState directly (CQRS boundary — DESIGN.md §1.B).
+                float progressAtThisTick = 0f;
+                if (World.HasComponent<NavState>(entity))
+                    progressAtThisTick = World.GetComponent<NavState>(entity).ProgressS;
+                status.ProgressS = progressAtThisTick;
+
                 // ── New command detection: reset status and frustration counter ────────────────
                 // Round-trip latency note (TD-12): FollowRouteExecutor increments IntentId on
                 // the Brain side to signal a loop reset.  This system (Muscle side) detects the
@@ -98,8 +107,9 @@ namespace CarKinem.Systems
                 {
                     status = new NavigationStatus
                     {
-                        IntentId = intent.IntentId,
-                        Result   = NavResult.InProgress,
+                        IntentId  = intent.IntentId,
+                        Result    = NavResult.InProgress,
+                        ProgressS = progressAtThisTick,
                     };
                     World.SetComponent(entity, status);
                     frustration.Ticks = 0;
@@ -157,12 +167,12 @@ namespace CarKinem.Systems
                     }
                 }
 
-                // ── Keep InProgress ───────────────────────────────────────────────────────────
+                // ── Keep InProgress and persist ProgressS ────────────────────────────────────
+                // Unconditional write ensures ProgressS is always persisted on the steady-state
+                // InProgress path (no continue above was taken).
                 if (status.Result != NavResult.InProgress)
-                {
                     status.Result = NavResult.InProgress;
-                    World.SetComponent(entity, status);
-                }
+                World.SetComponent(entity, status);
             }
         }
     }

@@ -11,6 +11,7 @@ namespace FDP.Toolkit.Behavior.Modules
     /// <para><b>Systems registered (in order):</b></para>
     /// <list type="number">
     ///   <item><see cref="ChannelArbitrationSystem"/> — clears stale channels on doctrine change</item>
+    ///   <item><see cref="HsmDamageBridgeSystem"/> — bridges capability-loss events into HSM (PACK-M001)</item>
     ///   <item><see cref="BTreeTickSystem"/> — zero-alloc BTree tick per entity</item>
     ///   <item><see cref="HsmTickSystem{BrainHsm128}"/> — HSM tick for 128-byte HSM instances</item>
     ///   <item><see cref="HsmTickSystem{BrainHsm64}"/> — HSM tick for 64-byte HSM instances</item>
@@ -28,11 +29,13 @@ namespace FDP.Toolkit.Behavior.Modules
         }
 
         /// <summary>
-        /// Registers the channel arbitration, BTree tick, and HSM tick systems into the provided group.
+        /// Registers the channel arbitration, HSM damage bridge, BTree tick, and HSM tick systems
+        /// into the provided group.
         /// </summary>
         public void RegisterSystems(SystemGroup group)
         {
             group.AddSystem(new ChannelArbitrationSystem());
+            group.AddSystem(new HsmDamageBridgeSystem());   // PACK-M001: before HSM ticks
             group.AddSystem(new BTreeTickSystem(_registry));
             group.AddSystem(new HsmTickSystem<BrainHsm128>(_registry));
             group.AddSystem(new HsmTickSystem<BrainHsm64>(_registry));

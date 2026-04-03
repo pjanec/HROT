@@ -152,5 +152,14 @@ namespace FDP.Toolkit.Navigation
         /// Defaults to <see cref="NavigationResult.InProgress"/> for a zero-initialised struct.
         /// </summary>
         public NavigationResult Result;
+
+        /// <summary>
+        /// Arc-length progress along the active route (metres from start).
+        /// Mirrors <c>NavState.ProgressS</c> written by the Muscle tier so Brain-only nodes
+        /// can read route progress via the CQRS feedback channel without querying NavState.
+        /// Populated by <c>NavigationExecutionSystem</c>; mapped to the wire by
+        /// <c>NavigationStatusEgressTranslator</c> and <c>NavigationStatusIngressTranslator</c>.
+        /// </summary>
+        public float ProgressS;
     }
 }
