@@ -148,7 +148,7 @@ namespace Hrot.NED.Descriptors.Orchestration
 
     [DdsTopic("NodeOpStatus")]
     [DdsIdlFile("hrot-orchestration")]
-    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile)]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.Volatile, HistoryKind = DdsHistoryKind.KeepAll)]
     public partial struct NodeOpStatus
     {
         public Guid TransactionId;

@@ -15,10 +15,10 @@ x[BUG] NodeOpCompletedEvent should contain operation id so that the translator k
 
 x[BUG] ClusterStateTransitionedEvent now contain int state id NewStateId. Should be enum!
 
-[BUG] ClusterUiCache is tied to network messages. After the cluster management revam to CQRS, it should work purely with fdp events.
-Only the translator should work with network, everything inside the system must be communicated via FdpEvents.
+y[BUG] ClusterUiCache is tied to network messages. After the cluster management revamp to CQRS, it should work purely with fdp events.
+Only the translator should work with network, everything inside the system must be communicated via FdpEvents. this 
 
-[BUG] ClusterMaster ctor exists in 2 versions - with DDS and without it. The DDS one is undersired after we implemented the one with FdpEvents.
+y[BUG] ClusterMaster ctor exists in 2 versions - with DDS and without it. The DDS one is undersired after we revamped the one with FdpEvents.
 No fallback and backward compatibility please!
 
 

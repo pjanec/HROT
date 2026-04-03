@@ -140,7 +140,11 @@ public sealed class ClusterMaster : IDisposable
     /// </summary>
     private readonly Dictionary<Guid, BranchTransitionTask> _pendingBranchTasks = new();
 
-    private sealed class BranchTransitionTask { public int RemainingAcks; }
+    private sealed class BranchTransitionTask
+    {
+        public int  RemainingAcks;
+        public Guid RequestId;  // for bus-mode: publish ClusterOpStatus(Success) when branch ACKs complete
+    }
 
     // ── Episode 2PC (CGF1-S0308 / BATCH-21 Part A.1) ───────────────────────
     /// <summary>
@@ -402,6 +406,7 @@ public sealed class ClusterMaster : IDisposable
             ProcessTransitionStateIntents();
             ProcessManageEpisodeIntents();
             ProcessStorageOpIntents();
+            ProcessTakeCheckpointIntents();
             ProcessSeekReplayIntents();
             ProcessCancelOperationIntents();
         }
@@ -692,8 +697,27 @@ public sealed class ClusterMaster : IDisposable
                 ProcessStorageOpIntent(ClusterOpRequestAdapter.ToExecuteStorageOpIntent(req));
                 break;
 
+            case ClusterOpType.TakeCheckpoint:
+            {
+                var checkpointNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+                if (checkpointNodeIds.Count == 0)
+                {
+                    PublishOpStatus(req.RequestId, OrchestrationStatusCode.Success);
+                    break;
+                }
+                var checkpointTxId = Guid.NewGuid();
+                FanOutNodeOp(NodeOpType.TakeSnapshot, checkpointTxId, null, checkpointNodeIds);
+                _pendingBusTransitionAcks[checkpointTxId] = new BusTransitionAckTracker
+                {
+                    RequestId = req.RequestId,
+                    Expected  = checkpointNodeIds.Count,
+                };
+                break;
+            }
+
             case ClusterOpType.ReplaySeek:
                 ProcessSeekReplayIntent(ClusterOpRequestAdapter.ToSeekReplayIntent(req));
+                PublishOpStatus(req.RequestId, OrchestrationStatusCode.Success);
                 break;
 
             case ClusterOpType.CancelOperation:
@@ -738,10 +762,33 @@ public sealed class ClusterMaster : IDisposable
             ProcessStorageOpIntent(intent);
     }
 
+    private void ProcessTakeCheckpointIntents()
+    {
+        foreach (var intent in _eventBus!.ConsumeManaged<TakeCheckpointIntent>())
+        {
+            var ckNodeIds = new List<int>(_roster.ActiveNodes.Keys);
+            if (ckNodeIds.Count == 0)
+            {
+                PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
+                continue;
+            }
+            var ckTxId = Guid.NewGuid();
+            FanOutNodeOp(NodeOpType.TakeSnapshot, ckTxId, null, ckNodeIds);
+            _pendingBusTransitionAcks[ckTxId] = new BusTransitionAckTracker
+            {
+                RequestId = intent.RequestId,
+                Expected  = ckNodeIds.Count,
+            };
+        }
+    }
+
     private void ProcessSeekReplayIntents()
     {
         foreach (var intent in _eventBus!.ConsumeManaged<SeekReplayIntent>())
+        {
             ProcessSeekReplayIntent(intent);
+            PublishOpStatus(intent.RequestId, OrchestrationStatusCode.Success);
+        }
     }
 
     private void ProcessCancelOperationIntents()
@@ -795,15 +842,15 @@ public sealed class ClusterMaster : IDisposable
             isLiveFromReplayBranch = true;
             _replayMasterModule?.FreezeTime();
 
-            var branchedExerciseId = !string.IsNullOrWhiteSpace(intent.ExerciseId)
-                ? Guid.Parse(intent.ExerciseId)
+            var branchedExerciseId = Guid.TryParse(intent.ExerciseId, out var parsedBranchId)
+                ? parsedBranchId
                 : Guid.NewGuid();
             var branchTxId    = Guid.NewGuid();
             var branchNodeIds = new List<int>(_roster.ActiveNodes.Keys);
 
             if (branchNodeIds.Count > 0)
             {
-                _pendingBranchTasks[branchTxId] = new BranchTransitionTask { RemainingAcks = branchNodeIds.Count };
+                _pendingBranchTasks[branchTxId] = new BranchTransitionTask { RemainingAcks = branchNodeIds.Count, RequestId = requestId };
                 FanOutNodeOp(NodeOpType.PrepareLive, branchTxId, branchedExerciseId, branchNodeIds);
                 FdpLog<ClusterMaster>.Info(
                     "[Orchestrator] S0305: Live-from-Replay branch — time frozen, " +
@@ -853,11 +900,14 @@ public sealed class ClusterMaster : IDisposable
                             _                            => NodeOpType.PrepareState,
                         };
 
-                        // DomainPayload for prepare ops that carry context:
-                        object? preparePayload =
+                        // DomainPayload always carries TargetState so ClusterSlave can use it
+                        // as a dedup discriminant for PrepareState ops that share the same txId.
+                        // ScenarioId is only populated for the two load states that actually need it.
+                        var preparePayload = new EditLoadHandlerPayload(
                             tStep.TargetState == ClusterState.LoadingLive || tStep.TargetState == ClusterState.LoadingEdit
-                                ? new EditLoadHandlerPayload(intent.ScenarioId, false, (int)tStep.TargetState)
-                                : null;
+                                ? intent.ScenarioId : null,
+                            false,
+                            (int)tStep.TargetState);
 
                         FanOutNodeOp(prepareOp,             tx.TransactionId, preparePayload,              activeNodeIds);
                         FanOutNodeOp(NodeOpType.CommitState, tx.TransactionId,
@@ -892,8 +942,10 @@ public sealed class ClusterMaster : IDisposable
         {
             // Count expected ACKs: one per PrepareXxx TransitionStep per active node.
             // CommitState is handled in-slave synchronously and does NOT publish ACK.
-            int prepSteps = trajectory.OfType<TransitionStep>().Count();
-            int expectedAcks = prepSteps * activeNodeIds.Count;
+            // For live-from-replay branch, the branch ACKs are tracked via _pendingBranchTasks
+            // using branchTxId; the main tx has no fan-out so expectedAcks = 0.
+            int prepSteps    = trajectory.OfType<TransitionStep>().Count();
+            int expectedAcks = isLiveFromReplayBranch ? 0 : (prepSteps * activeNodeIds.Count);
             if (expectedAcks > 0)
             {
                 _pendingBusTransitionAcks[tx.TransactionId] = new BusTransitionAckTracker
@@ -1265,6 +1317,21 @@ public sealed class ClusterMaster : IDisposable
         {
             foreach (var ev in _eventBus.ConsumeManaged<NodeOpCompletedEvent>())
             {
+                // CGF1-S0305: Branch-transition ACK (bus mode) — same tracking as DDS path below.
+                if (_pendingBranchTasks.TryGetValue(ev.TransactionId, out var branchTask))
+                {
+                    branchTask.RemainingAcks--;
+                    if (branchTask.RemainingAcks <= 0)
+                    {
+                        _pendingBranchTasks.Remove(ev.TransactionId);
+                        _replayMasterModule?.RestoreTime();
+                        PublishOpStatus(branchTask.RequestId, OrchestrationStatusCode.Success);
+                        FdpLog<ClusterMaster>.Info(
+                            "[Orchestrator] S0305 (bus): All branch ACKs received — time scale restored.");
+                    }
+                    continue;
+                }
+
                 // Transition ACK handling (existing — no changes)
                 if (_pendingBusTransitionAcks.TryGetValue(ev.TransactionId, out var tracker))
                 {

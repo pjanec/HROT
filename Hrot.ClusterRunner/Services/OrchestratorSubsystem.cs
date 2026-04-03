@@ -122,7 +122,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _masterTimeSyncTranslator = TimeNetworkModule.CreateMasterTimeSyncTranslator(_participant);
 
         _uiCache       = new ClusterUiCache(_participant, _masterSync);
-        _scenarioPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
+        _scenarioPanel = new ClusterScenarioPanel(_clusterMaster, _uiCache);
 
         // S0503: Subscribe to time-control events from ClusterMaster.
         _clusterMaster.TimeControlRequested += (op, payload) =>

@@ -100,7 +100,7 @@ public sealed class ClusterOpE2eScriptTests
     [Fact(Timeout = 60000)]
     public async Task PreviewStateRestore_Passes()
     {
-        int result = await RunScriptAsync("e2e_dryrun_state_restore.json");
+        int result = await RunScriptAsync("e2e_preview_state_restore.json");
         Assert.Equal(0, result);
     }
 
