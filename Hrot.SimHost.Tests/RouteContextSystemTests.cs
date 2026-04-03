@@ -2,27 +2,22 @@ using System.Numerics;
 using Hrot.Map.Common.Components;
 using Hrot.SimHost.Brains;
 using Hrot.SimHost.Systems.Routing;
-using CarKinem.Core;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Navigation;
 using ModuleHost.Core.Abstractions;
 
 namespace Hrot.SimHost.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="RouteContextSystem"/> — ROUTES1-T014.
+/// Unit tests for <see cref="RouteContextSystem"/> — ROUTES1-T014 / PACK-N004.
 ///
-/// Validates:
-/// <list type="bullet">
-///   <item><c>"dangerLevel"</c> JSON key is read and written to
-///         <see cref="BrainBlackboard.Memory"/> at <see cref="BlackboardOffsets.ExpectedThreatLevel"/>.</item>
-///   <item>Malformed ExtensionJson does not throw.</item>
-///   <item>The throttle interval prevents double-processing within a single tick cycle.</item>
-/// </list>
+/// The system is a pure Brain-tier system: it queries <see cref="NavigationIntent"/>,
+/// <see cref="NavigationStatus"/>, and <see cref="BrainBlackboard"/>. It does NOT
+/// query <see cref="CarKinem.Core.NavState"/> (Muscle-tier) after the PACK-N004 refactor.
 ///
 /// <see cref="RouteContextSystem.TickIntervalSeconds"/> is set to 0 so the throttle
-/// is bypassed on every call to <c>Run()</c> (DeltaTime defaults to 0 via direct
-/// <see cref="ComponentSystem.Run"/> without a stepping kernel).
+/// is bypassed on every call to <c>Run()</c>.
 /// </summary>
 public class RouteContextSystemTests
 {
@@ -43,7 +38,8 @@ public class RouteContextSystemTests
     private static EntityRepository CreateWorld()
     {
         var repo = new EntityRepository();
-        repo.RegisterComponent<NavState>();
+        repo.RegisterComponent<NavigationIntent>();
+        repo.RegisterComponent<NavigationStatus>();
         repo.RegisterComponent<BrainBlackboard>();
         repo.RegisterComponent<PersonalRouteRef>();
         repo.RegisterComponent<RouteTrajectoryCache>();
@@ -53,14 +49,28 @@ public class RouteContextSystemTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private Entity CreateVehicle(int trajectoryId = 1, string? personalRouteJson = null)
+    /// <summary>
+    /// Creates a vehicle entity with <see cref="NavigationIntent"/> (FollowRoute),
+    /// <see cref="NavigationStatus"/> with the supplied <paramref name="progressS"/>,
+    /// and a <see cref="BrainBlackboard"/>.
+    /// Optionally attaches a personal route with the given ExtensionJson.
+    /// </summary>
+    private Entity CreateVehicle(
+        int    trajectoryId    = 1,
+        string? personalRouteJson = null,
+        float   progressS      = 5f)
     {
         var vehicle = _repo.CreateEntity();
-        _repo.AddComponent(vehicle, new NavState
+        _repo.AddComponent(vehicle, new NavigationIntent
         {
-            Mode         = KinematicsMode.CustomTrajectory,
+            Mode         = NavigationMode.FollowRoute,
             TrajectoryId = trajectoryId,
-            ProgressS    = 5f,
+            IntentId     = 1u,
+        });
+        _repo.AddComponent(vehicle, new NavigationStatus
+        {
+            ProgressS = progressS,
+            IntentId  = 1u,
         });
         _repo.AddComponent(vehicle, new BrainBlackboard());
 
@@ -105,8 +115,7 @@ public class RouteContextSystemTests
     }
 
     /// <summary>
-    /// <c>"dangerLevel"</c> value 255 must be clamped to 255 (max byte) and written
-    /// correctly.
+    /// <c>"dangerLevel"</c> value 255 must be clamped to 255 (max byte) and written correctly.
     /// </summary>
     [Fact]
     public unsafe void OnUpdate_DangerLevel255_ClampedAtMaxByte()
@@ -159,16 +168,13 @@ public class RouteContextSystemTests
 
     /// <summary>
     /// When <see cref="RouteContextSystem.TickIntervalSeconds"/> is greater than the
-    /// accumulated DeltaTime (0 in direct-Run mode), the system skips its payload.
-    /// Setting the interval to 1 second and calling Run() without advancing the clock
-    /// must leave the blackboard at 0.
+    /// accumulated DeltaTime, the system skips its payload.
     /// </summary>
     [Fact]
     public unsafe void OnUpdate_ThrottleInterval_SkipsPayloadBeforeIntervalElapsed()
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":77}");
 
-        // Override: set a 1-second throttle. DeltaTime=0 <  1.0 → system skips.
         _system.TickIntervalSeconds = 1f;
 
         _system.Run(); // DeltaTime=0 → _elapsed=0 → 0 < 1.0 → skip
@@ -181,14 +187,10 @@ public class RouteContextSystemTests
     // Empty world safety
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Running <see cref="RouteContextSystem"/> on an empty world must not throw.
-    /// </summary>
     [Fact]
     public void OnUpdate_EmptyWorld_DoesNotThrow()
     {
         var ex = Record.Exception(() => _system.Run());
-
         Assert.Null(ex);
     }
 
@@ -198,17 +200,14 @@ public class RouteContextSystemTests
 
     /// <summary>
     /// When a vehicle uses the shared-route fallback path (no PersonalRouteRef,
-    /// matching via <see cref="RouteTrajectoryCache"/>), the cached
-    /// <c>_routeQuery</c> must produce the same danger-level result as the
-    /// formerly per-tick-built query.
+    /// matching via <see cref="RouteTrajectoryCache"/>), the system must still write
+    /// the danger level to the blackboard.
     /// </summary>
     [Fact]
     public unsafe void OnUpdate_SharedRouteFallback_CachedQueryWritesDangerLevelToBlackboard()
     {
-        // ── Arrange ───────────────────────────────────────────────────────────
         const int trajectoryId = 42;
 
-        // Shared route entity: RouteTrajectoryCache + RoutePlan (no PersonalRouteRef).
         var routeEntity = _repo.CreateEntity();
         _repo.AddComponent(routeEntity, new RouteTrajectoryCache
         {
@@ -227,36 +226,27 @@ public class RouteContextSystemTests
         });
         _repo.SetManagedComponent(routeEntity, plan);
 
-        // Vehicle with matching TrajectoryId — no PersonalRouteRef so it falls
-        // through to the shared-route (_routeQuery) lookup.
         var vehicle = _repo.CreateEntity();
-        _repo.AddComponent(vehicle, new NavState
+        _repo.AddComponent(vehicle, new NavigationIntent
         {
-            Mode         = KinematicsMode.CustomTrajectory,
+            Mode         = NavigationMode.FollowRoute,
             TrajectoryId = trajectoryId,
-            ProgressS    = 1f,
+            IntentId     = 1u,
         });
+        _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
         _repo.AddComponent(vehicle, new BrainBlackboard());
 
-        // ── Act ───────────────────────────────────────────────────────────────
         _system.Run();
 
-        // ── Assert ────────────────────────────────────────────────────────────
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(7, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
     }
 
-    /// <summary>
-    /// Calling <see cref="RouteContextSystem.Run"/> multiple consecutive times must
-    /// produce stable results — proving the cached <c>_vehicleQuery</c> and
-    /// <c>_routeQuery</c> remain functional across repeated ticks (CT-3).
-    /// </summary>
     [Fact]
     public unsafe void OnUpdate_MultipleConsecutiveRuns_CachedQueriesRetainCorrectBehavior()
     {
         var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":55}");
 
-        // Run three times — each should succeed because the cached queries are still valid.
         _system.Run();
         _system.Run();
         _system.Run();
@@ -264,4 +254,116 @@ public class RouteContextSystemTests
         var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
         Assert.Equal(55, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PACK-N004: Brain-tier only — NavigationIntent + NavigationStatus
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// PACK-N004 SC-1: Positive path — entity with NavigationIntent (FollowRoute),
+    /// NavigationStatus.ProgressS, and a RoutePlan with ExtensionJson encoding a
+    /// known danger level must have the blackboard written correctly.
+    /// </summary>
+    [Fact]
+    public unsafe void PackN004_PositivePath_NavigationIntentAndStatus_WriteBlackboard()
+    {
+        const int trajectoryId = 99;
+        const int expectedDanger = 15;
+
+        // Shared route entity with threat-level JSON.
+        var routeEntity = _repo.CreateEntity();
+        _repo.AddComponent(routeEntity, new RouteTrajectoryCache
+        {
+            TrajectoryId    = trajectoryId,
+            CompiledVersion = 1,
+        });
+        var plan = new RoutePlan();
+        plan.Mutate(wps =>
+        {
+            wps.Add(new RouteWaypoint
+            {
+                Position      = new Vector3(0f, 0f, 0f),
+                ExtensionJson = $@"{{""dangerLevel"":{expectedDanger}}}",
+            });
+            wps.Add(new RouteWaypoint { Position = new Vector3(200f, 0f, 0f) });
+        });
+        _repo.SetManagedComponent(routeEntity, plan);
+
+        // Vehicle with NavigationIntent (FollowRoute) + NavigationStatus.ProgressS=1f.
+        var vehicle = _repo.CreateEntity();
+        _repo.AddComponent(vehicle, new NavigationIntent
+        {
+            Mode         = NavigationMode.FollowRoute,
+            TrajectoryId = trajectoryId,
+            IntentId     = 1u,
+        });
+        _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
+        _repo.AddComponent(vehicle, new BrainBlackboard());
+
+        _system.Run();
+
+        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        Assert.Equal(expectedDanger, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+    }
+
+    /// <summary>
+    /// PACK-N004 SC-2: No NavState component is required — the system must tick and
+    /// write the blackboard with only NavigationIntent + NavigationStatus present.
+    /// </summary>
+    [Fact]
+    public unsafe void PackN004_NoNavStateRequired_SystemTicksCorrectly()
+    {
+        // Note: NavState is NOT registered in this world (uses the shared CreateWorld above).
+        // Creating a vehicle without NavState proves the system does not require it.
+        var vehicle = CreateVehicle(personalRouteJson: @"{""dangerLevel"":33}");
+
+        // Assert the entity has no NavState component AND the system still works.
+        Assert.False(_repo.HasComponent<CarKinem.Core.NavState>(vehicle),
+            "NavState must not be present — world does not register it (Brain-tier test).");
+
+        _system.Run();
+
+        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        Assert.Equal(33, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+    }
+
+    /// <summary>
+    /// PACK-N004 SC-3: When <see cref="NavigationIntent.Mode"/> is not
+    /// <see cref="NavigationMode.FollowRoute"/>, the blackboard must NOT be mutated.
+    /// </summary>
+    [Fact]
+    public unsafe void PackN004_InactiveRoute_BlackboardNotMutated()
+    {
+        var vehicle = _repo.CreateEntity();
+        _repo.AddComponent(vehicle, new NavigationIntent
+        {
+            Mode         = NavigationMode.None,   // inactive — system should skip
+            TrajectoryId = 1,
+            IntentId     = 1u,
+        });
+        _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 5f, IntentId = 1u });
+        _repo.AddComponent(vehicle, new BrainBlackboard());
+
+        // Attach a route with danger level so we'd detect mutation if it happened.
+        var routeEntity = _repo.CreateEntity();
+        _repo.AddComponent(routeEntity, new RouteTrajectoryCache
+        {
+            TrajectoryId    = 1,
+            CompiledVersion = 1,
+        });
+        var plan = new RoutePlan();
+        plan.Mutate(wps =>
+        {
+            wps.Add(new RouteWaypoint { Position = Vector3.Zero, ExtensionJson = @"{""dangerLevel"":99}" });
+            wps.Add(new RouteWaypoint { Position = new Vector3(100f, 0f, 0f) });
+        });
+        _repo.SetManagedComponent(routeEntity, plan);
+
+        _system.Run();
+
+        var bb = _repo.GetComponent<BrainBlackboard>(vehicle);
+        Assert.Equal(0, (int)bb.Memory[BlackboardOffsets.ExpectedThreatLevel]);
+    }
 }
+
+

@@ -346,5 +346,104 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(found, "KinematicTranslatorPack must yield NavigationStatusEgressTranslator.");
         }
+
+        // ── PACK-N001 SC-2: DDS wire struct has ProgressS field ───────────────
+
+        /// <summary>
+        /// PACK-N001 SC-2: The HROT NED DDS <see cref="DdsNavigationStatus"/> struct must
+        /// expose a public instance field named <c>ProgressS</c> of type <c>float</c>.
+        /// Verified via reflection so the test fails immediately on field removal.
+        /// </summary>
+        [Fact]
+        public void NedNavigationStatus_HasProgressSField()
+        {
+            var fields = typeof(DdsNavigationStatus)
+                .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            Assert.Contains(fields, f => f.Name == "ProgressS" && f.FieldType == typeof(float));
+        }
+
+        // ── PACK-N003: Translator ProgressS mapping ───────────────────────────
+
+        /// <summary>
+        /// PACK-N003 SC-1: Egress translator must include <c>ProgressS</c> in the published
+        /// DDS sample and must not zero out existing <c>IntentId</c>/<c>Result</c> values.
+        /// </summary>
+        [Fact]
+        public void NavigationStatusEgress_MapsProgressS_ToWireFormat()
+        {
+            const uint domainId = 226u;
+            using var participant = new DdsParticipant(domainId);
+            using var reader = new DdsReader<DdsNavigationStatus>(participant, "NavigationStatus");
+            var entityMap  = new NetworkEntityMap();
+            var translator = new NavigationStatusEgressTranslator(participant, entityMap);
+
+            using var repo = CreateWorldForEgress();
+            var entity     = repo.CreateEntity();
+            repo.AddComponent(entity, new NetworkIdentity(91));
+            repo.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            repo.AddComponent(entity, new EcsNavigationStatus
+            {
+                IntentId  = 3,
+                Result    = EcsNavigationResult.InProgress,
+                ProgressS = 0.4f,
+            });
+
+            Thread.Sleep(200);
+            translator.ScanAndPublish(repo);
+            Thread.Sleep(200);
+
+            using var loan = reader.Take();
+            DdsNavigationStatus published = default;
+            bool found = false;
+            foreach (var sample in loan)
+            {
+                if (!sample.IsValid || sample.Data.EntityId != 91) continue;
+                published = sample.Data;
+                found = true;
+            }
+
+            Assert.True(found, "Egress translator must publish a DDS sample for the entity.");
+            Assert.Equal(3u, published.IntentId);
+            Assert.Equal(ENavigationResult.RES_IN_PROGRESS, published.Result);
+            Assert.Equal(0.4f, published.ProgressS, precision: 4);
+        }
+
+        /// <summary>
+        /// PACK-N003 SC-2: Ingress translator must write <c>ProgressS</c> from the DDS sample
+        /// into the ECS <see cref="EcsNavigationStatus"/> component.
+        /// </summary>
+        [Fact]
+        public void NavigationStatusIngress_MapsProgressS_ToEcsComponent()
+        {
+            const uint domainId = 227u;
+            using var participant = new DdsParticipant(domainId);
+            using var writer = new DdsWriter<DdsNavigationStatus>(participant, "NavigationStatus");
+            var entityMap  = new NetworkEntityMap();
+            var translator = new NavigationStatusIngressTranslator(participant, entityMap);
+
+            using var repo  = CreateWorldForIngress();
+            var entity      = repo.CreateEntity();
+            repo.AddComponent(entity, new EcsNavigationStatus());
+            entityMap.Register(92, entity);
+
+            Thread.Sleep(200);
+
+            writer.Write(new DdsNavigationStatus
+            {
+                EntityId  = 92,
+                IntentId  = 3,
+                Result    = ENavigationResult.RES_ARRIVED,
+                ProgressS = 0.9f,
+            });
+            Thread.Sleep(200);
+
+            var cmd = new DirectCommandBuffer(repo);
+            translator.PollIngress(cmd, repo);
+
+            var status = repo.GetComponent<EcsNavigationStatus>(entity);
+            Assert.Equal(0.9f, status.ProgressS, precision: 4);
+            Assert.Equal(3u, status.IntentId);
+            Assert.Equal(EcsNavigationResult.Arrived, status.Result);
+        }
     }
 }

@@ -1,6 +1,5 @@
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
-using FDP.Toolkit.Behavior.Systems;
 using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Physics.Systems;
 using FDP.Toolkit.Replication.Services;
@@ -14,9 +13,16 @@ namespace Hrot.SimHost.Modules
     /// <list type="number">
     ///   <item><b>Input phase</b> — <see cref="FireProcessingSystem"/>, <see cref="RaycastSolverSystem"/>, <see cref="HitResolutionSystem"/></item>
     ///   <item><b>Simulation phase</b> — <see cref="PerceptionBroadphaseSystem"/>, <see cref="LosRequestBatchingSystem"/>,
-    ///     <see cref="ThreatEvaluationAdapterSystem"/>, <see cref="DamageSystem"/>, <see cref="HsmDamageBridgeSystem"/></item>
+    ///     <see cref="ThreatEvaluationAdapterSystem"/>, <see cref="DamageSystem"/></item>
     ///   <item><b>Post-sim phase</b> — <see cref="BallisticsSystem"/></item>
     /// </list>
+    ///
+    /// <para>
+    /// <see cref="FDP.Toolkit.Behavior.Systems.HsmDamageBridgeSystem"/> was relocated
+    /// to <see cref="FDP.Toolkit.Behavior.Modules.CognitiveRuntimeModule"/> (PACK-M001)
+    /// so it runs on the Brain tier where <see cref="FDP.Toolkit.Behavior.Components.BrainHsm128"/>
+    /// components reside.
+    /// </para>
     ///
     /// <para>
     /// Currently lives in <c>Hrot.SimHost</c> (rather than an FDP toolkit) because
@@ -53,7 +59,7 @@ namespace Hrot.SimHost.Modules
             // runs exclusively inside AutonomousPerceptionModule on the background thread.
             simGroup.AddSystem(new ThreatEvaluationAdapterSystem());
             simGroup.AddSystem(new DamageSystem());
-            simGroup.AddSystem(new HsmDamageBridgeSystem());
+            // HsmDamageBridgeSystem relocated to CognitiveRuntimeModule (PACK-M001).
 
             // ── Post-simulation ───────────────────────────────────────────────
             postSimGroup.AddSystem(new BallisticsSystem());

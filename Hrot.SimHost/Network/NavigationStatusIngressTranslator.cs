@@ -61,8 +61,9 @@ namespace Hrot.SimHost.Network
 
                 cmd.SetComponent(entity, new EcsNavigationStatus
                 {
-                    IntentId = msg.IntentId,
-                    Result   = MapResult(msg.Result)
+                    IntentId  = msg.IntentId,
+                    Result    = MapResult(msg.Result),
+                    ProgressS = msg.ProgressS,
                 });
 
                 FdpLog<NavigationStatusIngressTranslator>.Debug(

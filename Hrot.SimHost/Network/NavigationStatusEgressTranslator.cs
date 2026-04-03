@@ -66,9 +66,10 @@ namespace Hrot.SimHost.Network
 
                 _writer.Write(new Hrot.NED.Descriptors.NavigationStatus
                 {
-                    EntityId = (int)netId.Value,
-                    IntentId = status.IntentId,
-                    Result   = MapResult(status.Result)
+                    EntityId  = (int)netId.Value,
+                    IntentId  = status.IntentId,
+                    Result    = MapResult(status.Result),
+                    ProgressS = status.ProgressS,
                 });
 
                 FdpLog<NavigationStatusEgressTranslator>.Debug(

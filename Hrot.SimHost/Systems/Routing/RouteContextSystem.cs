@@ -2,10 +2,10 @@ using System;
 using System.Text.Json;
 using Hrot.Map.Common.Components;
 using Hrot.SimHost.Brains;
-using CarKinem.Core;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Navigation;
 using ModuleHost.Core.Abstractions;
 
 namespace Hrot.SimHost.Systems.Routing;
@@ -62,7 +62,8 @@ public sealed class RouteContextSystem : ComponentSystem
     protected override void OnCreate()
     {
         _vehicleQuery = World.Query()
-            .With<NavState>()
+            .With<NavigationIntent>()
+            .With<NavigationStatus>()
             .With<BrainBlackboard>()
             .Build();
 
@@ -85,9 +86,11 @@ public sealed class RouteContextSystem : ComponentSystem
         // ── Query vehicles following a custom trajectory with a blackboard ────
         foreach (var vehicleEntity in _vehicleQuery)
         {
-            var nav = view.GetComponentRO<NavState>(vehicleEntity);
-            if (nav.Mode != KinematicsMode.CustomTrajectory || nav.TrajectoryId <= 0)
+            var intent = view.GetComponentRO<NavigationIntent>(vehicleEntity);
+            if (intent.Mode != NavigationMode.FollowRoute || intent.TrajectoryId <= 0)
                 continue;
+
+            var status = view.GetComponentRO<NavigationStatus>(vehicleEntity);
 
             // Resolve the RoutePlan for this vehicle.
             RoutePlan? plan = null;
@@ -109,7 +112,7 @@ public sealed class RouteContextSystem : ComponentSystem
                 foreach (var routeEntity in _routeQuery)
                 {
                     ref readonly var cache = ref view.GetComponentRO<RouteTrajectoryCache>(routeEntity);
-                    if (cache.TrajectoryId == nav.TrajectoryId)
+                    if (cache.TrajectoryId == intent.TrajectoryId)
                     {
                         plan = view.GetManagedComponentRO<RoutePlan>(routeEntity);
                         break;
@@ -121,7 +124,7 @@ public sealed class RouteContextSystem : ComponentSystem
                 continue;
 
             // Determine which waypoint segment the vehicle is currently on.
-            int segmentIndex = ResolveSegmentIndex(plan, nav.ProgressS);
+            int segmentIndex = ResolveSegmentIndex(plan, status.ProgressS);
             if (segmentIndex < 0 || segmentIndex >= plan.Waypoints.Count)
                 continue;
 

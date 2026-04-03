@@ -10,10 +10,10 @@
 **Goal:** Decouple `RouteContextSystem` from Muscle-tier `NavState` so it works on Brain-only
 nodes in a distributed cluster.
 
-- [ ] **PACK-N001** Extend NavigationStatus with ProgressS field [details](./TASK-DETAIL.md#pack-n001--extend-navigationstatus-with-progresss)
-- [ ] **PACK-N002** Populate ProgressS in NavigationExecutionSystem [details](./TASK-DETAIL.md#pack-n002--populate-progresss-in-navigationexecutionsystem)
-- [ ] **PACK-N003** Update NavigationStatus network translators for ProgressS [details](./TASK-DETAIL.md#pack-n003--update-navigationstatus-network-translators-for-progresss)
-- [ ] **PACK-N004** Refactor RouteContextSystem to Brain-only query [details](./TASK-DETAIL.md#pack-n004--refactor-routecontextsystem-brain-only-query)
+- [x] **PACK-N001** Extend NavigationStatus with ProgressS field [details](./TASK-DETAIL.md#pack-n001--extend-navigationstatus-with-progresss)
+- [x] **PACK-N002** Populate ProgressS in NavigationExecutionSystem [details](./TASK-DETAIL.md#pack-n002--populate-progresss-in-navigationexecutionsystem)
+- [x] **PACK-N003** Update NavigationStatus network translators for ProgressS [details](./TASK-DETAIL.md#pack-n003--update-navigationstatus-network-translators-for-progresss)
+- [x] **PACK-N004** Refactor RouteContextSystem to Brain-only query [details](./TASK-DETAIL.md#pack-n004--refactor-routecontextsystem-brain-only-query)
 
 ---
 
@@ -21,8 +21,8 @@ nodes in a distributed cluster.
 
 **Goal:** Ensure every system executes on the node tier where its required ECS components reside.
 
-- [ ] **PACK-M001** Relocate HsmDamageBridgeSystem to CognitiveRuntimeModule [details](./TASK-DETAIL.md#pack-m001--relocate-hsmdamagebridgesystem-to-cognitiveruntimemodule)
-- [ ] **PACK-M002** Delete ApcMobilityTriggerSystem; absorb logic into HealthApplicationSystem [details](./TASK-DETAIL.md#pack-m002--delete-apcmobilitytriggersystem-absorb-logic-into-healthapplicationsystem)
+- [x] **PACK-M001** Relocate HsmDamageBridgeSystem to CognitiveRuntimeModule [details](./TASK-DETAIL.md#pack-m001--relocate-hsmdamagebridgesystem-to-cognitiveruntimemodule)
+- [x] **PACK-M002** Delete ApcMobilityTriggerSystem; absorb logic into HealthApplicationSystem [details](./TASK-DETAIL.md#pack-m002--delete-apcmobilitytriggersystem-absorb-logic-into-healthapplicationsystem)
 
 ---
 

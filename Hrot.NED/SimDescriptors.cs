@@ -123,6 +123,13 @@ namespace Hrot.NED.Descriptors
 
         /// <summary>Current result of the active navigation command.</summary>
         public ENavigationResult Result;
+
+        /// <summary>
+        /// Arc-length progress along the active route (metres from start).
+        /// Mirrors <c>NavState.ProgressS</c> on the Muscle node; used by Brain nodes that do
+        /// not hold <c>NavState</c> directly (CQRS feedback channel, PACK-N001).
+        /// </summary>
+        public float ProgressS;
     }
 
     // ── Shared coordinate helper (MOD1-P6T2) ──────────────────────────────────────────
