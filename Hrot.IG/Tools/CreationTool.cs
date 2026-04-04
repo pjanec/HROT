@@ -1,33 +1,27 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Numerics;
-using System.Text;
 using System.Text.Json;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
 using Hrot.IG.Components;
-using Hrot.Map.Common.Replication;
-using Fdp.Modules.Geographic;
-using FDP.Toolkit.Replication.Patching;
+using Fdp.Kernel;
+using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
+using ModuleHost.Core.Network.Interfaces;
 using Raylib_cs;
 
 namespace Hrot.IG.Tools;
 
 /// <summary>
 /// Map tool that translates a left-click on the canvas into a
-/// <see cref="CreateEntityRequest"/> routed through the injected
-/// <see cref="OnEntityCreated"/> delegate, decoupling the tool from any
-/// specific network protocol.
+/// <see cref="SpawnEntityCommand"/> routed through the injected
+/// delegate, decoupling the tool from any specific network protocol.
 ///
 /// Workflow:
 /// <list type="number">
 ///   <item>Caller activates the tool (e.g. via <c>canvas.PushTool(creationTool)</c>).</item>
 ///   <item>Operator sees a ghost preview circle at the cursor.</item>
-///   <item>Left-click builds a <see cref="CreateEntityRequest"/> and fires
+///   <item>Left-click builds a <see cref="SpawnEntityCommand"/> and fires
 ///         the <see cref="_onEntityCreated"/> delegate. When <c>autoPopOnPlace</c>
 ///         is <c>true</c> (default) the tool pops itself immediately (single-placement);
 ///         otherwise it remains active for multi-placement until right-click or ESC.</item>
@@ -35,47 +29,35 @@ namespace Hrot.IG.Tools;
 ///         the delegate.</item>
 /// </list>
 ///
-/// <see cref="CreateEntityRequest.InitialDescriptors"/> is seeded with:
-/// <list type="bullet">
-///   <item>A <see cref="EntityDescriptorUnion"/> (dtEntityMaster) carrying the TKB type.</item>
-///   <item>A <see cref="EntityDescriptorUnion"/> (dtGeoSpatial) with the click coordinates
-///         converted to geodetic lat/lon via <see cref="IGeographicTransform.ToGeodetic"/>
-///         when a transform is available, or mapped as
-///         <c>Latitude = worldPos.Y, Longitude = worldPos.X</c> in offline/test mode.</item>
-/// </list>
-///
-/// <see cref="CreateEntityRequest.InitialAttributesJson"/> carries the raw
-/// <c>initialPropertiesJson</c> string verbatim so the SimHost's
-/// <c>JsonAttributeCompiler</c> can apply fine-grained field patches (ATTR-S5T2).
+/// <see cref="SpawnEntityCommand.TkbType"/> carries the TKB template type.
+/// <see cref="SpawnEntityCommand.InitialTransform"/> carries the canvas-space position.
+/// <see cref="SpawnEntityCommand.InitialAttributesJson"/> preserves the raw
+/// <c>initialPropertiesJson</c> string for the ACL egress translator to include
+/// in <c>CreateEntityRequest.InitialAttributesJson</c> on the DDS wire.
 ///
 /// No allocations on the hover / draw hot path (CODE-STANDARDS 4).
-/// The <see cref="List{T}"/> in <see cref="CreateEntityRequest.InitialDescriptors"/> is
-/// only allocated on the click event path.
 /// </summary>
 public class CreationTool : IMapTool
 {
     /// <inheritdoc/>
     public string Name => CreationToolConstants.ToolName;
 
-    private readonly Action<CreateEntityRequest> _onEntityCreated;
-    private readonly IGeographicTransform?       _geoTransform;
-    private readonly long                        _tkbType;
-    private readonly ForceId                     _affiliationForDisplay;
-    private readonly string?                     _initialPropertiesJson;
-    private readonly bool                        _autoPopOnPlace;
-    private readonly Func<string>?               _nameResolver;
-    private readonly EntityPropertyPatch?        _parsedPatch;
-    private readonly JsonToRecordCompiler?       _edgeCompiler;
+    private readonly Action<SpawnEntityCommand> _onEntityCreated;
+    private readonly long                       _tkbType;
+    private readonly ForceId                    _affiliationForDisplay;
+    private readonly string?                    _initialPropertiesJson;
+    private readonly bool                       _autoPopOnPlace;
+    private readonly Func<string>?              _nameResolver;
 
     private MapCanvas? _canvas;
     private Vector2    _currentMouseWorld;
 
     /// <summary>
-    /// Raised after a <see cref="CreateEntityRequest"/> has been constructed and passed
+    /// Raised after a <see cref="SpawnEntityCommand"/> has been constructed and passed
     /// to the <see cref="_onEntityCreated"/> delegate, so tests and integrators can
     /// observe the event without inspecting the delegate's capture list.
     /// </summary>
-    public event Action<CreateEntityRequest>? OnCommandPublished;
+    public event Action<SpawnEntityCommand>? OnCommandPublished;
 
     /// <summary>
     /// Raised when the tool exits the canvas (after placement or cancellation).
@@ -120,31 +102,19 @@ public class CreationTool : IMapTool
     /// naming strategies such as "Tank-1", "Tank-2", …
     /// When <c>null</c> (default) the name is parsed from <paramref name="initialPropertiesJson"/>.
     /// </param>
-    /// <param name="edgeCompiler">
-    /// Optional <see cref="JsonToRecordCompiler"/> for converting
-    /// <paramref name="initialPropertiesJson"/> to binary <see cref="AttributeRecord"/>s before
-    /// sending <see cref="CreateEntityRequest.InitialAttributeRecords"/>.
-    /// When non-null, <see cref="CreateEntityRequest.InitialAttributesJson"/> is set to
-    /// <c>null</c> (binary-only wire). When <c>null</c> (default), the legacy JSON path is used.
-    /// </param>
     public CreationTool(
-        Action<CreateEntityRequest> onEntityCreated,
-        IGeographicTransform?       geoTransform          = null,
-        long                        tkbType               = CreationToolConstants.DefaultTkbType,
-        string?                     initialPropertiesJson = null,
-        bool                        autoPopOnPlace        = true,
-        Func<string>?               nameResolver          = null,
-        JsonToRecordCompiler?       edgeCompiler          = null)
+        Action<SpawnEntityCommand> onEntityCreated,
+        long                       tkbType               = CreationToolConstants.DefaultTkbType,
+        string?                    initialPropertiesJson = null,
+        bool                       autoPopOnPlace        = true,
+        Func<string>?              nameResolver          = null)
     {
         _onEntityCreated       = onEntityCreated ?? throw new ArgumentNullException(nameof(onEntityCreated));
-        _geoTransform          = geoTransform;
         _tkbType               = tkbType == 0 ? CreationToolConstants.DefaultTkbType : tkbType;
-        _parsedPatch           = ParsePatchFromJson(initialPropertiesJson);
-        _affiliationForDisplay = MapAffiliation(_parsedPatch?.Affiliation);
+        _affiliationForDisplay = ParseAffiliationFromJson(initialPropertiesJson);
         _initialPropertiesJson = initialPropertiesJson;
         _autoPopOnPlace        = autoPopOnPlace;
         _nameResolver          = nameResolver;
-        _edgeCompiler          = edgeCompiler;
     }
 
     //  IMapTool lifecycle 
@@ -172,7 +142,7 @@ public class CreationTool : IMapTool
     {
         if (button == MouseButton.Left)
         {
-            BuildAndPublishCreateRequest(worldPos);
+            BuildAndPublishSpawnCommand(worldPos);
             if (_autoPopOnPlace)
                 _canvas?.PopTool();
             return true;
@@ -243,121 +213,61 @@ public class CreationTool : IMapTool
 
     //  Private helpers 
 
-    private void BuildAndPublishCreateRequest(Vector2 worldPos)
+    private void BuildAndPublishSpawnCommand(Vector2 worldPos)
     {
-        // Convert flat map world-space metres to geodetic coordinates.
-        // When a geo transform is available (live DDS mode), use it to get
-        // correct lat/lon. When null (offline / unit-test mode) fall back to
-        // treating worldPos.Y as latitude and worldPos.X as longitude so the
-        // existing test suite continues to work without a geo transform stub.
-        double lat, lon, alt;
-        if (_geoTransform != null)
-        {
-            (lat, lon, alt) = _geoTransform.ToGeodetic(new Vector3(worldPos.X, worldPos.Y, 0f));
-        }
-        else
-        {
-            // Offline fallback: map canvas X → east (longitude), Y → north (latitude).
-            lat = worldPos.Y;
-            lon = worldPos.X;
-            alt = 0.0;
-        }
+        // The canvas worldPos is in flat-earth Cartesian space (X = east meters, Y = north meters).
+        // Store it verbatim as the InitialTransform. The ACL egress translator
+        // (SpawnEntityCommandEgressTranslator) converts this position to geodetic lat/lon
+        // via the IGeographicTransform when building the DDS CreateEntityRequest.
+        // nameResolver is retained for future wiring (session-scoped sequential names).
+        _ = _nameResolver; // retained for future use
 
-        // Resolve entity name: prefer the per-click nameResolver delegate (e.g. for
-        // session-scoped sequential naming); fall back to any name encoded in the JSON blob.
-        // NOTE: name resolution is forwarded via InitialAttributesJson so SimHost applies
-        // it through JsonAttributeCompiler (ATTR-S5T2). nameResolver is retained for future use.
-
-        var request = new CreateEntityRequest
+        var cmd = new SpawnEntityCommand
         {
-            RequestId = Guid.NewGuid(),
-            Owner     = default,   // zeroed NodeId → SimHost takes authoritative ownership
-            Flags     = 0,
-            InitialDescriptors = new List<EntityDescriptorUnion>
+            NetworkId         = 0,
+            TkbType           = _tkbType,
+            OwnerNodeId       = 0,
+            InitType          = ReliableInitType.AllPeers,
+            InitialTransform  = new SimTransform
             {
-                new EntityDescriptorUnion
-                {
-                    _d           = EDescriptorType.dtEntityMaster,
-                    EntityMaster = new EntityMaster { TkbType = _tkbType },
-                },
-                new EntityDescriptorUnion
-                {
-                    _d         = EDescriptorType.dtWorldPos,
-                    WorldPos = new WorldPos
-                    {
-                        Pos = new GeoPoint
-                        {
-                            Latitude  = lat,
-                            Longitude = lon,
-                            Altitude  = alt,
-                        },
-                    },
-                },
+                Position = new Vector3(worldPos.X, worldPos.Y, 0f),
+                Rotation = Quaternion.Identity,
             },
+            InitialAttributesJson = _initialPropertiesJson,
+            RequestId             = Guid.NewGuid(),
         };
 
-        // Binary edge-compiler path (ATTR2-P6T1): convert JSON to AttributeRecords.
-        if (_edgeCompiler != null && _initialPropertiesJson != null)
-        {
-            var utf8Json = Encoding.UTF8.GetBytes(_initialPropertiesJson);
-            var buffer   = ArrayPool<AttributeRecord>.Shared.Rent(64);
-            try
-            {
-                var emitter = new NedAttributeRecordEmitter(buffer);
-                _edgeCompiler.Compile(utf8Json, emitter);
-                if (emitter.Count > 0)
-                    request.InitialAttributeRecords = new List<AttributeRecord>(emitter.Written.ToArray());
-                // Binary-only wire: leave InitialAttributesJson null.
-                request.InitialAttributesJson = null;
-            }
-            finally
-            {
-                ArrayPool<AttributeRecord>.Shared.Return(buffer);
-            }
-        }
-        else
-        {
-            // Legacy JSON path: binary compiler not injected, or no JSON to convert.
-            request.InitialAttributesJson = _initialPropertiesJson;
-        }
-
-        _onEntityCreated(request);
-        OnCommandPublished?.Invoke(request);
+        _onEntityCreated(cmd);
+        OnCommandPublished?.Invoke(cmd);
     }
 
     /// <summary>
-    /// Deserialises the JSON payload into the shared <see cref="EntityPropertyPatch"/> DTO.
-    /// Uses case-insensitive property matching and a <c>JsonStringEnumConverter</c> so it
-    /// handles both legacy string payloads (<c>{"affiliation":"FORCE_OPPOSING"}</c>) and
-    /// the new strongly-typed integer payloads emitted by ExCon (<c>{"Affiliation":2}</c>).
+    /// Parses the force affiliation string from the JSON blob for ghost rendering colour.
+    /// Handles both legacy lower-case keys (<c>"affiliation"</c>) and PascalCase (<c>"Affiliation"</c>).
     /// </summary>
-    private static EntityPropertyPatch? ParsePatchFromJson(string? json)
+    private static ForceId ParseAffiliationFromJson(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return null;
+        if (string.IsNullOrWhiteSpace(json)) return ForceId.Unknown;
         try
         {
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-                Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
-            };
-            return JsonSerializer.Deserialize<EntityPropertyPatch>(json, options);
-        }
-        catch { /* malformed JSON — fall through */ }
-        return null;
-    }
+            using var doc = JsonDocument.Parse(json);
+            JsonElement affEl;
+            if (!doc.RootElement.TryGetProperty("affiliation", out affEl) &&
+                !doc.RootElement.TryGetProperty("Affiliation",  out affEl))
+                return ForceId.Unknown;
 
-    /// <summary>
-    /// Maps the DDS boundary enum to the IG visual force identifier.
-    /// </summary>
-    private static ForceId MapAffiliation(eForceIdentifier? affiliation) =>
-        affiliation switch
-        {
-            eForceIdentifier.FORCE_FRIENDLY => ForceId.Friend,
-            eForceIdentifier.FORCE_OPPOSING => ForceId.Hostile,
-            eForceIdentifier.FORCE_NEUTRAL  => ForceId.Neutral,
-            _                               => ForceId.Unknown,
-        };
+            var raw = affEl.GetString() ?? string.Empty;
+            return raw.ToUpperInvariant() switch
+            {
+                "FORCE_FRIENDLY" => ForceId.Friend,
+                "FORCE_OPPOSING" => ForceId.Hostile,
+                "FORCE_NEUTRAL"  => ForceId.Neutral,
+                _                => ForceId.Unknown,
+            };
+        }
+        catch { /* malformed JSON */ }
+        return ForceId.Unknown;
+    }
 
     private static Color GetAffiliationColor(ForceId affiliation) =>
         affiliation switch

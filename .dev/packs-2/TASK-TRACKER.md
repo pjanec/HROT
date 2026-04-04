@@ -20,11 +20,11 @@ tier. Prerequisite for Phase 5 composition roots and the Feature Switch.
 **Goal:** Strip all DDS/DTO coupling from IG map tools so they emit pure FDP domain events,
 making them portable and network-agnostic.
 
-- [ ] **PACK2-D001** Refactor `CreationTool` to emit `SpawnEntityCommand` [details](./TASK-DETAIL.md#pack2-d001--refactor-creationtool-to-emit-spawnentitycommand)
-- [ ] **PACK2-D002** Refactor `EditTool` and `RouteEditTool` to emit `UpdateEntityCommand` [details](./TASK-DETAIL.md#pack2-d002--refactor-edittool-and-routeedittool-to-emit-updateentitycommand)
-- [ ] **PACK2-D003** Remove network branching from context menus; always emit `DestroyEntityCommand` [details](./TASK-DETAIL.md#pack2-d003--remove-network-branching-from-context-menus-and-delete-hotkeys)
-- [ ] **PACK2-D004** Sever `IDdsWriter<CreateEntityRequest>` from `MapCommandController` [details](./TASK-DETAIL.md#pack2-d004--sever-iddswritercreateentityrequest-from-mapcommandcontroller)
-- [ ] **PACK2-D005** Create ACL egress translators for Spawn / Update / Destroy commands [details](./TASK-DETAIL.md#pack2-d005--create-acl-egress-translators-for-spawn-update-and-destroy-commands)
+- [x] **PACK2-D001** Refactor `CreationTool` to emit `SpawnEntityCommand` [details](./TASK-DETAIL.md#pack2-d001--refactor-creationtool-to-emit-spawnentitycommand)
+- [x] **PACK2-D002** Refactor `EditTool` and `RouteEditTool` to emit `UpdateEntityCommand` [details](./TASK-DETAIL.md#pack2-d002--refactor-edittool-and-routeedittool-to-emit-updateentitycommand)
+- [x] **PACK2-D003** Remove network branching from context menus; always emit `DestroyEntityCommand` [details](./TASK-DETAIL.md#pack2-d003--remove-network-branching-from-context-menus-and-delete-hotkeys)
+- [x] **PACK2-D004** Sever `IDdsWriter<CreateEntityRequest>` from `MapCommandController` [details](./TASK-DETAIL.md#pack2-d004--sever-iddswritercreateentityrequest-from-mapcommandcontroller)
+- [x] **PACK2-D005** Create ACL egress translators for Spawn / Update / Destroy commands [details](./TASK-DETAIL.md#pack2-d005--create-acl-egress-translators-for-spawn-update-and-destroy-commands)
 
 ---
 

@@ -292,17 +292,13 @@ public class IgApplication : IDisposable
     /// </summary>
     private HrotEntityFilterFactory? _entityFilterFactory;
 
-    private DdsWriter<CreateEntityRequest>?  _createEntityDdsWriter;
+    // _createEntityDdsWriter removed by D005 — SpawnEntityCommandEgressTranslator owns the DDS writer.
     /// <summary>
     /// Fallback writer for <see cref="ContextMenuRequest"/> — emitted by
     /// <see cref="ContextMenuSystem"/> when the operator right-clicks an entity
     /// that has no pre-cached action list (cache miss / no prior selection).
     /// </summary>
     private DdsWriter<ContextMenuRequest>? _contextMenuRequestWriter;
-    /// <summary>
-    /// when the operator deletes an entity via the context menu while connected.
-    /// </summary>
-    private DdsWriter<Hrot.NED.Messages.DeleteEntityRequest>? _deleteEntityDdsWriter;
 
     /// <summary>
     /// Test-only callback: when non-null, receives every <see cref="CreateEntityRequest"/>
@@ -808,10 +804,9 @@ public class IgApplication : IDisposable
 
                 _commandReader   = new DdsReader<MapCommandRequest>(participant, "MapCommandRequest");
 
-                _createEntityDdsWriter  = new DdsWriter<CreateEntityRequest>(participant, "CreateEntityRequest");
+                // _createEntityDdsWriter removed by D005 — SpawnEntityCommandEgressTranslator owns the writer.
                 _mapCommandAckWriter    = new DdsWriter<MapCommandAck>(participant, "MapCommandAck");
                 _createEntityAckReader  = new DdsReader<CreateUpdateDeleteEntityAck>(participant, "CreateUpdateDeleteEntityAck");
-                _deleteEntityDdsWriter  = new DdsWriter<Hrot.NED.Messages.DeleteEntityRequest>(participant, "DeleteEntityRequest");
                 _contextMenuRequestWriter = new DdsWriter<ContextMenuRequest>(participant, "ContextMenuRequest");
 
 
@@ -895,17 +890,36 @@ public class IgApplication : IDisposable
                     customTranslators.Add(new Hrot.IG.Translators.AudioTargetDetectedIngressTranslator(participant, _entityMap));
                 }
 
+                // D005: ACL egress translators convert bus events back to DDS.
+                // The SpawnEntityCommandEgressTranslator receives a side-channel delegate so it can
+                // retrieve pre-built CreateEntityRequest objects from MapCommandController (area/route
+                // authoring). This avoids placing CreateEntityRequest in SpawnEntityCommand.InitialComponents,
+                // which would cause NetworkSpawningSystem to attempt invalid ECS registration.
+                // mapCmdCtrlRef is assigned after _mapCommandController is constructed below.
+                MapCommandController? mapCmdCtrlRef = null;
+                customTranslators.Add(new Hrot.Map.Common.Replication.Egress.SpawnEntityCommandEgressTranslator(
+                    participant, _world.Bus, _geoTransform,
+                    tryGetPrebuilt: id => mapCmdCtrlRef?.TryDequeuePrebuilt(id)));
+                customTranslators.Add(new Hrot.Map.Common.Replication.Egress.UpdateEntityCommandEgressTranslator(
+                    participant, _world.Bus, _entityMap, _geoTransform));
+                customTranslators.Add(new Hrot.Map.Common.Replication.Egress.DestroyEntityCommandEgressTranslator(
+                    participant, _world.Bus));
+
 
 
                 ddsAllocator = new DdsIdAllocator(participant, $"IG_{_effectiveInstanceId}");
 
                 // Create the MapCommandController now that canvas and DDS resources are ready.
-                // _edgeCompiler was built in InitializeEcs — inject it here for binary DDS wire (ATTR2-DEBT-07).
+                // D004: MapCommandController now takes FdpEventBus instead of IDdsWriter<CreateEntityRequest>.
+                // SpawnEntityCommandEgressTranslator (D005) handles DDS writes for entity creation.
                 _mapCommandController = new MapCommandController(
                     _canvas,
-                    new CycloneDdsWriterIgAdapter<CreateEntityRequest>(_createEntityDdsWriter!),
-                    new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!),
-                    _edgeCompiler);
+                    _world.Bus,
+                    new CycloneDdsWriterIgAdapter<MapCommandAck>(_mapCommandAckWriter!));
+
+                // Wire the side-channel: SpawnEntityCommandEgressTranslator uses this delegate
+                // to retrieve pre-built CreateEntityRequest objects for area/route authoring.
+                mapCmdCtrlRef = _mapCommandController;
 
                 _contextMenuSystem.SetCacheMissWriter(
                     new CycloneDdsWriterIgAdapter<ContextMenuRequest>(_contextMenuRequestWriter!),
@@ -1508,23 +1522,12 @@ public class IgApplication : IDisposable
                         if (_world.HasComponent<NetworkIdentity>(entity))
                         {
                             ref readonly var netId = ref _world.GetComponentRO<NetworkIdentity>(entity);
-                            if (_networkEnabled)
+                            // D003: always publish DestroyEntityCommand; egress translator forwards to DDS.
+                            _world.Bus.PublishManaged(new DestroyEntityCommand
                             {
-                                // Notify SimHost (the authoritative owner) to delete the entity over DDS.
-                                _deleteEntityDdsWriter?.Write(new Hrot.NED.Messages.DeleteEntityRequest
-                                {
-                                    RequestId = Guid.NewGuid(),
-                                    EntityId  = (int)netId.Value
-                                });
-                            }
-                            else
-                            {
-                                _world.Bus.PublishManaged(new DestroyEntityCommand
-                                {
-                                    NetworkId = netId.Value,
-                                    Reason    = "inspector-deleted"
-                                });
-                            }
+                                NetworkId = netId.Value,
+                                Reason    = "context-menu-deleted"
+                            });
                         }
                         else
                         {
@@ -1891,10 +1894,8 @@ public class IgApplication : IDisposable
 
         _commandReader?.Dispose();
 
-        _createEntityDdsWriter?.Dispose();
         _mapCommandAckWriter?.Dispose();
         _createEntityAckReader?.Dispose();
-        _deleteEntityDdsWriter?.Dispose();
         _contextMenuRequestWriter?.Dispose();
 
         _kernel?.Dispose();
@@ -3450,39 +3451,16 @@ public class IgApplication : IDisposable
                     });
 
                     // Publish network update when connected.
-                    if (_networkEnabled && _commandGateway != null && _geoTransform != null
-                     && _entityMap.TryGetNetworkId(committedEntity, out long netId))
+                    if (_entityMap.TryGetNetworkId(committedEntity, out long netId))
                     {
-                        var waypoints = new List<Waypoint>(updatedWaypoints.Count);
-                        foreach (var wp in updatedWaypoints)
+                        // D002: publish UpdateEntityCommand; UpdateEntityCommandEgressTranslator
+                        // converts RoutePlan waypoints (Cartesian) to geodetic and writes DDS.
+                        _world.Bus.PublishManaged(new UpdateEntityCommand
                         {
-                            var (lat, lon, alt) = _geoTransform.ToGeodetic(wp.Position);
-                            waypoints.Add(new Waypoint
-                            {
-                                Position          = new GeoPoint { Latitude = lat, Longitude = lon, Altitude = alt },
-                                SpeedMetersPerSec = wp.TargetSpeed,
-                                ExtensionJson     = wp.ExtensionJson ?? string.Empty,
-                            });
-                        }
-
-                        var request = new UpdateEntityDescriptorRequest
-                        {
-                            RequestId      = Guid.NewGuid(),
-                            EntityId       = (int)netId,
-                            DescriptorType = EDescriptorType.dtMapRoute,
-                            Payload        = new EntityDescriptorUnion
-                            {
-                                _d       = EDescriptorType.dtMapRoute,
-                                MapRoute = new MapRoute
-                                {
-                                    EntityId = (int)netId,
-                                    Points   = waypoints,
-                                    IsLoop   = existingPlan.IsLoop,
-                                }
-                            }
-                        };
-
-                        _commandGateway.SendUpdateDescriptor(request);
+                            NetworkId          = netId,
+                            ComponentsToUpdate = new System.Collections.Generic.List<object> { existingPlan },
+                            RequestId          = Guid.NewGuid(),
+                        });
                         FdpLog<IgApplication>.Info(
                             "[IG] Committed route edit for NetID {0}: {1} waypoints.", netId, updatedWaypoints.Count);
                     }
@@ -3530,57 +3508,21 @@ public class IgApplication : IDisposable
             var relPoints = new List<Vector2>(absCartPoints.Count);
             for (int i = 0; i < absCartPoints.Count; i++)
                 relPoints.Add(absCartPoints[i] - origin);
-            World.SetManagedComponent(committedEntity, new EditablePolyline { Points = relPoints });
+            var updatedPolyline = new EditablePolyline { Points = relPoints };
+            World.SetManagedComponent(committedEntity, updatedPolyline);
 
-            // Send UpdateEntityDescriptorRequest(dtMapVisualOverlay) with relative geo offsets.
-            if (_networkEnabled && _commandGateway != null && _geoTransform != null
-             && _entityMap.TryGetNetworkId(committedEntity, out long netId))
+            // Send UpdateEntityCommand(EditablePolyline) via bus.
+            // D002: UpdateEntityCommandEgressTranslator converts relative Cartesian offsets
+            // to relative geodetic and writes UpdateEntityDescriptorRequest(dtMapVisualOverlay).
+            if (_entityMap.TryGetNetworkId(committedEntity, out long netId))
             {
-                var (refLat, refLon, refAlt) = _geoTransform.ToGeodetic(simTr.Position);
-
-                var relGeoPoints = new List<GeoPoint>(absCartPoints.Count);
-                for (int i = 0; i < absCartPoints.Count; i++)
+                _world.Bus.PublishManaged(new UpdateEntityCommand
                 {
-                    // Canvas is XY: canvas Y = world Y (North, ENU). Preserve altitude from SimTransform.Z.
-                    var absCart = new Vector3(absCartPoints[i].X, absCartPoints[i].Y, simTr.Position.Z);
-                    var (lat, lon, alt) = _geoTransform.ToGeodetic(absCart);
-                    relGeoPoints.Add(new GeoPoint
-                    {
-                        Latitude  = lat - refLat,
-                        Longitude = lon - refLon,
-                        Altitude  = alt - refAlt,
-                    });
-                }
+                    NetworkId          = netId,
+                    ComponentsToUpdate = new System.Collections.Generic.List<object> { updatedPolyline },
+                    RequestId          = Guid.NewGuid(),
+                });
 
-                // Preserve the original style so the update does not destroy it on the wire.
-                string? styleOverrideJson = null;
-                if (World.HasComponent<Hrot.IG.Components.MapOverlayStyle>(committedEntity))
-                {
-                    var style = World.GetComponent<Hrot.IG.Components.MapOverlayStyle>(committedEntity);
-                    styleOverrideJson = style.ToJson();
-                }
-
-                var request = new UpdateEntityDescriptorRequest
-                {
-                    RequestId      = Guid.NewGuid(),
-                    EntityId       = (int)netId,
-                    DescriptorType = EDescriptorType.dtMapVisualOverlay,
-                    Payload        = new EntityDescriptorUnion
-                    {
-                        _d = EDescriptorType.dtMapVisualOverlay,
-                        MapVisualOverlay = new MapVisualOverlay
-                        {
-                            EntityId          = (int)netId,
-                            PersistenceMode   = PersistenceMode.MODE_PERSISTENT,
-                            Points            = relGeoPoints,
-                            IsEditable        = true,
-                            IsClickable       = true,
-                            StyleOverrideJson = styleOverrideJson,
-                        }
-                    }
-                };
-
-                _commandGateway.SendUpdateDescriptor(request);
                 FdpLog<IgApplication>.Info(
                     "[IG] Committed overlay edit for NetID {0}: {1} vertices.", netId, absCartPoints.Count);
             }
@@ -4028,15 +3970,11 @@ public class IgApplication : IDisposable
                 _testCreateEntityRequestSink(request);
             else if (_mapCommandController != null)
                 _mapCommandController.OnAreaEntityCreated(request, isToolDone: true);
-            else
-                _createEntityDdsWriter?.Write(request);
+            // D005: SpawnEntityCommandEgressTranslator handles DDS write via bus.
 
             _canvas.PopTool();
 
         });
-
-
-
         _canvas.PushTool(tool);
 
 
@@ -4128,8 +4066,7 @@ public class IgApplication : IDisposable
                 _testCreateEntityRequestSink(request);
             else if (_mapCommandController != null)
                 _mapCommandController.OnAreaEntityCreated(request, isToolDone: true);
-            else
-                _createEntityDdsWriter?.Write(request);
+            // D005: SpawnEntityCommandEgressTranslator handles DDS write via bus.
 
             _canvas.PopTool();
         });

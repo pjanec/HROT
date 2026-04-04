@@ -8,8 +8,10 @@ using Hrot.NED.Common;
 using Hrot.IG.Abstractions;
 using Hrot.IG.Components;
 using Hrot.IG.Tools;
+using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Patching;
 using FDP.Toolkit.Vis2D;
 
@@ -53,9 +55,9 @@ public class MapCommandController
 
     // ── Dependencies ──────────────────────────────────────────────────────────
 
-    private readonly MapCanvas                         _canvas;
-    private readonly IDdsWriter<CreateEntityRequest>   _createEntityWriter;
-    private readonly IDdsWriter<MapCommandAck>         _ackWriter;
+    private readonly MapCanvas                _canvas;
+    private readonly FdpEventBus              _eventBus;
+    private readonly IDdsWriter<MapCommandAck> _ackWriter;
 
     // ── Active-session state ──────────────────────────────────────────────────
 
@@ -91,12 +93,12 @@ public class MapCommandController
     private readonly Dictionary<Guid, bool> _pendingEntityRequests = new();
 
     /// <summary>
-    /// Edge compiler injected at construction time and forwarded to every
-    /// <see cref="CreationTool"/> so placement requests carry binary
-    /// <see cref="AttributeRecord"/>s instead of raw JSON on the DDS wire.
-    /// <c>null</c> in headless / test constructors that do not supply one.
+    /// Side-channel storage for pre-built <see cref="CreateEntityRequest"/> objects from the
+    /// area/route authoring pipeline. The <see cref="SpawnEntityCommandEgressTranslator"/> 
+    /// retrieves these via <see cref="TryDequeuePrebuilt"/> to write the full request to DDS
+    /// without losing any NED descriptors (dtMapVisualOverlay, dtMapRoute, etc.).
     /// </summary>
-    private readonly JsonToRecordCompiler? _edgeCompiler;
+    private readonly Dictionary<Guid, CreateEntityRequest> _prebuiltRequests = new();
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -110,20 +112,21 @@ public class MapCommandController
     /// </param>
     /// <param name="edgeCompiler">
     /// Optional <see cref="JsonToRecordCompiler"/> forwarded to <see cref="CreationTool"/>
-    /// for binary attribute encoding.  When non-null the tool emits
-    /// <c>InitialAttributeRecords</c> and clears <c>InitialAttributesJson</c>.
-    /// When <c>null</c> (default / tests) the tool falls back to the legacy JSON wire.
+    /// <param name="canvas">The <see cref="MapCanvas"/> on which tools are pushed and popped.</param>
+    /// <param name="eventBus">
+    /// The FDP event bus used to publish <see cref="SpawnEntityCommand"/> events when the tool fires.
+    /// </param>
+    /// <param name="ackWriter">
+    /// Writer used to publish <see cref="MapCommandAck"/> messages back to the ExCon.
     /// </param>
     public MapCommandController(
-        MapCanvas                        canvas,
-        IDdsWriter<CreateEntityRequest>  createEntityWriter,
-        IDdsWriter<MapCommandAck>        ackWriter,
-        JsonToRecordCompiler?            edgeCompiler = null)
+        MapCanvas                 canvas,
+        FdpEventBus               eventBus,
+        IDdsWriter<MapCommandAck> ackWriter)
     {
-        _canvas              = canvas              ?? throw new ArgumentNullException(nameof(canvas));
-        _createEntityWriter  = createEntityWriter  ?? throw new ArgumentNullException(nameof(createEntityWriter));
-        _ackWriter           = ackWriter           ?? throw new ArgumentNullException(nameof(ackWriter));
-        _edgeCompiler        = edgeCompiler;
+        _canvas   = canvas   ?? throw new ArgumentNullException(nameof(canvas));
+        _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+        _ackWriter = ackWriter ?? throw new ArgumentNullException(nameof(ackWriter));
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -176,12 +179,10 @@ public class MapCommandController
 
         var tool = new CreationTool(
             onEntityCreated:       OnEntityCreatedByTool,
-            geoTransform:          geoTransform,
             tkbType:               tkbType,
             initialPropertiesJson: initialPropertiesJson,
             autoPopOnPlace:        true,
-            nameResolver:          _nameGenerator,   // null when no auto-naming
-            edgeCompiler:          _edgeCompiler);   // ATTR2-DEBT-07: binary encoding for production DDS wire
+            nameResolver:          _nameGenerator);   // null when no auto-naming
 
         tool.Exited += OnCreationToolExited;
         _activeCreationTool = tool;
@@ -216,10 +217,12 @@ public class MapCommandController
     }
 
     /// <summary>
-    /// Called by <see cref="IgApplication"/> when the area-authoring tool commits a shape
-    /// and wants to send a <see cref="CreateEntityRequest"/> through the controller so the
-    /// controller can correlate the <see cref="CreateEntityAck"/> and publish the correct
-    /// <see cref="MapCommandAck"/>.
+    /// Called by <see cref="IgApplication"/> when the area-authoring tool commits a shape.
+    /// Stores the pre-built request in the side-channel dictionary so the egress translator can
+    /// retrieve it via <see cref="TryDequeuePrebuilt"/>, then publishes a <see cref="SpawnEntityCommand"/>
+    /// on the bus to signal the creation intent. <c>InitialComponents</c> is intentionally left null
+    /// to avoid conflicting with <see cref="FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/>'s
+    /// ECS component registration path.
     /// </summary>
     public void OnAreaEntityCreated(CreateEntityRequest request, bool isToolDone = true)
     {
@@ -230,13 +233,56 @@ public class MapCommandController
             return;
         }
 
-        _createEntityWriter.Write(request);
+        // Store the fully-built request in the side-channel so the egress translator can
+        // retrieve it and write it verbatim to DDS (preserving dtMapVisualOverlay etc.).
+        _prebuiltRequests[request.RequestId] = request;
+
+        // Publish the intent command. InitialComponents is NOT set here — that would cause
+        // NetworkSpawningSystem to attempt ECS registration of NED struct types, which violates
+        // the component type constraint.
+        var cmd = new SpawnEntityCommand
+        {
+            NetworkId             = 0,
+            TkbType               = ExtractTkbType(request),
+            OwnerNodeId           = 0,
+            InitType              = ModuleHost.Core.Network.Interfaces.ReliableInitType.AllPeers,
+            RequestId             = request.RequestId,
+            InitialAttributesJson = request.InitialAttributesJson,
+        };
+
+        _eventBus.PublishManaged(cmd);
         _pendingEntityRequests[request.RequestId] = true;
 
         if (isToolDone)
             _toolFinished = true;
 
         TryCloseSessionIfComplete();
+    }
+
+    /// <summary>
+    /// Retrieves and removes a pre-built <see cref="CreateEntityRequest"/> that was registered
+    /// by <see cref="OnAreaEntityCreated"/>. Called by the egress translator to obtain the full
+    /// NED descriptor payload when writing to DDS.
+    /// </summary>
+    /// <param name="requestId">The <see cref="CreateEntityRequest.RequestId"/> to look up.</param>
+    /// <returns>The pre-built request if found; otherwise <c>null</c>.</returns>
+    internal CreateEntityRequest? TryDequeuePrebuilt(Guid requestId)
+    {
+        if (_prebuiltRequests.TryGetValue(requestId, out var req))
+        {
+            _prebuiltRequests.Remove(requestId);
+            return req;
+        }
+        return null;
+    }
+
+    private static long ExtractTkbType(CreateEntityRequest request)
+    {
+        if (request.InitialDescriptors == null) return 0;
+        foreach (var desc in request.InitialDescriptors)
+            if (desc._d == EDescriptorType.dtEntityMaster)
+                return desc.EntityMaster.TkbType;
+        return 0;
     }
 
     /// <summary>
@@ -302,15 +348,17 @@ public class MapCommandController
 
     /// <summary>
     /// Delegate injected into <see cref="CreationTool"/>; called when the operator
-    /// left-clicks on the canvas and the tool builds a <see cref="CreateEntityRequest"/>.
+    /// left-clicks on the canvas and the tool builds a <see cref="SpawnEntityCommand"/>.
+    /// Publishes the command on the event bus so the ACL egress translator
+    /// converts it to a DDS <see cref="CreateEntityRequest"/> for SimHost.
     /// </summary>
-    private void OnEntityCreatedByTool(CreateEntityRequest request)
+    private void OnEntityCreatedByTool(SpawnEntityCommand cmd)
     {
-        _createEntityWriter.Write(request);
-        _pendingEntityRequests[request.RequestId] = true;
+        _eventBus.PublishManaged(cmd);
+        _pendingEntityRequests[cmd.RequestId] = true;
 
         FdpLog<MapCommandController>.Debug(
-            "[MapCommandController] Forwarded CreateEntityRequest req={0}", request.RequestId);
+            "[MapCommandController] Published SpawnEntityCommand req={0}", cmd.RequestId);
     }
 
     /// <summary>

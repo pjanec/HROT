@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using Hrot.NED.Descriptors;
-using Hrot.NED.Messages;
-using Hrot.NED.Common;
 using Hrot.IG.Abstractions;
 using Hrot.IG.Adapters;
 using Hrot.IG.Components;
@@ -13,6 +10,7 @@ using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.Lifecycle.Events;
+using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Vis2D.Defaults;
@@ -25,14 +23,12 @@ using Raylib_cs;
 namespace Hrot.IG.Tests;
 
 /// <summary>
-/// Integration tests verifying the canvas interaction flow after TASK-IF006.
+/// Integration tests verifying the canvas interaction flow after D001 refactor.
 ///
-/// <para><b>Changes from prior revision:</b> <see cref="CreationTool"/> now writes
-/// a <see cref="CreateEntityRequest"/> over DDS rather than publishing a
-/// <c>SpawnEntityCommand</c> onto the local <see cref="FdpEventBus"/>. Therefore
-/// spawn-verification tests now assert the DDS payload, and pick/select tests
-/// create entities directly in the repository (simulating what the SimHost + ghost
-/// translator would do) instead of relying on the local spawning path.</para>
+/// <see cref="CreationTool"/> now publishes <see cref="SpawnEntityCommand"/> via
+/// a delegate rather than building a <see cref="Hrot.NED.Messages.CreateEntityRequest"/>.
+/// Pick/select tests create entities directly in the repository to simulate
+/// what the SimHost + ghost translator would do.
 /// </summary>
 public class ToolInteractionIntegrationTests
 {
@@ -86,14 +82,13 @@ public class ToolInteractionIntegrationTests
     // ── Tests: DDS payload from CreationTool ─────────────────────────────────
 
     /// <summary>
-    /// A left-click must write exactly one <see cref="CreateEntityRequest"/> to DDS,
-    /// confirming the tool no longer triggers a local spawn via the event bus.
+    /// A left-click must publish exactly one <see cref="SpawnEntityCommand"/> to the delegate.
     /// </summary>
     [Fact]
     public void CreationTool_LeftClick_WritesDdsCreateEntityRequest()
     {
-        var captured = new List<CreateEntityRequest>();
-        var tool     = new CreationTool(req => captured.Add(req), tkbType: TestTkbType);
+        var captured = new List<SpawnEntityCommand>();
+        var tool     = new CreationTool(cmd => captured.Add(cmd), tkbType: TestTkbType);
 
         tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
 
@@ -101,27 +96,22 @@ public class ToolInteractionIntegrationTests
     }
 
     /// <summary>
-    /// The DDS payload must include both a <c>dtEntityMaster</c> descriptor (with
-    /// the requested TKB type) and a <c>dtGeoSpatial</c> descriptor (with coordinates
-    /// derived from the click position), satisfying the SimHost contract.
+    /// The published command must carry the requested TKB type and the click position
+    /// encoded as <see cref="SpawnEntityCommand.InitialTransform"/>.
     /// </summary>
     [Fact]
     public void CreationTool_LeftClick_RequestContainsMasterAndGeoSpatialDescriptors()
     {
-        var captured = new List<CreateEntityRequest>();
-        var tool     = new CreationTool(req => captured.Add(req), tkbType: TestTkbType);
+        var captured = new List<SpawnEntityCommand>();
+        var tool     = new CreationTool(cmd => captured.Add(cmd), tkbType: TestTkbType);
 
         tool.HandleClick(new Vector2(SpawnX, SpawnY), MouseButton.Left);
 
-        var req         = captured[0];
-        var descriptors = req.InitialDescriptors;
-
-        var master = descriptors.First(d => d._d == EDescriptorType.dtEntityMaster);
-        Assert.Equal(TestTkbType, master.EntityMaster.TkbType);
-
-        var geo = descriptors.First(d => d._d == EDescriptorType.dtWorldPos);
-        Assert.Equal(SpawnY, geo.WorldPos.Pos.Latitude,  precision: 2);
-        Assert.Equal(SpawnX, geo.WorldPos.Pos.Longitude, precision: 2);
+        var cmd = captured[0];
+        Assert.Equal(TestTkbType, cmd.TkbType);
+        Assert.True(cmd.InitialTransform.HasValue);
+        Assert.Equal(SpawnX, cmd.InitialTransform!.Value.Position.X, precision: 2);
+        Assert.Equal(SpawnY, cmd.InitialTransform!.Value.Position.Y, precision: 2);
     }
 
     // ── Tests: pick after direct spawn ───────────────────────────────────────
