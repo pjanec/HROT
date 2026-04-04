@@ -10,7 +10,7 @@
 **Goal:** Create named composite `IEcsModule` wrappers grouping existing modules by architectural
 tier. Prerequisite for Phase 5 composition roots and the Feature Switch.
 
-- [ ] **PACK2-P001** Create Logic Pack composite wrappers (`SimHostCoreLogicPack`, `CgfLogicPack`, `OrchestrationLogicPack`) [details](./TASK-DETAIL.md#pack2-p001--create-logic-pack-composite-wrappers)
+- [x] **PACK2-P001** Create Logic Pack composite wrappers (`SimHostCoreLogicPack`, `CgfLogicPack`, `OrchestrationLogicPack`) [details](./TASK-DETAIL.md#pack2-p001--create-logic-pack-composite-wrappers)
 - [ ] **PACK2-P002** Create Translator Pack composite wrappers (`ActuatorIntentsEgressPack`, `EntityStatesIngressPack`) [details](./TASK-DETAIL.md#pack2-p002--create-translator-pack-composite-wrappers-for-feature-switch)
 
 ---
@@ -82,7 +82,7 @@ integrated into the Editor composition.
 add harnesses and four integration test suites for offline editing, Feature Switch RCU, and
 distributed Brain/Muscle execution.
 
-- [ ] **PACK2-R001** Add `RunMode.Editor` (= 64) and `RunMode.Demo` macro; add `"editor"` / `"demo"` CLI cases; validation guard [details](./TASK-DETAIL.md#pack2-r001--extend-runmode-with-editor-and-demo-update-configuration-validation)
+- [x] **PACK2-R001** Add `RunMode.Editor` (= 64) and `RunMode.Demo` macro; add `"editor"` / `"demo"` CLI cases; validation guard [details](./TASK-DETAIL.md#pack2-r001--extend-runmode-with-editor-and-demo-update-configuration-validation)
 - [ ] **PACK2-R002** Complete `CgfSubsystem.Initialize` with `CgfLogicPack` + `EntityStatesIngressPack(Ingress)` + `ActuatorIntentsEgressPack(Egress)` [details](./TASK-DETAIL.md#pack2-r002--complete-cgfsubsystem-brain-role-pack-installation)
 - [ ] **PACK2-R003** Scaffold `CgfHarness` (domain-isolated + shared-domain ctor) and `EditorHarness` (offline, no DDS) [details](./TASK-DETAIL.md#pack2-r003--scaffold-cgfharness-and-editorharness-test-infrastructure)
 - [ ] **PACK2-R004** `OfflineEditorIntegrationTests` (IT-1): spawn / edit / delete via memory bus; assert zero DDS writes [details](./TASK-DETAIL.md#pack2-r004--offlineeditorintegrationtests-it-1)

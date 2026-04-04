@@ -28,7 +28,13 @@ namespace Hrot.ClusterRunner.Configuration
         /// <summary>Run a headless deterministic CI scenario and exit with the scenario result code.</summary>
         CI = 1 << 5,           // 32
 
-        /// <summary>Run all subsystems (Orchestrator + SimHost + IG + ExCon) in one aggregated process.</summary>
-        All = Orchestrator | SimHost | IG | ExCon | CGF
+        /// <summary>Run the standalone HROT Editor (offline, no DDS participant).</summary>
+        Editor = 1 << 6,       // 64
+
+        /// <summary>Run all subsystems in one aggregated process (alias for All, human-readable name).</summary>
+        Demo = Orchestrator | SimHost | IG | ExCon | CGF,
+
+        /// <summary>Run all subsystems (Orchestrator + SimHost + IG + ExCon + CGF) in one aggregated process.</summary>
+        All = Demo
     }
 }

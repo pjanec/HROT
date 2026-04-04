@@ -70,6 +70,17 @@ namespace Hrot.ClusterRunner.Configuration
             // CI mode is always standalone (no peer synchronisation required).
             if (ParsedMode == RunMode.CI) return;
 
+            // Editor mode is always standalone — must not be combined with distributed flags.
+            if (ParsedMode.HasFlag(RunMode.Editor) &&
+                (ParsedMode & (RunMode.IG | RunMode.ExCon | RunMode.Orchestrator | RunMode.CGF)) != 0)
+            {
+                throw new InvalidOperationException(
+                    "RunMode.Editor must not be combined with distributed flags (IG, ExCon, Orchestrator, CGF).");
+            }
+
+            // Editor mode is always standalone (no peer synchronisation required).
+            if (ParsedMode == RunMode.Editor) return;
+
             // When launching a single subsystem that must synchronise with others,
             // --wait-for must be supplied (unless --no-wait suppresses synchronisation).
             if (!NoWait && WaitForPeers.Count == 0 && ParsedMode != RunMode.All && ParsedMode != RunMode.Orchestrator)
@@ -122,6 +133,8 @@ namespace Hrot.ClusterRunner.Configuration
             if (lower == "orchestrator") return RunMode.Orchestrator;
             if (lower == "cgf")          return RunMode.CGF;
             if (lower == "ci")           return RunMode.CI;
+            if (lower == "editor")       return RunMode.Editor;
+            if (lower == "demo")         return RunMode.Demo;
 
             // Comma-separated combination (e.g. "simhost,ig" or "orchestrator,cgf")
             RunMode result = RunMode.None;
@@ -135,6 +148,7 @@ namespace Hrot.ClusterRunner.Configuration
                     case "ios":          result |= RunMode.ExCon;        break;
                     case "orchestrator": result |= RunMode.Orchestrator; break;
                     case "cgf":          result |= RunMode.CGF;          break;
+                    case "editor":       result |= RunMode.Editor;       break;
                     default:             return RunMode.None; // Any invalid token → reject entire string
                 }
             }

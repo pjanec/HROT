@@ -22,6 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>    <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
+    <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Behavior\FDP.Toolkit.Behavior.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.CarKinem\FDP.Toolkit.CarKinem.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Physics\FDP.Toolkit.Physics.csproj" />

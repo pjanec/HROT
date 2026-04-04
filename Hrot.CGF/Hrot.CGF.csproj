@@ -32,6 +32,9 @@
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Scenario\FDP.Toolkit.Scenario.csproj" />
     <!-- Orchestration toolkit contracts -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
+    <!-- CgfLogicPack: Brain-tier modules, executors, NetworkEntityMap -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Navigation\FDP.Toolkit.Navigation.csproj" />
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Combat\FDP.Toolkit.Combat.csproj" />
   </ItemGroup>
 
 </Project>
