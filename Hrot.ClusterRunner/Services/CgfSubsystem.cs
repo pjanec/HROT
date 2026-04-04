@@ -16,12 +16,16 @@ namespace Hrot.ClusterRunner.Services;
 public sealed class CgfSubsystem : ISubsystem
 {
     private CgfApplication? _app;
+    private NetworkEntityMap? _entityMap;
 
     /// <inheritdoc/>
     public string Name => "CGF";
 
     /// <inheritdoc/>
     public System.Numerics.Vector4 TitleBarColor => new(0.08f, 0.22f, 0.38f, 1f);
+
+    /// <summary>TestHook: exposes the ghost entity map for integration tests.</summary>
+    internal NetworkEntityMap? GhostEntityMap => _entityMap;
 
     /// <inheritdoc/>
     public void Initialize(SubsystemConfig config)
@@ -30,22 +34,22 @@ public sealed class CgfSubsystem : ISubsystem
 
         // ── Brain-role pack installation (PACK2-R002) ─────────────────────────
         var doctrineRegistry = new DoctrineRegistry();
-        var entityMap        = new NetworkEntityMap();
+        _entityMap           = new NetworkEntityMap();
         var geoTransform     = HrotEnvironment.CreateGeoTransform();
-        var ghostCreation    = new GhostCreationSystem(entityMap);
+        var ghostCreation    = new GhostCreationSystem(_entityMap);
 
-        _app.Install(new CgfLogicPack(doctrineRegistry, entityMap));
+        _app.Install(new CgfLogicPack(doctrineRegistry, _entityMap));
         _app.Install(new EntityStatesIngressPack(
             PackRole.Ingress,
             _app.Participant,
-            entityMap,
+            _entityMap,
             _app.EventBus,
             ghostCreation,
             geoTransform));
         _app.Install(new ActuatorIntentsEgressPack(
             PackRole.Egress,
             _app.Participant,
-            entityMap,
+            _entityMap,
             geoTransform,
             _app.EventBus));
     }

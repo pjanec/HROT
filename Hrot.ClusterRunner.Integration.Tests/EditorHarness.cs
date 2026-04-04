@@ -7,6 +7,7 @@ using FDP.Toolkit.Lifecycle;
 using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Replication.Services;
+using FDP.Toolkit.Scenario;
 using FDP.Toolkit.Time.Controllers;
 using Fdp.Toolkit.Tkb;
 using Hrot.CGF;
@@ -14,6 +15,7 @@ using Hrot.Editor;
 using Hrot.Map.Common;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
+using Hrot.ScenarioEditor.Services;
 using Hrot.SimHost;
 using Hrot.SimHost.Modules;
 using ModuleHost.Core;
@@ -36,12 +38,15 @@ public sealed class EditorHarness : IDisposable
 
     private SteppingTimeController? _stepping;
     private readonly SequentialIdAllocator _idAllocator;
+    private ScenarioFileService _fileService = null!;
+    private IReadOnlyList<IEcsModule> _logicPacks = null!;
 
     public EntityRepository  Repo      { get; }
     public FdpEventBus        Bus       { get; }
     public ModuleHostKernel   Kernel    { get; }
     public NetworkEntityMap   EntityMap { get; }
-    public IEditorLogic       Editor    { get; }
+    public IEditorLogic       Editor    { get; private set; } = null!;
+    public ScenarioFileService FileService => _fileService;
 
     // ── Nested test stub ─────────────────────────────────────────────────────
 
@@ -75,7 +80,9 @@ public sealed class EditorHarness : IDisposable
 
         var doctrineRegistry = new DoctrineRegistry();
         var clusterSlave     = new ClusterSlave(0, "EditorHarness");
-        var fileService      = EditorBootstrap.CreateFileService();
+        var serializer       = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        var fileService      = new ScenarioFileService(serializer, Bus);
+        _fileService = fileService;
 
         // ── TKB + ELM + spawn system ─────────────────────────────────────────
         var tkbDb = new TkbDatabase();
@@ -89,18 +96,32 @@ public sealed class EditorHarness : IDisposable
         var simHostCorePack  = new SimHostCoreLogicPack(EntityMap);
         var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, EntityMap);
         var scenarioMod      = new ScenarioEditorModule(fileService);
+        var simHostMod       = new SimHostModule(spawnSys);
 
         Kernel.RegisterModule(simHostCorePack);
         Kernel.RegisterModule(cgfLogicPackInst);
         Kernel.RegisterModule(scenarioMod);
         Kernel.RegisterModule(elm);
-        Kernel.RegisterModule(new SimHostModule(spawnSys));
+        Kernel.RegisterModule(simHostMod);
 
         Kernel.Initialize();
 
         // ── Editor application facade ─────────────────────────────────────────
-        var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst };
+        var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst, simHostMod };
+        _logicPacks = logicPacks;
         Editor = new EditorApplication(fileService, Bus, Repo, Kernel, logicPacks);
+    }
+
+    // ── Feature-switch helper ─────────────────────────────────────────────────
+
+    /// <summary>
+    /// Provides translator packs to install when <see cref="IEditorLogic.SwitchToExternalAsync"/>
+    /// is called. Must be called BEFORE the first SwitchToExternalAsync call.
+    /// Re-creates the <see cref="EditorApplication"/> to capture the new translator pack list.
+    /// </summary>
+    public void SetTranslatorPacks(IReadOnlyList<IEcsModule> packs)
+    {
+        Editor = new EditorApplication(_fileService, Bus, Repo, Kernel, _logicPacks, translatorPacks: packs);
     }
 
     // ── Pump API ──────────────────────────────────────────────────────────────

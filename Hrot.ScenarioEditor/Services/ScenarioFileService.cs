@@ -26,11 +26,13 @@ public sealed class ScenarioFileService
     };
 
     private readonly ScenarioSerializer _serializer;
+    private readonly FdpEventBus? _bus;
     private Action? _worldResetObservers;
 
-    public ScenarioFileService(ScenarioSerializer serializer)
+    public ScenarioFileService(ScenarioSerializer serializer, FdpEventBus? bus = null)
     {
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
+        _bus = bus;
     }
 
     /// <summary>
@@ -49,11 +51,12 @@ public sealed class ScenarioFileService
     public void NewScenario(EntityRepository repo)
     {
         if (repo == null) throw new ArgumentNullException(nameof(repo));
-        FireWorldReset();
-        repo.SoftClear();
+        _worldResetObservers?.Invoke();   // synchronous callbacks BEFORE clear
+        repo.SoftClear();                 // also clears Bus — so we publish bus event AFTER this
         // Reset simulation time: SoftClear() does not touch singletons.
         if (repo.HasSingletonUnmanaged<GlobalTime>())
             repo.SetSingletonUnmanaged(default(GlobalTime));
+        _bus?.PublishManaged(new WorldResetEvent()); // bus event survives because it's after ClearAll
     }
 
     /// <summary>
@@ -86,11 +89,12 @@ public sealed class ScenarioFileService
         // Validate header before destructively clearing the repo.
         ValidateSubsystemType(jsonText);
 
-        FireWorldReset();
-        repo.SoftClear();
+        _worldResetObservers?.Invoke();   // synchronous callbacks BEFORE clear
+        repo.SoftClear();                 // also clears Bus — so we publish bus event AFTER this
         // Reset simulation time: SoftClear() does not touch singletons.
         if (repo.HasSingletonUnmanaged<GlobalTime>())
             repo.SetSingletonUnmanaged(default(GlobalTime));
+        _bus?.PublishManaged(new WorldResetEvent()); // bus event survives because it's after ClearAll
 
         _serializer.Deserialize(repo, jsonText);
     }
@@ -100,6 +104,7 @@ public sealed class ScenarioFileService
     private void FireWorldReset()
     {
         _worldResetObservers?.Invoke();
+        _bus?.PublishManaged(new WorldResetEvent());
     }
 
     private static void ValidateSubsystemType(string jsonText)

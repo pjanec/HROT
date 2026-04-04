@@ -15,6 +15,7 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// Exercises spawn / edit / delete command routing via EditorHarness
 /// without any DDS participant. Asserts that no DDS writer is ever called.
 /// </summary>
+[Collection("EditorOfflineTests")]
 public sealed class OfflineEditorIntegrationTests
 {
     // ── Test double: counts DDS write calls ──────────────────────────────────
