@@ -73,6 +73,9 @@ public static class SimHostComponentRegistry
         // TogglePerspectiveEvent lets UI code trigger a perspective switch via ECS bus.
         world.RegisterEvent<TogglePerspectiveEvent>();
 
+        // ── Mission control CQRS events (PACK-P001) ───────────────────────────
+        world.RegisterEvent<MissionControlAckEvent>();
+
         // ── Perception toolkit receptor components (MOD1-P6T1) ──────────────────
         world.RegisterComponent<VisualReceptor>();
         world.RegisterComponent<RadarReceptor>();

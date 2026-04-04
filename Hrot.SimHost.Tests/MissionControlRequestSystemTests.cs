@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using Hrot.NED.Messages;
 using Hrot.NED.Descriptors;
 using Hrot.Map.Common.Helpers;
+using Hrot.SimHost.Events;
 using Hrot.SimHost.Systems;
-using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
@@ -18,7 +17,6 @@ using EcsMissionTrigger = FDP.Toolkit.Behavior.Components.MissionTrigger;
 
 namespace Hrot.SimHost.Tests
 {
-    [Collection("SimHostDds")]
     public class MissionControlRequestSystemTests
     {
         private static EntityRepository CreateWorld()
@@ -29,6 +27,7 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<BrainBTreeState>();
             repo.RegisterManagedComponent<Hrot.SimHost.Components.EntityMissionHolder>();
             repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+            repo.RegisterEvent<MissionControlAckEvent>();
             return repo;
         }
 
@@ -66,11 +65,6 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void ProcessRequest_JumpToTask_UpdatesActiveTaskId()
         {
-            const uint domainId = 152u;
-            using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<MissionControlRequest>(participant);
-            using var reader = new DdsReader<MissionControlAck>(participant);
-
             var entityMap = new NetworkEntityMap();
             using var repo = CreateWorld();
             var entity = repo.CreateEntity();
@@ -80,57 +74,44 @@ namespace Hrot.SimHost.Tests
             var taskB = Guid.NewGuid();
             var taskC = Guid.NewGuid();
 
-            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
-            var replaceId = Guid.NewGuid();
-            writer.Write(new MissionControlRequest
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
-                RequestId      = replaceId,
+                RequestId      = Guid.NewGuid(),
                 TargetEntityId = 1,
                 BaseVersion    = 0,
                 Payload = new MissionCommandUnion
                 {
-                    _d             = eMissionCommandType.CMD_REPLACE_MISSION,
+                    _d              = eMissionCommandType.CMD_REPLACE_MISSION,
                     FullMissionData = MakePlan(taskA, taskB, taskC)
                 }
             });
 
-            Thread.Sleep(200);
-            system.Run();
-            Thread.Sleep(200);
-
             var requestId = Guid.NewGuid();
-            writer.Write(new MissionControlRequest
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
                 RequestId      = requestId,
                 TargetEntityId = 1,
                 BaseVersion    = 0,
                 Payload = new MissionCommandUnion
                 {
-                    _d = eMissionCommandType.CMD_JUMP_TO_TASK,
+                    _d           = eMissionCommandType.CMD_JUMP_TO_TASK,
                     TargetTaskId = taskC
                 }
             });
 
-            Thread.Sleep(200);
-            system.Run();
-            Thread.Sleep(200);
-
             ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(2, queue.CurrentPhase);
 
-            using var loan = reader.Take();
-            Assert.True(LoanHasAck(loan, requestId, errorCode: null));
+            repo.Bus.SwapBuffers();
+            Assert.True(BusHasAck(repo, requestId, errorCode: null));
         }
 
         [Fact]
         public void ProcessRequest_AbortAll_ClearsPlan()
         {
-            const uint domainId = 153u;
-            using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<MissionControlRequest>(participant);
-
             var entityMap = new NetworkEntityMap();
             using var repo = CreateWorld();
             var entity = repo.CreateEntity();
@@ -138,40 +119,32 @@ namespace Hrot.SimHost.Tests
 
             var taskA = Guid.NewGuid();
 
-            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
-            writer.Write(new MissionControlRequest
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
                 RequestId      = Guid.NewGuid(),
                 TargetEntityId = 1,
                 BaseVersion    = 0,
                 Payload = new MissionCommandUnion
                 {
-                    _d             = eMissionCommandType.CMD_REPLACE_MISSION,
+                    _d              = eMissionCommandType.CMD_REPLACE_MISSION,
                     FullMissionData = MakePlan(taskA)
                 }
             });
 
-            Thread.Sleep(200);
-            system.Run();
-            Thread.Sleep(200);
-
-            writer.Write(new MissionControlRequest
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
                 RequestId      = Guid.NewGuid(),
                 TargetEntityId = 1,
                 BaseVersion    = 0,
                 Payload = new MissionCommandUnion
                 {
-                    _d = eMissionCommandType.CMD_ABORT_ALL,
+                    _d                = eMissionCommandType.CMD_ABORT_ALL,
                     UnusedPlaceholder = true
                 }
             });
-
-            Thread.Sleep(200);
-            system.Run();
-            Thread.Sleep(200);
 
             ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
             Assert.Equal(0, queue.PhaseCount);
@@ -181,38 +154,29 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void ProcessRequest_WritesAck()
         {
-            const uint domainId = 154u;
-            using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<MissionControlRequest>(participant);
-            using var reader = new DdsReader<MissionControlAck>(participant);
-
             var entityMap = new NetworkEntityMap();
             using var repo = CreateWorld();
             var entity = repo.CreateEntity();
             entityMap.Register(1, entity);
 
-            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             var requestId = Guid.NewGuid();
-            writer.Write(new MissionControlRequest
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
                 RequestId      = requestId,
                 TargetEntityId = 1,
                 BaseVersion    = 0,
                 Payload = new MissionCommandUnion
                 {
-                    _d = eMissionCommandType.CMD_REPLACE_MISSION,
+                    _d              = eMissionCommandType.CMD_REPLACE_MISSION,
                     FullMissionData = new MissionPlan { Tasks = new List<MissionTask>() }
                 }
             });
 
-            Thread.Sleep(200);
-            system.Run();
-            Thread.Sleep(200);
-
-            using var loan = reader.Take();
-            Assert.True(LoanHasAck(loan, requestId, errorCode: 0));
+            repo.Bus.SwapBuffers();
+            Assert.True(BusHasAck(repo, requestId, errorCode: 0));
         }
 
         [Fact]
@@ -220,57 +184,43 @@ namespace Hrot.SimHost.Tests
         {
             // With the retry-queue fix, an unknown entity is queued for up to
             // MaxEntityWaitFrames (10) retry frames before the NACK is emitted.
-            // That means the ACK arrives on Run 12 (= 1 initial + 10 retries + 1 final).
-            const uint domainId = 155u;
-            using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<MissionControlRequest>(participant);
-            using var reader = new DdsReader<MissionControlAck>(participant);
-
             var entityMap = new NetworkEntityMap();
             using var repo = CreateWorld();
 
-            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             var requestId = Guid.NewGuid();
-            writer.Write(new MissionControlRequest
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
                 RequestId      = requestId,
                 TargetEntityId = 999,
                 BaseVersion    = 0,
                 Payload = new MissionCommandUnion
                 {
-                    _d = eMissionCommandType.CMD_ABORT_ALL,
+                    _d                = eMissionCommandType.CMD_ABORT_ALL,
                     UnusedPlaceholder = true
                 }
             });
 
-            Thread.Sleep(200);
+            // First call queues with framesLeft=10.
+            // Drain 11 more cycles to exhaust the queue and emit the NACK.
+            const int TotalDrains = 11; // MaxEntityWaitFrames(10) + 1
+            for (int i = 0; i < TotalDrains; i++)
+                system.TestHook_DrainRetryQueue(repo);
 
-            // Run once to consume the DDS message and enqueue for retry, then
-            // run MaxEntityWaitFrames + 1 more times to exhaust framesLeft down to 0
-            // and emit the NACK on the final run.
-            const int TotalRunsNeeded = 12; // MaxEntityWaitFrames(10) + 2
-            for (int i = 0; i < TotalRunsNeeded; i++)
-                system.Run();
-
-            Thread.Sleep(200);
-
-            using var loan = reader.Take();
-            Assert.True(LoanHasAck(loan, requestId, errorCode: (int)NedStatusCode.EntityNotFound));
+            repo.Bus.SwapBuffers();
+            Assert.True(BusHasAck(repo, requestId, errorCode: (int)NedStatusCode.EntityNotFound));
         }
 
-        private static bool LoanHasAck(DdsLoan<MissionControlAck> loan, Guid requestId, int? errorCode)
+        private static bool BusHasAck(EntityRepository repo, Guid requestId, int? errorCode)
         {
-            foreach (var sample in loan)
+            foreach (var evt in repo.Bus.Consume<MissionControlAckEvent>())
             {
-                if (!sample.IsValid)
+                if (evt.RequestId != requestId)
                     continue;
 
-                if (sample.Data.RequestId != requestId)
-                    continue;
-
-                if (errorCode.HasValue && sample.Data.ErrorCode != errorCode.Value)
+                if (errorCode.HasValue && evt.ErrorCode != errorCode.Value)
                     continue;
 
                 return true;
@@ -284,10 +234,6 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void AbortAll_PublishesClearDoctrineEvent()
         {
-            const uint domainId = 160u;
-            using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<MissionControlRequest>(participant);
-
             var entityMap = new NetworkEntityMap();
             using var repo = CreateWorld();
             var entity = repo.CreateEntity();
@@ -296,12 +242,12 @@ namespace Hrot.SimHost.Tests
             // Give entity a non-empty plan and a DoctrineState.
             repo.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = 2001, InstanceId = 3 });
 
-            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             // First assign a mission so PhaseCount > 0.
             var taskA = Guid.NewGuid();
-            writer.Write(new MissionControlRequest
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
                 RequestId      = Guid.NewGuid(),
                 TargetEntityId = 2,
@@ -312,12 +258,9 @@ namespace Hrot.SimHost.Tests
                     FullMissionData = MakePlan(taskA)
                 }
             });
-            Thread.Sleep(200);
-            system.Run();
-            Thread.Sleep(200);
 
             // Now abort.
-            writer.Write(new MissionControlRequest
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
                 RequestId      = Guid.NewGuid(),
                 TargetEntityId = 2,
@@ -328,11 +271,8 @@ namespace Hrot.SimHost.Tests
                     UnusedPlaceholder = true
                 }
             });
-            Thread.Sleep(200);
-            system.Run();
-            Thread.Sleep(200);
 
-            // ClearDoctrineEvent should be in the write buffer after ProcessRequest.
+            // ClearDoctrineEvent should be in the write buffer after processing.
             repo.Bus.SwapBuffers();
             bool found = false;
             foreach (var evt in repo.Bus.Consume<ClearDoctrineEvent>())
@@ -347,20 +287,16 @@ namespace Hrot.SimHost.Tests
         {
             // Entity without DoctrineState — ClearDoctrineEvent still published;
             // DoctrineIngressSystem provides the guard against missing components.
-            const uint domainId = 161u;
-            using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<MissionControlRequest>(participant);
-
             var entityMap = new NetworkEntityMap();
             using var repo = CreateWorld();
             var entity = repo.CreateEntity();
             entityMap.Register(3, entity);
             // No DoctrineState added.
 
-            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
-            writer.Write(new MissionControlRequest
+            var exception = Record.Exception(() => system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
                 RequestId      = Guid.NewGuid(),
                 TargetEntityId = 3,
@@ -370,13 +306,9 @@ namespace Hrot.SimHost.Tests
                     _d                = eMissionCommandType.CMD_ABORT_ALL,
                     UnusedPlaceholder = true
                 }
-            });
-            Thread.Sleep(200);
-
-            var exception = Record.Exception(() => system.Run());
+            }));
             Assert.Null(exception);
 
-            Thread.Sleep(200);
             Assert.Equal(0, repo.GetComponent<MissionPlanQueue>(entity).PhaseCount);
 
             // Guard: ClearDoctrineEvent still published even without DoctrineState component.
@@ -390,21 +322,16 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void AbortAll_WritesSuccessAck()
         {
-            const uint domainId = 162u;
-            using var participant = new DdsParticipant(domainId);
-            using var writer = new DdsWriter<MissionControlRequest>(participant);
-            using var reader = new DdsReader<MissionControlAck>(participant);
-
             var entityMap = new NetworkEntityMap();
             using var repo = CreateWorld();
             var entity = repo.CreateEntity();
             entityMap.Register(4, entity);
 
-            var system = new MissionControlRequestSystem(participant, entityMap, CreateDoctrineRegistry());
+            var system = new MissionControlExecutionSystem(entityMap, CreateDoctrineRegistry());
             system.Create(repo);
 
             var requestId = Guid.NewGuid();
-            writer.Write(new MissionControlRequest
+            system.TestHook_ProcessIntent(repo, new MissionControlIntent
             {
                 RequestId      = requestId,
                 TargetEntityId = 4,
@@ -415,12 +342,9 @@ namespace Hrot.SimHost.Tests
                     UnusedPlaceholder = true
                 }
             });
-            Thread.Sleep(200);
-            system.Run();
-            Thread.Sleep(200);
 
-            using var loan = reader.Take();
-            Assert.True(LoanHasAck(loan, requestId, errorCode: 0)); // NedErrorCode.Success == 0
+            repo.Bus.SwapBuffers();
+            Assert.True(BusHasAck(repo, requestId, errorCode: 0)); // NedStatusCode.Success == 0
         }
 
         // ── BUG2-M001 – ResolveTrigger new cases ─────────────────────────────

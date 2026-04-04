@@ -142,7 +142,7 @@ namespace Hrot.SimHost.Modules
                     },
                     weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
                     {
-                        (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor(entityMap)),
+                        (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
                     });
 
             if (hasGroundKinem)

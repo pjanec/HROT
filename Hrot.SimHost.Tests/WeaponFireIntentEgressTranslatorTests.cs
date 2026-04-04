@@ -12,8 +12,11 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="WeaponFireIntentEgressTranslator"/> (BS1-T005).
+    /// Unit tests for <see cref="WeaponFireIntentEgressTranslator"/> (BS1-T005 / PACK-P003).
     ///
+    /// PACK-P003: <see cref="WeaponFireIntent"/> carries local ECS <see cref="Entity"/>
+    /// handles; the translator resolves them to network IDs via <see cref="NetworkEntityMap"/>
+    /// before writing the DDS wire message.
     /// Uses a <see cref="CapturingWriter{T}"/> stub so the tests run without a live
     /// DDS participant.  Authority behaviour is verified via the
     /// <see cref="NetworkAuthority"/> component.
@@ -71,13 +74,20 @@ namespace Hrot.SimHost.Tests
             return entity;
         }
 
-        private void PublishIntent(long shooterId, long targetId, int weaponIndex = 0)
+        private Entity SpawnTarget(long netId)
+        {
+            var entity = _world.CreateEntity();
+            _entityMap.Register(netId, entity);
+            return entity;
+        }
+
+        private void PublishIntent(Entity shooter, Entity target, int weaponIndex = 0)
         {
             _world.Bus.Publish(new WeaponFireIntent
             {
-                ShooterEntityId = shooterId,
-                TargetEntityId  = targetId,
-                WeaponIndex     = weaponIndex,
+                Shooter     = shooter,
+                Target      = target,
+                WeaponIndex = weaponIndex,
             });
             _world.Bus.SwapBuffers();
         }
@@ -85,17 +95,19 @@ namespace Hrot.SimHost.Tests
         // ── SC-1: Intent → DDS message ────────────────────────────────────────
 
         /// <summary>
-        /// BS1-T005 SC-1: When a <see cref="WeaponFireIntent"/> is on the bus and the
-        /// local node has authority over the shooter entity, <see cref="ScanAndPublish"/>
-        /// must write exactly one <see cref="WeaponFireRequest"/> with matching payload.
+        /// BS1-T005 SC-1 / PACK-P003: When a <see cref="WeaponFireIntent"/> is on the bus
+        /// and the local node has authority over the shooter entity,
+        /// <see cref="ScanAndPublish"/> must write exactly one <see cref="WeaponFireRequest"/>
+        /// with network IDs resolved from <see cref="NetworkEntityMap"/>.
         /// </summary>
         [Fact]
         public void ScanAndPublish_WritesWeaponFireRequest_WhenAuthoritative()
         {
             var (translator, writer) = BuildTranslator();
 
-            SpawnShooter(netId: 1L, authoritative: true);
-            PublishIntent(shooterId: 1L, targetId: 2L, weaponIndex: 0);
+            var shooter = SpawnShooter(netId: 1L, authoritative: true);
+            var target  = SpawnTarget(netId: 2L);
+            PublishIntent(shooter, target, weaponIndex: 0);
 
             translator.ScanAndPublish(_world);
 
@@ -117,8 +129,9 @@ namespace Hrot.SimHost.Tests
         {
             var (translator, writer) = BuildTranslator();
 
-            SpawnShooter(netId: 1L, authoritative: false);
-            PublishIntent(shooterId: 1L, targetId: 2L);
+            var shooter = SpawnShooter(netId: 1L, authoritative: false);
+            var target  = SpawnTarget(netId: 2L);
+            PublishIntent(shooter, target);
 
             translator.ScanAndPublish(_world);
 
@@ -144,22 +157,27 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(writer.Written);
         }
 
-        // ── SC-4: Unknown shooter ID → no publish ─────────────────────────────
+        // ── SC-4 (PACK-P003): Shooter not in NetworkEntityMap → no publish ────
 
         /// <summary>
-        /// When the shooter ID in <see cref="WeaponFireIntent"/> is not registered in
-        /// <see cref="NetworkEntityMap"/>, the translator must skip the event silently.
+        /// PACK-P003: When the shooter entity is not registered in
+        /// <see cref="NetworkEntityMap"/>, the translator must skip the event silently
+        /// (no DDS write, no exception).
         /// </summary>
         [Fact]
-        public void ScanAndPublish_SkipsEvent_WhenShooterIdUnknown()
+        public void ScanAndPublish_Skips_WhenShooterNotInMap()
         {
             var (translator, writer) = BuildTranslator();
 
-            // ShooterEntityId=99 is not in the map.
-            PublishIntent(shooterId: 99L, targetId: 2L);
+            // Shooter entity has authority but is NOT in NetworkEntityMap.
+            var unmappedShooter = _world.CreateEntity();
+            _world.AddComponent(unmappedShooter, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            var target = SpawnTarget(netId: 2L);
 
-            translator.ScanAndPublish(_world);
+            PublishIntent(unmappedShooter, target);
 
+            var ex = Record.Exception(() => translator.ScanAndPublish(_world));
+            Assert.Null(ex);
             Assert.Empty(writer.Written);
         }
     }

@@ -31,7 +31,7 @@ namespace Hrot.SimHost.Tests
                 },
                 weaponExecutors: new (ushort, IActionExecutor<WeaponChannel>)[]
                 {
-                    (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor(entityMap)),
+                    (CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor()),
                 });
         }
 

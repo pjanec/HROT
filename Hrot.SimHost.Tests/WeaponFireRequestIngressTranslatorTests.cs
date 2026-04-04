@@ -85,8 +85,9 @@ namespace Hrot.SimHost.Tests
             var events = ProcessAndFlush(translator, in request);
 
             Assert.Equal(1, events.Length);
-            Assert.Equal(1L, events[0].ShooterEntityId);
-            Assert.Equal(2L, events[0].TargetEntityId);
+            // PACK-P003: WeaponFireIntent now carries Entity handles, not long IDs.
+            Assert.Equal(entityA, events[0].Shooter);
+            Assert.Equal(entityB, events[0].Target);
             Assert.Equal(0,  events[0].WeaponIndex);
         }
 

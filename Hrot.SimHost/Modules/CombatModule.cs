@@ -49,7 +49,7 @@ namespace Hrot.SimHost.Modules
             NetworkEntityMap entityMap)
         {
             // ── Input phase ───────────────────────────────────────────────────
-            inputGroup.AddSystem(new FireProcessingSystem(entityMap));
+            inputGroup.AddSystem(new FireProcessingSystem());
             inputGroup.AddSystem(new RaycastSolverSystem());
             inputGroup.AddSystem(new HitResolutionSystem());
 

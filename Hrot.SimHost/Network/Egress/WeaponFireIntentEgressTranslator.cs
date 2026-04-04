@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Dds;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
+using FDP.Kernel.Logging;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Replication.Extensions;
 using FDP.Toolkit.Replication.Services;
@@ -27,6 +28,14 @@ namespace Hrot.SimHost.Network.Egress
     /// runs in the Input phase and consumes all <see cref="WeaponFireIntent"/> events before
     /// <see cref="ScanAndPublish"/> is reached in the egress phase.  The translator therefore
     /// finds an empty span and produces no DDS traffic, which is the desired behaviour.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>PACK-P003:</b> <see cref="WeaponFireIntent"/> now carries local ECS
+    /// <see cref="Entity"/> handles. The authority check uses the <c>Shooter</c> entity
+    /// directly; network IDs are resolved via <see cref="NetworkEntityMap"/> only when
+    /// writing the DDS wire message.  If either entity is unmapped the event is skipped
+    /// without an exception.
     /// </para>
     /// </summary>
     public sealed class WeaponFireIntentEgressTranslator : IDescriptorTranslator
@@ -68,19 +77,32 @@ namespace Hrot.SimHost.Network.Egress
 
             foreach (ref readonly var evt in events)
             {
-                // Resolve the shooter entity to perform the authority check.
-                // If the entity is not in the map it cannot be local — skip it.
-                if (!_entityMap.TryGetEntity(evt.ShooterEntityId, out var shooterEntity))
+                // Authority check: only publish for locally-owned shooter entities.
+                if (!view.HasAuthority(evt.Shooter))
                     continue;
 
-                // Only publish fire intents for entities owned by this node.
-                if (!view.HasAuthority(shooterEntity))
+                // Resolve shooter entity → network ID for the DDS wire message.
+                if (!_entityMap.TryGetNetworkId(evt.Shooter, out long shooterNetId))
+                {
+                    FdpLog<WeaponFireIntentEgressTranslator>.Warn(
+                        "[WeaponFireIntentEgress] Shooter entity #{0} not in NetworkEntityMap — skipping intent.",
+                        evt.Shooter.Index);
                     continue;
+                }
+
+                // Resolve target entity → network ID for the DDS wire message.
+                if (!_entityMap.TryGetNetworkId(evt.Target, out long targetNetId))
+                {
+                    FdpLog<WeaponFireIntentEgressTranslator>.Warn(
+                        "[WeaponFireIntentEgress] Target entity #{0} not in NetworkEntityMap — skipping intent.",
+                        evt.Target.Index);
+                    continue;
+                }
 
                 _writer.Write(new WeaponFireRequest
                 {
-                    ShooterEntityId = evt.ShooterEntityId,
-                    TargetEntityId  = evt.TargetEntityId,
+                    ShooterEntityId = shooterNetId,
+                    TargetEntityId  = targetNetId,
                     WeaponIndex     = evt.WeaponIndex,
                 });
             }

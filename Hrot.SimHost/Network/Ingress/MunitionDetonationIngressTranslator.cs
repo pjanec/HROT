@@ -72,16 +72,21 @@ namespace Hrot.SimHost.Network.Ingress
             IEntityCommandBuffer cmd,
             ISimulationView view)
         {
-            // Target entity must be known on this node.
-            if (!_entityMap.TryGetEntity(msg.HitEntityId, out _)) return;
+            // PACK-P003: DetonationNotification now carries Entity handles.
+            // Resolve both network IDs to local Entity handles.
+            // If the target is unknown on this node, skip (same guard as before).
+            if (!_entityMap.TryGetEntity(msg.HitEntityId, out var hitEntity)) return;
+
+            // Shooter may be unknown on Muscle (cross-node entity); default to Entity.Null if not found.
+            _entityMap.TryGetEntity(msg.ShooterEntityId, out var shooterEntity);
 
             cmd.PublishEvent(new DetonationNotification
             {
-                ShooterEntityId = msg.ShooterEntityId,
-                HitEntityId     = msg.HitEntityId,
-                HitX            = msg.HitX,
-                HitY            = msg.HitY,
-                HitZ            = msg.HitZ,
+                Shooter = shooterEntity,
+                Target  = hitEntity,
+                HitX    = msg.HitX,
+                HitY    = msg.HitY,
+                HitZ    = msg.HitZ,
             });
         }
 

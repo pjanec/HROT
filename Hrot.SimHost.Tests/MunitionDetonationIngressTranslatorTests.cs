@@ -10,7 +10,12 @@ using Xunit;
 namespace Hrot.SimHost.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="MunitionDetonationIngressTranslator"/> (BS1-T012).
+    /// Unit tests for <see cref="MunitionDetonationIngressTranslator"/> (BS1-T012 / PACK-P003).
+    ///
+    /// PACK-P003: <see cref="DetonationNotification"/> now carries local ECS
+    /// <see cref="Entity"/> handles. Tests verify that the translator resolves
+    /// <c>long</c> network IDs from the DDS wire message to <see cref="Entity"/> handles
+    /// via <see cref="NetworkEntityMap"/>.
     ///
     /// Tests use <see cref="MunitionDetonationIngressTranslator.ProcessSample"/> directly
     /// (internal visibility through <c>InternalsVisibleTo</c>) to verify DDS samples
@@ -50,19 +55,21 @@ namespace Hrot.SimHost.Tests
             return _world.Bus.Consume<DetonationNotification>();
         }
 
-        // ── SC-1: DDS message → DetonationNotification ────────────────────────
+        // ── SC-1: DDS message → DetonationNotification with Entity handles ────
 
         /// <summary>
-        /// BS1-T012 SC-1: A valid <see cref="MunitionDetonation"/> sample with a known
-        /// target entity must produce one <see cref="DetonationNotification"/> on the
-        /// local event bus with matching fields.
+        /// PACK-P003 SC-1 / BS1-T012 SC-1: A valid <see cref="MunitionDetonation"/> sample
+        /// with a known target entity must produce one <see cref="DetonationNotification"/>
+        /// on the local event bus with ECS <see cref="Entity"/> handles resolved from the map.
         /// </summary>
         [Fact]
         public void ProcessSample_PublishesDetonationNotification_WhenTargetKnown()
         {
             var translator = BuildTranslator();
 
-            var targetEntity = _world.CreateEntity();
+            var shooterEntity = _world.CreateEntity();
+            var targetEntity  = _world.CreateEntity();
+            _entityMap.Register(1L, shooterEntity);
             _entityMap.Register(5L, targetEntity);
 
             var msg = new MunitionDetonation
@@ -77,8 +84,9 @@ namespace Hrot.SimHost.Tests
             var events = ProcessAndFlush(translator, in msg);
 
             Assert.Equal(1, events.Length);
-            Assert.Equal(1L,  events[0].ShooterEntityId);
-            Assert.Equal(5L,  events[0].HitEntityId);
+            // PACK-P003: assert Entity handles, not raw long IDs.
+            Assert.Equal(shooterEntity, events[0].Shooter);
+            Assert.Equal(targetEntity,  events[0].Target);
             Assert.Equal(10f, events[0].HitX);
             Assert.Equal(20f, events[0].HitY);
             Assert.Equal(5f,  events[0].HitZ);
@@ -87,8 +95,9 @@ namespace Hrot.SimHost.Tests
         // ── SC-2: Unknown target → skipped ────────────────────────────────────
 
         /// <summary>
-        /// BS1-T012: When the target entity ID is not in <see cref="NetworkEntityMap"/>,
-        /// the sample must be silently skipped and no event published.
+        /// PACK-P003 / BS1-T012: When the target entity ID is not in
+        /// <see cref="NetworkEntityMap"/>, the sample must be silently skipped and no
+        /// event published.
         /// </summary>
         [Fact]
         public void ProcessSample_SkipsSample_WhenTargetUnknown()
@@ -112,6 +121,36 @@ namespace Hrot.SimHost.Tests
             _world.Bus.SwapBuffers();
             var events = _world.Bus.Consume<DetonationNotification>();
             Assert.Equal(0, events.Length);
+        }
+
+        // ── SC-3: Unknown shooter → emitted with Entity.Null shooter ─────────
+
+        /// <summary>
+        /// PACK-P003: When the shooter entity ID is not in <see cref="NetworkEntityMap"/>
+        /// but the target IS known, the event is still published with
+        /// <c>Shooter == Entity.Null</c> (default).
+        /// </summary>
+        [Fact]
+        public void ProcessSample_PublishesWithNullShooter_WhenShooterUnknown()
+        {
+            var translator    = BuildTranslator();
+            var targetEntity  = _world.CreateEntity();
+            _entityMap.Register(5L, targetEntity);
+
+            // Shooter (1L) is NOT registered.
+            var msg = new MunitionDetonation
+            {
+                ShooterEntityId = 1L,
+                HitEntityId     = 5L,
+                HitX            = 1f,
+            };
+
+            var events = ProcessAndFlush(translator, in msg);
+
+            Assert.Equal(1, events.Length);
+            Assert.Equal(targetEntity,  events[0].Target);
+            // Shooter not in map → Entity.Null (default struct).
+            Assert.Equal(default(Entity), events[0].Shooter);
         }
     }
 }

@@ -6,6 +6,7 @@ using Hrot.NED.Messages;
 using Fdp.Interfaces;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Helpers;
+using Hrot.SimHost.Events;
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
@@ -18,7 +19,7 @@ namespace Hrot.SimHost.Tests.Systems;
 
 /// <summary>
 /// Unit tests for the FollowRoute network-ID translation in
-/// <see cref="MissionControlRequestSystem"/> — OC1-S001.
+/// <see cref="MissionControlExecutionSystem"/> — OC1-S001.
 /// These tests use the internal test constructor to avoid DDS setup.
 /// </summary>
 public class MissionControlRequestSystemFollowRouteTests
@@ -36,6 +37,7 @@ public class MissionControlRequestSystemFollowRouteTests
         repo.RegisterComponent<RouteTrajectoryCache>();
         repo.RegisterManagedComponent<RoutePlan>();
         repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
+        repo.RegisterEvent<MissionControlAckEvent>();
         return repo;
     }
 
@@ -64,9 +66,9 @@ public class MissionControlRequestSystemFollowRouteTests
         return (vehicle, routeEntity);
     }
 
-    private static MissionControlRequest MakeFollowRouteRequest(long targetEntityId, long routeEntityId, double speed = 5.0, bool loop = false)
+    private static MissionControlIntent MakeFollowRouteRequest(long targetEntityId, long routeEntityId, double speed = 5.0, bool loop = false)
     {
-        return new MissionControlRequest
+        return new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
             TargetEntityId = targetEntityId,
@@ -103,13 +105,13 @@ public class MissionControlRequestSystemFollowRouteTests
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
         var registry   = CreateDoctrineRegistry();
-        var system     = new MissionControlRequestSystem(entityMap, registry);
+        var system     = new MissionControlExecutionSystem(entityMap, registry);
         system.Create(repo);
 
         var (vehicle, _) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 5);
 
         var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L, speed: 12.0, loop: true);
-        system.TestHook_ProcessRequest(repo, request);
+        system.TestHook_ProcessIntent(repo, request);
 
         // Verify rewritten BehaviorParams stored in EntityMissionHolder.
         var holder     = ((ISimulationView)repo).GetManagedComponentRO<Hrot.SimHost.Components.EntityMissionHolder>(vehicle);
@@ -133,7 +135,7 @@ public class MissionControlRequestSystemFollowRouteTests
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
         var registry   = CreateDoctrineRegistry();
-        var system     = new MissionControlRequestSystem(entityMap, registry);
+        var system     = new MissionControlExecutionSystem(entityMap, registry);
         system.Create(repo);
 
         // Register only the vehicle; no route entity.
@@ -143,7 +145,7 @@ public class MissionControlRequestSystemFollowRouteTests
         entityMap.Register(1L, vehicle);
 
         var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L);
-        system.TestHook_ProcessRequest(repo, request);
+        system.TestHook_ProcessIntent(repo, request);
 
         Assert.True(system.TestHook_RetryQueueCount > 0, "Expected request in retry queue.");
     }
@@ -157,13 +159,13 @@ public class MissionControlRequestSystemFollowRouteTests
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
         var registry   = CreateDoctrineRegistry();
-        var system     = new MissionControlRequestSystem(entityMap, registry);
+        var system     = new MissionControlExecutionSystem(entityMap, registry);
         system.Create(repo);
 
         var (_, routeEntity) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
 
         var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L);
-        system.TestHook_ProcessRequest(repo, request);
+        system.TestHook_ProcessIntent(repo, request);
 
         Assert.True(system.TestHook_RetryQueueCount > 0, "Expected request in retry queue.");
     }
@@ -177,14 +179,14 @@ public class MissionControlRequestSystemFollowRouteTests
         using var repo = CreateWorld();
         var entityMap  = new NetworkEntityMap();
         var registry   = CreateDoctrineRegistry();
-        var system     = new MissionControlRequestSystem(entityMap, registry);
+        var system     = new MissionControlExecutionSystem(entityMap, registry);
         system.Create(repo);
 
         var (vehicle, routeEntity) = SetupEntities(repo, entityMap, vehicleNetId: 1L, routeNetId: 99L, trajectoryId: 0);
 
         // First cycle — should retry.
         var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L, speed: 5.0, loop: false);
-        system.TestHook_ProcessRequest(repo, request);
+        system.TestHook_ProcessIntent(repo, request);
         Assert.True(system.TestHook_RetryQueueCount > 0);
 
         // Route compiles — update TrajectoryId.
@@ -213,7 +215,7 @@ public class MissionControlRequestSystemFollowRouteTests
         registry.Register(1, "Wander",
             new DoctrineDefinition { Name = "Wander", BrainTier = BehaviorConstants.BrainTierBTree });
 
-        var system = new MissionControlRequestSystem(entityMap, registry);
+        var system = new MissionControlExecutionSystem(entityMap, registry);
         system.Create(repo);
 
         var vehicle = repo.CreateEntity();
@@ -222,7 +224,7 @@ public class MissionControlRequestSystemFollowRouteTests
         entityMap.Register(1L, vehicle);
 
         const string originalParams = "{\"radius\":100}";
-        var request = new MissionControlRequest
+        var request = new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
             TargetEntityId = 1L,
@@ -248,7 +250,7 @@ public class MissionControlRequestSystemFollowRouteTests
             }
         };
 
-        system.TestHook_ProcessRequest(repo, request);
+        system.TestHook_ProcessIntent(repo, request);
 
         var holder     = ((ISimulationView)repo).GetManagedComponentRO<Hrot.SimHost.Components.EntityMissionHolder>(vehicle);
         Assert.Equal(originalParams, holder.Mission.Plan.Tasks[0].BehaviorParams);
@@ -270,7 +272,7 @@ public class MissionControlRequestSystemFollowRouteTests
         repo.AddComponent(routeEntity, new RouteTrajectoryCache { TrajectoryId = 5, CompiledVersion = 1 });
 
         const string input = "{\"routeEntityId\":42,\"Speed\":12.0,\"Loop\":true}";
-        bool ok = MissionControlRequestSystem.TryTranslateFollowRouteBehaviorParams(repo, input, out var translated);
+        bool ok = MissionControlBehaviorParamsHelper.TryTranslateFollowRouteBehaviorParams(repo, input, out var translated);
 
         Assert.True(ok);
         using var doc = JsonDocument.Parse(translated);

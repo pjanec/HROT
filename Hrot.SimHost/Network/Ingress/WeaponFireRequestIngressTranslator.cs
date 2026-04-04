@@ -74,16 +74,15 @@ namespace Hrot.SimHost.Network.Ingress
             IEntityCommandBuffer cmd,
             ISimulationView view)
         {
-            // Both shooter and target must be known on this node; otherwise FireProcessingSystem
-            // cannot resolve the entities and would silently skip the event anyway.
-            if (!_entityMap.TryGetEntity(request.ShooterEntityId, out _)) return;
-            if (!_entityMap.TryGetEntity(request.TargetEntityId,  out _)) return;
+            // Both shooter and target must be known on this node for FireProcessingSystem to use.
+            if (!_entityMap.TryGetEntity(request.ShooterEntityId, out var shooter)) return;
+            if (!_entityMap.TryGetEntity(request.TargetEntityId,  out var target))  return;
 
             cmd.PublishEvent(new WeaponFireIntent
             {
-                ShooterEntityId = request.ShooterEntityId,
-                TargetEntityId  = request.TargetEntityId,
-                WeaponIndex     = request.WeaponIndex,
+                Shooter     = shooter,
+                Target      = target,
+                WeaponIndex = request.WeaponIndex,
             });
         }
 

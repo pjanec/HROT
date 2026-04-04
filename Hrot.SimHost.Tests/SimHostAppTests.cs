@@ -42,7 +42,7 @@ namespace Hrot.SimHost.Tests
             group.Create(repo);
 
             // Register the exact same set that SimHostApp._kernelGroup builds.
-            group.AddSystem(new MissionControlRequestSystem(participant, entityMap, doctrineReg));
+            group.AddSystem(new MissionControlExecutionSystem(entityMap, doctrineReg));
             group.AddSystem(new MissionAdapterSystem(doctrineReg, entityMap));
             group.AddSystem(new UpdateEntityDescriptorRequestSystem(participant, entityMap, wgs84));
             group.AddSystem(new UpdateEntityAttributeRequestSystem(participant, entityMap, wgs84, compiler));

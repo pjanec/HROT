@@ -42,9 +42,9 @@ nodes in a distributed cluster.
 **Goal:** Remove residual direct DDS/JSON coupling from Logic Pack systems so the network layer
 is a true plugin.
 
-- [ ] **PACK-P001** Split MissionControlRequestSystem into Translator + Logic [details](./TASK-DETAIL.md#pack-p001--split-missioncontrolrequestsystem-into-translator--logic)
+- [x] **PACK-P001** Split MissionControlRequestSystem into Translator + Logic [details](./TASK-DETAIL.md#pack-p001--split-missioncontrolrequestsystem-into-translator--logic)
 - [x] **PACK-P002** Extract Create/DeleteEntityRequestSystem out of SimHostModule [details](./TASK-DETAIL.md#pack-p002--extract-spawning-request-systems-out-of-simhostmodule)
-- [ ] **PACK-P003** Strip NetworkEntityMap from HitResolutionSystem and AimAndFireExecutor [details](./TASK-DETAIL.md#pack-p003--strip-networkentitymap-from-hitresolutionsystem-and-aimandFireexecutor)
+- [x] **PACK-P003** Strip NetworkEntityMap from HitResolutionSystem and AimAndFireExecutor [details](./TASK-DETAIL.md#pack-p003--strip-networkentitymap-from-hitresolutionsystem-and-aimandFireexecutor)
 - [x] **PACK-P004** Relocate UpdateEntityDescriptorRequestSystem to Replication.Ingress [details](./TASK-DETAIL.md#pack-p004--relocate-updateentitydescriptorrequestsystem-to-replicationingress-namespace)
 
 ---

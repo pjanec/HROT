@@ -14,6 +14,7 @@ using Hrot.SimHost.Components;
 using Hrot.SimHost.Configuration;
 using Hrot.SimHost.Modules;
 using Hrot.SimHost.Network;
+using Hrot.SimHost.Events;
 using Hrot.SimHost.Network.Egress;
 using Hrot.SimHost.Network.Ingress;
 using Hrot.SimHost.Systems;
@@ -382,7 +383,8 @@ namespace Hrot.SimHost
 
             _kernelGroup = new SystemGroup();
             _kernelGroup.Create(_world);
-            _kernelGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
+            // PACK-P001: MissionControlRequestSystem split into ingress translator + execution system + egress translator.
+            _kernelGroup.AddSystem(new MissionControlExecutionSystem(entityMap, doctrineRegistry));
             _kernelGroup.AddSystem(new MissionAdapterSystem(doctrineRegistry, entityMap));
             _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant, entityMap, wgs84, jsonAttributeCompiler));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
@@ -489,14 +491,17 @@ namespace Hrot.SimHost
             // Muscle: emits Notification + Detonation → DDS; Brain-side emits DamageAssessed → DDS.
             if (_role == NodeRole.MuscleGround || _role == NodeRole.AllInOne)
             {
-                egressTranslators.Add(new WeaponFireNotificationEgressTranslator(ddsParticipant));
-                egressTranslators.Add(new MunitionDetonationEgressTranslator(ddsParticipant));
+                egressTranslators.Add(new WeaponFireNotificationEgressTranslator(ddsParticipant, entityMap));
+                egressTranslators.Add(new MunitionDetonationEgressTranslator(ddsParticipant, entityMap));
                 egressTranslators.Add(new DamageAssessedEgressTranslator(ddsParticipant));
             }
 
             // All translators (egress + ingress) passed to CycloneNetworkModule.
             var translators = new List<IDescriptorTranslator>(egressTranslators);
             translators.Add(missionIngress);
+            // PACK-P001: mission control CQRS pipeline – ingress polls DDS, egress writes ACKs.
+            translators.Add(new MissionControlIngressTranslator(ddsParticipant));
+            translators.Add(new MissionControlAckEgressTranslator(ddsParticipant));
 
             // BS1-T017 (continued): ingress translators added after translators list is created.
             // Muscle: receives WeaponFireRequest and MunitionDetonation from DDS → local events.
