@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hrot.NED.Common;
 using Hrot.Map.Common;
-using Hrot.Orchestrator;
 using Hrot.SimHost;
 using CycloneDDS.Runtime;
 using ModuleHost.Network.Cyclone.Services;
@@ -20,13 +19,13 @@ public sealed class DdsIdAllocatorMigrationTests
     {
         using var cancel = new CancellationTokenSource();
         using var orchParticipant = HrotEnvironment.CreateParticipant(0);
-        using var exercise = new ClusterMaster(orchParticipant);
+        using var exercise = new DdsIdAllocatorServer(orchParticipant);
 
         var pump = Task.Run(() =>
         {
             while (!cancel.IsCancellationRequested)
             {
-                exercise.Tick();
+                exercise.ProcessRequests();
                 Thread.Sleep(1);
             }
         });

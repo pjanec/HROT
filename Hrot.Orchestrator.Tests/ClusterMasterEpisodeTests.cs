@@ -1,11 +1,13 @@
 using System;
+using System.Linq;
 using System.Threading;
+using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
 using Xunit;
 
 namespace Hrot.Orchestrator.Tests;
@@ -22,7 +24,47 @@ namespace Hrot.Orchestrator.Tests;
 [Collection("OrchestratorTests")]
 public sealed class ClusterMasterEpisodeTests
 {
-    private const int TestDomain = 15;
+    /// <summary>
+    /// Bootstraps a bus-mode ClusterMaster with one mandatory SimHost node and transitions
+    /// optimistically to OperatingLive so that ManageEpisode requests are accepted.
+    /// </summary>
+    private static (ClusterMaster master, FdpEventBus bus) BootstrapToOperatingLive(int nodeId = 1)
+    {
+        var config = new ClusterConfiguration
+        {
+            Mandatory                = new[] { "SimHost" },
+            HeartbeatTimeoutSeconds  = 60f,
+            TransactionHistoryCapacity = 10,
+        };
+        var bus    = new FdpEventBus();
+        var master = new ClusterMaster(bus, config);
+
+        bus.PublishManaged(new NodeHeartbeatEvent
+        {
+            NodeId        = nodeId,
+            SubsystemName = "SimHost",
+            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
+            WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
+        });
+        bus.SwapBuffers();
+        master.Tick(); // bootstrap latch clears
+        bus.SwapBuffers();
+
+        // Transition to OperatingLive (optimistic advance — ACKs not required).
+        master.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.TransitionState,
+            PayloadJson   = ((int)ClusterState.OperatingLive).ToString(),
+        });
+        bus.SwapBuffers();
+        master.Tick();
+        bus.SwapBuffers();
+        // Drain transition fan-out intents so they don't interfere with episode assertions.
+        bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+
+        return (master, bus);
+    }
 
     /// <summary>
     /// Verifies the end-to-end 2PC episode flow:
@@ -36,92 +78,47 @@ public sealed class ClusterMasterEpisodeTests
     [Fact(Timeout = 10_000)]
     public void StartEpisode_ActiveEpisodesUpdated_AfterNodeAck_NotBefore()
     {
-        var config = new ClusterConfiguration
-        {
-            Mandatory                = new[] { "SimHost" },
-            HeartbeatTimeoutSeconds  = 60f,
-            TransactionHistoryCapacity = 10,
-        };
-
-        using var participant     = new DdsParticipant(TestDomain);
-        using var sysOpWriter     = new DdsWriter<ClusterOpRequest>(participant);
-        using var hbWriter        = new DdsWriter<NodeHeartbeat>(participant);
-        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
-        using var nodeOpStatusWriter = new DdsWriter<NodeOpStatus>(participant);
-
-        using var exercise = new ClusterMaster(participant, config);
-
-        // First tick to settle DDS discovery.
-        Thread.Sleep(400);
-
-        // Register mandatory SimHost node.
-        hbWriter.Write(new NodeHeartbeat
-        {
-            NodeId        = 1,
-            SubsystemName = "SimHost",
-            LocalClusterState = ClusterState.Idle,
-            WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
-        });
-        Thread.Sleep(200);
-        exercise.Tick(); // bootstrap latch clears
-
-        // Advance cluster to RunningLive (required for ManageEpisode).
-        sysOpWriter.Write(new ClusterOpRequest
-        {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = ((int)ClusterState.OperatingLive).ToString(),
-        });
-        Thread.Sleep(200);
-        exercise.Tick();
+        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 1);
+        using var _ = exercise;
 
         // ── Issue a ManageEpisode(Start) request ────────────────────────────
-        var episodeId = Guid.NewGuid();
+        var episodeId  = Guid.NewGuid();
         var scenarioId = "episode_2pc_test";
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.ManageEpisode,
             PayloadJson   = $"{{\"Mode\":\"Start\",\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"{scenarioId}\"}}",
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
 
         // ── Assert 1: ActiveEpisodes must be empty before node ACKs arrive ──
         Assert.Empty(exercise.ActiveEpisodes);
 
-        // ── Capture the StartEpisode command sent to node 1 ─────────────────
-        Guid? episodeTxId = null;
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline && episodeTxId == null)
-        {
-            using var cmdScope = nodeOpCmdReader.Take();
-            foreach (var s in cmdScope)
-            {
-                if (s.IsValid && s.Data.Operation == NodeOpType.StartEpisode)
-                {
-                    episodeTxId = s.Data.TransactionId;
-                    break;
-                }
-            }
-            if (episodeTxId == null) Thread.Sleep(20);
-        }
-        Assert.True(episodeTxId.HasValue,
-            "ClusterMaster must fan out a StartEpisode NodeOpCommand after ManageEpisode.");
+        // ── Capture the StartEpisode intent TransactionId ──────────────────
+        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+            .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
+            .ToList();
+        Assert.True(intents.Any(),
+            "ClusterMaster must fan out a StartEpisode ExecuteNodeOpIntent after ManageEpisode.");
+        var episodeTxId = intents[0].TransactionId;
 
         // ── Node ACKs with IsParticipating=true ────────────────────────────
-        nodeOpStatusWriter.Write(new NodeOpStatus
+        bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId   = episodeTxId!.Value,
+            TransactionId   = episodeTxId,
+            Operation       = FdpNodeOpType.StartEpisode,
             NodeId          = 1,
-            StatusCode      = (int)OrchestrationStatusCode.Success,
+            StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
-            ResultJson      = string.Empty,
         });
-        Thread.Sleep(200);
-        exercise.Tick(); // ConsumeNodeOpStatuses updates _activeEpisodes
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        // ── Assert 2: ActiveEpisodes now contains the episode ─────────────────
+        // ── Assert 2: ActiveEpisodes now contains the episode ─────────────
         Assert.Contains(episodeId, exercise.ActiveEpisodes);
     }
 
@@ -136,76 +133,40 @@ public sealed class ClusterMasterEpisodeTests
     [Fact(Timeout = 10_000)]
     public void StartEpisode_NonParticipatingAck_CountsTowardCompletion()
     {
-        var config = new ClusterConfiguration
-        {
-            Mandatory                = new[] { "SimHost" },
-            HeartbeatTimeoutSeconds  = 60f,
-            TransactionHistoryCapacity = 10,
-        };
-
-        using var participant         = new DdsParticipant(TestDomain);
-        using var sysOpWriter         = new DdsWriter<ClusterOpRequest>(participant);
-        using var hbWriter            = new DdsWriter<NodeHeartbeat>(participant);
-        using var nodeOpCmdReader     = new DdsReader<NodeOpCommand>(participant);
-        using var nodeOpStatusWriter  = new DdsWriter<NodeOpStatus>(participant);
-
-        using var exercise = new ClusterMaster(participant, config);
-        Thread.Sleep(400);
-
-        hbWriter.Write(new NodeHeartbeat
-        {
-            NodeId        = 2,
-            SubsystemName = "SimHost",
-            LocalClusterState = ClusterState.Idle,
-            WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
-        });
-        Thread.Sleep(200);
-        exercise.Tick();
-
-        sysOpWriter.Write(new ClusterOpRequest
-        {
-            RequestId     = Guid.NewGuid(),
-            OperationType = ClusterOpType.TransitionState,
-            PayloadJson   = ((int)ClusterState.OperatingLive).ToString(),
-        });
-        Thread.Sleep(200);
-        exercise.Tick();
+        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 2);
+        using var _ = exercise;
 
         var episodeId = Guid.NewGuid();
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.ManageEpisode,
             PayloadJson   = $"{{\"Mode\":\"Start\",\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"irrelevant\"}}",
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
 
         Assert.Empty(exercise.ActiveEpisodes); // still deferred
 
-        Guid? episodeTxId = null;
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline && episodeTxId == null)
-        {
-            using var cmdScope = nodeOpCmdReader.Take();
-            foreach (var s in cmdScope)
-                if (s.IsValid && s.Data.Operation == NodeOpType.StartEpisode)
-                { episodeTxId = s.Data.TransactionId; break; }
-            if (episodeTxId == null) Thread.Sleep(20);
-        }
-        Assert.True(episodeTxId.HasValue);
+        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+            .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
+            .ToList();
+        Assert.True(intents.Any());
+        var episodeTxId = intents[0].TransactionId;
 
         // Node ACKs with IsParticipating=false — should still count as a response.
-        nodeOpStatusWriter.Write(new NodeOpStatus
+        bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId   = episodeTxId!.Value,
+            TransactionId   = episodeTxId,
+            Operation       = FdpNodeOpType.StartEpisode,
             NodeId          = 2,
-            StatusCode      = (int)OrchestrationStatusCode.Success,
+            StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = false,   // ← non-participating
-            ResultJson      = string.Empty,
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
 
         // Non-participating ACK must not block — episode set still updated.
         Assert.Contains(episodeId, exercise.ActiveEpisodes);
@@ -221,99 +182,51 @@ public sealed class ClusterMasterEpisodeTests
     [Fact(Timeout = 10_000)]
     public void StartEpisode_NakFromNode_AbortsPendingTask_ActiveEpisodesUnchanged()
     {
-        var config = new ClusterConfiguration
-        {
-            Mandatory = new[] { "SimHost" },
-            HeartbeatTimeoutSeconds = 60f,
-            TransactionHistoryCapacity = 10,
-        };
+        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 3);
+        using var _ = exercise;
 
-        using var participant        = new DdsParticipant(TestDomain);
-        using var sysOpWriter        = new DdsWriter<ClusterOpRequest>(participant);
-        using var sysOpStatusReader  = new DdsReader<ClusterOpStatus>(participant);
-        using var hbWriter           = new DdsWriter<NodeHeartbeat>(participant);
-        using var nodeOpCmdReader    = new DdsReader<NodeOpCommand>(participant);
-        using var nodeOpStatusWriter = new DdsWriter<NodeOpStatus>(participant);
-
-        using var exercise = new ClusterMaster(participant, config);
-        Thread.Sleep(400);
-
-        hbWriter.Write(new NodeHeartbeat
-        {
-            NodeId = 3, SubsystemName = "SimHost",
-            LocalClusterState = ClusterState.Idle, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
-        });
-        Thread.Sleep(200);
-        exercise.Tick();
-
-        sysOpWriter.Write(new ClusterOpRequest
-        {
-            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
-            PayloadJson = ((int)ClusterState.OperatingLive).ToString(),
-        });
-        Thread.Sleep(200);
-        exercise.Tick();
-
-        var episodeId    = Guid.NewGuid();
+        var episodeId  = Guid.NewGuid();
         var requestId  = Guid.NewGuid();
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = requestId,
             OperationType = ClusterOpType.ManageEpisode,
             PayloadJson   = $"{{\"Mode\":\"Start\",\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"nak_test\"}}",
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
 
         Assert.Empty(exercise.ActiveEpisodes);
 
-        // Capture the StartEpisode command TransactionId.
-        Guid? episodeTxId = null;
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline && episodeTxId == null)
-        {
-            using var cmdScope = nodeOpCmdReader.Take();
-            foreach (var s in cmdScope)
-                if (s.IsValid && s.Data.Operation == NodeOpType.StartEpisode)
-                { episodeTxId = s.Data.TransactionId; break; }
-            if (episodeTxId == null) Thread.Sleep(20);
-        }
-        Assert.True(episodeTxId.HasValue, "ClusterMaster must fan out StartEpisode.");
+        // Capture the StartEpisode intent TransactionId.
+        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+            .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
+            .ToList();
+        Assert.True(intents.Any(), "ClusterMaster must fan out StartEpisode.");
+        var episodeTxId = intents[0].TransactionId;
 
         // Node NAKs with an error StatusCode.
-        nodeOpStatusWriter.Write(new NodeOpStatus
+        bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId   = episodeTxId!.Value,
+            TransactionId   = episodeTxId,
+            Operation       = FdpNodeOpType.StartEpisode,
             NodeId          = 3,
-            StatusCode      = (int)OrchestrationStatusCode.Timeout, // ← error
+            StatusCode      = OrchestrationStatusCode.Timeout, // ← error
             IsParticipating = true,
-            ResultJson      = string.Empty,
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
 
         // ActiveEpisodes must NOT be updated on NAK.
         Assert.Empty(exercise.ActiveEpisodes);
 
-        // SysOpStatus.Rejected must have been published.
-        bool receivedRejected = false;
-        var statusDeadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < statusDeadline && !receivedRejected)
-        {
-            using var statusScope = sysOpStatusReader.Take();
-            foreach (var s in statusScope)
-            {
-                if (s.IsValid
-                    && s.Data.RequestId == requestId
-                    && s.Data.StatusCode == (int)OrchestrationStatusCode.Rejected)
-                {
-                    receivedRejected = true;
-                    break;
-                }
-            }
-            if (!receivedRejected) Thread.Sleep(20);
-        }
-        Assert.True(receivedRejected, "SysOpStatus.Rejected must be published when a node NAKs ManageEpisode.");
+        // ClusterOpCompletedEvent with Rejected status must be published.
+        var completed = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        Assert.True(
+            completed.Any(e => e.RequestId == requestId && e.StatusCode == OrchestrationStatusCode.Rejected),
+            "ClusterOpCompletedEvent(Rejected) must be published when a node NAKs ManageEpisode.");
     }
 
     /// <summary>
@@ -325,78 +238,31 @@ public sealed class ClusterMasterEpisodeTests
     [Fact(Timeout = 10_000)]
     public void ManageEpisode_BadPayload_Rejected_NoStartEpisodeFanOut()
     {
-        var config = new ClusterConfiguration
-        {
-            Mandatory = new[] { "SimHost" },
-            HeartbeatTimeoutSeconds = 60f,
-            TransactionHistoryCapacity = 10,
-        };
-
-        using var participant       = new DdsParticipant(TestDomain);
-        using var sysOpWriter       = new DdsWriter<ClusterOpRequest>(participant);
-        using var sysOpStatusReader = new DdsReader<ClusterOpStatus>(participant);
-        using var hbWriter          = new DdsWriter<NodeHeartbeat>(participant);
-        using var nodeOpCmdReader   = new DdsReader<NodeOpCommand>(participant);
-
-        using var exercise = new ClusterMaster(participant, config);
-        Thread.Sleep(400);
-
-        hbWriter.Write(new NodeHeartbeat
-        {
-            NodeId = 4, SubsystemName = "SimHost",
-            LocalClusterState = ClusterState.Idle, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
-        });
-        Thread.Sleep(200);
-        exercise.Tick();
-
-        sysOpWriter.Write(new ClusterOpRequest
-        {
-            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
-            PayloadJson = ((int)ClusterState.OperatingLive).ToString(),
-        });
-        Thread.Sleep(200);
-        exercise.Tick();
+        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 4);
+        using var _ = exercise;
 
         var requestId = Guid.NewGuid();
         // Payload missing EpisodeId → must be rejected.
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = requestId,
             OperationType = ClusterOpType.ManageEpisode,
             PayloadJson   = "{\"Mode\":\"Start\",\"ScenarioId\":\"missing_episode_id\"}",
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
 
-        // No StartEpisode command must have been issued.
-        bool startEpisodeFannedOut = false;
-        using (var cmdScope = nodeOpCmdReader.Take())
-        {
-            foreach (var s in cmdScope)
-                if (s.IsValid && s.Data.Operation == NodeOpType.StartEpisode)
-                { startEpisodeFannedOut = true; break; }
-        }
-        Assert.False(startEpisodeFannedOut, "No StartEpisode NodeOpCommand must be issued for a bad ManageEpisode payload.");
+        // No StartEpisode intent must have been issued.
+        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.False(intents.Any(i => i.Operation == FdpNodeOpType.StartEpisode),
+            "No StartEpisode intent must be issued for a bad ManageEpisode payload.");
 
-        // SysOpStatus.Rejected must be published.
-        bool receivedRejected = false;
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline && !receivedRejected)
-        {
-            using var statusScope = sysOpStatusReader.Take();
-            foreach (var s in statusScope)
-            {
-                if (s.IsValid
-                    && s.Data.RequestId == requestId
-                    && s.Data.StatusCode == (int)OrchestrationStatusCode.Rejected)
-                {
-                    receivedRejected = true;
-                    break;
-                }
-            }
-            if (!receivedRejected) Thread.Sleep(20);
-        }
-        Assert.True(receivedRejected, "SysOpStatus.Rejected must be published for a bad ManageEpisode payload.");
+        // ClusterOpCompletedEvent(Rejected) must be published.
+        var completed = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        Assert.True(
+            completed.Any(e => e.RequestId == requestId && e.StatusCode == OrchestrationStatusCode.Rejected),
+            "ClusterOpCompletedEvent(Rejected) must be published for bad ManageEpisode payload.");
 
         // ActiveEpisodes must be empty.
         Assert.Empty(exercise.ActiveEpisodes);
@@ -411,99 +277,48 @@ public sealed class ClusterMasterEpisodeTests
     [Fact(Timeout = 10_000)]
     public void StartEpisode_AllAcks_EmitsSysOpStatusSuccess()
     {
-        var config = new ClusterConfiguration
-        {
-            Mandatory = new[] { "SimHost" },
-            HeartbeatTimeoutSeconds = 60f,
-            TransactionHistoryCapacity = 10,
-        };
+        var (exercise, bus) = BootstrapToOperatingLive(nodeId: 5);
+        using var _ = exercise;
 
-        using var participant        = new DdsParticipant(TestDomain);
-        using var sysOpWriter        = new DdsWriter<ClusterOpRequest>(participant);
-        using var sysOpStatusReader  = new DdsReader<ClusterOpStatus>(participant);
-        using var hbWriter           = new DdsWriter<NodeHeartbeat>(participant);
-        using var nodeOpCmdReader    = new DdsReader<NodeOpCommand>(participant);
-        using var nodeOpStatusWriter = new DdsWriter<NodeOpStatus>(participant);
-
-        using var exercise = new ClusterMaster(participant, config);
-        Thread.Sleep(400);
-
-        hbWriter.Write(new NodeHeartbeat
-        {
-            NodeId = 5, SubsystemName = "SimHost",
-            LocalClusterState = ClusterState.Idle, WallTicksUtc = DateTimeOffset.UtcNow.Ticks,
-        });
-        Thread.Sleep(200);
-        exercise.Tick();
-
-        sysOpWriter.Write(new ClusterOpRequest
-        {
-            RequestId = Guid.NewGuid(), OperationType = ClusterOpType.TransitionState,
-            PayloadJson = ((int)ClusterState.OperatingLive).ToString(),
-        });
-        Thread.Sleep(200);
-        exercise.Tick();
-
-        var episodeId   = Guid.NewGuid();
+        var episodeId = Guid.NewGuid();
         var requestId = Guid.NewGuid();
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = requestId,
             OperationType = ClusterOpType.ManageEpisode,
             PayloadJson   = $"{{\"Mode\":\"Start\",\"EpisodeId\":\"{episodeId}\",\"ScenarioId\":\"completed_test\"}}",
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
-
-        // Consume InProgress status that was immediately published on accept.
-        // (The Completed/Success status only arrives after ACKs are consumed.)
+        bus.SwapBuffers();
 
         // Capture StartEpisode TransactionId.
-        Guid? episodeTxId = null;
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline && episodeTxId == null)
-        {
-            using var cmdScope = nodeOpCmdReader.Take();
-            foreach (var s in cmdScope)
-                if (s.IsValid && s.Data.Operation == NodeOpType.StartEpisode)
-                { episodeTxId = s.Data.TransactionId; break; }
-            if (episodeTxId == null) Thread.Sleep(20);
-        }
-        Assert.True(episodeTxId.HasValue);
+        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+            .Where(i => i.Operation == FdpNodeOpType.StartEpisode)
+            .ToList();
+        Assert.True(intents.Any());
+        var episodeTxId = intents[0].TransactionId;
 
         // Node ACKs success.
-        nodeOpStatusWriter.Write(new NodeOpStatus
+        bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId   = episodeTxId!.Value,
+            TransactionId   = episodeTxId,
+            Operation       = FdpNodeOpType.StartEpisode,
             NodeId          = 5,
-            StatusCode      = (int)OrchestrationStatusCode.Success,
+            StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
-            ResultJson      = string.Empty,
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
 
         // ActiveEpisodes updated.
         Assert.Contains(episodeId, exercise.ActiveEpisodes);
 
-        // SysOpStatus.Success (Completed) must be published.
-        bool receivedSuccess = false;
-        var statusDeadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < statusDeadline && !receivedSuccess)
-        {
-            using var statusScope = sysOpStatusReader.Take();
-            foreach (var s in statusScope)
-            {
-                if (s.IsValid
-                    && s.Data.RequestId == requestId
-                    && s.Data.StatusCode == (int)OrchestrationStatusCode.Success)
-                {
-                    receivedSuccess = true;
-                    break;
-                }
-            }
-            if (!receivedSuccess) Thread.Sleep(20);
-        }
-        Assert.True(receivedSuccess, "SysOpStatus.Success must be published after all ManageEpisode ACKs arrive.");
+        // ClusterOpCompletedEvent(Success) must be published.
+        var completed = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        Assert.True(
+            completed.Any(e => e.RequestId == requestId && !e.StatusCode.IsError()),
+            "ClusterOpCompletedEvent(Success) must be published after all ManageEpisode ACKs arrive.");
     }
 }

@@ -1,14 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
-using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
-using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using NodeOpType    = Hrot.NED.Descriptors.Orchestration.NodeOpType;
 using Xunit;
 
 namespace Hrot.Orchestrator.Tests;
@@ -20,7 +21,6 @@ namespace Hrot.Orchestrator.Tests;
 [Collection("OrchestratorTests")]
 public sealed class ClusterMasterArchiveTests
 {
-    private const int TestDomain = 15;
 
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
@@ -50,22 +50,21 @@ public sealed class ClusterMasterArchiveTests
     [Fact(Timeout = 10_000)]
     public void CancelOperation_CancelsActiveCts()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var hbWriter    = new DdsWriter<NodeHeartbeat>(participant);
-        using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(300);  // DDS discovery
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         // Register a fake node so FanOutSerializeLocal actually queues an ACK
         // (otherwise the 0-node path completes synchronously and removes the CTS).
-        hbWriter.Write(new NodeHeartbeat
+        bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 1,
             SubsystemName = "TestNode",
-            LocalClusterState = ClusterState.Idle,
+            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
-        Thread.Sleep(100);
+        bus.SwapBuffers();
         exercise.Tick();  // ingest heartbeat into roster
+        bus.SwapBuffers();
 
         var exportRequestId = Guid.NewGuid();
 
@@ -106,9 +105,8 @@ public sealed class ClusterMasterArchiveTests
     [Fact]
     public void ExportArchive_MissingExerciseId_IsRejected()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(200);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         var reqId = Guid.NewGuid();
         exercise.HandleClusterOpRequest(new ClusterOpRequest
@@ -132,9 +130,8 @@ public sealed class ClusterMasterArchiveTests
     [Fact]
     public void ImportArchive_MissingExerciseId_IsRejected()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(200);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         var reqId = Guid.NewGuid();
         exercise.HandleClusterOpRequest(new ClusterOpRequest
@@ -156,9 +153,8 @@ public sealed class ClusterMasterArchiveTests
     [Fact]
     public void CancelOperation_UnknownTargetId_DoesNotThrow()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(200);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         var ex = Record.Exception(() =>
         {
@@ -172,5 +168,37 @@ public sealed class ClusterMasterArchiveTests
         });
 
         Assert.Null(ex);
+    }
+
+    /// <summary>
+    /// PACK-C001 SC3: When a <see cref="StorageGatewayModule"/> is injected and
+    /// <see cref="ClusterMaster.Tick"/> is called, <c>PublishAssetInventory</c> must
+    /// publish an <see cref="AssetInventoryUpdateEvent"/> on the bus.
+    /// Arrays are empty when the base path does not exist on disk (expected for unit tests).
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void PublishAssetInventory_PublishesAssetInventoryUpdateEvent_OnFirstTick()
+    {
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
+
+        var gateway = new StorageGatewayModule();
+        exercise.SetStorageGateway(gateway, @"C:\DoesNotExist_Test_" + Guid.NewGuid());
+
+        // First Tick always triggers PublishAssetInventory (_lastInventoryScan = DateTime.MinValue).
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
+
+        var events = bus.ConsumeManaged<AssetInventoryUpdateEvent>().ToList();
+        Assert.True(events.Any(),
+            "ClusterMaster.Tick() must publish AssetInventoryUpdateEvent after SetStorageGateway.");
+
+        var ev = events[0];
+        // Path doesn't exist → all lists should be empty (not null)
+        Assert.NotNull(ev.LocalScenarios);
+        Assert.NotNull(ev.LocalExercises);
+        Assert.NotNull(ev.ArchivedExercises);
+        Assert.NotNull(ev.UnarchivedLocalExercises);
     }
 }

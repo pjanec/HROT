@@ -21,6 +21,8 @@
     <ProjectReference Include="..\FDP\Kernel\Fdp.Kernel\Fdp.Kernel.csproj" />
     <!-- Toolkit orchestration contracts (IOrchestrationTransport, IClusterStateHandler) -->
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Orchestration\FDP.Toolkit.Orchestration.csproj" />
+    <!-- Time messages/events for OrchestrationObserverTranslator (SwitchTimeModeWireDto → SwitchTimeModeEvent) -->
+    <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Time\FDP.Toolkit.Time.csproj" />
   </ItemGroup>
 
 </Project>

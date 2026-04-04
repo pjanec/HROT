@@ -1,259 +1,272 @@
 using System;
-using System.Text.Json;
-using System.Threading;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.ClusterRunner.Services;
-using CycloneDDS.Runtime;
 using Fdp.Kernel;
+using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
+using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Messages;
 using ModuleHost.Core.Time;
 using Xunit;
+using FdpClusterState = FDP.Toolkit.Orchestration.ClusterState;
+using FdpNodeOpType   = FDP.Toolkit.Orchestration.NodeOpType;
+using ClusterState    = Hrot.NED.Descriptors.Orchestration.ClusterState;
 
 namespace Hrot.ClusterRunner.Tests;
 
 /// <summary>
 /// Unit tests for <see cref="ClusterUiCache"/> (CGF1-S0506).
 ///
-/// Each test creates a real DDS participant, writes a single sample, calls Update(),
-/// and asserts the cache reflects the written state.
+/// Each test creates an <see cref="FdpEventBus"/>, publishes an event, calls Update(),
+/// and asserts the cache reflects the published state.
 /// </summary>
 [Collection("ClusterUiCacheTests")]
 public sealed class ClusterUiCacheTests : IDisposable
 {
-    // Domain 27 is reserved for ClusterUiCache unit tests.
-    private const int TestDomain = 27;
-
-    private readonly DdsParticipant _participant;
+    private readonly FdpEventBus    _bus;
     private readonly ClusterUiCache _uiCache;
 
     public ClusterUiCacheTests()
     {
-        _participant = new DdsParticipant(TestDomain);
-        _uiCache     = new ClusterUiCache(_participant);
+        _bus     = new FdpEventBus();
+        _uiCache = new ClusterUiCache(_bus);
     }
 
     public void Dispose()
     {
         _uiCache.Dispose();
-        _participant.Dispose();
+        _bus.Dispose();
+    }
+
+    // ── Helper: publish, swap, update ─────────────────────────────────────────
+
+    private void Tick()
+    {
+        _bus.SwapBuffers();
+        _uiCache.Update();
     }
 
     /// <summary>
-    /// CGF1-S0506 SC2: Writing a SystemStateTopic sample must be reflected in
+    /// CGF1-S0506 SC2: Publishing a SystemStateUpdateEvent must be reflected in
     /// <c>CurrentState</c> and <c>IsBootstrapped</c> after <c>Update()</c>.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_ReflectsSystemStateTopic()
     {
-        using var writer = new DdsWriter<SystemStateTopic>(_participant);
-        writer.Write(new SystemStateTopic { CurrentState = ClusterState.LoadingLive });
+        _bus.PublishManaged(new SystemStateUpdateEvent { CurrentState = FdpClusterState.LoadingLive });
 
-        Thread.Sleep(150); // DDS propagation
-
-        _uiCache.Update();
+        Tick();
 
         Assert.Equal(ClusterState.LoadingLive, _uiCache.CurrentState);
         Assert.True(_uiCache.IsBootstrapped,
-            "IsBootstrapped must be true for any state other than Standby.");
+            "IsBootstrapped must be true for any state other than Degraded.");
     }
 
     /// <summary>
-    /// CGF1-S0506 SC3: Writing a NodeOpCommand with PrepareState must appear in TxHistory
+    /// CGF1-S0506 SC3: Publishing an ExecuteNodeOpIntent must appear in TxHistory
     /// and HasInFlightTransaction must become true.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_Sniffs2PcTraffic()
     {
         var txId = Guid.NewGuid();
-        using var writer = new DdsWriter<NodeOpCommand>(_participant);
-        writer.Write(new NodeOpCommand
+        _bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TargetNodeId   = 1,
-            TransactionId  = txId,
-            Operation      = NodeOpType.PrepareState,
-            PayloadJson    = $"{{\"TargetState\":{(int)ClusterState.LoadingLive}}}",
+            TransactionId = txId,
+            TargetNodeId  = 1,
+            Operation     = FdpNodeOpType.PrepareState,
+            DomainPayload = null,
         });
 
-        Thread.Sleep(150); // DDS propagation
-
-        _uiCache.Update();
+        Tick();
 
         Assert.Equal(1, _uiCache.TxHistory.Count);
         Assert.True(_uiCache.HasInFlightTransaction,
-            "HasInFlightTransaction must be true after PrepareState NodeOpCommand.");
+            "HasInFlightTransaction must be true after ExecuteNodeOpIntent arrives.");
     }
 
     /// <summary>
-    /// CGF1-S0506 SC-Inventory: Writing an AssetInventoryTopic sample must be reflected
+    /// CGF1-S0506 SC-Inventory: Publishing an AssetInventoryUpdateEvent must be reflected
     /// in <c>AvailableScenarios</c> after <c>Update()</c>.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_UpdatesInventoryFromTopic()
     {
-        using var writer = new DdsWriter<AssetInventoryTopic>(_participant);
-        writer.Write(new AssetInventoryTopic
+        _bus.PublishManaged(new AssetInventoryUpdateEvent
         {
-            NodeId             = 0,
-            LocalScenariosJson = "[\"scene1\"]",
-            LocalExercisesJson    = "[]",
-            ArchivedExercisesJson       = "[]",
-            UnarchivedLocalExercisesJson = "[]",
+            LocalScenarios           = new[] { "scene1" },
+            LocalExercises           = Array.Empty<string>(),
+            ArchivedExercises        = Array.Empty<string>(),
+            UnarchivedLocalExercises = Array.Empty<string>(),
         });
 
-        Thread.Sleep(150); // DDS propagation
-
-        _uiCache.Update();
+        Tick();
 
         Assert.Equal(1, _uiCache.AvailableScenarios.Length);
         Assert.Equal("scene1", _uiCache.AvailableScenarios[0]);
     }
 
     /// <summary>
-    /// CGF1-S0506 SC-TimeMode: Writing a SwitchTimeModeWireDto with Deterministic mode
+    /// CGF1-S0506 SC-TimeMode: Publishing a SwitchTimeModeEvent with Deterministic mode
     /// must set <c>IsPaused</c> to <c>true</c>.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_UpdatesIsPausedFromTimeMode()
     {
-        using var writer = new DdsWriter<SwitchTimeModeWireDto>(_participant);
-        writer.Write(new SwitchTimeModeWireDto
+        _bus.Publish(new SwitchTimeModeEvent
         {
-            TargetModeInt    = (int)TimeMode.Deterministic,
+            TargetMode       = TimeMode.Deterministic,
             BarrierWallTicks = 0L,
             FixedDelta       = 1f / 60f,
         });
 
-        Thread.Sleep(150); // DDS propagation
-
-        _uiCache.Update();
+        Tick();
 
         Assert.True(_uiCache.IsPaused,
-            "IsPaused must be true when SwitchTimeModeWireDto.TargetModeInt == Deterministic.");
+            "IsPaused must be true when SwitchTimeModeEvent.TargetMode == Deterministic.");
     }
 
     /// <summary>
-    /// CGF1-S0506: After a PrepareState command is snooped and then a SysOpStatus
+    /// CGF1-S0506: After an ExecuteNodeOpIntent is snooped and then a ClusterOpCompletedEvent
     /// with Success code is received, the transaction is removed from in-flight.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_ClosesInFlightTxOnSysOpStatusSuccess()
     {
-        var requestId = Guid.NewGuid();
-        var txId      = Guid.NewGuid();
+        var txId = Guid.NewGuid();
 
-        using var cmdWriter    = new DdsWriter<NodeOpCommand>(_participant);
-        using var statusWriter = new DdsWriter<ClusterOpStatus>(_participant);
-
-        // First: sow a PrepareState to create an in-flight tx
-        cmdWriter.Write(new NodeOpCommand
+        // First: sow an ExecuteNodeOpIntent to create an in-flight tx
+        _bus.PublishManaged(new ExecuteNodeOpIntent
         {
-            TargetNodeId  = 1,
             TransactionId = txId,
-            Operation     = NodeOpType.PrepareState,
-            PayloadJson   = "{}",
+            TargetNodeId  = 1,
+            Operation     = FdpNodeOpType.PrepareState,
+            DomainPayload = null,
         });
 
-        Thread.Sleep(150);
-        _uiCache.Update();
+        Tick();
         Assert.True(_uiCache.HasInFlightTransaction);
 
-        // Then: write a SysOpStatus with Success (closes the in-flight)
-        statusWriter.Write(new ClusterOpStatus
+        // Then: publish a ClusterOpCompletedEvent with Success (closes the in-flight)
+        _bus.PublishManaged(new ClusterOpCompletedEvent
         {
-            RequestId  = txId,   // SysOpStatus.RequestId matches TransactionId in cache lookup
-            StatusCode = 0,      // OrchestrationStatusCode.Success
-            ResultJson = string.Empty,
+            RequestId  = txId,   // matches TransactionId used as in-flight key
+            StatusCode = OrchestrationStatusCode.Success,
         });
 
-        Thread.Sleep(150);
-        _uiCache.Update();
+        Tick();
 
         Assert.False(_uiCache.HasInFlightTransaction,
-            "HasInFlightTransaction must be false after SysOpStatus.Success.");
+            "HasInFlightTransaction must be false after ClusterOpCompletedEvent.Success.");
         Assert.True(_uiCache.TxHistory[0].Completed,
             "tx.Completed must be true after Success status code.");
     }
 
     /// <summary>
-    /// Writing a SwitchTimeModeWireDto (Continuous) must update <c>MasterSimTime</c>,
+    /// Publishing a SwitchTimeModeEvent (Continuous) must update <c>MasterSimTime</c>,
     /// <c>MasterWallTicks</c>, and <c>MasterTimeScale</c> after <c>Update()</c>.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_UpdatesTimeScaleFromTimePulse()
     {
-        using var writer = new DdsWriter<SwitchTimeModeWireDto>(_participant);
-        writer.Write(new SwitchTimeModeWireDto
+        _bus.Publish(new SwitchTimeModeEvent
         {
             BarrierWallTicks = 123456789L,
             SimTimeSnapshot  = 42.5,
             TimeScale        = 2.0f,
-            TargetModeInt    = (int)TimeMode.Continuous,
+            TargetMode       = TimeMode.Continuous,
         });
 
-        Thread.Sleep(150); // DDS propagation
+        Tick();
 
-        _uiCache.Update();
+        Assert.Equal(42.5,        _uiCache.MasterSimTime,  precision: 3);
+        Assert.Equal(2.0f,        _uiCache.MasterTimeScale);
+        Assert.Equal(123456789L,  _uiCache.MasterWallTicks);
+    }
 
-        Assert.Equal(42.5,  _uiCache.MasterSimTime,  precision: 3);
-        Assert.Equal(2.0f,  _uiCache.MasterTimeScale);
-        Assert.Equal(123456789L, _uiCache.MasterWallTicks);
+    /// <summary>
+    /// PACK-C002 SC3: Publishing an ExecuteNodeOpIntent with a typed EditLoadHandlerPayload
+    /// must create an in-flight transaction with the correct TargetDsmState —
+    /// no JsonDocument.Parse is involved.
+    /// </summary>
+    [Fact(Timeout = 10_000)]
+    public void ClusterUiCache_Tracks2PcTransactionWithTypedPayload_NoJsonParsing()
+    {
+        var txId = Guid.NewGuid();
+        _bus.PublishManaged(new ExecuteNodeOpIntent
+        {
+            TransactionId = txId,
+            TargetNodeId  = 1,
+            Operation     = FdpNodeOpType.PrepareState,
+            DomainPayload = new EditLoadHandlerPayload(
+                ScenarioId:    null,
+                IsNewScenario: false,
+                TargetState:   (int)ClusterState.LoadingLive),
+        });
+
+        Tick();
+
+        Assert.Equal(1, _uiCache.TxHistory.Count);
+        Assert.Equal(ClusterState.LoadingLive, _uiCache.TxHistory[0].TargetDsmState);
     }
 
     // ── TC2-P2-T1: ITimeController injection tests ────────────────────────
 
     /// <summary>
     /// TC2-P2-T1-SC1: When a local ITimeController is injected, MasterSimTime reads
-    /// from it immediately — no Update() or DDS messages required.
+    /// from it immediately — no Update() or events required.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_MasterSimTime_ReadsFromLocalController_WhenInjected()
     {
         var fakeCtrl = new FakeTimeController { TotalTime = 77.5 };
-        using var cache = new ClusterUiCache(_participant, fakeCtrl);
+        using var cache = new ClusterUiCache(_bus, fakeCtrl);
 
         Assert.Equal(77.5, cache.MasterSimTime, precision: 3);
     }
 
     /// <summary>
     /// TC2-P2-T1-SC2: Without a controller, MasterSimTime falls back to the network
-    /// value from a SwitchTimeModeWireDto (Continuous mode).
+    /// value from a SwitchTimeModeEvent (Continuous mode).
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_MasterSimTime_FallsBackToNetwork_WhenNoController()
     {
-        using var cacheNoCtrl = new ClusterUiCache(_participant);
-        using var writer = new DdsWriter<SwitchTimeModeWireDto>(_participant);
-        writer.Write(new SwitchTimeModeWireDto
+        using var busNoCtrl   = new FdpEventBus();
+        using var cacheNoCtrl = new ClusterUiCache(busNoCtrl);
+
+        busNoCtrl.Publish(new SwitchTimeModeEvent
         {
             SimTimeSnapshot = 33.0,
             TimeScale       = 1.0f,
-            TargetModeInt   = (int)TimeMode.Continuous,
+            TargetMode      = TimeMode.Continuous,
         });
 
-        Thread.Sleep(150);
+        busNoCtrl.SwapBuffers();
         cacheNoCtrl.Update();
 
         Assert.Equal(33.0, cacheNoCtrl.MasterSimTime, precision: 3);
     }
 
     /// <summary>
-    /// TC2-P2-T1-SC3: When a controller is injected, a network SwitchTimeModeWireDto
+    /// TC2-P2-T1-SC3: When a controller is injected, a network SwitchTimeModeEvent
     /// with a different value must not change MasterSimTime — the controller takes priority.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void ClusterUiCache_MasterSimTime_IgnoresNetworkPulse_WhenControllerInjected()
     {
         var fakeCtrl = new FakeTimeController { TotalTime = 50.0 };
-        using var cacheWithCtrl = new ClusterUiCache(_participant, fakeCtrl);
-        using var writer = new DdsWriter<SwitchTimeModeWireDto>(_participant);
-        writer.Write(new SwitchTimeModeWireDto
+        using var busWithCtrl   = new FdpEventBus();
+        using var cacheWithCtrl = new ClusterUiCache(busWithCtrl, fakeCtrl);
+
+        busWithCtrl.Publish(new SwitchTimeModeEvent
         {
             SimTimeSnapshot = 99.0,
             TimeScale       = 1.0f,
-            TargetModeInt   = (int)TimeMode.Continuous,
+            TargetMode      = TimeMode.Continuous,
         });
 
-        Thread.Sleep(150);
+        busWithCtrl.SwapBuffers();
         cacheWithCtrl.Update();
 
         // Network event must not override the controller value

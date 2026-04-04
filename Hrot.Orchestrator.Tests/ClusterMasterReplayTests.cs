@@ -1,12 +1,13 @@
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
 using Xunit;
 
 namespace Hrot.Orchestrator.Tests;
@@ -20,7 +21,6 @@ namespace Hrot.Orchestrator.Tests;
 [Collection("OrchestratorTests")]
 public sealed class ClusterMasterReplayTests
 {
-    private const int TestDomain = 15;
 
     // ── CGF1-S0305 success condition: TimeFrozenDuringBranchTransition ────
 
@@ -47,57 +47,52 @@ public sealed class ClusterMasterReplayTests
             TransactionHistoryCapacity = 10,
         };
 
-        using var participant      = new DdsParticipant(TestDomain);
-        using var sysOpWriter      = new DdsWriter<ClusterOpRequest>(participant);
-        using var hbWriter         = new DdsWriter<NodeHeartbeat>(participant);
-
+        var bus = new FdpEventBus();
         float currentScale = 1.0f;
         var   module       = new ReplayMasterModule(
             s => currentScale = s,
             () => currentScale);
 
-        using var exercise = new ClusterMaster(participant, config);
+        using var exercise = new ClusterMaster(bus, config);
         exercise.SetReplayMasterModule(module);
 
-        Thread.Sleep(400);
-
         // ── Register mandatory node ────────────────────────────────────────
-        hbWriter.Write(new NodeHeartbeat
+        bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId          = 1,
             SubsystemName   = "SimHost",
-            LocalClusterState   = ClusterState.Idle,
+            LocalStateId    = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc    = DateTimeOffset.UtcNow.Ticks,
-            CpuUsagePercent = 0f,
-            RamUsedBytes    = 0L,
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick(); // bootstrap latch clears
+        bus.SwapBuffers();
 
         // ── Step 1: Transition Standby → RunningReplay ─────────────────────
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.OperatingReplay).ToString(),
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick(); // processes Standby → RunningReplay
+        bus.SwapBuffers();
         Assert.Equal(1.0f, currentScale); // not frozen yet
 
         // ── Step 2: Transition RunningReplay → RunningLive (passes LoadingLive) ──
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.OperatingLive).ToString(),
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick(); // detects RunningReplay → LoadingLive branch — freezes time
+        bus.SwapBuffers();
 
         // ── Assertion: time must be frozen (node ACK not yet delivered) ────
         Assert.Equal(0.0f, currentScale);
-        // Assert: time must be frozen before the branch ACK arrives
     }
 
     /// <summary>
@@ -115,91 +110,72 @@ public sealed class ClusterMasterReplayTests
             TransactionHistoryCapacity = 10,
         };
 
-        using var participant      = new DdsParticipant(TestDomain);
-        using var sysOpWriter      = new DdsWriter<ClusterOpRequest>(participant);
-        using var hbWriter         = new DdsWriter<NodeHeartbeat>(participant);
-        using var nodeOpWriter     = new DdsWriter<NodeOpCommand>(participant); // for sending ACKs
-        using var nodeOpStatusWriter = new DdsWriter<NodeOpStatus>(participant);
-        using var nodeOpCmdReader  = new DdsReader<NodeOpCommand>(participant);
-
+        var bus = new FdpEventBus();
         float currentScale = 1.0f;
         var   module       = new ReplayMasterModule(
             s => currentScale = s,
             () => currentScale);
 
-        using var exercise = new ClusterMaster(participant, config);
+        using var exercise = new ClusterMaster(bus, config);
         exercise.SetReplayMasterModule(module);
 
-        Thread.Sleep(400);
-
         // ── Register the mandatory node with a Standby heartbeat ─────────
-        hbWriter.Write(new NodeHeartbeat
+        bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId          = 1,
             SubsystemName   = "SimHost",
-            LocalClusterState   = ClusterState.Idle,
+            LocalStateId    = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc    = DateTimeOffset.UtcNow.Ticks,
-            CpuUsagePercent = 0f,
-            RamUsedBytes    = 0L,
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick(); // latch clears
+        bus.SwapBuffers();
 
         // ── Advance to RunningReplay ──────────────────────────────────────
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.OperatingReplay).ToString(),
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
         Assert.Equal(1.0f, currentScale);
 
         // ── Branch to RunningLive while one node is active ────────────────
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.OperatingLive).ToString(),
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick(); // time frozen, PrepareLive fanned out to node 1
+        bus.SwapBuffers();
 
         Assert.Equal(0.0f, currentScale);
-        // Assert: time must be frozen after issuing PrepareLive from RunningReplay
 
-        // ── Capture the branch TransactionId from the fanned-out command ──
-        Guid? branchTxId = null;
-        var   deadline   = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline && branchTxId == null)
-        {
-            using var scope = nodeOpCmdReader.Take();
-            foreach (var sample in scope)
-            {
-                if (sample.IsValid && sample.Data.Operation == NodeOpType.PrepareLive)
-                {
-                    branchTxId = sample.Data.TransactionId;
-                    break;
-                }
-            }
-            if (branchTxId == null) Thread.Sleep(20);
-        }
-        Assert.True(branchTxId.HasValue, "ClusterMaster must fan out a PrepareLive NodeOpCommand.");
+        // ── Capture the branch TransactionId from the fanned-out ExecuteNodeOpIntent ──
+        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>()
+            .Where(i => i.Operation == FdpNodeOpType.PrepareLive)
+            .ToList();
+        Assert.True(intents.Any(), "ClusterMaster must fan out a PrepareLive NodeOpIntent.");
+        var branchTxId = intents[0].TransactionId;
 
         // ── ACK the branch (simulates node completing PrepareLive) ─────────
-        nodeOpStatusWriter.Write(new NodeOpStatus
+        bus.PublishManaged(new NodeOpCompletedEvent
         {
-            TransactionId   = branchTxId!.Value,
+            TransactionId   = branchTxId,
+            Operation       = FdpNodeOpType.PrepareLive,
             NodeId          = 1,
-            StatusCode      = (int)OrchestrationStatusCode.Success,
+            StatusCode      = OrchestrationStatusCode.Success,
             IsParticipating = true,
-            ResultJson      = string.Empty,
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick(); // ConsumeNodeOpStatuses restores time
+        bus.SwapBuffers();
 
         Assert.Equal(1.0f, currentScale);
-        // Assert: time scale must be restored to 1.0 after all branch ACKs are received
     }
 }

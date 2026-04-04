@@ -54,8 +54,8 @@ is a true plugin.
 **Goal:** `ClusterMaster` and `ClusterUiCache` operate exclusively via `FdpEventBus`. DDS
 fallback paths are deleted with no backward compatibility.
 
-- [ ] **PACK-C001** Purify ClusterMaster — remove DDS constructors and fallback paths [details](./TASK-DETAIL.md#pack-c001--purify-clustermaster-remove-dds-constructors-and-fallback-paths)
-- [ ] **PACK-C002** Purify ClusterUiCache and create OrchestrationObserverTranslator [details](./TASK-DETAIL.md#pack-c002--purify-clusteruicache--create-orchestrationobservertranslator)
+- [x] **PACK-C001** Purify ClusterMaster — remove DDS constructors and fallback paths [details](./TASK-DETAIL.md#pack-c001--purify-clustermaster-remove-dds-constructors-and-fallback-paths)
+- [x] **PACK-C002** Purify ClusterUiCache and create OrchestrationObserverTranslator [details](./TASK-DETAIL.md#pack-c002--purify-clusteruicache--create-orchestrationobservertranslator)
 
 ---
 

@@ -7,6 +7,7 @@ using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
 using Hrot.ClusterRunner.Services;
 using CycloneDDS.Runtime;
+using Fdp.Kernel;
 using ImGuiNET;
 using Xunit;
 
@@ -25,6 +26,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
     private const int TestDomain = 28;
 
     private readonly DdsParticipant             _participant;
+    private readonly FdpEventBus                _uiCacheBus;
     private readonly ClusterUiCache             _uiCache;
     private readonly DdsWriter<ClusterOpRequest>    _sysOpWriter;
     private readonly ClusterScenarioPanel       _panel;
@@ -33,7 +35,8 @@ public sealed class ClusterScenarioPanelTests : IDisposable
     public ClusterScenarioPanelTests()
     {
         _participant  = new DdsParticipant(TestDomain);
-        _uiCache      = new ClusterUiCache(_participant);
+        _uiCacheBus   = new FdpEventBus();
+        _uiCache      = new ClusterUiCache(_uiCacheBus);
         _sysOpWriter  = new DdsWriter<ClusterOpRequest>(_participant);
         _panel        = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
         _imguiCtx     = CreateHeadlessContext();
@@ -48,6 +51,7 @@ public sealed class ClusterScenarioPanelTests : IDisposable
         }
         _sysOpWriter.Dispose();
         _uiCache.Dispose();
+        _uiCacheBus.Dispose();
         _participant.Dispose();
     }
 

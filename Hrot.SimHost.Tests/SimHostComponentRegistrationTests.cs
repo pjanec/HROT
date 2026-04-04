@@ -2,8 +2,8 @@ using System;
 using System.Collections;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using Hrot.NED.Descriptors;
-using Hrot.Orchestrator;
 using Hrot.SimHost;
 using Hrot.SimHost.Configuration;
 using Hrot.Map.Common.Replication;
@@ -13,6 +13,7 @@ using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Perception.Components;
 using FDP.Toolkit.Physics.Components;
 using ModuleHost.Network.Cyclone.Modules;
+using ModuleHost.Network.Cyclone.Services;
 using ModuleHost.Network.Cyclone.Systems;
 using Xunit;
 
@@ -22,7 +23,7 @@ namespace Hrot.SimHost.Tests
     public class SimHostComponentRegistrationTests : IDisposable
     {
         // Provides DdsIdAllocatorServer on every domain used by the tests in this class.
-        private readonly (DdsParticipant Participant, ClusterMaster Master)[] _allocators;
+        private readonly (DdsParticipant Participant, DdsIdAllocatorServer Server, Thread Thread, CancellationTokenSource Cts)[] _allocators;
 
         private static readonly int[] AllocatorDomains = { 0, 96, 97, 98, 99 };
 
@@ -30,14 +31,32 @@ namespace Hrot.SimHost.Tests
         {
             _allocators = AllocatorDomains.Select(d =>
             {
-                var p = new DdsParticipant((uint)d);
-                return (p, new ClusterMaster(p));
+                var p      = new DdsParticipant((uint)d);
+                var server = new DdsIdAllocatorServer(p);
+                var cts    = new CancellationTokenSource();
+                var thread = new Thread(() =>
+                {
+                    while (!cts.IsCancellationRequested)
+                    {
+                        server.ProcessRequests();
+                        Thread.Sleep(1);
+                    }
+                }) { IsBackground = true, Name = $"Test-IdAllocServer-{d}" };
+                thread.Start();
+                return (p, server, thread, cts);
             }).ToArray();
         }
 
         public void Dispose()
         {
-            foreach (var (p, m) in _allocators) { m.Dispose(); p.Dispose(); }
+            foreach (var (p, server, thread, cts) in _allocators)
+            {
+                cts.Cancel();
+                thread.Join(TimeSpan.FromSeconds(2));
+                cts.Dispose();
+                server.Dispose();
+                p.Dispose();
+            }
         }
 
         [Fact]

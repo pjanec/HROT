@@ -1,11 +1,12 @@
 using System;
-using System.Threading;
+using System.Linq;
+using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
 using Xunit;
 
 namespace Hrot.Orchestrator.Tests;
@@ -26,8 +27,6 @@ namespace Hrot.Orchestrator.Tests;
 [Collection("OrchestratorTests")]
 public sealed class ClusterMasterFanOutTests
 {
-    private const int TestDomain = 15;
-
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
         Mandatory                  = Array.Empty<string>(),
@@ -36,22 +35,23 @@ public sealed class ClusterMasterFanOutTests
     };
 
     /// <summary>
-    /// Writes a Standby heartbeat for a single node and ticks ClusterMaster so that the
+    /// Registers a node via the bus heartbeat and ticks ClusterMaster so that the
     /// node is present in <see cref="ClusterMaster.NodeRoster"/>.
     /// </summary>
     private static void RegisterNode(
-        DdsWriter<NodeHeartbeat> hbWriter, ClusterMaster exercise,
+        FdpEventBus bus, ClusterMaster exercise,
         int nodeId = 1, string subsystem = "SimHost")
     {
-        hbWriter.Write(new NodeHeartbeat
+        bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = nodeId,
             SubsystemName = subsystem,
-            LocalClusterState = ClusterState.Idle,
+            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
     }
 
     // ── CGF1-S0502: PrepareLive fan-out ───────────────────────────────────────
@@ -64,14 +64,10 @@ public sealed class ClusterMasterFanOutTests
     [Fact(Timeout = 10_000)]
     public void TransitionState_Standby_To_LoadingLive_FansOutPrepareLive()
     {
-        using var participant     = new DdsParticipant(TestDomain);
-        using var hbWriter        = new DdsWriter<NodeHeartbeat>(participant);
-        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        using var exercise = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
-
-        RegisterNode(hbWriter, exercise);
+        RegisterNode(bus, exercise);
 
         exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
@@ -79,27 +75,13 @@ public sealed class ClusterMasterFanOutTests
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.LoadingLive).ToString(),
         });
-        exercise.Tick();   // drain injected request queue
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        bool foundPrepareLive = false;
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline)
-        {
-            exercise.Tick();
-            using var cmdScope = nodeOpCmdReader.Take();
-            foreach (var s in cmdScope)
-            {
-                if (s.IsValid && s.Data.Operation == NodeOpType.PrepareLive)
-                {
-                    foundPrepareLive = true;
-                    break;
-                }
-            }
-            if (foundPrepareLive) break;
-            Thread.Sleep(20);
-        }
-
-        Assert.True(foundPrepareLive,
+        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.True(
+            intents.Any(i => i.Operation == FdpNodeOpType.PrepareLive),
             "ClusterMaster must fan out a PrepareLive NodeOpCommand for Standby→LoadingLive.");
     }
 
@@ -113,14 +95,10 @@ public sealed class ClusterMasterFanOutTests
     [Fact(Timeout = 10_000)]
     public void TransitionState_Standby_To_LoadingLive_FansOutCommitState()
     {
-        using var participant     = new DdsParticipant(TestDomain);
-        using var hbWriter        = new DdsWriter<NodeHeartbeat>(participant);
-        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        using var exercise = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
-
-        RegisterNode(hbWriter, exercise);
+        RegisterNode(bus, exercise);
 
         exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
@@ -128,28 +106,13 @@ public sealed class ClusterMasterFanOutTests
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.LoadingLive).ToString(),
         });
-        exercise.Tick();   // drain injected request queue
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        bool foundCommitState = false;
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline)
-        {
-            exercise.Tick();
-            using var cmdScope = nodeOpCmdReader.Take();
-            foreach (var s in cmdScope)
-            {
-                if (s.IsValid && s.Data.Operation == NodeOpType.CommitState &&
-                    s.Data.PayloadJson == ((int)ClusterState.LoadingLive).ToString())
-                {
-                    foundCommitState = true;
-                    break;
-                }
-            }
-            if (foundCommitState) break;
-            Thread.Sleep(20);
-        }
-
-        Assert.True(foundCommitState,
+        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.True(
+            intents.Any(i => i.Operation == FdpNodeOpType.CommitState),
             "ClusterMaster must fan out a CommitState command with target-state payload after PrepareXxx.");
     }
 
@@ -163,9 +126,8 @@ public sealed class ClusterMasterFanOutTests
     [Fact(Timeout = 10_000)]
     public void NoActiveNodes_FanOutSkipped_NoException()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         // No heartbeat written → roster is empty → fan-out guard must skip without error.
         var ex = Record.Exception(() =>
@@ -193,9 +155,8 @@ public sealed class ClusterMasterFanOutTests
     [Fact(Timeout = 10_000)]
     public void SourceDsmState_CapturedBeforeOptimisticAdvance()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
@@ -220,9 +181,8 @@ public sealed class ClusterMasterFanOutTests
     [Fact(Timeout = 10_000)]
     public void PayloadJson_PopulatedFromClusterOpRequest()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
@@ -250,29 +210,24 @@ public sealed class ClusterMasterFanOutTests
     [Fact(Timeout = 10_000)]
     public void ReplaySeekStep_FansOutNodeReplaySeek()
     {
-        using var participant     = new DdsParticipant(TestDomain);
-        using var hbWriter        = new DdsWriter<NodeHeartbeat>(participant);
-        using var nodeOpCmdReader = new DdsReader<NodeOpCommand>(participant);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        using var exercise = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
+        RegisterNode(bus, exercise);
 
-        RegisterNode(hbWriter, exercise);
-
-        // Transition to RunningReplay (optimistic: sets _currentDsmState without waiting for node ACKs).
+        // Transition to OperatingReplay (optimistic: sets _currentDsmState without waiting for ACKs).
         exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = Guid.NewGuid(),
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = $"{{\"TargetState\":{(int)ClusterState.OperatingReplay}}}",
         });
+        bus.SwapBuffers();
         exercise.Tick();
-
-        // Allow DDS to propagate transition fan-out messages.
-        Thread.Sleep(200);
+        bus.SwapBuffers();
 
         // Drain any PrepareReplay / CommitState messages from the transition.
-        using (var drained = nodeOpCmdReader.Take()) { }
+        bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
 
         // Now send standalone ReplaySeek.
         exercise.HandleClusterOpRequest(new ClusterOpRequest
@@ -281,27 +236,13 @@ public sealed class ClusterMasterFanOutTests
             OperationType = ClusterOpType.ReplaySeek,
             PayloadJson   = "{\"TargetWallTicks\":1000}",
         });
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
 
-        bool foundNodeReplaySeek = false;
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline)
-        {
-            exercise.Tick();
-            using var cmdScope = nodeOpCmdReader.Take();
-            foreach (var s in cmdScope)
-            {
-                if (s.IsValid && s.Data.Operation == NodeOpType.NodeReplaySeek)
-                {
-                    foundNodeReplaySeek = true;
-                    break;
-                }
-            }
-            if (foundNodeReplaySeek) break;
-            Thread.Sleep(20);
-        }
-
-        Assert.True(foundNodeReplaySeek,
+        var intents = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        Assert.True(
+            intents.Any(i => i.Operation == FdpNodeOpType.NodeReplaySeek),
             "ClusterMaster must fan out a NodeReplaySeek command for a standalone ReplaySeek request.");
     }
 }

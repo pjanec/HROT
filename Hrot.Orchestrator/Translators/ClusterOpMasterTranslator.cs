@@ -21,22 +21,25 @@ namespace Hrot.Orchestrator.Translators;
 /// </summary>
 public sealed class ClusterOpMasterTranslator
 {
-    private readonly DdsReader<ClusterOpRequest>  _requestReader;
-    private readonly DdsWriter<ClusterOpStatus>   _statusWriter;
-    private readonly FdpEventBus                  _bus;
-    private readonly JsonSerializerOptions        _jsonOptions;
+    private readonly DdsReader<ClusterOpRequest>    _requestReader;
+    private readonly DdsWriter<ClusterOpStatus>     _statusWriter;
+    private readonly DdsWriter<AssetInventoryTopic>? _inventoryWriter;
+    private readonly FdpEventBus                    _bus;
+    private readonly JsonSerializerOptions          _jsonOptions;
 
     /// <summary>Initialises a new <see cref="ClusterOpMasterTranslator"/>.</summary>
     public ClusterOpMasterTranslator(
-        DdsReader<ClusterOpRequest>  requestReader,
-        DdsWriter<ClusterOpStatus>   statusWriter,
-        FdpEventBus                  bus,
-        JsonSerializerOptions?       jsonOptions = null)
+        DdsReader<ClusterOpRequest>    requestReader,
+        DdsWriter<ClusterOpStatus>     statusWriter,
+        FdpEventBus                    bus,
+        JsonSerializerOptions?         jsonOptions = null,
+        DdsWriter<AssetInventoryTopic>? inventoryWriter = null)
     {
-        _requestReader = requestReader ?? throw new ArgumentNullException(nameof(requestReader));
-        _statusWriter  = statusWriter  ?? throw new ArgumentNullException(nameof(statusWriter));
-        _bus           = bus           ?? throw new ArgumentNullException(nameof(bus));
-        _jsonOptions   = jsonOptions ?? OrchestrationJsonOptions.Default;
+        _requestReader   = requestReader   ?? throw new ArgumentNullException(nameof(requestReader));
+        _statusWriter    = statusWriter    ?? throw new ArgumentNullException(nameof(statusWriter));
+        _bus             = bus             ?? throw new ArgumentNullException(nameof(bus));
+        _jsonOptions     = jsonOptions ?? OrchestrationJsonOptions.Default;
+        _inventoryWriter = inventoryWriter;
     }
 
     /// <summary>Processes one frame: ingests DDS requests and publishes completed statuses.</summary>
@@ -70,6 +73,22 @@ public sealed class ClusterOpMasterTranslator
                 StatusCode = (int)ev.StatusCode,
                 ResultJson = string.Empty,
             });
+        }
+
+        // ── Egress: Bus AssetInventoryUpdateEvent → DDS AssetInventoryTopic ──
+        if (_inventoryWriter != null)
+        {
+            foreach (var ev in _bus.ConsumeManaged<AssetInventoryUpdateEvent>())
+            {
+                _inventoryWriter.Write(new AssetInventoryTopic
+                {
+                    NodeId                       = 0,
+                    LocalScenariosJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalScenarios),
+                    LocalExercisesJson           = System.Text.Json.JsonSerializer.Serialize(ev.LocalExercises),
+                    ArchivedExercisesJson        = System.Text.Json.JsonSerializer.Serialize(ev.ArchivedExercises),
+                    UnarchivedLocalExercisesJson = System.Text.Json.JsonSerializer.Serialize(ev.UnarchivedLocalExercises),
+                });
+            }
         }
     }
 

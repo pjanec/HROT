@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Threading;
+using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
 using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
@@ -20,8 +20,6 @@ namespace Hrot.Orchestrator.Tests;
 [Collection("OrchestratorTests")]
 public sealed class ClusterMasterContextHandlerTests : IDisposable
 {
-    private const int TestDomain = 15;
-
     private readonly string _tempDir;
 
     public ClusterMasterContextHandlerTests()
@@ -43,17 +41,18 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         TransactionHistoryCapacity = 10,
     };
 
-    private static void RegisterNode(DdsWriter<NodeHeartbeat> hbWriter, ClusterMaster exercise, int nodeId = 1)
+    private static void RegisterNode(FdpEventBus bus, ClusterMaster exercise, int nodeId = 1)
     {
-        hbWriter.Write(new NodeHeartbeat
+        bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId            = nodeId,
             SubsystemName     = "SimHost",
-            LocalClusterState = ClusterState.Idle,
+            LocalStateId      = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc      = DateTimeOffset.UtcNow.Ticks,
         });
-        Thread.Sleep(200);
+        bus.SwapBuffers();
         exercise.Tick();
+        bus.SwapBuffers();
     }
 
     /// <summary>
@@ -95,10 +94,9 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         const string scenarioId = "ctx_ll_01";
         SetupScenarioFiles(scenarioId, wallTicks: 99_000L);
 
-        using var participant = new DdsParticipant(TestDomain);
-        using var hbWriter    = new DdsWriter<NodeHeartbeat>(participant);
-        using var exercise    = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
+        using var participant = new DdsParticipant(15);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         var gateway = new StorageGatewayModule();
         exercise.SetStorageGateway(gateway, Path.Combine(_tempDir, "nas"));
@@ -111,7 +109,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         handler.OnContextLoaded += (ticks, _) => { capturedTicks = ticks; eventFired = true; };
         exercise.SetGlobalContextHandler(handler);
 
-        RegisterNode(hbWriter, exercise);
+        RegisterNode(bus, exercise);
 
         exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
@@ -137,10 +135,9 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         const string scenarioId = "ctx_ol_02";
         SetupScenarioFiles(scenarioId, wallTicks: 77_000L);
 
-        using var participant = new DdsParticipant(TestDomain);
-        using var hbWriter    = new DdsWriter<NodeHeartbeat>(participant);
-        using var exercise    = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
+        using var participant = new DdsParticipant(15);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         var gateway = new StorageGatewayModule();
         exercise.SetStorageGateway(gateway, Path.Combine(_tempDir, "nas"));
@@ -152,7 +149,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         handler.OnContextLoaded += (_, _) => eventFired = true;
         exercise.SetGlobalContextHandler(handler);
 
-        RegisterNode(hbWriter, exercise);
+        RegisterNode(bus, exercise);
 
         // Request FINAL state OperatingLive — planner: PrefetchScenario -> LoadingLive -> OperatingLive.
         // The handler must still be invoked for the LoadingLive step.
@@ -176,12 +173,10 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
     [Fact(Timeout = 10_000)]
     public void TransitionState_LoadingLive_WithoutContextHandler_DoesNotThrow()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var hbWriter    = new DdsWriter<NodeHeartbeat>(participant);
-        using var exercise    = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
-        RegisterNode(hbWriter, exercise);
+        RegisterNode(bus, exercise);
 
         var ex = Record.Exception(() =>
         {
@@ -204,10 +199,9 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
     [Fact(Timeout = 10_000)]
     public void TransitionState_UnloadingLive_DoesNotFireContextLoadedEvent()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var hbWriter    = new DdsWriter<NodeHeartbeat>(participant);
-        using var exercise    = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(400);
+        using var participant = new DdsParticipant(15);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         var handler = new GlobalContextClusterOpHandler(participant, string.Empty);
         handler.LocalTempRoot = _tempDir;
@@ -216,7 +210,7 @@ public sealed class ClusterMasterContextHandlerTests : IDisposable
         handler.OnContextLoaded += (_, _) => eventFired = true;
         exercise.SetGlobalContextHandler(handler);
 
-        RegisterNode(hbWriter, exercise);
+        RegisterNode(bus, exercise);
 
         // LoadingLive with no ScenarioId — CommitLoad exits early, event NOT fired.
         exercise.HandleClusterOpRequest(new ClusterOpRequest

@@ -74,8 +74,12 @@ namespace Hrot.ClusterRunner.Services
         private FDP.Toolkit.Orchestration.ClusterSlave? _clusterSlave;
 
         // ── CMC-S016: Orchestration bus + slave translator (BATCH-06) ──────────
-        private FdpEventBus?           _orchestrationBus;
-        private NodeOpSlaveTranslator? _nodeOpSlaveTranslator;
+        private FdpEventBus?                          _orchestrationBus;
+        private NodeOpSlaveTranslator?                _nodeOpSlaveTranslator;
+
+        // ── S0507 / PACK-C002: Observation bus + observer translator for ClusterUiCache ──
+        private FdpEventBus?                          _uiCacheBus;
+        private OrchestrationObserverTranslator?      _orchObserverTranslator;
 
         // ── S0507: Cluster control ─────────────────────────────────────────────
         private DdsWriter<ClusterOpRequest>?          _sysOpWriter;
@@ -238,10 +242,12 @@ namespace Hrot.ClusterRunner.Services
             // the ack queue and resolves pending CommitMissionAsync tasks.
             ingressHandlers.Add(missionEditorSvc);
 
-            // ── Cluster control wiring (S0507) ─────────────────────────────────────────
+            // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
             _sysOpWriter         = new DdsWriter<ClusterOpRequest>(_participant);
             _iosLogicSysOpWriter = new DdsWriterAdapter<ClusterOpRequest>(_participant, "ClusterOpRequest");
-            _uiCache      = new ClusterUiCache(_participant, _slaveSyncController);
+            _uiCacheBus           = new FdpEventBus();
+            _orchObserverTranslator = new OrchestrationObserverTranslator(_participant, _uiCacheBus);
+            _uiCache      = new ClusterUiCache(_uiCacheBus, _slaveSyncController);
             _clusterPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
 
             var logic = new ExConLogic(
@@ -317,6 +323,9 @@ namespace Hrot.ClusterRunner.Services
                                              // bus NodeHeartbeatEvent → DDS NodeHeartbeat;
                                              // bus NodeOpCompletedEvent → DDS NodeOpStatus
             _clusterSlave?.Tick();
+            // PACK-C002: translate DDS → _uiCacheBus events, then update the cache
+            _orchObserverTranslator?.Tick();
+            _uiCacheBus?.SwapBuffers();
             _uiCache?.Update();
             _clusterPanel?.Update(deltaTime);
             _mock?.Update(deltaTime);
@@ -364,6 +373,9 @@ namespace Hrot.ClusterRunner.Services
             _clusterPanel = null;
             _uiCache?.Dispose();
             _uiCache = null;
+            _orchObserverTranslator?.Dispose();
+            _orchObserverTranslator = null;
+            _uiCacheBus = null;
             _iosLogicSysOpWriter?.Dispose();
             _iosLogicSysOpWriter = null;
             _sysOpWriter?.Dispose();

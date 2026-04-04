@@ -4,11 +4,11 @@ using System.Linq;
 using System.Threading;
 using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
 using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
 
 namespace Hrot.Orchestrator.Tests;
 
@@ -20,41 +20,22 @@ public class OrchestratorTestCollection { }
 [Collection("OrchestratorTests")]
 public sealed class ClusterMasterBootstrapTests
 {
-    private const int TestDomain = 15;
 
     // ── CGF1-S0102 (BATCH-02) ─────────────────────────────────────────────────
 
     [Fact]
     public void OrchestratorPublishesIdleOnStartup()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var reader = new DdsReader<SystemStateTopic>(participant);
-        var received = new List<SystemStateTopic>();
-        var deadline = DateTime.UtcNow.AddSeconds(3);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus);
 
-        using (var exercise = new ClusterMaster(participant))
-        {
-            while (DateTime.UtcNow < deadline)
-            {
-                exercise.Tick();
-                using (var scope = reader.Take())
-                {
-                    foreach (var sample in scope)
-                    {
-                        if (!sample.IsValid) continue;
-                        received.Add(sample.Data);
-                    }
-                }
+        // Constructor calls PublishStandby() (empty mandatory) → SystemStateUpdateEvent in write buffer.
+        bus.SwapBuffers();
+        var received = bus.ConsumeManaged<SystemStateUpdateEvent>().ToList();
 
-                if (received.Count >= 1) break;
-                Thread.Sleep(20);
-            }
-        }
-
-        Assert.True(received.Count > 0, "No SystemStateTopic sample within 3 s.");
+        Assert.True(received.Count > 0, "No SystemStateUpdateEvent published at startup.");
         Assert.Single(received);
-        Assert.Equal(ClusterState.Idle, received[0].CurrentState);
-        Assert.Equal(0, received[0].TransactionEpoch);
+        Assert.Equal(FDP.Toolkit.Orchestration.ClusterState.Idle, received[0].CurrentState);
     }
 
     // ── CGF1-S0105 ────────────────────────────────────────────────────────────
@@ -69,100 +50,67 @@ public sealed class ClusterMasterBootstrapTests
         var config = new ClusterConfiguration
         {
             Mandatory                = new[] { "SimHost" },
-            HeartbeatTimeoutSeconds  = 60f,   // disable auto-eviction during this test
+            HeartbeatTimeoutSeconds  = 60f,
             TransactionHistoryCapacity = 10,
         };
 
-        using var orchParticipant = new DdsParticipant(TestDomain);
-        using var sysOpWriter     = new DdsWriter<ClusterOpRequest>(orchParticipant);
-        using var sysOpReader     = new DdsReader<ClusterOpStatus>(orchParticipant);
-        using var hbWriter        = new DdsWriter<NodeHeartbeat>(orchParticipant);
-
-        using var exercise = new ClusterMaster(orchParticipant, config);
-
-        // Allow DDS endpoint discovery to settle.
-        Thread.Sleep(400);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, config);
 
         // ── Phase 1: Send request before SimHost heartbeat — expect Rejected ──
         var reqId1 = Guid.NewGuid();
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = reqId1,
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.LoadingLive).ToString(),
         });
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        int? phase1Status = null;
-        var deadline1 = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline1)
-        {
-            exercise.Tick();
-            using var scope = sysOpReader.Take();
-            foreach (var s in scope)
-            {
-                if (!s.IsValid) continue;
-                if (s.Data.RequestId == reqId1)
-                {
-                    phase1Status = s.Data.StatusCode;
-                    break;
-                }
-            }
-            if (phase1Status.HasValue) break;
-            Thread.Sleep(20);
-        }
-
-        Assert.True(phase1Status.HasValue, "ClusterMaster did not respond to ClusterOpRequest before bootstrap.");
-        Assert.Equal((int)OrchestrationStatusCode.Rejected, phase1Status!.Value);
+        var phase1Events = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        Assert.True(phase1Events.Any(e => e.RequestId == reqId1),
+            "ClusterMaster did not respond to ClusterOpRequest before bootstrap.");
+        Assert.True(phase1Events.Any(e => e.RequestId == reqId1 && e.StatusCode == OrchestrationStatusCode.Rejected),
+            $"Expected Rejected, got: {string.Join(", ", phase1Events.Select(e => e.StatusCode))}");
         Assert.False(exercise.BootstrapComplete, "Bootstrap latch must not be set before mandatory heartbeat.");
 
         // ── Phase 2: Deliver SimHost heartbeat (Standby) → latch clears ──────
-        hbWriter.Write(new NodeHeartbeat
+        bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 1,
             SubsystemName = "SimHost",
-            LocalClusterState = ClusterState.Idle,
+            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
-
-        var latchDeadline = DateTime.UtcNow.AddSeconds(3);
-        while (!exercise.BootstrapComplete && DateTime.UtcNow < latchDeadline)
-        {
-            exercise.Tick();
-            Thread.Sleep(20);
-        }
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
         Assert.True(exercise.BootstrapComplete, "Bootstrap latch not cleared after mandatory node reached Standby.");
 
-        // ── Phase 3: Next ClusterOpRequest should be accepted (InProgress/Success) ─
+        // ── Phase 3: Next ClusterOpRequest should be accepted ─────────────────
         var reqId2 = Guid.NewGuid();
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = reqId2,
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.LoadingLive).ToString(),
         });
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        int? phase3Status = null;
-        var deadline3 = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline3)
-        {
-            exercise.Tick();
-            using var scope = sysOpReader.Take();
-            foreach (var s in scope)
-            {
-                if (!s.IsValid) continue;
-                if (s.Data.RequestId == reqId2)
-                {
-                    phase3Status = s.Data.StatusCode;
-                    break;
-                }
-            }
-            if (phase3Status.HasValue) break;
-            Thread.Sleep(20);
-        }
-
-        Assert.True(phase3Status.HasValue, "ClusterMaster did not respond to accepted ClusterOpRequest.");
-        Assert.NotEqual((int)OrchestrationStatusCode.Rejected, phase3Status!.Value);
+        // A TransitionState with nodes fans out ExecuteNodeOpIntents (waits for ACKs),
+        // so ClusterOpCompletedEvent is not published immediately.
+        // Acceptance is verified by the presence of fan-out intents.
+        var phase3Intents    = bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
+        var phase3Completed  = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        Assert.True(phase3Intents.Any(),
+            "ClusterMaster did not fan out node op intents — request was not accepted after bootstrap.");
+        Assert.False(phase3Completed.Any(e => e.RequestId == reqId2 && e.StatusCode == OrchestrationStatusCode.Rejected),
+            "Second request must not be rejected after bootstrap.");
     }
 
     /// <summary>
@@ -179,48 +127,40 @@ public sealed class ClusterMasterBootstrapTests
             HeartbeatTimeoutSeconds = 0.1f,
         };
 
-        using var orchParticipant = new DdsParticipant(TestDomain);
-        using var stateReader     = new DdsReader<SystemStateTopic>(orchParticipant);
-        using var hbWriter        = new DdsWriter<NodeHeartbeat>(orchParticipant);
-
-        using var exercise = new ClusterMaster(orchParticipant, config);
-        Thread.Sleep(400);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, config);
 
         // Bootstrap: publish SimHost heartbeat once, let latch clear.
-        hbWriter.Write(new NodeHeartbeat
+        bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 1,
             SubsystemName = "SimHost",
-            LocalClusterState = ClusterState.Idle,
+            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        var latchDeadline = DateTime.UtcNow.AddSeconds(3);
-        while (!exercise.BootstrapComplete && DateTime.UtcNow < latchDeadline)
-        {
-            exercise.Tick();
-            Thread.Sleep(20);
-        }
         Assert.True(exercise.BootstrapComplete, "Bootstrap should have cleared after SimHost Standby heartbeat.");
 
-        // Drain any previously-published Standby sample.
-        DrainStateReader(stateReader);
+        // Drain any already-published events (e.g. bootstrap Standby publish).
+        bus.ConsumeManaged<SystemStateUpdateEvent>().ToList();
 
         // Now stop heartbeats: wait long enough for timeout (0.1 s) then tick.
         Thread.Sleep(200);
 
-        ClusterState? degradedState = null;
+        FDP.Toolkit.Orchestration.ClusterState? degradedState = null;
         var ejectionDeadline = DateTime.UtcNow.AddSeconds(2);
         while (DateTime.UtcNow < ejectionDeadline)
         {
             exercise.Tick();
-            using var scope = stateReader.Take();
-            foreach (var s in scope)
+            bus.SwapBuffers();
+            foreach (var ev in bus.ConsumeManaged<SystemStateUpdateEvent>())
             {
-                if (!s.IsValid) continue;
-                if (s.Data.CurrentState == ClusterState.Degraded)
+                if (ev.CurrentState == FDP.Toolkit.Orchestration.ClusterState.Degraded)
                 {
-                    degradedState = s.Data.CurrentState;
+                    degradedState = ev.CurrentState;
                     break;
                 }
             }
@@ -230,7 +170,7 @@ public sealed class ClusterMasterBootstrapTests
 
         Assert.True(degradedState.HasValue,
             "ClusterMaster did not publish Degraded after mandatory node timed out.");
-        Assert.Equal(ClusterState.Degraded, degradedState!.Value);
+        Assert.Equal(FDP.Toolkit.Orchestration.ClusterState.Degraded, degradedState!.Value);
         Assert.False(exercise.BootstrapComplete,
             "Bootstrap latch should re-engage after mandatory node ejection.");
     }
@@ -256,76 +196,47 @@ public sealed class ClusterMasterBootstrapTests
             HeartbeatTimeoutSeconds = 0.1f,
         };
 
-        // Two separate participants simulate the per-node reader isolation.
-        using var orchParticipant    = new DdsParticipant(TestDomain);
-        using var cgfParticipant     = new DdsParticipant(TestDomain);
-        using var simHostParticipant = new DdsParticipant(TestDomain);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, config);
 
-        using var hbWriter = new DdsWriter<NodeHeartbeat>(orchParticipant);
-
-        // CGF reader (nodeId 400) — should receive PrepareState after SimHost ejection.
-        using var cgfCmdReader = new DdsReader<NodeOpCommand>(cgfParticipant);
-        cgfCmdReader.SetFilter(cmd => cmd.TargetNodeId == 400);
-
-        // SimHost reader (nodeId 1) — should receive ZERO commands after ejection.
-        using var simHostCmdReader = new DdsReader<NodeOpCommand>(simHostParticipant);
-        simHostCmdReader.SetFilter(cmd => cmd.TargetNodeId == 1);
-
-        using var exercise = new ClusterMaster(orchParticipant, config);
-        Thread.Sleep(400);
-
-        // Bootstrap: publish both SimHost and CGF as Standby.
-        hbWriter.Write(new NodeHeartbeat
+        // Bootstrap: publish both SimHost (nodeId=1) and CGF (nodeId=400) as Standby.
+        bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 1,
             SubsystemName = "SimHost",
-            LocalClusterState = ClusterState.Idle,
+            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
-        hbWriter.Write(new NodeHeartbeat
+        bus.PublishManaged(new NodeHeartbeatEvent
         {
             NodeId        = 400,
             SubsystemName = "CGF",
-            LocalClusterState = ClusterState.Idle,
+            LocalStateId  = (int)FDP.Toolkit.Orchestration.ClusterState.Idle,
             WallTicksUtc  = DateTimeOffset.UtcNow.Ticks,
         });
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        var latchDeadline = DateTime.UtcNow.AddSeconds(3);
-        while (!exercise.BootstrapComplete && DateTime.UtcNow < latchDeadline)
-        {
-            exercise.Tick();
-            Thread.Sleep(20);
-        }
         Assert.True(exercise.BootstrapComplete, "Both nodes bootstrapped.");
         Assert.Equal(2, exercise.NodeRoster.ActiveNodes.Count);
 
-        // Drain any pre-ejection samples from both readers.
-        DrainCmdReader(cgfCmdReader);
-        DrainCmdReader(simHostCmdReader);
+        // Drain any pre-ejection events.
+        bus.ConsumeManaged<ExecuteNodeOpIntent>().ToList();
 
-        // Stop SimHost heartbeats; wait for timeout, then trigger ejection via Tick.
+        // Stop SimHost heartbeats; wait for timeout then trigger ejection via Tick.
         Thread.Sleep(200);
 
-        var cgfCmds     = new List<NodeOpCommand>();
-        var simHostCmds = new List<NodeOpCommand>();
+        var allIntents = new List<ExecuteNodeOpIntent>();
         var ejectionDeadline = DateTime.UtcNow.AddSeconds(2);
         while (DateTime.UtcNow < ejectionDeadline)
         {
             exercise.Tick();
-            using (var scope = cgfCmdReader.Take())
-                foreach (var s in scope) { if (s.IsValid) cgfCmds.Add(s.Data); }
-            using (var scope = simHostCmdReader.Take())
-                foreach (var s in scope) { if (s.IsValid) simHostCmds.Add(s.Data); }
+            bus.SwapBuffers();
+            allIntents.AddRange(bus.ConsumeManaged<ExecuteNodeOpIntent>());
             if (!exercise.NodeRoster.ActiveNodes.ContainsKey(1)) break;
             Thread.Sleep(20);
         }
-
-        // Give any in-flight samples a moment to arrive, then do a final drain.
-        Thread.Sleep(50);
-        using (var scope = cgfCmdReader.Take())
-            foreach (var s in scope) { if (s.IsValid) cgfCmds.Add(s.Data); }
-        using (var scope = simHostCmdReader.Take())
-            foreach (var s in scope) { if (s.IsValid) simHostCmds.Add(s.Data); }
 
         // SimHost (nodeId 1) must be removed from the roster.
         Assert.False(exercise.NodeRoster.ActiveNodes.ContainsKey(1),
@@ -333,12 +244,14 @@ public sealed class ClusterMasterBootstrapTests
         Assert.True(exercise.NodeRoster.ActiveNodes.ContainsKey(400),
             "CGF must remain in roster as a surviving node.");
 
-        // CGF should receive both AbortTransaction and PrepareState(Standby).
-        Assert.Contains(cgfCmds, c => c.Operation == NodeOpType.AbortTransaction);
-        Assert.Contains(cgfCmds, c => c.Operation == NodeOpType.PrepareState);
+        // CGF should receive AbortTransaction and PrepareState intents.
+        var cgfIntents = allIntents.Where(i => i.TargetNodeId == 400).ToList();
+        Assert.Contains(cgfIntents, i => i.Operation == FdpNodeOpType.AbortTransaction);
+        Assert.Contains(cgfIntents, i => i.Operation == FdpNodeOpType.PrepareState);
 
-        // SimHost reader must receive zero commands after ejection (writer disposed/no new writes).
-        Assert.Empty(simHostCmds);
+        // SimHost (ejected) should receive no intents after ejection.
+        var simHostIntents = allIntents.Where(i => i.TargetNodeId == 1).ToList();
+        Assert.Empty(simHostIntents);
     }
 
     /// <summary>
@@ -355,30 +268,21 @@ public sealed class ClusterMasterBootstrapTests
             TransactionHistoryCapacity = 10,
         };
 
-        using var orchParticipant = new DdsParticipant(TestDomain);
-        using var sysOpWriter     = new DdsWriter<ClusterOpRequest>(orchParticipant);
-
-        using var exercise = new ClusterMaster(orchParticipant, config);
-        Thread.Sleep(400);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, config);
 
         Assert.True(exercise.BootstrapComplete, "With empty mandatory list the latch should clear immediately.");
 
         var reqId = Guid.NewGuid();
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = reqId,
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.LoadingLive).ToString(),
         });
-
-        // Tick until the request is processed and history contains the entry.
-        var deadline = DateTime.UtcNow.AddSeconds(3);
-        while (DateTime.UtcNow < deadline)
-        {
-            exercise.Tick();
-            if (exercise.TransactionHistory.Count > 0) break;
-            Thread.Sleep(20);
-        }
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
         var history = exercise.TransactionHistory;
         Assert.True(history.Count >= 1, "Expected at least one transaction in history.");
@@ -389,26 +293,12 @@ public sealed class ClusterMasterBootstrapTests
         Assert.Equal(reqId, tx.OriginRequestId);
     }
 
-    // ── Test helpers ──────────────────────────────────────────────────────────
-
-    private static void DrainStateReader(DdsReader<SystemStateTopic> reader)
-    {
-        Thread.Sleep(50);
-        using var scope = reader.Take();
-        // intentionally discard
-    }
-
-    private static void DrainCmdReader(DdsReader<NodeOpCommand> reader)
-    {
-        Thread.Sleep(50);
-        using var scope = reader.Take();
-        // intentionally discard
-    }
+    // ── A.3 (CGF-1-BATCH-05): Optimistic _currentDsmState advance ────────────
 
     /// <summary>
-    /// A.3 (CGF-1-BATCH-05): After an accepted <c>TransitionState</c> request advances the
-    /// cluster to <c>LoadingLive</c>, a subsequent request is planned from <c>LoadingLive</c>
-    /// (not the initial <c>Standby</c>).  Verifies optimistic <c>_currentDsmState</c> advance.
+    /// After an accepted <c>TransitionState</c> request advances the cluster to
+    /// <c>LoadingLive</c>, a subsequent request is planned from <c>LoadingLive</c>
+    /// (not the initial <c>Standby</c>). Verifies optimistic <c>_currentDsmState</c> advance.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void CurrentDsmState_AdvancesOptimistically_AfterAcceptedTransition()
@@ -420,71 +310,44 @@ public sealed class ClusterMasterBootstrapTests
             TransactionHistoryCapacity = 10,
         };
 
-        using var orchParticipant = new DdsParticipant(TestDomain);
-        using var sysOpWriter     = new DdsWriter<ClusterOpRequest>(orchParticipant);
-        using var sysOpReader     = new DdsReader<ClusterOpStatus>(orchParticipant);
-
-        using var exercise = new ClusterMaster(orchParticipant, config);
-        Thread.Sleep(400);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, config);
 
         Assert.True(exercise.BootstrapComplete, "Empty mandatory list: bootstrap should be immediate.");
 
         // ── First request: Standby → LoadingLive ──────────────────────────────
         var req1Id = Guid.NewGuid();
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = req1Id,
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.LoadingLive).ToString(),
         });
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        var deadline1 = DateTime.UtcNow.AddSeconds(3);
-        bool req1Accepted = false;
-        while (DateTime.UtcNow < deadline1)
-        {
-            exercise.Tick();
-            using var scope = sysOpReader.Take();
-            foreach (var s in scope)
-            {
-                if (!s.IsValid || s.Data.RequestId != req1Id) continue;
-                req1Accepted = s.Data.StatusCode != (int)OrchestrationStatusCode.Rejected;
-            }
-            if (req1Accepted) break;
-            Thread.Sleep(20);
-        }
+        var phase1Events = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        bool req1Accepted = !phase1Events.Any(e => e.RequestId == req1Id && e.StatusCode == OrchestrationStatusCode.Rejected);
         Assert.True(req1Accepted, "First TransitionState request should be accepted.");
 
         // ── Second request: from (now-optimistically) LoadingLive → RunningLive ─
-        // If _currentDsmState had NOT advanced, this would be planned from Standby and the
-        // path to RunningLive from Standby would be [LoadingLive, RunningLive] (2 steps).
-        // After the correct optimistic advance the path from LoadingLive → RunningLive
-        // is a single direct step.  History should reflect 1 step for the second transaction.
         var req2Id = Guid.NewGuid();
-        sysOpWriter.Write(new ClusterOpRequest
+        exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
             RequestId     = req2Id,
             OperationType = ClusterOpType.TransitionState,
             PayloadJson   = ((int)ClusterState.OperatingLive).ToString(),
         });
+        bus.SwapBuffers();
+        exercise.Tick();
+        bus.SwapBuffers();
 
-        var deadline2 = DateTime.UtcNow.AddSeconds(3);
-        bool req2Accepted = false;
-        while (DateTime.UtcNow < deadline2)
-        {
-            exercise.Tick();
-            using var scope = sysOpReader.Take();
-            foreach (var s in scope)
-            {
-                if (!s.IsValid || s.Data.RequestId != req2Id) continue;
-                req2Accepted = s.Data.StatusCode != (int)OrchestrationStatusCode.Rejected;
-            }
-            if (req2Accepted) break;
-            Thread.Sleep(20);
-        }
+        var phase2Events = bus.ConsumeManaged<ClusterOpCompletedEvent>().ToList();
+        bool req2Accepted = !phase2Events.Any(e => e.RequestId == req2Id && e.StatusCode == OrchestrationStatusCode.Rejected);
         Assert.True(req2Accepted, "Second TransitionState request should be accepted.");
 
-        // The second transaction's TotalSteps should be 1 (LoadingLive → RunningLive directly),
-        // proving the planner used LoadingLive as current state, not Standby.
+        // The second transaction's TotalSteps should be 1 (LoadingLive → RunningLive directly).
         var history = exercise.TransactionHistory;
         Assert.True(history.Count >= 2, "Expected at least two transactions in history.");
         var tx2 = history[history.Count - 1];

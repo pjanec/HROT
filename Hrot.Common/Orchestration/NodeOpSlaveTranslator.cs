@@ -115,7 +115,7 @@ public sealed class NodeOpSlaveTranslator
     /// based on the <paramref name="operation"/> discriminator.
     /// Returns <c>null</c> for operations that carry no payload.
     /// </summary>
-    private object? DeserializeNodePayload(NedNodeOpType operation, string? payloadJson)
+    internal static object? DeserializeNodePayload(NedNodeOpType operation, string? payloadJson)
     {
         bool hasPayload = !string.IsNullOrWhiteSpace(payloadJson);
 
@@ -144,6 +144,7 @@ public sealed class NodeOpSlaveTranslator
 
             case NedNodeOpType.StartEpisode:
             case NedNodeOpType.StopEpisode:
+            case NedNodeOpType.ForgetEpisode:
             {
                 if (!hasPayload) return null;
                 bool   isStart    = GetBool(payloadJson!, "IsStart");

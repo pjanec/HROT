@@ -3,9 +3,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using Hrot.ClusterRunner.Services;
-using Hrot.Orchestrator;
 using CycloneDDS.Runtime;
 using ModuleHost.Core;
+using ModuleHost.Network.Cyclone.Services;
 using ModuleHost.Network.Cyclone.Systems;
 
 namespace Hrot.ClusterRunner.Tests
@@ -22,11 +22,15 @@ namespace Hrot.ClusterRunner.Tests
     {
         private readonly SimHostSubsystem _subsystem;
         // Provides DdsIdAllocatorServer on the test domain so EnsureIdAllocatorRouting succeeds.
-        private readonly DdsParticipant _allocatorParticipant;
-        private readonly ClusterMaster   _clusterMaster;
+        private readonly DdsParticipant           _allocatorParticipant;
+        private readonly DdsIdAllocatorServer     _idAllocatorServer;
+        private readonly Thread                   _idServerThread;
+        private readonly CancellationTokenSource  _idServerCts;
         // Extra allocator for domain 0 (used by Initialize_DomainZero_* tests).
-        private readonly DdsParticipant _allocatorParticipantDomain0;
-        private readonly ClusterMaster   _clusterMasterDomain0;
+        private readonly DdsParticipant           _allocatorParticipantDomain0;
+        private readonly DdsIdAllocatorServer     _idAllocatorServerDomain0;
+        private readonly Thread                   _idServerThreadDomain0;
+        private readonly CancellationTokenSource  _idServerCtsDomain0;
 
         private static SubsystemConfig HeadlessConfig(int domainId = 98) => new()
         {
@@ -39,9 +43,31 @@ namespace Hrot.ClusterRunner.Tests
         public SimHostSubsystemTests()
         {
             _allocatorParticipant        = new DdsParticipant(98);
-            _clusterMaster                 = new ClusterMaster(_allocatorParticipant);
+            _idAllocatorServer           = new DdsIdAllocatorServer(_allocatorParticipant);
+            _idServerCts                 = new CancellationTokenSource();
+            _idServerThread              = new Thread(() =>
+            {
+                while (!_idServerCts.IsCancellationRequested)
+                {
+                    _idAllocatorServer.ProcessRequests();
+                    Thread.Sleep(1);
+                }
+            }) { IsBackground = true, Name = "Test-IdAllocServer-98" };
+            _idServerThread.Start();
+
             _allocatorParticipantDomain0 = new DdsParticipant(0);
-            _clusterMasterDomain0          = new ClusterMaster(_allocatorParticipantDomain0);
+            _idAllocatorServerDomain0    = new DdsIdAllocatorServer(_allocatorParticipantDomain0);
+            _idServerCtsDomain0          = new CancellationTokenSource();
+            _idServerThreadDomain0       = new Thread(() =>
+            {
+                while (!_idServerCtsDomain0.IsCancellationRequested)
+                {
+                    _idAllocatorServerDomain0.ProcessRequests();
+                    Thread.Sleep(1);
+                }
+            }) { IsBackground = true, Name = "Test-IdAllocServer-0" };
+            _idServerThreadDomain0.Start();
+
             _subsystem                   = new SimHostSubsystem();
         }
 
@@ -49,9 +75,15 @@ namespace Hrot.ClusterRunner.Tests
         {
             _subsystem.Stop();
             _subsystem.Shutdown();
-            _clusterMaster.Dispose();
+            _idServerCts.Cancel();
+            _idServerThread.Join(TimeSpan.FromSeconds(2));
+            _idServerCts.Dispose();
+            _idAllocatorServer.Dispose();
             _allocatorParticipant.Dispose();
-            _clusterMasterDomain0.Dispose();
+            _idServerCtsDomain0.Cancel();
+            _idServerThreadDomain0.Join(TimeSpan.FromSeconds(2));
+            _idServerCtsDomain0.Dispose();
+            _idAllocatorServerDomain0.Dispose();
             _allocatorParticipantDomain0.Dispose();
         }
 

@@ -14,6 +14,7 @@ using FDP.Framework.Runner;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
+using FDP.Toolkit.Time.Messages;
 using ImGuiNET;
 using ModuleHost.Core;
 using ModuleHost.Core.Time;
@@ -121,7 +122,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _lockstepTranslator  = TimeNetworkModule.CreateMasterLockstepTranslator(_participant, _eventBus);
         _masterTimeSyncTranslator = TimeNetworkModule.CreateMasterTimeSyncTranslator(_participant);
 
-        _uiCache       = new ClusterUiCache(_participant, _masterSync);
+        _uiCache       = new ClusterUiCache(_orchestrationBus!, _masterSync);
         _scenarioPanel = new ClusterScenarioPanel(_clusterMaster, _uiCache);
 
         // S0503: Subscribe to time-control events from ClusterMaster.
@@ -179,7 +180,11 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         // Advance the master sync controller's wall clock and state machine.
         _masterSync?.Update();
         _eventBus?.SwapBuffers();
-
+        // Bridge SwitchTimeModeEvent from time bus to orchestration bus so ClusterUiCache
+        // can track pause state and time scale without holding its own DDS reader.
+        if (_orchestrationBus != null && _eventBus != null)
+            foreach (var ev in _eventBus.Consume<SwitchTimeModeEvent>())
+                _orchestrationBus.Publish(ev);
         // ── Orchestration bus pipeline (CMC-S016 / BATCH-06) ──────────────────
         // 1. Bridge DDS NodeHeartbeat → NodeHeartbeatEvent on orchestration bus so
         //    ClusterMaster (bus mode) can update its roster.

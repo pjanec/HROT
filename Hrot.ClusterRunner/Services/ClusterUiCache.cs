@@ -1,24 +1,24 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text.Json;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
-using CycloneDDS.Runtime;
+using Fdp.Kernel;
 using FDP.Toolkit.Orchestration;
+using FDP.Toolkit.Orchestration.Handlers;
+using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Messages;
 using ModuleHost.Core.Time;
-using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
-using NodeOpType = Hrot.NED.Descriptors.Orchestration.NodeOpType;
+using ClusterState  = Hrot.NED.Descriptors.Orchestration.ClusterState;
+using FdpNodeOpType = FDP.Toolkit.Orchestration.NodeOpType;
 
 namespace Hrot.ClusterRunner.Services;
 
 /// <summary>
 /// Network projection of cluster state — the CQRS read-model (CGF1-S0506).
 ///
-/// <para>Constructs 8 DDS readers and maintains all published properties by draining
-/// them on every <see cref="Update"/> call. No direct reference to
-/// <see cref="ClusterMaster"/> or any local service. Thread-unsafe; must be updated
+/// <para>Subscribes to an <see cref="FdpEventBus"/> and maintains all published properties
+/// by draining events on every <see cref="Update"/> call. No direct reference to
+/// <see cref="ClusterMaster"/> or any DDS type. Thread-unsafe; must be updated
 /// from a single thread.</para>
 /// </summary>
 public sealed class ClusterUiCache : IDisposable
@@ -57,17 +57,11 @@ public sealed class ClusterUiCache : IDisposable
     public DistributedTransaction? ActiveTransaction =>
         HasInFlightTransaction && _txHistory.Count > 0 ? _txHistory[0] : null;
 
-    /// <summary>Currently active episode IDs as snooped from ManageEpisode NodeOpCommands.</summary>
+    /// <summary>Currently active episode IDs as snooped from ManageEpisode ExecuteNodeOpIntents.</summary>
     public IReadOnlySet<Guid> ActiveEpisodes => _activeEpisodes;
 
-    // ── DDS Readers ────────────────────────────────────────────────────────────
-    private readonly DdsReader<SystemStateTopic>      _stateReader;
-    private readonly DdsReader<AssetInventoryTopic>   _inventoryReader;
-    private readonly DdsReader<NodeHeartbeat>         _heartbeatReader;
-    private readonly DdsReader<ClusterOpStatus>           _sysOpStatusReader;
-    private readonly DdsReader<NodeOpCommand>         _nodeOpCmdReader;
-    private readonly DdsReader<NodeOpStatus>          _nodeOpStatusReader;
-    private readonly DdsReader<SwitchTimeModeWireDto> _timeModeReader;
+    // ── FdpEventBus ───────────────────────────────────────────────────────────
+    private readonly FdpEventBus _bus;
 
     // ── Internal state ─────────────────────────────────────────────────────────
     private readonly Dictionary<int, NodeHeartbeat>           _activeNodes  = new();
@@ -79,16 +73,10 @@ public sealed class ClusterUiCache : IDisposable
     private readonly ITimeController?                         _localTimeController;
     private double                                            _networkSimTime;
 
-    public ClusterUiCache(DdsParticipant participant, ITimeController? localTimeController = null)
+    public ClusterUiCache(FdpEventBus bus, ITimeController? localTimeController = null)
     {
+        _bus                 = bus ?? throw new ArgumentNullException(nameof(bus));
         _localTimeController = localTimeController;
-        _stateReader        = new DdsReader<SystemStateTopic>(participant);
-        _inventoryReader    = new DdsReader<AssetInventoryTopic>(participant);
-        _heartbeatReader    = new DdsReader<NodeHeartbeat>(participant);
-        _sysOpStatusReader  = new DdsReader<ClusterOpStatus>(participant);
-        _nodeOpCmdReader    = new DdsReader<NodeOpCommand>(participant);
-        _nodeOpStatusReader = new DdsReader<NodeOpStatus>(participant);
-        _timeModeReader     = new DdsReader<SwitchTimeModeWireDto>(participant);
 
         // even before the first network message arrives, the UI cache already knows what transitions
         // are legal from the default Idle state, and buttons like LoadingEdit, LoadingLive, and LoadingReplay
@@ -96,7 +84,7 @@ public sealed class ClusterUiCache : IDisposable
         ReachableTargets = _planner.GetReachableTargets(CurrentState);
     }
 
-    /// <summary>Drains all readers and updates the published state. Call once per frame.</summary>
+    /// <summary>Drains all bus events and updates the published state. Call once per frame.</summary>
     public void Update()
     {
         DrainSystemState();
@@ -114,28 +102,17 @@ public sealed class ClusterUiCache : IDisposable
     public long GetNodeLastSeenMs(int nodeId) =>
         _nodeReceivedMs.TryGetValue(nodeId, out var ms) ? ms : 0L;
 
-    public void Dispose()
-    {
-        _stateReader.Dispose();
-        _inventoryReader.Dispose();
-        _heartbeatReader.Dispose();
-        _sysOpStatusReader.Dispose();
-        _nodeOpCmdReader.Dispose();
-        _nodeOpStatusReader.Dispose();
-        _timeModeReader.Dispose();
-    }
+    public void Dispose() { /* FdpEventBus is owned by the caller; nothing to dispose here. */ }
 
     // ── Private drain methods ──────────────────────────────────────────────────
 
     private void DrainSystemState()
     {
-        using var l = _stateReader.Take();
-        foreach (var s in l)
+        foreach (var ev in _bus.ConsumeManaged<SystemStateUpdateEvent>())
         {
-            if (!s.IsValid) continue;
             var prev = CurrentState;
-            CurrentState   = s.Data.CurrentState;
-            IsBootstrapped = s.Data.CurrentState != ClusterState.Degraded;
+            CurrentState   = (ClusterState)(int)ev.CurrentState;
+            IsBootstrapped = CurrentState != ClusterState.Degraded;
             if (CurrentState != prev)
                 ReachableTargets = _planner.GetReachableTargets(CurrentState);
         }
@@ -143,79 +120,75 @@ public sealed class ClusterUiCache : IDisposable
 
     private void DrainInventory()
     {
-        using var l = _inventoryReader.Take();
-        foreach (var s in l)
+        foreach (var ev in _bus.ConsumeManaged<AssetInventoryUpdateEvent>())
         {
-            if (!s.IsValid) continue;
-            AvailableScenarios    = DeserializeStringArray(s.Data.LocalScenariosJson);
-            AvailableExercises       = DeserializeStringArray(s.Data.LocalExercisesJson);
-            ArchivedExercises        = DeserializeStringArray(s.Data.ArchivedExercisesJson);
-            UnarchivedLocalExercises = DeserializeStringArray(s.Data.UnarchivedLocalExercisesJson);
+            AvailableScenarios           = ev.LocalScenarios           ?? Array.Empty<string>();
+            AvailableExercises           = ev.LocalExercises           ?? Array.Empty<string>();
+            ArchivedExercises            = ev.ArchivedExercises        ?? Array.Empty<string>();
+            UnarchivedLocalExercises     = ev.UnarchivedLocalExercises ?? Array.Empty<string>();
         }
     }
 
     private void DrainHeartbeats()
     {
-        using var l = _heartbeatReader.Take();
-        foreach (var s in l)
+        foreach (var ev in _bus.ConsumeManaged<NodeHeartbeatEvent>())
         {
-            if (!s.IsValid) continue;
-            _activeNodes[s.Data.NodeId] = s.Data;
-            _nodeReceivedMs[s.Data.NodeId] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            _activeNodes[ev.NodeId] = new NodeHeartbeat
+            {
+                NodeId            = ev.NodeId,
+                SubsystemName     = ev.SubsystemName ?? string.Empty,
+                LocalClusterState = (ClusterState)ev.LocalStateId,
+                WallTicksUtc      = ev.WallTicksUtc,
+            };
+            _nodeReceivedMs[ev.NodeId] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
     }
 
     private void DrainTimeMode()
     {
-        using var l = _timeModeReader.Take();
-        foreach (var s in l)
+        foreach (var ev in _bus.Consume<SwitchTimeModeEvent>())
         {
-            if (!s.IsValid) continue;
-            var isDeterministic = (TimeMode)s.Data.TargetModeInt == TimeMode.Deterministic;
+            var isDeterministic = ev.TargetMode == TimeMode.Deterministic;
             IsPaused = isDeterministic;
-            if (s.Data.TimeScale > 0f)
-                MasterTimeScale = s.Data.TimeScale;
-            if (s.Data.BarrierWallTicks > 0)
-                MasterWallTicks = s.Data.BarrierWallTicks;
-            if (!isDeterministic && s.Data.SimTimeSnapshot > 0.0)
-                _networkSimTime = s.Data.SimTimeSnapshot;
+            if (ev.TimeScale > 0f)
+                MasterTimeScale = ev.TimeScale;
+            if (ev.BarrierWallTicks > 0)
+                MasterWallTicks = ev.BarrierWallTicks;
+            if (!isDeterministic && ev.SimTimeSnapshot > 0.0)
+                _networkSimTime = ev.SimTimeSnapshot;
         }
     }
 
     private void Process2PcNetworkTraffic()
     {
-        // Insert new transactions when PrepareState NodeOpCommand arrives
-        using var cmdList = _nodeOpCmdReader.Take();
-        foreach (var s in cmdList)
+        // Insert new transactions when ExecuteNodeOpIntent arrives
+        foreach (var intent in _bus.ConsumeManaged<ExecuteNodeOpIntent>())
         {
-            if (!s.IsValid) continue;
-
-            // Sniff ManageEpisode Start/Stop to maintain active episodes set
-            if (s.Data.Operation == NodeOpType.StartEpisode)
+            // Sniff ManageEpisode Start/Stop/Forget to maintain active episodes set
+            if (intent.Operation == FdpNodeOpType.StartEpisode
+                && intent.DomainPayload is EpisodeHandlerPayload startEp
+                && startEp.EpisodeId != Guid.Empty)
             {
-                var episodeId = ParseGuidFromPayload(s.Data.PayloadJson, "EpisodeId");
-                if (episodeId != Guid.Empty) _activeEpisodes.Add(episodeId);
+                _activeEpisodes.Add(startEp.EpisodeId);
             }
-            else if (s.Data.Operation == NodeOpType.StopEpisode || s.Data.Operation == NodeOpType.ForgetEpisode)
+            else if ((intent.Operation == FdpNodeOpType.StopEpisode
+                      || intent.Operation == FdpNodeOpType.ForgetEpisode)
+                     && intent.DomainPayload is EpisodeHandlerPayload stopEp)
             {
-                var episodeId = ParseGuidFromPayload(s.Data.PayloadJson, "EpisodeId");
-                if (episodeId != Guid.Empty) _activeEpisodes.Remove(episodeId);
+                _activeEpisodes.Remove(stopEp.EpisodeId);
             }
 
-            //if (s.Data.Operation != NodeOpType.PrepareState) continue;
-
-            var txId = s.Data.TransactionId;
+            var txId = intent.TransactionId;
             if (!_inFlight.ContainsKey(txId))
             {
-                // Parse target Cluster state from payload JSON
+                // Extract target cluster state from typed payload — no JSON parsing required
                 var targetState = ClusterState.Idle;
-                try
-                {
-                    using var doc = JsonDocument.Parse(s.Data.PayloadJson ?? "{}");
-                    if (doc.RootElement.TryGetProperty("TargetState", out var el))
-                        targetState = (ClusterState)el.GetInt32();
-                }
-                catch { }
+                if (intent.DomainPayload is EditLoadHandlerPayload ep)
+                    targetState = (ClusterState)ep.TargetState;
+                else if (intent.DomainPayload is CommitStatePayload cp)
+                    targetState = (ClusterState)cp.TargetStateId;
+                else if (intent.DomainPayload is int raw)
+                    targetState = (ClusterState)raw;
 
                 var tx = new DistributedTransaction
                 {
@@ -226,42 +199,36 @@ public sealed class ClusterUiCache : IDisposable
                 _txHistory.Insert(0, tx);
                 while (_txHistory.Count > 10) _txHistory.RemoveAt(_txHistory.Count - 1);
             }
-            HasInFlightTransaction = _inFlight.Count > 0;
         }
+        HasInFlightTransaction = _inFlight.Count > 0;
 
-        // Append NodeOpStatus ACKs to in-flight transactions
-        using var statusList = _nodeOpStatusReader.Take();
-        foreach (var s in statusList)
+        // Append NodeOpCompletedEvent ACKs to in-flight transactions
+        foreach (var ev in _bus.ConsumeManaged<NodeOpCompletedEvent>())
         {
-            if (!s.IsValid) continue;
-            if (_inFlight.TryGetValue(s.Data.TransactionId, out var tx))
-                tx.NodeResponses[s.Data.NodeId] = s.Data.ResultJson ?? string.Empty;
+            if (_inFlight.TryGetValue(ev.TransactionId, out var tx))
+                tx.NodeResponses[ev.NodeId] = ev.ResultPayload?.ToString() ?? string.Empty;
         }
     }
 
     private void DrainSysOpStatus()
     {
-        using var l = _sysOpStatusReader.Take();
-        foreach (var s in l)
+        foreach (var ev in _bus.ConsumeManaged<ClusterOpCompletedEvent>())
         {
-            if (!s.IsValid) continue;
             // Skip InProgress (non-terminal) status codes
-            if (s.Data.StatusCode == (int)OrchestrationStatusCode.InProgress) continue;
+            if (ev.StatusCode == OrchestrationStatusCode.InProgress) continue;
 
-            bool success = s.Data.StatusCode == (int)OrchestrationStatusCode.Success;
+            bool success = ev.StatusCode == OrchestrationStatusCode.Success;
 
-            // Try an exact match (works when SysOpStatus.RequestId == NodeOpCommand.TransactionId,
-            // e.g. in unit tests or future protocol alignment).
-            if (_inFlight.Remove(s.Data.RequestId, out var matchedTx))
+            // Try an exact match (works when ClusterOpCompletedEvent.RequestId == transaction ID).
+            if (_inFlight.Remove(ev.RequestId, out var matchedTx))
             {
                 matchedTx.Completed = success;
                 matchedTx.IsAborted = !success;
             }
             else if (_inFlight.Count > 0)
             {
-                // Fallback: in production ClusterMaster uses different GUIDs for
-                // TransactionId vs RequestId.  A terminal SysOpStatus means the
-                // operation is done — close all in-flight transactions.
+                // Fallback: a terminal ClusterOpCompletedEvent means the operation is done —
+                // close all in-flight transactions.
                 foreach (var tx in _inFlight.Values)
                 {
                     tx.Completed = success;
@@ -271,26 +238,5 @@ public sealed class ClusterUiCache : IDisposable
             }
             HasInFlightTransaction = _inFlight.Count > 0;
         }
-    }
-
-    private static string[] DeserializeStringArray(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
-        try { return JsonSerializer.Deserialize<string[]>(json) ?? Array.Empty<string>(); }
-        catch { return Array.Empty<string>(); }
-    }
-
-    private static Guid ParseGuidFromPayload(string? json, string propertyName)
-    {
-        if (string.IsNullOrEmpty(json)) return Guid.Empty;
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty(propertyName, out var el) &&
-                Guid.TryParse(el.GetString(), out var id))
-                return id;
-        }
-        catch { }
-        return Guid.Empty;
     }
 }

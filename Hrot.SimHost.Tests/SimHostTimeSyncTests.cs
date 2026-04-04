@@ -1,7 +1,8 @@
+using System;
 using System.Threading;
-using Hrot.Orchestrator;
 using Hrot.SimHost;
 using CycloneDDS.Runtime;
+using ModuleHost.Network.Cyclone.Services;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -10,17 +11,32 @@ namespace Hrot.SimHost.Tests
     public class SimHostTimeSyncTests : IDisposable
     {
         private const uint TestDomain = 210u;
-        private readonly DdsParticipant _allocatorParticipant = new DdsParticipant(TestDomain);
-        private readonly ClusterMaster    _clusterMaster;
+        private readonly DdsParticipant           _allocatorParticipant = new DdsParticipant(TestDomain);
+        private readonly DdsIdAllocatorServer     _idAllocatorServer;
+        private readonly Thread                   _idServerThread;
+        private readonly CancellationTokenSource  _idServerCts;
 
         public SimHostTimeSyncTests()
         {
-            _clusterMaster = new ClusterMaster(_allocatorParticipant);
+            _idAllocatorServer = new DdsIdAllocatorServer(_allocatorParticipant);
+            _idServerCts       = new CancellationTokenSource();
+            _idServerThread    = new Thread(() =>
+            {
+                while (!_idServerCts.IsCancellationRequested)
+                {
+                    _idAllocatorServer.ProcessRequests();
+                    Thread.Sleep(1);
+                }
+            }) { IsBackground = true, Name = "Test-IdAllocServer-" + TestDomain };
+            _idServerThread.Start();
         }
 
         public void Dispose()
         {
-            _clusterMaster.Dispose();
+            _idServerCts.Cancel();
+            _idServerThread.Join(TimeSpan.FromSeconds(2));
+            _idServerCts.Dispose();
+            _idAllocatorServer.Dispose();
             _allocatorParticipant.Dispose();
         }
 

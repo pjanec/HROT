@@ -1,7 +1,6 @@
 using System;
-using System.Threading;
+using Fdp.Kernel;
 using Hrot.NED.Descriptors.Orchestration;
-using CycloneDDS.Runtime;
 using FDP.Toolkit.Orchestration;
 using ClusterState = Hrot.NED.Descriptors.Orchestration.ClusterState;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
@@ -16,7 +15,6 @@ namespace Hrot.Orchestrator.Tests;
 [Collection("OrchestratorTests")]
 public sealed class ClusterMasterTimeControlTests
 {
-    private const int TestDomain = 15;
 
     private static ClusterConfiguration NoMandatoryConfig() => new ClusterConfiguration
     {
@@ -33,9 +31,8 @@ public sealed class ClusterMasterTimeControlTests
     [Fact]
     public void TimeControlRequested_FiresOnPauseTime()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(200);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         int fireCount = 0;
         ClusterOpType? capturedOp = null;
@@ -66,9 +63,8 @@ public sealed class ClusterMasterTimeControlTests
     [Fact]
     public void TimeControlRequested_BypassesTransactionHistory()
     {
-        using var participant = new DdsParticipant(TestDomain);
-        using var exercise       = new ClusterMaster(participant, NoMandatoryConfig());
-        Thread.Sleep(200);
+        var bus = new FdpEventBus();
+        using var exercise = new ClusterMaster(bus, NoMandatoryConfig());
 
         exercise.HandleClusterOpRequest(new ClusterOpRequest
         {
