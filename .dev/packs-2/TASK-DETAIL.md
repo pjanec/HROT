@@ -1007,3 +1007,313 @@ setup and integration validation.)*
 4. *(UI)* `EditorToolbarPanel` toggle calls `IEditorLogic` method; no direct kernel reference
    in the panel.
 
+---
+
+## Phase 6: CGF Subsystem Execution Profile & Headless Integration Tests
+
+**Design Reference:** [DESIGN.md §Phase 6](./DESIGN.md#phase-6-cgf-subsystem-execution-profile--headless-integration-tests)
+
+---
+
+### PACK2-R001 — Extend `RunMode` with `Editor` and `Demo`; Update Configuration Validation
+
+**Design Reference:** DESIGN.md §6.A
+
+**Scope:**
+
+- In `Hrot.ClusterRunner/Configuration/RunMode.cs`:
+  - Add `Editor = 1 << 6` (= 64) flag.
+  - Add `Demo = Orchestrator | SimHost | CGF | IG | ExCon` macro (alias for `All`; rename `All`
+    to `Demo` or keep both for backward compatibility; see constraint below).
+- In `Hrot.ClusterRunner/Configuration/HrotRunnerConfiguration.cs`:
+  - Add `"editor"` case to the `--mode` argument parser → `RunMode.Editor`.
+  - Add `"demo"` case → `RunMode.Demo`.
+  - Add validation: if `RunMode.Editor` is combined with any of `IG`, `ExCon`, `Orchestrator`,
+    or `CGF`, throw a `ConfigurationException` with a descriptive message such as:
+    `"RunMode.Editor must not be combined with distributed flags (IG, ExCon, Orchestrator, CGF)."`
+
+**Files:**
+
+| File | Change |
+|------|--------|
+| `Hrot.ClusterRunner/Configuration/RunMode.cs` | Add `Editor = 64`; add `Demo` macro |
+| `Hrot.ClusterRunner/Configuration/HrotRunnerConfiguration.cs` | Add `"editor"` + `"demo"` parse cases; add validation guard |
+
+**Constraints:**
+
+- Keep `All` as an alias for `Demo` (or remove `All` only if no existing code references it —
+  check with a workspace-wide grep before deleting).
+- `RunMode.CI` is unchanged.
+- `RunMode.Editor` must not start a `DdsParticipant` — verify in `Program.cs` that the DDS
+  init path is gated on `mode != RunMode.Editor`.
+
+**Success Conditions:**
+
+1. *(Unit test — parsing)* Parse `"--mode editor"` → assert `config.Mode == RunMode.Editor`.
+2. *(Unit test — parsing)* Parse `"--mode demo"` → assert `config.Mode == RunMode.Demo`.
+3. *(Unit test — validation)* Provide `RunMode.Editor | RunMode.IG` → assert
+   `ConfigurationException` is thrown with a message mentioning the combination.
+4. *(Build)* Zero errors after adding the new flag; `All` reference sites compile cleanly.
+
+---
+
+### PACK2-R002 — Complete `CgfSubsystem` Brain-Role Pack Installation
+
+**Design Reference:** DESIGN.md §6.B
+
+**Scope:**
+
+- In `Hrot.ClusterRunner/Services/CgfSubsystem.cs`, extend `Initialize` to install the full
+  Brain-role pack set on `CgfApplication`:
+
+  ```csharp
+  _app = new CgfApplication(domainId, nodeId: 400);
+  _app.Install(new CgfLogicPack());
+  _app.Install(new EntityStatesIngressPack(PackRole.Ingress));
+  _app.Install(new ActuatorIntentsEgressPack(PackRole.Egress));
+  ```
+
+- If `PackRole` does not yet exist, define it as:
+
+  ```csharp
+  public enum PackRole { Ingress, Egress }
+  ```
+
+  in `Hrot.Map.Common` (or `Hrot.Common`) alongside the composite pack classes (introduced in
+  PACK2-P002).
+
+- Ensure `CgfSubsystem.Update` still calls `_app.Tick()` unchanged.
+
+**Files:**
+
+| File | Change |
+|------|--------|
+| `Hrot.ClusterRunner/Services/CgfSubsystem.cs` | Extend `Initialize` with three pack installations |
+| `Hrot.Map.Common/PackRole.cs` (or `Hrot.Common`) | Define `PackRole` enum if not already present |
+| `Hrot.Map.Common/Packs/EntityStatesIngressPack.cs` | Accept `PackRole` constructor argument if not already parameterised |
+| `Hrot.Map.Common/Packs/ActuatorIntentsEgressPack.cs` | Accept `PackRole` constructor argument if not already parameterised |
+
+**Constraints:**
+
+- **Prerequisite:** PACK2-P002 (composite pack classes) must be complete before this task.
+- The `PackRole.Ingress` construction must register only DDS reader subscriptions — no writer
+  registrations — and vice-versa for `PackRole.Egress`.
+- `CgfSubsystem` must not hold any pack instances after `Initialize` returns (ownership
+  transfers to the kernel).
+
+**Success Conditions:**
+
+1. *(Build)* `dotnet build Hrot.ClusterRunner` succeeds with zero errors.
+2. *(Unit test — pack composition)* Instantiate a `CgfApplication` in test isolation; call
+   `CgfSubsystem.Initialize`. Use the kernel introspection API to assert exactly three modules
+   are registered: `CgfLogicPack`, `EntityStatesIngressPack` (Ingress), `ActuatorIntentsEgressPack`
+   (Egress).
+3. *(Integration — standalone mode)* Start ClusterRunner with `--mode cgf` in a test domain;
+   pump 20 frames; assert no exception and the heartbeat is published (existing behaviour
+   preserved).
+
+---
+
+### PACK2-R003 — Scaffold `CgfHarness` and `EditorHarness` Test Infrastructure
+
+**Design Reference:** DESIGN.md §6.C
+
+**Scope:**
+
+- Create `Hrot.ClusterRunner.Integration.Tests/CgfHarness.cs`:
+  - Domain isolation: `DomainId = Interlocked.Increment(ref _domainCounter)` from the same
+    static counter used by `HrotRunnerHarness`.
+  - Expose `CgfSvc` property of type `CgfSubsystem`.
+  - Provide `PumpFrames(int n)` and `PumpUntil(Func<bool> condition, int timeoutMs)`.
+  - **Shared-domain constructor**: an overload `CgfHarness(int domainId)` that accepts an
+    externally-allocated domain ID, used in `DistributedBrainMuscleIntegrationTests` (IT-4)
+    to share a CycloneDDS loopback domain with a `HrotRunnerHarness` instance.
+
+- Create `Hrot.ClusterRunner.Integration.Tests/EditorHarness.cs`:
+  - Instantiates `ModuleHostKernel` with `SimHostCoreLogicPack` + `CgfLogicPack` +
+    `ScenarioEditorModule`.
+  - Does **not** allocate a CycloneDDS domain ID (no DDS participant).
+  - Expose `Kernel`, `Repo` (`EntityRepository`), `Bus` (`FdpEventBus`), `Editor`
+    (`IEditorLogic`).
+  - Accepts an optional mock `IDdsWriter<CreateEntityRequest>` for asserting no-traffic in
+    offline tests.
+  - Provide `PumpFrames(int n)` and `PumpUntil(Func<bool> condition, int timeoutMs)`.
+
+**Files:**
+
+| File | Change |
+|------|--------|
+| `Hrot.ClusterRunner.Integration.Tests/CgfHarness.cs` | New file |
+| `Hrot.ClusterRunner.Integration.Tests/EditorHarness.cs` | New file |
+
+**Constraints:**
+
+- `EditorHarness` must not import `CycloneDDS.*` namespaces (offline only).
+- `CgfHarness` warmup frame count and post-warmup settle must match `HrotRunnerHarness`
+  defaults (`WarmupFrames = 20`, `PostWarmupSettleMs = 200`) for consistent test behaviour.
+
+**Success Conditions:**
+
+1. *(Build)* `dotnet build Hrot.ClusterRunner.Integration.Tests` succeeds.
+2. *(Smoke test — CgfHarness)* Instantiate `CgfHarness`; call `PumpFrames(20)`; assert no
+   exception.
+3. *(Smoke test — EditorHarness)* Instantiate `EditorHarness`; assert `Repo` is non-null;
+   `PumpFrames(5)`; assert no exception.
+4. *(Domain isolation)* Two independently constructed `CgfHarness` instances have different
+   `DomainId` values.
+5. *(Shared-domain wiring)* Constructing `CgfHarness(domainId: 150)` and
+   `new HrotRunnerHarness(RunMode.SimHost, domainId: 150)` results in both using domain 150.
+
+---
+
+### PACK2-R004 — `OfflineEditorIntegrationTests` (IT-1)
+
+**Design Reference:** DESIGN.md §6.D — IT-1
+
+**Scope:**
+
+Create `Hrot.ClusterRunner.Integration.Tests/OfflineEditorIntegrationTests.cs` with three test
+methods exercising local command routing via `EditorHarness`:
+
+| Test Method | Bus Event Published | Assert |
+|-------------|--------------------|----|
+| `SpawnCommand_LocalRepo_NoNetworkTraffic` | `SpawnEntityCommand` | `Repo.EntityCount == 1`; mock DDS writer call count == 0 |
+| `EditCommand_UpdatesRepoInPlace` | `UpdateEntityCommand` (new `SimTransform`) | Entity `SimTransform` position matches update; DDS call count == 0 |
+| `DeleteCommand_RemovesEntityFromRepo` | `DestroyEntityCommand` | `Repo.EntityCount == 0`; DDS call count == 0 |
+
+**Prerequisite:** PACK2-R003 (`EditorHarness` must exist).
+
+**Files:**
+
+| File | Change |
+|------|--------|
+| `Hrot.ClusterRunner.Integration.Tests/OfflineEditorIntegrationTests.cs` | New file |
+
+**Constraints:**
+
+- Each test must call `harness.PumpUntil(...)` rather than `PumpFrames(n)` to avoid
+  flakiness from frame-count assumptions.
+- The mock `IDdsWriter<CreateEntityRequest>` injected at `EditorHarness` construction must be
+  a simple `RecordingDdsWriter` (a test double that counts calls), not a full mock framework
+  mock, to keep the test file self-contained.
+- Tests must be independent — no shared state between methods. Each instantiates its own
+  `EditorHarness`.
+
+**Success Conditions:**
+
+1. *(Spawn)* After publishing `SpawnEntityCommand` and pumping until `Repo.EntityCount == 1`:
+   assert exactly one entity in the repo; assert the recorded DDS writer was never called.
+2. *(Edit)* After spawning and publishing `UpdateEntityCommand` with a 100-metre north offset:
+   assert the entity's `SimTransform` latitude/longitude reflects the offset within 1e-4
+   degree tolerance; assert DDS writer call count == 0.
+3. *(Delete)* After spawning and publishing `DestroyEntityCommand`: assert `Repo.EntityCount == 0`;
+   assert DDS writer call count == 0.
+4. *(Test isolation)* All three tests pass when run in random order (no shared static state).
+
+---
+
+### PACK2-R005 — `EditorFileIOIntegrationTests` (IT-2) and `FeatureSwitchRcuIntegrationTests` (IT-3)
+
+**Design Reference:** DESIGN.md §6.D — IT-2 and IT-3
+
+**Scope:**
+
+**Part A — `EditorFileIOIntegrationTests`:**
+
+Create `Hrot.ClusterRunner.Integration.Tests/EditorFileIOIntegrationTests.cs` with:
+
+| Test Method | Scenario | Assert |
+|-------------|----------|--------|
+| `NewScenario_FiresWorldResetEventBeforeClear` | Subscribe `WorldResetEvent`; call `IEditorLogic.NewScenario()` | Event handler was called; `Repo.EntityCount == 0`; `GlobalTime.T == 0` |
+| `SaveScenario_SubsystemTypeIsHrotScenario` | 5-entity repo; call `IEditorLogic.SaveScenario(tempPath)` | Parsed JSON `Header.SubsystemType == "Hrot.Scenario"` |
+| `LoadScenario_AcceptsHrotSimHostFile` | Write a JSON file with `"Hrot.SimHost"` header; call `IEditorLogic.LoadScenario(...)` | Entities populated; no exception |
+| `LoadScenario_RejectsUnknownSubsystemType` | Write a JSON file with `"UnknownApp"` header | Exception or logged error; `Repo.EntityCount == 0` after load attempt |
+
+**Part B — `FeatureSwitchRcuIntegrationTests`:**
+
+Create `Hrot.ClusterRunner.Integration.Tests/FeatureSwitchRcuIntegrationTests.cs` using an
+`EditorHarness` with an injected mock DDS writer:
+
+| Test Method | Scenario | Assert |
+|-------------|----------|--------|
+| `SwitchToExternal_EjectsLogicPacks_InstallsTranslators` | Call `SwitchToExternalAsync()` | Kernel no longer has `CgfLogicPack`; kernel has `ActuatorIntentsEgressPack` |
+| `SwitchToExternal_SpawnCommand_ReachesDds` | External mode; publish `SpawnEntityCommand` | Mock DDS writer call count == 1 (`CreateEntityRequest`) |
+| `SwitchToInternal_RestoresLogicPacks_EjectsTranslators` | External → Internal; publish `SpawnEntityCommand` | Entity in local repo; DDS writer call count == 0 |
+| `RapidToggle_NoRaceCondition` | Toggle External→Internal 5 times; assert after each | `Repo.EntityCount` consistent; no duplicate entities; no exception |
+
+**Prerequisite:** PACK2-R003 (`EditorHarness`), PACK2-C002, PACK2-C003 (Feature Switch).
+
+**Files:**
+
+| File | Change |
+|------|--------|
+| `Hrot.ClusterRunner.Integration.Tests/EditorFileIOIntegrationTests.cs` | New file |
+| `Hrot.ClusterRunner.Integration.Tests/FeatureSwitchRcuIntegrationTests.cs` | New file |
+
+**Constraints:**
+
+- File I/O tests must use `System.IO.Path.GetTempFileName()` and clean up in a `finally` block
+  or `IDisposable.Dispose` on `EditorHarness`.
+- Feature Switch tests must call `await SwitchToExternalAsync()` / `await SwitchToInternalAsync()`
+  (async RCU, not a synchronous toggle).
+
+**Success Conditions:**
+
+All 8 test methods (4 file I/O + 4 feature switch) pass individually and as a complete suite
+without ordering dependency.
+
+---
+
+### PACK2-R006 — `DistributedBrainMuscleIntegrationTests` (IT-4)
+
+**Design Reference:** DESIGN.md §6.D — IT-4
+
+**Scope:**
+
+Create `Hrot.ClusterRunner.Integration.Tests/DistributedBrainMuscleIntegrationTests.cs`.
+
+This test class pairs one `HrotRunnerHarness` (SimHost-only) with one `CgfHarness`, both
+sharing the same CycloneDDS loopback domain ID:
+
+```csharp
+int domainId = Interlocked.Increment(ref _domainCounter);
+using var simHost = new HrotRunnerHarness(RunMode.SimHost, domainId);
+using var cgf = new CgfHarness(domainId);
+```
+
+Both harnesses perform warmup independently, then tests exercise distributed discovery.
+
+| Test Method | Scenario | Assert |
+|-------------|----------|--------|
+| `SpawnedEntity_ReachesToCgf_ViaDds` | `simHost.SimHost.TestHook_SpawnEntity(tkbType, pos)` | `PumpUntil(() => cgf.CgfSvc.GhostEntityMap.ContainsKey(networkId), timeoutMs: 5000)` passes |
+| `CgfAiIntent_ReachesSimHost_ViaDds` | Spawn + pump until CGF warmup | `PumpUntil(() => simHost.SimHost.TestHook_EntityMap[networkId].CurrentMission != null, 10_000)` passes |
+| `DestroyedEntity_PurgedFromCgfGhostRepo` | Spawn, confirm in CGF; then publish `DestroyEntityCommand` | `PumpUntil(() => !cgf.CgfSvc.GhostEntityMap.ContainsKey(networkId), 5000)` passes |
+
+**Prerequisite:** PACK2-R002 (CGF Brain-role packs installed), PACK2-R003 (`CgfHarness`).
+
+**Files:**
+
+| File | Change |
+|------|--------|
+| `Hrot.ClusterRunner.Integration.Tests/DistributedBrainMuscleIntegrationTests.cs` | New file |
+
+**Constraints:**
+
+- `GhostEntityMap` (or equivalent TestHook property) must be exposed on `CgfSubsystem`
+  in the same style as `SimHostSubsystem.TestHook_EntityMap`. If it does not exist, add it
+  in this task (scope extends to `CgfSubsystem.cs`).
+- The test must not use `Thread.Sleep` or fixed delays; all waiting must be via `PumpUntil`.
+- `timeoutMs` values (5 000 ms for DDS propagation, 10 000 ms for AI mission assignment)
+  must be documented as constants at the top of the test class.
+- Both harnesses must be disposed in a `finally` block to prevent domain leaks.
+
+**Success Conditions:**
+
+1. *(Spawn reaches CGF)* `SpawnedEntity_ReachesToCgf_ViaDds` passes within the 5-second
+   timeout on a developer workstation.
+2. *(AI intent round-trip)* `CgfAiIntent_ReachesSimHost_ViaDds` passes within 10 seconds.
+3. *(Destroy propagation)* `DestroyedEntity_PurgedFromCgfGhostRepo` passes within 5 seconds.
+4. *(Isolation)* Running the 3 tests in any order or in parallel with other test classes does
+   not cause CycloneDDS domain conflicts (each run of `DistributedBrainMuscleIntegrationTests`
+   uses a freshly incremented domain ID).
+

@@ -673,3 +673,174 @@ sequenceDiagram
 | `Hrot.IG` | Adds reference to `Hrot.ScenarioEditor`; removes tool source files |
 | `Hrot.ExCon` | No change (panels stay; do not share with Editor) |
 | `Hrot.Editor` | References `Hrot.ScenarioEditor`, `FDP.Toolkit.NetworkSpawning`, `Hrot.Map.Common`, `Hrot.SimHost` (for packs) |
+
+---
+
+## Phase 6: CGF Subsystem Execution Profile & Headless Integration Tests
+
+**Goal:** Complete the `CgfSubsystem` deployment profile so CGF acts as a true Brain node in
+both distributed and standalone ClusterRunner configurations; add `RunMode.Editor` and
+`RunMode.Demo` to the flag set; extend the integration test suite with four scenarios covering
+offline editing, Feature Switch RCU, and distributed Brain/Muscle execution.
+
+### 6.A — Extend `RunMode` with `Editor` and `Demo`
+
+`RunMode.cs` currently defines:
+
+```csharp
+SimHost = 1, IG = 2, ExCon = 4, Orchestrator = 8, CGF = 16, CI = 32
+All = Orchestrator | SimHost | IG | ExCon | CGF
+```
+
+Add two new entries:
+
+| Name | Value | Meaning |
+|------|-------|---------|
+| `Editor` | `1 << 6` (= 64) | Standalone offline Editor: `ScenarioEditorModule` + `SimHostCoreLogicPack` + `CgfLogicPack`. No DDS participant started. Headless-safe (no Raylib window required for CI). |
+| `Demo` | `Orchestrator\|SimHost\|CGF\|IG\|ExCon` | Full cluster on a single machine (alias for `All`; renamed to express deployment intent). |
+
+`HrotRunnerConfiguration.cs` must reject any `--mode` value that combines `Editor` with a
+distributed flag (`IG`, `ExCon`, `Orchestrator`, `CGF`). The CLI argument `--mode editor` maps
+to `RunMode.Editor`. The `CI` flag is unchanged and continues to drive `MinimalCIScenario`.
+
+### 6.B — Complete `CgfSubsystem` Brain-Role Pack Installation
+
+`CgfSubsystem.Initialize` today creates a `CgfApplication(domainId, nodeId: 400)` and calls
+`_app.Tick()` in `Update`. It acts only as a heartbeating `ClusterSlave` — it does not install
+any logic or translator packs.
+
+**The Fix:**
+
+Extend `CgfSubsystem.Initialize` to install the full Brain-role pack set:
+
+```csharp
+_app = new CgfApplication(domainId, nodeId: 400);
+_app.Install(new CgfLogicPack());                              // BTree, HSM, MissionControl
+_app.Install(new EntityStatesIngressPack(PackRole.Ingress));   // DDS reader: ghost entities from SimHost
+_app.Install(new ActuatorIntentsEgressPack(PackRole.Egress));  // DDS writer: AI intents → SimHost
+```
+
+`PackRole` is an enum that controls translator direction — `Ingress` installs DDS readers;
+`Egress` installs DDS writers. The same `EntityStatesIngressPack` and `ActuatorIntentsEgressPack`
+composite classes introduced in Phase 0 are reused, parameterised by `PackRole` at construction
+time.
+
+After this fix, a standalone CGF node started with `--mode cgf` operates as a complete Brain node:
+
+1. Receives entity state updates from SimHost via `EntityStatesIngressPack` DDS readers.
+2. Runs AI logic (`CgfLogicPack`) on the ghost entities to produce actuator intents.
+3. Publishes actuator intents back over DDS via `ActuatorIntentsEgressPack` DDS writers.
+
+> **Why was this deferred?** Phase 0 defined the pack wrappers. Phase 6 activates them inside
+> the `CgfSubsystem` adapter that lives in the ClusterRunner, completing the circuit.
+
+### 6.C — `CgfHarness` and `EditorHarness` for Integration Tests
+
+Two new test harness types following the `HrotRunnerHarness` conventions are added to
+`Hrot.ClusterRunner.Integration.Tests/`:
+
+**`CgfHarness`:**
+
+- Creates a domain-isolated `CgfSubsystem` using the same `Interlocked.Increment` domain
+  counter (`_domainCounter` starting at 100) as the main harness — ensuring each test class
+  gets a private CycloneDDS domain.
+- Exposes a `CgfSvc` property of type `CgfSubsystem` for TestHook-based assertions.
+- When used in distributed scenarios, **shares the same domain ID** as the paired
+  `HrotRunnerHarness` instance so both nodes discover each other via DDS loopback.
+- Provides `PumpFrames(n)` and `PumpUntil(condition, timeoutMs)` helpers.
+
+**`EditorHarness`:**
+
+- Creates a `ModuleHostKernel` with `SimHostCoreLogicPack` + `CgfLogicPack` +
+  `ScenarioEditorModule` — the same composition as the HROT Editor offline monolith (Phase 5.A).
+- Does **not** start any DDS participant (offline / in-process only). No CycloneDDS domain is
+  allocated.
+- Exposes `Kernel`, `Repo` (`EntityRepository`), `Bus` (`FdpEventBus`), and the `IEditorLogic`
+  facade for direct test control.
+- Provides `PumpFrames(n)` and `PumpUntil(condition, timeoutMs)` helpers.
+
+### 6.D — Integration Test Suite
+
+Four new integration test classes are added to `Hrot.ClusterRunner.Integration.Tests/`.
+All follow the existing domain-isolation pattern (static domain counter, warmup frames).
+
+#### IT-1: `OfflineEditorIntegrationTests` — Local Memory-Bus Command Routing
+
+**What it tests:** The `EditorHarness` (all-in-one offline) processes `SpawnEntityCommand`,
+`UpdateEntityCommand`, and `DestroyEntityCommand` entirely in local ECS memory. Because no
+`ActuatorIntentsEgressPack` is installed in offline mode, commands must not reach any DDS
+writer — asserted via a mock writer injected at harness construction.
+
+| Test | Scenario | Assert |
+|------|----------|--------|
+| `SpawnCommand_LocalRepo_NoNetworkTraffic` | Publish `SpawnEntityCommand` to bus | Entity in repo; zero DDS `CreateEntityRequest` writes |
+| `EditCommand_UpdatesRepoInPlace` | Publish `UpdateEntityCommand` with new `SimTransform` | Repo entity position updated; no DDS write |
+| `DeleteCommand_RemovesEntityFromRepo` | Publish `DestroyEntityCommand` | `repo.EntityCount` decremented by 1; no DDS write |
+
+#### IT-2: `EditorFileIOIntegrationTests` — Save / Load / New Lifecycle
+
+**What it tests:** `ScenarioEditorModule` file operations (via `IEditorLogic`) publish
+`WorldResetEvent` in the correct order, stamp the correct `SubsystemType`, and accept
+backwards-compatible file headers.
+
+| Test | Scenario | Assert |
+|------|----------|--------|
+| `NewScenario_FiresWorldResetEventBeforeClear` | Subscribe `WorldResetEvent`; call `IEditorLogic.NewScenario()` | Event fired; `EntityCount == 0`; `GlobalTime.T == 0` |
+| `SaveScenario_SubsystemTypeIsHrotScenario` | Save 5-entity repo to temp file | JSON `Header.SubsystemType == "Hrot.Scenario"` (not `"Hrot.Editor"`) |
+| `LoadScenario_AcceptsHrotSimHostFile` | Load a file stamped `"Hrot.SimHost"` | Entities populated; no exception |
+| `LoadScenario_RejectsUnknownSubsystemType` | Load a file stamped `"UnknownApp"` | Exception/error logged; repo remains empty |
+
+#### IT-3: `FeatureSwitchRcuIntegrationTests` — RCU Topology Swap
+
+**What it tests:** The `ModuleHostKernel` hot-plug API (Phase 5.D/5.E) correctly removes
+Logic Packs and installs Translator Packs in one atomic RCU reconfiguration, without observable
+data loss or duplicate message delivery. Uses the `EditorHarness` with a mock DDS writer
+to observe pack transitions.
+
+| Test | Scenario | Assert |
+|------|----------|--------|
+| `SwitchToExternal_EjectsLogicPacks_InstallsTranslators` | Call `SwitchToExternalAsync()` | `CgfLogicPack` module absent; `ActuatorIntentsEgressPack` module present |
+| `SwitchToExternal_SpawnCommand_ReachsDds` | In External mode, publish `SpawnEntityCommand` | Mock DDS writer received one `CreateEntityRequest` |
+| `SwitchToInternal_RestoresLogicPacks_EjectsTranslators` | `SwitchToExternal` → `SwitchToInternal`; publish `SpawnEntityCommand` | Entity in local repo; zero DDS writes |
+| `RapidToggle_NoRaceCondition` | Toggle External→Internal 5 times; publish `SpawnEntityCommand` after each | Repo entity count monotonically correct; no duplicate entities; no stale handler registrations |
+
+#### IT-4: `DistributedBrainMuscleIntegrationTests` — CGF + SimHost Parallel
+
+**What it tests:** A `CgfHarness` and a `HrotRunnerHarness` (SimHost-only) run in the same
+CycloneDDS loopback domain. An entity is spawned on the SimHost side; the CGF node receives
+its state; runs AI; and emits an `ActuatorIntent` on DDS that the SimHost picks up.
+
+```
+SimHost Harness ──DDS loopback (shared domainId)──▶ CgfHarness
+     │  EntityMaster + WorldPos writes                  │
+     │◀─────── ActuatorIntent writes ─────────────────-─┘
+```
+
+| Test | Scenario | Assert |
+|------|----------|--------|
+| `SpawnedEntity_ReachesToCgf_ViaDds` | Spawn entity in SimHost harness; pump frames | CGF ghost repo contains entity with matching `NetworkId` |
+| `CgfAiIntent_ReachesSimHost_ViaDds` | Spawn + pump until AI mission assigned in CGF | `SimHost.TestHook_EntityMap[networkId].CurrentMission != null` (via `PumpUntil`) |
+| `DestroyedEntity_PurgedFromCgfGhostRepo` | Publish `DestroyEntityCommand` in SimHost; pump frames | CGF ghost repo no longer contains the entity |
+
+---
+
+## Data Contract Update (Phase 6)
+
+The following entries are added to the event/type inventory:
+
+| Type | Namespace | New? | Notes |
+|------|-----------|------|-------|
+| `RunMode.Editor` | `Hrot.ClusterRunner.Configuration` | ✅ New | Offline Editor flag (= 64); no DDS participant |
+| `RunMode.Demo` | `Hrot.ClusterRunner.Configuration` | ✅ New | Macro = `All` (alias for full cluster on one machine) |
+| `PackRole` enum | `Hrot.Map.Common` (or `Hrot.Common`) | ✅ New | `Ingress` / `Egress` direction selector for composite packs |
+
+## New Test Classes (Phase 6)
+
+| Class | Location |
+|-------|----------|
+| `CgfHarness` | `Hrot.ClusterRunner.Integration.Tests/` |
+| `EditorHarness` | `Hrot.ClusterRunner.Integration.Tests/` |
+| `OfflineEditorIntegrationTests` | `Hrot.ClusterRunner.Integration.Tests/` |
+| `EditorFileIOIntegrationTests` | `Hrot.ClusterRunner.Integration.Tests/` |
+| `FeatureSwitchRcuIntegrationTests` | `Hrot.ClusterRunner.Integration.Tests/` |
+| `DistributedBrainMuscleIntegrationTests` | `Hrot.ClusterRunner.Integration.Tests/` |
