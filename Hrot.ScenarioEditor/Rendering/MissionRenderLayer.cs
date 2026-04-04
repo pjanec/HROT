@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text.Json;
 using FDP.Toolkit.Behavior.Components;
 using Hrot.IG.Components;
@@ -10,7 +10,7 @@ using Fdp.Modules.Geographic.Transforms;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.IG.Systems;
+namespace Hrot.ScenarioEditor.Rendering;
 
 public class MissionRenderLayer : IMapLayer
 {

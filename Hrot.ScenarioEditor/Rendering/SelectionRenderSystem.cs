@@ -1,5 +1,5 @@
-using System.Numerics;
-using Hrot.IG.Adapters;
+﻿using System.Numerics;
+using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Abstractions;
@@ -7,7 +7,7 @@ using FDP.Toolkit.Vis2D.Components;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.IG.Systems;
+namespace Hrot.ScenarioEditor.Rendering;
 
 /// <summary>
 /// PostRender-equivalent overlay layer that draws selection rings for every entity
@@ -17,7 +17,7 @@ namespace Hrot.IG.Systems;
 /// the <c>MapCanvas.Draw()</c> scope (within <c>BeginMode2D</c>), where coordinates
 /// and radii are automatically scaled by the camera zoom.
 ///
-/// Visual contract (§CODE-STANDARDS §1 — all sizes from constants):
+/// Visual contract (Â§CODE-STANDARDS Â§1 â€” all sizes from constants):
 /// <list type="bullet">
 ///   <item>
 ///     Primary selection (<see cref="SelectionState.IsPrimarySelection"/> = <c>true</c>):
@@ -29,7 +29,7 @@ namespace Hrot.IG.Systems;
 ///   </item>
 /// </list>
 ///
-/// Zero allocations in <see cref="Draw"/> (§CODE-STANDARDS §4):
+/// Zero allocations in <see cref="Draw"/> (Â§CODE-STANDARDS Â§4):
 /// all ECS iteration is plain <c>foreach</c> over the pre-built query.
 /// </summary>
 public class SelectionRenderSystem : IMapLayer
@@ -62,11 +62,11 @@ public class SelectionRenderSystem : IMapLayer
     }
 
     /// <inheritdoc/>
-    public void Update(float dt) { /* No per-frame state — rendering only. */ }
+    public void Update(float dt) { /* No per-frame state â€” rendering only. */ }
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Called inside <c>MapCanvas.Draw()</c> → <c>Camera.BeginMode()</c>.
+    /// Called inside <c>MapCanvas.Draw()</c> â†’ <c>Camera.BeginMode()</c>.
     /// Coordinates are in world space; the camera applies zoom automatically.
     /// </remarks>
     public void Draw(RenderContext ctx)

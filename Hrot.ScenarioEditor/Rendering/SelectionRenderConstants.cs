@@ -1,8 +1,8 @@
-namespace Hrot.IG.Systems;
+﻿namespace Hrot.ScenarioEditor.Rendering;
 
 /// <summary>
 /// Named constants for <see cref="SelectionRenderSystem"/>
-/// (§CODE-STANDARDS §1 — no magic numbers in production code).
+/// (Â§CODE-STANDARDS Â§1 â€” no magic numbers in production code).
 /// </summary>
 public static class SelectionRenderConstants
 {
@@ -17,7 +17,7 @@ public static class SelectionRenderConstants
     /// </summary>
     public const int AlwaysVisibleLayerBitIndex = -1;
 
-    // ── Primary selection fill colour (green, semi-transparent) ──────────────
+    // â”€â”€ Primary selection fill colour (green, semi-transparent) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>Red channel of the primary-selection fill circle.</summary>
     public const byte PrimaryFillR = 0;

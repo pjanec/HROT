@@ -1,7 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Hrot.IG.Tools;
+using Hrot.ScenarioEditor.Tools;
 using Hrot.Map.Common.Components;
 using Fdp.Kernel;
 using Raylib_cs;
@@ -9,7 +9,7 @@ using Raylib_cs;
 namespace Hrot.IG.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="RouteEditTool"/> — ROUTES1-T012.
+/// Unit tests for <see cref="RouteEditTool"/> â€” ROUTES1-T012.
 /// Also covers the <c>GetSelectedWaypointRef</c> integration point used by
 /// <c>WaypointEditorPanel</c> (ROUTES1-T013).
 ///
@@ -20,9 +20,9 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class RouteEditToolTests
 {
-    // ── Test constants (§CODE-STANDARDS §1) ───────────────────────────────────
+    // â”€â”€ Test constants (Â§CODE-STANDARDS Â§1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    // Three waypoints at well-known canvas positions (XZ plane → X, Z).
+    // Three waypoints at well-known canvas positions (XZ plane â†’ X, Z).
     private static readonly Vector3 Wp0Pos = new Vector3(100f, 0f, 100f);
     private static readonly Vector3 Wp1Pos = new Vector3(200f, 0f, 200f);
     private static readonly Vector3 Wp2Pos = new Vector3(300f, 0f, 150f);
@@ -38,12 +38,12 @@ public class RouteEditToolTests
     // Click far from all waypoints.
     private static readonly Vector2 FarClick = new Vector2(700f, 700f);
 
-    // Mid-point of segment Wp0→Wp1 (for insertion test).
+    // Mid-point of segment Wp0â†’Wp1 (for insertion test).
     private static Vector2 SegmentMidpoint => new Vector2(
         (Wp0Pos.X + Wp1Pos.X) / 2f + 1f, // nudge 1 px inside pick radius
         (Wp0Pos.Z + Wp1Pos.Z) / 2f);
 
-    // ── Factory helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Factory helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static RoutePlan MakeThreeWaypointPlan()
     {
@@ -68,9 +68,9 @@ public class RouteEditToolTests
         return tool;
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // OnEnter — ghost initialisation
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // OnEnter â€” ghost initialisation
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// After <see cref="RouteEditTool.OnEnter"/> the ghost list must be a copy of
@@ -89,7 +89,7 @@ public class RouteEditToolTests
 
     /// <summary>
     /// <see cref="RouteEditTool.OnEnter"/> must reset <see cref="RouteEditTool.SelectedVertexIndex"/>
-    /// to −1 (no selection).
+    /// to â’1 (no selection).
     /// </summary>
     [Fact]
     public void OnEnter_ResetsSelectedVertexIndex()
@@ -99,9 +99,9 @@ public class RouteEditToolTests
         Assert.Equal(-1, tool.SelectedVertexIndex);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // HandleClick — vertex selection
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // HandleClick â€” vertex selection
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// A left-click within <see cref="RouteEditToolConstants.VertexPickRadius"/> of
@@ -118,7 +118,7 @@ public class RouteEditToolTests
     }
 
     /// <summary>
-    /// A left-click on the midpoint of the segment Wp0→Wp1 (outside vertex pick
+    /// A left-click on the midpoint of the segment Wp0â†’Wp1 (outside vertex pick
     /// radius) must insert a new waypoint at index 1, shifting Wp1 to index 2.
     /// The inserted waypoint inherits <c>TargetSpeed</c> from Wp0 (index 0).
     /// </summary>
@@ -155,9 +155,9 @@ public class RouteEditToolTests
         Assert.Equal(-1, tool.SelectedVertexIndex);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // HandleClick — right-click commit
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // HandleClick â€” right-click commit
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// A right-click must invoke the commit callback with the entity and a snapshot
@@ -211,9 +211,9 @@ public class RouteEditToolTests
         Assert.NotSame(first, second);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // HandleKeyPressed — delete
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // HandleKeyPressed â€” delete
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// Pressing <c>Delete</c> when vertex 1 is selected must remove it from the
@@ -248,9 +248,9 @@ public class RouteEditToolTests
         Assert.Equal(3, tool.GhostWaypoints.Count);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // HandleKeyPressed — escape
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // HandleKeyPressed â€” escape
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// Pressing <c>Escape</c> must NOT invoke the commit callback.
@@ -267,9 +267,9 @@ public class RouteEditToolTests
         Assert.False(committed, "Escape must discard edits without invoking the commit callback.");
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // HandleDrag
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// Dragging when vertex 1 is selected must update its position by the delta.
@@ -288,14 +288,14 @@ public class RouteEditToolTests
         Assert.Equal(expected.Z, tool.GhostWaypoints[1].Position.Z, precision: 3);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // GetSelectedWaypointRef — WaypointEditorPanel integration (T013)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // GetSelectedWaypointRef â€” WaypointEditorPanel integration (T013)
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// When a vertex is selected, <see cref="RouteEditTool.GetSelectedWaypointRef"/>
     /// returns a mutable reference that allows in-place editing of
-    /// <see cref="RouteWaypoint.TargetSpeed"/> — the primary operation of
+    /// <see cref="RouteWaypoint.TargetSpeed"/> â€” the primary operation of
     /// <c>WaypointEditorPanel</c> (ROUTES1-T013).
     /// </summary>
     [Fact]
@@ -313,7 +313,7 @@ public class RouteEditToolTests
     /// <summary>
     /// When a vertex is selected, <see cref="RouteEditTool.GetSelectedWaypointRef"/>
     /// returns a mutable reference that allows in-place editing of
-    /// <see cref="RouteWaypoint.ExtensionJson"/> — used by <c>WaypointEditorPanel</c>
+    /// <see cref="RouteWaypoint.ExtensionJson"/> â€” used by <c>WaypointEditorPanel</c>
     /// (ROUTES1-T013).
     /// </summary>
     [Fact]
@@ -329,9 +329,9 @@ public class RouteEditToolTests
     }
 
     /// <summary>
-    /// When no vertex is selected (<see cref="RouteEditTool.SelectedVertexIndex"/> == −1),
+    /// When no vertex is selected (<see cref="RouteEditTool.SelectedVertexIndex"/> == â’1),
     /// <see cref="RouteEditTool.GetSelectedWaypointRef"/> must throw
-    /// <see cref="InvalidOperationException"/> — preventing WaypointEditorPanel from
+    /// <see cref="InvalidOperationException"/> â€” preventing WaypointEditorPanel from
     /// accessing invalid memory.
     /// </summary>
     [Fact]
@@ -343,9 +343,9 @@ public class RouteEditToolTests
         Assert.Throws<InvalidOperationException>(() => tool.GetSelectedWaypointRef());
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Vertex context menu — right-click behaviour
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Vertex context menu â€” right-click behaviour
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// Right-clicking within pick radius of a waypoint must set
@@ -393,7 +393,7 @@ public class RouteEditToolTests
         Assert.Equal(1, tool.ContextMenuVertexIndex);
     }
 
-    // ── Insert waypoint ───────────────────────────────────────────────────────
+    // â”€â”€ Insert waypoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// <see cref="RouteEditTool.InsertWaypointAfterSelected"/> must add one waypoint at the
@@ -415,7 +415,7 @@ public class RouteEditToolTests
         Assert.Equal(15f, tool.GhostWaypoints[2].TargetSpeed, precision: 4);
     }
 
-    // ── Delete waypoint ───────────────────────────────────────────────────────
+    // â”€â”€ Delete waypoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// <see cref="RouteEditTool.DeleteSelectedWaypoint"/> must remove the waypoint and
@@ -456,7 +456,7 @@ public class RouteEditToolTests
         Assert.False(tool.PendingVertexContextMenu);
     }
 
-    // ── Close context menu ────────────────────────────────────────────────────
+    // â”€â”€ Close context menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// <see cref="RouteEditTool.CloseVertexContextMenu"/> must clear

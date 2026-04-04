@@ -1,10 +1,10 @@
-using System;
+﻿using System;
 using System.Numerics;
 using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.IG.Tools;
+namespace Hrot.ScenarioEditor.Tools;
 
 /// <summary>
 /// Map tool that measures the Cartesian distance between two operator-clicked
@@ -12,21 +12,21 @@ namespace Hrot.IG.Tools;
 ///
 /// State machine:
 /// <list type="number">
-///   <item><b>Idle</b> — no start point set.  Left-click records the start point.</item>
-///   <item><b>Measuring</b> — start point set.  Moving the mouse shows a live preview
+///   <item><b>Idle</b> â€” no start point set.  Left-click records the start point.</item>
+///   <item><b>Measuring</b> â€” start point set.  Moving the mouse shows a live preview
 ///         line and distance label.  Left-click records the end point, logs the
 ///         distance, and pops the tool.  Right-click cancels and pops the tool.</item>
 /// </list>
 ///
 /// Distance is calculated as 2-D Euclidean distance (<see cref="Vector2.Distance"/>)
 /// in world-space metres, consistent with the FDP right-handed coordinate system
-/// where X = east and Y = north (§CODE-STANDARDS §2).  Z (altitude) is ignored
+/// where X = east and Y = north (Â§CODE-STANDARDS Â§2).  Z (altitude) is ignored
 /// because the canvas operates in a top-down 2-D projection.
 ///
-/// Draw calls are made inside <c>MapCanvas.Draw()</c> → <c>Camera.BeginMode()</c>
+/// Draw calls are made inside <c>MapCanvas.Draw()</c> â†’ <c>Camera.BeginMode()</c>
 /// so all coordinates and thicknesses are in world space and scale with zoom.
 ///
-/// No allocations in the hover / draw hot path (§CODE-STANDARDS §4).
+/// No allocations in the hover / draw hot path (Â§CODE-STANDARDS Â§4).
 /// </summary>
 public class MeasureTool : IMapTool
 {
@@ -49,7 +49,7 @@ public class MeasureTool : IMapTool
     /// </summary>
     public bool IsMeasuring => _startPoint.HasValue;
 
-    // ── IMapTool lifecycle ────────────────────────────────────────────────────
+    // â”€â”€ IMapTool lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public void OnEnter(MapCanvas canvas)
@@ -68,7 +68,7 @@ public class MeasureTool : IMapTool
     /// <inheritdoc/>
     public void Update(float dt) { /* Stateless between frames. */ }
 
-    // ── Input handling ────────────────────────────────────────────────────────
+    // â”€â”€ Input handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public bool HandleClick(Vector2 worldPos, MouseButton button)
@@ -77,13 +77,13 @@ public class MeasureTool : IMapTool
         {
             if (!_startPoint.HasValue)
             {
-                // First click — record start point and begin measuring.
+                // First click â€” record start point and begin measuring.
                 _startPoint    = worldPos;
                 _currentPoint  = worldPos;
             }
             else
             {
-                // Second click — record end, compute and log distance, finish.
+                // Second click â€” record end, compute and log distance, finish.
                 LastMeasuredDistanceMeters = Vector2.Distance(_startPoint.Value, worldPos);
                 Console.WriteLine($"[MeasureTool] Distance: {LastMeasuredDistanceMeters:F2} m");
                 _canvas?.PopTool();
@@ -127,7 +127,7 @@ public class MeasureTool : IMapTool
         return false;
     }
 
-    // ── Rendering ─────────────────────────────────────────────────────────────
+    // â”€â”€ Rendering â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     /// <remarks>
@@ -135,7 +135,7 @@ public class MeasureTool : IMapTool
     /// position to indicate the tool is ready for the first click.
     /// When a start point is set, draws a cyan line from the start to the current
     /// cursor position and a distance label at the midpoint.
-    /// Called inside <c>MapCanvas.Draw()</c> → <c>Camera.BeginMode()</c>.
+    /// Called inside <c>MapCanvas.Draw()</c> â†’ <c>Camera.BeginMode()</c>.
     /// </remarks>
     public void Draw(RenderContext ctx)
     {
@@ -179,7 +179,7 @@ public class MeasureTool : IMapTool
             Color.White);
     }
 
-    // ── Test hooks ────────────────────────────────────────────────────────────
+    // â”€â”€ Test hooks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>When <c>true</c>, crosshair Raylib calls are skipped; counters are still incremented.</summary>
     internal bool TestHook_SkipRaylibCalls;

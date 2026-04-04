@@ -1,7 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
-using Hrot.IG.Tools;
+using Hrot.ScenarioEditor.Tools;
 using Hrot.IG.UI;
 using Hrot.Map.Common.Components;
 using Fdp.Kernel;
@@ -11,7 +11,7 @@ using Xunit;
 namespace Hrot.IG.Tests;
 
 /// <summary>
-/// Unit tests for <see cref="WaypointEditorPanel"/> — state-management logic (CT-2,
+/// Unit tests for <see cref="WaypointEditorPanel"/> â€” state-management logic (CT-2,
 /// ROUTES1-BATCH-04).
 ///
 /// <para>
@@ -28,7 +28,7 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class WaypointEditorPanelTests
 {
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>Creates a headless <see cref="WaypointEditorPanel"/> backed by an
     /// empty <see cref="MapCanvas"/>.</summary>
@@ -62,14 +62,14 @@ public class WaypointEditorPanelTests
         return tool;
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // Initial state
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// Directly after construction both <see cref="WaypointEditorPanel.TestHook_LastWpIndex"/>
     /// and <see cref="WaypointEditorPanel.TestHook_WasRouteToolActive"/> must be at their
-    /// sentinel defaults (−1 and false respectively) before any <c>UpdatePanelState</c>
+    /// sentinel defaults (â’1 and false respectively) before any <c>UpdatePanelState</c>
     /// call.
     /// </summary>
     [Fact]
@@ -82,9 +82,9 @@ public class WaypointEditorPanelTests
         Assert.Equal(string.Empty, panel.TestHook_JsonBuffer);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // _lastWpIndex caching — buffer allocation behaviour
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // _lastWpIndex caching â€” buffer allocation behaviour
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// When <c>UpdatePanelState</c> is called twice for the same selection, the
@@ -98,11 +98,11 @@ public class WaypointEditorPanelTests
         var panel = CreatePanel();
         var tool  = CreateAndEnterTool(MakePlan(@"{""dangerLevel"":1}", null));
 
-        // First draw: index changes from -1 → 0, buffer is populated.
+        // First draw: index changes from -1 â†’ 0, buffer is populated.
         panel.UpdatePanelState(tool);
         string firstRef = panel.TestHook_JsonBuffer;
 
-        // Second draw: same index — buffer must NOT be re-assigned.
+        // Second draw: same index â€” buffer must NOT be re-assigned.
         panel.UpdatePanelState(tool);
         string secondRef = panel.TestHook_JsonBuffer;
 
@@ -136,14 +136,14 @@ public class WaypointEditorPanelTests
         Assert.Equal(@"{""dangerLevel"":99}", panel.TestHook_JsonBuffer);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // _wasRouteToolActive transitions (CT-2 focus guard)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// When <c>UpdatePanelState(null)</c> is called (tool deactivated / no selection),
     /// <see cref="WaypointEditorPanel.TestHook_WasRouteToolActive"/> must be
-    /// <c>false</c> and <c>_lastWpIndex</c> must reset to −1.
+    /// <c>false</c> and <c>_lastWpIndex</c> must reset to â’1.
     /// </summary>
     [Fact]
     public void WasRouteToolActive_TransitionsToFalse_WhenToolDeactivated()

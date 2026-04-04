@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Text.Json;
@@ -10,7 +10,7 @@ using FDP.Toolkit.Vis2D.Abstractions;
 using ModuleHost.Core.Network.Interfaces;
 using Raylib_cs;
 
-namespace Hrot.IG.Tools;
+namespace Hrot.ScenarioEditor.Tools;
 
 /// <summary>
 /// Map tool that translates a left-click on the canvas into a
@@ -86,8 +86,8 @@ public class CreationTool : IMapTool
     /// <param name="initialPropertiesJson">
     /// Optional JSON object with initial property overrides merged into the
     /// <see cref="CreateEntityRequest.InitialDescriptors"/>.
-    /// Recognised fields: <c>name</c> (string) — entity name in <c>EntityInfo</c>;
-    /// <c>affiliation</c> (string, e.g. <c>"FORCE_FRIENDLY"</c>) — force identifier
+    /// Recognised fields: <c>name</c> (string) â€” entity name in <c>EntityInfo</c>;
+    /// <c>affiliation</c> (string, e.g. <c>"FORCE_FRIENDLY"</c>) â€” force identifier
     /// and ghost colour. Unknown fields are silently ignored.
     /// </param>
     /// <param name="autoPopOnPlace">
@@ -99,7 +99,7 @@ public class CreationTool : IMapTool
     /// Optional delegate invoked on each left-click to obtain the entity name for that
     /// placement. When provided it takes priority over any <c>name</c> field in
     /// <paramref name="initialPropertiesJson"/>, enabling session-scoped sequential
-    /// naming strategies such as "Tank-1", "Tank-2", …
+    /// naming strategies such as "Tank-1", "Tank-2", â€¦
     /// When <c>null</c> (default) the name is parsed from <paramref name="initialPropertiesJson"/>.
     /// </param>
     public CreationTool(

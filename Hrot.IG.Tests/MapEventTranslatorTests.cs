@@ -1,8 +1,8 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Numerics;
-using Hrot.IG.Adapters;
+using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
-using Hrot.IG.Tools;
+using Hrot.ScenarioEditor.Tools;
 using Hrot.IG.UI;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Defaults;
@@ -27,7 +27,7 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class MapEventTranslatorTests
 {
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static EntityRepository CreateRepo()
     {
@@ -39,9 +39,9 @@ public class MapEventTranslatorTests
         return repo;
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // P1-005-T1: MiniExConPanelState.SubmitViaGateway — null gateway (offline)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // P1-005-T1: MiniExConPanelState.SubmitViaGateway â€” null gateway (offline)
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// Calling <see cref="MiniExConPanelState.SubmitViaGateway"/> with a null gateway
@@ -59,7 +59,7 @@ public class MapEventTranslatorTests
 
     /// <summary>
     /// SubmitViaGateway with null gateway must return without publishing any
-    /// events — verifies that the no-op path is truly a no-op.
+    /// events â€” verifies that the no-op path is truly a no-op.
     /// </summary>
     [Fact]
     public void SubmitViaGateway_WithNullGateway_DoesNotFire_OnCommandPublished()
@@ -75,9 +75,9 @@ public class MapEventTranslatorTests
             "OnCommandPublished must not fire when gateway is null.");
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // P1-005-T2: StandardInteractionTool.OnWorldClick event pass-through
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// <see cref="Tools.StandardInteractionTool.OnWorldClick"/> must be subscribable
@@ -89,7 +89,7 @@ public class MapEventTranslatorTests
     public void StandardInteractionTool_OnWorldClick_CanBeSubscribed()
     {
         var repo      = CreateRepo();
-        var query     = repo.Query().Build(); // empty query — sufficient for event wiring test
+        var query     = repo.Query().Build(); // empty query â€” sufficient for event wiring test
         var adapter   = new NedVisualizerAdapter();
         var selection = new DefaultSelectionState();
         var tool      = new StandardInteractionTool(repo, query, adapter, selection);
@@ -107,14 +107,14 @@ public class MapEventTranslatorTests
         Assert.Null(ex);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // P1-005-T3: Backward-compatibility — Submit(eventBus) still works
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // P1-005-T3: Backward-compatibility â€” Submit(eventBus) still works
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// The existing <see cref="MiniExConPanelState.Submit"/> method must still publish
     /// a <see cref="FDP.Toolkit.NetworkSpawning.Events.SpawnEntityCommand"/> with
-    /// the correct TKB type — Task 5 changes must not break this path.
+    /// the correct TKB type â€” Task 5 changes must not break this path.
     /// </summary>
     [Fact]
     public void MiniExConPanelState_Submit_StillPublishesCommand()

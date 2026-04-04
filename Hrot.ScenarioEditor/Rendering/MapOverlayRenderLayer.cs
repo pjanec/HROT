@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Fdp.Kernel;
@@ -6,7 +6,7 @@ using FDP.Toolkit.Vis2D.Abstractions;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.IG.Systems;
+namespace Hrot.ScenarioEditor.Rendering;
 
 /// <summary>
 /// Map layer that renders <see cref="EditablePolyline"/> entities that carry a
@@ -15,11 +15,11 @@ namespace Hrot.IG.Systems;
 /// <para><b>Rendering contract</b></para>
 /// <list type="bullet">
 ///   <item>
-///     Fill — rendered as a triangle fan radiating from vertex 0, using
+///     Fill â€” rendered as a triangle fan radiating from vertex 0, using
 ///     <see cref="MapOverlayStyle.FillColor"/>.
 ///   </item>
 ///   <item>
-///     Border — each adjacent pair of vertices is drawn with
+///     Border â€” each adjacent pair of vertices is drawn with
 ///     <see cref="Raylib.DrawLineEx"/>, thickness from
 ///     <see cref="MapOverlayStyle.LineThickness"/>.
 ///     When <see cref="MapOverlayStyle.IsClosed"/> is <c>true</c> the last
@@ -27,21 +27,21 @@ namespace Hrot.IG.Systems;
 ///   </item>
 /// </list>
 ///
-/// <para>Zero heap allocations in <see cref="Draw"/> — plain <c>for</c> loops
-/// over the pre-built query (§CODE-STANDARDS §4).  The
+/// <para>Zero heap allocations in <see cref="Draw"/> â€” plain <c>for</c> loops
+/// over the pre-built query (Â§CODE-STANDARDS Â§4).  The
 /// <see cref="PickEntity"/> ray-cast uses a standard even-odd winding test.</para>
 /// </summary>
 public class MapOverlayRenderLayer : IMapLayer
 {
-    // ── Constants ─────────────────────────────────────────────────────────────
+    // â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>Display name shown in the layer-visibility UI.</summary>
     public const string LayerName = "MapOverlays";
 
-    /// <summary>Bit-index 3 → "tactical_graphics" layer slot.</summary>
+    /// <summary>Bit-index 3 â†’ "tactical_graphics" layer slot.</summary>
     public const int TacticalGraphicsLayerBitIndex = 3;
 
-    // ── IMapLayer ─────────────────────────────────────────────────────────────
+    // â”€â”€ IMapLayer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public string Name => LayerName;
@@ -49,12 +49,12 @@ public class MapOverlayRenderLayer : IMapLayer
     /// <inheritdoc/>
     public int LayerBitIndex => TacticalGraphicsLayerBitIndex;
 
-    // ── Fields ────────────────────────────────────────────────────────────────
+    // â”€â”€ Fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private readonly ISimulationView _view;
     private readonly EntityQuery     _query;
 
-    // ── Constructor ───────────────────────────────────────────────────────────
+    // â”€â”€ Constructor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <param name="view">
     /// Simulation view used to read <see cref="EditablePolyline"/> and
@@ -71,14 +71,14 @@ public class MapOverlayRenderLayer : IMapLayer
         _query = query ?? throw new System.ArgumentNullException(nameof(query));
     }
 
-    // ── IMapLayer methods ─────────────────────────────────────────────────────
+    // â”€â”€ IMapLayer methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public void Update(float dt) { /* State is driven by ECS; nothing to tick here. */ }
 
     /// <inheritdoc/>
     /// <remarks>
-    /// Called inside <c>MapCanvas.Draw()</c> → <c>BeginMode2D</c>.
+    /// Called inside <c>MapCanvas.Draw()</c> â†’ <c>BeginMode2D</c>.
     /// All coordinates are in world space; the camera applies zoom and pan.
     /// <para>
     /// <b>Coordinate convention:</b> <see cref="EditablePolyline.Points"/> are stored as
@@ -157,7 +157,7 @@ public class MapOverlayRenderLayer : IMapLayer
         return null;
     }
 
-    // ── Private draw helpers ──────────────────────────────────────────────────
+    // â”€â”€ Private draw helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Renders a filled polygon as a triangle fan from vertex 0.
@@ -166,7 +166,7 @@ public class MapOverlayRenderLayer : IMapLayer
     /// </summary>
     private static void DrawFill(IReadOnlyList<Vector2> pts, Vector2 origin, Color fill)
     {
-        // Triangle fan: (pts[0], pts[i], pts[i+1]) for i = 1 … n-2
+        // Triangle fan: (pts[0], pts[i], pts[i+1]) for i = 1 â€¦ n-2
         for (int i = 1; i < pts.Count - 1; i++)
         {
             Raylib.DrawTriangle(origin + pts[0], origin + pts[i], origin + pts[i + 1], fill);
@@ -216,7 +216,7 @@ public class MapOverlayRenderLayer : IMapLayer
         Raylib.DrawTriangle(pos, top,    left,   yellow);
     }
 
-    // ── Private geometry helpers ──────────────────────────────────────────────
+    // â”€â”€ Private geometry helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Point-in-polygon test using the even-odd (ray-casting) algorithm.

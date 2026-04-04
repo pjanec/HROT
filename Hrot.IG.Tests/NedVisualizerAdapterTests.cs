@@ -1,5 +1,5 @@
-using System.Numerics;
-using Hrot.IG.Adapters;
+﻿using System.Numerics;
+using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Fdp.Kernel;
 
@@ -18,7 +18,7 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class NedVisualizerAdapterTests
 {
-    // ── Fixture helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Fixture helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Creates a repository pre-registered with the components exercised by
@@ -33,7 +33,7 @@ public class NedVisualizerAdapterTests
         return repo;
     }
 
-    // ── GetPosition: SimTransform absence ────────────────────────────────────
+    // â”€â”€ GetPosition: SimTransform absence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// An entity without a <see cref="SimTransform"/> must return <c>null</c>.
@@ -52,7 +52,7 @@ public class NedVisualizerAdapterTests
         Assert.Null(result);
     }
 
-    // ── GetPosition: CullingState absence / visibility ────────────────────────
+    // â”€â”€ GetPosition: CullingState absence / visibility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// An entity with a <see cref="SimTransform"/> but no <see cref="CullingState"/>
@@ -150,7 +150,7 @@ public class NedVisualizerAdapterTests
         Assert.Equal(0f, result!.Value.Y, precision: 4);
     }
 
-    // ── GetPosition: correct tint affiliation passthrough (negative path) ─────
+    // â”€â”€ GetPosition: correct tint affiliation passthrough (negative path) â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Entities with LOD 1 (simplified) must still be returned as visible.
@@ -180,7 +180,7 @@ public class NedVisualizerAdapterTests
         Assert.Equal(500f, result!.Value.X, precision: 4);
     }
 
-    // ── GetHitRadius ──────────────────────────────────────────────────────────
+    // â”€â”€ GetHitRadius â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Must return the named constant so pick-tests remain consistent with the
@@ -213,7 +213,7 @@ public class NedVisualizerAdapterTests
         Assert.Equal(expected, NedVisualizerAdapterConstants.HitRadiusWorldUnits, precision: 4);
     }
 
-    // ── GetHoverLabel ─────────────────────────────────────────────────────────
+    // â”€â”€ GetHoverLabel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// An entity without <see cref="ResolvedStyle"/> must return <c>null</c>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
@@ -8,7 +8,7 @@ using FDP.Toolkit.Vis2D.Abstractions;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.IG.Tools;
+namespace Hrot.ScenarioEditor.Tools;
 
 /// <summary>
 /// Specialised map tool that allows operators to drag individual vertices of a
@@ -17,28 +17,28 @@ namespace Hrot.IG.Tools;
 /// Workflow:
 /// <list type="number">
 ///   <item>
-///     <b>Enter</b> — loads vertex positions from <see cref="EditablePolyline"/> into
+///     <b>Enter</b> â€” loads vertex positions from <see cref="EditablePolyline"/> into
 ///     an in-memory <em>ghost</em> list so the operator sees a live-updated preview.
 ///   </item>
 ///   <item>
-///     <b>Left-click</b> — selects the nearest vertex within
+///     <b>Left-click</b> â€” selects the nearest vertex within
 ///     <see cref="EditToolConstants.VertexPickRadiusWorldUnits"/>; no-op if no
 ///     vertex is within range.
 ///   </item>
 ///   <item>
-///     <b>Drag</b> — moves the selected vertex in the ghost list.
+///     <b>Drag</b> â€” moves the selected vertex in the ghost list.
 ///   </item>
 ///   <item>
-///     <b>Right-click</b> — commits the ghost list back to the
+///     <b>Right-click</b> â€” commits the ghost list back to the
 ///     <see cref="EditablePolyline"/> component (via the
 ///     <see cref="OnPolylineCommitted"/> event) and pops the tool.
 ///   </item>
 /// </list>
 ///
 /// All threshold and visual constants come from <see cref="EditToolConstants"/>
-/// (§CODE-STANDARDS §1).
+/// (Â§CODE-STANDARDS Â§1).
 ///
-/// No allocations in the hover / drag hot path (§CODE-STANDARDS §4);
+/// No allocations in the hover / drag hot path (Â§CODE-STANDARDS Â§4);
 /// the ghost list is allocated once in <see cref="OnEnter"/> and reused.
 /// </summary>
 public class EditTool : IMapTool
@@ -46,7 +46,7 @@ public class EditTool : IMapTool
     /// <inheritdoc/>
     public string Name => EditToolConstants.ToolName;
 
-    // ── State ──────────────────────────────────────────────────────────────────
+    // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private readonly Entity          _targetEntity;
     private readonly ISimulationView _view;
@@ -58,7 +58,7 @@ public class EditTool : IMapTool
 
     private const int NoVertexSelected = -1;
 
-    // ── Vertex context menu state ─────────────────────────────────────────────
+    // â”€â”€ Vertex context menu state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// When <c>true</c>, a right-click landed on a vertex and the application
@@ -73,7 +73,7 @@ public class EditTool : IMapTool
     /// </summary>
     public int ContextMenuVertexIndex { get; private set; }
 
-    // ── Public observable state ───────────────────────────────────────────────
+    // â”€â”€ Public observable state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Index of the vertex currently selected for dragging, or
@@ -88,7 +88,7 @@ public class EditTool : IMapTool
     /// </summary>
     public IReadOnlyList<Vector2> GhostPoints => _ghostPoints;
 
-    // ── Events ────────────────────────────────────────────────────────────────
+    // â”€â”€ Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Raised when the operator right-clicks to commit the edited polyline.
@@ -100,7 +100,7 @@ public class EditTool : IMapTool
     /// </summary>
     public event Action<Entity, List<Vector2>>? OnPolylineCommitted;
 
-    // ── Construction ─────────────────────────────────────────────────────────
+    // â”€â”€ Construction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <param name="targetEntity">
     /// The entity whose <see cref="EditablePolyline"/> is being edited.
@@ -121,7 +121,7 @@ public class EditTool : IMapTool
         _originOffset = originOffset;
     }
 
-    // ── IMapTool lifecycle ────────────────────────────────────────────────────
+    // â”€â”€ IMapTool lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     /// <remarks>
@@ -145,7 +145,7 @@ public class EditTool : IMapTool
     /// <inheritdoc/>
     public void Update(float dt) { /* Stateless between frames. */ }
 
-    // ── Input handling ────────────────────────────────────────────────────────
+    // â”€â”€ Input handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     /// <remarks>
@@ -170,14 +170,14 @@ public class EditTool : IMapTool
             int nearestVtx = FindNearestVertex(worldPos);
             if (nearestVtx >= 0)
             {
-                // Right-click on a vertex → open vertex context menu instead of committing.
+                // Right-click on a vertex â†’ open vertex context menu instead of committing.
                 _selectedVertexIndex    = nearestVtx;
                 PendingVertexContextMenu = true;
                 ContextMenuVertexIndex  = nearestVtx;
                 return true;
             }
 
-            // Right-click away from vertices → commit and close.
+            // Right-click away from vertices â†’ commit and close.
             CommitChanges();
             _canvas?.PopTool();
             return true;
@@ -192,7 +192,7 @@ public class EditTool : IMapTool
     /// <see cref="Draw"/>).  Resets selection when the cursor moves outside pick range of
     /// every vertex, so there is never a stale "locked" selection between gestures.
     ///
-    /// While the left mouse button is held the selection is <b>not</b> reset — this
+    /// While the left mouse button is held the selection is <b>not</b> reset â€” this
     /// prevents the vertex from "disconnecting" when the cursor moves outside the pick
     /// radius mid-drag due to high mouse speed or a slow frame rate.
     /// </remarks>
@@ -261,7 +261,7 @@ public class EditTool : IMapTool
         }
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     /// <remarks>
@@ -286,7 +286,7 @@ public class EditTool : IMapTool
         return false;
     }
 
-    // ── Vertex context menu actions ───────────────────────────────────────────
+    // â”€â”€ Vertex context menu actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Closes the vertex context menu without performing any action.
@@ -343,7 +343,7 @@ public class EditTool : IMapTool
         if (_view.HasManagedComponent<EditablePolyline>(_targetEntity))
         {
             var polyline = _view.GetManagedComponentRO<EditablePolyline>(_targetEntity);
-            // Convert relative Cartesian → absolute world space by adding the origin offset.
+            // Convert relative Cartesian â†’ absolute world space by adding the origin offset.
             // With default origin (zero) points are returned unchanged (unit-test friendly).
             var result = new List<Vector2>(polyline.Points.Count);
             for (int i = 0; i < polyline.Points.Count; i++)

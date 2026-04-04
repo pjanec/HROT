@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.Map.Common.Components;
@@ -7,7 +7,7 @@ using FDP.Toolkit.Vis2D;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.IG.Tools;
+namespace Hrot.ScenarioEditor.Tools;
 
 /// <summary>
 /// Specialised map tool for editing the waypoints of a <see cref="RoutePlan"/> component
@@ -31,7 +31,7 @@ public class RouteEditTool : IMapTool
     /// <inheritdoc/>
     public string Name => RouteEditToolConstants.ToolName;
 
-    // ── State ──────────────────────────────────────────────────────────────────
+    // â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private readonly Entity _routeEntity;
     private readonly RoutePlan _plan;
@@ -44,7 +44,7 @@ public class RouteEditTool : IMapTool
 
     private const int NoVertex = -1;
 
-    // ── Public observable state (for WaypointEditorPanel and tests) ───────────
+    // â”€â”€ Public observable state (for WaypointEditorPanel and tests) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Index of the currently selected ghost waypoint, or <c>-1</c> when none.
@@ -54,7 +54,7 @@ public class RouteEditTool : IMapTool
     /// <summary>Read-only view of the ghost waypoint list for assertions.</summary>
     public IReadOnlyList<RouteWaypoint> GhostWaypoints => _ghost;
 
-    // ── Vertex context menu state ─────────────────────────────────────────────
+    // â”€â”€ Vertex context menu state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// When <c>true</c>, a right-click landed on a vertex and the application should
@@ -69,7 +69,7 @@ public class RouteEditTool : IMapTool
     /// </summary>
     public int ContextMenuVertexIndex { get; private set; }
 
-    // ── Events ────────────────────────────────────────────────────────────────
+    // â”€â”€ Events â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Raised when the operator right-clicks to commit. The caller should persist the
@@ -77,10 +77,10 @@ public class RouteEditTool : IMapTool
     /// </summary>
     public event Action<Entity, List<RouteWaypoint>>? OnRouteCommitted;
 
-    // ── Construction ─────────────────────────────────────────────────────────
+    // â”€â”€ Construction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <param name="routeEntity">Entity whose <see cref="RoutePlan"/> is being edited.</param>
-    /// <param name="plan">The live <see cref="RoutePlan"/> component — only used at enter-time to seed the ghost.</param>
+    /// <param name="plan">The live <see cref="RoutePlan"/> component â€” only used at enter-time to seed the ghost.</param>
     /// <param name="onCommit">Callback invoked with the edited waypoint list on right-click commit.</param>
     public RouteEditTool(
         Entity routeEntity,
@@ -92,7 +92,7 @@ public class RouteEditTool : IMapTool
         _onCommit    = onCommit ?? throw new ArgumentNullException(nameof(onCommit));
     }
 
-    // ── IMapTool lifecycle ────────────────────────────────────────────────────
+    // â”€â”€ IMapTool lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     /// <remarks>Copies current waypoints into the ghost list and resets selection.</remarks>
@@ -115,7 +115,7 @@ public class RouteEditTool : IMapTool
     /// <inheritdoc/>
     public void Update(float dt) { }
 
-    // ── Input ──────────────────────────────────────────────────────────────────
+    // â”€â”€ Input â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public bool HandleHover(Vector2 worldPos)
@@ -144,7 +144,7 @@ public class RouteEditTool : IMapTool
             }
             else
             {
-                // No vertex in range — check for segment insertion.
+                // No vertex in range â€” check for segment insertion.
                 int segIdx = FindNearestSegment(worldPos);
                 if (segIdx >= 0)
                 {
@@ -167,14 +167,14 @@ public class RouteEditTool : IMapTool
             int nearestVtx = FindNearestVertex(worldPos);
             if (nearestVtx >= 0)
             {
-                // Right-click on a vertex → open vertex context menu (insert/delete).
+                // Right-click on a vertex â†’ open vertex context menu (insert/delete).
                 _selectedVertexIndex   = nearestVtx;
                 PendingVertexContextMenu = true;
                 ContextMenuVertexIndex  = nearestVtx;
                 return true;
             }
 
-            // Right-click away from vertices → commit and close.
+            // Right-click away from vertices â†’ commit and close.
             CommitChanges();
             _canvas?.PopTool();
             return true;
@@ -252,7 +252,7 @@ public class RouteEditTool : IMapTool
         }
     }
 
-    // ── Public accessor for WaypointEditorPanel ───────────────────────────────
+    // â”€â”€ Public accessor for WaypointEditorPanel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Returns a reference to the selected waypoint in the ghost list so that
@@ -269,7 +269,7 @@ public class RouteEditTool : IMapTool
         return ref System.Runtime.InteropServices.CollectionsMarshal.AsSpan(_ghost)[_selectedVertexIndex];
     }
 
-    // ── Vertex context menu actions ───────────────────────────────────────────
+    // â”€â”€ Vertex context menu actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>Closes the vertex context menu without performing any action.</summary>
     public void CloseVertexContextMenu()
@@ -311,7 +311,7 @@ public class RouteEditTool : IMapTool
 
     /// <summary>
     /// Deletes the waypoint at <see cref="ContextMenuVertexIndex"/>.
-    /// No-op when fewer than 3 waypoints remain (minimum viable route = 2, but keeping ≥ 2
+    /// No-op when fewer than 3 waypoints remain (minimum viable route = 2, but keeping â‰Ą 2
     /// is enforced at authoring; editing retains at least 2).
     /// Clears <see cref="PendingVertexContextMenu"/> on completion.
     /// </summary>
@@ -329,7 +329,7 @@ public class RouteEditTool : IMapTool
         PendingVertexContextMenu = false;
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private int FindNearestVertex(Vector2 worldPos)
     {

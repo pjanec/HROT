@@ -1,8 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
-using Hrot.IG.Tools;
+using Hrot.ScenarioEditor.Tools;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Raylib_cs;
 
@@ -15,19 +15,19 @@ namespace Hrot.IG.Tests;
 /// correctly-formed <see cref="SpawnEntityCommand"/> on left-click and that
 /// right-click cancels without firing the delegate.
 ///
-/// No Raylib window context is required — <see cref="CreationTool.HandleClick"/>
+/// No Raylib window context is required â€” <see cref="CreationTool.HandleClick"/>
 /// is pure in-memory state; <c>_canvas?.PopTool()</c> is null-safe when
 /// <c>OnEnter</c> has not been called.
 /// </summary>
 public class CreationToolTests
 {
-    // ── Test constants ────────────────────────────────────────────────────────
+    // â”€â”€ Test constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private const long  TestTkbType = 202L;
     private const float ClickX      = 1234.5f;
     private const float ClickY      = 5678.9f;
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Creates a capture list and a <see cref="CreationTool"/> that appends each
@@ -44,7 +44,7 @@ public class CreationToolTests
         return (captured, tool);
     }
 
-    // ── Left-click publishes exactly one command ───────────────────────────────
+    // â”€â”€ Left-click publishes exactly one command â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// A left-click must invoke the delegate exactly once.
@@ -112,10 +112,10 @@ public class CreationToolTests
         Assert.Equal(captured[0].RequestId, observed!.Value.RequestId);
     }
 
-    // ── Right-click does NOT publish ──────────────────────────────────────────
+    // â”€â”€ Right-click does NOT publish â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
-    /// A right-click must not invoke the delegate — it cancels placement.
+    /// A right-click must not invoke the delegate â€” it cancels placement.
     /// </summary>
     [Fact]
     public void HandleClick_RightClick_DoesNotPublish()
@@ -125,7 +125,7 @@ public class CreationToolTests
         Assert.Empty(captured);
     }
 
-    // ── Default TKB type fallback ─────────────────────────────────────────────
+    // â”€â”€ Default TKB type fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Passing <c>tkbType = 0</c> falls back to
@@ -139,7 +139,7 @@ public class CreationToolTests
         Assert.Equal(CreationToolConstants.DefaultTkbType, captured[0].TkbType);
     }
 
-    // ── nameResolver ─────────────────────────────────────────────────────────
+    // â”€â”€ nameResolver â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static (List<SpawnEntityCommand> captured, CreationTool tool)
         CreateToolWithResolver(Func<string> nameResolver, long tkbType = TestTkbType)
@@ -186,7 +186,7 @@ public class CreationToolTests
         Assert.Null(captured[1].InitialAttributesJson);
     }
 
-    // ── InitialAttributesJson forwarding ─────────────────────────────────────
+    // â”€â”€ InitialAttributesJson forwarding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Without a name resolver, <c>InitialAttributesJson</c> carries the raw
@@ -232,7 +232,7 @@ public class CreationToolTests
         Assert.Null(captured[0].InitialAttributesJson);
     }
 
-    // ── Ghost colour ─────────────────────────────────────────────────────────
+    // â”€â”€ Ghost colour â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// <c>ParseAffiliationFromJson</c> must still be called during construction

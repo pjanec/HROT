@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Fdp.Kernel;
@@ -9,7 +9,7 @@ using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 using FdpStandardInteractionTool = FDP.Toolkit.Vis2D.Tools.StandardInteractionTool;
 
-namespace Hrot.IG.Tools;
+namespace Hrot.ScenarioEditor.Tools;
 
 /// <summary>
 /// IG-specific wrapper that wires the FDP
@@ -35,7 +35,7 @@ namespace Hrot.IG.Tools;
 ///   </item>
 /// </list>
 ///
-/// No allocations on the hot path (§CODE-STANDARDS §4).
+/// No allocations on the hot path (Â§CODE-STANDARDS Â§4).
 /// </summary>
 public class StandardInteractionTool : IMapTool
 {
@@ -84,7 +84,7 @@ public class StandardInteractionTool : IMapTool
     /// Constructs a wired selection tool.
     /// </summary>
     /// <param name="world">
-    /// The live entity repository — must have <see cref="SelectionState"/> registered.
+    /// The live entity repository â€” must have <see cref="SelectionState"/> registered.
     /// </param>
     /// <param name="query">
     /// Entity query supplying the pickable entity set
@@ -110,7 +110,7 @@ public class StandardInteractionTool : IMapTool
         _inner.OnRegionSelected      += HandleRegionSelected;
     }
 
-    // ── IMapTool — delegated ──────────────────────────────────────────────────
+    // â”€â”€ IMapTool â€” delegated â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public void OnEnter(MapCanvas canvas) => _inner.OnEnter(canvas);
@@ -140,7 +140,7 @@ public class StandardInteractionTool : IMapTool
     public bool HandleKeyPressed(KeyboardKey key)
         => ((IMapTool)_inner).HandleKeyPressed(key);
 
-    // ── Event handlers ────────────────────────────────────────────────────────
+    // â”€â”€ Event handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private void HandleEntitySelectRequest(Entity entity, bool augment)
     {
@@ -149,7 +149,7 @@ public class StandardInteractionTool : IMapTool
 
         if (!_world.IsAlive(entity))
         {
-            // Click on empty space without augment → deselect handled by ClearAllSelections above.
+            // Click on empty space without augment â†’ deselect handled by ClearAllSelections above.
             return;
         }
 
@@ -195,7 +195,7 @@ public class StandardInteractionTool : IMapTool
         }
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Clears the <see cref="DefaultSelectionState"/> and resets all live entities'
@@ -228,7 +228,7 @@ public class StandardInteractionTool : IMapTool
         });
     }
 
-    // ── Test hook (internal — accessible via InternalsVisibleTo) ─────────────
+    // â”€â”€ Test hook (internal â€” accessible via InternalsVisibleTo) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Directly invokes the entity-selection handler as if the inner FDP tool had

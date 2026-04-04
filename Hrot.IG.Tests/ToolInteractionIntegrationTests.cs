@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Hrot.IG.Abstractions;
-using Hrot.IG.Adapters;
+using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
-using Hrot.IG.Tools;
+using Hrot.ScenarioEditor.Tools;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Lifecycle;
@@ -32,13 +32,13 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class ToolInteractionIntegrationTests
 {
-    // ── Test constants (§CODE-STANDARDS §1) ───────────────────────────────────
+    // â”€â”€ Test constants (Â§CODE-STANDARDS Â§1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private const long  TestTkbType = 101L;
     private const float SpawnX      = 5500f;
     private const float SpawnY      = 5500f;
 
-    // ── CapturingDdsWriter<T> stub ────────────────────────────────────────────
+    // â”€â”€ CapturingDdsWriter<T> stub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private sealed class CapturingDdsWriter<T> : IDdsWriter<T>
     {
@@ -46,7 +46,7 @@ public class ToolInteractionIntegrationTests
         public void Write(T sample) => Written.Add(sample);
     }
 
-    // ── Repository factory ────────────────────────────────────────────────────
+    // â”€â”€ Repository factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static EntityRepository BuildRepo()
     {
@@ -79,7 +79,7 @@ public class ToolInteractionIntegrationTests
         return e;
     }
 
-    // ── Tests: DDS payload from CreationTool ─────────────────────────────────
+    // â”€â”€ Tests: DDS payload from CreationTool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// A left-click must publish exactly one <see cref="SpawnEntityCommand"/> to the delegate.
@@ -114,7 +114,7 @@ public class ToolInteractionIntegrationTests
         Assert.Equal(SpawnY, cmd.InitialTransform!.Value.Position.Y, precision: 2);
     }
 
-    // ── Tests: pick after direct spawn ───────────────────────────────────────
+    // â”€â”€ Tests: pick after direct spawn â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// After an entity is present in the ECS (as would happen once the SimHost creates
@@ -145,7 +145,7 @@ public class ToolInteractionIntegrationTests
         Assert.Equal(spawnedEntity, picked!.Value);
     }
 
-    // ── Tests: StandardInteractionTool selection ──────────────────────────────
+    // â”€â”€ Tests: StandardInteractionTool selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Invoking <see cref="StandardInteractionTool.TestHook_SelectEntity"/> on a live

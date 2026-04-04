@@ -1,25 +1,25 @@
-using System.Numerics;
+﻿using System.Numerics;
 using FDP.Toolkit.Replication.Components;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.IG.Adapters
-{
-    /// <summary>
+namespace Hrot.ScenarioEditor.Adapters;
+
+/// <summary>
     /// Renders a placeholder red circle (10 px) for every entity that has a
     /// <see cref="SimTransform"/> component.
     ///
     /// If the entity also carries a <see cref="NetworkIdentity"/> the network ID is
     /// overlaid as a text label below the circle.
     ///
-    /// This adapter is the Phase-1 / stub visualizer — it will be replaced by full
+    /// This adapter is the Phase-1 / stub visualizer â€” it will be replaced by full
     /// TKB-driven symbol rendering in a later batch.
     /// </summary>
     public class StubVisualizerAdapter : IVisualizerAdapter
     {
-        // ── IVisualizerAdapter ────────────────────────────────────────────────
+        // â”€â”€ IVisualizerAdapter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <inheritdoc/>
         public Vector2? GetPosition(ISimulationView view, Entity entity)
@@ -84,4 +84,3 @@ namespace Hrot.IG.Adapters
             return null;
         }
     }
-}

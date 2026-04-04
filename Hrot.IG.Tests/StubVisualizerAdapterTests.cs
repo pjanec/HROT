@@ -1,5 +1,5 @@
-using System.Numerics;
-using Hrot.IG.Adapters;
+﻿using System.Numerics;
+using Hrot.ScenarioEditor.Adapters;
 using Fdp.Kernel;
 using FDP.Toolkit.Replication.Components;
 
@@ -17,7 +17,7 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class StubVisualizerAdapterTests
 {
-    // ── Fixture helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Fixture helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static EntityRepository CreateRepo()
     {
@@ -27,7 +27,7 @@ public class StubVisualizerAdapterTests
         return repo;
     }
 
-    // ── GetPosition ───────────────────────────────────────────────────────────
+    // â”€â”€ GetPosition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// An entity without a <see cref="SimTransform"/> must not be positioned.
@@ -86,12 +86,12 @@ public class StubVisualizerAdapterTests
         var result = adapter.GetPosition(repo, entity);
 
         Assert.NotNull(result);
-        // Both X and Y must be zero — altitude must not appear in either
+        // Both X and Y must be zero â€” altitude must not appear in either
         Assert.Equal(0.0f, result!.Value.X, precision: 4);
         Assert.Equal(0.0f, result!.Value.Y, precision: 4);
     }
 
-    // ── GetHitRadius ──────────────────────────────────────────────────────────
+    // â”€â”€ GetHitRadius â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// The hit radius must equal <see cref="StubVisualizerConstants.HitRadiusWorldUnits"/>
@@ -125,7 +125,7 @@ public class StubVisualizerAdapterTests
         Assert.Equal(expectedRadius, StubVisualizerConstants.HitRadiusWorldUnits, precision: 4);
     }
 
-    // ── GetHoverLabel ─────────────────────────────────────────────────────────
+    // â”€â”€ GetHoverLabel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// An entity without a <see cref="NetworkIdentity"/> must return <c>null</c>

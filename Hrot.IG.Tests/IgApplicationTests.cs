@@ -1,4 +1,4 @@
-using Hrot.IG.Tools;
+﻿using Hrot.ScenarioEditor.Tools;
 using Hrot.Map.Common.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.NetworkSpawning.Events;
@@ -56,22 +56,22 @@ public class IgApplicationTests : System.IDisposable
         Assert.Equal(networkId, captured!.NetworkId);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // Route edit commit safety guard (CT-1, ROUTES1-BATCH-04)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// When a route entity is destroyed between the start of editing and the
     /// right-click commit, the commit handler must silently discard the update
     /// (the <c>World.IsAlive</c> guard added in CT-1) rather than crashing.
     ///
-    /// Steps: create route entity → activate RouteEditTool → destroy entity
-    /// → trigger right-click commit → assert no exception.
+    /// Steps: create route entity â†’ activate RouteEditTool â†’ destroy entity
+    /// â†’ trigger right-click commit â†’ assert no exception.
     /// </summary>
     [Fact]
     public void CommitHandler_EntityDestroyedBeforeCommit_DropsUpdateSilently()
     {
-        // ── Arrange ───────────────────────────────────────────────────────────
+        // â”€â”€ Arrange â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         const long networkId = 9001L;
 
         // Register a route entity with a minimal RoutePlan.
@@ -90,15 +90,15 @@ public class IgApplicationTests : System.IDisposable
         _app.TestHook_ActivateRouteEditToolForNetworkId(networkId);
         Assert.NotNull(_app.TestHook_ActiveRouteEditTool);
 
-        // ── Act: destroy the entity BEFORE committing ─────────────────────────
+        // â”€â”€ Act: destroy the entity BEFORE committing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         _app.World.DestroyEntity(routeEntity);
 
-        // Trigger right-click commit — the onCommit lambda must detect the dead
+        // Trigger right-click commit â€” the onCommit lambda must detect the dead
         // entity via World.IsAlive and return early without throwing.
         var ex = Record.Exception(() =>
             _app.TestHook_ActiveRouteEditTool!.HandleClick(Vector2.Zero, MouseButton.Right));
 
-        // ── Assert ────────────────────────────────────────────────────────────
+        // â”€â”€ Assert â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Assert.Null(ex);
     }
 }

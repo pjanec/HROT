@@ -1,8 +1,8 @@
-namespace Hrot.IG.Tools;
+﻿namespace Hrot.ScenarioEditor.Tools;
 
 /// <summary>
 /// Named constants for <see cref="EditTool"/> geometry and thresholds
-/// (§CODE-STANDARDS §1 — no magic numbers in production code).
+/// (Â§CODE-STANDARDS Â§1 â€” no magic numbers in production code).
 /// </summary>
 public static class EditToolConstants
 {

@@ -1,5 +1,5 @@
-using System.Numerics;
-using Hrot.IG.Adapters;
+﻿using System.Numerics;
+using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Defaults;
@@ -25,7 +25,7 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class StandardInteractionToolTests
 {
-    // ── Constants (§CODE-STANDARDS §1) ───────────────────────────────────────
+    // â”€â”€ Constants (Â§CODE-STANDARDS Â§1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Hit radius from <see cref="NedVisualizerAdapterConstants.HitRadiusWorldUnits"/>.
@@ -33,7 +33,7 @@ public class StandardInteractionToolTests
     /// </summary>
     private const float HitRadius = NedVisualizerAdapterConstants.HitRadiusWorldUnits;
 
-    // ── Fixture helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Fixture helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static EntityRepository CreateRepo()
     {
@@ -65,7 +65,7 @@ public class StandardInteractionToolTests
     private static EntityRenderLayer CreateLayer(EntityRepository repo, EntityQuery query, NedVisualizerAdapter adapter)
         => new EntityRenderLayer("Entities", layerBitIndex: 0, repo, query, adapter, new DefaultSelectionState());
 
-    // ── Pick single entity in radius ──────────────────────────────────────────
+    // â”€â”€ Pick single entity in radius â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Clicking exactly on an entity's world position resolves that entity.
@@ -122,7 +122,7 @@ public class StandardInteractionToolTests
         Assert.Null(result);
     }
 
-    // ── Closest-entity resolution ─────────────────────────────────────────────
+    // â”€â”€ Closest-entity resolution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// When two entities overlap (both within hit radius of the click point), the
@@ -145,7 +145,7 @@ public class StandardInteractionToolTests
         var query = repo.Query().With<SimTransform>().Build();
         var layer = CreateLayer(repo, query, adapter);
 
-        // Click at the origin — both entities are within radius, but `near` is closer.
+        // Click at the origin â€” both entities are within radius, but `near` is closer.
         var result = layer.PickEntity(Vector2.Zero);
 
         Assert.NotNull(result);
@@ -153,13 +153,13 @@ public class StandardInteractionToolTests
         Assert.NotEqual(far, result.Value);
     }
 
-    // ── Culled / invisible entity not pickable ────────────────────────────────
+    // â”€â”€ Culled / invisible entity not pickable â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// An entity marked <c>IsVisible = false</c> by <see cref="MapCullingSystem"/> must
     /// not be returned by <see cref="EntityRenderLayer.PickEntity"/> because
     /// <see cref="NedVisualizerAdapter.GetPosition"/> returns <c>null</c> for invisible
-    /// entities — they are off-screen and should not be selectable.
+    /// entities â€” they are off-screen and should not be selectable.
     /// </summary>
     [Fact]
     public void PickEntity_InvisibleEntity_ReturnsNull()
@@ -172,7 +172,7 @@ public class StandardInteractionToolTests
             Position = new Vector3(0f, 0f, 0f),
             Rotation = SimMath.FacingEast,
         });
-        // Visible = false — entity is culled.
+        // Visible = false â€” entity is culled.
         repo.AddComponent(entity, new CullingState { IsVisible = false, LodLevel = CullingStateConstants.LodFull });
 
         var query = repo.Query().With<SimTransform>().Build();

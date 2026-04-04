@@ -1,8 +1,8 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
 using Hrot.IG.Systems;
-using Hrot.IG.Tools;
+using Hrot.ScenarioEditor.Tools;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
@@ -10,7 +10,7 @@ using Raylib_cs;
 namespace Hrot.IG.Tests;
 
 /// <summary>
-/// Integration test for Task IG.4.5 — verifies that all four IG Phase 4 systems
+/// Integration test for Task IG.4.5 â€” verifies that all four IG Phase 4 systems
 /// and tools operate correctly in concert using a shared <see cref="EntityRepository"/>.
 ///
 /// Scenario:
@@ -42,7 +42,7 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class AdvancedFeaturesIntegrationTests
 {
-    // ── Test constants (§CODE-STANDARDS §1) ───────────────────────────────────
+    // â”€â”€ Test constants (Â§CODE-STANDARDS Â§1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private const float TrailEntityX   = 1000f;
     private const float TrailEntityY   = 2000f;
@@ -59,7 +59,7 @@ public class AdvancedFeaturesIntegrationTests
     private const float DragTargetX    = 250f;
     private const float DragTargetY    = 300f;
 
-    // ── Shared world factory ──────────────────────────────────────────────────
+    // â”€â”€ Shared world factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Registers all components and events needed by all four Phase-4 subsystems.
@@ -93,9 +93,9 @@ public class AdvancedFeaturesIntegrationTests
         cb.Playback(repo);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // IG.4.5 — End-to-end integration scenario
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // IG.4.5 â€” End-to-end integration scenario
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// End-to-end integration test exercising all four Phase-4 subsystems in a
@@ -113,7 +113,7 @@ public class AdvancedFeaturesIntegrationTests
         var repo = CreateFullRepo();
         var view = (ISimulationView)repo;
 
-        // ── Step 1: History trail ─────────────────────────────────────────────
+        // â”€â”€ Step 1: History trail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         var trailEntity = repo.CreateEntity();
         repo.AddComponent(trailEntity, new SimTransform
@@ -129,7 +129,7 @@ public class AdvancedFeaturesIntegrationTests
 
         var historySystem = new HistoryRecordingSystem();
 
-        // Three ticks at the default sample interval → three trail points.
+        // Three ticks at the default sample interval â†’ three trail points.
         const float sampleDt = HistoryTrailConstants.DefaultSampleIntervalSeconds;
         RunSystem(repo, historySystem, dt: sampleDt);
         RunSystem(repo, historySystem, dt: sampleDt);
@@ -145,7 +145,7 @@ public class AdvancedFeaturesIntegrationTests
             Assert.Equal(TrailEntityY, y);
         }
 
-        // ── Step 2: Visual effects ────────────────────────────────────────────
+        // â”€â”€ Step 2: Visual effects â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         var spawnSystem   = new EventToEffectSystem();
         var cleanupSystem = new VisualEffectCleanupSystem();
@@ -183,7 +183,7 @@ public class AdvancedFeaturesIntegrationTests
         foreach (var _ in afterCleanup) remaining++;
         Assert.Equal(0, remaining);
 
-        // ── Step 3: Context menu ──────────────────────────────────────────────
+        // â”€â”€ Step 3: Context menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         var menuEntity = repo.CreateEntity();
         var menuSystem = new ContextMenuSystem();
@@ -203,7 +203,7 @@ public class AdvancedFeaturesIntegrationTests
         RunSystem(repo, menuSystem);
         Assert.Equal(Entity.Null, menuSystem.ActiveMenuEntity);
 
-        // ── Step 4: Edit tool ─────────────────────────────────────────────────
+        // â”€â”€ Step 4: Edit tool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         var polyEntity = repo.CreateEntity();
         repo.SetManagedComponent(polyEntity, new EditablePolyline
@@ -241,7 +241,7 @@ public class AdvancedFeaturesIntegrationTests
         Assert.Equal(2, committed!.Count);
         Assert.Equal(dragTarget, committed[1]);
 
-        // ── Step 5: History-trail entity is still alive and unaffected ────────
+        // â”€â”€ Step 5: History-trail entity is still alive and unaffected â”€â”€â”€â”€â”€â”€â”€â”€
 
         Assert.True(view.IsAlive(trailEntity));
         var finalTrail = repo.GetComponent<HistoryTrail>(trailEntity);
@@ -249,7 +249,7 @@ public class AdvancedFeaturesIntegrationTests
     }
 
     /// <summary>
-    /// Multiple events in a single frame each spawn their own effect entities —
+    /// Multiple events in a single frame each spawn their own effect entities â€”
     /// verifies the spawn loop iterates all events, not just the first.
     /// </summary>
     [Fact]
@@ -287,7 +287,7 @@ public class AdvancedFeaturesIntegrationTests
         var repo   = CreateFullRepo();
         var system = new HistoryRecordingSystem();
 
-        // Entity A — trail enabled.
+        // Entity A â€” trail enabled.
         var entityA = repo.CreateEntity();
         repo.AddComponent(entityA, new SimTransform { Position = new Vector3(10f, 20f, 0f), Rotation = Quaternion.Identity });
         var styleA = ResolvedStyle.CreateDefault();
@@ -295,7 +295,7 @@ public class AdvancedFeaturesIntegrationTests
         repo.AddComponent(entityA, styleA);
         repo.AddComponent(entityA, HistoryTrail.Create());
 
-        // Entity B — trail disabled.
+        // Entity B â€” trail disabled.
         var entityB = repo.CreateEntity();
         repo.AddComponent(entityB, new SimTransform { Position = new Vector3(30f, 40f, 0f), Rotation = Quaternion.Identity });
         var styleB = ResolvedStyle.CreateDefault();

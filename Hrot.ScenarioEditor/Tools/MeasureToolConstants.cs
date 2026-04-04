@@ -1,8 +1,8 @@
-namespace Hrot.IG.Tools;
+﻿namespace Hrot.ScenarioEditor.Tools;
 
 /// <summary>
 /// Named constants for <see cref="MeasureTool"/>
-/// (§CODE-STANDARDS §1 — no magic numbers in production code).
+/// (Â§CODE-STANDARDS Â§1 â€” no magic numbers in production code).
 /// </summary>
 public static class MeasureToolConstants
 {
@@ -24,8 +24,8 @@ public static class MeasureToolConstants
     /// </summary>
     public const int LabelOffsetY = 4;
     /// <summary>
-    /// Colour of the measurement line overlay (cyan — clearly distinct from entity tints).
+    /// Colour of the measurement line overlay (cyan â€” clearly distinct from entity tints).
     /// Defined as a named constant rather than <c>Color.Cyan</c> because Raylib-cs does
-    /// not expose that preset (§CODE-STANDARDS §1).
+    /// not expose that preset (Â§CODE-STANDARDS Â§1).
     /// </summary>
     public static readonly Raylib_cs.Color LineColor = new Raylib_cs.Color(0, 255, 255, 255);}

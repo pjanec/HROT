@@ -1,5 +1,5 @@
 using System.Numerics;
-using Hrot.IG.Systems;
+using Hrot.ScenarioEditor.Rendering;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Fdp.Kernel;

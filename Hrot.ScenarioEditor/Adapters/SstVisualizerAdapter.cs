@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
@@ -9,7 +9,7 @@ using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.IG.Adapters;
+namespace Hrot.ScenarioEditor.Adapters;
 
 /// <summary>
 /// Production-quality entity visualizer that renders from <see cref="ResolvedStyle"/>
@@ -28,18 +28,18 @@ namespace Hrot.IG.Adapters;
 /// </list>
 ///
 /// All sizes, thresholds, and asset paths are referenced from
-/// <see cref="NedVisualizerAdapterConstants"/> (§CODE-STANDARDS §1).
-/// No allocations on the hot rendering path (§CODE-STANDARDS §4).
+/// <see cref="NedVisualizerAdapterConstants"/> (Â§CODE-STANDARDS Â§1).
+/// No allocations on the hot rendering path (Â§CODE-STANDARDS Â§4).
 /// </summary>
 public class NedVisualizerAdapter : IVisualizerAdapter
 {
-    // Texture cache — allocations occur only on first encounter of each texture name.
+    // Texture cache â€” allocations occur only on first encounter of each texture name.
     private readonly Dictionary<string, Texture2D> _textureCache = new();
     private readonly HashSet<int> _renderTracedEntities = new();
     private const string RenderTraceEntityEnvVar = "HROT_TRACE_ENTITY_ID";
     internal static int? RenderTraceEntityIdOverride { get; set; }
 
-    // ── IVisualizerAdapter ────────────────────────────────────────────────────
+    // â”€â”€ IVisualizerAdapter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     /// <remarks>
@@ -86,7 +86,7 @@ public class NedVisualizerAdapter : IVisualizerAdapter
                     "[TRACE-IG] Render: Drawing Entity={0} at ({1})", entity.Index, positionLabel);
         }
 
-        // ── Resolve style — fall back to unknown white when absent ────────────
+        // â”€â”€ Resolve style â€” fall back to unknown white when absent â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Color  tint        = new Color(
             ResolvedStyleConstants.UnknownTintR,
             ResolvedStyleConstants.UnknownTintG,
@@ -105,7 +105,7 @@ public class NedVisualizerAdapter : IVisualizerAdapter
             damage      = style.DamageLevel;
         }
 
-        // ── Read LOD level (already guaranteed visible via GetPosition gate) ──
+        // â”€â”€ Read LOD level (already guaranteed visible via GetPosition gate) â”€â”€
         byte lod = CullingStateConstants.LodFull;
         if (view.HasComponent<CullingState>(entity))
         {
@@ -113,18 +113,18 @@ public class NedVisualizerAdapter : IVisualizerAdapter
             lod = culling.LodLevel;
         }
 
-        // ── Apply selection/hover tint override ───────────────────────────────
-        // Primary selection → green tint; secondary selection → yellow; hover → orange.
+        // â”€â”€ Apply selection/hover tint override â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // Primary selection â†’ green tint; secondary selection â†’ yellow; hover â†’ orange.
         bool isPrimary = isSelected
-            && view.HasComponent<Components.SelectionState>(entity)
-            && view.GetComponentRO<Components.SelectionState>(entity).IsPrimarySelection;
+            && view.HasComponent<SelectionState>(entity)
+            && view.GetComponentRO<SelectionState>(entity).IsPrimarySelection;
 
         Color drawTint = isPrimary  ? Color.Green
                        : isSelected ? Color.Yellow
                        : isHovered  ? Color.Orange
                        :              tint;
 
-        // ── Icon / fallback circle ────────────────────────────────────────────
+        // â”€â”€ Icon / fallback circle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (!string.IsNullOrEmpty(textureName))
         {
             var tex = TryGetTexture(textureName);
@@ -150,7 +150,7 @@ public class NedVisualizerAdapter : IVisualizerAdapter
             DrawFallbackCircle(position, drawTint);
         }
 
-        // ── Label (suppressed at LOD 2 — icon-only) ───────────────────────────
+        // â”€â”€ Label (suppressed at LOD 2 â€” icon-only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (lod < CullingStateConstants.LodIconOnly && !string.IsNullOrEmpty(labelText))
         {
             Raylib.DrawText(
@@ -161,7 +161,7 @@ public class NedVisualizerAdapter : IVisualizerAdapter
                 Color.White);
         }
 
-        // ── Damage bar ─────────────────────────────────────────────────────────
+        // â”€â”€ Damage bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (damage > 0f)
         {
             var barPos = new Vector2(
@@ -170,7 +170,7 @@ public class NedVisualizerAdapter : IVisualizerAdapter
             DrawDamageBar(barPos, damage);
         }
 
-        // ── Selection ring ─────────────────────────────────────────────────────
+        // â”€â”€ Selection ring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (isSelected)
         {
             Color ringColor = isPrimary ? Color.Green : Color.Yellow;
@@ -201,7 +201,7 @@ public class NedVisualizerAdapter : IVisualizerAdapter
         return string.IsNullOrEmpty(label) ? null : label;
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static void DrawFallbackCircle(Vector2 pos, Color tint)
         => Raylib.DrawCircle(

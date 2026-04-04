@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Hrot.Map.Common;
 using Hrot.Map.Common.Components;
 using Fdp.Kernel;
@@ -8,7 +8,7 @@ using FDP.Toolkit.Vis2D.Abstractions;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
-namespace Hrot.IG.Systems;
+namespace Hrot.ScenarioEditor.Rendering;
 
 /// <summary>
 /// Map layer that renders <see cref="RoutePlan"/> waypoints for all
@@ -21,16 +21,16 @@ namespace Hrot.IG.Systems;
 /// For looping routes, an additional segment connects the last waypoint back to the first.
 /// </para>
 ///
-/// <para>No heap allocations in the hot path — plain <c>for</c> loops with pre-built queries.</para>
+/// <para>No heap allocations in the hot path â€” plain <c>for</c> loops with pre-built queries.</para>
 /// </summary>
 public class RouteRenderLayer : IMapLayer
 {
-    // ── Constants (§CODE-STANDARDS §1) ────────────────────────────────────────
+    // â”€â”€ Constants (Â§CODE-STANDARDS Â§1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>Display name shown in the layer-visibility UI.</summary>
     public const string LayerName = "Routes";
 
-    /// <summary>Bit-index 4 → <c>road_graphs</c> layer slot (same bit as TkbType predicate).</summary>
+    /// <summary>Bit-index 4 â†’ <c>road_graphs</c> layer slot (same bit as TkbType predicate).</summary>
     public const int RoadGraphsLayerBitIndex = 4;
 
     private const float LineThickness = 2f;
@@ -39,7 +39,7 @@ public class RouteRenderLayer : IMapLayer
     private static readonly Color NormalColor   = new(0x44, 0x88, 0xFF, 0xFF); // #4488FF
     private static readonly Color SelectedColor = new(0xFF, 0xD7, 0x00, 0xFF); // #FFD700
 
-    // ── IMapLayer ─────────────────────────────────────────────────────────────
+    // â”€â”€ IMapLayer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public string Name => LayerName;
@@ -47,13 +47,13 @@ public class RouteRenderLayer : IMapLayer
     /// <inheritdoc/>
     public int LayerBitIndex => RoadGraphsLayerBitIndex;
 
-    // ── Fields ────────────────────────────────────────────────────────────────
+    // â”€â”€ Fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private readonly ISimulationView   _view;
     private readonly EntityQuery       _query;
     private readonly IInspectorContext? _inspector;
 
-    // ── Test hooks ────────────────────────────────────────────────────────────
+    // â”€â”€ Test hooks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// When <c>true</c>, Raylib draw calls are skipped. Counter fields are still updated.
@@ -67,7 +67,7 @@ public class RouteRenderLayer : IMapLayer
     /// <summary>Total vertex-circle draw calls made in the last <see cref="Draw"/> pass.</summary>
     public int TestHook_CircleDrawCount { get; private set; }
 
-    // ── Constructor ───────────────────────────────────────────────────────────
+    // â”€â”€ Constructor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <param name="view">Simulation view used to read <see cref="RoutePlan"/> components.</param>
     /// <param name="query">
@@ -89,7 +89,7 @@ public class RouteRenderLayer : IMapLayer
         _inspector = inspector;
     }
 
-    // ── IMapLayer methods ─────────────────────────────────────────────────────
+    // â”€â”€ IMapLayer methods â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <inheritdoc/>
     public void Update(float dt) { }
@@ -184,14 +184,14 @@ public class RouteRenderLayer : IMapLayer
         return null;
     }
 
-    // ── Private draw helpers ──────────────────────────────────────────────────
+    // â”€â”€ Private draw helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    /// <summary>Pick radius in world units — used by <see cref="PickEntity"/>.</summary>
+    /// <summary>Pick radius in world units â€” used by <see cref="PickEntity"/>.</summary>
     private const float PickRadius = 7.0f;
 
     /// <summary>
     /// Returns the minimum distance from point <paramref name="p"/> to the line
-    /// segment <paramref name="a"/>–<paramref name="b"/>.
+    /// segment <paramref name="a"/>â€“<paramref name="b"/>.
     /// </summary>
     private static float DistanceToSegment(Vector2 p, Vector2 a, Vector2 b)
     {

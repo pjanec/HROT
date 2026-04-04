@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Threading;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Common;
 using Hrot.IG;
-using Hrot.IG.Adapters;
+using Hrot.ScenarioEditor.Adapters;
 using Hrot.IG.Components;
 using Hrot.Map.Common;
 using CycloneDDS.Runtime;

@@ -1,4 +1,4 @@
-namespace Hrot.IG.Tools;
+﻿namespace Hrot.ScenarioEditor.Tools;
 
 /// <summary>
 /// Named constants for <see cref="RouteEditTool"/> geometry and thresholds.

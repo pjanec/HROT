@@ -1,5 +1,5 @@
-using System.Numerics;
-using Hrot.IG.Tools;
+﻿using System.Numerics;
+using Hrot.ScenarioEditor.Tools;
 using FDP.Toolkit.Vis2D.Abstractions;
 using Raylib_cs;
 
@@ -9,7 +9,7 @@ namespace Hrot.IG.Tests;
 /// Unit tests for <see cref="MeasureTool"/> (IG.3.4).
 ///
 /// Validates the distance state-machine logic and mathematical accuracy without
-/// requiring a Raylib window context.  All rendering-path assertions are omitted —
+/// requiring a Raylib window context.  All rendering-path assertions are omitted â€”
 /// distance computation is exercised purely through
 /// <see cref="MeasureTool.HandleClick"/> and
 /// <see cref="MeasureTool.LastMeasuredDistanceMeters"/>.
@@ -25,7 +25,7 @@ namespace Hrot.IG.Tests;
 /// </summary>
 public class MeasureToolTests
 {
-    // ── Initial state ─────────────────────────────────────────────────────────
+    // â”€â”€ Initial state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void InitialState_IsNotMeasuring()
@@ -43,7 +43,7 @@ public class MeasureToolTests
         Assert.True(float.IsNaN(tool.LastMeasuredDistanceMeters));
     }
 
-    // ── First click arms start point ──────────────────────────────────────────
+    // â”€â”€ First click arms start point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void HandleClick_FirstLeftClick_StartsIsMeasuring()
@@ -66,7 +66,7 @@ public class MeasureToolTests
         Assert.True(float.IsNaN(tool.LastMeasuredDistanceMeters));
     }
 
-    // ── Second click computes distance ────────────────────────────────────────
+    // â”€â”€ Second click computes distance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Horizontal segment: distance must match X-axis displacement exactly.
@@ -121,7 +121,7 @@ public class MeasureToolTests
     }
 
     /// <summary>
-    /// Large-coordinate measurement — ensures floating-point accuracy at
+    /// Large-coordinate measurement â€” ensures floating-point accuracy at
     /// typical exercise-area scales (several kilometres).
     /// </summary>
     [Fact]
@@ -135,7 +135,7 @@ public class MeasureToolTests
         Assert.Equal(expected, tool.LastMeasuredDistanceMeters, precision: 2);
     }
 
-    // ── Right-click cancels ───────────────────────────────────────────────────
+    // â”€â”€ Right-click cancels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Right-clicking before the first click has no effect (not measuring, no distance).
@@ -165,7 +165,7 @@ public class MeasureToolTests
         Assert.True(float.IsNaN(tool.LastMeasuredDistanceMeters));
     }
 
-    // ── Input returns correct consumed flags ──────────────────────────────────
+    // â”€â”€ Input returns correct consumed flags â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     [Fact]
     public void HandleClick_LeftClick_ReturnsTrue_Consumed()
@@ -197,7 +197,7 @@ public class MeasureToolTests
         Assert.False(consumed);
     }
 
-    // ── BUG2-T001: Draw crosshair when no start point ─────────────────────────
+    // â”€â”€ BUG2-T001: Draw crosshair when no start point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// Calling <see cref="MeasureTool.Draw"/> with no start point set must not throw.

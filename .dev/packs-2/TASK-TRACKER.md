@@ -34,8 +34,8 @@ making them portable and network-agnostic.
 render layers reusable by IG, ExCon, and the new HROT Editor.
 
 - [x] **PACK2-E001** Scaffold `Hrot.ScenarioEditor` project (new IEcsModule) [details](./TASK-DETAIL.md#pack2-e001--scaffold-hrotscenarioeditor-project)
-- [ ] **PACK2-E002** Migrate core interaction tools into `Hrot.ScenarioEditor` [details](./TASK-DETAIL.md#pack2-e002--migrate-core-interaction-tools-into-hrotscenarioeditor)
-- [ ] **PACK2-E003** Extract visual rendering layers into `Hrot.ScenarioEditor` [details](./TASK-DETAIL.md#pack2-e003--extract-visual-rendering-layers-into-hrotscenarioeditor)
+- [x] **PACK2-E002** Migrate core interaction tools into `Hrot.ScenarioEditor` [details](./TASK-DETAIL.md#pack2-e002--migrate-core-interaction-tools-into-hrotscenarioeditor)
+- [x] **PACK2-E003** Extract visual rendering layers into `Hrot.ScenarioEditor` [details](./TASK-DETAIL.md#pack2-e003--extract-visual-rendering-layers-into-hrotscenarioeditor)
 - [ ] **PACK2-A001** Define `WorldResetEvent`; flush cached entity handles in tools and SelectionManager [details](./TASK-DETAIL.md#pack2-a001--define-worldresetevent-and-hook-into-selection--tool-state)
 - [ ] **PACK2-E004** Wire local scenario file operations in `ScenarioEditorModule` [details](./TASK-DETAIL.md#pack2-e004--wire-local-scenario-file-operations-in-scenarioeditormodule)
 

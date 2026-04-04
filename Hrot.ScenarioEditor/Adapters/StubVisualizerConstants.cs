@@ -1,7 +1,7 @@
-namespace Hrot.IG.Adapters;
+﻿namespace Hrot.ScenarioEditor.Adapters;
 
 /// <summary>
-/// Named constants for the stub entity visualizer (§CODE-STANDARDS §1).
+/// Named constants for the stub entity visualizer (Â§CODE-STANDARDS Â§1).
 /// </summary>
 internal static class StubVisualizerConstants
 {
@@ -16,8 +16,8 @@ internal static class StubVisualizerConstants
 
     /// <summary>
     /// Hit-test radius in world units.
-    /// Equals <see cref="CircleRadiusPx"/> pixels at the default initial zoom (0.5 px/m → 2 m/px).
+    /// Equals <see cref="CircleRadiusPx"/> pixels at the default initial zoom (0.5 px/m â†’ 2 m/px).
     /// Adjusting for the initial zoom keeps the hit area visually consistent on first load.
     /// </summary>
-    public const float HitRadiusWorldUnits = CircleRadiusPx / IgCameraConstants.InitialZoom;
+    public const float HitRadiusWorldUnits = CircleRadiusPx / 0.5f;
 }

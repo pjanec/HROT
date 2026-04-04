@@ -16,7 +16,9 @@ using Hrot.NED.Messages;
 
 using Hrot.NED.Common;
 
-using Hrot.IG.Adapters;
+using Hrot.ScenarioEditor.Adapters;
+
+using Hrot.ScenarioEditor.Rendering;
 
 using Hrot.IG.Components;
 
@@ -26,7 +28,7 @@ using Hrot.IG.Services;
 
 using Hrot.IG.Systems;
 
-using Hrot.IG.Tools;
+using Hrot.ScenarioEditor.Tools;
 
 using Hrot.IG.Translators;
 
@@ -126,7 +128,7 @@ using NodeIdMapper    = ModuleHost.Network.Cyclone.Services.NodeIdMapper;
 
 // Disambiguate StandardInteractionTool: both Hrot.IG.Tools and FDP.Toolkit.Vis2D.Tools define it.
 // Use the Hrot.IG variant which exposes OnWorldClick.
-using StandardInteractionTool = Hrot.IG.Tools.StandardInteractionTool;
+using StandardInteractionTool = Hrot.ScenarioEditor.Tools.StandardInteractionTool;
 
 using Raylib_cs;
 
@@ -1124,7 +1126,7 @@ public class IgApplication : IDisposable
         var overlayLayer = new MapOverlayRenderLayer(_world, overlayQuery);
         _canvas.AddLayer(overlayLayer);
 
-        var missionLayer = new Hrot.IG.Systems.MissionRenderLayer(_world, _geoTransform);
+        var missionLayer = new MissionRenderLayer(_world, _geoTransform);
         _canvas.AddLayer(missionLayer);
 
         // RouteRenderLayer — draws RoutePlan waypoints for TacGraphic_Route entities.
@@ -1133,7 +1135,7 @@ public class IgApplication : IDisposable
             .WithManaged<Hrot.Map.Common.Components.RoutePlan>()
             .WithLifecycle(EntityLifecycle.All)
             .Build();
-        var routeRenderLayer = new Hrot.IG.Systems.RouteRenderLayer(_world, routeQuery, _fdpInspectorState);
+        var routeRenderLayer = new RouteRenderLayer(_world, routeQuery, _fdpInspectorState);
         _canvas.AddLayer(routeRenderLayer);
 
         // Cache SelectionState query once to avoid per-click allocations (CT-2).
@@ -2865,7 +2867,7 @@ public class IgApplication : IDisposable
 
             case "200": // Measure — push the measurement tool onto the canvas
 
-                _canvas.PushTool(new Hrot.IG.Tools.MeasureTool());
+                _canvas.PushTool(new MeasureTool());
 
                 break;
 

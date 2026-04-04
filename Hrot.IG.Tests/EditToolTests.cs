@@ -1,8 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 using Hrot.IG.Components;
-using Hrot.IG.Tools;
+using Hrot.ScenarioEditor.Tools;
 using Fdp.Kernel;
 using ModuleHost.Core.Abstractions;
 using Raylib_cs;
@@ -18,7 +18,7 @@ namespace Hrot.IG.Tests;
 ///   <see cref="EditablePolyline"/> component.</item>
 ///   <item>Left-click selects the nearest vertex within pick radius.</item>
 ///   <item>Left-click far from all vertices leaves <see cref="EditTool.SelectedVertexIndex"/>
-///   at −1 (no selection).</item>
+///   at â’1 (no selection).</item>
 ///   <item>Drag moves the ghost point of the selected vertex.</item>
 ///   <item>Drag without a selected vertex returns <c>false</c>.</item>
 ///   <item>Right-click fires <see cref="EditTool.OnPolylineCommitted"/> with the
@@ -27,12 +27,12 @@ namespace Hrot.IG.Tests;
 /// </list>
 ///
 /// No DDS or Raylib window context required.  The <c>Draw()</c> method is not
-/// exercised — it requires a Raylib window.  <see cref="EditTool.OnEnter"/> is
+/// exercised â€” it requires a Raylib window.  <see cref="EditTool.OnEnter"/> is
 /// called with a <c>null</c> canvas reference (null-safe internally).
 /// </summary>
 public class EditToolTests
 {
-    // ── Test constants (§CODE-STANDARDS §1) ───────────────────────────────────
+    // â”€â”€ Test constants (Â§CODE-STANDARDS Â§1) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     // Polyline vertices
     private static readonly Vector2 Vertex0 = new Vector2(100f, 100f);
@@ -50,7 +50,7 @@ public class EditToolTests
     // Drag destination used in drag tests.
     private static readonly Vector2 DragTarget = new Vector2(250f, 250f);
 
-    // ── World factory ─────────────────────────────────────────────────────────
+    // â”€â”€ World factory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     private static EntityRepository CreateRepo()
     {
@@ -84,9 +84,9 @@ public class EditToolTests
         return tool;
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // OnEnter — ghost point loading
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // OnEnter â€” ghost point loading
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// After <see cref="EditTool.OnEnter"/>, the ghost point list must contain the
@@ -121,7 +121,7 @@ public class EditToolTests
     }
 
     /// <summary>
-    /// OnEnter must reset SelectedVertexIndex to −1 (no selection).
+    /// OnEnter must reset SelectedVertexIndex to â’1 (no selection).
     /// </summary>
     [Fact]
     public void OnEnter_ResetsSelectedVertexIndex()
@@ -133,9 +133,9 @@ public class EditToolTests
         Assert.Equal(-1, tool.SelectedVertexIndex);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Left-click — vertex selection
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Left-click â€” vertex selection
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// Hovering near a vertex within pick radius must select that vertex.
@@ -153,7 +153,7 @@ public class EditToolTests
     }
 
     /// <summary>
-    /// Hovering far from all vertices must leave SelectedVertexIndex at −1.
+    /// Hovering far from all vertices must leave SelectedVertexIndex at â’1.
     /// </summary>
     [Fact]
     public void HandleHover_FarFromAll_NoSelection()
@@ -184,9 +184,9 @@ public class EditToolTests
         Assert.True(miss);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Drag — vertex movement
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Drag â€” vertex movement
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// Dragging while a vertex is selected must move the corresponding ghost point
@@ -240,9 +240,9 @@ public class EditToolTests
         Assert.True(result);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Right-click — commit
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Right-click â€” commit
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// A right-click must fire <see cref="EditTool.OnPolylineCommitted"/> exactly once.
@@ -306,7 +306,7 @@ public class EditToolTests
     }
 
     /// <summary>
-    /// The committed list must be a fresh copy — modifying it must not alter the
+    /// The committed list must be a fresh copy â€” modifying it must not alter the
     /// internal ghost state.
     /// </summary>
     [Fact]
@@ -328,9 +328,9 @@ public class EditToolTests
         Assert.Equal(original, tool.GhostPoints[0]);
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Vertex context menu — right-click on a vertex
-    // ═══════════════════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+    // Vertex context menu â€” right-click on a vertex
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     /// <summary>
     /// Right-clicking within pick radius of a vertex must set
@@ -388,7 +388,7 @@ public class EditToolTests
         Assert.Equal(1, tool.ContextMenuVertexIndex);
     }
 
-    // ── Insert point ──────────────────────────────────────────────────────────
+    // â”€â”€ Insert point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// <see cref="EditTool.InsertPointAfterSelected"/> must add one vertex, placed at the
@@ -415,7 +415,7 @@ public class EditToolTests
         Assert.Equal(expectedMid.Y, tool.GhostPoints[2].Y, precision: 2);
     }
 
-    // ── Delete point ──────────────────────────────────────────────────────────
+    // â”€â”€ Delete point â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// <see cref="EditTool.DeleteSelectedPoint"/> must remove the vertex at
@@ -424,7 +424,7 @@ public class EditToolTests
     [Fact]
     public void DeleteSelectedPoint_RemovesVertex()
     {
-        // Need 4 vertices so the polygon remains valid (≥ 3) after deletion.
+        // Need 4 vertices so the polygon remains valid (â‰Ą 3) after deletion.
         var repo   = CreateRepo();
         var entity = repo.CreateEntity();
         repo.SetManagedComponent(entity, new EditablePolyline
@@ -461,7 +461,7 @@ public class EditToolTests
         Assert.False(tool.PendingVertexContextMenu);
     }
 
-    // ── Close context menu ────────────────────────────────────────────────────
+    // â”€â”€ Close context menu â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>
     /// <see cref="EditTool.CloseVertexContextMenu"/> must clear
