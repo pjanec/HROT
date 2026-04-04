@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.ClusterRunner\Hrot.ClusterRunner.csproj" />
+    <ProjectReference Include="..\Hrot.Editor\Hrot.Editor.csproj" />
     <ProjectReference Include="..\Hrot.NED\Hrot.NED.csproj" />
     <ProjectReference Include="..\Hrot.Map.Common\Hrot.Map.Common.csproj" />
     <ProjectReference Include="..\FDP\Toolkits\FDP.Toolkit.Vis2D\FDP.Toolkit.Vis2D.csproj" />

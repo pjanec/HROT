@@ -1,14 +1,24 @@
 using System;
+using System.Collections.Generic;
+using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
+using FDP.Toolkit.Lifecycle;
+using FDP.Toolkit.NetworkSpawning.Systems;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Time.Controllers;
+using Fdp.Toolkit.Tkb;
 using Hrot.CGF;
+using Hrot.Editor;
+using Hrot.Map.Common;
 using Hrot.Orchestrator;
 using Hrot.ScenarioEditor;
 using Hrot.SimHost;
+using Hrot.SimHost.Modules;
 using ModuleHost.Core;
+using ModuleHost.Core.Abstractions;
+using ModuleHost.Core.Network.Interfaces;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
@@ -25,10 +35,23 @@ public sealed class EditorHarness : IDisposable
     private const int PumpSleepMs = 5;
 
     private SteppingTimeController? _stepping;
+    private readonly SequentialIdAllocator _idAllocator;
 
-    public EntityRepository  Repo   { get; }
-    public FdpEventBus        Bus    { get; }
-    public ModuleHostKernel   Kernel { get; }
+    public EntityRepository  Repo      { get; }
+    public FdpEventBus        Bus       { get; }
+    public ModuleHostKernel   Kernel    { get; }
+    public NetworkEntityMap   EntityMap { get; }
+    public IEditorLogic       Editor    { get; }
+
+    // ── Nested test stub ─────────────────────────────────────────────────────
+
+    private sealed class SequentialIdAllocator : INetworkIdAllocator
+    {
+        private long _next = 1000;
+        public long AllocateId()            => _next++;
+        public void Reset(long startId = 0) => _next = startId;
+        public void Dispose() { }
+    }
 
     // ── Constructor ───────────────────────────────────────────────────────────
 
@@ -36,6 +59,9 @@ public sealed class EditorHarness : IDisposable
     {
         Repo   = new EntityRepository();
         Bus    = Repo.Bus;
+
+        // Register all shared HROT components and events before module setup.
+        HrotSharedComponentRegistry.RegisterAll(Repo);
 
         var accumulator = new EventAccumulator();
         Kernel = new ModuleHostKernel(Repo, accumulator);
@@ -45,15 +71,36 @@ public sealed class EditorHarness : IDisposable
         _stepping = stepping;
         Kernel.SetTimeController(stepping);
 
-        var entityMap        = new NetworkEntityMap();
+        EntityMap = new NetworkEntityMap();
+
         var doctrineRegistry = new DoctrineRegistry();
         var clusterSlave     = new ClusterSlave(0, "EditorHarness");
+        var fileService      = EditorBootstrap.CreateFileService();
 
-        Kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-        Kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap));
-        Kernel.RegisterModule(new ScenarioEditorModule());
+        // ── TKB + ELM + spawn system ─────────────────────────────────────────
+        var tkbDb = new TkbDatabase();
+        tkbDb.Register(new TkbTemplate("TestUnit", tkbType: 1L));
+
+        var elm      = new EntityLifecycleModule(tkbDb, Array.Empty<int>());
+        _idAllocator = new SequentialIdAllocator();
+        var spawnSys = new NetworkSpawningSystem(tkbDb, elm, EntityMap, _idAllocator, localNodeId: 0);
+
+        // ── Module registration (offline — no translator packs) ───────────────
+        var simHostCorePack  = new SimHostCoreLogicPack(EntityMap);
+        var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, EntityMap);
+        var scenarioMod      = new ScenarioEditorModule(fileService);
+
+        Kernel.RegisterModule(simHostCorePack);
+        Kernel.RegisterModule(cgfLogicPackInst);
+        Kernel.RegisterModule(scenarioMod);
+        Kernel.RegisterModule(elm);
+        Kernel.RegisterModule(new SimHostModule(spawnSys));
 
         Kernel.Initialize();
+
+        // ── Editor application facade ─────────────────────────────────────────
+        var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst };
+        Editor = new EditorApplication(fileService, Bus, Repo, Kernel, logicPacks);
     }
 
     // ── Pump API ──────────────────────────────────────────────────────────────
@@ -93,5 +140,6 @@ public sealed class EditorHarness : IDisposable
     {
         Kernel.Dispose();
         Repo.Dispose();
+        _idAllocator.Dispose();
     }
 }

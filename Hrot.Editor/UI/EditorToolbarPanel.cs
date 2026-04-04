@@ -15,6 +15,14 @@ public sealed class EditorToolbarPanel
     public void HandleEditClick(IEditorLogic logic)   => logic.ActivateTool(EditorTool.Edit);
     public void HandleRouteClick(IEditorLogic logic)  => logic.ActivateTool(EditorTool.Route);
 
+    public void HandleToggleModeClick(IEditorLogic logic)
+    {
+        if (logic.CurrentMode == SimHostMode.Internal)
+            _ = logic.SwitchToExternalAsync();   // fire-and-forget; kernel drains during game loop
+        else
+            _ = logic.SwitchToInternalAsync();
+    }
+
     // ── ImGui rendering ───────────────────────────────────────────────────────
 
     public void DrawContent(IEditorLogic logic)
@@ -28,5 +36,8 @@ public sealed class EditorToolbarPanel
         if (ImGui.Button("Edit Shape"))   HandleEditClick(logic);
         ImGui.SameLine();
         if (ImGui.Button("Edit Route"))   HandleRouteClick(logic);
+        ImGui.SameLine();
+        string modeLabel = logic.CurrentMode == SimHostMode.Internal ? "Go External" : "Go Internal";
+        if (ImGui.Button(modeLabel)) HandleToggleModeClick(logic);
     }
 }

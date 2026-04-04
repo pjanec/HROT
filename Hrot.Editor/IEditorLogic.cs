@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using FDP.Toolkit.DER;
 
 namespace Hrot.Editor;
@@ -33,4 +34,19 @@ public interface IEditorLogic
 
     /// <summary>Read-only non-ECS view of the current entity set (for panels).</summary>
     IDerRepo View { get; }
+
+    /// <summary>
+    /// Ejects the local FDP SimHost logic packs and (if translator packs are configured)
+    /// installs the ACL translator packs. No-op when kernel is not configured.
+    /// </summary>
+    Task SwitchToExternalAsync();
+
+    /// <summary>
+    /// Uninstals translator packs (if any) and reinstalls the local FDP SimHost logic packs.
+    /// No-op when kernel is not configured or already in Internal mode.
+    /// </summary>
+    Task SwitchToInternalAsync();
+
+    /// <summary>Current operational mode of the editor.</summary>
+    SimHostMode CurrentMode { get; }
 }

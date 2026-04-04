@@ -71,8 +71,8 @@ integrated into the Editor composition.
 (Internal FDP SimHost ↔ External HROT SimHost over DDS).
 
 - [x] **PACK2-C001** Assemble HROT Editor All-In-One composition root (offline state) [details](./TASK-DETAIL.md#pack2-c001--assemble-hrot-editor-all-in-one-composition-root)
-- [ ] **PACK2-C002** Feature Switch — eject local Logic Packs (External State) [details](./TASK-DETAIL.md#pack2-c002--implement-feature-switch--eject-local-logic-packs)
-- [ ] **PACK2-C003** Feature Switch — snap-in ACL Translator Packs + toggle UI [details](./TASK-DETAIL.md#pack2-c003--implement-feature-switch--snap-in-the-acl-translator-packs)
+- [x] **PACK2-C002** Feature Switch — eject local Logic Packs (External State) [details](./TASK-DETAIL.md#pack2-c002--implement-feature-switch--eject-local-logic-packs)
+- [x] **PACK2-C003** Feature Switch — snap-in ACL Translator Packs + toggle UI [details](./TASK-DETAIL.md#pack2-c003--implement-feature-switch--snap-in-the-acl-translator-packs)
 
 ---
 
@@ -85,6 +85,6 @@ distributed Brain/Muscle execution.
 - [x] **PACK2-R001** Add `RunMode.Editor` (= 64) and `RunMode.Demo` macro; add `"editor"` / `"demo"` CLI cases; validation guard [details](./TASK-DETAIL.md#pack2-r001--extend-runmode-with-editor-and-demo-update-configuration-validation)
 - [x] **PACK2-R002** Complete `CgfSubsystem.Initialize` with `CgfLogicPack` + `EntityStatesIngressPack(Ingress)` + `ActuatorIntentsEgressPack(Egress)` [details](./TASK-DETAIL.md#pack2-r002--complete-cgfsubsystem-brain-role-pack-installation)
 - [x] **PACK2-R003** Scaffold `CgfHarness` (domain-isolated + shared-domain ctor) and `EditorHarness` (offline, no DDS) [details](./TASK-DETAIL.md#pack2-r003--scaffold-cgfharness-and-editorharness-test-infrastructure)
-- [ ] **PACK2-R004** `OfflineEditorIntegrationTests` (IT-1): spawn / edit / delete via memory bus; assert zero DDS writes [details](./TASK-DETAIL.md#pack2-r004--offlineeditorintegrationtests-it-1)
+- [x] **PACK2-R004** `OfflineEditorIntegrationTests` (IT-1): spawn / edit / delete via memory bus; assert zero DDS writes [details](./TASK-DETAIL.md#pack2-r004--offlineeditorintegrationtests-it-1)
 - [ ] **PACK2-R005** `EditorFileIOIntegrationTests` (IT-2) + `FeatureSwitchRcuIntegrationTests` (IT-3) [details](./TASK-DETAIL.md#pack2-r005--editorfileiointegrationtests-it-2-and-featureswitchrcuintegrationtests-it-3)
 - [ ] **PACK2-R006** `DistributedBrainMuscleIntegrationTests` (IT-4): CGF + SimHost in shared loopback domain [details](./TASK-DETAIL.md#pack2-r006--distributedbrainmuscleintegrationtests-it-4)

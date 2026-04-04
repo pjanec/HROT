@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Orchestration;
@@ -12,6 +13,7 @@ using Hrot.ScenarioEditor;
 using Hrot.ScenarioEditor.Services;
 using Hrot.SimHost;
 using ModuleHost.Core;
+using ModuleHost.Core.Abstractions;
 using Raylib_cs;
 
 // ── 1. ECS world ─────────────────────────────────────────────────────────────
@@ -30,16 +32,25 @@ var clusterSlave     = new ClusterSlave(0, "Editor", world.Bus);
 var fileService      = EditorBootstrap.CreateFileService();
 
 // ── 4. Module registration (offline — no translator packs) ───────────────────
-kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
-kernel.RegisterModule(new CgfLogicPack(doctrineRegistry, entityMap));
-kernel.RegisterModule(new OrchestrationLogicPack(clusterSlave));
-kernel.RegisterModule(new ScenarioEditorModule(fileService));
+// ── 4a. Named pack instances for feature-switch RCU ────────────────────────
+var simHostCorePack  = new SimHostCoreLogicPack(entityMap);
+var cgfLogicPackInst = new CgfLogicPack(doctrineRegistry, entityMap);
+var orchPack         = new OrchestrationLogicPack(clusterSlave);
+var scenarioMod      = new ScenarioEditorModule(fileService);
+
+kernel.RegisterModule(simHostCorePack);
+kernel.RegisterModule(cgfLogicPackInst);
+kernel.RegisterModule(orchPack);
+kernel.RegisterModule(scenarioMod);
+
+// ── 4b. Logic-pack list used by EditorApplication.SwitchToExternalAsync ───
+var logicPacks = new List<IEcsModule> { simHostCorePack, cgfLogicPackInst };
 
 // ── 5. Kernel initialization ──────────────────────────────────────────────────
 kernel.Initialize();
 
 // ── 6. Editor application (IEditorLogic facade) ──────────────────────────────
-var app   = new EditorApplication(fileService, world.Bus, world);
+var app   = new EditorApplication(fileService, world.Bus, world, kernel, logicPacks);
 var files = new ScenarioBrowserPanel();
 var tools = new EditorToolbarPanel();
 

@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Fdp.Kernel;
 using FDP.Toolkit.DER;
 using FDP.Toolkit.NetworkSpawning.Events;
 using Hrot.Editor.Events;
 using Hrot.ScenarioEditor.Services;
+using ModuleHost.Core;
+using ModuleHost.Core.Abstractions;
 
 namespace Hrot.Editor;
 
@@ -25,16 +28,28 @@ public sealed class EditorApplication : IEditorLogic
     private readonly EntityRepository    _world;
     private readonly DerRepo             _view = new(localNodeId: 0);
 
+    private readonly ModuleHostKernel?          _kernel;
+    private readonly IReadOnlyList<IEcsModule>? _logicPacks;
+    private readonly IReadOnlyList<IEcsModule>? _translatorPacks;
+    private SimHostMode _currentMode = SimHostMode.Internal;
+
     public IDerRepo View => _view;
+    public SimHostMode CurrentMode => _currentMode;
 
     public EditorApplication(
         ScenarioFileService fileService,
         FdpEventBus bus,
-        EntityRepository world)
+        EntityRepository world,
+        ModuleHostKernel?          kernel          = null,
+        IReadOnlyList<IEcsModule>? logicPacks      = null,
+        IReadOnlyList<IEcsModule>? translatorPacks = null)
     {
-        _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
-        _bus         = bus         ?? throw new ArgumentNullException(nameof(bus));
-        _world       = world       ?? throw new ArgumentNullException(nameof(world));
+        _fileService      = fileService ?? throw new ArgumentNullException(nameof(fileService));
+        _bus              = bus         ?? throw new ArgumentNullException(nameof(bus));
+        _world            = world       ?? throw new ArgumentNullException(nameof(world));
+        _kernel           = kernel;
+        _logicPacks       = logicPacks;
+        _translatorPacks  = translatorPacks;
     }
 
     /// <inheritdoc/>
@@ -63,5 +78,33 @@ public sealed class EditorApplication : IEditorLogic
             NetworkId          = networkId,
             ComponentsToUpdate = new List<object>(updatedComponents),
         });
+    }
+
+    /// <inheritdoc/>
+    public async Task SwitchToExternalAsync()
+    {
+        if (_kernel == null || _logicPacks == null) return;
+        if (_currentMode == SimHostMode.External) return;
+
+        await _kernel.UninstallModulesAsync(_logicPacks);
+
+        if (_translatorPacks != null)
+            await _kernel.InstallModulesAsync(_translatorPacks);
+
+        _currentMode = SimHostMode.External;
+    }
+
+    /// <inheritdoc/>
+    public async Task SwitchToInternalAsync()
+    {
+        if (_kernel == null || _logicPacks == null) return;
+        if (_currentMode == SimHostMode.Internal) return;
+
+        if (_translatorPacks != null)
+            await _kernel.UninstallModulesAsync(_translatorPacks);
+
+        await _kernel.InstallModulesAsync(_logicPacks);
+
+        _currentMode = SimHostMode.Internal;
     }
 }
