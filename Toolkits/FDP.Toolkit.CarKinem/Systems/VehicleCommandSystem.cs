@@ -19,13 +19,8 @@ namespace CarKinem.Systems
         {
             ProcessSpawnCommands();
             ProcessCreateFormationCommands();
-            ProcessNavigateToPointCommands();
-            ProcessFollowTrajectoryCommands();
-            ProcessNavigateViaRoadCommands();
             ProcessJoinFormationCommands();
             ProcessLeaveFormationCommands();
-            ProcessStopCommands();
-            ProcessSetSpeedCommands();
         }
         
         private void ProcessSpawnCommands()
@@ -131,73 +126,6 @@ namespace CarKinem.Systems
             }
         }
 
-        private void ProcessNavigateToPointCommands()
-        {
-            var events = World.Bus.Consume<CmdNavigateToPoint>();
-            
-            foreach (var cmd in events)
-            {
-                var entity = cmd.Entity;
-                
-                if (!World.IsAlive(entity))
-                    continue;
-                
-                var nav = World.GetComponent<NavState>(entity);
-                nav.Mode = KinematicsMode.None; // Direct navigation (no special mode)
-                nav.FinalDestination = cmd.Destination;
-                nav.ArrivalRadius = cmd.ArrivalRadius;
-                nav.TargetSpeed = cmd.Speed;
-                nav.HasArrived = 0;
-                
-                World.SetComponent(entity, nav);
-            }
-        }
-        
-        private void ProcessFollowTrajectoryCommands()
-        {
-            var events = World.Bus.Consume<CmdFollowTrajectory>();
-            
-            foreach (var cmd in events)
-            {
-                var entity = cmd.Entity;
-                
-                if (!World.IsAlive(entity))
-                    continue;
-                
-                var nav = World.GetComponent<NavState>(entity);
-                nav.Mode = KinematicsMode.CustomTrajectory;
-                nav.TrajectoryId = cmd.TrajectoryId;
-                nav.ProgressS = 0f;
-                nav.HasArrived = 0;
-                
-                World.SetComponent(entity, nav);
-            }
-        }
-        
-        private void ProcessNavigateViaRoadCommands()
-        {
-            var events = World.Bus.Consume<CmdNavigateViaRoad>();
-            
-            foreach (var cmd in events)
-            {
-                var entity = cmd.Entity;
-                
-                if (!World.IsAlive(entity))
-                    continue;
-                
-                var nav = World.GetComponent<NavState>(entity);
-                nav.Mode = KinematicsMode.RoadGraph;
-                nav.RoadPhase = RoadGraphPhase.Approaching;
-                nav.FinalDestination = cmd.Destination;
-                nav.ArrivalRadius = cmd.ArrivalRadius;
-                nav.CurrentSegmentId = -1;
-                nav.ProgressS = 0f;
-                nav.HasArrived = 0;
-                
-                World.SetComponent(entity, nav);
-            }
-        }
-        
         private void ProcessJoinFormationCommands()
         {
             var events = World.Bus.Consume<CmdJoinFormation>();
@@ -261,43 +189,6 @@ namespace CarKinem.Systems
                 
                 var nav = World.GetComponent<NavState>(entity);
                 nav.Mode = KinematicsMode.None;
-                
-                World.SetComponent(entity, nav);
-            }
-        }
-        
-        private void ProcessStopCommands()
-        {
-            var events = World.Bus.Consume<CmdStop>();
-            
-            foreach (var cmd in events)
-            {
-                var entity = cmd.Entity;
-                
-                if (!World.IsAlive(entity))
-                    continue;
-                
-                var nav = World.GetComponent<NavState>(entity);
-                nav.Mode = KinematicsMode.None;
-                nav.TargetSpeed = 0f;
-                
-                World.SetComponent(entity, nav);
-            }
-        }
-        
-        private void ProcessSetSpeedCommands()
-        {
-            var events = World.Bus.Consume<CmdSetSpeed>();
-            
-            foreach (var cmd in events)
-            {
-                var entity = cmd.Entity;
-                
-                if (!World.IsAlive(entity))
-                    continue;
-                
-                var nav = World.GetComponent<NavState>(entity);
-                nav.TargetSpeed = cmd.Speed;
                 
                 World.SetComponent(entity, nav);
             }

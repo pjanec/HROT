@@ -191,11 +191,13 @@ namespace Fdp.Examples.CarKinem.Core
                  _trajectoryPool.RemoveTrajectory(oldNav.TrajectoryId);
              }
              
-             // 6. Issue Command
-             _repository.Bus.Publish(new CmdFollowTrajectory {
-                Entity = entity,
-                TrajectoryId = trajId
-            });
+             // 6. Write NavState directly (legacy Cmd bus removed)
+             var nav = _repository.GetComponent<NavState>(entity);
+             nav.Mode         = KinematicsMode.CustomTrajectory;
+             nav.TrajectoryId = trajId;
+             nav.ProgressS    = 0f;
+             nav.HasArrived   = 0;
+             _repository.SetComponent(entity, nav);
         }
         
         public void SetDestination(Entity entity, Vector2 destination, TrajectoryInterpolation interpolation = TrajectoryInterpolation.Linear)
@@ -245,11 +247,16 @@ namespace Fdp.Examples.CarKinem.Core
             vParams.MaxLatAccel = 15.0f;  
             _repository.SetComponent(entity, vParams);
             
-            _repository.Bus.Publish(new CmdNavigateViaRoad {
-                 Entity = entity,
-                 Destination = endNode.Position,
-                 ArrivalRadius = 5.0f
-            });
+            // Write NavState directly (legacy Cmd bus removed)
+            var nav = _repository.GetComponent<NavState>(entity);
+            nav.Mode             = KinematicsMode.RoadGraph;
+            nav.RoadPhase        = RoadGraphPhase.Approaching;
+            nav.FinalDestination = endNode.Position;
+            nav.ArrivalRadius    = 5.0f;
+            nav.CurrentSegmentId = -1;
+            nav.ProgressS        = 0f;
+            nav.HasArrived       = 0;
+            _repository.SetComponent(entity, nav);
         }
 
         public void SpawnRoadUsers(int count, VehicleClass vClass)
@@ -266,11 +273,16 @@ namespace Fdp.Examples.CarKinem.Core
                 var entity = SpawnVehicle(startNode.Position, new Vector2(1,0), vClass);
                 _repository.SetComponent(entity, VehicleColor.Blue);
                 
-                _repository.Bus.Publish(new CmdNavigateViaRoad {
-                     Entity = entity,
-                     Destination = endNode.Position,
-                     ArrivalRadius = 5.0f
-                });
+                // Write NavState directly (legacy Cmd bus removed)
+                var navRoad = _repository.GetComponent<NavState>(entity);
+                navRoad.Mode             = KinematicsMode.RoadGraph;
+                navRoad.RoadPhase        = RoadGraphPhase.Approaching;
+                navRoad.FinalDestination = endNode.Position;
+                navRoad.ArrivalRadius    = 5.0f;
+                navRoad.CurrentSegmentId = -1;
+                navRoad.ProgressS        = 0f;
+                navRoad.HasArrived       = 0;
+                _repository.SetComponent(entity, navRoad);
             }
         }
 

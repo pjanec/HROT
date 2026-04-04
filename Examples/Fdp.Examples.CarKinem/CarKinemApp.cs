@@ -236,18 +236,19 @@ public class CarKinemApp : FdpApplication
                  }
                  else
                  {
-                     // Context (Navigate) -> Move Command (Clear previous)
+                     // Context (Navigate) -> Write NavState directly (Cmd bus removed)
                      foreach(var e in entities)
                      {
                         if (!_repository.IsAlive(e)) continue;
+                        if (!_repository.HasComponent<NavState>(e)) continue;
 
-                        _repository.Bus.Publish(new CmdNavigateToPoint 
-                        {
-                            Entity = e,
-                            Destination = pos,
-                            ArrivalRadius = 3.0f,
-                            Speed = 10.0f
-                        });
+                        var nav = _repository.GetComponent<NavState>(e);
+                        nav.Mode             = KinematicsMode.None;
+                        nav.FinalDestination = pos;
+                        nav.ArrivalRadius    = 3.0f;
+                        nav.TargetSpeed      = 10.0f;
+                        nav.HasArrived       = 0;
+                        _repository.SetComponent(e, nav);
                      }
                  }
              }
@@ -294,13 +295,8 @@ public class CarKinemApp : FdpApplication
         // Commands
         _repository.RegisterEvent<CmdSpawnVehicle>();
         _repository.RegisterEvent<CmdCreateFormation>();
-        _repository.RegisterEvent<CmdNavigateToPoint>();
-        _repository.RegisterEvent<CmdFollowTrajectory>();
-        _repository.RegisterEvent<CmdNavigateViaRoad>();
         _repository.RegisterEvent<CmdJoinFormation>();
         _repository.RegisterEvent<CmdLeaveFormation>();
-        _repository.RegisterEvent<CmdStop>();
-        _repository.RegisterEvent<CmdSetSpeed>();
     }
 
     protected override void OnUpdate(float dt)

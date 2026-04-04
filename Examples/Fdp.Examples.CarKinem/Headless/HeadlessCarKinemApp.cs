@@ -131,13 +131,8 @@ namespace Fdp.Examples.CarKinem.Headless
             
             Repository.RegisterEvent<CmdSpawnVehicle>();
             Repository.RegisterEvent<CmdCreateFormation>();
-            Repository.RegisterEvent<CmdNavigateToPoint>();
-            Repository.RegisterEvent<CmdFollowTrajectory>();
-            Repository.RegisterEvent<CmdNavigateViaRoad>();
             Repository.RegisterEvent<CmdJoinFormation>();
             Repository.RegisterEvent<CmdLeaveFormation>();
-            Repository.RegisterEvent<CmdStop>();
-            Repository.RegisterEvent<CmdSetSpeed>();
         }
         
         public void Update()
