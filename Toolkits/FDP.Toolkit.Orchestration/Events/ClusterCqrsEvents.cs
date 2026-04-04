@@ -93,4 +93,60 @@ namespace FDP.Toolkit.Orchestration
         /// <summary>"Cluster" — identifies the global cluster state machine.</summary>
         public string SubsystemName;
     }
+
+    /// <summary>
+    /// Published by <c>OrchestrationObserverTranslator</c> (DDS→bus) and by
+    /// <c>ClusterMaster</c> (bus-mode) when the global cluster state transitions.
+    /// Consumed by <c>ClusterUiCache</c> to update <c>CurrentState</c>.
+    /// </summary>
+    [EventId(9016)]
+    [DataPolicy(DataPolicy.NoRecord)]
+    public struct SystemStateUpdateEvent
+    {
+        /// <summary>New cluster state.</summary>
+        public ClusterState CurrentState;
+    }
+
+    /// <summary>
+    /// Published by <c>ClusterMaster</c> when the asset inventory is refreshed, and by
+    /// <c>OrchestrationObserverTranslator</c> when a DDS <c>AssetInventoryTopic</c> arrives.
+    /// Consumed by <c>ClusterOpMasterTranslator</c> to write the DDS inventory topic, and by
+    /// <c>ClusterUiCache</c> to update <c>AvailableScenarios</c> / <c>AvailableExercises</c>.
+    /// </summary>
+    [EventId(9017)]
+    [DataPolicy(DataPolicy.NoRecord)]
+    public struct AssetInventoryUpdateEvent
+    {
+        public string[] LocalScenarios;
+        public string[] LocalExercises;
+        public string[] ArchivedExercises;
+        public string[] UnarchivedLocalExercises;
+    }
+
+    /// <summary>
+    /// Published by <c>ClusterScenarioPanel</c> (remote/ExCon path) when the operator
+    /// triggers a cluster-level command.
+    /// Consumed by <c>ClusterOpEgressTranslator</c> which serialises the payload and
+    /// writes a <c>ClusterOpRequest</c> DDS message to the Orchestrator.
+    ///
+    /// <para>Use <c>FdpEventBus.PublishManaged</c> / <c>ConsumeManaged</c> because
+    /// <see cref="DomainPayload"/> is a managed reference.</para>
+    /// </summary>
+    [EventId(9018)]
+    [DataPolicy(DataPolicy.NoRecord)]
+    public sealed class ClusterOpIntent
+    {
+        /// <summary>Unique identifier that links this command to its status reply.</summary>
+        public Guid RequestId;
+
+        /// <summary>The cluster-level operation being requested.</summary>
+        public ClusterOpType OperationType;
+
+        /// <summary>
+        /// Typed payload for the operation (e.g. a string PayloadJson pass-through,
+        /// or a strongly-typed DTO for full CQRS).
+        /// <c>null</c> for operations that carry no payload.
+        /// </summary>
+        public object? DomainPayload;
+    }
 }
