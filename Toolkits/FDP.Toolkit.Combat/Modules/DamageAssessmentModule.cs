@@ -1,6 +1,5 @@
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Systems;
-using FDP.Toolkit.Replication.Services;
 
 namespace FDP.Toolkit.Combat.Modules
 {
@@ -28,13 +27,9 @@ namespace FDP.Toolkit.Combat.Modules
         /// Registers damage-assessment systems into the provided system groups.
         /// </summary>
         /// <param name="simGroup">Simulation-phase group — receives <see cref="DamageCalculationSystem"/>.</param>
-        /// <param name="entityMap">
-        /// Shared <see cref="NetworkEntityMap"/> injected into <see cref="DamageCalculationSystem"/>
-        /// for resolving network entity IDs to local ECS handles.
-        /// </param>
-        public void RegisterSystems(SystemGroup simGroup, NetworkEntityMap entityMap)
+        public void RegisterSystems(SystemGroup simGroup)
         {
-            simGroup.AddSystem(new DamageCalculationSystem(entityMap));
+            simGroup.AddSystem(new DamageCalculationSystem());
         }
     }
 }

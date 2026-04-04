@@ -27,6 +27,7 @@ namespace FDP.Toolkit.Perception.Tests
             world.RegisterEvent<AudioStimulusEvent>();
             world.RegisterEvent<LosCheckRequestEvent>();
             world.RegisterEvent<TargetVisibleEvent>();
+            world.RegisterEvent<TargetHeardEvent>();
 
             return world;
         }

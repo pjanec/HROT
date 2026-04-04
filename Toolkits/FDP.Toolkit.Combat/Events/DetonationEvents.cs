@@ -22,11 +22,11 @@ namespace FDP.Toolkit.Combat.Events
     /// </para>
     /// </summary>
     [EventId(CombatConstants.DamageAssessedEventId)]
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [StructLayout(LayoutKind.Sequential)]
     public struct DamageAssessedEvent
     {
-        /// <summary>Network entity ID of the struck entity.</summary>
-        public long HitEntityId;
+        /// <summary>ECS handle of the struck entity.</summary>
+        public Entity HitEntity;
 
         /// <summary>Total computed HP loss (POC: flat damage from <c>BallisticProjectile.Damage</c>).</summary>
         public float TotalDamage;

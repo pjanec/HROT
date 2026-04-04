@@ -4,7 +4,6 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
 
 namespace FDP.Toolkit.Combat.Systems
 {
@@ -33,15 +32,8 @@ namespace FDP.Toolkit.Combat.Systems
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public class HealthApplicationSystem : ComponentSystem
     {
-        private readonly NetworkEntityMap _entityMap;
-
-        /// <param name="entityMap">
-        /// Shared network entity map used to resolve the target network ID to a local
-        /// <see cref="Entity"/> handle.  Required; must not be null.
-        /// </param>
-        public HealthApplicationSystem(NetworkEntityMap entityMap)
+        public HealthApplicationSystem()
         {
-            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
         protected override void OnUpdate()
@@ -53,9 +45,7 @@ namespace FDP.Toolkit.Combat.Systems
             {
                 ref readonly var evt = ref events[i];
 
-                // Resolve network ID to local entity.
-                if (!_entityMap.TryGetEntity(evt.HitEntityId, out var targetEntity))
-                    continue;
+                var targetEntity = evt.HitEntity;
 
                 // Skip if entity is no longer alive.
                 if (!World.IsAlive(targetEntity))

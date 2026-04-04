@@ -105,6 +105,30 @@ namespace FDP.Toolkit.Perception.Systems
 
                 ecb.SetComponent(evt.Observer, mem);
             }
+
+            // ── Step 3: Boost scores from confirmed heard events ──────────────────
+            var heardEvents = view.ConsumeEvents<TargetHeardEvent>();
+            foreach (ref readonly var evt in heardEvents)
+            {
+                if (!view.IsAlive(evt.Listener))
+                    continue;
+
+                if (!view.HasComponent<TargetMemory>(evt.Listener))
+                    continue;
+
+                ref readonly var memRO = ref view.GetComponentRO<TargetMemory>(evt.Listener);
+                TargetMemory mem = memRO;
+
+                TargetMemory.AddOrUpdateTarget(
+                    ref mem,
+                    entityId:   evt.SourceEntityIndex,
+                    posX:       evt.Origin.X,
+                    posY:       evt.Origin.Y,
+                    scoreBoost: 20f,
+                    tick:       tick);
+
+                ecb.SetComponent(evt.Listener, mem);
+            }
         }
     }
 }

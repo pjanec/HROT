@@ -382,5 +382,52 @@ namespace FDP.Toolkit.Perception.Tests
             Assert.NotEqual(0, events[0].Target.Generation);
 
             grid.Dispose();
-        }    }
+        }
+
+        // ── Test 8 (PACK-A001: TargetHeardEvent boost) ────────────────────────────
+
+        /// <summary>
+        /// PACK-A001 SC-4: Publishing a <see cref="TargetHeardEvent"/> and ticking
+        /// <see cref="ThreatEvaluationSystem"/> must produce a non-zero <see cref="TargetMemory"/>
+        /// entry for the listener keyed on <see cref="TargetHeardEvent.SourceEntityIndex"/>.
+        /// </summary>
+        [Fact]
+        public unsafe void ThreatEvaluation_BoostsScore_OnTargetHeardEvent()
+        {
+            // Arrange
+            var world = PerceptionTestWorldFactory.Create();
+            var view  = (ISimulationView)world;
+            var sys   = new ThreatEvaluationSystem();
+
+            var listener = world.CreateEntity();
+            world.AddComponent(listener, new SimTransform
+            {
+                Position = Vector3.Zero,
+                Rotation = Quaternion.Identity,
+            });
+            world.AddComponent(listener, new TargetMemory());
+
+            const int sourceEntityIndex = 42;
+
+            // Publish TargetHeardEvent — simulates AudioPerceptionSystem output.
+            world.Bus.Publish(new TargetHeardEvent
+            {
+                Listener          = listener,
+                SourceEntityIndex = sourceEntityIndex,
+                Origin            = new Vector3(10f, 20f, 0f),
+            });
+            world.Bus.SwapBuffers(); // move to readable slot
+
+            // Act — dt=0 so no decay; only the heard-event boost is applied.
+            sys.Execute(view, 0f);
+            FlushEcbAndSwap(view, world);
+
+            // Assert — TargetMemory of listener has a non-zero entry for SourceEntityIndex.
+            var resultMem = world.GetComponent<TargetMemory>(listener);
+            Assert.Equal(1, resultMem.Count);
+            Assert.Equal((long)sourceEntityIndex, resultMem.EntityIds[0]);
+            Assert.True(resultMem.ThreatScores[0] > 0f,
+                "Score must be boosted when a TargetHeardEvent is consumed.");
+        }
+    }
 }

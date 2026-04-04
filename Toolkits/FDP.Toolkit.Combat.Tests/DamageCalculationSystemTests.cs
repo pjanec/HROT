@@ -4,7 +4,6 @@ using FDP.Toolkit.Combat.Contracts;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
 using Xunit;
 
 namespace FDP.Toolkit.Combat.Tests
@@ -15,7 +14,6 @@ namespace FDP.Toolkit.Combat.Tests
     public class DamageCalculationSystemTests : IDisposable
     {
         private readonly EntityRepository    _world;
-        private readonly NetworkEntityMap    _entityMap;
         private readonly DamageCalculationSystem _sys;
 
         public DamageCalculationSystemTests()
@@ -26,9 +24,7 @@ namespace FDP.Toolkit.Combat.Tests
             _world.RegisterEvent<DetonationNotification>();
             _world.RegisterEvent<DamageAssessedEvent>();
 
-            _entityMap = new NetworkEntityMap();
-
-            _sys = new DamageCalculationSystem(_entityMap);
+            _sys = new DamageCalculationSystem();
             _sys.Create(_world);
         }
 
@@ -40,14 +36,13 @@ namespace FDP.Toolkit.Combat.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
-        private Entity SpawnTarget(long netId, bool authoritative = true)
+        private Entity SpawnTarget(bool authoritative = true)
         {
             var entity = _world.CreateEntity();
             if (authoritative)
                 _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             else
                 _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
-            _entityMap.Register(netId, entity);
             return entity;
         }
 
@@ -72,7 +67,7 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void DamageCalculation_PublishesDamageAssessedEvent_WhenAuthoritative()
         {
-            var target = SpawnTarget(netId: 5L, authoritative: true);
+            var target = SpawnTarget(authoritative: true);
             PublishDetonation(target: target);
 
             _sys.Run();
@@ -81,7 +76,7 @@ namespace FDP.Toolkit.Combat.Tests
             var events = _world.Bus.Consume<DamageAssessedEvent>();
 
             Assert.Equal(1, events.Length);
-            Assert.Equal(5L, events[0].HitEntityId);
+            Assert.Equal(target, events[0].HitEntity);
             Assert.Equal(CombatConstants.DefaultBulletDamage, events[0].TotalDamage);
         }
 
@@ -94,7 +89,7 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void DamageCalculation_DoesNotPublish_WhenNotAuthoritative()
         {
-            var target2 = SpawnTarget(netId: 5L, authoritative: false);
+            var target2 = SpawnTarget(authoritative: false);
             PublishDetonation(target: target2);
 
             _sys.Run();
@@ -115,7 +110,7 @@ namespace FDP.Toolkit.Combat.Tests
         public void DamageCalculation_DoesNotMutateHealth()
         {
             // Register Health and add it to the target — system must not touch it.
-            var entity = SpawnTarget(netId: 5L, authoritative: true);
+            var entity = SpawnTarget(authoritative: true);
             _world.AddComponent(entity, new FDP.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
 
             PublishDetonation(target: entity);
@@ -128,15 +123,16 @@ namespace FDP.Toolkit.Combat.Tests
         // ── Unknown entity → skipped gracefully ──────────────────────────────
 
         /// <summary>
-        /// When the target entity ID is not in <see cref="NetworkEntityMap"/>, the event
-        /// must be skipped silently.
+        /// A dead entity (not alive in the world) must be skipped silently.
         /// </summary>
         [Fact]
-        public void DamageCalculation_SkipsUnknownEntity()
+        public void DamageCalculation_SkipsDeadEntity()
         {
-            // Publish with an entity that was never registered in the map.
-            var unknownEntity = _world.CreateEntity();
-            PublishDetonation(target: unknownEntity);
+            // Create and immediately destroy the entity before firing.
+            var deadEntity = _world.CreateEntity();
+            _world.AddComponent(deadEntity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
+            _world.DestroyEntity(deadEntity);
+            PublishDetonation(target: deadEntity);
 
             var ex = Record.Exception(() => _sys.Run());
             Assert.Null(ex);

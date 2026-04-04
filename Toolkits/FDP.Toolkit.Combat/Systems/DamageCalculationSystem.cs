@@ -3,7 +3,6 @@ using Fdp.Kernel;
 using FDP.Toolkit.Combat.Contracts;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
 
 namespace FDP.Toolkit.Combat.Systems
 {
@@ -28,16 +27,8 @@ namespace FDP.Toolkit.Combat.Systems
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public class DamageCalculationSystem : ComponentSystem
     {
-        private readonly NetworkEntityMap _entityMap;
-
-        /// <param name="entityMap">
-        /// Shared network entity map used to resolve the target network ID to a local
-        /// <see cref="Entity"/> handle for the <c>HasAuthority</c> check.
-        /// Required; must not be null.
-        /// </param>
-        public DamageCalculationSystem(NetworkEntityMap entityMap)
+        public DamageCalculationSystem()
         {
-            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
         protected override void OnUpdate()
@@ -54,10 +45,6 @@ namespace FDP.Toolkit.Combat.Systems
                 var targetEntity = evt.Target;
                 if (!World.IsAlive(targetEntity)) continue;
 
-                // Resolve target to a network ID for DamageAssessedEvent.
-                // Skip if this node has no entry (shouldn't happen if the entity is alive here).
-                if (!_entityMap.TryGetNetworkId(targetEntity, out long targetNetId)) continue;
-
                 // Authority gate: only the owning node computes and publishes damage.
                 // Fall through (authoritative) when no NetworkAuthority component is present
                 // (single-node / AllInOne / unit-test scenario).
@@ -70,7 +57,7 @@ namespace FDP.Toolkit.Combat.Systems
                 // POC: flat damage value; armor/penetration curves are deferred.
                 World.Bus.Publish(new DamageAssessedEvent
                 {
-                    HitEntityId = targetNetId,
+                    HitEntity   = targetEntity,
                     TotalDamage = CombatConstants.DefaultBulletDamage,
                 });
             }

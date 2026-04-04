@@ -34,8 +34,6 @@ namespace FDP.Toolkit.Perception.Systems
 
             bool hasGrid = World.HasSingleton<SpatialGridData>();
 
-            uint tick = World.GlobalVersion;
-
             // Re-use a stack-allocated buffer for neighbor results.
             Span<(Entity entity, Vector2 pos)> neighbors =
                 stackalloc (Entity, Vector2)[MaxQueryResults];
@@ -62,7 +60,6 @@ namespace FDP.Toolkit.Perception.Systems
                     // QueryNeighbors returns full Entity handles — no reconstruction needed.
                     Entity listener = neighbors[i].entity;
                     if (!World.HasComponent<PerceptionReceptor>(listener)) continue;
-                    if (!World.HasComponent<TargetMemory>(listener)) continue;
 
                     // Check the entity's own hearing range (second filter after spatial broadphase).
                     var receptor = World.GetComponent<PerceptionReceptor>(listener);
@@ -72,15 +69,12 @@ namespace FDP.Toolkit.Perception.Systems
                     float dist = Vector2.Distance(listenerPos, eventPos2D);
                     if (dist > receptor.HearingRange) continue;
 
-                    // Determine source position (same as event origin for audio).
-                    ref var mem = ref World.GetComponentRW<TargetMemory>(listener);
-                    TargetMemory.AddOrUpdateTarget(
-                        ref mem,
-                        entityId:   evt.SourceEntityIndex,
-                        posX:       evt.Origin.X,
-                        posY:       evt.Origin.Y,
-                        scoreBoost: 20f,
-                        tick:       tick);
+                    World.Bus.Publish(new TargetHeardEvent
+                    {
+                        Listener          = listener,
+                        SourceEntityIndex = evt.SourceEntityIndex,
+                        Origin            = evt.Origin,
+                    });
                 }
             }
         }

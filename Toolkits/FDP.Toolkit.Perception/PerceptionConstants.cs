@@ -22,6 +22,9 @@ namespace FDP.Toolkit.Perception
         /// <summary>Event ID for <see cref="Events.TargetVisibleEvent"/>.</summary>
         public const int TargetVisibleEventId = 4003;
 
+        /// <summary>Event ID for <see cref="Events.TargetHeardEvent"/>.</summary>
+        public const int TargetHeardEventId = 4004;
+
         // ── Threat score dynamics ─────────────────────────────────────────────────
 
         /// <summary>

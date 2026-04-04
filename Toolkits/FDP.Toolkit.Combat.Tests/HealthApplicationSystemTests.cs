@@ -5,7 +5,6 @@ using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
 using Xunit;
 
 namespace FDP.Toolkit.Combat.Tests
@@ -16,7 +15,6 @@ namespace FDP.Toolkit.Combat.Tests
     public class HealthApplicationSystemTests : IDisposable
     {
         private readonly EntityRepository _world;
-        private readonly NetworkEntityMap _entityMap;
         private readonly HealthApplicationSystem _sys;
 
         public HealthApplicationSystemTests()
@@ -27,9 +25,7 @@ namespace FDP.Toolkit.Combat.Tests
             _world.RegisterComponent<NetworkAuthority>();
             _world.RegisterEvent<DamageAssessedEvent>();
 
-            _entityMap = new NetworkEntityMap();
-
-            _sys = new HealthApplicationSystem(_entityMap);
+            _sys = new HealthApplicationSystem();
             _sys.Create(_world);
         }
 
@@ -39,9 +35,9 @@ namespace FDP.Toolkit.Combat.Tests
             _world.Dispose();
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────
+        // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-        private Entity SpawnTarget(long netId, float currentHealth, float maxHealth = 100f,
+        private Entity SpawnTarget(float currentHealth, float maxHealth = 100f,
             bool authoritative = true, bool addCapabilities = false)
         {
             var entity = _world.CreateEntity();
@@ -56,21 +52,20 @@ namespace FDP.Toolkit.Combat.Tests
                     Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
                 });
 
-            _entityMap.Register(netId, entity);
             return entity;
         }
 
-        private void PublishEvent(long hitEntityId, float totalDamage)
+        private void PublishEvent(Entity hitEntity, float totalDamage)
         {
             _world.Bus.Publish(new DamageAssessedEvent
             {
-                HitEntityId = hitEntityId,
+                HitEntity   = hitEntity,
                 TotalDamage = totalDamage,
             });
             _world.Bus.SwapBuffers();
         }
 
-        // ── SC-1: Health decremented ──────────────────────────────────────────
+        // â”€â”€ SC-1: Health decremented â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// BS1-T014 SC-1: When an authoritative node receives a <see cref="DamageAssessedEvent"/>
@@ -79,16 +74,16 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void HealthApplication_DecrementsHealth_WhenAuthoritative()
         {
-            var entity = SpawnTarget(netId: 1L, currentHealth: 100f);
+            var entity = SpawnTarget(currentHealth: 100f);
 
-            PublishEvent(hitEntityId: 1L, totalDamage: 30f);
+            PublishEvent(hitEntity: entity, totalDamage: 30f);
             _sys.Run();
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(70f, health.Current);
         }
 
-        // ── SC-2: Health cannot go below zero ─────────────────────────────────
+        // â”€â”€ SC-2: Health cannot go below zero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// BS1-T014 SC-2: <see cref="Health.Current"/> must be clamped to 0 and never go negative.
@@ -96,16 +91,16 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void HealthApplication_ClampsHealthToZero_WhenDamageExceedsCurrentHP()
         {
-            var entity = SpawnTarget(netId: 1L, currentHealth: 10f);
+            var entity = SpawnTarget(currentHealth: 10f);
 
-            PublishEvent(hitEntityId: 1L, totalDamage: 50f);
+            PublishEvent(hitEntity: entity, totalDamage: 50f);
             _sys.Run();
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(0f, health.Current);
         }
 
-        // ── SC-3: Zero HP strips capabilities ────────────────────────────────
+        // â”€â”€ SC-3: Zero HP strips capabilities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// BS1-T014 SC-3: When <see cref="Health.Current"/> reaches 0, both
@@ -115,9 +110,9 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void HealthApplication_StripsCapabilities_WhenHealthReachesZero()
         {
-            var entity = SpawnTarget(netId: 1L, currentHealth: 10f, addCapabilities: true);
+            var entity = SpawnTarget(currentHealth: 10f, addCapabilities: true);
 
-            PublishEvent(hitEntityId: 1L, totalDamage: 50f);
+            PublishEvent(hitEntity: entity, totalDamage: 50f);
             _sys.Run();
 
             var caps = _world.GetComponent<ActorCapabilityState>(entity);
@@ -125,7 +120,7 @@ namespace FDP.Toolkit.Combat.Tests
             Assert.False(caps.Capabilities.HasFlag(ActorCapabilities.CanShoot));
         }
 
-        // ── SC-4: Non-authority → no health change ────────────────────────────
+        // â”€â”€ SC-4: Non-authority â†’ no health change â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// BS1-T014 SC-4: A non-authoritative node must not alter the health of the entity.
@@ -133,16 +128,16 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void HealthApplication_SkipsUpdate_WhenNotAuthoritative()
         {
-            var entity = SpawnTarget(netId: 1L, currentHealth: 100f, authoritative: false);
+            var entity = SpawnTarget(currentHealth: 100f, authoritative: false);
 
-            PublishEvent(hitEntityId: 1L, totalDamage: 30f);
+            PublishEvent(hitEntity: entity, totalDamage: 30f);
             _sys.Run();
 
             var health = _world.GetComponent<Health>(entity);
             Assert.Equal(100f, health.Current);
         }
 
-        // ── PACK-M002: Non-lethal hit strips CanMove only ─────────────────────
+        // â”€â”€ PACK-M002: Non-lethal hit strips CanMove only â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
         /// <summary>
         /// PACK-M002 SC-1: A non-lethal <see cref="DamageAssessedEvent"/> must reduce HP
@@ -160,10 +155,9 @@ namespace FDP.Toolkit.Combat.Tests
             {
                 Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanInteract,
             });
-            _entityMap.Register(10L, entity);
 
             // Non-lethal hit: 100 damage out of 500 max.
-            _world.Bus.Publish(new DamageAssessedEvent { HitEntityId = 10L, TotalDamage = 100f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 100f });
             _world.Bus.SwapBuffers();
             _sys.Run();
 
@@ -178,8 +172,8 @@ namespace FDP.Toolkit.Combat.Tests
         }
 
         /// <summary>
-        /// PACK-M002 SC-2 (regression guard): A lethal hit (HP → 0) must not throw
-        /// and must also strip CanMove (both CanMove and CanShoot are cleared at zero HP —
+        /// PACK-M002 SC-2 (regression guard): A lethal hit (HP â†’ 0) must not throw
+        /// and must also strip CanMove (both CanMove and CanShoot are cleared at zero HP â€”
         /// the existing behaviour is preserved).
         /// </summary>
         [Fact]
@@ -192,10 +186,9 @@ namespace FDP.Toolkit.Combat.Tests
             {
                 Capabilities = ActorCapabilities.CanMove | ActorCapabilities.CanShoot,
             });
-            _entityMap.Register(11L, entity);
 
             // Lethal hit: exactly 500 damage.
-            _world.Bus.Publish(new DamageAssessedEvent { HitEntityId = 11L, TotalDamage = 500f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 500f });
             _world.Bus.SwapBuffers();
 
             var ex = Record.Exception(() => _sys.Run());
@@ -220,9 +213,8 @@ namespace FDP.Toolkit.Combat.Tests
             _world.AddComponent(entity, new Health { Current = 200f, Max = 200f });
             _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
             // No ActorCapabilityState registered.
-            _entityMap.Register(12L, entity);
 
-            _world.Bus.Publish(new DamageAssessedEvent { HitEntityId = 12L, TotalDamage = 50f });
+            _world.Bus.Publish(new DamageAssessedEvent { HitEntity = entity, TotalDamage = 50f });
             _world.Bus.SwapBuffers();
 
             var ex = Record.Exception(() => _sys.Run());

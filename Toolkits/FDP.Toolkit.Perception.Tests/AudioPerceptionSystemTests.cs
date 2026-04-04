@@ -8,12 +8,16 @@ using Xunit;
 namespace FDP.Toolkit.Perception.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="AudioPerceptionSystem"/>.
+    /// Unit tests for <see cref="AudioPerceptionSystem"/> (PACK-A001).
+    ///
+    /// After PACK-A001 the system publishes <see cref="TargetHeardEvent"/> onto
+    /// the ECS bus instead of directly mutating <see cref="TargetMemory"/>.
     ///
     /// Test pattern:
     ///   1. Build world via <see cref="PerceptionTestWorldFactory"/>.
-    ///   2. <c>sys.Create(world); /* … setup … */ world.Bus.SwapBuffers(); sys.Run();</c>
-    ///   3. Assert <see cref="TargetMemory"/> was updated as expected.
+    ///   2. sys.Create(world); setup; world.Bus.SwapBuffers(); sys.Run();
+    ///   3. world.Bus.SwapBuffers() — exposing the system's output events.
+    ///   4. Assert bus events / TargetMemory unchanged.
     ///
     /// The system falls back to a brute-force entity scan when no
     /// <c>SpatialGridData</c> singleton is present, which is always the case in these tests.
@@ -22,8 +26,12 @@ namespace FDP.Toolkit.Perception.Tests
     {
         // ── Test 1 ───────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// PACK-A001 SC-3: AudioPerceptionSystem must publish one <see cref="TargetHeardEvent"/>
+        /// when a listener is within hearing range, and must NOT write to <see cref="TargetMemory"/>.
+        /// </summary>
         [Fact]
-        public unsafe void AudioPerception_UpdatesTargetMemory_WhenListenerWithinHearingRange()
+        public unsafe void AudioPerception_PublishesTargetHeardEvent_WhenListenerWithinHearingRange()
         {
             // Arrange
             var world = PerceptionTestWorldFactory.Create();
@@ -46,7 +54,7 @@ namespace FDP.Toolkit.Perception.Tests
             world.AddComponent(listener, new TargetMemory());
             world.AddComponent(listener, new Faction { FactionId = 1 });
 
-            // Create a source entity (just needs to exist so its index is a valid entity index).
+            // Create a source entity.
             var source = world.CreateEntity();
             world.AddComponent(source, new SimTransform
             {
@@ -61,22 +69,33 @@ namespace FDP.Toolkit.Perception.Tests
                 Intensity         = 100f,
                 SourceEntityIndex = source.Index,
             });
-            // Swap so the event is readable by Consume<AudioStimulusEvent>() in OnUpdate.
             world.Bus.SwapBuffers();
 
             // Act
             sys.Run();
+            // Swap again to make the system's output events readable.
+            world.Bus.SwapBuffers();
 
-            // Assert — listener's TargetMemory must have one entry for the source entity.
+            // Assert — TargetHeardEvent published for the listener.
+            var events = world.Bus.Consume<TargetHeardEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal(listener, events[0].Listener);
+            Assert.Equal(source.Index, events[0].SourceEntityIndex);
+            Assert.Equal(new Vector3(50f, 0f, 0f), events[0].Origin);
+
+            // Assert — TargetMemory was NOT mutated by AudioPerceptionSystem (PACK-A001).
             var mem = world.GetComponent<TargetMemory>(listener);
-            Assert.Equal(1, mem.Count);
-            Assert.Equal((long)source.Index, mem.EntityIds[0]);
+            Assert.Equal(0, mem.Count);
         }
 
         // ── Test 2 ───────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// PACK-A001: When the listener is outside hearing range, no <see cref="TargetHeardEvent"/>
+        /// must be published.
+        /// </summary>
         [Fact]
-        public unsafe void AudioPerception_DoesNotUpdate_WhenListenerOutsideHearingRange()
+        public unsafe void AudioPerception_DoesNotPublish_WhenListenerOutsideHearingRange()
         {
             // Arrange
             var world = PerceptionTestWorldFactory.Create();
@@ -99,10 +118,6 @@ namespace FDP.Toolkit.Perception.Tests
             world.AddComponent(listener, new TargetMemory());
             world.AddComponent(listener, new Faction { FactionId = 1 });
 
-            // Source 50 m away; broadphase radius (Intensity) large enough to include the listener
-            // in the fallback scan, but the per-receptor HearingRange check must exclude it.
-            // Use a real entity for SourceEntityIndex — raw magic numbers like 99 mask stale-reference
-            // bugs if this pattern were copied to a positive-path test (DEBT-014).
             var dummySource = world.CreateEntity();
             world.AddComponent(dummySource, new SimTransform
             {
@@ -113,23 +128,27 @@ namespace FDP.Toolkit.Perception.Tests
             world.Bus.Publish(new AudioStimulusEvent
             {
                 Origin            = new Vector3(50f, 0f, 0f),
-                Intensity         = 60f, // listener is within fallback radius…
+                Intensity         = 60f,
                 SourceEntityIndex = dummySource.Index,
             });
             world.Bus.SwapBuffers();
 
             // Act
             sys.Run();
+            world.Bus.SwapBuffers();
 
-            // Assert — HearingRange=30 < dist=50 → no update.
-            var mem = world.GetComponent<TargetMemory>(listener);
-            Assert.Equal(0, mem.Count);
+            // Assert — HearingRange=30 < dist=50 → no event published.
+            var events = world.Bus.Consume<TargetHeardEvent>();
+            Assert.True(events.IsEmpty, "No TargetHeardEvent must be published when listener is outside hearing range.");
         }
 
         // ── Test 3 ───────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// PACK-A001: Only the listener within hearing range receives a <see cref="TargetHeardEvent"/>.
+        /// </summary>
         [Fact]
-        public unsafe void AudioPerception_OnlyUpdatesNearbyListener_WhenTwoListenersExist()
+        public unsafe void AudioPerception_OnlyPublishesForNearbyListener_WhenTwoListenersExist()
         {
             // Arrange
             var world = PerceptionTestWorldFactory.Create();
@@ -168,23 +187,25 @@ namespace FDP.Toolkit.Perception.Tests
             world.AddComponent(listenerB, new TargetMemory());
             world.AddComponent(listenerB, new Faction { FactionId = 1 });
 
-            // Event at (50, 0, 0) with broadphase radius 100 — listenerA is inside, listenerB is not.
+            // Event at (50, 0, 0) with broadphase radius 100 — listenerA is inside, listenerB not.
             world.Bus.Publish(new AudioStimulusEvent
             {
                 Origin            = new Vector3(50f, 0f, 0f),
-                Intensity         = 100f, // listenerB is 150 m away > 100 → not in fallback candidates
+                Intensity         = 100f,
                 SourceEntityIndex = 7,
             });
             world.Bus.SwapBuffers();
 
             // Act
             sys.Run();
+            world.Bus.SwapBuffers();
 
-            // Assert
-            var memA = world.GetComponent<TargetMemory>(listenerA);
-            var memB = world.GetComponent<TargetMemory>(listenerB);
-            Assert.Equal(1, memA.Count);   // A is updated
-            Assert.Equal(0, memB.Count);   // B is too far — not even a candidate
+            // Assert — exactly one event, for listenerA.
+            var events = world.Bus.Consume<TargetHeardEvent>();
+            Assert.Equal(1, events.Length);
+            Assert.Equal(listenerA, events[0].Listener);
         }
     }
 }
+
+
