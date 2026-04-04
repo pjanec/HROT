@@ -5,6 +5,7 @@ using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Events;
 using CarKinem.Commands;
 using Fdp.Kernel;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Replication.Components;
 using Hrot.SimHost.Systems.Routing;
 using ModuleHost.Core.Abstractions;
@@ -37,9 +38,9 @@ public class PersonalRouteAuthoringSystemTests
         repo.RegisterComponent<PartMetadata>();
         repo.RegisterComponent<TkbIdentity>();
         repo.RegisterComponent<RouteTrajectoryCache>();
+        repo.RegisterComponent<NavigationIntent>();
         repo.RegisterManagedComponent<RoutePlan>();
         repo.RegisterEvent<CmdAppendPersonalWaypoint>();
-        repo.RegisterEvent<CmdFollowTrajectory>();
         return repo;
     }
 
@@ -207,5 +208,83 @@ public class PersonalRouteAuthoringSystemTests
         var childEntity = FindChildRouteEntity(vehicle)!.Value;
         var plan = ((ISimulationView)_repo).GetManagedComponentRO<RoutePlan>(childEntity);
         Assert.Equal(Vector3.Zero, plan.Waypoints[0].Position);
+    }
+
+    // ── PACK-I001 tests: NavigationIntent written, no CmdFollowTrajectory ────────
+
+    /// <summary>
+    /// After the deferred commit (second tick), NavigationIntent written to vehicle with
+    /// Mode=FollowRoute, TrajectoryId from cache, and IntentId incremented by 1.
+    /// </summary>
+    [Fact]
+    public void DeferredCommit_WritesNavigationIntentFollowRoute()
+    {
+        var vehicle = CreateVehicle(Vector3.Zero);
+        // Pre-set an initial NavigationIntent with a known IntentId.
+        _repo.AddComponent(vehicle, new NavigationIntent { IntentId = 2, Mode = NavigationMode.DirectPoint });
+
+        PublishWaypoint(vehicle, new Vector3(10f, 0f, 10f));
+        Tick(); // Frame 1: spawns child route entity; pending commit queued
+
+        var childEntity = FindChildRouteEntity(vehicle)!.Value;
+        // Manually set RouteTrajectoryCache with a known TrajectoryId
+        // (simulates RouteTrajectorySyncSystem having run between frames).
+        _repo.SetComponent(childEntity, new RouteTrajectoryCache { TrajectoryId = 7 });
+
+        Tick(); // Frame 2: deferred commit fires
+
+        Assert.True(_repo.HasComponent<NavigationIntent>(vehicle));
+        var intent = _repo.GetComponent<NavigationIntent>(vehicle);
+        Assert.Equal(NavigationMode.FollowRoute, intent.Mode);
+        Assert.Equal(7, intent.TrajectoryId);
+        Assert.Equal(3u, intent.IntentId); // 2 + 1
+    }
+
+    /// <summary>
+    /// When the vehicle has no pre-existing NavigationIntent, one is created by the system
+    /// with IntentId = 1 (incremented from default 0).
+    /// </summary>
+    [Fact]
+    public void DeferredCommit_CreatesNavigationIntent_WhenAbsent()
+    {
+        var vehicle = CreateVehicle(Vector3.Zero);
+        // No NavigationIntent on vehicle.
+
+        PublishWaypoint(vehicle, new Vector3(20f, 0f, 20f));
+        Tick(); // Frame 1
+
+        var childEntity = FindChildRouteEntity(vehicle)!.Value;
+        _repo.SetComponent(childEntity, new RouteTrajectoryCache { TrajectoryId = 42 });
+
+        Tick(); // Frame 2
+
+        Assert.True(_repo.HasComponent<NavigationIntent>(vehicle));
+        var intent = _repo.GetComponent<NavigationIntent>(vehicle);
+        Assert.Equal(NavigationMode.FollowRoute, intent.Mode);
+        Assert.Equal(42, intent.TrajectoryId);
+        Assert.Equal(1u, intent.IntentId); // default 0 + 1
+    }
+
+    /// <summary>
+    /// When TrajectoryId == 0 in the cache (not yet compiled), no NavigationIntent write occurs.
+    /// </summary>
+    [Fact]
+    public void DeferredCommit_SkipsWrite_WhenTrajectoryIdIsZero()
+    {
+        var vehicle = CreateVehicle(Vector3.Zero);
+        _repo.AddComponent(vehicle, new NavigationIntent { IntentId = 5 });
+
+        PublishWaypoint(vehicle, new Vector3(10f, 0f, 10f));
+        Tick(); // Frame 1
+
+        var childEntity = FindChildRouteEntity(vehicle)!.Value;
+        // RouteTrajectoryCache with TrajectoryId == 0 (not compiled yet)
+        _repo.SetComponent(childEntity, new RouteTrajectoryCache { TrajectoryId = 0 });
+
+        Tick(); // Frame 2
+
+        // IntentId must NOT have been incremented (no write occurred)
+        var intent = _repo.GetComponent<NavigationIntent>(vehicle);
+        Assert.Equal(5u, intent.IntentId);
     }
 }

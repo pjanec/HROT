@@ -423,11 +423,16 @@ namespace Hrot.SimHost.UI
                 _repo.GetComponentRO<SimTransform>(entity).Position.Y);
 
             var tId = _traj.RegisterTrajectory(new[] { pos2, dest }, interpolation: interp);
-            _repo.Bus.Publish(new CmdFollowTrajectory
-            {
-                Entity       = entity,
-                TrajectoryId = tId,
-            });
+            NavigationIntent intent = _repo.HasComponent<NavigationIntent>(entity)
+                ? _repo.GetComponent<NavigationIntent>(entity)
+                : new NavigationIntent();
+            intent.IntentId++;
+            intent.Mode = NavigationMode.FollowRoute;
+            intent.TrajectoryId = tId;
+            if (_repo.HasComponent<NavigationIntent>(entity))
+                _repo.SetComponent(entity, intent);
+            else
+                _repo.AddComponent(entity, intent);
         }
 
         public void ClearAll()

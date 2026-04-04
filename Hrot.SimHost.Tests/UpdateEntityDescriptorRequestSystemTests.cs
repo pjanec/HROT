@@ -4,7 +4,7 @@ using System.Threading;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.NED.Common;
-using Hrot.Map.Common.Systems;
+using Hrot.Map.Common.Replication.Ingress;
 using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;

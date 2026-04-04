@@ -384,7 +384,6 @@ namespace Hrot.SimHost
             _kernelGroup.Create(_world);
             _kernelGroup.AddSystem(new MissionControlRequestSystem(ddsParticipant, entityMap, doctrineRegistry));
             _kernelGroup.AddSystem(new MissionAdapterSystem(doctrineRegistry, entityMap));
-            _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
             _kernelGroup.AddSystem(new UpdateEntityAttributeRequestSystem(ddsParticipant, entityMap, wgs84, jsonAttributeCompiler));
             _simLogicModule.RegisterSystems(_kernelGroup, _kernelGroup, _kernelGroup);
 
@@ -420,11 +419,39 @@ namespace Hrot.SimHost
                         world.SetAuthority<SimTransform>(entity, true);
                 });
 
+            // ── DDS adapters and request-handling systems ────────────────────────
+            var requestSource      = new DdsCreateEntityRequestSource(ddsParticipant);
+            var ackSink            = new DdsCreateUpdateDeleteEntityAckSink(ddsParticipant);
+            var deleteSource       = new DdsDeleteEntityRequestSource(ddsParticipant);
+            var finalizationSystem = new NedRequestFinalizationSystem(ackSink, entityMap);
+            var requestSystem      = new CreateEntityRequestSystem(
+                requestSource, ackSink, tkbDb, _idAllocator, localNodeId,
+                wgs84, jsonAttributeCompiler, binaryInterpreter, finalizationSystem);
+            var deleteSystem       = new DeleteEntityRequestSystem(
+                deleteSource, ackSink, entityMap, finalizationSystem);
+
+            // ── Create translators ────────────────────────────────────────────────
+            GeoSpatialEgressTranslator?       geoEgress   = wgs84 != null ? new GeoSpatialEgressTranslator(ddsParticipant, entityMap, wgs84) : null;
+            MapVisualOverlayEgressTranslator? mapOverlay  = wgs84 != null ? new MapVisualOverlayEgressTranslator(ddsParticipant, entityMap, wgs84) : null;
+            MapRouteEgressTranslator?         mapRoute    = wgs84 != null ? new MapRouteEgressTranslator(ddsParticipant, entityMap, wgs84) : null;
+            var missionIngress = new EntityMissionIngressTranslator(ddsParticipant, entityMap, doctrineRegistry, ghostCreationSystem);
+            var missionEgress  = new EntityMissionEgressTranslator(ddsParticipant, entityMap);
+
             var simHostMod = new SimHostModule(
-                ddsParticipant, tkbDb, _idAllocator, localNodeId,
-                spawningSystem, entityMap, doctrineRegistry,
-                ghostCreationSystem, wgs84, jsonAttributeCompiler, binaryInterpreter);
+                spawnSystem:        spawningSystem,
+                requestSystem:      requestSystem,
+                deleteSystem:       deleteSystem,
+                finalizationSystem: finalizationSystem,
+                geoEgressTranslator:        geoEgress,
+                mapOverlayEgressTranslator: mapOverlay,
+                mapRouteEgressTranslator:   mapRoute,
+                missionIngressTranslator:   missionIngress,
+                missionEgressTranslator:    missionEgress);
             _kernel.RegisterModule(simHostMod);
+
+            // Register UpdateEntityDescriptorRequestSystem in the network-boundary section
+            // (conditionally alongside the other DDS-coupled spawning systems).
+            _kernelGroup.AddSystem(new UpdateEntityDescriptorRequestSystem(ddsParticipant, entityMap, wgs84));
 
             // ── 10. Network module ──────────────────────────────────────────
             // Egress translators: fan-out disposal on entity death + CycloneNetworkModule publication.
@@ -436,13 +463,13 @@ namespace Hrot.SimHost
                 ddsParticipant, entityMap, localNodeId);
             egressTranslators.Add(entityMasterEgressTranslator);
             egressTranslators.Add(new EntityInfoEgressTranslator(ddsParticipant, entityMap));
-            if (simHostMod.GeoEgressTranslator != null)
-                egressTranslators.Add(simHostMod.GeoEgressTranslator);
-            if (simHostMod.MapOverlayEgressTranslator != null)
-                egressTranslators.Add(simHostMod.MapOverlayEgressTranslator);
-            if (simHostMod.MapRouteEgressTranslator != null)
-                egressTranslators.Add(simHostMod.MapRouteEgressTranslator);
-            egressTranslators.Add(simHostMod.MissionEgressTranslator);
+            if (geoEgress != null)
+                egressTranslators.Add(geoEgress);
+            if (mapOverlay != null)
+                egressTranslators.Add(mapOverlay);
+            if (mapRoute != null)
+                egressTranslators.Add(mapRoute);
+            egressTranslators.Add(missionEgress);
             egressTranslators.Add(new FireInteractionEventTranslator(ddsParticipant, entityMap));
             // CGF1-A.1: Bridge SwitchTimeModeEvent between FdpEventBus and DDS for distributed
             // time-mode switching (SlaveSyncController ingress).
@@ -469,7 +496,7 @@ namespace Hrot.SimHost
 
             // All translators (egress + ingress) passed to CycloneNetworkModule.
             var translators = new List<IDescriptorTranslator>(egressTranslators);
-            translators.Add(simHostMod.MissionIngressTranslator);
+            translators.Add(missionIngress);
 
             // BS1-T017 (continued): ingress translators added after translators list is created.
             // Muscle: receives WeaponFireRequest and MunitionDetonation from DDS → local events.

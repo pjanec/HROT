@@ -298,6 +298,27 @@ namespace Hrot.SimHost.Tests
         // ── Module integration: both translators exposed ──────────────────────────
 
         /// <summary>
+        /// <see cref="SimHostModule"/> constructor must NOT require a <see cref="DdsParticipant"/>.
+        /// Passing only a <see cref="NetworkSpawningSystem"/> (no request/delete systems, no
+        /// translators) is a valid offline construction.
+        /// </summary>
+        [Fact]
+        public void SimHostModule_CanBeConstructed_WithoutDdsParticipant()
+        {
+            using var participant = new DdsParticipant();
+            var tkb         = new TkbDatabase();
+            var entityMap   = new NetworkEntityMap();
+            var idAllocator = new DdsIdAllocator(participant, "offline-test");
+            var elm         = new EntityLifecycleModule(tkb, new List<int>());
+            var spawner     = new NetworkSpawningSystem(tkb, elm, entityMap, idAllocator, 1);
+
+            // Note: SimHostModule constructor only receives the spawner — no participant, no systems.
+            var ex = Record.Exception(() => new SimHostModule(spawner));
+
+            Assert.Null(ex);
+        }
+
+        /// <summary>
         /// <see cref="SimHostModule"/> must expose non-null
         /// <see cref="SimHostModule.MissionIngressTranslator"/> and
         /// <see cref="SimHostModule.MissionEgressTranslator"/> regardless of whether
@@ -314,17 +335,13 @@ namespace Hrot.SimHost.Tests
             var spawner     = new NetworkSpawningSystem(tkb, elm, entityMap, idAllocator, 1);
             var doctrine    = new DoctrineRegistry();
 
-            // geoTransform = null → GeoEgressTranslator will be null, but mission translators must still be created.
-            var module = new SimHostModule(
-                participant,
-                tkb,
-                idAllocator,
-                localNodeId: 1,
-                spawner,
-                entityMap,
-                doctrine,
-                ghostCreationSystem: new GhostCreationSystem(entityMap),
-                geoTransform: null);
+            // Create mission translators externally (geoTransform = null → geo egress will be null).
+            var missionIngress = new EntityMissionIngressTranslator(participant, entityMap, doctrine, new GhostCreationSystem(entityMap));
+            var missionEgress  = new EntityMissionEgressTranslator(participant, entityMap);
+
+            var module = new SimHostModule(spawner,
+                missionIngressTranslator: missionIngress,
+                missionEgressTranslator:  missionEgress);
 
             Assert.NotNull(module.MissionIngressTranslator);
             Assert.NotNull(module.MissionEgressTranslator);

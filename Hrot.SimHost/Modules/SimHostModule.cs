@@ -1,144 +1,57 @@
-using System;
-using System.Collections.Generic;
-using Hrot.NED.Messages;
-using FDP.Toolkit.Replication.Patching;
-using Hrot.SimHost.Systems;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.Map.Common.Replication.Ingress;
-using CycloneDDS.Runtime;
+using Hrot.SimHost.Systems;
 using Fdp.Interfaces;
-using Fdp.Modules.Geographic;
-using FDP.Toolkit.Behavior;
 using FDP.Toolkit.NetworkSpawning.Systems;
-using FDP.Toolkit.Replication.Services;
-using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
-using ModuleHost.Core.Network.Interfaces;
 
 namespace Hrot.SimHost.Modules
 {
-    // ─── DDS-backed adapter: polls the DDS reader for incoming CreateEntityRequest ─────
-
-    internal sealed class DdsCreateEntityRequestSource : ICreateEntityRequestSource
-    {
-        private readonly DdsReader<CreateEntityRequest> _reader;
-
-        public DdsCreateEntityRequestSource(DdsParticipant participant)
-            => _reader = new DdsReader<CreateEntityRequest>(participant);
-
-        public void ProcessRequests(Action<CreateEntityRequest> processor)
-        {
-            using var loan = _reader.Take();
-            foreach (var sample in loan)
-                if (sample.IsValid)
-                    processor(sample.Data);
-        }
-    }
-
-    // ─── DDS-backed adapter: writes CreateUpdateDeleteEntityAck responses ───────────────────────
-
-    internal sealed class DdsCreateUpdateDeleteEntityAckSink : ICreateUpdateDeleteEntityAckSink
-    {
-        private readonly DdsWriter<CreateUpdateDeleteEntityAck> _writer;
-
-        public DdsCreateUpdateDeleteEntityAckSink(DdsParticipant participant)
-            => _writer = new DdsWriter<CreateUpdateDeleteEntityAck>(participant);
-
-        public void WriteAck(CreateUpdateDeleteEntityAck ack) => _writer.Write(ack);
-    }
-    // ─── DDS-backed adapter: polls the DDS reader for incoming DeleteEntityRequest ────────
-
-    internal sealed class DdsDeleteEntityRequestSource : IDeleteEntityRequestSource
-    {
-        private readonly DdsReader<DeleteEntityRequest> _reader;
-
-        public DdsDeleteEntityRequestSource(DdsParticipant participant)
-            => _reader = new DdsReader<DeleteEntityRequest>(participant);
-
-        public void ProcessRequests(Action<DeleteEntityRequest> processor)
-        {
-            using var loan = _reader.Take();
-            foreach (var sample in loan)
-                if (sample.IsValid)
-                    processor(sample.Data);
-        }
-    }
-    // ─── Module ──────────────────────────────────────────────────────────────────────
+    // ─── Module ─────────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Hosts <see cref="CreateEntityRequestSystem"/> together with a
-    /// <see cref="FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/>.
-    /// The CreateEntityRequest handler translates DDS requests into
-    /// <c>SpawnEntityCommand</c> events; NetworkSpawningSystem processes them each tick.
-    ///
-    /// Also creates and exposes a <see cref="GeoSpatialEgressTranslator"/> for
-    /// publishing GeoSpatial/GeoSpatialDR DDS topics by converting ECS SimTransform/SimVelocity
-    /// to geodetic coordinates on-the-fly via IGeographicTransform.
+    /// Hosts a <see cref="FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem"/>
+    /// together with the DDS-backed request/delete systems that were moved out of the
+    /// constructor (see <c>SimHostNetworkAdapters.cs</c> for the DDS adapter classes).
+    /// Exposes optional egress/ingress translators for DDS topic publication and ingestion.
+    /// All DDS adapters and request-handling systems are created by the application
+    /// bootstrap layer (<c>SimHostApp</c> / <c>SimHostInstance</c>) and injected here.
     /// </summary>
     public class SimHostModule : IEcsModule
     {
         public string         Name   => "SimHost";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
 
-        private readonly CreateEntityRequestSystem    _requestSystem;
-        private readonly NetworkSpawningSystem        _spawnSystem;
-        private readonly NedRequestFinalizationSystem _finalizationSystem;
-        private readonly DeleteEntityRequestSystem    _deleteSystem;
-        private readonly GeoSpatialEgressTranslator? _geoEgressTranslator;
+        private readonly NetworkSpawningSystem             _spawnSystem;
+        private readonly CreateEntityRequestSystem?        _requestSystem;
+        private readonly DeleteEntityRequestSystem?        _deleteSystem;
+        private readonly NedRequestFinalizationSystem?     _finalizationSystem;
+        private readonly GeoSpatialEgressTranslator?       _geoEgressTranslator;
         private readonly MapVisualOverlayEgressTranslator? _mapOverlayEgressTranslator;
-        private readonly MapRouteEgressTranslator? _mapRouteEgressTranslator;
-        private readonly EntityMissionIngressTranslator _missionIngressTranslator;
-        private readonly EntityMissionEgressTranslator _missionEgressTranslator;
+        private readonly MapRouteEgressTranslator?         _mapRouteEgressTranslator;
+        private readonly EntityMissionIngressTranslator?   _missionIngressTranslator;
+        private readonly EntityMissionEgressTranslator?    _missionEgressTranslator;
 
         public SimHostModule(
-            DdsParticipant     participant,
-            ITkbDatabase       tkbDb,
-            INetworkIdAllocator idAllocator,
-            int                localNodeId,
-            NetworkSpawningSystem spawnSystem,
-            NetworkEntityMap entityMap,
-            DoctrineRegistry doctrineRegistry,
-            GhostCreationSystem ghostCreationSystem,
-            IGeographicTransform? geoTransform = null,
-            JsonAttributeCompiler jsonAttributeCompiler = null!,
-            BinaryInterpreter<AttributeRecord>? binaryInterpreter = null)
+            NetworkSpawningSystem             spawnSystem,
+            CreateEntityRequestSystem?        requestSystem              = null,
+            DeleteEntityRequestSystem?        deleteSystem               = null,
+            NedRequestFinalizationSystem?     finalizationSystem         = null,
+            GeoSpatialEgressTranslator?       geoEgressTranslator        = null,
+            MapVisualOverlayEgressTranslator? mapOverlayEgressTranslator = null,
+            MapRouteEgressTranslator?         mapRouteEgressTranslator   = null,
+            EntityMissionIngressTranslator?   missionIngressTranslator   = null,
+            EntityMissionEgressTranslator?    missionEgressTranslator    = null)
         {
-            var requestSource    = new DdsCreateEntityRequestSource(participant);
-            var ackSink           = new DdsCreateUpdateDeleteEntityAckSink(participant);
-            var deleteSource      = new DdsDeleteEntityRequestSource(participant);
-
-            _finalizationSystem = new NedRequestFinalizationSystem(ackSink, entityMap);
-
-            _requestSystem = new CreateEntityRequestSystem(
-                requestSource,
-                ackSink,
-                tkbDb,
-                idAllocator,
-                localNodeId,
-                geoTransform,
-                jsonAttributeCompiler,
-                binaryInterpreter,
-                _finalizationSystem);
-
-            _deleteSystem = new DeleteEntityRequestSystem(
-                deleteSource,
-                ackSink,
-                entityMap,
-                _finalizationSystem);
-
-            _spawnSystem = spawnSystem;
-
-            // Create GeoSpatial egress translator when geographic transform is available
-            if (geoTransform != null)
-            {
-                _geoEgressTranslator = new GeoSpatialEgressTranslator(participant, entityMap, geoTransform);
-                _mapOverlayEgressTranslator = new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform);
-                _mapRouteEgressTranslator   = new MapRouteEgressTranslator(participant, entityMap, geoTransform);
-            }
-
-            // Mission translators are always active regardless of geographic transform.
-            _missionIngressTranslator = new EntityMissionIngressTranslator(participant, entityMap, doctrineRegistry, ghostCreationSystem);
-            _missionEgressTranslator  = new EntityMissionEgressTranslator(participant, entityMap);
+            _spawnSystem                = spawnSystem;
+            _requestSystem              = requestSystem;
+            _deleteSystem               = deleteSystem;
+            _finalizationSystem         = finalizationSystem;
+            _geoEgressTranslator        = geoEgressTranslator;
+            _mapOverlayEgressTranslator = mapOverlayEgressTranslator;
+            _mapRouteEgressTranslator   = mapRouteEgressTranslator;
+            _missionIngressTranslator   = missionIngressTranslator;
+            _missionEgressTranslator    = missionEgressTranslator;
         }
 
         /// <summary>
@@ -161,22 +74,22 @@ namespace Hrot.SimHost.Modules
 
         /// <summary>
         /// Gets the EntityMission ingress translator (DDS → ECS).
-        /// Always non-null; created unconditionally in the constructor.
+        /// Null when not provided at construction.
         /// </summary>
-        public EntityMissionIngressTranslator MissionIngressTranslator => _missionIngressTranslator;
+        public EntityMissionIngressTranslator? MissionIngressTranslator => _missionIngressTranslator;
 
         /// <summary>
         /// Gets the EntityMission egress translator (ECS → DDS).
-        /// Always non-null; created unconditionally in the constructor.
+        /// Null when not provided at construction.
         /// </summary>
-        public EntityMissionEgressTranslator MissionEgressTranslator => _missionEgressTranslator;
+        public EntityMissionEgressTranslator? MissionEgressTranslator => _missionEgressTranslator;
 
         public void RegisterSystems(ISystemRegistry registry)
         {
-            registry.RegisterSystem(_requestSystem);
+            if (_requestSystem     != null) registry.RegisterSystem(_requestSystem);
             registry.RegisterSystem(_spawnSystem);
-            registry.RegisterSystem(_deleteSystem);
-            registry.RegisterSystem(_finalizationSystem);
+            if (_deleteSystem      != null) registry.RegisterSystem(_deleteSystem);
+            if (_finalizationSystem != null) registry.RegisterSystem(_finalizationSystem);
         }
 
         public void Tick(ISimulationView view, float dt) { }

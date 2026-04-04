@@ -5,6 +5,7 @@ using Hrot.Map.Common.Events;
 using Hrot.Map.Common;
 using CarKinem.Commands;
 using Fdp.Kernel;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Replication.Components;
 using ModuleHost.Core.Abstractions;
 
@@ -53,7 +54,7 @@ public sealed class PersonalRouteAuthoringSystem : ComponentSystem
     {
         var view = (ISimulationView)World;
 
-        // ── 1. Dispatch deferred CmdFollowTrajectory from the previous frame ─────
+        // ── 1. Dispatch deferred NavigationIntent (FollowRoute) from the previous frame ─────
         if (_pendingFollowCommands.Count > 0)
         {
             foreach (var (vehicle, routeEntity) in _pendingFollowCommands)
@@ -67,14 +68,16 @@ public sealed class PersonalRouteAuthoringSystem : ComponentSystem
                 ref readonly var cache = ref view.GetComponentRO<RouteTrajectoryCache>(routeEntity);
                 if (cache.TrajectoryId > 0)
                 {
-                    bool isLoop = view.HasManagedComponent<RoutePlan>(routeEntity)
-                        && view.GetManagedComponentRO<RoutePlan>(routeEntity).IsLoop;
-                    World.Bus.Publish(new CmdFollowTrajectory
-                    {
-                        Entity       = vehicle,
-                        TrajectoryId = cache.TrajectoryId,
-                        Looped       = (byte)(isLoop ? 1 : 0),
-                    });
+                    NavigationIntent intent = World.HasComponent<NavigationIntent>(vehicle)
+                        ? World.GetComponent<NavigationIntent>(vehicle)
+                        : new NavigationIntent();
+                    intent.IntentId++;
+                    intent.Mode = NavigationMode.FollowRoute;
+                    intent.TrajectoryId = cache.TrajectoryId;
+                    if (World.HasComponent<NavigationIntent>(vehicle))
+                        World.SetComponent(vehicle, intent);
+                    else
+                        World.AddComponent(vehicle, intent);
                 }
             }
             _pendingFollowCommands.Clear();

@@ -16,7 +16,7 @@ using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Utilities;
 using ModuleHost.Core.Abstractions;
 
-namespace Hrot.Map.Common.Systems
+namespace Hrot.Map.Common.Replication.Ingress
 {
     using NedStatusCode = Hrot.NED.Messages.NedStatusCode;
     /// <summary>

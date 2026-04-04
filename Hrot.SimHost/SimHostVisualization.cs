@@ -7,7 +7,10 @@ using Raylib_cs;
 using Fdp.Kernel;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Vis2D;
+using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
+using EcsNavigationMode   = FDP.Toolkit.Navigation.NavigationMode;
 using FDP.Toolkit.Vis2D.Components;
 using FdpEntityInspectorPanel = FDP.Toolkit.ImGui.Panels.EntityInspectorPanel;
 using FdpEventBrowserPanel    = FDP.Toolkit.ImGui.Panels.EventBrowserPanel;
@@ -287,14 +290,25 @@ namespace Hrot.SimHost
 
             if (!brainActive)
             {
-                // Brain-dead path: bypass the mission machinery and talk directly to the
-                // muscle layer.  Restores the pre-CQRS-split behaviour for roamers, local
-                // collision-test entities, and entities that have been brought into brain-dead
-                // state by a completed or aborted mission.
+                // Brain-dead path: bypass the mission machinery.
                 if (shift)
                     addWaypoint(entity, pos, interp);
                 else
-                    setDestination(entity, pos, interp);
+                {
+                    // TODO: TargetSpeed and ArrivalRadius should eventually be configurable.
+                    EcsNavigationIntent intent = repo.HasComponent<EcsNavigationIntent>(entity)
+                        ? repo.GetComponent<EcsNavigationIntent>(entity)
+                        : new EcsNavigationIntent();
+                    intent.IntentId++;
+                    intent.Mode = EcsNavigationMode.DirectPoint;
+                    intent.FinalDestination = pos;
+                    intent.TargetSpeed = 15f;
+                    intent.ArrivalRadius = 3.0f;
+                    if (repo.HasComponent<EcsNavigationIntent>(entity))
+                        repo.SetComponent(entity, intent);
+                    else
+                        repo.AddComponent(entity, intent);
+                }
                 return;
             }
 

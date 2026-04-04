@@ -13,7 +13,10 @@ using CycloneDDS.Runtime;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Behavior.Components;
+using FDP.Toolkit.Navigation;
 using FDP.Toolkit.Replication.Components;
+using EcsNavigationIntent = FDP.Toolkit.Navigation.NavigationIntent;
+using EcsNavigationMode   = FDP.Toolkit.Navigation.NavigationMode;
 using ModuleHost.Core;
 using Xunit;
 
@@ -23,8 +26,9 @@ namespace Hrot.SimHost.Tests
     /// Unit tests for the brain-aware right-click handler
     /// (<see cref="SimHostVisualization.HandleRightClickForEntity"/>).
     ///
-    /// BD1-P2T1 success criteria:
-    /// - Brain-dead path uses SetDestination / AddWaypoint (muscle-layer direct).
+    /// BD1-P2T1 success criteria (updated for PACK-I002):
+    /// - Brain-dead plain-click path writes NavigationIntent with Mode=DirectPoint.
+    /// - Brain-dead shift+click path still calls AddWaypoint.
     /// - Brain-active path sends CMD_REPLACE_MISSION with a DoctrineFinished trigger (BS1-T022).
     /// </summary>
     [Collection("SimHostDds")]
@@ -40,40 +44,45 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterComponent<DoctrineState>();
             _repo.RegisterComponent<NetworkIdentity>();
             _repo.RegisterComponent<VehicleParams>();
+            _repo.RegisterComponent<EcsNavigationIntent>();
         }
 
         public void Dispose() => _repo.Dispose();
 
-        // ── Test 1: brain-dead plain click → SetDestination ──────────────────────
+        // ── Test 1: brain-dead plain click → NavigationIntent(DirectPoint) ────────
 
         /// <summary>
-        /// Right-click on an entity with no active doctrine must call
-        /// <c>setDestination</c> and must NOT invoke <c>missionWriter</c>.
+        /// Right-click on a brain-dead entity (no active doctrine) must write
+        /// NavigationIntent{Mode=DirectPoint, FinalDestination, TargetSpeed=15f, ArrivalRadius=3f}
+        /// and must NOT invoke <c>missionWriter</c> or <c>setDestination</c>.
         /// </summary>
         [Fact]
-        public void RightClick_BrainDead_CallsSetDestination()
+        public void RightClick_BrainDead_WritesNavigationIntentDirectPoint()
         {
             // Arrange: entity with no DoctrineState (brain-dead by absence of component).
             var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new EcsNavigationIntent { IntentId = 5u });
 
             bool setDestinationCalled = false;
-            Vector2 capturedPos      = default;
             bool addWaypointCalled   = false;
-            bool missionWriterCalled = false;
 
             // Act: plain right-click (shift = false).
             SimHostVisualization.HandleRightClickForEntity(
                 _repo, entity, ClickPos, shift: false,
                 interp: TrajectoryInterpolation.CatmullRom,
-                setDestination: (e, p, i) => { setDestinationCalled = true; capturedPos = p; },
+                setDestination: (e, p, i) => { setDestinationCalled = true; },
                 addWaypoint:    (e, p, i) => { addWaypointCalled    = true; },
                 missionWriter:  null);
 
-            // No missionWriter was provided — verify setDestination was called.
-            Assert.True(setDestinationCalled);
-            Assert.Equal(ClickPos, capturedPos);
-            Assert.False(addWaypointCalled);
-            Assert.False(missionWriterCalled);
+            Assert.False(setDestinationCalled, "setDestination must NOT be called.");
+            Assert.False(addWaypointCalled,    "addWaypoint must NOT be called.");
+
+            var intent = _repo.GetComponent<EcsNavigationIntent>(entity);
+            Assert.Equal(EcsNavigationMode.DirectPoint, intent.Mode);
+            Assert.Equal(ClickPos, intent.FinalDestination);
+            Assert.Equal(15f, intent.TargetSpeed);
+            Assert.Equal(3.0f, intent.ArrivalRadius);
+            Assert.Equal(6u, intent.IntentId); // 5 + 1
         }
 
         /// <summary>
@@ -81,10 +90,11 @@ namespace Hrot.SimHost.Tests
         /// (brain-dead via explicit None hash).
         /// </summary>
         [Fact]
-        public void RightClick_BrainDead_ViaZeroHash_CallsSetDestination()
+        public void RightClick_BrainDead_ViaZeroHash_WritesNavigationIntent()
         {
             var entity = _repo.CreateEntity();
             _repo.AddComponent(entity, new DoctrineState { ActiveDoctrineHash = DoctrineIds.None });
+            _repo.AddComponent(entity, new EcsNavigationIntent { IntentId = 0u });
 
             bool setDestinationCalled = false;
 
@@ -95,19 +105,23 @@ namespace Hrot.SimHost.Tests
                 addWaypoint:    (e, p, i) => { },
                 missionWriter:  null);
 
-            Assert.True(setDestinationCalled);
+            Assert.False(setDestinationCalled);
+            var intent = _repo.GetComponent<EcsNavigationIntent>(entity);
+            Assert.Equal(EcsNavigationMode.DirectPoint, intent.Mode);
+            Assert.Equal(1u, intent.IntentId);
         }
 
         // ── Test 2: brain-dead shift+click → AddWaypoint ─────────────────────────
 
         /// <summary>
         /// Shift+right-click on a brain-dead entity must call <c>addWaypoint</c>, not
-        /// <c>setDestination</c>.
+        /// <c>setDestination</c>, and must NOT mutate NavigationIntent.
         /// </summary>
         [Fact]
         public void ShiftRightClick_BrainDead_CallsAddWaypoint()
         {
             var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new EcsNavigationIntent { IntentId = 3u });
             // No DoctrineState → brain-dead.
 
             bool addWaypointCalled   = false;
@@ -122,6 +136,9 @@ namespace Hrot.SimHost.Tests
 
             Assert.True(addWaypointCalled);
             Assert.False(setDestinationCalled);
+            // NavigationIntent must NOT be mutated by the shift path
+            var intent = _repo.GetComponent<EcsNavigationIntent>(entity);
+            Assert.Equal(3u, intent.IntentId);
         }
 
         // ── Test 3: brain-active plain click → CMD_REPLACE_MISSION with trigger ──

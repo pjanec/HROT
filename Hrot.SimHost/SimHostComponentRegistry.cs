@@ -64,13 +64,8 @@ public static class SimHostComponentRegistry
         // ── CarKinem command events ───────────────────────────────────────────
         world.RegisterEvent<CmdSpawnVehicle>();
         world.RegisterEvent<CmdCreateFormation>();
-        world.RegisterEvent<CmdNavigateToPoint>();
-        world.RegisterEvent<CmdFollowTrajectory>();
-        world.RegisterEvent<CmdNavigateViaRoad>();
         world.RegisterEvent<CmdJoinFormation>();
         world.RegisterEvent<CmdLeaveFormation>();
-        world.RegisterEvent<CmdStop>();
-        world.RegisterEvent<CmdSetSpeed>();
 
         // ── Presentation tier ─────────────────────────────────────────────────
         // ActivePerspective singleton selects the active view (IG vs. Sim Map).

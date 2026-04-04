@@ -31,9 +31,9 @@ nodes in a distributed cluster.
 **Goal:** Route all vehicle movement requests through `NavigationIntent`; retire the legacy
 `Cmd*` event backdoor.
 
-- [ ] **PACK-I001** Refactor PersonalRouteAuthoringSystem to use NavigationIntent [details](./TASK-DETAIL.md#pack-i001--refactor-personalrouteauthoringsystem-to-use-navigationintent)
-- [ ] **PACK-I002** Refactor SimHostVisualization right-click to use NavigationIntent [details](./TASK-DETAIL.md#pack-i002--refactor-simhostvisualization-right-click-to-use-navigationintent)
-- [ ] **PACK-I003** Remove legacy Cmd* movement commands from VehicleCommandSystem [details](./TASK-DETAIL.md#pack-i003--remove-legacy-commands-from-vehiclecommandsystem)
+- [x] **PACK-I001** Refactor PersonalRouteAuthoringSystem to use NavigationIntent [details](./TASK-DETAIL.md#pack-i001--refactor-personalrouteauthoringsystem-to-use-navigationintent)
+- [x] **PACK-I002** Refactor SimHostVisualization right-click to use NavigationIntent [details](./TASK-DETAIL.md#pack-i002--refactor-simhostvisualization-right-click-to-use-navigationintent)
+- [x] **PACK-I003** Remove legacy Cmd* movement commands from VehicleCommandSystem [details](./TASK-DETAIL.md#pack-i003--remove-legacy-commands-from-vehiclecommandsystem)
 
 ---
 
@@ -43,9 +43,9 @@ nodes in a distributed cluster.
 is a true plugin.
 
 - [ ] **PACK-P001** Split MissionControlRequestSystem into Translator + Logic [details](./TASK-DETAIL.md#pack-p001--split-missioncontrolrequestsystem-into-translator--logic)
-- [ ] **PACK-P002** Extract Create/DeleteEntityRequestSystem out of SimHostModule [details](./TASK-DETAIL.md#pack-p002--extract-spawning-request-systems-out-of-simhostmodule)
+- [x] **PACK-P002** Extract Create/DeleteEntityRequestSystem out of SimHostModule [details](./TASK-DETAIL.md#pack-p002--extract-spawning-request-systems-out-of-simhostmodule)
 - [ ] **PACK-P003** Strip NetworkEntityMap from HitResolutionSystem and AimAndFireExecutor [details](./TASK-DETAIL.md#pack-p003--strip-networkentitymap-from-hitresolutionsystem-and-aimandFireexecutor)
-- [ ] **PACK-P004** Relocate UpdateEntityDescriptorRequestSystem to Replication.Ingress [details](./TASK-DETAIL.md#pack-p004--relocate-updateentitydescriptorrequestsystem-to-replicationingress-namespace)
+- [x] **PACK-P004** Relocate UpdateEntityDescriptorRequestSystem to Replication.Ingress [details](./TASK-DETAIL.md#pack-p004--relocate-updateentitydescriptorrequestsystem-to-replicationingress-namespace)
 
 ---
 
