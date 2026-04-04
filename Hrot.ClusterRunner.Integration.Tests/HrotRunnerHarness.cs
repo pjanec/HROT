@@ -63,6 +63,32 @@ public sealed class HrotRunnerHarness : IDisposable
         Warmup();
     }
 
+    /// <summary>
+    /// Creates a harness with a specific run mode and domain ID (for shared-domain tests).
+    /// Typically used alongside <see cref="CgfHarness(int)"/> for IT-4 tests.
+    /// </summary>
+    public HrotRunnerHarness(RunMode mode, int domainId)
+    {
+        DomainId = domainId;
+
+        OrchestratorSvc = new OrchestratorSubsystem();
+        SimHost         = new SimHostSubsystem();
+        Ig              = new IgSubsystem();
+        ExCon           = new ExConSubsystem();
+
+        // Always include Orchestrator; conditionally include other subsystems.
+        var subsystems = new System.Collections.Generic.List<ISubsystem> { OrchestratorSvc };
+        if (mode.HasFlag(RunMode.SimHost)) subsystems.Add(SimHost);
+        if (mode.HasFlag(RunMode.IG))     subsystems.Add(Ig);
+        if (mode.HasFlag(RunMode.ExCon))  subsystems.Add(ExCon);
+
+        var options = new RunnerOptions { Headless = true, DomainId = domainId };
+        Orchestrator = new SubsystemOrchestrator(subsystems, options);
+
+        Orchestrator.Initialize();
+        Warmup();
+    }
+
     public void PumpFrames(int frames)
     {
         for (int i = 0; i < frames; i++)

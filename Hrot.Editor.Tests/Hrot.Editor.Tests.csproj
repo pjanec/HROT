@@ -9,6 +9,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hrot.Editor\Hrot.Editor.csproj" />
+    <ProjectReference Include="..\Hrot.SimHost\Hrot.SimHost.csproj" />
+    <ProjectReference Include="..\Hrot.CGF\Hrot.CGF.csproj" />
+    <ProjectReference Include="..\Hrot.Orchestrator\Hrot.Orchestrator.csproj" />
+    <ProjectReference Include="..\FDP\ModuleHost\ModuleHost.Core\ModuleHost.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
