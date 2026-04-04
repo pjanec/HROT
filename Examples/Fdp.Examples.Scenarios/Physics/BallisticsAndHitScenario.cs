@@ -138,7 +138,7 @@ namespace Fdp.Examples.Scenarios.Physics
             // the event one tick later after kernel.Update()'s SwapBuffers makes it readable.
             var systems = new ComponentSystem[]
             {
-                new FireProcessingSystem(_entityMap),
+                new FireProcessingSystem(),
                 new SpatialHashSystem(),
                 new BallisticsSystem(),
                 new LinearKinematicsSystem(),
@@ -170,9 +170,9 @@ namespace Fdp.Examples.Scenarios.Physics
                 _fireInjected = true;
                 world.Bus.Publish(new WeaponFireIntent
                 {
-                    ShooterEntityId = ShooterNetId,
-                    TargetEntityId  = TargetNetId,
-                    WeaponIndex     = 0,
+                    Shooter     = _shooter,
+                    Target      = _target,
+                    WeaponIndex = 0,
                 });
             }
 

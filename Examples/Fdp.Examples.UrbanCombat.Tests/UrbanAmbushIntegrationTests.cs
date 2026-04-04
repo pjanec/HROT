@@ -125,11 +125,14 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
             // Publish a WeaponFireIntent (BS1-T004: AimAndFireExecutor now emits this instead
             // of FireRequestEvent). TelemetryReporterSystem consumes it for GUNFIRE logging.
+            // PACK-P003: WeaponFireIntent carries local ECS Entity handles.
+            var dummyShooter = _app.World.CreateEntity();
+            var dummyTarget  = _app.World.CreateEntity();
             _app.World.Bus.Publish(new WeaponFireIntent
             {
-                ShooterEntityId = 42L,
-                TargetEntityId  = 99L,
-                WeaponIndex     = 0,
+                Shooter     = dummyShooter,
+                Target      = dummyTarget,
+                WeaponIndex = 0,
             });
 
             // One frame: SwapBuffers moves event to read buffer → TelemetryReporterSystem sees it.

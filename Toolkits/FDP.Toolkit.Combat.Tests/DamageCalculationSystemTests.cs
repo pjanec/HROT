@@ -22,6 +22,7 @@ namespace FDP.Toolkit.Combat.Tests
         {
             _world = new EntityRepository();
             _world.RegisterComponent<NetworkAuthority>();
+            _world.RegisterComponent<FDP.Toolkit.Combat.Components.Health>();
             _world.RegisterEvent<DetonationNotification>();
             _world.RegisterEvent<DamageAssessedEvent>();
 
@@ -50,13 +51,13 @@ namespace FDP.Toolkit.Combat.Tests
             return entity;
         }
 
-        private void PublishDetonation(long hitEntityId)
+        private void PublishDetonation(Entity target)
         {
             _world.Bus.Publish(new DetonationNotification
             {
-                ShooterEntityId = 99L,
-                HitEntityId     = hitEntityId,
-                HitX            = 0f, HitY = 0f, HitZ = 0f,
+                Shooter = default,
+                Target  = target,
+                HitX    = 0f, HitY = 0f, HitZ = 0f,
             });
             _world.Bus.SwapBuffers();
         }
@@ -71,8 +72,8 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void DamageCalculation_PublishesDamageAssessedEvent_WhenAuthoritative()
         {
-            SpawnTarget(netId: 5L, authoritative: true);
-            PublishDetonation(hitEntityId: 5L);
+            var target = SpawnTarget(netId: 5L, authoritative: true);
+            PublishDetonation(target: target);
 
             _sys.Run();
 
@@ -93,8 +94,8 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void DamageCalculation_DoesNotPublish_WhenNotAuthoritative()
         {
-            SpawnTarget(netId: 5L, authoritative: false);
-            PublishDetonation(hitEntityId: 5L);
+            var target2 = SpawnTarget(netId: 5L, authoritative: false);
+            PublishDetonation(target: target2);
 
             _sys.Run();
 
@@ -114,11 +115,10 @@ namespace FDP.Toolkit.Combat.Tests
         public void DamageCalculation_DoesNotMutateHealth()
         {
             // Register Health and add it to the target — system must not touch it.
-            _world.RegisterComponent<FDP.Toolkit.Combat.Components.Health>();
             var entity = SpawnTarget(netId: 5L, authoritative: true);
             _world.AddComponent(entity, new FDP.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
 
-            PublishDetonation(hitEntityId: 5L);
+            PublishDetonation(target: entity);
             _sys.Run();
 
             var health = _world.GetComponent<FDP.Toolkit.Combat.Components.Health>(entity);
@@ -134,7 +134,9 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void DamageCalculation_SkipsUnknownEntity()
         {
-            PublishDetonation(hitEntityId: 9999L);
+            // Publish with an entity that was never registered in the map.
+            var unknownEntity = _world.CreateEntity();
+            PublishDetonation(target: unknownEntity);
 
             var ex = Record.Exception(() => _sys.Run());
             Assert.Null(ex);

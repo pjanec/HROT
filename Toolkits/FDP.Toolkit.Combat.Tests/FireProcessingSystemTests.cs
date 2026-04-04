@@ -6,22 +6,20 @@ using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Combat.Systems;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
 using Xunit;
 
 namespace FDP.Toolkit.Combat.Tests
 {
     /// <summary>
-    /// Unit tests for <see cref="FireProcessingSystem"/> after BS1-T007 refactor.
+    /// Unit tests for <see cref="FireProcessingSystem"/> after BS1-T007 / PACK-P003 refactor.
     ///
-    /// The system now consumes <see cref="WeaponFireIntent"/> (not <see cref="FireRequestEvent"/>)
-    /// and resolves entity IDs via <see cref="NetworkEntityMap"/>.  After spawning the bullet
-    /// it publishes a <see cref="WeaponFireNotification"/>.
+    /// The system now consumes <see cref="WeaponFireIntent"/> carrying local ECS
+    /// <see cref="Entity"/> handles (PACK-P003) instead of resolving via NetworkEntityMap.
+    /// After spawning the bullet it publishes a <see cref="WeaponFireNotification"/>.
     /// </summary>
     public class FireProcessingSystemTests : IDisposable
     {
         private readonly EntityRepository    _world;
-        private readonly NetworkEntityMap    _entityMap;
         private readonly FireProcessingSystem _sys;
 
         public FireProcessingSystemTests()
@@ -36,9 +34,7 @@ namespace FDP.Toolkit.Combat.Tests
             _world.RegisterEvent<WeaponFireIntent>();
             _world.RegisterEvent<WeaponFireNotification>();
 
-            _entityMap = new NetworkEntityMap();
-
-            _sys = new FireProcessingSystem(_entityMap);
+            _sys = new FireProcessingSystem();
             _sys.Create(_world);
         }
 
@@ -50,41 +46,38 @@ namespace FDP.Toolkit.Combat.Tests
 
         // ── Helpers ───────────────────────────────────────────────────────────
 
-        private Entity SpawnShooter(Vector3 position, long netId, float muzzleVelocity = 800f)
+        private Entity SpawnShooter(Vector3 position, float muzzleVelocity = 800f)
         {
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new SimTransform { Position = position, Rotation = Quaternion.Identity });
             _world.AddComponent(entity, new WeaponState  { MuzzleVelocity = muzzleVelocity, Ammo = 10 });
-            _entityMap.Register(netId, entity);
             return entity;
         }
 
-        private Entity SpawnShooterNonAuthoritative(Vector3 position, long netId, float muzzleVelocity = 800f)
+        private Entity SpawnShooterNonAuthoritative(Vector3 position, float muzzleVelocity = 800f)
         {
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new SimTransform { Position = position, Rotation = Quaternion.Identity });
             _world.AddComponent(entity, new WeaponState  { MuzzleVelocity = muzzleVelocity, Ammo = 10 });
             // Remote owner: primary owner ID differs from the local node ID.
             _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 2, localNodeId: 1));
-            _entityMap.Register(netId, entity);
             return entity;
         }
 
-        private Entity SpawnTarget(Vector3 position, long netId)
+        private Entity SpawnTarget(Vector3 position)
         {
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new SimTransform { Position = position, Rotation = Quaternion.Identity });
-            _entityMap.Register(netId, entity);
             return entity;
         }
 
-        private void PublishIntent(long shooterNetId, long targetNetId, int weaponIndex = 0)
+        private void PublishIntent(Entity shooter, Entity target, int weaponIndex = 0)
         {
             _world.Bus.Publish(new WeaponFireIntent
             {
-                ShooterEntityId = shooterNetId,
-                TargetEntityId  = targetNetId,
-                WeaponIndex     = weaponIndex,
+                Shooter     = shooter,
+                Target      = target,
+                WeaponIndex = weaponIndex,
             });
             _world.Bus.SwapBuffers();
         }
@@ -92,7 +85,7 @@ namespace FDP.Toolkit.Combat.Tests
         // ── T007 SC-1: WeaponFireIntent spawns bullet + fires notification ──────
 
         /// <summary>
-        /// BS1-T007 SC-1: A <see cref="WeaponFireIntent"/> with both entities known must
+        /// BS1-T007 SC-1: A <see cref="WeaponFireIntent"/> with both entities alive must
         /// produce exactly one bullet entity with <see cref="BallisticProjectile"/> and
         /// position at the shooter's origin, with the shooter field set correctly.
         /// </summary>
@@ -100,10 +93,10 @@ namespace FDP.Toolkit.Combat.Tests
         public void FireProcessing_SpawnsBulletEntity_WhenWeaponFireIntentReceived()
         {
             var shooterPos = new Vector3(10f, 20f, 0f);
-            var shooter    = SpawnShooter(shooterPos, netId: 1L);
-            SpawnTarget(new Vector3(20f, 20f, 0f), netId: 2L);
+            var shooter    = SpawnShooter(shooterPos);
+            var target     = SpawnTarget(new Vector3(20f, 20f, 0f));
 
-            PublishIntent(shooterNetId: 1L, targetNetId: 2L);
+            PublishIntent(shooter, target);
             _sys.Run();
 
             var q = _world.Query().With<BallisticProjectile>().Build();
@@ -126,15 +119,15 @@ namespace FDP.Toolkit.Combat.Tests
 
         /// <summary>
         /// After spawning the bullet a <see cref="WeaponFireNotification"/> with the correct
-        /// shooter ID must appear on the event bus.
+        /// shooter and target entity handles must appear on the event bus.
         /// </summary>
         [Fact]
         public void FireProcessing_PublishesWeaponFireNotification_AfterBulletSpawned()
         {
-            SpawnShooter(Vector3.Zero, netId: 1L);
-            SpawnTarget(new Vector3(10f, 0f, 0f), netId: 2L);
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
-            PublishIntent(shooterNetId: 1L, targetNetId: 2L);
+            PublishIntent(shooter, target);
             _sys.Run();
 
             // Notifications are published to the write buffer; swap to expose them.
@@ -142,22 +135,26 @@ namespace FDP.Toolkit.Combat.Tests
 
             var notifications = _world.Bus.Consume<WeaponFireNotification>();
             Assert.Equal(1, notifications.Length);
-            Assert.Equal(1L, notifications[0].ShooterEntityId);
-            Assert.Equal(2L, notifications[0].TargetEntityId);
+            // PACK-P003: notification carries Entity handles, not network IDs.
+            Assert.Equal(shooter, notifications[0].Shooter);
+            Assert.Equal(target,  notifications[0].Target);
         }
 
-        // ── T007 SC-3: Unknown entity → skip gracefully ───────────────────────
+        // ── T007 SC-3: Dead entity → skip gracefully ────────────────────────
 
         /// <summary>
-        /// BS1-T007 SC-3: When the shooter ID is not in <see cref="NetworkEntityMap"/>
+        /// BS1-T007 SC-3: When the shooter entity is destroyed before the system runs
         /// the event must be skipped silently (no bullet, no exception).
         /// </summary>
         [Fact]
-        public void FireProcessing_SkipsEvent_WhenShooterEntityUnknown()
+        public void FireProcessing_SkipsEvent_WhenShooterEntityDead()
         {
-            SpawnTarget(new Vector3(10f, 0f, 0f), netId: 2L);
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
-            PublishIntent(shooterNetId: 9999L, targetNetId: 2L);
+            // Destroy the shooter before the system ticks.
+            PublishIntent(shooter, target);
+            _world.DestroyEntity(shooter);
 
             var ex = Record.Exception(() => _sys.Run());
             Assert.Null(ex);
@@ -169,15 +166,16 @@ namespace FDP.Toolkit.Combat.Tests
         }
 
         /// <summary>
-        /// When the target ID is not in <see cref="NetworkEntityMap"/> the system
-        /// must also skip without spawning a bullet.
+        /// When the target entity is dead, the system also skips without spawning a bullet.
         /// </summary>
         [Fact]
-        public void FireProcessing_SkipsEvent_WhenTargetEntityUnknown()
+        public void FireProcessing_SkipsEvent_WhenTargetEntityDead()
         {
-            SpawnShooter(Vector3.Zero, netId: 1L);
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
-            PublishIntent(shooterNetId: 1L, targetNetId: 9999L);
+            PublishIntent(shooter, target);
+            _world.DestroyEntity(target);
             _sys.Run();
 
             var q = _world.Query().With<BallisticProjectile>().Build();
@@ -196,10 +194,10 @@ namespace FDP.Toolkit.Combat.Tests
         public void FireProcessing_SetsBulletVelocity_UsingMuzzleVelocityAndComputedDirection()
         {
             const float muzzleVelocity = 800f;
-            SpawnShooter(Vector3.Zero, netId: 1L, muzzleVelocity);
-            SpawnTarget(new Vector3(10f, 0f, 0f), netId: 2L);
+            var shooter = SpawnShooter(Vector3.Zero, muzzleVelocity);
+            var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
-            PublishIntent(shooterNetId: 1L, targetNetId: 2L);
+            PublishIntent(shooter, target);
             _sys.Run();
 
             var q = _world.Query().With<SimVelocity>().With<BallisticProjectile>().Build();
@@ -221,41 +219,30 @@ namespace FDP.Toolkit.Combat.Tests
         /// has been created.
         ///
         /// <para>
-        /// <b>Bus-model limitation:</b> Because <see cref="FireProcessingSystem.OnUpdate"/> runs
-        /// synchronously, true intra-frame ordering (notification published after
-        /// <c>World.CreateEntity()</c>) cannot be directly observed from outside the system —
-        /// both the bullet entity and the notification will be visible after the system returns.
-        /// </para>
-        /// <para>
         /// <b>Behavioral proxy:</b> This test asserts that EVERY <see cref="WeaponFireNotification"/>
         /// consumed after the system runs has a corresponding live <see cref="BallisticProjectile"/>
-        /// entity whose <c>Shooter</c> matches the <c>ShooterEntityId</c> in the notification.
+        /// entity whose <c>Shooter</c> matches the <c>Shooter</c> in the notification.
         /// This would fail if:
         ///   (a) the notification is emitted but bullet creation is removed or skipped,
-        ///   (b) the notification <c>ShooterEntityId</c> is wrong, or
-        ///   (c) the bullet is created after an already-consumed notification (i.e., the
-        ///       notification came from a previous system execution).
+        ///   (b) the notification <c>Shooter</c> is wrong, or
+        ///   (c) the bullet is created after an already-consumed notification.
         /// </para>
         /// </summary>
         [Fact]
         public void FireProcessing_BulletExistsWhenNotificationIsConsumed_OrderingProxy()
         {
-            var shooterEntity = SpawnShooter(Vector3.Zero, netId: 1L);
-            SpawnTarget(new Vector3(10f, 0f, 0f), netId: 2L);
+            var shooterEntity = SpawnShooter(Vector3.Zero);
+            var targetEntity  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
-            PublishIntent(shooterNetId: 1L, targetNetId: 2L);
+            PublishIntent(shooterEntity, targetEntity);
             _sys.Run();
             _world.Bus.SwapBuffers();
 
             var notifications = _world.Bus.Consume<WeaponFireNotification>();
             Assert.Equal(1, notifications.Length);
 
-            // Verify: for every notification, a live bullet with this shooter exists.
-            // This would catch any ordering inversion by ensuring bullet creation
-            // happened before control returned from OnUpdate.
-            Assert.True(_entityMap.TryGetEntity(notifications[0].ShooterEntityId, out var resolvedShooter),
-                "Notification ShooterEntityId could not be resolved via NetworkEntityMap.");
-            Assert.Equal(shooterEntity, resolvedShooter);
+            // PACK-P003: notification carries Entity handles directly.
+            Assert.Equal(shooterEntity, notifications[0].Shooter);
 
             var query = _world.Query().With<BallisticProjectile>().Build();
             bool bulletFound = false;
@@ -272,8 +259,7 @@ namespace FDP.Toolkit.Combat.Tests
             Assert.True(bulletFound,
                 "No BallisticProjectile with the expected Shooter was found in the world when " +
                 "WeaponFireNotification was consumed.  This indicates the bullet was either not " +
-                "created or was created for the wrong shooter — violating the BS1-T007 " +
-                "notification-after-bullet-exists ordering constraint.");
+                "created or was created for the wrong shooter.");
         }
 
         // ── Physics collider ──────────────────────────────────────────────────
@@ -285,10 +271,10 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void FireProcessing_SetsPhysicsCollider_WithBulletLayer()
         {
-            SpawnShooter(Vector3.Zero, netId: 1L);
-            SpawnTarget(new Vector3(10f, 0f, 0f), netId: 2L);
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
-            PublishIntent(shooterNetId: 1L, targetNetId: 2L);
+            PublishIntent(shooter, target);
             _sys.Run();
 
             var q = _world.Query().With<PhysicsCollider>().With<BallisticProjectile>().Build();
@@ -311,10 +297,10 @@ namespace FDP.Toolkit.Combat.Tests
         public void FireProcessing_SkipsBullet_WhenShooterNotAuthoritative()
         {
             // Spawn shooter as non-authoritative (remote owner).
-            var shooter = SpawnShooterNonAuthoritative(Vector3.Zero, netId: 1L);
-            SpawnTarget(new Vector3(10f, 0f, 0f), netId: 2L);
+            var shooter = SpawnShooterNonAuthoritative(Vector3.Zero);
+            var target  = SpawnTarget(new Vector3(10f, 0f, 0f));
 
-            PublishIntent(shooterNetId: 1L, targetNetId: 2L);
+            PublishIntent(shooter, target);
             _sys.Run();
 
             var q = _world.Query().With<BallisticProjectile>().Build();
@@ -334,16 +320,15 @@ namespace FDP.Toolkit.Combat.Tests
         [Fact]
         public void FireProcessing_SpawnsBullet_WhenShooterIsAuthoritative()
         {
-            // Explict authority: primary owner == local node.
+            // Explicit authority: primary owner == local node.
             var entity = _world.CreateEntity();
             _world.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             _world.AddComponent(entity, new WeaponState { MuzzleVelocity = 800f, Ammo = 10 });
             _world.AddComponent(entity, new NetworkAuthority(primaryOwnerId: 1, localNodeId: 1));
-            _entityMap.Register(1L, entity);
 
-            SpawnTarget(new Vector3(10f, 0f, 0f), netId: 2L);
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
 
-            PublishIntent(shooterNetId: 1L, targetNetId: 2L);
+            PublishIntent(entity, target);
             _sys.Run();
 
             var q = _world.Query().With<BallisticProjectile>().Build();

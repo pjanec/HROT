@@ -13,16 +13,21 @@ namespace FDP.Toolkit.Combat.Contracts
     /// <c>FDP.Toolkit.Combat</c> without a circular dependency) can publish this event.
     /// Both <c>FDP.Toolkit.Physics</c> and <c>FDP.Toolkit.Combat</c> reference
     /// <c>FDP.Toolkit.Combat.Contracts</c>; neither references the other directly.
+    ///
+    /// <b>PACK-P003:</b> Fields changed from <c>long</c> network IDs to local ECS
+    /// <see cref="Entity"/> handles.  Network-ID resolution is deferred to egress
+    /// translators (<c>MunitionDetonationEgressTranslator</c>) which inject
+    /// <c>NetworkEntityMap</c> for the conversion.
     /// </summary>
     [EventId(5005)]   // = CombatConstants.DetonationNotificationEventId; must not change.
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct DetonationNotification
     {
-        /// <summary>Network entity ID of the shooter.</summary>
-        public long ShooterEntityId;
+        /// <summary>Local ECS entity handle of the shooter.</summary>
+        public Entity Shooter;
 
-        /// <summary>Network entity ID of the entity that was struck.</summary>
-        public long HitEntityId;
+        /// <summary>Local ECS entity handle of the entity that was struck.</summary>
+        public Entity Target;
 
         /// <summary>World-space X coordinate of the hit position.</summary>
         public float HitX;

@@ -71,7 +71,7 @@ namespace Fdp.Examples.UrbanCombat.Systems
             for (int i = 0; i < fireIntents.Length; i++)
             {
                 ref readonly var evt = ref fireIntents[i];
-                System.Console.Out.WriteLine($"{frameTag} GUNFIRE: shooter {evt.ShooterEntityId}");
+                System.Console.Out.WriteLine($"{frameTag} GUNFIRE: shooter #{evt.Shooter.Index}");
             }
 
             var hitEvents = World.Bus.Consume<HitEvent>();

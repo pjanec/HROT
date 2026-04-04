@@ -49,9 +49,14 @@ namespace FDP.Toolkit.Combat.Systems
             {
                 ref readonly var evt = ref events[i];
 
-                // Resolve target entity — skip if unknown on this node.
-                if (!_entityMap.TryGetEntity(evt.HitEntityId, out var targetEntity))
-                    continue;
+                // PACK-P003: evt.Target is already a local ECS Entity handle.
+                // Skip if the entity is not alive on this node.
+                var targetEntity = evt.Target;
+                if (!World.IsAlive(targetEntity)) continue;
+
+                // Resolve target to a network ID for DamageAssessedEvent.
+                // Skip if this node has no entry (shouldn't happen if the entity is alive here).
+                if (!_entityMap.TryGetNetworkId(targetEntity, out long targetNetId)) continue;
 
                 // Authority gate: only the owning node computes and publishes damage.
                 // Fall through (authoritative) when no NetworkAuthority component is present
@@ -65,7 +70,7 @@ namespace FDP.Toolkit.Combat.Systems
                 // POC: flat damage value; armor/penetration curves are deferred.
                 World.Bus.Publish(new DamageAssessedEvent
                 {
-                    HitEntityId = evt.HitEntityId,
+                    HitEntityId = targetNetId,
                     TotalDamage = CombatConstants.DefaultBulletDamage,
                 });
             }

@@ -8,7 +8,6 @@ using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Combat.Executors;
-using FDP.Toolkit.Replication.Services;
 using Xunit;
 
 namespace FDP.Toolkit.Combat.Tests
@@ -18,15 +17,13 @@ namespace FDP.Toolkit.Combat.Tests
     /// Each test drives the executor directly without a dispatcher system, using a real
     /// <see cref="EntityRepository"/> for component access and event bus assertions.
     ///
-    /// <b>BS1-T004:</b> Executor now publishes <see cref="WeaponFireIntent"/> (stable
-    /// network entity IDs) instead of <see cref="FireRequestEvent"/> (local ECS handles).
-    /// Tests use a real <see cref="NetworkEntityMap"/> to register entities and validate
-    /// the IDs embedded in the published intent.
+    /// <b>PACK-P003:</b> Executor no longer uses <see cref="FDP.Toolkit.Replication.Services.NetworkEntityMap"/>.
+    /// <see cref="WeaponFireIntent"/> carries local ECS <see cref="Entity"/> handles directly.
+    /// The tests verify that the published entity handles match the spawned entities.
     /// </summary>
     public class AimAndFireExecutorTests : IDisposable
     {
         private readonly EntityRepository _world;
-        private readonly NetworkEntityMap _entityMap;
         private readonly AimAndFireExecutor _executor;
 
         public AimAndFireExecutorTests()
@@ -39,8 +36,7 @@ namespace FDP.Toolkit.Combat.Tests
             _world.RegisterEvent<WeaponFireIntent>();
             _world.RegisterEvent<HitEvent>();
 
-            _entityMap = new NetworkEntityMap();
-            _executor  = new AimAndFireExecutor(_entityMap);
+            _executor = new AimAndFireExecutor();
         }
 
         public void Dispose()
@@ -55,12 +51,10 @@ namespace FDP.Toolkit.Combat.Tests
         /// <see cref="WeaponState"/> and a <see cref="WeaponChannel"/> whose
         /// Params are pre-populated with the given <paramref name="target"/> and
         /// <paramref name="cooldownTicks"/>.
-        /// Registers the entity in <see cref="_entityMap"/> under
-        /// <paramref name="shooterNetId"/>.
         /// </summary>
         private unsafe (Entity shooter, WeaponChannel channel)
             SpawnShooter(Vector3 shooterPos, int ammo, int cooldownRemaining,
-                         Entity target, int cooldownTicks, long shooterNetId = 100L)
+                         Entity target, int cooldownTicks)
         {
             var shooter = _world.CreateEntity();
             _world.AddComponent(shooter, new SimTransform { Position = shooterPos, Rotation = Quaternion.Identity });
@@ -71,8 +65,6 @@ namespace FDP.Toolkit.Combat.Tests
                 MuzzleVelocity          = 800f,
             });
             _world.AddComponent(shooter, new WeaponChannel());
-
-            _entityMap.Register(shooterNetId, shooter);
 
             var channel = _world.GetComponent<WeaponChannel>(shooter);
             channel.Status = NodeStatus.Running;
@@ -85,15 +77,11 @@ namespace FDP.Toolkit.Combat.Tests
             return (shooter, channel);
         }
 
-        /// <summary>
-        /// Spawns a target entity at <paramref name="pos"/> and registers it in
-        /// <see cref="_entityMap"/> under <paramref name="targetNetId"/>.
-        /// </summary>
-        private Entity SpawnTarget(Vector3 pos, long targetNetId = 200L)
+        /// <summary>Spawns a target entity at <paramref name="pos"/>.</summary>
+        private Entity SpawnTarget(Vector3 pos)
         {
             var target = _world.CreateEntity();
             _world.AddComponent(target, new SimTransform { Position = pos, Rotation = Quaternion.Identity });
-            _entityMap.Register(targetNetId, target);
             return target;
         }
 
@@ -102,23 +90,22 @@ namespace FDP.Toolkit.Combat.Tests
         /// <summary>
         /// BS1-T004 SC-1: When ammo > 0 and cooldown == 0 and target is alive, Execute must:
         ///   • Publish exactly one <see cref="WeaponFireIntent"/>.
-        ///   • ShooterEntityId == network ID of the shooter entity.
-        ///   • TargetEntityId  == network ID of the target entity.
-        ///   • WeaponIndex     == 0 (single weapon slot POC).
-        ///   • channel.Status  == NodeStatus.Running after firing (firing is not terminal).
+        ///   • Shooter == local ECS entity handle of the shooter.
+        ///   • Target  == local ECS entity handle of the target.
+        ///   • WeaponIndex == 0 (single weapon slot POC).
+        ///   • channel.Status == NodeStatus.Running after firing (firing is not terminal).
         ///   • WeaponState.Ammo is decremented by 1.
         /// </summary>
         [Fact]
         public void AimAndFire_EmitsWeaponFireIntent_WhenConditionsAreMet()
         {
-            var target = SpawnTarget(new Vector3(10f, 0f, 0f), targetNetId: 200L);
+            var target = SpawnTarget(new Vector3(10f, 0f, 0f));
             var (shooter, channel) = SpawnShooter(
                 shooterPos:        Vector3.Zero,
                 ammo:              5,
                 cooldownRemaining: 0,
                 target:            target,
-                cooldownTicks:     3,
-                shooterNetId:      100L);
+                cooldownTicks:     3);
 
             _executor.OnEnter(shooter, ref channel, _world);
             _executor.Execute(shooter, ref channel, _world, 0.016f);
@@ -130,8 +117,9 @@ namespace FDP.Toolkit.Combat.Tests
             Assert.Equal(1, intents.Length);
 
             var intent = intents[0];
-            Assert.Equal(100L, intent.ShooterEntityId);
-            Assert.Equal(200L, intent.TargetEntityId);
+            // PACK-P003: assert local ECS Entity handles, not network IDs.
+            Assert.Equal(shooter, intent.Shooter);
+            Assert.Equal(target,  intent.Target);
             // Batch-01 review fix (Issue 3): assert WeaponIndex matches POC contract.
             Assert.Equal(0, intent.WeaponIndex);
 

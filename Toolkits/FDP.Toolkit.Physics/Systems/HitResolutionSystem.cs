@@ -1,10 +1,9 @@
-using System.Numerics;
+﻿using System.Numerics;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Contracts; // DEBT-031: HitEvent moved from Fdp.Kernel to Combat.Contracts
-// BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Kernel — no extra using needed.
+// BATCH-10: HitEvent moved from FDP.Toolkit.Combat.Events to Fdp.Kernel â€” no extra using needed.
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Perception.Events;
-using FDP.Toolkit.Replication.Services;
 
 namespace FDP.Toolkit.Physics.Systems
 {
@@ -22,7 +21,8 @@ namespace FDP.Toolkit.Physics.Systems
     ///     <term>Bullet ray (<see cref="PhysicsConstants.IsBulletRay"/> == true)</term>
     ///     <description>
     ///       Publishes <see cref="HitEvent"/> (owned by this assembly; consumed by Combat toolkit
-    ///       when it is introduced in Phase 5).
+    ///       when it is introduced in Phase 5) AND <see cref="DetonationNotification"/> carrying
+    ///       the hit position and local ECS entity handles.
     ///     </description>
     ///   </item>
     ///   <item>
@@ -43,13 +43,12 @@ namespace FDP.Toolkit.Physics.Systems
     /// BATCH-09 when Combat systems started needing Physics types).
     /// </para>
     /// <para>
-    /// <b>BS1-T010:</b> When a <see cref="NetworkEntityMap"/> is provided at construction,
-    /// bullet impacts also emit a <see cref="DetonationNotification"/> carrying the world-space
-    /// hit position (interpolated from <see cref="RaycastRequest.Start"/>,
-    /// <see cref="RaycastRequest.End"/>, and <see cref="RaycastHit.T"/>) and both entity
-    /// network IDs.  LOS-check rays never produce a <see cref="DetonationNotification"/>.
-    /// When no <see cref="NetworkEntityMap"/> is injected (e.g. in legacy unit tests) the
-    /// notification path is skipped and the system behaves as before.
+    /// <b>PACK-P003:</b> <see cref="DetonationNotification"/> is always emitted for bullet
+    /// impacts (previously gated on a <c>NetworkEntityMap</c> being injected).  The event
+    /// now carries local ECS <see cref="Entity"/> handles directly.  In offline / AllInOne
+    /// contexts with no <c>MunitionDetonationEgressTranslator</c> registered, the event is
+    /// simply not consumed and causes no side-effects.  Network-ID resolution was moved to
+    /// the egress translator layer.
     /// </para>
     /// <para>
     /// <b>Count reset:</b> After all hits are dispatched <see cref="RaycastBatchData.Count"/>
@@ -60,21 +59,6 @@ namespace FDP.Toolkit.Physics.Systems
     [UpdateAfter(typeof(RaycastSolverSystem))]
     public class HitResolutionSystem : ComponentSystem
     {
-        private readonly NetworkEntityMap? _entityMap;
-
-        /// <summary>Default constructor (no <see cref="DetonationNotification"/> emitted).</summary>
-        public HitResolutionSystem() { }
-
-        /// <summary>
-        /// Constructor used in a Muscle-node context where network entity IDs are available.
-        /// With a valid <paramref name="entityMap"/>, each bullet impact additionally emits
-        /// a <see cref="DetonationNotification"/>.
-        /// </summary>
-        public HitResolutionSystem(NetworkEntityMap entityMap)
-        {
-            _entityMap = entityMap ?? throw new System.ArgumentNullException(nameof(entityMap));
-        }
-
         protected override void OnUpdate()
         {
             if (!World.HasSingleton<RaycastBatchData>()) return;
@@ -88,7 +72,7 @@ namespace FDP.Toolkit.Physics.Systems
 
                 if (PhysicsConstants.IsBulletRay(hit.RayId))
                 {
-                    // Bullet hit → emit HitEvent (Combat toolkit will consume in Phase 5).
+                    // Bullet hit â†’ emit HitEvent (Combat toolkit will consume in Phase 5).
                     World.Bus.Publish(new HitEvent
                     {
                         HitEntity   = hit.HitEntity,
@@ -96,35 +80,30 @@ namespace FDP.Toolkit.Physics.Systems
                         HitT        = hit.T,
                     });
 
-                    // BS1-T010: Emit DetonationNotification when entity map is available.
-                    // The shooter network ID is obtained from request.IgnoreEntity (set to the
-                    // bullet's Shooter by BallisticsSystem) — this avoids any direct reference
-                    // to BallisticProjectile (which is in FDP.Toolkit.Combat, a downstream assembly).
-                    if (_entityMap is not null)
+                    // PACK-P003: Always emit DetonationNotification with local ECS Entity handles.
+                    // The shooter entity is request.IgnoreEntity (set to the bullet's Shooter by
+                    // BallisticsSystem â€” see BallisticsSystem.cs for the convention).
+                    // Network-ID resolution is performed by MunitionDetonationEgressTranslator
+                    // on the egress boundary; this system and FDP.Toolkit.Physics have zero
+                    // NetworkEntityMap dependency.
+                    var hitPos = request.Start + hit.T * (request.End - request.Start);
+
+                    World.Bus.Publish(new DetonationNotification
                     {
-                        // Compute world-space hit position by interpolating along the swept ray.
-                        var hitPos = request.Start + hit.T * (request.End - request.Start);
-
-                        _entityMap.TryGetNetworkId(hit.HitEntity,         out long hitNetId);
-                        _entityMap.TryGetNetworkId(request.IgnoreEntity,  out long shooterNetId);
-
-                        World.Bus.Publish(new DetonationNotification
-                        {
-                            ShooterEntityId = shooterNetId,
-                            HitEntityId     = hitNetId,
-                            HitX            = hitPos.X,
-                            HitY            = hitPos.Y,
-                            HitZ            = hitPos.Z,
-                        });
-                    }
+                        Shooter = request.IgnoreEntity,
+                        Target  = hit.HitEntity,
+                        HitX    = hitPos.X,
+                        HitY    = hitPos.Y,
+                        HitZ    = hitPos.Z,
+                    });
                 }
                 else
                 {
-                    // LOS hit → emit TargetVisibleEvent (Perception toolkit consumes it).
-                    // Full Entity handles propagated from RaycastRequest — no index-only recovery needed.
+                    // LOS hit â†’ emit TargetVisibleEvent (Perception toolkit consumes it).
+                    // Full Entity handles propagated from RaycastRequest â€” no index-only recovery needed.
                     // IsAlive checks are intentionally deferred to ThreatEvaluationSystem (the consumer),
                     // since a one-frame entity destruction between solve and emit is possible but does not
-                    // warrant a check here — the consumer applies the generational guard.
+                    // warrant a check here â€” the consumer applies the generational guard.
                     World.Bus.Publish(new TargetVisibleEvent
                     {
                         Observer = hit.Observer,

@@ -319,7 +319,7 @@ namespace Fdp.Examples.UrbanCombat
             _inputGroup = new InputSystemGroup();
             _inputGroup.Create(World);
             _inputGroup.AddSystem(new DoctrineIngressSystem(_doctrineRegistry));
-            _inputGroup.AddSystem(new FireProcessingSystem(_entityMap));
+            _inputGroup.AddSystem(new FireProcessingSystem());
             _inputGroup.AddSystem(new RaycastSolverSystem());
             _inputGroup.AddSystem(new HitResolutionSystem());
 
@@ -336,7 +336,7 @@ namespace Fdp.Examples.UrbanCombat
             _simGroup.AddSystem(new AudioPerceptionSystem());
 
             var weaponSys = new WeaponDispatcherSystem();
-            weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor(_entityMap));
+            weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
             _simGroup.AddSystem(weaponSys);
 
             var interactSys = new InteractionDispatcherSystem();

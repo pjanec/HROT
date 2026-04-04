@@ -1,41 +1,38 @@
-using System;
+﻿using System;
 using System.Numerics;
 using Fdp.Kernel;
 using Fdp.Kernel.Collections;
 using FDP.Toolkit.Combat.Contracts;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Physics.Systems;
-using FDP.Toolkit.Replication.Services;
 using Xunit;
 
 namespace FDP.Toolkit.Physics.Tests
 {
     /// <summary>
-    /// Tests for <see cref="HitResolutionSystem"/> focused on the BS1-T010 requirement:
+    /// Tests for <see cref="HitResolutionSystem"/> focused on the PACK-P003 requirement:
     /// bullet impacts must emit both a <see cref="HitEvent"/> and a
-    /// <see cref="DetonationNotification"/>; LOS-check rays must emit neither.
+    /// <see cref="DetonationNotification"/> with local ECS <see cref="Entity"/> handles;
+    /// LOS-check rays must emit neither.
     ///
-    /// These tests use the overloaded constructor that accepts a <see cref="NetworkEntityMap"/>
-    /// to opt in to <see cref="DetonationNotification"/> emission.
-    /// Existing tests in <see cref="HitResolutionSystemTests"/> continue to use the
-    /// default constructor (no map → no detonation notification).
+    /// <b>PACK-P003:</b> <see cref="HitResolutionSystem"/> no longer requires
+    /// <see cref="FDP.Toolkit.Replication.Services.NetworkEntityMap"/> — it always emits
+    /// <see cref="DetonationNotification"/> with local ECS handles.
     /// </summary>
     public class HitResolutionSystemDetonationTests : IDisposable
     {
         private readonly EntityRepository    _world;
-        private readonly NetworkEntityMap    _entityMap;
         private readonly HitResolutionSystem _sys;
 
         public HitResolutionSystemDetonationTests()
         {
             _world = PhysicsTestWorldFactory.Create();
 
-            // Register DetonationNotification for BS1-T010 paths.
+            // Register DetonationNotification for PACK-P003 paths.
             _world.RegisterEvent<DetonationNotification>();
 
-            _entityMap = new NetworkEntityMap();
-
-            _sys = new HitResolutionSystem(_entityMap);
+            // PACK-P003: no-arg constructor — no NetworkEntityMap needed.
+            _sys = new HitResolutionSystem();
             _sys.Create(_world);
         }
 
@@ -45,32 +42,21 @@ namespace FDP.Toolkit.Physics.Tests
             PhysicsTestWorldFactory.DisposeBatch(_world);
         }
 
-        // ── Helpers ───────────────────────────────────────────────────────────
-
-        private Entity RegisterEntity(long netId)
-        {
-            var entity = _world.CreateEntity();
-            _entityMap.Register(netId, entity);
-            return entity;
-        }
-
         // ── SC-1: Bullet hit → HitEvent AND DetonationNotification ───────────
 
         /// <summary>
-        /// BS1-T010 SC-1: A bullet-ray hit must publish both <see cref="HitEvent"/> and
-        /// <see cref="DetonationNotification"/> with the correct target network ID and
-        /// world-space hit position.
+        /// PACK-P003 SC-1: A bullet-ray hit must publish both <see cref="HitEvent"/> and
+        /// <see cref="DetonationNotification"/> with the correct local ECS entity handles
+        /// and world-space hit position.
         /// </summary>
         [Fact]
         public void BulletHit_EmitsBothHitEvent_AndDetonationNotification()
         {
             // Arrange
             const int bulletIdx = 7;
-            const long hitNetId = 42L;
-            const long shooterNetId = 10L;
 
-            var hitEntity     = RegisterEntity(hitNetId);
-            var shooterEntity = RegisterEntity(shooterNetId);
+            var hitEntity     = _world.CreateEntity();
+            var shooterEntity = _world.CreateEntity();
 
             // Build the ray: start at (0,0,0), end at (10,0,0), hit at T=0.5 → world pos (5,0,0).
             var rayStart = new Vector3(0f, 0f, 0f);
@@ -102,13 +88,14 @@ namespace FDP.Toolkit.Physics.Tests
             Assert.Equal(1, hitEvents.Length);
             Assert.Equal(hitEntity, hitEvents[0].HitEntity);
 
-            // Assert — DetonationNotification also published
+            // Assert — DetonationNotification also published with Entity handles
             var detonations = _world.Bus.Consume<DetonationNotification>();
             Assert.Equal(1, detonations.Length);
 
             var det = detonations[0];
-            Assert.Equal(hitNetId,     det.HitEntityId);
-            Assert.Equal(shooterNetId, det.ShooterEntityId);
+            // PACK-P003: Entity handles, not network IDs.
+            Assert.Equal(hitEntity,     det.Target);
+            Assert.Equal(shooterEntity, det.Shooter);
 
             // Hit position = rayStart + 0.5f * (rayEnd - rayStart) = (5, 0, 0)
             Assert.Equal(5f, det.HitX, precision: 4);
@@ -119,9 +106,8 @@ namespace FDP.Toolkit.Physics.Tests
         // ── SC-2: LOS hit → no DetonationNotification ────────────────────────
 
         /// <summary>
-        /// BS1-T010 SC-2: A LOS-check ray (bit 63 == 0) must NOT produce a
-        /// <see cref="DetonationNotification"/> even when a <see cref="NetworkEntityMap"/>
-        /// is present.
+        /// PACK-P003 SC-2: A LOS-check ray (bit 63 == 0) must NOT produce a
+        /// <see cref="DetonationNotification"/>.
         /// </summary>
         [Fact]
         public void LosHit_DoesNotEmitDetonationNotification()
@@ -155,26 +141,27 @@ namespace FDP.Toolkit.Physics.Tests
             Assert.Equal(0, detonations.Length);
         }
 
-        // ── SC-3: Unknown entity IDs → still publish with zero IDs ───────────
+        // ── SC-3: Always emits (no-arg constructor, offline scenario) ─────────
 
         /// <summary>
-        /// When a bullet hits an entity not registered in the <see cref="NetworkEntityMap"/>,
-        /// the <see cref="DetonationNotification"/> is still published with zeroed IDs
-        /// rather than throwing.
+        /// PACK-P003 SC-3: <see cref="HitResolutionSystem"/> constructed with no
+        /// arguments must always emit <see cref="DetonationNotification"/> for bullet
+        /// impacts. In offline contexts the event goes unconsumed — this test verifies
+        /// the event is published and carries the correct local Entity handles.
         /// </summary>
         [Fact]
-        public void BulletHit_WithUnknownEntities_StillPublishesDetonationWithZeroIds()
+        public void BulletHit_WithNoArgConstructor_AlwaysEmitsDetonationNotification()
         {
-            // Entities are NOT registered in the EntityMap.
-            var hitEntity = _world.CreateEntity();
+            var hitEntity     = _world.CreateEntity();
+            var shooterEntity = _world.CreateEntity();
 
             ref var batch = ref _world.GetSingleton<RaycastBatchData>();
             batch.Requests[0] = new RaycastRequest
             {
-                Start    = Vector3.Zero,
-                End      = new Vector3(5f, 0f, 0f),
-                RayId    = PhysicsConstants.PackBulletRayId(hitEntity.Index),
-                IgnoreEntity = default,   // shooter entity not known
+                Start        = Vector3.Zero,
+                End          = new Vector3(5f, 0f, 0f),
+                RayId        = PhysicsConstants.PackBulletRayId(hitEntity.Index),
+                IgnoreEntity = shooterEntity,
             };
             batch.Hits[0] = new RaycastHit
             {
@@ -193,9 +180,10 @@ namespace FDP.Toolkit.Physics.Tests
             Assert.Null(ex);
 
             var detonations = _world.Bus.Consume<DetonationNotification>();
-            // Event is still published; IDs are 0 because the entity map lookup failed.
             Assert.Equal(1, detonations.Length);
-            Assert.Equal(0L, detonations[0].HitEntityId);
+            // Entity handles carried directly — no network-ID lookup needed.
+            Assert.Equal(hitEntity,     detonations[0].Target);
+            Assert.Equal(shooterEntity, detonations[0].Shooter);
         }
     }
 }

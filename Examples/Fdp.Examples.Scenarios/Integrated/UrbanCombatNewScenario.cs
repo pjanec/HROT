@@ -737,7 +737,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         private ComponentSystem[] BuildSystems(EntityRepository world)
         {
             var weaponSys = new WeaponDispatcherSystem();
-            weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor(_entityMap));
+            weaponSys.RegisterExecutor(CombatConstants.ActionIdAimAndFire, new AimAndFireExecutor());
 
             var interactSys = new InteractionDispatcherSystem();
             interactSys.RegisterExecutor(BehaviorConstants.ActionIdEjectPassengers, new EjectPassengersExecutor());
@@ -746,7 +746,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             {
                 // ── Input equivalent ──
                 new DoctrineIngressSystem(_doctrineRegistry),
-                new FireProcessingSystem(_entityMap),
+                new FireProcessingSystem(),
                 new RaycastSolverSystem(),
                 new HitResolutionSystem(),
 

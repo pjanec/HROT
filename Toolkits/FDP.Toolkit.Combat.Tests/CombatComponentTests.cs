@@ -90,27 +90,29 @@ namespace FDP.Toolkit.Combat.Tests
         // ── BS1-T001: WeaponFire pipeline ECS event structs ───────────────────
 
         /// <summary>
-        /// BS1-T001 SC-2: WeaponFireIntent must be an unmanaged value type whose
-        /// sequential layout equals 2×sizeof(long) + sizeof(int) = 20 bytes.
-        /// (Pack=1 eliminates alignment padding.)
+        /// BS1-T001 SC-2: WeaponFireIntent must be an unmanaged value type.
+        /// PACK-P003 layout: 2×Entity(int+ushort=6 bytes under Pack=1) + sizeof(int) = 16 bytes.
         /// </summary>
         [Fact]
         public void WeaponFireIntent_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(WeaponFireIntent).IsValueType);
-            int expected = sizeof(long) + sizeof(long) + sizeof(int); // 20
+            // PACK-P003: Entity (int+ushort) has sizeof=8 (same as long due to alignment padding).
+            // Replacing long with Entity preserves the layout size: 2×8 + 4 = 20 bytes.
+            int expected = 2 * sizeof(long) + sizeof(int); // 20
             Assert.Equal(expected, Marshal.SizeOf<WeaponFireIntent>());
         }
 
         /// <summary>
         /// BS1-T001 SC-3: WeaponFireNotification must be an unmanaged value type
-        /// with the same 20-byte layout as WeaponFireIntent.
+        /// with the same layout as WeaponFireIntent (PACK-P003: 16 bytes).
         /// </summary>
         [Fact]
         public void WeaponFireNotification_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(WeaponFireNotification).IsValueType);
-            int expected = sizeof(long) + sizeof(long) + sizeof(int); // 20
+            // PACK-P003: Same calculation as WeaponFireIntent (Entity = 8 bytes, same as long).
+            int expected = 2 * sizeof(long) + sizeof(int); // 20
             Assert.Equal(expected, Marshal.SizeOf<WeaponFireNotification>());
         }
 
@@ -130,14 +132,14 @@ namespace FDP.Toolkit.Combat.Tests
 
         /// <summary>
         /// BS1-T002 SC-2: DetonationNotification must be an unmanaged value type.
-        /// Layout: 2×sizeof(long) + 3×sizeof(float) = 16 + 12 = 28 bytes.
-        /// (Pack=1 eliminates padding.)
+        /// PACK-P003 layout: 2×Entity(int+ushort=6 bytes under Pack=1) + 3×sizeof(float) = 24 bytes.
         /// </summary>
         [Fact]
         public void DetonationNotification_IsUnmanaged_AndHasCorrectSize()
         {
             Assert.True(typeof(DetonationNotification).IsValueType);
-            int expected = sizeof(long) + sizeof(long) + sizeof(float) * 3; // 28
+            // PACK-P003: 2×Entity(8 bytes) + 3×float(4 bytes) = 28 bytes (same as 2×long + 3×float).
+            int expected = 2 * sizeof(long) + sizeof(float) * 3; // 28
             Assert.Equal(expected, Marshal.SizeOf<DetonationNotification>());
         }
 

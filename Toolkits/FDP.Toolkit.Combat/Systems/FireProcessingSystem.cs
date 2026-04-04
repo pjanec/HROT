@@ -1,11 +1,10 @@
-using System;
+﻿using System;
 using System.Numerics;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Components;
 using FDP.Toolkit.Combat.Events;
 using FDP.Toolkit.Physics.Components;
 using FDP.Toolkit.Replication.Components;
-using FDP.Toolkit.Replication.Services;
 
 namespace FDP.Toolkit.Combat.Systems
 {
@@ -14,10 +13,8 @@ namespace FDP.Toolkit.Combat.Systems
     ///
     /// <para>
     /// <b>BS1-T007:</b> Replaces the old <see cref="FireRequestEvent"/>-based firing loop.
-    /// <see cref="WeaponFireIntent"/> carries stable network entity IDs; this system resolves
-    /// them to local <see cref="Entity"/> handles via <see cref="NetworkEntityMap"/>, computes
-    /// the muzzle direction from the entities' <see cref="SimTransform"/> positions, and
-    /// publishes a <see cref="WeaponFireNotification"/> after the bullet entity is created.
+    /// <see cref="WeaponFireIntent"/> now carries local ECS <see cref="Entity"/> handles
+    /// directly (PACK-P003); this system uses them without any <c>NetworkEntityMap</c> lookup.
     /// </para>
     ///
     /// <para>
@@ -28,7 +25,7 @@ namespace FDP.Toolkit.Combat.Systems
     /// <para>
     /// <b>Per event:</b>
     /// <list type="number">
-    ///   <item>Resolve shooter and target entities via <see cref="NetworkEntityMap"/>; skip if either is missing.</item>
+    ///   <item>Uses <see cref="WeaponFireIntent.Shooter"/> and <see cref="WeaponFireIntent.Target"/> directly.</item>
     ///   <item>Creates a new entity.</item>
     ///   <item>Adds <see cref="SimTransform"/> — position at the shot origin.</item>
     ///   <item>Adds <see cref="SimVelocity"/> — linear velocity = <c>direction × MuzzleVelocity</c>.</item>
@@ -43,17 +40,6 @@ namespace FDP.Toolkit.Combat.Systems
     [UpdateInGroup(typeof(InputSystemGroup))]
     public class FireProcessingSystem : ComponentSystem
     {
-        private readonly NetworkEntityMap _entityMap;
-
-        /// <param name="entityMap">
-        /// Shared network entity map used to resolve <see cref="WeaponFireIntent"/> IDs to
-        /// local <see cref="Entity"/> handles.  Required; must not be null.
-        /// </param>
-        public FireProcessingSystem(NetworkEntityMap entityMap)
-        {
-            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
-        }
-
         protected override void OnUpdate()
         {
             var events = World.Bus.Consume<WeaponFireIntent>();
@@ -67,9 +53,8 @@ namespace FDP.Toolkit.Combat.Systems
             {
                 ref readonly var evt = ref events[i];
 
-                // Resolve network IDs to local entity handles.
-                if (!_entityMap.TryGetEntity(evt.ShooterEntityId, out var shooter)) continue;
-                if (!_entityMap.TryGetEntity(evt.TargetEntityId,  out var target))  continue;
+                var shooter = evt.Shooter;
+                var target  = evt.Target;
 
                 // TD-6 authority gate: skip if a remote node owns the shooter.
                 // When no NetworkAuthority component is present, treat as authoritative
@@ -130,14 +115,15 @@ namespace FDP.Toolkit.Combat.Systems
                 });
 
                 // 6. Notify egress translator (muzzle flash for IG).
+                //    Entity handles are passed; WeaponFireNotificationEgressTranslator resolves
+                //    them to network IDs on the egress boundary.
                 World.Bus.Publish(new WeaponFireNotification
                 {
-                    ShooterEntityId = evt.ShooterEntityId,
-                    TargetEntityId  = evt.TargetEntityId,
-                    WeaponIndex     = evt.WeaponIndex,
+                    Shooter     = shooter,
+                    Target      = target,
+                    WeaponIndex = evt.WeaponIndex,
                 });
             }
         }
     }
 }
-
