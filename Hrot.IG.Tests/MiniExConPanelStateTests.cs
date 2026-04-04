@@ -295,4 +295,27 @@ public class MiniExConPanelStateTests
         Assert.Equal(1, transformCount);
         Assert.Equal(1, symbolOverrideCount);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // OnCommandPublished event (PACK2-U003)
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Submit must raise the <see cref="MiniExConPanelState.OnCommandPublished"/> event
+    /// synchronously with the published command (PACK2-U003 / C.2).
+    /// </summary>
+    [Fact]
+    public void Submit_FiresOnCommandPublishedEvent()
+    {
+        var state = new MiniExConPanelState { TkbType = 301L };
+        var bus   = CreateBus();
+
+        SpawnEntityCommand? captured = null;
+        state.OnCommandPublished += cmd => captured = cmd;
+
+        state.Submit(bus);
+
+        Assert.NotNull(captured);
+        Assert.Equal(301L, captured!.Value.TkbType);
+    }
 }

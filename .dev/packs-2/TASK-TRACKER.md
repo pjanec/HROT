@@ -46,9 +46,9 @@ render layers reusable by IG, ExCon, and the new HROT Editor.
 **Goal:** Enforce "dumb view" separation; formalize UI packs for IG and ExCon; scaffold the
 bespoke HROT Editor UI Pack.
 
-- [ ] **PACK2-U001** Enforce UI-Logic separation — audit and fix residual DDS calls in panels [details](./TASK-DETAIL.md#pack2-u001--enforce-ui-logic-separation-in-existing-panels)
-- [ ] **PACK2-U002** Formalize ExCon UI Pack — confirm IExConLogic facade boundary [details](./TASK-DETAIL.md#pack2-u002--formalize-excon-ui-pack)
-- [ ] **PACK2-U003** Formalize IG UI Pack — confirm event-driven tool activation in panels [details](./TASK-DETAIL.md#pack2-u003--formalize-ig-ui-pack)
+- [x] **PACK2-U001** Enforce UI-Logic separation — audit and fix residual DDS calls in panels [details](./TASK-DETAIL.md#pack2-u001--enforce-ui-logic-separation-in-existing-panels)
+- [x] **PACK2-U002** Formalize ExCon UI Pack — confirm IExConLogic facade boundary [details](./TASK-DETAIL.md#pack2-u002--formalize-excon-ui-pack)
+- [x] **PACK2-U003** Formalize IG UI Pack — confirm event-driven tool activation in panels [details](./TASK-DETAIL.md#pack2-u003--formalize-ig-ui-pack)
 - [ ] **PACK2-U004** Scaffold HROT Editor UI Pack (`ScenarioBrowserPanel`, `EditorToolbarPanel`, etc.) [details](./TASK-DETAIL.md#pack2-u004--scaffold-hrot-editor-ui-pack)
 
 ---
