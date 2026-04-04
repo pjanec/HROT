@@ -4,9 +4,9 @@ using System.Text.Json;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Fdp.Interfaces;
+using Hrot.Common.Events;
 using Hrot.Map.Common.Components;
 using Hrot.Map.Common.Helpers;
-using Hrot.SimHost.Events;
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
@@ -32,7 +32,7 @@ public class MissionControlRequestSystemFollowRouteTests
         repo.RegisterComponent<MissionPlanQueue>();
         repo.RegisterComponent<DoctrineState>();
         repo.RegisterComponent<BrainBTreeState>();
-        repo.RegisterManagedComponent<Hrot.SimHost.Components.EntityMissionHolder>();
+        repo.RegisterManagedComponent<ActiveMissionPlan>();
         repo.RegisterComponent<NetworkIdentity>();
         repo.RegisterComponent<RouteTrajectoryCache>();
         repo.RegisterManagedComponent<RoutePlan>();
@@ -55,7 +55,7 @@ public class MissionControlRequestSystemFollowRouteTests
     {
         var vehicle = repo.CreateEntity();
         repo.AddComponent(vehicle, new MissionPlanQueue());
-        repo.SetManagedComponent(vehicle, new Hrot.SimHost.Components.EntityMissionHolder());
+        repo.SetManagedComponent(vehicle, new ActiveMissionPlan());
         entityMap.Register(vehicleNetId, vehicle);
 
         var routeEntity = repo.CreateEntity();
@@ -113,9 +113,9 @@ public class MissionControlRequestSystemFollowRouteTests
         var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L, speed: 12.0, loop: true);
         system.TestHook_ProcessIntent(repo, request);
 
-        // Verify rewritten BehaviorParams stored in EntityMissionHolder.
-        var holder     = ((ISimulationView)repo).GetManagedComponentRO<Hrot.SimHost.Components.EntityMissionHolder>(vehicle);
-        var storedTask = holder.Mission.Plan.Tasks[0];
+        // Verify rewritten BehaviorParams stored in ActiveMissionPlan.
+        var activePlan = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(vehicle);
+        var storedTask = activePlan.Plan.Tasks[0];
 
         using var doc = JsonDocument.Parse(storedTask.BehaviorParams);
         Assert.True(doc.RootElement.TryGetProperty("trajectoryId", out var tidEl));
@@ -141,7 +141,7 @@ public class MissionControlRequestSystemFollowRouteTests
         // Register only the vehicle; no route entity.
         var vehicle = repo.CreateEntity();
         repo.AddComponent(vehicle, new MissionPlanQueue());
-        repo.SetManagedComponent(vehicle, new Hrot.SimHost.Components.EntityMissionHolder());
+        repo.SetManagedComponent(vehicle, new ActiveMissionPlan());
         entityMap.Register(1L, vehicle);
 
         var request = MakeFollowRouteRequest(targetEntityId: 1L, routeEntityId: 99L);
@@ -196,8 +196,8 @@ public class MissionControlRequestSystemFollowRouteTests
         system.TestHook_DrainRetryQueue(repo);
 
         // Mission should now be committed.
-        var holder     = ((ISimulationView)repo).GetManagedComponentRO<Hrot.SimHost.Components.EntityMissionHolder>(vehicle);
-        var storedTask = holder.Mission.Plan.Tasks[0];
+        var activePlan = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(vehicle);
+        var storedTask = activePlan.Plan.Tasks[0];
         using var doc  = JsonDocument.Parse(storedTask.BehaviorParams);
         Assert.Equal(7, doc.RootElement.GetProperty("trajectoryId").GetInt32());
     }
@@ -220,7 +220,7 @@ public class MissionControlRequestSystemFollowRouteTests
 
         var vehicle = repo.CreateEntity();
         repo.AddComponent(vehicle, new MissionPlanQueue());
-        repo.SetManagedComponent(vehicle, new Hrot.SimHost.Components.EntityMissionHolder());
+        repo.SetManagedComponent(vehicle, new ActiveMissionPlan());
         entityMap.Register(1L, vehicle);
 
         const string originalParams = "{\"radius\":100}";
@@ -252,8 +252,8 @@ public class MissionControlRequestSystemFollowRouteTests
 
         system.TestHook_ProcessIntent(repo, request);
 
-        var holder     = ((ISimulationView)repo).GetManagedComponentRO<Hrot.SimHost.Components.EntityMissionHolder>(vehicle);
-        Assert.Equal(originalParams, holder.Mission.Plan.Tasks[0].BehaviorParams);
+        var activePlan = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(vehicle);
+        Assert.Equal(originalParams, activePlan.Plan.Tasks[0].BehaviorParams);
         Assert.Equal(0, system.TestHook_RetryQueueCount);
     }
 

@@ -198,7 +198,7 @@ namespace Hrot.SimHost.Modules
             _actionDispatchModule?.RegisterSystems(simGroup);
 
             // DamageAssessment (Muscle and AllInOne): consumes DetonationNotification → DamageAssessedEvent.
-            _damageAssessmentModule?.RegisterSystems(simGroup, _entityMap);
+            _damageAssessmentModule?.RegisterSystems(simGroup);
 
             // NavigationIntentBridgeSystem: translates NavigationIntent → NavState for
             // CarKinematicsSystem. Only added when ground kinematics are present.

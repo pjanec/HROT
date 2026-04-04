@@ -148,14 +148,21 @@ namespace Hrot.SimHost.Systems
                         return;
                     }
 
-                    repo.SetComponent(entity, queue);
-                    repo.SetComponent(entity, new Hrot.SimHost.Components.EntityMissionHolder
+                    var domainPlan = new DomainMissionPlan
                     {
-                        Mission = new Hrot.NED.Descriptors.EntityMission
+                        ActiveTaskId = plan.ActiveTaskId,
+                        Tasks        = plan.Tasks?.ConvertAll(t => new DomainMissionTask
                         {
-                            EntityId = intent.TargetEntityId,
-                            Plan     = plan
-                        }
+                            TaskId          = t.TaskId,
+                            ExecutingEngine = t.ExecutingEngine ?? string.Empty,
+                            BehaviorId      = t.BehaviorId      ?? string.Empty,
+                            BehaviorParams  = t.BehaviorParams  ?? string.Empty,
+                        }) ?? new List<DomainMissionTask>()
+                    };
+                    repo.SetComponent(entity, queue);
+                    repo.SetComponent(entity, new ActiveMissionPlan
+                    {
+                        Plan = domainPlan
                     });
                     _taskOrder[intent.TargetEntityId] = orderedTaskIds;
 
@@ -198,7 +205,7 @@ namespace Hrot.SimHost.Systems
                         PhaseElapsedSeconds = 0f
                     };
                     repo.SetComponent(entity, abortQueue);
-                    repo.RemoveComponent<Hrot.SimHost.Components.EntityMissionHolder>(entity);
+                    repo.RemoveComponent<ActiveMissionPlan>(entity);
 
                     _taskOrder[intent.TargetEntityId] = new List<Guid>();
 

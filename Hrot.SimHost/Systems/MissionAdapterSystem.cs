@@ -6,7 +6,6 @@ using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 using FDP.Toolkit.Behavior.Events;
 using Hrot.DDS.DataModel;
-using Hrot.SimHost.Components;
 
 namespace Hrot.SimHost.Systems
 {
@@ -61,7 +60,7 @@ namespace Hrot.SimHost.Systems
                     
                 ref var adapterState = ref World.GetComponentRW<Hrot.SimHost.Components.MissionAdapterState>(entity);
                 
-                var missionHolder = World.GetComponent<EntityMissionHolder>(entity);
+                var activePlan = World.GetComponent<ActiveMissionPlan>(entity);
                 
                 // Nothing to do if we are past the end of the queue
                 if (queue.CurrentPhase >= queue.PhaseCount)
@@ -72,14 +71,10 @@ namespace Hrot.SimHost.Systems
 
                 string jsonParams = "{}";
                 
-                if (missionHolder != null)
+                if (activePlan?.Plan?.Tasks != null && queue.CurrentPhase < activePlan.Plan.Tasks.Count)
                 {
-                    var plan = missionHolder.Mission.Plan;
-                    if (plan.Tasks != null && queue.CurrentPhase < plan.Tasks.Count)
-                    {
-                        var task = plan.Tasks[queue.CurrentPhase];
-                        jsonParams = task.BehaviorParams ?? "{}";
-                    }
+                    var task = activePlan.Plan.Tasks[queue.CurrentPhase];
+                    jsonParams = task.BehaviorParams ?? "{}";
                 }
                 
                 uint currentDefHash = (uint)(jsonParams.GetHashCode() ^ phase.DoctrineId);

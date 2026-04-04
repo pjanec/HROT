@@ -67,7 +67,7 @@ namespace Hrot.SimHost.Tests
             var events = ProcessAndFlush(translator, in msg);
 
             Assert.Equal(1, events.Length);
-            Assert.Equal(7L,  events[0].HitEntityId);
+            Assert.Equal(entity, events[0].HitEntity);
             Assert.Equal(30f, events[0].TotalDamage);
         }
 

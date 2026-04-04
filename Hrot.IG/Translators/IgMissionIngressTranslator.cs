@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
 using Hrot.NED.Descriptors;
-using Hrot.IG.Components;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Kernel.Logging;
+using FDP.Toolkit.Behavior.Components;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Replication.Systems;
 using ModuleHost.Core.Abstractions;
@@ -66,12 +67,12 @@ namespace Hrot.IG.Translators
                 {
                     if (sample.IsValid)
                     {
-                        erepo.SetComponent(entity, new IgMissionHolder { Mission = sample.Data });
+                        erepo.SetComponent(entity, MapToPlan(sample.Data));
                         FdpLog<IgMissionIngressTranslator>.Debug("[TRACE-IG] Ingress: EntityMission Entity={0} Tasks={1}", sample.Data.EntityId, sample.Data.Plan.Tasks?.Count ?? 0);
                     }
                     else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
                     {
-                        erepo.RemoveComponent<IgMissionHolder>(entity);
+                        erepo.RemoveComponent<ActiveMissionPlan>(entity);
                     }
                 }
             }
@@ -83,10 +84,26 @@ namespace Hrot.IG.Translators
         {
             if (data is EntityMission mission)
             {
-                repo.SetComponent(entity, new IgMissionHolder { Mission = mission });
+                repo.SetComponent(entity, MapToPlan(mission));
             }
         }
 
         public void Dispose(long networkEntityId) { }
+
+        private static ActiveMissionPlan MapToPlan(EntityMission mission)
+        {
+            var domainPlan = new DomainMissionPlan
+            {
+                ActiveTaskId = mission.Plan.ActiveTaskId,
+                Tasks        = mission.Plan.Tasks?.ConvertAll(t => new DomainMissionTask
+                {
+                    TaskId          = t.TaskId,
+                    ExecutingEngine = t.ExecutingEngine ?? string.Empty,
+                    BehaviorId      = t.BehaviorId      ?? string.Empty,
+                    BehaviorParams  = t.BehaviorParams  ?? string.Empty,
+                }) ?? new List<DomainMissionTask>()
+            };
+            return new ActiveMissionPlan { Plan = domainPlan };
+        }
     }
 }

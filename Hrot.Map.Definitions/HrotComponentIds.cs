@@ -16,8 +16,8 @@ namespace Hrot.Map.Definitions
         /// <summary><c>EntityDamage</c> — DDS damage descriptor stored as an ECS component for IG rendering.</summary>
         public const byte EntityDamage        = 161;
 
-        /// <summary><c>EntityMissionHolder</c> — managed wrapper carrying an <c>EntityMission</c> payload.</summary>
-        public const byte EntityMissionHolder = 162;
+        /// <summary><c>ActiveMissionPlan</c> — domain POCO mission plan (replaces EntityMissionHolder).</summary>
+        public const byte ActiveMissionPlan = 162;
 
         /// <summary><c>IgEntityData</c> — IG-internal entity metadata from EntityInfo.</summary>
         public const byte IgEntityData        = 164;

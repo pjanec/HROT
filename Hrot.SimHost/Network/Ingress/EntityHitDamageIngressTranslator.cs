@@ -71,12 +71,11 @@ namespace Hrot.SimHost.Network.Ingress
             IEntityCommandBuffer cmd,
             ISimulationView view)
         {
-            // Target entity must be known on this node.
-            if (!_entityMap.TryGetEntity(msg.HitEntityId, out _)) return;
+            if (!_entityMap.TryGetEntity(msg.HitEntityId, out var hitEntity)) return;
 
             cmd.PublishEvent(new DamageAssessedEvent
             {
-                HitEntityId = msg.HitEntityId,
+                HitEntity   = hitEntity,
                 TotalDamage = msg.TotalDamage,
             });
         }

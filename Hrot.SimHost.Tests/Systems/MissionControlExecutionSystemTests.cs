@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
-using Hrot.SimHost.Events;
+using Hrot.Common.Events;
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
@@ -28,7 +28,7 @@ public class MissionControlExecutionSystemTests
         repo.RegisterComponent<MissionPlanQueue>();
         repo.RegisterComponent<DoctrineState>();
         repo.RegisterComponent<BrainBTreeState>();
-        repo.RegisterManagedComponent<Hrot.SimHost.Components.EntityMissionHolder>();
+        repo.RegisterManagedComponent<ActiveMissionPlan>();
         repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
         repo.RegisterEvent<MissionControlAckEvent>();
         return repo;

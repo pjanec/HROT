@@ -302,4 +302,23 @@ namespace Hrot.NED.Descriptors
         public EClampingMode Mode;
     }
 
+    // ── Perception CQRS messages ────────────────────────────────────────────────
+
+    /// <summary>
+    /// DDS wire message carrying a single audio-detection event from the Perception node
+    /// to the Brain node.
+    /// </summary>
+    [DdsTopic("AudioTargetDetected")]
+    [DdsIdlFile("hrot-sim-msg")]
+    [DdsQos(Reliability = DdsReliability.BestEffort, Durability = DdsDurability.Volatile,
+            HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1)]
+    public partial struct AudioTargetDetected
+    {
+        public long  ListenerEntityId;
+        public int   SourceEntityIndex;
+        public float OriginX;
+        public float OriginY;
+        public float OriginZ;
+    }
+
 }

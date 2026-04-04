@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using Hrot.NED.Messages;
 using Hrot.NED.Descriptors;
+using Hrot.Common.Events;
 using Hrot.Map.Common.Helpers;
-using Hrot.SimHost.Events;
 using Hrot.SimHost.Systems;
 using Fdp.Kernel;
 using FDP.Toolkit.Behavior;
@@ -25,7 +25,7 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<MissionPlanQueue>();
             repo.RegisterComponent<DoctrineState>();
             repo.RegisterComponent<BrainBTreeState>();
-            repo.RegisterManagedComponent<Hrot.SimHost.Components.EntityMissionHolder>();
+            repo.RegisterManagedComponent<ActiveMissionPlan>();
             repo.SetSingletonUnmanaged(new GlobalTime { DeltaTime = 0.016f, TimeScale = 1.0f });
             repo.RegisterEvent<MissionControlAckEvent>();
             return repo;

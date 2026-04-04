@@ -5,6 +5,7 @@ using Hrot.Map.Common.Dds;
 using Hrot.SimHost.Network.Egress;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Events;
+using FDP.Toolkit.Replication.Services;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -22,11 +23,13 @@ namespace Hrot.SimHost.Tests
         }
 
         private readonly EntityRepository _world;
+        private readonly NetworkEntityMap _entityMap;
 
         public DamageAssessedEgressTranslatorTests()
         {
             _world = new EntityRepository();
             _world.RegisterEvent<DamageAssessedEvent>();
+            _entityMap = new NetworkEntityMap();
         }
 
         public void Dispose() => _world.Dispose();
@@ -35,15 +38,22 @@ namespace Hrot.SimHost.Tests
             BuildTranslator()
         {
             var writer     = new CapturingWriter<EntityHitDamage>();
-            var translator = new DamageAssessedEgressTranslator(writer);
+            var translator = new DamageAssessedEgressTranslator(writer, _entityMap);
             return (translator, writer);
         }
 
-        private void PublishEvent(long hitEntityId, float totalDamage)
+        private Entity RegisterEntity(long netId)
+        {
+            var entity = _world.CreateEntity();
+            _entityMap.Register(netId, entity);
+            return entity;
+        }
+
+        private void PublishEvent(Entity hitEntity, float totalDamage)
         {
             _world.Bus.Publish(new DamageAssessedEvent
             {
-                HitEntityId = hitEntityId,
+                HitEntity   = hitEntity,
                 TotalDamage = totalDamage,
             });
             _world.Bus.SwapBuffers();
@@ -59,8 +69,9 @@ namespace Hrot.SimHost.Tests
         public void ScanAndPublish_WritesEntityHitDamage_ForSingleEvent()
         {
             var (translator, writer) = BuildTranslator();
+            var entity = RegisterEntity(netId: 7L);
 
-            PublishEvent(hitEntityId: 7L, totalDamage: 25.5f);
+            PublishEvent(hitEntity: entity, totalDamage: 25.5f);
 
             translator.ScanAndPublish(_world);
 
@@ -81,6 +92,23 @@ namespace Hrot.SimHost.Tests
             var (translator, writer) = BuildTranslator();
 
             _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+
+            Assert.Equal(0, writer.Written.Count);
+        }
+
+        // ── SC-3: Unknown entity → skipped ───────────────────────────────────
+
+        /// <summary>
+        /// When the entity is not in <see cref="NetworkEntityMap"/>, no DDS message is written.
+        /// </summary>
+        [Fact]
+        public void ScanAndPublish_SkipsEvent_WhenEntityNotInMap()
+        {
+            var (translator, writer) = BuildTranslator();
+            var unmapped = _world.CreateEntity(); // not registered in _entityMap
+
+            PublishEvent(hitEntity: unmapped, totalDamage: 10f);
             translator.ScanAndPublish(_world);
 
             Assert.Equal(0, writer.Written.Count);

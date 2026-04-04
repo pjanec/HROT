@@ -5,6 +5,7 @@ using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using FDP.Toolkit.Combat.Events;
+using FDP.Toolkit.Replication.Services;
 using ModuleHost.Core.Abstractions;
 
 namespace Hrot.SimHost.Network.Egress
@@ -26,20 +27,22 @@ namespace Hrot.SimHost.Network.Egress
         private const string DdsTopicName = "EntityHitDamage";
 
         private readonly IDdsWriter<EntityHitDamage> _writer;
+        private readonly NetworkEntityMap _entityMap;
 
         public string TopicName       => DdsTopicName;
         public long   DescriptorOrdinal => 83;
 
         /// <summary>Production constructor — creates a live DDS writer.</summary>
-        public DamageAssessedEgressTranslator(DdsParticipant participant)
-            : this(new DdsWriterAdapter<EntityHitDamage>(participant, DdsTopicName))
+        public DamageAssessedEgressTranslator(DdsParticipant participant, NetworkEntityMap entityMap)
+            : this(new DdsWriterAdapter<EntityHitDamage>(participant, DdsTopicName), entityMap)
         {
         }
 
         /// <summary>Testable constructor — accepts an injected writer stub.</summary>
-        internal DamageAssessedEgressTranslator(IDdsWriter<EntityHitDamage> writer)
+        internal DamageAssessedEgressTranslator(IDdsWriter<EntityHitDamage> writer, NetworkEntityMap entityMap)
         {
-            _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+            _writer    = writer    ?? throw new ArgumentNullException(nameof(writer));
+            _entityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
         }
 
         /// <inheritdoc/>
@@ -55,9 +58,10 @@ namespace Hrot.SimHost.Network.Egress
 
             foreach (ref readonly var evt in events)
             {
+                if (!_entityMap.TryGetNetworkId(evt.HitEntity, out long netId)) continue;
                 _writer.Write(new EntityHitDamage
                 {
-                    HitEntityId = evt.HitEntityId,
+                    HitEntityId = netId,
                     TotalDamage = evt.TotalDamage,
                 });
             }

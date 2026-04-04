@@ -75,6 +75,6 @@ and services; all outbound commands from ExCon travel exclusively via `FdpEventB
 Muscle-tier perception system mutating a Brain-tier component, and (c) ECS components that
 embed raw DDS-generated structs.
 
-- [ ] **PACK-D001** Purify DamageAssessedEvent — replace long HitEntityId with Entity HitEntity [details](./TASK-DETAIL.md#pack-d001--purify-damageassessedevent)
-- [ ] **PACK-A001** Fix AudioPerceptionSystem split-brain — define TargetHeardEvent, extend ThreatEvaluationSystem [details](./TASK-DETAIL.md#pack-a001--fix-audioperceptionsystem-split-brain)
-- [ ] **PACK-M003** Remove DDS structs from ECS components — replace EntityMissionHolder and IgMissionHolder with ActiveMissionPlan POCO [details](./TASK-DETAIL.md#pack-m003--remove-dds-structs-from-ecs-components-mission-holders)
+- [x] **PACK-D001** Purify DamageAssessedEvent — replace long HitEntityId with Entity HitEntity [details](./TASK-DETAIL.md#pack-d001--purify-damageassessedevent)
+- [x] **PACK-A001** Fix AudioPerceptionSystem split-brain — define TargetHeardEvent, extend ThreatEvaluationSystem [details](./TASK-DETAIL.md#pack-a001--fix-audioperceptionsystem-split-brain)
+- [x] **PACK-M003** Remove DDS structs from ECS components — replace EntityMissionHolder and IgMissionHolder with ActiveMissionPlan POCO [details](./TASK-DETAIL.md#pack-m003--remove-dds-structs-from-ecs-components-mission-holders)

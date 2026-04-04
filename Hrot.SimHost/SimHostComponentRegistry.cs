@@ -53,7 +53,7 @@ public static class SimHostComponentRegistry
 
         // ── Unmanaged struct / managed components ─────────────────────────────
         world.RegisterComponent<EntityInfo>();
-        world.RegisterManagedComponent<EntityMissionHolder>();
+        world.RegisterManagedComponent<ActiveMissionPlan>();
         world.RegisterManagedComponent<EditablePolyline>();
 
         // ── Route planning components (ROUTES1) ───────────────────────────────

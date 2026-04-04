@@ -635,7 +635,7 @@ public class IgApplication : IDisposable
         _world.RegisterComponent<Health>();
         _world.RegisterComponent<PhysicsCollider>();
 
-        _world.RegisterManagedComponent<Hrot.IG.Components.IgMissionHolder>();
+        _world.RegisterManagedComponent<FDP.Toolkit.Behavior.Components.ActiveMissionPlan>();
 
         //  IG Advanced Features components 
         _world.RegisterComponent<HistoryTrail>();
@@ -892,6 +892,7 @@ public class IgApplication : IDisposable
                     customTranslators.Add(new FireInteractionEventTranslator(participant, _entityMap));
                     customTranslators.Add(new Hrot.IG.Translators.IgMissionIngressTranslator(participant, _entityMap, _ghostCreationSystem));
                     customTranslators.Add(new Hrot.IG.Translators.GroundClampingOverrideTranslator(participant, _entityMap));
+                    customTranslators.Add(new Hrot.IG.Translators.AudioTargetDetectedIngressTranslator(participant, _entityMap));
                 }
 
 

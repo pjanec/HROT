@@ -493,7 +493,8 @@ namespace Hrot.SimHost
             {
                 egressTranslators.Add(new WeaponFireNotificationEgressTranslator(ddsParticipant, entityMap));
                 egressTranslators.Add(new MunitionDetonationEgressTranslator(ddsParticipant, entityMap));
-                egressTranslators.Add(new DamageAssessedEgressTranslator(ddsParticipant));
+                egressTranslators.Add(new DamageAssessedEgressTranslator(ddsParticipant, entityMap));
+                egressTranslators.Add(new AudioTargetDetectedEgressTranslator(ddsParticipant, entityMap));
             }
 
             // All translators (egress + ingress) passed to CycloneNetworkModule.

@@ -329,7 +329,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             var queue = BuildQueue(mission.Plan);
             _world.SetComponent(entity, queue);
-            _world.SetManagedComponent(entity, new Hrot.SimHost.Components.EntityMissionHolder { Mission = mission });
+            _world.SetManagedComponent(entity, MapToActiveMissionPlan(mission));
         }
 
         private MissionPlanQueue BuildQueue(MissionPlan plan)
@@ -373,6 +373,22 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
                 return doctrineId;
 
             return 0;
+        }
+
+        private static ActiveMissionPlan MapToActiveMissionPlan(EntityMission mission)
+        {
+            var plan = new DomainMissionPlan
+            {
+                ActiveTaskId = mission.Plan.ActiveTaskId,
+                Tasks        = mission.Plan.Tasks?.ConvertAll(t => new DomainMissionTask
+                {
+                    TaskId          = t.TaskId,
+                    ExecutingEngine = t.ExecutingEngine ?? string.Empty,
+                    BehaviorId      = t.BehaviorId      ?? string.Empty,
+                    BehaviorParams  = t.BehaviorParams  ?? string.Empty,
+                }) ?? new List<DomainMissionTask>()
+            };
+            return new ActiveMissionPlan { Plan = plan };
         }
 
         private static (FDP.Toolkit.Behavior.Components.MissionTrigger Trigger, float Param) ResolveTrigger(
@@ -649,7 +665,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             // ── IG metadata component ─────────────────────────────────────────────
             world.RegisterComponent<IG.Components.EntityInfo>();
-            world.RegisterManagedComponent<Hrot.SimHost.Components.EntityMissionHolder>();
+            world.RegisterManagedComponent<ActiveMissionPlan>();
 
             // ── Network components ────────────────────────────────────────────────
             world.RegisterComponent<NetworkIdentity>();
@@ -787,7 +803,7 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             template.AddComponent(new CarKinem.Core.FrustrationTicks());
 
             // Managed components
-            template.AddManagedComponent<Hrot.SimHost.Components.EntityMissionHolder>(() => new Hrot.SimHost.Components.EntityMissionHolder());
+            template.AddManagedComponent<ActiveMissionPlan>(() => new ActiveMissionPlan());
 
             db.Register(template);
         }

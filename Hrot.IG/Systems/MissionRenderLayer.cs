@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Text.Json;
+using FDP.Toolkit.Behavior.Components;
 using Hrot.IG.Components;
 using Fdp.Kernel;
 using FDP.Toolkit.Vis2D.Abstractions;
@@ -27,7 +28,7 @@ public class MissionRenderLayer : IMapLayer
     {
         _view = repo;
         _query = repo.Query()
-            .WithManaged<IgMissionHolder>()
+            .WithManaged<ActiveMissionPlan>()
             .With<SimTransform>()
             .With<SelectionState>()
             .Build();
@@ -42,16 +43,15 @@ public class MissionRenderLayer : IMapLayer
         {
             if (!_view.GetComponentRO<SelectionState>(entity).IsSelected) continue;
 
-            var holder = _view.GetManagedComponentRO<IgMissionHolder>(entity);
-            if (holder?.Mission.Plan.Tasks == null) continue;
+            var activePlan = _view.GetManagedComponentRO<ActiveMissionPlan>(entity);
+            if (activePlan?.Plan?.Tasks == null) continue;
 
             ref readonly var simTr = ref _view.GetComponentRO<SimTransform>(entity);
             var currentPos = new Vector2(simTr.Position.X, simTr.Position.Y);
             
-            var plan = holder.Mission.Plan;
             Vector2 lastPos = currentPos;
 
-            foreach (var task in plan.Tasks)
+            foreach (var task in activePlan.Plan.Tasks)
             {
                 if (string.IsNullOrEmpty(task.BehaviorParams)) continue;
 
