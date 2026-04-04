@@ -51,6 +51,9 @@ public sealed class ScenarioFileService
         if (repo == null) throw new ArgumentNullException(nameof(repo));
         FireWorldReset();
         repo.SoftClear();
+        // Reset simulation time: SoftClear() does not touch singletons.
+        if (repo.HasSingletonUnmanaged<GlobalTime>())
+            repo.SetSingletonUnmanaged(default(GlobalTime));
     }
 
     /// <summary>
@@ -85,6 +88,9 @@ public sealed class ScenarioFileService
 
         FireWorldReset();
         repo.SoftClear();
+        // Reset simulation time: SoftClear() does not touch singletons.
+        if (repo.HasSingletonUnmanaged<GlobalTime>())
+            repo.SetSingletonUnmanaged(default(GlobalTime));
 
         _serializer.Deserialize(repo, jsonText);
     }

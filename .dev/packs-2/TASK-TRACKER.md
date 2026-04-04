@@ -59,9 +59,9 @@ bespoke HROT Editor UI Pack.
 integrated into the Editor composition.
 
 - [x] **PACK2-F001** Instantiate purified `ScenarioSerializer` in the Editor composition root [details](./TASK-DETAIL.md#pack2-f001--instantiate-the-purified-serializer-in-the-editor-composition-root)
-- [ ] **PACK2-F002** Validate "Load Empty" (New Scenario) integration [details](./TASK-DETAIL.md#pack2-f002--validate-load-empty-in-the-editor-composition)
-- [ ] **PACK2-F003** Validate "Save Scenario" round-trip [details](./TASK-DETAIL.md#pack2-f003--validate-save-scenario-round-trip)
-- [ ] **PACK2-F004** Validate "Load Scenario" round-trip [details](./TASK-DETAIL.md#pack2-f004--validate-load-scenario-round-trip)
+- [x] **PACK2-F002** Validate "Load Empty" (New Scenario) integration [details](./TASK-DETAIL.md#pack2-f002--validate-load-empty-in-the-editor-composition)
+- [x] **PACK2-F003** Validate "Save Scenario" round-trip [details](./TASK-DETAIL.md#pack2-f003--validate-save-scenario-round-trip)
+- [x] **PACK2-F004** Validate "Load Scenario" round-trip [details](./TASK-DETAIL.md#pack2-f004--validate-load-scenario-round-trip)
 
 ---
 
