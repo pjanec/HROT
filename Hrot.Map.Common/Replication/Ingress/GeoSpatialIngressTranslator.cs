@@ -29,7 +29,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly GhostCreationSystem _ghostCreationSystem;
 
         public GeoSpatialIngressTranslator(
-            DdsParticipant participant,
+            DdsParticipant? participant,
             NetworkEntityMap entityMap,
             IGeographicTransform geoTransform,
             GhostCreationSystem ghostCreationSystem)

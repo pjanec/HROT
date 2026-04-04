@@ -25,7 +25,7 @@ namespace Hrot.Map.Common.Replication.Ingress
         private readonly GhostCreationSystem _ghostCreationSystem;
 
         public EntityDamageIngressTranslator(
-            DdsParticipant participant,
+            DdsParticipant? participant,
             NetworkEntityMap entityMap,
             GhostCreationSystem ghostCreationSystem)
             : base(participant, DdsTopicName, OrdinalValue, entityMap)

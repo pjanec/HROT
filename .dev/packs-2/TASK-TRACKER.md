@@ -11,7 +11,7 @@
 tier. Prerequisite for Phase 5 composition roots and the Feature Switch.
 
 - [x] **PACK2-P001** Create Logic Pack composite wrappers (`SimHostCoreLogicPack`, `CgfLogicPack`, `OrchestrationLogicPack`) [details](./TASK-DETAIL.md#pack2-p001--create-logic-pack-composite-wrappers)
-- [ ] **PACK2-P002** Create Translator Pack composite wrappers (`ActuatorIntentsEgressPack`, `EntityStatesIngressPack`) [details](./TASK-DETAIL.md#pack2-p002--create-translator-pack-composite-wrappers-for-feature-switch)
+- [x] **PACK2-P002** Create Translator Pack composite wrappers (`ActuatorIntentsEgressPack`, `EntityStatesIngressPack`) [details](./TASK-DETAIL.md#pack2-p002--create-translator-pack-composite-wrappers-for-feature-switch)
 
 ---
 
@@ -33,7 +33,7 @@ making them portable and network-agnostic.
 **Goal:** Create `Hrot.ScenarioEditor` — a shared, DDS-free module housing the map tools and
 render layers reusable by IG, ExCon, and the new HROT Editor.
 
-- [ ] **PACK2-E001** Scaffold `Hrot.ScenarioEditor` project (new IEcsModule) [details](./TASK-DETAIL.md#pack2-e001--scaffold-hrotscenarioeditor-project)
+- [x] **PACK2-E001** Scaffold `Hrot.ScenarioEditor` project (new IEcsModule) [details](./TASK-DETAIL.md#pack2-e001--scaffold-hrotscenarioeditor-project)
 - [ ] **PACK2-E002** Migrate core interaction tools into `Hrot.ScenarioEditor` [details](./TASK-DETAIL.md#pack2-e002--migrate-core-interaction-tools-into-hrotscenarioeditor)
 - [ ] **PACK2-E003** Extract visual rendering layers into `Hrot.ScenarioEditor` [details](./TASK-DETAIL.md#pack2-e003--extract-visual-rendering-layers-into-hrotscenarioeditor)
 - [ ] **PACK2-A001** Define `WorldResetEvent`; flush cached entity handles in tools and SelectionManager [details](./TASK-DETAIL.md#pack2-a001--define-worldresetevent-and-hook-into-selection--tool-state)
