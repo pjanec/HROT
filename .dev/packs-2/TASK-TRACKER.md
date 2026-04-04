@@ -49,7 +49,7 @@ bespoke HROT Editor UI Pack.
 - [x] **PACK2-U001** Enforce UI-Logic separation — audit and fix residual DDS calls in panels [details](./TASK-DETAIL.md#pack2-u001--enforce-ui-logic-separation-in-existing-panels)
 - [x] **PACK2-U002** Formalize ExCon UI Pack — confirm IExConLogic facade boundary [details](./TASK-DETAIL.md#pack2-u002--formalize-excon-ui-pack)
 - [x] **PACK2-U003** Formalize IG UI Pack — confirm event-driven tool activation in panels [details](./TASK-DETAIL.md#pack2-u003--formalize-ig-ui-pack)
-- [ ] **PACK2-U004** Scaffold HROT Editor UI Pack (`ScenarioBrowserPanel`, `EditorToolbarPanel`, etc.) [details](./TASK-DETAIL.md#pack2-u004--scaffold-hrot-editor-ui-pack)
+- [x] **PACK2-U004** Scaffold HROT Editor UI Pack (`ScenarioBrowserPanel`, `EditorToolbarPanel`, etc.) [details](./TASK-DETAIL.md#pack2-u004--scaffold-hrot-editor-ui-pack)
 
 ---
 
@@ -58,7 +58,7 @@ bespoke HROT Editor UI Pack.
 **Goal:** Validate Save / Load / New operations on the local `EntityRepository` without DDS,
 integrated into the Editor composition.
 
-- [ ] **PACK2-F001** Instantiate purified `ScenarioSerializer` in the Editor composition root [details](./TASK-DETAIL.md#pack2-f001--instantiate-the-purified-serializer-in-the-editor-composition-root)
+- [x] **PACK2-F001** Instantiate purified `ScenarioSerializer` in the Editor composition root [details](./TASK-DETAIL.md#pack2-f001--instantiate-the-purified-serializer-in-the-editor-composition-root)
 - [ ] **PACK2-F002** Validate "Load Empty" (New Scenario) integration [details](./TASK-DETAIL.md#pack2-f002--validate-load-empty-in-the-editor-composition)
 - [ ] **PACK2-F003** Validate "Save Scenario" round-trip [details](./TASK-DETAIL.md#pack2-f003--validate-save-scenario-round-trip)
 - [ ] **PACK2-F004** Validate "Load Scenario" round-trip [details](./TASK-DETAIL.md#pack2-f004--validate-load-scenario-round-trip)
