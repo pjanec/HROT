@@ -1,4 +1,5 @@
 using Fdp.Kernel;
+using Hrot.ScenarioEditor.Services;
 using ModuleHost.Core.Abstractions;
 
 namespace Hrot.ScenarioEditor;
@@ -13,8 +14,21 @@ namespace Hrot.ScenarioEditor;
 /// </summary>
 public class ScenarioEditorModule : IEcsModule
 {
+    private readonly ScenarioFileService? _fileService;
+
+    public ScenarioEditorModule(ScenarioFileService? fileService = null)
+    {
+        _fileService = fileService;
+    }
+
     public string Name => "ScenarioEditor";
     public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();
+
+    /// <summary>
+    /// Exposes the file service for use by panels that trigger New/Save/Load operations.
+    /// <c>null</c> when no serializer was provided at construction time.
+    /// </summary>
+    public ScenarioFileService? FileService => _fileService;
 
     public void RegisterSystems(ISystemRegistry registry)
     {

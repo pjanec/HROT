@@ -6,6 +6,7 @@ using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.NetworkSpawning.Events;
 using FDP.Toolkit.Replication.Services;
+using Hrot.Map.Common;
 using Hrot.Map.Common.Dds;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.NED.Messages;
@@ -61,7 +62,7 @@ public class ActuatorIntentsEgressPackTests
         var eventBus          = new FdpEventBus();
         var geoTransform      = new IdentityGeoTransform();
 
-        var pack = new ActuatorIntentsEgressPack(participant, entityMap, geoTransform, eventBus);
+        var pack = new ActuatorIntentsEgressPack(PackRole.Egress, participant, entityMap, geoTransform, eventBus);
 
         Assert.Equal("ActuatorIntentsEgress", pack.Name);
     }
@@ -77,7 +78,7 @@ public class ActuatorIntentsEgressPackTests
         var geoTransform      = new IdentityGeoTransform();
         var registry          = new CapturingRegistry();
 
-        var pack = new ActuatorIntentsEgressPack(participant, entityMap, geoTransform, eventBus);
+        var pack = new ActuatorIntentsEgressPack(PackRole.Egress, participant, entityMap, geoTransform, eventBus);
         pack.RegisterSystems(registry);
 
         Assert.Equal(1, registry.RegisteredSystems.Count);

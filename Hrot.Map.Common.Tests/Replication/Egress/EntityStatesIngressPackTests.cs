@@ -47,6 +47,7 @@ public class EntityStatesIngressPackTests
         var geoTransform       = new NullGeoTransform();
 
         var pack = new EntityStatesIngressPack(
+            PackRole.Ingress,
             participant: null,
             entityMap, eventBus, ghostCreationSystem, geoTransform);
 
@@ -63,6 +64,7 @@ public class EntityStatesIngressPackTests
         var registry           = new CapturingRegistry();
 
         var pack = new EntityStatesIngressPack(
+            PackRole.Ingress,
             participant: null,
             entityMap, eventBus, ghostCreationSystem, geoTransform);
 

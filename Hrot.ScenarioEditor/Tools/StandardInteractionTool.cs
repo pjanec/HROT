@@ -227,7 +227,16 @@ public class StandardInteractionTool : IMapTool
             IsPrimarySelection = isPrimary,
         });
     }
-
+    /// <summary>
+    /// Clears all selection state in preparation for a world reset.
+    /// Called by <see cref="Hrot.ScenarioEditor.Services.ScenarioFileService"/> immediately
+    /// before <see cref="Fdp.Kernel.EntityRepository.Clear()"/> is invoked.
+    /// Must NOT access any ECS component after this call returns.
+    /// </summary>
+    public void FlushForWorldReset()
+    {
+        ClearAllSelections();
+    }
     // â”€â”€ Test hook (internal â€” accessible via InternalsVisibleTo) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
     /// <summary>

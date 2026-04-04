@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Hrot.CGF.Modules.Orchestration;
 using Hrot.Common.Orchestration;
@@ -16,6 +17,8 @@ using FDP.Toolkit.Time;
 using FDP.Toolkit.Time.Controllers;
 using ModuleHost.Core;
 using ModuleHost.Core.Time;
+
+using ModuleHost.Core.Abstractions;
 
 namespace Hrot.CGF
 {
@@ -40,8 +43,25 @@ namespace Hrot.CGF
         private readonly ModuleHostKernel _timeKernel;
         private bool _disposed;
 
+        // ── Simulation kernel (lazy-initialized on first Tick after Install calls) ──
+        private readonly EntityRepository _simWorld;
+        private readonly ModuleHostKernel _simKernel;
+        private bool _simInitialized;
+
         /// <summary>Exposes the <see cref="FDP.Toolkit.Orchestration.ClusterSlave"/> for test assertions.</summary>
         public FDP.Toolkit.Orchestration.ClusterSlave ClusterSlave => _clusterSlave;
+
+        /// <summary>Internal accessor for subsystem wiring.</summary>
+        internal DdsParticipant Participant => _participant;
+
+        /// <summary>Internal accessor for subsystem wiring.</summary>
+        internal FdpEventBus EventBus => _eventBus;
+
+        /// <summary>
+        /// Returns the names of modules registered via <see cref="Install"/>.
+        /// Used by unit tests to assert pack composition.
+        /// </summary>
+        public IReadOnlyList<string> InstalledModuleNames => _simKernel.GetRegisteredModuleNames();
 
         /// <param name="domainId">DDS domain used for all topics.</param>
         /// <param name="nodeId">
@@ -73,6 +93,11 @@ namespace Hrot.CGF
             _timeKernel = new ModuleHostKernel(_timeWorld, new EventAccumulator());
             _timeKernel.SetTimeController(new SlaveSyncController(_eventBus, nodeId));
             _timeKernel.Initialize();
+
+            _simWorld  = new EntityRepository();
+            _simKernel = new ModuleHostKernel(_simWorld, new EventAccumulator());
+            // Note: _simKernel.Initialize() is deferred until first Tick()
+            // so callers can call Install() between construction and first tick.
 
             _clusterSlave   = new FDP.Toolkit.Orchestration.ClusterSlave(nodeId, SubsystemName, _eventBus);
 
@@ -139,11 +164,33 @@ namespace Hrot.CGF
         }
 
         /// <summary>
+        /// Registers an <see cref="IEcsModule"/> with the CGF simulation kernel.
+        /// Must be called BEFORE <see cref="Tick"/> is first invoked.
+        /// Ownership of the module transfers to this application.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">If called after the first Tick.</exception>
+        public void Install(IEcsModule module)
+        {
+            if (module == null) throw new ArgumentNullException(nameof(module));
+            if (_simInitialized)
+                throw new InvalidOperationException(
+                    $"[CgfApplication] Cannot Install module '{module.Name}' after Tick() has been called.");
+            _simKernel.RegisterModule(module);
+        }
+
+        /// <summary>
         /// Advances one application frame.  Call at the desired tick rate (e.g. 60 Hz or
         /// slower in headless scenarios).
         /// </summary>
         public void Tick()
         {
+            // Lazy-initialize the simulation kernel on the first tick.
+            if (!_simInitialized)
+            {
+                _simKernel.Initialize();
+                _simInitialized = true;
+            }
+
             _slaveTranslator.Tick();
             _clusterSlave.Tick();
             // Bridge SwitchTimeModeEvent: egress coordinator events to DDS, ingress DDS events to bus.
@@ -155,6 +202,7 @@ namespace Hrot.CGF
             // Advance time kernel (drives SlaveSyncController and processes FrameOrder when stepped).
             _timeKernel.Update();
             _eventBus.SwapBuffers();
+            _simKernel.Update();
         }
 
         /// <inheritdoc />
@@ -163,6 +211,8 @@ namespace Hrot.CGF
             if (_disposed) return;
             _disposed = true;
             _clusterSlave.Dispose();
+            _simKernel.Dispose();
+            _simWorld.Dispose();
             _timeKernel.Dispose();
             _participant.Dispose();
             FdpLog<CgfApplication>.Info("[CGF] Disposed.");

@@ -1,3 +1,4 @@
+using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
@@ -34,12 +35,17 @@ public class EntityStatesIngressPack : IEcsModule
     private readonly IDescriptorTranslator[] _translators;
 
     public EntityStatesIngressPack(
+        PackRole role,
         DdsParticipant? participant,
         NetworkEntityMap entityMap,
         FdpEventBus eventBus,
         GhostCreationSystem ghostCreationSystem,
         IGeographicTransform geoTransform)
     {
+        if (role != PackRole.Ingress)
+            throw new ArgumentException(
+                $"EntityStatesIngressPack must be constructed with PackRole.Ingress, got {role}.",
+                nameof(role));
         _translators = new IDescriptorTranslator[]
         {
             new EntityMasterIngressTranslator(participant, entityMap, eventBus, ghostCreationSystem),

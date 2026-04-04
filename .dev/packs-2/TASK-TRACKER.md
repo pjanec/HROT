@@ -36,8 +36,8 @@ render layers reusable by IG, ExCon, and the new HROT Editor.
 - [x] **PACK2-E001** Scaffold `Hrot.ScenarioEditor` project (new IEcsModule) [details](./TASK-DETAIL.md#pack2-e001--scaffold-hrotscenarioeditor-project)
 - [x] **PACK2-E002** Migrate core interaction tools into `Hrot.ScenarioEditor` [details](./TASK-DETAIL.md#pack2-e002--migrate-core-interaction-tools-into-hrotscenarioeditor)
 - [x] **PACK2-E003** Extract visual rendering layers into `Hrot.ScenarioEditor` [details](./TASK-DETAIL.md#pack2-e003--extract-visual-rendering-layers-into-hrotscenarioeditor)
-- [ ] **PACK2-A001** Define `WorldResetEvent`; flush cached entity handles in tools and SelectionManager [details](./TASK-DETAIL.md#pack2-a001--define-worldresetevent-and-hook-into-selection--tool-state)
-- [ ] **PACK2-E004** Wire local scenario file operations in `ScenarioEditorModule` [details](./TASK-DETAIL.md#pack2-e004--wire-local-scenario-file-operations-in-scenarioeditormodule)
+- [x] **PACK2-A001** Define `WorldResetEvent`; flush cached entity handles in tools and SelectionManager [details](./TASK-DETAIL.md#pack2-a001--define-worldresetevent-and-hook-into-selection--tool-state)
+- [x] **PACK2-E004** Wire local scenario file operations in `ScenarioEditorModule` [details](./TASK-DETAIL.md#pack2-e004--wire-local-scenario-file-operations-in-scenarioeditormodule)
 
 ---
 
@@ -83,7 +83,7 @@ add harnesses and four integration test suites for offline editing, Feature Swit
 distributed Brain/Muscle execution.
 
 - [x] **PACK2-R001** Add `RunMode.Editor` (= 64) and `RunMode.Demo` macro; add `"editor"` / `"demo"` CLI cases; validation guard [details](./TASK-DETAIL.md#pack2-r001--extend-runmode-with-editor-and-demo-update-configuration-validation)
-- [ ] **PACK2-R002** Complete `CgfSubsystem.Initialize` with `CgfLogicPack` + `EntityStatesIngressPack(Ingress)` + `ActuatorIntentsEgressPack(Egress)` [details](./TASK-DETAIL.md#pack2-r002--complete-cgfsubsystem-brain-role-pack-installation)
+- [x] **PACK2-R002** Complete `CgfSubsystem.Initialize` with `CgfLogicPack` + `EntityStatesIngressPack(Ingress)` + `ActuatorIntentsEgressPack(Egress)` [details](./TASK-DETAIL.md#pack2-r002--complete-cgfsubsystem-brain-role-pack-installation)
 - [ ] **PACK2-R003** Scaffold `CgfHarness` (domain-isolated + shared-domain ctor) and `EditorHarness` (offline, no DDS) [details](./TASK-DETAIL.md#pack2-r003--scaffold-cgfharness-and-editorharness-test-infrastructure)
 - [ ] **PACK2-R004** `OfflineEditorIntegrationTests` (IT-1): spawn / edit / delete via memory bus; assert zero DDS writes [details](./TASK-DETAIL.md#pack2-r004--offlineeditorintegrationtests-it-1)
 - [ ] **PACK2-R005** `EditorFileIOIntegrationTests` (IT-2) + `FeatureSwitchRcuIntegrationTests` (IT-3) [details](./TASK-DETAIL.md#pack2-r005--editorfileiointegrationtests-it-2-and-featureswitchrcuintegrationtests-it-3)

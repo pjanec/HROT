@@ -1,8 +1,10 @@
+using System;
 using CycloneDDS.Runtime;
 using Fdp.Interfaces;
 using Fdp.Kernel;
 using Fdp.Modules.Geographic;
 using FDP.Toolkit.Replication.Services;
+using Hrot.Map.Common;
 using Hrot.Map.Common.Replication.Egress;
 using Hrot.SimHost.Network;
 using Hrot.SimHost.Network.Egress;
@@ -34,11 +36,16 @@ public class ActuatorIntentsEgressPack : IEcsModule
     private readonly IDescriptorTranslator[] _translators;
 
     public ActuatorIntentsEgressPack(
+        PackRole role,
         DdsParticipant participant,
         NetworkEntityMap entityMap,
         IGeographicTransform geoTransform,
         FdpEventBus eventBus)
     {
+        if (role != PackRole.Egress)
+            throw new ArgumentException(
+                $"ActuatorIntentsEgressPack must be constructed with PackRole.Egress, got {role}.",
+                nameof(role));
         _translators = new IDescriptorTranslator[]
         {
             new NavigationIntentEgressTranslator(participant, entityMap, geoTransform),
