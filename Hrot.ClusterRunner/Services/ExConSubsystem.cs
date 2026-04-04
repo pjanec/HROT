@@ -82,8 +82,8 @@ namespace Hrot.ClusterRunner.Services
         private OrchestrationObserverTranslator?      _orchObserverTranslator;
 
         // ── S0507: Cluster control ─────────────────────────────────────────────
-        private DdsWriter<ClusterOpRequest>?          _sysOpWriter;
-        private DdsWriterAdapter<ClusterOpRequest>?   _iosLogicSysOpWriter;
+        private FdpEventBus?                          _clusterOpEgressBus;
+        private Hrot.Common.Orchestration.ClusterOpEgressTranslator? _clusterOpEgressTranslator;
         private ClusterUiCache?                   _uiCache;
         private ClusterScenarioPanel?             _clusterPanel;
 
@@ -93,7 +93,10 @@ namespace Hrot.ClusterRunner.Services
         private IDescriptorTranslator? _timeModeTranslator;
         private IDescriptorTranslator? _slaveLockstepTranslator;
         private IDescriptorTranslator? _slaveTimeSyncTranslator;
-
+        // ── PACK-E002: Mission egress/ingress bus ─────────────────────────────────────
+        private FdpEventBus?                             _missionBus;
+        private MissionControlEgressTranslator?          _missionEgressTranslator;
+        private MissionControlAckIngressTranslator?      _missionAckIngressTranslator;
         /// <summary>
         /// Internal test hook for integration tests.
         /// </summary>
@@ -188,7 +191,6 @@ namespace Hrot.ClusterRunner.Services
 
             var clickQueue                   = new ConcurrentEventQueue<MapClickEvent>();
             var selectionQueue               = new ConcurrentEventQueue<SelectionChangedEvent>();
-            var missionAckQueue              = new ConcurrentEventQueue<MissionControlAck>();
             var createUpdateDeleteEntityAckQueue = new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>();
             var mapCommandAckQueue           = new ConcurrentEventQueue<MapCommandAck>();
 
@@ -197,7 +199,6 @@ namespace Hrot.ClusterRunner.Services
             {
                 new MapClickIngressHandler(_participant, clickQueue),
                 new SelectionChangedIngressHandler(_participant, selectionQueue),
-                new MissionControlAckIngressHandler(_participant, missionAckQueue),
                 new CreateUpdateDeleteEntityAckIngressHandler(_participant, createUpdateDeleteEntityAckQueue),
                 new MapCommandAckIngressHandler(_participant, mapCommandAckQueue),
                 new MasterIngressHandler<EntityMaster>(
@@ -231,24 +232,29 @@ namespace Hrot.ClusterRunner.Services
             var configWriter       = new DdsWriterAdapter<MapInteractionConfig>(_participant, TopicMapConfig);
             var createEntityWriter = new DdsWriterAdapter<CreateEntityRequest>(_participant, TopicCreateEntity);
             var deleteEntityWriter = new DdsWriterAdapter<Hrot.NED.Messages.DeleteEntityRequest>(_participant, TopicDeleteEntity);
-            var missionCmdWriter   = new DdsWriterAdapter<MissionControlRequest>(_participant, TopicMissionControl);
             var contextMenuWriter  = new DdsWriterAdapter<ContextActionsUpdate>(_participant, TopicContextActions);
             var commandWriter      = new DdsWriterAdapter<MapCommandRequest>(_participant, TopicMapCommand);
 
-            var missionEditorSvc = new MissionEditorService(repo, missionCmdWriter, ackQueue: missionAckQueue);
+            // PACK-E002: mission bus replaces DDS writer + ACK queue for MissionEditorService
+            _missionBus                  = new FdpEventBus();
+            _missionEgressTranslator     = new MissionControlEgressTranslator(_missionBus, _participant);
+            _missionAckIngressTranslator = new MissionControlAckIngressTranslator(_participant, _missionBus);
+            var missionEditorSvc = new MissionEditorService(repo, _missionBus);
             var contextMenuLogic  = new ContextMenuLogic(repo, contextMenuWriter);
 
-            // MissionEditorService doubles as an IIngressHandler: its Poll() drains
-            // the ack queue and resolves pending CommitMissionAsync tasks.
+            // MissionEditorService still implements IIngressHandler via Poll() which
+            // drains MissionControlAckEvent from the bus.
             ingressHandlers.Add(missionEditorSvc);
 
             // ── Cluster control wiring (S0507 / PACK-C002) ────────────────────────────
-            _sysOpWriter         = new DdsWriter<ClusterOpRequest>(_participant);
-            _iosLogicSysOpWriter = new DdsWriterAdapter<ClusterOpRequest>(_participant, "ClusterOpRequest");
-            _uiCacheBus           = new FdpEventBus();
+            var iosLogicSysOpWriter = new DdsWriterAdapter<ClusterOpRequest>(_participant, "ClusterOpRequest");
+            _uiCacheBus             = new FdpEventBus();
             _orchObserverTranslator = new OrchestrationObserverTranslator(_participant, _uiCacheBus);
             _uiCache      = new ClusterUiCache(_uiCacheBus, _slaveSyncController);
-            _clusterPanel = new ClusterScenarioPanel(_sysOpWriter, _uiCache);
+            // PACK-E001: panel now publishes ClusterOpIntent to egress bus; translator writes DDS
+            _clusterOpEgressBus        = new FdpEventBus();
+            _clusterOpEgressTranslator = new Hrot.Common.Orchestration.ClusterOpEgressTranslator(_clusterOpEgressBus, _participant);
+            _clusterPanel = new ClusterScenarioPanel(_clusterOpEgressBus, _uiCache);
 
             var logic = new ExConLogic(
                 repo:                 repo,
@@ -267,7 +273,7 @@ namespace Hrot.ClusterRunner.Services
                 targetMapId:          TargetMapId,
                 mapCommandAckQueue:   mapCommandAckQueue,
                 deleteEntityWriter:   deleteEntityWriter,
-                sysOpWriter:          _iosLogicSysOpWriter);
+                sysOpWriter:          iosLogicSysOpWriter);
 
             // S0507: Time ingress handlers removed (TC2-P3-T4): OnTimePulse/OnTimeMode on
             // ExConLogic are purely display properties that are never consumed by any panel
@@ -328,7 +334,17 @@ namespace Hrot.ClusterRunner.Services
             _uiCacheBus?.SwapBuffers();
             _uiCache?.Update();
             _clusterPanel?.Update(deltaTime);
-            _mock?.Update(deltaTime);
+            // PACK-E001: flush panel's ClusterOpIntent events to DDS via egress translator
+            _clusterOpEgressBus?.SwapBuffers();
+            _clusterOpEgressTranslator?.Tick();
+
+            // PACK-E002: mission bus pipeline
+            // 1. Pull DDS ACKs into write buffer; 2. Swap so ACKs become readable;
+            // 3. Flush intents to DDS; 4. Mock.Update() → Poll() drains ACKs from read buffer.
+            _missionAckIngressTranslator?.Tick();  // DDS ACK → _missionBus write buf
+            _missionBus?.SwapBuffers();             // write → read (intents and ACKs visible)
+            _missionEgressTranslator?.Tick();       // read MissionControlIntent → DDS
+            _mock?.Update(deltaTime);               // ExConLogic.Update → Poll() reads ACKs
         }
 
         /// <summary>No-op — ExCon has no 3-D world visuals; all content is rendered via <see cref="DrawUI"/>.</summary>
@@ -376,10 +392,14 @@ namespace Hrot.ClusterRunner.Services
             _orchObserverTranslator?.Dispose();
             _orchObserverTranslator = null;
             _uiCacheBus = null;
-            _iosLogicSysOpWriter?.Dispose();
-            _iosLogicSysOpWriter = null;
-            _sysOpWriter?.Dispose();
-            _sysOpWriter = null;
+            _clusterOpEgressTranslator?.Dispose();
+            _clusterOpEgressTranslator = null;
+            _clusterOpEgressBus = null;
+            _missionEgressTranslator?.Dispose();
+            _missionEgressTranslator = null;
+            _missionAckIngressTranslator?.Dispose();
+            _missionAckIngressTranslator = null;
+            _missionBus = null;
             _mock?.Dispose();
             _mock = null;
             _slaveSyncController?.Dispose();

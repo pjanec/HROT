@@ -2,7 +2,9 @@ using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.ExCon.Services;
 using Hrot.Map.Common.Dds;
+using Hrot.Common.Events;
 using FDP.Toolkit.DER;
+using Fdp.Kernel;
 using Moq;
 
 namespace Hrot.ExCon.Tests;
@@ -28,13 +30,21 @@ public class MissionEditorServiceTests
     /// Short timeout used in tests to keep the suite fast.
     private const int TestTimeoutMs = 200;
 
-    private static (MissionEditorService Svc, CapturingWriter<MissionControlRequest> Writer, DerRepo Repo)
+    private static (MissionEditorService Svc, FdpEventBus Bus, DerRepo Repo)
         CreateSut(int timeoutMs = TestTimeoutMs)
     {
-        var repo   = new DerRepo();
-        var writer = new CapturingWriter<MissionControlRequest>();
-        var svc    = new MissionEditorService(repo, writer, timeoutMs);
-        return (svc, writer, repo);
+        var repo = new DerRepo();
+        var bus  = new FdpEventBus();
+        var svc  = new MissionEditorService(repo, bus, timeoutMs);
+        return (svc, bus, repo);
+    }
+
+    // ── Helper: drain intent published by last Commit/SendControl call ─────────
+
+    private static MissionControlIntent DrainIntent(FdpEventBus bus)
+    {
+        bus.SwapBuffers();
+        return bus.ConsumeManaged<MissionControlIntent>().Single();
     }
 
     // ── GetMissionSnapshot ────────────────────────────────────────────────────
@@ -85,16 +95,16 @@ public class MissionEditorServiceTests
     [Fact]
     public async Task CommitMissionAsync_SuccessfulAck_ReturnsSuccess()
     {
-        var (svc, writer, _) = CreateSut();
+        var (svc, bus, _) = CreateSut();
         var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
         var commitTask = svc.CommitMissionAsync(entityId: 10, newPlan: plan, baseVersion: 3);
 
-        // Simulate ACK from the network.
-        var requestId = writer.Written.Single().RequestId;
-        svc.OnAckReceived(new MissionControlAck
+        // Retrieve the requestId from the intent published to the bus.
+        var intent = DrainIntent(bus);
+        svc.OnAckReceived(new MissionControlAckEvent
         {
-            RequestId  = requestId,
+            RequestId  = intent.RequestId,
             ErrorCode  = 0,
             NewVersion = 4
         });
@@ -103,48 +113,47 @@ public class MissionEditorServiceTests
 
         Assert.True(result.Success);
         Assert.Equal(4, result.NewVersion);
-        Assert.Null(result.ErrorMessage);
+        Assert.True(string.IsNullOrEmpty(result.ErrorMessage));
     }
 
     [Fact]
     public async Task CommitMissionAsync_FailureAck_ReturnsFailure()
     {
-        var (svc, writer, _) = CreateSut();
+        var (svc, bus, _) = CreateSut();
         var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
         var commitTask = svc.CommitMissionAsync(entityId: 10, newPlan: plan, baseVersion: 1);
-        var requestId  = writer.Written.Single().RequestId;
+        var intent     = DrainIntent(bus);
 
-        svc.OnAckReceived(new MissionControlAck
+        svc.OnAckReceived(new MissionControlAckEvent
         {
-            RequestId    = requestId,
-            ErrorCode    = 7,           // ERR_VERSION_CONFLICT
-            ErrorMessage = "Version conflict",
-            NewVersion   = 0
+            RequestId  = intent.RequestId,
+            ErrorCode  = 7,           // ERR_VERSION_CONFLICT
+            NewVersion = 0
         });
 
         var result = await commitTask;
 
         Assert.False(result.Success);
-        Assert.Equal("Version conflict", result.ErrorMessage);
+        Assert.Equal("ERR_VERSION_CONFLICT", result.ErrorMessage);
     }
 
     [Fact]
     public async Task CommitMissionAsync_SendsCorrectEntityIdAndBaseVersion()
     {
-        var (svc, writer, _) = CreateSut();
+        var (svc, bus, _) = CreateSut();
         var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
         var commitTask = svc.CommitMissionAsync(entityId: 42, newPlan: plan, baseVersion: 99);
-        var sent       = writer.Written.Single();
+        var intent     = DrainIntent(bus);
 
         // Complete to avoid hanging.
-        svc.OnAckReceived(new MissionControlAck { RequestId = sent.RequestId });
+        svc.OnAckReceived(new MissionControlAckEvent { RequestId = intent.RequestId });
         await commitTask;
 
-        Assert.Equal(42L, sent.TargetEntityId);
-        Assert.Equal(99L, sent.BaseVersion);
-        Assert.Equal(eMissionCommandType.CMD_REPLACE_MISSION, sent.Payload._d);
+        Assert.Equal(42L, intent.TargetEntityId);
+        Assert.Equal(99L, intent.BaseVersion);
+        Assert.Equal(eMissionCommandType.CMD_REPLACE_MISSION, intent.Payload._d);
     }
 
     // ── CommitMissionAsync – timeout ──────────────────────────────────────────
@@ -168,16 +177,16 @@ public class MissionEditorServiceTests
     {
         // After a timeout the internal TCS should be cleaned up so a late ACK
         // for the same ID does not resurrect the result.
-        var (svc, writer, _) = CreateSut(timeoutMs: 50);
+        var (svc, bus, _) = CreateSut(timeoutMs: 50);
         var plan = new MissionPlan { Tasks = new List<MissionTask>() };
 
         var result = await svc.CommitMissionAsync(entityId: 5, newPlan: plan, baseVersion: 0);
         Assert.False(result.Success); // Timed out.
 
         // Late ACK for the timed-out request must not throw.
-        var requestId = writer.Written.Single().RequestId;
+        var intent = DrainIntent(bus);
         var ex = Record.Exception(() =>
-            svc.OnAckReceived(new MissionControlAck { RequestId = requestId, ErrorCode = 0, NewVersion = 1 }));
+            svc.OnAckReceived(new MissionControlAckEvent { RequestId = intent.RequestId, ErrorCode = 0, NewVersion = 1 }));
 
         Assert.Null(ex); // No exception expected.
     }
@@ -190,7 +199,7 @@ public class MissionEditorServiceTests
         var (svc, _, _) = CreateSut();
 
         var ex = Record.Exception(() =>
-            svc.OnAckReceived(new MissionControlAck { RequestId = Guid.NewGuid() }));
+            svc.OnAckReceived(new MissionControlAckEvent { RequestId = Guid.NewGuid() }));
 
         Assert.Null(ex);
     }
@@ -200,13 +209,14 @@ public class MissionEditorServiceTests
     [Fact]
     public void SendControlCommand_WritesCorrectCommandType()
     {
-        var (svc, writer, _) = CreateSut();
+        var (svc, bus, _) = CreateSut();
         var taskId = Guid.NewGuid();
 
         svc.SendControlCommand(entityId: 7, eMissionCommandType.CMD_ABORT_ALL, taskId);
 
-        Assert.Single(writer.Written);
-        Assert.Equal(7L, writer.Written[0].TargetEntityId);
-        Assert.Equal(eMissionCommandType.CMD_ABORT_ALL, writer.Written[0].Payload._d);
+        bus.SwapBuffers();
+        var intent = bus.ConsumeManaged<MissionControlIntent>().Single();
+        Assert.Equal(7L, intent.TargetEntityId);
+        Assert.Equal(eMissionCommandType.CMD_ABORT_ALL, intent.Payload._d);
     }
 }

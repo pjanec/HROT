@@ -68,11 +68,4 @@ public interface IMissionEditorService : IDisposable
     /// </summary>
     void SendControlCommand(
         long entityId, eMissionCommandType type, Guid taskId);
-
-    /// <summary>
-    /// Called by the network ingress layer whenever a
-    /// <see cref="MissionControlAck"/> is received from the DDS bus.
-    /// Resolves any matching pending commit.
-    /// </summary>
-    void OnAckReceived(MissionControlAck ack);
 }

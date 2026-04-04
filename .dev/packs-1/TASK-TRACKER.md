@@ -64,8 +64,8 @@ fallback paths are deleted with no backward compatibility.
 **Goal:** Eradicate all `DdsWriter<T>` and `System.Text.Json` references from ExCon UI panels
 and services; all outbound commands from ExCon travel exclusively via `FdpEventBus`.
 
-- [ ] **PACK-E001** Eradicate DdsWriter from ClusterScenarioPanel; create ClusterOpEgressTranslator [details](./TASK-DETAIL.md#pack-e001--eradicate-ddswriter-from-clusterscenariiopanel)
-- [ ] **PACK-E002** Eradicate IDdsWriter from MissionEditorService; create MissionControlEgressTranslator [details](./TASK-DETAIL.md#pack-e002--eradicate-iddswriter-from-missioneditorservice)
+- [x] **PACK-E001** Eradicate DdsWriter from ClusterScenarioPanel; create ClusterOpEgressTranslator [details](./TASK-DETAIL.md#pack-e001--eradicate-ddswriter-from-clusterscenariiopanel)
+- [x] **PACK-E002** Eradicate IDdsWriter from MissionEditorService; create MissionControlEgressTranslator [details](./TASK-DETAIL.md#pack-e002--eradicate-iddswriter-from-missioneditorservice)
 
 ---
 

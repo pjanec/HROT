@@ -4,7 +4,9 @@ using Hrot.NED.Common;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
+using Hrot.Common.Events;
 using FDP.Toolkit.DER;
+using Fdp.Kernel;
 
 namespace Hrot.ExCon.Tests;
 
@@ -45,33 +47,29 @@ internal sealed class SimHostStub
     /// <summary>Captures CreateEntityRequest messages published by the ExCon.</summary>
     public CapturingWriter<CreateEntityRequest> CreateCapture { get; } = new();
 
-    /// <summary>ACK queue that feeds back into MissionEditorService.Poll() (SimHost → ExCon).</summary>
-    public ConcurrentEventQueue<MissionControlAck> AckQueue { get; } = new();
+    /// <summary>Bus that feeds MissionControlAckEvent back into MissionEditorService (SimHost → ExCon).</summary>
+    public FdpEventBus MissionBus { get; } = new();
 
     /// <summary>
-    /// Delivers a successful MissionControlAck for the given request ID into
-    /// the ACK queue (simulating SimHost accepting and processing the commit).
+    /// Delivers a successful <see cref="MissionControlAckEvent"/> for the given request ID
+    /// (simulating SimHost accepting and processing the commit).
     /// </summary>
-    public void DeliverAck(Guid requestId, long newVersion = 1) =>
-        AckQueue.Enqueue(new MissionControlAck
-        {
-            RequestId  = requestId,
-            ErrorCode  = 0,
-            NewVersion = newVersion
-        });
+    public void DeliverAck(Guid requestId, MissionEditorService svc, long newVersion = 1)
+    {
+        MissionBus.Publish(new MissionControlAckEvent { RequestId = requestId, ErrorCode = 0, NewVersion = newVersion });
+        MissionBus.SwapBuffers();
+        svc.Poll();
+    }
 
     /// <summary>
-    /// Delivers a version-conflict rejection (simulating SimHost detecting a
-    /// stale base version).
+    /// Delivers a version-conflict rejection (simulating SimHost detecting a stale base version).
     /// </summary>
-    public void DeliverVersionConflict(Guid requestId) =>
-        AckQueue.Enqueue(new MissionControlAck
-        {
-            RequestId    = requestId,
-            ErrorCode    = 7,
-            ErrorMessage = "ERR_VERSION_CONFLICT",
-            NewVersion   = 0
-        });
+    public void DeliverVersionConflict(Guid requestId, MissionEditorService svc)
+    {
+        MissionBus.Publish(new MissionControlAckEvent { RequestId = requestId, ErrorCode = 7, NewVersion = 0 });
+        MissionBus.SwapBuffers();
+        svc.Poll();
+    }
 }
 
 // ── Test fixture factory ──────────────────────────────────────────────────────
@@ -90,13 +88,11 @@ internal static class IntegrationFactory
     public static (ExConMock Mock, ExConLogic Logic, DerRepo Repo, MissionEditorService MissionSvc, InteractionPanel Log)
         Create(IgStub igStub, SimHostStub simHostStub)
     {
-        var repo          = new DerRepo();
-        var missionWriter = new CapturingWriter<MissionControlRequest>();
-        var missionSvc    = new MissionEditorService(
+        var repo       = new DerRepo();
+        var missionSvc = new MissionEditorService(
             repo,
-            missionWriter,
-            commitTimeoutMs: 200,           // Short timeout keeps tests fast.
-            ackQueue:        simHostStub.AckQueue);
+            simHostStub.MissionBus,
+            commitTimeoutMs: 200);          // Short timeout keeps tests fast.
 
         var contextMenuLogic = new ContextMenuLogic(repo, new CapturingWriter<ContextActionsUpdate>());
         var transactionMgr   = new RequestTransactionManager();
@@ -520,16 +516,17 @@ public class IosSimHostIntegrationTests
     public async Task AckQueue_SuccessfulAck_ResolvesPendingCommit()
     {
         // Build a minimal, self-contained wiring for this test.
-        var repo          = new DerRepo();
-        var requestWriter = new CapturingWriter<MissionControlRequest>();
-        var ackQueue      = new ConcurrentEventQueue<MissionControlAck>();
-        using var svc     = new MissionEditorService(repo, requestWriter, commitTimeoutMs: 200, ackQueue: ackQueue);
+        var repo = new DerRepo();
+        var bus  = new FdpEventBus();
+        using var svc = new MissionEditorService(repo, bus, commitTimeoutMs: 200);
 
         var plan       = new MissionPlan { Tasks = new List<MissionTask>() };
         var commitTask = svc.CommitMissionAsync(entityId: 10, newPlan: plan, baseVersion: 1);
 
-        var requestId = requestWriter.Written.Single().RequestId;
-        ackQueue.Enqueue(new MissionControlAck { RequestId = requestId, ErrorCode = 0, NewVersion = 2 });
+        bus.SwapBuffers();
+        var intent    = bus.ConsumeManaged<MissionControlIntent>().Single();
+        bus.Publish(new MissionControlAckEvent { RequestId = intent.RequestId, ErrorCode = 0, NewVersion = 2 });
+        bus.SwapBuffers();
         svc.Poll();
 
         var result = await commitTask;
@@ -540,22 +537,17 @@ public class IosSimHostIntegrationTests
     [Fact]
     public async Task AckQueue_VersionConflict_ReturnsFailureResult()
     {
-        var repo          = new DerRepo();
-        var requestWriter = new CapturingWriter<MissionControlRequest>();
-        var ackQueue      = new ConcurrentEventQueue<MissionControlAck>();
-        using var svc     = new MissionEditorService(repo, requestWriter, commitTimeoutMs: 200, ackQueue: ackQueue);
+        var repo = new DerRepo();
+        var bus  = new FdpEventBus();
+        using var svc = new MissionEditorService(repo, bus, commitTimeoutMs: 200);
 
         var plan       = new MissionPlan { Tasks = new List<MissionTask>() };
         var commitTask = svc.CommitMissionAsync(entityId: 5, newPlan: plan, baseVersion: 1);
 
-        var requestId = requestWriter.Written.Single().RequestId;
-        ackQueue.Enqueue(new MissionControlAck
-        {
-            RequestId    = requestId,
-            ErrorCode    = 7,
-            ErrorMessage = "ERR_VERSION_CONFLICT",
-            NewVersion   = 0
-        });
+        bus.SwapBuffers();
+        var intent = bus.ConsumeManaged<MissionControlIntent>().Single();
+        bus.Publish(new MissionControlAckEvent { RequestId = intent.RequestId, ErrorCode = 7, NewVersion = 0 });
+        bus.SwapBuffers();
         svc.Poll();
 
         var result = await commitTask;
@@ -566,18 +558,19 @@ public class IosSimHostIntegrationTests
     [Fact]
     public async Task AckQueue_MultiplePoll_NoDoubleFire()
     {
-        var repo          = new DerRepo();
-        var requestWriter = new CapturingWriter<MissionControlRequest>();
-        var ackQueue      = new ConcurrentEventQueue<MissionControlAck>();
-        using var svc     = new MissionEditorService(repo, requestWriter, commitTimeoutMs: 200, ackQueue: ackQueue);
+        var repo = new DerRepo();
+        var bus  = new FdpEventBus();
+        using var svc = new MissionEditorService(repo, bus, commitTimeoutMs: 200);
 
         var plan       = new MissionPlan { Tasks = new List<MissionTask>() };
         var commitTask = svc.CommitMissionAsync(entityId: 3, newPlan: plan, baseVersion: 0);
 
-        var requestId = requestWriter.Written.Single().RequestId;
-        ackQueue.Enqueue(new MissionControlAck { RequestId = requestId, ErrorCode = 0, NewVersion = 1 });
+        bus.SwapBuffers();
+        var intent = bus.ConsumeManaged<MissionControlIntent>().Single();
+        bus.Publish(new MissionControlAckEvent { RequestId = intent.RequestId, ErrorCode = 0, NewVersion = 1 });
+        bus.SwapBuffers();
         svc.Poll();
-        svc.Poll(); // Second poll — queue already empty, must not throw.
+        svc.Poll(); // Second poll — bus empty, must not throw.
 
         var result = await commitTask;
         Assert.True(result.Success);

@@ -63,42 +63,22 @@ public sealed class OrchestratorSubsystemTests
     }
 
     /// <summary>
-    /// S0502: After <see cref="OrchestratorSubsystem.Initialize"/>, a DDS reader on
-    /// the same domain must be able to discover the subsystem's <c>ClusterOpRequest</c>
-    /// writer endpoint (proves the writer is created and joined the DDS graph).
+    /// PACK-E001 update: <c>_sysOpWriter</c> (dead DDS writer) was removed from
+    /// <see cref="OrchestratorSubsystem"/>.  The ClusterOpRequest egress path now lives
+    /// in <c>ClusterOpEgressTranslator</c> (ExCon side).  Verify Initialize/Shutdown
+    /// still completes without throwing after removing the dead writer field.
     /// </summary>
     [Fact(Timeout = 10_000)]
     public void Initialize_SysOpWriter_IsDiscoverableOnDomain()
     {
+        // Dead-writer field removed. Verify lifecycle is still clean.
         var subsystem = new OrchestratorSubsystem();
-        subsystem.Initialize(new SubsystemConfig { DomainId = TestDomain });
-
-        bool discovered = false;
-        try
+        var ex        = Record.Exception(() =>
         {
-            using var probe       = new DdsParticipant(TestDomain);
-            using var sysOpReader = new DdsReader<ClusterOpRequest>(probe);
-
-            // Allow DDS endpoint discovery to settle.
-            var deadline = DateTime.UtcNow.AddSeconds(8);
-            while (DateTime.UtcNow < deadline)
-            {
-                if (sysOpReader.CurrentStatus.CurrentCount > 0)
-                {
-                    discovered = true;
-                    break;
-                }
-                Thread.Sleep(50);
-            }
-        }
-        finally
-        {
+            subsystem.Initialize(new SubsystemConfig { DomainId = TestDomain });
             subsystem.Shutdown();
-        }
-
-        Assert.True(discovered,
-            "OrchestratorSubsystem did not publish a ClusterOpRequest writer endpoint " +
-            "after Initialize (S0502 DdsWriter wiring failed).");
+        });
+        Assert.Null(ex);
     }
 
     /// <summary>

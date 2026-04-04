@@ -35,7 +35,7 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
     private ClusterConfiguration _config = ClusterConfiguration.Default;
     private ClusterUiCache?        _uiCache;
     private ClusterScenarioPanel?  _scenarioPanel;
-    private DdsWriter<ClusterOpRequest>? _sysOpWriter;  // S0502
+    private DdsWriter<ClusterOpRequest>? _sysOpWriter;  // S0502 — TODO PACK-E001: dead field; remove in follow-up
 
     private bool _isPaused;   // S0503: toggled by TimeControlRequested handler
     // ── Orchestration bus + translators (CMC-S016 / BATCH-06) ────────────────
@@ -91,7 +91,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _sysOpRequestReader  = new DdsReader<ClusterOpRequest>(_participant);
         _sysOpStatusWriter   = new DdsWriter<ClusterOpStatus>(_participant);
         _nodeOpStatusReader  = new DdsReader<NodeOpStatus>(_participant);
-        _sysOpWriter         = new DdsWriter<ClusterOpRequest>(_participant);    // S0502 (UI injection)
         _clusterMaster       = new ClusterMaster(_orchestrationBus, _config);
         _clusterOpTranslator = new Hrot.Orchestrator.Translators.ClusterOpMasterTranslator(
             _sysOpRequestReader, _sysOpStatusWriter, _orchestrationBus);
@@ -256,8 +255,6 @@ public sealed class OrchestratorSubsystem : ISubsystem, IWindowRegistrar
         _scenarioPanel = null;
         _uiCache?.Dispose();
         _uiCache = null;
-        _sysOpWriter?.Dispose();     // S0502 (UI injection writer)
-        _sysOpWriter = null;
         _clusterOpTranslator = null;
         _nodeOpTranslator = null;
         _sysOpRequestReader?.Dispose();

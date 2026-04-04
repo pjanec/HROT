@@ -5,8 +5,10 @@ using System.Linq;
 using System.Numerics;
 using Hrot.NED.Descriptors.Orchestration;
 using Hrot.Orchestrator;
-using CycloneDDS.Runtime;
+using Fdp.Kernel;
 using ImGuiNET;
+using FdpClusterOpType   = FDP.Toolkit.Orchestration.ClusterOpType;
+using ClusterOpIntent    = FDP.Toolkit.Orchestration.ClusterOpIntent;
 
 namespace Hrot.ClusterRunner.Services;
 
@@ -25,16 +27,23 @@ public sealed class ClusterScenarioPanel
     // ── Dependencies ──────────────────────────────────────────────────────
     // One of these two is always non-null depending on construction path:
     //  - _master: Orchestrator's internal panel  — direct binding to ClusterMaster
-    //  - _sysOpWriter: remote client (ExCon)     — sends commands over DDS
-    private readonly ClusterMaster?               _master;
-    private readonly DdsWriter<ClusterOpRequest>? _sysOpWriter;
-    private readonly ClusterUiCache               _uiCache;
+    //  - _bus:    remote client (ExCon)          — sends commands over FdpEventBus
+    private readonly ClusterMaster? _master;
+    private readonly FdpEventBus?   _bus;
+    private readonly ClusterUiCache _uiCache;
 
     // ── Helper: send a request via whichever channel is available ─────────
     private void SendRequest(ClusterOpRequest req)
     {
-        if (_master != null) _master.HandleClusterOpRequest(req);
-        else                 _sysOpWriter!.Write(req);
+        if (_master != null)
+            _master.HandleClusterOpRequest(req);
+        else
+            _bus!.PublishManaged(new ClusterOpIntent
+            {
+                RequestId     = req.RequestId,
+                OperationType = (FdpClusterOpType)(int)req.OperationType,
+                DomainPayload = req.PayloadJson,
+            });
     }
 
     // ── Adapter properties: use _master when present, else fall back to _uiCache ─
@@ -81,18 +90,18 @@ public sealed class ClusterScenarioPanel
     /// <param name="uiCache">Network cache — used for asset inventory and time data.</param>
     public ClusterScenarioPanel(ClusterMaster clusterMaster, ClusterUiCache uiCache)
     {
-        _master      = clusterMaster ?? throw new ArgumentNullException(nameof(clusterMaster));
-        _uiCache     = uiCache       ?? throw new ArgumentNullException(nameof(uiCache));
-        _sysOpWriter = null;
+        _master  = clusterMaster ?? throw new ArgumentNullException(nameof(clusterMaster));
+        _uiCache = uiCache       ?? throw new ArgumentNullException(nameof(uiCache));
+        _bus     = null;
     }
 
-    /// <param name="sysOpWriter">DDS writer for ClusterOpRequest commands (remote/ExCon path).</param>
+    /// <param name="bus">Event bus for publishing <see cref="ClusterOpIntent"/> commands (remote/ExCon path).</param>
     /// <param name="uiCache">Network projection cache to read cluster state from.</param>
-    public ClusterScenarioPanel(DdsWriter<ClusterOpRequest> sysOpWriter, ClusterUiCache uiCache)
+    public ClusterScenarioPanel(FdpEventBus bus, ClusterUiCache uiCache)
     {
-        _sysOpWriter = sysOpWriter ?? throw new ArgumentNullException(nameof(sysOpWriter));
-        _uiCache     = uiCache     ?? throw new ArgumentNullException(nameof(uiCache));
-        _master      = null;
+        _bus     = bus     ?? throw new ArgumentNullException(nameof(bus));
+        _uiCache = uiCache ?? throw new ArgumentNullException(nameof(uiCache));
+        _master  = null;
     }
 
     /// <summary>Advances the seek debounce timer. Call once per frame from the subsystem Update().</summary>

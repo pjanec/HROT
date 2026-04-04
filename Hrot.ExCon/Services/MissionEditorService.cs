@@ -1,8 +1,11 @@
 using Hrot.NED.Descriptors;
 using Hrot.NED.Messages;
 using Hrot.Map.Common.Dds;
+using Hrot.Common.Events;
 using FDP.Kernel.Logging;
 using FDP.Toolkit.DER;
+using Fdp.Kernel;
+using Hrot.ExCon.Panels;
 
 namespace Hrot.ExCon.Services;
 
@@ -22,12 +25,13 @@ internal static class MissionEditorServiceConstants
 
 /// <summary>
 /// Implements <see cref="IMissionEditorService"/> using the DER repository for
-/// local state reads and injected DDS writers for outgoing commands.
+/// local state reads and <see cref="FdpEventBus"/> for outgoing commands.
 ///
 /// <para>Concurrency model: <see cref="CommitMissionAsync"/> stores a
 /// <see cref="TaskCompletionSource{T}"/> keyed by <see cref="Guid"/> and
-/// <see cref="OnAckReceived"/> resolves it. Both methods may be called from
-/// different threads; the internal dictionary is protected by a lock.</para>
+/// <see cref="Poll"/> resolves it when a <see cref="MissionControlAckEvent"/>
+/// is consumed from the bus. Both methods may be called from different threads;
+/// the internal dictionary is protected by a lock.</para>
 /// </summary>
 public sealed class MissionEditorService : IMissionEditorService, IIngressHandler, IDisposable
 {
@@ -41,10 +45,9 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
 
     // ── Dependencies ──────────────────────────────────────────────────────────
 
-    private readonly IDerRepo _repo;
-    private readonly IDdsWriter<MissionControlRequest> _requestWriter;
-    private readonly IEventQueue<MissionControlAck>?   _ackQueue;
-    private readonly int _commitTimeoutMs;
+    private readonly IDerRepo    _repo;
+    private readonly FdpEventBus _bus;
+    private readonly int         _commitTimeoutMs;
 
     // ── Pending commits ───────────────────────────────────────────────────────
 
@@ -63,24 +66,17 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
     /// real-time waits.
     /// </summary>
     /// <param name="repo">DER entity repository for snapshot reads.</param>
-    /// <param name="requestWriter">DDS writer for outgoing <see cref="MissionControlRequest"/> messages.</param>
+    /// <param name="bus">Event bus for publishing <see cref="MissionControlIntent"/> and
+    /// consuming <see cref="MissionControlAckEvent"/> messages.</param>
     /// <param name="commitTimeoutMs">Commit timeout; defaults to <see cref="DefaultCommitTimeoutMs"/>.</param>
-    /// <param name="ackQueue">
-    /// Optional ingress queue for <see cref="MissionControlAck"/> messages.
-    /// When provided, call <see cref="Poll"/> each frame (via <see cref="IIngressHandler"/>)
-    /// to drain incoming ACKs and resolve pending commits automatically.
-    /// When <c>null</c> the caller must invoke <see cref="OnAckReceived"/> manually.
-    /// </param>
     public MissionEditorService(
-        IDerRepo repo,
-        IDdsWriter<MissionControlRequest> requestWriter,
-        int commitTimeoutMs = DefaultCommitTimeoutMs,
-        IEventQueue<MissionControlAck>? ackQueue = null)
+        IDerRepo    repo,
+        FdpEventBus bus,
+        int         commitTimeoutMs = DefaultCommitTimeoutMs)
     {
-        _repo             = repo             ?? throw new ArgumentNullException(nameof(repo));
-        _requestWriter    = requestWriter    ?? throw new ArgumentNullException(nameof(requestWriter));
-        _commitTimeoutMs  = commitTimeoutMs;
-        _ackQueue         = ackQueue;
+        _repo            = repo ?? throw new ArgumentNullException(nameof(repo));
+        _bus             = bus  ?? throw new ArgumentNullException(nameof(bus));
+        _commitTimeoutMs = commitTimeoutMs;
     }
 
     // ── IMissionEditorService ─────────────────────────────────────────────────
@@ -92,8 +88,6 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
         if (entity is null)
             return (null, 0);
 
-        // GetDescriptor<T> returns default(T) when not set; for structs that
-        // means an empty struct rather than null, so we check HasDescriptor.
         MissionPlan? plan = entity.HasDescriptor<EntityMission>()
             ? entity.GetDescriptor<EntityMission>().Plan
             : null;
@@ -118,14 +112,14 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
             _pendingCommits[requestId] = tcs;
         }
 
-        _requestWriter.Write(new MissionControlRequest
+        _bus.PublishManaged(new MissionControlIntent
         {
             RequestId      = requestId,
             TargetEntityId = entityId,
             BaseVersion    = baseVersion,
             Payload = new MissionCommandUnion
             {
-                _d             = eMissionCommandType.CMD_REPLACE_MISSION,
+                _d              = eMissionCommandType.CMD_REPLACE_MISSION,
                 FullMissionData = newPlan
             }
         });
@@ -140,7 +134,6 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
         }
         catch (OperationCanceledException)
         {
-            // Timeout: clean up and return a failure result without throwing.
             FdpLog<MissionEditorService>.Warn("[ExCon] Commit timed out: entityId={0} requestId={1}",
                 entityId, requestId);
 
@@ -165,7 +158,7 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
             _pendingCommits[requestId] = tcs;
         }
 
-        _requestWriter.Write(new MissionControlRequest
+        _bus.PublishManaged(new MissionControlIntent
         {
             RequestId      = requestId,
             TargetEntityId = entityId,
@@ -203,7 +196,7 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
     /// <inheritdoc/>
     public void SendControlCommand(long entityId, eMissionCommandType type, Guid taskId)
     {
-        _requestWriter.Write(new MissionControlRequest
+        _bus.PublishManaged(new MissionControlIntent
         {
             RequestId      = Guid.NewGuid(),
             TargetEntityId = entityId,
@@ -216,8 +209,9 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
         });
     }
 
-    /// <inheritdoc/>
-    public void OnAckReceived(MissionControlAck ack)
+    // ── Internal helpers ─────────────────────────────────────────────
+
+    internal void OnAckReceived(MissionControlAckEvent ack)
     {
         TaskCompletionSource<MissionCommitResult>? tcs;
 
@@ -230,46 +224,44 @@ public sealed class MissionEditorService : IMissionEditorService, IIngressHandle
         tcs.TrySetResult(new MissionCommitResult
         {
             Success      = ack.ErrorCode == 0,
-            ErrorMessage = ack.ErrorMessage,
+            ErrorMessage = ack.ErrorCode == 0
+                ? string.Empty
+                : ack.ErrorCode == PanelConstants.VersionConflictErrorCode
+                    ? PanelConstants.VersionConflictErrorMessage
+                    : $"Error {ack.ErrorCode}",
             NewVersion   = ack.NewVersion,
             ErrorCode    = ack.ErrorCode
         });
 
-        FdpLog<MissionEditorService>.Info("[ExCon] MissionControlAck received: requestId={0} success={1} errorCode={2} newVersion={3}",
+        FdpLog<MissionEditorService>.Info("[ExCon] MissionControlAckEvent received: requestId={0} success={1} errorCode={2} newVersion={3}",
             ack.RequestId, ack.ErrorCode == 0, ack.ErrorCode, ack.NewVersion);
     }
 
     // ── IIngressHandler ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// Drains the injected <see cref="IEventQueue{MissionControlAck}"/> and
-    /// calls <see cref="OnAckReceived"/> for each message.
+    /// Drains all <see cref="MissionControlAckEvent"/> events from the bus read
+    /// buffer and resolves any pending commits.
     ///
     /// <para>Register this service as an <see cref="IIngressHandler"/> in the
     /// <see cref="ExConLogic"/> constructor so that incoming ACKs are processed
-    /// once per frame on the main thread, completing any pending commits.</para>
+    /// once per frame on the main thread.</para>
     ///
-    /// <para>This method is a no-op when no queue was provided at construction.</para>
+    /// <para>The caller must call <c>FdpEventBus.SwapBuffers()</c> before
+    /// invoking this method so that newly arrived ACKs are visible in the
+    /// read buffer.</para>
     /// </summary>
     public void Poll()
     {
-        if (_ackQueue is null) return;
-
-        while (_ackQueue.TryDequeue(out var ack))
+        foreach (var ack in _bus.Consume<MissionControlAckEvent>())
             OnAckReceived(ack);
     }
 
-    // ── IDisposable ───────────────────────────────────────────────────────────
+    // ── IDisposable ────────────────────────────────────────────────
 
     /// <summary>
     /// Disposes the service, cancelling all pending commits with a graceful
     /// failure result so that awaiting callers are never left orphaned.
-    ///
-    /// <para>Each orphaned <see cref="TaskCompletionSource{T}"/> is resolved via
-    /// <see cref="TaskCompletionSource{T}.TrySetResult"/> (not
-    /// <c>TrySetCanceled</c>) so that callers receiving a <see cref="MissionCommitResult"/>
-    /// with <c>Success=false</c> handle the teardown path without an
-    /// <see cref="OperationCanceledException"/> propagating up the stack.</para>
     /// </summary>
     public void Dispose()
     {

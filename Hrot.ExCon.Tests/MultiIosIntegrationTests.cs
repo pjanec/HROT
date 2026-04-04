@@ -3,7 +3,9 @@ using Hrot.NED.Messages;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
+using Hrot.Common.Events;
 using FDP.Toolkit.DER;
+using Fdp.Kernel;
 
 namespace Hrot.ExCon.Tests;
 
@@ -14,56 +16,51 @@ namespace Hrot.ExCon.Tests;
 /// </summary>
 internal sealed class IosClient : IDisposable
 {
-    public ExConLogic                              Logic          { get; }
-    public MissionEditorService                  MissionSvc     { get; }
-    public CapturingWriter<MissionControlRequest> RequestWriter  { get; }
-    public ConcurrentEventQueue<MissionControlAck> AckQueue      { get; }
-    public MissionPanel                          MissionPanel   { get; }
+    public ExConLogic                  Logic        { get; }
+    public MissionEditorService        MissionSvc   { get; }
+    public FdpEventBus                 Bus          { get; }
+    public MissionPanel                MissionPanel { get; }
 
     public IosClient(
-        ExConLogic logic,
+        ExConLogic          logic,
         MissionEditorService missionSvc,
-        CapturingWriter<MissionControlRequest> requestWriter,
-        ConcurrentEventQueue<MissionControlAck> ackQueue,
-        MissionPanel missionPanel)
+        FdpEventBus          bus,
+        MissionPanel         missionPanel)
     {
-        Logic         = logic;
-        MissionSvc    = missionSvc;
-        RequestWriter = requestWriter;
-        AckQueue      = ackQueue;
-        MissionPanel  = missionPanel;
+        Logic        = logic;
+        MissionSvc   = missionSvc;
+        Bus          = bus;
+        MissionPanel = missionPanel;
     }
 
     /// <summary>
-    /// Delivers a successful ACK for the last written request (simulating
+    /// Delivers a successful ACK for the last published intent (simulating
     /// SimHost accepting the commit).
     /// </summary>
     public void DeliverAck(long newVersion = 2)
     {
-        var requestId = RequestWriter.Written.Last().RequestId;
-        AckQueue.Enqueue(new MissionControlAck
-        {
-            RequestId  = requestId,
-            ErrorCode  = 0,
-            NewVersion = newVersion
-        });
+        Bus.SwapBuffers();
+        var intent = Bus.ConsumeManaged<MissionControlIntent>().Last();
+        Bus.Publish(new MissionControlAckEvent { RequestId = intent.RequestId, ErrorCode = 0, NewVersion = newVersion });
+        Bus.SwapBuffers();
         MissionSvc.Poll();
     }
 
     /// <summary>
-    /// Delivers a version-conflict rejection ACK for the last written request
+    /// Delivers a version-conflict rejection ACK for the last published intent
     /// (simulating SimHost detecting a stale base version).
     /// </summary>
     public void DeliverVersionConflict()
     {
-        var requestId = RequestWriter.Written.Last().RequestId;
-        AckQueue.Enqueue(new MissionControlAck
+        Bus.SwapBuffers();
+        var intent = Bus.ConsumeManaged<MissionControlIntent>().Last();
+        Bus.Publish(new MissionControlAckEvent
         {
-            RequestId    = requestId,
-            ErrorCode    = PanelConstants.VersionConflictErrorCode,
-            ErrorMessage = PanelConstants.VersionConflictErrorMessage,
-            NewVersion   = 0
+            RequestId  = intent.RequestId,
+            ErrorCode  = PanelConstants.VersionConflictErrorCode,
+            NewVersion = 0
         });
+        Bus.SwapBuffers();
         MissionSvc.Poll();
     }
 
@@ -88,13 +85,11 @@ internal static class MultiIosFactory
 
         for (int i = 0; i < count; i++)
         {
-            var writer   = new CapturingWriter<MissionControlRequest>();
-            var ackQueue = new ConcurrentEventQueue<MissionControlAck>();
+            var bus      = new FdpEventBus();
             var msnSvc   = new MissionEditorService(
                 repo,
-                writer,
-                commitTimeoutMs: CommitTimeoutMs,
-                ackQueue:        ackQueue);
+                bus,
+                commitTimeoutMs: CommitTimeoutMs);
 
             var configWriter  = new CapturingWriter<MapInteractionConfig>();
             var createWriter  = new CapturingWriter<CreateEntityRequest>();
@@ -118,7 +113,7 @@ internal static class MultiIosFactory
                 createEntityAckQueue: new ConcurrentEventQueue<CreateUpdateDeleteEntityAck>(),
                 ingressHandlers:     new[] { (IIngressHandler)msnSvc });
 
-            clients[i] = new IosClient(logic, msnSvc, writer, ackQueue, missionPanel);
+            clients[i] = new IosClient(logic, msnSvc, bus, missionPanel);
         }
 
         return (clients, repo);

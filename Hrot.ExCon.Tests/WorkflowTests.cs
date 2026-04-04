@@ -4,7 +4,9 @@ using Hrot.NED.Common;
 using Hrot.ExCon.Logic;
 using Hrot.ExCon.Panels;
 using Hrot.ExCon.Services;
+using Hrot.Common.Events;
 using FDP.Toolkit.DER;
+using Fdp.Kernel;
 
 namespace Hrot.ExCon.Tests;
 
@@ -43,8 +45,7 @@ public class FullStackWorkflowTests
         public DerRepo Repo { get; } = new DerRepo();
         public CapturingWriter<MapInteractionConfig>  ConfigCapture  { get; } = new();
         public CapturingWriter<CreateEntityRequest>   CreateCapture  { get; } = new();
-        public CapturingWriter<MissionControlRequest> MissionCapture { get; } = new();
-        public ConcurrentEventQueue<MissionControlAck> AckQueue      { get; } = new();
+        public FdpEventBus                           MissionBus     { get; } = new();
         public ConcurrentEventQueue<MapClickEvent>    ClickQueue     { get; } = new();
         public ConcurrentEventQueue<SelectionChangedEvent> SelectionQueue { get; } = new();
         public InteractionPanel Log { get; } = new();
@@ -56,7 +57,7 @@ public class FullStackWorkflowTests
         public WorkflowFixture()
         {
             MissionSvc = new MissionEditorService(
-                Repo, MissionCapture, commitTimeoutMs: 200, ackQueue: AckQueue);
+                Repo, MissionBus, commitTimeoutMs: 200);
 
             var contextMenuLogic = new ContextMenuLogic(
                 Repo,
@@ -170,17 +171,20 @@ public class FullStackWorkflowTests
             entityId: 1001, newPlan: newPlan, baseVersion: 1);
 
         Assert.False(commitTask.IsCompleted, "Commit must be pending until ACK is delivered.");
-        Assert.Single(f.MissionCapture.Written);
+
+        // Drain the intent published to the bus to get the RequestId.
+        f.MissionBus.SwapBuffers();
+        var intent = f.MissionBus.ConsumeManaged<MissionControlIntent>().Single();
 
         // ── Step 6: SimHost delivers ACK; ExCon resolves the commit ─────────────
-        var requestId = f.MissionCapture.Written[0].RequestId;
-        f.AckQueue.Enqueue(new MissionControlAck
+        f.MissionBus.Publish(new MissionControlAckEvent
         {
-            RequestId  = requestId,
+            RequestId  = intent.RequestId,
             ErrorCode  = 0,
             NewVersion = 2
         });
-        f.Mock.Update(0f); // IIngressHandler.Poll() is called inside Update.
+        f.MissionBus.SwapBuffers();
+        f.MissionSvc.Poll();
 
         // Await the commit — continuation runs on thread pool after TrySetResult.
         var commitResult = await commitTask;
@@ -277,19 +281,17 @@ public class ConflictDetectionWorkflowTests
         public DerRepo Repo { get; } = new DerRepo();
 
         // Operator A
-        public CapturingWriter<MissionControlRequest> WriterA  { get; } = new();
-        public ConcurrentEventQueue<MissionControlAck> AckQueueA { get; } = new();
+        public FdpEventBus BusA { get; } = new();
         public MissionEditorService SvcA { get; }
 
         // Operator B
-        public CapturingWriter<MissionControlRequest> WriterB  { get; } = new();
-        public ConcurrentEventQueue<MissionControlAck> AckQueueB { get; } = new();
+        public FdpEventBus BusB { get; } = new();
         public MissionEditorService SvcB { get; }
 
         public TwoOperatorFixture()
         {
-            SvcA = new MissionEditorService(Repo, WriterA, commitTimeoutMs: 200, ackQueue: AckQueueA);
-            SvcB = new MissionEditorService(Repo, WriterB, commitTimeoutMs: 200, ackQueue: AckQueueB);
+            SvcA = new MissionEditorService(Repo, BusA, commitTimeoutMs: 200);
+            SvcB = new MissionEditorService(Repo, BusB, commitTimeoutMs: 200);
         }
 
         public IDerEntity CreateEntityWithVersion(int entityId, int version)
@@ -331,12 +333,10 @@ public class ConflictDetectionWorkflowTests
         var commitB = f.SvcB.CommitMissionAsync(entityId: 42, newPlan: planB, baseVersion: 5);
 
         // ── Operator A wins: SimHost accepts the commit ───────────────────────
-        f.AckQueueA.Enqueue(new MissionControlAck
-        {
-            RequestId  = f.WriterA.Written.Single().RequestId,
-            ErrorCode  = 0,
-            NewVersion = 6
-        });
+        f.BusA.SwapBuffers();
+        var intentA = f.BusA.ConsumeManaged<MissionControlIntent>().Single();
+        f.BusA.Publish(new MissionControlAckEvent { RequestId = intentA.RequestId, ErrorCode = 0, NewVersion = 6 });
+        f.BusA.SwapBuffers();
         f.SvcA.Poll();
 
         // Await the result — continuation runs on thread pool after TrySetResult.
@@ -345,13 +345,10 @@ public class ConflictDetectionWorkflowTests
         Assert.Equal(6, resultA.NewVersion);
 
         // ── Operator B loses: SimHost detects version conflict ────────────────
-        f.AckQueueB.Enqueue(new MissionControlAck
-        {
-            RequestId    = f.WriterB.Written.Single().RequestId,
-            ErrorCode    = 7,
-            ErrorMessage = "ERR_VERSION_CONFLICT",
-            NewVersion   = 0
-        });
+        f.BusB.SwapBuffers();
+        var intentB = f.BusB.ConsumeManaged<MissionControlIntent>().Single();
+        f.BusB.Publish(new MissionControlAckEvent { RequestId = intentB.RequestId, ErrorCode = 7, NewVersion = 0 });
+        f.BusB.SwapBuffers();
         f.SvcB.Poll();
 
         var resultB = await commitB;
@@ -388,12 +385,10 @@ public class ConflictDetectionWorkflowTests
         var plan1   = new MissionPlan { Tasks = new List<MissionTask>() };
         var commit1 = f.SvcA.CommitMissionAsync(entityId: 20, newPlan: plan1, baseVersion: 1);
 
-        f.AckQueueA.Enqueue(new MissionControlAck
-        {
-            RequestId  = f.WriterA.Written.Last().RequestId,
-            ErrorCode  = 0,
-            NewVersion = 2
-        });
+        f.BusA.SwapBuffers();
+        var intent1 = f.BusA.ConsumeManaged<MissionControlIntent>().Single();
+        f.BusA.Publish(new MissionControlAckEvent { RequestId = intent1.RequestId, ErrorCode = 0, NewVersion = 2 });
+        f.BusA.SwapBuffers();
         f.SvcA.Poll();
 
         var result1 = await commit1;
@@ -404,12 +399,10 @@ public class ConflictDetectionWorkflowTests
         var plan2   = new MissionPlan { Tasks = new List<MissionTask>() };
         var commit2 = f.SvcB.CommitMissionAsync(entityId: 20, newPlan: plan2, baseVersion: 2);
 
-        f.AckQueueB.Enqueue(new MissionControlAck
-        {
-            RequestId  = f.WriterB.Written.Last().RequestId,
-            ErrorCode  = 0,
-            NewVersion = 3
-        });
+        f.BusB.SwapBuffers();
+        var intent2 = f.BusB.ConsumeManaged<MissionControlIntent>().Single();
+        f.BusB.Publish(new MissionControlAckEvent { RequestId = intent2.RequestId, ErrorCode = 0, NewVersion = 3 });
+        f.BusB.SwapBuffers();
         f.SvcB.Poll();
 
         var result2 = await commit2;
@@ -422,9 +415,9 @@ public class ConflictDetectionWorkflowTests
     [Fact]
     public async Task Dispose_WithPendingCommit_ResolvesWithFailureNotException()
     {
-        var repo   = new DerRepo();
-        var writer = new CapturingWriter<MissionControlRequest>();
-        var svc    = new MissionEditorService(repo, writer, commitTimeoutMs: 5000);
+        var repo = new DerRepo();
+        var bus  = new FdpEventBus();
+        var svc  = new MissionEditorService(repo, bus, commitTimeoutMs: 5000);
 
         var plan       = new MissionPlan { Tasks = new List<MissionTask>() };
         var commitTask = svc.CommitMissionAsync(entityId: 99, newPlan: plan, baseVersion: 0);
@@ -444,9 +437,9 @@ public class ConflictDetectionWorkflowTests
     [Fact]
     public async Task Dispose_MultiplePendingCommits_AllResolvedWithFailure()
     {
-        var repo   = new DerRepo();
-        var writer = new CapturingWriter<MissionControlRequest>();
-        var svc    = new MissionEditorService(repo, writer, commitTimeoutMs: 5000);
+        var repo = new DerRepo();
+        var bus  = new FdpEventBus();
+        var svc  = new MissionEditorService(repo, bus, commitTimeoutMs: 5000);
 
         var plan  = new MissionPlan { Tasks = new List<MissionTask>() };
         var taskA = svc.CommitMissionAsync(entityId: 1, newPlan: plan, baseVersion: 0);
@@ -467,9 +460,9 @@ public class ConflictDetectionWorkflowTests
     [Fact]
     public void Dispose_IsIdempotent_DoesNotThrow()
     {
-        var repo   = new DerRepo();
-        var writer = new CapturingWriter<MissionControlRequest>();
-        var svc    = new MissionEditorService(repo, writer);
+        var repo = new DerRepo();
+        var bus  = new FdpEventBus();
+        var svc  = new MissionEditorService(repo, bus);
 
         var ex = Record.Exception(() =>
         {
