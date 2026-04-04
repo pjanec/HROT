@@ -20,8 +20,9 @@ namespace Hrot.Editor.Tests;
 /// </summary>
 public class OfflineKernelBootTests : IDisposable
 {
-    private readonly EntityRepository   _world;
-    private readonly ModuleHostKernel   _kernel;
+    private readonly EntityRepository      _world;
+    private readonly ModuleHostKernel      _kernel;
+    private SteppingTimeController? _stepping;
 
     public OfflineKernelBootTests()
     {
@@ -29,10 +30,9 @@ public class OfflineKernelBootTests : IDisposable
         var accumulator    = new EventAccumulator();
         _kernel = new ModuleHostKernel(_world, accumulator);
 
-        var timeCtrl = TimeControllerFactory.Create(
-            _world.Bus,
-            new TimeControllerConfig { Role = TimeRole.Standalone });
-        _kernel.SetTimeController(timeCtrl);
+        var stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
+        _stepping = stepping;
+        _kernel.SetTimeController(stepping);
 
         var entityMap        = new NetworkEntityMap();
         var doctrineRegistry = new DoctrineRegistry();
@@ -66,7 +66,8 @@ public class OfflineKernelBootTests : IDisposable
         const float dt = 1f / 60f;
         for (int i = 0; i < 10; i++)
         {
-            _kernel.Update(dt);
+            _stepping?.Step(dt);
+            _kernel.Update();
         }
         Assert.True(true); // reached without exception
     }

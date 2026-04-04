@@ -24,6 +24,8 @@ public sealed class EditorHarness : IDisposable
 {
     private const int PumpSleepMs = 5;
 
+    private SteppingTimeController? _stepping;
+
     public EntityRepository  Repo   { get; }
     public FdpEventBus        Bus    { get; }
     public ModuleHostKernel   Kernel { get; }
@@ -38,11 +40,10 @@ public sealed class EditorHarness : IDisposable
         var accumulator = new EventAccumulator();
         Kernel = new ModuleHostKernel(Repo, accumulator);
 
-        // Standalone time controller — no network sync.
-        var timeCtrl = TimeControllerFactory.Create(
-            Bus,
-            new TimeControllerConfig { Role = TimeRole.Standalone });
-        Kernel.SetTimeController(timeCtrl);
+        // Stepping time controller — offline, no DDS sync.
+        var stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
+        _stepping = stepping;
+        Kernel.SetTimeController(stepping);
 
         var entityMap        = new NetworkEntityMap();
         var doctrineRegistry = new DoctrineRegistry();
@@ -62,7 +63,8 @@ public sealed class EditorHarness : IDisposable
     {
         for (int i = 0; i < frames; i++)
         {
-            Kernel.Update(PumpSleepMs / 1000f);
+            _stepping?.Step(PumpSleepMs / 1000f);
+            Kernel.Update();
         }
     }
 
@@ -77,7 +79,8 @@ public sealed class EditorHarness : IDisposable
         var deadline = DateTime.UtcNow.AddMilliseconds(timeoutMs);
         while (DateTime.UtcNow < deadline)
         {
-            Kernel.Update(PumpSleepMs / 1000f);
+            _stepping?.Step(PumpSleepMs / 1000f);
+            Kernel.Update();
             if (condition()) return true;
         }
 

@@ -3,6 +3,7 @@ using FDP.Toolkit.Behavior;
 using FDP.Toolkit.Orchestration;
 using FDP.Toolkit.Replication.Services;
 using FDP.Toolkit.Time.Controllers;
+using Fdp.Kernel;
 using Hrot.CGF;
 using Hrot.Editor;
 using Hrot.Editor.UI;
@@ -18,11 +19,9 @@ var world       = new EntityRepository();
 var accumulator = new EventAccumulator();
 var kernel      = new ModuleHostKernel(world, accumulator);
 
-// ── 2. Time controller (standalone — no DDS sync partner) ───────────────────
-var timeCtrl = TimeControllerFactory.Create(
-    world.Bus,
-    new TimeControllerConfig { Role = TimeRole.Standalone });
-kernel.SetTimeController(timeCtrl);
+// ── 2. Time controller (stepping — no DDS sync partner) ────────────────────
+var stepping = new SteppingTimeController(new GlobalTime { TimeScale = 1.0f });
+kernel.SetTimeController(stepping);
 
 // ── 3. Shared services ────────────────────────────────────────────────────────
 var entityMap        = new NetworkEntityMap();
@@ -60,7 +59,8 @@ try
         float dt = Raylib.GetFrameTime();
 
         // Simulation tick
-        kernel.Update(dt);
+        stepping.Step(dt);
+        kernel.Update();
 
         // Rendering
         Raylib.BeginDrawing();
