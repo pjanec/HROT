@@ -28,7 +28,7 @@ namespace ModuleHost.Network.Cyclone.Translators
         public long DescriptorOrdinal { get; }
 
         protected CycloneTranslator(
-            DdsParticipant participant, 
+            DdsParticipant? participant, 
             string topicName, 
             long ordinal,
             NetworkEntityMap entityMap)
@@ -37,8 +37,9 @@ namespace ModuleHost.Network.Cyclone.Translators
             DescriptorOrdinal = ordinal;
             EntityMap = entityMap ?? throw new ArgumentNullException(nameof(entityMap));
 
-            Reader = new DdsReader<TDds>(participant);
-            Writer = new DdsWriter<TDds>(participant);
+            // participant may be null in unit-test mode — Reader/Writer become no-ops.
+            Reader = participant is not null ? new DdsReader<TDds>(participant) : null!;
+            Writer = participant is not null ? new DdsWriter<TDds>(participant) : null!;
         }
 
         /// <summary>
@@ -79,6 +80,8 @@ namespace ModuleHost.Network.Cyclone.Translators
         /// </summary>
         public void PollIngress(IEntityCommandBuffer cmd, ISimulationView view)
         {
+            if (Reader is null) return; // test mode — no DDS participant supplied
+
             using var loan = Reader.Take();
             
             foreach (var sample in loan)

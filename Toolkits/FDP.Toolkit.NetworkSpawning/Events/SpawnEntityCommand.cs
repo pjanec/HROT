@@ -73,5 +73,13 @@ namespace FDP.Toolkit.NetworkSpawning.Events
         /// Optional correlation ID for request tracking (used by gateway pattern).
         /// </summary>
         public Guid RequestId;
+
+        /// <summary>
+        /// Optional JSON attribute overrides (verbatim initialPropertiesJson from the tool).
+        /// Preserved for the ACL egress translator to include in CreateEntityRequest.InitialAttributesJson.
+        /// When the edge compiler is active at the DDS boundary the translator compiles this to
+        /// binary records; otherwise it is forwarded to SimHost verbatim.
+        /// </summary>
+        public string? InitialAttributesJson;
     }
 }
