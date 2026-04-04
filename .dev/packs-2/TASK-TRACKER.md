@@ -86,5 +86,5 @@ distributed Brain/Muscle execution.
 - [x] **PACK2-R002** Complete `CgfSubsystem.Initialize` with `CgfLogicPack` + `EntityStatesIngressPack(Ingress)` + `ActuatorIntentsEgressPack(Egress)` [details](./TASK-DETAIL.md#pack2-r002--complete-cgfsubsystem-brain-role-pack-installation)
 - [x] **PACK2-R003** Scaffold `CgfHarness` (domain-isolated + shared-domain ctor) and `EditorHarness` (offline, no DDS) [details](./TASK-DETAIL.md#pack2-r003--scaffold-cgfharness-and-editorharness-test-infrastructure)
 - [x] **PACK2-R004** `OfflineEditorIntegrationTests` (IT-1): spawn / edit / delete via memory bus; assert zero DDS writes [details](./TASK-DETAIL.md#pack2-r004--offlineeditorintegrationtests-it-1)
-- [ ] **PACK2-R005** `EditorFileIOIntegrationTests` (IT-2) + `FeatureSwitchRcuIntegrationTests` (IT-3) [details](./TASK-DETAIL.md#pack2-r005--editorfileiointegrationtests-it-2-and-featureswitchrcuintegrationtests-it-3)
-- [ ] **PACK2-R006** `DistributedBrainMuscleIntegrationTests` (IT-4): CGF + SimHost in shared loopback domain [details](./TASK-DETAIL.md#pack2-r006--distributedbrainmuscleintegrationtests-it-4)
+- [x] **PACK2-R005** `EditorFileIOIntegrationTests` (IT-2) + `FeatureSwitchRcuIntegrationTests` (IT-3) [details](./TASK-DETAIL.md#pack2-r005--editorfileiointegrationtests-it-2-and-featureswitchrcuintegrationtests-it-3)
+- [x] **PACK2-R006** `DistributedBrainMuscleIntegrationTests` (IT-4): CGF + SimHost in shared loopback domain [details](./TASK-DETAIL.md#pack2-r006--distributedbrainmuscleintegrationtests-it-4)
