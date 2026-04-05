@@ -4,6 +4,9 @@ This document tracks P2 and P3 technical debt, refactoring opportunities, and de
 
 | Status | Priority | Category | Source Batch | Description | Target Fix |
 |---|---|---|---|---|---|
+|   | P3 | Architecture | PACK3-BATCH-01 | Two `INetworkTopology` interfaces exist: `Fdp.Interfaces.INetworkTopology` (takes `long tkbType`) vs `ModuleHost.Core.Network.Interfaces.INetworkTopology` (takes `ReliableInitType`). Ongoing ambiguity resolved with `using` aliases. Full migration to `Fdp.Interfaces` version recommended. | Opportunistic |
+|   | P3 | Correctness | PACK3-BATCH-01 | `EntityLifecycleModule.AcknowledgeConstruction` has no idempotency guard — calling it twice for the same entity publishes two `ConstructionAck` events. Add guard when persistence/recording is scoped. | Opportunistic |
+|   | P3 | Performance | PACK3-BATCH-01 | `UrbanCombatValidator` rebuilds `TkbIdentity` query each tick. Negligible for small scenarios; for large-entity scenarios consider cached query or early-exit once both actors are found. | Opportunistic |
 | ✅ | P2 | Correctness  | TC3-BATCH-02 | `OnTimePulseReceived` hard-snap branch sets `_lastUpdateRawTicks = SyncedWallTicks` (master-domain). Must be `_getTick()` (local raw tick). Corrupts `rawDelta` by −offset on the frame following a hard-snap when offset ≠ 0. Fix: `_lastUpdateRawTicks = _getTick()`. | ✅ TC3-BATCH-03 Corrective-01 |
 |   | P3 | Correctness  | TC3-BATCH-02 | `hardSnap = _masterWallClockOffset == 0` fires on every sync when the legitimate offset is zero (same-machine scenario). Use a separate `_firstSyncDone` sentinel. | Opportunistic |
 |   | P3 | Testing      | TC3-BATCH-01 | `MasterSyncController_Step_EmitsDebugLog` uses a global NLog `MemoryTarget` (not thread-safe under parallel test execution) and asserts a raw string literal `"[TC3][Master] STEP"`. Improve by (a) using a test-scoped FdpTestLogSink, and (b) referencing a `public const string DebugStepPrefix` on the controller. | Opportunistic |

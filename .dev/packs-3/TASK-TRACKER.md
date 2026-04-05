@@ -10,7 +10,7 @@
 **Goal:** Replace ad-hoc per-component registration in `CgfApplication` with a centralised
 `CgfComponentRegistry`, matching the `SimHostComponentRegistry` pattern.
 
-- [ ] **PACK3-C001** Create `CgfComponentRegistry` and replace ad-hoc registrations in `CgfApplication` [details](./TASK-DETAIL.md#pack3-c001--create-cgfcomponentregistry)
+- [x] **PACK3-C001** Create `CgfComponentRegistry` and replace ad-hoc registrations in `CgfApplication` [details](./TASK-DETAIL.md#pack3-c001--create-cgfcomponentregistry)
 
 ---
 
@@ -19,8 +19,8 @@
 **Goal:** Enable the Urban Combat demo to function as a data-driven JSON scenario; introduce
 shared validation logic; prove the Editor Preview/Rewind and full cluster lifecycle.
 
-- [ ] **PACK3-U001** Extract `UrbanCombatValidator` with `TkbIdentity`-based dynamic entity resolution [details](./TASK-DETAIL.md#pack3-u001--extract-urbancombatvalidator)
-- [ ] **PACK3-U002** Simplify `UrbanCombatNewScenario` to delegate `EvaluateTick` to the new validator [details](./TASK-DETAIL.md#pack3-u002--simplify-urbancombatscenario)
+- [x] **PACK3-U001** Extract `UrbanCombatValidator` with `TkbIdentity`-based dynamic entity resolution [details](./TASK-DETAIL.md#pack3-u001--extract-urbancombatvalidator)
+- [x] **PACK3-U002** Simplify `UrbanCombatNewScenario` to delegate `EvaluateTick` to the new validator [details](./TASK-DETAIL.md#pack3-u002--simplify-urbancombatscenario)
 - [ ] **PACK3-U003** Editor Preview/Rewind integration test (`EditorPreviewAndSaveIntegrationTests`) [details](./TASK-DETAIL.md#pack3-u003--editor-preview--rewind-integration-test)
 - [ ] **PACK3-U004** Urban Combat file lifecycle integration test (auto-extract → full cluster → validate) [details](./TASK-DETAIL.md#pack3-u004--urban-combat-file-lifecycle-integration-test)
 
@@ -59,7 +59,7 @@ Map tools must emit only pure domain events; the egress translator handles DDS t
 **Goal:** Eradicate the copy-pasted `NetworkGatewaySystem` from the Cyclone transport pack.
 The canonical, transport-agnostic implementation lives in `FDP.Toolkit.Replication`.
 
-- [ ] **PACK3-N001** Create canonical `NetworkGatewaySystem` in `FDP.Toolkit.Replication.Systems` [details](./TASK-DETAIL.md#pack3-n001--relocate-networkgatewaysystem-to-fdptoolkitreplication)
-- [ ] **PACK3-N002** Delete Cyclone-local clones and legacy `ModuleHost.Core` originals [details](./TASK-DETAIL.md#pack3-n002--delete-clones-and-legacy-originals)
-- [ ] **PACK3-N003** Rewire `CycloneNetworkModule` to reference the Replication toolkit system [details](./TASK-DETAIL.md#pack3-n003--rewire-cyclonenetworkmodule)
+- [x] **PACK3-N001** Create canonical `NetworkGatewaySystem` in `FDP.Toolkit.Replication.Systems` [details](./TASK-DETAIL.md#pack3-n001--relocate-networkgatewaysystem-to-fdptoolkitreplication)
+- [x] **PACK3-N002** Delete Cyclone-local clones and legacy `ModuleHost.Core` originals [details](./TASK-DETAIL.md#pack3-n002--delete-clones-and-legacy-originals)
+- [x] **PACK3-N003** Rewire `CycloneNetworkModule` to reference the Replication toolkit system [details](./TASK-DETAIL.md#pack3-n003--rewire-cyclonenetworkmodule)
 - [ ] **PACK3-N004** `NetworkGatewaySystem` integration test (SimHost + IG, `AllPeers` handshake, `EntityLifecycle.Active`) [details](./TASK-DETAIL.md#pack3-n004--networkgatewaysystem-integration-test)

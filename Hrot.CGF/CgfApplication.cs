@@ -90,21 +90,7 @@ namespace Hrot.CGF
             // Unified kernel: hosts the SlaveSyncController and all simulation modules.
             // Initialize() is deferred until first Tick() so callers can Install() modules first.
             _world  = new EntityRepository();
-            Map.Common.HrotSharedComponentRegistry.RegisterAll(_world);
-            // ── Components written by EntityStatesIngressPack translators ──────────────────
-            // EntityInfoIngressTranslator writes EntityInfo (ID 164).
-            _world.RegisterComponent<Hrot.IG.Components.EntityInfo>();
-            // EntityDamageIngressTranslator writes IgHealthState (ID 165).
-            _world.RegisterComponent<Hrot.IG.Components.IgHealthState>();
-            // MapVisualOverlayIngressTranslator writes EditablePolyline + MapOverlayStyle.
-            _world.RegisterManagedComponent<Hrot.IG.Components.EditablePolyline>();
-            _world.RegisterComponent<Hrot.IG.Components.MapOverlayStyle>();
-            // MapRouteIngressTranslator writes RoutePlan, PersonalRouteRef, RouteTrajectoryCache.
-            _world.RegisterManagedComponent<Hrot.Map.Common.Components.RoutePlan>();
-            _world.RegisterComponent<Hrot.Map.Common.Components.PersonalRouteRef>();
-            _world.RegisterComponent<Hrot.Map.Common.Components.RouteTrajectoryCache>();
-            // EntityMissionIngressTranslator & mission feedback write ActiveMissionPlan.
-            _world.RegisterManagedComponent<FDP.Toolkit.Behavior.Components.ActiveMissionPlan>();
+            CgfComponentRegistry.RegisterAll(_world);
             _kernel = new ModuleHostKernel(_world, new EventAccumulator());
             _kernel.SetTimeController(new SlaveSyncController(_eventBus, nodeId));
             // Note: _kernel.Initialize() is deferred until first Tick()
