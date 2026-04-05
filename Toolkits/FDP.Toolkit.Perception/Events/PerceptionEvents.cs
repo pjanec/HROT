@@ -89,4 +89,29 @@ namespace FDP.Toolkit.Perception.Events
         /// <summary>World-space origin of the detected sound.</summary>
         public Vector3 Origin;
     }
+
+    // ── SeedTargetCommand ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Unmanaged command that externally boosts the threat score of a specific target in
+    /// the perceiver's <see cref="Components.TargetMemory"/>. Consumed by
+    /// <c>ThreatEvaluationSystem</c> during its ingress pass.
+    ///
+    /// <para>Use this when a higher-level system (e.g. a mission planner or player command)
+    /// needs to force-focus the perceiver on a chosen entity regardless of organic detection.
+    /// </para>
+    /// </summary>
+    [EventId(PerceptionConstants.SeedTargetCommandId)]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SeedTargetCommand
+    {
+        /// <summary>The entity whose <see cref="Components.TargetMemory"/> should be updated.</summary>
+        public Entity Perceiver;
+
+        /// <summary>The target entity to seed into <see cref="Perceiver"/>'s memory.</summary>
+        public Entity Target;
+
+        /// <summary>Additive threat-score boost applied on top of any existing score.</summary>
+        public float ScoreBoost;
+    }
 }

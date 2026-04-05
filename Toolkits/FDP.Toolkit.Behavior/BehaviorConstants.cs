@@ -59,5 +59,12 @@ namespace FDP.Toolkit.Behavior
 
         /// <summary>EventId for <c>AssignDoctrineHashEvent</c>.</summary>
         public const int EventId_AssignDoctrineHash = 3102;
+
+        // ── Embarkation command IDs (edit-1/EDIT1-E001) ──────────────────────
+        /// <summary>EventId for <c>EmbarkEntityCommand</c>.</summary>
+        public const int EventId_EmbarkEntity    = 3201;
+
+        /// <summary>EventId for <c>DisembarkEntityCommand</c>.</summary>
+        public const int EventId_DisembarkEntity = 3202;
     }
 }

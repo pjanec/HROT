@@ -25,6 +25,9 @@ namespace FDP.Toolkit.Perception
         /// <summary>Event ID for <see cref="Events.TargetHeardEvent"/>.</summary>
         public const int TargetHeardEventId = 4004;
 
+        /// <summary>Event ID for <see cref="Events.SeedTargetCommand"/>.</summary>
+        public const int SeedTargetCommandId = 4101;
+
         // ── Threat score dynamics ─────────────────────────────────────────────────
 
         /// <summary>
